@@ -94,10 +94,10 @@ class App:
         self.message = ""
         self.new_camera = None  # hauteur de caméra calée, à reporter dans le réglage de la page
         self.points = []  # points triangulés gardés : (lon, lat, attributs)
-        self.comments = {}  # commentaire par mesure (id de la mesure)
         self._handles = []  # clés des poignées de la carte, dans l'ordre de handles()
         self.calibration_version = 0  # augmente à chaque changement du calage (à enregistrer)
         self.active = False  # bouton « Mesure » de la page : clics dans la photo pour mesurer
+        self.epoch = 0  # change quand les clics en cours sont abandonnés (profil arrivé trop tard)
 
     # Dessin --------------------------------------------------------------------------
     def _new_item(self, wall=False):
@@ -155,6 +155,7 @@ class App:
     def _clear_measures(self):
         """Termine les mesures en cours (réussies, elles restent affichées) ; le calage déjà
         fait est conservé (comme le plugin à un changement de mode)."""
+        self.epoch += 1
         self.triangulator.clear()
         self.tool.finish()
         self.calibrator.reset()
@@ -186,6 +187,7 @@ class App:
     def set_bridge(self, value):
         """« Mesure sur un pont » : sol plat sous la caméra ; les profils déjà lus ne valent plus."""
         self.terrain.bridge = bool(value)
+        self.epoch += 1
         self.tool.clear()
         self.calibrator.reset()
         self.message = ""
@@ -304,15 +306,15 @@ class App:
             self._after_calibration(tool)
             return self.status()
         self.message = "Altitude du terrain le long de la visée…"
-        mode = self.mode
+        epoch = self.epoch
         self.terrain.profile(click["lon"], click["lat"], click["yaw"],
-                             lambda profile, label, warning: self._profiled(mode, tool, click, profile, label,
+                             lambda profile, label, warning: self._profiled(epoch, tool, click, profile, label,
                                                                             warning))
         return self.status()
 
-    def _profiled(self, mode, tool, click, profile, label, warning):
-        if self.mode != mode:
-            return  # mode changé entre-temps
+    def _profiled(self, epoch, tool, click, profile, label, warning):
+        if epoch != self.epoch:
+            return  # mode changé, mesure effacée ou désactivée entre-temps : clic abandonné
         try:
             click.update(profile=profile, terrain=label, precise_ground=label in terrain.PRECISE_LABELS)
             tool.add_click(click, warning)
@@ -397,17 +399,18 @@ class App:
         tool = self._active()
         if tool is self.tool and tool.cancel_selection():
             return self.status()
+        self.epoch += 1
         tool.clear()
         if tool is self.calibrator:
             self._calibration_changed()
         return self.status()
 
     def clear_all(self):
+        self.epoch += 1
         self.triangulator.clear()
         self.tool.clear_all()
         self.calibrator.reset()
         self.points = []
-        self.comments = {}
         self.message = ""
         return self.status()
 
@@ -531,7 +534,7 @@ class App:
 
     def results(self):
         """Mesures terminées et points gardés, pour la liste de la page (JSON)."""
-        out = [{"id": id(m), "kind": "mesure", "text": m.label(), "comment": self.comments.get(id(m), "")}
+        out = [{"id": id(m), "kind": "mesure", "text": m.label(), "comment": getattr(m, "comment", "")}
                for m in self.tool.measures() if m.result]
         out += [{"id": i, "kind": "point", "text": "Point triangulé ±{} m".format(measures._num(v["incert_m"], 2)),
                  "comment": v.get("commentaire", "")}
@@ -543,8 +546,10 @@ class App:
         if kind == "point":
             if 0 <= ident < len(self.points):
                 self.points[ident][2]["commentaire"] = text
-        else:
-            self.comments[ident] = text
+            return
+        for m in self.tool.measures():  # rangé sur la mesure : effacée, son commentaire disparaît avec elle
+            if id(m) == ident:
+                m.comment = text
 
     # Export ------------------------------------------------------------------------------
     def _records(self):
@@ -575,7 +580,7 @@ class App:
                 "recales": len(m.overrides),
                 "photos": ",".join(dict.fromkeys(c.get("pic") or "" for c in m.clicks)),
                 "date_mesure": datetime.now().isoformat(timespec="seconds"),
-                "commentaire": self.comments.get(id(m), ""),
+                "commentaire": getattr(m, "comment", ""),
             }))
         for lon, lat, values in self.points:
             out.append(([(lon, lat)], dict({"type": "point triangulé"}, **values)))

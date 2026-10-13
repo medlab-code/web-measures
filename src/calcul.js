@@ -66,13 +66,20 @@ const Calcul = (() => {
   function startWorker() {
     const code = `(${workerMain.toString()})();`;
     worker = new Worker(`data:text/javascript;charset=utf-8,${encodeURIComponent(code)}`, { type: "module" });
+    // Chargement raté ou Worker arrêté (mémoire…) : calculs d'arrière-plan indisponibles, et
+    // les demandes en cours échouent au lieu d'attendre indéfiniment
+    const fail = (error) => {
+      console.error("Pyodide d'arrière-plan :", error);
+      for (const request of waiting.values()) request.reject(new Error(String(error)));
+      waiting.clear();
+      worker?.terminate();
+      worker = null;
+    };
+    worker.onerror = (event) => fail(event.message || "arrêt du calcul d'arrière-plan");
     worker.onmessage = (event) => {
       const { id, result, error } = event.data;
-      if (id === 0) {  // chargement raté : calculs d'arrière-plan indisponibles
-        console.error("Pyodide d'arrière-plan :", error);
-        for (const request of waiting.values()) request.reject(new Error(error));
-        waiting.clear();
-        worker = null;
+      if (id === 0) {
+        fail(error);
         return;
       }
       const request = waiting.get(id);

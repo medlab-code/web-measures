@@ -79,7 +79,8 @@
     if (saved && !app.load_calibration(saved)) console.warn("Calage enregistré illisible : ignoré.");
     savedCalibration = app.calibration_version;
     for (const id of ["#mesure", "#mode", "#camera", "#pont", "#effacer", "#tout-effacer", "#calage-exporter",
-      "#calage-importer"]) $(id).disabled = false;
+      "#calage-importer", "#mur", "#surface", "#definir-facade", "#facade-cadastre", "#plan", "#viser",
+      "#reference", "#longueur"]) $(id).disabled = false;
     $("#camera").value = store.get("camera", $("#camera").value);
     app.set_camera_height(Number($("#camera").value));
     applyFilter(false);
@@ -147,7 +148,12 @@
 
   // Résultats ------------------------------------------------------------------------------
 
+  let resultsKey = "";  // résultats affichés (sans les commentaires, que l'on est peut-être en train d'écrire)
+
   function showResults(list) {
+    const key = JSON.stringify(list.map((r) => [r.kind, r.id, r.text]));
+    if (key === resultsKey) return;
+    resultsKey = key;
     const ol = $("#resultats ol");
     const focused = document.activeElement?.closest?.("#resultats ol") ? document.activeElement.dataset.key : null;
     ol.replaceChildren(...list.map((r) => {
@@ -157,7 +163,7 @@
         type: "text", value: r.comment, placeholder: "Commentaire", title: "Commentaire exporté avec le résultat",
       });
       comment.dataset.key = `${r.kind}-${r.id}`;
-      comment.addEventListener("change", () => app.set_comment(r.kind, r.id, comment.value));
+      comment.addEventListener("input", () => app.set_comment(r.kind, r.id, comment.value));
       li.append(text, comment);
       return li;
     }));
@@ -196,7 +202,12 @@
     setPhoto(feature, false);
     $("#invite").hidden = true;
     viewer.hidden = false;
-    if (viewer.getAttribute("picture") !== feature.id) viewer.setAttribute("picture", feature.id);
+    // Séquence et photo ensemble : la visionneuse garde sinon la séquence de la photo précédente,
+    // n'y trouve pas la nouvelle photo et se vide
+    if (viewer.getAttribute("picture") !== feature.id) {
+      if (viewer.select) viewer.select(feature.collection || null, feature.id, true);
+      else viewer.setAttribute("picture", feature.id);
+    }
     attachViewer();
   }
 
@@ -271,7 +282,9 @@
       const dispatch = psv.dispatchEvent;
       psv.dispatchEvent = function (event) {
         if (event?.type === "click" && blocksNavigation()) {
-          if (app && !event.data?.rightclick) refresh(app.click(event.data.yaw, event.data.pitch));
+          if (app && !event.data?.rightclick) {
+            refresh(photoReady() ? app.click(event.data.yaw, event.data.pitch) : LOADING);
+          }
           return true;
         }
         return dispatch.call(this, event);
@@ -300,6 +313,19 @@
   }
 
   // Bouton « Mesure » ------------------------------------------------------------------------
+
+  /**
+   * La visionneuse montre-t-elle la photo dont le calcul a la fiche ? Pendant un changement de
+   * photo, l'une ou l'autre est en retard : un clic mêlerait la direction d'une photo et la
+   * position de l'autre (comme le plugin, on le refuse).
+   */
+  function photoReady() {
+    if (!psv || !photo) return false;
+    // Photo affichée (getPictureId donnerait celle en cours de chargement)
+    const shown = psv.getPictureMetadata?.()?.id;
+    return shown === photo.id;
+  }
+  const LOADING = "Photo en cours de chargement : cliquez à nouveau.";
 
   /** Les clics dans la photo mesurent (pas en triangulation, qui demande de changer de photo). */
   function blocksNavigation() {
@@ -438,6 +464,10 @@
       setStatus("Aucune photo affichée : impossible de viser.");
       return;
     }
+    if (!photoReady()) {
+      setStatus(LOADING);
+      return;
+    }
     const { yaw, pitch } = psv.getPosition();
     refresh(app.aim(yaw, pitch));
   });
@@ -495,9 +525,16 @@
 
   // Exports ----------------------------------------------------------------------------------
 
-  $("#csv").addEventListener("click", () => download("﻿" + app.export_csv(), "mesures.csv", "text/csv"));
-  $("#geojson").addEventListener("click", () => download(app.export_geojson(), "mesures.geojson",
-    "application/geo+json"));
+  let exported = "[]";  // résultats (commentaires compris) lors du dernier export
+
+  $("#csv").addEventListener("click", () => {
+    download("\ufeff" + app.export_csv(), "mesures.csv", "text/csv");
+    exported = app.results();
+  });
+  $("#geojson").addEventListener("click", () => {
+    download(app.export_geojson(), "mesures.geojson", "application/geo+json");
+    exported = app.results();
+  });
   $("#calage-exporter").addEventListener("click", () => download(app.calibration_json(), "calage-panoramax.json",
     "application/json"));
   $("#calage-importer").addEventListener("click", () => $("#calage-fichier").click());
@@ -521,7 +558,7 @@
   }
 
   window.addEventListener("beforeunload", (event) => {
-    if (app && app.has_results()) event.preventDefault();  // mesures non exportées
+    if (app && app.has_results() && app.results() !== exported) event.preventDefault();  // non exportés
   });
 
   // Captures ----------------------------------------------------------------------------------

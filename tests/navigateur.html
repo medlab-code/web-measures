@@ -45,11 +45,20 @@ async function feature(id) {
   log("pyodide " + await until(() => w.mesures && w.mesures.app, 120000, "Pyodide") + " ms");
   const app = w.mesures.app;
   const state = () => JSON.parse(app.state());
+  const doc = w.document;
   const open = async (id) => {
     w.mesures.openPhoto(await feature(id));
-    await until(() => w.mesures.psv, 30000, "visionneuse");
+    try {
+      await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === id, 30000, "photo affichée");
+    } catch (e) {
+      const psv = w.mesures.psv;
+      log("visionneuse : affichée " + psv?.getPictureMetadata?.()?.id + " · en chargement " + psv?.getPictureId?.()
+        + " · attribut " + doc.querySelector("#visionneuse").getAttribute("picture")
+        + " · même moteur : " + (doc.querySelector("#visionneuse").psv === psv)
+        + " · moteur de l'élément : " + doc.querySelector("#visionneuse").psv?.getPictureMetadata?.()?.id);
+      throw e;
+    }
   };
-  const doc = w.document;
   // Clic dans la visionneuse, tel que le moteur 360° le signale
   const psvClick = (yaw, pitch) => {
     const event = new Event("click");
@@ -87,11 +96,11 @@ async function feature(id) {
   await open(DIJON[0]);
   // Bouton « Mesure » : un clic dans la photo prend un point, sans changer de photo
   log("== clic dans la photo, Mesure activée : " + app.set_mode("road"));
-  const before = w.mesures.psv.getPictureId?.();
+  const before = w.mesures.psv.getPictureMetadata?.()?.id;
   psvClick(-0.45, -0.3);
   await until(() => app.status().startsWith("Cliquez au pied du bord opposé"), 15000, "clic de mesure");
   const box = w.mesures.psv.container;
-  log("point pris · photo inchangée : " + (w.mesures.psv.getPictureId?.() === before)
+  log("point pris · photo inchangée : " + (w.mesures.psv.getPictureMetadata?.()?.id === before)
     + " · flèches masquées : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden")
     + " · pointeur réticule : " + !!box.getRootNode().getElementById?.("mesure-pointeur"));
   app.clear();
@@ -131,8 +140,12 @@ async function feature(id) {
 
   log("== triangulation : " + app.set_mode("tri"));
   log(app.aim(0.9, 0.0));
-  await open(DIJON[1]);
-  await sleep(2000);
+  // Changement de photo : tant que la visionneuse montre l'ancienne, la visée est refusée
+  w.mesures.openPhoto(await feature(DIJON[1]));
+  doc.querySelector("#viser").click();
+  log("viser pendant le chargement : " + doc.querySelector("#statut").textContent);
+  await until(() => w.mesures.psv.getPictureMetadata?.()?.id === DIJON[1], 30000, "photo suivante");
+  await sleep(1000);
   log(app.aim(0.95, 0.0));
   log("cartes : " + JSON.parse(app.map_geojson()).features.filter((f) => f.properties.kind === "visee").length + " visées");
   log("garder : " + app.keep_point());
@@ -142,6 +155,14 @@ async function feature(id) {
   log(app.click(0.625, 0.35));
   log("calage : " + state().calibration);
   log("résultats : " + JSON.parse(app.results()).map((r) => r.text).join(" | "));
+  // Commentaire : gardé pendant les rafraîchissements, exporté
+  const input = doc.querySelector("#resultats ol input");
+  input.focus();
+  input.value = "bordure abîmée";
+  input.dispatchEvent(new Event("input"));
+  doc.querySelector("#effacer").click();  // rafraîchit la page
+  log("commentaire après rafraîchissement : " + doc.querySelector("#resultats ol input").value
+    + " · exporté : " + app.export_csv().includes("bordure abîmée"));
   log("csv :\n" + app.export_csv());
 
   // Interface : réglages propres au mode, capture vignette

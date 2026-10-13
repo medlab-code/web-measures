@@ -37,10 +37,10 @@
       </select>
     </label>
     <!-- Réglages du mode (voir app.js : showModeOptions) -->
-    <span class="option" data-modes="height"><label><input id="mur" type="checkbox"> Façade du cadastre</label></span>
+    <span class="option" data-modes="height"><label><input id="mur" type="checkbox" disabled> Façade du cadastre</label></span>
     <span class="option" data-modes="free">
       <label>Surface
-        <select id="surface">
+        <select id="surface" disabled>
           <option value="ground">Sol</option>
           <option value="facade">Façade (plan vertical)</option>
           <option value="vertical">Plan vertical face à la caméra</option>
@@ -50,22 +50,22 @@
       </label>
     </span>
     <span class="option" data-modes="free" data-surface="facade">
-      <button id="definir-facade" type="button">Définir la façade</button>
-      <button id="facade-cadastre" type="button">Façade du cadastre</button>
+      <button id="definir-facade" type="button" disabled>Définir la façade</button>
+      <button id="facade-cadastre" type="button" disabled>Façade du cadastre</button>
     </span>
     <span class="option" data-modes="free" data-surface="horizontal">
-      <label>à <input id="plan" type="number" min="0" max="20" step="0.05" value="1.00"> m du sol</label>
+      <label>à <input id="plan" type="number" disabled min="0" max="20" step="0.05" value="1.00"> m du sol</label>
     </span>
     <span class="option" data-modes="tri">
-      <button id="viser" type="button" class="principal">🎯 Viser</button>
+      <button id="viser" type="button" class="principal" disabled>🎯 Viser</button>
       <button id="garder" type="button" disabled>Garder le point</button>
     </span>
     <span class="option" data-modes="camera">
-      <select id="reference">
+      <select id="reference" disabled>
         <option value="ground">Longueur au sol</option>
         <option value="height">Hauteur d'un objet</option>
       </select>
-      <label>de <input id="longueur" type="number" min="0.2" max="100" step="0.01" value="5.00"> m</label>
+      <label>de <input id="longueur" type="number" disabled min="0.2" max="100" step="0.01" value="5.00"> m</label>
     </span>
     <span class="espace"></span>
     <button id="effacer" type="button" disabled>Effacer</button>

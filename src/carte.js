@@ -148,18 +148,29 @@ const Carte = (() => {
       .sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase()));
   }
 
+  /** Carte prête (style chargé) : fn tout de suite, sinon à son chargement. */
+  function whenLoaded(map, fn) {
+    if (map.isStyleLoaded()) fn();
+    else map.once("load", fn);
+  }
+
   /** Bascule sur une instance (adresse de son site), ou sur le méta-catalogue (""). */
   function setInstance(map, base) {
     let site = (base || "").replace(/\/+$/, "");
     if (site.endsWith("/api")) site = site.slice(0, -4);
     apiUrl = site ? `${site}/api` : META_API;
-    map.getSource("panoramax")?.setTiles([tilesUrl()]);
+    const url = tilesUrl();
+    whenLoaded(map, () => map.getSource("panoramax").setTiles([url]));
     return apiUrl;
   }
 
   // Filtre des photos (même critères que le plugin, voir core/filters.py) ------------------
 
   function setFilter(map, f) {
+    if (!map.isStyleLoaded()) {  // MapLibre refuse un filtre avant le chargement du style
+      map.once("load", () => setFilter(map, f));
+      return;
+    }
     const tileTypes = { 360: "equirectangular", flat: "flat" };
     for (const [layer, dateField] of [["sequences", "date"], ["photos", "ts"]]) {
       const parts = ["all"];
@@ -196,19 +207,31 @@ const Carte = (() => {
     }
   }
 
-  // Poignées : points des mesures (et extrémités de la façade) à glisser pour les recaler
+  // Poignées : points des mesures (et extrémités de la façade) à glisser pour les recaler.
+  // Recréées seulement quand elles changent, et jamais pendant un glisser (le marqueur saisi
+  // disparaîtrait avec le recalage en cours).
   const handles = [];
+  let handlesKey = "";
+  let dragging = false;
+  let onMoved = null;
 
   function showHandles(map, list, moved) {
+    onMoved = moved;
+    const key = JSON.stringify(list);
+    if (dragging || key === handlesKey) return;
+    handlesKey = key;
     for (const marker of handles.splice(0)) marker.remove();
     list.forEach(([lon, lat, facade], index) => {
       const element = document.createElement("div");
       element.className = "poignee" + (facade ? " facade" : "");
       element.title = "Glisser pour recaler ce point sur la carte";
       const marker = new maplibregl.Marker({ element, draggable: true }).setLngLat([lon, lat]).addTo(map);
+      marker.on("dragstart", () => { dragging = true; });
       marker.on("dragend", () => {
+        dragging = false;
+        handlesKey = "";  // redessinées d'après le recalage
         const { lng, lat: newLat } = marker.getLngLat();
-        moved(index, lng, newLat);
+        onMoved(index, lng, newLat);
       });
       handles.push(marker);
     });
