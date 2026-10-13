@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mesures Panoramax</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="src/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Mesures Panoramax</h1>
+    <label>Fond :
+      <select id="fond">
+        <option value="plan">Plan IGN</option>
+        <option value="ortho">Orthophoto</option>
+      </select>
+    </label>
+  </header>
+  <main>
+    <div id="carte"></div>
+    <aside>
+      <section id="photo">
+        <h2>Photo</h2>
+        <p class="aide">Cliquez sur le filaire orange pour choisir la photo la plus proche.</p>
+      </section>
+      <section id="reseau">
+        <h2>Accès aux services</h2>
+        <p class="aide">Vérifié depuis ce navigateur (proxy et pare-feu du poste compris).</p>
+        <ul></ul>
+      </section>
+    </aside>
+  </main>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
