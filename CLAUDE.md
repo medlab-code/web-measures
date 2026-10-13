@@ -11,7 +11,9 @@ application). Auteur : Cédric COCHART.
 - Français partout : interface, messages, commentaires, documentation, messages de commit.
   Typographie française (« », espace avant `:`, `;`, `?`).
 - En-tête SPDX dans chaque fichier (`GPL-2.0-or-later`, © Cédric COCHART).
-- Site statique : HTML, CSS, JavaScript en modules, sans étape de compilation. Bibliothèques
+- Site statique : HTML, CSS, JavaScript, sans étape de compilation. La page doit s'ouvrir
+  par double-clic (`file://`) : scripts ordinaires (pas de modules ES, chaque fichier expose
+  un objet : `Carte`, `Services`, `Calcul`), pas de `fetch` de fichiers locaux. Bibliothèques
   par CDN (jsDelivr), versions épinglées.
 - Services appelés depuis le navigateur : ils doivent renvoyer les en-têtes CORS (la page
   d'accueil les vérifie). OpenTopoData ne les renvoie pas.
@@ -25,8 +27,11 @@ application). Auteur : Cédric COCHART.
   puis `--virtual-time-budget=60000 --window-size=1400,1000 --dump-dom
   http://127.0.0.1:8765/tests/navigateur.html` : le journal est dans le `<pre id="log">`.
 - `py/core/` est une copie du plugin (`tools/update-core.sh`) : corriger dans le plugin,
-  puis recopier. Tout fichier Python ajouté sous `py/` doit figurer dans `py/manifest.json`
-  (régénéré par le même script).
+  puis recopier. Après toute modification d'un fichier Python sous `py/`, relancer le script :
+  il régénère `py/sources.js` (seul chargé par la page).
+- Essai en `file://` : Chrome avec `--filesystem=` sur le dossier ; l'iframe de
+  `tests/navigateur.html` n'y est pas accessible (origines distinctes), essayer sur une
+  copie de `index.html` qui embarque le script d'essai.
 
 ## Git
 

@@ -25,12 +25,17 @@ Les calculs sont ceux du plugin, exécutés dans le navigateur par Pyodide (Pyth
 environ 10 Mo au premier chargement, puis en cache). La page vérifie aussi l'accès aux
 services depuis le poste (encart « Accès aux services »).
 
+**Ouvrir la page** : double-cliquer sur `index.html` suffit (Edge, Chrome, Firefox), sans
+installation ni serveur ; une connexion à internet est nécessaire (bibliothèques, Pyodide et
+services). Elle peut aussi être publiée sur n'importe quel serveur web statique, ou servie
+localement :
+
 ```
 python3 -m http.server 8765    # puis http://127.0.0.1:8765/
 ```
 
-Un serveur web statique suffit : pas de compilation, pas de serveur applicatif. La page
-s'ouvre mal en `file://` (les modules JavaScript y sont bloqués).
+Pour s'ouvrir en `file://`, la page n'utilise pas de modules JavaScript ni de lecture de
+fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/sources.js`.
 
 ### Limites de la maquette
 
@@ -49,11 +54,12 @@ s'ouvre mal en `file://` (les modules JavaScript y sont bloqués).
 | `index.html`, `src/style.css` | page et mise en page |
 | `src/app.js` | relie carte, visionneuse et calcul |
 | `src/carte.js` | carte MapLibre : fonds, filaire, mesures, poignées, photo la plus proche |
-| `src/calcul.js` | chargement de Pyodide et des fichiers Python (`py/manifest.json`) |
+| `src/calcul.js` | chargement de Pyodide et des fichiers Python (`py/sources.js`) |
 | `src/services.js` | vérification de l'accès aux services |
 | `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page |
 | `py/web_host.py` | accès réseau du cœur par le `fetch` du navigateur |
 | `py/core/` | cœur de calcul du plugin, **copié** par `tools/update-core.sh` (ne pas modifier ici) |
+| `py/sources.js` | fichiers Python de `py/` regroupés pour la page (généré par le même script) |
 | `tests/navigateur.html` | essai de bout en bout dans un vrai navigateur |
 
 Mettre à jour le cœur : `tools/update-core.sh [dossier du plugin] [révision]` (par défaut
