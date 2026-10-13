@@ -20,6 +20,8 @@
     <h1>Mesures Panoramax</h1>
     <button id="mesure" type="button" aria-pressed="false" disabled
             title="Mesurer : un clic dans la photo prend un point au lieu de changer de photo">📐 Mesure</button>
+    <button id="effacer" type="button" disabled>Effacer</button>
+    <button id="tout-effacer" type="button" disabled>Tout effacer</button>
     <label>Mode
       <select id="mode" disabled>
         <optgroup label="Mesures">
@@ -68,8 +70,10 @@
       <label>de <input id="longueur" type="number" disabled min="0.2" max="100" step="0.01" value="5.00"> m</label>
     </span>
     <span class="espace"></span>
-    <button id="effacer" type="button" disabled>Effacer</button>
-    <button id="tout-effacer" type="button" disabled>Tout effacer</button>
+    <label>Fond de carte
+      <select id="fond"><option value="plan">Plan IGN</option><option value="ortho">Orthophoto</option>
+        <option value="osm">OpenStreetMap</option></select>
+    </label>
   </header>
   <main>
     <section id="vue">
@@ -134,9 +138,6 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Capture vignette</bu
           <summary>Réglages</summary>
           <div class="grille">
             <label for="instance">Instance</label><select id="instance"></select>
-            <label for="fond">Fond</label>
-            <select id="fond"><option value="plan">Plan IGN</option><option value="ortho">Orthophoto</option>
-              <option value="osm">OpenStreetMap</option></select>
           </div>
           <label><input id="centrer" type="checkbox" checked> Centrer la carte sur la photo</label>
           <h3>Calage des photos</h3>
