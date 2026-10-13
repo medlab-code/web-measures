@@ -23,6 +23,9 @@ const Carte = (() => {
   }
 
   const ATTRIBUTION_IGN = '<a href="https://www.ign.fr">IGN</a>';
+  const ATTRIBUTION_OSM = '© <a href="https://www.openstreetmap.org/copyright">les contributeurs d\'OpenStreetMap</a>';
+  const OSM_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+  const BACKGROUNDS = ["plan", "ortho", "osm"];
   const ATTRIBUTION_PANORAMAX = '<a href="https://panoramax.fr">Panoramax</a>';
   const EMPTY = { type: "FeatureCollection", features: [] };
   const kind = (...kinds) => ["in", ["get", "kind"], ["literal", kinds]];
@@ -43,6 +46,7 @@ const Carte = (() => {
             type: "raster", tiles: [wmts("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg")],
             tileSize: 256, maxzoom: 20, attribution: ATTRIBUTION_IGN,
           },
+          osm: { type: "raster", tiles: [OSM_TILES], tileSize: 256, maxzoom: 19, attribution: ATTRIBUTION_OSM },
           panoramax: {
             type: "vector", tiles: [tilesUrl()], minzoom: 0, maxzoom: 15, attribution: ATTRIBUTION_PANORAMAX,
           },
@@ -52,6 +56,7 @@ const Carte = (() => {
         layers: [
           { id: "plan", type: "raster", source: "plan" },
           { id: "ortho", type: "raster", source: "ortho", layout: { visibility: "none" } },
+          { id: "osm", type: "raster", source: "osm", layout: { visibility: "none" } },
           // Filaire : densité à petite échelle, séquences, puis photos
           {
             id: "grille", type: "circle", source: "panoramax", "source-layer": "grid", maxzoom: 7,
@@ -132,7 +137,8 @@ const Carte = (() => {
   }
 
   function setBackground(map, name) {
-    for (const id of ["plan", "ortho"]) {
+    if (!BACKGROUNDS.includes(name)) name = "plan";  // fond mémorisé inconnu
+    for (const id of BACKGROUNDS) {
       map.setLayoutProperty(id, "visibility", id === name ? "visible" : "none");
     }
   }
@@ -311,7 +317,7 @@ const Carte = (() => {
   }
 
   return {
-    PANORAMAX_API: META_API, GEOPF, createMap, setBackground, instances, setInstance, setFilter,
+    PANORAMAX_API: META_API, GEOPF, OSM_TILES, createMap, setBackground, instances, setInstance, setFilter,
     showMeasures, showHandles, showView, nearestPhoto, photoById, apiUrl: () => apiUrl,
   };
 })();

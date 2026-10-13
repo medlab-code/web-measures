@@ -5,13 +5,14 @@
 // pare-feu ou un en-tête CORS manquant sur le poste.
 
 const Services = (() => {
-  const { GEOPF, PANORAMAX_API } = Carte;
+  const { GEOPF, OSM_TILES, PANORAMAX_API } = Carte;
 
   const SERVICES = [
     ["Panoramax : recherche de photos", `${PANORAMAX_API}/search?limit=1`],
     ["Panoramax : filaire (tuiles)", `${PANORAMAX_API}/map/14/8396/5876.mvt`],
     ["Panoramax : photos de l'IGN", "https://panoramax.ign.fr/api/search?limit=1"],
     ["IGN : fonds de carte (WMTS)", `${GEOPF}/wmts?SERVICE=WMTS&REQUEST=GetCapabilities`],
+    ["OpenStreetMap : fond de carte", OSM_TILES.replace("{z}/{x}/{y}", "15/16846/11558")],
     ["IGN : altitudes (RGE ALTI, LiDAR HD)",
       `${GEOPF}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=4.55&lat=47.26&resource=ign_rge_alti_wld&zonly=true`],
     ["IGN : MNS LiDAR HD (WMS)", `${GEOPF}/wms-r/wms?SERVICE=WMS&REQUEST=GetCapabilities`],
