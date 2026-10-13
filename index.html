@@ -20,8 +20,6 @@
     <h1>Mesures Panoramax</h1>
     <button id="mesure" type="button" aria-pressed="false" disabled
             title="Mesurer : un clic dans la photo prend un point au lieu de changer de photo">📐 Mesure</button>
-    <button id="effacer" type="button" disabled>Effacer</button>
-    <button id="tout-effacer" type="button" disabled>Tout effacer</button>
     <label>Mode
       <select id="mode" disabled>
         <optgroup label="Mesures">
@@ -69,6 +67,8 @@
       </select>
       <label>de <input id="longueur" type="number" disabled min="0.2" max="100" step="0.01" value="5.00"> m</label>
     </span>
+    <button id="effacer" type="button" disabled>Effacer</button>
+    <button id="tout-effacer" type="button" disabled>Tout effacer</button>
     <span class="espace"></span>
     <label>Fond de carte
       <select id="fond"><option value="plan">Plan IGN</option><option value="ortho">Orthophoto</option>
