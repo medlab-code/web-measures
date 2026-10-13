@@ -115,6 +115,7 @@ h3 { font-size: 0.9rem; margin: 0.9rem 0 0.3rem; }
 header .option { display: inline-flex; align-items: center; gap: 0.4rem; }
 header .option[hidden] { display: none; }
 button.principal { font-weight: 600; }
+#mesure.actif { background: var(--panoramax); border-color: var(--panoramax); color: #fff; font-weight: 600; }
 
 /* Triangulation : réticule au centre de la vue */
 #reticule {

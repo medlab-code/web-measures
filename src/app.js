@@ -15,6 +15,7 @@
   let savedCalibration = -1;  // version du calage déjà enregistrée dans le navigateur
   let warnedSequence = null;  // séquence pour laquelle le mode dégradé a été signalé
   let noDegradedPopup = false;  // « Ne plus afficher pendant cette session »
+  let measuring = false;  // bouton « Mesure » : clics dans la photo pour mesurer, sans navigation
 
   // Réglages gardés dans le navigateur (facultatif : navigation privée, stockage bloqué…)
   const store = {
@@ -77,7 +78,7 @@
     const saved = store.get("calage");
     if (saved && !app.load_calibration(saved)) console.warn("Calage enregistré illisible : ignoré.");
     savedCalibration = app.calibration_version;
-    for (const id of ["#mode", "#camera", "#pont", "#effacer", "#tout-effacer", "#calage-exporter",
+    for (const id of ["#mesure", "#mode", "#camera", "#pont", "#effacer", "#tout-effacer", "#calage-exporter",
       "#calage-importer"]) $(id).disabled = false;
     $("#camera").value = store.get("camera", $("#camera").value);
     app.set_camera_height(Number($("#camera").value));
@@ -110,7 +111,7 @@
     bandeau.hidden = !state.waiting_map;
     bandeau.textContent = "Cliquez maintenant ce repère sur la carte (Échap pour annuler).";
     map.getCanvas().style.cursor = state.waiting_map ? "crosshair" : "";
-    warnIfDegraded(state);
+    if (state.active) warnIfDegraded(state);
     const height = app.take_camera_height();
     if (height != null) {  // hauteur de caméra calée : reportée dans le réglage
       $("#camera").value = Math.min(6, Math.max(0.3, height)).toFixed(2);
@@ -265,14 +266,21 @@
       if (!viewer.psv) return;
       clearInterval(timer);
       psv = viewer.psv;
-      psv.addEventListener("click", (event) => {
-        if (!app || event.data.rightclick) return;
-        refresh(app.click(event.data.yaw, event.data.pitch));
-      });
+      // Pendant une mesure, le clic ne va pas à la visionneuse (elle irait à la photo voisine
+      // dans la direction cliquée, ou suivrait une flèche) : il devient un point de mesure.
+      const dispatch = psv.dispatchEvent;
+      psv.dispatchEvent = function (event) {
+        if (event?.type === "click" && blocksNavigation()) {
+          if (app && !event.data?.rightclick) refresh(app.click(event.data.yaw, event.data.pitch));
+          return true;
+        }
+        return dispatch.call(this, event);
+      };
       psv.addEventListener("position-updated", updateCursor);
       psv.addEventListener("zoom-updated", updateCursor);
       // Déplacement dans la séquence (flèches de la visionneuse) : nouvelle fiche de photo
       psv.addEventListener("picture-loaded", async (event) => {
+        applyMeasureUi();  // flèches de la nouvelle photo
         const id = event.detail?.picId;
         if (!id || id === photo?.id) {
           refresh();
@@ -285,10 +293,60 @@
           console.error(error);
         }
       });
+      applyMeasureUi();
       refresh();
       updateCursor();
     }, 200);
   }
+
+  // Bouton « Mesure » ------------------------------------------------------------------------
+
+  /** Les clics dans la photo mesurent (pas en triangulation, qui demande de changer de photo). */
+  function blocksNavigation() {
+    return measuring && $("#mode").value !== "tri";
+  }
+
+  // Pointeur de mesure : réticule fin (comme le plugin), la visionneuse imposant sinon main ou flèche
+  const CURSOR = `.psv-container, .psv-container * { cursor: url("data:image/svg+xml;utf8,${
+    encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='33' height='33'>"
+      + "<circle cx='16.5' cy='16.5' r='15.5' fill='none' stroke='#ffeb00' stroke-width='1.5'/>"
+      + "<path d='M16.5 2v11M16.5 20v11M2 16.5h11M20 16.5h11' stroke='#ff8a80' stroke-width='1.5'/>"
+      + "<circle cx='16.5' cy='16.5' r='1' fill='white'/></svg>")}") 16 16, crosshair !important; }`;
+
+  /** Navigation, flèches, curseur au sol et pointeur de la visionneuse selon le bouton « Mesure ». */
+  function applyMeasureUi() {
+    $("#mesure").setAttribute("aria-pressed", String(measuring));
+    $("#mesure").classList.toggle("actif", measuring);
+    showModeOptions();
+    const box = psv?.container;
+    if (!box) return;
+    const block = blocksNavigation();
+    for (const arrows of box.querySelectorAll(".psv-virtual-tour-arrows")) {
+      if (block) arrows.style.setProperty("visibility", "hidden", "important");
+      else arrows.style.removeProperty("visibility");
+    }
+    // Curseur « aller ici » qui suit la souris sur le sol : image du moteur 360°, sans souris
+    for (const img of box.querySelectorAll(":scope > img")) {
+      if (img.style.pointerEvents !== "none" || img.style.position !== "absolute") continue;
+      if (measuring) img.style.setProperty("visibility", "hidden", "important");
+      else img.style.removeProperty("visibility");
+    }
+    const root = box.getRootNode();
+    let style = root.getElementById ? root.getElementById("mesure-pointeur") : null;
+    if (block && !style) {
+      style = Object.assign(document.createElement("style"), { id: "mesure-pointeur", textContent: CURSOR });
+      (root === document ? document.head : root).append(style);
+    } else if (!block && style) {
+      style.remove();
+    }
+  }
+
+  $("#mesure").addEventListener("click", () => {
+    measuring = !measuring;
+    if (measuring) warnedSequence = null;  // mode dégradé signalé à nouveau, comme le plugin
+    applyMeasureUi();
+    refresh(app.set_active(measuring));
+  });
 
   const MARK = "mesure-";  // préfixe de nos repères, pour ne pas toucher à ceux de la visionneuse
   let markIds = [];
@@ -344,11 +402,11 @@
       const modes = option.dataset.modes.split(" ");
       option.hidden = !modes.includes(mode) || (option.dataset.surface && option.dataset.surface !== surface);
     }
-    $("#reticule").hidden = mode !== "tri" || viewer.hidden;
+    $("#reticule").hidden = mode !== "tri" || !measuring || viewer.hidden;
   }
 
   $("#mode").addEventListener("change", (event) => {
-    showModeOptions();
+    applyMeasureUi();  // triangulation : navigation rétablie
     refresh(app.set_mode(event.target.value));
   });
   function setCamera() {

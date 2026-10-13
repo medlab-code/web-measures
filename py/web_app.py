@@ -97,6 +97,7 @@ class App:
         self.comments = {}  # commentaire par mesure (id de la mesure)
         self._handles = []  # clés des poignées de la carte, dans l'ordre de handles()
         self.calibration_version = 0  # augmente à chaque changement du calage (à enregistrer)
+        self.active = False  # bouton « Mesure » de la page : clics dans la photo pour mesurer
 
     # Dessin --------------------------------------------------------------------------
     def _new_item(self, wall=False):
@@ -128,6 +129,20 @@ class App:
         self.calibration_version += 1
 
     # Réglages ------------------------------------------------------------------------
+    def set_active(self, on):
+        """Bouton « Mesure » : activé, les clics dans la photo mesurent et l'inclinaison de la
+        photo est calculée ; désactivé, les mesures en cours sont terminées (les mesures réussies
+        restent affichées), comme dans le plugin."""
+        self.active = bool(on)
+        self.message = ""
+        if self.active:
+            if self.item:
+                pic = self.item.get("id")
+                self.tilts.check(self.item, self.calibration, lambda: self._on_tilt(pic))
+        else:
+            self._clear_measures()
+        return self.status()
+
     def set_mode(self, mode):
         if mode not in MODES:
             return self.status()
@@ -220,7 +235,8 @@ class App:
             if nid and nid not in self.neighbours:
                 web_host.fetch_json("{}/search?ids={}".format(web_host.host.api_url, nid),
                                     lambda data, error, nid=nid: self._on_neighbour(nid, data))
-        self.tilts.check(item, self.calibration, lambda: self._on_tilt(pic))
+        if self.active:
+            self.tilts.check(item, self.calibration, lambda: self._on_tilt(pic))
         return self.status()
 
     def _on_neighbour(self, nid, data):
@@ -265,6 +281,8 @@ class App:
     def click(self, yaw, pitch):
         """Clic dans la photo affichée : direction dans le repère de la photo (radians, cap
         relatif au centre de l'image, comme le donne la visionneuse)."""
+        if not self.active:
+            return self.status()
         if not self.item:
             self.message = "Photo en cours de chargement : cliquez à nouveau."
             return self.status()
@@ -334,6 +352,8 @@ class App:
 
     def aim(self, yaw, pitch):
         """Triangulation : visée du centre de la vue (radians, dans le repère de la photo)."""
+        if not self.active:
+            return self.status()
         if not self.item:
             self.message = "Aucune photo affichée : impossible de viser."
             return self.status()
@@ -427,6 +447,8 @@ class App:
     # Affichage -----------------------------------------------------------------------
     def status(self):
         """Texte de la mesure (consigne ou résultat)."""
+        if not self.active:
+            return self.message or "Cliquez « 📐 Mesure » pour mesurer dans la photo ou la caler."
         return self.message or self._active().status()
 
     def state(self):
@@ -449,6 +471,7 @@ class App:
             "advice": precision.DEGRADED_ADVICE,
             "waiting_map": self.waiting_map(),
             "point": self.triangulator.result is not None,
+            "active": self.active,
         })
 
     def viewer_marks(self):
@@ -456,9 +479,9 @@ class App:
         dans le repère de la photo, radians), libellé, point sélectionné."""
         pic = (self.item or {}).get("id")
         marks = self.tool.done_marks()
-        if self.mode in GROUND_MODES:
+        if self.active and self.mode in GROUND_MODES:  # mesure ou calage en cours
             marks = marks + [self.tool.viewer_marks()]
-        elif self.mode in CALIBRATION_MODES:
+        elif self.active and self.mode in CALIBRATION_MODES:
             marks = marks + [self.calibrator.viewer_marks()]
         out = []
         for m in marks:
@@ -471,7 +494,7 @@ class App:
     def handles(self):
         """Poignées déplaçables sur la carte (JSON) : [[lon, lat, façade ?]], repérées par leur
         rang pour move_handle. Seulement en mesure, comme dans le plugin."""
-        handles = self.tool.handles() if self.mode in GROUND_MODES else []
+        handles = self.tool.handles() if self.active and self.mode in GROUND_MODES else []
         self._handles = [key for key, _, _ in handles]
         return json.dumps([[lon, lat, key[0] == "facade"] for key, lon, lat in handles])
 
