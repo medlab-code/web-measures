@@ -10,9 +10,20 @@ les photos du conseil départemental de la Côte-d'Or (caméra imajbox, position
 
 ## État
 
-Première page seulement : carte (Plan IGN ou orthophoto, filaire Panoramax), photo la plus
-proche d'un clic, et **vérification des services** appelés depuis le navigateur. Aucune
-mesure encore.
+**Maquette** : on choisit une photo sur la carte (Plan IGN ou orthophoto, filaire
+Panoramax) ; elle s'ouvre dans la visionneuse officielle Panoramax, où l'on clique les
+points à mesurer :
+
+- **largeur de chaussée** (perpendiculaire à l'axe de la route de la BD TOPO), **longueur**
+  et **hauteur** (avec, au choix, la façade du cadastre comme plan de mesure) ;
+- résultat avec son **incertitude**, repères dans la photo, trait et étiquette sur la carte ;
+- point mal placé : **glisser sa poignée** sur la carte, ou cliquer son repère dans la photo
+  puis sa bonne position ;
+- **export CSV** (point-virgule, virgule décimale) et **GeoJSON** des mesures terminées.
+
+Les calculs sont ceux du plugin, exécutés dans le navigateur par Pyodide (Python 3.14,
+environ 10 Mo au premier chargement, puis en cache). La page vérifie aussi l'accès aux
+services depuis le poste (encart « Accès aux services »).
 
 ```
 python3 -m http.server 8765    # puis http://127.0.0.1:8765/
@@ -20,6 +31,34 @@ python3 -m http.server 8765    # puis http://127.0.0.1:8765/
 
 Un serveur web statique suffit : pas de compilation, pas de serveur applicatif. La page
 s'ouvre mal en `file://` (les modules JavaScript y sont bloqués).
+
+### Limites de la maquette
+
+- **Inclinaison de la photo non calée** : ni calage, ni inclinaison automatique pour
+  l'instant ; l'incertitude compte donc ±2° d'inclinaison, d'où des marges de l'ordre de
+  ±0,7 m sur une largeur de chaussée.
+- **Hauteur de caméra saisie** (1,90 m par défaut) : la proposition d'après l'altitude GPS
+  demande l'altitude NGF (grille du géoïde), pas encore disponible ici.
+- Mesures perdues en fermant la page : les exporter avant.
+- Pas d'indicateur de fiabilité ni de triangulation (étape 3).
+
+### Organisation
+
+| Fichier | Rôle |
+|---|---|
+| `index.html`, `src/style.css` | page et mise en page |
+| `src/app.js` | relie carte, visionneuse et calcul |
+| `src/carte.js` | carte MapLibre : fonds, filaire, mesures, poignées, photo la plus proche |
+| `src/calcul.js` | chargement de Pyodide et des fichiers Python (`py/manifest.json`) |
+| `src/services.js` | vérification de l'accès aux services |
+| `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page |
+| `py/web_host.py` | accès réseau du cœur par le `fetch` du navigateur |
+| `py/core/` | cœur de calcul du plugin, **copié** par `tools/update-core.sh` (ne pas modifier ici) |
+| `tests/navigateur.html` | essai de bout en bout dans un vrai navigateur |
+
+Mettre à jour le cœur : `tools/update-core.sh [dossier du plugin] [révision]` (par défaut
+`../visionneuse_panoramax`, branche `dev`) ; la révision copiée est notée dans
+`py/core/SOURCE`.
 
 ## Choix
 
@@ -60,13 +99,10 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Étapes
 
-1. **Séparer le cœur de calcul de QGIS**, dans le plugin : un paquet sans import QGIS qui
-   reçoit une fonction d'accès réseau en paramètre. Déjà indépendants : `triangulation`,
-   `geometry`, `ground`, `calibration`. À découpler : `terrain`, `precision`, `roads`,
-   `buildings`, `autotilt` (réseau et décodage d'image par QGIS) et la logique de
-   `measure_tool` (mêlée au dessin sur la carte).
-2. **Maquette** : visionneuse officielle, cœur dans Pyodide, largeur et hauteur, export
-   CSV et GeoJSON.
+1. ~~Séparer le cœur de calcul de QGIS~~, dans le plugin : paquet `core/` sans import QGIS,
+   services de l'hôte (réseau, altitude NGF, décodage d'image) installés par l'application.
+2. ~~Maquette~~ : visionneuse officielle, cœur dans Pyodide, largeur, longueur et hauteur,
+   recalage sur la carte, export CSV et GeoJSON.
 3. Indicateur de fiabilité, inclinaison automatique, puis triangulation.
 
 ## Licence

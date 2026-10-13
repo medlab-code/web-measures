@@ -9,29 +9,61 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css">
   <link rel="stylesheet" href="src/style.css">
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+  <!-- Visionneuse officielle Panoramax : paquet autonome au format CommonJS, dont la dernière
+       ligne écrit dans `exports` -->
+  <script>window.exports = {};</script>
+  <script src="https://cdn.jsdelivr.net/npm/@panoramax/web-viewer@5.3.1/build/cjs/index_photoviewer.js"></script>
+  <script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
 </head>
 <body>
   <header>
     <h1>Mesures Panoramax</h1>
-    <label>Fond :
+    <label>Mesure
+      <select id="mode" disabled>
+        <option value="road">Largeur de chaussée</option>
+        <option value="width">Longueur</option>
+        <option value="height">Hauteur</option>
+      </select>
+    </label>
+    <label>Caméra à
+      <input id="camera" type="number" min="0.3" max="6" step="0.05" value="1.90" disabled> m
+    </label>
+    <label id="mur" hidden><input id="facade" type="checkbox" disabled> Façade du cadastre</label>
+    <label>Fond
       <select id="fond">
         <option value="plan">Plan IGN</option>
         <option value="ortho">Orthophoto</option>
       </select>
     </label>
+    <span class="espace"></span>
+    <button id="effacer" disabled>Effacer</button>
+    <button id="tout-effacer" disabled>Tout effacer</button>
+    <button id="csv" disabled>Exporter CSV</button>
+    <button id="geojson" disabled>Exporter GeoJSON</button>
   </header>
   <main>
-    <div id="carte"></div>
+    <section id="vue">
+      <p id="invite">Cliquez sur le filaire orange de la carte pour choisir une photo.</p>
+      <pnx-photo-viewer id="visionneuse" endpoint="https://api.panoramax.xyz/api" widgets="false"
+                        url-parameters="false" keyboard-shortcuts="false" hidden></pnx-photo-viewer>
+    </section>
     <aside>
-      <section id="photo">
-        <h2>Photo</h2>
-        <p class="aide">Cliquez sur le filaire orange pour choisir la photo la plus proche.</p>
-      </section>
-      <section id="reseau">
-        <h2>Accès aux services</h2>
-        <p class="aide">Vérifié depuis ce navigateur (proxy et pare-feu du poste compris).</p>
-        <ul></ul>
-      </section>
+      <div id="carte"></div>
+      <div id="panneau">
+        <section>
+          <h2>Mesure</h2>
+          <p id="statut" class="statut">Chargement du calcul (Pyodide)…</p>
+        </section>
+        <section id="photo">
+          <h2>Photo</h2>
+          <p class="aide">Aucune photo choisie.</p>
+        </section>
+        <details id="reseau">
+          <summary>Accès aux services</summary>
+          <p class="aide">Vérifié depuis ce navigateur (proxy et pare-feu du poste compris).</p>
+          <ul></ul>
+        </details>
+      </div>
     </aside>
   </main>
   <script type="module" src="src/app.js"></script>

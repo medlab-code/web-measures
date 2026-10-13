@@ -1,0 +1,37 @@
+<!doctype html><meta charset="utf-8"><title>Essai de la page de mesure</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Essai de bout en bout dans un vrai navigateur : charge la page, ouvre une photo de Dijon,
+     mesure une largeur de chaussée, recale un point ; le journal s'affiche sous la page.
+     Voir CLAUDE.md pour le lancer dans Chrome sans fenêtre. -->
+
+<style>body{margin:0}iframe{border:0;display:block}</style><iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe><pre id="log"></pre>
+<script>
+const log = (t) => { document.getElementById("log").textContent += t + "\n"; };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  const t0 = Date.now();
+  while (!(w.mesures && w.mesures.app)) { await sleep(250); if (Date.now() - t0 > 120000) { log("TIMEOUT pyodide"); log(w.document.getElementById("statut").textContent); return; } }
+  log("pyodide " + (Date.now() - t0) + " ms");
+  log("statut: " + w.document.getElementById("statut").textContent);
+  const r = await fetch("https://api.panoramax.xyz/api/search?ids=33565d3f-5e27-47fb-9137-ba4de564530d");
+  const feat = (await r.json()).features[0];
+  w.mesures.openPhoto(feat, true);
+  const app = w.mesures.app;
+  // Largeur de chaussée : deux bords, de part et d'autre (perpendiculaire à l'axe de la photo)
+  log("clic1: " + app.click(-0.45, -0.3));
+  await sleep(6000);
+  log("après profil1: " + app.status());
+  log("clic2: " + app.click(0.5, -0.3));
+  await sleep(8000);
+  log("résultat: " + app.status());
+  log("marques: " + app.viewer_marks());
+  log("carte: " + app.map_geojson().slice(0, 400));
+  log("csv: " + app.export_csv());
+  const h = JSON.parse(app.handles()); log("poignées: " + JSON.stringify(h));
+  log("recalage: " + app.move_handle(0, h[0][0] + 0.00001, h[0][1]));
+  log("psv: " + !!w.document.getElementById("visionneuse").psv);
+  log("FIN");
+})().catch((e) => log("ERREUR " + e.stack));
+</script>

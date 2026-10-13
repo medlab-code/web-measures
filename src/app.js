@@ -1,189 +1,211 @@
 // SPDX-FileCopyrightText: 2026 Cédric COCHART
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// Première page : carte (fonds IGN, filaire Panoramax), photo la plus proche d'un clic, et
-// vérification des services appelés depuis le navigateur (proxy, pare-feu, CORS du poste).
-// Les mêmes services et le même style de filaire que le plugin QGIS Visionneuse Panoramax.
+// Page de mesure : la carte choisit la photo, la visionneuse Panoramax reçoit les clics,
+// le cœur de calcul du plugin (Pyodide, voir calcul.js) fait les mesures.
 
-const PANORAMAX_API = "https://api.panoramax.xyz/api";
-const GEOPF = "https://data.geopf.fr";
-const ORANGE = "#ff6f00";
+import {
+  createMap, nearestPhoto, photoById, setBackground, showHandles, showMeasures, showPhoto,
+} from "./carte.js";
+import { startCalcul } from "./calcul.js";
+import { checkServices } from "./services.js";
 
-function wmts(layer, format) {
-  return `${GEOPF}/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${layer}&STYLE=normal` +
-    `&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=${format}`;
+const $ = (selector) => document.querySelector(selector);
+const viewer = $("#visionneuse");
+const map = createMap("carte");
+let app = null;  // web_app.App, une fois Pyodide chargé
+let photo = null;  // fiche STAC de la photo affichée
+let psv = null;  // visionneuse sphérique (Photo Sphere Viewer) dans <pnx-photo-viewer>
+
+checkServices($("#reseau ul"));
+$("#fond").addEventListener("change", (event) => setBackground(map, event.target.value));
+
+// Calcul ---------------------------------------------------------------------------------
+
+function setStatus(text, kind = "") {
+  const status = $("#statut");
+  status.textContent = text;
+  status.className = "statut " + kind;
 }
 
-const ATTRIBUTION_IGN = '<a href="https://www.ign.fr">IGN</a>';
-const ATTRIBUTION_PANORAMAX = '<a href="https://panoramax.fr">Panoramax</a>';
-
-const map = new maplibregl.Map({
-  container: "carte",
-  center: [5.04, 47.32],  // Côte-d'Or
-  zoom: 9,
-  style: {
-    version: 8,
-    sources: {
-      plan: {
-        type: "raster", tiles: [wmts("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png")],
-        tileSize: 256, maxzoom: 19, attribution: ATTRIBUTION_IGN,
-      },
-      ortho: {
-        type: "raster", tiles: [wmts("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg")],
-        tileSize: 256, maxzoom: 20, attribution: ATTRIBUTION_IGN,
-      },
-      panoramax: {
-        type: "vector", tiles: [`${PANORAMAX_API}/map/{z}/{x}/{y}.mvt`],
-        minzoom: 0, maxzoom: 15, attribution: ATTRIBUTION_PANORAMAX,
-      },
-    },
-    layers: [
-      { id: "plan", type: "raster", source: "plan" },
-      { id: "ortho", type: "raster", source: "ortho", layout: { visibility: "none" } },
-      // Filaire : densité à petite échelle, séquences, puis photos (comme le plugin)
-      {
-        id: "grille", type: "circle", source: "panoramax", "source-layer": "grid", maxzoom: 7,
-        paint: { "circle-color": ORANGE, "circle-opacity": 0.6, "circle-radius": 2 },
-      },
-      {
-        id: "sequences", type: "line", source: "panoramax", "source-layer": "sequences", minzoom: 6,
-        layout: { "line-cap": "round", "line-join": "round" },
-        paint: {
-          "line-color": ORANGE, "line-opacity": 0.8,
-          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.6, 12, 1.5, 17, 3],
-        },
-      },
-      {
-        id: "photos", type: "circle", source: "panoramax", "source-layer": "pictures", minzoom: 15,
-        paint: {
-          "circle-color": ORANGE, "circle-radius": 4,
-          "circle-stroke-color": "#ffffff", "circle-stroke-width": 1,
-        },
-      },
-    ],
-  },
+startCalcul(() => refresh()).then((created) => {
+  app = created;
+  for (const id of ["#mode", "#camera", "#facade", "#effacer", "#tout-effacer"]) $(id).disabled = false;
+  app.set_camera_height(Number($("#camera").value));
+  if (photo) app.set_picture(JSON.stringify(photo));
+  refresh();
+}).catch((error) => {
+  console.error(error);
+  setStatus(`Calcul indisponible : ${error.message}`, "echec");
 });
-map.addControl(new maplibregl.NavigationControl(), "top-left");
-map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
 
-document.getElementById("fond").addEventListener("change", (event) => {
-  for (const id of ["plan", "ortho"]) {
-    map.setLayoutProperty(id, "visibility", id === event.target.value ? "visible" : "none");
+/** Redessine les repères dans la photo, les mesures sur la carte et le texte de la mesure. */
+function refresh(text) {
+  if (!app) return;
+  setStatus(text ?? app.status());
+  drawViewerMarks(JSON.parse(app.viewer_marks()));
+  showMeasures(map, JSON.parse(app.map_geojson()));
+  showHandles(map, JSON.parse(app.handles()), (index, lon, lat) => refresh(app.move_handle(index, lon, lat)));
+  const results = app.has_results();
+  $("#csv").disabled = !results;
+  $("#geojson").disabled = !results;
+}
+
+// Choix de la photo sur la carte ---------------------------------------------------------
+
+map.on("click", async (event) => {
+  const { lng, lat } = event.lngLat;
+  showPhotoInfo(null, "Recherche de la photo la plus proche…");
+  try {
+    const feature = await nearestPhoto(map, lng, lat);
+    if (!feature) {
+      showPhotoInfo(null, "Aucune photo près de ce point : cliquez sur le filaire orange.");
+      return;
+    }
+    openPhoto(feature, false);
+  } catch (error) {
+    showPhotoInfo(null, `Recherche impossible : ${error.message}`);
   }
 });
 
-// Photo la plus proche du clic ---------------------------------------------------------
-
-function metresBetween(a, b) {
-  const rad = Math.PI / 180;
-  const x = (b[0] - a[0]) * rad * Math.cos((a[1] + b[1]) / 2 * rad);
-  const y = (b[1] - a[1]) * rad;
-  return Math.hypot(x, y) * 6371008.8;
+function openPhoto(feature, recenter) {
+  setPhoto(feature, recenter);
+  $("#invite").hidden = true;
+  viewer.hidden = false;
+  if (viewer.getAttribute("picture") !== feature.id) viewer.setAttribute("picture", feature.id);
+  attachViewer();
 }
 
-function searchUrl(lon, lat, radius) {
-  const dlat = radius / 111320;
-  const dlon = radius / (111320 * Math.cos(lat * Math.PI / 180));
-  const bbox = [lon - dlon, lat - dlat, lon + dlon, lat + dlat].map((v) => v.toFixed(7)).join(",");
-  return `${PANORAMAX_API}/search?bbox=${bbox}&limit=20`;
+function setPhoto(feature, recenter) {
+  photo = feature;
+  showPhoto(map, feature, recenter);
+  showPhotoInfo(feature);
+  if (app) refresh(app.set_picture(JSON.stringify(feature)));
 }
 
-function showPhoto(feature, distance) {
+function showPhotoInfo(feature, message) {
+  const section = $("#photo");
+  section.replaceChildren(Object.assign(document.createElement("h2"), { textContent: "Photo" }));
+  if (!feature) {
+    section.append(Object.assign(document.createElement("p"), { className: "aide", textContent: message }));
+    return;
+  }
   const p = feature.properties || {};
+  const accuracy = p["quality:horizontal_accuracy"];
   const rows = [
     ["Date", (p.datetime || "").replace("T", " ").slice(0, 16)],
-    ["Producteur", (p["geovisio:producer"] || "").toString()],
-    ["Caméra", ((p["pers:interior_orientation"] || {}).camera_model || "")],
-    ["Précision GPS", p["quality:horizontal_accuracy"] != null ? `${p["quality:horizontal_accuracy"]} m` : ""],
-    ["Distance au clic", `${distance.toFixed(1).replace(".", ",")} m`],
+    ["Producteur", String(p["geovisio:producer"] || "")],
+    ["Caméra", (p["pers:interior_orientation"] || {}).camera_model || ""],
+    ["Précision GPS", accuracy != null ? `${String(accuracy).replace(".", ",")} m` : ""],
     ["Identifiant", feature.id],
   ];
-  const section = document.getElementById("photo");
-  section.innerHTML = "<h2>Photo</h2>";
   const dl = document.createElement("dl");
   for (const [label, value] of rows) {
-    const dt = document.createElement("dt");
-    dt.textContent = label;
-    const dd = document.createElement("dd");
-    dd.textContent = value || "—";
-    dl.append(dt, dd);
+    dl.append(Object.assign(document.createElement("dt"), { textContent: label }),
+      Object.assign(document.createElement("dd"), { textContent: value || "—" }));
   }
   section.append(dl);
 }
 
-function showMessage(text) {
-  const section = document.getElementById("photo");
-  section.innerHTML = "<h2>Photo</h2>";
-  const p = document.createElement("p");
-  p.className = "aide";
-  p.textContent = text;
-  section.append(p);
+// Visionneuse ----------------------------------------------------------------------------
+
+/** Branche les clics et les changements de photo, une fois la visionneuse prête. */
+function attachViewer() {
+  if (psv) return;
+  const timer = setInterval(() => {
+    if (!viewer.psv) return;
+    clearInterval(timer);
+    psv = viewer.psv;
+    psv.addEventListener("click", (event) => {
+      if (!app || event.data.rightclick) return;
+      refresh(app.click(event.data.yaw, event.data.pitch));
+    });
+    // Déplacement dans la séquence (flèches de la visionneuse) : nouvelle fiche de photo
+    psv.addEventListener("picture-loaded", async (event) => {
+      const id = event.detail?.picId;
+      if (!id || id === photo?.id) {
+        refresh();
+        return;
+      }
+      try {
+        const feature = await photoById(id);
+        if (feature) setPhoto(feature, true);
+      } catch (error) {
+        console.error(error);
+      }
+    });
+    refresh();
+  }, 200);
 }
 
-map.on("click", async (event) => {
-  const { lng, lat } = event.lngLat;
-  // Rayon de recherche adapté à l'échelle, comme le plugin (10 à 150 m)
-  const radius = Math.min(150, Math.max(10, 15 * metresPerPixel(lat)));
-  showMessage("Recherche de la photo la plus proche…");
-  try {
-    const response = await fetch(searchUrl(lng, lat, radius));
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    let best = null;
-    for (const feature of data.features || []) {
-      const d = metresBetween([lng, lat], feature.geometry.coordinates);
-      if (!best || d < best.d) best = { feature, d };
+const MARK = "mesure-";  // préfixe de nos repères, pour ne pas toucher à ceux de la visionneuse
+let markIds = [];
+
+function drawViewerMarks(marks) {
+  const markers = psv?.getPlugin?.("markers");
+  if (!markers) return;
+  for (const id of markIds) {
+    try { markers.removeMarker(id, false); } catch { /* déjà retiré */ }
+  }
+  markIds = [];
+  const add = (config) => {
+    markers.addMarker(config, false);
+    markIds.push(config.id);
+  };
+  marks.forEach((mark, m) => {
+    const points = mark.points.map(([yaw, pitch]) => ({ yaw, pitch }));
+    if (points.length >= 2) {
+      add({
+        id: `${MARK}${m}-trait`, polyline: points.map(({ yaw, pitch }) => [yaw, pitch]),
+        svgStyle: { stroke: "#e53935", strokeWidth: "3px", fill: "none" },
+      });
     }
-    if (best) showPhoto(best.feature, best.d);
-    else showMessage(`Aucune photo à moins de ${Math.round(radius)} m.`);
-  } catch (error) {
-    showMessage(`Recherche impossible : ${error.message}`);
-  }
+    mark.points.forEach(([yaw, pitch, sel], i) => {
+      add({
+        id: `${MARK}${m}-${i}`, position: { yaw, pitch }, anchor: "center center",
+        html: `<div class="croix${sel ? " choisie" : ""}"></div>`,
+      });
+    });
+    if (mark.label) {
+      const last = points[points.length - 1];
+      add({
+        id: `${MARK}${m}-etiquette`, position: last,
+        anchor: mark.beside ? "center left" : "bottom center",
+        html: `<div class="etiquette">${escapeHtml(mark.label)}</div>`,
+      });
+    }
+  });
+  markers.renderMarkers?.();
+}
+
+function escapeHtml(text) {
+  return text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+}
+
+// Réglages et boutons ----------------------------------------------------------------------
+
+$("#mode").addEventListener("change", (event) => {
+  $("#mur").hidden = event.target.value !== "height";
+  refresh(app.set_mode(event.target.value));
 });
+$("#camera").addEventListener("change", (event) => {
+  const value = Number(event.target.value);
+  if (value >= 0.3 && value <= 6) refresh(app.set_camera_height(value));
+});
+$("#facade").addEventListener("change", (event) => refresh(app.set_use_wall(event.target.checked)));
+$("#effacer").addEventListener("click", () => refresh(app.clear()));
+$("#tout-effacer").addEventListener("click", () => refresh(app.clear_all()));
+$("#csv").addEventListener("click", () => download("\ufeff" + app.export_csv(), "mesures.csv", "text/csv"));
+$("#geojson").addEventListener("click", () => download(app.export_geojson(), "mesures.geojson",
+  "application/geo+json"));
 
-function metresPerPixel(lat) {
-  return 40075016.686 * Math.cos(lat * Math.PI / 180) / (512 * 2 ** map.getZoom());
+// Fichier à enregistrer (le CSV commence par une marque d'ordre des octets : accents lus par les tableurs)
+function download(text, name, type) {
+  const url = URL.createObjectURL(new Blob([text], { type: `${type};charset=utf-8` }));
+  const link = Object.assign(document.createElement("a"), { href: url, download: name });
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// Vérification des services ---------------------------------------------------------------
-// Ceux dont l'application aura besoin : un échec signale un proxy, un pare-feu ou un en-tête
-// CORS manquant sur le poste.
-
-const SERVICES = [
-  ["Panoramax : recherche de photos", `${PANORAMAX_API}/search?limit=1`],
-  ["Panoramax : filaire (tuiles)", `${PANORAMAX_API}/map/14/8396/5876.mvt`],
-  ["Panoramax : photos de l'IGN", "https://panoramax.ign.fr/api/search?limit=1"],
-  ["IGN : fonds de carte (WMTS)", `${GEOPF}/wmts?SERVICE=WMTS&REQUEST=GetCapabilities`],
-  ["IGN : altitudes (RGE ALTI, LiDAR HD)",
-    `${GEOPF}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=4.55&lat=47.26&resource=ign_rge_alti_wld&zonly=true`],
-  ["IGN : MNS LiDAR HD (WMS)", `${GEOPF}/wms-r/wms?SERVICE=WMS&REQUEST=GetCapabilities`],
-  ["IGN : BD TOPO et cadastre (WFS)", `${GEOPF}/wfs/ows?SERVICE=WFS&REQUEST=GetCapabilities`],
-  ["OpenTopoData (secours)", "https://api.opentopodata.org/v1/eudem25m?locations=47.26,4.55"],
-  ["Open-Meteo (secours)", "https://api.open-meteo.com/v1/elevation?latitude=47.26&longitude=4.55"],
-];
-
-async function checkService(name, url) {
-  const item = document.createElement("li");
-  const label = document.createElement("span");
-  label.textContent = name;
-  const state = document.createElement("span");
-  state.className = "attente";
-  state.textContent = "…";
-  item.append(label, state);
-  document.querySelector("#reseau ul").append(item);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
-  try {
-    const response = await fetch(url, { signal: controller.signal });
-    state.className = response.ok ? "ok" : "echec";
-    state.textContent = response.ok ? "accessible" : `HTTP ${response.status}`;
-  } catch (error) {
-    state.className = "echec";
-    state.textContent = error.name === "AbortError" ? "pas de réponse" : "bloqué";
-    state.title = error.message;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-for (const [name, url] of SERVICES) checkService(name, url);
+// Pour les essais depuis la console : window.mesures.app.click(yaw, pitch)
+window.mesures = { get app() { return app; }, map, openPhoto };
