@@ -404,15 +404,22 @@
           html: `<div class="croix${sel ? " choisie" : ""}"></div>`,
         });
       });
-      if (mark.label) {
+      if (mark.label) {  // au milieu du trait, un peu au-dessus (à côté pour une hauteur)
         add({
-          id: `${MARK}${m}-etiquette`, position: points[points.length - 1],
+          id: `${MARK}${m}-etiquette`, position: middle(points),
           anchor: mark.beside ? "center left" : "bottom center",
-          html: `<div class="etiquette">${escapeHtml(mark.label)}</div>`,
+          html: `<div class="etiquette ${mark.beside ? "cote" : "dessus"}">${escapeHtml(mark.label)}</div>`,
         });
       }
     });
     markers.renderMarkers?.();
+  }
+
+  /** Milieu d'un trait dans la photo (cap et élévation en radians ; cap pris au plus court). */
+  function middle(points) {
+    const a = points[0], b = points[points.length - 1];
+    const dyaw = Math.atan2(Math.sin(b.yaw - a.yaw), Math.cos(b.yaw - a.yaw));
+    return { yaw: a.yaw + dyaw / 2, pitch: (a.pitch + b.pitch) / 2 };
   }
 
   function escapeHtml(text) {
@@ -653,8 +660,10 @@
           ctx.stroke();
         }
       }
-      const last = pts[pts.length - 1];
-      if (mark.label && last) label(ctx, mark.label, last[0], last[1] - 14 * scale, 12 * scale, "center");
+      const centre = middle(mark.points.map(([yaw, pitch]) => ({ yaw, pitch })));
+      const mid = mark.label ? screen([centre.yaw, centre.pitch]) : null;
+      if (mid && mark.beside) label(ctx, mark.label, mid[0] + 14 * scale, mid[1] + 9 * scale, 12 * scale, "left");
+      else if (mid) label(ctx, mark.label, mid[0], mid[1] - 12 * scale, 12 * scale, "center");
     }
     const caption = app ? app.caption(psv.getPosition().yaw) : "Panoramax";
     label(ctx, caption, canvas.width - 8 * scale, canvas.height - 8 * scale, 12 * scale, "right");
@@ -664,7 +673,7 @@
   function label(ctx, text, x, y, size, align) {
     ctx.font = `${size}px system-ui, sans-serif`;
     const w = ctx.measureText(text).width + size;
-    const left = align === "right" ? x - w : x - w / 2;
+    const left = align === "right" ? x - w : align === "left" ? x : x - w / 2;
     ctx.fillStyle = "rgba(32, 33, 36, 0.85)";
     ctx.fillRect(left, y - size * 1.4, w, size * 1.6);
     ctx.fillStyle = "#ffffff";
