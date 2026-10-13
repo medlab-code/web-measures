@@ -193,9 +193,11 @@ dd { margin: 0; overflow-wrap: anywhere; }
   pointer-events: none;
 }
 .etiquette.trace { color: #8ee8ff; }
-/* Visionneuse : étiquette décollée du trait de mesure */
-.etiquette.dessus { margin-bottom: 7px; }
-.etiquette.cote { margin-left: 9px; }
+/* Visionneuse : étiquette à distance fixe du milieu du trait de mesure (repère de taille nulle) */
+.ancre { position: relative; width: 0; height: 0; }
+.ancre .etiquette { position: absolute; }
+.etiquette.dessus { bottom: 7px; left: 0; transform: translateX(-50%); }
+.etiquette.cote { left: 9px; top: 0; transform: translateY(-50%); }
 
 .poignee {
   width: 14px;

@@ -406,21 +406,30 @@
         });
       });
       if (mark.label) {  // au milieu du trait, un peu au-dessus (à côté pour une hauteur)
+        // Repère de taille nulle au milieu du trait, étiquette décalée d'un nombre fixe de pixels
+        // par le CSS : la visionneuse mesure la taille d'un repère une seule fois, parfois avant
+        // sa mise en page, et l'ancrerait alors trop loin
         add({
-          id: `${MARK}${m}-etiquette`, position: middle(points),
-          anchor: mark.beside ? "center left" : "bottom center",
-          html: `<div class="etiquette ${mark.beside ? "cote" : "dessus"}">${escapeHtml(mark.label)}</div>`,
+          id: `${MARK}${m}-etiquette`, position: middle(points), anchor: "center center",
+          html: `<div class="ancre"><div class="etiquette ${mark.beside ? "cote" : "dessus"}">${
+            escapeHtml(mark.label)}</div></div>`,
         });
       }
     });
     markers.renderMarkers?.();
   }
 
-  /** Milieu d'un trait dans la photo (cap et élévation en radians ; cap pris au plus court). */
+  /**
+   * Milieu d'un trait dans la photo (cap et élévation en radians). La visionneuse le dessine
+   * droit à l'écran : c'est le grand cercle entre les deux visées, dont le milieu est la somme
+   * des deux directions. La moyenne des caps et des élévations tomberait au-dessus du trait
+   * dès qu'il est long (largeur de chaussée).
+   */
   function middle(points) {
-    const a = points[0], b = points[points.length - 1];
-    const dyaw = Math.atan2(Math.sin(b.yaw - a.yaw), Math.cos(b.yaw - a.yaw));
-    return { yaw: a.yaw + dyaw / 2, pitch: (a.pitch + b.pitch) / 2 };
+    const dir = ({ yaw, pitch }) => [Math.cos(pitch) * Math.sin(yaw), Math.sin(pitch), Math.cos(pitch) * Math.cos(yaw)];
+    const a = dir(points[0]), b = dir(points[points.length - 1]);
+    const [x, y, z] = [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+    return { yaw: Math.atan2(x, z), pitch: Math.atan2(y, Math.hypot(x, z)) };
   }
 
   function escapeHtml(text) {
