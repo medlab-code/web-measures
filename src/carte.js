@@ -23,8 +23,12 @@ const Carte = (() => {
   }
 
   const ATTRIBUTION_IGN = '<a href="https://www.ign.fr">IGN</a>';
-  const ATTRIBUTION_OSM = '© <a href="https://www.openstreetmap.org/copyright">les contributeurs d\'OpenStreetMap</a>';
-  const OSM_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+  const ATTRIBUTION_OSM = '© <a href="https://www.openstreetmap.org/copyright">les contributeurs d\'OpenStreetMap</a>, '
+    + 'fond <a href="https://www.openstreetmap.fr">OpenStreetMap France</a>';
+  // Tuiles d'OpenStreetMap France : le serveur officiel (tile.openstreetmap.org) refuse les
+  // demandes sans page d'origine, celles de la page ouverte par double-clic (file://)
+  const OSM_TILES = "https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png";
+  const osmTiles = ["a", "b", "c"].map((sub) => OSM_TILES.replace("{s}", sub));
   const BACKGROUNDS = ["plan", "ortho", "osm"];
   const ATTRIBUTION_PANORAMAX = '<a href="https://panoramax.fr">Panoramax</a>';
   const EMPTY = { type: "FeatureCollection", features: [] };
@@ -46,7 +50,7 @@ const Carte = (() => {
             type: "raster", tiles: [wmts("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg")],
             tileSize: 256, maxzoom: 20, attribution: ATTRIBUTION_IGN,
           },
-          osm: { type: "raster", tiles: [OSM_TILES], tileSize: 256, maxzoom: 19, attribution: ATTRIBUTION_OSM },
+          osm: { type: "raster", tiles: osmTiles, tileSize: 256, maxzoom: 19, attribution: ATTRIBUTION_OSM },
           panoramax: {
             type: "vector", tiles: [tilesUrl()], minzoom: 0, maxzoom: 15, attribution: ATTRIBUTION_PANORAMAX,
           },
