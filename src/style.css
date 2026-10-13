@@ -194,8 +194,8 @@ dd { margin: 0; overflow-wrap: anywhere; }
 }
 .etiquette.trace { color: #8ee8ff; }
 /* Visionneuse : étiquette décollée du trait de mesure */
-.etiquette.dessus { margin-bottom: 12px; }
-.etiquette.cote { margin-left: 14px; }
+.etiquette.dessus { margin-bottom: 7px; }
+.etiquette.cote { margin-left: 9px; }
 
 .poignee {
   width: 14px;

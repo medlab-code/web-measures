@@ -37,6 +37,7 @@
   // Fond, instance, centrage ----------------------------------------------------------------
 
   $("#fond").value = store.get("fond", "plan");
+  if (!$("#fond").value) $("#fond").value = "plan";  // fond mémorisé qui n'existe plus
   map.on("load", () => Carte.setBackground(map, $("#fond").value));
   $("#fond").addEventListener("change", (event) => {
     Carte.setBackground(map, event.target.value);
@@ -662,8 +663,8 @@
       }
       const centre = middle(mark.points.map(([yaw, pitch]) => ({ yaw, pitch })));
       const mid = mark.label ? screen([centre.yaw, centre.pitch]) : null;
-      if (mid && mark.beside) label(ctx, mark.label, mid[0] + 14 * scale, mid[1] + 9 * scale, 12 * scale, "left");
-      else if (mid) label(ctx, mark.label, mid[0], mid[1] - 12 * scale, 12 * scale, "center");
+      if (mid && mark.beside) label(ctx, mark.label, mid[0] + 9 * scale, mid[1] + 9 * scale, 12 * scale, "left");
+      else if (mid) label(ctx, mark.label, mid[0], mid[1] - 7 * scale, 12 * scale, "center");
     }
     const caption = app ? app.caption(psv.getPosition().yaw) : "Panoramax";
     label(ctx, caption, canvas.width - 8 * scale, canvas.height - 8 * scale, 12 * scale, "right");
