@@ -1,37 +1,139 @@
 <!doctype html><meta charset="utf-8"><title>Essai de la page de mesure</title>
 <!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
-<!-- Essai de bout en bout dans un vrai navigateur : charge la page, ouvre une photo de Dijon,
-     mesure une largeur de chaussée, recale un point ; le journal s'affiche sous la page.
-     Voir CLAUDE.md pour le lancer dans Chrome sans fenêtre. -->
+<!-- Essai de bout en bout dans un vrai navigateur : charge la page, puis
+     - Pouilly-en-Auxois (photo CD21, position RTK) : précision vérifiée, hauteur de caméra
+       d'après l'altitude GPS, capture HD (Pyodide d'arrière-plan) ;
+     - Montbard (photo CD21) : inclinaison automatique (Pyodide d'arrière-plan) ;
+     - Dijon (photo grand public) : largeur de chaussée, recalage d'un point, longueur,
+       hauteur, mesure libre, triangulation depuis deux photos, calage de l'inclinaison.
+     Journal sous la page et sur la sortie de tools/serveur-essai.py. Voir CLAUDE.md pour le
+     lancer dans Chrome sans fenêtre. -->
 
-<style>body{margin:0}iframe{border:0;display:block}</style><iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe><pre id="log"></pre>
+<style>body{margin:0}iframe{border:0;display:block}</style>
+<script>  // calage enregistré par un essai précédent : effacé, l'inclinaison automatique est recalculée
+try { localStorage.removeItem("web-measures/calage"); } catch { /* sans stockage */ }
+</script>
+<iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe><pre id="log"></pre>
 <script>
-const log = (t) => { document.getElementById("log").textContent += t + "\n"; };
+// Journal : sous la page, et envoyé au serveur d'essai (tools/serveur-essai.py), en temps réel
+const log = (t) => {
+  document.getElementById("log").textContent += t + "\n";
+  fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+};
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const DIJON = ["33565d3f-5e27-47fb-9137-ba4de564530d", "a3996fff-7cf7-44b4-8c54-afd556f2632c"];
+const POUILLY = "cd8cf3a0-6567-40f0-8805-94172a5dfc3c";
+const MONTBARD = "f533e240-7d37-40ef-babc-1d37140dc5d2";  // plugin : inclinaison 1,95° vers 219° (±0,22°)
+
+async function until(test, ms, what) {
+  const t0 = Date.now();
+  while (!test()) {
+    if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what);
+    await sleep(250);
+  }
+  return Date.now() - t0;
+}
+
+async function feature(id) {
+  const r = await fetch("https://api.panoramax.xyz/api/search?ids=" + id);
+  return (await r.json()).features[0];
+}
+
 (async () => {
   const w = document.getElementById("f").contentWindow;
-  const t0 = Date.now();
-  while (!(w.mesures && w.mesures.app)) { await sleep(250); if (Date.now() - t0 > 120000) { log("TIMEOUT pyodide"); log(w.document.getElementById("statut").textContent); return; } }
-  log("pyodide " + (Date.now() - t0) + " ms");
-  log("statut: " + w.document.getElementById("statut").textContent);
-  const r = await fetch("https://api.panoramax.xyz/api/search?ids=33565d3f-5e27-47fb-9137-ba4de564530d");
-  const feat = (await r.json()).features[0];
-  w.mesures.openPhoto(feat, true);
+  log("pyodide " + await until(() => w.mesures && w.mesures.app, 120000, "Pyodide") + " ms");
   const app = w.mesures.app;
-  // Largeur de chaussée : deux bords, de part et d'autre (perpendiculaire à l'axe de la photo)
-  log("clic1: " + app.click(-0.45, -0.3));
-  await sleep(6000);
-  log("après profil1: " + app.status());
-  log("clic2: " + app.click(0.5, -0.3));
-  await sleep(8000);
-  log("résultat: " + app.status());
-  log("marques: " + app.viewer_marks());
-  log("carte: " + app.map_geojson().slice(0, 400));
-  log("csv: " + app.export_csv());
-  const h = JSON.parse(app.handles()); log("poignées: " + JSON.stringify(h));
-  log("recalage: " + app.move_handle(0, h[0][0] + 0.00001, h[0][1]));
-  log("psv: " + !!w.document.getElementById("visionneuse").psv);
+  const state = () => JSON.parse(app.state());
+  const open = async (id) => {
+    w.mesures.openPhoto(await feature(id));
+    await until(() => w.mesures.psv, 30000, "visionneuse");
+  };
+
+  // Pouilly (CD21) ------------------------------------------------------------------------
+  await open(POUILLY);
+  await until(() => !state().quality.includes("vérification en cours"), 60000, "précision");
+  log("== Pouilly : " + state().quality);
+  log("vérification : " + (app.quality ? JSON.stringify(app.quality.toJs({ dict_converter: Object.fromEntries })) : "aucune"));
+  log("hauteur proposée : " + JSON.stringify(state().camera));
+  log("état : " + state().quality);
+
+  const Calcul = w.eval("Calcul");
+  const params = JSON.parse(app.capture_args(0.0, -0.1, 60.0));
+  const bytes = new Uint8Array(await (await fetch(params.href)).arrayBuffer());
+  const t0 = Date.now();
+  const jpeg = await Calcul.capture(params, bytes);
+  log("capture HD : " + Math.round(jpeg.length * 0.75 / 1024) + " Ko en " + (Date.now() - t0) + " ms · " + params.caption);
+
+  // Montbard (CD21) : inclinaison automatique, calculée en arrière-plan
+  await open(MONTBARD);
+  log("== Montbard : inclinaison auto en " + await until(() => state().quality.includes("inclinaison calée"),
+    120000, "inclinaison") + " ms");
+  log("état : " + state().quality);
+  log("calage : " + state().calibration);
+
+  // Dijon ----------------------------------------------------------------------------------
+  await open(DIJON[0]);
+  log("== largeur : " + app.set_mode("road"));
+  app.click(-0.45, -0.3);
+  await until(() => app.status().startsWith("Cliquez au pied du bord opposé"), 15000, "premier bord");
+  app.click(0.5, -0.3);
+  await until(() => app.status().startsWith("Largeur"), 15000, "largeur");
+  log("résultat : " + app.status());
+  const h = JSON.parse(app.handles());
+  log("recalage : " + app.move_handle(0, h[0][0] + 0.00001, h[0][1]));
+
+  log("== longueur : " + app.set_mode("width"));
+  app.click(-1.2, -0.25);
+  await sleep(3000);
+  app.click(-1.0, -0.25);
+  await until(() => app.status().startsWith("Longueur"), 15000, "longueur");
+  log("résultat : " + app.status());
+
+  log("== hauteur : " + app.set_mode("height"));
+  app.click(0.62, -0.12);
+  await until(() => app.status().startsWith("Cliquez au sommet"), 15000, "pied");
+  app.click(0.62, 0.35);
+  log("résultat : " + app.status());
+
+  log("== libre, plan horizontal : " + app.set_mode("free") + " | " + app.set_surface("horizontal"));
+  app.click(-0.3, -0.2);
+  await sleep(3000);
+  app.click(0.3, -0.2);
+  await sleep(3000);
+  log("résultat : " + app.status());
+
+  log("== triangulation : " + app.set_mode("tri"));
+  log(app.aim(0.9, 0.0));
+  await open(DIJON[1]);
+  await sleep(2000);
+  log(app.aim(0.95, 0.0));
+  log("cartes : " + JSON.parse(app.map_geojson()).features.filter((f) => f.properties.kind === "visee").length + " visées");
+  log("garder : " + app.keep_point());
+
+  log("== calage inclinaison : " + app.set_mode("tilt"));
+  app.click(0.62, -0.12);
+  log(app.click(0.625, 0.35));
+  log("calage : " + state().calibration);
+  log("résultats : " + JSON.parse(app.results()).map((r) => r.text).join(" | "));
+  log("csv :\n" + app.export_csv());
+
+  // Interface : réglages propres au mode, capture vignette
+  const doc = w.document;
+  const select = (id, value) => {
+    doc.querySelector(id).value = value;
+    doc.querySelector(id).dispatchEvent(new Event("change"));
+  };
+  for (const mode of ["road", "height", "tri", "free", "camera"]) {
+    select("#mode", mode);
+    if (mode === "free") select("#surface", "facade");
+    const shown = [...doc.querySelectorAll("header .option")].filter((o) => !o.hidden)
+      .map((o) => [...o.querySelectorAll("input, select, button")].map((e) => e.id).join("+"));
+    log("réglages " + mode + " : " + (shown.join(", ") || "aucun") + (doc.querySelector("#reticule").hidden ? "" : " · réticule"));
+  }
+  doc.querySelector("#vignette").click();
+  await until(() => doc.querySelector("#statut").textContent.includes("Vignette"), 10000, "vignette");
+  log("vignette : " + doc.querySelector("#statut").textContent);
   log("FIN");
-})().catch((e) => log("ERREUR " + e.stack));
+})().catch((e) => log("ERREUR " + (e.stack || e)));
 </script>

@@ -1,0 +1,26 @@
+<!doctype html><meta charset="utf-8"><title>Essai de l'inclinaison automatique</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Inclinaison automatique d'une photo CD21 (Montbard ; plugin : 1,95° vers 219°, ±0,22°) dans le Pyodide d'arrière-plan
+     (autotilt.estimate), avec sa durée. Journal envoyé à tools/serveur-essai.py. -->
+<pre id="log"></pre>
+<script src="../py/sources.js"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
+<script src="../src/calcul.js"></script>
+<script>
+const log = (t) => {
+  document.getElementById("log").textContent += t + "\n";
+  fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+};
+(async () => {
+  await Calcul.startCalcul(() => {}, "https://api.panoramax.xyz/api");
+  const r = await fetch("https://api.panoramax.xyz/api/search?ids=f533e240-7d37-40ef-babc-1d37140dc5d2");
+  const item = (await r.json()).features[0];
+  const bytes = new Uint8Array(await (await fetch(item.assets.hd.href)).arrayBuffer());
+  log("photo HD : " + Math.round(bytes.length / 1024) + " Ko");
+  const t0 = Date.now();
+  const result = await Calcul.runRemote("core.autotilt", "estimate", [bytes, 263.66]);
+  log("estimate en " + (Date.now() - t0) + " ms : " + result);
+  log("FIN");
+})().catch((e) => log("ERREUR " + (e.stack || e)));
+</script>

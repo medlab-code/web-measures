@@ -35,4 +35,4 @@ application). Auteur : Cédric COCHART.
 
 ## Git
 
-- Branche `main`, dépôt public `medlab-code/web-measures` sur GitHub.
+- Branche `main`, dépôt privé `medlab-code/web-measures` sur GitHub (privé depuis le 13/10/2026).

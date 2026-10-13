@@ -10,16 +10,23 @@
 #   tools/update-core.sh [dépôt du plugin] [révision]
 #
 # Par défaut : ../visionneuse_panoramax, branche dev. Le commit copié est noté dans
-# py/core/SOURCE : le cœur ne se modifie pas ici, mais dans le plugin.
+# py/core/SOURCE : le cœur ne se modifie pas ici, mais dans le plugin. Révision « travail » :
+# copie de l'état non commité du plugin, pour les essais (à recopier d'un commit ensuite).
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
 plugin=${1:-"$here/../visionneuse_panoramax"}
 rev=${2:-dev}
-commit=$(git -C "$plugin" rev-parse --verify "$rev^{commit}")
 rm -rf "$here/py/core"
 mkdir -p "$here/py/core"
-git -C "$plugin" archive "$commit" core | tar -x -C "$here/py"
-printf '%s\n%s\n' "$commit" "$(git -C "$plugin" log -1 --format='%cs %s' "$commit")" > "$here/py/core/SOURCE"
+if [ "$rev" = travail ]; then
+  commit="état de travail de $(git -C "$plugin" rev-parse --abbrev-ref HEAD), non commité"
+  cp "$plugin"/core/*.py "$here/py/core/"
+  printf '%s\n%s\n' "$commit" "$(date -I)" > "$here/py/core/SOURCE"
+else
+  commit=$(git -C "$plugin" rev-parse --verify "$rev^{commit}")
+  git -C "$plugin" archive "$commit" core | tar -x -C "$here/py"
+  printf '%s\n%s\n' "$commit" "$(git -C "$plugin" log -1 --format='%cs %s' "$commit")" > "$here/py/core/SOURCE"
+fi
 cd "$here/py"
 python3 - <<'PY'
 import json, pathlib

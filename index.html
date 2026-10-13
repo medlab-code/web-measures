@@ -18,34 +18,64 @@
 <body>
   <header>
     <h1>Mesures Panoramax</h1>
-    <label>Mesure
+    <label>Mode
       <select id="mode" disabled>
-        <option value="road">Largeur de chaussée</option>
-        <option value="width">Longueur</option>
-        <option value="height">Hauteur</option>
+        <optgroup label="Mesures">
+          <option value="road">Largeur perpendiculaire à la chaussée</option>
+          <option value="width">Longueur parallèle à la route</option>
+          <option value="height">Hauteur d'un objet</option>
+          <option value="tri">Triangulation d'un objet</option>
+          <option value="free">Mesure libre 3D</option>
+        </optgroup>
+        <optgroup label="Calage des photos">
+          <option value="tilt">Calage : inclinaison (objets verticaux)</option>
+          <option value="heading">Calage : cap et position (repères sur la carte)</option>
+          <option value="camera">Calage : hauteur de caméra (longueur connue)</option>
+        </optgroup>
       </select>
     </label>
-    <label>Caméra à
-      <input id="camera" type="number" min="0.3" max="6" step="0.05" value="1.90" disabled> m
-    </label>
-    <label id="mur" hidden><input id="facade" type="checkbox" disabled> Façade du cadastre</label>
-    <label>Fond
-      <select id="fond">
-        <option value="plan">Plan IGN</option>
-        <option value="ortho">Orthophoto</option>
+    <!-- Réglages du mode (voir app.js : showModeOptions) -->
+    <span class="option" data-modes="height"><label><input id="mur" type="checkbox"> Façade du cadastre</label></span>
+    <span class="option" data-modes="free">
+      <label>Surface
+        <select id="surface">
+          <option value="ground">Sol</option>
+          <option value="facade">Façade (plan vertical)</option>
+          <option value="vertical">Plan vertical face à la caméra</option>
+          <option value="horizontal">Plan horizontal</option>
+          <option value="tri3d">Triangulation 3D (deux photos)</option>
+        </select>
+      </label>
+    </span>
+    <span class="option" data-modes="free" data-surface="facade">
+      <button id="definir-facade" type="button">Définir la façade</button>
+      <button id="facade-cadastre" type="button">Façade du cadastre</button>
+    </span>
+    <span class="option" data-modes="free" data-surface="horizontal">
+      <label>à <input id="plan" type="number" min="0" max="20" step="0.05" value="1.00"> m du sol</label>
+    </span>
+    <span class="option" data-modes="tri">
+      <button id="viser" type="button" class="principal">🎯 Viser</button>
+      <button id="garder" type="button" disabled>Garder le point</button>
+    </span>
+    <span class="option" data-modes="camera">
+      <select id="reference">
+        <option value="ground">Longueur au sol</option>
+        <option value="height">Hauteur d'un objet</option>
       </select>
-    </label>
+      <label>de <input id="longueur" type="number" min="0.2" max="100" step="0.01" value="5.00"> m</label>
+    </span>
     <span class="espace"></span>
-    <button id="effacer" disabled>Effacer</button>
-    <button id="tout-effacer" disabled>Tout effacer</button>
-    <button id="csv" disabled>Exporter CSV</button>
-    <button id="geojson" disabled>Exporter GeoJSON</button>
+    <button id="effacer" type="button" disabled>Effacer</button>
+    <button id="tout-effacer" type="button" disabled>Tout effacer</button>
   </header>
   <main>
     <section id="vue">
       <p id="invite">Cliquez sur le filaire orange de la carte pour choisir une photo.</p>
       <pnx-photo-viewer id="visionneuse" endpoint="https://api.panoramax.xyz/api" widgets="false"
                         url-parameters="false" keyboard-shortcuts="false" hidden></pnx-photo-viewer>
+      <div id="reticule" hidden></div>
+      <p id="bandeau" hidden></p>
     </section>
     <aside>
       <div id="carte"></div>
@@ -53,11 +83,68 @@
         <section>
           <h2>Mesure</h2>
           <p id="statut" class="statut">Chargement du calcul (Pyodide)…</p>
+          <p id="qualite" class="ligne"></p>
+          <p id="calage" class="ligne"></p>
+          <div class="reglages">
+            <label>Caméra à
+              <input id="camera" type="number" min="0.3" max="6" step="0.05" value="1.90" disabled> m</label>
+            <button id="camera-gps" type="button" hidden></button>
+            <label><input id="pont" type="checkbox" disabled> Mesure sur un pont</label>
+          </div>
+        </section>
+        <section id="resultats">
+          <h2>Résultats</h2>
+          <p class="aide">Les mesures terminées s'ajoutent ici ; elles sont perdues en fermant la page :
+            exportez-les.</p>
+          <ol></ol>
+          <div class="boutons">
+            <button id="csv" type="button" disabled>Exporter CSV</button>
+            <button id="geojson" type="button" disabled>Exporter GeoJSON</button>
+          </div>
         </section>
         <section id="photo">
           <h2>Photo</h2>
-          <p class="aide">Aucune photo choisie.</p>
+          <div id="fiche"><p class="aide">Aucune photo choisie.</p></div>
+          <div class="boutons">
+            <button id="capture-hd" type="button" disabled title="Vue affichée recalculée en Full HD
+(1920 × 1080) à partir de la photo originale, redressée si l'inclinaison est calée">📷 Capture HD</button>
+            <button id="vignette" type="button" disabled title="La visionneuse telle qu'affichée, mesures comprises,
+enregistrée en PNG et copiée dans le presse-papiers">🖼 Capture vignette</button>
+          </div>
         </section>
+        <details id="filtre">
+          <summary>Filtre des photos <span id="filtre-actif"></span></summary>
+          <p class="aide">S'applique au filaire et aux photos ouvertes par un clic sur la carte. Aux petites
+            échelles, seul le type de caméra est filtré.</p>
+          <div class="grille">
+            <label for="depuis">Depuis le</label><input id="depuis" type="date">
+            <label for="type">Type</label>
+            <select id="type"><option value="">Tous types</option><option value="360">360°</option>
+              <option value="flat">Classiques</option></select>
+            <label for="gps">Précision</label>
+            <select id="gps"><option value="">Toute précision GPS</option>
+              <option value="2">GPS ≤ 2 m (relevé)</option><option value="4">GPS ≤ 4 m</option></select>
+            <label for="producteur">Producteur</label>
+            <select id="producteur"><option value="">Tous</option></select>
+          </div>
+        </details>
+        <details id="reglages">
+          <summary>Réglages</summary>
+          <div class="grille">
+            <label for="instance">Instance</label><select id="instance"></select>
+            <label for="fond">Fond</label>
+            <select id="fond"><option value="plan">Plan IGN</option><option value="ortho">Orthophoto</option></select>
+          </div>
+          <label><input id="centrer" type="checkbox" checked> Centrer la carte sur la photo</label>
+          <h3>Calage des photos</h3>
+          <p class="aide">Conservé dans ce navigateur d'une session à l'autre. Pour le reprendre ailleurs
+            (autre poste, autre navigateur) : l'exporter, puis l'importer.</p>
+          <div class="boutons">
+            <button id="calage-exporter" type="button" disabled>Exporter le calage</button>
+            <button id="calage-importer" type="button" disabled>Importer un calage</button>
+            <input id="calage-fichier" type="file" accept=".json,application/json" hidden>
+          </div>
+        </details>
         <details id="reseau">
           <summary>Accès aux services</summary>
           <p class="aide">Vérifié depuis ce navigateur (proxy et pare-feu du poste compris).</p>
@@ -66,6 +153,16 @@
       </div>
     </aside>
   </main>
+  <dialog id="degrade">
+    <h2>Mode de mesure dégradé</h2>
+    <p>Pour cette photo, les mesures fonctionnent en mode dégradé :</p>
+    <ul></ul>
+    <p class="aide"></p>
+    <form method="dialog">
+      <label><input type="checkbox" name="plus"> Ne plus afficher pendant cette session</label>
+      <button value="ok">Compris</button>
+    </form>
+  </dialog>
   <!-- Scripts ordinaires (pas de modules) : la page s'ouvre aussi en double-cliquant -->
   <script src="py/sources.js"></script>
   <script src="src/carte.js"></script>

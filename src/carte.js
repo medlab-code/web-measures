@@ -1,17 +1,21 @@
 // SPDX-FileCopyrightText: 2026 Cédric COCHART
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// Carte : fonds IGN, filaire Panoramax (même style que le plugin QGIS), mesures et photo
-// affichée, recherche de la photo la plus proche d'un clic.
+// Carte : fonds IGN, filaire Panoramax (même style que le plugin QGIS), mesures, visées,
+// curseur de vue, photo la plus proche d'un clic, filtre des photos, instance Panoramax.
 
 const Carte = (() => {
-  const PANORAMAX_API = "https://api.panoramax.xyz/api";
+  const META_API = "https://api.panoramax.xyz/api";
   const GEOPF = "https://data.geopf.fr";
   const ORANGE = "#ff6f00";
-  const ROUGE = "#e53935";  // trait d'une mesure : comme dans la visionneuse
+  const ROUGE = "#e53935";  // trait d'une mesure, visées : comme dans le plugin
   const JAUNE = "#ffeb00";  // points cliqués
   const BLEU = "#00bce6";  // largeur perpendiculaire : trait tracé perpendiculairement à la route
-  const VIOLET = "#9c27b0";  // façade du cadastre
+  const VIOLET = "#9c27b0";  // façade
+  const CURSEUR = "#0078ff";  // curseur de vue
+
+  let apiUrl = META_API;  // instance courante (voir setInstance)
+  const tilesUrl = () => `${apiUrl}/map/{z}/{x}/{y}.mvt`;
 
   function wmts(layer, format) {
     return `${GEOPF}/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${layer}&STYLE=normal` +
@@ -21,6 +25,7 @@ const Carte = (() => {
   const ATTRIBUTION_IGN = '<a href="https://www.ign.fr">IGN</a>';
   const ATTRIBUTION_PANORAMAX = '<a href="https://panoramax.fr">Panoramax</a>';
   const EMPTY = { type: "FeatureCollection", features: [] };
+  const kind = (...kinds) => ["in", ["get", "kind"], ["literal", kinds]];
 
   function createMap(container) {
     const map = new maplibregl.Map({
@@ -39,11 +44,10 @@ const Carte = (() => {
             tileSize: 256, maxzoom: 20, attribution: ATTRIBUTION_IGN,
           },
           panoramax: {
-            type: "vector", tiles: [`${PANORAMAX_API}/map/{z}/{x}/{y}.mvt`],
-            minzoom: 0, maxzoom: 15, attribution: ATTRIBUTION_PANORAMAX,
+            type: "vector", tiles: [tilesUrl()], minzoom: 0, maxzoom: 15, attribution: ATTRIBUTION_PANORAMAX,
           },
           mesures: { type: "geojson", data: EMPTY },
-          photo: { type: "geojson", data: EMPTY },
+          vue: { type: "geojson", data: EMPTY },
         },
         layers: [
           { id: "plan", type: "raster", source: "plan" },
@@ -68,34 +72,55 @@ const Carte = (() => {
               "circle-stroke-color": "#ffffff", "circle-stroke-width": 1,
             },
           },
-          // Mesures (voir web_app.App.map_geojson)
+          // Curseur de vue : position, direction et ouverture de la vue
           {
-            id: "facades", type: "line", source: "mesures", filter: ["==", ["get", "kind"], "facade"],
+            id: "vue-cone", type: "fill", source: "vue", filter: ["==", ["get", "kind"], "cone"],
+            paint: { "fill-color": CURSEUR, "fill-opacity": 0.25 },
+          },
+          {
+            id: "vue-bord", type: "line", source: "vue", filter: ["==", ["get", "kind"], "cone"],
+            paint: { "line-color": CURSEUR, "line-width": 1.5 },
+          },
+          {
+            id: "vue-photo", type: "circle", source: "vue", filter: ["==", ["get", "kind"], "photo"],
+            paint: {
+              "circle-color": CURSEUR, "circle-radius": 6, "circle-stroke-color": "#ffffff",
+              "circle-stroke-width": 2,
+            },
+          },
+          // Mesures, visées et points (voir web_app.App.map_geojson)
+          {
+            id: "facades", type: "line", source: "mesures", filter: kind("facade"),
             paint: { "line-color": VIOLET, "line-width": 3, "line-dasharray": [2, 1.5] },
           },
           {
-            id: "liens", type: "line", source: "mesures", filter: ["==", ["get", "kind"], "lien"],
+            id: "visees-halo", type: "line", source: "mesures", filter: kind("visee"),
+            paint: { "line-color": "#ffffff", "line-opacity": 0.8, "line-width": 4 },
+          },
+          {
+            id: "visees", type: "line", source: "mesures", filter: kind("visee"),
+            paint: { "line-color": ROUGE, "line-width": 2, "line-dasharray": [3, 2] },
+          },
+          {
+            id: "liens", type: "line", source: "mesures", filter: kind("lien"),
             paint: { "line-color": BLEU, "line-width": 1.5, "line-dasharray": [1, 2] },
           },
           {
-            id: "traits", type: "line", source: "mesures",
-            filter: ["in", ["get", "kind"], ["literal", ["mesure", "trace"]]],
-            paint: {
-              "line-color": ["match", ["get", "kind"], "trace", BLEU, ROUGE], "line-width": 3,
-            },
+            id: "traits", type: "line", source: "mesures", filter: kind("mesure", "trace"),
+            paint: { "line-color": ["match", ["get", "kind"], "trace", BLEU, ROUGE], "line-width": 3 },
           },
           {
-            id: "points", type: "circle", source: "mesures", filter: ["==", ["get", "kind"], "point"],
+            id: "points", type: "circle", source: "mesures", filter: kind("point"),
             paint: {
               "circle-color": JAUNE, "circle-radius": 4.5, "circle-stroke-color": "#202124",
               "circle-stroke-width": 1.5,
             },
           },
           {
-            id: "photo", type: "circle", source: "photo",
+            id: "cibles", type: "circle", source: "mesures", filter: kind("cible", "triangule"),
             paint: {
-              "circle-color": "#1a73e8", "circle-radius": 7, "circle-stroke-color": "#ffffff",
-              "circle-stroke-width": 2,
+              "circle-color": ["match", ["get", "kind"], "triangule", ROUGE, "rgba(0, 0, 0, 0)"],
+              "circle-radius": 7, "circle-stroke-color": ROUGE, "circle-stroke-width": 2.5,
             },
           },
         ],
@@ -112,7 +137,48 @@ const Carte = (() => {
     }
   }
 
-  // Étiquettes des mesures : marqueurs HTML (pas de police de caractères à charger)
+  // Instance Panoramax -------------------------------------------------------------------
+
+  /** Instances connues du méta-catalogue : [[nom, adresse du site]], triées. */
+  async function instances() {
+    const response = await fetch(`${META_API}/instances`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    return (data.instances || []).filter((i) => i.url).map((i) => [i.name || i.url, i.url])
+      .sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase()));
+  }
+
+  /** Bascule sur une instance (adresse de son site), ou sur le méta-catalogue (""). */
+  function setInstance(map, base) {
+    let site = (base || "").replace(/\/+$/, "");
+    if (site.endsWith("/api")) site = site.slice(0, -4);
+    apiUrl = site ? `${site}/api` : META_API;
+    map.getSource("panoramax")?.setTiles([tilesUrl()]);
+    return apiUrl;
+  }
+
+  // Filtre des photos (même critères que le plugin, voir core/filters.py) ------------------
+
+  function setFilter(map, f) {
+    const tileTypes = { 360: "equirectangular", flat: "flat" };
+    for (const [layer, dateField] of [["sequences", "date"], ["photos", "ts"]]) {
+      const parts = ["all"];
+      if (f.since) parts.push([">=", ["to-string", ["get", dateField]], f.since]);
+      if (f.kind) parts.push(["==", ["get", "type"], tileTypes[f.kind]]);
+      if (f.max_gps != null) {
+        parts.push(["has", "gps_accuracy"], ["<=", ["to-number", ["get", "gps_accuracy"], 1e9], f.max_gps]);
+      }
+      if (f.producer) parts.push(["==", ["get", "account_id"], f.producer[0]]);
+      map.setFilter(layer, parts.length > 1 ? parts : null);
+    }
+    const grid = f.kind ? [">", ["to-number", ["get", f.kind === "360" ? "nb_360_pictures" : "nb_flat_pictures"], 0], 0]
+      : null;
+    map.setFilter("grille", grid);
+  }
+
+  // Mesures --------------------------------------------------------------------------------
+
+  // Étiquettes : marqueurs HTML (pas de police de caractères à charger)
   const labels = [];
 
   function showMeasures(map, geojson) {
@@ -153,9 +219,30 @@ const Carte = (() => {
     return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
   }
 
-  function showPhoto(map, feature, recenter) {
-    map.getSource("photo")?.setData({ type: "FeatureCollection", features: feature ? [feature] : [] });
-    if (feature && recenter) map.easeTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 18) });
+  // Curseur de vue -------------------------------------------------------------------------
+
+  /** Photo affichée et vue : cap (degrés), champ horizontal (degrés), ou heading null. */
+  function showView(map, lonlat, heading, fov) {
+    const features = [];
+    if (lonlat) {
+      if (heading != null) {
+        const radius = 70 * metresPerPixel(map, lonlat[1]);  // 70 pixels quelle que soit l'échelle
+        const half = Math.min(fov || 90, 170) / 2;
+        const ring = [lonlat];
+        for (let k = 0; k <= 16; k++) ring.push(offset(lonlat, heading - half + (2 * half * k) / 16, radius));
+        ring.push(lonlat);
+        features.push({ type: "Feature", properties: { kind: "cone" }, geometry: { type: "Polygon", coordinates: [ring] } });
+      }
+      features.push({ type: "Feature", properties: { kind: "photo" }, geometry: { type: "Point", coordinates: lonlat } });
+    }
+    map.getSource("vue")?.setData({ type: "FeatureCollection", features });
+  }
+
+  function offset([lon, lat], heading, distance) {
+    const h = heading * Math.PI / 180;
+    const dlat = distance * Math.cos(h) / 111320;
+    const dlon = distance * Math.sin(h) / (111320 * Math.cos(lat * Math.PI / 180));
+    return [lon + dlon, lat + dlat];
   }
 
   // Photo la plus proche d'un clic --------------------------------------------------------
@@ -171,17 +258,21 @@ const Carte = (() => {
     return 40075016.686 * Math.cos(lat * Math.PI / 180) / (512 * 2 ** map.getZoom());
   }
 
-  /** Photo (fiche STAC) la plus proche du point, dans un rayon adapté à l'échelle (10 à 150 m). */
-  async function nearestPhoto(map, lng, lat) {
+  /**
+   * Photo (fiche STAC) la plus proche du point, dans un rayon adapté à l'échelle (10 à 150 m),
+   * parmi celles qui passent le filtre `accept` (fiche -> booléen).
+   */
+  async function nearestPhoto(map, lng, lat, accept = () => true) {
     const radius = Math.min(150, Math.max(10, 15 * metresPerPixel(map, lat)));
     const dlat = radius / 111320;
     const dlon = radius / (111320 * Math.cos(lat * Math.PI / 180));
     const bbox = [lng - dlon, lat - dlat, lng + dlon, lat + dlat].map((v) => v.toFixed(7)).join(",");
-    const response = await fetch(`${PANORAMAX_API}/search?bbox=${bbox}&limit=20`);
+    const response = await fetch(`${apiUrl}/search?bbox=${bbox}&limit=50`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     let best = null;
     for (const feature of data.features || []) {
+      if (!accept(feature)) continue;
       const d = metresBetween([lng, lat], feature.geometry.coordinates);
       if (!best || d < best.d) best = { feature, d };
     }
@@ -190,11 +281,14 @@ const Carte = (() => {
 
   /** Fiche STAC d'une photo, par son identifiant. */
   async function photoById(id) {
-    const response = await fetch(`${PANORAMAX_API}/search?ids=${encodeURIComponent(id)}`);
+    const response = await fetch(`${apiUrl}/search?ids=${encodeURIComponent(id)}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     return (data.features || [])[0] || null;
   }
 
-  return { PANORAMAX_API, GEOPF, createMap, setBackground, showMeasures, showHandles, showPhoto, nearestPhoto, photoById };
+  return {
+    PANORAMAX_API: META_API, GEOPF, createMap, setBackground, instances, setInstance, setFilter,
+    showMeasures, showHandles, showView, nearestPhoto, photoById, apiUrl: () => apiUrl,
+  };
 })();
