@@ -600,10 +600,10 @@
       const bytes = Uint8Array.from(atob(jpeg), (c) => c.charCodeAt(0));
       download(new Blob([bytes], { type: "image/jpeg" }), `${params.name}.jpg`);
     } catch (error) {
-      setStatus(`Capture HD impossible : ${error.message}`, "echec");
+      setStatus(`Capture « Image seule » impossible : ${error.message}`, "echec");
     } finally {
       button.disabled = false;
-      button.textContent = "📷 Capture HD";
+      button.textContent = "📷 Image seule";
     }
   });
 
@@ -621,7 +621,7 @@
         setStatus("Vignette enregistrée (copie dans le presse-papiers refusée par le navigateur).");
       }
     } catch (error) {
-      setStatus(`Capture vignette impossible : ${error.message}`, "echec");
+      setStatus(`Capture « Avec les mesures » impossible : ${error.message}`, "echec");
     }
   });
 

@@ -70,6 +70,13 @@
     <button id="effacer" type="button" disabled>Effacer</button>
     <button id="tout-effacer" type="button" disabled>Tout effacer</button>
     <span class="espace"></span>
+    <span class="captures">
+      <button id="capture-hd" type="button" disabled title="Vue affichée recalculée en Full HD
+(1920 × 1080) à partir de la photo originale, redressée si l'inclinaison est calée">📷 Image seule</button>
+      <button id="vignette" type="button" disabled title="La visionneuse telle qu'affichée, mesures comprises,
+enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</button>
+    </span>
+    <span class="espace"></span>
     <label>Fond de carte
       <select id="fond"><option value="plan">Plan IGN</option><option value="ortho">Orthophoto</option>
         <option value="osm">OpenStreetMap</option></select>
@@ -111,12 +118,6 @@
         <section id="photo">
           <h2>Photo</h2>
           <div id="fiche"><p class="aide">Aucune photo choisie.</p></div>
-          <div class="boutons">
-            <button id="capture-hd" type="button" disabled title="Vue affichée recalculée en Full HD
-(1920 × 1080) à partir de la photo originale, redressée si l'inclinaison est calée">📷 Capture HD</button>
-            <button id="vignette" type="button" disabled title="La visionneuse telle qu'affichée, mesures comprises,
-enregistrée en PNG et copiée dans le presse-papiers">🖼 Capture vignette</button>
-          </div>
         </section>
         <details id="filtre">
           <summary>Filtre des photos <span id="filtre-actif"></span></summary>
