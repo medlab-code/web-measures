@@ -505,8 +505,11 @@ class App:
         """Mesures, façades, visées et points triangulés à dessiner sur la carte (GeoJSON, texte)."""
         features = []
 
-        def add(kind, geometry_type, coordinates, label=""):
-            features.append({"type": "Feature", "properties": {"kind": kind, "label": label},
+        def add(kind, geometry_type, coordinates, label="", sublabel=""):
+            properties = {"kind": kind, "label": label}
+            if sublabel:  # sous le trait, le long de celui-ci
+                properties["sublabel"] = sublabel
+            features.append({"type": "Feature", "properties": properties,
                              "geometry": {"type": geometry_type, "coordinates": coordinates}})
 
         self.items = [i for i in self.items if not i.removed]
@@ -518,9 +521,10 @@ class App:
                     add("facade" if item.wall else "mesure", "LineString", [list(p) for p in item.points], item.label)
             else:  # largeur perpendiculaire : plan perpendiculaire à la route, puis trait de la visionneuse
                 if len(item.points) >= 2:
-                    add("trace", "LineString", [list(p) for p in item.points], "plan perpendiculaire")
+                    add("trace", "LineString", [list(p) for p in item.points])
                 if len(item.extras) >= 2:
-                    add("mesure", "LineString", [list(item.extras[0]), list(item.extras[-1])], item.label)
+                    add("mesure", "LineString", [list(item.extras[0]), list(item.extras[-1])], item.label,
+                        "plan perpendiculaire")
             for p in ([] if item.wall else (item.extras if item.extras else item.points)):
                 add("point", "Point", list(p))
             for start, end in zip(item.points, item.extras):  # pointillés vers les bords cliqués

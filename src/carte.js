@@ -227,38 +227,51 @@ const Carte = (() => {
   function showMeasures(map, geojson) {
     map.getSource("mesures")?.setData(geojson);
     for (const marker of labels.splice(0)) marker.remove();
+    sublabels.length = 0;
     for (const feature of geojson.features) {
-      const label = feature.properties.label;
-      if (!label || feature.properties.kind === "facade") continue;
+      const { label, sublabel, kind: featureKind } = feature.properties;
+      if (featureKind === "facade") continue;
       const coords = feature.geometry.type === "Point" ? feature.geometry.coordinates
         : middle(feature.geometry.coordinates);
-      const element = document.createElement("div");
-      if (feature.properties.kind === "trace") {  // le long du trait bleu, en dessous, de gauche à droite
-        const coordinates = feature.geometry.coordinates;
-        element.className = "ancre";
-        element.innerHTML = '<div class="etiquette trace"></div>';
-        element.firstChild.textContent = label;
-        labels.push(new maplibregl.Marker({
-          element, rotation: readableAngle(coordinates[0], coordinates[coordinates.length - 1]),
-          rotationAlignment: "map", pitchAlignment: "map",
-        }).setLngLat(coords).addTo(map));
-        continue;
+      if (label) {
+        const element = document.createElement("div");
+        element.className = "etiquette";
+        element.textContent = label;
+        labels.push(new maplibregl.Marker({ element, offset: [0, -20] }).setLngLat(coords).addTo(map));
       }
-      element.className = "etiquette";
-      element.textContent = label;
-      labels.push(new maplibregl.Marker({ element, offset: [0, -20] }).setLngLat(coords).addTo(map));
+      if (sublabel) {  // sous le trait, couchée le long de celui-ci (voir placeSublabels)
+        const element = document.createElement("div");
+        element.className = "ancre";
+        element.innerHTML = '<div class="etiquette sous"></div>';
+        element.firstChild.textContent = sublabel;
+        const marker = new maplibregl.Marker({ element }).setLngLat(coords).addTo(map);
+        const line = feature.geometry.coordinates;
+        labels.push(marker);
+        sublabels.push({ marker, text: element.firstChild, a: line[0], b: line[line.length - 1] });
+      }
     }
+    if (!sublabelsBound) {
+      sublabelsBound = true;
+      map.on("move", () => placeSublabels(map));
+    }
+    placeSublabels(map);
   }
 
-  /** Angle (degrés, sens horaire depuis l'horizontale) du segment a-b sur une carte orientée au
-   * nord, ramené entre -90° et 90° pour que le texte se lise de gauche à droite. */
-  function readableAngle(a, b) {
-    const dx = (b[0] - a[0]) * Math.cos((a[1] + b[1]) / 2 * Math.PI / 180);
-    const dy = b[1] - a[1];
-    let angle = -Math.atan2(dy, dx) * 180 / Math.PI;
-    if (angle > 90) angle -= 180;
-    if (angle < -90) angle += 180;
-    return angle;
+  // Étiquettes sous un trait : suivent son angle à l'écran, lisibles de gauche à droite, et
+  // n'apparaissent que si le trait fait au moins deux fois leur largeur (sinon elles cachent tout)
+  const sublabels = [];
+  let sublabelsBound = false;
+
+  function placeSublabels(map) {
+    for (const { marker, text, a, b } of sublabels) {
+      const pa = map.project(a), pb = map.project(b);
+      let angle = Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI;
+      if (angle > 90) angle -= 180;
+      if (angle < -90) angle += 180;
+      marker.setRotation(angle);
+      const length = Math.hypot(pb.x - pa.x, pb.y - pa.y);
+      text.style.visibility = length >= 2 * text.offsetWidth ? "visible" : "hidden";
+    }
   }
 
   // Poignées : points des mesures (et extrémités de la façade) à glisser pour les recaler.

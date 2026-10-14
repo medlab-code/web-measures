@@ -192,10 +192,10 @@ dd { margin: 0; overflow-wrap: anywhere; }
   white-space: nowrap;
   pointer-events: none;
 }
-/* Carte : « plan perpendiculaire » le long du trait bleu, en dessous */
-.etiquette.trace {
+/* Carte : « plan perpendiculaire » sous le trait rouge de la mesure, le long de celui-ci */
+.etiquette.sous {
   position: absolute;
-  top: 6px;
+  top: 7px;
   left: 0;
   transform: translateX(-50%);
   padding: 0 0.3rem;
