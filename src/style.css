@@ -192,22 +192,40 @@ dd { margin: 0; overflow-wrap: anywhere; }
   white-space: nowrap;
   pointer-events: none;
 }
-.etiquette.trace { color: #8ee8ff; }
+/* Carte : « plan perpendiculaire » le long du trait bleu, en dessous */
+.etiquette.trace {
+  position: absolute;
+  top: 6px;
+  left: 0;
+  transform: translateX(-50%);
+  padding: 0 0.3rem;
+  color: #8ee8ff;
+  font-size: 11px;
+  font-style: italic;
+}
 /* Visionneuse : étiquette à distance fixe du milieu du trait de mesure (repère de taille nulle) */
 .ancre { position: relative; width: 0; height: 0; }
 .ancre .etiquette { position: absolute; }
 .etiquette.dessus { bottom: 7px; left: 0; transform: translateX(-50%); }
 .etiquette.cote { left: 9px; top: 0; transform: translateY(-50%); }
 
+/* Poignée d'un point cliqué : croix jaune comme dans la visionneuse */
 .poignee {
-  width: 14px;
-  height: 14px;
-  border: 2px solid #202124;
-  border-radius: 50%;
-  background: #ffeb00;
+  width: 18px;
+  height: 18px;
+  background:
+    linear-gradient(#ffeb00, #ffeb00) center / 2px 100% no-repeat,
+    linear-gradient(#ffeb00, #ffeb00) center / 100% 2px no-repeat;
+  filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000);
   cursor: grab;
 }
-.poignee.facade { background: #9c27b0; border-color: #fff; }
+.poignee.facade {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  background: #9c27b0;
+  filter: none;
+}
 
 @media (max-width: 900px) {
   main { flex-direction: column; }

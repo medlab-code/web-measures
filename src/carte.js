@@ -114,16 +114,18 @@ const Carte = (() => {
             id: "liens", type: "line", source: "mesures", filter: kind("lien"),
             paint: { "line-color": BLEU, "line-width": 1.5, "line-dasharray": [1, 2] },
           },
-          {
-            id: "traits", type: "line", source: "mesures", filter: kind("mesure", "trace"),
-            paint: { "line-color": ["match", ["get", "kind"], "trace", BLEU, ROUGE], "line-width": 3 },
+          {  // plan perpendiculaire : bande bleue sous le trait rouge, visible quand ils se confondent
+            id: "plans", type: "line", source: "mesures", filter: kind("trace"),
+            layout: { "line-cap": "round" },
+            paint: { "line-color": BLEU, "line-opacity": 0.8, "line-width": 7 },
           },
           {
-            id: "points", type: "circle", source: "mesures", filter: kind("point"),
-            paint: {
-              "circle-color": JAUNE, "circle-radius": 4.5, "circle-stroke-color": "#202124",
-              "circle-stroke-width": 1.5,
-            },
+            id: "traits", type: "line", source: "mesures", filter: kind("mesure"),
+            paint: { "line-color": ROUGE, "line-width": 3 },
+          },
+          {  // croix jaunes, comme dans la visionneuse (image fournie à la demande, voir crossImage)
+            id: "points", type: "symbol", source: "mesures", filter: kind("point"),
+            layout: { "icon-image": "croix", "icon-allow-overlap": true, "icon-ignore-placement": true },
           },
           {
             id: "cibles", type: "circle", source: "mesures", filter: kind("cible", "triangule"),
@@ -135,9 +137,29 @@ const Carte = (() => {
         ],
       },
     });
+    map.on("styleimagemissing", (e) => {
+      if (e.id === "croix" && !map.hasImage("croix")) map.addImage("croix", crossImage(), { pixelRatio: 2 });
+    });
     map.addControl(new maplibregl.NavigationControl(), "top-left");
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
     return map;
+  }
+
+  /** Croix jaune d'un point cliqué, cernée de sombre (18 pixels, dessinée au double). */
+  function crossImage() {
+    const size = 36, canvas = document.createElement("canvas");
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    const c = size / 2, arm = 16;
+    for (const [color, width] of [["rgba(0, 0, 0, 0.7)", 8], [JAUNE, 4]]) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(c - arm, c); ctx.lineTo(c + arm, c);
+      ctx.moveTo(c, c - arm); ctx.lineTo(c, c + arm);
+      ctx.stroke();
+    }
+    return ctx.getImageData(0, 0, size, size);
   }
 
   function setBackground(map, name) {
@@ -211,10 +233,32 @@ const Carte = (() => {
       const coords = feature.geometry.type === "Point" ? feature.geometry.coordinates
         : middle(feature.geometry.coordinates);
       const element = document.createElement("div");
-      element.className = "etiquette" + (feature.properties.kind === "trace" ? " trace" : "");
+      if (feature.properties.kind === "trace") {  // le long du trait bleu, en dessous, de gauche à droite
+        const coordinates = feature.geometry.coordinates;
+        element.className = "ancre";
+        element.innerHTML = '<div class="etiquette trace"></div>';
+        element.firstChild.textContent = label;
+        labels.push(new maplibregl.Marker({
+          element, rotation: readableAngle(coordinates[0], coordinates[coordinates.length - 1]),
+          rotationAlignment: "map", pitchAlignment: "map",
+        }).setLngLat(coords).addTo(map));
+        continue;
+      }
+      element.className = "etiquette";
       element.textContent = label;
       labels.push(new maplibregl.Marker({ element, offset: [0, -20] }).setLngLat(coords).addTo(map));
     }
+  }
+
+  /** Angle (degrés, sens horaire depuis l'horizontale) du segment a-b sur une carte orientée au
+   * nord, ramené entre -90° et 90° pour que le texte se lise de gauche à droite. */
+  function readableAngle(a, b) {
+    const dx = (b[0] - a[0]) * Math.cos((a[1] + b[1]) / 2 * Math.PI / 180);
+    const dy = b[1] - a[1];
+    let angle = -Math.atan2(dy, dx) * 180 / Math.PI;
+    if (angle > 90) angle -= 180;
+    if (angle < -90) angle += 180;
+    return angle;
   }
 
   // Poignées : points des mesures (et extrémités de la façade) à glisser pour les recaler.
