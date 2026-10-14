@@ -344,6 +344,7 @@
   function applyMeasureUi() {
     $("#mesure").setAttribute("aria-pressed", String(measuring));
     $("#mesure").classList.toggle("actif", measuring);
+    $("#mode-mesure").hidden = !measuring;
     showModeOptions();
     const box = psv?.container;
     if (!box) return;

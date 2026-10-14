@@ -148,6 +148,22 @@ button.principal { font-weight: 600; }
   z-index: 5;
 }
 
+/* Visionneuse : rappel du mode mesure, en haut à gauche, texte détouré incrusté dans la photo */
+#mode-mesure {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.8rem;
+  margin: 0;
+  color: var(--panoramax);  /* comme le bouton « Mesure » enfoncé */
+  opacity: 0.9;
+  font-size: 15px;
+  font-weight: 600;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.6), 1px 1px 1px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  z-index: 5;
+}
+#mode-mesure[hidden] { display: none; }
+
 dialog {
   max-width: 34rem;
   border: 1px solid var(--bord);
