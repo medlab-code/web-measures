@@ -521,10 +521,9 @@ class App:
                     add("facade" if item.wall else "mesure", "LineString", [list(p) for p in item.points], item.label)
             else:  # largeur perpendiculaire : plan perpendiculaire à la route, puis trait de la visionneuse
                 if len(item.points) >= 2:
-                    add("trace", "LineString", [list(p) for p in item.points])
+                    add("trace", "LineString", [list(p) for p in item.points], sublabel="plan perpendiculaire")
                 if len(item.extras) >= 2:
-                    add("mesure", "LineString", [list(item.extras[0]), list(item.extras[-1])], item.label,
-                        "plan perpendiculaire")
+                    add("mesure", "LineString", [list(item.extras[0]), list(item.extras[-1])], item.label)
             for p in ([] if item.wall else (item.extras if item.extras else item.points)):
                 add("point", "Point", list(p))
             for start, end in zip(item.points, item.extras):  # pointillés vers les bords cliqués
