@@ -225,16 +225,22 @@
     // conseillé, sauf pendant ce calage)
     const tilt = (lights.find(([name]) => name === "Inclinaison") || [])[1];
     const message = $("#calcul-inclinaison");
-    const manual = tilt === "non" && $("#mode").value !== "tilt";
-    message.hidden = !measuring || !(tilt === "attente" || manual);
+    // En calage de l'inclinaison, rappel du mode : les clics calent la photo, ils ne mesurent pas
+    const calibrating = $("#mode").value === "tilt";
+    const manual = tilt === "non" && !calibrating;
+    message.hidden = !measuring || !(calibrating || tilt === "attente" || manual);
     message.classList.toggle("manuel", manual);
+    message.classList.toggle("calage", calibrating);
+    message.classList.toggle("attente", tilt === "attente");  // petite roue : calcul en cours
     if (tilted !== (tilt === "ok")) {
       tilted = tilt === "ok";
       applyMeasureUi();  // pointeur : cercle vert
     }
-    message.textContent = manual
-      ? "Pour plus de précision, calez l'inclinaison à la main (mode « Calage : inclinaison »)"
-      : "Calcul du calage de l'inclinaison en cours";
+    message.textContent = calibrating
+      ? "Calage vertical" + (tilt === "attente" ? " · calcul automatique en cours" : "")
+      : manual
+        ? "Pour plus de précision, calez l'inclinaison à la main (mode « Calage : inclinaison »)"
+        : "Calcul du calage de l'inclinaison en cours";
   }
 
   // Message du calcul d'inclinaison : sous le pointeur de mesure tant qu'il est dans la vue,

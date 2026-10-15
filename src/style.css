@@ -313,6 +313,8 @@ button.principal { font-weight: 600; }
 #calcul-inclinaison[hidden] { display: none; }
 #calcul-inclinaison.manuel { color: #ff5f52; }  /* calcul automatique sans résultat */
 #calcul-inclinaison.manuel::before { display: none; }
+#calcul-inclinaison.calage { color: #8ee8ff; }  /* calage de l'inclinaison : pas une mesure */
+#calcul-inclinaison.calage:not(.attente)::before { display: none; }
 #calcul-inclinaison::before {
   content: "";
   display: inline-block;
