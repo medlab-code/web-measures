@@ -565,7 +565,7 @@ class App:
         for i, j, values in self.links:  # distance entre deux points gardés : trait rouge, comme une mesure
             add("distance", "LineString", [list(self.points[i][:2]), list(self.points[j][:2])],
                 "{}↔{} {} m".format(self.points[i][2]["nom"], self.points[j][2]["nom"],
-                                    measures._num(values["valeur_m"], 2)))
+                                    round(values["valeur_m"])))  # au mètre près : précision de la triangulation
         return json.dumps({"type": "FeatureCollection", "features": features})
 
     def results(self):
