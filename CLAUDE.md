@@ -1,7 +1,7 @@
 # Mesures Panoramax (web-measures) — notes pour Claude Code
 
-Application web de mesure sur les photos Panoramax, pour des agents qui n'utilisent pas
-QGIS. Reprend les calculs du plugin QGIS « Visionneuse Panoramax »
+Application web de mesure sur les photos Panoramax, pour les utilisateurs sans QGIS.
+Reprend les calculs du plugin QGIS « Visionneuse Panoramax »
 (`~/claude/visionneuse_panoramax`, dépôt `medlab-code/visionneuse_panoramax`) : voir son
 `docs/MESURES.md` (méthodes et validations) et `docs/feuille-de-route.md` (choix de cette
 application). Auteur : Cédric COCHART.

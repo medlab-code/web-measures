@@ -2,9 +2,9 @@
 <!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
 <!-- Essai de bout en bout dans un vrai navigateur : charge la page, puis
-     - Pouilly-en-Auxois (photo CD21, position RTK) : précision vérifiée, hauteur de caméra
+     - Pouilly-en-Auxois (photo imajbox, position RTK) : précision vérifiée, hauteur de caméra
        d'après l'altitude GPS, capture HD (Pyodide d'arrière-plan) ;
-     - Montbard (photo CD21) : inclinaison automatique (Pyodide d'arrière-plan) ;
+     - Montbard (photo imajbox) : inclinaison automatique (Pyodide d'arrière-plan) ;
      - Dijon (photo grand public) : largeur de chaussée, recalage d'un point, longueur,
        hauteur, mesure libre, triangulation depuis deux photos, calage de l'inclinaison.
      Journal sous la page et sur la sortie de tools/serveur-essai.py. Voir CLAUDE.md pour le
@@ -70,7 +70,7 @@ async function feature(id) {
   doc.querySelector("#mesure").click();
   log("bouton Mesure activé : " + app.status());
 
-  // Pouilly (CD21) ------------------------------------------------------------------------
+  // Pouilly (imajbox) ------------------------------------------------------------------------
   await open(POUILLY);
   await until(() => !state().quality.includes("vérification en cours"), 60000, "précision");
   log("== Pouilly : " + state().quality);
@@ -85,7 +85,7 @@ async function feature(id) {
   const jpeg = await Calcul.capture(params, bytes);
   log("capture HD : " + Math.round(jpeg.length * 0.75 / 1024) + " Ko en " + (Date.now() - t0) + " ms · " + params.caption);
 
-  // Montbard (CD21) : inclinaison automatique, calculée en arrière-plan
+  // Montbard (imajbox) : inclinaison automatique, calculée en arrière-plan
   await open(MONTBARD);
   log("== Montbard : inclinaison auto en " + await until(() => state().quality.includes("inclinaison calée"),
     120000, "inclinaison") + " ms");

@@ -1,12 +1,12 @@
 # Mesures Panoramax (web-measures)
 
-Application web de mesure sur les photos de rue [Panoramax](https://panoramax.fr), pour
-les agents qui n'utilisent pas QGIS : largeur d'une chaussée, hauteur d'un objet, longueur,
+Application web de mesure sur les photos de rue [Panoramax](https://panoramax.fr), sans
+installer QGIS : largeur d'une chaussée, hauteur d'un objet, longueur,
 position d'un objet, à préparer ou vérifier depuis le bureau.
 
 Elle reprend les calculs du plugin QGIS
 [Visionneuse Panoramax](https://github.com/medlab-code/visionneuse_panoramax), validés sur
-les photos du conseil départemental de la Côte-d'Or (caméra imajbox, position RTK).
+des photos imajbox 360 HD à position RTK (Pouilly-en-Auxois, Montbard, Semur-en-Auxois…).
 
 ## État
 
@@ -100,7 +100,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 | Géoplateforme IGN : WFS | BD TOPO (axe de la route), cadastre (façades) | accessible |
 | Open-Meteo | altitudes de secours | accessible |
 
-**À refaire depuis un poste d'agent** du département : ouvrir la page et relever la liste.
+**À refaire depuis le poste des utilisateurs** (proxy ou pare-feu d'entreprise) : ouvrir la page et relever la liste.
 
 ## Étapes
 
