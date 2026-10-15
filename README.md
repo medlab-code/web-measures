@@ -52,6 +52,7 @@ fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/so
 | Fichier | Rôle |
 |---|---|
 | `index.html`, `src/style.css` | page et mise en page |
+| `img/panoramax.svg` | logo Panoramax (repris de la visionneuse Panoramax, licence MIT) |
 | `src/app.js` | relie carte, visionneuse et calcul |
 | `src/carte.js` | carte MapLibre : fonds, filaire, points de repère (PR), mesures, poignées, photo la plus proche |
 | `src/calcul.js` | chargement de Pyodide et des fichiers Python (`py/sources.js`) |

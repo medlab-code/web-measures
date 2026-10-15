@@ -17,6 +17,7 @@
 </head>
 <body>
   <header>
+    <img class="logo" src="img/panoramax.svg" alt="" width="26" height="26">
     <h1>Mesures Panoramax</h1>
     <button id="mesure" type="button" aria-pressed="false" disabled
             title="Mesurer : un clic dans la photo prend un point au lieu de changer de photo">📐 Mesure</button>
@@ -36,12 +37,12 @@
       </select>
     </label>
     <!-- Réglages du mode (voir app.js : showModeOptions) -->
-    <span class="option" data-modes="height"><label><input id="mur" type="checkbox" disabled> Façade du cadastre</label></span>
-    <span class="option" data-modes="tri">
+    <span class="option" data-modes="height" hidden><label><input id="mur" type="checkbox" disabled> Façade du cadastre</label></span>
+    <span class="option" data-modes="tri" hidden>
       <button id="viser" type="button" class="principal" disabled>🎯 Viser</button>
       <button id="garder" type="button" disabled>Garder le point</button>
     </span>
-    <span class="option" data-modes="camera">
+    <span class="option" data-modes="camera" hidden>
       <select id="reference" disabled>
         <option value="ground">Longueur au sol</option>
         <option value="height">Hauteur d'un objet</option>

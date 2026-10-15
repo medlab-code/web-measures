@@ -41,7 +41,7 @@ header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 0.65rem;
+  gap: 0.5rem 0.55rem;
   padding: 0.5rem 1rem;
   border-bottom: 1px solid var(--bord);
 }
@@ -52,7 +52,8 @@ header input[type="number"] { width: 4.5rem; }
 .espace { flex: 1; }
 header .captures { display: inline-flex; gap: 0.5rem; }
 
-h1 { font-size: 1.1rem; margin: 0; }
+h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
+header .logo { display: block; width: 26px; height: 26px; margin-right: -0.3rem; }  /* collé au titre */
 h2 { font-size: 0.95rem; margin: 0 0 0.4rem; }
 
 main { flex: 1; display: flex; min-height: 0; }
