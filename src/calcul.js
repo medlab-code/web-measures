@@ -114,7 +114,7 @@ const Calcul = (() => {
     const p = params;
     return request({
       type: "capture",
-      args: [bytes, p.azimuth, p.is360, p.heading, p.pitch, p.vfov, p.photo_hfov, p.up, p.caption],
+      args: [bytes, p.azimuth, p.is360, p.heading, p.pitch, p.vfov, p.photo_hfov, p.up],
     }, [bytes.buffer]);
   }
 

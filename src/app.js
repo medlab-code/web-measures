@@ -756,8 +756,15 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const jpeg = await Calcul.capture(params, new Uint8Array(await response.arrayBuffer()));
       if (!jpeg) throw new Error("format d'image non reconnu");
-      const bytes = Uint8Array.from(atob(jpeg), (c) => c.charCodeAt(0));
-      download(new Blob([bytes], { type: "image/jpeg" }), `${params.name}.jpg`);
+      // Cartouches (attribution, localisation) dessinés ici : polices du navigateur, accents compris
+      const image = new Image();
+      image.src = `data:image/jpeg;base64,${jpeg}`;
+      await image.decode();
+      const canvas = Object.assign(document.createElement("canvas"), { width: image.width, height: image.height });
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(image, 0, 0);
+      drawCartouches(ctx, canvas, Math.max(14, Math.round(canvas.height / 54)), params.caption, placeText());
+      download(await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92)), `${params.name}.jpg`);
     } catch (error) {
       setStatus(`Capture « Image seule » impossible : ${error.message}`, "echec");
     } finally {
@@ -835,8 +842,31 @@
       else if (mid) label(ctx, mark.label, mid[0], mid[1] - 7 * scale, 12 * scale, "center");
     }
     const caption = app ? app.caption(psv.getPosition().yaw) : "Panoramax";
-    label(ctx, caption, canvas.width - 8 * scale, canvas.height - 8 * scale, 12 * scale, "right");
+    drawCartouches(ctx, canvas, 12 * scale, caption, placeText());
     return canvas;
+  }
+
+  /** Cartouches d'une capture : attribution en bas à droite, localisation en bas à gauche,
+   * ou au-dessus de l'attribution si elles ne tiennent pas côte à côte. */
+  function drawCartouches(ctx, canvas, size, caption, place) {
+    const margin = size * 0.7;
+    const bottom = canvas.height - margin;
+    const width = (text, s) => {
+      ctx.font = `${s}px system-ui, sans-serif`;
+      return text ? ctx.measureText(text).width + s : 0;
+    };
+    // Texte plus large que l'image (vue étroite) : réduit pour tenir dans la largeur
+    const fit = (text) => Math.min(size, size * (canvas.width - 2 * margin) / Math.max(width(text, size), 1));
+    const captionSize = fit(caption), placeSize = fit(place);
+    if (caption) label(ctx, caption, canvas.width - margin, bottom, captionSize, "right");
+    if (!place) return;
+    const side = width(place, placeSize) + width(caption, captionSize) + 3 * margin <= canvas.width;
+    label(ctx, place, margin, side ? bottom : bottom - captionSize * 1.6 - margin / 2, placeSize, "left");
+  }
+
+  /** Localisation affichée dans la visionneuse (route, PR, commune), ou "". */
+  function placeText() {
+    return $("#lieu").hidden ? "" : $("#lieu").textContent;
   }
 
   function label(ctx, text, x, y, size, align) {

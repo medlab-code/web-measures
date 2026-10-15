@@ -85,11 +85,12 @@ def call(module, name, args):
     return json.dumps(_plain(function(*args)))
 
 
-def capture(data, azimuth, is360, heading, pitch, vfov, photo_hfov, up, caption):
+def capture(data, azimuth, is360, heading, pitch, vfov, photo_hfov, up):
     """Capture HD de la vue (voir core/capture.py) : JPEG en base64, ou "" si la photo est
-    illisible."""
+    illisible. Les cartouches (attribution, localisation) sont ajoutés par la page, avec les
+    polices du navigateur (accents compris)."""
     import numpy as np
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image
 
     from core import capture as calc
 
@@ -102,19 +103,6 @@ def capture(data, azimuth, is360, heading, pitch, vfov, photo_hfov, up, caption)
     out = calc.render_view(np.asarray(img), azimuth, is360, heading, pitch, vfov,
                            None if is360 else photo_hfov, up=up)
     view = Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), "RGB")
-    if caption:  # cartouche d'attribution en bas à droite, comme le plugin
-        draw = ImageDraw.Draw(view, "RGBA")
-        size = max(14, view.height // 54)
-        try:
-            font = ImageFont.load_default(size)
-        except TypeError:  # Pillow ancien : police par défaut, de taille fixe
-            font = ImageFont.load_default()
-        pad = size // 2
-        left, top, right, bottom = draw.textbbox((0, 0), caption, font=font)
-        tw, th = right - left + 2 * pad, bottom - top + pad
-        x0, y0 = view.width - tw - pad, view.height - th - pad
-        draw.rounded_rectangle((x0, y0, x0 + tw, y0 + th), radius=pad // 2, fill=(0, 0, 0, 140))
-        draw.text((x0 + pad - left, y0 + pad // 2 - top), caption, font=font, fill=(255, 255, 255, 255))
     buf = io.BytesIO()
     view.save(buf, "JPEG", quality=92)
     return base64.b64encode(buf.getvalue()).decode("ascii")
