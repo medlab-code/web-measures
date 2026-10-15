@@ -6,7 +6,7 @@
        d'après l'altitude GPS, capture HD (Pyodide d'arrière-plan) ;
      - Montbard (photo imajbox) : inclinaison automatique (Pyodide d'arrière-plan) ;
      - Dijon (photo grand public) : largeur de chaussée, recalage d'un point, longueur,
-       hauteur, mesure libre, triangulation depuis deux photos, calage de l'inclinaison.
+       hauteur, triangulation depuis deux photos, calage de l'inclinaison.
      Journal sous la page et sur la sortie de tools/serveur-essai.py. Voir CLAUDE.md pour le
      lancer dans Chrome sans fenêtre. -->
 
@@ -131,13 +131,6 @@ async function feature(id) {
   app.click(0.62, 0.35);
   log("résultat : " + app.status());
 
-  log("== libre, plan horizontal : " + app.set_mode("free") + " | " + app.set_surface("horizontal"));
-  app.click(-0.3, -0.2);
-  await sleep(3000);
-  app.click(0.3, -0.2);
-  await sleep(3000);
-  log("résultat : " + app.status());
-
   log("== triangulation : " + app.set_mode("tri"));
   log(app.aim(0.9, 0.0));
   // Changement de photo : tant que la visionneuse montre l'ancienne, la visée est refusée
@@ -170,9 +163,8 @@ async function feature(id) {
     doc.querySelector(id).value = value;
     doc.querySelector(id).dispatchEvent(new Event("change"));
   };
-  for (const mode of ["road", "height", "tri", "free", "camera"]) {
+  for (const mode of ["road", "height", "tri", "camera"]) {
     select("#mode", mode);
-    if (mode === "free") select("#surface", "facade");
     const shown = [...doc.querySelectorAll("header .option")].filter((o) => !o.hidden)
       .map((o) => [...o.querySelectorAll("input, select, button")].map((e) => e.id).join("+"));
     log("réglages " + mode + " : " + (shown.join(", ") || "aucun") + (doc.querySelector("#reticule").hidden ? "" : " · réticule"));

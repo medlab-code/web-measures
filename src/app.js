@@ -186,7 +186,7 @@
     if (saved && !app.load_calibration(saved)) console.warn("Calage enregistré illisible : ignoré.");
     savedCalibration = app.calibration_version;
     for (const id of ["#mesure", "#mode", "#camera", "#pont", "#effacer", "#tout-effacer", "#calage-exporter",
-      "#calage-importer", "#mur", "#surface", "#definir-facade", "#facade-cadastre", "#plan", "#viser",
+      "#calage-importer", "#mur", "#viser",
       "#reference", "#longueur"]) $(id).disabled = false;
     $("#camera").value = store.get("camera", $("#camera").value);
     app.set_camera_height(Number($("#camera").value));
@@ -594,10 +594,9 @@
 
   function showModeOptions() {
     const mode = $("#mode").value;
-    const surface = $("#surface").value;
     for (const option of document.querySelectorAll("header .option")) {
       const modes = option.dataset.modes.split(" ");
-      option.hidden = !modes.includes(mode) || (option.dataset.surface && option.dataset.surface !== surface);
+      option.hidden = !modes.includes(mode);
     }
     $("#reticule").hidden = mode !== "tri" || !measuring || viewer.hidden;
   }
@@ -620,13 +619,6 @@
   });
   $("#pont").addEventListener("change", (event) => refresh(app.set_bridge(event.target.checked)));
   $("#mur").addEventListener("change", (event) => refresh(app.set_use_wall(event.target.checked)));
-  $("#surface").addEventListener("change", (event) => {
-    showModeOptions();
-    refresh(app.set_surface(event.target.value));
-  });
-  $("#plan").addEventListener("change", (event) => refresh(app.set_plane_height(Number(event.target.value))));
-  $("#definir-facade").addEventListener("click", () => refresh(app.start_facade()));
-  $("#facade-cadastre").addEventListener("click", () => refresh(app.start_wall_facade()));
   for (const id of ["#reference", "#longueur"]) {
     $(id).addEventListener("change", () => refresh(app.set_reference($("#reference").value, Number($("#longueur").value))));
   }

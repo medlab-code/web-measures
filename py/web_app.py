@@ -24,7 +24,7 @@ from datetime import datetime
 import web_host
 from core import autotilt, buildings, calibration, capture, filters, measures, metadata, precision, roads, terrain, tools
 
-GROUND_MODES = ("road", "width", "height", "free")  # mesures par lancer de rayon
+GROUND_MODES = ("road", "width", "height")  # mesures par lancer de rayon (voir core/measures.py)
 CALIBRATION_MODES = ("tilt", "heading", "camera")
 MODES = GROUND_MODES + ("tri",) + CALIBRATION_MODES
 
@@ -166,22 +166,6 @@ class App:
 
     def set_use_wall(self, value):
         self.tool.set_use_wall(bool(value))
-        return self.status()
-
-    def set_surface(self, surface):
-        self.tool.set_surface(surface)
-        return self.status()
-
-    def set_plane_height(self, value):
-        self.tool.set_plane_height(float(value))
-        return self.status()
-
-    def start_facade(self):
-        self.tool.start_facade()
-        return self.status()
-
-    def start_wall_facade(self):
-        self.tool.start_wall_facade()
         return self.status()
 
     def set_bridge(self, value):
