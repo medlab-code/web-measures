@@ -350,7 +350,15 @@
       });
       comment.dataset.key = `${r.kind}-${r.id}`;
       comment.addEventListener("input", () => app.set_comment(r.kind, r.id, comment.value));
-      li.append(text, comment);
+      const remove = Object.assign(document.createElement("button"), {
+        type: "button", className: "effacer-resultat", textContent: "×", title: "Effacer ce résultat",
+      });
+      remove.setAttribute("aria-label", `Effacer : ${r.text}`);
+      remove.addEventListener("click", () => refresh(app.delete_result(r.kind, r.id)));
+      const line = document.createElement("div");
+      line.className = "ligne";
+      line.append(text, remove);
+      li.append(line, comment);
       return li;
     }));
     if (focused) ol.querySelector(`[data-key="${focused}"]`)?.focus();

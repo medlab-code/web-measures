@@ -577,6 +577,31 @@ class App:
                 for k, (i, j, v) in enumerate(self.links)]
         return json.dumps(out)
 
+    def delete_result(self, kind, ident):
+        """Efface un résultat de la liste : mesure (et son dessin), point triangulé (et les
+        distances qui le relient ; les points suivants sont renumérotés) ou distance."""
+        if kind == "mesure":
+            tool = self.tool
+            for m in tool.measures():
+                if id(m) == ident:
+                    if tool.selected is not None and tool.selected[0] is m:
+                        tool.selected = None
+                    m.remove()
+                    if m is tool.current:
+                        tool.current = None
+                    else:
+                        tool.done.remove(m)
+                    self.message = "Mesure effacée."
+                    break
+        elif kind == "point" and 0 <= ident < len(self.points):
+            del self.points[ident]
+            self.links = [(i - (i > ident), j - (j > ident), v) for i, j, v in self.links if ident not in (i, j)]
+            self.message = "Point triangulé effacé."
+        elif kind == "distance" and 0 <= ident < len(self.links):
+            del self.links[ident]
+            self.message = "Distance effacée."
+        return self.status()
+
     def set_comment(self, kind, ident, text):
         """Commentaire d'une mesure ou d'un point gardé (champ « commentaire » de l'export)."""
         if kind == "point":
