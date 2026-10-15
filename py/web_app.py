@@ -561,7 +561,7 @@ class App:
             if item.point:
                 add("cible", "Point", list(item.point))
         for lon, lat, values in self.points:
-            add("triangule", "Point", [lon, lat], "{} ±{} m".format(values["nom"], measures._num(values["incert_m"], 2)))
+            add("triangule", "Point", [lon, lat], values["nom"])  # nom seul : pas d'incertitude sur la carte
         for i, j, values in self.links:  # distance entre deux points gardés : trait rouge, comme une mesure
             add("distance", "LineString", [list(self.points[i][:2]), list(self.points[j][:2])],
                 "{}↔{} {} m".format(self.points[i][2]["nom"], self.points[j][2]["nom"],

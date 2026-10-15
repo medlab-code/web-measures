@@ -326,8 +326,8 @@ const Carte = (() => {
         : middle(feature.geometry.coordinates);
       if (label) {
         const element = document.createElement("div");
-        // Triangulation (points gardés et distances entre eux) : fond d'une autre couleur
-        element.className = "etiquette" + (featureKind === "triangule" || featureKind === "distance" ? " tri" : "");
+        // Triangulation : fond d'une autre couleur, pour les points gardés et pour les distances
+        element.className = "etiquette" + ({ triangule: " tri-point", distance: " tri" }[featureKind] || "");
         element.textContent = label;
         const marker = new maplibregl.Marker({ element, offset: LABEL_OFFSET }).setLngLat(coords).addTo(map);
         labels.push(marker);
