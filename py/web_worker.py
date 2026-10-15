@@ -27,14 +27,16 @@ except ImportError:  # hors du navigateur (essais)
 CAPTURE_WIDTH = 6144  # largeur de travail de la photo source d'une capture (HD imajbox : 12 288)
 
 
-def _open(data, width):
-    """Image Pillow réduite à environ `width` de large dès le décodage."""
+def _open(data, width, gray=False):
+    """Image Pillow réduite à environ `width` de large dès le décodage ; gray : décodée
+    directement en niveaux de gris (JPEG : luminance seule, plus rapide)."""
     from PIL import Image
 
     img = Image.open(io.BytesIO(_python(data)))
     w, h = img.size
-    if w > width:
-        img.draft(img.mode if img.mode in ("L", "RGB") else "RGB", (width, round(width * h / w)))
+    mode = "L" if gray else (img.mode if img.mode in ("L", "RGB") else "RGB")
+    if w > width or gray:
+        img.draft(mode, (min(width, w), round(min(width, w) * h / w)))
     return img
 
 
@@ -44,7 +46,7 @@ def decode_band(data, width, elev_min, elev_max):
     from PIL import Image
 
     try:
-        img = _open(data, width)
+        img = _open(data, width, gray=True)
     except Exception:
         return None
     full_w, full_h = img.size
