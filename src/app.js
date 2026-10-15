@@ -861,7 +861,7 @@
     const margin = size * 0.7;
     const bottom = canvas.height - margin;
     const width = (text, s) => {
-      ctx.font = `600 ${s}px Roboto, system-ui, sans-serif`;
+      ctx.font = `500 ${s}px Roboto, system-ui, sans-serif`;
       return text ? ctx.measureText(text).width + 1.08 * s : 0;
     };
     // Texte plus large que l'image (vue étroite) : réduit pour tenir dans la largeur
@@ -875,7 +875,7 @@
 
   /** Police Roboto chargée, pour le texte dessiné dans les captures (sinon police de repli). */
   function robotoReady() {
-    return document.fonts ? document.fonts.load("600 12px Roboto").catch(() => {}) : Promise.resolve();
+    return document.fonts ? document.fonts.load("500 12px Roboto").catch(() => {}) : Promise.resolve();
   }
 
   /** Localisation affichée dans la visionneuse (route, PR, commune), ou "". */
@@ -884,11 +884,11 @@
   }
 
   /** Étiquette d'une capture, dans le style de l'étiquette de localisation de la visionneuse
-   * (#lieu : fond sombre semi-transparent, angles arrondis, texte blanc demi-gras détouré),
+   * (#lieu : fond sombre semi-transparent, angles arrondis, texte blanc Roboto moyen détouré),
    * ses dimensions rapportées à la taille du texte (13 px dans la visionneuse). (x, y) : bas
    * de l'étiquette, à gauche, à droite ou au centre selon align. */
   function cartouche(ctx, text, x, y, size, align) {
-    ctx.font = `600 ${size}px Roboto, system-ui, sans-serif`;
+    ctx.font = `500 ${size}px Roboto, system-ui, sans-serif`;
     const padX = size * 0.54, height = size * 1.72;
     const w = ctx.measureText(text).width + 2 * padX;
     const left = align === "right" ? x - w : align === "left" ? x : x - w / 2;

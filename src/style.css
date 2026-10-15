@@ -244,7 +244,7 @@ button.principal { font-weight: 600; }
   background: var(--etiquette-vue);
   color: var(--panoramax);  /* comme le bouton « Mesure » enfoncé */
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 500;
   text-shadow: var(--detoure-vue);
   pointer-events: none;
   z-index: 5;
@@ -265,7 +265,7 @@ button.principal { font-weight: 600; }
   gap: 0.25rem;
   color: #fff;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   text-shadow: var(--detoure-vue);
   pointer-events: none;
   z-index: 5;
@@ -291,7 +291,7 @@ button.principal { font-weight: 600; }
   background: var(--etiquette-vue);
   color: #fff;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   text-shadow: var(--detoure-vue);
   pointer-events: none;
   z-index: 5;
@@ -308,7 +308,7 @@ button.principal { font-weight: 600; }
   color: #ffeb00;
   opacity: 0.9;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
   text-shadow: 0 0 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.6), 1px 1px 1px rgba(0, 0, 0, 0.8);
   pointer-events: none;
@@ -404,7 +404,7 @@ dd { margin: 0; overflow-wrap: anywhere; }
   background: rgba(255, 255, 255, 0.85);
   color: #2e7d32;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
   pointer-events: none;
 }
