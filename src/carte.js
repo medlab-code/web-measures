@@ -79,6 +79,7 @@ const Carte = (() => {
           mesures: { type: "geojson", data: EMPTY },
           vue: { type: "geojson", data: EMPTY },
           pr: { type: "geojson", data: EMPTY },
+          contour: { type: "geojson", data: EMPTY },  // commune choisie dans la recherche (recherche.js)
         },
         layers: [
           { id: "plan", type: "raster", source: "plan" },
@@ -105,6 +106,15 @@ const Carte = (() => {
               "circle-color": ORANGE, "circle-radius": 3.5, "circle-opacity": 0.7,
               "circle-stroke-color": "#ffffff", "circle-stroke-width": 1,
             },
+          },
+          // Contour de la commune choisie dans la recherche de lieux : liseré blanc, tirets
+          {
+            id: "contour-halo", type: "line", source: "contour",
+            paint: { "line-color": "#ffffff", "line-width": 4, "line-opacity": 0.8 },
+          },
+          {
+            id: "contour", type: "line", source: "contour",
+            paint: { "line-color": "#3949ab", "line-width": 2, "line-dasharray": [3, 2] },
           },
           // Points de repère des routes (voir showMilestones), sous le curseur et les mesures
           {

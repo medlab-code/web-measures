@@ -432,10 +432,10 @@
   function setPhoto(feature, recenter) {
     photo = feature;
     store.set("photo", feature.id);  // rouverte à la prochaine visite (voir reopenPhoto)
-    // En bas à droite de la visionneuse : « © 2025 producteur » (année de la prise de vue)
+    // En bas à droite de la visionneuse : « 2025 – producteur » (année de la prise de vue)
     const producer = photoProducer(feature);
     const taken = (feature.properties?.datetime || "").slice(0, 4);
-    $("#producteur-photo").textContent = producer || taken ? `© ${[taken, producer].filter(Boolean).join(" ")}` : "";
+    $("#producteur-photo").textContent = [taken, producer].filter(Boolean).join(" – ");
     $("#producteur-photo").hidden = !producer && !taken;
     // PCRS : option active seulement là où un PCRS est publié sur la Géoplateforme
     Carte.pcrsAt(map, ...feature.geometry.coordinates).then((zone) => {
