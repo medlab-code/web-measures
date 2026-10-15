@@ -66,6 +66,21 @@
     app?.set_api_url(apiUrl);
   });
 
+  /** Dernière photo de la visite précédente, rouverte et centrée sur la carte. */
+  async function reopenPhoto() {
+    const id = store.get("photo");
+    if (!id || photo) return;  // rien de gardé, ou photo déjà choisie entre-temps
+    try {
+      const feature = await Carte.photoById(id);
+      if (!feature || photo) return;  // photo supprimée depuis, ou autre photo choisie
+      openPhoto(feature);
+      map.jumpTo({ center: feature.geometry.coordinates, zoom: 17 });
+    } catch (error) {
+      console.warn("Dernière photo non rouverte :", error);
+    }
+  }
+  reopenPhoto();
+
   // Calcul ---------------------------------------------------------------------------------
 
   function setStatus(text, kind = "") {
@@ -254,6 +269,7 @@
 
   function setPhoto(feature, recenter) {
     photo = feature;
+    store.set("photo", feature.id);  // rouverte à la prochaine visite (voir reopenPhoto)
     const coords = feature.geometry.coordinates;
     Carte.showView(map, coords, viewHeading(), viewFov());
     if (recenter && $("#centrer").checked) map.easeTo({ center: coords, zoom: Math.max(map.getZoom(), 17) });
