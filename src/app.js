@@ -273,7 +273,6 @@
     }
     showLights(state.lights);
     $("#garder").disabled = !state.point;
-    $("#distance").disabled = !state.can_link;
     const bandeau = $("#bandeau");
     bandeau.hidden = !state.waiting_map;
     bandeau.textContent = "Cliquez maintenant ce repère sur la carte (Échap pour annuler).";
@@ -655,7 +654,6 @@
     refresh(app.aim(yaw, pitch));
   });
   $("#garder").addEventListener("click", () => refresh(app.keep_point()));
-  $("#distance").addEventListener("click", () => refresh(app.link_points()));
   $("#effacer").addEventListener("click", () => refresh(app.clear()));
   $("#tout-effacer").addEventListener("click", () => refresh(app.clear_all()));
   new MutationObserver(showModeOptions).observe(viewer, { attributes: true, attributeFilter: ["hidden"] });

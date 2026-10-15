@@ -364,29 +364,23 @@ class App:
         values["commentaire"] = ""
         self.points.append((r["lon"], r["lat"], values))
         self.triangulator.clear()
-        self.message = "Point gardé (incertitude ±{} m) : il sera exporté avec les mesures.".format(
-            measures._num(r["uncertainty"]))
+        self.message = "Point {} gardé (incertitude ±{} m) : il sera exporté avec les mesures.".format(
+            len(self.points), measures._num(r["uncertainty"]))
+        if len(self.points) >= 2:  # distance au point gardé précédent, aussitôt
+            self.message += " " + self._link_last()
         return self.status()
 
-    def link_points(self):
+    def _link_last(self):
         """Distance horizontale entre les deux derniers points gardés (la triangulation donne
         une position sur la carte), incertitude des deux points combinée, gardée comme une
-        mesure."""
-        if not self._can_link():
-            self.message = "Gardez au moins deux points triangulés pour mesurer leur distance."
-            return self.status()
+        mesure. Retourne le texte à afficher."""
         i, j = len(self.points) - 2, len(self.points) - 1
         (lon1, lat1, v1), (lon2, lat2, v2) = self.points[i], self.points[j]
         x, y = triangulation._local(lon2, lat2, lon1, lat1)
         value, unc = math.hypot(x, y), math.hypot(v1["incert_m"], v2["incert_m"])
         self.links.append((i, j, {"valeur_m": round(value, 3), "incert_m": round(unc, 2), "commentaire": ""}))
-        self.message = "Distance entre les points {} et {} : {} m (±{} m).".format(
+        return "Distance entre les points {} et {} : {} m (±{} m).".format(
             i + 1, j + 1, measures._num(value, 2), measures._num(unc, 2))
-        return self.status()
-
-    def _can_link(self):
-        n = len(self.points)
-        return n >= 2 and not any(link[:2] == (n - 2, n - 1) for link in self.links)
 
     def move_handle(self, index, lon, lat):
         """Poignée n° index (voir handles) glissée sur la carte en (lon, lat)."""
@@ -480,7 +474,6 @@ class App:
             "advice": precision.DEGRADED_ADVICE,
             "waiting_map": self.waiting_map(),
             "point": self.triangulator.result is not None,
-            "can_link": self._can_link(),  # distance entre les deux derniers points gardés
             "active": self.active,
             "lights": self._lights(pic) if item else [],
         })
