@@ -16,7 +16,7 @@ application). Auteur : Cédric COCHART.
   un objet : `Carte`, `Services`, `Calcul`), pas de `fetch` de fichiers locaux. Bibliothèques
   par CDN (jsDelivr), versions épinglées.
 - Services appelés depuis le navigateur : ils doivent renvoyer les en-têtes CORS (la page
-  d'accueil les vérifie). OpenTopoData ne les renvoie pas.
+  d'accueil les vérifie). OpenTopoData, qui ne les renvoie pas, a été retiré (ticket #1).
 - Calculs : ne pas réécrire ceux du plugin. Le cœur Python du plugin (sans QGIS) doit
   tourner tel quel dans Pyodide ; ses tests restent la référence.
 - Contrôle de syntaxe JavaScript : `gjs` (pas de Node sur le poste).

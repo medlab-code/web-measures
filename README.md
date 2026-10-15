@@ -99,7 +99,6 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 | Géoplateforme IGN : WMS (`wms-r`) | MNS du LiDAR HD (façades) | accessible |
 | Géoplateforme IGN : WFS | BD TOPO (axe de la route), cadastre (façades) | accessible |
 | Open-Meteo | altitudes de secours | accessible |
-| OpenTopoData | altitudes de secours | **inutilisable** : pas d'en-tête CORS |
 
 **À refaire depuis un poste d'agent** du département : ouvrir la page et relever la liste.
 

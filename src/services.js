@@ -17,7 +17,6 @@ const Services = (() => {
       `${GEOPF}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=4.55&lat=47.26&resource=ign_rge_alti_wld&zonly=true`],
     ["IGN : MNS LiDAR HD (WMS)", `${GEOPF}/wms-r/wms?SERVICE=WMS&REQUEST=GetCapabilities`],
     ["IGN : BD TOPO et cadastre (WFS)", `${GEOPF}/wfs/ows?SERVICE=WFS&REQUEST=GetCapabilities`],
-    ["OpenTopoData (secours)", "https://api.opentopodata.org/v1/eudem25m?locations=47.26,4.55"],
     ["Open-Meteo (secours)", "https://api.open-meteo.com/v1/elevation?latitude=47.26&longitude=4.55"],
   ];
 
