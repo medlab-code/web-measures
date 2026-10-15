@@ -92,6 +92,43 @@ aside {
 #carte { height: 50%; min-height: 8rem; }
 #carte[hidden] { display: none; }
 
+/* Recherche de lieux, en haut à droite de la carte (voir recherche.js) */
+.recherche {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  width: min(16rem, calc(100% - 70px));
+}
+.recherche input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--bord);
+  border-radius: 4px;
+  background: var(--fond);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.recherche ul {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 16rem;
+  overflow-y: auto;
+  border: 1px solid var(--bord);
+  border-radius: 4px;
+  background: var(--fond);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  font-size: 13px;
+}
+.recherche ul[hidden] { display: none; }
+.recherche li { padding: 0.3rem 0.5rem; cursor: pointer; }
+.recherche li.active, .recherche li:hover { background: color-mix(in srgb, var(--bord) 45%, var(--fond)); }
+.recherche li small { opacity: 0.7; }
+
 /* Poignée entre la carte et le panneau : glisser pour la hauteur, bouton pour replier */
 #poignee-carte {
   flex: none;
@@ -353,6 +390,18 @@ dd { margin: 0; overflow-wrap: anywhere; }
   pointer-events: none;
 }
 /* Carte : « plan perpendiculaire » sous le trait bleu, le long de celui-ci */
+/* Carte : étiquette d'un point de repère (PR) */
+.etiquette-pr {
+  padding: 0 0.25rem;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #2e7d32;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .etiquette.sous {
   position: absolute;
   top: 7px;

@@ -13,6 +13,7 @@ const Carte = (() => {
   const BLEU = "#00bce6";  // largeur perpendiculaire : trait tracé perpendiculairement à la route
   const VIOLET = "#9c27b0";  // façade
   const CURSEUR = "#0078ff";  // curseur de vue
+  const VERT_PR = "#2e7d32";  // points de repère (PR) des routes
 
   let apiUrl = META_API;  // instance courante (voir setInstance)
   const tilesUrl = () => `${apiUrl}/map/{z}/{x}/{y}.mvt`;
@@ -56,6 +57,7 @@ const Carte = (() => {
           },
           mesures: { type: "geojson", data: EMPTY },
           vue: { type: "geojson", data: EMPTY },
+          pr: { type: "geojson", data: EMPTY },
         },
         layers: [
           { id: "plan", type: "raster", source: "plan" },
@@ -78,6 +80,14 @@ const Carte = (() => {
             id: "photos", type: "circle", source: "panoramax", "source-layer": "pictures", minzoom: 15,
             paint: {
               "circle-color": ORANGE, "circle-radius": 3.5, "circle-opacity": 0.7,
+              "circle-stroke-color": "#ffffff", "circle-stroke-width": 1,
+            },
+          },
+          // Points de repère des routes (voir showMilestones), sous le curseur et les mesures
+          {
+            id: "pr", type: "circle", source: "pr", minzoom: PR_MINZOOM,
+            paint: {
+              "circle-color": VERT_PR, "circle-radius": ["interpolate", ["linear"], ["zoom"], 13, 2.5, 17, 4.5],
               "circle-stroke-color": "#ffffff", "circle-stroke-width": 1,
             },
           },
@@ -226,6 +236,68 @@ const Carte = (() => {
     const grid = f.kind ? [">", ["to-number", ["get", f.kind === "360" ? "nb_360_pictures" : "nb_flat_pictures"], 0], 0]
       : null;
     map.setFilter("grille", grid);
+  }
+
+  // Points de repère (PR) des routes : BD TOPO, zone affichée, à partir de PR_MINZOOM ; leur
+  // étiquette (marqueur HTML, sans police à charger) à partir de PR_LABEL_ZOOM ---------------
+
+  const PR_MINZOOM = 13;
+  const PR_LABEL_ZOOM = 14;
+  const prLabels = [];
+  let prTimer = null, prAsked = 0, prKey = "";
+
+  function showMilestones(map) {
+    map.on("moveend", () => {
+      clearTimeout(prTimer);
+      prTimer = setTimeout(() => loadMilestones(map), 300);
+    });
+    whenLoaded(map, () => loadMilestones(map));
+  }
+
+  async function loadMilestones(map) {
+    const zoom = map.getZoom();
+    const b = map.getBounds();
+    // Zone chargée arrondie (et un peu élargie) : petits déplacements sans nouvelle requête
+    const r = (v, up) => (up ? Math.ceil(v * 200) : Math.floor(v * 200)) / 200;
+    const box = [r(b.getWest(), false), r(b.getSouth(), false), r(b.getEast(), true), r(b.getNorth(), true)];
+    const key = zoom >= PR_MINZOOM ? box.join(",") + (zoom >= PR_LABEL_ZOOM ? "+" : "") : "";
+    if (key === prKey) return;
+    prKey = key;
+    const ticket = ++prAsked;
+    let features = [];
+    if (zoom >= PR_MINZOOM) {
+      const params = new URLSearchParams({
+        SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetFeature", TYPENAMES: "BDTOPO_V3:point_de_repere",
+        OUTPUTFORMAT: "application/json", SRSNAME: "EPSG:4326", COUNT: "1000",
+        BBOX: `${box[1]},${box[0]},${box[3]},${box[2]},urn:ogc:def:crs:EPSG::4326`,
+      });
+      try {
+        const response = await fetch(`${GEOPF}/wfs/ows?${params}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        features = ((await response.json()).features || [])
+          .filter((f) => /^\d+$/.test(String(f.properties?.numero)));  // ni début ni fin de section
+      } catch (error) {
+        console.warn("Points de repère :", error);
+        prKey = "";  // à redemander
+        return;
+      }
+    }
+    if (ticket !== prAsked) return;  // zone déjà quittée
+    const seen = new Set();  // un seul PR par route et numéro (côtés droit et gauche)
+    features = features.filter((f) => {
+      const id = `${f.properties.route} ${f.properties.numero}`;
+      return !seen.has(id) && seen.add(id);
+    });
+    map.getSource("pr")?.setData({ type: "FeatureCollection", features });
+    for (const marker of prLabels.splice(0)) marker.remove();
+    if (zoom < PR_LABEL_ZOOM) return;
+    for (const f of features) {
+      const element = document.createElement("div");
+      element.className = "etiquette-pr";
+      element.textContent = `${f.properties.route} PR ${f.properties.numero}`;
+      prLabels.push(new maplibregl.Marker({ element, anchor: "left", offset: [6, 0] })
+        .setLngLat(f.geometry.coordinates).addTo(map));
+    }
   }
 
   // Mesures --------------------------------------------------------------------------------
@@ -403,6 +475,6 @@ const Carte = (() => {
 
   return {
     PANORAMAX_API: META_API, GEOPF, OSM_TILES, createMap, setBackground, instances, setInstance, setFilter,
-    showMeasures, showHandles, showView, nearestPhoto, photoById, apiUrl: () => apiUrl,
+    showMeasures, showHandles, showView, showMilestones, nearestPhoto, photoById, apiUrl: () => apiUrl,
   };
 })();

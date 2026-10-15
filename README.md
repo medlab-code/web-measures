@@ -53,9 +53,10 @@ fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/so
 |---|---|
 | `index.html`, `src/style.css` | page et mise en page |
 | `src/app.js` | relie carte, visionneuse et calcul |
-| `src/carte.js` | carte MapLibre : fonds, filaire, mesures, poignées, photo la plus proche |
+| `src/carte.js` | carte MapLibre : fonds, filaire, points de repère (PR), mesures, poignées, photo la plus proche |
 | `src/calcul.js` | chargement de Pyodide et des fichiers Python (`py/sources.js`) |
 | `src/services.js` | vérification de l'accès aux services |
+| `src/recherche.js` | recherche de lieux sur la carte (commune, lieu-dit, voie, adresse) |
 | `src/lieu.js` | route, point de repère (PR) et commune de la photo, incrustés dans la visionneuse |
 | `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page |
 | `py/web_host.py` | accès réseau du cœur par le `fetch` du navigateur |
@@ -98,7 +99,8 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 | Géoplateforme IGN : WMTS | Plan IGN, orthophoto | accessible |
 | Géoplateforme IGN : altimétrie | profil du terrain (LiDAR HD, RGE ALTI) | accessible |
 | Géoplateforme IGN : WMS (`wms-r`) | MNS du LiDAR HD (façades) | accessible |
-| Géoplateforme IGN : WFS | BD TOPO (axe de la route, route et PR de la photo), cadastre (façades) | accessible |
+| Géoplateforme IGN : WFS | BD TOPO (axe de la route, route et PR de la photo, PR sur la carte), cadastre (façades) | accessible |
+| Géoplateforme IGN : géocodage | recherche de lieux (autocomplétion) | accessible |
 | geo.api.gouv.fr | commune de la photo | accessible |
 | Open-Meteo | altitudes de secours | accessible |
 

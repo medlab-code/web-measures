@@ -9,6 +9,8 @@
   const $ = (selector) => document.querySelector(selector);
   const viewer = $("#visionneuse");
   const map = Carte.createMap("carte");
+  Recherche.attach(map);
+  Carte.showMilestones(map);
   let app = null;  // web_app.App, une fois Pyodide chargé
   let photo = null;  // fiche STAC de la photo affichée
   let psv = null;  // visionneuse sphérique (Photo Sphere Viewer) dans <pnx-photo-viewer>
