@@ -140,7 +140,7 @@ const Carte = (() => {
             paint: { "line-color": BLEU, "line-opacity": 0.8, "line-width": 7 },
           },
           {
-            id: "traits", type: "line", source: "mesures", filter: kind("mesure"),
+            id: "traits", type: "line", source: "mesures", filter: kind("mesure", "distance"),
             paint: { "line-color": ROUGE, "line-width": 3 },
           },
           {  // croix jaunes, comme dans la visionneuse (image fournie à la demande, voir crossImage)
@@ -318,6 +318,7 @@ const Carte = (() => {
     map.getSource("mesures")?.setData(geojson);
     for (const marker of labels.splice(0)) marker.remove();
     sublabels.length = 0;
+    stacked.length = 0;
     for (const feature of geojson.features) {
       const { label, sublabel, kind: featureKind } = feature.properties;
       if (featureKind === "facade") continue;
@@ -325,9 +326,12 @@ const Carte = (() => {
         : middle(feature.geometry.coordinates);
       if (label) {
         const element = document.createElement("div");
-        element.className = "etiquette";
+        // Triangulation (points gardés et distances entre eux) : fond d'une autre couleur
+        element.className = "etiquette" + (featureKind === "triangule" || featureKind === "distance" ? " tri" : "");
         element.textContent = label;
-        labels.push(new maplibregl.Marker({ element, offset: [0, -20] }).setLngLat(coords).addTo(map));
+        const marker = new maplibregl.Marker({ element, offset: LABEL_OFFSET }).setLngLat(coords).addTo(map);
+        labels.push(marker);
+        stacked.push(marker);
       }
       if (sublabel) {  // sous le trait, couchée le long de celui-ci (voir placeSublabels)
         const element = document.createElement("div");
@@ -343,8 +347,33 @@ const Carte = (() => {
     if (!sublabelsBound) {
       sublabelsBound = true;
       map.on("move", () => placeSublabels(map));
+      map.on("moveend", () => declutter());
     }
     placeSublabels(map);
+    declutter();
+  }
+
+  // Étiquettes des mesures sans chevauchement : une étiquette qui en recouvre une autre déjà
+  // placée est remontée au-dessus, autant de fois que nécessaire (recalculé après chaque
+  // déplacement ou zoom de la carte)
+  const LABEL_OFFSET = [0, -20];
+  const stacked = [];
+
+  function declutter() {
+    const placed = [];
+    for (const marker of stacked) {
+      marker.setOffset(LABEL_OFFSET);
+      let rect = marker.getElement().getBoundingClientRect();
+      for (let k = 1; k <= 10 && placed.some((p) => overlaps(p, rect)); k++) {
+        marker.setOffset([LABEL_OFFSET[0], LABEL_OFFSET[1] - k * (rect.height + 2)]);
+        rect = marker.getElement().getBoundingClientRect();
+      }
+      placed.push(rect);
+    }
+  }
+
+  function overlaps(a, b) {
+    return a.left < b.right + 2 && b.left < a.right + 2 && a.top < b.bottom + 2 && b.top < a.bottom + 2;
   }
 
   // Étiquettes sous un trait : suivent son angle à l'écran, lisibles de gauche à droite, et
