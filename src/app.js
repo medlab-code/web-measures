@@ -128,6 +128,20 @@
 
   const column = $("aside");
   const columnGrip = $("#poignee-colonne");
+  const columnFold = $("#replier-colonne");
+
+  /** Colonne de droite (carte et panneau) masquée ou affichée ; mémorisé. */
+  function setColumnFolded(folded) {
+    column.hidden = folded;
+    columnGrip.classList.toggle("repliee", folded);
+    const below = narrow.matches;  // colonne sous la photo : flèches vers le bas et le haut
+    columnFold.textContent = folded ? (below ? "▴" : "◂") : (below ? "▾" : "▸");
+    columnFold.title = folded ? "Afficher la carte et le panneau" : "Masquer la carte et le panneau";
+    columnFold.setAttribute("aria-expanded", String(!folded));
+    store.set("colonne-masquee", folded ? "1" : "");
+    if (!folded) map.resize();
+    window.dispatchEvent(new Event("resize"));  // visionneuse à la nouvelle taille
+  }
 
   function setColumnWidth(px) {
     if (px == null) column.style.removeProperty("width");  // largeur par défaut (CSS)
@@ -137,11 +151,17 @@
   }
 
   if (Number(store.get("colonne-largeur"))) setColumnWidth(Number(store.get("colonne-largeur")));
-  columnGrip.addEventListener("dblclick", () => {
+  setColumnFolded(store.get("colonne-masquee") === "1");
+  narrow.addEventListener("change", () => setColumnFolded(column.hidden));  // sens des flèches
+  columnFold.addEventListener("click", () => setColumnFolded(!column.hidden));
+  columnFold.addEventListener("pointerdown", (event) => event.stopPropagation());  // pas de glisser
+  columnGrip.addEventListener("dblclick", (event) => {
+    if (event.target === columnFold || column.hidden) return;
     store.set("colonne-largeur", "");
     setColumnWidth(null);
   });
   columnGrip.addEventListener("pointerdown", (event) => {
+    if (column.hidden || narrow.matches) return;  // largeur réglable seulement colonne affichée, à droite
     event.preventDefault();
     const startX = event.clientX, startWidth = column.getBoundingClientRect().width;
     // Limites : 20rem de colonne au moins, 25 % de la fenêtre au moins pour la photo

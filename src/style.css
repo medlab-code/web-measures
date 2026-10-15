@@ -87,12 +87,30 @@ aside {
 /* Poignée entre la photo et la colonne de droite : glisser pour sa largeur */
 #poignee-colonne {
   flex: none;
-  width: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
   border-left: 1px solid var(--bord);
   background: color-mix(in srgb, var(--bord) 45%, var(--fond));
   cursor: col-resize;
   touch-action: none;
 }
+#poignee-colonne.repliee { cursor: default; }
+aside[hidden] { display: none; }
+/* Bouton de repli de la colonne, au milieu de la poignée */
+#replier-colonne {
+  width: 12px;
+  height: 3rem;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+#replier-colonne:hover, #replier-carte:hover { background: var(--bord); }
 
 #carte { height: 50%; min-height: 8rem; }
 #carte[hidden] { display: none; }
@@ -447,7 +465,9 @@ dd { margin: 0; overflow-wrap: anywhere; }
   main { flex-direction: column; }
   #vue { min-height: 55vh; }
   aside { width: auto !important; border-top: 1px solid var(--bord); }  /* largeur réglée ignorée */
-  #poignee-colonne { display: none; }
+  /* Colonne sous la photo : poignée horizontale, sans réglage de largeur, bouton de repli */
+  #poignee-colonne { width: auto; height: 18px; border-left: 0; border-top: 1px solid var(--bord); cursor: default; }
+  #replier-colonne { width: 3rem; height: 18px; }
   #carte { height: 40vh; }
   #poignee-carte { height: 18px; }  /* plus facile à saisir au doigt */
   #voyants { top: 2.8rem; }  /* sous le rappel du mode mesure, qui prend toute la largeur */
