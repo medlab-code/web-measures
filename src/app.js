@@ -851,7 +851,7 @@
       else if (mid) label(ctx, mark.label, mid[0], mid[1] - 7 * scale, 12 * scale, "center");
     }
     const caption = app ? app.caption(psv.getPosition().yaw) : "Panoramax";
-    drawCartouches(ctx, canvas, 12 * scale, caption, placeText());
+    drawCartouches(ctx, canvas, 13 * scale, caption, placeText());  // taille de l'étiquette de la visionneuse
     return canvas;
   }
 
@@ -861,21 +861,21 @@
     const margin = size * 0.7;
     const bottom = canvas.height - margin;
     const width = (text, s) => {
-      ctx.font = `${s}px Roboto, system-ui, sans-serif`;
-      return text ? ctx.measureText(text).width + s : 0;
+      ctx.font = `600 ${s}px Roboto, system-ui, sans-serif`;
+      return text ? ctx.measureText(text).width + 1.08 * s : 0;
     };
     // Texte plus large que l'image (vue étroite) : réduit pour tenir dans la largeur
     const fit = (text) => Math.min(size, size * (canvas.width - 2 * margin) / Math.max(width(text, size), 1));
     const captionSize = fit(caption), placeSize = fit(place);
-    if (caption) label(ctx, caption, canvas.width - margin, bottom, captionSize, "right");
+    if (caption) cartouche(ctx, caption, canvas.width - margin, bottom, captionSize, "right");
     if (!place) return;
     const side = width(place, placeSize) + width(caption, captionSize) + 3 * margin <= canvas.width;
-    label(ctx, place, margin, side ? bottom : bottom - captionSize * 1.6 - margin / 2, placeSize, "left");
+    cartouche(ctx, place, margin, side ? bottom : bottom - captionSize * 1.72 - margin / 2, placeSize, "left");
   }
 
   /** Police Roboto chargée, pour le texte dessiné dans les captures (sinon police de repli). */
   function robotoReady() {
-    return document.fonts ? document.fonts.load("12px Roboto").catch(() => {}) : Promise.resolve();
+    return document.fonts ? document.fonts.load("600 12px Roboto").catch(() => {}) : Promise.resolve();
   }
 
   /** Localisation affichée dans la visionneuse (route, PR, commune), ou "". */
@@ -883,12 +883,40 @@
     return $("#lieu").hidden ? "" : $("#lieu").textContent;
   }
 
+  /** Étiquette d'une capture, dans le style de l'étiquette de localisation de la visionneuse
+   * (#lieu : fond sombre semi-transparent, angles arrondis, texte blanc demi-gras détouré),
+   * ses dimensions rapportées à la taille du texte (13 px dans la visionneuse). (x, y) : bas
+   * de l'étiquette, à gauche, à droite ou au centre selon align. */
+  function cartouche(ctx, text, x, y, size, align) {
+    ctx.font = `600 ${size}px Roboto, system-ui, sans-serif`;
+    const padX = size * 0.54, height = size * 1.72;
+    const w = ctx.measureText(text).width + 2 * padX;
+    const left = align === "right" ? x - w : align === "left" ? x : x - w / 2;
+    ctx.save();
+    ctx.fillStyle = "rgba(32, 33, 36, 0.55)";
+    ctx.beginPath();
+    ctx.roundRect(left, y - height, w, height, size * 0.31);
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.textBaseline = "middle";
+    // Détourage : halo flou, puis ombre décalée (text-shadow de la visionneuse)
+    for (const [color, blur, dx, dy] of [["rgba(0, 0, 0, 0.9)", 2, 0, 0], ["rgba(0, 0, 0, 0.6)", 1, 1, 1]]) {
+      const k = size / 13;
+      Object.assign(ctx, { shadowColor: color, shadowBlur: blur * k, shadowOffsetX: dx * k, shadowOffsetY: dy * k });
+      ctx.fillText(text, left + padX, y - height / 2);
+    }
+    ctx.restore();
+  }
+
+  /** Étiquette d'une mesure dans une capture, comme dans la visionneuse (.etiquette). */
   function label(ctx, text, x, y, size, align) {
     ctx.font = `${size}px Roboto, system-ui, sans-serif`;
     const w = ctx.measureText(text).width + size;
     const left = align === "right" ? x - w : align === "left" ? x : x - w / 2;
     ctx.fillStyle = "rgba(32, 33, 36, 0.85)";
-    ctx.fillRect(left, y - size * 1.4, w, size * 1.6);
+    ctx.beginPath();
+    ctx.roundRect(left, y - size * 1.4, w, size * 1.6, size * 0.25);
+    ctx.fill();
     ctx.fillStyle = "#ffffff";
     ctx.textBaseline = "middle";
     ctx.fillText(text, left + size / 2, y - size * 0.6);

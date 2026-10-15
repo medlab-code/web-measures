@@ -678,14 +678,15 @@ class App:
                            "heading": heading, "pitch": math.degrees(pitch), "vfov": float(vfov),
                            "photo_hfov": float(fov) if fov else None,
                            "up": list(tilt["up"]) if tilt else None,  # vue redressée
-                           "caption": capture.caption_for(item, heading),
+                           "caption": capture.caption_for(item, None),  # sans le cap
                            "name": "panoramax_{}_cap{:03.0f}_{}".format(date, heading, (item.get("id") or "")[:8])})
 
     def caption(self, yaw):
-        """Cartouche d'attribution de la vue (obligation des licences Panoramax)."""
+        """Cartouche d'attribution de la vue (obligation des licences Panoramax) : auteur, date,
+        catégorie de la licence ; sans le cap (yaw, gardé pour la page, ne sert plus)."""
         if not self.item:
             return "Panoramax"
-        return capture.caption_for(self.item, _view_heading(self.item, yaw))
+        return capture.caption_for(self.item, None)
 
 
 def _view_heading(item, yaw):
