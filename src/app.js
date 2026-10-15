@@ -377,7 +377,7 @@
   // Cercle extérieur jaune, vert une fois l'inclinaison de la photo calée (voir showLights)
   const cursorCss = (tilted) => `.psv-container, .psv-container * { cursor: url("data:image/svg+xml;utf8,${
     encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='33' height='33'>"
-      + `<circle cx='16.5' cy='16.5' r='15.5' fill='none' stroke='${tilted ? "#2ecc40" : "#ffeb00"}' stroke-width='1.5'/>`
+      + `<circle cx='16.5' cy='16.5' r='15' fill='none' stroke='${tilted ? "#2ecc40" : "#ffeb00"}' stroke-width='2.5'/>`
       + "<path d='M16.5 2v11M16.5 20v11M2 16.5h11M20 16.5h11' stroke='#ff8a80' stroke-width='1.5'/>"
       + "<circle cx='16.5' cy='16.5' r='1' fill='white'/></svg>")}") 16 16, crosshair !important; }`;
   let tilted = false;  // inclinaison de la photo affichée calée
