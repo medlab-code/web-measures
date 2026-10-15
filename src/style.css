@@ -195,6 +195,10 @@ button.principal { font-weight: 600; }
   vertical-align: -1px;
   box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.7);
 }
+/* Texte de la couleur de sa boule (plus vive que celle des classes ok / attente du panneau) */
+#voyants li.ok { color: #2ecc40; }
+#voyants li.non { color: #ff5f52; }
+#voyants li.attente { color: #ff9800; }
 #voyants li.ok::after { background: #2ecc40; }
 #voyants li.non::after { background: #e53935; }
 #voyants li.attente::after { background: #ff9800; }
@@ -284,4 +288,8 @@ dd { margin: 0; overflow-wrap: anywhere; }
   #vue { min-height: 55vh; }
   aside { width: auto; border-left: 0; border-top: 1px solid var(--bord); }
   #carte { height: 40vh; }
+  #voyants { top: 2.4rem; }  /* sous le rappel du mode mesure, qui prend toute la largeur */
+}
+@media (max-width: 480px) {
+  #voyants { top: 3.6rem; }  /* rappel sur deux lignes */
 }
