@@ -22,7 +22,8 @@ import traceback
 from datetime import datetime
 
 import web_host
-from core import autotilt, buildings, calibration, capture, filters, measures, metadata, precision, roads, terrain, tools
+from core import (autotilt, buildings, calibration, capture, filters, measures, metadata, precision, roads, terrain,
+                  tools, triangulation)
 
 GROUND_MODES = ("road", "width", "height")  # mesures par lancer de rayon (voir core/measures.py)
 CALIBRATION_MODES = ("tilt", "heading", "camera")
@@ -94,6 +95,7 @@ class App:
         self.message = ""
         self.new_camera = None  # hauteur de caméra calée, à reporter dans le réglage de la page
         self.points = []  # points triangulés gardés : (lon, lat, attributs)
+        self.links = []  # distances entre deux points gardés : (n° du premier, n° du second, attributs)
         self._handles = []  # clés des poignées de la carte, dans l'ordre de handles()
         self.calibration_version = 0  # augmente à chaque changement du calage (à enregistrer)
         self.active = False  # bouton « Mesure » de la page : clics dans la photo pour mesurer
@@ -366,6 +368,26 @@ class App:
             measures._num(r["uncertainty"]))
         return self.status()
 
+    def link_points(self):
+        """Distance horizontale entre les deux derniers points gardés (la triangulation donne
+        une position sur la carte), incertitude des deux points combinée, gardée comme une
+        mesure."""
+        if not self._can_link():
+            self.message = "Gardez au moins deux points triangulés pour mesurer leur distance."
+            return self.status()
+        i, j = len(self.points) - 2, len(self.points) - 1
+        (lon1, lat1, v1), (lon2, lat2, v2) = self.points[i], self.points[j]
+        x, y = triangulation._local(lon2, lat2, lon1, lat1)
+        value, unc = math.hypot(x, y), math.hypot(v1["incert_m"], v2["incert_m"])
+        self.links.append((i, j, {"valeur_m": round(value, 3), "incert_m": round(unc, 2), "commentaire": ""}))
+        self.message = "Distance entre les points {} et {} : {} m (±{} m).".format(
+            i + 1, j + 1, measures._num(value, 2), measures._num(unc, 2))
+        return self.status()
+
+    def _can_link(self):
+        n = len(self.points)
+        return n >= 2 and not any(link[:2] == (n - 2, n - 1) for link in self.links)
+
     def move_handle(self, index, lon, lat):
         """Poignée n° index (voir handles) glissée sur la carte en (lon, lat)."""
         if not 0 <= index < len(self._handles):
@@ -394,7 +416,7 @@ class App:
         self.triangulator.clear()
         self.tool.clear_all()
         self.calibrator.reset()
-        self.points = []
+        self.points, self.links = [], []
         self.message = ""
         return self.status()
 
@@ -458,6 +480,7 @@ class App:
             "advice": precision.DEGRADED_ADVICE,
             "waiting_map": self.waiting_map(),
             "point": self.triangulator.result is not None,
+            "can_link": self._can_link(),  # distance entre les deux derniers points gardés
             "active": self.active,
             "lights": self._lights(pic) if item else [],
         })
@@ -538,15 +561,22 @@ class App:
                 add("cible", "Point", list(item.point))
         for lon, lat, values in self.points:
             add("triangule", "Point", [lon, lat], "±{} m".format(measures._num(values["incert_m"], 2)))
+        for i, j, values in self.links:  # distance entre deux points gardés : trait rouge, comme une mesure
+            add("mesure", "LineString", [list(self.points[i][:2]), list(self.points[j][:2])],
+                "{} m".format(measures._num(values["valeur_m"], 2)))
         return json.dumps({"type": "FeatureCollection", "features": features})
 
     def results(self):
         """Mesures terminées et points gardés, pour la liste de la page (JSON)."""
         out = [{"id": id(m), "kind": "mesure", "text": m.label(), "comment": getattr(m, "comment", "")}
                for m in self.tool.measures() if m.result]
-        out += [{"id": i, "kind": "point", "text": "Point triangulé ±{} m".format(measures._num(v["incert_m"], 2)),
-                 "comment": v.get("commentaire", "")}
+        out += [{"id": i, "kind": "point", "text": "Point triangulé {} ±{} m".format(
+                    i + 1, measures._num(v["incert_m"], 2)), "comment": v.get("commentaire", "")}
                 for i, (_, _, v) in enumerate(self.points)]
+        out += [{"id": k, "kind": "distance", "text": "↔ {} m ± {} m entre les points {} et {}".format(
+                    measures._num(v["valeur_m"], 2), measures._num(v["incert_m"], 2), i + 1, j + 1),
+                 "comment": v.get("commentaire", "")}
+                for k, (i, j, v) in enumerate(self.links)]
         return json.dumps(out)
 
     def set_comment(self, kind, ident, text):
@@ -554,6 +584,10 @@ class App:
         if kind == "point":
             if 0 <= ident < len(self.points):
                 self.points[ident][2]["commentaire"] = text
+            return
+        if kind == "distance":
+            if 0 <= ident < len(self.links):
+                self.links[ident][2]["commentaire"] = text
             return
         for m in self.tool.measures():  # rangé sur la mesure : effacée, son commentaire disparaît avec elle
             if id(m) == ident:
@@ -590,8 +624,17 @@ class App:
                 "date_mesure": datetime.now().isoformat(timespec="seconds"),
                 "commentaire": getattr(m, "comment", ""),
             }))
-        for lon, lat, values in self.points:
-            out.append(([(lon, lat)], dict({"type": "point triangulé"}, **values)))
+        for n, (lon, lat, values) in enumerate(self.points):
+            out.append(([(lon, lat)], dict({"type": "point triangulé", "point": n + 1}, **values)))
+        for i, j, values in self.links:
+            (lon1, lat1, v1), (lon2, lat2, v2) = self.points[i], self.points[j]
+            out.append(([(lon1, lat1), (lon2, lat2)], {
+                "type": "distance entre points triangulés", "valeur_m": values["valeur_m"],
+                "incert_m": values["incert_m"], "horiz_m": values["valeur_m"], "points": "{}-{}".format(i + 1, j + 1),
+                "photos": ",".join(dict.fromkeys(p for v in (v1, v2) for p in v.get("photos", "").split(",") if p)),
+                "date_mesure": datetime.now().isoformat(timespec="seconds"),
+                "commentaire": values.get("commentaire", ""),
+            }))
         return out
 
     def export_geojson(self):
@@ -616,7 +659,7 @@ class App:
         return "\n".join(rows) + "\n"
 
     def has_results(self):
-        return bool(self.points) or any(m.result for m in self.tool.measures())
+        return bool(self.points) or bool(self.links) or any(m.result for m in self.tool.measures())
 
     # Captures --------------------------------------------------------------------------
     def capture_args(self, yaw, pitch, vfov):
