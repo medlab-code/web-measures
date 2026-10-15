@@ -164,7 +164,7 @@ button.principal { font-weight: 600; }
 }
 #mode-mesure[hidden] { display: none; }
 
-/* Visionneuse : voyants en haut à droite (vert : oui, rouge : non, orange : en attente) */
+/* Visionneuse : voyants en haut à droite (vert : oui, rouge : non, jaune : inconnu ou en cours) */
 #voyants {
   position: absolute;
   top: 0.6rem;
@@ -185,6 +185,42 @@ button.principal { font-weight: 600; }
   z-index: 5;
 }
 #voyants[hidden] { display: none; }
+
+/* Visionneuse : calcul de l'inclinaison en cours, sous le pointeur (voir app.js), petite roue */
+#calcul-inclinaison {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 24px);
+  transform: translateX(-50%);
+  margin: 0;
+  color: #ffeb00;
+  opacity: 0.9;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.6), 1px 1px 1px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  z-index: 6;
+}
+#calcul-inclinaison[hidden] { display: none; }
+#calcul-inclinaison.manuel { color: #ff5f52; }  /* calcul automatique sans résultat */
+#calcul-inclinaison.manuel::before { display: none; }
+#calcul-inclinaison::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 0.4rem;
+  border: 2px solid rgba(255, 235, 0, 0.35);
+  border-top-color: #ffeb00;
+  border-radius: 50%;
+  vertical-align: -1px;
+  animation: tourne 1.2s linear infinite;
+}
+@keyframes tourne { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  #calcul-inclinaison::before { animation-duration: 4s; }
+}
 #voyants li::after {
   content: "";
   display: inline-block;
@@ -198,10 +234,10 @@ button.principal { font-weight: 600; }
 /* Texte de la couleur de sa boule (plus vive que celle des classes ok / attente du panneau) */
 #voyants li.ok { color: #2ecc40; }
 #voyants li.non { color: #ff5f52; }
-#voyants li.attente { color: #ff9800; }
+#voyants li.attente { color: #ffeb00; }
 #voyants li.ok::after { background: #2ecc40; }
 #voyants li.non::after { background: #e53935; }
-#voyants li.attente::after { background: #ff9800; }
+#voyants li.attente::after { background: #ffeb00; }
 
 dialog {
   max-width: 34rem;

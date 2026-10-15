@@ -103,7 +103,34 @@
       item.textContent = name;
       return item;
     }));
+    // Inclinaison : calcul en cours, ou calcul automatique sans résultat (calage à la main
+    // conseillé, sauf pendant ce calage)
+    const tilt = (lights.find(([name]) => name === "Inclinaison") || [])[1];
+    const message = $("#calcul-inclinaison");
+    const manual = tilt === "non" && $("#mode").value !== "tilt";
+    message.hidden = !measuring || !(tilt === "attente" || manual);
+    message.classList.toggle("manuel", manual);
+    if (tilted !== (tilt === "ok")) {
+      tilted = tilt === "ok";
+      applyMeasureUi();  // pointeur : cercle vert
+    }
+    message.textContent = manual
+      ? "Pour plus de précision, calez l'inclinaison à la main (mode « Calage : inclinaison »)"
+      : "Calcul du calage de l'inclinaison en cours";
   }
+
+  // Message du calcul d'inclinaison : sous le pointeur de mesure tant qu'il est dans la vue,
+  // sous le centre de la vue sinon
+  $("#vue").addEventListener("pointermove", (event) => {
+    const box = $("#vue").getBoundingClientRect();
+    const message = $("#calcul-inclinaison");
+    message.style.left = `${event.clientX - box.left}px`;
+    message.style.top = `${event.clientY - box.top + 24}px`;
+  }, { capture: true });
+  $("#vue").addEventListener("pointerleave", () => {
+    const message = $("#calcul-inclinaison");
+    message.style.left = message.style.top = "";
+  });
 
   /** Redessine tout : texte de la mesure, état de la photo, repères, carte, résultats. */
   function refresh(text) {
@@ -347,11 +374,13 @@
   }
 
   // Pointeur de mesure : réticule fin (comme le plugin), la visionneuse imposant sinon main ou flèche
-  const CURSOR = `.psv-container, .psv-container * { cursor: url("data:image/svg+xml;utf8,${
+  // Cercle extérieur jaune, vert une fois l'inclinaison de la photo calée (voir showLights)
+  const cursorCss = (tilted) => `.psv-container, .psv-container * { cursor: url("data:image/svg+xml;utf8,${
     encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='33' height='33'>"
-      + "<circle cx='16.5' cy='16.5' r='15.5' fill='none' stroke='#ffeb00' stroke-width='1.5'/>"
+      + `<circle cx='16.5' cy='16.5' r='15.5' fill='none' stroke='${tilted ? "#2ecc40" : "#ffeb00"}' stroke-width='1.5'/>`
       + "<path d='M16.5 2v11M16.5 20v11M2 16.5h11M20 16.5h11' stroke='#ff8a80' stroke-width='1.5'/>"
       + "<circle cx='16.5' cy='16.5' r='1' fill='white'/></svg>")}") 16 16, crosshair !important; }`;
+  let tilted = false;  // inclinaison de la photo affichée calée
 
   /** Navigation, flèches, curseur au sol et pointeur de la visionneuse selon le bouton « Mesure ». */
   function applyMeasureUi() {
@@ -375,10 +404,14 @@
     const root = box.getRootNode();
     let style = root.getElementById ? root.getElementById("mesure-pointeur") : null;
     if (block && !style) {
-      style = Object.assign(document.createElement("style"), { id: "mesure-pointeur", textContent: CURSOR });
+      style = Object.assign(document.createElement("style"), { id: "mesure-pointeur" });
       (root === document ? document.head : root).append(style);
     } else if (!block && style) {
       style.remove();
+    }
+    if (style?.isConnected) {
+      const css = cursorCss(tilted);
+      if (style.textContent !== css) style.textContent = css;
     }
   }
 
