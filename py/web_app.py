@@ -138,12 +138,17 @@ class App:
         self.active = bool(on)
         self.message = ""
         if self.active:
-            if self.item:
-                pic = self.item.get("id")
-                self.tilts.check(self.item, self.calibration, lambda: self._on_tilt(pic))
+            self._check_tilt()
         else:
             self._clear_measures()
         return self.status()
+
+    def _check_tilt(self):
+        """Inclinaison automatique de la photo affichée, en mesure ou en calage seulement : la
+        triangulation ne vise qu'en cap, elle n'en a pas besoin (calcul long évité)."""
+        if self.active and self.item and self.mode != "tri":
+            pic = self.item.get("id")
+            self.tilts.check(self.item, self.calibration, lambda: self._on_tilt(pic))
 
     def set_mode(self, mode):
         if mode not in MODES:
@@ -152,6 +157,7 @@ class App:
         self.mode = mode
         self.message = ""
         self._active()
+        self._check_tilt()  # en quittant la triangulation
         return self.status()
 
     def _clear_measures(self):
@@ -223,8 +229,7 @@ class App:
             if nid and nid not in self.neighbours:
                 web_host.fetch_json("{}/search?ids={}".format(web_host.host.api_url, nid),
                                     lambda data, error, nid=nid: self._on_neighbour(nid, data))
-        if self.active:
-            self.tilts.check(item, self.calibration, lambda: self._on_tilt(pic))
+        self._check_tilt()
         return self.status()
 
     def _on_neighbour(self, nid, data):

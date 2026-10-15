@@ -227,8 +227,9 @@
     const message = $("#calcul-inclinaison");
     // En calage de l'inclinaison, rappel du mode : les clics calent la photo, ils ne mesurent pas
     const calibrating = $("#mode").value === "tilt";
+    const triangulating = $("#mode").value === "tri";  // pas de calcul d'inclinaison (visée en cap)
     const manual = tilt === "non" && !calibrating;
-    message.hidden = !measuring || !(calibrating || tilt === "attente" || manual);
+    message.hidden = !measuring || triangulating || !(calibrating || tilt === "attente" || manual);
     message.classList.toggle("manuel", manual);
     message.classList.toggle("calage", calibrating);
     message.classList.toggle("attente", tilt === "attente");  // petite roue : calcul en cours
