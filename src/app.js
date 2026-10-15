@@ -179,6 +179,13 @@
     window.addEventListener("pointercancel", end);
   });
 
+  /** Producteur de la photo (fiche STAC), ou "". */
+  function photoProducer(feature) {
+    const p = feature.properties || {};
+    return ((p.providers || feature.providers || []).find((x) => (x.roles || []).includes("producer")) || {}).name
+      || String(p["geovisio:producer"] || "");
+  }
+
   /** Route et commune de la photo, incrustées dans la visionneuse (réponse d'une photo déjà
    * quittée ignorée). */
   async function showPlace(feature) {
@@ -425,6 +432,11 @@
   function setPhoto(feature, recenter) {
     photo = feature;
     store.set("photo", feature.id);  // rouverte à la prochaine visite (voir reopenPhoto)
+    // En bas à droite de la visionneuse : « © 2025 producteur » (année de la prise de vue)
+    const producer = photoProducer(feature);
+    const taken = (feature.properties?.datetime || "").slice(0, 4);
+    $("#producteur-photo").textContent = producer || taken ? `© ${[taken, producer].filter(Boolean).join(" ")}` : "";
+    $("#producteur-photo").hidden = !producer && !taken;
     // PCRS : option active seulement là où un PCRS est publié sur la Géoplateforme
     Carte.pcrsAt(map, ...feature.geometry.coordinates).then((zone) => {
       if (photo !== feature) return;
@@ -463,8 +475,7 @@
     const accuracy = p["quality:horizontal_accuracy"];
     const rows = [
       ["Date", (p.datetime || "").replace("T", " ").slice(0, 16)],
-      ["Producteur", ((p.providers || feature.providers || []).find((x) => (x.roles || []).includes("producer")) || {}).name
-        || String(p["geovisio:producer"] || "")],
+      ["Producteur", photoProducer(feature)],
       ["Caméra", (p["pers:interior_orientation"] || {}).camera_model || ""],
       ["Précision GPS", accuracy != null ? `${String(accuracy).replace(".", ",")} m` : ""],
       ["Identifiant", feature.id],

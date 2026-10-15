@@ -314,11 +314,22 @@ button.principal { font-weight: 600; }
 #voyants[hidden] { display: none; }
 
 /* Visionneuse : route et commune de la photo, en bas à gauche */
-#lieu {
+/* Bandeau du bas de la visionneuse : localisation à gauche, producteur de la photo à droite,
+   même étiquette ; place partagée selon leur longueur, l'un au-dessus de l'autre si besoin */
+.bas-vue {
   position: absolute;
   left: 0.8rem;
+  right: 0.8rem;
   bottom: 0.8rem;
-  max-width: calc(100% - 1.6rem);
+  display: flex;
+  flex-wrap: wrap-reverse;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 0.4rem 0.8rem;
+  pointer-events: none;
+  z-index: 5;
+}
+#lieu, #producteur-photo {
   margin: 0;
   padding: 0.15rem 0.5rem;
   border-radius: 4px;
@@ -330,7 +341,8 @@ button.principal { font-weight: 600; }
   pointer-events: none;
   z-index: 5;
 }
-#lieu[hidden] { display: none; }
+#producteur-photo { margin-left: auto; text-align: right; }
+#lieu[hidden], #producteur-photo[hidden] { display: none; }
 
 /* Visionneuse : calcul de l'inclinaison en cours, sous le pointeur (voir app.js), petite roue */
 #calcul-inclinaison {
