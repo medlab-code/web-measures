@@ -30,7 +30,22 @@ const Carte = (() => {
   // demandes sans page d'origine, celles de la page ouverte par double-clic (file://)
   const OSM_TILES = "https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png";
   const osmTiles = ["a", "b", "c"].map((sub) => OSM_TILES.replace("{s}", sub));
-  const BACKGROUNDS = ["plan", "ortho", "osm"];
+  const BACKGROUNDS = ["plan", "ortho", "express", "pcrs", "osm"];
+  // PCRS (plan de corps de rue simplifié, image à 5 cm) : publié par zones, selon les
+  // producteurs ; la couche de la zone est donnée par le graphe de mosaïquage de l'ANCT
+  const pcrsTiles = (layer) => `${GEOPF}/wms-r/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=${layer}`
+    + "&STYLES=&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/jpeg";
+  let pcrsLayer = "PCRS.LAMB93";
+  // Ortho-express : une couche par année de vol, produite vite après la prise de vue, qui ne
+  // couvre que les zones photographiées cette année-là (orthophoto standard dessous)
+  const EXPRESS_LAYERS = {
+    2023: "ORTHOIMAGERY.ORTHOPHOTOS.ORTHO-EXPRESS.2023",
+    2024: "ORTHOIMAGERY.ORTHOPHOTOS.ORTHO-EXPRESS.2024",
+    2025: "ORTHOIMAGERY.ORTHOPHOTOS.ORTHO-EXPRESS.2025",
+    2026: "ORTHOIMAGERY.ORTHOPHOTOS.RVB-EXPRESS.2026",
+  };
+  const EXPRESS_YEARS = Object.keys(EXPRESS_LAYERS).map(Number);
+  let expressYear = Math.max(...EXPRESS_YEARS);
   const ATTRIBUTION_PANORAMAX = '<a href="https://panoramax.fr">Panoramax</a>';
   const EMPTY = { type: "FeatureCollection", features: [] };
   const kind = (...kinds) => ["in", ["get", "kind"], ["literal", kinds]];
@@ -52,6 +67,11 @@ const Carte = (() => {
             type: "raster", tiles: [wmts("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg")],
             tileSize: 256, maxzoom: 20, attribution: ATTRIBUTION_IGN,
           },
+          express: {
+            type: "raster", tiles: [wmts(EXPRESS_LAYERS[expressYear], "image/jpeg")],
+            tileSize: 256, maxzoom: 20, attribution: ATTRIBUTION_IGN,
+          },
+          pcrs: { type: "raster", tiles: [pcrsTiles(pcrsLayer)], tileSize: 256, maxzoom: 22, attribution: ATTRIBUTION_IGN },
           osm: { type: "raster", tiles: osmTiles, tileSize: 256, maxzoom: 19, attribution: ATTRIBUTION_OSM },
           panoramax: {
             type: "vector", tiles: [tilesUrl()], minzoom: 0, maxzoom: 15, attribution: ATTRIBUTION_PANORAMAX,
@@ -63,6 +83,8 @@ const Carte = (() => {
         layers: [
           { id: "plan", type: "raster", source: "plan" },
           { id: "ortho", type: "raster", source: "ortho", layout: { visibility: "none" } },
+          { id: "express", type: "raster", source: "express", layout: { visibility: "none" } },
+          { id: "pcrs", type: "raster", source: "pcrs", minzoom: 15, layout: { visibility: "none" } },
           { id: "osm", type: "raster", source: "osm", layout: { visibility: "none" } },
           // Filaire : densité à petite échelle, séquences, puis photos
           {
@@ -193,8 +215,86 @@ const Carte = (() => {
   function setBackground(map, name) {
     if (!BACKGROUNDS.includes(name)) name = "plan";  // fond mémorisé inconnu
     for (const id of BACKGROUNDS) {
-      map.setLayoutProperty(id, "visibility", id === name ? "visible" : "none");
+      // Ortho-express : orthophoto standard dessous, là où l'année choisie n'a pas été survolée
+      const shown = id === name || ((name === "express" || name === "pcrs") && id === "ortho");
+      map.setLayoutProperty(id, "visibility", shown ? "visible" : "none");
     }
+  }
+
+  /** Ortho-express au plus près de l'année `year` (celle de la photo) parmi les années qui
+   * couvrent l'endroit (lon, lat) : une tuile demandée par année candidate, de la plus proche
+   * à la plus lointaine, réponses gardées par maille. Retourne l'année retenue (null si aucune
+   * ne couvre l'endroit : la couche est alors celle de l'année la plus proche, vide ici). */
+  const expressCover = new Map();  // "année maille" -> couverte ?
+
+  async function setExpressYear(map, year, lon, lat) {
+    const order = [...EXPRESS_YEARS].sort((a, b) => Math.abs(a - year) - Math.abs(b - year) || b - a);
+    let chosen = null;
+    for (const y of order) {
+      if (await expressCovers(y, lon, lat)) {
+        chosen = y;
+        break;
+      }
+    }
+    const shown = chosen ?? order[0];
+    if (shown !== expressYear) {
+      expressYear = shown;
+      whenLoaded(map, () => map.getSource("express").setTiles([wmts(EXPRESS_LAYERS[shown], "image/jpeg")]));
+    }
+    return chosen;
+  }
+
+  async function expressCovers(year, lon, lat) {
+    const z = 14, n = 2 ** z;
+    const x = Math.floor((lon + 180) / 360 * n);
+    const r = lat * Math.PI / 180;
+    const y = Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n);
+    const key = `${year} ${x} ${y}`;
+    if (!expressCover.has(key)) {
+      const url = wmts(EXPRESS_LAYERS[year], "image/jpeg").replace("{z}", z).replace("{y}", y).replace("{x}", x);
+      try {
+        const response = await fetch(url);
+        expressCover.set(key, response.ok && (response.headers.get("content-type") || "").startsWith("image/"));
+      } catch {
+        return false;  // service injoignable : pas gardé, redemandé plus tard
+      }
+    }
+    return expressCover.get(key);
+  }
+
+  /** PCRS publié sur la Géoplateforme à l'endroit (lon, lat) : { layer, producteur, date } ou
+   * null (graphe de mosaïquage du PCRS, ANCT ; réponses gardées au centième de degré). La
+   * couche du fond PCRS devient celle de cette zone. */
+  const pcrsCache = new Map();
+
+  async function pcrsAt(map, lon, lat) {
+    const key = `${lon.toFixed(2)},${lat.toFixed(2)}`;
+    if (!pcrsCache.has(key)) {
+      const d = 0.0005;
+      const params = new URLSearchParams({
+        SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetFeature", TYPENAMES: "GRAPHE.PCRS.ANCT:graphe_pcrs_anct",
+        OUTPUTFORMAT: "application/json", SRSNAME: "EPSG:4326", COUNT: "5",
+        BBOX: `${lat - d},${lon - d},${lat + d},${lon + d},urn:ogc:def:crs:EPSG::4326`,
+      });
+      try {
+        const response = await fetch(`${GEOPF}/wfs/ows?${params}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        // Seules les zones diffusées par le service d'images de la Géoplateforme sont utilisables ici
+        const zone = ((await response.json()).features || []).map((f) => f.properties || {})
+          .find((p) => p.diffusion_layer && (p.diffusion_url || "").includes("data.geopf.fr/wms-r"));
+        pcrsCache.set(key, zone ? { layer: zone.diffusion_layer, producteur: zone.nom_acteur || "",
+          date: (zone.date_livraison || "").slice(0, 10) } : null);
+      } catch (error) {
+        console.warn("PCRS :", error);
+        return null;  // service injoignable : pas gardé, redemandé plus tard
+      }
+    }
+    const zone = pcrsCache.get(key);
+    if (zone && zone.layer !== pcrsLayer) {
+      pcrsLayer = zone.layer;
+      whenLoaded(map, () => map.getSource("pcrs").setTiles([pcrsTiles(pcrsLayer)]));
+    }
+    return zone;
   }
 
   // Instance Panoramax -------------------------------------------------------------------
@@ -512,7 +612,7 @@ const Carte = (() => {
   }
 
   return {
-    PANORAMAX_API: META_API, GEOPF, OSM_TILES, createMap, setBackground, instances, setInstance, setFilter,
+    PANORAMAX_API: META_API, GEOPF, OSM_TILES, createMap, setBackground, setExpressYear, pcrsAt, instances, setInstance, setFilter,
     showMeasures, showHandles, showView, showMilestones, nearestPhoto, photoById, apiUrl: () => apiUrl,
   };
 })();

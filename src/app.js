@@ -425,6 +425,23 @@
   function setPhoto(feature, recenter) {
     photo = feature;
     store.set("photo", feature.id);  // rouverte à la prochaine visite (voir reopenPhoto)
+    // PCRS : option active seulement là où un PCRS est publié sur la Géoplateforme
+    Carte.pcrsAt(map, ...feature.geometry.coordinates).then((zone) => {
+      if (photo !== feature) return;
+      const option = $("#fond option[value=pcrs]");
+      option.disabled = !zone;
+      option.title = zone ? `PCRS ${zone.producteur}${zone.date ? `, ${zone.date}` : ""} (zoom 15 et plus)`
+        : "Aucun PCRS publié sur la Géoplateforme à cet endroit";
+    });
+    // Ortho-express de l'année de la photo (ou la plus proche disponible), annoncée dans la liste
+    const year = Number((feature.properties?.datetime || "").slice(0, 4));
+    if (year) {
+      Carte.setExpressYear(map, year, ...feature.geometry.coordinates).then((used) => {
+        if (photo !== feature) return;  // photo déjà quittée
+        $("#fond option[value=express]").textContent = used == null ? "Ortho-express (aucune ici)"
+          : `Ortho-express ${used}` + (used === year ? "" : ` (photo de ${year})`);
+      });
+    }
     showPlace(feature);
     const coords = feature.geometry.coordinates;
     Carte.showView(map, coords, viewHeading(), viewFov());
