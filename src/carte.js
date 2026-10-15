@@ -90,6 +90,15 @@ const Carte = (() => {
             id: "vue-bord", type: "line", source: "vue", filter: ["==", ["get", "kind"], "cone"],
             paint: { "line-color": CURSEUR, "line-width": 1.5 },
           },
+          {  // axe de la vue, prolongé : croisement du cap de visée avec la carte (liseré blanc
+            // pour se détacher du cône et des fonds)
+            id: "vue-axe-halo", type: "line", source: "vue", filter: ["==", ["get", "kind"], "axe"],
+            paint: { "line-color": "#ffffff", "line-width": 3, "line-opacity": 0.7 },
+          },
+          {
+            id: "vue-axe", type: "line", source: "vue", filter: ["==", ["get", "kind"], "axe"],
+            paint: { "line-color": CURSEUR, "line-width": 1.2 },
+          },
           {
             id: "vue-photo", type: "circle", source: "vue", filter: ["==", ["get", "kind"], "photo"],
             paint: {
@@ -311,12 +320,27 @@ const Carte = (() => {
 
   // Curseur de vue -------------------------------------------------------------------------
 
-  /** Photo affichée et vue : cap (degrés), champ horizontal (degrés), ou heading null. */
+  /** Photo affichée et vue : cap (degrés), champ horizontal (degrés), ou heading null. Cône
+   * de 70 pixels et axe jusqu'au bord de la carte, quelle que soit l'échelle (redessinés à
+   * chaque zoom et changement de taille de la carte). */
+  let lastView = null;
+
   function showView(map, lonlat, heading, fov) {
+    if (!lastView) {
+      for (const event of ["zoomend", "resize"]) map.on(event, () => lastView && showView(map, ...lastView));
+    }
+    lastView = [lonlat, heading, fov];
     const features = [];
     if (lonlat) {
       if (heading != null) {
-        const radius = 70 * metresPerPixel(map, lonlat[1]);  // 70 pixels quelle que soit l'échelle
+        const radius = 70 * metresPerPixel(map, lonlat[1]);
+        const canvas = map.getCanvas();
+        const diagonal = Math.hypot(canvas.clientWidth, canvas.clientHeight) || 1000;  // carte pas encore mise en page
+        const reach = diagonal * metresPerPixel(map, lonlat[1]);
+        features.push({
+          type: "Feature", properties: { kind: "axe" },
+          geometry: { type: "LineString", coordinates: [lonlat, offset(lonlat, heading, reach)] },
+        });
         const half = Math.min(fov || 90, 170) / 2;
         const ring = [lonlat];
         for (let k = 0; k <= 16; k++) ring.push(offset(lonlat, heading - half + (2 * half * k) / 16, radius));

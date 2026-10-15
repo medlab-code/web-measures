@@ -93,8 +93,14 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
       <p id="calcul-inclinaison" hidden>Calcul du calage de l'inclinaison en cours</p>
       <p id="mode-mesure" hidden>Mode mesure en cours : désélectionner pour naviguer</p>
     </section>
+    <div id="poignee-colonne" role="separator" aria-orientation="vertical"
+         title="Glisser pour changer la largeur de la colonne (double-clic : largeur par défaut)"></div>
     <aside>
       <div id="carte"></div>
+      <div id="poignee-carte" role="separator" aria-orientation="horizontal" aria-controls="carte"
+           title="Glisser pour changer la hauteur de la carte (double-clic : taille par défaut)">
+        <button id="replier-carte" type="button" aria-expanded="true" title="Masquer la carte">▴</button>
+      </div>
       <div id="panneau">
         <section>
           <h2>Mesure</h2>

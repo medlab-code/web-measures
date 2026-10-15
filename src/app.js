@@ -66,6 +66,97 @@
     app?.set_api_url(apiUrl);
   });
 
+  // Hauteur de la carte : poignée à glisser (mémorisée), bouton pour la replier --------------
+
+  const mapBox = $("#carte");
+  const grip = $("#poignee-carte");
+  const fold = $("#replier-carte");
+  const narrow = window.matchMedia("(max-width: 900px)");  // carte au-dessus du panneau, sous la photo
+  const heightKey = () => (narrow.matches ? "carte-hauteur-etroit" : "carte-hauteur");
+
+  function setMapHeight(px) {
+    if (px == null) mapBox.style.removeProperty("height");  // taille par défaut (CSS)
+    else mapBox.style.height = `${Math.round(px)}px`;
+    map.resize();
+  }
+
+  function setFolded(folded) {
+    mapBox.hidden = folded;
+    grip.classList.toggle("repliee", folded);
+    fold.textContent = folded ? "▾" : "▴";
+    fold.title = folded ? "Afficher la carte" : "Masquer la carte";
+    fold.setAttribute("aria-expanded", String(!folded));
+    store.set("carte-repliee", folded ? "1" : "");
+    if (!folded) map.resize();
+  }
+
+  const applySavedHeight = () => setMapHeight(Number(store.get(heightKey())) || null);
+  applySavedHeight();
+  narrow.addEventListener("change", applySavedHeight);  // chaque disposition garde sa hauteur
+  setFolded(store.get("carte-repliee") === "1");
+
+  fold.addEventListener("click", () => setFolded(!mapBox.hidden));
+  fold.addEventListener("pointerdown", (event) => event.stopPropagation());  // pas de glisser
+  grip.addEventListener("dblclick", (event) => {
+    if (event.target === fold || mapBox.hidden) return;
+    store.set(heightKey(), "");
+    setMapHeight(null);
+  });
+  grip.addEventListener("pointerdown", (event) => {
+    if (mapBox.hidden) return;
+    event.preventDefault();
+    const startY = event.clientY, startHeight = mapBox.getBoundingClientRect().height;
+    // Limites : 8rem de carte au moins, 6rem de panneau (ou de colonne) au moins
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const room = mapBox.parentElement.getBoundingClientRect().height - grip.offsetHeight;
+    const max = narrow.matches ? window.innerHeight * 0.85 : room - 6 * rem;
+    const move = (e) => setMapHeight(Math.min(max, Math.max(8 * rem, startHeight + e.clientY - startY)));
+    const end = () => {  // suivi sur toute la fenêtre : le pointeur sort vite de la poignée
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      store.set(heightKey(), String(Math.round(mapBox.getBoundingClientRect().height)));
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+  });
+
+  // Largeur de la colonne de droite (grand écran) : poignée à glisser, mémorisée -------------
+
+  const column = $("aside");
+  const columnGrip = $("#poignee-colonne");
+
+  function setColumnWidth(px) {
+    if (px == null) column.style.removeProperty("width");  // largeur par défaut (CSS)
+    else column.style.width = `${Math.round(px)}px`;
+    map.resize();
+    window.dispatchEvent(new Event("resize"));  // visionneuse à la nouvelle taille
+  }
+
+  if (Number(store.get("colonne-largeur"))) setColumnWidth(Number(store.get("colonne-largeur")));
+  columnGrip.addEventListener("dblclick", () => {
+    store.set("colonne-largeur", "");
+    setColumnWidth(null);
+  });
+  columnGrip.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    const startX = event.clientX, startWidth = column.getBoundingClientRect().width;
+    // Limites : 20rem de colonne au moins, 25 % de la fenêtre au moins pour la photo
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const max = window.innerWidth * 0.75;
+    const move = (e) => setColumnWidth(Math.min(max, Math.max(20 * rem, startWidth - (e.clientX - startX))));
+    const end = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      store.set("colonne-largeur", String(Math.round(column.getBoundingClientRect().width)));
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+  });
+
   /** Dernière photo de la visite précédente, rouverte et centrée sur la carte. */
   async function reopenPhoto() {
     const id = store.get("photo");
