@@ -770,6 +770,7 @@
       const canvas = Object.assign(document.createElement("canvas"), { width: image.width, height: image.height });
       const ctx = canvas.getContext("2d");
       ctx.drawImage(image, 0, 0);
+      await robotoReady();
       drawCartouches(ctx, canvas, Math.max(14, Math.round(canvas.height / 54)), params.caption, placeText());
       download(await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92)), `${params.name}.jpg`);
     } catch (error) {
@@ -783,6 +784,7 @@
   $("#vignette").addEventListener("click", async () => {
     if (!psv) return;
     try {
+      await robotoReady();
       const canvas = thumbnail();
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
       const date = (photo?.properties?.datetime || "").replace(/[^0-9]/g, "").slice(0, 8) || "sansdate";
@@ -859,7 +861,7 @@
     const margin = size * 0.7;
     const bottom = canvas.height - margin;
     const width = (text, s) => {
-      ctx.font = `${s}px system-ui, sans-serif`;
+      ctx.font = `${s}px Roboto, system-ui, sans-serif`;
       return text ? ctx.measureText(text).width + s : 0;
     };
     // Texte plus large que l'image (vue étroite) : réduit pour tenir dans la largeur
@@ -871,13 +873,18 @@
     label(ctx, place, margin, side ? bottom : bottom - captionSize * 1.6 - margin / 2, placeSize, "left");
   }
 
+  /** Police Roboto chargée, pour le texte dessiné dans les captures (sinon police de repli). */
+  function robotoReady() {
+    return document.fonts ? document.fonts.load("12px Roboto").catch(() => {}) : Promise.resolve();
+  }
+
   /** Localisation affichée dans la visionneuse (route, PR, commune), ou "". */
   function placeText() {
     return $("#lieu").hidden ? "" : $("#lieu").textContent;
   }
 
   function label(ctx, text, x, y, size, align) {
-    ctx.font = `${size}px system-ui, sans-serif`;
+    ctx.font = `${size}px Roboto, system-ui, sans-serif`;
     const w = ctx.measureText(text).width + size;
     const left = align === "right" ? x - w : align === "left" ? x : x - w / 2;
     ctx.fillStyle = "rgba(32, 33, 36, 0.85)";

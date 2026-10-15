@@ -32,8 +32,9 @@ html, body {
   height: 100%;
   background: var(--fond);
   color: var(--texte);
-  font: 14px/1.4 system-ui, sans-serif;
+  font: 14px/1.4 Roboto, system-ui, sans-serif;
 }
+button, input, select, textarea { font-family: inherit; }  /* Roboto aussi (pas hérité par défaut) */
 
 body { display: flex; flex-direction: column; }
 

@@ -38,6 +38,7 @@ const Carte = (() => {
   function createMap(container) {
     const map = new maplibregl.Map({
       container,
+      attributionControl: false,  // ajouté replié ci-dessous
       center: [5.04, 47.32],  // Côte-d'Or
       zoom: 9,
       style: {
@@ -161,6 +162,12 @@ const Carte = (() => {
     });
     map.addControl(new maplibregl.NavigationControl(), "top-left");
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
+    // Attributions repliées derrière le bouton ⓘ : MapLibre les déplie d'office quand elles
+    // arrivent (classe maplibregl-compact-show) ; repliées une fois la carte prête
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
+    map.once("idle", () => {
+      map.getContainer().querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show");
+    });
     return map;
   }
 
