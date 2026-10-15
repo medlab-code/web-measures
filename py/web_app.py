@@ -475,7 +475,23 @@ class App:
             "waiting_map": self.waiting_map(),
             "point": self.triangulator.result is not None,
             "active": self.active,
+            "lights": self._lights(pic) if item else [],
         })
+
+    def _lights(self, pic):
+        """Voyants de la visionneuse : [(nom, état)], état « ok », « non » ou « attente »."""
+        res = self.quality
+
+        def light(value):
+            return "attente" if value is None else ("ok" if value else "non")
+
+        if self.calibration.tilt(pic):
+            tilt = "ok"
+        else:
+            tilt = "attente" if self.tilts.pending(pic) else "non"
+        return [("RTK", light(res["precise"] if res else None)),
+                ("LiDAR HD", light(res["lidar"] if res else None)),
+                ("Inclinaison", tilt)]
 
     def viewer_marks(self):
         """Repères de la photo affichée (JSON) : pour chaque mesure, points (cap et élévation

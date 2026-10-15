@@ -93,6 +93,18 @@
     setStatus(`Calcul indisponible : ${error.message}`, "echec");
   });
 
+  /** Voyants de la visionneuse, en mode mesure : RTK, LiDAR HD, inclinaison calée. */
+  function showLights(lights) {
+    const list = $("#voyants");
+    list.hidden = !measuring || !lights.length;
+    list.replaceChildren(...lights.map(([name, light]) => {
+      const item = document.createElement("li");
+      item.className = light;
+      item.textContent = name;
+      return item;
+    }));
+  }
+
   /** Redessine tout : texte de la mesure, état de la photo, repères, carte, résultats. */
   function refresh(text) {
     if (!app) return;
@@ -108,6 +120,7 @@
       gps.title = state.camera[1];
       gps.dataset.value = state.camera[0];
     }
+    showLights(state.lights);
     $("#garder").disabled = !state.point;
     const bandeau = $("#bandeau");
     bandeau.hidden = !state.waiting_map;

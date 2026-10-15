@@ -164,6 +164,41 @@ button.principal { font-weight: 600; }
 }
 #mode-mesure[hidden] { display: none; }
 
+/* Visionneuse : voyants en haut à droite (vert : oui, rouge : non, orange : en attente) */
+#voyants {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.8rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  color: #fff;
+  opacity: 0.9;
+  font-size: 14px;
+  font-weight: 600;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.6), 1px 1px 1px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  z-index: 5;
+}
+#voyants[hidden] { display: none; }
+#voyants li::after {
+  content: "";
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin-left: 0.4rem;
+  border-radius: 50%;
+  vertical-align: -1px;
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.7);
+}
+#voyants li.ok::after { background: #2ecc40; }
+#voyants li.non::after { background: #e53935; }
+#voyants li.attente::after { background: #ff9800; }
+
 dialog {
   max-width: 34rem;
   border: 1px solid var(--bord);
