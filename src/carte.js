@@ -423,8 +423,10 @@ const Carte = (() => {
 
   // Étiquettes : marqueurs HTML (pas de police de caractères à charger)
   const labels = [];
+  let shownMeasures = null;  // dernières mesures dessinées : suivent une poignée glissée
 
   function showMeasures(map, geojson) {
+    shownMeasures = geojson;
     map.getSource("mesures")?.setData(geojson);
     for (const marker of labels.splice(0)) marker.remove();
     sublabels.length = 0;
@@ -522,7 +524,13 @@ const Carte = (() => {
       element.className = "poignee" + (facade ? " facade" : "");
       element.title = "Glisser pour recaler ce point sur la carte";
       const marker = new maplibregl.Marker({ element, draggable: true }).setLngLat([lon, lat]).addTo(map);
+      let from = [lon, lat];
       marker.on("dragstart", () => { dragging = true; });
+      marker.on("drag", () => {  // la croix du point, ses traits et son étiquette suivent
+        const { lng, lat: newLat } = marker.getLngLat();
+        follow(map, from, [lng, newLat]);
+        from = [lng, newLat];
+      });
       marker.on("dragend", () => {
         dragging = false;
         handlesKey = "";  // redessinées d'après le recalage
@@ -531,6 +539,23 @@ const Carte = (() => {
       });
       handles.push(marker);
     });
+  }
+
+  /** Pendant un glisser : tout ce qui est dessiné en `from` (croix, bouts de traits,
+   * étiquette d'une hauteur) passe en `to`, avant le recalcul au lâcher. */
+  function follow(map, from, to) {
+    if (!shownMeasures) return;
+    const same = (c) => Math.abs(c[0] - from[0]) < 1e-9 && Math.abs(c[1] - from[1]) < 1e-9;
+    const move = (c) => same(c) ? to : c;
+    for (const feature of shownMeasures.features) {
+      const g = feature.geometry;
+      g.coordinates = g.type === "Point" ? move(g.coordinates) : g.coordinates.map(move);
+    }
+    map.getSource("mesures")?.setData(shownMeasures);
+    for (const marker of labels) {
+      const { lng, lat } = marker.getLngLat();
+      if (same([lng, lat])) marker.setLngLat(to);
+    }
   }
 
   function middle(coords) {
