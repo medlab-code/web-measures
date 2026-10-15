@@ -96,6 +96,8 @@ class App:
         self.new_camera = None  # hauteur de caméra calée, à reporter dans le réglage de la page
         self.points = []  # points triangulés gardés : (lon, lat, attributs)
         self.links = []  # distances entre deux points gardés : (n° du premier, n° du second, attributs)
+        self.named = 0  # points gardés depuis le début : nom du suivant (A, B… voir _point_name)
+        self.proposal = None  # (n°, n°) : distance à proposer après l'effacement du point qui les reliait
         self._handles = []  # clés des poignées de la carte, dans l'ordre de handles()
         self.calibration_version = 0  # augmente à chaque changement du calage (à enregistrer)
         self.active = False  # bouton « Mesure » de la page : clics dans la photo pour mesurer
@@ -366,26 +368,27 @@ class App:
             self.message = self.triangulator.error or "Il faut au moins deux visées qui se croisent."
             return self.status()
         r = self.triangulator.result
-        values["commentaire"] = ""
+        name = _point_name(self.named)
+        self.named += 1
+        values = dict({"nom": name}, **values, commentaire="")
         self.points.append((r["lon"], r["lat"], values))
         self.triangulator.clear()
         self.message = "Point {} gardé (incertitude ±{} m) : il sera exporté avec les mesures.".format(
-            len(self.points), measures._num(r["uncertainty"]))
+            name, measures._num(r["uncertainty"]))
         if len(self.points) >= 2:  # distance au point gardé précédent, aussitôt
-            self.message += " " + self._link_last()
+            self.message += " " + self._link(len(self.points) - 2, len(self.points) - 1)
         return self.status()
 
-    def _link_last(self):
-        """Distance horizontale entre les deux derniers points gardés (la triangulation donne
-        une position sur la carte), incertitude des deux points combinée, gardée comme une
-        mesure. Retourne le texte à afficher."""
-        i, j = len(self.points) - 2, len(self.points) - 1
+    def _link(self, i, j):
+        """Distance horizontale entre les points gardés n° i et j (la triangulation donne une
+        position sur la carte), incertitude des deux points combinée, gardée comme une mesure.
+        Retourne le texte à afficher."""
         (lon1, lat1, v1), (lon2, lat2, v2) = self.points[i], self.points[j]
         x, y = triangulation._local(lon2, lat2, lon1, lat1)
         value, unc = math.hypot(x, y), math.hypot(v1["incert_m"], v2["incert_m"])
         self.links.append((i, j, {"valeur_m": round(value, 3), "incert_m": round(unc, 2), "commentaire": ""}))
-        return "Distance entre les points {} et {} : {} m (±{} m).".format(
-            i + 1, j + 1, measures._num(value, 2), measures._num(unc, 2))
+        return "Distance {}–{} : {} m (±{} m).".format(
+            v1["nom"], v2["nom"], measures._num(value, 2), measures._num(unc, 2))
 
     def move_handle(self, index, lon, lat):
         """Poignée n° index (voir handles) glissée sur la carte en (lon, lat)."""
@@ -415,7 +418,7 @@ class App:
         self.triangulator.clear()
         self.tool.clear_all()
         self.calibrator.reset()
-        self.points, self.links = [], []
+        self.points, self.links, self.named = [], [], 0
         self.message = ""
         return self.status()
 
@@ -558,7 +561,7 @@ class App:
             if item.point:
                 add("cible", "Point", list(item.point))
         for lon, lat, values in self.points:
-            add("triangule", "Point", [lon, lat], "±{} m".format(measures._num(values["incert_m"], 2)))
+            add("triangule", "Point", [lon, lat], "{} ±{} m".format(values["nom"], measures._num(values["incert_m"], 2)))
         for i, j, values in self.links:  # distance entre deux points gardés : trait rouge, comme une mesure
             add("mesure", "LineString", [list(self.points[i][:2]), list(self.points[j][:2])],
                 "{} m".format(measures._num(values["valeur_m"], 2)))
@@ -568,18 +571,18 @@ class App:
         """Mesures terminées et points gardés, pour la liste de la page (JSON)."""
         out = [{"id": id(m), "kind": "mesure", "text": m.label(), "comment": getattr(m, "comment", "")}
                for m in self.tool.measures() if m.result]
-        out += [{"id": i, "kind": "point", "text": "Point triangulé {} ±{} m".format(
-                    i + 1, measures._num(v["incert_m"], 2)), "comment": v.get("commentaire", "")}
+        out += [{"id": i, "kind": "point", "text": "Point {} ±{} m".format(
+                    v["nom"], measures._num(v["incert_m"], 2)), "comment": v.get("commentaire", "")}
                 for i, (_, _, v) in enumerate(self.points)]
-        out += [{"id": k, "kind": "distance", "text": "↔ {} m ± {} m entre les points {} et {}".format(
-                    measures._num(v["valeur_m"], 2), measures._num(v["incert_m"], 2), i + 1, j + 1),
-                 "comment": v.get("commentaire", "")}
+        out += [{"id": k, "kind": "distance", "text": "↔ {}–{} : {} m ± {} m".format(
+                    self.points[i][2]["nom"], self.points[j][2]["nom"], measures._num(v["valeur_m"], 2),
+                    measures._num(v["incert_m"], 2)), "comment": v.get("commentaire", "")}
                 for k, (i, j, v) in enumerate(self.links)]
         return json.dumps(out)
 
     def delete_result(self, kind, ident):
         """Efface un résultat de la liste : mesure (et son dessin), point triangulé (et les
-        distances qui le relient ; les points suivants sont renumérotés) ou distance."""
+        distances qui le relient ; les autres gardent leur nom) ou distance."""
         if kind == "mesure":
             tool = self.tool
             for m in tool.measures():
@@ -594,12 +597,33 @@ class App:
                     self.message = "Mesure effacée."
                     break
         elif kind == "point" and 0 <= ident < len(self.points):
+            name = self.points[ident][2]["nom"]
+            before = [i for i, j, _ in self.links if j == ident]
+            after = [j for i, j, _ in self.links if i == ident]
             del self.points[ident]
-            self.links = [(i - (i > ident), j - (j > ident), v) for i, j, v in self.links if ident not in (i, j)]
-            self.message = "Point triangulé effacé."
+            shift = lambda k: k - (k > ident)  # noqa: E731
+            self.links = [(shift(i), shift(j), v) for i, j, v in self.links if ident not in (i, j)]
+            self.message = "Point {} effacé.".format(name)
+            # Point au milieu d'une chaîne (A–B–C, B effacé) : la distance A–C est proposée
+            if before and after and not any({i, j} == {shift(before[0]), shift(after[0])} for i, j, _ in self.links):
+                self.proposal = (shift(before[0]), shift(after[0]))
         elif kind == "distance" and 0 <= ident < len(self.links):
             del self.links[ident]
             self.message = "Distance effacée."
+        return self.status()
+
+    def take_proposal(self):
+        """Distance proposée après un effacement (JSON : [n°, n°, « A », « C »] ou null), une
+        seule fois."""
+        p, self.proposal = self.proposal, None
+        if p is None or max(p) >= len(self.points):
+            return json.dumps(None)
+        return json.dumps([p[0], p[1], self.points[p[0]][2]["nom"], self.points[p[1]][2]["nom"]])
+
+    def link_points(self, i, j):
+        """Distance entre deux points gardés, à la demande (voir take_proposal)."""
+        if 0 <= i < len(self.points) and 0 <= j < len(self.points) and i != j:
+            self.message = self._link(int(i), int(j))
         return self.status()
 
     def set_comment(self, kind, ident, text):
@@ -647,13 +671,13 @@ class App:
                 "date_mesure": datetime.now().isoformat(timespec="seconds"),
                 "commentaire": getattr(m, "comment", ""),
             }))
-        for n, (lon, lat, values) in enumerate(self.points):
-            out.append(([(lon, lat)], dict({"type": "point triangulé", "point": n + 1}, **values)))
+        for lon, lat, values in self.points:
+            out.append(([(lon, lat)], dict({"type": "point triangulé"}, **values)))
         for i, j, values in self.links:
             (lon1, lat1, v1), (lon2, lat2, v2) = self.points[i], self.points[j]
             out.append(([(lon1, lat1), (lon2, lat2)], {
                 "type": "distance entre points triangulés", "valeur_m": values["valeur_m"],
-                "incert_m": values["incert_m"], "horiz_m": values["valeur_m"], "points": "{}-{}".format(i + 1, j + 1),
+                "incert_m": values["incert_m"], "horiz_m": values["valeur_m"], "points": "{}-{}".format(v1["nom"], v2["nom"]),
                 "photos": ",".join(dict.fromkeys(p for v in (v1, v2) for p in v.get("photos", "").split(",") if p)),
                 "date_mesure": datetime.now().isoformat(timespec="seconds"),
                 "commentaire": values.get("commentaire", ""),
@@ -712,6 +736,16 @@ class App:
         if not self.item:
             return "Panoramax"
         return capture.caption_for(self.item, None)
+
+
+def _point_name(n):
+    """Nom du n-ième point gardé (0 : A) : A … Z, puis AA, AB…, comme les colonnes d'un tableur."""
+    name = ""
+    n += 1
+    while n:
+        n, r = divmod(n - 1, 26)
+        name = chr(65 + r) + name
+    return name
 
 
 def _view_heading(item, yaw):

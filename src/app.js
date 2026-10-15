@@ -354,7 +354,10 @@
         type: "button", className: "effacer-resultat", textContent: "×", title: "Effacer ce résultat",
       });
       remove.setAttribute("aria-label", `Effacer : ${r.text}`);
-      remove.addEventListener("click", () => refresh(app.delete_result(r.kind, r.id)));
+      remove.addEventListener("click", () => {
+        refresh(app.delete_result(r.kind, r.id));
+        proposeDistance();
+      });
       const line = document.createElement("div");
       line.className = "ligne";
       line.append(text, remove);
@@ -362,6 +365,20 @@
       return li;
     }));
     if (focused) ol.querySelector(`[data-key="${focused}"]`)?.focus();
+  }
+
+  /** Point effacé au milieu d'une chaîne (A–B–C) : propose de mesurer la distance A–C. */
+  function proposeDistance() {
+    const proposal = JSON.parse(app.take_proposal());
+    if (!proposal) return;
+    const [i, j, a, c] = proposal;
+    const dialog = $("#proposer-distance");
+    dialog.querySelector("h2 span").textContent = `${a}–${c}`;
+    dialog.returnValue = "";
+    dialog.addEventListener("close", () => {
+      if (dialog.returnValue === "oui") refresh(app.link_points(i, j));
+    }, { once: true });
+    dialog.showModal();
   }
 
   // Choix de la photo sur la carte ---------------------------------------------------------

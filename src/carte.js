@@ -151,7 +151,9 @@ const Carte = (() => {
             id: "cibles", type: "circle", source: "mesures", filter: kind("cible", "triangule"),
             paint: {
               "circle-color": ["match", ["get", "kind"], "triangule", ROUGE, "rgba(0, 0, 0, 0)"],
-              "circle-radius": 7, "circle-stroke-color": ROUGE, "circle-stroke-width": 2.5,
+              // Point triangulé gardé un peu plus petit que la cible de la visée en cours
+              "circle-radius": ["match", ["get", "kind"], "triangule", 4.5, 7],
+              "circle-stroke-color": ROUGE, "circle-stroke-width": ["match", ["get", "kind"], "triangule", 1.5, 2.5],
             },
           },
         ],
