@@ -157,6 +157,16 @@
     window.addEventListener("pointercancel", end);
   });
 
+  /** Route et commune de la photo, incrustées dans la visionneuse (réponse d'une photo déjà
+   * quittée ignorée). */
+  async function showPlace(feature) {
+    const [lon, lat] = feature.geometry.coordinates;
+    const text = await Lieu.describe(lon, lat);
+    if (photo !== feature) return;
+    $("#lieu").textContent = text;
+    $("#lieu").hidden = !text;
+  }
+
   /** Dernière photo de la visite précédente, rouverte et centrée sur la carte. */
   async function reopenPhoto() {
     const id = store.get("photo");
@@ -361,6 +371,7 @@
   function setPhoto(feature, recenter) {
     photo = feature;
     store.set("photo", feature.id);  // rouverte à la prochaine visite (voir reopenPhoto)
+    showPlace(feature);
     const coords = feature.geometry.coordinates;
     Carte.showView(map, coords, viewHeading(), viewFov());
     if (recenter && $("#centrer").checked) map.easeTo({ center: coords, zoom: Math.max(map.getZoom(), 17) });

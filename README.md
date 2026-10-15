@@ -56,6 +56,7 @@ fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/so
 | `src/carte.js` | carte MapLibre : fonds, filaire, mesures, poignées, photo la plus proche |
 | `src/calcul.js` | chargement de Pyodide et des fichiers Python (`py/sources.js`) |
 | `src/services.js` | vérification de l'accès aux services |
+| `src/lieu.js` | route et commune de la photo, incrustées dans la visionneuse |
 | `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page |
 | `py/web_host.py` | accès réseau du cœur par le `fetch` du navigateur |
 | `py/core/` | cœur de calcul du plugin, **copié** par `tools/update-core.sh` (ne pas modifier ici) |
@@ -97,7 +98,8 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 | Géoplateforme IGN : WMTS | Plan IGN, orthophoto | accessible |
 | Géoplateforme IGN : altimétrie | profil du terrain (LiDAR HD, RGE ALTI) | accessible |
 | Géoplateforme IGN : WMS (`wms-r`) | MNS du LiDAR HD (façades) | accessible |
-| Géoplateforme IGN : WFS | BD TOPO (axe de la route), cadastre (façades) | accessible |
+| Géoplateforme IGN : WFS | BD TOPO (axe de la route, route de la photo), cadastre (façades) | accessible |
+| geo.api.gouv.fr | commune de la photo | accessible |
 | Open-Meteo | altitudes de secours | accessible |
 
 **À refaire depuis le poste des utilisateurs** (proxy ou pare-feu d'entreprise) : ouvrir la page et relever la liste.

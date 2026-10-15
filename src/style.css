@@ -237,6 +237,25 @@ button.principal { font-weight: 600; }
 }
 #voyants[hidden] { display: none; }
 
+/* Visionneuse : route et commune de la photo, en bas à gauche */
+#lieu {
+  position: absolute;
+  left: 0.8rem;
+  bottom: 0.8rem;
+  max-width: calc(100% - 1.6rem);
+  margin: 0;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  background: var(--etiquette-vue);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-shadow: var(--detoure-vue);
+  pointer-events: none;
+  z-index: 5;
+}
+#lieu[hidden] { display: none; }
+
 /* Visionneuse : calcul de l'inclinaison en cours, sous le pointeur (voir app.js), petite roue */
 #calcul-inclinaison {
   position: absolute;
