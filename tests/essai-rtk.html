@@ -1,0 +1,55 @@
+<!doctype html><meta charset="utf-8"><title>Essai hauteur RTK</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Hauteur sur deux photos imajbox à position RTK (Pouilly-en-Auxois) : point de référence
+     triangulé sur une cible fictive à 5 m sur le côté, puis pied et sommet. Directions calculées
+     depuis le cap EXIF précis. Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
+<script>try { localStorage.clear(); } catch {}</script>
+<iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
+const feature = async (id) => (await (await fetch("https://api.panoramax.xyz/api/search?ids=" + id)).json()).features[0];
+const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-955becc79e81"];
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  try {
+    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 120000, "Pyodide");
+    const app = w.mesures.app, doc = w.document;
+    const psvClick = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: false }; w.mesures.psv.dispatchEvent(e); };
+    doc.querySelector("#mesure").click();
+    doc.querySelector("#mode").value = "height"; doc.querySelector("#mode").dispatchEvent(new Event("change"));
+    const photos = await Promise.all(IDS.map(feature));
+    const heading = (f) => { const [n, d] = f.properties.exif["Exif.GPSInfo.GPSImgDirection"].split("/"); return n / d; };
+    const metres = ([lon, lat], [lon0, lat0]) => [(lon - lon0) * 111320 * Math.cos(lat0 * Math.PI / 180), (lat - lat0) * 111320];
+    const [p0, p1] = photos.map((f) => f.geometry.coordinates);
+    const mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
+    const along = Math.atan2(...metres(p1, p0));
+    const target = [mid[0] + 5 * Math.cos(along) / (111320 * Math.cos(mid[1] * Math.PI / 180)), mid[1] - 5 * Math.sin(along) / 111320];
+    const yawTo = (f, pt) => { const [x, y] = metres(pt, f.geometry.coordinates); return Math.atan2(x, y) - heading(f) * Math.PI / 180; };
+    log("photos à " + Math.hypot(...metres(p1, p0)).toFixed(2) + " m l'une de l'autre");
+    for (const f of photos) {
+      w.mesures.openPhoto(f);
+      await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "photo");
+      await until(() => JSON.parse(app.state()).quality.includes("vérifiée"), 60000, "position vérifiée");
+      await sleep(1000);
+      psvClick(yawTo(f, target), -0.35);
+      log("photo " + f.id.slice(0, 8) + " : " + JSON.parse(app.state()).quality);
+    }
+    log("visées : " + app.status());
+    doc.querySelector("#garder").click();
+    log("validé : " + doc.querySelector("#statut").textContent);
+    const ref = JSON.parse(app.map_geojson()).features.filter((f) => f.properties.kind === "triangule").pop().geometry.coordinates;
+    const d = Math.hypot(...metres(ref, p1));
+    log("point à " + d.toFixed(2) + " m de la photo, écart à la cible " + Math.hypot(...metres(ref, target)).toFixed(3) + " m");
+    psvClick(yawTo(photos[1], ref), -0.3);
+    await until(() => doc.querySelector("#statut").textContent.includes("sommet"), 30000, "pied");
+    psvClick(yawTo(photos[1], ref), 0.3);
+    await until(() => doc.querySelector("#statut").textContent.startsWith("Hauteur :"), 30000, "hauteur");
+    log("résultat : " + doc.querySelector("#statut").textContent);
+    log("attendu sans inclinaison : " + (d * 2 * Math.tan(0.3)).toFixed(3) + " m");
+  } catch (e) { log("ERREUR " + e); }
+  log("FIN");
+})();
+</script>
