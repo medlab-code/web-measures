@@ -842,8 +842,8 @@ class App:
         if self.active and self.mode in REF_MODES and self.ref_point and self.item:
             marks = marks + [self._reference_mark()]
         road = (self.ref_point or {}).get("road") if self.active and self.mode == "road" else None
-        if road and self.item:
-            marks = marks + [self._guide_mark(road)]
+        if road and self.item:  # en premier : dessinée sous les traits rouges des largeurs
+            marks = [self._guide_mark(road)] + marks
         out = []
         for m in marks:
             points = [p for p in m["points"] if p.get("pic") == pic and p.get("yaw") is not None]
