@@ -170,7 +170,8 @@ class App:
         triangulation ne vise qu'en cap, elle n'en a pas besoin (calcul long évité)."""
         if self.active and self.item and self.mode != "tri":
             pic = self.item.get("id")
-            self.tilts.check(self.item, self.calibration, lambda: self._on_tilt(pic))
+            before = self.calibration.auto.get(pic)
+            self.tilts.check(self.item, self.calibration, lambda: self._on_tilt(pic, before))
 
     def set_mode(self, mode):
         if mode not in MODES:
@@ -178,6 +179,7 @@ class App:
         self._clear_measures()
         self.mode = mode
         self.ref_point = None
+        self.width_sel = None
         self.message = ""
         self._active()
         self._check_tilt()  # en quittant la triangulation
@@ -254,8 +256,12 @@ class App:
         self.quality = res
         self.notify()
 
-    def _on_tilt(self, pic):
-        """Inclinaison automatique arrivée : clics déjà faits sur la photo corrigés."""
+    def _on_tilt(self, pic, before=None):
+        """Inclinaison automatique arrivée : clics déjà faits sur la photo corrigés. Rien si elle
+        n'a pas changé (check rappelle aussi sans calcul : photo déjà calée, non 360°, sans cap) :
+        ni calage réenregistré, ni affichage refait."""
+        if self.calibration.auto.get(pic) == before:
+            return
         self._calibration_changed()
         cal = self.calibration
 
@@ -633,6 +639,7 @@ class App:
         self.tool.clear()
         self.triangulator.clear()
         self.ref_point = None
+        self.width_sel = None
         self.message = ""
         return self.status()
 
@@ -797,6 +804,7 @@ class App:
         self.points, self.links, self.named = [], [], 0
         self.last_free, self.point_views = None, {}
         self.ref_point = None
+        self.width_sel = None
         self.message = ""
         return self.status()
 
@@ -1150,6 +1158,7 @@ class App:
                     else:
                         tool.done.remove(m)
                     self.message = "Mesure effacée."
+                    self.width_sel = None  # point d'une mesure effacée : plus de sélection
                     break
         elif kind == "point" and 0 <= ident < len(self.points):
             name = self.points[ident][2]["nom"]

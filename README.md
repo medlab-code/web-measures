@@ -220,6 +220,8 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 | Géoplateforme IGN : WFS | BD TOPO (axe de la route, route et PR de la photo, PR sur la carte) | accessible |
 | Géoplateforme IGN : géocodage | recherche de lieux (autocomplétion) | accessible |
 | geo.api.gouv.fr | commune de la photo | accessible |
+| Stockage des photos Panoramax (S3 OVH, derrière `panoramax.ign.fr`) | photos HD : capture Full HD, inclinaison automatique | accessible |
+| PROJ (`cdn.proj.org`) | grille du géoïde : altitude NGF, hauteur de caméra d'après le GPS | accessible |
 
 **À refaire depuis le poste des utilisateurs** (proxy ou pare-feu d'entreprise) : ouvrir la page et relever la liste.
 

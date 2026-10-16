@@ -1032,7 +1032,7 @@
     } catch (error) {
       setStatus(`Capture « Image seule » impossible : ${error.message}`, "echec");
     } finally {
-      button.disabled = false;
+      button.disabled = !photo || !Calcul.hasWorker();  // photo fermée pendant la capture : reste inactif
       button.textContent = "📷 Image seule";
     }
   });
@@ -1077,8 +1077,31 @@
       return [p.x * scale, p.y * scale];
     };
     ctx.lineCap = "round";
-    for (const mark of currentMarks) {
+    // Comme dans la visionneuse : guides d'abord (dessous), en tirets et sans croix ; mesures en
+    // trait rouge ; croix jaunes, bleues pour les visées
+    const guidesFirst = [...currentMarks].sort((a, b) => Number(!!b.guide) - Number(!!a.guide));
+    for (const mark of guidesFirst) {
       const pts = mark.points.map(screen);
+      if (mark.guide) {
+        ctx.save();
+        ctx.strokeStyle = mark.vertical ? "#2ecc40" : "#00bce6";
+        ctx.lineWidth = 2 * scale;
+        ctx.setLineDash([8 * scale, 5 * scale]);
+        ctx.beginPath();
+        let open = false;
+        for (const p of pts) {
+          if (!p) {
+            open = false;
+            continue;
+          }
+          if (open) ctx.lineTo(...p);
+          else ctx.moveTo(...p);
+          open = true;
+        }
+        ctx.stroke();
+        ctx.restore();
+        continue;
+      }
       ctx.strokeStyle = "#e53935";
       ctx.lineWidth = 3 * scale;
       for (let i = 1; i < pts.length; i++) {
@@ -1090,7 +1113,7 @@
       }
       for (const p of pts) {
         if (!p) continue;
-        for (const [color, width] of [["rgba(0,0,0,0.7)", 4], ["#ffeb00", 2]]) {
+        for (const [color, width] of [["rgba(0,0,0,0.7)", 4], [mark.sighting ? "#00bce6" : "#ffeb00", 2]]) {
           ctx.strokeStyle = color;
           ctx.lineWidth = width * scale;
           ctx.beginPath();

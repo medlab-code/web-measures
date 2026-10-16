@@ -48,10 +48,19 @@ const Calcul = (() => {
       }
       try {
         const { pyodide, worker } = await ready;
-        const args = pyodide.toPy(msg.args);
-        const result = msg.type === "call" ? worker.call(msg.module, msg.name, args)
-          : worker.capture(...msg.args);
-        args.destroy();
+        let result;
+        if (msg.type === "call") {
+          // Arguments convertis pour Python seulement ici (la capture prend les siens tels quels),
+          // et libérés même si l'appel échoue : ils contiennent la photo
+          const args = pyodide.toPy(msg.args);
+          try {
+            result = worker.call(msg.module, msg.name, args);
+          } finally {
+            args.destroy();
+          }
+        } else {
+          result = worker.capture(...msg.args);
+        }
         self.postMessage({ id: msg.id, result });
       } catch (error) {
         self.postMessage({ id: msg.id, error: String(error) });

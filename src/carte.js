@@ -239,8 +239,10 @@ const Carte = (() => {
    * à la plus lointaine, réponses gardées par maille. Retourne l'année retenue (null si aucune
    * ne couvre l'endroit : la couche est alors celle de l'année la plus proche, vide ici). */
   const expressCover = new Map();  // "année maille" -> couverte ?
+  let expressRequest = 0;  // n° de la dernière demande : une réponse plus ancienne ne change plus la couche
 
   async function setExpressYear(map, year, lon, lat) {
+    const request = ++expressRequest;
     const order = [...EXPRESS_YEARS].sort((a, b) => Math.abs(a - year) - Math.abs(b - year) || b - a);
     let chosen = null;
     for (const y of order) {
@@ -250,7 +252,7 @@ const Carte = (() => {
       }
     }
     const shown = chosen ?? order[0];
-    if (shown !== expressYear) {
+    if (request === expressRequest && shown !== expressYear) {
       expressYear = shown;
       whenLoaded(map, () => map.getSource("express").setTiles([wmts(EXPRESS_LAYERS[shown], "image/jpeg")]));
     }
@@ -279,8 +281,10 @@ const Carte = (() => {
    * null (graphe de mosaïquage du PCRS, ANCT ; réponses gardées au centième de degré). La
    * couche du fond PCRS devient celle de cette zone. */
   const pcrsCache = new Map();
+  let pcrsRequest = 0;  // n° de la dernière demande : une réponse plus ancienne ne change plus la couche
 
   async function pcrsAt(map, lon, lat) {
+    const request = ++pcrsRequest;
     const key = `${lon.toFixed(2)},${lat.toFixed(2)}`;
     if (!pcrsCache.has(key)) {
       const d = 0.0005;
@@ -303,7 +307,7 @@ const Carte = (() => {
       }
     }
     const zone = pcrsCache.get(key);
-    if (zone && zone.layer !== pcrsLayer) {
+    if (request === pcrsRequest && zone && zone.layer !== pcrsLayer) {
       pcrsLayer = zone.layer;
       whenLoaded(map, () => map.getSource("pcrs").setTiles([pcrsTiles(pcrsLayer)]));
     }
@@ -400,7 +404,7 @@ const Carte = (() => {
           .filter((f) => /^\d+$/.test(String(f.properties?.numero)));  // ni début ni fin de section
       } catch (error) {
         console.warn("Points de repère :", error);
-        prKey = "";  // à redemander
+        prKey = null;  // à redemander (et pas "" : celle d'un zoom trop faible, qui n'effacerait rien)
         return;
       }
     }
@@ -634,17 +638,25 @@ const Carte = (() => {
     const dlat = radius / 111320;
     const dlon = radius / (111320 * Math.cos(lat * Math.PI / 180));
     const bbox = [lng - dlon, lat - dlat, lng + dlon, lat + dlat].map((v) => v.toFixed(7)).join(",");
-    const response = await fetch(`${apiUrl}/search?bbox=${bbox}&limit=50`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    let best = null;
-    for (const feature of data.features || []) {
-      if (!accept(feature)) continue;
-      const d = metresBetween([lng, lat], feature.geometry.coordinates);
-      if (!best || d < best.d) best = { feature, d };
-    }
+    const search = async (limit) => {
+      const response = await fetch(`${apiUrl}/search?bbox=${bbox}&limit=${limit}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const features = (await response.json()).features || [];
+      let best = null;
+      for (const feature of features) {
+        if (!accept(feature)) continue;
+        const d = metresBetween([lng, lat], feature.geometry.coordinates);
+        if (!best || d < best.d) best = { feature, d };
+      }
+      return { best, full: features.length >= limit };
+    };
+    // 50 photos suffisent d'ordinaire ; si le filtre les écarte toutes et qu'il y en a d'autres
+    // (réponse pleine, zone dense), une seconde recherche plus large (lourde : faite seulement là)
+    let { best, full } = await search(SEARCH_LIMIT);
+    if (!best && full) ({ best } = await search(SEARCH_LIMIT_FILTERED));
     return best ? best.feature : null;
   }
+  const SEARCH_LIMIT = 50, SEARCH_LIMIT_FILTERED = 1000;
 
   /** Fiche STAC d'une photo, par son identifiant. */
   async function photoById(id) {

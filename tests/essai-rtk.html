@@ -9,6 +9,20 @@
 <script>
 const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Contrôles : valeur comparée à l'attendu, avec une tolérance ; échecs journalisés (« ÉCHEC ») et
+// comptés, bilan avant « FIN » (« ERREUR » s'il y en a : le serveur d'essai s'arrête)
+let failures = 0, checks = 0;
+const expect = (what, ok, detail = "") => {
+  checks++;
+  if (!ok) {
+    failures++;
+    log("ÉCHEC " + what + (detail ? " : " + detail : ""));
+  }
+};
+const near = (what, value, expected, tol) =>
+  expect(what, Math.abs(value - expected) <= tol, `${value} au lieu de ${expected.toFixed(3)} (±${tol})`);
+const metresIn = (text) => Number(((text || "").match(/(\d+,\d+) m\b/) || [])[1]?.replace(",", "."));
+const verdict = () => log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
 async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
 const feature = async (id) => (await (await fetch("https://api.panoramax.xyz/api/search?ids=" + id)).json()).features[0];
 const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-955becc79e81"];
@@ -54,7 +68,9 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       + " · croix " + box.querySelectorAll(".croix").length + " · sur la carte : "
       + JSON.parse(app.map_geojson()).features.map((f) => f.properties.kind).join(","));
     log("attendu sans inclinaison : " + (d * (Math.tan(0.3) + Math.tan(0.35))).toFixed(3) + " m");
+    near("hauteur depuis la photo 2", metresIn(JSON.parse(app.results())[0].text), d * (Math.tan(0.3) + Math.tan(0.35)), 0.02);
     // Même point de référence, depuis l'autre photo de la triangulation
+    expect("flèches masquées en étape 2", [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden"));
     log("flèches masquées en étape 2 : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden")
       + " · rappel : " + doc.querySelector("#mode-mesure").textContent
       + " · bouton nouveau point : " + !doc.querySelector("#nouvelle-reference").closest(".option").hidden);
@@ -67,6 +83,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await until(() => doc.querySelector("#statut").textContent.startsWith("Hauteur :"), 30000, "hauteur 2");
     log("2e hauteur : " + doc.querySelector("#statut").textContent.slice(0, 110));
     log("attendu sans inclinaison : " + (d0 * (Math.tan(0.2) + Math.tan(0.35))).toFixed(3) + " m");
+    near("hauteur depuis la photo 1", metresIn(doc.querySelector("#statut").textContent), d0 * (Math.tan(0.2) + Math.tan(0.35)), 0.02);
     await sleep(500);
     log("étiquettes : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | "));
     // Hauteurs visibles depuis l'autre photo ; sommet sélectionné, réglé au clavier, Entrée
@@ -100,9 +117,11 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await until(() => !JSON.parse(app.state()).point_sel && doc.querySelector("#statut").textContent.startsWith("Hauteur"), 30000, "recalage");
     log("sommet revisé (0,25) : " + doc.querySelector("#statut").textContent.slice(0, 160));
     log("attendu sans inclinaison : " + (d0 * (Math.tan(0.25) + Math.tan(0.35))).toFixed(3) + " m");
+    near("sommet recalé au clic", metresIn(doc.querySelector("#statut").textContent), d0 * (Math.tan(0.25) + Math.tan(0.35)), 0.02);
     doc.querySelector("#nouvelle-reference").click();
     log("nouveau point : " + doc.querySelector("#statut").textContent.slice(0, 60) + " · résultats : "
       + JSON.parse(app.results()).map((r) => r.text).join(" | "));
+    verdict();
   } catch (e) { log("ERREUR " + e); }
   log("FIN");
 })();

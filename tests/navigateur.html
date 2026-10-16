@@ -22,6 +22,20 @@ const log = (t) => {
   fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Contrôles : valeur comparée à l'attendu, avec une tolérance ; échecs journalisés (« ÉCHEC ») et
+// comptés, bilan avant « FIN » (« ERREUR » s'il y en a : le serveur d'essai s'arrête)
+let failures = 0, checks = 0;
+const expect = (what, ok, detail = "") => {
+  checks++;
+  if (!ok) {
+    failures++;
+    log("ÉCHEC " + what + (detail ? " : " + detail : ""));
+  }
+};
+const near = (what, value, expected, tol) =>
+  expect(what, Math.abs(value - expected) <= tol, `${value} au lieu de ${expected.toFixed(3)} (±${tol})`);
+const metresIn = (text) => Number(((text || "").match(/(\d+,\d+) m\b/) || [])[1]?.replace(",", "."));
+const verdict = () => log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
 const DIJON = ["33565d3f-5e27-47fb-9137-ba4de564530d", "a3996fff-7cf7-44b4-8c54-afd556f2632c"];
 const POUILLY = "cd8cf3a0-6567-40f0-8805-94172a5dfc3c";
 const MONTBARD = "f533e240-7d37-40ef-babc-1d37140dc5d2";  // plugin : inclinaison 1,95° vers 219° (±0,22°)
@@ -183,6 +197,8 @@ async function feature(id) {
   psvClick(yawRef, 0.25);  // seul le sommet : le pied est la visée du point depuis cette photo (-0,3)
   await until(() => doc.querySelector("#statut").textContent.startsWith("Hauteur :"), 15000, "hauteur");
   log("résultat : " + doc.querySelector("#statut").textContent);
+  near("hauteur (Dijon)", metresIn(doc.querySelector("#statut").textContent), d * (Math.tan(0.25) + Math.tan(0.3)), 0.02);
+  expect("flèches masquées après la hauteur", [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden"));
   log("attendu sans inclinaison : " + (d * (Math.tan(0.25) + Math.tan(0.3))).toFixed(2) + " m · ensuite : " + app.status().slice(0, 60)
     + " · flèches masquées : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden"));
 
@@ -215,6 +231,8 @@ async function feature(id) {
   doc.querySelector("#vignette").click();
   await until(() => doc.querySelector("#statut").textContent.includes("Vignette"), 10000, "vignette");
   log("vignette : " + doc.querySelector("#statut").textContent);
+  expect("vignette enregistrée", doc.querySelector("#statut").textContent.includes("Vignette enregistrée"));
+  verdict();
   log("FIN");
 })().catch((e) => log("ERREUR " + (e.stack || e)));
 </script>
