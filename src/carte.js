@@ -179,8 +179,8 @@ const Carte = (() => {
             // croix de mesure, dessiné dessous, pour rester visible autour d'elle
             id: "triangules", type: "circle", source: "mesures", filter: kind("triangule"),
             paint: {
-              "circle-color": ROUGE, "circle-opacity": 0.35, "circle-radius": 13,
-              "circle-stroke-color": ROUGE, "circle-stroke-width": 2,
+              "circle-color": ROUGE, "circle-opacity": 0.35, "circle-radius": 10,
+              "circle-stroke-color": ROUGE, "circle-stroke-width": 1.5,
             },
           },
           {  // croix jaunes, comme dans la visionneuse (image fournie à la demande, voir crossImage)
