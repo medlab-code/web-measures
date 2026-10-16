@@ -58,8 +58,9 @@ class RaysItem:
     """Visées sur la carte (triangulation, repères du calage du cap) : voir
     tools.Triangulator.new_item."""
 
-    def __init__(self):
+    def __init__(self, calibration=False):
         self.rays, self.point = [], None
+        self.calibration = calibration  # repères du calage du cap : dessinés à part (noir)
         self.removed = False
 
     def set_data(self, rays, point):
@@ -95,7 +96,7 @@ class App:
         self.triangulator.AIM_AGAIN = "cliquez sur le même objet"
         self.reference = ("ground", 5.0)  # calage de la hauteur de caméra : longueur connue
         self.calibrator = tools.CalibrationTool(self.calibration, self.current_ids, lambda: self.reference)
-        self.calibrator.new_item = self._new_rays
+        self.calibrator.new_item = lambda: self._new_rays(calibration=True)
         self.mode = "road"
         self.tool.set_mode("road")
         self.item = None  # fiche STAC de la photo affichée
@@ -127,8 +128,8 @@ class App:
         self.items.append(item)
         return item
 
-    def _new_rays(self):
-        item = RaysItem()
+    def _new_rays(self, calibration=False):
+        item = RaysItem(calibration)
         self.rays.append(item)
         return item
 
@@ -1169,9 +1170,9 @@ class App:
         self.rays = [r for r in self.rays if not r.removed]
         for item in self.rays:
             for lon, lat, elon, elat in item.rays:
-                add("visee", "LineString", [[lon, lat], [elon, elat]])
+                add("calage" if item.calibration else "visee", "LineString", [[lon, lat], [elon, elat]])
             if item.point:
-                add("cible", "Point", list(item.point))
+                add("repere" if item.calibration else "cible", "Point", list(item.point))
         road = (self.ref_point or {}).get("road") if self.active and self.mode == "road" else None
         if road:  # largeur : droite de mesure passant par le point de référence
             add("trace", "LineString", [list(p) for p in widths.guide(self.ref_point, road["axis"])])

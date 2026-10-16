@@ -157,12 +157,16 @@ const Carte = (() => {
             paint: { "line-color": VIOLET, "line-width": 3, "line-dasharray": [2, 1.5] },
           },
           {
-            id: "visees-halo", type: "line", source: "mesures", filter: kind("visee"),
+            id: "visees-halo", type: "line", source: "mesures", filter: kind("visee", "calage"),
             paint: { "line-color": "#ffffff", "line-opacity": 0.8, "line-width": 4 },
           },
           {
             id: "visees", type: "line", source: "mesures", filter: kind("visee"),
             paint: { "line-color": ROUGE, "line-width": 2, "line-dasharray": [3, 2] },
+          },
+          {  // calage du cap : visées vers les repères en tirets noirs, à ne pas prendre pour une triangulation
+            id: "calages", type: "line", source: "mesures", filter: kind("calage"),
+            paint: { "line-color": "#000000", "line-width": 2, "line-dasharray": [3, 2] },
           },
           {
             id: "liens", type: "line", source: "mesures", filter: kind("lien"),
@@ -190,8 +194,11 @@ const Carte = (() => {
             layout: { "icon-image": "croix", "icon-allow-overlap": true, "icon-ignore-placement": true },
           },
           {
-            id: "cibles", type: "circle", source: "mesures", filter: kind("cible"),
-            paint: { "circle-color": "rgba(0, 0, 0, 0)", "circle-radius": 7, "circle-stroke-color": ROUGE, "circle-stroke-width": 2.5 },
+            id: "cibles", type: "circle", source: "mesures", filter: kind("cible", "repere"),
+            paint: {
+              "circle-color": "rgba(0, 0, 0, 0)", "circle-radius": 7, "circle-stroke-width": 2.5,
+              "circle-stroke-color": ["match", ["get", "kind"], "repere", "#000000", ROUGE],  // repère du calage : noir
+            },
           },
         ],
       },
