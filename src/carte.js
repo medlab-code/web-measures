@@ -56,6 +56,8 @@ const Carte = (() => {
       attributionControl: false,  // ajouté replié ci-dessous
       center: [5.04, 47.32],  // Côte-d'Or
       zoom: 9,
+      maxPitch: 0,  // carte toujours vue d'aplomb : le clic droit glissé ne l'incline plus
+      pitchWithRotate: false,
       style: {
         version: 8,
         sources: {
