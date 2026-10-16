@@ -39,15 +39,15 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; line
 
 body { display: flex; flex-direction: column; }
 
-/* Barre du haut à 20 px (texte de la page : 14 px) : ses dimensions en em la suivent */
+/* Barre du haut à 15 px (texte de la page : 14 px) : ses dimensions en em la suivent */
 header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5em 0.55em;
-  padding: 0.5em 1em calc(0.5em - 1px);  /* bordure du bas comprise : contenu sur l'axe de la barre */
+  padding: calc(0.5em + 2px) 1em calc(0.5em + 1px);  /* bordure du bas comprise : contenu sur l'axe de la barre */
   border-bottom: 1px solid var(--bord);
-  font-size: 20px;
+  font-size: 15px;
 }
 /* Boutons et listes de la barre à la même hauteur (une liste est sinon plus basse), marges
    intérieures à l'échelle de la barre */
@@ -64,7 +64,7 @@ header .droite { display: inline-flex; align-items: center; gap: 0.5em 1.2em; ma
 
 h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
 header h1 { font-size: 1em; }
-header .logo { display: block; width: 1.86em; height: 1.86em; margin-right: -0.3em; }  /* 37 px, collé au titre */
+header .logo { display: block; width: 1.86em; height: 1.86em; margin-right: -0.3em; }  /* 28 px, collé au titre */
 h2 { font-size: 0.95rem; margin: 0 0 0.4rem; }
 
 main { flex: 1; display: flex; min-height: 0; }
