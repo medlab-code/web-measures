@@ -179,7 +179,7 @@ const Carte = (() => {
             // croix de mesure, dessiné dessous, pour rester visible autour d'elle
             id: "triangules", type: "circle", source: "mesures", filter: kind("triangule"),
             paint: {
-              "circle-color": ROUGE, "circle-opacity": 0.35, "circle-radius": 10,
+              "circle-color": ROUGE, "circle-opacity": 0.35, "circle-radius": 8,
               "circle-stroke-color": ROUGE, "circle-stroke-width": 1.5,
             },
           },
