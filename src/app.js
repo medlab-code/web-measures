@@ -638,7 +638,7 @@
    * hauteur, mesurable depuis toute photo une fois le point de référence validé.
    */
   function hidesArrows() {
-    return measuring && !aiming && $("#mode").value !== "height";
+    return measuring && !aiming && !["height", "road"].includes($("#mode").value);
   }
 
   /** Clic sur une flèche de la visionneuse (photo suivante, précédente…) : il navigue. */
@@ -667,6 +667,8 @@
       ? "Triangulation : clic sur l'objet pour viser, flèches pour changer de photo"
       : mode === "height" && aiming ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point »"
       : mode === "height" ? "Hauteur, étape 2 : cliquez le pied puis le sommet, depuis cette photo ou une autre (flèches)"
+      : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), puis « Valider le point »"
+      : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé depuis une photo prise avant ou après (flèches)"
       : "Mode mesure en cours : désélectionner pour naviguer";
     showModeOptions();
     const box = psv?.container;
@@ -720,6 +722,15 @@
     };
     marks.forEach((mark, m) => {
       const points = mark.points.map(([yaw, pitch]) => ({ yaw, pitch }));
+      if (mark.guide) {  // largeur : droite de mesure, en tirets bleus, sans croix
+        if (points.length >= 2) {
+          add({
+            id: `${MARK}${m}-guide`, polyline: points.map(({ yaw, pitch }) => [yaw, pitch]),
+            svgStyle: { stroke: "#00bce6", strokeWidth: "2px", strokeDasharray: "8 5", fill: "none" },
+          });
+        }
+        return;
+      }
       if (points.length >= 2) {
         add({
           id: `${MARK}${m}-trait`, polyline: points.map(({ yaw, pitch }) => [yaw, pitch]),

@@ -23,11 +23,12 @@ from datetime import datetime
 
 import web_host
 from core import (autotilt, buildings, calibration, capture, filters, measures, metadata, precision, roads, terrain,
-                  tools, triangulation)
+                  tools, triangulation, widths)
 
 GROUND_MODES = ("road", "width", "height")  # mesures par lancer de rayon (voir core/measures.py)
 CALIBRATION_MODES = ("tilt", "heading", "camera")
 MODES = GROUND_MODES + ("tri",) + CALIBRATION_MODES
+REF_MODES = ("height", "road")  # mesures appuyées sur un point de référence triangulé
 # Triangulation et mesures qui s'y appuient : acceptées hors RTK, mais signalées
 RTK_WARNING = (" ⚠ Photo sans position GPS RTK vérifiée : mesure probablement incohérente "
                "(la triangulation demande des positions précises).")
@@ -103,10 +104,11 @@ class App:
         self.links = []  # distances entre deux points gardés : (n° du premier, n° du second, attributs)
         self.named = 0  # points gardés depuis le début : nom du suivant (A, B… voir _point_name)
         self.proposal = None  # (n°, n°) : distance à proposer après l'effacement du point qui les reliait
-        # Hauteur : point triangulé au pied de l'objet (lon, lat, uncertainty, name, sequences),
-        # validé : les hauteurs suivantes s'y calent, depuis n'importe quelle photo, jusqu'au
-        # prochain (new_reference) ; None : à trianguler d'abord
-        self.height_ref = None
+        # Hauteur, largeur : point de référence triangulé (lon, lat, uncertainty, name, sequences ;
+        # largeur : road, axe de la route en ce point, None en cours de lecture), validé : les
+        # mesures suivantes s'y appuient, depuis n'importe quelle photo, jusqu'au prochain
+        # (new_reference) ; None : à trianguler d'abord
+        self.ref_point = None
         self._handles = []  # clés des poignées de la carte, dans l'ordre de handles()
         self.calibration_version = 0  # augmente à chaque changement du calage (à enregistrer)
         self.active = False  # bouton « Mesure » de la page : clics dans la photo pour mesurer
@@ -140,8 +142,8 @@ class App:
 
     def _aiming(self):
         """Les clics dans la photo sont-ils des visées de triangulation ? En triangulation, et
-        en hauteur tant que le point de référence au pied de l'objet n'est pas validé."""
-        return self.mode == "tri" or (self.mode == "height" and self.height_ref is None)
+        en hauteur ou largeur tant que le point de référence n'est pas validé."""
+        return self.mode == "tri" or (self.mode in REF_MODES and self.ref_point is None)
 
     def _calibration_changed(self):
         self.calibration_version += 1
@@ -172,7 +174,7 @@ class App:
             return self.status()
         self._clear_measures()
         self.mode = mode
-        self.height_ref = None
+        self.ref_point = None
         self.message = ""
         self._active()
         self._check_tilt()  # en quittant la triangulation
@@ -310,6 +312,8 @@ class App:
         tool = self._active()
         if tool is self.tool and tool.select_near(click):
             return self.status()  # repère d'un point : sélectionné pour le viser à nouveau
+        if self.mode == "road" and tool.selected is None:
+            return self._width_click(click)
         if not tool.needs_profile():
             tool.add_click(click)  # sommet d'un objet ou calage : pas de terrain
             self._after_calibration(tool)
@@ -334,21 +338,55 @@ class App:
             traceback.print_exc()
         self.notify()
 
+    def _width_click(self, click):
+        """Largeur : le bord opposé, sur la droite perpendiculaire passant par le point de
+        référence (voir core/widths.py). Chaque clic donne une largeur."""
+        ref = self.ref_point
+        if ref.get("road") is None:
+            self._road_at_reference()
+            if ref.get("road") is None:
+                self.message = "Axe de la route en cours de lecture (BD TOPO) : cliquez à nouveau dans un instant."
+                return self.status()
+        m = widths.PerpendicularWidth(self.tool, ref, ref["road"], click)
+        if m.error:
+            m.remove()
+            self.message = m.error
+            return self.status()
+        self.tool.done.append(m)
+        self.message = (m.status() + self._rtk_warning(ref["sequences"] + [click.get("sequence")])
+                        + " Autre largeur depuis ce point : cliquez un autre bord ; sinon « Nouveau point de référence ».")
+        return self.status()
+
+    def _road_at_reference(self):
+        """Axe de la route au point de référence de la largeur : tronçon de la BD TOPO qui
+        longe la trajectoire de la photo, sinon trajectoire de la séquence (voir roads.py).
+        Laisse road à None pendant la lecture (reprise par _roads_ready)."""
+        ref = self.ref_point
+        track = self._axis(self.item) if self.item else None
+        heading = track if track is not None else metadata.item_heading(self.item or {})
+        res = self.roads.lookup(ref["lon"], ref["lat"], None if heading is None else (heading + 90) % 360,
+                                (self.item or {}).get("collection"))
+        if isinstance(res, dict):
+            ref["road"] = {"axis": res["axis"], "source": res["source"]}
+        elif res != "pending":
+            ref["road"] = {"axis": heading or 0.0,
+                           "source": "séquence" if track is not None else "orientation de la photo"}
+
     def new_reference(self):
         """Hauteur : « Nouveau point de référence » ; les hauteurs déjà faites restent."""
         self.epoch += 1  # pied cliqué en attente de son profil : abandonné
         self.tool.clear()
         self.triangulator.clear()
-        self.height_ref = None
+        self.ref_point = None
         self.message = ""
         return self.status()
 
     def _anchor_height(self):
         """Hauteur terminée : calée sur le point de référence, qui reste pour les suivantes."""
         m = self.tool.current
-        if self.mode != "height" or self.height_ref is None or m is None or not m.result or m.reference:
+        if self.mode != "height" or self.ref_point is None or m is None or not m.result or m.reference:
             return
-        ref = self.height_ref
+        ref = self.ref_point
         m.anchor(ref["lon"], ref["lat"], ref["uncertainty"], ref["name"])
         if m.error:
             self.message = m.error
@@ -407,6 +445,9 @@ class App:
             if self.mode == "height":
                 self.message += ("Étape 1 : visez le pied de l'objet depuis une autre photo (flèches pour changer "
                                  "de photo), puis « Valider le point » ; le pied et le sommet se cliquent ensuite.")
+            elif self.mode == "road":
+                self.message += ("Étape 1 : visez le premier bord depuis une autre photo (flèches pour changer "
+                                 "de photo), puis « Valider le point » ; le bord opposé se clique ensuite.")
             else:
                 self.message += "Changez de photo (flèches) pour viser le même objet d'un autre point de vue."
             self.message += self._rtk_warning([s.get("sequence") for s in self.triangulator.sightings])
@@ -426,13 +467,18 @@ class App:
         values = dict({"nom": name}, **values, commentaire="")
         self.points.append((r["lon"], r["lat"], values))
         self.triangulator.clear()
-        if self.mode == "height":  # point de référence de la hauteur, sans distance au précédent
-            self.height_ref = {"lon": r["lon"], "lat": r["lat"], "uncertainty": r["uncertainty"], "name": name,
-                               "sequences": sequences}
-            self.message = ("Point de référence {} validé (±{} m). Cliquez maintenant le pied de l'objet, au "
-                            "contact du sol, puis son sommet, depuis cette photo ou une autre (flèches).").format(
-                name, measures._num(r["uncertainty"]))
-            self.message += warning
+        if self.mode in REF_MODES:  # point de référence, sans distance au précédent
+            self.ref_point = {"lon": r["lon"], "lat": r["lat"], "uncertainty": r["uncertainty"], "name": name,
+                              "sequences": sequences, "road": None}
+            if self.mode == "height":
+                self.message = ("Point de référence {} validé (±{} m). Cliquez maintenant le pied de l'objet, au "
+                                "contact du sol, puis son sommet, depuis cette photo ou une autre (flèches).")
+            else:
+                self._road_at_reference()
+                self.message = ("Point de référence {} validé (±{} m). Cliquez maintenant le bord opposé, au sol, "
+                                "depuis une photo prise quelques mètres avant ou après (flèches) : seule la direction "
+                                "du clic compte, la largeur se prend sur la droite tracée.")
+            self.message = self.message.format(name, measures._num(r["uncertainty"])) + warning
             return self.status()
         self.message = "Point {} gardé (incertitude ±{} m) : il sera exporté avec les mesures.".format(
             name, measures._num(r["uncertainty"])) + warning
@@ -480,12 +526,17 @@ class App:
         self.tool.clear_all()
         self.calibrator.reset()
         self.points, self.links, self.named = [], [], 0
-        self.height_ref = None
+        self.ref_point = None
         self.message = ""
         return self.status()
 
     def _roads_ready(self):
-        if self.tool.recompute_roads():
+        changed = self.tool.recompute_roads()
+        ref = self.ref_point
+        if ref is not None and self.mode == "road" and ref.get("road") is None:  # axe au point de référence
+            self._road_at_reference()
+            changed = changed or ref.get("road") is not None
+        if changed:
             self.notify()
 
     def _buildings_ready(self):
@@ -528,15 +579,27 @@ class App:
         sequences = []
         if self._aiming():
             sequences = [s.get("sequence") for s in self.triangulator.sightings]
-        if self.mode == "height" and self.height_ref is None:
+        if self.mode == "height" and self.ref_point is None:
             text = ("Hauteur, étape 1/2 : visez le pied de l'objet depuis au moins deux photos (une visée par "
                     "photo, flèches pour changer de photo). " + text)
             if self.triangulator.result is not None:
                 text += " Puis « Valider le point »."
         elif self.mode == "height":
-            text = "Hauteur, étape 2/2 (point {}) : {}".format(self.height_ref["name"], text)
+            text = "Hauteur, étape 2/2 (point {}) : {}".format(self.ref_point["name"], text)
             current = self.tool.current
-            sequences = self.height_ref["sequences"] + [c.get("sequence") for c in (current.clicks if current else [])]
+            sequences = self.ref_point["sequences"] + [c.get("sequence") for c in (current.clicks if current else [])]
+        elif self.mode == "road" and self.ref_point is None:
+            text = ("Largeur, étape 1/2 : visez le premier bord (pied de bordure, marquage…) depuis au moins deux "
+                    "photos (une visée par photo, flèches pour changer de photo). " + text)
+            if self.triangulator.result is not None:
+                text += " Puis « Valider le point »."
+        elif self.mode == "road":
+            road = self.ref_point.get("road")
+            text = ("Largeur, étape 2/2 (point {}) : cliquez le bord opposé, au sol, depuis une photo prise quelques "
+                    "mètres avant ou après le point (pas juste en face) ; la largeur se prend sur la droite tracée{}.").format(
+                self.ref_point["name"], " (axe de la route en cours de lecture)" if road is None
+                else ", perpendiculaire à l'axe {}° ({})".format(measures._num(road["axis"] % 180, 0), road["source"]))
+            sequences = self.ref_point["sequences"]
         return text + self._rtk_warning(sequences)
 
     def _rtk_warning(self, sequences):
@@ -600,13 +663,16 @@ class App:
             marks = marks + [self.tool.viewer_marks()]
         elif self.active and self.mode in CALIBRATION_MODES:
             marks = marks + [self.calibrator.viewer_marks()]
+        road = (self.ref_point or {}).get("road") if self.active and self.mode == "road" else None
+        if road and self.item:
+            marks = marks + [self._guide_mark(road)]
         out = []
         for m in marks:
             points = [p for p in m["points"] if p.get("pic") == pic and p.get("yaw") is not None]
             if points:
                 out.append({"points": [[p["yaw"], p["pitch"], bool(p.get("sel"))] for p in points],
                             "label": m.get("label", ""), "beside": m.get("beside", False),
-                            "sighting": m.get("sighting", False)})
+                            "sighting": m.get("sighting", False), "guide": m.get("guide", False)})
         return json.dumps(out)
 
     def focus(self):
@@ -623,13 +689,31 @@ class App:
         pts += [[s["lon"], s["lat"]] for s in self.triangulator.sightings]
         if self.triangulator.result:
             pts.append([self.triangulator.result["lon"], self.triangulator.result["lat"]])
-        if self.mode == "height" and self.height_ref:
-            pts.append([self.height_ref["lon"], self.height_ref["lat"]])
+        if self.mode in REF_MODES and self.ref_point:
+            pts.append([self.ref_point["lon"], self.ref_point["lat"]])
         if self.mode in GROUND_MODES:
             m = self.tool.current or (self.tool.done[-1] if self.tool.done else None)
             if m is not None and m.result:
                 pts += [list(p) for p in m.result["picks"]] + [[c["lon"], c["lat"]] for c in m.clicks]
         return json.dumps(pts)
+
+    def _guide_mark(self, road):
+        """Droite de mesure de la largeur dans la photo affichée (repère de la visionneuse) :
+        points au sol supposé plat, à la hauteur de caméra du réglage ; la mesure n'en dépend pas."""
+        lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
+        heading, height = self._heading(), self.tool.camera_height
+        ux, uy = widths.perpendicular(road["axis"])
+        ax, ay = triangulation._local(self.ref_point["lon"], self.ref_point["lat"], lon, lat)
+        points = []
+        for k in range(-40, 41):
+            t = k * widths.GUIDE_LENGTH / 40
+            x, y = ax + t * ux, ay + t * uy
+            d = math.hypot(x, y)
+            if d < 1.0:
+                continue
+            yaw = (math.degrees(math.atan2(x, y)) - heading + 540) % 360 - 180
+            points.append({"pic": self.item.get("id"), "yaw": math.radians(yaw), "pitch": -math.atan2(height, d)})
+        return {"points": points, "guide": True}
 
     def handles(self):
         """Poignées déplaçables sur la carte (JSON) : [[lon, lat, façade ?]], repérées par leur
@@ -673,6 +757,10 @@ class App:
                 add("visee", "LineString", [[lon, lat], [elon, elat]])
             if item.point:
                 add("cible", "Point", list(item.point))
+        road = (self.ref_point or {}).get("road") if self.active and self.mode == "road" else None
+        if road:  # largeur : droite de mesure passant par le point de référence
+            add("trace", "LineString", [list(p) for p in widths.guide(self.ref_point, road["axis"])],
+                sublabel="droite de mesure")
         for lon, lat, values in self.points:
             add("triangule", "Point", [lon, lat], values["nom"])  # nom seul : pas d'incertitude sur la carte
         for i, j, values in self.links:  # distance entre deux points gardés : trait rouge, comme une mesure
