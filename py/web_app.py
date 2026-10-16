@@ -753,10 +753,10 @@ class App:
             self.message = "Visée de cette photo remplacée : une seule visée par photo. "
             if self.mode == "height":
                 self.message += ("Étape 1 : visez le pied de l'objet depuis une autre photo (flèches pour changer "
-                                 "de photo), puis « Valider le point » ; le pied et le sommet se cliquent ensuite.")
+                                 "de photo), puis « Valider le point triangulé » ; le pied et le sommet se cliquent ensuite.")
             elif self.mode == "road":
                 self.message += ("Étape 1 : visez le premier bord depuis une autre photo (flèches pour changer "
-                                 "de photo), puis « Valider le point » ; le bord opposé se clique ensuite.")
+                                 "de photo), puis « Valider le point triangulé » ; le bord opposé se clique ensuite.")
             else:
                 self.message += "Changez de photo (flèches) pour viser le même objet d'un autre point de vue."
             self.message += self._rtk_warning([s.get("sequence") for s in self.triangulator.sightings])
@@ -920,7 +920,7 @@ class App:
             text = ("Hauteur, étape 1/2 : visez le pied de l'objet depuis au moins deux photos (une visée par "
                     "photo, flèches pour changer de photo). " + text)
             if self.triangulator.result is not None:
-                text += " Puis « Valider le point »."
+                text += " Puis « Valider le point triangulé »."
         elif self.mode == "height":
             current = self.tool.current
             if (current is None or len(current.clicks) >= current.needed()) and self._reference_foot() is not None:
@@ -936,7 +936,7 @@ class App:
             text = ("Largeur, étape 1/2 : visez le premier bord (pied de bordure, marquage…) depuis au moins deux "
                     "photos (une visée par photo, flèches pour changer de photo). " + text)
             if self.triangulator.result is not None:
-                text += " Puis « Valider le point »."
+                text += " Puis « Valider le point triangulé »."
         elif self.mode == "road":
             road = self.ref_point.get("road")
             text = ("Largeur, étape 2/2 (point {}) : cliquez le bord opposé, au sol, depuis une photo prise quelques "

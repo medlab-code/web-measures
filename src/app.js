@@ -288,14 +288,13 @@
       gps.dataset.value = state.camera[0];
     }
     showLights(state.lights);
-    $("#garder").disabled = !state.point;
-    $("#garder").title = state.point ? "Garder le point triangulé par ces visées"
-      : "Il faut au moins deux visées qui se croisent, depuis des photos assez différentes";
+    pointReady = state.point;
     pointSelected = state.point_sel;
     if (aiming !== state.aiming) {  // hauteur : point de référence validé, ou à trianguler
       aiming = state.aiming;
       applyMeasureUi();
     }
+    showModeOptions();  // « Valider le point triangulé » : dès que les visées donnent un point
     const bandeau = $("#bandeau");
     bandeau.hidden = !state.waiting_map;
     bandeau.textContent = "Cliquez maintenant ce repère sur la carte (Échap pour annuler).";
@@ -643,6 +642,7 @@
    * photos, flèches gardées. Suit l'état du calcul (voir refresh).
    */
   let aiming = false;
+  let pointReady = false;  // visées qui donnent un point (bouton « Valider le point triangulé »)
 
   /**
    * Flèches masquées en mesure (elles gênent les clics de mesure), sauf pour viser, ce qui
@@ -693,10 +693,10 @@
     state.className = sighting ? "visee" : taking ? "prise" : "";
     state.textContent = sighting ? "Triangulation en cours" : taking ? "Mesure en cours" : "";
     $("#mode-mesure").textContent = mode === "tri"
-      ? "Mesure libre : visez chaque point depuis plusieurs photos (flèches), puis « Valider le point »"
-      : mode === "height" && aiming ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point »"
+      ? "Mesure libre : visez chaque point depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
+      : mode === "height" && aiming ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
       : mode === "height" ? "Hauteur, étape 2 : cliquez le sommet (le pied est le point visé) ; autre photo : par la carte"
-      : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), puis « Valider le point »"
+      : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
       : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé ; autre photo, prise avant ou après : par la carte"
       : mode === "tilt" ? "Calage de l'inclinaison : pied puis sommet de deux objets verticaux, à 90° l'un de l'autre"
       : mode === "heading" ? "Calage du cap : un repère dans la photo, puis le même sur la carte (3 pour la position)"
@@ -815,8 +815,8 @@
       // « Nouveau point de référence » : une fois le point validé
       option.hidden = !modes.includes(mode) || (option.contains($("#nouvelle-reference")) && aiming);
     }
-    // « Valider le point », dans la visionneuse : seulement pendant les visées
-    $("#garder").hidden = !measuring || !aiming || viewer.hidden;
+    // « Valider le point triangulé », dans la visionneuse : dès que les visées donnent un point
+    $("#garder").hidden = !measuring || !aiming || !pointReady || viewer.hidden;
   }
 
   $("#mode").addEventListener("change", (event) => {

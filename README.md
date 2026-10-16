@@ -38,7 +38,7 @@ aux photos voisines.
 
 - **Hauteur d'un objet**
   1. Viser le **pied** de l'objet depuis au moins deux photos (un clic par photo, flèches
-     pour changer de photo), puis « Valider le point » : c'est le point de référence.
+     pour changer de photo), puis « Valider le point triangulé » : c'est le point de référence.
   2. Cliquer le **sommet**, depuis une photo qui a servi à la visée : le pied est la visée
      faite depuis elle. Depuis une autre photo, cliquer le pied puis le sommet.
 
@@ -46,7 +46,7 @@ aux photos voisines.
   jusqu'à « Nouveau point de référence ». Une verticale verte le repère dans la photo.
 - **Largeur perpendiculaire à la chaussée**
   1. Viser le **premier bord** (pied de bordure, marquage…) depuis au moins deux photos, puis
-     « Valider le point ». La page trace la **droite de mesure**, perpendiculaire à l'axe de
+     « Valider le point triangulé ». La page trace la **droite de mesure**, perpendiculaire à l'axe de
      la route en ce point (BD TOPO, sinon trajectoire de la séquence), en bleu dans la photo
      et sur la carte.
   2. Cliquer le **bord opposé** depuis une photo prise quelques mètres avant ou après le
@@ -55,7 +55,7 @@ aux photos voisines.
 
   Chaque clic donne une largeur depuis le même point, jusqu'à « Nouveau point de référence ».
 - **Mesure libre (points triangulés)** : viser chaque point depuis au moins deux photos, puis
-  « Valider le point » ; à partir du deuxième, la distance horizontale au point précédent
+  « Valider le point triangulé » ; à partir du deuxième, la distance horizontale au point précédent
   s'affiche, et la carte se cadre sur le segment.
 
 Repères visuels : liseré et étiquette animée **bleus** pendant les visées, **jaunes** pendant

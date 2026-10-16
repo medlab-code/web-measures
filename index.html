@@ -76,9 +76,8 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
         <p id="bandeau" hidden></p>
         <p id="avis" hidden></p>
         <p id="calcul-inclinaison" hidden>Calcul du calage de l'inclinaison en cours</p>
-        <!-- Pendant les visées : garder le point triangulé (actif dès deux visées qui se croisent) -->
-        <button id="garder" type="button" disabled hidden
-                title="Il faut au moins deux visées qui se croisent, depuis des photos assez différentes">✔ Valider le point</button>
+        <!-- Pendant les visées, dès qu'elles donnent un point : le garder -->
+        <button id="garder" type="button" hidden title="Garder le point triangulé par ces visées">✔ Valider le point triangulé</button>
       </div>
       <div class="haut-gauche">  <!-- état animé : triangulation ou mesure en cours -->
         <p id="etat-mesure" hidden></p>
