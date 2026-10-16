@@ -243,17 +243,14 @@ button.principal { font-weight: 600; }
 
 /* Calage du cap : le repère attend son clic sur la carte ; avis passager (photo écartée) */
 #bandeau, #avis {
-  position: absolute;
-  top: 0.75rem;
-  left: 50%;
-  transform: translateX(-50%);
   margin: 0;
   padding: 0.4rem 0.8rem;
   border-radius: 4px;
   background: rgba(32, 33, 36, 0.9);
   color: #fff;
-  z-index: 5;
+  text-align: center;
 }
+#bandeau[hidden], #avis[hidden] { display: none; }
 
 /* Étiquettes incrustées dans la photo : fond sombre un peu transparent, texte détouré */
 :root {
@@ -261,30 +258,41 @@ button.principal { font-weight: 600; }
   --detoure-vue: 0 0 2px rgba(0, 0, 0, 0.9), 1px 1px 1px rgba(0, 0, 0, 0.6);
 }
 
-/* Visionneuse : rappel du mode mesure, en haut à gauche, étiquette incrustée dans la photo */
+/* Visionneuse : rappel du mode mesure, en haut au centre, étiquette incrustée dans la photo */
+/* Haut de la visionneuse : rappel du mode et messages ponctuels au centre, état animé à
+   gauche, voyants à droite ; le centre laisse la place des deux côtés */
+.haut-centre {
+  position: absolute;
+  top: 0.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(56%, 46rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  pointer-events: none;
+  z-index: 5;
+}
 .haut-gauche {
   position: absolute;
   top: 0.6rem;
   left: 0.8rem;
-  max-width: calc(100% - 1.6rem);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.25rem;
   pointer-events: none;
   z-index: 5;
 }
 #mode-mesure {
   margin: 0;
-  padding: 0.2rem 0.55rem;
-  border-radius: 4px;
+  padding: 0.35rem 0.8rem;
+  border-radius: 5px;
   background: var(--etiquette-vue);
   color: var(--panoramax);  /* comme le bouton « Mesure » enfoncé */
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
   text-shadow: var(--detoure-vue);
-  pointer-events: none;
-  z-index: 5;
 }
 #mode-mesure[hidden] { display: none; }
 
