@@ -59,8 +59,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("étape 2 : " + app.status().slice(0, 200));
     const box = w.mesures.psv.container;
     await sleep(500);
-    log("droite dans la photo : " + box.querySelectorAll("[id*='-guide']").length + " · flèches visibles : "
-      + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility !== "hidden")
+    log("droite dans la photo : " + box.querySelectorAll("[id*='-guide']").length + " · flèches masquées : "
+      + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden")
       + " · rappel : " + doc.querySelector("#mode-mesure").textContent);
     // Bord opposé à 8 m sur la droite, de l'autre côté de la route, depuis la première photo
     const side = Math.sign(ux * metres(p0, ref)[0] + uy * metres(p0, ref)[1]);

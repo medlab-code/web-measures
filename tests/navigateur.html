@@ -171,8 +171,8 @@ async function feature(id) {
   }
   log("visées : " + app.status() + " · bouton Valider affiché : " + !doc.querySelector("#garder").closest(".option").hidden);
   doc.querySelector("#garder").click();
-  log("validé : " + doc.querySelector("#statut").textContent + " · flèches visibles (étape 2) : "
-    + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility !== "hidden")
+  log("validé : " + doc.querySelector("#statut").textContent + " · flèches masquées (étape 2) : "
+    + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden")
     + " · rappel : " + doc.querySelector("#mode-mesure").textContent);
   const ref = JSON.parse(app.map_geojson()).features.filter((f) => f.properties.kind === "triangule").pop().geometry.coordinates;
   const d = Math.hypot(...metres(ref, p1));
@@ -182,7 +182,7 @@ async function feature(id) {
   await until(() => doc.querySelector("#statut").textContent.startsWith("Hauteur :"), 15000, "hauteur");
   log("résultat : " + doc.querySelector("#statut").textContent);
   log("attendu sans inclinaison : " + (d * (Math.tan(0.25) + Math.tan(0.3))).toFixed(2) + " m · ensuite : " + app.status().slice(0, 60)
-    + " · flèches visibles : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility !== "hidden"));
+    + " · flèches masquées : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden"));
 
   log("== calage inclinaison : " + app.set_mode("tilt"));
   app.click(0.62, -0.12);

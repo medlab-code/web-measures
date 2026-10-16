@@ -781,12 +781,13 @@ class App:
                               "sequences": sequences, "road": None, "sightings": list(sightings)}
             if self.mode == "height":
                 self.message = ("Point de référence {} validé (±{} m) : c'est le pied. Cliquez maintenant le sommet "
-                                "de l'objet, depuis cette photo ou une autre de la triangulation (flèches).")
+                                "de l'objet, depuis cette photo ou une autre de la triangulation (à choisir sur la "
+                                "carte).")
             else:
                 self._road_at_reference()
                 self.message = ("Point de référence {} validé (±{} m). Cliquez maintenant le bord opposé, au sol, "
-                                "depuis une photo prise quelques mètres avant ou après (flèches) : seule la direction "
-                                "du clic compte, la largeur se prend sur la droite tracée.")
+                                "depuis une photo prise quelques mètres avant ou après (à choisir sur la carte) : seule "
+                                "la direction du clic compte, la largeur se prend sur la droite tracée.")
             self.message = self.message.format(name, measures._num(r["uncertainty"])) + warning
             return self.status()
         self.message = "Point {} gardé (±{} m).".format(name, measures._num(r["uncertainty"]))

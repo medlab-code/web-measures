@@ -55,7 +55,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       + JSON.parse(app.map_geojson()).features.map((f) => f.properties.kind).join(","));
     log("attendu sans inclinaison : " + (d * (Math.tan(0.3) + Math.tan(0.35))).toFixed(3) + " m");
     // Même point de référence, depuis l'autre photo de la triangulation
-    log("flèches visibles en étape 2 : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility !== "hidden")
+    log("flèches masquées en étape 2 : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden")
       + " · rappel : " + doc.querySelector("#mode-mesure").textContent
       + " · bouton nouveau point : " + !doc.querySelector("#nouvelle-reference").closest(".option").hidden);
     w.mesures.openPhoto(photos[0]);

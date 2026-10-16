@@ -643,11 +643,11 @@
   let aiming = false;
 
   /**
-   * Flèches masquées en mesure, sauf pour viser, ce qui demande de changer de photo, et en
-   * hauteur, mesurable depuis toute photo une fois le point de référence validé.
+   * Flèches masquées en mesure (elles gênent les clics de mesure), sauf pour viser, ce qui
+   * demande de changer de photo. Pendant la prise de mesure, on change de photo par la carte.
    */
   function hidesArrows() {
-    return measuring && !aiming && !["height", "road"].includes($("#mode").value);
+    return measuring && !aiming;
   }
 
   /** Clic sur une flèche de la visionneuse (photo suivante, précédente…) : il navigue. */
@@ -686,9 +686,9 @@
     $("#mode-mesure").textContent = mode === "tri"
       ? "Mesure libre : visez chaque point depuis plusieurs photos (flèches), puis « Valider le point »"
       : mode === "height" && aiming ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point »"
-      : mode === "height" ? "Hauteur, étape 2 : cliquez le sommet (le pied est le point visé), depuis une photo de la triangulation"
+      : mode === "height" ? "Hauteur, étape 2 : cliquez le sommet (le pied est le point visé) ; autre photo : par la carte"
       : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), puis « Valider le point »"
-      : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé depuis une photo prise avant ou après (flèches)"
+      : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé ; autre photo, prise avant ou après : par la carte"
       : mode === "tilt" ? "Calage de l'inclinaison : pied puis sommet de deux objets verticaux, à 90° l'un de l'autre"
       : mode === "heading" ? "Calage du cap : un repère dans la photo, puis le même sur la carte (3 pour la position)"
       : "Mode mesure en cours : désélectionner pour naviguer";
