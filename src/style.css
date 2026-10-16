@@ -390,21 +390,18 @@ button.principal { font-weight: 600; }
 #producteur-photo { margin-left: auto; text-align: right; }
 #lieu[hidden], #producteur-photo[hidden] { display: none; }
 
-/* Visionneuse : calcul de l'inclinaison en cours, sous le pointeur (voir app.js), petite roue */
+/* Visionneuse : calcul de l'inclinaison en cours (petite roue), conseil ou rappel du calage,
+   dans le bloc du haut, sous le rappel du mode */
 #calcul-inclinaison {
-  position: absolute;
-  left: 50%;
-  top: calc(50% + 24px);
-  transform: translateX(-50%);
   margin: 0;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  background: var(--etiquette-vue);
   color: #ffeb00;
-  opacity: 0.9;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
-  white-space: nowrap;
-  text-shadow: 0 0 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.6), 1px 1px 1px rgba(0, 0, 0, 0.8);
-  pointer-events: none;
-  z-index: 6;
+  text-align: center;
+  text-shadow: var(--detoure-vue);
 }
 #calcul-inclinaison[hidden] { display: none; }
 #calcul-inclinaison.manuel { color: #ff5f52; }  /* calcul automatique sans résultat */

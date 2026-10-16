@@ -272,19 +272,6 @@
         : "Calcul du calage de l'inclinaison en cours";
   }
 
-  // Message du calcul d'inclinaison : sous le pointeur de mesure tant qu'il est dans la vue,
-  // sous le centre de la vue sinon
-  $("#vue").addEventListener("pointermove", (event) => {
-    const box = $("#vue").getBoundingClientRect();
-    const message = $("#calcul-inclinaison");
-    message.style.left = `${event.clientX - box.left}px`;
-    message.style.top = `${event.clientY - box.top + 24}px`;
-  }, { capture: true });
-  $("#vue").addEventListener("pointerleave", () => {
-    const message = $("#calcul-inclinaison");
-    message.style.left = message.style.top = "";
-  });
-
   /** Redessine tout : texte de la mesure, état de la photo, repères, carte, résultats. */
   function refresh(text) {
     if (!app) return;
