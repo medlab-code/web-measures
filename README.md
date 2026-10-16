@@ -153,7 +153,7 @@ photo plus éloignée, qui voit la droite plus en face, la réduit. Avec un GPS 
 | `py/sources.js` | fichiers Python de `py/` regroupés pour la page (généré par le même script) |
 | `tests/navigateur.html` | essai de bout en bout dans un vrai navigateur |
 | `tests/essai-rtk.html`, `essai-largeur.html`, `essai-libre.html` | hauteur, largeur, mesure libre sur photos RTK, avec recalages |
-| `tests/inclinaison.html`, `etiquettes.html` | inclinaison automatique ; placement des étiquettes |
+| `tests/inclinaison.html` | inclinaison automatique |
 | `tools/serveur-essai.py` | serveur des essais : sert le site et affiche leur journal |
 
 Mettre à jour le cœur : `tools/update-core.sh [dossier du plugin] [révision]` (par défaut
@@ -190,12 +190,11 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 |---|---|---|
 | Panoramax : recherche, tuiles, photos (`api.panoramax.xyz`, `panoramax.ign.fr`) | filaire, photos, métadonnées | accessible |
 | Géoplateforme IGN : WMTS | Plan IGN, orthophoto | accessible |
-| Géoplateforme IGN : altimétrie | profil du terrain (LiDAR HD, RGE ALTI) | accessible |
-| Géoplateforme IGN : WMS (`wms-r`) | MNS du LiDAR HD (façades) | accessible |
-| Géoplateforme IGN : WFS | BD TOPO (axe de la route, route et PR de la photo, PR sur la carte), cadastre (façades) | accessible |
+| Géoplateforme IGN : altimétrie | LiDAR HD sous les photos (vérification de la position RTK, inclinaison automatique) | accessible |
+| Géoplateforme IGN : WMS (`wms-r`) | PCRS | accessible |
+| Géoplateforme IGN : WFS | BD TOPO (axe de la route, route et PR de la photo, PR sur la carte) | accessible |
 | Géoplateforme IGN : géocodage | recherche de lieux (autocomplétion) | accessible |
 | geo.api.gouv.fr | commune de la photo | accessible |
-| Open-Meteo | altitudes de secours | accessible |
 
 **À refaire depuis le poste des utilisateurs** (proxy ou pare-feu d'entreprise) : ouvrir la page et relever la liste.
 

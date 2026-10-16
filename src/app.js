@@ -15,8 +15,6 @@
   let photo = null;  // fiche STAC de la photo affichée
   let psv = null;  // visionneuse sphérique (Photo Sphere Viewer) dans <pnx-photo-viewer>
   let savedCalibration = -1;  // version du calage déjà enregistrée dans le navigateur
-  let warnedSequence = null;  // séquence pour laquelle le mode dégradé a été signalé
-  let noDegradedPopup = false;  // « Ne plus afficher pendant cette session »
   let measuring = false;  // bouton « Mesure » : clics dans la photo pour mesurer, sans navigation
 
   // Réglages gardés dans le navigateur (facultatif : navigation privée, stockage bloqué…)
@@ -226,7 +224,7 @@
     const saved = store.get("calage");
     if (saved && !app.load_calibration(saved)) console.warn("Calage enregistré illisible : ignoré.");
     savedCalibration = app.calibration_version;
-    for (const id of ["#mesure", "#mode", "#camera", "#pont", "#effacer", "#tout-effacer", "#calage-exporter",
+    for (const id of ["#mesure", "#mode", "#camera", "#effacer", "#tout-effacer", "#calage-exporter",
       "#calage-importer"]) $(id).disabled = false;
     $("#camera").value = store.get("camera", $("#camera").value);
     app.set_camera_height(Number($("#camera").value));
@@ -299,12 +297,6 @@
     bandeau.hidden = !state.waiting_map;
     bandeau.textContent = "Cliquez maintenant ce repère sur la carte (Échap pour annuler).";
     map.getCanvas().style.cursor = state.waiting_map ? "crosshair" : "";
-    if (state.active) warnIfDegraded(state);
-    const height = app.take_camera_height();
-    if (height != null) {  // hauteur de caméra calée : reportée dans le réglage
-      $("#camera").value = Math.min(6, Math.max(0.3, height)).toFixed(2);
-      setCamera();
-    }
     if (app.calibration_version !== savedCalibration) {
       savedCalibration = app.calibration_version;
       store.set("calage", app.calibration_json());
@@ -334,21 +326,6 @@
     const bounds = points.reduce((b, p) => b.extend(p), new maplibregl.LngLatBounds(points[0], points[0]));
     map.fitBounds(bounds, { padding: segment ? 50 : 40, maxZoom: segment ? 22 : 20, duration: 400 });
   }
-
-  function warnIfDegraded(state) {
-    const sequence = photo?.collection ?? photo?.id;
-    if (!state.degraded.length || noDegradedPopup || sequence === warnedSequence) return;
-    warnedSequence = sequence;
-    const dialog = $("#degrade");
-    dialog.querySelector("ul").replaceChildren(...state.degraded.map((r) => Object.assign(
-      document.createElement("li"), { textContent: r })));
-    dialog.querySelector(".aide").textContent = state.advice;
-    dialog.querySelector("input[name=plus]").checked = false;
-    if (!dialog.open) dialog.showModal();
-  }
-  $("#degrade").addEventListener("close", () => {
-    noDegradedPopup = $("#degrade input[name=plus]").checked;
-  });
 
   // Résultats ------------------------------------------------------------------------------
 
@@ -730,7 +707,6 @@
 
   $("#mesure").addEventListener("click", () => {
     measuring = !measuring;
-    if (measuring) warnedSequence = null;  // mode dégradé signalé à nouveau, comme le plugin
     applyMeasureUi();
     refresh(app.set_active(measuring));
   });
@@ -835,7 +811,6 @@
     $("#camera").value = Number(event.target.dataset.value).toFixed(2);
     setCamera();
   });
-  $("#pont").addEventListener("change", (event) => refresh(app.set_bridge(event.target.checked)));
   $("#garder").addEventListener("click", () => refresh(app.keep_point()));
   $("#nouvelle-reference").addEventListener("click", () => refresh(app.new_reference()));
   $("#effacer").addEventListener("click", () => refresh(app.clear()));

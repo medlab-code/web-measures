@@ -576,13 +576,6 @@ dd { margin: 0; overflow-wrap: anywhere; }
   filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000);
   cursor: grab;
 }
-.poignee.facade {
-  width: 12px;
-  height: 12px;
-  border: 2px solid #fff;
-  background: #9c27b0;
-  filter: none;
-}
 
 @media (max-width: 900px) {
   main { flex-direction: column; }

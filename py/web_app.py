@@ -4,10 +4,12 @@
 """Application de mesure dans le navigateur : le cœur de calcul du plugin (core/), piloté par
 la page (src/app.js). Même enchaînement que le plugin QGIS (plugin.py, viewer_dock.py) :
 
-- clic dans la photo → direction corrigée du calage (tools.photo_click) → profil du terrain
-  le long de la visée → point 3D → mesure (measures.MeasureTool) ;
-- triangulation : visée du centre de la vue (tools.Triangulator) ;
-- calages : inclinaison, cap et position, hauteur de caméra (tools.CalibrationTool) ;
+- points de référence et mesure libre : visées cliquées dans les photos, triangulées
+  (tools.Triangulator) ;
+- hauteur : sommet (et pied) cliqués dans la photo → mesure (measures.MeasureTool) calée sur
+  le point de référence (Measure.anchor) ; largeur : bord opposé sur la droite perpendiculaire
+  à la route (widths.PerpendicularWidth) ;
+- calages : inclinaison, cap et position (tools.CalibrationTool) ;
 - photo affichée : précision GPS vérifiée (precision.PrecisionChecker), inclinaison
   automatique (autotilt.TiltChecker), axe de la séquence entre les photos voisines.
 
@@ -22,11 +24,11 @@ import traceback
 from datetime import datetime
 
 import web_host
-from core import (autotilt, buildings, calibration, capture, filters, geometry, measures, metadata, precision,
-                  roads, terrain, tools, triangulation, widths)
+from core import (autotilt, calibration, capture, filters, geometry, measures, metadata, precision, roads, tools,
+                  triangulation, widths)
 
-GROUND_MODES = ("road", "width", "height")  # mesures par lancer de rayon (voir core/measures.py)
-CALIBRATION_MODES = ("tilt", "heading", "camera")
+GROUND_MODES = ("road", "height")  # mesures appuyées sur un point de référence
+CALIBRATION_MODES = ("tilt", "heading")
 MODES = GROUND_MODES + ("tri",) + CALIBRATION_MODES
 REF_MODES = ("height", "road")  # mesures appuyées sur un point de référence triangulé
 NUDGE = 0.01  # pas (m) d'un point de largeur déplacé aux flèches du clavier
@@ -39,11 +41,10 @@ RTK_WARNING = (" ⚠ Photo sans position GPS RTK vérifiée : mesure probablemen
 
 
 class WebItem:
-    """Dessin d'une mesure ou d'une façade sur la carte (voir measures.MeasureTool.new_item) :
-    gardé ici, rendu en GeoJSON par App.map_geojson."""
+    """Dessin d'une mesure sur la carte (voir measures.MeasureTool.new_item) : gardé ici, rendu
+    en GeoJSON par App.map_geojson."""
 
-    def __init__(self, wall=False):
-        self.wall = wall
+    def __init__(self):
         self.points, self.label, self.extras = [], "", []
         self.removed = False
 
@@ -78,24 +79,19 @@ class App:
         self.notify = notify  # fonction de la page : redessiner après une lecture réseau
         self.items, self.rays = [], []
         self.calibration = calibration.Calibration()
-        self.terrain = terrain.TerrainProvider()
         self.roads = roads.RoadAxisProvider()
-        self.buildings = buildings.BuildingProvider()
         self.precision = precision.PrecisionChecker()
         self.tilts = autotilt.TiltChecker()
         self.roads.ready = self._roads_ready
-        self.buildings.ready = self._buildings_ready
         self.tool = measures.MeasureTool(None)
         self.tool.new_item = self._new_item
         self.tool.calibration = self.calibration
         self.tool.road_lookup = self.roads.lookup
-        self.tool.wall_lookup = self.buildings.lookup
         self.triangulator = tools.Triangulator()
         self.triangulator.new_item = self._new_rays
         self.triangulator.AIM = "Cliquez sur l'objet dans la photo"
         self.triangulator.AIM_AGAIN = "cliquez sur le même objet"
-        self.reference = ("ground", 5.0)  # calage de la hauteur de caméra : longueur connue
-        self.calibrator = tools.CalibrationTool(self.calibration, self.current_ids, lambda: self.reference)
+        self.calibrator = tools.CalibrationTool(self.calibration, self.current_ids)
         self.calibrator.new_item = lambda: self._new_rays(calibration=True)
         self.mode = "road"
         self.tool.set_mode("road")
@@ -104,7 +100,6 @@ class App:
         self.neighbours = {}  # fiches des photos voisines (axe de la séquence) : id -> fiche
         self.photo_filter = filters.PhotoFilter()
         self.message = ""
-        self.new_camera = None  # hauteur de caméra calée, à reporter dans le réglage de la page
         self.points = []  # points triangulés gardés : (lon, lat, attributs)
         self.links = []  # distances entre deux points gardés : (n° du premier, n° du second, attributs)
         self.named = 0  # points gardés depuis le début : nom du suivant (A, B… voir _point_name)
@@ -124,7 +119,7 @@ class App:
 
     # Dessin --------------------------------------------------------------------------
     def _new_item(self, wall=False):
-        item = WebItem(wall)
+        item = WebItem()  # wall (façade du cadastre) : le plugin seulement
         self.items.append(item)
         return item
 
@@ -199,27 +194,6 @@ class App:
 
     def set_camera_height(self, value):
         self.tool.set_camera_height(float(value))
-        return self.status()
-
-    def set_use_wall(self, value):
-        self.tool.set_use_wall(bool(value))
-        return self.status()
-
-    def set_bridge(self, value):
-        """« Mesure sur un pont » : sol plat sous la caméra ; les profils déjà lus ne valent plus."""
-        self.terrain.bridge = bool(value)
-        self.epoch += 1
-        self.tool.clear()
-        self.calibrator.reset()
-        self.message = ""
-        return self.status()
-
-    def set_reference(self, kind, length):
-        """Référence du calage de la hauteur de caméra : "ground" (longueur au sol) ou "height"
-        (hauteur d'un objet), en m."""
-        self.reference = ("height" if kind == "height" else "ground", float(length))
-        if self.mode == "camera":
-            self.calibrator.reset()  # clics en attente faits pour l'ancienne référence
         return self.status()
 
     def set_api_url(self, url):
@@ -332,42 +306,27 @@ class App:
             if near is not None:  # clic sur la croix d'un pied ou d'un sommet : sélectionné
                 tool.selected = near
                 return self.status()
-        if tool is self.tool and self.mode != "height" and tool.select_near(click):
-            return self.status()  # repère d'un point : sélectionné pour le viser à nouveau
-        foot = self._reference_foot() if self.mode == "height" and tool.selected is None and (
-            tool.current is None or len(tool.current.clicks) >= tool.current.needed()) else None
-        if foot is not None:  # pied déjà visé depuis cette photo à la triangulation : ce clic est le sommet
-            self.message = "Altitude du terrain le long de la visée…"
-            epoch = self.epoch
-            self.terrain.profile(foot["lon"], foot["lat"], foot["yaw"], lambda profile, label, warning: (
-                self._profiled(epoch, tool, foot, profile, label, warning),
-                self.terrain.profile(click["lon"], click["lat"], click["yaw"], lambda p, lb, wn: self._profiled(
-                    epoch, tool, click, p, lb, wn))))
-            return self.status()
-        if not tool.needs_profile():
-            tool.add_click(click)  # sommet d'un objet ou calage : pas de terrain
-            self._after_calibration(tool)
-            return self.status()
-        self.message = "Altitude du terrain le long de la visée…"
-        epoch = self.epoch
-        self.terrain.profile(click["lon"], click["lat"], click["yaw"],
-                             lambda profile, label, warning: self._profiled(epoch, tool, click, profile, label,
-                                                                            warning))
+        if self.mode == "height":
+            return self._height_click(click)
+        tool.add_click(click)  # calage de l'inclinaison ou du cap
+        self._after_calibration(tool)
         return self.status()
 
-    def _profiled(self, epoch, tool, click, profile, label, warning):
-        if epoch != self.epoch:
-            return  # mode changé, mesure effacée ou désactivée entre-temps : clic abandonné
-        try:
-            click.update(profile=profile, terrain=label, precise_ground=label in terrain.PRECISE_LABELS)
-            reaimed = getattr(tool, "selected", None) is not None
-            text = tool.add_click(click, warning)
-            self.message = text if reaimed else ""  # point recalé : son résultat ; sinon la suite (status)
-            self._after_calibration(tool)
-            self._anchor_height()
-        except Exception:
-            traceback.print_exc()
-        self.notify()
+    def _height_click(self, click):
+        """Hauteur, étape 2 : le sommet (le pied est la visée du point de référence faite
+        depuis cette photo), sinon le pied puis le sommet, ou la nouvelle visée du point
+        sélectionné. Sans profil du terrain : calée sur le point de référence, la hauteur n'en
+        dépend pas."""
+        tool = self.tool
+        reaimed = tool.selected is not None
+        if not reaimed and (tool.current is None or len(tool.current.clicks) >= tool.current.needed()):
+            foot = self._reference_foot()
+            if foot is not None:
+                tool.add_click(foot)
+        text = tool.add_click(click)
+        self.message = text if reaimed else ""  # point recalé : son résultat ; sinon la suite (status)
+        self._anchor_height()
+        return self.status()
 
     def select_point(self, yaw, pitch):
         """Clic droit dans la photo : sélectionne le point de hauteur ou de largeur dont la croix
@@ -709,13 +668,6 @@ class App:
         if tool is not self.calibrator:
             return
         self._calibration_changed()
-        if tool.new_camera is not None:
-            self.new_camera, tool.new_camera = tool.new_camera, None
-
-    def take_camera_height(self):
-        """Hauteur de caméra juste calée (à reporter dans le réglage « Caméra à »), ou None."""
-        height, self.new_camera = self.new_camera, None
-        return height
 
     def waiting_map(self):
         """Calage du cap : le repère cliqué dans la photo attend son clic sur la carte."""
@@ -856,10 +808,6 @@ class App:
             changed = changed or ref.get("road") is not None
         if changed:
             self.notify()
-
-    def _buildings_ready(self):
-        self.tool.recompute_walls()
-        self.notify()
 
     # Calage enregistré ---------------------------------------------------------------
     def calibration_json(self):
@@ -1008,8 +956,6 @@ class App:
             "quality": precision.state_text(self.quality, metadata.item_accuracy(item), tilt) if item else "",
             "calibration": tools.calibration_text(self.calibration, pic, sequence, lon, lat) if item else "",
             "camera": [round(suggestion[0], 2), suggestion[1]] if suggestion else None,
-            "degraded": precision.degraded_reasons(self.quality) if precision.degraded(self.quality) else [],
-            "advice": precision.DEGRADED_ADVICE,
             "waiting_map": self.waiting_map(),
             "point": self.triangulator.result is not None,
             "aiming": self._aiming(),
@@ -1132,11 +1078,11 @@ class App:
         return {"points": points, "guide": True}
 
     def handles(self):
-        """Poignées déplaçables sur la carte (JSON) : [[lon, lat, façade ?]], repérées par leur
-        rang pour move_handle. Seulement en mesure, comme dans le plugin."""
+        """Poignées déplaçables sur la carte (JSON) : [[lon, lat]], repérées par leur rang pour
+        move_handle. Seulement en mesure, comme dans le plugin."""
         handles = self.tool.handles() if self.active and self.mode in GROUND_MODES else []
         self._handles = [key for key, _, _ in handles]
-        return json.dumps([[lon, lat, key[0] == "facade"] for key, lon, lat in handles])
+        return json.dumps([[lon, lat] for _, lon, lat in handles])
 
     def map_geojson(self):
         """Mesures, façades, visées et points triangulés à dessiner sur la carte (GeoJSON, texte)."""
@@ -1153,18 +1099,10 @@ class App:
         for item in self.items:
             if not item.points:
                 continue
-            if item.wall or not item.extras:
-                if len(item.points) >= 2:
-                    add("facade" if item.wall else "mesure", "LineString", [list(p) for p in item.points], item.label)
-            else:  # largeur perpendiculaire : plan perpendiculaire à la route, puis trait de la visionneuse
-                if len(item.points) >= 2:
-                    add("trace", "LineString", [list(p) for p in item.points], sublabel="plan perpendiculaire")
-                if len(item.extras) >= 2:
-                    add("mesure", "LineString", [list(item.extras[0]), list(item.extras[-1])], item.label)
-            for p in ([] if item.wall else (item.extras if item.extras else item.points)):
+            if len(item.points) >= 2:
+                add("mesure", "LineString", [list(p) for p in item.points], item.label)
+            for p in item.points:
                 add("point", "Point", list(p))
-            for start, end in zip(item.points, item.extras):  # pointillés vers les bords cliqués
-                add("lien", "LineString", [list(start), list(end)])
             if len(item.points) == 1 and item.label:  # hauteur : étiquette au pied
                 add("etiquette", "Point", list(item.points[0]), item.label)
         self.rays = [r for r in self.rays if not r.removed]

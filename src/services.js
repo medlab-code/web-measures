@@ -15,11 +15,10 @@ const Services = (() => {
     ["OpenStreetMap France : fond de carte", OSM_TILES.replace("{s}", "a").replace("{z}/{x}/{y}", "15/16846/11558")],
     ["IGN : altitudes (RGE ALTI, LiDAR HD)",
       `${GEOPF}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=4.55&lat=47.26&resource=ign_rge_alti_wld&zonly=true`],
-    ["IGN : MNS LiDAR HD (WMS)", `${GEOPF}/wms-r/wms?SERVICE=WMS&REQUEST=GetCapabilities`],
-    ["IGN : BD TOPO et cadastre (WFS)", `${GEOPF}/wfs/ows?SERVICE=WFS&REQUEST=GetCapabilities`],
+    ["IGN : PCRS (WMS)", `${GEOPF}/wms-r/wms?SERVICE=WMS&REQUEST=GetCapabilities`],
+    ["IGN : BD TOPO (WFS)", `${GEOPF}/wfs/ows?SERVICE=WFS&REQUEST=GetCapabilities`],
     ["IGN : recherche de lieux (géocodage)", `${GEOPF}/geocodage/completion?text=pouilly&maximumResponses=1`],
     ["geo.api.gouv.fr : commune de la photo", "https://geo.api.gouv.fr/communes?lat=47.26&lon=4.55&fields=nom"],
-    ["Open-Meteo (secours)", "https://api.open-meteo.com/v1/elevation?latitude=47.26&longitude=4.55"],
   ];
 
   async function checkService(list, name, url) {

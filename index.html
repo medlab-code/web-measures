@@ -43,7 +43,6 @@
     <span class="option" data-modes="height road" hidden>
       <button id="nouvelle-reference" type="button" title="Trianguler un autre point de référence : les mesures déjà faites restent">Nouveau point de référence</button>
     </span>
-    <label title="Mesure sur un pont : sol plat et horizontal sous la caméra (le terrain donnerait sinon le fond de la vallée)"><input id="pont" type="checkbox" disabled> Sur un pont</label>
     <button id="effacer" type="button" disabled>Effacer</button>
     <button id="tout-effacer" type="button" disabled>Tout effacer</button>
     <!-- Captures et fond de carte, à droite ; ensemble sur une seconde ligne si la place manque -->
@@ -160,16 +159,6 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
       </div>
     </aside>
   </main>
-  <dialog id="degrade">
-    <h2>Mode de mesure dégradé</h2>
-    <p>Pour cette photo, les mesures fonctionnent en mode dégradé :</p>
-    <ul></ul>
-    <p class="aide"></p>
-    <form method="dialog">
-      <label><input type="checkbox" name="plus"> Ne plus afficher pendant cette session</label>
-      <button value="ok">Compris</button>
-    </form>
-  </dialog>
   <dialog id="proposer-distance">
     <h2>Mesurer la distance <span></span> ?</h2>
     <p>Le point effacé reliait ces deux points : leur distance peut être mesurée directement.</p>

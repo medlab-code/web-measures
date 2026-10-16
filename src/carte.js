@@ -11,7 +11,6 @@ const Carte = (() => {
   const ROUGE = "#e53935";  // trait d'une mesure, visées : comme dans le plugin
   const JAUNE = "#ffeb00";  // points cliqués
   const BLEU = "#00bce6";  // largeur perpendiculaire : trait tracé perpendiculairement à la route
-  const VIOLET = "#9c27b0";  // façade
   const CURSEUR = "#0078ff";  // curseur de vue
   const VERT_PR = "#2e7d32";  // points de repère (PR) des routes
 
@@ -153,10 +152,6 @@ const Carte = (() => {
           },
           // Mesures, visées et points (voir web_app.App.map_geojson)
           {
-            id: "facades", type: "line", source: "mesures", filter: kind("facade"),
-            paint: { "line-color": VIOLET, "line-width": 3, "line-dasharray": [2, 1.5] },
-          },
-          {
             id: "visees-halo", type: "line", source: "mesures", filter: kind("visee", "calage"),
             paint: { "line-color": "#ffffff", "line-opacity": 0.8, "line-width": 4 },
           },
@@ -167,10 +162,6 @@ const Carte = (() => {
           {  // calage du cap : visées vers les repères en tirets noirs, à ne pas prendre pour une triangulation
             id: "calages", type: "line", source: "mesures", filter: kind("calage"),
             paint: { "line-color": "#000000", "line-width": 2, "line-dasharray": [3, 2] },
-          },
-          {
-            id: "liens", type: "line", source: "mesures", filter: kind("lien"),
-            paint: { "line-color": BLEU, "line-width": 1.5, "line-dasharray": [1, 2] },
           },
           {  // plan perpendiculaire : bande bleue sous le trait rouge, visible quand ils se confondent
             id: "plans", type: "line", source: "mesures", filter: kind("trace"),
@@ -445,7 +436,6 @@ const Carte = (() => {
     stacked.length = 0;
     for (const feature of geojson.features) {
       const { label, sublabel, kind: featureKind } = feature.properties;
-      if (featureKind === "facade") continue;
       const coords = feature.geometry.type === "Point" ? feature.geometry.coordinates
         : middle(feature.geometry.coordinates);
       if (label) {
@@ -523,7 +513,7 @@ const Carte = (() => {
     }
   }
 
-  // Poignées : points des mesures (et extrémités de la façade) à glisser pour les recaler.
+  // Poignées : points des mesures à glisser pour les recaler.
   // Recréées seulement quand elles changent, et jamais pendant un glisser (le marqueur saisi
   // disparaîtrait avec le recalage en cours).
   const handles = [];
@@ -537,9 +527,9 @@ const Carte = (() => {
     if (dragging || key === handlesKey) return;
     handlesKey = key;
     for (const marker of handles.splice(0)) marker.remove();
-    list.forEach(([lon, lat, facade], index) => {
+    list.forEach(([lon, lat], index) => {
       const element = document.createElement("div");
-      element.className = "poignee" + (facade ? " facade" : "");
+      element.className = "poignee";
       element.title = "Glisser pour recaler ce point sur la carte";
       const marker = new maplibregl.Marker({ element, draggable: true }).setLngLat([lon, lat]).addTo(map);
       let from = [lon, lat];
