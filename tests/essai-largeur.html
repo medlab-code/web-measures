@@ -19,6 +19,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 120000, "Pyodide");
     const app = w.mesures.app, doc = w.document;
     const psvClick = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: false }; w.mesures.psv.dispatchEvent(e); };
+    const psvRight = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: true }; w.mesures.psv.dispatchEvent(e); };
     doc.querySelector("#mesure").click();
     doc.querySelector("#mode").value = "road"; doc.querySelector("#mode").dispatchEvent(new Event("change"));
     const photos = await Promise.all(IDS.map(feature));
@@ -82,8 +83,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("sur l'autre photo : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
       + " · croix " + box.querySelectorAll(".croix").length);
     const [markA, markB] = width().points;
-    psvClick(markB[0], markB[1]);
-    log("clic sur B : " + doc.querySelector("#statut").textContent.slice(0, 60) + " · choisi : " + width().points[1][2]);
+    psvRight(markB[0], markB[1]);
+    log("clic droit sur B : " + doc.querySelector("#statut").textContent.slice(0, 60) + " · choisi : " + width().points[1][2]);
     const b9 = toLonLat([side * 9 * ux, side * 9 * uy]);
     psvClick(yawTo(photos[1], b9), -0.3);
     log("B recalé : " + doc.querySelector("#statut").textContent.slice(0, 120));
@@ -91,7 +92,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     const key = (k) => doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: k, bubbles: true }));
     const [, markB2] = width().points;
     const yawOf = (i) => width().points[i][0];
-    psvClick(markB2[0], markB2[1]);
+    psvRight(markB2[0], markB2[1]);
     let y0 = yawOf(1);
     key("ArrowRight"); key("ArrowRight");
     const right = yawOf(1) > y0;
@@ -100,8 +101,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("bord : → vers la droite " + right + " · ← vers la gauche " + (yawOf(1) < y0) + " · "
       + doc.querySelector("#statut").textContent.slice(0, 160));
     key("Enter");
-    log("après Entrée : " + JSON.parse(app.results()).map((r) => r.text).join(" | ") + " · sélection : " + JSON.parse(app.state()).width_sel);
-    psvClick(markA[0], markA[1]);
+    log("après Entrée : " + JSON.parse(app.results()).map((r) => r.text).join(" | ") + " · sélection : " + JSON.parse(app.state()).point_sel);
+    psvRight(markA[0], markA[1]);
     y0 = yawOf(0);
     key("ArrowRight"); key("ArrowRight");
     const rightA = yawOf(0) > y0;
@@ -110,8 +111,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("point : → vers la droite " + rightA + " · ← vers la gauche " + (yawOf(0) < y0) + " · "
       + doc.querySelector("#statut").textContent.slice(0, 120));
     doc.querySelector("#effacer").click();
-    psvClick(markA[0], markA[1]);
-    log("clic sur A : " + doc.querySelector("#statut").textContent.slice(0, 60));
+    psvRight(markA[0], markA[1]);
+    log("clic droit sur A : " + doc.querySelector("#statut").textContent.slice(0, 60));
     psvClick(yawTo(photos[1], target), -0.35);
     log("A recalé : " + doc.querySelector("#statut").textContent + " · " + JSON.parse(app.results()).map((r) => r.text).join(" | "));
     log("résultats : " + JSON.parse(app.results()).map((r) => r.text).join(" | "));

@@ -303,7 +303,7 @@
     }
     showLights(state.lights);
     $("#garder").disabled = !state.point;
-    widthSelected = state.width_sel;
+    pointSelected = state.point_sel;
     if (aiming !== state.aiming) {  // hauteur : point de référence validé, ou à trianguler
       aiming = state.aiming;
       applyMeasureUi();
@@ -436,18 +436,23 @@
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && app && app.waiting_map()) refresh(app.cancel_landmark());
   });
+  // Clic droit dans la visionneuse en mesure : sélection d'un point, pas de menu du navigateur
+  viewer.addEventListener("contextmenu", (event) => {
+    if (measuring) event.preventDefault();
+  });
 
-  // Largeur : point sélectionné déplacé de 1 cm le long de la droite de mesure par les flèches,
-  // dans le sens vu sur la photo (← →), ou en s'éloignant de la caméra (↑ ↓)
-  let widthSelected = false;
+  // Point sélectionné déplacé de 1 cm par les flèches : largeur, le long de la droite de mesure,
+  // dans le sens vu sur la photo (← →) ou en s'éloignant de la caméra (↑ ↓) ; hauteur, monté ou
+  // descendu (↑ ↓). Entrée termine son calage.
+  let pointSelected = false;
   const NUDGE_KEYS = { ArrowRight: "right", ArrowLeft: "left", ArrowUp: "up", ArrowDown: "down" };
   document.addEventListener("keydown", (event) => {
     const direction = NUDGE_KEYS[event.key];
-    if ((!direction && event.key !== "Enter") || !app || !measuring || !widthSelected) return;
+    if ((!direction && event.key !== "Enter") || !app || !measuring || !pointSelected) return;
     if (event.target.closest?.("input, select, textarea, button")) return;  // champ ou bouton actif
     event.preventDefault();
     event.stopPropagation();
-    refresh(direction ? app.nudge_width(direction) : app.finish_width());  // Entrée : calage terminé
+    refresh(direction ? app.nudge_point(direction) : app.finish_point());  // Entrée : calage terminé
   }, true);
 
   function openPhoto(feature) {
@@ -590,7 +595,9 @@
       const dispatch = psv.dispatchEvent;
       psv.dispatchEvent = function (event) {
         if (event?.type === "click" && measuring && !onArrow(event)) {
-          if (app && !event.data?.rightclick) {
+          if (app && event.data?.rightclick) {  // clic droit : sélection d'un point à recaler
+            refresh(photoReady() ? app.select_point(event.data.yaw, event.data.pitch) : LOADING);
+          } else if (app) {
             refresh(photoReady() ? app.click(event.data.yaw, event.data.pitch) : LOADING);
           }
           return true;
@@ -747,11 +754,12 @@
     };
     marks.forEach((mark, m) => {
       const points = mark.points.map(([yaw, pitch]) => ({ yaw, pitch }));
-      if (mark.guide) {  // largeur : droite de mesure, en tirets bleus, sans croix
+      if (mark.guide) {  // tirets sans croix : droite de mesure (largeur, bleue), verticale (hauteur, verte)
         if (points.length >= 2) {
           add({
             id: `${MARK}${m}-guide`, polyline: points.map(({ yaw, pitch }) => [yaw, pitch]),
-            svgStyle: { stroke: "#00bce6", strokeWidth: "2px", strokeDasharray: "8 5", fill: "none" },
+            svgStyle: { stroke: mark.vertical ? "#2ecc40" : "#00bce6", strokeWidth: "2px", strokeDasharray: "8 5",
+              fill: "none" },
           });
         }
         return;

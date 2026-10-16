@@ -18,6 +18,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 120000, "Pyodide");
     const app = w.mesures.app, doc = w.document;
     const psvClick = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: false }; w.mesures.psv.dispatchEvent(e); };
+    const psvRight = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: true }; w.mesures.psv.dispatchEvent(e); };
     doc.querySelector("#mesure").click();
     doc.querySelector("#mode").value = "height"; doc.querySelector("#mode").dispatchEvent(new Event("change"));
     const photos = await Promise.all(IDS.map(feature));
@@ -71,6 +72,36 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("attendu sans inclinaison : " + (d0 * (Math.tan(0.2) + Math.tan(0.3))).toFixed(3) + " m");
     await sleep(500);
     log("étiquettes : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | "));
+    // Hauteurs visibles depuis l'autre photo ; sommet sélectionné, réglé au clavier, Entrée
+    w.mesures.openPhoto(photos[1]);
+    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[1].id, 30000, "retour photo 2");
+    await sleep(1000);
+    log("verticale verte : " + box.querySelectorAll("[id*='-guide']").length + " · " + (box.querySelector("[id*='-guide'] polyline, [id*='-guide']")?.outerHTML.match(/stroke[^;]*2ecc40/) ? "verte" : "?"));
+    log("sur la photo 2 : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
+      + " · croix " + box.querySelectorAll(".croix:not(.visee)").length);
+    const heights = () => JSON.parse(app.viewer_marks()).filter((m) => m.label.startsWith("↕"));
+    const second = () => heights().find((m) => m.label.includes("2,8"));
+    const key = (k) => doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: k, bubbles: true }));
+    let top = second().points[1];
+    psvRight(top[0], top[1]);
+    log("clic droit sur le sommet (autre photo) : " + doc.querySelector("#statut").textContent.slice(0, 70) + " · choisi : " + second().points[1][2]);
+    const pitch0 = second().points[1][1];
+    for (const k of ["ArrowUp", "ArrowUp", "ArrowUp", "ArrowDown", "ArrowLeft"]) key(k);
+    log("↑↑↑↓← : " + doc.querySelector("#statut").textContent.slice(0, 150) + " · repère monté : " + (second().points[1][1] > pitch0));
+    psvClick(top[0], top[1] + 0.05);
+    log("clic depuis l'autre photo : " + doc.querySelector("#statut").textContent.slice(0, 90));
+    key("Enter");
+    log("après Entrée : " + doc.querySelector("#statut").textContent.slice(0, 90) + " · sélection : " + JSON.parse(app.state()).point_sel);
+    // Recalage au clic, sur la photo de la mesure
+    w.mesures.openPhoto(photos[0]);
+    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "photo 1 bis");
+    await sleep(1000);
+    top = second().points[1];
+    psvRight(top[0], top[1]);
+    psvClick(yawTo(photos[0], ref), 0.25);
+    await until(() => !JSON.parse(app.state()).point_sel && doc.querySelector("#statut").textContent.startsWith("Hauteur"), 30000, "recalage");
+    log("sommet revisé (0,25) : " + doc.querySelector("#statut").textContent.slice(0, 160));
+    log("attendu sans inclinaison : " + (d0 * (Math.tan(0.25) + Math.tan(0.3))).toFixed(3) + " m");
     doc.querySelector("#nouvelle-reference").click();
     log("nouveau point : " + doc.querySelector("#statut").textContent.slice(0, 60) + " · résultats : "
       + JSON.parse(app.results()).map((r) => r.text).join(" | "));

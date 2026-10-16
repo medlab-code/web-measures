@@ -22,14 +22,15 @@ import traceback
 from datetime import datetime
 
 import web_host
-from core import (autotilt, buildings, calibration, capture, filters, measures, metadata, precision, roads, terrain,
-                  tools, triangulation, widths)
+from core import (autotilt, buildings, calibration, capture, filters, geometry, measures, metadata, precision,
+                  roads, terrain, tools, triangulation, widths)
 
 GROUND_MODES = ("road", "width", "height")  # mesures par lancer de rayon (voir core/measures.py)
 CALIBRATION_MODES = ("tilt", "heading", "camera")
 MODES = GROUND_MODES + ("tri",) + CALIBRATION_MODES
 REF_MODES = ("height", "road")  # mesures appuyées sur un point de référence triangulé
 NUDGE = 0.01  # pas (m) d'un point de largeur déplacé aux flèches du clavier
+VERTICAL_LENGTH = 12.0  # m : verticale tracée au-dessus du point de référence d'une hauteur
 NUDGE_WORDS = {"left": "vers la gauche", "right": "vers la droite", "up": "en s'éloignant",
                "down": "en se rapprochant"}
 # Triangulation et mesures qui s'y appuient : acceptées hors RTK, mais signalées
@@ -316,7 +317,14 @@ class App:
         tool = self._active()
         if self.mode == "road":
             return self._width_click(click)
-        if tool is self.tool and tool.select_near(click):
+        if self.mode == "height" and tool.selected is not None and \
+                click.get("pic") != tool.selected[0].clicks[0].get("pic"):
+            self.message = ("Ce point se recale par un clic sur la photo de sa mesure (le pied et le sommet "
+                            "y sont visés ensemble) ; ici, flèches ↑ ↓ : 1 cm ; Entrée pour terminer.")
+            return self.status()
+        # Hauteur : la sélection d'un point se fait au clic droit (select_point) ; le pied d'une
+        # nouvelle hauteur tombe sur celui des autres hauteurs du même point de référence
+        if tool is self.tool and self.mode != "height" and tool.select_near(click):
             return self.status()  # repère d'un point : sélectionné pour le viser à nouveau
         if not tool.needs_profile():
             tool.add_click(click)  # sommet d'un objet ou calage : pas de terrain
@@ -334,24 +342,42 @@ class App:
             return  # mode changé, mesure effacée ou désactivée entre-temps : clic abandonné
         try:
             click.update(profile=profile, terrain=label, precise_ground=label in terrain.PRECISE_LABELS)
-            tool.add_click(click, warning)
-            self.message = ""  # la mesure en cours dit la suite (status)
+            reaimed = getattr(tool, "selected", None) is not None
+            text = tool.add_click(click, warning)
+            self.message = text if reaimed else ""  # point recalé : son résultat ; sinon la suite (status)
             self._after_calibration(tool)
             self._anchor_height()
         except Exception:
             traceback.print_exc()
         self.notify()
 
+    def select_point(self, yaw, pitch):
+        """Clic droit dans la photo : sélectionne le point de hauteur ou de largeur dont la croix
+        est sous le clic, depuis n'importe quelle photo, pour le recaler (clic gauche, flèches du
+        clavier, Entrée pour terminer)."""
+        if not self.active or not self.item or self.mode not in REF_MODES:
+            return self.status()
+        click = tools.photo_click(self.item, (math.degrees(yaw) + self._heading()) % 360, math.degrees(pitch),
+                                  self.calibration, self.quality, [yaw, pitch], self._axis(self.item))
+        if click is None:
+            return self.status()
+        self.message = ""
+        if self.mode == "road":
+            self.width_sel = self._width_near(click)
+            found = self.width_sel is not None
+        else:
+            self.tool.selected = self._height_near(click)
+            found = self.tool.selected is not None
+        if not found:
+            self.message = "Aucune croix de mesure sous le clic droit."
+        return self.status()
+
     def _width_click(self, click):
         """Largeur : le bord opposé, sur la droite perpendiculaire passant par le point de
-        référence (voir core/widths.py). Chaque clic donne une largeur ; un clic sur le repère
-        d'un point d'une largeur le sélectionne, le suivant le recale (voir _recale_width)."""
+        référence (voir core/widths.py). Chaque clic donne une largeur ; un point sélectionné
+        au clic droit (select_point) est recalé par le clic suivant (voir _recale_width)."""
         if self.width_sel is not None:
             return self._recale_width(click)
-        near = self._width_near(click)
-        if near is not None:
-            self.width_sel = near
-            return self.status()
         ref = self.ref_point
         if ref.get("road") is None:
             self._road_at_reference()
@@ -365,7 +391,8 @@ class App:
             return self.status()
         self.tool.done.append(m)
         self.message = (m.status() + self._rtk_warning(ref["sequences"] + [click.get("sequence")])
-                        + " Autre largeur depuis ce point : cliquez un autre bord ; sinon « Nouveau point de référence ».")
+                        + " Autre largeur depuis ce point : cliquez un autre bord ; sinon « Nouveau point de référence »."
+                          " Clic droit sur une croix : la recaler.")
         return self.status()
 
     def _width_points(self, m):
@@ -393,10 +420,12 @@ class App:
     def _reference_mark(self):
         """Croix du point de référence validé dans la photo affichée. Hauteur : là où il a été
         visé depuis cette photo, sinon projeté au sol. Largeur : sur la droite de mesure
-        (projeté au sol comme elle) ; None dès qu'une largeur en part (sa croix le montre)."""
+        (projeté au sol comme elle). None dès qu'une mesure s'y appuie (sa croix le montre)."""
         ref, pic = self.ref_point, self.item.get("id")
         if self.mode == "road" and any(m.edge is ref for m in self._widths()):
             return None
+        if self.mode == "height" and any((m.reference or {}).get("name") == ref["name"] for m in self._heights()):
+            return None  # le pied des hauteurs qui s'y appuient le montre
         seen = next((s for s in ref.get("sightings", []) if s["pic"] == pic and s.get("view")), None)
         if seen is not None and self.mode != "road":
             point = {"yaw": seen["view"][0], "pitch": seen["view"][1]}
@@ -404,21 +433,55 @@ class App:
             point = self._project(ref["lon"], ref["lat"])
         return {"points": [dict(point, pic=pic)], "label": "", "beside": False}
 
+    def _heights(self):
+        return [m for m in self.tool.done if m.kind == "height" and m.result]
+
+    def _height_points(self, m):
+        """Repères du pied et du sommet d'une hauteur dans la photo affichée : [{yaw, pitch
+        (radians, repère de la photo), abs_yaw, elev (degrés)}]. Sur la photo de la mesure, là
+        où ils ont été visés ; sur les autres, projetés depuis leur position 3D, la caméra
+        supposée à l'altitude de celle de la mesure (repères seulement)."""
+        pic = (self.item or {}).get("id")
+        if pic == m.clicks[0].get("pic"):
+            return [{"yaw": p["yaw"], "pitch": p["pitch"], "abs_yaw": p["abs_yaw"], "elev": p["elev"]}
+                    for p in m.viewer_marks()["points"]]
+        pts, _, origin, _ = m.points()
+        c0 = m.clicks[0]
+        z0 = measures._ground_z(m.clicks)[c0.get("pic")]
+        cam_z = geometry.camera(c0, self.tool.camera_for(c0, z0), origin, z0)[0][2]
+        lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
+        cx, cy = triangulation._local(lon, lat, *origin)
+        heading, out = self._heading(), []
+        for x, y, z in pts:
+            bearing = math.degrees(math.atan2(x - cx, y - cy))
+            elev = math.degrees(math.atan2(z - cam_z, max(math.hypot(x - cx, y - cy), 0.5)))
+            out.append({"yaw": math.radians((bearing - heading + 540) % 360 - 180), "pitch": math.radians(elev),
+                        "abs_yaw": bearing % 360, "elev": elev})
+        return out
+
+    def _height_near(self, click):
+        """(hauteur, n° de point) dont le repère est le plus près du clic sur la photo
+        affichée (à moins de measures.SELECT_ANGLE degrés), ou None."""
+        return self._nearest(click, [(m, self._height_points(m)) for m in self._heights()])
+
+    def _nearest(self, click, candidates):
+        raw = click.get("raw") or [click["yaw"], click["elev"]]
+        best, best_d = None, measures.SELECT_ANGLE
+        for m, points in candidates:
+            for index, p in enumerate(points):
+                dyaw = (raw[0] - p["abs_yaw"] + 540) % 360 - 180
+                d = math.hypot(dyaw * math.cos(math.radians(raw[1])), raw[1] - p["elev"])
+                if d < best_d:
+                    best, best_d = (m, index), d
+        return best
+
     def _widths(self):
         return [m for m in self.tool.measures() if isinstance(m, widths.PerpendicularWidth) and m.result]
 
     def _width_near(self, click):
         """(largeur, n° de point) dont le repère est le plus près du clic (à moins de
         measures.SELECT_ANGLE degrés), ou None."""
-        raw = click.get("raw") or [click["yaw"], click["elev"]]
-        best, best_d = None, measures.SELECT_ANGLE
-        for m in self._widths():
-            for index, p in enumerate(self._width_points(m)):
-                dyaw = (raw[0] - p["abs_yaw"] + 540) % 360 - 180
-                d = math.hypot(dyaw * math.cos(math.radians(raw[1])), raw[1] - p["elev"])
-                if d < best_d:
-                    best, best_d = (m, index), d
-        return best
+        return self._nearest(click, [(m, self._width_points(m)) for m in self._widths()])
 
     def _recale_width(self, click):
         """Point sélectionné d'une largeur, recalé par ce clic : le bord, sur la droite de
@@ -458,12 +521,39 @@ class App:
             edge["name"], len(tri.sightings), measures._num(r["uncertainty"], 2))
         return self.status()
 
-    def nudge_width(self, key):
+    def nudge_point(self, key):
+        """Flèches du clavier sur le point sélectionné (key : "left", "right", "up", "down"),
+        qui reste sélectionné : hauteur, pied ou sommet monté (↑) ou descendu (↓) de 1 cm ;
+        largeur, voir _nudge_width."""
+        if key not in NUDGE_WORDS or not self.item:
+            return self.status()
+        if self.mode == "height" and self.tool.selected is not None:
+            m, index = self.tool.selected
+            if key in ("up", "down"):
+                m.lift(index, NUDGE if key == "up" else -NUDGE)
+                self.message = (m.error + " " if m.error else "") + (m.status() if m.result else "")
+            else:
+                self.message = "← → sans effet sur une hauteur : ↑ ↓ montent ou descendent le point."
+            self.message += " Flèches ↑ ↓ : encore 1 cm ; clic : recaler ; Entrée : terminer."
+            return self.status()
+        return self._nudge_width(key)
+
+    def finish_point(self):
+        """Touche Entrée : fin du calage du point sélectionné (hauteur ou largeur), qui
+        redevient un point ordinaire ; le résultat de sa mesure s'affiche."""
+        if self.mode == "height" and self.tool.selected is not None:
+            m = self.tool.selected[0]
+            self.tool.cancel_selection()
+            self.message = m.status() if m.result else ""
+            return self.status()
+        return self.finish_width()
+
+    def _nudge_width(self, key):
         """Flèches du clavier : point sélectionné d'une largeur déplacé de 1 cm le long de la
         droite de mesure, dans le sens vu sur la photo affichée (key : "left", "right" ; "up" :
         en s'éloignant de la caméra, "down" : en s'en rapprochant). Il reste sélectionné. Le
         point de référence entraîne toutes les largeurs qui en partent."""
-        if self.width_sel is None or not self.item or key not in NUDGE_WORDS:
+        if self.width_sel is None:
             return self.status()
         m, index = self.width_sel
         d = self._nudge_sign(m, index, key) * NUDGE  # le long de widths.perpendicular(axe)
@@ -551,7 +641,7 @@ class App:
             return
         self.message = (m.status() + self._rtk_warning(ref["sequences"] + [c.get("sequence") for c in m.clicks])
                         + " Autre hauteur sur ce point : cliquez à nouveau pied et sommet, depuis cette photo ou "
-                          "une autre ; sinon « Nouveau point de référence ».")
+                          "une autre ; sinon « Nouveau point de référence ». Clic droit sur une croix : la recaler.")
         self.tool.finish()  # mesure terminée : affichée avec les autres pendant les visées suivantes
 
     def _after_calibration(self, tool):
@@ -748,6 +838,10 @@ class App:
                     "(seule la direction compte, il reste sur la droite de mesure) ; flèches du clavier : 1 cm le "
                     "long de la droite (← → dans la photo, ↑ ↓ en s'éloignant ou en se rapprochant) ; Entrée "
                     "pour terminer.")
+        if self.mode == "height" and self.tool.selected is not None:
+            return ("{} de la hauteur sélectionné : cliquez sa position exacte sur la photo de la mesure, ou "
+                    "flèches du clavier ↑ ↓ : 1 cm ; Entrée pour terminer.").format(
+                "Pied" if self.tool.selected[1] == 0 else "Sommet")
         text = self._active().status()
         sequences = []
         if self._aiming():
@@ -805,7 +899,7 @@ class App:
             "waiting_map": self.waiting_map(),
             "point": self.triangulator.result is not None,
             "aiming": self._aiming(),
-            "width_sel": self.width_sel is not None,
+            "point_sel": self.width_sel is not None or (self.mode == "height" and self.tool.selected is not None),
             "active": self.active,
             "lights": self._lights(pic) if item else [],
         })
@@ -829,9 +923,14 @@ class App:
         """Repères de la photo affichée (JSON) : pour chaque mesure, points (cap et élévation
         dans le repère de la photo, radians), libellé, point sélectionné."""
         pic = (self.item or {}).get("id")
-        # Largeurs : visibles depuis toutes les photos (voir _width_points)
-        marks = [self.tool._marks(m) for m in self.tool.done if not isinstance(m, widths.PerpendicularWidth)]
+        # Hauteurs et largeurs : visibles depuis toutes les photos (voir _height_points, _width_points)
+        marks = [self.tool._marks(m) for m in self.tool.done
+                 if not isinstance(m, widths.PerpendicularWidth) and not (m.kind == "height" and m.result)]
         if self.item:
+            for m in self._heights():
+                marks.append({"points": [dict(p, pic=pic, sel=self.tool.selected == (m, k))
+                                         for k, p in enumerate(self._height_points(m))],
+                              "label": m.label(), "beside": True})
             for m in self._widths():
                 marks.append({"points": [dict(p, pic=pic, sel=self.width_sel == (m, k))
                                          for k, p in enumerate(self._width_points(m))],
@@ -848,13 +947,16 @@ class App:
         road = (self.ref_point or {}).get("road") if self.active and self.mode == "road" else None
         if road and self.item:  # en premier : dessinée sous les traits rouges des largeurs
             marks = [self._guide_mark(road)] + marks
+        if self.active and self.mode == "height" and self.ref_point and self.item:  # de même
+            marks = [self._vertical_mark()] + marks
         out = []
         for m in marks:
             points = [p for p in m["points"] if p.get("pic") == pic and p.get("yaw") is not None]
             if points:
                 out.append({"points": [[p["yaw"], p["pitch"], bool(p.get("sel"))] for p in points],
                             "label": m.get("label", ""), "beside": m.get("beside", False),
-                            "sighting": m.get("sighting", False), "guide": m.get("guide", False)})
+                            "sighting": m.get("sighting", False), "guide": m.get("guide", False),
+                            "vertical": m.get("vertical", False)})
         return json.dumps(out)
 
     def focus(self):
@@ -878,6 +980,19 @@ class App:
             if m is not None and m.result:
                 pts += [list(p) for p in m.result["picks"]] + [[c["lon"], c["lat"]] for c in m.clicks]
         return json.dumps(pts)
+
+    def _vertical_mark(self):
+        """Hauteur : verticale passant par le point de référence, dans la photo affichée
+        (repère de la visionneuse, tracé vert) : du sol supposé plat, à la hauteur de caméra du
+        réglage, jusqu'à VERTICAL_LENGTH m."""
+        lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
+        x, y = triangulation._local(self.ref_point["lon"], self.ref_point["lat"], lon, lat)
+        d = max(math.hypot(x, y), 0.5)
+        yaw = math.radians((math.degrees(math.atan2(x, y)) - self._heading() + 540) % 360 - 180)
+        height = self.tool.camera_height
+        points = [{"pic": self.item.get("id"), "yaw": yaw, "pitch": math.atan2(k * VERTICAL_LENGTH / 24 - height, d)}
+                  for k in range(25)]
+        return {"points": points, "guide": True, "vertical": True}
 
     def _guide_mark(self, road):
         """Droite de mesure de la largeur dans la photo affichée (repère de la visionneuse) :
