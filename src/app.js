@@ -657,10 +657,13 @@
   }
 
   // Pointeur de mesure : réticule fin (comme le plugin), la visionneuse imposant sinon main ou flèche
-  // Cercle extérieur jaune, vert une fois l'inclinaison de la photo calée (voir showLights)
-  const cursorCss = (tilted) => `.psv-container, .psv-container * { cursor: url("data:image/svg+xml;utf8,${
+  // Cercle extérieur jaune, vert une fois l'inclinaison de la photo calée (voir showLights), orange en calage
+  // En calage, cercle orange, comme le liseré de la visionneuse
+  const CALAGE = "#ff6f00";
+  const cursorCss = (tilted, calibrating) => `.psv-container, .psv-container * { cursor: url("data:image/svg+xml;utf8,${
     encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='33' height='33'>"
-      + `<circle cx='16.5' cy='16.5' r='15' fill='none' stroke='${tilted ? "#2ecc40" : "#ffeb00"}' stroke-width='2.5'/>`
+      + `<circle cx='16.5' cy='16.5' r='15' fill='none' stroke='${
+        calibrating ? CALAGE : tilted ? "#2ecc40" : "#ffeb00"}' stroke-width='2.5'/>`
       + "<path d='M16.5 2v11M16.5 20v11M2 16.5h11M20 16.5h11' stroke='#ff8a80' stroke-width='1.5'/>"
       + "<circle cx='16.5' cy='16.5' r='1' fill='white'/></svg>")}") 16 16, crosshair !important; }
     .psv-container .psv-virtual-tour-link, .psv-container .psv-virtual-tour-link * { cursor: pointer !important; }`;
@@ -676,8 +679,10 @@
     // prise de mesure (couleurs de leurs croix)
     const sighting = measuring && aiming;
     const taking = measuring && !aiming && ["road", "height"].includes(mode);
+    const calibrating = measuring && ["tilt", "heading"].includes(mode);
     $("#vue").classList.toggle("visee", sighting);
     $("#vue").classList.toggle("prise", taking);
+    $("#vue").classList.toggle("calage", calibrating);
     // Même état en toutes lettres, sous le rappel du mode (comme les voyants)
     const state = $("#etat-mesure");
     state.hidden = !sighting && !taking;
@@ -714,7 +719,7 @@
       style.remove();
     }
     if (style?.isConnected) {
-      const css = cursorCss(tilted);
+      const css = cursorCss(tilted, calibrating);
       if (style.textContent !== css) style.textContent = css;
     }
   }

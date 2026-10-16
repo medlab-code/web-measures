@@ -105,7 +105,9 @@ async function feature(id) {
   const box = w.mesures.psv.container;
   log("point pris · photo inchangée : " + (w.mesures.psv.getPictureMetadata?.()?.id === before)
     + " · flèches masquées : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden")
-    + " · pointeur réticule : " + !!box.getRootNode().getElementById?.("mesure-pointeur"));
+    + " · pointeur réticule : " + !!box.getRootNode().getElementById?.("mesure-pointeur")
+    + " · liseré " + doc.querySelector("#vue").className + " · cercle orange : "
+    + (box.getRootNode().getElementById?.("mesure-pointeur")?.textContent.includes("ff6f00")));
   app.clear();
   doc.querySelector("#mesure").click();
   log("Mesure désactivée : " + app.status() + " · pointeur réticule : "

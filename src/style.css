@@ -71,8 +71,9 @@ main { flex: 1; display: flex; min-height: 0; }
   min-width: 0;
   background: #000;
 }
-/* Liseré : visées de triangulation (bleu), prise de mesure (jaune), comme leurs croix */
-#vue.visee::after, #vue.prise::after {
+/* Liseré : visées de triangulation (bleu), prise de mesure (jaune), comme leurs croix ;
+   calage des photos (orange, comme le cercle du pointeur) */
+#vue.visee::after, #vue.prise::after, #vue.calage::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -82,6 +83,7 @@ main { flex: 1; display: flex; min-height: 0; }
 }
 #vue.visee::after { border-color: #00bce6; }
 #vue.prise::after { border-color: #ffeb00; }
+#vue.calage::after { border-color: #ff6f00; }
 
 #invite { color: #c8ccd0; padding: 1rem; text-align: center; }
 
