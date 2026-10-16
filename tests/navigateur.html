@@ -95,10 +95,12 @@ async function feature(id) {
   // Dijon ----------------------------------------------------------------------------------
   await open(DIJON[0]);
   // Bouton « Mesure » : un clic dans la photo prend un point, sans changer de photo
-  log("== clic dans la photo, Mesure activée : " + app.set_mode("road"));
+  doc.querySelector("#mode").value = "width";  // par la liste : flèches masquées
+  doc.querySelector("#mode").dispatchEvent(new Event("change"));
+  log("== clic dans la photo, Mesure activée : " + app.status());
   const before = w.mesures.psv.getPictureMetadata?.()?.id;
   psvClick(-0.45, -0.3);
-  await until(() => app.status().startsWith("Cliquez au pied du bord opposé"), 15000, "clic de mesure");
+  await until(() => app.status().startsWith("Cliquez au sol à l'autre extrémité"), 15000, "clic de mesure");
   const box = w.mesures.psv.container;
   log("point pris · photo inchangée : " + (w.mesures.psv.getPictureMetadata?.()?.id === before)
     + " · flèches masquées : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden")
@@ -109,21 +111,14 @@ async function feature(id) {
     + !!box.getRootNode().getElementById?.("mesure-pointeur"));
   log("clic ignoré par le calcul : " + app.click(-0.45, -0.3));
   doc.querySelector("#mesure").click();
-  log("== largeur : " + app.set_mode("road"));
-  app.click(-0.45, -0.3);
-  await until(() => app.status().startsWith("Cliquez au pied du bord opposé"), 15000, "premier bord");
-  app.click(0.5, -0.3);
-  await until(() => app.status().startsWith("Largeur"), 15000, "largeur");
-  log("résultat : " + app.status());
-  const h = JSON.parse(app.handles());
-  log("recalage : " + app.move_handle(0, h[0][0] + 0.00001, h[0][1]));
-
   log("== longueur : " + app.set_mode("width"));
   app.click(-1.2, -0.25);
   await sleep(3000);
   app.click(-1.0, -0.25);
   await until(() => app.status().startsWith("Longueur"), 15000, "longueur");
   log("résultat : " + app.status());
+  const h = JSON.parse(app.handles());
+  log("recalage : " + app.move_handle(h.length - 1, h[h.length - 1][0] + 0.00001, h[h.length - 1][1]).slice(0, 120));
 
   doc.querySelector("#mode").value = "tri";  // par la liste : flèches rétablies
   doc.querySelector("#mode").dispatchEvent(new Event("change"));
