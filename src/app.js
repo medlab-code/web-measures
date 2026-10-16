@@ -324,10 +324,25 @@
     drawViewerMarks(JSON.parse(app.viewer_marks()));
     Carte.showMeasures(map, JSON.parse(app.map_geojson()));
     Carte.showHandles(map, JSON.parse(app.handles()), (index, lon, lat) => refresh(app.move_handle(index, lon, lat)));
+    frame(app.focus());
     showResults(JSON.parse(app.results()));
     const results = app.has_results();
     $("#csv").disabled = !results;
     $("#geojson").disabled = !results;
+  }
+
+  /**
+   * Carte cadrée sur la mesure en cours (photo, visées, point de référence, mesure : voir
+   * App.focus), seulement quand ces points changent : la carte reste libre entre-temps.
+   */
+  let framed = "[]";
+  function frame(focus) {
+    if (focus === framed) return;
+    framed = focus;
+    const points = JSON.parse(focus);
+    if (points.length < 2 || mapBox.hidden) return;
+    const bounds = points.reduce((b, p) => b.extend(p), new maplibregl.LngLatBounds(points[0], points[0]));
+    map.fitBounds(bounds, { padding: 40, maxZoom: 20, duration: 400 });
   }
 
   function warnIfDegraded(state) {

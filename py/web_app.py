@@ -608,6 +608,28 @@ class App:
                             "label": m.get("label", ""), "beside": m.get("beside", False)})
         return json.dumps(out)
 
+    def focus(self):
+        """Points à montrer ensemble sur la carte (JSON, [[lon, lat]]) pendant une mesure :
+        photo affichée, photos des visées en cours et leur point, point de référence de la
+        hauteur, mesure en cours ou dernière terminée (points et photos)."""
+        if not self.active or self.mode in CALIBRATION_MODES:
+            return "[]"
+        pts = []
+        try:
+            pts.append([float(v) for v in self.item["geometry"]["coordinates"][:2]])
+        except (KeyError, TypeError, ValueError):
+            pass
+        pts += [[s["lon"], s["lat"]] for s in self.triangulator.sightings]
+        if self.triangulator.result:
+            pts.append([self.triangulator.result["lon"], self.triangulator.result["lat"]])
+        if self.mode == "height" and self.height_ref:
+            pts.append([self.height_ref["lon"], self.height_ref["lat"]])
+        if self.mode in GROUND_MODES:
+            m = self.tool.current or (self.tool.done[-1] if self.tool.done else None)
+            if m is not None and m.result:
+                pts += [list(p) for p in m.result["picks"]] + [[c["lon"], c["lat"]] for c in m.clicks]
+        return json.dumps(pts)
+
     def handles(self):
         """Poignées déplaçables sur la carte (JSON) : [[lon, lat, façade ?]], repérées par leur
         rang pour move_handle. Seulement en mesure, comme dans le plugin."""
