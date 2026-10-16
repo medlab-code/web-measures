@@ -444,7 +444,7 @@ const Carte = (() => {
         // Triangulation : fond d'une autre couleur, pour les points gardés et pour les distances
         element.className = "etiquette" + ({ triangule: " tri-point", distance: " tri" }[featureKind] || "");
         element.textContent = label;
-        const marker = new maplibregl.Marker({ element, offset: LABEL_OFFSET }).setLngLat(coords).addTo(map);
+        const marker = new maplibregl.Marker({ element, offset: labelOffset(element) }).setLngLat(coords).addTo(map);
         labels.push(marker);
         stacked.push(marker);
       }
@@ -469,19 +469,25 @@ const Carte = (() => {
   }
 
   // Étiquettes des mesures sans chevauchement : une étiquette qui en recouvre une autre déjà
-  // placée est remontée au-dessus, autant de fois que nécessaire (recalculé après chaque
-  // déplacement ou zoom de la carte)
-  const LABEL_OFFSET = [0, -20];
+  // placée est écartée encore, autant de fois que nécessaire (recalculé après chaque
+  // déplacement ou zoom de la carte). Mesures au-dessus de leur point, points triangulés
+  // dessous : le pied d'une hauteur est souvent sur son point de référence.
+  const LABEL_OFFSET = 20;
   const stacked = [];
+
+  /** Sens de l'étiquette : -1 au-dessus (mesures), 1 dessous (points triangulés). */
+  const labelSide = (element) => (element.classList.contains("tri-point") ? 1 : -1);
+  const labelOffset = (element) => [0, labelSide(element) * LABEL_OFFSET];
 
   function declutter() {
     const placed = [];
     for (const marker of stacked) {
-      marker.setOffset(LABEL_OFFSET);
-      let rect = marker.getElement().getBoundingClientRect();
+      const element = marker.getElement();
+      marker.setOffset(labelOffset(element));
+      let rect = element.getBoundingClientRect();
       for (let k = 1; k <= 10 && placed.some((p) => overlaps(p, rect)); k++) {
-        marker.setOffset([LABEL_OFFSET[0], LABEL_OFFSET[1] - k * (rect.height + 2)]);
-        rect = marker.getElement().getBoundingClientRect();
+        marker.setOffset([0, labelSide(element) * (LABEL_OFFSET + k * (rect.height + 2))]);
+        rect = element.getBoundingClientRect();
       }
       placed.push(rect);
     }
