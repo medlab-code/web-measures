@@ -443,11 +443,11 @@
   const NUDGE_KEYS = { ArrowRight: "right", ArrowLeft: "left", ArrowUp: "up", ArrowDown: "down" };
   document.addEventListener("keydown", (event) => {
     const direction = NUDGE_KEYS[event.key];
-    if (!direction || !app || !measuring || !widthSelected) return;
-    if (event.target.closest?.("input, select, textarea")) return;  // champ en cours de saisie
+    if ((!direction && event.key !== "Enter") || !app || !measuring || !widthSelected) return;
+    if (event.target.closest?.("input, select, textarea, button")) return;  // champ ou bouton actif
     event.preventDefault();
     event.stopPropagation();
-    refresh(app.nudge_width(direction));
+    refresh(direction ? app.nudge_width(direction) : app.finish_width());  // Entrée : calage terminé
   }, true);
 
   function openPhoto(feature) {

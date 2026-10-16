@@ -92,8 +92,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     key("ArrowLeft");
     log("bord : → vers la droite " + right + " · ← vers la gauche " + (yawOf(1) < y0) + " · "
       + doc.querySelector("#statut").textContent.slice(0, 160));
-    doc.querySelector("#effacer").click();
-    log("après Effacer : " + JSON.parse(app.results()).map((r) => r.text).join(" | ") + " · sélection : " + JSON.parse(app.state()).width_sel);
+    key("Enter");
+    log("après Entrée : " + JSON.parse(app.results()).map((r) => r.text).join(" | ") + " · sélection : " + JSON.parse(app.state()).width_sel);
     psvClick(markA[0], markA[1]);
     y0 = yawOf(0);
     key("ArrowRight"); key("ArrowRight");

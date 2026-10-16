@@ -478,7 +478,16 @@ class App:
             else:
                 self.message = "Point de référence {} déplacé de 1 cm {}. {}".format(
                     edge["name"], NUDGE_WORDS[key], m.status())
-        self.message += " Flèches : encore 1 cm ; clic : recaler ; « Effacer » : terminer."
+        self.message += " Flèches : encore 1 cm ; clic : recaler ; Entrée : terminer."
+        return self.status()
+
+    def finish_width(self):
+        """Touche Entrée : fin du calage du point sélectionné d'une largeur, qui redevient un
+        point ordinaire ; le résultat de la largeur s'affiche."""
+        if self.width_sel is not None:
+            m = self.width_sel[0]
+            self.width_sel = None
+            self.message = m.status() if m.result else ""
         return self.status()
 
     def _nudge_sign(self, m, index, key):
@@ -728,13 +737,13 @@ class App:
             if self.width_sel[1] == 0:
                 return ("Point de référence {} sélectionné : cliquez-le à nouveau depuis cette photo, il sera "
                         "retriangulé avec ses autres visées ; flèches du clavier : 1 cm le long de la droite "
-                        "(← → dans la photo, ↑ ↓ en s'éloignant ou en se rapprochant) ; « Effacer » pour "
-                        "annuler.").format(
+                        "(← → dans la photo, ↑ ↓ en s'éloignant ou en se rapprochant) ; Entrée pour "
+                        "terminer.").format(
                     self.width_sel[0].edge.get("name", ""))
             return ("Bord de la largeur sélectionné : cliquez sa position exacte, depuis cette photo ou une autre "
                     "(seule la direction compte, il reste sur la droite de mesure) ; flèches du clavier : 1 cm le "
-                    "long de la droite (← → dans la photo, ↑ ↓ en s'éloignant ou en se rapprochant) ; « Effacer » "
-                    "pour annuler.")
+                    "long de la droite (← → dans la photo, ↑ ↓ en s'éloignant ou en se rapprochant) ; Entrée "
+                    "pour terminer.")
         text = self._active().status()
         sequences = []
         if self._aiming():
