@@ -138,8 +138,12 @@ async function feature(id) {
   log(doc.querySelector("#statut").textContent);
   log("repère de la visée : " + JSON.parse(app.viewer_marks()).length + " · flèches visibles : "
     + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility !== "hidden"));
-  // Changement de photo : tant que la visionneuse montre l'ancienne, la visée est refusée
+  // Mesure désactivée pour changer de photo : la visée reste
+  doc.querySelector("#mesure").click();
   w.mesures.openPhoto(await feature(DIJON[1]));
+  doc.querySelector("#mesure").click();
+  log("mesure désactivée puis réactivée : " + app.status() + " · rappel : " + doc.querySelector("#mode-mesure").textContent);
+  // Tant que la visionneuse montre l'ancienne photo, la visée est refusée
   psvClick(0.95, 0.0);
   log("viser pendant le chargement : " + doc.querySelector("#statut").textContent);
   await until(() => w.mesures.psv.getPictureMetadata?.()?.id === DIJON[1], 30000, "photo suivante");

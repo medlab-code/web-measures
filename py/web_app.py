@@ -138,13 +138,14 @@ class App:
     def set_active(self, on):
         """Bouton « Mesure » : activé, les clics dans la photo mesurent et l'inclinaison de la
         photo est calculée ; désactivé, les mesures en cours sont terminées (les mesures réussies
-        restent affichées), comme dans le plugin."""
+        restent affichées), comme dans le plugin. Les visées de la triangulation restent : on
+        peut désactiver la mesure pour aller viser depuis une autre photo."""
         self.active = bool(on)
         self.message = ""
         if self.active:
             self._check_tilt()
         else:
-            self._clear_measures()
+            self._clear_measures(keep_sightings=True)
         return self.status()
 
     def _check_tilt(self):
@@ -164,11 +165,12 @@ class App:
         self._check_tilt()  # en quittant la triangulation
         return self.status()
 
-    def _clear_measures(self):
+    def _clear_measures(self, keep_sightings=False):
         """Termine les mesures en cours (réussies, elles restent affichées) ; le calage déjà
         fait est conservé (comme le plugin à un changement de mode)."""
         self.epoch += 1
-        self.triangulator.clear()
+        if not keep_sightings:
+            self.triangulator.clear()
         self.tool.finish()
         self.calibrator.reset()
 

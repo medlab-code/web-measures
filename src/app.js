@@ -634,6 +634,9 @@
     $("#mesure").setAttribute("aria-pressed", String(measuring));
     $("#mesure").classList.toggle("actif", measuring);
     $("#mode-mesure").hidden = !measuring;
+    $("#mode-mesure").textContent = $("#mode").value === "tri"
+      ? "Triangulation : clic sur l'objet pour viser, flèches pour changer de photo"
+      : "Mode mesure en cours : désélectionner pour naviguer";
     showModeOptions();
     const box = psv?.container;
     if (!box) return;
