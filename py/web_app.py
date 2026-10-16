@@ -252,6 +252,7 @@ class App:
         pic = item.get("id")
         self.quality = self.precision.known(item)
         self.precision.check(item, lambda res: self._on_precision(pic, res))
+        self.calibrator.refresh()  # carte : visées des repères de calage pris depuis cette photo
         for rel in ("prev", "next"):  # voisines : axe de la séquence
             nid = metadata.id_from_href(metadata.item_link(item, rel))
             if nid and nid not in self.neighbours:
