@@ -183,8 +183,8 @@ async function feature(id) {
   }
   log("visées : " + app.status() + " · bouton Valider affiché : " + !doc.querySelector("#garder").closest(".option").hidden);
   doc.querySelector("#garder").click();
-  log("validé : " + doc.querySelector("#statut").textContent + " · flèches masquées : "
-    + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden")
+  log("validé : " + doc.querySelector("#statut").textContent + " · flèches visibles (étape 2) : "
+    + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility !== "hidden")
     + " · rappel : " + doc.querySelector("#mode-mesure").textContent);
   const ref = JSON.parse(app.map_geojson()).features.filter((f) => f.properties.kind === "triangule").pop().geometry.coordinates;
   const d = Math.hypot(...metres(ref, p1));

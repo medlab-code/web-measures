@@ -103,8 +103,9 @@ class App:
         self.links = []  # distances entre deux points gardés : (n° du premier, n° du second, attributs)
         self.named = 0  # points gardés depuis le début : nom du suivant (A, B… voir _point_name)
         self.proposal = None  # (n°, n°) : distance à proposer après l'effacement du point qui les reliait
-        # Hauteur : point triangulé au pied de l'objet (lon, lat, uncertainty, name), validé, qui
-        # attend le pied et le sommet cliqués dans la photo ; None : à trianguler d'abord
+        # Hauteur : point triangulé au pied de l'objet (lon, lat, uncertainty, name, sequences),
+        # validé : les hauteurs suivantes s'y calent, depuis n'importe quelle photo, jusqu'au
+        # prochain (new_reference) ; None : à trianguler d'abord
         self.height_ref = None
         self._handles = []  # clés des poignées de la carte, dans l'ordre de handles()
         self.calibration_version = 0  # augmente à chaque changement du calage (à enregistrer)
@@ -333,8 +334,17 @@ class App:
             traceback.print_exc()
         self.notify()
 
+    def new_reference(self):
+        """Hauteur : « Nouveau point de référence » ; les hauteurs déjà faites restent."""
+        self.epoch += 1  # pied cliqué en attente de son profil : abandonné
+        self.tool.clear()
+        self.triangulator.clear()
+        self.height_ref = None
+        self.message = ""
+        return self.status()
+
     def _anchor_height(self):
-        """Hauteur terminée : calée sur le point de référence, qui ne sert qu'une fois."""
+        """Hauteur terminée : calée sur le point de référence, qui reste pour les suivantes."""
         m = self.tool.current
         if self.mode != "height" or self.height_ref is None or m is None or not m.result or m.reference:
             return
@@ -343,9 +353,9 @@ class App:
         if m.error:
             self.message = m.error
             return
-        self.height_ref = None
         self.message = (m.status() + self._rtk_warning(ref["sequences"] + [c.get("sequence") for c in m.clicks])
-                        + " Hauteur suivante : triangulez le pied du prochain objet.")
+                        + " Autre hauteur sur ce point : cliquez à nouveau pied et sommet, depuis cette photo ou "
+                          "une autre ; sinon « Nouveau point de référence ».")
         self.tool.finish()  # mesure terminée : affichée avec les autres pendant les visées suivantes
 
     def _after_calibration(self, tool):
@@ -419,8 +429,9 @@ class App:
         if self.mode == "height":  # point de référence de la hauteur, sans distance au précédent
             self.height_ref = {"lon": r["lon"], "lat": r["lat"], "uncertainty": r["uncertainty"], "name": name,
                                "sequences": sequences}
-            self.message = ("Point de référence {} validé (±{} m). Cliquez maintenant dans la photo le pied "
-                            "de l'objet, au contact du sol, puis son sommet.").format(name, measures._num(r["uncertainty"]))
+            self.message = ("Point de référence {} validé (±{} m). Cliquez maintenant le pied de l'objet, au "
+                            "contact du sol, puis son sommet, depuis cette photo ou une autre (flèches).").format(
+                name, measures._num(r["uncertainty"]))
             self.message += warning
             return self.status()
         self.message = "Point {} gardé (incertitude ±{} m) : il sera exporté avec les mesures.".format(
@@ -456,12 +467,6 @@ class App:
         self.message = ""
         tool = self._active()
         if tool is self.tool and tool.cancel_selection():
-            return self.status()
-        current = self.tool.current
-        if self.mode == "height" and self.height_ref is not None and not (
-                current is not None and 0 < len(current.clicks) < current.needed()):
-            self.height_ref = None  # rien de cliqué depuis : point de référence abandonné
-            self.message = "Point de référence abandonné : triangulez à nouveau le pied de l'objet."
             return self.status()
         self.epoch += 1
         tool.clear()

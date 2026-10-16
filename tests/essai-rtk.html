@@ -54,6 +54,26 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       + " · croix " + box.querySelectorAll(".croix").length + " · sur la carte : "
       + JSON.parse(app.map_geojson()).features.map((f) => f.properties.kind).join(","));
     log("attendu sans inclinaison : " + (d * 2 * Math.tan(0.3)).toFixed(3) + " m");
+    // Même point de référence, depuis l'autre photo de la triangulation
+    log("flèches visibles en étape 2 : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility !== "hidden")
+      + " · rappel : " + doc.querySelector("#mode-mesure").textContent
+      + " · bouton nouveau point : " + !doc.querySelector("#nouvelle-reference").closest(".option").hidden);
+    w.mesures.openPhoto(photos[0]);
+    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "photo 1");
+    await sleep(1000);
+    log("photo 1 : " + app.status().slice(0, 80));
+    const d0 = Math.hypot(...metres(ref, p0));
+    psvClick(yawTo(photos[0], ref), -0.3);
+    await until(() => doc.querySelector("#statut").textContent.includes("sommet"), 30000, "pied 2");
+    psvClick(yawTo(photos[0], ref), 0.2);
+    await until(() => doc.querySelector("#statut").textContent.startsWith("Hauteur :"), 30000, "hauteur 2");
+    log("2e hauteur : " + doc.querySelector("#statut").textContent.slice(0, 110));
+    log("attendu sans inclinaison : " + (d0 * (Math.tan(0.2) + Math.tan(0.3))).toFixed(3) + " m");
+    await sleep(500);
+    log("étiquettes : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | "));
+    doc.querySelector("#nouvelle-reference").click();
+    log("nouveau point : " + doc.querySelector("#statut").textContent.slice(0, 60) + " · résultats : "
+      + JSON.parse(app.results()).map((r) => r.text).join(" | "));
   } catch (e) { log("ERREUR " + e); }
   log("FIN");
 })();

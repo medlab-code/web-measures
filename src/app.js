@@ -618,9 +618,12 @@
    */
   let aiming = false;
 
-  /** Flèches masquées en mesure, sauf pour viser, ce qui demande de changer de photo. */
+  /**
+   * Flèches masquées en mesure, sauf pour viser, ce qui demande de changer de photo, et en
+   * hauteur, mesurable depuis toute photo une fois le point de référence validé.
+   */
   function hidesArrows() {
-    return measuring && !aiming;
+    return measuring && !aiming && $("#mode").value !== "height";
   }
 
   /** Clic sur une flèche de la visionneuse (photo suivante, précédente…) : il navigue. */
@@ -648,7 +651,7 @@
     $("#mode-mesure").textContent = mode === "tri"
       ? "Triangulation : clic sur l'objet pour viser, flèches pour changer de photo"
       : mode === "height" && aiming ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point »"
-      : mode === "height" ? "Hauteur, étape 2 : cliquez le pied puis le sommet de l'objet"
+      : mode === "height" ? "Hauteur, étape 2 : cliquez le pied puis le sommet, depuis cette photo ou une autre (flèches)"
       : "Mode mesure en cours : désélectionner pour naviguer";
     showModeOptions();
     const box = psv?.container;
@@ -752,7 +755,9 @@
     for (const option of document.querySelectorAll("header .option")) {
       const modes = option.dataset.modes.split(" ");
       // « Valider le point » : seulement pendant les visées (hauteur : point de référence)
-      option.hidden = !modes.includes(mode) || (option.contains($("#garder")) && !aiming);
+      // « Nouveau point de référence » : une fois le point validé
+      option.hidden = !modes.includes(mode) || (option.contains($("#garder")) && !aiming)
+        || (option.contains($("#nouvelle-reference")) && aiming);
     }
   }
 
@@ -777,6 +782,7 @@
     $(id).addEventListener("change", () => refresh(app.set_reference($("#reference").value, Number($("#longueur").value))));
   }
   $("#garder").addEventListener("click", () => refresh(app.keep_point()));
+  $("#nouvelle-reference").addEventListener("click", () => refresh(app.new_reference()));
   $("#effacer").addEventListener("click", () => refresh(app.clear()));
   $("#tout-effacer").addEventListener("click", () => refresh(app.clear_all()));
   new MutationObserver(showModeOptions).observe(viewer, { attributes: true, attributeFilter: ["hidden"] });
