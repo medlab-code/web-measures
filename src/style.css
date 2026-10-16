@@ -394,11 +394,11 @@ button.principal { font-weight: 600; }
    dans le bloc du haut, sous le rappel du mode */
 #calcul-inclinaison {
   margin: 0;
-  padding: 0.2rem 0.6rem;
+  padding: 0.15rem 0.5rem;
   border-radius: 4px;
   background: var(--etiquette-vue);
   color: #ffeb00;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   text-align: center;
   text-shadow: var(--detoure-vue);
