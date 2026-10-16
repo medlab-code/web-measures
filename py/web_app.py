@@ -375,16 +375,28 @@ class App:
         if pic is not None and pic == m.clicks[1].get("pic"):
             return [{"yaw": p["yaw"], "pitch": p["pitch"], "abs_yaw": p["abs_yaw"], "elev": p["elev"]}
                     for p in m.viewer_marks()["points"]]
+        return [self._project(plon, plat) for plon, plat in m.result["points"]]
+
+    def _project(self, plon, plat):
+        """Repère dans la photo affichée d'un point de la carte, au sol supposé plat (hauteur de
+        caméra du réglage) : {yaw, pitch (radians, repère de la photo), abs_yaw, elev (degrés)}."""
         lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
-        heading, height = self._heading(), self.tool.camera_height
-        out = []
-        for plon, plat in m.result["points"]:
-            x, y = triangulation._local(plon, plat, lon, lat)
-            bearing = math.degrees(math.atan2(x, y))
-            elev = -math.degrees(math.atan2(height, max(math.hypot(x, y), 0.5)))
-            out.append({"yaw": math.radians((bearing - heading + 540) % 360 - 180), "pitch": math.radians(elev),
-                        "abs_yaw": bearing % 360, "elev": elev})
-        return out
+        x, y = triangulation._local(plon, plat, lon, lat)
+        bearing = math.degrees(math.atan2(x, y))
+        elev = -math.degrees(math.atan2(self.tool.camera_height, max(math.hypot(x, y), 0.5)))
+        return {"yaw": math.radians((bearing - self._heading() + 540) % 360 - 180), "pitch": math.radians(elev),
+                "abs_yaw": bearing % 360, "elev": elev}
+
+    def _reference_mark(self):
+        """Croix du point de référence validé dans la photo affichée : là où il a été visé
+        depuis cette photo, sinon projeté au sol depuis sa position sur la carte."""
+        ref, pic = self.ref_point, self.item.get("id")
+        seen = next((s for s in ref.get("sightings", []) if s["pic"] == pic and s.get("view")), None)
+        if seen is not None:
+            point = {"yaw": seen["view"][0], "pitch": seen["view"][1]}
+        else:
+            point = self._project(ref["lon"], ref["lat"])
+        return {"points": [dict(point, pic=pic)], "label": "", "beside": False}
 
     def _widths(self):
         return [m for m in self.tool.measures() if isinstance(m, widths.PerpendicularWidth) and m.result]
@@ -795,6 +807,8 @@ class App:
             marks = marks + [self.tool.viewer_marks()]
         elif self.active and self.mode in CALIBRATION_MODES:
             marks = marks + [self.calibrator.viewer_marks()]
+        if self.active and self.mode in REF_MODES and self.ref_point and self.item:
+            marks = marks + [self._reference_mark()]
         road = (self.ref_point or {}).get("road") if self.active and self.mode == "road" else None
         if road and self.item:
             marks = marks + [self._guide_mark(road)]

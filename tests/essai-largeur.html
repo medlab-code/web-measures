@@ -40,6 +40,9 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("visées : " + app.status());
     doc.querySelector("#garder").click();
     log("validé : " + doc.querySelector("#statut").textContent);
+    await sleep(300);
+    log("croix du point de référence : " + w.mesures.psv.container.querySelectorAll(".croix:not(.visee)").length
+      + " · visées bleues : " + w.mesures.psv.container.querySelectorAll(".croix.visee").length);
     await until(() => JSON.parse(app.map_geojson()).features.some((f) => f.properties.kind === "trace"), 30000, "axe de la route");
     const features = JSON.parse(app.map_geojson()).features;
     const ref = features.filter((f) => f.properties.kind === "triangule").pop().geometry.coordinates;
@@ -58,6 +61,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     w.mesures.openPhoto(photos[0]);
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "photo 1");
     await sleep(1000);
+    log("croix du point sur l'autre photo : " + box.querySelectorAll(".croix:not(.visee)").length);
     psvClick(yawTo(photos[0], b), -0.3);
     await sleep(500);
     log("largeur : " + doc.querySelector("#statut").textContent);
