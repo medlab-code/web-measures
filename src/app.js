@@ -66,6 +66,7 @@
     apiUrl = Carte.setInstance(map, instance.value);
     viewer.setAttribute("endpoint", apiUrl);
     app?.set_api_url(apiUrl);
+    checkPhoto();
   });
 
   // Hauteur de la carte : poignée à glisser (mémorisée), bouton pour la replier --------------
@@ -203,6 +204,7 @@
     try {
       const feature = await Carte.photoById(id);
       if (!feature || photo) return;  // photo supprimée depuis, ou autre photo choisie
+      if (app && !passesFilter(feature)) return;  // sinon vérifiée au chargement du calcul
       openPhoto(feature);
       map.jumpTo({ center: feature.geometry.coordinates, zoom: 17 });
     } catch (error) {
@@ -398,12 +400,11 @@
     }
     showPhotoInfo(null, "Recherche de la photo la plus proche…");
     try {
-      const accept = app ? (feature) => app.filter_matches(JSON.stringify(feature)) : undefined;
-      const feature = await Carte.nearestPhoto(map, lng, lat, accept);
+      const feature = await Carte.nearestPhoto(map, lng, lat, passesFilter);
       if (!feature) {
-        const filtered = app && app.filter_text();
-        showPhotoInfo(null, filtered ? `Aucune photo près de ce point avec le filtre (${filtered}).`
-          : "Aucune photo près de ce point : cliquez sur le filaire orange.");
+        showPhotoInfo(null, !filterActive() ? "Aucune photo près de ce point : cliquez sur le filaire orange."
+          : app ? `Aucune photo près de ce point avec le filtre (${app.filter_text()}).`
+          : "Filtre en attente du calcul, encore en chargement : cliquez à nouveau dans un instant.");
         return;
       }
       openPhoto(feature);
@@ -427,6 +428,39 @@
       else viewer.setAttribute("picture", feature.id);
     }
     attachViewer();
+  }
+
+  /**
+   * Ferme la photo affichée, qui n'est plus de l'instance ou ne passe plus le filtre choisis :
+   * ses flèches mèneraient sinon aux photos voisines qu'ils écartent. Les résultats restent.
+   */
+  function closePhoto(message) {
+    if (measuring) $("#mesure").click();
+    photo = null;
+    store.set("photo", "");
+    viewer.hidden = true;
+    $("#invite").hidden = false;
+    $("#producteur-photo").hidden = true;
+    $("#capture-hd").disabled = true;
+    $("#vignette").disabled = true;
+    Carte.showView(map, null);
+    showPhotoInfo(null, message);
+  }
+
+  /** Photo affichée encore de l'instance et dans le filtre choisis ? Sinon, fermée. */
+  async function checkPhoto() {
+    const shown = photo;
+    if (!shown) return;
+    if (!passesFilter(shown)) {
+      closePhoto(app ? `Photo fermée : hors du filtre (${app.filter_text()}).` : "Photo fermée : hors du filtre.");
+      return;
+    }
+    try {
+      const feature = await Carte.photoById(shown.id);  // cherchée dans l'instance choisie
+      if (!feature && photo === shown) closePhoto("Photo fermée : elle n'est pas dans l'instance choisie.");
+    } catch (error) {
+      console.warn("Instance de la photo non vérifiée :", error);
+    }
   }
 
   function setPhoto(feature, recenter) {
@@ -541,8 +575,14 @@
           return;
         }
         try {
-          const feature = await Carte.photoById(id);
-          if (feature) setPhoto(feature, true);
+          const feature = await Carte.photoById(id);  // null : photo d'une autre instance
+          if (feature && passesFilter(feature)) {
+            setPhoto(feature, true);
+          } else if (photo) {  // photo voisine écartée : retour à la précédente
+            viewer.select(photo.collection || null, photo.id, true);
+            notice(feature ? `Photo voisine hors du filtre (${app ? app.filter_text() : "calcul en chargement"}).`
+              : "Photo voisine hors de l'instance choisie.");
+          }
         } catch (error) {
           console.error(error);
         }
@@ -744,14 +784,34 @@
     };
   }
 
+  function filterActive() {
+    return Object.values(currentFilter()).some((v) => v != null);
+  }
+
+  /** La photo (fiche STAC) passe-t-elle le filtre ? Tant que le calcul se charge, un filtre actif refuse tout. */
+  function passesFilter(feature) {
+    return app ? app.filter_matches(JSON.stringify(feature)) : !filterActive();
+  }
+
   function applyFilter(save = true) {
     const f = currentFilter();
     if (save) store.set("filtre", JSON.stringify(f));
     Carte.setFilter(map, f);
     if (app) app.set_filter(JSON.stringify(f));
-    const active = Object.values(f).some((v) => v != null);
+    const active = filterActive();
     $("#filtre-actif").textContent = active ? "●" : "";
     $("#filtre-actif").title = active && app ? app.filter_text() : "";
+    if (app) checkPhoto();  // sans le calcul, le filtre n'est pas encore évalué
+  }
+
+  /** Message passager en haut de la visionneuse. */
+  let noticeTimer = null;
+  function notice(text) {
+    const box = $("#avis");
+    box.textContent = text;
+    box.hidden = false;
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => { box.hidden = true; }, 4000);
   }
 
   function addProducer(producer) {
