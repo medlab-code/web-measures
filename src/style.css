@@ -63,7 +63,7 @@ header .captures { display: inline-flex; gap: 0.5em; }
 header .droite { display: inline-flex; align-items: center; gap: 0.5em 1.2em; margin-left: auto; }
 
 h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
-header h1 { font-size: 1em; }
+header h1 { font-size: 1.2em; line-height: 1; }  /* 18 px : titre un peu plus grand que la barre */
 /* Logo : hauteur de la barre moins 2 px en haut et en bas (marges intérieures 0,5 em + 2 px et
    0,5 em + 1 px, bouton de 1,65 em, bordure de 1 px) ; il déborde sur ces marges sans agrandir la
    barre. Titre à une espace du logo. */
