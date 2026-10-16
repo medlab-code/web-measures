@@ -64,7 +64,15 @@ header .droite { display: inline-flex; align-items: center; gap: 0.5em 1.2em; ma
 
 h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
 header h1 { font-size: 1em; }
-header .logo { display: block; width: 1.86em; height: 1.86em; margin-right: -0.3em; }  /* 28 px, collé au titre */
+/* Logo : hauteur de la barre moins 2 px en haut et en bas (marges intérieures 0,5 em + 2 px et
+   0,5 em + 1 px, bouton de 1,65 em, bordure de 1 px) ; il déborde sur ces marges sans agrandir la
+   barre. Titre à une espace du logo. */
+header .logo {
+  display: block;
+  width: calc(2.65em - 1px);
+  height: calc(2.65em - 1px);
+  margin: calc(-0.5em) -0.05em calc(-0.5em + 1px) 0;
+}
 h2 { font-size: 0.95rem; margin: 0 0 0.4rem; }
 
 main { flex: 1; display: flex; min-height: 0; }
