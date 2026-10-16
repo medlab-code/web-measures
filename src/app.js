@@ -647,8 +647,8 @@
     const mode = $("#mode").value;
     $("#mode-mesure").textContent = mode === "tri"
       ? "Triangulation : clic sur l'objet pour viser, flèches pour changer de photo"
-      : mode === "height" && aiming ? "Hauteur : triangulez le pied de l'objet (clic pour viser, flèches pour changer de photo)"
-      : mode === "height" ? "Hauteur : cliquez le pied puis le sommet de l'objet"
+      : mode === "height" && aiming ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point »"
+      : mode === "height" ? "Hauteur, étape 2 : cliquez le pied puis le sommet de l'objet"
       : "Mode mesure en cours : désélectionner pour naviguer";
     showModeOptions();
     const box = psv?.container;

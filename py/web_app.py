@@ -389,7 +389,16 @@ class App:
             return self.status()
         self.message = ""
         sighting["view"] = [yaw, pitch]  # repère de la visée dans la photo (viewer_marks)
+        replaced = any(s["pic"] == sighting["pic"] for s in self.triangulator.sightings)
         self.triangulator.add(sighting)
+        if replaced:  # une visée par photo : un second clic (le sommet ?) remplace la première
+            self.message = "Visée de cette photo remplacée : une seule visée par photo. "
+            if self.mode == "height":
+                self.message += ("Étape 1 : visez le pied de l'objet depuis une autre photo (flèches pour changer "
+                                 "de photo), puis « Valider le point » ; le pied et le sommet se cliquent ensuite.")
+            else:
+                self.message += "Changez de photo (flèches) pour viser le même objet d'un autre point de vue."
+            self.message += self._rtk_warning([s.get("sequence") for s in self.triangulator.sightings])
         return self.status()
 
     def keep_point(self):
@@ -514,11 +523,12 @@ class App:
         if self._aiming():
             sequences = [s.get("sequence") for s in self.triangulator.sightings]
         if self.mode == "height" and self.height_ref is None:
-            text = "Hauteur, 1/2 : triangulez le pied de l'objet. " + text
+            text = ("Hauteur, étape 1/2 : visez le pied de l'objet depuis au moins deux photos (une visée par "
+                    "photo, flèches pour changer de photo). " + text)
             if self.triangulator.result is not None:
                 text += " Puis « Valider le point »."
         elif self.mode == "height":
-            text = "Hauteur, 2/2 (point {}) : {}".format(self.height_ref["name"], text)
+            text = "Hauteur, étape 2/2 (point {}) : {}".format(self.height_ref["name"], text)
             current = self.tool.current
             sequences = self.height_ref["sequences"] + [c.get("sequence") for c in (current.clicks if current else [])]
         return text + self._rtk_warning(sequences)
