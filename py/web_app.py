@@ -109,6 +109,7 @@ class App:
         # mesures suivantes s'y appuient, depuis n'importe quelle photo, jusqu'au prochain
         # (new_reference) ; None : à trianguler d'abord
         self.ref_point = None
+        self.width_sel = None  # largeur : (mesure, 0 pour le point de référence ou 1 pour le bord) à recaler
         self._handles = []  # clés des poignées de la carte, dans l'ordre de handles()
         self.calibration_version = 0  # augmente à chaque changement du calage (à enregistrer)
         self.active = False  # bouton « Mesure » de la page : clics dans la photo pour mesurer
@@ -310,10 +311,10 @@ class App:
             return self.status()
         self.message = ""
         tool = self._active()
+        if self.mode == "road":
+            return self._width_click(click)
         if tool is self.tool and tool.select_near(click):
             return self.status()  # repère d'un point : sélectionné pour le viser à nouveau
-        if self.mode == "road" and tool.selected is None:
-            return self._width_click(click)
         if not tool.needs_profile():
             tool.add_click(click)  # sommet d'un objet ou calage : pas de terrain
             self._after_calibration(tool)
@@ -340,7 +341,14 @@ class App:
 
     def _width_click(self, click):
         """Largeur : le bord opposé, sur la droite perpendiculaire passant par le point de
-        référence (voir core/widths.py). Chaque clic donne une largeur."""
+        référence (voir core/widths.py). Chaque clic donne une largeur ; un clic sur le repère
+        d'un point d'une largeur le sélectionne, le suivant le recale (voir _recale_width)."""
+        if self.width_sel is not None:
+            return self._recale_width(click)
+        near = self._width_near(click)
+        if near is not None:
+            self.width_sel = near
+            return self.status()
         ref = self.ref_point
         if ref.get("road") is None:
             self._road_at_reference()
@@ -355,6 +363,80 @@ class App:
         self.tool.done.append(m)
         self.message = (m.status() + self._rtk_warning(ref["sequences"] + [click.get("sequence")])
                         + " Autre largeur depuis ce point : cliquez un autre bord ; sinon « Nouveau point de référence ».")
+        return self.status()
+
+    def _width_points(self, m):
+        """Repères du point de référence et du bord d'une largeur dans la photo affichée :
+        [{yaw, pitch (radians, repère de la photo), abs_yaw, elev (degrés)}]. Sur la photo du
+        clic, là où il a été fait ; sur les autres, projetés au sol supposé plat (hauteur de
+        caméra du réglage) depuis leur position sur la carte."""
+        pic = (self.item or {}).get("id")
+        if pic is not None and pic == m.clicks[1].get("pic"):
+            return [{"yaw": p["yaw"], "pitch": p["pitch"], "abs_yaw": p["abs_yaw"], "elev": p["elev"]}
+                    for p in m.viewer_marks()["points"]]
+        lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
+        heading, height = self._heading(), self.tool.camera_height
+        out = []
+        for plon, plat in m.result["points"]:
+            x, y = triangulation._local(plon, plat, lon, lat)
+            bearing = math.degrees(math.atan2(x, y))
+            elev = -math.degrees(math.atan2(height, max(math.hypot(x, y), 0.5)))
+            out.append({"yaw": math.radians((bearing - heading + 540) % 360 - 180), "pitch": math.radians(elev),
+                        "abs_yaw": bearing % 360, "elev": elev})
+        return out
+
+    def _widths(self):
+        return [m for m in self.tool.measures() if isinstance(m, widths.PerpendicularWidth) and m.result]
+
+    def _width_near(self, click):
+        """(largeur, n° de point) dont le repère est le plus près du clic (à moins de
+        measures.SELECT_ANGLE degrés), ou None."""
+        raw = click.get("raw") or [click["yaw"], click["elev"]]
+        best, best_d = None, measures.SELECT_ANGLE
+        for m in self._widths():
+            for index, p in enumerate(self._width_points(m)):
+                dyaw = (raw[0] - p["abs_yaw"] + 540) % 360 - 180
+                d = math.hypot(dyaw * math.cos(math.radians(raw[1])), raw[1] - p["elev"])
+                if d < best_d:
+                    best, best_d = (m, index), d
+        return best
+
+    def _recale_width(self, click):
+        """Point sélectionné d'une largeur, recalé par ce clic : le bord, sur la droite de
+        mesure dans la nouvelle direction ; le point de référence, retriangulé avec cette
+        visée en plus (celle déjà faite depuis cette photo remplacée), et toutes les largeurs
+        qui s'y appuient recalculées."""
+        m, index = self.width_sel
+        self.width_sel = None
+        if index == 1:
+            m.reaim(1, click)
+            self.message = (m.error + " " if m.error else "") + m.status() + " Bord recalé."
+            return self.status()
+        edge = m.edge
+        sighting = tools.photo_sighting(self.item, click["raw"][0], click["raw"][1], self.calibration, self.quality)
+        if sighting is None:
+            self.message = "Position de la photo inconnue : point de référence non recalé."
+            return self.status()
+        sighting["view"] = click.get("pos")
+        tri = tools.Triangulator()
+        tri.sightings = [s for s in edge.get("sightings", []) if s["pic"] != sighting["pic"]] + [sighting]
+        tri._compute()
+        values = tri.attributes()
+        if values is None:
+            self.message = "Point de référence non recalé : {}".format(tri.error or "il faut deux visées.")
+            return self.status()
+        r = tri.result
+        edge.update(lon=r["lon"], lat=r["lat"], uncertainty=r["uncertainty"], sightings=tri.sightings,
+                    sequences=[s.get("sequence") for s in tri.sightings])
+        for k, (_, _, v) in enumerate(self.points):  # le point gardé du même nom suit
+            if v["nom"] == edge["name"]:
+                self.points[k] = (r["lon"], r["lat"], dict(v, **values))
+        for w in self.tool.measures():
+            if isinstance(w, widths.PerpendicularWidth) and w.edge is edge:
+                w.clicks[0] = w._edge_mark(w.clicks[1])
+                w.compute()
+        self.message = "Point de référence {} retriangulé avec {} visées (±{} m) : largeurs recalculées.".format(
+            edge["name"], len(tri.sightings), measures._num(r["uncertainty"], 2))
         return self.status()
 
     def _road_at_reference(self):
@@ -460,7 +542,8 @@ class App:
             self.message = self.triangulator.error or "Il faut au moins deux visées qui se croisent."
             return self.status()
         r = self.triangulator.result
-        sequences = [s.get("sequence") for s in self.triangulator.sightings]
+        sightings = self.triangulator.sightings
+        sequences = [s.get("sequence") for s in sightings]
         warning = self._rtk_warning(sequences)
         name = _point_name(self.named)
         self.named += 1
@@ -469,7 +552,7 @@ class App:
         self.triangulator.clear()
         if self.mode in REF_MODES:  # point de référence, sans distance au précédent
             self.ref_point = {"lon": r["lon"], "lat": r["lat"], "uncertainty": r["uncertainty"], "name": name,
-                              "sequences": sequences, "road": None}
+                              "sequences": sequences, "road": None, "sightings": list(sightings)}
             if self.mode == "height":
                 self.message = ("Point de référence {} validé (±{} m). Cliquez maintenant le pied de l'objet, au "
                                 "contact du sol, puis son sommet, depuis cette photo ou une autre (flèches).")
@@ -513,6 +596,9 @@ class App:
         self.message = ""
         tool = self._active()
         if tool is self.tool and tool.cancel_selection():
+            return self.status()
+        if self.width_sel is not None:
+            self.width_sel = None
             return self.status()
         self.epoch += 1
         tool.clear()
@@ -575,6 +661,13 @@ class App:
             return self.message or "Cliquez « 📐 Mesure » pour mesurer dans la photo ou la caler."
         if self.message:
             return self.message
+        if self.width_sel is not None:
+            if self.width_sel[1] == 0:
+                return ("Point de référence {} sélectionné : cliquez-le à nouveau depuis cette photo, il sera "
+                        "retriangulé avec ses autres visées ; « Effacer » pour annuler.").format(
+                    self.width_sel[0].edge.get("name", ""))
+            return ("Bord de la largeur sélectionné : cliquez sa position exacte, depuis cette photo ou une autre "
+                    "(seule la direction compte, il reste sur la droite de mesure) ; « Effacer » pour annuler.")
         text = self._active().status()
         sequences = []
         if self._aiming():
@@ -655,7 +748,13 @@ class App:
         """Repères de la photo affichée (JSON) : pour chaque mesure, points (cap et élévation
         dans le repère de la photo, radians), libellé, point sélectionné."""
         pic = (self.item or {}).get("id")
-        marks = self.tool.done_marks()
+        # Largeurs : visibles depuis toutes les photos (voir _width_points)
+        marks = [self.tool._marks(m) for m in self.tool.done if not isinstance(m, widths.PerpendicularWidth)]
+        if self.item:
+            for m in self._widths():
+                marks.append({"points": [dict(p, pic=pic, sel=self.width_sel == (m, k))
+                                         for k, p in enumerate(self._width_points(m))],
+                              "label": m.label(), "beside": False})
         if self.active and self._aiming():  # visées faites depuis cette photo
             marks = marks + [{"points": [{"pic": s["pic"], "yaw": s["view"][0], "pitch": s["view"][1]}
                                          for s in self.triangulator.sightings if "view" in s], "sighting": True}]

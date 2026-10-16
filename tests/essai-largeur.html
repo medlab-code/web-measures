@@ -63,8 +63,23 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("largeur : " + doc.querySelector("#statut").textContent);
     log("étiquettes : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
       + " · carte : " + JSON.parse(app.map_geojson()).features.map((f) => f.properties.kind).join(","));
-    // Depuis une photo juste en face du point : visée parallèle refusée
-    const front = toLonLat([side * 3 * ux, side * 3 * uy]);
+    // Autre photo : la largeur reste visible ; recalage du bord, puis du point de référence
+    w.mesures.openPhoto(photos[1]);
+    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[1].id, 30000, "photo 2");
+    await sleep(1000);
+    const width = () => JSON.parse(app.viewer_marks()).find((m) => m.label.startsWith("↔"));
+    log("sur l'autre photo : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
+      + " · croix " + box.querySelectorAll(".croix").length);
+    const [markA, markB] = width().points;
+    psvClick(markB[0], markB[1]);
+    log("clic sur B : " + doc.querySelector("#statut").textContent.slice(0, 60) + " · choisi : " + width().points[1][2]);
+    const b9 = toLonLat([side * 9 * ux, side * 9 * uy]);
+    psvClick(yawTo(photos[1], b9), -0.3);
+    log("B recalé : " + doc.querySelector("#statut").textContent.slice(0, 120));
+    psvClick(markA[0], markA[1]);
+    log("clic sur A : " + doc.querySelector("#statut").textContent.slice(0, 60));
+    psvClick(yawTo(photos[1], target), -0.35);
+    log("A recalé : " + doc.querySelector("#statut").textContent + " · " + JSON.parse(app.results()).map((r) => r.text).join(" | "));
     log("résultats : " + JSON.parse(app.results()).map((r) => r.text).join(" | "));
     log("csv : " + app.export_csv().split("\n").filter((l) => l.startsWith("largeur")).join(" // "));
   } catch (e) { log("ERREUR " + e); }
