@@ -44,9 +44,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     const ref = JSON.parse(app.map_geojson()).features.filter((f) => f.properties.kind === "triangule").pop().geometry.coordinates;
     const d = Math.hypot(...metres(ref, p1));
     log("point à " + d.toFixed(2) + " m de la photo, écart à la cible " + Math.hypot(...metres(ref, target)).toFixed(3) + " m");
-    psvClick(yawTo(photos[1], ref), -0.3);
-    await until(() => doc.querySelector("#statut").textContent.includes("sommet"), 30000, "pied");
-    psvClick(yawTo(photos[1], ref), 0.3);
+    log("étape 2 : " + doc.querySelector("#statut").textContent.slice(0, 120));
+    psvClick(yawTo(photos[1], target), 0.3);  // seul le sommet : le pied est la visée du point (-0,35)
     await until(() => doc.querySelector("#statut").textContent.startsWith("Hauteur :"), 30000, "hauteur");
     log("résultat : " + doc.querySelector("#statut").textContent);
     await sleep(1000);
@@ -54,7 +53,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("dans la visionneuse : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
       + " · croix " + box.querySelectorAll(".croix").length + " · sur la carte : "
       + JSON.parse(app.map_geojson()).features.map((f) => f.properties.kind).join(","));
-    log("attendu sans inclinaison : " + (d * 2 * Math.tan(0.3)).toFixed(3) + " m");
+    log("attendu sans inclinaison : " + (d * (Math.tan(0.3) + Math.tan(0.35))).toFixed(3) + " m");
     // Même point de référence, depuis l'autre photo de la triangulation
     log("flèches visibles en étape 2 : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility !== "hidden")
       + " · rappel : " + doc.querySelector("#mode-mesure").textContent
@@ -64,12 +63,10 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await sleep(1000);
     log("photo 1 : " + app.status().slice(0, 80));
     const d0 = Math.hypot(...metres(ref, p0));
-    psvClick(yawTo(photos[0], ref), -0.3);
-    await until(() => doc.querySelector("#statut").textContent.includes("sommet"), 30000, "pied 2");
-    psvClick(yawTo(photos[0], ref), 0.2);
+    psvClick(yawTo(photos[0], target), 0.2);
     await until(() => doc.querySelector("#statut").textContent.startsWith("Hauteur :"), 30000, "hauteur 2");
     log("2e hauteur : " + doc.querySelector("#statut").textContent.slice(0, 110));
-    log("attendu sans inclinaison : " + (d0 * (Math.tan(0.2) + Math.tan(0.3))).toFixed(3) + " m");
+    log("attendu sans inclinaison : " + (d0 * (Math.tan(0.2) + Math.tan(0.35))).toFixed(3) + " m");
     await sleep(500);
     log("étiquettes : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | "));
     // Hauteurs visibles depuis l'autre photo ; sommet sélectionné, réglé au clavier, Entrée
@@ -80,7 +77,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("sur la photo 2 : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
       + " · croix " + box.querySelectorAll(".croix:not(.visee)").length);
     const heights = () => JSON.parse(app.viewer_marks()).filter((m) => m.label.startsWith("↕"));
-    const second = () => heights().find((m) => m.label.includes("2,8"));
+    const second = () => heights()[1];
     const key = (k) => doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: k, bubbles: true }));
     let top = second().points[1];
     psvRight(top[0], top[1]);
@@ -98,10 +95,10 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await sleep(1000);
     top = second().points[1];
     psvRight(top[0], top[1]);
-    psvClick(yawTo(photos[0], ref), 0.25);
+    psvClick(yawTo(photos[0], target), 0.25);
     await until(() => !JSON.parse(app.state()).point_sel && doc.querySelector("#statut").textContent.startsWith("Hauteur"), 30000, "recalage");
     log("sommet revisé (0,25) : " + doc.querySelector("#statut").textContent.slice(0, 160));
-    log("attendu sans inclinaison : " + (d0 * (Math.tan(0.25) + Math.tan(0.3))).toFixed(3) + " m");
+    log("attendu sans inclinaison : " + (d0 * (Math.tan(0.25) + Math.tan(0.35))).toFixed(3) + " m");
     doc.querySelector("#nouvelle-reference").click();
     log("nouveau point : " + doc.querySelector("#statut").textContent.slice(0, 60) + " · résultats : "
       + JSON.parse(app.results()).map((r) => r.text).join(" | "));

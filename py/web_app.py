@@ -326,6 +326,16 @@ class App:
         # nouvelle hauteur tombe sur celui des autres hauteurs du même point de référence
         if tool is self.tool and self.mode != "height" and tool.select_near(click):
             return self.status()  # repère d'un point : sélectionné pour le viser à nouveau
+        foot = self._reference_foot() if self.mode == "height" and tool.selected is None and (
+            tool.current is None or len(tool.current.clicks) >= tool.current.needed()) else None
+        if foot is not None:  # pied déjà visé depuis cette photo à la triangulation : ce clic est le sommet
+            self.message = "Altitude du terrain le long de la visée…"
+            epoch = self.epoch
+            self.terrain.profile(foot["lon"], foot["lat"], foot["yaw"], lambda profile, label, warning: (
+                self._profiled(epoch, tool, foot, profile, label, warning),
+                self.terrain.profile(click["lon"], click["lat"], click["yaw"], lambda p, lb, wn: self._profiled(
+                    epoch, tool, click, p, lb, wn))))
+            return self.status()
         if not tool.needs_profile():
             tool.add_click(click)  # sommet d'un objet ou calage : pas de terrain
             self._after_calibration(tool)
@@ -629,6 +639,18 @@ class App:
         self.message = ""
         return self.status()
 
+    def _reference_foot(self):
+        """Hauteur : clic du pied pris dans la visée du point de référence faite depuis la photo
+        affichée (le pied est le point triangulé), ou None si elle n'a pas servi à le viser."""
+        ref = self.ref_point
+        seen = next((s for s in (ref or {}).get("sightings", [])
+                     if s["pic"] == (self.item or {}).get("id") and s.get("view")), None)
+        if seen is None:
+            return None
+        yaw, pitch = seen["view"]
+        return tools.photo_click(self.item, (math.degrees(yaw) + self._heading()) % 360, math.degrees(pitch),
+                                 self.calibration, self.quality, [yaw, pitch], self._axis(self.item))
+
     def _anchor_height(self):
         """Hauteur terminée : calée sur le point de référence, qui reste pour les suivantes."""
         m = self.tool.current
@@ -640,8 +662,9 @@ class App:
             self.message = m.error
             return
         self.message = (m.status() + self._rtk_warning(ref["sequences"] + [c.get("sequence") for c in m.clicks])
-                        + " Autre hauteur sur ce point : cliquez à nouveau pied et sommet, depuis cette photo ou "
-                          "une autre ; sinon « Nouveau point de référence ». Clic droit sur une croix : la recaler.")
+                        + " Autre hauteur sur ce point : cliquez un autre sommet, depuis cette photo ou une autre "
+                          "de la triangulation ; sinon « Nouveau point de référence ». Clic droit sur une croix : "
+                          "la recaler.")
         self.tool.finish()  # mesure terminée : affichée avec les autres pendant les visées suivantes
 
     def _after_calibration(self, tool):
@@ -720,8 +743,8 @@ class App:
             self.ref_point = {"lon": r["lon"], "lat": r["lat"], "uncertainty": r["uncertainty"], "name": name,
                               "sequences": sequences, "road": None, "sightings": list(sightings)}
             if self.mode == "height":
-                self.message = ("Point de référence {} validé (±{} m). Cliquez maintenant le pied de l'objet, au "
-                                "contact du sol, puis son sommet, depuis cette photo ou une autre (flèches).")
+                self.message = ("Point de référence {} validé (±{} m) : c'est le pied. Cliquez maintenant le sommet "
+                                "de l'objet, depuis cette photo ou une autre de la triangulation (flèches).")
             else:
                 self._road_at_reference()
                 self.message = ("Point de référence {} validé (±{} m). Cliquez maintenant le bord opposé, au sol, "
@@ -852,6 +875,13 @@ class App:
             if self.triangulator.result is not None:
                 text += " Puis « Valider le point »."
         elif self.mode == "height":
+            current = self.tool.current
+            if (current is None or len(current.clicks) >= current.needed()) and self._reference_foot() is not None:
+                text = ("Cliquez le sommet de l'objet : le pied est le point {} visé depuis cette photo.").format(
+                    self.ref_point["name"])
+            elif current is None or len(current.clicks) >= current.needed():
+                text = ("Cette photo n'a pas servi à viser le point : cliquez le pied puis le sommet, ou passez sur "
+                        "une photo de la triangulation (seul le sommet y est à cliquer).")
             text = "Hauteur, étape 2/2 (point {}) : {}".format(self.ref_point["name"], text)
             current = self.tool.current
             sequences = self.ref_point["sequences"] + [c.get("sequence") for c in (current.clicks if current else [])]

@@ -698,7 +698,7 @@
     $("#mode-mesure").textContent = mode === "tri"
       ? "Triangulation : clic sur l'objet pour viser, flèches pour changer de photo"
       : mode === "height" && aiming ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point »"
-      : mode === "height" ? "Hauteur, étape 2 : cliquez le pied puis le sommet, depuis cette photo ou une autre (flèches)"
+      : mode === "height" ? "Hauteur, étape 2 : cliquez le sommet (le pied est le point visé), depuis une photo de la triangulation"
       : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), puis « Valider le point »"
       : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé depuis une photo prise avant ou après (flèches)"
       : "Mode mesure en cours : désélectionner pour naviguer";

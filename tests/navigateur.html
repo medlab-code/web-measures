@@ -185,12 +185,10 @@ async function feature(id) {
   const d = Math.hypot(...metres(ref, p1));
   log("point de référence à " + d.toFixed(2) + " m de la photo (cible à " + Math.hypot(...metres(target, p1)).toFixed(2) + " m)");
   const yawRef = Math.atan2(...metres(ref, p1)) - photos[1].properties["view:azimuth"] * Math.PI / 180;
-  psvClick(yawRef, -0.2);
-  await until(() => doc.querySelector("#statut").textContent.includes("sommet"), 15000, "pied");
-  psvClick(yawRef, 0.25);
+  psvClick(yawRef, 0.25);  // seul le sommet : le pied est la visée du point depuis cette photo (-0,3)
   await until(() => doc.querySelector("#statut").textContent.startsWith("Hauteur :"), 15000, "hauteur");
   log("résultat : " + doc.querySelector("#statut").textContent);
-  log("attendu sans inclinaison : " + (d * (Math.tan(0.25) - Math.tan(-0.2))).toFixed(2) + " m · ensuite : " + app.status().slice(0, 60)
+  log("attendu sans inclinaison : " + (d * (Math.tan(0.25) + Math.tan(0.3))).toFixed(2) + " m · ensuite : " + app.status().slice(0, 60)
     + " · flèches visibles : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility !== "hidden"));
 
   log("== calage inclinaison : " + app.set_mode("tilt"));
