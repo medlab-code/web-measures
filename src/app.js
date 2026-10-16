@@ -227,8 +227,7 @@
     if (saved && !app.load_calibration(saved)) console.warn("Calage enregistré illisible : ignoré.");
     savedCalibration = app.calibration_version;
     for (const id of ["#mesure", "#mode", "#camera", "#pont", "#effacer", "#tout-effacer", "#calage-exporter",
-      "#calage-importer",
-      "#reference", "#longueur"]) $(id).disabled = false;
+      "#calage-importer"]) $(id).disabled = false;
     $("#camera").value = store.get("camera", $("#camera").value);
     app.set_camera_height(Number($("#camera").value));
     applyFilter(false);
@@ -687,7 +686,7 @@
     // Liseré autour de la visionneuse : bleu pendant les visées de triangulation, jaune pendant la
     // prise de mesure (couleurs de leurs croix)
     const sighting = measuring && aiming;
-    const taking = measuring && !aiming && ["road", "width", "height"].includes(mode);
+    const taking = measuring && !aiming && ["road", "height"].includes(mode);
     $("#vue").classList.toggle("visee", sighting);
     $("#vue").classList.toggle("prise", taking);
     // Même état en toutes lettres, sous le rappel du mode (comme les voyants)
@@ -696,7 +695,7 @@
     state.className = sighting ? "visee" : taking ? "prise" : "";
     state.textContent = sighting ? "Triangulation en cours" : taking ? "Mesure en cours" : "";
     $("#mode-mesure").textContent = mode === "tri"
-      ? "Triangulation : clic sur l'objet pour viser, flèches pour changer de photo"
+      ? "Mesure libre : visez chaque point depuis plusieurs photos (flèches), puis « Valider le point »"
       : mode === "height" && aiming ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point »"
       : mode === "height" ? "Hauteur, étape 2 : cliquez le sommet (le pied est le point visé), depuis une photo de la triangulation"
       : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), puis « Valider le point »"
@@ -837,9 +836,6 @@
     setCamera();
   });
   $("#pont").addEventListener("change", (event) => refresh(app.set_bridge(event.target.checked)));
-  for (const id of ["#reference", "#longueur"]) {
-    $(id).addEventListener("change", () => refresh(app.set_reference($("#reference").value, Number($("#longueur").value))));
-  }
   $("#garder").addEventListener("click", () => refresh(app.keep_point()));
   $("#nouvelle-reference").addEventListener("click", () => refresh(app.new_reference()));
   $("#effacer").addEventListener("click", () => refresh(app.clear()));

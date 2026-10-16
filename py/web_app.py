@@ -114,6 +114,8 @@ class App:
         # (new_reference) ; None : à trianguler d'abord
         self.ref_point = None
         self.width_sel = None  # largeur : (mesure, 0 pour le point de référence ou 1 pour le bord) à recaler
+        self.last_free = None  # mesure libre : n° du dernier point gardé, relié au suivant
+        self.point_views = {}  # nom d'un point gardé -> {photo : [cap, élévation] de sa visée (radians)}
         self._handles = []  # clés des poignées de la carte, dans l'ordre de handles()
         self.calibration_version = 0  # augmente à chaque changement du calage (à enregistrer)
         self.active = False  # bouton « Mesure » de la page : clics dans la photo pour mesurer
@@ -427,6 +429,31 @@ class App:
         return {"yaw": math.radians((bearing - self._heading() + 540) % 360 - 180), "pitch": math.radians(elev),
                 "abs_yaw": bearing % 360, "elev": elev}
 
+    def _free_mark_point(self, k):
+        """Repère du point gardé n° k dans la photo affichée : là où il a été visé depuis elle,
+        sinon projeté au sol."""
+        lon, lat, values = self.points[k]
+        view = self.point_views.get(values["nom"], {}).get(self.item.get("id"))
+        point = {"yaw": view[0], "pitch": view[1]} if view else self._project(lon, lat)
+        return dict(point, pic=self.item.get("id"))
+
+    def _free_marks(self):
+        """Mesure libre : distances (trait et étiquette) et points gardés seuls, dans la photo
+        affichée. Les points de référence des hauteurs et largeurs sont montrés par elles."""
+        refs = {(m.reference or {}).get("name") for m in self._heights()} | {m.edge.get("name") for m in self._widths()}
+        if self.ref_point:
+            refs.add(self.ref_point["name"])
+        marks, linked = [], set()
+        for i, j, values in self.links:
+            linked |= {i, j}
+            marks.append({"points": [self._free_mark_point(i), self._free_mark_point(j)],
+                          "label": "↔ {} m ± {} m".format(measures._num(values["valeur_m"], 2),
+                                                          measures._num(values["incert_m"], 2))})
+        for k, (_, _, values) in enumerate(self.points):
+            if k not in linked and values["nom"] not in refs:
+                marks.append({"points": [self._free_mark_point(k)], "label": ""})
+        return marks
+
     def _reference_mark(self):
         """Croix du point de référence validé dans la photo affichée. Hauteur : là où il a été
         visé depuis cette photo, sinon projeté au sol. Largeur : sur la droite de mesure
@@ -738,6 +765,7 @@ class App:
         self.named += 1
         values = dict({"nom": name}, **values, commentaire="")
         self.points.append((r["lon"], r["lat"], values))
+        self.point_views[name] = {s["pic"]: s["view"] for s in sightings if s.get("view")}
         self.triangulator.clear()
         if self.mode in REF_MODES:  # point de référence, sans distance au précédent
             self.ref_point = {"lon": r["lon"], "lat": r["lat"], "uncertainty": r["uncertainty"], "name": name,
@@ -752,10 +780,12 @@ class App:
                                 "du clic compte, la largeur se prend sur la droite tracée.")
             self.message = self.message.format(name, measures._num(r["uncertainty"])) + warning
             return self.status()
-        self.message = "Point {} gardé (incertitude ±{} m) : il sera exporté avec les mesures.".format(
-            name, measures._num(r["uncertainty"])) + warning
-        if len(self.points) >= 2:  # distance au point gardé précédent, aussitôt
-            self.message += " " + self._link(len(self.points) - 2, len(self.points) - 1)
+        self.message = "Point {} gardé (±{} m).".format(name, measures._num(r["uncertainty"]))
+        if self.last_free is not None:  # mesure libre : distance au point gardé précédent, aussitôt
+            self.message += " " + self._link(self.last_free, len(self.points) - 1)
+        self.last_free = len(self.points) - 1
+        self.message += (" Visez maintenant le point suivant depuis au moins deux photos : sa distance à {} sera "
+                         "calculée.").format(name) + warning
         return self.status()
 
     def _link(self, i, j):
@@ -801,6 +831,7 @@ class App:
         self.tool.clear_all()
         self.calibrator.reset()
         self.points, self.links, self.named = [], [], 0
+        self.last_free, self.point_views = None, {}
         self.ref_point = None
         self.message = ""
         return self.status()
@@ -869,6 +900,8 @@ class App:
         sequences = []
         if self._aiming():
             sequences = [s.get("sequence") for s in self.triangulator.sightings]
+        if self.mode == "tri":
+            text = "Mesure libre (distance au point gardé précédent) : " + text
         if self.mode == "height" and self.ref_point is None:
             text = ("Hauteur, étape 1/2 : visez le pied de l'objet depuis au moins deux photos (une visée par "
                     "photo, flèches pour changer de photo). " + text)
@@ -965,6 +998,8 @@ class App:
                 marks.append({"points": [dict(p, pic=pic, sel=self.width_sel == (m, k))
                                          for k, p in enumerate(self._width_points(m))],
                               "label": m.label(), "beside": False})
+        if self.item:  # mesure libre : points gardés et distances, depuis toutes les photos
+            marks += self._free_marks()
         if self.active and self._aiming():  # visées faites depuis cette photo
             marks = marks + [{"points": [{"pic": s["pic"], "yaw": s["view"][0], "pitch": s["view"][1]}
                                          for s in self.triangulator.sightings if "view" in s], "sighting": True}]
@@ -1126,6 +1161,8 @@ class App:
                     break
         elif kind == "point" and 0 <= ident < len(self.points):
             name = self.points[ident][2]["nom"]
+            self.last_free = None if self.last_free == ident else (
+                None if self.last_free is None else self.last_free - (self.last_free > ident))
             before = [i for i, j, _ in self.links if j == ident]
             after = [j for i, j, _ in self.links if i == ident]
             del self.points[ident]

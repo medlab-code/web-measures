@@ -1,0 +1,64 @@
+<!doctype html><meta charset="utf-8"><title>Essai mesure libre RTK</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Mesure libre sur deux photos imajbox à position RTK (Pouilly-en-Auxois) : deux cibles
+     fictives sur le côté, triangulées depuis les deux photos, puis leur distance. Directions
+     calculées depuis le cap EXIF précis. Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
+<script>try { localStorage.clear(); } catch {}</script>
+<iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
+const feature = async (id) => (await (await fetch("https://api.panoramax.xyz/api/search?ids=" + id)).json()).features[0];
+const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-955becc79e81"];
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  try {
+    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 120000, "Pyodide");
+    const app = w.mesures.app, doc = w.document;
+    const psvClick = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: false }; w.mesures.psv.dispatchEvent(e); };
+    const psvRight = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: true }; w.mesures.psv.dispatchEvent(e); };
+    doc.querySelector("#mesure").click();
+    doc.querySelector("#mode").value = "tri"; doc.querySelector("#mode").dispatchEvent(new Event("change"));
+    const photos = await Promise.all(IDS.map(feature));
+    const heading = (f) => { const [n, d] = f.properties.exif["Exif.GPSInfo.GPSImgDirection"].split("/"); return n / d; };
+    const metres = ([lon, lat], [lon0, lat0]) => [(lon - lon0) * 111320 * Math.cos(lat0 * Math.PI / 180), (lat - lat0) * 111320];
+    const [p0, p1] = photos.map((f) => f.geometry.coordinates);
+    const mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
+    const along = Math.atan2(...metres(p1, p0));
+    const target = [mid[0] + 5 * Math.cos(along) / (111320 * Math.cos(mid[1] * Math.PI / 180)), mid[1] - 5 * Math.sin(along) / 111320];
+    const yawTo = (f, pt) => { const [x, y] = metres(pt, f.geometry.coordinates); return Math.atan2(x, y) - heading(f) * Math.PI / 180; };
+    log("photos à " + Math.hypot(...metres(p1, p0)).toFixed(2) + " m l'une de l'autre");
+    const target2 = [target[0] + 3 * Math.sin(along) / (111320 * Math.cos(mid[1] * Math.PI / 180)) - 2 * Math.cos(along) / (111320 * Math.cos(mid[1] * Math.PI / 180)),
+                     target[1] + 3 * Math.cos(along) / 111320 + 2 * Math.sin(along) / 111320];  // 3 m plus loin, 2 m vers la route
+    const truth = Math.hypot(...metres(target2, target));
+    for (const pt of [target, target2]) {
+      for (const f of photos) {
+        w.mesures.openPhoto(f);
+        await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "photo");
+        await until(() => JSON.parse(app.state()).quality.includes("vérifiée"), 60000, "position vérifiée");
+        await sleep(800);
+        psvClick(yawTo(f, pt), -0.35);
+      }
+      doc.querySelector("#garder").click();
+      log("validé : " + doc.querySelector("#statut").textContent);
+    }
+    log("distance attendue : " + truth.toFixed(3) + " m");
+    const box = w.mesures.psv.container;
+    await sleep(500);
+    log("visionneuse : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
+      + " · croix " + box.querySelectorAll(".croix:not(.visee)").length + " · liseré " + doc.querySelector("#vue").className
+      + " · état " + doc.querySelector("#etat-mesure").textContent + " · rappel : " + doc.querySelector("#mode-mesure").textContent);
+    w.mesures.openPhoto(photos[0]);
+    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "photo 1");
+    await sleep(800);
+    log("autre photo : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
+      + " · croix " + box.querySelectorAll(".croix:not(.visee)").length);
+    log("résultats : " + JSON.parse(app.results()).map((r) => r.text).join(" | ")
+      + " · carte : " + JSON.parse(app.map_geojson()).features.map((f) => f.properties.kind).join(","));
+    log("modes : " + [...doc.querySelectorAll("#mode option")].map((o) => o.textContent).join(" | "));
+  } catch (e) { log("ERREUR " + e); }
+  log("FIN");
+})();
+</script>
