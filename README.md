@@ -34,13 +34,16 @@ python3 -m http.server 8765    # puis http://127.0.0.1:8765/
 photo s'ouvre dans la visionneuse officielle Panoramax. Les flèches de la visionneuse passent
 aux photos voisines.
 
-**Mesurer** : bouton « 📐 Mesure », puis le mode :
+**Mesurer** : bouton « 📐 Mesure », puis le mode. Les consignes s'affichent en haut au centre
+de la visionneuse ; le bouton **« ✔ Valider le point triangulé »** y apparaît, avec un halo,
+dès que les visées donnent un point (deux visées qui se croisent).
 
 - **Hauteur d'un objet**
   1. Viser le **pied** de l'objet depuis au moins deux photos (un clic par photo, flèches
-     pour changer de photo), puis « Valider le point triangulé » : c'est le point de référence.
-  2. Cliquer le **sommet**, depuis une photo qui a servi à la visée : le pied est la visée
-     faite depuis elle. Depuis une autre photo, cliquer le pied puis le sommet.
+     pour changer de photo), puis « Valider le point triangulé » : c'est le point de référence,
+     et le pied de la hauteur.
+  2. Cliquer seulement le **sommet**, depuis une photo qui a servi à la visée : le pied est la
+     visée faite depuis elle. Depuis une autre photo, cliquer le pied puis le sommet.
 
   Le même point de référence sert à plusieurs hauteurs, depuis n'importe quelle photo,
   jusqu'à « Nouveau point de référence ». Une verticale verte le repère dans la photo.
@@ -54,14 +57,26 @@ aux photos voisines.
      coupe la droite.
 
   Chaque clic donne une largeur depuis le même point, jusqu'à « Nouveau point de référence ».
+
+  À l'étape 2 de la hauteur et de la largeur, les flèches de la visionneuse sont masquées
+  (elles gênent les clics de mesure) : on change de photo par la carte.
 - **Mesure libre (points triangulés)** : viser chaque point depuis au moins deux photos, puis
   « Valider le point triangulé » ; à partir du deuxième, la distance horizontale au point précédent
   s'affiche, et la carte se cadre sur le segment.
 
-Repères visuels : liseré et étiquette animée **bleus** pendant les visées, **jaunes** pendant
-la prise de mesure ; croix bleues pour les visées, jaunes pour les points de mesure. Points,
-traits et étiquettes restent visibles sur toutes les photos (là où ils ont été cliqués, ou
-projetés au sol sur les autres photos).
+Repères visuels :
+
+| | Visées (triangulation) | Prise de mesure | Calage |
+|---|---|---|---|
+| Liseré de la visionneuse | bleu | jaune | orange |
+| Étiquette animée, en haut à gauche | « Triangulation en cours » | « Mesure en cours » | — |
+| Cercle du pointeur | bleu | jaune (vert si l'inclinaison est calée) | orange |
+| Croix | bleues | jaunes | — |
+
+Points, traits et étiquettes restent visibles sur toutes les photos (là où ils ont été
+cliqués, ou projetés au sol sur les autres photos). Dans la photo, la droite de mesure d'une
+largeur est en tirets bleus, la verticale d'une hauteur en tirets verts ; sur la carte, les
+visées de triangulation sont en tirets rouges, celles du calage du cap en tirets noirs.
 
 **Recaler un point** : **clic** (gauche ou droit) sur sa croix pour le sélectionner, puis :
 
@@ -76,10 +91,15 @@ projetés au sol sur les autres photos).
 **Caler les photos** (modes « Calage ») :
 
 - **inclinaison** : calculée automatiquement d'après les verticales de la photo (en arrière-
-  plan), ou calée à la main sur des objets verticaux ;
-- **cap et position** : repères cliqués dans la photo puis sur la carte. La triangulation
-  n'est jamais meilleure que le cap et la position des photos : à 20 m, 1° d'erreur de cap
-  décale une visée de 35 cm.
+  plan), ou calée à la main : pied puis sommet de deux objets verticaux, à environ 90° l'un de
+  l'autre ;
+- **cap et position** : un repère net cliqué dans la photo, puis sur la carte ; le premier
+  corrige le cap, trois repères ou plus répartis autour de la photo recalent aussi sa
+  position. La carte ne montre que les visées des repères pris depuis la photo affichée. La
+  triangulation n'est jamais meilleure que le cap et la position des photos : à 20 m, 1°
+  d'erreur de cap décale une visée de 35 cm.
+
+Les consignes de chaque calage disent l'étape en cours et ce qui est déjà fait.
 
 Le calage est gardé d'une visite à l'autre, et peut être exporté ou importé (« Réglages »).
 
@@ -89,13 +109,16 @@ Le calage est gardé d'une visite à l'autre, et peut être exporté ou importé
 - fonds de carte : Plan IGN, orthophoto, Ortho-express de l'année de la photo, PCRS de la
   Géoplateforme là où il est publié, OpenStreetMap ; recherche de lieux ; points de repère
   (PR) des routes ; route, PR et commune de la photo incrustés dans la visionneuse ;
-- carte cadrée automatiquement sur la mesure en cours ;
+- carte cadrée automatiquement sur la mesure en cours (mesure libre : sur le segment qui vient
+  d'être mesuré) ;
 - **filtre des photos** (date, type, précision GPS, producteur) et choix de l'**instance**
   Panoramax : les photos écartées ne s'ouvrent pas, ni par la carte ni par les flèches ;
 - captures : vue recalculée en Full HD depuis la photo originale, ou visionneuse avec les
   mesures (PNG, copiée dans le presse-papiers) ;
 - liste des résultats avec commentaire et effacement de chacun ; **export CSV**
-  (point-virgule, virgule décimale) et **GeoJSON**.
+  (point-virgule, virgule décimale) et **GeoJSON** : valeur, incertitude, composantes,
+  distance à la photo, hauteur de caméra, axe de la route, photos, date, commentaire, et
+  attributs des points triangulés (visées, croisement, précision GPS).
 
 Les calculs sont ceux du plugin, exécutés dans le navigateur par Pyodide (environ 10 Mo au
 premier chargement, puis en cache) ; les calculs lourds (inclinaison automatique, capture
