@@ -346,6 +346,7 @@ class App:
         self.height_ref = None
         self.message = (m.status() + self._rtk_warning(ref["sequences"] + [c.get("sequence") for c in m.clicks])
                         + " Hauteur suivante : triangulez le pied du prochain objet.")
+        self.tool.finish()  # mesure terminée : affichée avec les autres pendant les visées suivantes
 
     def _after_calibration(self, tool):
         if tool is not self.calibrator:

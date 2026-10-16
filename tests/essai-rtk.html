@@ -48,6 +48,11 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     psvClick(yawTo(photos[1], ref), 0.3);
     await until(() => doc.querySelector("#statut").textContent.startsWith("Hauteur :"), 30000, "hauteur");
     log("résultat : " + doc.querySelector("#statut").textContent);
+    await sleep(1000);
+    const box = w.mesures.psv.container;
+    log("dans la visionneuse : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
+      + " · croix " + box.querySelectorAll(".croix").length + " · sur la carte : "
+      + JSON.parse(app.map_geojson()).features.map((f) => f.properties.kind).join(","));
     log("attendu sans inclinaison : " + (d * 2 * Math.tan(0.3)).toFixed(3) + " m");
   } catch (e) { log("ERREUR " + e); }
   log("FIN");
