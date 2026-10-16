@@ -25,6 +25,37 @@
   }
 }
 
+/* Police Overpass (OFL 1.1, @fontsource/overpass 5.3.0 sur jsDelivr), comme la page « Classe
+   de virage » : normal, moyen, demi-gras, gras, italique, caractères latins. Ses métriques
+   d'origine (0,883 au-dessus de la ligne de base, 0,383 en dessous, majuscules de 0,7)
+   placent le texte haut dans les boutons et la barre : même hauteur totale, répartie pour
+   centrer les majuscules. */
+@font-face {
+  font-family: Overpass; font-style: normal; font-weight: 400; font-display: swap;
+  src: url(https://cdn.jsdelivr.net/npm/@fontsource/overpass@5.3.0/files/overpass-latin-400-normal.woff2) format("woff2"), url(https://cdn.jsdelivr.net/npm/@fontsource/overpass@5.3.0/files/overpass-latin-400-normal.woff) format("woff");
+  ascent-override: 98.3%; descent-override: 28.3%; line-gap-override: 0%;
+}
+@font-face {
+  font-family: Overpass; font-style: normal; font-weight: 500; font-display: swap;
+  src: url(https://cdn.jsdelivr.net/npm/@fontsource/overpass@5.3.0/files/overpass-latin-500-normal.woff2) format("woff2"), url(https://cdn.jsdelivr.net/npm/@fontsource/overpass@5.3.0/files/overpass-latin-500-normal.woff) format("woff");
+  ascent-override: 98.3%; descent-override: 28.3%; line-gap-override: 0%;
+}
+@font-face {
+  font-family: Overpass; font-style: normal; font-weight: 600; font-display: swap;
+  src: url(https://cdn.jsdelivr.net/npm/@fontsource/overpass@5.3.0/files/overpass-latin-600-normal.woff2) format("woff2"), url(https://cdn.jsdelivr.net/npm/@fontsource/overpass@5.3.0/files/overpass-latin-600-normal.woff) format("woff");
+  ascent-override: 98.3%; descent-override: 28.3%; line-gap-override: 0%;
+}
+@font-face {
+  font-family: Overpass; font-style: normal; font-weight: 700; font-display: swap;
+  src: url(https://cdn.jsdelivr.net/npm/@fontsource/overpass@5.3.0/files/overpass-latin-700-normal.woff2) format("woff2"), url(https://cdn.jsdelivr.net/npm/@fontsource/overpass@5.3.0/files/overpass-latin-700-normal.woff) format("woff");
+  ascent-override: 98.3%; descent-override: 28.3%; line-gap-override: 0%;
+}
+@font-face {
+  font-family: Overpass; font-style: italic; font-weight: 400; font-display: swap;
+  src: url(https://cdn.jsdelivr.net/npm/@fontsource/overpass@5.3.0/files/overpass-latin-400-italic.woff2) format("woff2"), url(https://cdn.jsdelivr.net/npm/@fontsource/overpass@5.3.0/files/overpass-latin-400-italic.woff) format("woff");
+  ascent-override: 98.3%; descent-override: 28.3%; line-gap-override: 0%;
+}
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -32,7 +63,7 @@ html, body {
   height: 100%;
   background: var(--fond);
   color: var(--texte);
-  font: 14px/1.4 Roboto, system-ui, sans-serif;
+  font: 14px/1.4 Overpass, system-ui, sans-serif;
 }
 /* Contrôles dans la police et à la taille du texte (pas hérités par défaut) : lignes de base alignées */
 button, input, select, textarea { font-family: inherit; font-size: inherit; line-height: 1.2; }
