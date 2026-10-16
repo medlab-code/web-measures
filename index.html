@@ -90,6 +90,11 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
     </div>
     <aside id="colonne">
       <div id="carte"></div>
+      <!-- Carte détachée dans une fenêtre à part (voir app.js : carte détachable) -->
+      <div id="carte-detachee" hidden>
+        <p>Carte dans une fenêtre à part.</p>
+        <button id="rattacher-carte" type="button">Remettre la carte ici</button>
+      </div>
       <div id="poignee-carte" role="separator" aria-orientation="horizontal" aria-controls="carte"
            title="Glisser pour changer la hauteur de la carte (double-clic : taille par défaut)">
         <button id="replier-carte" type="button" aria-expanded="true" title="Masquer la carte">▴</button>

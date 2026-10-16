@@ -143,6 +143,23 @@ aside[hidden] { display: none; }
 #carte { height: 50%; min-height: 8rem; }
 #carte[hidden] { display: none; }
 
+/* Carte détachée (voir app.js) : sa place dans la colonne, et la fenêtre à part qu'elle remplit */
+#carte-detachee {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px solid var(--bord);
+}
+#carte-detachee[hidden], #poignee-carte[hidden] { display: none; }
+#carte-detachee p { margin: 0; }
+body.fenetre-carte { height: 100vh; margin: 0; }
+body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
+.maplibregl-ctrl button.detacher-carte { font-size: 17px; line-height: 1; }
+.maplibregl-ctrl button.detacher-carte.actif { background: var(--panoramax); color: #fff; }
+
 /* Recherche de lieux, en haut à droite de la carte (voir recherche.js) */
 .recherche {
   position: absolute;

@@ -399,9 +399,10 @@
     }
   });
 
-  document.addEventListener("keydown", (event) => {
+  function onEscapeKey(event) {
     if (event.key === "Escape" && app && app.waiting_map()) refresh(app.cancel_landmark());
-  });
+  }
+  document.addEventListener("keydown", onEscapeKey);
   // Clic droit dans la visionneuse en mesure : sélection d'un point, pas de menu du navigateur
   viewer.addEventListener("contextmenu", (event) => {
     if (measuring) event.preventDefault();
@@ -412,14 +413,91 @@
   // descendu (↑ ↓). Entrée termine son calage.
   let pointSelected = false;
   const NUDGE_KEYS = { ArrowRight: "right", ArrowLeft: "left", ArrowUp: "up", ArrowDown: "down" };
-  document.addEventListener("keydown", (event) => {
+  function onNudgeKey(event) {
     const direction = NUDGE_KEYS[event.key];
     if ((!direction && event.key !== "Enter") || !app || !measuring || !pointSelected) return;
     if (event.target.closest?.("input, select, textarea, button")) return;  // champ ou bouton actif
     event.preventDefault();
     event.stopPropagation();
     refresh(direction ? app.nudge_point(direction) : app.finish_point());  // Entrée : calage terminé
-  }, true);
+  }
+  document.addEventListener("keydown", onNudgeKey, true);
+
+  // Carte détachable dans une fenêtre à part, à placer sur un second écran (Edge, Chrome :
+  // fenêtre « image dans l'image » de document ; ailleurs, pas de bouton). La carte y est
+  // déplacée telle quelle : elle suit la photo, les mesures et le cadrage sans synchronisation.
+  // Fermer la fenêtre, ou le bouton « ⧉ » ou « Remettre la carte ici », la remet en place.
+
+  let mapWindow = null;
+  const detachButton = document.createElement("button");
+
+  async function toggleMapWindow() {
+    if (mapWindow) {
+      mapWindow.close();  // pagehide : carte remise en place
+      return;
+    }
+    if (mapBox.hidden) setFolded(false);
+    const place = { parent: mapBox.parentNode, next: mapBox.nextSibling };
+    let win;
+    try {
+      win = await documentPictureInPicture.requestWindow({
+        width: Math.max(640, Math.round(mapBox.clientWidth * 1.6)),
+        height: Math.max(480, Math.round(mapBox.clientHeight * 1.6)),
+      });
+    } catch (error) {
+      setStatus(`Carte non détachée : ${error.message}`);
+      return;
+    }
+    mapWindow = win;
+    // Styles de la page (feuilles d'un autre site, illisibles ici : reprises par leur lien)
+    for (const sheet of document.styleSheets) {
+      try {
+        const style = win.document.createElement("style");
+        style.textContent = [...sheet.cssRules].map((rule) => rule.cssText).join("\n");
+        win.document.head.append(style);
+      } catch {
+        if (sheet.href) {
+          win.document.head.append(Object.assign(win.document.createElement("link"), { rel: "stylesheet", href: sheet.href }));
+        }
+      }
+    }
+    win.document.title = "Carte · Mesures Panoramax";
+    win.document.body.classList.add("fenetre-carte");
+    win.document.body.append(mapBox);
+    win.document.addEventListener("keydown", onEscapeKey);
+    win.document.addEventListener("keydown", onNudgeKey, true);
+    win.addEventListener("resize", () => map.resize());
+    win.addEventListener("pagehide", () => {
+      place.parent.insertBefore(mapBox, place.next);
+      mapWindow = null;
+      showDetached(false);
+      map.resize();
+    });
+    showDetached(true);
+    map.resize();
+  }
+
+  function showDetached(detached) {
+    $("#carte-detachee").hidden = !detached;
+    grip.hidden = detached;
+    detachButton.textContent = "⧉";
+    detachButton.title = detached ? "Remettre la carte dans la page"
+      : "Détacher la carte dans une fenêtre à part (second écran)";
+    detachButton.classList.toggle("actif", detached);
+  }
+
+  if ("documentPictureInPicture" in window) {
+    detachButton.type = "button";
+    detachButton.className = "detacher-carte";
+    detachButton.addEventListener("click", toggleMapWindow);
+    showDetached(false);
+    map.addControl({
+      onAdd: () => Object.assign(document.createElement("div"), { className: "maplibregl-ctrl maplibregl-ctrl-group" })
+        .appendChild(detachButton).parentNode,
+      onRemove: () => {},
+    }, "top-left");
+    $("#rattacher-carte").addEventListener("click", toggleMapWindow);
+  }
 
   function openPhoto(feature) {
     setPhoto(feature, false);

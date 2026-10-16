@@ -111,6 +111,9 @@ Le calage est gardé d'une visite à l'autre, et peut être exporté ou importé
   (PR) des routes ; route, PR et commune de la photo incrustés dans la visionneuse ;
 - carte cadrée automatiquement sur la mesure en cours (mesure libre : sur le segment qui vient
   d'être mesuré) ;
+- carte **détachable** dans une fenêtre à part, à placer sur un second écran (bouton « ⧉ » sous
+  le zoom, Edge et Chrome seulement) : elle reste reliée à la page ; fermer la fenêtre, ou
+  « Remettre la carte ici » dans la colonne, la remet en place ;
 - **filtre des photos** (date, type, précision GPS, producteur) et choix de l'**instance**
   Panoramax : les photos écartées ne s'ouvrent pas, ni par la carte ni par les flèches ;
 - captures : vue recalculée en Full HD depuis la photo originale, ou visionneuse avec les
@@ -154,7 +157,6 @@ photo plus éloignée, qui voit la droite plus en face, la réduit. Avec un GPS 
 - Incertitude de l'axe de la route (±2° pour la BD TOPO, ±3° pour la trajectoire) estimée,
   à confirmer sur le terrain.
 - Mesures perdues en fermant la page : les exporter avant.
-- Mini-carte détachable sur un second écran : à faire (ticket #13).
 
 ### Organisation
 
@@ -233,8 +235,8 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 4. ~~Mesures appuyées sur un point triangulé~~ (16/10/2026) : hauteur et largeur depuis un
    point de référence, recalage au clic et au clavier ; longueur sur une seule photo
    et calage de la hauteur de caméra retirés.
-5. Essais sur le terrain avec les agents (postes, photos RTK) ; mini-carte détachable
-   (ticket #13).
+5. ~~Mini-carte détachable sur un second écran~~ (ticket #13).
+6. Essais sur le terrain avec les agents (postes Edge, photos RTK).
 
 ## Licence
 
