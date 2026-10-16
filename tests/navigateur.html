@@ -171,7 +171,7 @@ async function feature(id) {
     await sleep(1000);
     psvClick(yawTo(f), -0.3);
   }
-  log("visées : " + app.status() + " · bouton Valider affiché : " + !doc.querySelector("#garder").closest(".option").hidden);
+  log("visées : " + app.status() + " · bouton Valider affiché : " + !doc.querySelector("#garder").hidden);
   doc.querySelector("#garder").click();
   log("validé : " + doc.querySelector("#statut").textContent + " · flèches masquées (étape 2) : "
     + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden")

@@ -254,6 +254,29 @@ button.principal { font-weight: 600; }
 }
 #bandeau[hidden], #avis[hidden] { display: none; }
 
+/* « Valider le point » sous les messages du haut de la visionneuse : bleu des visées */
+#garder {
+  pointer-events: auto;  /* le bloc du haut laisse passer les clics, pas le bouton */
+  margin-top: 0.1rem;
+  padding: 0.4rem 1rem;
+  border: 2px solid #00bce6;
+  border-radius: 5px;
+  background: #00bce6;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+#garder:hover:not(:disabled) { background: #0098bb; border-color: #0098bb; }
+#garder:disabled {
+  background: var(--etiquette-vue);
+  color: rgba(255, 255, 255, 0.6);
+  cursor: not-allowed;
+}
+#garder[hidden] { display: none; }
+
 /* Étiquettes incrustées dans la photo : fond sombre un peu transparent, texte détouré */
 :root {
   --etiquette-vue: rgba(32, 33, 36, 0.55);

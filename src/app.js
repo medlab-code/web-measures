@@ -289,6 +289,8 @@
     }
     showLights(state.lights);
     $("#garder").disabled = !state.point;
+    $("#garder").title = state.point ? "Garder le point triangulé par ces visées"
+      : "Il faut au moins deux visées qui se croisent, depuis des photos assez différentes";
     pointSelected = state.point_sel;
     if (aiming !== state.aiming) {  // hauteur : point de référence validé, ou à trianguler
       aiming = state.aiming;
@@ -810,11 +812,11 @@
     const mode = $("#mode").value;
     for (const option of document.querySelectorAll("header .option")) {
       const modes = option.dataset.modes.split(" ");
-      // « Valider le point » : seulement pendant les visées (hauteur : point de référence)
       // « Nouveau point de référence » : une fois le point validé
-      option.hidden = !modes.includes(mode) || (option.contains($("#garder")) && !aiming)
-        || (option.contains($("#nouvelle-reference")) && aiming);
+      option.hidden = !modes.includes(mode) || (option.contains($("#nouvelle-reference")) && aiming);
     }
+    // « Valider le point », dans la visionneuse : seulement pendant les visées
+    $("#garder").hidden = !measuring || !aiming || viewer.hidden;
   }
 
   $("#mode").addEventListener("change", (event) => {
