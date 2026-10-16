@@ -1221,7 +1221,6 @@ class App:
                 "long_route_m": num(d["along"]), "travers_m": num(d["across"]),
                 "dist_photo_m": num(max(r["ranges"]), 1), "camera_m": num(height, 2),
                 "camera_calee": measures.CAMERA_SOURCES.get(source, 0),
-                "terrain": " + ".join(sorted({c.get("terrain") for c in m.clicks if c.get("terrain")})),
                 "axe_route": m.axis_source if m.kind == "road" else None,
                 "recales": len(m.overrides),
                 "photos": ",".join(dict.fromkeys(c.get("pic") or "" for c in m.clicks)),
