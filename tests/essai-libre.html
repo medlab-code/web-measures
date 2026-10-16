@@ -45,6 +45,11 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       log("validé : " + doc.querySelector("#statut").textContent);
     }
     log("distance attendue : " + truth.toFixed(3) + " m");
+    await sleep(1500);
+    { const map = w.mesures.map, b = map.getBounds(), c = map.getContainer();
+      const pa = map.project(target), pb = map.project(target2);
+      log("carte : zoom " + map.getZoom().toFixed(1) + " · A (" + Math.round(pa.x) + "," + Math.round(pa.y) + ") B (" + Math.round(pb.x) + ","
+        + Math.round(pb.y) + ") dans " + c.clientWidth + "×" + c.clientHeight); }
     const box = w.mesures.psv.container;
     await sleep(500);
     log("visionneuse : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")

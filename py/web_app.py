@@ -1030,6 +1030,9 @@ class App:
         hauteur, mesure en cours ou dernière terminée (points et photos)."""
         if not self.active or self.mode in CALIBRATION_MODES:
             return "[]"
+        if self.mode == "tri" and not self.triangulator.sightings and self.links:
+            i, j, _ = self.links[-1]  # mesure libre : distance qui vient d'être calculée, seule
+            return json.dumps([list(self.points[i][:2]), list(self.points[j][:2]), "segment"])
         pts = []
         try:
             pts.append([float(v) for v in self.item["geometry"]["coordinates"][:2]])

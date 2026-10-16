@@ -340,9 +340,11 @@
     if (focus === framed) return;
     framed = focus;
     const points = JSON.parse(focus);
+    // Segment seul (mesure libre) : marge plus large, pour le voir entier avec ses étiquettes
+    const segment = points[points.length - 1] === "segment" && points.pop();
     if (points.length < 2 || mapBox.hidden) return;
     const bounds = points.reduce((b, p) => b.extend(p), new maplibregl.LngLatBounds(points[0], points[0]));
-    map.fitBounds(bounds, { padding: 40, maxZoom: 20, duration: 400 });
+    map.fitBounds(bounds, { padding: segment ? 50 : 40, maxZoom: segment ? 22 : 20, duration: 400 });
   }
 
   function warnIfDegraded(state) {
