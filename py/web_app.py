@@ -28,6 +28,9 @@ from core import (autotilt, buildings, calibration, capture, filters, measures, 
 GROUND_MODES = ("road", "width", "height")  # mesures par lancer de rayon (voir core/measures.py)
 CALIBRATION_MODES = ("tilt", "heading", "camera")
 MODES = GROUND_MODES + ("tri",) + CALIBRATION_MODES
+# Triangulation et mesures qui s'y appuient : acceptées hors RTK, mais signalées
+RTK_WARNING = (" ⚠ Photo sans position GPS RTK vérifiée : mesure probablement incohérente "
+               "(la triangulation demande des positions précises).")
 
 
 class WebItem:
@@ -341,7 +344,8 @@ class App:
             self.message = m.error
             return
         self.height_ref = None
-        self.message = m.status() + " Hauteur suivante : triangulez le pied du prochain objet."
+        self.message = (m.status() + self._rtk_warning(ref["sequences"] + [c.get("sequence") for c in m.clicks])
+                        + " Hauteur suivante : triangulez le pied du prochain objet.")
 
     def _after_calibration(self, tool):
         if tool is not self.calibrator:
@@ -395,18 +399,22 @@ class App:
             self.message = self.triangulator.error or "Il faut au moins deux visées qui se croisent."
             return self.status()
         r = self.triangulator.result
+        sequences = [s.get("sequence") for s in self.triangulator.sightings]
+        warning = self._rtk_warning(sequences)
         name = _point_name(self.named)
         self.named += 1
         values = dict({"nom": name}, **values, commentaire="")
         self.points.append((r["lon"], r["lat"], values))
         self.triangulator.clear()
         if self.mode == "height":  # point de référence de la hauteur, sans distance au précédent
-            self.height_ref = {"lon": r["lon"], "lat": r["lat"], "uncertainty": r["uncertainty"], "name": name}
+            self.height_ref = {"lon": r["lon"], "lat": r["lat"], "uncertainty": r["uncertainty"], "name": name,
+                               "sequences": sequences}
             self.message = ("Point de référence {} validé (±{} m). Cliquez maintenant dans la photo le pied "
                             "de l'objet, au contact du sol, puis son sommet.").format(name, measures._num(r["uncertainty"]))
+            self.message += warning
             return self.status()
         self.message = "Point {} gardé (incertitude ±{} m) : il sera exporté avec les mesures.".format(
-            name, measures._num(r["uncertainty"]))
+            name, measures._num(r["uncertainty"])) + warning
         if len(self.points) >= 2:  # distance au point gardé précédent, aussitôt
             self.message += " " + self._link(len(self.points) - 2, len(self.points) - 1)
         return self.status()
@@ -502,13 +510,27 @@ class App:
         if self.message:
             return self.message
         text = self._active().status()
+        sequences = []
+        if self._aiming():
+            sequences = [s.get("sequence") for s in self.triangulator.sightings]
         if self.mode == "height" and self.height_ref is None:
             text = "Hauteur, 1/2 : triangulez le pied de l'objet. " + text
             if self.triangulator.result is not None:
                 text += " Puis « Valider le point »."
         elif self.mode == "height":
             text = "Hauteur, 2/2 (point {}) : {}".format(self.height_ref["name"], text)
-        return text
+            current = self.tool.current
+            sequences = self.height_ref["sequences"] + [c.get("sequence") for c in (current.clicks if current else [])]
+        return text + self._rtk_warning(sequences)
+
+    def _rtk_warning(self, sequences):
+        """RTK_WARNING si l'une des séquences n'a pas de position RTK vérifiée (vérification
+        terminée), sinon ""."""
+        for sequence in dict.fromkeys(s for s in sequences if s):
+            res = self.precision.known({"collection": sequence})
+            if res is not None and not res.get("precise"):
+                return RTK_WARNING
+        return ""
 
     def state(self):
         """État de la photo affichée (JSON) : ligne de qualité, calage, hauteur de caméra
