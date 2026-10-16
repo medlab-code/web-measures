@@ -268,8 +268,16 @@ button.principal { font-weight: 600; }
   text-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   cursor: pointer;
+  animation: halo 1.6s ease-in-out infinite;  /* léger halo bleu qui respire : attire l'œil */
 }
 #garder:hover { background: #0098bb; border-color: #0098bb; }
+@keyframes halo {
+  0%, 100% { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5), 0 0 0 0 rgba(0, 188, 230, 0.55); }
+  50% { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5), 0 0 10px 5px rgba(0, 188, 230, 0.55); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #garder { animation: none; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5), 0 0 8px 3px rgba(0, 188, 230, 0.5); }
+}
 #garder[hidden] { display: none; }
 
 /* Étiquettes incrustées dans la photo : fond sombre un peu transparent, texte détouré */
