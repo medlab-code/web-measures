@@ -37,11 +37,15 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       await sleep(1000);
       psvClick(yawTo(f, target), -0.35);
     }
-    log("liseré pendant les visées : " + doc.querySelector("#vue").className + " · " + getComputedStyle(doc.querySelector("#vue"), "::after").borderTopColor);
+    log("liseré pendant les visées : " + doc.querySelector("#vue").className + " · " + getComputedStyle(doc.querySelector("#vue"), "::after").borderTopColor
+      + " · état : " + doc.querySelector("#etat-mesure").textContent + " " + getComputedStyle(doc.querySelector("#etat-mesure")).color
+      + " " + getComputedStyle(doc.querySelector("#etat-mesure"), "::before").animationName);
     log("visées : " + app.status());
     doc.querySelector("#garder").click();
     log("validé : " + doc.querySelector("#statut").textContent);
-    log("liseré après validation : " + doc.querySelector("#vue").className + " · " + getComputedStyle(doc.querySelector("#vue"), "::after").borderTopColor);
+    log("liseré après validation : " + doc.querySelector("#vue").className + " · " + getComputedStyle(doc.querySelector("#vue"), "::after").borderTopColor
+      + " · état : " + doc.querySelector("#etat-mesure").textContent + " " + getComputedStyle(doc.querySelector("#etat-mesure")).color
+      + " " + getComputedStyle(doc.querySelector("#etat-mesure"), "::before").animationName);
 
     await sleep(300);
     log("croix du point de référence : " + w.mesures.psv.container.querySelectorAll(".croix:not(.visee)").length

@@ -262,12 +262,20 @@ button.principal { font-weight: 600; }
 }
 
 /* Visionneuse : rappel du mode mesure, en haut à gauche, étiquette incrustée dans la photo */
-#mode-mesure {
+.haut-gauche {
   position: absolute;
   top: 0.6rem;
   left: 0.8rem;
-  margin: 0;
   max-width: calc(100% - 1.6rem);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  pointer-events: none;
+  z-index: 5;
+}
+#mode-mesure {
+  margin: 0;
   padding: 0.2rem 0.55rem;
   border-radius: 4px;
   background: var(--etiquette-vue);
@@ -279,6 +287,41 @@ button.principal { font-weight: 600; }
   z-index: 5;
 }
 #mode-mesure[hidden] { display: none; }
+
+/* État de la mesure sous le rappel du mode, comme les voyants : bleu pendant les visées de
+   triangulation, jaune pendant la prise de mesure (couleurs des croix et du liseré), pastille
+   qui pulse */
+#etat-mesure {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  background: var(--etiquette-vue);
+  font-size: 14px;
+  font-weight: 500;
+  text-shadow: var(--detoure-vue);
+}
+#etat-mesure[hidden] { display: none; }
+#etat-mesure::before {
+  content: "";
+  flex: none;
+  width: 11px;
+  height: 11px;
+  margin-right: 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+#etat-mesure.visee { color: #00bce6; }
+#etat-mesure.prise { color: #ffeb00; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 currentColor; }
+  50% { opacity: 0.45; transform: scale(0.7); box-shadow: 0 0 6px 2px currentColor; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #etat-mesure::before { animation-duration: 3s; }
+}
 
 /* Visionneuse : voyants en haut à droite (vert : oui, rouge : non, jaune : inconnu ou en cours) */
 #voyants {

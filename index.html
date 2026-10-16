@@ -86,7 +86,10 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
         <p id="producteur-photo" hidden></p>
       </div>
       <p id="calcul-inclinaison" hidden>Calcul du calage de l'inclinaison en cours</p>
-      <p id="mode-mesure" hidden>Mode mesure en cours : désélectionner pour naviguer</p>
+      <div class="haut-gauche">  <!-- rappel du mode, puis état animé (triangulation ou mesure en cours) -->
+        <p id="mode-mesure" hidden>Mode mesure en cours : désélectionner pour naviguer</p>
+        <p id="etat-mesure" hidden></p>
+      </div>
     </section>
     <div id="poignee-colonne" role="separator" aria-orientation="vertical"
          title="Glisser pour changer la largeur de la colonne (double-clic : largeur par défaut)">

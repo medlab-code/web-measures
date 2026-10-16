@@ -679,8 +679,15 @@
     const mode = $("#mode").value;
     // Liseré autour de la visionneuse : bleu pendant les visées de triangulation, jaune pendant la
     // prise de mesure (couleurs de leurs croix)
-    $("#vue").classList.toggle("visee", measuring && aiming);
-    $("#vue").classList.toggle("prise", measuring && !aiming && ["road", "width", "height"].includes(mode));
+    const sighting = measuring && aiming;
+    const taking = measuring && !aiming && ["road", "width", "height"].includes(mode);
+    $("#vue").classList.toggle("visee", sighting);
+    $("#vue").classList.toggle("prise", taking);
+    // Même état en toutes lettres, sous le rappel du mode (comme les voyants)
+    const state = $("#etat-mesure");
+    state.hidden = !sighting && !taking;
+    state.className = sighting ? "visee" : taking ? "prise" : "";
+    state.textContent = sighting ? "Triangulation en cours" : taking ? "Mesure en cours" : "";
     $("#mode-mesure").textContent = mode === "tri"
       ? "Triangulation : clic sur l'objet pour viser, flèches pour changer de photo"
       : mode === "height" && aiming ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point »"
