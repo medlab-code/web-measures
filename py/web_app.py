@@ -100,6 +100,9 @@ class App:
         self.links = []  # distances entre deux points gardés : (n° du premier, n° du second, attributs)
         self.named = 0  # points gardés depuis le début : nom du suivant (A, B… voir _point_name)
         self.proposal = None  # (n°, n°) : distance à proposer après l'effacement du point qui les reliait
+        # Hauteur : point triangulé au pied de l'objet (lon, lat, uncertainty, name), validé, qui
+        # attend le pied et le sommet cliqués dans la photo ; None : à trianguler d'abord
+        self.height_ref = None
         self._handles = []  # clés des poignées de la carte, dans l'ordre de handles()
         self.calibration_version = 0  # augmente à chaque changement du calage (à enregistrer)
         self.active = False  # bouton « Mesure » de la page : clics dans la photo pour mesurer
@@ -122,7 +125,7 @@ class App:
 
     def _active(self):
         """Outil du mode : MeasureTool, Triangulator ou CalibrationTool."""
-        if self.mode == "tri":
+        if self._aiming():
             return self.triangulator
         if self.mode in CALIBRATION_MODES:
             if self.calibrator.mode != self.mode:
@@ -130,6 +133,11 @@ class App:
             return self.calibrator
         self.tool.set_mode(self.mode)
         return self.tool
+
+    def _aiming(self):
+        """Les clics dans la photo sont-ils des visées de triangulation ? En triangulation, et
+        en hauteur tant que le point de référence au pied de l'objet n'est pas validé."""
+        return self.mode == "tri" or (self.mode == "height" and self.height_ref is None)
 
     def _calibration_changed(self):
         self.calibration_version += 1
@@ -160,6 +168,7 @@ class App:
             return self.status()
         self._clear_measures()
         self.mode = mode
+        self.height_ref = None
         self.message = ""
         self._active()
         self._check_tilt()  # en quittant la triangulation
@@ -285,7 +294,7 @@ class App:
         if not self.item:
             self.message = "Photo en cours de chargement : cliquez à nouveau."
             return self.status()
-        if self.mode == "tri":
+        if self._aiming():
             return self.aim(yaw, pitch)
         raw_yaw = (math.degrees(yaw) + self._heading()) % 360
         click = tools.photo_click(self.item, raw_yaw, math.degrees(pitch), self.calibration, self.quality,
@@ -316,9 +325,23 @@ class App:
             tool.add_click(click, warning)
             self.message = ""  # la mesure en cours dit la suite (status)
             self._after_calibration(tool)
+            self._anchor_height()
         except Exception:
             traceback.print_exc()
         self.notify()
+
+    def _anchor_height(self):
+        """Hauteur terminée : calée sur le point de référence, qui ne sert qu'une fois."""
+        m = self.tool.current
+        if self.mode != "height" or self.height_ref is None or m is None or not m.result or m.reference:
+            return
+        ref = self.height_ref
+        m.anchor(ref["lon"], ref["lat"], ref["uncertainty"], ref["name"])
+        if m.error:
+            self.message = m.error
+            return
+        self.height_ref = None
+        self.message = m.status() + " Hauteur suivante : triangulez le pied du prochain objet."
 
     def _after_calibration(self, tool):
         if tool is not self.calibrator:
@@ -377,6 +400,11 @@ class App:
         values = dict({"nom": name}, **values, commentaire="")
         self.points.append((r["lon"], r["lat"], values))
         self.triangulator.clear()
+        if self.mode == "height":  # point de référence de la hauteur, sans distance au précédent
+            self.height_ref = {"lon": r["lon"], "lat": r["lat"], "uncertainty": r["uncertainty"], "name": name}
+            self.message = ("Point de référence {} validé (±{} m). Cliquez maintenant dans la photo le pied "
+                            "de l'objet, au contact du sol, puis son sommet.").format(name, measures._num(r["uncertainty"]))
+            return self.status()
         self.message = "Point {} gardé (incertitude ±{} m) : il sera exporté avec les mesures.".format(
             name, measures._num(r["uncertainty"]))
         if len(self.points) >= 2:  # distance au point gardé précédent, aussitôt
@@ -411,6 +439,12 @@ class App:
         tool = self._active()
         if tool is self.tool and tool.cancel_selection():
             return self.status()
+        current = self.tool.current
+        if self.mode == "height" and self.height_ref is not None and not (
+                current is not None and 0 < len(current.clicks) < current.needed()):
+            self.height_ref = None  # rien de cliqué depuis : point de référence abandonné
+            self.message = "Point de référence abandonné : triangulez à nouveau le pied de l'objet."
+            return self.status()
         self.epoch += 1
         tool.clear()
         if tool is self.calibrator:
@@ -423,6 +457,7 @@ class App:
         self.tool.clear_all()
         self.calibrator.reset()
         self.points, self.links, self.named = [], [], 0
+        self.height_ref = None
         self.message = ""
         return self.status()
 
@@ -464,7 +499,16 @@ class App:
         """Texte de la mesure (consigne ou résultat)."""
         if not self.active:
             return self.message or "Cliquez « 📐 Mesure » pour mesurer dans la photo ou la caler."
-        return self.message or self._active().status()
+        if self.message:
+            return self.message
+        text = self._active().status()
+        if self.mode == "height" and self.height_ref is None:
+            text = "Hauteur, 1/2 : triangulez le pied de l'objet. " + text
+            if self.triangulator.result is not None:
+                text += " Puis « Valider le point »."
+        elif self.mode == "height":
+            text = "Hauteur, 2/2 (point {}) : {}".format(self.height_ref["name"], text)
+        return text
 
     def state(self):
         """État de la photo affichée (JSON) : ligne de qualité, calage, hauteur de caméra
@@ -486,6 +530,7 @@ class App:
             "advice": precision.DEGRADED_ADVICE,
             "waiting_map": self.waiting_map(),
             "point": self.triangulator.result is not None,
+            "aiming": self._aiming(),
             "active": self.active,
             "lights": self._lights(pic) if item else [],
         })
@@ -510,13 +555,13 @@ class App:
         dans le repère de la photo, radians), libellé, point sélectionné."""
         pic = (self.item or {}).get("id")
         marks = self.tool.done_marks()
-        if self.active and self.mode in GROUND_MODES:  # mesure ou calage en cours
+        if self.active and self._aiming():  # visées faites depuis cette photo
+            marks = marks + [{"points": [{"pic": s["pic"], "yaw": s["view"][0], "pitch": s["view"][1]}
+                                         for s in self.triangulator.sightings if "view" in s]}]
+        elif self.active and self.mode in GROUND_MODES:  # mesure ou calage en cours
             marks = marks + [self.tool.viewer_marks()]
         elif self.active and self.mode in CALIBRATION_MODES:
             marks = marks + [self.calibrator.viewer_marks()]
-        elif self.active and self.mode == "tri":  # visée faite depuis cette photo
-            marks = marks + [{"points": [{"pic": s["pic"], "yaw": s["view"][0], "pitch": s["view"][1]}
-                                         for s in self.triangulator.sightings if "view" in s]}]
         out = []
         for m in marks:
             points = [p for p in m["points"] if p.get("pic") == pic and p.get("yaw") is not None]

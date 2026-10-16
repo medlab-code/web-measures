@@ -227,7 +227,7 @@
     if (saved && !app.load_calibration(saved)) console.warn("Calage enregistré illisible : ignoré.");
     savedCalibration = app.calibration_version;
     for (const id of ["#mesure", "#mode", "#camera", "#pont", "#effacer", "#tout-effacer", "#calage-exporter",
-      "#calage-importer", "#mur",
+      "#calage-importer",
       "#reference", "#longueur"]) $(id).disabled = false;
     $("#camera").value = store.get("camera", $("#camera").value);
     app.set_camera_height(Number($("#camera").value));
@@ -303,6 +303,10 @@
     }
     showLights(state.lights);
     $("#garder").disabled = !state.point;
+    if (aiming !== state.aiming) {  // hauteur : point de référence validé, ou à trianguler
+      aiming = state.aiming;
+      applyMeasureUi();
+    }
     const bandeau = $("#bandeau");
     bandeau.hidden = !state.waiting_map;
     bandeau.textContent = "Cliquez maintenant ce repère sur la carte (Échap pour annuler).";
@@ -608,9 +612,15 @@
   }
   const LOADING = "Photo en cours de chargement : cliquez à nouveau.";
 
-  /** Flèches masquées en mesure, sauf en triangulation, qui vise depuis plusieurs photos. */
+  /**
+   * Clics dans la photo pour viser (triangulation, point de référence d'une hauteur) : plusieurs
+   * photos, flèches gardées. Suit l'état du calcul (voir refresh).
+   */
+  let aiming = false;
+
+  /** Flèches masquées en mesure, sauf pour viser, ce qui demande de changer de photo. */
   function hidesArrows() {
-    return measuring && $("#mode").value !== "tri";
+    return measuring && !aiming;
   }
 
   /** Clic sur une flèche de la visionneuse (photo suivante, précédente…) : il navigue. */
@@ -634,8 +644,11 @@
     $("#mesure").setAttribute("aria-pressed", String(measuring));
     $("#mesure").classList.toggle("actif", measuring);
     $("#mode-mesure").hidden = !measuring;
-    $("#mode-mesure").textContent = $("#mode").value === "tri"
+    const mode = $("#mode").value;
+    $("#mode-mesure").textContent = mode === "tri"
       ? "Triangulation : clic sur l'objet pour viser, flèches pour changer de photo"
+      : mode === "height" && aiming ? "Hauteur : triangulez le pied de l'objet (clic pour viser, flèches pour changer de photo)"
+      : mode === "height" ? "Hauteur : cliquez le pied puis le sommet de l'objet"
       : "Mode mesure en cours : désélectionner pour naviguer";
     showModeOptions();
     const box = psv?.container;
@@ -738,7 +751,8 @@
     const mode = $("#mode").value;
     for (const option of document.querySelectorAll("header .option")) {
       const modes = option.dataset.modes.split(" ");
-      option.hidden = !modes.includes(mode);
+      // « Valider le point » : seulement pendant les visées (hauteur : point de référence)
+      option.hidden = !modes.includes(mode) || (option.contains($("#garder")) && !aiming);
     }
   }
 
@@ -759,7 +773,6 @@
     setCamera();
   });
   $("#pont").addEventListener("change", (event) => refresh(app.set_bridge(event.target.checked)));
-  $("#mur").addEventListener("change", (event) => refresh(app.set_use_wall(event.target.checked)));
   for (const id of ["#reference", "#longueur"]) {
     $(id).addEventListener("change", () => refresh(app.set_reference($("#reference").value, Number($("#longueur").value))));
   }

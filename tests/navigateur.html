@@ -125,12 +125,6 @@ async function feature(id) {
   await until(() => app.status().startsWith("Longueur"), 15000, "longueur");
   log("résultat : " + app.status());
 
-  log("== hauteur : " + app.set_mode("height"));
-  app.click(0.62, -0.12);
-  await until(() => app.status().startsWith("Cliquez au sommet"), 15000, "pied");
-  app.click(0.62, 0.35);
-  log("résultat : " + app.status());
-
   doc.querySelector("#mode").value = "tri";  // par la liste : flèches rétablies
   doc.querySelector("#mode").dispatchEvent(new Event("change"));
   log("== triangulation : " + app.status());
@@ -165,6 +159,44 @@ async function feature(id) {
   } catch (e) {
     log("flèche en triangulation : photo inchangée (" + e.message + ")");
   }
+
+  // Hauteur : point de référence triangulé au pied de l'objet, puis pied et sommet dans la photo.
+  // Cible fictive à 6 m sur le côté, entre les deux photos de Dijon : directions calculées
+  doc.querySelector("#mode").value = "height";
+  doc.querySelector("#mode").dispatchEvent(new Event("change"));
+  log("== hauteur avec point de référence : " + app.status());
+  const photos = [await feature(DIJON[0]), await feature(DIJON[1])];
+  const metres = ([lon, lat], [lon0, lat0]) => [(lon - lon0) * 111320 * Math.cos(lat0 * Math.PI / 180), (lat - lat0) * 111320];
+  const [p0, p1] = photos.map((f) => f.geometry.coordinates);
+  const mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
+  const along = Math.atan2(...metres(p1, p0));  // cap de la rue (radians)
+  const target = [mid[0] + 6 * Math.cos(along) / (111320 * Math.cos(mid[1] * Math.PI / 180)), mid[1] - 6 * Math.sin(along) / 111320];
+  const yawTo = (f) => {
+    const [x, y] = metres(target, f.geometry.coordinates);
+    return Math.atan2(x, y) - f.properties["view:azimuth"] * Math.PI / 180;
+  };
+  for (const f of photos) {
+    w.mesures.openPhoto(f);
+    await until(() => w.mesures.psv.getPictureMetadata?.()?.id === f.id, 30000, "photo " + f.id);
+    await sleep(1000);
+    psvClick(yawTo(f), -0.3);
+  }
+  log("visées : " + app.status() + " · bouton Valider affiché : " + !doc.querySelector("#garder").closest(".option").hidden);
+  doc.querySelector("#garder").click();
+  log("validé : " + doc.querySelector("#statut").textContent + " · flèches masquées : "
+    + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden")
+    + " · rappel : " + doc.querySelector("#mode-mesure").textContent);
+  const ref = JSON.parse(app.map_geojson()).features.filter((f) => f.properties.kind === "triangule").pop().geometry.coordinates;
+  const d = Math.hypot(...metres(ref, p1));
+  log("point de référence à " + d.toFixed(2) + " m de la photo (cible à " + Math.hypot(...metres(target, p1)).toFixed(2) + " m)");
+  const yawRef = Math.atan2(...metres(ref, p1)) - photos[1].properties["view:azimuth"] * Math.PI / 180;
+  psvClick(yawRef, -0.2);
+  await until(() => doc.querySelector("#statut").textContent.includes("sommet"), 15000, "pied");
+  psvClick(yawRef, 0.25);
+  await until(() => doc.querySelector("#statut").textContent.startsWith("Hauteur :"), 15000, "hauteur");
+  log("résultat : " + doc.querySelector("#statut").textContent);
+  log("attendu sans inclinaison : " + (d * (Math.tan(0.25) - Math.tan(-0.2))).toFixed(2) + " m · ensuite : " + app.status().slice(0, 60)
+    + " · flèches visibles : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility !== "hidden"));
 
   log("== calage inclinaison : " + app.set_mode("tilt"));
   app.click(0.62, -0.12);
