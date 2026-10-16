@@ -94,7 +94,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "photo 1 bis");
     await sleep(1000);
     top = second().points[1];
-    psvRight(top[0], top[1]);
+    psvClick(top[0], top[1]);  // clic gauche sur la croix : sélection
+    log("clic sur le sommet : " + doc.querySelector("#statut").textContent.slice(0, 60));
     psvClick(yawTo(photos[0], target), 0.25);
     await until(() => !JSON.parse(app.state()).point_sel && doc.querySelector("#statut").textContent.startsWith("Hauteur"), 30000, "recalage");
     log("sommet revisé (0,25) : " + doc.querySelector("#statut").textContent.slice(0, 160));

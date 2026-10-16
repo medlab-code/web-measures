@@ -63,7 +63,7 @@ la prise de mesure ; croix bleues pour les visées, jaunes pour les points de me
 traits et étiquettes restent visibles sur toutes les photos (là où ils ont été cliqués, ou
 projetés au sol sur les autres photos).
 
-**Recaler un point** : **clic droit** sur sa croix pour le sélectionner, puis :
+**Recaler un point** : **clic** (gauche ou droit) sur sa croix pour le sélectionner, puis :
 
 - clic gauche : nouvelle position (bord d'une largeur : nouvelle direction ; point de
   référence d'une largeur : visée de plus, il est retriangulé ; hauteur : sur la photo de la
@@ -209,7 +209,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
    HD et inclinaison, inclinaison automatique en arrière-plan, mesure libre entre points
    triangulés.
 4. ~~Mesures appuyées sur un point triangulé~~ (16/10/2026) : hauteur et largeur depuis un
-   point de référence, recalage au clic droit et au clavier ; longueur sur une seule photo
+   point de référence, recalage au clic et au clavier ; longueur sur une seule photo
    et calage de la hauteur de caméra retirés.
 5. Essais sur le terrain avec les agents (postes, photos RTK) ; mini-carte détachable
    (ticket #13).

@@ -324,8 +324,12 @@ class App:
             self.message = ("Ce point se recale par un clic sur la photo de sa mesure (le pied et le sommet "
                             "y sont visés ensemble) ; ici, flèches ↑ ↓ : 1 cm ; Entrée pour terminer.")
             return self.status()
-        # Hauteur : la sélection d'un point se fait au clic droit (select_point) ; le pied d'une
-        # nouvelle hauteur tombe sur celui des autres hauteurs du même point de référence
+        if self.mode == "height" and tool.selected is None and (
+                tool.current is None or len(tool.current.clicks) >= tool.current.needed()):
+            near = self._height_near(click)
+            if near is not None:  # clic sur la croix d'un pied ou d'un sommet : sélectionné
+                tool.selected = near
+                return self.status()
         if tool is self.tool and self.mode != "height" and tool.select_near(click):
             return self.status()  # repère d'un point : sélectionné pour le viser à nouveau
         foot = self._reference_foot() if self.mode == "height" and tool.selected is None and (
@@ -386,10 +390,15 @@ class App:
 
     def _width_click(self, click):
         """Largeur : le bord opposé, sur la droite perpendiculaire passant par le point de
-        référence (voir core/widths.py). Chaque clic donne une largeur ; un point sélectionné
-        au clic droit (select_point) est recalé par le clic suivant (voir _recale_width)."""
+        référence (voir core/widths.py). Chaque clic donne une largeur ; un clic (gauche ou droit,
+        voir select_point) sur la croix d'un point le sélectionne, le suivant le recale (voir
+        _recale_width)."""
         if self.width_sel is not None:
             return self._recale_width(click)
+        near = self._width_near(click)
+        if near is not None:  # clic sur la croix d'un point : sélectionné
+            self.width_sel = near
+            return self.status()
         ref = self.ref_point
         if ref.get("road") is None:
             self._road_at_reference()
@@ -404,7 +413,7 @@ class App:
         self.tool.done.append(m)
         self.message = (m.status() + self._rtk_warning(ref["sequences"] + [click.get("sequence")])
                         + " Autre largeur depuis ce point : cliquez un autre bord ; sinon « Nouveau point de référence »."
-                          " Clic droit sur une croix : la recaler.")
+                          " Clic sur une croix : la recaler.")
         return self.status()
 
     def _width_points(self, m):
@@ -690,7 +699,7 @@ class App:
             return
         self.message = (m.status() + self._rtk_warning(ref["sequences"] + [c.get("sequence") for c in m.clicks])
                         + " Autre hauteur sur ce point : cliquez un autre sommet, depuis cette photo ou une autre "
-                          "de la triangulation ; sinon « Nouveau point de référence ». Clic droit sur une croix : "
+                          "de la triangulation ; sinon « Nouveau point de référence ». Clic sur une croix : "
                           "la recaler.")
         self.tool.finish()  # mesure terminée : affichée avec les autres pendant les visées suivantes
 

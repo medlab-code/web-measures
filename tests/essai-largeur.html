@@ -83,8 +83,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("sur l'autre photo : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
       + " · croix " + box.querySelectorAll(".croix").length);
     const [markA, markB] = width().points;
-    psvRight(markB[0], markB[1]);
-    log("clic droit sur B : " + doc.querySelector("#statut").textContent.slice(0, 60) + " · choisi : " + width().points[1][2]);
+    psvClick(markB[0], markB[1]);  // clic gauche sur la croix : sélection
+    log("clic sur B : " + doc.querySelector("#statut").textContent.slice(0, 60) + " · choisi : " + width().points[1][2]);
     const b9 = toLonLat([side * 9 * ux, side * 9 * uy]);
     psvClick(yawTo(photos[1], b9), -0.3);
     log("B recalé : " + doc.querySelector("#statut").textContent.slice(0, 120));
