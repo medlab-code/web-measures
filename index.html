@@ -46,20 +46,21 @@
     <label title="Mesure sur un pont : sol plat et horizontal sous la caméra (le terrain donnerait sinon le fond de la vallée)"><input id="pont" type="checkbox" disabled> Sur un pont</label>
     <button id="effacer" type="button" disabled>Effacer</button>
     <button id="tout-effacer" type="button" disabled>Tout effacer</button>
-    <span class="espace"></span>
+    <!-- Captures et fond de carte, à droite ; ensemble sur une seconde ligne si la place manque -->
+    <span class="droite">
     <span class="captures">
       <button id="capture-hd" type="button" disabled title="Vue affichée recalculée en Full HD
 (1920 × 1080) à partir de la photo originale, redressée si l'inclinaison est calée">📷 Image seule</button>
       <button id="vignette" type="button" disabled title="La visionneuse telle qu'affichée, mesures comprises,
 enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</button>
     </span>
-    <span class="espace"></span>
     <label>Fond de carte
       <select id="fond"><option value="plan">Plan IGN</option><option value="ortho">Orthophoto</option>
         <option value="express">Ortho-express (année de la photo)</option>
         <option value="pcrs" disabled title="Aucun PCRS publié sur la Géoplateforme à cet endroit">PCRS Géoplateforme</option>
         <option value="osm">OpenStreetMap</option></select>
     </label>
+    </span>
   </header>
   <main>
     <section id="vue">

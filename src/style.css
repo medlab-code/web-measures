@@ -39,25 +39,32 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; line
 
 body { display: flex; flex-direction: column; }
 
+/* Barre du haut à 20 px (texte de la page : 14 px) : ses dimensions en em la suivent */
 header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 0.55rem;
-  padding: 0.5rem 1rem calc(0.5rem - 1px);  /* bordure du bas comprise : contenu sur l'axe de la barre */
+  gap: 0.5em 0.55em;
+  padding: 0.5em 1em calc(0.5em - 1px);  /* bordure du bas comprise : contenu sur l'axe de la barre */
   border-bottom: 1px solid var(--bord);
+  font-size: 20px;
 }
-/* Boutons et listes de la barre à la même hauteur (une liste est sinon plus basse) */
-header button, header select { box-sizing: border-box; height: 1.65rem; }
-#mode { max-width: 19.5rem; }  /* le plus long libellé (calage du cap) n'impose pas sa largeur */
+/* Boutons et listes de la barre à la même hauteur (une liste est sinon plus basse), marges
+   intérieures à l'échelle de la barre */
+header button, header select { box-sizing: border-box; height: 1.65em; padding: 0 0.45em; }
+#mode { max-width: 19.5em; }  /* le plus long libellé (calage du cap) n'impose pas sa largeur */
+#fond { max-width: 12em; }  /* idem : « Ortho-express (année de la photo) » */
 
-header label { display: flex; align-items: center; gap: 0.35rem; }
-header input[type="number"] { width: 4.5rem; }
+header label { display: flex; align-items: center; gap: 0.35em; }
+header input[type="number"] { width: 4.5em; }
+header input[type="checkbox"] { width: 0.95em; height: 0.95em; margin: 0; }
 .espace { flex: 1; }
-header .captures { display: inline-flex; gap: 0.5rem; }
+header .captures { display: inline-flex; gap: 0.5em; }
+header .droite { display: inline-flex; align-items: center; gap: 0.5em 1.2em; margin-left: auto; }
 
 h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
-header .logo { display: block; width: 26px; height: 26px; margin-right: -0.3rem; }  /* collé au titre */
+header h1 { font-size: 1em; }
+header .logo { display: block; width: 1.86em; height: 1.86em; margin-right: -0.3em; }  /* 37 px, collé au titre */
 h2 { font-size: 0.95rem; margin: 0 0 0.4rem; }
 
 main { flex: 1; display: flex; min-height: 0; }
@@ -238,7 +245,7 @@ h3 { font-size: 0.9rem; margin: 0.9rem 0 0.3rem; }
 .grille select, .grille input { min-width: 0; }
 #filtre-actif { color: var(--panoramax); }
 
-header .option { display: inline-flex; align-items: center; gap: 0.4rem; }
+header .option { display: inline-flex; align-items: center; gap: 0.4em; }
 header .option[hidden] { display: none; }
 button.principal { font-weight: 600; }
 #mesure.actif { background: var(--panoramax); border-color: var(--panoramax); color: #fff; font-weight: 600; }
