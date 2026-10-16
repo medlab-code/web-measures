@@ -227,7 +227,7 @@
     if (saved && !app.load_calibration(saved)) console.warn("Calage enregistré illisible : ignoré.");
     savedCalibration = app.calibration_version;
     for (const id of ["#mesure", "#mode", "#camera", "#pont", "#effacer", "#tout-effacer", "#calage-exporter",
-      "#calage-importer", "#mur", "#viser",
+      "#calage-importer", "#mur",
       "#reference", "#longueur"]) $(id).disabled = false;
     $("#camera").value = store.get("camera", $("#camera").value);
     app.set_camera_height(Number($("#camera").value));
@@ -556,7 +556,7 @@
       // dans la direction cliquée, ou suivrait une flèche) : il devient un point de mesure.
       const dispatch = psv.dispatchEvent;
       psv.dispatchEvent = function (event) {
-        if (event?.type === "click" && blocksNavigation()) {
+        if (event?.type === "click" && measuring && !onArrow(event)) {
           if (app && !event.data?.rightclick) {
             refresh(photoReady() ? app.click(event.data.yaw, event.data.pitch) : LOADING);
           }
@@ -608,9 +608,15 @@
   }
   const LOADING = "Photo en cours de chargement : cliquez à nouveau.";
 
-  /** Les clics dans la photo mesurent (pas en triangulation, qui demande de changer de photo). */
-  function blocksNavigation() {
+  /** Flèches masquées en mesure, sauf en triangulation, qui vise depuis plusieurs photos. */
+  function hidesArrows() {
     return measuring && $("#mode").value !== "tri";
+  }
+
+  /** Clic sur une flèche de la visionneuse (photo suivante, précédente…) : il navigue. */
+  function onArrow(event) {
+    const target = event.data?.target;
+    return Boolean(target?.closest?.(".psv-virtual-tour-link"));
   }
 
   // Pointeur de mesure : réticule fin (comme le plugin), la visionneuse imposant sinon main ou flèche
@@ -619,7 +625,8 @@
     encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='33' height='33'>"
       + `<circle cx='16.5' cy='16.5' r='15' fill='none' stroke='${tilted ? "#2ecc40" : "#ffeb00"}' stroke-width='2.5'/>`
       + "<path d='M16.5 2v11M16.5 20v11M2 16.5h11M20 16.5h11' stroke='#ff8a80' stroke-width='1.5'/>"
-      + "<circle cx='16.5' cy='16.5' r='1' fill='white'/></svg>")}") 16 16, crosshair !important; }`;
+      + "<circle cx='16.5' cy='16.5' r='1' fill='white'/></svg>")}") 16 16, crosshair !important; }
+    .psv-container .psv-virtual-tour-link, .psv-container .psv-virtual-tour-link * { cursor: pointer !important; }`;
   let tilted = false;  // inclinaison de la photo affichée calée
 
   /** Navigation, flèches, curseur au sol et pointeur de la visionneuse selon le bouton « Mesure ». */
@@ -630,9 +637,8 @@
     showModeOptions();
     const box = psv?.container;
     if (!box) return;
-    const block = blocksNavigation();
     for (const arrows of box.querySelectorAll(".psv-virtual-tour-arrows")) {
-      if (block) arrows.style.setProperty("visibility", "hidden", "important");
+      if (hidesArrows()) arrows.style.setProperty("visibility", "hidden", "important");
       else arrows.style.removeProperty("visibility");
     }
     // Curseur « aller ici » qui suit la souris sur le sol : image du moteur 360°, sans souris
@@ -643,10 +649,10 @@
     }
     const root = box.getRootNode();
     let style = root.getElementById ? root.getElementById("mesure-pointeur") : null;
-    if (block && !style) {
+    if (measuring && !style) {
       style = Object.assign(document.createElement("style"), { id: "mesure-pointeur" });
       (root === document ? document.head : root).append(style);
-    } else if (!block && style) {
+    } else if (!measuring && style) {
       style.remove();
     }
     if (style?.isConnected) {
@@ -731,7 +737,6 @@
       const modes = option.dataset.modes.split(" ");
       option.hidden = !modes.includes(mode);
     }
-    $("#reticule").hidden = mode !== "tri" || !measuring || viewer.hidden;
   }
 
   $("#mode").addEventListener("change", (event) => {
@@ -755,18 +760,6 @@
   for (const id of ["#reference", "#longueur"]) {
     $(id).addEventListener("change", () => refresh(app.set_reference($("#reference").value, Number($("#longueur").value))));
   }
-  $("#viser").addEventListener("click", () => {
-    if (!psv) {
-      setStatus("Aucune photo affichée : impossible de viser.");
-      return;
-    }
-    if (!photoReady()) {
-      setStatus(LOADING);
-      return;
-    }
-    const { yaw, pitch } = psv.getPosition();
-    refresh(app.aim(yaw, pitch));
-  });
   $("#garder").addEventListener("click", () => refresh(app.keep_point()));
   $("#effacer").addEventListener("click", () => refresh(app.clear()));
   $("#tout-effacer").addEventListener("click", () => refresh(app.clear_all()));

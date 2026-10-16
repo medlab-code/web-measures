@@ -230,22 +230,6 @@ header .option[hidden] { display: none; }
 button.principal { font-weight: 600; }
 #mesure.actif { background: var(--panoramax); border-color: var(--panoramax); color: #fff; font-weight: 600; }
 
-/* Triangulation : réticule au centre de la vue */
-#reticule {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 36px;
-  height: 36px;
-  margin: -18px 0 0 -18px;
-  background:
-    linear-gradient(#e53935, #e53935) center / 2px 100% no-repeat,
-    linear-gradient(#e53935, #e53935) center / 100% 2px no-repeat;
-  filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff);
-  pointer-events: none;
-  z-index: 5;
-}
-
 /* Calage du cap : le repère attend son clic sur la carte ; avis passager (photo écartée) */
 #bandeau, #avis {
   position: absolute;

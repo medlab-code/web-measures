@@ -131,17 +131,36 @@ async function feature(id) {
   app.click(0.62, 0.35);
   log("résultat : " + app.status());
 
-  log("== triangulation : " + app.set_mode("tri"));
-  log(app.aim(0.9, 0.0));
+  doc.querySelector("#mode").value = "tri";  // par la liste : flèches rétablies
+  doc.querySelector("#mode").dispatchEvent(new Event("change"));
+  log("== triangulation : " + app.status());
+  psvClick(0.9, 0.0);  // visée au clic dans la photo
+  log(doc.querySelector("#statut").textContent);
+  log("repère de la visée : " + JSON.parse(app.viewer_marks()).length + " · flèches visibles : "
+    + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility !== "hidden"));
   // Changement de photo : tant que la visionneuse montre l'ancienne, la visée est refusée
   w.mesures.openPhoto(await feature(DIJON[1]));
-  doc.querySelector("#viser").click();
+  psvClick(0.95, 0.0);
   log("viser pendant le chargement : " + doc.querySelector("#statut").textContent);
   await until(() => w.mesures.psv.getPictureMetadata?.()?.id === DIJON[1], 30000, "photo suivante");
   await sleep(1000);
-  log(app.aim(0.95, 0.0));
+  psvClick(0.95, 0.0);
+  log(doc.querySelector("#statut").textContent);
   log("cartes : " + JSON.parse(app.map_geojson()).features.filter((f) => f.properties.kind === "visee").length + " visées");
   log("garder : " + app.keep_point());
+  // Flèche de la visionneuse cliquée à la souris en triangulation : elle change de photo
+  await until(() => box.querySelector(".psv-virtual-tour-link"), 15000, "flèches");
+  const link = box.querySelector(".psv-virtual-tour-link");
+  const r = link.getBoundingClientRect();
+  const at = { bubbles: true, composed: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, button: 0 };
+  link.dispatchEvent(new w.MouseEvent("mousedown", at));
+  link.dispatchEvent(new w.MouseEvent("mouseup", at));
+  try {
+    await until(() => w.mesures.psv.getPictureMetadata?.()?.id !== DIJON[1], 20000, "flèche");
+    log("flèche en triangulation : photo changée · visées " + JSON.parse(app.map_geojson()).features.filter((f) => f.properties.kind === "visee").length);
+  } catch (e) {
+    log("flèche en triangulation : photo inchangée (" + e.message + ")");
+  }
 
   log("== calage inclinaison : " + app.set_mode("tilt"));
   app.click(0.62, -0.12);
@@ -167,7 +186,7 @@ async function feature(id) {
     select("#mode", mode);
     const shown = [...doc.querySelectorAll("header .option")].filter((o) => !o.hidden)
       .map((o) => [...o.querySelectorAll("input, select, button")].map((e) => e.id).join("+"));
-    log("réglages " + mode + " : " + (shown.join(", ") || "aucun") + (doc.querySelector("#reticule").hidden ? "" : " · réticule"));
+    log("réglages " + mode + " : " + (shown.join(", ") || "aucun"));
   }
   doc.querySelector("#vignette").click();
   await until(() => doc.querySelector("#statut").textContent.includes("Vignette"), 10000, "vignette");

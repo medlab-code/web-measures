@@ -83,6 +83,8 @@ class App:
         self.tool.wall_lookup = self.buildings.lookup
         self.triangulator = tools.Triangulator()
         self.triangulator.new_item = self._new_rays
+        self.triangulator.AIM = "Cliquez sur l'objet dans la photo"
+        self.triangulator.AIM_AGAIN = "cliquez sur le même objet"
         self.reference = ("ground", 5.0)  # calage de la hauteur de caméra : longueur connue
         self.calibrator = tools.CalibrationTool(self.calibration, self.current_ids, lambda: self.reference)
         self.calibrator.new_item = self._new_rays
@@ -282,8 +284,7 @@ class App:
             self.message = "Photo en cours de chargement : cliquez à nouveau."
             return self.status()
         if self.mode == "tri":
-            self.message = "Triangulation : placez le réticule sur l'objet puis « Viser »."
-            return self.status()
+            return self.aim(yaw, pitch)
         raw_yaw = (math.degrees(yaw) + self._heading()) % 360
         click = tools.photo_click(self.item, raw_yaw, math.degrees(pitch), self.calibration, self.quality,
                                   [yaw, pitch], self._axis(self.item))
@@ -346,7 +347,7 @@ class App:
         return self.status()
 
     def aim(self, yaw, pitch):
-        """Triangulation : visée du centre de la vue (radians, dans le repère de la photo)."""
+        """Triangulation : visée de la direction cliquée (radians, dans le repère de la photo)."""
         if not self.active:
             return self.status()
         if not self.item:
@@ -358,6 +359,7 @@ class App:
             self.message = "Position de la photo inconnue : impossible de viser."
             return self.status()
         self.message = ""
+        sighting["view"] = [yaw, pitch]  # repère de la visée dans la photo (viewer_marks)
         self.triangulator.add(sighting)
         return self.status()
 
@@ -510,6 +512,9 @@ class App:
             marks = marks + [self.tool.viewer_marks()]
         elif self.active and self.mode in CALIBRATION_MODES:
             marks = marks + [self.calibrator.viewer_marks()]
+        elif self.active and self.mode == "tri":  # visée faite depuis cette photo
+            marks = marks + [{"points": [{"pic": s["pic"], "yaw": s["view"][0], "pitch": s["view"][1]}
+                                         for s in self.triangulator.sightings if "view" in s]}]
         out = []
         for m in marks:
             points = [p for p in m["points"] if p.get("pic") == pic and p.get("yaw") is not None]

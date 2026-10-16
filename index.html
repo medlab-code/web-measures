@@ -44,8 +44,7 @@
     <!-- Réglages du mode (voir app.js : showModeOptions) -->
     <span class="option" data-modes="height" hidden><label><input id="mur" type="checkbox" disabled> Façade du cadastre</label></span>
     <span class="option" data-modes="tri" hidden>
-      <button id="viser" type="button" class="principal" disabled>🎯 Viser</button>
-      <button id="garder" type="button" disabled>Garder le point</button>
+      <button id="garder" type="button" class="principal" disabled title="Point triangulé gardé : assez de visées, depuis des photos assez différentes">Valider le point</button>
     </span>
     <span class="option" data-modes="camera" hidden>
       <select id="reference" disabled>
@@ -77,7 +76,6 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
       <p id="invite">Cliquez sur le filaire orange de la carte pour choisir une photo.</p>
       <pnx-photo-viewer id="visionneuse" endpoint="https://api.panoramax.xyz/api" widgets="false"
                         url-parameters="false" keyboard-shortcuts="false" hidden></pnx-photo-viewer>
-      <div id="reticule" hidden></div>
       <p id="bandeau" hidden></p>
       <p id="avis" hidden></p>
       <ul id="voyants" hidden></ul>
