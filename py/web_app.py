@@ -928,8 +928,7 @@ class App:
                 add("cible", "Point", list(item.point))
         road = (self.ref_point or {}).get("road") if self.active and self.mode == "road" else None
         if road:  # largeur : droite de mesure passant par le point de référence
-            add("trace", "LineString", [list(p) for p in widths.guide(self.ref_point, road["axis"])],
-                sublabel="droite de mesure")
+            add("trace", "LineString", [list(p) for p in widths.guide(self.ref_point, road["axis"])])
         for lon, lat, values in self.points:
             add("triangule", "Point", [lon, lat], values["nom"])  # nom seul : pas d'incertitude sur la carte
         for i, j, values in self.links:  # distance entre deux points gardés : trait rouge, comme une mesure
