@@ -303,6 +303,7 @@
     }
     showLights(state.lights);
     $("#garder").disabled = !state.point;
+    widthSelected = state.width_sel;
     if (aiming !== state.aiming) {  // hauteur : point de référence validé, ou à trianguler
       aiming = state.aiming;
       applyMeasureUi();
@@ -435,6 +436,18 @@
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && app && app.waiting_map()) refresh(app.cancel_landmark());
   });
+
+  // Largeur : point sélectionné déplacé de 1 cm le long de la droite de mesure par les flèches
+  let widthSelected = false;
+  const NUDGE_KEYS = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 };
+  document.addEventListener("keydown", (event) => {
+    const direction = NUDGE_KEYS[event.key];
+    if (!direction || !app || !measuring || !widthSelected) return;
+    if (event.target.closest?.("input, select, textarea")) return;  // champ en cours de saisie
+    event.preventDefault();
+    event.stopPropagation();
+    refresh(app.nudge_width(direction));
+  }, true);
 
   function openPhoto(feature) {
     setPhoto(feature, false);

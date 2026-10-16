@@ -76,6 +76,18 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     const b9 = toLonLat([side * 9 * ux, side * 9 * uy]);
     psvClick(yawTo(photos[1], b9), -0.3);
     log("B recalé : " + doc.querySelector("#statut").textContent.slice(0, 120));
+    // Flèches du clavier : bord puis point de référence, de 1 cm le long de la droite
+    const key = (k) => doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: k, bubbles: true }));
+    const [, markB2] = width().points;
+    psvClick(markB2[0], markB2[1]);
+    for (const k of ["ArrowRight", "ArrowRight", "ArrowUp", "ArrowLeft"]) key(k);
+    log("bord +2 cm : " + doc.querySelector("#statut").textContent.slice(0, 200));
+    doc.querySelector("#effacer").click();
+    log("après Effacer : " + JSON.parse(app.results()).map((r) => r.text).join(" | ") + " · sélection : " + JSON.parse(app.state()).width_sel);
+    psvClick(markA[0], markA[1]);
+    for (let i = 0; i < 5; i++) key("ArrowDown");
+    log("point -5 cm : " + doc.querySelector("#statut").textContent.slice(0, 160));
+    doc.querySelector("#effacer").click();
     psvClick(markA[0], markA[1]);
     log("clic sur A : " + doc.querySelector("#statut").textContent.slice(0, 60));
     psvClick(yawTo(photos[1], target), -0.35);
