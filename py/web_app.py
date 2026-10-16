@@ -905,6 +905,8 @@ class App:
             return ("{} de la hauteur sélectionné : cliquez sa position exacte sur la photo de la mesure, ou "
                     "flèches du clavier ↑ ↓ : 1 cm ; Entrée pour terminer.").format(
                 "Pied" if self.tool.selected[1] == 0 else "Sommet")
+        if self.mode in ("tilt", "heading"):
+            return self._calibration_text()
         text = self._active().status()
         sequences = []
         if self._aiming():
@@ -940,6 +942,43 @@ class App:
                 else ", perpendiculaire à l'axe {}° ({})".format(measures._num(road["axis"] % 180, 0), road["source"]))
             sequences = self.ref_point["sequences"]
         return text + self._rtk_warning(sequences)
+
+    def _calibration_text(self):
+        """Consigne des modes de calage, étape par étape, avec ce qui est déjà fait."""
+        tool, pic = self.calibrator, (self.item or {}).get("id")
+        prefix = (tool.error + " ") if tool.error else ""
+        waiting = len(tool.clicks)
+        if self.mode == "tilt":
+            done = len(self.calibration.verticals.get(pic, []))
+            if waiting:
+                return prefix + ("Calage de l'inclinaison, objet {} : cliquez maintenant son sommet, le plus haut "
+                                 "possible sur la même verticale (zoomez pour être précis).").format(done + 1)
+            if done == 0:
+                return prefix + ("Calage de l'inclinaison, objet 1 sur 2 : cliquez le pied d'un objet bien vertical "
+                                 "(poteau, angle de façade, montant de panneau), au ras du sol, puis son sommet.")
+            if done == 1:
+                return prefix + ("1 objet calé : l'inclinaison n'est corrigée qu'en partie. Objet 2 sur 2 : cliquez le "
+                                 "pied puis le sommet d'un autre objet vertical, à environ 90° du premier dans la "
+                                 "photo (sur le côté si le premier est devant).")
+            tilt = self.calibration.tilt(pic) or {}
+            sigma = " (±{}°)".format(measures._num(tilt["sigma"], 2)) if tilt.get("sigma") is not None else ""
+            return prefix + ("Inclinaison calée sur {} objets{} : c'est fait pour cette photo. Un objet de plus "
+                             "l'affine ; sinon, passez à un mode de mesure.").format(done, sigma)
+        sequence = (self.item or {}).get("collection")
+        done = len(self.calibration.landmarks.get(sequence, [])) if sequence else 0
+        if waiting:
+            return prefix + ("Repère {} : cliquez maintenant ce même repère sur la carte (glisser pour la déplacer, "
+                             "molette pour zoomer, Échap pour annuler).").format(done + 1)
+        if done == 0:
+            return prefix + ("Calage du cap, repère 1 : cliquez dans la photo un repère net, visible aussi sur la "
+                             "carte (angle de bâtiment, poteau, borne), plutôt lointain ; puis cliquez-le sur la carte.")
+        if done < 3:
+            return prefix + ("{} repère{} : le cap est corrigé. Pour recaler aussi la position de la photo, il en faut "
+                             "au moins 3, répartis autour d'elle (devant, derrière, sur les côtés) : cliquez le repère "
+                             "suivant dans la photo, puis sur la carte.").format(done, "s" if done > 1 else "")
+        return prefix + ("{} repères : cap et position recalés pour les photos de la séquence à moins de {} m. Un "
+                         "repère de plus affine le calage ; sinon, passez à un mode de mesure.").format(
+            done, measures._num(calibration.REACH, 0))
 
     def _rtk_warning(self, sequences):
         """RTK_WARNING si l'une des séquences n'a pas de position RTK vérifiée (vérification

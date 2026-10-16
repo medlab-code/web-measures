@@ -689,6 +689,8 @@
       : mode === "height" ? "Hauteur, étape 2 : cliquez le sommet (le pied est le point visé), depuis une photo de la triangulation"
       : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), puis « Valider le point »"
       : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé depuis une photo prise avant ou après (flèches)"
+      : mode === "tilt" ? "Calage de l'inclinaison : pied puis sommet de deux objets verticaux, à 90° l'un de l'autre"
+      : mode === "heading" ? "Calage du cap : un repère dans la photo, puis le même sur la carte (3 pour la position)"
       : "Mode mesure en cours : désélectionner pour naviguer";
     showModeOptions();
     const box = psv?.container;
