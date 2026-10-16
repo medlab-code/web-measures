@@ -437,9 +437,10 @@
     if (event.key === "Escape" && app && app.waiting_map()) refresh(app.cancel_landmark());
   });
 
-  // Largeur : point sélectionné déplacé de 1 cm le long de la droite de mesure par les flèches
+  // Largeur : point sélectionné déplacé de 1 cm le long de la droite de mesure par les flèches,
+  // dans le sens vu sur la photo (← →), ou en s'éloignant de la caméra (↑ ↓)
   let widthSelected = false;
-  const NUDGE_KEYS = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 };
+  const NUDGE_KEYS = { ArrowRight: "right", ArrowLeft: "left", ArrowUp: "up", ArrowDown: "down" };
   document.addEventListener("keydown", (event) => {
     const direction = NUDGE_KEYS[event.key];
     if (!direction || !app || !measuring || !widthSelected) return;

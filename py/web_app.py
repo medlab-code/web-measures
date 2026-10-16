@@ -30,6 +30,8 @@ CALIBRATION_MODES = ("tilt", "heading", "camera")
 MODES = GROUND_MODES + ("tri",) + CALIBRATION_MODES
 REF_MODES = ("height", "road")  # mesures appuyées sur un point de référence triangulé
 NUDGE = 0.01  # pas (m) d'un point de largeur déplacé aux flèches du clavier
+NUDGE_WORDS = {"left": "vers la gauche", "right": "vers la droite", "up": "en s'éloignant",
+               "down": "en se rapprochant"}
 # Triangulation et mesures qui s'y appuient : acceptées hors RTK, mais signalées
 RTK_WARNING = (" ⚠ Photo sans position GPS RTK vérifiée : mesure probablement incohérente "
                "(la triangulation demande des positions précises).")
@@ -440,7 +442,7 @@ class App:
             return self.status()
         r = tri.result
         edge.update(lon=r["lon"], lat=r["lat"], uncertainty=r["uncertainty"], sightings=tri.sightings,
-                    sequences=[s.get("sequence") for s in tri.sightings], shift=0.0)  # décalage au clavier perdu
+                    sequences=[s.get("sequence") for s in tri.sightings])
         for k, (_, _, v) in enumerate(self.points):  # le point gardé du même nom suit
             if v["nom"] == edge["name"]:
                 self.points[k] = (r["lon"], r["lat"], dict(v, **values))
@@ -452,34 +454,53 @@ class App:
             edge["name"], len(tri.sightings), measures._num(r["uncertainty"], 2))
         return self.status()
 
-    def nudge_width(self, direction):
-        """Flèches du clavier : point sélectionné d'une largeur décalé de 1 cm le long de la
-        droite de mesure (direction > 0 : la largeur s'allonge). Il reste sélectionné. Le point
-        de référence entraîne toutes les largeurs qui en partent."""
-        if self.width_sel is None:
+    def nudge_width(self, key):
+        """Flèches du clavier : point sélectionné d'une largeur déplacé de 1 cm le long de la
+        droite de mesure, dans le sens vu sur la photo affichée (key : "left", "right" ; "up" :
+        en s'éloignant de la caméra, "down" : en s'en rapprochant). Il reste sélectionné. Le
+        point de référence entraîne toutes les largeurs qui en partent."""
+        if self.width_sel is None or not self.item or key not in NUDGE_WORDS:
             return self.status()
         m, index = self.width_sel
-        step = NUDGE if direction > 0 else -NUDGE
+        d = self._nudge_sign(m, index, key) * NUDGE  # le long de widths.perpendicular(axe)
         if index == 1:
-            m.nudge(step)
+            m.nudge(d * m.side())  # vers l'extérieur du point de référence : plus large
             self.message = m.status()
-        elif m.result["value"] + step < widths.MIN_WIDTH:
-            self.message = "Le point de référence ne passe pas au-delà du bord."
         else:
             edge = m.edge
-            widths.move_edge(edge, m.road["axis"], -m.side() * step)  # à l'opposé du bord : plus large
-            edge["shift"] = edge.get("shift", 0.0) + step
-            for k, (_, _, v) in enumerate(self.points):  # le point gardé du même nom suit
-                if v["nom"] == edge["name"]:
-                    self.points[k] = (edge["lon"], edge["lat"], v)
-            for w in self.tool.measures():
-                if isinstance(w, widths.PerpendicularWidth) and w.edge is edge:
-                    w.clicks[0] = w._edge_mark(w.clicks[1])
-                    w.compute()
-            self.message = "Point de référence {} décalé de {} cm au clavier. {}".format(
-                edge["name"], measures._num(edge["shift"] * 100, 0), m.status())
+            mates = [w for w in self._widths() if w.edge is edge]
+            widths.move_edge(edge, m.road["axis"], d)
+            self._edge_moved(edge, mates)
+            if any(w.error or w.result["value"] < widths.MIN_WIDTH for w in mates):
+                widths.move_edge(edge, m.road["axis"], -d)  # au-delà d'un bord : refusé
+                self._edge_moved(edge, mates)
+                self.message = "Le point de référence ne passe pas au-delà du bord."
+            else:
+                self.message = "Point de référence {} déplacé de 1 cm {}. {}".format(
+                    edge["name"], NUDGE_WORDS[key], m.status())
         self.message += " Flèches : encore 1 cm ; clic : recaler ; « Effacer » : terminer."
         return self.status()
+
+    def _nudge_sign(self, m, index, key):
+        """Sens (+1 ou -1, le long de widths.perpendicular(axe)) qui déplace le point n° index
+        de la largeur m vers la droite (ou s'éloigne de la caméra) sur la photo affichée."""
+        lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
+        x, y = triangulation._local(*m.result["points"][index], lon, lat)
+        ux, uy = widths.perpendicular(m.road["axis"])
+        if key in ("up", "down"):
+            sign = 1 if x * ux + y * uy > 0 else -1  # +u éloigne de la caméra
+        else:
+            sign = 1 if x * uy - y * ux < 0 else -1  # +u tourne le cap vers la droite (sens horaire)
+        return sign if key in ("right", "up") else -sign
+
+    def _edge_moved(self, edge, mates):
+        """Point de référence déplacé : son point gardé et ses largeurs suivent."""
+        for k, (_, _, v) in enumerate(self.points):
+            if v["nom"] == edge["name"]:
+                self.points[k] = (edge["lon"], edge["lat"], v)
+        for w in mates:
+            w.clicks[0] = w._edge_mark(w.clicks[1])
+            w.compute()
 
     def _road_at_reference(self):
         """Axe de la route au point de référence de la largeur : tronçon de la BD TOPO qui
@@ -707,11 +728,13 @@ class App:
             if self.width_sel[1] == 0:
                 return ("Point de référence {} sélectionné : cliquez-le à nouveau depuis cette photo, il sera "
                         "retriangulé avec ses autres visées ; flèches du clavier : 1 cm le long de la droite "
-                        "(→ ↑ plus large, ← ↓ plus étroit) ; « Effacer » pour annuler.").format(
+                        "(← → dans la photo, ↑ ↓ en s'éloignant ou en se rapprochant) ; « Effacer » pour "
+                        "annuler.").format(
                     self.width_sel[0].edge.get("name", ""))
             return ("Bord de la largeur sélectionné : cliquez sa position exacte, depuis cette photo ou une autre "
                     "(seule la direction compte, il reste sur la droite de mesure) ; flèches du clavier : 1 cm le "
-                    "long de la droite (→ ↑ plus large, ← ↓ plus étroit) ; « Effacer » pour annuler.")
+                    "long de la droite (← → dans la photo, ↑ ↓ en s'éloignant ou en se rapprochant) ; « Effacer » "
+                    "pour annuler.")
         text = self._active().status()
         sequences = []
         if self._aiming():
