@@ -472,7 +472,7 @@ const Carte = (() => {
   // placée est écartée encore, autant de fois que nécessaire (recalculé après chaque
   // déplacement ou zoom de la carte). Mesures au-dessus de leur point, points triangulés
   // dessous : le pied d'une hauteur est souvent sur son point de référence.
-  const LABEL_OFFSET = 20;
+  const LABEL_OFFSET = 26;  // écart au point : dégage la croix de mesure (18 px)
   const stacked = [];
 
   /** Sens de l'étiquette : -1 au-dessus (mesures), 1 dessous (points triangulés). */

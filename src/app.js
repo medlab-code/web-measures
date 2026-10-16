@@ -729,7 +729,7 @@
       mark.points.forEach(([yaw, pitch, sel], i) => {
         add({
           id: `${MARK}${m}-${i}`, position: { yaw, pitch }, anchor: "center center",
-          html: `<div class="croix${sel ? " choisie" : ""}"></div>`,
+          html: `<div class="croix${sel ? " choisie" : ""}${mark.sighting ? " visee" : ""}"></div>`,
         });
       });
       if (mark.label) {  // au milieu du trait, un peu au-dessus (à côté pour une hauteur)

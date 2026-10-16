@@ -412,6 +412,11 @@ dd { margin: 0; overflow-wrap: anywhere; }
   filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000);
   pointer-events: none;
 }
+.croix.visee {  /* visée de triangulation : bleue, pour ne pas la confondre avec un point de mesure */
+  background:
+    linear-gradient(#00bce6, #00bce6) center / 2px 100% no-repeat,
+    linear-gradient(#00bce6, #00bce6) center / 100% 2px no-repeat;
+}
 .croix.choisie {
   border: 2px solid #ffeb00;
   border-radius: 50%;

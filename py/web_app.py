@@ -595,7 +595,7 @@ class App:
         marks = self.tool.done_marks()
         if self.active and self._aiming():  # visées faites depuis cette photo
             marks = marks + [{"points": [{"pic": s["pic"], "yaw": s["view"][0], "pitch": s["view"][1]}
-                                         for s in self.triangulator.sightings if "view" in s]}]
+                                         for s in self.triangulator.sightings if "view" in s], "sighting": True}]
         elif self.active and self.mode in GROUND_MODES:  # mesure ou calage en cours
             marks = marks + [self.tool.viewer_marks()]
         elif self.active and self.mode in CALIBRATION_MODES:
@@ -605,7 +605,8 @@ class App:
             points = [p for p in m["points"] if p.get("pic") == pic and p.get("yaw") is not None]
             if points:
                 out.append({"points": [[p["yaw"], p["pitch"], bool(p.get("sel"))] for p in points],
-                            "label": m.get("label", ""), "beside": m.get("beside", False)})
+                            "label": m.get("label", ""), "beside": m.get("beside", False),
+                            "sighting": m.get("sighting", False)})
         return json.dumps(out)
 
     def focus(self):
