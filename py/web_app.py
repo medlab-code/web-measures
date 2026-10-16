@@ -370,14 +370,15 @@ class App:
 
     def _width_points(self, m):
         """Repères du point de référence et du bord d'une largeur dans la photo affichée :
-        [{yaw, pitch (radians, repère de la photo), abs_yaw, elev (degrés)}]. Sur la photo du
-        clic, là où il a été fait ; sur les autres, projetés au sol supposé plat (hauteur de
-        caméra du réglage) depuis leur position sur la carte."""
+        [{yaw, pitch (radians, repère de la photo), abs_yaw, elev (degrés)}]. Le point de
+        référence, projeté au sol comme la droite de mesure (il est dessus) ; le bord, là où il
+        a été cliqué sur sa photo, projeté au sol sur les autres."""
         pic = (self.item or {}).get("id")
+        points = [self._project(plon, plat) for plon, plat in m.result["points"]]
         if pic is not None and pic == m.clicks[1].get("pic"):
-            return [{"yaw": p["yaw"], "pitch": p["pitch"], "abs_yaw": p["abs_yaw"], "elev": p["elev"]}
-                    for p in m.viewer_marks()["points"]]
-        return [self._project(plon, plat) for plon, plat in m.result["points"]]
+            p = m.viewer_marks()["points"][1]
+            points[1] = {"yaw": p["yaw"], "pitch": p["pitch"], "abs_yaw": p["abs_yaw"], "elev": p["elev"]}
+        return points
 
     def _project(self, plon, plat):
         """Repère dans la photo affichée d'un point de la carte, au sol supposé plat (hauteur de
@@ -390,11 +391,14 @@ class App:
                 "abs_yaw": bearing % 360, "elev": elev}
 
     def _reference_mark(self):
-        """Croix du point de référence validé dans la photo affichée : là où il a été visé
-        depuis cette photo, sinon projeté au sol depuis sa position sur la carte."""
+        """Croix du point de référence validé dans la photo affichée. Hauteur : là où il a été
+        visé depuis cette photo, sinon projeté au sol. Largeur : sur la droite de mesure
+        (projeté au sol comme elle) ; None dès qu'une largeur en part (sa croix le montre)."""
         ref, pic = self.ref_point, self.item.get("id")
+        if self.mode == "road" and any(m.edge is ref for m in self._widths()):
+            return None
         seen = next((s for s in ref.get("sightings", []) if s["pic"] == pic and s.get("view")), None)
-        if seen is not None:
+        if seen is not None and self.mode != "road":
             point = {"yaw": seen["view"][0], "pitch": seen["view"][1]}
         else:
             point = self._project(ref["lon"], ref["lat"])
@@ -840,7 +844,7 @@ class App:
         elif self.active and self.mode in CALIBRATION_MODES:
             marks = marks + [self.calibrator.viewer_marks()]
         if self.active and self.mode in REF_MODES and self.ref_point and self.item:
-            marks = marks + [self._reference_mark()]
+            marks = marks + [m for m in [self._reference_mark()] if m]
         road = (self.ref_point or {}).get("road") if self.active and self.mode == "road" else None
         if road and self.item:  # en premier : dessinée sous les traits rouges des largeurs
             marks = [self._guide_mark(road)] + marks
