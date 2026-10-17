@@ -88,6 +88,14 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await sleep(500);
     log("largeur : " + doc.querySelector("#statut").textContent);
     near("largeur", metresIn(doc.querySelector("#statut").textContent), 8, 0.02);
+    // Largeur faite : un autre clic n'en mesure pas une autre, jusqu'à « Nouvelle mesure depuis A »
+    const again = doc.querySelector("#nouvelle-mesure");
+    const widthsCount = () => JSON.parse(app.viewer_marks()).filter((m) => m.label.startsWith("↔")).length;
+    expect("bouton « Nouvelle mesure depuis A » affiché", !again.hidden && again.textContent.includes("depuis A"));
+    psvClick(yawTo(photos[0], toLonLat([side * 12 * ux, side * 12 * uy])), -0.3);
+    await sleep(300);
+    expect("autre clic refusé : une seule largeur", widthsCount() === 1);
+    log("autre clic : " + doc.querySelector("#statut").textContent.slice(0, 80));
     log("étiquettes : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
       + " · carte : " + JSON.parse(app.map_geojson()).features.map((f) => f.properties.kind).join(","));
     // Autre photo : la largeur reste visible ; recalage du bord, puis du point de référence
@@ -133,6 +141,11 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("clic droit sur A : " + doc.querySelector("#statut").textContent.slice(0, 60));
     psvClick(yawTo(photos[1], target), -0.35);
     log("A recalé : " + doc.querySelector("#statut").textContent + " · " + JSON.parse(app.results()).map((r) => r.text).join(" | "));
+    again.click();
+    expect("« Nouvelle mesure » : bouton masqué", again.hidden);
+    psvClick(yawTo(photos[1], toLonLat([side * 12 * ux, side * 12 * uy])), -0.3);
+    await sleep(300);
+    expect("seconde largeur depuis A", widthsCount() === 2 && !again.hidden);
     log("résultats : " + JSON.parse(app.results()).map((r) => r.text).join(" | "));
     log("csv : " + app.export_csv().split("\n").filter((l) => l.startsWith("largeur")).join(" // "));
     verdict();

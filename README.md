@@ -56,7 +56,7 @@ dès que les visées donnent un point (deux visées qui se croisent).
      point, pas juste en face : seule la direction du clic compte, le bord est là où elle
      coupe la droite.
 
-  Chaque clic donne une largeur depuis le même point, jusqu'à « Nouveau point de référence ».
+  Une fois la largeur faite, les clics ne servent plus qu'à l'ajuster (clic sur une de ses croix, puis nouveau clic ou flèches : 1 cm le long de la droite de mesure). Pour une autre largeur depuis le même point, cliquer « ↺ Nouvelle mesure depuis A » dans la visionneuse ; pour un autre point, « Nouveau point de référence ».
 
   À l'étape 2 de la hauteur et de la largeur, les flèches de la visionneuse sont masquées
   (elles gênent les clics de mesure) : on change de photo par la carte.

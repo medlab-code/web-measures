@@ -312,6 +312,23 @@ button.principal { font-weight: 600; }
 }
 #garder[hidden] { display: none; }
 
+/* « Nouvelle mesure depuis A » au même endroit, une fois la largeur faite : jaune de la mesure */
+#nouvelle-mesure {
+  pointer-events: auto;
+  margin-top: 0.1rem;
+  padding: 0.4rem 1rem;
+  border: 2px solid #ffeb00;
+  border-radius: 5px;
+  background: #ffeb00;
+  color: #202124;
+  font-size: 16px;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+#nouvelle-mesure:hover { background: #e6d200; border-color: #e6d200; }
+#nouvelle-mesure[hidden] { display: none; }
+
 /* Étiquettes incrustées dans la photo : fond sombre un peu transparent, texte détouré */
 :root {
   --etiquette-vue: rgba(32, 33, 36, 0.55);

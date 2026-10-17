@@ -288,8 +288,9 @@
     showLights(state.lights);
     pointReady = state.point;
     pointSelected = state.point_sel;
-    if (aiming !== state.aiming) {  // hauteur : point de référence validé, ou à trianguler
+    if (aiming !== state.aiming || newMeasure !== state.new_measure) {  // point validé ou à trianguler, largeur faite
       aiming = state.aiming;
+      newMeasure = state.new_measure;
       applyMeasureUi();
     }
     showModeOptions();  // « Valider le point triangulé » : dès que les visées donnent un point
@@ -698,6 +699,7 @@
    */
   let aiming = false;
   let pointReady = false;  // visées qui donnent un point (bouton « Valider le point triangulé »)
+  let newMeasure = null;  // largeur faite : nom du point de référence (bouton « Nouvelle mesure depuis A »)
 
   /**
    * Flèches masquées en mesure (elles gênent les clics de mesure), sauf pour viser, ce qui
@@ -752,6 +754,7 @@
       : mode === "height" && aiming ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
       : mode === "height" ? "Hauteur, étape 2 : cliquez le sommet (le pied est le point visé) ; autre photo : par la carte"
       : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
+      : mode === "road" && newMeasure ? `Largeur faite : cliquez une de ses croix pour l'ajuster ; autre largeur : « Nouvelle mesure depuis ${newMeasure} »`
       : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé ; autre photo, prise avant ou après : par la carte"
       : mode === "tilt" ? "Calage de l'inclinaison : pied puis sommet de deux objets verticaux, à 90° l'un de l'autre"
       : mode === "heading" ? "Calage du cap : un repère dans la photo, puis le même sur la carte (3 pour la position)"
@@ -871,6 +874,8 @@
     }
     // « Valider le point triangulé », dans la visionneuse : dès que les visées donnent un point
     $("#garder").hidden = !measuring || !aiming || !pointReady || viewer.hidden;
+    $("#nouvelle-mesure").hidden = !measuring || !newMeasure || viewer.hidden;
+    $("#nouvelle-mesure").textContent = `↺ Nouvelle mesure depuis ${newMeasure || "A"}`;
   }
 
   $("#mode").addEventListener("change", (event) => {
@@ -890,6 +895,7 @@
     setCamera();
   });
   $("#garder").addEventListener("click", () => refresh(app.keep_point()));
+  $("#nouvelle-mesure").addEventListener("click", () => refresh(app.new_measure()));
   $("#nouvelle-reference").addEventListener("click", () => refresh(app.new_reference()));
   $("#effacer").addEventListener("click", () => refresh(app.clear()));
   $("#tout-effacer").addEventListener("click", () => refresh(app.clear_all()));
