@@ -17,8 +17,9 @@ const Services = (() => {
       "https://panoramax.ign.fr/api/pictures/cd8cf3a0-6567-40f0-8805-94172a5dfc3c/thumb.jpg"],
     ["IGN : fonds de carte (WMTS)", `${GEOPF}/wmts?SERVICE=WMTS&REQUEST=GetCapabilities`],
     ["OpenStreetMap France : fond de carte", OSM_TILES.replace("{s}", "a").replace("{z}/{x}/{y}", "15/16846/11558")],
-    ["IGN : altitudes (RGE ALTI, LiDAR HD)",
-      `${GEOPF}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=4.55&lat=47.26&resource=ign_rge_alti_wld&zonly=true`],
+    // Sol LiDAR HD sous les photos : vérification de la position RTK, inclinaison automatique
+    ["IGN : altitudes du LiDAR HD",
+      `${GEOPF}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=4.55&lat=47.26&resource=ign_lidar_hd_mnt_mono_wld&zonly=true`],
     ["IGN : PCRS (WMS)", `${GEOPF}/wms-r/wms?SERVICE=WMS&REQUEST=GetCapabilities`],
     ["IGN : BD TOPO (WFS)", `${GEOPF}/wfs/ows?SERVICE=WFS&REQUEST=GetCapabilities`],
     ["IGN : recherche de lieux (géocodage)", `${GEOPF}/geocodage/completion?text=pouilly&maximumResponses=1`],

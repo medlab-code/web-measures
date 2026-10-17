@@ -85,8 +85,8 @@ class App(session.Session):
         return json.dumps(super().take_proposal())
 
     # Dessin ------------------------------------------------------------------------------
-    def _new_item(self, wall=False):
-        item = WebItem()  # wall (façade du cadastre) : le plugin seulement
+    def _new_item(self):
+        item = WebItem()
         self.items.append(item)
         return item
 
@@ -139,7 +139,7 @@ class App(session.Session):
         return added
 
     def map_geojson(self):
-        """Mesures, façades, visées et points triangulés à dessiner sur la carte (GeoJSON, texte)."""
+        """Mesures, visées et points triangulés à dessiner sur la carte (GeoJSON, texte)."""
         features = []
 
         def add(kind, geometry_type, coordinates, label="", sublabel=""):
