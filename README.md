@@ -252,6 +252,10 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.1.1** (17/10/2026) : fenêtre d'avertissement, une fois par séquence pendant la mesure,
+  quand la position des photos n'est pas vérifiée RTK (« Un GPS avec corrections RTK est
+  requis ») ; capture de l'application dans le README. Cœur du plugin Visionneuse Panoramax
+  (dev, commit e6132b0).
 - **0.1.0** (17/10/2026) : première version publiée. Hauteur, largeur perpendiculaire à la
   chaussée et mesure libre, toutes appuyées sur des points triangulés ; mesure faite ajustable
   seulement le long de la droite de mesure ou de la verticale, autre mesure par « Nouvelle
