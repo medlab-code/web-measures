@@ -198,12 +198,17 @@ const Requeteur = (() => {
       + '<div class="champ pr"><span class="prefixe" aria-hidden="true">PR</span><input placeholder="n°"'
       + ' aria-label="Point de repère" inputmode="numeric"'
       + ' autocomplete="off" disabled><ul role="listbox" hidden></ul></div>'
-      + '<label title="Distance depuis le PR, dans le sens des PR croissants">+ <input class="distance" type="number"'
-      + ' min="0" step="1" placeholder="0" aria-label="Distance depuis le PR (m)"> m</label>';
+      + '<label title="Distance depuis le PR, dans le sens des PR croissants">+ <input class="distance" type="text"'
+      + ' inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0"'
+      + ' aria-label="Distance depuis le PR (m)"> m</label>';
     map.getContainer().append(box);
     const [routeInput, prInput] = box.querySelectorAll(".champ input");
     const [routeList, prList] = box.querySelectorAll(".champ ul");
     const distanceInput = box.querySelector(".distance");
+    distanceInput.addEventListener("input", () => {  // chiffres seulement (champ texte, sans flèches)
+      const digits = distanceInput.value.replace(/\D/g, "");
+      if (digits !== distanceInput.value) distanceInput.value = digits;
+    });
     let dept = "", route = "", pr = null, marker = null, going = 0;
 
     async function currentDept() {
