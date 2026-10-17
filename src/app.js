@@ -683,7 +683,7 @@
           if (feature && passesFilter(feature)) {
             setPhoto(feature, true);
           } else if (photo) {  // photo voisine écartée : retour à la précédente
-            if (psv.isSequencePlaying?.()) psv.stopSequence();  // la lecture y reviendrait sans fin
+            stopPlayer();  // la lecture y reviendrait sans fin
             viewer.select(photo.collection || null, photo.id, true);
             notice(feature ? `Photo voisine hors du filtre (${app ? app.filter_text() : "calcul en chargement"}).`
               : "Photo voisine hors de l'instance choisie.");
@@ -700,19 +700,88 @@
 
   // Lecture de la séquence --------------------------------------------------------------------
 
-  // Comme le lecteur de la visionneuse officielle (ses fonctions playSequence, stopSequence) :
-  // lecture en arrière, pause et reprise dans le même sens, lecture en avant. Hors de la prise
-  // de mesure : on y change de photo par la carte.
+  // Lecture en arrière, pause et reprise (même sens, même vitesse), lecture en avant. Chaque
+  // appui sur un sens déjà en lecture passe à la vitesse suivante : 1x → 2x → 4x → 8x → 16x → 1x.
+  // 1x : lecteur de la visionneuse officielle (playSequence, stopSequence). 2x à 16x : une photo
+  // sur 2, 4, 8 ou 16, les autres jamais chargées ; leur liste vient de l'instance de la photo, par
+  // rangs dans la séquence (le méta-catalogue ignore startAfterRank). Hors de la prise de
+  // mesure : on y change de photo par la carte.
+  const SPEEDS = [1, 2, 4, 8, 16];
+  const WINDOW = 100;  // photos de la séquence lues d'un coup (environ 5 Ko chacune)
   let backward = false;  // sens de la dernière lecture, repris par « pause/reprise »
+  let speed = 1;  // vitesse de la dernière lecture, reprise de même
+  let fast = null;  // lecture rapide (2x à 16x) en cours : { collection, origin, rank, step, id, ids, timer }
 
   function playing() {
-    return Boolean(psv?.isSequencePlaying?.());
+    return Boolean(fast) || Boolean(psv?.isSequencePlaying?.());
   }
 
-  function play(back) {
+  function stopPlayer() {
+    if (fast) {
+      clearTimeout(fast.timer);
+      fast = null;
+      updatePlayer();
+    }
+    if (psv?.isSequencePlaying?.()) psv.stopSequence();
+  }
+
+  /** Adresse de l'instance qui sert la photo (celle de ses images), ou "". */
+  function instanceOrigin(feature) {
+    const href = feature?.assets?.sd?.href || feature?.assets?.hd?.href || "";
+    try {
+      return new URL(href).origin;
+    } catch {
+      return "";
+    }
+  }
+
+  function play(back, k) {
+    stopPlayer();
     backward = back;
-    if (playing()) psv.stopSequence();
-    psv.playSequence(back);
+    speed = k;
+    const rank = Number(photo?.properties?.["geovisio:rank_in_collection"]);
+    const origin = instanceOrigin(photo);
+    if (k === 1 || !Number.isInteger(rank) || !origin || !photo.collection) {
+      if (k !== 1) console.warn("Lecture rapide impossible (rang ou instance de la photo inconnus) : 1x");
+      speed = 1;
+      psv.playSequence(back);
+      return;
+    }
+    fast = { collection: photo.collection, origin, rank, step: back ? -k : k, id: photo.id, ids: new Map(), timer: null };
+    updatePlayer();
+    fastStep(fast);
+  }
+
+  /** Photos de la séquence autour du rang r, dans le sens de la lecture : rang -> identifiant. */
+  async function loadRanks(run, r) {
+    const start = run.step > 0 ? r - 1 : Math.max(0, r - WINDOW);
+    const url = `${run.origin}/api/collections/${encodeURIComponent(run.collection)}/items?limit=${WINDOW}&startAfterRank=${start}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    for (const f of (await response.json()).features || []) {
+      const rank = Number(f.properties?.["geovisio:rank_in_collection"]);
+      if (Number.isInteger(rank) && f.id) run.ids.set(rank, f.id);
+    }
+  }
+
+  /** Photo suivante de la lecture rapide : k rangs plus loin, ou la dernière de la séquence. */
+  async function fastStep(run) {
+    const sign = Math.sign(run.step);
+    let target = run.rank + run.step;
+    try {
+      if (!run.ids.has(target)) await loadRanks(run, target);
+    } catch (error) {
+      console.warn("Lecture rapide :", error);
+    }
+    if (run !== fast) return;  // arrêtée entre-temps
+    while (target !== run.rank && !run.ids.has(target)) target -= sign;  // fin de la séquence
+    if (target === run.rank) {
+      stopPlayer();
+      return;
+    }
+    run.rank = target;
+    run.id = run.ids.get(target);
+    viewer.select(run.collection, run.id, true);
   }
 
   function updatePlayer() {
@@ -725,23 +794,44 @@
     $("#lecture-arriere").setAttribute("aria-pressed", String(on && backward));
     $("#lecture-avant").setAttribute("aria-pressed", String(on && !backward));
     $("#lecture-pause").classList.toggle("en-lecture", on);
-    $("#lecture-pause").title = on ? "Pause" : `Reprendre la lecture (${backward ? "en arrière" : "en avant"})`;
+    $("#lecture-pause").title = on ? "Pause"
+      : `Reprendre la lecture (${backward ? "en arrière" : "en avant"}, ${speed}x)`;
+    // Vitesse à côté du bouton du sens en cours ; estompée à l'arrêt (celle de la reprise)
+    for (const [id, back] of [["#vitesse-arriere", true], ["#vitesse-avant", false]]) {
+      const label = $(id);
+      label.hidden = blocked || backward !== back || (!on && speed === 1);
+      label.textContent = `${speed}x`;
+      label.classList.toggle("arret", !on);
+    }
   }
 
   function attachPlayer() {
     $("#lecteur").hidden = false;
-    $("#lecture-arriere").addEventListener("click", () => play(true));
-    $("#lecture-avant").addEventListener("click", () => play(false));
+    const direction = (back) => {
+      const same = playing() && backward === back;
+      play(back, same ? SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length] : 1);
+    };
+    $("#lecture-arriere").addEventListener("click", () => direction(true));
+    $("#lecture-avant").addEventListener("click", () => direction(false));
     $("#lecture-pause").addEventListener("click", () => {
-      if (playing()) psv.stopSequence();
-      else play(backward);
+      if (playing()) stopPlayer();
+      else play(backward, speed);
     });
     psv.addEventListener("sequence-playing", (event) => {
       backward = Boolean(event.detail?.backward);
       updatePlayer();
     });
     psv.addEventListener("sequence-stopped", updatePlayer);
-    psv.addEventListener("picture-loaded", updatePlayer);
+    psv.addEventListener("picture-loaded", (event) => {
+      // Lecture rapide : photo demandée affichée, la suivante après la durée de transition de
+      // la visionneuse (comme sa lecture 1x)
+      if (fast && event.detail?.picId === fast.id) {
+        const run = fast;
+        run.timer = setTimeout(() => fastStep(run), psv.getTransitionDuration?.() ?? 250);
+      }
+      updatePlayer();
+    });
+    psv.addEventListener("click", () => { if (fast) stopPlayer(); });  // comme la lecture 1x
     updatePlayer();
   }
 
@@ -856,7 +946,7 @@
 
   $("#mesure").addEventListener("click", () => {
     measuring = !measuring;
-    if (measuring && playing()) psv.stopSequence();  // la mesure se fait sur une photo arrêtée
+    if (measuring) stopPlayer();  // la mesure se fait sur une photo arrêtée
     applyMeasureUi();
     if (psv) updatePlayer();
     refresh(app.set_active(measuring));

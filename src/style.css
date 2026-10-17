@@ -589,6 +589,19 @@ button.principal { font-weight: 600; }
   fill: currentColor;
   filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9));  /* détouré comme le texte des étiquettes */
 }
+/* Vitesse de lecture (1x à 16x) à côté du bouton du sens en cours ; estompée à l'arrêt */
+#lecteur .vitesse {
+  min-width: 2.2em;
+  color: #ffeb00;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  text-shadow: var(--detoure-vue);
+  font-variant-numeric: tabular-nums;
+}
+#lecteur .vitesse.arret { opacity: 0.6; }
+#lecteur .vitesse[hidden] { display: none; }
 #lecture-pause .pause, #lecture-pause.en-lecture .lire { display: none; }
 #lecture-pause.en-lecture .pause { display: inline; }
 

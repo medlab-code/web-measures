@@ -71,12 +71,14 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
         <p id="lieu" hidden></p>
         <!-- Lecture de la séquence, comme le lecteur de la visionneuse officielle (voir app.js) -->
         <div id="lecteur" role="group" aria-label="Lecture de la séquence" hidden>
-          <button id="lecture-arriere" type="button" title="Lecture rapide en arrière" aria-pressed="false">
+          <span id="vitesse-arriere" class="vitesse" hidden></span>
+          <button id="lecture-arriere" type="button" title="Lecture rapide en arrière (appuis suivants : 2x, 4x, 8x, 16x, 1x)" aria-pressed="false">
             <svg viewBox="0 0 24 16" aria-hidden="true"><path d="M11 1v14L1 8zM22 1v14L12 8z"/></svg></button>
           <button id="lecture-pause" type="button" title="Reprendre la lecture">
             <svg viewBox="0 0 24 16" aria-hidden="true"><path class="lire" d="M7 1v14l11-7z"/><path class="pause" d="M7 1h3.5v14H7zM13.5 1H17v14h-3.5z"/></svg></button>
-          <button id="lecture-avant" type="button" title="Lecture rapide en avant" aria-pressed="false">
+          <button id="lecture-avant" type="button" title="Lecture rapide en avant (appuis suivants : 2x, 4x, 8x, 16x, 1x)" aria-pressed="false">
             <svg viewBox="0 0 24 16" aria-hidden="true"><path d="M2 1v14l10-7zM13 1v14l10-7z"/></svg></button>
+          <span id="vitesse-avant" class="vitesse" hidden></span>
         </div>
         <p id="producteur-photo" hidden></p>
       </div>
