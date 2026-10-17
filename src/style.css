@@ -211,10 +211,10 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 }
 .requeteur .champ { position: relative; flex: 1 1 0; min-width: 0; }
 .requeteur .route { flex-grow: 1.22; }  /* numéros longs : D974BIS, N274A… */
-/* Champs et textes posés dessus (« PR », 0 de la distance) : même boîte de ligne de 26 px
-   sous une bordure de 1 px, d'où une même ligne de base quels que soient la police et le
-   navigateur (le centrage du texte dans un champ varie de l'un à l'autre) */
-.requeteur .prefixe, .requeteur .zero {
+/* Champ et texte posé dessus (« PR ») : même boîte de ligne de 26 px sous une bordure de
+   1 px, d'où une même ligne de base quels que soient la police et le navigateur (le centrage
+   du texte dans un champ varie de l'un à l'autre) */
+.requeteur .prefixe {
   position: absolute;
   top: 1px;
   line-height: 26px;
@@ -253,16 +253,10 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   background: color-mix(in srgb, var(--fond) 85%, transparent);
   white-space: nowrap;
 }
-/* Distance « 0xyz » : le 0 de tête toujours affiché, la saisie commence au chiffre suivant */
-.requeteur .champ-distance { position: relative; display: block; }
-.requeteur .zero {
-  left: calc(0.5rem + 1px);
-  font-variant-numeric: tabular-nums;
-}
+/* Distance « 0xyz » (plus de 1 000 m possible entre deux PR) : chiffres de même largeur */
 .requeteur .distance {
   width: calc(4ch + 1rem + 2px);
-  padding-left: calc(0.5rem + 1ch);
-  font-variant-numeric: tabular-nums;  /* chiffres de même largeur : le 0 se cale sur la saisie */
+  font-variant-numeric: tabular-nums;
 }
 .requeteur ul {
   position: absolute;

@@ -101,9 +101,9 @@ const Requeteur = (() => {
     return (Math.atan2((b[0] - a[0]) * k, b[1] - a[1]) * 180 / Math.PI + 360) % 360;
   }
 
-  /** Point à `offset` mètres après le PR `pr`, le long de sa section : { lonlat, heading }, le
-   * cap étant celui des PR croissants (null si la section manque). Distance mise à l'échelle
-   * des abscisses officielles entre PR successifs (comme Lieu.describe, en sens inverse). */
+  /** Point à `offset` mètres après le PR `pr`, le long du filaire IGN de sa section, sans mise
+   * à l'échelle (comme Lieu.describe, en sens inverse) : { lonlat, heading }, le cap étant
+   * celui des PR croissants (null si la section manque). */
   async function locate(pr, offset) {
     const id = quote(pr.section);
     const [section] = await Lieu.features("section_de_points_de_repere", { filter: `identifiant_de_section='${id}'`, count: 1 });
@@ -112,30 +112,15 @@ const Requeteur = (() => {
     const line = g.type === "MultiLineString" ? g.coordinates.flat() : g.coordinates;
     const prs = (await Lieu.features("point_de_repere", { filter: `identifiant_de_section='${id}'`, count: 500 }))
       .filter((f) => /^\d+$/.test(String(f.properties?.numero)) && f.properties.abscisse != null)
-      .map((f) => ({ n: Number(f.properties.numero), a: f.properties.abscisse,
-        s: Lieu.project(line, ...f.geometry.coordinates).s }))
+      .map((f) => ({ a: f.properties.abscisse, s: Lieu.project(line, ...f.geometry.coordinates).s }))
       .sort((x, y) => x.a - y.a);
-    let k = prs.findIndex((p) => p.n === pr.n);
     // Section tracée dans le sens des PR décroissants : abscisses curvilignes retournées
     const total = Lieu.project(line, ...line[line.length - 1]).s;
     const reversed = prs.length > 1 && prs[prs.length - 1].s < prs[0].s;
-    if (reversed) for (const p of prs) p.s = total - p.s;
-    let s;
-    if (k < 0) {
-      s = Lieu.project(line, ...pr.coords).s;
-      if (reversed) s = total - s;
-    } else {
-      let rest = offset;
-      while (k + 1 < prs.length && rest >= prs[k + 1].a - prs[k].a) {
-        rest -= prs[k + 1].a - prs[k].a;
-        k++;
-      }
-      const scale = (p, q) => (q && q.a > p.a && q.s > p.s ? (q.s - p.s) / (q.a - p.a) : null);
-      const factor = scale(prs[k], prs[k + 1]) ?? scale(prs[k - 1] || {}, prs[k]) ?? 1;
-      s = Math.max(0, Math.min(total, prs[k].s + rest * factor));
-    }
-    const at = (v) => pointAt(line, reversed ? total - v : v);
-    const lonlat = k < 0 || !offset ? pr.coords : at(s);
+    const along = (v) => (reversed ? total - v : v);
+    const s = Math.max(0, Math.min(total, along(Lieu.project(line, ...pr.coords).s) + offset));
+    const at = (v) => pointAt(line, along(v));
+    const lonlat = offset ? at(s) : pr.coords;
     // Sens des PR croissants : cap pris sur 10 m de part et d'autre du point
     const heading = bearing(at(Math.max(0, s - 10)), at(Math.min(total, s + 10)));
     return { lonlat, heading };
@@ -213,17 +198,26 @@ const Requeteur = (() => {
       + '<div class="champ pr"><span class="prefixe" aria-hidden="true">PR</span><input placeholder="n°"'
       + ' aria-label="Point de repère" inputmode="numeric"'
       + ' autocomplete="off" disabled><ul role="listbox" hidden></ul></div>'
-      + '<label title="Distance depuis le PR, dans le sens des PR croissants">+ <span class="champ-distance">'
-      + '<span class="zero" aria-hidden="true">0</span><input class="distance" type="text" maxlength="3"'
-      + ' inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Distance depuis le PR (m)"></span> m</label>';
+      + '<label title="Distance depuis le PR le long du filaire IGN, dans le sens des PR croissants (plus de 1 000 m'
+      + ' possible : effacer le 0)">+ <input class="distance" type="text" maxlength="4" value="0"'
+      + ' inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Distance depuis le PR (m)"> m</label>';
     map.getContainer().append(box);
     const [routeInput, prInput] = box.querySelectorAll(".champ input");
     const [routeList, prList] = box.querySelectorAll(".champ ul");
     const distanceInput = box.querySelector(".distance");
-    // Distance « 0xyz » : le 0 est affiché d'office, on tape les trois chiffres qui suivent
+    // Distance « 0xyz » : le 0 de tête est prérempli et la saisie commence après lui ; il
+    // s'efface pour un écart de plus de 1 000 m (« 1052 »)
     distanceInput.addEventListener("input", () => {  // chiffres seulement (champ texte, sans flèches)
-      const digits = distanceInput.value.replace(/\D/g, "").slice(0, 3);
+      const digits = distanceInput.value.replace(/\D/g, "").slice(0, 4);
       if (digits !== distanceInput.value) distanceInput.value = digits;
+    });
+    distanceInput.addEventListener("focus", () => {
+      if (!distanceInput.value) distanceInput.value = "0";
+      const end = distanceInput.value.length;
+      setTimeout(() => distanceInput.setSelectionRange(end, end));  // après le clic qui place le curseur
+    });
+    distanceInput.addEventListener("blur", () => {
+      if (!distanceInput.value) distanceInput.value = "0";
     });
     let dept = "", route = "", pr = null, marker = null, going = 0;
 

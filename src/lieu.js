@@ -63,8 +63,9 @@ const Lieu = (() => {
   }
 
   /** Point de repère de la photo sur la route `numero` : « PR 4 +0185 », ou "". Le PR est le
-   * dernier passé le long de la section ; la distance depuis lui est mise à l'échelle des
-   * abscisses officielles entre ce PR et le suivant. */
+   * dernier du filaire IGN passé le long de la section ; la distance est celle mesurée depuis
+   * lui le long du filaire, sans mise à l'échelle : chaque PR du filaire fait foi (on passe de
+   * PR 24 +0892 à PR 25 +0000), et l'écart entre deux PR peut dépasser 1 000 m. */
   async function milestone(numero, lon, lat) {
     if (!numero) return "";
     let section = null;
@@ -91,10 +92,8 @@ const Lieu = (() => {
     }
     let i = prs.findLastIndex((pr) => pr.s <= s);
     if (i < 0) i = 0;  // avant le premier PR de la section : distance négative
-    const pr = prs[i], next = prs[i + 1];
-    let offset = s - pr.s;
-    if (next && next.s > pr.s) offset *= (next.a - pr.a) / (next.s - pr.s);
-    const m = Math.round(offset);
+    const pr = prs[i];
+    const m = Math.round(s - pr.s);
     return `PR ${pr.n} ${m < 0 ? "-" : "+"}${String(Math.abs(m)).padStart(4, "0")}`;
   }
 
