@@ -599,6 +599,13 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .ancre .etiquette { position: absolute; }
 .etiquette.dessus { bottom: 7px; left: 0; transform: translateX(-50%); }
 .etiquette.cote { left: 9px; top: 0; transform: translateY(-50%); }
+/* Nom d'un point triangulé (A, B…) à côté de sa croix, du côté opposé à la mesure, bordeaux
+   comme sur la carte */
+.etiquette.nom { background: rgba(142, 27, 27, 0.92); font-weight: 600; }
+.etiquette.nom.left { right: 10px; top: 0; transform: translateY(-50%); }
+.etiquette.nom.right { left: 10px; top: 0; transform: translateY(-50%); }
+.etiquette.nom.above { bottom: 10px; left: 0; transform: translateX(-50%); }
+.etiquette.nom.below { top: 10px; left: 0; transform: translateX(-50%); }
 
 /* Poignée d'un point cliqué : croix jaune comme dans la visionneuse */
 .poignee {

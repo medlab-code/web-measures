@@ -821,6 +821,13 @@
         }
         return;
       }
+      if (mark.name) {  // nom d'un point triangulé : étiquette seule, du côté opposé à la mesure
+        add({
+          id: `${MARK}${m}-nom`, position: points[0], anchor: "center center",
+          html: `<div class="ancre"><div class="etiquette nom ${mark.side || "below"}">${escapeHtml(mark.label)}</div></div>`,
+        });
+        return;
+      }
       if (points.length >= 2) {
         add({
           id: `${MARK}${m}-trait`, polyline: points.map(({ yaw, pitch }) => [yaw, pitch]),
@@ -1109,6 +1116,15 @@
         ctx.restore();
         continue;
       }
+      if (mark.name) {  // nom d'un point triangulé, comme dans la visionneuse
+        if (pts[0]) {
+          const [x, y] = pts[0], g = 10 * scale, h = 12 * scale;  // écart à la croix, taille du texte
+          const [lx, ly, align] = { left: [x - g, y + 0.6 * h, "right"], right: [x + g, y + 0.6 * h, "left"],
+            above: [x, y - g, "center"] }[mark.side] || [x, y + g + 1.4 * h, "center"];
+          label(ctx, mark.label, lx, ly, h, align, "rgba(142, 27, 27, 0.92)");
+        }
+        continue;
+      }
       ctx.strokeStyle = "#e53935";
       ctx.lineWidth = 3 * scale;
       for (let i = 1; i < pts.length; i++) {
@@ -1195,11 +1211,11 @@
   }
 
   /** Étiquette d'une mesure dans une capture, comme dans la visionneuse (.etiquette). */
-  function label(ctx, text, x, y, size, align) {
+  function label(ctx, text, x, y, size, align, background = "rgba(32, 33, 36, 0.85)") {
     ctx.font = `${size}px Roboto, system-ui, sans-serif`;
     const w = ctx.measureText(text).width + size;
     const left = align === "right" ? x - w : align === "left" ? x : x - w / 2;
-    ctx.fillStyle = "rgba(32, 33, 36, 0.85)";
+    ctx.fillStyle = background;
     ctx.beginPath();
     ctx.roundRect(left, y - size * 1.4, w, size * 1.6, size * 0.25);
     ctx.fill();
