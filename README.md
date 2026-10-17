@@ -8,6 +8,8 @@ Elle reprend les calculs du plugin QGIS
 [Visionneuse Panoramax](https://github.com/medlab-code/visionneuse_panoramax), validés sur
 des photos imajbox 360 HD à position RTK (Pouilly-en-Auxois, Montbard, Semur-en-Auxois…).
 
+![Mesures Panoramax : hauteur et largeur depuis des points triangulés, à Châteauneuf](docs/demo.jpg)
+
 ## Principe
 
 Toutes les mesures s'appuient sur des **points triangulés** : un même point est visé depuis
