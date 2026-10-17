@@ -108,6 +108,12 @@ async function feature(id) {
 
   // Dijon ----------------------------------------------------------------------------------
   await open(DIJON[0]);
+  // Photo grand public, sans RTK : fenêtre d'alerte une fois la vérification faite, une seule fois
+  const rtk = doc.querySelector("#alerte-rtk");
+  try { await until(() => rtk.open, 30000, "alerte RTK"); } catch (e) { log(String(e)); }
+  expect("alerte RTK affichée", rtk.open && rtk.textContent.includes("Un GPS avec corrections RTK est requis"));
+  log("alerte RTK : " + rtk.querySelector("p").textContent);
+  rtk.close();
   // Bouton « Mesure » : un clic dans la photo prend un point, sans changer de photo (calage de
   // l'inclinaison : flèches masquées)
   doc.querySelector("#mode").value = "tilt";

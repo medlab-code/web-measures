@@ -526,6 +526,8 @@ dialog {
   color: var(--texte);
 }
 dialog form { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1rem; }
+dialog.avertissement { border: 2px solid #ff6f00; }  /* alerte RTK */
+dialog.avertissement h2 { color: #ff6f00; }
 
 .aide { color: var(--discret); margin: 0 0 0.5rem; }
 

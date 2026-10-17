@@ -274,6 +274,11 @@
   function refresh(text) {
     if (!app) return;
     setStatus(text ?? app.status());
+    const rtkAlert = app.take_rtk_alert();  // séquence sans RTK : fenêtre, une fois par séquence
+    if (rtkAlert && !$("#alerte-rtk").open) {
+      $("#alerte-rtk p").textContent = rtkAlert;
+      $("#alerte-rtk").showModal();
+    }
     const state = JSON.parse(app.state());
     $("#qualite").textContent = state.quality;
     $("#qualite").classList.toggle("alerte", state.quality.startsWith("⚠"));

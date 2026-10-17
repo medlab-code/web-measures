@@ -136,6 +136,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     doc.querySelector("#nouvelle-reference").click();
     log("nouveau point : " + doc.querySelector("#statut").textContent.slice(0, 60) + " · résultats : "
       + JSON.parse(app.results()).map((r) => r.text).join(" | "));
+    expect("pas d'alerte RTK sur des photos RTK", !doc.querySelector("#alerte-rtk").open);
     verdict();
   } catch (e) { log("ERREUR " + e); }
   log("FIN");
