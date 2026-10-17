@@ -59,6 +59,12 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     const d = Math.hypot(...metres(ref, p1));
     log("point à " + d.toFixed(2) + " m de la photo, écart à la cible " + Math.hypot(...metres(ref, target)).toFixed(3) + " m");
     log("étape 2 : " + doc.querySelector("#statut").textContent.slice(0, 120));
+    // Point de référence sélectionnable dès sa validation (recalage sur sa verticale)
+    const refMark = JSON.parse(app.viewer_marks()).find((m) => m.points.length === 1 && !m.guide && !m.sighting && !m.vertical);
+    psvClick(refMark.points[0][0], refMark.points[0][1]);
+    expect("A sélectionné avant la hauteur", JSON.parse(app.state()).point_sel);
+    doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect("Entrée : A désélectionné", !JSON.parse(app.state()).point_sel);
     psvClick(yawTo(photos[1], target), 0.3);  // seul le sommet : le pied est la visée du point (-0,35)
     await until(() => doc.querySelector("#statut").textContent.startsWith("Hauteur :"), 30000, "hauteur");
     log("résultat : " + doc.querySelector("#statut").textContent);
@@ -79,6 +85,15 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await sleep(1000);
     log("photo 1 : " + app.status().slice(0, 80));
     const d0 = Math.hypot(...metres(ref, p0));
+    // Hauteur faite : un autre clic ne mesure pas, jusqu'à « Nouvelle mesure depuis A »
+    const again = doc.querySelector("#nouvelle-mesure");
+    expect("bouton « Nouvelle mesure depuis A » affiché", !again.hidden && again.textContent.includes("depuis A"));
+    psvClick(yawTo(photos[0], target), 0.2);
+    await sleep(300);
+    expect("autre clic refusé", doc.querySelector("#statut").textContent.startsWith("Hauteur mesurée depuis le point A")
+      && JSON.parse(app.results()).filter((r) => r.text.startsWith("↕")).length <= 1);
+    again.click();
+    expect("« Nouvelle mesure » : bouton masqué", again.hidden);
     psvClick(yawTo(photos[0], target), 0.2);
     await until(() => doc.querySelector("#statut").textContent.startsWith("Hauteur :"), 30000, "hauteur 2");
     log("2e hauteur : " + doc.querySelector("#statut").textContent.slice(0, 110));

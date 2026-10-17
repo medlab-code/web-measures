@@ -45,8 +45,12 @@ dès que les visées donnent un point (deux visées qui se croisent).
   2. Cliquer seulement le **sommet**, depuis une photo qui a servi à la visée : le pied est la
      visée faite depuis elle. Depuis une autre photo, cliquer le pied puis le sommet.
 
-  Le même point de référence sert à plusieurs hauteurs, depuis n'importe quelle photo,
-  jusqu'à « Nouveau point de référence ». Une verticale verte le repère dans la photo.
+  Une fois la hauteur faite, les clics ne servent plus qu'à l'ajuster (clic sur une de ses
+  croix, puis nouveau clic sur la photo de la mesure ou flèches ↑ ↓ : 1 cm sur la verticale).
+  Le point de référence se recale de même dès qu'il est validé, sur sa verticale (seule
+  l'élévation du clic compte). Pour une autre hauteur depuis le même point, depuis n'importe
+  quelle photo, cliquer « ↺ Nouvelle mesure depuis A » dans la visionneuse ; pour un autre
+  point, « Nouveau point de référence ». Une verticale verte le repère dans la photo.
 - **Largeur perpendiculaire à la chaussée**
   1. Viser le **premier bord** (pied de bordure, marquage…) depuis au moins deux photos, puis
      « Valider le point triangulé ». La page trace la **droite de mesure**, perpendiculaire à l'axe de
