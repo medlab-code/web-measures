@@ -104,8 +104,8 @@ const Carte = (() => {
           {
             id: "photos", type: "circle", source: "panoramax", "source-layer": "pictures", minzoom: 15,
             paint: {
-              "circle-color": ORANGE, "circle-radius": 3.5, "circle-opacity": 0.7,
-              "circle-stroke-color": "#ffffff", "circle-stroke-width": 1,
+              "circle-color": ORANGE, "circle-radius": 2.5, "circle-opacity": 0.7,  // plus petits que le filaire d'origine (3,5)
+              "circle-stroke-color": "#ffffff", "circle-stroke-width": 0.7,
             },
           },
           // Contour de la commune choisie dans la recherche de lieux : liseré blanc, tirets
