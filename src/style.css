@@ -210,12 +210,14 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   font-size: 13px;
 }
 .requeteur .champ { position: relative; flex: 1 1 0; min-width: 0; }
+.requeteur .route { flex-grow: 1.22; }  /* numéros longs : D974BIS, N274A… */
 /* « PR » toujours affiché devant le numéro du point de repère */
 .requeteur .prefixe {
   position: absolute;
   left: 0.5rem;
   top: 50%;
   transform: translateY(-50%);
+  line-height: 18px;  /* même ligne que le texte des champs */
   opacity: 0.7;
   pointer-events: none;
 }
@@ -229,20 +231,23 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   background: var(--fond);
   color: inherit;
   font: inherit;
+  line-height: 18px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 .requeteur input:disabled { opacity: 0.6; }
 .requeteur label {
-  flex: 1.7 1 0;  /* plus large : « + 1234 m » avec les flèches du champ */
+  flex: 0 0 auto;  /* juste « + 1234 m » : la distance tient en quatre chiffres */
   display: flex;
   align-items: center;
-  gap: 3px;
-  padding: 0 4px;
+  align-self: stretch;
+  gap: 4px;
+  line-height: 18px;
+  padding: 0 5px;
   border-radius: 4px;
   background: color-mix(in srgb, var(--fond) 85%, transparent);
   white-space: nowrap;
 }
-.requeteur .distance { min-width: 0; padding-right: 0.2rem; }
+.requeteur .distance { width: calc(4ch + 1rem + 2px); text-align: right; }
 .requeteur ul {
   position: absolute;
   top: 100%;
