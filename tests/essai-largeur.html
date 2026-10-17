@@ -104,6 +104,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("autre clic : " + doc.querySelector("#statut").textContent.slice(0, 80));
     log("étiquettes : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
       + " · carte : " + JSON.parse(app.map_geojson()).features.map((f) => f.properties.kind).join(","));
+    if (location.hash === "#capture") await sleep(5000);  // capture d'écran de la vue (outil d'essai)
     // Autre photo : la largeur reste visible ; recalage du bord, puis du point de référence
     w.mesures.openPhoto(photos[1]);
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[1].id, 30000, "photo 2");
