@@ -1,0 +1,6 @@
+# Hors de l'archive publiée (git archive) : essais, outils de développement, notes pour Claude Code
+tests/ export-ignore
+tools/ export-ignore
+CLAUDE.md export-ignore
+.gitattributes export-ignore
+.gitignore export-ignore

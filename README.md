@@ -21,6 +21,9 @@ restent possibles, mais la page prévient qu'elles seront probablement incohére
 
 ## Utilisation
 
+**Télécharger** : prendre l'archive `web-measures-X.Y.Z.zip` de la dernière version
+(page *Releases* du dépôt) et la décompresser ; elle ne contient que la page et ses fichiers.
+
 **Ouvrir la page** : double-cliquer sur `index.html` suffit (Edge, Chrome, Firefox), sans
 installation ni serveur ; une connexion à internet est nécessaire (bibliothèques, Pyodide et
 services). Elle peut aussi être publiée sur n'importe quel serveur web statique, ou servie
@@ -242,7 +245,18 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
    point de référence, recalage au clic et au clavier ; longueur sur une seule photo
    et calage de la hauteur de caméra retirés.
 5. ~~Mini-carte détachable sur un second écran~~ (ticket #13).
-6. Essais sur le terrain avec les agents (postes Edge, photos RTK).
+6. ~~Première version publiée~~ : 0.1.0 (17/10/2026).
+7. Essais sur le terrain avec les agents (postes Edge, photos RTK).
+
+## Versions
+
+- **0.1.0** (17/10/2026) : première version publiée. Hauteur, largeur perpendiculaire à la
+  chaussée et mesure libre, toutes appuyées sur des points triangulés ; mesure faite ajustable
+  seulement le long de la droite de mesure ou de la verticale, autre mesure par « Nouvelle
+  mesure depuis A » ; nom des points dans la visionneuse ; voyants RTK, LiDAR HD et
+  inclinaison ; calage de l'inclinaison et du cap ; carte détachable ; exports CSV et
+  GeoJSON ; captures. Cœur de calcul du plugin Visionneuse Panoramax, branche
+  `triangulation` (commit ac1f560).
 
 ## Licence
 
