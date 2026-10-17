@@ -98,10 +98,15 @@ const Lieu = (() => {
     return `PR ${pr.n} ${m < 0 ? "-" : "+"}${String(Math.abs(m)).padStart(4, "0")}`;
   }
 
-  /** Tronçon de route le plus proche : { numero, nom } ou null. */
+  // Tronçons où ne roule pas le véhicule de prise de vue : un trottoir saisi en sentier peut
+  // passer plus près de la photo que l'axe de la chaussée
+  const NOT_DRIVEN = new Set(["Sentier", "Escalier", "Bac ou liaison maritime"]);
+
+  /** Tronçon de route (praticable en voiture) le plus proche : { numero, nom } ou null. */
   async function road(lon, lat) {
     let best = null;
     for (const feature of await features("troncon_de_route", { lon, lat, reach: REACH })) {
+      if (NOT_DRIVEN.has(feature.properties?.nature)) continue;
       const geometry = feature.geometry || {};
       const lines = geometry.type === "MultiLineString" ? geometry.coordinates : [geometry.coordinates || []];
       for (const line of lines) {

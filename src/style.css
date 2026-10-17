@@ -207,31 +207,36 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   align-items: center;
   gap: 4px;
   width: min(16rem, calc(100% - 70px));
-  font-size: 13px;
+  font: 13px Roboto, system-ui, sans-serif;  /* et non la police de MapLibre, propre à la carte */
 }
 .requeteur .champ { position: relative; flex: 1 1 0; min-width: 0; }
 .requeteur .route { flex-grow: 1.22; }  /* numéros longs : D974BIS, N274A… */
+/* Champs et textes posés dessus (« PR », 0 de la distance) : même boîte de ligne de 26 px
+   sous une bordure de 1 px, d'où une même ligne de base quels que soient la police et le
+   navigateur (le centrage du texte dans un champ varie de l'un à l'autre) */
+.requeteur .prefixe, .requeteur .zero {
+  position: absolute;
+  top: 1px;
+  line-height: 26px;
+  pointer-events: none;
+}
 /* « PR » toujours affiché devant le numéro du point de repère */
 .requeteur .prefixe {
-  position: absolute;
-  left: 0.5rem;
-  top: 50%;
-  transform: translateY(-50%);
-  line-height: 18px;  /* même ligne que le texte des champs */
+  left: calc(0.5rem + 1px);
   opacity: 0.7;
-  pointer-events: none;
 }
 .requeteur .pr input { padding-left: 1.9rem; }
 .requeteur input {
   width: 100%;
   box-sizing: border-box;
-  padding: 0.3rem 0.5rem;
+  height: 28px;
+  padding: 0 0.5rem;
   border: 1px solid var(--bord);
   border-radius: 4px;
   background: var(--fond);
   color: inherit;
   font: inherit;
-  line-height: 18px;
+  line-height: 26px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 .requeteur input:disabled { opacity: 0.6; }
@@ -242,13 +247,23 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   align-items: center;
   align-self: stretch;
   gap: 4px;
-  line-height: 18px;
+  line-height: 26px;
   padding: 0 5px;
   border-radius: 4px;
   background: color-mix(in srgb, var(--fond) 85%, transparent);
   white-space: nowrap;
 }
-.requeteur .distance { width: calc(4ch + 1rem + 2px); text-align: right; }
+/* Distance « 0xyz » : le 0 de tête toujours affiché, la saisie commence au chiffre suivant */
+.requeteur .champ-distance { position: relative; display: block; }
+.requeteur .zero {
+  left: calc(0.5rem + 1px);
+  font-variant-numeric: tabular-nums;
+}
+.requeteur .distance {
+  width: calc(4ch + 1rem + 2px);
+  padding-left: calc(0.5rem + 1ch);
+  font-variant-numeric: tabular-nums;  /* chiffres de même largeur : le 0 se cale sur la saisie */
+}
 .requeteur ul {
   position: absolute;
   top: 100%;
