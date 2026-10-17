@@ -252,6 +252,9 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.1.2** (17/10/2026) : nettoyage du cœur de calcul (profil du terrain, RGE ALTI et façade
+  du cadastre retirés) ; « Accès aux services » vérifie l'altimétrie IGN sur le LiDAR HD.
+  Cœur du plugin Visionneuse Panoramax 1.4.2.
 - **0.1.1** (17/10/2026) : fenêtre d'avertissement, une fois par séquence pendant la mesure,
   quand la position des photos n'est pas vérifiée RTK (« Un GPS avec corrections RTK est
   requis ») ; capture de l'application dans le README. Cœur du plugin Visionneuse Panoramax
