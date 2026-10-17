@@ -379,15 +379,36 @@ class Session:
             points[1] = {"yaw": p["yaw"], "pitch": p["pitch"], "abs_yaw": p["abs_yaw"], "elev": p["elev"]}
         return points
 
+    def _camera_height(self):
+        """Hauteur de la caméra de la photo affichée au-dessus du sol, pour les repères : celle
+        de sa position vérifiée (altitude RTK moins sol LiDAR HD), sinon calée pour la séquence,
+        sinon le réglage (comme measures.MeasureTool.camera_info)."""
+        q = self.quality or {}
+        h = q.get("height")
+        if q.get("precise") and q.get("lidar") is True and h is not None \
+                and measures.CAMERA_RANGE[0] <= h <= measures.CAMERA_RANGE[1]:
+            return h
+        cam = self.calibration.camera(self.item.get("collection"))
+        return cam["height"] if cam else self.tool.camera_height
+
+    def _view_of(self, bearing, elev):
+        """Direction vraie (cap, élévation en degrés) vue dans la photo affichée, calage compris
+        (inclinaison, cap) : {yaw, pitch (radians, repère de la photo), abs_yaw, elev (degrés, bruts)}."""
+        lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
+        yaw, pitch = self.calibration.uncorrect(self.item.get("id"), self.item.get("collection"), bearing % 360, elev,
+                                                lon, lat)
+        return {"yaw": math.radians((yaw - self._heading() + 540) % 360 - 180), "pitch": math.radians(pitch),
+                "abs_yaw": yaw % 360, "elev": pitch}
+
     def _project(self, plon, plat):
         """Repère dans la photo affichée d'un point de la carte, au sol supposé plat (hauteur de
-        caméra du réglage) : {yaw, pitch (radians, repère de la photo), abs_yaw, elev (degrés)}."""
+        caméra de la photo, voir _camera_height), calage de la photo compris :
+        {yaw, pitch (radians, repère de la photo), abs_yaw, elev (degrés)}."""
         lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
         x, y = triangulation._local(plon, plat, lon, lat)
         bearing = math.degrees(math.atan2(x, y))
-        elev = -math.degrees(math.atan2(self.tool.camera_height, max(math.hypot(x, y), 0.5)))
-        return {"yaw": math.radians((bearing - self._heading() + 540) % 360 - 180), "pitch": math.radians(elev),
-                "abs_yaw": bearing % 360, "elev": elev}
+        elev = -math.degrees(math.atan2(self._camera_height(), max(math.hypot(x, y), 0.5)))
+        return self._view_of(bearing, elev)
 
     def _free_mark_point(self, k):
         """Repère du point gardé n° k dans la photo affichée : là où il a été visé depuis elle,
@@ -790,6 +811,7 @@ class Session:
         self.message = ""
         sighting["view"] = [yaw, pitch]  # repère de la visée dans la photo (viewer_marks)
         replaced = any(s["pic"] == sighting["pic"] for s in self.triangulator.sightings)
+        self.triangulator.ground = self.mode in REF_MODES  # bord de chaussée, pied : au sol
         self.triangulator.add(sighting)
         if replaced:  # une visée par photo : un second clic (le sommet ?) remplace la première
             self.message = "Visée de cette photo remplacée : une seule visée par photo. "
@@ -1189,9 +1211,10 @@ class Session:
 
     def _guide_mark(self, road):
         """Droite de mesure de la largeur dans la photo affichée (repère de la visionneuse) :
-        points au sol supposé plat, à la hauteur de caméra du réglage ; la mesure n'en dépend pas."""
+        points au sol supposé plat, à la hauteur de caméra de la photo, calage compris (comme
+        la croix du point de référence, voir _project) ; la mesure n'en dépend pas."""
         lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
-        heading, height = self._heading(), self.tool.camera_height
+        height = self._camera_height()
         ux, uy = widths.perpendicular(road["axis"])
         ax, ay = triangulation._local(self.ref_point["lon"], self.ref_point["lat"], lon, lat)
         points = []
@@ -1201,8 +1224,8 @@ class Session:
             d = math.hypot(x, y)
             if d < 1.0:
                 continue
-            yaw = (math.degrees(math.atan2(x, y)) - heading + 540) % 360 - 180
-            points.append({"pic": self.item.get("id"), "yaw": math.radians(yaw), "pitch": -math.atan2(height, d)})
+            view = self._view_of(math.degrees(math.atan2(x, y)), -math.degrees(math.atan2(height, d)))
+            points.append({"pic": self.item.get("id"), "yaw": view["yaw"], "pitch": view["pitch"]})
         return {"points": points, "guide": True}
 
     def handles(self):

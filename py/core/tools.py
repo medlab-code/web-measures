@@ -56,18 +56,27 @@ def photo_click(item, yaw, elev, cal, quality=None, pos=None, axis=None):
 def photo_sighting(item, heading, pitch, cal, quality=None):
     """Visée de triangulation depuis la photo `item` : cap brut du centre de la vue (degrés,
     cap précis de la photo compris) et son inclinaison, corrigés du calage. Retourne la visée
-    (dict, voir triangulation.solve) ou None sans position."""
+    (dict, voir triangulation.solve) ou None sans position. Position vérifiée précise (quality)
+    : aussi l'altitude NGF de la caméra ("alt") et, si le LiDAR HD a donné le sol sous la photo,
+    l'altitude de ce sol ("ground"), pour la triangulation en 3D (voir triangulation.solve3d)."""
     try:
         lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
     except (KeyError, TypeError, ValueError):
         return None
     pic, sequence = item.get("id", ""), item.get("collection")
-    heading, _ = cal.correct(pic, sequence, float(heading), float(pitch), lon, lat)
+    heading, elev = cal.correct(pic, sequence, float(heading), float(pitch), lon, lat)
     fixed = cal.position(sequence, lon, lat)
     clon, clat, accuracy = fixed if fixed else (lon, lat, _accuracy(item, quality))
+    alt = ground = None
+    if quality and quality["precise"]:
+        alt = host.ngf_altitude(lon, lat, metadata.item_altitude(item))
+        if alt is not None and quality.get("lidar") is True and quality.get("height") is not None:
+            ground = alt - quality["height"]
+    tilt = cal.tilt(pic)
     return {"pic": pic, "sequence": sequence, "lon": clon, "lat": clat, "heading": heading,
             "accuracy": accuracy, "precise": metadata.precise_heading(item) is not None,
-            "heading_error": cal.heading_error(sequence, lon, lat)}
+            "heading_error": cal.heading_error(sequence, lon, lat),
+            "elev": elev, "alt": alt, "ground": ground, "elev_error": tilt["sigma"] if tilt else None}
 
 
 def _accuracy(item, quality):
@@ -148,7 +157,8 @@ class Triangulator:
     AIM_AGAIN = "visez le même objet puis « Viser » à nouveau"
 
     def __init__(self):
-        self.sightings = []  # dicts : pic, lon, lat, heading, accuracy, precise
+        self.sightings = []  # dicts : pic, lon, lat, heading, accuracy, precise (voir photo_sighting)
+        self.ground = False  # point visé au sol (bord de chaussée, pied) : voir triangulation.solve
         self.result = None
         self.error = None
         self.item = None
@@ -178,7 +188,7 @@ class Triangulator:
         self.result, self.error = None, None
         if len(self.sightings) >= 2:
             try:
-                self.result = triangulation.solve(self.sightings)
+                self.result = triangulation.solve(self.sightings, self.ground)
             except triangulation.TriangulationError as exc:
                 self.error = str(exc)
         self._draw()
@@ -213,8 +223,13 @@ class Triangulator:
         if r["gps_assumed"]:
             text += " (précision inconnue pour certaines photos : {} m supposés)".format(
                 _num(triangulation.GPS_ACCURACY, 0))
-        if r["angle"] < 15:
-            text += ". Croisement faible : une visée plus latérale améliorerait le point."
+        if r["method"] == "3d":
+            text += " · profondeur fixée aussi par l'inclinaison des visées (altitudes RTK{})".format(
+                ", sol LiDAR HD" if self.ground else "")
+        elif r["angle"] < triangulation.WEAK_ANGLE:
+            text += (". ⚠ Visées presque alignées ({}°) : le point est imprécis dans la profondeur, il peut "
+                     "glisser de plusieurs mètres le long de la visée. Visez l'objet quand il est sur le côté de "
+                     "la photo, depuis une photo prise avant lui et une autre après").format(_num(r["angle"], 0))
         if r["gps"] > triangulation.GPS_WARNING:
             text += (". Position GPS des photos imprécise (±{} m) : visez depuis des photos mieux "
                      "positionnées, ou d'autres séquences.".format(_num(r["gps"])))
