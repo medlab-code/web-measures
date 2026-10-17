@@ -533,14 +533,16 @@ button.principal { font-weight: 600; }
   left: 0.8rem;
   right: 0.8rem;
   bottom: 0.8rem;
-  display: flex;
-  flex-wrap: wrap-reverse;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 0.4rem 0.8rem;
+  display: grid;  /* lecteur au centre de la vue, quelle que soit la longueur des deux textes */
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: 0.8rem;
   pointer-events: none;
   z-index: 5;
 }
+#lieu { grid-column: 1; justify-self: start; }
+#lecteur { grid-column: 2; }
+#producteur-photo { grid-column: 3; justify-self: end; }
 #lieu, #producteur-photo {
   margin: 0;
   padding: 0.15rem 0.5rem;
@@ -553,8 +555,42 @@ button.principal { font-weight: 600; }
   pointer-events: none;
   z-index: 5;
 }
-#producteur-photo { margin-left: auto; text-align: right; }
+#producteur-photo { text-align: right; }
 #lieu[hidden], #producteur-photo[hidden] { display: none; }
+/* Lecture de la séquence : même étiquette que les deux textes, trois boutons */
+#lecteur {
+  display: flex;
+  gap: 2px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: var(--etiquette-vue);
+  pointer-events: auto;
+}
+#lecteur[hidden] { display: none; }
+#lecteur button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 18px;  /* étiquette de la hauteur des deux textes */
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+}
+#lecteur button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.18); }
+#lecteur button:disabled { opacity: 0.35; cursor: default; }
+#lecteur button[aria-pressed="true"] { color: #ffeb00; }  /* sens de la lecture en cours */
+#lecteur svg {
+  width: 18px;
+  height: 12px;
+  fill: currentColor;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9));  /* détouré comme le texte des étiquettes */
+}
+#lecture-pause .pause, #lecture-pause.en-lecture .lire { display: none; }
+#lecture-pause.en-lecture .pause { display: inline; }
 
 /* Visionneuse : calcul de l'inclinaison en cours (petite roue), conseil ou rappel du calage,
    dans le bloc du haut, sous le rappel du mode */

@@ -667,6 +667,7 @@
         }
         return dispatch.call(this, event);
       };
+      attachPlayer();
       psv.addEventListener("position-updated", updateCursor);
       psv.addEventListener("zoom-updated", updateCursor);
       // Déplacement dans la séquence (flèches de la visionneuse) : nouvelle fiche de photo
@@ -682,6 +683,7 @@
           if (feature && passesFilter(feature)) {
             setPhoto(feature, true);
           } else if (photo) {  // photo voisine écartée : retour à la précédente
+            if (psv.isSequencePlaying?.()) psv.stopSequence();  // la lecture y reviendrait sans fin
             viewer.select(photo.collection || null, photo.id, true);
             notice(feature ? `Photo voisine hors du filtre (${app ? app.filter_text() : "calcul en chargement"}).`
               : "Photo voisine hors de l'instance choisie.");
@@ -694,6 +696,53 @@
       refresh();
       updateCursor();
     }, 200);
+  }
+
+  // Lecture de la séquence --------------------------------------------------------------------
+
+  // Comme le lecteur de la visionneuse officielle (ses fonctions playSequence, stopSequence) :
+  // lecture en arrière, pause et reprise dans le même sens, lecture en avant. Hors de la prise
+  // de mesure : on y change de photo par la carte.
+  let backward = false;  // sens de la dernière lecture, repris par « pause/reprise »
+
+  function playing() {
+    return Boolean(psv?.isSequencePlaying?.());
+  }
+
+  function play(back) {
+    backward = back;
+    if (playing()) psv.stopSequence();
+    psv.playSequence(back);
+  }
+
+  function updatePlayer() {
+    const seq = psv?.getPictureMetadata?.()?.sequence || {};
+    const on = playing();
+    const blocked = measuring || !photo;
+    $("#lecture-arriere").disabled = blocked || !seq.prevPic;
+    $("#lecture-avant").disabled = blocked || !seq.nextPic;
+    $("#lecture-pause").disabled = blocked || !(on || (backward ? seq.prevPic : seq.nextPic));
+    $("#lecture-arriere").setAttribute("aria-pressed", String(on && backward));
+    $("#lecture-avant").setAttribute("aria-pressed", String(on && !backward));
+    $("#lecture-pause").classList.toggle("en-lecture", on);
+    $("#lecture-pause").title = on ? "Pause" : `Reprendre la lecture (${backward ? "en arrière" : "en avant"})`;
+  }
+
+  function attachPlayer() {
+    $("#lecteur").hidden = false;
+    $("#lecture-arriere").addEventListener("click", () => play(true));
+    $("#lecture-avant").addEventListener("click", () => play(false));
+    $("#lecture-pause").addEventListener("click", () => {
+      if (playing()) psv.stopSequence();
+      else play(backward);
+    });
+    psv.addEventListener("sequence-playing", (event) => {
+      backward = Boolean(event.detail?.backward);
+      updatePlayer();
+    });
+    psv.addEventListener("sequence-stopped", updatePlayer);
+    psv.addEventListener("picture-loaded", updatePlayer);
+    updatePlayer();
   }
 
   // Bouton « Mesure » ------------------------------------------------------------------------
@@ -807,7 +856,9 @@
 
   $("#mesure").addEventListener("click", () => {
     measuring = !measuring;
+    if (measuring && playing()) psv.stopSequence();  // la mesure se fait sur une photo arrêtée
     applyMeasureUi();
+    if (psv) updatePlayer();
     refresh(app.set_active(measuring));
   });
 
