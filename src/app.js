@@ -10,7 +10,7 @@
   const viewer = $("#visionneuse");
   const map = Carte.createMap("carte");
   Recherche.attach(map);
-  Requeteur.attach(map, (lng, lat) => openNearest(lng, lat));
+  Requeteur.attach(map, openNearest);
   Carte.showMilestones(map);
   let app = null;  // web_app.App, une fois Pyodide chargé
   let photo = null;  // fiche STAC de la photo affichée
@@ -394,11 +394,18 @@
     openNearest(lng, lat);
   });
 
-  /** Photo la plus proche du point (lng, lat), qui passe le filtre. */
-  async function openNearest(lng, lat) {
+  /** Photo la plus proche du point (lng, lat), qui passe le filtre ; avec un cap `heading`
+   * (degrés), celle d'un véhicule roulant dans ce sens à 90° près, à défaut la plus proche. */
+  async function openNearest(lng, lat, heading = null) {
     showPhotoInfo(null, "Recherche de la photo la plus proche…");
+    const sameWay = (feature) => {
+      const azimuth = Number(feature.properties?.["view:azimuth"]);
+      return Number.isFinite(azimuth) && Math.abs(((azimuth - heading) % 360 + 540) % 360 - 180) < 90;
+    };
     try {
-      const feature = await Carte.nearestPhoto(map, lng, lat, passesFilter);
+      const feature = (heading != null
+        ? await Carte.nearestPhoto(map, lng, lat, (f) => passesFilter(f) && sameWay(f)) : null)
+        || await Carte.nearestPhoto(map, lng, lat, passesFilter);
       if (!feature) {
         showPhotoInfo(null, !filterActive() ? "Aucune photo près de ce point : cliquez sur le filaire orange."
           : app ? `Aucune photo près de ce point avec le filtre (${app.filter_text()}).`

@@ -37,8 +37,16 @@ const Lieu = (() => {
     return (await response.json()).features || [];
   }
 
+  /** Longueur (m) du segment [a, b] en [lon, lat], à la latitude du segment. */
+  function segmentLength(a, b) {
+    const k = Math.cos((a[1] + b[1]) / 2 * Math.PI / 180);
+    return Math.hypot((b[0] - a[0]) * 111320 * k, (b[1] - a[1]) * 111320);
+  }
+
   /** Projection du point (lon, lat) sur une ligne [[lon, lat]] : { d, s }, distance (m) à la
-   * ligne et abscisse curviligne (m) depuis son début. */
+   * ligne et abscisse curviligne (m) depuis son début. L'abscisse cumule les segments mesurés
+   * chacun à sa latitude : une section de PR fait des dizaines de kilomètres, et une seule
+   * latitude pour toute la ligne la fausserait de dizaines de mètres. */
   function project(line, lon, lat) {
     const pts = line.map((p) => local(p, [lon, lat]));
     let best = null, along = 0;
@@ -47,8 +55,9 @@ const Lieu = (() => {
       const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
       const t = Math.max(0, Math.min(1, -(a[0] * dx + a[1] * dy) / (len * len || 1)));
       const d = Math.hypot(a[0] + t * dx, a[1] + t * dy);
-      if (!best || d < best.d) best = { d, s: along + t * len };
-      along += len;
+      const length = segmentLength(line[i - 1], line[i]);
+      if (!best || d < best.d) best = { d, s: along + t * length };
+      along += length;
     }
     return best || { d: Infinity, s: 0 };
   }
@@ -126,5 +135,5 @@ const Lieu = (() => {
     return cache.get(key);
   }
 
-  return { describe, features, project };
+  return { describe, features, project, segmentLength };
 })();

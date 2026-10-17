@@ -235,6 +235,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 .requeteur input:disabled { opacity: 0.6; }
+.requeteur input.inconnu { border-color: #d40000; box-shadow: 0 0 0 1px #d40000; }  /* numéro absent */
 .requeteur label {
   flex: 0 0 auto;  /* juste « + 1234 m » : la distance tient en quatre chiffres */
   display: flex;
