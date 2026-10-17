@@ -253,6 +253,14 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.1.3** (17/10/2026) : requêteur route + PR (+ distance) sous la recherche de lieux, à
+  listes qui se réduisent à la frappe ; photo ouverte dans le sens des PR croissants. Distance
+  au PR mesurée le long du filaire IGN depuis le dernier PR passé, sans mise à l'échelle (plus
+  de 1 000 m possible). Lecteur de séquence en bas de la visionneuse : lecture en arrière,
+  pause/reprise, lecture en avant, à 1x, 2x, 4x, 8x ou 16x (une photo sur 2 à 16). Verticale
+  de la hauteur tracée selon le calage de l'inclinaison de la photo ; lieu de la photo pris
+  hors sentiers et escaliers ; points des photos plus petits sur la carte. Cœur du plugin
+  Visionneuse Panoramax 1.4.3.
 - **0.1.2** (17/10/2026) : nettoyage du cœur de calcul (profil du terrain, RGE ALTI et façade
   du cadastre retirés) ; « Accès aux services » vérifie l'altimétrie IGN sur le LiDAR HD.
   Cœur du plugin Visionneuse Panoramax 1.4.2.
