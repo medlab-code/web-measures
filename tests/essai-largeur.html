@@ -84,6 +84,12 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "photo 1");
     await sleep(1000);
     log("croix du point sur l'autre photo : " + box.querySelectorAll(".croix:not(.visee)").length);
+    // Point de référence sélectionnable dès sa validation, avant toute largeur
+    const refMark = JSON.parse(app.viewer_marks()).find((m) => m.points.length === 1 && !m.guide && !m.sighting && !m.vertical);
+    psvClick(refMark.points[0][0], refMark.points[0][1]);
+    expect("A sélectionné avant la largeur", JSON.parse(app.state()).point_sel);
+    doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect("Entrée : A désélectionné", !JSON.parse(app.state()).point_sel);
     psvClick(yawTo(photos[0], b), -0.3);
     await sleep(500);
     log("largeur : " + doc.querySelector("#statut").textContent);
@@ -141,6 +147,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("clic droit sur A : " + doc.querySelector("#statut").textContent.slice(0, 60));
     psvClick(yawTo(photos[1], target), -0.35);
     log("A recalé : " + doc.querySelector("#statut").textContent + " · " + JSON.parse(app.results()).map((r) => r.text).join(" | "));
+    expect("A recalé sur la droite de mesure", doc.querySelector("#statut").textContent.includes("le long de la droite de mesure"));
     again.click();
     expect("« Nouvelle mesure » : bouton masqué", again.hidden);
     psvClick(yawTo(photos[1], toLonLat([side * 12 * ux, side * 12 * uy])), -0.3);

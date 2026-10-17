@@ -80,9 +80,9 @@ visées de triangulation sont en tirets rouges, celles du calage du cap en tiret
 
 **Recaler un point** : **clic** (gauche ou droit) sur sa croix pour le sélectionner, puis :
 
-- clic gauche : nouvelle position (bord d'une largeur : nouvelle direction ; point de
-  référence d'une largeur : visée de plus, il est retriangulé ; hauteur : sur la photo de la
-  mesure) ;
+- clic gauche : nouvelle position (largeur : bord ou point de référence, là où la direction
+  du clic coupe la droite de mesure, dont ils ne sortent jamais ; le point de référence se
+  recale ainsi dès qu'il est validé ; hauteur : sur la photo de la mesure) ;
 - flèches du clavier, par pas de 1 cm : largeur, le long de la droite de mesure (← → dans le
   sens vu sur la photo, ↑ ↓ en s'éloignant ou en se rapprochant de la caméra) ; hauteur,
   ↑ ↓ montent ou descendent le point ;
