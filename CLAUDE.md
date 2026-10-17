@@ -20,16 +20,19 @@ application). Auteur : Cédric COCHART.
 - Calculs : ne pas réécrire ceux du plugin. Le cœur Python du plugin (sans QGIS) doit
   tourner tel quel dans Pyodide ; ses tests restent la référence.
 - Contrôle de syntaxe JavaScript : `gjs` (pas de Node sur le poste).
-- Essai dans un vrai navigateur sans fenêtre : Chrome en Flatpak, profil temporaire :
-  `flatpak run com.google.Chrome --headless=new --user-data-dir=/tmp/... --dump-dom URL`
-  (ou `--screenshot=` avec `--filesystem=` sur le dossier de sortie).
-- Essai de bout en bout : servir le dossier (`python3 -m http.server 8765 --bind 127.0.0.1`),
-  puis `--virtual-time-budget=60000 --window-size=1400,1000 --dump-dom
-  http://127.0.0.1:8765/tests/navigateur.html` : le journal est dans le `<pre id="log">`.
+- Essai dans un vrai navigateur sans fenêtre : Google Chrome du paquet Fedora
+  (`google-chrome`, plus de Flatpak), profil temporaire, lancé par `setsid` : à la fin,
+  n'arrêter que ce Chrome-là (son groupe de processus, ou les processus portant son profil),
+  jamais tous les Chrome par nom (celui de l'utilisateur serait tué).
+- Essai de bout en bout : `tools/serveur-essai.py 8766` (s'arrête quand la page écrit « FIN »
+  ou « ERREUR »), puis `google-chrome --headless=new --user-data-dir=/tmp/... --no-first-run
+  --remote-debugging-port=0 --window-size=1400,1000 http://127.0.0.1:8766/tests/<page>` ;
+  le journal s'affiche dans le terminal du serveur (bilan « contrôles : n réussis »).
+  Capture de la page d'accueil : `--screenshot=` avec `--virtual-time-budget=8000`.
 - `py/core/` est une copie du plugin (`tools/update-core.sh`) : corriger dans le plugin,
   puis recopier. Après toute modification d'un fichier Python sous `py/`, relancer le script :
   il régénère `py/sources.js` (seul chargé par la page).
-- Essai en `file://` : Chrome avec `--filesystem=` sur le dossier ; l'iframe de
+- Essai en `file://` : l'iframe de
   `tests/navigateur.html` n'y est pas accessible (origines distinctes), essayer sur une
   copie de `index.html` qui embarque le script d'essai.
 
