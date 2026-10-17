@@ -197,6 +197,80 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .recherche li.active, .recherche li:hover { background: color-mix(in srgb, var(--bord) 45%, var(--fond)); }
 .recherche li small { opacity: 0.7; }
 
+/* Requêteur route + PR, sous la recherche de lieux (voir requeteur.js) */
+.requeteur {
+  position: absolute;
+  top: 44px;
+  right: 10px;
+  z-index: 2;  /* sous les suggestions de la recherche de lieux */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: min(16rem, calc(100% - 70px));
+  font-size: 13px;
+}
+.requeteur .champ { position: relative; flex: 1 1 0; min-width: 0; }
+/* « PR » toujours affiché devant le numéro du point de repère */
+.requeteur .prefixe {
+  position: absolute;
+  left: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.7;
+  pointer-events: none;
+}
+.requeteur .pr input { padding-left: 1.9rem; }
+.requeteur input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--bord);
+  border-radius: 4px;
+  background: var(--fond);
+  color: inherit;
+  font: inherit;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.requeteur input:disabled { opacity: 0.6; }
+.requeteur label {
+  flex: 1.7 1 0;  /* plus large : « + 1234 m » avec les flèches du champ */
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--fond) 85%, transparent);
+  white-space: nowrap;
+}
+.requeteur .distance { min-width: 0; padding-right: 0.2rem; }
+.requeteur ul {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 16rem;
+  overflow-y: auto;
+  border: 1px solid var(--bord);
+  border-radius: 4px;
+  background: var(--fond);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+.requeteur ul[hidden] { display: none; }
+.requeteur li { padding: 0.3rem 0.5rem; cursor: pointer; white-space: nowrap; }
+.requeteur li.active, .requeteur li:hover { background: color-mix(in srgb, var(--bord) 45%, var(--fond)); }
+/* Point demandé : pastille rouge cerclée de blanc */
+.repere-requete {
+  width: 14px;
+  height: 14px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #d40000;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+}
+
 /* Poignée entre la carte et le panneau : glisser pour la hauteur, bouton pour replier */
 #poignee-carte {
   flex: none;

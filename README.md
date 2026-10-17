@@ -117,7 +117,7 @@ Le calage est gardé d'une visite à l'autre, et peut être exporté ou importé
 - voyants **RTK**, **LiDAR HD** et **inclinaison** de la photo ;
 - fonds de carte : Plan IGN, orthophoto, Ortho-express de l'année de la photo, PCRS de la
   Géoplateforme là où il est publié, OpenStreetMap ; recherche de lieux ; points de repère
-  (PR) des routes ; route, PR et commune de la photo incrustés dans la visionneuse ;
+  (PR) des routes ; requêteur route + PR (+ distance), à listes qui se réduisent à la frappe ; route, PR et commune de la photo incrustés dans la visionneuse ;
 - carte cadrée automatiquement sur la mesure en cours (mesure libre : sur le segment qui vient
   d'être mesuré) ;
 - carte **détachable** dans une fenêtre à part, à placer sur un second écran (bouton « ⧉ » sous
@@ -178,6 +178,7 @@ photo plus éloignée, qui voit la droite plus en face, la réduit. Avec un GPS 
 | `src/calcul.js` | chargement de Pyodide (page et arrière-plan) et des fichiers Python (`py/sources.js`) |
 | `src/services.js` | vérification de l'accès aux services |
 | `src/recherche.js` | recherche de lieux sur la carte (commune, lieu-dit, voie, adresse) |
+| `src/requeteur.js` | requêteur route + PR (+ distance) : routes du département affiché, côté droit par défaut |
 | `src/lieu.js` | route, point de repère (PR) et commune de la photo, incrustés dans la visionneuse |
 | `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page (points de référence, hauteurs, largeurs, mesure libre, recalages) |
 | `py/web_host.py` | accès réseau du cœur par le `fetch` du navigateur |

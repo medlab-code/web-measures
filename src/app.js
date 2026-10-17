@@ -10,6 +10,7 @@
   const viewer = $("#visionneuse");
   const map = Carte.createMap("carte");
   Recherche.attach(map);
+  Requeteur.attach(map, (lng, lat) => openNearest(lng, lat));
   Carte.showMilestones(map);
   let app = null;  // web_app.App, une fois Pyodide chargé
   let photo = null;  // fiche STAC de la photo affichée
@@ -390,6 +391,11 @@
       refresh();
       return;
     }
+    openNearest(lng, lat);
+  });
+
+  /** Photo la plus proche du point (lng, lat), qui passe le filtre. */
+  async function openNearest(lng, lat) {
     showPhotoInfo(null, "Recherche de la photo la plus proche…");
     try {
       const feature = await Carte.nearestPhoto(map, lng, lat, passesFilter);
@@ -403,7 +409,7 @@
     } catch (error) {
       showPhotoInfo(null, `Recherche impossible : ${error.message}`);
     }
-  });
+  }
 
   function onEscapeKey(event) {
     if (event.key === "Escape" && app && app.waiting_map()) refresh(app.cancel_landmark());

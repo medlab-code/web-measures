@@ -18,12 +18,14 @@ const Lieu = (() => {
   }
 
   /** Objets d'une couche de la BD TOPO : autour de (lon, lat) dans un rayon `reach`, ou selon
-   * un filtre CQL. */
-  async function features(layer, { lon, lat, reach, filter, count = 50 }) {
+   * un filtre CQL (par pages : `count` objets à partir du rang `start`). */
+  async function features(layer, { lon, lat, reach, filter, count = 50, start = 0, properties }) {
     const params = new URLSearchParams({
       SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetFeature", TYPENAMES: `BDTOPO_V3:${layer}`,
       OUTPUTFORMAT: "application/json", SRSNAME: "EPSG:4326", COUNT: String(count),
     });
+    if (start) params.set("STARTINDEX", String(start));
+    if (properties) params.set("PROPERTYNAME", properties);  // attributs seuls, sans géométrie
     if (filter) {
       params.set("CQL_FILTER", filter);
     } else {
@@ -124,5 +126,5 @@ const Lieu = (() => {
     return cache.get(key);
   }
 
-  return { describe };
+  return { describe, features, project };
 })();
