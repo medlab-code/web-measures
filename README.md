@@ -226,7 +226,6 @@ photo plus éloignée, qui voit la droite plus en face, la réduit. Avec un GPS 
 | Fichier | Rôle |
 |---|---|
 | `index.html`, `src/style.css` | page et mise en page |
-| `img/panoramax.svg` | logo Panoramax (repris de la visionneuse Panoramax, licence MIT) |
 | `src/app.js` | relie carte, visionneuse et calcul : clics, clavier, repères, liseré, filtre |
 | `src/carte.js` | carte MapLibre : fonds, filaire, points de repère (PR), mesures, étiquettes, poignées, photo la plus proche |
 | `src/calcul.js` | chargement de Pyodide (page et arrière-plan) et des fichiers Python (`py/sources.js`) |
