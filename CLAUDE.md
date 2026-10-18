@@ -39,3 +39,7 @@ application). Auteur : Cédric COCHART.
 ## Git
 
 - Branche `main`, dépôt privé `medlab-code/web-measures` sur GitHub (privé depuis le 13/10/2026).
+- Release : tag `vX.Y.Z` et release GitHub (`gh release create … --target main`). Mettre à jour
+  dans le même commit le numéro affiché sous le titre (`index.html`, mention « Version test
+  X.Y.Z ») et la rubrique « Versions » du `README.md`. Le site Cloudflare
+  (https://mesures-panoramax-web.medlab-code.workers.dev/) se met à jour à chaque push sur `main`.
