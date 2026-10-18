@@ -621,7 +621,61 @@
       dl.append(Object.assign(document.createElement("dt"), { textContent: label }),
         Object.assign(document.createElement("dd"), { textContent: value || "—" }));
     }
+    // Identifiant à copier d'un clic : pour retrouver la photo (tests entre collègues)
+    const copy = Object.assign(document.createElement("button"), { type: "button", className: "copier",
+      textContent: "📋 Copier", title: "Copier l'identifiant de la photo dans le presse-papiers" });
+    copy.addEventListener("click", () => copyText(feature.id, copy));
+    dl.lastElementChild.append(copy);
     section.replaceChildren(dl);
+  }
+
+  // Aller à une photo par son identifiant (ou un lien Panoramax qui le contient)
+  $("#aller-photo").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const help = $("#aller-photo .aide");
+    const match = $("#id-photo").value.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    help.hidden = false;
+    if (!match) {
+      help.textContent = "Identifiant non reconnu : collez l'identifiant de la photo (8-4-4-4-12 caractères).";
+      return;
+    }
+    help.textContent = "Recherche de la photo…";
+    try {
+      const feature = await Carte.photoById(match[0].toLowerCase());
+      if (!feature) {
+        help.textContent = "Photo introuvable sur l'instance choisie (Réglages › Instance).";
+        return;
+      }
+      help.hidden = true;
+      $("#id-photo").value = "";
+      openPhoto(feature);
+      map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 17), speed: 1.6 });
+    } catch (error) {
+      help.textContent = `Recherche impossible : ${error.message}`;
+    }
+  });
+  // Les touches de la boîte ne vont ni à la carte ni aux recalages au clavier
+  $("#id-photo").addEventListener("keydown", (event) => event.stopPropagation());
+
+  /** Copie text dans le presse-papiers ; le bouton affiche « ✔ Copié » un instant. Repli sur
+   * une sélection copiée quand le navigateur refuse l'accès au presse-papiers (page en file://). */
+  async function copyText(text, button) {
+    let done = false;
+    try {
+      await navigator.clipboard.writeText(text);
+      done = true;
+    } catch {
+      const area = Object.assign(document.createElement("textarea"), { value: text });
+      area.style.position = "fixed";
+      area.style.opacity = "0";
+      document.body.append(area);
+      area.select();
+      try { done = document.execCommand("copy"); } catch { done = false; }
+      area.remove();
+    }
+    const label = button.textContent;
+    button.textContent = done ? "✔ Copié" : "Copie refusée";
+    setTimeout(() => { button.textContent = label; }, 1500);
   }
 
   // Visionneuse ----------------------------------------------------------------------------

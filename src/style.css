@@ -702,6 +702,14 @@ dialog.avertissement h2 { color: #ff6f00; }
 dl { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.75rem; margin: 0; }
 dt { color: var(--discret); }
 dd { margin: 0; overflow-wrap: anywhere; }
+/* Identifiant de la photo : bouton de copie sur sa ligne, un peu détaché */
+dd .copier { display: block; margin-top: 0.4rem; padding: 0.1rem 0.5rem; font-size: 12px; white-space: nowrap; }
+/* Aller à une photo par son identifiant */
+#aller-photo { margin-top: 0.9rem; }
+#aller-photo label { display: block; margin-bottom: 0.25rem; color: var(--discret); }
+#aller-photo .ligne-aller { display: flex; gap: 0.4rem; }
+#aller-photo input { flex: 1; min-width: 0; font-size: 13px; }
+#aller-photo .aide { margin: 0.3rem 0 0; }
 
 /* Repères dans la photo et étiquettes sur la carte : mêmes couleurs que le plugin QGIS */
 .croix {
