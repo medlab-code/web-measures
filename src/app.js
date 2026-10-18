@@ -835,6 +835,8 @@
       attachPlayer();
       psv.addEventListener("position-updated", updateCursor);
       psv.addEventListener("zoom-updated", updateCursor);
+      psv.addEventListener("position-updated", scheduleDeclutter);
+      psv.addEventListener("zoom-updated", scheduleDeclutter);
       // Déplacement dans la séquence (flèches de la visionneuse) : nouvelle fiche de photo
       psv.addEventListener("picture-loaded", async (event) => {
         applyMeasureUi();  // flèches de la nouvelle photo
@@ -1174,7 +1176,18 @@
           html: `<div class="croix${sel ? " choisie" : ""}${mark.sighting ? " visee" : ""}"></div>`,
         });
       });
-      if (mark.label) {  // au milieu du trait, un peu au-dessus (à côté pour une hauteur)
+      if (mark.label && mark.end && points.length >= 2) {
+        // Hauteur, largeur : étiquette au point d'arrivée (à droite du sommet, sous le bord),
+        // ouverte par son nom (pastille bordeaux, grise s'il est provisoire) ; trait de renvoi
+        // vers la croix quand elle est écartée d'une autre (declutterLabels)
+        add({
+          id: `${MARK}${m}-etiquette`, position: points[points.length - 1], anchor: "center center",
+          html: `<div class="ancre"><div class="renvoi ${mark.beside ? "cote" : "dessous"}"></div>`
+            + `<div class="etiquette mesure fin ${mark.beside ? "cote" : "dessous"}"><span class="puce${
+              mark.end.provisional ? " provisoire" : ""}">${escapeHtml(mark.end.name)}</span>${
+              escapeHtml(measureLabel(mark, names))}</div></div>`,
+        });
+      } else if (mark.label) {  // au milieu du trait, un peu au-dessus (à côté pour une hauteur)
         // Repère de taille nulle au milieu du trait, étiquette décalée d'un nombre fixe de pixels
         // par le CSS : la visionneuse mesure la taille d'un repère une seule fois, parfois avant
         // sa mise en page, et l'ancrerait alors trop loin
@@ -1186,7 +1199,45 @@
       }
     });
     markers.renderMarkers?.();
+    requestAnimationFrame(() => requestAnimationFrame(declutterLabels));  // une fois placées
   }
+
+  /**
+   * Étiquettes des points d'arrivée qui se chevauchent (sommets ou bords proches) : écartées
+   * vers le bas, de la plus haute à la plus basse, l'ordre gardé ; un trait relie l'étiquette
+   * écartée à sa croix. Les autres étiquettes (noms, mesures libres) restent en place et sont
+   * évitées. Refait quand la vue tourne ou zoome.
+   */
+  function declutterLabels() {
+    const root = viewer;
+    if (!root) return;
+    const moving = [...root.querySelectorAll(".etiquette.fin")];
+    for (const el of moving) el.style.setProperty("--decalage", "0px");
+    const placed = [...root.querySelectorAll(".ancre .etiquette:not(.fin)")]
+      .map((el) => el.getBoundingClientRect()).filter((r) => r.width);
+    const items = moving.map((el) => ({ el, rect: el.getBoundingClientRect() }))
+      .filter(({ rect }) => rect.width).sort((a, b) => a.rect.top - b.rect.top);
+    const hit = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom + 2 && a.bottom + 2 > b.top;
+    for (const { el, rect } of items) {
+      let shift = 0, r = rect;
+      for (let k = 0; k < 20; k++) {
+        const other = placed.find((p) => hit(r, p));
+        if (!other) break;
+        shift += other.bottom + 2 - r.top;
+        r = { left: rect.left, right: rect.right, top: rect.top + shift, bottom: rect.bottom + shift };
+      }
+      el.style.setProperty("--decalage", `${shift}px`);
+      const leader = el.previousElementSibling;
+      if (leader?.classList.contains("renvoi")) leader.style.height = shift > 0 ? `${shift}px` : "0";
+      placed.push(r);
+    }
+  }
+  let declutterPending = false;
+  const scheduleDeclutter = () => {
+    if (declutterPending) return;
+    declutterPending = true;
+    requestAnimationFrame(() => requestAnimationFrame(() => { declutterPending = false; declutterLabels(); }));
+  };
 
   /** Noms des points triangulés (A, B…) de la photo, à leur croix : [[cap, élévation, nom]]. */
   function namesOf(marks) {
@@ -1199,6 +1250,11 @@
    * (« B↔C 4,84 m ± 0,33 m »). Un point est nommé quand une croix nommée est à moins de 0,1°.
    */
   function measureLabel(mark, names) {
+    const match0 = /^([↔↕]) (.*)$/.exec(mark.label);
+    if (mark.names?.length && match0) {  // hauteur, largeur : noms donnés par le cœur
+      const sorted = [...mark.names].sort((a, b) => a.localeCompare(b, "fr"));
+      return sorted.length === 1 ? `${sorted[0]}${match0[1]} ${match0[2]}` : `${sorted.join(match0[1])} ${match0[2]}`;
+    }
     const ends = [mark.points[0], mark.points[mark.points.length - 1]];
     const found = [...new Set(ends.flatMap(([yaw, pitch]) => names
       .filter(([y, p]) => Math.hypot(Math.atan2(Math.sin(y - yaw), Math.cos(y - yaw)) * Math.cos(pitch), p - pitch) < 0.0018)
@@ -1526,6 +1582,7 @@
     // trait rouge ; croix jaunes, bleues pour les visées
     const guidesFirst = [...currentMarks].sort((a, b) => Number(!!b.guide) - Number(!!a.guide));
     const captureNames = namesOf(currentMarks);
+    const endLabels = [];
     for (const mark of guidesFirst) {
       const pts = mark.points.map(screen);
       if (mark.guide) {
@@ -1579,11 +1636,61 @@
           ctx.stroke();
         }
       }
+      const text = measureLabel(mark, captureNames), blue = "rgba(21, 76, 121, 0.92)";  // comme .etiquette.mesure
+      if (mark.label && mark.end && pts.length >= 2) {  // au point d'arrivée, placée après les autres
+        const end = pts[pts.length - 1];
+        if (end) endLabels.push({ mark, text, x: end[0], y: end[1] });
+        continue;
+      }
       const centre = middle(mark.points.map(([yaw, pitch]) => ({ yaw, pitch })));
       const mid = mark.label ? screen([centre.yaw, centre.pitch]) : null;
-      const text = measureLabel(mark, captureNames), blue = "rgba(21, 76, 121, 0.92)";  // comme .etiquette.mesure
       if (mid && mark.beside) label(ctx, text, mid[0] + 9 * scale, mid[1] + 9 * scale, 15 * scale, "left", blue);
       else if (mid) label(ctx, text, mid[0], mid[1] - 7 * scale, 15 * scale, "center", blue);
+    }
+    // Étiquettes des points d'arrivée, comme dans la visionneuse : nom en pastille, écartées vers
+    // le bas quand elles se chevauchent (de la plus haute à la plus basse), trait de renvoi
+    const size = 15 * scale, placedRects = [];
+    endLabels.sort((a, b) => a.y - b.y);
+    for (const item of endLabels) {
+      const { mark, text } = item;
+      ctx.font = `${size}px Roboto, system-ui, sans-serif`;
+      const chipFont = `600 ${size}px Roboto, system-ui, sans-serif`;
+      const textW = ctx.measureText(text).width;
+      ctx.font = chipFont;
+      const chipW = ctx.measureText(mark.end.name).width + 0.6 * size;
+      const w = chipW + 0.4 * size + textW + size, h = size * 1.6;
+      let left = mark.beside ? item.x + 10 * scale : item.x - w / 2;
+      let top = mark.beside ? item.y - h / 2 : item.y + 10 * scale;
+      const anchorTop = top;
+      for (let k = 0; k < 20; k++) {
+        const other = placedRects.find((r) => left < r.right && left + w > r.left && top < r.bottom + 2 * scale && top + h + 2 * scale > r.top);
+        if (!other) break;
+        top = other.bottom + 2 * scale;
+      }
+      placedRects.push({ left, right: left + w, top, bottom: top + h });
+      if (top > anchorTop) {  // trait de renvoi vers la croix
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+        ctx.lineWidth = 1.5 * scale;
+        ctx.beginPath();
+        const lx = mark.beside ? item.x + 6 * scale : item.x;
+        ctx.moveTo(lx, mark.beside ? item.y : item.y + 10 * scale);
+        ctx.lineTo(lx, top + h / 2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(21, 76, 121, 0.92)";
+      ctx.beginPath();
+      ctx.roundRect(left, top, w, h, size * 0.25);
+      ctx.fill();
+      ctx.fillStyle = mark.end.provisional ? "rgba(95, 99, 104, 0.95)" : "rgba(142, 27, 27, 0.95)";
+      ctx.beginPath();
+      ctx.roundRect(left + 0.25 * size, top + 0.15 * size, chipW, h - 0.3 * size, size * 0.2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.textBaseline = "middle";
+      ctx.font = chipFont;
+      ctx.fillText(mark.end.name, left + 0.55 * size, top + h / 2);
+      ctx.font = `${size}px Roboto, system-ui, sans-serif`;
+      ctx.fillText(text, left + 0.25 * size + chipW + 0.4 * size, top + h / 2);
     }
     const caption = app ? app.caption(psv.getPosition().yaw) : "Panoramax";
     drawCartouches(ctx, canvas, 13 * scale, caption, placeText());  // taille de l'étiquette de la visionneuse

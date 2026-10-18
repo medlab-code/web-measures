@@ -320,6 +320,11 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.2.4** (18/10/2026) : étiquette d'une hauteur ou d'une largeur au point d'arrivée (à
+  droite du sommet, sous le bord), ouverte par le nom de ce point en pastille ; étiquettes qui
+  se chevauchent écartées vers le bas, l'ordre gardé, avec un trait de renvoi (photo et
+  captures) ; nom posé sur le trait d'une autre mesure mis à côté ; mention « projet
+  personnel – POC ». Cœur du plugin Visionneuse Panoramax (branche dev, a2da3fb).
 - **0.2.3** (18/10/2026) : sommet d'une hauteur nommé (lettre suivante, étiquette grise),
   l'étiquette de la mesure nomme ses deux points (« A↕C 3,20 m »). Cœur du plugin
   Visionneuse Panoramax (branche dev, 383e216).

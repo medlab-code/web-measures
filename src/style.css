@@ -834,7 +834,22 @@ dd .copier { display: block; margin-top: 0.4rem; padding: 0.1rem 0.5rem; font-si
 /* Nom d'un point triangulé (A, B…) à côté de sa croix, du côté opposé à la mesure, bordeaux
    comme sur la carte */
 .etiquette.nom { background: rgba(142, 27, 27, 0.92); font-weight: 600; }
-.etiquette.nom.provisoire { background: rgba(95, 99, 104, 0.92); }  /* bord cliqué, pas encore triangulé */
+/* Hauteur, largeur : étiquette au point d'arrivée (à droite du sommet, sous le bord), ouverte
+   par le nom du point ; --decalage : écart vers le bas quand elle en chevauche une autre */
+.etiquette.fin.cote { left: 10px; top: 0; transform: translateY(calc(-50% + var(--decalage, 0px))); }
+.etiquette.fin.dessous { top: 10px; left: 0; transform: translate(-50%, var(--decalage, 0px)); }
+.etiquette .puce {
+  margin: 0 0.4em 0 -0.25em;
+  padding: 0 0.3em;
+  border-radius: 3px;
+  background: rgba(142, 27, 27, 0.95);
+  font-weight: 600;
+}
+.etiquette .puce.provisoire { background: rgba(95, 99, 104, 0.95); }  /* point pas encore triangulé */
+/* Trait de renvoi de l'étiquette écartée vers sa croix */
+.renvoi { position: absolute; top: 0; height: 0; border-left: 1.5px solid rgba(255, 255, 255, 0.85); }
+.renvoi.cote { left: 6px; }
+.renvoi.dessous { left: 0; top: 10px; }
 .etiquette.nom.left { right: 10px; top: 0; transform: translateY(-50%); }
 .etiquette.nom.right { left: 10px; top: 0; transform: translateY(-50%); }
 .etiquette.nom.above { bottom: 10px; left: 0; transform: translateX(-50%); }

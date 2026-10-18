@@ -1383,37 +1383,34 @@ class Session:
         en cours, point 0 de ses mesures) ; points gardés de la mesure libre. side : côté de la
         croix opposé à la mesure (« left », « right », « above », « below »), pour ne pas la
         masquer ; dessous par défaut (une hauteur monte, une largeur s'étend sur les côtés).
-        Bord cliqué d'une largeur (pas encore triangulé) et sommet d'une hauteur : nom provisoire
-        (« provisional »)."""
+        Points d'arrivée des hauteurs et largeurs (sommet, bord) : nommés dans l'étiquette de leur
+        mesure (« end » de viewer_marks), pas ici."""
         pic = self.item.get("id")
         at = {}  # nom -> (repère, repère de l'autre bout de la mesure ou None)
-        provisional = set()  # noms provisoires : bord cliqué d'une largeur, sommet d'une hauteur
         ref = self.ref_point
         if ref is not None and self.active and self.mode in REF_MODES:
             mark = self._reference_mark()
             if mark:
                 at[ref["name"]] = (mark["points"][0], None)
+        ends = set()  # points d'arrivée des hauteurs et largeurs : nommés dans leur étiquette
+        starts = {(ref or {}).get("name")} | {w.edge.get("name") for w in self._widths()} | {
+            (m.reference or {}).get("name") for m in self._heights()}  # points de départ : nommés à part
         for w in self._widths():
             points = self._width_points(w)
             at.setdefault(w.edge.get("name"), (points[0], points[1]))
-            if not w.edge_b and len(points) > 1:  # bord cliqué, pas encore triangulé
-                name = self._provisional_name(w)
-                provisional.add(name)
-                at.setdefault(name, (points[1], points[0]))
+            ends.add(self._end_name(w)["name"])
         for m in self._heights():
             if m.reference and m.reference.get("name"):
                 points = self._height_points(m)
                 at.setdefault(m.reference["name"], (points[0], points[1] if len(points) > 1 else None))
-                if len(points) > 1:  # sommet cliqué : nom provisoire, comme le bord d'une largeur
-                    name = self._provisional_name(m)
-                    provisional.add(name)
-                    at.setdefault(name, (points[1], points[0]))
+                if len(points) > 1:
+                    ends.add(self._end_name(m)["name"])
         partner = {}
         for i, j, _ in self.links:  # mesure libre : à l'opposé du point relié
             partner.setdefault(i, j)
             partner.setdefault(j, i)
         for k, (_, _, values) in enumerate(self.points):
-            if values["nom"] not in at:
+            if values["nom"] not in at and values["nom"] not in ends:
                 other = self._free_mark_point(partner[k]) if k in partner else None
                 at[values["nom"]] = (self._free_mark_point(k), other)
         # Traits des mesures de la photo : un nom qui tombe à l'intérieur de l'un d'eux (sommet
@@ -1423,8 +1420,19 @@ class Session:
                  for m in marks if m.get("label") and not m.get("name")]
         lines = [(q[0], q[-1]) for q in lines if len(q) >= 2]
         return [{"points": [dict(p, pic=pic, sel=False)], "label": name, "name": True,
-                 "side": _beside_line(p, lines) or _away(p, other), "provisional": name in provisional}
-                for name, (p, other) in at.items() if name and p is not None]
+                 "side": _beside_line(p, lines) or _away(p, other)}
+                for name, (p, other) in at.items() if name and p is not None and (name not in ends or name in starts)]
+
+    def _end_name(self, m):
+        """Point d'arrivée d'une hauteur (sommet) ou d'une largeur (bord) : {"name", "provisional"}
+        (bord triangulé : son nom, définitif), ou None (hauteur sans point de référence nommé)."""
+        if isinstance(m, widths.PerpendicularWidth):
+            if m.edge_b:
+                return {"name": m.edge_b["name"], "provisional": False}
+            return {"name": self._provisional_name(m), "provisional": True}
+        if m.reference and m.reference.get("name"):
+            return {"name": self._provisional_name(m), "provisional": True}
+        return None
 
     def _provisional_name(self, m):
         """Nom provisoire du bord cliqué d'une largeur ou du sommet d'une hauteur (lettre suivante
@@ -1646,14 +1654,20 @@ class Session:
         marks = [self.tool._marks(m) for m in self.tool.done
                  if not isinstance(m, widths.PerpendicularWidth) and not (m.kind == "height" and m.result)]
         if self.item:
+            # Hauteurs et largeurs : étiquette au point d'arrivée (sommet, bord), avec son nom
+            # (« end », provisoire ou non) et les noms des deux bouts (« names »)
             for m in self._heights():
+                end = self._end_name(m)
                 marks.append({"points": [dict(p, pic=pic, sel=self.tool.selected == (m, k))
                                          for k, p in enumerate(self._height_points(m))],
-                              "label": m.label(), "beside": True})
+                              "label": m.label(), "beside": True, "end": end,
+                              "names": [n for n in [(m.reference or {}).get("name"), end and end["name"]] if n]})
             for m in self._widths():
+                end = self._end_name(m)
                 marks.append({"points": [dict(p, pic=pic, sel=self.width_sel == (m, k))
                                          for k, p in enumerate(self._width_points(m))],
-                              "label": m.label(), "beside": False})
+                              "label": m.label(), "beside": False, "end": end,
+                              "names": [n for n in [m.edge.get("name"), end and end["name"]] if n]})
         if self.item:  # mesure libre : points gardés et distances, depuis toutes les photos
             marks += self._free_marks()
         if self.active and self._aiming():  # visées faites depuis cette photo
@@ -1689,7 +1703,8 @@ class Session:
                             "sighting": m.get("sighting", False), "guide": m.get("guide", False),
                             "vertical": m.get("vertical", False), "name": m.get("name", False),
                             "epipolar": m.get("epipolar", False),
-                            "side": m.get("side", ""), "provisional": m.get("provisional", False)})
+                            "side": m.get("side", ""), "provisional": m.get("provisional", False),
+                            "end": m.get("end"), "names": m.get("names", [])})
         return out
 
     def focus(self):
