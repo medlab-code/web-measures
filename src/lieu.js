@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
 // Lieu de la photo affichée, incrusté dans la visionneuse : route (numéro et nom de la voie,
-// tronçon de la BD TOPO le plus proche), point de repère (PR + distance, BD TOPO) et commune
+// tronçon de la BD TOPO le plus proche), point de repère (PR + distance, BD TOPO), hors route
+// départementale la véloroute suivie (itinéraires cyclables de la BD TOPO) et l'écluse la plus
+// proche (repère des chemins de halage), et commune
 // (découpage administratif de geo.api.gouv.fr).
 
 const Lieu = (() => {
@@ -101,10 +103,10 @@ const Lieu = (() => {
   // passer plus près de la photo que l'axe de la chaussée
   const NOT_DRIVEN = new Set(["Sentier", "Escalier", "Bac ou liaison maritime"]);
 
-  /** Tronçon de route (praticable en voiture) le plus proche : { numero, nom } ou null. */
-  async function road(lon, lat) {
+  /** Tronçon de route (praticable en voiture) le plus proche parmi troncons : { numero, nom } ou null. */
+  function road(troncons, lon, lat) {
     let best = null;
-    for (const feature of await features("troncon_de_route", { lon, lat, reach: REACH })) {
+    for (const feature of troncons) {
       if (NOT_DRIVEN.has(feature.properties?.nature)) continue;
       const geometry = feature.geometry || {};
       const lines = geometry.type === "MultiLineString" ? geometry.coordinates : [geometry.coordinates || []];
@@ -118,6 +120,53 @@ const Lieu = (() => {
     return { numero: p.cpx_numero || "", nom: p.nom_voie_ban_gauche || p.nom_voie_ban_droite || "" };
   }
 
+  const CYCLE_REACH = 12;  // m : véloroute du tronçon le plus proche, à cette distance au plus
+  const CYCLE = "Itinéraire cyclable";
+
+  /** Véloroutes du tronçon le plus proche qui en porte (chemin, voie verte, route…) : leurs noms
+   * (BD TOPO : natures et noms des itinéraires du tronçon, listes parallèles séparées par « / »),
+   * sans les itinéraires de randonnée ; "" s'il n'y en a pas à CYCLE_REACH m. */
+  function cycleRoutes(troncons, lon, lat) {
+    let best = null;
+    for (const feature of troncons) {
+      const p = feature.properties || {};
+      const natures = String(p.cpx_nature_itineraire_autre || "").split("/");
+      const names = String(p.cpx_toponyme_itineraire_autre || "").split("/");
+      const cycle = names.filter((name, k) => name.trim() && (natures.length === names.length ? natures[k] : natures[0]) === CYCLE);
+      if (!cycle.length) continue;
+      const geometry = feature.geometry || {};
+      const lines = geometry.type === "MultiLineString" ? geometry.coordinates : [geometry.coordinates || []];
+      for (const line of lines) {
+        const { d } = project(line, lon, lat);
+        if (d <= CYCLE_REACH && (!best || d < best.d)) best = { d, cycle };
+      }
+    }
+    return best ? [...new Set(best.cycle.map((n) => n.trim()))].join(" / ") : "";
+  }
+
+  const LOCK_REACH = 2000;  // m : écluse cherchée autour d'une photo prise sur une véloroute
+
+  /** Écluse la plus proche (BD TOPO, constructions de nature « Ecluse »), repère le long des
+   * véloroutes de chemin de halage : « écluse n° 22 de Marigny à 250 m », ou "" s'il n'y en a pas
+   * à LOCK_REACH m. Distance à vol d'oiseau jusqu'au centre de l'écluse. */
+  async function nearestLock(lon, lat) {
+    let best = null;
+    for (const f of await features("construction_surfacique", { lon, lat, reach: LOCK_REACH, count: 1000 })) {
+      const p = f.properties || {};
+      if (p.nature !== "Ecluse" || !p.toponyme) continue;
+      const g = f.geometry || {};
+      const ring = (g.type === "MultiPolygon" ? g.coordinates[0]?.[0] : g.coordinates?.[0]) || [];
+      if (!ring.length) continue;
+      const cx = ring.reduce((t, q) => t + q[0], 0) / ring.length, cy = ring.reduce((t, q) => t + q[1], 0) / ring.length;
+      const [x, y] = local([cx, cy], [lon, lat]);
+      const d = Math.hypot(x, y);
+      if (d <= LOCK_REACH && (!best || d < best.d)) best = { d, name: p.toponyme };
+    }
+    if (!best) return "";
+    const name = best.name.replace(/^Écluse Numéro\s*/i, "écluse n° ");
+    return `${name} à ${best.d < 1000 ? `${Math.round(best.d / 10) * 10} m` : `${(best.d / 1000).toFixed(1).replace(".", ",")} km`}`;
+  }
+
   /** Commune qui contient le point, ou "". */
   async function commune(lon, lat) {
     const response = await fetch(`${COMMUNES}?lat=${lat}&lon=${lon}&fields=nom&format=json`);
@@ -125,13 +174,19 @@ const Lieu = (() => {
     return ((await response.json())[0] || {}).nom || "";
   }
 
-  /** « D16 · PR 27 +0185 · Place de la Liberation · Pouilly-en-Auxois » (parties connues). */
+  /** « D16 – PR 27 +0185 – Place de la Liberation – Pouilly-en-Auxois » (parties connues) ; hors
+   * route départementale, la véloroute suivie et l'écluse la plus proche avant la commune. */
   async function describe(lon, lat) {
     const key = `${lon.toFixed(5)},${lat.toFixed(5)}`;
     if (!cache.has(key)) {
-      const [r, c] = await Promise.all([road(lon, lat).catch(() => null), commune(lon, lat).catch(() => "")]);
+      const [troncons, c] = await Promise.all([features("troncon_de_route", { lon, lat, reach: REACH }).catch(() => null),
+        commune(lon, lat).catch(() => "")]);
+      const r = troncons ? road(troncons, lon, lat) : null;
       const pr = await milestone(r?.numero, lon, lat).catch(() => "");
-      const text = [r?.numero, pr, r?.nom, c].filter(Boolean).join(" · ");
+      // Hors route départementale : la véloroute suivie, s'il y en a une (chemin de halage, voie verte…)
+      const bike = troncons && !/^D\d/.test(r?.numero || "") ? cycleRoutes(troncons, lon, lat) : "";
+      const lock = bike ? await nearestLock(lon, lat).catch(() => "") : "";  // repère des chemins de halage
+      const text = [r?.numero, pr, r?.nom, bike, lock, c].filter(Boolean).join(" – ");  // comme l'étiquette de droite
       if (!text) return "";  // services injoignables : rien de gardé, on réessaiera
       cache.set(key, text);
       if (cache.size > 500) cache.delete(cache.keys().next().value);

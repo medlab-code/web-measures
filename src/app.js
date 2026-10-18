@@ -52,7 +52,11 @@
   // dans un navigateur qui avait déjà ses réglages ; chacun peut ensuite en changer.
   const DEFAULT_INSTANCE = "https://panoramax.ign.fr";
   const DEFAULT_PRODUCER = ["8f943f10-a781-4e03-a18c-de035be6f6f8", "conseil départemental de la côte-d'or"];
-  if (store.get("defauts") !== "1") {
+  // Photo ouverte à la première utilisation (et sans dernière photo gardée), regard vers l'ouest
+  const DEFAULT_PHOTO = "88eba563-792a-447f-92c5-215e749ffc9b";
+  const DEFAULT_HEADING = 270;
+  const firstUse = store.get("defauts") !== "1";
+  if (firstUse) {
     $("#reglages-defaut").showModal();  // pourquoi ces réglages, et où les changer
     store.set("instance", DEFAULT_INSTANCE);
     let filter = {};
@@ -212,17 +216,35 @@
 
   /** Dernière photo de la visite précédente, rouverte et centrée sur la carte. */
   async function reopenPhoto() {
-    const id = store.get("photo");
-    if (!id || photo) return;  // rien de gardé, ou photo déjà choisie entre-temps
+    const saved = store.get("photo");
+    const id = firstUse || !saved ? DEFAULT_PHOTO : saved;  // première utilisation : la photo par défaut
+    if (photo) return;  // photo déjà choisie entre-temps
     try {
       const feature = await Carte.photoById(id);
       if (!feature || photo) return;  // photo supprimée depuis, ou autre photo choisie
       if (app && !passesFilter(feature)) return;  // sinon vérifiée au chargement du calcul
       openPhoto(feature);
       map.jumpTo({ center: feature.geometry.coordinates, zoom: 17 });
+      if (id === DEFAULT_PHOTO) lookWhenShown(feature, DEFAULT_HEADING);
     } catch (error) {
       console.warn("Dernière photo non rouverte :", error);
     }
+  }
+
+  /** Vue tournée vers le cap heading (degrés) dès que la photo est affichée. */
+  function lookWhenShown(feature, heading) {
+    const t0 = Date.now();
+    const timer = setInterval(() => {
+      if (Date.now() - t0 > 30000 || (photo && photo.id !== feature.id)) {
+        clearInterval(timer);  // trop long, ou autre photo choisie entre-temps
+        return;
+      }
+      if (psv?.getPictureMetadata?.()?.id !== feature.id) return;
+      clearInterval(timer);
+      const azimuth = Number(feature.properties?.["view:azimuth"]) || 0;  // cap du centre de la photo
+      const yaw = (((heading - azimuth) % 360 + 540) % 360 - 180) * Math.PI / 180;
+      setTimeout(() => psv.rotate({ yaw, pitch: 0 }), 300);  // après la mise en place de la vue
+    }, 200);
   }
   reopenPhoto();
 
