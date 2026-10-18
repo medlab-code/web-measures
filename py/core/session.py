@@ -955,8 +955,10 @@ class Session:
         """Bord B validé : gardé comme point triangulé (export), la largeur recalculée entre A et
         lui ; retour sur la photo de référence."""
         r, sightings = self.triangulator.result, list(self.triangulator.sightings)
-        name = _point_name(self.named)
-        self.named += 1
+        name = getattr(self.b_aiming, "provisional_name", None)  # le bord garde sa lettre
+        if not name:
+            name = _point_name(self.named)
+            self.named += 1
         self.points.append((r["lon"], r["lat"], dict({"nom": name}, **values, commentaire="")))
         self.point_views[name] = {s["pic"]: s["view"] for s in sightings if s.get("view")}
         ground_z = self.triangulator.ground_z
@@ -1380,7 +1382,8 @@ class Session:
         point de référence des largeurs et des hauteurs, à sa croix (repère du point de référence
         en cours, point 0 de ses mesures) ; points gardés de la mesure libre. side : côté de la
         croix opposé à la mesure (« left », « right », « above », « below »), pour ne pas la
-        masquer ; dessous par défaut (une hauteur monte, une largeur s'étend sur les côtés)."""
+        masquer ; dessous par défaut (une hauteur monte, une largeur s'étend sur les côtés).
+        Bord cliqué d'une largeur, pas encore triangulé : nom provisoire (« provisional »)."""
         pic = self.item.get("id")
         at = {}  # nom -> (repère, repère de l'autre bout de la mesure ou None)
         ref = self.ref_point
@@ -1388,9 +1391,14 @@ class Session:
             mark = self._reference_mark()
             if mark:
                 at[ref["name"]] = (mark["points"][0], None)
+        provisional = set()
         for w in self._widths():
             points = self._width_points(w)
             at.setdefault(w.edge.get("name"), (points[0], points[1]))
+            if not w.edge_b and len(points) > 1:  # bord cliqué, pas encore triangulé
+                name = self._provisional_name(w)
+                provisional.add(name)
+                at.setdefault(name, (points[1], points[0]))
         for m in self._heights():
             if m.reference and m.reference.get("name"):
                 points = self._height_points(m)
@@ -1403,8 +1411,17 @@ class Session:
             if values["nom"] not in at:
                 other = self._free_mark_point(partner[k]) if k in partner else None
                 at[values["nom"]] = (self._free_mark_point(k), other)
-        return [{"points": [dict(p, pic=pic, sel=False)], "label": name, "name": True, "side": _away(p, other)}
+        return [{"points": [dict(p, pic=pic, sel=False)], "label": name, "name": True, "side": _away(p, other),
+                 "provisional": name in provisional}
                 for name, (p, other) in at.items() if name and p is not None]
+
+    def _provisional_name(self, m):
+        """Nom provisoire du bord cliqué d'une largeur (lettre suivante des points gardés),
+        donné une fois ; le bord le garde s'il est triangulé ensuite (voir _keep_edge_b)."""
+        if not getattr(m, "provisional_name", None):
+            m.provisional_name = _point_name(self.named)
+            self.named += 1
+        return m.provisional_name
 
     def _calibration_text(self):
         """Consigne des modes de calage, étape par étape, avec ce qui est déjà fait."""
@@ -1456,6 +1473,7 @@ class Session:
         """État de la photo affichée (dictionnaire) : ligne de qualité, calage, hauteur de caméra
         proposée, raisons du mode dégradé…"""
         item, pic = self.item, (self.item or {}).get("id")
+        candidate = self._edge_b_candidate()
         lon = lat = None
         try:
             lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
@@ -1475,8 +1493,9 @@ class Session:
                 self.mode == "height" and self.tool.selected is not None),
             # bouton « Nouvelle mesure depuis A » : nom du point de référence, ou None
             "new_measure": self.ref_point["name"] if self._locked() else None,
-            # largeur : bouton « Trianguler le bord B » proposé, et triangulation de ce bord en cours
-            "edge_b": self._edge_b_candidate() is not None,
+            # largeur : bouton « Trianguler le point B » proposé (nom provisoire du bord cliqué,
+            # ou None), et triangulation de ce bord en cours
+            "edge_b": self._provisional_name(candidate) if candidate is not None else None,
             "edge_b_aiming": self.b_aiming is not None,
             "active": self.active,
             "lights": self._lights(pic) if item else [],
@@ -1658,7 +1677,7 @@ class Session:
                             "sighting": m.get("sighting", False), "guide": m.get("guide", False),
                             "vertical": m.get("vertical", False), "name": m.get("name", False),
                             "epipolar": m.get("epipolar", False),
-                            "side": m.get("side", "")})
+                            "side": m.get("side", ""), "provisional": m.get("provisional", False)})
         return out
 
     def focus(self):

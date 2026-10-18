@@ -181,7 +181,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     // Bord opposé triangulé à son tour : bouton proposé après le clic simple, visées depuis la
     // photo de référence puis une autre, validation, retour sur la photo de référence
     const triB = doc.querySelector("#trianguler-b");
-    expect("bouton « Trianguler le bord opposé » proposé", !triB.hidden);
+    // le bouton nomme le bord cliqué par sa lettre (provisoire)
+    expect(`bouton « ${triB.textContent} » proposé`, !triB.hidden && /Trianguler le point [A-Z]+ /.test(triB.textContent));
     triB.click();
     expect("bord opposé en visée, bouton masqué", JSON.parse(app.state()).edge_b_aiming && triB.hidden);
     expect("clic rapide compté comme 1re visée", app.status().includes("première visée"));

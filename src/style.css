@@ -826,12 +826,15 @@ dd .copier { display: block; margin-top: 0.4rem; padding: 0.1rem 0.5rem; font-si
 }
 /* Visionneuse : étiquette à distance fixe du milieu du trait de mesure (repère de taille nulle) */
 .ancre { position: relative; width: 0; height: 0; }
-.ancre .etiquette { position: absolute; }
+.ancre .etiquette { position: absolute; font-size: 15px; }  /* 25 % plus grandes que sur la carte */
+/* Mesure : noms de ses points et valeur, sur fond bleu comme une mesure libre sur la carte */
+.etiquette.mesure { background: rgba(21, 76, 121, 0.92); }
 .etiquette.dessus { bottom: 7px; left: 0; transform: translateX(-50%); }
 .etiquette.cote { left: 9px; top: 0; transform: translateY(-50%); }
 /* Nom d'un point triangulé (A, B…) à côté de sa croix, du côté opposé à la mesure, bordeaux
    comme sur la carte */
 .etiquette.nom { background: rgba(142, 27, 27, 0.92); font-weight: 600; }
+.etiquette.nom.provisoire { background: rgba(95, 99, 104, 0.92); }  /* bord cliqué, pas encore triangulé */
 .etiquette.nom.left { right: 10px; top: 0; transform: translateY(-50%); }
 .etiquette.nom.right { left: 10px; top: 0; transform: translateY(-50%); }
 .etiquette.nom.above { bottom: 10px; left: 0; transform: translateX(-50%); }

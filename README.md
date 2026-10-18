@@ -107,10 +107,13 @@ après.
      et sur la carte.
   2. Cliquer le **bord opposé** sur la photo de référence (ou une photo prise quelques mètres
      avant ou après le point, pas juste en face) : seule la direction du clic compte, le bord
-     est là où elle coupe la droite.
-  3. Facultatif, plus précis : **« 🎯 Trianguler le bord opposé »**. Le clic de l'étape 2
+     est là où elle coupe la droite. Il reçoit la lettre suivante (B…), sur une étiquette
+     grise tant qu'il n'est pas triangulé ; l'étiquette de la mesure nomme ses deux points
+     (« A↔B 7,50 m ± 0,20 m »).
+  3. Facultatif, plus précis : **« 🎯 Trianguler le point B »**. Le clic de l'étape 2
      compte comme première visée ; viser le même bord depuis la photo proposée, puis « Valider
-     le point triangulé ». La largeur devient la distance des deux bords triangulés,
+     le point triangulé ». Le point garde sa lettre (étiquette bordeaux) ; la largeur devient la
+     distance des deux bords triangulés,
      perpendiculaire à l'axe de la route, et la vue revient sur la photo de référence, cadrée
      sur la largeur. Pendant ces visées, les autres photos ne montrent que les visées.
 
@@ -317,6 +320,10 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.2.2** (18/10/2026) : étiquettes des mesures dans la photo agrandies (+25 %), sur fond
+  bleu, avec les noms de leurs points (« A↔B 7,50 m ± 0,20 m ») ; bord cliqué d'une largeur
+  nommé (lettre suivante, étiquette grise tant qu'il n'est pas triangulé) et bouton
+  « Trianguler le point B ». Cœur du plugin Visionneuse Panoramax (branche dev, f95a7bf).
 - **0.2.1** (18/10/2026) : fond « orthophoto avec noms » (noms des lieux et des rues, voies
   avec les numéros de route dans des cartouches de l'IISR, limites des départements, de la
   métropole et des communes) ; points de repère dessinés en bornes, posées hors de la voie ;

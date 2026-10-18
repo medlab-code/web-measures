@@ -1022,7 +1022,7 @@
   let aiming = false;
   let pointReady = false;  // visées qui donnent un point (bouton « Valider le point triangulé »)
   let newMeasure = null;  // largeur faite : nom du point de référence (bouton « Nouvelle mesure depuis A »)
-  let edgeBOffered = false;  // largeur faite d'un clic : bouton « Trianguler le bord opposé »
+  let edgeBOffered = null;  // largeur faite d'un clic : nom (provisoire) de son bord, à trianguler
   let edgeBAiming = false;  // bord opposé de la largeur en cours de triangulation
 
   /**
@@ -1138,6 +1138,7 @@
       markers.addMarker(config, false);
       markIds.push(config.id);
     };
+    const names = namesOf(marks);
     marks.forEach((mark, m) => {
       const points = mark.points.map(([yaw, pitch]) => ({ yaw, pitch }));
       if (mark.guide) {  // tirets sans croix : droite de mesure (largeur, bleue), verticale (hauteur, verte)
@@ -1152,10 +1153,12 @@
         }
         return;
       }
-      if (mark.name) {  // nom d'un point triangulé : étiquette seule, du côté opposé à la mesure
+      if (mark.name) {  // nom d'un point triangulé : étiquette seule, du côté opposé à la mesure ;
+        // grise pour le bord cliqué d'une largeur, pas encore triangulé (nom provisoire)
         add({
           id: `${MARK}${m}-nom`, position: points[0], anchor: "center center",
-          html: `<div class="ancre"><div class="etiquette nom ${mark.side || "below"}">${escapeHtml(mark.label)}</div></div>`,
+          html: `<div class="ancre"><div class="etiquette nom ${mark.side || "below"}${mark.provisional ? " provisoire" : ""}">${
+            escapeHtml(mark.label)}</div></div>`,
         });
         return;
       }
@@ -1177,12 +1180,33 @@
         // sa mise en page, et l'ancrerait alors trop loin
         add({
           id: `${MARK}${m}-etiquette`, position: middle(points), anchor: "center center",
-          html: `<div class="ancre"><div class="etiquette ${mark.beside ? "cote" : "dessus"}">${
-            escapeHtml(mark.label)}</div></div>`,
+          html: `<div class="ancre"><div class="etiquette mesure ${mark.beside ? "cote" : "dessus"}">${
+            escapeHtml(measureLabel(mark, names))}</div></div>`,
         });
       }
     });
     markers.renderMarkers?.();
+  }
+
+  /** Noms des points triangulés (A, B…) de la photo, à leur croix : [[cap, élévation, nom]]. */
+  function namesOf(marks) {
+    return marks.filter((mark) => mark.name && mark.points.length).map((mark) => [...mark.points[0].slice(0, 2), mark.label]);
+  }
+
+  /**
+   * Étiquette d'une mesure dans la photo, comme celle d'une mesure libre sur la carte : noms des
+   * points aux extrémités du trait, dans l'ordre alphabétique, de part et d'autre du symbole
+   * (« B↔C 4,84 m ± 0,33 m »). Un point est nommé quand une croix nommée est à moins de 0,1°.
+   */
+  function measureLabel(mark, names) {
+    const ends = [mark.points[0], mark.points[mark.points.length - 1]];
+    const found = [...new Set(ends.flatMap(([yaw, pitch]) => names
+      .filter(([y, p]) => Math.hypot(Math.atan2(Math.sin(y - yaw), Math.cos(y - yaw)) * Math.cos(pitch), p - pitch) < 0.0018)
+      .map(([, , name]) => name)))].sort((a, b) => a.localeCompare(b, "fr"));
+    const match = /^([↔↕]) (.*)$/.exec(mark.label);
+    if (!found.length || !match) return mark.label;
+    const [, symbol, value] = match;
+    return found.length === 1 ? `${found[0]}${symbol} ${value}` : `${found.join(symbol)} ${value}`;
   }
 
   /**
@@ -1284,6 +1308,7 @@
     $("#garder").hidden = !measuring || !aiming || !pointReady || viewer.hidden;
     $("#nouvelle-mesure").hidden = !measuring || !newMeasure || viewer.hidden;
     $("#trianguler-b").hidden = !measuring || !edgeBOffered || viewer.hidden;
+    if (edgeBOffered) $("#trianguler-b").textContent = `🎯 Trianguler le point ${edgeBOffered} (plus précis)`;
     $("#nouvelle-mesure").textContent = `↺ Nouvelle mesure depuis ${newMeasure || "A"}`;
   }
 
@@ -1500,6 +1525,7 @@
     // Comme dans la visionneuse : guides d'abord (dessous), en tirets et sans croix ; mesures en
     // trait rouge ; croix jaunes, bleues pour les visées
     const guidesFirst = [...currentMarks].sort((a, b) => Number(!!b.guide) - Number(!!a.guide));
+    const captureNames = namesOf(currentMarks);
     for (const mark of guidesFirst) {
       const pts = mark.points.map(screen);
       if (mark.guide) {
@@ -1524,10 +1550,10 @@
       }
       if (mark.name) {  // nom d'un point triangulé, comme dans la visionneuse
         if (pts[0]) {
-          const [x, y] = pts[0], g = 10 * scale, h = 12 * scale;  // écart à la croix, taille du texte
+          const [x, y] = pts[0], g = 10 * scale, h = 15 * scale;  // écart à la croix, taille du texte
           const [lx, ly, align] = { left: [x - g, y + 0.6 * h, "right"], right: [x + g, y + 0.6 * h, "left"],
             above: [x, y - g, "center"] }[mark.side] || [x, y + g + 1.4 * h, "center"];
-          label(ctx, mark.label, lx, ly, h, align, "rgba(142, 27, 27, 0.92)");
+          label(ctx, mark.label, lx, ly, h, align, mark.provisional ? "rgba(95, 99, 104, 0.92)" : "rgba(142, 27, 27, 0.92)");
         }
         continue;
       }
@@ -1555,8 +1581,9 @@
       }
       const centre = middle(mark.points.map(([yaw, pitch]) => ({ yaw, pitch })));
       const mid = mark.label ? screen([centre.yaw, centre.pitch]) : null;
-      if (mid && mark.beside) label(ctx, mark.label, mid[0] + 9 * scale, mid[1] + 9 * scale, 12 * scale, "left");
-      else if (mid) label(ctx, mark.label, mid[0], mid[1] - 7 * scale, 12 * scale, "center");
+      const text = measureLabel(mark, captureNames), blue = "rgba(21, 76, 121, 0.92)";  // comme .etiquette.mesure
+      if (mid && mark.beside) label(ctx, text, mid[0] + 9 * scale, mid[1] + 9 * scale, 15 * scale, "left", blue);
+      else if (mid) label(ctx, text, mid[0], mid[1] - 7 * scale, 15 * scale, "center", blue);
     }
     const caption = app ? app.caption(psv.getPosition().yaw) : "Panoramax";
     drawCartouches(ctx, canvas, 13 * scale, caption, placeText());  // taille de l'étiquette de la visionneuse
