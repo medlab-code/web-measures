@@ -47,9 +47,23 @@
   $("#centrer").checked = store.get("centrer", "1") === "1";
   $("#centrer").addEventListener("change", (event) => store.set("centrer", event.target.checked ? "1" : "0"));
 
+  // Réglages par défaut : l'instance de l'IGN et les photos du conseil départemental de la
+  // Côte-d'Or (positions RTK, LiDAR HD : ce que demandent les calculs). Appliqués une fois, même
+  // dans un navigateur qui avait déjà ses réglages ; chacun peut ensuite en changer.
+  const DEFAULT_INSTANCE = "https://panoramax.ign.fr";
+  const DEFAULT_PRODUCER = ["8f943f10-a781-4e03-a18c-de035be6f6f8", "conseil départemental de la côte-d'or"];
+  if (store.get("defauts") !== "1") {
+    $("#reglages-defaut").showModal();  // pourquoi ces réglages, et où les changer
+    store.set("instance", DEFAULT_INSTANCE);
+    let filter = {};
+    try { filter = JSON.parse(store.get("filtre", "{}")) || {}; } catch { /* illisible : remplacé */ }
+    store.set("filtre", JSON.stringify({ ...filter, producer: DEFAULT_PRODUCER }));
+    store.set("defauts", "1");
+  }
+
   const instance = $("#instance");
   instance.append(new Option("Toutes les instances (méta-catalogue)", ""));
-  const savedInstance = store.get("instance", "");
+  const savedInstance = store.get("instance", DEFAULT_INSTANCE);
   if (savedInstance) instance.append(new Option(savedInstance, savedInstance));
   instance.value = savedInstance;
   let apiUrl = Carte.setInstance(map, savedInstance);
@@ -1324,7 +1338,7 @@
   }
 
   try {
-    const saved = JSON.parse(store.get("filtre", "{}")) || {};
+    const saved = JSON.parse(store.get("filtre", JSON.stringify({ producer: DEFAULT_PRODUCER }))) || {};
     $("#depuis").value = saved.since || "";
     $("#type").value = saved.kind || "";
     $("#gps").value = saved.max_gps != null ? String(saved.max_gps) : "";

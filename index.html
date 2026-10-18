@@ -159,6 +159,9 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
           <summary>Filtre des photos <span id="filtre-actif"></span></summary>
           <p class="aide">S'applique au filaire et aux photos ouvertes par un clic sur la carte. Aux petites
             échelles, seul le type de caméra est filtré.</p>
+          <p class="aide">Par défaut : photos du conseil départemental de la Côte-d'Or, prises avec une position
+            RTK vérifiable et là où le LiDAR HD existe, ce que demandent les calculs. « Tous » pour voir les
+            autres producteurs (mesures alors peu fiables).</p>
           <div class="grille">
             <label for="depuis">Depuis le</label><input id="depuis" type="date">
             <label for="type">Type</label>
@@ -176,6 +179,8 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
           <div class="grille">
             <label for="instance">Instance</label><select id="instance"></select>
           </div>
+          <p class="aide">Par défaut : l'instance de l'IGN, qui sert les photos du conseil départemental (plus
+            rapide que le méta-catalogue, qui interroge toutes les instances).</p>
           <label><input id="centrer" type="checkbox" checked> Centrer la carte sur la photo</label>
           <h3>Calage des photos</h3>
           <p class="aide">Conservé dans ce navigateur d'une session à l'autre. Pour le reprendre ailleurs
@@ -218,6 +223,22 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
     <p></p>
     <form method="dialog">
       <span></span>
+      <button value="ok" class="principal">J'ai compris</button>
+    </form>
+  </dialog>
+  <!-- Réglages par défaut appliqués (une fois) : pourquoi, et où les changer -->
+  <dialog id="reglages-defaut">
+    <h2>Réglages par défaut</h2>
+    <p>Les photos affichées sont celles du <strong>conseil départemental de la Côte-d'Or</strong>, sur
+      l'<strong>instance Panoramax de l'IGN</strong>. Ce sont elles qui remplissent les conditions des calculs :
+      position GPS RTK vérifiable et sol LiDAR HD. Sur d'autres photos, les mesures seraient peu fiables.</p>
+    <p>Pour changer, dans le panneau sous la carte :</p>
+    <ul>
+      <li><strong>Filtre des photos › Producteur</strong> : « Tous », ou un autre producteur ;</li>
+      <li><strong>Réglages › Instance</strong> : « Toutes les instances (méta-catalogue) », ou une autre.</li>
+    </ul>
+    <p>Vos choix sont ensuite gardés dans ce navigateur.</p>
+    <form method="dialog">
       <button value="ok" class="principal">J'ai compris</button>
     </form>
   </dialog>

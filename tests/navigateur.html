@@ -60,6 +60,13 @@ async function feature(id) {
   const app = w.mesures.app;
   const state = () => JSON.parse(app.state());
   const doc = w.document;
+  // Réglages par défaut (CD21, instance IGN) : fenêtre fermée ; l'essai ouvre aussi des photos
+  // grand public (Dijon, alerte RTK) : méta-catalogue et tous producteurs
+  doc.querySelector("#reglages-defaut")?.close();
+  doc.querySelector("#instance").value = "";
+  doc.querySelector("#instance").dispatchEvent(new Event("change"));
+  doc.querySelector("#producteur").value = "";
+  doc.querySelector("#producteur").dispatchEvent(new Event("change"));
   const open = async (id) => {
     w.mesures.openPhoto(await feature(id));
     try {
