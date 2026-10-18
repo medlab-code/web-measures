@@ -1416,8 +1416,14 @@ class Session:
             if values["nom"] not in at:
                 other = self._free_mark_point(partner[k]) if k in partner else None
                 at[values["nom"]] = (self._free_mark_point(k), other)
-        return [{"points": [dict(p, pic=pic, sel=False)], "label": name, "name": True, "side": _away(p, other),
-                 "provisional": name in provisional}
+        # Traits des mesures de la photo : un nom qui tombe à l'intérieur de l'un d'eux (sommet
+        # d'une hauteur plus courte sous une plus haute, bord sur une largeur plus longue) est
+        # mis sur le côté du trait, pas dessus
+        lines = [[q for q in m["points"] if q.get("pic", pic) == pic and q.get("yaw") is not None]
+                 for m in marks if m.get("label") and not m.get("name")]
+        lines = [(q[0], q[-1]) for q in lines if len(q) >= 2]
+        return [{"points": [dict(p, pic=pic, sel=False)], "label": name, "name": True,
+                 "side": _beside_line(p, lines) or _away(p, other), "provisional": name in provisional}
                 for name, (p, other) in at.items() if name and p is not None]
 
     def _provisional_name(self, m):
@@ -1893,6 +1899,31 @@ def _point_name(n):
         n, r = divmod(n - 1, 26)
         name = chr(65 + r) + name
     return name
+
+
+ON_LINE = math.radians(0.5)  # écart au trait d'une mesure en deçà duquel un nom serait dessus
+
+
+def _beside_line(p, lines):
+    """Côté du nom de la croix p quand elle est à l'intérieur d'un des traits lines ([(début,
+    fin)], repères {yaw, pitch}) : « right » pour un trait plutôt vertical, « below » pour un
+    trait plutôt horizontal ; None si elle n'est sur aucun (ou à un de leurs bouts)."""
+    if p.get("yaw") is None:
+        return None
+    k = math.cos(p["pitch"])
+    for a, b in lines:
+        ax = ((a["yaw"] - p["yaw"] + math.pi) % (2 * math.pi) - math.pi) * k
+        bx = ((b["yaw"] - p["yaw"] + math.pi) % (2 * math.pi) - math.pi) * k
+        ay, by = a["pitch"] - p["pitch"], b["pitch"] - p["pitch"]
+        dx, dy = bx - ax, by - ay
+        length2 = dx * dx + dy * dy
+        if length2 < ON_LINE ** 2:
+            continue
+        t = -(ax * dx + ay * dy) / length2  # position de p le long du trait (0 : début, 1 : fin)
+        ends = ON_LINE / math.sqrt(length2)
+        if ends < t < 1 - ends and abs(ax * dy - ay * dx) / math.sqrt(length2) < ON_LINE:
+            return "right" if abs(dy) > abs(dx) else "below"
+    return None
 
 
 def _away(p, other):
