@@ -68,8 +68,18 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       + " · état : " + doc.querySelector("#etat-mesure").textContent + " " + getComputedStyle(doc.querySelector("#etat-mesure")).color
       + " " + getComputedStyle(doc.querySelector("#etat-mesure"), "::before").animationName);
     log("visées : " + app.status());
+    // Points d'un repère dans la vue affichée (cap, élévation dans le champ de la visionneuse)
+    const inView = (points) => {
+      const psv = w.mesures.psv, pos = psv.getPosition(), vfov = psv.state.vFov * Math.PI / 180;
+      const hfov = psv.state.hFov * Math.PI / 180, wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+      return points.every((p) => Math.abs(wrap(p[0] - pos.yaw)) < hfov / 2 && Math.abs(p[1] - pos.pitch) < vfov / 2);
+    };
     doc.querySelector("#garder").click();
     log("validé : " + doc.querySelector("#statut").textContent);
+    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "retour sur la photo de référence (A)");
+    await sleep(2500);  // animation du cadrage
+    { const markA = JSON.parse(app.viewer_marks()).find((m) => m.points.length === 1 && !m.guide && !m.sighting && !m.vertical && !m.name);
+      expect("vue cadrée sur A au retour", markA && inView(markA.points)); }
     log("liseré après validation : " + doc.querySelector("#vue").className + " · " + getComputedStyle(doc.querySelector("#vue"), "::after").borderTopColor
       + " · état : " + doc.querySelector("#etat-mesure").textContent + " " + getComputedStyle(doc.querySelector("#etat-mesure")).color
       + " " + getComputedStyle(doc.querySelector("#etat-mesure"), "::before").animationName);
@@ -167,6 +177,41 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await sleep(300);
     expect("seconde largeur depuis A", widthsCount() === 2 && !again.hidden);
     log("résultats : " + JSON.parse(app.results()).map((r) => r.text).join(" | "));
+    // Bord opposé triangulé à son tour : bouton proposé après le clic simple, visées depuis la
+    // photo de référence puis une autre, validation, retour sur la photo de référence
+    const triB = doc.querySelector("#trianguler-b");
+    expect("bouton « Trianguler le bord opposé » proposé", !triB.hidden);
+    triB.click();
+    expect("bord opposé en visée, bouton masqué", JSON.parse(app.state()).edge_b_aiming && triB.hidden);
+    expect("clic rapide compté comme 1re visée", app.status().includes("première visée"));
+    expect("photo voisine proposée tout de suite", !doc.querySelector("#guide-photos").hidden
+      && doc.querySelectorAll("#guide-photos button").length === 1);
+    log("photo proposée : " + doc.querySelector("#guide-photos").textContent);
+    const b12 = toLonLat([side * 12 * ux, side * 12 * uy]);
+    for (const f of [photos[1], photos[0]]) {
+      w.mesures.openPhoto(f);
+      await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "photo du bord B");
+      await sleep(800);
+      if (f === photos[0]) {  // autre photo que celle de la mesure : ni droite ni largeur
+        expect("droite de mesure masquée hors de la photo de la mesure", box.querySelectorAll("[id*='-guide']").length === 0);
+      }
+      psvClick(yawTo(f, b12), -0.3);
+    }
+    log("bord B visé : " + app.status().slice(0, 160));
+    doc.querySelector("#garder").click();
+    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[1].id, 30000, "retour sur la photo de référence");
+    await sleep(500);
+    log("bord B triangulé : " + doc.querySelector("#statut").textContent);
+    expect("largeur entre les points triangulés A et B", doc.querySelector("#statut").textContent.includes("entre les points triangulés"));
+    expect("droite de mesure de retour sur la photo de la mesure", box.querySelectorAll("[id*='-guide']").length > 0);
+    await sleep(2500);  // animation du cadrage
+    { const last = JSON.parse(app.viewer_marks()).filter((m) => m.label.startsWith("↔")).pop();
+      const pos = w.mesures.psv.getPosition(), wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+      const mid = Math.atan2(last.points.reduce((t, p) => t + Math.sin(p[0]), 0), last.points.reduce((t, p) => t + Math.cos(p[0]), 0));
+      expect("vue centrée sur la largeur au retour", Math.abs(wrap(pos.yaw - mid)) < 0.05);
+      log("largeur entière dans la vue : " + inView(last.points));
+      log("cadrage : " + JSON.stringify(w.mesures.psv.getPosition()) + " · champ " + w.mesures.psv.state.vFov.toFixed(0) + "°"); }
+    near("largeur avec le bord B triangulé", metresIn(doc.querySelector("#statut").textContent), 12, 0.15);
     log("csv : " + app.export_csv().split("\n").filter((l) => l.startsWith("largeur")).join(" // "));
     verdict();
   } catch (e) { log("ERREUR " + e); }

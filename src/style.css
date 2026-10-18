@@ -401,6 +401,24 @@ button.principal { font-weight: 600; }
 }
 #garder[hidden] { display: none; }
 
+/* Largeur faite : proposer de trianguler le bord opposé (bleu des visées) */
+#trianguler-b {
+  pointer-events: auto;
+  margin-top: 0.3rem;
+  padding: 0.3rem 0.9rem;
+  border: 2px solid #00bce6;
+  border-radius: 5px;
+  background: var(--etiquette-vue);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  text-shadow: var(--detoure-vue);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+#trianguler-b:hover { background: rgba(0, 152, 187, 0.85); }
+#trianguler-b[hidden] { display: none; }
+
 /* Photos à viser ensuite (hauteur, largeur) : bleu clair des visées, sous la validation */
 #guide-photos {
   display: flex;

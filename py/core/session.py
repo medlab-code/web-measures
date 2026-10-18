@@ -109,6 +109,11 @@ class Session:
         # mesure se fera ; l'hôte y revient après la validation (take_goto)
         self.ref_photo = None
         self.goto = None  # photo à afficher, demandée une fois à l'hôte (voir take_goto)
+        # Largeur dont le bord B est en cours de triangulation (start_edge_b), ou None
+        self.b_aiming = None
+        # Cadrage à faire sur la photo de référence après une validation (take_frame) : "reference"
+        # (le point A), une largeur (sa mesure entière), ou None
+        self.frame_request = None
 
     def current_ids(self):
         item = self.item or {}
@@ -126,9 +131,10 @@ class Session:
         return self.tool
 
     def _aiming(self):
-        """Les clics dans la photo sont-ils des visées de triangulation ? En triangulation, et
-        en hauteur ou largeur tant que le point de référence n'est pas validé."""
-        return self.mode == "tri" or (self.mode in REF_MODES and self.ref_point is None)
+        """Les clics dans la photo sont-ils des visées de triangulation ? En triangulation, en
+        hauteur ou largeur tant que le point de référence n'est pas validé, et pendant la
+        triangulation du bord B d'une largeur (start_edge_b)."""
+        return self.mode == "tri" or (self.mode in REF_MODES and self.ref_point is None) or self.b_aiming is not None
 
     def _calibration_changed(self, pics=None):
         """Calage changé (des photos pics, de toutes si None) : à enregistrer, et ce qui en
@@ -212,6 +218,7 @@ class Session:
                             m.anchor(ref["lon"], ref["lat"], ref["uncertainty"], ref["name"])
                     else:
                         m.compute()
+            self._recompute_edges_b(touched)
             if moved is not None and not force_reference:
                 self._ref_ground()  # altitude LiDAR à relire si le point s'est éloigné
         except Exception:
@@ -315,6 +322,7 @@ class Session:
         """Termine les mesures en cours (réussies, elles restent affichées) ; le calage déjà
         fait est conservé (comme le plugin à un changement de mode)."""
         self.epoch += 1
+        self.b_aiming = None
         if not keep_sightings:
             self.triangulator.clear()
         self.tool.finish()
@@ -441,15 +449,29 @@ class Session:
         sélectionné. Sans profil du terrain : calée sur le point de référence, la hauteur n'en
         dépend pas."""
         tool = self.tool
-        reaimed = tool.selected is not None
+        selected = tool.selected
+        reaimed = selected is not None
         if not reaimed and (tool.current is None or len(tool.current.clicks) >= tool.current.needed()):
             foot = self._reference_foot()
             if foot is not None:
                 tool.add_click(foot)
         text = tool.add_click(click)
         self.message = text if reaimed else ""  # point recalé : son résultat ; sinon la suite (status)
+        if reaimed:
+            self._sync_ref_foot(*selected)
         self._anchor_height()
         return self.status()
+
+    def _sync_ref_foot(self, m, index):
+        """Pied d'une hauteur appuyée sur le point de référence recalé à la main (flèches, clic) :
+        gardé comme pied du point de référence sur cette photo (ref["feet"]), pour que les
+        hauteurs suivantes depuis lui (« Nouvelle mesure depuis A ») partent du pied corrigé."""
+        ref = self.ref_point
+        if index != 0 or not ref or (m.reference or {}).get("name") != ref["name"] or not m.result:
+            return
+        p = m.viewer_marks()["points"][0]  # pied tel que la photo de la mesure le voit maintenant
+        if p["yaw"] is not None and p["pitch"] is not None:
+            ref.setdefault("feet", {})[m.clicks[0].get("pic")] = [p["yaw"], p["pitch"]]
 
     def select_point(self, yaw, pitch):
         """Clic droit dans la photo : sélectionne le point de hauteur ou de largeur dont la croix
@@ -520,11 +542,22 @@ class Session:
     def _width_points(self, m):
         """Repères du point de référence et du bord d'une largeur dans la photo affichée :
         [{yaw, pitch (radians, repère de la photo), abs_yaw, elev (degrés)}]. Le point de
-        référence, projeté au sol comme la droite de mesure (il est dessus) ; le bord, là où il
-        a été cliqué sur sa photo, projeté au sol sur les autres."""
+        référence, projeté au sol comme la droite de mesure (il est dessus), ou là où il a été visé
+        (voir _aim_anchor) ; le bord, là où il a été cliqué (ou visé, s'il est triangulé) sur la
+        photo, projeté au sol sur les autres."""
         pic = (self.item or {}).get("id")
-        points = [self._project(plon, plat) for plon, plat in m.result["points"]]
-        if pic is not None and pic == m.clicks[1].get("pic"):
+        anchor = self._aim_anchor() if m.edge is self.ref_point and pic is not None else None
+        height = anchor[2] if anchor else None  # photo de la visée de A : au niveau du sol visé
+        points = [self._project(plon, plat, height) for plon, plat in m.result["points"]]
+        if anchor:
+            points[0] = anchor[0]  # A là où il a été visé (croix bleue)
+        aimed = next((v.get("view") for v in (m.edge_b or {}).get("sightings", [])
+                      if v["pic"] == pic and v.get("view")), None)
+        if aimed is not None and not m.offset:  # bord triangulé, visé depuis cette photo : là où il l'a été
+            heading = self._heading()
+            points[1] = {"yaw": aimed[0], "pitch": aimed[1], "abs_yaw": (math.degrees(aimed[0]) + heading) % 360,
+                         "elev": math.degrees(aimed[1])}
+        if pic is not None and pic == m.clicks[1].get("pic") and m.edge_b is None:  # bord cliqué, pas triangulé
             p = m.viewer_marks()["points"][1]
             points[1] = {"yaw": p["yaw"], "pitch": p["pitch"], "abs_yaw": p["abs_yaw"], "elev": p["elev"]}
         return points
@@ -550,15 +583,42 @@ class Session:
         return {"yaw": math.radians((yaw - self._heading() + 540) % 360 - 180), "pitch": math.radians(pitch),
                 "abs_yaw": yaw % 360, "elev": pitch}
 
-    def _project(self, plon, plat):
+    def _project(self, plon, plat, height=None):
         """Repère dans la photo affichée d'un point de la carte, au sol supposé plat (hauteur de
-        caméra de la photo, voir _camera_height), calage de la photo compris :
+        caméra height, sinon celle de la photo, voir _camera_height), calage de la photo compris :
         {yaw, pitch (radians, repère de la photo), abs_yaw, elev (degrés)}."""
         lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
         x, y = triangulation._local(plon, plat, lon, lat)
         bearing = math.degrees(math.atan2(x, y))
-        elev = -math.degrees(math.atan2(self._camera_height(), max(math.hypot(x, y), 0.5)))
+        height = self._camera_height() if height is None else height
+        elev = -math.degrees(math.atan2(height, max(math.hypot(x, y), 0.5)))
         return self._view_of(bearing, elev)
+
+    def _aim_anchor(self):
+        """Largeur : point de référence tel qu'il a été visé depuis la photo affichée, si elle a
+        servi à le trianguler (et qu'il n'a pas été déplacé à la main) : (repère de la croix bleue
+        de la visée {yaw, pitch, abs_yaw, elev}, (x, y) du point de la visée à la profondeur de A,
+        en m depuis la photo, hauteur de la caméra au-dessus du sol visé), sinon None. La croix A
+        et la droite de mesure s'y dessinent dans cette photo ; la largeur, elle, se calcule
+        depuis la position triangulée de A."""
+        ref, pic = self.ref_point, self.item.get("id")
+        if self.mode != "road" or not ref or ref.get("moved"):
+            return None
+        view = self._ref_view(pic)
+        if view is None:
+            return None
+        lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
+        heading = self._heading()
+        bearing, elev = self.calibration.correct(pic, self.item.get("collection"),
+                                                 (math.degrees(view[0]) + heading) % 360, math.degrees(view[1]), lon, lat)
+        x, y = triangulation._local(ref["lon"], ref["lat"], lon, lat)
+        a = math.radians(bearing)
+        t = x * math.sin(a) + y * math.cos(a)  # profondeur de A le long de la visée
+        if t < 0.5 or elev > -0.5:
+            return None
+        mark = {"yaw": view[0], "pitch": view[1], "abs_yaw": (math.degrees(view[0]) + heading) % 360,
+                "elev": math.degrees(view[1])}
+        return mark, (t * math.sin(a), t * math.cos(a)), -t * math.tan(math.radians(elev))
 
     def _free_mark_point(self, k):
         """Repère du point gardé n° k dans la photo affichée : là où il a été visé depuis elle,
@@ -572,6 +632,7 @@ class Session:
         """Mesure libre : distances (trait et étiquette) et points gardés seuls, dans la photo
         affichée. Les points de référence des hauteurs et largeurs sont montrés par elles."""
         refs = {(m.reference or {}).get("name") for m in self._heights()} | {m.edge.get("name") for m in self._widths()}
+        refs |= {m.edge_b["name"] for m in self._widths() if m.edge_b}  # bord opposé triangulé : sa largeur le montre
         if self.ref_point:
             refs.add(self.ref_point["name"])
         marks, linked = [], set()
@@ -586,16 +647,19 @@ class Session:
         return marks
 
     def _reference_mark(self):
-        """Croix du point de référence validé dans la photo affichée. Hauteur : là où il a été
-        visé depuis cette photo, sinon projeté au sol. Largeur : sur la droite de mesure
-        (projeté au sol comme elle). None dès qu'une mesure s'y appuie (sa croix le montre)."""
+        """Croix du point de référence validé dans la photo affichée : là où il a été visé depuis
+        cette photo (largeur : voir _aim_anchor), sinon projeté au sol comme la droite de mesure.
+        None dès qu'une mesure s'y appuie (sa croix le montre)."""
         ref, pic = self.ref_point, self.item.get("id")
         if self.mode == "road" and any(m.edge is ref for m in self._widths()):
             return None
         if self.mode == "height" and any((m.reference or {}).get("name") == ref["name"] for m in self._heights()):
             return None  # le pied des hauteurs qui s'y appuient le montre
         view = self._ref_view(pic) if self.mode != "road" else None
-        if view is not None:
+        anchor = self._aim_anchor()  # largeur : là où il a été visé depuis cette photo
+        if anchor is not None:
+            point = anchor[0]
+        elif view is not None:
             point = {"yaw": view[0], "pitch": view[1]}
         else:
             point = self._project(ref["lon"], ref["lat"])
@@ -664,7 +728,8 @@ class Session:
         candidates = [(m, self._width_points(m)) for m in self._widths()]
         ref = self.ref_point
         if self.mode == "road" and ref is not None and not any(m.edge is ref for m in self._widths()):
-            candidates.append((None, [self._project(ref["lon"], ref["lat"])]))  # sa croix seule
+            anchor = self._aim_anchor()
+            candidates.append((None, [anchor[0] if anchor else self._project(ref["lon"], ref["lat"])]))  # sa croix seule
         return self._nearest(click, candidates)
 
     def _sel_edge(self, sel=None):
@@ -737,6 +802,7 @@ class Session:
             m, index = self.tool.selected
             if key in ("up", "down"):
                 m.lift(index, NUDGE if key == "up" else -NUDGE)
+                self._sync_ref_foot(m, index)
                 self.message = (m.error + " " if m.error else "") + (m.status() if m.result else "")
             else:
                 self.message = "← → sans effet sur une hauteur : ↑ ↓ montent ou descendent le point."
@@ -833,6 +899,7 @@ class Session:
     def new_reference(self):
         """Hauteur : « Nouveau point de référence » ; les hauteurs déjà faites restent."""
         self.epoch += 1  # pied cliqué en attente de son profil : abandonné
+        self.b_aiming = None
         self.tool.clear()
         self.triangulator.clear()
         self.ref_point = None
@@ -842,9 +909,87 @@ class Session:
         self.message = ""
         return self.status()
 
+    # Bord B d'une largeur, triangulé à son tour ---------------------------------------------
+    def _edge_b_candidate(self):
+        """Largeur à laquelle proposer de trianguler son bord B : la dernière faite depuis le
+        point de référence, bord cliqué (pas encore triangulé), ou None."""
+        ref = self.ref_point
+        if not (self.active and self.mode == "road" and ref and self.b_aiming is None):
+            return None
+        mates = [w for w in self._widths() if w.edge is ref]
+        return mates[-1] if mates and mates[-1].edge_b is None else None
+
+    def start_edge_b(self):
+        """Bouton « Trianguler le bord B » : le clic de la mesure rapide devient la première visée
+        du bord ; les clics suivants le visent depuis d'autres photos, comme le point de
+        référence (photos proposées, « Valider le point triangulé »), puis la largeur se recalcule
+        entre les deux points triangulés. Hors de la photo de la mesure, la visionneuse ne montre
+        que les visées (voir viewer_marks)."""
+        m = self._edge_b_candidate()
+        if m is None:
+            return self.status()
+        self.width_sel = None
+        self.triangulator.clear()
+        self.b_aiming = m
+        self.message = ""
+        # Le clic de la mesure rapide est la première visée du bord, depuis la photo de la mesure
+        click = m.clicks[1]
+        item = self.photo_items.get(click.get("pic"))
+        if item is not None and click.get("raw"):
+            sighting = tools.photo_sighting(item, click["raw"][0], click["raw"][1], self.calibration,
+                                            self.precision.known(item))
+            if sighting is not None:
+                if click.get("pos") and click["pos"][0] is not None:
+                    sighting["view"] = list(click["pos"])  # croix bleue de la visée
+                self.ref_photo = sighting["pic"]
+                self.triangulator.ground = True
+                self.triangulator.add(sighting)
+        return self.status()
+
+    def _stop_edge_b(self):
+        if self.b_aiming is not None:
+            self.b_aiming = None
+            self.triangulator.clear()
+
+    def _keep_edge_b(self, values):
+        """Bord B validé : gardé comme point triangulé (export), la largeur recalculée entre A et
+        lui ; retour sur la photo de référence."""
+        r, sightings = self.triangulator.result, list(self.triangulator.sightings)
+        name = _point_name(self.named)
+        self.named += 1
+        self.points.append((r["lon"], r["lat"], dict({"nom": name}, **values, commentaire="")))
+        self.point_views[name] = {s["pic"]: s["view"] for s in sightings if s.get("view")}
+        ground_z = self.triangulator.ground_z
+        m, self.b_aiming = self.b_aiming, None
+        self.triangulator.clear()
+        m.set_edge_b({"lon": r["lon"], "lat": r["lat"], "uncertainty": r["uncertainty"], "name": name,
+                      "sightings": sightings, "ground_z": ground_z})
+        if self.ref_photo and self.ref_photo != (self.item or {}).get("id"):
+            self.goto = self.ref_photo
+        self.frame_request = m  # vue cadrée sur la largeur entière (take_frame)
+        self.message = m.status() + self._rtk_warning([s.get("sequence") for s in sightings])
+        return self.status()
+
+    def _recompute_edges_b(self, touched):
+        """Bords B triangulés dont une visée a été recalculée (calage, précision) : triangulés à
+        nouveau, leur largeur avec."""
+        for m in self._widths():
+            b = m.edge_b
+            if b and any([self._resight(s) for s in b["sightings"] if touched(s["pic"])]):
+                try:
+                    r = tools.solve_on_ground(b["sightings"], True, b.get("ground_z"))
+                except triangulation.TriangulationError:
+                    continue
+                b.update(lon=r["lon"], lat=r["lat"], uncertainty=r["uncertainty"])
+                for k, (_, _, v) in enumerate(self.points):
+                    if v["nom"] == b["name"]:
+                        self.points[k] = (b["lon"], b["lat"], v)
+                m.compute()
+
     def new_measure(self):
         """« Nouvelle mesure depuis A » : la largeur ou la hauteur faite reste, le clic suivant (bord
         opposé, sommet) en donne une autre depuis le même point de référence."""
+        self._stop_edge_b()
         self.width_sel = None
         self.tool.cancel_selection()
         self.measure_done = False
@@ -856,7 +1001,7 @@ class Session:
         """Largeur ou hauteur faite depuis le point de référence (et toujours là) : les clics ne
         servent plus qu'à ajuster ses points, jusqu'à new_measure."""
         ref = self.ref_point
-        if not self.measure_done or ref is None:
+        if not self.measure_done or ref is None or self.b_aiming is not None:  # bord B en visée
             return False
         if self.mode == "road":
             return any(w.edge is ref for w in self._widths())
@@ -999,6 +1144,8 @@ class Session:
         if values is None:
             self.message = self.triangulator.error or "Il faut au moins deux visées qui se croisent."
             return self.status()
+        if self.b_aiming is not None:
+            return self._keep_edge_b(values)
         r = self.triangulator.result
         sightings = self.triangulator.sightings
         sequences = [s.get("sequence") for s in sightings]
@@ -1013,6 +1160,7 @@ class Session:
         if self.mode in REF_MODES:  # point de référence, sans distance au précédent
             if self.ref_photo and self.ref_photo != (self.item or {}).get("id"):
                 self.goto = self.ref_photo  # retour sur la photo de référence pour la mesure
+            self.frame_request = "reference"  # vue cadrée sur A (take_frame)
             self.ref_point = {"lon": r["lon"], "lat": r["lat"], "uncertainty": r["uncertainty"], "name": name,
                               "sequences": sequences, "road": None, "sightings": list(sightings),
                               "ground_z": ground_z}  # sol LiDAR au point, s'il est lu
@@ -1061,6 +1209,10 @@ class Session:
     def clear(self):
         """« Effacer » : sélection d'un point, mesure en cours, visées, ou calage du mode."""
         self.message = ""
+        if self.b_aiming is not None:  # triangulation du bord B abandonnée : la largeur garde son clic
+            self._stop_edge_b()
+            self.message = "Triangulation du bord abandonnée : la largeur garde le bord cliqué."
+            return self.status()
         tool = self._active()
         if tool is self.tool and tool.cancel_selection():
             return self.status()
@@ -1075,6 +1227,8 @@ class Session:
 
     def clear_all(self):
         self.epoch += 1
+        self.b_aiming = None
+        self.frame_request = None
         self.triangulator.clear()
         self.tool.clear_all()
         self.calibrator.reset()
@@ -1148,6 +1302,14 @@ class Session:
             text = "Hauteur, étape 2/2 (point {}) : {}".format(self.ref_point["name"], text)
             current = self.tool.current
             sequences = self.ref_point["sequences"] + [c.get("sequence") for c in (current.clicks if current else [])]
+        elif self.mode == "road" and self.b_aiming is not None and len(self.triangulator.sightings) == 1:
+            text = ("Largeur, bord opposé : le clic de la mesure compte comme première visée. Passez à la photo "
+                    "suivante (bouton proposé) et visez le même bord ; « Effacer » pour garder le clic.")
+        elif self.mode == "road" and self.b_aiming is not None:
+            text = ("Largeur, bord opposé : visez-le depuis au moins deux photos, comme le point {} (une visée "
+                    "par photo, photos proposées ou flèches). {}").format(self.ref_point["name"], text)
+            if self.triangulator.result is not None:
+                text += " Puis « Valider le point triangulé » ; « Effacer » pour garder le bord cliqué."
         elif self.mode == "road" and self.ref_point is None:
             text = ("Largeur, étape 1/2 : visez le premier bord (pied de bordure, marquage…) depuis au moins deux "
                     "photos (une visée par photo, flèches pour changer de photo). " + text)
@@ -1265,12 +1427,31 @@ class Session:
                 self.mode == "height" and self.tool.selected is not None),
             # bouton « Nouvelle mesure depuis A » : nom du point de référence, ou None
             "new_measure": self.ref_point["name"] if self._locked() else None,
+            # largeur : bouton « Trianguler le bord B » proposé, et triangulation de ce bord en cours
+            "edge_b": self._edge_b_candidate() is not None,
+            "edge_b_aiming": self.b_aiming is not None,
             "active": self.active,
             "lights": self._lights(pic) if item else [],
             "guide": self.guide(),
         })
 
     # Visées guidées (hauteur, largeur) -----------------------------------------------------
+    def take_frame(self):
+        """Points à cadrer dans la vue ([[cap, élévation]] en radians, repère de la photo), une
+        seule fois, quand la photo de référence est affichée après une validation : le point A
+        (point de référence validé), ou la largeur entière (bord opposé triangulé). None sinon,
+        ou tant que la photo affichée n'est pas celle de référence."""
+        request = self.frame_request
+        if request is None or not self.item or self.item.get("id") != self.ref_photo:
+            return None
+        self.frame_request = None
+        if request == "reference":
+            mark = self._reference_mark() if self.ref_point else None
+            points = mark["points"] if mark else []
+        else:
+            points = self._width_points(request) if request.result else []
+        return [[p["yaw"], p["pitch"]] for p in points if p.get("yaw") is not None] or None
+
     def take_goto(self):
         """Photo à afficher (identifiant), demandée une seule fois, ou None : la photo de
         référence, après la validation du point (voir keep_point)."""
@@ -1412,6 +1593,10 @@ class Session:
             marks = [self._guide_mark(road)] + marks
         if self.active and self.mode == "height" and self.ref_point and self.item:  # de même
             marks = [self._vertical_mark()] + marks
+        if self.b_aiming is not None and pic != self.ref_photo:
+            # Bord opposé visé depuis une autre photo que celle de la mesure : seulement les
+            # visées ; droite, largeurs et point de référence reviennent sur la photo de la mesure
+            marks = [m for m in marks if m.get("sighting")]
         out = []
         for m in marks:
             points = [p for p in m["points"] if p.get("pic") == pic and p.get("yaw") is not None]
@@ -1478,11 +1663,16 @@ class Session:
     def _guide_mark(self, road):
         """Droite de mesure de la largeur dans la photo affichée (repère de la visionneuse) :
         points au sol supposé plat, à la hauteur de caméra de la photo, calage compris (comme
-        la croix du point de référence, voir _project) ; la mesure n'en dépend pas."""
+        la croix du point de référence, voir _project) ; sur une photo de la visée de A, par la
+        croix de cette visée (voir _aim_anchor). La mesure n'en dépend pas."""
         lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
-        height = self._camera_height()
         ux, uy = widths.perpendicular(road["axis"])
-        ax, ay = triangulation._local(self.ref_point["lon"], self.ref_point["lat"], lon, lat)
+        anchor = self._aim_anchor()
+        if anchor:  # photo de la visée de A : droite passant par la croix bleue, au sol visé
+            (ax, ay), height = anchor[1], anchor[2]
+        else:
+            height = self._camera_height()
+            ax, ay = triangulation._local(self.ref_point["lon"], self.ref_point["lat"], lon, lat)
         points = []
         for k in range(-40, 41):
             t = k * widths.GUIDE_LENGTH / 40

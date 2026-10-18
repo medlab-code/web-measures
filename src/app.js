@@ -294,13 +294,18 @@
     showLights(state.lights);
     pointReady = state.point;
     pointSelected = state.point_sel;
-    if (aiming !== state.aiming || newMeasure !== state.new_measure) {  // point validé ou à trianguler, largeur faite
-      aiming = state.aiming;
+    if (aiming !== state.aiming || newMeasure !== state.new_measure || edgeBAiming !== state.edge_b_aiming) {
+      aiming = state.aiming;  // point validé ou à trianguler, largeur faite, bord opposé en visée
       newMeasure = state.new_measure;
+      edgeBAiming = state.edge_b_aiming;
       applyMeasureUi();
     }
+    edgeBOffered = state.edge_b;
     showModeOptions();  // « Valider le point triangulé » : dès que les visées donnent un point
     showGuide(state.guide);
+    // Retour sur la photo de référence : vue cadrée sur A, ou sur la largeur, une fois la photo
+    // affichée (avant, son chargement remettrait la vue d'origine)
+    if (photoReady()) frameView(JSON.parse(app.take_frame()));
     const bandeau = $("#bandeau");
     bandeau.hidden = !state.waiting_map;
     bandeau.textContent = "Cliquez maintenant ce repère sur la carte (Échap pour annuler).";
@@ -486,6 +491,14 @@
     win.document.body.append(mapBox);
     win.document.addEventListener("keydown", onEscapeKey);
     win.document.addEventListener("keydown", onNudgeKey, true);
+    // Glisser la carte : MapLibre suit la souris sur le document qui la contenait à sa création
+    // (la page) ; dans la fenêtre détachée, les mouvements arrivent à son document à elle : on
+    // les lui transmet (gestionnaire interne de MapLibre, le même que pour la page)
+    const handlers = map.handlers;
+    if (handlers?.handleWindowEvent) {
+      win.document.addEventListener("mousemove", handlers.handleWindowEvent, { capture: true });
+      win.document.addEventListener("mouseup", handlers.handleWindowEvent);
+    }
     win.addEventListener("resize", () => map.resize());
     win.addEventListener("pagehide", () => {
       place.parent.insertBefore(mapBox, place.next);
@@ -919,6 +932,8 @@
   let aiming = false;
   let pointReady = false;  // visées qui donnent un point (bouton « Valider le point triangulé »)
   let newMeasure = null;  // largeur faite : nom du point de référence (bouton « Nouvelle mesure depuis A »)
+  let edgeBOffered = false;  // largeur faite d'un clic : bouton « Trianguler le bord opposé »
+  let edgeBAiming = false;  // bord opposé de la largeur en cours de triangulation
 
   /**
    * Flèches masquées en mesure (elles gênent les clics de mesure), sauf pour viser, ce qui
@@ -973,6 +988,7 @@
       : mode === "height" && aiming ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
       : mode === "height" && newMeasure ? `Hauteur faite : cliquez une de ses croix pour l'ajuster ; autre hauteur : « Nouvelle mesure depuis ${newMeasure} »`
       : mode === "height" ? "Hauteur, étape 2 : cliquez le sommet (le pied est le point visé) ; autre photo : par la carte"
+      : mode === "road" && edgeBAiming ? "Largeur, bord opposé : le clic de la mesure est la 1re visée ; photo suivante, même bord, puis « Valider le point triangulé »"
       : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
       : mode === "road" && newMeasure ? `Largeur faite : cliquez une de ses croix pour l'ajuster ; autre largeur : « Nouvelle mesure depuis ${newMeasure} »`
       : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé ; autre photo, prise avant ou après : par la carte"
@@ -1128,6 +1144,28 @@
     }).sort((a, b) => a.textContent.startsWith("◀") ? -1 : b.textContent.startsWith("◀") ? 1 : 0));  // ◀ à gauche
   }
 
+  /**
+   * Vue cadrée sur des points de la photo ([[cap, élévation]] en radians, repère de la photo) :
+   * centrée sur eux, zoom ajusté pour les voir tous (le point A seul, ou la largeur de A à B).
+   */
+  function frameView(points) {
+    if (!psv || !points || !points.length) return;
+    const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+    const yaw = Math.atan2(points.reduce((t, p) => t + Math.sin(p[0]), 0), points.reduce((t, p) => t + Math.cos(p[0]), 0));
+    const pitches = points.map((p) => p[1]);
+    const pitch = (Math.min(...pitches) + Math.max(...pitches)) / 2;
+    const spreadYaw = 2 * Math.max(...points.map((p) => Math.abs(wrap(p[0] - yaw))));
+    const spreadPitch = Math.max(...pitches) - Math.min(...pitches);
+    const box = psv.container, aspect = box.clientWidth / Math.max(box.clientHeight, 1);
+    // Champ vertical : la largeur avec une marge (au plus le champ maximal de la visionneuse :
+    // une largeur vue de très près peut ne pas tenir entière), ou 35° pour un point seul
+    const deg = (r) => r * 180 / Math.PI;
+    const maxFov = psv.config?.maxFov || 90;
+    const vfov = Math.min(maxFov, Math.max(points.length > 1 ? 20 : 35, deg(spreadPitch) * 1.3, deg(spreadYaw) * 1.3 / aspect));
+    const zoom = psv.dataHelper?.fovToZoomLevel ? psv.dataHelper.fovToZoomLevel(vfov) : undefined;
+    psv.animate({ yaw, pitch, ...(zoom == null ? {} : { zoom }), speed: 1200 });
+  }
+
   /** Affiche la photo d'identifiant id (photo voisine proposée, retour sur la référence). */
   async function goToPhoto(id) {
     try {
@@ -1151,6 +1189,7 @@
     // « Valider le point triangulé », dans la visionneuse : dès que les visées donnent un point
     $("#garder").hidden = !measuring || !aiming || !pointReady || viewer.hidden;
     $("#nouvelle-mesure").hidden = !measuring || !newMeasure || viewer.hidden;
+    $("#trianguler-b").hidden = !measuring || !edgeBOffered || viewer.hidden;
     $("#nouvelle-mesure").textContent = `↺ Nouvelle mesure depuis ${newMeasure || "A"}`;
   }
 
@@ -1176,6 +1215,7 @@
     if (reference) goToPhoto(reference);
   });
   $("#nouvelle-mesure").addEventListener("click", () => refresh(app.new_measure()));
+  $("#trianguler-b").addEventListener("click", () => refresh(app.start_edge_b()));
   $("#nouvelle-reference").addEventListener("click", () => refresh(app.new_reference()));
   $("#effacer").addEventListener("click", () => refresh(app.clear()));
   $("#tout-effacer").addEventListener("click", () => refresh(app.clear_all()));

@@ -53,7 +53,7 @@ CAMERA_SOURCES = {None: 0, "calée": 1, "altitude GPS": 2}  # champ camera_calee
 # (écart-type sur la séquence de Pouilly : 2 cm, plus le LiDAR), sinon valeur saisie (1,7 à 2,2 m
 # selon le véhicule) ; une hauteur calée a sa propre incertitude
 CAMERA_ERRORS = {"altitude GPS": 0.05, None: 0.15}
-SELECT_ANGLE = 1.0  # écart maximal (degrés) entre un clic et le repère d'un point pour le sélectionner
+SELECT_ANGLE = 1.0  # écart maximal (degrés) entre un clic et le repère d'un point pour le sélectionner (session)
 ERRORS = (geometry.GeometryError, ground.GroundError)
 KIND_NAMES = {"road": "largeur perpendiculaire à la chaussée", "width": "longueur parallèle à la route",
               "height": "hauteur"}
@@ -591,32 +591,6 @@ class MeasureTool:
         return self.camera_info(click, ground_z)[0]
 
     # Clics --------------------------------------------------------------------
-    def select_near(self, click):
-        """Clic sur le repère d'un point existant (à moins de SELECT_ANGLE degrés), entre deux
-        mesures : le sélectionne pour le viser à nouveau. Retourne True si le clic a servi à
-        cela. Un point déjà sélectionné : le clic est sa nouvelle visée, même tout près de son
-        repère (une correction fine l'est toujours) ; on annule avec cancel_selection."""
-        if self.selected is not None:
-            return False
-        if self.current is not None and 0 < len(self.current.clicks) < self.current.needed():
-            return False
-        raw = click.get("raw") or [click["yaw"], click["elev"]]
-        best, best_d = None, SELECT_ANGLE
-        for m in self.measures():
-            if not m.result:
-                continue
-            for i, p in enumerate(m.viewer_marks()["points"]):
-                if p["pic"] != click.get("pic"):
-                    continue
-                dyaw = (raw[0] - p["abs_yaw"] + 540) % 360 - 180
-                d = math.hypot(dyaw * math.cos(math.radians(raw[1])), raw[1] - p["elev"])
-                if d < best_d:
-                    best, best_d = (m, m.point_of_click(i)), d
-        if best is None:
-            return False
-        self.error = None
-        self.selected = best
-        return True
 
     def cancel_selection(self):
         """Annule la sélection d'un point. Retourne True s'il y en avait une."""

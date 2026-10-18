@@ -84,6 +84,9 @@ class App(session.Session):
     def take_proposal(self):
         return json.dumps(super().take_proposal())
 
+    def take_frame(self):
+        return json.dumps(super().take_frame())
+
     # Dessin ------------------------------------------------------------------------------
     def _new_item(self):
         item = WebItem()

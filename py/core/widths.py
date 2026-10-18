@@ -75,8 +75,8 @@ def cross(a, axis, cam, heading):
 class PerpendicularWidth(measures.Measure):
     """Largeur entre le point triangulé A (edge : lon, lat, uncertainty, name) et le bord B
     cliqué (voir le module). Rangée avec les mesures de MeasureTool, dont elle a l'interface
-    (liste, export, repères de la visionneuse, dessin sur la carte) ; clicks : repère de A
-    dans la photo de B (sans direction brute : non recorrigé), puis le clic de B."""
+    (liste, export, repères de la visionneuse, dessin sur la carte) ; clicks : A vu de la photo
+    de B (voir _edge_mark : sans direction brute, non recorrigé), puis le clic de B."""
 
     def __init__(self, tool, edge, road, click):
         super().__init__(tool, "road", "ground")
@@ -85,21 +85,27 @@ class PerpendicularWidth(measures.Measure):
         self.clicks = [self._edge_mark(click), click]
         self.angle = None
         self.offset = 0.0  # décalage du bord (m) le long de la droite, au clavier : allonge la largeur
+        # Bord B triangulé à son tour (dict lon, lat, uncertainty, name, sightings), ou None : B
+        # est alors là où la visée du clic coupe la droite (voir set_edge_b)
+        self.edge_b = None
+        self.compute()
+
+    def set_edge_b(self, edge_b):
+        """Bord B triangulé (voir edge_b) : la largeur devient la distance de A à B perpendiculaire
+        à l'axe de la route, B ramené sur la droite passant par A ; None : retour au clic."""
+        self.edge_b = edge_b
+        self.offset = 0.0
         self.compute()
 
     def _edge_mark(self, click):
-        """Repère de A dans la photo du clic de B : direction de A depuis la caméra, au sol
-        plat (repère seulement, la mesure n'en dépend pas)."""
+        """Premier « clic » de la largeur : le point de référence A, vu de la photo du bord (photo,
+        position de sa caméra, axe de la route), pour la liste des clics et l'export. Sa direction
+        n'est ni affichée ni sélectionnée : la session projette A elle-même, avec la hauteur de
+        caméra et le calage de la photo affichée (Session._width_points, Session._project)."""
         x, y = triangulation._local(self.edge["lon"], self.edge["lat"], click["lon"], click["lat"])
-        bearing = math.degrees(math.atan2(x, y))
-        raw = bearing - (click["yaw"] - click["raw"][0])  # même correction du calage que le clic
-        elev = -math.degrees(math.atan2(self.tool.camera_for(click), max(math.hypot(x, y), 0.1)))
-        pos = click.get("pos") or [None, None]
-        if pos[0] is not None:  # repère de la photo : décalé du clic comme les directions brutes
-            pos = [pos[0] + math.radians(raw - click["raw"][0]), math.radians(elev)]
-        return {"pic": click.get("pic"), "lon": click["lon"], "lat": click["lat"], "yaw": bearing, "elev": elev,
-                "pos": pos, "sequence": click.get("sequence"), "axis": self.road["axis"],
-                "axis_source": self.road["source"]}
+        return {"pic": click.get("pic"), "lon": click["lon"], "lat": click["lat"],
+                "yaw": math.degrees(math.atan2(x, y)), "elev": 0.0, "pos": [None, None],
+                "sequence": click.get("sequence"), "axis": self.road["axis"], "axis_source": self.road["source"]}
 
     def needed(self):
         return 2
@@ -111,13 +117,13 @@ class PerpendicularWidth(measures.Measure):
         if index == 0:
             self.error = "Le point de référence ne se vise pas ici : « Nouveau point de référence »."
             return
-        state = list(self.clicks), self.offset
+        state = list(self.clicks), self.offset, self.edge_b
         self.clicks = [self._edge_mark(click), click]  # repère de A dans la photo du nouveau clic
-        self.offset = 0.0
+        self.offset, self.edge_b = 0.0, None  # bord revisé d'un clic : plus triangulé
         self.compute()
         if self.error:
             error = self.error
-            self.clicks, self.offset = state
+            self.clicks, self.offset, self.edge_b = state
             self.compute()
             self.error = error
 
@@ -131,15 +137,47 @@ class PerpendicularWidth(measures.Measure):
     def side(self):
         """Côté du bord sur la droite de mesure, vu du point de référence : 1 dans la direction
         perpendicular(axe), -1 à l'opposé."""
-        return 1.0 if self._width()[1] >= 0 else -1.0
+        return 1.0 if (self._across() if self.edge_b else self._width()[1]) >= 0 else -1.0
+
+    def _across(self, da=(0.0, 0.0), db=(0.0, 0.0), daxis=0.0):
+        """Bord B triangulé : son abscisse signée sur la droite de mesure depuis A (m), c'est-à-dire
+        la largeur perpendiculaire à l'axe ; da, db, daxis : écarts pour l'incertitude."""
+        bx, by = triangulation._local(self.edge_b["lon"], self.edge_b["lat"], self.edge["lon"], self.edge["lat"])
+        ux, uy = perpendicular(self.road["axis"] + daxis)
+        return (bx + db[0] - da[0]) * ux + (by + db[1] - da[1]) * uy
 
     def _width(self, da=(0.0, 0.0), daxis=0.0, dheading=0.0, dcam=(0.0, 0.0)):
         click = self.clicks[1]
         cam = triangulation._local(click["lon"], click["lat"], self.edge["lon"], self.edge["lat"])
         return cross(da, self.road["axis"] + daxis, (cam[0] + dcam[0], cam[1] + dcam[1]), click["yaw"] + dheading)
 
+    def _compute_triangulated(self):
+        """Largeur depuis le bord B triangulé (voir set_edge_b)."""
+        t = self._across()
+        ux, uy = perpendicular(self.road["axis"])
+        if self.offset:  # bord décalé au clavier le long de la droite
+            t += self.offset if t >= 0 else -self.offset
+        sa, sb = self.edge["uncertainty"], self.edge_b["uncertainty"]
+        groups = [[{"da": (k * sa, 0.0)} for k in (-1, 1)], [{"da": (0.0, k * sa)} for k in (-1, 1)],
+                  [{"db": (k * sb, 0.0)} for k in (-1, 1)], [{"db": (0.0, k * sb)} for k in (-1, 1)],
+                  [{"daxis": k * axis_error(self.road["source"])} for k in (-1, 1)]]
+        base = abs(self._across())
+        total = sum(max(abs(abs(self._across(**v)) - base) for v in variants) ** 2 for variants in groups)
+        click = self.clicks[1]
+        cam = triangulation._local(click["lon"], click["lat"], self.edge["lon"], self.edge["lat"])
+        a = (self.edge["lon"], self.edge["lat"])
+        b = triangulation._geographic(t * ux, t * uy, *a)  # B ramené sur la droite passant par A
+        self.result = {"value": abs(t), "uncertainty": math.sqrt(total),
+                       "decomposition": {"horizontal": abs(t), "vertical": 0.0, "along": 0.0, "across": abs(t)},
+                       "ranges": [math.hypot(*cam), math.hypot(t * ux - cam[0], t * uy - cam[1])],
+                       "points": [a, b], "extra": None, "picks": [a, b], "shifts": [(0.0, 0.0), (0.0, 0.0)]}
+
     def compute(self):
         self.result, self.error, self.angle = None, None, None
+        if self.edge_b is not None:
+            self._compute_triangulated()
+            self._draw()
+            return
         try:
             (bx, by), t, s, self.angle = self._width()
             click = self.clicks[1]
@@ -185,6 +223,14 @@ class PerpendicularWidth(measures.Measure):
 
     def status(self):
         r = self.result
+        if self.edge_b is not None:
+            text = ("Largeur perpendiculaire à la chaussée : {} m (±{} m) · entre les points triangulés {} et {} · "
+                    "axe {}° ({})").format(
+                measures._num(r["value"], 2), measures._num(r["uncertainty"], 2), self.edge.get("name") or "A",
+                self.edge_b.get("name") or "B", measures._num(self.road["axis"] % 180, 0), self.road["source"])
+            if self.offset:
+                text += " · bord décalé de {} cm au clavier".format(measures._num(self.offset * 100, 0))
+            return text + "."
         text = ("Largeur perpendiculaire à la chaussée : {} m (±{} m) · depuis le point triangulé {} · axe {}° ({}) "
                 "· visée à {}° de la droite").format(
             measures._num(r["value"], 2), measures._num(r["uncertainty"], 2), self.edge.get("name") or "",
