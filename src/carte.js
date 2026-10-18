@@ -29,7 +29,66 @@ const Carte = (() => {
   // demandes sans page d'origine, celles de la page ouverte par double-clic (file://)
   const OSM_TILES = "https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png";
   const osmTiles = ["a", "b", "c"].map((sub) => OSM_TILES.replace("{s}", sub));
-  const BACKGROUNDS = ["plan", "ortho", "express", "pcrs", "osm"];
+  const BACKGROUNDS = ["plan", "ortho", "noms", "express", "pcrs", "osm"];
+  // Limites administratives (ADMIN EXPRESS de l'IGN, par le WFS) : chaque niveau à partir d'un
+  // zoom ; géométries de petite échelle vues de loin, plus précises de près (communes : celles de
+  // la BD TOPO, pour savoir de quel côté d'une limite tombe une mesure)
+  const ADMIN_LEVELS = [  // du plus fin au plus large : le plus large est dessiné par-dessus ;
+    // départements : bleu du logo du Département de la Côte-d'Or ; communes : noir, en tirets (à
+    // ne pas confondre avec le filaire des voies)
+    { id: "communes", layer: "commune", minzoom: 11, paint: { "line-color": "#000000", "line-width": 1.2, "line-dasharray": [4, 2.5] } },
+    // métropoles (EPCI de nature « Métropole ») : vert, un peu plus fin que les départements,
+    // dès l'échelle du département
+    { id: "metropoles", layer: "epci", minzoom: 7, properties: "cleabs,nom_officiel,nature,geometrie",
+      filter: ["==", ["get", "nature"], "Métropole"], paint: { "line-color": "#16a34a", "line-width": 4 } },
+    { id: "departements", layer: "departement", minzoom: 0, paint: { "line-color": "#0082c5", "line-width": 5 } },
+  ];
+  /** Épaisseur d'un contour (plus `extra` pour le liseré) : 40 % au zoom 5, entière dès le 10. */
+  const adminWidth = (level, extra) => {
+    const w = level.paint["line-width"];
+    return ["interpolate", ["linear"], ["zoom"], 5, w * 0.4 + extra * 0.6, 10, w + extra];
+  };
+  const ADMIN_NEAR_ZOOM = 12;
+  const adminDataset = (level, zoom) => (zoom < ADMIN_NEAR_ZOOM ? "ADMINEXPRESS-COG-CARTO-PE.LATEST"
+    : level.layer === "commune" ? "ADMINEXPRESS-COG.LATEST" : "ADMINEXPRESS-COG-CARTO.LATEST");
+  // Filaire des voies : tronçons de route de la BD TOPO (tuiles vectorielles de l'IGN, à partir du
+  // zoom 15), couleur selon le réseau, numéros dans des cartouches dessinés comme ceux de l'IISR
+  // (5e partie, annexe 24 ; routes métropolitaines : arrêté de 2018) : fond rouge pour les
+  // autoroutes et nationales, jaune pour les départementales, cyan pour les métropolitaines, blanc
+  // à listel noir pour les communales et chemins ruraux, vert pour les itinéraires européens ;
+  // caractères blancs sur fond foncé, noirs sur fond clair ; suffixe en minuscule italique
+  // Routes numérotées : tracé du Plan IGN vectoriel (couche des numéros de route : une ligne par
+  // route, un seul trait pour deux chaussées séparées), à tous les zooms : autoroutes et
+  // nationales dès le zoom 7, départementales et métropolitaines dès le zoom 10. Autres voies :
+  // tronçons de la BD TOPO, dès le zoom 15.
+  const ROADS_TILES = "https://data.geopf.fr/tms/1.0.0/BDTOPO/{z}/{x}/{y}.pbf";
+  const NUMBERED_TILES = "https://data.geopf.fr/tms/1.0.0/PLAN.IGN/{z}/{x}/{y}.pbf";
+  const ROADS_MINZOOM = 15;
+  const CARTOUCHES = {
+    A: { fond: "#e2001a", texte: "#ffffff" }, N: { fond: "#e2001a", texte: "#ffffff" },
+    D: { fond: "#ffd400", texte: "#000000" }, M: { fond: "#00a3e0", texte: "#ffffff" },
+    C: { fond: "#ffffff", texte: "#000000", listel: "#000000" }, R: { fond: "#ffffff", texte: "#000000", listel: "#000000" },
+    E: { fond: "#2e9f45", texte: "#ffffff" }, F: { fond: "#2e9f45", texte: "#ffffff" },
+  };
+  const ROADS_LAYERS = ["voies-lisere", "voies", "numerotees-lisere", "numerotees", "numerotees-cartouches", "voies-cartouches"];
+  // Couleur du trait : celle du cartouche (premier numéro) ; gris sans numéro
+  const roadColor = (field) => ["match", ["slice", ["coalesce", ["get", field], ""], 0, 1],
+    ["A", "N"], "#e2001a", "D", "#ffd400", "M", "#00a3e0", ["C", "R"], "#ffffff", "#bdbdbd"];
+  const roadWidth = (extra) => ["interpolate", ["linear"], ["zoom"], 8, 1.5 + extra, 12, 2.5 + extra, 19, 4.5 + extra];
+
+  // Filaire Panoramax semi-transparent : le fond (routes, orthophoto) reste visible dessous
+  const NETWORK_OPACITY = 0.45;
+  const NETWORK_LAYERS = ["grille", "sequences", "photos"];
+  // Noms sur l'orthophoto : style « toponymes » du Plan IGN vectoriel (noms blancs détourés de
+  // noir, conçus pour l'orthophoto), dont on ne garde que les communes et lieux-dits et les
+  // noms de rues (les numéros de route sont dans les cartouches des voies) ; chargé au premier
+  // choix de ce fond
+  const NAMES_STYLE = "https://data.geopf.fr/annexes/ressources/vectorTiles/styles/PLAN.IGN/toponymes.json";
+  const NAMES_LAYERS = ["toponyme_localite_ponc", "toponyme_routier_odonyme_lin"];
+  const NAMES_SCALE = 1.3;  // texte agrandi : lisible sur l'orthophoto dans la petite carte
+  /** Taille de texte du style IGN (nombre ou paliers { stops }) multipliée par NAMES_SCALE. */
+  const scaledSize = (size) => (typeof size === "number" ? size * NAMES_SCALE
+    : size?.stops ? { ...size, stops: size.stops.map(([z, v]) => [z, v * NAMES_SCALE]) } : size);
   // PCRS (plan de corps de rue simplifié, image à 5 cm) : publié par zones, selon les
   // producteurs ; la couche de la zone est donnée par le graphe de mosaïquage de l'ANCT
   const pcrsTiles = (layer) => `${GEOPF}/wms-r/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=${layer}`
@@ -81,6 +140,11 @@ const Carte = (() => {
           vue: { type: "geojson", data: EMPTY },
           pr: { type: "geojson", data: EMPTY },
           contour: { type: "geojson", data: EMPTY },  // commune choisie dans la recherche (recherche.js)
+          voies: { type: "vector", tiles: [ROADS_TILES], minzoom: ROADS_MINZOOM, maxzoom: 19, attribution: ATTRIBUTION_IGN },
+          // tuiles jusqu'au zoom 13 seulement, agrandies au-delà : à partir du zoom 14, le Plan IGN
+          // dédouble les routes à chaussées séparées
+          numerotees: { type: "vector", tiles: [NUMBERED_TILES], maxzoom: 13, attribution: ATTRIBUTION_IGN },
+          ...Object.fromEntries(ADMIN_LEVELS.map((level) => ["admin-" + level.id, { type: "geojson", data: EMPTY }])),
         },
         layers: [
           { id: "plan", type: "raster", source: "plan" },
@@ -88,24 +152,82 @@ const Carte = (() => {
           { id: "express", type: "raster", source: "express", layout: { visibility: "none" } },
           { id: "pcrs", type: "raster", source: "pcrs", minzoom: 15, layout: { visibility: "none" } },
           { id: "osm", type: "raster", source: "osm", layout: { visibility: "none" } },
+          // Filaire des voies, sous les limites administratives : voies sans numéro de la BD TOPO
+          // (sentiers, escaliers et bacs exclus), puis routes numérotées du Plan IGN
+          ...[["voies-lisere", true], ["voies", false]].map(([id, casing]) => ({
+            id, type: "line", source: "voies", "source-layer": "troncon_de_route", minzoom: ROADS_MINZOOM,
+            filter: ["all", ["!", ["has", "cpx_numero"]],
+              ["!", ["in", ["get", "nature"], ["literal", ["Sentier", "Escalier", "Bac ou liaison maritime"]]]]],
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: casing ? { "line-color": "#333333", "line-opacity": 0.5, "line-width": roadWidth(1.5) }
+              : { "line-color": roadColor("cpx_numero"), "line-opacity": 0.8, "line-width": roadWidth(0) },
+          })),
+          ...[["numerotees-lisere", true], ["numerotees", false]].map(([id, casing]) => ({
+            id, type: "line", source: "numerotees", "source-layer": "toponyme_routier_numero_lin",
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: casing ? { "line-color": "#333333", "line-opacity": 0.5, "line-width": roadWidth(1.5) }
+              : { "line-color": roadColor("texte"), "line-opacity": 0.8, "line-width": roadWidth(0) },
+          })),
+          // Limites administratives : contours des polygones, sous le filaire et les mesures
+          // (liseré blanc dessous : lisibles sur l'orthophoto)
+          ...ADMIN_LEVELS.flatMap((level) => [
+            {
+              id: `admin-${level.id}-lisere`, type: "line", source: "admin-" + level.id, minzoom: level.minzoom,
+              ...(level.filter && { filter: level.filter }),
+              layout: { "line-join": "round" },
+              paint: { "line-color": "#ffffff", "line-opacity": 0.6, "line-width": adminWidth(level, 2) },
+            },
+            {
+              id: "admin-" + level.id, type: "line", source: "admin-" + level.id, minzoom: level.minzoom,
+              ...(level.filter && { filter: level.filter }),
+              layout: { "line-join": "round" },
+              paint: { "line-opacity": 0.85, ...level.paint, "line-width": adminWidth(level, 0) },
+            },
+          ]),
           // Filaire : densité à petite échelle, séquences, puis photos
           {
             id: "grille", type: "circle", source: "panoramax", "source-layer": "grid", maxzoom: 7,
-            paint: { "circle-color": ORANGE, "circle-opacity": 0.6, "circle-radius": 2 },
+            paint: { "circle-color": ORANGE, "circle-opacity": NETWORK_OPACITY, "circle-radius": 2 },
           },
           {
             id: "sequences", type: "line", source: "panoramax", "source-layer": "sequences", minzoom: 6,
             layout: { "line-cap": "round", "line-join": "round" },
             paint: {
-              "line-color": ORANGE, "line-opacity": 0.6,
+              "line-color": ORANGE, "line-opacity": NETWORK_OPACITY,
               "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.6, 12, 1.5, 17, 3],
             },
           },
           {
             id: "photos", type: "circle", source: "panoramax", "source-layer": "pictures", minzoom: 15,
             paint: {
-              "circle-color": ORANGE, "circle-radius": 2.5, "circle-opacity": 0.7,  // plus petits que le filaire d'origine (3,5)
-              "circle-stroke-color": "#ffffff", "circle-stroke-width": 0.7,
+              "circle-color": ORANGE, "circle-radius": 2.5, "circle-opacity": NETWORK_OPACITY,  // plus petits que le filaire d'origine (3,5)
+              "circle-stroke-color": "#ffffff", "circle-stroke-width": 0.7, "circle-stroke-opacity": NETWORK_OPACITY,
+            },
+          },
+          // Cartouches des routes numérotées sous le zoom 15 (Plan IGN), puis de la BD TOPO, qui
+          // porte aussi les numéros européens
+          {
+            id: "numerotees-cartouches", type: "symbol", source: "numerotees", "source-layer": "toponyme_routier_numero_lin",
+            maxzoom: ROADS_MINZOOM,
+            layout: {
+              "symbol-placement": "line", "symbol-spacing": 400, "icon-rotation-alignment": "viewport",
+              "icon-padding": 60, "icon-image": ["concat", "cartouche:|", ["get", "texte"]],
+            },
+          },
+          // Cartouches des numéros de route (images dessinées à la demande, voir cartoucheImage),
+          // droits quel que soit le sens de la route, au-dessus du filaire Panoramax
+          {
+            id: "voies-cartouches", type: "symbol", source: "voies", "source-layer": "troncon_de_route", minzoom: ROADS_MINZOOM,
+            // ni bretelles ni giratoires (un échangeur en serait couvert) ; marge autour de chaque
+            // cartouche : deux cartouches proches (chaussées séparées, tronçons voisins) ne
+            // s'affichent pas ensemble
+            filter: ["all", ["any", ["has", "cpx_numero"], ["has", "cpx_numero_route_europeenne"]],
+              ["!", ["in", ["get", "nature"], ["literal", ["Bretelle", "Rond-point"]]]]],
+            layout: {
+              "symbol-placement": "line", "symbol-spacing": 400, "icon-rotation-alignment": "viewport",
+              "icon-padding": 60,
+              "icon-image": ["concat", "cartouche:", ["coalesce", ["get", "cpx_numero_route_europeenne"], ""], "|",
+                ["coalesce", ["get", "cpx_numero"], ""]],
             },
           },
           // Contour de la commune choisie dans la recherche de lieux : liseré blanc, tirets
@@ -192,6 +314,9 @@ const Carte = (() => {
     });
     map.on("styleimagemissing", (e) => {
       if (e.id === "croix" && !map.hasImage("croix")) map.addImage("croix", crossImage(), { pixelRatio: 2 });
+      if (e.id.startsWith("cartouche:") && !map.hasImage(e.id)) {
+        map.addImage(e.id, cartoucheImage(e.id.slice("cartouche:".length)), { pixelRatio: 2 });
+      }
     });
     map.addControl(new maplibregl.NavigationControl(), "top-left");
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
@@ -205,6 +330,60 @@ const Carte = (() => {
   }
 
   /** Croix jaune d'un point cliqué, cernée de sombre (18 pixels, dessinée au double). */
+  /** Cartouches d'une route, "européens|numéros" (numéros séparés par « / ») : les européens à
+   * gauche des autres, comme sur les panneaux. Lettre, numéro (espacés s'il a au plus deux
+   * chiffres, comme dans l'IISR : « D 28 », « N106 ») et suffixe en minuscule italique. */
+  function cartoucheImage(spec) {
+    const [european, numbers] = spec.split("|");
+    const parts = [european, numbers].flatMap((list) => list.split("/").map((n) => n.replace(/\s+/g, "")).filter(Boolean))
+      .map((n) => /^([A-Z])(\d+)([A-Z]*)$/.exec(n) || [n, n, "", ""]);
+    const scale = 2, height = 17 * scale, gap = 3 * scale, pad = 4 * scale, squeeze = 0.86;  // caractères resserrés
+    const bold = `700 ${12 * scale}px Roboto, sans-serif`, italic = `italic 700 ${12 * scale}px Roboto, sans-serif`;
+    const ctx = document.createElement("canvas").getContext("2d");
+    const pieces = parts.map(([, letter, digits, suffix]) => {
+      const main = letter + (digits && digits.length <= 2 ? " " : "") + digits;
+      ctx.font = bold;
+      const mainWidth = ctx.measureText(main).width * squeeze;
+      ctx.font = italic;
+      const suffixWidth = suffix ? ctx.measureText(suffix.toLowerCase()).width * squeeze + scale : 0;
+      return { letter, main, suffix: suffix.toLowerCase(), mainWidth, width: mainWidth + suffixWidth + 2 * pad };
+    });
+    const width = Math.max(1, pieces.reduce((sum, p) => sum + p.width, 0) + gap * (pieces.length - 1));
+    const canvas = ctx.canvas;
+    canvas.width = Math.ceil(width) + 2;
+    canvas.height = height + 2;
+    let x = 1;
+    for (const p of pieces) {
+      const style = CARTOUCHES[p.letter] || CARTOUCHES.C;
+      ctx.beginPath();
+      ctx.roundRect(x, 1, p.width, height, 3 * scale);
+      ctx.fillStyle = style.fond;
+      ctx.fill();
+      ctx.lineWidth = style.listel ? 1.5 * scale : 1;
+      ctx.strokeStyle = style.listel || "rgba(0, 0, 0, 0.35)";  // fonds sans listel : fin contour, lisible sur la carte
+      ctx.stroke();
+      ctx.fillStyle = style.texte;
+      ctx.textBaseline = "middle";
+      ctx.save();
+      ctx.translate(x + pad, 1 + height / 2 + scale / 2);
+      ctx.scale(squeeze, 1);
+      ctx.font = bold;
+      ctx.fillText(p.main, 0, 0);
+      if (p.suffix) {
+        ctx.font = italic;
+        ctx.fillText(p.suffix, p.mainWidth / squeeze + scale, 0);
+      }
+      ctx.restore();
+      x += p.width + gap;
+    }
+    return ctx.getImageData(0, 0, canvas.width, canvas.height);
+  }
+
+  /** Affiche ou masque le filaire des voies et ses cartouches. */
+  function setRoadsVisible(map, shown) {
+    for (const id of ROADS_LAYERS) map.setLayoutProperty(id, "visibility", shown ? "visible" : "none");
+  }
+
   function crossImage() {
     const size = 36, canvas = document.createElement("canvas");
     canvas.width = canvas.height = size;
@@ -224,10 +403,58 @@ const Carte = (() => {
   function setBackground(map, name) {
     if (!BACKGROUNDS.includes(name)) name = "plan";  // fond mémorisé inconnu
     for (const id of BACKGROUNDS) {
+      if (id === "noms") continue;  // pas une couche : l'orthophoto et les noms par-dessus
       // Ortho-express : orthophoto standard dessous, là où l'année choisie n'a pas été survolée
-      const shown = id === name || ((name === "express" || name === "pcrs") && id === "ortho");
+      const shown = id === name || (["noms", "express", "pcrs"].includes(name) && id === "ortho");
       map.setLayoutProperty(id, "visibility", shown ? "visible" : "none");
     }
+    namesShown = name === "noms";
+    if (namesShown) loadNames(map);
+    // Orthophoto avec noms : avec les voies et les limites administratives
+    setRoadsVisible(map, namesShown);
+    setAdminVisible(map, namesShown);
+    for (const id of namesIds) map.setLayoutProperty(id, "visibility", namesShown ? "visible" : "none");
+  }
+
+  /** Affiche ou masque le filaire Panoramax (séquences et photos). */
+  function setNetworkVisible(map, shown) {
+    for (const id of NETWORK_LAYERS) map.setLayoutProperty(id, "visibility", shown ? "visible" : "none");
+  }
+
+  let namesShown = false;
+  let namesIds = [];  // couches des noms, une fois chargées
+  let namesLoading = null;
+
+  /** Ajoute (une fois) les couches de noms du Plan IGN vectoriel, sous le filaire et les mesures. */
+  function loadNames(map) {
+    namesLoading ??= (async () => {
+      try {
+        const style = await (await fetch(NAMES_STYLE)).json();
+        const { tiles, scheme } = Object.values(style.sources)[0];
+        map.setGlyphs(style.glyphs);
+        map.setSprite(style.sprite);
+        map.addSource("noms", { type: "vector", tiles, scheme, minzoom: 0, maxzoom: 18, attribution: ATTRIBUTION_IGN });
+        for (const layer of style.layers) {
+          if (layer.type !== "symbol" || !NAMES_LAYERS.includes(layer["source-layer"])) continue;
+          if ((layer.maxzoom ?? 24) <= 5) continue;  // pays, continent
+          const id = "noms-" + layer.id;
+          // Les noms de communes et les numéros de route s'arrêtent au zoom 16 à 18 dans le
+          // style IGN : on les garde jusqu'au plus grand zoom de la carte, où l'on mesure
+          const big = (layer.maxzoom ?? 24) > 13;
+          map.addLayer({
+            ...layer, id, source: "noms", maxzoom: big ? 24 : layer.maxzoom,
+            layout: {
+              ...layer.layout, visibility: namesShown ? "visible" : "none",
+              ...(layer.layout?.["text-size"] != null && { "text-size": scaledSize(layer.layout["text-size"]) }),
+            },
+          }, "grille");
+          namesIds.push(id);
+        }
+      } catch (error) {
+        console.warn("Noms du Plan IGN indisponibles :", error);
+        namesLoading = null;  // nouvel essai au prochain choix du fond
+      }
+    })();
   }
 
   /** Ortho-express au plus près de l'année `year` (celle de la photo) parmi les années qui
@@ -364,9 +591,81 @@ const Carte = (() => {
   // étiquette (marqueur HTML, sans police à charger) à partir de PR_LABEL_ZOOM ---------------
 
   const PR_MINZOOM = 13;
-  const PR_LABEL_ZOOM = 14;
+  const PR_LABEL_ZOOM = PR_MINZOOM;  // bornes dès que les points paraissent
   const prLabels = [];
   let prTimer = null, prAsked = 0, prKey = "";
+
+  /** Limites administratives chargées à la volée : pour chaque niveau affiché au zoom courant,
+   * la zone vue (élargie) est demandée au WFS si aucune zone déjà chargée ne la contient ;
+   * entités gardées par jeu de données (petite échelle ou précis) et par identifiant. */
+  const adminCache = new Map();  // "jeu:couche" -> { boxes: [[o, s, e, n]], features: Map }
+  let adminShown = false, adminTimer = null;
+
+  function showAdmin(map) {
+    map.on("moveend", () => {
+      clearTimeout(adminTimer);
+      adminTimer = setTimeout(() => loadAdmin(map), 300);
+    });
+  }
+
+  function setAdminVisible(map, shown) {
+    adminShown = shown;
+    for (const level of ADMIN_LEVELS) {
+      for (const id of ["admin-" + level.id, `admin-${level.id}-lisere`]) map.setLayoutProperty(id, "visibility", shown ? "visible" : "none");
+    }
+    if (shown) loadAdmin(map);
+  }
+
+  function loadAdmin(map) {
+    if (!adminShown) return;
+    const zoom = map.getZoom();
+    const b = map.getBounds();
+    const view = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+    for (const level of ADMIN_LEVELS) {
+      if (zoom < level.minzoom) continue;
+      const dataset = adminDataset(level, zoom);
+      adminFetch(`${dataset}:${level.layer}`, view, level.properties || "cleabs,nom_officiel,geometrie", (features) => {
+        // jeu de données encore celui du zoom courant
+        if (adminDataset(level, map.getZoom()) === dataset) {
+          map.getSource("admin-" + level.id)?.setData({ type: "FeatureCollection", features });
+        }
+      });
+    }
+  }
+
+  /** Entités de la couche WFS `key` autour de la zone vue `view` : passées à `show` tout de
+   * suite (celles déjà connues) puis à l'arrivée de la réponse, si la zone n'était pas chargée. */
+  function adminFetch(key, view, properties, show) {
+    if (!adminCache.has(key)) adminCache.set(key, { boxes: [], features: new Map() });
+    const entry = adminCache.get(key);
+    const all = () => show([...entry.features.values()]);
+    const inside = (box) => box[0] <= view[0] && box[1] <= view[1] && box[2] >= view[2] && box[3] >= view[3];
+    if (!entry.boxes.some(inside)) {
+      // Zone vue élargie de moitié de chaque côté : petits déplacements sans nouvelle requête
+      const w = view[2] - view[0], h = view[3] - view[1];
+      const box = [view[0] - w / 2, view[1] - h / 2, view[2] + w / 2, view[3] + h / 2];
+      entry.boxes.push(box);
+      const params = new URLSearchParams({
+        SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetFeature", TYPENAMES: key,
+        OUTPUTFORMAT: "application/json", SRSNAME: "EPSG:4326", COUNT: "1000", PROPERTYNAME: properties,
+        BBOX: `${box[1]},${box[0]},${box[3]},${box[2]},urn:ogc:def:crs:EPSG::4326`,
+      });
+      fetch(`${GEOPF}/wfs/ows?${params}`)
+        .then((response) => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response.json();
+        })
+        .then((data) => {
+          for (const f of data.features || []) entry.features.set(f.properties?.cleabs ?? f.id, f);
+          all();
+        })
+        .catch((error) => {
+          console.warn(`Limites administratives (${key}) :`, error);
+          entry.boxes.splice(entry.boxes.indexOf(box), 1);  // à redemander
+        });
+    }
+    all();  // entités déjà connues tout de suite (changement de zoom)
+  }
 
   function showMilestones(map) {
     map.on("moveend", () => {
@@ -386,18 +685,25 @@ const Carte = (() => {
     if (key === prKey) return;
     prKey = key;
     const ticket = ++prAsked;
-    let features = [];
+    let features = [], sections = new Map();
     if (zoom >= PR_MINZOOM) {
-      const params = new URLSearchParams({
-        SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetFeature", TYPENAMES: "BDTOPO_V3:point_de_repere",
+      const wfs = (layer, extra = {}) => new URLSearchParams({
+        SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetFeature", TYPENAMES: `BDTOPO_V3:${layer}`,
         OUTPUTFORMAT: "application/json", SRSNAME: "EPSG:4326", COUNT: "1000",
-        BBOX: `${box[1]},${box[0]},${box[3]},${box[2]},urn:ogc:def:crs:EPSG::4326`,
+        BBOX: `${box[1]},${box[0]},${box[3]},${box[2]},urn:ogc:def:crs:EPSG::4326`, ...extra,
       });
+      // Sections de PR (tracé de la route, sens des PR croissants) : bornes posées à côté de la voie
+      const sectionsAsked = zoom < PR_LABEL_ZOOM ? Promise.resolve([])
+        : fetch(`${GEOPF}/wfs/ows?${wfs("section_de_points_de_repere", { PROPERTYNAME: "identifiant_de_section,geometrie" })}`)
+          .then((response) => (response.ok ? response.json() : { features: [] }))
+          .then((data) => data.features || [])
+          .catch(() => []);  // sans elles, bornes au-dessus du point
       try {
-        const response = await fetch(`${GEOPF}/wfs/ows?${params}`);
+        const response = await fetch(`${GEOPF}/wfs/ows?${wfs("point_de_repere")}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         features = ((await response.json()).features || [])
           .filter((f) => /^\d+$/.test(String(f.properties?.numero)));  // ni début ni fin de section
+        for (const section of await sectionsAsked) sections.set(section.properties.identifiant_de_section, section.geometry);
       } catch (error) {
         console.warn("Points de repère :", error);
         prKey = null;  // à redemander (et pas "" : celle d'un zoom trop faible, qui n'effacerait rien)
@@ -414,11 +720,76 @@ const Carte = (() => {
     for (const marker of prLabels.splice(0)) marker.remove();
     if (zoom < PR_LABEL_ZOOM) return;
     for (const f of features) {
+      // Borne de PR (comme la borne E53 de l'IISR) : tête en demi-cercle à la couleur du réseau,
+      // corps blanc portant le numéro du PR
       const element = document.createElement("div");
-      element.className = "etiquette-pr";
-      element.textContent = `${f.properties.route} PR ${f.properties.numero}`;
-      prLabels.push(new maplibregl.Marker({ element, anchor: "left", offset: [6, 0] })
-        .setLngLat(f.geometry.coordinates).addTo(map));
+      element.className = "borne-pr";
+      element.dataset.reseau = String(f.properties.route).charAt(0);
+      const head = document.createElement("span");
+      head.className = "tete";  // sans texte : la couleur dit le réseau
+      const body = document.createElement("span");
+      body.className = "corps";
+      body.textContent = f.properties.numero;
+      element.append(head, body);
+      // Sens de la route au PR (vers les PR croissants) et côté de la borne : celui du PR,
+      // à droite pour une route à une seule chaussée (côté « U ») ; centrée à côté de la voie
+      // (placeBornes), ou au-dessus du point sans sens connu
+      const direction = sectionDirection(sections.get(f.properties.identifiant_de_section), f.geometry.coordinates);
+      const marker = new maplibregl.Marker(direction ? { element, anchor: "center" } : { element, anchor: "bottom", offset: [0, -4] })
+        .setLngLat(f.geometry.coordinates).addTo(map);
+      if (direction) marker.borne = { direction, left: f.properties.cote === "G" };
+      prLabels.push(marker);
+    }
+    placeBornes(map);
+    if (!bornesFollow) {
+      bornesFollow = true;
+      map.on("zoom", () => placeBornes(map));
+      map.on("rotate", () => placeBornes(map));
+    }
+  }
+
+  let bornesFollow = false;
+  const BORNE_ROAD_HALF_WIDTH = 6;  // m : demi-largeur de voie supposée, la borne est posée au-delà
+  const BORNE_GAP = 18;  // px : du bord de la voie au centre de la borne
+
+  /** Direction (en degrés de longitude et de latitude) du tronçon de `geometry` le plus proche
+   * de `point`, dans le sens de saisie (PR croissants) ; null sans géométrie. */
+  function sectionDirection(geometry, [lon, lat]) {
+    if (!geometry) return null;
+    const lines = geometry.type === "MultiLineString" ? geometry.coordinates : [geometry.coordinates];
+    const k = Math.cos((lat * Math.PI) / 180);
+    let best = null, bestDist = Infinity;
+    for (const line of lines) {
+      for (let i = 1; i < line.length; i++) {
+        const [ax, ay] = line[i - 1], [bx, by] = line[i];
+        const dx = (bx - ax) * k, dy = by - ay, len2 = dx * dx + dy * dy;
+        if (!len2) continue;
+        const t = Math.max(0, Math.min(1, (((lon - ax) * k) * dx + (lat - ay) * dy) / len2));
+        const ex = (ax + t * (bx - ax) - lon) * k, ey = ay + t * (by - ay) - lat;
+        const dist = ex * ex + ey * ey;
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = [bx - ax, by - ay];
+        }
+      }
+    }
+    return best;
+  }
+
+  /** Décale chaque borne perpendiculairement à la route, hors de la voie, selon le zoom et
+   * l'orientation de la carte. */
+  function placeBornes(map) {
+    const metersPerPixel = (lat) => (40075016.7 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** map.getZoom());
+    for (const marker of prLabels) {
+      if (!marker.borne) continue;
+      const at = marker.getLngLat();
+      const p = map.project(at);
+      const q = map.project([at.lng + marker.borne.direction[0], at.lat + marker.borne.direction[1]]);
+      const len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+      const ux = (q.x - p.x) / len, uy = (q.y - p.y) / len;  // sens de la route à l'écran (y vers le bas)
+      const [nx, ny] = marker.borne.left ? [uy, -ux] : [-uy, ux];  // côté gauche ou droit
+      const distance = BORNE_ROAD_HALF_WIDTH / metersPerPixel(at.lat) + BORNE_GAP;
+      marker.setOffset([nx * distance, ny * distance]);
     }
   }
 
@@ -663,7 +1034,7 @@ const Carte = (() => {
   }
 
   return {
-    PANORAMAX_API: META_API, GEOPF, OSM_TILES, createMap, setBackground, setExpressYear, pcrsAt, instances, setInstance, setFilter,
+    PANORAMAX_API: META_API, GEOPF, OSM_TILES, createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, pcrsAt, instances, setInstance, setFilter,
     showMeasures, showHandles, showView, showMilestones, nearestPhoto, photoById, apiUrl: () => apiUrl,
   };
 })();

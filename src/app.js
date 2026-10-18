@@ -40,6 +40,16 @@
   $("#fond").value = store.get("fond", "plan");
   if (!$("#fond").value) $("#fond").value = "plan";  // fond mémorisé qui n'existe plus
   map.on("load", () => Carte.setBackground(map, $("#fond").value));
+  // Police des cartouches prête avant qu'ils ne soient dessinés
+  document.fonts?.load("700 24px Roboto").catch(() => {});
+  Carte.showAdmin(map);  // limites administratives (fond « orthophoto avec noms »)
+  // Filaire Panoramax affiché ou non (choix mémorisé)
+  $("#filaire").checked = store.get("filaire", "1") === "1";
+  map.on("load", () => Carte.setNetworkVisible(map, $("#filaire").checked));
+  $("#filaire").addEventListener("change", (event) => {
+    Carte.setNetworkVisible(map, event.target.checked);
+    store.set("filaire", event.target.checked ? "1" : "0");
+  });
   $("#fond").addEventListener("change", (event) => {
     Carte.setBackground(map, event.target.value);
     store.set("fond", event.target.value);

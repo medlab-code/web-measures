@@ -41,6 +41,16 @@ des mesures (précision RTK, couverture LiDAR HD) ; une fenêtre l'explique. On 
 réglages dans « Filtre des photos » et « Réglages », et les choix sont ensuite gardés. Une
 première photo s'ouvre (Clos de Vougeot, D974), tournée vers l'ouest.
 
+**La carte** : fonds Plan IGN, orthophoto, ortho-express, PCRS, OpenStreetMap, et
+**orthophoto avec noms** : noms des lieux et des rues, voies, avec les numéros de route dans
+des cartouches dessinés comme ceux de l'IISR (rouge pour les autoroutes et nationales, jaune
+pour les départementales, cyan pour les métropolitaines, vert pour les européennes), limites
+des départements (bleu), de la métropole (vert) et des communes (tirets noirs). Les
+autoroutes et nationales paraissent dès le zoom 7, les départementales dès le zoom 10, les
+autres voies dès le zoom 15. Les points de repère sont dessinés en bornes (tête à la couleur
+du réseau, numéro du PR), à côté de la voie. Le filaire Panoramax, semi-transparent, se
+masque par sa case à cocher.
+
 **Choisir une photo** : cliquer sur le filaire orange de la carte (photo la plus proche) ; la
 photo s'ouvre dans la visionneuse officielle Panoramax. Les flèches de la visionneuse passent
 aux photos voisines, et le **lecteur de séquence** en bas de la visionneuse la fait défiler en
@@ -280,7 +290,8 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 | Géoplateforme IGN : WMTS | Plan IGN, orthophoto | accessible |
 | Géoplateforme IGN : altimétrie | LiDAR HD sous les photos (vérification de la position RTK, inclinaison automatique) | accessible |
 | Géoplateforme IGN : WMS (`wms-r`) | PCRS | accessible |
-| Géoplateforme IGN : WFS | BD TOPO (axe de la route, route et PR de la photo, PR sur la carte) | accessible |
+| Géoplateforme IGN : WFS | BD TOPO (axe de la route, route et PR de la photo, PR sur la carte), ADMIN EXPRESS (limites administratives) | accessible |
+| Géoplateforme IGN : tuiles vectorielles (TMS) | Plan IGN (routes numérotées, noms), BD TOPO (voies) | accessible |
 | Géoplateforme IGN : géocodage | recherche de lieux (autocomplétion) | accessible |
 | geo.api.gouv.fr | commune de la photo | accessible |
 | Stockage des photos Panoramax (S3 OVH, derrière `panoramax.ign.fr`) | photos HD : capture Full HD, inclinaison automatique | accessible |
