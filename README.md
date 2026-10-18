@@ -317,6 +317,12 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.2.1** (18/10/2026) : fond « orthophoto avec noms » (noms des lieux et des rues, voies
+  avec les numéros de route dans des cartouches de l'IISR, limites des départements, de la
+  métropole et des communes) ; points de repère dessinés en bornes, posées hors de la voie ;
+  filaire Panoramax semi-transparent, avec une case pour le masquer ; mention « Version test,
+  projet personnel, non officiel » sous le titre ; logo Panoramax retiré. Cœur du plugin
+  Visionneuse Panoramax 1.5.0.
 - **0.2.0** (18/10/2026) : prise de mesure guidée (photo de référence, photos voisines
   proposées, visées des autres photos tracées dans la photo, trait vertical du cap, retour et
   vue cadrée sur la photo de référence) ; bord opposé d'une largeur triangulé ; triangulation
