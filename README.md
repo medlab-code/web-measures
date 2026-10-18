@@ -307,6 +307,16 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.2.0** (18/10/2026) : prise de mesure guidée (photo de référence, photos voisines
+  proposées, visées des autres photos tracées dans la photo, trait vertical du cap, retour et
+  vue cadrée sur la photo de référence) ; bord opposé d'une largeur triangulé ; triangulation
+  3D des points au sol quand les visées sont presque alignées (sol LiDAR HD lu au point) ;
+  recalcul quand la vérification RTK ou un calage arrivent après les clics ; « Effacer » du
+  dernier point, remise à zéro loin des mesures ; lecteur de séquence (1x à 16x) ; distance
+  au PR mesurée le long du filaire depuis le dernier PR ; véloroute et écluse dans le lieu de
+  la photo ; identifiant de photo à copier et accès par identifiant ; instance IGN et
+  photos du CD21 par défaut ; carte détachée déplaçable à la souris. Cœur du plugin
+  Visionneuse Panoramax 1.5.0.
 - **0.1.3** (17/10/2026) : requêteur route + PR (+ distance) sous la recherche de lieux, à
   listes qui se réduisent à la frappe ; photo ouverte dans le sens des PR croissants. Distance
   au PR mesurée le long du filaire IGN depuis le dernier PR passé, sans mise à l'échelle (plus
