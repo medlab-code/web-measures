@@ -109,7 +109,7 @@ après.
      avant ou après le point, pas juste en face) : seule la direction du clic compte, le bord
      est là où elle coupe la droite. Il reçoit la lettre suivante (B…), sur une étiquette
      grise tant qu'il n'est pas triangulé ; l'étiquette de la mesure nomme ses deux points
-     (« A↔B 7,50 m ± 0,20 m »).
+     (« A↔B 7,50 m ± 0,20 m »). Le sommet d'une hauteur est nommé de même (« A↕C 3,20 m »).
   3. Facultatif, plus précis : **« 🎯 Trianguler le point B »**. Le clic de l'étape 2
      compte comme première visée ; viser le même bord depuis la photo proposée, puis « Valider
      le point triangulé ». Le point garde sa lettre (étiquette bordeaux) ; la largeur devient la
@@ -320,6 +320,9 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.2.3** (18/10/2026) : sommet d'une hauteur nommé (lettre suivante, étiquette grise),
+  l'étiquette de la mesure nomme ses deux points (« A↕C 3,20 m »). Cœur du plugin
+  Visionneuse Panoramax (branche dev, 383e216).
 - **0.2.2** (18/10/2026) : étiquettes des mesures dans la photo agrandies (+25 %), sur fond
   bleu, avec les noms de leurs points (« A↔B 7,50 m ± 0,20 m ») ; bord cliqué d'une largeur
   nommé (lettre suivante, étiquette grise tant qu'il n'est pas triangulé) et bouton

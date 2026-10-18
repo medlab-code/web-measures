@@ -1383,15 +1383,16 @@ class Session:
         en cours, point 0 de ses mesures) ; points gardés de la mesure libre. side : côté de la
         croix opposé à la mesure (« left », « right », « above », « below »), pour ne pas la
         masquer ; dessous par défaut (une hauteur monte, une largeur s'étend sur les côtés).
-        Bord cliqué d'une largeur, pas encore triangulé : nom provisoire (« provisional »)."""
+        Bord cliqué d'une largeur (pas encore triangulé) et sommet d'une hauteur : nom provisoire
+        (« provisional »)."""
         pic = self.item.get("id")
         at = {}  # nom -> (repère, repère de l'autre bout de la mesure ou None)
+        provisional = set()  # noms provisoires : bord cliqué d'une largeur, sommet d'une hauteur
         ref = self.ref_point
         if ref is not None and self.active and self.mode in REF_MODES:
             mark = self._reference_mark()
             if mark:
                 at[ref["name"]] = (mark["points"][0], None)
-        provisional = set()
         for w in self._widths():
             points = self._width_points(w)
             at.setdefault(w.edge.get("name"), (points[0], points[1]))
@@ -1403,6 +1404,10 @@ class Session:
             if m.reference and m.reference.get("name"):
                 points = self._height_points(m)
                 at.setdefault(m.reference["name"], (points[0], points[1] if len(points) > 1 else None))
+                if len(points) > 1:  # sommet cliqué : nom provisoire, comme le bord d'une largeur
+                    name = self._provisional_name(m)
+                    provisional.add(name)
+                    at.setdefault(name, (points[1], points[0]))
         partner = {}
         for i, j, _ in self.links:  # mesure libre : à l'opposé du point relié
             partner.setdefault(i, j)
@@ -1416,8 +1421,9 @@ class Session:
                 for name, (p, other) in at.items() if name and p is not None]
 
     def _provisional_name(self, m):
-        """Nom provisoire du bord cliqué d'une largeur (lettre suivante des points gardés),
-        donné une fois ; le bord le garde s'il est triangulé ensuite (voir _keep_edge_b)."""
+        """Nom provisoire du bord cliqué d'une largeur ou du sommet d'une hauteur (lettre suivante
+        des points gardés), donné une fois ; le bord le garde s'il est triangulé ensuite (voir
+        _keep_edge_b)."""
         if not getattr(m, "provisional_name", None):
             m.provisional_name = _point_name(self.named)
             self.named += 1
