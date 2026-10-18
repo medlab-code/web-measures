@@ -35,35 +35,77 @@ localement :
 python3 -m http.server 8765    # puis http://127.0.0.1:8765/
 ```
 
+**Première utilisation** : l'instance Panoramax de l'IGN et les photos du conseil
+départemental de la Côte-d'Or sont choisies par défaut, car elles remplissent les prérequis
+des mesures (précision RTK, couverture LiDAR HD) ; une fenêtre l'explique. On peut changer ces
+réglages dans « Filtre des photos » et « Réglages », et les choix sont ensuite gardés. Une
+première photo s'ouvre (Clos de Vougeot, D974), tournée vers l'ouest.
+
 **Choisir une photo** : cliquer sur le filaire orange de la carte (photo la plus proche) ; la
 photo s'ouvre dans la visionneuse officielle Panoramax. Les flèches de la visionneuse passent
-aux photos voisines.
+aux photos voisines, et le **lecteur de séquence** en bas de la visionneuse la fait défiler en
+avant ou en arrière (chaque appui sur un sens : 1x, 2x, 4x, 8x, 16x). On peut aussi y aller
+par le **requêteur route + PR**, ou coller l'**identifiant** d'une photo (ou un lien
+Panoramax) dans « Aller à la photo » ; « 📋 Copier » sous l'identifiant de la photo affichée
+le copie, pour la passer à un collègue.
 
 **Mesurer** : bouton « 📐 Mesure », puis le mode. Les consignes s'affichent en haut au centre
 de la visionneuse ; le bouton **« ✔ Valider le point triangulé »** y apparaît, avec un halo,
 dès que les visées donnent un point (deux visées qui se croisent).
+
+**Prise de mesure guidée** :
+
+1. La photo de la première visée est la **photo de référence** : la mesure se fera sur elle ;
+   choisir celle d'où l'objet se voit le mieux.
+2. Des boutons sous la consigne proposent les photos à viser ensuite : en hauteur, la
+   précédente et la suivante de la référence, puis celle de l'autre côté pour une 3e visée ;
+   en largeur, en avançant vers le point. Ils sont nommés par rapport à la photo affichée
+   (« photo précédente », « 2 photos en arrière »…), avec une flèche selon leur direction dans
+   la vue (◀ ▶ ▲ ▼).
+3. En largeur et en mesure libre, les visées déjà faites depuis les autres photos sont tracées
+   en pointillés bleus dans la photo : l'objet visé est sur leur trait, il suffit de cliquer
+   là où il croise la bordure. Un trait vertical au centre de la vue suit le même cap que le
+   trait de la mini-carte, pour repérer dans la photo un objet vu sur la carte.
+4. Après « Valider le point triangulé », la page revient sur la photo de référence et cadre la
+   vue sur le point.
+
+Une visée qui s'écarte nettement des autres est signalée (autre objet visé ?). Quand les
+visées sont presque alignées et les photos RTK, le point est triangulé en 3D (inclinaison des
+visées, sol LiDAR HD lu au point). Si la vérification RTK ou l'inclinaison automatique arrivent
+après les clics, tout est recalculé : une mesure peut changer d'elle-même une ou deux secondes
+après.
 
 - **Hauteur d'un objet**
   1. Viser le **pied** de l'objet depuis au moins deux photos (un clic par photo, flèches
      pour changer de photo), puis « Valider le point triangulé » : c'est le point de référence,
      et le pied de la hauteur.
   2. Cliquer seulement le **sommet**, depuis une photo qui a servi à la visée : le pied est la
-     visée faite depuis elle. Depuis une autre photo, cliquer le pied puis le sommet.
+     visée faite depuis elle, à la profondeur du point triangulé. Depuis une autre photo,
+     cliquer le pied puis le sommet.
 
   Une fois la hauteur faite, les clics ne servent plus qu'à l'ajuster (clic sur une de ses
   croix, puis nouveau clic sur la photo de la mesure ou flèches ↑ ↓ : 1 cm sur la verticale).
   Le point de référence se recale de même dès qu'il est validé, sur sa verticale (seule
   l'élévation du clic compte). Pour une autre hauteur depuis le même point, depuis n'importe
-  quelle photo, cliquer « ↺ Nouvelle mesure depuis A » dans la visionneuse ; pour un autre
-  point, « Nouveau point de référence ». Une verticale verte le repère dans la photo.
+  quelle photo, cliquer « ↺ Nouvelle mesure depuis A » dans la visionneuse (elle repart du pied
+  recalé, s'il l'a été) ; pour un autre point, « Nouveau point de référence ». Une verticale
+  verte le repère dans la photo, tracée selon le calage de l'inclinaison.
 - **Largeur perpendiculaire à la chaussée**
   1. Viser le **premier bord** (pied de bordure, marquage…) depuis au moins deux photos, puis
      « Valider le point triangulé ». La page trace la **droite de mesure**, perpendiculaire à l'axe de
      la route en ce point (BD TOPO, sinon trajectoire de la séquence), en bleu dans la photo
      et sur la carte.
-  2. Cliquer le **bord opposé** depuis une photo prise quelques mètres avant ou après le
-     point, pas juste en face : seule la direction du clic compte, le bord est là où elle
-     coupe la droite.
+  2. Cliquer le **bord opposé** sur la photo de référence (ou une photo prise quelques mètres
+     avant ou après le point, pas juste en face) : seule la direction du clic compte, le bord
+     est là où elle coupe la droite.
+  3. Facultatif, plus précis : **« 🎯 Trianguler le bord opposé »**. Le clic de l'étape 2
+     compte comme première visée ; viser le même bord depuis la photo proposée, puis « Valider
+     le point triangulé ». La largeur devient la distance des deux bords triangulés,
+     perpendiculaire à l'axe de la route, et la vue revient sur la photo de référence, cadrée
+     sur la largeur. Pendant ces visées, les autres photos ne montrent que les visées.
+
+  Sur une photo qui a servi à viser un bord, sa croix est là où il a été visé, et la droite
+  de mesure passe par la croix du premier bord.
 
   Une fois la largeur faite, les clics ne servent plus qu'à l'ajuster (clic sur une de ses croix, puis nouveau clic ou flèches : 1 cm le long de la droite de mesure). Pour une autre largeur depuis le même point, cliquer « ↺ Nouvelle mesure depuis A » dans la visionneuse ; pour un autre point, « Nouveau point de référence ».
 
@@ -86,6 +128,11 @@ Points, traits et étiquettes restent visibles sur toutes les photos (là où il
 cliqués, ou projetés au sol sur les autres photos). Dans la photo, la droite de mesure d'une
 largeur est en tirets bleus, la verticale d'une hauteur en tirets verts ; sur la carte, les
 visées de triangulation sont en tirets rouges, celles du calage du cap en tirets noirs.
+
+**Effacer** : la sélection, les visées ou la mesure en cours ; sans rien en cours, le dernier
+point posé (sommet, bord opposé, puis le point de référence ; en mesure libre, le dernier
+point gardé). Quand la photo affichée est à plus de 100 m des mesures, la page propose de
+tout effacer pour repartir de zéro.
 
 **Recaler un point** : **clic** (gauche ou droit) sur sa croix pour le sélectionner, puis :
 
@@ -117,11 +164,16 @@ Le calage est gardé d'une visite à l'autre, et peut être exporté ou importé
 - voyants **RTK**, **LiDAR HD** et **inclinaison** de la photo ;
 - fonds de carte : Plan IGN, orthophoto, Ortho-express de l'année de la photo, PCRS de la
   Géoplateforme là où il est publié, OpenStreetMap ; recherche de lieux ; points de repère
-  (PR) des routes ; requêteur route + PR (+ distance), à listes qui se réduisent à la frappe ; route, PR et commune de la photo incrustés dans la visionneuse ;
+  (PR) des routes ; requêteur route + PR (+ distance), à listes qui se réduisent à la frappe ;
+- lieu de la photo incrusté en bas à gauche de la visionneuse : route, PR et distance mesurée
+  le long du filaire IGN depuis le dernier PR passé, nom de la voie, commune ; hors route
+  départementale, la véloroute suivie et l'écluse la plus proche (chemins de halage) ;
+- lecteur de séquence (1x à 16x), date et producteur en bas à droite ;
 - carte cadrée automatiquement sur la mesure en cours (mesure libre : sur le segment qui vient
   d'être mesuré) ;
 - carte **détachable** dans une fenêtre à part, à placer sur un second écran (bouton « ⧉ » sous
-  le zoom, Edge et Chrome seulement) : elle reste reliée à la page ; fermer la fenêtre, ou
+  le zoom, Edge, Chrome et Firefox récents) : elle reste reliée à la page et se déplace à la
+  souris ; fermer la fenêtre, ou
   « Remettre la carte ici » dans la colonne, la remet en place ;
 - **filtre des photos** (date, type, précision GPS, producteur) et choix de l'**instance**
   Panoramax : les photos écartées ne s'ouvrent pas, ni par la carte ni par les flèches ;
@@ -162,7 +214,9 @@ photo plus éloignée, qui voit la droite plus en face, la réduit. Avec un GPS 
 
 - Mesures fiables seulement sur des photos à position RTK vérifiée.
 - Points projetés sur les autres photos que celle du clic : sol supposé plat, à la hauteur
-  de caméra du réglage (affichage seulement, la mesure n'en dépend pas).
+  de caméra de la photo (affichage seulement, la mesure n'en dépend pas).
+- Triangulation 3D validée sur des cas simulés seulement : à confirmer sur des points
+  relevés sur le terrain.
 - Incertitude de l'axe de la route (±2° pour la BD TOPO, ±3° pour la trajectoire) estimée,
   à confirmer sur le terrain.
 - Mesures perdues en fermant la page : les exporter avant.
@@ -179,7 +233,7 @@ photo plus éloignée, qui voit la droite plus en face, la réduit. Avec un GPS 
 | `src/services.js` | vérification de l'accès aux services |
 | `src/recherche.js` | recherche de lieux sur la carte (commune, lieu-dit, voie, adresse) |
 | `src/requeteur.js` | requêteur route + PR (+ distance) : routes du département affiché, côté droit par défaut |
-| `src/lieu.js` | route, point de repère (PR) et commune de la photo, incrustés dans la visionneuse |
+| `src/lieu.js` | route, point de repère (PR), véloroute, écluse et commune de la photo, incrustés dans la visionneuse |
 | `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page (points de référence, hauteurs, largeurs, mesure libre, recalages) |
 | `py/web_host.py` | accès réseau du cœur par le `fetch` du navigateur |
 | `py/web_worker.py` | calculs lourds dans le Pyodide d'arrière-plan |
