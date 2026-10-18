@@ -283,22 +283,24 @@ class Session:
 
     # Réglages ------------------------------------------------------------------------
     def set_active(self, on):
-        """Bouton « Mesure » : activé, les clics dans la photo mesurent et l'inclinaison de la
-        photo est calculée ; désactivé, les mesures en cours sont terminées (les mesures réussies
-        restent affichées), comme dans le plugin. Les visées de la triangulation restent : on
-        peut désactiver la mesure pour aller viser depuis une autre photo."""
+        """Bouton « Mesure » : activé, les clics dans la photo mesurent (l'inclinaison de la
+        photo est calculée au premier clic, voir _check_tilt) ; désactivé, les mesures en cours
+        sont terminées (les mesures réussies restent affichées), comme dans le plugin. Les
+        visées de la triangulation restent : on peut désactiver la mesure pour aller viser
+        depuis une autre photo."""
         self.active = bool(on)
         self.message = ""
-        if self.active:
-            self._check_tilt()
-        else:
+        if not self.active:
             self._clear_measures(keep_sightings=True)
         return self.status()
 
     def _check_tilt(self):
-        """Inclinaison automatique de la photo affichée, en mesure ou en calage seulement : la
-        mesure libre s'en passe (calcul long évité ; sans elle, ses visées comptent surtout
-        par leur cap)."""
+        """Inclinaison automatique de la photo affichée, en mesure ou en calage seulement, lancée
+        au premier clic sur la photo et non à son arrivée : le calcul (photo HD, recherche des
+        verticales) occupe le processeur quelques secondes et ferait saccader la vue pendant qu'on
+        cherche l'objet ; les clics faits avant son résultat sont recalculés à son arrivée
+        (_recompute). La mesure libre s'en passe (calcul long évité ; sans elle, ses visées
+        comptent surtout par leur cap)."""
         if self.active and self.item and self.mode != "tri":
             pic = self.item.get("id")
             before = self.calibration.auto.get(pic)
@@ -315,7 +317,6 @@ class Session:
         self.ref_sel = False
         self.message = ""
         self._active()
-        self._check_tilt()  # en quittant la triangulation
         return self.status()
 
     def _clear_measures(self, keep_sightings=False):
@@ -354,7 +355,6 @@ class Session:
             if nid and nid not in self.neighbours:
                 host.fetch_json("{}/search?ids={}".format(host.api_url, nid),
                                     lambda data, error, nid=nid: self._on_neighbour(nid, data))
-        self._check_tilt()
         return self.status()
 
     def _on_neighbour(self, nid, data):
@@ -402,6 +402,7 @@ class Session:
         if not self.item:
             self.message = "Photo en cours de chargement : cliquez à nouveau."
             return self.status()
+        self._check_tilt()
         if self._aiming():
             return self.aim(yaw, pitch)
         raw_yaw = (math.degrees(yaw) + self._heading()) % 360

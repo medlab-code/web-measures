@@ -320,6 +320,9 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.2.6** (18/10/2026) : inclinaison automatique calculée au premier clic sur la photo, et
+  non plus dès son arrivée (le calcul faisait saccader la vue pendant qu'on cherchait
+  l'objet). Cœur du plugin Visionneuse Panoramax (branche dev, 0c227ca).
 - **0.2.5** (18/10/2026) : rotation de la vue plus fluide : cône de vue dessiné en image
   tournée sur la carte (la carte ne se redessine plus à chaque image), écartement des
   étiquettes recalculé au zoom et à l'arrêt seulement, traits de la visée à 41 points. Cœur
