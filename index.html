@@ -64,6 +64,8 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
   <main>
     <section id="vue">
       <p id="invite">Cliquez sur le filaire orange de la carte pour choisir une photo.</p>
+      <!-- Largeur, mesure libre : centre de la vue, même cap que le trait de la mini-carte -->
+      <div id="axe-vue" hidden></div>
       <pnx-photo-viewer id="visionneuse" endpoint="https://api.panoramax.xyz/api" widgets="false"
                         url-parameters="false" keyboard-shortcuts="false" hidden></pnx-photo-viewer>
       <ul id="voyants" hidden></ul>
@@ -198,6 +200,16 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
     <form method="dialog">
       <button value="non">Non</button>
       <button value="oui" class="principal">Mesurer la distance</button>
+    </form>
+  </dialog>
+  <!-- Photo à plus de 100 m des mesures : proposer de repartir de zéro (une fois par éloignement) -->
+  <dialog id="loin-mesures">
+    <h2>Mesures loin d'ici</h2>
+    <p>Les mesures et points triangulés sont à <span></span> de cette photo. Tout effacer pour repartir de
+      zéro ? Exportez-les d'abord (CSV, GeoJSON) si vous voulez les garder.</p>
+    <form method="dialog">
+      <button value="non">Garder</button>
+      <button value="oui" class="principal">Tout effacer</button>
     </form>
   </dialog>
   <!-- Séquence sans position RTK vérifiée : une fois par séquence, en mesure -->

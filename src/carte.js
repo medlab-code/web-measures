@@ -134,14 +134,10 @@ const Carte = (() => {
             id: "vue-bord", type: "line", source: "vue", filter: ["==", ["get", "kind"], "cone"],
             paint: { "line-color": CURSEUR, "line-width": 1.5 },
           },
-          {  // axe de la vue, prolongé : croisement du cap de visée avec la carte (liseré blanc
-            // pour se détacher du cône et des fonds)
-            id: "vue-axe-halo", type: "line", source: "vue", filter: ["==", ["get", "kind"], "axe"],
-            paint: { "line-color": "#ffffff", "line-width": 3, "line-opacity": 0.7 },
-          },
-          {
+          {  // axe de la vue, prolongé : croisement du cap de visée avec la carte ; comme le trait
+            // vertical au centre de la visionneuse (plein, sans liseré, un peu transparent)
             id: "vue-axe", type: "line", source: "vue", filter: ["==", ["get", "kind"], "axe"],
-            paint: { "line-color": CURSEUR, "line-width": 1.2 },
+            paint: { "line-color": CURSEUR, "line-width": 2, "line-opacity": 0.6 },
           },
           {
             id: "vue-photo", type: "circle", source: "vue", filter: ["==", ["get", "kind"], "photo"],

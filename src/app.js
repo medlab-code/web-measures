@@ -612,6 +612,50 @@
     $("#vignette").disabled = false;
     if (app) refresh(app.set_picture(JSON.stringify(feature)));
     updateProducers();
+    checkFarFromMeasures(coords);
+  }
+
+  // Photo loin des mesures : proposer de repartir de zéro ------------------------------------
+
+  const FAR_FROM_MEASURES = 100;  // m
+  let farAsked = false;  // déjà proposé pour cet éloignement : redemandé après un retour près des mesures
+
+  /** Distance (m) de la photo en lonlat à la mesure la plus proche (points triangulés, cibles des
+   * visées, points et traits des mesures), ou null sans mesure. Les traits de visée partent des
+   * photos, la droite de mesure et le calage ne comptent pas. */
+  function distanceToMeasures(lonlat) {
+    if (!app) return null;
+    const kinds = new Set(["mesure", "point", "etiquette", "triangule", "cible", "distance"]);
+    const k = Math.cos(lonlat[1] * Math.PI / 180) * 111320;
+    let best = null;
+    for (const f of JSON.parse(app.map_geojson()).features) {
+      if (!kinds.has(f.properties.kind)) continue;
+      const coords = f.geometry.type === "Point" ? [f.geometry.coordinates] : f.geometry.coordinates;
+      for (const [lon, lat] of coords) {
+        const d = Math.hypot((lon - lonlat[0]) * k, (lat - lonlat[1]) * 111320);
+        if (best == null || d < best) best = d;
+      }
+    }
+    return best;
+  }
+
+  function checkFarFromMeasures(lonlat) {
+    const d = distanceToMeasures(lonlat);
+    if (d == null || d <= FAR_FROM_MEASURES) {
+      farAsked = false;
+      return;
+    }
+    const dialog = $("#loin-mesures");
+    if (farAsked || dialog.open) return;
+    farAsked = true;
+    stopPlayer();  // lecture de la séquence arrêtée le temps de répondre
+    dialog.querySelector("p span").textContent = d >= 1000 ? `${(d / 1000).toFixed(1).replace(".", ",")} km`
+      : `${Math.round(d)} m`;
+    dialog.returnValue = "";
+    dialog.addEventListener("close", () => {
+      if (dialog.returnValue === "oui") refresh(app.clear_all());
+    }, { once: true });
+    dialog.showModal();
   }
 
   function showPhotoInfo(feature, message) {
@@ -978,6 +1022,8 @@
     $("#vue").classList.toggle("visee", sighting);
     $("#vue").classList.toggle("prise", taking);
     $("#vue").classList.toggle("calage", calibrating);
+    // Largeur, mesure libre : trait vertical au centre de la vue, le cap tracé sur la carte
+    $("#axe-vue").hidden = !measuring || !["road", "tri"].includes(mode) || viewer.hidden;
     // Même état en toutes lettres, sous le rappel du mode (comme les voyants)
     const state = $("#etat-mesure");
     state.hidden = !sighting && !taking;
@@ -1051,9 +1097,11 @@
       if (mark.guide) {  // tirets sans croix : droite de mesure (largeur, bleue), verticale (hauteur, verte)
         if (points.length >= 2) {
           add({
-            id: `${MARK}${m}-guide`, polyline: points.map(({ yaw, pitch }) => [yaw, pitch]),
-            svgStyle: { stroke: mark.vertical ? "#2ecc40" : "#00bce6", strokeWidth: "2px", strokeDasharray: "8 5",
-              fill: "none" },
+            id: `${MARK}${m}-${mark.epipolar ? "epipolaire" : "guide"}`, polyline: points.map(({ yaw, pitch }) => [yaw, pitch]),
+            // Visée d'une autre photo (ligne épipolaire) : pointillés fins ; droite de mesure et
+            // verticale : tirets
+            svgStyle: mark.epipolar ? { stroke: "#00bce6", strokeWidth: "2.5px", strokeDasharray: "5 4", fill: "none" }
+              : { stroke: mark.vertical ? "#2ecc40" : "#00bce6", strokeWidth: "2px", strokeDasharray: "8 5", fill: "none" },
           });
         }
         return;
@@ -1411,8 +1459,8 @@
       if (mark.guide) {
         ctx.save();
         ctx.strokeStyle = mark.vertical ? "#2ecc40" : "#00bce6";
-        ctx.lineWidth = 2 * scale;
-        ctx.setLineDash([8 * scale, 5 * scale]);
+        ctx.lineWidth = (mark.epipolar ? 2.5 : 2) * scale;
+        ctx.setLineDash(mark.epipolar ? [5 * scale, 4 * scale] : [8 * scale, 5 * scale]);
         ctx.beginPath();
         let open = false;
         for (const p of pts) {

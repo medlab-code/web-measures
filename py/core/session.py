@@ -1220,10 +1220,58 @@ class Session:
             self.width_sel, self.ref_sel = None, False
             return self.status()
         self.epoch += 1
+        nothing_aimed = tool is self.triangulator and not self.triangulator.sightings
+        nothing_clicked = tool is self.tool and self.mode in REF_MODES and (
+            self.tool.current is None or not self.tool.current.clicks)
+        if nothing_aimed or nothing_clicked:  # rien en cours : le dernier point posé
+            return self._undo_point()
         tool.clear()
         if tool is self.calibrator:
             self._calibration_changed()
         return self.status()
+
+    def _undo_point(self):
+        """« Effacer » sans rien en cours : retire le dernier point posé. Hauteur ou largeur : la
+        dernière mesure depuis le point de référence (son sommet, son bord opposé, triangulé ou
+        non), puis, sans mesure, le point de référence lui-même ; mesure libre : le dernier point
+        gardé (et sa distance au précédent)."""
+        if self.mode == "tri":
+            if self.points:
+                self._drop_kept(len(self.points) - 1)
+            return self.status()
+        ref = self.ref_point
+        if ref is None:
+            return self.status()
+        if self.mode == "road":
+            mates = [m for m in self._widths() if m.edge is ref]
+        else:
+            mates = [m for m in self._heights() if (m.reference or {}).get("name") == ref["name"]]
+        if mates:
+            m = mates[-1]
+            if getattr(m, "edge_b", None):  # bord opposé triangulé : son point gardé avec
+                k = next((k for k, (_, _, v) in enumerate(self.points) if v["nom"] == m.edge_b["name"]), None)
+                if k is not None:
+                    self._drop_kept(k)
+            self.delete_result("mesure", id(m))
+            self.measure_done = False
+            self.message = ("Bord opposé effacé : cliquez-le à nouveau." if self.mode == "road"
+                            else "Sommet effacé : cliquez-le à nouveau.")
+            return self.status()
+        k = next((k for k, (_, _, v) in enumerate(self.points) if v["nom"] == ref["name"]), None)
+        if k is not None:
+            self._drop_kept(k)
+        self.ref_point, self.width_sel, self.ref_sel, self.measure_done = None, None, False, False
+        self.message = "Point de référence {} effacé : visez-le à nouveau.".format(ref["name"])
+        return self.status()
+
+    def _drop_kept(self, k):
+        """Retire le point gardé n° k ; si c'était le dernier nommé, sa lettre resservira."""
+        name = self.points[k][2]["nom"]
+        self.delete_result("point", k)
+        self.proposal = None  # pas de distance proposée : c'est une annulation
+        self.point_views.pop(name, None)
+        if name == _point_name(self.named - 1):
+            self.named -= 1
 
     def clear_all(self):
         self.epoch += 1
@@ -1593,10 +1641,14 @@ class Session:
             marks = [self._guide_mark(road)] + marks
         if self.active and self.mode == "height" and self.ref_point and self.item:  # de même
             marks = [self._vertical_mark()] + marks
+        if self.active and self.item and self._aiming() and self.mode in ("road", "tri"):
+            # Visées faites depuis les autres photos, tracées dans celle-ci : l'objet visé est sur
+            # leur trait (ligne épipolaire), ce qui fixe la profondeur de la visée suivante
+            marks = [self._epipolar_mark(s) for s in self.triangulator.sightings if s["pic"] != pic] + marks
         if self.b_aiming is not None and pic != self.ref_photo:
             # Bord opposé visé depuis une autre photo que celle de la mesure : seulement les
             # visées ; droite, largeurs et point de référence reviennent sur la photo de la mesure
-            marks = [m for m in marks if m.get("sighting")]
+            marks = [m for m in marks if m.get("sighting") or m.get("epipolar")]
         out = []
         for m in marks:
             points = [p for p in m["points"] if p.get("pic") == pic and p.get("yaw") is not None]
@@ -1605,6 +1657,7 @@ class Session:
                             "label": m.get("label", ""), "beside": m.get("beside", False),
                             "sighting": m.get("sighting", False), "guide": m.get("guide", False),
                             "vertical": m.get("vertical", False), "name": m.get("name", False),
+                            "epipolar": m.get("epipolar", False),
                             "side": m.get("side", "")})
         return out
 
@@ -1659,6 +1712,28 @@ class Session:
             points.append({"pic": pic, "yaw": math.radians((yaw - heading + 540) % 360 - 180),
                            "pitch": math.radians(pitch)})
         return {"points": points, "guide": True, "vertical": True}
+
+    def _epipolar_mark(self, s):
+        """Visée s, faite depuis une autre photo, tracée dans la photo affichée : sa demi-droite
+        dans l'espace (cap et inclinaison corrigés du calage, caméras à la hauteur de celle de la
+        photo affichée au-dessus d'un sol plat), de 0,5 m jusqu'un peu au-delà du sol qu'elle
+        touche (80 m au plus). L'objet visé est sur ce trait."""
+        lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
+        height = self._camera_height()
+        sx, sy = triangulation._local(s["lon"], s["lat"], lon, lat)
+        a, e = math.radians(s["heading"]), math.radians(s.get("elev") or 0.0)
+        reach = 80.0 if e >= -0.002 else min(80.0, height / -math.tan(e) * 1.2 + 1.0)
+        points = []
+        for k in range(81):
+            t = 0.5 * (reach / 0.5) ** (k / 80)  # pas plus serrés près de la caméra de la visée
+            x, y = sx + t * math.sin(a), sy + t * math.cos(a)
+            z = t * math.tan(e)  # hauteur par rapport aux caméras
+            d = math.hypot(x, y)
+            if d < 0.5:
+                continue
+            view = self._view_of(math.degrees(math.atan2(x, y)), math.degrees(math.atan2(z, d)))
+            points.append({"pic": self.item.get("id"), "yaw": view["yaw"], "pitch": view["pitch"]})
+        return {"points": points, "guide": True, "epipolar": True}
 
     def _guide_mark(self, road):
         """Droite de mesure de la largeur dans la photo affichée (repère de la visionneuse) :
