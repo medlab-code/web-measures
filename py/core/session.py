@@ -71,6 +71,9 @@ class Session:
         self.mode = "road"
         self.tool.set_mode("road")
         self.item = None  # fiche STAC de la photo affichée
+        # Fiches des photos affichées (id -> fiche) : leurs visées et leurs clics se recalculent
+        # quand leur calage ou leur précision change (voir _recompute)
+        self.photo_items = {}
         self.quality = None  # vérification de sa précision (voir precision.PrecisionChecker)
         self.neighbours = {}  # fiches des photos voisines (axe de la séquence) : id -> fiche
         self.message = ""
@@ -120,8 +123,102 @@ class Session:
         en hauteur ou largeur tant que le point de référence n'est pas validé."""
         return self.mode == "tri" or (self.mode in REF_MODES and self.ref_point is None)
 
-    def _calibration_changed(self):
+    def _calibration_changed(self, pics=None):
+        """Calage changé (des photos pics, de toutes si None) : à enregistrer, et ce qui en
+        dépend recalculé."""
         self.calibration_version += 1
+        self._recompute(pics)
+
+    def calibration_updated(self):
+        """Calage changé hors de la session (chargé, fusionné, importé) : tout est recalculé."""
+        self._calibration_changed()
+
+    def _recompute(self, pics=None):
+        """Visées, point de référence et mesures recalculés depuis leurs directions brutes, avec
+        le calage et la précision actuels des photos pics (toutes si None) : le résultat ne
+        dépend pas de l'ordre dans lequel arrivent les clics, la vérification RTK et les calages
+        (automatiques ou faits à la main avant ou après)."""
+        def touched(pic):
+            return pics is None or pic in pics
+
+        try:
+            if any([self._resight(s) for s in self.triangulator.sightings if touched(s["pic"])]):
+                self.triangulator.recompute()
+            clicked = self._reclick(touched)
+            moved = self._recompute_reference(touched)
+            for m in self.tool.measures():
+                if m in clicked or (moved and m in moved):
+                    if isinstance(m, widths.PerpendicularWidth):
+                        m.clicks[0] = m._edge_mark(m.clicks[1])  # repère de A dans la photo du bord
+                        m.compute()
+                    elif m.reference is not None:  # hauteur calée sur un point triangulé
+                        ref = m.reference
+                        m.anchor(ref["lon"], ref["lat"], ref["uncertainty"], ref["name"])
+                    else:
+                        m.compute()
+        except Exception:
+            traceback.print_exc()
+
+    def _resight(self, s):
+        """Visée s recalculée depuis sa direction brute (calage, précision de sa photo). Retourne
+        True si elle a pu l'être."""
+        item = self.photo_items.get(s["pic"])
+        if item is None or not s.get("raw"):
+            return False
+        new = tools.photo_sighting(item, s["raw"][0], s["raw"][1], self.calibration, self.precision.known(item))
+        if new is None:
+            return False
+        view = s.get("view")
+        s.clear()
+        s.update(new)
+        if view is not None:
+            s["view"] = view
+        return True
+
+    CLICK_KEYS = ("yaw", "elev", "lon", "lat", "camera_alt", "gps", "gps_accuracy", "accuracy")
+
+    def _reclick(self, touched):
+        """Clics des mesures sur les photos touchées recalculés depuis leur direction brute.
+        Retourne les mesures dont un clic a changé."""
+        out = []
+        for m in self.tool.measures():
+            changed = False
+            for c in m.clicks:
+                item = self.photo_items.get(c.get("pic"))
+                if item is None or not c.get("raw") or not touched(c.get("pic")):
+                    continue
+                new = tools.photo_click(item, c["raw"][0], c["raw"][1], self.calibration, self.precision.known(item),
+                                        c.get("pos"), c.get("axis"))
+                if new is not None:
+                    c.update({k: new[k] for k in self.CLICK_KEYS})
+                    changed = True
+            if changed:
+                out.append(m)
+        return out
+
+    def _recompute_reference(self, touched):
+        """Point de référence dont une visée a été recalculée : triangulé à nouveau, ses largeurs
+        et ses hauteurs recalées sur lui. Laissé tel quel s'il a été déplacé à la main (recalage
+        le long de la droite de mesure). Retourne ses mesures (à recalculer), ou None s'il n'a pas
+        bougé."""
+        ref = self.ref_point
+        if not ref or ref.get("moved"):
+            return None
+        if not any([self._resight(s) for s in ref.get("sightings", []) if touched(s["pic"])]):
+            return None
+        try:
+            r = triangulation.solve(ref["sightings"], True)
+        except triangulation.TriangulationError:
+            return None
+        ref.update(lon=r["lon"], lat=r["lat"], uncertainty=r["uncertainty"])
+        self._edge_moved(ref, [])  # son point gardé (export) suit
+        mates = [w for w in self._widths() if w.edge is ref]
+        for m in self._heights():
+            if (m.reference or {}).get("name") == ref["name"]:
+                m.reference = {"lon": ref["lon"], "lat": ref["lat"], "uncertainty": ref["uncertainty"],
+                               "name": ref["name"]}
+                mates.append(m)
+        return mates
 
     # Réglages ------------------------------------------------------------------------
     def set_active(self, on):
@@ -139,7 +236,8 @@ class Session:
 
     def _check_tilt(self):
         """Inclinaison automatique de la photo affichée, en mesure ou en calage seulement : la
-        triangulation ne vise qu'en cap, elle n'en a pas besoin (calcul long évité)."""
+        mesure libre s'en passe (calcul long évité ; sans elle, ses visées comptent surtout
+        par leur cap)."""
         if self.active and self.item and self.mode != "tri":
             pic = self.item.get("id")
             before = self.calibration.auto.get(pic)
@@ -182,8 +280,12 @@ class Session:
         """Photo affichée dans la visionneuse : sa fiche STAC."""
         self.item = item
         pic = item.get("id")
+        self.photo_items[pic] = item
+        if len(self.photo_items) > 500:  # les plus anciennes, sans visée ni clic récents
+            self.photo_items.pop(next(iter(self.photo_items)))
         self.quality = self.precision.known(item)
-        self.precision.check(item, lambda res: self._on_precision(pic, res))
+        before = self.quality
+        self.precision.check(item, lambda res: self._on_precision(pic, res, before))
         self.calibrator.refresh()  # carte : visées des repères de calage pris depuis cette photo
         for rel in ("prev", "next"):  # voisines : axe de la séquence
             nid = metadata.id_from_href(metadata.item_link(item, rel))
@@ -205,29 +307,23 @@ class Session:
             return self.neighbours.get(metadata.id_from_href(metadata.item_link(item, rel)))
         return metadata.sequence_axis(item, neighbour("prev"), neighbour("next"))
 
-    def _on_precision(self, pic, res):
-        if pic != (self.item or {}).get("id"):
-            return  # photo déjà quittée
-        self.quality = res
+    def _on_precision(self, pic, res, before=None):
+        """Précision de la séquence de la photo pic arrivée : visées et clics faits avant sur ses
+        photos recalculés (altitude RTK, sol LiDAR, précision vérifiée)."""
+        if res is not before:
+            sequence = (self.photo_items.get(pic) or {}).get("collection")
+            self._recompute({p for p, it in self.photo_items.items() if it.get("collection") == sequence} | {pic})
+        if pic == (self.item or {}).get("id"):  # photo encore affichée
+            self.quality = res
         self.notify()
 
     def _on_tilt(self, pic, before=None):
-        """Inclinaison automatique arrivée : clics déjà faits sur la photo corrigés. Rien si elle
-        n'a pas changé (check rappelle aussi sans calcul : photo déjà calée, non 360°, sans cap) :
-        ni calage réenregistré, ni affichage refait."""
+        """Inclinaison automatique arrivée : clics, visées et point de référence de la photo
+        recalculés (voir _recompute). Rien si elle n'a pas changé (check rappelle aussi sans
+        calcul : photo déjà calée, non 360°, sans cap) : ni calage réenregistré, ni affichage refait."""
         if self.calibration.auto.get(pic) == before:
             return
-        self._calibration_changed()
-        cal = self.calibration
-
-        def correct(c):
-            gps = c.get("gps") or [None, None]
-            return cal.correct(pic, c.get("sequence"), c["raw"][0], c["raw"][1], gps[0], gps[1])
-
-        try:
-            self.tool.recorrect(pic, correct)
-        except Exception:
-            traceback.print_exc()
+        self._calibration_changed({pic})
         self.notify()
 
     def _heading(self):
@@ -565,6 +661,7 @@ class Session:
             widths.move_edge(edge, axis, -d)
             self._edge_moved(edge, mates)
             return "Le point de référence ne passe pas au-delà du bord."
+        edge["moved"] = True  # déplacé à la main : plus retriangulé (voir _recompute_reference)
         return None
 
     def nudge_point(self, key):

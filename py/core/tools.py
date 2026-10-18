@@ -64,6 +64,7 @@ def photo_sighting(item, heading, pitch, cal, quality=None):
     except (KeyError, TypeError, ValueError):
         return None
     pic, sequence = item.get("id", ""), item.get("collection")
+    heading_raw = heading
     heading, elev = cal.correct(pic, sequence, float(heading), float(pitch), lon, lat)
     fixed = cal.position(sequence, lon, lat)
     clon, clat, accuracy = fixed if fixed else (lon, lat, _accuracy(item, quality))
@@ -76,7 +77,8 @@ def photo_sighting(item, heading, pitch, cal, quality=None):
     return {"pic": pic, "sequence": sequence, "lon": clon, "lat": clat, "heading": heading,
             "accuracy": accuracy, "precise": metadata.precise_heading(item) is not None,
             "heading_error": cal.heading_error(sequence, lon, lat),
-            "elev": elev, "alt": alt, "ground": ground, "elev_error": tilt["sigma"] if tilt else None}
+            "elev": elev, "alt": alt, "ground": ground, "elev_error": tilt["sigma"] if tilt else None,
+            "raw": [float(heading_raw) % 360, float(pitch)], "gps": [lon, lat]}
 
 
 def _accuracy(item, quality):
@@ -178,6 +180,11 @@ class Triangulator:
     def clear(self):
         self.sightings, self.result, self.error = [], None, None
         self._draw()
+
+    def recompute(self):
+        """Point recalculé après un changement des visées (calage ou précision arrivés après
+        coup, voir session.Session._recompute)."""
+        self._compute()
 
     def remove(self):
         if self.item is not None:

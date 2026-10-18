@@ -32,6 +32,12 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
   try {
     await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 120000, "Pyodide");
     const app = w.mesures.app, doc = w.document;
+    // Photos de niveau : inclinaison nulle calée à la main (deux objets verticaux à 90°), comme
+    // le supposent les clics de l'essai, calculés sans inclinaison. Sans cela, l'inclinaison
+    // automatique, arrivée après coup, recalculerait visées, point et mesures (session._recompute)
+    // loin des valeurs attendues.
+    const level = [[[30, -10], [30, 15]], [[120, -10], [120, 15]]];
+    app.merge_calibration(JSON.stringify({ format: 1, verticals: Object.fromEntries(IDS.map((id) => [id, level])) }));
     const psvClick = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: false }; w.mesures.psv.dispatchEvent(e); };
     const psvRight = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: true }; w.mesures.psv.dispatchEvent(e); };
     doc.querySelector("#mesure").click();
