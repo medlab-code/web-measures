@@ -401,6 +401,30 @@ button.principal { font-weight: 600; }
 }
 #garder[hidden] { display: none; }
 
+/* Photos à viser ensuite (hauteur, largeur) : bleu clair des visées, sous la validation */
+#guide-photos {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+#guide-photos[hidden] { display: none; }
+#guide-photos button {
+  pointer-events: auto;
+  padding: 0.3rem 0.8rem;
+  border: 2px solid #00bce6;
+  border-radius: 5px;
+  background: var(--etiquette-vue);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-shadow: var(--detoure-vue);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+#guide-photos button:hover { background: rgba(0, 152, 187, 0.85); }
+
 /* « Nouvelle mesure depuis A » au même endroit, une fois la largeur faite : jaune de la mesure */
 #nouvelle-mesure {
   pointer-events: auto;

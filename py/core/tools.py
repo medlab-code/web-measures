@@ -68,16 +68,18 @@ def photo_sighting(item, heading, pitch, cal, quality=None):
     heading, elev = cal.correct(pic, sequence, float(heading), float(pitch), lon, lat)
     fixed = cal.position(sequence, lon, lat)
     clon, clat, accuracy = fixed if fixed else (lon, lat, _accuracy(item, quality))
-    alt = ground = None
+    alt = ground = spread = None
     if quality and quality["precise"]:
         alt = host.ngf_altitude(lon, lat, metadata.item_altitude(item))
         if alt is not None and quality.get("lidar") is True and quality.get("height") is not None:
-            ground = alt - quality["height"]
+            ground = alt - quality["height"]  # hauteur de caméra médiane de la séquence
+            spread = quality.get("spread")  # sa dispersion d'une photo à l'autre
     tilt = cal.tilt(pic)
     return {"pic": pic, "sequence": sequence, "lon": clon, "lat": clat, "heading": heading,
             "accuracy": accuracy, "precise": metadata.precise_heading(item) is not None,
             "heading_error": cal.heading_error(sequence, lon, lat),
-            "elev": elev, "alt": alt, "ground": ground, "elev_error": tilt["sigma"] if tilt else None,
+            "elev": elev, "alt": alt, "ground": ground, "ground_spread": spread,
+            "elev_error": tilt["sigma"] if tilt else None,
             "raw": [float(heading_raw) % 360, float(pitch)], "gps": [lon, lat]}
 
 
@@ -149,6 +151,25 @@ def calibration_text(cal, pic, sequence, lon, lat):
     return "Calage : " + " · ".join(parts) if parts else ""
 
 
+GROUND_REUSE = 1.0  # m : altitude LiDAR lue gardée tant que le point en reste à moins de cette distance
+GROUND_ASKS = 3  # lectures successives au plus pour un même jeu de visées
+
+
+def _metres(a, b):
+    """Distance (m) entre deux (lon, lat)."""
+    return math.hypot(*triangulation._local(b[0], b[1], a[0], a[1]))
+
+
+def solve_on_ground(sightings, ground, ground_z):
+    """triangulation.solve, avec l'altitude du MNT LiDAR HD lue au point ground_z (lon, lat, z)
+    si elle l'a été près du point trouvé avec le sol tiré des photos (GROUND_REUSE) : une
+    altitude lue ailleurs, avant un changement des visées, ne sert pas."""
+    r = triangulation.solve(sightings, ground)
+    if ground and ground_z and r["method"] == "3d" and _metres(ground_z[:2], (r["lon"], r["lat"])) < GROUND_REUSE:
+        r = triangulation.solve(sightings, ground, ground_z[2])
+    return r
+
+
 class Triangulator:
     """Visées en cours et point d'intersection. Le dessin des visées sur la carte vient de
     l'hôte (new_item), l'enregistrement aussi (attributes donne les valeurs)."""
@@ -164,6 +185,13 @@ class Triangulator:
         self.result = None
         self.error = None
         self.item = None
+        # Point au sol en 3D : altitude du MNT LiDAR HD lue à sa position, (lon, lat, z) ou None.
+        # ground_lookup(lon, lat, done(z ou None)) est fourni par l'hôte (session) ; ground_changed()
+        # est appelé quand elle arrive après coup et a déplacé le point.
+        self.ground_z = None
+        self.ground_lookup = None
+        self.ground_changed = lambda: None
+        self._ground_ticket = None
 
     def new_item(self):
         """Dessin des visées et du point sur la carte : set_data(visées [(lon, lat, lon, lat)],
@@ -179,6 +207,7 @@ class Triangulator:
 
     def clear(self):
         self.sightings, self.result, self.error = [], None, None
+        self.ground_z, self._ground_ticket = None, None
         self._draw()
 
     def recompute(self):
@@ -191,14 +220,36 @@ class Triangulator:
             self.item.remove()
             self.item = None
 
-    def _compute(self):
+    def _compute(self, asks=0):
         self.result, self.error = None, None
         if len(self.sightings) >= 2:
             try:
-                self.result = triangulation.solve(self.sightings, self.ground)
+                self.result = solve_on_ground(self.sightings, self.ground, self.ground_z)
             except triangulation.TriangulationError as exc:
                 self.error = str(exc)
         self._draw()
+        self._ask_ground(asks)
+
+    def _ask_ground(self, asks=0):
+        """Point au sol trouvé en 3D : altitude du MNT LiDAR HD lue à sa position (sauf si elle
+        l'a déjà été à moins de GROUND_REUSE m), puis point recalculé avec elle. Relue si le
+        point s'est encore déplacé, au plus GROUND_ASKS fois de suite."""
+        r = self.result
+        if not (self.ground and r and r["method"] == "3d" and self.ground_lookup) or asks >= GROUND_ASKS:
+            return
+        if self.ground_z and _metres(self.ground_z[:2], (r["lon"], r["lat"])) < GROUND_REUSE:
+            return
+        ticket = self._ground_ticket = object()
+        lon, lat = r["lon"], r["lat"]
+
+        def got(z):
+            if ticket is not self._ground_ticket or z is None:
+                return  # visées changées entre-temps, ou pas de LiDAR HD ici
+            self.ground_z = (lon, lat, z)
+            self._compute(asks + 1)
+            self.ground_changed()
+
+        self.ground_lookup(lon, lat, got)
 
     def _draw(self):
         if self.item is None:
@@ -226,13 +277,17 @@ class Triangulator:
             n, " / ".join(_num(d) for d in r["distances"]), _num(r["angle"], 0), _num(r["uncertainty"]))
         if n > 2:
             text += " · écart des visées {} m".format(_num(r["rms"]))
+            if r["spread"] > triangulation.SPREAD_WARNING:
+                text += (" ⚠ Une visée s'écarte nettement des autres : elle vise peut-être un autre objet (un "
+                         "poteau voisin, par exemple). Revisez-la depuis sa photo : la nouvelle visée remplace "
+                         "l'ancienne")
         text += " · GPS ±{} m".format(_num(r["gps"]))
         if r["gps_assumed"]:
             text += " (précision inconnue pour certaines photos : {} m supposés)".format(
                 _num(triangulation.GPS_ACCURACY, 0))
         if r["method"] == "3d":
             text += " · profondeur fixée aussi par l'inclinaison des visées (altitudes RTK{})".format(
-                ", sol LiDAR HD" if self.ground else "")
+                {"lidar": ", sol LiDAR HD au point", "photos": ", sol tiré des photos"}.get(r["ground_source"], ""))
         elif r["angle"] < triangulation.WEAK_ANGLE:
             text += (". ⚠ Visées presque alignées ({}°) : le point est imprécis dans la profondeur, il peut "
                      "glisser de plusieurs mètres le long de la visée. Visez l'objet quand il est sur le côté de "

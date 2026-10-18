@@ -66,6 +66,9 @@ class Session:
         self.triangulator = triangulator if triangulator is not None else tools.Triangulator()
         self.triangulator.AIM = "Cliquez sur l'objet dans la photo"
         self.triangulator.AIM_AGAIN = "cliquez sur le même objet"
+        self.triangulator.ground_lookup = self._ground_lookup  # sol LiDAR HD au point visé
+        self.triangulator.ground_changed = lambda: self.notify()
+        self.ground_cache = {}  # (lon, lat) arrondis -> altitude du MNT LiDAR HD (ou None hors couverture)
         self.calibrator = (calibrator if calibrator is not None
                            else tools.CalibrationTool(self.calibration, self.current_ids))
         self.mode = "road"
@@ -102,6 +105,10 @@ class Session:
         self.active = False  # bouton « Mesure » : clics dans la photo pour mesurer
         self.rtk_alerted = set()  # séquences sans RTK déjà signalées par une fenêtre (take_rtk_alert)
         self.epoch = 0  # change quand les clics en cours sont abandonnés
+        # Hauteur, largeur : photo de la première visée du point de référence, sur laquelle la
+        # mesure se fera ; l'hôte y revient après la validation (take_goto)
+        self.ref_photo = None
+        self.goto = None  # photo à afficher, demandée une fois à l'hôte (voir take_goto)
 
     def current_ids(self):
         item = self.item or {}
@@ -133,7 +140,53 @@ class Session:
         """Calage changé hors de la session (chargé, fusionné, importé) : tout est recalculé."""
         self._calibration_changed()
 
-    def _recompute(self, pics=None):
+    def _ground_lookup(self, lon, lat, done):
+        """Altitude du MNT LiDAR HD au point (lon, lat) : done(z), z None hors couverture ou
+        service injoignable (alors non gardée : redemandée la fois suivante)."""
+        key = (round(lon, 6), round(lat, 6))
+        if key in self.ground_cache:
+            done(self.ground_cache[key])
+            return
+
+        def got(data, error):
+            if error:
+                done(None)
+                return
+            z = (precision._ground(data) or [None])[0]
+            self.ground_cache[key] = z
+            if len(self.ground_cache) > 500:
+                self.ground_cache.pop(next(iter(self.ground_cache)))
+            done(z)
+
+        host.fetch_json(precision.lidar_url([(lon, lat)]), got, timeout_ms=precision.TIMEOUT_MS)
+
+    def _ref_ground(self, asks=0):
+        """Point de référence au sol en 3D : altitude du MNT LiDAR HD lue à sa position (sauf
+        déjà lue tout près), puis le point et ses mesures recalés avec elle (voir
+        tools.Triangulator._ask_ground, son équivalent pendant les visées)."""
+        ref = self.ref_point
+        if not ref or ref.get("moved") or asks >= tools.GROUND_ASKS:
+            return
+        try:
+            r = tools.solve_on_ground(ref["sightings"], True, ref.get("ground_z"))
+        except triangulation.TriangulationError:
+            return
+        gz = ref.get("ground_z")
+        if r["method"] != "3d" or (gz and tools._metres(gz[:2], (r["lon"], r["lat"])) < tools.GROUND_REUSE):
+            return
+        lon, lat = r["lon"], r["lat"]
+
+        def got(z):
+            if z is None or self.ref_point is not ref or ref.get("moved"):
+                return
+            ref["ground_z"] = (lon, lat, z)
+            self._recompute(set(), force_reference=True)
+            self._ref_ground(asks + 1)
+            self.notify()
+
+        self._ground_lookup(lon, lat, got)
+
+    def _recompute(self, pics=None, force_reference=False):
         """Visées, point de référence et mesures recalculés depuis leurs directions brutes, avec
         le calage et la précision actuels des photos pics (toutes si None) : le résultat ne
         dépend pas de l'ordre dans lequel arrivent les clics, la vérification RTK et les calages
@@ -145,7 +198,7 @@ class Session:
             if any([self._resight(s) for s in self.triangulator.sightings if touched(s["pic"])]):
                 self.triangulator.recompute()
             clicked = self._reclick(touched)
-            moved = self._recompute_reference(touched)
+            moved = self._recompute_reference(touched, force_reference)
             for m in self.tool.measures():
                 if m in clicked or (moved and m in moved):
                     if isinstance(m, widths.PerpendicularWidth):
@@ -153,9 +206,14 @@ class Session:
                         m.compute()
                     elif m.reference is not None:  # hauteur calée sur un point triangulé
                         ref = m.reference
-                        m.anchor(ref["lon"], ref["lat"], ref["uncertainty"], ref["name"])
+                        if self.ref_point and ref["name"] == self.ref_point["name"]:
+                            self._anchor_on(m, self.ref_point)
+                        else:  # point de référence précédent : calage gardé
+                            m.anchor(ref["lon"], ref["lat"], ref["uncertainty"], ref["name"])
                     else:
                         m.compute()
+            if moved is not None and not force_reference:
+                self._ref_ground()  # altitude LiDAR à relire si le point s'est éloigné
         except Exception:
             traceback.print_exc()
 
@@ -196,28 +254,24 @@ class Session:
                 out.append(m)
         return out
 
-    def _recompute_reference(self, touched):
-        """Point de référence dont une visée a été recalculée : triangulé à nouveau, ses largeurs
-        et ses hauteurs recalées sur lui. Laissé tel quel s'il a été déplacé à la main (recalage
-        le long de la droite de mesure). Retourne ses mesures (à recalculer), ou None s'il n'a pas
-        bougé."""
+    def _recompute_reference(self, touched, force=False):
+        """Point de référence dont une visée a été recalculée (ou force : son altitude LiDAR
+        vient d'arriver) : triangulé à nouveau, ses largeurs et ses hauteurs recalées sur lui.
+        Laissé tel quel s'il a été déplacé à la main (recalage le long de la droite de mesure).
+        Retourne ses mesures (à recalculer), ou None s'il n'a pas bougé."""
         ref = self.ref_point
         if not ref or ref.get("moved"):
             return None
-        if not any([self._resight(s) for s in ref.get("sightings", []) if touched(s["pic"])]):
+        if not any([self._resight(s) for s in ref.get("sightings", []) if touched(s["pic"])]) and not force:
             return None
         try:
-            r = triangulation.solve(ref["sightings"], True)
+            r = tools.solve_on_ground(ref["sightings"], True, ref.get("ground_z"))
         except triangulation.TriangulationError:
             return None
         ref.update(lon=r["lon"], lat=r["lat"], uncertainty=r["uncertainty"])
         self._edge_moved(ref, [])  # son point gardé (export) suit
         mates = [w for w in self._widths() if w.edge is ref]
-        for m in self._heights():
-            if (m.reference or {}).get("name") == ref["name"]:
-                m.reference = {"lon": ref["lon"], "lat": ref["lat"], "uncertainty": ref["uncertainty"],
-                               "name": ref["name"]}
-                mates.append(m)
+        mates += [m for m in self._heights() if (m.reference or {}).get("name") == ref["name"]]
         return mates
 
     # Réglages ------------------------------------------------------------------------
@@ -862,7 +916,7 @@ class Session:
         if self.mode != "height" or self.ref_point is None or m is None or not m.result or m.reference:
             return
         ref = self.ref_point
-        m.anchor(ref["lon"], ref["lat"], ref["uncertainty"], ref["name"])
+        self._anchor_on(m, ref)
         if m.error:
             self.message = m.error
             return
@@ -871,6 +925,20 @@ class Session:
                           "mesure depuis {} ».".format(ref["name"]))
         self.measure_done = True
         self.tool.finish()  # mesure terminée : affichée avec les autres pendant les visées suivantes
+
+    def _anchor_on(self, m, ref):
+        """Hauteur m calée sur le point de référence ref : pied sur la visée du pied de sa photo
+        (là où il a été cliqué, ou visé pour la triangulation), à la profondeur du point
+        triangulé. Avec trois visées ou plus, le point triangulé est un compromis qui s'écarte un
+        peu de chacune : le pied reste là où on l'a mis sur la photo de la mesure, la hauteur ne
+        dépendant que de sa distance."""
+        c = m.clicks[0]
+        x, y = triangulation._local(ref["lon"], ref["lat"], c["lon"], c["lat"])
+        a = math.radians(c["yaw"])
+        t = x * math.sin(a) + y * math.cos(a)  # profondeur du point le long de la visée du pied
+        lon, lat = (ref["lon"], ref["lat"]) if t < 0.5 else \
+            triangulation._geographic(t * math.sin(a), t * math.cos(a), c["lon"], c["lat"])
+        m.anchor(lon, lat, ref["uncertainty"], ref["name"])
 
     def _after_calibration(self, tool):
         if tool is not self.calibrator:
@@ -908,6 +976,8 @@ class Session:
         self.message = ""
         sighting["view"] = [yaw, pitch]  # repère de la visée dans la photo (viewer_marks)
         replaced = any(s["pic"] == sighting["pic"] for s in self.triangulator.sightings)
+        if self.mode in REF_MODES and not self.triangulator.sightings:
+            self.ref_photo = sighting["pic"]  # photo de référence : la mesure s'y fera
         self.triangulator.ground = self.mode in REF_MODES  # bord de chaussée, pied : au sol
         self.triangulator.add(sighting)
         if replaced:  # une visée par photo : un second clic (le sommet ?) remplace la première
@@ -938,10 +1008,15 @@ class Session:
         values = dict({"nom": name}, **values, commentaire="")
         self.points.append((r["lon"], r["lat"], values))
         self.point_views[name] = {s["pic"]: s["view"] for s in sightings if s.get("view")}
+        ground_z = self.triangulator.ground_z  # sol LiDAR lu au point, avant que clear ne l'oublie
         self.triangulator.clear()
         if self.mode in REF_MODES:  # point de référence, sans distance au précédent
+            if self.ref_photo and self.ref_photo != (self.item or {}).get("id"):
+                self.goto = self.ref_photo  # retour sur la photo de référence pour la mesure
             self.ref_point = {"lon": r["lon"], "lat": r["lat"], "uncertainty": r["uncertainty"], "name": name,
-                              "sequences": sequences, "road": None, "sightings": list(sightings)}
+                              "sequences": sequences, "road": None, "sightings": list(sightings),
+                              "ground_z": ground_z}  # sol LiDAR au point, s'il est lu
+            self._ref_ground()  # sinon demandé maintenant
             if self.mode == "height":
                 self.message = ("Point de référence {} validé (±{} m) : c'est le pied. Cliquez maintenant le sommet "
                                 "de l'objet, depuis cette photo ou une autre de la triangulation (à choisir sur la "
@@ -949,7 +1024,7 @@ class Session:
             else:
                 self._road_at_reference()
                 self.message = ("Point de référence {} validé (±{} m). Cliquez maintenant le bord opposé, au sol, "
-                                "depuis une photo prise quelques mètres avant ou après (à choisir sur la carte) : seule "
+                                "sur la photo de référence (ou une autre prise quelques mètres avant ou après) : seule "
                                 "la direction du clic compte, la largeur se prend sur la droite tracée.")
             self.message = self.message.format(name, measures._num(r["uncertainty"])) + warning
             return self.status()
@@ -1192,7 +1267,101 @@ class Session:
             "new_measure": self.ref_point["name"] if self._locked() else None,
             "active": self.active,
             "lights": self._lights(pic) if item else [],
+            "guide": self.guide(),
         })
+
+    # Visées guidées (hauteur, largeur) -----------------------------------------------------
+    def take_goto(self):
+        """Photo à afficher (identifiant), demandée une seule fois, ou None : la photo de
+        référence, après la validation du point (voir keep_point)."""
+        goto, self.goto = self.goto, None
+        return goto
+
+    def _neighbour(self, pic, rel):
+        """Photo précédente (rel "prev") ou suivante ("next") de pic dans sa séquence, d'après
+        sa fiche (photo déjà affichée), ou None."""
+        item = self.photo_items.get(pic)
+        return metadata.id_from_href(metadata.item_link(item, rel)) if item else None
+
+    def _forward(self):
+        """Largeur : le point de référence est-il visé vers l'avant de la séquence (la photo
+        suivante s'en rapproche) ? Comparé au sens de déplacement de la photo de référence."""
+        item = self.photo_items.get(self.ref_photo)
+        first = next((s for s in self.triangulator.sightings if s["pic"] == self.ref_photo), None)
+        if item is None or first is None:
+            return True
+        axis = self._axis(item)
+        axis = metadata.item_heading(item) if axis is None else axis
+        return axis is None or math.cos(math.radians(first["heading"] - axis)) >= 0
+
+    def guide(self):
+        """Visées guidées du point de référence : {"reference" : photo de référence, "choices" :
+        [{"id", "label", "title", "lon", "lat"}]} (photos à proposer pour la visée suivante, avec
+        leur position si elle est connue : l'hôte montre de quel côté de la vue elles sont), ou None.
+
+        Hauteur : la photo précédente et la suivante de la référence ; une fois la deuxième
+        visée faite sur l'une, l'autre pour une troisième, de l'autre côté. Largeur : en
+        avançant vers le point, la photo suivante, puis la suivante encore (les photos d'avant
+        la référence le verraient plus loin, sous des visées presque parallèles). La validation
+        reste manuelle ; les flèches permettent toujours un autre choix."""
+        if not (self.active and self.mode in REF_MODES and self._aiming() and self.ref_photo):
+            return None
+        sighted = [s["pic"] for s in self.triangulator.sightings]
+        if self.ref_photo not in sighted:
+            return None
+        ref, others = self.ref_photo, [p for p in sighted if p != self.ref_photo]
+        choices = []
+
+        def offer(pic, label, title):
+            if pic and pic not in sighted:
+                feature = self.photo_items.get(pic) or self.neighbours.get(pic) or {}
+                try:  # position, pour que l'hôte montre de quel côté de la vue elle se trouve
+                    lon, lat = (float(v) for v in feature["geometry"]["coordinates"][:2])
+                except (KeyError, TypeError, ValueError):
+                    lon = lat = None
+                choices.append({"id": pic, "label": label, "title": title, "lon": lon, "lat": lat})
+
+        # Rang des photos autour de la référence (négatif : avant elle dans la séquence), pour
+        # nommer chaque photo proposée par rapport à celle qui est affichée
+        rank = {ref: 0}
+
+        def label(pic, third, fallback):
+            here = rank.get((self.item or {}).get("id"))
+            step = None if here is None or pic not in rank else rank[pic] - here
+            if step in (-1, 1):
+                text = "photo précédente" if step < 0 else "photo suivante"
+            elif step in (-2, 2):
+                text = "2 photos en arrière" if step < 0 else "2 photos en avant"
+            else:
+                text = fallback
+            return "3e visée : " + text if third else text[0].upper() + text[1:]
+
+        if self.mode == "height":
+            prev, nxt = self._neighbour(ref, "prev"), self._neighbour(ref, "next")
+            rank.update({p: k for p, k in ((prev, -1), (nxt, 1)) if p})
+            if not others:
+                offer(prev, label(prev, False, "photo précédente"),
+                      "Viser le même pied depuis la photo précédente de la séquence")
+                offer(nxt, label(nxt, False, "photo suivante"),
+                      "Viser le même pied depuis la photo suivante de la séquence")
+            elif len(others) == 1 and others[0] in (prev, nxt):
+                other = prev if others[0] == nxt else nxt
+                offer(other, label(other, True, "de l'autre côté de la référence"),
+                      "Facultatif : viser aussi le pied de l'autre côté de la photo de référence")
+        else:
+            rel = "next" if self._forward() else "prev"
+            sign = 1 if rel == "next" else -1
+            first = self._neighbour(ref, rel)
+            second = self._neighbour(first, rel) if first else None
+            rank.update({p: k * sign for p, k in ((first, 1), (second, 2)) if p})
+            if not others:
+                offer(first, label(first, False, "photo vers le point"),
+                      "Viser le même bord depuis la photo qui s'en rapproche")
+            elif others == [first]:
+                offer(second, label(second, True, "plus loin vers le point"),
+                      "Facultatif : viser encore le même bord, en continuant vers lui")
+        return {"reference": ref, "choices": choices}
+
 
     def _lights(self, pic):
         """Voyants de la visionneuse : [(nom, état)], état « ok », « non » ou « attente »."""

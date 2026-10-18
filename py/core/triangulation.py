@@ -12,7 +12,9 @@ probable, qui cumule l'erreur de visée (croissante avec la distance) et la
 précision de la position GPS de la photo : une visée lointaine ou une photo mal
 positionnée compte moins.
 
-Visées en 3D : quand toutes les photos ont une altitude de caméra vérifiée (RTK), chaque
+Visées en 3D, seulement quand elles se croisent sous STRONG_ANGLE (au-delà, les caps fixent
+bien le point, et une inclinaison un peu fausse ne ferait que le tirer de côté) : quand toutes
+les photos ont une altitude de caméra vérifiée (RTK), chaque
 visée garde aussi son inclinaison (élévation corrigée du calage) et devient une demi-droite
 dans l'espace. Des photos prises les unes derrière les autres voient l'objet sous des
 inclinaisons différentes : la profondeur, mal fixée par les seuls caps quand les visées sont
@@ -44,7 +46,16 @@ ELEV_ERROR = 2.0  # erreur d'inclinaison d'une photo dont l'inclinaison n'est pa
 CLICK_ERROR = 0.1  # erreur de pointé d'un clic dans la photo (degrés)
 ALT_ERROR = 0.05  # erreur relative de l'altitude des caméras d'une position vérifiée (m)
 GROUND_ERROR = 0.10  # écart du sol au point visé à celui tiré des photos : dévers, bordure (m)
-WEAK_ANGLE = 15.0  # croisement en dessous duquel, en plan, la profondeur devient imprécise (degrés)
+GROUND_SLOPE_ERROR = 0.02  # erreur de pente du sol prolongé au-delà des photos (m par m)
+LIDAR_ERROR = 0.08  # altitude du MNT LiDAR HD lue au point : précision, lissage de la grille de 50 cm (m)
+# Part commune de l'erreur d'inclinaison des photos d'une séquence (degrés), qui ne se compense
+# pas entre visées : systématique du calage (photo calée), tangage de la fixation sinon
+COMMON_TILT = 0.1
+# Le calcul 3D ne sert que pour des visées qui se croisent sous STRONG_ANGLE (degrés) : au-delà,
+# les caps suffisent, et une inclinaison un peu fausse ne ferait que déplacer le point
+STRONG_ANGLE = 20.0
+WEAK_ANGLE = 15.0
+SPREAD_WARNING = 3.0  # visée écartée du point de plus de 3 fois son erreur attendue : autre objet visé ?  # croisement en dessous duquel, en plan, la profondeur devient imprécise (degrés)
 
 
 class TriangulationError(ValueError):
@@ -128,24 +139,31 @@ def _major_axis(c11, c12, c22):
 
 
 def _ground_at(sightings, x, y, origin):
-    """Altitude du sol au point (x, y) : celle sous les photos, prolongée le long de leur
-    alignement (pente de la route), ou leur moyenne si elles sont trop proches."""
+    """Altitude du sol au point (x, y) tirée des photos, et son erreur (m) : sol sous les
+    photos prolongé le long de leur alignement (pente de la route), ou leur moyenne si elles
+    sont trop proches. L'erreur cumule le dévers (GROUND_ERROR), la dispersion de la hauteur
+    de caméra de la séquence ("ground_spread", voir precision.verify_heights) et le
+    prolongement au-delà des photos."""
     pts = [(*_local(s["lon"], s["lat"], *origin), s["ground"]) for s in sightings]
+    spread = max((float(s.get("ground_spread") or 0.0) for s in sightings), default=0.0)
     a = max(((p, q) for p in pts for q in pts), key=lambda pq: math.hypot(pq[1][0] - pq[0][0], pq[1][1] - pq[0][1]))
     (x1, y1, z1), (x2, y2, z2) = a
     length = math.hypot(x2 - x1, y2 - y1)
     if length < 1.0:
-        return sum(p[2] for p in pts) / len(pts)
+        beyond = min(math.hypot(x - p[0], y - p[1]) for p in pts)
+        return sum(p[2] for p in pts) / len(pts), math.hypot(GROUND_ERROR, spread, GROUND_SLOPE_ERROR * beyond)
     t = ((x - x1) * (x2 - x1) + (y - y1) * (y2 - y1)) / length ** 2
-    return z1 + t * (z2 - z1)
+    beyond = max(0.0, -t, t - 1.0) * length
+    return z1 + t * (z2 - z1), math.hypot(GROUND_ERROR, spread, GROUND_SLOPE_ERROR * beyond)
 
 
-def solve3d(sightings, ground=False):
+def solve3d(sightings, ground=False, ground_z=None):
     """Intersection des visées dans l'espace (voir l'en-tête du module). sightings : comme
     solve, avec en plus "elev" (inclinaison corrigée, degrés), "alt" (altitude de la caméra,
     m), "elev_error" (incertitude de l'inclinaison calée, degrés, ou None) et, pour ground,
-    "ground" (altitude du sol sous la photo, m). Retourne (x, y, z, covariance 3 × 3, distances
-    horizontales, repère (lon0, lat0)) ou None si les visées ne fixent pas le point."""
+    "ground" (altitude du sol sous la photo, m). ground_z : altitude du MNT LiDAR HD lue au
+    point (m), plus sûre que le sol tiré des photos. Retourne (x, y, z, covariance 3 × 3,
+    distances horizontales, repère (lon0, lat0)) ou None si les visées ne fixent pas le point."""
     lon0 = sum(s["lon"] for s in sightings) / len(sightings)
     lat0 = sum(s["lat"] for s in sightings) / len(sightings)
     rays = []
@@ -171,10 +189,13 @@ def solve3d(sightings, ground=False):
                     m = w_side * side[i] * side[j] + w_up * up[i] * up[j]
                     a[i][j] += m
                     b[i] += m * p[j]
-        if ground:  # altitude du point : celle du sol tirée des photos
-            z = _ground_at(sightings, *(point[:2] if point else (0.0, 0.0)), (lon0, lat0))
-            a[2][2] += 1.0 / GROUND_ERROR ** 2
-            b[2] += z / GROUND_ERROR ** 2
+        if ground:  # altitude du point : celle du sol, au point (LiDAR) ou tirée des photos
+            if ground_z is not None:
+                z, sigma = float(ground_z), LIDAR_ERROR
+            else:
+                z, sigma = _ground_at(sightings, *(point[:2] if point else (0.0, 0.0)), (lon0, lat0))
+            a[2][2] += 1.0 / sigma ** 2
+            b[2] += z / sigma ** 2
         inv = _inverse3(a)
         if inv is None:
             return None
@@ -185,14 +206,14 @@ def solve3d(sightings, ground=False):
     return point[0], point[1], point[2], inv, distances, (lon0, lat0)
 
 
-def usable3d(sightings, ground=False):
+def usable3d(sightings, ground=False, ground_z=None):
     """Les visées se prêtent-elles au calcul 3D : inclinaison et altitude de caméra connues
-    pour toutes (et sol sous la photo pour un point au sol) ?"""
-    keys = ("elev", "alt", "ground") if ground else ("elev", "alt")
+    pour toutes (et, pour un point au sol sans altitude lue au point, sol sous la photo) ?"""
+    keys = ("elev", "alt", "ground") if ground and ground_z is None else ("elev", "alt")
     return all(s.get(k) is not None for s in sightings for k in keys)
 
 
-def solve(sightings, ground=False):
+def solve(sightings, ground=False, ground_z=None):
     """Intersection des visées.
 
     sightings : liste de dicts avec au moins "lon", "lat", "heading", et
@@ -204,8 +225,12 @@ def solve(sightings, ground=False):
     uncertainty (rayon d'incertitude en m pour l'erreur de visée de chaque photo et la
     précision GPS), gps (précision GPS la moins bonne, m), gps_assumed (vrai si
     au moins une photo n'indique pas sa précision, GPS_ACCURACY est alors supposé).
-    En 3D (voir solve3d, usable3d) : aussi z (altitude du point, m) ; method vaut "3d" ou
-    "plan". ground : point au sol (sa profondeur se fixe aussi par l'altitude du sol).
+    spread : plus grand écart d'une visée au point, rapporté à son erreur attendue (cap, GPS).
+    En 3D (voir solve3d, usable3d) : aussi z (altitude du point, m), common_tilt (part de
+    l'incertitude due à l'inclinaison commune aux photos d'une séquence, m) ; method vaut "3d" ou
+    "plan" ; ground_source vaut "lidar" (ground_z, altitude du MNT LiDAR HD lue au point),
+    "photos" (sol sous les photos) ou None. ground : point au sol (sa profondeur se fixe aussi
+    par l'altitude du sol).
     Lève TriangulationError si les visées ne permettent pas de conclure.
     """
     if len(sightings) < 2:
@@ -215,10 +240,14 @@ def solve(sightings, ground=False):
 
     angle = max(crossing_angle(a["heading"], b["heading"])
                 for i, a in enumerate(sightings) for b in sightings[i + 1:])
-    if usable3d(sightings, ground):
-        found = solve3d(sightings, ground)
+    if angle < STRONG_ANGLE and usable3d(sightings, ground, ground_z):
+        found = solve3d(sightings, ground, ground_z)
         if found is not None:
-            return _result3d(sightings, found, angle)
+            r = _result3d(sightings, found, angle)
+            r["ground_source"] = ("lidar" if ground_z is not None else "photos") if ground else None
+            r["common_tilt"] = _common_tilt(sightings, found, ground, ground_z)
+            r["uncertainty"] = math.hypot(r["uncertainty"], r["common_tilt"])
+            return r
     if angle < MIN_ANGLE:
         raise TriangulationError(
             "Visées presque parallèles ({:.0f}°) : visez l'objet depuis une photo plus "
@@ -248,6 +277,7 @@ def solve(sightings, ground=False):
 
     distances = _distances(rays, x, y)
     residuals = [abs((x - px) * dy - (y - py) * dx) for px, py, dx, dy in rays]  # écart perpendiculaire
+    spread = max(r / _sigma(t, acc, e) for r, t, acc, e in zip(residuals, distances, accuracies, errors))
     if min(distances) < 0.5:
         raise TriangulationError(
             "Les visées ne se croisent pas devant les photos : vérifiez que vous visez "
@@ -285,8 +315,10 @@ def solve(sightings, ground=False):
     return {
         "lon": lon,
         "lat": lat,
+        "spread": spread,
         "z": None,
         "method": "plan",
+        "ground_source": None,
         "distances": distances,
         "angle": angle,
         "rms": math.sqrt(sum(r * r for r in residuals) / len(residuals)),
@@ -294,6 +326,27 @@ def solve(sightings, ground=False):
         "gps": max(accuracies),
         "gps_assumed": gps_assumed,
     }
+
+
+def _common_tilt(sightings, found, ground=False, ground_z=None):
+    """Déplacement horizontal du point (m) quand l'inclinaison de toutes les visées d'une même
+    séquence varie ensemble de ±COMMON_TILT (photo calée) ou ±ELEV_ERROR (non calée) : part
+    commune de l'erreur d'inclinaison, que la pondération des visées, qui les suppose
+    indépendantes, ne compte pas. Séquences différentes : parts indépendantes, cumulées."""
+    x, y = found[0], found[1]
+    total = 0.0
+    for sequence in {s.get("sequence") for s in sightings}:
+        worst = 0.0
+        for sign in (-1, 1):
+            shifted = [dict(s, elev=s["elev"] + sign * (COMMON_TILT if s.get("elev_error") is not None
+                                                        else ELEV_ERROR))
+                       if s.get("sequence") == sequence else s for s in sightings]
+            moved = solve3d(shifted, ground, ground_z)
+            if moved is None:
+                return float("inf")
+            worst = max(worst, math.hypot(moved[0] - x, moved[1] - y))
+        total += worst * worst
+    return math.sqrt(total)
 
 
 def _result3d(sightings, found, angle):
@@ -321,10 +374,12 @@ def _result3d(sightings, found, angle):
         v = (x - px, y - py, z - float(s["alt"]))
         t = sum(v[k] * d[k] for k in range(3))
         residuals.append(math.sqrt(max(sum(c * c for c in v) - t * t, 0.0)))
+    spread = max(r / _sigma(t, a, heading_error(s)) for r, t, a, s in zip(residuals, distances, accuracies, sightings))
     lon, lat = _geographic(x, y, lon0, lat0)
     return {
         "lon": lon,
         "lat": lat,
+        "spread": spread,
         "z": z,
         "method": "3d",
         "distances": distances,

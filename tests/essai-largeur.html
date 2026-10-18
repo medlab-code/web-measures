@@ -38,6 +38,12 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     // loin des valeurs attendues.
     const level = [[[30, -10], [30, 15]], [[120, -10], [120, 15]]];
     app.merge_calibration(JSON.stringify({ format: 1, verticals: Object.fromEntries(IDS.map((id) => [id, level])) }));
+    // Sol LiDAR au point non lu : les clics de l'essai visent un pied à 2 m sous la caméra
+    // (inclinaison fixe), pas le sol réel ; le calcul l'opposerait à l'altitude lue au point
+    // (vérifié par les tests du cœur, test_triangulation et test_session)
+    const noGround = (lon, lat, done) => done(undefined);
+    app._ground_lookup = noGround;
+    app.triangulator.ground_lookup = noGround;
     const psvClick = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: false }; w.mesures.psv.dispatchEvent(e); };
     const psvRight = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: true }; w.mesures.psv.dispatchEvent(e); };
     doc.querySelector("#mesure").click();

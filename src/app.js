@@ -300,6 +300,7 @@
       applyMeasureUi();
     }
     showModeOptions();  // « Valider le point triangulé » : dès que les visées donnent un point
+    showGuide(state.guide);
     const bandeau = $("#bandeau");
     bandeau.hidden = !state.waiting_map;
     bandeau.textContent = "Cliquez maintenant ce repère sur la carte (Échap pour annuler).";
@@ -642,8 +643,15 @@
     return vertical ? 60 : 90;
   }
 
+  let guideHeading = null;
   function updateCursor() {
     if (photo) Carte.showView(map, photo.geometry.coordinates, viewHeading(), viewFov());
+    // Flèches des photos proposées : refaites quand la vue a tourné de plus de 5°
+    const heading = viewHeading();
+    if (guideShown && heading != null && (guideHeading == null || Math.abs(((heading - guideHeading) % 360 + 540) % 360 - 180) > 5)) {
+      guideHeading = heading;
+      showGuide(guideShown);
+    }
   }
 
   /** Branche les clics, la vue et les changements de photo, une fois la visionneuse prête. */
@@ -1030,6 +1038,53 @@
     return text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   }
 
+  // Visées guidées (hauteur, largeur) : photos proposées par le calcul ----------------------
+
+  let guideShown = null;  // dernières photos proposées : flèches refaites quand la vue tourne
+
+  /**
+   * Flèche d'une photo proposée, selon où elle se trouve par rapport au centre de la vue : ◀ ▶
+   * sur le côté, ▲ devant, ▼ derrière (la précédente n'est pas toujours à gauche : en regardant
+   * devant à droite, elle est derrière, légèrement à droite). "" si sa position est inconnue.
+   */
+  function guideArrow(choice) {
+    const view = viewHeading();
+    if (view == null || choice.lon == null || !photo) return "";
+    const [lon0, lat0] = photo.geometry.coordinates;
+    const x = (choice.lon - lon0) * Math.cos(lat0 * Math.PI / 180), y = choice.lat - lat0;
+    const bearing = Math.atan2(x, y) * 180 / Math.PI;
+    const off = ((bearing - view) % 360 + 540) % 360 - 180;  // -180 à 180 : gauche < 0 < droite
+    if (Math.abs(off) < 30) return "▲";
+    if (Math.abs(off) > 150) return "▼";
+    return off < 0 ? "◀" : "▶";
+  }
+
+  function showGuide(guide) {
+    guideShown = guide;
+    const box = $("#guide-photos");
+    const choices = (measuring && guide && guide.choices) || [];
+    box.hidden = !choices.length || viewer.hidden;
+    box.replaceChildren(...choices.map((choice) => {
+      const arrow = guideArrow(choice);
+      const button = Object.assign(document.createElement("button"), { type: "button",
+        textContent: arrow === "◀" ? `◀ ${choice.label}` : arrow ? `${choice.label} ${arrow}` : choice.label,
+        title: choice.title });
+      button.addEventListener("click", () => goToPhoto(choice.id));
+      return button;
+    }).sort((a, b) => a.textContent.startsWith("◀") ? -1 : b.textContent.startsWith("◀") ? 1 : 0));  // ◀ à gauche
+  }
+
+  /** Affiche la photo d'identifiant id (photo voisine proposée, retour sur la référence). */
+  async function goToPhoto(id) {
+    try {
+      const feature = await Carte.photoById(id);
+      if (feature) openPhoto(feature);
+      else notice("Photo introuvable sur l'instance choisie.");
+    } catch (error) {
+      console.warn("Changement de photo :", error);
+    }
+  }
+
   // Mode et réglages de la mesure ----------------------------------------------------------
 
   function showModeOptions() {
@@ -1061,7 +1116,11 @@
     $("#camera").value = Number(event.target.dataset.value).toFixed(2);
     setCamera();
   });
-  $("#garder").addEventListener("click", () => refresh(app.keep_point()));
+  $("#garder").addEventListener("click", () => {
+    refresh(app.keep_point());
+    const reference = app.take_goto();  // retour sur la photo de référence, pour la mesure
+    if (reference) goToPhoto(reference);
+  });
   $("#nouvelle-mesure").addEventListener("click", () => refresh(app.new_measure()));
   $("#nouvelle-reference").addEventListener("click", () => refresh(app.new_reference()));
   $("#effacer").addEventListener("click", () => refresh(app.clear()));
