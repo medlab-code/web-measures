@@ -835,7 +835,12 @@
       attachPlayer();
       psv.addEventListener("position-updated", updateCursor);
       psv.addEventListener("zoom-updated", updateCursor);
-      psv.addEventListener("position-updated", scheduleDeclutter);
+      // Écartement des étiquettes : au zoom, et à l'arrêt d'une rotation (pendant, elles
+      // tournent ensemble) ; pas à chaque image, qui forcerait une mise en page
+      psv.addEventListener("position-updated", () => {
+        clearTimeout(declutterTimer);
+        declutterTimer = setTimeout(scheduleDeclutter, 150);
+      });
       psv.addEventListener("zoom-updated", scheduleDeclutter);
       // Déplacement dans la séquence (flèches de la visionneuse) : nouvelle fiche de photo
       psv.addEventListener("picture-loaded", async (event) => {
@@ -1233,6 +1238,7 @@
     }
   }
   let declutterPending = false;
+  let declutterTimer = null;
   const scheduleDeclutter = () => {
     if (declutterPending) return;
     declutterPending = true;

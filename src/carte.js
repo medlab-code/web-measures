@@ -137,7 +137,6 @@ const Carte = (() => {
             type: "vector", tiles: [tilesUrl()], minzoom: 0, maxzoom: 15, attribution: ATTRIBUTION_PANORAMAX,
           },
           mesures: { type: "geojson", data: EMPTY },
-          vue: { type: "geojson", data: EMPTY },
           pr: { type: "geojson", data: EMPTY },
           contour: { type: "geojson", data: EMPTY },  // commune choisie dans la recherche (recherche.js)
           voies: { type: "vector", tiles: [ROADS_TILES], minzoom: ROADS_MINZOOM, maxzoom: 19, attribution: ATTRIBUTION_IGN },
@@ -248,26 +247,6 @@ const Carte = (() => {
             },
           },
           // Curseur de vue : position, direction et ouverture de la vue
-          {
-            id: "vue-cone", type: "fill", source: "vue", filter: ["==", ["get", "kind"], "cone"],
-            paint: { "fill-color": CURSEUR, "fill-opacity": 0.25 },
-          },
-          {
-            id: "vue-bord", type: "line", source: "vue", filter: ["==", ["get", "kind"], "cone"],
-            paint: { "line-color": CURSEUR, "line-width": 1.5 },
-          },
-          {  // axe de la vue, prolongé : croisement du cap de visée avec la carte ; comme le trait
-            // vertical au centre de la visionneuse (plein, sans liseré, un peu transparent)
-            id: "vue-axe", type: "line", source: "vue", filter: ["==", ["get", "kind"], "axe"],
-            paint: { "line-color": CURSEUR, "line-width": 2, "line-opacity": 0.6 },
-          },
-          {
-            id: "vue-photo", type: "circle", source: "vue", filter: ["==", ["get", "kind"], "photo"],
-            paint: {
-              "circle-color": CURSEUR, "circle-radius": 6, "circle-stroke-color": "#ffffff",
-              "circle-stroke-width": 2,
-            },
-          },
           // Mesures, visées et points (voir web_app.App.map_geojson)
           {
             id: "visees-halo", type: "line", source: "mesures", filter: kind("visee", "calage"),
@@ -944,37 +923,48 @@ const Carte = (() => {
 
   // Curseur de vue -------------------------------------------------------------------------
 
-  /** Photo affichée et vue : cap (degrés), champ horizontal (degrés), ou heading null. Cône
-   * de 70 pixels et axe jusqu'au bord de la carte, quelle que soit l'échelle (redessinés à
-   * chaque zoom et changement de taille de la carte). */
-  let lastView = null;
+  let viewMarker = null, viewShape = "";
 
+  /** Photo affichée et vue : cap (degrés), champ horizontal (degrés), ou heading null. Cône
+   * de 70 pixels et axe jusqu'au bord de la carte, quelle que soit l'échelle : image SVG posée
+   * sur la carte (marqueur HTML), tournée au cap de la vue. Tourner la vue ne redessine pas la
+   * carte, seule l'image tourne (une couche GeoJSON la faisait redessiner à chaque image). */
   function showView(map, lonlat, heading, fov) {
-    if (!lastView) {
-      for (const event of ["zoomend", "resize"]) map.on(event, () => lastView && showView(map, ...lastView));
+    if (!lonlat) {
+      viewMarker?.remove();
+      viewMarker = null;
+      return;
+    }
+    if (!viewMarker) {
+      const element = document.createElement("div");
+      element.className = "curseur-vue";
+      viewMarker = new maplibregl.Marker({ element, rotationAlignment: "map", pitchAlignment: "map" });
+      viewShape = "";
+      if (!map.__vueSize) {  // axe jusqu'au bord : redessiné quand la carte change de taille
+        map.__vueSize = true;
+        map.on("resize", () => { viewShape = ""; if (lastView) showView(map, ...lastView); });
+      }
     }
     lastView = [lonlat, heading, fov];
-    const features = [];
-    if (lonlat) {
-      if (heading != null) {
-        const radius = 70 * metresPerPixel(map, lonlat[1]);
-        const canvas = map.getCanvas();
-        const diagonal = Math.hypot(canvas.clientWidth, canvas.clientHeight) || 1000;  // carte pas encore mise en page
-        const reach = diagonal * metresPerPixel(map, lonlat[1]);
-        features.push({
-          type: "Feature", properties: { kind: "axe" },
-          geometry: { type: "LineString", coordinates: [lonlat, offset(lonlat, heading, reach)] },
-        });
-        const half = Math.min(fov || 90, 170) / 2;
-        const ring = [lonlat];
-        for (let k = 0; k <= 16; k++) ring.push(offset(lonlat, heading - half + (2 * half * k) / 16, radius));
-        ring.push(lonlat);
-        features.push({ type: "Feature", properties: { kind: "cone" }, geometry: { type: "Polygon", coordinates: [ring] } });
-      }
-      features.push({ type: "Feature", properties: { kind: "photo" }, geometry: { type: "Point", coordinates: lonlat } });
+    const canvas = map.getCanvas();
+    const reach = Math.ceil(Math.hypot(canvas.clientWidth, canvas.clientHeight) || 1000);  // carte pas encore mise en page
+    const half = Math.min(fov || 90, 170) / 2;
+    const shape = `${heading != null}|${Math.round(half * 10)}|${reach}`;
+    if (shape !== viewShape) {  // champ ou taille changés : image refaite
+      viewShape = shape;
+      const r = 70, rad = (d) => (d * Math.PI) / 180;
+      const point = (angle, length) => `${(length * Math.sin(rad(angle))).toFixed(1)} ${(-length * Math.cos(rad(angle))).toFixed(1)}`;
+      const cone = heading == null ? "" : `<path d="M0 0L${point(-half, r)}A${r} ${r} 0 0 1 ${point(half, r)}Z"
+          fill="${CURSEUR}" fill-opacity="0.25" stroke="${CURSEUR}" stroke-width="1.5"/>
+        <line x1="0" y1="0" x2="0" y2="${-reach}" stroke="${CURSEUR}" stroke-width="2" stroke-opacity="0.6"/>`;
+      viewMarker.getElement().innerHTML = `<svg width="${2 * reach}" height="${2 * reach}"
+        viewBox="${-reach} ${-reach} ${2 * reach} ${2 * reach}">${cone}
+        <circle r="6" fill="${CURSEUR}" stroke="#ffffff" stroke-width="2"/></svg>`;
     }
-    map.getSource("vue")?.setData({ type: "FeatureCollection", features });
+    viewMarker.setLngLat(lonlat).setRotation(heading ?? 0);
+    if (!viewMarker._map) viewMarker.addTo(map);
   }
+  let lastView = null;
 
   function offset([lon, lat], heading, distance) {
     const h = heading * Math.PI / 180;

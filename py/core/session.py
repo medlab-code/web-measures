@@ -1770,8 +1770,8 @@ class Session:
         a, e = math.radians(s["heading"]), math.radians(s.get("elev") or 0.0)
         reach = 80.0 if e >= -0.002 else min(80.0, height / -math.tan(e) * 1.2 + 1.0)
         points = []
-        for k in range(81):
-            t = 0.5 * (reach / 0.5) ** (k / 80)  # pas plus serrés près de la caméra de la visée
+        for k in range(41):  # 41 points : reprojetés par la visionneuse à chaque image
+            t = 0.5 * (reach / 0.5) ** (k / 40)  # pas plus serrés près de la caméra de la visée
             x, y = sx + t * math.sin(a), sy + t * math.cos(a)
             z = t * math.tan(e)  # hauteur par rapport aux caméras
             d = math.hypot(x, y)
@@ -1795,8 +1795,8 @@ class Session:
             height = self._camera_height()
             ax, ay = triangulation._local(self.ref_point["lon"], self.ref_point["lat"], lon, lat)
         points = []
-        for k in range(-40, 41):
-            t = k * widths.GUIDE_LENGTH / 40
+        for k in range(-20, 21):  # 41 points : reprojetés par la visionneuse à chaque image
+            t = k * widths.GUIDE_LENGTH / 20
             x, y = ax + t * ux, ay + t * uy
             d = math.hypot(x, y)
             if d < 1.0:

@@ -884,3 +884,6 @@ dd .copier { display: block; margin-top: 0.4rem; padding: 0.1rem 0.5rem; font-si
 /* Réglages par défaut (une fois) : liste des réglages à changer */
 #reglages-defaut { max-width: 34rem; }
 #reglages-defaut ul { margin: 0.4rem 0 0.6rem; padding-left: 1.2rem; }
+
+/* Carte : curseur de vue (cône, axe, position de la photo), image tournée au cap de la vue */
+.curseur-vue { pointer-events: none; line-height: 0; }

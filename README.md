@@ -320,6 +320,10 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.2.5** (18/10/2026) : rotation de la vue plus fluide : cône de vue dessiné en image
+  tournée sur la carte (la carte ne se redessine plus à chaque image), écartement des
+  étiquettes recalculé au zoom et à l'arrêt seulement, traits de la visée à 41 points. Cœur
+  du plugin Visionneuse Panoramax (branche dev, 425f5ad).
 - **0.2.4** (18/10/2026) : étiquette d'une hauteur ou d'une largeur au point d'arrivée (à
   droite du sommet, sous le bord), ouverte par le nom de ce point en pastille ; étiquettes qui
   se chevauchent écartées vers le bas, l'ordre gardé, avec un trait de renvoi (photo et
