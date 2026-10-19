@@ -784,6 +784,7 @@ const Carte = (() => {
     for (const marker of labels.splice(0)) marker.remove();
     sublabels.length = 0;
     stacked.length = 0;
+    labelMap = map;
     for (const feature of geojson.features) {
       const { label, sublabel, kind: featureKind } = feature.properties;
       const coords = feature.geometry.type === "Point" ? feature.geometry.coordinates
@@ -796,6 +797,10 @@ const Carte = (() => {
         const marker = new maplibregl.Marker({ element, offset: labelOffset(element) }).setLngLat(coords).addTo(map);
         labels.push(marker);
         stacked.push(marker);
+        if (feature.geometry.type === "LineString") {  // largeur, distance : à côté du trait (voir besideLine)
+          const line = feature.geometry.coordinates;
+          lineEnds.set(marker, [line[0], line[line.length - 1]]);
+        }
       }
       if (sublabel) {  // sous le trait, couchée le long de celui-ci (voir placeSublabels)
         const element = document.createElement("div");
@@ -822,7 +827,33 @@ const Carte = (() => {
   // déplacement ou zoom de la carte). Mesures au-dessus de leur point, points triangulés
   // dessous : le pied d'une hauteur est souvent sur son point de référence.
   const LABEL_OFFSET = 26;  // écart au point : dégage la croix de mesure (18 px)
+  const LINE_GAP = 5;  // px entre le trait et le bord de l'étiquette posée à côté de lui
+  const CROSS_RADIUS = 10;  // px : demi-taille de la croix d'un point de mesure, et marge
   const stacked = [];
+  const lineEnds = new WeakMap();  // étiquette d'un trait -> ses deux bouts [lon, lat]
+  let labelMap = null;
+
+  /** Placement d'une étiquette : direction (vecteur unitaire à l'écran) et écart au point. Étiquette
+   * d'un trait (largeur, distance) : horizontale, à côté de son milieu, dans la direction
+   * perpendiculaire au trait (côté haut), juste assez loin pour ne toucher ni le trait ni ses
+   * bouts ; posée au-dessus du milieu, elle cachait le bout d'un trait court ou oblique. */
+  function besideLine(marker) {
+    const element = marker.getElement();
+    const ends = lineEnds.get(marker);
+    if (!ends || !labelMap) return { dir: [0, labelSide(element)], gap: LABEL_OFFSET };
+    const pa = labelMap.project(ends[0]), pb = labelMap.project(ends[1]);
+    const length = Math.hypot(pb.x - pa.x, pb.y - pa.y);
+    if (length < 1) return { dir: [0, -1], gap: LABEL_OFFSET };
+    let nx = -(pb.y - pa.y) / length, ny = (pb.x - pa.x) / length;
+    if (ny > 0 || (ny === 0 && nx < 0)) [nx, ny] = [-nx, -ny];  // vers le haut (ou la droite)
+    const w = element.offsetWidth / 2, h = element.offsetHeight / 2;
+    let gap = w * Math.abs(nx) + h * Math.abs(ny) + LINE_GAP;
+    // Trait court : écartée encore tant qu'elle touche la croix d'un bout
+    const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2;
+    const touches = (p) => Math.abs(p.x - mx - nx * gap) < w + CROSS_RADIUS && Math.abs(p.y - my - ny * gap) < h + CROSS_RADIUS;
+    while (gap < 80 && (touches(pa) || touches(pb))) gap += 2;
+    return { dir: [nx, ny], gap };
+  }
 
   /** Sens de l'étiquette : -1 au-dessus (mesures), 1 dessous (points triangulés). */
   const labelSide = (element) => (element.classList.contains("tri-point") ? 1 : -1);
@@ -832,10 +863,12 @@ const Carte = (() => {
     const placed = [];
     for (const marker of stacked) {
       const element = marker.getElement();
-      marker.setOffset(labelOffset(element));
+      const { dir, gap } = besideLine(marker);
+      marker.setOffset([dir[0] * gap, dir[1] * gap]);
       let rect = element.getBoundingClientRect();
       for (let k = 1; k <= 10 && placed.some((p) => overlaps(p, rect)); k++) {
-        marker.setOffset([0, labelSide(element) * (LABEL_OFFSET + k * (rect.height + 2))]);
+        const d = gap + k * (rect.height + 2);
+        marker.setOffset([dir[0] * d, dir[1] * d]);
         rect = element.getBoundingClientRect();
       }
       placed.push(rect);
