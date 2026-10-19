@@ -320,6 +320,10 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.2.14** (19/10/2026) : étiquette du lieu (en bas à gauche de la visionneuse) avec la route
+  et le PR de nouveau : quand la Géoplateforme refusait la requête des tronçons (requêtes en
+  rafale, HTTP 429), seule la commune restait, gardée pour la session ; la description
+  incomplète n'est plus gardée et elle est redemandée.
 - **0.2.13** (19/10/2026) : fiche de la photo, « Précision GPS annoncée » suivie sur la même
   ligne de la précision calculée (vérification RTK sur le sol LiDAR HD ou RGE ALTI, ou pourquoi
   elle manque). Voyants RTK et LiDAR HD (ou RGE ALTI) affichés aussi hors du mode mesure ; celui
