@@ -13,6 +13,18 @@ const Lieu = (() => {
   const REACH = 25;  // m : tronçons cherchés autour de la photo
   const SECTION_REACH = 40;  // m : section de PR de la route cherchée autour de la photo
   const cache = new Map();  // lieu déjà lu, au mètre près
+  // Tronçons et sections de PR lus par zone (maille de CELL degrés élargie de CELL_MARGIN m) et
+  // gardés : les photos d'une séquence, à quelques mètres les unes des autres, n'envoient plus
+  // de requête chacune (la Géoplateforme refuse les rafales, HTTP 429)
+  const CELL = 0.004;  // degrés : ~300 × 440 m
+  const CELL_MARGIN = 50;  // m, au moins REACH et SECTION_REACH
+  const zones = new Map();  // couche et maille -> promesse des objets
+  const prsBySection = new Map();  // identifiant de section -> promesse de ses PR
+  // Requêtes WFS : au plus PARALLEL à la fois ; un refus (HTTP 429) est retenté après une pause
+  const PARALLEL = 2;
+  const RETRIES = [1000, 3000];  // ms
+  let running = 0;
+  const waiting = [];
 
   function local([lon, lat], [lon0, lat0]) {
     const k = Math.cos(lat0 * Math.PI / 180);
@@ -34,9 +46,66 @@ const Lieu = (() => {
       const dlat = reach / 111320, dlon = reach / (111320 * Math.cos(lat * Math.PI / 180));
       params.set("BBOX", `${lat - dlat},${lon - dlon},${lat + dlat},${lon + dlon},urn:ogc:def:crs:EPSG::4326`);
     }
-    const response = await fetch(`${WFS}?${params}`);
+    const response = await queued(`${WFS}?${params}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return (await response.json()).features || [];
+  }
+
+  /** fetch(url) dans la file des requêtes WFS (voir PARALLEL et RETRIES). */
+  async function queued(url) {
+    for (let attempt = 0; ; attempt++) {
+      if (running >= PARALLEL) await new Promise((resolve) => waiting.push(resolve));
+      running++;
+      let response;
+      try {
+        response = await fetch(url);
+      } finally {
+        running--;
+        waiting.shift()?.();
+      }
+      if (response.status !== 429 || attempt >= RETRIES.length) return response;
+      await new Promise((resolve) => setTimeout(resolve, RETRIES[attempt]));
+    }
+  }
+
+  /** Objets d'une couche dans la maille de (lon, lat), élargie de CELL_MARGIN m : lus une fois
+   * par maille (un échec n'est pas gardé). */
+  function zone(layer, properties, lon, lat) {
+    const i = Math.floor(lon / CELL), j = Math.floor(lat / CELL);
+    const key = `${layer} ${i} ${j}`;
+    if (!zones.has(key)) {
+      const lat0 = (j + 0.5) * CELL;
+      const mlat = CELL_MARGIN / 111320, mlon = CELL_MARGIN / (111320 * Math.cos(lat0 * Math.PI / 180));
+      const box = [i * CELL - mlon, j * CELL - mlat, (i + 1) * CELL + mlon, (j + 1) * CELL + mlat];
+      const params = new URLSearchParams({
+        SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetFeature", TYPENAMES: `BDTOPO_V3:${layer}`,
+        OUTPUTFORMAT: "application/json", SRSNAME: "EPSG:4326", COUNT: "5000", PROPERTYNAME: properties,
+        BBOX: `${box[1]},${box[0]},${box[3]},${box[2]},urn:ogc:def:crs:EPSG::4326`,
+      });
+      const promise = queued(`${WFS}?${params}`).then(async (response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return (await response.json()).features || [];
+      });
+      promise.catch(() => zones.delete(key));  // à redemander
+      zones.set(key, promise);
+      if (zones.size > 200) zones.delete(zones.keys().next().value);
+    }
+    return zones.get(key);
+  }
+
+  /** Points de repère numérotés de la section, avec leur abscisse officielle : lus une fois par
+   * section (un échec n'est pas gardé). */
+  function sectionMilestones(id) {
+    if (!prsBySection.has(id)) {
+      const promise = features("point_de_repere", {
+        filter: `identifiant_de_section='${id.replace(/'/g, "''")}'`, count: 500,
+        properties: "numero,abscisse,geometrie",
+      });
+      promise.catch(() => prsBySection.delete(id));
+      prsBySection.set(id, promise);
+      if (prsBySection.size > 100) prsBySection.delete(prsBySection.keys().next().value);
+    }
+    return prsBySection.get(id);
   }
 
   /** Longueur (m) du segment [a, b] en [lon, lat], à la latitude du segment. */
@@ -71,15 +140,14 @@ const Lieu = (() => {
   async function milestone(numero, lon, lat) {
     if (!numero) return "";
     let section = null;
-    for (const f of await features("section_de_points_de_repere", { lon, lat, reach: SECTION_REACH })) {
+    for (const f of await zone("section_de_points_de_repere", "numero_de_route,identifiant_de_section,geometrie", lon, lat)) {
       if ((f.properties || {}).numero_de_route !== numero || f.geometry?.type !== "LineString") continue;
       const p = project(f.geometry.coordinates, lon, lat);
       if (p.d <= SECTION_REACH && (!section || p.d < section.p.d)) section = { f, p };
     }
     if (!section) return "";
     const line = section.f.geometry.coordinates;
-    const id = section.f.properties.identifiant_de_section.replace(/'/g, "''");
-    const prs = (await features("point_de_repere", { filter: `identifiant_de_section='${id}'`, count: 500 }))
+    const prs = (await sectionMilestones(section.f.properties.identifiant_de_section))
       .filter((f) => /^\d+$/.test(String(f.properties?.numero)) && f.properties.abscisse != null)
       .map((f) => ({ n: Number(f.properties.numero), a: f.properties.abscisse,
         s: project(line, ...f.geometry.coordinates).s }))
@@ -102,6 +170,9 @@ const Lieu = (() => {
   // Tronçons où ne roule pas le véhicule de prise de vue : un trottoir saisi en sentier peut
   // passer plus près de la photo que l'axe de la chaussée
   const NOT_DRIVEN = new Set(["Sentier", "Escalier", "Bac ou liaison maritime"]);
+  // Attributs des tronçons lus (route, véloroutes), sans les autres : réponse six fois plus légère
+  const TRONCON_PROPERTIES = "nature,cpx_numero,nom_voie_ban_gauche,nom_voie_ban_droite,"
+    + "cpx_nature_itineraire_autre,cpx_toponyme_itineraire_autre,geometrie";
 
   /** Tronçon de route (praticable en voiture) le plus proche parmi troncons : { numero, nom } ou null. */
   function road(troncons, lon, lat) {
@@ -112,7 +183,7 @@ const Lieu = (() => {
       const lines = geometry.type === "MultiLineString" ? geometry.coordinates : [geometry.coordinates || []];
       for (const line of lines) {
         const { d } = project(line, lon, lat);
-        if (!best || d < best.d) best = { d, props: feature.properties || {} };
+        if (d <= REACH && (!best || d < best.d)) best = { d, props: feature.properties || {} };
       }
     }
     if (!best) return null;
@@ -183,7 +254,7 @@ const Lieu = (() => {
     if (cache.has(key)) return { text: cache.get(key), complete: true };
     let failed = false;
     const fail = (value) => () => { failed = true; return value; };
-    const [troncons, c] = await Promise.all([features("troncon_de_route", { lon, lat, reach: REACH }).catch(fail(null)),
+    const [troncons, c] = await Promise.all([zone("troncon_de_route", TRONCON_PROPERTIES, lon, lat).catch(fail(null)),
       commune(lon, lat).catch(fail(""))]);
     const r = troncons ? road(troncons, lon, lat) : null;
     const pr = await milestone(r?.numero, lon, lat).catch(fail(""));

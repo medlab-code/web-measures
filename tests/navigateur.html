@@ -144,17 +144,31 @@ async function feature(id) {
   log("lieu : " + doc.querySelector("#lieu").textContent);
   expect("lieu : route et PR", /^D111 – PR \d+ \+\d{4}/.test(doc.querySelector("#lieu").textContent));
   {
+    // Point de la D111 dans une maille pas encore lue : les tronçons refusés (premier envoi et
+    // deux nouveaux essais) puis acceptés ; un refus isolé est retenté sans rien perdre
     const realFetch = w.fetch;
-    let refused = 0;
-    w.fetch = (url, ...rest) => (String(url).includes("troncon_de_route") && refused++ === 0)
-      ? Promise.resolve(new Response("", { status: 429 })) : realFetch(url, ...rest);
-    const [lon, lat] = [4.8662, 47.01335];
+    let refused = 0, wfs = 0;
+    w.fetch = (url, ...rest) => {
+      if (String(url).includes("/wfs/")) wfs++;
+      return (String(url).includes("troncon_de_route") && refused++ < 3)
+        ? Promise.resolve(new Response("", { status: 429 })) : realFetch(url, ...rest);
+    };
+    const [lon, lat] = [4.85867, 47.01648];
     const Lieu = w.eval("Lieu");
     const first = await Lieu.describe(lon, lat), second = await Lieu.describe(lon, lat);
-    w.fetch = realFetch;
     log(`lieu refusé puis redemandé : « ${first.text} » (${first.complete}) puis « ${second.text} » (${second.complete})`);
     expect("lieu : texte partiel non gardé, complet ensuite", !first.complete && second.complete
       && second.text.startsWith("D111") && !first.text.startsWith("D111"));
+    // Photo voisine (5 m) : tronçons, section et PR déjà lus, aucune requête WFS
+    wfs = 0;
+    const near = await Lieu.describe(lon + 0.00005, lat + 0.00002);
+    log(`lieu voisin : « ${near.text} », ${wfs} requête(s) WFS`);
+    expect("lieu voisin sans requête", near.complete && near.text.startsWith("D111 – PR") && wfs === 0);
+    refused = 2;  // un seul refus, retenté
+    const other = await Lieu.describe(4.86838, 47.01255);
+    w.fetch = realFetch;
+    log(`lieu après un refus retenté : « ${other.text} » (${other.complete})`);
+    expect("lieu : refus isolé retenté", other.complete && other.text.startsWith("D111"));
   }
 
   // 70 m après le pont : décocher la case proposé, décochée sur « Oui »
