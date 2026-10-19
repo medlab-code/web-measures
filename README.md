@@ -320,6 +320,10 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.2.9** (19/10/2026) : lecture rapide de la séquence (2x à 16x) rétablie sur l'instance
+  IGN : la liste des photos était demandée au stockage de ses images, qui la refuse ; elle
+  l'est maintenant à l'instance (lien de la séquence, ou instance d'origine depuis le
+  méta-catalogue), avec repli en lecture 1x si aucune ne répond.
 - **0.2.8** (19/10/2026) : sur la carte, étiquette d'une largeur ou d'une distance posée à
   côté du trait (horizontale, perpendiculairement au trait), et non plus au-dessus de son
   milieu, où elle cachait le bord B sur un trait court ou oblique. Sortie d'un pont : case
