@@ -320,6 +320,8 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.2.17** (19/10/2026) : « Mesures loin d'ici » : « Tout effacer » en rouge, « Garder » en
+  vert ; fenêtre « Première utilisation » présentée comme les alertes, centrée sur la visionneuse.
 - **0.2.16** (19/10/2026) : fenêtres « Mesures loin d'ici » et « Mesurer la distance ? »
   présentées comme les alertes RTK et pont : centrées sur la visionneuse, cadre orange, boutons
   au centre (refus en rouge, acceptation en vert).
