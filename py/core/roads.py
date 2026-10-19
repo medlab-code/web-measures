@@ -18,7 +18,8 @@ de Pouilly-en-Auxois (12/10/2026) : les tronçons de la BD TOPO s'accordent avec
 3. À défaut : direction du véhicule à la caméra (axe porté par les clics).
 
 Les tronçons sont lus par maille d'environ 100 m, une fois par session ; une panne n'est pas
-gardée (nouvel essai après RETRY s).
+gardée (nouvel essai après RETRY s). Les mêmes tronçons disent si une photo est prise sur un
+pont (on_bridge) : le MNT LiDAR HD y donne le terrain sous l'ouvrage, pas le tablier.
 """
 
 import math
@@ -38,6 +39,8 @@ TRACK_RADIUS = 20.0  # m : photos de la séquence autour du point mesuré
 TRACK_PHOTOS = 3
 RETRY = 30.0  # s avant de réinterroger un service en panne
 PENDING = "pending"  # résultat de lookup quand une lecture est en cours
+BRIDGE_REACH = 8.0  # m entre la photo et un tronçon en pont : demi-chaussée et précision GPS
+BRIDGE_ANGLE = 30.0  # degrés au plus entre le tronçon en pont et le sens de la séquence
 
 
 def _axis_diff(a, b):
@@ -63,7 +66,8 @@ def wfs_url(cell):
 
 
 def parse_sections(data):
-    """Tronçons d'une réponse WFS (GeoJSON) : liste de dicts line ([(lon, lat)]), name."""
+    """Tronçons d'une réponse WFS (GeoJSON) : liste de dicts line ([(lon, lat)]), name, level
+    (position par rapport au sol : 1 ou plus sur un pont, -1 en tunnel)."""
     out = []
     for feat in (data or {}).get("features") or []:
         geom = feat.get("geometry") or {}
@@ -74,13 +78,17 @@ def parse_sections(data):
         elif geom.get("type") != "MultiLineString":
             continue
         name = props.get("cpx_numero") or props.get("nom_collaboratif_gauche") or props.get("nature") or ""
+        try:
+            level = int(props.get("position_par_rapport_au_sol") or 0)
+        except (TypeError, ValueError):
+            level = 0
         for line in lines:
             try:
                 pts = [(float(c[0]), float(c[1])) for c in line]
             except (TypeError, ValueError, IndexError):
                 continue
             if len(pts) >= 2:
-                out.append({"line": pts, "name": str(name)})
+                out.append({"line": pts, "name": str(name), "level": level})
     return out
 
 
@@ -130,6 +138,25 @@ def road_axis(sections, lon, lat, crossing):
         source = "BD TOPO" + (", " + sec["name"] if sec["name"] else "")
         best = {"axis": axis, "source": source, "distance": d}
     return best
+
+
+def on_bridge(sections, lon, lat, axis=None):
+    """Tronçon en pont (dict de parse_sections) sous la photo prise en (lon, lat) : à moins de
+    BRIDGE_REACH m et, si l'axe de la séquence est connu, dans son sens (à BRIDGE_ANGLE° près :
+    une photo prise sous le pont, sur la voie franchie, n'est pas dessus). None sinon."""
+    for sec in sections:
+        if sec.get("level", 0) <= 0:
+            continue
+        line = [triangulation._local(p[0], p[1], lon, lat) for p in sec["line"]]
+        d, s = _project(line, 0.0, 0.0)
+        if d > BRIDGE_REACH:
+            continue
+        a, b = _at(line, s - TANGENT), _at(line, s + TANGENT)
+        if axis is not None and math.hypot(b[0] - a[0], b[1] - a[1]) >= 1.0 and \
+                _axis_diff(math.degrees(math.atan2(b[0] - a[0], b[1] - a[1])), axis) > BRIDGE_ANGLE:
+            continue
+        return sec
+    return None
 
 
 def trajectory_axis(features, sequence, lon, lat):
@@ -184,6 +211,15 @@ class RoadAxisProvider:
         if track is PENDING:
             return PENDING
         return trajectory_axis(track, sequence, lon, lat) if track else None
+
+    def bridge(self, lon, lat, axis=None):
+        """Tronçon en pont sous la photo (voir on_bridge), None, ou PENDING pendant la lecture
+        (ready() sera appelé à son arrivée)."""
+        cell = _cell(lon, lat)
+        sections = self._get(("bdtopo", cell), self._sections, cell, lambda: wfs_url(cell), parse_sections)
+        if sections is PENDING:
+            return PENDING
+        return on_bridge(sections or [], lon, lat, axis)
 
     def _get(self, key, cache, cache_key, url, parse):
         """Données en cache, PENDING (lecture lancée ou en cours), ou None (panne récente)."""

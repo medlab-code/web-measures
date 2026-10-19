@@ -38,6 +38,7 @@ const metresIn = (text) => Number(((text || "").match(/(\d+,\d+) m\b/) || [])[1]
 const verdict = () => log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
 const DIJON = ["33565d3f-5e27-47fb-9137-ba4de564530d", "a3996fff-7cf7-44b4-8c54-afd556f2632c"];
 const POUILLY = "cd8cf3a0-6567-40f0-8805-94172a5dfc3c";
+const PONT = "b40045bd-1fc5-4a7a-a5bd-7b7952902a1c";  // CD21, tablier de la RD111 au-dessus de l'A6 (Beaune)
 const MONTBARD = "f533e240-7d37-40ef-babc-1d37140dc5d2";  // plugin : inclinaison 1,95° vers 219° (±0,22°)
 
 async function until(test, ms, what) {
@@ -113,6 +114,18 @@ async function feature(id) {
     120000, "inclinaison") + " ms");
   log("état : " + state().quality);
   log("calage : " + state().calibration);
+
+  // Pont de la RD111 (BD TOPO) : « Sur un pont » proposé, coché sur « Oui »
+  await open(PONT);
+  const pont = doc.querySelector("#alerte-pont");
+  try { await until(() => pont.open, 30000, "proposition pont"); } catch (e) { log(String(e)); }
+  expect("pont proposé", pont.open && pont.textContent.includes("sur un pont (D111)"));
+  log("pont : " + pont.querySelector("p").textContent);
+  pont.querySelector("button[value=oui]").click();
+  try { await until(() => doc.querySelector("#pont").checked, 5000, "case cochée"); } catch (e) { log(String(e)); }
+  expect("case « Sur un pont » cochée", doc.querySelector("#pont").checked && app.bridge);
+  doc.querySelector("#pont").click();  // décochée pour la suite
+  expect("case décochée", !doc.querySelector("#pont").checked && !app.bridge);
 
   // Dijon ----------------------------------------------------------------------------------
   await open(DIJON[0]);

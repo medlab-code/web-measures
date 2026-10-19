@@ -43,6 +43,11 @@ RTK_WARNING = (" ⚠ Photo sans position GPS RTK vérifiée : mesure probablemen
 # Fenêtre d'avertissement, une fois par séquence sans RTK vérifié (voir Session.take_rtk_alert)
 RTK_ALERT = ("La localisation des images de cette séquence est trop imprécise pour fonctionner. "
              "Un GPS avec corrections RTK est requis.")
+# Photo sur un pont d'après la BD TOPO : proposition de cocher « Sur un pont » (voir take_bridge_alert)
+BRIDGE_ALERT = ("D'après la BD TOPO de l'IGN, cette photo est prise sur un pont{}. Le LiDAR HD y donne le "
+                "terrain sous l'ouvrage, plusieurs mètres sous le tablier : les mesures seraient fausses. "
+                "Cocher « Sur un pont » (sol tiré des photos au lieu du LiDAR HD) ?")
+BRIDGE_ASKED_RADIUS = 200.0  # m : pas de nouvelle proposition près d'un pont déjà proposé
 
 
 class Session:
@@ -105,6 +110,8 @@ class Session:
         self.calibration_version = 0  # augmente à chaque changement du calage (à enregistrer)
         self.active = False  # bouton « Mesure » : clics dans la photo pour mesurer
         self.rtk_alerted = set()  # séquences sans RTK déjà signalées par une fenêtre (take_rtk_alert)
+        self.bridge_asked = []  # (lon, lat) des photos où « Sur un pont » a été proposé (take_bridge_alert)
+        self._bridge_waiting = False  # tronçons BD TOPO en lecture pour take_bridge_alert
         self.epoch = 0  # change quand les clics en cours sont abandonnés
         # Hauteur, largeur : photo de la première visée du point de référence, sur laquelle la
         # mesure se fera ; l'hôte y revient après la validation (take_goto)
@@ -1310,7 +1317,8 @@ class Session:
         return self.status()
 
     def _roads_ready(self):
-        changed = self.tool.recompute_roads()
+        changed = self.tool.recompute_roads() or self._bridge_waiting  # pont à proposer peut-être
+        self._bridge_waiting = False
         ref = self.ref_point
         if ref is not None and self.mode == "road" and ref.get("road") is None:  # axe au point de référence
             self._road_at_reference()
@@ -1891,6 +1899,28 @@ class Session:
             return None
         self.rtk_alerted.add(sequence)
         return RTK_ALERT
+
+    def take_bridge_alert(self):
+        """BRIDGE_ALERT à afficher en fenêtre (réponse oui : set_bridge(True)) : mesure activée
+        sur une photo prise sur un pont d'après la BD TOPO (roads.on_bridge), case « Sur un pont »
+        décochée, pont pas encore proposé (à BRIDGE_ASKED_RADIUS m près) ; None sinon. Pendant
+        la lecture des tronçons : None, et notify() à leur arrivée pour redemander."""
+        item = self.item or {}
+        if not self.active or self.bridge or not item:
+            return None
+        try:
+            lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
+        except (KeyError, TypeError, ValueError):
+            return None
+        if any(tools._metres(p, (lon, lat)) < BRIDGE_ASKED_RADIUS for p in self.bridge_asked):
+            return None
+        axis = self._axis(item)
+        sec = self.roads.bridge(lon, lat, metadata.item_heading(item) if axis is None else axis)
+        self._bridge_waiting = sec is roads.PENDING
+        if not sec or sec is roads.PENDING:
+            return None
+        self.bridge_asked.append((lon, lat))
+        return BRIDGE_ALERT.format(" ({})".format(sec["name"]) if sec.get("name") else "")
 
     def take_proposal(self):
         """Distance proposée après un effacement ([n°, n°, « A », « C »] ou None), une
