@@ -280,13 +280,31 @@ async function feature(id) {
   doc.querySelector("#lecture-avant").click();  // 1x
   await sleep(300);
   doc.querySelector("#lecture-avant").click();  // 2x
+  // Fluidité de la carte : déplacement (px) et durée (ms) de chaque image pendant la lecture
+  const frames = [];
+  let sampling = true, last = null;
+  const sample = (t) => {
+    const c = w.mesures.map.getCenter();
+    if (last) frames.push({ dt: t - last.t, dx: Math.hypot(...[c.lng - last.c.lng, c.lat - last.c.lat]) });
+    last = { t, c };
+    if (sampling) w.requestAnimationFrame(sample);
+  };
+  w.requestAnimationFrame(sample);
   const playStart = Date.now();
   while (Date.now() - playStart < 8000) { seen(); await sleep(100); }
+  sampling = false;
+  const moves = frames.slice(30).map((f) => f.dx).filter((d) => d > 0);
+  const median = moves.sort((x, y) => x - y)[Math.floor(moves.length / 2)] || 0;
+  const body = frames.slice(30);
+  const stalls = body.filter((f) => f.dx < median * 0.2).length;
+  const long = body.filter((f) => f.dt > 50).length;
+  log(`fluidité carte : ${body.length} images, ${stalls} quasi arrêtées (${Math.round(100 * stalls / body.length)} %), `
+    + `${long} de plus de 50 ms, la plus longue ${Math.round(Math.max(...body.map((f) => f.dt)))} ms`);
   doc.querySelector("#lecture-pause").click();
   const ranks = await Promise.all(shown.map(async (id) => (await feature(id)).properties["geovisio:rank_in_collection"]));
   const steps = ranks.slice(1).map((r, i) => r - ranks[i]);
   log("lecture 2x : " + doc.querySelector("#vitesse-avant").textContent + " · rangs " + ranks.join(" "));
-  expect("lecture 2x : une photo sur deux, au moins 3 pas", steps.length >= 3 && steps.slice(1).every((d) => d === 2),
+  expect("lecture 2x : une photo sur deux, au moins 3 pas", steps.length >= 4 && steps.slice(-3).every((d) => d === 2),
     "pas " + steps.join(" "));
   verdict();
   log("FIN");

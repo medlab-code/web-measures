@@ -639,6 +639,18 @@
     }
   }
 
+  // Lecture de la séquence : la carte glisse à vitesse constante d'une photo à la suivante (une
+  // animation freinée, coupée par la photo suivante, la faisait avancer par à-coups). Durée du
+  // glissement : intervalle moyen entre les photos, allongé pour que la carte bouge encore à
+  // l'arrivée de la suivante (les photos n'arrivent pas à intervalle régulier : un glissement
+  // fini trop tôt laisse la carte arrêtée). Lieu, PCRS et ortho-express attendent l'arrêt.
+  const PLAYING_GLIDE_MAX = 1500;  // ms : intervalle plus long (pause, photo lente) non compté
+  const PLAYING_GLIDE_STRETCH = 1.4;
+  const PLAYING_DETAILS_DELAY = 700;  // ms sans nouvelle photo avant de compléter ses détails
+  let lastPhotoAt = 0;
+  let photoInterval = 0;  // ms : intervalle moyen entre les photos de la lecture (moyenne glissante)
+  let detailsTimer = null;
+
   function setPhoto(feature, recenter) {
     photo = feature;
     store.set("photo", feature.id);  // rouverte à la prochaine visite (voir reopenPhoto)
@@ -647,6 +659,33 @@
     const taken = (feature.properties?.datetime || "").slice(0, 4);
     $("#producteur-photo").textContent = [taken, producer].filter(Boolean).join(" – ");
     $("#producteur-photo").hidden = !producer && !taken;
+    const moving = playing();
+    clearTimeout(detailsTimer);
+    if (moving) detailsTimer = setTimeout(() => { if (photo === feature) photoDetails(feature); }, PLAYING_DETAILS_DELAY);
+    else photoDetails(feature);
+    const coords = feature.geometry.coordinates;
+    Carte.showView(map, coords, viewHeading(), viewFov());
+    const now = performance.now();
+    if (recenter && $("#centrer").checked) {
+      if (moving) {
+        const interval = now - lastPhotoAt;
+        if (interval < PLAYING_GLIDE_MAX) photoInterval = photoInterval ? 0.7 * photoInterval + 0.3 * interval : interval;
+        map.easeTo({ center: coords, duration: (photoInterval || 500) * PLAYING_GLIDE_STRETCH, easing: (t) => t });
+      } else {
+        map.easeTo({ center: coords, zoom: Math.max(map.getZoom(), 17) });
+      }
+    }
+    lastPhotoAt = now;
+    showPhotoInfo(feature);
+    $("#capture-hd").disabled = !Calcul.hasWorker();
+    $("#vignette").disabled = false;
+    if (app) refresh(app.set_picture(JSON.stringify(feature)));
+    updateProducers();
+    checkFarFromMeasures(coords);
+  }
+
+  /** Détails de la photo tirés des services : lieu, PCRS, ortho-express de son année. */
+  function photoDetails(feature) {
     // PCRS : option active seulement là où un PCRS est publié sur la Géoplateforme
     Carte.pcrsAt(map, ...feature.geometry.coordinates).then((zone) => {
       if (photo !== feature) return;
@@ -665,15 +704,6 @@
       });
     }
     showPlace(feature);
-    const coords = feature.geometry.coordinates;
-    Carte.showView(map, coords, viewHeading(), viewFov());
-    if (recenter && $("#centrer").checked) map.easeTo({ center: coords, zoom: Math.max(map.getZoom(), 17) });
-    showPhotoInfo(feature);
-    $("#capture-hd").disabled = !Calcul.hasWorker();
-    $("#vignette").disabled = false;
-    if (app) refresh(app.set_picture(JSON.stringify(feature)));
-    updateProducers();
-    checkFarFromMeasures(coords);
   }
 
   // Photo loin des mesures : proposer de repartir de zéro ------------------------------------
