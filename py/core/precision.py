@@ -158,6 +158,28 @@ def camera_suggestion(res):
                            "({}). Cliquer pour remplir le champ « Caméra à ».".format(terrain_name(res), how))
 
 
+def computed_text(res):
+    """Précision GPS calculée, à côté de celle annoncée par la photo : résultat de la vérification
+    (hauteur de caméra constante au-dessus du sol LiDAR HD ou RGE ALTI), ou pourquoi elle manque."""
+    def cm(value):
+        return "{:.0f}".format(value * 100)
+
+    if not res:
+        return "en cours…"
+    if res["precise"]:
+        accuracy = "±{} m".format("{:.2f}".format(res["accuracy"]).replace(".", ","))
+        if res.get("count"):
+            return "{} (hauteur de caméra constante à {} cm, {})".format(accuracy, cm(res["spread"]), terrain_name(res))
+        return "{} (précision déclarée dans la photo)".format(accuracy)
+    if res["lidar"] is False:
+        return "impossible (pas de LiDAR HD ni de RGE ALTI)"
+    if res["lidar"] is None:
+        return "impossible pour l'instant (service d'altimétrie indisponible)"
+    reason = res.get("reason") or ""
+    prefix = "position non vérifiée : "
+    return "non vérifiée ({})".format(reason[len(prefix):] if reason.startswith(prefix) else reason)
+
+
 def state_text(res, accuracy=None, tilt=None):
     """Ligne d'état du panneau : précision de la position, présence du LiDAR HD et, si
     `tilt` (texte, manquante) est donné, inclinaison de la photo."""

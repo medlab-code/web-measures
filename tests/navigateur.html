@@ -151,6 +151,12 @@ async function feature(id) {
   await open(SANS_LIDAR);
   try { await until(() => /vérifiée \(|non vérifiée/.test(state().quality), 60000, "vérification RGE ALTI"); } catch (e) { log(String(e)); }
   log("hors LiDAR HD : " + state().quality);
+  {  // fiche de la photo : précision annoncée, puis calculée sur la même ligne
+    const row = [...doc.querySelectorAll("#fiche dt")].find((dt) => dt.textContent === "Précision GPS annoncée");
+    const text = row?.nextElementSibling?.textContent || "";
+    log("fiche : Précision GPS annoncée " + text);
+    expect("fiche : précision annoncée et calculée", /^2 m · calculée ±0,10 m \(hauteur de caméra constante à \d+ cm, RGE ALTI\)/.test(text), text);
+  }
   expect("hors LiDAR HD : vérifiée sur le RGE ALTI", state().quality.includes("Position GPS vérifiée")
     && state().quality.includes("RGE ALTI"));
   try { await until(() => pont.open, 30000, "pont Camille Baudry"); } catch (e) { log(String(e)); }

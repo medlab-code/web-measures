@@ -358,6 +358,8 @@
       showOverViewer(dialog);
     }
     const state = JSON.parse(app.state());
+    const computed = $("#fiche .precision-calculee");
+    if (computed) computed.textContent = state.computed || "en cours…";
     $("#qualite").textContent = state.quality;
     $("#qualite").classList.toggle("alerte", state.quality.startsWith("⚠"));
     $("#calage").textContent = state.calibration;
@@ -845,13 +847,19 @@
       ["Date", (p.datetime || "").replace("T", " ").slice(0, 16)],
       ["Producteur", photoProducer(feature)],
       ["Caméra", (p["pers:interior_orientation"] || {}).camera_model || ""],
-      ["Précision GPS", accuracy != null ? `${String(accuracy).replace(".", ",")} m` : ""],
+      ["Précision GPS annoncée", accuracy != null ? `${String(accuracy).replace(".", ",")} m` : "—"],
       ["Identifiant", feature.id],
     ];
     const dl = document.createElement("dl");
     for (const [label, value] of rows) {
-      dl.append(Object.assign(document.createElement("dt"), { textContent: label }),
-        Object.assign(document.createElement("dd"), { textContent: value || "—" }));
+      const dd = Object.assign(document.createElement("dd"), { textContent: value || "—" });
+      if (label === "Précision GPS annoncée") {
+        // À la suite : précision calculée (vérification RTK sur le sol LiDAR HD ou RGE ALTI), mise à
+        // jour par refresh quand la vérification arrive
+        const computed = Object.assign(document.createElement("span"), { className: "precision-calculee" });
+        dd.append(" · calculée ", computed);
+      }
+      dl.append(Object.assign(document.createElement("dt"), { textContent: label }), dd);
     }
     // Identifiant à copier d'un clic : pour retrouver la photo (tests entre collègues)
     const copy = Object.assign(document.createElement("button"), { type: "button", className: "copier",

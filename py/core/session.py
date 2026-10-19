@@ -1540,6 +1540,7 @@ class Session:
         sequence = (item or {}).get("collection")
         return ({
             "quality": precision.state_text(self.quality, metadata.item_accuracy(item), tilt) if item else "",
+            "computed": precision.computed_text(self.quality) if item else "",  # précision GPS calculée
             "calibration": tools.calibration_text(self.calibration, pic, sequence, lon, lat) if item else "",
             "camera": [round(suggestion[0], 2), suggestion[1]] if suggestion else None,
             "waiting_map": self.waiting_map(),
