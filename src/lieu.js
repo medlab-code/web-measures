@@ -175,23 +175,27 @@ const Lieu = (() => {
   }
 
   /** « D16 – PR 27 +0185 – Place de la Liberation – Pouilly-en-Auxois » (parties connues) ; hors
-   * route départementale, la véloroute suivie et l'écluse la plus proche avant la commune. */
+   * route départementale, la véloroute suivie et l'écluse la plus proche avant la commune.
+   * Retourne { text, complete } : complete faux si un service a échoué (la Géoplateforme refuse
+   * des requêtes en rafale, HTTP 429) ; le texte, partiel, n'est alors pas gardé, à redemander. */
   async function describe(lon, lat) {
     const key = `${lon.toFixed(5)},${lat.toFixed(5)}`;
-    if (!cache.has(key)) {
-      const [troncons, c] = await Promise.all([features("troncon_de_route", { lon, lat, reach: REACH }).catch(() => null),
-        commune(lon, lat).catch(() => "")]);
-      const r = troncons ? road(troncons, lon, lat) : null;
-      const pr = await milestone(r?.numero, lon, lat).catch(() => "");
-      // Hors route départementale : la véloroute suivie, s'il y en a une (chemin de halage, voie verte…)
-      const bike = troncons && !/^D\d/.test(r?.numero || "") ? cycleRoutes(troncons, lon, lat) : "";
-      const lock = bike ? await nearestLock(lon, lat).catch(() => "") : "";  // repère des chemins de halage
-      const text = [r?.numero, pr, r?.nom, bike, lock, c].filter(Boolean).join(" – ");  // comme l'étiquette de droite
-      if (!text) return "";  // services injoignables : rien de gardé, on réessaiera
+    if (cache.has(key)) return { text: cache.get(key), complete: true };
+    let failed = false;
+    const fail = (value) => () => { failed = true; return value; };
+    const [troncons, c] = await Promise.all([features("troncon_de_route", { lon, lat, reach: REACH }).catch(fail(null)),
+      commune(lon, lat).catch(fail(""))]);
+    const r = troncons ? road(troncons, lon, lat) : null;
+    const pr = await milestone(r?.numero, lon, lat).catch(fail(""));
+    // Hors route départementale : la véloroute suivie, s'il y en a une (chemin de halage, voie verte…)
+    const bike = troncons && !/^D\d/.test(r?.numero || "") ? cycleRoutes(troncons, lon, lat) : "";
+    const lock = bike ? await nearestLock(lon, lat).catch(fail("")) : "";  // repère des chemins de halage
+    const text = [r?.numero, pr, r?.nom, bike, lock, c].filter(Boolean).join(" – ");  // comme l'étiquette de droite
+    if (!failed && text) {
       cache.set(key, text);
       if (cache.size > 500) cache.delete(cache.keys().next().value);
     }
-    return cache.get(key);
+    return { text, complete: !failed };
   }
 
   return { describe, features, project, segmentLength };

@@ -216,12 +216,21 @@
 
   /** Route et commune de la photo, incrustées dans la visionneuse (réponse d'une photo déjà
    * quittée ignorée). */
-  async function showPlace(feature) {
+  /** Lieu de la photo en bas à gauche de la visionneuse. Description incomplète (service
+   * refusant des requêtes en rafale) : redemandée après PLACE_RETRY ms, plusieurs fois, tant que
+   * la photo est affichée ; le texte partiel s'affiche en attendant. */
+  const PLACE_RETRY = [1500, 4000, 10000];
+  async function showPlace(feature, attempt = 0) {
     const [lon, lat] = feature.geometry.coordinates;
-    const text = await Lieu.describe(lon, lat);
+    const { text, complete } = await Lieu.describe(lon, lat);
     if (photo !== feature) return;
-    $("#lieu").textContent = text;
-    $("#lieu").hidden = !text;
+    if (text || complete) {
+      $("#lieu").textContent = text;
+      $("#lieu").hidden = !text;
+    }
+    if (!complete && attempt < PLACE_RETRY.length) {
+      setTimeout(() => { if (photo === feature) showPlace(feature, attempt + 1); }, PLACE_RETRY[attempt]);
+    }
   }
 
   /** Dernière photo de la visite précédente, rouverte et centrée sur la carte. */

@@ -138,6 +138,25 @@ async function feature(id) {
   pont.querySelector("button[value=oui]").click();
   try { await until(() => doc.querySelector("#pont").checked, 5000, "case cochée"); } catch (e) { log(String(e)); }
   expect("case « Sur un pont » cochée", doc.querySelector("#pont").checked && app.bridge);
+  // Étiquette du lieu : route et PR ; refus en rafale de la Géoplateforme (HTTP 429) : texte partiel
+  // non gardé, redemandé
+  try { await until(() => /D111 – PR/.test(doc.querySelector("#lieu").textContent), 30000, "lieu"); } catch (e) { log(String(e)); }
+  log("lieu : " + doc.querySelector("#lieu").textContent);
+  expect("lieu : route et PR", /^D111 – PR \d+ \+\d{4}/.test(doc.querySelector("#lieu").textContent));
+  {
+    const realFetch = w.fetch;
+    let refused = 0;
+    w.fetch = (url, ...rest) => (String(url).includes("troncon_de_route") && refused++ === 0)
+      ? Promise.resolve(new Response("", { status: 429 })) : realFetch(url, ...rest);
+    const [lon, lat] = [4.8662, 47.01335];
+    const Lieu = w.eval("Lieu");
+    const first = await Lieu.describe(lon, lat), second = await Lieu.describe(lon, lat);
+    w.fetch = realFetch;
+    log(`lieu refusé puis redemandé : « ${first.text} » (${first.complete}) puis « ${second.text} » (${second.complete})`);
+    expect("lieu : texte partiel non gardé, complet ensuite", !first.complete && second.complete
+      && second.text.startsWith("D111") && !first.text.startsWith("D111"));
+  }
+
   // 70 m après le pont : décocher la case proposé, décochée sur « Oui »
   await open(APRES_PONT);
   try { await until(() => pont.open, 30000, "sortie du pont"); } catch (e) { log(String(e)); }
