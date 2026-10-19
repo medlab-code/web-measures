@@ -284,7 +284,7 @@
     setStatus(`Calcul indisponible : ${error.message}`, "echec");
   });
 
-  /** Voyants de la visionneuse, en mode mesure : RTK, LiDAR HD, inclinaison calée. */
+  /** Voyants de la visionneuse, en mode mesure : RTK, sol (LiDAR HD ou RGE ALTI), inclinaison calée. */
   function showLights(lights) {
     const list = $("#voyants");
     list.hidden = !measuring || !lights.length;

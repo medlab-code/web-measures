@@ -54,6 +54,8 @@ MIN_MAD = 0.02  # m : écart médian minimal (photos très régulières)
 CAMERA_RANGE = (0.5, 4.0)  # hauteur de caméra plausible (m)
 ELEVATION_URL = "https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json"
 LIDAR_RESOURCE = "ign_lidar_hd_mnt_mono_wld"  # MNT LiDAR HD 50 cm, publié département par département
+RGE_RESOURCE = "ign_rge_alti_wld"  # RGE ALTI 1 m, tout le territoire : en secours du LiDAR HD
+TERRAINS = (("LiDAR HD", LIDAR_RESOURCE), ("RGE ALTI", RGE_RESOURCE))  # sources du sol, dans l'ordre
 NODATA_BELOW = -9999.0  # le service IGN renvoie -99999 hors de sa couverture
 TIMEOUT_MS = 5000  # délai de réponse du service d'altimétrie
 DEGRADED_ADVICE = ("Les mesures dépendent alors de la hauteur de caméra, de l'inclinaison de la caméra et, sans "
@@ -61,16 +63,43 @@ DEGRADED_ADVICE = ("Les mesures dépendent alors de la hauteur de caméra, de l'
                    "l'inclinaison sur deux objets verticaux, puis contrôlez les résultats.")
 
 
-def lidar_url(points):
-    """URL des altitudes LiDAR HD (MNT) sous des points [(lon, lat)]."""
+def lidar_url(points, resource=LIDAR_RESOURCE):
+    """URL des altitudes du sol (MNT LiDAR HD, ou resource) sous des points [(lon, lat)]."""
     return ELEVATION_URL + "?" + urlencode({
         "lon": "|".join("{:.7f}".format(lon) for lon, _ in points),
         "lat": "|".join("{:.7f}".format(lat) for _, lat in points),
-        "resource": LIDAR_RESOURCE, "zonly": "true"}, safe="|")
+        "resource": resource, "zonly": "true"}, safe="|")
+
+
+def fetch_terrain(points, done, timeout_ms=TIMEOUT_MS):
+    """Altitudes du sol sous des points [(lon, lat)] : MNT LiDAR HD ; s'il manque sous l'un
+    d'eux (pas encore publié là), RGE ALTI pour tous (une seule source pour des altitudes
+    comparées entre elles). done(altitudes (None hors couverture), source (nom de TERRAINS, ou
+    None si aucune altitude), erreur). Le RGE ALTI injoignable : les altitudes LiDAR HD lues."""
+    def step(k, previous=None):
+        name, resource = TERRAINS[k]
+
+        def got(data, error):
+            if error:
+                if previous is None:
+                    done(None, None, error)
+                else:
+                    done(previous, TERRAINS[0][0] if any(z is not None for z in previous) else None, None)
+                return
+            zs = _ground(data)
+            complete = len(zs) == len(points) and None not in zs
+            if complete or k + 1 == len(TERRAINS):
+                done(zs, name if any(z is not None for z in zs) else None, None)
+            else:
+                step(k + 1, zs)
+
+        host.fetch_json(lidar_url(points, resource), got, timeout_ms=timeout_ms)
+
+    step(0)
 
 
 def _ground(data):
-    """Altitudes LiDAR d'une réponse du service (None hors couverture)."""
+    """Altitudes d'une réponse du service d'altimétrie (None hors couverture)."""
     out = []
     for z in (data or {}).get("elevations") or []:
         try:
@@ -81,14 +110,22 @@ def _ground(data):
     return out
 
 
-def result(precise, accuracy=None, lidar=None, reason="", count=0, spread=None, height=None, transient=False):
-    """Résultat d'une vérification : precise, accuracy (m, ou None : celle de la photo), lidar (LiDAR
-    HD publié sous la photo, None si inconnu), reason (texte), count et spread pour une séquence
-    vérifiée, height : hauteur de caméra calculée (altitude GPS moins sol LiDAR HD ; médiane de la
-    séquence vérifiée, ou celle de la photo de précision déclarée), None si inconnue. transient :
-    obtenu malgré un service injoignable, donc pas gardé pour la session (vérification refaite)."""
+def result(precise, accuracy=None, lidar=None, reason="", count=0, spread=None, height=None, transient=False,
+           terrain=None):
+    """Résultat d'une vérification : precise, accuracy (m, ou None : celle de la photo), lidar (modèle
+    de terrain publié sous la photo, None si inconnu), terrain (sa source : « LiDAR HD » ou, en
+    secours, « RGE ALTI »), reason (texte), count et spread pour une séquence vérifiée, height :
+    hauteur de caméra calculée (altitude GPS moins sol ; médiane de la séquence vérifiée, ou celle
+    de la photo de précision déclarée), None si inconnue. transient : obtenu malgré un service
+    injoignable, donc pas gardé pour la session (vérification refaite)."""
     return {"precise": precise, "accuracy": accuracy, "lidar": lidar, "reason": reason, "count": count,
-            "spread": spread, "height": height, "transient": transient}
+            "spread": spread, "height": height, "transient": transient,
+            "terrain": terrain or (TERRAINS[0][0] if lidar else None)}
+
+
+def terrain_name(res):
+    """Source du sol d'une vérification (« LiDAR HD » si elle ne le dit pas)."""
+    return (res or {}).get("terrain") or TERRAINS[0][0]
 
 
 def degraded(res):
@@ -103,9 +140,9 @@ def degraded_reasons(res):
     if not res["precise"]:
         out.append("position GPS non vérifiée au décimètre ({})".format(res["reason"]))
     if res["lidar"] is False:
-        out.append("pas de LiDAR HD publié à cet endroit")
+        out.append("pas de modèle de terrain (LiDAR HD, RGE ALTI) à cet endroit")
     elif res["lidar"] is None:
-        out.append("présence du LiDAR HD non vérifiée (service d'altimétrie indisponible)")
+        out.append("modèle de terrain non vérifié (service d'altimétrie indisponible)")
     return out
 
 
@@ -117,8 +154,8 @@ def camera_suggestion(res):
         how = "médiane de {} photos de la séquence, écart-type {:.0f} cm".format(res["count"], res["spread"] * 100)
     else:
         how = "photo de précision déclarée ±{:.0f} cm".format(res["accuracy"] * 100)
-    return res["height"], ("Hauteur de caméra calculée : altitude GPS de la caméra (NGF) moins le sol LiDAR HD "
-                           "({}). Cliquer pour remplir le champ « Caméra à ».".format(how))
+    return res["height"], ("Hauteur de caméra calculée : altitude GPS de la caméra (NGF) moins le sol {} "
+                           "({}). Cliquer pour remplir le champ « Caméra à ».".format(terrain_name(res), how))
 
 
 def state_text(res, accuracy=None, tilt=None):
@@ -135,7 +172,7 @@ def state_text(res, accuracy=None, tilt=None):
         position = "Position GPS non vérifiée (±{} m annoncés)".format("{:g}".format(accuracy).replace(".", ","))
     else:
         position = "Position GPS non vérifiée"
-    lidar = {True: "LiDAR HD", False: "pas de LiDAR HD", None: "LiDAR HD non vérifié"}[res["lidar"]]
+    lidar = {True: terrain_name(res), False: "pas de modèle de terrain", None: "terrain non vérifié"}[res["lidar"]]
     text = " · ".join(t for t in (position, lidar, tilt_text) if t)
     if degraded(res):
         return "⚠ " + text + " : mode de mesure dégradé"
@@ -236,8 +273,7 @@ class PrecisionChecker:
         """Le LiDAR HD est-il publié sous la photo ? accuracy : précision déclarée suffisante, ou None ;
         camera_alt : altitude NGF de la caméra, pour la hauteur de caméra d'une photo précise ;
         transient : une étape précédente n'a pas pu joindre son service."""
-        def got(data, error):
-            ground = _ground(data) if not error else []
+        def got(ground, source, error):
             lidar = None if error else bool(ground and ground[0] is not None)
             height = None
             if lidar and accuracy is not None and camera_alt is not None:
@@ -245,9 +281,9 @@ class PrecisionChecker:
                 if not CAMERA_RANGE[0] <= height <= CAMERA_RANGE[1]:
                     height = None
             done(result(accuracy is not None, accuracy, lidar, reason, height=height,
-                        transient=transient or bool(error)))
+                        transient=transient or bool(error), terrain=source))
 
-        host.fetch_json(lidar_url([(lon, lat)]), got, timeout_ms=TIMEOUT_MS)
+        fetch_terrain([(lon, lat)], got)
 
     def _check_sequence(self, item, sequence, lon, lat, done):
         """Portion de la séquence autour de la photo ; en cas d'échec, d'autres portions (voir
@@ -260,7 +296,7 @@ class PrecisionChecker:
             elif kind == "ground":
                 done(result(False, reason="service d'altimétrie IGN indisponible ({})".format(value), transient=True))
             elif value["precise"] or value["lidar"] is not True:
-                done(value)  # vérifiée, ou pas de LiDAR HD ici : rien à chercher ailleurs
+                done(value)  # vérifiée, ou pas de modèle de terrain ici : rien à chercher ailleurs
             else:
                 self._other_portions(sequence, lon, lat, value, done)
 
@@ -286,18 +322,21 @@ class PrecisionChecker:
             if len(photos) < MIN_PHOTOS:
                 callback("few", len(photos))
                 return
-            host.fetch_json(lidar_url([(p[0], p[1]) for p in photos]),
-                           lambda data, error: got_ground(photos, data, error), timeout_ms=TIMEOUT_MS)
+            fetch_terrain([(p[0], p[1]) for p in photos],
+                          lambda ground, source, error: got_ground(photos, ground, source, error))
 
-        def got_ground(photos, data, error):
+        def got_ground(photos, ground, source, error):
             if error:
                 callback("ground", error)
                 return
-            pts = [(plon, plat, ngf - g) for (plon, plat, ngf), g in zip(photos, _ground(data)) if g is not None]
+            pts = [(plon, plat, ngf - g) for (plon, plat, ngf), g in zip(photos, ground) if g is not None]
             if len(pts) < MIN_PHOTOS:
-                callback("result", result(False, lidar=False, reason="pas de LiDAR HD pour vérifier la position"))
+                callback("result", result(False, lidar=False,
+                                          reason="pas de modèle de terrain (LiDAR HD, RGE ALTI) pour vérifier la position"))
                 return
-            callback("result", verify_heights(pts))
+            res = verify_heights(pts)
+            res["terrain"] = source
+            callback("result", res)
 
         host.fetch_json(metadata.search_url(lon, lat, CHECK_RADIUS, CHECK_PHOTOS, sequence, host.api_url), got_photos)
 

@@ -37,7 +37,7 @@ python3 -m http.server 8765    # puis http://127.0.0.1:8765/
 
 **Première utilisation** : l'instance Panoramax de l'IGN et les photos du conseil
 départemental de la Côte-d'Or sont choisies par défaut, car elles remplissent les prérequis
-des mesures (précision RTK, couverture LiDAR HD) ; une fenêtre l'explique. On peut changer ces
+des mesures (précision RTK, modèle de terrain IGN : LiDAR HD, ou RGE ALTI là où il n'est pas encore publié) ; une fenêtre l'explique. On peut changer ces
 réglages dans « Filtre des photos » et « Réglages », et les choix sont ensuite gardés. Une
 première photo s'ouvre (Clos de Vougeot, D974), tournée vers l'ouest.
 
@@ -174,7 +174,7 @@ Le calage est gardé d'une visite à l'autre, et peut être exporté ou importé
 
 **Autour de la mesure** :
 
-- voyants **RTK**, **LiDAR HD** et **inclinaison** de la photo ;
+- voyants **RTK**, **LiDAR HD** (ou **RGE ALTI** en secours) et **inclinaison** de la photo ;
 - fonds de carte : Plan IGN, orthophoto, Ortho-express de l'année de la photo, PCRS de la
   Géoplateforme là où il est publié, OpenStreetMap ; recherche de lieux ; points de repère
   (PR) des routes ; requêteur route + PR (+ distance), à listes qui se réduisent à la frappe ;
@@ -291,7 +291,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 |---|---|---|
 | Panoramax : recherche, tuiles, photos (`api.panoramax.xyz`, `panoramax.ign.fr`) | filaire, photos, métadonnées | accessible |
 | Géoplateforme IGN : WMTS | Plan IGN, orthophoto | accessible |
-| Géoplateforme IGN : altimétrie | LiDAR HD sous les photos (vérification de la position RTK, inclinaison automatique) | accessible |
+| Géoplateforme IGN : altimétrie | LiDAR HD, ou RGE ALTI en secours, sous les photos et au point visé (vérification de la position RTK, sol au point, inclinaison automatique) | accessible |
 | Géoplateforme IGN : WMS (`wms-r`) | PCRS | accessible |
 | Géoplateforme IGN : WFS | BD TOPO (axe de la route, route et PR de la photo, PR sur la carte), ADMIN EXPRESS (limites administratives) | accessible |
 | Géoplateforme IGN : tuiles vectorielles (TMS) | Plan IGN (routes numérotées, noms), BD TOPO (voies) | accessible |

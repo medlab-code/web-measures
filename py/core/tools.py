@@ -16,7 +16,7 @@ Le dessin sur la carte vient de l'hôte (new_item), comme pour MeasureTool.
 import math
 from datetime import datetime
 
-from . import host, metadata, triangulation
+from . import host, metadata, precision, triangulation
 from .calibration import REACH, CalibrationError
 from .measures import NullItem, _num
 
@@ -100,7 +100,7 @@ def tilt_state(cal, pic, pending=False):
         if tilt["source"].startswith("clics + "):
             return "inclinaison calée à la main et automatiquement (±{:.1f}°)".format(
                 max(tilt["sigma"], 0.1)).replace(".", ","), False
-        how = "verticales de la photo" if tilt["source"] == "verticales" else "pente et dévers LiDAR HD"
+        how = "verticales de la photo" if tilt["source"] == "verticales" else "pente et dévers du terrain IGN"
         return "inclinaison calée ({}, ±{:.1f}°)".format(how, max(tilt["sigma"], 0.1)).replace(".", ","), False
     if pending:
         return "inclinaison en cours de calcul…", False
@@ -118,13 +118,13 @@ def calibration_text(cal, pic, sequence, lon, lat):
     elif tilt and tilt["source"].startswith("clics + "):
         parts.append("inclinaison {:.1f}° corrigée ({} objet{} cliqué{}, complété{} par {}, ±{:.1f}°)".format(
             tilt["tilt"], tilt["count"], *(("s", "s", "s") if tilt["count"] > 1 else ("", "", "")),
-            "les verticales de la photo" if tilt["source"].endswith("verticales") else "le LiDAR HD",
+            "les verticales de la photo" if tilt["source"].endswith("verticales") else "le terrain IGN",
             max(tilt["sigma"], 0.1)).replace(".", ","))
     elif tilt and tilt["source"] == "verticales":
         parts.append("inclinaison {:.1f}° corrigée automatiquement ({} verticales de la photo, ±{:.1f}°)".format(
             tilt["tilt"], tilt["count"], max(tilt["sigma"], 0.1)).replace(".", ","))
     elif tilt:
-        parts.append("inclinaison {:.1f}° estimée par la pente et le dévers LiDAR HD (±{:.1f}°, modèle vérifié "
+        parts.append("inclinaison {:.1f}° estimée par la pente et le dévers du terrain IGN (±{:.1f}°, modèle vérifié "
                      "sur {} photos de la séquence)".format(tilt["tilt"], tilt["sigma"], tilt["count"]).replace(".", ","))
     camera = cal.camera(sequence) if sequence else None
     if camera:
@@ -161,13 +161,22 @@ def _metres(a, b):
 
 
 def solve_on_ground(sightings, ground, ground_z):
-    """triangulation.solve, avec l'altitude du MNT LiDAR HD lue au point ground_z (lon, lat, z)
-    si elle l'a été près du point trouvé avec le sol tiré des photos (GROUND_REUSE) : une
-    altitude lue ailleurs, avant un changement des visées, ne sert pas."""
+    """triangulation.solve, avec l'altitude du sol lue au point ground_z (lon, lat, z, incertitude
+    en m, source : « LiDAR HD » ou « RGE ALTI » ; (lon, lat, z) : LiDAR HD) si elle l'a été à moins
+    de GROUND_REUSE m du point trouvé avec le sol tiré des photos ou de celui qu'elle donne : une
+    altitude lue ailleurs, avant un changement des visées, ne sert pas. Le second cas fait
+    converger les relectures (tools.Triangulator._ask_ground) : un sol qui déplace le point de
+    plus de GROUND_REUSE m, relu à sa nouvelle position, resservait sinon une fois sur deux (le
+    point allait et venait). Le résultat dit sa source ("ground_name")."""
     r = triangulation.solve(sightings, ground)
-    if ground and ground_z and r["method"] == "3d" and _metres(ground_z[:2], (r["lon"], r["lat"])) < GROUND_REUSE:
-        r = triangulation.solve(sightings, ground, ground_z[2])
-    return r
+    if not (ground and ground_z and r["method"] == "3d"):
+        return r
+    z = (ground_z[2], ground_z[3]) if len(ground_z) > 3 else ground_z[2]
+    on = triangulation.solve(sightings, ground, z)
+    if min(_metres(ground_z[:2], (p["lon"], p["lat"])) for p in (r, on)) >= GROUND_REUSE:
+        return r
+    on["ground_name"] = ground_z[4] if len(ground_z) > 4 else precision.TERRAINS[0][0]
+    return on
 
 
 class Triangulator:
@@ -185,8 +194,9 @@ class Triangulator:
         self.result = None
         self.error = None
         self.item = None
-        # Point au sol en 3D : altitude du MNT LiDAR HD lue à sa position, (lon, lat, z) ou None.
-        # ground_lookup(lon, lat, done(z ou None)) est fourni par l'hôte (session) ; ground_changed()
+        # Point au sol en 3D : altitude du sol lue à sa position, (lon, lat, z, incertitude, source)
+        # ou None. ground_lookup(lon, lat, done(z ou None, incertitude, source)) est fourni par
+        # l'hôte (session) ; ground_changed()
         # est appelé quand elle arrive après coup et a déplacé le point.
         self.ground_z = None
         self.ground_lookup = None
@@ -244,10 +254,10 @@ class Triangulator:
         ticket = self._ground_ticket = object()
         lon, lat = r["lon"], r["lat"]
 
-        def got(z):
+        def got(z, sigma=triangulation.LIDAR_ERROR, source=precision.TERRAINS[0][0]):
             if ticket is not self._ground_ticket or z is None:
-                return  # visées changées entre-temps, ou pas de LiDAR HD ici
-            self.ground_z = (lon, lat, z)
+                return  # visées changées entre-temps, ou pas de modèle de terrain ici
+            self.ground_z = (lon, lat, z, sigma, source)
             self._compute(asks + 1)
             self.ground_changed()
 
@@ -289,7 +299,8 @@ class Triangulator:
                 _num(triangulation.GPS_ACCURACY, 0))
         if r["method"] == "3d":
             text += " · profondeur fixée aussi par l'inclinaison des visées (altitudes RTK{})".format(
-                {"lidar": ", sol LiDAR HD au point", "photos": ", sol tiré des photos"}.get(r["ground_source"], ""))
+                {"lidar": ", sol {} au point".format(r.get("ground_name", precision.TERRAINS[0][0])),
+                 "photos": ", sol tiré des photos"}.get(r["ground_source"], ""))
         elif r["angle"] < triangulation.WEAK_ANGLE:
             text += (". ⚠ Visées presque alignées ({}°) : le point est imprécis dans la profondeur, il peut "
                      "glisser de plusieurs mètres le long de la visée. Visez l'objet quand il est sur le côté de "

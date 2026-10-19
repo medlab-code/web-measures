@@ -48,6 +48,7 @@ ALT_ERROR = 0.05  # erreur relative de l'altitude des caméras d'une position v�
 GROUND_ERROR = 0.10  # écart du sol au point visé à celui tiré des photos : dévers, bordure (m)
 GROUND_SLOPE_ERROR = 0.02  # erreur de pente du sol prolongé au-delà des photos (m par m)
 LIDAR_ERROR = 0.08  # altitude du MNT LiDAR HD lue au point : précision, lissage de la grille de 50 cm (m)
+RGE_ALTI_ERROR = 0.30  # altitude du RGE ALTI (1 m), en secours du LiDAR HD : moins précis par endroits (m)
 # Part commune de l'erreur d'inclinaison des photos d'une séquence (degrés), qui ne se compense
 # pas entre visées : systématique du calage (photo calée), tangage de la fixation sinon
 COMMON_TILT = 0.1
@@ -161,8 +162,9 @@ def solve3d(sightings, ground=False, ground_z=None):
     """Intersection des visées dans l'espace (voir l'en-tête du module). sightings : comme
     solve, avec en plus "elev" (inclinaison corrigée, degrés), "alt" (altitude de la caméra,
     m), "elev_error" (incertitude de l'inclinaison calée, degrés, ou None) et, pour ground,
-    "ground" (altitude du sol sous la photo, m). ground_z : altitude du MNT LiDAR HD lue au
-    point (m), plus sûre que le sol tiré des photos. Retourne (x, y, z, covariance 3 × 3,
+    "ground" (altitude du sol sous la photo, m). ground_z : altitude du sol lue au point (m),
+    plus sûre que le sol tiré des photos : nombre (MNT LiDAR HD, ±LIDAR_ERROR) ou (altitude,
+    incertitude en m) pour une autre source. Retourne (x, y, z, covariance 3 × 3,
     distances horizontales, repère (lon0, lat0)) ou None si les visées ne fixent pas le point."""
     lon0 = sum(s["lon"] for s in sightings) / len(sightings)
     lat0 = sum(s["lat"] for s in sightings) / len(sightings)
@@ -190,7 +192,9 @@ def solve3d(sightings, ground=False, ground_z=None):
                     a[i][j] += m
                     b[i] += m * p[j]
         if ground:  # altitude du point : celle du sol, au point (LiDAR) ou tirée des photos
-            if ground_z is not None:
+            if isinstance(ground_z, tuple):
+                z, sigma = float(ground_z[0]), float(ground_z[1])
+            elif ground_z is not None:
                 z, sigma = float(ground_z), LIDAR_ERROR
             else:
                 z, sigma = _ground_at(sightings, *(point[:2] if point else (0.0, 0.0)), (lon0, lat0))

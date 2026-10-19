@@ -200,6 +200,11 @@ def lidar_url(lon, lat, heading):
     return precision.lidar_url(calibration.lidar_points(lon, lat, heading))
 
 
+def fetch_ground(lon, lat, heading, done):
+    """Altitudes du sol sous le véhicule : LiDAR HD, sinon RGE ALTI (precision.fetch_terrain)."""
+    precision.fetch_terrain(calibration.lidar_points(lon, lat, heading), done, timeout_ms=None)
+
+
 def is_360(item):
     """Photo équirectangulaire (360°) ?"""
     props = item.get("properties", {}) or {}
@@ -275,8 +280,8 @@ class TiltChecker:
                 else:
                     cb()
 
-        def got_lidar(data, error):
-            z = [] if error else [g for g in _elevations(data)]
+        def got_lidar(ground, source, error):
+            z = [] if error else list(ground or [])
             ok = len(z) == len(calibration.LIDAR_GRID) and None not in z
             state["lidar"] = list(calibration.lidar_slopes(z)) if ok else None
             state["lidar_error"] = bool(error)
@@ -296,7 +301,7 @@ class TiltChecker:
                                   if res else None)
             finish()
 
-        host.fetch_json(lidar_url(lon, lat, heading), got_lidar)
+        fetch_ground(lon, lat, heading, got_lidar)
         href = ((item.get("assets") or {}).get("hd") or {}).get("href")
         if href and HAS_NUMPY:
             self._replies[pic] = host.fetch(href, got_image, prefer_cache=True)

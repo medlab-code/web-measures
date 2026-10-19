@@ -44,13 +44,15 @@ RTK_WARNING = (" ⚠ Photo sans position GPS RTK vérifiée : mesure probablemen
 RTK_ALERT = ("La localisation des images de cette séquence est trop imprécise pour fonctionner. "
              "Un GPS avec corrections RTK est requis.")
 # Photo sur un pont d'après la BD TOPO : proposition de cocher « Sur un pont » (voir take_bridge_alert)
-BRIDGE_ALERT = ("D'après la BD TOPO de l'IGN, cette photo est prise sur un pont{}. Le LiDAR HD y donne le "
+BRIDGE_ALERT = ("D'après la BD TOPO de l'IGN, cette photo est prise sur un pont{}. Le modèle de terrain "
+                "(LiDAR HD, RGE ALTI) y donne le "
                 "terrain sous l'ouvrage, plusieurs mètres sous le tablier : les mesures seraient fausses. "
-                "Cocher « Sur un pont » (sol tiré des photos au lieu du LiDAR HD) ?")
+                "Cocher « Sur un pont » (sol tiré des photos au lieu du modèle de terrain) ?")
 BRIDGE_ASKED_RADIUS = 200.0  # m : pas de nouvelle proposition près d'un pont déjà proposé
 # Photo sortie du pont, case cochée : proposition de la décocher (voir take_bridge_alert)
 BRIDGE_LEFT_ALERT = ("D'après la BD TOPO de l'IGN, cette photo n'est plus sur un pont. Décocher « Sur un pont » "
-                     "pour utiliser de nouveau le LiDAR HD, plus précis hors des ponts ?")
+                     "pour utiliser de nouveau le modèle de terrain (LiDAR HD, RGE ALTI), plus précis hors "
+                     "des ponts ?")
 
 
 class Session:
@@ -74,9 +76,9 @@ class Session:
         self.triangulator = triangulator if triangulator is not None else tools.Triangulator()
         self.triangulator.AIM = "Cliquez sur l'objet dans la photo"
         self.triangulator.AIM_AGAIN = "cliquez sur le même objet"
-        self.triangulator.ground_lookup = self._ground_lookup  # sol LiDAR HD au point visé
+        self.triangulator.ground_lookup = self._ground_lookup  # sol (LiDAR HD, RGE ALTI) au point visé
         self.triangulator.ground_changed = lambda: self.notify()
-        self.ground_cache = {}  # (lon, lat) arrondis -> altitude du MNT LiDAR HD (ou None hors couverture)
+        self.ground_cache = {}  # (lon, lat) arrondis -> (altitude du sol ou None, incertitude, source)
         self.bridge = False  # « Sur un pont » : LiDAR HD ignoré (voir set_bridge)
         self.calibrator = (calibrator if calibrator is not None
                            else tools.CalibrationTool(self.calibration, self.current_ids))
@@ -159,24 +161,26 @@ class Session:
         self._calibration_changed()
 
     def _ground_lookup(self, lon, lat, done):
-        """Altitude du MNT LiDAR HD au point (lon, lat) : done(z), z None hors couverture ou
+        """Altitude du sol au point (lon, lat) : MNT LiDAR HD, sinon RGE ALTI (voir
+        precision.fetch_terrain). done(z, incertitude (m), source), z None hors couverture ou
         service injoignable (alors non gardée : redemandée la fois suivante)."""
         key = (round(lon, 6), round(lat, 6))
         if key in self.ground_cache:
-            done(self.ground_cache[key])
+            done(*self.ground_cache[key])
             return
 
-        def got(data, error):
+        def got(ground, source, error):
             if error:
-                done(None)
+                done(None, None, None)
                 return
-            z = (precision._ground(data) or [None])[0]
-            self.ground_cache[key] = z
+            z = (ground or [None])[0]
+            sigma = triangulation.RGE_ALTI_ERROR if source == "RGE ALTI" else triangulation.LIDAR_ERROR
+            self.ground_cache[key] = (z, sigma, source)
             if len(self.ground_cache) > 500:
                 self.ground_cache.pop(next(iter(self.ground_cache)))
-            done(z)
+            done(z, sigma, source)
 
-        host.fetch_json(precision.lidar_url([(lon, lat)]), got, timeout_ms=precision.TIMEOUT_MS)
+        precision.fetch_terrain([(lon, lat)], got)
 
     def _ref_ground(self, asks=0):
         """Point de référence au sol en 3D : altitude du MNT LiDAR HD lue à sa position (sauf
@@ -194,10 +198,10 @@ class Session:
             return
         lon, lat = r["lon"], r["lat"]
 
-        def got(z):
+        def got(z, sigma=None, source=None):
             if z is None or self.ref_point is not ref or ref.get("moved"):
                 return
-            ref["ground_z"] = (lon, lat, z)
+            ref["ground_z"] = (lon, lat, z, sigma or triangulation.LIDAR_ERROR, source or precision.TERRAINS[0][0])
             self._recompute(set(), force_reference=True)
             self._ref_ground(asks + 1)
             self.notify()
@@ -1675,7 +1679,7 @@ class Session:
         else:
             tilt = "attente" if self.tilts.pending(pic) else "non"
         return [("RTK", light(res["precise"] if res else None)),
-                ("LiDAR HD", light(res["lidar"] if res else None)),
+                (precision.terrain_name(res), light(res["lidar"] if res else None)),
                 ("Inclinaison", tilt)]
 
     def viewer_marks(self):

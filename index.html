@@ -45,7 +45,7 @@
     <span class="option" data-modes="height road" hidden>
       <button id="nouvelle-reference" type="button" title="Trianguler un autre point de référence : les mesures déjà faites restent">Nouveau point de référence</button>
     </span>
-    <label title="Sur un pont, le LiDAR HD donne le terrain sous l'ouvrage (la voie franchie), pas le tablier : les points au sol se calent alors sur le sol tiré des photos et l'inclinaison automatique se passe de la pente LiDAR"><input id="pont" type="checkbox" disabled> Sur un pont</label>
+    <label title="Sur un pont, le modèle de terrain de l'IGN (LiDAR HD, ou RGE ALTI là où le LiDAR HD n'est pas publié) donne le terrain sous l'ouvrage (la voie franchie), pas le tablier : les points au sol se calent alors sur le sol tiré des photos et l'inclinaison automatique se passe de la pente du terrain"><input id="pont" type="checkbox" disabled> Sur un pont</label>
     <button id="effacer" type="button" disabled>Effacer</button>
     <button id="tout-effacer" type="button" disabled>Tout effacer</button>
     <!-- Captures et fond de carte, à droite ; ensemble sur une seconde ligne si la place manque -->
@@ -165,7 +165,8 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
           <p class="aide">S'applique au filaire et aux photos ouvertes par un clic sur la carte. Aux petites
             échelles, seul le type de caméra est filtré.</p>
           <p class="aide">Par défaut : photos du conseil départemental de la Côte-d'Or, prises avec une position
-            RTK vérifiable et là où le LiDAR HD existe, ce que demandent les calculs. « Tous » pour voir les
+            RTK vérifiable, ce que demandent les calculs (sol : LiDAR HD de l'IGN, ou RGE ALTI là où il n'est pas
+            encore publié). « Tous » pour voir les
             autres producteurs (mesures alors peu fiables).</p>
           <div class="grille">
             <label for="depuis">Depuis le</label><input id="depuis" type="date">
@@ -246,7 +247,7 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
       Côte-d'Or</strong> ont été sélectionnés, car ils correspondent aux prérequis pour les mesures :</p>
     <ul>
       <li>précision RTK ;</li>
-      <li>couverture LiDAR HD.</li>
+      <li>modèle de terrain de l'IGN : LiDAR HD, ou RGE ALTI là où il n'est pas encore publié.</li>
     </ul>
     <p>Vous pouvez changer ces réglages dans le panneau de droite, rubrique <strong>Filtre des photos</strong>
       (et <strong>Réglages</strong> pour l'instance).</p>
