@@ -320,6 +320,12 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.2.8** (19/10/2026) : sur la carte, étiquette d'une largeur ou d'une distance posée à
+  côté du trait (horizontale, perpendiculairement au trait), et non plus au-dessus de son
+  milieu, où elle cachait le bord B sur un trait court ou oblique. Sortie d'un pont : case
+  « Sur un pont » cochée et photo à plus de 30 m de tout pont de la BD TOPO, une fenêtre
+  propose de la décocher (une fois par sortie). Cœur du plugin Visionneuse Panoramax
+  (branche dev, 6939bdf).
 - **0.2.7** (19/10/2026) : mesures sur un pont (ticket #16). Case « Sur un pont » dans la
   barre du haut : le LiDAR HD, qui donne le terrain sous l'ouvrage (5 à 6 m sous le tablier
   sur les ponts de la RD111 et de la RD18 au-dessus de l'A6), n'est plus utilisé ; les points
