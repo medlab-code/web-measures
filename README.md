@@ -320,6 +320,9 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.2.10** (19/10/2026) : pendant la lecture de la séquence, la carte glisse à vitesse
+  constante d'une photo à la suivante au lieu d'avancer par à-coups (animation freinée coupée
+  par chaque photo) ; lieu, PCRS et ortho-express mis à jour à l'arrêt de la lecture.
 - **0.2.9** (19/10/2026) : lecture rapide de la séquence (2x à 16x) rétablie sur l'instance
   IGN : la liste des photos était demandée au stockage de ses images, qui la refuse ; elle
   l'est maintenant à l'instance (lien de la séquence, ou instance d'origine depuis le
