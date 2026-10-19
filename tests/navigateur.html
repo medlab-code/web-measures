@@ -122,6 +122,18 @@ async function feature(id) {
   try { await until(() => pont.open, 30000, "proposition pont"); } catch (e) { log(String(e)); }
   expect("pont proposé", pont.open && pont.textContent.includes("sur un pont (D111)"));
   log("pont : " + pont.querySelector("p").textContent);
+  {  // fenêtre centrée sur la visionneuse, boutons groupés au centre
+    const mid = (r) => [(r.left + r.right) / 2, (r.top + r.bottom) / 2];
+    const [dx, dy] = mid(pont.getBoundingClientRect()), [vx, vy] = mid(doc.querySelector("#vue").getBoundingClientRect());
+    const buttons = [...pont.querySelectorAll("form button")].map((b) => b.getBoundingClientRect());
+    const group = (buttons[0].left + buttons.at(-1).right) / 2;
+    expect("fenêtre centrée sur la visionneuse", Math.abs(dx - vx) < 2 && Math.abs(dy - vy) < 2,
+      `${Math.round(dx)},${Math.round(dy)} au lieu de ${Math.round(vx)},${Math.round(vy)}`);
+    expect("boutons centrés", Math.abs(group - dx) < 2, `${Math.round(group)} au lieu de ${Math.round(dx)}`);
+    const border = (sel) => w.getComputedStyle(pont.querySelector(sel)).borderTopColor;
+    expect("Oui vert, Non rouge", border("button.oui") === "rgb(46, 204, 64)" && border("button.non") === "rgb(229, 57, 53)",
+      border("button.oui") + " / " + border("button.non"));
+  }
   pont.querySelector("button[value=oui]").click();
   try { await until(() => doc.querySelector("#pont").checked, 5000, "case cochée"); } catch (e) { log(String(e)); }
   expect("case « Sur un pont » cochée", doc.querySelector("#pont").checked && app.bridge);
@@ -140,6 +152,11 @@ async function feature(id) {
   const rtk = doc.querySelector("#alerte-rtk");
   try { await until(() => rtk.open, 30000, "alerte RTK"); } catch (e) { log(String(e)); }
   expect("alerte RTK affichée", rtk.open && rtk.textContent.includes("Un GPS avec corrections RTK est requis"));
+  {
+    const r = rtk.getBoundingClientRect(), v = doc.querySelector("#vue").getBoundingClientRect();
+    expect("alerte RTK centrée sur la visionneuse", Math.abs((r.left + r.right - v.left - v.right) / 2) < 2
+      && Math.abs((r.top + r.bottom - v.top - v.bottom) / 2) < 2);
+  }
   log("alerte RTK : " + rtk.querySelector("p").textContent);
   rtk.close();
   // Bouton « Mesure » : un clic dans la photo prend un point, sans changer de photo (calage de

@@ -317,6 +317,22 @@
         : "Calcul du calage de l'inclinaison en cours";
   }
 
+  /** Fenêtre modale centrée sur la visionneuse (et non sur la page), recentrée si la fenêtre du
+   * navigateur change de taille. */
+  function showOverViewer(dialog) {
+    dialog.showModal();
+    const place = () => {
+      const box = $("#vue").getBoundingClientRect();
+      dialog.style.margin = "0";
+      dialog.style.inset = "auto";
+      dialog.style.left = `${Math.max(8, box.left + (box.width - dialog.offsetWidth) / 2)}px`;
+      dialog.style.top = `${Math.max(8, box.top + (box.height - dialog.offsetHeight) / 2)}px`;
+    };
+    place();
+    window.addEventListener("resize", place);
+    dialog.addEventListener("close", () => window.removeEventListener("resize", place), { once: true });
+  }
+
   /** Redessine tout : texte de la mesure, état de la photo, repères, carte, résultats. */
   function refresh(text) {
     if (!app) return;
@@ -324,7 +340,7 @@
     const rtkAlert = app.take_rtk_alert();  // séquence sans RTK : fenêtre, une fois par séquence
     if (rtkAlert && !$("#alerte-rtk").open) {
       $("#alerte-rtk p").textContent = rtkAlert;
-      $("#alerte-rtk").showModal();
+      showOverViewer($("#alerte-rtk"));
     }
     // Photo sur un pont (BD TOPO) : « Sur un pont » proposé, une fois par pont ; sortie du pont : la
     // décocher, une fois par sortie. Sans autre fenêtre ouverte.
@@ -339,7 +355,7 @@
         $("#pont").checked = bridgeAlert.check;
         refresh(bridgeAlert.check ? app.set_bridge(true) : app.leave_bridge());
       }, { once: true });
-      dialog.showModal();
+      showOverViewer(dialog);
     }
     const state = JSON.parse(app.state());
     $("#qualite").textContent = state.quality;

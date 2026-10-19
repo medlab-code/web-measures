@@ -724,8 +724,28 @@ dialog {
   color: var(--texte);
 }
 dialog form { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1rem; }
-dialog.avertissement { border: 2px solid #ff6f00; }  /* alerte RTK */
+dialog.avertissement { border: 2px solid #ff6f00; }  /* alertes RTK et pont, centrées sur la visionneuse */
 dialog.avertissement h2 { color: #ff6f00; }
+/* Boutons groupés au centre, comme « Photo précédente / suivante » : Oui vert, Non rouge */
+dialog.avertissement form { justify-content: center; gap: 0.8rem; }
+dialog.avertissement form button {
+  padding: 0.3rem 1.2rem;
+  border: 2px solid #00bce6;
+  border-radius: 5px;
+  background: var(--etiquette-vue);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-shadow: var(--detoure-vue);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+dialog.avertissement form button.oui { border-color: #2ecc40; }
+dialog.avertissement form button.oui:hover { background: rgba(46, 204, 64, 0.75); }
+dialog.avertissement form button.non { border-color: #e53935; }
+dialog.avertissement form button.non:hover { background: rgba(229, 57, 53, 0.75); }
+/* Bouton qui a le focus (le premier, à l'ouverture) : cadre à l'extérieur, la couleur reste visible */
+dialog.avertissement form button:focus-visible { outline: 2px solid var(--texte); outline-offset: 2px; }
 
 .aide { color: var(--discret); margin: 0 0 0.5rem; }
 
