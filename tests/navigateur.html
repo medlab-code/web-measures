@@ -298,7 +298,12 @@ async function feature(id) {
   const body = frames.slice(30);
   const stalls = body.filter((f) => f.dx < median * 0.2).length;
   const long = body.filter((f) => f.dt > 50).length;
+  // Régularité : écart moyen de la vitesse (déplacement par ms) à sa médiane, sur les images normales
+  const speeds = body.filter((f) => f.dt > 0 && f.dt <= 50).map((f) => f.dx / f.dt).sort((x, y) => x - y);
+  const vMedian = speeds[Math.floor(speeds.length / 2)] || 1;
+  const irregular = speeds.reduce((acc, v) => acc + Math.abs(v - vMedian), 0) / speeds.length / vMedian;
   log(`fluidité carte : ${body.length} images, ${stalls} quasi arrêtées (${Math.round(100 * stalls / body.length)} %), `
+    + `vitesse irrégulière à ${Math.round(100 * irregular)} %, `
     + `${long} de plus de 50 ms, la plus longue ${Math.round(Math.max(...body.map((f) => f.dt)))} ms`);
   doc.querySelector("#lecture-pause").click();
   const ranks = await Promise.all(shown.map(async (id) => (await feature(id)).properties["geovisio:rank_in_collection"]));

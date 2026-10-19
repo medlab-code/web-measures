@@ -639,17 +639,85 @@
     }
   }
 
-  // Lecture de la séquence : la carte glisse à vitesse constante d'une photo à la suivante (une
-  // animation freinée, coupée par la photo suivante, la faisait avancer par à-coups). Durée du
-  // glissement : intervalle moyen entre les photos, allongé pour que la carte bouge encore à
-  // l'arrivée de la suivante (les photos n'arrivent pas à intervalle régulier : un glissement
-  // fini trop tôt laisse la carte arrêtée). Lieu, PCRS et ortho-express attendent l'arrêt.
-  const PLAYING_GLIDE_MAX = 1500;  // ms : intervalle plus long (pause, photo lente) non compté
-  const PLAYING_GLIDE_STRETCH = 1.4;
+  // Lecture de la séquence : la carte suit le tracé des photos image par image, environ une photo
+  // en retard, à une vitesse qui ne change que progressivement (une animation par photo, coupée
+  // par la suivante, la faisait avancer par à-coups). Saisie à la main pendant la lecture : elle
+  // n'est plus suivie jusqu'à la lecture suivante. Lieu, PCRS et ortho-express attendent l'arrêt.
+  const PLAYING_INTERVAL_MAX = 1500;  // ms : intervalle plus long (pause, photo lente) non compté
   const PLAYING_DETAILS_DELAY = 700;  // ms sans nouvelle photo avant de compléter ses détails
+  const FOLLOW_SMOOTH = 600;  // ms : temps de réponse de la vitesse de la carte
+  const FOLLOW_JUMP = 300;  // m de retard au-delà desquels la carte saute à la photo
   let lastPhotoAt = 0;
   let photoInterval = 0;  // ms : intervalle moyen entre les photos de la lecture (moyenne glissante)
   let detailsTimer = null;
+  // Suivi de la lecture : path, positions [lon, lat] à parcourir (la première : centre de la
+  // carte) ; speed en m/ms ; held : carte saisie à la main
+  const follow = { path: [], speed: 0, last: 0, frame: 0, held: false };
+
+  function metresBetween(a, b) {
+    const k = Math.cos(a[1] * Math.PI / 180);
+    return Math.hypot((b[0] - a[0]) * 111320 * k, (b[1] - a[1]) * 111320);
+  }
+
+  function followPhoto(coords) {
+    if (follow.held) return;
+    if (!follow.frame) {
+      follow.path = [map.getCenter().toArray()];
+      follow.speed = 0;
+      follow.last = 0;
+      follow.frame = requestAnimationFrame(followFrame);
+    }
+    follow.path.push(coords);
+    let behind = 0;
+    for (let i = 1; i < follow.path.length; i++) behind += metresBetween(follow.path[i - 1], follow.path[i]);
+    if (behind > FOLLOW_JUMP) {  // trop loin derrière (saut dans la séquence) : sur la photo
+      follow.path = [coords];
+      map.jumpTo({ center: coords });
+    }
+  }
+
+  function followFrame(t) {
+    follow.frame = 0;
+    if (!playing() || follow.held) {
+      stopFollow();
+      return;
+    }
+    const dt = follow.last ? Math.min(t - follow.last, 100) : 0;
+    follow.last = t;
+    const path = follow.path;
+    let remaining = 0;
+    for (let i = 1; i < path.length; i++) remaining += metresBetween(path[i - 1], path[i]);
+    const wanted = remaining / Math.max(photoInterval || 500, 100);  // une photo de retard
+    follow.speed += (wanted - follow.speed) * Math.min(1, dt / FOLLOW_SMOOTH);
+    let step = follow.speed * dt;
+    while (step > 0 && path.length > 1) {
+      const segment = metresBetween(path[0], path[1]);
+      if (segment <= step) {
+        step -= segment;
+        path.shift();
+      } else {
+        const k = step / segment;
+        path[0] = [path[0][0] + (path[1][0] - path[0][0]) * k, path[0][1] + (path[1][1] - path[0][1]) * k];
+        step = 0;
+      }
+    }
+    map.jumpTo({ center: path[0] });
+    follow.frame = requestAnimationFrame(followFrame);
+  }
+
+  /** Fin du suivi (lecture arrêtée, carte saisie) : sauf saisie, la carte rejoint la photo. */
+  function stopFollow() {
+    cancelAnimationFrame(follow.frame);
+    follow.frame = 0;
+    follow.path = [];
+    if (!follow.held && photo && $("#centrer").checked) {
+      map.easeTo({ center: photo.geometry.coordinates, duration: 400 });
+    }
+  }
+
+  map.on("dragstart", (event) => {  // carte saisie à la main pendant la lecture : plus suivie
+    if (event.originalEvent && follow.frame) follow.held = true;
+  });
 
   function setPhoto(feature, recenter) {
     photo = feature;
@@ -669,8 +737,8 @@
     if (recenter && $("#centrer").checked) {
       if (moving) {
         const interval = now - lastPhotoAt;
-        if (interval < PLAYING_GLIDE_MAX) photoInterval = photoInterval ? 0.7 * photoInterval + 0.3 * interval : interval;
-        map.easeTo({ center: coords, duration: (photoInterval || 500) * PLAYING_GLIDE_STRETCH, easing: (t) => t });
+        if (interval < PLAYING_INTERVAL_MAX) photoInterval = photoInterval ? 0.7 * photoInterval + 0.3 * interval : interval;
+        followPhoto(coords);
       } else {
         map.easeTo({ center: coords, zoom: Math.max(map.getZoom(), 17) });
       }
@@ -963,6 +1031,7 @@
 
   function play(back, k) {
     stopPlayer();
+    follow.held = false;  // nouvelle lecture : la carte suit de nouveau
     backward = back;
     speed = k;
     const rank = Number(photo?.properties?.["geovisio:rank_in_collection"]);
