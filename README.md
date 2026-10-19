@@ -320,6 +320,10 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.2.11** (19/10/2026) : pendant la lecture de la séquence, la carte suit le tracé des
+  photos image par image, à une vitesse qui ne change que progressivement (plus suivie si on la
+  déplace à la main). Fenêtres « Photo sur un pont », « Sortie du pont » et « Position GPS trop
+  imprécise » centrées sur la visionneuse, boutons centrés, Oui vert et Non rouge.
 - **0.2.10** (19/10/2026) : pendant la lecture de la séquence, la carte glisse à vitesse
   constante d'une photo à la suivante au lieu d'avancer par à-coups (animation freinée coupée
   par chaque photo) ; lieu, PCRS et ortho-express mis à jour à l'arrêt de la lecture.
