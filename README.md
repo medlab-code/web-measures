@@ -320,6 +320,11 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.2.12** (19/10/2026) : RGE ALTI en secours là où le LiDAR HD n'est pas encore publié
+  (vérification RTK, sol au point visé, inclinaison automatique ; source affichée) : plus de
+  fausse alerte « GPS RTK requis » sur ces secteurs. « Sur un pont » coupe aussi le RGE ALTI.
+  Sol relu au point qui converge (le point allait et venait quand le sol le déplaçait de plus
+  d'1 m). Cœur du plugin Visionneuse Panoramax (branche dev, 005c49b).
 - **0.2.11** (19/10/2026) : pendant la lecture de la séquence, la carte suit le tracé des
   photos image par image, à une vitesse qui ne change que progressivement (plus suivie si on la
   déplace à la main). Fenêtres « Photo sur un pont », « Sortie du pont » et « Position GPS trop
