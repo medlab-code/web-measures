@@ -724,9 +724,10 @@ dialog {
   color: var(--texte);
 }
 dialog form { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1rem; }
-dialog.avertissement { border: 2px solid #ff6f00; }  /* alertes et questions (RTK, pont, mesures loin, distance), centrées sur la visionneuse */
+dialog.avertissement { border: 2px solid #ff6f00; }  /* alertes et questions (RTK, pont, mesures loin, distance, première utilisation), centrées sur la visionneuse */
 dialog.avertissement h2 { color: #ff6f00; }
-/* Boutons groupés au centre, comme « Photo précédente / suivante » : Oui vert, Non rouge */
+/* Boutons groupés au centre, comme « Photo précédente / suivante » : Oui vert, Non rouge ;
+   action qui efface (« Tout effacer ») en rouge, « Garder » en vert */
 dialog.avertissement form { justify-content: center; gap: 0.8rem; }
 dialog.avertissement form button {
   padding: 0.3rem 1.2rem;

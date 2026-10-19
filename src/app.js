@@ -67,7 +67,7 @@
   const DEFAULT_HEADING = 270;
   const firstUse = store.get("defauts") !== "1";
   if (firstUse) {
-    $("#reglages-defaut").showModal();  // pourquoi ces réglages, et où les changer
+    showOverViewer($("#reglages-defaut"));  // pourquoi ces réglages, et où les changer
     store.set("instance", DEFAULT_INSTANCE);
     let filter = {};
     try { filter = JSON.parse(store.get("filtre", "{}")) || {}; } catch { /* illisible : remplacé */ }

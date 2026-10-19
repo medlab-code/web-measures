@@ -219,8 +219,8 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
     <p>Les mesures et points triangulés sont à <span></span> de cette photo. Tout effacer pour repartir de
       zéro ? Exportez-les d'abord (CSV, GeoJSON) si vous voulez les garder.</p>
     <form method="dialog">
-      <button value="non" class="non">Garder</button>
-      <button value="oui" class="oui">Tout effacer</button>
+      <button value="non" class="oui">Garder</button>
+      <button value="oui" class="non">Tout effacer</button>
     </form>
   </dialog>
   <!-- Séquence sans position RTK vérifiée : une fois par séquence, en mesure -->
@@ -241,7 +241,7 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
     </form>
   </dialog>
   <!-- Réglages par défaut appliqués (une fois) : pourquoi, et où les changer -->
-  <dialog id="reglages-defaut">
+  <dialog id="reglages-defaut" class="avertissement">
     <h2>Première utilisation</h2>
     <p>Par défaut, l'instance <strong>IGN</strong> et le producteur <strong>conseil départemental de la
       Côte-d'Or</strong> ont été sélectionnés, car ils correspondent aux prérequis pour les mesures :</p>
@@ -252,7 +252,7 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
     <p>Vous pouvez changer ces réglages dans le panneau de droite, rubrique <strong>Filtre des photos</strong>
       (et <strong>Réglages</strong> pour l'instance).</p>
     <form method="dialog">
-      <button value="ok" class="principal">J'ai compris</button>
+      <button value="ok" class="oui">J'ai compris</button>
     </form>
   </dialog>
   <!-- Scripts ordinaires (pas de modules) : la page s'ouvre aussi en double-cliquant -->
