@@ -214,13 +214,13 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
     </form>
   </dialog>
   <!-- Photo à plus de 100 m des mesures : proposer de repartir de zéro (une fois par éloignement) -->
-  <dialog id="loin-mesures">
-    <h2>Mesures loin d'ici</h2>
+  <dialog id="loin-mesures" class="avertissement">
+    <h2>⚠ Mesures loin d'ici</h2>
     <p>Les mesures et points triangulés sont à <span></span> de cette photo. Tout effacer pour repartir de
       zéro ? Exportez-les d'abord (CSV, GeoJSON) si vous voulez les garder.</p>
     <form method="dialog">
-      <button value="non">Garder</button>
-      <button value="oui" class="principal">Tout effacer</button>
+      <button value="non" class="non">Garder</button>
+      <button value="oui" class="oui">Tout effacer</button>
     </form>
   </dialog>
   <!-- Séquence sans position RTK vérifiée : une fois par séquence, en mesure -->

@@ -843,7 +843,7 @@
     dialog.addEventListener("close", () => {
       if (dialog.returnValue === "oui") refresh(app.clear_all());
     }, { once: true });
-    dialog.showModal();
+    showOverViewer(dialog);
   }
 
   function showPhotoInfo(feature, message) {

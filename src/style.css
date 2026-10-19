@@ -724,7 +724,7 @@ dialog {
   color: var(--texte);
 }
 dialog form { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1rem; }
-dialog.avertissement { border: 2px solid #ff6f00; }  /* alertes RTK et pont, centrées sur la visionneuse */
+dialog.avertissement { border: 2px solid #ff6f00; }  /* alertes RTK, pont et mesures loin, centrées sur la visionneuse */
 dialog.avertissement h2 { color: #ff6f00; }
 /* Boutons groupés au centre, comme « Photo précédente / suivante » : Oui vert, Non rouge */
 dialog.avertissement form { justify-content: center; gap: 0.8rem; }
