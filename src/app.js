@@ -326,16 +326,18 @@
       $("#alerte-rtk p").textContent = rtkAlert;
       $("#alerte-rtk").showModal();
     }
-    // Photo sur un pont (BD TOPO) : « Sur un pont » proposé, une fois par pont, sans autre fenêtre ouverte
-    const bridgeAlert = document.querySelector("dialog[open]") ? null : app.take_bridge_alert();
+    // Photo sur un pont (BD TOPO) : « Sur un pont » proposé, une fois par pont ; sortie du pont : la
+    // décocher, une fois par sortie. Sans autre fenêtre ouverte.
+    const bridgeAlert = document.querySelector("dialog[open]") ? null : JSON.parse(app.take_bridge_alert());
     if (bridgeAlert) {
       const dialog = $("#alerte-pont");
-      dialog.querySelector("p").textContent = bridgeAlert;
+      dialog.querySelector("h2").textContent = bridgeAlert.check ? "⚠ Photo sur un pont" : "Sortie du pont";
+      dialog.querySelector("p").textContent = bridgeAlert.text;
       dialog.returnValue = "";
       dialog.addEventListener("close", () => {
         if (dialog.returnValue !== "oui") return;
-        $("#pont").checked = true;
-        refresh(app.set_bridge(true));
+        $("#pont").checked = bridgeAlert.check;
+        refresh(bridgeAlert.check ? app.set_bridge(true) : app.leave_bridge());
       }, { once: true });
       dialog.showModal();
     }

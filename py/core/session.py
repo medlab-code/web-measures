@@ -48,6 +48,9 @@ BRIDGE_ALERT = ("D'après la BD TOPO de l'IGN, cette photo est prise sur un pont
                 "terrain sous l'ouvrage, plusieurs mètres sous le tablier : les mesures seraient fausses. "
                 "Cocher « Sur un pont » (sol tiré des photos au lieu du LiDAR HD) ?")
 BRIDGE_ASKED_RADIUS = 200.0  # m : pas de nouvelle proposition près d'un pont déjà proposé
+# Photo sortie du pont, case cochée : proposition de la décocher (voir take_bridge_alert)
+BRIDGE_LEFT_ALERT = ("D'après la BD TOPO de l'IGN, cette photo n'est plus sur un pont. Décocher « Sur un pont » "
+                     "pour utiliser de nouveau le LiDAR HD, plus précis hors des ponts ?")
 
 
 class Session:
@@ -112,6 +115,7 @@ class Session:
         self.rtk_alerted = set()  # séquences sans RTK déjà signalées par une fenêtre (take_rtk_alert)
         self.bridge_asked = []  # (lon, lat) des photos où « Sur un pont » a été proposé (take_bridge_alert)
         self._bridge_waiting = False  # tronçons BD TOPO en lecture pour take_bridge_alert
+        self.bridge_left_asked = False  # case cochée : sortie du pont déjà proposée (take_bridge_alert)
         self.epoch = 0  # change quand les clics en cours sont abandonnés
         # Hauteur, largeur : photo de la première visée du point de référence, sur laquelle la
         # mesure se fera ; l'hôte y revient après la validation (take_goto)
@@ -346,6 +350,8 @@ class Session:
         plusieurs mètres plus bas), pas le tablier. Les points au sol se calent alors sur le sol
         tiré des photos (altitude GPS des caméras moins leur hauteur) et l'inclinaison automatique
         se passe de la pente LiDAR. Les altitudes déjà lues sont gardées : décocher les reprend."""
+        if value and not self.bridge:
+            self.bridge_left_asked = False  # nouvelle sortie à proposer
         self.bridge = bool(value)
         self.triangulator.lidar = self.calibration.lidar = not self.bridge
         self._recompute(force_reference=True)
@@ -1901,17 +1907,27 @@ class Session:
         return RTK_ALERT
 
     def take_bridge_alert(self):
-        """BRIDGE_ALERT à afficher en fenêtre (réponse oui : set_bridge(True)) : mesure activée
-        sur une photo prise sur un pont d'après la BD TOPO (roads.on_bridge), case « Sur un pont »
-        décochée, pont pas encore proposé (à BRIDGE_ASKED_RADIUS m près) ; None sinon. Pendant
-        la lecture des tronçons : None, et notify() à leur arrivée pour redemander."""
+        """Proposition à afficher en fenêtre, en mesure, d'après la BD TOPO (roads.on_bridge) :
+        {"check": True, "text": BRIDGE_ALERT} (réponse oui : set_bridge(True)) sur une photo prise
+        sur un pont, case « Sur un pont » décochée, pont pas encore proposé (à BRIDGE_ASKED_RADIUS m
+        près) ; {"check": False, "text": BRIDGE_LEFT_ALERT} (réponse oui : leave_bridge()) case
+        cochée, sur une photo à plus de roads.BRIDGE_LEFT m de tout tronçon en pont (les photos
+        d'approche visent encore le tablier), une fois par sortie ; None sinon. Pendant la lecture
+        des tronçons : None, et notify() à leur arrivée pour redemander."""
         item = self.item or {}
-        if not self.active or self.bridge or not item:
+        if not self.active or not item or (self.bridge and self.bridge_left_asked):
             return None
         try:
             lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
         except (KeyError, TypeError, ValueError):
             return None
+        if self.bridge:
+            sec = self.roads.bridge(lon, lat, None, roads.BRIDGE_LEFT)
+            self._bridge_waiting = sec is roads.PENDING
+            if sec is not False:  # sur un pont ou tout près, lecture en cours, BD TOPO injoignable
+                return None
+            self.bridge_left_asked = True
+            return {"check": False, "text": BRIDGE_LEFT_ALERT}
         if any(tools._metres(p, (lon, lat)) < BRIDGE_ASKED_RADIUS for p in self.bridge_asked):
             return None
         axis = self._axis(item)
@@ -1920,7 +1936,13 @@ class Session:
         if not sec or sec is roads.PENDING:
             return None
         self.bridge_asked.append((lon, lat))
-        return BRIDGE_ALERT.format(" ({})".format(sec["name"]) if sec.get("name") else "")
+        return {"check": True, "text": BRIDGE_ALERT.format(" ({})".format(sec["name"]) if sec.get("name") else "")}
+
+    def leave_bridge(self):
+        """Sortie du pont acceptée : case décochée, et les ponts déjà proposés pourront l'être de
+        nouveau (on peut y revenir)."""
+        self.bridge_asked = []
+        return self.set_bridge(False)
 
     def take_proposal(self):
         """Distance proposée après un effacement ([n°, n°, « A », « C »] ou None), une

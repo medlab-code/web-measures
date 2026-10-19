@@ -87,6 +87,9 @@ class App(session.Session):
     def take_frame(self):
         return json.dumps(super().take_frame())
 
+    def take_bridge_alert(self):
+        return json.dumps(super().take_bridge_alert())
+
     # Dessin ------------------------------------------------------------------------------
     def _new_item(self):
         item = WebItem()

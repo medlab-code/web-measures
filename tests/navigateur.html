@@ -39,6 +39,7 @@ const verdict = () => log(failures ? `ERREUR ${failures} contrôle(s) sur ${chec
 const DIJON = ["33565d3f-5e27-47fb-9137-ba4de564530d", "a3996fff-7cf7-44b4-8c54-afd556f2632c"];
 const POUILLY = "cd8cf3a0-6567-40f0-8805-94172a5dfc3c";
 const PONT = "b40045bd-1fc5-4a7a-a5bd-7b7952902a1c";  // CD21, tablier de la RD111 au-dessus de l'A6 (Beaune)
+const APRES_PONT = "2f6bf2e3-4818-4659-8b9a-84190cc5af18";  // même séquence, 70 m après le pont
 const MONTBARD = "f533e240-7d37-40ef-babc-1d37140dc5d2";  // plugin : inclinaison 1,95° vers 219° (±0,22°)
 
 async function until(test, ms, what) {
@@ -124,7 +125,13 @@ async function feature(id) {
   pont.querySelector("button[value=oui]").click();
   try { await until(() => doc.querySelector("#pont").checked, 5000, "case cochée"); } catch (e) { log(String(e)); }
   expect("case « Sur un pont » cochée", doc.querySelector("#pont").checked && app.bridge);
-  doc.querySelector("#pont").click();  // décochée pour la suite
+  // 70 m après le pont : décocher la case proposé, décochée sur « Oui »
+  await open(APRES_PONT);
+  try { await until(() => pont.open, 30000, "sortie du pont"); } catch (e) { log(String(e)); }
+  expect("sortie du pont proposée", pont.open && pont.textContent.includes("n'est plus sur un pont"));
+  log("sortie : " + pont.querySelector("p").textContent);
+  pont.querySelector("button[value=oui]").click();
+  try { await until(() => !doc.querySelector("#pont").checked, 5000, "case décochée"); } catch (e) { log(String(e)); }
   expect("case décochée", !doc.querySelector("#pont").checked && !app.bridge);
 
   // Dijon ----------------------------------------------------------------------------------
