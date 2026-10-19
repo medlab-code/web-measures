@@ -26,45 +26,53 @@
       <h1>Mesures Panoramax</h1>
       <span class="essai" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.2.17 — projet personnel – POC</span>
     </div>
-    <button id="mesure" type="button" aria-pressed="false" disabled
-            title="Mesurer : un clic dans la photo prend un point au lieu de changer de photo">📐 Mesure</button>
-    <label>Mode
-      <select id="mode" disabled>
-        <optgroup label="Mesures">
-          <option value="road">Largeur perpendiculaire à la chaussée</option>
-          <option value="height">Hauteur d'un objet</option>
-          <option value="tri">Mesure libre (points triangulés)</option>
-        </optgroup>
-        <optgroup label="Calage des photos">
-          <option value="tilt">Calage : inclinaison (objets verticaux)</option>
-          <option value="heading">Calage : cap et position (repères sur la carte)</option>
-        </optgroup>
-      </select>
-    </label>
-    <!-- Réglages du mode (voir app.js : showModeOptions) -->
-    <span class="option" data-modes="height road" hidden>
-      <button id="nouvelle-reference" type="button" title="Trianguler un autre point de référence : les mesures déjà faites restent">Nouveau point de référence</button>
-    </span>
-    <label title="Sur un pont, le modèle de terrain de l'IGN (LiDAR HD, ou RGE ALTI là où le LiDAR HD n'est pas publié) donne le terrain sous l'ouvrage (la voie franchie), pas le tablier : les points au sol se calent alors sur le sol tiré des photos et l'inclinaison automatique se passe de la pente du terrain"><input id="pont" type="checkbox" disabled> Sur un pont</label>
-    <button id="effacer" type="button" disabled>Effacer</button>
-    <button id="tout-effacer" type="button" disabled>Tout effacer</button>
-    <!-- Captures et fond de carte, à droite ; ensemble sur une seconde ligne si la place manque -->
-    <span class="droite">
-    <span class="captures">
+    <!-- Mesure : gros bouton sur les deux rangées ; réglages, puis effacement en dessous -->
+    <div class="bloc mesure">
+      <button id="mesure" type="button" aria-pressed="false" disabled
+              title="Mesurer : un clic dans la photo prend un point au lieu de changer de photo">📐 Mesure</button>
+      <div class="bloc reglages">
+        <div class="rang">
+          <label>Mode
+            <select id="mode" disabled>
+              <optgroup label="Mesures">
+                <option value="road">Largeur perpendiculaire à la chaussée</option>
+                <option value="height">Hauteur d'un objet</option>
+                <option value="tri">Mesure libre (points triangulés)</option>
+              </optgroup>
+              <optgroup label="Calage des photos">
+                <option value="tilt">Calage : inclinaison (objets verticaux)</option>
+                <option value="heading">Calage : cap et position (repères sur la carte)</option>
+              </optgroup>
+            </select>
+          </label>
+          <!-- Réglages du mode (voir app.js : showModeOptions) -->
+          <span class="option" data-modes="height road" hidden>
+            <button id="nouvelle-reference" type="button" title="Trianguler un autre point de référence : les mesures déjà faites restent">Nouveau point de référence</button>
+          </span>
+          <label title="Sur un pont, le modèle de terrain de l'IGN (LiDAR HD, ou RGE ALTI là où le LiDAR HD n'est pas publié) donne le terrain sous l'ouvrage (la voie franchie), pas le tablier : les points au sol se calent alors sur le sol tiré des photos et l'inclinaison automatique se passe de la pente du terrain"><input id="pont" type="checkbox" disabled> Sur un pont</label>
+        </div>
+        <div class="rang">
+          <button id="effacer" type="button" disabled>Effacer</button>
+          <button id="tout-effacer" type="button" disabled>Tout effacer</button>
+        </div>
+      </div>
+    </div>
+    <!-- Captures, puis fond de carte -->
+    <div class="bloc captures">
       <button id="capture-hd" type="button" disabled title="Vue affichée recalculée en Full HD
 (1920 × 1080) à partir de la photo originale, redressée si l'inclinaison est calée">📷 Image seule</button>
       <button id="vignette" type="button" disabled title="La visionneuse telle qu'affichée, mesures comprises,
 enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</button>
-    </span>
-    <label>Fond de carte
+    </div>
+    <div class="bloc fond">
+      <label for="fond">Fond de carte</label>
       <select id="fond"><option value="plan">Plan IGN</option><option value="ortho">Orthophoto</option>
         <option value="noms" title="Orthophoto, noms des lieux et des rues, voies et numéros de route, limites des départements et des communes">Orthophoto avec noms</option>
         <option value="express">Ortho-express (année de la photo)</option>
         <option value="pcrs" disabled title="Aucun PCRS publié sur la Géoplateforme à cet endroit">PCRS Géoplateforme</option>
         <option value="osm">OpenStreetMap</option></select>
-    </label>
-    <label title="Séquences et photos Panoramax sur la carte"><input type="checkbox" id="filaire" checked> Filaire Panoramax</label>
-    </span>
+      <label title="Séquences et photos Panoramax sur la carte"><input type="checkbox" id="filaire" checked> Filaire Panoramax</label>
+    </div>
   </header>
   <main>
     <section id="vue">

@@ -44,7 +44,7 @@ header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5em 0.55em;
+  gap: 0.5em 1.6em;
   padding: calc(0.5em + 2px) 1em calc(0.5em + 1px);  /* bordure du bas comprise : contenu sur l'axe de la barre */
   border-bottom: 1px solid var(--bord);
   font-size: 15px;
@@ -55,17 +55,31 @@ header button, header select { box-sizing: border-box; height: 1.65em; padding: 
 #mode { max-width: 19.5em; }  /* le plus long libellé (calage du cap) n'impose pas sa largeur */
 #fond { max-width: 12em; }  /* idem : « Ortho-express (année de la photo) » */
 
-header label { display: flex; align-items: center; gap: 0.35em; }
+header label { display: flex; align-items: center; gap: 0.35em; min-height: 1.65em; }  /* cases à cocher à la hauteur des boutons */
 header input[type="number"] { width: 4.5em; }
 header input[type="checkbox"] { width: 0.95em; height: 0.95em; margin: 0; }
 .espace { flex: 1; }
-header .captures { display: inline-flex; gap: 0.5em; }
-header .droite { display: inline-flex; align-items: center; gap: 0.5em 1.2em; margin-left: auto; }
+/* Blocs de la barre sur deux lignes, centrés : mesure (réglages, puis effacement), captures
+   l'une au-dessus de l'autre, fond de carte au-dessus du filaire */
+header .bloc { display: flex; flex-direction: column; align-items: center; gap: 0.5em; }
+header .rang { display: flex; align-items: center; gap: 0.55em; }
+header .mesure { margin-left: 1em; }  /* à gauche, un peu détaché du titre */
+/* Captures et fond de carte à droite, captures au milieu de la place restante */
+header .captures { align-items: stretch; margin-left: auto; }  /* deux boutons de même largeur */
+/* Fond de carte : libellé et liste, filaire centré sous la liste */
+header .fond { display: grid; grid-template-columns: auto auto; align-items: center; gap: 0.5em 0.35em;
+               margin-left: auto; }
+header .fond > label:last-child { grid-column: 2; justify-self: center; }
+/* Bouton Mesure : à gauche des réglages, sur la hauteur des deux rangées, liseré orange comme
+   les alertes */
+header .mesure { flex-direction: row; align-items: stretch; gap: 0.8em; }
+header #mesure { height: auto; padding: 0 0.9em; font-size: 1.15em; font-weight: 600;
+                 border: 3px solid var(--panoramax); border-radius: 6px; }
 
 h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
 header h1 { font-size: 1.2em; line-height: 1; }  /* 18 px : titre un peu plus grand que la barre */
 /* Titre, avec la mention « version test » en dessous */
-header .marque { display: flex; flex-direction: column; align-items: flex-start; gap: 0.45em; }
+header .marque { display: flex; flex-direction: column; align-items: center; gap: 0.45em; }
 /* Mention « version test » : discrète, mais visible sous le titre */
 header .essai {
   font-size: 0.8em;
