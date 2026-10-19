@@ -320,6 +320,9 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.2.15** (19/10/2026) : étiquette du lieu, moins de requêtes à la Géoplateforme : tronçons
+  et sections de PR lus par zone (environ 300 × 440 m) et PR par section, gardés pour les
+  photos suivantes ; requêtes en file, deux à la fois, et refus HTTP 429 retentés après une pause.
 - **0.2.14** (19/10/2026) : étiquette du lieu (en bas à gauche de la visionneuse) avec la route
   et le PR de nouveau : quand la Géoplateforme refusait la requête des tronçons (requêtes en
   rafale, HTTP 429), seule la commune restait, gardée pour la session ; la description
