@@ -320,6 +320,13 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.2.7** (19/10/2026) : mesures sur un pont (ticket #16). Case « Sur un pont » dans la
+  barre du haut : le LiDAR HD, qui donne le terrain sous l'ouvrage (5 à 6 m sous le tablier
+  sur les ponts de la RD111 et de la RD18 au-dessus de l'A6), n'est plus utilisé ; les points
+  au sol se calent sur le sol tiré des photos et l'inclinaison automatique se passe de la
+  pente LiDAR. Quand la photo est sur un tronçon en pont de la BD TOPO, une fenêtre propose
+  de cocher la case (une fois par pont). Cœur du plugin Visionneuse Panoramax (branche dev,
+  d3e620f).
 - **0.2.6** (18/10/2026) : inclinaison automatique calculée au premier clic sur la photo, et
   non plus dès son arrivée (le calcul faisait saccader la vue pendant qu'on cherchait
   l'objet). Cœur du plugin Visionneuse Panoramax (branche dev, 0c227ca).
