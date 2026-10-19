@@ -892,12 +892,12 @@
   // 1x : lecteur de la visionneuse officielle (playSequence, stopSequence). 2x à 16x : une photo
   // sur 2, 4, 8 ou 16, les autres jamais chargées ; leur liste vient de l'instance de la photo, par
   // rangs dans la séquence (le méta-catalogue ignore startAfterRank). Hors de la prise de
-  // mesure : on y change de photo par la carte.
+  // mesure : on y change de photo par la carte. Si aucune adresse ne donne la liste : lecture 1x.
   const SPEEDS = [1, 2, 4, 8, 16];
   const WINDOW = 100;  // photos de la séquence lues d'un coup (environ 5 Ko chacune)
   let backward = false;  // sens de la dernière lecture, repris par « pause/reprise »
   let speed = 1;  // vitesse de la dernière lecture, reprise de même
-  let fast = null;  // lecture rapide (2x à 16x) en cours : { collection, origin, rank, step, id, ids, timer }
+  let fast = null;  // lecture rapide (2x à 16x) en cours : { collection, apis, rank, step, id, ids, timer }
 
   function playing() {
     return Boolean(fast) || Boolean(psv?.isSequencePlaying?.());
@@ -912,14 +912,23 @@
     if (psv?.isSequencePlaying?.()) psv.stopSequence();
   }
 
-  /** Adresse de l'instance qui sert la photo (celle de ses images), ou "". */
-  function instanceOrigin(feature) {
-    const href = feature?.assets?.sd?.href || feature?.assets?.hd?.href || "";
-    try {
-      return new URL(href).origin;
-    } catch {
-      return "";
+  /** Adresses possibles de la séquence de la photo dans l'API de son instance, la plus sûre
+   * d'abord : son lien « collection » (sauf celui du méta-catalogue), le lien « via » vers son
+   * instance d'origine (fiche du méta-catalogue), puis l'adresse de ses images (juste pour les
+   * instances qui les servent elles-mêmes : celles de l'IGN sont sur un stockage OVH, qui
+   * refuse l'API). */
+  function sequenceApis(feature) {
+    const links = feature?.links || [];
+    const out = [];
+    const link = links.find((l) => l.rel === "collection")?.href || "";
+    if (link && !link.startsWith(Carte.PANORAMAX_API)) out.push(link.replace(/\/$/, ""));
+    const sites = [links.find((l) => l.rel === "via")?.href, feature?.assets?.sd?.href || feature?.assets?.hd?.href];
+    for (const href of sites) {
+      try {
+        out.push(`${new URL(href).origin}/api/collections/${encodeURIComponent(feature.collection)}`);
+      } catch { /* adresse absente ou illisible */ }
     }
+    return [...new Set(out)];
   }
 
   function play(back, k) {
@@ -927,28 +936,40 @@
     backward = back;
     speed = k;
     const rank = Number(photo?.properties?.["geovisio:rank_in_collection"]);
-    const origin = instanceOrigin(photo);
-    if (k === 1 || !Number.isInteger(rank) || !origin || !photo.collection) {
+    const apis = photo?.collection ? sequenceApis(photo) : [];
+    if (k === 1 || !Number.isInteger(rank) || !apis.length) {
       if (k !== 1) console.warn("Lecture rapide impossible (rang ou instance de la photo inconnus) : 1x");
       speed = 1;
       psv.playSequence(back);
       return;
     }
-    fast = { collection: photo.collection, origin, rank, step: back ? -k : k, id: photo.id, ids: new Map(), timer: null };
+    fast = { collection: photo.collection, apis, rank, step: back ? -k : k, id: photo.id, ids: new Map(), timer: null };
     updatePlayer();
     fastStep(fast);
   }
 
-  /** Photos de la séquence autour du rang r, dans le sens de la lecture : rang -> identifiant. */
+  /** Photos de la séquence autour du rang r, dans le sens de la lecture : rang -> identifiant.
+   * Adresses de run.apis essayées dans l'ordre ; celle qui répond est gardée pour la suite. */
   async function loadRanks(run, r) {
     const start = run.step > 0 ? r - 1 : Math.max(0, r - WINDOW);
-    const url = `${run.origin}/api/collections/${encodeURIComponent(run.collection)}/items?limit=${WINDOW}&startAfterRank=${start}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    for (const f of (await response.json()).features || []) {
-      const rank = Number(f.properties?.["geovisio:rank_in_collection"]);
-      if (Number.isInteger(rank) && f.id) run.ids.set(rank, f.id);
+    let failure = null;
+    while (run.apis.length) {
+      try {
+        const response = await fetch(`${run.apis[0]}/items?limit=${WINDOW}&startAfterRank=${start}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        for (const f of (await response.json()).features || []) {
+          const rank = Number(f.properties?.["geovisio:rank_in_collection"]);
+          if (Number.isInteger(rank) && f.id) run.ids.set(rank, f.id);
+        }
+        return;
+      } catch (error) {
+        failure = error;
+        if (run.ids.size) throw error;  // adresse qui a déjà répondu : panne passagère
+        console.warn(`Lecture rapide : ${run.apis[0]} :`, error);
+        run.apis.shift();  // adresse refusée : la suivante
+      }
     }
+    throw failure || new Error("aucune adresse de la séquence");
   }
 
   /** Photo suivante de la lecture rapide : k rangs plus loin, ou la dernière de la séquence. */
@@ -961,6 +982,12 @@
       console.warn("Lecture rapide :", error);
     }
     if (run !== fast) return;  // arrêtée entre-temps
+    if (!run.ids.size) {  // liste de la séquence introuvable : lecture 1x de la visionneuse
+      stopPlayer();
+      notice("Lecture rapide impossible ici (liste de la séquence introuvable) : lecture normale.");
+      play(sign < 0, 1);
+      return;
+    }
     while (target !== run.rank && !run.ids.has(target)) target -= sign;  // fin de la séquence
     if (target === run.rank) {
       stopPlayer();
