@@ -192,6 +192,7 @@ class Triangulator:
         self.ground_lookup = None
         self.ground_changed = lambda: None
         self._ground_ticket = None
+        self.lidar = True  # False sur un pont : sol tiré des photos (voir session.Session.set_bridge)
 
     def new_item(self):
         """Dessin des visées et du point sur la carte : set_data(visées [(lon, lat, lon, lat)],
@@ -224,7 +225,7 @@ class Triangulator:
         self.result, self.error = None, None
         if len(self.sightings) >= 2:
             try:
-                self.result = solve_on_ground(self.sightings, self.ground, self.ground_z)
+                self.result = solve_on_ground(self.sightings, self.ground, self.ground_z if self.lidar else None)
             except triangulation.TriangulationError as exc:
                 self.error = str(exc)
         self._draw()
@@ -235,7 +236,8 @@ class Triangulator:
         l'a déjà été à moins de GROUND_REUSE m), puis point recalculé avec elle. Relue si le
         point s'est encore déplacé, au plus GROUND_ASKS fois de suite."""
         r = self.result
-        if not (self.ground and r and r["method"] == "3d" and self.ground_lookup) or asks >= GROUND_ASKS:
+        if not (self.ground and self.lidar and r and r["method"] == "3d" and self.ground_lookup) \
+                or asks >= GROUND_ASKS:
             return
         if self.ground_z and _metres(self.ground_z[:2], (r["lon"], r["lat"])) < GROUND_REUSE:
             return

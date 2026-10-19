@@ -69,6 +69,7 @@ class Session:
         self.triangulator.ground_lookup = self._ground_lookup  # sol LiDAR HD au point visé
         self.triangulator.ground_changed = lambda: self.notify()
         self.ground_cache = {}  # (lon, lat) arrondis -> altitude du MNT LiDAR HD (ou None hors couverture)
+        self.bridge = False  # « Sur un pont » : LiDAR HD ignoré (voir set_bridge)
         self.calibrator = (calibrator if calibrator is not None
                            else tools.CalibrationTool(self.calibration, self.current_ids))
         self.mode = "road"
@@ -171,7 +172,7 @@ class Session:
         déjà lue tout près), puis le point et ses mesures recalés avec elle (voir
         tools.Triangulator._ask_ground, son équivalent pendant les visées)."""
         ref = self.ref_point
-        if not ref or ref.get("moved") or asks >= tools.GROUND_ASKS:
+        if not ref or ref.get("moved") or self.bridge or asks >= tools.GROUND_ASKS:
             return
         try:
             r = tools.solve_on_ground(ref["sightings"], True, ref.get("ground_z"))
@@ -218,7 +219,7 @@ class Session:
                             m.anchor(ref["lon"], ref["lat"], ref["uncertainty"], ref["name"])
                     else:
                         m.compute()
-            self._recompute_edges_b(touched)
+            self._recompute_edges_b(touched, force_reference)
             if moved is not None and not force_reference:
                 self._ref_ground()  # altitude LiDAR à relire si le point s'est éloigné
         except Exception:
@@ -272,7 +273,7 @@ class Session:
         if not any([self._resight(s) for s in ref.get("sightings", []) if touched(s["pic"])]) and not force:
             return None
         try:
-            r = tools.solve_on_ground(ref["sightings"], True, ref.get("ground_z"))
+            r = tools.solve_on_ground(ref["sightings"], True, self._lidar_z(ref))
         except triangulation.TriangulationError:
             return None
         ref.update(lon=r["lon"], lat=r["lat"], uncertainty=r["uncertainty"])
@@ -332,6 +333,22 @@ class Session:
     def set_camera_height(self, value):
         self.tool.set_camera_height(float(value))
         return self.status()
+
+    def set_bridge(self, value):
+        """« Sur un pont » : le MNT LiDAR HD donne le terrain sous l'ouvrage (la voie franchie,
+        plusieurs mètres plus bas), pas le tablier. Les points au sol se calent alors sur le sol
+        tiré des photos (altitude GPS des caméras moins leur hauteur) et l'inclinaison automatique
+        se passe de la pente LiDAR. Les altitudes déjà lues sont gardées : décocher les reprend."""
+        self.bridge = bool(value)
+        self.triangulator.lidar = self.calibration.lidar = not self.bridge
+        self._recompute(force_reference=True)
+        self.triangulator.recompute()
+        self._ref_ground()
+        return self.status()
+
+    def _lidar_z(self, point):
+        """Altitude LiDAR HD lue au point triangulé (lon, lat, z), ou None (pas lue, ou sur un pont)."""
+        return None if self.bridge else point.get("ground_z")
 
     def set_api_url(self, url):
         """Instance Panoramax choisie : recherches du cœur (précision GPS, trajectoire)."""
@@ -973,14 +990,14 @@ class Session:
         self.message = m.status() + self._rtk_warning([s.get("sequence") for s in sightings])
         return self.status()
 
-    def _recompute_edges_b(self, touched):
-        """Bords B triangulés dont une visée a été recalculée (calage, précision) : triangulés à
-        nouveau, leur largeur avec."""
+    def _recompute_edges_b(self, touched, force=False):
+        """Bords B triangulés dont une visée a été recalculée (calage, précision ; tous si force) :
+        triangulés à nouveau, leur largeur avec."""
         for m in self._widths():
             b = m.edge_b
-            if b and any([self._resight(s) for s in b["sightings"] if touched(s["pic"])]):
+            if b and (any([self._resight(s) for s in b["sightings"] if touched(s["pic"])]) or force):
                 try:
-                    r = tools.solve_on_ground(b["sightings"], True, b.get("ground_z"))
+                    r = tools.solve_on_ground(b["sightings"], True, self._lidar_z(b))
                 except triangulation.TriangulationError:
                     continue
                 b.update(lon=r["lon"], lat=r["lat"], uncertainty=r["uncertainty"])

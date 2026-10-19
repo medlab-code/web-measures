@@ -338,6 +338,7 @@ class Calibration:
         self.auto = {}
         self._tilts = {}
         self._models = {}  # séquence -> lidar_model (cache)
+        self.lidar = True  # False sur un pont : pente du terrain sous l'ouvrage, pas celle du tablier
         self.changed = None
 
     def _notify(self):
@@ -442,7 +443,7 @@ class Calibration:
             return {"up": up, "tilt": math.degrees(math.acos(min(1.0, up[2]))),
                     "toward": math.degrees(math.atan2(up[0], up[1])) % 360, "residual": None, "partial": False,
                     "count": v["count"], "sigma": v["sigma"], "source": "verticales"}
-        model = self.lidar_model(entry.get("sequence"))
+        model = self.lidar_model(entry.get("sequence")) if self.lidar else None
         if model and entry.get("lidar"):
             f = entry["lidar"][0] + model["offset"][0]
             r = entry["lidar"][1] + model["offset"][1]

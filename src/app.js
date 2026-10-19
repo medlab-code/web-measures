@@ -271,7 +271,7 @@
     const saved = store.get("calage");
     if (saved && !app.load_calibration(saved)) console.warn("Calage enregistré illisible : ignoré.");
     savedCalibration = app.calibration_version;
-    for (const id of ["#mesure", "#mode", "#camera", "#effacer", "#tout-effacer", "#calage-exporter",
+    for (const id of ["#mesure", "#mode", "#camera", "#pont", "#effacer", "#tout-effacer", "#calage-exporter",
       "#calage-importer"]) $(id).disabled = false;
     $("#camera").value = store.get("camera", $("#camera").value);
     app.set_camera_height(Number($("#camera").value));
@@ -1386,6 +1386,7 @@
     }
   }
   $("#camera").addEventListener("change", setCamera);
+  $("#pont").addEventListener("change", (event) => refresh(app.set_bridge(event.target.checked)));
   $("#camera-gps").addEventListener("click", (event) => {
     $("#camera").value = Number(event.target.dataset.value).toFixed(2);
     setCamera();

@@ -108,6 +108,7 @@ async function feature(id) {
 
   // Montbard (imajbox) : inclinaison automatique, calculée en arrière-plan
   await open(MONTBARD);
+  app._check_tilt();  // lancée au premier clic sur la photo depuis la version 0.2.6
   log("== Montbard : inclinaison auto en " + await until(() => state().quality.includes("inclinaison calée"),
     120000, "inclinaison") + " ms");
   log("état : " + state().quality);
