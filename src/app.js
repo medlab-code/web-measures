@@ -476,7 +476,7 @@
     dialog.addEventListener("close", () => {
       if (dialog.returnValue === "oui") refresh(app.link_points(i, j));
     }, { once: true });
-    dialog.showModal();
+    showOverViewer(dialog);
   }
 
   // Choix de la photo sur la carte ---------------------------------------------------------
