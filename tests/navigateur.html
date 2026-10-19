@@ -310,6 +310,13 @@ async function feature(id) {
   w.mesures.openPhoto(ign);
   await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === PONT, 30000, "photo IGN affichée");
   await sleep(1000);
+  {  // hors mesure : voyants RTK et sol visibles, pas celui de l'inclinaison
+    const lights = () => [...doc.querySelectorAll("#voyants li")].map((li) => li.textContent);
+    try { await until(() => lights().includes("RTK"), 30000, "voyants hors mesure"); } catch (e) { log(String(e)); }
+    log("voyants hors mesure : " + lights().join(", "));
+    expect("voyants hors mesure : RTK et sol, sans l'inclinaison", !doc.querySelector("#voyants").hidden
+      && lights().includes("RTK") && lights().includes("LiDAR HD") && !lights().includes("Inclinaison"));
+  }
   const shown = [];
   const seen = () => { const id = w.mesures.psv.getPictureMetadata?.()?.id; if (id && shown.at(-1) !== id) shown.push(id); };
   doc.querySelector("#lecture-avant").click();  // 1x
