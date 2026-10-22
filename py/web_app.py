@@ -63,11 +63,33 @@ def _road_label(name):
     return "une route"
 
 
+# Cours d'eau nommés sans article par la BD TOPO (« Canal de Bourgogne ») : genre du nom commun
+_WATERS = {"canal": "le", "ruisseau": "le", "bief": "le", "fossé": "le", "fleuve": "le", "torrent": "le",
+           "ru": "le", "rû": "le", "bras": "le", "déversoir": "le", "aqueduc": "le", "étang": "le",
+           "rivière": "la", "rigole": "la", "noue": "la", "dérivation": "la", "ravine": "la", "source": "la"}
+
+
+def _water_label(name):
+    """Cours d'eau franchi, avec son article : « l'Armançon » (déjà dans la BD TOPO), « le canal de
+    Bourgogne », « la rivière … », « l'étang … » ; sans nom commun connu, le nom tel quel."""
+    article = re.match(r"(l'|la |le |les )", name, re.IGNORECASE)
+    if article:  # article en minuscule en milieu de phrase : « de la Vouge »
+        return article.group(1).lower() + name[article.end():]
+    first, _, rest = name.partition(" ")
+    article = _WATERS.get(first.lower())
+    if article is None:
+        return name
+    noun = first.lower() + (" " + rest if rest else "")
+    return ("l'" if noun[0] in "aeiouyéèêh" else article + " ") + noun
+
+
 def _of(label):
-    """« de » devant un nom avec article : de l'Armançon, de la D905, du chemin…, d'une route."""
+    """« de » devant un nom avec article : de l'Armançon, de la D905, du chemin…, d'une route ; d'Ouche."""
     for article, of in (("le ", "du "), ("les ", "des "), ("un ", "d'un "), ("une ", "d'une ")):
         if label.startswith(article):
             return of + label[len(article):]
+    if label[:1].lower() in "aeiouyéèêh" and not label.startswith("l'"):
+        return "d'" + label  # nom propre sans article : d'Ouche
     return "de " + label
 
 
@@ -191,12 +213,76 @@ class RaysItem:
         self.removed = True
 
 
+class RankPrecisionChecker(precision.PrecisionChecker):
+    """Vérification de la position RTK (voir precision.PrecisionChecker) dont les autres portions de la
+    séquence, essayées quand celle de la photo échoue, sont prises par rang : RANK_STEP photos avant et
+    après. Le cœur les cherche parmi les 100 photos de la séquence les plus proches, toutes au même
+    endroit quand elle y passe plusieurs fois : sur un pont (le LiDAR donne le terrain sous le tablier),
+    aucune autre portion n'était essayée et toute la séquence restait non vérifiée."""
+    RANK_STEP = 150
+
+    def __init__(self):
+        super().__init__()
+        self._items = {}  # séquence -> photo dont la vérification a été demandée (rang, adresse de la séquence)
+
+    def _check_sequence(self, item, sequence, lon, lat, done):
+        self._items[sequence] = item
+        super()._check_sequence(item, sequence, lon, lat, done)
+
+    def _other_portions(self, sequence, lon, lat, failed, done):
+        item = self._items.get(sequence) or {}
+        links = {l.get("rel"): l.get("href") or "" for l in item.get("links") or []}
+        base = links.get("collection", "")
+        if base.startswith(web_host.API_URL):  # le méta-catalogue ignore les rangs : instance d'origine (« via »)
+            base = links.get("via") and "{}/api/collections/{}".format(links["via"].rstrip("/"), sequence)
+        rank = (item.get("properties") or {}).get("geovisio:rank_in_collection")
+        if not base or not isinstance(rank, int):
+            return super()._other_portions(sequence, lon, lat, failed, done)
+        ranks = [r for r in (rank + self.RANK_STEP, rank - self.RANK_STEP) if r >= 1]
+        tried = [0]
+
+        def next_portion():
+            if not ranks:
+                plural = "s" if tried[0] > 1 else ""
+                done(dict(failed, reason="{} ; {} autre{p} portion{p} de la séquence non vérifiée{p}".format(
+                    failed["reason"], tried[0], p=plural)) if tried[0] else failed)
+                return
+            r = ranks.pop(0)
+
+            def got_item(data, error):
+                if error:
+                    done(dict(failed, transient=True))  # à refaire plus tard
+                    return
+                feats = (data or {}).get("features") or []
+                try:
+                    clon, clat = (float(v) for v in feats[0]["geometry"]["coordinates"][:2])
+                except (IndexError, KeyError, TypeError, ValueError):
+                    next_portion()  # au-delà de la fin de la séquence
+                    return
+
+                def got(kind, value):
+                    if kind in ("photos", "ground"):
+                        done(dict(failed, transient=True))
+                    elif kind == "result" and value["precise"]:
+                        done(dict(value, reason="{}, à {:.0f} m de la photo (même séquence)".format(
+                            value["reason"], round(precision._metres((clon, clat), (lon, lat)), -1))))
+                    else:
+                        tried[0] += 1
+                        next_portion()
+
+                self._portion(sequence, clon, clat, got)
+
+            host.fetch_json("{}/items?limit=1&startAfterRank={}".format(base.rstrip("/"), r - 1), got_item)
+
+        next_portion()
+
+
 class App(session.Session):
     def __init__(self, notify, remote=None, api_url=web_host.API_URL):
         web_host.install(remote, api_url)
         if remote is not None:
             autotilt.HAS_NUMPY = True  # verticales calculées dans le Pyodide d'arrière-plan, qui a numpy
-        super().__init__(notify)
+        super().__init__(notify, precision_checker=RankPrecisionChecker())
         self.items, self.rays = [], []
         self.tool.new_item = self._new_item
         self.triangulator.new_item = self._new_rays
@@ -477,7 +563,8 @@ class App(session.Session):
         labels = []
         for feat in self._bdtopo("troncon_hydrographique", cell) or []:
             if below(feat) and any(crosses(line) for line in lines(feat)):
-                labels.append((feat.get("properties") or {}).get("cpx_toponyme_de_cours_d_eau") or "un cours d'eau")
+                name = (feat.get("properties") or {}).get("cpx_toponyme_de_cours_d_eau")
+                labels.append(_water_label(name) if name else "un cours d'eau")
         if not labels:  # cours d'eau franchi : lui seul (routes et voies ferrées des berges en plus)
             for feat in self._bdtopo("troncon_de_voie_ferree", cell) or []:
                 if below(feat) and any(crosses(line) for line in lines(feat)):

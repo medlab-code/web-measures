@@ -463,6 +463,13 @@ async function feature(id) {
     await sleep(300);
     expect("barres masquées à la pause", bars.hidden);
   }
+  {  // séquence dense passant sur un pont (D905) : vérifiée sur une autre portion, prise par rang
+    await open("dea8bdaa-e8e2-4fee-a64f-512ce80b5871");
+    try { await until(() => /Position GPS (non )?vérifiée/.test(state().quality), 90000, "vérification sur le pont de la D905"); }
+    catch (e) { log(String(e)); }
+    log("pont de la D905 : " + state().quality + " · " + state().computed);
+    expect("séquence vérifiée RTK depuis le pont", state().quality.includes("Position GPS vérifiée"));
+  }
   verdict();
   log("FIN");
 })().catch((e) => log("ERREUR " + (e.stack || e)));
