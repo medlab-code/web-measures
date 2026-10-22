@@ -24,7 +24,7 @@
   <header>
     <div class="marque">
       <h1>Mesures Panoramax</h1>
-      <span class="essai" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.3.7 — projet personnel – POC</span>
+      <span class="essai" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.4.0 — projet personnel – POC</span>
     </div>
     <!-- Mesure : gros bouton sur les deux rangées ; réglages, puis effacement en dessous -->
     <div class="bloc mesure">
@@ -80,7 +80,8 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
       <ul id="voyants" hidden></ul>
       <div class="bas-vue">  <!-- localisation à gauche, lecture de la séquence au centre, producteur à droite -->
         <div class="lieu-favori">  <!-- étoile des favoris, comme dans la barre d'adresse d'un navigateur -->
-          <button id="etoile-favori" type="button" hidden aria-pressed="false" title="Ajouter cette photo aux favoris">☆</button>
+          <button id="etoile-favori" type="button" hidden aria-pressed="false" title="Ajouter cette photo aux favoris">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg></button>
           <p id="lieu" hidden></p>
         </div>
         <!-- Lecture de la séquence, comme le lecteur de la visionneuse officielle (voir app.js) -->

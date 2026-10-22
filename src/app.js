@@ -1166,7 +1166,7 @@
     $("#favoris-exporter").disabled = !favorites().length;
     // Étoile de la visionneuse : pleine si la photo affichée est en favori
     const on = Boolean(photo) && favorites().some((f) => f.id === photo.id);
-    Object.assign($("#etoile-favori"), { hidden: !photo, textContent: on ? "★" : "☆",
+    Object.assign($("#etoile-favori"), { hidden: !photo,
       title: on ? "Retirer cette photo des favoris" : "Ajouter cette photo aux favoris" });
     $("#etoile-favori").setAttribute("aria-pressed", String(on));
   }

@@ -329,6 +329,9 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.4.0** (22/10/2026) : case « Filtrage anisotrope » dans les réglages (8x, décochée par défaut) :
+  moins de crénelage et de scintillement des détails fins vus de loin. Étoile des favoris dessinée,
+  alignée sur l'étiquette du lieu quelle que soit la police.
 - **0.3.7** (22/10/2026) : favoris, une puce devant chaque nom, alignée sur sa première ligne
   (noms sur deux lignes).
 - **0.3.6** (22/10/2026) : dès la 3e visée d'un point, la vue de la photo ouverte se tourne vers le

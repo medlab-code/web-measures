@@ -661,6 +661,8 @@ button.principal { font-weight: 600; }
 .lieu-favori { grid-column: 1; justify-self: start; display: flex; align-items: center; gap: 4px; min-width: 0; }
 #etoile-favori {
   flex: none;
+  display: flex;  /* étoile dessinée, centrée quelle que soit la police */
+  align-items: center;
   height: 22px;
   padding: 0 5px;
   border: 0;
@@ -673,14 +675,18 @@ button.principal { font-weight: 600; }
   pointer-events: auto;
   cursor: pointer;
 }
-#etoile-favori[aria-pressed="true"] { color: #ffd600; }  /* photo en favori : étoile pleine, jaune */
+#etoile-favori svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6)); }
+#etoile-favori[aria-pressed="true"] { color: #ffd600; }
+#etoile-favori[aria-pressed="true"] svg { fill: currentColor; }  /* photo en favori : étoile pleine, jaune */
 #etoile-favori:hover { background: rgba(32, 33, 36, 0.8); }
 #etoile-favori[hidden] { display: none; }
 #lecteur { grid-column: 2; }
 #producteur-photo { grid-column: 3; justify-self: end; }
 #lieu, #producteur-photo {
   margin: 0;
-  padding: 0.15rem 0.5rem;
+  padding: 2px 0.5rem;
+  line-height: 18px;  /* 22 px de haut, comme l'étoile et le lecteur */
   border-radius: 4px;
   background: var(--etiquette-vue);
   color: #fff;
