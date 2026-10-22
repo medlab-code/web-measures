@@ -66,6 +66,20 @@ async function feature(id) {
   // Réglages par défaut (CD21, instance IGN) : fenêtre fermée ; l'essai ouvre aussi des photos
   // grand public (Dijon, alerte RTK) : méta-catalogue et tous producteurs
   doc.querySelector("#reglages-defaut")?.close();
+  {  // Première visite : trois bulles après les réglages par défaut, puis plus jamais
+    await sleep(100);  // événement « close » de la fenêtre des réglages
+    const bubble = doc.querySelector("#visite"), seen = [];
+    for (let i = 0; i < 3 && bubble.open; i++) {
+      const target = doc.querySelector(".visite-cible"), box = bubble.getBoundingClientRect();
+      seen.push(`${target?.id} « ${bubble.querySelector("p").textContent.slice(0, 40)}… » (${Math.round(box.left)}, ${Math.round(box.top)})`);
+      bubble.querySelector(".oui").click();
+      await sleep(100);
+    }
+    log("visite : " + seen.join(" | "));
+    expect("visite : carte, Mesure, résultats", seen.map((t) => t.split(" ")[0]).join() === "carte,mesure,resultats");
+    expect("visite finie : bulle fermée, plus de cible", !bubble.open && !doc.querySelector(".visite-cible"));
+    expect("visite notée faite", w.localStorage.getItem("web-measures/visite") === "1");
+  }
   doc.querySelector("#instance").value = "";
   doc.querySelector("#instance").dispatchEvent(new Event("change"));
   doc.querySelector("#producteur").value = "";

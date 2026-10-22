@@ -270,6 +270,14 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
       <button value="ok" class="oui">J'ai compris</button>
     </form>
   </dialog>
+  <!-- Première visite : trois bulles (carte, Mesure, résultats), une fois par navigateur -->
+  <dialog id="visite" class="avertissement bulle">
+    <p></p>
+    <form method="dialog">
+      <button value="passer" class="non">Passer</button>
+      <button value="suivant" class="oui">Suivant</button>
+    </form>
+  </dialog>
   <!-- Scripts ordinaires (pas de modules) : la page s'ouvre aussi en double-cliquant -->
   <script src="py/sources.js"></script>
   <script src="src/carte.js"></script>

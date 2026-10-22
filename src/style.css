@@ -795,6 +795,11 @@ dialog.avertissement form button.non:hover { background: rgba(229, 57, 53, 0.75)
 /* Bouton qui a le focus (le premier, à l'ouverture) : cadre à l'extérieur, la couleur reste visible */
 dialog.avertissement form button:focus-visible { outline: 2px solid var(--texte); outline-offset: 2px; }
 
+/* Première visite : bulle non modale à côté de l'élément présenté, souligné en orange */
+dialog.bulle { position: fixed; max-width: 20rem; margin: 0; z-index: 20; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4); }
+dialog.bulle p { margin: 0; }
+.visite-cible { outline: 3px solid #ff6f00 !important; outline-offset: 2px; }
+
 .aide { color: var(--discret); margin: 0 0 0.5rem; }
 
 #reseau ul { list-style: none; margin: 0; padding: 0; }

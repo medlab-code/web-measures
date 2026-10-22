@@ -201,17 +201,62 @@
   // dans un navigateur qui avait déjà ses réglages ; chacun peut ensuite en changer.
   const DEFAULT_INSTANCE = "https://panoramax.ign.fr";
   const DEFAULT_PRODUCER = ["8f943f10-a781-4e03-a18c-de035be6f6f8", "conseil départemental de la côte-d'or"];
-  // Photo ouverte à la première utilisation (et sans dernière photo gardée), regard vers l'ouest
-  const DEFAULT_PHOTO = "88eba563-792a-447f-92c5-215e749ffc9b";
-  const DEFAULT_HEADING = 270;
+  // Photo ouverte à la première utilisation (et sans dernière photo gardée) : château de Semur-en-Auxois,
+  // vue tournée entre ses deux tours (cap en degrés)
+  const DEFAULT_PHOTO = "7752eb30-a733-4213-b57a-5d5086e261a4";
+  const DEFAULT_HEADING = 163;
   const firstUse = store.get("defauts") !== "1";
   if (firstUse) {
     showOverViewer($("#reglages-defaut"));  // pourquoi ces réglages, et où les changer
+    $("#reglages-defaut").addEventListener("close", () => showTour(), { once: true });
     store.set("instance", DEFAULT_INSTANCE);
     let filter = {};
     try { filter = JSON.parse(store.get("filtre", "{}")) || {}; } catch { /* illisible : remplacé */ }
     store.set("filtre", JSON.stringify({ ...filter, producer: DEFAULT_PRODUCER }));
     store.set("defauts", "1");
+  }
+
+  if (!firstUse) showTour();  // déjà venu avant la visite guidée : une fois aussi
+
+  /** Première visite : bulles l'une après l'autre près de la carte, du bouton Mesure et des
+   * résultats, une fois par navigateur (« Passer » l'arrête). */
+  function showTour() {
+    if (store.get("visite") === "1") return;
+    store.set("visite", "1");
+    const steps = [
+      ["#carte", "Cliquez sur le filaire orange de la carte (ou cherchez un lieu) pour ouvrir la photo la plus proche."],
+      ["#mesure", "Activez « Mesure », choisissez largeur ou hauteur, puis cliquez dans la photo : "
+        + "la consigne en haut de la visionneuse guide chaque étape."],
+      ["#resultats", "Les mesures s'affichent ici avec leur incertitude ; exportez-les en CSV ou GeoJSON "
+        + "avant de fermer la page."],
+    ];
+    const bubble = $("#visite");
+    let step = 0, target = null;
+    const place = () => {
+      const box = target.getBoundingClientRect(), w = bubble.offsetWidth, h = bubble.offsetHeight;
+      const left = box.left > innerWidth / 2 ? box.left - w - 12 : box.left;  // colonne de droite : à gauche
+      const top = box.left > innerWidth / 2 ? box.top + 12 : box.bottom + 12;  // sinon dessous
+      bubble.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, left))}px`;
+      bubble.style.top = `${Math.max(8, Math.min(innerHeight - h - 8, top))}px`;
+    };
+    const show = () => {
+      target?.classList.remove("visite-cible");
+      if (step >= steps.length) return;
+      const [selector, text] = steps[step];
+      target = $(selector);
+      target.classList.add("visite-cible");
+      bubble.querySelector("p").textContent = text;
+      bubble.querySelector(".oui").textContent = step === steps.length - 1 ? "Terminer" : "Suivant";
+      bubble.show();  // non modale : la page reste utilisable
+      place();
+    };
+    bubble.addEventListener("close", () => {
+      step = bubble.returnValue === "suivant" ? step + 1 : steps.length;
+      show();
+      if (step >= steps.length) window.removeEventListener("resize", place);
+    });
+    window.addEventListener("resize", place);
+    show();
   }
 
   const instance = $("#instance");
@@ -404,6 +449,7 @@
       setTimeout(() => psv.rotate({ yaw, pitch: 0 }), 300);  // après la mise en place de la vue
     }, 200);
   }
+
   reopenPhoto();
 
   // Calcul ---------------------------------------------------------------------------------
