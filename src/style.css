@@ -562,6 +562,24 @@ button.principal { font-weight: 600; }
   text-shadow: var(--detoure-vue);
 }
 #etat-mesure[hidden] { display: none; }
+/* Photo sur un pont : son nom puis la hauteur de chute (deux lignes), sous l'état de la mesure ;
+   survol : infobulle de son explication (le coin laisse sinon passer les clics) */
+#chute {
+  max-width: 19rem;
+  margin: 0.3rem 0 0;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  background: var(--etiquette-vue);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  text-shadow: var(--detoure-vue);
+  white-space: pre-line;
+  pointer-events: auto;
+  cursor: help;
+}
+#chute[hidden] { display: none; }
+#chute .pont { color: #2ecc40; }  /* vert des voyants RTK et LiDAR HD */
 #etat-mesure::before {
   content: "";
   flex: none;

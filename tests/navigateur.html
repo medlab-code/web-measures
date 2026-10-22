@@ -138,6 +138,12 @@ async function feature(id) {
   pont.querySelector("button[value=oui]").click();
   try { await until(() => doc.querySelector("#pont").checked, 5000, "case cochée"); } catch (e) { log(String(e)); }
   expect("case « Sur un pont » cochée", doc.querySelector("#pont").checked && app.bridge);
+  // Hauteur de chute du pont en haut à gauche de la visionneuse (tablier RTK moins MNT LiDAR HD : ~6,3 m au-dessus de l'A6)
+  try { await until(() => doc.querySelector("#chute")?.textContent.includes("max"), 30000, "hauteur de chute"); } catch (e) { log(String(e)); }
+  const chute = doc.querySelector("#chute");
+  log("chute : " + chute?.textContent + " · " + chute?.title);
+  near("hauteur de chute du pont D111", metresIn(chute?.textContent), 6.3, 0.5);
+  expect("pont sans nom BD TOPO : sa route", chute?.textContent.startsWith("Pont de la D111"), chute?.textContent);
   // Étiquette du lieu : route et PR ; refus en rafale de la Géoplateforme (HTTP 429) : texte partiel
   // non gardé, redemandé
   try { await until(() => /D111 – PR/.test(doc.querySelector("#lieu").textContent), 30000, "lieu"); } catch (e) { log(String(e)); }

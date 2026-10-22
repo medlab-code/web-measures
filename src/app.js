@@ -382,6 +382,12 @@
       gps.dataset.value = state.camera[0];
     }
     showLights(state.lights);
+    // Photo sur un pont, en haut à gauche : nom et hauteur de chute (pas pendant la lecture)
+    const fall = playing() ? null : JSON.parse(app.fall_json());
+    const [bridge, ...rest] = (fall?.text || "").split("\n");  // nom du pont en vert, puis la hauteur
+    Object.assign($("#chute"), { hidden: !fall, title: fall?.title || "" });
+    $("#chute").replaceChildren(Object.assign(document.createElement("span"), { className: "pont", textContent: bridge }),
+      rest.length ? "\n" + rest.join("\n") : "");
     pointReady = state.point;
     tiltReady = state.tilt_ready;
     pointSelected = state.point_sel;
@@ -1044,6 +1050,7 @@
       clearTimeout(fast.timer);
       fast = null;
       updatePlayer();
+      refresh();  // hauteur de chute d'un pont : calculée hors lecture
     }
     if (psv?.isSequencePlaying?.()) psv.stopSequence();
   }
@@ -1172,7 +1179,10 @@
       backward = Boolean(event.detail?.backward);
       updatePlayer();
     });
-    psv.addEventListener("sequence-stopped", updatePlayer);
+    psv.addEventListener("sequence-stopped", () => {
+      updatePlayer();
+      refresh();  // hauteur de chute d'un pont : calculée hors lecture
+    });
     psv.addEventListener("picture-loaded", (event) => {
       // Lecture rapide : photo demandée affichée, la suivante après la durée de transition de
       // la visionneuse (comme sa lecture 1x)

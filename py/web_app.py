@@ -11,11 +11,36 @@ aboutit après coup, la session appelle notify() pour que la page se redessine.
 
 import json
 import math
+import re
+import time
 from datetime import datetime
 
 import web_host
-from core import autotilt, capture, filters, measures, metadata, session, tools, triangulation, widths
+from core import (autotilt, capture, filters, host, measures, metadata, precision, roads, session, tools,
+                  triangulation, widths)
 from core.session import GROUND_MODES, MODES  # noqa: F401 (modes de la page)
+
+
+# Mots laissés en minuscules dans un nom remis en forme (sauf au début) : « Pont de France »
+_SMALL_WORDS = {"de", "du", "des", "la", "le", "les", "et", "en", "sur", "sous", "aux", "à"}
+
+
+def _bridge_name(text):
+    """Nom de pont tiré du nom d'un tronçon BD TOPO en majuscules (« PONT DE FRANCE » -> « Pont de
+    France »), ou None s'il ne nomme pas un ouvrage (nom de la rue qui passe dessus)."""
+    words = (text or "").strip().lower().split()
+    if not words or words[0] not in ("pont", "viaduc", "passerelle"):
+        return None
+
+    def word(w, first):
+        if "'" in w:  # d'or -> d'Or
+            head, tail = w.split("'", 1)
+            return (head.capitalize() if first else head) + "'" + word(tail, False)
+        if not first and w in _SMALL_WORDS:
+            return w
+        return "-".join(part.capitalize() for part in w.split("-"))
+
+    return " ".join(word(w, k == 0) for k, w in enumerate(words))
 
 
 class WebItem:
@@ -65,6 +90,8 @@ class App(session.Session):
         # « Valider l'objet vertical » (le cœur cale dès le second clic, sans laisser les voir ni
         # les déplacer) ; indice de la croix sélectionnée pour être déplacée, ou None
         self.tilt_clicks, self.tilt_sel = [], None
+        self.fall_cells = {}  # maille -> tronçons BD TOPO avec leur largeur (hauteur de chute, voir fall)
+        self.falls = {}  # (séquence, pont) -> hauteur de chute calculée (dict text, title) ou en cours
 
     # Données pour la page (JSON) -------------------------------------------------------
     def set_picture(self, item_json):
@@ -74,6 +101,11 @@ class App(session.Session):
 
     def state(self):
         return json.dumps(dict(super().state(), tilt_ready=self._tilt_pending() and len(self.tilt_clicks) == 2))
+
+    def fall_json(self):
+        """Hauteur de chute (voir fall), en JSON : demandée par la page hors lecture de la séquence
+        (sinon une lecture BD TOPO par maille de 100 m traversée)."""
+        return json.dumps(self.fall())
 
     def viewer_marks(self):
         marks = super().viewer_marks()
@@ -166,6 +198,161 @@ class App(session.Session):
     def set_mode(self, mode):
         self.tilt_clicks, self.tilt_sel = [], None
         return super().set_mode(mode)
+
+    # Hauteur de chute sur un pont (ticket #15) ---------------------------------------------
+    FALL_SIDE = 1.0  # m au-delà du bord de la chaussée : pied du garde-corps, côté vide
+    FALL_STEP = 2.0  # m entre deux points le long du pont (plus si le pont est long)
+    FALL_POINTS = 80  # points au plus : une seule requête au service d'altimétrie
+    FALL_WIDTH = 6.0  # m : largeur de chaussée supposée quand la BD TOPO ne la donne pas
+    FALL_TOUCH = 1.0  # m : tronçons en pont bout à bout (un pont coupé en plusieurs tronçons)
+    FALL_RETRY = 60.0  # s avant de refaire un calcul qui a échoué (service injoignable)
+    FALL_NO_RTK = ("Hauteur de chute non calculée : la position GPS de cette séquence n'est pas vérifiée RTK. "
+                   "L'altitude du tablier, tirée de l'altitude GPS de la caméra, serait fausse de plusieurs mètres.")
+
+    def fall(self):
+        """Photo prise sur un pont (BD TOPO) : hauteur de chute la plus grande sur toute la longueur du
+        pont ({text, title}), son explication sans RTK vérifié, ou l'attente de son calcul ; None hors
+        d'un pont. Tablier : altitude GPS RTK (NGF) moins hauteur de caméra, aux photos de la séquence
+        prises sur le pont ; dessous : MNT LiDAR HD (RGE ALTI en secours), qui ignore le tablier, au
+        pied des garde-corps des deux côtés."""
+        item = self.item or {}
+        try:
+            lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
+        except (KeyError, TypeError, ValueError):
+            return None
+        sections = self._fall_sections(lon, lat)
+        if not sections or sections is roads.PENDING:
+            return None
+        axis = self._axis(item)
+        sec = roads.on_bridge(sections, lon, lat, metadata.item_heading(item) if axis is None else axis)
+        if sec is None:
+            return None
+        chain = self._bridge_chain(sections, sec)
+        # Nom du pont (BD TOPO), et sa route : « Pont de France (D905) », sinon « Pont de la D111 »
+        name = next((c["bridge_name"] for c in chain if c.get("bridge_name")), None)
+        road = next((c["name"] for c in chain if re.match(r"[A-Z]+\d", c.get("name") or "")), None)
+        bridge = "{} ({})".format(name, road) if name and road else name or ("Pont de la " + road if road else "Pont")
+        if self.quality is None:
+            return {"text": bridge + "\nHauteur de chute : vérification de la position GPS en cours…", "title": ""}
+        if not self.quality.get("precise"):
+            return {"text": bridge + "\n" + self.FALL_NO_RTK, "title": ""}
+        key = (item.get("collection"), min(p for c in chain for p in c["line"]))
+        res = self.falls.get(key)
+        if res is None or time.monotonic() >= res.get("retry_at", float("inf")):
+            res = self.falls[key] = {"text": "Hauteur de chute : calcul en cours…", "title": ""}
+            self._compute_fall(key, chain, item, lon, lat)
+        return {"text": bridge + "\n" + res["text"], "title": res["title"]}
+
+    def _fall_sections(self, lon, lat):
+        """Tronçons BD TOPO de la maille du point, avec leur largeur de chaussée (« width », m ou None),
+        lus ici : ceux du cœur (roads) ne la gardent pas. roads.PENDING pendant la lecture, None si la BD
+        TOPO n'a pas répondu (shortcut : pas de nouvel essai avant le rechargement de la page)."""
+        cell = roads._cell(lon, lat)
+        if cell in self.fall_cells:
+            return self.fall_cells[cell]
+        self.fall_cells[cell] = roads.PENDING
+
+        def done(data, error):
+            out = None
+            if not error:
+                out = []
+                for feat in (data or {}).get("features") or []:
+                    props = feat.get("properties") or {}
+                    try:
+                        width = float(props.get("largeur_de_chaussee"))
+                    except (TypeError, ValueError):
+                        width = None
+                    out += [dict(sec, width=width if width and width > 0 else None,
+                                 bridge_name=_bridge_name(props.get("nom_collaboratif_gauche")))
+                            for sec in roads.parse_sections({"features": [feat]})]
+            self.fall_cells[cell] = out
+            self.notify()
+
+        host.fetch_json(roads.wfs_url(cell), done, timeout_ms=15000)
+        return self.fall_cells[cell]
+
+    def _bridge_chain(self, sections, first):
+        """Tronçons en pont bout à bout avec first : le pont entier."""
+        chain = [first]
+        grown = True
+        while grown:
+            grown = False
+            ends = [p for c in chain for p in (c["line"][0], c["line"][-1])]
+            for sec in sections:
+                if sec["level"] > 0 and sec not in chain and any(
+                        tools._metres(p, q) < self.FALL_TOUCH for p in (sec["line"][0], sec["line"][-1]) for q in ends):
+                    chain.append(sec)
+                    grown = True
+        return chain
+
+    def _compute_fall(self, key, chain, item, lon, lat):
+        """Calcul de la hauteur de chute du pont (chain), rangé dans self.falls[key], puis notify()."""
+        camera = self._camera_height()
+        lines = [[triangulation._local(p[0], p[1], lon, lat) for p in c["line"]] for c in chain]
+        total = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for line in lines for a, b in zip(line, line[1:]))
+        step = max(self.FALL_STEP, 2 * total / self.FALL_POINTS)
+        samples = []  # (x, y) au pied des garde-corps, des deux côtés, en m depuis la photo
+        for c, line in zip(chain, lines):
+            length = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(line, line[1:]))
+            offset = (c["width"] or self.FALL_WIDTH) / 2 + self.FALL_SIDE
+            n = max(1, round(length / step))
+            for k in range(n + 1):
+                s = k * length / n
+                (x, y), a, b = roads._at(line, s), roads._at(line, s - 1.0), roads._at(line, s + 1.0)
+                t = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+                nx, ny = -(b[1] - a[1]) / t, (b[0] - a[0]) / t
+                samples += [(x + side * offset * nx, y + side * offset * ny) for side in (-1, 1)]
+        reach = max(math.hypot(x, y) for x, y in samples) + 10.0
+
+        def failed():
+            self.falls[key] = {"text": "Hauteur de chute : calcul impossible (service injoignable)", "title": "",
+                               "retry_at": time.monotonic() + self.FALL_RETRY}
+            self.notify()
+
+        def got_photos(data, error):
+            if error:
+                return failed()
+            decks = []  # (x, y, altitude du tablier) aux photos de la séquence prises sur le pont
+            for feat in (data or {}).get("features") or []:
+                try:
+                    plon, plat = (float(v) for v in feat["geometry"]["coordinates"][:2])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                ngf = host.ngf_altitude(plon, plat, metadata.item_altitude(feat))
+                if ngf is None or feat.get("collection") != item.get("collection") or \
+                        roads.on_bridge(chain, plon, plat) is None:
+                    continue
+                decks.append(triangulation._local(plon, plat, lon, lat) + (ngf - camera,))
+            if not decks:
+                return failed()
+            precision.fetch_terrain([triangulation._geographic(x, y, lon, lat) for x, y in samples],
+                                    lambda ground, source, error: got_ground(decks, ground, source, error))
+
+        def got_ground(decks, ground, source, error):
+            if error:
+                return failed()
+            best = None
+            for (x, y), z in zip(samples, ground or []):
+                if z is None:
+                    continue
+                # shortcut : tablier à l'altitude de la photo la plus proche (photos tous les ~5 m) ;
+                # interpoler entre les photos si des ponts longs et pentus le demandent
+                deck = min(decks, key=lambda d: math.hypot(d[0] - x, d[1] - y))[2]
+                if best is None or deck - z > best[0]:
+                    best = (deck - z, math.hypot(x, y))
+            if best is None:
+                return failed()
+            terrain = triangulation.RGE_ALTI_ERROR if source == "RGE ALTI" else triangulation.LIDAR_ERROR
+            sigma = math.hypot(precision.VERIFIED_ACCURACY, triangulation.GROUND_ERROR, terrain)
+            self.falls[key] = {
+                "text": "Hauteur de chute max : {} m (±{} m)".format(measures._num(best[0], 1), measures._num(sigma, 1)),
+                "title": ("Plus grande hauteur entre le tablier (altitude GPS RTK moins hauteur de caméra) et le "
+                          "terrain sous le pont ({}), le long des deux bords, à {} m de la photo. Au-dessus de "
+                          "l'eau : niveau au relevé, pas le fond.").format(
+                    source, measures._num(best[1], 0))}
+            self.notify()
+
+        host.fetch_json(metadata.search_url(lon, lat, reach, 100, item.get("collection"), host.api_url), got_photos)
 
     def take_aim_frame(self):
         """Visées guidées : repère dans la photo affichée ([[cap, élévation]] en radians, JSON) du
