@@ -351,12 +351,22 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .reglages label { display: flex; align-items: center; gap: 0.35rem; }
 .reglages input[type="number"] { width: 4.5rem; }
 
+#ajouter-favori .etoile { color: #ffa000; }  /* jaune orangé, comme l'étoile pleine des favoris */
+#ajouter-favori:disabled .etoile { opacity: 0.5; }
+#favoris ol { margin: 0; padding-left: 1.4rem; }
+#favoris ol:empty { display: none; }
+#favoris ol:not(:empty) + .aide { display: none; }
+#favoris li { display: flex; align-items: center; gap: 0.5rem; margin: 0.15rem 0; }
+#favoris li .aller-favori { flex: 1; padding: 0; border: 0; background: none; color: inherit; font: inherit;
+  text-align: left; cursor: pointer; }
+#favoris li .aller-favori:hover { text-decoration: underline; }
+
 #resultats ol { margin: 0; padding-left: 1.4rem; }
 #resultats ol:empty { display: none; }
 #resultats li { margin: 0.25rem 0; }
 #resultats li .ligne { display: flex; align-items: center; gap: 0.5rem; }
 #resultats li span { flex: 1; }
-#resultats .effacer-resultat {
+#resultats .effacer-resultat, #favoris .effacer-resultat {
   flex: none;
   width: 1.4rem;
   height: 1.4rem;
@@ -370,7 +380,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   opacity: 0.6;
   cursor: pointer;
 }
-#resultats .effacer-resultat:hover { opacity: 1; background: var(--bord); }
+#resultats .effacer-resultat:hover, #favoris .effacer-resultat:hover { opacity: 1; background: var(--bord); }
 #resultats li input { width: 100%; margin-top: 0.15rem; }
 
 details summary { cursor: pointer; font-weight: 600; }
@@ -647,7 +657,24 @@ button.principal { font-weight: 600; }
   pointer-events: none;
   z-index: 5;
 }
-#lieu { grid-column: 1; justify-self: start; }
+.lieu-favori { grid-column: 1; justify-self: start; display: flex; align-items: center; gap: 4px; min-width: 0; }
+#etoile-favori {
+  flex: none;
+  height: 22px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--etiquette-vue);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  text-shadow: var(--detoure-vue);
+  pointer-events: auto;
+  cursor: pointer;
+}
+#etoile-favori[aria-pressed="true"] { color: #ffd600; }  /* photo en favori : étoile pleine, jaune */
+#etoile-favori:hover { background: rgba(32, 33, 36, 0.8); }
+#etoile-favori[hidden] { display: none; }
 #lecteur { grid-column: 2; }
 #producteur-photo { grid-column: 3; justify-self: end; }
 #lieu, #producteur-photo {

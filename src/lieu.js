@@ -12,7 +12,7 @@ const Lieu = (() => {
   const COMMUNES = "https://geo.api.gouv.fr/communes";
   const REACH = 25;  // m : tronçons cherchés autour de la photo
   const SECTION_REACH = 40;  // m : section de PR de la route cherchée autour de la photo
-  const cache = new Map();  // lieu déjà lu, au mètre près
+  const cache = new Map();  // lieu déjà lu, au mètre près : { text, parts }
   // Tronçons et sections de PR lus par zone (maille de CELL degrés élargie de CELL_MARGIN m) et
   // gardés : les photos d'une séquence, à quelques mètres les unes des autres, n'envoient plus
   // de requête chacune (la Géoplateforme refuse les rafales, HTTP 429)
@@ -247,11 +247,12 @@ const Lieu = (() => {
 
   /** « D16 – PR 27 +0185 – Place de la Liberation – Pouilly-en-Auxois » (parties connues) ; hors
    * route départementale, la véloroute suivie et l'écluse la plus proche avant la commune.
-   * Retourne { text, complete } : complete faux si un service a échoué (la Géoplateforme refuse
-   * des requêtes en rafale, HTTP 429) ; le texte, partiel, n'est alors pas gardé, à redemander. */
+   * Retourne { text, complete, parts } : complete faux si un service a échoué (la Géoplateforme
+   * refuse des requêtes en rafale, HTTP 429) ; le texte, partiel, n'est alors pas gardé, à
+   * redemander. parts : { commune, voie (numéro, sinon nom), pr } (nom des favoris). */
   async function describe(lon, lat) {
     const key = `${lon.toFixed(5)},${lat.toFixed(5)}`;
-    if (cache.has(key)) return { text: cache.get(key), complete: true };
+    if (cache.has(key)) return { ...cache.get(key), complete: true };
     let failed = false;
     const fail = (value) => () => { failed = true; return value; };
     const [troncons, c] = await Promise.all([zone("troncon_de_route", TRONCON_PROPERTIES, lon, lat).catch(fail(null)),
@@ -262,11 +263,12 @@ const Lieu = (() => {
     const bike = troncons && !/^D\d/.test(r?.numero || "") ? cycleRoutes(troncons, lon, lat) : "";
     const lock = bike ? await nearestLock(lon, lat).catch(fail("")) : "";  // repère des chemins de halage
     const text = [r?.numero, pr, r?.nom, bike, lock, c].filter(Boolean).join(" – ");  // comme l'étiquette de droite
+    const parts = { commune: c, voie: r?.numero || r?.nom || "", pr };
     if (!failed && text) {
-      cache.set(key, text);
+      cache.set(key, { text, parts });
       if (cache.size > 500) cache.delete(cache.keys().next().value);
     }
-    return { text, complete: !failed };
+    return { text, complete: !failed, parts };
   }
 
   return { describe, features, project, segmentLength };

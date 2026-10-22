@@ -239,19 +239,21 @@ class RankPrecisionChecker(precision.PrecisionChecker):
         if not base or not isinstance(rank, int):
             return super()._other_portions(sequence, lon, lat, failed, done)
         ranks = [r for r in (rank + self.RANK_STEP, rank - self.RANK_STEP) if r >= 1]
-        tried = [0]
+        tried, unread = [0], [0]
 
         def next_portion():
             if not ranks:
                 plural = "s" if tried[0] > 1 else ""
                 done(dict(failed, reason="{} ; {} autre{p} portion{p} de la séquence non vérifiée{p}".format(
-                    failed["reason"], tried[0], p=plural)) if tried[0] else failed)
+                    failed["reason"], tried[0], p=plural)) if tried[0]
+                     else dict(failed, transient=True) if unread[0] else failed)  # rien lu : à refaire plus tard
                 return
             r = ranks.pop(0)
 
             def got_item(data, error):
-                if error:
-                    done(dict(failed, transient=True))  # à refaire plus tard
+                if error:  # au-delà de la fin de la séquence (HTTP 404), ou instance injoignable
+                    unread[0] += 1
+                    next_portion()
                     return
                 feats = (data or {}).get("features") or []
                 try:

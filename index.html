@@ -79,7 +79,10 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
       <img id="turbo" src="src/turbo.webp" alt="" aria-hidden="true">  <!-- lecture rapide à 16x : clin d'œil -->
       <ul id="voyants" hidden></ul>
       <div class="bas-vue">  <!-- localisation à gauche, lecture de la séquence au centre, producteur à droite -->
-        <p id="lieu" hidden></p>
+        <div class="lieu-favori">  <!-- étoile des favoris, comme dans la barre d'adresse d'un navigateur -->
+          <button id="etoile-favori" type="button" hidden aria-pressed="false" title="Ajouter cette photo aux favoris">☆</button>
+          <p id="lieu" hidden></p>
+        </div>
         <!-- Lecture de la séquence, comme le lecteur de la visionneuse officielle (voir app.js) -->
         <div id="lecteur" role="group" aria-label="Lecture de la séquence" hidden>
           <span id="vitesse-arriere" class="vitesse" hidden></span>
@@ -171,6 +174,13 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
             </div>
             <p class="aide" hidden></p>
           </form>
+        </section>
+        <!-- Photos favorites, gardées dans ce navigateur, nommées d'après leur lieu -->
+        <section id="favoris">
+          <h2>Favoris</h2>
+          <ol></ol>
+          <p class="aide">Aucun favori : ajoutez la photo affichée pour la retrouver d'un clic.</p>
+          <div class="boutons"><button id="ajouter-favori" type="button" disabled><span class="etoile">★</span> Ajouter cette photo</button></div>
         </section>
         <details id="filtre">
           <summary>Filtre des photos <span id="filtre-actif"></span></summary>

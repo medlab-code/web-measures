@@ -942,6 +942,8 @@
   function setPhoto(feature, recenter) {
     photo = feature;
     store.set("photo", feature.id);  // rouverte à la prochaine visite (voir reopenPhoto)
+    $("#ajouter-favori").disabled = false;
+    showFavorites();  // étoile de la nouvelle photo
     // En bas à droite de la visionneuse : « 2025 – producteur » (année de la prise de vue)
     const producer = photoProducer(feature);
     const taken = (feature.properties?.datetime || "").slice(0, 4);
@@ -1098,6 +1100,67 @@
   });
   // Les touches de la boîte ne vont ni à la carte ni aux recalages au clavier
   $("#id-photo").addEventListener("keydown", (event) => event.stopPropagation());
+
+  // Favoris : photos gardées dans le navigateur, nommées « commune – voie – PR – pont »
+  function favorites() {
+    try { return JSON.parse(store.get("favoris", "[]")) || []; } catch { return []; }
+  }
+
+  function showFavorites() {
+    $("#favoris ol").replaceChildren(...favorites().map((f) => {
+      const li = document.createElement("li");
+      const go = Object.assign(document.createElement("button"), {
+        type: "button", className: "aller-favori", textContent: f.name, title: `Aller à la photo ${f.id}`,
+      });
+      go.addEventListener("click", async () => {
+        try {
+          const feature = await Carte.photoById(f.id);
+          if (!feature) return notice("Photo du favori introuvable sur l'instance choisie (Réglages › Instance).");
+          openPhoto(feature);
+          map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 17), speed: 1.6 });
+        } catch (error) {
+          notice(`Favori : recherche impossible (${error.message})`);
+        }
+      });
+      const remove = Object.assign(document.createElement("button"), {
+        type: "button", className: "effacer-resultat", textContent: "×", title: "Retirer ce favori",
+      });
+      remove.setAttribute("aria-label", `Retirer le favori : ${f.name}`);
+      remove.addEventListener("click", () => removeFavorite(f.id));
+      li.append(go, remove);
+      return li;
+    }));
+    // Étoile de la visionneuse : pleine si la photo affichée est en favori
+    const on = Boolean(photo) && favorites().some((f) => f.id === photo.id);
+    Object.assign($("#etoile-favori"), { hidden: !photo, textContent: on ? "★" : "☆",
+      title: on ? "Retirer cette photo des favoris" : "Ajouter cette photo aux favoris" });
+    $("#etoile-favori").setAttribute("aria-pressed", String(on));
+  }
+
+  function removeFavorite(id) {
+    store.set("favoris", JSON.stringify(favorites().filter((x) => x.id !== id)));
+    showFavorites();
+  }
+
+  $("#etoile-favori").addEventListener("click", () => {
+    if (photo && favorites().some((f) => f.id === photo.id)) removeFavorite(photo.id);
+    else addFavorite();
+  });
+  $("#ajouter-favori").addEventListener("click", () => addFavorite());
+
+  async function addFavorite() {
+    const feature = photo;
+    if (!feature || favorites().some((f) => f.id === feature.id)) return;
+    const [lon, lat] = feature.geometry.coordinates;
+    const { parts } = await Lieu.describe(lon, lat);
+    // Pont : son nom affiché en haut à gauche de la visionneuse, sans la route déjà nommée
+    const bridge = $("#chute").hidden ? "" : ($("#chute .pont")?.textContent || "").replace(/\s*\([^)]*\)$/, "");
+    const name = [parts?.commune, parts?.voie, parts?.pr, bridge].filter(Boolean).join(" – ")
+      || `Photo du ${(feature.properties?.datetime || "").slice(0, 10)}`;
+    store.set("favoris", JSON.stringify([...favorites().filter((f) => f.id !== feature.id), { id: feature.id, name }]));
+    showFavorites();
+  }
+  showFavorites();
 
   /** Copie text dans le presse-papiers ; le bouton affiche « ✔ Copié » un instant. Repli sur
    * une sélection copiée quand le navigateur refuse l'accès au presse-papiers (page en file://). */

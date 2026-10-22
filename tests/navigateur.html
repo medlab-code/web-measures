@@ -143,6 +143,36 @@ async function feature(id) {
     log("pont de la photo par défaut : " + name + " · " + over);
     expect("nom du pont tiré de l'ouvrage BD TOPO", name === "Pont Joly (D954)", name);
     expect("pont Joly au-dessus de l'Armançon", over === "Au-dessus de l'Armançon", over);
+    // Séquence vérifiée RTK depuis le pont : portion 150 photos avant (après : au-delà de la fin, HTTP 404)
+    try { await until(() => /Position GPS (non )?vérifiée/.test(state().quality), 90000, "vérification au pont Joly"); }
+    catch (e) { log(String(e)); }
+    log("pont Joly : " + state().computed);
+    expect("pont Joly : séquence vérifiée RTK", state().quality.includes("Position GPS vérifiée"));
+    // Favori : nommé « commune – voie – PR – pont », rouvre la photo, retiré par ×
+    doc.querySelector("#ajouter-favori").click();
+    await until(() => doc.querySelector("#favoris li"), 15000, "favori ajouté");
+    const fav = doc.querySelector("#favoris .aller-favori").textContent;
+    log("favori : " + fav);
+    expect("favori nommé commune – voie – PR – pont", /^Semur-en-Auxois – D954 – PR \d+ \+\d{4} – Pont Joly$/.test(fav), fav);
+    doc.querySelector("#ajouter-favori").click();
+    await sleep(500);
+    expect("favori pas en double", doc.querySelectorAll("#favoris li").length === 1);
+    expect("favori gardé dans le navigateur", JSON.parse(w.localStorage.getItem("web-measures/favoris"))[0]?.id === "7752eb30-a733-4213-b57a-5d5086e261a4");
+    await open(MONTBARD);
+    doc.querySelector("#favoris .aller-favori").click();
+    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === "7752eb30-a733-4213-b57a-5d5086e261a4", 30000, "photo du favori");
+    expect("favori : photo rouverte", true);
+    const star = doc.querySelector("#etoile-favori");
+    expect("étoile pleine sur la photo en favori", !star.hidden && star.textContent === "★" && star.getAttribute("aria-pressed") === "true");
+    await open(MONTBARD);
+    expect("étoile vide sur une autre photo", star.textContent === "☆");
+    star.click();
+    await until(() => doc.querySelectorAll("#favoris li").length === 2, 15000, "favori par l'étoile");
+    expect("étoile : favori ajouté, étoile pleine", star.textContent === "★");
+    star.click();
+    expect("étoile : favori retiré, étoile vide", doc.querySelectorAll("#favoris li").length === 1 && star.textContent === "☆");
+    doc.querySelector("#favoris .effacer-resultat").click();
+    expect("favori retiré, aide de retour", !doc.querySelector("#favoris li") && getComputedStyle(doc.querySelector("#favoris .aide")).display !== "none");
   }
   const pont = doc.querySelector("#alerte-pont");
   if (pont.open) { log("pont déjà proposé : " + pont.querySelector("p").textContent.slice(0, 90)); pont.close("non"); }  // photo par défaut sur le pont Joly (D954)
