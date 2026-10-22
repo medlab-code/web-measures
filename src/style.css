@@ -353,10 +353,11 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 
 #ajouter-favori .etoile { color: #ffa000; }  /* jaune orangé, comme l'étoile pleine des favoris */
 #ajouter-favori:disabled .etoile { opacity: 0.5; }
-#favoris ol { margin: 0; padding-left: 1.4rem; }
+#favoris ol { margin: 0; padding-left: 0.2rem; list-style: none; }
 #favoris ol:empty { display: none; }
 #favoris ol:not(:empty) + .aide { display: none; }
-#favoris li { display: flex; align-items: center; gap: 0.5rem; margin: 0.15rem 0; }
+#favoris li { display: flex; align-items: baseline; gap: 0.5rem; margin: 0.15rem 0; }  /* puce et × sur la 1re ligne du nom */
+#favoris li::before { content: "•"; flex: none; color: var(--discret); }
 #favoris li .aller-favori { flex: 1; padding: 0; border: 0; background: none; color: inherit; font: inherit;
   text-align: left; cursor: pointer; }
 #favoris li .aller-favori:hover { text-decoration: underline; }
