@@ -7,6 +7,55 @@
 
 (() => {
   const $ = (selector) => document.querySelector(selector);
+
+  // Services qui ne répondent pas (panne, réseau, plus de SILENT_AFTER ms sans réponse, erreur
+  // HTTP 5xx) : signalés discrètement sous les voyants, jusqu'à leur réponse suivante. Toutes les
+  // requêtes de la page passent par fetch, celles du calcul Python (pyfetch) comprises ; les refus
+  // en rafale (HTTP 429), retentés, ne comptent pas.
+  const SILENT_AFTER = 10000;
+  const SERVICE_NAMES = [
+    ["data.geopf.fr/altimetrie", "IGN altimétrie"],
+    ["data.geopf.fr/wfs", "IGN BD TOPO"],
+    ["data.geopf.fr/geocodage", "IGN recherche de lieux"],
+    ["data.geopf.fr", "Géoplateforme IGN"],
+    ["geo.api.gouv.fr", "geo.api.gouv.fr (communes)"],
+    ["cdn.proj.org", "grille du géoïde (PROJ)"],
+  ];
+  const silent = new Set();  // noms des services sans réponse
+  let lastLights = [];  // voyants affichés (redessinés quand un service se tait ou répond)
+  function serviceName(url) {
+    let parsed;
+    try {
+      parsed = new URL(url, location.href);
+    } catch {
+      return null;
+    }
+    if (!parsed.protocol.startsWith("http") || parsed.origin === location.origin) return null;
+    const found = SERVICE_NAMES.find(([prefix]) => (parsed.host + parsed.pathname).startsWith(prefix));
+    return found ? found[1] : parsed.pathname.includes("/api/") ? `Panoramax (${parsed.host})` : parsed.host;
+  }
+  function markService(name, failing) {
+    if (silent.has(name) === failing) return;
+    if (failing) silent.add(name);
+    else silent.delete(name);
+    showLights();
+  }
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = (input, init) => {
+    const name = serviceName(input?.url ?? String(input));
+    if (!name) return nativeFetch(input, init);
+    const timer = setTimeout(() => markService(name, true), SILENT_AFTER);
+    return nativeFetch(input, init).then((response) => {
+      clearTimeout(timer);
+      if (response.status !== 429) markService(name, response.status >= 500);
+      return response;
+    }, (error) => {
+      clearTimeout(timer);
+      if (error?.name !== "AbortError") markService(name, true);  // AbortError : requête annulée par la page
+      throw error;
+    });
+  };
+
   const viewer = $("#visionneuse");
   const map = Carte.createMap("carte");
   Recherche.attach(map);
@@ -295,16 +344,24 @@
 
   /** Voyants de la visionneuse : RTK et sol (LiDAR HD ou RGE ALTI) toujours ; inclinaison calée en
    * mode mesure seulement (elle n'est calculée qu'au premier clic de mesure). */
-  function showLights(lights) {
+  function showLights(lights = lastLights) {
+    lastLights = lights;
     const list = $("#voyants");
     const shown = measuring ? lights : lights.filter(([name]) => name !== "Inclinaison");
-    list.hidden = !shown.length;
+    list.hidden = !shown.length && !silent.size;
     list.replaceChildren(...shown.map(([name, light]) => {
       const item = document.createElement("li");
       item.className = light;
       item.textContent = name;
       return item;
     }));
+    if (silent.size) {  // services sans réponse, en petit sous les voyants
+      list.append(Object.assign(document.createElement("li"), {
+        className: "muet", textContent: `⚠ Sans réponse : ${[...silent].join(", ")}`,
+        title: "Ces services ne répondent pas : ce qui en dépend (commune, route et PR, altitudes, fonds de carte…) "
+          + "peut manquer ou arriver en retard. Signalé jusqu'à leur prochaine réponse.",
+      }));
+    }
     // Inclinaison : calcul en cours, ou calcul automatique sans résultat (calage à la main
     // conseillé, sauf pendant ce calage)
     const tilt = (lights.find(([name]) => name === "Inclinaison") || [])[1];

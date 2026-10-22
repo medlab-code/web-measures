@@ -758,6 +758,10 @@ button.principal { font-weight: 600; }
 #voyants li.ok::after { background: #2ecc40; }
 #voyants li.non::after { background: #e53935; }
 #voyants li.attente::after { background: #ffeb00; }
+/* Services sans réponse : discret, sans boule ; survol : son explication */
+#voyants li.muet { max-width: 19rem; color: #ffd0c8; font-size: 12px; font-weight: 400; text-align: right;
+  pointer-events: auto; cursor: help; }
+#voyants li.muet::after { content: none; }
 
 dialog {
   max-width: 34rem;
