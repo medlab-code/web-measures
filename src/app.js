@@ -41,7 +41,7 @@
     showLights();
   }
   const nativeFetch = window.fetch.bind(window);
-  window.fetch = (input, init) => {
+  const trackedFetch = (input, init) => {
     const name = serviceName(input?.url ?? String(input));
     if (!name) return nativeFetch(input, init);
     const timer = setTimeout(() => markService(name, true), SILENT_AFTER);
@@ -54,6 +54,84 @@
       if (error?.name !== "AbortError") markService(name, true);  // AbortError : requête annulée par la page
       throw error;
     });
+  };
+
+  // Cache des réponses des services géographiques (ticket #23) : BD TOPO, PR et ponts (WFS), altitudes
+  // (LiDAR HD, RGE ALTI), communes. Gardées d'une session à l'autre (Cache API), resservies sans requête
+  // pendant CACHE_LIFE (réponse vide : CACHE_EMPTY_LIFE, le LiDAR HD se publie peu à peu), et au-delà
+  // quand le service ne répond pas ou refuse. Ni Panoramax (nouvelles photos), ni la recherche de lieux,
+  // ni les fonds de carte (cache HTTP du navigateur). Cache API absente (file://) : requêtes directes.
+  const GEO_CACHE = "web-measures-geo";
+  const CACHED_SERVICES = ["data.geopf.fr/wfs", "data.geopf.fr/altimetrie", "geo.api.gouv.fr/"];
+  const CACHE_LIFE = 90 * 86400e3;  // ms : mises à jour trimestrielles de la BD TOPO
+  const CACHE_EMPTY_LIFE = 7 * 86400e3;
+  const CACHE_MAX = 50e6;  // octets : au-delà, les réponses les plus anciennes sont supprimées
+  let geoCache = null;  // promesse du cache (résolue à null s'il est indisponible)
+  let geoStored = 0;
+  function openGeoCache() {
+    geoCache ??= window.caches ? caches.open(GEO_CACHE).catch(() => null) : Promise.resolve(null);
+    return geoCache;
+  }
+  function geoCacheable(url, init) {
+    if ((init?.method || "GET") !== "GET" || init?.cache === "no-store") return false;  // no-store : vérification d'accès
+    try {
+      const parsed = new URL(url, location.href);
+      return CACHED_SERVICES.some((prefix) => (parsed.host + parsed.pathname).startsWith(prefix));
+    } catch {
+      return false;
+    }
+  }
+  function emptyAnswer(text) {  // rien à cet endroit : pas de tronçon, de commune ni d'altitude
+    try {
+      const data = JSON.parse(text);
+      if (Array.isArray(data)) return !data.length;
+      if (Array.isArray(data.features)) return !data.features.length;
+      if (Array.isArray(data.elevations)) return data.elevations.every((z) => !(Number(z?.z ?? z) > -9999));
+    } catch { /* pas du JSON */ }
+    return false;
+  }
+  async function storeGeo(cache, url, response) {
+    const text = await response.text();
+    const headers = new Headers(response.headers);
+    headers.set("x-mis-en-cache", String(Date.now()));
+    headers.set("x-vide", emptyAnswer(text) ? "1" : "0");
+    headers.set("x-taille", String(new Blob([text]).size));
+    await cache.put(url, new Response(text, { status: response.status, statusText: response.statusText, headers }));
+    if (geoStored++ % 50 === 0) pruneGeoCache();  // taille contrôlée de temps en temps
+  }
+  /** Réponses du cache supprimées, les plus anciennes d'abord, jusqu'à CACHE_MAX (limit : 0 vide tout) ;
+   * rend la taille restante (octets), ou null sans cache. */
+  async function pruneGeoCache(limit = CACHE_MAX) {
+    const cache = await openGeoCache();
+    if (!cache) return null;
+    const entries = await Promise.all((await cache.keys()).map(async (request) => {
+      const headers = (await cache.match(request))?.headers;
+      return { request, date: Number(headers?.get("x-mis-en-cache")) || 0, size: Number(headers?.get("x-taille")) || 0 };
+    }));
+    entries.sort((a, b) => a.date - b.date);
+    let total = entries.reduce((sum, e) => sum + e.size, 0);
+    for (const entry of entries) {
+      if (total <= limit) break;
+      await cache.delete(entry.request);
+      total -= entry.size;
+    }
+    return total;
+  }
+  window.fetch = async (input, init) => {
+    const url = input?.url ?? String(input);
+    const cache = geoCacheable(url, init) ? await openGeoCache() : null;
+    if (!cache) return trackedFetch(input, init);
+    const hit = await cache.match(url).catch(() => undefined);
+    const age = hit ? Date.now() - Number(hit.headers.get("x-mis-en-cache")) : Infinity;
+    if (hit && age < (hit.headers.get("x-vide") === "1" ? CACHE_EMPTY_LIFE : CACHE_LIFE)) return hit;
+    try {
+      const response = await trackedFetch(input, init);
+      if (response.ok) storeGeo(cache, url, response.clone()).catch((error) => console.warn("Cache :", error));
+      return !response.ok && hit ? hit : response;  // refus ou erreur : la réponse plus ancienne
+    } catch (error) {
+      if (hit && error?.name !== "AbortError") return hit;  // service muet ou en panne : idem
+      throw error;
+    }
   };
 
   const viewer = $("#visionneuse");
@@ -83,6 +161,18 @@
   };
 
   Services.checkServices($("#reseau ul"));
+  // Cache des informations géographiques : taille, et bouton pour le vider
+  async function showGeoCache() {
+    const size = await pruneGeoCache();
+    $("#vider-cache").disabled = size === null;
+    $("#vider-cache").textContent = size === null ? "Cache indisponible (page ouverte en fichier local)"
+      : `Vider le cache (${(size / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mo)`;
+  }
+  $("#reseau").addEventListener("toggle", () => { if ($("#reseau").open) showGeoCache(); });
+  $("#vider-cache").addEventListener("click", async () => {
+    await pruneGeoCache(0);
+    showGeoCache();
+  });
 
   // Fond, instance, centrage ----------------------------------------------------------------
 

@@ -44,7 +44,7 @@ const Services = (() => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(url, { signal: controller.signal });
+      const response = await fetch(url, { signal: controller.signal, cache: "no-store" });  // pas le cache (#23)
       state.className = response.ok ? "ok" : "echec";
       state.textContent = response.ok ? "accessible" : `HTTP ${response.status}`;
     } catch (error) {
