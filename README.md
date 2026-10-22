@@ -329,6 +329,9 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.4.1** (22/10/2026) : dans la visionneuse, une mesure faite n'apparaît plus que sur sa photo
+  (sur les autres, projetée, elle paraissait décalée) ; mesure libre : points et distances là où ils
+  ont été visés. Favicon en forme d'équerre.
 - **0.4.0** (22/10/2026) : case « Filtrage anisotrope » dans les réglages (8x, décochée par défaut) :
   moins de crénelage et de scintillement des détails fins vus de loin. Étoile des favoris dessinée,
   alignée sur l'étiquette du lieu quelle que soit la police.
