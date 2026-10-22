@@ -171,8 +171,24 @@ async function feature(id) {
     expect("étoile : favori ajouté, étoile pleine", star.textContent === "★");
     star.click();
     expect("étoile : favori retiré, étoile vide", doc.querySelectorAll("#favoris li").length === 1 && star.textContent === "☆");
+    {  // export puis import : fichier JSON, doublons et entrées invalides ignorés
+      const exported = w.localStorage.getItem("web-measures/favoris");
+      const input = doc.querySelector("#favoris-fichier");
+      const file = new w.File([JSON.stringify([...JSON.parse(exported), { id: "pas-un-identifiant", name: "x" },
+        { id: "998651E7-083A-458C-84D6-A5D849E2D371", name: "Pont de la D18A" }])], "favoris.json", { type: "application/json" });
+      const list = new w.DataTransfer();
+      list.items.add(file);
+      input.files = list.files;
+      input.dispatchEvent(new w.Event("change"));
+      await until(() => doc.querySelectorAll("#favoris li").length === 2, 10000, "favori importé");
+      log("après import : " + [...doc.querySelectorAll("#favoris .aller-favori")].map((b) => b.textContent).join(" | ") + " · " + doc.querySelector("#avis").textContent);
+      expect("import : un seul favori nouveau, id en minuscules", JSON.parse(w.localStorage.getItem("web-measures/favoris"))[1]?.id === "998651e7-083a-458c-84d6-a5d849e2d371"
+        && doc.querySelector("#avis").textContent === "1 favori importé." && !doc.querySelector("#favoris-exporter").disabled);
+      doc.querySelectorAll("#favoris .effacer-resultat")[1].click();
+    }
     doc.querySelector("#favoris .effacer-resultat").click();
-    expect("favori retiré, aide de retour", !doc.querySelector("#favoris li") && getComputedStyle(doc.querySelector("#favoris .aide")).display !== "none");
+    expect("favori retiré, aide de retour", !doc.querySelector("#favoris li") && getComputedStyle(doc.querySelector("#favoris .aide")).display !== "none"
+      && doc.querySelector("#favoris-exporter").disabled);
   }
   const pont = doc.querySelector("#alerte-pont");
   if (pont.open) { log("pont déjà proposé : " + pont.querySelector("p").textContent.slice(0, 90)); pont.close("non"); }  // photo par défaut sur le pont Joly (D954)

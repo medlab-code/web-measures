@@ -1130,6 +1130,7 @@
       li.append(go, remove);
       return li;
     }));
+    $("#favoris-exporter").disabled = !favorites().length;
     // Étoile de la visionneuse : pleine si la photo affichée est en favori
     const on = Boolean(photo) && favorites().some((f) => f.id === photo.id);
     Object.assign($("#etoile-favori"), { hidden: !photo, textContent: on ? "★" : "☆",
@@ -1147,6 +1148,26 @@
     else addFavorite();
   });
   $("#ajouter-favori").addEventListener("click", () => addFavorite());
+  // Export et import des favoris (autre poste, autre navigateur) : fichier JSON [{ id, name }]
+  $("#favoris-exporter").addEventListener("click", () => download(JSON.stringify(favorites(), null, 1),
+    "favoris-panoramax.json", "application/json"));
+  $("#favoris-importer").addEventListener("click", () => $("#favoris-fichier").click());
+  $("#favoris-fichier").addEventListener("change", async (event) => {
+    const file = event.target.files[0];
+    event.target.value = "";
+    if (!file) return;
+    let read;
+    try { read = JSON.parse(await file.text()); } catch { read = null; }
+    if (!Array.isArray(read)) return notice("Fichier de favoris illisible.");
+    const known = new Set(favorites().map((f) => f.id));
+    const added = read  // fichier venu d'ailleurs : seulement des identifiants de photo et des noms courts
+      .filter((f) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(f?.id) && !known.has(f.id) && known.add(f.id))
+      .map((f) => ({ id: f.id.toLowerCase(), name: String(f.name || f.id).slice(0, 200) }));
+    store.set("favoris", JSON.stringify([...favorites(), ...added]));
+    showFavorites();
+    notice(added.length ? `${added.length} favori${added.length > 1 ? "s" : ""} importé${added.length > 1 ? "s" : ""}.`
+      : "Favoris importés : rien de nouveau.");
+  });
 
   async function addFavorite() {
     const feature = photo;

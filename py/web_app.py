@@ -691,20 +691,28 @@ class App(session.Session):
 
     def take_aim_frame(self):
         """Visées guidées : repère dans la photo affichée ([[cap, élévation]] en radians, JSON) du
-        point à viser, tel qu'il est placé avant d'être triangulé : le bord B d'une largeur là où
-        l'a mis le clic de la mesure, ou le point de référence (bord d'une largeur, pied d'une
-        hauteur) là où la première visée touche le sol plat. Une seule fois par photo affichée, et seulement si elle n'a pas encore servi à
-        le viser ; null sinon. Propre à la page (pas dans le cœur du plugin)."""
+        point à viser : triangulé par les visées déjà faites (dès la 3e visée), sinon tel qu'il est
+        placé avant de l'être (voir _provisional_point). Une seule fois par photo affichée, et
+        seulement si elle n'a pas encore servi à le viser ; null sinon. Propre à la page (pas dans
+        le cœur du plugin)."""
         if not self.aim_frame or not self.active or not self.item:
             return "null"
         self.aim_frame = False
         sightings = self.triangulator.sightings
         if not sightings or any(s["pic"] == self.item.get("id") for s in sightings):
             return "null"
-        target = self._provisional_point()
-        if target is None:
-            return "null"
-        p = self._project(*target)
+        r = self.triangulator.result
+        if r:  # point triangulé : son altitude, si elle est connue, donne l'élévation depuis cette caméra
+            lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
+            alt = host.ngf_altitude(lon, lat, metadata.item_altitude(self.item)) \
+                if (self.quality or {}).get("precise") else None
+            z = r.get("z")
+            p = self._project(r["lon"], r["lat"], alt - z if alt is not None and z is not None else None)
+        else:
+            target = self._provisional_point()
+            if target is None:
+                return "null"
+            p = self._project(*target)
         return json.dumps([[p["yaw"], p["pitch"]]])
 
     def _provisional_point(self):

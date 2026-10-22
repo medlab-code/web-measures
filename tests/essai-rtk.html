@@ -184,7 +184,13 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       const f3 = await feature(third.id);
       w.mesures.openPhoto(f3);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f3.id, 30000, "3e photo");
-      await sleep(1000);
+      await sleep(2500);  // animation du cadrage
+      {  // vue tournée vers le point déjà triangulé par les deux premières visées
+        const pos = w.mesures.psv.getPosition(), wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+        const gap = wrap(pos.yaw - yawTo(f3, target));
+        log(`3e photo : vue au cap ${pos.yaw.toFixed(3)}, point à ${yawTo(f3, target).toFixed(3)} (écart ${gap.toFixed(3)} rad)`);
+        expect("3e visée : vue tournée vers le point triangulé", Math.abs(gap) < 0.05, gap.toFixed(3));
+      }
       log("3e photo à " + Math.hypot(...metres(target, f3.geometry.coordinates)).toFixed(1) + " m du pied");
       psvClick(yawTo(f3, target), -0.35);
       compare("pied, 3e visée", third.expect);

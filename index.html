@@ -180,7 +180,12 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
           <h2>Favoris</h2>
           <ol></ol>
           <p class="aide">Aucun favori : ajoutez la photo affichée pour la retrouver d'un clic.</p>
-          <div class="boutons"><button id="ajouter-favori" type="button" disabled><span class="etoile">★</span> Ajouter cette photo</button></div>
+          <div class="boutons">
+            <button id="ajouter-favori" type="button" disabled><span class="etoile">★</span> Ajouter cette photo</button>
+            <button id="favoris-exporter" type="button" disabled title="Fichier à importer sur un autre poste ou navigateur">Exporter</button>
+            <button id="favoris-importer" type="button" title="Favoris d'un fichier exporté, ajoutés à ceux-ci">Importer</button>
+            <input id="favoris-fichier" type="file" accept=".json,application/json" hidden>
+          </div>
         </section>
         <details id="filtre">
           <summary>Filtre des photos <span id="filtre-actif"></span></summary>
