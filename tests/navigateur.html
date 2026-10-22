@@ -326,9 +326,7 @@ async function feature(id) {
   };
   for (const mode of ["road", "height", "tri"]) {
     select("#mode", mode);
-    const shown = [...doc.querySelectorAll("header .option")].filter((o) => !o.hidden)
-      .map((o) => [...o.querySelectorAll("input, select, button")].map((e) => e.id).join("+"));
-    log("réglages " + mode + " : " + (shown.join(", ") || "aucun"));
+    log("réglages " + mode + " : nouveau point de référence " + (doc.querySelector("#nouvelle-reference").hidden ? "masqué" : "affiché"));
   }
   doc.querySelector("#vignette").click();
   await until(() => doc.querySelector("#statut").textContent.includes("Vignette"), 10000, "vignette");

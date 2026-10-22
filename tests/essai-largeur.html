@@ -121,6 +121,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     const again = doc.querySelector("#nouvelle-mesure");
     const widthsCount = () => JSON.parse(app.viewer_marks()).filter((m) => m.label.startsWith("↔")).length;
     expect("bouton « Nouvelle mesure depuis A » affiché", !again.hidden && again.textContent.includes("depuis A"));
+    expect("pas de « Nouveau point de référence » en largeur", doc.querySelector("#nouvelle-reference").hidden);
     psvClick(yawTo(photos[0], toLonLat([side * 12 * ux, side * 12 * uy])), -0.3);
     await sleep(300);
     expect("autre clic refusé : une seule largeur", widthsCount() === 1);

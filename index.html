@@ -45,10 +45,6 @@
               </optgroup>
             </select>
           </label>
-          <!-- Réglages du mode (voir app.js : showModeOptions) -->
-          <span class="option" data-modes="height road" hidden>
-            <button id="nouvelle-reference" type="button" title="Trianguler un autre point de référence : les mesures déjà faites restent">Nouveau point de référence</button>
-          </span>
           <label title="Sur un pont, le modèle de terrain de l'IGN (LiDAR HD, ou RGE ALTI là où le LiDAR HD n'est pas publié) donne le terrain sous l'ouvrage (la voie franchie), pas le tablier : les points au sol se calent alors sur le sol tiré des photos et l'inclinaison automatique se passe de la pente du terrain"><input id="pont" type="checkbox" disabled> Sur un pont</label>
         </div>
         <div class="rang">
@@ -110,7 +106,11 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
         <!-- Hauteur, largeur : photos à viser ensuite (voir Session.guide), proposées par le calcul -->
         <div id="guide-photos" hidden></div>
         <!-- Largeur ou hauteur faite : seuls ses points s'ajustent, jusqu'à une nouvelle mesure -->
-        <button id="nouvelle-mesure" type="button" hidden title="Mesurer une autre largeur ou hauteur depuis le même point de référence (la mesure faite reste)">↺ Nouvelle mesure depuis A</button>
+        <!-- Point de référence validé : autre mesure depuis A, ou autre point de référence -->
+        <div id="suite-mesure">
+          <button id="nouvelle-mesure" type="button" hidden title="Mesurer une autre largeur ou hauteur depuis le même point de référence (la mesure faite reste)">↺ Nouvelle mesure depuis A</button>
+          <button id="nouvelle-reference" type="button" hidden title="Trianguler un autre point de référence : les mesures déjà faites restent">Nouveau point de référence</button>
+        </div>
       </div>
       <div class="haut-gauche">  <!-- état animé : triangulation ou mesure en cours -->
         <p id="etat-mesure" hidden></p>

@@ -376,8 +376,6 @@ h3 { font-size: 0.9rem; margin: 0.9rem 0 0.3rem; }
 .grille select, .grille input { min-width: 0; }
 #filtre-actif { color: var(--panoramax); }
 
-header .option { display: inline-flex; align-items: center; gap: 0.4em; }
-header .option[hidden] { display: none; }
 button.principal { font-weight: 600; }
 #mesure.actif { background: var(--panoramax); border-color: var(--panoramax); color: #fff; font-weight: 600; }
 
@@ -475,22 +473,35 @@ button.principal { font-weight: 600; }
 }
 #guide-photos button:hover { background: rgba(0, 152, 187, 0.85); }
 
-/* « Nouvelle mesure depuis A » au même endroit, une fois la largeur faite : jaune de la mesure */
-#nouvelle-mesure {
-  pointer-events: auto;
+/* Point de référence validé : « Nouvelle mesure depuis A » (jaune de la mesure) et « Nouveau point
+   de référence » (bordeaux des points triangulés), côte à côte, au style des photos à viser :
+   liseré qui se remplit au survol */
+#suite-mesure {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
   margin-top: 0.1rem;
-  padding: 0.4rem 1rem;
+}
+#suite-mesure:not(:has(> :not([hidden]))) { display: none; }
+#suite-mesure button {
+  pointer-events: auto;
+  white-space: nowrap;
+  padding: 0.3rem 0.8rem;
   border: 2px solid #ffeb00;
   border-radius: 5px;
-  background: #ffeb00;
-  color: #202124;
-  font-size: 16px;
+  background: var(--etiquette-vue);
+  color: #fff;
+  font-size: 14px;
   font-weight: 600;
+  text-shadow: var(--detoure-vue);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   cursor: pointer;
 }
-#nouvelle-mesure:hover { background: #e6d200; border-color: #e6d200; }
-#nouvelle-mesure[hidden] { display: none; }
+#suite-mesure button[hidden] { display: none; }
+#nouvelle-mesure:hover { background: #ffeb00; color: #202124; text-shadow: none; }
+#suite-mesure #nouvelle-reference { border-color: rgb(142, 27, 27); }
+#nouvelle-reference:hover { background: rgba(142, 27, 27, 0.92); }
 
 /* Étiquettes incrustées dans la photo : fond sombre un peu transparent, texte détouré */
 :root {

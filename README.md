@@ -120,7 +120,7 @@ après.
   Sur une photo qui a servi à viser un bord, sa croix est là où il a été visé, et la droite
   de mesure passe par la croix du premier bord.
 
-  Une fois la largeur faite, les clics ne servent plus qu'à l'ajuster (clic sur une de ses croix, puis nouveau clic ou flèches : 1 cm le long de la droite de mesure). Pour une autre largeur depuis le même point, cliquer « ↺ Nouvelle mesure depuis A » dans la visionneuse ; pour un autre point, « Nouveau point de référence ».
+  Une fois la largeur faite, les clics ne servent plus qu'à l'ajuster (clic sur une de ses croix, puis nouveau clic ou flèches : 1 cm le long de la droite de mesure). Pour une autre largeur depuis le même point, cliquer « ↺ Nouvelle mesure depuis A » dans la visionneuse.
 
   À l'étape 2 de la hauteur et de la largeur, les flèches de la visionneuse sont masquées
   (elles gênent les clics de mesure) : on change de photo par la carte.

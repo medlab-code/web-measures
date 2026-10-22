@@ -1537,11 +1537,8 @@
 
   function showModeOptions() {
     const mode = $("#mode").value;
-    for (const option of document.querySelectorAll("header .option")) {
-      const modes = option.dataset.modes.split(" ");
-      // « Nouveau point de référence » : une fois le point validé
-      option.hidden = !modes.includes(mode) || (option.contains($("#nouvelle-reference")) && aiming);
-    }
+    // « Nouveau point de référence » : hauteur seulement (sans utilité en largeur), une fois le point validé
+    $("#nouvelle-reference").hidden = !measuring || mode !== "height" || aiming || viewer.hidden;
     // « Valider le point triangulé », dans la visionneuse : dès que les visées donnent un point
     $("#garder").hidden = !measuring || !aiming || !pointReady || viewer.hidden;
     $("#nouvelle-mesure").hidden = !measuring || !newMeasure || viewer.hidden;
