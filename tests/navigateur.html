@@ -304,9 +304,27 @@ async function feature(id) {
   log("attendu sans inclinaison : " + (d * (Math.tan(0.25) + Math.tan(0.3))).toFixed(2) + " m · ensuite : " + app.status().slice(0, 60)
     + " · flèches masquées : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden"));
 
+  // Photo affichée stable (fin d'un chargement) : l'objet vertical se clique sur une seule photo
+  await sleep(1500);
+  await until(() => w.mesures.psv.getPictureMetadata?.()?.id === app.item?.get("id"), 20000, "photo stable");
   log("== calage inclinaison : " + app.set_mode("tilt"));
-  app.click(0.62, -0.12);
-  log(app.click(0.625, 0.35));
+  psvClick(0.62, -0.12);
+  psvClick(0.64, 0.35);  // sommet un peu à côté
+  await sleep(300);
+  // Pied et sommet affichés (croix rouge clair, trait bleu clair), pas encore calés : bouton de validation
+  const tiltMark = () => JSON.parse(app.viewer_marks()).filter((m) => m.calage).pop();
+  expect("objet vertical affiché avant validation", tiltMark()?.points.length === 2);
+  expect("pas encore calé avant validation", !state().calibration.includes("objet"));
+  expect("bouton « Valider l'objet vertical » affiché", !doc.querySelector("#valider-objet").hidden);
+  psvClick(0.64, 0.35);  // clic sur la croix du sommet : sélectionnée
+  expect("sommet sélectionné", tiltMark().points[1][2] === true);
+  psvClick(0.625, 0.35);  // nouvelle position
+  expect("sommet déplacé", Math.abs(tiltMark().points[1][0] - 0.625) < 1e-6 && !tiltMark().points[1][2]);
+  doc.querySelector("#valider-objet").click();
+  await sleep(300);
+  log("validé : " + app.status());
+  expect("bouton masqué après validation", doc.querySelector("#valider-objet").hidden);
+  expect("croix effacées après validation", !tiltMark());
   log("calage : " + state().calibration);
   log("résultats : " + JSON.parse(app.results()).map((r) => r.text).join(" | "));
   // Commentaire : gardé pendant les rafraîchissements, exporté

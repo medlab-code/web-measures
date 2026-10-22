@@ -383,6 +383,7 @@
     }
     showLights(state.lights);
     pointReady = state.point;
+    tiltReady = state.tilt_ready;
     pointSelected = state.point_sel;
     if (aiming !== state.aiming || newMeasure !== state.new_measure || edgeBAiming !== state.edge_b_aiming) {
       aiming = state.aiming;  // point validé ou à trianguler, largeur faite, bord opposé en visée
@@ -1206,6 +1207,7 @@
    */
   let aiming = false;
   let pointReady = false;  // visées qui donnent un point (bouton « Valider le point triangulé »)
+  let tiltReady = false;  // calage de l'inclinaison : pied et sommet placés (bouton « Valider l'objet vertical »)
   let newMeasure = null;  // largeur faite : nom du point de référence (bouton « Nouvelle mesure depuis A »)
   let edgeBOffered = null;  // largeur faite d'un clic : nom (provisoire) de son bord, à trianguler
   let edgeBAiming = false;  // bord opposé de la largeur en cours de triangulation
@@ -1350,13 +1352,14 @@
       if (points.length >= 2) {
         add({
           id: `${MARK}${m}-trait`, polyline: points.map(({ yaw, pitch }) => [yaw, pitch]),
-          svgStyle: { stroke: "#e53935", strokeWidth: "3px", fill: "none" },
+          // Objet vertical du calage de l'inclinaison : bleu clair ; mesure : rouge
+          svgStyle: { stroke: mark.calage ? "#8ee8ff" : "#e53935", strokeWidth: mark.calage ? "2px" : "3px", fill: "none" },
         });
       }
       mark.points.forEach(([yaw, pitch, sel], i) => {
         add({
           id: `${MARK}${m}-${i}`, position: { yaw, pitch }, anchor: "center center",
-          html: `<div class="croix${sel ? " choisie" : ""}${mark.sighting ? " visee" : ""}"></div>`,
+          html: `<div class="croix${sel ? " choisie" : ""}${mark.sighting ? " visee" : ""}${mark.calage ? " calage" : ""}"></div>`,
         });
       });
       if (mark.label && mark.end && points.length >= 2) {
@@ -1543,6 +1546,7 @@
     $("#nouvelle-reference").hidden = !measuring || mode !== "height" || aiming || viewer.hidden;
     // « Valider le point triangulé », dans la visionneuse : dès que les visées donnent un point
     $("#garder").hidden = !measuring || !aiming || !pointReady || viewer.hidden;
+    $("#valider-objet").hidden = !measuring || !tiltReady || viewer.hidden;
     $("#nouvelle-mesure").hidden = !measuring || !newMeasure || viewer.hidden;
     $("#trianguler-b").hidden = !measuring || !edgeBOffered || viewer.hidden;
     if (edgeBOffered) $("#trianguler-b").textContent = `🎯 Trianguler le point ${edgeBOffered} (plus précis)`;
@@ -1566,6 +1570,7 @@
     $("#camera").value = Number(event.target.dataset.value).toFixed(2);
     setCamera();
   });
+  $("#valider-objet").addEventListener("click", () => refresh(app.validate_tilt()));
   $("#garder").addEventListener("click", () => {
     refresh(app.keep_point());
     const reference = app.take_goto();  // retour sur la photo de référence, pour la mesure

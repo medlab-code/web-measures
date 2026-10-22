@@ -14,7 +14,7 @@ import math
 from datetime import datetime
 
 import web_host
-from core import autotilt, capture, filters, measures, metadata, session, triangulation, widths
+from core import autotilt, capture, filters, measures, metadata, session, tools, triangulation, widths
 from core.session import GROUND_MODES, MODES  # noqa: F401 (modes de la page)
 
 
@@ -61,6 +61,10 @@ class App(session.Session):
         self.calibrator.new_item = lambda: self._new_rays(calibration=True)
         self.photo_filter = filters.PhotoFilter()
         self.aim_frame = False  # photo affichée pas encore tournée vers le point à viser (take_aim_frame)
+        # Calage de l'inclinaison : pied et sommet de l'objet vertical cliqués, gardés ici jusqu'à
+        # « Valider l'objet vertical » (le cœur cale dès le second clic, sans laisser les voir ni
+        # les déplacer) ; indice de la croix sélectionnée pour être déplacée, ou None
+        self.tilt_clicks, self.tilt_sel = [], None
 
     # Données pour la page (JSON) -------------------------------------------------------
     def set_picture(self, item_json):
@@ -69,10 +73,14 @@ class App(session.Session):
         return super().set_picture(json.loads(item_json))
 
     def state(self):
-        return json.dumps(super().state())
+        return json.dumps(dict(super().state(), tilt_ready=self._tilt_pending() and len(self.tilt_clicks) == 2))
 
     def viewer_marks(self):
-        return json.dumps(super().viewer_marks())
+        marks = super().viewer_marks()
+        if self._tilt_pending():  # objet vertical en cours (croix et trait du calage), effacé une fois validé
+            marks.append({"points": [c["pos"] + [k == self.tilt_sel] for k, c in enumerate(self.tilt_clicks)],
+                          "label": "", "calage": True})
+        return json.dumps(marks)
 
     def focus(self):
         return json.dumps(super().focus())
@@ -91,6 +99,73 @@ class App(session.Session):
 
     def take_bridge_alert(self):
         return json.dumps(super().take_bridge_alert())
+
+    # Calage de l'inclinaison : objet vertical validé par un bouton -----------------------------
+    TILT_NEAR = 1.5  # degrés : clic sur une croix de l'objet en cours (sélection pour la déplacer)
+
+    def _tilt_pending(self):
+        """Objet vertical en cours sur la photo affichée (calage de l'inclinaison)."""
+        return bool(self.active and self.mode == "tilt" and self.item and self.tilt_clicks
+                    and self.tilt_clicks[0]["pic"] == self.item.get("id"))
+
+    def click(self, yaw, pitch):
+        if not (self.active and self.mode == "tilt" and self.item):
+            return super().click(yaw, pitch)
+        self._check_tilt()
+        raw_yaw = (math.degrees(yaw) + self._heading()) % 360
+        click = tools.photo_click(self.item, raw_yaw, math.degrees(pitch), self.calibration, self.quality, [yaw, pitch])
+        if click is None:
+            self.message = "Position de la photo inconnue."
+            return self.status()
+        self.message = ""
+        if not self._tilt_pending():
+            self.tilt_clicks, self.tilt_sel = [], None  # le sommet doit être sur la même photo que le pied
+        if self.tilt_sel is not None:  # croix sélectionnée : nouvelle position
+            self.tilt_clicks[self.tilt_sel], self.tilt_sel = click, None
+            return self.status()
+        near = [k for k, c in enumerate(self.tilt_clicks)
+                if math.hypot(math.degrees(c["pos"][0] - yaw), math.degrees(c["pos"][1] - pitch)) < self.TILT_NEAR]
+        if near:
+            self.tilt_sel = near[0]
+        elif len(self.tilt_clicks) < 2:
+            self.tilt_clicks.append(click)
+        else:
+            self.message = ("Pied et sommet déjà placés : cliquez une de leurs croix pour la déplacer, puis "
+                            "« ✔ Valider l'objet vertical » (« Effacer » pour l'abandonner).")
+        return self.status()
+
+    def validate_tilt(self):
+        """« Valider l'objet vertical » : le pied et le sommet cliqués calent l'inclinaison de la photo."""
+        if self._tilt_pending() and len(self.tilt_clicks) == 2:
+            clicks, self.tilt_clicks, self.tilt_sel = self.tilt_clicks, [], None
+            for c in clicks:
+                self.calibrator.add_click(c)
+            self._after_calibration(self.calibrator)
+        return self.status()
+
+    def _calibration_text(self):
+        if not self._tilt_pending():
+            return super()._calibration_text()
+        n = len(self.calibration.verticals.get(self.item.get("id"), [])) + 1
+        if self.tilt_sel is not None:
+            return "{} de l'objet {} sélectionné : cliquez sa position exacte.".format(
+                "Pied" if self.tilt_sel == 0 else "Sommet", n)
+        if len(self.tilt_clicks) == 1:
+            return ("Calage de l'inclinaison, objet {} : cliquez maintenant son sommet, le plus haut possible sur "
+                    "la même verticale (zoomez pour être précis).").format(n)
+        return ("Objet {} : pied et sommet placés. Pour en déplacer un, cliquez sa croix puis sa position exacte ; "
+                "sinon « ✔ Valider l'objet vertical ».").format(n)
+
+    def clear(self):
+        if self._tilt_pending():
+            self.tilt_clicks, self.tilt_sel = [], None
+            self.message = "Objet vertical abandonné."
+            return self.status()
+        return super().clear()
+
+    def set_mode(self, mode):
+        self.tilt_clicks, self.tilt_sel = [], None
+        return super().set_mode(mode)
 
     def take_aim_frame(self):
         """Visées guidées : repère dans la photo affichée ([[cap, élévation]] en radians, JSON) du
