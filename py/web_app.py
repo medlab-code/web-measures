@@ -228,10 +228,12 @@ class App(session.Session):
         if sec is None:
             return None
         chain = self._bridge_chain(sections, sec)
-        # Nom du pont (BD TOPO), et sa route : « Pont de France (D905) », sinon « Pont de la D111 »
+        # Nom du pont (BD TOPO), et sa route : « Pont de France (D905) », sinon « Pont de la D111 »,
+        # « Pont de l'A38 » (élision devant une voyelle)
         name = next((c["bridge_name"] for c in chain if c.get("bridge_name")), None)
         road = next((c["name"] for c in chain if re.match(r"[A-Z]+\d", c.get("name") or "")), None)
-        bridge = "{} ({})".format(name, road) if name and road else name or ("Pont de la " + road if road else "Pont")
+        of_road = road and ("Pont de l'" if road[0] in "AEIOUY" else "Pont de la ") + road
+        bridge = "{} ({})".format(name, road) if name and road else name or of_road or "Pont"
         if self.quality is None:
             return {"text": bridge + "\nHauteur de chute : vérification de la position GPS en cours…", "title": ""}
         if not self.quality.get("precise"):
