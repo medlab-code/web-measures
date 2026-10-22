@@ -200,6 +200,39 @@
     store.set("sans-k2000", event.target.checked ? "1" : "0");
     updatePlayer();
   });
+  // Filtrage anisotrope 8x des textures du panorama (4x dans le plugin), contre le crénelage et
+  // le scintillement des détails fins vus de loin. Photo Sphere Viewer crée ses textures sans
+  // mipmaps, sans lesquels l'anisotropie n'a guère d'effet : on les active (trilinéaire).
+  // Chaque texture n'est traitée qu'une fois ; décoché, le filtre d'origine revient.
+  function anisotropic(on) {
+    const r = psv?.renderer;
+    if (!r?.scene?.traverse) return;
+    const max = r.renderer?.capabilities?.getMaxAnisotropy?.() || 1;
+    let changed = false;
+    r.scene.traverse((o) => {
+      for (const m of [].concat(o.material || [])) {
+        const texs = [m.map];  // matériau simple, ou textures passées au shader de l'adaptateur
+        for (const u of Object.values(m.uniforms || {})) if (u?.value?.isTexture) texs.push(u.value);
+        for (const t of texs) {
+          if (!t?.isTexture || !t.image || !!t.webAniso === on) continue;
+          t.webAniso = on;
+          t.anisotropy = on ? Math.min(8, max) : 1;  // limité par la carte graphique
+          t.generateMipmaps = on;
+          t.minFilter = on ? 1008 : 1006;  // THREE.LinearMipmapLinearFilter : THREE.LinearFilter
+          t.needsUpdate = true;
+          changed = true;
+        }
+      }
+    });
+    if (changed) psv.needsUpdate?.();
+  }
+  $("#anisotrope").checked = store.get("anisotrope") === "1";
+  $("#anisotrope").addEventListener("change", (event) => {
+    store.set("anisotrope", event.target.checked ? "1" : "0");
+    anisotropic(event.target.checked);
+  });
+  // Toutes les secondes, pour les tuiles chargées au fil de la navigation
+  setInterval(() => { if ($("#anisotrope").checked) anisotropic(true); }, 1000);
 
   // Réglages par défaut : l'instance de l'IGN et les photos du conseil départemental de la
   // Côte-d'Or (positions RTK, LiDAR HD : ce que demandent les calculs). Appliqués une fois, même
