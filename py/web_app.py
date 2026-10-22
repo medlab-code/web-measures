@@ -43,6 +43,58 @@ def _bridge_name(text):
     return " ".join(word(w, k == 0) for k, w in enumerate(words))
 
 
+# Axe de la route tiré de la trajectoire RTK (voir App._road_at_reference) : sur ±20 m, la position
+# RTK (quelques cm) n'y compte presque pas ; reste l'écart du véhicule à la route, au plus ~0,2 m
+AXIS_ERROR_RTK = 0.5  # degrés
+RTK_SOURCE = "trajectoire RTK"
+TRACK_STRAIGHT = 0.10  # m : écart type des photos à leur droite au plus (route droite, pas de changement de voie)
+TRACK_SPAN = 20.0  # m de trajectoire au moins
+TRACK_AGREE = 2.0  # degrés au plus entre la trajectoire et le tronçon de la BD TOPO
+_core_axis_error = widths.axis_error
+
+
+def _axis_error(source):
+    """widths.axis_error, avec l'axe tiré de la trajectoire RTK."""
+    return AXIS_ERROR_RTK if source and source.startswith(RTK_SOURCE) else _core_axis_error(source)
+
+
+widths.axis_error = _axis_error  # appelée par les largeurs du cœur
+
+
+def _straight_track_axis(features, sequence, lon, lat):
+    """Direction (degrés, modulo 180) de la trajectoire de la séquence à moins de
+    roads.TRACK_RADIUS m de (lon, lat), si elle est droite (TRACK_STRAIGHT) sur TRACK_SPAN m au
+    moins ; None sinon. Passages aller et retour (sens de la photo) ajustés chacun sur sa voie,
+    avec une direction commune."""
+    passes = {}  # sens de roulage -> positions (m)
+    first = None
+    for feat in (features or {}).get("features") or []:
+        heading = metadata.item_heading(feat)
+        if feat.get("collection") != sequence or heading is None:
+            continue
+        try:
+            x, y = triangulation._local(*(float(v) for v in feat["geometry"]["coordinates"][:2]), lon, lat)
+        except (KeyError, TypeError, ValueError):
+            continue
+        if math.hypot(x, y) <= roads.TRACK_RADIUS:
+            first = heading if first is None else first
+            passes.setdefault(math.cos(math.radians(heading - first)) >= 0, []).append((x, y))
+    pts = []  # positions centrées sur leur passage
+    for group in passes.values():
+        mx, my = sum(p[0] for p in group) / len(group), sum(p[1] for p in group) / len(group)
+        pts += [(x - mx, y - my) for x, y in group]
+    if len(pts) < 5:
+        return None
+    sxx, syy, sxy = sum(x * x for x, _ in pts), sum(y * y for _, y in pts), sum(x * y for x, y in pts)
+    angle = 0.5 * math.atan2(2 * sxy, sxx - syy)  # depuis l'est, sens trigonométrique
+    ux, uy = math.cos(angle), math.sin(angle)
+    along = [x * ux + y * uy for x, y in pts]
+    across = [y * ux - x * uy for x, y in pts]
+    if max(along) - min(along) < TRACK_SPAN or math.sqrt(sum(d * d for d in across) / len(pts)) > TRACK_STRAIGHT:
+        return None
+    return (90.0 - math.degrees(angle)) % 180
+
+
 class WebItem:
     """Dessin d'une mesure sur la carte (voir measures.MeasureTool.new_item) : gardé ici, rendu
     en GeoJSON par App.map_geojson."""
@@ -198,6 +250,30 @@ class App(session.Session):
     def set_mode(self, mode):
         self.tilt_clicks, self.tilt_sel = [], None
         return super().set_mode(mode)
+
+    def _road_at_reference(self):
+        """Axe de la route au point de référence (voir Session) ; sur une séquence RTK vérifiée, la
+        direction de la trajectoire à la place de celle du tronçon de la BD TOPO (±2°), quand elle est
+        droite et concorde avec lui.
+        shortcut: vérification RTK pas encore arrivée au point de référence : BD TOPO gardée."""
+        super()._road_at_reference()
+        ref = self.ref_point
+        road = ref.get("road")
+        if not road or not road["source"].startswith("BD TOPO") or not (self.quality or {}).get("precise"):
+            return
+        seq = (self.item or {}).get("collection")
+        key = (seq, roads._cell(ref["lon"], ref["lat"]))  # cache des trajectoires du cœur
+        track = self.roads._get(("track",) + key, self.roads._tracks, key, lambda: metadata.search_url(
+            ref["lon"], ref["lat"], roads.TRACK_RADIUS + 10, 20, seq, host.api_url), lambda data: data)
+        if track is roads.PENDING:
+            ref["road"] = None  # repris par _roads_ready
+            return
+        axis = _straight_track_axis(track, seq, ref["lon"], ref["lat"])
+        if axis is None or roads._axis_diff(axis, road["axis"]) > TRACK_AGREE:
+            return
+        if math.cos(math.radians(axis - road["axis"])) < 0:
+            axis += 180  # sens du tronçon gardé
+        ref["road"] = {"axis": axis % 360, "source": RTK_SOURCE + ", contrôlée par la " + road["source"]}
 
     # Hauteur de chute sur un pont (ticket #15) ---------------------------------------------
     FALL_SIDE = 1.0  # m au-delà du bord de la chaussée : pied du garde-corps, côté vide

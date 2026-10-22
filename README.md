@@ -140,7 +140,7 @@ Repères visuels :
 Points, traits et étiquettes restent visibles sur toutes les photos (là où ils ont été
 cliqués, ou projetés au sol sur les autres photos). Dans la photo, la droite de mesure d'une
 largeur est en tirets bleus, la verticale d'une hauteur en tirets verts ; sur la carte, les
-visées de triangulation sont en tirets rouges, celles du calage du cap en tirets noirs.
+visées de triangulation sont en tirets rouges.
 
 **Effacer** : la sélection, les visées ou la mesure en cours ; sans rien en cours, le dernier
 point posé (sommet, bord opposé, puis le point de référence ; en mesure libre, le dernier
@@ -211,12 +211,15 @@ Essais sur deux photos imajbox à position RTK (±0,10 m) de Pouilly-en-Auxois, 
 |---|---|---|
 | Point de référence (visées croisées à 54°) | ±0,17 m | sur la cible |
 | Hauteur | 3,46 m ± 0,11 m | 3,464 m |
-| Largeur (clic à 40° de la droite de mesure) | 8,00 m ± 0,48 m | 8 m |
+| Largeur (clic à 40° de la droite de mesure) | 8,00 m ± 0,33 m | 8 m |
 | Distance entre deux points | 3,60 m ± 0,24 m | 3,606 m |
 
-L'incertitude de la largeur vient surtout de l'axe de la route (±2° supposés pour la
-BD TOPO) et de la position du point de référence le long de la route : un clic depuis une
-photo plus éloignée, qui voit la droite plus en face, la réduit. Avec un GPS grand public
+L'incertitude de la largeur vient surtout de l'axe de la route et de la position du point de
+référence le long de la route. Sur une séquence RTK vérifiée, l'axe est la direction de la
+trajectoire sur ±20 m (±0,5°) quand elle est droite (photos à moins de 10 cm de leur droite,
+chaque sens de passage sur sa voie) et concorde à 2° près avec la BD TOPO, sinon le tronçon de
+la BD TOPO (±2° supposés ; ±0,48 m à Pouilly avec elle seule). Un clic depuis une photo plus
+éloignée, qui voit la droite plus en face, réduit aussi l'incertitude. Avec un GPS grand public
 (±4 m), le point de référence est à plusieurs mètres près, et une hauteur à ±2 à 3 m.
 
 ### Limites
@@ -226,7 +229,8 @@ photo plus éloignée, qui voit la droite plus en face, la réduit. Avec un GPS 
   de caméra de la photo (affichage seulement, la mesure n'en dépend pas).
 - Triangulation 3D validée sur des cas simulés seulement : à confirmer sur des points
   relevés sur le terrain.
-- Incertitude de l'axe de la route (±2° pour la BD TOPO, ±3° pour la trajectoire) estimée,
+- Incertitude de l'axe de la route (±0,5° pour la trajectoire RTK, ±2° pour la BD TOPO, ±3°
+  pour la trajectoire sans RTK) estimée,
   à confirmer sur le terrain.
 - Mesures perdues en fermant la page : les exporter avant.
 
@@ -313,6 +317,15 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 5. ~~Mini-carte détachable sur un second écran~~ (ticket #13).
 6. ~~Première version publiée~~ : 0.1.0 (17/10/2026).
 7. Essais sur le terrain avec les agents (postes Edge, photos RTK).
+
+### Pour plus tard
+
+- **Contrôle d'une largeur sur l'image vue du ciel**, quand le PCRS (image à 5 cm) sera publié
+  en Côte-d'Or (absent le 22/10/2026, vérifié à Pouilly-en-Auxois) : cliquer les deux bords sur
+  la mini-carte, puis comparer avec la largeur mesurée sur la photo ; un écart supérieur aux
+  incertitudes signale un mauvais bord visé ou un axe faux. Environ ±0,1 m avec le PCRS
+  (±0,3 m avec l'orthophoto à 20 cm). L'axe de la route n'en vaut pas la peine : la trajectoire
+  RTK le donne déjà à ±0,5°.
 
 ## Versions
 
