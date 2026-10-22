@@ -76,6 +76,7 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
       <div id="axe-vue" hidden></div>
       <pnx-photo-viewer id="visionneuse" endpoint="https://api.panoramax.xyz/api" widgets="false"
                         url-parameters="false" keyboard-shortcuts="false" hidden></pnx-photo-viewer>
+      <img id="turbo" src="src/turbo.webp" alt="" aria-hidden="true">  <!-- lecture rapide à 16x : clin d'œil -->
       <ul id="voyants" hidden></ul>
       <div class="bas-vue">  <!-- localisation à gauche, lecture de la séquence au centre, producteur à droite -->
         <p id="lieu" hidden></p>
@@ -89,6 +90,7 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
           <button id="lecture-avant" type="button" title="Lecture rapide en avant (appuis suivants : 2x, 4x, 8x, 16x, 1x)" aria-pressed="false">
             <svg viewBox="0 0 24 16" aria-hidden="true"><path d="M2 1v14l10-7zM13 1v14l10-7z"/></svg></button>
           <span id="vitesse-avant" class="vitesse" hidden></span>
+          <img id="scanner" src="src/scanner.webp" alt="" aria-hidden="true" hidden>  <!-- lecture à 4x et plus -->
         </div>
         <p id="producteur-photo" hidden></p>
       </div>
@@ -206,6 +208,7 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
             <button id="calage-importer" type="button" disabled>Importer un calage</button>
             <input id="calage-fichier" type="file" accept=".json,application/json" hidden>
           </div>
+          <label id="case-k2000"><input id="sans-k2000" type="checkbox"> Désactiver K2000</label>  <!-- barres et photo de la lecture rapide -->
         </details>
         <details id="reseau">
           <summary>Accès aux services</summary>

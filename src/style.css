@@ -105,6 +105,9 @@ main { flex: 1; display: flex; min-height: 0; }
 }
 /* Liseré : visées de triangulation (bleu), prise de mesure (jaune), comme leurs croix ;
    calage des photos (orange, comme le cercle du pointeur) */
+/* Lecture rapide à 16x : photo qui apparaît et disparaît au milieu de la visionneuse (voir play) */
+#turbo { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 60%; max-height: 70%;
+  opacity: 0; pointer-events: none; z-index: 5; }
 #vue.visee::after, #vue.prise::after, #vue.calage::after {
   content: "";
   position: absolute;
@@ -344,6 +347,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .ligne.alerte { color: var(--attente); }
 
 .reglages, .boutons { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.9rem; margin-top: 0.6rem; }
+#case-k2000 { display: block; margin: 0.8rem 0 0.2rem; }  /* détachée des boutons du calage */
 .reglages label { display: flex; align-items: center; gap: 0.35rem; }
 .reglages input[type="number"] { width: 4.5rem; }
 
@@ -670,6 +674,10 @@ button.principal { font-weight: 600; }
   pointer-events: auto;
 }
 #lecteur[hidden] { display: none; }
+/* Lecture à 4x et plus : barres animées au-dessus du lecteur, de sa largeur */
+#lecteur { position: relative; }
+#scanner { position: absolute; left: 0; bottom: calc(100% + 2px); width: 100%; pointer-events: none; }
+#scanner[hidden] { display: none; }
 #lecteur button {
   display: flex;
   align-items: center;

@@ -195,6 +195,11 @@
   });
   $("#centrer").checked = store.get("centrer", "1") === "1";
   $("#centrer").addEventListener("change", (event) => store.set("centrer", event.target.checked ? "1" : "0"));
+  $("#sans-k2000").checked = store.get("sans-k2000") === "1";  // barres (4x et plus) et photo (16x) de la lecture rapide
+  $("#sans-k2000").addEventListener("change", (event) => {
+    store.set("sans-k2000", event.target.checked ? "1" : "0");
+    updatePlayer();
+  });
 
   // Réglages par défaut : l'instance de l'IGN et les photos du conseil départemental de la
   // Côte-d'Or (positions RTK, LiDAR HD : ce que demandent les calculs). Appliqués une fois, même
@@ -1306,6 +1311,7 @@
       return;
     }
     fast = { collection: photo.collection, apis, rank, step: back ? -k : k, id: photo.id, ids: new Map(), timer: null };
+    if (k === 16 && !$("#sans-k2000").checked) $("#turbo").animate([{ opacity: 0 }, { opacity: 0.5 }, { opacity: 0 }], 3000);  // vitesse maximale
     updatePlayer();
     fastStep(fast);
   }
@@ -1379,6 +1385,7 @@
       label.textContent = `${speed}x`;
       label.classList.toggle("arret", !on);
     }
+    $("#scanner").hidden = blocked || !on || speed < 4 || $("#sans-k2000").checked;
   }
 
   function attachPlayer() {
