@@ -32,6 +32,15 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
   try {
     await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 120000, "Pyodide");
     const app = w.mesures.app, doc = w.document;
+    // Incertitude annoncée sur le bouton d'une photo proposée, puis obtenue après la visée réelle
+    const predicted = (id) => (JSON.parse(app.state()).guide?.choices || []).find((c) => c.id === id)?.expect;
+    const obtained = () => { const r = app.triangulator.result; return r ? r.get("uncertainty") : null; };
+    const compare = (what, before) => {
+      const after = obtained();
+      log(`${what} : annoncée ±${before?.toFixed(3)} m, obtenue ±${after?.toFixed(3)} m`);
+      expect(`${what} : incertitude annoncée à 30 % près`, before != null && after != null
+        && Math.abs(after - before) <= 0.3 * after, `annoncée ${before}, obtenue ${after}`);
+    };
     doc.querySelector("#reglages-defaut")?.close();  // réglages par défaut (CD21, instance IGN) : fenêtre fermée
     // Photos de niveau : inclinaison nulle calée à la main (deux objets verticaux à 90°), comme
     // le supposent les clics de l'essai, calculés sans inclinaison. Sans cela, l'inclinaison
@@ -76,7 +85,9 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         await sleep(1500);
         aimedAt("le point de référence", f, target, zoom0);
       }
+      const announced = f === photos[1] ? predicted(f.id) : null;
       psvClick(yawTo(f, target), -0.35);
+      if (f === photos[1]) compare("bord A, 2e visée", announced);
     }
     log("liseré pendant les visées : " + doc.querySelector("#vue").className + " · " + getComputedStyle(doc.querySelector("#vue"), "::after").borderTopColor
       + " · état : " + doc.querySelector("#etat-mesure").textContent + " " + getComputedStyle(doc.querySelector("#etat-mesure")).color
@@ -257,6 +268,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     expect("photo voisine proposée tout de suite", !doc.querySelector("#guide-photos").hidden
       && doc.querySelectorAll("#guide-photos button").length === 1);
     log("photo proposée : " + doc.querySelector("#guide-photos").textContent);
+    expect("incertitude attendue sur la photo proposée", /±\d+,\d\d m/.test(doc.querySelector("#guide-photos").textContent));
     const b12 = toLonLat([side * 12 * ux, side * 12 * uy]);
     for (const f of [photos[1], photos[0]]) {
       w.mesures.psv.zoom(60);
@@ -269,7 +281,9 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         aimedAt("le bord B", f, b12, zoom0);
         expect("droite de mesure masquée hors de la photo de la mesure", box.querySelectorAll("[id*='-guide']").length === 0);
       }
+      const announced = f === photos[0] ? predicted(f.id) : null;
       psvClick(yawTo(f, b12), -0.3);
+      if (f === photos[0]) compare("bord B, 2e visée", announced);
     }
     log("bord B visé : " + app.status().slice(0, 160));
     doc.querySelector("#garder").click();

@@ -31,6 +31,15 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
   try {
     await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 120000, "Pyodide");
     const app = w.mesures.app, doc = w.document;
+    // Incertitude annoncée sur le bouton d'une photo proposée, puis obtenue après la visée réelle
+    const predicted = (id) => (JSON.parse(app.state()).guide?.choices || []).find((c) => c.id === id)?.expect;
+    const obtained = () => { const r = app.triangulator.result; return r ? r.get("uncertainty") : null; };
+    const compare = (what, before) => {
+      const after = obtained();
+      log(`${what} : annoncée ±${before?.toFixed(3)} m, obtenue ±${after?.toFixed(3)} m`);
+      expect(`${what} : incertitude annoncée à 30 % près`, before != null && after != null
+        && Math.abs(after - before) <= 0.3 * after, `annoncée ${before}, obtenue ${after}`);
+    };
     doc.querySelector("#reglages-defaut")?.close();  // réglages par défaut (CD21, instance IGN) : fenêtre fermée
     // Photos de niveau : inclinaison nulle calée à la main (deux objets verticaux à 90°), comme
     // le supposent les clics de l'essai, calculés sans inclinaison. Sans cela, l'inclinaison
@@ -71,7 +80,9 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
           `cap ${pos.yaw.toFixed(3)} au lieu de ${yawTo(f, target).toFixed(3)}`);
         expect("zoom gardé pour viser le pied", Math.abs(w.mesures.psv.getZoomLevel() - zoom0) < 1, `zoom ${w.mesures.psv.getZoomLevel()} au lieu de ${zoom0}`);
       }
+      const announced = f === photos[1] ? predicted(f.id) : null;
       psvClick(yawTo(f, target), -0.35);
+      if (f === photos[1]) compare("pied, 2e visée", announced);
       log("photo " + f.id.slice(0, 8) + " : " + JSON.parse(app.state()).quality);
     }
     log("visées : " + app.status());
@@ -158,6 +169,26 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     doc.querySelector("#nouvelle-reference").click();
     log("nouveau point : " + doc.querySelector("#statut").textContent.slice(0, 60) + " · résultats : "
       + JSON.parse(app.results()).map((r) => r.text).join(" | "));
+    // Troisième visée facultative (photo de l'autre côté de la référence) : incertitude annoncée
+    // (avant → après) comparée à celle obtenue
+    for (const f of photos) {
+      w.mesures.openPhoto(f);
+      await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "nouveau pied");
+      await sleep(1000);
+      psvClick(yawTo(f, target), -0.35);
+    }
+    const third = (JSON.parse(app.state()).guide?.choices || [])[0];
+    log("3e visée proposée : " + (third ? `${third.label} · ±${third.now?.toFixed(3)} → ±${third.expect?.toFixed(3)} m` : "aucune"));
+    expect("3e visée : incertitude d'avant exacte", third && Math.abs(third.now - obtained()) < 1e-9, `${third?.now} au lieu de ${obtained()}`);
+    if (third) {
+      const f3 = await feature(third.id);
+      w.mesures.openPhoto(f3);
+      await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f3.id, 30000, "3e photo");
+      await sleep(1000);
+      log("3e photo à " + Math.hypot(...metres(target, f3.geometry.coordinates)).toFixed(1) + " m du pied");
+      psvClick(yawTo(f3, target), -0.35);
+      compare("pied, 3e visée", third.expect);
+    }
     expect("pas d'alerte RTK sur des photos RTK", !doc.querySelector("#alerte-rtk").open);
     verdict();
   } catch (e) { log("ERREUR " + e); }

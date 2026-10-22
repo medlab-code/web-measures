@@ -1671,9 +1671,13 @@
     box.hidden = !choices.length || viewer.hidden;
     box.replaceChildren(...choices.map((choice) => {
       const arrow = guideArrow(choice);
+      // Incertitude attendue du point avec cette visée en plus (voir App.guide)
+      const m = (v) => v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const label = choice.expect == null ? choice.label : `${choice.label} · ±${m(choice.expect)} m`;
+      const title = choice.expect == null ? choice.title : `${choice.title}. Incertitude attendue du point : `
+        + (choice.now == null ? `±${m(choice.expect)} m` : `±${m(choice.now)} m → ±${m(choice.expect)} m`);
       const button = Object.assign(document.createElement("button"), { type: "button",
-        textContent: arrow === "◀" ? `◀ ${choice.label}` : arrow ? `${choice.label} ${arrow}` : choice.label,
-        title: choice.title });
+        textContent: arrow === "◀" ? `◀ ${label}` : arrow ? `${label} ${arrow}` : label, title });
       button.addEventListener("click", () => goToPhoto(choice.id));
       return button;
     }).sort((a, b) => a.textContent.startsWith("◀") ? -1 : b.textContent.startsWith("◀") ? 1 : 0));  // ◀ à gauche

@@ -255,7 +255,8 @@ class App(session.Session):
         """Axe de la route au point de référence (voir Session) ; sur une séquence RTK vérifiée, la
         direction de la trajectoire à la place de celle du tronçon de la BD TOPO (±2°), quand elle est
         droite et concorde avec lui.
-        shortcut: vérification RTK pas encore arrivée au point de référence : BD TOPO gardée."""
+        shortcut: vérification RTK pas encore arrivée au point de référence : BD TOPO gardée ; reprendre
+        l'axe à son arrivée si des largeurs prises juste après l'ouverture d'une photo restent en BD TOPO."""
         super()._road_at_reference()
         ref = self.ref_point
         road = ref.get("road")
@@ -324,7 +325,8 @@ class App(session.Session):
     def _fall_sections(self, lon, lat):
         """Tronçons BD TOPO de la maille du point, avec leur largeur de chaussée (« width », m ou None),
         lus ici : ceux du cœur (roads) ne la gardent pas. roads.PENDING pendant la lecture, None si la BD
-        TOPO n'a pas répondu (shortcut : pas de nouvel essai avant le rechargement de la page)."""
+        TOPO n'a pas répondu (shortcut: pas de nouvel essai avant le rechargement de la page ;
+        réessayer après roads.RETRY s si des pannes de la Géoplateforme privent de hauteur de chute)."""
         cell = roads._cell(lon, lat)
         if cell in self.fall_cells:
             return self.fall_cells[cell]
@@ -413,7 +415,7 @@ class App(session.Session):
             for (x, y), z in zip(samples, ground or []):
                 if z is None:
                     continue
-                # shortcut : tablier à l'altitude de la photo la plus proche (photos tous les ~5 m) ;
+                # shortcut: tablier à l'altitude de la photo la plus proche (photos tous les ~5 m) ;
                 # interpoler entre les photos si des ponts longs et pentus le demandent
                 deck = min(decks, key=lambda d: math.hypot(d[0] - x, d[1] - y))[2]
                 if best is None or deck - z > best[0]:
@@ -457,19 +459,56 @@ class App(session.Session):
         sightings = self.triangulator.sightings
         if not sightings or any(s["pic"] == self.item.get("id") for s in sightings):
             return "null"
-        if self.b_aiming is not None:
-            lon, lat = self.b_aiming.result["points"][1]
-        elif self.mode in session.REF_MODES and self.ref_point is None:  # point de référence (largeur, hauteur)
-            first = sightings[0]
-            elev = first.get("elev") or 0.0
-            if elev > -0.5:  # visée au-dessus de l'horizon ou presque : pas de sol touché
-                return "null"
-            lon, lat = triangulation.offset(first["lon"], first["lat"], first["heading"],
-                                            self._camera_height() / math.tan(math.radians(-elev)))
-        else:
+        target = self._provisional_point()
+        if target is None:
             return "null"
-        p = self._project(lon, lat)
+        p = self._project(*target)
         return json.dumps([[p["yaw"], p["pitch"]]])
+
+    def _provisional_point(self):
+        """Point visé tel qu'il est placé avant d'être triangulé (lon, lat), ou None : le bord B
+        d'une largeur là où l'a mis le clic de la mesure, ou le point de référence là où la
+        première visée touche le sol plat."""
+        sightings = self.triangulator.sightings
+        if self.b_aiming is not None:
+            return tuple(self.b_aiming.result["points"][1])
+        if not sightings or self.mode not in session.REF_MODES or self.ref_point is not None:
+            return None
+        first = sightings[0]
+        elev = first.get("elev") or 0.0
+        if elev > -0.5:  # visée au-dessus de l'horizon ou presque : pas de sol touché
+            return None
+        return triangulation.offset(first["lon"], first["lat"], first["heading"],
+                                    self._camera_height() / math.tan(math.radians(-elev)))
+
+    def guide(self):
+        """Visées guidées (voir Session.guide), chaque photo proposée avec « expect » : incertitude
+        du point (m) une fois visé aussi depuis elle, d'après une visée simulée vers le point triangulé
+        (ou provisoire), et « now » : celle d'aujourd'hui (None avec une seule visée)."""
+        guide = super().guide()
+        tri = self.triangulator
+        r = tri.result
+        target = (r["lon"], r["lat"], r.get("z")) if r else self._provisional_point()
+        if not guide or target is None or not tri.sightings:
+            return guide
+        lon, lat = target[:2]
+        z = target[2] if len(target) > 2 else tri.sightings[0].get("ground")
+        base = tri.sightings[-1]  # même séquence : précision GPS, cap, hauteur de caméra
+        for choice in guide["choices"]:
+            if choice["lon"] is None:
+                continue
+            x, y = triangulation._local(lon, lat, choice["lon"], choice["lat"])
+            dist = math.hypot(x, y)
+            alt = base.get("alt")
+            sim = dict(base, pic=choice["id"], lon=choice["lon"], lat=choice["lat"],
+                       heading=math.degrees(math.atan2(x, y)) % 360, raw=None, gps=[choice["lon"], choice["lat"]],
+                       elev=None if alt is None or z is None or dist < 0.5 else math.degrees(math.atan2(z - alt, dist)))
+            try:
+                res = tools.solve_on_ground(tri.sightings + [sim], tri.ground, tri.ground_z if tri.lidar else None)
+            except triangulation.TriangulationError:
+                continue
+            choice["expect"], choice["now"] = res["uncertainty"], r["uncertainty"] if r else None
+        return guide
 
     # Dessin ------------------------------------------------------------------------------
     def _new_item(self):
