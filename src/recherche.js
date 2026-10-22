@@ -9,6 +9,7 @@ const Recherche = (() => {
   const COMMUNES = "https://geo.api.gouv.fr/communes";
   const MIN_LENGTH = 3;
   const DELAY = 250;  // ms sans frappe avant d'interroger le service
+  const OUTLINE_TIMEOUT = 8000;  // ms : contour de commune abandonné au-delà (service parfois muet)
   // Zoom selon la nature du lieu trouvé
   const ZOOMS = { municipality: 13, street: 16, housenumber: 18 };
 
@@ -23,7 +24,8 @@ const Recherche = (() => {
 
   /** Contour de la commune qui contient (lon, lat) : entité GeoJSON, ou null. */
   async function communeOutline(lon, lat) {
-    const response = await fetch(`${COMMUNES}?lat=${lat}&lon=${lon}&fields=nom,code,contour&format=geojson&geometry=contour`);
+    const response = await fetch(`${COMMUNES}?lat=${lat}&lon=${lon}&fields=nom,code,contour&format=geojson&geometry=contour`,
+      { signal: AbortSignal.timeout(OUTLINE_TIMEOUT) });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return ((await response.json()).features || [])[0] || null;
   }
@@ -46,6 +48,7 @@ const Recherche = (() => {
     const input = box.querySelector("input");
     const list = box.querySelector("ul");
     let results = [], active = -1, timer = null, asked = 0, chosen = 0;
+    let enterPending = false;  // Entrée tapée avant l'arrivée des suggestions : la première, dès qu'elles arrivent
 
     function close() {
       list.hidden = true;
@@ -84,25 +87,21 @@ const Recherche = (() => {
       const ticket = ++chosen;
       // Commune de la base des adresses, ou toponyme administratif de nature « commune »
       const commune = r.kind === "municipality" || (r.poiType || []).includes("commune");
-      if (!commune) {
-        map.flyTo({ center: [r.x, r.y], zoom, speed: 1.6 });
-        return;
-      }
-      // Commune : son contour tracé, la carte cadrée dessus (centrée sur elle si le contour manque)
+      map.flyTo({ center: [r.x, r.y], zoom, speed: 1.6 });  // tout de suite, sans attendre le contour
+      if (!commune) return;
+      // Commune : son contour tracé, puis la carte cadrée dessus quand il arrive
       communeOutline(r.x, r.y).then((feature) => {
         if (ticket !== chosen) return;  // autre lieu choisi entre-temps
         if (!feature) throw new Error("contour introuvable");
         outline?.setData({ type: "FeatureCollection", features: [feature] });
         map.fitBounds(bounds(feature.geometry), { padding: 30, speed: 1.6 });
-      }).catch((error) => {
-        console.warn("Contour de la commune :", error);
-        if (ticket === chosen) map.flyTo({ center: [r.x, r.y], zoom, speed: 1.6 });
-      });
+      }).catch((error) => console.warn("Contour de la commune :", error));
     }
 
     input.addEventListener("input", () => {
       clearTimeout(timer);
       results = [];  // suggestions de l'ancienne saisie : plus choisissables
+      enterPending = false;
       close();
       asked++;  // réponse en attente pour l'ancienne saisie : ignorée
       const text = input.value.trim();
@@ -115,6 +114,10 @@ const Recherche = (() => {
           results = found;
           active = -1;
           render();
+          if (enterPending) {
+            enterPending = false;
+            choose(0);
+          }
         } catch (error) {
           console.warn("Recherche de lieu :", error);
         }
@@ -130,7 +133,8 @@ const Recherche = (() => {
         render();
       } else if (event.key === "Enter") {
         event.preventDefault();
-        choose(active >= 0 ? active : 0);
+        if (results.length) choose(active >= 0 ? active : 0);
+        else enterPending = input.value.trim().length >= MIN_LENGTH;
       } else if (event.key === "Escape") {
         close();
       }
