@@ -157,16 +157,12 @@ tout effacer pour repartir de zéro.
   ↑ ↓ montent ou descendent le point ;
 - **Entrée** pour terminer.
 
-**Caler les photos** (modes « Calage ») :
-
-- **inclinaison** : calculée automatiquement d'après les verticales de la photo (en arrière-
-  plan), ou calée à la main : pied puis sommet de deux objets verticaux, à environ 90° l'un de
-  l'autre ;
-- **cap et position** : un repère net cliqué dans la photo, puis sur la carte ; le premier
-  corrige le cap, trois repères ou plus répartis autour de la photo recalent aussi sa
-  position. La carte ne montre que les visées des repères pris depuis la photo affichée. La
-  triangulation n'est jamais meilleure que le cap et la position des photos : à 20 m, 1°
-  d'erreur de cap décale une visée de 35 cm.
+**Caler les photos** (mode « Calage : inclinaison ») : inclinaison calculée automatiquement
+d'après les verticales de la photo (en arrière-plan), ou calée à la main : pied puis sommet de
+deux objets verticaux, à environ 90° l'un de l'autre. Le calage du cap et de la position
+(repères sur la carte) n'est pas proposé : le cap n'entre presque pas dans les hauteurs et les
+largeurs, et le cap EXIF des photos de relevé est déjà juste à 0,3° près. Un calage importé
+du plugin QGIS qui en contient reste appliqué.
 
 Les consignes de chaque calage disent l'étape en cours et ce qui est déjà fait.
 

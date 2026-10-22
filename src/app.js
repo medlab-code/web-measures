@@ -552,10 +552,6 @@
     if (photoReady()) frameView(JSON.parse(app.take_frame()));
     // Visées suivantes (point de référence, bord B) : vue tournée vers le point, zoom gardé
     if (photoReady()) frameView(JSON.parse(app.take_aim_frame()), true);
-    const bandeau = $("#bandeau");
-    bandeau.hidden = !state.waiting_map;
-    bandeau.textContent = "Cliquez maintenant ce repère sur la carte (Échap pour annuler).";
-    map.getCanvas().style.cursor = state.waiting_map ? "crosshair" : "";
     if (app.calibration_version !== savedCalibration) {
       savedCalibration = app.calibration_version;
       store.set("calage", app.calibration_json());
@@ -637,14 +633,7 @@
 
   // Choix de la photo sur la carte ---------------------------------------------------------
 
-  map.on("click", async (event) => {
-    const { lng, lat } = event.lngLat;
-    if (app && app.map_click(lng, lat)) {  // repère du calage du cap
-      refresh();
-      return;
-    }
-    openNearest(lng, lat);
-  });
+  map.on("click", (event) => openNearest(event.lngLat.lng, event.lngLat.lat));
 
   /** Photo la plus proche du point (lng, lat), qui passe le filtre ; avec un cap `heading`
    * (degrés), celle d'un véhicule roulant dans ce sens à 90° près, à défaut la plus proche. */
@@ -670,10 +659,6 @@
     }
   }
 
-  function onEscapeKey(event) {
-    if (event.key === "Escape" && app && app.waiting_map()) refresh(app.cancel_landmark());
-  }
-  document.addEventListener("keydown", onEscapeKey);
   // Clic droit dans la visionneuse en mesure : sélection d'un point, pas de menu du navigateur
   viewer.addEventListener("contextmenu", (event) => {
     if (measuring) event.preventDefault();
@@ -735,7 +720,6 @@
     win.document.title = "Carte · Mesures Panoramax";
     win.document.body.classList.add("fenetre-carte");
     win.document.body.append(mapBox);
-    win.document.addEventListener("keydown", onEscapeKey);
     win.document.addEventListener("keydown", onNudgeKey, true);
     // Glisser la carte : MapLibre suit la souris sur le document qui la contenait à sa création
     // (la page) ; dans la fenêtre détachée, les mouvements arrivent à son document à elle : on
@@ -1442,7 +1426,7 @@
     // prise de mesure (couleurs de leurs croix)
     const sighting = measuring && aiming;
     const taking = measuring && !aiming && ["road", "height"].includes(mode);
-    const calibrating = measuring && ["tilt", "heading"].includes(mode);
+    const calibrating = measuring && mode === "tilt";
     $("#vue").classList.toggle("visee", sighting);
     $("#vue").classList.toggle("prise", taking);
     $("#vue").classList.toggle("calage", calibrating);
@@ -1463,7 +1447,6 @@
       : mode === "road" && newMeasure ? `Largeur faite : cliquez une de ses croix pour l'ajuster ; autre largeur : « Nouvelle mesure depuis ${newMeasure} »`
       : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé ; autre photo, prise avant ou après : par la carte"
       : mode === "tilt" ? "Calage de l'inclinaison : pied puis sommet de deux objets verticaux, à 90° l'un de l'autre"
-      : mode === "heading" ? "Calage du cap : un repère dans la photo, puis le même sur la carte (3 pour la position)"
       : "Mode mesure en cours : désélectionner pour naviguer";
     showModeOptions();
     const box = psv?.container;
