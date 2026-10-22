@@ -75,7 +75,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       expect("zoom gardé pour viser " + what, Math.abs(zoom - zoom0) < 1, `zoom ${zoom} au lieu de ${zoom0}`);
     };
     for (const f of photos) {
-      w.mesures.psv.zoom(60);
+      w.mesures.psv.zoom(f === photos[0] ? 0 : 60);  // dézoomé sur la 1re : rappel de zoom
       w.mesures.openPhoto(f);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "photo");
       const zoom0 = w.mesures.psv.getZoomLevel();
@@ -86,8 +86,14 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         aimedAt("le point de référence", f, target, zoom0);
       }
       const announced = f === photos[1] ? predicted(f.id) : null;
+      doc.querySelector("#avis").hidden = true;
       psvClick(yawTo(f, target), -0.35);
       if (f === photos[1]) compare("bord A, 2e visée", announced);
+      { const psv = w.mesures.psv, px = psv.state.vFov / psv.container.clientHeight;  // degrés par pixel de l'écran
+        const photoPx = 360 / (psv.state.textureData?.panoData?.fullWidth || 12288), avis = doc.querySelector("#avis");
+        const shown = !avis.hidden && avis.textContent.startsWith("Zoomez");
+        log(`zoom ${psv.getZoomLevel()} : ${px.toFixed(4)}°/px écran, ${photoPx.toFixed(4)}°/px photo · rappel ${shown}`);
+        expect("rappel de zoom si un pixel de l'écran couvre plus de 2 pixels de la photo", shown === px > 2 * photoPx); }
     }
     log("liseré pendant les visées : " + doc.querySelector("#vue").className + " · " + getComputedStyle(doc.querySelector("#vue"), "::after").borderTopColor
       + " · état : " + doc.querySelector("#etat-mesure").textContent + " " + getComputedStyle(doc.querySelector("#etat-mesure")).color
@@ -246,15 +252,30 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       psv.rotate({ yaw: mid, pitch: edge[1] });
       await sleep(300);
       const at = psv.dataHelper.sphericalCoordsToViewerCoords({ yaw: mid, pitch: edge[1] + 0.1 });
-      psv.container.dispatchEvent(new w.PointerEvent("pointermove", { clientX: box.left + at.x, clientY: box.top + at.y, bubbles: true }));
-      await sleep(200);
-      let slide = null;
-      try { slide = psv.getPlugin("markers").getMarker("glisse-largeur"); } catch { /* absent */ }
+      const canvas = psv.container.querySelector(".psv-canvas-container");
+      const move = async (target) => {
+        target.dispatchEvent(new w.PointerEvent("pointermove", { clientX: box.left + at.x, clientY: box.top + at.y, bubbles: true }));
+        await sleep(200);
+        try { return psv.getPlugin("markers").getMarker("glisse-largeur"); } catch { return null; }  // absent
+      };
+      // Largeur faite : un clic ne pose plus de bord, pointeur libre (pour les boutons de la visionneuse)
+      expect("largeur faite : réticule libre", !(await move(canvas)) && !psv.container.classList.contains("sur-droite"));
+      psvClick(edge[0], edge[1]);  // clic sur la croix du bord : sélectionné, à recaler
+      expect("bord sélectionné", JSON.parse(app.state()).point_sel);
+      const slide = await move(canvas);
       const pos = slide?.state?.position ?? slide?.config?.position;
       log("repère glissant : " + (pos ? `cap ${pos.yaw.toFixed(4)}, élévation ${pos.pitch.toFixed(4)} (droite ${onLine(pos.yaw).toFixed(4)})` : "absent"));
       expect("repère glissant sur la droite sous le pointeur", pos && Math.abs(wrap(pos.yaw - mid)) < 0.01
         && Math.abs(pos.pitch - onLine(pos.yaw)) < 0.005);
+      expect("pointeur masqué, remplacé par le réticule", getComputedStyle(psv.container.querySelector(".psv-canvas-container") || psv.container).cursor === "none"
+        && psv.container.querySelector(".glisse svg circle"));
+      const button = psv.container.querySelector("button, .psv-button");  // flèche de la visite
+      expect("pointeur rendu sur les boutons de la visionneuse", button && !(await move(button)) && !psv.container.classList.contains("sur-droite"));
+      await move(canvas);
       psv.container.dispatchEvent(new w.PointerEvent("pointerleave"));
+      expect("pointeur rendu hors de la photo", !psv.container.classList.contains("sur-droite"));
+      key("Enter");
+      expect("Entrée : bord désélectionné", !JSON.parse(app.state()).point_sel);
     }
     log("résultats : " + JSON.parse(app.results()).map((r) => r.text).join(" | "));
     // Bord opposé triangulé à son tour : bouton proposé après le clic simple, visées depuis la
@@ -262,9 +283,13 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     const triB = doc.querySelector("#trianguler-b");
     // le bouton nomme le bord cliqué par sa lettre (provisoire)
     expect(`bouton « ${triB.textContent} » proposé`, !triB.hidden && /Trianguler le point [A-Z]+ /.test(triB.textContent));
+    const edgeB = JSON.parse(app.viewer_marks()).filter((m) => m.label.startsWith("↔")).pop().points[1];
     triB.click();
     expect("bord opposé en visée, bouton masqué", JSON.parse(app.state()).edge_b_aiming && triB.hidden);
     expect("clic rapide compté comme 1re visée", app.status().includes("première visée"));
+    { const marks = JSON.parse(app.viewer_marks()), cross = marks.find((m) => m.sighting)?.points[0];
+      log("croix bleue : " + JSON.stringify(cross) + " · bord B avant : " + JSON.stringify(edgeB));
+      expect("croix bleue de la 1re visée sur la croix B", cross && Math.hypot(cross[0] - edgeB[0], cross[1] - edgeB[1]) < 0.002); }
     expect("photo voisine proposée tout de suite", !doc.querySelector("#guide-photos").hidden
       && doc.querySelectorAll("#guide-photos button").length === 1);
     log("photo proposée : " + doc.querySelector("#guide-photos").textContent);

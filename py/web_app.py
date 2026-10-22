@@ -447,6 +447,23 @@ class App(session.Session):
             points[1] = self._project(*m.result["points"][1], anchor[2] if anchor else None)
         return points
 
+    def start_edge_b(self):
+        """Trianguler le bord B (voir Session.start_edge_b) : la première visée est le bord tel qu'il est
+        posé sur la droite de mesure (direction du clic, élévation de la droite), pas l'élévation du
+        clic, qui ne compte pas : croix bleue sur la croix B, visée 3D cohérente."""
+        m = self._edge_b_candidate()
+        out = super().start_edge_b()
+        tri = self.triangulator
+        if m is None or self.b_aiming is not m or len(tri.sightings) != 1 \
+                or (self.item or {}).get("id") != m.clicks[1].get("pic"):
+            return out
+        p = self._width_points(m)[1]
+        s = tri.sightings[0]
+        s["raw"] = [p["abs_yaw"], p["elev"]]
+        if self._resight(s):
+            s["view"] = [p["yaw"], p["pitch"]]
+        return self.status()
+
     def take_aim_frame(self):
         """Visées guidées : repère dans la photo affichée ([[cap, élévation]] en radians, JSON) du
         point à viser, tel qu'il est placé avant d'être triangulé : le bord B d'une largeur là où

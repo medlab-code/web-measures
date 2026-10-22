@@ -1100,15 +1100,19 @@
   }
 
   /**
-   * Largeur : repère qui glisse sur la droite de mesure (tirets bleus) sous le pointeur, là où le bord
-   * se posera : seule la direction du clic compte, le bord est sur cette droite (ticket #18).
+   * Largeur : réticule tenu sur la droite de mesure (tirets bleus) sous le pointeur, masqué pendant ce
+   * temps, là où le bord se posera : seule la direction du clic compte, le bord est sur cette droite (ticket #18).
    * event null : repère retiré.
    */
   const SLIDE = "glisse-largeur";
   function slideOnGuide(event) {
     const markers = psv?.getPlugin?.("markers");
     if (!markers) return;
+    // Seulement quand un clic poserait le bord (largeur pas encore faite, ou bord sélectionné à
+    // recaler), et sur la photo : pas sur les boutons et flèches de la visionneuse
     const line = event && measuring && $("#mode").value === "road" && !aiming && !edgeBAiming
+      && (!newMeasure || pointSelected) && event.target?.closest?.(".psv-canvas-container, .psv-markers")
+      && !event.target.closest(".psv-virtual-tour-link")
       && currentMarks.find((m) => m.guide && !m.vertical && !m.epipolar);
     let position = null;
     if (line) {
@@ -1127,8 +1131,10 @@
     } else if (shown) {
       markers.updateMarker({ id: SLIDE, position });
     } else {
-      markers.addMarker({ id: SLIDE, position, anchor: "center center", html: '<div class="glisse"></div>' });
+      markers.addMarker({ id: SLIDE, position, anchor: "center center",
+        html: `<div class="glisse">${reticle(reticleColor(tilted, false, false))}</div>` });  // hors visée et calage
     }
+    psv.container.classList.toggle("sur-droite", !!position);
   }
 
   /** Branche les clics, la vue et les changements de photo, une fois la visionneuse prête. */
@@ -1146,6 +1152,7 @@
           if (app && event.data?.rightclick) {  // clic droit : sélection d'un point à recaler
             refresh(photoReady() ? app.select_point(event.data.yaw, event.data.pitch) : LOADING);
           } else if (app) {
+            if (photoReady()) remindZoom();
             refresh(photoReady() ? app.click(event.data.yaw, event.data.pitch) : LOADING);
           }
           return true;
@@ -1407,13 +1414,16 @@
   // En calage, cercle orange ; pendant les visées de triangulation, bleu : comme le liseré de la
   // visionneuse (et les croix des visées)
   const CALAGE = "#ff6f00", VISEE = "#00bce6";
+  const reticle = (color) => "<svg xmlns='http://www.w3.org/2000/svg' width='33' height='33'>"
+    + `<circle cx='16.5' cy='16.5' r='15' fill='none' stroke='${color}' stroke-width='2.5'/>`
+    + "<path d='M16.5 2v11M16.5 20v11M2 16.5h11M20 16.5h11' stroke='#ff8a80' stroke-width='1.5'/>"
+    + "<circle cx='16.5' cy='16.5' r='1' fill='white'/></svg>";
+  const reticleColor = (tilted, calibrating, sighting) => calibrating ? CALAGE : sighting ? VISEE : tilted ? "#2ecc40" : "#ffeb00";
+  // .sur-droite : réticule tenu sur la droite de mesure (slideOnGuide), qui remplace le pointeur
   const cursorCss = (tilted, calibrating, sighting) => `.psv-container, .psv-container * { cursor: url("data:image/svg+xml;utf8,${
-    encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='33' height='33'>"
-      + `<circle cx='16.5' cy='16.5' r='15' fill='none' stroke='${
-        calibrating ? CALAGE : sighting ? VISEE : tilted ? "#2ecc40" : "#ffeb00"}' stroke-width='2.5'/>`
-      + "<path d='M16.5 2v11M16.5 20v11M2 16.5h11M20 16.5h11' stroke='#ff8a80' stroke-width='1.5'/>"
-      + "<circle cx='16.5' cy='16.5' r='1' fill='white'/></svg>")}") 16 16, crosshair !important; }
-    .psv-container .psv-virtual-tour-link, .psv-container .psv-virtual-tour-link * { cursor: pointer !important; }`;
+    encodeURIComponent(reticle(reticleColor(tilted, calibrating, sighting)))}") 16 16, crosshair !important; }
+    .psv-container .psv-virtual-tour-link, .psv-container .psv-virtual-tour-link * { cursor: pointer !important; }
+    .psv-container.sur-droite, .psv-container.sur-droite * { cursor: none !important; }`;
   let tilted = false;  // inclinaison de la photo affichée calée
 
   /** Navigation, flèches, curseur au sol et pointeur de la visionneuse selon le bouton « Mesure ». */
@@ -1791,6 +1801,17 @@
     $("#filtre-actif").textContent = active ? "●" : "";
     $("#filtre-actif").title = active && app ? app.filter_text() : "";
     if (app) checkPhoto();  // sans le calcul, le filtre n'est pas encore évalué
+  }
+
+  /** Clic de mesure trop peu zoomé (un pixel de l'écran couvre plus de 2 pixels de la photo) :
+   * rappel de zoomer, une fois par photo. */
+  const zoomReminded = new Set();
+  function remindZoom() {
+    const width = psv.state.textureData?.panoData?.fullWidth || 12288;  // photo HD imajbox
+    const height = psv.container.clientHeight;
+    if (!photo || zoomReminded.has(photo.id) || !height || viewFov(true) / height <= 2 * 360 / width) return;
+    zoomReminded.add(photo.id);
+    notice("Zoomez sur le point pour cliquer plus précisément : à ce zoom, un clic couvre plusieurs pixels de la photo.");
   }
 
   /** Message passager en haut de la visionneuse. */
