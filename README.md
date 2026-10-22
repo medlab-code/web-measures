@@ -320,6 +320,14 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.3.0** (22/10/2026) : sur un pont, en haut à gauche de la visionneuse, nom du pont (BD TOPO)
+  et hauteur de chute la plus grande sur toute sa longueur (tablier d'après l'altitude GPS RTK,
+  terrain sous le pont d'après le LiDAR HD ou le RGE ALTI ; pas de valeur sans RTK vérifié).
+  Calage de l'inclinaison : pied et sommet de l'objet vertical affichés (croix rouge clair,
+  trait bleu clair), déplaçables, puis « ✔ Valider l'objet vertical ». Visées suivantes du
+  point de référence et du bord B : la vue se tourne vers le point, zoom gardé. « Nouveau point
+  de référence » dans la visionneuse, en hauteur seulement, à côté de « Nouvelle mesure depuis
+  A » ; barre de contrôle réorganisée.
 - **0.2.17** (19/10/2026) : « Mesures loin d'ici » : « Tout effacer » en rouge, « Garder » en
   vert ; fenêtre « Première utilisation » présentée comme les alertes, centrée sur la visionneuse.
 - **0.2.16** (19/10/2026) : fenêtres « Mesures loin d'ici » et « Mesurer la distance ? »
