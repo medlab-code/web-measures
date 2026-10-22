@@ -31,7 +31,11 @@ def _bridge_name(text):
     words = (text or "").strip().lower().split()
     if not words or words[0] not in ("pont", "viaduc", "passerelle"):
         return None
+    return _title(words)
 
+
+def _title(words, first=True):
+    """Mots en minuscules remis en forme d'un nom : capitales sauf petits mots (_SMALL_WORDS)."""
     def word(w, first):
         if "'" in w:  # d'or -> d'Or
             head, tail = w.split("'", 1)
@@ -40,7 +44,31 @@ def _bridge_name(text):
             return w
         return "-".join(part.capitalize() for part in w.split("-"))
 
-    return " ".join(word(w, k == 0) for k, w in enumerate(words))
+    return " ".join(word(w, first and k == 0) for k, w in enumerate(words))
+
+
+# Voies de la BD TOPO (nom en abréviations, « R DE PARIS ») : nom en clair, avec son article
+_STREETS = {"R": "la rue", "AV": "l'avenue", "BD": "le boulevard", "CHE": "le chemin", "CHEM": "le chemin",
+            "RTE": "la route", "PL": "la place", "IMP": "l'impasse", "ALL": "l'allée", "QU": "le quai",
+            "QUAI": "le quai", "CRS": "le cours", "PROM": "la promenade", "FG": "le faubourg", "VC": "la voie communale"}
+
+
+def _road_label(name):
+    """Route franchie, avec son article : « l'A6 », « la D905 », « la rue de Paris », sinon « une route »."""
+    if re.match(r"[A-Z]+\d", name or ""):
+        return ("l'" if name[0] in "AEIOUY" else "la ") + name
+    words = (name or "").split()
+    if len(words) > 1 and name.isupper() and words[0] in _STREETS:
+        return _STREETS[words[0]] + " " + _title([w.lower() for w in words[1:]], first=False)
+    return "une route"
+
+
+def _of(label):
+    """« de » devant un nom avec article : de l'Armançon, de la D905, du chemin…, d'une route."""
+    for article, of in (("le ", "du "), ("les ", "des "), ("un ", "d'un "), ("une ", "d'une ")):
+        if label.startswith(article):
+            return of + label[len(article):]
+    return "de " + label
 
 
 # Axe de la route tiré de la trajectoire RTK (voir App._road_at_reference) : sur ±20 m, la position
@@ -95,6 +123,43 @@ def _straight_track_axis(features, sequence, lon, lat):
     return (90.0 - math.degrees(angle)) % 180
 
 
+def _ign_bridges(data):
+    """Ponts nommés de la BD TOPO (constructions linéaires de nature « Pont ») : [(ligne, nom)]."""
+    out = []
+    for feat in data.get("features") or []:
+        props, geom = feat.get("properties") or {}, feat.get("geometry") or {}
+        if props.get("nature") == "Pont" and props.get("toponyme"):
+            coords = geom.get("coordinates") or []
+            for line in coords if geom.get("type") == "MultiLineString" else [coords]:
+                out.append(([tuple(p[:2]) for p in line], props["toponyme"]))
+    return out
+
+
+def _crossing(a, b, c, d):
+    """Point (x, y) où les segments [a, b] et [c, d] se coupent ou se touchent (sommet commun : la BD TOPO
+    en met un au croisement de deux niveaux), ou None (pas de contact, ou parallèles)."""
+    den = (b[0] - a[0]) * (d[1] - c[1]) - (b[1] - a[1]) * (d[0] - c[0])
+    if not den:
+        return None
+    t = ((c[0] - a[0]) * (d[1] - c[1]) - (c[1] - a[1]) * (d[0] - c[0])) / den
+    u = ((c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0])) / den
+    eps = 1e-9
+    return (a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])) if -eps <= t <= 1 + eps and -eps <= u <= 1 + eps else None
+
+
+def _nearest_name(bridges, lon, lat, reach):
+    """Nom du pont le plus proche de (lon, lat), à reach m au plus de sa ligne, ou None."""
+    best = None
+    for line, name in bridges or []:
+        pts = [triangulation._local(p[0], p[1], lon, lat) for p in line]
+        for (ax, ay), (bx, by) in zip(pts, pts[1:] or pts):  # distance du point (0, 0) au segment
+            t = max(0.0, min(1.0, -(ax * (bx - ax) + ay * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2 or 1.0)))
+            d = math.hypot(ax + t * (bx - ax), ay + t * (by - ay))
+            if d <= reach and (best is None or d < best[0]):
+                best = (d, name)
+    return best and best[1]
+
+
 class WebItem:
     """Dessin d'une mesure sur la carte (voir measures.MeasureTool.new_item) : gardé ici, rendu
     en GeoJSON par App.map_geojson."""
@@ -144,6 +209,7 @@ class App(session.Session):
         self.tilt_clicks, self.tilt_sel = [], None
         self.fall_cells = {}  # maille -> tronçons BD TOPO avec leur largeur (hauteur de chute, voir fall)
         self.falls = {}  # (séquence, pont) -> hauteur de chute calculée (dict text, title) ou en cours
+        self.bdtopo = {}  # (couche BD TOPO, maille) -> objets lus (voir _bdtopo)
 
     # Données pour la page (JSON) -------------------------------------------------------
     def set_picture(self, item_json):
@@ -307,10 +373,12 @@ class App(session.Session):
         chain = self._bridge_chain(sections, sec)
         # Nom du pont (BD TOPO), et sa route : « Pont de France (D905) », sinon « Pont de la D111 »,
         # « Pont de l'A38 » (élision devant une voyelle)
-        name = next((c["bridge_name"] for c in chain if c.get("bridge_name")), None)
+        name = next((c["bridge_name"] for c in chain if c.get("bridge_name")), None) or self._named_bridge(lon, lat)
         road = next((c["name"] for c in chain if re.match(r"[A-Z]+\d", c.get("name") or "")), None)
         of_road = road and ("Pont de l'" if road[0] in "AEIOUY" else "Pont de la ") + road
         bridge = "{} ({})".format(name, road) if name and road else name or of_road or "Pont"
+        over = self._crossed(chain, sections, lon, lat)  # « Au-dessus de l'Armançon », sous le nom
+        bridge += "\n" + over if over else ""
         if self.quality is None:
             return {"text": bridge + "\nHauteur de chute : vérification de la position GPS en cours…", "title": ""}
         if not self.quality.get("precise"):
@@ -350,6 +418,74 @@ class App(session.Session):
 
         host.fetch_json(roads.wfs_url(cell), done, timeout_ms=15000)
         return self.fall_cells[cell]
+
+    BRIDGE_REACH = 25.0  # m au plus entre la photo et le pont nommé (bord du tablier)
+    CROSS_END = 2.0  # m : contact aussi près d'un bout du pont, raccordement et non franchissement
+
+    def _named_bridge(self, lon, lat):
+        """Nom du pont le plus proche de la photo (BRIDGE_REACH m au plus) quand le tronçon ne le nomme pas
+        (il porte le nom de la rue) : ouvrage « Pont » de la BD TOPO (constructions linéaires), une requête
+        par maille comme les tronçons ; None sinon, pendant la lecture ou si la BD TOPO n'a pas répondu."""
+        found = self._bdtopo("construction_lineaire", roads._cell(lon, lat))
+        return _nearest_name(_ign_bridges({"features": found or []}), lon, lat, self.BRIDGE_REACH)
+
+    def _bdtopo(self, layer, cell):
+        """Objets GeoJSON d'une couche de la BD TOPO dans la maille (et MARGIN m autour), lus comme les
+        tronçons : liste, None pendant la lecture, [] si la BD TOPO n'a pas répondu (pas de nouvel essai)."""
+        key = (layer, cell)
+        if key not in self.bdtopo:
+            self.bdtopo[key] = None
+
+            def done(data, error):
+                self.bdtopo[key] = [] if error else (data or {}).get("features") or []
+                if self.bdtopo[key]:
+                    self.notify()
+
+            host.fetch_json(roads.wfs_url(cell).replace("troncon_de_route", layer), done, timeout_ms=15000)
+        return self.bdtopo[key]
+
+    def _crossed(self, chain, sections, lon, lat):
+        """Ce que le pont (chain) franchit, d'après la BD TOPO : cours d'eau, sinon voies ferrées et routes
+        plus basses, dont la ligne croise la sienne ; « Au-dessus de l'Armançon », « Au-dessus de la voie
+        ferrée et de la D905 », ou None (rien trouvé, ou lecture en cours)."""
+        cell, level = roads._cell(lon, lat), max(c["level"] for c in chain)
+        deck = [[triangulation._local(p[0], p[1], lon, lat) for p in c["line"]] for c in chain]
+        ends = [p for seg in deck for p in (seg[0], seg[-1])]
+        ends = [p for p in ends if sum(math.hypot(p[0] - q[0], p[1] - q[1]) < self.FALL_TOUCH for q in ends) == 1]
+
+        def crosses(line):  # contact avec le pont ailleurs qu'à ses bouts (routes qui s'y raccordent)
+            pts = [triangulation._local(p[0], p[1], lon, lat) for p in line]
+            for seg in deck:
+                for a, b in zip(seg, seg[1:]):
+                    for c, d in zip(pts, pts[1:]):
+                        x = _crossing(a, b, c, d)
+                        if x and all(math.hypot(x[0] - e[0], x[1] - e[1]) > self.CROSS_END for e in ends):
+                            return True
+            return False
+
+        def lines(feat):
+            geom = feat.get("geometry") or {}
+            coords = geom.get("coordinates") or []
+            return coords if geom.get("type") == "MultiLineString" else [coords]
+
+        def below(feat):
+            try:
+                return int((feat.get("properties") or {}).get("position_par_rapport_au_sol") or 0) < level
+            except (TypeError, ValueError):
+                return True
+
+        labels = []
+        for feat in self._bdtopo("troncon_hydrographique", cell) or []:
+            if below(feat) and any(crosses(line) for line in lines(feat)):
+                labels.append((feat.get("properties") or {}).get("cpx_toponyme_de_cours_d_eau") or "un cours d'eau")
+        if not labels:  # cours d'eau franchi : lui seul (routes et voies ferrées des berges en plus)
+            for feat in self._bdtopo("troncon_de_voie_ferree", cell) or []:
+                if below(feat) and any(crosses(line) for line in lines(feat)):
+                    labels.append("la voie ferrée")
+            labels += [_road_label(sec["name"]) for sec in sections
+                       if sec["level"] < level and sec not in chain and crosses(sec["line"])]
+        labels = list(dict.fromkeys(labels))
+        return "Au-dessus " + " et ".join(_of(x) for x in labels) if labels else None
 
     def _bridge_chain(self, sections, first):
         """Tronçons en pont bout à bout avec first : le pont entier."""
