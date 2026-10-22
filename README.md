@@ -320,6 +320,9 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.3.2** (22/10/2026) : largeur, le bord cliqué se pose sur la droite de mesure dans la
+  direction du clic (seule la direction compte) : croix, trait et valeur concordent ; un cercle
+  jaune glisse sur la droite sous le pointeur pour montrer où le bord se posera.
 - **0.3.1** (22/10/2026) : services qui ne répondent pas (panne, erreur, plus de 10 s sans
   réponse) signalés discrètement sous les voyants de la visionneuse, jusqu'à leur réponse
   suivante. Recherche de lieu : la carte part tout de suite vers le lieu choisi (elle attendait
