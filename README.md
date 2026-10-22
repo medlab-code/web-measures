@@ -320,6 +320,11 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.3.1** (22/10/2026) : services qui ne répondent pas (panne, erreur, plus de 10 s sans
+  réponse) signalés discrètement sous les voyants de la visionneuse, jusqu'à leur réponse
+  suivante. Recherche de lieu : la carte part tout de suite vers le lieu choisi (elle attendait
+  le contour de la commune, d'un service parfois muet) ; Entrée tapée avant les suggestions
+  prend la première. Pont : « Pont de l'A38 » (élision devant une voyelle).
 - **0.3.0** (22/10/2026) : sur un pont, en haut à gauche de la visionneuse, nom du pont (BD TOPO)
   et hauteur de chute la plus grande sur toute sa longueur (tablier d'après l'altitude GPS RTK,
   terrain sous le pont d'après le LiDAR HD ou le RGE ALTI ; pas de valeur sans RTK vérifié).
