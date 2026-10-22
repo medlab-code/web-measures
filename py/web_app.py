@@ -14,7 +14,7 @@ import math
 from datetime import datetime
 
 import web_host
-from core import autotilt, capture, filters, measures, metadata, session, widths
+from core import autotilt, capture, filters, measures, metadata, session, triangulation, widths
 from core.session import GROUND_MODES, MODES  # noqa: F401 (modes de la page)
 
 
@@ -60,10 +60,12 @@ class App(session.Session):
         self.triangulator.new_item = self._new_rays
         self.calibrator.new_item = lambda: self._new_rays(calibration=True)
         self.photo_filter = filters.PhotoFilter()
+        self.aim_frame = False  # photo affichée pas encore tournée vers le point à viser (take_aim_frame)
 
     # Données pour la page (JSON) -------------------------------------------------------
     def set_picture(self, item_json):
         """Photo affichée dans la visionneuse : sa fiche STAC (texte JSON)."""
+        self.aim_frame = True
         return super().set_picture(json.loads(item_json))
 
     def state(self):
@@ -89,6 +91,32 @@ class App(session.Session):
 
     def take_bridge_alert(self):
         return json.dumps(super().take_bridge_alert())
+
+    def take_aim_frame(self):
+        """Visées guidées : repère dans la photo affichée ([[cap, élévation]] en radians, JSON) du
+        point à viser, tel qu'il est placé avant d'être triangulé : le bord B d'une largeur là où
+        l'a mis le clic de la mesure, ou le point de référence (bord d'une largeur, pied d'une
+        hauteur) là où la première visée touche le sol plat. Une seule fois par photo affichée, et seulement si elle n'a pas encore servi à
+        le viser ; null sinon. Propre à la page (pas dans le cœur du plugin)."""
+        if not self.aim_frame or not self.active or not self.item:
+            return "null"
+        self.aim_frame = False
+        sightings = self.triangulator.sightings
+        if not sightings or any(s["pic"] == self.item.get("id") for s in sightings):
+            return "null"
+        if self.b_aiming is not None:
+            lon, lat = self.b_aiming.result["points"][1]
+        elif self.mode in session.REF_MODES and self.ref_point is None:  # point de référence (largeur, hauteur)
+            first = sightings[0]
+            elev = first.get("elev") or 0.0
+            if elev > -0.5:  # visée au-dessus de l'horizon ou presque : pas de sol touché
+                return "null"
+            lon, lat = triangulation.offset(first["lon"], first["lat"], first["heading"],
+                                            self._camera_height() / math.tan(math.radians(-elev)))
+        else:
+            return "null"
+        p = self._project(lon, lat)
+        return json.dumps([[p["yaw"], p["pitch"]]])
 
     # Dessin ------------------------------------------------------------------------------
     def _new_item(self):

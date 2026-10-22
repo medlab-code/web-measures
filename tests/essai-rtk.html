@@ -58,10 +58,19 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     const yawTo = (f, pt) => { const [x, y] = metres(pt, f.geometry.coordinates); return Math.atan2(x, y) - heading(f) * Math.PI / 180; };
     log("photos à " + Math.hypot(...metres(p1, p0)).toFixed(2) + " m l'une de l'autre");
     for (const f of photos) {
+      w.mesures.psv.zoom(60);
       w.mesures.openPhoto(f);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "photo");
+      const zoom0 = w.mesures.psv.getZoomLevel();
       await until(() => JSON.parse(app.state()).quality.includes("vérifiée"), 60000, "position vérifiée");
       await sleep(1000);
+      if (f === photos[1]) {  // visée suivante : vue tournée vers le pied placé par la première
+        await sleep(1500);
+        const pos = w.mesures.psv.getPosition(), wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+        expect("vue tournée vers le pied sur la 2e photo", Math.abs(wrap(pos.yaw - yawTo(f, target))) < 0.1,
+          `cap ${pos.yaw.toFixed(3)} au lieu de ${yawTo(f, target).toFixed(3)}`);
+        expect("zoom gardé pour viser le pied", Math.abs(w.mesures.psv.getZoomLevel() - zoom0) < 1, `zoom ${w.mesures.psv.getZoomLevel()} au lieu de ${zoom0}`);
+      }
       psvClick(yawTo(f, target), -0.35);
       log("photo " + f.id.slice(0, 8) + " : " + JSON.parse(app.state()).quality);
     }

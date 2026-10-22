@@ -396,6 +396,8 @@
     // Retour sur la photo de référence : vue cadrée sur A, ou sur la largeur, une fois la photo
     // affichée (avant, son chargement remettrait la vue d'origine)
     if (photoReady()) frameView(JSON.parse(app.take_frame()));
+    // Visées suivantes (point de référence, bord B) : vue tournée vers le point, zoom gardé
+    if (photoReady()) frameView(JSON.parse(app.take_aim_frame()), true);
     const bandeau = $("#bandeau");
     bandeau.hidden = !state.waiting_map;
     bandeau.textContent = "Cliquez maintenant ce repère sur la carte (Échap pour annuler).";
@@ -1504,7 +1506,7 @@
    * Vue cadrée sur des points de la photo ([[cap, élévation]] en radians, repère de la photo) :
    * centrée sur eux, zoom ajusté pour les voir tous (le point A seul, ou la largeur de A à B).
    */
-  function frameView(points) {
+  function frameView(points, keepZoom = false) {
     if (!psv || !points || !points.length) return;
     const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
     const yaw = Math.atan2(points.reduce((t, p) => t + Math.sin(p[0]), 0), points.reduce((t, p) => t + Math.cos(p[0]), 0));
@@ -1519,7 +1521,7 @@
     const maxFov = psv.config?.maxFov || 90;
     const vfov = Math.min(maxFov, Math.max(points.length > 1 ? 20 : 35, deg(spreadPitch) * 1.3, deg(spreadYaw) * 1.3 / aspect));
     const zoom = psv.dataHelper?.fovToZoomLevel ? psv.dataHelper.fovToZoomLevel(vfov) : undefined;
-    psv.animate({ yaw, pitch, ...(zoom == null ? {} : { zoom }), speed: 1200 });
+    psv.animate({ yaw, pitch, ...(zoom == null || keepZoom ? {} : { zoom }), speed: 1200 });
   }
 
   /** Affiche la photo d'identifiant id (photo voisine proposée, retour sur la référence). */
