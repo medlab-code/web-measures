@@ -213,6 +213,38 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     psvClick(yawTo(photos[1], toLonLat([side * 12 * ux, side * 12 * uy])), -0.3);
     await sleep(300);
     expect("seconde largeur depuis A", widthsCount() === 2 && !again.hidden);
+    {  // Bord posé sur la droite de mesure dans la direction du clic, pas là où l'on a cliqué (#18)
+      const marks = JSON.parse(app.viewer_marks()), wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+      const line = marks.find((m) => m.guide && !m.vertical && !m.epipolar).points;
+      const onLine = (yaw) => {  // élévation de la droite tracée sous ce cap
+        for (let i = 1; i < line.length; i++) {
+          const span = wrap(line[i][0] - line[i - 1][0]), t = span ? wrap(yaw - line[i - 1][0]) / span : -1;
+          if (t >= 0 && t <= 1) return line[i - 1][1] + t * (line[i][1] - line[i - 1][1]);
+        }
+        return NaN;
+      };
+      const edge = marks.filter((m) => m.label.startsWith("↔")).pop().points[1];
+      const clickYaw = yawTo(photos[1], toLonLat([side * 12 * ux, side * 12 * uy]));
+      log(`bord : cap ${edge[0].toFixed(4)} (clic ${clickYaw.toFixed(4)}), élévation ${edge[1].toFixed(4)} (droite ${onLine(edge[0]).toFixed(4)}, clic -0.3)`);
+      expect("bord dans la direction du clic", Math.abs(wrap(edge[0] - clickYaw)) < 0.01);
+      expect("bord posé sur la droite de mesure", Math.abs(edge[1] - onLine(edge[0])) < 0.005);
+      // Pointeur au-dessus de la droite : repère qui glisse dessus, sous le même cap
+      const psv = w.mesures.psv, box = psv.container.getBoundingClientRect();
+      const markA = marks.filter((m) => m.label.startsWith("↔")).pop().points[0];
+      const mid = edge[0] + wrap(markA[0] - edge[0]) / 2;  // entre A et le bord : sur la droite tracée
+      psv.rotate({ yaw: mid, pitch: edge[1] });
+      await sleep(300);
+      const at = psv.dataHelper.sphericalCoordsToViewerCoords({ yaw: mid, pitch: edge[1] + 0.1 });
+      psv.container.dispatchEvent(new w.PointerEvent("pointermove", { clientX: box.left + at.x, clientY: box.top + at.y, bubbles: true }));
+      await sleep(200);
+      let slide = null;
+      try { slide = psv.getPlugin("markers").getMarker("glisse-largeur"); } catch { /* absent */ }
+      const pos = slide?.state?.position ?? slide?.config?.position;
+      log("repère glissant : " + (pos ? `cap ${pos.yaw.toFixed(4)}, élévation ${pos.pitch.toFixed(4)} (droite ${onLine(pos.yaw).toFixed(4)})` : "absent"));
+      expect("repère glissant sur la droite sous le pointeur", pos && Math.abs(wrap(pos.yaw - mid)) < 0.01
+        && Math.abs(pos.pitch - onLine(pos.yaw)) < 0.005);
+      psv.container.dispatchEvent(new w.PointerEvent("pointerleave"));
+    }
     log("résultats : " + JSON.parse(app.results()).map((r) => r.text).join(" | "));
     // Bord opposé triangulé à son tour : bouton proposé après le clic simple, visées depuis la
     // photo de référence puis une autre, validation, retour sur la photo de référence

@@ -1025,6 +1025,38 @@
     }
   }
 
+  /**
+   * Largeur : repère qui glisse sur la droite de mesure (tirets bleus) sous le pointeur, là où le bord
+   * se posera : seule la direction du clic compte, le bord est sur cette droite (ticket #18).
+   * event null : repère retiré.
+   */
+  const SLIDE = "glisse-largeur";
+  function slideOnGuide(event) {
+    const markers = psv?.getPlugin?.("markers");
+    if (!markers) return;
+    const line = event && measuring && $("#mode").value === "road" && !aiming && !edgeBAiming
+      && currentMarks.find((m) => m.guide && !m.vertical && !m.epipolar);
+    let position = null;
+    if (line) {
+      const box = psv.container.getBoundingClientRect();
+      const yaw = psv.dataHelper?.viewerCoordsToSphericalCoords?.({ x: event.clientX - box.left, y: event.clientY - box.top })?.yaw;
+      const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+      for (let i = 1; yaw != null && i < line.points.length && !position; i++) {  // tronçon de la droite sous ce cap
+        const [y0, p0] = line.points[i - 1], [y1, p1] = line.points[i];
+        const span = wrap(y1 - y0), t = span ? wrap(yaw - y0) / span : -1;
+        if (t >= 0 && t <= 1) position = { yaw: y0 + t * span, pitch: p0 + t * (p1 - p0) };
+      }
+    }
+    const shown = (() => { try { return markers.getMarker(SLIDE); } catch { return null; } })();  // lève s'il n'existe pas
+    if (!position) {
+      if (shown) markers.removeMarker(SLIDE);
+    } else if (shown) {
+      markers.updateMarker({ id: SLIDE, position });
+    } else {
+      markers.addMarker({ id: SLIDE, position, anchor: "center center", html: '<div class="glisse"></div>' });
+    }
+  }
+
   /** Branche les clics, la vue et les changements de photo, une fois la visionneuse prête. */
   function attachViewer() {
     if (psv) return;
@@ -1046,6 +1078,8 @@
         }
         return dispatch.call(this, event);
       };
+      psv.container.addEventListener("pointermove", slideOnGuide);
+      psv.container.addEventListener("pointerleave", () => slideOnGuide(null));
       attachPlayer();
       psv.addEventListener("position-updated", updateCursor);
       psv.addEventListener("zoom-updated", updateCursor);

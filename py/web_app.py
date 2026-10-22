@@ -356,6 +356,19 @@ class App(session.Session):
 
         host.fetch_json(metadata.search_url(lon, lat, reach, 100, item.get("collection"), host.api_url), got_photos)
 
+    # Largeur : bord sur la droite de mesure (ticket #18) ----------------------------------------
+    def _width_points(self, m):
+        """Repères d'une largeur (voir Session._width_points), le bord cliqué (pas triangulé) posé sur la
+        droite de mesure dans la direction du clic, là où le calcul le place : seule la direction du clic
+        compte (widths.PerpendicularWidth), sa hauteur dans la photo non. Croix, trait et valeur
+        concordent ; la sélection d'une croix (Session._width_near) la cherche là aussi."""
+        points = super()._width_points(m)
+        pic = (self.item or {}).get("id")
+        if pic is not None and pic == m.clicks[1].get("pic") and m.edge_b is None:
+            anchor = self._aim_anchor() if m.edge is self.ref_point else None  # comme la droite tracée
+            points[1] = self._project(*m.result["points"][1], anchor[2] if anchor else None)
+        return points
+
     def take_aim_frame(self):
         """Visées guidées : repère dans la photo affichée ([[cap, élévation]] en radians, JSON) du
         point à viser, tel qu'il est placé avant d'être triangulé : le bord B d'une largeur là où
