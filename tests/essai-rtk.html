@@ -134,31 +134,21 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     near("hauteur depuis la photo 1", metresIn(doc.querySelector("#statut").textContent), d0 * (Math.tan(0.2) + Math.tan(0.35)), 0.02);
     await sleep(500);
     log("étiquettes : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | "));
-    // Hauteurs visibles depuis l'autre photo ; sommet sélectionné, réglé au clavier, Entrée
+    // Sur l'autre photo, seulement la hauteur qui y a été prise (ticket #24 : projetée, la 2e y serait décalée)
     w.mesures.openPhoto(photos[1]);
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[1].id, 30000, "retour photo 2");
     await sleep(1000);
-    log("verticale verte : " + box.querySelectorAll("[id*='-guide']").length + " · " + (box.querySelector("[id*='-guide'] polyline, [id*='-guide']")?.outerHTML.match(/stroke[^;]*2ecc40/) ? "verte" : "?"));
+    const heights = () => JSON.parse(app.viewer_marks()).filter((m) => m.label.startsWith("↕"));
+    const second = () => heights().at(-1);  // sur la photo 1 : la 2e hauteur, seule à y avoir été prise
     log("sur la photo 2 : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
       + " · croix " + box.querySelectorAll(".croix:not(.visee)").length);
-    const heights = () => JSON.parse(app.viewer_marks()).filter((m) => m.label.startsWith("↕"));
-    const second = () => heights()[1];
-    const key = (k) => doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: k, bubbles: true }));
-    let top = second().points[1];
-    psvRight(top[0], top[1]);
-    log("clic droit sur le sommet (autre photo) : " + doc.querySelector("#statut").textContent.slice(0, 70) + " · choisi : " + second().points[1][2]);
-    const pitch0 = second().points[1][1];
-    for (const k of ["ArrowUp", "ArrowUp", "ArrowUp", "ArrowDown", "ArrowLeft"]) key(k);
-    log("↑↑↑↓← : " + doc.querySelector("#statut").textContent.slice(0, 150) + " · repère monté : " + (second().points[1][1] > pitch0));
-    psvClick(top[0], top[1] + 0.05);
-    log("clic depuis l'autre photo : " + doc.querySelector("#statut").textContent.slice(0, 90));
-    key("Enter");
-    log("après Entrée : " + doc.querySelector("#statut").textContent.slice(0, 90) + " · sélection : " + JSON.parse(app.state()).point_sel);
+    expect("2e hauteur absente de l'autre photo", heights().length === 1
+      && ![...box.querySelectorAll(".etiquette")].some((e) => e.textContent.includes("3,18")));
     // Recalage au clic, sur la photo de la mesure
     w.mesures.openPhoto(photos[0]);
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "photo 1 bis");
     await sleep(1000);
-    top = second().points[1];
+    const top = second().points[1];
     psvClick(top[0], top[1]);  // clic gauche sur la croix : sélection
     log("clic sur le sommet : " + doc.querySelector("#statut").textContent.slice(0, 60));
     psvClick(yawTo(photos[0], target), 0.25);

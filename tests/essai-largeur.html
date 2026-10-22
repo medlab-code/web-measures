@@ -181,18 +181,24 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       clearOfLine(`carte : étiquette à côté d'un trait de ${target} px`);
       map.jumpTo({ zoom: map.getZoom() - Math.log2(target / length) });
     }
-    // Autre photo : la largeur reste visible ; recalage du bord, puis du point de référence
+    // Autre photo : la largeur n'y est pas (ticket #24 : projetée, elle y serait décalée) ;
+    // recalage du bord, puis du point de référence, sur la photo de la mesure
     w.mesures.openPhoto(photos[1]);
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[1].id, 30000, "photo 2");
     await sleep(1000);
     const width = () => JSON.parse(app.viewer_marks()).find((m) => m.label.startsWith("↔"));
     log("sur l'autre photo : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
       + " · croix " + box.querySelectorAll(".croix").length);
+    expect("largeur absente de l'autre photo", !width()
+      && ![...box.querySelectorAll(".etiquette")].some((e) => e.textContent.includes("↔")));
+    w.mesures.openPhoto(photos[0]);
+    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "retour photo 1");
+    await sleep(1000);
     const [markA, markB] = width().points;
     psvClick(markB[0], markB[1]);  // clic gauche sur la croix : sélection
     log("clic sur B : " + doc.querySelector("#statut").textContent.slice(0, 60) + " · choisi : " + width().points[1][2]);
     const b9 = toLonLat([side * 9 * ux, side * 9 * uy]);
-    psvClick(yawTo(photos[1], b9), -0.3);
+    psvClick(yawTo(photos[0], b9), -0.3);
     log("B recalé : " + doc.querySelector("#statut").textContent.slice(0, 120));
     near("bord recalé au clic", metresIn(doc.querySelector("#statut").textContent), 9, 0.05);
     // Flèches du clavier : bord puis point de référence, de 1 cm le long de la droite
@@ -222,12 +228,12 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     doc.querySelector("#effacer").click();
     psvRight(markA[0], markA[1]);
     log("clic droit sur A : " + doc.querySelector("#statut").textContent.slice(0, 60));
-    psvClick(yawTo(photos[1], target), -0.35);
+    psvClick(yawTo(photos[0], target), -0.35);
     log("A recalé : " + doc.querySelector("#statut").textContent + " · " + JSON.parse(app.results()).map((r) => r.text).join(" | "));
     expect("A recalé sur la droite de mesure", doc.querySelector("#statut").textContent.includes("le long de la droite de mesure"));
     again.click();
     expect("« Nouvelle mesure » : bouton masqué", again.hidden);
-    psvClick(yawTo(photos[1], toLonLat([side * 12 * ux, side * 12 * uy])), -0.3);
+    psvClick(yawTo(photos[0], toLonLat([side * 12 * ux, side * 12 * uy])), -0.3);
     await sleep(300);
     expect("seconde largeur depuis A", widthsCount() === 2 && !again.hidden);
     {  // Bord posé sur la droite de mesure dans la direction du clic, pas là où l'on a cliqué (#18)
@@ -241,7 +247,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         return NaN;
       };
       const edge = marks.filter((m) => m.label.startsWith("↔")).pop().points[1];
-      const clickYaw = yawTo(photos[1], toLonLat([side * 12 * ux, side * 12 * uy]));
+      const clickYaw = yawTo(photos[0], toLonLat([side * 12 * ux, side * 12 * uy]));
       log(`bord : cap ${edge[0].toFixed(4)} (clic ${clickYaw.toFixed(4)}), élévation ${edge[1].toFixed(4)} (droite ${onLine(edge[0]).toFixed(4)}, clic -0.3)`);
       expect("bord dans la direction du clic", Math.abs(wrap(edge[0] - clickYaw)) < 0.01);
       expect("bord posé sur la droite de mesure", Math.abs(edge[1] - onLine(edge[0])) < 0.005);
@@ -295,24 +301,24 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("photo proposée : " + doc.querySelector("#guide-photos").textContent);
     expect("incertitude attendue sur la photo proposée", /±\d+,\d\d m/.test(doc.querySelector("#guide-photos").textContent));
     const b12 = toLonLat([side * 12 * ux, side * 12 * uy]);
-    for (const f of [photos[1], photos[0]]) {
+    for (const f of [photos[0], photos[1]]) {
       w.mesures.psv.zoom(60);
       w.mesures.openPhoto(f);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "photo du bord B");
       const zoom0 = w.mesures.psv.getZoomLevel();
       await sleep(800);
-      if (f === photos[0]) {  // autre photo que celle de la mesure : ni droite ni largeur
+      if (f === photos[1]) {  // autre photo que celle de la mesure : ni droite ni largeur
         await sleep(1500);  // animation du cadrage
         aimedAt("le bord B", f, b12, zoom0);
         expect("droite de mesure masquée hors de la photo de la mesure", box.querySelectorAll("[id*='-guide']").length === 0);
       }
-      const announced = f === photos[0] ? predicted(f.id) : null;
+      const announced = f === photos[1] ? predicted(f.id) : null;
       psvClick(yawTo(f, b12), -0.3);
-      if (f === photos[0]) compare("bord B, 2e visée", announced);
+      if (f === photos[1]) compare("bord B, 2e visée", announced);
     }
     log("bord B visé : " + app.status().slice(0, 160));
     doc.querySelector("#garder").click();
-    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[1].id, 30000, "retour sur la photo de référence");
+    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "retour sur la photo de référence");
     await sleep(500);
     log("bord B triangulé : " + doc.querySelector("#statut").textContent);
     expect("largeur entre les points triangulés A et B", doc.querySelector("#statut").textContent.includes("entre les points triangulés"));

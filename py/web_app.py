@@ -313,8 +313,48 @@ class App(session.Session):
         (sinon une lecture BD TOPO par maille de 100 m traversée)."""
         return json.dumps(self.fall())
 
+    # Mesures faites : seulement sur leur photo (ticket #24) ---------------------------------------
+    # Projetées sur les autres photos, elles y paraissent décalées. Le cœur les montre partout :
+    # le filtre ne vaut que pour les repères de la visionneuse et la sélection des croix, pas pour
+    # la carte ni les résultats.
+    here_only = False
+
+    def _here(self):
+        return (self.item or {}).get("id")
+
+    def _heights(self):
+        heights = super()._heights()
+        return [m for m in heights if m.clicks[0].get("pic") == self._here()] if self.here_only else heights
+
+    def _widths(self):
+        found = super()._widths()
+        return [m for m in found if m.clicks[1].get("pic") == self._here()] if self.here_only else found
+
+    def _free_mark_point(self, k):
+        """Point gardé de la mesure libre : seulement là où il a été visé (sans repère ailleurs)."""
+        if self.here_only and self._here() not in self.point_views.get(self.points[k][2]["nom"], {}):
+            return {"pic": self._here(), "yaw": None, "pitch": None}
+        return super()._free_mark_point(k)
+
+    def _free_marks(self):
+        # distance : seulement sur une photo d'où ses deux points ont été visés
+        return [m for m in super()._free_marks() if all(p["yaw"] is not None for p in m["points"])]
+
+    def _filtered(self, method, *args):
+        self.here_only = True
+        try:
+            return method(*args)
+        finally:
+            self.here_only = False
+
+    def _height_near(self, click):
+        return self._filtered(super()._height_near, click)
+
+    def _width_near(self, click):
+        return self._filtered(super()._width_near, click)
+
     def viewer_marks(self):
-        marks = super().viewer_marks()
+        marks = self._filtered(super().viewer_marks)
         if self._tilt_pending():  # objet vertical en cours (croix et trait du calage), effacé une fois validé
             marks.append({"points": [c["pos"] + [k == self.tilt_sel] for k, c in enumerate(self.tilt_clicks)],
                           "label": "", "calage": True})

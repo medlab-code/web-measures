@@ -82,6 +82,9 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await sleep(800);
     log("autre photo : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
       + " · croix " + box.querySelectorAll(".croix:not(.visee)").length);
+    // les deux points visés aussi depuis cette photo : la distance y reste (ticket #24)
+    expect("distance sur l'autre photo d'où ses deux points ont été visés",
+      [...box.querySelectorAll(".etiquette")].some((e) => e.textContent.includes("↔")));
     log("résultats : " + JSON.parse(app.results()).map((r) => r.text).join(" | ")
       + " · carte : " + JSON.parse(app.map_geojson()).features.map((f) => f.properties.kind).join(","));
     log("modes : " + [...doc.querySelectorAll("#mode option")].map((o) => o.textContent).join(" | "));
