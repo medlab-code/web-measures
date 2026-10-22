@@ -329,6 +329,14 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.3.4** (22/10/2026) : axe de la route tiré de la trajectoire RTK de la séquence quand elle est
+  droite et concorde avec la BD TOPO (±0,5° au lieu de ±2°) ; incertitude attendue du point affichée
+  sur les boutons des photos proposées pour la visée suivante ; rappel de zoomer quand un clic de
+  mesure est fait trop peu zoomé ; largeur : le réticule reste sur la droite de mesure quand un
+  clic poserait le bord, et la première visée du bord B part du bord posé sur la droite. Calage du
+  cap et de la position retiré. Visite guidée en trois bulles à la première ouverture ; photo par
+  défaut sur le château de Semur-en-Auxois. Lecture rapide façon K2000 (barres à 4x et plus, photo
+  à 16x), désactivable dans les réglages.
 - **0.3.3** (22/10/2026) : cache des informations géographiques (routes, PR, ponts, altitudes,
   communes) gardé dans le navigateur 3 mois (50 Mo au plus) : plus rapide, et toujours là quand
   un service ne répond pas ; taille et bouton « Vider le cache » dans « Accès aux services ».
