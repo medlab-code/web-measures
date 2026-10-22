@@ -329,6 +329,8 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.3.7** (22/10/2026) : favoris, une puce devant chaque nom, alignée sur sa première ligne
+  (noms sur deux lignes).
 - **0.3.6** (22/10/2026) : dès la 3e visée d'un point, la vue de la photo ouverte se tourne vers le
   point déjà triangulé. Favoris : export dans un fichier et import (sur un autre poste ou navigateur).
 - **0.3.5** (22/10/2026) : sur un pont, son nom tiré des ouvrages d'art de la BD TOPO quand la route
