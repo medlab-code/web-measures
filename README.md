@@ -329,6 +329,12 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.3.5** (22/10/2026) : sur un pont, son nom tiré des ouvrages d'art de la BD TOPO quand la route
+  ne le nomme pas (« Pont Joly (D954) »), et dessous ce qu'il franchit : « Au-dessus de l'Armançon »,
+  « du canal de Bourgogne », « de l'A6 ». Vérification RTK d'une séquence prise sur un pont : autres
+  portions de la séquence cherchées par rang (le LiDAR donne le terrain sous le tablier). Favoris :
+  photos gardées dans le navigateur, nommées « commune – voie – PR – pont », étoile dans la
+  visionneuse comme dans un navigateur.
 - **0.3.4** (22/10/2026) : axe de la route tiré de la trajectoire RTK de la séquence quand elle est
   droite et concorde avec la BD TOPO (±0,5° au lieu de ±2°) ; incertitude attendue du point affichée
   sur les boutons des photos proposées pour la visée suivante ; rappel de zoomer quand un clic de
