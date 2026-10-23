@@ -66,7 +66,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       log("validé : " + doc.querySelector("#statut").textContent);
     }
     log("distance attendue : " + truth.toFixed(3) + " m");
-    near("distance entre les deux points", metresIn(JSON.parse(app.results()).find((r) => r.kind === "distance")?.text), truth, 0.02);
+    near("distance entre les deux points", Number(JSON.parse(app.export_geojson()).features.find((f) => f.properties.type.startsWith("distance"))?.properties.valeur_m), truth, 0.02);  // hors de la liste (#30)
     await sleep(1500);
     { const map = w.mesures.map, b = map.getBounds(), c = map.getContainer();
       const pa = map.project(target), pb = map.project(target2);

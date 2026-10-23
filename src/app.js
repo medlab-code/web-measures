@@ -677,7 +677,7 @@
     const ol = $("#resultats ol");
     const focused = document.activeElement?.closest?.("#resultats ol") ? document.activeElement.dataset.key : null;
     ol.replaceChildren(...list.map((r) => {
-      const li = document.createElement("li");
+      const li = Object.assign(document.createElement("li"), { className: r.sous ? "sous" : "" });  // mesure d'un point de référence
       const text = Object.assign(document.createElement("span"), { textContent: r.text });
       const comment = Object.assign(document.createElement("input"), {
         type: "text", value: r.comment, placeholder: "Commentaire", title: "Commentaire exporté avec le résultat",

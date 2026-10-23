@@ -107,7 +107,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       + " · croix " + box.querySelectorAll(".croix").length + " · sur la carte : "
       + JSON.parse(app.map_geojson()).features.map((f) => f.properties.kind).join(","));
     log("attendu sans inclinaison : " + (d * (Math.tan(0.3) + Math.tan(0.35))).toFixed(3) + " m");
-    near("hauteur depuis la photo 2", metresIn(JSON.parse(app.results())[0].text), d * (Math.tan(0.3) + Math.tan(0.35)), 0.02);
+    near("hauteur depuis la photo 2", metresIn(JSON.parse(app.results()).find((r) => r.kind === "mesure").text), d * (Math.tan(0.3) + Math.tan(0.35)), 0.02);
     // Même point de référence, depuis l'autre photo de la triangulation
     expect("flèches masquées en étape 2", [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden"));
     log("flèches masquées en étape 2 : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden")

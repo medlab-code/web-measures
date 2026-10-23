@@ -284,6 +284,10 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       expect("Entrée : bord désélectionné", !JSON.parse(app.state()).point_sel);
     }
     log("résultats : " + JSON.parse(app.results()).map((r) => r.text).join(" | "));
+    const pointsListed = () => JSON.parse(app.results()).filter((r) => r.kind === "point").length;
+    const grouped = (list) => list[0]?.kind === "point" && list.slice(1).every((r) => r.sous && /^↔ [A-Z] /.test(r.text));
+    expect("liste : point de référence puis ses largeurs nommées (#30)", grouped(JSON.parse(app.results()))
+      && doc.querySelectorAll("#resultats li.sous").length === JSON.parse(app.results()).length - 1);
     // Bord opposé triangulé à son tour : bouton proposé après le clic simple, visées depuis la
     // photo de référence puis une autre, validation, retour sur la photo de référence
     const triB = doc.querySelector("#trianguler-b");
@@ -330,6 +334,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       expect("vue centrée sur la largeur au retour", Math.abs(wrap(pos.yaw - mid)) < 0.05);
       log("largeur entière dans la vue : " + inView(last.points));
       log("cadrage : " + JSON.stringify(w.mesures.psv.getPosition()) + " · champ " + w.mesures.psv.state.vFov.toFixed(0) + "°"); }
+    expect("bord B triangulé : pas d'entrée à lui dans la liste (#30)", pointsListed() === 1 && grouped(JSON.parse(app.results())));
     near("largeur avec le bord B triangulé", metresIn(doc.querySelector("#statut").textContent), 12, 0.15);
     log("csv : " + app.export_csv().split("\n").filter((l) => l.startsWith("largeur")).join(" // "));
     verdict();

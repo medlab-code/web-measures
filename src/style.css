@@ -365,6 +365,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 #resultats ol { margin: 0; padding-left: 1.4rem; }
 #resultats ol:empty { display: none; }
 #resultats li { margin: 0.25rem 0; }
+#resultats li.sous { display: block; margin-left: 1rem; }  /* block : hors de la numérotation */
 #resultats li .ligne { display: flex; align-items: center; gap: 0.5rem; }
 #resultats li span { flex: 1; }
 #resultats .effacer-resultat, #favoris .effacer-resultat {

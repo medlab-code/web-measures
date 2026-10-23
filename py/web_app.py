@@ -367,7 +367,33 @@ class App(session.Session):
         return json.dumps(super().handles())
 
     def results(self):
-        return json.dumps(super().results())
+        """Liste des résultats (ticket #30) : une entrée par point de référence, ses hauteurs et
+        largeurs dessous (« sous »), nommées par leur point d'arrivée : « ↕ B 3,77 m ± 0,12 m ».
+        Les autres points gardés et les distances n'y figurent pas (ils restent exportés)."""
+        rows = super().results()
+        measures_by_id = {id(m): m for m in self.tool.measures()}
+        under = {}  # nom du point de référence -> lignes de ses mesures
+        orphans = []  # mesure sans point de référence gardé : gardée visible, à la fin
+        for r in rows:
+            m = measures_by_id.get(r["id"]) if r["kind"] == "mesure" else None
+            if m is None:
+                continue
+            end = self._end_name(m)
+            if end:
+                r = dict(r, text="{}{} {}".format(r["text"][:2], end["name"], r["text"][2:]))
+            ref = (getattr(m, "edge", None) or getattr(m, "reference", None) or {}).get("name")  # largeur : bord A
+            under.setdefault(ref, []).append(dict(r, sous=True))
+        current = (self.ref_point or {}).get("name")
+        out = []
+        for r in rows:
+            if r["kind"] != "point":
+                continue
+            name = self.points[r["id"]][2]["nom"]
+            if name in under or name == current:
+                out += [r] + under.pop(name, [])
+        for subs in under.values():
+            orphans += [dict(r, sous=False) for r in subs]
+        return json.dumps(out + orphans)
 
     def take_proposal(self):
         return json.dumps(super().take_proposal())
