@@ -218,7 +218,8 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
           <p class="aide">Par défaut : l'instance de l'IGN, qui sert les photos du conseil départemental (plus
             rapide que le méta-catalogue, qui interroge toutes les instances).</p>
           <label><input id="centrer" type="checkbox" checked> Centrer la carte sur la photo</label>
-          <label title="Filtrage anisotrope 8x des textures : atténue le crénelage et le scintillement des détails fins vus de loin, en gardant l'image nette, au prix d'une navigation un peu moins fluide."><input id="anisotrope" type="checkbox"> Filtrage anisotrope</label>
+          <label title="Filtrage anisotrope 16x des textures : atténue le crénelage et le scintillement des détails fins vus de loin, en gardant l'image nette, au prix d'une navigation un peu moins fluide."><input id="anisotrope" type="checkbox"> Filtrage anisotrope</label>
+          <label title="Expérimental (ticket #29). Quand les verticales de la photo manquent (rase campagne), l'inclinaison est tirée de la pente et du dévers du terrain LiDAR HD sous la caméra et du décalage de la fixation de la caméra, appris sur des photos de village de la même séquence (téléchargées en arrière-plan, environ 45 Mo par séquence). Incertitude d'environ ±0,6° au lieu de ±2°."><input id="inclinaison-terrain" type="checkbox"> Inclinaison par le terrain hors agglomération (expérimental)</label>
           <h3>Calage des photos</h3>
           <p class="aide">Conservé dans ce navigateur d'une session à l'autre. Pour le reprendre ailleurs
             (autre poste, autre navigateur) : l'exporter, puis l'importer.</p>

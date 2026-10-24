@@ -347,6 +347,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .ligne.alerte { color: var(--attente); }
 
 .reglages, .boutons { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.9rem; margin-top: 0.6rem; }
+#reglages > label { display: block; margin: 0.2rem 0; }  /* une option par ligne */
 #case-k2000 { display: block; margin: 0.8rem 0 0.2rem; }  /* détachée des boutons du calage */
 .reglages label { display: flex; align-items: center; gap: 0.35rem; }
 .reglages input[type="number"] { width: 4.5rem; }

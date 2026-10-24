@@ -196,12 +196,18 @@
   });
   $("#centrer").checked = store.get("centrer", "1") === "1";
   $("#centrer").addEventListener("change", (event) => store.set("centrer", event.target.checked ? "1" : "0"));
+  // Inclinaison par le terrain hors agglomération (expérimental, ticket #29) : décochée par défaut
+  $("#inclinaison-terrain").checked = store.get("inclinaison-terrain") === "1";
+  $("#inclinaison-terrain").addEventListener("change", (event) => {
+    store.set("inclinaison-terrain", event.target.checked ? "1" : "0");
+    if (app) refresh(app.set_terrain_relay(event.target.checked));
+  });
   $("#sans-k2000").checked = store.get("sans-k2000") === "1";  // barres (4x et plus) et photo (16x) de la lecture rapide
   $("#sans-k2000").addEventListener("change", (event) => {
     store.set("sans-k2000", event.target.checked ? "1" : "0");
     updatePlayer();
   });
-  // Filtrage anisotrope 8x des textures du panorama (4x dans le plugin), contre le crénelage et
+  // Filtrage anisotrope 16x des textures du panorama (4x dans le plugin), contre le crénelage et
   // le scintillement des détails fins vus de loin. Photo Sphere Viewer crée ses textures sans
   // mipmaps, sans lesquels l'anisotropie n'a guère d'effet : on les active (trilinéaire).
   // Chaque texture n'est traitée qu'une fois ; décoché, le filtre d'origine revient.
@@ -217,7 +223,7 @@
         for (const t of texs) {
           if (!t?.isTexture || !t.image || !!t.webAniso === on) continue;
           t.webAniso = on;
-          t.anisotropy = on ? Math.min(8, max) : 1;  // limité par la carte graphique
+          t.anisotropy = on ? Math.min(16, max) : 1;  // limité par la carte graphique
           t.generateMipmaps = on;
           t.minFilter = on ? 1008 : 1006;  // THREE.LinearMipmapLinearFilter : THREE.LinearFilter
           t.needsUpdate = true;
@@ -508,6 +514,7 @@
       "#calage-importer"]) $(id).disabled = false;
     $("#camera").value = store.get("camera", $("#camera").value);
     app.set_camera_height(Number($("#camera").value));
+    app.set_terrain_relay($("#inclinaison-terrain").checked);
     applyFilter(false);
     if (photo) app.set_picture(JSON.stringify(photo));
     showModeOptions();

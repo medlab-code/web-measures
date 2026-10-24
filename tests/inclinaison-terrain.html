@@ -1,0 +1,53 @@
+<!doctype html><meta charset="utf-8"><title>Essai de l'inclinaison par le terrain</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Inclinaison par le terrain hors agglomération (option expérimentale, ticket #29) : photo CD21 en
+     rase campagne (séquence 7633c2aa, rang 4826, 66 km/h, aucune arête verticale). Option cochée :
+     photos de village de la séquence calées en arrière-plan, puis inclinaison « calée par le terrain,
+     expérimental » (±0,6° au moins) ; décochée : de nouveau « non calée ». Lancer comme
+     tests/navigateur.html (voir CLAUDE.md). -->
+<script>try { localStorage.clear(); } catch {}</script>
+<iframe id="f" src="../index.html" style="width:1400px;height:900px;border:0"></iframe>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let failures = 0, checks = 0;
+const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + " " + detail); } };
+const until = async (test, ms) => { const t = Date.now(); while (!test() && Date.now() - t < ms) await sleep(500); return test(); };
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  try {
+    const t0 = Date.now();
+    while (!(w.mesures?.app && w.mesures.map?.loaded?.())) { if (Date.now() - t0 > 120000) throw new Error("Pyodide"); await sleep(250); }
+    const doc = w.document, app = w.mesures.app;
+    doc.querySelector("#reglages-defaut")?.close();
+    const API = "https://panoramax.ign.fr/api";
+    const f = (await (await fetch(API + "/collections/7633c2aa-31fd-4caf-b51d-922f18132920/items?limit=1&startAfterRank=4825")).json()).features[0];
+    const box = doc.querySelector("#inclinaison-terrain");
+    expect("option décochée par défaut", !box.checked);
+    box.checked = true; box.dispatchEvent(new Event("change"));
+    w.mesures.openPhoto(f);
+    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000);
+    doc.querySelector("#mesure").click();  // inclinaison calculée à l'activation de la mesure
+    const quality = () => JSON.parse(app.state()).quality || "";
+    let last = "";
+    const t1 = Date.now();
+    while (Date.now() - t1 < 600000) {
+      const q = quality();
+      if (q !== last) { log(Math.round((Date.now() - t1) / 1000) + " s : " + q); last = q; }
+      if (/calée par le terrain|par le terrain :/.test(q)) break;
+      await sleep(1000);
+    }
+    const q = quality();
+    expect("inclinaison calée par le terrain", /inclinaison calée par le terrain, expérimental/.test(q), q);
+    const sigma = parseFloat((/expérimental \(±([\d,]+)°\)/.exec(q) || [])[1]?.replace(",", "."));
+    expect("incertitude d'au moins 0,6°", sigma >= 0.6, String(sigma));
+    log("calage : " + (doc.querySelector("#calage-photo")?.textContent || app.calibration_text?.() || ""));
+    box.checked = false; box.dispatchEvent(new Event("change"));
+    await sleep(500);
+    expect("option décochée : non calée", /non calée/.test(quality()), quality());
+    log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
+  } catch (e) { log("exception " + e); }
+  log("FIN");
+})();
+</script>

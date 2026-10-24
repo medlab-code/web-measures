@@ -14,8 +14,10 @@ import math
 import re
 import time
 from datetime import datetime
+from urllib.parse import urlencode
 
 import web_host
+import web_terrain
 import web_tilt
 from core import (autotilt, calibration, capture, filters, host, measures, metadata, precision, roads, session, tools,
                   triangulation, widths)
@@ -301,6 +303,14 @@ class App(session.Session):
         self.bdtopo = {}  # (couche BD TOPO, maille) -> objets lus (voir _bdtopo)
         self.tilt_reasons = {}  # photo -> raison de l'échec de l'inclinaison automatique (ticket #29)
         self.tilts.run = self._run_tilt
+        # Inclinaison par le terrain hors agglomération, expérimentale (option, voir web_terrain)
+        self.terrain_relay = False
+        self.relay_tilts = {}  # photo -> inclinaison par le terrain (dict comme Calibration.auto_tilt)
+        self.relay_pending = {}  # photo -> étape du calcul en cours
+        self.relay_failed = {}  # photo -> raison de l'échec
+        self.relay_models = {}  # séquence -> références, modèle (web_terrain.model), raison d'un échec
+        self._core_auto_tilt = self.calibration.auto_tilt
+        self.calibration.auto_tilt = self._auto_tilt
 
     # Données pour la page (JSON) -------------------------------------------------------
     def set_picture(self, item_json):
@@ -336,6 +346,8 @@ class App(session.Session):
                 self.tilt_reasons[pic] = (res or {}).get("reason", "calcul des verticales indisponible")
                 res = None
             done(res)
+            if res is None and self.terrain_relay and (self.item or {}).get("id") == pic:
+                self._relay(self.item)
 
         web_host.run_task(web_tilt.estimate, args, got)
 
@@ -350,9 +362,12 @@ class App(session.Session):
 
     def _lights(self, pic):
         """Voyants du cœur ; inclinaison pas encore calculée : « avant » (jaune), pas « non » (rouge,
-        pris pour un échec)."""
-        return [(name, "avant" if name == "Inclinaison" and light == "non" and not self._tilt_final() else light)
-                for name, light in super()._lights(pic)]
+        pris pour un échec) ; calcul par le terrain en cours : « attente »."""
+        def light_of(name, light):
+            if name != "Inclinaison" or light != "non":
+                return light
+            return "attente" if pic in self.relay_pending else "non" if self._tilt_final() else "avant"
+        return [(name, light_of(name, light)) for name, light in super()._lights(pic)]
 
     def _tilt_reason(self):
         """Pourquoi la photo affichée n'a pas d'inclinaison, ou None (calée, en cours) : raison de
@@ -366,7 +381,10 @@ class App(session.Session):
             if self.mode == "tri":
                 return "pas calculée en mesure libre"
             return "calculée au premier clic sur la photo" if self.active else "calculée à l'activation de la mesure"
-        return self.tilt_reasons.get(pic, web_tilt.FEW_EDGES)
+        reason = self.tilt_reasons.get(pic, web_tilt.FEW_EDGES)
+        if self.terrain_relay and pic in self.relay_failed:
+            reason += " ; par le terrain : " + self.relay_failed[pic]
+        return reason
 
     def _tilt_line(self):
         """(texte, alerte) de l'inclinaison dans la ligne d'état. Un seul vocabulaire (ticket #29) :
@@ -382,16 +400,216 @@ class App(session.Session):
             elif source.startswith("clics + "):
                 how = "à la main et par {} ({})".format(
                     "les verticales de la photo" if source.endswith("verticales") else "le terrain", sigma)
+            elif source == "terrain web":
+                how = "par le terrain, expérimental ({})".format(sigma)
             else:
                 how = "par {} ({})".format("les verticales de la photo" if source == "verticales" else "le terrain", sigma)
             return "inclinaison calée " + how, False
         if pic and self.tilts.pending(pic):
             return "inclinaison : calcul en cours…", False
+        if pic in self.relay_pending:
+            return "inclinaison : calcul par le terrain en cours ({})…".format(self.relay_pending[pic]), False
         reason = self._tilt_reason()
         if not self._tilt_final():
             return "inclinaison " + reason, False
         return "inclinaison non calée (±{}°) : {}".format(
             measures._num(calibration.UNCALIBRATED, 0), reason), True
+
+    # Inclinaison par le terrain hors agglomération, expérimentale (ticket #29) -------------------
+    # Option de la page, décochée par défaut. Quand les verticales de la photo manquent : terrain
+    # LiDAR HD sous la caméra (web_terrain), plus le décalage de la fixation, appris sur des photos
+    # de la séquence calées par leurs verticales en zone d'habitation.
+    RELAY_RADIUS = 15000.0  # m autour de la photo : zones d'habitation (BD TOPO) où chercher les références
+    RELAY_ZONE = 300.0  # m autour du centre d'une zone : photos de la séquence candidates
+    RELAY_TRIES = 12  # photos de référence analysées au plus par séquence (une photo HD chacune)
+    RELAY_PER_ZONE = 3  # photos analysées au plus par zone : le centre du village n'est pas toujours la meilleure
+    RELAY_NATURES = ("Lieu-dit habité", "Quartier")
+
+    def set_terrain_relay(self, on):
+        """Option « Inclinaison par le terrain hors agglomération » : cochée, calcul lancé pour la photo
+        affichée si ses verticales ont déjà échoué ; mesures recalculées dans les deux sens."""
+        self.terrain_relay = bool(on)
+        if self.terrain_relay and self.item and self.item.get("id") in self.tilt_reasons:
+            self._relay(self.item)
+        self._calibration_changed()
+        self.notify()
+        return self.status()
+
+    def _auto_tilt(self, pic):
+        """Calibration.auto_tilt : celle du cœur (verticales, modèle LiDAR du cœur), sinon, l'option
+        cochée, l'inclinaison par le terrain de la page."""
+        tilt = self._core_auto_tilt(pic)
+        if tilt is None and self.terrain_relay:
+            tilt = self.relay_tilts.get(pic)
+        return tilt
+
+    def _relay(self, item):
+        """Inclinaison par le terrain de la photo item (fiche STAC) : terrain sous elle, puis modèle de
+        sa séquence ; rangée dans relay_tilts, ou la raison de l'échec dans relay_failed."""
+        pic = item.get("id")
+        if not pic or pic in self.relay_tilts or pic in self.relay_pending:
+            return
+        self.relay_failed.pop(pic, None)
+        self.relay_pending[pic] = "terrain sous la photo"
+
+        def failed(reason):
+            self.relay_pending.pop(pic, None)
+            self.relay_failed[pic] = reason
+            self.notify()
+
+        def got_own(entry, reason):
+            if entry is None:
+                return failed(reason)
+            self.relay_pending[pic] = "photos de référence de la séquence"
+            self.notify()
+            self._sequence_model(item, lambda m, why: got_model(entry, m, why))
+
+        def got_model(entry, m, reason):
+            if m is None:
+                return failed(reason)
+            self.relay_pending.pop(pic, None)
+            self.relay_tilts[pic] = web_terrain.predict(m, entry["slopes"], entry["heading"])
+            self._calibration_changed({pic})
+            self.notify()
+
+        self._terrain_of(item, got_own)
+        self.notify()
+
+    @staticmethod
+    def _heading_of(item):
+        heading = metadata.precise_heading(item)
+        return metadata.item_heading(item) if heading is None else heading
+
+    def _terrain_of(self, item, done):
+        """Terrain sous la photo item : done({slopes, heading}, None), ou done(None, raison). Grille
+        LiDAR HD (web_terrain.grid_points), une requête."""
+        try:
+            lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
+            heading = float(self._heading_of(item))
+        except (KeyError, TypeError, ValueError):
+            return done(None, "position ou cap de la photo inconnus")
+        points = web_terrain.grid_points(lon, lat, heading)
+
+        def got_ground(data, error):
+            if error:
+                return done(None, "service d'altitude injoignable")
+            z = precision._ground(data)
+            if not z or len(z) != len(points) or None in z:
+                return done(None, "pas de LiDAR HD sous la photo")
+            done({"slopes": web_terrain.slopes(z), "heading": heading}, None)
+
+        host.fetch_json(precision.lidar_url(points, precision.LIDAR_RESOURCE), got_ground, timeout_ms=15000)
+
+    def _sequence_model(self, item, done):
+        """Modèle de la séquence de item (web_terrain.model) : done(modèle, None) ou done(None, raison).
+        Cherché une fois par séquence, les demandes suivantes attendent le même calcul."""
+        seq = item.get("collection")
+        s = self.relay_models.get(seq)
+        if s is None:
+            s = self.relay_models[seq] = {"waiting": [done], "refs": [], "tried": 0, "zones": None}
+            self._find_refs(item, s)
+        elif "waiting" in s:
+            s["waiting"].append(done)
+        else:
+            done(s["model"], s["reason"])
+
+    def _find_refs(self, item, s):
+        """Références de la séquence (s, voir _sequence_model) : jusqu'à RELAY_PER_ZONE photos par zone
+        d'habitation (réparties dans la zone), des zones les plus proches aux plus lointaines, calées
+        par leurs verticales, jusqu'à web_terrain.MIN_REFS réussies ou RELAY_TRIES analysées."""
+        lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
+        seq = item.get("collection")
+
+        def progress():
+            text = "photos de référence : {} calée{} sur {} analysée{}".format(
+                len(s["refs"]), "s" if len(s["refs"]) > 1 else "", s["tried"], "s" if s["tried"] > 1 else "")
+            for p in self.relay_pending:
+                self.relay_pending[p] = text
+            self.notify()
+
+        def finish(reason):
+            s["model"] = web_terrain.model(s["refs"])
+            s["reason"] = None if s["model"] else reason
+            for cb in s.pop("waiting"):
+                cb(s["model"], s["reason"])
+
+        queue = []  # photos de la zone en cours, à analyser
+
+        def next_zone():
+            if len(s["refs"]) >= web_terrain.MIN_REFS:
+                return finish(None)
+            if queue and s["tried"] < self.RELAY_TRIES:
+                return analyse(queue.pop(0))
+            if s["tried"] >= self.RELAY_TRIES or not s["zones"]:
+                return finish("{} photo{} de village calée{} sur {} (il en faut {})".format(
+                    len(s["refs"]), "s" if len(s["refs"]) > 1 else "", "s" if len(s["refs"]) > 1 else "",
+                    s["tried"], web_terrain.MIN_REFS))
+            ring, (clon, clat) = s["zones"].pop(0)
+            host.fetch_json(metadata.search_url(clon, clat, self.RELAY_ZONE, 100, seq, host.api_url),
+                            lambda data, error: got_photos(ring, clon, clat, data, error), timeout_ms=15000)
+
+        def got_photos(ring, clon, clat, data, error):
+            feats = [f for f in ([] if error else (data or {}).get("features") or [])
+                     if f.get("collection") == seq and f.get("id") != item.get("id")
+                     and _inside(f["geometry"]["coordinates"][:2], ring)]
+            feats.sort(key=lambda f: math.hypot(f["geometry"]["coordinates"][0] - clon,
+                                                f["geometry"]["coordinates"][1] - clat))
+            n = self.RELAY_PER_ZONE
+            queue[:] = [feats[k * len(feats) // n] for k in range(n) if k * len(feats) // n < len(feats)]
+            queue[:] = [f for k, f in enumerate(queue) if f not in queue[:k]]
+            next_zone()
+
+        def analyse(f):
+            href = ((f.get("assets") or {}).get("hd") or {}).get("href")
+            if not href:
+                return next_zone()
+            s["tried"] += 1
+            progress()
+            host.fetch(href, lambda data, error: got_image(f, data, error), prefer_cache=True)
+
+        def got_image(f, data, error):
+            if error or not data:
+                return next_zone()
+            heading = float(self._heading_of(f))
+            web_host.run_task(web_tilt.estimate, (bytes(data), heading), lambda res: got_verticals(f, heading, res))
+
+        def got_verticals(f, heading, res):
+            if not res or "reason" in res:
+                return next_zone()
+            forward, right = calibration.tilt_components(res["up"], heading)
+
+            def got_ground(entry, reason):
+                if entry is not None:
+                    s["refs"].append(dict(entry, forward=forward, right=right))
+                    progress()
+                next_zone()
+            self._terrain_of(f, got_ground)
+
+        def got_zones(data, error):
+            if error:
+                return finish("BD TOPO injoignable (zones d'habitation)")
+            zones = []
+            for z in (data or {}).get("features") or []:
+                if (z.get("properties") or {}).get("nature") not in self.RELAY_NATURES:
+                    continue
+                g = z.get("geometry") or {}
+                polys = g.get("coordinates") or []
+                ring = max((p[0] for p in (polys if g.get("type") == "MultiPolygon" else [polys]) if p), key=len,
+                           default=None)
+                if ring:
+                    c = (sum(p[0] for p in ring) / len(ring), sum(p[1] for p in ring) / len(ring))
+                    zones.append((ring, c))
+            zones.sort(key=lambda z: math.hypot((z[1][0] - lon) * math.cos(math.radians(lat)), z[1][1] - lat))
+            s["zones"] = zones
+            next_zone()
+
+        dlat = self.RELAY_RADIUS / 111320.0
+        dlon = dlat / max(math.cos(math.radians(lat)), 0.01)
+        url = roads.WFS_URL + "?" + urlencode({
+            "SERVICE": "WFS", "VERSION": "2.0.0", "REQUEST": "GetFeature", "TYPENAMES": "BDTOPO_V3:zone_d_habitation",
+            "OUTPUTFORMAT": "application/json", "SRSNAME": "EPSG:4326", "COUNT": 500,
+            "BBOX": "{},{},{},{},urn:ogc:def:crs:EPSG::4326".format(lat - dlat, lon - dlon, lat + dlat, lon + dlon)})
+        host.fetch_json(url, got_zones, timeout_ms=20000)
 
     def fall_json(self):
         """Hauteur de chute (voir fall), en JSON : demandée par la page hors lecture de la séquence
@@ -1125,3 +1343,13 @@ def _csv(value):
         return repr(round(value, 7)).replace(".", ",")
     text = str(value)
     return '"' + text.replace('"', '""') + '"' if any(c in text for c in ';"\n') else text
+
+
+def _inside(point, ring):
+    """Point (lon, lat) dans le polygone ring ([[lon, lat]]) ? Règle du nombre de croisements."""
+    x, y, inside = float(point[0]), float(point[1]), False
+    for a, b in zip(ring, ring[1:] + ring[:1]):
+        (x1, y1), (x2, y2) = a[:2], b[:2]
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            inside = not inside
+    return inside

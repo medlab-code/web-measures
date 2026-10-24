@@ -188,6 +188,25 @@ Les consignes de chaque calage disent l'étape en cours et ce qui est déjà fai
 
 Le calage est gardé d'une visite à l'autre, et peut être exporté ou importé (« Réglages »).
 
+**Inclinaison par le terrain hors agglomération** (« Réglages », expérimental, décochée par
+défaut) : en rase campagne, les verticales de la photo manquent presque toujours (2 % des photos
+calées hors zone d'habitation) et l'inclinaison reste à ±2°. Cochée, quand les verticales
+échouent, la page :
+1. lit le terrain LiDAR HD sous la caméra sur une grille de ±2,5 m × ±1,5 m (55 points, une
+   requête) : sa pente et son dévers ;
+2. cherche dans la même séquence des photos de village (zones d'habitation de la BD TOPO à
+   moins de 15 km, jusqu'à 3 photos par zone, des plus proches aux plus lointaines) et les cale
+   par leurs verticales en arrière-plan, jusqu'à 3 réussies (12 analysées au plus, environ 9 Mo
+   chacune ; une fois par séquence) ;
+3. en tire le décalage de la fixation de la caméra (inclinaison des références moins leur
+   terrain), et l'ajoute au terrain sous la photo.
+
+La ligne d'état dit l'étape (« calcul par le terrain en cours (photos de référence : 2 calées sur
+6 analysées) »), puis « inclinaison calée par le terrain, expérimental (±0,6°) », ou la cause d'un
+échec (pas de LiDAR HD sous la photo, trop peu de photos de village calées). L'incertitude des
+mesures en tient compte. Le roulis du véhicule en virage n'est pas corrigé ; le RGE ALTI n'est
+pas utilisé (talus et murs pris pour la route).
+
 **Autour de la mesure** :
 
 - voyants **RTK**, **LiDAR HD** (ou **RGE ALTI** en secours) et **inclinaison** de la photo ;
@@ -233,6 +252,24 @@ Essais sur deux photos imajbox à position RTK (±0,10 m) de Pouilly-en-Auxois, 
 | Hauteur | 3,46 m ± 0,11 m | 3,464 m |
 | Largeur (clic à 40° de la droite de mesure) | 8,00 m ± 0,33 m | 8 m |
 | Distance entre deux points | 3,60 m ± 0,24 m | 3,606 m |
+
+Inclinaison par le terrain (24/10/2026, 7 séquences CD21) : 14 photos témoins hors des villages
+de référence, prises en hameau ou en sortie de village à 56 à 67 km/h et calées par leurs
+verticales (8 endroits distincts, 5 séquences), comparées à l'inclinaison tirée du terrain et du
+décalage appris sur les photos de village de leur séquence (écart quadratique moyen) :
+
+| Méthode | Pente | Dévers |
+|---|---|---|
+| Sans terrain (inclinaison moyenne des références) | 1,6° | 1,2° |
+| Grille du cœur (±1,5 m × ±0,8 m) | 0,6° | 0,8° |
+| **Grille large (±2,5 m × ±1,5 m), retenue** | **0,5°** | **0,6°** (0,7° à un témoin par endroit) |
+| Grille large + roulis 3°/g, 4,5°/g, 6°/g | 0,5° | 0,6°, 0,7°, 0,9° |
+
+En rase campagne, sans bâtiment, aucune photo n'a d'arêtes verticales : pas de témoin possible
+à plus de 70 km/h. Le seul virage témoin (0,3 g) est mieux sans correction du roulis (+0,4°)
+qu'avec (−1,1° à 4,5°/g), contrairement aux 16 photos de village du 23/10 : correction retirée.
+À confirmer sur des longueurs connues en rase campagne (largeur de voie, tirets de 3 m),
+mesurées l'option cochée et décochée.
 
 Hauteur de chute (`tests/navigateur.html`, `tests/essai-ponts.html`, ticket #27), d'après les
 profils LiDAR HD relevés autour des ponts : 6,3 m pour le pont de la D111 au-dessus de l'A6 à
@@ -282,6 +319,8 @@ la BD TOPO (±2° supposés ; ±0,48 m à Pouilly avec elle seule). Un clic depu
 | `tests/navigateur.html` | essai de bout en bout dans un vrai navigateur |
 | `tests/essai-rtk.html`, `essai-largeur.html`, `essai-libre.html` | hauteur, largeur, mesure libre sur photos RTK, avec recalages |
 | `tests/inclinaison.html` | inclinaison automatique |
+| `tests/inclinaison-terrain.html` | inclinaison par le terrain hors agglomération (option) |
+| `py/web_terrain.py` | inclinaison par le terrain hors agglomération : grille LiDAR HD, modèle de séquence |
 | `tools/serveur-essai.py` | serveur des essais : sert le site et affiche leur journal |
 
 Mettre à jour le cœur : `tools/update-core.sh [dossier du plugin] [révision]` (par défaut
@@ -353,32 +392,14 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
   incertitudes signale un mauvais bord visé ou un axe faux. Environ ±0,1 m avec le PCRS
   (±0,3 m avec l'orthophoto à 20 cm). L'axe de la route n'en vaut pas la peine : la trajectoire
   RTK le donne déjà à ±0,5°.
-- **Inclinaison en rase campagne** (ticket #29, essais du 23/10/2026 sur 7 séquences CD21) : les
-  verticales de la photo calent 41 % des photos en zone d'habitation (BD TOPO
-  `zone_d_habitation`), 2 % hors zone ; le modèle par le terrain du cœur n'est accepté que sur
-  2 séquences sur 7. Écart avec les verticales (16 photos LiDAR HD, validation croisée par
-  séquence, écart quadratique moyen) :
-
-  | Méthode | Pente | Dévers |
-  |---|---|---|
-  | Sans terrain (inclinaison moyenne de la séquence) | 2,1° | 1,7° |
-  | Grille du cœur (±1,5 m × ±0,75 m) | 0,4° | 1,0° |
-  | Grille plus large (±2,5 m × ±1,5 m) | 0,4° | 0,9° |
-  | Grille plus large + roulis 3 à 6°/g | 0,4° | 0,6 à 0,7° |
-
-  Le RGE ALTI est inutilisable pour le dévers (7,7°, talus et murs pris pour la route) ; le
-  tangage au freinage n'a pas d'effet mesurable. Proposition, toute dans le code web :
-  1. choisir des photos de la séquence en zone d'habitation et caler leurs verticales en
-     arrière-plan jusqu'à en avoir 3 (environ 5 photos HD, une fois par séquence) ;
-  2. lire le LiDAR HD sur la grille plus large (environ 45 points par photo, file d'attente :
-     le service de l'IGN renvoie l'erreur 429 sur les rafales) ;
-  3. corriger le roulis d'après l'accélération latérale tirée des photos voisines ;
-  4. apprendre un modèle de séquence propre au web, à ±0,6° en dévers (le cœur refuse au-delà
-     de 0,8°) ; pas de terrain hors LiDAR HD.
-
-  Non prouvé : mesuré en village (< 50 km/h), coefficient de roulis choisi sur les mêmes
-  16 photos. **À valider d'abord** sur 3 ou 4 photos de campagne portant une longueur connue
-  (largeur de voie, tirets de 3 m, pont), mesurée avec et sans correction.
+- **Inclinaison par le terrain en rase campagne** (ticket #29) : option expérimentale en place
+  (voir « Utilisation » et « Précision »). Reste à la valider sur des longueurs connues en rase
+  campagne, à plus de 70 km/h, où aucune photo n'a d'arêtes verticales, et à revoir le roulis en
+  virage sur plus de virages (le 23/10, 16 photos de village le disaient utile à 3 à 6°/g ; le
+  24/10, le seul virage témoin le contredisait). Essais du 23/10 sur 7 séquences : les
+  verticales calent 41 % des photos en zone d'habitation, 2 % hors zone ; le modèle par le
+  terrain du cœur n'est accepté que sur 2 séquences sur 7 ; le tangage au freinage n'a pas
+  d'effet mesurable.
 
 ## Versions
 
