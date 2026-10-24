@@ -187,6 +187,18 @@ cours, le dernier point posé (sommet, bord opposé, puis le point de référenc
 le dernier point gardé). Quand la photo affichée est à plus de 100 m des mesures, la page propose
 de tout effacer pour repartir de zéro. Échap annule le tracé d'une droite sur la carte.
 
+**Fiche PDF** : bouton « 📄 Fiche » d'un point de référence dans les résultats. Une page A4
+s'ouvre dans une fenêtre à part et la boîte d'impression du navigateur propose « Enregistrer au
+format PDF ». La page contient la photo d'où la plus grande mesure du point a été prise, cadrée
+sur ses deux bouts (une hauteur sur 75 % de la hauteur de l'image ; une largeur avec 10 % de
+marge, puis dézoomée de deux crans de molette), l'image recentrée sur
+la mesure, avec ses repères ; la localisation ; le tableau du point et de ses mesures, avec les
+commentaires ; la méthode et la précision, en lignes courtes (position et inclinaison de la photo,
+puis par mesure ce qui n'est pas dans le tableau : distance et caméra, ou axe et angle de visée,
+sans répéter ce qui est déjà dit, ni le nom de la mesure) ; la mini-carte centrée sur le point, les mesures et la photo, au zoom choisi dans la page
+(même échelle qu'à l'écran), avec le cône de vue et le nom du fond de carte et de son producteur ; l'identifiant de la photo,
+son attribution et son lien Panoramax, aussi en QR code. La mini-carte manque si elle est repliée.
+
 **Résultats gardés** : ils sont enregistrés dans le navigateur à chaque changement ; à
 l'ouverture suivante, ceux de la session précédente qui n'ont pas été exportés sont proposés à
 l'export (CSV, GeoJSON) ou à l'oubli, et affichés en lecture seule : liste sous les résultats,
@@ -419,7 +431,6 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 - **Export pour un inventaire** : tableur, une ligne par mesure (route, PR + abscisse, type,
   valeur ± incertitude, lien vers la photo Panoramax, date).
-- **Fiche imprimable ou PDF par mesure** : capture « Avec les mesures », mini-carte et valeurs.
 - **Contrôle d'une largeur sur l'image vue du ciel**, quand le PCRS (image à 5 cm) sera publié
   en Côte-d'Or (absent le 22/10/2026, vérifié à Pouilly-en-Auxois) : cliquer les deux bords sur
   la mini-carte, puis comparer avec la largeur mesurée sur la photo ; un écart supérieur aux

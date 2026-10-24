@@ -647,6 +647,21 @@ class App(session.Session):
         heights = super()._heights()
         return [m for m in heights if m.clicks[0].get("pic") == self._here()] if self.here_only else heights
 
+    def _height_points(self, m):
+        """Session._height_points, mais sur la photo de la mesure, chaque point au cap où il a été cliqué :
+        calée sur le point de référence, la hauteur décale son sommet sur le côté quand le pied change de
+        profondeur (même écart latéral en mètres, vu de plus près ou de plus loin), alors que sa valeur ne
+        dépend que de l'élévation ; les hauteurs suivantes resteraient hors de la ligne de la première."""
+        pts = super()._height_points(m)
+        if (self.item or {}).get("id") == m.clicks[0].get("pic"):
+            for p, c in zip(pts, m.clicks):
+                pos, raw = c.get("pos") or [None, None], c.get("raw")
+                if pos[0] is not None:
+                    p["yaw"] = pos[0]
+                    if raw:
+                        p["abs_yaw"] = raw[0] % 360
+        return pts
+
     def _widths(self):
         found = super()._widths()
         return [m for m in found if m.clicks[1].get("pic") == self._here()] if self.here_only else found
@@ -746,6 +761,90 @@ class App(session.Session):
             orphans += [dict(r, sous=False) for r in subs]
         return json.dumps(out + orphans)
 
+    # Fiche PDF d'un point de référence (src/app.js, makeFiche) ------------------------------------
+    def _fiche_measures(self, name):
+        """Hauteurs et largeurs faites depuis le point de référence nommé name."""
+        return [m for m in self.tool.measures() if m.result
+                and (getattr(m, "edge", None) or getattr(m, "reference", None) or {}).get("name") == name]
+
+    def fiche(self, k):
+        """JSON de la fiche du point gardé n° k et de ses mesures : nom, position, lignes du tableau
+        (point, mesure, valeur, incertitude, commentaire), textes de méthode (ceux des mesures),
+        photo de la plus grande mesure (celle de la fiche) et emprise de la mini-carte (points,
+        mesures et caméra de cette photo)."""
+        lon, lat, values = self.points[int(k)]
+        name = values["nom"]
+        found = self._fiche_measures(name)
+        kept = {v["nom"]: v for _, _, v in self.points}
+
+        def point_row(v, what):  # point gardé (A, ou le bord B triangulé) : sa ligne, comme A
+            how = "posé sur la droite tracée sur la carte" if v.get("nb_visees") == 1 else "triangulé"
+            return {"kind": "point", "point": v["nom"], "mesure": "{}, {}".format(what, how), "valeur": "",
+                    "incert": "± {} m".format(measures._num(v["incert_m"], 2)), "commentaire": v.get("commentaire", "")}
+
+        # Le point de référence, puis pour chaque mesure son point d'arrivée (comme A s'il est
+        # triangulé, sinon cliqué sur la photo) et, dessous, la mesure elle-même
+        rows = [point_row(values, "Point de référence")]
+        texts, lonlats = [], [(lon, lat)]
+        for m in found:
+            r, end = m.result, self._end_name(m)
+            height = m.kind == "height"
+            end_name = end["name"] if end else "?"
+            if end_name in kept and not height:
+                rows.append(point_row(kept[end_name], "Bord opposé"))
+            else:
+                rows.append({"kind": "point", "point": end_name, "valeur": "", "incert": "", "commentaire": "",
+                             "mesure": "Sommet, cliqué sur la photo" if height else "Bord opposé, cliqué sur la photo"})
+            rows.append({"kind": "mesure", "point": "{} {} {}".format(name, "↕" if height else "↔", end_name),
+                         "mesure": "{} entre {} et {}".format("Hauteur" if height else "Largeur", name, end_name),
+                         "valeur": "{} m".format(measures._num(r["value"], 2)),
+                         "incert": "± {} m".format(measures._num(r["uncertainty"], 2)),
+                         "commentaire": getattr(m, "comment", "")})
+            texts.append(self._fiche_note(m, rows[-1]["point"]))
+            lonlats += [tuple(p) for p in r["points"]]
+        largest = max(found, key=lambda m: m.result["value"], default=None)
+        if largest is not None:
+            pic = largest.clicks[0 if largest.kind == "height" else 1].get("pic")  # photo d'où elle a été prise
+        else:
+            pic = next(iter(self.point_views.get(name, {})), None) or values.get("photos", "").split(",")[0] or None
+        item = self.photo_items.get(pic) if pic else None
+        if item is not None:
+            lonlats.append(tuple(float(v) for v in item["geometry"]["coordinates"][:2]))
+        xs, ys = [p[0] for p in lonlats], [p[1] for p in lonlats]
+        return json.dumps({"name": name, "lon": lon, "lat": lat, "rows": rows, "texts": _without_repeats(texts), "photo": pic,
+                           "kind": largest.kind if largest is not None else None,
+                           "bounds": [[min(xs), min(ys)], [max(xs), max(ys)]]}, ensure_ascii=False)
+
+    def _fiche_note(self, m, label):
+        """(label, morceaux) de la ligne courte de « Méthode et précision » pour la mesure m (fiche) : ce
+        qui n'est pas dans le tableau. Hauteur : distance de l'objet, hauteur de caméra ; largeur : axe,
+        angle de visée."""
+        if m.kind == "height":
+            height, source = self.tool.camera_info(m.clicks[0], measures._ground_z(m.clicks)[m.clicks[0].get("pic")])
+            parts = ["objet à {} m de la photo".format(measures._num(m.result["ranges"][0], 1)),
+                     "caméra à {} m{}".format(measures._num(height, 2), " ({})".format(source) if source else "")]
+        else:
+            axis = (m.road or {}).get("source", "")
+            if axis.startswith(MAP_SOURCE):
+                parts = ["droite tracée sur la carte ({})".format(axis.split(", ", 1)[-1])]
+            else:
+                parts = ["axe de la route : {}".format(axis)]
+            if m.angle is not None:
+                parts.append("visée à {}° de la droite{}".format(
+                    measures._num(m.angle, 0), " (rasante)" if m.angle < widths.GRAZING_ANGLE else ""))
+        return label, parts
+
+    def fiche_frame(self, k):
+        """JSON [[cap, élévation]] (radians, repère de la photo affichée) des bouts de la plus grande
+        mesure du point gardé n° k, pour cadrer la photo de la fiche ; [] s'il n'y en a pas ici."""
+        name = self.points[int(k)][2]["nom"]
+        found = self._fiche_measures(name)
+        largest = max(found, key=lambda m: m.result["value"], default=None)
+        if largest is None or not self.item:
+            return "[]"
+        pts = (self._height_points if largest.kind == "height" else self._width_points)(largest)
+        return json.dumps([[p["yaw"], p["pitch"]] for p in pts if p["yaw"] is not None])
+
     def take_proposal(self):
         return json.dumps(super().take_proposal())
 
@@ -790,7 +889,7 @@ class App(session.Session):
                       and m.clicks[0].get("pic") == pic), None)
         if first is None:
             return None
-        foot, top = first.viewer_marks()["points"][:2]
+        foot, top = self._height_points(first)[:2]
         if foot["yaw"] is None or top["yaw"] is None:
             return None
         return [[foot["yaw"], foot["pitch"]], [top["yaw"], top["pitch"]]]
@@ -1611,6 +1710,20 @@ def _csv(value):
         return repr(round(value, 7)).replace(".", ",")
     text = str(value)
     return '"' + text.replace('"', '""') + '"' if any(c in text for c in ';"\n') else text
+
+
+def _without_repeats(notes):
+    """Lignes des mesures d'un même point (fiche, voir App._fiche_note), sans leur nom (« ↔ B ») ni
+    les morceaux déjà écrits plus haut (même caméra, même axe) ; une mesure sans rien de nouveau n'a
+    pas de ligne."""
+    seen, out = set(), []
+    for _, parts in notes:
+        fresh = [p for p in parts if p not in seen]
+        seen.update(parts)
+        if fresh:
+            text = " · ".join(fresh)
+            out.append(text[0].upper() + text[1:])
+    return out
 
 
 def _map_line_text(text):

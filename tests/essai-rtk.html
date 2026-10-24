@@ -231,6 +231,15 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("hauteur sur l'axe : " + doc.querySelector("#statut").textContent.slice(0, 80) + " · écart à l'axe " + onLine.toExponential(1));
     doc.querySelector("#effacer").click();  // retirée : la suite de l'essai l'ignore
     expect("hauteur sur l'axe effacée", heights().length === 1, `${heights().length} hauteur(s)`);
+    {  // Fiche PDF du point A (deux hauteurs) : page construite, photo et lignes du tableau
+      const pointA = JSON.parse(app.results()).find((r) => r.kind === "point" && r.text.includes("A"));
+      expect("bouton « Fiche » sur le point A", [...doc.querySelectorAll("#resultats > ol .fiche")].length === 1);
+      const html = await w.mesures.buildFiche(pointA.id);
+      expect("fiche : titre, photo et deux hauteurs", html.includes("point de référence A") && html.includes("data:image/jpeg")
+        && (html.match(/Hauteur entre A et/g) || []).length === 2, html.slice(0, 80));
+      log("fiche : " + Math.round(html.length / 1024) + " Ko · mini-carte " + (html.includes("Mini-carte indisponible") ? "absente" : "présente"));
+      if (location.hash === "#fiche") log("FICHE-HTML-DEBUT\n" + html + "\nFICHE-HTML-FIN");  // à imprimer en PDF à part
+    }
     doc.querySelector("#nouvelle-reference").click();
     log("nouveau point : " + doc.querySelector("#statut").textContent.slice(0, 60) + " · résultats : "
       + JSON.parse(app.results()).map((r) => r.text).join(" | "));

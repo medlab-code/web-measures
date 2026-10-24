@@ -363,6 +363,14 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     expect("bord B triangulé : pas d'entrée à lui dans la liste (#30)", pointsListed() === 1 && grouped(JSON.parse(app.results())));
     near("largeur avec le bord B triangulé", metresIn(doc.querySelector("#statut").textContent), 12, 0.15);
     log("csv : " + app.export_csv().split("\n").filter((l) => l.startsWith("largeur")).join(" // "));
+    {  // Fiche PDF du point A : largeur cadrée sur ses deux bouts, méthode en lignes courtes
+      const pointA = JSON.parse(app.results()).find((r) => r.kind === "point" && r.text.includes("A"));
+      const html = await w.mesures.buildFiche(pointA.id);
+      const frame = JSON.parse(app.fiche_frame(pointA.id));
+      expect("fiche : largeur cadrée sur A et B", frame.length === 2, JSON.stringify(frame));
+      expect("fiche : largeur et ligne courte", /Largeur entre A et/.test(html) && /<tr class='point'><td class='pt'>B</.test(html) && /<li>Axe de la route/.test(html));
+      if (location.hash === "#fiche") log("FICHE-HTML-DEBUT\n" + html + "\nFICHE-HTML-FIN");
+    }
     {  // Droite tracée avant A (#28) : A posé d'un clic sur elle, puis B ; largeur le long de la droite
       doc.querySelector("#mode").dispatchEvent(new Event("change"));  // largeur reprise de zéro
       const bearing = along * 180 / Math.PI + 90 + 10;  // en travers de la voie, 10° hors de la perpendiculaire

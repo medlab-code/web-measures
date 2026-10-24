@@ -369,6 +369,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 #resultats li.sous { display: block; margin-left: 1rem; }  /* block : hors de la numérotation */
 #resultats li .ligne { display: flex; align-items: center; gap: 0.5rem; }
 #resultats li span { flex: 1; }
+#resultats li .fiche { font-size: 0.8em; padding: 0.05rem 0.4rem; white-space: nowrap; }  /* fiche PDF du point */
 #resultats .effacer-resultat, #favoris .effacer-resultat {
   flex: none;
   width: 1.4rem;

@@ -723,7 +723,15 @@
       });
       const line = document.createElement("div");
       line.className = "ligne";
-      line.append(text, remove);
+      line.append(text);
+      if (r.kind === "point") {  // point de référence : sa fiche PDF, avec ses mesures
+        const sheet = Object.assign(document.createElement("button"), {
+          type: "button", className: "fiche", textContent: "📄 Fiche", title: "Fiche PDF de ce point et de ses mesures (impression du navigateur)",
+        });
+        sheet.addEventListener("click", () => makeFiche(r.id));
+        line.append(sheet);
+      }
+      line.append(remove);
       li.append(line, comment);
       return li;
     }));
@@ -2005,7 +2013,7 @@
    * Vue cadrée sur des points de la photo ([[cap, élévation]] en radians, repère de la photo) :
    * centrée sur eux, zoom ajusté pour les voir tous (le point A seul, ou la largeur de A à B).
    */
-  function frameView(points, keepZoom = false) {
+  function frameView(points, keepZoom = false, crop = null) {  // crop : {aspect, margin} de l'image à tirer de la vue
     if (!psv || !points || !points.length) return;
     const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
     const yaw = Math.atan2(points.reduce((t, p) => t + Math.sin(p[0]), 0), points.reduce((t, p) => t + Math.cos(p[0]), 0));
@@ -2018,7 +2026,10 @@
     // une largeur vue de très près peut ne pas tenir entière), ou 35° pour un point seul
     const deg = (r) => r * 180 / Math.PI;
     const maxFov = psv.config?.maxFov || 90;
-    const vfov = Math.min(maxFov, Math.max(points.length > 1 ? 20 : 35, deg(spreadPitch) * 1.3, deg(spreadYaw) * 1.3 / aspect));
+    const vfov = crop  // la mesure entière dans l'image recadrée au centre de la vue, avec sa marge
+      ? Math.min(maxFov, Math.max(2, deg(spreadPitch) * crop.margin, deg(spreadYaw) * crop.margin / crop.aspect)
+        * Math.max(1, crop.aspect / aspect))
+      : Math.min(maxFov, Math.max(points.length > 1 ? 20 : 35, deg(spreadPitch) * 1.3, deg(spreadYaw) * 1.3 / aspect));
     const zoom = psv.dataHelper?.fovToZoomLevel ? psv.dataHelper.fovToZoomLevel(vfov) : undefined;
     psv.animate({ yaw, pitch, ...(zoom == null || keepZoom ? {} : { zoom }), speed: 1200 });
   }
@@ -2315,6 +2326,261 @@
     }
   });
 
+  // Fiche PDF d'un point de référence ---------------------------------------------------------
+  // Une page A4 : photo de la visionneuse en pleine largeur, cadrée sur la plus grande mesure du
+  // point (10 % de marge), puis ses résultats et la méthode à côté de la mini-carte. Fenêtre à
+  // part, imprimée par le navigateur (« Enregistrer au format PDF »).
+  const FICHE_PHOTO = { width: 698, height: 356 }, FICHE_MAP = { width: 230, height: 300 };
+  const FICHE_UNZOOM = 10;  // largeur : niveaux de zoom ôtés après le cadrage, 2 crans de molette (5 chacun)
+
+  /** Image (data: JPEG) d'une zone du canevas source au rapport largeur / hauteur aspect, de size px de
+   * large au plus (sinon la plus grande possible), centrée sur center ([x, y] px du canevas, gardée
+   * dedans), par défaut sur le milieu. */
+  function cropCenter(source, aspect, size = Infinity, center = null) {
+    let w = Math.min(source.width, size), h = source.height;
+    if (w / h > aspect) w = Math.round(h * aspect);
+    else h = Math.round(w / aspect);
+    const [cx, cy] = center || [source.width / 2, source.height / 2];
+    const left = Math.max(0, Math.min(source.width - w, cx - w / 2)), top = Math.max(0, Math.min(source.height - h, cy - h / 2));
+    const out = Object.assign(document.createElement("canvas"), { width: w, height: h });
+    out.getContext("2d").drawImage(source, left, top, w, h, 0, 0, w, h);
+    return out.toDataURL("image/jpeg", 0.9);
+  }
+
+  /** Cône de la vue de la photo (comme Carte.showView, élément HTML hors de l'image WebGL de la
+   * carte) dessiné sur ctx : sommet à la photo, ouverture fov, rayon 70 px écran ; carte au nord. */
+  function drawViewCone(ctx, scale) {
+    const heading = viewHeading();
+    if (!photo || heading == null) return;
+    const p = map.project(photo.geometry.coordinates), x = p.x * scale, y = p.y * scale, r = 70 * scale;
+    const half = Math.min(viewFov(), 170) / 2, rad = (d) => ((d - 90) * Math.PI) / 180;
+    ctx.save();
+    ctx.fillStyle = "rgba(0, 120, 255, 0.25)";
+    ctx.strokeStyle = "#0078ff";
+    ctx.lineWidth = 1.5 * scale;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, r, rad(heading - half), rad(heading + half));
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y, 6 * scale, 0, 2 * Math.PI);
+    ctx.fillStyle = "#0078ff";
+    ctx.fill();
+    ctx.lineWidth = 2 * scale;
+    ctx.strokeStyle = "#ffffff";
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** Mini-carte centrée sur bounds ([[lon, lat], [lon, lat]]) au zoom choisi dans la page, en image à
+   * la même échelle (FICHE_MAP px d'écran), avec le cône de vue ; null si elle est repliée, ou si le
+   * fond refuse d'être lu (CORS). La vue de la carte est remise comme avant. */
+  async function mapSnapshot(bounds) {
+    const canvas = map.getCanvas();
+    if (!canvas.clientWidth || !canvas.clientHeight) return null;
+    const before = { center: map.getCenter(), zoom: map.getZoom(), bearing: map.getBearing() };
+    try {
+      const [[w, south], [e, north]] = bounds;
+      map.jumpTo({ center: [(w + e) / 2, (south + north) / 2], zoom: before.zoom, bearing: 0 });
+      await Promise.race([new Promise((resolve) => map.once("idle", resolve)), new Promise((r) => setTimeout(r, 8000))]);
+      return await new Promise((resolve) => {  // image WebGL lue juste après son rendu
+        map.once("render", () => {
+          try {
+            const copy = Object.assign(document.createElement("canvas"), { width: canvas.width, height: canvas.height });
+            const ctx = copy.getContext("2d");
+            ctx.drawImage(canvas, 0, 0);
+            drawViewCone(ctx, canvas.width / canvas.clientWidth);
+            resolve(cropCenter(copy, FICHE_MAP.width / FICHE_MAP.height, FICHE_MAP.width * canvas.width / canvas.clientWidth));
+          } catch { resolve(null); }
+        });
+        map.triggerRepaint();
+      });
+    } finally {
+      map.jumpTo(before);
+    }
+  }
+
+  async function makeFiche(k) {
+    if (!app || !psv) return;
+    const win = window.open("", "_blank");  // ouverte tout de suite : après une attente, bloquée
+    if (!win) {
+      setStatus("Fiche : fenêtre bloquée par le navigateur (autorisez les fenêtres de cette page).", "echec");
+      return;
+    }
+    win.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Fiche — préparation</title><style>
+body { margin: 0; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+  font-family: Roboto, Arial, sans-serif; color: #1c1c1c; background: #f5f5f3; }
+.cercle { position: relative; width: 78px; height: 78px; }
+.roue { position: absolute; inset: 0; border: 7px solid #ffd8bf; border-top-color: #e65100; border-radius: 50%; animation: tour 0.9s linear infinite; }
+#pourcent { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; color: #e65100; }
+@keyframes tour { to { transform: rotate(360deg); } }
+h1 { margin: 0; font-size: 28px; } #etape { font-size: 17px; color: #444; min-height: 1.4em; }
+p.aide { margin: 0; font-size: 14px; color: #555; }
+@media (prefers-reduced-motion: reduce) { .roue { animation-duration: 3s; } }
+</style></head><body><div class="cercle"><div class="roue"></div><div id="pourcent" role="progressbar" aria-label="Préparation en cours" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">0 %</div></div>
+<h1>Préparation de la fiche…</h1><div id="etape" aria-live="polite">Ouverture de la photo de la mesure</div>
+<p class="aide">Quelques secondes : la photo est cadrée et capturée, puis la boîte d'impression s'ouvre.</p></body></html>`);
+    win.document.close();
+    let tick = null;
+    try {
+      // Pourcentage : décompte fictif de 5 % toutes les 2 s (95 % au plus), remonté sur chaque étape
+      // atteinte en avance sur lui (jamais redescendu)
+      let percent = 0;
+      const show = (value) => {
+        percent = value;
+        const bar = win.document.getElementById("pourcent");
+        bar?.replaceChildren(`${value} %`);
+        bar?.setAttribute("aria-valuenow", String(value));
+      };
+      tick = setInterval(() => show(Math.min(95, percent + 5)), 2000);
+      const html = await buildFiche(k, (text, value) => {
+        const step = win.document.getElementById("etape");
+        if (step) step.textContent = text;
+        show(Math.max(percent, value));
+      });
+      clearInterval(tick);
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      await Promise.all([...win.document.images].map((img) => img.decode().catch(() => null)));
+      win.focus();
+      win.print();
+    } catch (error) {
+      win.document.body.textContent = `Fiche impossible : ${error.message}`;
+    } finally {
+      clearInterval(tick);
+    }
+  }
+
+  /** Vue de la visionneuse immobile (cap, élévation, zoom) depuis 400 ms, et redessinée : la capture
+   * ne part pas pendant le mouvement de cadrage. 8 s au plus. */
+  async function viewSettled() {
+    const key = () => { const p = psv.getPosition(); return [p.yaw, p.pitch, psv.getZoomLevel()].map((v) => v.toFixed(5)).join(); };
+    let last = key(), since = Date.now();
+    for (const t0 = Date.now(); Date.now() - t0 < 8000 && Date.now() - since < 400;) {
+      await new Promise((r) => setTimeout(r, 100));
+      const now = key();
+      if (now !== last) [last, since] = [now, Date.now()];
+    }
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));  // image et repères à jour
+  }
+
+  /** Page de la fiche du point gardé n° k (HTML complet) : photo d'où sa plus grande mesure a été prise ouverte et
+   * cadrée, puis capturée avec la mini-carte. */
+  async function buildFiche(k, step = () => {}) {  // step(texte, %) : étape en cours, pour la fenêtre d'attente
+    const data = JSON.parse(app.fiche(k));
+    step("Ouverture de la photo de la mesure", 0);
+    if (data.photo && photo?.id !== data.photo) {  // photo d'où la plus grande mesure a été prise
+      await goToPhoto(data.photo);
+      const t0 = Date.now();
+      while (psv.getPictureMetadata?.()?.id !== data.photo || !photoReady()) {
+        if (Date.now() - t0 > 30000) throw new Error("photo de la mesure non chargée");
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      await new Promise((r) => setTimeout(r, 1500));  // repères de la photo dessinés
+    }
+    step("Cadrage de la photo sur la mesure", 40);
+    const ends = JSON.parse(app.fiche_frame(k));
+    // Hauteur : la mesure sur 75 % de la hauteur de l'image ; largeur : 10 % de marge de chaque côté
+    frameView(ends, false, { aspect: FICHE_PHOTO.width / FICHE_PHOTO.height, margin: data.kind === "height" ? 1 / 0.75 : 1.25 });
+    await viewSettled();
+    if (data.kind !== "height") {  // largeur : un peu de recul autour de la ligne ; hauteur : cadrage seul
+      psv.zoom(Math.max(0, psv.getZoomLevel() - FICHE_UNZOOM));
+      await viewSettled();
+    }
+    for (let t = 0; t < 20 && !placeText(); t++) await new Promise((r) => setTimeout(r, 250));  // lieu (route, PR) lu
+    await robotoReady();
+    // Recadrée autour de la mesure : au bord de la photo, la vue ne peut pas se centrer dessus
+    const view = thumbnail(), scale = view.width / psv.container.clientWidth;
+    const xy = ends.map(([yaw, pitch]) => psv.dataHelper.sphericalCoordsToViewerCoords({ yaw, pitch }));
+    const center = xy.length ? [xy.reduce((t, p) => t + p.x, 0) / xy.length * scale, xy.reduce((t, p) => t + p.y, 0) / xy.length * scale] : null;
+    const picture = cropCenter(view, FICHE_PHOTO.width / FICHE_PHOTO.height, Infinity, center);
+    step("Capture de la mini-carte", 75);
+    const mapImage = await mapSnapshot(data.bounds);
+    step("Mise en page", 95);
+    return ficheHtml(data, picture, mapImage, JSON.parse(app.state()));
+  }
+
+  /** Fond de la mini-carte pour la fiche : nom officiel de la couche (titre publié par la Géoplateforme,
+   * couche affichée pour l'ortho-express et le PCRS) et producteur. */
+  function backgroundName() {
+    const value = $("#fond").value;
+    if (value === "osm") return "OpenStreetMap France (contributeurs d'OpenStreetMap)";
+    const layer = (/LAYER=([^&]+)/.exec(map.getStyle()?.sources?.[value]?.tiles?.[0] || "") || [])[1] || "";
+    const year = (/EXPRESS\.(\d{4})/.exec(layer) || [])[1];
+    const name = value === "plan" ? "Plan IGN"
+      : value === "express" && year ? `Ortho-express ${Number(year) >= 2025 ? "RVB " : ""}${year}`
+      : value === "pcrs" ? (layer === "PCRS.LAMB93" || !layer ? "PCRS" : layer)
+      : "Photographies aériennes";  // orthophoto, avec ou sans noms
+    return `${name} (IGN)`;
+  }
+
+  /** Page de la fiche (voir la maquette du 24/10/2026) : HTML complet, styles compris. */
+  function ficheHtml(data, picture, mapImage, state) {
+    const e = escapeHtml, now = new Date();
+    const date = `${now.toLocaleDateString("fr-FR")} · ${now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+    const place = placeText() || "Lieu inconnu";
+    const background = backgroundName();
+    const coords = `${data.lat.toFixed(5).replace(".", ",")}° N · ${data.lon.toFixed(5).replace(".", ",")}° E`;
+    const api = Carte.apiUrl();
+    const link = `${api.replace(/\/api\/?$/, "")}/#focus=pic&pic=${data.photo || photo?.id || ""}`;
+    let qrSvg = "";  // lien vers la photo en QR code (bibliothèque qrcode-generator ; sans elle, pas de QR)
+    try {
+      const qr = qrcode(0, "M");
+      qr.addData(link);
+      qr.make();
+      qrSvg = qr.createSvgTag(2, 0);
+    } catch { /* bibliothèque non chargée */ }
+    // Points (A, puis le point d'arrivée de chaque mesure), la mesure en gras sur sa ligne, dessous
+    const rows = data.rows.map((r) => `<tr class='${r.kind}'><td class='pt'>${e(r.point)}</td><td>${e(r.mesure)}</td>`
+      + `<td class='num'>${e(r.valeur || "—")}</td><td class='num'>${e(r.incert || "—")}</td><td class='com'>${e(r.commentaire || "")}</td></tr>`).join("");
+    // Position et inclinaison de la photo (le détail du calage y est déjà), puis une ligne courte par mesure
+    const lines = [state.quality, ...data.texts].filter(Boolean).map((t) => `<li>${e(t)}</li>`).join("");
+    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Fiche ${e(data.name)} — Mesures Panoramax</title>
+<style>
+@page { size: A4 portrait; margin: 0; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Roboto, Arial, sans-serif; color: #1c1c1c; background: #fff; }
+.page { width: 210mm; height: 297mm; padding: 11.6mm 12.7mm; display: flex; flex-direction: column; gap: 18px; overflow: hidden; }
+header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #e65100; padding-bottom: 12px; }
+h1 { margin: 0; font-size: 26px; letter-spacing: -0.3px; } .sous-titre { font-size: 15px; font-weight: 500; color: #444; margin-top: 4px; }
+.date { align-self: center; font-size: 14px; font-weight: 500; }  /* centrée sur la hauteur du titre */
+.lieu { font-size: 13px; } .lieu b { display: block; font-size: 16px; margin-bottom: 3px; } .lieu span { color: #444; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 5px; }
+figure img { display: block; width: 100%; border-radius: 4px; } figcaption { font-size: 12px; color: #555; text-align: center; }
+.bas { display: grid; grid-template-columns: minmax(0, 1fr) ${FICHE_MAP.width}px; gap: 24px; align-items: center; }
+.textes { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h2 { margin: 0 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.6px; color: #e65100; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th { text-align: left; font-weight: 500; padding: 5px 6px; border-bottom: 1.5px solid #1c1c1c; }
+td { padding: 6px; border-bottom: 1px solid #c8c8c8; vertical-align: top; } tr.point td { background: #f5f5f3; }
+tr.mesure td { font-weight: 700; }
+td.pt { font-weight: 700; white-space: nowrap; } .num { text-align: right; white-space: nowrap; } td.com { color: #444; }
+ul { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.5; }
+.carte-vide { height: ${FICHE_MAP.height}px; border: 1.5px dashed #888; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #555; text-align: center; padding: 8px; }
+footer { margin-top: auto; border-top: 1px solid #c8c8c8; padding-top: 10px; font-size: 11.5px; color: #444; display: flex; align-items: center; gap: 16px; }
+.pied { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; } .qr { flex: none; } .qr svg { display: block; width: 72px; height: 72px; }
+footer a { color: #1a56c4; word-break: break-all; } .mono { font-family: "Roboto Mono", monospace; color: #1c1c1c; }
+@media screen { body { background: #888; } .page { margin: 16px auto; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.4); } }
+</style></head><body><div class="page">
+<header><div><h1>Mesures Panoramax</h1><div class="sous-titre">Fiche de mesure — point de référence ${e(data.name)}</div></div>
+<div class="date">${e(date)}</div></header>
+<section class="lieu"><b>${e(place)}</b><span>Point ${e(data.name)} : ${e(coords)}</span></section>
+<figure><img src="${picture}" alt="Photo de la mesure, annotée"></figure>
+<section class="bas"><div class="textes">
+<div><h2>Résultats</h2><table><thead><tr><th>Point</th><th>Mesure</th><th class="num">Valeur</th><th class="num">Incertitude</th><th>Commentaire</th></tr></thead><tbody>${rows}</tbody></table></div>
+<div><h2>Méthode et précision</h2><ul>${lines}</ul></div></div>
+<figure>${mapImage ? `<img src="${mapImage}" alt="Mini-carte : point ${e(data.name)} et ses mesures">` : "<div class='carte-vide'>Mini-carte indisponible (carte repliée, ou fond illisible)</div>"}
+<figcaption>Fond de carte ${e(background)}</figcaption></figure></section>
+<footer><div class="pied"><div>Photo <span class="mono">${e(data.photo || "")}</span> · ${e(app.caption(0))} · instance ${e(api)}</div>
+<a href="${e(link)}">${e(link)}</a>
+<div>Mesure réalisée avec Mesures Panoramax, à partir du cœur de calcul du plugin QGIS « Visionneuse Panoramax ».</div></div>
+${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</footer>
+</div></body></html>`;
+  }
+
   /** La visionneuse telle qu'affichée, avec les repères des mesures et l'attribution. */
   function thumbnail() {
     const r = psv.renderer;
@@ -2523,5 +2789,5 @@
   }
 
   // Pour les essais depuis la console : window.mesures.app.click(yaw, pitch)
-  window.mesures = { get app() { return app; }, get psv() { return psv; }, map, openPhoto };
+  window.mesures = { get app() { return app; }, get psv() { return psv; }, map, openPhoto, buildFiche };
 })();
