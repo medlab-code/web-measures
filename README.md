@@ -72,9 +72,10 @@ dès que les visées donnent un point (deux visées qui se croisent).
    en largeur, en avançant vers le point. Ils sont nommés par rapport à la photo affichée
    (« photo précédente », « 2 photos en arrière »…), avec une flèche selon leur direction dans
    la vue (◀ ▶ ▲ ▼).
-3. En largeur et en mesure libre, les visées déjà faites depuis les autres photos sont tracées
-   en pointillés bleus dans la photo : l'objet visé est sur leur trait, il suffit de cliquer
-   là où il croise la bordure. Un trait vertical au centre de la vue suit le même cap que le
+3. Les visées déjà faites depuis les autres photos sont tracées en pointillés bleus dans la
+   photo : l'objet visé est sur leur trait, il suffit de cliquer là où il croise la bordure (en
+   hauteur, le bon montant parmi des objets semblables). La vue de chaque nouvelle photo est
+   tournée vers le point visé, et un trait vertical au centre de la vue suit le même cap que le
    trait de la mini-carte, pour repérer dans la photo un objet vu sur la carte.
 4. Après « Valider le point triangulé », la page revient sur la photo de référence et cadre la
    vue sur le point.

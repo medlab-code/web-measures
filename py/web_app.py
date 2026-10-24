@@ -440,6 +440,13 @@ class App(session.Session):
 
     def viewer_marks(self):
         marks = self._filtered(super().viewer_marks)
+        if self.active and self.item and self.mode == "height" and self._aiming():
+            # Visées des autres photos tracées aussi en hauteur (le cœur : largeur, mesure libre) :
+            # le pied visé est sur leur trait, même parmi des objets semblables (ticket #26)
+            pic = self.item.get("id")
+            lines = [self._epipolar_mark(s)["points"] for s in self.triangulator.sightings if s["pic"] != pic]
+            marks = [{"points": [[p["yaw"], p["pitch"], False] for p in pts], "label": "", "guide": True,
+                      "epipolar": True} for pts in lines if pts] + marks
         if self._tilt_pending():  # objet vertical en cours (croix et trait du calage), effacé une fois validé
             marks.append({"points": [c["pos"] + [k == self.tilt_sel] for k, c in enumerate(self.tilt_clicks)],
                           "label": "", "calage": True})

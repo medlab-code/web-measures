@@ -432,7 +432,7 @@ button.principal { font-weight: 600; }
 }
 #garder[hidden], #valider-objet[hidden] { display: none; }
 
-/* Trait vertical au centre de la vue (largeur, mesure libre) : le cap tracé sur la mini-carte,
+/* Trait vertical au centre de la vue (largeur, hauteur, mesure libre) : le cap tracé sur la mini-carte,
    même bleu, plein et un peu transparent ; les clics passent au travers */
 #axe-vue {
   position: absolute;

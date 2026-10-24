@@ -79,6 +79,11 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         expect("vue tournée vers le pied sur la 2e photo", Math.abs(wrap(pos.yaw - yawTo(f, target))) < 0.1,
           `cap ${pos.yaw.toFixed(3)} au lieu de ${yawTo(f, target).toFixed(3)}`);
         expect("zoom gardé pour viser le pied", Math.abs(w.mesures.psv.getZoomLevel() - zoom0) < 1, `zoom ${w.mesures.psv.getZoomLevel()} au lieu de ${zoom0}`);
+        // Ticket #26 : trait vertical au centre et visée de la 1re photo tracée sur celle-ci
+        expect("trait vertical au centre en hauteur", !doc.querySelector("#axe-vue").hidden);
+        const epi = JSON.parse(app.viewer_marks()).filter((m) => m.epipolar);
+        const near = epi.length === 1 && epi[0].points.some(([y]) => Math.abs(Math.atan2(Math.sin(y - yawTo(f, target)), Math.cos(y - yawTo(f, target)))) < 0.05);
+        expect("visée de la 1re photo tracée vers le pied", near, `${epi.length} tracé(s)`);
       }
       const announced = f === photos[1] ? predicted(f.id) : null;
       psvClick(yawTo(f, target), -0.35);

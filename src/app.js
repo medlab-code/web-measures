@@ -1617,8 +1617,9 @@
     $("#vue").classList.toggle("visee", sighting);
     $("#vue").classList.toggle("prise", taking);
     $("#vue").classList.toggle("calage", calibrating);
-    // Largeur, mesure libre : trait vertical au centre de la vue, le cap tracé sur la carte
-    $("#axe-vue").hidden = !measuring || !["road", "tri"].includes(mode) || viewer.hidden;
+    // Largeur, hauteur, mesure libre : trait vertical au centre de la vue, le cap tracé sur la
+    // carte ; la vue tournée vers le point à viser (take_aim_frame), il le désigne (ticket #26)
+    $("#axe-vue").hidden = !measuring || !["road", "height", "tri"].includes(mode) || viewer.hidden;
     // Même état en toutes lettres, sous le rappel du mode (comme les voyants)
     const state = $("#etat-mesure");
     state.hidden = !sighting && !taking;
