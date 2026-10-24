@@ -1302,6 +1302,57 @@
   // Export et import des favoris (autre poste, autre navigateur) : fichier JSON [{ id, name }]
   $("#favoris-exporter").addEventListener("click", () => download(JSON.stringify(favorites(), null, 1),
     "favoris-panoramax.json", "application/json"));
+  // Couche importée (GeoJSON) : une à la fois, pour la session ; couleur et étiquette selon une colonne
+  let overlay = null;  // { name, features (WGS 84, Couche.read), columns }
+  function showOverlayStyle() {
+    if (!overlay) return;
+    const legend = Couche.style(overlay.features, $("#couche-couleur").value, $("#couche-etiquette").value);
+    $("#couche-legende").replaceChildren(...legend.map(({ couleur, texte }) => {
+      const li = document.createElement("li");
+      li.append(Object.assign(document.createElement("span"), { className: "pastille-couche" }), texte);
+      li.firstChild.style.background = couleur;
+      return li;
+    }));
+    Carte.showOverlay(map, { type: "FeatureCollection", features: overlay.features });
+    refresh();
+  }
+  $("#couche-importer").addEventListener("click", () => $("#couche-fichier").click());
+  $("#couche-fichier").addEventListener("change", async (event) => {
+    const file = event.target.files[0];
+    event.target.value = "";
+    if (!file || !app) return;
+    try {
+      const read = Couche.read(await file.text());
+      overlay = { name: file.name, ...read };
+      const n = app.set_overlay(JSON.stringify(read.features.map(({ id, geometry }) => ({ id, geometry }))));
+      for (const id of ["#couche-couleur", "#couche-etiquette"]) {
+        $(id).replaceChildren(new Option(id === "#couche-couleur" ? "couleur unique" : "aucune", ""),
+          ...read.columns.map((c) => new Option(c, c)));
+      }
+      $("#couche-nom").textContent = `${file.name} : ${read.features.length} objet${read.features.length > 1 ? "s" : ""}`
+        + `${read.crs === "lambert93" ? " (Lambert 93 converti)" : ""}`;
+      $("#couche-reglages").hidden = false;
+      $("#couche-retirer").hidden = false;
+      showOverlayStyle();
+      const xs = [], ys = [];
+      (function walk(c) { if (typeof c[0] === "number") { xs.push(c[0]); ys.push(c[1]); } else c.forEach(walk); })(
+        read.features.map((f) => f.geometry.coordinates));
+      map.fitBounds([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], { padding: 30, maxZoom: 17 });
+      setStatus(`Couche « ${file.name} » importée : ${n} partie${n > 1 ? "s" : ""} d'objets.`);
+    } catch (error) {
+      setStatus(`Couche non importée : ${error.message}`, "echec");
+    }
+  });
+  for (const id of ["#couche-couleur", "#couche-etiquette"]) $(id).addEventListener("change", showOverlayStyle);
+  $("#couche-retirer").addEventListener("click", () => {
+    overlay = null;
+    app?.set_overlay("[]");
+    Carte.showOverlay(map, null);
+    $("#couche-reglages").hidden = true;
+    $("#couche-retirer").hidden = true;
+    refresh();
+  });
+
   $("#favoris-importer").addEventListener("click", () => $("#favoris-fichier").click());
   $("#favoris-fichier").addEventListener("change", async (event) => {
     const file = event.target.files[0];
@@ -1894,6 +1945,25 @@
         });
       }
     });
+    // Couche importée : lignes et contours en traits de sa couleur, points en pastilles, étiquettes
+    if (overlay && app) {
+      let points = 0, n = 0;
+      for (const o of JSON.parse(app.overlay_marks())) {
+        const p = overlay.features[o.id]?.properties || {};
+        const color = p._couleur || "#ff00ff";
+        const at = o.kind === "point" ? { yaw: o.points[0][0], pitch: o.points[0][1] }
+          : middle(o.points.map(([yaw, pitch]) => ({ yaw, pitch })));
+        if (o.kind === "ligne" && o.points.length >= 2) lines.push({ points: o.points, color, width: 2.5, dash: null });
+        if (o.kind === "point" && points++ < 300) {
+          add({ id: `${MARK}couche-${n++}`, position: at, anchor: "center center",
+            html: `<div class="pastille-couche" style="background:${color}"></div>` });
+        }
+        if (p._etiquette) {
+          add({ id: `${MARK}couche-${n++}`, position: at, anchor: "center center",
+            html: `<div class="ancre"><div class="etiquette couche dessus" style="border-color:${color}">${escapeHtml(p._etiquette)}</div></div>` });
+        }
+      }
+    }
     Traits.attach(psv);
     Traits.set(lines);
     markers.renderMarkers?.();

@@ -319,6 +319,7 @@ class App(session.Session):
         self.bdtopo = {}  # (couche BD TOPO, maille) -> objets lus (voir _bdtopo)
         self.map_line = None  # droite de mesure tracée sur la carte, pour le prochain point A (ticket #28)
         self.redo_stack, self.redo_key = [], None  # états d'avant chaque « Effacer » (Ctrl+Y, voir redo)
+        self.overlay = []  # couche importée : (n° de l'objet, "point" ou "ligne", [(lon, lat)]), voir set_overlay
         self.tilt_reasons = {}  # photo -> raison de l'échec de l'inclinaison automatique (ticket #29)
         self.tilts.run = self._run_tilt
         # Inclinaison par le terrain hors agglomération, expérimentale (option, voir web_terrain)
@@ -868,6 +869,51 @@ class App(session.Session):
     def status(self):
         text = super().status()
         return _map_line_text(text) if MAP_SOURCE in text else text
+
+    # Couche importée (GeoJSON, src/couche.js) : objets projetés au sol dans la photo -----------------
+    OVERLAY_REACH = 100.0  # m : objets dessinés dans la photo s'ils ont un sommet à cette distance
+
+    def set_overlay(self, text):
+        """Couche importée, JSON [{id, geometry}] en WGS 84 (vide : retirée) : points, et lignes (les
+        contours des polygones), multi-géométries éclatées en parties."""
+        self.overlay = []
+        for f in json.loads(text or "[]"):
+            g, i = f.get("geometry") or {}, f.get("id")
+            kind, coords = g.get("type", ""), g.get("coordinates") or []
+            if kind == "Point":
+                parts = [[coords]]
+            elif kind == "MultiPoint":
+                parts = [[p] for p in coords]
+            elif kind == "LineString":
+                parts = [coords]
+            elif kind in ("MultiLineString", "Polygon"):
+                parts = coords
+            elif kind == "MultiPolygon":
+                parts = [ring for poly in coords for ring in poly]
+            else:
+                parts = []
+            for part in parts:
+                pts = [(float(p[0]), float(p[1])) for p in part if len(p) >= 2]
+                if pts:
+                    self.overlay.append((i, "point" if kind.endswith("Point") else "ligne", pts))
+        return len(self.overlay)
+
+    def overlay_marks(self):
+        """JSON [{id, kind, points: [[cap, élévation]]}] (radians, repère de la photo affichée) des
+        parties de la couche importée qui ont un sommet à OVERLAY_REACH m de la photo, posées sur le
+        sol supposé plat à la hauteur de caméra (comme la droite tracée)."""
+        if not self.item or not self.overlay:
+            return "[]"
+        lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
+        k = math.cos(math.radians(lat))
+        reach = self.OVERLAY_REACH / 111320.0
+        out = []
+        for i, kind, pts in self.overlay:
+            if not any(abs(p[1] - lat) < reach and abs(p[0] - lon) * k < reach for p in pts):
+                continue
+            views = [self._project(plon, plat) for plon, plat in pts]
+            out.append({"id": i, "kind": kind, "points": [[v["yaw"], v["pitch"]] for v in views]})
+        return json.dumps(out)
 
     # Hauteurs suivantes depuis le point de référence, sur l'axe de la première -------------------
     # Une fois une hauteur faite depuis A sur la photo affichée (ligne A–C), le sommet des suivantes

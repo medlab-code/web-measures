@@ -200,6 +200,14 @@ sans répéter ce qui est déjà dit, ni le nom de la mesure) ; la mini-carte ce
 (même échelle qu'à l'écran), avec le cône de vue et le nom du fond de carte et de son producteur ; l'identifiant de la photo,
 son attribution et son lien Panoramax, aussi en QR code. La mini-carte manque si elle est repliée.
 
+**Couche importée** (section « Couche » du panneau) : un fichier GeoJSON, en WGS 84 ou en Lambert 93
+(converti), dessiné sur la mini-carte et, dans la photo, posé au sol supposé plat à la hauteur de
+caméra : points en pastilles, lignes et contours des polygones en traits, pour les objets à moins
+de 100 m de la photo. Couleur selon une colonne (une couleur par valeur, les dix plus fréquentes,
+ou dégradé en cinq classes pour une colonne numérique), étiquette d'une colonne (dans la photo,
+et sur la carte à partir du zoom 16), légende. Une couche à la fois, pour la session ; « Retirer »
+l'efface. L'altitude des objets (z) est ignorée.
+
 **Résultats gardés** : ils sont enregistrés dans le navigateur à chaque changement ; à
 l'ouverture suivante, ceux de la session précédente qui n'ont pas été exportés sont proposés à
 l'export (CSV, GeoJSON) ou à l'oubli, et affichés en lecture seule : liste sous les résultats,
@@ -355,6 +363,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,4
 | `src/services.js` | vérification de l'accès aux services |
 | `src/recherche.js` | recherche de lieux sur la carte (commune, lieu-dit, voie, adresse) |
 | `src/requeteur.js` | requêteur route + PR (+ distance) : routes du département affiché, côté droit par défaut |
+| `src/couche.js` | couche importée (GeoJSON) : lecture, Lambert 93 en WGS 84, couleur et étiquette selon une colonne |
 | `src/lieu.js` | route, point de repère (PR), véloroute, écluse, hameau et commune de la photo, incrustés dans la visionneuse |
 | `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page (points de référence, hauteurs, largeurs, mesure libre, recalages) |
 | `py/web_host.py` | accès réseau du cœur par le `fetch` du navigateur |

@@ -270,6 +270,38 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       compare("pied, 3e visée", third.expect);
     }
     expect("pas d'alerte RTK sur des photos RTK", !doc.querySelector("#alerte-rtk").open);
+    {  // Couche importée (GeoJSON en WGS 84) : un point sur la cible, une ligne ; étiquette d'une colonne
+      const f3 = photos[0];
+      w.mesures.openPhoto(f3);
+      await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f3.id, 30000, "photo de la couche");
+      await sleep(1000);
+      const geojson = { type: "FeatureCollection", features: [
+        { type: "Feature", properties: { nom: "cible", h: 1.5 }, geometry: { type: "Point", coordinates: target } },
+        { type: "Feature", properties: { nom: "ligne", h: 2 }, geometry: { type: "LineString", coordinates: [target, mid] } },
+      ] };
+      const dt = new w.DataTransfer();
+      dt.items.add(new w.File([JSON.stringify(geojson)], "essai.geojson", { type: "application/geo+json" }));
+      const input = doc.querySelector("#couche-fichier");
+      input.files = dt.files;
+      input.dispatchEvent(new Event("change"));
+      await until(() => !doc.querySelector("#couche-reglages").hidden, 10000, "couche importée");
+      doc.querySelector("#couche-etiquette").value = "nom";
+      doc.querySelector("#couche-etiquette").dispatchEvent(new Event("change"));
+      doc.querySelector("#couche-couleur").value = "nom";
+      doc.querySelector("#couche-couleur").dispatchEvent(new Event("change"));
+      await sleep(500);
+      const marks = JSON.parse(app.overlay_marks());
+      const point = marks.find((m) => m.kind === "point");
+      const gap = point ? Math.abs(Math.atan2(Math.sin(point.points[0][0] - yawTo(f3, target)), Math.cos(point.points[0][0] - yawTo(f3, target)))) : 9;
+      log(`couche : ${doc.querySelector("#couche-nom").textContent} · ${marks.length} partie(s) dans la photo · cap du point à ${gap.toFixed(4)} rad de la cible · légende : `
+        + [...doc.querySelectorAll("#couche-legende li")].map((li) => li.textContent).join(", "));
+      expect("couche : point et ligne projetés, point sur la cible", marks.length === 2 && gap < 0.02);
+      expect("couche : étiquettes dans la visionneuse et légende par valeur",
+        [...box.querySelectorAll(".etiquette.couche")].some((e) => e.textContent === "cible")
+        && doc.querySelectorAll("#couche-legende li").length === 2);
+      doc.querySelector("#couche-retirer").click();
+      expect("couche retirée", JSON.parse(app.overlay_marks()).length === 0 && !box.querySelector(".etiquette.couche"));
+    }
     verdict();
   } catch (e) { log("ERREUR " + e); }
   log("FIN");

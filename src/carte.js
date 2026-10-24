@@ -138,6 +138,7 @@ const Carte = (() => {
           },
           mesures: { type: "geojson", data: EMPTY },
           precedents: { type: "geojson", data: EMPTY },  // résultats de la session précédente (showPrevious)
+          couche: { type: "geojson", data: EMPTY },  // couche importée (showOverlay)
           pr: { type: "geojson", data: EMPTY },
           contour: { type: "geojson", data: EMPTY },  // commune choisie dans la recherche (recherche.js)
           voies: { type: "vector", tiles: [ROADS_TILES], minzoom: ROADS_MINZOOM, maxzoom: 19, attribution: ATTRIBUTION_IGN },
@@ -248,6 +249,15 @@ const Carte = (() => {
             },
           },
           // Curseur de vue : position, direction et ouverture de la vue
+          // Couche importée (GeoJSON) : couleur de chaque objet (Couche.style), sous les mesures
+          {
+            id: "couche-traits", type: "line", source: "couche", filter: ["!=", ["geometry-type"], "Point"],
+            paint: { "line-color": ["get", "_couleur"], "line-width": 2.5 },
+          },
+          {
+            id: "couche-points", type: "circle", source: "couche", filter: ["==", ["geometry-type"], "Point"],
+            paint: { "circle-color": ["get", "_couleur"], "circle-radius": 5, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 },
+          },
           // Résultats de la session précédente, en lecture seule : gris, sous ceux de la session
           {
             id: "precedents-traits", type: "line", source: "precedents", filter: ["==", ["geometry-type"], "LineString"],
@@ -789,6 +799,39 @@ const Carte = (() => {
   const labels = [];
   let shownMeasures = null;  // dernières mesures dessinées : suivent une poignée glissée
 
+  /** Couche importée (GeoJSON en WGS 84, properties._couleur et _etiquette), ou null : retirée.
+   * Étiquettes à partir du zoom OVERLAY_LABEL_ZOOM, sur les objets de la vue (OVERLAY_LABEL_MAX au plus). */
+  const OVERLAY_LABEL_ZOOM = 16, OVERLAY_LABEL_MAX = 200;
+  let overlay = null, overlayLabels = [], overlayBound = false;
+  function showOverlay(map, geojson) {
+    overlay = geojson;
+    const set = () => map.getSource("couche")?.setData(geojson || EMPTY);
+    set();
+    if (!map.loaded()) map.once("load", set);
+    if (!overlayBound) {
+      overlayBound = true;
+      map.on("moveend", () => overlayLabelsFor(map));
+    }
+    overlayLabelsFor(map);
+  }
+  function overlayLabelsFor(map) {
+    for (const marker of overlayLabels.splice(0)) marker.remove();
+    if (!overlay || map.getZoom() < OVERLAY_LABEL_ZOOM) return;
+    const bounds = map.getBounds();
+    for (const f of overlay.features) {
+      const text = f.properties._etiquette;
+      if (!text) continue;
+      const positions = (c) => (typeof c[0] === "number" ? [c.slice(0, 2)] : c.flatMap(positions));  // x, y (z ignoré)
+      const pts = positions(f.geometry.coordinates);
+      const at = pts[Math.floor(pts.length / 2)];
+      if (!at || !bounds.contains(at)) continue;
+      const element = Object.assign(document.createElement("div"), { className: "etiquette couche", textContent: text });
+      element.style.borderColor = f.properties._couleur;
+      overlayLabels.push(new maplibregl.Marker({ element, offset: [0, -14] }).setLngLat(at).addTo(map));
+      if (overlayLabels.length >= OVERLAY_LABEL_MAX) break;
+    }
+  }
+
   /** Résultats de la session précédente (export GeoJSON gardé), ou null : retirés. */
   function showPrevious(map, geojson) {
     const set = () => map.getSource("precedents")?.setData(geojson || EMPTY);
@@ -1076,6 +1119,6 @@ const Carte = (() => {
 
   return {
     PANORAMAX_API: META_API, GEOPF, OSM_TILES, createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, pcrsAt, instances, setInstance, setFilter,
-    showMeasures, showPrevious, showHandles, showView, showMilestones, nearestPhoto, photoById, apiUrl: () => apiUrl,
+    showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, nearestPhoto, photoById, apiUrl: () => apiUrl,
   };
 })();
