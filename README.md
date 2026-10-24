@@ -467,6 +467,13 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.5.3** (24/10/2026) : couche importée (section « Couche ») : GeoJSON, Shapefile (.zip, ou .shp
+  avec .dbf et .prj) ou GeoPackage, en WGS 84 ou Lambert 93 ; sur la mini-carte et, à son
+  altitude ou posée sur le sol LiDAR HD, dans la photo ; couleur selon une colonne (par valeur ou
+  dégradé) avec légende, étiquette d'une colonne (écartées, masquées au-delà d'une fois et demie
+  leur hauteur, transparentes à 25 %) ; case « Afficher la couche » ; gardée d'une session à
+  l'autre. Fiche PDF : choix « Cadrage automatique » ou « Vue actuelle », titre libre, couche
+  affichée comprise.
 - **0.5.2** (24/10/2026) : commune de la photo, département du requêteur et contour de la commune
   cherchée lus sur la Géoplateforme (geo.api.gouv.fr, très lent, n'est plus utilisé) ; hameau
   retenu jusqu'à 100 m de sa zone d'habitation. Bouton « Refaire » (Ctrl+Y) ; Effacer, Refaire et
