@@ -347,6 +347,9 @@ class App(session.Session):
     def state(self):
         out = dict(super().state(), tilt_ready=self._tilt_pending() and len(self.tilt_clicks) == 2)
         out["tilt_reason"] = self._tilt_reason()
+        # Effacer, Refaire, Tout effacer : grisés quand ils n'auraient pas d'effet
+        out.update(can_undo=self._can_undo(), can_redo=bool(self.redo_stack) and self._redo_state() == self.redo_key,
+                   can_clear=self._can_clear())
         if self.item:  # inclinaison de la ligne d'état : textes du web (_tilt_line), pas ceux du cœur
             text, alert = self._tilt_line()
             quality = precision.state_text(self.quality, metadata.item_accuracy(self.item), (text, False))
@@ -1003,6 +1006,22 @@ class App(session.Session):
             stack.append(snap)
         self.redo_stack, self.redo_key = stack, self._redo_state()
         return text
+
+    def _can_undo(self):
+        """« Effacer » aurait-il un effet ? (mêmes cas que _undo et Session.clear)"""
+        if self.mode == "tilt":  # objet vertical en cours, ou inclinaison calée à la main de la photo
+            pic = (self.item or {}).get("id")
+            return bool(self._tilt_pending() or self.calibrator.clicks or (pic and pic in self.calibration.verticals))
+        tool = self.tool
+        if self.b_aiming is not None or self.triangulator.sightings or self.width_sel is not None or self.ref_sel \
+                or tool.selected is not None or (tool.current is not None and tool.current.clicks):
+            return True
+        return bool(self.points) if self.mode == "tri" else self.ref_point is not None
+
+    def _can_clear(self):
+        """« Tout effacer » aurait-il un effet ?"""
+        return bool(self.points or self.links or self.tool.measures() or self.triangulator.sightings
+                    or self.ref_point is not None or self.tilt_clicks or self.calibrator.clicks)
 
     def _undo(self):
         """« Effacer » et Ctrl+Z : annule le dernier geste. Visées : la dernière seule (le bord B garde sa première,

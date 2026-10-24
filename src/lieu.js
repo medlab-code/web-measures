@@ -5,11 +5,10 @@
 // tronçon de la BD TOPO le plus proche), point de repère (PR + distance, BD TOPO), hors route
 // départementale la véloroute suivie (itinéraires cyclables de la BD TOPO) et l'écluse la plus
 // proche (repère des chemins de halage), hameau ou quartier (zone d'habitation de la BD TOPO
-// contenant la photo) et commune (découpage administratif de geo.api.gouv.fr).
+// contenant la photo) et commune (BD TOPO).
 
 const Lieu = (() => {
   const WFS = "https://data.geopf.fr/wfs/ows";
-  const COMMUNES = "https://geo.api.gouv.fr/communes";
   const REACH = 25;  // m : tronçons cherchés autour de la photo
   const SECTION_REACH = 40;  // m : section de PR de la route cherchée autour de la photo
   const cache = new Map();  // lieu déjà lu, au mètre près : { text, parts }
@@ -238,11 +237,11 @@ const Lieu = (() => {
     return `${name} à ${best.d < 1000 ? `${Math.round(best.d / 10) * 10} m` : `${(best.d / 1000).toFixed(1).replace(".", ",")} km`}`;
   }
 
-  /** Commune qui contient le point, ou "". */
+  /** Commune qui contient le point, ou "" : contours de la BD TOPO lus par maille, comme les routes
+   * (une requête rapide pour toutes les photos voisines). */
   async function commune(lon, lat) {
-    const response = await fetch(`${COMMUNES}?lat=${lat}&lon=${lon}&fields=nom&format=json`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return ((await response.json())[0] || {}).nom || "";
+    const communes = await zone("commune", "nom_officiel,geometrie", lon, lat);
+    return communes.find((c) => inside(c.geometry, lon, lat))?.properties.nom_officiel || "";
   }
 
   /** « D16 – PR 27 +0185 – Place de la Liberation – Pouilly-en-Auxois » (parties connues) ; hors

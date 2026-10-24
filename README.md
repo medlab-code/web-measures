@@ -180,7 +180,7 @@ largeur est en tirets bleus, la verticale d'une hauteur en tirets verts ; sur la
 visées de triangulation sont en tirets rouges.
 
 **Effacer** (ou **Ctrl+Z**, aussi dans la carte détachée) : annule le dernier geste
-(**Ctrl+Y** ou Ctrl+Maj+Z le rétablit, si rien n'a été fait depuis). La
+(**Refaire**, Ctrl+Y ou Ctrl+Maj+Z le rétablit, si rien n'a été fait depuis). La
 dernière visée seule (les autres restent ; le bord B garde sa première, le clic de la largeur),
 le dernier clic de l'objet vertical du calage, la sélection ou la mesure en cours ; sans rien en
 cours, le dernier point posé (sommet, bord opposé, puis le point de référence ; en mesure libre,
@@ -404,10 +404,9 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 | Géoplateforme IGN : WMTS | Plan IGN, orthophoto | accessible |
 | Géoplateforme IGN : altimétrie | LiDAR HD, ou RGE ALTI en secours, sous les photos et au point visé (vérification de la position RTK, sol au point, inclinaison automatique) | accessible |
 | Géoplateforme IGN : WMS (`wms-r`) | PCRS | accessible |
-| Géoplateforme IGN : WFS | BD TOPO (axe de la route, route et PR de la photo, PR sur la carte), ADMIN EXPRESS (limites administratives) | accessible |
+| Géoplateforme IGN : WFS | BD TOPO (axe de la route, route, PR, hameau et commune de la photo, PR sur la carte, département du requêteur), ADMIN EXPRESS (limites administratives, contour de la commune cherchée) | accessible |
 | Géoplateforme IGN : tuiles vectorielles (TMS) | Plan IGN (routes numérotées, noms), BD TOPO (voies) | accessible |
 | Géoplateforme IGN : géocodage | recherche de lieux (autocomplétion) | accessible |
-| geo.api.gouv.fr | commune de la photo | accessible |
 | Stockage des photos Panoramax (S3 OVH, derrière `panoramax.ign.fr`) | photos HD : capture Full HD, inclinaison automatique | accessible |
 | PROJ (`cdn.proj.org`) | grille du géoïde : altitude NGF, hauteur de caméra d'après le GPS | accessible |
 

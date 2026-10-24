@@ -7,7 +7,7 @@
 // pour une section commune aux deux sens) par défaut, le côté gauche seulement à défaut.
 
 const Requeteur = (() => {
-  const COMMUNES = "https://geo.api.gouv.fr/communes";
+  const WFS = "https://data.geopf.fr/wfs/ows";
   const MAX_ITEMS = 100;  // suggestions affichées au plus
   const SIDES = { D: 0, U: 1, G: 2 };  // côté préféré d'abord
   const routesByDept = new Map();  // département -> promesse de la liste des routes
@@ -15,11 +15,17 @@ const Requeteur = (() => {
 
   const quote = (text) => String(text).replace(/'/g, "''");
 
-  /** Département au point (lon, lat), ou "" (en mer, hors de France). */
+  /** Département au point (lon, lat), ou "" (en mer, hors de France) : commune de la BD TOPO qui
+   * contient le point, sans sa géométrie. */
   async function department(lon, lat) {
-    const response = await fetch(`${COMMUNES}?lat=${lat}&lon=${lon}&fields=codeDepartement&format=json`);
+    const params = new URLSearchParams({
+      SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetFeature", TYPENAMES: "BDTOPO_V3:commune",
+      OUTPUTFORMAT: "application/json", COUNT: "1", PROPERTYNAME: "code_insee_du_departement",
+      CQL_FILTER: `INTERSECTS(geometrie,POINT(${lat} ${lon}))`,
+    });
+    const response = await fetch(`${WFS}?${params}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return ((await response.json())[0] || {}).codeDepartement || "";
+    return ((await response.json()).features?.[0]?.properties || {}).code_insee_du_departement || "";
   }
 
   /** Clé de tri naturel d'un numéro de route : D9, D9A, D90, D111L, D974. */
@@ -323,5 +329,5 @@ const Requeteur = (() => {
     for (const type of ["keydown", "wheel", "dblclick"]) box.addEventListener(type, (e) => e.stopPropagation());
   }
 
-  return { attach };
+  return { attach, department };
 })();

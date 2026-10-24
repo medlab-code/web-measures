@@ -18,7 +18,6 @@
     ["data.geopf.fr/wfs", "IGN BD TOPO"],
     ["data.geopf.fr/geocodage", "IGN recherche de lieux"],
     ["data.geopf.fr", "Géoplateforme IGN"],
-    ["geo.api.gouv.fr", "geo.api.gouv.fr (communes)"],
     ["cdn.proj.org", "grille du géoïde (PROJ)"],
   ];
   const silent = new Set();  // noms des services sans réponse
@@ -58,12 +57,12 @@
   };
 
   // Cache des réponses des services géographiques (ticket #23) : BD TOPO, PR et ponts (WFS), altitudes
-  // (LiDAR HD, RGE ALTI), communes. Gardées d'une session à l'autre (Cache API), resservies sans requête
+  // (LiDAR HD, RGE ALTI), communes (WFS). Gardées d'une session à l'autre (Cache API), resservies sans requête
   // pendant CACHE_LIFE (réponse vide : CACHE_EMPTY_LIFE, le LiDAR HD se publie peu à peu), et au-delà
   // quand le service ne répond pas ou refuse. Ni Panoramax (nouvelles photos), ni la recherche de lieux,
   // ni les fonds de carte (cache HTTP du navigateur). Cache API absente (file://) : requêtes directes.
   const GEO_CACHE = "web-measures-geo";
-  const CACHED_SERVICES = ["data.geopf.fr/wfs", "data.geopf.fr/altimetrie", "geo.api.gouv.fr/"];
+  const CACHED_SERVICES = ["data.geopf.fr/wfs", "data.geopf.fr/altimetrie"];
   const CACHE_LIFE = 90 * 86400e3;  // ms : mises à jour trimestrielles de la BD TOPO
   const CACHE_EMPTY_LIFE = 7 * 86400e3;
   const CACHE_MAX = 50e6;  // octets : au-delà, les réponses les plus anciennes sont supprimées
@@ -525,7 +524,7 @@
     const saved = store.get("calage");
     if (saved && !app.load_calibration(saved)) console.warn("Calage enregistré illisible : ignoré.");
     savedCalibration = app.calibration_version;
-    for (const id of ["#mesure", "#mode", "#camera", "#pont", "#effacer", "#tout-effacer", "#calage-exporter",
+    for (const id of ["#mesure", "#mode", "#camera", "#pont", "#calage-exporter",
       "#calage-importer"]) $(id).disabled = false;
     $("#camera").value = store.get("camera", $("#camera").value);
     app.set_camera_height(Number($("#camera").value));
@@ -628,6 +627,9 @@
       showOverViewer(dialog);
     }
     const state = JSON.parse(app.state());
+    $("#effacer").disabled = !state.can_undo;  // grisés quand ils n'auraient pas d'effet
+    $("#refaire").disabled = !state.can_redo;
+    $("#tout-effacer").disabled = !state.can_clear;
     const computed = $("#fiche .precision-calculee");
     if (computed) computed.textContent = state.computed || "en cours…";
     $("#qualite").textContent = state.quality;
@@ -2106,6 +2108,10 @@
     refresh(app.undo());
     proposeDistance();
   });
+  $("#refaire").addEventListener("click", () => {  // comme Ctrl+Y : ce que le dernier « Effacer » a retiré
+    refresh(app.redo());
+    proposeDistance();
+  });
   $("#tout-effacer").addEventListener("click", () => refresh(app.clear_all()));
   new MutationObserver(showModeOptions).observe(viewer, { attributes: true, attributeFilter: ["hidden"] });
 
@@ -2586,8 +2592,7 @@ footer a { color: #1a56c4; word-break: break-all; } .mono { font-family: "JetBra
 <figure>${mapImage ? `<img src="${mapImage}" alt="Mini-carte : point ${e(data.name)} et ses mesures">` : "<div class='carte-vide'>Mini-carte indisponible (carte repliée, ou fond illisible)</div>"}
 <figcaption>Fond de carte ${e(background)}</figcaption></figure></section>
 <footer><div class="pied"><div>Photo <span class="mono">${e(data.photo || "")}</span> · ${e(app.caption(0))} · instance ${e(api)}</div>
-<a href="${e(link)}">${e(link)}</a>
-<div>Mesure réalisée avec Mesures Panoramax, à partir du cœur de calcul du plugin QGIS « Visionneuse Panoramax ».</div></div>
+<a href="${e(link)}">${e(link)}</a></div>
 ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</footer>
 </div></body></html>`;
   }

@@ -6,7 +6,7 @@
 
 const Recherche = (() => {
   const COMPLETION = "https://data.geopf.fr/geocodage/completion";
-  const COMMUNES = "https://geo.api.gouv.fr/communes";
+  const WFS = "https://data.geopf.fr/wfs/ows";
   const MIN_LENGTH = 3;
   const DELAY = 250;  // ms sans frappe avant d'interroger le service
   const OUTLINE_TIMEOUT = 8000;  // ms : contour de commune abandonné au-delà (service parfois muet)
@@ -22,10 +22,15 @@ const Recherche = (() => {
     return ((await response.json()).results || []).filter((r) => Number.isFinite(r.x) && Number.isFinite(r.y));
   }
 
-  /** Contour de la commune qui contient (lon, lat) : entité GeoJSON, ou null. */
+  /** Contour de la commune qui contient (lon, lat) : entité GeoJSON, ou null (ADMIN EXPRESS
+   * cartographique de la Géoplateforme : contour simplifié, quelques Ko). */
   async function communeOutline(lon, lat) {
-    const response = await fetch(`${COMMUNES}?lat=${lat}&lon=${lon}&fields=nom,code,contour&format=geojson&geometry=contour`,
-      { signal: AbortSignal.timeout(OUTLINE_TIMEOUT) });
+    const params = new URLSearchParams({
+      SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetFeature", TYPENAMES: "ADMINEXPRESS-COG-CARTO.LATEST:commune",
+      OUTPUTFORMAT: "application/json", SRSNAME: "EPSG:4326", COUNT: "1", PROPERTYNAME: "nom_officiel,code_insee,geometrie",
+      CQL_FILTER: `INTERSECTS(geometrie,POINT(${lat} ${lon}))`,
+    });
+    const response = await fetch(`${WFS}?${params}`, { signal: AbortSignal.timeout(OUTLINE_TIMEOUT) });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return ((await response.json()).features || [])[0] || null;
   }
@@ -145,5 +150,5 @@ const Recherche = (() => {
     for (const type of ["keydown", "wheel", "dblclick"]) box.addEventListener(type, (e) => e.stopPropagation());
   }
 
-  return { attach };
+  return { attach, communeOutline };
 })();

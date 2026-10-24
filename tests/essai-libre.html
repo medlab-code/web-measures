@@ -54,6 +54,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     const target2 = [target[0] + 3 * Math.sin(along) / (111320 * Math.cos(mid[1] * Math.PI / 180)) - 2 * Math.cos(along) / (111320 * Math.cos(mid[1] * Math.PI / 180)),
                      target[1] + 3 * Math.cos(along) / 111320 + 2 * Math.sin(along) / 111320];  // 3 m plus loin, 2 m vers la route
     const truth = Math.hypot(...metres(target2, target));
+    const off = (id) => doc.querySelector(id).disabled;
+    expect("rien encore : Effacer, Refaire et Tout effacer grisés", off("#effacer") && off("#refaire") && off("#tout-effacer"));
     for (const pt of [target, target2]) {
       for (const f of photos) {
         w.mesures.openPhoto(f);
@@ -65,8 +67,9 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
           doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
           expect("Ctrl+Z : dernière visée annulée, la première gardée", app.triangulator.sightings.length === 1,
             doc.querySelector("#statut").textContent);
-          doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "y", ctrlKey: true, bubbles: true }));
-          expect("Ctrl+Y : visée rétablie", app.triangulator.sightings.length === 2, doc.querySelector("#statut").textContent);
+          expect("après Ctrl+Z : Refaire actif, Effacer et Tout effacer aussi", !off("#refaire") && !off("#effacer") && !off("#tout-effacer"));
+          doc.querySelector("#refaire").click();  // comme Ctrl+Y
+          expect("« Refaire » : visée rétablie", app.triangulator.sightings.length === 2, doc.querySelector("#statut").textContent);
           doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
           psvClick(yawTo(f, pt), pitchTo(f, pt));
           doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "y", ctrlKey: true, bubbles: true }));

@@ -26,7 +26,6 @@ const Services = (() => {
     ["IGN : PCRS (WMS)", `${GEOPF}/wms-r/wms?SERVICE=WMS&REQUEST=GetCapabilities`],
     ["IGN : BD TOPO (WFS)", `${GEOPF}/wfs/ows?SERVICE=WFS&REQUEST=GetCapabilities`],
     ["IGN : recherche de lieux (géocodage)", `${GEOPF}/geocodage/completion?text=pouilly&maximumResponses=1`],
-    ["geo.api.gouv.fr : commune de la photo", "https://geo.api.gouv.fr/communes?lat=47.26&lon=4.55&fields=nom"],
     // Grille du géoïde (altitude NGF : hauteur de caméra d'après le GPS), voir py/geoid.py ;
     // 340 Ko, gardés ensuite en cache par le navigateur
     ["PROJ : grille du géoïde (altitude NGF)", "https://cdn.proj.org/fr_ign_RAF20.tif"],

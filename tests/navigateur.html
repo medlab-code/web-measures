@@ -257,6 +257,13 @@ async function feature(id) {
     const solle = await Lieu.describe(4.643432729, 47.247959385);
     log(`lieu dans un hameau : « ${solle.text} »`);
     expect("lieu : hameau avant la commune", solle.text.endsWith("Solle – Commarin") && solle.parts.lieudit === "Solle");
+    // Département (requêteur route + PR) et contour de commune (recherche) : Géoplateforme
+    const dept = await w.eval("Requeteur").department(4.643432729, 47.247959385);
+    const outline = await w.eval("Recherche").communeOutline(4.643432729, 47.247959385);
+    const [lo, la] = outline?.geometry.coordinates.flat(2)[0] || [];
+    log(`département ${dept} · contour de ${outline?.properties.nom_officiel} (${outline?.geometry.coordinates.flat(2).length} points, ${lo?.toFixed(3)}, ${la?.toFixed(3)})`);
+    expect("département et contour de commune (Géoplateforme)", dept === "21" && outline?.properties.nom_officiel === "Commarin"
+      && Math.abs(lo - 4.64) < 0.1 && Math.abs(la - 47.25) < 0.1);
     // Entrée du hameau par la route, à 88 m de la zone de Crépey (Aubaine) : hameau le plus proche
     const crepey = await Lieu.describe(...(await feature("a04557c8-3b4d-4184-8b3e-ff7ed9fa4197")).geometry.coordinates.slice(0, 2));
     log(`lieu à l'entrée d'un hameau : « ${crepey.text} »`);
