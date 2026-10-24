@@ -152,7 +152,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("étape 2 : " + app.status().slice(0, 200));
     const box = w.mesures.psv.container;
     await sleep(500);
-    log("droite dans la photo : " + box.querySelectorAll("[id*='-guide']").length + " · flèches masquées : "
+    log("droite dans la photo : " + JSON.parse(app.viewer_marks()).filter((m) => m.guide && !m.epipolar && !m.vertical).length + " · flèches masquées : "
       + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden")
       + " · rappel : " + doc.querySelector("#mode-mesure").textContent);
     // Bord opposé à 8 m sur la droite, de l'autre côté de la route, depuis la première photo
@@ -340,7 +340,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       if (f === photos[1]) {  // autre photo que celle de la mesure : ni droite ni largeur
         await sleep(1500);  // animation du cadrage
         aimedAt("le bord B", f, b12, zoom0);
-        expect("droite de mesure masquée hors de la photo de la mesure", box.querySelectorAll("[id*='-guide']").length === 0);
+        expect("droite de mesure masquée hors de la photo de la mesure", JSON.parse(app.viewer_marks()).filter((m) => m.guide && !m.epipolar && !m.vertical).length === 0);
       }
       const announced = f === photos[1] ? predicted(f.id) : null;
       psvClick(yawTo(f, b12), -0.3);
@@ -352,7 +352,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await sleep(500);
     log("bord B triangulé : " + doc.querySelector("#statut").textContent);
     expect("largeur entre les points triangulés A et B", doc.querySelector("#statut").textContent.includes("entre les points triangulés"));
-    expect("droite de mesure de retour sur la photo de la mesure", box.querySelectorAll("[id*='-guide']").length > 0);
+    expect("droite de mesure de retour sur la photo de la mesure", JSON.parse(app.viewer_marks()).filter((m) => m.guide && !m.epipolar && !m.vertical).length > 0);
     await sleep(2500);  // animation du cadrage
     { const last = JSON.parse(app.viewer_marks()).filter((m) => m.label.startsWith("↔")).pop();
       const pos = w.mesures.psv.getPosition(), wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));

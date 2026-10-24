@@ -1759,17 +1759,14 @@
       markIds.push(config.id);
     };
     const names = namesOf(marks);
+    const lines = [];  // traits, dessinés en WebGL (Traits) sous les croix et les étiquettes
     marks.forEach((mark, m) => {
       const points = mark.points.map(([yaw, pitch]) => ({ yaw, pitch }));
-      if (mark.guide) {  // tirets sans croix : droite de mesure (largeur, bleue), verticale (hauteur, verte)
+      if (mark.guide) {  // sans croix : droite de mesure (largeur, tirets bleus), verticale (hauteur,
+        // tirets verts), visée d'une autre photo (ligne épipolaire, trait plein vert)
         if (points.length >= 2) {
-          add({
-            id: `${MARK}${m}-${mark.epipolar ? "epipolaire" : "guide"}`, polyline: points.map(({ yaw, pitch }) => [yaw, pitch]),
-            // Visée d'une autre photo (ligne épipolaire) : pointillés fins ; droite de mesure et
-            // verticale : tirets
-            svgStyle: mark.epipolar ? { stroke: "#00bce6", strokeWidth: "2.5px", strokeDasharray: "5 4", fill: "none" }
-              : { stroke: mark.vertical ? "#2ecc40" : "#00bce6", strokeWidth: "2px", strokeDasharray: "8 5", fill: "none" },
-          });
+          lines.push({ points: mark.points, color: mark.vertical || mark.epipolar ? "#2ecc40" : "#00bce6", width: 2,
+            dash: mark.epipolar ? null : [8, 5] });
         }
         return;
       }
@@ -1782,12 +1779,8 @@
         });
         return;
       }
-      if (points.length >= 2) {
-        add({
-          id: `${MARK}${m}-trait`, polyline: points.map(({ yaw, pitch }) => [yaw, pitch]),
-          // Objet vertical du calage de l'inclinaison : bleu clair ; mesure : rouge
-          svgStyle: { stroke: mark.calage ? "#8ee8ff" : "#e53935", strokeWidth: mark.calage ? "2px" : "3px", fill: "none" },
-        });
+      if (points.length >= 2) {  // objet vertical du calage de l'inclinaison : bleu clair ; mesure : rouge
+        lines.push({ points: mark.points, color: mark.calage ? "#8ee8ff" : "#e53935", width: mark.calage ? 2 : 3, dash: null });
       }
       mark.points.forEach(([yaw, pitch, sel], i) => {
         add({
@@ -1817,6 +1810,8 @@
         });
       }
     });
+    Traits.attach(psv);
+    Traits.set(lines);
     markers.renderMarkers?.();
     requestAnimationFrame(() => requestAnimationFrame(declutterLabels));  // une fois placées
   }
@@ -2231,9 +2226,9 @@
       const pts = mark.points.map(screen);
       if (mark.guide) {
         ctx.save();
-        ctx.strokeStyle = mark.vertical ? "#2ecc40" : "#00bce6";
-        ctx.lineWidth = (mark.epipolar ? 2.5 : 2) * scale;
-        ctx.setLineDash(mark.epipolar ? [5 * scale, 4 * scale] : [8 * scale, 5 * scale]);
+        ctx.strokeStyle = mark.vertical || mark.epipolar ? "#2ecc40" : "#00bce6";
+        ctx.lineWidth = 2 * scale;
+        ctx.setLineDash(mark.epipolar ? [] : [8 * scale, 5 * scale]);
         ctx.beginPath();
         let open = false;
         for (const p of pts) {

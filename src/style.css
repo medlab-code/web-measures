@@ -1029,3 +1029,12 @@ dd .copier { display: block; margin-top: 0.4rem; padding: 0.1rem 0.5rem; font-si
 
 /* Carte : curseur de vue (cône, axe, position de la photo), image tournée au cap de la vue */
 .curseur-vue { pointer-events: none; line-height: 0; }
+
+/* Traits de la visionneuse (src/traits.js) : toile WebGL sur la photo, sous les repères */
+canvas.traits {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}

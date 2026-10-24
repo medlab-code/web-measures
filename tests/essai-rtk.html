@@ -84,6 +84,59 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         const epi = JSON.parse(app.viewer_marks()).filter((m) => m.epipolar);
         const near = epi.length === 1 && epi[0].points.some(([y]) => Math.abs(Math.atan2(Math.sin(y - yawTo(f, target)), Math.cos(y - yawTo(f, target)))) < 0.05);
         expect("visée de la 1re photo tracée vers le pied", near, `${epi.length} tracé(s)`);
+        // Traits en WebGL (src/traits.js) : pixels verts de la visée lus sur la toile, juste après une image
+        const toile = doc.querySelector("canvas.traits");
+        const green = await new Promise((done) => {
+          const read = () => {
+            w.mesures.psv.removeEventListener("render", read);
+            const g = toile.getContext("webgl"), px = new Uint8Array(toile.width * toile.height * 4);
+            g.readPixels(0, 0, toile.width, toile.height, g.RGBA, g.UNSIGNED_BYTE, px);
+            const isGreen = (i) => px[i + 1] > 150 && px[i] < 120 && px[i + 3] > 200;
+            let n = 0;
+            for (let i = 0; i < px.length; i += 4) if (isGreen(i)) n++;
+            // Calage : vert à moins de 2 px des points de la visée placés par la visionneuse elle-même
+            const r = toile.width / toile.clientWidth;
+            let placed = 0, onScreen = 0;
+            for (const [yaw, pitch] of epi[0].points) {
+              const c = w.mesures.psv.dataHelper.sphericalCoordsToViewerCoords({ yaw, pitch });
+              if (c.x < 5 || c.y < 5 || c.x > toile.clientWidth - 5 || c.y > toile.clientHeight - 5) continue;
+              onScreen++;
+              let hit = false;
+              for (let dx = -2; dx <= 2 && !hit; dx++) for (let dy = -2; dy <= 2 && !hit; dy++) {
+                const x = Math.round((c.x + dx) * r), y = toile.height - 1 - Math.round((c.y + dy) * r);
+                hit = isGreen((y * toile.width + x) * 4);
+              }
+              if (hit) placed++;
+            }
+            log(`trait WebGL : ${n} pixels verts, ${placed} points sur ${onScreen} à leur place`);
+            done(onScreen > 0 && placed === onScreen ? n : 0);
+          };
+          w.mesures.psv.addEventListener("render", read);
+          w.mesures.psv.needsUpdate();
+        });
+        expect("visée tracée en WebGL", green > 200, `${green} pixels verts`);
+        if (location.hash === "#perf") {  // fluidité : rotation zoomée, avec puis sans les traits
+          const psv = w.mesures.psv;
+          const run = (label) => new Promise((done) => {
+            const t0 = performance.now(), start = psv.getPosition();
+            let n = 0, last = t0, worst = 0;
+            const step = (now) => {
+              n++; worst = Math.max(worst, now - last); last = now;
+              psv.rotate({ yaw: start.yaw + 0.15 * Math.sin((now - t0) / 400), pitch: start.pitch });
+              if (now - t0 < 4000) w.requestAnimationFrame(step);
+              else { log(`perf ${label} : ${(n / 4).toFixed(1)} images/s, pire ${worst.toFixed(0)} ms`); done(); }
+            };
+            w.requestAnimationFrame(step);
+          });
+          for (const z of [60, 90]) {
+            psv.zoom(z); await sleep(500);
+            await run(`zoom ${z}, traits`);
+            toile.hidden = true; await sleep(300);
+            await run(`zoom ${z}, sans traits`);
+            toile.hidden = false;
+          }
+          psv.zoom(60); await sleep(300);
+        }
       }
       const announced = f === photos[1] ? predicted(f.id) : null;
       psvClick(yawTo(f, target), -0.35);

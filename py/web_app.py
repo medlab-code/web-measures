@@ -110,6 +110,11 @@ MAP_LINE_MIN = 4.0  # m au moins entre les deux clics
 MAP_CLICK = 0.3  # m : précision d'un clic sur la mini-carte zoomée
 MAP_HEADING_ERROR = 0.3  # degrés : cap EXIF des photos de relevé (point A posé sur la droite)
 MAP_MIN_ANGLE = 10.0  # degrés au moins entre la visée de A et la droite tracée
+# Visées des autres photos tracées dans la photo affichée (Session._epipolar_mark) : sans leurs premiers
+# mètres, vus très en biais, projetés à des milliers de pixels hors de l'écran et redessinés à chaque
+# image par la visionneuse (lenteur, surtout zoomé)
+EPIPOLAR_START = 2.0  # m depuis la caméra de la visée
+EPIPOLAR_NEAR = 3.0  # m au moins de la caméra de la photo affichée
 _core_axis_error = widths.axis_error
 
 
@@ -667,6 +672,27 @@ class App(session.Session):
 
     def _width_near(self, click):
         return self._filtered(super()._width_near, click)
+
+    def _epipolar_mark(self, s):
+        """Session._epipolar_mark raccourcie : de EPIPOLAR_START m (pas 0,5 m) depuis la caméra de la visée
+        jusqu'un peu au-delà du sol touché (80 m au plus), sans les points à moins de EPIPOLAR_NEAR m de
+        la caméra affichée (caméras à la hauteur de celle-ci, au-dessus d'un sol plat)."""
+        lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
+        height = self._camera_height()
+        sx, sy = triangulation._local(s["lon"], s["lat"], lon, lat)
+        a, e = math.radians(s["heading"]), math.radians(s.get("elev") or 0.0)
+        reach = 80.0 if e >= -0.002 else min(80.0, height / -math.tan(e) * 1.2 + 1.0)
+        reach = max(reach, EPIPOLAR_START * 1.5)
+        points = []
+        for k in range(41):  # pas plus serrés près de la caméra de la visée
+            t = EPIPOLAR_START * (reach / EPIPOLAR_START) ** (k / 40)
+            x, y, z = sx + t * math.sin(a), sy + t * math.cos(a), t * math.tan(e)
+            d = math.hypot(x, y)
+            if d < EPIPOLAR_NEAR:
+                continue
+            view = self._view_of(math.degrees(math.atan2(x, y)), math.degrees(math.atan2(z, d)))
+            points.append({"pic": self.item.get("id"), "yaw": view["yaw"], "pitch": view["pitch"]})
+        return {"points": points, "guide": True, "epipolar": True}
 
     def viewer_marks(self):
         marks = self._filtered(super().viewer_marks)
