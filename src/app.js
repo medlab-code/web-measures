@@ -646,10 +646,12 @@
     showLights(state.lights);
     // Photo sur un pont, en haut à gauche : nom et hauteur de chute (pas pendant la lecture)
     const fall = playing() ? null : JSON.parse(app.fall_json());
-    const [bridge, ...rest] = (fall?.text || "").split("\n");  // nom du pont en vert, puis la hauteur
+    const [bridge, ...rest] = (fall?.text || "").split("\n");
     Object.assign($("#chute"), { hidden: !fall, title: fall?.title || "" });
-    $("#chute").replaceChildren(Object.assign(document.createElement("span"), { className: "pont", textContent: bridge }),
-      rest.length ? "\n" + rest.join("\n") : "");
+    // Nom du pont en vert, « Au-dessus de … » en jaune, puis la hauteur
+    const line = (text, className) => Object.assign(document.createElement("span"), { className, textContent: text });
+    $("#chute").replaceChildren(line(bridge, "pont"),
+      ...rest.flatMap((t) => ["\n", t.startsWith("Au-dessus") ? line(t, "dessus") : t]));
     pointReady = state.point;
     tiltReady = state.tilt_ready;
     pointSelected = state.point_sel;
@@ -1117,8 +1119,7 @@
     }
     lastPhotoAt = now;
     showPhotoInfo(feature);
-    $("#capture-hd").disabled = !Calcul.hasWorker();
-    $("#vignette").disabled = false;
+    $("#capture-hd").disabled = !Calcul.hasWorker();  // « Avec les mesures » : selon les mesures (drawViewerMarks)
     if (app) refresh(app.set_picture(JSON.stringify(feature)));
     updateProducers();
     checkFarFromMeasures(coords);
@@ -1829,6 +1830,8 @@
 
   function drawViewerMarks(marks) {
     currentMarks = marks;
+    // « Avec les mesures » : seulement s'il y a une mesure (valeur en mètres) sur la photo affichée
+    $("#vignette").disabled = !photo || !marks.some((m) => !m.guide && /\d m\b/.test(m.label || ""));
     const markers = psv?.getPlugin?.("markers");
     if (!markers) return;
     for (const id of markIds) {
@@ -2296,7 +2299,7 @@
     const params = JSON.parse(text);
     const button = $("#capture-hd");
     button.disabled = true;
-    button.textContent = "📷 Capture en cours…";
+    button.querySelector(".libelle").textContent = "Capture en cours…";
     try {
       const response = await fetch(params.href);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -2316,7 +2319,7 @@
       setStatus(`Capture « Image seule » impossible : ${error.message}`, "echec");
     } finally {
       button.disabled = !photo || !Calcul.hasWorker();  // photo fermée pendant la capture : reste inactif
-      button.textContent = "📷 Image seule";
+      button.querySelector(".libelle").textContent = "Image seule";
     }
   });
 
@@ -2516,6 +2519,9 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     const mapImage = await mapSnapshot(data.bounds);
     step("Mise en page", 95);
     if (photo) data.place = (await Lieu.describe(...photo.geometry.coordinates.slice(0, 2)).catch(() => ({}))).parts;  // déjà lu : sans requête
+    // Sur un pont : son nom (sans la route, déjà écrite) et ce qu'il franchit, sans la hauteur de chute
+    const [bridge, ...more] = (JSON.parse(app.fall_json())?.text || "").split("\n");
+    data.bridge = bridge ? [bridge.replace(/\s*\([^)]*\)$/, ""), more.find((t) => t.startsWith("Au-dessus"))].filter(Boolean) : [];
     return ficheHtml(data, picture, mapImage, JSON.parse(app.state()));
   }
 
@@ -2538,7 +2544,8 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     const e = escapeHtml, now = new Date();
     const date = `${now.toLocaleDateString("fr-FR")} · ${now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
     const place = placeText() || "Lieu inconnu";
-    const placeHtml = placeMarkup(place, data.place);  // route et commune en gras, comme dans la visionneuse
+    const placeHtml = [placeMarkup(place, data.place),  // route et commune en gras, comme dans la visionneuse
+      ...data.bridge.map((t, i) => e(i ? t[0].toLowerCase() + t.slice(1) : t))].join(" – ");  // pont, au-dessus de…
     const background = backgroundName();
     const coords = `${data.lat.toFixed(5).replace(".", ",")}° N · ${data.lon.toFixed(5).replace(".", ",")}° E`;
     const api = Carte.apiUrl();
@@ -2553,8 +2560,10 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     // Points (A, puis le point d'arrivée de chaque mesure), la mesure en gras sur sa ligne, dessous
     const rows = data.rows.map((r) => `<tr class='${r.kind}'><td class='pt'>${e(r.point)}</td><td>${e(r.mesure)}</td>`
       + `<td class='num'>${e(r.valeur || "—")}</td><td class='num'>${e(r.incert || "—")}</td><td class='com'>${e(r.commentaire || "")}</td></tr>`).join("");
-    // Position et inclinaison de la photo (le détail du calage y est déjà), puis une ligne courte par mesure
-    const lines = [state.quality, ...data.texts].filter(Boolean).map((t) => `<li>${e(t)}</li>`).join("");
+    // Position de la photo, puis une ligne courte par mesure
+    // (sans l'état de l'inclinaison ni son alerte : position seulement)
+    const position = (state.quality || "").replace(/^⚠\s*/, "").split(" · ").filter((t) => !t.startsWith("inclinaison")).join(" · ");
+    const lines = [position, ...data.texts].filter(Boolean).map((t) => `<li>${e(t)}</li>`).join("");
     return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Fiche ${e(data.name)} — Mesures Panoramax</title>${FICHE_FONTS}
 <style>
 @page { size: A4 portrait; margin: 0; }

@@ -192,8 +192,9 @@ s'ouvre dans une fenêtre à part et la boîte d'impression du navigateur propos
 format PDF ». La page contient la photo d'où la plus grande mesure du point a été prise, cadrée
 sur ses deux bouts (une hauteur sur 75 % de la hauteur de l'image ; une largeur avec 10 % de
 marge, puis dézoomée de deux crans de molette), l'image recentrée sur
-la mesure, avec ses repères ; la localisation ; le tableau du point et de ses mesures, avec les
-commentaires ; la méthode et la précision, en lignes courtes (position et inclinaison de la photo,
+la mesure, avec ses repères ; la localisation (sur un pont, son nom et ce qu'il franchit après la
+commune) ; le tableau du point et de ses mesures, avec les
+commentaires ; la méthode et la précision, en lignes courtes (position de la photo,
 puis par mesure ce qui n'est pas dans le tableau : distance et caméra, ou axe et angle de visée,
 sans répéter ce qui est déjà dit, ni le nom de la mesure) ; la mini-carte centrée sur le point, les mesures et la photo, au zoom choisi dans la page
 (même échelle qu'à l'écran), avec le cône de vue et le nom du fond de carte et de son producteur ; l'identifiant de la photo,
@@ -449,6 +450,14 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.5.2** (24/10/2026) : commune de la photo, département du requêteur et contour de la commune
+  cherchée lus sur la Géoplateforme (geo.api.gouv.fr, très lent, n'est plus utilisé) ; hameau
+  retenu jusqu'à 100 m de sa zone d'habitation. Bouton « Refaire » (Ctrl+Y) ; Effacer, Refaire et
+  Tout effacer centrés sous le mode, colorés (jaune, vert, rouge), grisés sans effet possible ;
+  « Avec les mesures » grisé sans mesure sur la photo ; icône appareil photo, alignée, pour les
+  deux captures. Fiche PDF : pont et ce qu'il franchit après la commune, ligne de position sans
+  l'inclinaison, pied allégé. Encadré du pont : une ligne chacune, « Au-dessus de… » en jaune.
+  Favicon sans graduations.
 - **0.5.1** (24/10/2026) : fiche PDF par point de référence (bouton « 📄 Fiche » des résultats,
   impression du navigateur) : photo de la mesure cadrée sur elle, tableau des points et des
   mesures, méthode et précision en bref, mini-carte au zoom de la page avec le cône de vue, lien

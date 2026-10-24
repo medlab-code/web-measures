@@ -67,6 +67,9 @@ header .rang { display: flex; align-items: center; gap: 0.55em; }
 header .mesure { margin-left: 1em; }  /* à gauche, un peu détaché du titre */
 /* Captures et fond de carte à droite, captures au milieu de la place restante */
 header .captures { align-items: stretch; margin-left: auto; }  /* deux boutons de même largeur */
+/* Icône au bord gauche, dans une case de même largeur pour les deux boutons : libellés alignés */
+header .captures button { display: flex; align-items: center; gap: 0.45em; text-align: left; }
+header .captures .icone { display: inline-block; width: 1.3em; text-align: center; }
 /* Fond de carte : libellé et liste, filaire centré sous la liste */
 header .fond { display: grid; grid-template-columns: auto auto; align-items: center; gap: 0.5em 0.35em;
                margin-left: auto; }
@@ -605,7 +608,6 @@ button.principal { font-weight: 600; }
 /* Photo sur un pont : son nom puis la hauteur de chute (deux lignes), sous l'état de la mesure ;
    survol : infobulle de son explication (le coin laisse sinon passer les clics) */
 #chute {
-  max-width: 19rem;
   margin: 0.3rem 0 0;
   padding: 0.15rem 0.5rem;
   border-radius: 4px;
@@ -614,12 +616,13 @@ button.principal { font-weight: 600; }
   font-size: 14px;
   font-weight: 500;
   text-shadow: var(--detoure-vue);
-  white-space: pre-line;
+  white-space: pre;  /* chaque ligne (pont, au-dessus de…, hauteur de chute) entière, sans retour */
   pointer-events: auto;
   cursor: help;
 }
 #chute[hidden] { display: none; }
 #chute .pont { color: #2ecc40; }  /* vert des voyants RTK et LiDAR HD */
+#chute .dessus { color: #ffeb00; }  /* ce que le pont franchit : jaune des croix */
 #etat-mesure::before {
   content: "";
   flex: none;

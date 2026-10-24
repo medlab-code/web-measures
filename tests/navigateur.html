@@ -107,6 +107,7 @@ async function feature(id) {
   log("bouton Mesure désactivé : " + app.status());
   doc.querySelector("#mesure").click();
   log("bouton Mesure activé : " + app.status());
+  expect("« Avec les mesures » grisé sans mesure", doc.querySelector("#vignette").disabled);
 
   // Pouilly (imajbox) ------------------------------------------------------------------------
   await open(POUILLY);
@@ -403,6 +404,13 @@ async function feature(id) {
   log("attendu sans inclinaison : " + (d * (Math.tan(0.25) + Math.tan(0.3))).toFixed(2) + " m · ensuite : " + app.status().slice(0, 60)
     + " · flèches masquées : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden"));
 
+  // Capture « Avec les mesures » : active avec la hauteur sur la photo (grisée sans mesure, voir plus haut)
+  expect("« Avec les mesures » actif avec la hauteur", !doc.querySelector("#vignette").disabled);
+  doc.querySelector("#vignette").click();
+  await until(() => doc.querySelector("#statut").textContent.includes("Vignette"), 10000, "vignette");
+  log("vignette : " + doc.querySelector("#statut").textContent);
+  expect("vignette enregistrée", doc.querySelector("#statut").textContent.includes("Vignette enregistrée"));
+
   // Photo affichée stable (fin d'un chargement) : l'objet vertical se clique sur une seule photo
   await sleep(1500);
   await until(() => w.mesures.psv.getPictureMetadata?.()?.id === app.item?.get("id"), 20000, "photo stable");
@@ -445,10 +453,6 @@ async function feature(id) {
     select("#mode", mode);
     log("réglages " + mode + " : nouveau point de référence " + (doc.querySelector("#nouvelle-reference").hidden ? "masqué" : "affiché"));
   }
-  doc.querySelector("#vignette").click();
-  await until(() => doc.querySelector("#statut").textContent.includes("Vignette"), 10000, "vignette");
-  log("vignette : " + doc.querySelector("#statut").textContent);
-  expect("vignette enregistrée", doc.querySelector("#statut").textContent.includes("Vignette enregistrée"));
   // Lecture rapide 2x sur l'instance IGN (réglage par défaut) : ses images sont sur un stockage
   // OVH, qui refuse l'API ; la liste des photos vient du lien « collection » de la fiche
   if (doc.querySelector("#mesure").getAttribute("aria-pressed") === "true") doc.querySelector("#mesure").click();
