@@ -100,7 +100,10 @@ après.
   l'élévation du clic compte). Pour une autre hauteur depuis le même point, depuis n'importe
   quelle photo, cliquer « ↺ Nouvelle mesure depuis A » dans la visionneuse (elle repart du pied
   recalé, s'il l'a été) ; pour un autre point, « Nouveau point de référence ». Une verticale
-  verte le repère dans la photo, tracée selon le calage de l'inclinaison.
+  verte le repère dans la photo, tracée selon le calage de l'inclinaison. Sur la photo de la
+  première hauteur depuis ce point, le sommet des suivantes est pris sur le prolongement de sa
+  ligne (pied–sommet), au plus près du clic : le réticule y glisse, avec un trait jaune en
+  travers (un clic sur une croix la sélectionne toujours).
 - **Largeur perpendiculaire à la chaussée**
   1. Viser le **premier bord** (pied de bordure, marquage…) depuis au moins deux photos, puis
      « Valider le point triangulé ». La page trace la **droite de mesure**, perpendiculaire à l'axe de
@@ -174,10 +177,16 @@ cliqués, ou projetés au sol sur les autres photos). Dans la photo, la droite d
 largeur est en tirets bleus, la verticale d'une hauteur en tirets verts ; sur la carte, les
 visées de triangulation sont en tirets rouges.
 
-**Effacer** : la sélection, les visées ou la mesure en cours ; sans rien en cours, le dernier
-point posé (sommet, bord opposé, puis le point de référence ; en mesure libre, le dernier
-point gardé). Quand la photo affichée est à plus de 100 m des mesures, la page propose de
-tout effacer pour repartir de zéro.
+**Effacer** (ou **Ctrl+Z**, aussi dans la carte détachée) : annule le dernier geste. La
+dernière visée seule (les autres restent ; le bord B garde sa première, le clic de la largeur),
+le dernier clic de l'objet vertical du calage, la sélection ou la mesure en cours ; sans rien en
+cours, le dernier point posé (sommet, bord opposé, puis le point de référence ; en mesure libre,
+le dernier point gardé). Quand la photo affichée est à plus de 100 m des mesures, la page propose
+de tout effacer pour repartir de zéro. Échap annule le tracé d'une droite sur la carte.
+
+**Résultats gardés** : ils sont enregistrés dans le navigateur à chaque changement ; à
+l'ouverture suivante, ceux de la session précédente qui n'ont pas été exportés sont proposés à
+l'export (CSV, GeoJSON) ou à l'oubli. Ils ne sont pas rechargés dans la session.
 
 **Recaler un point** : **clic** (gauche ou droit) sur sa croix pour le sélectionner, puis :
 
@@ -312,7 +321,8 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,4
 - Incertitude de l'axe de la route (±0,5° pour la trajectoire RTK, ±2° pour la BD TOPO, ±3°
   pour la trajectoire sans RTK) estimée,
   à confirmer sur le terrain.
-- Mesures perdues en fermant la page : les exporter avant.
+- Mesures non rechargées à l'ouverture suivante : seule leur exportation est proposée (une
+  session précédente gardée, dans ce navigateur).
 
 ### Organisation
 

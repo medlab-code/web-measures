@@ -762,7 +762,41 @@ class App(session.Session):
         return bool(self.active and self.mode == "tilt" and self.item and self.tilt_clicks
                     and self.tilt_clicks[0]["pic"] == self.item.get("id"))
 
+    # Hauteurs suivantes depuis le point de référence, sur l'axe de la première -------------------
+    # Une fois une hauteur faite depuis A sur la photo affichée (ligne A–C), le sommet des suivantes
+    # (« Nouvelle mesure depuis A ») est pris sur le prolongement de cette ligne, au plus près du clic :
+    # même objet, même verticale. La page y tient le réticule, avec un trait jaune en travers.
+
+    def height_axis(self):
+        """JSON [[cap, élévation] du pied, [cap, élévation] du sommet] (radians, repère de la photo) de
+        la première hauteur depuis le point de référence prise sur la photo affichée, quand le
+        prochain clic donnera le sommet d'une autre hauteur depuis lui ; sinon null."""
+        return json.dumps(self._height_axis())
+
+    def _height_axis(self):
+        ref, tool = self.ref_point, self.tool
+        if not (self.active and self.item and self.mode == "height" and ref) or self._aiming() or self._locked() \
+                or self.ref_sel or tool.selected is not None:
+            return None
+        if tool.current is not None and len(tool.current.clicks) < tool.current.needed():
+            return None
+        pic = self.item.get("id")
+        first = next((m for m in self._heights() if (m.reference or {}).get("name") == ref["name"]
+                      and m.clicks[0].get("pic") == pic), None)
+        if first is None:
+            return None
+        foot, top = first.viewer_marks()["points"][:2]
+        if foot["yaw"] is None or top["yaw"] is None:
+            return None
+        return [[foot["yaw"], foot["pitch"]], [top["yaw"], top["pitch"]]]
+
     def click(self, yaw, pitch):
+        axis = self._height_axis() if self.mode == "height" else None
+        if axis:
+            click = tools.photo_click(self.item, (math.degrees(yaw) + self._heading()) % 360, math.degrees(pitch),
+                                      self.calibration, self.quality, [yaw, pitch], self._axis(self.item))
+            if click is not None and self._height_near(click) is None:  # pas sur une croix (sélection)
+                yaw, pitch = _on_axis(axis, yaw, pitch)
         if not (self.active and self.mode == "tilt" and self.item):
             return super().click(yaw, pitch)
         self._check_tilt()
@@ -785,7 +819,7 @@ class App(session.Session):
             self.tilt_clicks.append(click)
         else:
             self.message = ("Pied et sommet déjà placés : cliquez une de leurs croix pour la déplacer, puis "
-                            "« ✔ Valider l'objet vertical » (« Effacer » pour l'abandonner).")
+                            "« ✔ Valider l'objet vertical » (« Effacer » retire son dernier clic).")
         return self.status()
 
     def validate_tilt(self):
@@ -809,6 +843,26 @@ class App(session.Session):
                     "la même verticale (zoomez pour être précis).").format(n)
         return ("Objet {} : pied et sommet placés. Pour en déplacer un, cliquez sa croix puis sa position exacte ; "
                 "sinon « ✔ Valider l'objet vertical ».").format(n)
+
+    def undo(self):
+        """« Effacer » et Ctrl+Z : annule le dernier geste. Visées : la dernière seule (le bord B garde sa première,
+        le clic de la mesure) ; objet vertical du calage : son dernier clic ; sinon comme Session.clear
+        (sélection, mesure en cours, puis dernier point posé)."""
+        if self._tilt_pending() and self.tilt_clicks:
+            self.tilt_clicks.pop()
+            self.tilt_sel = None
+            self.message = "Dernier clic de l'objet vertical annulé."
+            return self.status()
+        sightings = self.triangulator.sightings
+        if self.active and self._active() is self.triangulator and len(sightings) > (1 if self.b_aiming else 0):
+            sightings.pop()
+            if sightings:
+                self.triangulator.recompute()
+            else:
+                self.triangulator.clear()
+            self.message = "Dernière visée annulée ({} restante{}).".format(len(sightings), "s" if len(sightings) > 1 else "")
+            return self.status()
+        return self.clear()
 
     def clear(self):
         if self._tilt_pending():
@@ -1496,6 +1550,22 @@ def _csv(value):
         return repr(round(value, 7)).replace(".", ",")
     text = str(value)
     return '"' + text.replace('"', '""') + '"' if any(c in text for c in ';"\n') else text
+
+
+def _on_axis(axis, yaw, pitch):
+    """(cap, élévation) en radians du point du grand cercle passant par les deux directions de axis
+    (droite dans la vue) le plus proche de (yaw, pitch)."""
+    def vec(y, p):
+        return (math.cos(p) * math.sin(y), math.sin(p), math.cos(p) * math.cos(y))
+    a, c, v = vec(*axis[0]), vec(*axis[1]), vec(yaw, pitch)
+    n = (a[1] * c[2] - a[2] * c[1], a[2] * c[0] - a[0] * c[2], a[0] * c[1] - a[1] * c[0])
+    norm = math.sqrt(sum(k * k for k in n))
+    if norm < 1e-9:
+        return yaw, pitch
+    d = sum(vk * nk for vk, nk in zip(v, n)) / norm
+    w = [vk - d * nk / norm for vk, nk in zip(v, n)]
+    length = math.sqrt(sum(k * k for k in w))
+    return math.atan2(w[0], w[2]), math.asin(max(-1.0, min(1.0, w[1] / length)))
 
 
 def _inside(point, ring):

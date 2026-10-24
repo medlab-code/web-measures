@@ -214,6 +214,23 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("sommet revisé (0,25) : " + doc.querySelector("#statut").textContent.slice(0, 160));
     log("attendu sans inclinaison : " + (d0 * (Math.tan(0.25) + Math.tan(0.35))).toFixed(3) + " m");
     near("sommet recalé au clic", metresIn(doc.querySelector("#statut").textContent), d0 * (Math.tan(0.25) + Math.tan(0.35)), 0.02);
+    // Hauteur suivante depuis A sur la même photo : sommet pris sur l'axe de la première (A–C)
+    again.click();
+    const axis = JSON.parse(app.height_axis());
+    expect("axe de la 1re hauteur proposé pour la suivante", Array.isArray(axis) && axis.length === 2);
+    psvClick(axis[1][0] + 0.03, 0.1);  // clic à côté de l'axe
+    await until(() => doc.querySelector("#statut").textContent.startsWith("Hauteur :"), 30000, "hauteur sur l'axe");
+    const onAxisTop = second().points[1];
+    const onLine = (() => {  // sommet sur le grand cercle pied–sommet de la première
+      const vec = (y, p) => [Math.cos(p) * Math.sin(y), Math.sin(p), Math.cos(p) * Math.cos(y)];
+      const [a, c, v] = [vec(...axis[0]), vec(...axis[1]), vec(onAxisTop[0], onAxisTop[1])];
+      const n = [a[1] * c[2] - a[2] * c[1], a[2] * c[0] - a[0] * c[2], a[0] * c[1] - a[1] * c[0]];
+      return Math.abs(v[0] * n[0] + v[1] * n[1] + v[2] * n[2]) / Math.hypot(...n);
+    })();
+    expect("sommet de la hauteur suivante sur l'axe", onLine < 1e-4, `écart ${onLine.toExponential(2)}`);
+    log("hauteur sur l'axe : " + doc.querySelector("#statut").textContent.slice(0, 80) + " · écart à l'axe " + onLine.toExponential(1));
+    doc.querySelector("#effacer").click();  // retirée : la suite de l'essai l'ignore
+    expect("hauteur sur l'axe effacée", heights().length === 1, `${heights().length} hauteur(s)`);
     doc.querySelector("#nouvelle-reference").click();
     log("nouveau point : " + doc.querySelector("#statut").textContent.slice(0, 60) + " · résultats : "
       + JSON.parse(app.results()).map((r) => r.text).join(" | "));

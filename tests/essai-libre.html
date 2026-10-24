@@ -61,6 +61,12 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         await until(() => JSON.parse(app.state()).quality.includes("vérifiée"), 60000, "position vérifiée");
         await sleep(800);
         psvClick(yawTo(f, pt), pitchTo(f, pt));
+        if (pt === target2 && f === photos[1]) {  // Ctrl+Z : la dernière visée seule, puis refaite
+          doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
+          expect("Ctrl+Z : dernière visée annulée, la première gardée", app.triangulator.sightings.length === 1,
+            doc.querySelector("#statut").textContent);
+          psvClick(yawTo(f, pt), pitchTo(f, pt));
+        }
       }
       doc.querySelector("#garder").click();
       log("validé : " + doc.querySelector("#statut").textContent);
@@ -88,6 +94,15 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("résultats : " + JSON.parse(app.results()).map((r) => r.text).join(" | ")
       + " · carte : " + JSON.parse(app.map_geojson()).features.map((f) => f.properties.kind).join(","));
     log("modes : " + [...doc.querySelectorAll("#mode option")].map((o) => o.textContent).join(" | "));
+    // Résultats gardés dans le navigateur, proposés à l'export à l'ouverture suivante
+    const saved = JSON.parse(w.localStorage.getItem("web-measures/resultats") || "null");
+    expect("résultats gardés dans le navigateur", saved && saved.n === JSON.parse(app.export_geojson()).features.length && saved.csv.includes(";"), JSON.stringify(saved)?.slice(0, 80));
+    w.location.reload();
+    await sleep(1000);
+    await until(() => w.document.readyState === "complete" && w.document.querySelector("#precedents"), 60000, "page rechargée");
+    const shown = w.document.querySelector("#precedents");
+    expect("résultats précédents proposés à l'export", !shown.hidden, shown.textContent.trim().slice(0, 80));
+    log("précédents : " + shown.querySelector("p").textContent);
     verdict();
   } catch (e) { log("ERREUR " + e); }
   log("FIN");

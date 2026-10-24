@@ -49,7 +49,7 @@
           <label title="Sur un pont, le modèle de terrain de l'IGN (LiDAR HD, ou RGE ALTI là où le LiDAR HD n'est pas publié) donne le terrain sous l'ouvrage (la voie franchie), pas le tablier : les points au sol se calent alors sur le sol tiré des photos et l'inclinaison automatique se passe de la pente du terrain"><input id="pont" type="checkbox" disabled> Sur un pont</label>
         </div>
         <div class="rang">
-          <button id="effacer" type="button" disabled>Effacer</button>
+          <button id="effacer" type="button" disabled title="Annule le dernier geste : dernière visée, dernier clic, puis la mesure en cours et le dernier point posé (raccourci Ctrl+Z)">Effacer</button>
           <button id="tout-effacer" type="button" disabled>Tout effacer</button>
         </div>
       </div>
@@ -159,8 +159,17 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
         </section>
         <section id="resultats">
           <h2>Résultats</h2>
-          <p class="aide">Les mesures terminées s'ajoutent ici ; elles sont perdues en fermant la page :
-            exportez-les.</p>
+          <p class="aide">Les mesures terminées s'ajoutent ici. Gardées dans ce navigateur, elles sont
+            proposées à l'export à l'ouverture suivante si elles ne l'ont pas été : exportez-les.</p>
+          <!-- Résultats non exportés de la session précédente (src/app.js, saveResults) -->
+          <div id="precedents" hidden>
+            <p></p>
+            <div class="boutons">
+              <button id="precedents-csv" type="button">Exporter CSV</button>
+              <button id="precedents-geojson" type="button">Exporter GeoJSON</button>
+              <button id="precedents-oublier" type="button" title="Effacer ces résultats du navigateur">Oublier</button>
+            </div>
+          </div>
           <ol></ol>
           <div class="boutons">
             <button id="csv" type="button" disabled>Exporter CSV</button>

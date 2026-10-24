@@ -663,10 +663,13 @@
       store.set("calage", app.calibration_json());
     }
     drawViewerMarks(JSON.parse(app.viewer_marks()));
+    heightAxis = JSON.parse(app.height_axis());
+    if (!heightAxis && slideKind === "hauteur") slideOnGuide(null);
     Carte.showMeasures(map, JSON.parse(app.map_geojson()));
     Carte.showHandles(map, JSON.parse(app.handles()), (index, lon, lat) => refresh(app.move_handle(index, lon, lat)));
     frame(app.focus());
     showResults(JSON.parse(app.results()));
+    saveResults();
     const results = app.has_results();
     $("#csv").disabled = !results;
     $("#geojson").disabled = !results;
@@ -705,7 +708,11 @@
         type: "text", value: r.comment, placeholder: "Commentaire", title: "Commentaire exporté avec le résultat",
       });
       comment.dataset.key = `${r.kind}-${r.id}`;
-      comment.addEventListener("input", () => app.set_comment(r.kind, r.id, comment.value));
+      comment.addEventListener("input", () => {
+        app.set_comment(r.kind, r.id, comment.value);
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(saveResults, 1000);
+      });
       const remove = Object.assign(document.createElement("button"), {
         type: "button", className: "effacer-resultat", textContent: "×", title: "Effacer ce résultat",
       });
@@ -789,12 +796,13 @@
   map.on("mousemove", (event) => {
     if (lineDraft) showDrawnLine([[lineDraft.lng, lineDraft.lat], [event.lngLat.lng, event.lngLat.lat]]);
   });
-  document.addEventListener("keydown", (event) => {
+  function onLineEscape(event) {  // aussi dans la carte détachée (toggleMapWindow)
     if (event.key === "Escape" && lineDraft !== null) {
       endLineDraft();
       refresh();
     }
-  });
+  }
+  document.addEventListener("keydown", onLineEscape);
 
   /** Photo la plus proche du point (lng, lat), qui passe le filtre ; avec un cap `heading`
    * (degrés), celle d'un véhicule roulant dans ce sens à 90° près, à défaut la plus proche. */
@@ -840,6 +848,17 @@
   }
   document.addEventListener("keydown", onNudgeKey, true);
 
+  // Ctrl+Z (⌘Z), comme le bouton « Effacer » : dernier geste de mesure annulé (visée, clic, mesure
+  // en cours, dernier point) ; dans un champ de saisie, l'annulation du texte reste celle du navigateur
+  function onUndoKey(event) {
+    if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== "z") return;
+    if (!app || !measuring || event.target.closest?.("input, select, textarea")) return;
+    event.preventDefault();
+    refresh(app.undo());
+    proposeDistance();
+  }
+  document.addEventListener("keydown", onUndoKey);
+
   // Carte détachable dans une fenêtre à part, à placer sur un second écran (Edge, Chrome :
   // fenêtre « image dans l'image » de document ; ailleurs, pas de bouton). La carte y est
   // déplacée telle quelle : elle suit la photo, les mesures et le cadrage sans synchronisation.
@@ -882,6 +901,8 @@
     win.document.body.classList.add("fenetre-carte");
     win.document.body.append(mapBox);
     win.document.addEventListener("keydown", onNudgeKey, true);
+    win.document.addEventListener("keydown", onUndoKey);
+    win.document.addEventListener("keydown", onLineEscape);
     // Glisser la carte : MapLibre suit la souris sur le document qui la contenait à sa création
     // (la page) ; dans la fenêtre détachée, les mouvements arrivent à son document à elle : on
     // les lui transmet (gestionnaire interne de MapLibre, le même que pour la page)
@@ -1350,9 +1371,38 @@
    * event null : repère retiré.
    */
   const SLIDE = "glisse-largeur";
+  let slideKind = null;  // réticule affiché : "largeur", "hauteur" (trait jaune en travers), ou null
+  let heightAxis = null;  // hauteur : [pied, sommet] de la 1re hauteur depuis A (App.height_axis), ou null
+
+  /** Point de la droite de la vue passant par les directions a et c (grand cercle) le plus proche
+   * de (yaw, pitch) ; même calcul que web_app._on_axis, qui contraint le clic. */
+  function onAxis([a, c], yaw, pitch) {
+    const vec = (y, p) => [Math.cos(p) * Math.sin(y), Math.sin(p), Math.cos(p) * Math.cos(y)];
+    const [va, vc, v] = [vec(...a), vec(...c), vec(yaw, pitch)];
+    const n = [va[1] * vc[2] - va[2] * vc[1], va[2] * vc[0] - va[0] * vc[2], va[0] * vc[1] - va[1] * vc[0]];
+    const norm = Math.hypot(...n);
+    if (norm < 1e-9) return { yaw, pitch };
+    const d = (v[0] * n[0] + v[1] * n[1] + v[2] * n[2]) / norm;
+    const w = v.map((k, i) => k - d * n[i] / norm), length = Math.hypot(...w);
+    return { yaw: Math.atan2(w[0], w[2]), pitch: Math.asin(Math.max(-1, Math.min(1, w[1] / length))) };
+  }
+
   function slideOnGuide(event) {
     const markers = psv?.getPlugin?.("markers");
     if (!markers) return;
+    // Hauteur suivante depuis A : réticule sur l'axe de la première, sauf sur une croix (sélection)
+    const onPhoto = event?.target?.closest?.(".psv-canvas-container, .psv-markers")
+      && !event.target.closest(".psv-virtual-tour-link, .croix");
+    const box = event && psv.container.getBoundingClientRect();
+    if (event && measuring && $("#mode").value === "height" && heightAxis && onPhoto) {
+      const pointer = psv.dataHelper?.viewerCoordsToSphericalCoords?.({ x: event.clientX - box.left, y: event.clientY - box.top });
+      if (pointer) {
+        const position = onAxis(heightAxis, pointer.yaw, pointer.pitch);
+        const [a, c] = heightAxis.map(([yaw, pitch]) => psv.dataHelper.sphericalCoordsToViewerCoords({ yaw, pitch }));
+        showSlide(markers, position, "hauteur", Math.atan2(c.y - a.y, c.x - a.x) * 180 / Math.PI + 90);
+        return;
+      }
+    }
     // Seulement quand un clic poserait le bord (largeur pas encore faite, ou bord sélectionné à
     // recaler), et sur la photo : pas sur les boutons et flèches de la visionneuse
     const line = event && measuring && $("#mode").value === "road" && (!aiming || lineDrawn) && !edgeBAiming
@@ -1361,7 +1411,6 @@
       && currentMarks.find((m) => m.guide && !m.vertical && !m.epipolar);
     let position = null;
     if (line) {
-      const box = psv.container.getBoundingClientRect();
       const yaw = psv.dataHelper?.viewerCoordsToSphericalCoords?.({ x: event.clientX - box.left, y: event.clientY - box.top })?.yaw;
       const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
       for (let i = 1; yaw != null && i < line.points.length && !position; i++) {  // tronçon de la droite sous ce cap
@@ -1370,14 +1419,27 @@
         if (t >= 0 && t <= 1) position = { yaw: y0 + t * span, pitch: p0 + t * (p1 - p0) };
       }
     }
-    const shown = (() => { try { return markers.getMarker(SLIDE); } catch { return null; } })();  // lève s'il n'existe pas
-    if (!position) {
-      if (shown) markers.removeMarker(SLIDE);
-    } else if (shown) {
+    showSlide(markers, position, position && "largeur");
+  }
+
+  /** Réticule glissant à position (ou retiré si null) ; hauteur : trait jaune en travers de l'axe
+   * (angle en degrés à l'écran), environ six fois la largeur du réticule. */
+  function showSlide(markers, position, kind, angle = 0) {
+    let shown = (() => { try { return markers.getMarker(SLIDE); } catch { return null; } })();  // lève s'il n'existe pas
+    if (shown && (!position || kind !== slideKind)) {
+      markers.removeMarker(SLIDE);
+      shown = null;
+    }
+    if (position && shown) {
       markers.updateMarker({ id: SLIDE, position });
-    } else {
+    } else if (position) {
       markers.addMarker({ id: SLIDE, position, anchor: "center center",
-        html: `<div class="glisse">${reticle(reticleColor(tilted, false, false))}</div>` });  // hors visée et calage
+        html: `<div class="glisse">${kind === "hauteur" ? "<div class='travers'></div>" : ""}${
+          reticle(reticleColor(tilted, false, false))}</div>` });  // hors visée et calage
+    }
+    slideKind = position ? kind : null;
+    if (kind === "hauteur") {
+      markers.getMarker(SLIDE)?.domElement?.querySelector(".travers")?.style.setProperty("--angle", `${angle}deg`);
     }
     psv.container.classList.toggle("sur-droite", !!position);
   }
@@ -2020,7 +2082,10 @@
   $("#axe-carte").addEventListener("click", () => startLineDraft());
   $("#axe-auto").addEventListener("click", () => refresh(app.cancel_measure_line()));
   $("#nouvelle-reference").addEventListener("click", () => refresh(app.new_reference()));
-  $("#effacer").addEventListener("click", () => refresh(app.clear()));
+  $("#effacer").addEventListener("click", () => {  // comme Ctrl+Z : le dernier geste (onUndoKey)
+    refresh(app.undo());
+    proposeDistance();
+  });
   $("#tout-effacer").addEventListener("click", () => refresh(app.clear_all()));
   new MutationObserver(showModeOptions).observe(viewer, { attributes: true, attributeFilter: ["hidden"] });
 
@@ -2104,16 +2169,58 @@
 
   // Exports ----------------------------------------------------------------------------------
 
-  let exported = "[]";  // résultats (commentaires compris) lors du dernier export
+  let exported = null;  // export GeoJSON (commentaires compris) lors du dernier export
 
   $("#csv").addEventListener("click", () => {
     download("\ufeff" + app.export_csv(), "mesures.csv", "text/csv");
-    exported = app.results();
+    exported = app.export_geojson();
+    saveResults();
   });
   $("#geojson").addEventListener("click", () => {
-    download(app.export_geojson(), "mesures.geojson", "application/geo+json");
-    exported = app.results();
+    exported = app.export_geojson();
+    download(exported, "mesures.geojson", "application/geo+json");
+    saveResults();
   });
+
+  // Résultats gardés dans le navigateur à chaque changement (exports CSV et GeoJSON tout prêts) :
+  // à l'ouverture suivante, ceux de la session précédente, s'ils n'ont pas été exportés, sont
+  // proposés à l'export. Pas rechargés dans la session : ils ne se modifient plus.
+  // shortcut: une seule session précédente, et deux onglets ouverts à la fois écrivent au même
+  // endroit ; à revoir si l'on travaille en plusieurs onglets.
+  let saveTimer = null, savedKey = null;
+  function saveResults() {  // à chaque rafraîchissement : écrit seulement ce qui a changé
+    clearTimeout(saveTimer);
+    if (!app) return;
+    const geojson = app.export_geojson(), key = geojson + (geojson === exported);  // exporté depuis : réécrit
+    if (key === savedKey) return;
+    savedKey = key;
+    const n = JSON.parse(geojson).features.length;  // en mesure libre, points et distances hors de la liste (#30)
+    store.set("resultats", n ? JSON.stringify({ when: Date.now(), n, exported: geojson === exported,
+      csv: app.export_csv(), geojson }) : "");
+  }
+  {
+    const last = store.get("resultats");
+    if (last) {  // session précédente : mise de côté avant que celle-ci n'écrive
+      store.set("resultats-precedents", last);
+      store.set("resultats", "");
+    }
+    let previous = null;
+    try { previous = JSON.parse(store.get("resultats-precedents") || "null"); } catch { /* illisible : aucun */ }
+    if (previous && previous.n && !previous.exported) {
+      const when = new Date(previous.when);
+      $("#precedents p").textContent = `${previous.n} résultat${previous.n > 1 ? "s" : ""} de la session du ${
+        when.toLocaleDateString("fr-FR")} à ${when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+      }, non exporté${previous.n > 1 ? "s" : ""} :`;
+      $("#precedents").hidden = false;
+      $("#precedents-csv").addEventListener("click", () => download("\ufeff" + previous.csv, "mesures-precedentes.csv", "text/csv"));
+      $("#precedents-geojson").addEventListener("click", () => download(previous.geojson, "mesures-precedentes.geojson",
+        "application/geo+json"));
+      $("#precedents-oublier").addEventListener("click", () => {
+        store.set("resultats-precedents", "");
+        $("#precedents").hidden = true;
+      });
+    }
+  }
   $("#calage-exporter").addEventListener("click", () => download(app.calibration_json(), "calage-panoramax.json",
     "application/json"));
   $("#calage-importer").addEventListener("click", () => $("#calage-fichier").click());
@@ -2137,7 +2244,7 @@
   }
 
   window.addEventListener("beforeunload", (event) => {
-    if (app && app.has_results() && app.results() !== exported) event.preventDefault();  // non exportés
+    if (app && app.has_results() && app.export_geojson() !== exported) event.preventDefault();  // non exportés
   });
 
   // Captures ----------------------------------------------------------------------------------

@@ -896,8 +896,19 @@ dd .copier { display: block; margin-top: 0.4rem; padding: 0.1rem 0.5rem; font-si
 }
 /* Largeur : réticule tenu sur la droite de mesure sous le pointeur (là où le bord se posera), qui
    remplace le pointeur */
-.glisse { width: 33px; height: 33px; pointer-events: none; }
-.glisse svg { display: block; }
+.glisse { position: relative; width: 33px; height: 33px; pointer-events: none; }
+.glisse svg { position: relative; display: block; }
+/* Hauteur suivante depuis A : trait jaune en travers de l'axe de la première, six réticules de long */
+.glisse .travers {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 198px;
+  height: 2px;
+  background: #ffeb00;
+  box-shadow: 0 0 2px rgb(0 0 0 / 0.8);
+  transform: translate(-50%, -50%) rotate(var(--angle, 0deg));
+}
 .croix.calage {  /* calage de l'inclinaison : pied et sommet des objets verticaux, rouge clair */
   background:
     linear-gradient(#ff8a80, #ff8a80) center / 2px 100% no-repeat,
