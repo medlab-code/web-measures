@@ -106,6 +106,10 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     // Résultats gardés dans le navigateur, proposés à l'export à l'ouverture suivante
     const saved = JSON.parse(w.localStorage.getItem("web-measures/resultats") || "null");
     expect("résultats gardés dans le navigateur", saved && saved.n === JSON.parse(app.export_geojson()).features.length && saved.csv.includes(";"), JSON.stringify(saved)?.slice(0, 80));
+    // Couche importée gardée : remise avec ses réglages à l'ouverture suivante
+    w.localStorage.setItem("web-measures/couche", JSON.stringify({ name: "gardée.geojson", crs: "wgs84", columns: ["nom"],
+      couleur: "nom", etiquette: "nom", features: [{ type: "Feature", id: 0, properties: { nom: "borne" },
+        geometry: { type: "Point", coordinates: target } }] }));
     w.location.reload();
     await sleep(1000);
     await until(() => w.document.readyState === "complete" && w.document.querySelector("#precedents"), 60000, "page rechargée");
@@ -116,6 +120,10 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     // La liste de la session en cours reste la sienne (elle était écrite dans celle des précédents)
     await until(() => w.mesures?.app, 120000, "Pyodide rechargé");
     await sleep(2000);  // premiers rafraîchissements de la page rechargée
+    const d2 = w.document;
+    expect("couche gardée remise avec ses réglages", !d2.querySelector("#couche-reglages").hidden
+      && d2.querySelector("#couche-nom").textContent.startsWith("gardée.geojson") && d2.querySelector("#couche-etiquette").value === "nom"
+      && d2.querySelector("#couche-couleur").value === "nom", d2.querySelector("#couche-nom").textContent);
     expect("liste des précédents intacte après un rafraîchissement", shown.querySelectorAll("li").length === saved.n
       && !shown.querySelector("input"));
     const m2 = w.mesures.map;

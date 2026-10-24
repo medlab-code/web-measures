@@ -187,7 +187,10 @@ cours, le dernier point posé (sommet, bord opposé, puis le point de référenc
 le dernier point gardé). Quand la photo affichée est à plus de 100 m des mesures, la page propose
 de tout effacer pour repartir de zéro. Échap annule le tracé d'une droite sur la carte.
 
-**Fiche PDF** : bouton « 📄 Fiche » d'un point de référence dans les résultats. Une page A4
+**Fiche PDF** : bouton « 📄 Fiche » d'un point de référence dans les résultats, puis le choix de la
+photo : « Cadrage automatique » (ci-dessous) ou « Vue actuelle » (la visionneuse telle qu'affichée,
+sans changer de photo ni de cadrage), et un titre libre (« point de référence A » par défaut, après
+« Fiche de mesure — »). Une page A4
 s'ouvre dans une fenêtre à part et la boîte d'impression du navigateur propose « Enregistrer au
 format PDF ». La page contient la photo d'où la plus grande mesure du point a été prise, cadrée
 sur ses deux bouts (une hauteur sur 75 % de la hauteur de l'image ; une largeur avec 10 % de
@@ -201,12 +204,16 @@ sans répéter ce qui est déjà dit, ni le nom de la mesure) ; la mini-carte ce
 son attribution et son lien Panoramax, aussi en QR code. La mini-carte manque si elle est repliée.
 
 **Couche importée** (section « Couche » du panneau) : un fichier GeoJSON, en WGS 84 ou en Lambert 93
-(converti), dessiné sur la mini-carte et, dans la photo, posé au sol supposé plat à la hauteur de
-caméra : points en pastilles, lignes et contours des polygones en traits, pour les objets à moins
+(converti), dessiné sur la mini-carte et dans la photo, à l'altitude du fichier (z, en NGF) ou posé
+sur le sol LiDAR HD, lu sous la caméra et sous les objets (lignes redécoupées tous les 5 m pour
+suivre le terrain ; à plat à la hauteur de caméra en attendant, ou sans LiDAR) : points en pastilles, lignes et contours des polygones en traits, pour les objets à moins
 de 100 m de la photo. Couleur selon une colonne (une couleur par valeur, les dix plus fréquentes,
 ou dégradé en cinq classes pour une colonne numérique), étiquette d'une colonne (dans la photo,
-et sur la carte à partir du zoom 16), légende. Une couche à la fois, pour la session ; « Retirer »
-l'efface. L'altitude des objets (z) est ignorée.
+et sur la carte à partir du zoom 16), légende. Étiquettes transparentes à 25 %, jamais recouvertes
+par une pastille, placées de l'objet le plus proche de la photo au plus lointain : remontées en cas
+de chevauchement, masquées s'il faudrait les remonter de plus d'une fois et demie leur hauteur. La case « Afficher la couche » la masque sans la retirer. Une couche à la fois, gardée avec ses réglages dans le
+navigateur d'une session à l'autre (sauf si elle est trop grosse : un message le dit) ; « Retirer »
+l'efface.
 
 **Résultats gardés** : ils sont enregistrés dans le navigateur à chaque changement ; à
 l'ouverture suivante, ceux de la session précédente qui n'ont pas été exportés sont proposés à

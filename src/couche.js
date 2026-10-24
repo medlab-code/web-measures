@@ -3,8 +3,8 @@
 //
 // Couche importée (GeoJSON) : lecture, coordonnées en WGS 84 (Lambert 93 converti), couleur selon
 // une colonne (une couleur par valeur, ou dégradé pour une colonne numérique) et étiquette d'une
-// colonne. Dessinée sur la mini-carte (Carte.showOverlay) et, projetée au sol, dans la visionneuse
-// (web_app.App.overlay_marks).
+// colonne. Dessinée sur la mini-carte (Carte.showOverlay) et dans la visionneuse, à son altitude ou
+// posée sur le sol LiDAR HD (web_app.App.overlay_marks).
 
 const Couche = (() => {
   const SINGLE = "#ff00ff";  // couleur unique : magenta, distinct des repères de l'application
@@ -60,7 +60,9 @@ const Couche = (() => {
     const firstOf = (c) => (typeof c[0] === "number" ? c : firstOf(c[0]));
     const first = firstOf(features[0].geometry.coordinates);
     const crs = crsOf(data, first);
-    const convert = crs === "lambert93" ? lambert93 : ([x, y]) => [x, y];  // z ignoré : objets posés au sol
+    // Altitude z gardée (NGF) : l'objet y est dessiné ; sans elle, posé sur le sol LiDAR HD
+    const keepZ = (xy, z) => (Number.isFinite(z) ? [...xy, z] : xy);
+    const convert = crs === "lambert93" ? ([x, y, z]) => keepZ(lambert93([x, y]), z) : ([x, y, z]) => keepZ([x, y], z);
     const out = features.map((f, i) => ({
       type: "Feature", id: i, properties: { ...(f.properties || {}) },
       geometry: { type: f.geometry.type, coordinates: mapCoords(f.geometry.coordinates, convert) },

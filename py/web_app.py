@@ -319,7 +319,8 @@ class App(session.Session):
         self.bdtopo = {}  # (couche BD TOPO, maille) -> objets lus (voir _bdtopo)
         self.map_line = None  # droite de mesure tracée sur la carte, pour le prochain point A (ticket #28)
         self.redo_stack, self.redo_key = [], None  # états d'avant chaque « Effacer » (Ctrl+Y, voir redo)
-        self.overlay = []  # couche importée : (n° de l'objet, "point" ou "ligne", [(lon, lat)]), voir set_overlay
+        self.overlay = []  # couche importée : (n° de l'objet, "point" ou "ligne", [(lon, lat, z)]), voir set_overlay
+        self.overlay_ground = {}  # photo -> {(lon, lat): altitude LiDAR HD} sous la couche (_overlay_ground)
         self.tilt_reasons = {}  # photo -> raison de l'échec de l'inclinaison automatique (ticket #29)
         self.tilts.run = self._run_tilt
         # Inclinaison par le terrain hors agglomération, expérimentale (option, voir web_terrain)
@@ -870,13 +871,19 @@ class App(session.Session):
         text = super().status()
         return _map_line_text(text) if MAP_SOURCE in text else text
 
-    # Couche importée (GeoJSON, src/couche.js) : objets projetés au sol dans la photo -----------------
+    # Couche importée (GeoJSON, src/couche.js) : objets dans la photo, à leur altitude (z du fichier,
+    # NGF) ou posés sur le sol LiDAR HD, lu sous la caméra et sous leurs sommets (lignes redécoupées
+    # tous les OVERLAY_STEP m pour suivre le terrain) ; à plat à la hauteur de caméra en attendant ou
+    # sans LiDAR ----------------------------------------------------------------------------------
     OVERLAY_REACH = 100.0  # m : objets dessinés dans la photo s'ils ont un sommet à cette distance
+    OVERLAY_STEP = 5.0  # m : pas des lignes, pour suivre le terrain entre leurs sommets
+    OVERLAY_CHUNK = 150  # points par requête d'altitude (longueur de l'adresse)
+    OVERLAY_MAX = 900  # points d'altitude au plus par photo
 
     def set_overlay(self, text):
-        """Couche importée, JSON [{id, geometry}] en WGS 84 (vide : retirée) : points, et lignes (les
-        contours des polygones), multi-géométries éclatées en parties."""
-        self.overlay = []
+        """Couche importée, JSON [{id, geometry}] en WGS 84, z éventuel en NGF (vide : retirée) : points,
+        et lignes (contours des polygones compris), multi-géométries éclatées en parties."""
+        self.overlay, self.overlay_ground = [], {}
         for f in json.loads(text or "[]"):
             g, i = f.get("geometry") or {}, f.get("id")
             kind, coords = g.get("type", ""), g.get("coordinates") or []
@@ -893,27 +900,69 @@ class App(session.Session):
             else:
                 parts = []
             for part in parts:
-                pts = [(float(p[0]), float(p[1])) for p in part if len(p) >= 2]
+                pts = [(float(p[0]), float(p[1]), float(p[2]) if len(p) > 2 and p[2] is not None else None)
+                       for p in part if len(p) >= 2]
                 if pts:
-                    self.overlay.append((i, "point" if kind.endswith("Point") else "ligne", pts))
+                    line = not kind.endswith("Point")
+                    self.overlay.append((i, "ligne" if line else "point", _densified(pts, self.OVERLAY_STEP) if line else pts))
         return len(self.overlay)
 
     def overlay_marks(self):
-        """JSON [{id, kind, points: [[cap, élévation]]}] (radians, repère de la photo affichée) des
-        parties de la couche importée qui ont un sommet à OVERLAY_REACH m de la photo, posées sur le
-        sol supposé plat à la hauteur de caméra (comme la droite tracée)."""
+        """JSON [{id, kind, points: [[cap, élévation]], dist}] (radians, repère de la photo affichée ;
+        dist : distance en m de la caméra au sommet le plus proche) des parties de la couche importée
+        qui ont un sommet à OVERLAY_REACH m de la photo, de la plus proche à la plus lointaine."""
         if not self.item or not self.overlay:
             return "[]"
         lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
         k = math.cos(math.radians(lat))
         reach = self.OVERLAY_REACH / 111320.0
+        near = [(i, kind, pts) for i, kind, pts in self.overlay
+                if any(abs(p[1] - lat) < reach and abs(p[0] - lon) * k < reach for p in pts)]
+        ground = self._overlay_ground(lon, lat, near)  # {(lon, lat): z}, sol sous la caméra en (lon, lat)
+        height, base = self._camera_height(), ground.get((lon, lat))
         out = []
-        for i, kind, pts in self.overlay:
-            if not any(abs(p[1] - lat) < reach and abs(p[0] - lon) * k < reach for p in pts):
-                continue
-            views = [self._project(plon, plat) for plon, plat in pts]
-            out.append({"id": i, "kind": kind, "points": [[v["yaw"], v["pitch"]] for v in views]})
+        for i, kind, pts in near:
+            views, dist = [], None
+            for plon, plat, z in pts:
+                z = z if z is not None else ground.get((plon, plat))
+                x, y = triangulation._local(plon, plat, lon, lat)
+                drop = height + base - z if base is not None and z is not None else height  # sinon : à plat
+                v = self._view_of(math.degrees(math.atan2(x, y)), -math.degrees(math.atan2(drop, max(math.hypot(x, y), 0.5))))
+                views.append([v["yaw"], v["pitch"]])
+                dist = math.hypot(x, y) if dist is None else min(dist, math.hypot(x, y))
+            out.append({"id": i, "kind": kind, "points": views, "dist": round(dist, 1)})
+        out.sort(key=lambda o: o["dist"])
         return json.dumps(out)
+
+    def _overlay_ground(self, lon, lat, near):
+        """Altitudes LiDAR HD sous la caméra et sous les sommets proches sans z (OVERLAY_MAX au plus, à
+        une fois et demie OVERLAY_REACH) : {(lon, lat): z}, lues une fois par photo ({} en attendant)."""
+        pic = self.item.get("id")
+        if pic in self.overlay_ground:
+            return self.overlay_ground[pic]
+        self.overlay_ground[pic] = {}
+        k, reach = math.cos(math.radians(lat)), 1.5 * self.OVERLAY_REACH / 111320.0
+        points = [(lon, lat)] + list(dict.fromkeys(
+            (p[0], p[1]) for _, _, pts in near for p in pts
+            if p[2] is None and abs(p[1] - lat) < reach and abs(p[0] - lon) * k < reach))[:self.OVERLAY_MAX]
+        found, overlay = {}, self.overlay
+        chunks = [points[n:n + self.OVERLAY_CHUNK] for n in range(0, len(points), self.OVERLAY_CHUNK)]
+        left = [len(chunks)]
+
+        def got(chunk):
+            def done(data, error):
+                z = None if error else precision._ground(data)
+                if z and len(z) == len(chunk):
+                    found.update((p, h) for p, h in zip(chunk, z) if h is not None)
+                left[0] -= 1
+                if not left[0] and self.overlay is overlay:  # toutes lues : couche redessinée
+                    self.overlay_ground[pic] = found
+                    self.notify()
+            return done
+
+        for chunk in chunks:
+            host.fetch_json(precision.lidar_url(chunk, precision.LIDAR_RESOURCE), got(chunk), timeout_ms=15000)
+        return self.overlay_ground[pic]
 
     # Hauteurs suivantes depuis le point de référence, sur l'axe de la première -------------------
     # Une fois une hauteur faite depuis A sur la photo affichée (ligne A–C), le sommet des suivantes
@@ -1788,6 +1837,21 @@ def _without_repeats(notes):
         if fresh:
             text = " · ".join(fresh)
             out.append(text[0].upper() + text[1:])
+    return out
+
+
+def _densified(pts, step):
+    """Ligne [(lon, lat, z ou None)] redécoupée tous les step m au plus (z interpolé s'il est connu aux
+    deux bouts) : elle suit le terrain entre ses sommets."""
+    out = [pts[0]]
+    for (lon1, lat1, z1), (lon2, lat2, z2) in zip(pts, pts[1:]):
+        x, y = triangulation._local(lon2, lat2, lon1, lat1)
+        n = min(200, int(math.hypot(x, y) // step))
+        for j in range(1, n + 1):
+            t = j / (n + 1)
+            out.append((lon1 + t * (lon2 - lon1), lat1 + t * (lat2 - lat1),
+                        z1 + t * (z2 - z1) if z1 is not None and z2 is not None else None))
+        out.append((lon2, lat2, z2))
     return out
 
 

@@ -1077,9 +1077,22 @@ canvas.traits {
 /* Couche importée : pastille de couleur (points, légende), étiquette liserée de la couleur de l'objet */
 .pastille-couche { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 2px solid #fff;
                    box-shadow: 0 0 2px rgba(0, 0, 0, 0.8); vertical-align: middle; }
-.etiquette.couche { border-left: 4px solid; }
+.etiquette.couche { border-left: 4px solid; opacity: 0.75; }  /* transparentes à 25 %, carte et visionneuse */
+/* Dans la visionneuse : transparentes à 25 %, remontées si elles se chevauchent (declutterLabels) */
+.ancre .etiquette.couche.dessus { transform: translate(-50%, var(--decalage, 0px)); }
 #couche label { display: block; margin: 0.3rem 0; }
 #couche-legende { list-style: none; margin: 0.3rem 0; padding: 0; font-size: 0.9em; }
 #couche-legende li { display: flex; align-items: center; gap: 0.4rem; margin: 0.1rem 0; }
 #couche-legende .pastille-couche { border-color: var(--bord); box-shadow: none; }
 #couche-nom { margin: 0.2rem 0; font-weight: 500; }
+
+/* Fiche PDF, choix de la photo : vue actuelle entourée de vert, cadrage automatique de bleu */
+#choix-fiche .vue-actuelle { border: 2px solid #2ecc40; }
+#choix-fiche .cadrage-auto { border: 2px solid #1e88e5; }
+#choix-fiche .vue-actuelle:hover { background: rgba(46, 204, 64, 0.75); }
+#choix-fiche .cadrage-auto:hover { background: rgba(30, 136, 229, 0.75); }
+/* Titre sur sa propre ligne, au-dessus des trois boutons */
+#choix-fiche form { flex-wrap: wrap; }
+#choix-fiche .titre-fiche { display: flex; align-items: center; gap: 0.5rem; flex: 1 0 100%; margin-bottom: 0.2rem; }
+#choix-fiche .titre-fiche input { flex: 1; min-width: 0; }
+#choix-fiche form button { white-space: nowrap; }

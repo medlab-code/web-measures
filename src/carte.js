@@ -818,6 +818,10 @@ const Carte = (() => {
     for (const marker of overlayLabels.splice(0)) marker.remove();
     if (!overlay || map.getZoom() < OVERLAY_LABEL_ZOOM) return;
     const bounds = map.getBounds();
+    // Comme dans la visionneuse : de la plus proche de la photo affichée (sinon du centre de la carte)
+    // à la plus lointaine
+    const from = lastView?.[0] || map.getCenter().toArray();
+    const found = [];
     for (const f of overlay.features) {
       const text = f.properties._etiquette;
       if (!text) continue;
@@ -825,12 +829,46 @@ const Carte = (() => {
       const pts = positions(f.geometry.coordinates);
       const at = pts[Math.floor(pts.length / 2)];
       if (!at || !bounds.contains(at)) continue;
-      const element = Object.assign(document.createElement("div"), { className: "etiquette couche", textContent: text });
-      element.style.borderColor = f.properties._couleur;
-      overlayLabels.push(new maplibregl.Marker({ element, offset: [0, -14] }).setLngLat(at).addTo(map));
-      if (overlayLabels.length >= OVERLAY_LABEL_MAX) break;
+      found.push({ f, at, d: Math.min(...pts.map((p) => metresBetween(p, from))) });
+    }
+    found.sort((a, b) => a.d - b.d);
+    for (const { f, at } of found.slice(0, OVERLAY_LABEL_MAX)) {
+      const element = document.createElement("div");  // ancre : MapLibre place l'élément, l'étiquette s'y décale
+      const label = Object.assign(document.createElement("div"), { className: "etiquette couche", textContent: f.properties._etiquette });
+      label.style.borderColor = f.properties._couleur;
+      element.append(label);
+      // au-dessus de la pastille, un peu écartée d'elle
+      overlayLabels.push(new maplibregl.Marker({ element, offset: [0, -20] }).setLngLat(at).addTo(map));
+    }
+    requestAnimationFrame(() => declutterOverlayLabels(map));
+  }
+
+  /** Étiquettes de la couche sur la carte, dans l'ordre de proximité : chacune remontée au-dessus des
+   * étiquettes déjà placées (mesures comprises), masquée s'il faudrait la remonter de plus de
+   * OVERLAY_MAX_LIFT fois sa hauteur (comme dans la visionneuse, voir app.js declutterLabels). */
+  function declutterOverlayLabels(map) {
+    const hit = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom + 2 && a.bottom + 2 > b.top;
+    const placed = labels.map((m) => m.getElement().getBoundingClientRect()).filter((r) => r.width);
+    for (const marker of overlayLabels) {
+      const label = marker.getElement().firstChild;
+      label.style.transform = "";
+      label.style.visibility = "";
+      const rect = label.getBoundingClientRect(), limit = OVERLAY_MAX_LIFT * rect.height;
+      let shift = 0, r = rect;
+      for (let other = placed.find((p) => hit(r, p)); other && -shift <= limit; other = placed.find((p) => hit(r, p))) {
+        shift -= r.bottom + 2 - other.top;
+        r = { left: rect.left, right: rect.right, top: rect.top + shift, bottom: rect.bottom + shift };
+      }
+      if (-shift > limit) {
+        label.style.visibility = "hidden";
+        continue;
+      }
+      label.style.transform = `translateY(${shift}px)`;
+      placed.push(r);
     }
   }
+  const OVERLAY_MAX_LIFT = 1.5;
+
 
   /** Résultats de la session précédente (export GeoJSON gardé), ou null : retirés. */
   function showPrevious(map, geojson) {

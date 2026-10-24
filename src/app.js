@@ -531,6 +531,7 @@
     app.set_terrain_relay($("#inclinaison-terrain").checked);
     applyFilter(false);
     if (photo) app.set_picture(JSON.stringify(photo));
+    restoreOverlay();  // couche importée gardée de la session précédente
     showModeOptions();
     refresh();
   }).catch((error) => {
@@ -739,7 +740,7 @@
         const sheet = Object.assign(document.createElement("button"), {
           type: "button", className: "fiche", textContent: "📄 Fiche", title: "Fiche PDF de ce point et de ses mesures (impression du navigateur)",
         });
-        sheet.addEventListener("click", () => makeFiche(r.id));
+        sheet.addEventListener("click", () => askFiche(r.id, r.text));
         line.append(sheet);
       }
       line.append(remove);
@@ -1302,8 +1303,9 @@
   // Export et import des favoris (autre poste, autre navigateur) : fichier JSON [{ id, name }]
   $("#favoris-exporter").addEventListener("click", () => download(JSON.stringify(favorites(), null, 1),
     "favoris-panoramax.json", "application/json"));
-  // Couche importée (GeoJSON) : une à la fois, pour la session ; couleur et étiquette selon une colonne
-  let overlay = null;  // { name, features (WGS 84, Couche.read), columns }
+  // Couche importée (GeoJSON) : une à la fois, couleur et étiquette selon une colonne ; gardée avec
+  // ses réglages dans le navigateur d'une session à l'autre, jusqu'à « Retirer »
+  let overlay = null;  // { name, features (WGS 84, Couche.read), columns, crs }
   function showOverlayStyle() {
     if (!overlay) return;
     const legend = Couche.style(overlay.features, $("#couche-couleur").value, $("#couche-etiquette").value);
@@ -1313,39 +1315,77 @@
       li.firstChild.style.background = couleur;
       return li;
     }));
-    Carte.showOverlay(map, { type: "FeatureCollection", features: overlay.features });
+    // Case « Afficher la couche » décochée : ni sur la carte ni dans la photo, réglages gardés
+    Carte.showOverlay(map, $("#couche-visible").checked ? { type: "FeatureCollection", features: overlay.features } : null);
     refresh();
   }
+
+  /** Couche en place (lue d'un fichier, ou gardée) : calcul, réglages, carte ; cadrée dessus si fit. */
+  function loadOverlay(name, read, color = "", label = "", fit = false, visible = true) {
+    overlay = { name, ...read };
+    $("#couche-visible").checked = visible;
+    const n = app.set_overlay(JSON.stringify(read.features.map(({ id, geometry }) => ({ id, geometry }))));
+    for (const [id, value] of [["#couche-couleur", color], ["#couche-etiquette", label]]) {
+      $(id).replaceChildren(new Option(id === "#couche-couleur" ? "couleur unique" : "aucune", ""),
+        ...read.columns.map((c) => new Option(c, c)));
+      $(id).value = read.columns.includes(value) ? value : "";
+    }
+    $("#couche-nom").textContent = `${name} : ${read.features.length} objet${read.features.length > 1 ? "s" : ""}`
+      + `${read.crs === "lambert93" ? " (Lambert 93 converti)" : ""}`;
+    $("#couche-reglages").hidden = false;
+    $("#couche-retirer").hidden = false;
+    showOverlayStyle();
+    if (fit) {
+      const xs = [], ys = [];
+      (function walk(c) { if (typeof c[0] === "number") { xs.push(c[0]); ys.push(c[1]); } else c.forEach(walk); })(
+        read.features.map((f) => f.geometry.coordinates));
+      map.fitBounds([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], { padding: 30, maxZoom: 17 });
+    }
+    return n;
+  }
+
+  /** Couche et réglages gardés dans le navigateur ; faux si elle est trop grosse pour y tenir. */
+  function saveOverlay() {
+    if (!overlay) return true;
+    const { name, features, columns, crs } = overlay;
+    const text = JSON.stringify({ name, columns, crs, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
+      visible: $("#couche-visible").checked,
+      features: features.map(({ type, id, geometry, properties }) => ({ type, id, geometry,
+        properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) });
+    store.set("couche", text);
+    return store.get("couche") === text;
+  }
+
+  /** Couche gardée de la session précédente, remise une fois le calcul prêt (voir le démarrage). */
+  function restoreOverlay() {
+    let saved = null;
+    try { saved = JSON.parse(store.get("couche") || "null"); } catch { /* illisible : aucune */ }
+    if (saved?.features?.length) loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, false, saved.visible !== false);
+  }
+
   $("#couche-importer").addEventListener("click", () => $("#couche-fichier").click());
   $("#couche-fichier").addEventListener("change", async (event) => {
     const file = event.target.files[0];
     event.target.value = "";
     if (!file || !app) return;
     try {
-      const read = Couche.read(await file.text());
-      overlay = { name: file.name, ...read };
-      const n = app.set_overlay(JSON.stringify(read.features.map(({ id, geometry }) => ({ id, geometry }))));
-      for (const id of ["#couche-couleur", "#couche-etiquette"]) {
-        $(id).replaceChildren(new Option(id === "#couche-couleur" ? "couleur unique" : "aucune", ""),
-          ...read.columns.map((c) => new Option(c, c)));
-      }
-      $("#couche-nom").textContent = `${file.name} : ${read.features.length} objet${read.features.length > 1 ? "s" : ""}`
-        + `${read.crs === "lambert93" ? " (Lambert 93 converti)" : ""}`;
-      $("#couche-reglages").hidden = false;
-      $("#couche-retirer").hidden = false;
-      showOverlayStyle();
-      const xs = [], ys = [];
-      (function walk(c) { if (typeof c[0] === "number") { xs.push(c[0]); ys.push(c[1]); } else c.forEach(walk); })(
-        read.features.map((f) => f.geometry.coordinates));
-      map.fitBounds([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], { padding: 30, maxZoom: 17 });
-      setStatus(`Couche « ${file.name} » importée : ${n} partie${n > 1 ? "s" : ""} d'objets.`);
+      const n = loadOverlay(file.name, Couche.read(await file.text()), "", "", true);
+      const kept = saveOverlay();
+      setStatus(`Couche « ${file.name} » importée : ${n} partie${n > 1 ? "s" : ""} d'objets.`
+        + (kept ? "" : " Trop grosse pour être gardée dans le navigateur : à réimporter à la prochaine ouverture."));
     } catch (error) {
       setStatus(`Couche non importée : ${error.message}`, "echec");
     }
   });
-  for (const id of ["#couche-couleur", "#couche-etiquette"]) $(id).addEventListener("change", showOverlayStyle);
+  for (const id of ["#couche-couleur", "#couche-etiquette", "#couche-visible"]) {
+    $(id).addEventListener("change", () => {
+      showOverlayStyle();
+      saveOverlay();
+    });
+  }
   $("#couche-retirer").addEventListener("click", () => {
     overlay = null;
+    store.set("couche", "");
     app?.set_overlay("[]");
     Carte.showOverlay(map, null);
     $("#couche-reglages").hidden = true;
@@ -1946,8 +1986,8 @@
       }
     });
     // Couche importée : lignes et contours en traits de sa couleur, points en pastilles, étiquettes
-    if (overlay && app) {
-      let points = 0, n = 0;
+    if (overlay && app && $("#couche-visible").checked) {
+      let points = 0, n = 0, rank = 0;
       for (const o of JSON.parse(app.overlay_marks())) {
         const p = overlay.features[o.id]?.properties || {};
         const color = p._couleur || "#ff00ff";
@@ -1958,9 +1998,10 @@
           add({ id: `${MARK}couche-${n++}`, position: at, anchor: "center center",
             html: `<div class="pastille-couche" style="background:${color}"></div>` });
         }
-        if (p._etiquette) {
-          add({ id: `${MARK}couche-${n++}`, position: at, anchor: "center center",
-            html: `<div class="ancre"><div class="etiquette couche dessus" style="border-color:${color}">${escapeHtml(p._etiquette)}</div></div>` });
+        if (p._etiquette) {  // rang : 0 pour la plus proche de la caméra (marques triées par distance)
+          add({ id: `${MARK}couche-${n++}`, position: at, anchor: "center center", zIndex: OVERLAY_LABEL_Z,  // au-dessus des pastilles
+            html: `<div class="ancre"><div class="etiquette couche dessus" data-rang="${rank++}" style="border-color:${color}">${
+              escapeHtml(p._etiquette)}</div></div>` });
         }
       }
     }
@@ -1980,8 +2021,9 @@
     const root = viewer;
     if (!root) return;
     const moving = [...root.querySelectorAll(".etiquette.fin")];
-    for (const el of moving) el.style.setProperty("--decalage", "0px");
-    const placed = [...root.querySelectorAll(".ancre .etiquette:not(.fin)")]
+    const overlayLabels = [...root.querySelectorAll(".etiquette.couche")];
+    for (const el of [...moving, ...overlayLabels]) el.style.setProperty("--decalage", "0px");
+    const placed = [...root.querySelectorAll(".ancre .etiquette:not(.fin):not(.couche)")]
       .map((el) => el.getBoundingClientRect()).filter((r) => r.width);
     const items = moving.map((el) => ({ el, rect: el.getBoundingClientRect() }))
       .filter(({ rect }) => rect.width).sort((a, b) => a.rect.top - b.rect.top);
@@ -1999,7 +2041,29 @@
       if (leader?.classList.contains("renvoi")) leader.style.height = shift > 0 ? `${shift}px` : "0";
       placed.push(r);
     }
+    // Couche importée : de la plus proche de la caméra à la plus lointaine, chacune remontée au-dessus
+    // de celles déjà placées ; masquée s'il faudrait la remonter de plus de OVERLAY_MAX_LIFT fois sa
+    // hauteur (trop loin de son point pour s'y rapporter)
+    for (const el of overlayLabels) el.style.visibility = "";
+    const labels = overlayLabels.map((el) => ({ el, rect: el.getBoundingClientRect() }))
+      .filter(({ rect }) => rect.width).sort((a, b) => a.el.dataset.rang - b.el.dataset.rang);
+    for (const { el, rect } of labels) {
+      const limit = OVERLAY_MAX_LIFT * (rect.bottom - rect.top);
+      let shift = 0, r = rect;
+      for (let other = placed.find((p) => hit(r, p)); other && -shift <= limit; other = placed.find((p) => hit(r, p))) {
+        shift -= r.bottom + 2 - other.top;
+        r = { left: rect.left, right: rect.right, top: rect.top + shift, bottom: rect.bottom + shift };
+      }
+      if (-shift > limit) {
+        el.style.visibility = "hidden";
+        continue;
+      }
+      el.style.setProperty("--decalage", `${shift}px`);
+      placed.push(r);
+    }
   }
+  const OVERLAY_MAX_LIFT = 1.5;
+  const OVERLAY_LABEL_Z = 20;  // étiquettes de la couche : jamais recouvertes par une pastille (repères à 1)
   let declutterPending = false;
   let declutterTimer = null;
   const scheduleDeclutter = () => {
@@ -2480,6 +2544,7 @@
             const ctx = copy.getContext("2d");
             ctx.drawImage(canvas, 0, 0);
             drawViewCone(ctx, canvas.width / canvas.clientWidth);
+            drawScreenLabels(ctx, map.getContainer(), canvas.getBoundingClientRect(), canvas.width / canvas.clientWidth);
             resolve(cropCenter(copy, FICHE_MAP.width / FICHE_MAP.height, FICHE_MAP.width * canvas.width / canvas.clientWidth));
           } catch { resolve(null); }
         });
@@ -2490,7 +2555,20 @@
     }
   }
 
-  async function makeFiche(k) {
+  /** Choix de la photo de la fiche (cadrage automatique ou vue actuelle), puis la fiche : la fenêtre
+   * s'ouvre au clic du choix, geste de l'utilisateur (sinon bloquée par le navigateur). */
+  function askFiche(k, text) {
+    const dialog = $("#choix-fiche"), name = (/^Point (\S+)/.exec(text) || [])[1] || "";
+    dialog.querySelector("h2 span").textContent = name;
+    $("#titre-fiche").value = `point de référence ${name}`;  // texte libre, laissé tel quel ou modifié
+    dialog.returnValue = "";
+    dialog.addEventListener("close", () => {
+      if (dialog.returnValue) makeFiche(k, dialog.returnValue === "auto", $("#titre-fiche").value.trim());
+    }, { once: true });
+    showOverViewer(dialog);
+  }
+
+  async function makeFiche(k, auto = true, title = "") {
     if (!app || !psv) return;
     const win = window.open("", "_blank");  // ouverte tout de suite : après une attente, bloquée
     if (!win) {
@@ -2523,7 +2601,7 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
         bar?.setAttribute("aria-valuenow", String(value));
       };
       tick = setInterval(() => show(Math.min(95, percent + 5)), 2000);
-      const html = await buildFiche(k, (text, value) => {
+      const html = await buildFiche(k, auto, title, (text, value) => {
         const step = win.document.getElementById("etape");
         if (step) step.textContent = text;
         show(Math.max(percent, value));
@@ -2557,10 +2635,14 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
 
   /** Page de la fiche du point gardé n° k (HTML complet) : photo d'où sa plus grande mesure a été prise ouverte et
    * cadrée, puis capturée avec la mini-carte. */
-  async function buildFiche(k, step = () => {}) {  // step(texte, %) : étape en cours, pour la fenêtre d'attente
+  // auto : photo de la mesure, cadrée dessus ; sinon la vue actuelle telle qu'affichée.
+  // step(texte, %) : étape en cours, pour la fenêtre d'attente
+  async function buildFiche(k, auto = true, title = "", step = () => {}) {  // title : après « Fiche de mesure — »
     const data = JSON.parse(app.fiche(k));
-    step("Ouverture de la photo de la mesure", 0);
-    if (data.photo && photo?.id !== data.photo) {  // photo d'où la plus grande mesure a été prise
+    data.title = title || `point de référence ${data.name}`;
+    if (!auto) data.photo = photo?.id || data.photo;  // pied de la fiche : la photo capturée
+    step(auto ? "Ouverture de la photo de la mesure" : "Capture de la vue actuelle", 0);
+    if (auto && data.photo && photo?.id !== data.photo) {  // photo d'où la plus grande mesure a été prise
       await goToPhoto(data.photo);
       const t0 = Date.now();
       while (psv.getPictureMetadata?.()?.id !== data.photo || !photoReady()) {
@@ -2569,12 +2651,12 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
       }
       await new Promise((r) => setTimeout(r, 1500));  // repères de la photo dessinés
     }
-    step("Cadrage de la photo sur la mesure", 40);
-    const ends = JSON.parse(app.fiche_frame(k));
+    step(auto ? "Cadrage de la photo sur la mesure" : "Capture de la vue actuelle", 40);
+    const ends = auto ? JSON.parse(app.fiche_frame(k)) : [];
     // Hauteur : la mesure sur 75 % de la hauteur de l'image ; largeur : 10 % de marge de chaque côté
     frameView(ends, false, { aspect: FICHE_PHOTO.width / FICHE_PHOTO.height, margin: data.kind === "height" ? 1 / 0.75 : 1.25 });
     await viewSettled();
-    if (data.kind !== "height") {  // largeur : un peu de recul autour de la ligne ; hauteur : cadrage seul
+    if (auto && data.kind !== "height") {  // largeur : un peu de recul autour de la ligne ; hauteur : cadrage seul
       psv.zoom(Math.max(0, psv.getZoomLevel() - FICHE_UNZOOM));
       await viewSettled();
     }
@@ -2661,7 +2743,7 @@ footer { margin-top: auto; border-top: 1px solid #c8c8c8; padding-top: 10px; fon
 footer a { color: #1a56c4; word-break: break-all; } .mono { font-family: "JetBrains Mono", monospace; color: #1c1c1c; }
 @media screen { body { background: #888; } .page { margin: 16px auto; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.4); } }
 </style></head><body><div class="page">
-<header><div><h1>Mesures Panoramax</h1><div class="sous-titre">Fiche de mesure — point de référence ${e(data.name)}</div></div>
+<header><div><h1>Mesures Panoramax</h1><div class="sous-titre">Fiche de mesure — ${e(data.title)}</div></div>
 <div class="date">${e(date)}</div></header>
 <section class="lieu"><div class="ou">${placeHtml}</div><span>Point ${e(data.name)} : ${e(coords)}</span></section>
 <figure><img src="${picture}" alt="Photo de la mesure, annotée"></figure>
@@ -2674,6 +2756,30 @@ footer a { color: #1a56c4; word-break: break-all; } .mono { font-family: "JetBra
 <a href="${e(link)}">${e(link)}</a></div>
 ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</footer>
 </div></body></html>`;
+  }
+
+  /** Étiquettes de la couche importée visibles dans root (visionneuse, carte) recopiées sur ctx : même
+   * place (origin : rectangle écran de l'image, scale : pixels de l'image par pixel d'écran), même
+   * fond, liseré de couleur et transparence qu'à l'écran. */
+  function drawScreenLabels(ctx, root, origin, scale) {
+    for (const el of root.querySelectorAll(".etiquette.couche")) {
+      const r = el.getBoundingClientRect(), css = getComputedStyle(el);
+      if (!r.width || css.visibility === "hidden") continue;
+      const [x, y, w, h] = [(r.left - origin.left) * scale, (r.top - origin.top) * scale, r.width * scale, r.height * scale];
+      ctx.save();
+      ctx.globalAlpha = Number(css.opacity) || 1;
+      ctx.fillStyle = css.backgroundColor;
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, 3 * scale);
+      ctx.fill();
+      ctx.fillStyle = css.borderLeftColor;
+      ctx.fillRect(x, y, 4 * scale, h);
+      ctx.fillStyle = css.color;
+      ctx.font = `${css.fontWeight} ${parseFloat(css.fontSize) * scale}px ${css.fontFamily}`;
+      ctx.textBaseline = "middle";
+      ctx.fillText(el.textContent, x + (4 + parseFloat(css.paddingLeft)) * scale, y + h / 2);
+      ctx.restore();
+    }
   }
 
   /** La visionneuse telle qu'affichée, avec les repères des mesures et l'attribution. */
@@ -2697,6 +2803,36 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
       return [p.x * scale, p.y * scale];
     };
     ctx.lineCap = "round";
+    // Couche importée affichée, sous tout le reste : traits et pastilles de sa couleur, puis ses
+    // étiquettes visibles, prises à l'écran (écartées, masquées : comme dans la visionneuse)
+    if (overlay && app && $("#couche-visible").checked) {
+      for (const o of JSON.parse(app.overlay_marks())) {
+        const color = overlay.features[o.id]?.properties._couleur || "#ff00ff", pts = o.points.map(screen);
+        ctx.save();
+        if (o.kind === "ligne") {
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2.5 * scale;
+          ctx.beginPath();
+          let open = false;
+          for (const p of pts) {
+            if (p && open) ctx.lineTo(...p);
+            else if (p) ctx.moveTo(...p);
+            open = !!p;
+          }
+          ctx.stroke();
+        } else if (pts[0]) {
+          ctx.fillStyle = color;
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 2 * scale;
+          ctx.beginPath();
+          ctx.arc(...pts[0], 5.5 * scale, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      drawScreenLabels(ctx, psv.container, gl.getBoundingClientRect(), scale);
+    }
     // Comme dans la visionneuse : guides d'abord (dessous), en tirets et sans croix ; mesures en
     // trait rouge ; croix jaunes, bleues pour les visées
     const guidesFirst = [...currentMarks].sort((a, b) => Number(!!b.guide) - Number(!!a.guide));

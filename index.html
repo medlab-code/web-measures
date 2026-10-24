@@ -216,6 +216,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             sol, dans la photo (à moins de 100 m).</p>
           <div id="couche-reglages" hidden>
             <p id="couche-nom"></p>
+            <label><input id="couche-visible" type="checkbox" checked> Afficher la couche</label>
             <label>Couleur selon <select id="couche-couleur"></select></label>
             <label>Étiquette <select id="couche-etiquette"></select></label>
             <ul id="couche-legende"></ul>
@@ -299,6 +300,20 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
     </form>
   </dialog>
   <!-- Séquence sans position RTK vérifiée : une fois par séquence, en mesure -->
+  <!-- Fiche PDF : photo cadrée automatiquement sur la mesure, ou la vue telle qu'affichée -->
+  <dialog id="choix-fiche" class="avertissement">
+    <h2>Fiche du point <span></span></h2>
+    <p>Photo de la fiche : cadrée automatiquement sur la plus grande mesure du point (sur sa photo), ou
+      la vue actuelle de la visionneuse, telle que vous l'avez réglée.</p>
+    <form method="dialog">
+      <label class="titre-fiche">Titre <input id="titre-fiche" type="text" maxlength="120"
+        title="Texte libre après « Fiche de mesure — » ; à laisser tel quel ou à modifier"></label>
+      <button value="" class="non">Annuler</button>
+      <button value="vue" class="non vue-actuelle">Vue actuelle</button>
+      <button value="auto" class="oui cadrage-auto">Cadrage automatique</button>
+    </form>
+  </dialog>
+
   <dialog id="alerte-rtk" class="avertissement">
     <h2>⚠ Position GPS trop imprécise</h2>
     <p></p>
