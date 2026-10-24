@@ -1365,13 +1365,18 @@
 
   $("#couche-importer").addEventListener("click", () => $("#couche-fichier").click());
   $("#couche-fichier").addEventListener("change", async (event) => {
-    const file = event.target.files[0];
+    const files = [...event.target.files];
     event.target.value = "";
-    if (!file || !app) return;
+    if (!files.length || !app) return;
     try {
-      const n = loadOverlay(file.name, Couche.read(await file.text()), "", "", true);
+      setStatus("Lecture de la couche…");
+      // GeoPackage de plusieurs tables : celle à afficher, par son numéro
+      const choose = (names) => (names.length < 2 ? names[0]
+        : names[Number(prompt(`Tables du GeoPackage :\n${names.map((n, i) => `${i + 1}. ${n}`).join("\n")}\n\nNuméro de la table à afficher :`, "1")) - 1]);
+      const { name, ...read } = await Couche.readFiles(files, choose);
+      const n = loadOverlay(name, read, "", "", true);
       const kept = saveOverlay();
-      setStatus(`Couche « ${file.name} » importée : ${n} partie${n > 1 ? "s" : ""} d'objets.`
+      setStatus(`Couche « ${name} » importée : ${n} partie${n > 1 ? "s" : ""} d'objets.`
         + (kept ? "" : " Trop grosse pour être gardée dans le navigateur : à réimporter à la prochaine ouverture."));
     } catch (error) {
       setStatus(`Couche non importée : ${error.message}`, "echec");

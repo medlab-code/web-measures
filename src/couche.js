@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Cédric COCHART
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// Couche importée (GeoJSON) : lecture, coordonnées en WGS 84 (Lambert 93 converti), couleur selon
-// une colonne (une couleur par valeur, ou dégradé pour une colonne numérique) et étiquette d'une
+// Couche importée (GeoJSON, Shapefile, GeoPackage) : lecture, coordonnées en WGS 84 (Lambert 93
+// converti, Shapefile reprojeté d'après son .prj), couleur selon une colonne (une couleur par valeur, ou dégradé pour une colonne numérique) et étiquette d'une
 // colonne. Dessinée sur la mini-carte (Carte.showOverlay) et dans la visionneuse, à son altitude ou
 // posée sur le sol LiDAR HD (web_app.App.overlay_marks).
 
@@ -119,5 +119,115 @@ const Couche = (() => {
     return legend;
   }
 
-  return { read, style, format, lambert93 };
+  // Shapefile et GeoPackage : bibliothèques chargées au premier import de ce format (jsDelivr)
+  const SHPJS = "https://cdn.jsdelivr.net/npm/shpjs@6.1.0/dist/shp.min.js";
+  const SQLJS = "https://cdn.jsdelivr.net/npm/sql.js@1.13.0/dist/";
+  const loaded = new Map();
+  function script(url) {
+    if (!loaded.has(url)) {
+      loaded.set(url, new Promise((resolve, reject) => {
+        const el = Object.assign(document.createElement("script"), { src: url, onload: resolve });
+        el.onerror = () => { loaded.delete(url); reject(new Error(`bibliothèque non chargée (${url})`)); };
+        document.head.append(el);
+      }));
+    }
+    return loaded.get(url);
+  }
+
+  /**
+   * Fichiers choisis lus en couche : { name, ...read } (voir read). GeoJSON ; Shapefile en .zip, ou
+   * .shp avec .dbf (et .prj, .cpg) choisis ensemble, reprojeté en WGS 84 d'après le .prj (sans lui :
+   * Lambert 93 reconnu à ses coordonnées) ; GeoPackage (.gpkg), table choisie par chooseTable(noms)
+   * s'il en a plusieurs.
+   */
+  async function readFiles(files, chooseTable = (names) => names[0]) {
+    const byExt = new Map([...files].map((f) => [f.name.toLowerCase().split(".").pop(), f]));
+    if (byExt.has("gpkg")) return readGeoPackage(byExt.get("gpkg"), chooseTable);
+    if (byExt.has("zip") || byExt.has("shp")) {
+      await script(SHPJS);
+      let data;
+      if (byExt.has("zip")) {
+        data = await shp(await byExt.get("zip").arrayBuffer());
+      } else {
+        if (!byExt.has("dbf")) throw new Error("choisir le .shp avec son .dbf (et son .prj)");
+        const text = async (ext) => (byExt.has(ext) ? byExt.get(ext).text() : undefined);
+        data = shp.combine([await shp.parseShp(await byExt.get("shp").arrayBuffer(), await text("prj")),
+          await shp.parseDbf(await byExt.get("dbf").arrayBuffer(), await text("cpg"))]);
+      }
+      if (Array.isArray(data)) data = data[0];  // zip de plusieurs couches : la première
+      const main = byExt.get("zip") || byExt.get("shp");
+      return { name: main.name, ...read(JSON.stringify(data)) };
+    }
+    const file = byExt.get("geojson") || byExt.get("json") || files[0];
+    return { name: file.name, ...read(await file.text()) };
+  }
+
+  /** GeoPackage : table de géométries choisie, en WGS 84 ou Lambert 93 (code EPSG de la table). */
+  async function readGeoPackage(file, chooseTable) {
+    await script(`${SQLJS}sql-wasm.js`);
+    const SQL = await initSqlJs({ locateFile: (f) => `${SQLJS}${f}` });
+    const db = new SQL.Database(new Uint8Array(await file.arrayBuffer()));
+    try {
+      const rows = (sql) => {
+        const [res] = db.exec(sql);
+        return res ? res.values.map((v) => Object.fromEntries(res.columns.map((c, k) => [c, v[k]]))) : [];
+      };
+      const tables = rows("SELECT g.table_name, g.column_name, g.srs_id, s.organization, s.organization_coordsys_id "
+        + "FROM gpkg_geometry_columns g LEFT JOIN gpkg_spatial_ref_sys s ON s.srs_id = g.srs_id");
+      if (!tables.length) throw new Error("aucune table de géométries dans ce GeoPackage");
+      const name = chooseTable(tables.map((t) => t.table_name));
+      const table = tables.find((t) => t.table_name === name);
+      if (!table) throw new Error("aucune table choisie");
+      const epsg = String(table.organization || "").toUpperCase() === "EPSG" ? table.organization_coordsys_id : table.srs_id;
+      const quote = (id) => `"${String(id).replace(/"/g, '""')}"`;
+      const features = rows(`SELECT * FROM ${quote(table.table_name)}`).map((row) => {
+        const { [table.column_name]: blob, ...rest } = row;
+        const properties = Object.fromEntries(Object.entries(rest).filter(([, v]) => !(v instanceof Uint8Array)));  // sans les blobs
+        return { type: "Feature", properties, geometry: blob ? gpkgGeometry(blob) : null };
+      });
+      const crs = { type: "name", properties: { name: `urn:ogc:def:crs:EPSG::${epsg}` } };
+      return { name: `${file.name} (${table.table_name})`, ...read(JSON.stringify({ type: "FeatureCollection", crs, features })) };
+    } finally {
+      db.close();
+    }
+  }
+
+  /** Géométrie GeoJSON d'une géométrie de GeoPackage (en-tête « GP », enveloppe, puis WKB), ou null. */
+  function gpkgGeometry(bytes) {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    if (view.getUint8(0) !== 0x47 || view.getUint8(1) !== 0x50) return null;  // « GP »
+    const flags = view.getUint8(3);
+    if (flags & 0x10) return null;  // géométrie vide
+    const envelope = [0, 32, 48, 48, 64][(flags >> 1) & 7] ?? 0;
+    return wkb(view, 8 + envelope).geometry;
+  }
+
+  /** Géométrie WKB (standard, ISO ou étendu : Z et M) à l'octet offset : { geometry, end }. */
+  function wkb(view, offset) {
+    const little = view.getUint8(offset) === 1;
+    let code = view.getUint32(offset + 1, little), pos = offset + 5;
+    let z = false, m = false;
+    if (code & 0x80000000) z = true;  // EWKB
+    if (code & 0x40000000) m = true;
+    code &= 0x0fffffff;
+    if (code >= 3000) { z = true; m = true; code -= 3000; } else if (code >= 2000) { m = true; code -= 2000; } else if (code >= 1000) { z = true; code -= 1000; }
+    const dims = 2 + z + m;
+    const point = () => {
+      const p = [view.getFloat64(pos, little), view.getFloat64(pos + 8, little)];
+      if (z) p.push(view.getFloat64(pos + 16, little));
+      pos += 8 * dims;
+      return p;
+    };
+    const count = () => { const n = view.getUint32(pos, little); pos += 4; return n; };
+    const many = (f) => Array.from({ length: count() }, f);
+    const sub = () => { const r = wkb(view, pos); pos = r.end; return r.geometry.coordinates; };
+    const types = { 1: ["Point", point], 2: ["LineString", () => many(point)], 3: ["Polygon", () => many(() => many(point))],
+      4: ["MultiPoint", () => many(sub)], 5: ["MultiLineString", () => many(sub)], 6: ["MultiPolygon", () => many(sub)] };
+    if (!types[code]) throw new Error(`type de géométrie WKB non pris en charge (${code})`);
+    const [type, f] = types[code];
+    const coordinates = f();
+    return { geometry: { type, coordinates }, end: pos };
+  }
+
+  return { read, readFiles, style, format, lambert93 };
 })();

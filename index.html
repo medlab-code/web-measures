@@ -212,8 +212,9 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         <!-- Couche importée (src/couche.js) : sur la carte et, au sol, dans la photo -->
         <section id="couche">
           <h2>Couche</h2>
-          <p class="aide">Fichier GeoJSON (WGS 84 ou Lambert 93) : ses objets sur la carte et, posés au
-            sol, dans la photo (à moins de 100 m).</p>
+          <p class="aide">GeoJSON, Shapefile (.zip, ou .shp avec .dbf et .prj choisis ensemble) ou
+            GeoPackage, en WGS 84 ou Lambert 93 : ses objets sur la carte et, au sol, dans la photo (à
+            moins de 100 m).</p>
           <div id="couche-reglages" hidden>
             <p id="couche-nom"></p>
             <label><input id="couche-visible" type="checkbox" checked> Afficher la couche</label>
@@ -224,7 +225,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <div class="boutons">
             <button id="couche-importer" type="button">Importer…</button>
             <button id="couche-retirer" type="button" hidden>Retirer</button>
-            <input id="couche-fichier" type="file" accept=".geojson,.json,application/geo+json,application/json" hidden>
+            <input id="couche-fichier" type="file" multiple accept=".geojson,.json,.zip,.shp,.dbf,.prj,.cpg,.shx,.gpkg" hidden>
           </div>
         </section>
         <details id="filtre">
