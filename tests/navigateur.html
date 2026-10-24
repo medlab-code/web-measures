@@ -125,11 +125,16 @@ async function feature(id) {
 
   // Montbard (imajbox) : inclinaison automatique, calculée en arrière-plan
   await open(MONTBARD);
-  app._check_tilt();  // lancée au premier clic sur la photo depuis la version 0.2.6
+  const wasActive = app.active;
+  app.set_active(false);
+  expect("inclinaison pas calculée hors mesure", state().quality.includes("calculée à l'activation de la mesure"));
+  app.set_active(true);  // calcul lancé dès le bouton « Mesure » (ticket #29), pas au premier clic
+  expect("inclinaison calculée dès l'activation de la mesure", state().quality.includes("inclinaison : calcul en cours"), state().quality);
   log("== Montbard : inclinaison auto en " + await until(() => state().quality.includes("inclinaison calée"),
     120000, "inclinaison") + " ms");
   log("état : " + state().quality);
   log("calage : " + state().calibration);
+  app.set_active(wasActive);
 
   // Pont de la RD111 (BD TOPO) : « Sur un pont » proposé, coché sur « Oui »
   {  // photo par défaut sur le pont Joly : nom de l'ouvrage (BD TOPO), le tronçon ne portant que celui de la rue

@@ -326,6 +326,32 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
   incertitudes signale un mauvais bord visé ou un axe faux. Environ ±0,1 m avec le PCRS
   (±0,3 m avec l'orthophoto à 20 cm). L'axe de la route n'en vaut pas la peine : la trajectoire
   RTK le donne déjà à ±0,5°.
+- **Inclinaison en rase campagne** (ticket #29, essais du 23/10/2026 sur 7 séquences CD21) : les
+  verticales de la photo calent 41 % des photos en zone d'habitation (BD TOPO
+  `zone_d_habitation`), 2 % hors zone ; le modèle par le terrain du cœur n'est accepté que sur
+  2 séquences sur 7. Écart avec les verticales (16 photos LiDAR HD, validation croisée par
+  séquence, écart quadratique moyen) :
+
+  | Méthode | Pente | Dévers |
+  |---|---|---|
+  | Sans terrain (inclinaison moyenne de la séquence) | 2,1° | 1,7° |
+  | Grille du cœur (±1,5 m × ±0,75 m) | 0,4° | 1,0° |
+  | Grille plus large (±2,5 m × ±1,5 m) | 0,4° | 0,9° |
+  | Grille plus large + roulis 3 à 6°/g | 0,4° | 0,6 à 0,7° |
+
+  Le RGE ALTI est inutilisable pour le dévers (7,7°, talus et murs pris pour la route) ; le
+  tangage au freinage n'a pas d'effet mesurable. Proposition, toute dans le code web :
+  1. choisir des photos de la séquence en zone d'habitation et caler leurs verticales en
+     arrière-plan jusqu'à en avoir 3 (environ 5 photos HD, une fois par séquence) ;
+  2. lire le LiDAR HD sur la grille plus large (environ 45 points par photo, file d'attente :
+     le service de l'IGN renvoie l'erreur 429 sur les rafales) ;
+  3. corriger le roulis d'après l'accélération latérale tirée des photos voisines ;
+  4. apprendre un modèle de séquence propre au web, à ±0,6° en dévers (le cœur refuse au-delà
+     de 0,8°) ; pas de terrain hors LiDAR HD.
+
+  Non prouvé : mesuré en village (< 50 km/h), coefficient de roulis choisi sur les mêmes
+  16 photos. **À valider d'abord** sur 3 ou 4 photos de campagne portant une longueur connue
+  (largeur de voie, tirets de 3 m, pont), mesurée avec et sans correction.
 
 ## Versions
 

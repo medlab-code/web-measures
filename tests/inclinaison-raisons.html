@@ -1,0 +1,33 @@
+<!doctype html><meta charset="utf-8"><title>Essai des raisons d'échec de l'inclinaison</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Inclinaison automatique (web_tilt.estimate, ticket #29) sur 15 photos CD21 de Semur-en-Auxois
+     (instance IGN) : le 2026-10-23, 13 calées, 2 refusées pour arêtes trop imprécises. Chaque
+     échec doit donner sa raison. Journal envoyé à tools/serveur-essai.py. -->
+<pre id="log"></pre>
+<script src="../py/sources.js"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
+<script src="../src/calcul.js"></script>
+<script>
+let checks = 0, failures = 0;
+const log = (t) => { document.getElementById("log").textContent += t + "\n"; fetch("/journal", { method: "POST", body: String(t) }).catch(() => {}); };
+const expect = (what, ok) => { checks++; if (!ok) { failures++; log("ÉCHEC " + what); } };
+(async () => {
+  const API = "https://panoramax.ign.fr/api";
+  await Calcul.startCalcul(() => {}, API);
+  const first = (await (await fetch(API + "/search?ids=7752eb30-a733-4213-b57a-5d5086e261a4")).json()).features[0];
+  const items = (await (await fetch(API + "/collections/" + first.collection + "/items?limit=60")).json())
+    .features.filter((f, i) => i % 4 === 0);
+  let fitted = 0;
+  for (const item of items) {
+    const bytes = new Uint8Array(await (await fetch(item.assets.hd.href)).arrayBuffer());
+    const r = JSON.parse(await Calcul.runRemote("web_tilt", "estimate", [bytes, item.properties["view:azimuth"] ?? 0]) || "null");
+    if (r && !r.reason) fitted++;
+    expect("résultat ou raison pour " + item.id, r && (r.reason || r.up));
+    log(item.id.slice(0, 8) + " : " + (r && !r.reason ? `calée ${r.tilt.toFixed(2)}° ±${r.sigma.toFixed(2)} (${r.count})` : "échec : " + r?.reason));
+  }
+  expect(`au moins 10 photos calées sur ${items.length} (${fitted})`, fitted >= 10);
+  log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
+  log("FIN");
+})().catch((e) => log("ERREUR " + (e.stack || e)));
+</script>

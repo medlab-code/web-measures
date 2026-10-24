@@ -23,6 +23,7 @@
   ];
   const silent = new Set();  // noms des services sans réponse
   let lastLights = [];  // voyants affichés (redessinés quand un service se tait ou répond)
+  let tiltReason = null;  // pourquoi l'inclinaison automatique manque (state.tilt_reason, ticket #29)
   function serviceName(url) {
     let parsed;
     try {
@@ -521,11 +522,12 @@
   function showLights(lights = lastLights) {
     lastLights = lights;
     const list = $("#voyants");
-    const shown = measuring ? lights : lights.filter(([name]) => name !== "Inclinaison");
+    // Inclinaison : en mesure seulement, sauf en mesure libre (pas calculée, visées en cap)
+    const shown = measuring && $("#mode").value !== "tri" ? lights : lights.filter(([name]) => name !== "Inclinaison");
     list.hidden = !shown.length && !silent.size;
     list.replaceChildren(...shown.map(([name, light]) => {
       const item = document.createElement("li");
-      item.className = light;
+      item.className = light === "avant" ? "attente" : light;  // avant : calcul au premier clic
       item.textContent = name;
       return item;
     }));
@@ -544,7 +546,8 @@
     const calibrating = $("#mode").value === "tilt";
     const triangulating = $("#mode").value === "tri";  // pas de calcul d'inclinaison (visée en cap)
     const manual = tilt === "non" && !calibrating;
-    message.hidden = !measuring || triangulating || !(calibrating || tilt === "attente" || manual);
+    const before = tilt === "avant" && !calibrating;  // calcul lancé au premier clic sur la photo
+    message.hidden = !measuring || triangulating || !(calibrating || tilt === "attente" || manual || before);
     message.classList.toggle("manuel", manual);
     message.classList.toggle("calage", calibrating);
     message.classList.toggle("attente", tilt === "attente");  // petite roue : calcul en cours
@@ -554,9 +557,12 @@
     }
     message.textContent = calibrating
       ? "Calage vertical" + (tilt === "attente" ? " · calcul automatique en cours" : "")
-      : manual
-        ? "Pour plus de précision, calez l'inclinaison à la main (mode « Calage : inclinaison »)"
-        : "Calcul du calage de l'inclinaison en cours";
+      : before
+        ? "Inclinaison calculée automatiquement au premier clic sur la photo"
+        : manual
+          ? `Inclinaison non calée${tiltReason ? ` : ${tiltReason}` : ""}. `
+            + "Les mesures sont moins précises ; leur incertitude en tient compte."
+          : "Calcul de l'inclinaison en cours : attendez avant de mesurer";
   }
 
   /** Fenêtre modale centrée sur la visionneuse (et non sur la page), recentrée si la fenêtre du
@@ -612,6 +618,7 @@
       gps.title = state.camera[1];
       gps.dataset.value = state.camera[0];
     }
+    tiltReason = state.tilt_reason;
     showLights(state.lights);
     // Photo sur un pont, en haut à gauche : nom et hauteur de chute (pas pendant la lecture)
     const fall = playing() ? null : JSON.parse(app.fall_json());

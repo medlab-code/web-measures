@@ -783,8 +783,17 @@ button.principal { font-weight: 600; }
   animation: tourne 1.2s linear infinite;
 }
 @keyframes tourne { to { transform: rotate(360deg); } }
+/* Calcul automatique en cours, hors calage : plus gros et clignotant, il faut attendre (ticket #29) */
+#calcul-inclinaison.attente:not(.calage) {
+  opacity: 1;
+  font-size: 17px;
+  font-weight: 700;
+  animation: clignote 1s ease-in-out infinite;
+}
+@keyframes clignote { 50% { opacity: 0.3; } }
 @media (prefers-reduced-motion: reduce) {
   #calcul-inclinaison::before { animation-duration: 4s; }
+  #calcul-inclinaison.attente:not(.calage) { animation: none; }
 }
 #voyants li::after {  /* boule centrée sur le texte ; le fond de l'étiquette suffit au contraste */
   content: "";

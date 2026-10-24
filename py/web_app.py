@@ -16,7 +16,8 @@ import time
 from datetime import datetime
 
 import web_host
-from core import (autotilt, capture, filters, host, measures, metadata, precision, roads, session, tools,
+import web_tilt
+from core import (autotilt, calibration, capture, filters, host, measures, metadata, precision, roads, session, tools,
                   triangulation, widths)
 from core.session import GROUND_MODES, MODES  # noqa: F401 (modes de la page)
 
@@ -298,6 +299,8 @@ class App(session.Session):
         self.fall_cells = {}  # maille -> tronçons BD TOPO avec leur largeur (hauteur de chute, voir fall)
         self.falls = {}  # (séquence, pont) -> hauteur de chute calculée (dict text, title) ou en cours
         self.bdtopo = {}  # (couche BD TOPO, maille) -> objets lus (voir _bdtopo)
+        self.tilt_reasons = {}  # photo -> raison de l'échec de l'inclinaison automatique (ticket #29)
+        self.tilts.run = self._run_tilt
 
     # Données pour la page (JSON) -------------------------------------------------------
     def set_picture(self, item_json):
@@ -305,8 +308,90 @@ class App(session.Session):
         self.aim_frame = True
         return super().set_picture(json.loads(item_json))
 
+    def set_active(self, on):
+        """Bouton « Mesure » : l'inclinaison automatique de la photo est calculée dès l'activation,
+        pas au premier clic comme dans le cœur (_check_tilt), qui la lance encore au premier clic
+        sur une autre photo."""
+        super().set_active(on)
+        self._check_tilt()  # rien hors mesure, en mesure libre ou si déjà calculée
+        return self.status()
+
     def state(self):
-        return json.dumps(dict(super().state(), tilt_ready=self._tilt_pending() and len(self.tilt_clicks) == 2))
+        out = dict(super().state(), tilt_ready=self._tilt_pending() and len(self.tilt_clicks) == 2)
+        out["tilt_reason"] = self._tilt_reason()
+        if self.item:  # inclinaison de la ligne d'état : textes du web (_tilt_line), pas ceux du cœur
+            text, alert = self._tilt_line()
+            quality = precision.state_text(self.quality, metadata.item_accuracy(self.item), (text, False))
+            out["quality"] = "⚠ " + quality if alert and not quality.startswith("⚠") else quality
+        return json.dumps(out)
+
+    # Inclinaison automatique : raison d'un échec (ticket #29) -----------------------------------
+    def _run_tilt(self, function, args, done):
+        """Calcul des verticales demandé par autotilt.TiltChecker (à la place de autotilt.estimate) :
+        web_tilt.estimate, dont la raison d'un échec est gardée pour la photo analysée."""
+        pic = self.tilts.current
+
+        def got(res):
+            if res is None or "reason" in res:
+                self.tilt_reasons[pic] = (res or {}).get("reason", "calcul des verticales indisponible")
+                res = None
+            done(res)
+
+        web_host.run_task(web_tilt.estimate, args, got)
+
+    def _tilt_tried(self, pic):
+        """Inclinaison automatique de la photo déjà calculée (ou abandonnée), dans cette session ou
+        une précédente (calage conservé) ? Le cœur ne la lance qu'au premier clic (_check_tilt)."""
+        return pic in self.calibration.auto or pic in self.tilt_reasons
+
+    def _tilt_final(self):
+        """Photo affichée sans inclinaison automatique à attendre : calcul fait, ou impossible."""
+        return self._tilt_tried((self.item or {}).get("id")) or not autotilt.is_360(self.item or {})
+
+    def _lights(self, pic):
+        """Voyants du cœur ; inclinaison pas encore calculée : « avant » (jaune), pas « non » (rouge,
+        pris pour un échec)."""
+        return [(name, "avant" if name == "Inclinaison" and light == "non" and not self._tilt_final() else light)
+                for name, light in super()._lights(pic)]
+
+    def _tilt_reason(self):
+        """Pourquoi la photo affichée n'a pas d'inclinaison, ou None (calée, en cours) : raison de
+        l'échec, ou moment du calcul s'il n'est pas encore fait (voir _tilt_final)."""
+        item, pic = self.item or {}, (self.item or {}).get("id")
+        if not pic or self.calibration.tilt(pic) or self.tilts.pending(pic):
+            return None
+        if not autotilt.is_360(item):
+            return "photo non 360°"
+        if not self._tilt_tried(pic):
+            if self.mode == "tri":
+                return "pas calculée en mesure libre"
+            return "calculée au premier clic sur la photo" if self.active else "calculée à l'activation de la mesure"
+        return self.tilt_reasons.get(pic, web_tilt.FEW_EDGES)
+
+    def _tilt_line(self):
+        """(texte, alerte) de l'inclinaison dans la ligne d'état. Un seul vocabulaire (ticket #29) :
+        « calée » (par les verticales de la photo, par le terrain, à la main) ou « non calée », avec
+        l'incertitude ; « calcul » pour ce qui est en cours ou à venir."""
+        pic = (self.item or {}).get("id")
+        tilt = self.calibration.tilt(pic) if pic else None
+        if tilt:
+            sigma = "±{}°".format(measures._num(max(tilt["sigma"], 0.1), 1))
+            source = tilt["source"]
+            if source == "clics":
+                how = "à la main ({} objet{}, {})".format(tilt["count"], "s" if tilt["count"] > 1 else "", sigma)
+            elif source.startswith("clics + "):
+                how = "à la main et par {} ({})".format(
+                    "les verticales de la photo" if source.endswith("verticales") else "le terrain", sigma)
+            else:
+                how = "par {} ({})".format("les verticales de la photo" if source == "verticales" else "le terrain", sigma)
+            return "inclinaison calée " + how, False
+        if pic and self.tilts.pending(pic):
+            return "inclinaison : calcul en cours…", False
+        reason = self._tilt_reason()
+        if not self._tilt_final():
+            return "inclinaison " + reason, False
+        return "inclinaison non calée (±{}°) : {}".format(
+            measures._num(calibration.UNCALIBRATED, 0), reason), True
 
     def fall_json(self):
         """Hauteur de chute (voir fall), en JSON : demandée par la page hors lecture de la séquence
