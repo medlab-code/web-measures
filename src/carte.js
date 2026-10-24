@@ -137,6 +137,7 @@ const Carte = (() => {
             type: "vector", tiles: [tilesUrl()], minzoom: 0, maxzoom: 15, attribution: ATTRIBUTION_PANORAMAX,
           },
           mesures: { type: "geojson", data: EMPTY },
+          precedents: { type: "geojson", data: EMPTY },  // résultats de la session précédente (showPrevious)
           pr: { type: "geojson", data: EMPTY },
           contour: { type: "geojson", data: EMPTY },  // commune choisie dans la recherche (recherche.js)
           voies: { type: "vector", tiles: [ROADS_TILES], minzoom: ROADS_MINZOOM, maxzoom: 19, attribution: ATTRIBUTION_IGN },
@@ -247,6 +248,16 @@ const Carte = (() => {
             },
           },
           // Curseur de vue : position, direction et ouverture de la vue
+          // Résultats de la session précédente, en lecture seule : gris, sous ceux de la session
+          {
+            id: "precedents-traits", type: "line", source: "precedents", filter: ["==", ["geometry-type"], "LineString"],
+            paint: { "line-color": "#757575", "line-width": 3, "line-dasharray": [2, 1] },
+          },
+          {
+            id: "precedents-points", type: "circle", source: "precedents", filter: ["==", ["geometry-type"], "Point"],
+            paint: { "circle-color": "#757575", "circle-opacity": 0.6, "circle-radius": 5,
+              "circle-stroke-color": "#ffffff", "circle-stroke-width": 1 },
+          },
           // Mesures, visées et points (voir web_app.App.map_geojson)
           {
             id: "visees-halo", type: "line", source: "mesures", filter: kind("visee", "calage"),
@@ -778,6 +789,13 @@ const Carte = (() => {
   const labels = [];
   let shownMeasures = null;  // dernières mesures dessinées : suivent une poignée glissée
 
+  /** Résultats de la session précédente (export GeoJSON gardé), ou null : retirés. */
+  function showPrevious(map, geojson) {
+    const set = () => map.getSource("precedents")?.setData(geojson || EMPTY);
+    set();
+    if (!map.loaded()) map.once("load", set);  // avant le chargement, la source peut être refaite vide
+  }
+
   function showMeasures(map, geojson) {
     shownMeasures = geojson;
     map.getSource("mesures")?.setData(geojson);
@@ -1058,6 +1076,6 @@ const Carte = (() => {
 
   return {
     PANORAMAX_API: META_API, GEOPF, OSM_TILES, createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, pcrsAt, instances, setInstance, setFilter,
-    showMeasures, showHandles, showView, showMilestones, nearestPhoto, photoById, apiUrl: () => apiUrl,
+    showMeasures, showPrevious, showHandles, showView, showMilestones, nearestPhoto, photoById, apiUrl: () => apiUrl,
   };
 })();

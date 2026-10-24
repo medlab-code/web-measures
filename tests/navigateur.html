@@ -167,15 +167,15 @@ async function feature(id) {
     doc.querySelector("#favoris .aller-favori").click();
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === "7752eb30-a733-4213-b57a-5d5086e261a4", 30000, "photo du favori");
     expect("favori : photo rouverte", true);
-    const star = doc.querySelector("#etoile-favori");
-    expect("étoile pleine sur la photo en favori", !star.hidden && star.textContent === "★" && star.getAttribute("aria-pressed") === "true");
+    const star = doc.querySelector("#etoile-favori");  // étoile dessinée (SVG) : état par aria-pressed
+    expect("étoile pleine sur la photo en favori", !star.hidden && star.getAttribute("aria-pressed") === "true");
     await open(MONTBARD);
-    expect("étoile vide sur une autre photo", star.textContent === "☆");
+    expect("étoile vide sur une autre photo", star.getAttribute("aria-pressed") === "false");
     star.click();
     await until(() => doc.querySelectorAll("#favoris li").length === 2, 15000, "favori par l'étoile");
-    expect("étoile : favori ajouté, étoile pleine", star.textContent === "★");
+    expect("étoile : favori ajouté, étoile pleine", star.getAttribute("aria-pressed") === "true");
     star.click();
-    expect("étoile : favori retiré, étoile vide", doc.querySelectorAll("#favoris li").length === 1 && star.textContent === "☆");
+    expect("étoile : favori retiré, étoile vide", doc.querySelectorAll("#favoris li").length === 1 && star.getAttribute("aria-pressed") === "false");
     {  // export puis import : fichier JSON, doublons et entrées invalides ignorés
       const exported = w.localStorage.getItem("web-measures/favoris");
       const input = doc.querySelector("#favoris-fichier");
@@ -412,7 +412,7 @@ async function feature(id) {
   log("calage : " + state().calibration);
   log("résultats : " + JSON.parse(app.results()).map((r) => r.text).join(" | "));
   // Commentaire : gardé pendant les rafraîchissements, exporté
-  const input = doc.querySelector("#resultats ol input");
+  const input = doc.querySelector("#resultats > ol input");
   input.focus();
   input.value = "bordure abîmée";
   input.dispatchEvent(new Event("input"));

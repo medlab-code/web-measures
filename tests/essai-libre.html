@@ -65,7 +65,13 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
           doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
           expect("Ctrl+Z : dernière visée annulée, la première gardée", app.triangulator.sightings.length === 1,
             doc.querySelector("#statut").textContent);
+          doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "y", ctrlKey: true, bubbles: true }));
+          expect("Ctrl+Y : visée rétablie", app.triangulator.sightings.length === 2, doc.querySelector("#statut").textContent);
+          doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
           psvClick(yawTo(f, pt), pitchTo(f, pt));
+          doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "y", ctrlKey: true, bubbles: true }));
+          expect("Ctrl+Y sans objet après un nouveau clic", doc.querySelector("#statut").textContent === "Rien à rétablir."
+            && app.triangulator.sightings.length === 2, doc.querySelector("#statut").textContent);
         }
       }
       doc.querySelector("#garder").click();
@@ -102,7 +108,22 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await until(() => w.document.readyState === "complete" && w.document.querySelector("#precedents"), 60000, "page rechargée");
     const shown = w.document.querySelector("#precedents");
     expect("résultats précédents proposés à l'export", !shown.hidden, shown.textContent.trim().slice(0, 80));
-    log("précédents : " + shown.querySelector("p").textContent);
+    log("précédents : " + shown.querySelector("p").textContent + " " + [...shown.querySelectorAll("li")].map((li) => li.textContent).join(" | "));
+    expect("résultats précédents listés", shown.querySelectorAll("li").length === saved.n);
+    // La liste de la session en cours reste la sienne (elle était écrite dans celle des précédents)
+    await until(() => w.mesures?.app, 120000, "Pyodide rechargé");
+    await sleep(2000);  // premiers rafraîchissements de la page rechargée
+    expect("liste des précédents intacte après un rafraîchissement", shown.querySelectorAll("li").length === saved.n
+      && !shown.querySelector("input"));
+    const m2 = w.mesures.map;
+    await until(() => m2?.getSource?.("precedents")?.serialize?.().data?.features?.length > 0, 30000, "résultats précédents sur la carte");
+    expect("résultats précédents sur la carte", m2.getSource("precedents").serialize().data.features.length === saved.n);
+    // Non exportés pendant cette session (sans résultat) : plus proposés à la suivante
+    w.location.reload();
+    await sleep(1000);
+    await until(() => w.document.readyState === "complete" && w.document.querySelector("#precedents"), 60000, "2e rechargement");
+    await sleep(500);
+    expect("résultats précédents oubliés après une session sans export", w.document.querySelector("#precedents").hidden);
     verdict();
   } catch (e) { log("ERREUR " + e); }
   log("FIN");

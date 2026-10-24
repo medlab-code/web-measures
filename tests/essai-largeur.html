@@ -384,6 +384,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       await sleep(300);
       log("largeur sur la droite tracée : " + doc.querySelector("#statut").textContent.slice(0, 140));
       near("largeur le long de la droite tracée", metresIn(doc.querySelector("#statut").textContent), 8, 0.05);
+      expect("texte de la largeur sur la droite tracée", /^Largeur le long de la droite tracée sur la carte .* depuis le point [A-Z] · droite à \d+° \(tracée sur la carte/.test(doc.querySelector("#statut").textContent));
     }
     verdict();
   } catch (e) { log("ERREUR " + e); }

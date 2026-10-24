@@ -131,7 +131,9 @@ après.
   direction du clic coupe la droite, comme le bord opposé ; le pointeur glisse sur la droite.
   Une photo qui voit la droite presque en enfilade (moins de 10°) est refusée. « Annuler la
   droite » revient à l'axe automatique jusqu'au clic du premier bord. La droite ne sert qu'une
-  fois : la largeur suivante reprend l'axe automatique, qui reste celui par défaut.
+  fois : la largeur suivante reprend l'axe automatique, qui reste celui par défaut. Le résultat
+  se lit alors « Largeur le long de la droite tracée sur la carte … depuis le point A · droite
+  à 75° (tracée sur la carte, ±2,4°) ».
 
   Sur une photo qui a servi à viser un bord, sa croix est là où il a été visé, et la droite
   de mesure passe par la croix du premier bord.
@@ -177,7 +179,8 @@ cliqués, ou projetés au sol sur les autres photos). Dans la photo, la droite d
 largeur est en tirets bleus, la verticale d'une hauteur en tirets verts ; sur la carte, les
 visées de triangulation sont en tirets rouges.
 
-**Effacer** (ou **Ctrl+Z**, aussi dans la carte détachée) : annule le dernier geste. La
+**Effacer** (ou **Ctrl+Z**, aussi dans la carte détachée) : annule le dernier geste
+(**Ctrl+Y** ou Ctrl+Maj+Z le rétablit, si rien n'a été fait depuis). La
 dernière visée seule (les autres restent ; le bord B garde sa première, le clic de la largeur),
 le dernier clic de l'objet vertical du calage, la sélection ou la mesure en cours ; sans rien en
 cours, le dernier point posé (sommet, bord opposé, puis le point de référence ; en mesure libre,
@@ -186,7 +189,9 @@ de tout effacer pour repartir de zéro. Échap annule le tracé d'une droite sur
 
 **Résultats gardés** : ils sont enregistrés dans le navigateur à chaque changement ; à
 l'ouverture suivante, ceux de la session précédente qui n'ont pas été exportés sont proposés à
-l'export (CSV, GeoJSON) ou à l'oubli. Ils ne sont pas rechargés dans la session.
+l'export (CSV, GeoJSON) ou à l'oubli, et affichés en lecture seule : liste sous les résultats,
+traits et points gris sur la carte. Ils ne redeviennent pas des mesures modifiables, et sont
+oubliés à la fermeture de cette session-là s'ils n'y ont pas été exportés.
 
 **Recaler un point** : **clic** (gauche ou droit) sur sa croix pour le sélectionner, puis :
 
@@ -321,8 +326,8 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,4
 - Incertitude de l'axe de la route (±0,5° pour la trajectoire RTK, ±2° pour la BD TOPO, ±3°
   pour la trajectoire sans RTK) estimée,
   à confirmer sur le terrain.
-- Mesures non rechargées à l'ouverture suivante : seule leur exportation est proposée (une
-  session précédente gardée, dans ce navigateur).
+- Mesures non rechargées à l'ouverture suivante : affichées en lecture seule et proposées à
+  l'export pendant la session suivante seulement (dans ce navigateur), puis oubliées.
 
 ### Organisation
 
@@ -412,6 +417,9 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ### Pour plus tard
 
+- **Export pour un inventaire** : tableur, une ligne par mesure (route, PR + abscisse, type,
+  valeur ± incertitude, lien vers la photo Panoramax, date).
+- **Fiche imprimable ou PDF par mesure** : capture « Avec les mesures », mini-carte et valeurs.
 - **Contrôle d'une largeur sur l'image vue du ciel**, quand le PCRS (image à 5 cm) sera publié
   en Côte-d'Or (absent le 22/10/2026, vérifié à Pouilly-en-Auxois) : cliquer les deux bords sur
   la mini-carte, puis comparer avec la largeur mesurée sur la photo ; un écart supérieur aux

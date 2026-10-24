@@ -699,8 +699,8 @@
     const key = JSON.stringify(list.map((r) => [r.kind, r.id, r.text]));
     if (key === resultsKey) return;
     resultsKey = key;
-    const ol = $("#resultats ol");
-    const focused = document.activeElement?.closest?.("#resultats ol") ? document.activeElement.dataset.key : null;
+    const ol = $("#resultats > ol");
+    const focused = document.activeElement?.closest?.("#resultats > ol") ? document.activeElement.dataset.key : null;
     ol.replaceChildren(...list.map((r) => {
       const li = Object.assign(document.createElement("li"), { className: r.sous ? "sous" : "" });  // mesure d'un point de référence
       const text = Object.assign(document.createElement("span"), { textContent: r.text });
@@ -850,11 +850,13 @@
 
   // Ctrl+Z (⌘Z), comme le bouton « Effacer » : dernier geste de mesure annulé (visée, clic, mesure
   // en cours, dernier point) ; dans un champ de saisie, l'annulation du texte reste celle du navigateur
+  // Ctrl+Y (Ctrl+Maj+Z, ⌘⇧Z) : rétablit ce que le dernier « Effacer » a retiré
   function onUndoKey(event) {
-    if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== "z") return;
+    const key = event.key.toLowerCase();
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || !["z", "y"].includes(key)) return;
     if (!app || !measuring || event.target.closest?.("input, select, textarea")) return;
     event.preventDefault();
-    refresh(app.undo());
+    refresh(key === "y" || event.shiftKey ? app.redo() : app.undo());
     proposeDistance();
   }
   document.addEventListener("keydown", onUndoKey);
@@ -2184,9 +2186,9 @@
 
   // Résultats gardés dans le navigateur à chaque changement (exports CSV et GeoJSON tout prêts) :
   // à l'ouverture suivante, ceux de la session précédente, s'ils n'ont pas été exportés, sont
-  // proposés à l'export. Pas rechargés dans la session : ils ne se modifient plus.
-  // shortcut: une seule session précédente, et deux onglets ouverts à la fois écrivent au même
-  // endroit ; à revoir si l'on travaille en plusieurs onglets.
+  // affichés en lecture seule et proposés à l'export, pendant cette session seulement.
+  // shortcut: deux onglets ouverts à la fois écrivent au même endroit ; à revoir si l'on
+  // travaille en plusieurs onglets.
   let saveTimer = null, savedKey = null;
   function saveResults() {  // à chaque rafraîchissement : écrit seulement ce qui a changé
     clearTimeout(saveTimer);
@@ -2199,14 +2201,24 @@
       csv: app.export_csv(), geojson }) : "");
   }
   {
-    const last = store.get("resultats");
-    if (last) {  // session précédente : mise de côté avant que celle-ci n'écrive
-      store.set("resultats-precedents", last);
-      store.set("resultats", "");
-    }
+    // Session précédente : gardée en mémoire seulement, retirée du navigateur avant que celle-ci
+    // n'écrive ; non exportée pendant cette session, elle est oubliée à sa clôture
     let previous = null;
-    try { previous = JSON.parse(store.get("resultats-precedents") || "null"); } catch { /* illisible : aucun */ }
+    try { previous = JSON.parse(store.get("resultats") || "null"); } catch { /* illisible : aucun */ }
+    store.set("resultats", "");
+    store.set("resultats-precedents", "");  // ancienne clé (versions du 24/10/2026)
     if (previous && previous.n && !previous.exported) {
+      // En lecture seule : liste (tirée de l'export GeoJSON, comme en mesure libre où les points et
+      // distances sont hors de la liste) et dessin gris sur la carte
+      const num = (v) => (v == null ? "?" : Number(v).toLocaleString("fr-FR", { maximumFractionDigits: 2 }));
+      const geojson = JSON.parse(previous.geojson);
+      $("#precedents ol").replaceChildren(...geojson.features.map(({ properties: p }) => {
+        const text = p.type === "point triangulé" ? `Point ${p.nom} ±${num(p.incert_m)} m`
+          : p.type.startsWith("distance") ? `${p.points} ${num(p.valeur_m)} m ± ${num(p.incert_m)} m`
+          : `${p.type[0].toUpperCase()}${p.type.slice(1)} : ${num(p.valeur_m)} m ± ${num(p.incert_m)} m`;
+        return Object.assign(document.createElement("li"), { textContent: text + (p.commentaire ? ` — ${p.commentaire}` : "") });
+      }));
+      Carte.showPrevious(map, geojson);
       const when = new Date(previous.when);
       $("#precedents p").textContent = `${previous.n} résultat${previous.n > 1 ? "s" : ""} de la session du ${
         when.toLocaleDateString("fr-FR")} à ${when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
@@ -2216,8 +2228,8 @@
       $("#precedents-geojson").addEventListener("click", () => download(previous.geojson, "mesures-precedentes.geojson",
         "application/geo+json"));
       $("#precedents-oublier").addEventListener("click", () => {
-        store.set("resultats-precedents", "");
         $("#precedents").hidden = true;
+        Carte.showPrevious(map, null);
       });
     }
   }

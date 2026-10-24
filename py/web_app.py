@@ -318,6 +318,7 @@ class App(session.Session):
         self.falls = {}  # (séquence, pont) -> hauteur de chute calculée (dict text, title) ou en cours
         self.bdtopo = {}  # (couche BD TOPO, maille) -> objets lus (voir _bdtopo)
         self.map_line = None  # droite de mesure tracée sur la carte, pour le prochain point A (ticket #28)
+        self.redo_stack, self.redo_key = [], None  # états d'avant chaque « Effacer » (Ctrl+Y, voir redo)
         self.tilt_reasons = {}  # photo -> raison de l'échec de l'inclinaison automatique (ticket #29)
         self.tilts.run = self._run_tilt
         # Inclinaison par le terrain hors agglomération, expérimentale (option, voir web_terrain)
@@ -762,6 +763,10 @@ class App(session.Session):
         return bool(self.active and self.mode == "tilt" and self.item and self.tilt_clicks
                     and self.tilt_clicks[0]["pic"] == self.item.get("id"))
 
+    def status(self):
+        text = super().status()
+        return _map_line_text(text) if MAP_SOURCE in text else text
+
     # Hauteurs suivantes depuis le point de référence, sur l'axe de la première -------------------
     # Une fois une hauteur faite depuis A sur la photo affichée (ligne A–C), le sommet des suivantes
     # (« Nouvelle mesure depuis A ») est pris sur le prolongement de cette ligne, au plus près du clic :
@@ -844,7 +849,63 @@ class App(session.Session):
         return ("Objet {} : pied et sommet placés. Pour en déplacer un, cliquez sa croix puis sa position exacte ; "
                 "sinon « ✔ Valider l'objet vertical ».").format(n)
 
+    # État remis par Ctrl+Y : listes copiées (les objets gardés tels quels : « Effacer » ne fait que
+    # les retirer), sauf le calage du cap et de la position (CalibrationTool), non rétabli
+    REDO_ATTRS = ("points", "links", "named", "last_free", "point_views", "ref_point", "measure_done", "width_sel",
+                  "ref_sel", "b_aiming", "proposal", "tilt_clicks", "tilt_sel", "map_line")
+
+    def _snapshot(self):
+        snap = {k: getattr(self, k, None) for k in self.REDO_ATTRS}
+        for k in ("points", "links", "tilt_clicks"):
+            snap[k] = list(snap[k])
+        snap["point_views"] = dict(snap["point_views"])
+        tool = self.tool
+        snap["tool"] = (list(tool.done), tool.current, tool.selected, list(self.triangulator.sightings))
+        return snap
+
+    def _redo_state(self):
+        """Empreinte de ce que les gestes changent : un geste fait depuis le dernier « Effacer »
+        rend Ctrl+Y sans objet."""
+        tool, current = self.tool, self.tool.current
+        return (len(self.points), len(self.links), len(tool.done), id(current), len(current.clicks) if current else 0,
+                len(self.triangulator.sightings), id(self.ref_point), len(self.tilt_clicks), self.mode,
+                id(self.b_aiming), self.measure_done)
+
+    def redo(self):
+        """Ctrl+Y (ou Ctrl+Maj+Z) : rétablit ce que le dernier « Effacer » a retiré, si rien n'a été fait
+        depuis."""
+        if not self.redo_stack or self._redo_state() != self.redo_key:
+            self.redo_stack, self.redo_key = [], None
+            self.message = "Rien à rétablir."
+            return self.status()
+        snap = self.redo_stack.pop()
+        done, current, selected, sightings = snap.pop("tool")
+        for k, v in snap.items():
+            setattr(self, k, v)
+        tool = self.tool
+        tool.done, tool.current, tool.selected = done, current, selected
+        for m in tool.measures():
+            m._draw()  # dessin sur la carte retiré par l'effacement
+        self.triangulator.sightings = list(sightings)
+        if sightings:
+            self.triangulator.recompute()
+        else:
+            self.triangulator.clear()
+        self.redo_key = self._redo_state()
+        self.message = "Rétabli."
+        return self.status()
+
     def undo(self):
+        before = self._redo_state()
+        snap = None if self.active and self._active() is self.calibrator else self._snapshot()
+        stack = self.redo_stack if self.redo_key == before else []
+        text = self._undo()
+        if snap is not None and self._redo_state() != before:  # quelque chose a été retiré
+            stack.append(snap)
+        self.redo_stack, self.redo_key = stack, self._redo_state()
+        return text
+
+    def _undo(self):
         """« Effacer » et Ctrl+Z : annule le dernier geste. Visées : la dernière seule (le bord B garde sa première,
         le clic de la mesure) ; objet vertical du calage : son dernier clic ; sinon comme Session.clear
         (sélection, mesure en cours, puis dernier point posé)."""
@@ -1550,6 +1611,17 @@ def _csv(value):
         return repr(round(value, 7)).replace(".", ",")
     text = str(value)
     return '"' + text.replace('"', '""') + '"' if any(c in text for c in ';"\n') else text
+
+
+def _map_line_text(text):
+    """Texte de la largeur (widths.PerpendicularWidth.status) prise sur une droite tracée sur la carte
+    (ticket #28) : ni perpendiculaire à la chaussée, ni depuis un point triangulé (A posé d'un clic)."""
+    on_line = r"(?=[^.]*" + re.escape(MAP_SOURCE) + ")"
+    text = re.sub("Largeur perpendiculaire à la chaussée" + on_line, "Largeur le long de la droite tracée sur la carte", text)
+    text = re.sub("depuis le point triangulé " + on_line, "depuis le point ", text)
+    text = re.sub("entre les points triangulés " + on_line, "entre les points ", text)
+    return re.sub(r"axe (\d+)° \(" + re.escape(MAP_SOURCE),  # axe : perpendiculaire à la droite
+                  lambda m: "droite à {}° (tracée sur la carte".format((int(m.group(1)) + 90) % 180), text)
 
 
 def _on_axis(axis, yaw, pitch):

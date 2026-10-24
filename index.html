@@ -49,7 +49,7 @@
           <label title="Sur un pont, le modèle de terrain de l'IGN (LiDAR HD, ou RGE ALTI là où le LiDAR HD n'est pas publié) donne le terrain sous l'ouvrage (la voie franchie), pas le tablier : les points au sol se calent alors sur le sol tiré des photos et l'inclinaison automatique se passe de la pente du terrain"><input id="pont" type="checkbox" disabled> Sur un pont</label>
         </div>
         <div class="rang">
-          <button id="effacer" type="button" disabled title="Annule le dernier geste : dernière visée, dernier clic, puis la mesure en cours et le dernier point posé (raccourci Ctrl+Z)">Effacer</button>
+          <button id="effacer" type="button" disabled title="Annule le dernier geste : dernière visée, dernier clic, puis la mesure en cours et le dernier point posé (raccourci Ctrl+Z ; Ctrl+Y rétablit)">Effacer</button>
           <button id="tout-effacer" type="button" disabled>Tout effacer</button>
         </div>
       </div>
@@ -164,6 +164,7 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
           <!-- Résultats non exportés de la session précédente (src/app.js, saveResults) -->
           <div id="precedents" hidden>
             <p></p>
+            <ol></ol>  <!-- en lecture seule, gris aussi sur la carte -->
             <div class="boutons">
               <button id="precedents-csv" type="button">Exporter CSV</button>
               <button id="precedents-geojson" type="button">Exporter GeoJSON</button>
