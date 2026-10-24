@@ -1780,7 +1780,7 @@
         return;
       }
       if (points.length >= 2) {  // objet vertical du calage de l'inclinaison : bleu clair ; mesure : rouge
-        lines.push({ points: mark.points, color: mark.calage ? "#8ee8ff" : "#e53935", width: mark.calage ? 2 : 3, dash: null });
+        lines.push({ points: mark.points, color: mark.calage ? "#8ee8ff" : "#e53935", width: mark.calage ? 2 : 4, dash: null });
       }
       mark.points.forEach(([yaw, pitch, sel], i) => {
         add({
@@ -2254,7 +2254,7 @@
         continue;
       }
       ctx.strokeStyle = "#e53935";
-      ctx.lineWidth = 3 * scale;
+      ctx.lineWidth = 4 * scale;
       for (let i = 1; i < pts.length; i++) {
         if (!pts[i - 1] || !pts[i]) continue;
         ctx.beginPath();
