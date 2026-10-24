@@ -4,8 +4,8 @@
 // Lieu de la photo affichée, incrusté dans la visionneuse : route (numéro et nom de la voie,
 // tronçon de la BD TOPO le plus proche), point de repère (PR + distance, BD TOPO), hors route
 // départementale la véloroute suivie (itinéraires cyclables de la BD TOPO) et l'écluse la plus
-// proche (repère des chemins de halage), et commune
-// (découpage administratif de geo.api.gouv.fr).
+// proche (repère des chemins de halage), hameau ou quartier (zone d'habitation de la BD TOPO
+// contenant la photo) et commune (découpage administratif de geo.api.gouv.fr).
 
 const Lieu = (() => {
   const WFS = "https://data.geopf.fr/wfs/ows";
@@ -68,14 +68,14 @@ const Lieu = (() => {
     }
   }
 
-  /** Objets d'une couche dans la maille de (lon, lat), élargie de CELL_MARGIN m : lus une fois
-   * par maille (un échec n'est pas gardé). */
-  function zone(layer, properties, lon, lat) {
+  /** Objets d'une couche dans la maille de (lon, lat), élargie de margin m : lus une fois par
+   * maille (un échec n'est pas gardé). */
+  function zone(layer, properties, lon, lat, margin = CELL_MARGIN) {
     const i = Math.floor(lon / CELL), j = Math.floor(lat / CELL);
     const key = `${layer} ${i} ${j}`;
     if (!zones.has(key)) {
       const lat0 = (j + 0.5) * CELL;
-      const mlat = CELL_MARGIN / 111320, mlon = CELL_MARGIN / (111320 * Math.cos(lat0 * Math.PI / 180));
+      const mlat = margin / 111320, mlon = margin / (111320 * Math.cos(lat0 * Math.PI / 180));
       const box = [i * CELL - mlon, j * CELL - mlat, (i + 1) * CELL + mlon, (j + 1) * CELL + mlat];
       const params = new URLSearchParams({
         SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetFeature", TYPENAMES: `BDTOPO_V3:${layer}`,
@@ -250,20 +250,63 @@ const Lieu = (() => {
    * Retourne { text, complete, parts } : complete faux si un service a échoué (la Géoplateforme
    * refuse des requêtes en rafale, HTTP 429) ; le texte, partiel, n'est alors pas gardé, à
    * redemander. parts : { commune, voie (numéro, sinon nom), pr } (nom des favoris). */
+  // Hameau ou quartier (zone d'habitation de la BD TOPO contenant la photo, ou la plus proche à
+  // HAMLET_REACH m : ces zones suivent les bâtiments au plus près, l'entrée du hameau par la route
+  // en reste souvent dehors), écrit avant la commune
+  const HABITATION_PROPERTIES = "toponyme,nature,importance,geometrie";
+  const HAMLET_REACH = 100;  // m
+  const HABITATION_NATURES = ["Lieu-dit habité", "Quartier"];
+
+  /** Le point (lon, lat) est-il dans la géométrie GeoJSON (Polygon ou MultiPolygon, trous compris) ? */
+  function inside(geometry, lon, lat) {
+    const ring = (r) => {  // lancer de rayon vers l'est
+      let n = false;
+      for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+        const [xi, yi] = r[i], [xj, yj] = r[j];
+        if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) n = !n;
+      }
+      return n;
+    };
+    const polygons = geometry?.type === "Polygon" ? [geometry.coordinates] : geometry?.type === "MultiPolygon" ? geometry.coordinates : [];
+    return polygons.some(([outer, ...holes]) => ring(outer) && !holes.some(ring));
+  }
+
+  /** Distance (m) de (lon, lat) à la géométrie GeoJSON (Polygon, MultiPolygon) : 0 dedans. */
+  function distanceTo(geometry, lon, lat) {
+    if (inside(geometry, lon, lat)) return 0;
+    const polygons = geometry?.type === "Polygon" ? [geometry.coordinates] : geometry?.type === "MultiPolygon" ? geometry.coordinates : [];
+    let best = Infinity;
+    for (const ring of polygons.flat()) best = Math.min(best, project(ring, lon, lat).d);
+    return best;
+  }
+
+  /** Nom du hameau ou du quartier où est (lon, lat), ou du plus proche à HAMLET_REACH m, sauf le bourg
+   * qui porte le nom de la commune ; "" sinon. À égalité (zones emboîtées, dedans) : la plus petite
+   * (importance la plus faible, nombre le plus grand). */
+  function hamlet(zones, lon, lat, commune) {
+    const same = (a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }) === 0;
+    const found = zones.filter(({ properties: p }) => p.toponyme && HABITATION_NATURES.includes(p.nature)
+      && !(commune && same(p.toponyme, commune)))
+      .map((z) => ({ z, d: distanceTo(z.geometry, lon, lat) })).filter(({ d }) => d <= HAMLET_REACH);
+    found.sort((a, b) => a.d - b.d || Number(b.z.properties.importance) - Number(a.z.properties.importance));
+    return found[0]?.z.properties.toponyme || "";
+  }
+
   async function describe(lon, lat) {
     const key = `${lon.toFixed(5)},${lat.toFixed(5)}`;
     if (cache.has(key)) return { ...cache.get(key), complete: true };
     let failed = false;
     const fail = (value) => () => { failed = true; return value; };
-    const [troncons, c] = await Promise.all([zone("troncon_de_route", TRONCON_PROPERTIES, lon, lat).catch(fail(null)),
-      commune(lon, lat).catch(fail(""))]);
+    const [troncons, c, habitations] = await Promise.all([zone("troncon_de_route", TRONCON_PROPERTIES, lon, lat).catch(fail(null)),
+      commune(lon, lat).catch(fail("")), zone("zone_d_habitation", HABITATION_PROPERTIES, lon, lat, HAMLET_REACH).catch(fail([]))]);
+    const place = hamlet(habitations, lon, lat, c);
     const r = troncons ? road(troncons, lon, lat) : null;
     const pr = await milestone(r?.numero, lon, lat).catch(fail(""));
     // Hors route départementale : la véloroute suivie, s'il y en a une (chemin de halage, voie verte…)
     const bike = troncons && !/^D\d/.test(r?.numero || "") ? cycleRoutes(troncons, lon, lat) : "";
     const lock = bike ? await nearestLock(lon, lat).catch(fail("")) : "";  // repère des chemins de halage
-    const text = [r?.numero, pr, r?.nom, bike, lock, c].filter(Boolean).join(" – ");  // comme l'étiquette de droite
-    const parts = { commune: c, voie: r?.numero || r?.nom || "", pr };
+    const text = [r?.numero, pr, r?.nom, bike, lock, place, c].filter(Boolean).join(" – ");  // comme l'étiquette de droite
+    const parts = { lieudit: place, commune: c, voie: r?.numero || r?.nom || "", pr };
     if (!failed && text) {
       cache.set(key, { text, parts });
       if (cache.size > 500) cache.delete(cache.keys().next().value);

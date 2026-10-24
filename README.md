@@ -252,7 +252,9 @@ pas utilisé (talus et murs pris pour la route).
   Géoplateforme là où il est publié, OpenStreetMap ; recherche de lieux ; points de repère
   (PR) des routes ; requêteur route + PR (+ distance), à listes qui se réduisent à la frappe ;
 - lieu de la photo incrusté en bas à gauche de la visionneuse : route, PR et distance mesurée
-  le long du filaire IGN depuis le dernier PR passé, nom de la voie, commune ; hors route
+  le long du filaire IGN depuis le dernier PR passé, nom de la voie, hameau ou quartier (zone
+  d'habitation de la BD TOPO qui contient la photo, sinon la plus proche à moins de 100 m, sauf
+  le bourg), commune ; hors route
   départementale, la véloroute suivie et l'écluse la plus proche (chemins de halage) ;
 - lecteur de séquence (1x à 16x), date et producteur en bas à droite ;
 - carte cadrée automatiquement sur la mesure en cours (mesure libre : sur le segment qui vient
@@ -352,7 +354,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,4
 | `src/services.js` | vérification de l'accès aux services |
 | `src/recherche.js` | recherche de lieux sur la carte (commune, lieu-dit, voie, adresse) |
 | `src/requeteur.js` | requêteur route + PR (+ distance) : routes du département affiché, côté droit par défaut |
-| `src/lieu.js` | route, point de repère (PR), véloroute, écluse et commune de la photo, incrustés dans la visionneuse |
+| `src/lieu.js` | route, point de repère (PR), véloroute, écluse, hameau et commune de la photo, incrustés dans la visionneuse |
 | `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page (points de référence, hauteurs, largeurs, mesure libre, recalages) |
 | `py/web_host.py` | accès réseau du cœur par le `fetch` du navigateur |
 | `py/web_worker.py` | calculs lourds dans le Pyodide d'arrière-plan |
@@ -448,6 +450,15 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.5.1** (24/10/2026) : fiche PDF par point de référence (bouton « 📄 Fiche » des résultats,
+  impression du navigateur) : photo de la mesure cadrée sur elle, tableau des points et des
+  mesures, méthode et précision en bref, mini-carte au zoom de la page avec le cône de vue, lien
+  Panoramax et QR code. « Effacer » et Ctrl+Z annulent le dernier geste, Ctrl+Y le rétablit ;
+  résultats gardés dans le navigateur, ceux de la session précédente non exportés affichés et
+  proposés à l'export. Hauteurs suivantes depuis un point prises sur l'axe de la première
+  (réticule glissant, trait jaune) ; sommet affiché au cap du clic. Largeur sur une droite tracée :
+  texte adapté. Localisation : hameau ou quartier avant la commune, route et commune en gras.
+  Police Inter (JetBrains Mono pour les identifiants), titre agrandi, trait des mesures épaissi.
 - **0.5.0** (24/10/2026) : traits de la visionneuse dessinés en WebGL (visée zoomée bien plus
   fluide) ; visées des autres photos en trait plein vert, tracées aussi en hauteur, avec un trait
   vertical au centre de la vue (#26). Résultats : une entrée par point de référence, ses mesures

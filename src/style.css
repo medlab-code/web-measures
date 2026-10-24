@@ -32,10 +32,11 @@ html, body {
   height: 100%;
   background: var(--fond);
   color: var(--texte);
-  font: 14px/1.4 Roboto, system-ui, sans-serif;
+  font: 14px/1.4 Inter, system-ui, sans-serif;
 }
 /* Contrôles dans la police et à la taille du texte (pas hérités par défaut) : lignes de base alignées */
 button, input, select, textarea { font-family: inherit; font-size: inherit; line-height: 1.2; }
+#id-photo { font-family: "JetBrains Mono", monospace; }  /* identifiant de photo : chasse fixe */
 
 body { display: flex; flex-direction: column; }
 
@@ -77,7 +78,7 @@ header #mesure { height: auto; padding: 0 0.9em; font-size: 1.15em; font-weight:
                  border: 3px solid var(--panoramax); border-radius: 6px; }
 
 h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
-header h1 { font-size: 1.2em; line-height: 1; }  /* 18 px : titre un peu plus grand que la barre */
+header h1 { font-size: 2em; line-height: 1; }  /* 28 px : titre nettement plus grand que la barre */
 /* Titre, avec la mention « version test » en dessous */
 header .marque { display: flex; flex-direction: column; align-items: center; gap: 0.45em; }
 /* Mention « version test » : discrète, mais visible sous le titre */
@@ -227,7 +228,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   align-items: center;
   gap: 4px;
   width: min(16rem, calc(100% - 70px));
-  font: 13px Roboto, system-ui, sans-serif;  /* et non la police de MapLibre, propre à la carte */
+  font: 13px Inter, system-ui, sans-serif;  /* et non la police de MapLibre, propre à la carte */
 }
 .requeteur .champ { position: relative; flex: 1 1 0; min-width: 0; }
 .requeteur .route { flex-grow: 1.22; }  /* numéros longs : D974BIS, N274A… */
@@ -707,6 +708,7 @@ button.principal { font-weight: 600; }
 }
 #producteur-photo { text-align: right; }
 #lieu[hidden], #producteur-photo[hidden] { display: none; }
+#lieu b { font-weight: 700; }  /* route et commune (placeMarkup) */
 /* Lecture de la séquence : même étiquette que les deux textes, trois boutons */
 #lecteur {
   display: flex;
@@ -941,7 +943,7 @@ dd .copier { display: block; margin-top: 0.4rem; padding: 0.1rem 0.5rem; font-si
   flex-direction: column;
   align-items: stretch;
   min-width: 26px;
-  font-family: Roboto, sans-serif;
+  font-family: Inter, sans-serif;
   font-weight: 700;
   line-height: 1;
   text-align: center;

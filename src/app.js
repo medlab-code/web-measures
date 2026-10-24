@@ -181,7 +181,7 @@
   if (!$("#fond").value) $("#fond").value = "plan";  // fond mémorisé qui n'existe plus
   map.on("load", () => Carte.setBackground(map, $("#fond").value));
   // Police des cartouches prête avant qu'ils ne soient dessinés
-  document.fonts?.load("700 24px Roboto").catch(() => {});
+  document.fonts?.load("700 24px Inter").catch(() => {});
   Carte.showAdmin(map);  // limites administratives (fond « orthophoto avec noms »)
   // Filaire Panoramax affiché ou non (choix mémorisé)
   $("#filaire").checked = store.get("filaire", "1") === "1";
@@ -457,12 +457,19 @@
    * refusant des requêtes en rafale) : redemandée après PLACE_RETRY ms, plusieurs fois, tant que
    * la photo est affichée ; le texte partiel s'affiche en attendant. */
   const PLACE_RETRY = [1500, 4000, 10000];
+
+  /** Lieu (texte « D104 – PR 16 +0880 – … – Aubaine ») en HTML : la route et la commune (parts de
+   * Lieu.describe) en gras, le reste (PR, nom de la voie, hameau) en texte normal. */
+  function placeMarkup(text, parts) {
+    const strong = [parts?.voie, parts?.commune].filter(Boolean);
+    return text.split(" – ").map((part) => (strong.includes(part) ? `<b>${escapeHtml(part)}</b>` : escapeHtml(part))).join(" – ");
+  }
   async function showPlace(feature, attempt = 0) {
     const [lon, lat] = feature.geometry.coordinates;
-    const { text, complete } = await Lieu.describe(lon, lat);
+    const { text, complete, parts } = await Lieu.describe(lon, lat);
     if (photo !== feature) return;
     if (text || complete) {
-      $("#lieu").textContent = text;
+      $("#lieu").innerHTML = placeMarkup(text, parts);
       $("#lieu").hidden = !text;
     }
     if (!complete && attempt < PLACE_RETRY.length) {
@@ -1242,7 +1249,7 @@
   // Les touches de la boîte ne vont ni à la carte ni aux recalages au clavier
   $("#id-photo").addEventListener("keydown", (event) => event.stopPropagation());
 
-  // Favoris : photos gardées dans le navigateur, nommées « commune – voie – PR – pont »
+  // Favoris : photos gardées dans le navigateur, nommées « hameau – commune – voie – PR – pont »
   function favorites() {
     try { return JSON.parse(store.get("favoris", "[]")) || []; } catch { return []; }
   }
@@ -1317,7 +1324,7 @@
     const { parts } = await Lieu.describe(lon, lat);
     // Pont : son nom affiché en haut à gauche de la visionneuse, sans la route déjà nommée
     const bridge = $("#chute").hidden ? "" : ($("#chute .pont")?.textContent || "").replace(/\s*\([^)]*\)$/, "");
-    const name = [parts?.commune, parts?.voie, parts?.pr, bridge].filter(Boolean).join(" – ")
+    const name = [parts?.lieudit, parts?.commune, parts?.voie, parts?.pr, bridge].filter(Boolean).join(" – ")
       || `Photo du ${(feature.properties?.datetime || "").slice(0, 10)}`;
     store.set("favoris", JSON.stringify([...favorites().filter((f) => f.id !== feature.id), { id: feature.id, name }]));
     showFavorites();
@@ -2296,7 +2303,7 @@
       const canvas = Object.assign(document.createElement("canvas"), { width: image.width, height: image.height });
       const ctx = canvas.getContext("2d");
       ctx.drawImage(image, 0, 0);
-      await robotoReady();
+      await fontReady();
       drawCartouches(ctx, canvas, Math.max(14, Math.round(canvas.height / 54)), params.caption, placeText());
       download(await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92)), `${params.name}.jpg`);
     } catch (error) {
@@ -2310,7 +2317,7 @@
   $("#vignette").addEventListener("click", async () => {
     if (!psv) return;
     try {
-      await robotoReady();
+      await fontReady();
       const canvas = thumbnail();
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
       const date = (photo?.properties?.datetime || "").replace(/[^0-9]/g, "").slice(0, 8) || "sansdate";
@@ -2331,6 +2338,8 @@
   // point (10 % de marge), puis ses résultats et la méthode à côté de la mini-carte. Fenêtre à
   // part, imprimée par le navigateur (« Enregistrer au format PDF »).
   const FICHE_PHOTO = { width: 698, height: 356 }, FICHE_MAP = { width: 230, height: 300 };
+  // Polices de la page (Inter, JetBrains Mono), pour la fenêtre de la fiche, document à part
+  const FICHE_FONTS = '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/latin-400.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/latin-500.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/latin-700.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.3.0/latin-400.css">';
   const FICHE_UNZOOM = 10;  // largeur : niveaux de zoom ôtés après le cadrage, 2 crans de molette (5 chacun)
 
   /** Image (data: JPEG) d'une zone du canevas source au rapport largeur / hauteur aspect, de size px de
@@ -2409,9 +2418,9 @@
       setStatus("Fiche : fenêtre bloquée par le navigateur (autorisez les fenêtres de cette page).", "echec");
       return;
     }
-    win.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Fiche — préparation</title><style>
+    win.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Fiche — préparation</title>${FICHE_FONTS}<style>
 body { margin: 0; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
-  font-family: Roboto, Arial, sans-serif; color: #1c1c1c; background: #f5f5f3; }
+  font-family: Inter, Arial, sans-serif; color: #1c1c1c; background: #f5f5f3; }
 .cercle { position: relative; width: 78px; height: 78px; }
 .roue { position: absolute; inset: 0; border: 7px solid #ffd8bf; border-top-color: #e65100; border-radius: 50%; animation: tour 0.9s linear infinite; }
 #pourcent { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; color: #e65100; }
@@ -2491,7 +2500,7 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
       await viewSettled();
     }
     for (let t = 0; t < 20 && !placeText(); t++) await new Promise((r) => setTimeout(r, 250));  // lieu (route, PR) lu
-    await robotoReady();
+    await fontReady();
     // Recadrée autour de la mesure : au bord de la photo, la vue ne peut pas se centrer dessus
     const view = thumbnail(), scale = view.width / psv.container.clientWidth;
     const xy = ends.map(([yaw, pitch]) => psv.dataHelper.sphericalCoordsToViewerCoords({ yaw, pitch }));
@@ -2500,6 +2509,7 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     step("Capture de la mini-carte", 75);
     const mapImage = await mapSnapshot(data.bounds);
     step("Mise en page", 95);
+    if (photo) data.place = (await Lieu.describe(...photo.geometry.coordinates.slice(0, 2)).catch(() => ({}))).parts;  // déjà lu : sans requête
     return ficheHtml(data, picture, mapImage, JSON.parse(app.state()));
   }
 
@@ -2522,6 +2532,7 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     const e = escapeHtml, now = new Date();
     const date = `${now.toLocaleDateString("fr-FR")} · ${now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
     const place = placeText() || "Lieu inconnu";
+    const placeHtml = placeMarkup(place, data.place);  // route et commune en gras, comme dans la visionneuse
     const background = backgroundName();
     const coords = `${data.lat.toFixed(5).replace(".", ",")}° N · ${data.lon.toFixed(5).replace(".", ",")}° E`;
     const api = Carte.apiUrl();
@@ -2538,16 +2549,16 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
       + `<td class='num'>${e(r.valeur || "—")}</td><td class='num'>${e(r.incert || "—")}</td><td class='com'>${e(r.commentaire || "")}</td></tr>`).join("");
     // Position et inclinaison de la photo (le détail du calage y est déjà), puis une ligne courte par mesure
     const lines = [state.quality, ...data.texts].filter(Boolean).map((t) => `<li>${e(t)}</li>`).join("");
-    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Fiche ${e(data.name)} — Mesures Panoramax</title>
+    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Fiche ${e(data.name)} — Mesures Panoramax</title>${FICHE_FONTS}
 <style>
 @page { size: A4 portrait; margin: 0; }
 * { box-sizing: border-box; }
-body { margin: 0; font-family: Roboto, Arial, sans-serif; color: #1c1c1c; background: #fff; }
+body { margin: 0; font-family: Inter, Arial, sans-serif; color: #1c1c1c; background: #fff; }
 .page { width: 210mm; height: 297mm; padding: 11.6mm 12.7mm; display: flex; flex-direction: column; gap: 18px; overflow: hidden; }
 header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #e65100; padding-bottom: 12px; }
 h1 { margin: 0; font-size: 26px; letter-spacing: -0.3px; } .sous-titre { font-size: 15px; font-weight: 500; color: #444; margin-top: 4px; }
 .date { align-self: center; font-size: 14px; font-weight: 500; }  /* centrée sur la hauteur du titre */
-.lieu { font-size: 13px; } .lieu b { display: block; font-size: 16px; margin-bottom: 3px; } .lieu span { color: #444; }
+.lieu { font-size: 13px; } .lieu .ou { font-size: 16px; margin-bottom: 3px; } .lieu span { color: #444; }
 figure { margin: 0; display: flex; flex-direction: column; gap: 5px; }
 figure img { display: block; width: 100%; border-radius: 4px; } figcaption { font-size: 12px; color: #555; text-align: center; }
 .bas { display: grid; grid-template-columns: minmax(0, 1fr) ${FICHE_MAP.width}px; gap: 24px; align-items: center; }
@@ -2562,12 +2573,12 @@ ul { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.5; }
 .carte-vide { height: ${FICHE_MAP.height}px; border: 1.5px dashed #888; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #555; text-align: center; padding: 8px; }
 footer { margin-top: auto; border-top: 1px solid #c8c8c8; padding-top: 10px; font-size: 11.5px; color: #444; display: flex; align-items: center; gap: 16px; }
 .pied { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; } .qr { flex: none; } .qr svg { display: block; width: 72px; height: 72px; }
-footer a { color: #1a56c4; word-break: break-all; } .mono { font-family: "Roboto Mono", monospace; color: #1c1c1c; }
+footer a { color: #1a56c4; word-break: break-all; } .mono { font-family: "JetBrains Mono", monospace; color: #1c1c1c; }
 @media screen { body { background: #888; } .page { margin: 16px auto; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.4); } }
 </style></head><body><div class="page">
 <header><div><h1>Mesures Panoramax</h1><div class="sous-titre">Fiche de mesure — point de référence ${e(data.name)}</div></div>
 <div class="date">${e(date)}</div></header>
-<section class="lieu"><b>${e(place)}</b><span>Point ${e(data.name)} : ${e(coords)}</span></section>
+<section class="lieu"><div class="ou">${placeHtml}</div><span>Point ${e(data.name)} : ${e(coords)}</span></section>
 <figure><img src="${picture}" alt="Photo de la mesure, annotée"></figure>
 <section class="bas"><div class="textes">
 <div><h2>Résultats</h2><table><thead><tr><th>Point</th><th>Mesure</th><th class="num">Valeur</th><th class="num">Incertitude</th><th>Commentaire</th></tr></thead><tbody>${rows}</tbody></table></div>
@@ -2677,8 +2688,8 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
     endLabels.sort((a, b) => a.y - b.y);
     for (const item of endLabels) {
       const { mark, text } = item;
-      ctx.font = `${size}px Roboto, system-ui, sans-serif`;
-      const chipFont = `600 ${size}px Roboto, system-ui, sans-serif`;
+      ctx.font = `${size}px Inter, system-ui, sans-serif`;
+      const chipFont = `600 ${size}px Inter, system-ui, sans-serif`;
       const textW = ctx.measureText(text).width;
       ctx.font = chipFont;
       const chipW = ctx.measureText(mark.end.name).width + 0.6 * size;
@@ -2713,7 +2724,7 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
       ctx.textBaseline = "middle";
       ctx.font = chipFont;
       ctx.fillText(mark.end.name, left + 0.55 * size, top + h / 2);
-      ctx.font = `${size}px Roboto, system-ui, sans-serif`;
+      ctx.font = `${size}px Inter, system-ui, sans-serif`;
       ctx.fillText(text, left + 0.25 * size + chipW + 0.4 * size, top + h / 2);
     }
     const caption = app ? app.caption(psv.getPosition().yaw) : "Panoramax";
@@ -2727,7 +2738,7 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
     const margin = size * 0.7;
     const bottom = canvas.height - margin;
     const width = (text, s) => {
-      ctx.font = `500 ${s}px Roboto, system-ui, sans-serif`;
+      ctx.font = `500 ${s}px Inter, system-ui, sans-serif`;
       return text ? ctx.measureText(text).width + 1.08 * s : 0;
     };
     // Texte plus large que l'image (vue étroite) : réduit pour tenir dans la largeur
@@ -2739,9 +2750,9 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
     cartouche(ctx, place, margin, side ? bottom : bottom - captionSize * 1.72 - margin / 2, placeSize, "left");
   }
 
-  /** Police Roboto chargée, pour le texte dessiné dans les captures (sinon police de repli). */
-  function robotoReady() {
-    return document.fonts ? document.fonts.load("500 12px Roboto").catch(() => {}) : Promise.resolve();
+  /** Police Inter chargée, pour le texte dessiné dans les captures (sinon police de repli). */
+  function fontReady() {
+    return document.fonts ? document.fonts.load("500 12px Inter").catch(() => {}) : Promise.resolve();
   }
 
   /** Localisation affichée dans la visionneuse (route, PR, commune), ou "". */
@@ -2750,11 +2761,11 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
   }
 
   /** Étiquette d'une capture, dans le style de l'étiquette de localisation de la visionneuse
-   * (#lieu : fond sombre semi-transparent, angles arrondis, texte blanc Roboto moyen détouré),
+   * (#lieu : fond sombre semi-transparent, angles arrondis, texte blanc Inter moyen détouré),
    * ses dimensions rapportées à la taille du texte (13 px dans la visionneuse). (x, y) : bas
    * de l'étiquette, à gauche, à droite ou au centre selon align. */
   function cartouche(ctx, text, x, y, size, align) {
-    ctx.font = `500 ${size}px Roboto, system-ui, sans-serif`;
+    ctx.font = `500 ${size}px Inter, system-ui, sans-serif`;
     const padX = size * 0.54, height = size * 1.72;
     const w = ctx.measureText(text).width + 2 * padX;
     const left = align === "right" ? x - w : align === "left" ? x : x - w / 2;
@@ -2776,7 +2787,7 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
 
   /** Étiquette d'une mesure dans une capture, comme dans la visionneuse (.etiquette). */
   function label(ctx, text, x, y, size, align, background = "rgba(32, 33, 36, 0.85)") {
-    ctx.font = `${size}px Roboto, system-ui, sans-serif`;
+    ctx.font = `${size}px Inter, system-ui, sans-serif`;
     const w = ctx.measureText(text).width + size;
     const left = align === "right" ? x - w : align === "left" ? x : x - w / 2;
     ctx.fillStyle = background;

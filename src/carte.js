@@ -328,7 +328,7 @@ const Carte = (() => {
     const parts = [european, numbers].flatMap((list) => list.split("/").map((n) => n.replace(/\s+/g, "")).filter(Boolean))
       .map((n) => /^([A-Z])(\d+)([A-Z]*)$/.exec(n) || [n, n, "", ""]);
     const scale = 2, height = 17 * scale, gap = 3 * scale, pad = 4 * scale, squeeze = 0.86;  // caractères resserrés
-    const bold = `700 ${12 * scale}px Roboto, sans-serif`, italic = `italic 700 ${12 * scale}px Roboto, sans-serif`;
+    const bold = `700 ${12 * scale}px Inter, sans-serif`, italic = `italic 700 ${12 * scale}px Inter, sans-serif`;
     const ctx = document.createElement("canvas").getContext("2d");
     const pieces = parts.map(([, letter, digits, suffix]) => {
       const main = letter + (digits && digits.length <= 2 ? " " : "") + digits;

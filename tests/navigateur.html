@@ -253,6 +253,14 @@ async function feature(id) {
     w.fetch = realFetch;
     log(`lieu après un refus retenté : « ${other.text} » (${other.complete})`);
     expect("lieu : refus isolé retenté", other.complete && other.text.startsWith("D111"));
+    // Hameau (zone d'habitation de la BD TOPO contenant la photo), avant la commune : Solle, à Commarin
+    const solle = await Lieu.describe(4.643432729, 47.247959385);
+    log(`lieu dans un hameau : « ${solle.text} »`);
+    expect("lieu : hameau avant la commune", solle.text.endsWith("Solle – Commarin") && solle.parts.lieudit === "Solle");
+    // Entrée du hameau par la route, à 88 m de la zone de Crépey (Aubaine) : hameau le plus proche
+    const crepey = await Lieu.describe(...(await feature("a04557c8-3b4d-4184-8b3e-ff7ed9fa4197")).geometry.coordinates.slice(0, 2));
+    log(`lieu à l'entrée d'un hameau : « ${crepey.text} »`);
+    expect("lieu : hameau le plus proche à moins de 100 m", crepey.parts.lieudit === "Crépey");
   }
 
   // 70 m après le pont : décocher la case proposé, décochée sur « Oui »
