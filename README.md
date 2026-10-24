@@ -419,6 +419,14 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.5.0** (24/10/2026) : traits de la visionneuse dessinés en WebGL (visée zoomée bien plus
+  fluide) ; visées des autres photos en trait plein vert, tracées aussi en hauteur, avec un trait
+  vertical au centre de la vue (#26). Résultats : une entrée par point de référence, ses mesures
+  dessous (#30). Hauteur de chute sur un pont : terrain lu de 1 à 10 m du bord du tablier, causes
+  d'échec affichées (#27). Inclinaison : calcul dès « Mesure », raison de l'échec, messages sous les
+  boutons sans les déplacer (#29). Options expérimentales des réglages, décochées par défaut :
+  inclinaison par le terrain hors agglomération (#29) et droite de mesure de la largeur tracée sur
+  la mini-carte (#28). Filtrage anisotrope à 16x ; réglages chacun sur sa ligne.
 - **0.4.1** (22/10/2026) : dans la visionneuse, une mesure faite n'apparaît plus que sur sa photo
   (sur les autres, projetée, elle paraissait décalée) ; mesure libre : points et distances là où ils
   ont été visés. Favicon en forme d'équerre.
