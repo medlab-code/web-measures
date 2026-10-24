@@ -125,6 +125,25 @@ après.
 
   À l'étape 2 de la hauteur et de la largeur, les flèches de la visionneuse sont masquées
   (elles gênent les clics de mesure) : on change de photo par la carte.
+- **Hauteur de chute sur un pont** (automatique, sans clic) : sur une photo prise sur un pont
+  de la BD TOPO, le nom du pont, ce qu'il franchit et la hauteur de chute la plus grande sur
+  toute sa longueur s'affichent en haut à gauche de la visionneuse (pas pendant la lecture de
+  la séquence). Calcul :
+  - **tablier** : altitude GPS des photos de la séquence prises sur le pont, convertie en
+    altitude NGF, moins la hauteur de caméra ; pour chaque point, la photo la plus proche ;
+  - **dessous** : modèle de terrain LiDAR HD (RGE ALTI en secours) lu en travers du pont, à 1,
+    3, 6 et 10 m au-delà du bord de la chaussée (largeur BD TOPO, sinon 6 m), des deux côtés,
+    tous les 2 m (plus espacé sur un long pont) ; sous le tablier, le modèle de terrain est
+    interpolé à sa hauteur : le fond se lit à l'écart ;
+  - **hauteur** : la plus grande différence entre les deux, avec son incertitude (altitude RTK,
+    tablier tiré des photos : dévers, bordure ; terrain) ; l'infobulle dit où elle est. Au-dessus de l'eau, c'est le
+    niveau de l'eau le jour du relevé LiDAR, pas le fond.
+
+  Pas de valeur sans position RTK vérifiée (l'altitude du tablier serait fausse de plusieurs
+  mètres) ; « non mesurée » sous 0,5 m (terrain non distingué du tablier : végétation, buse) ;
+  « calcul impossible » avec sa cause (service injoignable, pas d'altitude GPS sur le pont, pas
+  de modèle de terrain). Un creux sans rapport avec ce que franchit le pont, à moins de 10 m de
+  la chaussée (fossé profond), augmente la valeur.
 - **Mesure libre (points triangulés)** : viser chaque point depuis au moins deux photos, puis
   « Valider le point triangulé » ; à partir du deuxième, la distance horizontale au point précédent
   s'affiche, et la carte se cadre sur le segment.
@@ -214,6 +233,13 @@ Essais sur deux photos imajbox à position RTK (±0,10 m) de Pouilly-en-Auxois, 
 | Hauteur | 3,46 m ± 0,11 m | 3,464 m |
 | Largeur (clic à 40° de la droite de mesure) | 8,00 m ± 0,33 m | 8 m |
 | Distance entre deux points | 3,60 m ± 0,24 m | 3,606 m |
+
+Hauteur de chute (`tests/navigateur.html`, `tests/essai-ponts.html`, ticket #27), d'après les
+profils LiDAR HD relevés autour des ponts : 6,3 m pour le pont de la D111 au-dessus de l'A6 à
+Beaune ; 4,3 m pour la D977 bis au-dessus du canal de Bourgogne (tablier à 361,4 m, eau à
+357,4 m) ; 1,7 m pour la D114 au-dessus du ruisseau de la Gironde à Barbirey-sur-Ouche (lit
+vers 314 m, route à 315,8 m). Le terrain lu à 1 m du bord seulement donnait 2 m et 0 m : il
+tombait sur le talus de la culée.
 
 L'incertitude de la largeur vient surtout de l'axe de la route et de la position du point de
 référence le long de la route. Sur une séquence RTK vérifiée, l'axe est la direction de la

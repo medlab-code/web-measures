@@ -1,0 +1,40 @@
+<!doctype html><meta charset="utf-8"><title>Essai des ponts</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Hauteur de chute (ticket #27) : terrain lu à l'écart du tablier, pas sur le talus de la culée.
+     Pont de la D977 bis au-dessus du canal de Bourgogne : eau à 357,4 m NGF, tablier à 361,4 m
+     (MNT LiDAR HD) ; pont de la D114 au-dessus du ruisseau de la Gironde (Barbirey-sur-Ouche) :
+     lit vers 314 m, route à 315,8 m (lu à 1 m du bord : 0 m). Lancer comme tests/navigateur.html. -->
+<script>try { localStorage.clear(); } catch {}</script>
+<iframe id="f" src="../index.html" style="width:1400px;height:900px;border:0"></iframe>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let failures = 0, checks = 0;
+const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + " " + detail); } };
+const metres = (t) => { const m = /max : ([\d,]+) m/.exec(t || ""); return m ? parseFloat(m[1].replace(",", ".")) : NaN; };
+const CASES = [["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "canal de Bourgogne", 3.3, 4.8],
+               ["e375c98e-31c5-426a-ba93-c63ac344d675", "ruisseau de la Gironde", 1.0, 2.5]];
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  try {
+    const t0 = Date.now();
+    while (!(w.mesures?.app && w.mesures.map?.loaded?.())) { if (Date.now() - t0 > 120000) throw new Error("Pyodide"); await sleep(250); }
+    const doc = w.document;
+    doc.querySelector("#reglages-defaut")?.close();
+    for (const [id, what, lo, hi] of CASES) {
+      const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
+      w.mesures.openPhoto(f);
+      const t1 = Date.now();
+      const done = () => /max :|non mesurée|impossible|non calculée/.test(doc.querySelector("#chute")?.textContent || "");
+      while (!done() && Date.now() - t1 < 60000) await sleep(250);
+      const chute = doc.querySelector("#chute");
+      log(what + " : " + chute?.textContent.replace(/\n/g, " · ") + " · " + chute?.title);
+      const h = metres(chute?.textContent);
+      expect("hauteur de chute au-dessus du " + what, h >= lo && h <= hi, `${h} m au lieu de ${lo} à ${hi} m`);
+    }
+    log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
+  } catch (e) { log("exception " + e); }
+  log("FIN");
+})();
+</script>

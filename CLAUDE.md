@@ -29,6 +29,10 @@ application). Auteur : Cédric COCHART.
   --remote-debugging-port=0 --window-size=1400,1000 http://127.0.0.1:8766/tests/<page>` ;
   le journal s'affiche dans le terminal du serveur (bilan « contrôles : n réussis »).
   Capture de la page d'accueil : `--screenshot=` avec `--virtual-time-budget=8000`.
+- Quand la manière de calculer une mesure change (hauteur, largeur, hauteur de chute sur un
+  pont, inclinaison…), mettre à jour dans le même changement les commentaires du code qui la
+  décrivent (docstrings, constantes, infobulles, messages) et sa description dans le `README.md`
+  (« Utilisation », « Précision »).
 - `py/core/` est une copie du plugin (`tools/update-core.sh`) : corriger dans le plugin,
   puis recopier. Après toute modification d'un fichier Python sous `py/`, relancer le script :
   il régénère `py/sources.js` (seul chargé par la page).

@@ -589,9 +589,12 @@ class App(session.Session):
         ref["road"] = {"axis": axis % 360, "source": RTK_SOURCE + ", contrôlée par la " + road["source"]}
 
     # Hauteur de chute sur un pont (ticket #15) ---------------------------------------------
-    FALL_SIDE = 1.0  # m au-delà du bord de la chaussée : pied du garde-corps, côté vide
-    FALL_STEP = 2.0  # m entre deux points le long du pont (plus si le pont est long)
-    FALL_POINTS = 80  # points au plus : une seule requête au service d'altimétrie
+    # m au-delà du bord de la chaussée, de chaque côté : du pied du garde-corps jusqu'au fond, à
+    # l'écart du tablier (le MNT, interpolé sous lui, y descend en pente douce : ticket #27)
+    FALL_SIDES = (1.0, 3.0, 6.0, 10.0)
+    FALL_STEP = 2.0  # m entre deux travers le long du pont (plus si le pont est long)
+    FALL_POINTS = 160  # points au plus : une seule requête au service d'altimétrie
+    FALL_MIN = 0.5  # m : en dessous, terrain non distingué du tablier (végétation, buse)
     FALL_WIDTH = 6.0  # m : largeur de chaussée supposée quand la BD TOPO ne la donne pas
     FALL_TOUCH = 1.0  # m : tronçons en pont bout à bout (un pont coupé en plusieurs tronçons)
     FALL_RETRY = 60.0  # s avant de refaire un calcul qui a échoué (service injoignable)
@@ -602,8 +605,9 @@ class App(session.Session):
         """Photo prise sur un pont (BD TOPO) : hauteur de chute la plus grande sur toute la longueur du
         pont ({text, title}), son explication sans RTK vérifié, ou l'attente de son calcul ; None hors
         d'un pont. Tablier : altitude GPS RTK (NGF) moins hauteur de caméra, aux photos de la séquence
-        prises sur le pont ; dessous : MNT LiDAR HD (RGE ALTI en secours), qui ignore le tablier, au
-        pied des garde-corps des deux côtés."""
+        prises sur le pont (la plus proche de chaque point) ; dessous : MNT LiDAR HD (RGE ALTI en
+        secours), le point le plus bas en travers du pont, de 1 à 10 m au-delà du bord de la chaussée
+        des deux côtés (FALL_SIDES : sous le tablier, le MNT est interpolé à sa hauteur)."""
         item = self.item or {}
         try:
             lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
@@ -753,23 +757,24 @@ class App(session.Session):
         camera = self._camera_height()
         lines = [[triangulation._local(p[0], p[1], lon, lat) for p in c["line"]] for c in chain]
         total = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for line in lines for a, b in zip(line, line[1:]))
-        step = max(self.FALL_STEP, 2 * total / self.FALL_POINTS)
-        samples = []  # (x, y) au pied des garde-corps, des deux côtés, en m depuis la photo
+        step = max(self.FALL_STEP, 2 * len(self.FALL_SIDES) * total / self.FALL_POINTS)
+        samples = []  # (x, y) en travers du pont, des deux côtés, en m depuis la photo
         for c, line in zip(chain, lines):
             length = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(line, line[1:]))
-            offset = (c["width"] or self.FALL_WIDTH) / 2 + self.FALL_SIDE
+            edge = (c["width"] or self.FALL_WIDTH) / 2
             n = max(1, round(length / step))
             for k in range(n + 1):
                 s = k * length / n
                 (x, y), a, b = roads._at(line, s), roads._at(line, s - 1.0), roads._at(line, s + 1.0)
                 t = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
                 nx, ny = -(b[1] - a[1]) / t, (b[0] - a[0]) / t
-                samples += [(x + side * offset * nx, y + side * offset * ny) for side in (-1, 1)]
+                samples += [(x + side * (edge + d) * nx, y + side * (edge + d) * ny)
+                            for side in (-1, 1) for d in self.FALL_SIDES]
         reach = max(math.hypot(x, y) for x, y in samples) + 10.0
 
-        def failed():
-            self.falls[key] = {"text": "Hauteur de chute : calcul impossible (service injoignable)", "title": "",
-                               "retry_at": time.monotonic() + self.FALL_RETRY}
+        def failed(reason="service injoignable", retry=True):
+            self.falls[key] = {"text": "Hauteur de chute : calcul impossible ({})".format(reason), "title": "",
+                               "retry_at": time.monotonic() + self.FALL_RETRY if retry else float("inf")}
             self.notify()
 
         def got_photos(data, error):
@@ -787,7 +792,7 @@ class App(session.Session):
                     continue
                 decks.append(triangulation._local(plon, plat, lon, lat) + (ngf - camera,))
             if not decks:
-                return failed()
+                return failed("pas d'altitude GPS de la séquence sur le pont")  # grille du géoïde pas encore lue ?
             precision.fetch_terrain([triangulation._geographic(x, y, lon, lat) for x, y in samples],
                                     lambda ground, source, error: got_ground(decks, ground, source, error))
 
@@ -804,15 +809,19 @@ class App(session.Session):
                 if best is None or deck - z > best[0]:
                     best = (deck - z, math.hypot(x, y))
             if best is None:
-                return failed()
+                return failed("pas de modèle de terrain sous le pont", retry=False)
+            if best[0] < self.FALL_MIN:
+                self.falls[key] = {"text": "Hauteur de chute non mesurée : le terrain sous le pont ne se distingue "
+                                           "pas du tablier (végétation, buse ?)", "title": ""}
+                return self.notify()
             terrain = triangulation.RGE_ALTI_ERROR if source == "RGE ALTI" else triangulation.LIDAR_ERROR
             sigma = math.hypot(precision.VERIFIED_ACCURACY, triangulation.GROUND_ERROR, terrain)
             self.falls[key] = {
                 "text": "Hauteur de chute max : {} m (±{} m)".format(measures._num(best[0], 1), measures._num(sigma, 1)),
                 "title": ("Plus grande hauteur entre le tablier (altitude GPS RTK moins hauteur de caméra) et le "
-                          "terrain sous le pont ({}), le long des deux bords, à {} m de la photo. Au-dessus de "
+                          "terrain sous le pont ({}), le long des deux bords jusqu'à {} m de la chaussée, à {} m de la photo. Au-dessus de "
                           "l'eau : niveau au relevé, pas le fond.").format(
-                    source, measures._num(best[1], 0))}
+                    source, measures._num(self.FALL_SIDES[-1], 0), measures._num(best[1], 0))}
             self.notify()
 
         host.fetch_json(metadata.search_url(lon, lat, reach, 100, item.get("collection"), host.api_url), got_photos)
