@@ -549,6 +549,8 @@ button.principal { font-weight: 600; }
   pointer-events: none;
   z-index: 5;
 }
+/* Messages variables (zoom, inclinaison) sous les boutons : ils ne les déplacent pas */
+.haut-centre > #avis, .haut-centre > #calcul-inclinaison { order: 1; }
 #mode-mesure {
   margin: 0;
   padding: 0.35rem 0.8rem;
