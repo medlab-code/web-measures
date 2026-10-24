@@ -5,7 +5,7 @@
      triangulé sur une cible fictive à 5 m sur le côté, puis bord opposé cliqué à 8 m sur la
      droite de mesure, depuis une photo prise avant. Directions calculées depuis le cap EXIF
      précis. Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
-<script>try { localStorage.clear(); } catch {}</script>
+<script>try { localStorage.clear(); localStorage.setItem("web-measures/droite-carte", "1"); } catch {}</script>  <!-- #28 : case expérimentale cochée -->
 <iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
 <script>
 const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
@@ -74,6 +74,16 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       expect("vue tournée vers " + what, Math.abs(wrap(pos.yaw - yawTo(f, pt))) < 0.1, `cap ${pos.yaw.toFixed(3)} au lieu de ${yawTo(f, pt).toFixed(3)}`);
       expect("zoom gardé pour viser " + what, Math.abs(zoom - zoom0) < 1, `zoom ${zoom} au lieu de ${zoom0}`);
     };
+    // Deux clics sur la mini-carte, de part et d'autre de pt, selon le cap bearing (degrés), à ±d m
+    const offset = (pt, bearing, d) => { const b = bearing * Math.PI / 180;
+      return [pt[0] + d * Math.sin(b) / (111320 * Math.cos(pt[1] * Math.PI / 180)), pt[1] + d * Math.cos(b) / 111320]; };
+    const drawLine = (pt, bearing, d) => {
+      const map = w.mesures.map;
+      for (const k of [-d, d]) {
+        const lngLat = new w.maplibregl.LngLat(...offset(pt, bearing, k));
+        map.fire("click", { lngLat, point: map.project(lngLat), originalEvent: new w.MouseEvent("click"), target: map });
+      }
+    };
     for (const f of photos) {
       w.mesures.psv.zoom(f === photos[0] ? 0 : 60);  // dézoomé sur la 1re : rappel de zoom
       w.mesures.openPhoto(f);
@@ -85,9 +95,25 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         await sleep(1500);
         aimedAt("le point de référence", f, target, zoom0);
       }
+      if (f === photos[0]) {  // Droite de mesure tracée sur la mini-carte avant la 1re visée (#28) : tracée, puis annulée
+        const axeCarte = doc.querySelector("#axe-carte"), axeAuto = doc.querySelector("#axe-auto");
+        expect("« Tracer la droite sur la carte » avant la 1re visée", !axeCarte.hidden && axeAuto.hidden);
+        axeCarte.click();
+        drawLine(target, along * 180 / Math.PI + 90, 1.5);  // 3 m : trop court
+        expect("droite refusée : trop courte", /4 m au moins/.test(doc.querySelector("#statut").textContent)
+          && !JSON.parse(app.axis_state()).drawn, doc.querySelector("#statut").textContent);
+        axeCarte.click();
+        drawLine(target, along * 180 / Math.PI + 90, 5);
+        expect("droite tracée, annulable, dessinée dans la photo", JSON.parse(app.axis_state()).drawn && axeCarte.hidden
+          && !axeAuto.hidden && JSON.parse(app.viewer_marks()).some((m) => m.guide && m.points.length > 10),
+          app.axis_state() + " " + doc.querySelector("#statut").textContent);
+        axeAuto.click();
+        expect("droite tracée annulée", !JSON.parse(app.axis_state()).drawn && !axeCarte.hidden && axeAuto.hidden);
+      }
       const announced = f === photos[1] ? predicted(f.id) : null;
       doc.querySelector("#avis").hidden = true;
       psvClick(yawTo(f, target), -0.35);
+      if (f === photos[0]) expect("plus de tracé de droite après la 1re visée", doc.querySelector("#axe-carte").hidden);
       if (f === photos[1]) compare("bord A, 2e visée", announced);
       { const psv = w.mesures.psv, px = psv.state.vFov / psv.container.clientHeight;  // degrés par pixel de l'écran
         const photoPx = 360 / (psv.state.textureData?.panoData?.fullWidth || 12288), avis = doc.querySelector("#avis");
@@ -337,6 +363,28 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     expect("bord B triangulé : pas d'entrée à lui dans la liste (#30)", pointsListed() === 1 && grouped(JSON.parse(app.results())));
     near("largeur avec le bord B triangulé", metresIn(doc.querySelector("#statut").textContent), 12, 0.15);
     log("csv : " + app.export_csv().split("\n").filter((l) => l.startsWith("largeur")).join(" // "));
+    {  // Droite tracée avant A (#28) : A posé d'un clic sur elle, puis B ; largeur le long de la droite
+      doc.querySelector("#mode").dispatchEvent(new Event("change"));  // largeur reprise de zéro
+      const bearing = along * 180 / Math.PI + 90 + 10;  // en travers de la voie, 10° hors de la perpendiculaire
+      w.mesures.openPhoto(photos[0]);
+      await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "photo");
+      await sleep(800);
+      doc.querySelector("#axe-carte").click();
+      drawLine(target, bearing, 5);
+      psvClick(yawTo(photos[0], target), -0.35);  // un seul clic : A sur la droite, sans visées
+      await sleep(300);
+      const ref = app.ref_point, road = ref?.get("road");
+      const offA = ref ? Math.hypot(...metres([ref.get("lon"), ref.get("lat")], target)) : NaN;
+      log(`A posé sur la droite : à ${offA.toFixed(3)} m de la cible, ±${ref?.get("uncertainty").toFixed(2)} m ; axe ${road?.get("axis").toFixed(1)}° (${road?.get("source")})`);
+      expect("A posé d'un clic sur la droite tracée", ref && offA < 0.05 && road.get("source").startsWith("tracé sur la carte"), doc.querySelector("#statut").textContent);
+      // bord opposé à 8 m le long de la droite, du côté de la voie
+      const far = [offset(target, bearing, 8), offset(target, bearing, -8)]
+        .sort((p, q) => Math.hypot(...metres(p, mid)) - Math.hypot(...metres(q, mid)))[0];
+      psvClick(yawTo(photos[0], far), -0.3);
+      await sleep(300);
+      log("largeur sur la droite tracée : " + doc.querySelector("#statut").textContent.slice(0, 140));
+      near("largeur le long de la droite tracée", metresIn(doc.querySelector("#statut").textContent), 8, 0.05);
+    }
     verdict();
   } catch (e) { log("ERREUR " + e); }
   log("FIN");

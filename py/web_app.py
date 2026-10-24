@@ -103,12 +103,23 @@ RTK_SOURCE = "trajectoire RTK"
 TRACK_STRAIGHT = 0.10  # m : écart type des photos à leur droite au plus (route droite, pas de changement de voie)
 TRACK_SPAN = 20.0  # m de trajectoire au moins
 TRACK_AGREE = 2.0  # degrés au plus entre la trajectoire et le tronçon de la BD TOPO
+# Droite de mesure tracée sur la mini-carte (ticket #28, App.set_measure_line) : son orientation est
+# connue à l'angle sous lequel MAP_CLICK m d'erreur sur chaque clic voient la longueur tracée
+MAP_SOURCE = "tracé sur la carte"
+MAP_LINE_MIN = 4.0  # m au moins entre les deux clics
+MAP_CLICK = 0.3  # m : précision d'un clic sur la mini-carte zoomée
+MAP_HEADING_ERROR = 0.3  # degrés : cap EXIF des photos de relevé (point A posé sur la droite)
+MAP_MIN_ANGLE = 10.0  # degrés au moins entre la visée de A et la droite tracée
 _core_axis_error = widths.axis_error
 
 
 def _axis_error(source):
-    """widths.axis_error, avec l'axe tiré de la trajectoire RTK."""
-    return AXIS_ERROR_RTK if source and source.startswith(RTK_SOURCE) else _core_axis_error(source)
+    """widths.axis_error, avec l'axe tiré de la trajectoire RTK ou la droite tracée sur la carte."""
+    if source and source.startswith(RTK_SOURCE):
+        return AXIS_ERROR_RTK
+    if source and source.startswith(MAP_SOURCE):  # « tracé sur la carte, ±1,7° »
+        return float(source.rsplit("±", 1)[1].rstrip("°").replace(",", "."))
+    return _core_axis_error(source)
 
 
 widths.axis_error = _axis_error  # appelée par les largeurs du cœur
@@ -301,6 +312,7 @@ class App(session.Session):
         self.fall_cells = {}  # maille -> tronçons BD TOPO avec leur largeur (hauteur de chute, voir fall)
         self.falls = {}  # (séquence, pont) -> hauteur de chute calculée (dict text, title) ou en cours
         self.bdtopo = {}  # (couche BD TOPO, maille) -> objets lus (voir _bdtopo)
+        self.map_line = None  # droite de mesure tracée sur la carte, pour le prochain point A (ticket #28)
         self.tilt_reasons = {}  # photo -> raison de l'échec de l'inclinaison automatique (ticket #29)
         self.tilts.run = self._run_tilt
         # Inclinaison par le terrain hors agglomération, expérimentale (option, voir web_terrain)
@@ -658,6 +670,8 @@ class App(session.Session):
 
     def viewer_marks(self):
         marks = self._filtered(super().viewer_marks)
+        if self.item and json.loads(self.axis_state())["drawn"]:
+            marks.insert(0, self._line_mark())  # droite tracée sur la carte, avant le point A
         if self.active and self.item and self.mode == "height" and self._aiming():
             # Visées des autres photos tracées aussi en hauteur (le cœur : largeur, mesure libre) :
             # le pied visé est sur leur trait, même parmi des objets semblables (ticket #26)
@@ -777,9 +791,122 @@ class App(session.Session):
             return self.status()
         return super().clear()
 
+
+    # Droite de mesure tracée sur la mini-carte (ticket #28) ---------------------------------------
+    # Giratoire, carrefour, place : avant la première visée de A, la droite de mesure est tracée sur
+    # la carte (deux clics, en travers de la voie) au lieu d'être perpendiculaire à l'axe calculé. A
+    # se pose alors d'un clic, là où sa direction coupe la droite (comme le bord B), sans visées.
+
+    def axis_state(self):
+        """Droite tracée, pour la page (JSON) : tracé possible (largeur, avant la première visée de A),
+        droite tracée en attente du point A (annulable), et ses deux points [[lon, lat], [lon, lat]]."""
+        waiting = bool(self.active and self.mode == "road" and self.ref_point is None and self.b_aiming is None)
+        line = self.map_line if waiting else None
+        return json.dumps({"can": waiting and not self.triangulator.sightings and line is None,
+                           "drawn": line is not None, "line": line and line["ends"]})
+
+    def set_measure_line(self, lon1, lat1, lon2, lat2):
+        """Droite de mesure tracée par deux clics sur la mini-carte : A et B seront posés dessus."""
+        if not json.loads(self.axis_state())["can"]:
+            self.message = "La droite se trace en largeur, avant la première visée du premier bord."
+            return self.status()
+        x, y = triangulation._local(lon2, lat2, lon1, lat1)
+        span = math.hypot(x, y)
+        if span < MAP_LINE_MIN:
+            self.message = ("Droite non tracée : {} m entre les deux clics ; tracez-la sur {} m au moins, en travers "
+                            "de la voie.").format(measures._num(span, 1), measures._num(MAP_LINE_MIN, 0))
+            return self.status()
+        error = math.degrees(math.atan2(MAP_CLICK * math.sqrt(2), span))
+        self.map_line = {"ends": [[lon1, lat1], [lon2, lat2]], "bearing": math.degrees(math.atan2(x, y)) % 360,
+                         "error": error}
+        self.message = ("Droite de mesure tracée (±{}°) : cliquez le premier bord sur la droite bleue de la photo ; "
+                        "seule la direction du clic compte. « Annuler la droite » pour revenir à l'axe "
+                        "automatique.").format(measures._num(error, 1))
+        return self.status()
+
+    def cancel_measure_line(self):
+        self.map_line = None
+        self.message = "Droite tracée annulée : droite de mesure perpendiculaire à l'axe automatique."
+        return self.status()
+
     def set_mode(self, mode):
         self.tilt_clicks, self.tilt_sel = [], None
+        self.map_line = None
         return super().set_mode(mode)
+
+    def aim(self, yaw, pitch):
+        if self.mode == "road" and self.map_line is not None and self.ref_point is None and self.b_aiming is None:
+            return self._point_on_line(yaw, pitch)
+        return super().aim(yaw, pitch)
+
+    def _line_mark(self):
+        """Droite tracée dans la photo affichée (comme Session._guide_mark : sol plat à la hauteur de
+        caméra), prolongée de 5 m de chaque côté."""
+        lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
+        (lon1, lat1), (lon2, lat2) = self.map_line["ends"]
+        (x1, y1), (x2, y2) = triangulation._local(lon1, lat1, lon, lat), triangulation._local(lon2, lat2, lon, lat)
+        span = math.hypot(x2 - x1, y2 - y1)
+        ux, uy = (x2 - x1) / span, (y2 - y1) / span
+        height, points = self._camera_height(), []
+        for k in range(41):
+            t = -5.0 + k * (span + 10.0) / 40
+            x, y = x1 + t * ux, y1 + t * uy
+            d = math.hypot(x, y)
+            if d >= 1.0:
+                view = self._view_of(math.degrees(math.atan2(x, y)), -math.degrees(math.atan2(height, d)))
+                points.append([view["yaw"], view["pitch"], False])
+        return {"points": points, "label": "", "guide": True}
+
+    def _point_on_line(self, yaw, pitch):
+        """Point A posé là où la direction du clic coupe la droite tracée (sur la carte, à plat) : point
+        de référence de la largeur, comme Session.keep_point, la droite tracée pour droite de mesure."""
+        if not self.item:
+            self.message = "Aucune photo affichée."
+            return self.status()
+        s = tools.photo_sighting(self.item, (math.degrees(yaw) + self._heading()) % 360, math.degrees(pitch),
+                                 self.calibration, self.quality)
+        if s is None:
+            self.message = "Position de la photo inconnue : impossible de poser le point."
+            return self.status()
+        line = self.map_line
+        lon0, lat0 = line["ends"][0]
+        cx, cy = triangulation._local(s["lon"], s["lat"], lon0, lat0)
+        h, b = math.radians(s["heading"]), math.radians(line["bearing"])
+        dx, dy, ux, uy = math.sin(h), math.cos(h), math.sin(b), math.cos(b)
+        det = ux * dy - dx * uy  # sinus de l'angle entre la visée et la droite
+        if abs(det) < math.sin(math.radians(MAP_MIN_ANGLE)):
+            self.message = ("Visée presque parallèle à la droite tracée : cliquez depuis une photo prise quelques "
+                            "mètres avant ou après, qui la voit plus en travers.")
+            return self.status()
+        t = (cx * uy - cy * ux) / det  # distance de la caméra au point, le long de la visée
+        if t <= 0:
+            self.message = "La direction du clic ne coupe pas la droite tracée devant la caméra."
+            return self.status()
+        u = (cx + t * dx) * ux + (cy + t * dy) * uy  # abscisse du point sur la droite
+        plon, plat = triangulation._geographic(u * ux, u * uy, lon0, lat0)
+        # Le long de la droite : position de la caméra et cap, vus sous l'angle de la visée
+        sigma = math.hypot(s["accuracy"], t * math.radians(MAP_HEADING_ERROR)) / abs(det)
+        name = session._point_name(self.named)
+        self.named += 1
+        values = {"nom": name, "nb_visees": 1, "angle": round(math.degrees(math.asin(min(1.0, abs(det)))), 1),
+                  "incert_m": round(sigma, 2), "ecart_m": 0.0, "dist_max_m": round(t, 1),
+                  "gps_m": round(s["accuracy"], 1), "photos": s["pic"],
+                  "date_mesure": datetime.now().isoformat(timespec="seconds"), "commentaire": ""}
+        self.points.append((plon, plat, values))
+        s["view"] = [yaw, pitch]
+        self.point_views[name] = {s["pic"]: [yaw, pitch]}
+        self.triangulator.clear()
+        self.ref_photo = s["pic"]
+        self.ref_point = {"lon": plon, "lat": plat, "uncertainty": sigma, "name": name,
+                          "sequences": [s.get("sequence")], "sightings": [s], "ground_z": None,
+                          "road": {"axis": (line["bearing"] + 90) % 360,
+                                   "source": "{}, ±{}°".format(MAP_SOURCE, measures._num(line["error"], 1))}}
+        self.map_line = None
+        self._ref_ground()
+        self.message = ("Point {} posé sur la droite tracée (±{} m). Cliquez maintenant le bord opposé, au sol, sur "
+                        "la droite bleue : seule la direction du clic compte.").format(name, measures._num(sigma))
+        self.message += self._rtk_warning([s.get("sequence")])
+        return self.status()
 
     def _road_at_reference(self):
         """Axe de la route au point de référence (voir Session) ; sur une séquence RTK vérifiée, la

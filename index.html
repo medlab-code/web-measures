@@ -117,6 +117,9 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
         <!-- Point de référence validé : autre mesure depuis A, ou autre point de référence -->
         <div id="suite-mesure">
           <button id="nouvelle-mesure" type="button" hidden title="Mesurer une autre largeur ou hauteur depuis le même point de référence (la mesure faite reste)">↺ Nouvelle mesure depuis A</button>
+          <!-- Largeur, avant la première visée de A : droite de mesure tracée sur la mini-carte (ticket #28) -->
+          <button id="axe-carte" type="button" hidden title="Giratoire, carrefour, place : avant le premier bord, tracer la droite de mesure sur la mini-carte (deux clics, en travers de la voie) ; les deux bords seront posés dessus">📏 Tracer la droite sur la carte</button>
+          <button id="axe-auto" type="button" hidden title="Annuler la droite tracée : droite perpendiculaire à l'axe calculé (BD TOPO ou trajectoire de la séquence)">Annuler la droite</button>
           <button id="nouvelle-reference" type="button" hidden title="Trianguler un autre point de référence : les mesures déjà faites restent">Nouveau point de référence</button>
         </div>
       </div>
@@ -219,6 +222,7 @@ enregistrée en PNG et copiée dans le presse-papiers">🖼 Avec les mesures</bu
             rapide que le méta-catalogue, qui interroge toutes les instances).</p>
           <label><input id="centrer" type="checkbox" checked> Centrer la carte sur la photo</label>
           <label title="Filtrage anisotrope 16x des textures : atténue le crénelage et le scintillement des détails fins vus de loin, en gardant l'image nette, au prix d'une navigation un peu moins fluide."><input id="anisotrope" type="checkbox"> Filtrage anisotrope</label>
+          <label title="Expérimental (ticket #28). En largeur, avant le premier bord : bouton « Tracer la droite sur la carte » (giratoire, carrefour, place) ; les deux bords sont posés sur la droite tracée sur la mini-carte au lieu de la perpendiculaire à l'axe calculé. Décochée : le bouton n'est pas proposé."><input id="droite-carte" type="checkbox"> Droite de mesure tracée sur la carte (expérimental)</label>
           <label title="Expérimental (ticket #29). Quand les verticales de la photo manquent (rase campagne), l'inclinaison est tirée de la pente et du dévers du terrain LiDAR HD sous la caméra et du décalage de la fixation de la caméra, appris sur des photos de village de la même séquence (téléchargées en arrière-plan, environ 45 Mo par séquence). Incertitude d'environ ±0,6° au lieu de ±2°."><input id="inclinaison-terrain" type="checkbox"> Inclinaison par le terrain hors agglomération (expérimental)</label>
           <h3>Calage des photos</h3>
           <p class="aide">Conservé dans ce navigateur d'une session à l'autre. Pour le reprendre ailleurs

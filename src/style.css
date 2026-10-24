@@ -518,6 +518,10 @@ button.principal { font-weight: 600; }
 #suite-mesure button[hidden] { display: none; }
 #nouvelle-mesure:hover { background: #ffeb00; color: #202124; text-shadow: none; }
 #suite-mesure #nouvelle-reference { border-color: rgb(142, 27, 27); }
+#suite-mesure #axe-carte, #suite-mesure #axe-auto { border-color: #0078ff; }  /* bleu de la droite de mesure */
+#axe-carte:hover, #axe-auto:hover { background: rgba(0, 120, 255, 0.92); }
+/* Bout du trait de la droite de mesure en cours de tracé sur la carte (#28) */
+.croix-trace { color: #0078ff; font-size: 26px; line-height: 1; text-shadow: 0 0 3px #fff, 0 0 3px #fff; pointer-events: none; }
 #nouvelle-reference:hover { background: rgba(142, 27, 27, 0.92); }
 
 /* Étiquettes incrustées dans la photo : fond sombre un peu transparent, texte détouré */

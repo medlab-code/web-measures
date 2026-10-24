@@ -202,6 +202,14 @@
     store.set("inclinaison-terrain", event.target.checked ? "1" : "0");
     if (app) refresh(app.set_terrain_relay(event.target.checked));
   });
+  // Droite de mesure tracée sur la carte (expérimental, ticket #28) : décochée, bouton non proposé
+  $("#droite-carte").checked = store.get("droite-carte") === "1";
+  $("#droite-carte").addEventListener("change", (event) => {
+    store.set("droite-carte", event.target.checked ? "1" : "0");
+    if (!app) return;
+    if (!event.target.checked && lineDraft !== null) endLineDraft();
+    refresh(!event.target.checked && JSON.parse(app.axis_state()).drawn ? app.cancel_measure_line() : undefined);
+  });
   $("#sans-k2000").checked = store.get("sans-k2000") === "1";  // barres (4x et plus) et photo (16x) de la lecture rapide
   $("#sans-k2000").addEventListener("change", (event) => {
     store.set("sans-k2000", event.target.checked ? "1" : "0");
@@ -731,7 +739,62 @@
 
   // Choix de la photo sur la carte ---------------------------------------------------------
 
-  map.on("click", (event) => openNearest(event.lngLat.lng, event.lngLat.lat));
+  map.on("click", (event) => {
+    if (lineDraft !== null) addLinePoint(event.lngLat);
+    else openNearest(event.lngLat.lng, event.lngLat.lat);
+  });
+
+  // Droite de mesure tracée sur la carte (ticket #28), avant la première visée du point A : un
+  // premier clic pose le point de départ (pas un point de mesure), un trait suit la souris avec une
+  // croix au bout, le second clic fixe l'orientation (en travers de la voie) ; Échap annule
+  let lineDraft = null;  // pendant le tracé : point de départ (LngLat), ou false avant le premier clic
+  const LINE_ID = "droite-tracee";
+  const lineEnd = new maplibregl.Marker({ element: Object.assign(document.createElement("div"),
+    { className: "croix-trace", textContent: "✛" }) });
+  function showDrawnLine(ends) {  // [[lon, lat], [lon, lat]] sur la carte, ou null : retirée
+    if (!map.isStyleLoaded()) return;
+    const data = { type: "FeatureCollection", features: ends ? [{ type: "Feature", properties: {},
+      geometry: { type: "LineString", coordinates: ends } }] : [] };
+    if (map.getSource(LINE_ID)) map.getSource(LINE_ID).setData(data);
+    else if (ends) {
+      map.addSource(LINE_ID, { type: "geojson", data });
+      map.addLayer({ id: LINE_ID, type: "line", source: LINE_ID, paint: { "line-color": "#0078ff", "line-width": 3 } });
+    }
+    if (ends) lineEnd.setLngLat(ends[1]).addTo(map);
+    else lineEnd.remove();
+  }
+  function startLineDraft() {
+    lineDraft = false;
+    map.getCanvas().style.cursor = "crosshair";
+    setStatus("Droite de mesure : cliquez sur la carte un point d'un côté de la voie, puis un second de l'autre "
+      + "côté pour fixer son orientation. Zoomez pour être précis ; Échap pour annuler.");
+    showModeOptions();
+  }
+  function endLineDraft() {
+    lineDraft = null;
+    map.getCanvas().style.cursor = "";
+    showDrawnLine(null);
+    showModeOptions();
+  }
+  function addLinePoint(lngLat) {
+    if (lineDraft === false) {
+      lineDraft = lngLat;
+      showDrawnLine([[lngLat.lng, lngLat.lat], [lngLat.lng, lngLat.lat]]);
+      return;
+    }
+    const start = lineDraft;
+    endLineDraft();
+    refresh(app.set_measure_line(start.lng, start.lat, lngLat.lng, lngLat.lat));
+  }
+  map.on("mousemove", (event) => {
+    if (lineDraft) showDrawnLine([[lineDraft.lng, lineDraft.lat], [event.lngLat.lng, event.lngLat.lat]]);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && lineDraft !== null) {
+      endLineDraft();
+      refresh();
+    }
+  });
 
   /** Photo la plus proche du point (lng, lat), qui passe le filtre ; avec un cap `heading`
    * (degrés), celle d'un véhicule roulant dans ce sens à 90° près, à défaut la plus proche. */
@@ -1292,7 +1355,7 @@
     if (!markers) return;
     // Seulement quand un clic poserait le bord (largeur pas encore faite, ou bord sélectionné à
     // recaler), et sur la photo : pas sur les boutons et flèches de la visionneuse
-    const line = event && measuring && $("#mode").value === "road" && !aiming && !edgeBAiming
+    const line = event && measuring && $("#mode").value === "road" && (!aiming || lineDrawn) && !edgeBAiming
       && (!newMeasure || pointSelected) && event.target?.closest?.(".psv-canvas-container, .psv-markers")
       && !event.target.closest(".psv-virtual-tour-link")
       && currentMarks.find((m) => m.guide && !m.vertical && !m.epipolar);
@@ -1575,6 +1638,7 @@
   let pointReady = false;  // visées qui donnent un point (bouton « Valider le point triangulé »)
   let tiltReady = false;  // calage de l'inclinaison : pied et sommet placés (bouton « Valider l'objet vertical »)
   let newMeasure = null;  // largeur faite : nom du point de référence (bouton « Nouvelle mesure depuis A »)
+  let lineDrawn = false;  // droite de mesure tracée sur la carte, en attente du point A (#28)
   let edgeBOffered = null;  // largeur faite d'un clic : nom (provisoire) de son bord, à trianguler
   let edgeBAiming = false;  // bord opposé de la largeur en cours de triangulation
 
@@ -1922,6 +1986,13 @@
     $("#valider-objet").hidden = !measuring || !tiltReady || viewer.hidden;
     $("#nouvelle-mesure").hidden = !measuring || !newMeasure || viewer.hidden;
     $("#trianguler-b").hidden = !measuring || !edgeBOffered || viewer.hidden;
+    // Largeur, avant la première visée du point A : droite de mesure à tracer sur la carte (#28) ;
+    // tracée, « Annuler la droite » jusqu'au point A
+    const axis = app && mode === "road" ? JSON.parse(app.axis_state()) : {};
+    lineDrawn = Boolean(axis.drawn);
+    $("#axe-carte").hidden = !$("#droite-carte").checked || !measuring || !axis.can || viewer.hidden || lineDraft !== null;
+    $("#axe-auto").hidden = !measuring || !axis.drawn || viewer.hidden;
+    if (lineDraft === null) showDrawnLine(measuring && axis.drawn ? axis.line : null);  // jusqu'au point A
     if (edgeBOffered) $("#trianguler-b").textContent = `🎯 Trianguler le point ${edgeBOffered} (plus précis)`;
     $("#nouvelle-mesure").textContent = `↺ Nouvelle mesure depuis ${newMeasure || "A"}`;
   }
@@ -1951,6 +2022,8 @@
   });
   $("#nouvelle-mesure").addEventListener("click", () => refresh(app.new_measure()));
   $("#trianguler-b").addEventListener("click", () => refresh(app.start_edge_b()));
+  $("#axe-carte").addEventListener("click", () => startLineDraft());
+  $("#axe-auto").addEventListener("click", () => refresh(app.cancel_measure_line()));
   $("#nouvelle-reference").addEventListener("click", () => refresh(app.new_reference()));
   $("#effacer").addEventListener("click", () => refresh(app.clear()));
   $("#tout-effacer").addEventListener("click", () => refresh(app.clear_all()));

@@ -118,6 +118,18 @@ après.
      perpendiculaire à l'axe de la route, et la vue revient sur la photo de référence, cadrée
      sur la largeur. Pendant ces visées, les autres photos ne montrent que les visées.
 
+  **Droite tracée sur la carte** (expérimental, case « Droite de mesure tracée sur la carte » des
+  réglages, décochée par défaut ; giratoire, carrefour, place, où l'axe automatique se trompe) :
+  avant la première visée du premier bord, « 📏 Tracer la droite sur la carte » dans la
+  visionneuse, puis, sur la mini-carte, un clic d'un côté de la voie (point de départ, pas un
+  point de mesure) : un trait suit la souris, une croix au bout ; un second clic de l'autre côté
+  fixe l'orientation (4 m au moins ; Échap annule). La droite est tracée en bleu dans la photo.
+  Le premier bord se pose alors d'un clic, sans visées depuis plusieurs photos : là où la
+  direction du clic coupe la droite, comme le bord opposé ; le pointeur glisse sur la droite.
+  Une photo qui voit la droite presque en enfilade (moins de 10°) est refusée. « Annuler la
+  droite » revient à l'axe automatique jusqu'au clic du premier bord. La droite ne sert qu'une
+  fois : la largeur suivante reprend l'axe automatique, qui reste celui par défaut.
+
   Sur une photo qui a servi à viser un bord, sa croix est là où il a été visé, et la droite
   de mesure passe par la croix du premier bord.
 
@@ -282,7 +294,11 @@ L'incertitude de la largeur vient surtout de l'axe de la route et de la position
 référence le long de la route. Sur une séquence RTK vérifiée, l'axe est la direction de la
 trajectoire sur ±20 m (±0,5°) quand elle est droite (photos à moins de 10 cm de leur droite,
 chaque sens de passage sur sa voie) et concorde à 2° près avec la BD TOPO, sinon le tronçon de
-la BD TOPO (±2° supposés ; ±0,48 m à Pouilly avec elle seule). Un clic depuis une photo plus
+la BD TOPO (±2° supposés ; ±0,48 m à Pouilly avec elle seule), ou la droite tracée sur la carte
+(chaque clic à ~0,3 m près : ±2,4° pour une droite de 10 m, ±6° pour 4 m ; premier bord à
+±0,17 m à 10 m de la caméra, plus quand la photo voit la droite en biais). Essai
+(`tests/essai-largeur.html`) : droite tracée à 10° de la perpendiculaire, premier bord posé
+d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,48 m. Un clic depuis une photo plus
 éloignée, qui voit la droite plus en face, réduit aussi l'incertitude. Avec un GPS grand public
 (±4 m), le point de référence est à plusieurs mètres près, et une hauteur à ±2 à 3 m.
 
