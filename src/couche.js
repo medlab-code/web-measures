@@ -9,10 +9,10 @@
 const Couche = (() => {
   const SINGLE = "#ff00ff";  // couleur unique : magenta, distinct des repères de l'application
   const EMPTY = "#9e9e9e";  // valeur vide, ou au-delà des valeurs distinctes
-  // Une couleur par valeur : lisibles sur la photo comme sur l'orthophoto
-  const PALETTE = ["#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4", "#46f0f0", "#f032e6",
-    "#bcf60c", "#fabebe"];
-  const RAMP = ["#ffffb2", "#fecc5c", "#fd8d3c", "#f03b20", "#bd0026"];  // dégradé : 5 classes
+  // Une couleur par valeur : palette Set1 de ColorBrewer, vive et faite pour que ses couleurs se
+  // distinguent bien, sans son gris (celui des valeurs vides)
+  const PALETTE = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#ffff33", "#a65628", "#f781bf"];
+  const RAMP = ["#ffffb2", "#bd0026"];  // dégradé : couleurs du minimum et du maximum, à choisir dans la légende
   const NUMERIC_MIN = 11;  // valeurs distinctes au moins pour un dégradé (sinon une couleur par valeur)
 
   /** Lambert 93 (RGF93, EPSG:2154) vers longitude, latitude en degrés (IGN, ALG0004 ; RGF93 ≈ WGS 84). */
@@ -106,14 +106,25 @@ const Couche = (() => {
     return `#${[1, 3, 5].map((i) => Math.round((parseInt(c.slice(i, i + 2), 16) + 255) / 2).toString(16).padStart(2, "0")).join("")}`;
   }
 
+  /** Couleur entre a et b (#rrggbb), t de 0 (a) à 1 (b). */
+  function mix(a, b, t) {
+    return `#${[1, 3, 5].map((i) => {
+      const [x, y] = [a, b].map((c) => parseInt(c.slice(i, i + 2), 16));
+      return Math.round(x + (y - x) * t).toString(16).padStart(2, "0");
+    }).join("")}`;
+  }
+
   /**
    * Couleurs selon la colonne column ("" : couleur unique) : chaque objet reçoit properties._couleur
    * (et _etiquette selon labelColumn). custom : couleurs choisies, par clé d'entrée de légende.
-   * Retourne la légende [{ cle, couleur, texte }].
+   * Retourne la légende [{ cle, couleur, texte }] ; degrade : vrai pour une colonne numérique d'au moins
+   * NUMERIC_MIN valeurs, chaque objet y prenant le mélange des couleurs du minimum et du maximum
+   * pondéré par sa valeur.
    */
   function style(features, column, labelColumn, custom = {}) {
     for (const f of features) f.properties._etiquette = labelColumn ? format(f.properties[labelColumn]) : "";
     let keyOf;  // objet → clé de son entrée de légende
+    let ramp = null;  // dégradé : objet → couleur (null : vide)
     const legend = [];
     const values = column ? features.map((f) => f.properties[column]).filter((v) => !isEmpty(v)) : [];
     const distinct = [...new Set(values.map(String))];
@@ -122,14 +133,16 @@ const Couche = (() => {
       keyOf = () => "tous";
       legend.push({ cle: "tous", couleur: SINGLE, texte: "tous les objets" });
     } else if (values.length && numbers.every(Number.isFinite) && distinct.length >= NUMERIC_MIN) {
-      // dégradé en classes égales du minimum au maximum
-      const min = Math.min(...numbers), max = Math.max(...numbers), step = (max - min) / RAMP.length || 1;
-      keyOf = (f) => {
+      // dégradé : mélange des couleurs du minimum et du maximum, pondéré par la valeur
+      const min = Math.min(...numbers), max = Math.max(...numbers);
+      const [low, high] = [custom.min || RAMP[0], custom.max || RAMP[1]];
+      keyOf = () => "vide";
+      ramp = (f) => {
         const v = asNumber(f.properties[column]);
-        return isEmpty(f.properties[column]) || !Number.isFinite(v) ? "vide"
-          : `classe ${Math.min(RAMP.length - 1, Math.floor((v - min) / step))}`;
+        return isEmpty(f.properties[column]) || !Number.isFinite(v) ? null : mix(low, high, max > min ? (v - min) / (max - min) : 0);
       };
-      RAMP.forEach((couleur, k) => legend.push({ cle: `classe ${k}`, couleur, texte: `${format(min + k * step)} à ${format(min + (k + 1) * step)}` }));
+      legend.push({ cle: "min", couleur: low, texte: `${format(min)} (minimum)` },
+        { cle: "max", couleur: high, texte: `${format(max)} (maximum)` });
     } else {  // une couleur par valeur, les plus fréquentes d'abord
       const count = new Map();
       for (const v of values) count.set(String(v), (count.get(String(v)) || 0) + 1);
@@ -145,7 +158,8 @@ const Couche = (() => {
     if (values.length < features.length && column) legend.push({ cle: "vide", couleur: EMPTY, texte: "vide" });
     for (const e of legend) e.couleur = custom[e.cle] || e.couleur;
     const colorOf = new Map(legend.map((e) => [e.cle, e.couleur]));
-    for (const f of features) f.properties._couleur = colorOf.get(keyOf(f)) || EMPTY;
+    for (const f of features) f.properties._couleur = ramp?.(f) || colorOf.get(keyOf(f)) || EMPTY;
+    legend.degrade = Boolean(ramp);
     return legend;
   }
 

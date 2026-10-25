@@ -1405,6 +1405,9 @@
     const custom = overlay.couleurs[column] ||= {};
     const legend = Couche.style(overlay.features, column, $("#couche-etiquette").value, custom);
     $("#couche-couleurs-defaut").hidden = !Object.keys(custom).length;
+    if (legend.degrade && !custom.min && !custom.max) {
+      setStatus("Dégradé : cliquez les pastilles « minimum » et « maximum » de la légende pour choisir ses couleurs.");
+    }
     // Clic sur une pastille : palette en fenêtre flottante, la couleur choisie remplace la sienne
     $("#couche-legende").replaceChildren(...legend.map(({ cle, couleur, texte }) => {
       const li = document.createElement("li");

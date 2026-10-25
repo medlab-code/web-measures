@@ -208,8 +208,10 @@ son attribution et son lien Panoramax, aussi en QR code. La mini-carte manque si
 en a plusieurs), en WGS 84 ou en Lambert 93 (converti), dessiné sur la mini-carte et dans la photo, à l'altitude du fichier (z, en NGF) ou posé
 sur le sol LiDAR HD, lu sous la caméra et sous les objets (lignes redécoupées tous les 5 m pour
 suivre le terrain ; à plat à la hauteur de caméra en attendant, ou sans LiDAR) : points en pastilles, lignes et contours des polygones en traits, pour les objets à moins
-de 100 m de la photo. Couleur selon une colonne (une couleur par valeur, les dix plus fréquentes,
-ou dégradé en cinq classes pour une colonne numérique), étiquette d'une colonne (dans la photo,
+de 100 m de la photo. Couleur selon une colonne : une couleur par valeur (palette Set1 de ColorBrewer
+sans son gris, les huit valeurs les plus fréquentes, les autres et les vides en gris), ou, pour une
+colonne numérique d'au moins 11 valeurs, dégradé entre les couleurs du minimum et du maximum choisies
+dans la légende (chaque objet prend leur mélange pondéré par sa valeur), étiquette d'une colonne (dans la photo,
 et sur la carte à partir du zoom 16), légende (un clic sur une pastille : palette ; « Couleurs par défaut »).
 Étiquettes en texte seul, de la couleur de l'objet éclaircie de moitié, liseré noir, jamais recouvertes
 par une pastille, placées de l'objet le plus proche de la photo au plus lointain : remontées en cas
