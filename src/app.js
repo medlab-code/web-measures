@@ -1311,6 +1311,7 @@
     const column = $("#couche-couleur").value;
     const custom = overlay.couleurs[column] ||= {};
     const legend = Couche.style(overlay.features, column, $("#couche-etiquette").value, custom);
+    $("#couche-couleurs-defaut").hidden = !Object.keys(custom).length;
     // Clic sur une pastille : palette en fenêtre flottante, la couleur choisie remplace la sienne
     $("#couche-legende").replaceChildren(...legend.map(({ cle, couleur, texte }) => {
       const li = document.createElement("li");
@@ -1415,6 +1416,11 @@
       saveOverlay();
     });
   }
+  $("#couche-couleurs-defaut").addEventListener("click", () => {
+    overlay.couleurs[$("#couche-couleur").value] = {};
+    showOverlayStyle();
+    saveOverlay();
+  });
   $("#couche-retirer").addEventListener("click", () => {
     overlay = null;
     store.set("couche", "");
