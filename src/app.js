@@ -1099,6 +1099,7 @@
       delete f.recalages[photo.id];
       if (!Object.keys(f.recalages).length) delete f.recalages;
     }
+    setOverlayChanged(true);  // à réenregistrer dans le fichier
     saveOverlay();
     showOverlayInfo();
     drawViewerMarks(currentMarks);
@@ -1746,6 +1747,7 @@
     const { name, features, columns, crs, couleurs, masques, fiche } = overlay;
     const text = JSON.stringify({ name, columns, crs, couleurs, masques, fiche, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
       intitule: $("#couche-intitule").checked, suffixe: $("#couche-suffixe").value, etiquetteCarte: $("#couche-etiquette-carte").value,
+      modifie: Boolean(overlay.modifie), dateFichier: overlay.dateFichier ?? null,
       visible: $("#couche-visible").checked,
       features: features.map(({ type, id, geometry, properties, recalages }) => ({ type, id, geometry, recalages,
         properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) });
@@ -1759,11 +1761,29 @@
     try { saved = JSON.parse(store.get("couche") || "null"); } catch { /* illisible : aucune */ }
     $("#couche-intitule").checked = Boolean(saved?.intitule);
     $("#couche-suffixe").value = saved?.suffixe || "";
-    if (saved?.features?.length) loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, false, saved.visible !== false,
+    if (!saved?.features?.length) return;
+    loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, false, saved.visible !== false,
       saved.couleurs || {}, saved.masques || {}, saved.etiquetteCarte ?? null);
+    setOverlayChanged(Boolean(saved.modifie));
+    const kept = overlay;  // fichier de la couche (Chrome, Edge), relu de façon asynchrone
+    fileStore("readonly", (s) => s.get("couche")).then((handle) => {
+      if (overlay === kept && handle?.name === kept.name) kept.fichier = handle;
+    }).catch(() => null);
   }
 
-  for (const id of ["#couche-importer", "#couche-remplacer"]) $(id).addEventListener("click", () => $("#couche-fichier").click());
+  // Chrome, Edge : fichier choisi avec sa poignée, pour y réenregistrer (« Enregistrer ») ; sinon, champ de fichier
+  for (const id of ["#couche-importer", "#couche-remplacer"]) $(id).addEventListener("click", async () => {
+    if (!window.showOpenFilePicker) return $("#couche-fichier").click();
+    let handles;
+    try {
+      handles = await window.showOpenFilePicker({ multiple: true, types: [{ description: "Couches (GeoJSON, Shapefile, GeoPackage)",
+        accept: { "application/octet-stream": [".geojson", ".json", ".zip", ".shp", ".dbf", ".prj", ".cpg", ".shx", ".gpkg"] } }] });
+    } catch (error) {
+      if (error.name !== "AbortError") $("#couche-fichier").click();  // sélecteur refusé : champ de fichier
+      return;
+    }
+    importOverlay(await Promise.all(handles.map((h) => h.getFile())), handles);
+  });
   $("#couche-fichier").addEventListener("change", (event) => {
     const files = [...event.target.files];
     event.target.value = "";
@@ -1779,14 +1799,18 @@
   layerTab.addEventListener("dragleave", (event) => {
     if (!layerTab.contains(event.relatedTarget)) layerTab.classList.remove("survol");
   });
-  layerTab.addEventListener("drop", (event) => {
+  layerTab.addEventListener("drop", async (event) => {
     event.preventDefault();
     layerTab.classList.remove("survol");
-    importOverlay([...event.dataTransfer.files]);
+    const files = [...event.dataTransfer.files];
+    // Poignées demandées pendant l'événement (Chrome, Edge), lues ensuite
+    const asked = [...event.dataTransfer.items].map((item) => item.getAsFileSystemHandle?.());
+    importOverlay(files, (await Promise.all(asked.map((p) => p?.catch(() => null)))).filter(Boolean));
   });
 
-  /** Couche lue des fichiers choisis ou glissés, remplaçant celle en place. */
-  async function importOverlay(files) {
+  /** Couche lue des fichiers choisis ou glissés, remplaçant celle en place ; handles : leurs poignées (Chrome,
+   * Edge), celle d'un GeoJSON seul gardée pour y réenregistrer. */
+  async function importOverlay(files, handles = []) {
     if (!files.length || !app) return;
     try {
       setStatus("Lecture de la couche…");
@@ -1795,6 +1819,8 @@
         : names[Number(prompt(`Tables du GeoPackage :\n${names.map((n, i) => `${i + 1}. ${n}`).join("\n")}\n\nNuméro de la table à afficher :`, "1")) - 1]);
       const { name, ...read } = await Couche.readFiles(files, choose);
       const n = loadOverlay(name, read, "", "", true);
+      setOverlayFile(handles.length === 1 && /\.(geo)?json$/i.test(handles[0].name) ? handles[0] : null, files[0].lastModified);
+      setOverlayChanged(false);
       const kept = saveOverlay();
       setStatus(`Couche « ${name} » importée : ${n} partie${n > 1 ? "s" : ""} d'objets.`
         + (kept ? "" : " Trop grosse pour être gardée dans le navigateur : à réimporter à la prochaine ouverture."));
@@ -1818,11 +1844,13 @@
     saveOverlay();
   });
   const overlayProperties = (f) => Object.fromEntries(Object.entries(f.properties).filter(([k]) => !k.startsWith("_")));
-  const overlayBaseName = () => overlay.name.replace(/\.(geojson|json|zip|shp|gpkg)\b.*$/i, "");
-  /** Export GeoJSON (WGS 84) avec les recalages dans les photos, à importer sur un autre poste ; vrai si enregistré. */
+  const overlayBaseName = () => overlay.name.replace(/\.(geojson|json|zip|shp|gpkg)\b.*$/i, "").replace(/[\\/:*?"<>|]/g, "-");
+  /** La couche en GeoJSON (WGS 84), recalages dans les photos compris. */
+  const overlayGeojson = () => JSON.stringify({ type: "FeatureCollection",
+    features: overlay.features.map((f) => ({ type: "Feature", geometry: f.geometry, recalages: f.recalages, properties: overlayProperties(f) })) });
+  /** Export GeoJSON avec les recalages, à importer sur un autre poste ; vrai si enregistré. */
   async function exportOverlay() {
-    const content = JSON.stringify({ type: "FeatureCollection",
-      features: overlay.features.map((f) => ({ type: "Feature", geometry: f.geometry, recalages: f.recalages, properties: overlayProperties(f) })) });
+    const content = overlayGeojson();
     try {
       return await download(content, `${overlayBaseName()}-recale.geojson`, "application/geo+json");
     } catch (error) {
@@ -1831,6 +1859,86 @@
     }
   }
   $("#couche-exporter").addEventListener("click", exportOverlay);
+
+  // « Enregistrer » : recalages réécrits dans le fichier importé (poignée gardée dans le navigateur, IndexedDB,
+  // pour l'ouverture suivante) ; sans fichier modifiable (Firefox, Shapefile, GeoPackage, relevé), « Enregistrer
+  // sous » en GeoJSON, puis ce fichier-là. Grisé tant que rien n'a changé depuis.
+  const fileStore = (mode, write) => new Promise((resolve, reject) => {
+    const open = indexedDB.open("web-measures", 1);
+    open.onupgradeneeded = () => open.result.createObjectStore("fichiers");
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const request = write(open.result.transaction("fichiers", mode).objectStore("fichiers"));
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    };
+  });
+  // date : dernière modification du fichier connue (import, enregistrement), pour voir s'il a changé depuis
+  function setOverlayFile(handle, date = null) {
+    overlay.fichier = handle;
+    overlay.dateFichier = handle ? date : null;
+    fileStore("readwrite", (s) => (handle ? s.put(handle, "couche") : s.delete("couche"))).catch(() => null);
+  }
+  function setOverlayChanged(changed) {
+    overlay.modifie = changed;
+    $("#couche-enregistrer").disabled = !changed;
+  }
+  async function saveOverlayFile() {
+    const content = overlayGeojson();
+    const write = async (handle) => {
+      const out = await handle.createWritable();
+      await out.write(content);
+      await out.close();
+    };
+    try {
+      const handle = overlay.fichier;
+      if (handle) {
+        // Autorisation d'écrire : demandée par le navigateur une fois par séance au plus
+        const allowed = (await handle.queryPermission({ mode: "readwrite" })) === "granted"
+          || (await handle.requestPermission({ mode: "readwrite" })) === "granted";
+        // Fichier inchangé depuis l'import ou le dernier enregistrement : écrit sans rien demander ; changé
+        // entre-temps (QGIS…) : écraser, l'enregistrer ailleurs, ou rien ; effacé ou déplacé : ailleurs
+        const file = allowed ? await handle.getFile().catch((e) => (e.name === "NotFoundError" ? null : Promise.reject(e))) : null;
+        if (allowed && !file) setStatus(`Fichier « ${handle.name} » introuvable (effacé ou déplacé) : choisissez où enregistrer la couche.`);
+        const date = file?.lastModified;
+        const choice = !file ? "sous" : overlay.dateFichier == null || date === overlay.dateFichier ? "ecraser"
+          : await ask($("#fichier-change"), `Le fichier « ${handle.name} » a été modifié le ${new Date(date).toLocaleString("fr-FR")}, `
+            + "après son import ou son dernier enregistrement ici. L'écraser avec la couche affichée ?");
+        if (!choice) return;
+        if (choice === "ecraser") {
+          await write(handle);
+          overlay.dateFichier = (await handle.getFile()).lastModified;
+          setOverlayChanged(false);
+          saveOverlay();
+          return setStatus(`Couche enregistrée dans « ${handle.name} ».`);
+        }
+      }
+      if (window.showSaveFilePicker) {
+        const target = await window.showSaveFilePicker({ suggestedName: `${overlayBaseName()}.geojson`,
+          types: [{ accept: { "application/geo+json": [".geojson"] } }] });
+        await write(target);
+        setOverlayFile(target, (await target.getFile()).lastModified);
+        overlay.name = target.name;
+        $("#couche-nom").textContent = target.name;
+      } else if (!(await download(content, `${overlayBaseName()}.geojson`, "application/geo+json"))) return;
+      setOverlayChanged(false);
+      saveOverlay();
+      setStatus(`Couche enregistrée${window.showSaveFilePicker ? ` dans « ${overlay.name} »` : ""}.`);
+    } catch (error) {
+      if (error.name !== "AbortError") notice(`Couche non enregistrée : ${error.message}`);
+    }
+  }
+  $("#couche-enregistrer").addEventListener("click", saveOverlayFile);
+
+  /** Question dans la fenêtre dialog (texte du paragraphe) : valeur du bouton choisi, "" si fermée sans choix. */
+  function ask(dialog, text) {
+    dialog.querySelector("p").textContent = text;
+    dialog.returnValue = "";
+    return new Promise((resolve) => {
+      dialog.addEventListener("close", () => resolve(dialog.returnValue), { once: true });
+      showOverViewer(dialog);
+    });
+  }
   // Export CSV (tableur français : point-virgule, virgule décimale) : attributs, puis lon et lat pour une
   // couche de points, géométrie en WKT sinon (QGIS la relit)
   $("#couche-csv").addEventListener("click", () => {
@@ -1865,6 +1973,8 @@
     $("#couche-retirer").disabled = true;
     $("#couche-exporter").disabled = true;
     $("#couche-csv").disabled = true;
+    $("#couche-enregistrer").disabled = true;
+    fileStore("readwrite", (s) => s.delete("couche")).catch(() => null);
     refresh();
   });
 
@@ -2917,6 +3027,8 @@
     }
     const name = `Relevé du ${new Date().toLocaleDateString("fr-FR")}`;
     const n = loadOverlay(name, Couche.read(JSON.stringify(data)), "", "", true);
+    setOverlayFile(null);
+    setOverlayChanged(true);  // dans aucun fichier encore
     const kept = saveOverlay();
     showPane("couche");
     refresh();
@@ -3917,5 +4029,6 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
   }
 
   // Pour les essais depuis la console : window.mesures.app.click(yaw, pitch)
-  window.mesures = { get app() { return app; }, get psv() { return psv; }, map, openPhoto, buildFiche };
+  window.mesures = { get app() { return app; }, get psv() { return psv; }, map, openPhoto, buildFiche,
+    overlayFile: (handle) => { overlay.fichier = handle; } };  // fichier de la couche remplacé (essais)
 })();

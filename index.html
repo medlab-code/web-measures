@@ -309,6 +309,8 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
                 <p id="couche-nom"></p>
                 <p id="couche-infos"></p>
               </div>
+              <button id="couche-enregistrer" type="button" class="icone" disabled aria-label="Enregistrer la couche"
+                      title="Enregistrer les recalages dans le fichier importé (GeoJSON, Chrome et Edge) ; sinon, choisir où l'enregistrer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 4h11l3 3v13H5z M8 4v5h7V4 M8 20v-6h8v6" stroke-linejoin="round"/></svg></button>
               <button id="couche-exporter" type="button" class="icone" disabled aria-label="Exporter la couche"
                       title="Exporter : GeoJSON avec les objets recalés dans les photos, à importer sur un autre poste"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
               <button id="couche-csv" type="button" class="icone" disabled aria-label="Exporter la couche en CSV"
@@ -515,6 +517,16 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
       <button value="" class="non">Annuler</button>
       <button value="remplacer" class="non">Remplacer sans enregistrer</button>
       <button value="enregistrer" class="oui">Enregistrer puis remplacer</button>
+    </form>
+  </dialog>
+  <!-- « Enregistrer » : le fichier de la couche a changé sur le disque depuis son import (ou le dernier enregistrement) -->
+  <dialog id="fichier-change" class="avertissement">
+    <h2>Fichier modifié entre-temps</h2>
+    <p></p>
+    <form method="dialog">
+      <button value="" class="non">Annuler</button>
+      <button value="sous" class="non">Enregistrer sous…</button>
+      <button value="ecraser" class="oui">Écraser</button>
     </form>
   </dialog>
   <dialog id="vider-releve" class="avertissement">

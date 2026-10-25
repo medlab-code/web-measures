@@ -172,13 +172,27 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     dialog.close();
     // Envoi dans Couche ; enregistrements interceptés (boîte « Enregistrer sous » du navigateur)
     const saved = {};
-    w.showSaveFilePicker = async ({ suggestedName }) => ({ createWritable: async () => ({
-      write: async (blob) => { saved[suggestedName] = await blob.text(); }, close: async () => {} }) });
+    const stamps = {};  // date de modification de chaque faux fichier
+    w.showSaveFilePicker = async ({ suggestedName }) => ({ name: suggestedName, queryPermission: async () => "granted",
+      getFile: async () => ({ lastModified: stamps[suggestedName] || 0 }),
+      createWritable: async () => ({ write: async (data) => {
+        saved[suggestedName] = typeof data === "string" ? data : await data.text();
+        stamps[suggestedName] = Date.now();
+      }, close: async () => {} }) });
     doc.querySelector("#releve-couche").click();
     await sleep(500);
     expect("relevé envoyé dans Couche", doc.querySelector("#couche-nom").textContent.startsWith("Relevé du")
       && w.mesures.map.getSource("couche").serialize().data.features.length === 2 && !doc.querySelector("#couche").hidden,
       doc.querySelector("#couche-nom").textContent);
+    // « Enregistrer » : relevé dans aucun fichier encore, donc actif ; Enregistrer sous, puis grisé
+    expect("relevé envoyé : « Enregistrer » actif", !doc.querySelector("#couche-enregistrer").disabled);
+    doc.querySelector("#couche-enregistrer").click();
+    await sleep(500);
+    const savedName = Object.keys(saved).find((k) => k.startsWith("Relevé du"));
+    log("enregistré : " + savedName + " · couche " + doc.querySelector("#couche-nom").textContent);
+    expect("« Enregistrer » : GeoJSON écrit, la couche prend son nom, bouton grisé", savedName && !savedName.includes("/")
+      && JSON.parse(saved[savedName]).features.length === 2 && doc.querySelector("#couche-nom").textContent === savedName
+      && doc.querySelector("#couche-enregistrer").disabled && JSON.parse(w.localStorage.getItem("web-measures/couche")).modifie === false);
     const options = (id) => [...doc.querySelectorAll(`${id} option`)].map((o) => o.value);
     log("couleur selon : " + options("#couche-couleur").join(", "));
     expect("couleur et étiquette selon les champs, nb_visees compris, sans les colonnes techniques",
@@ -292,6 +306,50 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         && cells[0] === "classe" && !cells.includes("essence") && cells.includes("nb_visees") && !cells.includes("incert_m")
         && cells.includes("2,4 m")  // texte après la valeur de l'étiquette (distance_bord_m, « m »)
         && page.querySelector(".sous-titre").textContent.startsWith("Fiche d'objet") && page.querySelector("figure img")?.src.startsWith("data:image"));
+    }
+    // Objet recalé dans la photo : « Enregistrer » actif, puis réécrit dans le même fichier
+    if (pastille) {
+      const before = Object.keys(saved).length, file = doc.querySelector("#couche-nom").textContent;
+      const click = (data) => { const e = new Event("click"); e.data = { rightclick: false, ...data }; w.mesures.psv.dispatchEvent(e); };
+      const live = w.mesures.psv.container.querySelector(".pastille-couche[data-objet]");
+      click({ yaw: 0, pitch: 0, target: live });
+      click({ yaw: 0.05, pitch: -0.2, target: w.mesures.psv.container });
+      doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await sleep(300);
+      expect("objet recalé : « Enregistrer » actif", !doc.querySelector("#couche-enregistrer").disabled);
+      doc.querySelector("#couche-enregistrer").click();
+      await sleep(500);
+      expect("« Enregistrer » : même fichier réécrit, avec le recalage, sans nouvelle boîte", Object.keys(saved).length === before
+        && JSON.parse(saved[file]).features.some((f) => f.recalages) && doc.querySelector("#couche-enregistrer").disabled
+        && !doc.querySelector("#fichier-change").open, file);
+      // Fichier modifié ailleurs entre-temps : question avant d'écraser
+      stamps[file] += 60000;
+      click({ yaw: 0, pitch: 0, target: w.mesures.psv.container.querySelector(".pastille-couche[data-objet]") });
+      click({ yaw: 0.06, pitch: -0.2, target: w.mesures.psv.container });
+      doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await sleep(300);
+      doc.querySelector("#couche-enregistrer").click();
+      await until(() => doc.querySelector("#fichier-change").open, 5000, "question du fichier modifié");
+      doc.querySelector('#fichier-change button[value="ecraser"]').click();
+      await sleep(500);
+      expect("fichier modifié entre-temps : écrasé après la question", doc.querySelector("#couche-enregistrer").disabled
+        && doc.querySelector("#statut").textContent.includes("enregistrée"), doc.querySelector("#statut").textContent);
+      // Fichier effacé ou déplacé : « Enregistrer sous » proposé aussitôt
+      const lost = Object.keys(saved).length;
+      const picker = w.showSaveFilePicker;
+      w.showSaveFilePicker = async (o) => { const h = await picker({ ...o, suggestedName: "ailleurs.geojson" }); return h; };
+      const handle = { name: file, queryPermission: async () => "granted",
+        getFile: async () => { throw new w.DOMException("introuvable", "NotFoundError"); } };
+      click({ yaw: 0, pitch: 0, target: w.mesures.psv.container.querySelector(".pastille-couche[data-objet]") });
+      click({ yaw: 0.07, pitch: -0.2, target: w.mesures.psv.container });
+      doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await sleep(300);
+      w.mesures.overlayFile(handle);
+      doc.querySelector("#couche-enregistrer").click();
+      await sleep(500);
+      w.showSaveFilePicker = picker;
+      expect("fichier introuvable : enregistré ailleurs, la couche prend ce fichier", Object.keys(saved).length === lost + 1
+        && "ailleurs.geojson" in saved && doc.querySelector("#couche-nom").textContent === "ailleurs.geojson", Object.keys(saved).join(", "));
     }
     doc.querySelector("#mesure").click();  // mesure reprise pour la suite
     // Navigateur sans boîte « Enregistrer sous » (Firefox) : nom demandé, extension remise
