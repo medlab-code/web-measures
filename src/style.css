@@ -589,7 +589,7 @@ button.principal { font-weight: 600; }
 #axe-vue[hidden] { display: none; }
 
 /* Largeur faite : proposer de trianguler le bord opposé (bleu des visées) */
-#trianguler-b {
+#trianguler-b, #garder-seul {
   pointer-events: auto;
   margin-top: 0.3rem;
   padding: 0.3rem 0.9rem;
@@ -603,8 +603,8 @@ button.principal { font-weight: 600; }
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   cursor: pointer;
 }
-#trianguler-b:hover { background: rgba(0, 152, 187, 0.85); }
-#trianguler-b[hidden] { display: none; }
+#trianguler-b:hover, #garder-seul:hover { background: rgba(0, 152, 187, 0.85); }
+#trianguler-b[hidden], #garder-seul[hidden] { display: none; }
 
 /* Photos à viser ensuite (hauteur, largeur) : bleu clair des visées, sous la validation */
 #guide-photos {
@@ -658,8 +658,8 @@ button.principal { font-weight: 600; }
 #suite-mesure button[hidden] { display: none; }
 #nouvelle-mesure:hover { background: #ffeb00; color: #202124; text-shadow: none; }
 #suite-mesure #nouvelle-reference { border-color: rgb(142, 27, 27); }
-#suite-mesure #axe-carte, #suite-mesure #axe-auto { border-color: #0078ff; }  /* bleu de la droite de mesure */
-#axe-carte:hover, #axe-auto:hover { background: rgba(0, 120, 255, 0.92); }
+#suite-mesure #axe-carte, #suite-mesure #axe-auto, #suite-mesure #placer-carte { border-color: #0078ff; }  /* bleu de la droite de mesure */
+#axe-carte:hover, #axe-auto:hover, #placer-carte:hover { background: rgba(0, 120, 255, 0.92); }
 /* Bout du trait de la droite de mesure en cours de tracé sur la carte (#28) */
 .croix-trace { color: #0078ff; font-size: 26px; line-height: 1; text-shadow: 0 0 3px #fff, 0 0 3px #fff; pointer-events: none; }
 #nouvelle-reference:hover { background: rgba(142, 27, 27, 0.92); }
@@ -735,13 +735,13 @@ button.principal { font-weight: 600; }
   text-align: left; text-shadow: none; animation: none; }
 #vue.en-mesure #avis { color: var(--texte); }
 #vue.en-mesure #calcul-inclinaison.manuel { color: var(--echec); }
-#vue.en-mesure #garder, #vue.en-mesure #valider-objet, #vue.en-mesure #trianguler-b,
+#vue.en-mesure #garder, #vue.en-mesure #valider-objet, #vue.en-mesure #trianguler-b, #vue.en-mesure #garder-seul,
 #vue.en-mesure #guide-photos button, #vue.en-mesure #suite-mesure button {
   margin: 0; padding: 0.45rem 0.9rem; border-radius: 8px; font-size: 14px; text-shadow: none; box-shadow: none; }
 #vue.en-mesure #guide-photos, #vue.en-mesure #suite-mesure { justify-content: center; margin: 0; }
-#vue.en-mesure #guide-photos button, #vue.en-mesure #suite-mesure button, #vue.en-mesure #trianguler-b {
+#vue.en-mesure #guide-photos button, #vue.en-mesure #suite-mesure button, #vue.en-mesure #trianguler-b, #vue.en-mesure #garder-seul {
   background: var(--encart); color: var(--texte); }
-#vue.en-mesure #garder, #vue.en-mesure #valider-objet, #vue.en-mesure #trianguler-b { align-self: center; }  /* boutons centrés */
+#vue.en-mesure #garder, #vue.en-mesure #valider-objet, #vue.en-mesure #trianguler-b, #vue.en-mesure #garder-seul { align-self: center; }  /* boutons centrés */
 /* Messages variables (zoom, inclinaison) sous les boutons : ils ne les déplacent pas */
 .haut-centre > #avis, .haut-centre > #calcul-inclinaison { order: 1; }
 #mode-mesure {
@@ -1258,6 +1258,8 @@ canvas.traits {
    lisible sur l'orthophoto comme sur la photo (carte et visionneuse) */
 .etiquette.couche { background: none; padding: 0; border-radius: 0; font-weight: 600;
                     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
+/* Sur la mini-carte : 25 % plus grandes que les autres étiquettes de la carte (15 px au lieu de 12) */
+.maplibregl-marker .etiquette.couche { font-size: 15px; }
 /* Dans la visionneuse : transparentes à 25 %, remontées si elles se chevauchent (declutterLabels) */
 .ancre .etiquette.couche.dessus { transform: translate(-50%, var(--decalage, 0px)); }
 /* Visionneuse : pastille et étiquette d'un objet cliquables pour le recaler ; soulignées une fois choisies */
@@ -1279,13 +1281,14 @@ canvas.traits {
 .fiche-couche { display: flex; align-items: center; gap: 0.2rem; padding: 0.3rem; border: 1px solid var(--bord);
   border-radius: 10px; }
 .fiche-couche .nom-couche { flex: 1; min-width: 0; padding-left: 0.2rem; }
-#couche-nom, #resultats-titre, #photo-titre { margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#couche-infos, #resultats-infos, #photo-infos { margin: 0; color: var(--discret); font-size: 0.85em; }
+#couche-nom, #resultats-titre, #releve-titre, #photo-titre { margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#couche-infos, #resultats-infos, #releve-infos, #photo-infos { margin: 0; color: var(--discret); font-size: 0.85em; }
 .fiche-couche .icone, .fiche-couche .oeil { flex: none; display: inline-flex; align-items: center; justify-content: center;
   width: 2.25rem; height: 2.25rem; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--texte); cursor: pointer; }
 .fiche-couche .icone:hover:not(:disabled), .fiche-couche .oeil:hover { background: var(--encart); }
 .fiche-couche .icone.danger { color: var(--echec); }
 .fiche-couche .icone:disabled { opacity: 0.4; cursor: default; }
+.fiche-couche .icone .csv { font-size: 10px; font-weight: 700; letter-spacing: -0.2px; }
 .oeil { position: relative; }
 .oeil input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }  /* case invisible, au clavier aussi */
 .oeil:has(input:focus-visible) { outline: 2px solid var(--panoramax); }
@@ -1295,6 +1298,9 @@ canvas.traits {
 .reglage-couche { display: flex; align-items: center; gap: 0.6rem; margin-top: 1rem; }
 .reglage-couche label { width: 4.5rem; flex: none; color: var(--discret); }
 .reglage-couche select { flex: 1; min-width: 0; }
+.intitule-couche { display: flex; align-items: center; gap: 0.4rem; margin: 0.4rem 0 0 5.1rem; font-size: 0.9em; }  /* sous la liste Étiquette */
+.intitule-couche:has(input:disabled) { color: var(--discret); }
+#couche-suffixe { width: 6rem; }
 .reglage-instance label { width: auto; font-weight: 600; color: var(--texte); }
 .titre-legende { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.5rem; margin-top: 0.8rem; }
 .titre-legende h3 { margin: 0; }
@@ -1339,3 +1345,44 @@ button.lien:disabled { color: var(--discret); opacity: 0.6; cursor: default; }
 #choix-fiche .titre-fiche { display: flex; align-items: center; gap: 0.5rem; flex: 1 0 100%; margin-bottom: 0.2rem; }
 #choix-fiche .titre-fiche input { flex: 1; min-width: 0; }
 #choix-fiche form button { white-space: nowrap; }
+#nom-fichier form { flex-wrap: wrap; }
+/* Fiche : cadre de la photo retenue par « Vue actuelle », sur la visionneuse (app.js showFicheFrame) */
+.cadre-fiche { position: fixed; overflow: hidden; pointer-events: none; z-index: 50; }
+.cadre-fiche > div:first-child { position: absolute; box-sizing: border-box; border: 2px dashed #ffeb00;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.55); }  /* hors du cadre : assombri */
+/* Recadrage (« Vue actuelle ») : boutons au bas de la visionneuse, seuls à recevoir les clics */
+.cadre-boutons { position: absolute; left: 0; right: 0; bottom: 14px; display: flex; justify-content: center; gap: 0.8rem; }
+.cadre-boutons button { pointer-events: auto; padding: 0.4rem 1.1rem; border: 2px solid #00bce6; border-radius: 6px;
+  background: var(--etiquette-vue); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
+.cadre-boutons button.oui { border-color: #2ecc40; } .cadre-boutons button.oui:hover { background: rgba(46, 204, 64, 0.75); }
+.cadre-boutons button.non { border-color: #e53935; } .cadre-boutons button.non:hover { background: rgba(229, 57, 53, 0.75); }
+.cadre-fiche span { position: absolute; left: 6px; top: 4px; padding: 1px 6px; border-radius: 3px; font-size: 12px;
+  font-weight: 600; color: #ffeb00; background: rgba(0, 0, 0, 0.6); }
+.fiche-donnees p { margin: 0.6rem 0 0.3rem; }
+#fiche-champs { margin: 0; padding: 0; list-style: none; max-height: 14rem; overflow-y: auto; border: 1px solid var(--bord); border-radius: 4px; }
+#fiche-champs li { display: flex; align-items: center; gap: 0.4rem; padding: 0.15rem 0.4rem; }
+#fiche-champs li + li { border-top: 1px solid var(--bord); }
+#fiche-champs label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.4rem; overflow-wrap: anywhere; }
+#fiche-champs button { padding: 0 0.45rem; }
+#fiche-champs li[draggable="true"] { cursor: grab; }
+#fiche-champs li.glisse { opacity: 0.5; background: var(--encart); }
+#fiche-champs .poignee { color: var(--discret); }
+#nom-fichier .nom-fichier { flex: 1 0 100%; display: flex; align-items: center; gap: 0.6rem; }
+#nom-fichier .nom-fichier input { flex: 1; min-width: 0; }
+#nom-fichier .aide { flex: 1 0 100%; margin: 0; font-size: 12px; color: var(--discret); }
+
+/* Relevé : champs de l'objet (#releve-objet), définis au premier objet */
+#releve-objet { max-width: 40rem; }
+#releve-objet form { flex-wrap: wrap; }
+#releve-definition, #releve-valeurs { flex: 1 0 100%; }
+#releve-definition { border: 1px solid var(--bord); border-radius: 5px; }
+#releve-definition legend { font-size: 13px; }
+#releve-champs { margin: 0 0 0.5rem; padding-left: 1.4rem; display: flex; flex-direction: column; gap: 0.4rem; }
+#releve-champs li > div { display: flex; gap: 0.4rem; align-items: center; }
+#releve-champs input[type="text"] { flex: 1; min-width: 0; }
+#releve-valeurs { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.45rem 0.8rem; align-items: center; }
+#releve-valeurs input:not([type="checkbox"]), #releve-valeurs select { width: 100%; }
+#releve-commentaire { flex: 1 0 100%; display: flex; align-items: center; gap: 0.8rem; }
+#releve-commentaire input { flex: 1; min-width: 0; }
+#releve-erreur { flex: 1 0 100%; margin: 0; color: var(--echec); }
+#releve-erreur[hidden] { display: none; }

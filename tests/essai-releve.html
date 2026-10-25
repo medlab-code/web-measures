@@ -1,0 +1,436 @@
+<!doctype html><meta charset="utf-8"><title>Essai relevé d'objets</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Relevé d'objets sur deux photos imajbox à position RTK (Pouilly-en-Auxois) : un objet
+     triangulé depuis les deux photos, un autre gardé sur une seule photo ; champs définis au
+     premier objet, exports, relevé remis au rechargement. Lancer comme tests/navigateur.html. -->
+<script>try { localStorage.clear(); } catch {}</script>
+<iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Contrôles : valeur comparée à l'attendu, avec une tolérance ; échecs journalisés (« ÉCHEC ») et
+// comptés, bilan avant « FIN » (« ERREUR » s'il y en a : le serveur d'essai s'arrête)
+let failures = 0, checks = 0;
+const expect = (what, ok, detail = "") => {
+  checks++;
+  if (!ok) {
+    failures++;
+    log("ÉCHEC " + what + (detail ? " : " + detail : ""));
+  }
+};
+const near = (what, value, expected, tol) =>
+  expect(what, Math.abs(value - expected) <= tol, `${value} au lieu de ${expected.toFixed(3)} (±${tol})`);
+const metresIn = (text) => Number(((text || "").match(/(\d+,\d+) m\b/) || [])[1]?.replace(",", "."));
+const verdict = () => log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
+async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
+const feature = async (id) => (await (await fetch("https://api.panoramax.xyz/api/search?ids=" + id)).json()).features[0];
+const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-955becc79e81"];
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  try {
+    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 120000, "Pyodide");
+    const app = w.mesures.app, doc = w.document;
+    doc.querySelector("#reglages-defaut")?.close();
+    const psvClick = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: false }; w.mesures.psv.dispatchEvent(e); };
+    doc.querySelector("#mesure").click();
+    doc.querySelector("#mode").value = "releve"; doc.querySelector("#mode").dispatchEvent(new Event("change"));
+    const photos = await Promise.all(IDS.map(feature));
+    const heading = (f) => { const [n, d] = f.properties.exif["Exif.GPSInfo.GPSImgDirection"].split("/"); return n / d; };
+    const metres = ([lon, lat], [lon0, lat0]) => [(lon - lon0) * 111320 * Math.cos(lat0 * Math.PI / 180), (lat - lat0) * 111320];
+    const [p0, p1] = photos.map((f) => f.geometry.coordinates);
+    const mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
+    const along = Math.atan2(...metres(p1, p0));
+    const kx = 111320 * Math.cos(mid[1] * Math.PI / 180);
+    const target = [mid[0] + 5 * Math.cos(along) / kx, mid[1] - 5 * Math.sin(along) / 111320];
+    const yawTo = (f, pt) => { const [x, y] = metres(pt, f.geometry.coordinates); return Math.atan2(x, y) - heading(f) * Math.PI / 180; };
+    const altitude = (f) => { const [n, d] = String(f.properties.exif["Exif.GPSInfo.GPSAltitude"]).split("/"); return n / (d || 1); };
+    const level = photos.reduce((a, f) => a + altitude(f), 0) / photos.length - 2.0;
+    const pitchTo = (f, pt) => Math.atan2(level - altitude(f), Math.hypot(...metres(pt, f.geometry.coordinates)));
+    const open = async (f) => {
+      w.mesures.openPhoto(f);
+      await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "photo");
+      await until(() => JSON.parse(app.state()).quality.includes("vérifiée"), 60000, "position vérifiée");
+      await sleep(800);
+    };
+    const shown = (id) => !doc.querySelector(id).hidden;
+    // Mini-carte : points de repère et bornes avec le fond « orthophoto avec noms » seulement
+    { const m = w.mesures.map, pr = () => m.getSource("pr")?.serialize().data.features?.length || 0;
+      const bornes = () => m.getContainer().querySelectorAll(".borne-pr").length;
+      m.jumpTo({ center: photos[0].geometry.coordinates, zoom: 15 });
+      await sleep(2500);
+      expect("fond Plan IGN : ni PR ni bornes", pr() === 0 && bornes() === 0, `${pr()} PR, ${bornes()} bornes`);
+      doc.querySelector("#fond").value = "noms"; doc.querySelector("#fond").dispatchEvent(new Event("change"));
+      await until(() => pr() > 0 && bornes() > 0, 20000, "PR et bornes avec l'orthophoto avec noms");
+      doc.querySelector("#fond").value = "plan"; doc.querySelector("#fond").dispatchEvent(new Event("change"));
+      await until(() => pr() === 0 && bornes() === 0, 20000, "PR et bornes retirés avec le Plan IGN"); }
+    expect("relevé vide : Envoyer dans Couche et Vider grisés", doc.querySelector("#releve-couche").disabled && doc.querySelector("#releve-vider").disabled);
+    log("rappel : " + doc.querySelector("#nom-mesure").textContent + " · " + doc.querySelector("#mode-mesure").textContent);
+    // 1er objet : triangulé depuis les deux photos ; après la première visée, la question d'une seule photo
+    await open(photos[0]);
+    psvClick(yawTo(photos[0], target), pitchTo(photos[0], target));
+    await sleep(300);
+    log("1 visée : " + doc.querySelector("#garder-seul").textContent + " · " + doc.querySelector("#statut").textContent);
+    if (location.hash === "#capture") { log("CAPTURE"); await sleep(5000); }  // question d'une seule photo
+    expect("une visée : « Garder sur cette seule photo » proposé avec sa précision", shown("#garder-seul")
+      && /± \d+,\d+ m/.test(doc.querySelector("#garder-seul").textContent));
+    await open(photos[1]);
+    psvClick(yawTo(photos[1], target), pitchTo(photos[1], target));
+    await sleep(300);
+    expect("deux visées : plus de proposition d'une seule photo", !shown("#garder-seul") && shown("#garder"));
+    doc.querySelector("#garder").click();
+    const dialog = doc.querySelector("#releve-objet");
+    await until(() => dialog.open, 5000, "fenêtre des champs");
+    expect("premier objet : définition des champs proposée", shown("#releve-definition"));
+    const rows = () => doc.querySelectorAll("#releve-champs > li");
+    const setRow = (li, name, type, values = "") => {
+      li.querySelector(".nom").value = name; li.querySelector(".nom").dispatchEvent(new Event("input"));
+      li.querySelector(".type").value = type; li.querySelector(".type").dispatchEvent(new Event("input"));
+      li.querySelector(".valeurs").value = values; li.querySelector(".valeurs").dispatchEvent(new Event("input"));
+    };
+    setRow(rows()[0], "incert_m", "texte");  // colonne automatique : refusée
+    doc.querySelector("#releve-enregistrer").click();
+    await sleep(200);
+    expect("nom de colonne réservé refusé", shown("#releve-erreur") && dialog.open, doc.querySelector("#releve-erreur").textContent);
+    setRow(rows()[0], "distance_bord_m", "nombre");
+    doc.querySelector("#releve-ajouter").click();
+    setRow(rows()[1], "essence", "liste", "chêne ; tilleul");
+    doc.querySelector("#releve-ajouter").click();
+    setRow(rows()[2], "classe", "texte");
+    const input = (name) => doc.querySelector(`#releve-valeurs [data-champ="${name}"]`);
+    expect("saisie : une ligne par champ défini", input("distance_bord_m")?.type === "number" && input("essence")?.tagName === "SELECT"
+      && input("essence").options.length === 3);
+    input("distance_bord_m").value = "2.4";
+    input("essence").value = "tilleul";
+    input("classe").value = "panneau";
+    expect("premier objet : pas encore de valeurs à proposer", !input("classe").getAttribute("list"));
+    if (location.hash === "#capture") { log("CAPTURE"); await sleep(5000); }  // capture par CDP (fenêtre des champs)
+    doc.querySelector("#releve-enregistrer").click();
+    await until(() => !dialog.open, 15000, "fenêtre fermée (lieu lu)");
+    await sleep(300);
+    let objects = JSON.parse(app.results()).filter((r) => r.releve);
+    log("résultats : " + objects.map((r) => r.text).join(" | "));
+    expect("objet 1 listé avec son premier champ", objects.length === 1 && /^Objet 1 ±\d+,\d+ m — 2,4$/.test(objects[0].text), objects[0]?.text);
+    // 2e objet : une seule visée, gardé sur cette photo ; les champs ne se redéfinissent pas
+    const target2 = [target[0] + 6 * Math.sin(along) / kx, target[1] + 6 * Math.cos(along) / 111320];
+    psvClick(yawTo(photos[1], target2), pitchTo(photos[1], target2));
+    await sleep(300);
+    const single = JSON.parse(app.state()).single_m;
+    log("seule photo : ±" + single + " m · " + doc.querySelector("#garder-seul").textContent);
+    expect("objet sur une seule photo : précision de l'ordre du mètre au plus", single > 0 && single < 1.5, String(single));
+    doc.querySelector("#garder-seul").click();
+    await until(() => dialog.open, 5000, "fenêtre des champs (2)");
+    expect("objets suivants : champs déjà définis masqués, ajout possible", input("essence") && shown("#releve-ajouter")
+      && [...rows()].every((li) => li.hidden));
+    doc.querySelector("#releve-ajouter").click();
+    setRow(rows()[3], "etat", "texte");
+    input("etat").value = "penché";
+    const choices = (name) => [...(doc.getElementById(input(name).getAttribute("list") || "")?.options || [])].map((o) => o.value);
+    expect("champ texte : valeur du 1er objet proposée", choices("classe").join() === "panneau", choices("classe").join());
+    input("classe").value = "borne";
+    input("distance_bord_m").value = "3";
+    input("essence").value = "chêne";
+    doc.querySelector("#releve-commentaire input").value = "tronc creux";
+    if (location.hash === "#capture") { log("CAPTURE"); await sleep(5000); }
+    doc.querySelector("#releve-enregistrer").click();
+    await until(() => !dialog.open, 15000, "fenêtre fermée (2)");
+    await sleep(300);
+    const geo = JSON.parse(app.export_geojson(true));
+    const [a, b] = geo.features;
+    log("export : " + JSON.stringify(geo.features.map((f) => f.properties)));
+    expect("export du relevé : deux objets, champs en colonnes", geo.features.length === 2 && a.properties.distance_bord_m === 2.4
+      && a.properties.essence === "tilleul" && b.properties.distance_bord_m === 3 && b.properties.nb_visees === 1 && "voie" in a.properties);
+    const [bx, by] = metres(b.geometry.coordinates, target2);
+    near("objet sur une seule photo : écart à la cible (m)", Math.hypot(bx, by), 0, 1.0);
+    const [ax, ay] = metres(a.geometry.coordinates, target);
+    near("objet triangulé : écart à la cible (m)", Math.hypot(ax, ay), 0, 0.3);
+    expect("altitude NGF des objets gardée (photos RTK)", typeof a.properties.z_ngf === "number" && typeof b.properties.z_ngf === "number",
+      `${a.properties.z_ngf} / ${b.properties.z_ngf}`);
+    expect("export des mesures sans les objets relevés", JSON.parse(app.export_geojson()).features.length === 0);
+    const columns = Object.keys(a.properties).join(";");
+    expect("colonnes : id, champs, lieu, commentaire, puis le reste ; sans « type »", columns.startsWith(
+      "id;distance_bord_m;essence;classe;etat;voie;pr;commune;commentaire;nb_visees;") && !columns.split(";").includes("type"), columns);
+    expect("champ ajouté au 2e objet : vide pour le 1er", a.properties.etat === null && b.properties.etat === "penché",
+      `${a.properties.etat} / ${b.properties.etat}`);
+    expect("id croissant d'un objet à l'autre", a.properties.id === 1 && b.properties.id === 2);
+    expect("commentaire saisi dans la fenêtre des champs", b.properties.commentaire === "tronc creux", b.properties.commentaire);
+    expect("relevé : Envoyer dans Couche et Vider actifs", !doc.querySelector("#releve-couche").disabled && !doc.querySelector("#releve-vider").disabled
+      && doc.querySelector("#releve-infos").textContent === "2 objets");
+    // Sur une photo d'où l'objet B n'a pas été visé : projeté au sol, toujours visible
+    await open(photos[0]);
+    const crosses = w.mesures.psv.container.querySelectorAll(".croix:not(.visee)").length;
+    expect("objets relevés visibles sur une photo d'où ils n'ont pas tous été visés", crosses === 2, `${crosses} croix`);
+    expect("pas de fiche PDF pour un objet relevé", ![...doc.querySelectorAll("#resultats > ol li")]
+      .some((li) => li.textContent.includes("Objet") && li.querySelector("button.fiche")));
+    // ✎ : champs de l'objet préremplis
+    const edits = [...doc.querySelectorAll("#resultats > ol li")].filter((li) => li.textContent.includes("Objet 2"));
+    edits[0]?.querySelectorAll("button").forEach((btn) => { if (btn.textContent === "✎") btn.click(); });
+    await until(() => dialog.open, 5000, "fenêtre ✎");
+    expect("✎ : champs de l'objet préremplis", input("distance_bord_m").value === "3" && input("essence").value === "chêne"
+      && doc.querySelector("#releve-commentaire input").value === "tronc creux");
+    expect("✎ : valeurs déjà saisies proposées, triées", choices("classe").join() === "borne,panneau", choices("classe").join());
+    dialog.close();
+    // Envoi dans Couche ; enregistrements interceptés (boîte « Enregistrer sous » du navigateur)
+    const saved = {};
+    const stamps = {};  // date de modification de chaque faux fichier
+    w.showSaveFilePicker = async ({ suggestedName }) => ({ name: suggestedName, queryPermission: async () => "granted",
+      getFile: async () => ({ lastModified: stamps[suggestedName] || 0 }),
+      createWritable: async () => ({ write: async (data) => {
+        saved[suggestedName] = typeof data === "string" ? data : await data.text();
+        stamps[suggestedName] = Date.now();
+      }, close: async () => {} }) });
+    doc.querySelector("#releve-couche").click();
+    await sleep(500);
+    expect("relevé envoyé dans Couche", doc.querySelector("#couche-nom").textContent.startsWith("Relevé du")
+      && w.mesures.map.getSource("couche").serialize().data.features.length === 2 && !doc.querySelector("#couche").hidden,
+      doc.querySelector("#couche-nom").textContent);
+    // « Enregistrer » : relevé dans aucun fichier encore, donc actif ; Enregistrer sous, puis grisé
+    expect("relevé envoyé : « Enregistrer » actif", !doc.querySelector("#couche-enregistrer").disabled);
+    doc.querySelector("#couche-enregistrer").click();
+    await sleep(500);
+    const savedName = Object.keys(saved).find((k) => k.startsWith("Relevé du"));
+    log("enregistré : " + savedName + " · couche " + doc.querySelector("#couche-nom").textContent);
+    expect("« Enregistrer » : GeoJSON écrit, la couche prend son nom, bouton grisé", savedName && !savedName.includes("/")
+      && JSON.parse(saved[savedName]).features.length === 2 && doc.querySelector("#couche-nom").textContent === savedName
+      && doc.querySelector("#couche-enregistrer").disabled && JSON.parse(w.localStorage.getItem("web-measures/couche")).modifie === false);
+    const options = (id) => [...doc.querySelectorAll(`${id} option`)].map((o) => o.value);
+    log("couleur selon : " + options("#couche-couleur").join(", "));
+    expect("couleur et étiquette selon les champs, nb_visees compris, sans les colonnes techniques",
+      ["#couche-couleur", "#couche-etiquette"].every((id) => options(id).includes("essence") && options(id).includes("nb_visees")
+        && !options(id).some((c) => ["angle", "incert_m", "ecart_m", "dist_max_m", "gps_m", "photos", "date_mesure", "z_ngf"].includes(c))));
+    const labels = () => w.mesures.map.getSource("couche").serialize().data.features.map((f) => f.properties._etiquette).join(" | ");
+    expect("sans étiquette : case de l'intitulé grisée", doc.querySelector("#couche-intitule").disabled);
+    doc.querySelector("#couche-etiquette").value = "essence";
+    doc.querySelector("#couche-etiquette").dispatchEvent(new Event("change"));
+    doc.querySelector("#couche-intitule").checked = true;
+    doc.querySelector("#couche-intitule").dispatchEvent(new Event("change"));
+    await sleep(300);
+    log("étiquettes : " + labels());
+    expect("étiquettes avec l'intitulé du champ", labels().includes("essence : tilleul") && !doc.querySelector("#couche-intitule").disabled, labels());
+    expect("case de l'intitulé gardée avec la couche", JSON.parse(w.localStorage.getItem("web-measures/couche")).intitule === true);
+    doc.querySelector("#couche-etiquette").value = "distance_bord_m";
+    doc.querySelector("#couche-etiquette").dispatchEvent(new Event("change"));
+    doc.querySelector("#couche-suffixe").value = "m";
+    doc.querySelector("#couche-suffixe").dispatchEvent(new Event("input"));
+    await sleep(300);
+    log("étiquettes : " + labels());
+    expect("texte après la valeur", labels() === "distance_bord_m : 2,4 m | distance_bord_m : 3 m", labels());
+    expect("mini-carte : colonne « id » par défaut, étiquettes indépendantes de la visionneuse", doc.querySelector("#couche-etiquette-carte").value === "id"
+      && w.mesures.map.getSource("couche").serialize().data.features.map((f) => f.properties._etiquette_carte).join() === "1,2");
+    doc.querySelector("#couche-etiquette-carte").value = "classe";
+    doc.querySelector("#couche-etiquette-carte").dispatchEvent(new Event("change"));
+    await sleep(300);
+    { const m = w.mesures.map; m.jumpTo({ center: target, zoom: 18 }); await sleep(800);
+      const size = w.getComputedStyle(m.getContainer().querySelector(".maplibregl-marker .etiquette.couche")).fontSize;
+      expect("étiquettes de la couche sur la mini-carte : 15 px", size === "15px", size); }
+    expect("mini-carte : autre colonne choisie, gardée avec la couche", w.mesures.map.getSource("couche").serialize().data.features
+      .map((f) => f.properties._etiquette_carte).join() === "panneau,borne" && JSON.parse(w.localStorage.getItem("web-measures/couche")).etiquetteCarte === "classe");
+    expect("texte après la valeur gardé avec la couche", JSON.parse(w.localStorage.getItem("web-measures/couche")).suffixe === "m");
+    doc.querySelector("#couche-csv").click();
+    await sleep(500);
+    const layerCsv = Object.entries(saved).find(([k]) => k.endsWith(".csv"))?.[1] || "";
+    log("CSV de la couche : " + layerCsv.split("\n").slice(0, 3).join(" / "));
+    expect("CSV de la couche : colonnes du relevé, puis lon et lat", layerCsv.replace(/^\ufeff/, "").startsWith("id;distance_bord_m;essence;classe;")
+      && layerCsv.split("\n")[0].endsWith(";lon;lat") && layerCsv.includes("tronc creux") && layerCsv.includes(";2,4;"), layerCsv.split("\n")[0]);
+    // Clic droit sur un objet de la couche dans la photo (hors mesure) : sa fiche PDF
+    doc.querySelector("#mesure").click();
+    await sleep(1000);
+    const pastille = w.mesures.psv.container.querySelector(".pastille-couche[data-objet]");
+    expect("objet de la couche dessiné dans la photo", Boolean(pastille));
+    if (pastille) {
+      const e = new Event("click"); e.data = { yaw: 0, pitch: 0, rightclick: true, target: pastille }; w.mesures.psv.dispatchEvent(e);
+      const choice = doc.querySelector("#choix-fiche");
+      await until(() => choice.open, 5000, "fenêtre de la fiche");
+      log("fiche : " + choice.querySelector("h2").textContent + " · titre " + doc.querySelector("#titre-fiche").value);
+      expect("clic droit : fenêtre de la fiche de l'objet", /^Fiche de l'objet \d$/.test(choice.querySelector("h2").textContent)
+        && !choice.querySelector(".fiche-objet").hidden && choice.querySelector(".fiche-point").hidden);
+      expect("clic droit : pas de recalage lancé", !doc.querySelector("#statut").textContent.includes("cliquez sa place"));
+      const frameBox = document.querySelector("#f").contentDocument.querySelector(".cadre-fiche > div")?.getBoundingClientRect();
+      const psvBox = w.mesures.psv.container.getBoundingClientRect();
+      log(`cadre : ${Math.round(frameBox?.width)}×${Math.round(frameBox?.height)} dans ${Math.round(psvBox.width)}×${Math.round(psvBox.height)}`);
+      expect("cadre de la vue actuelle tracé, au format de la fiche", frameBox && Math.abs(frameBox.width / frameBox.height - 698 / 356) < 0.01
+        && frameBox.width <= psvBox.width + 0.5 && frameBox.height <= psvBox.height + 0.5);
+      const mapFrame = [...doc.querySelectorAll(".cadre-fiche > div:first-child")].map((d) => d.getBoundingClientRect()).find((r) => r.width < 300);
+      log(`cadre de la mini-carte : ${Math.round(mapFrame?.width)}×${Math.round(mapFrame?.height)}`);
+      expect("cadre aussi sur la mini-carte, à la taille de sa capture", mapFrame && Math.abs(mapFrame.width / mapFrame.height - 230 / 300) < 0.01
+        && mapFrame.width <= 230.5);
+      // Données de la fiche : « essence » décochée, « classe » montée en tête ; gardées avec la couche
+      const fieldsList = () => [...doc.querySelectorAll("#fiche-champs li")];
+      log("données de la fiche : " + fieldsList().map((li) => li.dataset.champ).join(", "));
+      expect("données de la fiche : colonnes sans les techniques, flèche du haut grisée en tête", fieldsList()[0]?.dataset.champ === "id"
+        && fieldsList()[0].querySelector(".monter").disabled && !fieldsList().some((li) => li.dataset.champ === "incert_m"));
+      fieldsList().find((li) => li.dataset.champ === "essence").querySelector("input").checked = false;
+      for (let i = 0; i < 2; i++) fieldsList().find((li) => li.dataset.champ === "classe").querySelector(".monter").click();
+      // puis glissé-déposé sur le haut de la première ligne : en tête
+      { const from = fieldsList().find((li) => li.dataset.champ === "classe"), to = fieldsList()[0], dt = new w.DataTransfer();
+        const y = to.getBoundingClientRect().top + 2;
+        from.dispatchEvent(new w.DragEvent("dragstart", { bubbles: true, dataTransfer: dt }));
+        to.dispatchEvent(new w.DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: dt, clientY: y }));
+        to.dispatchEvent(new w.DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt, clientY: y }));
+        from.dispatchEvent(new w.DragEvent("dragend", { bubbles: true, dataTransfer: dt })); }
+      expect("glissé-déposé : « classe » en tête, flèches mises à jour", fieldsList()[0].dataset.champ === "classe"
+        && fieldsList()[0].querySelector(".monter").disabled && !fieldsList()[1].querySelector(".monter").disabled);
+      const opened = w.open;
+      w.open = () => null;  // pas de fenêtre de fiche pendant l'essai : seulement les choix gardés
+      choice.querySelector('button[value="vue"]').click();
+      await sleep(300);
+      if (location.hash === "#cadre") { log("CAPTURE"); await sleep(4000); }  // capture par CDP du recadrage
+      expect("vue actuelle : fenêtre fermée, cadre gardé pour recadrer, avec « Valider le cadrage »", !choice.open
+        && doc.querySelector(".cadre-fiche .cadre-boutons .oui")?.textContent.includes("Valider"));
+      doc.querySelector(".cadre-fiche .cadre-boutons .oui").click();
+      await sleep(300);
+      w.open = opened;
+      expect("cadre retiré à la validation, fiche lancée", !doc.querySelector(".cadre-fiche")
+        && doc.querySelector("#statut").textContent.includes("fenêtre bloquée"), doc.querySelector("#statut").textContent);
+      const memo = JSON.parse(w.localStorage.getItem("web-measures/couche")).fiche || [];
+      log("gardées : " + memo.map(([c, on]) => c + (on ? "" : " (non)")).join(", "));
+      expect("ordre et cases gardés avec la couche", memo[0]?.[0] === "classe" && memo.find(([c]) => c === "essence")?.[1] === false);
+      e.data.target = pastille; w.mesures.psv.dispatchEvent(e);  // objet suivant : mêmes choix proposés
+      await until(() => choice.open, 5000, "fenêtre de la fiche (2)");
+      expect("fiche suivante : mêmes choix proposés", fieldsList()[0].dataset.champ === "classe"
+        && !fieldsList().find((li) => li.dataset.champ === "essence").querySelector("input").checked);
+      choice.close();
+      const html = await w.mesures.buildFiche({ objet: Number(pastille.dataset.objet), champs: memo.filter(([, on]) => on).map(([c]) => c) }, true, "essai");
+      if (location.hash === "#fiche") {  // capture par CDP de la fiche seule
+        const shown = Object.assign(document.createElement("iframe"), { srcdoc: html, style: "position:fixed;inset:0;width:100%;height:100%;border:0;background:#fff;z-index:9" });
+        document.body.append(shown);
+        await sleep(2000);
+        log("CAPTURE");
+        await sleep(4000);
+        shown.remove();
+      }
+      const page = new DOMParser().parseFromString(html, "text/html");
+      const cells = [...page.querySelectorAll("td")].map((td) => td.textContent);
+      log("fiche de l'objet : " + page.querySelector(".sous-titre").textContent + " · " + cells.join(" | "));
+      expect("fiche de l'objet : ses attributs, sans les colonnes techniques", page.querySelector("h2").textContent === "Attributs"
+        && cells[0] === "classe" && !cells.includes("essence") && cells.includes("nb_visees") && !cells.includes("incert_m")
+        && cells.includes("2,4 m")  // texte après la valeur de l'étiquette (distance_bord_m, « m »)
+        && page.querySelector(".sous-titre").textContent.startsWith("Fiche d'objet") && page.querySelector("figure img")?.src.startsWith("data:image"));
+    }
+    // Objet recalé dans la photo : « Enregistrer » actif, puis réécrit dans le même fichier
+    if (pastille) {
+      const before = Object.keys(saved).length, file = doc.querySelector("#couche-nom").textContent;
+      const click = (data) => { const e = new Event("click"); e.data = { rightclick: false, ...data }; w.mesures.psv.dispatchEvent(e); };
+      const live = w.mesures.psv.container.querySelector(".pastille-couche[data-objet]");
+      click({ yaw: 0, pitch: 0, target: live });
+      click({ yaw: 0.05, pitch: -0.2, target: w.mesures.psv.container });
+      doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await sleep(300);
+      expect("objet recalé : « Enregistrer » actif", !doc.querySelector("#couche-enregistrer").disabled);
+      doc.querySelector("#couche-enregistrer").click();
+      await sleep(500);
+      expect("« Enregistrer » : même fichier réécrit, avec le recalage, sans nouvelle boîte", Object.keys(saved).length === before
+        && JSON.parse(saved[file]).features.some((f) => f.recalages) && doc.querySelector("#couche-enregistrer").disabled
+        && !doc.querySelector("#fichier-change").open, file);
+      // Fichier modifié ailleurs entre-temps : question avant d'écraser
+      stamps[file] += 60000;
+      click({ yaw: 0, pitch: 0, target: w.mesures.psv.container.querySelector(".pastille-couche[data-objet]") });
+      click({ yaw: 0.06, pitch: -0.2, target: w.mesures.psv.container });
+      doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await sleep(300);
+      doc.querySelector("#couche-enregistrer").click();
+      await until(() => doc.querySelector("#fichier-change").open, 5000, "question du fichier modifié");
+      doc.querySelector('#fichier-change button[value="ecraser"]').click();
+      await sleep(500);
+      expect("fichier modifié entre-temps : écrasé après la question", doc.querySelector("#couche-enregistrer").disabled
+        && doc.querySelector("#statut").textContent.includes("enregistrée"), doc.querySelector("#statut").textContent);
+      // Fichier effacé ou déplacé : « Enregistrer sous » proposé aussitôt
+      const lost = Object.keys(saved).length;
+      const picker = w.showSaveFilePicker;
+      w.showSaveFilePicker = async (o) => { const h = await picker({ ...o, suggestedName: "ailleurs.geojson" }); return h; };
+      const handle = { name: file, queryPermission: async () => "granted",
+        getFile: async () => { throw new w.DOMException("introuvable", "NotFoundError"); } };
+      click({ yaw: 0, pitch: 0, target: w.mesures.psv.container.querySelector(".pastille-couche[data-objet]") });
+      click({ yaw: 0.07, pitch: -0.2, target: w.mesures.psv.container });
+      doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await sleep(300);
+      w.mesures.overlayFile(handle);
+      doc.querySelector("#couche-enregistrer").click();
+      await sleep(500);
+      w.showSaveFilePicker = picker;
+      expect("fichier introuvable : enregistré ailleurs, la couche prend ce fichier", Object.keys(saved).length === lost + 1
+        && "ailleurs.geojson" in saved && doc.querySelector("#couche-nom").textContent === "ailleurs.geojson", Object.keys(saved).join(", "));
+    }
+    doc.querySelector("#mesure").click();  // mesure reprise pour la suite
+    // Navigateur sans boîte « Enregistrer sous » (Firefox) : nom demandé, extension remise
+    const picker = w.showSaveFilePicker, clicks = [];
+    w.showSaveFilePicker = undefined;
+    const anchorClick = w.HTMLAnchorElement.prototype.click;
+    w.HTMLAnchorElement.prototype.click = function () { clicks.push(this.download); };
+    doc.querySelector("#couche-csv").click();
+    const nameDialog = doc.querySelector("#nom-fichier");
+    await until(() => nameDialog.open, 5000, "fenêtre du nom de fichier");
+    expect("nom proposé", nameDialog.querySelector("input").value.endsWith(".csv"), nameDialog.querySelector("input").value);
+    nameDialog.querySelector("input").value = "arbres D977";
+    nameDialog.querySelector("input").dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await sleep(300);
+    expect("téléchargé sous le nom choisi, extension remise", clicks.join() === "arbres D977.csv", clicks.join());
+    doc.querySelector("#couche-csv").click();
+    await until(() => nameDialog.open, 5000, "fenêtre du nom de fichier (2)");
+    nameDialog.querySelector('button[value=""]').click();
+    await sleep(300);
+    expect("Annuler : rien de téléchargé", clicks.length === 1);
+    w.HTMLAnchorElement.prototype.click = anchorClick;
+    w.showSaveFilePicker = picker;
+    // Couche déjà chargée : enregistrée puis remplacée
+    doc.querySelector("#releve-couche").click();
+    await until(() => doc.querySelector("#remplacer-couche").open, 5000, "fenêtre de remplacement");
+    doc.querySelector('#remplacer-couche button[value="enregistrer"]').click();
+    await sleep(800);
+    expect("couche chargée enregistrée en GeoJSON avant d'être remplacée", Object.keys(saved).some((k) => k.endsWith("-recale.geojson"))
+      && w.mesures.map.getSource("couche").serialize().data.features.length === 2, Object.keys(saved).join(", "));
+    expect("relevé gardé après l'envoi", JSON.parse(app.results()).filter((r) => r.releve).length === 2);
+    // Tout effacer dans un autre mode : le relevé reste
+    doc.querySelector("#mode").value = "tri"; doc.querySelector("#mode").dispatchEvent(new Event("change"));
+    doc.querySelector("#tout-effacer").click();
+    await sleep(300);
+    expect("« Tout effacer » hors relevé : objets relevés gardés", JSON.parse(app.export_geojson(true)).features.length === 2);
+    // Rechargement : relevé remis
+    w.location.reload();
+    await sleep(1000);
+    await until(() => w.document.readyState === "complete" && w.mesures?.app, 120000, "Pyodide rechargé");
+    await sleep(2000);
+    const back = JSON.parse(w.mesures.app.export_geojson(true)).features;
+    expect("relevé remis au rechargement", back.length === 2 && back[0].properties.essence === "tilleul");
+    expect("relevé actif après rechargement", !w.document.querySelector("#releve-couche").disabled);
+    // Objet posé d'un clic sur la mini-carte (sans visée)
+    { const d = w.document, a2 = w.mesures.app;
+      d.querySelector("#mode").value = "releve"; d.querySelector("#mode").dispatchEvent(new Event("change"));
+      if (d.querySelector("#mesure").getAttribute("aria-pressed") !== "true") d.querySelector("#mesure").click();
+      await w.mesures.openPhoto(photos[0]);
+      await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "photo (carte)");
+      await sleep(500);
+      expect("relevé : « Placer sur la carte » proposé", !d.querySelector("#placer-carte").hidden);
+      d.querySelector("#placer-carte").click();
+      const spot = [target[0] + 3 * Math.sin(along) / kx, target[1] + 3 * Math.cos(along) / 111320];
+      { const m = w.mesures.map; m.jumpTo({ center: spot, zoom: 19 }); await sleep(800);
+        const c = m.getCanvas(), r = c.getBoundingClientRect(), p = m.project(spot);
+        const at = { clientX: r.left + p.x, clientY: r.top + p.y, bubbles: true, button: 0 };
+        for (const type of ["mousedown", "mouseup", "click"]) c.dispatchEvent(new w.MouseEvent(type, at)); }
+      const box = d.querySelector("#releve-objet");
+      await until(() => box.open, 5000, "fenêtre des champs (carte)");
+      d.querySelector('#releve-valeurs [data-champ="classe"]').value = "borne";
+      d.querySelector("#releve-enregistrer").click();
+      await until(() => !box.open, 15000, "fenêtre fermée (carte)");
+      await sleep(300);
+      const last = JSON.parse(a2.export_geojson(true)).features.pop();
+      log("objet sur la carte : " + JSON.parse(a2.results()).filter((r) => r.releve).pop().text);
+      expect("objet posé sur la carte : à l'endroit cliqué, sans visée", last.properties.id === 3 && last.properties.nb_visees === 0
+        && last.properties.classe === "borne" && Math.hypot(...metres(last.geometry.coordinates, spot)) < 0.5 && last.properties.voie,
+        `${Math.hypot(...metres(last.geometry.coordinates, spot)).toFixed(3)} m de l'endroit cliqué`);
+      await sleep(500);
+      const crosses = w.mesures.psv.container.querySelectorAll(".croix:not(.visee)").length;
+      expect("objet posé sur la carte : dessiné dans la photo (au sol)", crosses === 3, `${crosses} croix`);
+    }
+    // Vider : objets retirés du relevé, la couche reste
+    w.document.querySelector("#releve-vider").click();
+    await until(() => w.document.querySelector("#vider-releve").open, 5000, "fenêtre Vider");
+    w.document.querySelector('#vider-releve button[value="vider"]').click();
+    await sleep(500);
+    expect("relevé vidé, couche gardée", JSON.parse(w.mesures.app.results()).filter((r) => r.releve).length === 0
+      && w.document.querySelector("#releve-vider").disabled && w.mesures.map.getSource("couche").serialize().data.features.length === 2);
+    verdict();
+  } catch (e) { log("ERREUR " + e + " " + (e.stack || "").split("\n")[1]); }
+  log("FIN");
+})();
+</script>

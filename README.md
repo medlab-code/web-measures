@@ -61,7 +61,7 @@ pour les départementales, cyan pour les métropolitaines, vert pour les europé
 des départements (bleu), de la métropole (vert) et des communes (tirets noirs). Les
 autoroutes et nationales paraissent dès le zoom 7, les départementales dès le zoom 10, les
 autres voies dès le zoom 15. Les points de repère sont dessinés en bornes (tête à la couleur
-du réseau, numéro du PR), à côté de la voie. Le filaire Panoramax, semi-transparent, se
+du réseau, numéro du PR), à côté de la voie, avec ce fond seulement. Le filaire Panoramax, semi-transparent, se
 masque par sa case à cocher.
 
 **Choisir une photo** : cliquer sur le filaire orange de la carte (photo la plus proche) ; la
@@ -179,6 +179,24 @@ après.
 - **Mesure libre (points triangulés)** : viser chaque point depuis au moins deux photos, puis
   « Valider le point triangulé » ; à partir du deuxième, la distance horizontale au point précédent
   s'affiche, et la carte se cadre sur le segment.
+- **Relevé d'objets (couche SIG)** : viser chaque objet (un arbre d'un alignement, par exemple)
+  depuis au moins deux photos, puis « Valider le point triangulé » ; après une seule visée,
+  « Garder sur cette seule photo » propose de le poser là où la visée touche le sol, avec sa
+  précision (sol supposé plat, plus imprécise que la triangulation : sinon, viser depuis une autre
+  photo). « 📍 Placer sur la carte », puis un clic sur la mini-carte, pose un objet sans le viser
+  (`nb_visees` 0, ±1 m : précision des orthophotos IGN ; projeté au sol dans les photos). Au premier
+  objet, on définit les champs du relevé (nom, type : texte, nombre, date,
+  oui/non, liste de valeurs) ; ils reviennent pour chaque objet suivant (✎ dans les résultats pour
+  les modifier), avec un commentaire, et d'autres peuvent s'y ajouter en cours de route (vides pour
+  les objets déjà relevés) ; un champ texte propose dans une liste les valeurs déjà
+  saisies sur les autres objets. Voie, PR et commune de l'objet s'ajoutent d'eux-mêmes.
+  Le relevé terminé, « Envoyer dans Couche » l'affiche dans l'onglet Couche
+  (couleurs et étiquettes selon ses champs, recalage, export GeoJSON ou CSV : colonnes `id`, champs,
+  `voie`, `pr`, `commune`, `commentaire`, puis le reste, dont `z_ngf`) ; une couche déjà chargée
+  peut être enregistrée avant d'être remplacée. Le relevé reste dans le navigateur d'une séance à
+  l'autre jusqu'à « Vider » ; « Tout effacer » ne le retire que depuis ce mode.
+  Chaque objet se voit sur toutes les photos à 100 m au plus : là où il a été visé, sinon à son
+  altitude (photos RTK : `z_ngf`, exportée), et projeté au sol seulement sans elle.
 
 Repères visuels :
 
@@ -204,7 +222,9 @@ de tout effacer pour repartir de zéro. Échap annule le tracé d'une droite sur
 
 **Fiche PDF** : bouton « 📄 Fiche » d'un point de référence dans les résultats, puis le choix de la
 photo : « Cadrage automatique » (ci-dessous) ou « Vue actuelle » (la visionneuse telle qu'affichée,
-sans changer de photo ni de cadrage), et un titre libre (« point de référence A » par défaut, après
+sans changer de photo : la fenêtre se ferme, on recadre la vue et la mini-carte sous les cadres jaunes de
+la photo et de la carte de la fiche, tracés dès l'ouverture de la fenêtre, puis « Valider le cadrage » ; la
+mini-carte est alors reprise telle que recadrée), et un titre libre (« point de référence A » par défaut, après
 « Fiche de mesure — »). Une page A4
 s'ouvre dans une fenêtre à part et la boîte d'impression du navigateur propose « Enregistrer au
 format PDF ». La page contient la photo d'où la plus grande mesure du point a été prise, cadrée
@@ -227,8 +247,7 @@ suivre le terrain ; à plat à la hauteur de caméra en attendant, ou sans LiDAR
 de 100 m de la photo. Couleur selon une colonne : une couleur par valeur (palette Set1 de ColorBrewer
 sans son gris, prolongée de huit couleurs : seize valeurs, les plus fréquentes, puis par ordre alphabétique, les autres et les vides en gris), ou, pour une
 colonne numérique d'au moins 11 valeurs, dégradé entre les couleurs du minimum et du maximum choisies
-dans la légende (chaque objet prend leur mélange pondéré par sa valeur), étiquette d'une colonne (dans la photo,
-et sur la carte à partir du zoom 16), légende (un clic sur une pastille : palette ; « Couleurs par défaut »).
+dans la légende (chaque objet prend leur mélange pondéré par sa valeur), étiquette d'une colonne dans la photo, précédée de son intitulé si la case est cochée (« essence : tilleul ») et suivie d'un texte fixe au choix (unité : « 12 cm »), étiquette de la mini-carte (à partir du zoom 16) d'une autre colonne au choix, « id » par défaut (sans tenir compte de la casse), sinon la première, légende (un clic sur une pastille : palette ; « Couleurs par défaut »).
 Étiquettes en texte seul, de la couleur de l'objet éclaircie de moitié, liseré noir, jamais recouvertes
 par une pastille, placées de l'objet le plus proche de la photo au plus lointain : remontées en cas
 de chevauchement, masquées s'il faudrait les remonter de plus d'une fois et demie leur hauteur. Sa fiche, en tête de l'onglet, donne le nombre d'objets, le système de
@@ -237,7 +256,14 @@ la remplacent par un autre fichier ou la retirent. Le dégradé se règle par le
 barre. Un œil sur chaque valeur de la légende masque ses objets sur la carte et dans la photo (gardé avec
 la couche, par colonne ; l'export garde tous les objets). Une couche à la fois, gardée avec ses réglages dans le
 navigateur d'une session à l'autre (sauf si elle est trop grosse : un message le dit) ; « Retirer »
-l'efface. **Recalage dans la photo** (hors mesure) : clic sur la pastille ou l'étiquette d'un objet,
+l'efface. **Enregistrer** (disquette, grisée tant que rien n'a changé) : les recalages sont réécrits dans le
+fichier GeoJSON importé (Chrome, Edge : fichier choisi par « Importer » ou glissé, retrouvé à l'ouverture suivante, en
+WGS 84), sans rien demander s'il n'a pas changé depuis l'import ou le dernier enregistrement (sinon : écraser,
+enregistrer sous, ou annuler ; effacé ou déplacé : « Enregistrer sous » aussitôt ; le navigateur demande l'autorisation d'écrire une fois par séance) ; sinon (Firefox, Shapefile, GeoPackage, relevé envoyé), « Enregistrer sous » en GeoJSON, puis ce fichier-là.
+**Fiche PDF d'un objet** (hors mesure) : clic droit sur sa pastille ou son étiquette dans la
+photo (photo cadrée sur l'objet ou vue actuelle, tableau de ses attributs, mini-carte) ; les données
+affichées et leur ordre (flèches ou glissé-déposé) se choisissent dans la fenêtre de la fiche et restent pour les objets suivants de la
+couche, et le texte ajouté après la valeur de l'étiquette y est repris. **Recalage dans la photo** (hors mesure) : clic sur la pastille ou l'étiquette d'un objet,
 puis clic à sa place vue dans la photo, flèches pour l'ajuster (0,05°), Entrée pour finir, Suppr pour
 le remettre à sa place calculée ; décalage propre à cette photo, la carte n'est pas modifiée. Gardé
 avec la couche ; « Exporter » écrit un GeoJSON (WGS 84) où chaque objet porte ses
@@ -345,6 +371,7 @@ Essais sur deux photos imajbox à position RTK (±0,10 m) de Pouilly-en-Auxois, 
 | Hauteur | 3,46 m ± 0,11 m | 3,464 m |
 | Largeur (clic à 40° de la droite de mesure) | 8,00 m ± 0,33 m | 8 m |
 | Distance entre deux points | 3,60 m ± 0,24 m | 3,606 m |
+| Objet relevé sur une seule photo, à 6 m (`essai-releve.html`) | ±0,2 à 0,8 m selon le calage de l'inclinaison | à moins de 1 m de la cible |
 
 Inclinaison par le terrain (24/10/2026, 7 séquences CD21) : 14 photos témoins hors des villages
 de référence, prises en hameau ou en sortie de village à 56 à 67 km/h et calées par leurs
