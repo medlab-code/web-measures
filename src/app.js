@@ -2775,7 +2775,7 @@
 
   const RELEVE_TYPES = { texte: "Texte", nombre: "Nombre", date: "Date", oui_non: "Oui / non", liste: "Liste de valeurs" };
   // Colonnes déjà remplies par l'application : un champ ne peut pas porter leur nom
-  const RELEVE_RESERVES = ["type", "nom", "nb_visees", "angle", "incert_m", "ecart_m", "dist_max_m", "gps_m",
+  const RELEVE_RESERVES = ["type", "nom", "nb_visees", "angle", "incert_m", "ecart_m", "dist_max_m", "gps_m", "z_ngf",
     "photos", "date_mesure", "commentaire", "voie", "pr", "commune"];
   let releveSaved = null;
 

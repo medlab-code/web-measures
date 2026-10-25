@@ -122,16 +122,23 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     near("objet sur une seule photo : écart à la cible (m)", Math.hypot(bx, by), 0, 1.0);
     const [ax, ay] = metres(a.geometry.coordinates, target);
     near("objet triangulé : écart à la cible (m)", Math.hypot(ax, ay), 0, 0.3);
+    expect("altitude NGF des objets gardée (photos RTK)", typeof a.properties.z_ngf === "number" && typeof b.properties.z_ngf === "number",
+      `${a.properties.z_ngf} / ${b.properties.z_ngf}`);
     expect("export des mesures sans les objets relevés", JSON.parse(app.export_geojson()).features.length === 0);
     const csv = app.export_csv(true);
     expect("CSV du relevé : en-tête avec les champs", csv.split("\n")[0].includes("distance_bord_m;essence"), csv.split("\n")[0]);
     expect("exports du relevé actifs", !doc.querySelector("#releve-csv").disabled && doc.querySelector("#releve-infos").textContent === "2 objets");
+    // Sur une photo d'où l'objet B n'a pas été visé : projeté au sol, toujours visible
+    await open(photos[0]);
+    const crosses = w.mesures.psv.container.querySelectorAll(".croix:not(.visee)").length;
+    expect("objets relevés visibles sur une photo d'où ils n'ont pas tous été visés", crosses === 2, `${crosses} croix`);
     // Fiche : champs dans le tableau ; cadrage sur l'objet depuis sa photo
     const fiche = JSON.parse(app.fiche(objects[0].id));
     log("fiche : " + fiche.rows.map((r) => `${r.point}/${r.mesure}/${r.valeur}`).join(" | "));
     expect("fiche : une ligne par champ", fiche.rows.some((r) => r.mesure === "essence" && r.valeur === "tilleul")
       && fiche.rows[0].mesure.startsWith("Objet relevé"));
     const k2 = JSON.parse(app.results()).filter((r) => r.releve).pop().id;
+    await open(photos[1]);
     expect("fiche de l'objet B : visée sur cette photo pour le cadrage", JSON.parse(app.fiche_frame(k2)).length === 1);
     // ✎ : champs de l'objet préremplis
     const edits = [...doc.querySelectorAll("#resultats > ol li")].filter((li) => li.textContent.includes("Objet B"));

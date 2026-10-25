@@ -188,6 +188,8 @@ après.
   les modifier). Voie, PR et commune de l'objet s'ajoutent d'eux-mêmes. Le relevé s'exporte à part
   (CSV, GeoJSON : un point par objet, ses champs en colonnes), chaque objet a sa fiche PDF, et il
   reste dans le navigateur d'une séance à l'autre ; « Tout effacer » ne le retire que depuis ce mode.
+  Chaque objet se voit sur toutes les photos à 100 m au plus : là où il a été visé, sinon à son
+  altitude (photos RTK : `z_ngf`, exportée), et projeté au sol seulement sans elle.
 
 Repères visuels :
 

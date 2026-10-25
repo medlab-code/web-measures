@@ -679,8 +679,23 @@ class App(session.Session):
         return [m for m in found if m.clicks[1].get("pic") == self._here()] if self.here_only else found
 
     def _free_mark_point(self, k):
-        """Point gardé de la mesure libre : seulement là où il a été visé (sans repère ailleurs)."""
-        if self.here_only and self._here() not in self.point_views.get(self.points[k][2]["nom"], {}):
+        """Point gardé de la mesure libre : seulement là où il a été visé (sans repère ailleurs). Objet
+        relevé : sur toutes les photos, projeté au sol, à OVERLAY_REACH m au plus (comme la couche)."""
+        lon, lat, values = self.points[k]
+        if "releve" in values and self.item:
+            camera = [float(v) for v in self.item["geometry"]["coordinates"][:2]]
+            x, y = triangulation._local(lon, lat, *camera)
+            if math.hypot(x, y) <= self.OVERLAY_REACH:
+                view = self.point_views.get(values["nom"], {}).get(self._here())
+                alt = (host.ngf_altitude(*camera, metadata.item_altitude(self.item))
+                       if (self.quality or {}).get("precise") else None)
+                if view is None and values.get("z_ngf") is not None and alt is not None:
+                    # à son altitude, vue depuis la caméra de cette photo (RTK) : pas ramené au sol
+                    seen = self._view_of(math.degrees(math.atan2(x, y)),
+                                         math.degrees(math.atan2(values["z_ngf"] - alt, max(math.hypot(x, y), 0.5))))
+                    return {"pic": self._here(), "yaw": seen["yaw"], "pitch": seen["pitch"]}
+                return super()._free_mark_point(k)  # visé d'ici, sinon projeté au sol
+        if self.here_only and self._here() not in self.point_views.get(values["nom"], {}):
             return {"pic": self._here(), "yaw": None, "pitch": None}
         return super()._free_mark_point(k)
 
@@ -877,16 +892,18 @@ class App(session.Session):
         ensuite ses champs (set_releve)."""
         if not self.releve:
             return super().keep_point()
-        n = len(self.points)
+        n, r, sightings = len(self.points), self.triangulator.result, list(self.triangulator.sightings)
         self.last_free = None
         super().keep_point()
         self.last_free = None
         if len(self.points) > n:
-            self._releve_kept()
+            self._releve_kept(_aimed_z(r, sightings))
         return self.status()
 
-    def _releve_kept(self):
+    def _releve_kept(self, z=None):
+        """Dernier point gardé devenu objet relevé ; z : altitude NGF du point visé (m) ou None."""
         values = self.points[-1][2]
+        values["z_ngf"] = None if z is None else round(z, 2)
         values["releve"] = {}
         self.message = ("Objet {} gardé (±{} m) : renseignez ses champs, puis visez l'objet suivant.").format(
             values["nom"], measures._num(values["incert_m"], 2))
@@ -947,7 +964,7 @@ class App(session.Session):
             "date_mesure": datetime.now().isoformat(timespec="seconds"), "commentaire": ""}))
         self.point_views[name] = {s["pic"]: s["view"]} if s.get("view") else {}
         self.triangulator.clear()
-        self._releve_kept()
+        self._releve_kept(None if s.get("alt") is None else s["alt"] - self._camera_height())  # au sol
         return self.status()
 
     def set_releve(self, k, text):
@@ -1963,6 +1980,18 @@ class App(session.Session):
 def _view_heading(item, yaw):
     """Cap (degrés) du centre de la vue : la visionneuse s'oriente sur view:azimuth."""
     return (math.degrees(yaw) + (metadata.item_heading(item) or 0.0)) % 360
+
+
+def _aimed_z(r, sightings):
+    """Altitude NGF (m) du point triangulé r : celle de la triangulation 3D, sinon la moyenne des
+    visées dont la caméra a son altitude (alt + distance × tangente de l'inclinaison) ; None sans."""
+    if r is None:
+        return None
+    if r.get("z") is not None:
+        return r["z"]
+    zs = [s["alt"] + d * math.tan(math.radians(s.get("elev") or 0.0))
+          for s, d in zip(sightings, r["distances"]) if s.get("alt") is not None]
+    return sum(zs) / len(zs) if zs else None
 
 
 def _field_text(value):
