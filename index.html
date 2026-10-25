@@ -24,6 +24,9 @@
   <!-- Visionneuse officielle Panoramax : paquet autonome au format CommonJS, dont la dernière
        ligne écrit dans `exports` -->
   <script>window.exports = {};</script>
+  <script>  /* thème choisi (Réglages), posé avant l'affichage : pas d'éclair clair en mode nuit */
+    try { const t = localStorage.getItem("web-measures/theme"); if (t) document.documentElement.dataset.theme = t; } catch { /* sans stockage */ }
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/@panoramax/web-viewer@5.3.1/build/cjs/index_photoviewer.js"></script>
   <script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
 </head>
@@ -34,9 +37,9 @@
       <span class="essai" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.6.0 — projet personnel – POC</span>
     </div>
     <!-- Mesure : gros bouton sur les deux rangées ; réglages, puis effacement en dessous -->
-    <div class="bloc mesure">
+    <div class="bloc mesure carte-barre">
       <button id="mesure" type="button" aria-pressed="false" disabled
-              title="Mesurer : un clic dans la photo prend un point au lieu de changer de photo">📐 Mesure</button>
+              title="Mesurer : un clic dans la photo prend un point au lieu de changer de photo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M4 20V4l16 16z M8 16h3M4 8h2M4 12h2" stroke-linejoin="round" stroke-linecap="round"/></svg> Mesure</button>
       <div class="bloc reglages">
         <div class="rang">
           <label>Mode
@@ -51,7 +54,7 @@
               </optgroup>
             </select>
           </label>
-          <label title="Sur un pont, le modèle de terrain de l'IGN (LiDAR HD, ou RGE ALTI là où le LiDAR HD n'est pas publié) donne le terrain sous l'ouvrage (la voie franchie), pas le tablier : les points au sol se calent alors sur le sol tiré des photos et l'inclinaison automatique se passe de la pente du terrain"><input id="pont" type="checkbox" disabled> Sur un pont</label>
+          <label title="Sur un pont, le modèle de terrain de l'IGN (LiDAR HD, ou RGE ALTI là où le LiDAR HD n'est pas publié) donne le terrain sous l'ouvrage (la voie franchie), pas le tablier : les points au sol se calent alors sur le sol tiré des photos et l'inclinaison automatique se passe de la pente du terrain"><input id="pont" type="checkbox" class="interrupteur" disabled> Sur un pont</label>
         </div>
         <div class="rang">
           <button id="effacer" type="button" disabled title="Annule le dernier geste : dernière visée, dernier clic, puis la mesure en cours et le dernier point posé (raccourci Ctrl+Z ; « Refaire » ou Ctrl+Y rétablit)">Effacer</button>
@@ -61,20 +64,20 @@
       </div>
     </div>
     <!-- Captures, puis fond de carte -->
-    <div class="bloc captures">
+    <div class="bloc captures carte-barre">
       <button id="capture-hd" type="button" disabled title="Vue affichée recalculée en Full HD
-(1920 × 1080) à partir de la photo originale, redressée si l'inclinaison est calée"><span class="icone" aria-hidden="true">📷</span><span class="libelle">Image seule</span></button>
+(1920 × 1080) à partir de la photo originale, redressée si l'inclinaison est calée"><span class="icone" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l2-3h6l2 3h3v11H4z" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="libelle">Image seule</span></button>
       <button id="vignette" type="button" disabled title="La visionneuse telle qu'affichée, mesures comprises,
-enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-hidden="true">📷</span><span class="libelle">Avec les mesures</span></button>
+enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l2-3h6l2 3h3v11H4z" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="libelle">Avec les mesures</span></button>
     </div>
-    <div class="bloc fond">
+    <div class="bloc fond carte-barre">
       <label for="fond">Fond de carte</label>
       <select id="fond"><option value="plan">Plan IGN</option><option value="ortho">Orthophoto</option>
         <option value="noms" title="Orthophoto, noms des lieux et des rues, voies et numéros de route, limites des départements et des communes">Orthophoto avec noms</option>
         <option value="express">Ortho-express (année de la photo)</option>
         <option value="pcrs" disabled title="Aucun PCRS publié sur la Géoplateforme à cet endroit">PCRS Géoplateforme</option>
         <option value="osm">OpenStreetMap</option></select>
-      <label title="Séquences et photos Panoramax sur la carte"><input type="checkbox" id="filaire" checked> Filaire Panoramax</label>
+      <label title="Séquences et photos Panoramax sur la carte"><input type="checkbox" id="filaire" class="interrupteur" checked> Filaire Panoramax</label>
     </div>
   </header>
   <main>
@@ -106,7 +109,14 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         </div>
         <p id="producteur-photo" hidden></p>
       </div>
-      <div class="haut-centre">  <!-- rappel du mode, boutons, puis messages ponctuels (calage du cap, photo écartée, inclinaison), affichés sous les boutons (style.css) -->
+      <!-- Hors mesure : avis passagers en haut au centre. En mesure : carte d'étape en bas (style.css,
+           #vue.en-mesure) : mesure et étapes, état, consigne, boutons, messages -->
+      <div class="haut-centre">
+        <div id="entete-etape">
+          <span id="nom-mesure"></span>
+          <ol id="etapes"></ol>
+          <p id="etat-mesure" hidden></p>
+        </div>
         <p id="mode-mesure" hidden>Mode mesure en cours : désélectionner pour naviguer</p>
         <p id="avis" hidden></p>
         <p id="calcul-inclinaison" hidden>Calcul de l'inclinaison en cours : attendez avant de mesurer</p>
@@ -129,8 +139,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <button id="nouvelle-reference" type="button" hidden title="Trianguler un autre point de référence : les mesures déjà faites restent">Nouveau point de référence</button>
         </div>
       </div>
-      <div class="haut-gauche">  <!-- état animé : triangulation ou mesure en cours -->
-        <p id="etat-mesure" hidden></p>
+      <div class="haut-gauche">
         <!-- Photo sur un pont : son nom et la hauteur de chute (voir App.fall) -->
         <p id="chute" hidden></p>
       </div>
@@ -151,137 +160,270 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
            title="Glisser pour changer la hauteur de la carte (double-clic : taille par défaut)">
         <button id="replier-carte" type="button" aria-expanded="true" title="Masquer la carte">▴</button>
       </div>
+      <!-- Panneau : ligne d'état, onglets, outils en pied (Filtre, Réglages, Services), une section affichée à la fois (app.js showPane) -->
       <div id="panneau">
-        <section>
-          <h2>Mesure</h2>
-          <p id="statut" class="statut">Chargement du calcul (Pyodide)…</p>
-          <p id="qualite" class="ligne"></p>
-          <p id="calage" class="ligne"></p>
-          <div class="reglages">
-            <label>Caméra à
-              <input id="camera" type="number" min="0.3" max="6" step="0.05" value="1.90" disabled> m</label>
-            <button id="camera-gps" type="button" hidden></button>
+        <!-- Ligne d'état : une ligne, dépliée d'un clic (calcul, chargement, échec, export) -->
+        <p id="statut" class="statut" role="status" title="Cliquer pour tout lire">Chargement du calcul (Pyodide)…</p>
+        <nav id="onglets" role="tablist" aria-label="Sections du panneau">
+          <button id="onglet-resultats" type="button" role="tab" data-panneau="resultats" aria-controls="resultats">Résultats <span id="compte-resultats" class="compte"></span></button>
+          <button id="onglet-photo" type="button" role="tab" data-panneau="photo" aria-controls="photo">Photo</button>
+          <button id="onglet-favoris" type="button" role="tab" data-panneau="favoris" aria-controls="favoris">Favoris <span id="compte-favoris" class="compte"></span></button>
+          <button id="onglet-couche" type="button" role="tab" data-panneau="couche" aria-controls="couche">Couche</button>
+        </nav>
+        <div id="contenu-panneau">
+        <section id="resultats" role="tabpanel" aria-labelledby="onglet-resultats">
+          <!-- En-tête : nombre de points et de mesures, exportées ou non ; exports -->
+          <div class="fiche-couche fiche-resultats">
+            <div class="nom-couche">
+              <p id="resultats-titre">Mesures de la séance</p>
+              <p id="resultats-infos">Aucune mesure</p>
+            </div>
+            <button id="csv" type="button" class="export" disabled title="Exporter en CSV (tableur), point-virgule et virgule décimale"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg> CSV</button>
+            <button id="geojson" type="button" class="export" disabled title="Exporter en GeoJSON (SIG)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg> GeoJSON</button>
           </div>
-        </section>
-        <section id="resultats">
-          <h2>Résultats</h2>
-          <p class="aide">Les mesures terminées s'ajoutent ici. Gardées dans ce navigateur, elles sont
-            proposées à l'export à l'ouverture suivante si elles ne l'ont pas été : exportez-les.</p>
+          <!-- Sans résultat : à quoi sert l'onglet -->
+          <div id="resultats-vide" class="accueil">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 20V4l16 16z M8 16h3M4 8h2M4 12h2" stroke-linejoin="round" stroke-linecap="round"/></svg>
+            <p class="titre-accueil">Aucune mesure pour l'instant</p>
+            <p class="aide">Les mesures terminées s'ajoutent ici, rangées sous leur point de référence. Gardées dans
+              ce navigateur, elles sont proposées à l'export à l'ouverture suivante si elles ne l'ont pas été :
+              exportez-les.</p>
+          </div>
           <!-- Résultats non exportés de la session précédente (src/app.js, saveResults) -->
-          <div id="precedents" hidden>
-            <p></p>
+          <details id="precedents" hidden>
+            <summary></summary>
             <ol></ol>  <!-- en lecture seule, gris aussi sur la carte -->
             <div class="boutons">
               <button id="precedents-csv" type="button">Exporter CSV</button>
               <button id="precedents-geojson" type="button">Exporter GeoJSON</button>
               <button id="precedents-oublier" type="button" title="Effacer ces résultats du navigateur">Oublier</button>
             </div>
-          </div>
+          </details>
           <ol></ol>
-          <div class="boutons">
-            <button id="csv" type="button" disabled>Exporter CSV</button>
-            <button id="geojson" type="button" disabled>Exporter GeoJSON</button>
-          </div>
         </section>
-        <section id="photo">
-          <h2>Photo</h2>
+        <section id="photo" role="tabpanel" aria-labelledby="onglet-photo" hidden>
+          <!-- Fiche de la photo affichée : date, producteur et caméra ; favori, identifiant à copier -->
+          <div class="fiche-couche fiche-photo">
+            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l2-3h6l2 3h3v11H4z" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+            <div class="nom-couche">
+              <p id="photo-titre">Aucune photo</p>
+              <p id="photo-infos"></p>
+            </div>
+            <button id="ajouter-favori" type="button" class="icone" disabled aria-label="Ajouter aux favoris"
+                    title="Ajouter cette photo aux favoris"><svg class="etoile" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" stroke-linejoin="round"/></svg></button>
+            <button id="photo-copier" type="button" class="icone" disabled aria-label="Copier l'identifiant de la photo"
+                    title="Copier l'identifiant de la photo dans le presse-papiers"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3"/></svg></button>
+          </div>
+          <!-- Propre à la photo affichée : précision GPS, terrain, inclinaison, calage (app.js refresh) -->
+          <h3>Position</h3>
+          <ul id="qualite" class="etats"></ul>
+          <h3>Détails</h3>
           <div id="fiche"><p class="aide">Aucune photo choisie.</p></div>
           <!-- Photo retrouvée par son identifiant (collé d'un collègue, d'un lien Panoramax) -->
-          <form id="aller-photo">
-            <label for="id-photo">Aller à la photo</label>
+          <form id="aller-photo" class="encart-calage">
+            <h3><label for="id-photo">Aller à une photo</label></h3>
             <div class="ligne-aller">
               <input id="id-photo" type="text" autocomplete="off" spellcheck="false"
                      placeholder="Identifiant ou lien Panoramax">
-              <button type="submit">Aller</button>
+              <button type="submit" disabled>Aller</button>
             </div>
             <p class="aide" hidden></p>
           </form>
+          <div class="encart-calage">
+            <h3>Calage des photos</h3>
+            <p class="aide">Inclinaisons et hauteurs de caméra calées, gardées dans ce navigateur ; à exporter
+              pour les reprendre sur un autre poste ou navigateur.</p>
+            <div class="boutons">
+              <button id="calage-exporter" type="button" disabled>Exporter le calage</button>
+              <button id="calage-importer" type="button" disabled>Importer un calage</button>
+              <input id="calage-fichier" type="file" accept=".json,application/json" hidden>
+            </div>
+          </div>
         </section>
         <!-- Photos favorites, gardées dans ce navigateur, nommées d'après leur lieu -->
-        <section id="favoris">
-          <h2>Favoris</h2>
-          <ol></ol>
-          <p class="aide">Aucun favori : ajoutez la photo affichée pour la retrouver d'un clic.</p>
-          <div class="boutons">
-            <button id="ajouter-favori" type="button" disabled><span class="etoile">★</span> Ajouter cette photo</button>
-            <button id="favoris-exporter" type="button" disabled title="Fichier à importer sur un autre poste ou navigateur">Exporter</button>
-            <button id="favoris-importer" type="button" title="Favoris d'un fichier exporté, ajoutés à ceux-ci">Importer</button>
+        <section id="favoris" role="tabpanel" aria-labelledby="onglet-favoris" hidden>
+          <!-- Photos favorites, gardées dans ce navigateur, nommées d'après leur lieu ; export pour un autre poste -->
+          <div class="fiche-couche fiche-favoris">
+            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" stroke-linejoin="round"/></svg></span>
+            <div class="nom-couche">
+              <p id="favoris-titre">Favoris</p>
+              <p id="favoris-infos">Aucune photo</p>
+            </div>
+            <button id="favoris-exporter" type="button" class="icone" disabled aria-label="Exporter les favoris"
+                    title="Exporter : fichier à importer sur un autre poste ou navigateur"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button id="favoris-importer" type="button" class="icone" aria-label="Importer des favoris"
+                    title="Importer : favoris d'un fichier exporté, ajoutés à ceux-ci"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             <input id="favoris-fichier" type="file" accept=".json,application/json" hidden>
+          </div>
+          <ol></ol>
+          <!-- Sans favori : comment en ajouter (masqué dès qu'il y en a un) -->
+          <div class="accueil aide">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" stroke-linejoin="round"/></svg>
+            <p class="titre-accueil">Aucun favori</p>
+            <p class="aide">L'étoile de la photo, ou celle de l'onglet Photo, la garde ici pour la retrouver d'un clic.</p>
           </div>
         </section>
         <!-- Couche importée (src/couche.js) : sur la carte et, au sol, dans la photo -->
-        <section id="couche">
-          <h2>Couche</h2>
-          <p class="aide">GeoJSON, Shapefile (.zip, ou .shp avec .dbf et .prj choisis ensemble) ou
-            GeoPackage, en WGS 84 ou Lambert 93 : ses objets sur la carte et, au sol, dans la photo (à
-            moins de 100 m). Hors mesure, un clic sur un objet dans la photo permet de le recaler sur ce
-            qu'on y voit ; « Exporter » le garde dans un GeoJSON pour un autre poste.</p>
-          <div id="couche-reglages" hidden>
-            <p id="couche-nom"></p>
-            <label><input id="couche-visible" type="checkbox" checked> Afficher la couche</label>
-            <label>Couleur selon <select id="couche-couleur"></select></label>
-            <ul id="couche-legende"></ul>
-            <button id="couche-couleurs-defaut" type="button" hidden>Couleurs par défaut</button>
-            <label>Étiquette <select id="couche-etiquette"></select></label>
+        <section id="couche" role="tabpanel" aria-labelledby="onglet-couche" hidden>
+          <!-- Sans couche : accueil ; fichier choisi, ou glissé sur l'onglet (app.js importOverlay) -->
+          <div id="couche-accueil">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z M3 13l9 5 9-5" stroke-linejoin="round"/></svg>
+            <p class="titre-accueil">Afficher vos objets sur les photos</p>
+            <p class="aide">Bornes, panneaux, réseaux… dessinés sur la carte et posés au sol dans la photo, à moins
+              de 100 m.</p>
+            <button id="couche-importer" type="button" class="principal">Importer un fichier…</button>
+            <p class="aide">ou glissez-le ici</p>
           </div>
-          <div class="boutons">
-            <button id="couche-importer" type="button">Importer…</button>
-            <button id="couche-exporter" type="button" hidden title="GeoJSON avec les objets recalés dans les photos, à importer sur un autre poste">Exporter</button>
-            <button id="couche-retirer" type="button" hidden>Retirer</button>
-            <input id="couche-fichier" type="file" multiple accept=".geojson,.json,.zip,.shp,.dbf,.prj,.cpg,.shx,.gpkg" hidden>
+          <dl id="couche-formats">
+            <dt>GeoJSON</dt><dd>.geojson, .json</dd>
+            <dt>Shapefile</dt><dd>.zip, ou .shp avec .dbf et .prj choisis ensemble</dd>
+            <dt>GeoPackage</dt><dd>.gpkg, table au choix</dd>
+          </dl>
+          <p id="couche-crs" class="aide">En WGS 84 ou Lambert 93. Altitude du fichier si elle existe, sinon le sol
+            LiDAR HD.</p>
+          <div id="couche-reglages" hidden>
+            <!-- Fiche de la couche : affichage, nom, actions -->
+            <div class="fiche-couche">
+              <label class="oeil" title="Afficher ou masquer la couche (carte et photo)">
+                <input id="couche-visible" type="checkbox" checked aria-label="Afficher la couche">
+                <svg class="ouvert" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="ferme" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 3l18 18M10.6 6.1A9.7 9.7 0 0112 6c6.5 0 10 6 10 6a17 17 0 01-3.2 3.9M6.6 6.6C3.8 8.4 2 12 2 12s3.5 6 10 6a9.6 9.6 0 004.4-1" stroke-linecap="round"/></svg>
+              </label>
+              <div class="nom-couche">
+                <p id="couche-nom"></p>
+                <p id="couche-infos"></p>
+              </div>
+              <button id="couche-exporter" type="button" class="icone" disabled aria-label="Exporter la couche"
+                      title="Exporter : GeoJSON avec les objets recalés dans les photos, à importer sur un autre poste"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <button id="couche-remplacer" type="button" class="icone" aria-label="Importer un autre fichier"
+                      title="Importer un autre fichier (remplace celui-ci)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <button id="couche-retirer" type="button" class="icone danger" disabled aria-label="Retirer la couche"
+                      title="Retirer la couche"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </div>
+            <div class="reglage-couche"><label for="couche-couleur">Couleur</label><select id="couche-couleur"></select></div>
+            <div class="titre-legende">
+              <h3 id="titre-legende">Légende</h3>
+              <span class="aide">clic sur une pastille : sa couleur</span>
+              <button id="couche-couleurs-defaut" type="button" class="lien" disabled>Couleurs par défaut</button>
+            </div>
+            <ul id="couche-legende"></ul>
+            <div class="reglage-couche"><label for="couche-etiquette">Étiquette</label><select id="couche-etiquette"></select></div>
+            <p class="encart-recalage"><strong>Recaler un objet</strong> : hors mesure, cliquez-le dans la photo, puis sa
+              vraie place ; flèches pour ajuster, Entrée pour finir. La carte ne bouge pas.</p>
+          </div>
+          <input id="couche-fichier" type="file" multiple accept=".geojson,.json,.zip,.shp,.dbf,.prj,.cpg,.shx,.gpkg" hidden>
+        </section>
+        <section id="filtre" hidden>
+          <!-- Résumé du filtre actif (app.js applyFilter) -->
+          <div class="fiche-couche fiche-filtre">
+            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16l-6 7v6l-4 2v-8z" stroke-linejoin="round"/></svg></span>
+            <div class="nom-couche">
+              <p id="filtre-titre">Filtres appliqués</p>
+              <p id="filtre-infos">aucun</p>
+            </div>
+          </div>
+          <div class="reglage-couche reglage-instance">
+            <label for="instance">Instance Panoramax</label><select id="instance"></select>
+          </div>
+          <p class="aide">Par défaut : l'IGN, qui sert les photos du conseil départemental (plus rapide que le
+            méta-catalogue, qui interroge toutes les instances).</p>
+          <h3>Photos</h3>
+          <div class="champs-filtre">
+            <div class="champ large"><label for="producteur">Producteur</label>
+              <select id="producteur"><option value="">Tous</option></select></div>
+            <div class="champ"><label for="gps">Précision GPS</label>
+              <select id="gps"><option value="">Toute précision GPS</option>
+                <option value="2">GPS ≤ 2 m (relevé)</option><option value="4">GPS ≤ 4 m</option></select></div>
+            <div class="champ"><label for="type">Type</label>
+              <select id="type"><option value="">Tous types</option><option value="360">360°</option>
+                <option value="flat">Classiques</option></select></div>
+            <div class="champ"><label for="depuis">Depuis le</label><input id="depuis" type="date"></div>
+          </div>
+          <div class="encart-calage">
+            <p class="aide">S'applique au filaire et aux photos ouvertes par un clic sur la carte ; aux petites
+              échelles, seul le type est filtré. Par défaut : photos RTK du conseil départemental de la Côte-d'Or,
+              ce que demandent les calculs (autres producteurs : mesures peu fiables).</p>
           </div>
         </section>
-        <details id="filtre">
-          <summary>Filtre des photos <span id="filtre-actif"></span></summary>
-          <p class="aide">S'applique au filaire et aux photos ouvertes par un clic sur la carte. Aux petites
-            échelles, seul le type de caméra est filtré.</p>
-          <p class="aide">Par défaut : photos du conseil départemental de la Côte-d'Or, prises avec une position
-            RTK vérifiable, ce que demandent les calculs (sol : LiDAR HD de l'IGN, ou RGE ALTI là où il n'est pas
-            encore publié). « Tous » pour voir les
-            autres producteurs (mesures alors peu fiables).</p>
-          <div class="grille">
-            <label for="depuis">Depuis le</label><input id="depuis" type="date">
-            <label for="type">Type</label>
-            <select id="type"><option value="">Tous types</option><option value="360">360°</option>
-              <option value="flat">Classiques</option></select>
-            <label for="gps">Précision</label>
-            <select id="gps"><option value="">Toute précision GPS</option>
-              <option value="2">GPS ≤ 2 m (relevé)</option><option value="4">GPS ≤ 4 m</option></select>
-            <label for="producteur">Producteur</label>
-            <select id="producteur"><option value="">Tous</option></select>
+        <section id="reglages" hidden>
+          <div class="fiche-couche fiche-reglages">
+            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke-linecap="round"/></svg></span>
+            <div class="nom-couche">
+              <p id="reglages-titre">Réglages</p>
+              <p id="reglages-infos">Gardés dans ce navigateur</p>
+            </div>
           </div>
-        </details>
-        <details id="reglages">
-          <summary>Réglages</summary>
-          <div class="grille">
-            <label for="instance">Instance</label><select id="instance"></select>
+          <h3>Mesure</h3>
+          <div class="reglage-couche reglage-instance">
+            <label for="camera">Hauteur de caméra</label>
+            <input id="camera" type="number" min="0.3" max="6" step="0.05" value="1.90" disabled>
+            <span class="unite">m du sol</span>
           </div>
-          <p class="aide">Par défaut : l'instance de l'IGN, qui sert les photos du conseil départemental (plus
-            rapide que le méta-catalogue, qui interroge toutes les instances).</p>
-          <label><input id="centrer" type="checkbox" checked> Centrer la carte sur la photo</label>
-          <label title="Filtrage anisotrope 16x des textures : atténue le crénelage et le scintillement des détails fins vus de loin, en gardant l'image nette, au prix d'une navigation un peu moins fluide."><input id="anisotrope" type="checkbox"> Filtrage anisotrope</label>
-          <label title="Expérimental (ticket #28). En largeur, avant le premier bord : bouton « Tracer la droite sur la carte » (giratoire, carrefour, place) ; les deux bords sont posés sur la droite tracée sur la mini-carte au lieu de la perpendiculaire à l'axe calculé. Décochée : le bouton n'est pas proposé."><input id="droite-carte" type="checkbox"> Droite de mesure tracée sur la carte (expérimental)</label>
-          <label title="Expérimental (ticket #29). Quand les verticales de la photo manquent (rase campagne), l'inclinaison est tirée de la pente et du dévers du terrain LiDAR HD sous la caméra et du décalage de la fixation de la caméra, appris sur des photos de village de la même séquence (téléchargées en arrière-plan, environ 45 Mo par séquence). Incertitude d'environ ±0,6° au lieu de ±2°."><input id="inclinaison-terrain" type="checkbox"> Inclinaison par le terrain hors agglomération (expérimental)</label>
-          <h3>Calage des photos</h3>
-          <p class="aide">Conservé dans ce navigateur d'une session à l'autre. Pour le reprendre ailleurs
-            (autre poste, autre navigateur) : l'exporter, puis l'importer.</p>
-          <div class="boutons">
-            <button id="calage-exporter" type="button" disabled>Exporter le calage</button>
-            <button id="calage-importer" type="button" disabled>Importer un calage</button>
-            <input id="calage-fichier" type="file" accept=".json,application/json" hidden>
+          <button id="camera-gps" type="button" hidden></button>
+          <h3>Affichage</h3>
+          <div class="reglage-couche">
+            <label for="theme">Thème</label>
+            <select id="theme"><option value="">Automatique (comme le système)</option>
+              <option value="light">Jour</option><option value="dark">Nuit</option></select>
+          </div>
+          <div class="options">
+            <label class="option">
+              <span class="texte-option">Centrer la carte sur la photo<span class="aide">La carte suit la photo ouverte.</span></span>
+              <input id="centrer" type="checkbox" class="interrupteur" checked>
+            </label>
+            <label class="option" title="Filtrage anisotrope 16x des textures : atténue le crénelage et le scintillement des détails fins vus de loin, en gardant l'image nette, au prix d'une navigation un peu moins fluide.">
+              <span class="texte-option">Filtrage anisotrope<span class="aide">Détails lointains plus nets, navigation un peu moins fluide.</span></span>
+              <input id="anisotrope" type="checkbox" class="interrupteur">
+            </label>
+          </div>
+          <div class="encart-calage encart-experimental">
+            <h3>Expérimental</h3>
+            <div class="options">
+            <label class="option" title="Expérimental (ticket #28). En largeur, avant le premier bord : bouton « Tracer la droite sur la carte » (giratoire, carrefour, place) ; les deux bords sont posés sur la droite tracée sur la mini-carte au lieu de la perpendiculaire à l'axe calculé. Décochée : le bouton n'est pas proposé.">
+              <span class="texte-option">Droite de mesure tracée sur la carte<span class="aide">Largeur dans un giratoire, un carrefour ou sur une place : les bords posés sur une droite tracée sur la mini-carte.</span></span>
+              <input id="droite-carte" type="checkbox" class="interrupteur">
+            </label>
+            <label class="option" title="Expérimental (ticket #29). Quand les verticales de la photo manquent (rase campagne), l'inclinaison est tirée de la pente et du dévers du terrain LiDAR HD sous la caméra et du décalage de la fixation de la caméra, appris sur des photos de village de la même séquence (téléchargées en arrière-plan, environ 45 Mo par séquence). Incertitude d'environ ±0,6° au lieu de ±2°.">
+              <span class="texte-option">Inclinaison par le terrain hors agglomération<span class="aide">Sans verticales dans la photo : inclinaison tirée du terrain LiDAR HD (±0,6° au lieu de ±2°) ; environ 45 Mo téléchargés par séquence.</span></span>
+              <input id="inclinaison-terrain" type="checkbox" class="interrupteur">
+            </label>
+            </div>
           </div>
           <label id="case-k2000"><input id="sans-k2000" type="checkbox"> Désactiver K2000</label>  <!-- barres et photo de la lecture rapide -->
-        </details>
-        <details id="reseau">
-          <summary>Accès aux services</summary>
-          <p class="aide">Vérifié depuis ce navigateur (proxy et pare-feu du poste compris).</p>
-          <ul></ul>
-          <h3>Cache des informations géographiques</h3>
-          <p class="aide">Routes, PR, ponts, communes et altitudes déjà demandés sont gardés dans ce navigateur
-            (3 mois, 50 Mo au plus) : plus rapides, et toujours là quand un service ne répond pas. Ils gardent
-            aussi la trace des lieux consultés.</p>
-          <div class="boutons"><button id="vider-cache" type="button">Vider le cache</button></div>
-        </details>
+        </section>
+        <section id="reseau" hidden>
+          <!-- Bilan des services vérifiés depuis ce navigateur (proxy et pare-feu du poste compris) -->
+          <div class="fiche-couche fiche-services">
+            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12a7 7 0 0114 0M8.5 12a3.5 3.5 0 017 0" stroke-linecap="round"/><circle cx="12" cy="16" r="1.5"/></svg></span>
+            <div class="nom-couche">
+              <p id="reseau-titre">Accès aux services</p>
+              <p id="reseau-infos">Vérification en cours…</p>
+            </div>
+          </div>
+          <p class="aide">Vérifiés depuis ce navigateur, proxy et pare-feu du poste compris.</p>
+          <ul class="etats"></ul>
+          <div class="encart-calage">
+            <h3>Cache des informations géographiques</h3>
+            <p class="aide">Routes, PR, ponts, communes et altitudes déjà demandés, gardés 3 mois (50 Mo au plus) :
+              plus rapides, et là même quand un service ne répond pas. Ils gardent aussi la trace des lieux consultés.</p>
+            <div class="boutons"><button id="vider-cache" type="button">Vider le cache</button></div>
+          </div>
+        </section>
+        </div>
+        <nav id="outils" aria-label="Outils">
+          <button type="button" data-panneau="filtre" aria-controls="filtre">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5h16l-6 7v6l-4 2v-8z" stroke-linejoin="round"/></svg>
+            Filtre <span id="filtre-actif"></span>
+          </button>
+          <button type="button" data-panneau="reglages" aria-controls="reglages">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke-linecap="round"/></svg>
+            Réglages
+          </button>
+          <button type="button" data-panneau="reseau" aria-controls="reseau">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12a7 7 0 0114 0M8.5 12a3.5 3.5 0 017 0" stroke-linecap="round"/><circle cx="12" cy="16" r="1.5"/></svg>
+            Services <span id="services-alerte" title="Un service ne répond pas"></span>
+          </button>
+        </nav>
       </div>
     </aside>
   </main>
@@ -352,8 +494,8 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
       <li>précision RTK ;</li>
       <li>modèle de terrain de l'IGN : LiDAR HD, ou RGE ALTI là où il n'est pas encore publié.</li>
     </ul>
-    <p>Vous pouvez changer ces réglages dans le panneau de droite, rubrique <strong>Filtre des photos</strong>
-      (et <strong>Réglages</strong> pour l'instance).</p>
+    <p>Vous pouvez changer ces réglages par le bouton <strong>Filtre</strong> (instance comprise), en bas du
+      panneau de droite.</p>
     <form method="dialog">
       <button value="ok" class="oui">J'ai compris</button>
     </form>

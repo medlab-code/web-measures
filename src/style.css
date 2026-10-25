@@ -10,10 +10,12 @@
   --attente: #8a6d00;
   --panoramax: #ff6f00;
   --encart: #f1f3f4;
+  --visee: #0b6fb6;  /* bleu des visées, en texte sur fond clair */
 }
 
+/* Nuit : comme le système, sauf thème forcé dans les Réglages (data-theme sur <html>) */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --fond: #1e1f22;
     --texte: #e8eaed;
     --discret: #9aa0a6;
@@ -22,8 +24,23 @@
     --echec: #f28b82;
     --attente: #fdd663;
     --encart: #2a2b2e;
+    --visee: #7cc4f5;
+    color-scheme: dark;
   }
 }
+:root[data-theme="dark"] {
+  --fond: #1e1f22;
+  --texte: #e8eaed;
+  --discret: #9aa0a6;
+  --bord: #3c4043;
+  --ok: #81c995;
+  --echec: #f28b82;
+  --attente: #fdd663;
+  --encart: #2a2b2e;
+  --visee: #7cc4f5;
+  color-scheme: dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
 
 * { box-sizing: border-box; }
 
@@ -45,49 +62,60 @@ header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5em 1.6em;
-  padding: calc(0.5em + 2px) 1em calc(0.5em + 1px);  /* bordure du bas comprise : contenu sur l'axe de la barre */
+  gap: 0.5em 0.8em;
+  padding: calc(0.45em + 2px) 0.8em calc(0.45em + 1px);  /* bordure du bas comprise : contenu sur l'axe de la barre */
   border-bottom: 1px solid var(--bord);
   font-size: 15px;
 }
+/* Blocs de la barre en cartes arrondies, comme les fiches du panneau */
+header .carte-barre { padding: 0.35em 0.55em; border: 1px solid var(--bord); border-radius: 10px; }
+header button, header select { border: 1px solid var(--bord); border-radius: 7px; background: var(--encart); color: var(--texte); }
+header button:not(:disabled) { cursor: pointer; }
+header button:not(:disabled):hover { filter: brightness(0.96); }
+header button:disabled { color: var(--discret); opacity: 0.6; }
+header select { background: var(--fond); }
+header input.interrupteur { width: 2.1em; height: 1.2em; }  /* plus petits que ceux du panneau */
+header input.interrupteur::before { width: 0.9em; height: 0.9em; top: 0.15em; left: 0.15em; }
+header input.interrupteur:checked::before { transform: translateX(0.9em); }
+input.interrupteur:disabled { opacity: 0.45; cursor: default; }
 /* Boutons et listes de la barre à la même hauteur (une liste est sinon plus basse), marges
    intérieures à l'échelle de la barre */
-header button, header select { box-sizing: border-box; height: 1.65em; padding: 0 0.45em; }
-#mode { max-width: 19.5em; }  /* le plus long libellé (calage du cap) n'impose pas sa largeur */
-#fond { max-width: 12em; }  /* idem : « Ortho-express (année de la photo) » */
+header button, header select { box-sizing: border-box; height: 1.8em; padding: 0 0.55em; }
+#mode { max-width: 17em; }  /* le plus long libellé (calage du cap) n'impose pas sa largeur */
+#fond { max-width: 10.5em; }  /* idem : « Ortho-express (année de la photo) » */
 
-header label { display: flex; align-items: center; gap: 0.35em; min-height: 1.65em; }  /* cases à cocher à la hauteur des boutons */
+header label { display: flex; align-items: center; gap: 0.45em; min-height: 1.8em; }  /* cases à cocher à la hauteur des boutons */
 header input[type="number"] { width: 4.5em; }
-header input[type="checkbox"] { width: 0.95em; height: 0.95em; margin: 0; }
+header input[type="checkbox"]:not(.interrupteur) { width: 0.95em; height: 0.95em; margin: 0; }
 .espace { flex: 1; }
 /* Blocs de la barre sur deux lignes, centrés : mesure (réglages, puis effacement), captures
    l'une au-dessus de l'autre, fond de carte au-dessus du filaire */
 header .bloc { display: flex; flex-direction: column; align-items: center; gap: 0.5em; }
 header .rang { display: flex; align-items: center; gap: 0.55em; }
-header .mesure { margin-left: 1em; }  /* à gauche, un peu détaché du titre */
-/* Captures et fond de carte à droite, captures au milieu de la place restante */
-header .captures { align-items: stretch; margin-left: auto; }  /* deux boutons de même largeur */
+header .mesure { margin: 0 auto; }  /* centré dans la place entre le titre et les captures */
+/* Captures et fond de carte à droite, à la suite */
+header .captures { align-items: stretch; }  /* deux boutons de même largeur */
 /* Icône au bord gauche, dans une case de même largeur pour les deux boutons : libellés alignés */
 header .captures button { display: flex; align-items: center; gap: 0.45em; text-align: left; }
-header .captures .icone { display: inline-block; width: 1.3em; text-align: center; }
+header .captures .icone { display: inline-flex; width: 1.3em; justify-content: center; }
 /* Fond de carte : libellé et liste, filaire centré sous la liste */
-header .fond { display: grid; grid-template-columns: auto auto; align-items: center; gap: 0.5em 0.35em;
-               margin-left: auto; }
+header .fond { display: grid; grid-template-columns: auto auto; align-items: center; gap: 0.5em 0.35em; }
 header .fond > label:last-child { grid-column: 2; justify-self: center; }
 /* Bouton Mesure : à gauche des réglages, sur la hauteur des deux rangées, liseré orange comme
    les alertes */
 header .mesure { flex-direction: row; align-items: stretch; gap: 0.8em; }
-header #mesure { height: auto; padding: 0 0.9em; font-size: 1.15em; font-weight: 600;
-                 border: 3px solid var(--panoramax); border-radius: 6px; }
+header #mesure { display: inline-flex; align-items: center; gap: 0.4em; height: auto; padding: 0 0.9em;
+                 font-size: 1.15em; font-weight: 600; border: 3px solid var(--panoramax); border-radius: 10px; }
 /* Effacer, Refaire, Tout effacer aux couleurs des repères de la visionneuse : jaune des croix,
    vert de la verticale et des visées, rouge des traits de mesure (un cran plus foncé : texte
    blanc lisible) ; grisés sans effet possible */
 header #effacer, header #refaire, header #tout-effacer { color: #1c1c1c; border: 1px solid rgba(0, 0, 0, 0.35);
-                                                          border-radius: 3px; font-weight: 500; }
+                                                          border-radius: 7px; font-weight: 500; }
 header #effacer { background: #ffeb00; }
 header #refaire { background: #2ecc40; }
 header #tout-effacer { background: #d32f2f; color: #ffffff; }
-header #effacer:disabled, header #refaire:disabled, header #tout-effacer:disabled { background: #e4e4e4; color: #9a9a9a; border-color: #c8c8c8; }
+header #effacer:disabled, header #refaire:disabled, header #tout-effacer:disabled { background: var(--encart); color: var(--discret);
+  border-color: var(--bord); opacity: 1; }
 /* Réglages en grille : « Mode », sélecteur, « Sur un pont » ; Effacer, Refaire, Tout effacer centrés
    sous le sélecteur */
 header .reglages { display: grid; grid-template-columns: auto auto auto; align-items: center; gap: 0.5em 0.35em; }
@@ -96,7 +124,7 @@ header .reglages > .rang:first-child > label:last-child { margin-left: 0.2em; }
 header .reglages > .rang:last-child { grid-column: 2; justify-self: center; }
 
 h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
-header h1 { font-size: 2em; line-height: 1; }  /* 28 px : titre nettement plus grand que la barre */
+header h1 { font-size: 1.75em; line-height: 1; }  /* 28 px : titre nettement plus grand que la barre */
 /* Titre, avec la mention « version test » en dessous */
 header .marque { display: flex; flex-direction: column; align-items: center; gap: 0.45em; }
 /* Mention « version test » : discrète, mais visible sous le titre */
@@ -196,7 +224,7 @@ aside[hidden] { display: none; }
 #carte-detachee p { margin: 0; }
 body.fenetre-carte { height: 100vh; margin: 0; }
 body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
-.maplibregl-ctrl button.detacher-carte { font-size: 17px; line-height: 1; }
+.maplibregl-ctrl button.detacher-carte { font-size: 17px; line-height: 1; color: #333; }  /* bouton blanc, même la nuit */
 .maplibregl-ctrl button.detacher-carte.actif { background: var(--panoramax); color: #fff; }
 
 /* Recherche de lieux, en haut à droite de la carte (voir recherche.js) */
@@ -349,8 +377,37 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   cursor: pointer;
 }
 
-#panneau { flex: 1; overflow-y: auto; padding: 0.75rem 1rem; }
-#panneau > * + * { margin-top: 1.25rem; }
+/* Panneau : onglets, section affichée (défile seule), outils en pied (Mesure, Filtre, Réglages, Services) */
+#panneau { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#onglets, #outils { display: flex; flex: none; background: var(--fond); }
+#onglets { padding: 0 0.4rem; border-bottom: 1px solid var(--bord); }
+#onglets button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.35rem;
+  min-height: 2.75rem; padding: 0 0.3rem; border: 0; border-bottom: 2px solid transparent; border-radius: 0;
+  background: none; color: var(--discret); font-weight: 600; cursor: pointer; }
+#onglets button:hover { color: var(--texte); }
+#onglets button[aria-selected="true"] { color: var(--texte); border-bottom-color: var(--panoramax); }
+.compte { padding: 0.05rem 0.45rem; border-radius: 999px; background: var(--encart); color: var(--texte);
+  font-size: 0.8em; font-weight: 500; }
+.compte:empty { display: none; }
+#contenu-panneau { flex: 1; min-height: 0; overflow-y: auto; padding: 0.75rem 1rem; }
+/* Ligne d'état : une ligne, le texte entier au clic */
+#panneau > .statut { flex: none; padding: 0.45rem 1rem; border-bottom: 1px solid var(--bord); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+#panneau > .statut.deplie { white-space: pre-line; }
+#contenu-panneau h3:first-child, #contenu-panneau h2 + h3 { margin-top: 0; }
+#precedents { padding: 0.4rem 0.6rem; border-radius: 6px; background: var(--encart); color: var(--discret); }
+#precedents summary { font-weight: 500; }
+#contenu-panneau > section > * + * { margin-top: 0.6rem; }
+#outils { border-top: 1px solid var(--bord); }
+#outils button { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.15rem; min-height: 3.25rem; border: 0; border-top: 2px solid transparent; border-radius: 0;
+  background: none; color: var(--discret); font-size: 0.85em; font-weight: 500; cursor: pointer; }
+#outils button:hover { color: var(--texte); background: var(--encart); }
+#outils button[aria-pressed="true"] { color: var(--texte); border-top-color: var(--panoramax); }
+#outils button { position: relative; }
+#outils #services-alerte { position: absolute; top: 0.3rem; left: calc(50% + 0.5rem); font-size: 0.75rem; line-height: 1;
+  color: var(--echec); }
+#outils #filtre-actif { position: absolute; top: 0.3rem; left: calc(50% + 0.5rem); font-size: 0.75rem; line-height: 1; }
 
 .statut {
   margin: 0;
@@ -367,28 +424,46 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 
 .reglages, .boutons { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.9rem; margin-top: 0.6rem; }
 #reglages > label { display: block; margin: 0.2rem 0; }  /* une option par ligne */
-#case-k2000 { display: block; margin: 0.8rem 0 0.2rem; }  /* détachée des boutons du calage */
+#case-k2000 { display: block; margin: 0.8rem 0 0.2rem; }  /* à part des options */
 .reglages label { display: flex; align-items: center; gap: 0.35rem; }
 .reglages input[type="number"] { width: 4.5rem; }
 
-#ajouter-favori .etoile { color: #ffa000; }  /* jaune orangé, comme l'étoile pleine des favoris */
-#ajouter-favori:disabled .etoile { opacity: 0.5; }
-#favoris ol { margin: 0; padding-left: 0.2rem; list-style: none; }
+/* Étoile de l'onglet Photo : contour jaune orangé pour ajouter, pleine quand la photo est en favori */
+#ajouter-favori .etoile { color: #ffa000; fill: none; }
+#ajouter-favori.en-favori .etoile { fill: currentColor; }
+#ajouter-favori:disabled:not(.en-favori) .etoile { color: var(--discret); }
+.fiche-couche #ajouter-favori.en-favori:disabled { opacity: 1; }
+/* Favoris : une ligne par photo (étoile, nom, ×), celle de la photo affichée entourée */
+#favoris ol { margin: 0.8rem 0 0; padding: 0; list-style: none; }
 #favoris ol:empty { display: none; }
 #favoris ol:not(:empty) + .aide { display: none; }
-#favoris li { display: flex; align-items: baseline; gap: 0.5rem; margin: 0.15rem 0; }  /* puce et × sur la 1re ligne du nom */
-#favoris li::before { content: "•"; flex: none; color: var(--discret); }
+#favoris li { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem; padding: 0.35rem 0.35rem 0.35rem 0.6rem;
+  border: 1px solid transparent; border-radius: 8px; background: var(--encart); }
+#favoris li.actuelle { border-color: var(--panoramax); }
+#favoris li::before { content: "★"; flex: none; color: #ffa000; }
 #favoris li .aller-favori { flex: 1; padding: 0; border: 0; background: none; color: inherit; font: inherit;
   text-align: left; cursor: pointer; }
 #favoris li .aller-favori:hover { text-decoration: underline; }
 
-#resultats ol { margin: 0; padding-left: 1.4rem; }
+/* Résultats : un bloc par point de référence (pastille bordeaux, comme sur la photo), ses mesures dessous */
+#resultats ol { list-style: none; margin: 0.8rem 0 0; padding: 0; }
 #resultats ol:empty { display: none; }
-#resultats li { margin: 0.25rem 0; }
-#resultats li.sous { display: block; margin-left: 1rem; }  /* block : hors de la numérotation */
-#resultats li .ligne { display: flex; align-items: center; gap: 0.5rem; }
-#resultats li span { flex: 1; }
-#resultats li .fiche { font-size: 0.8em; padding: 0.05rem 0.4rem; white-space: nowrap; }  /* fiche PDF du point */
+#resultats li { padding: 0.3rem 0; }
+#resultats li:not(.sous) { margin-top: 0.6rem; padding: 0.4rem 0.5rem; border-radius: 8px; background: var(--encart); }
+#resultats li:not(.sous):first-child { margin-top: 0; }
+#resultats li.sous { margin-left: 1rem; padding-left: 0.6rem; border-left: 2px solid var(--bord); }
+#resultats li .ligne { display: flex; align-items: center; gap: 0.3rem; margin: 0; color: inherit; font-size: inherit; }
+#resultats .libelle { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.45rem; }
+#resultats .puce-point { padding: 0 0.35rem; border-radius: 4px; background: rgba(142, 27, 27, 0.92); color: #fff;
+  font-size: 0.85em; font-weight: 600; }
+#resultats .puce-point.fin { background: var(--discret); color: var(--fond); }
+#resultats .valeur { font-weight: 600; }
+#resultats li:not(.sous) .valeur { font-weight: 500; }
+#resultats .symbole, #resultats .incert { color: var(--discret); }
+#resultats .incert { font-size: 0.9em; }
+#resultats li .fiche { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 1.9rem;
+  height: 1.9rem; padding: 0; border: 0; border-radius: 6px; background: none; color: inherit; cursor: pointer; }
+#resultats li .fiche:hover { background: var(--bord); }
 #resultats .effacer-resultat, #favoris .effacer-resultat {
   flex: none;
   width: 1.4rem;
@@ -404,7 +479,52 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   cursor: pointer;
 }
 #resultats .effacer-resultat:hover, #favoris .effacer-resultat:hover { opacity: 1; background: var(--bord); }
-#resultats li input { width: 100%; margin-top: 0.15rem; }
+#resultats li input { width: 100%; margin-top: 0.3rem; }
+.fiche-resultats .nom-couche { padding-left: 0.5rem; }
+#favoris-titre, #filtre-titre, #reglages-titre, #reseau-titre { margin: 0; font-weight: 600; }
+#favoris-infos, #filtre-infos, #reglages-infos, #reseau-infos { margin: 0; color: var(--discret); font-size: 0.85em; }
+/* Réglages : une option par ligne (texte et explication à gauche, interrupteur à droite) */
+.reglage-couche input[type="number"] { width: 4.5rem; flex: none; }
+.reglage-couche .unite { color: var(--discret); }
+#camera-gps { margin-top: 0.5rem; }
+#camera-gps[hidden] { display: none; }
+.options { margin-top: 0.4rem; }
+.options .option { display: flex; align-items: center; gap: 0.8rem; padding: 0.5rem 0; border-top: 1px solid var(--bord);
+  cursor: pointer; }
+.options .option:first-child { border-top: 0; }
+.texte-option { flex: 1; min-width: 0; }
+.texte-option .aide { display: block; margin-top: 0.1rem; font-size: 0.85em; }
+input.interrupteur { appearance: none; flex: none; position: relative; width: 2.4rem; height: 1.35rem; margin: 0;
+  border-radius: 999px; background: var(--bord); cursor: pointer; transition: background 0.15s; }
+input.interrupteur::before { content: ""; position: absolute; top: 0.15rem; left: 0.15rem; width: 1.05rem; height: 1.05rem;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); transition: transform 0.15s; }
+input.interrupteur:checked { background: var(--panoramax); }
+input.interrupteur:checked::before { transform: translateX(1.05rem); }
+input.interrupteur:focus-visible { outline: 2px solid var(--panoramax); outline-offset: 2px; }
+.encart-experimental h3::after { content: " · à l'essai"; color: var(--discret); font-weight: 400; }
+/* Filtre : critères des photos sur deux colonnes, le producteur sur toute la largeur */
+.champs-filtre { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem 0.8rem; }
+.champs-filtre .champ { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.champs-filtre .champ.large { grid-column: span 2; }
+.champs-filtre label { color: var(--discret); font-size: 0.9em; }
+.champs-filtre select, .champs-filtre input { min-width: 0; width: 100%; }
+#aller-photo h3 label { display: inline; margin: 0; font: inherit; color: inherit; }
+/* Onglet Photo : icône de la fiche, position en lignes à voyants, détails, encart du calage */
+.fiche-couche .icone-fiche { flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 2.25rem; height: 2.25rem; color: var(--discret); }
+.etats { list-style: none; margin: 0.3rem 0 0; padding: 0; }
+.etats li { position: relative; padding: 0.2rem 0 0.2rem 1.1rem; font-size: 0.92em; color: var(--texte); }  /* couleur : voyant seul */
+.etats li::before { content: ""; position: absolute; left: 0.15rem; top: 0.6em; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--discret); }
+.etats li.ok::before { background: var(--ok); }
+.etats li.attente::before { background: var(--panoramax); }
+#fiche dd.identifiant { font-family: "JetBrains Mono", monospace; font-size: 0.85em; word-break: break-all; }
+.encart-calage { margin-top: 1.2rem; padding: 0.6rem 0.75rem; border-radius: 8px; background: var(--encart); }
+.encart-calage h3 { margin-top: 0; }
+.encart-calage .aide { margin: 0.2rem 0 0; }
+.fiche-resultats .export { display: inline-flex; align-items: center; gap: 0.3rem; flex: none; padding: 0.3rem 0.55rem;
+  font-size: 0.85em; font-weight: 600; }
+#resultats-infos.a-exporter::before { content: "● "; color: var(--panoramax); }  /* pas encore exportés */
 
 details summary { cursor: pointer; font-weight: 600; }
 details > * + * { margin-top: 0.5rem; }
@@ -574,6 +694,54 @@ button.principal { font-weight: 600; }
   pointer-events: none;
   z-index: 5;
 }
+/* En mesure : le bloc devient une carte d'étape en bas à gauche, au-dessus de la localisation : le
+   haut de la photo (sommets, bords lointains) et les flèches de navigation, au centre, restent libres ;
+   mesure et étapes, consigne, boutons, messages */
+#entete-etape { display: none; }
+#vue.en-mesure .haut-centre {
+  top: auto;
+  bottom: 3.4rem;
+  left: 0.8rem;
+  transform: none;
+  width: min(30rem, calc(50% - 4rem));
+  min-width: min(20rem, calc(100% - 1.6rem));
+  max-width: none;
+  align-items: stretch;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--bord);
+  border-radius: 14px;
+  background: var(--fond);
+  color: var(--texte);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+}
+#vue.en-mesure #entete-etape { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+#nom-mesure { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--panoramax); }
+#etapes { display: flex; flex: 1; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
+#etapes li { display: flex; align-items: center; gap: 0.35rem; color: var(--discret); font-size: 13px; font-weight: 600;
+  white-space: nowrap; }
+#etapes li + li::before { content: ""; width: 1.2rem; height: 2px; margin-right: 0.1rem; background: var(--bord); }
+#etapes li.courante { color: var(--texte); }
+#etapes li.faite { color: var(--ok); }
+#vue.en-mesure #etat-mesure { margin-left: auto; padding: 0.1rem 0.5rem; border-radius: 999px; background: var(--encart);
+  font-size: 12px; text-shadow: none; }
+#vue.en-mesure #etat-mesure.visee { color: var(--visee); }
+#vue.en-mesure #etat-mesure.prise { color: var(--attente); }
+#vue.en-mesure #mode-mesure { padding: 0; background: none; color: var(--texte); font-size: 15px; font-weight: 500;
+  text-align: left; text-shadow: none; }
+#vue.en-mesure #calcul-inclinaison, #vue.en-mesure #avis { align-self: stretch; margin: 0; padding: 0.35rem 0.6rem;
+  border-radius: 8px; background: var(--encart); color: var(--attente); font-size: 13px; font-weight: 500;
+  text-align: left; text-shadow: none; animation: none; }
+#vue.en-mesure #avis { color: var(--texte); }
+#vue.en-mesure #calcul-inclinaison.manuel { color: var(--echec); }
+#vue.en-mesure #garder, #vue.en-mesure #valider-objet, #vue.en-mesure #trianguler-b,
+#vue.en-mesure #guide-photos button, #vue.en-mesure #suite-mesure button {
+  margin: 0; padding: 0.45rem 0.9rem; border-radius: 8px; font-size: 14px; text-shadow: none; box-shadow: none; }
+#vue.en-mesure #guide-photos, #vue.en-mesure #suite-mesure { justify-content: center; margin: 0; }
+#vue.en-mesure #guide-photos button, #vue.en-mesure #suite-mesure button, #vue.en-mesure #trianguler-b {
+  background: var(--encart); color: var(--texte); }
+#vue.en-mesure #garder, #vue.en-mesure #valider-objet, #vue.en-mesure #trianguler-b { align-self: center; }  /* boutons centrés */
 /* Messages variables (zoom, inclinaison) sous les boutons : ils ne les déplacent pas */
 .haut-centre > #avis, .haut-centre > #calcul-inclinaison { order: 1; }
 #mode-mesure {
@@ -608,10 +776,10 @@ button.principal { font-weight: 600; }
 /* Photo sur un pont : son nom puis la hauteur de chute (deux lignes), sous l'état de la mesure ;
    survol : infobulle de son explication (le coin laisse sinon passer les clics) */
 #chute {
-  margin: 0.3rem 0 0;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  background: var(--etiquette-vue);
+  margin: 0;
+  padding: 0.35rem 0.7rem;
+  border-radius: 10px;
+  background: rgba(24, 25, 28, 0.82);  /* sombre opaque : vert et jaune lisibles sur le ciel */
   color: #fff;
   font-size: 14px;
   font-weight: 500;
@@ -662,12 +830,12 @@ button.principal { font-weight: 600; }
   pointer-events: none;
   z-index: 5;
 }
-#voyants li {  /* une étiquette par voyant */
+#voyants li {  /* une étiquette par voyant : fond sombre opaque, lisible sur le ciel */
   display: flex;
   align-items: center;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  background: var(--etiquette-vue);
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(24, 25, 28, 0.82);
 }
 #voyants[hidden] { display: none; }
 
@@ -882,8 +1050,10 @@ dialog.bulle p { margin: 0; }
 
 .aide { color: var(--discret); margin: 0 0 0.5rem; }
 
-#reseau ul { list-style: none; margin: 0; padding: 0; }
-#reseau li { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.15rem 0; }
+#reseau li { display: flex; justify-content: space-between; gap: 0.5rem; }  /* nom, puis état en gris */
+#reseau li.echec::before { background: var(--echec); }
+#reseau .etat-service { flex: none; color: var(--discret); }
+#reseau li.echec .etat-service { color: var(--echec); }
 .ok { color: var(--ok); }
 .echec { color: var(--echec); }
 .attente { color: var(--attente); }
@@ -892,7 +1062,6 @@ dl { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.75rem; margin
 dt { color: var(--discret); }
 dd { margin: 0; overflow-wrap: anywhere; }
 /* Identifiant de la photo : bouton de copie sur sa ligne, un peu détaché */
-dd .copier { display: block; margin-top: 0.4rem; padding: 0.1rem 0.5rem; font-size: 12px; white-space: nowrap; }
 /* Aller à une photo par son identifiant */
 #aller-photo { margin-top: 0.9rem; }
 #aller-photo label { display: block; margin-bottom: 0.25rem; color: var(--discret); }
@@ -1020,6 +1189,12 @@ dd .copier { display: block; margin-top: 0.4rem; padding: 0.1rem 0.5rem; font-si
   font-weight: 600;
 }
 .etiquette .puce.provisoire { background: rgba(95, 99, 104, 0.95); }  /* point pas encore triangulé */
+/* Visionneuse : étiquettes de mesure et noms de points en pilules, lettre du point en pastille ronde */
+.ancre .etiquette.mesure, .ancre .etiquette.nom { border-radius: 999px; padding: 0.15rem 0.7rem; font-weight: 600; }
+.ancre .etiquette.mesure { background: rgba(24, 25, 28, 0.82); }
+.ancre .etiquette.fin { padding-left: 0.25rem; }
+.ancre .etiquette .puce { display: inline-block; min-width: 1.35em; margin: 0 0.45em 0 0; padding: 0 0.3em; border-radius: 999px;
+  text-align: center; }
 /* Trait de renvoi de l'étiquette écartée vers sa croix */
 .renvoi { position: absolute; top: 0; height: 0; border-left: 1.5px solid rgba(255, 255, 255, 0.85); }
 .renvoi.cote { left: 6px; }
@@ -1057,6 +1232,8 @@ dd .copier { display: block; margin-top: 0.4rem; padding: 0.1rem 0.5rem; font-si
 
 /* Réglages par défaut (une fois) : liste des réglages à changer */
 #reglages-defaut { max-width: 34rem; }
+#alerte-pont:not([open]) { display: none; }
+#alerte-pont { position: fixed; max-width: 22rem; z-index: 20; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3); }  /* non modale, dans le coin */
 #reglages-defaut ul { margin: 0.4rem 0 0.6rem; padding-left: 1.2rem; }
 
 /* Carte : curseur de vue (cône, axe, position de la photo), image tournée au cap de la vue */
@@ -1087,17 +1264,70 @@ canvas.traits {
 #visionneuse .pastille-couche[data-objet], #visionneuse .etiquette.couche { pointer-events: auto; cursor: pointer; }
 #visionneuse .pastille-couche.choisie { outline: 2px solid #fff; outline-offset: 2px; }
 #visionneuse .etiquette.couche.choisie { text-decoration: underline; }
-#couche label { display: block; margin: 0.3rem 0; }
-#couche-legende { list-style: none; margin: 0.3rem 0; padding: 0; font-size: 0.9em; }
-#couche-legende li { display: flex; align-items: center; gap: 0.4rem; margin: 0.1rem 0; }
-#couche-legende .pastille-couche { border-color: var(--bord); box-shadow: none; padding: 0; cursor: pointer; }
-.palette-couche { position: fixed; inset: auto; margin: 0; width: 8.5rem; padding: 0.4rem; gap: 0.3rem;
+/* Onglet Couche : accueil sans couche, fichier glissé ; fiche (œil, nom, actions), couleur, légende, étiquette */
+#couche.survol { outline: 2px dashed var(--panoramax); outline-offset: -6px; }
+.accueil, #couche-accueil { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 1.4rem 1rem;
+  border: 2px dashed var(--bord); border-radius: 12px; text-align: center; color: var(--discret); }
+.accueil[hidden], #couche-accueil[hidden], #couche-formats[hidden], #couche-crs[hidden] { display: none; }
+.accueil .titre-accueil, #couche-accueil .titre-accueil { margin: 0; font-size: 1.05rem; font-weight: 600; color: var(--texte); }
+.accueil .aide, #couche-accueil .aide { margin: 0; max-width: 20rem; }
+.accueil { margin-top: 0.8rem; }
+#couche-importer { background: var(--panoramax); border-color: var(--panoramax); color: #fff; }
+#couche-formats { display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 0.75rem; margin: 1rem 0 0; font-size: 0.9em; }
+#couche-formats dt { font-weight: 600; }
+#couche-formats dd { margin: 0; color: var(--discret); }
+.fiche-couche { display: flex; align-items: center; gap: 0.2rem; padding: 0.3rem; border: 1px solid var(--bord);
+  border-radius: 10px; }
+.fiche-couche .nom-couche { flex: 1; min-width: 0; padding-left: 0.2rem; }
+#couche-nom, #resultats-titre, #photo-titre { margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#couche-infos, #resultats-infos, #photo-infos { margin: 0; color: var(--discret); font-size: 0.85em; }
+.fiche-couche .icone, .fiche-couche .oeil { flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 2.25rem; height: 2.25rem; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--texte); cursor: pointer; }
+.fiche-couche .icone:hover:not(:disabled), .fiche-couche .oeil:hover { background: var(--encart); }
+.fiche-couche .icone.danger { color: var(--echec); }
+.fiche-couche .icone:disabled { opacity: 0.4; cursor: default; }
+.oeil { position: relative; }
+.oeil input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }  /* case invisible, au clavier aussi */
+.oeil:has(input:focus-visible) { outline: 2px solid var(--panoramax); }
+.oeil .ferme, .oeil:has(input:checked) .ouvert { display: block; }
+.oeil .ouvert, .oeil:has(input:checked) .ferme { display: none; }
+.oeil:not(:has(input:checked)) { color: var(--discret); }
+.reglage-couche { display: flex; align-items: center; gap: 0.6rem; margin-top: 1rem; }
+.reglage-couche label { width: 4.5rem; flex: none; color: var(--discret); }
+.reglage-couche select { flex: 1; min-width: 0; }
+.reglage-instance label { width: auto; font-weight: 600; color: var(--texte); }
+.titre-legende { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.5rem; margin-top: 0.8rem; }
+.titre-legende h3 { margin: 0; }
+.titre-legende .aide { margin: 0; font-size: 0.85em; }
+button.lien { margin-left: auto; padding: 0.2rem 0; border: 0; background: none; color: var(--panoramax); font-weight: 500;
+  cursor: pointer; white-space: nowrap; }
+button.lien:disabled { color: var(--discret); opacity: 0.6; cursor: default; }
+#couche-legende { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 0.8rem;
+  margin: 0.4rem 0 0; padding: 0.3rem 0.6rem; border-radius: 8px; background: var(--encart); font-size: 0.9em; }
+#couche-legende li { display: flex; align-items: center; gap: 0.45rem; min-width: 0; min-height: 1.9rem; }
+#couche-legende li > .pastille-couche { width: 16px; height: 16px; border-color: var(--fond); box-shadow: 0 0 0 1px var(--bord);
+  padding: 0; cursor: pointer; flex: none; }
+/* Œil par valeur : objets masqués sur la carte et dans la photo, ligne grisée */
+#couche-legende .texte-valeur { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#couche-legende .oeil-valeur { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 1.7rem;
+  height: 1.7rem; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--discret); cursor: pointer; }
+#couche-legende .oeil-valeur:hover { background: var(--bord); color: var(--texte); }
+#couche-legende li.masquee .texte-valeur { color: var(--discret); text-decoration: line-through; }
+#couche-legende li.masquee > .pastille-couche { opacity: 0.35; }
+/* Dégradé : une ligne pastille – barre – pastille, les valeurs dessous */
+#couche-legende.degrade { grid-template-columns: 1fr; padding: 0.6rem; }
+#couche-legende .barre-degrade { gap: 0.6rem; }
+#couche-legende .barre-degrade > .pastille-couche { width: 24px; height: 24px; }
+#couche-legende .barre-degrade > span { flex: 1; height: 10px; border-radius: 999px; }
+#couche-legende .bornes-degrade { justify-content: space-between; min-height: 1.4rem; font-weight: 500; }
+.encart-recalage { margin: 1rem 0 0; padding: 0.55rem 0.7rem; border-radius: 8px; background: var(--encart);
+  border-left: 3px solid var(--panoramax); font-size: 0.9em; }
+.palette-couche { position: fixed; inset: auto; margin: 0; width: 17rem; padding: 0.6rem; gap: 0.5rem;
                   flex-wrap: wrap; background: var(--fond); border: 1px solid var(--bord); border-radius: 6px;
                   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
 .palette-couche:popover-open { display: flex; }
-.palette-couche .pastille-couche { width: 18px; height: 18px; }
+.palette-couche .pastille-couche { width: 36px; height: 36px; border-width: 3px; }
 .palette-couche .pastille-couche[aria-pressed="true"] { outline: 2px solid var(--texte); outline-offset: 1px; }
-#couche-nom { margin: 0.2rem 0; font-weight: 500; }
 
 /* Fiche PDF, choix de la photo : vue actuelle entourée de vert, cadrage automatique de bleu */
 #choix-fiche .vue-actuelle { border: 2px solid #2ecc40; }

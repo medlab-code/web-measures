@@ -370,6 +370,24 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         // de Set1 : 6 pixels gardés)
         expect("fiche : couche dessinée dans la photo", shown - hidden >= 4 && hidden < 3);
       }
+      // Œil d'une valeur de la légende : ses objets ni sur la carte ni dans la photo, gardé ; puis réaffichés
+      {
+        const eyeOf = (value) => [...doc.querySelectorAll("#couche-legende li")].find((li) => li.textContent === value)
+          ?.querySelector(".oeil-valeur");
+        const onMap = () => w.mesures.map.getSource("couche").serialize().data.features.length;
+        const inPhoto = () => box.querySelectorAll(".pastille-couche[data-objet]").length;
+        const [map0, photo0] = [onMap(), inPhoto()];
+        eyeOf("p3").click();
+        await sleep(400);
+        const [map1, photo1] = [onMap(), inPhoto()];
+        const kept = JSON.parse(w.localStorage.getItem("web-measures/couche")).masques?.nom;
+        log(`couche, valeur p3 masquée : carte ${map0} → ${map1}, photo ${photo0} → ${photo1}, gardé ${JSON.stringify(kept)}`);
+        expect("couche : valeur masquée par son œil (carte, photo, gardé)", map1 === map0 - 1 && photo1 === photo0 - 1
+          && kept?.length === 1 && doc.querySelector("#couche-legende li.masquee")?.textContent === "p3");
+        eyeOf("p3").click();
+        await sleep(400);
+        expect("couche : valeur réaffichée", onMap() === map0 && inPhoto() === photo0 && !doc.querySelector("#couche-legende li.masquee"));
+      }
       // Recalage d'un objet dans la photo, hors mesure : clic sur sa pastille, clic à sa nouvelle place,
       // ↑ (0,05°), Entrée ; puis Suppr le remet à sa place calculée. La carte n'est pas touchée.
       {

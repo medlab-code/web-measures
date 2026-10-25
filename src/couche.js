@@ -9,9 +9,11 @@
 const Couche = (() => {
   const SINGLE = "#ff00ff";  // couleur unique : magenta, distinct des repères de l'application
   const EMPTY = "#9e9e9e";  // valeur vide, ou au-delà des valeurs distinctes
-  // Une couleur par valeur : palette Set1 de ColorBrewer, vive et faite pour que ses couleurs se
-  // distinguent bien, sans son gris (celui des valeurs vides)
-  const PALETTE = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#ffff33", "#a65628", "#f781bf"];
+  // Une couleur par valeur, 16 valeurs au plus avant « autres » : palette Set1 de ColorBrewer, vive et
+  // faite pour que ses couleurs se distinguent bien, sans son gris (celui des valeurs vides), puis huit
+  // couleurs distinctes d'elles
+  const PALETTE = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#ffff33", "#a65628", "#f781bf",
+    "#00ced1", "#800000", "#ff00ff", "#7cfc00", "#000080", "#008080", "#bdb76b", "#ffd8b1"];
   const RAMP = ["#ffffb2", "#bd0026"];  // dégradé : couleurs du minimum et du maximum, à choisir dans la légende
   const NUMERIC_MIN = 11;  // valeurs distinctes au moins pour un dégradé (sinon une couleur par valeur)
 
@@ -101,7 +103,7 @@ const Couche = (() => {
   }
 
   // Palette proposée au clic sur une pastille de la légende
-  const CHOICES = [...PALETTE, SINGLE, "#800000", "#008080", "#000000", "#ffffff", EMPTY];
+  const CHOICES = [...new Set([...PALETTE, SINGLE, "#000000", "#ffffff", EMPTY])];
 
   /** Texte d'une étiquette d'un objet de couleur c (#rrggbb) : éclaircie de moitié (moitié de blanc). */
   function clair(c) {
@@ -119,6 +121,8 @@ const Couche = (() => {
   /**
    * Couleurs selon la colonne column ("" : couleur unique) : chaque objet reçoit properties._couleur
    * (et _etiquette selon labelColumn). custom : couleurs choisies, par clé d'entrée de légende.
+   * Chaque objet reçoit aussi properties._cle, la clé de son entrée de légende (« degrade » pour un
+   * objet coloré par le dégradé).
    * Retourne la légende [{ cle, couleur, texte }] ; degrade : vrai pour une colonne numérique d'au moins
    * NUMERIC_MIN valeurs, chaque objet y prenant le mélange des couleurs du minimum et du maximum
    * pondéré par sa valeur.
@@ -148,7 +152,8 @@ const Couche = (() => {
     } else {  // une couleur par valeur, les plus fréquentes d'abord
       const count = new Map();
       for (const v of values) count.set(String(v), (count.get(String(v)) || 0) + 1);
-      const ranked = [...count.keys()].sort((a, b) => count.get(b) - count.get(a));
+      // les plus fréquentes d'abord, à égalité par ordre alphabétique (pas l'ordre du fichier)
+      const ranked = [...count.keys()].sort((a, b) => count.get(b) - count.get(a) || a.localeCompare(b, "fr"));
       const shown = new Set(ranked.slice(0, PALETTE.length));
       keyOf = (f) => {
         const v = f.properties[column];
@@ -160,7 +165,11 @@ const Couche = (() => {
     if (values.length < features.length && column) legend.push({ cle: "vide", couleur: EMPTY, texte: "vide" });
     for (const e of legend) e.couleur = custom[e.cle] || e.couleur;
     const colorOf = new Map(legend.map((e) => [e.cle, e.couleur]));
-    for (const f of features) f.properties._couleur = ramp?.(f) || colorOf.get(keyOf(f)) || EMPTY;
+    for (const f of features) {  // _cle : entrée de légende de l'objet (valeurs masquées, voir app.js)
+      const color = ramp?.(f);
+      f.properties._cle = color ? "degrade" : keyOf(f);
+      f.properties._couleur = color || colorOf.get(f.properties._cle) || EMPTY;
+    }
     legend.degrade = Boolean(ramp);
     return legend;
   }

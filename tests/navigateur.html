@@ -104,6 +104,16 @@ async function feature(id) {
     w.mesures.psv.dispatchEvent(event);
   };
 
+  {  // Thème forcé dans les Réglages, gardé ; « Automatique » le retire (comme le système)
+    const theme = doc.querySelector("#theme");
+    theme.value = "dark";
+    theme.dispatchEvent(new Event("change"));
+    const dark = doc.documentElement.dataset.theme === "dark" && w.localStorage.getItem("web-measures/theme") === "dark"
+      && getComputedStyle(doc.body).backgroundColor === "rgb(30, 31, 34)";
+    theme.value = "";
+    theme.dispatchEvent(new Event("change"));
+    expect("thème nuit forcé puis automatique", dark && !doc.documentElement.dataset.theme);
+  }
   log("bouton Mesure désactivé : " + app.status());
   doc.querySelector("#mesure").click();
   log("bouton Mesure activé : " + app.status());
@@ -160,6 +170,7 @@ async function feature(id) {
     const fav = doc.querySelector("#favoris .aller-favori").textContent;
     log("favori : " + fav);
     expect("favori nommé commune – voie – PR – pont", /^Semur-en-Auxois – D954 – PR \d+ \+\d{4} – Pont Joly$/.test(fav), fav);
+    expect("« Ajouter cette photo » grisé : photo déjà en favori", doc.querySelector("#ajouter-favori").disabled);
     doc.querySelector("#ajouter-favori").click();
     await sleep(500);
     expect("favori pas en double", doc.querySelectorAll("#favoris li").length === 1);
@@ -193,7 +204,7 @@ async function feature(id) {
       doc.querySelectorAll("#favoris .effacer-resultat")[1].click();
     }
     doc.querySelector("#favoris .effacer-resultat").click();
-    expect("favori retiré, aide de retour", !doc.querySelector("#favoris li") && getComputedStyle(doc.querySelector("#favoris .aide")).display !== "none"
+    expect("favori retiré, aide de retour", !doc.querySelector("#favoris li") && getComputedStyle(doc.querySelector("#favoris > .aide")).display !== "none"
       && doc.querySelector("#favoris-exporter").disabled);
   }
   const pont = doc.querySelector("#alerte-pont");
@@ -202,13 +213,12 @@ async function feature(id) {
   try { await until(() => pont.open, 30000, "proposition pont"); } catch (e) { log(String(e)); }
   expect("pont proposé", pont.open && pont.textContent.includes("sur un pont (D111)"));
   log("pont : " + pont.querySelector("p").textContent);
-  {  // fenêtre centrée sur la visionneuse, boutons groupés au centre
-    const mid = (r) => [(r.left + r.right) / 2, (r.top + r.bottom) / 2];
-    const [dx, dy] = mid(pont.getBoundingClientRect()), [vx, vy] = mid(doc.querySelector("#vue").getBoundingClientRect());
+  {  // fenêtre non modale en haut à gauche de la visionneuse (la photo reste utilisable), boutons groupés au centre
+    const r = pont.getBoundingClientRect(), v = doc.querySelector("#vue").getBoundingClientRect(), dx = (r.left + r.right) / 2;
     const buttons = [...pont.querySelectorAll("form button")].map((b) => b.getBoundingClientRect());
     const group = (buttons[0].left + buttons.at(-1).right) / 2;
-    expect("fenêtre centrée sur la visionneuse", Math.abs(dx - vx) < 2 && Math.abs(dy - vy) < 2,
-      `${Math.round(dx)},${Math.round(dy)} au lieu de ${Math.round(vx)},${Math.round(vy)}`);
+    expect("fenêtre du pont en haut à gauche, non modale", Math.abs(r.left - v.left - 12) < 2 && r.top < v.top + v.height / 3
+      && !pont.matches(":modal"), `${Math.round(r.left - v.left)},${Math.round(r.top - v.top)} dans la visionneuse`);
     expect("boutons centrés", Math.abs(group - dx) < 2, `${Math.round(group)} au lieu de ${Math.round(dx)}`);
     const border = (sel) => w.getComputedStyle(pont.querySelector(sel)).borderTopColor;
     expect("Oui vert, Non rouge", border("button.oui") === "rgb(46, 204, 64)" && border("button.non") === "rgb(229, 57, 53)",

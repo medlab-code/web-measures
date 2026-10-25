@@ -40,8 +40,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     log("réponse périmée, service en refus : " + old);
     expect("réponse ancienne servie quand le service refuse", old.includes("essai"));
     // Bouton : taille, puis vidage
-    doc.querySelector("#reseau").open = true;
-    doc.querySelector("#reseau").dispatchEvent(new Event("toggle"));
+    doc.querySelector('#outils [data-panneau="reseau"]').click();  // section Services : taille du cache
     await sleep(1500);
     log("bouton : " + doc.querySelector("#vider-cache").textContent);
     expect("taille affichée", /\(\d+(,\d)? Mo\)/.test(doc.querySelector("#vider-cache").textContent));
@@ -49,6 +48,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     await sleep(1500);
     log("après vidage : " + doc.querySelector("#vider-cache").textContent + " · " + (await cache.keys()).length + " réponse(s)");
     expect("cache vidé", (await cache.keys()).length === 0);
+    expect("« Vider le cache » grisé, cache vide", doc.querySelector("#vider-cache").disabled);
     log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
   } catch (e) { log("exception " + e); }
   log("FIN");

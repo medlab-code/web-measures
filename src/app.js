@@ -160,15 +160,36 @@
     },
   };
 
-  Services.checkServices($("#reseau ul"));
+  // Services : bilan dans la section, point rouge sur son bouton du pied s'il en manque
+  Services.checkServices($("#reseau ul"), (ok, failed, total) => {
+    const waiting = total - ok - failed;
+    $("#reseau-infos").textContent = failed ? `${failed} sans réponse ou bloqué${failed > 1 ? "s" : ""} sur ${total}`
+      : `${ok} services sur ${total} accessibles${waiting ? ` · ${waiting} en cours` : ""}`;
+    $("#services-alerte").textContent = failed ? "●" : "";
+  });
   // Cache des informations géographiques : taille, et bouton pour le vider
   async function showGeoCache() {
     const size = await pruneGeoCache();
-    $("#vider-cache").disabled = size === null;
+    $("#vider-cache").disabled = !size;  // indisponible (null) ou déjà vide
     $("#vider-cache").textContent = size === null ? "Cache indisponible (page ouverte en fichier local)"
       : `Vider le cache (${(size / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mo)`;
   }
-  $("#reseau").addEventListener("toggle", () => { if ($("#reseau").open) showGeoCache(); });
+  // Panneau : une section affichée à la fois, choisie par les onglets (Résultats, Photo, Favoris,
+  // Couche) ou les outils du pied (Mesure, Filtre, Réglages, Services) ; la dernière est rouverte à la visite suivante
+  const paneButtons = [...document.querySelectorAll("#panneau [data-panneau]")];
+  function showPane(id) {
+    if (!paneButtons.some((b) => b.dataset.panneau === id)) id = "resultats";
+    for (const button of paneButtons) {
+      const on = button.dataset.panneau === id;
+      button.setAttribute(button.getAttribute("role") === "tab" ? "aria-selected" : "aria-pressed", String(on));
+      $(`#${button.dataset.panneau}`).hidden = !on;
+    }
+    $("#contenu-panneau").scrollTop = 0;
+    store.set("panneau", id);
+    if (id === "reseau") showGeoCache();
+  }
+  for (const button of paneButtons) button.addEventListener("click", () => showPane(button.dataset.panneau));
+  showPane(store.get("panneau", "resultats"));
   $("#vider-cache").addEventListener("click", async () => {
     await pruneGeoCache(0);
     showGeoCache();
@@ -278,7 +299,7 @@
     const steps = [
       ["#carte", "Cliquez sur le filaire orange de la carte (ou cherchez un lieu) pour ouvrir la photo la plus proche."],
       ["#mesure", "Activez « Mesure », choisissez largeur ou hauteur, puis cliquez dans la photo : "
-        + "la consigne en haut de la visionneuse guide chaque étape."],
+        + "la carte d'étape, en bas à gauche de la visionneuse, guide chaque étape."],
       ["#resultats", "Les mesures s'affichent ici avec leur incertitude ; exportez-les en CSV ou GeoJSON "
         + "avant de fermer la page."],
     ];
@@ -296,6 +317,7 @@
       if (step >= steps.length) return;
       const [selector, text] = steps[step];
       target = $(selector);
+      if (target.parentElement?.id === "contenu-panneau" && target.hidden) showPane(target.id);  // section affichée
       target.classList.add("visite-cible");
       bubble.querySelector("p").textContent = text;
       bubble.querySelector(".oui").textContent = step === steps.length - 1 ? "Terminer" : "Suivant";
@@ -516,7 +538,25 @@
   function setStatus(text, kind = "") {
     const status = $("#statut");
     status.textContent = text;
-    status.className = "statut " + kind;
+    status.className = "statut " + kind;  // replie aussi la ligne
+  }
+  // Ligne d'état sur une ligne : le texte entier au clic
+  $("#statut").addEventListener("click", () => $("#statut").classList.toggle("deplie"));
+
+  // Thème : comme le système (prefers-color-scheme), ou jour / nuit forcé (data-theme, posé dès le
+  // <head> pour éviter un éclair)
+  $("#theme").value = store.get("theme", "");
+  $("#theme").addEventListener("change", () => {
+    store.set("theme", $("#theme").value);
+    if ($("#theme").value) document.documentElement.dataset.theme = $("#theme").value;
+    else delete document.documentElement.dataset.theme;
+  });
+
+  /** « Exporter le calage » grisé tant qu'aucune photo ni séquence n'est calée (rien à exporter). */
+  function showCalibrationExport() {
+    const c = JSON.parse(app.calibration_json());
+    $("#calage-exporter").disabled = !["verticals", "landmarks", "heights", "auto"]
+      .some((k) => c[k] && Object.keys(c[k]).length);
   }
 
   Calcul.startCalcul(() => refresh(), apiUrl).then((created) => {
@@ -524,8 +564,8 @@
     const saved = store.get("calage");
     if (saved && !app.load_calibration(saved)) console.warn("Calage enregistré illisible : ignoré.");
     savedCalibration = app.calibration_version;
-    for (const id of ["#mesure", "#mode", "#camera", "#pont", "#calage-exporter",
-      "#calage-importer"]) $(id).disabled = false;
+    for (const id of ["#mesure", "#mode", "#camera", "#pont", "#calage-importer"]) $(id).disabled = false;
+    showCalibrationExport();
     $("#camera").value = store.get("camera", $("#camera").value);
     app.set_camera_height(Number($("#camera").value));
     app.set_terrain_relay($("#inclinaison-terrain").checked);
@@ -603,6 +643,33 @@
     dialog.addEventListener("close", () => window.removeEventListener("resize", place), { once: true });
   }
 
+  /** Onglet Photo, « Position » : un élément par ligne (GPS, terrain, inclinaison, calage), chacun avec
+   * son voyant, comme ceux de la visionneuse : vert vérifié ou calé, orange manquant ou en attente, gris sinon
+   * (le ⚠ de la ligne d'état porte sur l'élément en cause, pas sur les autres). */
+  let shownPosition = "";
+  function showPosition(quality, calibration) {
+    const key = `${quality}\n${calibration}`;
+    if (key === shownPosition) return;
+    shownPosition = key;
+    const parts = [...quality.replace(/^⚠ /, "").split(" · "), ...(calibration ? [calibration] : [])].filter(Boolean);
+    $("#qualite").replaceChildren(...parts.map((text) => {
+      const wait = /\bnon\b|pas de|pas assez|en cours|activation|estimée|dégradé|calez/i.test(text);
+      const ok = !wait && /vérifiée|LiDAR|RGE ALTI|corrigée|calée|caméra à/i.test(text);
+      const li = Object.assign(document.createElement("li"), { textContent: text[0].toUpperCase() + text.slice(1) });
+      li.className = ok ? "ok" : wait ? "attente" : "";
+      return li;
+    }));
+  }
+
+  /** Fenêtre non modale en haut à gauche de la visionneuse, sous le nom du pont : la photo reste
+   * visible et utilisable (question du pont, posée à l'ouverture d'une photo). */
+  function showInCorner(dialog) {
+    dialog.show();
+    const box = $("#vue").getBoundingClientRect(), fall = $("#chute");
+    Object.assign(dialog.style, { margin: "0", inset: "auto", left: `${box.left + 12}px`,
+      top: `${box.top + 12 + (fall.hidden ? 0 : fall.offsetHeight + 8)}px` });
+  }
+
   /** Redessine tout : texte de la mesure, état de la photo, repères, carte, résultats. */
   function refresh(text) {
     if (!app) return;
@@ -625,7 +692,7 @@
         $("#pont").checked = bridgeAlert.check;
         refresh(bridgeAlert.check ? app.set_bridge(true) : app.leave_bridge());
       }, { once: true });
-      showOverViewer(dialog);
+      showInCorner(dialog);
     }
     const state = JSON.parse(app.state());
     $("#effacer").disabled = !state.can_undo;  // grisés quand ils n'auraient pas d'effet
@@ -633,9 +700,7 @@
     $("#tout-effacer").disabled = !state.can_clear;
     const computed = $("#fiche .precision-calculee");
     if (computed) computed.textContent = state.computed || "en cours…";
-    $("#qualite").textContent = state.quality;
-    $("#qualite").classList.toggle("alerte", state.quality.startsWith("⚠"));
-    $("#calage").textContent = state.calibration;
+    showPosition(state.quality, state.calibration);
     const gps = $("#camera-gps");
     gps.hidden = !state.camera;
     if (state.camera) {
@@ -673,6 +738,7 @@
     if (app.calibration_version !== savedCalibration) {
       savedCalibration = app.calibration_version;
       store.set("calage", app.calibration_json());
+      showCalibrationExport();
     }
     drawViewerMarks(JSON.parse(app.viewer_marks()));
     heightAxis = JSON.parse(app.height_axis());
@@ -712,12 +778,14 @@
     if (key === resultsKey) return;
     resultsKey = key;
     const ol = $("#resultats > ol");
+    $("#compte-resultats").textContent = list.filter((r) => !r.sous).length || "";
     const focused = document.activeElement?.closest?.("#resultats > ol") ? document.activeElement.dataset.key : null;
     ol.replaceChildren(...list.map((r) => {
       const li = Object.assign(document.createElement("li"), { className: r.sous ? "sous" : "" });  // mesure d'un point de référence
-      const text = Object.assign(document.createElement("span"), { textContent: r.text });
+      const text = resultLabel(r);
       const comment = Object.assign(document.createElement("input"), {
         type: "text", value: r.comment, placeholder: "Commentaire", title: "Commentaire exporté avec le résultat",
+        hidden: !r.comment && focused !== `${r.kind}-${r.id}`,  // ouvert par ✎ ; montré s'il existe
       });
       comment.dataset.key = `${r.kind}-${r.id}`;
       comment.addEventListener("input", () => {
@@ -738,16 +806,56 @@
       line.append(text);
       if (r.kind === "point") {  // point de référence : sa fiche PDF, avec ses mesures
         const sheet = Object.assign(document.createElement("button"), {
-          type: "button", className: "fiche", textContent: "📄 Fiche", title: "Fiche PDF de ce point et de ses mesures (impression du navigateur)",
+          type: "button", className: "fiche", title: "Fiche PDF de ce point et de ses mesures (impression du navigateur)",
+          innerHTML: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
+            + '<path d="M7 3h7l5 5v13H7z M14 3v5h5" stroke-linejoin="round"/></svg>',
         });
+        sheet.setAttribute("aria-label", `Fiche PDF : ${r.text}`);
         sheet.addEventListener("click", () => askFiche(r.id, r.text));
         line.append(sheet);
       }
-      line.append(remove);
+      const edit = Object.assign(document.createElement("button"), {
+        type: "button", className: "effacer-resultat", textContent: "✎", title: "Commentaire exporté avec le résultat",
+      });
+      edit.setAttribute("aria-label", `Commentaire : ${r.text}`);
+      edit.addEventListener("click", () => {
+        comment.hidden = false;
+        comment.focus();
+      });
+      line.append(edit, remove);
       li.append(line, comment);
       return li;
     }));
     if (focused) ol.querySelector(`[data-key="${focused}"]`)?.focus();
+    showResultsInfo(list);
+  }
+
+  /** Libellé d'un résultat : point de référence (pastille, incertitude) ou mesure (symbole, point
+   * d'arrivée, valeur, incertitude) ; autre forme (distance…) : le texte tel quel. */
+  function resultLabel(r) {
+    const span = (className, textContent) => Object.assign(document.createElement("span"), { className, textContent });
+    const label = span("libelle", "");
+    const point = r.kind === "point" && r.text.match(/^Point (\S+) (±.+)$/);
+    const measure = r.kind === "mesure" && r.text.match(/^(\S+) ([A-Za-z]\S*) (\d.*?) (± .+)$/);
+    if (point) label.append(span("puce-point", point[1]), span("valeur", "Point de référence"), span("incert", point[2]));
+    else if (measure) label.append(span("symbole", measure[1]), span("puce-point fin", measure[2]), span("valeur", measure[3]),
+      span("incert", measure[4]));
+    else label.textContent = r.text;
+    label.title = r.text;
+    return label;
+  }
+
+  /** En-tête des résultats : points et mesures, exportés ou non ; accueil s'il n'y en a pas. */
+  let shownResults = [];
+  function showResultsInfo(list = shownResults) {
+    shownResults = list;
+    const points = list.filter((r) => r.kind === "point").length, others = list.length - points;
+    const parts = [points && `${points} point${points > 1 ? "s" : ""}`, others && `${others} mesure${others > 1 ? "s" : ""}`]
+      .filter(Boolean);
+    const done = Boolean(list.length) && exported === app.export_geojson();
+    $("#resultats-infos").textContent = parts.length ? `${parts.join(" · ")} · ${done ? "exportés" : "non exportés"}` : "Aucune mesure";
+    $("#resultats-infos").classList.toggle("a-exporter", Boolean(list.length) && !done);
+    $("#resultats-vide").hidden = Boolean(list.length);
   }
 
   /** Point effacé au milieu d'une chaîne (A–B–C) : propose de mesurer la distance A–C. */
@@ -908,7 +1016,7 @@
       if (dialog.returnValue !== "oui") return declinedSequences.add(key);
       try {
         const feature = await Carte.photoById(near[0].id);
-        if (!feature) return notice("Photo recalée introuvable sur l'instance choisie (Réglages › Instance).");
+        if (!feature) return notice("Photo recalée introuvable sur l'instance choisie (Filtre › Instance).");
         openPhoto(feature);
         map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 17), speed: 1.6 });
       } catch (error) {
@@ -930,6 +1038,7 @@
       if (!Object.keys(f.recalages).length) delete f.recalages;
     }
     saveOverlay();
+    showOverlayInfo();
     drawViewerMarks(currentMarks);
   }
 
@@ -1181,7 +1290,6 @@
   function setPhoto(feature, recenter) {
     photo = feature;
     store.set("photo", feature.id);  // rouverte à la prochaine visite (voir reopenPhoto)
-    $("#ajouter-favori").disabled = false;
     showFavorites();  // étoile de la nouvelle photo
     // En bas à droite de la visionneuse : « 2025 – producteur » (année de la prise de vue)
     const producer = photoProducer(feature);
@@ -1280,16 +1388,23 @@
 
   function showPhotoInfo(feature, message) {
     const section = $("#fiche");
+    $("#photo-copier").disabled = !feature;
     if (!feature) {
-      section.replaceChildren(Object.assign(document.createElement("p"), { className: "aide", textContent: message }));
+      $("#photo-titre").textContent = "Aucune photo";
+      $("#photo-infos").textContent = message || "";
+      section.replaceChildren(Object.assign(document.createElement("p"), { className: "aide", textContent: "—" }));
       return;
     }
     const p = feature.properties || {};
+    // En-tête : date de prise de vue, producteur et caméra
+    const when = p.datetime ? new Date(p.datetime) : null;
+    $("#photo-titre").textContent = when && !isNaN(when)
+      ? when.toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" }) : "Date inconnue";
+    $("#photo-infos").textContent = [photoProducer(feature), (p["pers:interior_orientation"] || {}).camera_model]
+      .filter(Boolean).join(" · ");
+    $("#photo-copier").onclick = () => copyText(feature.id, $("#photo-copier"));
     const accuracy = p["quality:horizontal_accuracy"];
     const rows = [
-      ["Date", (p.datetime || "").replace("T", " ").slice(0, 16)],
-      ["Producteur", photoProducer(feature)],
-      ["Caméra", (p["pers:interior_orientation"] || {}).camera_model || ""],
       ["Précision GPS annoncée", accuracy != null ? `${String(accuracy).replace(".", ",")} m` : "—"],
       ["Identifiant", feature.id],
     ];
@@ -1302,17 +1417,16 @@
         const computed = Object.assign(document.createElement("span"), { className: "precision-calculee" });
         dd.append(" · calculée ", computed);
       }
+      if (label === "Identifiant") dd.className = "identifiant";
       dl.append(Object.assign(document.createElement("dt"), { textContent: label }), dd);
     }
-    // Identifiant à copier d'un clic : pour retrouver la photo (tests entre collègues)
-    const copy = Object.assign(document.createElement("button"), { type: "button", className: "copier",
-      textContent: "📋 Copier", title: "Copier l'identifiant de la photo dans le presse-papiers" });
-    copy.addEventListener("click", () => copyText(feature.id, copy));
-    dl.lastElementChild.append(copy);
     section.replaceChildren(dl);
   }
 
   // Aller à une photo par son identifiant (ou un lien Panoramax qui le contient)
+  $("#id-photo").addEventListener("input", () => {
+    $("#aller-photo button").disabled = !$("#id-photo").value.trim();  // champ vide : sans effet
+  });
   $("#aller-photo").addEventListener("submit", async (event) => {
     event.preventDefault();
     const help = $("#aller-photo .aide");
@@ -1326,7 +1440,7 @@
     try {
       const feature = await Carte.photoById(match[0].toLowerCase());
       if (!feature) {
-        help.textContent = "Photo introuvable sur l'instance choisie (Réglages › Instance).";
+        help.textContent = "Photo introuvable sur l'instance choisie (Filtre › Instance).";
         return;
       }
       help.hidden = true;
@@ -1345,16 +1459,33 @@
     try { return JSON.parse(store.get("favoris", "[]")) || []; } catch { return []; }
   }
 
+  /** Nom d'un favori, commune et voie en gras (gardées à l'ajout ; favori plus ancien : la voie
+   * reconnue à sa forme, la commune juste avant elle dans le nom « lieu-dit – commune – voie – PR – pont »). */
+  const VOIE = /^(?:[ADNM]|RD|RN|VC)\s?\d|^(?:rue|route|chemin|avenue|boulevard|place|impasse|allée|quai|voie|véloroute)\b/i;
+  function favoriteName(f) {
+    const parts = f.name.split(" – ");
+    const strong = new Set([f.commune, f.voie].filter(Boolean));
+    if (!strong.size) {
+      const k = parts.findIndex((p) => VOIE.test(p));
+      if (k >= 0) [parts[k], parts[k - 1]].filter(Boolean).forEach((p) => strong.add(p));
+    }
+    return parts.flatMap((p, k) => [...(k ? [" – "] : []),
+      strong.has(p) ? Object.assign(document.createElement("strong"), { textContent: p }) : p]);
+  }
+
   function showFavorites() {
     $("#favoris ol").replaceChildren(...favorites().map((f) => {
-      const li = document.createElement("li");
+      // photo affichée : entourée
+      const li = Object.assign(document.createElement("li"), { className: photo?.id === f.id ? "actuelle" : "" });
       const go = Object.assign(document.createElement("button"), {
-        type: "button", className: "aller-favori", textContent: f.name, title: `Aller à la photo ${f.id}`,
+        type: "button", className: "aller-favori",
+        title: photo?.id === f.id ? "Photo affichée" : `Aller à la photo ${f.id}`,
       });
+      go.append(...favoriteName(f));
       go.addEventListener("click", async () => {
         try {
           const feature = await Carte.photoById(f.id);
-          if (!feature) return notice("Photo du favori introuvable sur l'instance choisie (Réglages › Instance).");
+          if (!feature) return notice("Photo du favori introuvable sur l'instance choisie (Filtre › Instance).");
           openPhoto(feature);
           map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 17), speed: 1.6 });
         } catch (error) {
@@ -1370,8 +1501,14 @@
       return li;
     }));
     $("#favoris-exporter").disabled = !favorites().length;
+    $("#compte-favoris").textContent = favorites().length || "";
+    const n = favorites().length;
+    $("#favoris-infos").textContent = n ? `${n} photo${n > 1 ? "s" : ""} · gardée${n > 1 ? "s" : ""} dans ce navigateur` : "Aucune photo";
     // Étoile de la visionneuse : pleine si la photo affichée est en favori
     const on = Boolean(photo) && favorites().some((f) => f.id === photo.id);
+    $("#ajouter-favori").disabled = !photo || on;  // déjà en favori : sans effet
+    $("#ajouter-favori").classList.toggle("en-favori", on);  // étoile pleine
+    $("#ajouter-favori").title = on ? "Photo déjà en favori (son étoile sur la photo la retire)" : "Ajouter cette photo aux favoris";
     Object.assign($("#etoile-favori"), { hidden: !photo,
       title: on ? "Retirer cette photo des favoris" : "Ajouter cette photo aux favoris" });
     $("#etoile-favori").setAttribute("aria-pressed", String(on));
@@ -1399,18 +1536,26 @@
   const overlayAt = new Map();  // objet → position sans décalage de sa pastille ou de son étiquette
   let moving = null;  // { id, photo } : objet en cours de recalage
   const movingId = () => (moving && !measuring && moving.photo === photo?.id ? moving.id : null);
+  /** Clés des valeurs masquées de la colonne de couleur affichée (Couche.style : properties._cle). */
+  function overlayMasked() {
+    return new Set(overlay?.masques?.[$("#couche-couleur").value] || []);
+  }
+  const EYE_OPEN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
+    + '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const EYE_SHUT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
+    + '<path d="M3 3l18 18M10.6 6.1A9.7 9.7 0 0112 6c6.5 0 10 6 10 6a17 17 0 01-3.2 3.9M6.6 6.6C3.8 8.4 2 12 2 12s3.5 6 10 6a9.6 9.6 0 004.4-1" stroke-linecap="round"/></svg>';
+
   function showOverlayStyle() {
     if (!overlay) return;
     const column = $("#couche-couleur").value;
     const custom = overlay.couleurs[column] ||= {};
     const legend = Couche.style(overlay.features, column, $("#couche-etiquette").value, custom);
-    $("#couche-couleurs-defaut").hidden = !Object.keys(custom).length;
+    $("#couche-couleurs-defaut").disabled = !Object.keys(custom).length;
     if (legend.degrade && !custom.min && !custom.max) {
       setStatus("Dégradé : cliquez les pastilles « minimum » et « maximum » de la légende pour choisir ses couleurs.");
     }
     // Clic sur une pastille : palette en fenêtre flottante, la couleur choisie remplace la sienne
-    $("#couche-legende").replaceChildren(...legend.map(({ cle, couleur, texte }) => {
-      const li = document.createElement("li");
+    const swatch = ({ cle, couleur, texte }) => {
       const button = Object.assign(document.createElement("button"), {
         type: "button", className: "pastille-couche", title: "Changer la couleur" });
       button.setAttribute("aria-label", `Couleur de « ${texte} »`);
@@ -1433,19 +1578,68 @@
       palette.addEventListener("beforetoggle", (event) => {
         if (event.newState !== "open") return;
         const r = button.getBoundingClientRect();
-        Object.assign(palette.style, { left: `${Math.min(r.left, innerWidth - 160)}px`, top: `${r.bottom + 4}px` });  // ~150 px de large
+        Object.assign(palette.style, { left: `${Math.min(r.left, innerWidth - 290)}px`, top: `${r.bottom + 4}px` });  // ~280 px de large
       });
-      li.append(button, texte, palette);
+      palette.addEventListener("toggle", (event) => {  // trop bas (pastille en bas de l'écran) : au-dessus d'elle
+        if (event.newState === "open" && palette.getBoundingClientRect().bottom > innerHeight - 8) {
+          palette.style.top = `${Math.max(8, button.getBoundingClientRect().top - palette.offsetHeight - 4)}px`;
+        }
+      });
+      return [button, palette];
+    };
+    // Œil par valeur (couleur selon une colonne) : ses objets masqués sur la carte et dans la photo
+    const masked = overlayMasked();
+    const item = (entry) => {
+      const li = Object.assign(document.createElement("li"), { className: masked.has(entry.cle) ? "masquee" : "" });
+      li.append(...swatch(entry), Object.assign(document.createElement("span"), { className: "texte-valeur", textContent: entry.texte }));
+      if (column) {
+        const shown = !masked.has(entry.cle);
+        const eye = Object.assign(document.createElement("button"), { type: "button", className: "oeil-valeur",
+          innerHTML: shown ? EYE_OPEN : EYE_SHUT, title: shown ? "Masquer ces objets" : "Afficher ces objets" });
+        eye.setAttribute("aria-label", `${shown ? "Masquer" : "Afficher"} « ${entry.texte} »`);
+        eye.setAttribute("aria-pressed", String(shown));
+        eye.addEventListener("click", () => {
+          const list = overlay.masques[column] ||= [];
+          if (shown) list.push(entry.cle);
+          else list.splice(list.indexOf(entry.cle), 1);
+          showOverlayStyle();
+          saveOverlay();
+        });
+        li.append(eye);
+      }
       return li;
-    }));
-    // Case « Afficher la couche » décochée : ni sur la carte ni dans la photo, réglages gardés
-    Carte.showOverlay(map, $("#couche-visible").checked ? { type: "FeatureCollection", features: overlay.features } : null);
+    };
+    let items = legend.map(item);
+    if (legend.degrade) {  // minimum, barre du dégradé, maximum ; valeurs dessous ; puis « vide »
+      const [low, high, ...rest] = legend;
+      const bar = Object.assign(document.createElement("li"), { className: "barre-degrade" });
+      const ramp = document.createElement("span");
+      ramp.style.background = `linear-gradient(90deg, ${low.couleur}, ${high.couleur})`;
+      bar.append(...swatch(low), ramp, ...swatch(high));
+      const ends = Object.assign(document.createElement("li"), { className: "bornes-degrade" });
+      ends.append(...[low, high].map(({ texte }) => Object.assign(document.createElement("span"), { textContent: texte })));
+      items = [bar, ends, ...rest.map(item)];
+    }
+    $("#titre-legende").textContent = legend.degrade ? "Dégradé" : "Légende";
+    $("#couche-legende").classList.toggle("degrade", Boolean(legend.degrade));
+    $("#couche-legende").replaceChildren(...items);
+    // Œil de la couche fermé : ni sur la carte ni dans la photo, réglages gardés ; valeurs masquées retirées
+    Carte.showOverlay(map, $("#couche-visible").checked ? { type: "FeatureCollection",
+      features: overlay.features.filter((f) => !masked.has(f.properties._cle)) } : null);
     refresh();
   }
 
+  /** Fiche de la couche : nombre d'objets, système de coordonnées, objets recalés dans des photos. */
+  function showOverlayInfo() {
+    const n = overlay.features.length, k = overlay.features.filter((f) => f.recalages).length;
+    $("#couche-infos").textContent = [`${n} objet${n > 1 ? "s" : ""}`,
+      overlay.crs === "lambert93" ? "Lambert 93 converti" : "WGS 84", k ? `${k} recalé${k > 1 ? "s" : ""}` : ""]
+      .filter(Boolean).join(" · ");
+  }
+
   /** Couche en place (lue d'un fichier, ou gardée) : calcul, réglages, carte ; cadrée dessus si fit. */
-  function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}) {
-    overlay = { name, ...read, couleurs: colors };
+  function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}, masks = {}) {
+    overlay = { name, ...read, couleurs: colors, masques: masks };  // masques : { colonne: [clés de légende masquées] }
     moving = null;  // couleurs choisies : { colonne: { clé de légende: couleur } }
     $("#couche-visible").checked = visible;
     const n = app.set_overlay(JSON.stringify(read.features.map(({ id, geometry }) => ({ id, geometry }))));
@@ -1454,11 +1648,12 @@
         ...read.columns.map((c) => new Option(c, c)));
       $(id).value = read.columns.includes(value) ? value : "";
     }
-    $("#couche-nom").textContent = `${name} : ${read.features.length} objet${read.features.length > 1 ? "s" : ""}`
-      + `${read.crs === "lambert93" ? " (Lambert 93 converti)" : ""}`;
+    $("#couche-nom").textContent = name;
+    showOverlayInfo();
+    for (const id of ["#couche-accueil", "#couche-formats", "#couche-crs"]) $(id).hidden = true;
     $("#couche-reglages").hidden = false;
-    $("#couche-retirer").hidden = false;
-    $("#couche-exporter").hidden = false;
+    $("#couche-retirer").disabled = false;
+    $("#couche-exporter").disabled = false;
     showOverlayStyle();
     if (fit) {
       const xs = [], ys = [];
@@ -1473,8 +1668,8 @@
   /** Couche et réglages gardés dans le navigateur ; faux si elle est trop grosse pour y tenir. */
   function saveOverlay() {
     if (!overlay) return true;
-    const { name, features, columns, crs, couleurs } = overlay;
-    const text = JSON.stringify({ name, columns, crs, couleurs, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
+    const { name, features, columns, crs, couleurs, masques } = overlay;
+    const text = JSON.stringify({ name, columns, crs, couleurs, masques, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
       visible: $("#couche-visible").checked,
       features: features.map(({ type, id, geometry, properties, recalages }) => ({ type, id, geometry, recalages,
         properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) });
@@ -1487,13 +1682,33 @@
     let saved = null;
     try { saved = JSON.parse(store.get("couche") || "null"); } catch { /* illisible : aucune */ }
     if (saved?.features?.length) loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, false, saved.visible !== false,
-      saved.couleurs || {});
+      saved.couleurs || {}, saved.masques || {});
   }
 
-  $("#couche-importer").addEventListener("click", () => $("#couche-fichier").click());
-  $("#couche-fichier").addEventListener("change", async (event) => {
+  for (const id of ["#couche-importer", "#couche-remplacer"]) $(id).addEventListener("click", () => $("#couche-fichier").click());
+  $("#couche-fichier").addEventListener("change", (event) => {
     const files = [...event.target.files];
     event.target.value = "";
+    importOverlay(files);
+  });
+  // Fichier glissé sur l'onglet Couche (avec son .dbf et son .prj pour un Shapefile)
+  const layerTab = $("#couche");
+  layerTab.addEventListener("dragover", (event) => {
+    if (!event.dataTransfer?.types.includes("Files")) return;
+    event.preventDefault();
+    layerTab.classList.add("survol");
+  });
+  layerTab.addEventListener("dragleave", (event) => {
+    if (!layerTab.contains(event.relatedTarget)) layerTab.classList.remove("survol");
+  });
+  layerTab.addEventListener("drop", (event) => {
+    event.preventDefault();
+    layerTab.classList.remove("survol");
+    importOverlay([...event.dataTransfer.files]);
+  });
+
+  /** Couche lue des fichiers choisis ou glissés, remplaçant celle en place. */
+  async function importOverlay(files) {
     if (!files.length || !app) return;
     try {
       setStatus("Lecture de la couche…");
@@ -1508,7 +1723,7 @@
     } catch (error) {
       setStatus(`Couche non importée : ${error.message}`, "echec");
     }
-  });
+  }
   for (const id of ["#couche-couleur", "#couche-etiquette", "#couche-visible"]) {
     $(id).addEventListener("change", () => {
       showOverlayStyle();
@@ -1539,8 +1754,9 @@
     app?.set_overlay("[]");
     Carte.showOverlay(map, null);
     $("#couche-reglages").hidden = true;
-    $("#couche-retirer").hidden = true;
-    $("#couche-exporter").hidden = true;
+    for (const id of ["#couche-accueil", "#couche-formats", "#couche-crs"]) $(id).hidden = false;
+    $("#couche-retirer").disabled = true;
+    $("#couche-exporter").disabled = true;
     refresh();
   });
 
@@ -1555,7 +1771,8 @@
     const known = new Set(favorites().map((f) => f.id));
     const added = read  // fichier venu d'ailleurs : seulement des identifiants de photo et des noms courts
       .filter((f) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(f?.id) && !known.has(f.id) && known.add(f.id))
-      .map((f) => ({ id: f.id.toLowerCase(), name: String(f.name || f.id).slice(0, 200) }));
+      .map((f) => ({ id: f.id.toLowerCase(), name: String(f.name || f.id).slice(0, 200),
+        commune: String(f.commune || "").slice(0, 100), voie: String(f.voie || "").slice(0, 100) }));
     store.set("favoris", JSON.stringify([...favorites(), ...added]));
     showFavorites();
     notice(added.length ? `${added.length} favori${added.length > 1 ? "s" : ""} importé${added.length > 1 ? "s" : ""}.`
@@ -1571,7 +1788,8 @@
     const bridge = $("#chute").hidden ? "" : ($("#chute .pont")?.textContent || "").replace(/\s*\([^)]*\)$/, "");
     const name = [parts?.lieudit, parts?.commune, parts?.voie, parts?.pr, bridge].filter(Boolean).join(" – ")
       || `Photo du ${(feature.properties?.datetime || "").slice(0, 10)}`;
-    store.set("favoris", JSON.stringify([...favorites().filter((f) => f.id !== feature.id), { id: feature.id, name }]));
+    store.set("favoris", JSON.stringify([...favorites().filter((f) => f.id !== feature.id),
+      { id: feature.id, name, commune: parts?.commune || "", voie: parts?.voie || "" }]));  // commune et voie : en gras
     showFavorites();
   }
   showFavorites();
@@ -1592,9 +1810,9 @@
       try { done = document.execCommand("copy"); } catch { done = false; }
       area.remove();
     }
-    const label = button.textContent;
-    button.textContent = done ? "✔ Copié" : "Copie refusée";
-    setTimeout(() => { button.textContent = label; }, 1500);
+    const label = button.innerHTML, icon = Boolean(button.querySelector("svg"));  // bouton à icône : ✔ ou ✖ seul
+    button.textContent = done ? (icon ? "✔" : "✔ Copié") : (icon ? "✖" : "Copie refusée");
+    setTimeout(() => { button.innerHTML = label; }, 1500);
   }
 
   // Visionneuse ----------------------------------------------------------------------------
@@ -2028,6 +2246,15 @@
     // carte ; la vue tournée vers le point à viser (take_aim_frame), il le désigne (ticket #26)
     $("#axe-vue").hidden = !measuring || !["road", "height", "tri"].includes(mode) || viewer.hidden;
     // Même état en toutes lettres, sous le rappel du mode (comme les voyants)
+    // Carte d'étape (en bas, en mesure) : nom de la mesure et ses étapes, la courante en couleur
+    $("#vue").classList.toggle("en-mesure", measuring);
+    const [title, steps, current] = mode === "height" ? ["Hauteur", ["Pied", "Sommet"], aiming ? 0 : newMeasure ? 2 : 1]
+      : mode === "road" ? ["Largeur", ["Premier bord", "Bord opposé"], aiming && !edgeBAiming ? 0 : newMeasure ? 2 : 1]
+      : mode === "tri" ? ["Mesure libre", ["Points visés depuis plusieurs photos"], 0]
+      : ["Calage de l'inclinaison", ["Deux objets verticaux"], 0];
+    $("#nom-mesure").textContent = title;
+    $("#etapes").replaceChildren(...steps.map((step, k) => Object.assign(document.createElement("li"), {
+      textContent: step, className: k < current ? "faite" : k === current ? "courante" : "" })));
     const state = $("#etat-mesure");
     state.hidden = !sighting && !taking;
     state.className = sighting ? "visee" : taking ? "prise" : "";
@@ -2043,6 +2270,9 @@
       : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé ; autre photo, prise avant ou après : par la carte"
       : mode === "tilt" ? "Calage de l'inclinaison : pied puis sommet de deux objets verticaux, à 90° l'un de l'autre"
       : "Mode mesure en cours : désélectionner pour naviguer";
+    // Nom de la mesure et étape déjà dans l'en-tête de la carte d'étape (« Hauteur, étape 1 : »…) : retirés
+    const tip = $("#mode-mesure").textContent.replace(/^(?:Hauteur|Largeur|Mesure libre|Calage de l'inclinaison)[^:]*: /, "");
+    $("#mode-mesure").textContent = tip[0].toUpperCase() + tip.slice(1);
     showModeOptions();
     const box = psv?.container;
     if (!box) return;
@@ -2152,8 +2382,10 @@
     if (overlay && app && $("#couche-visible").checked) {
       let points = 0, n = 0, rank = 0;
       overlayAt.clear();
+      const masked = overlayMasked();
       for (const o of JSON.parse(app.overlay_marks())) {
         const p = overlay.features[o.id]?.properties || {};
+        if (masked.has(p._cle)) continue;  // valeur masquée dans la légende
         const color = p._couleur || "#ff00ff";
         const chosen = o.id === movingId() ? " choisie" : "";
         const anchorOf = (pts) => (o.kind === "point" ? { yaw: pts[0][0], pitch: pts[0][1] }
@@ -2450,6 +2682,7 @@
     const active = filterActive();
     $("#filtre-actif").textContent = active ? "●" : "";
     $("#filtre-actif").title = active && app ? app.filter_text() : "";
+    $("#filtre-infos").textContent = !active ? "aucun" : app ? app.filter_text() : "en attente du calcul";
     if (app) checkPhoto();  // sans le calcul, le filtre n'est pas encore évalué
   }
 
@@ -2507,11 +2740,13 @@
     const geojson = app.export_geojson();
     if (await download("\ufeff" + app.export_csv(), "mesures.csv", "text/csv")) exported = geojson;
     saveResults();
+    showResultsInfo();
   });
   $("#geojson").addEventListener("click", async () => {
     const geojson = app.export_geojson();
     if (await download(geojson, "mesures.geojson", "application/geo+json")) exported = geojson;
     saveResults();
+    showResultsInfo();
   });
 
   // Résultats gardés dans le navigateur à chaque changement (exports CSV et GeoJSON tout prêts) :
@@ -2550,9 +2785,9 @@
       }));
       Carte.showPrevious(map, geojson);
       const when = new Date(previous.when);
-      $("#precedents p").textContent = `${previous.n} résultat${previous.n > 1 ? "s" : ""} de la session du ${
+      $("#precedents summary").textContent = `${previous.n} résultat${previous.n > 1 ? "s" : ""} de la session du ${
         when.toLocaleDateString("fr-FR")} à ${when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-      }, non exporté${previous.n > 1 ? "s" : ""} :`;
+      }, non exporté${previous.n > 1 ? "s" : ""}`;
       $("#precedents").hidden = false;
       $("#precedents-csv").addEventListener("click", () => download("\ufeff" + previous.csv, "mesures-precedentes.csv", "text/csv"));
       $("#precedents-geojson").addEventListener("click", () => download(previous.geojson, "mesures-precedentes.geojson",

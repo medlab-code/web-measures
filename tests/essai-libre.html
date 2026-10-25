@@ -134,7 +134,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await until(() => w.document.readyState === "complete" && w.document.querySelector("#precedents"), 60000, "page rechargée");
     const shown = w.document.querySelector("#precedents");
     expect("résultats précédents proposés à l'export", !shown.hidden, shown.textContent.trim().slice(0, 80));
-    log("précédents : " + shown.querySelector("p").textContent + " " + [...shown.querySelectorAll("li")].map((li) => li.textContent).join(" | "));
+    log("précédents : " + shown.querySelector("summary").textContent + " " + [...shown.querySelectorAll("li")].map((li) => li.textContent).join(" | "));
     expect("résultats précédents listés", shown.querySelectorAll("li").length === saved.n);
     // La liste de la session en cours reste la sienne (elle était écrite dans celle des précédents)
     await until(() => w.mesures?.app, 120000, "Pyodide rechargé");

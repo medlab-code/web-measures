@@ -38,8 +38,21 @@ python3 -m http.server 8765    # puis http://127.0.0.1:8765/
 **Première utilisation** : l'instance Panoramax de l'IGN et les photos du conseil
 départemental de la Côte-d'Or sont choisies par défaut, car elles remplissent les prérequis
 des mesures (précision RTK, modèle de terrain IGN : LiDAR HD, ou RGE ALTI là où il n'est pas encore publié) ; une fenêtre l'explique. On peut changer ces
-réglages dans « Filtre des photos » et « Réglages », et les choix sont ensuite gardés. Une
+réglages dans « Filtre » (instance comprise), et les choix sont ensuite gardés. Une
 première photo s'ouvre (Clos de Vougeot, D974), tournée vers l'ouest.
+
+**Le panneau** (sous la mini-carte) : une ligne d'état (calcul, chargement, échecs ; le texte entier
+d'un clic), puis les onglets **Résultats** (en tête, le nombre de points et de mesures, exportés ou non, et les exports CSV et
+GeoJSON ; chaque point de référence avec ses mesures dessous, fiche PDF, commentaire par ✎), **Photo** (en tête, date,
+producteur et caméra, étoile des favoris, identifiant à copier ; position : précision GPS, sol, inclinaison
+et calage, chacun avec son voyant ; détails ; « Aller à une photo » par son identifiant ou un lien ; export et
+import du calage), **Favoris**
+(photos favorites, export et import) et **Couche**, avec le nombre de résultats et de
+favoris sur l'onglet ; en bas, les boutons **Filtre** (instance Panoramax, filtre des photos ; point orange quand un filtre est actif),
+**Réglages** (hauteur de caméra, thème, options) et **Services**. La consigne de
+mesure est dans la carte d'étape de la visionneuse. Thème jour ou nuit : comme le système par défaut, ou choisi
+dans Réglages. Une section
+s'affiche à la fois ; la dernière choisie est rouverte à la visite suivante.
 
 **La carte** : fonds Plan IGN, orthophoto, ortho-express, PCRS, OpenStreetMap, et
 **orthophoto avec noms** : noms des lieux et des rues, voies, avec les numéros de route dans
@@ -59,8 +72,10 @@ par le **requêteur route + PR**, ou coller l'**identifiant** d'une photo (ou un
 Panoramax) dans « Aller à la photo » ; « 📋 Copier » sous l'identifiant de la photo affichée
 le copie, pour la passer à un collègue.
 
-**Mesurer** : bouton « 📐 Mesure », puis le mode. Les consignes s'affichent en haut au centre
-de la visionneuse ; le bouton **« ✔ Valider le point triangulé »** y apparaît, avec un halo,
+**Mesurer** : bouton « Mesure », puis le mode. Pendant la mesure, une carte d'étape en bas à gauche de
+la visionneuse donne la mesure et ses étapes (pied puis sommet, premier bord puis bord opposé), l'état
+(triangulation ou mesure en cours) et la consigne ; le haut de la photo et les flèches restent libres. Le
+bouton **« ✔ Valider le point triangulé »** y apparaît, avec un halo,
 dès que les visées donnent un point (deux visées qui se croisent).
 
 **Prise de mesure guidée** :
@@ -203,19 +218,24 @@ sans répéter ce qui est déjà dit, ni le nom de la mesure) ; la mini-carte ce
 (même échelle qu'à l'écran), avec le cône de vue et le nom du fond de carte et de son producteur ; l'identifiant de la photo,
 son attribution et son lien Panoramax, aussi en QR code. La mini-carte manque si elle est repliée.
 
-**Couche importée** (section « Couche » du panneau) : un fichier GeoJSON, Shapefile (en .zip, ou le
+**Couche importée** (onglet « Couche » du panneau : bouton « Importer un fichier… », ou fichier glissé sur
+l'onglet) : un fichier GeoJSON, Shapefile (en .zip, ou le
 .shp choisi avec son .dbf et son .prj ; reprojeté d'après le .prj) ou GeoPackage (table au choix s'il
 en a plusieurs), en WGS 84 ou en Lambert 93 (converti), dessiné sur la mini-carte et dans la photo, à l'altitude du fichier (z, en NGF) ou posé
 sur le sol LiDAR HD, lu sous la caméra et sous les objets (lignes redécoupées tous les 5 m pour
 suivre le terrain ; à plat à la hauteur de caméra en attendant, ou sans LiDAR) : points en pastilles, lignes et contours des polygones en traits, pour les objets à moins
 de 100 m de la photo. Couleur selon une colonne : une couleur par valeur (palette Set1 de ColorBrewer
-sans son gris, les huit valeurs les plus fréquentes, les autres et les vides en gris), ou, pour une
+sans son gris, prolongée de huit couleurs : seize valeurs, les plus fréquentes, puis par ordre alphabétique, les autres et les vides en gris), ou, pour une
 colonne numérique d'au moins 11 valeurs, dégradé entre les couleurs du minimum et du maximum choisies
 dans la légende (chaque objet prend leur mélange pondéré par sa valeur), étiquette d'une colonne (dans la photo,
 et sur la carte à partir du zoom 16), légende (un clic sur une pastille : palette ; « Couleurs par défaut »).
 Étiquettes en texte seul, de la couleur de l'objet éclaircie de moitié, liseré noir, jamais recouvertes
 par une pastille, placées de l'objet le plus proche de la photo au plus lointain : remontées en cas
-de chevauchement, masquées s'il faudrait les remonter de plus d'une fois et demie leur hauteur. La case « Afficher la couche » la masque sans la retirer. Une couche à la fois, gardée avec ses réglages dans le
+de chevauchement, masquées s'il faudrait les remonter de plus d'une fois et demie leur hauteur. Sa fiche, en tête de l'onglet, donne le nombre d'objets, le système de
+coordonnées et le nombre d'objets recalés ; son œil masque la couche sans la retirer, ses icônes l'exportent,
+la remplacent par un autre fichier ou la retirent. Le dégradé se règle par les pastilles aux deux bouts de sa
+barre. Un œil sur chaque valeur de la légende masque ses objets sur la carte et dans la photo (gardé avec
+la couche, par colonne ; l'export garde tous les objets). Une couche à la fois, gardée avec ses réglages dans le
 navigateur d'une session à l'autre (sauf si elle est trop grosse : un message le dit) ; « Retirer »
 l'efface. **Recalage dans la photo** (hors mesure) : clic sur la pastille ou l'étiquette d'un objet,
 puis clic à sa place vue dans la photo, flèches pour l'ajuster (0,05°), Entrée pour finir, Suppr pour
@@ -252,7 +272,7 @@ du plugin QGIS qui en contient reste appliqué.
 
 Les consignes de chaque calage disent l'étape en cours et ce qui est déjà fait.
 
-Le calage est gardé d'une visite à l'autre, et peut être exporté ou importé (« Réglages »).
+Le calage est gardé d'une visite à l'autre, et peut être exporté ou importé (onglet « Photo »).
 
 **Inclinaison par le terrain hors agglomération** (« Réglages », expérimental, décochée par
 défaut) : en rase campagne, les verticales de la photo manquent presque toujours (2 % des photos
@@ -308,7 +328,7 @@ enregistrer les fichiers » est coché (Paramètres › Général › Fichiers e
 Les calculs sont ceux du plugin, exécutés dans le navigateur par Pyodide (environ 10 Mo au
 premier chargement, puis en cache) ; les calculs lourds (inclinaison automatique, capture
 Full HD) tournent dans un second Pyodide en arrière-plan. La page vérifie aussi l'accès aux
-services depuis le poste (encart « Accès aux services »).
+services depuis le poste (bouton « Services » en bas du panneau).
 
 Pour s'ouvrir en `file://`, la page n'utilise pas de modules JavaScript ni de lecture de
 fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/sources.js`.
