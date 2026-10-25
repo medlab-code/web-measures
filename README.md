@@ -537,6 +537,8 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.7** (25/10/2026) : onglet Résultats, bouton d'import des mesures en icône seule : le titre
+  « Mesures de la séance » n'est plus coupé.
 - **0.6.6** (25/10/2026) : mesures revues sur leur photo (export : colonnes `photo_ref`, `vue_ref`,
   `etiquette` ; « Importer » de l'onglet Résultats : photo de la mesure ouverte et cadrée, mesure
   dessinée telle qu'à l'écran, clic sur une mesure de la mini-carte pour la revoir) ; couche : 2e
