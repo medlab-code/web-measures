@@ -92,10 +92,12 @@ const Couche = (() => {
   const isEmpty = (v) => v === null || v === undefined || v === "";
   const asNumber = (v) => (typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v.replace(",", ".")) : NaN);
 
-  /** Texte d'une valeur pour une étiquette : nombre à la française (2 décimales au plus). */
+  /** Texte d'une valeur pour une étiquette : nombre à la française (2 décimales au plus), sans séparateur
+   * des milliers sous 10 000 (années : « 1985 », pas « 1 985 »). */
   function format(value) {
     if (isEmpty(value)) return "";
-    return typeof value === "number" ? value.toLocaleString("fr-FR", { maximumFractionDigits: 2 }) : String(value);
+    return typeof value === "number"
+      ? value.toLocaleString("fr-FR", { maximumFractionDigits: 2, useGrouping: Math.abs(value) >= 10000 }) : String(value);
   }
 
   // Palette proposée au clic sur une pastille de la légende
