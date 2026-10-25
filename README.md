@@ -41,6 +41,12 @@ des mesures (précision RTK, modèle de terrain IGN : LiDAR HD, ou RGE ALTI là 
 réglages dans « Filtre des photos » et « Réglages », et les choix sont ensuite gardés. Une
 première photo s'ouvre (Clos de Vougeot, D974), tournée vers l'ouest.
 
+**Le panneau** (sous la mini-carte) : les onglets **Résultats**, **Photo**, **Favoris** et **Couche**
+(nombre de résultats et de favoris sur l'onglet) ; en bas, les boutons **Mesure** (consigne, état de
+la position GPS et de l'inclinaison, hauteur de caméra), **Filtre** (point orange quand un filtre est
+actif), **Réglages** et **Services**. Une section
+s'affiche à la fois ; la dernière choisie est rouverte à la visite suivante.
+
 **La carte** : fonds Plan IGN, orthophoto, ortho-express, PCRS, OpenStreetMap, et
 **orthophoto avec noms** : noms des lieux et des rues, voies, avec les numéros de route dans
 des cartouches dessinés comme ceux de l'IISR (rouge pour les autoroutes et nationales, jaune
@@ -308,7 +314,7 @@ enregistrer les fichiers » est coché (Paramètres › Général › Fichiers e
 Les calculs sont ceux du plugin, exécutés dans le navigateur par Pyodide (environ 10 Mo au
 premier chargement, puis en cache) ; les calculs lourds (inclinaison automatique, capture
 Full HD) tournent dans un second Pyodide en arrière-plan. La page vérifie aussi l'accès aux
-services depuis le poste (encart « Accès aux services »).
+services depuis le poste (bouton « Services » en bas du panneau).
 
 Pour s'ouvrir en `file://`, la page n'utilise pas de modules JavaScript ni de lecture de
 fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/sources.js`.

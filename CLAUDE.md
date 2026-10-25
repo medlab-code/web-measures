@@ -29,6 +29,9 @@ application). Auteur : Cédric COCHART.
   --remote-debugging-port=0 --window-size=1400,1000 http://127.0.0.1:8766/tests/<page>` ;
   le journal s'affiche dans le terminal du serveur (bilan « contrôles : n réussis »).
   Capture de la page d'accueil : `--screenshot=` avec `--virtual-time-budget=8000`.
+- Un bouton ou une liste déroulante est grisé (`disabled`) tant qu'il ne peut pas encore, ou ne
+  peut plus, avoir d'effet : rien à exporter, à annuler, à rétablir, à retirer, à effacer… Grisé
+  plutôt que masqué. Son état se recalcule à chaque changement qui le concerne.
 - Quand la manière de calculer une mesure change (hauteur, largeur, hauteur de chute sur un
   pont, inclinaison…), mettre à jour dans le même changement les commentaires du code qui la
   décrivent (docstrings, constantes, infobulles, messages) et sa description dans le `README.md`

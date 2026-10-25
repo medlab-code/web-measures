@@ -160,6 +160,7 @@ async function feature(id) {
     const fav = doc.querySelector("#favoris .aller-favori").textContent;
     log("favori : " + fav);
     expect("favori nommé commune – voie – PR – pont", /^Semur-en-Auxois – D954 – PR \d+ \+\d{4} – Pont Joly$/.test(fav), fav);
+    expect("« Ajouter cette photo » grisé : photo déjà en favori", doc.querySelector("#ajouter-favori").disabled);
     doc.querySelector("#ajouter-favori").click();
     await sleep(500);
     expect("favori pas en double", doc.querySelectorAll("#favoris li").length === 1);

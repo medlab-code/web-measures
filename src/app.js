@@ -164,11 +164,26 @@
   // Cache des informations géographiques : taille, et bouton pour le vider
   async function showGeoCache() {
     const size = await pruneGeoCache();
-    $("#vider-cache").disabled = size === null;
+    $("#vider-cache").disabled = !size;  // indisponible (null) ou déjà vide
     $("#vider-cache").textContent = size === null ? "Cache indisponible (page ouverte en fichier local)"
       : `Vider le cache (${(size / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mo)`;
   }
-  $("#reseau").addEventListener("toggle", () => { if ($("#reseau").open) showGeoCache(); });
+  // Panneau : une section affichée à la fois, choisie par les onglets (Résultats, Photo, Favoris,
+  // Couche) ou les outils du pied (Mesure, Filtre, Réglages, Services) ; la dernière est rouverte à la visite suivante
+  const paneButtons = [...document.querySelectorAll("#panneau [data-panneau]")];
+  function showPane(id) {
+    if (!paneButtons.some((b) => b.dataset.panneau === id)) id = "resultats";
+    for (const button of paneButtons) {
+      const on = button.dataset.panneau === id;
+      button.setAttribute(button.getAttribute("role") === "tab" ? "aria-selected" : "aria-pressed", String(on));
+      $(`#${button.dataset.panneau}`).hidden = !on;
+    }
+    $("#contenu-panneau").scrollTop = 0;
+    store.set("panneau", id);
+    if (id === "reseau") showGeoCache();
+  }
+  for (const button of paneButtons) button.addEventListener("click", () => showPane(button.dataset.panneau));
+  showPane(store.get("panneau", "resultats"));
   $("#vider-cache").addEventListener("click", async () => {
     await pruneGeoCache(0);
     showGeoCache();
@@ -296,6 +311,7 @@
       if (step >= steps.length) return;
       const [selector, text] = steps[step];
       target = $(selector);
+      if (target.parentElement?.id === "contenu-panneau" && target.hidden) showPane(target.id);  // section affichée
       target.classList.add("visite-cible");
       bubble.querySelector("p").textContent = text;
       bubble.querySelector(".oui").textContent = step === steps.length - 1 ? "Terminer" : "Suivant";
@@ -519,13 +535,20 @@
     status.className = "statut " + kind;
   }
 
+  /** « Exporter le calage » grisé tant qu'aucune photo ni séquence n'est calée (rien à exporter). */
+  function showCalibrationExport() {
+    const c = JSON.parse(app.calibration_json());
+    $("#calage-exporter").disabled = !["verticals", "landmarks", "heights", "auto"]
+      .some((k) => c[k] && Object.keys(c[k]).length);
+  }
+
   Calcul.startCalcul(() => refresh(), apiUrl).then((created) => {
     app = created;
     const saved = store.get("calage");
     if (saved && !app.load_calibration(saved)) console.warn("Calage enregistré illisible : ignoré.");
     savedCalibration = app.calibration_version;
-    for (const id of ["#mesure", "#mode", "#camera", "#pont", "#calage-exporter",
-      "#calage-importer"]) $(id).disabled = false;
+    for (const id of ["#mesure", "#mode", "#camera", "#pont", "#calage-importer"]) $(id).disabled = false;
+    showCalibrationExport();
     $("#camera").value = store.get("camera", $("#camera").value);
     app.set_camera_height(Number($("#camera").value));
     app.set_terrain_relay($("#inclinaison-terrain").checked);
@@ -673,6 +696,7 @@
     if (app.calibration_version !== savedCalibration) {
       savedCalibration = app.calibration_version;
       store.set("calage", app.calibration_json());
+      showCalibrationExport();
     }
     drawViewerMarks(JSON.parse(app.viewer_marks()));
     heightAxis = JSON.parse(app.height_axis());
@@ -712,6 +736,7 @@
     if (key === resultsKey) return;
     resultsKey = key;
     const ol = $("#resultats > ol");
+    $("#compte-resultats").textContent = list.filter((r) => !r.sous).length || "";
     const focused = document.activeElement?.closest?.("#resultats > ol") ? document.activeElement.dataset.key : null;
     ol.replaceChildren(...list.map((r) => {
       const li = Object.assign(document.createElement("li"), { className: r.sous ? "sous" : "" });  // mesure d'un point de référence
@@ -1181,7 +1206,6 @@
   function setPhoto(feature, recenter) {
     photo = feature;
     store.set("photo", feature.id);  // rouverte à la prochaine visite (voir reopenPhoto)
-    $("#ajouter-favori").disabled = false;
     showFavorites();  // étoile de la nouvelle photo
     // En bas à droite de la visionneuse : « 2025 – producteur » (année de la prise de vue)
     const producer = photoProducer(feature);
@@ -1313,6 +1337,9 @@
   }
 
   // Aller à une photo par son identifiant (ou un lien Panoramax qui le contient)
+  $("#id-photo").addEventListener("input", () => {
+    $("#aller-photo button").disabled = !$("#id-photo").value.trim();  // champ vide : sans effet
+  });
   $("#aller-photo").addEventListener("submit", async (event) => {
     event.preventDefault();
     const help = $("#aller-photo .aide");
@@ -1370,8 +1397,10 @@
       return li;
     }));
     $("#favoris-exporter").disabled = !favorites().length;
+    $("#compte-favoris").textContent = favorites().length || "";
     // Étoile de la visionneuse : pleine si la photo affichée est en favori
     const on = Boolean(photo) && favorites().some((f) => f.id === photo.id);
+    $("#ajouter-favori").disabled = !photo || on;  // déjà en favori : sans effet
     Object.assign($("#etoile-favori"), { hidden: !photo,
       title: on ? "Retirer cette photo des favoris" : "Ajouter cette photo aux favoris" });
     $("#etoile-favori").setAttribute("aria-pressed", String(on));
@@ -1404,7 +1433,7 @@
     const column = $("#couche-couleur").value;
     const custom = overlay.couleurs[column] ||= {};
     const legend = Couche.style(overlay.features, column, $("#couche-etiquette").value, custom);
-    $("#couche-couleurs-defaut").hidden = !Object.keys(custom).length;
+    $("#couche-couleurs-defaut").disabled = !Object.keys(custom).length;
     if (legend.degrade && !custom.min && !custom.max) {
       setStatus("Dégradé : cliquez les pastilles « minimum » et « maximum » de la légende pour choisir ses couleurs.");
     }
@@ -1457,8 +1486,8 @@
     $("#couche-nom").textContent = `${name} : ${read.features.length} objet${read.features.length > 1 ? "s" : ""}`
       + `${read.crs === "lambert93" ? " (Lambert 93 converti)" : ""}`;
     $("#couche-reglages").hidden = false;
-    $("#couche-retirer").hidden = false;
-    $("#couche-exporter").hidden = false;
+    $("#couche-retirer").disabled = false;
+    $("#couche-exporter").disabled = false;
     showOverlayStyle();
     if (fit) {
       const xs = [], ys = [];
@@ -1539,8 +1568,8 @@
     app?.set_overlay("[]");
     Carte.showOverlay(map, null);
     $("#couche-reglages").hidden = true;
-    $("#couche-retirer").hidden = true;
-    $("#couche-exporter").hidden = true;
+    $("#couche-retirer").disabled = true;
+    $("#couche-exporter").disabled = true;
     refresh();
   });
 
