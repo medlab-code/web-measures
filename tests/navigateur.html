@@ -104,11 +104,18 @@ async function feature(id) {
     w.mesures.psv.dispatchEvent(event);
   };
 
+  {  // Thème forcé dans les Réglages, gardé ; « Automatique » le retire (comme le système)
+    const theme = doc.querySelector("#theme");
+    theme.value = "dark";
+    theme.dispatchEvent(new Event("change"));
+    const dark = doc.documentElement.dataset.theme === "dark" && w.localStorage.getItem("web-measures/theme") === "dark"
+      && getComputedStyle(doc.body).backgroundColor === "rgb(30, 31, 34)";
+    theme.value = "";
+    theme.dispatchEvent(new Event("change"));
+    expect("thème nuit forcé puis automatique", dark && !doc.documentElement.dataset.theme);
+  }
   log("bouton Mesure désactivé : " + app.status());
-  w.localStorage.removeItem("web-measures/mesure-montree");  // comme une première mesure dans ce navigateur
   doc.querySelector("#mesure").click();
-  expect("section Mesure ouverte à la première mesure", !doc.querySelector("#bloc-mesure").hidden
-    && w.localStorage.getItem("web-measures/mesure-montree") === "1");
   log("bouton Mesure activé : " + app.status());
   expect("« Avec les mesures » grisé sans mesure", doc.querySelector("#vignette").disabled);
 
@@ -197,7 +204,7 @@ async function feature(id) {
       doc.querySelectorAll("#favoris .effacer-resultat")[1].click();
     }
     doc.querySelector("#favoris .effacer-resultat").click();
-    expect("favori retiré, aide de retour", !doc.querySelector("#favoris li") && getComputedStyle(doc.querySelector("#favoris .aide")).display !== "none"
+    expect("favori retiré, aide de retour", !doc.querySelector("#favoris li") && getComputedStyle(doc.querySelector("#favoris > .aide")).display !== "none"
       && doc.querySelector("#favoris-exporter").disabled);
   }
   const pont = doc.querySelector("#alerte-pont");

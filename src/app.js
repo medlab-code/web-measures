@@ -532,8 +532,19 @@
   function setStatus(text, kind = "") {
     const status = $("#statut");
     status.textContent = text;
-    status.className = "statut " + kind;
+    status.className = "statut " + kind;  // replie aussi la ligne
   }
+  // Ligne d'état sur une ligne : le texte entier au clic
+  $("#statut").addEventListener("click", () => $("#statut").classList.toggle("deplie"));
+
+  // Thème : comme le système (prefers-color-scheme), ou jour / nuit forcé (data-theme, posé dès le
+  // <head> pour éviter un éclair)
+  $("#theme").value = store.get("theme", "");
+  $("#theme").addEventListener("change", () => {
+    store.set("theme", $("#theme").value);
+    if ($("#theme").value) document.documentElement.dataset.theme = $("#theme").value;
+    else delete document.documentElement.dataset.theme;
+  });
 
   /** « Exporter le calage » grisé tant qu'aucune photo ni séquence n'est calée (rien à exporter). */
   function showCalibrationExport() {
@@ -743,6 +754,7 @@
       const text = Object.assign(document.createElement("span"), { textContent: r.text });
       const comment = Object.assign(document.createElement("input"), {
         type: "text", value: r.comment, placeholder: "Commentaire", title: "Commentaire exporté avec le résultat",
+        hidden: !r.comment && focused !== `${r.kind}-${r.id}`,  // ouvert par ✎ ; montré s'il existe
       });
       comment.dataset.key = `${r.kind}-${r.id}`;
       comment.addEventListener("input", () => {
@@ -768,7 +780,15 @@
         sheet.addEventListener("click", () => askFiche(r.id, r.text));
         line.append(sheet);
       }
-      line.append(remove);
+      const edit = Object.assign(document.createElement("button"), {
+        type: "button", className: "effacer-resultat", textContent: "✎", title: "Commentaire exporté avec le résultat",
+      });
+      edit.setAttribute("aria-label", `Commentaire : ${r.text}`);
+      edit.addEventListener("click", () => {
+        comment.hidden = false;
+        comment.focus();
+      });
+      line.append(edit, remove);
       li.append(line, comment);
       return li;
     }));
@@ -933,7 +953,7 @@
       if (dialog.returnValue !== "oui") return declinedSequences.add(key);
       try {
         const feature = await Carte.photoById(near[0].id);
-        if (!feature) return notice("Photo recalée introuvable sur l'instance choisie (Réglages › Instance).");
+        if (!feature) return notice("Photo recalée introuvable sur l'instance choisie (Filtre › Instance).");
         openPhoto(feature);
         map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 17), speed: 1.6 });
       } catch (error) {
@@ -955,6 +975,7 @@
       if (!Object.keys(f.recalages).length) delete f.recalages;
     }
     saveOverlay();
+    showOverlayInfo();
     drawViewerMarks(currentMarks);
   }
 
@@ -1353,7 +1374,7 @@
     try {
       const feature = await Carte.photoById(match[0].toLowerCase());
       if (!feature) {
-        help.textContent = "Photo introuvable sur l'instance choisie (Réglages › Instance).";
+        help.textContent = "Photo introuvable sur l'instance choisie (Filtre › Instance).";
         return;
       }
       help.hidden = true;
@@ -1381,7 +1402,7 @@
       go.addEventListener("click", async () => {
         try {
           const feature = await Carte.photoById(f.id);
-          if (!feature) return notice("Photo du favori introuvable sur l'instance choisie (Réglages › Instance).");
+          if (!feature) return notice("Photo du favori introuvable sur l'instance choisie (Filtre › Instance).");
           openPhoto(feature);
           map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 17), speed: 1.6 });
         } catch (error) {
@@ -1438,8 +1459,7 @@
       setStatus("Dégradé : cliquez les pastilles « minimum » et « maximum » de la légende pour choisir ses couleurs.");
     }
     // Clic sur une pastille : palette en fenêtre flottante, la couleur choisie remplace la sienne
-    $("#couche-legende").replaceChildren(...legend.map(({ cle, couleur, texte }) => {
-      const li = document.createElement("li");
+    const swatch = ({ cle, couleur, texte }) => {
       const button = Object.assign(document.createElement("button"), {
         type: "button", className: "pastille-couche", title: "Changer la couleur" });
       button.setAttribute("aria-label", `Couleur de « ${texte} »`);
@@ -1462,14 +1482,45 @@
       palette.addEventListener("beforetoggle", (event) => {
         if (event.newState !== "open") return;
         const r = button.getBoundingClientRect();
-        Object.assign(palette.style, { left: `${Math.min(r.left, innerWidth - 160)}px`, top: `${r.bottom + 4}px` });  // ~150 px de large
+        Object.assign(palette.style, { left: `${Math.min(r.left, innerWidth - 290)}px`, top: `${r.bottom + 4}px` });  // ~280 px de large
       });
-      li.append(button, texte, palette);
+      palette.addEventListener("toggle", (event) => {  // trop bas (pastille en bas de l'écran) : au-dessus d'elle
+        if (event.newState === "open" && palette.getBoundingClientRect().bottom > innerHeight - 8) {
+          palette.style.top = `${Math.max(8, button.getBoundingClientRect().top - palette.offsetHeight - 4)}px`;
+        }
+      });
+      return [button, palette];
+    };
+    const item = (entry) => {
+      const li = document.createElement("li");
+      li.append(...swatch(entry), entry.texte);
       return li;
-    }));
+    };
+    let items = legend.map(item);
+    if (legend.degrade) {  // minimum, barre du dégradé, maximum ; valeurs dessous ; puis « vide »
+      const [low, high, ...rest] = legend;
+      const bar = Object.assign(document.createElement("li"), { className: "barre-degrade" });
+      const ramp = document.createElement("span");
+      ramp.style.background = `linear-gradient(90deg, ${low.couleur}, ${high.couleur})`;
+      bar.append(...swatch(low), ramp, ...swatch(high));
+      const ends = Object.assign(document.createElement("li"), { className: "bornes-degrade" });
+      ends.append(...[low, high].map(({ texte }) => Object.assign(document.createElement("span"), { textContent: texte })));
+      items = [bar, ends, ...rest.map(item)];
+    }
+    $("#titre-legende").textContent = legend.degrade ? "Dégradé" : "Légende";
+    $("#couche-legende").classList.toggle("degrade", Boolean(legend.degrade));
+    $("#couche-legende").replaceChildren(...items);
     // Case « Afficher la couche » décochée : ni sur la carte ni dans la photo, réglages gardés
     Carte.showOverlay(map, $("#couche-visible").checked ? { type: "FeatureCollection", features: overlay.features } : null);
     refresh();
+  }
+
+  /** Fiche de la couche : nombre d'objets, système de coordonnées, objets recalés dans des photos. */
+  function showOverlayInfo() {
+    const n = overlay.features.length, k = overlay.features.filter((f) => f.recalages).length;
+    $("#couche-infos").textContent = [`${n} objet${n > 1 ? "s" : ""}`,
+      overlay.crs === "lambert93" ? "Lambert 93 converti" : "WGS 84", k ? `${k} recalé${k > 1 ? "s" : ""}` : ""]
+      .filter(Boolean).join(" · ");
   }
 
   /** Couche en place (lue d'un fichier, ou gardée) : calcul, réglages, carte ; cadrée dessus si fit. */
@@ -1483,8 +1534,9 @@
         ...read.columns.map((c) => new Option(c, c)));
       $(id).value = read.columns.includes(value) ? value : "";
     }
-    $("#couche-nom").textContent = `${name} : ${read.features.length} objet${read.features.length > 1 ? "s" : ""}`
-      + `${read.crs === "lambert93" ? " (Lambert 93 converti)" : ""}`;
+    $("#couche-nom").textContent = name;
+    showOverlayInfo();
+    for (const id of ["#couche-accueil", "#couche-formats", "#couche-crs"]) $(id).hidden = true;
     $("#couche-reglages").hidden = false;
     $("#couche-retirer").disabled = false;
     $("#couche-exporter").disabled = false;
@@ -1519,10 +1571,30 @@
       saved.couleurs || {});
   }
 
-  $("#couche-importer").addEventListener("click", () => $("#couche-fichier").click());
-  $("#couche-fichier").addEventListener("change", async (event) => {
+  for (const id of ["#couche-importer", "#couche-remplacer"]) $(id).addEventListener("click", () => $("#couche-fichier").click());
+  $("#couche-fichier").addEventListener("change", (event) => {
     const files = [...event.target.files];
     event.target.value = "";
+    importOverlay(files);
+  });
+  // Fichier glissé sur l'onglet Couche (avec son .dbf et son .prj pour un Shapefile)
+  const layerTab = $("#couche");
+  layerTab.addEventListener("dragover", (event) => {
+    if (!event.dataTransfer?.types.includes("Files")) return;
+    event.preventDefault();
+    layerTab.classList.add("survol");
+  });
+  layerTab.addEventListener("dragleave", (event) => {
+    if (!layerTab.contains(event.relatedTarget)) layerTab.classList.remove("survol");
+  });
+  layerTab.addEventListener("drop", (event) => {
+    event.preventDefault();
+    layerTab.classList.remove("survol");
+    importOverlay([...event.dataTransfer.files]);
+  });
+
+  /** Couche lue des fichiers choisis ou glissés, remplaçant celle en place. */
+  async function importOverlay(files) {
     if (!files.length || !app) return;
     try {
       setStatus("Lecture de la couche…");
@@ -1537,7 +1609,7 @@
     } catch (error) {
       setStatus(`Couche non importée : ${error.message}`, "echec");
     }
-  });
+  }
   for (const id of ["#couche-couleur", "#couche-etiquette", "#couche-visible"]) {
     $(id).addEventListener("change", () => {
       showOverlayStyle();
@@ -1568,6 +1640,7 @@
     app?.set_overlay("[]");
     Carte.showOverlay(map, null);
     $("#couche-reglages").hidden = true;
+    for (const id of ["#couche-accueil", "#couche-formats", "#couche-crs"]) $(id).hidden = false;
     $("#couche-retirer").disabled = true;
     $("#couche-exporter").disabled = true;
     refresh();
@@ -2102,11 +2175,6 @@
   $("#mesure").addEventListener("click", () => {
     measuring = !measuring;
     if (measuring) stopPlayer();  // la mesure se fait sur une photo arrêtée
-    // Première mesure dans ce navigateur : section Mesure ouverte (état GPS, caméra), une fois
-    if (measuring && store.get("mesure-montree") !== "1") {
-      store.set("mesure-montree", "1");
-      showPane("bloc-mesure");
-    }
     applyMeasureUi();
     if (psv) updatePlayer();
     refresh(app.set_active(measuring));
@@ -2584,9 +2652,9 @@
       }));
       Carte.showPrevious(map, geojson);
       const when = new Date(previous.when);
-      $("#precedents p").textContent = `${previous.n} résultat${previous.n > 1 ? "s" : ""} de la session du ${
+      $("#precedents summary").textContent = `${previous.n} résultat${previous.n > 1 ? "s" : ""} de la session du ${
         when.toLocaleDateString("fr-FR")} à ${when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-      }, non exporté${previous.n > 1 ? "s" : ""} :`;
+      }, non exporté${previous.n > 1 ? "s" : ""}`;
       $("#precedents").hidden = false;
       $("#precedents-csv").addEventListener("click", () => download("\ufeff" + previous.csv, "mesures-precedentes.csv", "text/csv"));
       $("#precedents-geojson").addEventListener("click", () => download(previous.geojson, "mesures-precedentes.geojson",
