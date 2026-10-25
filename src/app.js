@@ -1308,11 +1308,37 @@
   let overlay = null;  // { name, features (WGS 84, Couche.read), columns, crs }
   function showOverlayStyle() {
     if (!overlay) return;
-    const legend = Couche.style(overlay.features, $("#couche-couleur").value, $("#couche-etiquette").value);
-    $("#couche-legende").replaceChildren(...legend.map(({ couleur, texte }) => {
+    const column = $("#couche-couleur").value;
+    const custom = overlay.couleurs[column] ||= {};
+    const legend = Couche.style(overlay.features, column, $("#couche-etiquette").value, custom);
+    // Clic sur une pastille : palette en fenêtre flottante, la couleur choisie remplace la sienne
+    $("#couche-legende").replaceChildren(...legend.map(({ cle, couleur, texte }) => {
       const li = document.createElement("li");
-      li.append(Object.assign(document.createElement("span"), { className: "pastille-couche" }), texte);
-      li.firstChild.style.background = couleur;
+      const button = Object.assign(document.createElement("button"), {
+        type: "button", className: "pastille-couche", title: "Changer la couleur" });
+      button.setAttribute("aria-label", `Couleur de « ${texte} »`);
+      button.style.background = couleur;
+      // popover : fermée par Échap, par un clic ailleurs ou au choix d'une couleur (liste redessinée)
+      const palette = Object.assign(document.createElement("div"), { className: "palette-couche", popover: "auto" });
+      palette.append(...Couche.CHOICES.map((c) => {
+        const choice = Object.assign(document.createElement("button"), { type: "button", className: "pastille-couche" });
+        choice.setAttribute("aria-label", c);
+        choice.setAttribute("aria-pressed", String(c === couleur));
+        choice.style.background = c;
+        choice.addEventListener("click", () => {
+          custom[cle] = c;
+          showOverlayStyle();
+          saveOverlay();
+        });
+        return choice;
+      }));
+      button.popoverTargetElement = palette;
+      palette.addEventListener("beforetoggle", (event) => {
+        if (event.newState !== "open") return;
+        const r = button.getBoundingClientRect();
+        Object.assign(palette.style, { left: `${Math.min(r.left, innerWidth - 160)}px`, top: `${r.bottom + 4}px` });  // ~150 px de large
+      });
+      li.append(button, texte, palette);
       return li;
     }));
     // Case « Afficher la couche » décochée : ni sur la carte ni dans la photo, réglages gardés
@@ -1321,8 +1347,8 @@
   }
 
   /** Couche en place (lue d'un fichier, ou gardée) : calcul, réglages, carte ; cadrée dessus si fit. */
-  function loadOverlay(name, read, color = "", label = "", fit = false, visible = true) {
-    overlay = { name, ...read };
+  function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}) {
+    overlay = { name, ...read, couleurs: colors };  // couleurs choisies : { colonne: { clé de légende: couleur } }
     $("#couche-visible").checked = visible;
     const n = app.set_overlay(JSON.stringify(read.features.map(({ id, geometry }) => ({ id, geometry }))));
     for (const [id, value] of [["#couche-couleur", color], ["#couche-etiquette", label]]) {
@@ -1347,8 +1373,8 @@
   /** Couche et réglages gardés dans le navigateur ; faux si elle est trop grosse pour y tenir. */
   function saveOverlay() {
     if (!overlay) return true;
-    const { name, features, columns, crs } = overlay;
-    const text = JSON.stringify({ name, columns, crs, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
+    const { name, features, columns, crs, couleurs } = overlay;
+    const text = JSON.stringify({ name, columns, crs, couleurs, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
       visible: $("#couche-visible").checked,
       features: features.map(({ type, id, geometry, properties }) => ({ type, id, geometry,
         properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) });
@@ -1360,7 +1386,8 @@
   function restoreOverlay() {
     let saved = null;
     try { saved = JSON.parse(store.get("couche") || "null"); } catch { /* illisible : aucune */ }
-    if (saved?.features?.length) loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, false, saved.visible !== false);
+    if (saved?.features?.length) loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, false, saved.visible !== false,
+      saved.couleurs || {});
   }
 
   $("#couche-importer").addEventListener("click", () => $("#couche-fichier").click());

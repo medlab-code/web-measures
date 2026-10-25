@@ -80,42 +80,49 @@ const Couche = (() => {
     return typeof value === "number" ? value.toLocaleString("fr-FR", { maximumFractionDigits: 2 }) : String(value);
   }
 
+  // Palette proposée au clic sur une pastille de la légende
+  const CHOICES = [...PALETTE, SINGLE, "#800000", "#008080", "#000000", "#ffffff", EMPTY];
+
   /**
    * Couleurs selon la colonne column ("" : couleur unique) : chaque objet reçoit properties._couleur
-   * (et _etiquette selon labelColumn). Retourne la légende [{ couleur, texte }].
+   * (et _etiquette selon labelColumn). custom : couleurs choisies, par clé d'entrée de légende.
+   * Retourne la légende [{ cle, couleur, texte }].
    */
-  function style(features, column, labelColumn) {
+  function style(features, column, labelColumn, custom = {}) {
     for (const f of features) f.properties._etiquette = labelColumn ? format(f.properties[labelColumn]) : "";
-    if (!column) {
-      for (const f of features) f.properties._couleur = SINGLE;
-      return [{ couleur: SINGLE, texte: "tous les objets" }];
-    }
-    const values = features.map((f) => f.properties[column]).filter((v) => !isEmpty(v));
+    let keyOf;  // objet → clé de son entrée de légende
+    const legend = [];
+    const values = column ? features.map((f) => f.properties[column]).filter((v) => !isEmpty(v)) : [];
     const distinct = [...new Set(values.map(String))];
     const numbers = values.map(asNumber);
-    const numeric = values.length && numbers.every(Number.isFinite) && distinct.length >= NUMERIC_MIN;
-    const legend = [];
-    if (numeric) {  // dégradé en classes égales du minimum au maximum
+    if (!column) {
+      keyOf = () => "tous";
+      legend.push({ cle: "tous", couleur: SINGLE, texte: "tous les objets" });
+    } else if (values.length && numbers.every(Number.isFinite) && distinct.length >= NUMERIC_MIN) {
+      // dégradé en classes égales du minimum au maximum
       const min = Math.min(...numbers), max = Math.max(...numbers), step = (max - min) / RAMP.length || 1;
-      for (const f of features) {
+      keyOf = (f) => {
         const v = asNumber(f.properties[column]);
-        f.properties._couleur = isEmpty(f.properties[column]) || !Number.isFinite(v) ? EMPTY
-          : RAMP[Math.min(RAMP.length - 1, Math.floor((v - min) / step))];
-      }
-      RAMP.forEach((couleur, k) => legend.push({ couleur, texte: `${format(min + k * step)} à ${format(min + (k + 1) * step)}` }));
+        return isEmpty(f.properties[column]) || !Number.isFinite(v) ? "vide"
+          : `classe ${Math.min(RAMP.length - 1, Math.floor((v - min) / step))}`;
+      };
+      RAMP.forEach((couleur, k) => legend.push({ cle: `classe ${k}`, couleur, texte: `${format(min + k * step)} à ${format(min + (k + 1) * step)}` }));
     } else {  // une couleur par valeur, les plus fréquentes d'abord
       const count = new Map();
       for (const v of values) count.set(String(v), (count.get(String(v)) || 0) + 1);
       const ranked = [...count.keys()].sort((a, b) => count.get(b) - count.get(a));
-      const colorOf = new Map(ranked.slice(0, PALETTE.length).map((v, k) => [v, PALETTE[k]]));
-      for (const f of features) {
+      const shown = new Set(ranked.slice(0, PALETTE.length));
+      keyOf = (f) => {
         const v = f.properties[column];
-        f.properties._couleur = isEmpty(v) ? EMPTY : colorOf.get(String(v)) || EMPTY;
-      }
-      for (const [v, couleur] of colorOf) legend.push({ couleur, texte: format(v) });
-      if (ranked.length > PALETTE.length) legend.push({ couleur: EMPTY, texte: `${ranked.length - PALETTE.length} autres valeurs` });
+        return isEmpty(v) ? "vide" : shown.has(String(v)) ? `= ${v}` : "autres";
+      };
+      [...shown].forEach((v, k) => legend.push({ cle: `= ${v}`, couleur: PALETTE[k], texte: format(v) }));
+      if (ranked.length > PALETTE.length) legend.push({ cle: "autres", couleur: EMPTY, texte: `${ranked.length - PALETTE.length} autres valeurs` });
     }
-    if (values.length < features.length) legend.push({ couleur: EMPTY, texte: "vide" });
+    if (values.length < features.length && column) legend.push({ cle: "vide", couleur: EMPTY, texte: "vide" });
+    for (const e of legend) e.couleur = custom[e.cle] || e.couleur;
+    const colorOf = new Map(legend.map((e) => [e.cle, e.couleur]));
+    for (const f of features) f.properties._couleur = colorOf.get(keyOf(f)) || EMPTY;
     return legend;
   }
 
@@ -229,5 +236,5 @@ const Couche = (() => {
     return { geometry: { type, coordinates }, end: pos };
   }
 
-  return { read, readFiles, style, format, lambert93 };
+  return { read, readFiles, style, format, lambert93, CHOICES };
 })();

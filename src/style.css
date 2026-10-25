@@ -1083,7 +1083,13 @@ canvas.traits {
 #couche label { display: block; margin: 0.3rem 0; }
 #couche-legende { list-style: none; margin: 0.3rem 0; padding: 0; font-size: 0.9em; }
 #couche-legende li { display: flex; align-items: center; gap: 0.4rem; margin: 0.1rem 0; }
-#couche-legende .pastille-couche { border-color: var(--bord); box-shadow: none; }
+#couche-legende .pastille-couche { border-color: var(--bord); box-shadow: none; padding: 0; cursor: pointer; }
+.palette-couche { position: fixed; inset: auto; margin: 0; width: 8.5rem; padding: 0.4rem; gap: 0.3rem;
+                  flex-wrap: wrap; background: var(--fond); border: 1px solid var(--bord); border-radius: 6px;
+                  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
+.palette-couche:popover-open { display: flex; }
+.palette-couche .pastille-couche { width: 18px; height: 18px; }
+.palette-couche .pastille-couche[aria-pressed="true"] { outline: 2px solid var(--texte); outline-offset: 1px; }
 #couche-nom { margin: 0.2rem 0; font-weight: 500; }
 
 /* Fiche PDF, choix de la photo : vue actuelle entourée de vert, cadrage automatique de bleu */
