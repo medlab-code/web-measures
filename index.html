@@ -166,8 +166,23 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         </nav>
         <div id="contenu-panneau">
         <section id="resultats" role="tabpanel" aria-labelledby="onglet-resultats">
-          <p class="aide">Les mesures terminées s'ajoutent ici. Gardées dans ce navigateur, elles sont
-            proposées à l'export à l'ouverture suivante si elles ne l'ont pas été : exportez-les.</p>
+          <!-- En-tête : nombre de points et de mesures, exportées ou non ; exports -->
+          <div class="fiche-couche fiche-resultats">
+            <div class="nom-couche">
+              <p id="resultats-titre">Mesures de la séance</p>
+              <p id="resultats-infos">Aucune mesure</p>
+            </div>
+            <button id="csv" type="button" class="export" disabled title="Exporter en CSV (tableur), point-virgule et virgule décimale"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg> CSV</button>
+            <button id="geojson" type="button" class="export" disabled title="Exporter en GeoJSON (SIG)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg> GeoJSON</button>
+          </div>
+          <!-- Sans résultat : à quoi sert l'onglet -->
+          <div id="resultats-vide" class="accueil">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 20V4l16 16z M8 16h3M4 8h2M4 12h2" stroke-linejoin="round" stroke-linecap="round"/></svg>
+            <p class="titre-accueil">Aucune mesure pour l'instant</p>
+            <p class="aide">Les mesures terminées s'ajoutent ici, rangées sous leur point de référence. Gardées dans
+              ce navigateur, elles sont proposées à l'export à l'ouverture suivante si elles ne l'ont pas été :
+              exportez-les.</p>
+          </div>
           <!-- Résultats non exportés de la session précédente (src/app.js, saveResults) -->
           <details id="precedents" hidden>
             <summary></summary>
@@ -179,10 +194,6 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             </div>
           </details>
           <ol></ol>
-          <div class="boutons">
-            <button id="csv" type="button" disabled>Exporter CSV</button>
-            <button id="geojson" type="button" disabled>Exporter GeoJSON</button>
-          </div>
         </section>
         <section id="photo" role="tabpanel" aria-labelledby="onglet-photo" hidden>
           <div class="boutons">

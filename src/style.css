@@ -381,7 +381,6 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 #panneau > .statut.deplie { white-space: pre-line; }
 #contenu-panneau h3:first-child, #contenu-panneau h2 + h3 { margin-top: 0; }
-#resultats:has(> ol:not(:empty)) > .aide { display: none; }  /* aide seulement sans résultat */
 #precedents { padding: 0.4rem 0.6rem; border-radius: 6px; background: var(--encart); color: var(--discret); }
 #precedents summary { font-weight: 500; }
 #contenu-panneau > section > * + * { margin-top: 0.6rem; }
@@ -424,13 +423,25 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   text-align: left; cursor: pointer; }
 #favoris li .aller-favori:hover { text-decoration: underline; }
 
-#resultats ol { margin: 0; padding-left: 1.4rem; }
+/* Résultats : un bloc par point de référence (pastille bordeaux, comme sur la photo), ses mesures dessous */
+#resultats ol { list-style: none; margin: 0.8rem 0 0; padding: 0; }
 #resultats ol:empty { display: none; }
-#resultats li { margin: 0.25rem 0; }
-#resultats li.sous { display: block; margin-left: 1rem; }  /* block : hors de la numérotation */
-#resultats li .ligne { display: flex; align-items: center; gap: 0.5rem; }
-#resultats li span { flex: 1; }
-#resultats li .fiche { font-size: 0.8em; padding: 0.05rem 0.4rem; white-space: nowrap; }  /* fiche PDF du point */
+#resultats li { padding: 0.3rem 0; }
+#resultats li:not(.sous) { margin-top: 0.6rem; padding: 0.4rem 0.5rem; border-radius: 8px; background: var(--encart); }
+#resultats li:not(.sous):first-child { margin-top: 0; }
+#resultats li.sous { margin-left: 1rem; padding-left: 0.6rem; border-left: 2px solid var(--bord); }
+#resultats li .ligne { display: flex; align-items: center; gap: 0.3rem; margin: 0; color: inherit; font-size: inherit; }
+#resultats .libelle { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.45rem; }
+#resultats .puce-point { padding: 0 0.35rem; border-radius: 4px; background: rgba(142, 27, 27, 0.92); color: #fff;
+  font-size: 0.85em; font-weight: 600; }
+#resultats .puce-point.fin { background: var(--discret); color: var(--fond); }
+#resultats .valeur { font-weight: 600; }
+#resultats li:not(.sous) .valeur { font-weight: 500; }
+#resultats .symbole, #resultats .incert { color: var(--discret); }
+#resultats .incert { font-size: 0.9em; }
+#resultats li .fiche { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 1.9rem;
+  height: 1.9rem; padding: 0; border: 0; border-radius: 6px; background: none; color: inherit; cursor: pointer; }
+#resultats li .fiche:hover { background: var(--bord); }
 #resultats .effacer-resultat, #favoris .effacer-resultat {
   flex: none;
   width: 1.4rem;
@@ -446,7 +457,11 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   cursor: pointer;
 }
 #resultats .effacer-resultat:hover, #favoris .effacer-resultat:hover { opacity: 1; background: var(--bord); }
-#resultats li input { width: 100%; margin-top: 0.15rem; }
+#resultats li input { width: 100%; margin-top: 0.3rem; }
+.fiche-resultats .nom-couche { padding-left: 0.5rem; }
+.fiche-resultats .export { display: inline-flex; align-items: center; gap: 0.3rem; flex: none; padding: 0.3rem 0.55rem;
+  font-size: 0.85em; font-weight: 600; }
+#resultats-infos.a-exporter::before { content: "● "; color: var(--panoramax); }  /* pas encore exportés */
 
 details summary { cursor: pointer; font-weight: 600; }
 details > * + * { margin-top: 0.5rem; }
@@ -1131,11 +1146,12 @@ canvas.traits {
 #visionneuse .etiquette.couche.choisie { text-decoration: underline; }
 /* Onglet Couche : accueil sans couche, fichier glissé ; fiche (œil, nom, actions), couleur, légende, étiquette */
 #couche.survol { outline: 2px dashed var(--panoramax); outline-offset: -6px; }
-#couche-accueil { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 1.4rem 1rem;
+.accueil, #couche-accueil { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 1.4rem 1rem;
   border: 2px dashed var(--bord); border-radius: 12px; text-align: center; color: var(--discret); }
-#couche-accueil[hidden], #couche-formats[hidden], #couche-crs[hidden] { display: none; }
-#couche-accueil .titre-accueil { margin: 0; font-size: 1.05rem; font-weight: 600; color: var(--texte); }
-#couche-accueil .aide { margin: 0; max-width: 20rem; }
+.accueil[hidden], #couche-accueil[hidden], #couche-formats[hidden], #couche-crs[hidden] { display: none; }
+.accueil .titre-accueil, #couche-accueil .titre-accueil { margin: 0; font-size: 1.05rem; font-weight: 600; color: var(--texte); }
+.accueil .aide, #couche-accueil .aide { margin: 0; max-width: 20rem; }
+.accueil { margin-top: 0.8rem; }
 #couche-importer { background: var(--panoramax); border-color: var(--panoramax); color: #fff; }
 #couche-formats { display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 0.75rem; margin: 1rem 0 0; font-size: 0.9em; }
 #couche-formats dt { font-weight: 600; }
@@ -1143,8 +1159,8 @@ canvas.traits {
 .fiche-couche { display: flex; align-items: center; gap: 0.2rem; padding: 0.3rem; border: 1px solid var(--bord);
   border-radius: 10px; }
 .fiche-couche .nom-couche { flex: 1; min-width: 0; padding-left: 0.2rem; }
-#couche-nom { margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#couche-infos { margin: 0; color: var(--discret); font-size: 0.85em; }
+#couche-nom, #resultats-titre { margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#couche-infos, #resultats-infos { margin: 0; color: var(--discret); font-size: 0.85em; }
 .fiche-couche .icone, .fiche-couche .oeil { flex: none; display: inline-flex; align-items: center; justify-content: center;
   width: 2.25rem; height: 2.25rem; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--texte); cursor: pointer; }
 .fiche-couche .icone:hover:not(:disabled), .fiche-couche .oeil:hover { background: var(--encart); }

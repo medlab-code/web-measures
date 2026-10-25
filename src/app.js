@@ -751,7 +751,7 @@
     const focused = document.activeElement?.closest?.("#resultats > ol") ? document.activeElement.dataset.key : null;
     ol.replaceChildren(...list.map((r) => {
       const li = Object.assign(document.createElement("li"), { className: r.sous ? "sous" : "" });  // mesure d'un point de référence
-      const text = Object.assign(document.createElement("span"), { textContent: r.text });
+      const text = resultLabel(r);
       const comment = Object.assign(document.createElement("input"), {
         type: "text", value: r.comment, placeholder: "Commentaire", title: "Commentaire exporté avec le résultat",
         hidden: !r.comment && focused !== `${r.kind}-${r.id}`,  // ouvert par ✎ ; montré s'il existe
@@ -775,8 +775,11 @@
       line.append(text);
       if (r.kind === "point") {  // point de référence : sa fiche PDF, avec ses mesures
         const sheet = Object.assign(document.createElement("button"), {
-          type: "button", className: "fiche", textContent: "📄 Fiche", title: "Fiche PDF de ce point et de ses mesures (impression du navigateur)",
+          type: "button", className: "fiche", title: "Fiche PDF de ce point et de ses mesures (impression du navigateur)",
+          innerHTML: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
+            + '<path d="M7 3h7l5 5v13H7z M14 3v5h5" stroke-linejoin="round"/></svg>',
         });
+        sheet.setAttribute("aria-label", `Fiche PDF : ${r.text}`);
         sheet.addEventListener("click", () => askFiche(r.id, r.text));
         line.append(sheet);
       }
@@ -793,6 +796,35 @@
       return li;
     }));
     if (focused) ol.querySelector(`[data-key="${focused}"]`)?.focus();
+    showResultsInfo(list);
+  }
+
+  /** Libellé d'un résultat : point de référence (pastille, incertitude) ou mesure (symbole, point
+   * d'arrivée, valeur, incertitude) ; autre forme (distance…) : le texte tel quel. */
+  function resultLabel(r) {
+    const span = (className, textContent) => Object.assign(document.createElement("span"), { className, textContent });
+    const label = span("libelle", "");
+    const point = r.kind === "point" && r.text.match(/^Point (\S+) (±.+)$/);
+    const measure = r.kind === "mesure" && r.text.match(/^(\S+) ([A-Za-z]\S*) (\d.*?) (± .+)$/);
+    if (point) label.append(span("puce-point", point[1]), span("valeur", "Point de référence"), span("incert", point[2]));
+    else if (measure) label.append(span("symbole", measure[1]), span("puce-point fin", measure[2]), span("valeur", measure[3]),
+      span("incert", measure[4]));
+    else label.textContent = r.text;
+    label.title = r.text;
+    return label;
+  }
+
+  /** En-tête des résultats : points et mesures, exportés ou non ; accueil s'il n'y en a pas. */
+  let shownResults = [];
+  function showResultsInfo(list = shownResults) {
+    shownResults = list;
+    const points = list.filter((r) => r.kind === "point").length, others = list.length - points;
+    const parts = [points && `${points} point${points > 1 ? "s" : ""}`, others && `${others} mesure${others > 1 ? "s" : ""}`]
+      .filter(Boolean);
+    const done = Boolean(list.length) && exported === app.export_geojson();
+    $("#resultats-infos").textContent = parts.length ? `${parts.join(" · ")} · ${done ? "exportés" : "non exportés"}` : "Aucune mesure";
+    $("#resultats-infos").classList.toggle("a-exporter", Boolean(list.length) && !done);
+    $("#resultats-vide").hidden = Boolean(list.length);
   }
 
   /** Point effacé au milieu d'une chaîne (A–B–C) : propose de mesurer la distance A–C. */
@@ -2609,11 +2641,13 @@
     const geojson = app.export_geojson();
     if (await download("\ufeff" + app.export_csv(), "mesures.csv", "text/csv")) exported = geojson;
     saveResults();
+    showResultsInfo();
   });
   $("#geojson").addEventListener("click", async () => {
     const geojson = app.export_geojson();
     if (await download(geojson, "mesures.geojson", "application/geo+json")) exported = geojson;
     saveResults();
+    showResultsInfo();
   });
 
   // Résultats gardés dans le navigateur à chaque changement (exports CSV et GeoJSON tout prêts) :
