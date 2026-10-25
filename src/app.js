@@ -1617,7 +1617,7 @@
     const custom = overlay.couleurs[column] ||= {};
     $("#couche-intitule").disabled = $("#couche-suffixe").disabled = !$("#couche-etiquette").value;  // sans étiquette, sans effet
     const legend = Couche.style(overlay.features, column, $("#couche-etiquette").value, custom, $("#couche-intitule").checked,
-      $("#couche-suffixe").value);
+      $("#couche-suffixe").value, $("#couche-etiquette-carte").value);
     $("#couche-couleurs-defaut").disabled = !Object.keys(custom).length;
     if (legend.degrade && !custom.min && !custom.max) {
       setStatus("Dégradé : cliquez les pastilles « minimum » et « maximum » de la légende pour choisir ses couleurs.");
@@ -1706,7 +1706,8 @@
   }
 
   /** Couche en place (lue d'un fichier, ou gardée) : calcul, réglages, carte ; cadrée dessus si fit. */
-  function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}, masks = {}) {
+  // mapLabel : colonne de l'étiquette de la mini-carte ; null : « id » (sans tenir compte de la casse), sinon la première
+  function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}, masks = {}, mapLabel = null) {
     overlay = { name, ...read, couleurs: colors, masques: masks };  // masques : { colonne: [clés de légende masquées] }
     moving = null;  // couleurs choisies : { colonne: { clé de légende: couleur } }
     $("#couche-visible").checked = visible;
@@ -1715,7 +1716,8 @@
     const technical = RELEVE_TECHNIQUES.every((c) => read.columns.includes(c)) ? RELEVE_TECHNIQUES : [];
     const choices = read.columns.filter((c) => !technical.includes(c));
     overlay.techniques = technical;
-    for (const [id, value] of [["#couche-couleur", color], ["#couche-etiquette", label]]) {
+    mapLabel ??= choices.find((c) => c.toLowerCase() === "id") ?? choices[0] ?? "";
+    for (const [id, value] of [["#couche-couleur", color], ["#couche-etiquette", label], ["#couche-etiquette-carte", mapLabel]]) {
       $(id).replaceChildren(new Option(id === "#couche-couleur" ? "couleur unique" : "aucune", ""),
         ...choices.map((c) => new Option(c, c)));
       $(id).value = choices.includes(value) ? value : "";
@@ -1743,7 +1745,7 @@
     if (!overlay) return true;
     const { name, features, columns, crs, couleurs, masques, fiche } = overlay;
     const text = JSON.stringify({ name, columns, crs, couleurs, masques, fiche, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
-      intitule: $("#couche-intitule").checked, suffixe: $("#couche-suffixe").value,
+      intitule: $("#couche-intitule").checked, suffixe: $("#couche-suffixe").value, etiquetteCarte: $("#couche-etiquette-carte").value,
       visible: $("#couche-visible").checked,
       features: features.map(({ type, id, geometry, properties, recalages }) => ({ type, id, geometry, recalages,
         properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) });
@@ -1758,7 +1760,7 @@
     $("#couche-intitule").checked = Boolean(saved?.intitule);
     $("#couche-suffixe").value = saved?.suffixe || "";
     if (saved?.features?.length) loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, false, saved.visible !== false,
-      saved.couleurs || {}, saved.masques || {});
+      saved.couleurs || {}, saved.masques || {}, saved.etiquetteCarte ?? null);
   }
 
   for (const id of ["#couche-importer", "#couche-remplacer"]) $(id).addEventListener("click", () => $("#couche-fichier").click());
@@ -1804,7 +1806,7 @@
     showOverlayStyle();
     saveOverlay();
   });
-  for (const id of ["#couche-couleur", "#couche-etiquette", "#couche-intitule", "#couche-visible"]) {
+  for (const id of ["#couche-couleur", "#couche-etiquette", "#couche-etiquette-carte", "#couche-intitule", "#couche-visible"]) {
     $(id).addEventListener("change", () => {
       showOverlayStyle();
       saveOverlay();
@@ -3291,13 +3293,13 @@
   /** Mini-carte centrée sur bounds ([[lon, lat], [lon, lat]]) au zoom choisi dans la page, en image à
    * la même échelle (FICHE_MAP px d'écran), avec le cône de vue ; null si elle est repliée, ou si le
    * fond refuse d'être lu (CORS). La vue de la carte est remise comme avant. */
-  async function mapSnapshot(bounds) {
+  async function mapSnapshot(bounds, asShown = false) {  // asShown : sans la recentrer sur bounds
     const canvas = map.getCanvas();
     if (!canvas.clientWidth || !canvas.clientHeight) return null;
     const before = { center: map.getCenter(), zoom: map.getZoom(), bearing: map.getBearing() };
     try {
       const [[w, south], [e, north]] = bounds;
-      map.jumpTo({ center: [(w + e) / 2, (south + north) / 2], zoom: before.zoom, bearing: 0 });
+      if (!asShown) map.jumpTo({ center: [(w + e) / 2, (south + north) / 2], zoom: before.zoom, bearing: 0 });
       await Promise.race([new Promise((resolve) => map.once("idle", resolve)), new Promise((r) => setTimeout(r, 8000))]);
       return await new Promise((resolve) => {  // image WebGL lue juste après son rendu
         map.once("render", () => {
@@ -3333,7 +3335,7 @@
     const frame = showFicheFrame();
     dialog.returnValue = "";
     dialog.addEventListener("close", () => {
-      if (!dialog.returnValue) return frame?.remove();
+      if (!dialog.returnValue) return dropFrame(frame);
       if (layered) {  // choix gardés avec la couche, pour la fiche des objets suivants
         overlay.fiche = [...$("#fiche-champs").children].map((li) => [li.dataset.champ, li.querySelector("input").checked]);
         saveOverlay();
@@ -3341,7 +3343,7 @@
       }
       const title = $("#titre-fiche").value.trim();
       if (dialog.returnValue === "auto" || !frame) {
-        frame?.remove();
+        dropFrame(frame);
         return makeFiche(k, dialog.returnValue === "auto", title);
       }
       reframeFiche(frame, () => makeFiche(k, false, title));  // vue actuelle : recadrée d'abord
@@ -3364,7 +3366,7 @@
       end();
     };
     const end = () => {
-      frame.remove();
+      dropFrame(frame);
       document.removeEventListener("keydown", onKey, true);
     };
     bar.append(button("Annuler", "non", () => setStatus("Fiche annulée.")), button("✔ Valider le cadrage", "oui", go));
@@ -3372,28 +3374,38 @@
     const below = frame.offsetHeight - (frame.firstChild.offsetTop + frame.firstChild.offsetHeight);
     if (below >= 56) Object.assign(bar.style, { bottom: "auto", top: `${frame.offsetHeight - below + 10}px` });  // sous le cadre
     document.addEventListener("keydown", onKey, true);
-    setStatus("Fiche : recadrez la vue dans la visionneuse (glisser, molette) ; seul l'intérieur du cadre sera repris. "
-      + "Puis « Valider le cadrage » (Échap pour annuler).");
+    setStatus("Fiche : recadrez la vue dans la visionneuse et la mini-carte (glisser, molette) ; seul l'intérieur des cadres "
+      + "sera repris. Puis « Valider le cadrage » (Échap pour annuler).");
   }
 
   /** Cadre de la photo que retiendrait « Vue actuelle » (cropCenter de la vue entière, au format de la
    * photo de la fiche), tracé sur la visionneuse, le reste assombri ; à retirer (remove) à la fermeture. */
+  // Aussi sur la mini-carte (frame.linked) : le centre de sa capture (mapSnapshot), à l'échelle de l'écran
   function showFicheFrame() {
-    const box = psv?.container?.getBoundingClientRect();
-    if (!box?.width || !box.height) return null;
-    const aspect = FICHE_PHOTO.width / FICHE_PHOTO.height;
-    let w = box.width, h = box.height;
-    if (w / h > aspect) w = h * aspect;
-    else h = w / aspect;
-    const clip = Object.assign(document.createElement("div"), { className: "cadre-fiche" });
-    Object.assign(clip.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` });
-    const inner = document.createElement("div");
-    Object.assign(inner.style, { left: `${(box.width - w) / 2}px`, top: `${(box.height - h) / 2}px`, width: `${w}px`, height: `${h}px` });
-    inner.append(Object.assign(document.createElement("span"), { textContent: "Cadre de la fiche (vue actuelle)" }));
-    clip.append(inner);
-    document.body.append(clip);
+    const clip = frameOver(psv?.container, FICHE_PHOTO.width / FICHE_PHOTO.height, Infinity, "Cadre de la fiche (vue actuelle)");
+    if (clip && !mapBox.hidden) clip.linked = frameOver(map.getCanvas(), FICHE_MAP.width / FICHE_MAP.height, FICHE_MAP.width, "Fiche");
     return clip;
   }
+
+  /** Cadre centré sur element (dans son document : carte détachée comprise), comme cropCenter : au format
+   * aspect, size px de large au plus ; le reste assombri. null si element n'est pas affiché. */
+  function frameOver(element, aspect, size, text) {
+    const box = element?.getBoundingClientRect();
+    if (!box?.width || !box.height) return null;
+    let w = Math.min(box.width, size), h = box.height;
+    if (w / h > aspect) w = h * aspect;
+    else h = w / aspect;
+    const doc = element.ownerDocument;
+    const clip = Object.assign(doc.createElement("div"), { className: "cadre-fiche" });
+    Object.assign(clip.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` });
+    const inner = doc.createElement("div");
+    Object.assign(inner.style, { left: `${(box.width - w) / 2}px`, top: `${(box.height - h) / 2}px`, width: `${w}px`, height: `${h}px` });
+    inner.append(Object.assign(doc.createElement("span"), { textContent: text }));
+    clip.append(inner);
+    doc.body.append(clip);
+    return clip;
+  }
+  const dropFrame = (frame) => { frame?.linked?.remove(); frame?.remove(); };
 
   /** Données de la fiche d'un objet de la couche : cases et ordre (↑ ↓, ou glissé-déposé) gardés avec la couche (overlay.fiche,
    * [[colonne, cochée]]), puis les colonnes apparues depuis, cochées ; sans les colonnes techniques d'un relevé. */
@@ -3553,7 +3565,7 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
       const [lon, lat] = photo.geometry.coordinates;
       data.bounds = [[Math.min(lon, data.lon), Math.min(lat, data.lat)], [Math.max(lon, data.lon), Math.max(lat, data.lat)]];
     }
-    const mapImage = await mapSnapshot(data.bounds);
+    const mapImage = await mapSnapshot(data.bounds, !auto);  // vue actuelle : la carte telle que recadrée
     step("Mise en page", 95);
     if (photo) data.place = (await Lieu.describe(...photo.geometry.coordinates.slice(0, 2)).catch(() => ({}))).parts;  // déjà lu : sans requête
     // Sur un pont : son nom (sans la route, déjà écrite) et ce qu'il franchit, sans la hauteur de chute
@@ -3618,8 +3630,8 @@ h1 { margin: 0; font-size: 26px; letter-spacing: -0.3px; } .sous-titre { font-si
 .lieu { font-size: 13px; } .lieu .ou { font-size: 16px; margin-bottom: 3px; } .lieu span { color: #444; }
 figure { margin: 0; display: flex; flex-direction: column; gap: 5px; }
 figure img { display: block; width: 100%; border-radius: 4px; } figcaption { font-size: 12px; color: #555; text-align: center; }
-.bas { display: grid; grid-template-columns: minmax(0, 1fr) ${FICHE_MAP.width}px; gap: 24px; align-items: center; }
-.textes { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.bas { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) ${FICHE_MAP.width}px; gap: 24px; align-items: center; }  /* jusqu'au pied : mini-carte centrée dans cette hauteur */
+.textes { align-self: start; display: flex; flex-direction: column; gap: 16px; min-width: 0; }  /* tableau sous la photo */
 h2 { margin: 0 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.6px; color: #e65100; }
 table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 th { text-align: left; font-weight: 500; padding: 5px 6px; border-bottom: 1.5px solid #1c1c1c; }

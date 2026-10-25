@@ -61,7 +61,7 @@ pour les départementales, cyan pour les métropolitaines, vert pour les europé
 des départements (bleu), de la métropole (vert) et des communes (tirets noirs). Les
 autoroutes et nationales paraissent dès le zoom 7, les départementales dès le zoom 10, les
 autres voies dès le zoom 15. Les points de repère sont dessinés en bornes (tête à la couleur
-du réseau, numéro du PR), à côté de la voie. Le filaire Panoramax, semi-transparent, se
+du réseau, numéro du PR), à côté de la voie, avec ce fond seulement. Le filaire Panoramax, semi-transparent, se
 masque par sa case à cocher.
 
 **Choisir une photo** : cliquer sur le filaire orange de la carte (photo la plus proche) ; la
@@ -222,8 +222,9 @@ de tout effacer pour repartir de zéro. Échap annule le tracé d'une droite sur
 
 **Fiche PDF** : bouton « 📄 Fiche » d'un point de référence dans les résultats, puis le choix de la
 photo : « Cadrage automatique » (ci-dessous) ou « Vue actuelle » (la visionneuse telle qu'affichée,
-sans changer de photo : la fenêtre se ferme, on recadre la vue sous le cadre jaune de la photo de la
-fiche, tracé dès l'ouverture de la fenêtre, puis « Valider le cadrage »), et un titre libre (« point de référence A » par défaut, après
+sans changer de photo : la fenêtre se ferme, on recadre la vue et la mini-carte sous les cadres jaunes de
+la photo et de la carte de la fiche, tracés dès l'ouverture de la fenêtre, puis « Valider le cadrage » ; la
+mini-carte est alors reprise telle que recadrée), et un titre libre (« point de référence A » par défaut, après
 « Fiche de mesure — »). Une page A4
 s'ouvre dans une fenêtre à part et la boîte d'impression du navigateur propose « Enregistrer au
 format PDF ». La page contient la photo d'où la plus grande mesure du point a été prise, cadrée
@@ -246,8 +247,7 @@ suivre le terrain ; à plat à la hauteur de caméra en attendant, ou sans LiDAR
 de 100 m de la photo. Couleur selon une colonne : une couleur par valeur (palette Set1 de ColorBrewer
 sans son gris, prolongée de huit couleurs : seize valeurs, les plus fréquentes, puis par ordre alphabétique, les autres et les vides en gris), ou, pour une
 colonne numérique d'au moins 11 valeurs, dégradé entre les couleurs du minimum et du maximum choisies
-dans la légende (chaque objet prend leur mélange pondéré par sa valeur), étiquette d'une colonne (dans la photo,
-et sur la carte à partir du zoom 16), précédée de son intitulé si la case est cochée (« essence : tilleul ») et suivie d'un texte fixe au choix (unité : « 12 cm »), légende (un clic sur une pastille : palette ; « Couleurs par défaut »).
+dans la légende (chaque objet prend leur mélange pondéré par sa valeur), étiquette d'une colonne dans la photo, précédée de son intitulé si la case est cochée (« essence : tilleul ») et suivie d'un texte fixe au choix (unité : « 12 cm »), étiquette de la mini-carte (à partir du zoom 16) d'une autre colonne au choix, « id » par défaut (sans tenir compte de la casse), sinon la première, légende (un clic sur une pastille : palette ; « Couleurs par défaut »).
 Étiquettes en texte seul, de la couleur de l'objet éclaircie de moitié, liseré noir, jamais recouvertes
 par une pastille, placées de l'objet le plus proche de la photo au plus lointain : remontées en cas
 de chevauchement, masquées s'il faudrait les remonter de plus d'une fois et demie leur hauteur. Sa fiche, en tête de l'onglet, donne le nombre d'objets, le système de

@@ -414,6 +414,7 @@ const Carte = (() => {
     setRoadsVisible(map, namesShown);
     setAdminVisible(map, namesShown);
     for (const id of namesIds) map.setLayoutProperty(id, "visibility", namesShown ? "visible" : "none");
+    loadMilestones(map);  // points de repère et bornes : avec ce fond seulement
   }
 
   /** Affiche ou masque le filaire Panoramax (séquences et photos). */
@@ -587,7 +588,7 @@ const Carte = (() => {
     map.setFilter("grille", grid);
   }
 
-  // Points de repère (PR) des routes : BD TOPO, zone affichée, à partir de PR_MINZOOM ; leur
+  // Points de repère (PR) des routes, avec le fond « orthophoto avec noms » : BD TOPO, zone affichée, à partir de PR_MINZOOM ; leur
   // étiquette (marqueur HTML, sans police à charger) à partir de PR_LABEL_ZOOM ---------------
 
   const PR_MINZOOM = 13;
@@ -681,12 +682,13 @@ const Carte = (() => {
     // Zone chargée arrondie (et un peu élargie) : petits déplacements sans nouvelle requête
     const r = (v, up) => (up ? Math.ceil(v * 200) : Math.floor(v * 200)) / 200;
     const box = [r(b.getWest(), false), r(b.getSouth(), false), r(b.getEast(), true), r(b.getNorth(), true)];
-    const key = zoom >= PR_MINZOOM ? box.join(",") + (zoom >= PR_LABEL_ZOOM ? "+" : "") : "";
+    // Fond « orthophoto avec noms » seulement : ailleurs, ni points ni bornes (pas de requête non plus)
+    const key = namesShown && zoom >= PR_MINZOOM ? box.join(",") + (zoom >= PR_LABEL_ZOOM ? "+" : "") : "";
     if (key === prKey) return;
     prKey = key;
     const ticket = ++prAsked;
     let features = [], sections = new Map();
-    if (zoom >= PR_MINZOOM) {
+    if (key) {
       const wfs = (layer, extra = {}) => new URLSearchParams({
         SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetFeature", TYPENAMES: `BDTOPO_V3:${layer}`,
         OUTPUTFORMAT: "application/json", SRSNAME: "EPSG:4326", COUNT: "1000",
@@ -799,7 +801,7 @@ const Carte = (() => {
   const labels = [];
   let shownMeasures = null;  // dernières mesures dessinées : suivent une poignée glissée
 
-  /** Couche importée (GeoJSON en WGS 84, properties._couleur et _etiquette), ou null : retirée.
+  /** Couche importée (GeoJSON en WGS 84, properties._couleur et _etiquette_carte), ou null : retirée.
    * Étiquettes à partir du zoom OVERLAY_LABEL_ZOOM, sur les objets de la vue (OVERLAY_LABEL_MAX au plus). */
   const OVERLAY_LABEL_ZOOM = 16, OVERLAY_LABEL_MAX = 200;
   let overlay = null, overlayLabels = [], overlayBound = false;
@@ -823,7 +825,7 @@ const Carte = (() => {
     const from = lastView?.[0] || map.getCenter().toArray();
     const found = [];
     for (const f of overlay.features) {
-      const text = f.properties._etiquette;
+      const text = f.properties._etiquette_carte;
       if (!text) continue;
       const positions = (c) => (typeof c[0] === "number" ? [c.slice(0, 2)] : c.flatMap(positions));  // x, y (z ignoré)
       const pts = positions(f.geometry.coordinates);
@@ -843,7 +845,7 @@ const Carte = (() => {
     }
     for (const { f, at } of found.slice(0, OVERLAY_LABEL_MAX)) {
       const element = document.createElement("div");  // ancre : MapLibre place l'élément, l'étiquette s'y décale
-      const label = Object.assign(document.createElement("div"), { className: "etiquette couche", textContent: f.properties._etiquette });
+      const label = Object.assign(document.createElement("div"), { className: "etiquette couche", textContent: f.properties._etiquette_carte });
       label.style.color = Couche.clair(f.properties._couleur);
       element.append(label);
       overlayLabels.push(new maplibregl.Marker({ element, ...awayFromRoad(map.project(at), axes) }).setLngLat(at).addTo(map));

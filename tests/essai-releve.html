@@ -54,6 +54,16 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       await sleep(800);
     };
     const shown = (id) => !doc.querySelector(id).hidden;
+    // Mini-carte : points de repère et bornes avec le fond « orthophoto avec noms » seulement
+    { const m = w.mesures.map, pr = () => m.getSource("pr")?.serialize().data.features?.length || 0;
+      const bornes = () => m.getContainer().querySelectorAll(".borne-pr").length;
+      m.jumpTo({ center: photos[0].geometry.coordinates, zoom: 15 });
+      await sleep(2500);
+      expect("fond Plan IGN : ni PR ni bornes", pr() === 0 && bornes() === 0, `${pr()} PR, ${bornes()} bornes`);
+      doc.querySelector("#fond").value = "noms"; doc.querySelector("#fond").dispatchEvent(new Event("change"));
+      await until(() => pr() > 0 && bornes() > 0, 20000, "PR et bornes avec l'orthophoto avec noms");
+      doc.querySelector("#fond").value = "plan"; doc.querySelector("#fond").dispatchEvent(new Event("change"));
+      await until(() => pr() === 0 && bornes() === 0, 20000, "PR et bornes retirés avec le Plan IGN"); }
     expect("relevé vide : Envoyer dans Couche et Vider grisés", doc.querySelector("#releve-couche").disabled && doc.querySelector("#releve-vider").disabled);
     log("rappel : " + doc.querySelector("#nom-mesure").textContent + " · " + doc.querySelector("#mode-mesure").textContent);
     // 1er objet : triangulé depuis les deux photos ; après la première visée, la question d'une seule photo
@@ -191,6 +201,16 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await sleep(300);
     log("étiquettes : " + labels());
     expect("texte après la valeur", labels() === "distance_bord_m : 2,4 m | distance_bord_m : 3 m", labels());
+    expect("mini-carte : colonne « id » par défaut, étiquettes indépendantes de la visionneuse", doc.querySelector("#couche-etiquette-carte").value === "id"
+      && w.mesures.map.getSource("couche").serialize().data.features.map((f) => f.properties._etiquette_carte).join() === "1,2");
+    doc.querySelector("#couche-etiquette-carte").value = "classe";
+    doc.querySelector("#couche-etiquette-carte").dispatchEvent(new Event("change"));
+    await sleep(300);
+    { const m = w.mesures.map; m.jumpTo({ center: target, zoom: 18 }); await sleep(800);
+      const size = w.getComputedStyle(m.getContainer().querySelector(".maplibregl-marker .etiquette.couche")).fontSize;
+      expect("étiquettes de la couche sur la mini-carte : 15 px", size === "15px", size); }
+    expect("mini-carte : autre colonne choisie, gardée avec la couche", w.mesures.map.getSource("couche").serialize().data.features
+      .map((f) => f.properties._etiquette_carte).join() === "panneau,borne" && JSON.parse(w.localStorage.getItem("web-measures/couche")).etiquetteCarte === "classe");
     expect("texte après la valeur gardé avec la couche", JSON.parse(w.localStorage.getItem("web-measures/couche")).suffixe === "m");
     doc.querySelector("#couche-csv").click();
     await sleep(500);
@@ -216,6 +236,10 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       log(`cadre : ${Math.round(frameBox?.width)}×${Math.round(frameBox?.height)} dans ${Math.round(psvBox.width)}×${Math.round(psvBox.height)}`);
       expect("cadre de la vue actuelle tracé, au format de la fiche", frameBox && Math.abs(frameBox.width / frameBox.height - 698 / 356) < 0.01
         && frameBox.width <= psvBox.width + 0.5 && frameBox.height <= psvBox.height + 0.5);
+      const mapFrame = [...doc.querySelectorAll(".cadre-fiche > div:first-child")].map((d) => d.getBoundingClientRect()).find((r) => r.width < 300);
+      log(`cadre de la mini-carte : ${Math.round(mapFrame?.width)}×${Math.round(mapFrame?.height)}`);
+      expect("cadre aussi sur la mini-carte, à la taille de sa capture", mapFrame && Math.abs(mapFrame.width / mapFrame.height - 230 / 300) < 0.01
+        && mapFrame.width <= 230.5);
       // Données de la fiche : « essence » décochée, « classe » montée en tête ; gardées avec la couche
       const fieldsList = () => [...doc.querySelectorAll("#fiche-champs li")];
       log("données de la fiche : " + fieldsList().map((li) => li.dataset.champ).join(", "));

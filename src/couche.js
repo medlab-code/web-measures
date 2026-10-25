@@ -121,15 +121,17 @@ const Couche = (() => {
   /**
    * Couleurs selon la colonne column ("" : couleur unique) : chaque objet reçoit properties._couleur
    * (et _etiquette selon labelColumn, précédée de son intitulé si titled : « essence : tilleul », suivie
-   * du texte suffix : « 12 cm »). custom : couleurs choisies, par clé d'entrée de légende.
+   * du texte suffix : « 12 cm »), et _etiquette_carte, valeur de mapColumn (étiquette de la mini-carte). custom :
+   * couleurs choisies, par clé d'entrée de légende.
    * Chaque objet reçoit aussi properties._cle, la clé de son entrée de légende (« degrade » pour un
    * objet coloré par le dégradé).
    * Retourne la légende [{ cle, couleur, texte }] ; degrade : vrai pour une colonne numérique d'au moins
    * NUMERIC_MIN valeurs, chaque objet y prenant le mélange des couleurs du minimum et du maximum
    * pondéré par sa valeur.
    */
-  function style(features, column, labelColumn, custom = {}, titled = false, suffix = "") {
+  function style(features, column, labelColumn, custom = {}, titled = false, suffix = "", mapColumn = "") {
     for (const f of features) {
+      f.properties._etiquette_carte = mapColumn ? format(f.properties[mapColumn]) : "";
       let text = labelColumn ? format(f.properties[labelColumn]) : "";
       if (text && suffix.trim()) text += ` ${suffix.trim()}`;  // unité absente de la colonne : « 12 cm »
       f.properties._etiquette = text && titled ? `${labelColumn} : ${text}` : text;
