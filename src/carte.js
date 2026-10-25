@@ -835,7 +835,6 @@ const Carte = (() => {
     for (const { f, at } of found.slice(0, OVERLAY_LABEL_MAX)) {
       const element = document.createElement("div");  // ancre : MapLibre place l'élément, l'étiquette s'y décale
       const label = Object.assign(document.createElement("div"), { className: "etiquette couche", textContent: f.properties._etiquette });
-      label.style.borderColor = f.properties._couleur;
       element.append(label);
       // au-dessus de la pastille, un peu écartée d'elle
       overlayLabels.push(new maplibregl.Marker({ element, offset: [0, -20] }).setLngLat(at).addTo(map));

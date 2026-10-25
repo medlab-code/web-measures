@@ -2038,7 +2038,7 @@
         }
         if (p._etiquette) {  // rang : 0 pour la plus proche de la caméra (marques triées par distance)
           add({ id: `${MARK}couche-${n++}`, position: at, anchor: "center center", zIndex: OVERLAY_LABEL_Z,  // au-dessus des pastilles
-            html: `<div class="ancre"><div class="etiquette couche dessus" data-rang="${rank++}" style="border-color:${color}">${
+            html: `<div class="ancre"><div class="etiquette couche dessus" data-rang="${rank++}">${
               escapeHtml(p._etiquette)}</div></div>` });
         }
       }
@@ -2797,25 +2797,20 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
   }
 
   /** Étiquettes de la couche importée visibles dans root (visionneuse, carte) recopiées sur ctx : même
-   * place (origin : rectangle écran de l'image, scale : pixels de l'image par pixel d'écran), même
-   * fond, liseré de couleur et transparence qu'à l'écran. */
+   * place (origin : rectangle écran de l'image, scale : pixels de l'image par pixel d'écran), texte
+   * blanc au contour sombre comme à l'écran. */
   function drawScreenLabels(ctx, root, origin, scale) {
     for (const el of root.querySelectorAll(".etiquette.couche")) {
       const r = el.getBoundingClientRect(), css = getComputedStyle(el);
       if (!r.width || css.visibility === "hidden") continue;
-      const [x, y, w, h] = [(r.left - origin.left) * scale, (r.top - origin.top) * scale, r.width * scale, r.height * scale];
+      const [x, y, h] = [(r.left - origin.left) * scale, (r.top - origin.top) * scale, r.height * scale];
       ctx.save();
-      ctx.globalAlpha = Number(css.opacity) || 1;
-      ctx.fillStyle = css.backgroundColor;
-      ctx.beginPath();
-      ctx.roundRect(x, y, w, h, 3 * scale);
-      ctx.fill();
-      ctx.fillStyle = css.borderLeftColor;
-      ctx.fillRect(x, y, 4 * scale, h);
-      ctx.fillStyle = css.color;
       ctx.font = `${css.fontWeight} ${parseFloat(css.fontSize) * scale}px ${css.fontFamily}`;
       ctx.textBaseline = "middle";
-      ctx.fillText(el.textContent, x + (4 + parseFloat(css.paddingLeft)) * scale, y + h / 2);
+      Object.assign(ctx, { strokeStyle: "#000", lineWidth: 3 * scale, lineJoin: "round" });
+      ctx.strokeText(el.textContent, x, y + h / 2);
+      ctx.fillStyle = css.color;
+      ctx.fillText(el.textContent, x, y + h / 2);
       ctx.restore();
     }
   }
