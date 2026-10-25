@@ -1074,16 +1074,29 @@ canvas.traits {
 /* Résultats de la session précédente, en lecture seule (gris aussi sur la carte) */
 #precedents ol { margin: 0.3rem 0; padding-left: 1.4rem; color: #9e9e9e; font-size: 0.9em; }
 
-/* Couche importée : pastille de couleur (points, légende), étiquette liserée de la couleur de l'objet */
+/* Couche importée : pastille de couleur (points, légende), étiquette */
 .pastille-couche { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 2px solid #fff;
                    box-shadow: 0 0 2px rgba(0, 0, 0, 0.8); vertical-align: middle; }
-.etiquette.couche { border-left: 4px solid; opacity: 0.75; }  /* transparentes à 25 %, carte et visionneuse */
+/* Texte seul, de la couleur de l'objet éclaircie de moitié (Couche.clair), liseré noir de 1 px :
+   lisible sur l'orthophoto comme sur la photo (carte et visionneuse) */
+.etiquette.couche { background: none; padding: 0; border-radius: 0; font-weight: 600;
+                    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
 /* Dans la visionneuse : transparentes à 25 %, remontées si elles se chevauchent (declutterLabels) */
 .ancre .etiquette.couche.dessus { transform: translate(-50%, var(--decalage, 0px)); }
+/* Visionneuse : pastille et étiquette d'un objet cliquables pour le recaler ; soulignées une fois choisies */
+#visionneuse .pastille-couche[data-objet], #visionneuse .etiquette.couche { pointer-events: auto; cursor: pointer; }
+#visionneuse .pastille-couche.choisie { outline: 2px solid #fff; outline-offset: 2px; }
+#visionneuse .etiquette.couche.choisie { text-decoration: underline; }
 #couche label { display: block; margin: 0.3rem 0; }
 #couche-legende { list-style: none; margin: 0.3rem 0; padding: 0; font-size: 0.9em; }
 #couche-legende li { display: flex; align-items: center; gap: 0.4rem; margin: 0.1rem 0; }
-#couche-legende .pastille-couche { border-color: var(--bord); box-shadow: none; }
+#couche-legende .pastille-couche { border-color: var(--bord); box-shadow: none; padding: 0; cursor: pointer; }
+.palette-couche { position: fixed; inset: auto; margin: 0; width: 8.5rem; padding: 0.4rem; gap: 0.3rem;
+                  flex-wrap: wrap; background: var(--fond); border: 1px solid var(--bord); border-radius: 6px;
+                  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
+.palette-couche:popover-open { display: flex; }
+.palette-couche .pastille-couche { width: 18px; height: 18px; }
+.palette-couche .pastille-couche[aria-pressed="true"] { outline: 2px solid var(--texte); outline-offset: 1px; }
 #couche-nom { margin: 0.2rem 0; font-weight: 500; }
 
 /* Fiche PDF, choix de la photo : vue actuelle entourée de vert, cadrage automatique de bleu */

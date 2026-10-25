@@ -214,16 +214,19 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <h2>Couche</h2>
           <p class="aide">GeoJSON, Shapefile (.zip, ou .shp avec .dbf et .prj choisis ensemble) ou
             GeoPackage, en WGS 84 ou Lambert 93 : ses objets sur la carte et, au sol, dans la photo (à
-            moins de 100 m).</p>
+            moins de 100 m). Hors mesure, un clic sur un objet dans la photo permet de le recaler sur ce
+            qu'on y voit ; « Exporter » le garde dans un GeoJSON pour un autre poste.</p>
           <div id="couche-reglages" hidden>
             <p id="couche-nom"></p>
             <label><input id="couche-visible" type="checkbox" checked> Afficher la couche</label>
             <label>Couleur selon <select id="couche-couleur"></select></label>
-            <label>Étiquette <select id="couche-etiquette"></select></label>
             <ul id="couche-legende"></ul>
+            <button id="couche-couleurs-defaut" type="button" hidden>Couleurs par défaut</button>
+            <label>Étiquette <select id="couche-etiquette"></select></label>
           </div>
           <div class="boutons">
             <button id="couche-importer" type="button">Importer…</button>
+            <button id="couche-exporter" type="button" hidden title="GeoJSON avec les objets recalés dans les photos, à importer sur un autre poste">Exporter</button>
             <button id="couche-retirer" type="button" hidden>Retirer</button>
             <input id="couche-fichier" type="file" multiple accept=".geojson,.json,.zip,.shp,.dbf,.prj,.cpg,.shx,.gpkg" hidden>
           </div>
@@ -325,6 +328,15 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
   <!-- Photo sur un pont d'après la BD TOPO : proposer « Sur un pont », une fois par pont -->
   <dialog id="alerte-pont" class="avertissement">
     <h2>⚠ Photo sur un pont</h2>
+    <p></p>
+    <form method="dialog">
+      <button value="non" class="non">Non</button>
+      <button value="oui" class="oui">Oui</button>
+    </form>
+  </dialog>
+  <!-- Objets de la couche recalés sur une autre séquence de la voie : y aller ? (app.js proposeRecaledPhoto) -->
+  <dialog id="alerte-recalage" class="avertissement">
+    <h2>Objets recalés sur une autre séquence</h2>
     <p></p>
     <form method="dialog">
       <button value="non" class="non">Non</button>

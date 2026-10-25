@@ -208,13 +208,24 @@ son attribution et son lien Panoramax, aussi en QR code. La mini-carte manque si
 en a plusieurs), en WGS 84 ou en Lambert 93 (converti), dessiné sur la mini-carte et dans la photo, à l'altitude du fichier (z, en NGF) ou posé
 sur le sol LiDAR HD, lu sous la caméra et sous les objets (lignes redécoupées tous les 5 m pour
 suivre le terrain ; à plat à la hauteur de caméra en attendant, ou sans LiDAR) : points en pastilles, lignes et contours des polygones en traits, pour les objets à moins
-de 100 m de la photo. Couleur selon une colonne (une couleur par valeur, les dix plus fréquentes,
-ou dégradé en cinq classes pour une colonne numérique), étiquette d'une colonne (dans la photo,
-et sur la carte à partir du zoom 16), légende. Étiquettes transparentes à 25 %, jamais recouvertes
+de 100 m de la photo. Couleur selon une colonne : une couleur par valeur (palette Set1 de ColorBrewer
+sans son gris, les huit valeurs les plus fréquentes, les autres et les vides en gris), ou, pour une
+colonne numérique d'au moins 11 valeurs, dégradé entre les couleurs du minimum et du maximum choisies
+dans la légende (chaque objet prend leur mélange pondéré par sa valeur), étiquette d'une colonne (dans la photo,
+et sur la carte à partir du zoom 16), légende (un clic sur une pastille : palette ; « Couleurs par défaut »).
+Étiquettes en texte seul, de la couleur de l'objet éclaircie de moitié, liseré noir, jamais recouvertes
 par une pastille, placées de l'objet le plus proche de la photo au plus lointain : remontées en cas
 de chevauchement, masquées s'il faudrait les remonter de plus d'une fois et demie leur hauteur. La case « Afficher la couche » la masque sans la retirer. Une couche à la fois, gardée avec ses réglages dans le
 navigateur d'une session à l'autre (sauf si elle est trop grosse : un message le dit) ; « Retirer »
-l'efface.
+l'efface. **Recalage dans la photo** (hors mesure) : clic sur la pastille ou l'étiquette d'un objet,
+puis clic à sa place vue dans la photo, flèches pour l'ajuster (0,05°), Entrée pour finir, Suppr pour
+le remettre à sa place calculée ; décalage propre à cette photo, la carte n'est pas modifiée. Gardé
+avec la couche ; « Exporter » écrit un GeoJSON (WGS 84) où chaque objet porte ses
+recalages (membre `recalages` du Feature, hors attributs, ignoré par QGIS : décalage, position et
+séquence de la photo) : importé sur un autre poste, les objets y reviennent à leur place. À l'import,
+ou en ouvrant une photo à moins de 30 m d'une photo recalée d'une autre séquence (même voie, autre
+sens ou autre passage) sans recalage sur la sienne, une fenêtre propose d'aller sur la photo recalée
+(une fois par séquence refusée).
 
 **Résultats gardés** : ils sont enregistrés dans le navigateur à chaque changement ; à
 l'ouverture suivante, ceux de la session précédente qui n'ont pas été exportés sont proposés à
@@ -288,6 +299,11 @@ pas utilisé (talus et murs pris pour la route).
   (point-virgule, virgule décimale) et **GeoJSON** : valeur, incertitude, composantes,
   distance à la photo, hauteur de caméra, axe de la route, photos, date, commentaire, et
   attributs des points triangulés (visées, croisement, précision GPS).
+
+Fichiers exportés (mesures, captures, favoris, calage, couche) : boîte d'enregistrement du système sous
+Chrome et Edge (emplacement et nom au choix, demandés dès le clic pour une capture). Firefox n'en donne
+pas l'accès aux pages : le fichier est téléchargé, avec sa boîte si « Toujours vous demander où
+enregistrer les fichiers » est coché (Paramètres › Général › Fichiers et applications).
 
 Les calculs sont ceux du plugin, exécutés dans le navigateur par Pyodide (environ 10 Mo au
 premier chargement, puis en cache) ; les calculs lourds (inclinaison automatique, capture

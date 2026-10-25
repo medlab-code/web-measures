@@ -868,6 +868,92 @@
   }
   document.addEventListener("keydown", onNudgeKey, true);
 
+  /** Objet id de la couche choisi pour être recalé dans la photo affichée. */
+  function moveOverlayObject(id) {
+    moving = { id, photo: photo.id };
+    document.activeElement?.blur?.();  // un bouton cliqué avant (« Exporter »…) ne reçoit pas l'Entrée
+    setStatus("Objet de la couche : cliquez sa place dans la photo, flèches pour l'ajuster, Entrée pour finir, "
+      + "Suppr pour le remettre à sa place calculée. La carte n'est pas modifiée.");
+    drawViewerMarks(currentMarks);
+  }
+
+  /** Objet en cours de recalage posé en (yaw, pitch) : sa pastille ou son étiquette y vient. */
+  function placeOverlayObject(yaw, pitch) {
+    const at = overlayAt.get(moving.id);
+    if (!at) return;
+    const dyaw = ((yaw - at.yaw) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;  // dans ]-π, π]
+    setShift([dyaw, pitch - at.pitch]);
+  }
+
+  // Objets recalés sur une autre séquence de la même voie (photo recalée à moins de SAME_ROAD m), et
+  // aucun sur celle-ci près d'ici : aller sur la photo recalée la plus proche ? Une fois par séquence
+  // refusée. Sans photo affichée (couche importée) : la photo recalée la plus proche du centre de la carte.
+  const SAME_ROAD = 30;
+  const declinedSequences = new Set();
+  function proposeRecaledPhoto() {
+    if (!overlay || measuring || playing() || document.querySelector("dialog[open]")) return;
+    const from = photo ? photo.geometry.coordinates : map.getCenter().toArray();
+    const near = overlay.features.flatMap((f) => Object.entries(f.recalages || {}))
+      .filter(([, r]) => r.position).map(([id, r]) => ({ id, ...r, d: metresBetween(r.position, from) }))
+      .filter((r) => !photo || r.d < SAME_ROAD).sort((a, b) => a.d - b.d);
+    const key = photo?.collection || "";
+    if (!near.length || declinedSequences.has(key)
+      || (photo && near.some((r) => r.id === photo.id || r.sequence === photo.collection))) return;
+    const dialog = $("#alerte-recalage");
+    dialog.querySelector("p").textContent = photo
+      ? `Des objets de la couche ont été recalés sur une autre séquence de cette voie, à ${Math.round(near[0].d)} m. Aller sur cette photo ?`
+      : "Des objets de la couche ont été recalés dans des photos. Ouvrir la plus proche ?";
+    dialog.returnValue = "";
+    dialog.addEventListener("close", async () => {
+      if (dialog.returnValue !== "oui") return declinedSequences.add(key);
+      try {
+        const feature = await Carte.photoById(near[0].id);
+        if (!feature) return notice("Photo recalée introuvable sur l'instance choisie (Réglages › Instance).");
+        openPhoto(feature);
+        map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 17), speed: 1.6 });
+      } catch (error) {
+        notice(`Photo recalée : recherche impossible (${error.message})`);
+      }
+    }, { once: true });
+    showOverViewer(dialog);
+  }
+
+  /** Décalage de l'objet en recalage dans la photo affichée (null : retiré), gardé avec la couche. */
+  function setShift(shift) {
+    const f = overlay.features[moving.id];
+    if (shift) {
+      f.recalages = { ...f.recalages, [photo.id]: { decalage: shift, position: photo.geometry.coordinates.slice(0, 2),
+        sequence: photo.collection } };
+    }
+    else if (f.recalages) {
+      delete f.recalages[photo.id];
+      if (!Object.keys(f.recalages).length) delete f.recalages;
+    }
+    saveOverlay();
+    drawViewerMarks(currentMarks);
+  }
+
+  // Objet en recalage : flèches de 0,05° (environ un pixel sans zoom), Entrée ou Échap : fini,
+  // Suppr : remis à sa place calculée
+  const SHIFT_STEP = 0.05 * Math.PI / 180;
+  const SHIFT_KEYS = { ArrowLeft: [-SHIFT_STEP, 0], ArrowRight: [SHIFT_STEP, 0], ArrowUp: [0, SHIFT_STEP], ArrowDown: [0, -SHIFT_STEP] };
+  function onOverlayKey(event) {
+    const step = SHIFT_KEYS[event.key];
+    if (movingId() === null || (!step && !["Enter", "Escape", "Delete"].includes(event.key))) return;
+    if (event.target.closest?.("input, select, textarea")) return;  // les boutons, eux, n'y ont pas droit
+    event.preventDefault();
+    event.stopPropagation();
+    if (step) {
+      const [dyaw, dpitch] = overlay.features[moving.id].recalages?.[photo.id]?.decalage || [0, 0];
+      return setShift([dyaw + step[0], dpitch + step[1]]);
+    }
+    if (event.key === "Delete") setShift(null);
+    moving = null;
+    setStatus("");
+    drawViewerMarks(currentMarks);
+  }
+  document.addEventListener("keydown", onOverlayKey, true);
+
   // Ctrl+Z (⌘Z), comme le bouton « Effacer » : dernier geste de mesure annulé (visée, clic, mesure
   // en cours, dernier point) ; dans un champ de saisie, l'annulation du texte reste celle du navigateur
   // Ctrl+Y (Ctrl+Maj+Z, ⌘⇧Z) : rétablit ce que le dernier « Effacer » a retiré
@@ -1122,6 +1208,7 @@
     showPhotoInfo(feature);
     $("#capture-hd").disabled = !Calcul.hasWorker();  // « Avec les mesures » : selon les mesures (drawViewerMarks)
     if (app) refresh(app.set_picture(JSON.stringify(feature)));
+    proposeRecaledPhoto();
     updateProducers();
     checkFarFromMeasures(coords);
   }
@@ -1306,13 +1393,49 @@
   // Couche importée (GeoJSON) : une à la fois, couleur et étiquette selon une colonne ; gardée avec
   // ses réglages dans le navigateur d'une session à l'autre, jusqu'à « Retirer »
   let overlay = null;  // { name, features (WGS 84, Couche.read), columns, crs }
+  // Recalage d'un objet de la couche dans la photo affichée, la carte n'en est pas touchée : décalage
+  // en cap et élévation (radians), feature.recalages[identifiant de photo] (Couche.read), gardé avec la
+  // couche et dans son export GeoJSON
+  const overlayAt = new Map();  // objet → position sans décalage de sa pastille ou de son étiquette
+  let moving = null;  // { id, photo } : objet en cours de recalage
+  const movingId = () => (moving && !measuring && moving.photo === photo?.id ? moving.id : null);
   function showOverlayStyle() {
     if (!overlay) return;
-    const legend = Couche.style(overlay.features, $("#couche-couleur").value, $("#couche-etiquette").value);
-    $("#couche-legende").replaceChildren(...legend.map(({ couleur, texte }) => {
+    const column = $("#couche-couleur").value;
+    const custom = overlay.couleurs[column] ||= {};
+    const legend = Couche.style(overlay.features, column, $("#couche-etiquette").value, custom);
+    $("#couche-couleurs-defaut").hidden = !Object.keys(custom).length;
+    if (legend.degrade && !custom.min && !custom.max) {
+      setStatus("Dégradé : cliquez les pastilles « minimum » et « maximum » de la légende pour choisir ses couleurs.");
+    }
+    // Clic sur une pastille : palette en fenêtre flottante, la couleur choisie remplace la sienne
+    $("#couche-legende").replaceChildren(...legend.map(({ cle, couleur, texte }) => {
       const li = document.createElement("li");
-      li.append(Object.assign(document.createElement("span"), { className: "pastille-couche" }), texte);
-      li.firstChild.style.background = couleur;
+      const button = Object.assign(document.createElement("button"), {
+        type: "button", className: "pastille-couche", title: "Changer la couleur" });
+      button.setAttribute("aria-label", `Couleur de « ${texte} »`);
+      button.style.background = couleur;
+      // popover : fermée par Échap, par un clic ailleurs ou au choix d'une couleur (liste redessinée)
+      const palette = Object.assign(document.createElement("div"), { className: "palette-couche", popover: "auto" });
+      palette.append(...Couche.CHOICES.map((c) => {
+        const choice = Object.assign(document.createElement("button"), { type: "button", className: "pastille-couche" });
+        choice.setAttribute("aria-label", c);
+        choice.setAttribute("aria-pressed", String(c === couleur));
+        choice.style.background = c;
+        choice.addEventListener("click", () => {
+          custom[cle] = c;
+          showOverlayStyle();
+          saveOverlay();
+        });
+        return choice;
+      }));
+      button.popoverTargetElement = palette;
+      palette.addEventListener("beforetoggle", (event) => {
+        if (event.newState !== "open") return;
+        const r = button.getBoundingClientRect();
+        Object.assign(palette.style, { left: `${Math.min(r.left, innerWidth - 160)}px`, top: `${r.bottom + 4}px` });  // ~150 px de large
+      });
+      li.append(button, texte, palette);
       return li;
     }));
     // Case « Afficher la couche » décochée : ni sur la carte ni dans la photo, réglages gardés
@@ -1321,8 +1444,9 @@
   }
 
   /** Couche en place (lue d'un fichier, ou gardée) : calcul, réglages, carte ; cadrée dessus si fit. */
-  function loadOverlay(name, read, color = "", label = "", fit = false, visible = true) {
-    overlay = { name, ...read };
+  function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}) {
+    overlay = { name, ...read, couleurs: colors };
+    moving = null;  // couleurs choisies : { colonne: { clé de légende: couleur } }
     $("#couche-visible").checked = visible;
     const n = app.set_overlay(JSON.stringify(read.features.map(({ id, geometry }) => ({ id, geometry }))));
     for (const [id, value] of [["#couche-couleur", color], ["#couche-etiquette", label]]) {
@@ -1334,6 +1458,7 @@
       + `${read.crs === "lambert93" ? " (Lambert 93 converti)" : ""}`;
     $("#couche-reglages").hidden = false;
     $("#couche-retirer").hidden = false;
+    $("#couche-exporter").hidden = false;
     showOverlayStyle();
     if (fit) {
       const xs = [], ys = [];
@@ -1341,16 +1466,17 @@
         read.features.map((f) => f.geometry.coordinates));
       map.fitBounds([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], { padding: 30, maxZoom: 17 });
     }
+    proposeRecaledPhoto();
     return n;
   }
 
   /** Couche et réglages gardés dans le navigateur ; faux si elle est trop grosse pour y tenir. */
   function saveOverlay() {
     if (!overlay) return true;
-    const { name, features, columns, crs } = overlay;
-    const text = JSON.stringify({ name, columns, crs, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
+    const { name, features, columns, crs, couleurs } = overlay;
+    const text = JSON.stringify({ name, columns, crs, couleurs, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
       visible: $("#couche-visible").checked,
-      features: features.map(({ type, id, geometry, properties }) => ({ type, id, geometry,
+      features: features.map(({ type, id, geometry, properties, recalages }) => ({ type, id, geometry, recalages,
         properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) });
     store.set("couche", text);
     return store.get("couche") === text;
@@ -1360,7 +1486,8 @@
   function restoreOverlay() {
     let saved = null;
     try { saved = JSON.parse(store.get("couche") || "null"); } catch { /* illisible : aucune */ }
-    if (saved?.features?.length) loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, false, saved.visible !== false);
+    if (saved?.features?.length) loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, false, saved.visible !== false,
+      saved.couleurs || {});
   }
 
   $("#couche-importer").addEventListener("click", () => $("#couche-fichier").click());
@@ -1388,13 +1515,32 @@
       saveOverlay();
     });
   }
+  $("#couche-couleurs-defaut").addEventListener("click", () => {
+    overlay.couleurs[$("#couche-couleur").value] = {};
+    showOverlayStyle();
+    saveOverlay();
+  });
+  // Export GeoJSON (WGS 84) avec les recalages dans les photos, à importer sur un autre poste
+  $("#couche-exporter").addEventListener("click", async () => {
+    const content = JSON.stringify({ type: "FeatureCollection",
+      features: overlay.features.map(({ geometry, properties, recalages }) => ({ type: "Feature", geometry, recalages,
+        properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) });
+    const suggestedName = `${overlay.name.replace(/\.(geojson|json|zip|shp|gpkg)\b.*$/i, "")}-recale.geojson`;
+    try {
+      await download(content, suggestedName, "application/geo+json");
+    } catch (error) {
+      notice(`Couche non exportée : ${error.message}`);
+    }
+  });
   $("#couche-retirer").addEventListener("click", () => {
     overlay = null;
+    moving = null;
     store.set("couche", "");
     app?.set_overlay("[]");
     Carte.showOverlay(map, null);
     $("#couche-reglages").hidden = true;
     $("#couche-retirer").hidden = true;
+    $("#couche-exporter").hidden = true;
     refresh();
   });
 
@@ -1571,6 +1717,18 @@
       // dans la direction cliquée, ou suivrait une flèche) : il devient un point de mesure.
       const dispatch = psv.dispatchEvent;
       psv.dispatchEvent = function (event) {
+        // Hors mesure, clic sur un objet de la couche : à recaler ; puis clic : sa nouvelle place
+        if (event?.type === "click" && !measuring && overlay && photo) {
+          const id = event.data?.target?.closest?.("[data-objet]")?.dataset.objet;
+          if (id !== undefined) {
+            moveOverlayObject(Number(id));
+            return true;
+          }
+          if (movingId() !== null && !event.data?.rightclick) {
+            placeOverlayObject(event.data.yaw, event.data.pitch);
+            return true;
+          }
+        }
         if (event?.type === "click" && measuring && !onArrow(event)) {
           if (app && event.data?.rightclick) {  // clic droit : sélection d'un point à recaler
             refresh(photoReady() ? app.select_point(event.data.yaw, event.data.pitch) : LOADING);
@@ -1993,20 +2151,26 @@
     // Couche importée : lignes et contours en traits de sa couleur, points en pastilles, étiquettes
     if (overlay && app && $("#couche-visible").checked) {
       let points = 0, n = 0, rank = 0;
+      overlayAt.clear();
       for (const o of JSON.parse(app.overlay_marks())) {
         const p = overlay.features[o.id]?.properties || {};
         const color = p._couleur || "#ff00ff";
-        const at = o.kind === "point" ? { yaw: o.points[0][0], pitch: o.points[0][1] }
-          : middle(o.points.map(([yaw, pitch]) => ({ yaw, pitch })));
-        if (o.kind === "ligne" && o.points.length >= 2) lines.push({ points: o.points, color, width: 2.5, dash: null });
+        const chosen = o.id === movingId() ? " choisie" : "";
+        const anchorOf = (pts) => (o.kind === "point" ? { yaw: pts[0][0], pitch: pts[0][1] }
+          : middle(pts.map(([yaw, pitch]) => ({ yaw, pitch }))));
+        if (!overlayAt.has(o.id)) overlayAt.set(o.id, anchorOf(o.points));
+        const [dyaw, dpitch] = overlay.features[o.id]?.recalages?.[photo?.id]?.decalage || [0, 0];
+        const pts = o.points.map(([yaw, pitch]) => [yaw + dyaw, pitch + dpitch]);
+        const at = anchorOf(pts);
+        if (o.kind === "ligne" && pts.length >= 2) lines.push({ points: pts, color, width: chosen ? 5 : 2.5, dash: null });
+        // data-objet : clic pour le recaler (attachViewer)
         if (o.kind === "point" && points++ < 300) {
           add({ id: `${MARK}couche-${n++}`, position: at, anchor: "center center",
-            html: `<div class="pastille-couche" style="background:${color}"></div>` });
+            html: `<div class="pastille-couche${chosen}" data-objet="${o.id}" style="background:${color}"></div>` });
         }
         if (p._etiquette) {  // rang : 0 pour la plus proche de la caméra (marques triées par distance)
           add({ id: `${MARK}couche-${n++}`, position: at, anchor: "center center", zIndex: OVERLAY_LABEL_Z,  // au-dessus des pastilles
-            html: `<div class="ancre"><div class="etiquette couche dessus" data-rang="${rank++}" style="border-color:${color}">${
-              escapeHtml(p._etiquette)}</div></div>` });
+            html: `<div class="ancre"><div class="etiquette couche dessus${chosen}" data-objet="${o.id}" data-rang="${rank++}" style="color:${Couche.clair(color)}">${escapeHtml(p._etiquette)}</div></div>` });
         }
       }
     }
@@ -2339,14 +2503,14 @@
 
   let exported = null;  // export GeoJSON (commentaires compris) lors du dernier export
 
-  $("#csv").addEventListener("click", () => {
-    download("\ufeff" + app.export_csv(), "mesures.csv", "text/csv");
-    exported = app.export_geojson();
+  $("#csv").addEventListener("click", async () => {
+    const geojson = app.export_geojson();
+    if (await download("\ufeff" + app.export_csv(), "mesures.csv", "text/csv")) exported = geojson;
     saveResults();
   });
-  $("#geojson").addEventListener("click", () => {
-    exported = app.export_geojson();
-    download(exported, "mesures.geojson", "application/geo+json");
+  $("#geojson").addEventListener("click", async () => {
+    const geojson = app.export_geojson();
+    if (await download(geojson, "mesures.geojson", "application/geo+json")) exported = geojson;
     saveResults();
   });
 
@@ -2412,13 +2576,41 @@
       : `Calage importé pour ${added} photo${added > 1 ? "s" : ""} ou séquence${added > 1 ? "s" : ""}.`);
   });
 
-  // Fichier à enregistrer (le CSV commence par une marque d'ordre des octets : accents lus par les tableurs)
-  function download(content, name, type) {
-    const blob = content instanceof Blob ? content : new Blob([content], { type: `${type};charset=utf-8` });
-    const url = URL.createObjectURL(blob);
-    const link = Object.assign(document.createElement("a"), { href: url, download: name });
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  /**
+   * Fichier name à enregistrer : boîte d'enregistrement du système (Chrome, Edge), à demander dès le
+   * clic (le navigateur ne l'ouvre que peu après un geste de l'utilisateur). Rend la fonction qui écrit
+   * le contenu, ou null si l'utilisateur a renoncé. Sans cette boîte (Firefox, qui n'en donne pas
+   * l'accès aux pages) ou si elle est refusée : téléchargement du navigateur, avec sa propre boîte si
+   * « Toujours vous demander où enregistrer les fichiers » est coché.
+   */
+  async function saveAs(name, type) {
+    // le CSV commence par une marque d'ordre des octets : accents lus par les tableurs
+    const blobOf = (content) => (content instanceof Blob ? content : new Blob([content], { type: `${type};charset=utf-8` }));
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({ suggestedName: name,
+          types: [{ accept: { [type]: [name.slice(name.lastIndexOf("."))] } }] });
+        return async (content) => {
+          const file = await handle.createWritable();
+          await file.write(blobOf(content));
+          await file.close();
+        };
+      } catch (error) {
+        if (error.name === "AbortError") return null;  // boîte fermée sans enregistrer
+      }
+    }
+    return async (content) => {
+      const url = URL.createObjectURL(blobOf(content));
+      Object.assign(document.createElement("a"), { href: url, download: name }).click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+  }
+
+  /** Contenu enregistré dans le fichier name (saveAs) ; faux si l'utilisateur a renoncé. */
+  async function download(content, name, type) {
+    const save = await saveAs(name, type);
+    if (save) await save(content);
+    return Boolean(save);
   }
 
   window.addEventListener("beforeunload", (event) => {
@@ -2436,6 +2628,8 @@
       return;
     }
     const params = JSON.parse(text);
+    const save = await saveAs(`${params.name}.jpg`, "image/jpeg");  // au clic, avant la capture (longue)
+    if (!save) return;
     const button = $("#capture-hd");
     button.disabled = true;
     button.querySelector(".libelle").textContent = "Capture en cours…";
@@ -2453,7 +2647,7 @@
       ctx.drawImage(image, 0, 0);
       await fontReady();
       drawCartouches(ctx, canvas, Math.max(14, Math.round(canvas.height / 54)), params.caption, placeText());
-      download(await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92)), `${params.name}.jpg`);
+      await save(await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92)));
     } catch (error) {
       setStatus(`Capture « Image seule » impossible : ${error.message}`, "echec");
     } finally {
@@ -2465,11 +2659,13 @@
   $("#vignette").addEventListener("click", async () => {
     if (!psv) return;
     try {
+      const date = (photo?.properties?.datetime || "").replace(/[^0-9]/g, "").slice(0, 8) || "sansdate";
+      const save = await saveAs(`panoramax_vignette_${date}_${(photo?.id || "").slice(0, 8)}.png`, "image/png");
+      if (!save) return;
       await fontReady();
       const canvas = thumbnail();
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-      const date = (photo?.properties?.datetime || "").replace(/[^0-9]/g, "").slice(0, 8) || "sansdate";
-      download(blob, `panoramax_vignette_${date}_${(photo?.id || "").slice(0, 8)}.png`);
+      await save(blob);
       try {
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
         setStatus("Vignette enregistrée et copiée dans le presse-papiers.");
@@ -2764,25 +2960,20 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
   }
 
   /** Étiquettes de la couche importée visibles dans root (visionneuse, carte) recopiées sur ctx : même
-   * place (origin : rectangle écran de l'image, scale : pixels de l'image par pixel d'écran), même
-   * fond, liseré de couleur et transparence qu'à l'écran. */
+   * place (origin : rectangle écran de l'image, scale : pixels de l'image par pixel d'écran), texte
+   * de la couleur de l'objet, éclaircie de moitié, liseré noir, comme à l'écran. */
   function drawScreenLabels(ctx, root, origin, scale) {
     for (const el of root.querySelectorAll(".etiquette.couche")) {
       const r = el.getBoundingClientRect(), css = getComputedStyle(el);
       if (!r.width || css.visibility === "hidden") continue;
-      const [x, y, w, h] = [(r.left - origin.left) * scale, (r.top - origin.top) * scale, r.width * scale, r.height * scale];
+      const [x, y, h] = [(r.left - origin.left) * scale, (r.top - origin.top) * scale, r.height * scale];
       ctx.save();
-      ctx.globalAlpha = Number(css.opacity) || 1;
-      ctx.fillStyle = css.backgroundColor;
-      ctx.beginPath();
-      ctx.roundRect(x, y, w, h, 3 * scale);
-      ctx.fill();
-      ctx.fillStyle = css.borderLeftColor;
-      ctx.fillRect(x, y, 4 * scale, h);
-      ctx.fillStyle = css.color;
       ctx.font = `${css.fontWeight} ${parseFloat(css.fontSize) * scale}px ${css.fontFamily}`;
       ctx.textBaseline = "middle";
-      ctx.fillText(el.textContent, x + (4 + parseFloat(css.paddingLeft)) * scale, y + h / 2);
+      Object.assign(ctx, { strokeStyle: "#000", lineWidth: 2 * scale, lineJoin: "round" });
+      ctx.strokeText(el.textContent, x, y + h / 2);
+      ctx.fillStyle = css.color;
+      ctx.fillText(el.textContent, x, y + h / 2);
       ctx.restore();
     }
   }

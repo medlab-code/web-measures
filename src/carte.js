@@ -832,15 +832,46 @@ const Carte = (() => {
       found.push({ f, at, d: Math.min(...pts.map((p) => metresBetween(p, from))) });
     }
     found.sort((a, b) => a.d - b.d);
+    // Axes des voies BD TOPO chargées, en pixels : les étiquettes s'en écartent (awayFromRoad)
+    const axes = [];
+    for (const road of map.getSource("voies") ? map.querySourceFeatures("voies", { sourceLayer: "troncon_de_route" }) : []) {
+      const g = road.geometry;
+      for (const line of g.type === "LineString" ? [g.coordinates] : g.type === "MultiLineString" ? g.coordinates : []) {
+        const px = line.map((c) => map.project(c));
+        for (let i = 1; i < px.length; i++) axes.push([px[i - 1], px[i]]);
+      }
+    }
     for (const { f, at } of found.slice(0, OVERLAY_LABEL_MAX)) {
       const element = document.createElement("div");  // ancre : MapLibre place l'élément, l'étiquette s'y décale
       const label = Object.assign(document.createElement("div"), { className: "etiquette couche", textContent: f.properties._etiquette });
-      label.style.borderColor = f.properties._couleur;
+      label.style.color = Couche.clair(f.properties._couleur);
       element.append(label);
-      // au-dessus de la pastille, un peu écartée d'elle
-      overlayLabels.push(new maplibregl.Marker({ element, offset: [0, -20] }).setLngLat(at).addTo(map));
+      overlayLabels.push(new maplibregl.Marker({ element, ...awayFromRoad(map.project(at), axes) }).setLngLat(at).addTo(map));
     }
     requestAnimationFrame(() => declutterOverlayLabels(map));
+  }
+
+  /**
+   * Place d'une étiquette de la couche au point p (pixels) : du côté opposé à l'axe de voie le plus
+   * proche (segments en pixels, à ROAD_REACH px au plus), écartée de ROAD_GAP px perpendiculairement à
+   * lui ; sans voie proche (ou hors du zoom des voies), au-dessus de la pastille. Options d'un Marker.
+   */
+  const ROAD_REACH = 60, ROAD_GAP = 12;
+  function awayFromRoad(p, axes) {
+    let best = null;
+    for (const [a, b] of axes) {
+      const dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy;
+      const t = len2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2)) : 0;
+      const qx = a.x + t * dx, qy = a.y + t * dy, d = Math.hypot(p.x - qx, p.y - qy);
+      if (d < ROAD_REACH && (!best || d < best.d)) best = { d, dx, dy, nx: p.x - qx, ny: p.y - qy };
+    }
+    if (!best) return { offset: [0, -20] };
+    // Sur l'axe même : côté gauche de la voie, au hasard du sens du tronçon
+    let [nx, ny] = best.d > 0.5 ? [best.nx / best.d, best.ny / best.d] : [best.dy, -best.dx].map((v) => v / Math.hypot(best.dx, best.dy));
+    if (!Number.isFinite(nx)) [nx, ny] = [0, -1];
+    // Ancre du côté du point : l'étiquette s'étend loin de la voie
+    const v = Math.abs(ny) > 0.38 ? (ny > 0 ? "top" : "bottom") : "", h = Math.abs(nx) > 0.38 ? (nx > 0 ? "left" : "right") : "";
+    return { anchor: [v, h].filter(Boolean).join("-"), offset: [nx * ROAD_GAP, ny * ROAD_GAP] };
   }
 
   /** Étiquettes de la couche sur la carte, dans l'ordre de proximité : chacune remontée au-dessus des
