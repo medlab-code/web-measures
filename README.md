@@ -45,8 +45,9 @@ première photo s'ouvre (Clos de Vougeot, D974), tournée vers l'ouest.
 d'un clic), puis les onglets **Résultats** (en tête, le nombre de points et de mesures, exportés ou non, et les exports CSV et
 GeoJSON ; chaque point de référence avec ses mesures dessous, fiche PDF, commentaire par ✎), **Photo** (en tête, date,
 producteur et caméra, étoile des favoris, identifiant à copier ; position : précision GPS, sol, inclinaison
-et calage, chacun avec son voyant ; détails ; export et import du calage), **Favoris**
-(« Aller à une photo » par son identifiant, favoris) et **Couche**, avec le nombre de résultats et de
+et calage, chacun avec son voyant ; détails ; « Aller à une photo » par son identifiant ou un lien ; export et
+import du calage), **Favoris**
+(photos favorites, export et import) et **Couche**, avec le nombre de résultats et de
 favoris sur l'onglet ; en bas, les boutons **Filtre** (instance Panoramax, filtre des photos ; point orange quand un filtre est actif),
 **Réglages** (hauteur de caméra, thème, options) et **Services**. La consigne de
 mesure reste en haut de la visionneuse. Thème jour ou nuit : comme le système par défaut, ou choisi

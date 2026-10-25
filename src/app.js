@@ -1446,9 +1446,11 @@
 
   function showFavorites() {
     $("#favoris ol").replaceChildren(...favorites().map((f) => {
-      const li = document.createElement("li");
+      // photo affichée : entourée
+      const li = Object.assign(document.createElement("li"), { className: photo?.id === f.id ? "actuelle" : "" });
       const go = Object.assign(document.createElement("button"), {
-        type: "button", className: "aller-favori", textContent: f.name, title: `Aller à la photo ${f.id}`,
+        type: "button", className: "aller-favori", textContent: f.name,
+        title: photo?.id === f.id ? "Photo affichée" : `Aller à la photo ${f.id}`,
       });
       go.addEventListener("click", async () => {
         try {
@@ -1470,6 +1472,8 @@
     }));
     $("#favoris-exporter").disabled = !favorites().length;
     $("#compte-favoris").textContent = favorites().length || "";
+    const n = favorites().length;
+    $("#favoris-infos").textContent = n ? `${n} photo${n > 1 ? "s" : ""} · gardée${n > 1 ? "s" : ""} dans ce navigateur` : "Aucune photo";
     // Étoile de la visionneuse : pleine si la photo affichée est en favori
     const on = Boolean(photo) && favorites().some((f) => f.id === photo.id);
     $("#ajouter-favori").disabled = !photo || on;  // déjà en favori : sans effet
