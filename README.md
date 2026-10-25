@@ -530,6 +530,8 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.3** (25/10/2026) : Effacer, Refaire et Tout effacer au fond des autres boutons, avec un liseré
+  jaune, vert ou rouge au lieu d'un fond coloré.
 - **0.6.2** (25/10/2026) : relevé d'objets. Nouveau mode « Relevé d'objets (couche SIG) » : chaque objet
   visé depuis plusieurs photos (triangulé), gardé sur une seule photo (précision proposée avant), ou posé
   d'un clic sur la mini-carte ; dessiné sur toutes les photos à son altitude. Champs définis au premier
