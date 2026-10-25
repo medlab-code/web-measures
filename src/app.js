@@ -160,7 +160,13 @@
     },
   };
 
-  Services.checkServices($("#reseau ul"));
+  // Services : bilan dans la section, point rouge sur son bouton du pied s'il en manque
+  Services.checkServices($("#reseau ul"), (ok, failed, total) => {
+    const waiting = total - ok - failed;
+    $("#reseau-infos").textContent = failed ? `${failed} sans réponse ou bloqué${failed > 1 ? "s" : ""} sur ${total}`
+      : `${ok} services sur ${total} accessibles${waiting ? ` · ${waiting} en cours` : ""}`;
+    $("#services-alerte").textContent = failed ? "●" : "";
+  });
   // Cache des informations géographiques : taille, et bouton pour le vider
   async function showGeoCache() {
     const size = await pruneGeoCache();
@@ -1444,14 +1450,29 @@
     try { return JSON.parse(store.get("favoris", "[]")) || []; } catch { return []; }
   }
 
+  /** Nom d'un favori, commune et voie en gras (gardées à l'ajout ; favori plus ancien : la voie
+   * reconnue à sa forme, la commune juste avant elle dans le nom « lieu-dit – commune – voie – PR – pont »). */
+  const VOIE = /^(?:[ADNM]|RD|RN|VC)\s?\d|^(?:rue|route|chemin|avenue|boulevard|place|impasse|allée|quai|voie|véloroute)\b/i;
+  function favoriteName(f) {
+    const parts = f.name.split(" – ");
+    const strong = new Set([f.commune, f.voie].filter(Boolean));
+    if (!strong.size) {
+      const k = parts.findIndex((p) => VOIE.test(p));
+      if (k >= 0) [parts[k], parts[k - 1]].filter(Boolean).forEach((p) => strong.add(p));
+    }
+    return parts.flatMap((p, k) => [...(k ? [" – "] : []),
+      strong.has(p) ? Object.assign(document.createElement("strong"), { textContent: p }) : p]);
+  }
+
   function showFavorites() {
     $("#favoris ol").replaceChildren(...favorites().map((f) => {
       // photo affichée : entourée
       const li = Object.assign(document.createElement("li"), { className: photo?.id === f.id ? "actuelle" : "" });
       const go = Object.assign(document.createElement("button"), {
-        type: "button", className: "aller-favori", textContent: f.name,
+        type: "button", className: "aller-favori",
         title: photo?.id === f.id ? "Photo affichée" : `Aller à la photo ${f.id}`,
       });
+      go.append(...favoriteName(f));
       go.addEventListener("click", async () => {
         try {
           const feature = await Carte.photoById(f.id);
@@ -1714,7 +1735,8 @@
     const known = new Set(favorites().map((f) => f.id));
     const added = read  // fichier venu d'ailleurs : seulement des identifiants de photo et des noms courts
       .filter((f) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(f?.id) && !known.has(f.id) && known.add(f.id))
-      .map((f) => ({ id: f.id.toLowerCase(), name: String(f.name || f.id).slice(0, 200) }));
+      .map((f) => ({ id: f.id.toLowerCase(), name: String(f.name || f.id).slice(0, 200),
+        commune: String(f.commune || "").slice(0, 100), voie: String(f.voie || "").slice(0, 100) }));
     store.set("favoris", JSON.stringify([...favorites(), ...added]));
     showFavorites();
     notice(added.length ? `${added.length} favori${added.length > 1 ? "s" : ""} importé${added.length > 1 ? "s" : ""}.`
@@ -1730,7 +1752,8 @@
     const bridge = $("#chute").hidden ? "" : ($("#chute .pont")?.textContent || "").replace(/\s*\([^)]*\)$/, "");
     const name = [parts?.lieudit, parts?.commune, parts?.voie, parts?.pr, bridge].filter(Boolean).join(" – ")
       || `Photo du ${(feature.properties?.datetime || "").slice(0, 10)}`;
-    store.set("favoris", JSON.stringify([...favorites().filter((f) => f.id !== feature.id), { id: feature.id, name }]));
+    store.set("favoris", JSON.stringify([...favorites().filter((f) => f.id !== feature.id),
+      { id: feature.id, name, commune: parts?.commune || "", voie: parts?.voie || "" }]));  // commune et voie : en gras
     showFavorites();
   }
   showFavorites();
@@ -2609,6 +2632,7 @@
     const active = filterActive();
     $("#filtre-actif").textContent = active ? "●" : "";
     $("#filtre-actif").title = active && app ? app.filter_text() : "";
+    $("#filtre-infos").textContent = !active ? "aucun" : app ? app.filter_text() : "en attente du calcul";
     if (app) checkPhoto();  // sans le calcul, le filtre n'est pas encore évalué
   }
 

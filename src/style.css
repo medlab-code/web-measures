@@ -391,6 +391,8 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 #outils button:hover { color: var(--texte); background: var(--encart); }
 #outils button[aria-pressed="true"] { color: var(--texte); border-top-color: var(--panoramax); }
 #outils button { position: relative; }
+#outils #services-alerte { position: absolute; top: 0.3rem; left: calc(50% + 0.5rem); font-size: 0.75rem; line-height: 1;
+  color: var(--echec); }
 #outils #filtre-actif { position: absolute; top: 0.3rem; left: calc(50% + 0.5rem); font-size: 0.75rem; line-height: 1; }
 
 .statut {
@@ -465,8 +467,33 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 #resultats .effacer-resultat:hover, #favoris .effacer-resultat:hover { opacity: 1; background: var(--bord); }
 #resultats li input { width: 100%; margin-top: 0.3rem; }
 .fiche-resultats .nom-couche { padding-left: 0.5rem; }
-#favoris-titre { margin: 0; font-weight: 600; }
-#favoris-infos { margin: 0; color: var(--discret); font-size: 0.85em; }
+#favoris-titre, #filtre-titre, #reglages-titre, #reseau-titre { margin: 0; font-weight: 600; }
+#favoris-infos, #filtre-infos, #reglages-infos, #reseau-infos { margin: 0; color: var(--discret); font-size: 0.85em; }
+/* Réglages : une option par ligne (texte et explication à gauche, interrupteur à droite) */
+.reglage-couche input[type="number"] { width: 4.5rem; flex: none; }
+.reglage-couche .unite { color: var(--discret); }
+#camera-gps { margin-top: 0.5rem; }
+#camera-gps[hidden] { display: none; }
+.options { margin-top: 0.4rem; }
+.options .option { display: flex; align-items: center; gap: 0.8rem; padding: 0.5rem 0; border-top: 1px solid var(--bord);
+  cursor: pointer; }
+.options .option:first-child { border-top: 0; }
+.texte-option { flex: 1; min-width: 0; }
+.texte-option .aide { display: block; margin-top: 0.1rem; font-size: 0.85em; }
+input.interrupteur { appearance: none; flex: none; position: relative; width: 2.4rem; height: 1.35rem; margin: 0;
+  border-radius: 999px; background: var(--bord); cursor: pointer; transition: background 0.15s; }
+input.interrupteur::before { content: ""; position: absolute; top: 0.15rem; left: 0.15rem; width: 1.05rem; height: 1.05rem;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); transition: transform 0.15s; }
+input.interrupteur:checked { background: var(--panoramax); }
+input.interrupteur:checked::before { transform: translateX(1.05rem); }
+input.interrupteur:focus-visible { outline: 2px solid var(--panoramax); outline-offset: 2px; }
+.encart-experimental h3::after { content: " · à l'essai"; color: var(--discret); font-weight: 400; }
+/* Filtre : critères des photos sur deux colonnes, le producteur sur toute la largeur */
+.champs-filtre { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem 0.8rem; }
+.champs-filtre .champ { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.champs-filtre .champ.large { grid-column: span 2; }
+.champs-filtre label { color: var(--discret); font-size: 0.9em; }
+.champs-filtre select, .champs-filtre input { min-width: 0; width: 100%; }
 #aller-photo h3 label { display: inline; margin: 0; font: inherit; color: inherit; }
 /* Onglet Photo : icône de la fiche, position en lignes à voyants, détails, encart du calage */
 .fiche-couche .icone-fiche { flex: none; display: inline-flex; align-items: center; justify-content: center;
@@ -961,8 +988,10 @@ dialog.bulle p { margin: 0; }
 
 .aide { color: var(--discret); margin: 0 0 0.5rem; }
 
-#reseau ul { list-style: none; margin: 0; padding: 0; }
-#reseau li { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.15rem 0; }
+#reseau li { display: flex; justify-content: space-between; gap: 0.5rem; }  /* nom, puis état en gris */
+#reseau li.echec::before { background: var(--echec); }
+#reseau .etat-service { flex: none; color: var(--discret); }
+#reseau li.echec .etat-service { color: var(--echec); }
 .ok { color: var(--ok); }
 .echec { color: var(--echec); }
 .attente { color: var(--attente); }
@@ -1196,6 +1225,7 @@ canvas.traits {
 .reglage-couche { display: flex; align-items: center; gap: 0.6rem; margin-top: 1rem; }
 .reglage-couche label { width: 4.5rem; flex: none; color: var(--discret); }
 .reglage-couche select { flex: 1; min-width: 0; }
+.reglage-instance label { width: auto; font-weight: 600; color: var(--texte); }
 .titre-legende { display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.8rem; }
 .titre-legende h3 { margin: 0; }
 .titre-legende .aide { margin: 0; font-size: 0.85em; }

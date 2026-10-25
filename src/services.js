@@ -31,23 +31,22 @@ const Services = (() => {
     ["PROJ : grille du géoïde (altitude NGF)", "https://cdn.proj.org/fr_ign_RAF20.tif"],
   ];
 
+  /** Vérifie un service ; voyant de la ligne (classe ok, echec, attente) et texte de son état. */
   async function checkService(list, name, url) {
-    const item = document.createElement("li");
+    const item = Object.assign(document.createElement("li"), { className: "attente" });
     const label = document.createElement("span");
     label.textContent = name;
-    const state = document.createElement("span");
-    state.className = "attente";
-    state.textContent = "…";
+    const state = Object.assign(document.createElement("span"), { className: "etat-service", textContent: "…" });
     item.append(label, state);
     list.append(item);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
     try {
       const response = await fetch(url, { signal: controller.signal, cache: "no-store" });  // pas le cache (#23)
-      state.className = response.ok ? "ok" : "echec";
+      item.className = response.ok ? "ok" : "echec";
       state.textContent = response.ok ? "accessible" : `HTTP ${response.status}`;
     } catch (error) {
-      state.className = "echec";
+      item.className = "echec";
       state.textContent = error.name === "AbortError" ? "pas de réponse" : "bloqué";
       state.title = error.message;
     } finally {
@@ -55,8 +54,10 @@ const Services = (() => {
     }
   }
 
-  function checkServices(list) {
-    for (const [name, url] of SERVICES) checkService(list, name, url);
+  /** Vérifie tous les services dans list ; done(accessibles, bloqués, total) à chaque réponse. */
+  function checkServices(list, done = () => {}) {
+    const count = () => done(list.querySelectorAll("li.ok").length, list.querySelectorAll("li.echec").length, SERVICES.length);
+    for (const [name, url] of SERVICES) checkService(list, name, url).then(count);
   }
 
   return { checkServices };

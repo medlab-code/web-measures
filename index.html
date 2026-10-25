@@ -308,59 +308,100 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <input id="couche-fichier" type="file" multiple accept=".geojson,.json,.zip,.shp,.dbf,.prj,.cpg,.shx,.gpkg" hidden>
         </section>
         <section id="filtre" hidden>
-          <h2>Filtre des photos</h2>
-          <div class="grille">
-            <label for="instance">Instance</label><select id="instance"></select>
+          <!-- Résumé du filtre actif (app.js applyFilter) -->
+          <div class="fiche-couche fiche-filtre">
+            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16l-6 7v6l-4 2v-8z" stroke-linejoin="round"/></svg></span>
+            <div class="nom-couche">
+              <p id="filtre-titre">Filtres appliqués</p>
+              <p id="filtre-infos">aucun</p>
+            </div>
           </div>
-          <p class="aide">Par défaut : l'instance de l'IGN, qui sert les photos du conseil départemental (plus
-            rapide que le méta-catalogue, qui interroge toutes les instances).</p>
-          <p class="aide">S'applique au filaire et aux photos ouvertes par un clic sur la carte. Aux petites
-            échelles, seul le type de caméra est filtré.</p>
-          <p class="aide">Par défaut : photos du conseil départemental de la Côte-d'Or, prises avec une position
-            RTK vérifiable, ce que demandent les calculs (sol : LiDAR HD de l'IGN, ou RGE ALTI là où il n'est pas
-            encore publié). « Tous » pour voir les
-            autres producteurs (mesures alors peu fiables).</p>
-          <div class="grille">
-            <label for="depuis">Depuis le</label><input id="depuis" type="date">
-            <label for="type">Type</label>
-            <select id="type"><option value="">Tous types</option><option value="360">360°</option>
-              <option value="flat">Classiques</option></select>
-            <label for="gps">Précision</label>
-            <select id="gps"><option value="">Toute précision GPS</option>
-              <option value="2">GPS ≤ 2 m (relevé)</option><option value="4">GPS ≤ 4 m</option></select>
-            <label for="producteur">Producteur</label>
-            <select id="producteur"><option value="">Tous</option></select>
+          <div class="reglage-couche reglage-instance">
+            <label for="instance">Instance Panoramax</label><select id="instance"></select>
+          </div>
+          <p class="aide">Par défaut : l'IGN, qui sert les photos du conseil départemental (plus rapide que le
+            méta-catalogue, qui interroge toutes les instances).</p>
+          <h3>Photos</h3>
+          <div class="champs-filtre">
+            <div class="champ large"><label for="producteur">Producteur</label>
+              <select id="producteur"><option value="">Tous</option></select></div>
+            <div class="champ"><label for="gps">Précision GPS</label>
+              <select id="gps"><option value="">Toute précision GPS</option>
+                <option value="2">GPS ≤ 2 m (relevé)</option><option value="4">GPS ≤ 4 m</option></select></div>
+            <div class="champ"><label for="type">Type</label>
+              <select id="type"><option value="">Tous types</option><option value="360">360°</option>
+                <option value="flat">Classiques</option></select></div>
+            <div class="champ"><label for="depuis">Depuis le</label><input id="depuis" type="date"></div>
+          </div>
+          <div class="encart-calage">
+            <p class="aide">S'applique au filaire et aux photos ouvertes par un clic sur la carte ; aux petites
+              échelles, seul le type est filtré. Par défaut : photos RTK du conseil départemental de la Côte-d'Or,
+              ce que demandent les calculs (autres producteurs : mesures peu fiables).</p>
           </div>
         </section>
         <section id="reglages" hidden>
-          <h2>Réglages</h2>
-          <h3>Mesure</h3>
-          <div class="reglages">
-            <label>Caméra à
-              <input id="camera" type="number" min="0.3" max="6" step="0.05" value="1.90" disabled> m du sol</label>
-            <button id="camera-gps" type="button" hidden></button>
+          <div class="fiche-couche fiche-reglages">
+            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke-linecap="round"/></svg></span>
+            <div class="nom-couche">
+              <p id="reglages-titre">Réglages</p>
+              <p id="reglages-infos">Gardés dans ce navigateur</p>
+            </div>
           </div>
+          <h3>Mesure</h3>
+          <div class="reglage-couche reglage-instance">
+            <label for="camera">Hauteur de caméra</label>
+            <input id="camera" type="number" min="0.3" max="6" step="0.05" value="1.90" disabled>
+            <span class="unite">m du sol</span>
+          </div>
+          <button id="camera-gps" type="button" hidden></button>
           <h3>Affichage</h3>
-          <div class="grille">
+          <div class="reglage-couche">
             <label for="theme">Thème</label>
             <select id="theme"><option value="">Automatique (comme le système)</option>
               <option value="light">Jour</option><option value="dark">Nuit</option></select>
           </div>
-          <label><input id="centrer" type="checkbox" checked> Centrer la carte sur la photo</label>
-          <label title="Filtrage anisotrope 16x des textures : atténue le crénelage et le scintillement des détails fins vus de loin, en gardant l'image nette, au prix d'une navigation un peu moins fluide."><input id="anisotrope" type="checkbox"> Filtrage anisotrope</label>
-          <label title="Expérimental (ticket #28). En largeur, avant le premier bord : bouton « Tracer la droite sur la carte » (giratoire, carrefour, place) ; les deux bords sont posés sur la droite tracée sur la mini-carte au lieu de la perpendiculaire à l'axe calculé. Décochée : le bouton n'est pas proposé."><input id="droite-carte" type="checkbox"> Droite de mesure tracée sur la carte (expérimental)</label>
-          <label title="Expérimental (ticket #29). Quand les verticales de la photo manquent (rase campagne), l'inclinaison est tirée de la pente et du dévers du terrain LiDAR HD sous la caméra et du décalage de la fixation de la caméra, appris sur des photos de village de la même séquence (téléchargées en arrière-plan, environ 45 Mo par séquence). Incertitude d'environ ±0,6° au lieu de ±2°."><input id="inclinaison-terrain" type="checkbox"> Inclinaison par le terrain hors agglomération (expérimental)</label>
+          <div class="options">
+            <label class="option">
+              <span class="texte-option">Centrer la carte sur la photo<span class="aide">La carte suit la photo ouverte.</span></span>
+              <input id="centrer" type="checkbox" class="interrupteur" checked>
+            </label>
+            <label class="option" title="Filtrage anisotrope 16x des textures : atténue le crénelage et le scintillement des détails fins vus de loin, en gardant l'image nette, au prix d'une navigation un peu moins fluide.">
+              <span class="texte-option">Filtrage anisotrope<span class="aide">Détails lointains plus nets, navigation un peu moins fluide.</span></span>
+              <input id="anisotrope" type="checkbox" class="interrupteur">
+            </label>
+          </div>
+          <div class="encart-calage encart-experimental">
+            <h3>Expérimental</h3>
+            <div class="options">
+            <label class="option" title="Expérimental (ticket #28). En largeur, avant le premier bord : bouton « Tracer la droite sur la carte » (giratoire, carrefour, place) ; les deux bords sont posés sur la droite tracée sur la mini-carte au lieu de la perpendiculaire à l'axe calculé. Décochée : le bouton n'est pas proposé.">
+              <span class="texte-option">Droite de mesure tracée sur la carte<span class="aide">Largeur dans un giratoire, un carrefour ou sur une place : les bords posés sur une droite tracée sur la mini-carte.</span></span>
+              <input id="droite-carte" type="checkbox" class="interrupteur">
+            </label>
+            <label class="option" title="Expérimental (ticket #29). Quand les verticales de la photo manquent (rase campagne), l'inclinaison est tirée de la pente et du dévers du terrain LiDAR HD sous la caméra et du décalage de la fixation de la caméra, appris sur des photos de village de la même séquence (téléchargées en arrière-plan, environ 45 Mo par séquence). Incertitude d'environ ±0,6° au lieu de ±2°.">
+              <span class="texte-option">Inclinaison par le terrain hors agglomération<span class="aide">Sans verticales dans la photo : inclinaison tirée du terrain LiDAR HD (±0,6° au lieu de ±2°) ; environ 45 Mo téléchargés par séquence.</span></span>
+              <input id="inclinaison-terrain" type="checkbox" class="interrupteur">
+            </label>
+            </div>
+          </div>
           <label id="case-k2000"><input id="sans-k2000" type="checkbox"> Désactiver K2000</label>  <!-- barres et photo de la lecture rapide -->
         </section>
         <section id="reseau" hidden>
-          <h2>Accès aux services</h2>
-          <p class="aide">Vérifié depuis ce navigateur (proxy et pare-feu du poste compris).</p>
-          <ul></ul>
-          <h3>Cache des informations géographiques</h3>
-          <p class="aide">Routes, PR, ponts, communes et altitudes déjà demandés sont gardés dans ce navigateur
-            (3 mois, 50 Mo au plus) : plus rapides, et toujours là quand un service ne répond pas. Ils gardent
-            aussi la trace des lieux consultés.</p>
-          <div class="boutons"><button id="vider-cache" type="button">Vider le cache</button></div>
+          <!-- Bilan des services vérifiés depuis ce navigateur (proxy et pare-feu du poste compris) -->
+          <div class="fiche-couche fiche-services">
+            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12a7 7 0 0114 0M8.5 12a3.5 3.5 0 017 0" stroke-linecap="round"/><circle cx="12" cy="16" r="1.5"/></svg></span>
+            <div class="nom-couche">
+              <p id="reseau-titre">Accès aux services</p>
+              <p id="reseau-infos">Vérification en cours…</p>
+            </div>
+          </div>
+          <p class="aide">Vérifiés depuis ce navigateur, proxy et pare-feu du poste compris.</p>
+          <ul class="etats"></ul>
+          <div class="encart-calage">
+            <h3>Cache des informations géographiques</h3>
+            <p class="aide">Routes, PR, ponts, communes et altitudes déjà demandés, gardés 3 mois (50 Mo au plus) :
+              plus rapides, et là même quand un service ne répond pas. Ils gardent aussi la trace des lieux consultés.</p>
+            <div class="boutons"><button id="vider-cache" type="button">Vider le cache</button></div>
+          </div>
         </section>
         </div>
         <nav id="outils" aria-label="Outils">
@@ -374,7 +415,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           </button>
           <button type="button" data-panneau="reseau" aria-controls="reseau">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12a7 7 0 0114 0M8.5 12a3.5 3.5 0 017 0" stroke-linecap="round"/><circle cx="12" cy="16" r="1.5"/></svg>
-            Services
+            Services <span id="services-alerte" title="Un service ne répond pas"></span>
           </button>
         </nav>
       </div>
