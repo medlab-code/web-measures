@@ -530,6 +530,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.5** (25/10/2026) : encadré du pont, « Au-dessus de … » en bleu (bleu de la visée) au lieu du jaune.
 - **0.6.4** (25/10/2026) : fiche d'objet, la pastille d'un objet recalé dans la photo est dessinée à sa
   place recalée (seule l'étiquette y était) ; les valeurs masquées dans la légende n'y figurent plus.
 - **0.6.3** (25/10/2026) : Effacer, Refaire et Tout effacer au fond des autres boutons, avec un liseré
