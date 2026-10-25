@@ -674,6 +674,7 @@ class App(session.Session):
                     p["yaw"] = pos[0]
                     if raw:
                         p["abs_yaw"] = raw[0] % 360
+            _keep_view(m, pts)
         return pts
 
     def _widths(self):
@@ -1726,6 +1727,8 @@ class App(session.Session):
         if pic is not None and pic == m.clicks[1].get("pic") and m.edge_b is None:
             anchor = self._aim_anchor() if m.edge is self.ref_point else None  # comme la droite tracée
             points[1] = self._project(*m.result["points"][1], anchor[2] if anchor else None)
+        if pic is not None and pic == m.clicks[1].get("pic"):
+            _keep_view(m, points)
         return points
 
     def start_edge_b(self):
@@ -1942,6 +1945,11 @@ class App(session.Session):
                 "photos": ",".join(dict.fromkeys(c.get("pic") or "" for c in m.clicks)),
                 "date_mesure": datetime.now().isoformat(timespec="seconds"),
                 "commentaire": getattr(m, "comment", ""),
+                # Pour la revoir à l'import (src/app.js, reviewMeasure) : photo d'où elle a été prise (celle
+                # de la fiche) et repères tels que dessinés dessus ([[cap, élévation]] en radians, texte JSON)
+                "photo_ref": m.clicks[0 if m.kind == "height" else 1].get("pic"),
+                "vue_ref": json.dumps(m.view_ref) if getattr(m, "view_ref", None) else None,
+                "etiquette": "{} m ± {} m".format(measures._num(r["value"], 2), measures._num(r["uncertainty"], 2)),
             }))
         for lon, lat, values in self.points:
             if "releve" not in values:  # objets relevés : export à part, gardés à part dans le navigateur
@@ -2071,6 +2079,12 @@ def _without_repeats(notes):
             text = " · ".join(fresh)
             out.append(text[0].upper() + text[1:])
     return out
+
+
+def _keep_view(m, points):
+    """Repères de la mesure m tels que dessinés sur sa photo ([[cap, élévation]], radians), gardés pour l'export."""
+    if all(p.get("yaw") is not None for p in points):
+        m.view_ref = [[round(p["yaw"], 5), round(p["pitch"], 5)] for p in points]
 
 
 def _densified(pts, step):

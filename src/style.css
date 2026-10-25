@@ -893,6 +893,27 @@ button.principal { font-weight: 600; }
 }
 #producteur-photo { text-align: right; }
 #lieu[hidden], #producteur-photo[hidden] { display: none; }
+/* Bulles d'un objet de la couche sous le pointeur (src/app.js, objectTip) : repère de taille nulle au
+   pointeur, clic gauche à sa gauche, clic droit à sa droite, au style de #lieu */
+#bulle-objet { position: fixed; width: 0; height: 0; pointer-events: none; z-index: 1000; }
+#bulle-objet p {
+  position: absolute;
+  top: 0;
+  margin: 0;
+  padding: 2px 0.5rem;
+  line-height: 18px;
+  border-radius: 4px;
+  background: var(--etiquette-vue);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  text-shadow: var(--detoure-vue);
+  white-space: nowrap;
+  transform: translateY(-50%);
+}
+#bulle-objet .gauche { right: 16px; }
+#bulle-objet .droite { left: 16px; }
+#bulle-objet[hidden] { display: none; }
 #lieu b { font-weight: 700; }  /* route et commune (placeMarkup) */
 /* Lecture de la séquence : même étiquette que les deux textes, trois boutons */
 #lecteur {
@@ -1255,7 +1276,7 @@ canvas.traits {
                    box-shadow: 0 0 2px rgba(0, 0, 0, 0.8); vertical-align: middle; }
 /* Texte seul, de la couleur de l'objet éclaircie de moitié (Couche.clair), liseré noir de 1 px :
    lisible sur l'orthophoto comme sur la photo (carte et visionneuse) */
-.etiquette.couche { background: none; padding: 0; border-radius: 0; font-weight: 600;
+.etiquette.couche { background: none; padding: 0; border-radius: 0; font-weight: 600; white-space: pre;  /* 2e étiquette : 2e ligne */
                     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
 /* Sur la mini-carte : 25 % plus grandes que les autres étiquettes de la carte (15 px au lieu de 12) */
 .maplibregl-marker .etiquette.couche { font-size: 15px; }

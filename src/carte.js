@@ -1124,7 +1124,8 @@ const Carte = (() => {
         <line x1="0" y1="0" x2="0" y2="${-reach}" stroke="${CURSEUR}" stroke-width="2" stroke-opacity="0.6"/>`;
       viewMarker.getElement().innerHTML = `<svg width="${2 * reach}" height="${2 * reach}"
         viewBox="${-reach} ${-reach} ${2 * reach} ${2 * reach}">${cone}
-        <circle r="6" fill="${CURSEUR}" stroke="#ffffff" stroke-width="2"/></svg>`;
+        <path d="M-8 0H8M0 -8V8" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+        <path d="M-8 0H8M0 -8V8" stroke="${CURSEUR}" stroke-width="3" stroke-linecap="round"/></svg>`;  // croix : pas une pastille de la couche
     }
     viewMarker.setLngLat(lonlat).setRotation(heading ?? 0);
     if (!viewMarker._map) viewMarker.addTo(map);

@@ -208,6 +208,20 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("étiquettes : " + labels());
     expect("étiquettes avec l'intitulé du champ", labels().includes("essence : tilleul") && !doc.querySelector("#couche-intitule").disabled, labels());
     expect("case de l'intitulé gardée avec la couche", JSON.parse(w.localStorage.getItem("web-measures/couche")).intitule === true);
+    {  // 2e étiquette : sur une 2e ligne, gardée avec la couche, puis retirée
+      doc.querySelector("#couche-etiquette2").value = "nb_visees";
+      doc.querySelector("#couche-etiquette2").dispatchEvent(new Event("change"));
+      doc.querySelector("#couche-suffixe2").value = "visées";
+      doc.querySelector("#couche-suffixe2").dispatchEvent(new Event("input"));
+      await sleep(300);
+      log("deux étiquettes : " + labels().replace(/\n/g, " ⏎ "));
+      expect("2e étiquette sur une 2e ligne", /essence : tilleul\n\d+ visées/.test(labels()) && !doc.querySelector("#couche-intitule2").disabled, labels());
+      expect("2e étiquette gardée avec la couche", JSON.parse(w.localStorage.getItem("web-measures/couche")).suffixe2 === "visées");
+      doc.querySelector("#couche-etiquette2").value = "";
+      doc.querySelector("#couche-etiquette2").dispatchEvent(new Event("change"));
+      await sleep(300);
+      expect("sans 2e étiquette : une ligne", !labels().includes("\n") && doc.querySelector("#couche-suffixe2").disabled, labels());
+    }
     doc.querySelector("#couche-etiquette").value = "distance_bord_m";
     doc.querySelector("#couche-etiquette").dispatchEvent(new Event("change"));
     doc.querySelector("#couche-suffixe").value = "m";

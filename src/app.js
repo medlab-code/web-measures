@@ -884,7 +884,14 @@
   map.on("click", (event) => {
     if (lineDraft !== null) addLinePoint(event.lngLat);
     else if (placing) placeOnMap(event.lngLat);
-    else openNearest(event.lngLat.lng, event.lngLat.lat);
+    else {
+      // Mesure exportée de la couche sous le clic : revue sur sa photo ; sinon la photo la plus proche
+      const { x, y } = event.point, layers = ["couche-traits", "couche-points"].filter((l) => map.getLayer(l));
+      const hit = overlay && !measuring && layers.length ? map.queryRenderedFeatures([[x - 6, y - 6], [x + 6, y + 6]], { layers })
+        .find((f) => overlay.features[f.id]?.properties.photo_ref) : null;
+      if (hit) reviewMeasure(hit.id);
+      else openNearest(event.lngLat.lng, event.lngLat.lat);
+    }
   });
 
   // Relevé : « Placer sur la carte », puis un clic sur la carte pose l'objet là (sans visée) ; Échap annule
@@ -984,6 +991,23 @@
     }
   }
 
+  // Hors mesure, pointeur sur un objet de la couche : ce que font ses clics (attachViewer), une bulle de
+  // chaque côté du pointeur (clic gauche à gauche), au style des étiquettes du bas de la visionneuse
+  const objectTip = Object.assign(document.createElement("div"), { id: "bulle-objet", hidden: true });
+  objectTip.append(Object.assign(document.createElement("p"), { className: "gauche", textContent: "Clic gauche : recaler le point" }),
+    Object.assign(document.createElement("p"), { className: "droite", textContent: "Clic droit : fiche de l'objet" }));
+  document.body.append(objectTip);
+  // Affichées après 2 s de pointeur immobile sur l'objet ; tout mouvement les retire et relance l'attente
+  let tipTimer = null;
+  const hideTip = () => { clearTimeout(tipTimer); objectTip.hidden = true; };
+  viewer.addEventListener("pointermove", (event) => {
+    hideTip();
+    if (measuring || !event.composedPath().some((el) => el.dataset?.objet !== undefined)) return;
+    Object.assign(objectTip.style, { left: `${event.clientX}px`, top: `${event.clientY}px` });
+    tipTimer = setTimeout(() => { objectTip.hidden = measuring; }, 2000);
+  });
+  for (const type of ["pointerleave", "pointerdown", "wheel"]) viewer.addEventListener(type, hideTip);
+
   // Clic droit dans la visionneuse en mesure : sélection d'un point, pas de menu du navigateur
   viewer.addEventListener("contextmenu", (event) => {
     // hors mesure, sur un objet de la couche : sa fiche (attachViewer), pas de menu non plus
@@ -1018,20 +1042,58 @@
     const f = overlay.features[id];
     let [lon, lat] = f.geometry.coordinates;
     while (Array.isArray(lon)) [lon, lat] = lon;  // ligne, polygone : premier sommet
-    const pic = Object.keys(f.recalages || {})[0] || (overlayAt.has(id) ? photo?.id : null)
+    const pic = f.properties.photo_ref || Object.keys(f.recalages || {})[0] || (overlayAt.has(id) ? photo?.id : null)
       || (await Carte.nearestPhoto(map, lon, lat, passesFilter).catch(() => null))?.id || null;
     // Colonnes choisies, dans leur ordre (askFiche) ; texte ajouté après la valeur de l'étiquette repris ici
-    const props = overlayProperties(f), label = $("#couche-etiquette").value, suffix = $("#couche-suffixe").value.trim();
+    const props = overlayProperties(f);
+    const suffixes = Object.fromEntries(overlayLabels().filter((l) => l.column && l.suffix.trim()).reverse()
+      .map((l) => [l.column, l.suffix.trim()]));  // même colonne aux deux : celui de la première
     const attributes = (columns || Object.keys(props).filter((c) => !(overlay.techniques || []).includes(c))).map((c) => {
       const text = Couche.format(props[c]);
-      return [c, text && suffix && c === label ? `${text} ${suffix}` : text];
+      return [c, text && suffixes[c] ? `${text} ${suffixes[c]}` : text];
     });
     return { name: overlayObjectName(id), lon, lat, attributes, rows: [], texts: [], photo: pic, kind: null,
       bounds: [[lon, lat], [lon, lat]] };
   }
 
+  /** Mesure exportée (App._records : vue_ref) revue sur sa photo : ses repères tels que dessinés quand elle a
+   * été prise ([[cap, élévation]] en radians), ou null (autre photo, autre objet). */
+  function overlayView(id) {
+    const p = overlay.features[id]?.properties || {};
+    if (!p.vue_ref || p.photo_ref !== photo?.id) return null;
+    try {
+      const view = JSON.parse(p.vue_ref);
+      return Array.isArray(view) && view.length && view.every((v) => v.length === 2 && v.every(Number.isFinite)) ? view : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Repères d'une partie o de la couche (App.overlay_marks) dans la photo affichée : mesure exportée revue sur
+   * sa photo telle que prise, sinon recalage dans cette photo compris ; { kind, pts: [[cap, élévation]] }. */
+  function overlayPoints(o) {
+    const view = overlayView(o.id);
+    if (view) return { kind: view.length > 1 ? "ligne" : "point", pts: view };
+    const [dyaw, dpitch] = overlay.features[o.id]?.recalages?.[photo?.id]?.decalage || [0, 0];
+    return { kind: o.kind, pts: o.points.map(([yaw, pitch]) => [yaw + dyaw, pitch + dpitch]) };
+  }
+
+  /** Mesure exportée n° id de la couche revue : sa photo ouverte, cadrée sur elle comme la fiche. */
+  async function reviewMeasure(id) {
+    const pic = overlay.features[id]?.properties.photo_ref;
+    if (!pic || measuring) return;
+    try {
+      if (photo?.id !== pic) await openPhotoReady(pic);
+      frameView(overlayView(id));
+    } catch (error) {
+      notice(`Mesure : ${error.message}`);
+    }
+  }
+
   /** Repère de l'objet n° id de la couche dans la photo affichée, recalage compris : [[cap, élévation]], ou []. */
   function overlayEnds(id) {
+    const view = overlayView(id);
+    if (view) return view;
     const at = overlayAt.get(id);
     if (!at) return [];
     const [dyaw, dpitch] = overlay.features[id].recalages?.[photo?.id]?.decalage || [0, 0];
@@ -1612,13 +1674,18 @@
   const EYE_SHUT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
     + '<path d="M3 3l18 18M10.6 6.1A9.7 9.7 0 0112 6c6.5 0 10 6 10 6a17 17 0 01-3.2 3.9M6.6 6.6C3.8 8.4 2 12 2 12s3.5 6 10 6a9.6 9.6 0 004.4-1" stroke-linecap="round"/></svg>';
 
+  /** Réglages des deux étiquettes de la photo : [{ column, titled, suffix }]. */
+  const overlayLabels = () => ["", "2"].map((n) => ({ column: $(`#couche-etiquette${n}`).value,
+    titled: $(`#couche-intitule${n}`).checked, suffix: $(`#couche-suffixe${n}`).value }));
+
   function showOverlayStyle() {
     if (!overlay) return;
     const column = $("#couche-couleur").value;
     const custom = overlay.couleurs[column] ||= {};
-    $("#couche-intitule").disabled = $("#couche-suffixe").disabled = !$("#couche-etiquette").value;  // sans étiquette, sans effet
-    const legend = Couche.style(overlay.features, column, $("#couche-etiquette").value, custom, $("#couche-intitule").checked,
-      $("#couche-suffixe").value, $("#couche-etiquette-carte").value);
+    for (const n of ["", "2"]) {  // sans étiquette, sans effet
+      $(`#couche-intitule${n}`).disabled = $(`#couche-suffixe${n}`).disabled = !$(`#couche-etiquette${n}`).value;
+    }
+    const legend = Couche.style(overlay.features, column, overlayLabels(), custom, $("#couche-etiquette-carte").value);
     $("#couche-couleurs-defaut").disabled = !Object.keys(custom).length;
     if (legend.degrade && !custom.min && !custom.max) {
       setStatus("Dégradé : cliquez les pastilles « minimum » et « maximum » de la légende pour choisir ses couleurs.");
@@ -1708,7 +1775,7 @@
 
   /** Couche en place (lue d'un fichier, ou gardée) : calcul, réglages, carte ; cadrée dessus si fit. */
   // mapLabel : colonne de l'étiquette de la mini-carte ; null : « id » (sans tenir compte de la casse), sinon la première
-  function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}, masks = {}, mapLabel = null) {
+  function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}, masks = {}, mapLabel = null, label2 = "") {
     overlay = { name, ...read, couleurs: colors, masques: masks };  // masques : { colonne: [clés de légende masquées] }
     moving = null;  // couleurs choisies : { colonne: { clé de légende: couleur } }
     $("#couche-visible").checked = visible;
@@ -1718,7 +1785,8 @@
     const choices = read.columns.filter((c) => !technical.includes(c));
     overlay.techniques = technical;
     mapLabel ??= choices.find((c) => c.toLowerCase() === "id") ?? choices[0] ?? "";
-    for (const [id, value] of [["#couche-couleur", color], ["#couche-etiquette", label], ["#couche-etiquette-carte", mapLabel]]) {
+    for (const [id, value] of [["#couche-couleur", color], ["#couche-etiquette", label], ["#couche-etiquette2", label2],
+      ["#couche-etiquette-carte", mapLabel]]) {
       $(id).replaceChildren(new Option(id === "#couche-couleur" ? "couleur unique" : "aucune", ""),
         ...choices.map((c) => new Option(c, c)));
       $(id).value = choices.includes(value) ? value : "";
@@ -1747,6 +1815,7 @@
     const { name, features, columns, crs, couleurs, masques, fiche } = overlay;
     const text = JSON.stringify({ name, columns, crs, couleurs, masques, fiche, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
       intitule: $("#couche-intitule").checked, suffixe: $("#couche-suffixe").value, etiquetteCarte: $("#couche-etiquette-carte").value,
+      etiquette2: $("#couche-etiquette2").value, intitule2: $("#couche-intitule2").checked, suffixe2: $("#couche-suffixe2").value,
       modifie: Boolean(overlay.modifie), dateFichier: overlay.dateFichier ?? null,
       visible: $("#couche-visible").checked,
       features: features.map(({ type, id, geometry, properties, recalages }) => ({ type, id, geometry, recalages,
@@ -1761,9 +1830,11 @@
     try { saved = JSON.parse(store.get("couche") || "null"); } catch { /* illisible : aucune */ }
     $("#couche-intitule").checked = Boolean(saved?.intitule);
     $("#couche-suffixe").value = saved?.suffixe || "";
+    $("#couche-intitule2").checked = Boolean(saved?.intitule2);
+    $("#couche-suffixe2").value = saved?.suffixe2 || "";
     if (!saved?.features?.length) return;
     loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, false, saved.visible !== false,
-      saved.couleurs || {}, saved.masques || {}, saved.etiquetteCarte ?? null);
+      saved.couleurs || {}, saved.masques || {}, saved.etiquetteCarte ?? null, saved.etiquette2 || "");
     setOverlayChanged(Boolean(saved.modifie));
     const kept = overlay;  // fichier de la couche (Chrome, Edge), relu de façon asynchrone
     fileStore("readonly", (s) => s.get("couche")).then((handle) => {
@@ -1784,6 +1855,7 @@
     }
     importOverlay(await Promise.all(handles.map((h) => h.getFile())), handles);
   });
+  $("#mesures-importer").addEventListener("click", () => $("#couche-importer").click());  // même sélecteur de fichier
   $("#couche-fichier").addEventListener("change", (event) => {
     const files = [...event.target.files];
     event.target.value = "";
@@ -1818,21 +1890,27 @@
       const choose = (names) => (names.length < 2 ? names[0]
         : names[Number(prompt(`Tables du GeoPackage :\n${names.map((n, i) => `${i + 1}. ${n}`).join("\n")}\n\nNuméro de la table à afficher :`, "1")) - 1]);
       const { name, ...read } = await Couche.readFiles(files, choose);
-      const n = loadOverlay(name, read, "", "", true);
+      // Mesures exportées (App._records) : leur valeur en étiquette, la première revue sur sa photo
+      const review = read.columns.includes("vue_ref") ? read.features.findIndex((f) => f.properties.photo_ref) : -1;
+      const label = review >= 0 && read.columns.includes("etiquette") ? "etiquette" : "";
+      const n = loadOverlay(name, read, "", label, true, true, {}, {}, label || null);
       setOverlayFile(handles.length === 1 && /\.(geo)?json$/i.test(handles[0].name) ? handles[0] : null, files[0].lastModified);
       setOverlayChanged(false);
       const kept = saveOverlay();
       setStatus(`Couche « ${name} » importée : ${n} partie${n > 1 ? "s" : ""} d'objets.`
-        + (kept ? "" : " Trop grosse pour être gardée dans le navigateur : à réimporter à la prochaine ouverture."));
+        + (kept ? "" : " Trop grosse pour être gardée dans le navigateur : à réimporter à la prochaine ouverture.")
+        + (review >= 0 ? " Cliquez une mesure sur la carte pour la revoir sur sa photo." : ""));
+      if (review >= 0) reviewMeasure(review);
     } catch (error) {
       setStatus(`Couche non importée : ${error.message}`, "echec");
     }
   }
-  $("#couche-suffixe").addEventListener("input", () => {  // à chaque lettre : étiquettes à jour en tapant
+  for (const id of ["#couche-suffixe", "#couche-suffixe2"]) $(id).addEventListener("input", () => {  // à chaque lettre : étiquettes à jour en tapant
     showOverlayStyle();
     saveOverlay();
   });
-  for (const id of ["#couche-couleur", "#couche-etiquette", "#couche-etiquette-carte", "#couche-intitule", "#couche-visible"]) {
+  for (const id of ["#couche-couleur", "#couche-etiquette", "#couche-etiquette2", "#couche-etiquette-carte", "#couche-intitule",
+    "#couche-intitule2", "#couche-visible"]) {
     $(id).addEventListener("change", () => {
       showOverlayStyle();
       saveOverlay();
@@ -2613,12 +2691,11 @@
         const anchorOf = (pts) => (o.kind === "point" ? { yaw: pts[0][0], pitch: pts[0][1] }
           : middle(pts.map(([yaw, pitch]) => ({ yaw, pitch }))));
         if (!overlayAt.has(o.id)) overlayAt.set(o.id, anchorOf(o.points));
-        const [dyaw, dpitch] = overlay.features[o.id]?.recalages?.[photo?.id]?.decalage || [0, 0];
-        const pts = o.points.map(([yaw, pitch]) => [yaw + dyaw, pitch + dpitch]);
-        const at = anchorOf(pts);
-        if (o.kind === "ligne" && pts.length >= 2) lines.push({ points: pts, color, width: chosen ? 5 : 2.5, dash: null });
+        const { kind, pts } = overlayPoints(o);
+        const at = kind === "point" ? { yaw: pts[0][0], pitch: pts[0][1] } : middle(pts.map(([yaw, pitch]) => ({ yaw, pitch })));
+        if (kind === "ligne" && pts.length >= 2) lines.push({ points: pts, color, width: chosen ? 5 : 2.5, dash: null });
         // data-objet : clic pour le recaler (attachViewer)
-        if (o.kind === "point" && points++ < 300) {
+        if (kind === "point" && points++ < 300) {
           add({ id: `${MARK}couche-${n++}`, position: at, anchor: "center center",
             html: `<div class="pastille-couche${chosen}" data-objet="${o.id}" style="background:${color}"></div>` });
         }
@@ -2801,6 +2878,17 @@
       : Math.min(maxFov, Math.max(points.length > 1 ? 20 : 35, deg(spreadPitch) * 1.3, deg(spreadYaw) * 1.3 / aspect));
     const zoom = psv.dataHelper?.fovToZoomLevel ? psv.dataHelper.fovToZoomLevel(vfov) : undefined;
     psv.animate({ yaw, pitch, ...(zoom == null || keepZoom ? {} : { zoom }), speed: 1200 });
+  }
+
+  /** Photo d'identifiant id ouverte, chargée et ses repères dessinés (fiche, mesure revue) ; 30 s au plus. */
+  async function openPhotoReady(id) {
+    await goToPhoto(id);
+    const t0 = Date.now();
+    while (psv?.getPictureMetadata?.()?.id !== id || !photoReady()) {
+      if (Date.now() - t0 > 30000) throw new Error("photo de la mesure non chargée");
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    await new Promise((r) => setTimeout(r, 1500));  // repères de la photo dessinés
   }
 
   /** Affiche la photo d'identifiant id (photo voisine proposée, retour sur la référence). */
@@ -3392,13 +3480,20 @@
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(x, y, 6 * scale, 0, 2 * Math.PI);
-    ctx.fillStyle = "#0078ff";
-    ctx.fill();
-    ctx.lineWidth = 2 * scale;
-    ctx.strokeStyle = "#ffffff";
-    ctx.stroke();
+    // Croix bleue liserée de blanc, tournée avec la vue, comme sur la mini-carte (Carte.showView)
+    ctx.translate(x, y);
+    ctx.rotate(heading * Math.PI / 180);
+    ctx.lineCap = "round";
+    for (const [color, width] of [["#ffffff", 6], ["#0078ff", 3]]) {
+      ctx.beginPath();
+      ctx.moveTo(-8 * scale, 0);
+      ctx.lineTo(8 * scale, 0);
+      ctx.moveTo(0, -8 * scale);
+      ctx.lineTo(0, 8 * scale);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width * scale;
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -3646,15 +3741,7 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     data.title = title || `point de référence ${data.name}`;
     if (!auto) data.photo = photo?.id || data.photo;  // pied de la fiche : la photo capturée
     step(auto ? "Ouverture de la photo de la mesure" : "Capture de la vue actuelle", 0);
-    if (auto && data.photo && photo?.id !== data.photo) {  // photo d'où la plus grande mesure a été prise
-      await goToPhoto(data.photo);
-      const t0 = Date.now();
-      while (psv.getPictureMetadata?.()?.id !== data.photo || !photoReady()) {
-        if (Date.now() - t0 > 30000) throw new Error("photo de la mesure non chargée");
-        await new Promise((r) => setTimeout(r, 250));
-      }
-      await new Promise((r) => setTimeout(r, 1500));  // repères de la photo dessinés
-    }
+    if (auto && data.photo && photo?.id !== data.photo) await openPhotoReady(data.photo);  // photo d'où la plus grande mesure a été prise
     step(auto ? "Cadrage de la photo sur la mesure" : "Capture de la vue actuelle", 40);
     const ends = !auto ? [] : layered ? overlayEnds(k.objet) : JSON.parse(app.fiche_frame(k));
     // Hauteur : la mesure sur 75 % de la hauteur de l'image ; largeur : 10 % de marge de chaque côté ;
@@ -3784,9 +3871,13 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
       ctx.font = `${css.fontWeight} ${parseFloat(css.fontSize) * scale}px ${css.fontFamily}`;
       ctx.textBaseline = "middle";
       Object.assign(ctx, { strokeStyle: "#000", lineWidth: 2 * scale, lineJoin: "round" });
-      ctx.strokeText(el.textContent, x, y + h / 2);
       ctx.fillStyle = css.color;
-      ctx.fillText(el.textContent, x, y + h / 2);
+      const lines = el.textContent.split("\n");  // 2e étiquette : sous la première
+      lines.forEach((text, i) => {
+        const ly = y + h * (i + 0.5) / lines.length;
+        ctx.strokeText(text, x, ly);
+        ctx.fillText(text, x, ly);
+      });
       ctx.restore();
     }
   }
@@ -3819,11 +3910,10 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
       for (const o of JSON.parse(app.overlay_marks())) {
         const f = overlay.features[o.id];
         if (masked.has(f?.properties._cle)) continue;  // valeur masquée dans la légende
-        // Recalage dans cette photo compris, comme dans la visionneuse (drawViewerMarks)
-        const [dyaw, dpitch] = f?.recalages?.[photo?.id]?.decalage || [0, 0];
-        const color = f?.properties._couleur || "#ff00ff", pts = o.points.map(([yaw, pitch]) => screen([yaw + dyaw, pitch + dpitch]));
+        const { kind, pts: views } = overlayPoints(o);  // comme dans la visionneuse (drawViewerMarks)
+        const color = f?.properties._couleur || "#ff00ff", pts = views.map(screen);
         ctx.save();
-        if (o.kind === "ligne") {
+        if (kind === "ligne") {
           ctx.strokeStyle = color;
           ctx.lineWidth = 2.5 * scale;
           ctx.beginPath();
@@ -4034,6 +4124,6 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
   }
 
   // Pour les essais depuis la console : window.mesures.app.click(yaw, pitch)
-  window.mesures = { get app() { return app; }, get psv() { return psv; }, map, openPhoto, buildFiche,
+  window.mesures = { get app() { return app; }, get psv() { return psv; }, map, openPhoto, buildFiche, importOverlay,
     overlayFile: (handle) => { overlay.fichier = handle; } };  // fichier de la couche remplacé (essais)
 })();

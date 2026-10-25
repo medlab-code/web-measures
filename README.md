@@ -247,7 +247,7 @@ suivre le terrain ; à plat à la hauteur de caméra en attendant, ou sans LiDAR
 de 100 m de la photo. Couleur selon une colonne : une couleur par valeur (palette Set1 de ColorBrewer
 sans son gris, prolongée de huit couleurs : seize valeurs, les plus fréquentes, puis par ordre alphabétique, les autres et les vides en gris), ou, pour une
 colonne numérique d'au moins 11 valeurs, dégradé entre les couleurs du minimum et du maximum choisies
-dans la légende (chaque objet prend leur mélange pondéré par sa valeur), étiquette d'une colonne dans la photo, précédée de son intitulé si la case est cochée (« essence : tilleul ») et suivie d'un texte fixe au choix (unité : « 12 cm »), étiquette de la mini-carte (à partir du zoom 16) d'une autre colonne au choix, « id » par défaut (sans tenir compte de la casse), sinon la première, légende (un clic sur une pastille : palette ; « Couleurs par défaut »).
+dans la légende (chaque objet prend leur mélange pondéré par sa valeur), étiquette d'une colonne dans la photo, précédée de son intitulé si la case est cochée (« essence : tilleul ») et suivie d'un texte fixe au choix (unité : « 12 cm »), plus une 2e étiquette d'une autre colonne, aux mêmes réglages, sur une 2e ligne, étiquette de la mini-carte (à partir du zoom 16) d'une autre colonne au choix, « id » par défaut (sans tenir compte de la casse), sinon la première, légende (un clic sur une pastille : palette ; « Couleurs par défaut »).
 Étiquettes en texte seul, de la couleur de l'objet éclaircie de moitié, liseré noir, jamais recouvertes
 par une pastille, placées de l'objet le plus proche de la photo au plus lointain : remontées en cas
 de chevauchement, masquées s'il faudrait les remonter de plus d'une fois et demie leur hauteur. Sa fiche, en tête de l'onglet, donne le nombre d'objets, le système de
@@ -278,6 +278,12 @@ l'ouverture suivante, ceux de la session précédente qui n'ont pas été export
 l'export (CSV, GeoJSON) ou à l'oubli, et affichés en lecture seule : liste sous les résultats,
 traits et points gris sur la carte. Ils ne redeviennent pas des mesures modifiables, et sont
 oubliés à la fermeture de cette session-là s'ils n'y ont pas été exportés.
+
+**Revoir une mesure exportée** : le fichier de mesures GeoJSON importé (« Importer » de l'onglet
+**Résultats**, ou import de l'onglet **Couche**, où il s'affiche) s'ouvre sur la photo d'où la première hauteur ou largeur a été prise, cadrée sur elle,
+la mesure dessinée telle qu'elle était à l'écran (colonnes `photo_ref` et `vue_ref`), avec sa valeur
+en étiquette (colonne `etiquette`). Un clic sur une autre mesure de la mini-carte la montre de même.
+En lecture seule ; les fichiers exportés avant la version 0.6.6 n'ont pas ces colonnes.
 
 **Recaler un point** : **clic** (gauche ou droit) sur sa croix pour le sélectionner, puis :
 
@@ -343,8 +349,9 @@ pas utilisé (talus et murs pris pour la route).
   mesures (PNG, copiée dans le presse-papiers) ;
 - liste des résultats avec commentaire et effacement de chacun ; **export CSV**
   (point-virgule, virgule décimale) et **GeoJSON** : valeur, incertitude, composantes,
-  distance à la photo, hauteur de caméra, axe de la route, photos, date, commentaire, et
-  attributs des points triangulés (visées, croisement, précision GPS).
+  distance à la photo, hauteur de caméra, axe de la route, photos, date, commentaire, photo
+  d'où la mesure a été prise et repères vus dessus (pour la revoir), et attributs des points
+  triangulés (visées, croisement, précision GPS).
 
 Fichiers exportés (mesures, captures, favoris, calage, couche) : boîte d'enregistrement du système sous
 Chrome et Edge (emplacement et nom au choix, demandés dès le clic pour une capture). Firefox n'en donne

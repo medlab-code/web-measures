@@ -394,6 +394,28 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       near("largeur le long de la droite tracée", metresIn(doc.querySelector("#statut").textContent), 8, 0.05);
       expect("texte de la largeur sur la droite tracée", /^Largeur le long de la droite tracée sur la carte .* depuis le point [A-Z] · droite à \d+° \(tracée sur la carte/.test(doc.querySelector("#statut").textContent));
     }
+    {  // Mesures exportées puis réimportées en couche : la première revue sur sa photo, telle que dessinée
+      const exported = JSON.parse(app.export_geojson()).features.filter((f) => f.properties.vue_ref);
+      expect("export : photo et repères des largeurs", exported.length >= 2 && exported.every((f) => f.properties.photo_ref
+        && JSON.parse(f.properties.vue_ref).length === 2 && /^\d+,\d+ m ± \d+,\d+ m$/.test(f.properties.etiquette)),
+        JSON.stringify(exported.map((f) => [f.properties.photo_ref, f.properties.vue_ref, f.properties.etiquette])));
+      doc.querySelector("#mesure").click();  // hors mesure
+      await sleep(500);
+      const first = exported[0].properties, other = photos.find((f) => f.id !== first.photo_ref);
+      w.mesures.openPhoto(other);
+      await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === other.id, 30000, "autre photo");
+      await sleep(800);
+      const text = JSON.stringify({ type: "FeatureCollection", features: exported });
+      await w.mesures.importOverlay([new File([text], "mesures.geojson", { type: "application/geo+json" })]);
+      await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === first.photo_ref, 30000, "photo de la mesure");
+      await sleep(4000);  // ouverte, puis cadrée
+      const view = JSON.parse(first.vue_ref), pos = w.mesures.psv.getPosition();
+      const yaw = Math.atan2(Math.sin(view[0][0]) + Math.sin(view[1][0]), Math.cos(view[0][0]) + Math.cos(view[1][0]));
+      const labels = [...w.mesures.psv.container.querySelectorAll(".etiquette.couche")].map((e) => e.textContent);
+      log(`mesure revue : vue ${JSON.stringify(pos)} · repères ${first.vue_ref} · étiquettes ${JSON.stringify(labels)}`);
+      expect("mesure revue : vue tournée vers elle", Math.abs(Math.atan2(Math.sin(pos.yaw - yaw), Math.cos(pos.yaw - yaw))) < 0.02);
+      expect("mesure revue : étiquette de sa valeur", labels.includes(first.etiquette), JSON.stringify(labels));
+    }
     verdict();
   } catch (e) { log("ERREUR " + e); }
   log("FIN");
