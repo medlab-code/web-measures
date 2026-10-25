@@ -50,7 +50,7 @@ import du calage), **Favoris**
 (photos favorites, export et import) et **Couche**, avec le nombre de résultats et de
 favoris sur l'onglet ; en bas, les boutons **Filtre** (instance Panoramax, filtre des photos ; point orange quand un filtre est actif),
 **Réglages** (hauteur de caméra, thème, options) et **Services**. La consigne de
-mesure reste en haut de la visionneuse. Thème jour ou nuit : comme le système par défaut, ou choisi
+mesure est dans la carte d'étape de la visionneuse. Thème jour ou nuit : comme le système par défaut, ou choisi
 dans Réglages. Une section
 s'affiche à la fois ; la dernière choisie est rouverte à la visite suivante.
 
@@ -72,8 +72,10 @@ par le **requêteur route + PR**, ou coller l'**identifiant** d'une photo (ou un
 Panoramax) dans « Aller à la photo » ; « 📋 Copier » sous l'identifiant de la photo affichée
 le copie, pour la passer à un collègue.
 
-**Mesurer** : bouton « 📐 Mesure », puis le mode. Les consignes s'affichent en haut au centre
-de la visionneuse ; le bouton **« ✔ Valider le point triangulé »** y apparaît, avec un halo,
+**Mesurer** : bouton « Mesure », puis le mode. Pendant la mesure, une carte d'étape en bas à gauche de
+la visionneuse donne la mesure et ses étapes (pied puis sommet, premier bord puis bord opposé), l'état
+(triangulation ou mesure en cours) et la consigne ; le haut de la photo et les flèches restent libres. Le
+bouton **« ✔ Valider le point triangulé »** y apparaît, avec un halo,
 dès que les visées donnent un point (deux visées qui se croisent).
 
 **Prise de mesure guidée** :

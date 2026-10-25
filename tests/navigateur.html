@@ -213,13 +213,12 @@ async function feature(id) {
   try { await until(() => pont.open, 30000, "proposition pont"); } catch (e) { log(String(e)); }
   expect("pont proposé", pont.open && pont.textContent.includes("sur un pont (D111)"));
   log("pont : " + pont.querySelector("p").textContent);
-  {  // fenêtre centrée sur la visionneuse, boutons groupés au centre
-    const mid = (r) => [(r.left + r.right) / 2, (r.top + r.bottom) / 2];
-    const [dx, dy] = mid(pont.getBoundingClientRect()), [vx, vy] = mid(doc.querySelector("#vue").getBoundingClientRect());
+  {  // fenêtre non modale en haut à gauche de la visionneuse (la photo reste utilisable), boutons groupés au centre
+    const r = pont.getBoundingClientRect(), v = doc.querySelector("#vue").getBoundingClientRect(), dx = (r.left + r.right) / 2;
     const buttons = [...pont.querySelectorAll("form button")].map((b) => b.getBoundingClientRect());
     const group = (buttons[0].left + buttons.at(-1).right) / 2;
-    expect("fenêtre centrée sur la visionneuse", Math.abs(dx - vx) < 2 && Math.abs(dy - vy) < 2,
-      `${Math.round(dx)},${Math.round(dy)} au lieu de ${Math.round(vx)},${Math.round(vy)}`);
+    expect("fenêtre du pont en haut à gauche, non modale", Math.abs(r.left - v.left - 12) < 2 && r.top < v.top + v.height / 3
+      && !pont.matches(":modal"), `${Math.round(r.left - v.left)},${Math.round(r.top - v.top)} dans la visionneuse`);
     expect("boutons centrés", Math.abs(group - dx) < 2, `${Math.round(group)} au lieu de ${Math.round(dx)}`);
     const border = (sel) => w.getComputedStyle(pont.querySelector(sel)).borderTopColor;
     expect("Oui vert, Non rouge", border("button.oui") === "rgb(46, 204, 64)" && border("button.non") === "rgb(229, 57, 53)",

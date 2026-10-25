@@ -299,7 +299,7 @@
     const steps = [
       ["#carte", "Cliquez sur le filaire orange de la carte (ou cherchez un lieu) pour ouvrir la photo la plus proche."],
       ["#mesure", "Activez « Mesure », choisissez largeur ou hauteur, puis cliquez dans la photo : "
-        + "la consigne en haut de la visionneuse guide chaque étape."],
+        + "la carte d'étape, en bas à gauche de la visionneuse, guide chaque étape."],
       ["#resultats", "Les mesures s'affichent ici avec leur incertitude ; exportez-les en CSV ou GeoJSON "
         + "avant de fermer la page."],
     ];
@@ -661,6 +661,15 @@
     }));
   }
 
+  /** Fenêtre non modale en haut à gauche de la visionneuse, sous le nom du pont : la photo reste
+   * visible et utilisable (question du pont, posée à l'ouverture d'une photo). */
+  function showInCorner(dialog) {
+    dialog.show();
+    const box = $("#vue").getBoundingClientRect(), fall = $("#chute");
+    Object.assign(dialog.style, { margin: "0", inset: "auto", left: `${box.left + 12}px`,
+      top: `${box.top + 12 + (fall.hidden ? 0 : fall.offsetHeight + 8)}px` });
+  }
+
   /** Redessine tout : texte de la mesure, état de la photo, repères, carte, résultats. */
   function refresh(text) {
     if (!app) return;
@@ -683,7 +692,7 @@
         $("#pont").checked = bridgeAlert.check;
         refresh(bridgeAlert.check ? app.set_bridge(true) : app.leave_bridge());
       }, { once: true });
-      showOverViewer(dialog);
+      showInCorner(dialog);
     }
     const state = JSON.parse(app.state());
     $("#effacer").disabled = !state.can_undo;  // grisés quand ils n'auraient pas d'effet
@@ -2237,6 +2246,15 @@
     // carte ; la vue tournée vers le point à viser (take_aim_frame), il le désigne (ticket #26)
     $("#axe-vue").hidden = !measuring || !["road", "height", "tri"].includes(mode) || viewer.hidden;
     // Même état en toutes lettres, sous le rappel du mode (comme les voyants)
+    // Carte d'étape (en bas, en mesure) : nom de la mesure et ses étapes, la courante en couleur
+    $("#vue").classList.toggle("en-mesure", measuring);
+    const [title, steps, current] = mode === "height" ? ["Hauteur", ["Pied", "Sommet"], aiming ? 0 : newMeasure ? 2 : 1]
+      : mode === "road" ? ["Largeur", ["Premier bord", "Bord opposé"], aiming && !edgeBAiming ? 0 : newMeasure ? 2 : 1]
+      : mode === "tri" ? ["Mesure libre", ["Points visés depuis plusieurs photos"], 0]
+      : ["Calage de l'inclinaison", ["Deux objets verticaux"], 0];
+    $("#nom-mesure").textContent = title;
+    $("#etapes").replaceChildren(...steps.map((step, k) => Object.assign(document.createElement("li"), {
+      textContent: step, className: k < current ? "faite" : k === current ? "courante" : "" })));
     const state = $("#etat-mesure");
     state.hidden = !sighting && !taking;
     state.className = sighting ? "visee" : taking ? "prise" : "";
@@ -2252,6 +2270,9 @@
       : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé ; autre photo, prise avant ou après : par la carte"
       : mode === "tilt" ? "Calage de l'inclinaison : pied puis sommet de deux objets verticaux, à 90° l'un de l'autre"
       : "Mode mesure en cours : désélectionner pour naviguer";
+    // Nom de la mesure et étape déjà dans l'en-tête de la carte d'étape (« Hauteur, étape 1 : »…) : retirés
+    const tip = $("#mode-mesure").textContent.replace(/^(?:Hauteur|Largeur|Mesure libre|Calage de l'inclinaison)[^:]*: /, "");
+    $("#mode-mesure").textContent = tip[0].toUpperCase() + tip.slice(1);
     showModeOptions();
     const box = psv?.container;
     if (!box) return;

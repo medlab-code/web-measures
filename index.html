@@ -37,9 +37,9 @@
       <span class="essai" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.6.0 — projet personnel – POC</span>
     </div>
     <!-- Mesure : gros bouton sur les deux rangées ; réglages, puis effacement en dessous -->
-    <div class="bloc mesure">
+    <div class="bloc mesure carte-barre">
       <button id="mesure" type="button" aria-pressed="false" disabled
-              title="Mesurer : un clic dans la photo prend un point au lieu de changer de photo">📐 Mesure</button>
+              title="Mesurer : un clic dans la photo prend un point au lieu de changer de photo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M4 20V4l16 16z M8 16h3M4 8h2M4 12h2" stroke-linejoin="round" stroke-linecap="round"/></svg> Mesure</button>
       <div class="bloc reglages">
         <div class="rang">
           <label>Mode
@@ -54,7 +54,7 @@
               </optgroup>
             </select>
           </label>
-          <label title="Sur un pont, le modèle de terrain de l'IGN (LiDAR HD, ou RGE ALTI là où le LiDAR HD n'est pas publié) donne le terrain sous l'ouvrage (la voie franchie), pas le tablier : les points au sol se calent alors sur le sol tiré des photos et l'inclinaison automatique se passe de la pente du terrain"><input id="pont" type="checkbox" disabled> Sur un pont</label>
+          <label title="Sur un pont, le modèle de terrain de l'IGN (LiDAR HD, ou RGE ALTI là où le LiDAR HD n'est pas publié) donne le terrain sous l'ouvrage (la voie franchie), pas le tablier : les points au sol se calent alors sur le sol tiré des photos et l'inclinaison automatique se passe de la pente du terrain"><input id="pont" type="checkbox" class="interrupteur" disabled> Sur un pont</label>
         </div>
         <div class="rang">
           <button id="effacer" type="button" disabled title="Annule le dernier geste : dernière visée, dernier clic, puis la mesure en cours et le dernier point posé (raccourci Ctrl+Z ; « Refaire » ou Ctrl+Y rétablit)">Effacer</button>
@@ -64,20 +64,20 @@
       </div>
     </div>
     <!-- Captures, puis fond de carte -->
-    <div class="bloc captures">
+    <div class="bloc captures carte-barre">
       <button id="capture-hd" type="button" disabled title="Vue affichée recalculée en Full HD
-(1920 × 1080) à partir de la photo originale, redressée si l'inclinaison est calée"><span class="icone" aria-hidden="true">📷</span><span class="libelle">Image seule</span></button>
+(1920 × 1080) à partir de la photo originale, redressée si l'inclinaison est calée"><span class="icone" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l2-3h6l2 3h3v11H4z" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="libelle">Image seule</span></button>
       <button id="vignette" type="button" disabled title="La visionneuse telle qu'affichée, mesures comprises,
-enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-hidden="true">📷</span><span class="libelle">Avec les mesures</span></button>
+enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l2-3h6l2 3h3v11H4z" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="libelle">Avec les mesures</span></button>
     </div>
-    <div class="bloc fond">
+    <div class="bloc fond carte-barre">
       <label for="fond">Fond de carte</label>
       <select id="fond"><option value="plan">Plan IGN</option><option value="ortho">Orthophoto</option>
         <option value="noms" title="Orthophoto, noms des lieux et des rues, voies et numéros de route, limites des départements et des communes">Orthophoto avec noms</option>
         <option value="express">Ortho-express (année de la photo)</option>
         <option value="pcrs" disabled title="Aucun PCRS publié sur la Géoplateforme à cet endroit">PCRS Géoplateforme</option>
         <option value="osm">OpenStreetMap</option></select>
-      <label title="Séquences et photos Panoramax sur la carte"><input type="checkbox" id="filaire" checked> Filaire Panoramax</label>
+      <label title="Séquences et photos Panoramax sur la carte"><input type="checkbox" id="filaire" class="interrupteur" checked> Filaire Panoramax</label>
     </div>
   </header>
   <main>
@@ -109,7 +109,14 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         </div>
         <p id="producteur-photo" hidden></p>
       </div>
-      <div class="haut-centre">  <!-- rappel du mode, boutons, puis messages ponctuels (calage du cap, photo écartée, inclinaison), affichés sous les boutons (style.css) -->
+      <!-- Hors mesure : avis passagers en haut au centre. En mesure : carte d'étape en bas (style.css,
+           #vue.en-mesure) : mesure et étapes, état, consigne, boutons, messages -->
+      <div class="haut-centre">
+        <div id="entete-etape">
+          <span id="nom-mesure"></span>
+          <ol id="etapes"></ol>
+          <p id="etat-mesure" hidden></p>
+        </div>
         <p id="mode-mesure" hidden>Mode mesure en cours : désélectionner pour naviguer</p>
         <p id="avis" hidden></p>
         <p id="calcul-inclinaison" hidden>Calcul de l'inclinaison en cours : attendez avant de mesurer</p>
@@ -132,8 +139,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <button id="nouvelle-reference" type="button" hidden title="Trianguler un autre point de référence : les mesures déjà faites restent">Nouveau point de référence</button>
         </div>
       </div>
-      <div class="haut-gauche">  <!-- état animé : triangulation ou mesure en cours -->
-        <p id="etat-mesure" hidden></p>
+      <div class="haut-gauche">
         <!-- Photo sur un pont : son nom et la hauteur de chute (voir App.fall) -->
         <p id="chute" hidden></p>
       </div>
