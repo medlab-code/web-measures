@@ -218,7 +218,9 @@ navigateur d'une session à l'autre (sauf si elle est trop grosse : un message l
 l'efface. **Recalage dans la photo** (hors mesure) : clic sur la pastille ou l'étiquette d'un objet,
 puis clic à sa place vue dans la photo, flèches pour l'ajuster (0,05°), Entrée pour finir, Suppr pour
 le remettre à sa place calculée ; décalage propre à cette photo, la carte n'est pas modifiée. Gardé
-avec la couche ; « Exporter » écrit un GeoJSON (WGS 84, nom au choix) où chaque objet porte ses
+avec la couche ; « Exporter » écrit un GeoJSON (WGS 84 ; boîte d'enregistrement du système sous Chrome et Edge ; sous
+Firefox, téléchargé, sa boîte s'ouvrant si « Toujours vous demander où enregistrer les fichiers » est
+coché dans Paramètres › Général › Fichiers et applications) où chaque objet porte ses
 recalages (membre `recalages` du Feature, hors attributs, ignoré par QGIS : décalage, position et
 séquence de la photo) : importé sur un autre poste, les objets y reviennent à leur place. À l'import,
 ou en ouvrant une photo à moins de 30 m d'une photo recalée d'une autre séquence (même voie, autre

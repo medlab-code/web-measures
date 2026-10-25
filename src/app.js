@@ -1516,16 +1516,28 @@
     showOverlayStyle();
     saveOverlay();
   });
-  // Export GeoJSON (WGS 84) avec les recalages dans les photos, à importer sur un autre poste ; nom au choix
-  $("#couche-exporter").addEventListener("click", () => {
-    const base = overlay.name.replace(/\.(geojson|json|zip|shp|gpkg)\b.*$/i, "");
-    let name = prompt("Nom du fichier exporté :", `${base}-recale.geojson`)?.trim();
-    if (!name) return;
-    if (!/\.(geo)?json$/i.test(name)) name += ".geojson";
-    download(JSON.stringify({ type: "FeatureCollection",
+  // Export GeoJSON (WGS 84) avec les recalages dans les photos, à importer sur un autre poste : boîte
+  // d'enregistrement du système (Chrome, Edge) ; Firefox n'en donne pas l'accès aux pages : fichier
+  // téléchargé, sa propre boîte s'ouvre si « Toujours vous demander où enregistrer les fichiers » est coché
+  $("#couche-exporter").addEventListener("click", async () => {
+    const content = JSON.stringify({ type: "FeatureCollection",
       features: overlay.features.map(({ geometry, properties, recalages }) => ({ type: "Feature", geometry, recalages,
-        properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) }),
-    name, "application/geo+json");
+        properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) });
+    const suggestedName = `${overlay.name.replace(/\.(geojson|json|zip|shp|gpkg)\b.*$/i, "")}-recale.geojson`;
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({ suggestedName,
+          types: [{ description: "GeoJSON", accept: { "application/geo+json": [".geojson"] } }] });
+        const file = await handle.createWritable();
+        await file.write(content);
+        await file.close();
+        setStatus(`Couche exportée : ${handle.name}`);
+      } catch (error) {
+        if (error.name !== "AbortError") notice(`Couche non exportée : ${error.message}`);
+      }
+      return;
+    }
+    download(content, suggestedName, "application/geo+json");
   });
   $("#couche-retirer").addEventListener("click", () => {
     overlay = null;
