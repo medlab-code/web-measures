@@ -530,6 +530,8 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.4** (25/10/2026) : fiche d'objet, la pastille d'un objet recalé dans la photo est dessinée à sa
+  place recalée (seule l'étiquette y était) ; les valeurs masquées dans la légende n'y figurent plus.
 - **0.6.3** (25/10/2026) : Effacer, Refaire et Tout effacer au fond des autres boutons, avec un liseré
   jaune, vert ou rouge au lieu d'un fond coloré.
 - **0.6.2** (25/10/2026) : relevé d'objets. Nouveau mode « Relevé d'objets (couche SIG) » : chaque objet
