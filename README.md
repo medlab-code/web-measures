@@ -179,6 +179,15 @@ après.
 - **Mesure libre (points triangulés)** : viser chaque point depuis au moins deux photos, puis
   « Valider le point triangulé » ; à partir du deuxième, la distance horizontale au point précédent
   s'affiche, et la carte se cadre sur le segment.
+- **Relevé d'objets (couche SIG)** : viser chaque objet (un arbre d'un alignement, par exemple)
+  depuis au moins deux photos, puis « Valider le point triangulé » ; après une seule visée,
+  « Garder sur cette seule photo » propose de le poser là où la visée touche le sol, avec sa
+  précision (sol supposé plat, plus imprécise que la triangulation : sinon, viser depuis une autre
+  photo). Au premier objet, on définit les champs du relevé (nom, type : texte, nombre, date,
+  oui/non, liste de valeurs) ; ils reviennent pour chaque objet suivant (✎ dans les résultats pour
+  les modifier). Voie, PR et commune de l'objet s'ajoutent d'eux-mêmes. Le relevé s'exporte à part
+  (CSV, GeoJSON : un point par objet, ses champs en colonnes), chaque objet a sa fiche PDF, et il
+  reste dans le navigateur d'une séance à l'autre ; « Tout effacer » ne le retire que depuis ce mode.
 
 Repères visuels :
 
@@ -345,6 +354,7 @@ Essais sur deux photos imajbox à position RTK (±0,10 m) de Pouilly-en-Auxois, 
 | Hauteur | 3,46 m ± 0,11 m | 3,464 m |
 | Largeur (clic à 40° de la droite de mesure) | 8,00 m ± 0,33 m | 8 m |
 | Distance entre deux points | 3,60 m ± 0,24 m | 3,606 m |
+| Objet relevé sur une seule photo, à 6 m (`essai-releve.html`) | ±0,2 à 0,8 m selon le calage de l'inclinaison | à moins de 1 m de la cible |
 
 Inclinaison par le terrain (24/10/2026, 7 séquences CD21) : 14 photos témoins hors des villages
 de référence, prises en hameau ou en sortie de village à 56 à 67 km/h et calées par leurs

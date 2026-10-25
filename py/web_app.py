@@ -110,6 +110,8 @@ MAP_LINE_MIN = 4.0  # m au moins entre les deux clics
 MAP_CLICK = 0.3  # m : précision d'un clic sur la mini-carte zoomée
 MAP_HEADING_ERROR = 0.3  # degrés : cap EXIF des photos de relevé (point A posé sur la droite)
 MAP_MIN_ANGLE = 10.0  # degrés au moins entre la visée de A et la droite tracée
+# Relevé : objet posé sur une seule photo (App.releve_single), si la visée descend assez sous l'horizon
+SINGLE_MIN_ELEV = 2.0  # degrés : objet à 70 m au plus pour une caméra à 2,5 m
 # Visées des autres photos tracées dans la photo affichée (Session._epipolar_mark) : sans leurs premiers
 # mètres, vus très en biais, projetés à des milliers de pixels hors de l'écran et redessinés à chaque
 # image par la visionneuse (lenteur, surtout zoomé)
@@ -331,6 +333,9 @@ class App(session.Session):
         self.relay_models = {}  # séquence -> références, modèle (web_terrain.model), raison d'un échec
         self._core_auto_tilt = self.calibration.auto_tilt
         self.calibration.auto_tilt = self._auto_tilt
+        # Relevé d'objets (mode "releve" de la page) : la mesure libre du cœur, sans distance entre les
+        # points, chacun gardé avec les champs saisis par l'utilisateur (values["releve"])
+        self.releve = False
 
     # Données pour la page (JSON) -------------------------------------------------------
     def set_picture(self, item_json):
@@ -350,6 +355,8 @@ class App(session.Session):
         out = dict(super().state(), tilt_ready=self._tilt_pending() and len(self.tilt_clicks) == 2)
         out["tilt_reason"] = self._tilt_reason()
         # Effacer, Refaire, Tout effacer : grisés quand ils n'auraient pas d'effet
+        single = self.releve_single()  # relevé : objet sur cette seule photo, à proposer avec sa précision
+        out["single_m"] = round(single[2], 2) if single else None
         out.update(can_undo=self._can_undo(), can_redo=bool(self.redo_stack) and self._redo_state() == self.redo_key,
                    can_clear=self._can_clear())
         if self.item:  # inclinaison de la ligne d'état : textes du web (_tilt_line), pas ceux du cœur
@@ -759,8 +766,14 @@ class App(session.Session):
         for r in rows:
             if r["kind"] != "point":
                 continue
-            name = self.points[r["id"]][2]["nom"]
-            if name in under or name == current:
+            lon, lat, values = self.points[r["id"]]
+            name = values["nom"]
+            if "releve" in values:  # objet relevé : son nom, sa précision et son premier champ
+                first = next((v for v in values["releve"].values() if v not in (None, "")), None)
+                r = dict(r, releve=True, lonlat=[lon, lat], text="Objet {} ±{} m{}".format(
+                    name, measures._num(values["incert_m"], 2), "" if first is None else " — {}".format(_field_text(first))))
+                out.append(r)
+            elif name in under or name == current:
                 out += [r] + under.pop(name, [])
         for subs in under.values():
             orphans += [dict(r, sous=False) for r in subs]
@@ -790,6 +803,11 @@ class App(session.Session):
         # Le point de référence, puis pour chaque mesure son point d'arrivée (comme A s'il est
         # triangulé, sinon cliqué sur la photo) et, dessous, la mesure elle-même
         rows = [point_row(values, "Point de référence")]
+        if "releve" in values:  # objet relevé : un champ saisi par ligne, sous le point
+            rows[0]["mesure"] = rows[0]["mesure"].replace("Point de référence", "Objet relevé").replace(
+                "posé sur la droite tracée sur la carte", "posé sur une seule photo")
+            rows += [{"kind": "mesure", "point": name, "mesure": k, "valeur": _field_text(v), "incert": "",
+                      "commentaire": ""} for k, v in values["releve"].items()]
         texts, lonlats = [], [(lon, lat)]
         for m in found:
             r, end = m.result, self._end_name(m)
@@ -845,10 +863,131 @@ class App(session.Session):
         name = self.points[int(k)][2]["nom"]
         found = self._fiche_measures(name)
         largest = max(found, key=lambda m: m.result["value"], default=None)
+        if largest is None and self.item:  # point seul (objet relevé) : sa visée depuis cette photo
+            view = self.point_views.get(name, {}).get(self.item.get("id"))
+            return json.dumps([view] if view else [])
         if largest is None or not self.item:
             return "[]"
         pts = (self._height_points if largest.kind == "height" else self._width_points)(largest)
         return json.dumps([[p["yaw"], p["pitch"]] for p in pts if p["yaw"] is not None])
+
+    # Relevé d'objets (mode "releve") ------------------------------------------------------------
+    def keep_point(self):
+        """Relevé : point triangulé gardé comme objet, sans distance au précédent ; la page demande
+        ensuite ses champs (set_releve)."""
+        if not self.releve:
+            return super().keep_point()
+        n = len(self.points)
+        self.last_free = None
+        super().keep_point()
+        self.last_free = None
+        if len(self.points) > n:
+            self._releve_kept()
+        return self.status()
+
+    def _releve_kept(self):
+        values = self.points[-1][2]
+        values["releve"] = {}
+        self.message = ("Objet {} gardé (±{} m) : renseignez ses champs, puis visez l'objet suivant.").format(
+            values["nom"], measures._num(values["incert_m"], 2))
+
+    def _check_tilt(self):
+        """Relevé : inclinaison de la photo calculée comme en mesure (le cœur s'en passe en mesure
+        libre), car un objet posé sur une seule photo en dépend (voir releve_single)."""
+        if self.releve and self.active and self.item:
+            pic = self.item.get("id")
+            before = self.calibration.auto.get(pic)
+            self.tilts.check(self.item, self.calibration, lambda: self._on_tilt(pic, before))
+            return
+        super()._check_tilt()
+
+    def releve_single(self):
+        """Relevé, une seule visée faite depuis la photo affichée : (lon, lat, incertitude en m,
+        distance en m) du point où elle touche le sol, ou None (autre photo, visée trop près de
+        l'horizon). Incertitude : somme quadratique de la visée (AIM_ERROR) et de l'inclinaison de la
+        photo (calée, sinon UNCALIBRATED) en élévation et en cap, du cap de la séquence, de la hauteur
+        de caméra et de la position GPS de la photo."""
+        # shortcut: sol supposé plat entre la caméra et l'objet ; prendre le LiDAR HD au point si l'écart gêne
+        sightings = self.triangulator.sightings
+        if not self.releve or len(sightings) != 1 or not self.item or sightings[0]["pic"] != self.item.get("id"):
+            return None
+        s = sightings[0]
+        elev = -(s.get("elev") or 0.0)
+        if elev < SINGLE_MIN_ELEV:
+            return None
+        h = self._camera_height()
+        q = self.quality or {}
+        cam = self.calibration.camera(self.item.get("collection"))
+        sigma_h = (measures.CAMERA_ERRORS["altitude GPS"] if q.get("precise") and q.get("lidar") is True
+                   else cam["sigma"] if cam else measures.CAMERA_ERRORS[None])
+        tilt = self.calibration.tilt(s["pic"])
+        sigma_tilt = tilt["sigma"] if tilt and tilt.get("sigma") is not None else calibration.UNCALIBRATED
+        e = math.radians(elev)
+        d = h / math.tan(e)
+        sigma_e = math.radians(math.hypot(calibration.AIM_ERROR, sigma_tilt))
+        sigma_az = math.radians(math.hypot(calibration.AIM_ERROR, sigma_tilt, s.get("heading_error") or 0.0))
+        gps = s["accuracy"] or triangulation.GPS_ACCURACY
+        unc = math.sqrt((h / math.sin(e) ** 2 * sigma_e) ** 2 + (sigma_h / math.tan(e)) ** 2
+                        + (d * sigma_az) ** 2 + gps ** 2)
+        lon, lat = triangulation.offset(s["lon"], s["lat"], s["heading"], d)
+        return lon, lat, unc, d
+
+    def keep_single(self):
+        """Relevé : garde l'objet visé sur la seule photo affichée (voir releve_single)."""
+        single = self.releve_single()
+        if single is None:
+            return self.status()
+        lon, lat, unc, d = single
+        s = self.triangulator.sightings[0]
+        name = session._point_name(self.named)
+        self.named += 1
+        self.points.append((lon, lat, {
+            "nom": name, "nb_visees": 1, "angle": None, "incert_m": round(unc, 2), "ecart_m": None,
+            "dist_max_m": round(d, 1), "gps_m": round(s["accuracy"] or triangulation.GPS_ACCURACY, 1), "photos": s["pic"],
+            "date_mesure": datetime.now().isoformat(timespec="seconds"), "commentaire": ""}))
+        self.point_views[name] = {s["pic"]: s["view"]} if s.get("view") else {}
+        self.triangulator.clear()
+        self._releve_kept()
+        return self.status()
+
+    def set_releve(self, k, text):
+        """Champs saisis de l'objet relevé n° k (JSON {nom du champ: valeur}, dans l'ordre du formulaire)."""
+        k = int(k)
+        if 0 <= k < len(self.points) and "releve" in self.points[k][2]:
+            self.points[k][2]["releve"] = json.loads(text)
+        return self.status()
+
+    def clear_all(self):
+        """« Tout effacer » : hors du mode relevé, les objets relevés restent (exportés à part)."""
+        kept = [] if self.releve else [p for p in self.points if "releve" in p[2]]
+        views, named = {p[2]["nom"]: self.point_views.get(p[2]["nom"], {}) for p in kept}, self.named
+        super().clear_all()
+        if kept:
+            self.points, self.point_views, self.named = kept, views, named
+        return self.status()
+
+    def has_results(self):
+        """Mesures, points triangulés ou distances à exporter (les objets relevés à part : has_releve)."""
+        return bool(self.links) or any("releve" not in v for _, _, v in self.points) or any(
+            m.result for m in self.tool.measures())
+
+    def has_releve(self):
+        return any("releve" in v for _, _, v in self.points)
+
+    def releve_json(self):
+        """Objets relevés, à garder dans le navigateur entre deux séances (load_releve)."""
+        return json.dumps({"named": self.named, "points": [
+            [lon, lat, v, self.point_views.get(v["nom"], {})] for lon, lat, v in self.points if "releve" in v]},
+            ensure_ascii=False)
+
+    def load_releve(self, text):
+        """Objets relevés de la séance précédente (releve_json), ajoutés aux points gardés."""
+        data = json.loads(text or "null") or {}
+        for lon, lat, values, views in data.get("points", []):
+            self.points.append((lon, lat, values))
+            self.point_views[values["nom"]] = views
+        self.named = max(self.named, data.get("named", 0))
+        return self.status()
 
     def take_proposal(self):
         return json.dumps(super().take_proposal())
@@ -869,6 +1008,8 @@ class App(session.Session):
 
     def status(self):
         text = super().status()
+        if self.releve:
+            text = text.replace("Mesure libre (distance au point gardé précédent)", "Relevé d'objets")
         return _map_line_text(text) if MAP_SOURCE in text else text
 
     # Couche importée (GeoJSON, src/couche.js) : objets dans la photo, à leur altitude (z du fichier,
@@ -1186,7 +1327,8 @@ class App(session.Session):
     def set_mode(self, mode):
         self.tilt_clicks, self.tilt_sel = [], None
         self.map_line = None
-        return super().set_mode(mode)
+        self.releve = mode == "releve"
+        return super().set_mode("tri" if self.releve else mode)
 
     def aim(self, yaw, pitch):
         if self.mode == "road" and self.map_line is not None and self.ref_point is None and self.b_aiming is None:
@@ -1719,9 +1861,13 @@ class App(session.Session):
         return json.dumps({"type": "FeatureCollection", "features": features})
 
     # Export ------------------------------------------------------------------------------
-    def _records(self):
+    def _records(self, releve=False):
         """Mesures terminées et points triangulés : (géométrie [(lon, lat)], attributs), comme
-        les couches du plugin."""
+        les couches du plugin ; releve : les objets relevés seuls, leurs champs en colonnes."""
+        if releve:
+            return [([(lon, lat)], dict({"type": "objet relevé"}, **{k: v for k, v in values.items() if k != "releve"},
+                                        **values["releve"]))
+                    for lon, lat, values in self.points if "releve" in values]
         out = []
         for m in self.tool.measures():
             r = m.result
@@ -1749,7 +1895,8 @@ class App(session.Session):
                 "commentaire": getattr(m, "comment", ""),
             }))
         for lon, lat, values in self.points:
-            out.append(([(lon, lat)], dict({"type": "point triangulé"}, **values)))
+            if "releve" not in values:  # objets relevés : export à part, gardés à part dans le navigateur
+                out.append(([(lon, lat)], dict({"type": "point triangulé"}, **values)))
         for i, j, values in self.links:
             (lon1, lat1, v1), (lon2, lat2, v2) = self.points[i], self.points[j]
             out.append(([(lon1, lat1), (lon2, lat2)], {
@@ -1761,17 +1908,18 @@ class App(session.Session):
             }))
         return out
 
-    def export_geojson(self):
+    def export_geojson(self, releve=False):
         features = [{"type": "Feature", "properties": attrs,
                      "geometry": ({"type": "LineString", "coordinates": [list(p) for p in ends]} if len(ends) >= 2
                                   else {"type": "Point", "coordinates": list(ends[0])})}
-                    for ends, attrs in self._records()]
+                    for ends, attrs in self._records(releve)]
         return json.dumps({"type": "FeatureCollection", "features": features}, ensure_ascii=False, indent=1)
 
-    def export_csv(self):
+    def export_csv(self, releve=False):
         """CSV (séparateur point-virgule, virgule décimale : tableurs français), coordonnées
-        des extrémités en WGS 84 ; mesures et points triangulés dans le même tableau."""
-        records = self._records()
+        des extrémités en WGS 84 ; mesures et points triangulés dans le même tableau (releve :
+        les objets relevés seuls)."""
+        records = self._records(releve)
         if not records:
             return ""
         keys = list(dict.fromkeys(k for _, attrs in records for k in attrs))
@@ -1815,6 +1963,15 @@ class App(session.Session):
 def _view_heading(item, yaw):
     """Cap (degrés) du centre de la vue : la visionneuse s'oriente sur view:azimuth."""
     return (math.degrees(yaw) + (metadata.item_heading(item) or 0.0)) % 360
+
+
+def _field_text(value):
+    """Valeur d'un champ d'objet relevé pour la fiche : oui/non, nombre à virgule, texte."""
+    if isinstance(value, bool):
+        return "oui" if value else "non"
+    if isinstance(value, float):
+        return str(value).replace(".", ",")
+    return "" if value is None else str(value)
 
 
 def _csv(value):

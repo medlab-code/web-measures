@@ -589,7 +589,7 @@ button.principal { font-weight: 600; }
 #axe-vue[hidden] { display: none; }
 
 /* Largeur faite : proposer de trianguler le bord opposé (bleu des visées) */
-#trianguler-b {
+#trianguler-b, #garder-seul {
   pointer-events: auto;
   margin-top: 0.3rem;
   padding: 0.3rem 0.9rem;
@@ -603,8 +603,8 @@ button.principal { font-weight: 600; }
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   cursor: pointer;
 }
-#trianguler-b:hover { background: rgba(0, 152, 187, 0.85); }
-#trianguler-b[hidden] { display: none; }
+#trianguler-b:hover, #garder-seul:hover { background: rgba(0, 152, 187, 0.85); }
+#trianguler-b[hidden], #garder-seul[hidden] { display: none; }
 
 /* Photos à viser ensuite (hauteur, largeur) : bleu clair des visées, sous la validation */
 #guide-photos {
@@ -735,13 +735,13 @@ button.principal { font-weight: 600; }
   text-align: left; text-shadow: none; animation: none; }
 #vue.en-mesure #avis { color: var(--texte); }
 #vue.en-mesure #calcul-inclinaison.manuel { color: var(--echec); }
-#vue.en-mesure #garder, #vue.en-mesure #valider-objet, #vue.en-mesure #trianguler-b,
+#vue.en-mesure #garder, #vue.en-mesure #valider-objet, #vue.en-mesure #trianguler-b, #vue.en-mesure #garder-seul,
 #vue.en-mesure #guide-photos button, #vue.en-mesure #suite-mesure button {
   margin: 0; padding: 0.45rem 0.9rem; border-radius: 8px; font-size: 14px; text-shadow: none; box-shadow: none; }
 #vue.en-mesure #guide-photos, #vue.en-mesure #suite-mesure { justify-content: center; margin: 0; }
-#vue.en-mesure #guide-photos button, #vue.en-mesure #suite-mesure button, #vue.en-mesure #trianguler-b {
+#vue.en-mesure #guide-photos button, #vue.en-mesure #suite-mesure button, #vue.en-mesure #trianguler-b, #vue.en-mesure #garder-seul {
   background: var(--encart); color: var(--texte); }
-#vue.en-mesure #garder, #vue.en-mesure #valider-objet, #vue.en-mesure #trianguler-b { align-self: center; }  /* boutons centrés */
+#vue.en-mesure #garder, #vue.en-mesure #valider-objet, #vue.en-mesure #trianguler-b, #vue.en-mesure #garder-seul { align-self: center; }  /* boutons centrés */
 /* Messages variables (zoom, inclinaison) sous les boutons : ils ne les déplacent pas */
 .haut-centre > #avis, .haut-centre > #calcul-inclinaison { order: 1; }
 #mode-mesure {
@@ -1279,8 +1279,8 @@ canvas.traits {
 .fiche-couche { display: flex; align-items: center; gap: 0.2rem; padding: 0.3rem; border: 1px solid var(--bord);
   border-radius: 10px; }
 .fiche-couche .nom-couche { flex: 1; min-width: 0; padding-left: 0.2rem; }
-#couche-nom, #resultats-titre, #photo-titre { margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#couche-infos, #resultats-infos, #photo-infos { margin: 0; color: var(--discret); font-size: 0.85em; }
+#couche-nom, #resultats-titre, #releve-titre, #photo-titre { margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#couche-infos, #resultats-infos, #releve-infos, #photo-infos { margin: 0; color: var(--discret); font-size: 0.85em; }
 .fiche-couche .icone, .fiche-couche .oeil { flex: none; display: inline-flex; align-items: center; justify-content: center;
   width: 2.25rem; height: 2.25rem; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--texte); cursor: pointer; }
 .fiche-couche .icone:hover:not(:disabled), .fiche-couche .oeil:hover { background: var(--encart); }
@@ -1339,3 +1339,17 @@ button.lien:disabled { color: var(--discret); opacity: 0.6; cursor: default; }
 #choix-fiche .titre-fiche { display: flex; align-items: center; gap: 0.5rem; flex: 1 0 100%; margin-bottom: 0.2rem; }
 #choix-fiche .titre-fiche input { flex: 1; min-width: 0; }
 #choix-fiche form button { white-space: nowrap; }
+
+/* Relevé : champs de l'objet (#releve-objet), définis au premier objet */
+#releve-objet { max-width: 40rem; }
+#releve-objet form { flex-wrap: wrap; }
+#releve-definition, #releve-valeurs { flex: 1 0 100%; }
+#releve-definition { border: 1px solid var(--bord); border-radius: 5px; }
+#releve-definition legend { font-size: 13px; }
+#releve-champs { margin: 0 0 0.5rem; padding-left: 1.4rem; display: flex; flex-direction: column; gap: 0.4rem; }
+#releve-champs li > div { display: flex; gap: 0.4rem; align-items: center; }
+#releve-champs input[type="text"] { flex: 1; min-width: 0; }
+#releve-valeurs { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.45rem 0.8rem; align-items: center; }
+#releve-valeurs input:not([type="checkbox"]), #releve-valeurs select { width: 100%; }
+#releve-erreur { flex: 1 0 100%; margin: 0; color: var(--echec); }
+#releve-erreur[hidden] { display: none; }

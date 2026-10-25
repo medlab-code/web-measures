@@ -49,6 +49,9 @@
                 <option value="height">Hauteur d'un objet</option>
                 <option value="tri">Mesure libre (points triangulés)</option>
               </optgroup>
+              <optgroup label="Relevé">
+                <option value="releve">Relevé d'objets (couche SIG)</option>
+              </optgroup>
               <optgroup label="Calage des photos">
                 <option value="tilt">Calage : inclinaison (objets verticaux)</option>
               </optgroup>
@@ -122,6 +125,8 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         <p id="calcul-inclinaison" hidden>Calcul de l'inclinaison en cours : attendez avant de mesurer</p>
         <!-- Pendant les visées, dès qu'elles donnent un point : le garder -->
         <button id="garder" type="button" hidden title="Garder le point triangulé par ces visées">✔ Valider le point triangulé</button>
+        <!-- Relevé, une seule visée : garder l'objet sur cette photo, précision affichée (App.releve_single) -->
+        <button id="garder-seul" type="button" hidden title="Garder l'objet là où la visée touche le sol, sans le trianguler : moins précis">✔ Garder sur cette seule photo</button>
         <!-- Calage de l'inclinaison : pied et sommet placés, ajustables jusqu'à la validation -->
         <button id="valider-objet" type="button" hidden title="Caler l'inclinaison de la photo sur cet objet vertical">✔ Valider l'objet vertical</button>
         <!-- Largeur faite d'un clic : proposer de trianguler aussi le bord opposé (Session.start_edge_b) -->
@@ -180,6 +185,15 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             </div>
             <button id="csv" type="button" class="export" disabled title="Exporter en CSV (tableur), point-virgule et virgule décimale"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg> CSV</button>
             <button id="geojson" type="button" class="export" disabled title="Exporter en GeoJSON (SIG)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg> GeoJSON</button>
+          </div>
+          <!-- Relevé d'objets : exporté à part, gardé dans le navigateur d'une séance à l'autre -->
+          <div class="fiche-couche fiche-resultats">
+            <div class="nom-couche">
+              <p id="releve-titre">Relevé d'objets</p>
+              <p id="releve-infos">Aucun objet</p>
+            </div>
+            <button id="releve-csv" type="button" class="export" disabled title="Exporter le relevé en CSV (tableur), un objet par ligne, ses champs en colonnes"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg> CSV</button>
+            <button id="releve-geojson" type="button" class="export" disabled title="Exporter le relevé en GeoJSON (couche SIG de points)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg> GeoJSON</button>
           </div>
           <!-- Sans résultat : à quoi sert l'onglet -->
           <div id="resultats-vide" class="accueil">
@@ -457,6 +471,22 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
       <button value="" class="non">Annuler</button>
       <button value="vue" class="non vue-actuelle">Vue actuelle</button>
       <button value="auto" class="oui cadrage-auto">Cadrage automatique</button>
+    </form>
+  </dialog>
+
+  <!-- Relevé : champs de l'objet gardé ; au premier objet, les champs du relevé se définissent d'abord -->
+  <dialog id="releve-objet" class="avertissement">
+    <h2>Objet <span></span></h2>
+    <form method="dialog">
+      <fieldset id="releve-definition">
+        <legend>Champs du relevé : définis une fois, ils servent à tous les objets suivants</legend>
+        <ol id="releve-champs"></ol>
+        <button id="releve-ajouter" type="button">+ Ajouter un champ</button>
+      </fieldset>
+      <div id="releve-valeurs"></div>
+      <p id="releve-erreur" class="erreur" hidden></p>
+      <button value="" class="non">Plus tard</button>
+      <button id="releve-enregistrer" type="button" class="oui">Enregistrer</button>
     </form>
   </dialog>
 

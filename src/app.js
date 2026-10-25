@@ -561,6 +561,8 @@
 
   Calcul.startCalcul(() => refresh(), apiUrl).then((created) => {
     app = created;
+    // Relevé gardé : relu avant tout rafraîchissement, qui écrirait par-dessus un relevé vide
+    try { app.load_releve(store.get("releve") || ""); } catch (error) { console.warn("Relevé gardé illisible :", error); }
     const saved = store.get("calage");
     if (saved && !app.load_calibration(saved)) console.warn("Calage enregistré illisible : ignoré.");
     savedCalibration = app.calibration_version;
@@ -719,6 +721,7 @@
     $("#chute").replaceChildren(line(bridge, "pont"),
       ...rest.flatMap((t) => ["\n", t.startsWith("Au-dessus") ? line(t, "dessus") : t]));
     pointReady = state.point;
+    singleM = state.single_m;
     tiltReady = state.tilt_ready;
     pointSelected = state.point_sel;
     if (aiming !== state.aiming || newMeasure !== state.new_measure || edgeBAiming !== state.edge_b_aiming) {
@@ -751,6 +754,7 @@
     const results = app.has_results();
     $("#csv").disabled = !results;
     $("#geojson").disabled = !results;
+    saveReleve();
   }
 
   /**
@@ -818,7 +822,9 @@
         type: "button", className: "effacer-resultat", textContent: "✎", title: "Commentaire exporté avec le résultat",
       });
       edit.setAttribute("aria-label", `Commentaire : ${r.text}`);
+      if (r.releve) edit.title = "Champs de l'objet";
       edit.addEventListener("click", () => {
+        if (r.releve) return editReleve(r.id);
         comment.hidden = false;
         comment.focus();
       });
@@ -849,12 +855,13 @@
   let shownResults = [];
   function showResultsInfo(list = shownResults) {
     shownResults = list;
-    const points = list.filter((r) => r.kind === "point").length, others = list.length - points;
+    const measured = list.filter((r) => !r.releve);  // objets relevés : leur propre en-tête (saveReleve)
+    const points = measured.filter((r) => r.kind === "point").length, others = measured.length - points;
     const parts = [points && `${points} point${points > 1 ? "s" : ""}`, others && `${others} mesure${others > 1 ? "s" : ""}`]
       .filter(Boolean);
-    const done = Boolean(list.length) && exported === app.export_geojson();
+    const done = Boolean(measured.length) && exported === app.export_geojson();
     $("#resultats-infos").textContent = parts.length ? `${parts.join(" · ")} · ${done ? "exportés" : "non exportés"}` : "Aucune mesure";
-    $("#resultats-infos").classList.toggle("a-exporter", Boolean(list.length) && !done);
+    $("#resultats-infos").classList.toggle("a-exporter", Boolean(measured.length) && !done);
     $("#resultats-vide").hidden = Boolean(list.length);
   }
 
@@ -1368,6 +1375,7 @@
   }
 
   function checkFarFromMeasures(lonlat) {
+    if ($("#mode").value === "releve") return;  // relevé : on avance le long de la voie, objet après objet
     const d = distanceToMeasures(lonlat);
     if (d == null || d <= FAR_FROM_MEASURES) {
       farAsked = false;
@@ -2190,6 +2198,7 @@
    */
   let aiming = false;
   let pointReady = false;  // visées qui donnent un point (bouton « Valider le point triangulé »)
+  let singleM = null;  // relevé, une seule visée : précision (m) de l'objet gardé sur cette photo
   let tiltReady = false;  // calage de l'inclinaison : pied et sommet placés (bouton « Valider l'objet vertical »)
   let newMeasure = null;  // largeur faite : nom du point de référence (bouton « Nouvelle mesure depuis A »)
   let lineDrawn = false;  // droite de mesure tracée sur la carte, en attente du point A (#28)
@@ -2244,13 +2253,14 @@
     $("#vue").classList.toggle("calage", calibrating);
     // Largeur, hauteur, mesure libre : trait vertical au centre de la vue, le cap tracé sur la
     // carte ; la vue tournée vers le point à viser (take_aim_frame), il le désigne (ticket #26)
-    $("#axe-vue").hidden = !measuring || !["road", "height", "tri"].includes(mode) || viewer.hidden;
+    $("#axe-vue").hidden = !measuring || !["road", "height", "tri", "releve"].includes(mode) || viewer.hidden;
     // Même état en toutes lettres, sous le rappel du mode (comme les voyants)
     // Carte d'étape (en bas, en mesure) : nom de la mesure et ses étapes, la courante en couleur
     $("#vue").classList.toggle("en-mesure", measuring);
     const [title, steps, current] = mode === "height" ? ["Hauteur", ["Pied", "Sommet"], aiming ? 0 : newMeasure ? 2 : 1]
       : mode === "road" ? ["Largeur", ["Premier bord", "Bord opposé"], aiming && !edgeBAiming ? 0 : newMeasure ? 2 : 1]
       : mode === "tri" ? ["Mesure libre", ["Points visés depuis plusieurs photos"], 0]
+      : mode === "releve" ? ["Relevé d'objets", ["Objet visé", "Ses champs"], 0]
       : ["Calage de l'inclinaison", ["Deux objets verticaux"], 0];
     $("#nom-mesure").textContent = title;
     $("#etapes").replaceChildren(...steps.map((step, k) => Object.assign(document.createElement("li"), {
@@ -2261,6 +2271,7 @@
     state.textContent = sighting ? "Triangulation en cours" : taking ? "Mesure en cours" : "";
     $("#mode-mesure").textContent = mode === "tri"
       ? "Mesure libre : visez chaque point depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
+      : mode === "releve" ? "Relevé d'objets : visez l'objet depuis plusieurs photos puis « Valider le point triangulé », ou gardez-le sur une seule photo"
       : mode === "height" && aiming ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
       : mode === "height" && newMeasure ? `Hauteur faite : cliquez une de ses croix pour l'ajuster ; autre hauteur : « Nouvelle mesure depuis ${newMeasure} »`
       : mode === "height" ? "Hauteur, étape 2 : cliquez le sommet (le pied est le point visé) ; autre photo : par la carte"
@@ -2271,7 +2282,7 @@
       : mode === "tilt" ? "Calage de l'inclinaison : pied puis sommet de deux objets verticaux, à 90° l'un de l'autre"
       : "Mode mesure en cours : désélectionner pour naviguer";
     // Nom de la mesure et étape déjà dans l'en-tête de la carte d'étape (« Hauteur, étape 1 : »…) : retirés
-    const tip = $("#mode-mesure").textContent.replace(/^(?:Hauteur|Largeur|Mesure libre|Calage de l'inclinaison)[^:]*: /, "");
+    const tip = $("#mode-mesure").textContent.replace(/^(?:Hauteur|Largeur|Mesure libre|Relevé d'objets|Calage de l'inclinaison)[^:]*: /, "");
     $("#mode-mesure").textContent = tip[0].toUpperCase() + tip.slice(1);
     showModeOptions();
     const box = psv?.container;
@@ -2600,6 +2611,9 @@
     $("#nouvelle-reference").hidden = !measuring || mode !== "height" || aiming || viewer.hidden;
     // « Valider le point triangulé », dans la visionneuse : dès que les visées donnent un point
     $("#garder").hidden = !measuring || !aiming || !pointReady || viewer.hidden;
+    // Relevé, une seule visée : la question, avec la précision ; sinon viser depuis une autre photo
+    $("#garder-seul").hidden = !measuring || mode !== "releve" || singleM == null || viewer.hidden;
+    if (singleM != null) $("#garder-seul").textContent = `✔ Garder sur cette seule photo (± ${String(singleM).replace(".", ",")} m)`;
     $("#valider-objet").hidden = !measuring || !tiltReady || viewer.hidden;
     $("#nouvelle-mesure").hidden = !measuring || !newMeasure || viewer.hidden;
     $("#trianguler-b").hidden = !measuring || !edgeBOffered || viewer.hidden;
@@ -2633,9 +2647,15 @@
   });
   $("#valider-objet").addEventListener("click", () => refresh(app.validate_tilt()));
   $("#garder").addEventListener("click", () => {
+    const before = app.has_releve() ? app.releve_json() : "";
     refresh(app.keep_point());
     const reference = app.take_goto();  // retour sur la photo de référence, pour la mesure
     if (reference) goToPhoto(reference);
+    if ($("#mode").value === "releve" && app.releve_json() !== before) editReleve(null, true);
+  });
+  $("#garder-seul").addEventListener("click", () => {
+    refresh(app.keep_single());
+    editReleve(null, true);
   });
   $("#nouvelle-mesure").addEventListener("click", () => refresh(app.new_measure()));
   $("#trianguler-b").addEventListener("click", () => refresh(app.start_edge_b()));
@@ -2747,6 +2767,136 @@
     if (await download(geojson, "mesures.geojson", "application/geo+json")) exported = geojson;
     saveResults();
     showResultsInfo();
+  });
+
+  // Relevé d'objets ---------------------------------------------------------------------------
+  // Objets gardés dans le navigateur d'une séance à l'autre (App.releve_json) ; champs définis au
+  // premier objet (nom, type), gardés avec eux, et proposés pour tous les suivants.
+
+  const RELEVE_TYPES = { texte: "Texte", nombre: "Nombre", date: "Date", oui_non: "Oui / non", liste: "Liste de valeurs" };
+  // Colonnes déjà remplies par l'application : un champ ne peut pas porter leur nom
+  const RELEVE_RESERVES = ["type", "nom", "nb_visees", "angle", "incert_m", "ecart_m", "dist_max_m", "gps_m",
+    "photos", "date_mesure", "commentaire", "voie", "pr", "commune"];
+  let releveSaved = null;
+
+  function releveFields() {
+    try { return JSON.parse(store.get("releve-champs") || "[]"); } catch { return []; }
+  }
+
+  function saveReleve() {
+    const n = JSON.parse(app.results()).filter((r) => r.releve).length;
+    $("#releve-csv").disabled = !n;
+    $("#releve-geojson").disabled = !n;
+    $("#releve-infos").textContent = n ? `${n} objet${n > 1 ? "s" : ""}` : "Aucun objet";
+    const json = n ? app.releve_json() : "";
+    if (json === releveSaved) return;
+    releveSaved = json;
+    store.set("releve", json);
+  }
+
+  $("#releve-csv").addEventListener("click", () => download("﻿" + app.export_csv(true), "releve.csv", "text/csv"));
+  $("#releve-geojson").addEventListener("click", () => download(app.export_geojson(true), "releve.geojson", "application/geo+json"));
+
+  /** Ligne de définition d'un champ : nom, type, valeurs de la liste. */
+  function fieldRow(field = { nom: "", type: "texte", valeurs: [] }) {
+    const li = document.createElement("li"), row = document.createElement("div");
+    const name = Object.assign(document.createElement("input"), { type: "text", value: field.nom, placeholder: "Nom du champ (ex. distance_bord_m)", className: "nom" });
+    const type = Object.assign(document.createElement("select"), { className: "type" });
+    type.append(...Object.entries(RELEVE_TYPES).map(([value, text]) => new Option(text, value, false, value === field.type)));
+    const values = Object.assign(document.createElement("input"), { type: "text", value: (field.valeurs || []).join(" ; "),
+      placeholder: "Valeurs séparées par « ; »", className: "valeurs", hidden: field.type !== "liste" });
+    const remove = Object.assign(document.createElement("button"), { type: "button", textContent: "×", title: "Retirer ce champ" });
+    remove.setAttribute("aria-label", "Retirer ce champ");
+    const changed = () => { values.hidden = type.value !== "liste"; showFieldInputs(readFields(), {}); };
+    for (const input of [name, type, values]) input.addEventListener("input", changed);
+    remove.addEventListener("click", () => { li.remove(); changed(); });
+    row.append(name, type, remove);
+    li.append(row, values);
+    return li;
+  }
+
+  function readFields() {
+    return [...$("#releve-champs").children].map((li) => ({
+      nom: li.querySelector(".nom").value.trim(), type: li.querySelector(".type").value,
+      valeurs: li.querySelector(".valeurs").value.split(";").map((v) => v.trim()).filter(Boolean),
+    })).filter((f) => f.nom);
+  }
+
+  /** Saisie des valeurs, une ligne par champ, préremplie par values. */
+  function showFieldInputs(fields, values) {
+    const box = $("#releve-valeurs");
+    const kept = Object.fromEntries([...box.querySelectorAll("[data-champ]")].map((i) => [i.dataset.champ, i]));
+    box.replaceChildren(...fields.flatMap((f, k) => {
+      const id = `releve-champ-${k}`, old = kept[f.nom];
+      const label = Object.assign(document.createElement("label"), { htmlFor: id, textContent: f.nom });
+      let input;
+      if (f.type === "liste") {
+        input = document.createElement("select");
+        input.append(new Option("—", ""), ...f.valeurs.map((v) => new Option(v, v)));
+      } else {
+        input = Object.assign(document.createElement("input"), {
+          type: { nombre: "number", date: "date", oui_non: "checkbox" }[f.type] || "text" });
+        if (f.type === "nombre") input.step = "any";
+      }
+      Object.assign(input, { id });
+      input.dataset.champ = f.nom;
+      input.dataset.type = f.type;
+      const value = f.nom in values ? values[f.nom] : old && old.dataset.type === f.type ? (old.type === "checkbox" ? old.checked : old.value) : null;
+      if (f.type === "oui_non") input.checked = value === true;
+      else if (value != null) input.value = String(value);
+      return [label, input];
+    }));
+  }
+
+  /** Champs de l'objet relevé n° k (null : le dernier gardé) ; fresh : objet tout juste gardé, le
+   * lieu (voie, PR, commune) lu en même temps. Au premier objet du relevé, définition des champs. */
+  function editReleve(k, fresh = false) {
+    const objects = JSON.parse(app.results()).filter((r) => r.releve);
+    const row = k == null ? objects.reduce((a, b) => (b.id > a.id ? b : a), objects[0]) : objects.find((r) => r.id === k);
+    if (!row) return;
+    const values = JSON.parse(app.releve_json()).points.find(([, , v]) => v.nom === /^Objet (\S+)/.exec(row.text)[1])?.[2].releve || {};
+    if (objects.length === 1 && fresh) store.set("releve-champs", "");  // nouveau relevé : ses champs à définir
+    const fields = releveFields(), defining = !fields.length;
+    const place = "voie" in values ? null : Lieu.describe(...row.lonlat).catch(() => ({ parts: {} }));
+    const dialog = $("#releve-objet");
+    dialog.querySelector("h2 span").textContent = /^Objet (\S+)/.exec(row.text)[1];
+    $("#releve-definition").hidden = !defining;
+    $("#releve-champs").replaceChildren(...(defining ? [fieldRow()] : []));
+    $("#releve-valeurs").replaceChildren();
+    $("#releve-erreur").hidden = true;
+    showFieldInputs(defining ? readFields() : fields, values);
+    $("#releve-enregistrer").onclick = async () => {
+      const list = defining ? readFields() : fields;
+      const names = list.map((f) => f.nom);
+      const error = !list.length ? "Ajoutez au moins un champ."
+        : names.find((n) => RELEVE_RESERVES.includes(n)) ? `« ${names.find((n) => RELEVE_RESERVES.includes(n))} » est déjà une colonne de l'export : choisissez un autre nom.`
+        : new Set(names).size < names.length ? "Deux champs portent le même nom."
+        : list.find((f) => f.type === "liste" && !f.valeurs.length) ? `Donnez les valeurs de la liste « ${list.find((f) => f.type === "liste" && !f.valeurs.length).nom} ».`
+        : "";
+      $("#releve-erreur").textContent = error;
+      $("#releve-erreur").hidden = !error;
+      if (error) return;
+      if (defining) store.set("releve-champs", JSON.stringify(list));
+      const out = {};
+      for (const input of $("#releve-valeurs").querySelectorAll("[data-champ]")) {
+        const type = input.dataset.type;
+        out[input.dataset.champ] = type === "oui_non" ? input.checked
+          : type === "nombre" ? (input.value === "" ? null : Number(input.value)) : input.value;
+      }
+      for (const key of ["voie", "pr", "commune"]) if (key in values) out[key] = values[key];  // lieu déjà lu
+      if (place) {
+        const { parts = {} } = await place;
+        Object.assign(out, { voie: parts.voie || "", pr: parts.pr || "", commune: parts.commune || "" });
+      }
+      dialog.close();
+      refresh(app.set_releve(row.id, JSON.stringify(out)));
+    };
+    dialog.returnValue = "";
+    showOverViewer(dialog);
+  }
+  $("#releve-ajouter").addEventListener("click", () => {
+    $("#releve-champs").append(fieldRow());
+    $("#releve-champs").lastElementChild.querySelector(".nom").focus();
   });
 
   // Résultats gardés dans le navigateur à chaque changement (exports CSV et GeoJSON tout prêts) :
@@ -2994,9 +3144,10 @@
   /** Choix de la photo de la fiche (cadrage automatique ou vue actuelle), puis la fiche : la fenêtre
    * s'ouvre au clic du choix, geste de l'utilisateur (sinon bloquée par le navigateur). */
   function askFiche(k, text) {
-    const dialog = $("#choix-fiche"), name = (/^Point (\S+)/.exec(text) || [])[1] || "";
+    const dialog = $("#choix-fiche"), [, kind, name = ""] = /^(Point|Objet) (\S+)/.exec(text) || [];
     dialog.querySelector("h2 span").textContent = name;
-    $("#titre-fiche").value = `point de référence ${name}`;  // texte libre, laissé tel quel ou modifié
+    // texte libre, laissé tel quel ou modifié
+    $("#titre-fiche").value = `${kind === "Objet" ? "objet relevé" : "point de référence"} ${name}`;
     dialog.returnValue = "";
     dialog.addEventListener("close", () => {
       if (dialog.returnValue) makeFiche(k, dialog.returnValue === "auto", $("#titre-fiche").value.trim());
@@ -3090,9 +3241,10 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     step(auto ? "Cadrage de la photo sur la mesure" : "Capture de la vue actuelle", 40);
     const ends = auto ? JSON.parse(app.fiche_frame(k)) : [];
     // Hauteur : la mesure sur 75 % de la hauteur de l'image ; largeur : 10 % de marge de chaque côté
-    frameView(ends, false, { aspect: FICHE_PHOTO.width / FICHE_PHOTO.height, margin: data.kind === "height" ? 1 / 0.75 : 1.25 });
+    // Objet relevé, point seul : centré, champ de vue par défaut
+    frameView(ends, false, ends.length > 1 ? { aspect: FICHE_PHOTO.width / FICHE_PHOTO.height, margin: data.kind === "height" ? 1 / 0.75 : 1.25 } : null);
     await viewSettled();
-    if (auto && data.kind !== "height") {  // largeur : un peu de recul autour de la ligne ; hauteur : cadrage seul
+    if (auto && data.kind !== "height" && ends.length > 1) {  // largeur : un peu de recul autour de la ligne ; hauteur : cadrage seul
       psv.zoom(Math.max(0, psv.getZoomLevel() - FICHE_UNZOOM));
       await viewSettled();
     }

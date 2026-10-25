@@ -1,0 +1,159 @@
+<!doctype html><meta charset="utf-8"><title>Essai relevé d'objets</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Relevé d'objets sur deux photos imajbox à position RTK (Pouilly-en-Auxois) : un objet
+     triangulé depuis les deux photos, un autre gardé sur une seule photo ; champs définis au
+     premier objet, exports, relevé remis au rechargement. Lancer comme tests/navigateur.html. -->
+<script>try { localStorage.clear(); } catch {}</script>
+<iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Contrôles : valeur comparée à l'attendu, avec une tolérance ; échecs journalisés (« ÉCHEC ») et
+// comptés, bilan avant « FIN » (« ERREUR » s'il y en a : le serveur d'essai s'arrête)
+let failures = 0, checks = 0;
+const expect = (what, ok, detail = "") => {
+  checks++;
+  if (!ok) {
+    failures++;
+    log("ÉCHEC " + what + (detail ? " : " + detail : ""));
+  }
+};
+const near = (what, value, expected, tol) =>
+  expect(what, Math.abs(value - expected) <= tol, `${value} au lieu de ${expected.toFixed(3)} (±${tol})`);
+const metresIn = (text) => Number(((text || "").match(/(\d+,\d+) m\b/) || [])[1]?.replace(",", "."));
+const verdict = () => log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
+async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
+const feature = async (id) => (await (await fetch("https://api.panoramax.xyz/api/search?ids=" + id)).json()).features[0];
+const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-955becc79e81"];
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  try {
+    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 120000, "Pyodide");
+    const app = w.mesures.app, doc = w.document;
+    doc.querySelector("#reglages-defaut")?.close();
+    const psvClick = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: false }; w.mesures.psv.dispatchEvent(e); };
+    doc.querySelector("#mesure").click();
+    doc.querySelector("#mode").value = "releve"; doc.querySelector("#mode").dispatchEvent(new Event("change"));
+    const photos = await Promise.all(IDS.map(feature));
+    const heading = (f) => { const [n, d] = f.properties.exif["Exif.GPSInfo.GPSImgDirection"].split("/"); return n / d; };
+    const metres = ([lon, lat], [lon0, lat0]) => [(lon - lon0) * 111320 * Math.cos(lat0 * Math.PI / 180), (lat - lat0) * 111320];
+    const [p0, p1] = photos.map((f) => f.geometry.coordinates);
+    const mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
+    const along = Math.atan2(...metres(p1, p0));
+    const kx = 111320 * Math.cos(mid[1] * Math.PI / 180);
+    const target = [mid[0] + 5 * Math.cos(along) / kx, mid[1] - 5 * Math.sin(along) / 111320];
+    const yawTo = (f, pt) => { const [x, y] = metres(pt, f.geometry.coordinates); return Math.atan2(x, y) - heading(f) * Math.PI / 180; };
+    const altitude = (f) => { const [n, d] = String(f.properties.exif["Exif.GPSInfo.GPSAltitude"]).split("/"); return n / (d || 1); };
+    const level = photos.reduce((a, f) => a + altitude(f), 0) / photos.length - 2.0;
+    const pitchTo = (f, pt) => Math.atan2(level - altitude(f), Math.hypot(...metres(pt, f.geometry.coordinates)));
+    const open = async (f) => {
+      w.mesures.openPhoto(f);
+      await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "photo");
+      await until(() => JSON.parse(app.state()).quality.includes("vérifiée"), 60000, "position vérifiée");
+      await sleep(800);
+    };
+    const shown = (id) => !doc.querySelector(id).hidden;
+    expect("exports du relevé grisés sans objet", doc.querySelector("#releve-csv").disabled && doc.querySelector("#releve-geojson").disabled);
+    log("rappel : " + doc.querySelector("#nom-mesure").textContent + " · " + doc.querySelector("#mode-mesure").textContent);
+    // 1er objet : triangulé depuis les deux photos ; après la première visée, la question d'une seule photo
+    await open(photos[0]);
+    psvClick(yawTo(photos[0], target), pitchTo(photos[0], target));
+    await sleep(300);
+    log("1 visée : " + doc.querySelector("#garder-seul").textContent + " · " + doc.querySelector("#statut").textContent);
+    if (location.hash === "#capture") { log("CAPTURE"); await sleep(5000); }  // question d'une seule photo
+    expect("une visée : « Garder sur cette seule photo » proposé avec sa précision", shown("#garder-seul")
+      && /± \d+,\d+ m/.test(doc.querySelector("#garder-seul").textContent));
+    await open(photos[1]);
+    psvClick(yawTo(photos[1], target), pitchTo(photos[1], target));
+    await sleep(300);
+    expect("deux visées : plus de proposition d'une seule photo", !shown("#garder-seul") && shown("#garder"));
+    doc.querySelector("#garder").click();
+    const dialog = doc.querySelector("#releve-objet");
+    await until(() => dialog.open, 5000, "fenêtre des champs");
+    expect("premier objet : définition des champs proposée", shown("#releve-definition"));
+    const rows = () => doc.querySelectorAll("#releve-champs > li");
+    const setRow = (li, name, type, values = "") => {
+      li.querySelector(".nom").value = name; li.querySelector(".nom").dispatchEvent(new Event("input"));
+      li.querySelector(".type").value = type; li.querySelector(".type").dispatchEvent(new Event("input"));
+      li.querySelector(".valeurs").value = values; li.querySelector(".valeurs").dispatchEvent(new Event("input"));
+    };
+    setRow(rows()[0], "nom", "texte");  // nom réservé : refusé
+    doc.querySelector("#releve-enregistrer").click();
+    await sleep(200);
+    expect("nom de colonne réservé refusé", shown("#releve-erreur") && dialog.open, doc.querySelector("#releve-erreur").textContent);
+    setRow(rows()[0], "distance_bord_m", "nombre");
+    doc.querySelector("#releve-ajouter").click();
+    setRow(rows()[1], "essence", "liste", "chêne ; tilleul");
+    const input = (name) => doc.querySelector(`#releve-valeurs [data-champ="${name}"]`);
+    expect("saisie : une ligne par champ défini", input("distance_bord_m")?.type === "number" && input("essence")?.tagName === "SELECT"
+      && input("essence").options.length === 3);
+    input("distance_bord_m").value = "2.4";
+    input("essence").value = "tilleul";
+    if (location.hash === "#capture") { log("CAPTURE"); await sleep(5000); }  // capture par CDP (fenêtre des champs)
+    doc.querySelector("#releve-enregistrer").click();
+    await until(() => !dialog.open, 15000, "fenêtre fermée (lieu lu)");
+    await sleep(300);
+    let objects = JSON.parse(app.results()).filter((r) => r.releve);
+    log("résultats : " + objects.map((r) => r.text).join(" | "));
+    expect("objet A listé avec son premier champ", objects.length === 1 && /^Objet A ±\d+,\d+ m — 2,4$/.test(objects[0].text), objects[0]?.text);
+    // 2e objet : une seule visée, gardé sur cette photo ; les champs ne se redéfinissent pas
+    const target2 = [target[0] + 6 * Math.sin(along) / kx, target[1] + 6 * Math.cos(along) / 111320];
+    psvClick(yawTo(photos[1], target2), pitchTo(photos[1], target2));
+    await sleep(300);
+    const single = JSON.parse(app.state()).single_m;
+    log("seule photo : ±" + single + " m · " + doc.querySelector("#garder-seul").textContent);
+    expect("objet sur une seule photo : précision de l'ordre du mètre au plus", single > 0 && single < 1.5, String(single));
+    doc.querySelector("#garder-seul").click();
+    await until(() => dialog.open, 5000, "fenêtre des champs (2)");
+    expect("objets suivants : champs déjà définis, saisie seule", !shown("#releve-definition") && input("essence"));
+    input("distance_bord_m").value = "3";
+    input("essence").value = "chêne";
+    if (location.hash === "#capture") { log("CAPTURE"); await sleep(5000); }
+    doc.querySelector("#releve-enregistrer").click();
+    await until(() => !dialog.open, 15000, "fenêtre fermée (2)");
+    await sleep(300);
+    const geo = JSON.parse(app.export_geojson(true));
+    const [a, b] = geo.features;
+    log("export : " + JSON.stringify(geo.features.map((f) => f.properties)));
+    expect("export du relevé : deux objets, champs en colonnes", geo.features.length === 2 && a.properties.distance_bord_m === 2.4
+      && a.properties.essence === "tilleul" && b.properties.distance_bord_m === 3 && b.properties.nb_visees === 1 && "voie" in a.properties);
+    const [bx, by] = metres(b.geometry.coordinates, target2);
+    near("objet sur une seule photo : écart à la cible (m)", Math.hypot(bx, by), 0, 1.0);
+    const [ax, ay] = metres(a.geometry.coordinates, target);
+    near("objet triangulé : écart à la cible (m)", Math.hypot(ax, ay), 0, 0.3);
+    expect("export des mesures sans les objets relevés", JSON.parse(app.export_geojson()).features.length === 0);
+    const csv = app.export_csv(true);
+    expect("CSV du relevé : en-tête avec les champs", csv.split("\n")[0].includes("distance_bord_m;essence"), csv.split("\n")[0]);
+    expect("exports du relevé actifs", !doc.querySelector("#releve-csv").disabled && doc.querySelector("#releve-infos").textContent === "2 objets");
+    // Fiche : champs dans le tableau ; cadrage sur l'objet depuis sa photo
+    const fiche = JSON.parse(app.fiche(objects[0].id));
+    log("fiche : " + fiche.rows.map((r) => `${r.point}/${r.mesure}/${r.valeur}`).join(" | "));
+    expect("fiche : une ligne par champ", fiche.rows.some((r) => r.mesure === "essence" && r.valeur === "tilleul")
+      && fiche.rows[0].mesure.startsWith("Objet relevé"));
+    const k2 = JSON.parse(app.results()).filter((r) => r.releve).pop().id;
+    expect("fiche de l'objet B : visée sur cette photo pour le cadrage", JSON.parse(app.fiche_frame(k2)).length === 1);
+    // ✎ : champs de l'objet préremplis
+    const edits = [...doc.querySelectorAll("#resultats > ol li")].filter((li) => li.textContent.includes("Objet B"));
+    edits[0]?.querySelectorAll("button").forEach((btn) => { if (btn.textContent === "✎") btn.click(); });
+    await until(() => dialog.open, 5000, "fenêtre ✎");
+    expect("✎ : champs de l'objet préremplis", input("distance_bord_m").value === "3" && input("essence").value === "chêne");
+    dialog.close();
+    // Tout effacer dans un autre mode : le relevé reste
+    doc.querySelector("#mode").value = "tri"; doc.querySelector("#mode").dispatchEvent(new Event("change"));
+    doc.querySelector("#tout-effacer").click();
+    await sleep(300);
+    expect("« Tout effacer » hors relevé : objets relevés gardés", JSON.parse(app.export_geojson(true)).features.length === 2);
+    // Rechargement : relevé remis
+    w.location.reload();
+    await sleep(1000);
+    await until(() => w.document.readyState === "complete" && w.mesures?.app, 120000, "Pyodide rechargé");
+    await sleep(2000);
+    const back = JSON.parse(w.mesures.app.export_geojson(true)).features;
+    expect("relevé remis au rechargement", back.length === 2 && back[0].properties.essence === "tilleul");
+    expect("exports du relevé actifs après rechargement", !w.document.querySelector("#releve-geojson").disabled);
+    verdict();
+  } catch (e) { log("ERREUR " + e + " " + (e.stack || "").split("\n")[1]); }
+  log("FIN");
+})();
+</script>
