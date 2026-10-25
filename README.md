@@ -43,7 +43,7 @@ première photo s'ouvre (Clos de Vougeot, D974), tournée vers l'ouest.
 
 **Le panneau** (sous la mini-carte) : les onglets **Résultats**, **Photo**, **Favoris** et **Couche**
 (nombre de résultats et de favoris sur l'onglet) ; en bas, les boutons **Mesure** (consigne, état de
-la position GPS et de l'inclinaison, hauteur de caméra), **Filtre** (point orange quand un filtre est
+la position GPS et de l'inclinaison, hauteur de caméra ; ouvert seul à la première mesure), **Filtre** (point orange quand un filtre est
 actif), **Réglages** et **Services**. Une section
 s'affiche à la fois ; la dernière choisie est rouverte à la visite suivante.
 

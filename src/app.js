@@ -2102,6 +2102,11 @@
   $("#mesure").addEventListener("click", () => {
     measuring = !measuring;
     if (measuring) stopPlayer();  // la mesure se fait sur une photo arrêtée
+    // Première mesure dans ce navigateur : section Mesure ouverte (état GPS, caméra), une fois
+    if (measuring && store.get("mesure-montree") !== "1") {
+      store.set("mesure-montree", "1");
+      showPane("bloc-mesure");
+    }
     applyMeasureUi();
     if (psv) updatePlayer();
     refresh(app.set_active(measuring));

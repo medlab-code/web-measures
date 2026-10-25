@@ -105,7 +105,10 @@ async function feature(id) {
   };
 
   log("bouton Mesure désactivé : " + app.status());
+  w.localStorage.removeItem("web-measures/mesure-montree");  // comme une première mesure dans ce navigateur
   doc.querySelector("#mesure").click();
+  expect("section Mesure ouverte à la première mesure", !doc.querySelector("#bloc-mesure").hidden
+    && w.localStorage.getItem("web-measures/mesure-montree") === "1");
   log("bouton Mesure activé : " + app.status());
   expect("« Avec les mesures » grisé sans mesure", doc.querySelector("#vignette").disabled);
 
