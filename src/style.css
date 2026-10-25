@@ -412,8 +412,11 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .reglages label { display: flex; align-items: center; gap: 0.35rem; }
 .reglages input[type="number"] { width: 4.5rem; }
 
-#ajouter-favori .etoile { color: #ffa000; }  /* jaune orangé, comme l'étoile pleine des favoris */
-#ajouter-favori:disabled .etoile { opacity: 0.5; }
+/* Étoile de l'onglet Photo : contour jaune orangé pour ajouter, pleine quand la photo est en favori */
+#ajouter-favori .etoile { color: #ffa000; fill: none; }
+#ajouter-favori.en-favori .etoile { fill: currentColor; }
+#ajouter-favori:disabled:not(.en-favori) .etoile { color: var(--discret); }
+.fiche-couche #ajouter-favori.en-favori:disabled { opacity: 1; }
 #favoris ol { margin: 0; padding-left: 0.2rem; list-style: none; }
 #favoris ol:empty { display: none; }
 #favoris ol:not(:empty) + .aide { display: none; }
@@ -459,6 +462,19 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 #resultats .effacer-resultat:hover, #favoris .effacer-resultat:hover { opacity: 1; background: var(--bord); }
 #resultats li input { width: 100%; margin-top: 0.3rem; }
 .fiche-resultats .nom-couche { padding-left: 0.5rem; }
+/* Onglet Photo : icône de la fiche, position en lignes à voyants, détails, encart du calage */
+.fiche-couche .icone-fiche { flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 2.25rem; height: 2.25rem; color: var(--discret); }
+.etats { list-style: none; margin: 0.3rem 0 0; padding: 0; }
+.etats li { position: relative; padding: 0.2rem 0 0.2rem 1.1rem; font-size: 0.92em; color: var(--texte); }  /* couleur : voyant seul */
+.etats li::before { content: ""; position: absolute; left: 0.15rem; top: 0.6em; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--discret); }
+.etats li.ok::before { background: var(--ok); }
+.etats li.attente::before { background: var(--panoramax); }
+#fiche dd.identifiant { font-family: "JetBrains Mono", monospace; font-size: 0.85em; word-break: break-all; }
+.encart-calage { margin-top: 1.2rem; padding: 0.6rem 0.75rem; border-radius: 8px; background: var(--encart); }
+.encart-calage h3 { margin-top: 0; }
+.encart-calage .aide { margin: 0.2rem 0 0; }
 .fiche-resultats .export { display: inline-flex; align-items: center; gap: 0.3rem; flex: none; padding: 0.3rem 0.55rem;
   font-size: 0.85em; font-weight: 600; }
 #resultats-infos.a-exporter::before { content: "● "; color: var(--panoramax); }  /* pas encore exportés */
@@ -949,7 +965,6 @@ dl { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.75rem; margin
 dt { color: var(--discret); }
 dd { margin: 0; overflow-wrap: anywhere; }
 /* Identifiant de la photo : bouton de copie sur sa ligne, un peu détaché */
-dd .copier { display: block; margin-top: 0.4rem; padding: 0.1rem 0.5rem; font-size: 12px; white-space: nowrap; }
 /* Aller à une photo par son identifiant */
 #aller-photo { margin-top: 0.9rem; }
 #aller-photo label { display: block; margin-bottom: 0.25rem; color: var(--discret); }
@@ -1159,8 +1174,8 @@ canvas.traits {
 .fiche-couche { display: flex; align-items: center; gap: 0.2rem; padding: 0.3rem; border: 1px solid var(--bord);
   border-radius: 10px; }
 .fiche-couche .nom-couche { flex: 1; min-width: 0; padding-left: 0.2rem; }
-#couche-nom, #resultats-titre { margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#couche-infos, #resultats-infos { margin: 0; color: var(--discret); font-size: 0.85em; }
+#couche-nom, #resultats-titre, #photo-titre { margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#couche-infos, #resultats-infos, #photo-infos { margin: 0; color: var(--discret); font-size: 0.85em; }
 .fiche-couche .icone, .fiche-couche .oeil { flex: none; display: inline-flex; align-items: center; justify-content: center;
   width: 2.25rem; height: 2.25rem; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--texte); cursor: pointer; }
 .fiche-couche .icone:hover:not(:disabled), .fiche-couche .oeil:hover { background: var(--encart); }

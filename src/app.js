@@ -637,6 +637,24 @@
     dialog.addEventListener("close", () => window.removeEventListener("resize", place), { once: true });
   }
 
+  /** Onglet Photo, « Position » : un élément par ligne (GPS, terrain, inclinaison, calage), chacun avec
+   * son voyant, comme ceux de la visionneuse : vert vérifié ou calé, orange manquant ou en attente, gris sinon
+   * (le ⚠ de la ligne d'état porte sur l'élément en cause, pas sur les autres). */
+  let shownPosition = "";
+  function showPosition(quality, calibration) {
+    const key = `${quality}\n${calibration}`;
+    if (key === shownPosition) return;
+    shownPosition = key;
+    const parts = [...quality.replace(/^⚠ /, "").split(" · "), ...(calibration ? [calibration] : [])].filter(Boolean);
+    $("#qualite").replaceChildren(...parts.map((text) => {
+      const wait = /\bnon\b|pas de|pas assez|en cours|activation|estimée|dégradé|calez/i.test(text);
+      const ok = !wait && /vérifiée|LiDAR|RGE ALTI|corrigée|calée|caméra à/i.test(text);
+      const li = Object.assign(document.createElement("li"), { textContent: text[0].toUpperCase() + text.slice(1) });
+      li.className = ok ? "ok" : wait ? "attente" : "";
+      return li;
+    }));
+  }
+
   /** Redessine tout : texte de la mesure, état de la photo, repères, carte, résultats. */
   function refresh(text) {
     if (!app) return;
@@ -667,9 +685,7 @@
     $("#tout-effacer").disabled = !state.can_clear;
     const computed = $("#fiche .precision-calculee");
     if (computed) computed.textContent = state.computed || "en cours…";
-    $("#qualite").textContent = state.quality;
-    $("#qualite").classList.toggle("alerte", state.quality.startsWith("⚠"));
-    $("#calage").textContent = state.calibration;
+    showPosition(state.quality, state.calibration);
     const gps = $("#camera-gps");
     gps.hidden = !state.camera;
     if (state.camera) {
@@ -1357,16 +1373,23 @@
 
   function showPhotoInfo(feature, message) {
     const section = $("#fiche");
+    $("#photo-copier").disabled = !feature;
     if (!feature) {
-      section.replaceChildren(Object.assign(document.createElement("p"), { className: "aide", textContent: message }));
+      $("#photo-titre").textContent = "Aucune photo";
+      $("#photo-infos").textContent = message || "";
+      section.replaceChildren(Object.assign(document.createElement("p"), { className: "aide", textContent: "—" }));
       return;
     }
     const p = feature.properties || {};
+    // En-tête : date de prise de vue, producteur et caméra
+    const when = p.datetime ? new Date(p.datetime) : null;
+    $("#photo-titre").textContent = when && !isNaN(when)
+      ? when.toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" }) : "Date inconnue";
+    $("#photo-infos").textContent = [photoProducer(feature), (p["pers:interior_orientation"] || {}).camera_model]
+      .filter(Boolean).join(" · ");
+    $("#photo-copier").onclick = () => copyText(feature.id, $("#photo-copier"));
     const accuracy = p["quality:horizontal_accuracy"];
     const rows = [
-      ["Date", (p.datetime || "").replace("T", " ").slice(0, 16)],
-      ["Producteur", photoProducer(feature)],
-      ["Caméra", (p["pers:interior_orientation"] || {}).camera_model || ""],
       ["Précision GPS annoncée", accuracy != null ? `${String(accuracy).replace(".", ",")} m` : "—"],
       ["Identifiant", feature.id],
     ];
@@ -1379,13 +1402,9 @@
         const computed = Object.assign(document.createElement("span"), { className: "precision-calculee" });
         dd.append(" · calculée ", computed);
       }
+      if (label === "Identifiant") dd.className = "identifiant";
       dl.append(Object.assign(document.createElement("dt"), { textContent: label }), dd);
     }
-    // Identifiant à copier d'un clic : pour retrouver la photo (tests entre collègues)
-    const copy = Object.assign(document.createElement("button"), { type: "button", className: "copier",
-      textContent: "📋 Copier", title: "Copier l'identifiant de la photo dans le presse-papiers" });
-    copy.addEventListener("click", () => copyText(feature.id, copy));
-    dl.lastElementChild.append(copy);
     section.replaceChildren(dl);
   }
 
@@ -1454,6 +1473,8 @@
     // Étoile de la visionneuse : pleine si la photo affichée est en favori
     const on = Boolean(photo) && favorites().some((f) => f.id === photo.id);
     $("#ajouter-favori").disabled = !photo || on;  // déjà en favori : sans effet
+    $("#ajouter-favori").classList.toggle("en-favori", on);  // étoile pleine
+    $("#ajouter-favori").title = on ? "Photo déjà en favori (son étoile sur la photo la retire)" : "Ajouter cette photo aux favoris";
     Object.assign($("#etoile-favori"), { hidden: !photo,
       title: on ? "Retirer cette photo des favoris" : "Ajouter cette photo aux favoris" });
     $("#etoile-favori").setAttribute("aria-pressed", String(on));
@@ -1726,9 +1747,9 @@
       try { done = document.execCommand("copy"); } catch { done = false; }
       area.remove();
     }
-    const label = button.textContent;
-    button.textContent = done ? "✔ Copié" : "Copie refusée";
-    setTimeout(() => { button.textContent = label; }, 1500);
+    const label = button.innerHTML, icon = Boolean(button.querySelector("svg"));  // bouton à icône : ✔ ou ✖ seul
+    button.textContent = done ? (icon ? "✔" : "✔ Copié") : (icon ? "✖" : "Copie refusée");
+    setTimeout(() => { button.innerHTML = label; }, 1500);
   }
 
   // Visionneuse ----------------------------------------------------------------------------

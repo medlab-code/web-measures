@@ -196,23 +196,33 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <ol></ol>
         </section>
         <section id="photo" role="tabpanel" aria-labelledby="onglet-photo" hidden>
-          <div class="boutons">
-            <button id="ajouter-favori" type="button" disabled><span class="etoile">★</span> Ajouter aux favoris</button>
+          <!-- Fiche de la photo affichée : date, producteur et caméra ; favori, identifiant à copier -->
+          <div class="fiche-couche fiche-photo">
+            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l2-3h6l2 3h3v11H4z" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+            <div class="nom-couche">
+              <p id="photo-titre">Aucune photo</p>
+              <p id="photo-infos"></p>
+            </div>
+            <button id="ajouter-favori" type="button" class="icone" disabled aria-label="Ajouter aux favoris"
+                    title="Ajouter cette photo aux favoris"><svg class="etoile" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" stroke-linejoin="round"/></svg></button>
+            <button id="photo-copier" type="button" class="icone" disabled aria-label="Copier l'identifiant de la photo"
+                    title="Copier l'identifiant de la photo dans le presse-papiers"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3"/></svg></button>
           </div>
-          <!-- Propre à la photo affichée : précision GPS, sol, inclinaison et calage -->
+          <!-- Propre à la photo affichée : précision GPS, terrain, inclinaison, calage (app.js refresh) -->
           <h3>Position</h3>
-          <p id="qualite" class="ligne"></p>
-          <p id="calage" class="ligne"></p>
-          <h3>Calage des photos</h3>
-          <p class="aide">Conservé dans ce navigateur d'une session à l'autre. Pour le reprendre ailleurs
-            (autre poste, autre navigateur) : l'exporter, puis l'importer.</p>
-          <div class="boutons">
-            <button id="calage-exporter" type="button" disabled>Exporter le calage</button>
-            <button id="calage-importer" type="button" disabled>Importer un calage</button>
-            <input id="calage-fichier" type="file" accept=".json,application/json" hidden>
-          </div>
-          <h3>Photo</h3>
+          <ul id="qualite" class="etats"></ul>
+          <h3>Détails</h3>
           <div id="fiche"><p class="aide">Aucune photo choisie.</p></div>
+          <div class="encart-calage">
+            <h3>Calage des photos</h3>
+            <p class="aide">Inclinaisons et hauteurs de caméra calées, gardées dans ce navigateur ; à exporter
+              pour les reprendre sur un autre poste ou navigateur.</p>
+            <div class="boutons">
+              <button id="calage-exporter" type="button" disabled>Exporter le calage</button>
+              <button id="calage-importer" type="button" disabled>Importer un calage</button>
+              <input id="calage-fichier" type="file" accept=".json,application/json" hidden>
+            </div>
+          </div>
         </section>
         <!-- Photos favorites, gardées dans ce navigateur, nommées d'après leur lieu -->
         <section id="favoris" role="tabpanel" aria-labelledby="onglet-favoris" hidden>
