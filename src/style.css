@@ -1258,6 +1258,8 @@ canvas.traits {
    lisible sur l'orthophoto comme sur la photo (carte et visionneuse) */
 .etiquette.couche { background: none; padding: 0; border-radius: 0; font-weight: 600;
                     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
+/* Sur la mini-carte : 25 % plus grandes que les autres étiquettes de la carte (15 px au lieu de 12) */
+.maplibregl-marker .etiquette.couche { font-size: 15px; }
 /* Dans la visionneuse : transparentes à 25 %, remontées si elles se chevauchent (declutterLabels) */
 .ancre .etiquette.couche.dessus { transform: translate(-50%, var(--decalage, 0px)); }
 /* Visionneuse : pastille et étiquette d'un objet cliquables pour le recaler ; soulignées une fois choisies */
