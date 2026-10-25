@@ -871,6 +871,7 @@
   /** Objet id de la couche choisi pour être recalé dans la photo affichée. */
   function moveOverlayObject(id) {
     moving = { id, photo: photo.id };
+    document.activeElement?.blur?.();  // un bouton cliqué avant (« Exporter »…) ne reçoit pas l'Entrée
     setStatus("Objet de la couche : cliquez sa place dans la photo, flèches pour l'ajuster, Entrée pour finir, "
       + "Suppr pour le remettre à sa place calculée. La carte n'est pas modifiée.");
     drawViewerMarks(currentMarks);
@@ -939,7 +940,7 @@
   function onOverlayKey(event) {
     const step = SHIFT_KEYS[event.key];
     if (movingId() === null || (!step && !["Enter", "Escape", "Delete"].includes(event.key))) return;
-    if (event.target.closest?.("input, select, textarea, button")) return;
+    if (event.target.closest?.("input, select, textarea")) return;  // les boutons, eux, n'y ont pas droit
     event.preventDefault();
     event.stopPropagation();
     if (step) {
@@ -1516,28 +1517,17 @@
     showOverlayStyle();
     saveOverlay();
   });
-  // Export GeoJSON (WGS 84) avec les recalages dans les photos, à importer sur un autre poste : boîte
-  // d'enregistrement du système (Chrome, Edge) ; Firefox n'en donne pas l'accès aux pages : fichier
-  // téléchargé, sa propre boîte s'ouvre si « Toujours vous demander où enregistrer les fichiers » est coché
+  // Export GeoJSON (WGS 84) avec les recalages dans les photos, à importer sur un autre poste
   $("#couche-exporter").addEventListener("click", async () => {
     const content = JSON.stringify({ type: "FeatureCollection",
       features: overlay.features.map(({ geometry, properties, recalages }) => ({ type: "Feature", geometry, recalages,
         properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) });
     const suggestedName = `${overlay.name.replace(/\.(geojson|json|zip|shp|gpkg)\b.*$/i, "")}-recale.geojson`;
-    if (window.showSaveFilePicker) {
-      try {
-        const handle = await window.showSaveFilePicker({ suggestedName,
-          types: [{ description: "GeoJSON", accept: { "application/geo+json": [".geojson"] } }] });
-        const file = await handle.createWritable();
-        await file.write(content);
-        await file.close();
-        setStatus(`Couche exportée : ${handle.name}`);
-      } catch (error) {
-        if (error.name !== "AbortError") notice(`Couche non exportée : ${error.message}`);
-      }
-      return;
+    try {
+      await download(content, suggestedName, "application/geo+json");
+    } catch (error) {
+      notice(`Couche non exportée : ${error.message}`);
     }
-    download(content, suggestedName, "application/geo+json");
   });
   $("#couche-retirer").addEventListener("click", () => {
     overlay = null;
@@ -2510,14 +2500,14 @@
 
   let exported = null;  // export GeoJSON (commentaires compris) lors du dernier export
 
-  $("#csv").addEventListener("click", () => {
-    download("\ufeff" + app.export_csv(), "mesures.csv", "text/csv");
-    exported = app.export_geojson();
+  $("#csv").addEventListener("click", async () => {
+    const geojson = app.export_geojson();
+    if (await download("\ufeff" + app.export_csv(), "mesures.csv", "text/csv")) exported = geojson;
     saveResults();
   });
-  $("#geojson").addEventListener("click", () => {
-    exported = app.export_geojson();
-    download(exported, "mesures.geojson", "application/geo+json");
+  $("#geojson").addEventListener("click", async () => {
+    const geojson = app.export_geojson();
+    if (await download(geojson, "mesures.geojson", "application/geo+json")) exported = geojson;
     saveResults();
   });
 
@@ -2583,13 +2573,41 @@
       : `Calage importé pour ${added} photo${added > 1 ? "s" : ""} ou séquence${added > 1 ? "s" : ""}.`);
   });
 
-  // Fichier à enregistrer (le CSV commence par une marque d'ordre des octets : accents lus par les tableurs)
-  function download(content, name, type) {
-    const blob = content instanceof Blob ? content : new Blob([content], { type: `${type};charset=utf-8` });
-    const url = URL.createObjectURL(blob);
-    const link = Object.assign(document.createElement("a"), { href: url, download: name });
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  /**
+   * Fichier name à enregistrer : boîte d'enregistrement du système (Chrome, Edge), à demander dès le
+   * clic (le navigateur ne l'ouvre que peu après un geste de l'utilisateur). Rend la fonction qui écrit
+   * le contenu, ou null si l'utilisateur a renoncé. Sans cette boîte (Firefox, qui n'en donne pas
+   * l'accès aux pages) ou si elle est refusée : téléchargement du navigateur, avec sa propre boîte si
+   * « Toujours vous demander où enregistrer les fichiers » est coché.
+   */
+  async function saveAs(name, type) {
+    // le CSV commence par une marque d'ordre des octets : accents lus par les tableurs
+    const blobOf = (content) => (content instanceof Blob ? content : new Blob([content], { type: `${type};charset=utf-8` }));
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({ suggestedName: name,
+          types: [{ accept: { [type]: [name.slice(name.lastIndexOf("."))] } }] });
+        return async (content) => {
+          const file = await handle.createWritable();
+          await file.write(blobOf(content));
+          await file.close();
+        };
+      } catch (error) {
+        if (error.name === "AbortError") return null;  // boîte fermée sans enregistrer
+      }
+    }
+    return async (content) => {
+      const url = URL.createObjectURL(blobOf(content));
+      Object.assign(document.createElement("a"), { href: url, download: name }).click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+  }
+
+  /** Contenu enregistré dans le fichier name (saveAs) ; faux si l'utilisateur a renoncé. */
+  async function download(content, name, type) {
+    const save = await saveAs(name, type);
+    if (save) await save(content);
+    return Boolean(save);
   }
 
   window.addEventListener("beforeunload", (event) => {
@@ -2607,6 +2625,8 @@
       return;
     }
     const params = JSON.parse(text);
+    const save = await saveAs(`${params.name}.jpg`, "image/jpeg");  // au clic, avant la capture (longue)
+    if (!save) return;
     const button = $("#capture-hd");
     button.disabled = true;
     button.querySelector(".libelle").textContent = "Capture en cours…";
@@ -2624,7 +2644,7 @@
       ctx.drawImage(image, 0, 0);
       await fontReady();
       drawCartouches(ctx, canvas, Math.max(14, Math.round(canvas.height / 54)), params.caption, placeText());
-      download(await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92)), `${params.name}.jpg`);
+      await save(await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92)));
     } catch (error) {
       setStatus(`Capture « Image seule » impossible : ${error.message}`, "echec");
     } finally {
@@ -2636,11 +2656,13 @@
   $("#vignette").addEventListener("click", async () => {
     if (!psv) return;
     try {
+      const date = (photo?.properties?.datetime || "").replace(/[^0-9]/g, "").slice(0, 8) || "sansdate";
+      const save = await saveAs(`panoramax_vignette_${date}_${(photo?.id || "").slice(0, 8)}.png`, "image/png");
+      if (!save) return;
       await fontReady();
       const canvas = thumbnail();
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-      const date = (photo?.properties?.datetime || "").replace(/[^0-9]/g, "").slice(0, 8) || "sansdate";
-      download(blob, `panoramax_vignette_${date}_${(photo?.id || "").slice(0, 8)}.png`);
+      await save(blob);
       try {
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
         setStatus("Vignette enregistrée et copiée dans le presse-papiers.");
