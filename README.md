@@ -537,6 +537,11 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.6** (25/10/2026) : mesures revues sur leur photo (export : colonnes `photo_ref`, `vue_ref`,
+  `etiquette` ; « Importer » de l'onglet Résultats : photo de la mesure ouverte et cadrée, mesure
+  dessinée telle qu'à l'écran, clic sur une mesure de la mini-carte pour la revoir) ; couche : 2e
+  étiquette sur une 2e ligne ; position de la photo en croix bleue sur la mini-carte et la fiche ;
+  bulles « Clic gauche : recaler le point » et « Clic droit : fiche de l'objet » après 2 s sur un objet.
 - **0.6.5** (25/10/2026) : encadré du pont, « Au-dessus de … » en bleu (bleu de la visée) au lieu du jaune.
 - **0.6.4** (25/10/2026) : fiche d'objet, la pastille d'un objet recalé dans la photo est dessinée à sa
   place recalée (seule l'étiquette y était) ; les valeurs masquées dans la légende n'y figurent plus.
