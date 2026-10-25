@@ -112,6 +112,8 @@ MAP_HEADING_ERROR = 0.3  # degrés : cap EXIF des photos de relevé (point A pos
 MAP_MIN_ANGLE = 10.0  # degrés au moins entre la visée de A et la droite tracée
 # Relevé : objet posé sur une seule photo (App.releve_single), si la visée descend assez sous l'horizon
 SINGLE_MIN_ELEV = 2.0  # degrés : objet à 70 m au plus pour une caméra à 2,5 m
+# Objet relevé posé d'un clic sur la mini-carte (App.keep_map) : précision des orthophotos IGN (environ 1 m)
+MAP_PLACE_ERROR = 1.0  # m
 # Visées des autres photos tracées dans la photo affichée (Session._epipolar_mark) : sans leurs premiers
 # mètres, vus très en biais, projetés à des milliers de pixels hors de l'écran et redessinés à chaque
 # image par la visionneuse (lenteur, surtout zoomé)
@@ -785,8 +787,9 @@ class App(session.Session):
             name = values["nom"]
             if "releve" in values:  # objet relevé : son nom, sa précision et son premier champ
                 first = next((v for v in values["releve"].values() if v not in (None, "")), None)
-                r = dict(r, releve=True, lonlat=[lon, lat], text="Objet {} ±{} m{}".format(
-                    name, measures._num(values["incert_m"], 2), "" if first is None else " — {}".format(_field_text(first))))
+                where = "sur la carte" if values["nb_visees"] == 0 else "±{} m".format(measures._num(values["incert_m"], 2))
+                r = dict(r, releve=True, lonlat=[lon, lat], text="Objet {} {}{}".format(
+                    name, where, "" if first is None else " — {}".format(_field_text(first))))
                 out.append(r)
             elif name in under or name == current:
                 out += [r] + under.pop(name, [])
@@ -818,11 +821,6 @@ class App(session.Session):
         # Le point de référence, puis pour chaque mesure son point d'arrivée (comme A s'il est
         # triangulé, sinon cliqué sur la photo) et, dessous, la mesure elle-même
         rows = [point_row(values, "Point de référence")]
-        if "releve" in values:  # objet relevé : un champ saisi par ligne, sous le point
-            rows[0]["mesure"] = rows[0]["mesure"].replace("Point de référence", "Objet relevé").replace(
-                "posé sur la droite tracée sur la carte", "posé sur une seule photo")
-            rows += [{"kind": "mesure", "point": name, "mesure": k, "valeur": _field_text(v), "incert": "",
-                      "commentaire": ""} for k, v in values["releve"].items()]
         texts, lonlats = [], [(lon, lat)]
         for m in found:
             r, end = m.result, self._end_name(m)
@@ -878,9 +876,6 @@ class App(session.Session):
         name = self.points[int(k)][2]["nom"]
         found = self._fiche_measures(name)
         largest = max(found, key=lambda m: m.result["value"], default=None)
-        if largest is None and self.item:  # point seul (objet relevé) : sa visée depuis cette photo
-            view = self.point_views.get(name, {}).get(self.item.get("id"))
-            return json.dumps([view] if view else [])
         if largest is None or not self.item:
             return "[]"
         pts = (self._height_points if largest.kind == "height" else self._width_points)(largest)
@@ -903,10 +898,12 @@ class App(session.Session):
     def _releve_kept(self, z=None):
         """Dernier point gardé devenu objet relevé ; z : altitude NGF du point visé (m) ou None."""
         values = self.points[-1][2]
+        values["id"] = 1 + max((v.get("id") or 0 for _, _, v in self.points[:-1]), default=0)  # n° d'objet, croissant
+        self._releve_name(values)
         values["z_ngf"] = None if z is None else round(z, 2)
         values["releve"] = {}
-        self.message = ("Objet {} gardé (±{} m) : renseignez ses champs, puis visez l'objet suivant.").format(
-            values["nom"], measures._num(values["incert_m"], 2))
+        how = "posé sur la carte" if values["nb_visees"] == 0 else "gardé (±{} m)".format(measures._num(values["incert_m"], 2))
+        self.message = "Objet {} {} : renseignez ses champs, puis visez l'objet suivant.".format(values["nom"], how)
 
     def _check_tilt(self):
         """Relevé : inclinaison de la photo calculée comme en mesure (le cœur s'en passe en mesure
@@ -967,6 +964,38 @@ class App(session.Session):
         self._releve_kept(None if s.get("alt") is None else s["alt"] - self._camera_height())  # au sol
         return self.status()
 
+    def clear_releve(self):
+        """« Vider le relevé » : objets relevés retirés, les points des mesures restent."""
+        for k in reversed([k for k, (_, _, v) in enumerate(self.points) if "releve" in v]):
+            self.point_views.pop(self.points[k][2]["nom"], None)
+            self.delete_result("point", k)
+        self.message = "Relevé vidé : le prochain objet commencera un nouveau relevé, avec ses champs."
+        return self.status()
+
+    def _releve_name(self, values):
+        """Objet relevé nommé par son id (carte, photo, résultats, fiche) au lieu d'une lettre ; la
+        lettre prise resservira aux points des mesures."""
+        old, new = values["nom"], str(values["id"])
+        if old == new:
+            return
+        self.point_views[new] = self.point_views.pop(old, {})
+        values["nom"] = new
+        if old == session._point_name(self.named - 1):
+            self.named -= 1
+
+    def keep_map(self, lon, lat):
+        """Relevé : objet posé d'un clic sur la mini-carte, sans visée (nb_visees 0, précision MAP_PLACE_ERROR,
+        altitude inconnue) ; dans les photos, projeté au sol."""
+        if not self.releve:
+            return self.status()
+        self.points.append((float(lon), float(lat), {
+            "nom": session._point_name(self.named), "nb_visees": 0, "angle": None, "incert_m": MAP_PLACE_ERROR, "ecart_m": None,
+            "dist_max_m": None, "gps_m": None, "photos": "", "date_mesure": datetime.now().isoformat(timespec="seconds"),
+            "commentaire": ""}))
+        self.named += 1
+        self._releve_kept()
+        return self.status()
+
     def set_releve(self, k, text):
         """Champs saisis de l'objet relevé n° k (JSON {nom du champ: valeur}, dans l'ordre du formulaire)."""
         k = int(k)
@@ -1001,8 +1030,10 @@ class App(session.Session):
         """Objets relevés de la séance précédente (releve_json), ajoutés aux points gardés."""
         data = json.loads(text or "null") or {}
         for lon, lat, values, views in data.get("points", []):
+            values.setdefault("id", 1 + max((v.get("id") or 0 for _, _, v in self.points), default=0))
             self.points.append((lon, lat, values))
             self.point_views[values["nom"]] = views
+            self._releve_name(values)  # relevé gardé avant la numérotation : lettre remplacée
         self.named = max(self.named, data.get("named", 0))
         return self.status()
 
@@ -1882,9 +1913,10 @@ class App(session.Session):
         """Mesures terminées et points triangulés : (géométrie [(lon, lat)], attributs), comme
         les couches du plugin ; releve : les objets relevés seuls, leurs champs en colonnes."""
         if releve:
-            return [([(lon, lat)], dict({"type": "objet relevé"}, **{k: v for k, v in values.items() if k != "releve"},
-                                        **values["releve"]))
-                    for lon, lat, values in self.points if "releve" in values]
+            kept = [(lon, lat, values) for lon, lat, values in self.points if "releve" in values]
+            # Champs ajoutés en cours de relevé : à leur place, vides pour les objets d'avant
+            names = list(dict.fromkeys(k for _, _, v in kept for k in v["releve"] if k not in RELEVE_PLACE))
+            return [([(lon, lat)], _releve_attrs(values, names)) for lon, lat, values in kept]
         out = []
         for m in self.tool.measures():
             r = m.result
@@ -1932,11 +1964,10 @@ class App(session.Session):
                     for ends, attrs in self._records(releve)]
         return json.dumps({"type": "FeatureCollection", "features": features}, ensure_ascii=False, indent=1)
 
-    def export_csv(self, releve=False):
+    def export_csv(self):
         """CSV (séparateur point-virgule, virgule décimale : tableurs français), coordonnées
-        des extrémités en WGS 84 ; mesures et points triangulés dans le même tableau (releve :
-        les objets relevés seuls)."""
-        records = self._records(releve)
+        des extrémités en WGS 84 ; mesures et points triangulés dans le même tableau."""
+        records = self._records()
         if not records:
             return ""
         keys = list(dict.fromkeys(k for _, attrs in records for k in attrs))
@@ -1980,6 +2011,22 @@ class App(session.Session):
 def _view_heading(item, yaw):
     """Cap (degrés) du centre de la vue : la visionneuse s'oriente sur view:azimuth."""
     return (math.degrees(yaw) + (metadata.item_heading(item) or 0.0)) % 360
+
+
+RELEVE_PLACE = ("voie", "pr", "commune")  # lieu de l'objet, ajouté par la page à ses champs
+
+
+def _releve_attrs(values, names):
+    """Colonnes d'un objet relevé : id, champs de l'utilisateur (names, dans l'ordre de leur création ;
+    None s'il n'en a pas la valeur), lieu, commentaire, puis le reste des attributs du point (sans
+    « nom », qui reprend l'id, ni « type », laissé à l'utilisateur)."""
+    fields = values["releve"]
+    out = {"id": values.get("id")}
+    out.update((k, fields.get(k)) for k in names)
+    out.update((k, fields.get(k, "")) for k in RELEVE_PLACE)
+    out["commentaire"] = values.get("commentaire", "")
+    out.update((k, v) for k, v in values.items() if k not in ("id", "nom", "releve", "commentaire"))
+    return out
 
 
 def _aimed_z(r, sightings):

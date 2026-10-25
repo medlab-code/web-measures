@@ -141,6 +141,8 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <!-- Largeur, avant la première visée de A : droite de mesure tracée sur la mini-carte (ticket #28) -->
           <button id="axe-carte" type="button" hidden title="Giratoire, carrefour, place : avant le premier bord, tracer la droite de mesure sur la mini-carte (deux clics, en travers de la voie) ; les deux bords seront posés dessus">📏 Tracer la droite sur la carte</button>
           <button id="axe-auto" type="button" hidden title="Annuler la droite tracée : droite perpendiculaire à l'axe calculé (BD TOPO ou trajectoire de la séquence)">Annuler la droite</button>
+          <!-- Relevé : objet posé d'un clic sur la mini-carte, sans visée (projeté au sol dans les photos) -->
+          <button id="placer-carte" type="button" hidden title="Poser l'objet d'un clic sur la mini-carte, sans le viser : projeté au sol dans les photos, précision celle de la carte">📍 Placer sur la carte</button>
           <button id="nouvelle-reference" type="button" hidden title="Trianguler un autre point de référence : les mesures déjà faites restent">Nouveau point de référence</button>
         </div>
       </div>
@@ -192,8 +194,8 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <p id="releve-titre">Relevé d'objets</p>
               <p id="releve-infos">Aucun objet</p>
             </div>
-            <button id="releve-csv" type="button" class="export" disabled title="Exporter le relevé en CSV (tableur), un objet par ligne, ses champs en colonnes"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg> CSV</button>
-            <button id="releve-geojson" type="button" class="export" disabled title="Exporter le relevé en GeoJSON (couche SIG de points)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg> GeoJSON</button>
+            <button id="releve-couche" type="button" class="export" disabled title="Afficher le relevé dans l'onglet Couche : couleurs, étiquettes, recalage, export GeoJSON ou CSV (le relevé reste ici jusqu'à « Vider »)">Envoyer dans Couche</button>
+            <button id="releve-vider" type="button" class="export" disabled title="Retirer tous les objets du relevé (le suivant commencera un nouveau relevé, avec ses champs)">Vider</button>
           </div>
           <!-- Sans résultat : à quoi sert l'onglet -->
           <div id="resultats-vide" class="accueil">
@@ -309,6 +311,8 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               </div>
               <button id="couche-exporter" type="button" class="icone" disabled aria-label="Exporter la couche"
                       title="Exporter : GeoJSON avec les objets recalés dans les photos, à importer sur un autre poste"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <button id="couche-csv" type="button" class="icone" disabled aria-label="Exporter la couche en CSV"
+                      title="Exporter en CSV (tableur) : attributs, puis position (lon, lat pour un point, WKT sinon)"><span class="csv" aria-hidden="true">CSV</span></button>
               <button id="couche-remplacer" type="button" class="icone" aria-label="Importer un autre fichier"
                       title="Importer un autre fichier (remplace celui-ci)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
               <button id="couche-retirer" type="button" class="icone danger" disabled aria-label="Retirer la couche"
@@ -322,6 +326,8 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             </div>
             <ul id="couche-legende"></ul>
             <div class="reglage-couche"><label for="couche-etiquette">Étiquette</label><select id="couche-etiquette"></select></div>
+            <label class="intitule-couche" title="Étiquette précédée du nom de la colonne : « essence : tilleul »"><input id="couche-intitule" type="checkbox" disabled> Avec l'intitulé du champ</label>
+            <label class="intitule-couche" title="Texte ajouté après la valeur, par exemple une unité absente de la colonne : « 12 » devient « 12 cm »">Texte après la valeur <input id="couche-suffixe" type="text" maxlength="20" size="6" disabled placeholder="ex. cm"></label>
             <p class="encart-recalage"><strong>Recaler un objet</strong> : hors mesure, cliquez-le dans la photo, puis sa
               vraie place ; flèches pour ajuster, Entrée pour finir. La carte ne bouge pas.</p>
           </div>
@@ -463,8 +469,16 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
   <!-- Fiche PDF : photo cadrée automatiquement sur la mesure, ou la vue telle qu'affichée -->
   <dialog id="choix-fiche" class="avertissement">
     <h2>Fiche du point <span></span></h2>
-    <p>Photo de la fiche : cadrée automatiquement sur la plus grande mesure du point (sur sa photo), ou
+    <p class="fiche-point">Photo de la fiche : cadrée automatiquement sur la plus grande mesure du point (sur sa photo), ou
       la vue actuelle de la visionneuse, telle que vous l'avez réglée.</p>
+    <p class="fiche-objet" hidden>Photo de la fiche : cadrée automatiquement sur l'objet (sur sa photo de recalage,
+      sinon celle-ci s'il y est, sinon la plus proche), ou la vue actuelle de la visionneuse, telle que vous l'avez
+      réglée.</p>
+    <!-- Objet de la couche : données de la fiche et leur ordre, gardés avec la couche pour les objets suivants -->
+    <div class="fiche-objet fiche-donnees" hidden>
+      <p>Données de la fiche (cochées, dans cet ordre) :</p>
+      <ol id="fiche-champs"></ol>
+    </div>
     <form method="dialog">
       <label class="titre-fiche">Titre <input id="titre-fiche" type="text" maxlength="120"
         title="Texte libre après « Fiche de mesure — » ; à laisser tel quel ou à modifier"></label>
@@ -484,9 +498,43 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         <button id="releve-ajouter" type="button">+ Ajouter un champ</button>
       </fieldset>
       <div id="releve-valeurs"></div>
+      <label id="releve-commentaire">Commentaire <input type="text" maxlength="500" title="Texte libre, exporté dans la colonne « commentaire »"></label>
       <p id="releve-erreur" class="erreur" hidden></p>
       <button value="" class="non">Plus tard</button>
       <button id="releve-enregistrer" type="button" class="oui">Enregistrer</button>
+    </form>
+  </dialog>
+
+  <!-- Relevé envoyé dans Couche alors qu'une couche est chargée : l'enregistrer d'abord ? -->
+  <dialog id="remplacer-couche" class="avertissement">
+    <h2>Une couche est déjà chargée</h2>
+    <p>La couche « <span></span> » va être retirée pour afficher le relevé. L'enregistrer d'abord (GeoJSON,
+      recalages compris) ?</p>
+    <form method="dialog">
+      <button value="" class="non">Annuler</button>
+      <button value="remplacer" class="non">Remplacer sans enregistrer</button>
+      <button value="enregistrer" class="oui">Enregistrer puis remplacer</button>
+    </form>
+  </dialog>
+  <dialog id="vider-releve" class="avertissement">
+    <h2>Vider le relevé ?</h2>
+    <p>Les <span></span> retirés du relevé ne pourront pas être rétablis. Envoyés dans Couche, ils y restent.</p>
+    <form method="dialog">
+      <button value="" class="oui">Garder</button>
+      <button value="vider" class="non">Vider</button>
+    </form>
+  </dialog>
+
+  <!-- Navigateur sans boîte « Enregistrer sous » (Firefox) : nom du fichier demandé avant le téléchargement -->
+  <dialog id="nom-fichier" class="avertissement">
+    <h2>Enregistrer</h2>
+    <form method="dialog">
+      <label class="nom-fichier">Nom du fichier <input type="text" maxlength="200" spellcheck="false"></label>
+      <p class="aide">Enregistré dans le dossier des téléchargements du navigateur. Pour choisir le dossier à
+        chaque fois (Firefox) : Paramètres → Général → Fichiers et applications → « Toujours vous demander où
+        enregistrer les fichiers ».</p>
+      <button value="" class="non">Annuler</button>
+      <button value="ok" class="oui">Enregistrer</button>
     </form>
   </dialog>
 

@@ -808,7 +808,7 @@
       const line = document.createElement("div");
       line.className = "ligne";
       line.append(text);
-      if (r.kind === "point") {  // point de référence : sa fiche PDF, avec ses mesures
+      if (r.kind === "point" && !r.releve) {  // point de référence : sa fiche PDF, avec ses mesures
         const sheet = Object.assign(document.createElement("button"), {
           type: "button", className: "fiche", title: "Fiche PDF de ce point et de ses mesures (impression du navigateur)",
           innerHTML: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
@@ -883,8 +883,25 @@
 
   map.on("click", (event) => {
     if (lineDraft !== null) addLinePoint(event.lngLat);
+    else if (placing) placeOnMap(event.lngLat);
     else openNearest(event.lngLat.lng, event.lngLat.lat);
   });
+
+  // Relevé : « Placer sur la carte », puis un clic sur la carte pose l'objet là (sans visée) ; Échap annule
+  let placing = false;
+  function setPlacing(on) {
+    placing = on;
+    map.getCanvas().style.cursor = on ? "crosshair" : "";
+    $("#placer-carte").textContent = on ? "Annuler (Échap)" : "📍 Placer sur la carte";
+    $("#placer-carte").setAttribute("aria-pressed", String(on));
+    if (on) setStatus("Relevé : cliquez sur la mini-carte l'emplacement de l'objet (zoomez pour être précis) ; Échap pour annuler.");
+  }
+  function placeOnMap(lngLat) {
+    setPlacing(false);
+    refresh(app.keep_map(lngLat.lng, lngLat.lat));
+    editReleve(null, true);
+  }
+  $("#placer-carte").addEventListener("click", () => setPlacing(!placing));
 
   // Droite de mesure tracée sur la carte (ticket #28), avant la première visée du point A : un
   // premier clic pose le point de départ (pas un point de mesure), un trait suit la souris avec une
@@ -936,6 +953,10 @@
       endLineDraft();
       refresh();
     }
+    if (event.key === "Escape" && placing) {
+      setPlacing(false);
+      refresh();
+    }
   }
   document.addEventListener("keydown", onLineEscape);
 
@@ -965,7 +986,8 @@
 
   // Clic droit dans la visionneuse en mesure : sélection d'un point, pas de menu du navigateur
   viewer.addEventListener("contextmenu", (event) => {
-    if (measuring) event.preventDefault();
+    // hors mesure, sur un objet de la couche : sa fiche (attachViewer), pas de menu non plus
+    if (measuring || event.composedPath().some((el) => el.dataset?.objet !== undefined)) event.preventDefault();
   });
 
   // Point sélectionné déplacé de 1 cm par les flèches : largeur, le long de la droite de mesure,
@@ -982,6 +1004,39 @@
     refresh(direction ? app.nudge_point(direction) : app.finish_point());  // Entrée : calage terminé
   }
   document.addEventListener("keydown", onNudgeKey, true);
+
+  /** Nom de l'objet n° id de la couche dans sa fiche : sa colonne id (ou nom), sinon son rang. */
+  function overlayObjectName(id) {
+    const p = overlay.features[id].properties;
+    return String(p.id ?? p.nom ?? id + 1);
+  }
+
+  /** Données de la fiche de l'objet n° id de la couche (voir buildFiche, ficheHtml) : ses attributs (sans
+   * les colonnes techniques d'un relevé), sa position (premier sommet), la photo de son cadrage
+   * automatique : celle de son recalage, sinon la photo affichée s'il y est dessiné, sinon la plus proche. */
+  async function overlayFicheData(id, columns = null) {
+    const f = overlay.features[id];
+    let [lon, lat] = f.geometry.coordinates;
+    while (Array.isArray(lon)) [lon, lat] = lon;  // ligne, polygone : premier sommet
+    const pic = Object.keys(f.recalages || {})[0] || (overlayAt.has(id) ? photo?.id : null)
+      || (await Carte.nearestPhoto(map, lon, lat, passesFilter).catch(() => null))?.id || null;
+    // Colonnes choisies, dans leur ordre (askFiche) ; texte ajouté après la valeur de l'étiquette repris ici
+    const props = overlayProperties(f), label = $("#couche-etiquette").value, suffix = $("#couche-suffixe").value.trim();
+    const attributes = (columns || Object.keys(props).filter((c) => !(overlay.techniques || []).includes(c))).map((c) => {
+      const text = Couche.format(props[c]);
+      return [c, text && suffix && c === label ? `${text} ${suffix}` : text];
+    });
+    return { name: overlayObjectName(id), lon, lat, attributes, rows: [], texts: [], photo: pic, kind: null,
+      bounds: [[lon, lat], [lon, lat]] };
+  }
+
+  /** Repère de l'objet n° id de la couche dans la photo affichée, recalage compris : [[cap, élévation]], ou []. */
+  function overlayEnds(id) {
+    const at = overlayAt.get(id);
+    if (!at) return [];
+    const [dyaw, dpitch] = overlay.features[id].recalages?.[photo?.id]?.decalage || [0, 0];
+    return [[at.yaw + dyaw, at.pitch + dpitch]];
+  }
 
   /** Objet id de la couche choisi pour être recalé dans la photo affichée. */
   function moveOverlayObject(id) {
@@ -1538,6 +1593,9 @@
   // Couche importée (GeoJSON) : une à la fois, couleur et étiquette selon une colonne ; gardée avec
   // ses réglages dans le navigateur d'une session à l'autre, jusqu'à « Retirer »
   let overlay = null;  // { name, features (WGS 84, Couche.read), columns, crs }
+  // Colonnes de contrôle d'un objet relevé, sans intérêt pour la couleur ou l'étiquette (nb_visees reste :
+  // qualité de la triangulation)
+  const RELEVE_TECHNIQUES = ["angle", "incert_m", "ecart_m", "dist_max_m", "gps_m", "photos", "date_mesure", "z_ngf"];
   // Recalage d'un objet de la couche dans la photo affichée, la carte n'en est pas touchée : décalage
   // en cap et élévation (radians), feature.recalages[identifiant de photo] (Couche.read), gardé avec la
   // couche et dans son export GeoJSON
@@ -1557,7 +1615,9 @@
     if (!overlay) return;
     const column = $("#couche-couleur").value;
     const custom = overlay.couleurs[column] ||= {};
-    const legend = Couche.style(overlay.features, column, $("#couche-etiquette").value, custom);
+    $("#couche-intitule").disabled = $("#couche-suffixe").disabled = !$("#couche-etiquette").value;  // sans étiquette, sans effet
+    const legend = Couche.style(overlay.features, column, $("#couche-etiquette").value, custom, $("#couche-intitule").checked,
+      $("#couche-suffixe").value);
     $("#couche-couleurs-defaut").disabled = !Object.keys(custom).length;
     if (legend.degrade && !custom.min && !custom.max) {
       setStatus("Dégradé : cliquez les pastilles « minimum » et « maximum » de la légende pour choisir ses couleurs.");
@@ -1651,10 +1711,14 @@
     moving = null;  // couleurs choisies : { colonne: { clé de légende: couleur } }
     $("#couche-visible").checked = visible;
     const n = app.set_overlay(JSON.stringify(read.features.map(({ id, geometry }) => ({ id, geometry }))));
+    // Relevé (envoyé, ou réimporté) : colonnes techniques hors des listes, gardées dans les exports
+    const technical = RELEVE_TECHNIQUES.every((c) => read.columns.includes(c)) ? RELEVE_TECHNIQUES : [];
+    const choices = read.columns.filter((c) => !technical.includes(c));
+    overlay.techniques = technical;
     for (const [id, value] of [["#couche-couleur", color], ["#couche-etiquette", label]]) {
       $(id).replaceChildren(new Option(id === "#couche-couleur" ? "couleur unique" : "aucune", ""),
-        ...read.columns.map((c) => new Option(c, c)));
-      $(id).value = read.columns.includes(value) ? value : "";
+        ...choices.map((c) => new Option(c, c)));
+      $(id).value = choices.includes(value) ? value : "";
     }
     $("#couche-nom").textContent = name;
     showOverlayInfo();
@@ -1662,6 +1726,7 @@
     $("#couche-reglages").hidden = false;
     $("#couche-retirer").disabled = false;
     $("#couche-exporter").disabled = false;
+    $("#couche-csv").disabled = false;
     showOverlayStyle();
     if (fit) {
       const xs = [], ys = [];
@@ -1676,8 +1741,9 @@
   /** Couche et réglages gardés dans le navigateur ; faux si elle est trop grosse pour y tenir. */
   function saveOverlay() {
     if (!overlay) return true;
-    const { name, features, columns, crs, couleurs, masques } = overlay;
-    const text = JSON.stringify({ name, columns, crs, couleurs, masques, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
+    const { name, features, columns, crs, couleurs, masques, fiche } = overlay;
+    const text = JSON.stringify({ name, columns, crs, couleurs, masques, fiche, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
+      intitule: $("#couche-intitule").checked, suffixe: $("#couche-suffixe").value,
       visible: $("#couche-visible").checked,
       features: features.map(({ type, id, geometry, properties, recalages }) => ({ type, id, geometry, recalages,
         properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) });
@@ -1689,6 +1755,8 @@
   function restoreOverlay() {
     let saved = null;
     try { saved = JSON.parse(store.get("couche") || "null"); } catch { /* illisible : aucune */ }
+    $("#couche-intitule").checked = Boolean(saved?.intitule);
+    $("#couche-suffixe").value = saved?.suffixe || "";
     if (saved?.features?.length) loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, false, saved.visible !== false,
       saved.couleurs || {}, saved.masques || {});
   }
@@ -1732,7 +1800,11 @@
       setStatus(`Couche non importée : ${error.message}`, "echec");
     }
   }
-  for (const id of ["#couche-couleur", "#couche-etiquette", "#couche-visible"]) {
+  $("#couche-suffixe").addEventListener("input", () => {  // à chaque lettre : étiquettes à jour en tapant
+    showOverlayStyle();
+    saveOverlay();
+  });
+  for (const id of ["#couche-couleur", "#couche-etiquette", "#couche-intitule", "#couche-visible"]) {
     $(id).addEventListener("change", () => {
       showOverlayStyle();
       saveOverlay();
@@ -1743,18 +1815,43 @@
     showOverlayStyle();
     saveOverlay();
   });
-  // Export GeoJSON (WGS 84) avec les recalages dans les photos, à importer sur un autre poste
-  $("#couche-exporter").addEventListener("click", async () => {
+  const overlayProperties = (f) => Object.fromEntries(Object.entries(f.properties).filter(([k]) => !k.startsWith("_")));
+  const overlayBaseName = () => overlay.name.replace(/\.(geojson|json|zip|shp|gpkg)\b.*$/i, "");
+  /** Export GeoJSON (WGS 84) avec les recalages dans les photos, à importer sur un autre poste ; vrai si enregistré. */
+  async function exportOverlay() {
     const content = JSON.stringify({ type: "FeatureCollection",
-      features: overlay.features.map(({ geometry, properties, recalages }) => ({ type: "Feature", geometry, recalages,
-        properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) });
-    const suggestedName = `${overlay.name.replace(/\.(geojson|json|zip|shp|gpkg)\b.*$/i, "")}-recale.geojson`;
+      features: overlay.features.map((f) => ({ type: "Feature", geometry: f.geometry, recalages: f.recalages, properties: overlayProperties(f) })) });
     try {
-      await download(content, suggestedName, "application/geo+json");
+      return await download(content, `${overlayBaseName()}-recale.geojson`, "application/geo+json");
     } catch (error) {
       notice(`Couche non exportée : ${error.message}`);
+      return false;
     }
+  }
+  $("#couche-exporter").addEventListener("click", exportOverlay);
+  // Export CSV (tableur français : point-virgule, virgule décimale) : attributs, puis lon et lat pour une
+  // couche de points, géométrie en WKT sinon (QGIS la relit)
+  $("#couche-csv").addEventListener("click", () => {
+    const cell = (v) => {
+      if (v == null) return "";
+      const text = typeof v === "boolean" ? (v ? "oui" : "non") : typeof v === "number" ? String(v).replace(".", ",")
+        : typeof v === "object" ? JSON.stringify(v) : String(v);
+      return /[;"\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const points = overlay.features.every((f) => f.geometry.type === "Point");
+    const rows = [[...overlay.columns, ...(points ? ["lon", "lat"] : ["wkt"])].map(cell).join(";"),
+      ...overlay.features.map((f) => [...overlay.columns.map((c) => f.properties[c]),
+        ...(points ? f.geometry.coordinates.slice(0, 2) : [wkt(f.geometry)])].map(cell).join(";"))];
+    download("\ufeff" + rows.join("\n") + "\n", `${overlayBaseName()}.csv`, "text/csv");
   });
+  /** Géométrie GeoJSON en WKT (2D). */
+  function wkt({ type, coordinates }) {
+    const pt = (p) => `${p[0]} ${p[1]}`, line = (l) => `(${l.map(pt).join(", ")})`, poly = (p) => `(${p.map(line).join(", ")})`;
+    const body = { Point: () => `(${pt(coordinates)})`, LineString: () => line(coordinates), Polygon: () => poly(coordinates),
+      MultiPoint: () => `(${coordinates.map((p) => `(${pt(p)})`).join(", ")})`, MultiLineString: () => poly(coordinates),
+      MultiPolygon: () => `(${coordinates.map(poly).join(", ")})` }[type];
+    return body ? `${type.toUpperCase()} ${body()}` : "";
+  }
   $("#couche-retirer").addEventListener("click", () => {
     overlay = null;
     moving = null;
@@ -1765,6 +1862,7 @@
     for (const id of ["#couche-accueil", "#couche-formats", "#couche-crs"]) $(id).hidden = false;
     $("#couche-retirer").disabled = true;
     $("#couche-exporter").disabled = true;
+    $("#couche-csv").disabled = true;
     refresh();
   });
 
@@ -1946,8 +2044,9 @@
         // Hors mesure, clic sur un objet de la couche : à recaler ; puis clic : sa nouvelle place
         if (event?.type === "click" && !measuring && overlay && photo) {
           const id = event.data?.target?.closest?.("[data-objet]")?.dataset.objet;
-          if (id !== undefined) {
-            moveOverlayObject(Number(id));
+          if (id !== undefined) {  // clic droit : sa fiche PDF ; clic : à recaler
+            if (event.data.rightclick) askFiche({ objet: Number(id) });
+            else moveOverlayObject(Number(id));
             return true;
           }
           if (movingId() !== null && !event.data?.rightclick) {
@@ -2616,6 +2715,8 @@
     if (singleM != null) $("#garder-seul").textContent = `✔ Garder sur cette seule photo (± ${String(singleM).replace(".", ",")} m)`;
     $("#valider-objet").hidden = !measuring || !tiltReady || viewer.hidden;
     $("#nouvelle-mesure").hidden = !measuring || !newMeasure || viewer.hidden;
+    $("#placer-carte").hidden = !measuring || mode !== "releve" || viewer.hidden;
+    if (placing && $("#placer-carte").hidden) setPlacing(false);  // mesure arrêtée, autre mode
     $("#trianguler-b").hidden = !measuring || !edgeBOffered || viewer.hidden;
     // Largeur, avant la première visée du point A : droite de mesure à tracer sur la carte (#28) ;
     // tracée, « Annuler la droite » jusqu'au point A
@@ -2775,8 +2876,8 @@
 
   const RELEVE_TYPES = { texte: "Texte", nombre: "Nombre", date: "Date", oui_non: "Oui / non", liste: "Liste de valeurs" };
   // Colonnes déjà remplies par l'application : un champ ne peut pas porter leur nom
-  const RELEVE_RESERVES = ["type", "nom", "nb_visees", "angle", "incert_m", "ecart_m", "dist_max_m", "gps_m", "z_ngf",
-    "photos", "date_mesure", "commentaire", "voie", "pr", "commune"];
+  const RELEVE_RESERVES = ["id", "nb_visees", "angle", "incert_m", "ecart_m", "dist_max_m", "gps_m", "z_ngf",
+    "photos", "date_mesure", "commentaire", "voie", "pr", "commune", "lon", "lat"];
   let releveSaved = null;
 
   function releveFields() {
@@ -2785,8 +2886,8 @@
 
   function saveReleve() {
     const n = JSON.parse(app.results()).filter((r) => r.releve).length;
-    $("#releve-csv").disabled = !n;
-    $("#releve-geojson").disabled = !n;
+    $("#releve-couche").disabled = !n;
+    $("#releve-vider").disabled = !n;
     $("#releve-infos").textContent = n ? `${n} objet${n > 1 ? "s" : ""}` : "Aucun objet";
     const json = n ? app.releve_json() : "";
     if (json === releveSaved) return;
@@ -2794,12 +2895,46 @@
     store.set("releve", json);
   }
 
-  $("#releve-csv").addEventListener("click", () => download("﻿" + app.export_csv(true), "releve.csv", "text/csv"));
-  $("#releve-geojson").addEventListener("click", () => download(app.export_geojson(true), "releve.geojson", "application/geo+json"));
+  // Relevé envoyé dans Couche (il y prend les réglages d'une couche importée) ; une couche chargée est
+  // d'abord retirée, enregistrée si on le demande
+  $("#releve-couche").addEventListener("click", () => {
+    if (!overlay) return sendReleve();
+    const dialog = $("#remplacer-couche");
+    dialog.querySelector("p span").textContent = overlay.name;
+    dialog.returnValue = "";
+    dialog.addEventListener("close", async () => {
+      if (dialog.returnValue === "enregistrer" && !(await exportOverlay())) return;  // enregistrement annulé : rien ne change
+      if (dialog.returnValue) sendReleve();
+    }, { once: true });
+    showOverViewer(dialog);
+  });
+  function sendReleve() {
+    const data = JSON.parse(app.export_geojson(true));
+    for (const f of data.features) {  // altitude du point visé : l'objet y est dessiné dans la photo
+      if (typeof f.properties.z_ngf === "number") f.geometry.coordinates.push(f.properties.z_ngf);
+    }
+    const name = `Relevé du ${new Date().toLocaleDateString("fr-FR")}`;
+    const n = loadOverlay(name, Couche.read(JSON.stringify(data)), "", "", true);
+    const kept = saveOverlay();
+    showPane("couche");
+    refresh();
+    setStatus(`${name} envoyé dans Couche : ${n} objet${n > 1 ? "s" : ""}.`
+      + (kept ? "" : " Trop gros pour être gardé dans le navigateur : exportez-le."));
+  }
+  $("#releve-vider").addEventListener("click", () => {
+    const dialog = $("#vider-releve"), n = JSON.parse(app.results()).filter((r) => r.releve).length;
+    dialog.querySelector("p span").textContent = `${n} objet${n > 1 ? "s" : ""}`;
+    dialog.returnValue = "";
+    dialog.addEventListener("close", () => {
+      if (dialog.returnValue === "vider") refresh(app.clear_releve());
+    }, { once: true });
+    showOverViewer(dialog);
+  });
 
-  /** Ligne de définition d'un champ : nom, type, valeurs de la liste. */
-  function fieldRow(field = { nom: "", type: "texte", valeurs: [] }) {
-    const li = document.createElement("li"), row = document.createElement("div");
+  /** Ligne de définition d'un champ : nom, type, valeurs de la liste ; fixed : champ déjà créé, gardé
+   * tel quel et masqué (seuls les nouveaux champs se définissent). */
+  function fieldRow(field = { nom: "", type: "texte", valeurs: [] }, fixed = false) {
+    const li = Object.assign(document.createElement("li"), { hidden: fixed }), row = document.createElement("div");
     const name = Object.assign(document.createElement("input"), { type: "text", value: field.nom, placeholder: "Nom du champ (ex. distance_bord_m)", className: "nom" });
     const type = Object.assign(document.createElement("select"), { className: "type" });
     type.append(...Object.entries(RELEVE_TYPES).map(([value, text]) => new Option(text, value, false, value === field.type)));
@@ -2822,9 +2957,11 @@
     })).filter((f) => f.nom);
   }
 
-  /** Saisie des valeurs, une ligne par champ, préremplie par values. */
+  /** Saisie des valeurs, une ligne par champ, préremplie par values ; champ texte : valeurs déjà saisies
+   * sur les autres objets du relevé proposées dans une liste (on peut aussi en taper une nouvelle). */
   function showFieldInputs(fields, values) {
     const box = $("#releve-valeurs");
+    const others = app.has_releve() ? JSON.parse(app.releve_json()).points.map(([, , v]) => v.releve || {}) : [];
     const kept = Object.fromEntries([...box.querySelectorAll("[data-champ]")].map((i) => [i.dataset.champ, i]));
     box.replaceChildren(...fields.flatMap((f, k) => {
       const id = `releve-champ-${k}`, old = kept[f.nom];
@@ -2844,7 +2981,14 @@
       const value = f.nom in values ? values[f.nom] : old && old.dataset.type === f.type ? (old.type === "checkbox" ? old.checked : old.value) : null;
       if (f.type === "oui_non") input.checked = value === true;
       else if (value != null) input.value = String(value);
-      return [label, input];
+      const used = f.type === "texte" ? [...new Set(others.map((v) => v[f.nom]).filter((v) => typeof v === "string" && v.trim()))]
+        .sort((a, b) => a.localeCompare(b, "fr")) : [];
+      if (!used.length) return [label, input];
+      const list = Object.assign(document.createElement("datalist"), { id: `${id}-valeurs` });
+      list.append(...used.map((v) => new Option(v)));
+      input.setAttribute("list", list.id);
+      input.autocomplete = "off";  // seulement les valeurs du relevé, pas l'historique du navigateur
+      return [label, input, list];
     }));
   }
 
@@ -2854,19 +2998,25 @@
     const objects = JSON.parse(app.results()).filter((r) => r.releve);
     const row = k == null ? objects.reduce((a, b) => (b.id > a.id ? b : a), objects[0]) : objects.find((r) => r.id === k);
     if (!row) return;
-    const values = JSON.parse(app.releve_json()).points.find(([, , v]) => v.nom === /^Objet (\S+)/.exec(row.text)[1])?.[2].releve || {};
+    const kept = JSON.parse(app.releve_json()).points.find(([, , v]) => v.nom === /^Objet (\S+)/.exec(row.text)[1])?.[2] || {};
+    const values = kept.releve || {};
+    $("#releve-commentaire input").value = kept.commentaire || "";
     if (objects.length === 1 && fresh) store.set("releve-champs", "");  // nouveau relevé : ses champs à définir
     const fields = releveFields(), defining = !fields.length;
     const place = "voie" in values ? null : Lieu.describe(...row.lonlat).catch(() => ({ parts: {} }));
     const dialog = $("#releve-objet");
     dialog.querySelector("h2 span").textContent = /^Objet (\S+)/.exec(row.text)[1];
-    $("#releve-definition").hidden = !defining;
-    $("#releve-champs").replaceChildren(...(defining ? [fieldRow()] : []));
+    // Premier objet : les champs du relevé ; ensuite, d'autres champs peuvent s'ajouter (vides pour les
+    // objets déjà relevés)
+    $("#releve-definition legend").textContent = defining
+      ? "Champs du relevé : définis une fois, ils servent à tous les objets suivants"
+      : "Nouveaux champs, si besoin : pour cet objet et les suivants (vides pour les objets déjà relevés)";
+    $("#releve-champs").replaceChildren(...fields.map((f) => fieldRow(f, true)), ...(defining ? [fieldRow()] : []));
     $("#releve-valeurs").replaceChildren();
     $("#releve-erreur").hidden = true;
-    showFieldInputs(defining ? readFields() : fields, values);
+    showFieldInputs(readFields(), values);
     $("#releve-enregistrer").onclick = async () => {
-      const list = defining ? readFields() : fields;
+      const list = readFields();
       const names = list.map((f) => f.nom);
       const error = !list.length ? "Ajoutez au moins un champ."
         : names.find((n) => RELEVE_RESERVES.includes(n)) ? `« ${names.find((n) => RELEVE_RESERVES.includes(n))} » est déjà une colonne de l'export : choisissez un autre nom.`
@@ -2876,7 +3026,7 @@
       $("#releve-erreur").textContent = error;
       $("#releve-erreur").hidden = !error;
       if (error) return;
-      if (defining) store.set("releve-champs", JSON.stringify(list));
+      store.set("releve-champs", JSON.stringify(list));
       const out = {};
       for (const input of $("#releve-valeurs").querySelectorAll("[data-champ]")) {
         const type = input.dataset.type;
@@ -2889,6 +3039,7 @@
         Object.assign(out, { voie: parts.voie || "", pr: parts.pr || "", commune: parts.commune || "" });
       }
       dialog.close();
+      app.set_comment("point", row.id, $("#releve-commentaire input").value.trim());
       refresh(app.set_releve(row.id, JSON.stringify(out)));
     };
     dialog.returnValue = "";
@@ -2984,11 +3135,36 @@
         if (error.name === "AbortError") return null;  // boîte fermée sans enregistrer
       }
     }
+    const chosen = await askFileName(name);  // sans boîte « Enregistrer sous » (Firefox) : le nom, au moins
+    if (!chosen) return null;
     return async (content) => {
       const url = URL.createObjectURL(blobOf(content));
-      Object.assign(document.createElement("a"), { href: url, download: name }).click();
+      Object.assign(document.createElement("a"), { href: url, download: chosen }).click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
+  }
+
+  /** Nom du fichier à télécharger, proposé (name) puis modifiable ; extension remise si elle manque ;
+   * null si l'utilisateur renonce. */
+  function askFileName(name) {
+    const dialog = $("#nom-fichier"), input = dialog.querySelector("input");
+    const ext = name.slice(name.lastIndexOf("."));
+    input.value = name;
+    input.onkeydown = (event) => {  // Entrée : enregistrer (le premier bouton du formulaire est « Annuler »)
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      dialog.close("ok");
+    };
+    dialog.returnValue = "";
+    return new Promise((resolve) => {
+      dialog.addEventListener("close", () => {
+        const typed = input.value.trim().replace(/[\\/:*?"<>|]/g, "_");  // caractères interdits dans un nom de fichier
+        if (dialog.returnValue !== "ok" || !typed) return resolve(null);
+        resolve(typed.toLowerCase().endsWith(ext.toLowerCase()) ? typed : typed + ext);
+      }, { once: true });
+      showOverViewer(dialog);
+      input.select();
+    });
   }
 
   /** Contenu enregistré dans le fichier name (saveAs) ; faux si l'utilisateur a renoncé. */
@@ -3143,16 +3319,132 @@
 
   /** Choix de la photo de la fiche (cadrage automatique ou vue actuelle), puis la fiche : la fenêtre
    * s'ouvre au clic du choix, geste de l'utilisateur (sinon bloquée par le navigateur). */
+  // k : n° du point de référence, ou { objet : n° de l'objet de la couche } (clic droit dans la photo)
   function askFiche(k, text) {
-    const dialog = $("#choix-fiche"), [, kind, name = ""] = /^(Point|Objet) (\S+)/.exec(text) || [];
+    const dialog = $("#choix-fiche"), layered = typeof k === "object";
+    const name = layered ? overlayObjectName(k.objet) : (/^Point (\S+)/.exec(text) || [])[1] || "";
+    dialog.querySelector("h2").firstChild.textContent = layered ? "Fiche de l'objet " : "Fiche du point ";
     dialog.querySelector("h2 span").textContent = name;
+    dialog.querySelector(".fiche-point").hidden = layered;
+    for (const el of dialog.querySelectorAll(".fiche-objet")) el.hidden = !layered;
     // texte libre, laissé tel quel ou modifié
-    $("#titre-fiche").value = `${kind === "Objet" ? "objet relevé" : "point de référence"} ${name}`;
+    $("#titre-fiche").value = layered ? `${overlay.name}, objet ${name}` : `point de référence ${name}`;
+    if (layered) showFicheFields();
+    const frame = showFicheFrame();
     dialog.returnValue = "";
     dialog.addEventListener("close", () => {
-      if (dialog.returnValue) makeFiche(k, dialog.returnValue === "auto", $("#titre-fiche").value.trim());
+      if (!dialog.returnValue) return frame?.remove();
+      if (layered) {  // choix gardés avec la couche, pour la fiche des objets suivants
+        overlay.fiche = [...$("#fiche-champs").children].map((li) => [li.dataset.champ, li.querySelector("input").checked]);
+        saveOverlay();
+        k = { ...k, champs: overlay.fiche.filter(([, on]) => on).map(([c]) => c) };
+      }
+      const title = $("#titre-fiche").value.trim();
+      if (dialog.returnValue === "auto" || !frame) {
+        frame?.remove();
+        return makeFiche(k, dialog.returnValue === "auto", title);
+      }
+      reframeFiche(frame, () => makeFiche(k, false, title));  // vue actuelle : recadrée d'abord
     }, { once: true });
     showOverViewer(dialog);
+  }
+
+  /** « Vue actuelle » : fenêtre fermée, la vue se recadre dans la visionneuse (glisser, molette) sous le cadre
+   * de la fiche, puis « Valider le cadrage » lance la fiche (go) ; « Annuler » ou Échap y renoncent. */
+  function reframeFiche(frame, go) {
+    const bar = Object.assign(document.createElement("div"), { className: "cadre-boutons" });
+    const button = (text, cls, action) => {
+      const b = Object.assign(document.createElement("button"), { type: "button", textContent: text, className: cls });
+      b.addEventListener("click", () => { end(); action(); });
+      return b;
+    };
+    const onKey = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      end();
+    };
+    const end = () => {
+      frame.remove();
+      document.removeEventListener("keydown", onKey, true);
+    };
+    bar.append(button("Annuler", "non", () => setStatus("Fiche annulée.")), button("✔ Valider le cadrage", "oui", go));
+    frame.append(bar);
+    const below = frame.offsetHeight - (frame.firstChild.offsetTop + frame.firstChild.offsetHeight);
+    if (below >= 56) Object.assign(bar.style, { bottom: "auto", top: `${frame.offsetHeight - below + 10}px` });  // sous le cadre
+    document.addEventListener("keydown", onKey, true);
+    setStatus("Fiche : recadrez la vue dans la visionneuse (glisser, molette) ; seul l'intérieur du cadre sera repris. "
+      + "Puis « Valider le cadrage » (Échap pour annuler).");
+  }
+
+  /** Cadre de la photo que retiendrait « Vue actuelle » (cropCenter de la vue entière, au format de la
+   * photo de la fiche), tracé sur la visionneuse, le reste assombri ; à retirer (remove) à la fermeture. */
+  function showFicheFrame() {
+    const box = psv?.container?.getBoundingClientRect();
+    if (!box?.width || !box.height) return null;
+    const aspect = FICHE_PHOTO.width / FICHE_PHOTO.height;
+    let w = box.width, h = box.height;
+    if (w / h > aspect) w = h * aspect;
+    else h = w / aspect;
+    const clip = Object.assign(document.createElement("div"), { className: "cadre-fiche" });
+    Object.assign(clip.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` });
+    const inner = document.createElement("div");
+    Object.assign(inner.style, { left: `${(box.width - w) / 2}px`, top: `${(box.height - h) / 2}px`, width: `${w}px`, height: `${h}px` });
+    inner.append(Object.assign(document.createElement("span"), { textContent: "Cadre de la fiche (vue actuelle)" }));
+    clip.append(inner);
+    document.body.append(clip);
+    return clip;
+  }
+
+  /** Données de la fiche d'un objet de la couche : cases et ordre (↑ ↓, ou glissé-déposé) gardés avec la couche (overlay.fiche,
+   * [[colonne, cochée]]), puis les colonnes apparues depuis, cochées ; sans les colonnes techniques d'un relevé. */
+  function showFicheFields() {
+    const columns = overlay.columns.filter((c) => !(overlay.techniques || []).includes(c));
+    const kept = (overlay.fiche || []).filter(([c]) => columns.includes(c));
+    const list = [...kept, ...columns.filter((c) => !kept.some(([k]) => k === c)).map((c) => [c, true])];
+    const ol = $("#fiche-champs");
+    const arrows = () => [...ol.children].forEach((li, i, all) => {  // grisées aux bouts de la liste
+      li.querySelector(".monter").disabled = i === 0;
+      li.querySelector(".descendre").disabled = i === all.length - 1;
+    });
+    let dragged = null;  // ligne glissée : elle se place au-dessus ou au-dessous de celle survolée
+    ol.replaceChildren(...list.map(([column, on]) => {
+      const li = Object.assign(document.createElement("li"), { draggable: true, title: "Glisser pour déplacer" });
+      li.dataset.champ = column;
+      li.addEventListener("dragstart", (event) => {
+        dragged = li;
+        li.classList.add("glisse");
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", column);  // Firefox : sans données, pas de glissé
+      });
+      li.addEventListener("dragover", (event) => {
+        if (!dragged || dragged === li) return;
+        event.preventDefault();
+        const box = li.getBoundingClientRect();
+        if (event.clientY < box.top + box.height / 2) li.before(dragged);
+        else li.after(dragged);
+      });
+      li.addEventListener("drop", (event) => event.preventDefault());
+      li.addEventListener("dragend", () => {
+        li.classList.remove("glisse");
+        dragged = null;
+        arrows();
+      });
+      const grip = Object.assign(document.createElement("span"), { className: "poignee", textContent: "≡" });
+      grip.setAttribute("aria-hidden", "true");
+      li.append(grip);
+      const label = document.createElement("label");
+      label.append(Object.assign(document.createElement("input"), { type: "checkbox", checked: on }), column);
+      const button = (text, cls, title, move) => {
+        const b = Object.assign(document.createElement("button"), { type: "button", textContent: text, className: cls, title });
+        b.setAttribute("aria-label", `${title} : ${column}`);
+        b.addEventListener("click", () => { move(); arrows(); b.disabled || b.focus(); });
+        return b;
+      };
+      li.append(label, button("↑", "monter", "Monter", () => li.previousElementSibling?.before(li)),
+        button("↓", "descendre", "Descendre", () => li.nextElementSibling?.after(li)));
+      return li;
+    }));
+    arrows();
   }
 
   async function makeFiche(k, auto = true, title = "") {
@@ -3225,7 +3517,8 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
   // auto : photo de la mesure, cadrée dessus ; sinon la vue actuelle telle qu'affichée.
   // step(texte, %) : étape en cours, pour la fenêtre d'attente
   async function buildFiche(k, auto = true, title = "", step = () => {}) {  // title : après « Fiche de mesure — »
-    const data = JSON.parse(app.fiche(k));
+    const layered = typeof k === "object";  // objet de la couche (voir askFiche)
+    const data = layered ? await overlayFicheData(k.objet, k.champs) : JSON.parse(app.fiche(k));
     data.title = title || `point de référence ${data.name}`;
     if (!auto) data.photo = photo?.id || data.photo;  // pied de la fiche : la photo capturée
     step(auto ? "Ouverture de la photo de la mesure" : "Capture de la vue actuelle", 0);
@@ -3239,12 +3532,12 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
       await new Promise((r) => setTimeout(r, 1500));  // repères de la photo dessinés
     }
     step(auto ? "Cadrage de la photo sur la mesure" : "Capture de la vue actuelle", 40);
-    const ends = auto ? JSON.parse(app.fiche_frame(k)) : [];
-    // Hauteur : la mesure sur 75 % de la hauteur de l'image ; largeur : 10 % de marge de chaque côté
-    // Objet relevé, point seul : centré, champ de vue par défaut
-    frameView(ends, false, ends.length > 1 ? { aspect: FICHE_PHOTO.width / FICHE_PHOTO.height, margin: data.kind === "height" ? 1 / 0.75 : 1.25 } : null);
+    const ends = !auto ? [] : layered ? overlayEnds(k.objet) : JSON.parse(app.fiche_frame(k));
+    // Hauteur : la mesure sur 75 % de la hauteur de l'image ; largeur : 10 % de marge de chaque côté ;
+    // objet de la couche : centré, champ de vue d'un point seul
+    frameView(ends, false, layered ? null : { aspect: FICHE_PHOTO.width / FICHE_PHOTO.height, margin: data.kind === "height" ? 1 / 0.75 : 1.25 });
     await viewSettled();
-    if (auto && data.kind !== "height" && ends.length > 1) {  // largeur : un peu de recul autour de la ligne ; hauteur : cadrage seul
+    if (auto && !layered && data.kind !== "height") {  // largeur : un peu de recul autour de la ligne ; hauteur : cadrage seul
       psv.zoom(Math.max(0, psv.getZoomLevel() - FICHE_UNZOOM));
       await viewSettled();
     }
@@ -3256,6 +3549,10 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     const center = xy.length ? [xy.reduce((t, p) => t + p.x, 0) / xy.length * scale, xy.reduce((t, p) => t + p.y, 0) / xy.length * scale] : null;
     const picture = cropCenter(view, FICHE_PHOTO.width / FICHE_PHOTO.height, Infinity, center);
     step("Capture de la mini-carte", 75);
+    if (layered && photo) {  // l'objet et la photo de la fiche
+      const [lon, lat] = photo.geometry.coordinates;
+      data.bounds = [[Math.min(lon, data.lon), Math.min(lat, data.lat)], [Math.max(lon, data.lon), Math.max(lat, data.lat)]];
+    }
     const mapImage = await mapSnapshot(data.bounds);
     step("Mise en page", 95);
     if (photo) data.place = (await Lieu.describe(...photo.geometry.coordinates.slice(0, 2)).catch(() => ({}))).parts;  // déjà lu : sans requête
@@ -3297,7 +3594,12 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
       qr.make();
       qrSvg = qr.createSvgTag(2, 0);
     } catch { /* bibliothèque non chargée */ }
-    // Points (A, puis le point d'arrivée de chaque mesure), la mesure en gras sur sa ligne, dessous
+    // Objet de la couche : ses attributs ; sinon les points (A, puis le point d'arrivée de chaque mesure),
+    // la mesure en gras sur sa ligne, dessous
+    const table = data.attributes
+      ? `<thead><tr><th>Champ</th><th>Valeur</th></tr></thead><tbody>${data.attributes.map(([k, v]) =>
+        `<tr><td class='pt'>${e(k)}</td><td>${e(Couche.format(v))}</td></tr>`).join("")}</tbody>`
+      : null;
     const rows = data.rows.map((r) => `<tr class='${r.kind}'><td class='pt'>${e(r.point)}</td><td>${e(r.mesure)}</td>`
       + `<td class='num'>${e(r.valeur || "—")}</td><td class='num'>${e(r.incert || "—")}</td><td class='com'>${e(r.commentaire || "")}</td></tr>`).join("");
     // Position de la photo, puis une ligne courte par mesure
@@ -3331,14 +3633,14 @@ footer { margin-top: auto; border-top: 1px solid #c8c8c8; padding-top: 10px; fon
 footer a { color: #1a56c4; word-break: break-all; } .mono { font-family: "JetBrains Mono", monospace; color: #1c1c1c; }
 @media screen { body { background: #888; } .page { margin: 16px auto; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.4); } }
 </style></head><body><div class="page">
-<header><div><h1>Mesures Panoramax</h1><div class="sous-titre">Fiche de mesure — ${e(data.title)}</div></div>
+<header><div><h1>Mesures Panoramax</h1><div class="sous-titre">${data.attributes ? "Fiche d'objet" : "Fiche de mesure"} — ${e(data.title)}</div></div>
 <div class="date">${e(date)}</div></header>
-<section class="lieu"><div class="ou">${placeHtml}</div><span>Point ${e(data.name)} : ${e(coords)}</span></section>
+<section class="lieu"><div class="ou">${placeHtml}</div><span>${data.attributes ? "Objet" : "Point"} ${e(data.name)} : ${e(coords)}</span></section>
 <figure><img src="${picture}" alt="Photo de la mesure, annotée"></figure>
 <section class="bas"><div class="textes">
-<div><h2>Résultats</h2><table><thead><tr><th>Point</th><th>Mesure</th><th class="num">Valeur</th><th class="num">Incertitude</th><th>Commentaire</th></tr></thead><tbody>${rows}</tbody></table></div>
+<div><h2>${data.attributes ? "Attributs" : "Résultats"}</h2><table>${table || `<thead><tr><th>Point</th><th>Mesure</th><th class="num">Valeur</th><th class="num">Incertitude</th><th>Commentaire</th></tr></thead><tbody>${rows}</tbody>`}</table></div>
 <div><h2>Méthode et précision</h2><ul>${lines}</ul></div></div>
-<figure>${mapImage ? `<img src="${mapImage}" alt="Mini-carte : point ${e(data.name)} et ses mesures">` : "<div class='carte-vide'>Mini-carte indisponible (carte repliée, ou fond illisible)</div>"}
+<figure>${mapImage ? `<img src="${mapImage}" alt="Mini-carte : ${data.attributes ? "objet" : "point"} ${e(data.name)}${data.attributes ? "" : " et ses mesures"}">` : "<div class='carte-vide'>Mini-carte indisponible (carte repliée, ou fond illisible)</div>"}
 <figcaption>Fond de carte ${e(background)}</figcaption></figure></section>
 <footer><div class="pied"><div>Photo <span class="mono">${e(data.photo || "")}</span> · ${e(app.caption(0))} · instance ${e(api)}</div>
 <a href="${e(link)}">${e(link)}</a></div>
