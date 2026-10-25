@@ -530,6 +530,19 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.2** (25/10/2026) : relevé d'objets. Nouveau mode « Relevé d'objets (couche SIG) » : chaque objet
+  visé depuis plusieurs photos (triangulé), gardé sur une seule photo (précision proposée avant), ou posé
+  d'un clic sur la mini-carte ; dessiné sur toutes les photos à son altitude. Champs définis au premier
+  objet (texte, nombre, date, oui/non, liste), d'autres ajoutables ensuite, valeurs déjà saisies proposées,
+  commentaire ; voie, PR et commune ajoutés ; colonnes `id`, champs, lieu, commentaire, puis le reste.
+  Relevé gardé d'une séance à l'autre, « Envoyer dans Couche » (couche chargée enregistrable avant) et
+  « Vider ». Couche : « Enregistrer » dans le fichier GeoJSON importé (Chrome, Edge ; sans rien demander
+  s'il n'a pas changé), export CSV, colonnes techniques d'un relevé hors des listes, étiquette avec
+  l'intitulé du champ et un texte après la valeur, étiquette de la carte à part (« id » par défaut),
+  fiche PDF d'un objet par clic droit dans la photo (données choisies et ordonnées, gardées avec la
+  couche). Fiche : cadres de la photo et de la mini-carte tracés, « Vue actuelle » recadrable avant de
+  valider, mini-carte centrée en hauteur. Mini-carte : PR et bornes avec le fond « orthophoto avec noms »
+  seulement, étiquettes de la couche agrandies. Firefox : nom du fichier demandé à chaque export.
 - **0.6.1** (25/10/2026) : interface refaite. Panneau : ligne d'état toujours visible ; onglets
   Résultats (en-tête avec exports, un bloc par point de référence et ses mesures), Photo (fiche, position
   à voyants, détails, « Aller à une photo », calage), Favoris (commune et voie en gras, photo affichée
