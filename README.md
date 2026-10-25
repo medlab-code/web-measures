@@ -503,6 +503,16 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.1** (25/10/2026) : interface refaite. Panneau : ligne d'état toujours visible ; onglets
+  Résultats (en-tête avec exports, un bloc par point de référence et ses mesures), Photo (fiche, position
+  à voyants, détails, « Aller à une photo », calage), Favoris (commune et voie en gras, photo affichée
+  entourée) et Couche (accueil, fichier glissé, fiche avec œil et actions, légende sur deux colonnes, œil
+  par valeur, dégradé en barre, seize couleurs, palette agrandie) ; en bas, Filtre (« Filtres appliqués »,
+  instance), Réglages (interrupteurs, options expérimentales à part) et Services (bilan, point rouge si
+  l'un ne répond pas). Thème jour et nuit, comme le système ou choisi. Boutons grisés quand ils sont
+  sans effet. Exports par la boîte d'enregistrement du système (Chrome, Edge). Barre du haut en cartes.
+  Visionneuse : carte d'étape en bas à gauche pendant la mesure (étapes, état, consigne, boutons), haut de
+  la photo et flèches libres ; question du pont non modale ; étiquettes de mesure en pilules.
 - **0.6.0** (25/10/2026) : couche importée. Couleurs : pastilles de la légende sous « Couleur
   selon », palette au clic (fenêtre flottante), « Couleurs par défaut » ; une couleur par valeur en
   palette Set1 (les huit plus fréquentes) ; colonne numérique d'au moins 11 valeurs en dégradé
