@@ -3815,8 +3815,13 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
     // Couche importée affichée, sous tout le reste : traits et pastilles de sa couleur, puis ses
     // étiquettes visibles, prises à l'écran (écartées, masquées : comme dans la visionneuse)
     if (overlay && app && $("#couche-visible").checked) {
+      const masked = overlayMasked();
       for (const o of JSON.parse(app.overlay_marks())) {
-        const color = overlay.features[o.id]?.properties._couleur || "#ff00ff", pts = o.points.map(screen);
+        const f = overlay.features[o.id];
+        if (masked.has(f?.properties._cle)) continue;  // valeur masquée dans la légende
+        // Recalage dans cette photo compris, comme dans la visionneuse (drawViewerMarks)
+        const [dyaw, dpitch] = f?.recalages?.[photo?.id]?.decalage || [0, 0];
+        const color = f?.properties._couleur || "#ff00ff", pts = o.points.map(([yaw, pitch]) => screen([yaw + dyaw, pitch + dpitch]));
         ctx.save();
         if (o.kind === "ligne") {
           ctx.strokeStyle = color;
