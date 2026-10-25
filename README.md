@@ -279,7 +279,7 @@ l'export (CSV, GeoJSON) ou à l'oubli, et affichés en lecture seule : liste sou
 traits et points gris sur la carte. Ils ne redeviennent pas des mesures modifiables, et sont
 oubliés à la fermeture de cette session-là s'ils n'y ont pas été exportés.
 
-**Revoir une mesure exportée** : le fichier de mesures GeoJSON importé (« Importer » de l'onglet
+**Revoir une mesure exportée** : le fichier de mesures GeoJSON importé (bouton d'import, flèche vers le haut, de l'onglet
 **Résultats**, ou import de l'onglet **Couche**, où il s'affiche) s'ouvre sur la photo d'où la première hauteur ou largeur a été prise, cadrée sur elle,
 la mesure dessinée telle qu'elle était à l'écran (colonnes `photo_ref` et `vue_ref`), avec sa valeur
 en étiquette (colonne `etiquette`). Un clic sur une autre mesure de la mini-carte la montre de même.
