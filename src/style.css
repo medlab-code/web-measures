@@ -1077,11 +1077,16 @@ canvas.traits {
 /* Couche importée : pastille de couleur (points, légende), étiquette */
 .pastille-couche { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 2px solid #fff;
                    box-shadow: 0 0 2px rgba(0, 0, 0, 0.8); vertical-align: middle; }
-/* Texte seul, blanc au contour sombre : lisible sur l'orthophoto comme sur la photo (carte et visionneuse) */
+/* Texte seul, de la couleur de l'objet éclaircie de moitié (Couche.clair), liseré noir de 1 px :
+   lisible sur l'orthophoto comme sur la photo (carte et visionneuse) */
 .etiquette.couche { background: none; padding: 0; border-radius: 0; font-weight: 600;
-                    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 3px #000; }
+                    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
 /* Dans la visionneuse : transparentes à 25 %, remontées si elles se chevauchent (declutterLabels) */
 .ancre .etiquette.couche.dessus { transform: translate(-50%, var(--decalage, 0px)); }
+/* Visionneuse : pastille et étiquette d'un objet cliquables pour le recaler ; soulignées une fois choisies */
+#visionneuse .pastille-couche[data-objet], #visionneuse .etiquette.couche { pointer-events: auto; cursor: pointer; }
+#visionneuse .pastille-couche.choisie { outline: 2px solid #fff; outline-offset: 2px; }
+#visionneuse .etiquette.couche.choisie { text-decoration: underline; }
 #couche label { display: block; margin: 0.3rem 0; }
 #couche-legende { list-style: none; margin: 0.3rem 0; padding: 0; font-size: 0.9em; }
 #couche-legende li { display: flex; align-items: center; gap: 0.4rem; margin: 0.1rem 0; }

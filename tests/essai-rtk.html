@@ -307,15 +307,15 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       log(`couche : ${doc.querySelector("#couche-nom").textContent} · ${marks.length} partie(s) dans la photo · cap du point à ${gap.toFixed(4)} rad de la cible · légende : `
         + [...doc.querySelectorAll("#couche-legende li")].map((li) => li.textContent).join(", "));
       expect("couche : points et ligne projetés, point sur la cible", marks.length === 4 && gap < 0.02);
-      // Étiquettes écartées, transparentes à 33 %
+      // Étiquettes écartées ; texte seul, sans fond ni transparence
       w.mesures.psv.needsUpdate();
       await sleep(600);
       const shown = [...box.querySelectorAll(".etiquette.couche")].filter((e) => e.style.visibility !== "hidden");
       const rects = shown.map((e) => e.getBoundingClientRect()).filter((r) => r.width);
       let overlaps = 0;
       rects.forEach((a, i) => rects.slice(i + 1).forEach((b) => { if (a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top) overlaps++; }));
-      const opacity = getComputedStyle(box.querySelector(".etiquette.couche")).opacity;
-      log(`couche : ${rects.length} étiquette(s) affichée(s) sur 4, ${overlaps} chevauchement(s), opacité ${opacity}`);
+      const { opacity, backgroundColor } = getComputedStyle(box.querySelector(".etiquette.couche"));
+      log(`couche : ${rects.length} étiquette(s) affichée(s) sur 4, ${overlaps} chevauchement(s), opacité ${opacity}, fond ${backgroundColor}`);
       // Mini-carte : mêmes règles (cadrée sur la couche à l'import, zoom 16 et plus)
       const onMap = [...w.mesures.map.getContainer().querySelectorAll(".etiquette.couche")].filter((e) => e.style.visibility !== "hidden");
       const mapRects = onMap.map((e) => e.getBoundingClientRect());
@@ -325,14 +325,15 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       const mapLabel = w.mesures.map.getContainer().querySelector(".etiquette.couche");
       const seen = (e) => { let o = 1; for (let n = e; n && n.nodeType === 1; n = n.parentElement) o *= Number(getComputedStyle(n).opacity); return o; };
       log(`couche sur la carte : opacité apparente ${seen(mapLabel).toFixed(2)} (visionneuse ${seen(box.querySelector(".etiquette.couche")).toFixed(2)})`);
-      expect("couche sur la carte : même transparence que dans la visionneuse", Math.abs(seen(mapLabel) - 0.75) < 0.01);
+      expect("couche sur la carte : sans transparence, comme dans la visionneuse", Math.abs(seen(mapLabel) - 1) < 0.01);
       // (la cible est le point A : ses étiquettes de mesure prennent la place, celles de la couche s'effacent)
       expect("couche sur la carte : étiquettes créées, sans chevauchement",
         w.mesures.map.getContainer().querySelectorAll(".etiquette.couche").length === 4 && mapOverlaps === 0);
       const zOf = (sel) => [...box.querySelectorAll(sel)].map((e) => Number(getComputedStyle(e.closest(".psv-marker")).zIndex) || 0);
       expect("couche : étiquettes au-dessus des pastilles", Math.min(...zOf(".etiquette.couche")) > Math.max(...zOf(".pastille-couche")));
-      expect("couche : étiquettes écartées (ou masquées), transparentes", rects.length >= 2 && rects.length < 4 && overlaps === 0
-        && opacity === "0.75" && shown.some((e) => e.textContent === "cible"));
+      // (sans cadre, les 4 étiquettes serrées tiennent souvent sans se chevaucher : aucune à masquer)
+      expect("couche : étiquettes sans chevauchement, texte seul", rects.length >= 2 && overlaps === 0
+        && opacity === "1" && backgroundColor === "rgba(0, 0, 0, 0)" && shown.some((e) => e.textContent === "cible"));
       log(`couche : élévation du point ${flat?.toFixed(4)} à plat, ${point?.points[0][1].toFixed(4)} sur le sol LiDAR HD`);
       expect("couche : posée sur le sol LiDAR HD", point && Math.abs(point.points[0][1] - flat) > 1e-4);
       expect("couche : étiquettes dans la visionneuse et légende par valeur",
@@ -366,6 +367,46 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         await sleep(300);
         log(`fiche avec la couche : ${shown} pixels de la couleur ${color}, ${hidden} sans elle`);
         expect("fiche : couche dessinée dans la photo", shown - hidden >= 8 && hidden < 3);
+      }
+      // Recalage d'un objet dans la photo, hors mesure : clic sur sa pastille, clic à sa nouvelle place,
+      // ↑ (0,05°), Entrée ; puis Suppr le remet à sa place calculée. La carte n'est pas touchée.
+      {
+        doc.querySelector("#mesure").click();  // fin de la mesure
+        await sleep(300);
+        const markers = w.mesures.psv.getPlugin("markers");
+        const posOf = (id) => markers.getMarkers().find((m) => m.domElement?.querySelector?.(`.pastille-couche[data-objet="${id}"]`))?.config.position;
+        const point = JSON.parse(app.overlay_marks()).find((m) => m.kind === "point");
+        const start = posOf(point.id);
+        const onMap = () => JSON.stringify(w.mesures.map.getSource("couche").serialize().data.features.map((f) => f.geometry));
+        const mapBefore = onMap();
+        const select = () => {
+          const e = new Event("click");
+          e.data = { yaw: 0, pitch: 0, rightclick: false, target: box.querySelector(`.pastille-couche[data-objet="${point.id}"]`) };
+          w.mesures.psv.dispatchEvent(e);
+        };
+        const key = (k) => w.document.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
+        select();
+        const chosen = !!box.querySelector(`.pastille-couche.choisie[data-objet="${point.id}"]`);
+        const [ty, tp] = [start.yaw + 0.05, start.pitch + 0.02];
+        psvClick(ty, tp);
+        key("ArrowUp");
+        key("Enter");
+        const moved = posOf(point.id), step = 0.05 * Math.PI / 180;
+        log(`couche recalée : (${start.yaw.toFixed(4)}, ${start.pitch.toFixed(4)}) → (${moved.yaw.toFixed(4)}, ${moved.pitch.toFixed(4)})`);
+        expect("couche : objet recalé dans la photo (clic puis ↑), carte inchangée", chosen
+          && Math.abs(moved.yaw - ty) < 1e-6 && Math.abs(moved.pitch - (tp + step)) < 1e-6 && onMap() === mapBefore
+          && !box.querySelector(".pastille-couche.choisie"));
+        psvClick(start.yaw, start.pitch);  // fini : le clic suivant ne le déplace plus
+        expect("couche : recalage fini par Entrée", Math.abs(posOf(point.id).yaw - ty) < 1e-6);
+        const stored = () => JSON.parse(w.localStorage.getItem("web-measures/couche")).features[point.id].recalages;
+        const picId = w.mesures.psv.getPictureMetadata().id;
+        expect("couche : recalage gardé avec la couche", Math.abs(stored()?.[picId]?.decalage[0] - (ty - start.yaw)) < 1e-6
+          && stored()[picId].position?.length === 2 && !!stored()[picId].sequence);
+        select();
+        key("Delete");
+        const back = posOf(point.id);
+        expect("couche : objet remis à sa place par Suppr, recalage oublié", Math.abs(back.yaw - start.yaw) < 1e-6
+          && Math.abs(back.pitch - start.pitch) < 1e-6 && !stored());
       }
       // Case « Afficher la couche » : masquée sur la carte et dans la photo, puis réaffichée
       const visible = doc.querySelector("#couche-visible");

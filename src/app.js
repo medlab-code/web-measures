@@ -868,6 +868,91 @@
   }
   document.addEventListener("keydown", onNudgeKey, true);
 
+  /** Objet id de la couche choisi pour être recalé dans la photo affichée. */
+  function moveOverlayObject(id) {
+    moving = { id, photo: photo.id };
+    setStatus("Objet de la couche : cliquez sa place dans la photo, flèches pour l'ajuster, Entrée pour finir, "
+      + "Suppr pour le remettre à sa place calculée. La carte n'est pas modifiée.");
+    drawViewerMarks(currentMarks);
+  }
+
+  /** Objet en cours de recalage posé en (yaw, pitch) : sa pastille ou son étiquette y vient. */
+  function placeOverlayObject(yaw, pitch) {
+    const at = overlayAt.get(moving.id);
+    if (!at) return;
+    const dyaw = ((yaw - at.yaw) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;  // dans ]-π, π]
+    setShift([dyaw, pitch - at.pitch]);
+  }
+
+  // Objets recalés sur une autre séquence de la même voie (photo recalée à moins de SAME_ROAD m), et
+  // aucun sur celle-ci près d'ici : aller sur la photo recalée la plus proche ? Une fois par séquence
+  // refusée. Sans photo affichée (couche importée) : la photo recalée la plus proche du centre de la carte.
+  const SAME_ROAD = 30;
+  const declinedSequences = new Set();
+  function proposeRecaledPhoto() {
+    if (!overlay || measuring || playing() || document.querySelector("dialog[open]")) return;
+    const from = photo ? photo.geometry.coordinates : map.getCenter().toArray();
+    const near = overlay.features.flatMap((f) => Object.entries(f.recalages || {}))
+      .filter(([, r]) => r.position).map(([id, r]) => ({ id, ...r, d: metresBetween(r.position, from) }))
+      .filter((r) => !photo || r.d < SAME_ROAD).sort((a, b) => a.d - b.d);
+    const key = photo?.collection || "";
+    if (!near.length || declinedSequences.has(key)
+      || (photo && near.some((r) => r.id === photo.id || r.sequence === photo.collection))) return;
+    const dialog = $("#alerte-recalage");
+    dialog.querySelector("p").textContent = photo
+      ? `Des objets de la couche ont été recalés sur une autre séquence de cette voie, à ${Math.round(near[0].d)} m. Aller sur cette photo ?`
+      : "Des objets de la couche ont été recalés dans des photos. Ouvrir la plus proche ?";
+    dialog.returnValue = "";
+    dialog.addEventListener("close", async () => {
+      if (dialog.returnValue !== "oui") return declinedSequences.add(key);
+      try {
+        const feature = await Carte.photoById(near[0].id);
+        if (!feature) return notice("Photo recalée introuvable sur l'instance choisie (Réglages › Instance).");
+        openPhoto(feature);
+        map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 17), speed: 1.6 });
+      } catch (error) {
+        notice(`Photo recalée : recherche impossible (${error.message})`);
+      }
+    }, { once: true });
+    showOverViewer(dialog);
+  }
+
+  /** Décalage de l'objet en recalage dans la photo affichée (null : retiré), gardé avec la couche. */
+  function setShift(shift) {
+    const f = overlay.features[moving.id];
+    if (shift) {
+      f.recalages = { ...f.recalages, [photo.id]: { decalage: shift, position: photo.geometry.coordinates.slice(0, 2),
+        sequence: photo.collection } };
+    }
+    else if (f.recalages) {
+      delete f.recalages[photo.id];
+      if (!Object.keys(f.recalages).length) delete f.recalages;
+    }
+    saveOverlay();
+    drawViewerMarks(currentMarks);
+  }
+
+  // Objet en recalage : flèches de 0,05° (environ un pixel sans zoom), Entrée ou Échap : fini,
+  // Suppr : remis à sa place calculée
+  const SHIFT_STEP = 0.05 * Math.PI / 180;
+  const SHIFT_KEYS = { ArrowLeft: [-SHIFT_STEP, 0], ArrowRight: [SHIFT_STEP, 0], ArrowUp: [0, SHIFT_STEP], ArrowDown: [0, -SHIFT_STEP] };
+  function onOverlayKey(event) {
+    const step = SHIFT_KEYS[event.key];
+    if (movingId() === null || (!step && !["Enter", "Escape", "Delete"].includes(event.key))) return;
+    if (event.target.closest?.("input, select, textarea, button")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (step) {
+      const [dyaw, dpitch] = overlay.features[moving.id].recalages?.[photo.id]?.decalage || [0, 0];
+      return setShift([dyaw + step[0], dpitch + step[1]]);
+    }
+    if (event.key === "Delete") setShift(null);
+    moving = null;
+    setStatus("");
+    drawViewerMarks(currentMarks);
+  }
+  document.addEventListener("keydown", onOverlayKey, true);
+
   // Ctrl+Z (⌘Z), comme le bouton « Effacer » : dernier geste de mesure annulé (visée, clic, mesure
   // en cours, dernier point) ; dans un champ de saisie, l'annulation du texte reste celle du navigateur
   // Ctrl+Y (Ctrl+Maj+Z, ⌘⇧Z) : rétablit ce que le dernier « Effacer » a retiré
@@ -1122,6 +1207,7 @@
     showPhotoInfo(feature);
     $("#capture-hd").disabled = !Calcul.hasWorker();  // « Avec les mesures » : selon les mesures (drawViewerMarks)
     if (app) refresh(app.set_picture(JSON.stringify(feature)));
+    proposeRecaledPhoto();
     updateProducers();
     checkFarFromMeasures(coords);
   }
@@ -1306,6 +1392,12 @@
   // Couche importée (GeoJSON) : une à la fois, couleur et étiquette selon une colonne ; gardée avec
   // ses réglages dans le navigateur d'une session à l'autre, jusqu'à « Retirer »
   let overlay = null;  // { name, features (WGS 84, Couche.read), columns, crs }
+  // Recalage d'un objet de la couche dans la photo affichée, la carte n'en est pas touchée : décalage
+  // en cap et élévation (radians), feature.recalages[identifiant de photo] (Couche.read), gardé avec la
+  // couche et dans son export GeoJSON
+  const overlayAt = new Map();  // objet → position sans décalage de sa pastille ou de son étiquette
+  let moving = null;  // { id, photo } : objet en cours de recalage
+  const movingId = () => (moving && !measuring && moving.photo === photo?.id ? moving.id : null);
   function showOverlayStyle() {
     if (!overlay) return;
     const column = $("#couche-couleur").value;
@@ -1349,7 +1441,8 @@
 
   /** Couche en place (lue d'un fichier, ou gardée) : calcul, réglages, carte ; cadrée dessus si fit. */
   function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}) {
-    overlay = { name, ...read, couleurs: colors };  // couleurs choisies : { colonne: { clé de légende: couleur } }
+    overlay = { name, ...read, couleurs: colors };
+    moving = null;  // couleurs choisies : { colonne: { clé de légende: couleur } }
     $("#couche-visible").checked = visible;
     const n = app.set_overlay(JSON.stringify(read.features.map(({ id, geometry }) => ({ id, geometry }))));
     for (const [id, value] of [["#couche-couleur", color], ["#couche-etiquette", label]]) {
@@ -1361,6 +1454,7 @@
       + `${read.crs === "lambert93" ? " (Lambert 93 converti)" : ""}`;
     $("#couche-reglages").hidden = false;
     $("#couche-retirer").hidden = false;
+    $("#couche-exporter").hidden = false;
     showOverlayStyle();
     if (fit) {
       const xs = [], ys = [];
@@ -1368,6 +1462,7 @@
         read.features.map((f) => f.geometry.coordinates));
       map.fitBounds([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], { padding: 30, maxZoom: 17 });
     }
+    proposeRecaledPhoto();
     return n;
   }
 
@@ -1377,7 +1472,7 @@
     const { name, features, columns, crs, couleurs } = overlay;
     const text = JSON.stringify({ name, columns, crs, couleurs, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
       visible: $("#couche-visible").checked,
-      features: features.map(({ type, id, geometry, properties }) => ({ type, id, geometry,
+      features: features.map(({ type, id, geometry, properties, recalages }) => ({ type, id, geometry, recalages,
         properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) });
     store.set("couche", text);
     return store.get("couche") === text;
@@ -1421,13 +1516,26 @@
     showOverlayStyle();
     saveOverlay();
   });
+  // Export GeoJSON (WGS 84) avec les recalages dans les photos, à importer sur un autre poste ; nom au choix
+  $("#couche-exporter").addEventListener("click", () => {
+    const base = overlay.name.replace(/\.(geojson|json|zip|shp|gpkg)\b.*$/i, "");
+    let name = prompt("Nom du fichier exporté :", `${base}-recale.geojson`)?.trim();
+    if (!name) return;
+    if (!/\.(geo)?json$/i.test(name)) name += ".geojson";
+    download(JSON.stringify({ type: "FeatureCollection",
+      features: overlay.features.map(({ geometry, properties, recalages }) => ({ type: "Feature", geometry, recalages,
+        properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) }),
+    name, "application/geo+json");
+  });
   $("#couche-retirer").addEventListener("click", () => {
     overlay = null;
+    moving = null;
     store.set("couche", "");
     app?.set_overlay("[]");
     Carte.showOverlay(map, null);
     $("#couche-reglages").hidden = true;
     $("#couche-retirer").hidden = true;
+    $("#couche-exporter").hidden = true;
     refresh();
   });
 
@@ -1604,6 +1712,18 @@
       // dans la direction cliquée, ou suivrait une flèche) : il devient un point de mesure.
       const dispatch = psv.dispatchEvent;
       psv.dispatchEvent = function (event) {
+        // Hors mesure, clic sur un objet de la couche : à recaler ; puis clic : sa nouvelle place
+        if (event?.type === "click" && !measuring && overlay && photo) {
+          const id = event.data?.target?.closest?.("[data-objet]")?.dataset.objet;
+          if (id !== undefined) {
+            moveOverlayObject(Number(id));
+            return true;
+          }
+          if (movingId() !== null && !event.data?.rightclick) {
+            placeOverlayObject(event.data.yaw, event.data.pitch);
+            return true;
+          }
+        }
         if (event?.type === "click" && measuring && !onArrow(event)) {
           if (app && event.data?.rightclick) {  // clic droit : sélection d'un point à recaler
             refresh(photoReady() ? app.select_point(event.data.yaw, event.data.pitch) : LOADING);
@@ -2026,20 +2146,26 @@
     // Couche importée : lignes et contours en traits de sa couleur, points en pastilles, étiquettes
     if (overlay && app && $("#couche-visible").checked) {
       let points = 0, n = 0, rank = 0;
+      overlayAt.clear();
       for (const o of JSON.parse(app.overlay_marks())) {
         const p = overlay.features[o.id]?.properties || {};
         const color = p._couleur || "#ff00ff";
-        const at = o.kind === "point" ? { yaw: o.points[0][0], pitch: o.points[0][1] }
-          : middle(o.points.map(([yaw, pitch]) => ({ yaw, pitch })));
-        if (o.kind === "ligne" && o.points.length >= 2) lines.push({ points: o.points, color, width: 2.5, dash: null });
+        const chosen = o.id === movingId() ? " choisie" : "";
+        const anchorOf = (pts) => (o.kind === "point" ? { yaw: pts[0][0], pitch: pts[0][1] }
+          : middle(pts.map(([yaw, pitch]) => ({ yaw, pitch }))));
+        if (!overlayAt.has(o.id)) overlayAt.set(o.id, anchorOf(o.points));
+        const [dyaw, dpitch] = overlay.features[o.id]?.recalages?.[photo?.id]?.decalage || [0, 0];
+        const pts = o.points.map(([yaw, pitch]) => [yaw + dyaw, pitch + dpitch]);
+        const at = anchorOf(pts);
+        if (o.kind === "ligne" && pts.length >= 2) lines.push({ points: pts, color, width: chosen ? 5 : 2.5, dash: null });
+        // data-objet : clic pour le recaler (attachViewer)
         if (o.kind === "point" && points++ < 300) {
           add({ id: `${MARK}couche-${n++}`, position: at, anchor: "center center",
-            html: `<div class="pastille-couche" style="background:${color}"></div>` });
+            html: `<div class="pastille-couche${chosen}" data-objet="${o.id}" style="background:${color}"></div>` });
         }
         if (p._etiquette) {  // rang : 0 pour la plus proche de la caméra (marques triées par distance)
           add({ id: `${MARK}couche-${n++}`, position: at, anchor: "center center", zIndex: OVERLAY_LABEL_Z,  // au-dessus des pastilles
-            html: `<div class="ancre"><div class="etiquette couche dessus" data-rang="${rank++}">${
-              escapeHtml(p._etiquette)}</div></div>` });
+            html: `<div class="ancre"><div class="etiquette couche dessus${chosen}" data-objet="${o.id}" data-rang="${rank++}" style="color:${Couche.clair(color)}">${escapeHtml(p._etiquette)}</div></div>` });
         }
       }
     }
@@ -2798,7 +2924,7 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
 
   /** Étiquettes de la couche importée visibles dans root (visionneuse, carte) recopiées sur ctx : même
    * place (origin : rectangle écran de l'image, scale : pixels de l'image par pixel d'écran), texte
-   * blanc au contour sombre comme à l'écran. */
+   * de la couleur de l'objet, éclaircie de moitié, liseré noir, comme à l'écran. */
   function drawScreenLabels(ctx, root, origin, scale) {
     for (const el of root.querySelectorAll(".etiquette.couche")) {
       const r = el.getBoundingClientRect(), css = getComputedStyle(el);
@@ -2807,7 +2933,7 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
       ctx.save();
       ctx.font = `${css.fontWeight} ${parseFloat(css.fontSize) * scale}px ${css.fontFamily}`;
       ctx.textBaseline = "middle";
-      Object.assign(ctx, { strokeStyle: "#000", lineWidth: 3 * scale, lineJoin: "round" });
+      Object.assign(ctx, { strokeStyle: "#000", lineWidth: 2 * scale, lineJoin: "round" });
       ctx.strokeText(el.textContent, x, y + h / 2);
       ctx.fillStyle = css.color;
       ctx.fillText(el.textContent, x, y + h / 2);

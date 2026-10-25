@@ -49,7 +49,24 @@ const Couche = (() => {
   }
 
   /**
-   * GeoJSON (texte) lu : { features (WGS 84, géométrie non vide), columns (noms des attributs), crs }.
+   * Recalages d'un objet dans les photos, membre « recalages » de son Feature (hors attributs, ignoré
+   * par QGIS) : { identifiant de photo: { decalage: [cap, élévation] (radians), position: [lon, lat]
+   * de la photo, sequence } } ; fichier venu d'ailleurs : seuls les identifiants de photo et les
+   * valeurs de la bonne forme sont gardés. undefined s'il n'y en a pas.
+   */
+  function recalages(value) {
+    if (!value || typeof value !== "object") return undefined;
+    const pair = (v, max) => Array.isArray(v) && v.length === 2 && v.every((x) => typeof x === "number" && Math.abs(x) <= max);
+    const kept = Object.entries(value)
+      .filter(([id, r]) => /^[0-9a-f-]{36}$/i.test(id) && pair(r?.decalage, 2 * Math.PI))
+      .map(([id, r]) => [id, { decalage: r.decalage, ...(pair(r.position, 180) && { position: r.position }),
+        ...(/^[0-9a-f-]{36}$/i.test(r.sequence) && { sequence: r.sequence }) }]);
+    return kept.length ? Object.fromEntries(kept) : undefined;
+  }
+
+  /**
+   * GeoJSON (texte) lu : { features (WGS 84, géométrie non vide, recalages gardés), columns (noms des
+   * attributs), crs }.
    * GeometryCollection ignorées.
    */
   function read(text) {
@@ -66,6 +83,7 @@ const Couche = (() => {
     const out = features.map((f, i) => ({
       type: "Feature", id: i, properties: { ...(f.properties || {}) },
       geometry: { type: f.geometry.type, coordinates: mapCoords(f.geometry.coordinates, convert) },
+      ...(recalages(f.recalages) && { recalages: recalages(f.recalages) }),
     }));
     const columns = [...new Set(out.flatMap((f) => Object.keys(f.properties)))];
     return { features: out, columns, crs };
@@ -82,6 +100,11 @@ const Couche = (() => {
 
   // Palette proposée au clic sur une pastille de la légende
   const CHOICES = [...PALETTE, SINGLE, "#800000", "#008080", "#000000", "#ffffff", EMPTY];
+
+  /** Texte d'une étiquette d'un objet de couleur c (#rrggbb) : éclaircie de moitié (moitié de blanc). */
+  function clair(c) {
+    return `#${[1, 3, 5].map((i) => Math.round((parseInt(c.slice(i, i + 2), 16) + 255) / 2).toString(16).padStart(2, "0")).join("")}`;
+  }
 
   /**
    * Couleurs selon la colonne column ("" : couleur unique) : chaque objet reçoit properties._couleur
@@ -236,5 +259,5 @@ const Couche = (() => {
     return { geometry: { type, coordinates }, end: pos };
   }
 
-  return { read, readFiles, style, format, lambert93, CHOICES };
+  return { read, readFiles, style, format, lambert93, clair, CHOICES };
 })();
