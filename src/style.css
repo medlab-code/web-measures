@@ -778,7 +778,7 @@ button.principal { font-weight: 600; }
   margin: 0;
   padding: 0.35rem 0.7rem;
   border-radius: 10px;
-  background: rgba(24, 25, 28, 0.82);  /* sombre opaque : vert et jaune lisibles sur le ciel */
+  background: rgba(24, 25, 28, 0.82);  /* sombre opaque : vert et bleu lisibles sur le ciel */
   color: #fff;
   font-size: 14px;
   font-weight: 500;
@@ -789,7 +789,7 @@ button.principal { font-weight: 600; }
 }
 #chute[hidden] { display: none; }
 #chute .pont { color: #2ecc40; }  /* vert des voyants RTK et LiDAR HD */
-#chute .dessus { color: #ffeb00; }  /* ce que le pont franchit : jaune des croix */
+#chute .dessus { color: #00bce6; }  /* ce que le pont franchit : bleu des visées */
 #etat-mesure::before {
   content: "";
   flex: none;

@@ -716,7 +716,7 @@
     const fall = playing() ? null : JSON.parse(app.fall_json());
     const [bridge, ...rest] = (fall?.text || "").split("\n");
     Object.assign($("#chute"), { hidden: !fall, title: fall?.title || "" });
-    // Nom du pont en vert, « Au-dessus de … » en jaune, puis la hauteur
+    // Nom du pont en vert, « Au-dessus de … » en bleu, puis la hauteur
     const line = (text, className) => Object.assign(document.createElement("span"), { className, textContent: text });
     $("#chute").replaceChildren(line(bridge, "pont"),
       ...rest.flatMap((t) => ["\n", t.startsWith("Au-dessus") ? line(t, "dessus") : t]));
