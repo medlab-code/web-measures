@@ -1226,7 +1226,7 @@ canvas.traits {
 .reglage-couche label { width: 4.5rem; flex: none; color: var(--discret); }
 .reglage-couche select { flex: 1; min-width: 0; }
 .reglage-instance label { width: auto; font-weight: 600; color: var(--texte); }
-.titre-legende { display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.8rem; }
+.titre-legende { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.5rem; margin-top: 0.8rem; }
 .titre-legende h3 { margin: 0; }
 .titre-legende .aide { margin: 0; font-size: 0.85em; }
 button.lien { margin-left: auto; padding: 0.2rem 0; border: 0; background: none; color: var(--panoramax); font-weight: 500;
@@ -1237,6 +1237,13 @@ button.lien:disabled { color: var(--discret); opacity: 0.6; cursor: default; }
 #couche-legende li { display: flex; align-items: center; gap: 0.45rem; min-width: 0; min-height: 1.9rem; }
 #couche-legende li > .pastille-couche { width: 16px; height: 16px; border-color: var(--fond); box-shadow: 0 0 0 1px var(--bord);
   padding: 0; cursor: pointer; flex: none; }
+/* Œil par valeur : objets masqués sur la carte et dans la photo, ligne grisée */
+#couche-legende .texte-valeur { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#couche-legende .oeil-valeur { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 1.7rem;
+  height: 1.7rem; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--discret); cursor: pointer; }
+#couche-legende .oeil-valeur:hover { background: var(--bord); color: var(--texte); }
+#couche-legende li.masquee .texte-valeur { color: var(--discret); text-decoration: line-through; }
+#couche-legende li.masquee > .pastille-couche { opacity: 0.35; }
 /* Dégradé : une ligne pastille – barre – pastille, les valeurs dessous */
 #couche-legende.degrade { grid-template-columns: 1fr; padding: 0.6rem; }
 #couche-legende .barre-degrade { gap: 0.6rem; }

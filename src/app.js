@@ -1527,6 +1527,15 @@
   const overlayAt = new Map();  // objet → position sans décalage de sa pastille ou de son étiquette
   let moving = null;  // { id, photo } : objet en cours de recalage
   const movingId = () => (moving && !measuring && moving.photo === photo?.id ? moving.id : null);
+  /** Clés des valeurs masquées de la colonne de couleur affichée (Couche.style : properties._cle). */
+  function overlayMasked() {
+    return new Set(overlay?.masques?.[$("#couche-couleur").value] || []);
+  }
+  const EYE_OPEN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
+    + '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const EYE_SHUT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
+    + '<path d="M3 3l18 18M10.6 6.1A9.7 9.7 0 0112 6c6.5 0 10 6 10 6a17 17 0 01-3.2 3.9M6.6 6.6C3.8 8.4 2 12 2 12s3.5 6 10 6a9.6 9.6 0 004.4-1" stroke-linecap="round"/></svg>';
+
   function showOverlayStyle() {
     if (!overlay) return;
     const column = $("#couche-couleur").value;
@@ -1569,9 +1578,26 @@
       });
       return [button, palette];
     };
+    // Œil par valeur (couleur selon une colonne) : ses objets masqués sur la carte et dans la photo
+    const masked = overlayMasked();
     const item = (entry) => {
-      const li = document.createElement("li");
-      li.append(...swatch(entry), entry.texte);
+      const li = Object.assign(document.createElement("li"), { className: masked.has(entry.cle) ? "masquee" : "" });
+      li.append(...swatch(entry), Object.assign(document.createElement("span"), { className: "texte-valeur", textContent: entry.texte }));
+      if (column) {
+        const shown = !masked.has(entry.cle);
+        const eye = Object.assign(document.createElement("button"), { type: "button", className: "oeil-valeur",
+          innerHTML: shown ? EYE_OPEN : EYE_SHUT, title: shown ? "Masquer ces objets" : "Afficher ces objets" });
+        eye.setAttribute("aria-label", `${shown ? "Masquer" : "Afficher"} « ${entry.texte} »`);
+        eye.setAttribute("aria-pressed", String(shown));
+        eye.addEventListener("click", () => {
+          const list = overlay.masques[column] ||= [];
+          if (shown) list.push(entry.cle);
+          else list.splice(list.indexOf(entry.cle), 1);
+          showOverlayStyle();
+          saveOverlay();
+        });
+        li.append(eye);
+      }
       return li;
     };
     let items = legend.map(item);
@@ -1588,8 +1614,9 @@
     $("#titre-legende").textContent = legend.degrade ? "Dégradé" : "Légende";
     $("#couche-legende").classList.toggle("degrade", Boolean(legend.degrade));
     $("#couche-legende").replaceChildren(...items);
-    // Case « Afficher la couche » décochée : ni sur la carte ni dans la photo, réglages gardés
-    Carte.showOverlay(map, $("#couche-visible").checked ? { type: "FeatureCollection", features: overlay.features } : null);
+    // Œil de la couche fermé : ni sur la carte ni dans la photo, réglages gardés ; valeurs masquées retirées
+    Carte.showOverlay(map, $("#couche-visible").checked ? { type: "FeatureCollection",
+      features: overlay.features.filter((f) => !masked.has(f.properties._cle)) } : null);
     refresh();
   }
 
@@ -1602,8 +1629,8 @@
   }
 
   /** Couche en place (lue d'un fichier, ou gardée) : calcul, réglages, carte ; cadrée dessus si fit. */
-  function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}) {
-    overlay = { name, ...read, couleurs: colors };
+  function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}, masks = {}) {
+    overlay = { name, ...read, couleurs: colors, masques: masks };  // masques : { colonne: [clés de légende masquées] }
     moving = null;  // couleurs choisies : { colonne: { clé de légende: couleur } }
     $("#couche-visible").checked = visible;
     const n = app.set_overlay(JSON.stringify(read.features.map(({ id, geometry }) => ({ id, geometry }))));
@@ -1632,8 +1659,8 @@
   /** Couche et réglages gardés dans le navigateur ; faux si elle est trop grosse pour y tenir. */
   function saveOverlay() {
     if (!overlay) return true;
-    const { name, features, columns, crs, couleurs } = overlay;
-    const text = JSON.stringify({ name, columns, crs, couleurs, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
+    const { name, features, columns, crs, couleurs, masques } = overlay;
+    const text = JSON.stringify({ name, columns, crs, couleurs, masques, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
       visible: $("#couche-visible").checked,
       features: features.map(({ type, id, geometry, properties, recalages }) => ({ type, id, geometry, recalages,
         properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) });
@@ -1646,7 +1673,7 @@
     let saved = null;
     try { saved = JSON.parse(store.get("couche") || "null"); } catch { /* illisible : aucune */ }
     if (saved?.features?.length) loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, false, saved.visible !== false,
-      saved.couleurs || {});
+      saved.couleurs || {}, saved.masques || {});
   }
 
   for (const id of ["#couche-importer", "#couche-remplacer"]) $(id).addEventListener("click", () => $("#couche-fichier").click());
@@ -2334,8 +2361,10 @@
     if (overlay && app && $("#couche-visible").checked) {
       let points = 0, n = 0, rank = 0;
       overlayAt.clear();
+      const masked = overlayMasked();
       for (const o of JSON.parse(app.overlay_marks())) {
         const p = overlay.features[o.id]?.properties || {};
+        if (masked.has(p._cle)) continue;  // valeur masquée dans la légende
         const color = p._couleur || "#ff00ff";
         const chosen = o.id === movingId() ? " choisie" : "";
         const anchorOf = (pts) => (o.kind === "point" ? { yaw: pts[0][0], pitch: pts[0][1] }

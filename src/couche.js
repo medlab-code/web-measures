@@ -121,6 +121,8 @@ const Couche = (() => {
   /**
    * Couleurs selon la colonne column ("" : couleur unique) : chaque objet reçoit properties._couleur
    * (et _etiquette selon labelColumn). custom : couleurs choisies, par clé d'entrée de légende.
+   * Chaque objet reçoit aussi properties._cle, la clé de son entrée de légende (« degrade » pour un
+   * objet coloré par le dégradé).
    * Retourne la légende [{ cle, couleur, texte }] ; degrade : vrai pour une colonne numérique d'au moins
    * NUMERIC_MIN valeurs, chaque objet y prenant le mélange des couleurs du minimum et du maximum
    * pondéré par sa valeur.
@@ -163,7 +165,11 @@ const Couche = (() => {
     if (values.length < features.length && column) legend.push({ cle: "vide", couleur: EMPTY, texte: "vide" });
     for (const e of legend) e.couleur = custom[e.cle] || e.couleur;
     const colorOf = new Map(legend.map((e) => [e.cle, e.couleur]));
-    for (const f of features) f.properties._couleur = ramp?.(f) || colorOf.get(keyOf(f)) || EMPTY;
+    for (const f of features) {  // _cle : entrée de légende de l'objet (valeurs masquées, voir app.js)
+      const color = ramp?.(f);
+      f.properties._cle = color ? "degrade" : keyOf(f);
+      f.properties._couleur = color || colorOf.get(f.properties._cle) || EMPTY;
+    }
     legend.degrade = Boolean(ramp);
     return legend;
   }

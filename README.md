@@ -232,7 +232,8 @@ par une pastille, placées de l'objet le plus proche de la photo au plus lointai
 de chevauchement, masquées s'il faudrait les remonter de plus d'une fois et demie leur hauteur. Sa fiche, en tête de l'onglet, donne le nombre d'objets, le système de
 coordonnées et le nombre d'objets recalés ; son œil masque la couche sans la retirer, ses icônes l'exportent,
 la remplacent par un autre fichier ou la retirent. Le dégradé se règle par les pastilles aux deux bouts de sa
-barre. Une couche à la fois, gardée avec ses réglages dans le
+barre. Un œil sur chaque valeur de la légende masque ses objets sur la carte et dans la photo (gardé avec
+la couche, par colonne ; l'export garde tous les objets). Une couche à la fois, gardée avec ses réglages dans le
 navigateur d'une session à l'autre (sauf si elle est trop grosse : un message le dit) ; « Retirer »
 l'efface. **Recalage dans la photo** (hors mesure) : clic sur la pastille ou l'étiquette d'un objet,
 puis clic à sa place vue dans la photo, flèches pour l'ajuster (0,05°), Entrée pour finir, Suppr pour
