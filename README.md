@@ -483,6 +483,16 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.0** (25/10/2026) : couche importée. Couleurs : pastilles de la légende sous « Couleur
+  selon », palette au clic (fenêtre flottante), « Couleurs par défaut » ; une couleur par valeur en
+  palette Set1 (les huit plus fréquentes) ; colonne numérique d'au moins 11 valeurs en dégradé
+  entre les couleurs du minimum et du maximum choisies dans la légende ; nombres sans séparateur
+  des milliers sous 10 000 (années). Étiquettes en texte seul, couleur de l'objet éclaircie de
+  moitié, liseré noir ; sur la mini-carte, écartées de l'axe de la voie. Recalage d'un objet dans
+  la photo (clic sur l'objet, clic à sa place, flèches, Entrée ; Suppr le remet), sans toucher à la
+  carte, gardé avec la couche ; « Exporter » : GeoJSON avec les recalages, pour un autre poste ;
+  photo recalée d'une autre séquence de la voie proposée. Exports (mesures, captures, favoris,
+  calage, couche) par la boîte d'enregistrement du système sous Chrome et Edge.
 - **0.5.3** (24/10/2026) : couche importée (section « Couche ») : GeoJSON, Shapefile (.zip, ou .shp
   avec .dbf et .prj) ou GeoPackage, en WGS 84 ou Lambert 93 ; sur la mini-carte et, à son
   altitude ou posée sur le sol LiDAR HD, dans la photo ; couleur selon une colonne (par valeur ou
