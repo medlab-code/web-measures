@@ -185,9 +185,14 @@ après.
   pendant la lecture et quand le calcul est déjà fait pour cette photo et cette distance.
   Calcul :
   - **profils** : modèle de terrain LiDAR HD (RGE ALTI en secours) lu en travers de la route à
-    −10, −5, 0, +5 et +10 m de la photo le long de la route, des deux côtés, du bord de la
-    chaussée (largeur BD TOPO, sinon 6 m) jusqu'à la distance de la réglette, 16 points par
-    côté ;
+    −10, −5, 0, +5 et +10 m de la photo le long de la route, des deux côtés, depuis la caméra
+    (séquence vérifiée RTK ; sinon depuis l'axe BD TOPO) : un point tous les 0,5 m jusqu'à 3 m
+    au-delà du bord BD TOPO, puis 16 points jusqu'à la distance de la réglette au-delà du bord ;
+  - **bord de la chaussée** : premier point, à 1,5 m au moins de l'origine, d'où la pente du
+    terrain sur 1 m s'écarte de plus de 8 points de celle de la chaussée sous l'origine, dans
+    le même sens, sur trois pas de suite (fossé, talus, bordure) ; sans rupture de pente
+    (accotement de plain-pied), la demi-largeur BD TOPO (sinon 3 m) ; l'infobulle dit où le bord
+    a été trouvé, et comment ;
   - **chute** : la plus grande descente entre le terrain au bord de la chaussée et le point le
     plus bas du profil, avec la distance de ce point (le plus proche du bord, à 5 cm près) ;
     « chute ≥ … au-delà de 10 m du bord » quand le point le plus bas est au bout du profil (le
@@ -198,6 +203,13 @@ après.
 
   Sinon s'affichent « Calcul en cours… », « Aucun bord ne descend de 0,5 m ou plus », « Pas de
   route de la BD TOPO à moins de 15 m » ou « Calcul impossible » avec sa cause.
+
+  Le bouton **« Profil »**, à côté, montre la coupe du terrain que ce calcul a lue (mesure LiDAR
+  HD, ou RGE ALTI en secours) : travers de la photo en brun, les quatre autres en pointillés,
+  chaussée entre les deux bords trouvés (et comment : rupture de pente ou largeur BD TOPO),
+  flèche de la chute et trait rouge du dévers sur le travers où ils ont été mesurés, hauteurs
+  exagérées (facteur écrit sous le graphique). « Enregistrer en PNG » en fait une image avec son
+  titre et sa légende. Le bouton est grisé tant que « Dévers » n'a rien calculé pour la photo.
 - **Mesure libre (points triangulés)** : viser chaque point depuis au moins deux photos, puis
   « Valider le point triangulé » ; à partir du deuxième, la distance horizontale au point précédent
   s'affiche, et la carte se cadre sur le segment.
@@ -577,6 +589,11 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.9-1** (27/10/2026) : « Dévers » : profils lus depuis la caméra (séquence vérifiée RTK,
+  sinon depuis l'axe BD TOPO), bord de la chaussée trouvé par rupture de pente du terrain (sinon
+  largeur BD TOPO) ; bouton « Profil » : coupe du terrain en travers de la route (chaussée, bords,
+  chute, dévers, mesure LiDAR HD), titre avec route, PR et commune, enregistrable en PNG ;
+  mini-carte sans les longueurs des mesures ; fenêtre « Enregistrer » remise en ordre.
 - **0.6.9** (26/10/2026) : chute et dévers des bords de route hors pont (#31) : bouton « Dévers »
   de la barre du haut et réglette de la distance examinée (2 à 30 m), terrain LiDAR HD en travers
   de la route, côtés vus dans le sens de la photo, sans besoin de RTK.

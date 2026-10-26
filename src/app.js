@@ -234,6 +234,30 @@
     if (app) { app.set_edge_zone(Number(edgeZone.value)); refresh(); }
   });
   $("#bords").addEventListener("click", () => { app.request_edges(); refresh(); });
+  // « Profil » : coupe du terrain du dernier calcul de « Dévers » pour la photo affichée
+  let edgeProfile = null;
+  $("#profil").addEventListener("click", () => {
+    if (!edgeProfile) return;
+    const dialog = $("#fenetre-profil"), { svg, legend } = Profil.draw(edgeProfile.profile), feature = photo;
+    const title = dialog.querySelector("h2");
+    title.textContent = "Profil en travers" + (edgeProfile.road ? ` · ${edgeProfile.road}` : "");
+    dialog.querySelector(".graphique").replaceChildren(svg);
+    dialog.querySelector(".legende").replaceChildren(legend);
+    showOverViewer(dialog);
+    // Route, PR et commune de la photo, comme l'étiquette du lieu (déjà lus : sans requête)
+    Lieu.describe(...feature.geometry.coordinates.slice(0, 2)).then(({ parts }) => {
+      const place = [parts.voie || edgeProfile.road, parts.pr, parts.commune].filter(Boolean).join(" – ");
+      if (place && photo === feature && dialog.open) title.textContent = `Profil en travers · ${place}`;
+    }).catch(() => {});
+  });
+  $("#profil-png").addEventListener("click", async () => {
+    const dialog = $("#fenetre-profil"), title = dialog.querySelector("h2").textContent;
+    const id = psv?.getPictureMetadata?.()?.id || "photo";
+    const save = await saveAs(`profil-${edgeProfile?.road || "route"}-${id.slice(0, 8)}.png`, "image/png");  // au clic
+    if (!save) return;
+    await save(await Profil.png(dialog.querySelector("svg"), title, dialog.querySelector(".legende")));
+    setStatus("Profil enregistré en PNG.");
+  });
   // Droite de mesure tracée sur la carte (expérimental, ticket #28) : décochée, bouton non proposé
   $("#droite-carte").checked = store.get("droite-carte") === "1";
   $("#droite-carte").addEventListener("change", (event) => {
@@ -737,6 +761,8 @@
     const [bridge, ...rest] = (fall?.text || "").split("\n");
     Object.assign($("#chute"), { hidden: !fall, title: fall?.title || "" });
     $("#bords").disabled = playing() || (fall && !fall.edges) || !app.edges_ready();  // pas sur un pont
+    edgeProfile = fall?.profile ? fall : null;
+    $("#profil").disabled = !edgeProfile;
     // Nom du pont en vert, « Au-dessus de … » en bleu, puis la hauteur
     const line = (text, className) => Object.assign(document.createElement("span"), { className, textContent: text });
     $("#chute").replaceChildren(line(bridge, "pont"),

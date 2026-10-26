@@ -1725,11 +1725,19 @@ class App(session.Session):
     # Hauteur de chute et dévers des bords de route, hors pont (ticket #31) -----------------------
     # Calcul lancé seulement par le bouton « Dévers » de la page (request_edges), pour la photo
     # affichée. Travers de part et d'autre de la route, à EDGE_ALONG m de la photo le long du tronçon,
-    # du bord de la chaussée jusqu'à edge_zone m au-delà (réglette de la page) ; terrain MNT LiDAR HD
-    # (RGE ALTI en secours). Référence : le terrain au bord de la chaussée, pas l'altitude GPS (sans RTK).
+    # depuis la caméra (séquence vérifiée RTK ; sinon l'axe BD TOPO) jusqu'à edge_zone m au-delà du bord
+    # de la chaussée (réglette de la page) ; terrain MNT LiDAR HD (RGE ALTI en secours). Bord : rupture de
+    # pente du terrain (EDGE_BREAK), sinon la demi-largeur BD TOPO. Référence : le terrain au bord, pas
+    # l'altitude GPS.
     EDGE_ZONE = 10.0  # m au-delà du bord de la chaussée examinés par défaut
     EDGE_ALONG = (-10.0, -5.0, 0.0, 5.0, 10.0)  # m le long de la route, depuis la photo
     EDGE_WINDOW = 2.0  # m en travers : dévers = pente entre deux points au moins aussi écartés
+    EDGE_STEP = 0.5  # m entre deux points du profil, de l'origine jusqu'à EDGE_SEARCH m après le bord BD TOPO
+    EDGE_SEARCH = 3.0  # m au-delà du bord BD TOPO où la rupture de pente est encore cherchée
+    EDGE_BREAK = 0.08  # écart de pente sur 1 m à celle de la chaussée sous l'origine : bord (bombement : ~0,05)
+    EDGE_HOLD = 3  # pas consécutifs où l'écart doit tenir : un seul pas de 1 m tient du bruit du MNT (±5 cm)
+    EDGE_NEAR = 1.5  # m : pas de bord plus près de l'origine (le véhicule occupe sa voie ; demi-voie sur l'axe)
+    EDGE_FAR = 16  # points au-delà, jusqu'à edge_zone m
 
     def set_edge_zone(self, metres):
         """Réglette du bouton « Dévers » : largeur (m) lue au-delà du bord de la chaussée au prochain appui
@@ -1770,34 +1778,62 @@ class App(session.Session):
             return told("Pas de route de la BD TOPO à moins de {} m de la photo".format(
                 measures._num(roads.MAX_DISTANCE, 0)))
         _, s, line, sec = near
-        key = (item.get("id"), zone)
+        camera = bool(self.quality and self.quality.get("precise"))  # position RTK : profils depuis la caméra
+        key = (item.get("id"), zone, camera)
         res = self.edges.get(key)
         if res is None or time.monotonic() >= res.get("retry_at", float("inf")):
             res = self.edges[key] = {"text": "Calcul en cours…", "title": ""}
             self._compute_edges(key, line, s, sec["width"], metadata.item_heading(item), lon, lat)
         road = sec.get("name") if re.match(r"[A-Z]+\d", sec.get("name") or "") else None
         return {"text": "Bords de route" + (" ({})".format(road) if road else "") + "\n" + res["text"],
-                "title": res["title"], "edges": True}
+                "title": res["title"], "edges": True, "profile": res.get("profile"), "road": road}
 
     def _compute_edges(self, key, line, s, width, heading, lon, lat):
         """Calcul des bords (voir _edges), rangé dans self.edges[key], puis notify()."""
-        zone = key[1]
-        n = max(2, self.FALL_POINTS // (2 * len(self.EDGE_ALONG)))  # points par côté, bord compris : une requête
-        offsets = [zone * k / (n - 1) for k in range(n)]
-        edge = (width or self.FALL_WIDTH) / 2
+        _, zone, camera = key
+        half = (width or self.FALL_WIDTH) / 2
+
+        def frame(at):  # point de l'axe et normale à gauche du sens du tronçon, à l'abscisse at
+            (x, y), p, q = roads._at(line, at), roads._at(line, at - 1.0), roads._at(line, at + 1.0)
+            t = math.hypot(q[0] - p[0], q[1] - p[1]) or 1.0
+            return x, y, -(q[1] - p[1]) / t, (q[0] - p[0]) / t
+
+        x, y, nx, ny = frame(s)
+        shift = -(x * nx + y * ny) if camera else 0.0  # origine à gauche de l'axe (m) : la caméra est en (0, 0)
         a, b = roads._at(line, s - roads.TANGENT), roads._at(line, s + roads.TANGENT)
         course = math.degrees(math.atan2(b[0] - a[0], b[1] - a[1]))  # sens du tronçon
         forward = heading is None or abs((course - heading + 180) % 360 - 180) <= 90
-        # la normale (-dy, dx) pointe à gauche du sens du tronçon
         sides = (("droit", -1), ("gauche", 1)) if forward else (("droit", 1), ("gauche", -1))
-        samples = []  # travers après travers, côté après côté, du bord vers l'extérieur
+        profiles = []  # (travers, côté, bord BD TOPO depuis l'origine, distances depuis l'origine), travers après travers
+        samples = []
         for along in self.EDGE_ALONG:
             # shortcut: _at borne aux bouts du tronçon, les travers s'y superposent ; suivre les tronçons
             # voisins si des photos près d'un carrefour le demandent
-            (x, y), p, q = roads._at(line, s + along), roads._at(line, s + along - 1.0), roads._at(line, s + along + 1.0)
-            t = math.hypot(q[0] - p[0], q[1] - p[1]) or 1.0
-            nx, ny = -(q[1] - p[1]) / t, (q[0] - p[0]) / t
-            samples += [(x + sign * (edge + o) * nx, y + sign * (edge + o) * ny) for _, sign in sides for o in offsets]
+            x, y, nx, ny = frame(s + along)
+            for name, sign in sides:
+                guess = max(self.EDGE_NEAR, half - sign * shift)
+                near = [k * self.EDGE_STEP for k in range(int((guess + self.EDGE_SEARCH) / self.EDGE_STEP) + 1)]
+                offsets = near + [near[-1] + zone * k / self.EDGE_FAR for k in range(1, self.EDGE_FAR + 1)]
+                profiles.append((along, name, guess, offsets))
+                samples += [(x + (shift + sign * o) * nx, y + (shift + sign * o) * ny) for o in offsets]
+
+        def slope(z, offsets, i, span):  # pente vers le bas en s'éloignant, de i au premier point à span m au moins
+            j = next((j for j in range(i + 1, len(offsets)) if offsets[j] - offsets[i] >= span - 1e-6), None)
+            return None if j is None or z[i] is None or z[j] is None else (z[i] - z[j]) / (offsets[j] - offsets[i])
+
+        def border(z, offsets, guess):
+            """Indice du bord : premier point, à EDGE_NEAR m au moins de l'origine, d'où la pente sur 1 m s'écarte
+            de plus de EDGE_BREAK de celle de la chaussée sous l'origine, dans le même sens sur EDGE_HOLD pas ;
+            sinon le bord BD TOPO (None)."""
+            road = slope(z, offsets, 0, 1.0)
+            for i in range(1, len(offsets)):
+                if road is None or offsets[i] > guess + self.EDGE_SEARCH:
+                    break
+                d = [slope(z, offsets, k, 1.0) for k in range(i, i + self.EDGE_HOLD)]
+                if offsets[i] >= self.EDGE_NEAR - 1e-6 and None not in d and (
+                        all(v - road > self.EDGE_BREAK for v in d) or all(road - v > self.EDGE_BREAK for v in d)):
+                    return i
+            return None
 
         def got_ground(ground, source, error):
             if error or not source:
@@ -1805,50 +1841,95 @@ class App(session.Session):
                     "service injoignable" if error else "pas de modèle de terrain ici"), "title": "",
                     "retry_at": time.monotonic() + self.FALL_RETRY if error else float("inf")}
                 return self.notify()
-            found = {name: [None, None] for name, _ in sides}  # côté -> [(chute, à m du bord), (dévers, à m du bord)]
-            for k, z in enumerate(ground[i:i + n] for i in range(0, len(ground), n)):
-                name = sides[k % 2][0]
+            # côté -> [(chute, à m du bord, bout du profil, travers), (dévers, à m du bord, travers)],
+            # bords [(m depuis l'origine, relief)] ; drawn : profils pour le graphique de la page (bouton « Profil »)
+            found = {name: [None, None] for name, _ in sides}
+            borders = {name: [] for name, _ in sides}
+            drawn = []
+            start = 0
+            for along, name, guess, offsets in profiles:
+                z = ground[start:start + len(offsets)]
+                start += len(offsets)
                 if z[0] is None:
                     continue
+                i = border(z, offsets, guess)
+                relief = i is not None
+                if not relief:
+                    i = min(range(len(offsets)), key=lambda k: abs(offsets[k] - guess))
+                borders[name].append((offsets[i], relief))
+                drawn.append({"le_long": along, "cote": name, "bord": offsets[i], "relief": relief,
+                              "points": [[round(o, 2), round(v, 2)] for o, v in zip(offsets, z) if v is not None]})
+                kept = [k for k in range(i, len(offsets)) if offsets[k] - offsets[i] <= zone + 1e-6]
+                zz, oo = [z[k] for k in kept], [offsets[k] - offsets[i] for k in kept]
+                if zz[0] is None:
+                    continue
                 # point le plus bas le plus proche du bord (à 5 cm près) : le pied du talus
-                low = max(((z[0] - v, o) for v, o in zip(z, offsets) if v is not None),
+                low = max(((zz[0] - v, o) for v, o in zip(zz, oo) if v is not None),
                           key=lambda c: (round(c[0] / 0.05), -c[1]))
                 if found[name][0] is None or low[0] > found[name][0][0]:
-                    found[name][0] = low
-                for i in range(n):
-                    j = next((j for j in range(i + 1, n) if offsets[j] - offsets[i] >= self.EDGE_WINDOW - 1e-6), None)
-                    if j is None or z[i] is None or z[j] is None:
-                        continue
-                    slope = ((z[i] - z[j]) / (offsets[j] - offsets[i]), offsets[i])
-                    if found[name][1] is None or slope[0] > found[name][1][0]:
-                        found[name][1] = slope
+                    found[name][0] = low + (oo[-1], along)
+                for k in range(len(oo)):
+                    d = slope(zz, oo, k, self.EDGE_WINDOW)
+                    if d is not None and (found[name][1] is None or d > found[name][1][0]):
+                        found[name][1] = (d, oo[k], along)
             terrain = triangulation.RGE_ALTI_ERROR if source == "RGE ALTI" else triangulation.LIDAR_ERROR
             sigma = math.hypot(terrain, terrain)  # deux altitudes du même MNT
-            lines = []
+            origin = "la caméra" if camera else "l'axe BD TOPO"
+            lines, seen, shown = [], [], {}
             for name, _ in sides:
-                fall, slope = found[name]
+                if borders[name]:
+                    by_relief = sum(r for _, r in borders[name])
+                    seen.append("côté {} à {} m de {} ({})".format(
+                        name, measures._num(sorted(o for o, _ in borders[name])[len(borders[name]) // 2], 1), origin,
+                        "relief sur {} travers sur {}".format(by_relief, len(borders[name])) if by_relief
+                        else "largeur BD TOPO"))
+                fall, slope_max = found[name]
                 if fall is None or fall[0] < self.FALL_MIN:
                     continue
-                beyond = fall[1] >= zone - 1e-6  # le plus bas au bout du profil : le terrain descend encore
+                beyond = fall[1] >= fall[2] - 1e-6  # le plus bas au bout du profil : le terrain descend encore
                 text = "Côté {} : chute {}{} m (±{} m) {} {} m du bord".format(
                     name, "≥ " if beyond else "", measures._num(fall[0], 1), measures._num(sigma, 1),
                     "au-delà de" if beyond else "à", measures._num(fall[1], 0))
-                if slope and slope[0] > 0:
+                if slope_max and slope_max[0] > 0:
                     text += ", dévers max {} % ({}°)".format(
-                        measures._num(100 * slope[0], 0), measures._num(math.degrees(math.atan(slope[0])), 0))
+                        measures._num(100 * slope_max[0], 0), measures._num(math.degrees(math.atan(slope_max[0])), 0))
                 lines.append(text)
+                shown[name] = {"chute": [round(fall[0], 2), round(fall[1], 2), beyond, fall[3]],
+                               "devers": [round(slope_max[0], 3), round(slope_max[1], 2), slope_max[2]]
+                               if slope_max and slope_max[0] > 0 else None}
             self.edges[key] = {
+                "profile": {"origine": "caméra" if camera else "axe", "source": source, "erreur": round(sigma, 2),
+                            "zone": zone, "fenetre": self.EDGE_WINDOW, "profils": drawn, "resultats": shown},
                 "text": "\n".join(lines) or "Aucun bord ne descend de {} m ou plus jusqu'à {} m".format(
                     measures._num(self.FALL_MIN, 1), measures._num(zone, 0)),
-                "title": ("Terrain ({}) en travers de la route, du bord de la chaussée (largeur BD TOPO, sinon {} m "
-                          "supposés) jusqu'à {} m au-delà, sur ±{} m le long de la route ; côtés vus dans le sens de "
-                          "la photo. Chute : plus grande descente sous le terrain du bord de la chaussée. Dévers : "
-                          "plus forte pente vers le bas sur {} m.").format(
-                    source, measures._num(self.FALL_WIDTH, 0), measures._num(zone, 0),
-                    measures._num(self.EDGE_ALONG[-1], 0), measures._num(self.EDGE_WINDOW, 0))}
+                "title": ("Terrain ({}) en travers de la route, depuis {} jusqu'à {} m au-delà du bord de la chaussée, "
+                          "sur ±{} m le long de la route ; côtés vus dans le sens de la photo. Bord : rupture de pente "
+                          "du terrain, sinon largeur BD TOPO (ou {} m supposés). Chute : plus grande descente sous le "
+                          "terrain du bord. Dévers : plus forte pente vers le bas sur {} m. Bords trouvés : {}.").format(
+                    source, origin, measures._num(zone, 0), measures._num(self.EDGE_ALONG[-1], 0),
+                    measures._num(self.FALL_WIDTH, 0), measures._num(self.EDGE_WINDOW, 0), " ; ".join(seen) or "aucun")}
             self.notify()
 
-        precision.fetch_terrain([triangulation._geographic(x, y, lon, lat) for x, y in samples], got_ground)
+        self._terrain([triangulation._geographic(x, y, lon, lat) for x, y in samples], got_ground)
+
+    def _terrain(self, points, done):
+        """precision.fetch_terrain par paquets de FALL_POINTS points (une requête chacun), l'un après l'autre ;
+        done(altitudes, source, erreur), source RGE ALTI dès qu'un paquet en vient (la moins précise)."""
+        out, sources = [], set()
+
+        def step(start):
+            def got(ground, source, error):
+                if error or not source:
+                    return done(None, source, error)
+                out.extend(ground)
+                sources.add(source)
+                if start + self.FALL_POINTS < len(points):
+                    return step(start + self.FALL_POINTS)
+                done(out, "RGE ALTI" if "RGE ALTI" in sources else source, None)
+
+            precision.fetch_terrain(points[start:start + self.FALL_POINTS], got)
+
+        step(0)
 
     # Largeur : bord sur la droite de mesure (ticket #18) ----------------------------------------
     def _width_points(self, m):

@@ -34,7 +34,7 @@
   <header>
     <div class="marque">
       <h1>Mesures Panoramax</h1>
-      <span class="essai" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.6.9 — projet personnel – POC</span>
+      <span class="essai" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.6.9-1 — projet personnel – POC</span>
     </div>
     <!-- Mesure : gros bouton sur les deux rangées ; réglages, puis effacement en dessous -->
     <div class="bloc mesure carte-barre">
@@ -70,6 +70,9 @@
     <div class="bloc bords carte-barre">
       <button id="bords" type="button" disabled
               title="Chute et dévers des deux bords de la route, pour la photo affichée (hors pont) : terrain LiDAR HD lu en travers de la route, du bord de la chaussée jusqu'à la distance de la réglette"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M2 7h8l6 10h6"/></svg> Dévers</button>
+      <!-- Coupe du terrain lue par le calcul de « Dévers » (src/profil.js) : grisé tant qu'il n'y en a pas pour la photo -->
+      <button id="profil" type="button" disabled
+              title="Coupe du terrain en travers de la route, telle que « Dévers » l'a lue : chaussée, bords, chute et dévers"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M2 20V4M2 20h20M5 9l4 0 3 6 4-2 5 0"/></svg> Profil</button>
       <label class="reglette" title="Distance examinée au-delà du bord de la chaussée, au prochain appui sur « Dévers »">
         <span>Jusqu'à <output id="bords-valeur" for="bords-largeur">10 m</output></span>
         <input id="bords-largeur" type="range" min="2" max="30" step="1" value="10">
@@ -606,6 +609,16 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
       <button value="ok" class="oui">J'ai compris</button>
     </form>
   </dialog>
+  <!-- Bouton « Profil » : coupe du terrain en travers de la route (src/profil.js) -->
+  <dialog id="fenetre-profil" class="profil">
+    <h2></h2>
+    <div class="graphique"></div>
+    <div class="legende"></div>
+    <form method="dialog">
+      <button id="profil-png" type="button" title="Enregistrer le graphique, avec son titre et sa légende, en image PNG">Enregistrer en PNG</button>
+      <button value="ok">Fermer</button>
+    </form>
+  </dialog>
   <!-- Photo sur un pont d'après la BD TOPO : proposer « Sur un pont », une fois par pont -->
   <dialog id="alerte-pont" class="avertissement">
     <h2>⚠ Photo sur un pont</h2>
@@ -657,6 +670,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
   <script src="src/calcul.js"></script>
   <script src="src/traits.js"></script>
   <script src="src/couche.js"></script>
+  <script src="src/profil.js"></script>
   <script src="src/app.js"></script>
 </body>
 </html>

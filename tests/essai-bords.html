@@ -3,7 +3,8 @@
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
 <!-- Chute et dévers des bords de route hors pont, bouton « Dévers » (ticket #31) : photos de la séquence à 30-120 m des
      ponts de tests/essai-ponts.html (remblais d'approche, ruisseau). Journal seulement : pas encore de
-     talus de hauteur connue. Lancer comme tests/navigateur.html. -->
+     talus de hauteur connue ; Pouilly-en-Auxois (photos RTK de essai-largeur.html, largeur réelle non relevée) pour les bords
+     trouvés. Lancer comme tests/navigateur.html. -->
 <script>try { localStorage.clear(); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:900px;border:0"></iframe>
 <script>
@@ -12,31 +13,50 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba93-c63ac344d675"];
 (async () => {
   const w = document.getElementById("f").contentWindow;
-  let shown = 0;
+  let shown = 0, drawn = 0, images = 0;
   try {
     const t0 = Date.now();
     while (!(w.mesures?.app && w.mesures.map?.loaded?.())) { if (Date.now() - t0 > 120000) throw new Error("Pyodide"); await sleep(250); }
     const doc = w.document;
     doc.querySelector("#reglages-defaut")?.close();
+    const pouilly = (await (await fetch("https://panoramax.ign.fr/api/search?ids=cd8cf3a0-6567-40f0-8805-94172a5dfc3c")).json()).features[0];
+    const places = [[pouilly, 0, "Pouilly"]];
     for (const id of BRIDGES) {
       const b = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
       const [lon, lat] = b.geometry.coordinates, d = 0.0015;
       const near = (await (await fetch(`https://panoramax.ign.fr/api/search?limit=40&collections=${b.collection}&bbox=${lon - d},${lat - d},${lon + d},${lat + d}`)).json()).features;
       const far = near.map((f) => [f, Math.hypot((f.geometry.coordinates[0] - lon) * 75000, (f.geometry.coordinates[1] - lat) * 111000)])
         .filter(([, m]) => m > 30 && m < 120).sort((a, c) => a[1] - c[1]).filter((_, k) => k % 3 === 0).slice(0, 5);
-      for (const [f, m] of far) {
-        w.mesures.openPhoto(f);
-        await sleep(4000);
-        const button = doc.querySelector("#bords");
-        if (!button.disabled) button.click();
-        await sleep(8000);
-        const c = doc.querySelector("#chute");
-        if (!c.hidden) shown++;
-        log(`${Math.round(m)} m du pont ${id.slice(0, 8)}${button.disabled ? " (bouton grisé ensuite)" : ""} : ${c.hidden ? "(rien)" : c.textContent.replace(/\n/g, " · ")}`);
-      }
+      places.push(...far.map(([f, m]) => [f, m, `${Math.round(m)} m du pont ${id.slice(0, 8)}`]));
     }
-    log(`encadrés affichés : ${shown}`);
+    for (const [f, , where] of places) {
+      w.mesures.openPhoto(f);
+      await sleep(4000);
+      const button = doc.querySelector("#bords");
+      if (!button.disabled) button.click();
+      await sleep(8000);
+      const c = doc.querySelector("#chute");
+      if (!c.hidden) shown++;
+      const profile = doc.querySelector("#profil");
+      if (!profile.disabled) {
+        profile.click();
+        await sleep(300);
+        const dialog = doc.querySelector("#fenetre-profil"), svg = dialog.querySelector("svg");
+        drawn += dialog.open && svg?.querySelector(".sol") ? 1 : 0;
+        await sleep(700);  // titre complété par le lieu (route, PR, commune)
+        log(`  profil : ${dialog.querySelector("h2").textContent} · ${[...dialog.querySelectorAll(".legende li, .legende p")].map((e) => e.textContent).join(" | ")}`);
+        // Image du bouton « Enregistrer en PNG » (Profil.png), sans la boîte d'enregistrement
+        if (images++ < 3) {
+          const blob = await w.eval("Profil").png(svg, dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
+          await log(`IMAGE ${f.id.slice(0, 8)} ` + await new Promise((r) => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(blob); }));
+        }
+        dialog.close();
+      }
+      log(`${where} ${f.id.slice(0, 8)}${button.disabled ? " (bouton grisé ensuite)" : ""} : ${c.hidden ? "(rien)" : c.textContent.replace(/\n/g, " · ")}`
+        + ` · bords trouvés : ${(c.title.match(/Bords trouvés : (.*)\.$/) || [])[1] || "?"}`);
+    }
+    log(`encadrés affichés : ${shown} · profils dessinés : ${drawn}`);
   } catch (e) { log("exception " + e); }
-  log(shown ? "FIN" : "ERREUR aucun encadré");
+  log(shown && drawn === shown - 1 ? "FIN" : `ERREUR encadrés ${shown}, profils ${drawn}`);  // le pont : pas de profil
 })();
 </script>
