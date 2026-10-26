@@ -190,6 +190,15 @@ après.
   les modifier), avec un commentaire, et d'autres peuvent s'y ajouter en cours de route (vides pour
   les objets déjà relevés) ; un champ texte propose dans une liste les valeurs déjà
   saisies sur les autres objets. Voie, PR et commune de l'objet s'ajoutent d'eux-mêmes.
+  **Modèles de champs** : au premier objet, la liste « Modèle » remplit les champs d'un modèle
+  enregistré (modifiables ensuite) ; des champs nouveaux (aucun modèle identique) peuvent être
+  gardés comme modèle d'une case à cocher, à l'enregistrement de l'objet. Dans l'onglet Couche, le
+  bouton ▤ enregistre les colonnes de la couche comme modèle (sans celles que remplit
+  l'application, ni la position, ni les colonnes techniques d'un KML converti, casse ignorée ; type
+  d'après les valeurs : nombre, oui/non, date AAAA-MM-JJ, liste s'il y a 12 valeurs de 40 caractères
+  au plus, chacune deux fois en moyenne, sinon texte). Les modèles restent dans le
+  navigateur ; « Exporter » et « Importer » les échangent par un fichier JSON avec un autre poste
+  (un modèle importé remplace celui de même nom).
   Le relevé terminé, « Envoyer dans Couche » l'affiche dans l'onglet Couche
   (couleurs et étiquettes selon ses champs, recalage, export GeoJSON ou CSV : colonnes `id`, champs,
   `voie`, `pr`, `commune`, `commentaire`, puis le reste, dont `z_ngf`) ; une couche déjà chargée

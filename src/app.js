@@ -639,12 +639,16 @@
       const box = $("#vue").getBoundingClientRect();
       dialog.style.margin = "0";
       dialog.style.inset = "auto";
+      // Centrée dans la visionneuse, sans en sortir : plus haute (nombreux champs), elle défile
+      dialog.style.maxHeight = `${Math.max(160, box.height - 16)}px`;
       dialog.style.left = `${Math.max(8, box.left + (box.width - dialog.offsetWidth) / 2)}px`;
       dialog.style.top = `${Math.max(8, box.top + (box.height - dialog.offsetHeight) / 2)}px`;
     };
     place();
     window.addEventListener("resize", place);
-    dialog.addEventListener("close", () => window.removeEventListener("resize", place), { once: true });
+    const grown = new ResizeObserver(place);  // contenu changé fenêtre ouverte (modèle choisi, champs ajoutés)
+    grown.observe(dialog);
+    dialog.addEventListener("close", () => { window.removeEventListener("resize", place); grown.disconnect(); }, { once: true });
   }
 
   /** Onglet Photo, « Position » : un élément par ligne (GPS, terrain, inclinaison, calage), chacun avec
@@ -1800,6 +1804,7 @@
     $("#couche-retirer").disabled = false;
     $("#couche-exporter").disabled = false;
     $("#couche-csv").disabled = false;
+    $("#couche-modele").disabled = Boolean(fieldsError(overlayFields()));
     showOverlayStyle();
     if (fit) {
       const xs = [], ys = [];
@@ -2053,6 +2058,7 @@
     $("#couche-retirer").disabled = true;
     $("#couche-exporter").disabled = true;
     $("#couche-csv").disabled = true;
+    $("#couche-modele").disabled = true;
     $("#couche-enregistrer").disabled = true;
     fileStore("readwrite", (s) => s.delete("couche")).catch(() => null);
     refresh();
@@ -3146,7 +3152,7 @@
       placeholder: "Valeurs séparées par « ; »", className: "valeurs", hidden: field.type !== "liste" });
     const remove = Object.assign(document.createElement("button"), { type: "button", textContent: "×", title: "Retirer ce champ" });
     remove.setAttribute("aria-label", "Retirer ce champ");
-    const changed = () => { values.hidden = type.value !== "liste"; showFieldInputs(readFields(), {}); };
+    const changed = () => { values.hidden = type.value !== "liste"; showFieldInputs(readFields(), {}); showKeepModel(); };
     for (const input of [name, type, values]) input.addEventListener("input", changed);
     remove.addEventListener("click", () => { li.remove(); changed(); });
     row.append(name, type, remove);
@@ -3196,6 +3202,132 @@
     }));
   }
 
+  /** Défaut d'une liste de champs (vide : aucun) : au moins un, nom libre et unique, valeurs d'une liste. */
+  function fieldsError(list) {
+    const names = list.map((f) => f.nom), reserved = names.find((n) => RELEVE_RESERVES.includes(n));
+    const empty = list.find((f) => f.type === "liste" && !f.valeurs.length);
+    return !list.length ? "Ajoutez au moins un champ."
+      : reserved ? `« ${reserved} » est déjà une colonne de l'export : choisissez un autre nom.`
+      : new Set(names).size < names.length ? "Deux champs portent le même nom."
+      : empty ? `Donnez les valeurs de la liste « ${empty.nom} ».`
+      : "";
+  }
+
+  // Modèles de champs (ticket #33) : structures de relevé gardées sous un nom dans le navigateur, et
+  // échangées par fichier entre postes
+  const MODELES_FORMAT = "web-measures/modeles-releve";
+
+  function releveModels() {
+    try { return JSON.parse(store.get("releve-modeles") || "[]"); } catch { return []; }
+  }
+
+  function setReleveModels(models) {
+    store.set("releve-modeles", JSON.stringify(models.sort((a, b) => a.nom.localeCompare(b.nom, "fr"))));
+    showReleveModels();
+  }
+
+  /** Liste des modèles (choix gardé), boutons sans effet possible grisés, case « Garder comme modèle ». */
+  function showReleveModels() {
+    const models = releveModels(), select = $("#releve-modele"), chosen = select.value;
+    select.replaceChildren(new Option("— aucun —", ""), ...models.map((m) => new Option(m.nom, m.nom)));
+    select.value = models.some((m) => m.nom === chosen) ? chosen : "";
+    select.disabled = !models.length;
+    $("#releve-modele-retirer").disabled = !select.value;
+    $("#releve-modeles-exporter").disabled = !models.length;
+    showKeepModel();
+  }
+
+  /** « Garder ces champs comme modèle » : proposé quand des champs se définissent ou s'ajoutent et
+   * qu'aucun modèle n'a exactement les mêmes. */
+  function showKeepModel() {
+    const list = readFields(), same = JSON.stringify(list);
+    $("#releve-garder-modele").hidden = list.length <= releveFields().length
+      || releveModels().some((m) => JSON.stringify(m.champs) === same);
+  }
+
+  /** Modèles valides d'un fichier exporté (MODELES_FORMAT) : nom, champs comme à la saisie. */
+  function readModels(data) {
+    if (data?.format !== MODELES_FORMAT || !Array.isArray(data.modeles)) return [];
+    return data.modeles.flatMap((m) => {
+      const champs = (Array.isArray(m?.champs) ? m.champs : []).map((f) => ({ nom: String(f?.nom ?? "").trim(), type: f?.type,
+        valeurs: Array.isArray(f?.valeurs) ? f.valeurs.map((v) => String(v).trim()).filter(Boolean) : [] }));
+      const ok = typeof m.nom === "string" && m.nom.trim() && !fieldsError(champs)
+        && champs.every((f) => f.nom && Object.hasOwn(RELEVE_TYPES, f.type));
+      return ok ? [{ nom: m.nom.trim().slice(0, 60), champs }] : [];
+    });
+  }
+
+  // Colonnes techniques d'un KML converti (GDAL, togeojson) : style et affichage, pas des données
+  const KML_TECHNIQUES = ["timestamp", "begin", "end", "altitudemode", "tessellate", "extrude", "visibility", "draworder",
+    "icon", "snippet", "styleurl", "stylehash", "stylemaphash"];
+
+  /** Champs d'un modèle tirés des colonnes de la couche, sans celles que remplit l'application, ni la
+   * position, ni les colonnes techniques d'un KML (casse ignorée) ; type d'après les valeurs : nombres,
+   * oui / non, dates AAAA-MM-JJ, sinon texte (liste s'il a 12 valeurs de 40 caractères au plus,
+   * chacune deux fois en moyenne). */
+  function overlayFields() {
+    const filled = new Set([...RELEVE_RESERVES, ...overlay.techniques, ...KML_TECHNIQUES, "latitude", "longitude"]
+      .map((c) => c.toLowerCase()));
+    return overlay.columns.filter((c) => c.trim() && !filled.has(c.toLowerCase())).map((nom) => {
+      const values = overlay.features.map((f) => f.properties[nom]).filter((v) => v !== null && v !== undefined && v !== "");
+      const all = (test) => values.length > 0 && values.every(test);
+      const distinct = [...new Set(values.map(String))];
+      const type = all((v) => typeof v === "number") ? "nombre" : all((v) => typeof v === "boolean") ? "oui_non"
+        : all((v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? "date"
+        : all((v) => typeof v === "string" && v.length <= 40) && distinct.length <= 12 && distinct.length * 2 <= values.length ? "liste" : "texte";
+      return { nom, type, valeurs: type === "liste" ? distinct.sort((a, b) => a.localeCompare(b, "fr")) : [] };
+    });
+  }
+
+  $("#couche-modele").addEventListener("click", () => {
+    const dialog = $("#modele-couche"), champs = overlayFields(), named = dialog.querySelector("input");
+    dialog.querySelector("ul").replaceChildren(...champs.map((f) => Object.assign(document.createElement("li"), {
+      textContent: `${f.nom} : ${RELEVE_TYPES[f.type].toLowerCase()}${f.valeurs.length ? ` (${f.valeurs.join(", ")})` : ""}` })));
+    named.value = "";
+    named.placeholder = overlay.name.replace(/\.[^.]+$/, "").slice(0, 60);
+    dialog.returnValue = "";
+    dialog.addEventListener("close", () => {
+      if (dialog.returnValue !== "garder") return;
+      const nom = named.value.trim() || named.placeholder;
+      setReleveModels([...releveModels().filter((m) => m.nom !== nom), { nom, champs }]);
+      setStatus(`Modèle « ${nom} » enregistré : à choisir au premier objet d'un relevé.`);
+    }, { once: true });
+    showOverViewer(dialog);
+  });
+
+  $("#releve-modele").addEventListener("change", () => {
+    const model = releveModels().find((m) => m.nom === $("#releve-modele").value);
+    if (model) $("#releve-champs").replaceChildren(...model.champs.map((f) => fieldRow(f)));
+    showFieldInputs(readFields(), {});
+    showReleveModels();
+  });
+  $("#releve-modele-retirer").addEventListener("click", () => {
+    const dialog = $("#retirer-modele"), name = $("#releve-modele").value;
+    dialog.querySelector("p span").textContent = name;
+    dialog.returnValue = "";
+    dialog.addEventListener("close", () => {
+      if (dialog.returnValue === "retirer") setReleveModels(releveModels().filter((m) => m.nom !== name));
+    }, { once: true });
+    dialog.showModal();
+  });
+  $("#releve-modeles-exporter").addEventListener("click", () => download(
+    JSON.stringify({ format: MODELES_FORMAT, modeles: releveModels() }, null, 2), "modeles-releve.json", "application/json"));
+  $("#releve-modeles-importer").addEventListener("click", () => $("#releve-modeles-fichier").click());
+  $("#releve-modeles-fichier").addEventListener("change", async (event) => {
+    const [file] = event.target.files;
+    event.target.value = "";
+    if (!file) return;
+    let found = [];
+    try { found = readModels(JSON.parse(await file.text())); } catch { /* pas du JSON */ }
+    const error = $("#releve-erreur");
+    error.textContent = found.length ? "" : `« ${file.name} » ne contient aucun modèle de champs lisible.`;
+    error.hidden = Boolean(found.length);
+    if (!found.length) return;
+    const names = new Set(found.map((m) => m.nom));
+    setReleveModels([...releveModels().filter((m) => !names.has(m.nom)), ...found]);
+    setStatus(`${found.length} modèle${found.length > 1 ? "s" : ""} importé${found.length > 1 ? "s" : ""} de « ${file.name} ».`);
+  });
+
   /** Champs de l'objet relevé n° k (null : le dernier gardé) ; fresh : objet tout juste gardé, le
    * lieu (voie, PR, commune) lu en même temps. Au premier objet du relevé, définition des champs. */
   function editReleve(k, fresh = false) {
@@ -3212,24 +3344,31 @@
     dialog.querySelector("h2 span").textContent = /^Objet (\S+)/.exec(row.text)[1];
     // Premier objet : les champs du relevé ; ensuite, d'autres champs peuvent s'ajouter (vides pour les
     // objets déjà relevés)
+    $("#releve-definition legend").title = defining ? "Définis une fois, ils servent à tous les objets suivants"
+      : "Pour cet objet et les suivants (vides pour les objets déjà relevés)";
     $("#releve-definition legend").textContent = defining
-      ? "Champs du relevé : définis une fois, ils servent à tous les objets suivants"
-      : "Nouveaux champs, si besoin : pour cet objet et les suivants (vides pour les objets déjà relevés)";
+      ? "Champs du relevé"
+      : "Nouveaux champs, si besoin";
     $("#releve-champs").replaceChildren(...fields.map((f) => fieldRow(f, true)), ...(defining ? [fieldRow()] : []));
+    $("#releve-modeles").hidden = !defining;
+    const [box, named] = $("#releve-garder-modele").querySelectorAll("input");
+    box.checked = false;
+    named.value = "";
+    named.placeholder = `Modèle du ${new Date().toLocaleDateString("fr-FR")}`;
+    showReleveModels();
     $("#releve-valeurs").replaceChildren();
     $("#releve-erreur").hidden = true;
     showFieldInputs(readFields(), values);
     $("#releve-enregistrer").onclick = async () => {
-      const list = readFields();
-      const names = list.map((f) => f.nom);
-      const error = !list.length ? "Ajoutez au moins un champ."
-        : names.find((n) => RELEVE_RESERVES.includes(n)) ? `« ${names.find((n) => RELEVE_RESERVES.includes(n))} » est déjà une colonne de l'export : choisissez un autre nom.`
-        : new Set(names).size < names.length ? "Deux champs portent le même nom."
-        : list.find((f) => f.type === "liste" && !f.valeurs.length) ? `Donnez les valeurs de la liste « ${list.find((f) => f.type === "liste" && !f.valeurs.length).nom} ».`
-        : "";
+      const list = readFields(), error = fieldsError(list);
       $("#releve-erreur").textContent = error;
       $("#releve-erreur").hidden = !error;
       if (error) return;
+      const keep = $("#releve-garder-modele"), [box, named] = keep.querySelectorAll("input");
+      if (!keep.hidden && box.checked) {
+        const nom = named.value.trim() || named.placeholder;
+        setReleveModels([...releveModels().filter((m) => m.nom !== nom), { nom, champs: list }]);
+      }
       store.set("releve-champs", JSON.stringify(list));
       const out = {};
       for (const input of $("#releve-valeurs").querySelectorAll("[data-champ]")) {
@@ -3248,6 +3387,8 @@
     };
     dialog.returnValue = "";
     showOverViewer(dialog);
+    // Focus sur ce qui est à remplir d'abord (sinon : sur l'icône d'import des modèles)
+    dialog.querySelector("#releve-champs > li:not([hidden]) .nom, #releve-valeurs [data-champ]")?.focus();
   }
   $("#releve-ajouter").addEventListener("click", () => {
     $("#releve-champs").append(fieldRow());

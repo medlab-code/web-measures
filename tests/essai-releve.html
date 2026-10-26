@@ -88,6 +88,55 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       li.querySelector(".type").value = type; li.querySelector(".type").dispatchEvent(new Event("input"));
       li.querySelector(".valeurs").value = values; li.querySelector(".valeurs").dispatchEvent(new Event("input"));
     };
+    // Modèles de champs (ticket #33) : import d'un fichier (modèle invalide écarté), retrait, choix
+    const modelFile = (name, data) => {
+      const t = new w.DataTransfer();
+      t.items.add(new w.File([typeof data === "string" ? data : JSON.stringify(data)], name, { type: "application/json" }));
+      const input = doc.querySelector("#releve-modeles-fichier");
+      input.files = t.files;
+      input.dispatchEvent(new Event("change"));
+    };
+    const models = () => JSON.parse(w.localStorage.getItem("web-measures/releve-modeles") || "[]");
+    const pick = (name) => { const s = doc.querySelector("#releve-modele"); s.value = name; s.dispatchEvent(new Event("change")); };
+    expect("sans modèle : liste, retrait et export grisés, case du modèle masquée", doc.querySelector("#releve-modele").disabled
+      && doc.querySelector("#releve-modele-retirer").disabled && doc.querySelector("#releve-modeles-exporter").disabled
+      && !doc.querySelector("#releve-modeles-importer").disabled && !shown("#releve-garder-modele"));
+    modelFile("faux.json", "pas du JSON");
+    await sleep(200);
+    expect("fichier sans modèle refusé", shown("#releve-erreur") && !models().length, doc.querySelector("#releve-erreur").textContent);
+    modelFile("modeles-releve.json", { format: "web-measures/modeles-releve", modeles: [
+      { nom: "Vieux", champs: [{ nom: "etat", type: "texte", valeurs: [] }] },
+      { nom: "Bornes", champs: [{ nom: "distance_bord_m", type: "nombre", valeurs: [] }] },
+      { nom: "Réservé", champs: [{ nom: "lon", type: "texte", valeurs: [] }] },
+      { nom: "Type inconnu", champs: [{ nom: "x", type: "constructor", valeurs: [] }] }] });
+    await until(() => models().length, 3000, "modèles importés");
+    expect("import : modèles valides seuls, triés, export actif", models().map((m) => m.nom).join() === "Bornes,Vieux"
+      && !doc.querySelector("#releve-modeles-exporter").disabled && !shown("#releve-erreur"), models().map((m) => m.nom).join());
+    pick("Vieux");
+    doc.querySelector("#releve-modele-retirer").click();
+    await until(() => doc.querySelector("#retirer-modele").open, 3000, "fenêtre Retirer le modèle");
+    doc.querySelector('#retirer-modele button[value="retirer"]').click();
+    await sleep(200);
+    expect("modèle retiré, retrait grisé", models().map((m) => m.nom).join() === "Bornes" && doc.querySelector("#releve-modele-retirer").disabled
+      && dialog.open);
+    // Modèle de nombreux champs choisi fenêtre ouverte : la fenêtre se replace, boutons dans l'écran
+    modelFile("grand.json", { format: "web-measures/modeles-releve", modeles: [{ nom: "Grand",
+      champs: Array.from({ length: 30 }, (_, i) => ({ nom: `champ_${i}`, type: "texte", valeurs: [] })) }] });
+    await until(() => models().some((m) => m.nom === "Grand"), 3000, "modèle Grand importé");
+    pick("Grand");
+    await sleep(300);
+    { const r = dialog.getBoundingClientRect(), b = doc.querySelector("#releve-enregistrer").getBoundingClientRect();
+      const v = doc.querySelector("#vue").getBoundingClientRect();
+      log(`fenêtre : ${Math.round(r.top)} à ${Math.round(r.bottom)} px, Enregistrer à ${Math.round(b.bottom)} px, visionneuse ${Math.round(v.top)} à ${Math.round(v.bottom)} px`);
+      expect("nombreux champs : fenêtre dans la visionneuse, « Enregistrer » visible", r.top >= v.top && r.bottom <= v.bottom
+        && b.bottom <= r.bottom && b.top >= r.top); }
+    doc.querySelector("#releve-modele-retirer").click();
+    await until(() => doc.querySelector("#retirer-modele").open, 3000, "fenêtre Retirer le modèle (Grand)");
+    doc.querySelector('#retirer-modele button[value="retirer"]').click();
+    await sleep(200);
+    pick("Bornes");
+    expect("modèle choisi : ses champs remplis, pas de case pour le garder", rows().length === 1 && rows()[0].querySelector(".nom").value === "distance_bord_m"
+      && rows()[0].querySelector(".type").value === "nombre" && !shown("#releve-garder-modele"));
     setRow(rows()[0], "incert_m", "texte");  // colonne automatique : refusée
     doc.querySelector("#releve-enregistrer").click();
     await sleep(200);
@@ -104,10 +153,15 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     input("essence").value = "tilleul";
     input("classe").value = "panneau";
     expect("premier objet : pas encore de valeurs à proposer", !input("classe").getAttribute("list"));
+    expect("champs nouveaux : « Garder comme modèle » proposé", shown("#releve-garder-modele"));
+    doc.querySelector("#releve-garder-modele input[type=checkbox]").checked = true;
+    doc.querySelector("#releve-garder-modele input[type=text]").value = "Arbres";
     if (location.hash === "#capture") { log("CAPTURE"); await sleep(5000); }  // capture par CDP (fenêtre des champs)
     doc.querySelector("#releve-enregistrer").click();
     await until(() => !dialog.open, 15000, "fenêtre fermée (lieu lu)");
     await sleep(300);
+    expect("modèle « Arbres » gardé avec les trois champs", models().map((m) => m.nom).join() === "Arbres,Bornes"
+      && models()[0].champs.map((f) => f.nom).join() === "distance_bord_m,essence,classe" && models()[0].champs[1].valeurs.join() === "chêne,tilleul");
     let objects = JSON.parse(app.results()).filter((r) => r.releve);
     log("résultats : " + objects.map((r) => r.text).join(" | "));
     expect("objet 1 listé avec son premier champ", objects.length === 1 && /^Objet 1 ±\d+,\d+ m — 2,4$/.test(objects[0].text), objects[0]?.text);
@@ -122,8 +176,10 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await until(() => dialog.open, 5000, "fenêtre des champs (2)");
     expect("objets suivants : champs déjà définis masqués, ajout possible", input("essence") && shown("#releve-ajouter")
       && [...rows()].every((li) => li.hidden));
+    expect("objets suivants : pas de liste des modèles, case masquée sans nouveau champ", !shown("#releve-modeles") && !shown("#releve-garder-modele"));
     doc.querySelector("#releve-ajouter").click();
     setRow(rows()[3], "etat", "texte");
+    expect("champ ajouté : « Garder comme modèle » proposé", shown("#releve-garder-modele"));
     input("etat").value = "penché";
     const choices = (name) => [...(doc.getElementById(input(name).getAttribute("list") || "")?.options || [])].map((o) => o.value);
     expect("champ texte : valeur du 1er objet proposée", choices("classe").join() === "panneau", choices("classe").join());
@@ -198,6 +254,18 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     expect("couleur et étiquette selon les champs, nb_visees compris, sans les colonnes techniques",
       ["#couche-couleur", "#couche-etiquette"].every((id) => options(id).includes("essence") && options(id).includes("nb_visees")
         && !options(id).some((c) => ["angle", "incert_m", "ecart_m", "dist_max_m", "gps_m", "photos", "date_mesure", "z_ngf"].includes(c))));
+    // Colonnes de la couche enregistrées comme modèle de champs (ticket #33), sans celles de l'application
+    { const box = doc.querySelector("#modele-couche");
+      expect("couche chargée : « modèle de champs » actif", !doc.querySelector("#couche-modele").disabled);
+      doc.querySelector("#couche-modele").click();
+      await until(() => box.open, 3000, "fenêtre Modèle de champs");
+      log("modèle de la couche : " + [...box.querySelectorAll("li")].map((li) => li.textContent).join(" | "));
+      box.querySelector("input").value = "Couche essai";
+      box.querySelector('button[value="garder"]').click();
+      await sleep(200);
+      const m = models().find((x) => x.nom === "Couche essai");
+      expect("modèle tiré de la couche : champs saisis seulement, types d'après les valeurs", m
+        && m.champs.map((f) => `${f.nom}:${f.type}`).join() === "distance_bord_m:nombre,essence:texte,classe:texte,etat:texte", JSON.stringify(m?.champs)); }
     const labels = () => w.mesures.map.getSource("couche").serialize().data.features.map((f) => f.properties._etiquette).join(" | ");
     expect("sans étiquette : case de l'intitulé grisée", doc.querySelector("#couche-intitule").disabled);
     doc.querySelector("#couche-etiquette").value = "essence";
@@ -460,6 +528,24 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await sleep(500);
     expect("relevé vidé, couche gardée", JSON.parse(w.mesures.app.results()).filter((r) => r.releve).length === 0
       && w.document.querySelector("#releve-vider").disabled && w.mesures.map.getSource("couche").serialize().data.features.length === 2);
+    // Modèle tiré d'un KML converti : colonnes techniques et position écartées (casse ignorée), liste
+    // seulement pour des valeurs courtes
+    { const d = w.document, long = "Accident d'une VL seule, la conductrice est sortie de la route";
+      const props = (i) => ({ Name: `P${i}`, description: "", tessellate: -1, extrude: 0, altitudeMode: "clampToGround", drawOrder: null,
+        icon: null, LATITUDE: "47,3", LONGITUDE: "4,5", ID: i, Etat: i % 2 ? "bon" : "mauvais", Observation: i % 2 ? long : long + " (bis)" });
+      const kml = { type: "FeatureCollection", features: [0, 1, 2, 3].map((i) => ({ type: "Feature", properties: props(i),
+        geometry: { type: "Point", coordinates: [target[0] + i * 1e-5, target[1]] } })) };
+      w.confirm = () => true;
+      await w.mesures.importOverlay([new w.File([JSON.stringify(kml)], "interventions.geojson", { type: "application/geo+json" })]);
+      await until(() => d.querySelector("#couche-nom").textContent.startsWith("interventions"), 10000, "couche KML");
+      d.querySelector("#couche-modele").click();
+      const box = d.querySelector("#modele-couche");
+      await until(() => box.open, 3000, "fenêtre Modèle de champs (KML)");
+      const listed = [...box.querySelectorAll("li")].map((li) => li.textContent);
+      log("modèle du KML : " + listed.join(" | "));
+      expect("modèle d'un KML : sans colonnes techniques ni position, liste pour les valeurs courtes seulement",
+        listed.join(" | ") === "Name : texte | description : texte | Etat : liste de valeurs (bon, mauvais) | Observation : texte");
+      box.querySelector('button[value=""]').click(); }
     verdict();
   } catch (e) { log("ERREUR " + e + " " + (e.stack || "").split("\n")[1]); }
   log("FIN");
