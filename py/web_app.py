@@ -2022,12 +2022,10 @@ class App(session.Session):
         for item in self.items:
             if not item.points:
                 continue
-            if len(item.points) >= 2:
-                add("mesure", "LineString", [list(p) for p in item.points], item.label)
+            if len(item.points) >= 2:  # sans étiquette : pas de longueur sur la carte (demande de l'utilisateur)
+                add("mesure", "LineString", [list(p) for p in item.points])
             for p in item.points:
                 add("point", "Point", list(p))
-            if len(item.points) == 1 and item.label:  # hauteur : étiquette au pied
-                add("etiquette", "Point", list(item.points[0]), item.label)
         self.rays = [r for r in self.rays if not r.removed]
         for item in self.rays:
             for lon, lat, elon, elat in item.rays:
@@ -2039,10 +2037,8 @@ class App(session.Session):
             add("trace", "LineString", [list(p) for p in widths.guide(self.ref_point, road["axis"])])
         for lon, lat, values in self.points:
             add("triangule", "Point", [lon, lat], values["nom"])  # nom seul : pas d'incertitude sur la carte
-        for i, j, values in self.links:  # distance entre deux points gardés : trait rouge, comme une mesure
-            add("distance", "LineString", [list(self.points[i][:2]), list(self.points[j][:2])],
-                "{}↔{} {} m".format(self.points[i][2]["nom"], self.points[j][2]["nom"],
-                                    round(values["valeur_m"])))  # au mètre près : précision de la triangulation
+        for i, j, values in self.links:  # distance entre deux points gardés : trait rouge, sans longueur
+            add("distance", "LineString", [list(self.points[i][:2]), list(self.points[j][:2])])
         return json.dumps({"type": "FeatureCollection", "features": features})
 
     # Export ------------------------------------------------------------------------------

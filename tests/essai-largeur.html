@@ -185,28 +185,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("étiquettes : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
       + " · carte : " + JSON.parse(app.map_geojson()).features.map((f) => f.properties.kind).join(","));
     if (location.hash === "#capture") await sleep(5000);  // capture d'écran de la vue (outil d'essai)
-    // Carte : l'étiquette de la largeur ne couvre ni le trait ni ses bouts (croix), même trait court
-    const map = w.mesures.map;
-    const clearOfLine = (what) => {
-      const f = JSON.parse(app.map_geojson()).features.find((g) => g.properties.kind === "mesure" && g.properties.label);
-      const el = [...map.getContainer().querySelectorAll(".etiquette")].find((e) => e.textContent === f.properties.label);
-      const r = el.getBoundingClientRect(), c = map.getContainer().getBoundingClientRect();
-      const [pa, pb] = [f.geometry.coordinates[0], f.geometry.coordinates.at(-1)].map((p) => map.project(p))
-        .map((p) => ({ x: p.x + c.left, y: p.y + c.top }));
-      const inside = (p, m) => p.x > r.left - m && p.x < r.right + m && p.y > r.top - m && p.y < r.bottom + m;
-      const line = Array.from({ length: 101 }, (_, i) => ({ x: pa.x + (pb.x - pa.x) * i / 100, y: pa.y + (pb.y - pa.y) * i / 100 }));
-      const length = Math.round(Math.hypot(pb.x - pa.x, pb.y - pa.y));
-      expect(what, !line.some((p) => inside(p, 1)) && ![pa, pb].some((p) => inside(p, 9)),
-        `étiquette ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}×${Math.round(r.height)}, trait de ${length} px`);
-      return length;
-    };
-    const length = clearOfLine("carte : étiquette à côté du trait");
-    for (const target of [60, 35]) {  // trait court : l'étiquette tombait sur un bout
-      map.jumpTo({ zoom: map.getZoom() + Math.log2(target / length) });
-      await sleep(500);
-      clearOfLine(`carte : étiquette à côté d'un trait de ${target} px`);
-      map.jumpTo({ zoom: map.getZoom() - Math.log2(target / length) });
-    }
+    // Carte : pas de longueur affichée (seulement les noms des points)
+    expect("carte : pas de longueur", !JSON.parse(app.map_geojson()).features.some((f) => / m\b/.test(f.properties.label)));
     // Autre photo : la largeur n'y est pas (ticket #24 : projetée, elle y serait décalée) ;
     // recalage du bord, puis du point de référence, sur la photo de la mesure
     w.mesures.openPhoto(photos[1]);
