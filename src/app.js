@@ -535,9 +535,11 @@
 
   // Calcul ---------------------------------------------------------------------------------
 
+  // Équerre du bouton « Mesure » à la place de l'émoji « 📐 » des textes du cœur (dessin selon l'OS)
+  const EQUERRE = $("#mesure svg");
   function setStatus(text, kind = "") {
     const status = $("#statut");
-    status.textContent = text;
+    status.replaceChildren(...text.split("📐").flatMap((part, i) => i ? [EQUERRE.cloneNode(true), part] : [part]));
     status.className = "statut " + kind;  // replie aussi la ligne
   }
   // Ligne d'état sur une ligne : le texte entier au clic

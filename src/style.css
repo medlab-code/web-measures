@@ -416,6 +416,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   white-space: pre-line;
 }
 .statut.echec { border-left-color: var(--echec); }
+.statut svg { width: 1.05em; height: 1.05em; vertical-align: -0.15em; }
 
 .ligne { margin: 0.4rem 0 0; color: var(--discret); font-size: 0.9em; }
 .ligne:empty { display: none; }
