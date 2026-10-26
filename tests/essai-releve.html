@@ -320,6 +320,23 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         && cells[0] === "classe" && !cells.includes("essence") && cells.includes("nb_visees") && !cells.includes("incert_m")
         && cells.includes("2,4 m")  // texte après la valeur de l'étiquette (distance_bord_m, « m »)
         && page.querySelector(".sous-titre").textContent.startsWith("Fiche d'objet") && page.querySelector("figure img")?.src.startsWith("data:image"));
+      // Fiche trop longue (ticket #32) : attributs multipliés, fin du tableau sur les pages suivantes
+      const long = Object.assign(document.createElement("iframe"), { style: "position:fixed;left:-3000px;top:0;width:900px;height:1200px;border:0" });
+      long.srcdoc = html.replace(/<tbody>(.*?)<\/tbody>/s, (m, r) => `<tbody>${r.repeat(Math.ceil(60 / page.querySelectorAll("tbody tr").length))}</tbody>`);
+      document.body.append(long);
+      await new Promise((r) => long.addEventListener("load", r, { once: true }));
+      const ld = long.contentDocument;
+      await Promise.all([...ld.images].map((img) => img.decode().catch(() => null)));
+      await ld.fonts.ready;
+      w.mesures.paginateFiche(ld);
+      const pages = [...ld.querySelectorAll(".page")], counts = pages.map((p) => p.querySelectorAll("tbody tr").length);
+      log("fiche longue : " + pages.length + " pages, lignes " + counts.join(" + ") + ", 2e page : " + pages[1]?.querySelector(".sous-titre").textContent
+        + ", hauteurs " + pages.map((p) => p.scrollHeight + "/" + p.clientHeight).join(" ") + ", titres " + [...ld.querySelectorAll("h2")].map((h) => h.textContent).join(" | "));
+      expect("fiche longue : 3 pages, chacune dans sa hauteur, au moins 2 lignes par page", pages.length === 3
+        && pages.every((p) => p.scrollHeight <= p.clientHeight) && counts.every((n) => n >= 2)
+        && pages.slice(1).every((p) => p.querySelector("h2").textContent.endsWith("Attributs (suite)"))
+        && pages[2].textContent.includes("Méthode et précision") && !pages[2].textContent.includes("(suite) (suite)"));
+      long.remove();
     }
     // Objet recalé dans la photo : « Enregistrer » actif, puis réécrit dans le même fichier
     if (pastille) {

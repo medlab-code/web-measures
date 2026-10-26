@@ -3711,6 +3711,8 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
       win.document.write(html);
       win.document.close();
       await Promise.all([...win.document.images].map((img) => img.decode().catch(() => null)));
+      await win.document.fonts.ready;  // hauteurs définitives avant le découpage
+      paginateFiche(win.document);
       win.focus();
       win.print();
     } catch (error) {
@@ -3825,6 +3827,7 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
 * { box-sizing: border-box; }
 body { margin: 0; font-family: Inter, Arial, sans-serif; color: #1c1c1c; background: #fff; }
 .page { width: 210mm; height: 297mm; padding: 11.6mm 12.7mm; display: flex; flex-direction: column; gap: 18px; overflow: hidden; }
+.suite { break-before: page; }  /* 2e page d'une fiche trop longue (paginateFiche) */
 header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #e65100; padding-bottom: 12px; }
 h1 { margin: 0; font-size: 26px; letter-spacing: -0.3px; } .sous-titre { font-size: 15px; font-weight: 500; color: #444; margin-top: 4px; }
 .date { align-self: center; font-size: 14px; font-weight: 500; }  /* centrée sur la hauteur du titre */
@@ -3859,6 +3862,36 @@ footer a { color: #1a56c4; word-break: break-all; } .mono { font-family: "JetBra
 <a href="${e(link)}">${e(link)}</a></div>
 ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</footer>
 </div></body></html>`;
+  }
+
+  /** Fiche plus haute qu'une page A4 (ticket #32) : la fin de ses listes (lignes du tableau, puis de
+   * « Méthode et précision ») passe sur la page suivante, sous le même en-tête, et ainsi de suite.
+   * Jamais une ligne seule d'un côté : au moins deux, sinon la liste entière. */
+  function paginateFiche(doc, page = doc.querySelector(".page")) {
+    const fits = () => page.scrollHeight <= page.clientHeight;
+    if (!page || fits()) return;
+    const suite = (el) => el.textContent.endsWith(" (suite)") || el.append(" (suite)");
+    const next = doc.createElement("div"), texts = doc.createElement("div");
+    next.className = "page suite";
+    texts.className = "textes";
+    next.append(page.querySelector("header").cloneNode(true), texts);
+    suite(next.querySelector(".sous-titre"));
+    page.after(next);
+    for (const section of [...page.querySelectorAll(".textes > div")].reverse()) {  // de la fin de la page
+      const list = section.querySelector("tbody, ul"), rest = section.cloneNode(true);
+      const moved = rest.querySelector("tbody, ul");
+      moved.replaceChildren();
+      texts.prepend(rest);
+      while (!fits() && list.children.length) moved.prepend(list.lastElementChild);
+      if (moved.children.length === 1 && list.children.length) moved.prepend(list.lastElementChild);
+      if (list.children.length < 2) {
+        moved.prepend(...list.children);
+        section.remove();
+      } else if (moved.children.length) suite(rest.querySelector("h2"));
+      else rest.remove();
+      if (fits()) break;
+    }
+    if (doc.querySelectorAll(".page").length < 10) paginateFiche(doc, next);  // 10 pages au plus : ligne trop haute
   }
 
   /** Étiquettes de la couche importée visibles dans root (visionneuse, carte) recopiées sur ctx : même
@@ -4126,6 +4159,6 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
   }
 
   // Pour les essais depuis la console : window.mesures.app.click(yaw, pitch)
-  window.mesures = { get app() { return app; }, get psv() { return psv; }, map, openPhoto, buildFiche, importOverlay,
+  window.mesures = { get app() { return app; }, get psv() { return psv; }, map, openPhoto, buildFiche, paginateFiche, importOverlay,
     overlayFile: (handle) => { overlay.fichier = handle; } };  // fichier de la couche remplacé (essais)
 })();

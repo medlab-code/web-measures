@@ -226,6 +226,8 @@ sans changer de photo : la fenêtre se ferme, on recadre la vue et la mini-carte
 la photo et de la carte de la fiche, tracés dès l'ouverture de la fenêtre, puis « Valider le cadrage » ; la
 mini-carte est alors reprise telle que recadrée), et un titre libre (« point de référence A » par défaut, après
 « Fiche de mesure — »). Une page A4
+(plusieurs si le tableau ou la méthode ne tiennent pas : leur fin passe sur la page suivante, sous le même
+en-tête marqué « (suite) », jamais une ligne seule d'un côté de la coupure)
 s'ouvre dans une fenêtre à part et la boîte d'impression du navigateur propose « Enregistrer au
 format PDF ». La page contient la photo d'où la plus grande mesure du point a été prise, cadrée
 sur ses deux bouts (une hauteur sur 75 % de la hauteur de l'image ; une largeur avec 10 % de
