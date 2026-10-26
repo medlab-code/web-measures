@@ -222,6 +222,18 @@
     store.set("inclinaison-terrain", event.target.checked ? "1" : "0");
     if (app) refresh(app.set_terrain_relay(event.target.checked));
   });
+  // Bords de route (chute et dévers, ticket #31) : calculés à l'appui sur « Dévers », jusqu'à la
+  // distance de la réglette, gardée dans le navigateur
+  const edgeZone = $("#bords-largeur");
+  edgeZone.value = store.get("bords", edgeZone.value);
+  const showEdgeZone = () => { $("#bords-valeur").textContent = `${edgeZone.value} m`; };
+  showEdgeZone();
+  edgeZone.addEventListener("input", showEdgeZone);
+  edgeZone.addEventListener("change", () => {
+    store.set("bords", edgeZone.value);
+    if (app) { app.set_edge_zone(Number(edgeZone.value)); refresh(); }
+  });
+  $("#bords").addEventListener("click", () => { app.request_edges(); refresh(); });
   // Droite de mesure tracée sur la carte (expérimental, ticket #28) : décochée, bouton non proposé
   $("#droite-carte").checked = store.get("droite-carte") === "1";
   $("#droite-carte").addEventListener("change", (event) => {
@@ -573,6 +585,7 @@
     $("#camera").value = store.get("camera", $("#camera").value);
     app.set_camera_height(Number($("#camera").value));
     app.set_terrain_relay($("#inclinaison-terrain").checked);
+    app.set_edge_zone(Number($("#bords-largeur").value));
     applyFilter(false);
     if (photo) app.set_picture(JSON.stringify(photo));
     restoreOverlay();  // couche importée gardée de la session précédente
@@ -718,10 +731,12 @@
     }
     tiltReason = state.tilt_reason;
     showLights(state.lights);
-    // Photo sur un pont, en haut à gauche : nom et hauteur de chute (pas pendant la lecture)
+    // Photo sur un pont, en haut à gauche : nom et hauteur de chute ; ailleurs, chute et dévers des
+    // bords de route après un appui sur « Dévers » (pas pendant la lecture)
     const fall = playing() ? null : JSON.parse(app.fall_json());
     const [bridge, ...rest] = (fall?.text || "").split("\n");
     Object.assign($("#chute"), { hidden: !fall, title: fall?.title || "" });
+    $("#bords").disabled = playing() || (fall && !fall.edges) || !app.edges_ready();  // pas sur un pont
     // Nom du pont en vert, « Au-dessus de … » en bleu, puis la hauteur
     const line = (text, className) => Object.assign(document.createElement("span"), { className, textContent: text });
     $("#chute").replaceChildren(line(bridge, "pont"),
@@ -3913,7 +3928,8 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     step("Mise en page", 95);
     if (photo) data.place = (await Lieu.describe(...photo.geometry.coordinates.slice(0, 2)).catch(() => ({}))).parts;  // déjà lu : sans requête
     // Sur un pont : son nom (sans la route, déjà écrite) et ce qu'il franchit, sans la hauteur de chute
-    const [bridge, ...more] = (JSON.parse(app.fall_json())?.text || "").split("\n");
+    const onBridge = JSON.parse(app.fall_json());
+    const [bridge, ...more] = (onBridge?.edges ? "" : onBridge?.text || "").split("\n");
     data.bridge = bridge ? [bridge.replace(/\s*\([^)]*\)$/, ""), more.find((t) => t.startsWith("Au-dessus"))].filter(Boolean) : [];
     return ficheHtml(data, picture, mapImage, JSON.parse(app.state()));
   }

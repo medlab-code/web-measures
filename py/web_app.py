@@ -320,6 +320,9 @@ class App(session.Session):
         self.tilt_clicks, self.tilt_sel = [], None
         self.fall_cells = {}  # maille -> tronçons BD TOPO avec leur largeur (hauteur de chute, voir fall)
         self.falls = {}  # (séquence, pont) -> hauteur de chute calculée (dict text, title) ou en cours
+        self.edges = {}  # (photo, largeur examinée) -> chute et dévers des bords de route (voir _edges)
+        self.edges_asked = {}  # photo -> largeur examinée au dernier appui sur « Dévers »
+        self.edge_zone = self.EDGE_ZONE
         self.bdtopo = {}  # (couche BD TOPO, maille) -> objets lus (voir _bdtopo)
         self.map_line = None  # droite de mesure tracée sur la carte, pour le prochain point A (ticket #28)
         self.redo_stack, self.redo_key = [], None  # états d'avant chaque « Effacer » (Ctrl+Y, voir redo)
@@ -1494,8 +1497,8 @@ class App(session.Session):
 
     def fall(self):
         """Photo prise sur un pont (BD TOPO) : hauteur de chute la plus grande sur toute la longueur du
-        pont ({text, title}), son explication sans RTK vérifié, ou l'attente de son calcul ; None hors
-        d'un pont. Tablier : altitude GPS RTK (NGF) moins hauteur de caméra, aux photos de la séquence
+        pont ({text, title}), son explication sans RTK vérifié, ou l'attente de son calcul ; hors d'un
+        pont, chute et dévers des bords de la route (_edges, ticket #31). Tablier : altitude GPS RTK (NGF) moins hauteur de caméra, aux photos de la séquence
         prises sur le pont (la plus proche de chaque point) ; dessous : MNT LiDAR HD (RGE ALTI en
         secours), le point le plus bas en travers du pont, de 1 à 10 m au-delà du bord de la chaussée
         des deux côtés (FALL_SIDES : sous le tablier, le MNT est interpolé à sa hauteur)."""
@@ -1505,12 +1508,14 @@ class App(session.Session):
         except (KeyError, TypeError, ValueError):
             return None
         sections = self._fall_sections(lon, lat)
+        if sections is None and item.get("id") in self.edges_asked:
+            return {"text": "Bords de route\nCalcul impossible (BD TOPO injoignable)", "title": "", "edges": True}
         if not sections or sections is roads.PENDING:
             return None
         axis = self._axis(item)
         sec = roads.on_bridge(sections, lon, lat, metadata.item_heading(item) if axis is None else axis)
         if sec is None:
-            return None
+            return self._edges(item, sections, lon, lat)
         chain = self._bridge_chain(sections, sec)
         # Nom du pont (BD TOPO), et sa route : « Pont de France (D905) », sinon « Pont de la D111 »,
         # « Pont de l'A38 » (élision devant une voyelle)
@@ -1716,6 +1721,134 @@ class App(session.Session):
             self.notify()
 
         host.fetch_json(metadata.search_url(lon, lat, reach, 100, item.get("collection"), host.api_url), got_photos)
+
+    # Hauteur de chute et dévers des bords de route, hors pont (ticket #31) -----------------------
+    # Calcul lancé seulement par le bouton « Dévers » de la page (request_edges), pour la photo
+    # affichée. Travers de part et d'autre de la route, à EDGE_ALONG m de la photo le long du tronçon,
+    # du bord de la chaussée jusqu'à edge_zone m au-delà (réglette de la page) ; terrain MNT LiDAR HD
+    # (RGE ALTI en secours). Référence : le terrain au bord de la chaussée, pas l'altitude GPS (sans RTK).
+    EDGE_ZONE = 10.0  # m au-delà du bord de la chaussée examinés par défaut
+    EDGE_ALONG = (-10.0, -5.0, 0.0, 5.0, 10.0)  # m le long de la route, depuis la photo
+    EDGE_WINDOW = 2.0  # m en travers : dévers = pente entre deux points au moins aussi écartés
+
+    def set_edge_zone(self, metres):
+        """Réglette du bouton « Dévers » : largeur (m) lue au-delà du bord de la chaussée au prochain appui
+        (le résultat déjà affiché reste celui de sa largeur)."""
+        self.edge_zone = float(metres)
+        self.notify()
+
+    def request_edges(self):
+        """Bouton « Dévers » : calcul pour la photo affichée et la largeur de la réglette (voir _edges)."""
+        if self.item:
+            self.edges_asked[self.item.get("id")] = self.edge_zone
+            self.notify()
+
+    def edges_ready(self):
+        """Le bouton « Dévers » aurait un effet : photo affichée, pas déjà calculée à cette largeur."""
+        return bool(self.item) and self.edges_asked.get(self.item.get("id")) != self.edge_zone
+
+    def _edges(self, item, sections, lon, lat):
+        """Photo hors pont où le bouton « Dévers » a été pressé : chute et dévers des deux bords de la route
+        la plus proche (roads.MAX_DISTANCE m au plus), {text, title, edges}, l'attente du calcul ou sa raison
+        d'échouer ; None sans appui sur le bouton pour cette photo."""
+        zone = self.edges_asked.get(item.get("id"))
+        if zone is None:
+            return None
+
+        def told(text):
+            return {"text": "Bords de route\n" + text, "title": "", "edges": True}
+
+        near = None
+        for sec in sections:
+            if sec.get("level", 0) != 0:
+                continue  # pont ou tunnel
+            line = [triangulation._local(p[0], p[1], lon, lat) for p in sec["line"]]
+            d, s = roads._project(line, 0.0, 0.0)
+            if d <= roads.MAX_DISTANCE and (near is None or d < near[0]):
+                near = (d, s, line, sec)
+        if near is None:
+            return told("Pas de route de la BD TOPO à moins de {} m de la photo".format(
+                measures._num(roads.MAX_DISTANCE, 0)))
+        _, s, line, sec = near
+        key = (item.get("id"), zone)
+        res = self.edges.get(key)
+        if res is None or time.monotonic() >= res.get("retry_at", float("inf")):
+            res = self.edges[key] = {"text": "Calcul en cours…", "title": ""}
+            self._compute_edges(key, line, s, sec["width"], metadata.item_heading(item), lon, lat)
+        road = sec.get("name") if re.match(r"[A-Z]+\d", sec.get("name") or "") else None
+        return {"text": "Bords de route" + (" ({})".format(road) if road else "") + "\n" + res["text"],
+                "title": res["title"], "edges": True}
+
+    def _compute_edges(self, key, line, s, width, heading, lon, lat):
+        """Calcul des bords (voir _edges), rangé dans self.edges[key], puis notify()."""
+        zone = key[1]
+        n = max(2, self.FALL_POINTS // (2 * len(self.EDGE_ALONG)))  # points par côté, bord compris : une requête
+        offsets = [zone * k / (n - 1) for k in range(n)]
+        edge = (width or self.FALL_WIDTH) / 2
+        a, b = roads._at(line, s - roads.TANGENT), roads._at(line, s + roads.TANGENT)
+        course = math.degrees(math.atan2(b[0] - a[0], b[1] - a[1]))  # sens du tronçon
+        forward = heading is None or abs((course - heading + 180) % 360 - 180) <= 90
+        # la normale (-dy, dx) pointe à gauche du sens du tronçon
+        sides = (("droit", -1), ("gauche", 1)) if forward else (("droit", 1), ("gauche", -1))
+        samples = []  # travers après travers, côté après côté, du bord vers l'extérieur
+        for along in self.EDGE_ALONG:
+            # shortcut: _at borne aux bouts du tronçon, les travers s'y superposent ; suivre les tronçons
+            # voisins si des photos près d'un carrefour le demandent
+            (x, y), p, q = roads._at(line, s + along), roads._at(line, s + along - 1.0), roads._at(line, s + along + 1.0)
+            t = math.hypot(q[0] - p[0], q[1] - p[1]) or 1.0
+            nx, ny = -(q[1] - p[1]) / t, (q[0] - p[0]) / t
+            samples += [(x + sign * (edge + o) * nx, y + sign * (edge + o) * ny) for _, sign in sides for o in offsets]
+
+        def got_ground(ground, source, error):
+            if error or not source:
+                self.edges[key] = {"text": "Calcul impossible ({})".format(
+                    "service injoignable" if error else "pas de modèle de terrain ici"), "title": "",
+                    "retry_at": time.monotonic() + self.FALL_RETRY if error else float("inf")}
+                return self.notify()
+            found = {name: [None, None] for name, _ in sides}  # côté -> [(chute, à m du bord), (dévers, à m du bord)]
+            for k, z in enumerate(ground[i:i + n] for i in range(0, len(ground), n)):
+                name = sides[k % 2][0]
+                if z[0] is None:
+                    continue
+                # point le plus bas le plus proche du bord (à 5 cm près) : le pied du talus
+                low = max(((z[0] - v, o) for v, o in zip(z, offsets) if v is not None),
+                          key=lambda c: (round(c[0] / 0.05), -c[1]))
+                if found[name][0] is None or low[0] > found[name][0][0]:
+                    found[name][0] = low
+                for i in range(n):
+                    j = next((j for j in range(i + 1, n) if offsets[j] - offsets[i] >= self.EDGE_WINDOW - 1e-6), None)
+                    if j is None or z[i] is None or z[j] is None:
+                        continue
+                    slope = ((z[i] - z[j]) / (offsets[j] - offsets[i]), offsets[i])
+                    if found[name][1] is None or slope[0] > found[name][1][0]:
+                        found[name][1] = slope
+            terrain = triangulation.RGE_ALTI_ERROR if source == "RGE ALTI" else triangulation.LIDAR_ERROR
+            sigma = math.hypot(terrain, terrain)  # deux altitudes du même MNT
+            lines = []
+            for name, _ in sides:
+                fall, slope = found[name]
+                if fall is None or fall[0] < self.FALL_MIN:
+                    continue
+                beyond = fall[1] >= zone - 1e-6  # le plus bas au bout du profil : le terrain descend encore
+                text = "Côté {} : chute {}{} m (±{} m) {} {} m du bord".format(
+                    name, "≥ " if beyond else "", measures._num(fall[0], 1), measures._num(sigma, 1),
+                    "au-delà de" if beyond else "à", measures._num(fall[1], 0))
+                if slope and slope[0] > 0:
+                    text += ", dévers max {} % ({}°)".format(
+                        measures._num(100 * slope[0], 0), measures._num(math.degrees(math.atan(slope[0])), 0))
+                lines.append(text)
+            self.edges[key] = {
+                "text": "\n".join(lines) or "Aucun bord ne descend de {} m ou plus jusqu'à {} m".format(
+                    measures._num(self.FALL_MIN, 1), measures._num(zone, 0)),
+                "title": ("Terrain ({}) en travers de la route, du bord de la chaussée (largeur BD TOPO, sinon {} m "
+                          "supposés) jusqu'à {} m au-delà, sur ±{} m le long de la route ; côtés vus dans le sens de "
+                          "la photo. Chute : plus grande descente sous le terrain du bord de la chaussée. Dévers : "
+                          "plus forte pente vers le bas sur {} m.").format(
+                    source, measures._num(self.FALL_WIDTH, 0), measures._num(zone, 0),
+                    measures._num(self.EDGE_ALONG[-1], 0), measures._num(self.EDGE_WINDOW, 0))}
+            self.notify()
+
+        precision.fetch_terrain([triangulation._geographic(x, y, lon, lat) for x, y in samples], got_ground)
 
     # Largeur : bord sur la droite de mesure (ticket #18) ----------------------------------------
     def _width_points(self, m):

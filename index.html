@@ -66,6 +66,15 @@
         </div>
       </div>
     </div>
+    <!-- Bouton « Dévers » : chute et dévers des bords de route calculés à l'appui (App.request_edges), jusqu'à la largeur de la réglette -->
+    <div class="bloc bords carte-barre">
+      <button id="bords" type="button" disabled
+              title="Chute et dévers des deux bords de la route, pour la photo affichée (hors pont) : terrain LiDAR HD lu en travers de la route, du bord de la chaussée jusqu'à la distance de la réglette"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M2 7h8l6 10h6"/></svg> Dévers</button>
+      <label class="reglette" title="Distance examinée au-delà du bord de la chaussée, au prochain appui sur « Dévers »">
+        <span>Jusqu'à <output id="bords-valeur" for="bords-largeur">10 m</output></span>
+        <input id="bords-largeur" type="range" min="2" max="30" step="1" value="10">
+      </label>
+    </div>
     <!-- Captures, puis fond de carte -->
     <div class="bloc captures carte-barre">
       <button id="capture-hd" type="button" disabled title="Vue affichée recalculée en Full HD
@@ -147,7 +156,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         </div>
       </div>
       <div class="haut-gauche">
-        <!-- Photo sur un pont : son nom et la hauteur de chute (voir App.fall) -->
+        <!-- Photo sur un pont : son nom et la hauteur de chute ; ailleurs, chute et dévers des bords après « Dévers » (voir App.fall) -->
         <p id="chute" hidden></p>
       </div>
     </section>

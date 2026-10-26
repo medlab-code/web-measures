@@ -92,7 +92,8 @@ header input[type="checkbox"]:not(.interrupteur) { width: 0.95em; height: 0.95em
    l'une au-dessus de l'autre, fond de carte au-dessus du filaire */
 header .bloc { display: flex; flex-direction: column; align-items: center; gap: 0.5em; }
 header .rang { display: flex; align-items: center; gap: 0.55em; }
-header .mesure { margin: 0 auto; }  /* centré dans la place entre le titre et les captures */
+header .mesure { margin-left: auto; }  /* Mesure et Dévers centrés dans la place entre le titre et les captures */
+header .bords { margin-right: auto; }
 /* Captures et fond de carte à droite, à la suite */
 header .captures { align-items: stretch; }  /* deux boutons de même largeur */
 /* Icône au bord gauche, dans une case de même largeur pour les deux boutons : libellés alignés */
@@ -104,7 +105,10 @@ header .fond > label:last-child { grid-column: 2; justify-self: center; }
 /* Bouton Mesure : à gauche des réglages, sur la hauteur des deux rangées, liseré orange comme
    les alertes */
 header .mesure { flex-direction: row; align-items: stretch; gap: 0.8em; }
-header #mesure { display: inline-flex; align-items: center; gap: 0.4em; height: auto; padding: 0 0.9em;
+header .bords { flex-direction: row; align-items: stretch; gap: 0.6em; }  /* Dévers : comme Mesure, réglette à droite */
+header .bords .reglette { flex-direction: column; align-items: stretch; justify-content: center; gap: 0.2em; }
+header .bords .reglette input { width: 7em; margin: 0; }
+header #mesure, header #bords { display: inline-flex; align-items: center; gap: 0.4em; height: auto; padding: 0 0.9em;
                  font-size: 1.15em; font-weight: 600; border: 3px solid var(--panoramax); border-radius: 10px; }
 /* Effacer, Refaire, Tout effacer : liseré aux couleurs des repères de la visionneuse (jaune des croix,
    vert de la verticale et des visées, rouge des traits de mesure), fond et texte des autres boutons ;

@@ -1,0 +1,42 @@
+<!doctype html><meta charset="utf-8"><title>Essai des bords de route</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Chute et dévers des bords de route hors pont, bouton « Dévers » (ticket #31) : photos de la séquence à 30-120 m des
+     ponts de tests/essai-ponts.html (remblais d'approche, ruisseau). Journal seulement : pas encore de
+     talus de hauteur connue. Lancer comme tests/navigateur.html. -->
+<script>try { localStorage.clear(); } catch {}</script>
+<iframe id="f" src="../index.html" style="width:1400px;height:900px;border:0"></iframe>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba93-c63ac344d675"];
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  let shown = 0;
+  try {
+    const t0 = Date.now();
+    while (!(w.mesures?.app && w.mesures.map?.loaded?.())) { if (Date.now() - t0 > 120000) throw new Error("Pyodide"); await sleep(250); }
+    const doc = w.document;
+    doc.querySelector("#reglages-defaut")?.close();
+    for (const id of BRIDGES) {
+      const b = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
+      const [lon, lat] = b.geometry.coordinates, d = 0.0015;
+      const near = (await (await fetch(`https://panoramax.ign.fr/api/search?limit=40&collections=${b.collection}&bbox=${lon - d},${lat - d},${lon + d},${lat + d}`)).json()).features;
+      const far = near.map((f) => [f, Math.hypot((f.geometry.coordinates[0] - lon) * 75000, (f.geometry.coordinates[1] - lat) * 111000)])
+        .filter(([, m]) => m > 30 && m < 120).sort((a, c) => a[1] - c[1]).filter((_, k) => k % 3 === 0).slice(0, 5);
+      for (const [f, m] of far) {
+        w.mesures.openPhoto(f);
+        await sleep(4000);
+        const button = doc.querySelector("#bords");
+        if (!button.disabled) button.click();
+        await sleep(8000);
+        const c = doc.querySelector("#chute");
+        if (!c.hidden) shown++;
+        log(`${Math.round(m)} m du pont ${id.slice(0, 8)}${button.disabled ? " (bouton grisé ensuite)" : ""} : ${c.hidden ? "(rien)" : c.textContent.replace(/\n/g, " · ")}`);
+      }
+    }
+    log(`encadrés affichés : ${shown}`);
+  } catch (e) { log("exception " + e); }
+  log(shown ? "FIN" : "ERREUR aucun encadré");
+})();
+</script>

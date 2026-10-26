@@ -176,6 +176,28 @@ après.
   « calcul impossible » avec sa cause (service injoignable, pas d'altitude GPS sur le pont, pas
   de modèle de terrain). Un creux sans rapport avec ce que franchit le pont, à moins de 10 m de
   la chaussée (fossé profond), augmente la valeur.
+- **Chute et dévers des bords de route** (bouton « Dévers » de la barre du haut, ticket #31) :
+  sur une photo hors pont, à moins de 15 m d'une route de la BD TOPO, un appui sur « Dévers »
+  affiche en haut à gauche, pour chaque côté (vu dans le sens de la photo) qui descend d'au
+  moins 0,5 m, la hauteur de chute et le dévers du bord. La réglette à côté du bouton fixe la
+  distance examinée au-delà de la chaussée (2 à 30 m, 10 m par défaut) ; après l'avoir changée,
+  un nouvel appui refait le calcul. Le bouton est grisé sur un pont (hauteur de chute du pont),
+  pendant la lecture et quand le calcul est déjà fait pour cette photo et cette distance.
+  Calcul :
+  - **profils** : modèle de terrain LiDAR HD (RGE ALTI en secours) lu en travers de la route à
+    −10, −5, 0, +5 et +10 m de la photo le long de la route, des deux côtés, du bord de la
+    chaussée (largeur BD TOPO, sinon 6 m) jusqu'à la distance de la réglette, 16 points par
+    côté ;
+  - **chute** : la plus grande descente entre le terrain au bord de la chaussée et le point le
+    plus bas du profil, avec la distance de ce point (le plus proche du bord, à 5 cm près) ;
+    « chute ≥ … au-delà de 10 m du bord » quand le point le plus bas est au bout du profil (le
+    terrain descend encore : pousser la réglette) ;
+    ne dépend pas de l'altitude GPS : pas besoin de RTK ;
+  - **dévers** : la plus forte pente vers le bas entre deux points du profil écartés d'au
+    moins 2 m, en % et en degrés.
+
+  Sinon s'affichent « Calcul en cours… », « Aucun bord ne descend de 0,5 m ou plus », « Pas de
+  route de la BD TOPO à moins de 15 m » ou « Calcul impossible » avec sa cause.
 - **Mesure libre (points triangulés)** : viser chaque point depuis au moins deux photos, puis
   « Valider le point triangulé » ; à partir du deuxième, la distance horizontale au point précédent
   s'affiche, et la carte se cadre sur le segment.
@@ -415,6 +437,13 @@ Beaune ; 4,3 m pour la D977 bis au-dessus du canal de Bourgogne (tablier à 361,
 357,4 m) ; 1,7 m pour la D114 au-dessus du ruisseau de la Gironde à Barbirey-sur-Ouche (lit
 vers 314 m, route à 315,8 m). Le terrain lu à 1 m du bord seulement donnait 2 m et 0 m : il
 tombait sur le talus de la culée.
+
+Chute et dévers des bords de route : la chute est une différence de deux altitudes du même
+modèle de terrain (±0,1 m en LiDAR HD, ±0,4 m en RGE ALTI). Le dévers est sous-estimé sur un
+talus plus court que l'écart de 2 m plus le pas des points (0,67 m pour 10 m examinés) : un
+talus fictif de 2 m à 150 % donne 125 %. Sous des arbres ou un mur, le modèle de terrain est
+interpolé et adoucit la pente. Le bord de la chaussée vient de la largeur BD TOPO : une
+largeur fausse décale la référence. Pas encore comparé à des talus de hauteur connue.
 
 L'incertitude de la largeur vient surtout de l'axe de la route et de la position du point de
 référence le long de la route. Sur une séquence RTK vérifiée, l'axe est la direction de la
