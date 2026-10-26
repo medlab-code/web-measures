@@ -577,6 +577,9 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.9** (26/10/2026) : chute et dévers des bords de route hors pont (#31) : bouton « Dévers »
+  de la barre du haut et réglette de la distance examinée (2 à 30 m), terrain LiDAR HD en travers
+  de la route, côtés vus dans le sens de la photo, sans besoin de RTK.
 - **0.6.8** (26/10/2026) : relevé d'objets, modèles de champs (#33) : liste « Modèle » au premier
   objet, champs nouveaux gardés comme modèle d'une case à cocher, colonnes d'une couche de l'onglet
   Couche enregistrées comme modèle, échange des modèles par fichier (exporter, importer) ; fenêtres
