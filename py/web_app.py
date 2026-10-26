@@ -1090,7 +1090,8 @@ class App(session.Session):
             else:
                 parts = []
             for part in parts:
-                pts = [(float(p[0]), float(p[1]), float(p[2]) if len(p) > 2 and p[2] is not None else None)
+                # z = 0 : « pas d'altitude » des exports KML (altitudeMode clampToGround), posé sur le sol
+                pts = [(float(p[0]), float(p[1]), float(p[2]) if len(p) > 2 and p[2] else None)
                        for p in part if len(p) >= 2]
                 if pts:
                     line = not kind.endswith("Point")
