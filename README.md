@@ -548,6 +548,12 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.8** (26/10/2026) : relevé d'objets, modèles de champs (#33) : liste « Modèle » au premier
+  objet, champs nouveaux gardés comme modèle d'une case à cocher, colonnes d'une couche de l'onglet
+  Couche enregistrées comme modèle, échange des modèles par fichier (exporter, importer) ; fenêtres
+  sur la visionneuse gardées dans son cadre, avec défilement (Plus tard et Enregistrer toujours
+  visibles) ; fiche PDF trop longue continuée sur les pages suivantes (#32) ; équerre unique
+  (favicon, bouton Mesure) ; couche importée : vert par défaut, z = 0 des exports KML traité comme absent.
 - **0.6.7** (25/10/2026) : onglet Résultats, bouton d'import des mesures en icône seule : le titre
   « Mesures de la séance » n'est plus coupé.
 - **0.6.6** (25/10/2026) : mesures revues sur leur photo (export : colonnes `photo_ref`, `vue_ref`,
