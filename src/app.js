@@ -2686,7 +2686,7 @@
       for (const o of JSON.parse(app.overlay_marks())) {
         const p = overlay.features[o.id]?.properties || {};
         if (masked.has(p._cle)) continue;  // valeur masquée dans la légende
-        const color = p._couleur || "#ff00ff";
+        const color = p._couleur || "#90ee90";
         const chosen = o.id === movingId() ? " choisie" : "";
         const anchorOf = (pts) => (o.kind === "point" ? { yaw: pts[0][0], pitch: pts[0][1] }
           : middle(pts.map(([yaw, pitch]) => ({ yaw, pitch }))));
@@ -3911,7 +3911,7 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
         const f = overlay.features[o.id];
         if (masked.has(f?.properties._cle)) continue;  // valeur masquée dans la légende
         const { kind, pts: views } = overlayPoints(o);  // comme dans la visionneuse (drawViewerMarks)
-        const color = f?.properties._couleur || "#ff00ff", pts = views.map(screen);
+        const color = f?.properties._couleur || "#90ee90", pts = views.map(screen);
         ctx.save();
         if (kind === "ligne") {
           ctx.strokeStyle = color;

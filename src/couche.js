@@ -7,7 +7,7 @@
 // posée sur le sol LiDAR HD (web_app.App.overlay_marks).
 
 const Couche = (() => {
-  const SINGLE = "#ff00ff";  // couleur unique : magenta, distinct des repères de l'application
+  const SINGLE = "#90ee90";  // couleur unique : vert clair
   const EMPTY = "#9e9e9e";  // valeur vide, ou au-delà des valeurs distinctes
   // Une couleur par valeur, 16 valeurs au plus avant « autres » : palette Set1 de ColorBrewer, vive et
   // faite pour que ses couleurs se distinguent bien, sans son gris (celui des valeurs vides), puis huit
