@@ -3703,7 +3703,8 @@
     try {
       const [[w, south], [e, north]] = bounds;
       if (!asShown) map.jumpTo({ center: [(w + e) / 2, (south + north) / 2], zoom: before.zoom, bearing: 0 });
-      await Promise.race([new Promise((resolve) => map.once("idle", resolve)), new Promise((r) => setTimeout(r, 8000))]);
+      // carte déjà immobile (vue actuelle, sans jumpTo) : « idle » ne viendrait plus, 8 s d'attente pour rien
+      if (!asShown || !map.loaded()) await Promise.race([new Promise((resolve) => map.once("idle", resolve)), new Promise((r) => setTimeout(r, 8000))]);
       return await new Promise((resolve) => {  // image WebGL lue juste après son rendu
         map.once("render", () => {
           try {
