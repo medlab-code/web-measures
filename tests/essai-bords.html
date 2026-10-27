@@ -13,7 +13,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba93-c63ac344d675"];
 (async () => {
   const w = document.getElementById("f").contentWindow;
-  let shown = 0, drawn = 0, images = 0;
+  let shown = 0, drawn = 0, images = 0, butte = false;
   try {
     const t0 = Date.now();
     while (!(w.mesures?.app && w.mesures.map?.loaded?.())) { if (Date.now() - t0 > 120000) throw new Error("Pyodide"); await sleep(250); }
@@ -37,6 +37,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       await sleep(8000);
       const c = doc.querySelector("#chute");
       if (!c.hidden) shown++;
+      butte ||= /pas de chute avant le terrain qui remonte/.test(c.textContent);  // lecture arrêtée au moins une fois
       const profile = doc.querySelector("#profil");
       if (!profile.disabled) {
         profile.click();
@@ -55,8 +56,32 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       log(`${where} ${f.id.slice(0, 8)}${button.disabled ? " (bouton grisé ensuite)" : ""} : ${c.hidden ? "(rien)" : c.textContent.replace(/\n/g, " · ")}`
         + ` · bords trouvés : ${(c.title.match(/Bords trouvés : (.*)\.$/) || [])[1] || "?"}`);
     }
+    // La Roche-en-Brenil (D15A), réglette à 30 m : buttes boisées des deux côtés ; à droite, le travers à −10 m
+    // remonte de plus d'1 m (lecture arrêtée), à gauche de 0,75 m seulement (chute lue jusqu'à 26 m du bord)
+    const zone = doc.querySelector("#bords-largeur");
+    zone.value = 30;
+    zone.dispatchEvent(new w.Event("change"));
+    // D70 (même commune) : route en haut d'un remblai d'environ 7 m des deux côtés : dévers du talus entier
+    for (const [id, where] of [["2d55af6d-61f1-4ff1-a881-16bf27b2fef1", "La Roche-en-Brenil D15A"],
+      ["229abfcd-868c-4eca-bfc1-3979ca94d28f", "La Roche-en-Brenil D70"],
+      ["a0ce6487-bf25-4351-a302-228876829900", "La Roche-en-Brenil D70 PR 2 +0797"]]) {
+      const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
+      w.mesures.openPhoto(f);
+      await sleep(4000);
+      doc.querySelector("#bords").click();
+      await sleep(8000);
+      log(`${where} ${id.slice(0, 8)} (30 m) : ${doc.querySelector("#chute").textContent.replace(/\n/g, " · ")}`);
+      const profile = doc.querySelector("#profil");
+      if (profile.disabled) continue;
+      profile.click();
+      await sleep(1000);
+      const dialog = doc.querySelector("#fenetre-profil");
+      const blob = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
+      await log(`IMAGE ${id.slice(0, 8)} ` + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));
+      dialog.close();
+    }
     log(`encadrés affichés : ${shown} · profils dessinés : ${drawn}`);
   } catch (e) { log("exception " + e); }
-  log(shown && drawn === shown - 1 ? "FIN" : `ERREUR encadrés ${shown}, profils ${drawn}`);  // le pont : pas de profil
+  log(shown && drawn === shown - 1 && butte ? "FIN" : `ERREUR encadrés ${shown}, profils ${drawn}`);  // le pont : pas de profil
 })();
 </script>

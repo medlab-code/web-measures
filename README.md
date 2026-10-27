@@ -197,19 +197,25 @@ après.
     plus bas du profil, avec la distance de ce point (le plus proche du bord, à 5 cm près) ;
     « chute ≥ … au-delà de 10 m du bord » quand le point le plus bas est au bout du profil (le
     terrain descend encore : pousser la réglette) ;
+    la lecture s'arrête là où le terrain remonte de 1 m au-dessus du bord (talus, butte) : ce
+    qu'il y a derrière n'est pas une chute (« pas de chute avant le terrain qui remonte… ») ;
     ne dépend pas de l'altitude GPS : pas besoin de RTK ;
-  - **dévers** : la plus forte pente vers le bas entre deux points du profil écartés d'au
-    moins 2 m, en % et en degrés.
+  - **dévers** : pente moyenne du talus le plus raide (0,5 m de haut au moins) avant cet arrêt,
+    sur les cinq travers, de son haut à son pied (hauteur divisée par largeur), en % et en degrés,
+    avec sa hauteur ; le talus est la partie d'une descente (pente lue sur 2 m d'au moins 10 %)
+    dont la pente vaut au moins le tiers de la plus forte : ni l'accotement en pente douce
+    au-dessus, ni la queue du pied.
 
   Sinon s'affichent « Calcul en cours… », « Aucun bord ne descend de 0,5 m ou plus », « Pas de
   route de la BD TOPO à moins de 15 m » ou « Calcul impossible » avec sa cause.
 
   Le bouton **« Profil »**, à côté, montre la coupe du terrain que ce calcul a lue (mesure LiDAR
   HD, ou RGE ALTI en secours) : travers de la photo en brun, les quatre autres en pointillés,
-  chaussée entre les deux bords trouvés (et comment : rupture de pente ou largeur BD TOPO),
-  flèche de la chute et trait rouge du dévers sur le travers où ils ont été mesurés, hauteurs
-  exagérées (facteur écrit sous le graphique). « Enregistrer en PNG » en fait une image avec son
-  titre et sa légende. Le bouton est grisé tant que « Dévers » n'a rien calculé pour la photo.
+  chaussée entre les deux bords trouvés (et comment : rupture de pente ou largeur BD TOPO), flèche
+  de la chute et droite rouge du talus (haut → pied) sur le travers où ils ont été mesurés,
+  hauteurs exagérées (facteur écrit sous le graphique). « Enregistrer en PNG » en fait une image
+  avec son titre et sa légende. Le bouton est grisé tant que « Dévers » n'a rien calculé pour la
+  photo.
 - **Mesure libre (points triangulés)** : viser chaque point depuis au moins deux photos, puis
   « Valider le point triangulé » ; à partir du deuxième, la distance horizontale au point précédent
   s'affiche, et la carte se cadre sur le segment.
@@ -451,11 +457,12 @@ vers 314 m, route à 315,8 m). Le terrain lu à 1 m du bord seulement donnait 2 
 tombait sur le talus de la culée.
 
 Chute et dévers des bords de route : la chute est une différence de deux altitudes du même
-modèle de terrain (±0,1 m en LiDAR HD, ±0,4 m en RGE ALTI). Le dévers est sous-estimé sur un
-talus plus court que l'écart de 2 m plus le pas des points (0,67 m pour 10 m examinés) : un
-talus fictif de 2 m à 150 % donne 125 %. Sous des arbres ou un mur, le modèle de terrain est
-interpolé et adoucit la pente. Le bord de la chaussée vient de la largeur BD TOPO : une
-largeur fausse décale la référence. Pas encore comparé à des talus de hauteur connue.
+modèle de terrain (±0,1 m en LiDAR HD, ±0,4 m en RGE ALTI). Le dévers est une pente moyenne,
+du haut au pied du talus : le haut et le pied sont placés au pas des points près (0,5 m près
+du bord, 0,6 m au-delà pour 10 m examinés, 1,9 m pour 30 m), ce qui pèse sur un talus court.
+Sous des arbres ou un mur, le modèle de terrain est interpolé et adoucit la pente. Le bord de
+la chaussée vient d'une rupture de pente du terrain, sinon de la largeur BD TOPO. Pas encore
+comparé à des talus de hauteur connue.
 
 L'incertitude de la largeur vient surtout de l'axe de la route et de la position du point de
 référence le long de la route. Sur une séquence RTK vérifiée, l'axe est la direction de la
@@ -589,6 +596,10 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.9-4** (27/10/2026) : « Dévers » : lecture arrêtée là où le terrain remonte de 1 m
+  au-dessus du bord (talus, butte : derrière, ce n'est pas une chute) ; dévers = pente moyenne du
+  talus le plus raide, de son haut à son pied, et non plus la pente la plus forte sur 2 m ;
+  profil : fin de lecture marquée, talus en droite rouge sur son travers, tracé en trait plein.
 - **0.6.9-3** (27/10/2026) : bouton « Profil » à la hauteur du bouton « Dévers ».
 - **0.6.9-2** (27/10/2026) : page d'essai `tests/essai-lidar.html` : lecture à la volée du nuage
   de points LiDAR HD (COPC) autour de la caméra et profil en travers (altitude, intensité), piste

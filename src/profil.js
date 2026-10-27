@@ -25,7 +25,7 @@ const Profil = (() => {
       const t = out.get(p.le_long) || { along: p.le_long, points: [], bords: {} };
       const sign = p.cote === "gauche" ? -1 : 1;
       t.points.push(...p.points.map(([o, z]) => [sign * o, z]));
-      t.bords[p.cote] = { x: sign * p.bord, relief: p.relief };
+      t.bords[p.cote] = { x: sign * p.bord, relief: p.relief, arret: p.arret === null ? null : sign * p.arret };
       out.set(p.le_long, t);
     }
     for (const t of out.values()) t.points.sort((a, b) => a[0] - b[0]);
@@ -102,6 +102,14 @@ const Profil = (() => {
         el("text", { x: X(b.x) + dx, y: TOP - 12, class: "graduation", "text-anchor": anchor },
           b.relief ? "rupture de pente" : "largeur BD TOPO"));
     }
+    // Terrain remonté de profile.remontee au-dessus du bord : lecture arrêtée là (travers de la photo)
+    for (const side of ["gauche", "droit"]) {
+      const stop = main.bords[side]?.arret;
+      if (stop === null || stop === undefined) continue;
+      const zs_ = zAt(main.points, stop);
+      svg.append(el("line", { x1: X(stop), x2: X(stop), y1: Z(zs_) - 30, y2: Z(zs_) + 6, class: "arret" }),
+        el("text", { x: X(stop), y: Z(zs_) - 34, class: "graduation", "text-anchor": "middle" }, "fin de lecture"));
+    }
     svg.append(el("circle", { cx: X(0), cy: Z(ref) - 8, r: 5, class: "origine" }),
       el("text", { x: X(0), y: Z(ref) - 18, class: "graduation", "text-anchor": "middle" }, profile.origine === "caméra" ? "caméra" : "axe"));
 
@@ -114,16 +122,23 @@ const Profil = (() => {
       item.append(html("b", "", `Côté ${side}\u00a0: `));
       results.append(item);
       if (!r) {
-        item.append(`pas de chute de 0,5 m ou plus jusqu'à ${num(profile.zone, 0)} m du bord`);
+        const stop = profile.arrets[side];
+        item.append(stop === undefined ? `pas de chute de 0,5 m ou plus jusqu'à ${num(profile.zone, 0)} m du bord`
+          : `pas de chute avant le terrain qui remonte de ${num(profile.remontee, 0)} m (talus, butte), à ${num(stop, 0)} m du bord`);
         continue;
       }
       const t = all.get(r.chute[3]) || main, b = t.bords[side].x;
       const where = t === main ? "" : ` (travers à ${t.along > 0 ? "+" : "−"}${Math.abs(t.along)} m)`;
-      if (t !== main) {
-        const end = sign < 0 ? t.points[0] : t.points.at(-1);
-        svg.append(el("path", { d: path(t.points), class: "travers-mesure" }),
+      // travers de la chute et du dévers, s'ils ne sont pas celui de la photo : en trait plein, nommés à leur bout
+      const shown = new Set();
+      for (const along of [r.chute[3], r.devers?.[2]]) {
+        const tr = all.get(along);
+        if (!tr || tr === main || shown.has(tr)) continue;
+        shown.add(tr);
+        const end = sign < 0 ? tr.points[0] : tr.points.at(-1);
+        svg.append(el("path", { d: path(tr.points), class: "travers-mesure" }),
           el("text", { x: X(end[0]) - sign * 2, y: Z(end[1]) - 6, class: "graduation", "text-anchor": sign < 0 ? "start" : "end" },
-            `travers à ${t.along > 0 ? "+" : "−"}${Math.abs(t.along)} m`));
+            `travers à ${tr.along > 0 ? "+" : "−"}${Math.abs(tr.along)} m`));
       }
       const top = zAt(t.points, b), xLow = b + sign * r.chute[1], low = top - r.chute[0];
       // étiquette à l'extérieur de la flèche, sauf si elle sortirait du cadre
@@ -135,14 +150,16 @@ const Profil = (() => {
       item.append(html("span", "chute", `chute ${r.chute[2] ? "d'au moins " : "de "}${num(r.chute[0])} m`),
         ` ${r.chute[2] ? "au-delà de" : "à"} ${num(r.chute[1], 0)} m du bord${where}`);
       if (r.devers) {
+        // talus : droite de son haut à son pied (pente moyenne), sur le travers où il a été mesuré
         const td = all.get(r.devers[2]) || main, bd = td.bords[side].x;
-        const x0 = bd + sign * r.devers[1], x1 = x0 + sign * profile.fenetre;
-        const segment = td.points.filter(([x]) => (x - x0) * (x - x1) <= 0);
-        svg.append(el("path", { d: path(segment), class: "devers" }),
-          el("text", { x: X((x0 + x1) / 2) - sign * 12, y: Z(zAt(td.points, (x0 + x1) / 2)) + 4, class: "etiquette-profil devers-texte",
+        const x0 = bd + sign * r.devers[1], x1 = bd + sign * r.devers[3];
+        const [z0, z1] = [zAt(td.points, x0), zAt(td.points, x1)];
+        svg.append(el("line", { x1: X(x0), y1: Z(z0), x2: X(x1), y2: Z(z1), class: "devers" }),
+          el("text", { x: X((x0 + x1) / 2) - sign * 12, y: Z((z0 + z1) / 2) + 4, class: "etiquette-profil devers-texte",
             "text-anchor": sign < 0 ? "start" : "end" }, `dévers ${num(100 * r.devers[0], 0)} %`));
-        item.append(" · ", html("span", "devers", `dévers le plus fort ${num(100 * r.devers[0], 0)}\u00a0%`),
-          ` (pente sur ${num(profile.fenetre, 0)} m)`);
+        item.append(" · ", html("span", "devers", `dévers du talus ${num(100 * r.devers[0], 0)}\u00a0%`),
+          ` (pente moyenne\u00a0: ${num(r.devers[4])} m de haut sur ${num(Math.abs(x1 - x0))} m${
+            td === main ? "" : `, travers à ${td.along > 0 ? "+" : "−"}${Math.abs(td.along)} m`})`);
       }
     }
     const marker = el("marker", { id: "fleche", viewBox: "0 0 10 10", refX: 10, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" });
@@ -157,7 +174,9 @@ const Profil = (() => {
       `Coupe du terrain vue dans le sens de la photo, depuis ${from}\u00a0; 0 = la chaussée sous ${
         profile.origine === "caméra" ? "la caméra" : "l'axe"}.`,
       "Trait brun\u00a0: travers de la photo · pointillés\u00a0: travers à 5 et 10 m devant et derrière · "
-        + "trait gris\u00a0: travers où la chute a été mesurée.",
+        + "trait gris\u00a0: travers où la chute ou le dévers ont été mesurés.",
+      `Chute et dévers lus du bord jusqu'à ce que le terrain remonte de ${num(profile.remontee, 0)} m au-dessus du bord `
+        + "(talus, butte)\u00a0: derrière, ce n'est pas une chute.",
       `${exaggeration > 1 ? `Hauteurs exagérées ×${exaggeration} pour la lisibilité` : "Hauteurs à l'échelle"}. `
         + `Terrain ${profile.source} (IGN), altitudes à ±${num(profile.erreur)} m près.`,
     ].map((t) => html("p", "aide", t)));

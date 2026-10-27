@@ -1731,13 +1731,16 @@ class App(session.Session):
     # l'altitude GPS.
     EDGE_ZONE = 10.0  # m au-delà du bord de la chaussée examinés par défaut
     EDGE_ALONG = (-10.0, -5.0, 0.0, 5.0, 10.0)  # m le long de la route, depuis la photo
-    EDGE_WINDOW = 2.0  # m en travers : dévers = pente entre deux points au moins aussi écartés
+    EDGE_WINDOW = 2.0  # m en travers : pente lue entre deux points au moins aussi écartés (bruit du MNT ±5 cm)
+    EDGE_TALUS = 0.10  # pente vers le bas (sur EDGE_WINDOW m) d'une descente : en dessous, plat
+    EDGE_CORE = 1 / 3  # talus : partie de la descente dont la pente vaut au moins ce rapport de sa pente la plus forte
     EDGE_STEP = 0.5  # m entre deux points du profil, de l'origine jusqu'à EDGE_SEARCH m après le bord BD TOPO
     EDGE_SEARCH = 3.0  # m au-delà du bord BD TOPO où la rupture de pente est encore cherchée
     EDGE_BREAK = 0.08  # écart de pente sur 1 m à celle de la chaussée sous l'origine : bord (bombement : ~0,05)
     EDGE_HOLD = 3  # pas consécutifs où l'écart doit tenir : un seul pas de 1 m tient du bruit du MNT (±5 cm)
     EDGE_NEAR = 1.5  # m : pas de bord plus près de l'origine (le véhicule occupe sa voie ; demi-voie sur l'axe)
     EDGE_FAR = 16  # points au-delà, jusqu'à edge_zone m
+    EDGE_RISE = 1.0  # m : terrain remonté d'autant au-dessus du bord (talus, butte) : lecture arrêtée, derrière n'est pas une chute
 
     def set_edge_zone(self, metres):
         """Réglette du bouton « Dévers » : largeur (m) lue au-delà du bord de la chaussée au prochain appui
@@ -1841,10 +1844,12 @@ class App(session.Session):
                     "service injoignable" if error else "pas de modèle de terrain ici"), "title": "",
                     "retry_at": time.monotonic() + self.FALL_RETRY if error else float("inf")}
                 return self.notify()
-            # côté -> [(chute, à m du bord, bout du profil, travers), (dévers, à m du bord, travers)],
+            # côté -> [(chute, à m du bord, bout du profil, travers),
+            #          (dévers, haut du talus à m du bord, travers, pied du talus à m du bord, hauteur du talus)],
             # bords [(m depuis l'origine, relief)] ; drawn : profils pour le graphique de la page (bouton « Profil »)
             found = {name: [None, None] for name, _ in sides}
             borders = {name: [] for name, _ in sides}
+            stops = {name: [] for name, _ in sides}  # côté -> distances au bord où le terrain remonte de EDGE_RISE
             drawn = []
             start = 0
             for along, name, guess, offsets in profiles:
@@ -1857,21 +1862,53 @@ class App(session.Session):
                 if not relief:
                     i = min(range(len(offsets)), key=lambda k: abs(offsets[k] - guess))
                 borders[name].append((offsets[i], relief))
-                drawn.append({"le_long": along, "cote": name, "bord": offsets[i], "relief": relief,
-                              "points": [[round(o, 2), round(v, 2)] for o, v in zip(offsets, z) if v is not None]})
+                entry = {"le_long": along, "cote": name, "bord": offsets[i], "relief": relief, "arret": None,
+                         "points": [[round(o, 2), round(v, 2)] for o, v in zip(offsets, z) if v is not None]}
+                drawn.append(entry)
                 kept = [k for k in range(i, len(offsets)) if offsets[k] - offsets[i] <= zone + 1e-6]
                 zz, oo = [z[k] for k in kept], [offsets[k] - offsets[i] for k in kept]
                 if zz[0] is None:
                     continue
+                # Terrain qui remonte de EDGE_RISE au-dessus du bord : lecture arrêtée (on ne passe pas la butte)
+                cut = next((k for k, v in enumerate(zz) if v is not None and v - zz[0] >= self.EDGE_RISE), None)
+                end = oo[-1]  # bout du profil : le terrain y descend peut-être encore
+                if cut is not None:
+                    stops[name].append(oo[cut])
+                    entry["arret"] = round(offsets[i] + oo[cut], 2)
+                    zz, oo, end = zz[:cut], oo[:cut], float("inf")
                 # point le plus bas le plus proche du bord (à 5 cm près) : le pied du talus
                 low = max(((zz[0] - v, o) for v, o in zip(zz, oo) if v is not None),
                           key=lambda c: (round(c[0] / 0.05), -c[1]))
                 if found[name][0] is None or low[0] > found[name][0][0]:
-                    found[name][0] = low + (oo[-1], along)
-                for k in range(len(oo)):
-                    d = slope(zz, oo, k, self.EDGE_WINDOW)
-                    if d is not None and (found[name][1] is None or d > found[name][1][0]):
-                        found[name][1] = (d, oo[k], along)
+                    found[name][0] = low + (end, along)
+                # Dévers : pente moyenne du talus le plus raide (FALL_MIN m de haut au moins), du haut au pied,
+                # tous travers confondus (le cas le plus défavorable), et non la pente la plus forte sur
+                # 2 m (un détail). Talus : pentes sur EDGE_WINDOW m d'au moins EDGE_TALUS, resserrées autour de la plus
+                # forte sur celles d'au moins EDGE_CORE fois elle (sans l'accotement en pente douce ni la queue du pied)
+                slopes = [slope(zz, oo, j, self.EDGE_WINDOW) or 0 for j in range(len(oo))]
+                k = 0
+                while k < len(oo):
+                    if slopes[k] < self.EDGE_TALUS:
+                        k += 1
+                        continue
+                    first = k
+                    while k < len(oo) and slopes[k] >= self.EDGE_TALUS:
+                        k += 1
+                    steep = max(range(first, k), key=lambda j: slopes[j])
+                    floor = max(self.EDGE_TALUS, self.EDGE_CORE * slopes[steep])
+                    top, end = steep, steep + 1
+                    while top > first and slopes[top - 1] >= floor:
+                        top -= 1
+                    while end < k and slopes[end] >= floor:
+                        end += 1
+                    # pied : bout de la dernière fenêtre en pente, le point le plus bas jusque-là
+                    last = next((j for j in range(end - 1, len(oo)) if oo[j] - oo[end - 1] >= self.EDGE_WINDOW - 1e-6),
+                                len(oo) - 1)
+                    foot = min((j for j in range(top, last + 1) if zz[j] is not None), key=lambda j: zz[j])
+                    height = zz[top] - zz[foot]
+                    mean = height / (oo[foot] - oo[top]) if foot > top else 0
+                    if height >= self.FALL_MIN and (found[name][1] is None or mean > found[name][1][0]):
+                        found[name][1] = (mean, oo[top], along, oo[foot], height)
             terrain = triangulation.RGE_ALTI_ERROR if source == "RGE ALTI" else triangulation.LIDAR_ERROR
             sigma = math.hypot(terrain, terrain)  # deux altitudes du même MNT
             origin = "la caméra" if camera else "l'axe BD TOPO"
@@ -1884,30 +1921,40 @@ class App(session.Session):
                         "relief sur {} travers sur {}".format(by_relief, len(borders[name])) if by_relief
                         else "largeur BD TOPO"))
                 fall, slope_max = found[name]
+                stop = sorted(stops[name])[len(stops[name]) // 2] if stops[name] else None
                 if fall is None or fall[0] < self.FALL_MIN:
+                    if stop is not None:
+                        lines.append("Côté {} : pas de chute avant le terrain qui remonte de {} m, à {} m du bord".format(
+                            name, measures._num(self.EDGE_RISE, 0), measures._num(stop, 0)))
                     continue
                 beyond = fall[1] >= fall[2] - 1e-6  # le plus bas au bout du profil : le terrain descend encore
                 text = "Côté {} : chute {}{} m (±{} m) {} {} m du bord".format(
                     name, "≥ " if beyond else "", measures._num(fall[0], 1), measures._num(sigma, 1),
                     "au-delà de" if beyond else "à", measures._num(fall[1], 0))
                 if slope_max and slope_max[0] > 0:
-                    text += ", dévers max {} % ({}°)".format(
-                        measures._num(100 * slope_max[0], 0), measures._num(math.degrees(math.atan(slope_max[0])), 0))
+                    text += ", dévers du talus {} % ({}°) sur {} m de haut".format(
+                        measures._num(100 * slope_max[0], 0), measures._num(math.degrees(math.atan(slope_max[0])), 0),
+                        measures._num(slope_max[4], 1))
                 lines.append(text)
                 shown[name] = {"chute": [round(fall[0], 2), round(fall[1], 2), beyond, fall[3]],
-                               "devers": [round(slope_max[0], 3), round(slope_max[1], 2), slope_max[2]]
+                               "devers": [round(slope_max[0], 3), round(slope_max[1], 2), slope_max[2],
+                                          round(slope_max[3], 2), round(slope_max[4], 2)]
                                if slope_max and slope_max[0] > 0 else None}
             self.edges[key] = {
                 "profile": {"origine": "caméra" if camera else "axe", "source": source, "erreur": round(sigma, 2),
-                            "zone": zone, "fenetre": self.EDGE_WINDOW, "profils": drawn, "resultats": shown},
+                            "zone": zone, "fenetre": self.EDGE_WINDOW, "remontee": self.EDGE_RISE, "profils": drawn,
+                            "resultats": shown, "arrets": {name: sorted(v)[len(v) // 2] for name, v in stops.items() if v}},
                 "text": "\n".join(lines) or "Aucun bord ne descend de {} m ou plus jusqu'à {} m".format(
                     measures._num(self.FALL_MIN, 1), measures._num(zone, 0)),
                 "title": ("Terrain ({}) en travers de la route, depuis {} jusqu'à {} m au-delà du bord de la chaussée, "
                           "sur ±{} m le long de la route ; côtés vus dans le sens de la photo. Bord : rupture de pente "
                           "du terrain, sinon largeur BD TOPO (ou {} m supposés). Chute : plus grande descente sous le "
-                          "terrain du bord. Dévers : plus forte pente vers le bas sur {} m. Bords trouvés : {}.").format(
+                          "terrain du bord, lue jusqu'à ce que le terrain remonte de {} m au-dessus du bord (talus, "
+                          "butte). Dévers : pente moyenne du talus le plus raide, de son haut à son pied (pente sur {} m "
+                          "repassée sous {} %). Bords trouvés : {}.").format(
                     source, origin, measures._num(zone, 0), measures._num(self.EDGE_ALONG[-1], 0),
-                    measures._num(self.FALL_WIDTH, 0), measures._num(self.EDGE_WINDOW, 0), " ; ".join(seen) or "aucun")}
+                    measures._num(self.FALL_WIDTH, 0), measures._num(self.EDGE_RISE, 0), measures._num(self.EDGE_WINDOW, 0),
+                    measures._num(100 * self.EDGE_TALUS, 0), " ; ".join(seen) or "aucun")}
             self.notify()
 
         self._terrain([triangulation._geographic(x, y, lon, lat) for x, y in samples], got_ground)
