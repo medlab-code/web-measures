@@ -4,7 +4,8 @@
 // Profil en travers des bords de route (bouton « Profil », à côté de « Dévers ») : la coupe du
 // terrain telle que le calcul de App._compute_edges l'a lue (py/web_app.py), en SVG. Chaussée entre
 // les deux bords trouvés, chute et dévers à l'endroit où ils ont été mesurés. Les hauteurs sont
-// exagérées (le facteur est écrit) : sur 30 m de large, un talus de 2 m serait illisible.
+// exagérées (le facteur est écrit) : sur 30 m de large, un talus de 2 m serait illisible ; la case
+// « Hauteurs à l'échelle » de la fenêtre les remet à la même échelle que les distances.
 
 const Profil = (() => {
   const NS = "http://www.w3.org/2000/svg";
@@ -41,20 +42,25 @@ const Profil = (() => {
     return null;
   }
 
-  /** Graphique SVG et sa légende en clair (texte) pour profile (voir App._compute_edges). */
-  function draw(profile) {
+  /** Graphique SVG et sa légende en clair (texte) pour profile (voir App._compute_edges) ; trueScale : hauteurs
+   * à la même échelle que les distances. exaggeration : facteur que le graphique exagéré emploierait (1 : les
+   * deux dessins sont les mêmes). */
+  function draw(profile, trueScale = false) {
     const all = crossings(profile);
     const main = all.get(0) || [...all.values()][0];
     const ref = zAt(main.points, 0) ?? main.points[0][1];  // 0 : chaussée sous l'origine
     const xs = [...all.values()].flatMap((t) => t.points.map((p) => p[0]));
     const zs = [...all.values()].flatMap((t) => t.points.map((p) => p[1] - ref));
-    const [xmin, xmax] = [Math.min(...xs), Math.max(...xs)];
-    const plotW = W - LEFT - RIGHT, plotH = H - TOP - BOTTOM, sx = plotW / (xmax - xmin);
+    let [xmin, xmax] = [Math.min(...xs), Math.max(...xs)];
+    const plotW = W - LEFT - RIGHT, plotH = H - TOP - BOTTOM;
     let [zmin, zmax] = [Math.min(...zs) - 0.3, Math.max(...zs) + 0.3];
-    // Exagération entière, la plus forte qui fait tenir les hauteurs (au moins ×1)
-    const exaggeration = Math.max(1, Math.floor(plotH / (zmax - zmin) / sx));
-    const span = plotH / (sx * exaggeration), mid = (zmin + zmax) / 2;
-    [zmin, zmax] = [mid - span / 2, mid + span / 2];
+    // Échelle des distances : toute la largeur, réduite (largeur centrée) si les hauteurs ne tiennent pas à ×1
+    const sx = Math.min(plotW / (xmax - xmin), plotH / (zmax - zmin)), xmid = (xmin + xmax) / 2;
+    [xmin, xmax] = [xmid - plotW / sx / 2, xmid + plotW / sx / 2];
+    // Exagération entière, la plus forte qui fait tenir les hauteurs (au moins ×1) ; ×1 à l'échelle
+    const exaggeration = Math.max(1, Math.floor(plotH / (zmax - zmin) / sx)), factor = trueScale ? 1 : exaggeration;
+    const span = plotH / (sx * factor), zmid = (zmin + zmax) / 2;
+    [zmin, zmax] = [zmid - span / 2, zmid + span / 2];
     const X = (x) => LEFT + (x - xmin) * sx, Z = (z) => TOP + (zmax - (z - ref)) / (zmax - zmin) * plotH;
     const path = (points) => points.map(([x, z], k) => `${k ? "L" : "M"}${X(x).toFixed(1)},${Z(z).toFixed(1)}`).join("");
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, class: "profil-svg", role: "img",
@@ -62,7 +68,7 @@ const Profil = (() => {
 
     // Repères : mètres en travers, hauteurs par rapport à la chaussée
     const xStep = xmax - xmin > 30 ? 5 : 2;
-    for (let x = Math.ceil(xmin / xStep) * xStep; x <= xmax; x += xStep) {
+    for (let x = Math.ceil(Math.min(...xs) / xStep) * xStep; x <= Math.max(...xs); x += xStep) {
       svg.append(el("line", { x1: X(x), x2: X(x), y1: TOP, y2: TOP + plotH, class: "grille" }),
         el("text", { x: X(x), y: TOP + plotH + 16, class: "graduation", "text-anchor": "middle" }, `${Math.abs(x)} m`));
     }
@@ -154,9 +160,12 @@ const Profil = (() => {
         const td = all.get(r.devers[2]) || main, bd = td.bords[side].x;
         const x0 = bd + sign * r.devers[1], x1 = bd + sign * r.devers[3];
         const [z0, z1] = [zAt(td.points, x0), zAt(td.points, x1)];
+        // étiquette contre la droite ; sous elle si le talus est presque à plat (hauteurs à l'échelle)
+        const flat = Math.abs(Z(z0) - Z(z1)) < 60;
         svg.append(el("line", { x1: X(x0), y1: Z(z0), x2: X(x1), y2: Z(z1), class: "devers" }),
-          el("text", { x: X((x0 + x1) / 2) - sign * 12, y: Z((z0 + z1) / 2) + 4, class: "etiquette-profil devers-texte",
-            "text-anchor": sign < 0 ? "start" : "end" }, `dévers ${num(100 * r.devers[0], 0)} %`));
+          el("text", { x: X((x0 + x1) / 2) - (flat ? 0 : sign * 12), y: flat ? Math.max(Z(z0), Z(z1)) + 18 : Z((z0 + z1) / 2) + 4,
+            class: "etiquette-profil devers-texte", "text-anchor": flat ? "middle" : sign < 0 ? "start" : "end" },
+          `dévers ${num(100 * r.devers[0], 0)} %`));
         item.append(" · ", html("span", "devers", `dévers du talus ${num(100 * r.devers[0], 0)}\u00a0%`),
           ` (pente moyenne\u00a0: ${num(r.devers[4])} m de haut sur ${num(Math.abs(x1 - x0))} m${
             td === main ? "" : `, travers à ${td.along > 0 ? "+" : "−"}${Math.abs(td.along)} m`})`);
@@ -177,10 +186,10 @@ const Profil = (() => {
         + "trait gris\u00a0: travers où la chute ou le dévers ont été mesurés.",
       `Chute et dévers lus du bord jusqu'à ce que le terrain remonte de ${num(profile.remontee, 0)} m au-dessus du bord `
         + "(talus, butte)\u00a0: derrière, ce n'est pas une chute.",
-      `${exaggeration > 1 ? `Hauteurs exagérées ×${exaggeration} pour la lisibilité` : "Hauteurs à l'échelle"}. `
+      `${factor > 1 ? `Hauteurs exagérées ×${factor} pour la lisibilité` : "Hauteurs à l'échelle des distances"}. `
         + `Terrain ${profile.source} (IGN), altitudes à ±${num(profile.erreur)} m près.`,
     ].map((t) => html("p", "aide", t)));
-    return { svg, legend };
+    return { svg, legend, exaggeration };
   }
 
   /** Image PNG (Blob) du graphique svg affiché, avec son titre et sa légende legend (élément rendu par draw, dans

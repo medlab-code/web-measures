@@ -34,7 +34,7 @@
   <header>
     <div class="marque">
       <h1>Mesures Panoramax</h1>
-      <span class="essai" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.6.9-4 — projet personnel – POC</span>
+      <span class="essai" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.6.9-5 — projet personnel – POC</span>
     </div>
     <!-- Mesure : gros bouton sur les deux rangées ; réglages, puis effacement en dessous -->
     <div class="bloc mesure carte-barre">
@@ -615,6 +615,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
     <div class="graphique"></div>
     <div class="legende"></div>
     <form method="dialog">
+      <label title="Hauteurs à la même échelle que les distances, sans exagération : le relief tel qu'il est (grisé quand le graphique est déjà à l'échelle)"><input id="profil-echelle" type="checkbox" class="interrupteur"> Hauteurs à l'échelle</label>
       <button id="profil-png" type="button" title="Enregistrer le graphique, avec son titre et sa légende, en image PNG">Enregistrer en PNG</button>
       <button value="ok">Fermer</button>
     </form>

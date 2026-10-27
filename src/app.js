@@ -236,13 +236,25 @@
   $("#bords").addEventListener("click", () => { app.request_edges(); refresh(); });
   // « Profil » : coupe du terrain du dernier calcul de « Dévers » pour la photo affichée
   let edgeProfile = null;
-  $("#profil").addEventListener("click", () => {
-    if (!edgeProfile) return;
-    const dialog = $("#fenetre-profil"), { svg, legend } = Profil.draw(edgeProfile.profile), feature = photo;
-    const title = dialog.querySelector("h2");
-    title.textContent = "Profil en travers" + (edgeProfile.road ? ` · ${edgeProfile.road}` : "");
+  // Case « Hauteurs à l'échelle » : retenue d'une fois sur l'autre, grisée si les hauteurs ne sont pas exagérées
+  const trueScale = $("#profil-echelle");
+  trueScale.checked = store.get("profil-echelle") === "1";
+  const drawProfile = () => {
+    const dialog = $("#fenetre-profil"), { svg, legend, exaggeration } = Profil.draw(edgeProfile.profile, trueScale.checked);
     dialog.querySelector(".graphique").replaceChildren(svg);
     dialog.querySelector(".legende").replaceChildren(legend);
+    trueScale.disabled = exaggeration === 1;
+  };
+  trueScale.addEventListener("change", () => {
+    store.set("profil-echelle", trueScale.checked ? "1" : "0");
+    if (edgeProfile) drawProfile();
+  });
+  $("#profil").addEventListener("click", () => {
+    if (!edgeProfile) return;
+    const dialog = $("#fenetre-profil"), feature = photo;
+    const title = dialog.querySelector("h2");
+    title.textContent = "Profil en travers" + (edgeProfile.road ? ` · ${edgeProfile.road}` : "");
+    drawProfile();
     showOverViewer(dialog);
     // Route, PR et commune de la photo, comme l'étiquette du lieu (déjà lus : sans requête)
     Lieu.describe(...feature.geometry.coordinates.slice(0, 2)).then(({ parts }) => {
