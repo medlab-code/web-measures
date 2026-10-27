@@ -43,8 +43,7 @@ const Profil = (() => {
   }
 
   /** Graphique SVG et sa légende en clair (texte) pour profile (voir App._compute_edges) ; trueScale : hauteurs
-   * à la même échelle que les distances. exaggeration : facteur que le graphique exagéré emploierait (1 : les
-   * deux dessins sont les mêmes). */
+   * à la même échelle que les distances. */
   function draw(profile, trueScale = false) {
     const all = crossings(profile);
     const main = all.get(0) || [...all.values()][0];
@@ -189,7 +188,7 @@ const Profil = (() => {
       `${factor > 1 ? `Hauteurs exagérées ×${factor} pour la lisibilité` : "Hauteurs à l'échelle des distances"}. `
         + `Terrain ${profile.source} (IGN), altitudes à ±${num(profile.erreur)} m près.`,
     ].map((t) => html("p", "aide", t)));
-    return { svg, legend, exaggeration };
+    return { svg, legend };
   }
 
   /** Image PNG (Blob) du graphique svg affiché, avec son titre et sa légende legend (élément rendu par draw, dans

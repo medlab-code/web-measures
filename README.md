@@ -214,7 +214,7 @@ après.
   chaussée entre les deux bords trouvés (et comment : rupture de pente ou largeur BD TOPO), flèche
   de la chute et droite rouge du talus (haut → pied) sur le travers où ils ont été mesurés,
   hauteurs exagérées (facteur écrit sous le graphique) ; la case « Hauteurs à l'échelle » les remet
-  à l'échelle des distances (grisée quand elles le sont déjà). « Enregistrer en PNG » en fait une image
+  à l'échelle des distances (choix retenu d'un profil à l'autre). « Enregistrer en PNG » en fait une image
   avec son titre et sa légende. Le bouton est grisé tant que « Dévers » n'a rien calculé pour la
   photo.
 - **Mesure libre (points triangulés)** : viser chaque point depuis au moins deux photos, puis
@@ -597,6 +597,9 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.9-6** (27/10/2026) : profil : la case « Hauteurs à l'échelle » n'est plus grisée (cochée
+  sur un profil, elle restait cochée et grisée sur un profil déjà à l'échelle, sans pouvoir être
+  décochée).
 - **0.6.9-5** (27/10/2026) : profil : case « Hauteurs à l'échelle » pour revenir de l'exagération
   des hauteurs à la même échelle que les distances.
 - **0.6.9-4** (27/10/2026) : « Dévers » : lecture arrêtée là où le terrain remonte de 1 m

@@ -236,14 +236,14 @@
   $("#bords").addEventListener("click", () => { app.request_edges(); refresh(); });
   // « Profil » : coupe du terrain du dernier calcul de « Dévers » pour la photo affichée
   let edgeProfile = null;
-  // Case « Hauteurs à l'échelle » : retenue d'une fois sur l'autre, grisée si les hauteurs ne sont pas exagérées
+  // Case « Hauteurs à l'échelle » : retenue d'une fois sur l'autre, donc jamais grisée (même si le profil affiché est
+  // déjà à l'échelle, elle vaut pour les suivants)
   const trueScale = $("#profil-echelle");
   trueScale.checked = store.get("profil-echelle") === "1";
   const drawProfile = () => {
-    const dialog = $("#fenetre-profil"), { svg, legend, exaggeration } = Profil.draw(edgeProfile.profile, trueScale.checked);
+    const dialog = $("#fenetre-profil"), { svg, legend } = Profil.draw(edgeProfile.profile, trueScale.checked);
     dialog.querySelector(".graphique").replaceChildren(svg);
     dialog.querySelector(".legende").replaceChildren(legend);
-    trueScale.disabled = exaggeration === 1;
   };
   trueScale.addEventListener("change", () => {
     store.set("profil-echelle", trueScale.checked ? "1" : "0");
