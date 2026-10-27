@@ -211,7 +211,7 @@ après.
 
   Le bouton **« Profil »**, à côté, montre la coupe du terrain que ce calcul a lue (mesure LiDAR
   HD, ou RGE ALTI en secours) : travers de la photo en brun, les quatre autres en pointillés,
-  chaussée entre les deux bords trouvés (et comment : rupture de pente ou largeur BD TOPO), flèche
+  plateforme entre les deux bords trouvés (et comment : rupture de pente ou largeur BD TOPO), flèche
   de la chute et droite rouge du talus (haut → pied) sur le travers où ils ont été mesurés,
   hauteurs exagérées (facteur écrit sous le graphique) ; la case « Hauteurs à l'échelle » les remet
   à l'échelle des distances (choix retenu d'un profil à l'autre). « Enregistrer en PNG » en fait une image
@@ -597,6 +597,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.9-7** (27/10/2026) : profil : « plateforme » au lieu de « chaussée » entre les deux bords.
 - **0.6.9-6** (27/10/2026) : profil : la case « Hauteurs à l'échelle » n'est plus grisée (cochée
   sur un profil, elle restait cochée et grisée sur un profil déjà à l'échelle, sans pouvoir être
   décochée).

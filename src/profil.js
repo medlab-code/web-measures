@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
 // Profil en travers des bords de route (bouton « Profil », à côté de « Dévers ») : la coupe du
-// terrain telle que le calcul de App._compute_edges l'a lue (py/web_app.py), en SVG. Chaussée entre
+// terrain telle que le calcul de App._compute_edges l'a lue (py/web_app.py), en SVG. Plateforme entre
 // les deux bords trouvés, chute et dévers à l'endroit où ils ont été mesurés. Les hauteurs sont
 // exagérées (le facteur est écrit) : sur 30 m de large, un talus de 2 m serait illisible ; la case
 // « Hauteurs à l'échelle » de la fenêtre les remet à la même échelle que les distances.
@@ -47,7 +47,7 @@ const Profil = (() => {
   function draw(profile, trueScale = false) {
     const all = crossings(profile);
     const main = all.get(0) || [...all.values()][0];
-    const ref = zAt(main.points, 0) ?? main.points[0][1];  // 0 : chaussée sous l'origine
+    const ref = zAt(main.points, 0) ?? main.points[0][1];  // 0 : plateforme sous l'origine
     const xs = [...all.values()].flatMap((t) => t.points.map((p) => p[0]));
     const zs = [...all.values()].flatMap((t) => t.points.map((p) => p[1] - ref));
     let [xmin, xmax] = [Math.min(...xs), Math.max(...xs)];
@@ -65,7 +65,7 @@ const Profil = (() => {
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, class: "profil-svg", role: "img",
       "aria-label": "Coupe du terrain en travers de la route" });
 
-    // Repères : mètres en travers, hauteurs par rapport à la chaussée
+    // Repères : mètres en travers, hauteurs par rapport à la plateforme
     const xStep = xmax - xmin > 30 ? 5 : 2;
     for (let x = Math.ceil(Math.min(...xs) / xStep) * xStep; x <= Math.max(...xs); x += xStep) {
       svg.append(el("line", { x1: X(x), x2: X(x), y1: TOP, y2: TOP + plotH, class: "grille" }),
@@ -90,13 +90,13 @@ const Profil = (() => {
     svg.append(el("path", { d: `${path(main.points)}L${X(main.points.at(-1)[0])},${bottom}L${X(main.points[0][0])},${bottom}Z`, class: "terre" }),
       el("path", { d: path(main.points), class: "sol" }));
 
-    // Chaussée entre les deux bords du travers de la photo
+    // Plateforme entre les deux bords du travers de la photo
     const [bl, br] = [main.bords.gauche?.x ?? 0, main.bords.droit?.x ?? 0];
     const road = main.points.filter(([x]) => x >= bl && x <= br);
     if (road.length > 1) {
       svg.append(el("path", { d: path(road), class: "chaussee" }),
         el("text", { x: X((bl + br) / 2), y: Z(zAt(main.points, (bl + br) / 2)) + 26, class: "etiquette-profil", "text-anchor": "middle" },
-          `chaussée ${num(br - bl)} m`));
+          `plateforme ${num(br - bl)} m`));
     }
     for (const side of ["gauche", "droit"]) {
       const b = main.bords[side];
@@ -179,7 +179,7 @@ const Profil = (() => {
     const from = profile.origine === "caméra" ? "la caméra" : "l'axe de la route (position GPS non vérifiée RTK)";
     const legend = document.createElement("div");
     legend.append(results, ...[
-      `Coupe du terrain vue dans le sens de la photo, depuis ${from}\u00a0; 0 = la chaussée sous ${
+      `Coupe du terrain vue dans le sens de la photo, depuis ${from}\u00a0; 0 = la plateforme sous ${
         profile.origine === "caméra" ? "la caméra" : "l'axe"}.`,
       "Trait brun\u00a0: travers de la photo · pointillés\u00a0: travers à 5 et 10 m devant et derrière · "
         + "trait gris\u00a0: travers où la chute ou le dévers ont été mesurés.",

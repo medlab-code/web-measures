@@ -34,7 +34,7 @@
   <header>
     <div class="marque">
       <h1>Mesures Panoramax</h1>
-      <span class="essai" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.6.9-6 — projet personnel – POC</span>
+      <span class="essai" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.6.9-7 — projet personnel – POC</span>
     </div>
     <!-- Mesure : gros bouton sur les deux rangées ; réglages, puis effacement en dessous -->
     <div class="bloc mesure carte-barre">
@@ -72,7 +72,7 @@
               title="Chute et dévers des deux bords de la route, pour la photo affichée (hors pont) : terrain LiDAR HD lu en travers de la route, du bord de la chaussée jusqu'à la distance de la réglette"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M2 7h8l6 10h6"/></svg> Dévers</button>
       <!-- Coupe du terrain lue par le calcul de « Dévers » (src/profil.js) : grisé tant qu'il n'y en a pas pour la photo -->
       <button id="profil" type="button" disabled
-              title="Coupe du terrain en travers de la route, telle que « Dévers » l'a lue : chaussée, bords, chute et dévers"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M2 20V4M2 20h20M5 9l4 0 3 6 4-2 5 0"/></svg> Profil</button>
+              title="Coupe du terrain en travers de la route, telle que « Dévers » l'a lue : plateforme, bords, chute et dévers"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M2 20V4M2 20h20M5 9l4 0 3 6 4-2 5 0"/></svg> Profil</button>
       <label class="reglette" title="Distance examinée au-delà du bord de la chaussée, au prochain appui sur « Dévers »">
         <span>Jusqu'à <output id="bords-valeur" for="bords-largeur">10 m</output></span>
         <input id="bords-largeur" type="range" min="2" max="30" step="1" value="10">
