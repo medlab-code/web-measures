@@ -414,7 +414,7 @@ const Carte = (() => {
     setRoadsVisible(map, namesShown);
     setAdminVisible(map, namesShown);
     for (const id of namesIds) map.setLayoutProperty(id, "visibility", namesShown ? "visible" : "none");
-    loadMilestones(map);  // points de repère et bornes : avec ce fond seulement
+    loadMilestones(map);
   }
 
   /** Affiche ou masque le filaire Panoramax (séquences et photos). */
@@ -677,7 +677,7 @@ const Carte = (() => {
     whenLoaded(map, () => loadMilestones(map));
   }
 
-  /** Points de repère et bornes affichés (avec le fond « orthophoto avec noms ») ou non. */
+  /** Points de repère et bornes affichés ou non, sur tous les fonds. */
   function setMilestones(map, on) {
     milestonesOn = on;
     loadMilestones(map);  // pas whenLoaded : style « pas chargé » pendant le chargement des tuiles, « load » déjà passé
@@ -689,8 +689,8 @@ const Carte = (() => {
     // Zone chargée arrondie (et un peu élargie) : petits déplacements sans nouvelle requête
     const r = (v, up) => (up ? Math.ceil(v * 200) : Math.floor(v * 200)) / 200;
     const box = [r(b.getWest(), false), r(b.getSouth(), false), r(b.getEast(), true), r(b.getNorth(), true)];
-    // Fond « orthophoto avec noms » seulement : ailleurs, ni points ni bornes (pas de requête non plus)
-    const key = namesShown && milestonesOn && zoom >= PR_MINZOOM ? box.join(",") + (zoom >= PR_LABEL_ZOOM ? "+" : "") : "";
+    // Tous les fonds, selon le réglage : décoché, ni points ni bornes (pas de requête non plus)
+    const key = milestonesOn && zoom >= PR_MINZOOM ? box.join(",") + (zoom >= PR_LABEL_ZOOM ? "+" : "") : "";
     if (key === prKey) return;
     prKey = key;
     const ticket = ++prAsked;

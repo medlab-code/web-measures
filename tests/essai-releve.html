@@ -54,22 +54,23 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       await sleep(800);
     };
     const shown = (id) => !doc.querySelector(id).hidden;
-    // Mini-carte : points de repère et bornes avec le fond « orthophoto avec noms » seulement
+    // Mini-carte : points de repère et bornes sur tous les fonds, selon le réglage « Bornes des PR sur la carte »
     { const m = w.mesures.map, pr = () => m.getSource("pr")?.serialize().data.features?.length || 0;
       const bornes = () => m.getContainer().querySelectorAll(".borne-pr").length;
-      m.jumpTo({ center: photos[0].geometry.coordinates, zoom: 15 });
-      await sleep(2500);
-      expect("fond Plan IGN : ni PR ni bornes", pr() === 0 && bornes() === 0, `${pr()} PR, ${bornes()} bornes`);
-      doc.querySelector("#fond").value = "noms"; doc.querySelector("#fond").dispatchEvent(new Event("change"));
-      await until(() => pr() > 0 && bornes() > 0, 20000, "PR et bornes avec l'orthophoto avec noms");
-      // Réglage « Bornes des PR sur la carte » : décoché, retirées ; recoché, de retour
       const toggle = (on) => { doc.querySelector("#bornes").checked = on; doc.querySelector("#bornes").dispatchEvent(new Event("change")); };
+      const fond = (v) => { doc.querySelector("#fond").value = v; doc.querySelector("#fond").dispatchEvent(new Event("change")); };
+      m.jumpTo({ center: photos[0].geometry.coordinates, zoom: 15 });
+      await until(() => pr() > 0 && bornes() > 0, 20000, "PR et bornes avec le Plan IGN (réglage coché par défaut)");
       toggle(false);
       await until(() => pr() === 0 && bornes() === 0, 20000, "PR et bornes retirés par le réglage");
+      fond("noms");
+      await sleep(2500);
+      expect("réglage décoché : ni PR ni bornes avec l'orthophoto avec noms", pr() === 0 && bornes() === 0, `${pr()} PR, ${bornes()} bornes`);
       toggle(true);
       await until(() => pr() > 0 && bornes() > 0, 20000, "PR et bornes de retour avec le réglage");
-      doc.querySelector("#fond").value = "plan"; doc.querySelector("#fond").dispatchEvent(new Event("change"));
-      await until(() => pr() === 0 && bornes() === 0, 20000, "PR et bornes retirés avec le Plan IGN"); }
+      fond("plan");
+      await sleep(1500);
+      expect("réglage coché : PR et bornes gardés en repassant au Plan IGN", pr() > 0 && bornes() > 0, `${pr()} PR, ${bornes()} bornes`); }
     expect("relevé vide : Envoyer dans Couche et Vider grisés", doc.querySelector("#releve-couche").disabled && doc.querySelector("#releve-vider").disabled);
     log("rappel : " + doc.querySelector("#nom-mesure").textContent + " · " + doc.querySelector("#mode-mesure").textContent);
     // 1er objet : triangulé depuis les deux photos ; après la première visée, la question d'une seule photo

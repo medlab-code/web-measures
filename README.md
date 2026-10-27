@@ -61,8 +61,8 @@ pour les départementales, cyan pour les métropolitaines, vert pour les europé
 des départements (bleu), de la métropole (vert) et des communes (tirets noirs). Les
 autoroutes et nationales paraissent dès le zoom 7, les départementales dès le zoom 10, les
 autres voies dès le zoom 15. Les points de repère sont dessinés en bornes (tête à la couleur
-du réseau, numéro du PR), à côté de la voie, avec ce fond seulement (masquables par « Bornes des PR sur la carte »
-dans Réglages, Affichage). Le filaire Panoramax, semi-transparent, se
+du réseau, numéro du PR), à côté de la voie, sur tous les fonds, ou sur aucun selon « Bornes des PR sur la carte »
+(Réglages, Affichage). Le filaire Panoramax, semi-transparent, se
 masque par sa case à cocher.
 
 **Choisir une photo** : cliquer sur le filaire orange de la carte (photo la plus proche) ; la
@@ -603,6 +603,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.9-11** (27/10/2026) : réglage « Bornes des PR sur la carte » valable pour tous les fonds de carte (coché : bornes partout ; décoché : nulle part).
 - **0.6.9-10** (27/10/2026) : fiches PDF de tous les objets de la couche en un seul PDF, cadrage automatique ou cadrage type (zoom, hauteur de vue et décalage dans la séquence réglés sur le 1er objet), photos d'une même séquence ; capture après le chargement des tuiles de la visionneuse ; réglage « Bornes des PR sur la carte ».
 - **0.6.9-9** (27/10/2026) : fiche PDF quasi instantanée sous Chrome et Edge : préparée dans une petite fenêtre à part, la page restant visible (dans un onglet, elle passait en arrière-plan et la capture attendait).
 - **0.6.9-8** (27/10/2026) : fiche PDF en « Vue actuelle » prête en moins d'une seconde (attente de 8 s de la mini-carte supprimée).
