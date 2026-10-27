@@ -595,6 +595,7 @@ const Carte = (() => {
   const PR_LABEL_ZOOM = PR_MINZOOM;  // bornes dès que les points paraissent
   const prLabels = [];
   let prTimer = null, prAsked = 0, prKey = "";
+  let milestonesOn = true;  // réglage « Bornes des PR sur la carte » (setMilestones)
 
   /** Limites administratives chargées à la volée : pour chaque niveau affiché au zoom courant,
    * la zone vue (élargie) est demandée au WFS si aucune zone déjà chargée ne la contient ;
@@ -676,6 +677,12 @@ const Carte = (() => {
     whenLoaded(map, () => loadMilestones(map));
   }
 
+  /** Points de repère et bornes affichés (avec le fond « orthophoto avec noms ») ou non. */
+  function setMilestones(map, on) {
+    milestonesOn = on;
+    loadMilestones(map);  // pas whenLoaded : style « pas chargé » pendant le chargement des tuiles, « load » déjà passé
+  }
+
   async function loadMilestones(map) {
     const zoom = map.getZoom();
     const b = map.getBounds();
@@ -683,7 +690,7 @@ const Carte = (() => {
     const r = (v, up) => (up ? Math.ceil(v * 200) : Math.floor(v * 200)) / 200;
     const box = [r(b.getWest(), false), r(b.getSouth(), false), r(b.getEast(), true), r(b.getNorth(), true)];
     // Fond « orthophoto avec noms » seulement : ailleurs, ni points ni bornes (pas de requête non plus)
-    const key = namesShown && zoom >= PR_MINZOOM ? box.join(",") + (zoom >= PR_LABEL_ZOOM ? "+" : "") : "";
+    const key = namesShown && milestonesOn && zoom >= PR_MINZOOM ? box.join(",") + (zoom >= PR_LABEL_ZOOM ? "+" : "") : "";
     if (key === prKey) return;
     prKey = key;
     const ticket = ++prAsked;
@@ -1191,6 +1198,6 @@ const Carte = (() => {
 
   return {
     PANORAMAX_API: META_API, GEOPF, OSM_TILES, createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, pcrsAt, instances, setInstance, setFilter,
-    showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, nearestPhoto, photoById, apiUrl: () => apiUrl,
+    showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, nearestPhoto, photoById, apiUrl: () => apiUrl,
   };
 })();

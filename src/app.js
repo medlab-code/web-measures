@@ -309,6 +309,13 @@
     });
     if (changed) psv.needsUpdate?.();
   }
+  // Bornes des PR sur la mini-carte (fond « orthophoto avec noms »), affichées par défaut
+  $("#bornes").checked = store.get("bornes") !== "0";
+  Carte.setMilestones(map, $("#bornes").checked);
+  $("#bornes").addEventListener("change", (event) => {
+    store.set("bornes", event.target.checked ? "1" : "0");
+    Carte.setMilestones(map, event.target.checked);
+  });
   $("#anisotrope").checked = store.get("anisotrope") === "1";
   $("#anisotrope").addEventListener("change", (event) => {
     store.set("anisotrope", event.target.checked ? "1" : "0");
@@ -1097,11 +1104,14 @@
   /** Données de la fiche de l'objet n° id de la couche (voir buildFiche, ficheHtml) : ses attributs (sans
    * les colonnes techniques d'un relevé), sa position (premier sommet), la photo de son cadrage
    * automatique : celle de son recalage, sinon la photo affichée s'il y est dessiné, sinon la plus proche. */
-  async function overlayFicheData(id, columns = null) {
+  // own : sans la photo affichée (fiches de tous les objets : chacun sur sa photo, quelle que soit la photo affichée) ;
+  // seq : la plus proche dans cette séquence seulement (sans recalage ni photo d'origine), à défaut la plus proche
+  async function overlayFicheData(id, columns = null, own = false, seq = null) {
     const f = overlay.features[id];
     let [lon, lat] = f.geometry.coordinates;
     while (Array.isArray(lon)) [lon, lat] = lon;  // ligne, polygone : premier sommet
-    const pic = f.properties.photo_ref || Object.keys(f.recalages || {})[0] || (overlayAt.has(id) ? photo?.id : null)
+    const inSeq = seq && (await Carte.nearestPhoto(map, lon, lat, (p) => p.collection === seq && passesFilter(p)).catch(() => null))?.id;
+    const pic = inSeq || f.properties.photo_ref || Object.keys(f.recalages || {})[0] || (overlayAt.has(id) && !own ? photo?.id : null)
       || (await Carte.nearestPhoto(map, lon, lat, passesFilter).catch(() => null))?.id || null;
     // Colonnes choisies, dans leur ordre (askFiche) ; texte ajouté après la valeur de l'étiquette repris ici
     const props = overlayProperties(f);
@@ -1830,6 +1840,8 @@
     $("#couche-infos").textContent = [`${n} objet${n > 1 ? "s" : ""}`,
       overlay.crs === "lambert93" ? "Lambert 93 converti" : "WGS 84", k ? `${k} recalé${k > 1 ? "s" : ""}` : ""]
       .filter(Boolean).join(" · ");
+    $("#couche-fiches").textContent = `Fiches PDF des ${n} objet${n > 1 ? "s" : ""}`;
+    $("#couche-fiches").disabled = !n;
   }
 
   /** Couche en place (lue d'un fichier, ou gardée) : calcul, réglages, carte ; cadrée dessus si fit. */
@@ -2079,6 +2091,7 @@
   }
   // Export CSV (tableur français : point-virgule, virgule décimale) : attributs, puis lon et lat pour une
   // couche de points, géométrie en WKT sinon (QGIS la relit)
+  $("#couche-fiches").addEventListener("click", () => askFiche({ tous: true }));
   $("#couche-csv").addEventListener("click", () => {
     const cell = (v) => {
       if (v == null) return "";
@@ -2113,6 +2126,7 @@
     $("#couche-csv").disabled = true;
     $("#couche-modele").disabled = true;
     $("#couche-enregistrer").disabled = true;
+    $("#couche-fiches").disabled = true;
     fileStore("readwrite", (s) => s.delete("couche")).catch(() => null);
     refresh();
   });
@@ -3725,18 +3739,23 @@
 
   /** Choix de la photo de la fiche (cadrage automatique ou vue actuelle), puis la fiche : la fenêtre
    * s'ouvre au clic du choix, geste de l'utilisateur (sinon bloquée par le navigateur). */
-  // k : n° du point de référence, ou { objet : n° de l'objet de la couche } (clic droit dans la photo)
+  // k : n° du point de référence, ou { objet : n° de l'objet de la couche } (clic droit dans la photo),
+  // ou { tous : true } (bouton de la couche : tous ses objets, en cadrage automatique seulement)
   function askFiche(k, text) {
-    const dialog = $("#choix-fiche"), layered = typeof k === "object";
-    const name = layered ? overlayObjectName(k.objet) : (/^Point (\S+)/.exec(text) || [])[1] || "";
-    dialog.querySelector("h2").firstChild.textContent = layered ? "Fiche de l'objet " : "Fiche du point ";
+    const dialog = $("#choix-fiche"), layered = typeof k === "object", all = Boolean(k?.tous);
+    const n = overlay?.features.length;
+    const name = all ? "" : layered ? overlayObjectName(k.objet) : (/^Point (\S+)/.exec(text) || [])[1] || "";
+    dialog.querySelector("h2").firstChild.textContent = all ? `Fiches des ${n} objet${n > 1 ? "s" : ""} de la couche`
+      : layered ? "Fiche de l'objet " : "Fiche du point ";
     dialog.querySelector("h2 span").textContent = name;
+    // tous les objets : « Cadrage type », réglé sur le 1er (zoom, élévation) puis repris pour chacun
+    dialog.querySelector(".vue-actuelle").textContent = all ? "Cadrage type…" : "Vue actuelle";
     dialog.querySelector(".fiche-point").hidden = layered;
     for (const el of dialog.querySelectorAll(".fiche-objet")) el.hidden = !layered;
     // texte libre, laissé tel quel ou modifié
-    $("#titre-fiche").value = layered ? `${overlay.name}, objet ${name}` : `point de référence ${name}`;
+    $("#titre-fiche").value = all ? overlay.name : layered ? `${overlay.name}, objet ${name}` : `point de référence ${name}`;
     if (layered) showFicheFields();
-    const frame = showFicheFrame();
+    const frame = all ? null : showFicheFrame();
     dialog.returnValue = "";
     dialog.addEventListener("close", () => {
       if (!dialog.returnValue) return dropFrame(frame);
@@ -3746,6 +3765,8 @@
         k = { ...k, champs: overlay.fiche.filter(([, on]) => on).map(([c]) => c) };
       }
       const title = $("#titre-fiche").value.trim();
+      if (all) return dialog.returnValue === "auto" ? makeFiches(k.champs, title) : modelFiche(k.champs, title)
+        .catch((error) => setStatus(`Fiches impossibles : ${error.message}`, "echec"));
       if (dialog.returnValue === "auto" || !frame) {
         dropFrame(frame);
         return makeFiche(k, dialog.returnValue === "auto", title);
@@ -3753,6 +3774,33 @@
       reframeFiche(frame, () => makeFiche(k, false, title));  // vue actuelle : recadrée d'abord
     }, { once: true });
     showOverViewer(dialog);
+  }
+
+  /** « Cadrage type » des fiches de tous les objets : photo du 1er objet ouverte et cadrée dessus ; zoom, élévation et
+   * photo (tant de photos avant ou après la sienne dans la séquence) choisis par l'utilisateur (reframeFiche), puis
+   * repris pour chaque objet, cap tourné vers lui (makeFiches). */
+  async function modelFiche(champs, title) {
+    const first = await overlayFicheData(0, null, true);
+    if (first.photo && photo?.id !== first.photo) await openPhotoReady(first.photo);
+    frameView(overlayEnds(0));
+    reframeFiche(showFicheFrame(), () => {  // photo choisie lue dans la visionneuse (flèches comprises)
+      makeFiches(champs, title, { pitch: psv.getPosition().pitch, zoom: psv.getZoomLevel(), chosen: psv.getPictureMetadata?.()?.id || photo?.id });
+    });
+    setStatus(`Cadrage type sur l'objet ${overlayObjectName(0)} : réglez le zoom et la hauteur de vue (molette, glisser), `
+      + "changez de photo dans la séquence si besoin ; repris pour tous les objets, le cap tourné vers chacun. "
+      + "Puis « Valider le cadrage » (Échap pour annuler).");
+  }
+
+  /** Identifiant de la photo offset rangs plus loin que la photo id dans sa séquence (lue comme la lecture rapide,
+   * loadRanks) ; id elle-même au-delà du début ou de la fin de la séquence, ou si elle est illisible. */
+  async function photoAtOffset(id, offset) {
+    if (!offset || !id) return id;
+    const f = await Carte.photoById(id).catch(() => null);
+    const rank = Number(f?.properties?.["geovisio:rank_in_collection"]), apis = f?.collection ? sequenceApis(f) : [];
+    if (!Number.isInteger(rank) || !apis.length) return id;
+    const run = { apis, ids: new Map(), step: offset };
+    await loadRanks(run, rank + offset).catch(() => null);
+    return run.ids.get(rank + offset) || id;
   }
 
   /** « Vue actuelle » : fenêtre fermée, la vue se recadre dans la visionneuse (glisser, molette) sous le cadre
@@ -3863,7 +3911,8 @@
     arrows();
   }
 
-  async function makeFiche(k, auto = true, title = "") {
+  // build(step) : HTML de la fiche ; par défaut, celle de k (buildFiche)
+  async function makeFiche(k, auto = true, title = "", build = (step) => buildFiche(k, auto, title, step)) {
     if (!app || !psv) return;
     // Ouverte tout de suite (après une attente, bloquée), en petite fenêtre à part : dans un onglet, la page
     // passerait en arrière-plan, où Chrome et Edge arrêtent requestAnimationFrame et la capture attendrait
@@ -3898,7 +3947,7 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
         bar?.setAttribute("aria-valuenow", String(value));
       };
       tick = setInterval(() => show(Math.min(95, percent + 5)), 2000);
-      const html = await buildFiche(k, auto, title, (text, value) => {
+      const html = await build((text, value) => {
         const step = win.document.getElementById("etape");
         if (step) step.textContent = text;
         show(Math.max(percent, value));
@@ -3909,7 +3958,7 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
       win.document.close();
       await Promise.all([...win.document.images].map((img) => img.decode().catch(() => null)));
       await win.document.fonts.ready;  // hauteurs définitives avant le découpage
-      paginateFiche(win.document);
+      for (const page of [...win.document.querySelectorAll(".page")]) paginateFiche(win.document, page);
       win.resizeTo(Math.min(900, screen.availWidth), screen.availHeight);  // la fiche entière, à lire avant d'imprimer
       win.focus();
       win.print();
@@ -3920,8 +3969,50 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     }
   }
 
-  /** Vue de la visionneuse immobile (cap, élévation, zoom) depuis 400 ms, et redessinée : la capture
-   * ne part pas pendant le mouvement de cadrage. 8 s au plus. */
+  /** Fiches de tous les objets de la couche en un seul document, une page chacun (et ses suites), en
+   * cadrage automatique, ou type (view : { pitch, zoom, chosen }, voir modelFiche) ; champs : données choisies (askFiche),
+   * title : celui de la couche. Toutes les photos d'une même séquence : celle de la photo choisie (cadrage type), sinon
+   * celle de la photo du 1er objet ; chaque objet sur la plus proche de cette séquence, décalée comme la photo choisie
+   * l'est de celle du 1er objet. */
+  function makeFiches(champs, title, view = true) {
+    return makeFiche(null, true, title, async (step) => {  // lu ici : la fenêtre s'ouvre d'abord, au clic
+      step("Séquence des photos", 0);
+      const read = (id) => (id ? Carte.photoById(id).catch(() => null) : null);
+      const rank = (f) => Number(f?.properties?.["geovisio:rank_in_collection"]);
+      // Rangs relus dans l'API : la fiche d'une photo atteinte par les flèches de la visionneuse peut ne pas les avoir
+      const chosen = await read(view.chosen);
+      const seq = chosen?.collection || (await read((await overlayFicheData(0, null, true)).photo))?.collection || null;
+      if (chosen) {
+        const base = await read((await overlayFicheData(0, null, true, seq)).photo);
+        view = { ...view, offset: base?.collection === seq ? rank(chosen) - rank(base) || 0 : 0 };
+      }
+      let doc = null;
+      const n = overlay.features.length, missed = [];
+      for (let id = 0; id < n; id++) {
+        const name = overlayObjectName(id);
+        try {
+          // own : la photo de chaque objet, pas celle affichée (où des objets proches seraient tous dessinés)
+          const html = await buildFiche({ objet: id, champs, own: true, seq }, view, `${title || overlay.name}, objet ${name}`,
+            (text, value) => step(`Objet ${name} (${id + 1} / ${n}) : ${text.toLowerCase()}`, Math.round((id + value / 100) / n * 100)));
+          const page = new DOMParser().parseFromString(html, "text/html");
+          if (doc) doc.body.append(page.querySelector(".page"));
+          else doc = page;
+        } catch (error) {  // objet sans fiche : les suivants quand même, puis la liste
+          console.warn(`Fiche de l'objet ${name} :`, error);
+          missed.push(`${name} (${error.message})`);
+        }
+      }
+      if (missed.length) {
+        setStatus(`Fiches : ${missed.length} objet${missed.length > 1 ? "s" : ""} sans fiche : ${missed.join(" ; ")}.`, "echec");
+      }
+      if (!doc) throw new Error(`aucun objet n'a pu avoir sa fiche (${missed[0] || "couche vide"})`);
+      return `<!doctype html>${doc.documentElement.outerHTML}`;
+    });
+  }
+
+  /** Vue de la visionneuse immobile (cap, élévation, zoom) depuis 400 ms, ses tuiles chargées, et redessinée : la
+   * capture ne part ni pendant le mouvement de cadrage, ni sur une image encore floue ou incomplète (réseau lent).
+   * 8 s au plus pour le mouvement, 20 s pour les tuiles. */
   async function viewSettled() {
     const key = () => { const p = psv.getPosition(); return [p.yaw, p.pitch, psv.getZoomLevel()].map((v) => v.toFixed(5)).join(); };
     let last = key(), since = Date.now();
@@ -3930,25 +4021,41 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
       const now = key();
       if (now !== last) [last, since] = [now, Date.now()];
     }
+    // File des tuiles vide deux fois de suite (comme l'événement « picture-tiles-loaded » de la visionneuse)
+    for (let t0 = Date.now(), empty = 0; empty < 2 && Date.now() - t0 < 20000;) {
+      await new Promise((r) => setTimeout(r, 100));
+      empty = Object.keys(psv.adapter?.queue?.tasks || {}).length ? 0 : empty + 1;
+    }
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));  // image et repères à jour
   }
 
   /** Page de la fiche du point gardé n° k (HTML complet) : photo d'où sa plus grande mesure a été prise ouverte et
    * cadrée, puis capturée avec la mini-carte. */
-  // auto : photo de la mesure, cadrée dessus ; sinon la vue actuelle telle qu'affichée.
+  // auto : photo de la mesure, cadrée dessus ; { pitch, zoom, offset } (makeFiches) : de même, mais cadrage type (élévation et zoom
+  // donnés, cap tourné vers l'objet, photo offset rangs plus loin dans la séquence) ; sinon la vue actuelle telle qu'affichée.
   // step(texte, %) : étape en cours, pour la fenêtre d'attente
   async function buildFiche(k, auto = true, title = "", step = () => {}) {  // title : après « Fiche de mesure — »
     const layered = typeof k === "object";  // objet de la couche (voir askFiche)
-    const data = layered ? await overlayFicheData(k.objet, k.champs) : JSON.parse(app.fiche(k));
+    const data = layered ? await overlayFicheData(k.objet, k.champs, k.own, k.seq) : JSON.parse(app.fiche(k));
     data.title = title || `point de référence ${data.name}`;
     if (!auto) data.photo = photo?.id || data.photo;  // pied de la fiche : la photo capturée
+    if (auto?.offset) data.photo = await photoAtOffset(data.photo, auto.offset);  // cadrage type : même décalage dans la séquence
     step(auto ? "Ouverture de la photo de la mesure" : "Capture de la vue actuelle", 0);
-    if (auto && data.photo && photo?.id !== data.photo) await openPhotoReady(data.photo);  // photo d'où la plus grande mesure a été prise
+    // Photo d'où la plus grande mesure a été prise (objet : la sienne) ; comparée à celle de la visionneuse, pas à la fiche
+    // gardée (photo), qui peut retarder sur elle
+    const shown = () => psv.getPictureMetadata?.()?.id;
+    if (auto && data.photo && shown() !== data.photo) await openPhotoReady(data.photo);
+    if (k.own && (!data.photo || shown() !== data.photo)) {  // fiches de tous les objets : jamais sur la photo d'un autre
+      throw new Error(data.photo ? `photo ${data.photo} non ouverte` : "aucune photo trouvée près de l'objet (filtre, instance ?)");
+    }
     step(auto ? "Cadrage de la photo sur la mesure" : "Capture de la vue actuelle", 40);
     const ends = !auto ? [] : layered ? overlayEnds(k.objet) : JSON.parse(app.fiche_frame(k));
     // Hauteur : la mesure sur 75 % de la hauteur de l'image ; largeur : 10 % de marge de chaque côté ;
     // objet de la couche : centré, champ de vue d'un point seul
-    frameView(ends, false, layered ? null : { aspect: FICHE_PHOTO.width / FICHE_PHOTO.height, margin: data.kind === "height" ? 1 / 0.75 : 1.25 });
+    if (auto?.zoom !== undefined && ends.length) {
+      psv.rotate({ yaw: ends[0][0], pitch: auto.pitch });
+      psv.zoom(auto.zoom);
+    } else frameView(ends, false, layered ? null : { aspect: FICHE_PHOTO.width / FICHE_PHOTO.height, margin: data.kind === "height" ? 1 / 0.75 : 1.25 });
     await viewSettled();
     if (auto && !layered && data.kind !== "height") {  // largeur : un peu de recul autour de la ligne ; hauteur : cadrage seul
       psv.zoom(Math.max(0, psv.getZoomLevel() - FICHE_UNZOOM));
@@ -4026,7 +4133,7 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
 * { box-sizing: border-box; }
 body { margin: 0; font-family: Inter, Arial, sans-serif; color: #1c1c1c; background: #fff; }
 .page { width: 210mm; height: 297mm; padding: 11.6mm 12.7mm; display: flex; flex-direction: column; gap: 18px; overflow: hidden; }
-.suite { break-before: page; }  /* 2e page d'une fiche trop longue (paginateFiche) */
+.page + .page { break-before: page; }  /* suite d'une fiche trop longue (paginateFiche), fiche de l'objet suivant (makeFiches) */
 header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #e65100; padding-bottom: 12px; }
 h1 { margin: 0; font-size: 26px; letter-spacing: -0.3px; } .sous-titre { font-size: 15px; font-weight: 500; color: #444; margin-top: 4px; }
 .date { align-self: center; font-size: 14px; font-weight: 500; }  /* centrée sur la hauteur du titre */
@@ -4066,7 +4173,7 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
   /** Fiche plus haute qu'une page A4 (ticket #32) : la fin de ses listes (lignes du tableau, puis de
    * « Méthode et précision ») passe sur la page suivante, sous le même en-tête, et ainsi de suite.
    * Jamais une ligne seule d'un côté : au moins deux, sinon la liste entière. */
-  function paginateFiche(doc, page = doc.querySelector(".page")) {
+  function paginateFiche(doc, page = doc.querySelector(".page"), depth = 0) {
     const fits = () => page.scrollHeight <= page.clientHeight;
     if (!page || fits()) return;
     const suite = (el) => el.textContent.endsWith(" (suite)") || el.append(" (suite)");
@@ -4090,7 +4197,7 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
       else rest.remove();
       if (fits()) break;
     }
-    if (doc.querySelectorAll(".page").length < 10) paginateFiche(doc, next);  // 10 pages au plus : ligne trop haute
+    if (depth < 9) paginateFiche(doc, next, depth + 1);  // 10 pages au plus par fiche : ligne trop haute
   }
 
   /** Étiquettes de la couche importée visibles dans root (visionneuse, carte) recopiées sur ctx : même
@@ -4358,6 +4465,6 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
   }
 
   // Pour les essais depuis la console : window.mesures.app.click(yaw, pitch)
-  window.mesures = { get app() { return app; }, get psv() { return psv; }, map, openPhoto, buildFiche, paginateFiche, importOverlay,
+  window.mesures = { get app() { return app; }, get psv() { return psv; }, map, openPhoto, buildFiche, paginateFiche, photoAtOffset, importOverlay,
     overlayFile: (handle) => { overlay.fichier = handle; } };  // fichier de la couche remplacé (essais)
 })();

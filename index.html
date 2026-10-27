@@ -34,7 +34,7 @@
   <header>
     <div class="marque">
       <h1>Mesures Panoramax</h1>
-      <span class="essai" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.6.9-9— projet personnel – POC</span>
+      <span class="essai" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.6.9-10— projet personnel – POC</span>
     </div>
     <!-- Mesure : gros bouton sur les deux rangées ; réglages, puis effacement en dessous -->
     <div class="bloc mesure carte-barre">
@@ -336,6 +336,9 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <button id="couche-retirer" type="button" class="icone danger" disabled aria-label="Retirer la couche"
                       title="Retirer la couche"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             </div>
+            <!-- Fiches de tous les objets, en un seul PDF (app.js askFiche, { tous }) ; nombre d'objets : showOverlayInfo -->
+            <button id="couche-fiches" type="button" disabled
+                    title="Un seul PDF, une page par objet, photo cadrée automatiquement sur l'objet">Fiches PDF des objets</button>
             <div class="reglage-couche"><label for="couche-couleur">Couleur</label><select id="couche-couleur"></select></div>
             <div class="titre-legende">
               <h3 id="titre-legende">Légende</h3>
@@ -413,6 +416,10 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             <label class="option">
               <span class="texte-option">Centrer la carte sur la photo<span class="aide">La carte suit la photo ouverte.</span></span>
               <input id="centrer" type="checkbox" class="interrupteur" checked>
+            </label>
+            <label class="option" title="Points de repère (PR) de la BD TOPO et leurs bornes sur la mini-carte, avec le fond « orthophoto avec noms » seulement.">
+              <span class="texte-option">Bornes des PR sur la carte<span class="aide">Avec le fond « orthophoto avec noms ».</span></span>
+              <input id="bornes" type="checkbox" class="interrupteur" checked>
             </label>
             <label class="option" title="Filtrage anisotrope 16x des textures : atténue le crénelage et le scintillement des détails fins vus de loin, en gardant l'image nette, au prix d'une navigation un peu moins fluide.">
               <span class="texte-option">Filtrage anisotrope<span class="aide">Détails lointains plus nets, navigation un peu moins fluide.</span></span>

@@ -62,6 +62,12 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       expect("fond Plan IGN : ni PR ni bornes", pr() === 0 && bornes() === 0, `${pr()} PR, ${bornes()} bornes`);
       doc.querySelector("#fond").value = "noms"; doc.querySelector("#fond").dispatchEvent(new Event("change"));
       await until(() => pr() > 0 && bornes() > 0, 20000, "PR et bornes avec l'orthophoto avec noms");
+      // Réglage « Bornes des PR sur la carte » : décoché, retirées ; recoché, de retour
+      const toggle = (on) => { doc.querySelector("#bornes").checked = on; doc.querySelector("#bornes").dispatchEvent(new Event("change")); };
+      toggle(false);
+      await until(() => pr() === 0 && bornes() === 0, 20000, "PR et bornes retirés par le réglage");
+      toggle(true);
+      await until(() => pr() > 0 && bornes() > 0, 20000, "PR et bornes de retour avec le réglage");
       doc.querySelector("#fond").value = "plan"; doc.querySelector("#fond").dispatchEvent(new Event("change"));
       await until(() => pr() === 0 && bornes() === 0, 20000, "PR et bornes retirés avec le Plan IGN"); }
     expect("relevé vide : Envoyer dans Couche et Vider grisés", doc.querySelector("#releve-couche").disabled && doc.querySelector("#releve-vider").disabled);
@@ -405,6 +411,59 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         && pages.slice(1).every((p) => p.querySelector("h2").textContent.endsWith("Attributs (suite)"))
         && pages[2].textContent.includes("Méthode et précision") && !pages[2].textContent.includes("(suite) (suite)"));
       long.remove();
+      // Fiches de tous les objets (bouton de la couche) : un seul document, une page par objet, cadrage automatique
+      const all = doc.querySelector("#couche-fiches"), count = Number((/(\d+) objet/.exec(all.textContent) || [])[1]);
+      const sheet = Object.assign(document.createElement("iframe"), { style: "position:fixed;left:-3000px;top:0;width:900px;height:1200px;border:0" });
+      document.body.append(sheet);
+      let printed = false;
+      Object.assign(sheet.contentWindow, { print: () => { printed = true; }, resizeTo: () => {} });
+      w.open = () => sheet.contentWindow;
+      all.click();
+      await until(() => choice.open, 5000, "fenêtre des fiches de tous les objets");
+      expect("fiches de tous les objets : nombre dans le bouton, « Cadrage type… » au lieu de « Vue actuelle »", !all.disabled && count > 1
+        && choice.querySelector("h2").textContent.startsWith(`Fiches des ${count} objets`) && choice.querySelector(".vue-actuelle").textContent === "Cadrage type…");
+      choice.querySelector('button[value="auto"]').click();
+      const t0 = Date.now();
+      await until(() => printed, 30000 * count, "fiches de tous les objets imprimées");
+      w.open = opened;
+      const sheets = [...sheet.contentDocument.querySelectorAll(".page")].filter((p) => !p.classList.contains("suite"));
+      log(`fiches de tous les objets : ${sheets.length} pages en ${((Date.now() - t0) / 1000).toFixed(1)} s · `
+        + sheets.map((p) => p.querySelector(".sous-titre").textContent).join(" | "));
+      expect("fiches de tous les objets : une page par objet, chacune avec sa photo", sheets.length === count
+        && sheets.every((p) => /objet \S+$/.test(p.querySelector(".sous-titre").textContent) && p.querySelector("figure img")?.src.startsWith("data:image")));
+      // Cadrage type : réglé sur le 1er objet (zoom, élévation), repris pour chacun, cap tourné vers l'objet
+      printed = false;
+      w.open = () => sheet.contentWindow;
+      all.click();
+      await until(() => choice.open, 5000, "fenêtre des fiches (cadrage type)");
+      choice.querySelector('button[value="vue"]').click();
+      await until(() => doc.querySelector(".cadre-fiche .cadre-boutons .oui"), 30000, "cadre du cadrage type");
+      // photo précédente dans la séquence, par la flèche de la visionneuse : décalage -1 repris pour chaque objet
+      const refId = w.mesures.psv.getPictureMetadata().id, nextId = await w.mesures.photoAtOffset(refId, -1);
+      log("flèches de la visionneuse : " + typeof w.mesures.psv.goToPrevPicture);
+      if (nextId !== refId) {
+        if (w.mesures.psv.goToPrevPicture) w.mesures.psv.goToPrevPicture();
+        else w.mesures.openPhoto(await w.eval("Carte").photoById(nextId));
+        await until(() => w.mesures.psv.getPictureMetadata()?.id === nextId, 30000, "photo suivante du cadrage type");
+        await sleep(1500);
+      }
+      const model = { pitch: -0.12, zoom: 35 };
+      w.mesures.psv.rotate({ yaw: w.mesures.psv.getPosition().yaw + 0.3, pitch: model.pitch });
+      w.mesures.psv.zoom(model.zoom);
+      log("cadrage type : " + doc.querySelector("#statut").textContent);
+      doc.querySelector(".cadre-fiche .cadre-boutons .oui").click();
+      await until(() => printed, 30000 * count, "fiches en cadrage type imprimées");
+      w.open = opened;
+      const p = w.mesures.psv.getPosition();
+      log(`cadrage type, dernier objet : élévation ${p.pitch.toFixed(3)}, zoom ${w.mesures.psv.getZoomLevel()}, cap ${p.yaw.toFixed(3)}`);
+      const typed = [...sheet.contentDocument.querySelectorAll(".page")].filter((pg) => !pg.classList.contains("suite"));
+      const shot = typed.map((pg) => pg.querySelector("footer .mono")?.textContent);
+      log(`cadrage type : photo de référence ${refId}, suivante ${nextId}, photos des pages ${shot.join(", ")}`);
+      expect("cadrage type : décalage dans la séquence repris (1er objet : photo précédente)", nextId !== refId && shot[0] === nextId
+        && shot.every(Boolean));
+      expect("cadrage type : une page par objet, élévation et zoom repris", typed.length === count
+        && Math.abs(p.pitch - model.pitch) < 0.01 && Math.abs(w.mesures.psv.getZoomLevel() - model.zoom) < 1);
+      sheet.remove();
     }
     // Objet recalé dans la photo : « Enregistrer » actif, puis réécrit dans le même fichier
     if (pastille) {

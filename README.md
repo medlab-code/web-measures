@@ -61,7 +61,8 @@ pour les départementales, cyan pour les métropolitaines, vert pour les europé
 des départements (bleu), de la métropole (vert) et des communes (tirets noirs). Les
 autoroutes et nationales paraissent dès le zoom 7, les départementales dès le zoom 10, les
 autres voies dès le zoom 15. Les points de repère sont dessinés en bornes (tête à la couleur
-du réseau, numéro du PR), à côté de la voie, avec ce fond seulement. Le filaire Panoramax, semi-transparent, se
+du réseau, numéro du PR), à côté de la voie, avec ce fond seulement (masquables par « Bornes des PR sur la carte »
+dans Réglages, Affichage). Le filaire Panoramax, semi-transparent, se
 masque par sa case à cocher.
 
 **Choisir une photo** : cliquer sur le filaire orange de la carte (photo la plus proche) ; la
@@ -315,7 +316,12 @@ enregistrer sous, ou annuler ; effacé ou déplacé : « Enregistrer sous » aus
 **Fiche PDF d'un objet** (hors mesure) : clic droit sur sa pastille ou son étiquette dans la
 photo (photo cadrée sur l'objet ou vue actuelle, tableau de ses attributs, mini-carte) ; les données
 affichées et leur ordre (flèches ou glissé-déposé) se choisissent dans la fenêtre de la fiche et restent pour les objets suivants de la
-couche, et le texte ajouté après la valeur de l'étiquette y est repris. **Recalage dans la photo** (hors mesure) : clic sur la pastille ou l'étiquette d'un objet,
+couche, et le texte ajouté après la valeur de l'étiquette y est repris. **Fiches PDF de tous les objets** : bouton
+« Fiches PDF des N objets » de la couche, un seul PDF, une page par objet. Toutes les photos sont prises dans une même
+séquence Panoramax, chaque objet sur la plus proche de cette séquence. « Cadrage automatique » : séquence de la photo du
+1er objet. « Cadrage type… » : la photo du 1er objet s'ouvre ; zoom, hauteur de vue et photo (tant de photos avant ou
+après dans la séquence, par les flèches de la visionneuse) s'y règlent, puis sont repris pour chaque objet, le cap
+tourné vers lui. Un objet sans photo trouvée est sauté et signalé. **Recalage dans la photo** (hors mesure) : clic sur la pastille ou l'étiquette d'un objet,
 puis clic à sa place vue dans la photo, flèches pour l'ajuster (0,05°), Entrée pour finir, Suppr pour
 le remettre à sa place calculée ; décalage propre à cette photo, la carte n'est pas modifiée. Gardé
 avec la couche ; « Exporter » écrit un GeoJSON (WGS 84) où chaque objet porte ses
@@ -597,6 +603,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.9-10** (27/10/2026) : fiches PDF de tous les objets de la couche en un seul PDF, cadrage automatique ou cadrage type (zoom, hauteur de vue et décalage dans la séquence réglés sur le 1er objet), photos d'une même séquence ; capture après le chargement des tuiles de la visionneuse ; réglage « Bornes des PR sur la carte ».
 - **0.6.9-9** (27/10/2026) : fiche PDF quasi instantanée sous Chrome et Edge : préparée dans une petite fenêtre à part, la page restant visible (dans un onglet, elle passait en arrière-plan et la capture attendait).
 - **0.6.9-8** (27/10/2026) : fiche PDF en « Vue actuelle » prête en moins d'une seconde (attente de 8 s de la mini-carte supprimée).
 - **0.6.9-7** (27/10/2026) : profil : « plateforme » au lieu de « chaussée » entre les deux bords.
