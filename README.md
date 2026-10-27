@@ -589,6 +589,9 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.9-2** (27/10/2026) : page d'essai `tests/essai-lidar.html` : lecture à la volée du nuage
+  de points LiDAR HD (COPC) autour de la caméra et profil en travers (altitude, intensité), piste
+  pour le bord de chaussée de « Dévers » ; application inchangée.
 - **0.6.9-1** (27/10/2026) : « Dévers » : profils lus depuis la caméra (séquence vérifiée RTK,
   sinon depuis l'axe BD TOPO), bord de la chaussée trouvé par rupture de pente du terrain (sinon
   largeur BD TOPO) ; bouton « Profil » : coupe du terrain en travers de la route (chaussée, bords,
