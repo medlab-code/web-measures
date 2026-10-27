@@ -597,6 +597,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.9-9** (27/10/2026) : fiche PDF quasi instantanée sous Chrome et Edge : préparée dans une petite fenêtre à part, la page restant visible (dans un onglet, elle passait en arrière-plan et la capture attendait).
 - **0.6.9-8** (27/10/2026) : fiche PDF en « Vue actuelle » prête en moins d'une seconde (attente de 8 s de la mini-carte supprimée).
 - **0.6.9-7** (27/10/2026) : profil : « plateforme » au lieu de « chaussée » entre les deux bords.
 - **0.6.9-6** (27/10/2026) : profil : la case « Hauteurs à l'échelle » n'est plus grisée (cochée

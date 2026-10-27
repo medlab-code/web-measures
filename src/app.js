@@ -3865,7 +3865,9 @@
 
   async function makeFiche(k, auto = true, title = "") {
     if (!app || !psv) return;
-    const win = window.open("", "_blank");  // ouverte tout de suite : après une attente, bloquée
+    // Ouverte tout de suite (après une attente, bloquée), en petite fenêtre à part : dans un onglet, la page
+    // passerait en arrière-plan, où Chrome et Edge arrêtent requestAnimationFrame et la capture attendrait
+    const win = window.open("", "_blank", "popup,width=520,height=420");
     if (!win) {
       setStatus("Fiche : fenêtre bloquée par le navigateur (autorisez les fenêtres de cette page).", "echec");
       return;
@@ -3908,6 +3910,7 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
       await Promise.all([...win.document.images].map((img) => img.decode().catch(() => null)));
       await win.document.fonts.ready;  // hauteurs définitives avant le découpage
       paginateFiche(win.document);
+      win.resizeTo(Math.min(900, screen.availWidth), screen.availHeight);  // la fiche entière, à lire avant d'imprimer
       win.focus();
       win.print();
     } catch (error) {
