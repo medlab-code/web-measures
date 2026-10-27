@@ -193,7 +193,10 @@ après.
     terrain sur 1 m s'écarte de plus de 8 points de celle de la chaussée sous l'origine, dans
     le même sens, sur trois pas de suite (fossé, talus, bordure) ; sans rupture de pente
     (accotement de plain-pied), la demi-largeur BD TOPO (sinon 3 m) ; l'infobulle dit où le bord
-    a été trouvé, et comment ;
+    a été trouvé, et comment ; **chaussées séparées** (autoroute, voie express : un tronçon BD TOPO
+    par sens, de même nom, parallèle, son axe à 4 à 40 m, ticket #34) : du côté de l'autre chaussée, le
+    bord est cherché au-delà de son axe (pente de référence : celle sous cet axe), sinon son bord
+    extérieur BD TOPO ; la plateforme comprend le séparateur de chaussée et l'autre chaussée ;
   - **chute** : la plus grande descente entre le terrain au bord de la chaussée et le point le
     plus bas du profil, avec la distance de ce point (le plus proche du bord, à 5 cm près) ;
     « chute ≥ … au-delà de 10 m du bord » quand le point le plus bas est au bout du profil (le
@@ -212,12 +215,14 @@ après.
 
   Le bouton **« Profil »**, à côté, montre la coupe du terrain que ce calcul a lue (mesure LiDAR
   HD, ou RGE ALTI en secours) : travers de la photo en brun, les quatre autres en pointillés,
-  plateforme entre les deux bords trouvés (et comment : rupture de pente ou largeur BD TOPO), flèche
+  plateforme entre les deux bords trouvés (et comment : rupture de pente ou largeur BD TOPO), séparateur de
+  chaussée sur une route à chaussées séparées (d'après les largeurs BD TOPO, qui comprennent souvent les
+  accotements : il peut y paraître étroit), flèche
   de la chute et droite rouge du talus (haut → pied) sur le travers où ils ont été mesurés,
   hauteurs exagérées (facteur écrit sous le graphique) ; la case « Hauteurs à l'échelle » les remet
   à l'échelle des distances (choix retenu d'un profil à l'autre). « Enregistrer en PNG » en fait une image
-  avec son titre et sa légende. Le bouton est grisé tant que « Dévers » n'a rien calculé pour la
-  photo.
+  avec son titre et sa légende ; la loupe agrandit le graphique (sans la légende) au mieux dans la
+  visionneuse. Le bouton est grisé tant que « Dévers » n'a rien calculé pour la photo.
 - **Mesure libre (points triangulés)** : viser chaque point depuis au moins deux photos, puis
   « Valider le point triangulé » ; à partir du deuxième, la distance horizontale au point précédent
   s'affiche, et la carte se cadre sur le segment.
@@ -603,6 +608,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.9-12** (27/10/2026) : « Dévers » sur route à chaussées séparées (#34) : plateforme jusqu'au bord extérieur de l'autre chaussée, séparateur de chaussée marqué sur le profil (petite barre verticale) ; loupe du profil (graphique agrandi sans la légende) ; étiquettes du profil écartées l'une de l'autre et liserées.
 - **0.6.9-11** (27/10/2026) : réglage « Bornes des PR sur la carte » valable pour tous les fonds de carte (coché : bornes partout ; décoché : nulle part).
 - **0.6.9-10** (27/10/2026) : fiches PDF de tous les objets de la couche en un seul PDF, cadrage automatique ou cadrage type (zoom, hauteur de vue et décalage dans la séquence réglés sur le 1er objet), photos d'une même séquence ; capture après le chargement des tuiles de la visionneuse ; réglage « Bornes des PR sur la carte ».
 - **0.6.9-9** (27/10/2026) : fiche PDF quasi instantanée sous Chrome et Edge : préparée dans une petite fenêtre à part, la page restant visible (dans un onglet, elle passait en arrière-plan et la capture attendait).

@@ -249,6 +249,29 @@
     store.set("profil-echelle", trueScale.checked ? "1" : "0");
     if (edgeProfile) drawProfile();
   });
+  // Loupe : graphique le plus grand possible (sans la légende) sans que la fenêtre dépasse de la visionneuse ;
+  // l'image PNG n'en dépend pas
+  const fitProfile = () => {
+    const dialog = $("#fenetre-profil"), chart = dialog.querySelector(".graphique");
+    chart.style.width = "";
+    if (!dialog.classList.contains("agrandi")) return;
+    const box = $("#vue").getBoundingClientRect(), svg = chart.querySelector("svg");
+    const ratio = svg ? svg.viewBox.baseVal.width / svg.viewBox.baseVal.height : 2;
+    // Place prise par le reste de la fenêtre (titre, boutons, marges), mesurée graphique compris, puis retirée
+    const otherW = dialog.offsetWidth - chart.offsetWidth, otherH = dialog.offsetHeight - chart.offsetHeight;
+    const width = Math.min(box.width - 16 - otherW, (box.height - 16 - otherH) * ratio);
+    chart.style.width = `${Math.max(200, Math.floor(width))}px`;
+  };
+  const zoomProfile = (on) => {
+    const dialog = $("#fenetre-profil"), button = $("#profil-loupe");
+    dialog.classList.toggle("agrandi", on);
+    button.setAttribute("aria-pressed", String(on));
+    button.setAttribute("aria-label", on ? "Taille normale du graphique" : "Agrandir le graphique");
+    fitProfile();
+  };
+  $("#profil-loupe").addEventListener("click", () => zoomProfile(!$("#fenetre-profil").classList.contains("agrandi")));
+  window.addEventListener("resize", () => { if ($("#fenetre-profil").open) fitProfile(); });
+  $("#fenetre-profil").addEventListener("close", () => zoomProfile(false));  // taille normale à la prochaine ouverture
   $("#profil").addEventListener("click", () => {
     if (!edgeProfile) return;
     const dialog = $("#fenetre-profil"), feature = photo;

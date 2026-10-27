@@ -1076,12 +1076,19 @@ dialog.avertissement form button:focus-visible { outline: 2px solid var(--texte)
 /* Bouton « Profil » : coupe du terrain en travers de la route (src/profil.js) */
 dialog.profil { max-width: min(52rem, calc(100vw - 16px)); }
 dialog.profil .graphique svg { display: block; width: 100%; height: auto; }
+dialog.profil.agrandi { max-width: none; }  /* loupe : largeur du graphique calculée (fitProfile), sans la légende */
+dialog.profil.agrandi .legende { display: none; }
+dialog.profil .graphique { margin: 0 auto; }
+#profil-loupe { display: inline-flex; align-items: center; justify-content: center; }
+#profil-loupe[aria-pressed="true"] { background: var(--panoramax); border-color: var(--panoramax); color: #fff; }
 dialog.profil .legende ul { margin: 0.6rem 0; padding-left: 1.2rem; }
 dialog.profil .legende li { margin: 0.2rem 0; }
 dialog.profil .legende p.aide { font-size: 0.85rem; color: var(--discret); margin: 0.15rem 0; }
 dialog.profil .legende .chute { color: #e8710a; font-weight: 500; }
 dialog.profil .legende .devers { color: #d93025; font-weight: 500; }
 .profil-svg text { font: 12px Roboto, sans-serif; fill: var(--texte); }
+/* étiquettes posées sur le terrain : liseré du fond, lisibles par-dessus les traits */
+.profil-svg text.place { paint-order: stroke; stroke: var(--fond); stroke-width: 3px; stroke-linejoin: round; }
 .profil-svg .graduation { fill: var(--discret); }
 .profil-svg .etiquette-profil { font-weight: 500; font-size: 13px; }
 .profil-svg .grille { stroke: var(--bord); stroke-width: 1; }
@@ -1092,6 +1099,7 @@ dialog.profil .legende .devers { color: #d93025; font-weight: 500; }
 .profil-svg .travers-mesure { fill: none; stroke: var(--discret); stroke-width: 1.5; }
 .profil-svg .chaussee { fill: none; stroke: #5f6368; stroke-width: 7; stroke-linecap: butt; }
 .profil-svg .bord { stroke: var(--texte); stroke-width: 1.2; stroke-dasharray: 2 3; }
+.profil-svg .separateur { stroke: var(--texte); stroke-width: 3; stroke-linecap: round; }  /* séparateur de chaussée */
 .profil-svg .origine { fill: #0b6fb6; stroke: var(--fond); stroke-width: 1.5; }
 .profil-svg .repere-chute { stroke: #e8710a; stroke-width: 1.2; stroke-dasharray: 4 3; }
 .profil-svg .chute { stroke: #e8710a; stroke-width: 2; }

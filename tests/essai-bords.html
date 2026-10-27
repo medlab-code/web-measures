@@ -13,7 +13,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba93-c63ac344d675"];
 (async () => {
   const w = document.getElementById("f").contentWindow;
-  let shown = 0, drawn = 0, images = 0, butte = false;
+  let shown = 0, drawn = 0, images = 0, butte = false, zoomed = 0, twin = 0;
   try {
     const t0 = Date.now();
     while (!(w.mesures?.app && w.mesures.map?.loaded?.())) { if (Date.now() - t0 > 120000) throw new Error("Pyodide"); await sleep(250); }
@@ -78,10 +78,53 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       const dialog = doc.querySelector("#fenetre-profil");
       const blob = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
       await log(`IMAGE ${id.slice(0, 8)} ` + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));
+      // Loupe : graphique agrandi sans la légende, la fenêtre dans la visionneuse ; à nouveau : taille normale
+      const before = dialog.querySelector("svg").getBoundingClientRect().width;
+      doc.querySelector("#profil-loupe").click();
+      await sleep(500);
+      const r = dialog.getBoundingClientRect(), v = doc.querySelector("#vue").getBoundingClientRect();
+      const after = dialog.querySelector("svg").getBoundingClientRect();
+      const inside = r.left >= v.left - 1 && r.right <= v.right + 1 && r.top >= v.top - 1 && r.bottom <= v.bottom + 1;
+      const snug = v.right - v.left - (r.right - r.left) <= 20 || v.bottom - v.top - (r.bottom - r.top) <= 20;  // collée à un bord
+      log(`  loupe : graphique ${Math.round(before)} → ${Math.round(after.width)} × ${Math.round(after.height)} px, fenêtre `
+        + `${Math.round(r.width)} × ${Math.round(r.height)} dans la visionneuse ${Math.round(v.width)} × ${Math.round(v.height)}`
+        + ` · dedans : ${inside} · au plus grand : ${snug} · légende masquée : ${!dialog.querySelector(".legende").offsetHeight}`);
+      if (after.width > before && inside && snug && !dialog.querySelector(".legende").offsetHeight) zoomed++;
+      doc.querySelector("#profil-loupe").click();
+      await sleep(300);
+      if (Math.abs(dialog.querySelector("svg").getBoundingClientRect().width - before) > 1 || !dialog.querySelector(".legende").offsetHeight) zoomed = -99;
       dialog.close();
     }
-    log(`encadrés affichés : ${shown} · profils dessinés : ${drawn}`);
+    // A38 à chaussées séparées (ticket #34) : du côté du terre-plein central, la plateforme va jusqu'au bord extérieur
+    // de l'autre chaussée (son axe à ~12 m de la photo, 10 m de large)
+    { const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=61dd94c4-e5d1-4eb0-9762-73a72f18b5cb")).json()).features[0];
+      w.mesures.openPhoto(f);
+      await sleep(4000);
+      doc.querySelector("#bords").click();
+      await sleep(8000);
+      const c = doc.querySelector("#chute"), found = (c.title.match(/Bords trouvés : (.*)\.$/) || [])[1] || "?";
+      log(`A38 61dd94c4 (30 m) : ${c.textContent.replace(/\n/g, " · ")} · bords trouvés : ${found}`);
+      const far = /séparateur de chaussée et de l'autre chaussée/.exec(found);
+      const widths = [...found.matchAll(/à (\d+(?:,\d+)?) m de/g)].map((m) => Number(m[1].replace(",", ".")));
+      twin = far && widths.some((d) => d > 15) ? 1 : 0;
+      if (!doc.querySelector("#profil").disabled) {
+        doc.querySelector("#profil").click();
+        await sleep(1000);
+        const dialog = doc.querySelector("#fenetre-profil");
+        if (![...dialog.querySelectorAll("svg text")].some((e) => e.textContent === "séparateur de chaussée")
+          || !dialog.querySelector("svg .separateur")) twin = 0;
+        const blob = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
+        await log("IMAGE 61dd94c4 " + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));
+        // Hauteurs à l'échelle : profil presque plat, étiquettes écartées l'une de l'autre
+        const scale = doc.querySelector("#profil-echelle");
+        scale.checked = true; scale.dispatchEvent(new w.Event("change"));
+        const flat = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
+        await log("IMAGE 61dd94c4-echelle " + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(flat); }));
+        scale.checked = false; scale.dispatchEvent(new w.Event("change"));
+        dialog.close();
+      } }
+    log(`encadrés affichés : ${shown} · profils dessinés : ${drawn} · loupe : ${zoomed} · chaussées séparées : ${twin}`);
   } catch (e) { log("exception " + e); }
-  log(shown && drawn === shown - 1 && butte ? "FIN" : `ERREUR encadrés ${shown}, profils ${drawn}`);  // le pont : pas de profil
+  log(shown && drawn === shown - 1 && butte && zoomed > 0 && twin ? "FIN" : `ERREUR encadrés ${shown}, profils ${drawn}`);  // le pont : pas de profil
 })();
 </script>
