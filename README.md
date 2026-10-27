@@ -589,6 +589,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.9-3** (27/10/2026) : bouton « Profil » à la hauteur du bouton « Dévers ».
 - **0.6.9-2** (27/10/2026) : page d'essai `tests/essai-lidar.html` : lecture à la volée du nuage
   de points LiDAR HD (COPC) autour de la caméra et profil en travers (altitude, intensité), piste
   pour le bord de chaussée de « Dévers » ; application inchangée.

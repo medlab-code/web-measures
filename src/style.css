@@ -110,6 +110,9 @@ header .bords .reglette { flex-direction: column; align-items: stretch; justify-
 header .bords .reglette input { width: 7em; margin: 0; }
 header #mesure, header #bords { display: inline-flex; align-items: center; gap: 0.4em; height: auto; padding: 0 0.9em;
                  font-size: 1.15em; font-weight: 600; border: 3px solid var(--panoramax); border-radius: 10px; }
+/* Profil : même hauteur et même forme que Dévers, à côté, sans le liseré orange */
+header #profil { display: inline-flex; align-items: center; gap: 0.4em; height: auto; padding: 0 0.9em;
+                 font-size: 1.05em; font-weight: 500; border-radius: 10px; }
 /* Effacer, Refaire, Tout effacer : liseré aux couleurs des repères de la visionneuse (jaune des croix,
    vert de la verticale et des visées, rouge des traits de mesure), fond et texte des autres boutons ;
    grisés sans effet possible */
