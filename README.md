@@ -191,12 +191,19 @@ après.
     au-delà du bord BD TOPO, puis 16 points jusqu'à la distance de la réglette au-delà du bord ;
   - **bord de la chaussée** : premier point, à 1,5 m au moins de l'origine, d'où la pente du
     terrain sur 1 m s'écarte de plus de 8 points de celle de la chaussée sous l'origine, dans
-    le même sens, sur trois pas de suite (fossé, talus, bordure) ; sans rupture de pente
+    le même sens, sur trois pas de suite (fossé, talus), ou d'où le terrain fait une marche de 5 cm
+    ou plus sur 0,5 m qui tient sur 1,5 m (bordure, accotement plus bas) ; sans rupture de pente
     (accotement de plain-pied), la demi-largeur BD TOPO (sinon 3 m) ; l'infobulle dit où le bord
-    a été trouvé, et comment ; **chaussées séparées** (autoroute, voie express : un tronçon BD TOPO
-    par sens, de même nom, parallèle, son axe à 4 à 40 m, ticket #34) : du côté de l'autre chaussée, le
-    bord est cherché au-delà de son axe (pente de référence : celle sous cet axe), sinon son bord
-    extérieur BD TOPO ; la plateforme comprend le séparateur de chaussée et l'autre chaussée ;
+    a été trouvé, et comment ; un bord d'un travers à plus de 3 m de la médiane des bords trouvés
+    de ce côté (une marche dans la chaussée, un bord flou) y est ramené ; **chaussées séparées**
+    (autoroute, voie express : un tronçon BD TOPO par sens, de même nom, parallèle, son axe à 4 à
+    40 m en travers, ticket #34) : du côté de l'autre chaussée, le bord est cherché au-delà de son
+    axe et jusqu'à 9 m après son bord BD TOPO (largeurs souvent trop faibles), pente de référence
+    sous cet axe, sinon son bord extérieur BD TOPO ; la plateforme comprend le séparateur de
+    chaussée et l'autre chaussée ; **séparateur de chaussée** : entre deux marches de sens
+    contraires (surélevé : montée puis descente ; en creux : l'inverse), large de 0,5 à 10 m, au
+    milieu à 4 m au plus de celui que donnent les largeurs BD TOPO, recoupé d'un travers à l'autre ;
+    sinon d'après la BD TOPO ;
   - **chute** : la plus grande descente entre le terrain au bord de la chaussée et le point le
     plus bas du profil, avec la distance de ce point (le plus proche du bord, à 5 cm près) ;
     « chute ≥ … au-delà de 10 m du bord » quand le point le plus bas est au bout du profil (le
@@ -215,9 +222,9 @@ après.
 
   Le bouton **« Profil »**, à côté, montre la coupe du terrain que ce calcul a lue (mesure LiDAR
   HD, ou RGE ALTI en secours) : travers de la photo en brun, les quatre autres en pointillés,
-  plateforme entre les deux bords trouvés (et comment : rupture de pente ou largeur BD TOPO), séparateur de
-  chaussée sur une route à chaussées séparées (d'après les largeurs BD TOPO, qui comprennent souvent les
-  accotements : il peut y paraître étroit), flèche
+  plateforme entre les deux bords trouvés (et comment : rupture de pente ou largeur BD TOPO), milieu du
+  séparateur de chaussée sur une route à chaussées séparées (petite barre verticale ; la légende dit s'il a
+  été trouvé dans le relief ou placé d'après la BD TOPO), flèche
   de la chute et droite rouge du talus (haut → pied) sur le travers où ils ont été mesurés,
   hauteurs exagérées (facteur écrit sous le graphique) ; la case « Hauteurs à l'échelle » les remet
   à l'échelle des distances (choix retenu d'un profil à l'autre). « Enregistrer en PNG » en fait une image
@@ -608,6 +615,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.9-13** (28/10/2026) : « Dévers » : séparateur de chaussée trouvé dans le relief (entre deux marches du terrain, sinon d'après la BD TOPO, origine écrite sur le profil), bord de chaussée aussi à une marche du terrain (bordure), bord extérieur de l'autre chaussée cherché plus loin, travers recoupés entre eux ; autre chaussée mieux reconnue (tronçon dans le prolongement écarté). Essais sur l'A38, la RD903bis, la D1074 et la RD700.
 - **0.6.9-12** (27/10/2026) : « Dévers » sur route à chaussées séparées (#34) : plateforme jusqu'au bord extérieur de l'autre chaussée, séparateur de chaussée marqué sur le profil (petite barre verticale) ; loupe du profil (graphique agrandi sans la légende) ; étiquettes du profil écartées l'une de l'autre et liserées.
 - **0.6.9-11** (27/10/2026) : réglage « Bornes des PR sur la carte » valable pour tous les fonds de carte (coché : bornes partout ; décoché : nulle part).
 - **0.6.9-10** (27/10/2026) : fiches PDF de tous les objets de la couche en un seul PDF, cadrage automatique ou cadrage type (zoom, hauteur de vue et décalage dans la séquence réglés sur le 1er objet), photos d'une même séquence ; capture après le chargement des tuiles de la visionneuse ; réglage « Bornes des PR sur la carte ».

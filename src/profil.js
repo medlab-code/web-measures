@@ -27,7 +27,10 @@ const Profil = (() => {
       const sign = p.cote === "gauche" ? -1 : 1;
       t.points.push(...p.points.map(([o, z]) => [sign * o, z]));
       t.bords[p.cote] = { x: sign * p.bord, relief: p.relief, arret: p.arret === null ? null : sign * p.arret };
-      if (p.separateur) t.separateur = p.separateur.map((o) => sign * o).sort((a, b) => a - b);  // chaussées séparées
+      if (p.separateur) {  // chaussées séparées : trouvé dans le relief ou d'après la BD TOPO
+        t.separateur = p.separateur.map((o) => sign * o).sort((a, b) => a - b);
+        t.separateurRelief = p.separateur_relief;
+      }
       out.set(p.le_long, t);
     }
     for (const t of out.values()) t.points.sort((a, b) => a[0] - b[0]);
@@ -136,7 +139,8 @@ const Profil = (() => {
     if (main.separateur) {
       const [s0, s1] = main.separateur, gx = X((s0 + s1) / 2), gy = Z(zAt(main.points, (s0 + s1) / 2));
       svg.append(el("line", { x1: gx, x2: gx, y1: gy - 2, y2: gy - 18, class: "separateur" }),
-        el("text", { x: gx, y: gy - 34, class: "graduation place", "data-haut": "", "text-anchor": "middle" }, "séparateur de chaussée"));
+        el("text", { x: gx, y: gy - 34, class: "graduation place", "data-haut": "", "text-anchor": "middle" },
+          `séparateur de chaussée (${main.separateurRelief ? "relief" : "BD TOPO"})`));  // d'où vient sa position, comme les bords
     }
     // Terrain remonté de profile.remontee au-dessus du bord : lecture arrêtée là (travers de la photo)
     for (const side of ["gauche", "droit"]) {
@@ -215,8 +219,10 @@ const Profil = (() => {
         profile.origine === "caméra" ? "la caméra" : "l'axe"}.`,
       "Trait brun\u00a0: travers de la photo · pointillés\u00a0: travers à 5 et 10 m devant et derrière · "
         + "trait gris\u00a0: travers où la chute ou le dévers ont été mesurés.",
-      ...(main.separateur ? ["Petite barre verticale\u00a0: séparateur de chaussée (terre-plein central), au milieu entre les deux "
-        + "chaussées d'après la BD TOPO\u00a0; la plateforme va jusqu'au bord extérieur de l'autre chaussée."] : []),
+      ...(main.separateur ? [`Petite barre verticale\u00a0: milieu du séparateur de chaussée (terre-plein central), ${main.separateurRelief
+        ? `trouvé dans le relief entre deux marches du terrain (${num(Math.abs(main.separateur[1] - main.separateur[0]))} m de large)`
+        : "placé d'après les largeurs BD TOPO (pas de marche du terrain trouvée)"}\u00a0; la plateforme va jusqu'au bord `
+        + "extérieur de l'autre chaussée."] : []),
       `Chute et dévers lus du bord jusqu'à ce que le terrain remonte de ${num(profile.remontee, 0)} m au-dessus du bord `
         + "(talus, butte)\u00a0: derrière, ce n'est pas une chute.",
       `${factor > 1 ? `Hauteurs exagérées ×${factor} pour la lisibilité` : "Hauteurs à l'échelle des distances"}. `
