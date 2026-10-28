@@ -10,6 +10,7 @@
 const Profil = (() => {
   const NS = "http://www.w3.org/2000/svg";
   const W = 760, H = 380, LEFT = 52, RIGHT = 16, TOP = 56, BOTTOM = 44;
+  const LINE = 14;  // px entre deux lignes d'une étiquette
   const num = (v, digits = 1) => v.toFixed(digits).replace(".", ",").replace(/^-/, "−");
 
   function el(name, attrs, text) {
@@ -50,11 +51,12 @@ const Profil = (() => {
    * entre top et bottom (hauteurs à l'échelle : chute, dévers, travers et plateforme presque à la même hauteur).
    * Largeurs estimées : le SVG n'est pas encore dans la page. */
   function declutter(svg, top, bottom) {
-    const box = (t, y) => {
-      const size = t.classList.contains("graduation") ? 12 : 13, w = t.textContent.length * size * 0.56;
+    const box = (t, y) => {  // étiquette sur plusieurs lignes (tspan) : la plus longue, et LINE px par ligne de plus
+      const lines = t.querySelectorAll("tspan").length ? [...t.querySelectorAll("tspan")].map((s) => s.textContent) : [t.textContent];
+      const size = t.classList.contains("graduation") ? 12 : 13, w = Math.max(...lines.map((s) => s.length)) * size * 0.56;
       const x = Number(t.getAttribute("x")), anchor = t.getAttribute("text-anchor");
       const left = anchor === "end" ? x - w : anchor === "middle" ? x - w / 2 : x;
-      return [left - 2, y - size, left + w + 2, y + 3];
+      return [left - 2, y - size, left + w + 2, y + 3 + (lines.length - 1) * LINE];
     };
     const hit = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
     const placed = [];
@@ -140,9 +142,11 @@ const Profil = (() => {
     // (d'après la BD TOPO), nommée au-dessus ; autrement que les bords, qui seuls limitent la plateforme
     if (main.separateur) {
       const [s0, s1] = main.separateur, gx = X((s0 + s1) / 2), gy = Z(zAt(main.points, (s0 + s1) / 2));
-      svg.append(el("line", { x1: gx, x2: gx, y1: gy - 2, y2: gy - 18, class: "separateur" }),
-        el("text", { x: gx, y: gy - 34, class: "graduation place", "data-haut": "", "text-anchor": "middle" },
-          `séparateur de chaussée (${main.separateurRelief === "nuage" ? "nuage LiDAR" : main.separateurRelief ? "relief" : "BD TOPO"})`));  // d'où vient sa position, comme les bords
+      // nommé sur deux lignes, d'où vient sa position dessous (comme les bords) : une seule étiquette pour declutter
+      const label = el("text", { x: gx, y: gy - 38, class: "graduation place", "data-haut": "", "text-anchor": "middle" });
+      label.append(el("tspan", { x: gx }, "séparateur de chaussée"), el("tspan", { x: gx, dy: LINE },
+        `(${main.separateurRelief === "nuage" ? "nuage LiDAR" : main.separateurRelief ? "relief" : "BD TOPO"})`));
+      svg.append(el("line", { x1: gx, x2: gx, y1: gy - 2, y2: gy - 18, class: "separateur" }), label);
     }
     // Analyse fine : hauteur maximale de la végétation (ligne verte, coupée en haut du graphique, interrompue là où il n'y
     // en a pas), lignes blanches (petits rectangles blancs sur le terrain) et bords de chaussée (tirets courts)

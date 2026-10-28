@@ -40,7 +40,7 @@ const CASES = [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 2.1], ["1640
       const sep = /milieu du séparateur[^.]*/.exec(legend)?.[0] || "";
       const right = Number((/droit\s:\s(\d+,\d+) m/.exec(legend) || [])[1]?.replace(",", "."));
       log(`${where} ${id.slice(0, 8)} : ${state} · ${sep} · bords : ${(/bords de chaussée[^.]*/.exec(legend) || [""])[0]}`);
-      expect(`${where} : séparateur du nuage LiDAR`, texts.includes("séparateur de chaussée (nuage LiDAR)"), sep);
+      expect(`${where} : séparateur du nuage LiDAR`, texts.includes("séparateur de chaussée(nuage LiDAR)"), sep);
       expect(`${where} : lignes blanches et bords de chaussée dessinés`, dialog.querySelector("svg .ligne-blanche") && dialog.querySelector("svg .bord-chaussee"));
       expect(`${where} : bord de chaussée droit à la ligne de rive (${rightEdge} m attendu)`, Math.abs(right - rightEdge) <= 0.5, String(right));
       expect(`${where} : bouton grisé une fois l'analyse faite`, button.disabled);
