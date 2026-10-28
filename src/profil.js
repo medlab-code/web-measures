@@ -159,6 +159,13 @@ const Profil = (() => {
       svg.append(el("path", { d, class: "vegetation" }));
     }
     if (fine) {
+      for (const [a, b] of fine.herbe || []) {  // herbe au sol : bande vert clair posée sur le terrain
+        const xs_ = main.points.map(([x]) => x).filter((x) => x > Math.max(a, xmin) && x < Math.min(b, xmax));
+        const at = [Math.max(a, xmin), ...xs_, Math.min(b, xmax)].filter((x, k, all) => k === 0 || x > all[k - 1]);
+        if (at.length < 2) continue;
+        svg.append(el("path", { d: at.map((x, k) => `${k ? "L" : "M"}${X(x).toFixed(1)},${(Z(zAt(main.points, x) ?? ref) - 3).toFixed(1)}`).join(""),
+          class: "herbe" }));
+      }
       for (const x of fine.lignes) {
         if (x < xmin || x > xmax) continue;
         svg.append(el("rect", { x: X(x) - 3, y: Z(zAt(main.points, x) ?? ref) - 3, width: 6, height: 6, class: "ligne-blanche" }));
@@ -258,6 +265,11 @@ const Profil = (() => {
         + "l'intensité du retour laser\u00a0; tirets courts, bords de chaussée\u00a0: ligne de rive, sinon fin de l'enrobé"
         + `${["gauche", "droit"].map((side) => fine.bords[side] ? ` (${side}\u00a0: ${num(Math.abs(fine.bords[side].x))} m, `
           + `${fine.bords[side].comment})` : "").join("")}.`] : []),
+      ...(fine?.herbe?.length ? ["Bande vert clair sur le terrain\u00a0: herbe au sol (surface non revêtue très claire au laser "
+        + "infrarouge\u00a0; gravillons et béton, moins clairs, n'y sont pas)" + ["gauche", "droit"].map((side) => {
+          const sign = side === "gauche" ? -1 : 1, mine = fine.herbe.filter(([a, b]) => sign * (a + b) > 0);
+          return mine.length ? `\u00a0; ${side}\u00a0: dès ${num(Math.min(...mine.map(([a, b]) => Math.min(Math.abs(a), Math.abs(b)))))} m` : "";
+        }).join("") + "."] : []),
       ...(fine?.vegetation?.length ? ["Ligne verte\u00a0: hauteur maximale de la végétation (herbe haute, arbustes, arbres, classés par "
         + "l'IGN) sur ±1 m le long de la route, coupée en haut du graphique" + ["gauche", "droit"].map((side) => {
           const sign = side === "gauche" ? -1 : 1, seen = fine.vegetation.filter(([x]) => sign * x > 0);

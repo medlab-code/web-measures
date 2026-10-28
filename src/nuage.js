@@ -17,6 +17,8 @@ const Nuage = (() => {
   const ROAD = 1.6;  // intensité de l'enrobé : sous ROAD fois celle sous l'origine
   const PAINT = 3.0, PAINT_WIDTH = 0.75;  // ligne blanche : au moins PAINT fois l'enrobé, PAINT_WIDTH m de large au plus
   const VERGE = 1.0;  // m : surface non revêtue (herbe, gravillons) d'au moins cette largeur : l'enrobé s'arrête là
+  const GRASS = 3.5;  // herbe : bande non revêtue (VERGE m au moins) en moyenne GRASS fois plus claire que l'enrobé (le laser,
+  // en proche infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois)
   const AXIS = 1.2;  // m : ligne blanche aussi près de l'axe d'une chaussée : ligne entre voies, pas de rive
   const SEPARATOR = [0.5, 12];  // m : largeurs possibles du séparateur, et son milieu à 2 m au plus de celui du calcul
 
@@ -205,11 +207,23 @@ const Nuage = (() => {
       }
       k = w;
     }
+    // Herbe au sol (l'IGN la classe « sol ») : bandes « autre » larges et très claires
+    const grass = [];
+    for (let k = 0; k < cells.length; k++) {
+      if (cells[k].kind !== "autre") continue;
+      let w = k;
+      while (w + 1 < cells.length && cells[w + 1].kind === "autre" && cells[w + 1].x - cells[w].x <= BIN + 1e-6) w++;
+      const run = cells.slice(k, w + 1);
+      if (cells[w].x - cells[k].x + BIN >= VERGE && median(run.map((c) => c.i)) >= GRASS * ref) {
+        grass.push([cells[k].x - BIN / 2, cells[w].x + BIN / 2]);
+      }
+      k = w;
+    }
     // Séparateur : bande continue non revêtue (peinture comprise) autour du milieu de celui du calcul
     const main = profile.profils.filter((e) => e.le_long === 0);
     const sepEntry = main.find((e) => e.separateur), out = { points, ref, requetes: count.requests - r0,
       octets: count.bytes - b0, secondes: Math.round((Date.now() - t0) / 1000), cases: cells.map((c) => [c.x, Math.round(10 * c.i / ref) / 10]),
-      lignes: lines, separateur: null, bords: {},
+      lignes: lines, herbe: grass, separateur: null, bords: {},
       vegetation: [...plants].sort((a, b) => a[0] - b[0]).map(([k, z]) => [k * BIN, Math.round(z * 100) / 100]) };
     let sepSign = 0, sepEnd = 0;
     if (sepEntry) {
