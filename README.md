@@ -251,8 +251,8 @@ après.
   TOPO croisés par le travers de la photo (triangle bleu nommé ; tronçons fictifs et souterrains écartés) et surfaces
   d'eau traversées (canal, plan d'eau : bande bleue au bas du graphique), sur 45 m de part et d'autre ; avec l'analyse
   fine, surface de l'eau lue dans le nuage (points classés eau par l'IGN, ligne bleue à leur altitude, au niveau du
-  jour du relevé ; souvent absente : l'eau renvoie mal le laser). Pendant la lecture du nuage, une petite roue tourne
-  à côté de l'avancement. Essai : `tests/essai-nuage.html` (`#photos=<id>,…` : d'autres photos, sans contrôle de
+  jour du relevé ; souvent absente : l'eau renvoie mal le laser). Pendant la lecture du nuage, une barre d'avancement
+  (animée tant que le nombre de blocs à lire n'est pas connu, puis remplie bloc par bloc, pourcentage à côté). Essai : `tests/essai-nuage.html` (`#photos=<id>,…` : d'autres photos, sans contrôle de
   position ; canal de Bourgogne : 3b8811e4).
 - **Mesure libre (points triangulés)** : viser chaque point depuis au moins deux photos, puis
   « Valider le point triangulé » ; à partir du deuxième, la distance horizontale au point précédent

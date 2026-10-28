@@ -155,8 +155,8 @@ const Nuage = (() => {
     return line ? { x: line.x, comment: "ligne de rive" } : null;
   }
 
-  /** Analyse fine du profil (voir App._compute_edges : profile.repere, profils, bords, séparateur) ; progress(texte)
-   * pendant la lecture. Résultat en m signés comme le graphique (négatif à gauche). */
+  /** Analyse fine du profil (voir App._compute_edges : profile.repere, profils, bords, séparateur) ; progress(texte,
+   * part lue de 0 à 1, ou absente tant que le nombre de blocs n'est pas connu) pendant la lecture. Résultat en m signés comme le graphique (négatif à gauche). */
   async function analyse(profile, progress = () => {}) {
     const t0 = Date.now(), r0 = count.requests, b0 = count.bytes;
     const [[lon, lat], right] = profile.repere;
@@ -168,32 +168,36 @@ const Nuage = (() => {
     if (!response.ok) throw new Error(`nuage LiDAR : métadonnées IGN, HTTP ${response.status}`);
     const meta = (await response.json()).features || [];
     if (!meta.length) throw new Error("pas de nuage LiDAR HD ici");
-    const bins = new Map(), plants = new Map(), water = new Map();  // ... ; case -> altitudes des points d'eau  // case -> intensités du sol ; case -> altitude la plus haute de la végétation
+    // case -> intensités du sol ; altitude la plus haute de la végétation ; altitudes des points d'eau
+    const bins = new Map(), plants = new Map(), water = new Map();
     let points = 0;
+    // Blocs à lire, dalle par dalle (hiérarchie d'abord : leur nombre fait l'avancement de la barre)
+    // shortcut: les deux niveaux les plus fins (9/10 des points, 1/4 des octets : essai du 2026-10-27)
+    const todo = [];
     for (const m of meta) {
       const tile = await openTile(m.properties.url_npl);
-      const nodes = await nodesIn(tile, box);
-      // shortcut: les deux niveaux les plus fins (9/10 des points, 1/4 des octets : essai du 2026-10-27)
-      const deepest = Math.max(...nodes.map((n) => n.d));
-      for (const n of nodes.filter((n) => n.d >= deepest - 1)) {
-        progress(`Lecture du nuage LiDAR HD… ${count.requests - r0} requêtes, ${((count.bytes - b0) / 1e6).toFixed(1)} Mo`);
-        for (const [x, y, z, intensity, cls] of await ground(tile, n)) {
-          const ex = x - o[0], ey = y - o[1], across = ex * ux + ey * uy, along = ey * ux - ex * uy;
-          if (Math.abs(along) > STRIP || Math.abs(across) > HALF) continue;
-          const k = Math.round(across / BIN);
-          if (cls === 9) {
-            if (!water.has(k)) water.set(k, []);
-            water.get(k).push(z);
-            continue;
-          }
-          if (cls !== 2) {
-            plants.set(k, Math.max(plants.get(k) ?? -Infinity, z));
-            continue;
-          }
-          if (!bins.has(k)) bins.set(k, []);
-          bins.get(k).push(intensity);
-          points++;
+      const nodes = await nodesIn(tile, box), deepest = Math.max(...nodes.map((n) => n.d));
+      todo.push(...nodes.filter((n) => n.d >= deepest - 1).map((n) => [tile, n]));
+    }
+    for (const [done, [tile, n]] of todo.entries()) {
+      progress(`Lecture du nuage LiDAR HD… ${Math.round(100 * done / todo.length)} % (${((count.bytes - b0) / 1e6).toFixed(1)} Mo)`,
+        done / todo.length);
+      for (const [x, y, z, intensity, cls] of await ground(tile, n)) {
+        const ex = x - o[0], ey = y - o[1], across = ex * ux + ey * uy, along = ey * ux - ex * uy;
+        if (Math.abs(along) > STRIP || Math.abs(across) > HALF) continue;
+        const k = Math.round(across / BIN);
+        if (cls === 9) {
+          if (!water.has(k)) water.set(k, []);
+          water.get(k).push(z);
+          continue;
         }
+        if (cls !== 2) {
+          plants.set(k, Math.max(plants.get(k) ?? -Infinity, z));
+          continue;
+        }
+        if (!bins.has(k)) bins.set(k, []);
+        bins.get(k).push(intensity);
+        points++;
       }
     }
     const cells = [...bins].sort((a, b) => a[0] - b[0]).map(([k, v]) => ({ x: k * BIN, i: median(v), n: v.length }));

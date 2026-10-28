@@ -624,6 +624,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
     <form method="dialog">
       <label title="Hauteurs à la même échelle que les distances, sans exagération : le relief tel qu'il est (choix retenu pour les profils suivants)"><input id="profil-echelle" type="checkbox" class="interrupteur"> Hauteurs à l'échelle</label>
       <button id="profil-nuage" type="button" title="Lire le nuage de points LiDAR HD de l'IGN sur ce travers (une vingtaine de secondes) : lignes blanches et nature du sol (enrobé, herbe, gravillons), pour placer le bord de chaussée et le séparateur de chaussée">Analyse fine</button>
+      <progress id="profil-nuage-barre" max="1" hidden aria-label="Avancement de la lecture du nuage LiDAR"></progress>
       <span id="profil-nuage-etat" class="aide" aria-live="polite"></span>
       <button id="profil-loupe" type="button" aria-pressed="false" aria-label="Agrandir le graphique"
               title="Agrandir le graphique au mieux dans la visionneuse, sans la légende ; à nouveau : taille normale"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M10.5 7.5v6M7.5 10.5h6"/></svg></button>

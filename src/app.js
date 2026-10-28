@@ -296,16 +296,21 @@
     const profile = edgeProfile?.profile, state = $("#profil-nuage-etat");
     if (!profile) return;
     $("#profil-nuage").disabled = true;
-    state.classList.add("en-cours");  // petite roue pendant le téléchargement
+    const bar = $("#profil-nuage-barre");  // sans valeur, animée, tant que le nombre de blocs n'est pas connu
+    bar.removeAttribute("value");
+    bar.hidden = false;
     try {
-      const found = await Nuage.analyse(profile, (text) => { state.textContent = text; });
+      const found = await Nuage.analyse(profile, (text, part) => {
+        state.textContent = text;
+        if (part !== undefined) bar.value = part;
+      });
       nuage.set(nuageKey(profile), found);
       state.textContent = `Nuage LiDAR HD : ${found.points} points du sol, ${found.requetes} requêtes, ${found.secondes} s.`;
       if (nuageKey(edgeProfile?.profile) === nuageKey(profile)) drawProfile();
     } catch (error) {
       state.textContent = `Analyse fine impossible : ${error.message}`;
     } finally {
-      state.classList.remove("en-cours");
+      bar.hidden = true;
       nuageReady();
     }
   });
