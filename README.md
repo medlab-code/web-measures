@@ -203,6 +203,8 @@ après.
     chaussée et l'autre chaussée ; **séparateur de chaussée** : entre deux marches de sens
     contraires (surélevé : montée puis descente ; en creux : l'inverse), large de 0,5 à 10 m, au
     milieu à 4 m au plus de celui que donnent les largeurs BD TOPO, recoupé d'un travers à l'autre ;
+    à défaut, une bosse étroite (1 ou 2 points, 4 cm au-dessus des voisins : assise de glissières dos
+    à dos ou de muret, que le terrain LiDAR ne garde pas) au même endroit sur deux travers au moins ;
     sinon d'après la BD TOPO ;
   - **chute** : la plus grande descente entre le terrain au bord de la chaussée et le point le
     plus bas du profil, avec la distance de ce point (le plus proche du bord, à 5 cm près) ;
@@ -615,6 +617,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.9-14** (28/10/2026) : « Dévers » : séparateur de chaussée étroit sans marches (glissières dos à dos, muret) reconnu à sa bosse dans le relief, au même endroit sur deux travers au moins (RD700 à Varois-et-Chaignot).
 - **0.6.9-13** (28/10/2026) : « Dévers » : séparateur de chaussée trouvé dans le relief (entre deux marches du terrain, sinon d'après la BD TOPO, origine écrite sur le profil), bord de chaussée aussi à une marche du terrain (bordure), bord extérieur de l'autre chaussée cherché plus loin, travers recoupés entre eux ; autre chaussée mieux reconnue (tronçon dans le prolongement écarté). Essais sur l'A38, la RD903bis, la D1074 et la RD700.
 - **0.6.9-12** (27/10/2026) : « Dévers » sur route à chaussées séparées (#34) : plateforme jusqu'au bord extérieur de l'autre chaussée, séparateur de chaussée marqué sur le profil (petite barre verticale) ; loupe du profil (graphique agrandi sans la légende) ; étiquettes du profil écartées l'une de l'autre et liserées.
 - **0.6.9-11** (27/10/2026) : réglage « Bornes des PR sur la carte » valable pour tous les fonds de carte (coché : bornes partout ; décoché : nulle part).

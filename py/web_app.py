@@ -1754,6 +1754,9 @@ class App(session.Session):
     SEPARATOR_WIDTH = (0.5, 10.0)  # m : largeurs possibles d'un séparateur de chaussée trouvé dans le relief
     SEPARATOR_NEAR = 4.0  # m au plus entre son milieu et celui que donne la BD TOPO
     EDGE_CONSENSUS = 3.0  # m : bord (ou séparateur) d'un travers plus loin de la médiane des autres : ramené à elle
+    # Séparateur étroit sans marches (glissières dos à dos, muret : le MNT n'en garde que l'assise) : pic de 1 ou 2 points au
+    # moins PEAK_Z m au-dessus des points voisins, au même endroit (PEAK_SPREAD m près) sur PEAK_TRAVERS travers au moins
+    PEAK_Z, PEAK_SPREAD, PEAK_TRAVERS, PEAK_HALF = 0.04, 1.0, 2, 0.4
 
     def set_edge_zone(self, metres):
         """Réglette du bouton « Dévers » : largeur (m) lue au-delà du bord de la chaussée au prochain appui
@@ -1904,6 +1907,22 @@ class App(session.Session):
                     return i
             return None
 
+        def peaks(z, offsets, between, beyond):
+            """Pics étroits (voir PEAK_Z) avant l'axe de l'autre chaussée, à SEPARATOR_NEAR m au plus du milieu BD TOPO
+            du séparateur : leurs positions en m depuis l'origine."""
+            mid, out = (between[0] + between[1]) / 2, []
+            for k in range(1, len(offsets) - 2):
+                if offsets[k] >= beyond or abs(offsets[k] - mid) > self.SEPARATOR_NEAR:
+                    continue
+                if offsets[k + 1] - offsets[k] > self.EDGE_STEP + 1e-6 or None in z[k - 1:k + 3]:
+                    continue
+                if z[k] - z[k - 1] >= self.PEAK_Z and z[k] - z[k + 1] >= self.PEAK_Z:
+                    out.append(offsets[k])
+                elif (abs(z[k + 1] - z[k]) < self.PEAK_Z and z[k] - z[k - 1] >= self.PEAK_Z
+                      and z[k + 1] - z[k + 2] >= self.PEAK_Z):  # deux points de large
+                    out.append((offsets[k] + offsets[k + 1]) / 2)
+            return out
+
         def separator(z, offsets, between, beyond):
             """Séparateur de chaussée trouvé dans le relief : (début, fin) en m depuis l'origine, entre deux marches de
             sens contraires (surélevé : montée puis descente ; en creux : l'inverse), avant l'axe de l'autre chaussée,
@@ -1953,26 +1972,37 @@ class App(session.Session):
                 twins[name] += beyond > 0
                 found_sep = between and separator(z, offsets, between, beyond)
                 i = border(z, offsets, reach, beyond)
-                read.append([along, name, guess, offsets, z, i, found_sep or between, bool(found_sep)])
+                read.append([along, name, guess, offsets, z, i, found_sep or between, "marches" if found_sep else None,
+                             peaks(z, offsets, between, beyond) if between else []])
             for name, _ in sides:
                 mine = [r for r in read if r[1] == name]
                 edges = sorted(r[3][r[5]] for r in mine if r[5] is not None)
                 seps = [r[6] for r in mine if r[7]]
+                if not seps:  # pas de séparateur à deux marches : un pic étroit qui revient d'un travers à l'autre
+                    tops = sorted(p for r in mine for p in r[8])
+                    groups = [[q for q in tops if abs(q - p) <= self.PEAK_SPREAD] for p in tops]
+                    group = max(groups, key=len, default=[])
+                    if len({r[0] for r in mine if any(abs(q - p) <= self.PEAK_SPREAD for q in group for p in r[8])}) >= self.PEAK_TRAVERS:
+                        top = group[len(group) // 2]
+                        seps = [(top - self.PEAK_HALF, top + self.PEAK_HALF)]
+                        for r in mine:
+                            if r[6]:
+                                r[6], r[7] = seps[0], "bosse"
                 med = edges[(len(edges) - 1) // 2] if len(edges) >= 3 else None  # médiane basse : le bord le plus proche
                 sep_med = [sorted(v[k] for v in seps)[len(seps) // 2] for k in (0, 1)] if seps else None
                 for r in mine:
                     if med is not None and (r[5] is None or abs(r[3][r[5]] - med) > self.EDGE_CONSENSUS):
                         r[5] = min(range(len(r[3])), key=lambda k: abs(r[3][k] - med))
                     if sep_med and r[6] and (not r[7] or max(abs(r[6][k] - sep_med[k]) for k in (0, 1)) > self.EDGE_CONSENSUS):
-                        r[6], r[7] = sep_med, True
-            for along, name, guess, offsets, z, i, between, sep_relief in read:
+                        r[6], r[7] = sep_med, "marches"
+            for along, name, guess, offsets, z, i, between, sep_relief, _ in read:
                 relief = i is not None
                 if not relief:
                     i = min(range(len(offsets)), key=lambda k: abs(offsets[k] - guess))
                 borders[name].append((offsets[i], relief))
                 entry = {"le_long": along, "cote": name, "bord": offsets[i], "relief": relief, "arret": None,
                          "separateur": [round(v, 2) for v in between] if between else None,
-                         "separateur_relief": bool(between) and sep_relief,
+                         "separateur_relief": sep_relief if between else None,  # "marches", "bosse" ou None (BD TOPO)
                          "points": [[round(o, 2), round(v, 2)] for o, v in zip(offsets, z) if v is not None]}
                 drawn.append(entry)
                 kept = [k for k in range(i, len(offsets)) if offsets[k] - offsets[i] <= zone + 1e-6]

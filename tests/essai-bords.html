@@ -96,10 +96,11 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       dialog.close();
     }
     // Chaussées séparées : RD903bis à Épagny (séparateur surélevé vers 3,5 m, fossé vers 19 m à gauche), D1074 à
-    // Pommard (séparateur surélevé de ~3 à 8 m), RD700 à Couternon (bosse vers 8 m) : séparateur trouvé dans le
-    // relief, bord gauche au-delà de 15 m
+    // Pommard (séparateur surélevé de ~3 à 8 m), RD700 à Couternon (bosse vers 8 m) et à Varois-et-Chaignot (glissières
+    // dos à dos : pic étroit vers 6,5 m) : séparateur trouvé dans le relief, bord gauche au-delà de 15 m
     for (const [id, where] of [["1640bc3f-e948-4239-a4c1-548dd748a16d", "RD903bis Épagny"],
-      ["6d99cba2-2284-4215-a3fb-1fd390353005", "D1074 Pommard"], ["d63ace61-7261-4acb-93f9-788aed29cb23", "RD700 Couternon"]]) {
+      ["6d99cba2-2284-4215-a3fb-1fd390353005", "D1074 Pommard"], ["d63ace61-7261-4acb-93f9-788aed29cb23", "RD700 Couternon"],
+      ["067e83ca-a3d8-4f2a-bbe6-0c10df70fc96", "RD700 Varois-et-Chaignot (glissières dos à dos)"]]) {
       const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
       w.mesures.openPhoto(f);
       await sleep(4000);
@@ -141,6 +142,6 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       } }
     log(`encadrés affichés : ${shown} · profils dessinés : ${drawn} · loupe : ${zoomed} · chaussées séparées : ${twin} · séparateur dans le relief : ${separated}`);
   } catch (e) { log("exception " + e); }
-  log(shown && drawn === shown - 1 && butte && zoomed > 0 && twin && separated === 3 ? "FIN" : `ERREUR encadrés ${shown}, profils ${drawn}`);  // le pont : pas de profil
+  log(shown && drawn === shown - 1 && butte && zoomed > 0 && twin && separated === 4 ? "FIN" : `ERREUR encadrés ${shown}, profils ${drawn}`);  // le pont : pas de profil
 })();
 </script>

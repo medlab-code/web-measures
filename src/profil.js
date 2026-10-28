@@ -220,7 +220,8 @@ const Profil = (() => {
       "Trait brun\u00a0: travers de la photo · pointillés\u00a0: travers à 5 et 10 m devant et derrière · "
         + "trait gris\u00a0: travers où la chute ou le dévers ont été mesurés.",
       ...(main.separateur ? [`Petite barre verticale\u00a0: milieu du séparateur de chaussée (terre-plein central), ${main.separateurRelief
-        ? `trouvé dans le relief entre deux marches du terrain (${num(Math.abs(main.separateur[1] - main.separateur[0]))} m de large)`
+        ? main.separateurRelief === "bosse" ? "trouvé dans le relief\u00a0: bosse étroite (assise de glissières ou de muret)"
+          : `trouvé dans le relief entre deux marches du terrain (${num(Math.abs(main.separateur[1] - main.separateur[0]))} m de large)`
         : "placé d'après les largeurs BD TOPO (pas de marche du terrain trouvée)"}\u00a0; la plateforme va jusqu'au bord `
         + "extérieur de l'autre chaussée."] : []),
       `Chute et dévers lus du bord jusqu'à ce que le terrain remonte de ${num(profile.remontee, 0)} m au-dessus du bord `
