@@ -232,6 +232,17 @@ après.
   à l'échelle des distances (choix retenu d'un profil à l'autre). « Enregistrer en PNG » en fait une image
   avec son titre et sa légende ; la loupe agrandit le graphique (sans la légende) au mieux dans la
   visionneuse. Le bouton est grisé tant que « Dévers » n'a rien calculé pour la photo.
+
+  **« Analyse fine »** (fenêtre du profil) : lit le nuage de points LiDAR HD de l'IGN (dalles COPC, à la volée,
+  1 requête par seconde au plus : une vingtaine de secondes, 1 à 2 Mo) sur ±1 m le long de la route au travers
+  de la photo. L'intensité du retour laser des points du sol distingue l'enrobé (sombre), les lignes blanches
+  (bandes étroites très claires) et les surfaces non revêtues (herbe, gravillons, béton : larges et claires).
+  **Bord de chaussée** (tiret court) : la ligne de rive, ligne blanche au début de la première bande non revêtue
+  d'1 m ou plus, ou la dernière avant elle, hors des lignes entre voies (à moins de 1,2 m de l'axe d'une
+  chaussée) ; sinon la fin de l'enrobé. **Séparateur de chaussée** : la bande non revêtue entre les deux
+  chaussées (glissières comprises, que le terrain seul ne voit pas), à 2 m au plus de celui du calcul, qu'elle
+  remplace (« nuage LiDAR »). Les lignes blanches sont dessinées en petits carrés blancs. Le bouton est grisé
+  pendant la lecture et une fois l'analyse faite pour ce profil. Essai : `tests/essai-nuage.html`.
 - **Mesure libre (points triangulés)** : viser chaque point depuis au moins deux photos, puis
   « Valider le point triangulé » ; à partir du deuxième, la distance horizontale au point précédent
   s'affiche, et la carte se cadre sur le segment.

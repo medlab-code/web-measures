@@ -241,7 +241,7 @@
   const trueScale = $("#profil-echelle");
   trueScale.checked = store.get("profil-echelle") === "1";
   const drawProfile = () => {
-    const dialog = $("#fenetre-profil"), { svg, legend } = Profil.draw(edgeProfile.profile, trueScale.checked);
+    const dialog = $("#fenetre-profil"), { svg, legend } = Profil.draw(edgeProfile.profile, trueScale.checked, nuage.get(edgeProfile.profile));
     dialog.querySelector(".graphique").replaceChildren(svg);
     dialog.querySelector(".legende").replaceChildren(legend);
   };
@@ -278,12 +278,33 @@
     const title = dialog.querySelector("h2");
     title.textContent = "Profil en travers" + (edgeProfile.road ? ` · ${edgeProfile.road}` : "");
     drawProfile();
+    $("#profil-nuage-etat").textContent = "";
+    nuageReady();
     showOverViewer(dialog);
     // Route, PR et commune de la photo, comme l'étiquette du lieu (déjà lus : sans requête)
     Lieu.describe(...feature.geometry.coordinates.slice(0, 2)).then(({ parts }) => {
       const place = [parts.voie || edgeProfile.road, parts.pr, parts.commune].filter(Boolean).join(" – ");
       if (place && photo === feature && dialog.open) title.textContent = `Profil en travers · ${place}`;
     }).catch(() => {});
+  });
+  // « Analyse fine » : nuage LiDAR HD lu pour le travers de la photo (src/nuage.js), gardé pour ce profil ; grisé pendant
+  // la lecture et une fois faite
+  const nuage = new WeakMap();
+  const nuageReady = () => { $("#profil-nuage").disabled = !edgeProfile?.profile?.repere || nuage.has(edgeProfile.profile); };
+  $("#profil-nuage").addEventListener("click", async () => {
+    const profile = edgeProfile?.profile, state = $("#profil-nuage-etat");
+    if (!profile) return;
+    $("#profil-nuage").disabled = true;
+    try {
+      const found = await Nuage.analyse(profile, (text) => { state.textContent = text; });
+      nuage.set(profile, found);
+      state.textContent = `Nuage LiDAR HD : ${found.points} points du sol, ${found.requetes} requêtes, ${found.secondes} s.`;
+      if (edgeProfile?.profile === profile) drawProfile();
+    } catch (error) {
+      state.textContent = `Analyse fine impossible : ${error.message}`;
+    } finally {
+      nuageReady();
+    }
   });
   $("#profil-png").addEventListener("click", async () => {
     const dialog = $("#fenetre-profil"), title = dialog.querySelector("h2").textContent;

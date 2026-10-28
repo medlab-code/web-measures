@@ -71,9 +71,11 @@ const Profil = (() => {
 
   /** Graphique SVG et sa légende en clair (texte) pour profile (voir App._compute_edges) ; trueScale : hauteurs
    * à la même échelle que les distances. */
-  function draw(profile, trueScale = false) {
+  // fine : analyse fine (Nuage.analyse) : séparateur et bords de chaussée tirés du nuage LiDAR, lignes blanches
+  function draw(profile, trueScale = false, fine = null) {
     const all = crossings(profile);
     const main = all.get(0) || [...all.values()][0];
+    if (fine?.separateur) [main.separateur, main.separateurRelief] = [[...fine.separateur].sort((a, b) => a - b), "nuage"];
     const ref = zAt(main.points, 0) ?? main.points[0][1];  // 0 : plateforme sous l'origine
     const xs = [...all.values()].flatMap((t) => t.points.map((p) => p[0]));
     const zs = [...all.values()].flatMap((t) => t.points.map((p) => p[1] - ref));
@@ -140,7 +142,20 @@ const Profil = (() => {
       const [s0, s1] = main.separateur, gx = X((s0 + s1) / 2), gy = Z(zAt(main.points, (s0 + s1) / 2));
       svg.append(el("line", { x1: gx, x2: gx, y1: gy - 2, y2: gy - 18, class: "separateur" }),
         el("text", { x: gx, y: gy - 34, class: "graduation place", "data-haut": "", "text-anchor": "middle" },
-          `séparateur de chaussée (${main.separateurRelief ? "relief" : "BD TOPO"})`));  // d'où vient sa position, comme les bords
+          `séparateur de chaussée (${main.separateurRelief === "nuage" ? "nuage LiDAR" : main.separateurRelief ? "relief" : "BD TOPO"})`));  // d'où vient sa position, comme les bords
+    }
+    // Analyse fine : lignes blanches (petits rectangles blancs sur le terrain) et bords de chaussée (tirets courts nommés)
+    if (fine) {
+      for (const x of fine.lignes) {
+        if (x < xmin || x > xmax) continue;
+        svg.append(el("rect", { x: X(x) - 3, y: Z(zAt(main.points, x) ?? ref) - 3, width: 6, height: 6, class: "ligne-blanche" }));
+      }
+      for (const side of ["gauche", "droit"]) {
+        const b = fine.bords[side];
+        if (!b) continue;
+        const gy = Z(zAt(main.points, b.x) ?? ref);
+        svg.append(el("line", { x1: X(b.x), x2: X(b.x), y1: gy - 4, y2: gy - 22, class: "bord-chaussee" }));  // nommé dans la légende
+      }
     }
     // Terrain remonté de profile.remontee au-dessus du bord : lecture arrêtée là (travers de la photo)
     for (const side of ["gauche", "droit"]) {
@@ -220,10 +235,15 @@ const Profil = (() => {
       "Trait brun\u00a0: travers de la photo · pointillés\u00a0: travers à 5 et 10 m devant et derrière · "
         + "trait gris\u00a0: travers où la chute ou le dévers ont été mesurés.",
       ...(main.separateur ? [`Petite barre verticale\u00a0: milieu du séparateur de chaussée (terre-plein central), ${main.separateurRelief
-        ? main.separateurRelief === "bosse" ? "trouvé dans le relief\u00a0: bosse étroite (assise de glissières ou de muret)"
+        ? main.separateurRelief === "nuage" ? "trouvé dans le nuage LiDAR\u00a0: bande non revêtue (herbe, gravillons, glissières) entre les deux chaussées"
+          : main.separateurRelief === "bosse" ? "trouvé dans le relief\u00a0: bosse étroite (assise de glissières ou de muret)"
           : `trouvé dans le relief entre deux marches du terrain (${num(Math.abs(main.separateur[1] - main.separateur[0]))} m de large)`
         : "placé d'après les largeurs BD TOPO (pas de marche du terrain trouvée)"}\u00a0; la plateforme va jusqu'au bord `
         + "extérieur de l'autre chaussée."] : []),
+      ...(fine ? [`Analyse fine (nuage LiDAR HD, ${fine.points} points du sol)\u00a0: carrés blancs, lignes blanches lues à `
+        + "l'intensité du retour laser\u00a0; tirets courts, bords de chaussée\u00a0: ligne de rive, sinon fin de l'enrobé"
+        + `${["gauche", "droit"].map((side) => fine.bords[side] ? ` (${side}\u00a0: ${num(Math.abs(fine.bords[side].x))} m, `
+          + `${fine.bords[side].comment})` : "").join("")}.`] : []),
       `Chute et dévers lus du bord jusqu'à ce que le terrain remonte de ${num(profile.remontee, 0)} m au-dessus du bord `
         + "(talus, butte)\u00a0: derrière, ce n'est pas une chute.",
       `${factor > 1 ? `Hauteurs exagérées ×${factor} pour la lisibilité` : "Hauteurs à l'échelle des distances"}. `

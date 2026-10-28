@@ -1,0 +1,55 @@
+<!doctype html><meta charset="utf-8"><title>Essai de l'analyse fine</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- « Analyse fine » de la fenêtre du profil (src/nuage.js) : nuage LiDAR HD lu sur le travers de la photo, bord de
+     chaussée et séparateur de chaussée. Photos des routes à chaussées séparées de essai-bords.html : A38, RD903bis,
+     RD700 (glissières dos à dos). Lancer comme tests/navigateur.html ; chaque profil part dans le journal en PNG. -->
+<script>try { localStorage.clear(); } catch {}</script>
+<iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
+let failures = 0, checks = 0;
+const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + (detail ? " : " + detail : "")); } };
+// photo, milieu attendu du séparateur à gauche (m, d'après la photo et le relief), bord de chaussée droit attendu (ligne de rive)
+const CASES = [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 2.1], ["1640bc3f-e948-4239-a4c1-548dd748a16d", "RD903bis", 3.4, 1.4],
+  ["067e83ca-a3d8-4f2a-bbe6-0c10df70fc96", "RD700 (glissières dos à dos)", 6.8, 2.25]];
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  try {
+    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 180000, "Pyodide");
+    const doc = w.document, app = w.mesures.app;
+    doc.querySelector("#reglages-defaut")?.close();
+    for (const [id, where, sepMid, rightEdge] of CASES) {
+      const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
+      w.mesures.openPhoto(f);
+      await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === id, 30000, "photo");
+      await sleep(4000);
+      doc.querySelector("#bords").click();
+      await until(() => JSON.parse(app.fall_json() || "null")?.profile, 40000, "profil");
+      doc.querySelector("#profil").click();
+      await sleep(800);
+      const dialog = doc.querySelector("#fenetre-profil"), button = doc.querySelector("#profil-nuage");
+      expect(`${where} : « Analyse fine » active`, !button.disabled);
+      button.click();
+      await until(() => /points du sol|impossible/.test(doc.querySelector("#profil-nuage-etat").textContent), 120000, "analyse fine");
+      const state = doc.querySelector("#profil-nuage-etat").textContent;
+      const texts = [...dialog.querySelectorAll("svg text")].map((e) => e.textContent);
+      const legend = dialog.querySelector(".legende").textContent;
+      const sep = /milieu du séparateur[^.]*/.exec(legend)?.[0] || "";
+      const right = Number((/droit\s:\s(\d+,\d+) m/.exec(legend) || [])[1]?.replace(",", "."));
+      log(`${where} ${id.slice(0, 8)} : ${state} · ${sep} · bords : ${(/bords de chaussée[^.]*/.exec(legend) || [""])[0]}`);
+      expect(`${where} : séparateur du nuage LiDAR`, texts.includes("séparateur de chaussée (nuage LiDAR)"), sep);
+      expect(`${where} : lignes blanches et bords de chaussée dessinés`, dialog.querySelector("svg .ligne-blanche") && dialog.querySelector("svg .bord-chaussee"));
+      expect(`${where} : bord de chaussée droit à la ligne de rive (${rightEdge} m attendu)`, Math.abs(right - rightEdge) <= 0.5, String(right));
+      expect(`${where} : bouton grisé une fois l'analyse faite`, button.disabled);
+      const blob = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
+      await log(`IMAGE ${id.slice(0, 8)} ` + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));
+      dialog.close();
+    }
+    log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
+    log(failures ? "ERREUR" : "FIN");
+  } catch (e) { log("ERREUR " + e); }
+})();
+</script>

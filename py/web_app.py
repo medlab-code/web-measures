@@ -1850,6 +1850,10 @@ class App(session.Session):
         course = math.degrees(math.atan2(b[0] - a[0], b[1] - a[1]))  # sens du tronçon
         forward = heading is None or abs((course - heading + 180) % 360 - 180) <= 90
         sides = (("droit", -1), ("gauche", 1)) if forward else (("droit", 1), ("gauche", -1))
+        # Repère du travers de la photo pour l'analyse fine (src/nuage.js) : son origine et le point à 1 m à droite
+        right = dict(sides)["droit"]
+        frame0 = [triangulation._geographic(x + shift * nx + k * right * nx, y + shift * ny + k * right * ny, lon, lat)
+                  for k in (0, 1)]
         profiles = []  # (travers, côté, bord BD TOPO depuis l'origine, distances depuis l'origine), travers après travers
         samples = []
         for along in self.EDGE_ALONG:
@@ -2002,6 +2006,7 @@ class App(session.Session):
                 borders[name].append((offsets[i], relief))
                 entry = {"le_long": along, "cote": name, "bord": offsets[i], "relief": relief, "arret": None,
                          "separateur": [round(v, 2) for v in between] if between else None,
+                         "autre_axe": round(beyond, 2) if beyond else None,  # axe de l'autre chaussée, m depuis l'origine
                          "separateur_relief": sep_relief if between else None,  # "marches", "bosse" ou None (BD TOPO)
                          "points": [[round(o, 2), round(v, 2)] for o, v in zip(offsets, z) if v is not None]}
                 drawn.append(entry)
@@ -2084,6 +2089,8 @@ class App(session.Session):
                                if slope_max and slope_max[0] > 0 else None}
             self.edges[key] = {
                 "profile": {"origine": "caméra" if camera else "axe", "source": source, "erreur": round(sigma, 2),
+                            "repere": [[round(v, 8) for v in p] for p in frame0],
+                            "axe": round(-shift * right, 2),  # axe de la chaussée de la photo, en m vers la droite
                             "zone": zone, "fenetre": self.EDGE_WINDOW, "remontee": self.EDGE_RISE, "profils": drawn,
                             "resultats": shown, "arrets": {name: sorted(v)[len(v) // 2] for name, v in stops.items() if v}},
                 "text": "\n".join(lines) or "Aucun bord ne descend de {} m ou plus jusqu'à {} m".format(
