@@ -13,7 +13,9 @@ async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { 
 let failures = 0, checks = 0;
 const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + (detail ? " : " + detail : "")); } };
 // photo, milieu attendu du séparateur à gauche (m, d'après la photo et le relief), bord de chaussée droit attendu (ligne de rive)
-const CASES = [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 2.1], ["1640bc3f-e948-4239-a4c1-548dd748a16d", "RD903bis", 3.4, 1.4],
+// #photos=id,id : ces photos seulement, sans contrôle de position (essai d'une autre route)
+const PHOTOS = location.hash.startsWith("#photos=") ? location.hash.slice(8).split(",").map((id) => [id, id.slice(0, 8), null, null]) : null;
+const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 2.1], ["1640bc3f-e948-4239-a4c1-548dd748a16d", "RD903bis", 3.4, 1.4],
   ["067e83ca-a3d8-4f2a-bbe6-0c10df70fc96", "RD700 (glissières dos à dos)", 6.8, 2.25]];
 (async () => {
   const w = document.getElementById("f").contentWindow;
@@ -40,6 +42,13 @@ const CASES = [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 2.1], ["1640
       const sep = /milieu du séparateur[^.]*/.exec(legend)?.[0] || "";
       const right = Number((/droit\s:\s(\d+,\d+) m/.exec(legend) || [])[1]?.replace(",", "."));
       log(`${where} ${id.slice(0, 8)} : ${state} · ${sep} · bords : ${(/bords de chaussée[^.]*/.exec(legend) || [""])[0]}`);
+      log(`  eau : ${(/Bleu[^.]*\./.exec(legend) || ["aucune"])[0]} · BD TOPO : ${JSON.stringify(JSON.parse(app.fall_json()).profile?.eau)}`);
+      if (sepMid === null) {
+        const blob = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
+        await log(`IMAGE ${id.slice(0, 8)} ` + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));
+        dialog.close();
+        continue;
+      }
       expect(`${where} : séparateur du nuage LiDAR`, texts.includes("séparateur de chaussée(nuage LiDAR)"), sep);
       expect(`${where} : lignes blanches et bords de chaussée dessinés`, dialog.querySelector("svg .ligne-blanche") && dialog.querySelector("svg .bord-chaussee"));
       expect(`${where} : bord de chaussée droit à la ligne de rive (${rightEdge} m attendu)`, Math.abs(right - rightEdge) <= 0.5, String(right));

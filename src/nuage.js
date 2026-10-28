@@ -101,7 +101,7 @@ const Nuage = (() => {
     return lazPerf;
   }
 
-  /** Points du sol (classe 2) et de la végétation (3 basse, 4 moyenne, 5 haute) d'un nœud : [x, y, z, intensité, classe]
+  /** Points du sol (classe 2), de la végétation (3 basse, 4 moyenne, 5 haute) et de l'eau (9) d'un nœud : [x, y, z, intensité, classe]
    * (Lambert 93, altitude IGN69 comme le terrain du calcul). */
   async function ground(tile, node) {
     const lib = await laz();
@@ -117,7 +117,7 @@ const Nuage = (() => {
         decoder.getPoint(output);
         const v = new DataView(lib.HEAPU8.buffer, output, tile.length);  // HEAPU8 peut changer en grandissant
         const cls = tile.format >= 6 ? v.getUint8(16) : v.getUint8(15) & 31;
-        if (cls >= 2 && cls <= 5) {
+        if ((cls >= 2 && cls <= 5) || cls === 9) {
           out.push([v.getInt32(0, true) * sx + ox, v.getInt32(4, true) * sy + oy, v.getInt32(8, true) * sz + oz, v.getUint16(12, true), cls]);
         }
       }
@@ -168,7 +168,7 @@ const Nuage = (() => {
     if (!response.ok) throw new Error(`nuage LiDAR : métadonnées IGN, HTTP ${response.status}`);
     const meta = (await response.json()).features || [];
     if (!meta.length) throw new Error("pas de nuage LiDAR HD ici");
-    const bins = new Map(), plants = new Map();  // case -> intensités du sol ; case -> altitude la plus haute de la végétation
+    const bins = new Map(), plants = new Map(), water = new Map();  // ... ; case -> altitudes des points d'eau  // case -> intensités du sol ; case -> altitude la plus haute de la végétation
     let points = 0;
     for (const m of meta) {
       const tile = await openTile(m.properties.url_npl);
@@ -181,6 +181,11 @@ const Nuage = (() => {
           const ex = x - o[0], ey = y - o[1], across = ex * ux + ey * uy, along = ey * ux - ex * uy;
           if (Math.abs(along) > STRIP || Math.abs(across) > HALF) continue;
           const k = Math.round(across / BIN);
+          if (cls === 9) {
+            if (!water.has(k)) water.set(k, []);
+            water.get(k).push(z);
+            continue;
+          }
           if (cls !== 2) {
             plants.set(k, Math.max(plants.get(k) ?? -Infinity, z));
             continue;
@@ -224,7 +229,9 @@ const Nuage = (() => {
     const sepEntry = main.find((e) => e.separateur), out = { points, ref, requetes: count.requests - r0,
       octets: count.bytes - b0, secondes: Math.round((Date.now() - t0) / 1000), cases: cells.map((c) => [c.x, Math.round(10 * c.i / ref) / 10]),
       lignes: lines, herbe: grass, separateur: null, bords: {},
-      vegetation: [...plants].sort((a, b) => a[0] - b[0]).map(([k, z]) => [k * BIN, Math.round(z * 100) / 100]) };
+      vegetation: [...plants].sort((a, b) => a[0] - b[0]).map(([k, z]) => [k * BIN, Math.round(z * 100) / 100]),
+      // surface de l'eau : altitude médiane des points classés eau par l'IGN, case par case
+      eau: [...water].sort((a, b) => a[0] - b[0]).map(([k, zs]) => [k * BIN, Math.round(median(zs) * 100) / 100]) };
     let sepSign = 0, sepEnd = 0;
     if (sepEntry) {
       sepSign = sepEntry.cote === "gauche" ? -1 : 1;

@@ -1813,8 +1813,55 @@ class App(session.Session):
             res = self.edges[key] = {"text": "Calcul en cours…", "title": ""}
             self._compute_edges(key, line, s, sec["width"], metadata.item_heading(item), lon, lat, twin)
         road = sec.get("name") if re.match(r"[A-Z]+\d", sec.get("name") or "") else None
+        profile = res.get("profile")
+        if profile:  # eau de la BD TOPO sur le travers de la photo (lue à part : None pendant la lecture)
+            profile = dict(profile, eau=self._water_across(res["frame"], lon, lat))
         return {"text": "Bords de route" + (" ({})".format(road) if road else "") + "\n" + res["text"],
-                "title": res["title"], "edges": True, "profile": res.get("profile"), "road": road}
+                "title": res["title"], "edges": True, "profile": profile, "road": road}
+
+    WATER_REACH = 45.0  # m de part et d'autre de l'origine du travers où l'eau de la BD TOPO est cherchée
+
+    def _water_across(self, frame, lon, lat):
+        """Eau de la BD TOPO sur le travers de la photo (frame : origine et unité vers la droite, mètres locaux) : cours
+        d'eau croisés ({"x", "nom", "nature"}) et plans ou surfaces d'eau traversés ({"de", "a", "nature"}), en m vers la
+        droite ; None pendant la lecture. Souterrains et tronçons fictifs (à travers un lac) écartés."""
+        ox, oy, rx, ry = frame
+        a, b = (ox - self.WATER_REACH * rx, oy - self.WATER_REACH * ry), (ox + self.WATER_REACH * rx, oy + self.WATER_REACH * ry)
+        cell = roads._cell(lon, lat)
+        lines, surfaces = self._bdtopo("troncon_hydrographique", cell), self._bdtopo("surface_hydrographique", cell)
+        if lines is None or surfaces is None:
+            return None
+        across = lambda p: round((p[0] - ox) * rx + (p[1] - oy) * ry, 1)
+
+        def kept(props):
+            try:
+                return int(props.get("position_par_rapport_au_sol") or 0) >= 0 and not props.get("fictif")
+            except (TypeError, ValueError):
+                return not props.get("fictif")
+
+        def cuts(ring):  # abscisses où le travers coupe la ligne (ou l'anneau) ring, en lon, lat
+            pts = [triangulation._local(q[0], q[1], lon, lat) for q in ring]
+            return [across(x) for c, d in zip(pts, pts[1:]) for x in [_crossing(a, b, c, d)] if x]
+
+        out = []
+        for feat in lines:
+            props, geom = feat.get("properties") or {}, feat.get("geometry") or {}
+            if not kept(props):
+                continue
+            coords = geom.get("coordinates") or []
+            for line in coords if geom.get("type") == "MultiLineString" else [coords]:
+                for x in cuts(line):
+                    out.append({"x": x, "nom": props.get("cpx_toponyme_de_cours_d_eau"), "nature": props.get("nature")})
+        for feat in surfaces:
+            props, geom = feat.get("properties") or {}, feat.get("geometry") or {}
+            if not kept(props):
+                continue
+            coords = geom.get("coordinates") or []
+            xs = sorted(x for poly in (coords if geom.get("type") == "MultiPolygon" else [coords]) for ring in poly
+                        for x in cuts(ring))
+            # shortcut: traversées prises deux à deux ; un bout du travers dans l'eau laisse une traversée seule, écartée
+            out += [{"de": xs[k], "a": xs[k + 1], "nature": props.get("nature")} for k in range(0, len(xs) - 1, 2)]
+        return out
 
     def _compute_edges(self, key, line, s, width, heading, lon, lat, twin=None):
         """Calcul des bords (voir _edges), rangé dans self.edges[key], puis notify() ; twin : autre chaussée
@@ -1852,6 +1899,7 @@ class App(session.Session):
         sides = (("droit", -1), ("gauche", 1)) if forward else (("droit", 1), ("gauche", -1))
         # Repère du travers de la photo pour l'analyse fine (src/nuage.js) : son origine et le point à 1 m à droite
         right = dict(sides)["droit"]
+        across0 = (x + shift * nx, y + shift * ny, right * nx, right * ny)  # pour l'eau de la BD TOPO (_water_across)
         frame0 = [triangulation._geographic(x + shift * nx + k * right * nx, y + shift * ny + k * right * ny, lon, lat)
                   for k in (0, 1)]
         profiles = []  # (travers, côté, bord BD TOPO depuis l'origine, distances depuis l'origine), travers après travers
@@ -2088,6 +2136,7 @@ class App(session.Session):
                                           round(slope_max[3], 2), round(slope_max[4], 2)]
                                if slope_max and slope_max[0] > 0 else None}
             self.edges[key] = {
+                "frame": across0,
                 "profile": {"origine": "caméra" if camera else "axe", "source": source, "erreur": round(sigma, 2),
                             "repere": [[round(v, 8) for v in p] for p in frame0],
                             "axe": round(-shift * right, 2),  # axe de la chaussée de la photo, en m vers la droite

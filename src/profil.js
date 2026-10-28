@@ -150,6 +150,26 @@ const Profil = (() => {
     }
     // Analyse fine : hauteur maximale de la végétation (ligne verte, coupée en haut du graphique, interrompue là où il n'y
     // en a pas), lignes blanches (petits rectangles blancs sur le terrain) et bords de chaussée (tirets courts)
+    // Eau : surfaces de la BD TOPO (bande bleue sur le terrain), cours d'eau (repère bleu nommé), surface de l'eau lue
+    // dans le nuage (ligne bleue à son altitude, analyse fine)
+    for (const w of (profile.eau || []).filter((v) => v.de !== undefined)) {
+      const [a, b] = [Math.max(Math.min(w.de, w.a), xmin), Math.min(Math.max(w.de, w.a), xmax)];
+      if (b > a) svg.append(el("line", { x1: X(a), x2: X(b), y1: TOP + plotH - 3, y2: TOP + plotH - 3, class: "eau-surface" }));
+    }
+    for (const w of (profile.eau || []).filter((v) => v.x !== undefined && v.x >= xmin && v.x <= xmax)) {
+      const gy = Z(zAt(main.points, w.x) ?? ref);
+      svg.append(el("path", { d: `M${X(w.x) - 6},${gy - 14}L${X(w.x) + 6},${gy - 14}L${X(w.x)},${gy - 4}Z`, class: "eau" }),
+        el("text", { x: X(w.x), y: gy - 18, class: "graduation place eau-texte", "data-haut": "", "text-anchor": "middle" }, w.nom || "cours d'eau"));
+    }
+    if (fine?.eau?.length) {
+      let d = "", prev = null;
+      for (const [x, z] of fine.eau) {
+        if (x < xmin || x > xmax) { prev = null; continue; }
+        d += `${prev !== null && x - prev <= 0.5 + 1e-6 ? "L" : "M"}${X(x).toFixed(1)},${Math.max(TOP, Z(z)).toFixed(1)}`;
+        prev = x;
+      }
+      svg.append(el("path", { d, class: "eau-nuage" }));
+    }
     if (fine?.vegetation?.length) {
       let d = "", prev = null;
       // plus haut point des cases voisines (±0,25 m) : une case où le laser n'a touché que des branches basses ne creuse pas
@@ -269,6 +289,11 @@ const Profil = (() => {
         + "l'intensité du retour laser\u00a0; tirets courts, bords de chaussée\u00a0: ligne de rive, sinon fin de l'enrobé"
         + `${["gauche", "droit"].map((side) => fine.bords[side] ? ` (${side}\u00a0: ${num(Math.abs(fine.bords[side].x))} m, `
           + `${fine.bords[side].comment})` : "").join("")}.`] : []),
+      ...((profile.eau || []).length || fine?.eau?.length ? [`Bleu\u00a0: eau${(profile.eau || []).length ? ` de la BD TOPO (${profile.eau
+        .map((w) => (w.x !== undefined ? `${w.nom || (w.nature || "cours d'eau").toLowerCase()} à ${num(Math.abs(w.x))} m ${w.x < 0 ? "à gauche" : "à droite"}`
+          : `${(w.nature || "plan d'eau").toLowerCase()} de ${num(Math.min(Math.abs(w.de), Math.abs(w.a)))} à ${num(Math.max(Math.abs(w.de), Math.abs(w.a)))} m `
+            + `${w.de + w.a < 0 ? "à gauche" : "à droite"} (bande au bas du graphique)`)).join(", ")})` : ""}${fine?.eau?.length
+        ? `${(profile.eau || []).length ? "\u00a0; " : " "}surface de l'eau lue dans le nuage LiDAR (ligne bleue), au niveau du jour du relevé` : ""}.`] : []),
       ...(fine?.herbe?.length ? ["Bande vert clair sur le terrain\u00a0: herbe au sol (surface non revêtue très claire au laser "
         + "infrarouge\u00a0; gravillons et béton, moins clairs, n'y sont pas)" + ["gauche", "droit"].map((side) => {
           const sign = side === "gauche" ? -1 : 1, mine = fine.herbe.filter(([a, b]) => sign * (a + b) > 0);

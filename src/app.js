@@ -241,7 +241,7 @@
   const trueScale = $("#profil-echelle");
   trueScale.checked = store.get("profil-echelle") === "1";
   const drawProfile = () => {
-    const dialog = $("#fenetre-profil"), { svg, legend } = Profil.draw(edgeProfile.profile, trueScale.checked, nuage.get(edgeProfile.profile));
+    const dialog = $("#fenetre-profil"), { svg, legend } = Profil.draw(edgeProfile.profile, trueScale.checked, nuage.get(nuageKey(edgeProfile.profile)));
     dialog.querySelector(".graphique").replaceChildren(svg);
     dialog.querySelector(".legende").replaceChildren(legend);
   };
@@ -289,20 +289,23 @@
   });
   // « Analyse fine » : nuage LiDAR HD lu pour le travers de la photo (src/nuage.js), gardé pour ce profil ; grisé pendant
   // la lecture et une fois faite
-  const nuage = new WeakMap();
-  const nuageReady = () => { $("#profil-nuage").disabled = !edgeProfile?.profile?.repere || nuage.has(edgeProfile.profile); };
+  // rangée sous le repère du travers : le calcul renvoie un nouvel objet profil à chaque rafraîchissement
+  const nuage = new Map(), nuageKey = (profile) => JSON.stringify(profile?.repere);
+  const nuageReady = () => { $("#profil-nuage").disabled = !edgeProfile?.profile?.repere || nuage.has(nuageKey(edgeProfile.profile)); };
   $("#profil-nuage").addEventListener("click", async () => {
     const profile = edgeProfile?.profile, state = $("#profil-nuage-etat");
     if (!profile) return;
     $("#profil-nuage").disabled = true;
+    state.classList.add("en-cours");  // petite roue pendant le téléchargement
     try {
       const found = await Nuage.analyse(profile, (text) => { state.textContent = text; });
-      nuage.set(profile, found);
+      nuage.set(nuageKey(profile), found);
       state.textContent = `Nuage LiDAR HD : ${found.points} points du sol, ${found.requetes} requêtes, ${found.secondes} s.`;
-      if (edgeProfile?.profile === profile) drawProfile();
+      if (nuageKey(edgeProfile?.profile) === nuageKey(profile)) drawProfile();
     } catch (error) {
       state.textContent = `Analyse fine impossible : ${error.message}`;
     } finally {
+      state.classList.remove("en-cours");
       nuageReady();
     }
   });

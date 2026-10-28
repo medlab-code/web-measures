@@ -247,7 +247,13 @@ après.
   infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois). **Ligne verte** : hauteur maximale de la
   végétation (points classés herbe haute, arbustes et arbres par l'IGN), plus haut point à ±0,25 m près, coupée en
   haut du graphique ; la légende dit, de chaque côté, où elle commence et sa hauteur au-dessus du sol (relevé LiDAR
-  de 2021 à 2024 : fauchage, élagage ou repousse depuis). Essai : `tests/essai-nuage.html`.
+  de 2021 à 2024 : fauchage, élagage ou repousse depuis). **Eau** : dès le calcul « Dévers », cours d'eau de la BD
+  TOPO croisés par le travers de la photo (triangle bleu nommé ; tronçons fictifs et souterrains écartés) et surfaces
+  d'eau traversées (canal, plan d'eau : bande bleue au bas du graphique), sur 45 m de part et d'autre ; avec l'analyse
+  fine, surface de l'eau lue dans le nuage (points classés eau par l'IGN, ligne bleue à leur altitude, au niveau du
+  jour du relevé ; souvent absente : l'eau renvoie mal le laser). Pendant la lecture du nuage, une petite roue tourne
+  à côté de l'avancement. Essai : `tests/essai-nuage.html` (`#photos=<id>,…` : d'autres photos, sans contrôle de
+  position ; canal de Bourgogne : 3b8811e4).
 - **Mesure libre (points triangulés)** : viser chaque point depuis au moins deux photos, puis
   « Valider le point triangulé » ; à partir du deuxième, la distance horizontale au point précédent
   s'affiche, et la carte se cadre sur le segment.
