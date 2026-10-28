@@ -74,7 +74,8 @@ const Profil = (() => {
   /** Graphique SVG et sa légende en clair (texte) pour profile (voir App._compute_edges) ; trueScale : hauteurs
    * à la même échelle que les distances. */
   // fine : analyse fine (Nuage.analyse) : séparateur et bords de chaussée tirés du nuage LiDAR, lignes blanches
-  function draw(profile, trueScale = false, fine = null) {
+  // plants : végétation de l'analyse fine (ligne verte, herbe) dessinée et légendée
+  function draw(profile, trueScale = false, fine = null, plants = true) {
     const all = crossings(profile);
     const main = all.get(0) || [...all.values()][0];
     if (fine?.separateur) [main.separateur, main.separateurRelief] = [[...fine.separateur].sort((a, b) => a - b), "nuage"];
@@ -175,7 +176,7 @@ const Profil = (() => {
       }
       svg.append(el("path", { d, class: "eau-nuage" }));
     }
-    if (fine?.vegetation?.length) {
+    if (plants && fine?.vegetation?.length) {
       let d = "", prev = null;
       // plus haut point des cases voisines (±0,25 m) : une case où le laser n'a touché que des branches basses ne creuse pas
       const near = (x) => Math.max(...fine.vegetation.filter(([v]) => Math.abs(v - x) <= 0.25 + 1e-6).map(([, z]) => z));
@@ -188,7 +189,7 @@ const Profil = (() => {
       svg.append(el("path", { d, class: "vegetation" }));
     }
     if (fine) {
-      for (const [a, b] of fine.herbe || []) {  // herbe au sol : bande vert clair posée sur le terrain
+      for (const [a, b] of plants ? fine.herbe || [] : []) {  // herbe au sol : bande vert clair posée sur le terrain
         const d = onGround(a, b);
         if (d) svg.append(el("path", { d, class: "herbe" }));
       }
@@ -296,12 +297,12 @@ const Profil = (() => {
           : `${(w.nature || "plan d'eau").toLowerCase()} de ${num(Math.min(Math.abs(w.de), Math.abs(w.a)))} à ${num(Math.max(Math.abs(w.de), Math.abs(w.a)))} m `
             + `${w.de + w.a < 0 ? "à gauche" : "à droite"} (bande bleue sur le terrain, au niveau de l'eau)`)).join(", ")})` : ""}${fine?.eau?.length
         ? `${(profile.eau || []).length ? "\u00a0; " : " "}surface de l'eau lue dans le nuage LiDAR (ligne bleue), au niveau du jour du relevé` : ""}.`] : []),
-      ...(fine?.herbe?.length ? ["Bande vert clair sur le terrain\u00a0: herbe au sol (surface non revêtue très claire au laser "
+      ...(plants && fine?.herbe?.length ? ["Bande vert clair sur le terrain\u00a0: herbe au sol (surface non revêtue très claire au laser "
         + "infrarouge\u00a0; gravillons et béton, moins clairs, n'y sont pas)" + ["gauche", "droit"].map((side) => {
           const sign = side === "gauche" ? -1 : 1, mine = fine.herbe.filter(([a, b]) => sign * (a + b) > 0);
           return mine.length ? `\u00a0; ${side}\u00a0: dès ${num(Math.min(...mine.map(([a, b]) => Math.min(Math.abs(a), Math.abs(b)))))} m` : "";
         }).join("") + "."] : []),
-      ...(fine?.vegetation?.length ? ["Ligne verte\u00a0: hauteur maximale de la végétation (herbe haute, arbustes, arbres, classés par "
+      ...(plants && fine?.vegetation?.length ? ["Ligne verte\u00a0: hauteur maximale de la végétation (herbe haute, arbustes, arbres, classés par "
         + "l'IGN) sur ±1 m le long de la route, coupée en haut du graphique" + ["gauche", "droit"].map((side) => {
           const sign = side === "gauche" ? -1 : 1, seen = fine.vegetation.filter(([x]) => sign * x > 0);
           if (!seen.length) return "";

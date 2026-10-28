@@ -239,9 +239,16 @@
   // Case « Hauteurs à l'échelle » : retenue d'une fois sur l'autre, donc jamais grisée (même si le profil affiché est
   // déjà à l'échelle, elle vaut pour les suivants)
   const trueScale = $("#profil-echelle");
+  // Case « Végétation » (analyse fine : ligne verte, herbe), de même retenue et jamais grisée ; cochée par défaut
+  const plants = $("#profil-vegetation");
+  plants.checked = store.get("profil-vegetation") !== "0";
+  plants.addEventListener("change", () => {
+    store.set("profil-vegetation", plants.checked ? "1" : "0");
+    if (edgeProfile) drawProfile();
+  });
   trueScale.checked = store.get("profil-echelle") === "1";
   const drawProfile = () => {
-    const dialog = $("#fenetre-profil"), { svg, legend } = Profil.draw(edgeProfile.profile, trueScale.checked, nuage.get(nuageKey(edgeProfile.profile)));
+    const dialog = $("#fenetre-profil"), { svg, legend } = Profil.draw(edgeProfile.profile, trueScale.checked, nuage.get(nuageKey(edgeProfile.profile)), plants.checked);
     dialog.querySelector(".graphique").replaceChildren(svg);
     dialog.querySelector(".legende").replaceChildren(legend);
   };

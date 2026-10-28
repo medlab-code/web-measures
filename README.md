@@ -244,7 +244,8 @@ après.
   remplace (« nuage LiDAR »). Les lignes blanches sont dessinées en petits carrés blancs. Le bouton est grisé
   pendant la lecture et une fois l'analyse faite pour ce profil. **Bande vert clair** : herbe au sol (classée « sol »
   par l'IGN) : bande non revêtue d'1 m au moins, en moyenne 3,5 fois plus claire que l'enrobé (le laser, en proche
-  infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois). **Ligne verte** : hauteur maximale de la
+  infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois). La case « Végétation » (cochée par défaut, choix retenu) montre ou masque la bande
+  vert clair et la ligne verte. **Ligne verte** : hauteur maximale de la
   végétation (points classés herbe haute, arbustes et arbres par l'IGN), plus haut point à ±0,25 m près, coupée en
   haut du graphique ; la légende dit, de chaque côté, où elle commence et sa hauteur au-dessus du sol (relevé LiDAR
   de 2021 à 2024 : fauchage, élagage ou repousse depuis). **Eau** : dès le calcul « Dévers », cours d'eau de la BD

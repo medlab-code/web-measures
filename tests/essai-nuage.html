@@ -46,6 +46,13 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 2.
       const right = Number((/droit\s:\s(\d+,\d+) m/.exec(legend) || [])[1]?.replace(",", "."));
       log(`${where} ${id.slice(0, 8)} : ${state} · ${sep} · bords : ${(/bords de chaussée[^.]*/.exec(legend) || [""])[0]}`);
       log(`  eau : ${(/Bleu[^.]*\./.exec(legend) || ["aucune"])[0]} · BD TOPO : ${JSON.stringify(JSON.parse(app.fall_json()).profile?.eau)}`);
+      // Case « Végétation » : décochée, ni ligne verte ni herbe ; recochée, de retour
+      const plants = doc.querySelector("#profil-vegetation"), drawn = () => dialog.querySelectorAll("svg .vegetation, svg .herbe").length;
+      const before = drawn();
+      plants.checked = false; plants.dispatchEvent(new w.Event("change"));
+      const hidden = drawn();
+      plants.checked = true; plants.dispatchEvent(new w.Event("change"));
+      expect(`${where} : case « Végétation »`, before > 0 && hidden === 0 && drawn() === before, `${before} → ${hidden} → ${drawn()}`);
       if (sepMid === null) {
         const blob = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
         await log(`IMAGE ${id.slice(0, 8)} ` + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));
