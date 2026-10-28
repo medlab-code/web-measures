@@ -144,7 +144,20 @@ const Profil = (() => {
         el("text", { x: gx, y: gy - 34, class: "graduation place", "data-haut": "", "text-anchor": "middle" },
           `séparateur de chaussée (${main.separateurRelief === "nuage" ? "nuage LiDAR" : main.separateurRelief ? "relief" : "BD TOPO"})`));  // d'où vient sa position, comme les bords
     }
-    // Analyse fine : lignes blanches (petits rectangles blancs sur le terrain) et bords de chaussée (tirets courts nommés)
+    // Analyse fine : hauteur maximale de la végétation (ligne verte, coupée en haut du graphique, interrompue là où il n'y
+    // en a pas), lignes blanches (petits rectangles blancs sur le terrain) et bords de chaussée (tirets courts)
+    if (fine?.vegetation?.length) {
+      let d = "", prev = null;
+      // plus haut point des cases voisines (±0,25 m) : une case où le laser n'a touché que des branches basses ne creuse pas
+      const near = (x) => Math.max(...fine.vegetation.filter(([v]) => Math.abs(v - x) <= 0.25 + 1e-6).map(([, z]) => z));
+      for (const [x] of fine.vegetation) {
+        const z = near(x);
+        if (x < xmin || x > xmax) { prev = null; continue; }
+        d += `${prev !== null && x - prev <= 0.5 + 1e-6 ? "L" : "M"}${X(x).toFixed(1)},${Math.max(TOP, Z(z)).toFixed(1)}`;
+        prev = x;
+      }
+      svg.append(el("path", { d, class: "vegetation" }));
+    }
     if (fine) {
       for (const x of fine.lignes) {
         if (x < xmin || x > xmax) continue;
@@ -245,6 +258,15 @@ const Profil = (() => {
         + "l'intensité du retour laser\u00a0; tirets courts, bords de chaussée\u00a0: ligne de rive, sinon fin de l'enrobé"
         + `${["gauche", "droit"].map((side) => fine.bords[side] ? ` (${side}\u00a0: ${num(Math.abs(fine.bords[side].x))} m, `
           + `${fine.bords[side].comment})` : "").join("")}.`] : []),
+      ...(fine?.vegetation?.length ? ["Ligne verte\u00a0: hauteur maximale de la végétation (herbe haute, arbustes, arbres, classés par "
+        + "l'IGN) sur ±1 m le long de la route, coupée en haut du graphique" + ["gauche", "droit"].map((side) => {
+          const sign = side === "gauche" ? -1 : 1, seen = fine.vegetation.filter(([x]) => sign * x > 0);
+          if (!seen.length) return "";
+          const above = ([x, z]) => z - (zAt(main.points, x) ?? z);
+          const top = seen.reduce((a, b) => (above(b) > above(a) ? b : a));
+          const first = seen.reduce((a, b) => (Math.abs(b[0]) < Math.abs(a[0]) ? b : a));
+          return `\u00a0; ${side}\u00a0: dès ${num(Math.abs(first[0]))} m, jusqu'à ${num(above(top))} m au-dessus du sol`;
+        }).join("") + "."] : []),
       `Chute et dévers lus du bord jusqu'à ce que le terrain remonte de ${num(profile.remontee, 0)} m au-dessus du bord `
         + "(talus, butte)\u00a0: derrière, ce n'est pas une chute.",
       `${factor > 1 ? `Hauteurs exagérées ×${factor} pour la lisibilité` : "Hauteurs à l'échelle des distances"}. `

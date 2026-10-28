@@ -99,7 +99,8 @@ const Nuage = (() => {
     return lazPerf;
   }
 
-  /** Points du sol (classe 2) d'un nœud : [x, y, intensité] (Lambert 93). */
+  /** Points du sol (classe 2) et de la végétation (3 basse, 4 moyenne, 5 haute) d'un nœud : [x, y, z, intensité, classe]
+   * (Lambert 93, altitude IGN69 comme le terrain du calcul). */
   async function ground(tile, node) {
     const lib = await laz();
     const data = await range(tile.url, node.at, node.length);
@@ -109,12 +110,14 @@ const Nuage = (() => {
     try {
       lib.HEAPU8.set(new Uint8Array(data.buffer), input);
       decoder.open(tile.format, tile.length, input);
-      const [sx, sy] = tile.scale, [ox, oy] = tile.offset;
+      const [sx, sy, sz] = tile.scale, [ox, oy, oz] = tile.offset;
       for (let i = 0; i < node.count; i++) {
         decoder.getPoint(output);
         const v = new DataView(lib.HEAPU8.buffer, output, tile.length);  // HEAPU8 peut changer en grandissant
         const cls = tile.format >= 6 ? v.getUint8(16) : v.getUint8(15) & 31;
-        if (cls === 2) out.push([v.getInt32(0, true) * sx + ox, v.getInt32(4, true) * sy + oy, v.getUint16(12, true)]);
+        if (cls >= 2 && cls <= 5) {
+          out.push([v.getInt32(0, true) * sx + ox, v.getInt32(4, true) * sy + oy, v.getInt32(8, true) * sz + oz, v.getUint16(12, true), cls]);
+        }
       }
     } finally {
       decoder.delete();
@@ -163,7 +166,7 @@ const Nuage = (() => {
     if (!response.ok) throw new Error(`nuage LiDAR : métadonnées IGN, HTTP ${response.status}`);
     const meta = (await response.json()).features || [];
     if (!meta.length) throw new Error("pas de nuage LiDAR HD ici");
-    const bins = new Map();
+    const bins = new Map(), plants = new Map();  // case -> intensités du sol ; case -> altitude la plus haute de la végétation
     let points = 0;
     for (const m of meta) {
       const tile = await openTile(m.properties.url_npl);
@@ -172,10 +175,14 @@ const Nuage = (() => {
       const deepest = Math.max(...nodes.map((n) => n.d));
       for (const n of nodes.filter((n) => n.d >= deepest - 1)) {
         progress(`Lecture du nuage LiDAR HD… ${count.requests - r0} requêtes, ${((count.bytes - b0) / 1e6).toFixed(1)} Mo`);
-        for (const [x, y, intensity] of await ground(tile, n)) {
+        for (const [x, y, z, intensity, cls] of await ground(tile, n)) {
           const ex = x - o[0], ey = y - o[1], across = ex * ux + ey * uy, along = ey * ux - ex * uy;
           if (Math.abs(along) > STRIP || Math.abs(across) > HALF) continue;
           const k = Math.round(across / BIN);
+          if (cls !== 2) {
+            plants.set(k, Math.max(plants.get(k) ?? -Infinity, z));
+            continue;
+          }
           if (!bins.has(k)) bins.set(k, []);
           bins.get(k).push(intensity);
           points++;
@@ -202,7 +209,8 @@ const Nuage = (() => {
     const main = profile.profils.filter((e) => e.le_long === 0);
     const sepEntry = main.find((e) => e.separateur), out = { points, ref, requetes: count.requests - r0,
       octets: count.bytes - b0, secondes: Math.round((Date.now() - t0) / 1000), cases: cells.map((c) => [c.x, Math.round(10 * c.i / ref) / 10]),
-      lignes: lines, separateur: null, bords: {} };
+      lignes: lines, separateur: null, bords: {},
+      vegetation: [...plants].sort((a, b) => a[0] - b[0]).map(([k, z]) => [k * BIN, Math.round(z * 100) / 100]) };
     let sepSign = 0, sepEnd = 0;
     if (sepEntry) {
       sepSign = sepEntry.cote === "gauche" ? -1 : 1;

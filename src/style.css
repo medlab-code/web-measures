@@ -1100,6 +1100,7 @@ dialog.profil .legende .devers { color: #d93025; font-weight: 500; }
 .profil-svg .travers-mesure { fill: none; stroke: var(--discret); stroke-width: 1.5; opacity: 0.55; }
 .profil-svg .chaussee { fill: none; stroke: #5f6368; stroke-width: 7; stroke-linecap: butt; }
 .profil-svg .bord { stroke: var(--texte); stroke-width: 1.2; stroke-dasharray: 2 3; }
+.profil-svg .vegetation { fill: none; stroke: #34a853; stroke-width: 2; stroke-linejoin: round; }  /* analyse fine */
 .profil-svg .ligne-blanche { fill: #fff; stroke: #5f6368; stroke-width: 1; }  /* analyse fine : peinture au sol */
 .profil-svg .bord-chaussee { stroke: var(--texte); stroke-width: 1.5; stroke-dasharray: 3 2; }  /* analyse fine */
 .profil-svg .separateur { stroke: var(--texte); stroke-width: 3; stroke-linecap: round; }  /* séparateur de chaussée */

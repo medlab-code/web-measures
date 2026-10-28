@@ -242,7 +242,10 @@ après.
   chaussée) ; sinon la fin de l'enrobé. **Séparateur de chaussée** : la bande non revêtue entre les deux
   chaussées (glissières comprises, que le terrain seul ne voit pas), à 2 m au plus de celui du calcul, qu'elle
   remplace (« nuage LiDAR »). Les lignes blanches sont dessinées en petits carrés blancs. Le bouton est grisé
-  pendant la lecture et une fois l'analyse faite pour ce profil. Essai : `tests/essai-nuage.html`.
+  pendant la lecture et une fois l'analyse faite pour ce profil. **Ligne verte** : hauteur maximale de la
+  végétation (points classés herbe haute, arbustes et arbres par l'IGN), plus haut point à ±0,25 m près, coupée en
+  haut du graphique ; la légende dit, de chaque côté, où elle commence et sa hauteur au-dessus du sol (relevé LiDAR
+  de 2021 à 2024 : fauchage, élagage ou repousse depuis). Essai : `tests/essai-nuage.html`.
 - **Mesure libre (points triangulés)** : viser chaque point depuis au moins deux photos, puis
   « Valider le point triangulé » ; à partir du deuxième, la distance horizontale au point précédent
   s'affiche, et la carte se cadre sur le segment.
