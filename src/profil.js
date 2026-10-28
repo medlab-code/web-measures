@@ -150,11 +150,16 @@ const Profil = (() => {
     }
     // Analyse fine : hauteur maximale de la végétation (ligne verte, coupée en haut du graphique, interrompue là où il n'y
     // en a pas), lignes blanches (petits rectangles blancs sur le terrain) et bords de chaussée (tirets courts)
-    // Eau : surfaces de la BD TOPO (bande bleue sur le terrain), cours d'eau (repère bleu nommé), surface de l'eau lue
-    // dans le nuage (ligne bleue à son altitude, analyse fine)
+    // Eau : surfaces de la BD TOPO (bande bleue posée sur le terrain : sur l'eau, le laser ne voit que la surface, le
+    // terrain LiDAR y est à son niveau), cours d'eau (repère bleu nommé), surface lue dans le nuage (analyse fine)
+    const onGround = (a, b) => {  // tracé du terrain de la photo entre a et b, dans le cadre
+      const inside = main.points.map(([x]) => x).filter((x) => x > Math.max(a, xmin) && x < Math.min(b, xmax));
+      const at = [Math.max(a, xmin), ...inside, Math.min(b, xmax)].filter((x, k, all) => k === 0 || x > all[k - 1]);
+      return at.length < 2 ? null : at.map((x, k) => `${k ? "L" : "M"}${X(x).toFixed(1)},${(Z(zAt(main.points, x) ?? ref) - 3).toFixed(1)}`).join("");
+    };
     for (const w of (profile.eau || []).filter((v) => v.de !== undefined)) {
-      const [a, b] = [Math.max(Math.min(w.de, w.a), xmin), Math.min(Math.max(w.de, w.a), xmax)];
-      if (b > a) svg.append(el("line", { x1: X(a), x2: X(b), y1: TOP + plotH - 3, y2: TOP + plotH - 3, class: "eau-surface" }));
+      const d = onGround(Math.min(w.de, w.a), Math.max(w.de, w.a));
+      if (d) svg.append(el("path", { d, class: "eau-surface" }));
     }
     for (const w of (profile.eau || []).filter((v) => v.x !== undefined && v.x >= xmin && v.x <= xmax)) {
       const gy = Z(zAt(main.points, w.x) ?? ref);
@@ -184,11 +189,8 @@ const Profil = (() => {
     }
     if (fine) {
       for (const [a, b] of fine.herbe || []) {  // herbe au sol : bande vert clair posée sur le terrain
-        const xs_ = main.points.map(([x]) => x).filter((x) => x > Math.max(a, xmin) && x < Math.min(b, xmax));
-        const at = [Math.max(a, xmin), ...xs_, Math.min(b, xmax)].filter((x, k, all) => k === 0 || x > all[k - 1]);
-        if (at.length < 2) continue;
-        svg.append(el("path", { d: at.map((x, k) => `${k ? "L" : "M"}${X(x).toFixed(1)},${(Z(zAt(main.points, x) ?? ref) - 3).toFixed(1)}`).join(""),
-          class: "herbe" }));
+        const d = onGround(a, b);
+        if (d) svg.append(el("path", { d, class: "herbe" }));
       }
       for (const x of fine.lignes) {
         if (x < xmin || x > xmax) continue;
@@ -292,7 +294,7 @@ const Profil = (() => {
       ...((profile.eau || []).length || fine?.eau?.length ? [`Bleu\u00a0: eau${(profile.eau || []).length ? ` de la BD TOPO (${profile.eau
         .map((w) => (w.x !== undefined ? `${w.nom || (w.nature || "cours d'eau").toLowerCase()} à ${num(Math.abs(w.x))} m ${w.x < 0 ? "à gauche" : "à droite"}`
           : `${(w.nature || "plan d'eau").toLowerCase()} de ${num(Math.min(Math.abs(w.de), Math.abs(w.a)))} à ${num(Math.max(Math.abs(w.de), Math.abs(w.a)))} m `
-            + `${w.de + w.a < 0 ? "à gauche" : "à droite"} (bande au bas du graphique)`)).join(", ")})` : ""}${fine?.eau?.length
+            + `${w.de + w.a < 0 ? "à gauche" : "à droite"} (bande bleue sur le terrain, au niveau de l'eau)`)).join(", ")})` : ""}${fine?.eau?.length
         ? `${(profile.eau || []).length ? "\u00a0; " : " "}surface de l'eau lue dans le nuage LiDAR (ligne bleue), au niveau du jour du relevé` : ""}.`] : []),
       ...(fine?.herbe?.length ? ["Bande vert clair sur le terrain\u00a0: herbe au sol (surface non revêtue très claire au laser "
         + "infrarouge\u00a0; gravillons et béton, moins clairs, n'y sont pas)" + ["gauche", "droit"].map((side) => {
