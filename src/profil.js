@@ -153,9 +153,12 @@ const Profil = (() => {
     // en a pas), lignes blanches (petits rectangles blancs sur le terrain) et bords de chaussée (tirets courts)
     // Eau : surfaces de la BD TOPO (bande bleue posée sur le terrain : sur l'eau, le laser ne voit que la surface, le
     // terrain LiDAR y est à son niveau), cours d'eau (repère bleu nommé), surface lue dans le nuage (analyse fine)
-    const onGround = (a, b) => {  // tracé du terrain de la photo entre a et b, dans le cadre
-      const inside = main.points.map(([x]) => x).filter((x) => x > Math.max(a, xmin) && x < Math.min(b, xmax));
-      const at = [Math.max(a, xmin), ...inside, Math.min(b, xmax)].filter((x, k, all) => k === 0 || x > all[k - 1]);
+    // tracé du terrain de la photo entre a et b, dans le cadre et sans dépasser le terrain lu (au-delà, pas d'altitude)
+    const [g0, g1] = [main.points[0][0], main.points.at(-1)[0]];
+    const onGround = (a, b) => {
+      const [lo, hi] = [Math.max(a, xmin, g0), Math.min(b, xmax, g1)];
+      const inside = main.points.map(([x]) => x).filter((x) => x > lo && x < hi);
+      const at = [lo, ...inside, hi].filter((x, k, all) => k === 0 || x > all[k - 1]);
       return at.length < 2 ? null : at.map((x, k) => `${k ? "L" : "M"}${X(x).toFixed(1)},${(Z(zAt(main.points, x) ?? ref) - 3).toFixed(1)}`).join("");
     };
     for (const w of (profile.eau || []).filter((v) => v.de !== undefined)) {
@@ -178,8 +181,10 @@ const Profil = (() => {
     }
     if (plants && fine?.vegetation?.length) {
       let d = "", prev = null;
-      // plus haut point des cases voisines (±0,25 m) : une case où le laser n'a touché que des branches basses ne creuse pas
-      const near = (x) => Math.max(...fine.vegetation.filter(([v]) => Math.abs(v - x) <= 0.25 + 1e-6).map(([, z]) => z));
+      // plus haut point des cases voisines (±0,25 m) : une case où le laser n'a touché que des branches basses ne creuse pas ;
+      // puis moyenne sur ±1 m : le feuillage des arbres sans dents de scie
+      const top = new Map(fine.vegetation.map(([x]) => [x, Math.max(...fine.vegetation.filter(([v]) => Math.abs(v - x) <= 0.25 + 1e-6).map(([, z]) => z))]));
+      const near = (x) => { const v = [...top].filter(([u]) => Math.abs(u - x) <= 1 + 1e-6).map(([, z]) => z); return v.reduce((a, b) => a + b, 0) / v.length; };
       for (const [x] of fine.vegetation) {
         const z = near(x);
         if (x < xmin || x > xmax) { prev = null; continue; }
@@ -193,24 +198,17 @@ const Profil = (() => {
         const d = onGround(a, b);
         if (d) svg.append(el("path", { d, class: "herbe" }));
       }
+      // sur la plateforme seulement (entre les bords, à 1 m près) : ailleurs, herbe ou cailloux clairs en bande étroite
       for (const x of fine.lignes) {
-        if (x < xmin || x > xmax) continue;
+        if (x < Math.max(xmin, g0, bl - 1) || x > Math.min(xmax, g1, br + 1)) continue;
         svg.append(el("rect", { x: X(x) - 3, y: Z(zAt(main.points, x) ?? ref) - 3, width: 6, height: 6, class: "ligne-blanche" }));
       }
       for (const side of ["gauche", "droit"]) {
         const b = fine.bords[side];
-        if (!b) continue;
-        const gy = Z(zAt(main.points, b.x) ?? ref);
+        if (!b || zAt(main.points, b.x) === null) continue;
+        const gy = Z(zAt(main.points, b.x));
         svg.append(el("line", { x1: X(b.x), x2: X(b.x), y1: gy - 4, y2: gy - 22, class: "bord-chaussee" }));  // nommé dans la légende
       }
-    }
-    // Terrain remonté de profile.remontee au-dessus du bord : lecture arrêtée là (travers de la photo)
-    for (const side of ["gauche", "droit"]) {
-      const stop = main.bords[side]?.arret;
-      if (stop === null || stop === undefined) continue;
-      const zs_ = zAt(main.points, stop);
-      svg.append(el("line", { x1: X(stop), x2: X(stop), y1: Z(zs_) - 30, y2: Z(zs_) + 6, class: "arret" }),
-        el("text", { x: X(stop), y: Z(zs_) - 34, class: "graduation place", "text-anchor": "middle" }, "fin de lecture"));
     }
     svg.append(el("circle", { cx: X(0), cy: Z(ref) - 8, r: 5, class: "origine" }),
       el("text", { x: X(0), y: Z(ref) - 18, class: "graduation place", "data-haut": "", "text-anchor": "middle" }, profile.origine === "caméra" ? "caméra" : "axe"));

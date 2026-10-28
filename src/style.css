@@ -1104,7 +1104,11 @@ dialog.profil .legende .devers { color: #d93025; font-weight: 500; }
 .profil-svg .eau-texte { fill: #1a73e8; }
 .profil-svg .eau-surface { fill: none; stroke: #1a73e8; stroke-width: 5; stroke-linejoin: round; opacity: 0.7; }  /* plan d'eau de la BD TOPO */
 .profil-svg .eau-nuage { fill: none; stroke: #1a73e8; stroke-width: 3; }  /* surface de l'eau, analyse fine */
-/* « Analyse fine » : barre d'avancement de la lecture du nuage */
+/* « Analyse fine » : avancement et bilan sur leur ligne, au-dessus des boutons ; boutons et cases sans libellé coupé */
+dialog.profil .nuage-etat { display: flex; align-items: center; gap: 0.6rem; margin: 0.8rem 0 0; }
+dialog.profil .nuage-etat:has(progress[hidden]):has(#profil-nuage-etat:empty) { display: none; }
+dialog.profil form { flex-wrap: wrap; row-gap: 0.6rem; justify-content: center; }
+dialog.profil form label { white-space: nowrap; }
 #profil-nuage-barre { width: 8rem; height: 0.6rem; accent-color: var(--panoramax); vertical-align: middle; }
 .profil-svg .herbe { fill: none; stroke: #9ccc65; stroke-width: 5; stroke-linejoin: round; opacity: 0.9; }  /* analyse fine */
 .profil-svg .vegetation { fill: none; stroke: #34a853; stroke-width: 2; stroke-linejoin: round; }  /* analyse fine */
@@ -1118,7 +1122,6 @@ dialog.profil .legende .devers { color: #d93025; font-weight: 500; }
 .profil-svg .chute-texte { fill: #e8710a; }
 .profil-svg .devers { fill: none; stroke: #d93025; stroke-width: 5; stroke-linecap: round; }
 .profil-svg .devers-texte { fill: #d93025; }
-.profil-svg .arret { stroke: var(--texte); stroke-width: 2; }
 
 /* Première visite : bulle non modale à côté de l'élément présenté, souligné en orange */
 dialog.bulle { position: fixed; max-width: 20rem; margin: 0; z-index: 20; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4); }

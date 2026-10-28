@@ -239,7 +239,7 @@
   // Case « Hauteurs à l'échelle » : retenue d'une fois sur l'autre, donc jamais grisée (même si le profil affiché est
   // déjà à l'échelle, elle vaut pour les suivants)
   const trueScale = $("#profil-echelle");
-  // Case « Végétation » (analyse fine : ligne verte, herbe), de même retenue et jamais grisée ; cochée par défaut
+  // Case « Végétation » (analyse fine : ligne verte, herbe), de même retenue ; cochée par défaut, grisée sans analyse fine
   const plants = $("#profil-vegetation");
   plants.checked = store.get("profil-vegetation") !== "0";
   plants.addEventListener("change", () => {
@@ -298,7 +298,12 @@
   // la lecture et une fois faite
   // rangée sous le repère du travers : le calcul renvoie un nouvel objet profil à chaque rafraîchissement
   const nuage = new Map(), nuageKey = (profile) => JSON.stringify(profile?.repere);
-  const nuageReady = () => { $("#profil-nuage").disabled = !edgeProfile?.profile?.repere || nuage.has(nuageKey(edgeProfile.profile)); };
+  // « Végétation » grisée tant que l'analyse fine n'a rien fourni pour ce profil (son choix reste retenu)
+  const nuageReady = () => {
+    const done = nuage.has(nuageKey(edgeProfile?.profile));
+    $("#profil-nuage").disabled = !edgeProfile?.profile?.repere || done;
+    $("#profil-vegetation").disabled = !done;
+  };
   $("#profil-nuage").addEventListener("click", async () => {
     const profile = edgeProfile?.profile, state = $("#profil-nuage-etat");
     if (!profile) return;
@@ -750,6 +755,8 @@
    * navigateur change de taille. */
   function showOverViewer(dialog) {
     dialog.showModal();
+    let bottom = null;  // bas de la fenêtre une fois placée : gardé quand son contenu change (case actionnée, légende plus
+    // courte), pour que ses boutons, en bas, ne sautent pas sous le pointeur ; sans sortir de la visionneuse
     const place = () => {
       const box = $("#vue").getBoundingClientRect();
       dialog.style.margin = "0";
@@ -757,13 +764,17 @@
       // Centrée dans la visionneuse, sans en sortir : plus haute (nombreux champs), elle défile
       dialog.style.maxHeight = `${Math.max(160, box.height - 16)}px`;
       dialog.style.left = `${Math.max(8, box.left + (box.width - dialog.offsetWidth) / 2)}px`;
-      dialog.style.top = `${Math.max(8, box.top + (box.height - dialog.offsetHeight) / 2)}px`;
+      const h = dialog.offsetHeight;
+      bottom ??= box.top + (box.height + h) / 2;  // centrée à l'ouverture
+      bottom = Math.min(box.bottom - 8, Math.max(bottom, box.top + 8 + h));
+      dialog.style.top = `${Math.max(8, bottom - h)}px`;
     };
+    const resized = () => { bottom = null; place(); };  // visionneuse redimensionnée : recentrée
     place();
-    window.addEventListener("resize", place);
+    window.addEventListener("resize", resized);
     const grown = new ResizeObserver(place);  // contenu changé fenêtre ouverte (modèle choisi, champs ajoutés)
     grown.observe(dialog);
-    dialog.addEventListener("close", () => { window.removeEventListener("resize", place); grown.disconnect(); }, { once: true });
+    dialog.addEventListener("close", () => { window.removeEventListener("resize", resized); grown.disconnect(); }, { once: true });
   }
 
   /** Onglet Photo, « Position » : un élément par ligne (GPS, terrain, inclinaison, calage), chacun avec

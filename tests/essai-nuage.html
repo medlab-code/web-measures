@@ -5,7 +5,8 @@
      chaussée et séparateur de chaussée. Photos des routes à chaussées séparées de essai-bords.html : A38, RD903bis,
      RD700 (glissières dos à dos). Lancer comme tests/navigateur.html ; chaque profil part dans le journal en PNG. -->
 <script>try { localStorage.clear(); } catch {}</script>
-<iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
+<!-- assez haute pour que la fenêtre du profil tienne dans la visionneuse (sinon elle défile : ses boutons bougent) -->
+<iframe id="f" src="../index.html" style="width:1400px;height:1300px"></iframe>
 <script>
 const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -33,7 +34,7 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 2.
       doc.querySelector("#profil").click();
       await sleep(800);
       const dialog = doc.querySelector("#fenetre-profil"), button = doc.querySelector("#profil-nuage");
-      expect(`${where} : « Analyse fine » active`, !button.disabled);
+      expect(`${where} : « Analyse fine » active, « Végétation » grisée avant elle`, !button.disabled && doc.querySelector("#profil-vegetation").disabled);
       button.click();
       await sleep(6000);  // en cours de lecture : barre d'avancement affichée, et remplie en partie
       const bar = doc.querySelector("#profil-nuage-barre");
@@ -46,6 +47,12 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 2.
       const right = Number((/droit\s:\s(\d+,\d+) m/.exec(legend) || [])[1]?.replace(",", "."));
       log(`${where} ${id.slice(0, 8)} : ${state} · ${sep} · bords : ${(/bords de chaussée[^.]*/.exec(legend) || [""])[0]}`);
       log(`  eau : ${(/Bleu[^.]*\./.exec(legend) || ["aucune"])[0]} · BD TOPO : ${JSON.stringify(JSON.parse(app.fall_json()).profile?.eau)}`);
+      // Rangée du bas : cases et boutons sans chevauchement, l'avancement et le bilan sur leur propre ligne
+      const boxes = [...dialog.querySelectorAll("form > *")].filter((e) => e.offsetParent).map((e) => e.getBoundingClientRect());
+      const overlap = boxes.some((a, i) => boxes.some((b, j) => i < j && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1));
+      const info = dialog.querySelector(".nuage-etat").getBoundingClientRect(), form = dialog.querySelector("form").getBoundingClientRect();
+      log(`  rangée : ${boxes.map((b) => `${Math.round(b.left)}-${Math.round(b.right)}@${Math.round(b.top)}`).join(" ")} · bilan ${Math.round(info.top)}-${Math.round(info.bottom)}, boutons dès ${Math.round(form.top)}`);
+      expect(`${where} : cases et boutons sans chevauchement, bilan au-dessus`, !overlap && info.bottom <= form.top + 1);
       // Case « Végétation » : décochée, ni ligne verte ni herbe ; recochée, de retour
       const plants = doc.querySelector("#profil-vegetation"), drawn = () => dialog.querySelectorAll("svg .vegetation, svg .herbe").length;
       const before = drawn();
@@ -53,6 +60,20 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 2.
       const hidden = drawn();
       plants.checked = true; plants.dispatchEvent(new w.Event("change"));
       expect(`${where} : case « Végétation »`, before > 0 && hidden === 0 && drawn() === before, `${before} → ${hidden} → ${drawn()}`);
+      // les cases et boutons ne bougent pas quand on actionne les cases (interrupteurs, profil redessiné)
+      const rows = () => [...dialog.querySelectorAll("form > *")].filter((e) => e.offsetParent).map((e) => { const r = e.getBoundingClientRect(); return `${Math.round(r.left)},${Math.round(r.top)}`; }).join(" ");
+      const rest = rows(), scale = doc.querySelector("#profil-echelle");  // relevés une fois la fenêtre replacée
+      plants.checked = false; plants.dispatchEvent(new w.Event("change"));
+      await sleep(200);
+      const off = rows();
+      scale.checked = !scale.checked; scale.dispatchEvent(new w.Event("change"));
+      await sleep(200);
+      const scaled = rows();
+      scale.checked = !scale.checked; scale.dispatchEvent(new w.Event("change"));
+      plants.checked = true; plants.dispatchEvent(new w.Event("change"));
+      log(`  cases actionnées : ${rest} | végétation éteinte ${off} | échelle ${scaled}`);
+      const still = (a, b) => a.split(/[ ,]/).every((v, k) => Math.abs(v - b.split(/[ ,]/)[k]) <= 2);  // à 2 px près (arrondis)
+      expect(`${where} : cases et boutons immobiles quand on actionne les cases`, still(rest, off) && still(rest, scaled), `${rest} / ${off} / ${scaled}`);
       if (sepMid === null) {
         const blob = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
         await log(`IMAGE ${id.slice(0, 8)} ` + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));

@@ -244,7 +244,8 @@ après.
   remplace (« nuage LiDAR »). Les lignes blanches sont dessinées en petits carrés blancs. Le bouton est grisé
   pendant la lecture et une fois l'analyse faite pour ce profil. **Bande vert clair** : herbe au sol (classée « sol »
   par l'IGN) : bande non revêtue d'1 m au moins, en moyenne 3,5 fois plus claire que l'enrobé (le laser, en proche
-  infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois). La case « Végétation » (cochée par défaut, choix retenu) montre ou masque la bande
+  infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois). La case « Végétation » (cochée par défaut, choix retenu, grisée tant que l'analyse fine
+  n'a pas été faite) montre ou masque la bande
   vert clair et la ligne verte. **Ligne verte** : hauteur maximale de la
   végétation (points classés herbe haute, arbustes et arbres par l'IGN), plus haut point à ±0,25 m près, coupée en
   haut du graphique ; la légende dit, de chaque côté, où elle commence et sa hauteur au-dessus du sol (relevé LiDAR
@@ -640,6 +641,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.10** (28/10/2026) : « Analyse fine » du profil (nuage LiDAR HD de l'IGN, barre d'avancement) : bords de chaussée (ligne de rive), séparateur de chaussée (bande non revêtue, glissières comprises), lignes blanches, herbe au sol, hauteur de la végétation (case « Végétation »), surface de l'eau ; eau de la BD TOPO dès « Dévers » ; autres travers transparents ; repère « fin de lecture » retiré ; fenêtre du profil : boutons immobiles quand on actionne les cases.
 - **0.6.9-14** (28/10/2026) : « Dévers » : séparateur de chaussée étroit sans marches (glissières dos à dos, muret) reconnu à sa bosse dans le relief, au même endroit sur deux travers au moins (RD700 à Varois-et-Chaignot).
 - **0.6.9-13** (28/10/2026) : « Dévers » : séparateur de chaussée trouvé dans le relief (entre deux marches du terrain, sinon d'après la BD TOPO, origine écrite sur le profil), bord de chaussée aussi à une marche du terrain (bordure), bord extérieur de l'autre chaussée cherché plus loin, travers recoupés entre eux ; autre chaussée mieux reconnue (tronçon dans le prolongement écarté). Essais sur l'A38, la RD903bis, la D1074 et la RD700.
 - **0.6.9-12** (27/10/2026) : « Dévers » sur route à chaussées séparées (#34) : plateforme jusqu'au bord extérieur de l'autre chaussée, séparateur de chaussée marqué sur le profil (petite barre verticale) ; loupe du profil (graphique agrandi sans la légende) ; étiquettes du profil écartées l'une de l'autre et liserées.
