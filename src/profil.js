@@ -191,8 +191,9 @@ const Profil = (() => {
         if (!tr || tr === main || shown.has(tr)) continue;
         shown.add(tr);
         const end = sign < 0 ? tr.points[0] : tr.points.at(-1);
-        svg.append(el("path", { d: path(tr.points), class: "travers-mesure" }),
-          el("text", { x: X(end[0]) - sign * 2, y: Z(end[1]) - 6, class: "graduation place", "text-anchor": sign < 0 ? "start" : "end" },
+        // sous le terrain de la photo (dessiné avant lui), transparent : il ne le masque pas
+        svg.insertBefore(el("path", { d: path(tr.points), class: "travers-mesure" }), svg.querySelector(".terre"));
+        svg.append(el("text", { x: X(end[0]) - sign * 2, y: Z(end[1]) - 6, class: "graduation place", "text-anchor": sign < 0 ? "start" : "end" },
             `travers à ${tr.along > 0 ? "+" : "−"}${Math.abs(tr.along)} m`));
       }
       const top = zAt(t.points, b), xLow = b + sign * r.chute[1], low = top - r.chute[0];
