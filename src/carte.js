@@ -367,7 +367,8 @@ const Carte = (() => {
    * du numéro, même police, violet des numéros du Parcellaire Express, liseré blanc (dessinée au double). */
   function parcelImage(spec) {
     const [section, number] = spec.split("|");
-    const lines = [section.replace(/^0+(?=.)/, ""), number], scale = 2, font = `600 ${11 * scale}px sans-serif`, line = 13 * scale;
+    // 13,75 px : 25 % de plus que les 11 px d'abord retenus (lisibilité)
+    const lines = [section.replace(/^0+(?=.)/, ""), number], scale = 2, font = `600 ${13.75 * scale}px sans-serif`, line = 16 * scale;
     const canvas = document.createElement("canvas"), ctx = canvas.getContext("2d");
     ctx.font = font;
     canvas.width = Math.ceil(Math.max(...lines.map((t) => ctx.measureText(t).width))) + 6 * scale;
