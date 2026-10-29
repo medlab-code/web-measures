@@ -2877,7 +2877,7 @@
         if (!overlayAt.has(o.id)) overlayAt.set(o.id, anchorOf(o.points));
         const { kind, pts } = overlayPoints(o);
         const at = kind === "point" ? { yaw: pts[0][0], pitch: pts[0][1] } : middle(pts.map(([yaw, pitch]) => ({ yaw, pitch })));
-        if (kind === "ligne" && pts.length >= 2) lines.push({ points: pts, color, width: chosen ? 5 : 2.5, dash: null });
+        if (kind === "ligne" && pts.length >= 2) lines.push({ points: pts, color, width: chosen ? 5 : 2.5, dash: null, couche: true });
         // data-objet : clic pour le recaler (attachViewer)
         if (kind === "point" && points++ < 300) {
           add({ id: `${MARK}couche-${n++}`, position: at, anchor: "center center",
@@ -4370,120 +4370,9 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
       }
       drawScreenLabels(ctx, psv.container, gl.getBoundingClientRect(), scale);
     }
-    // Comme dans la visionneuse : guides d'abord (dessous), en tirets et sans croix ; mesures en
-    // trait rouge ; croix jaunes, bleues pour les visées
-    const guidesFirst = [...currentMarks].sort((a, b) => Number(!!b.guide) - Number(!!a.guide));
-    const captureNames = namesOf(currentMarks);
-    const endLabels = [];
-    for (const mark of guidesFirst) {
-      const pts = mark.points.map(screen);
-      if (mark.guide) {
-        ctx.save();
-        ctx.strokeStyle = mark.vertical || mark.epipolar ? "#2ecc40" : "#00bce6";
-        ctx.lineWidth = 2 * scale;
-        ctx.setLineDash(mark.epipolar ? [] : [8 * scale, 5 * scale]);
-        ctx.beginPath();
-        let open = false;
-        for (const p of pts) {
-          if (!p) {
-            open = false;
-            continue;
-          }
-          if (open) ctx.lineTo(...p);
-          else ctx.moveTo(...p);
-          open = true;
-        }
-        ctx.stroke();
-        ctx.restore();
-        continue;
-      }
-      if (mark.name) {  // nom d'un point triangulé, comme dans la visionneuse
-        if (pts[0]) {
-          const [x, y] = pts[0], g = 10 * scale, h = 15 * scale;  // écart à la croix, taille du texte
-          const [lx, ly, align] = { left: [x - g, y + 0.6 * h, "right"], right: [x + g, y + 0.6 * h, "left"],
-            above: [x, y - g, "center"] }[mark.side] || [x, y + g + 1.4 * h, "center"];
-          label(ctx, mark.label, lx, ly, h, align, mark.provisional ? "rgba(95, 99, 104, 0.92)" : "rgba(142, 27, 27, 0.92)");
-        }
-        continue;
-      }
-      ctx.strokeStyle = "#e53935";
-      ctx.lineWidth = 4 * scale;
-      for (let i = 1; i < pts.length; i++) {
-        if (!pts[i - 1] || !pts[i]) continue;
-        ctx.beginPath();
-        ctx.moveTo(...pts[i - 1]);
-        ctx.lineTo(...pts[i]);
-        ctx.stroke();
-      }
-      for (const p of pts) {
-        if (!p) continue;
-        for (const [color, width] of [["rgba(0,0,0,0.7)", 4], [mark.sighting ? "#00bce6" : "#ffeb00", 2]]) {
-          ctx.strokeStyle = color;
-          ctx.lineWidth = width * scale;
-          ctx.beginPath();
-          ctx.moveTo(p[0] - 9 * scale, p[1]);
-          ctx.lineTo(p[0] + 9 * scale, p[1]);
-          ctx.moveTo(p[0], p[1] - 9 * scale);
-          ctx.lineTo(p[0], p[1] + 9 * scale);
-          ctx.stroke();
-        }
-      }
-      const text = measureLabel(mark, captureNames), blue = "rgba(21, 76, 121, 0.92)";  // comme .etiquette.mesure
-      if (mark.label && mark.end && pts.length >= 2) {  // au point d'arrivée, placée après les autres
-        const end = pts[pts.length - 1];
-        if (end) endLabels.push({ mark, text, x: end[0], y: end[1] });
-        continue;
-      }
-      const centre = middle(mark.points.map(([yaw, pitch]) => ({ yaw, pitch })));
-      const mid = mark.label ? screen([centre.yaw, centre.pitch]) : null;
-      if (mid && mark.beside) label(ctx, text, mid[0] + 9 * scale, mid[1] + 9 * scale, 15 * scale, "left", blue);
-      else if (mid) label(ctx, text, mid[0], mid[1] - 7 * scale, 15 * scale, "center", blue);
-    }
-    // Étiquettes des points d'arrivée, comme dans la visionneuse : nom en pastille, écartées vers
-    // le bas quand elles se chevauchent (de la plus haute à la plus basse), trait de renvoi
-    const size = 15 * scale, placedRects = [];
-    endLabels.sort((a, b) => a.y - b.y);
-    for (const item of endLabels) {
-      const { mark, text } = item;
-      ctx.font = `${size}px Inter, system-ui, sans-serif`;
-      const chipFont = `600 ${size}px Inter, system-ui, sans-serif`;
-      const textW = ctx.measureText(text).width;
-      ctx.font = chipFont;
-      const chipW = ctx.measureText(mark.end.name).width + 0.6 * size;
-      const w = chipW + 0.4 * size + textW + size, h = size * 1.6;
-      let left = mark.beside ? item.x + 10 * scale : item.x - w / 2;
-      let top = mark.beside ? item.y - h / 2 : item.y + 10 * scale;
-      const anchorTop = top;
-      for (let k = 0; k < 20; k++) {
-        const other = placedRects.find((r) => left < r.right && left + w > r.left && top < r.bottom + 2 * scale && top + h + 2 * scale > r.top);
-        if (!other) break;
-        top = other.bottom + 2 * scale;
-      }
-      placedRects.push({ left, right: left + w, top, bottom: top + h });
-      if (top > anchorTop) {  // trait de renvoi vers la croix
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
-        ctx.lineWidth = 1.5 * scale;
-        ctx.beginPath();
-        const lx = mark.beside ? item.x + 6 * scale : item.x;
-        ctx.moveTo(lx, mark.beside ? item.y : item.y + 10 * scale);
-        ctx.lineTo(lx, top + h / 2);
-        ctx.stroke();
-      }
-      ctx.fillStyle = "rgba(21, 76, 121, 0.92)";
-      ctx.beginPath();
-      ctx.roundRect(left, top, w, h, size * 0.25);
-      ctx.fill();
-      ctx.fillStyle = mark.end.provisional ? "rgba(95, 99, 104, 0.95)" : "rgba(142, 27, 27, 0.95)";
-      ctx.beginPath();
-      ctx.roundRect(left + 0.25 * size, top + 0.15 * size, chipW, h - 0.3 * size, size * 0.2);
-      ctx.fill();
-      ctx.fillStyle = "#ffffff";
-      ctx.textBaseline = "middle";
-      ctx.font = chipFont;
-      ctx.fillText(mark.end.name, left + 0.55 * size, top + h / 2);
-      ctx.font = `${size}px Inter, system-ui, sans-serif`;
-      ctx.fillText(text, left + 0.25 * size + chipW + 0.4 * size, top + h / 2);
-    }
+    // Mesures : la surcouche WebGL de la visionneuse (traits, croix, étiquettes), telle qu'affichée
+    const layer = Traits.snapshot();
+    if (layer?.width) ctx.drawImage(layer, 0, 0, canvas.width, canvas.height);
     const caption = app ? app.caption(psv.getPosition().yaw) : "Panoramax";
     drawCartouches(ctx, canvas, 13 * scale, caption, placeText());  // taille de l'étiquette de la visionneuse
     return canvas;
@@ -4542,21 +4431,7 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
     ctx.restore();
   }
 
-  /** Étiquette d'une mesure dans une capture, comme dans la visionneuse (.etiquette). */
-  function label(ctx, text, x, y, size, align, background = "rgba(32, 33, 36, 0.85)") {
-    ctx.font = `${size}px Inter, system-ui, sans-serif`;
-    const w = ctx.measureText(text).width + size;
-    const left = align === "right" ? x - w : align === "left" ? x : x - w / 2;
-    ctx.fillStyle = background;
-    ctx.beginPath();
-    ctx.roundRect(left, y - size * 1.4, w, size * 1.6, size * 0.25);
-    ctx.fill();
-    ctx.fillStyle = "#ffffff";
-    ctx.textBaseline = "middle";
-    ctx.fillText(text, left + size / 2, y - size * 0.6);
-  }
-
   // Pour les essais depuis la console : window.mesures.app.click(yaw, pitch)
-  window.mesures = { get app() { return app; }, get psv() { return psv; }, map, openPhoto, buildFiche, paginateFiche, photoAtOffset, importOverlay,
+  window.mesures = { get app() { return app; }, get psv() { return psv; }, map, openPhoto, buildFiche, paginateFiche, photoAtOffset, importOverlay, thumbnail,
     overlayFile: (handle) => { overlay.fichier = handle; } };  // fichier de la couche remplacé (essais)
 })();

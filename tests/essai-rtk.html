@@ -211,6 +211,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         r(out.toDataURL("image/png"));
       }, { once: true }) || psv.needsUpdate());
       await log("IMAGE vue " + shot);
+      await log("IMAGE vignette " + w.mesures.thumbnail().toDataURL("image/png"));  // même surcouche, lue pour la capture
     }
     // Sur l'autre photo, seulement la hauteur qui y a été prise (ticket #24 : projetée, la 2e y serait décalée)
     w.mesures.openPhoto(photos[1]);

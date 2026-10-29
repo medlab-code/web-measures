@@ -98,7 +98,7 @@ const Traits = (() => {
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
     photo.after(canvas);
     psv = viewer;
-    psv.addEventListener("render", draw);
+    psv.addEventListener("render", () => draw());
     // Étiquettes faites avant le chargement de la police : refaites avec elle
     document.fonts?.ready.then(() => { images.clear(); psv.needsUpdate(); });
     return true;
@@ -108,7 +108,7 @@ const Traits = (() => {
 
   /**
    * Surcouche à dessiner. list : traits [{points: [[yaw, pitch]] (radians, repère de la photo), color: "#rrggbb",
-   * width: px, dash: [trait, blanc] en px ou null}]. marks.crosses : croix [{at: [yaw, pitch], color, ring (cercle
+   * width: px, dash: [trait, blanc] en px ou null, couche : ligne de la couche importée}]. marks.crosses : croix [{at: [yaw, pitch], color, ring (cercle
    * de la croix choisie, couleur ou null), visee, calage}] ; marks.labels : étiquettes [{at, type ("mesure", "fin" :
    * au point d'arrivée, ouverte par le nom du point, ou "nom"), place ("dessus", "cote", "dessous", "left",
    * "right", "above", "below"), text, chip (nom du point, étiquette « fin »), provisional}]. Redessinés à l'image
@@ -207,7 +207,8 @@ const Traits = (() => {
     return { left, top, right: left + w, bottom: top + h };
   }
 
-  function draw() {
+  // capture : sans les lignes de la couche importée (la capture les dessine sous ses pastilles) ni le réticule
+  function draw(capture = false) {
     const width = canvas.clientWidth, height = canvas.clientHeight, ratio = window.devicePixelRatio || 1;
     if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
       canvas.width = Math.round(width * ratio);
@@ -218,7 +219,8 @@ const Traits = (() => {
     gl.clear(gl.COLOR_BUFFER_BIT);
     shown = [];
     rects = [];
-    if (!width || !(lines.length || crosses.length || labels.length || slide)) return;
+    const drawnLines = capture ? lines.filter((l) => !l.couche) : lines, reticle = capture ? null : slide;
+    if (!width || !(drawnLines.length || crosses.length || labels.length || reticle)) return;
     const camera = psv.renderer.camera;
     const m = camera.matrixWorldInverse.elements, p = camera.projectionMatrix.elements;
     const view = (v) => [m[0] * v.x + m[4] * v.y + m[8] * v.z + m[12],
@@ -248,7 +250,7 @@ const Traits = (() => {
       }
     };
 
-    for (const line of lines) {
+    for (const line of drawnLines) {
       const half = line.width / 2, [on, off] = line.dash || [0, 0];
       let along = 0;  // distance parcourue à l'écran, pour les tirets
       let a = view(line.vectors[0]);
@@ -326,7 +328,7 @@ const Traits = (() => {
     }
 
     // Réticule glissant, au-dessus de tout
-    if (slide) {
+    if (reticle) {
       const s = at(slide.vector);
       if (s) {
         const [x, y] = s;
@@ -363,6 +365,15 @@ const Traits = (() => {
     }
   }
 
+  /** Toile de la surcouche dessinée tout de suite pour une capture (vignette), à lire aussitôt : sans les lignes de
+   * la couche importée ni le réticule ; la visionneuse la redessine en entier à l'image suivante. null sans toile. */
+  function snapshot() {
+    if (!psv) return null;
+    draw(true);
+    psv.needsUpdate();
+    return canvas;
+  }
+
   /** Ce que la dernière image a dessiné (essais) : croix, étiquettes (texte) et réticule, à leur place (px). */
   const drawn = () => shown;
 
@@ -376,5 +387,5 @@ const Traits = (() => {
     return rects.map((r) => ({ left: r.left + b.left, right: r.right + b.left, top: r.top + b.top, bottom: r.bottom + b.top }));
   }
 
-  return { attach, set, setSlide, drawn, items, labelRects };
+  return { attach, set, setSlide, snapshot, drawn, items, labelRects };
 })();
