@@ -36,7 +36,7 @@ const near = (what, value, expected, tol) =>
   expect(what, Math.abs(value - expected) <= tol, `${value} au lieu de ${expected.toFixed(3)} (±${tol})`);
 const metresIn = (text) => Number(((text || "").match(/(\d+,\d+) m\b/) || [])[1]?.replace(",", "."));
 const verdict = () => log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
-const DIJON = ["33565d3f-5e27-47fb-9137-ba4de564530d", "a3996fff-7cf7-44b4-8c54-afd556f2632c"];
+const DIJON = ["20a5b40f-ab06-40ab-97e1-b3f74032bec7", "f85566ac-8b7a-46a2-a9c2-4df0a3fa6e20"];  // CD21, avenue Raymond Poincaré (instance IGN), sans RTK (±4 m), voisines
 const POUILLY = "cd8cf3a0-6567-40f0-8805-94172a5dfc3c";
 const PONT = "b40045bd-1fc5-4a7a-a5bd-7b7952902a1c";  // CD21, tablier de la RD111 au-dessus de l'A6 (Beaune)
 const SANS_LIDAR = "eb5ece3a-381a-47f6-963e-6f3d7ad0029b";  // CD21, pont Camille Baudry (D116), hors LiDAR HD jusqu'en 2026
