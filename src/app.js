@@ -3850,6 +3850,9 @@
     // texte libre, laissé tel quel ou modifié
     $("#titre-fiche").value = all ? overlay.name : layered ? `${overlay.name}, objet ${name}` : `point de référence ${name}`;
     if (layered) showFicheFields();
+    dialog.querySelector(".fiche-tous").hidden = !all;
+    if (all) showFicheObjects();
+    else for (const b of dialog.querySelectorAll(".vue-actuelle, .cadrage-auto")) b.disabled = false;
     const frame = all ? null : showFicheFrame();
     dialog.returnValue = "";
     dialog.addEventListener("close", () => {
@@ -3860,7 +3863,8 @@
         k = { ...k, champs: overlay.fiche.filter(([, on]) => on).map(([c]) => c) };
       }
       const title = $("#titre-fiche").value.trim();
-      if (all) return dialog.returnValue === "auto" ? makeFiches(k.champs, title) : modelFiche(k.champs, title)
+      const ids = all ? [...$("#fiche-objets").querySelectorAll("input:checked")].map((box) => Number(box.value)) : [];
+      if (all) return dialog.returnValue === "auto" ? makeFiches(ids, k.champs, title) : modelFiche(ids, k.champs, title)
         .catch((error) => setStatus(`Fiches impossibles : ${error.message}`, "echec"));
       if (dialog.returnValue === "auto" || !frame) {
         dropFrame(frame);
@@ -3874,14 +3878,14 @@
   /** « Cadrage type » des fiches de tous les objets : photo du 1er objet ouverte et cadrée dessus ; zoom, élévation et
    * photo (tant de photos avant ou après la sienne dans la séquence) choisis par l'utilisateur (reframeFiche), puis
    * repris pour chaque objet, cap tourné vers lui (makeFiches). */
-  async function modelFiche(champs, title) {
-    const first = await overlayFicheData(0, null, true);
+  async function modelFiche(ids, champs, title) {
+    const first = await overlayFicheData(ids[0], null, true);
     if (first.photo && photo?.id !== first.photo) await openPhotoReady(first.photo);
-    frameView(overlayEnds(0));
+    frameView(overlayEnds(ids[0]));
     reframeFiche(showFicheFrame(), () => {  // photo choisie lue dans la visionneuse (flèches comprises)
-      makeFiches(champs, title, { pitch: psv.getPosition().pitch, zoom: psv.getZoomLevel(), chosen: psv.getPictureMetadata?.()?.id || photo?.id });
+      makeFiches(ids, champs, title, { pitch: psv.getPosition().pitch, zoom: psv.getZoomLevel(), chosen: psv.getPictureMetadata?.()?.id || photo?.id });
     });
-    setStatus(`Cadrage type sur l'objet ${overlayObjectName(0)} : réglez le zoom et la hauteur de vue (molette, glisser), `
+    setStatus(`Cadrage type sur l'objet ${overlayObjectName(ids[0])} : réglez le zoom et la hauteur de vue (molette, glisser), `
       + "changez de photo dans la séquence si besoin ; repris pour tous les objets, le cap tourné vers chacun. "
       + "Puis « Valider le cadrage » (Échap pour annuler).");
   }
@@ -4006,8 +4010,49 @@
     arrows();
   }
 
-  // build(step) : HTML de la fiche ; par défaut, celle de k (buildFiche)
-  async function makeFiche(k, auto = true, title = "", build = (step) => buildFiche(k, auto, title, step)) {
+  /** Objets retenus pour les fiches de tous les objets : cochés sauf ceux masqués dans la légende ; boutons de la
+   * fenêtre grisés sans objet retenu. */
+  function showFicheObjects() {
+    const ol = $("#fiche-objets"), masked = overlayMasked();
+    const buttons = $("#choix-fiche").querySelectorAll(".vue-actuelle, .cadrage-auto");
+    const count = () => {
+      const on = ol.querySelectorAll("input:checked").length;
+      $("#fiche-objets-nombre").textContent = `${on} / ${ol.children.length}`;
+      for (const b of buttons) b.disabled = !on;
+      $("#fiche-objets-tous").disabled = on === ol.children.length;
+      $("#fiche-objets-aucun").disabled = !on;
+    };
+    ol.replaceChildren(...overlay.features.map((f, id) => {
+      const li = document.createElement("li"), label = document.createElement("label");
+      const box = Object.assign(document.createElement("input"), { type: "checkbox", value: id, checked: !masked.has(f.properties._cle) });
+      box.addEventListener("change", count);
+      const name = overlayObjectName(id);  // rang affiché quand le nom ne le donne pas (plage « Du … au … »)
+      label.append(box, name === String(id + 1) ? `Objet ${name}` : `${id + 1}. Objet ${name}`);
+      li.append(label);
+      return li;
+    }));
+    const all = (on) => { for (const box of ol.querySelectorAll("input")) box.checked = on; count(); };
+    $("#fiche-objets-tous").onclick = () => all(true);
+    $("#fiche-objets-aucun").onclick = () => all(false);
+    const from = $("#fiche-objets-de"), to = $("#fiche-objets-a");
+    from.max = to.max = ol.children.length;
+    [from.value, to.value] = [1, ol.children.length];
+    const range = () => {  // grisé tant que la plage n'est pas valable
+      const [a, b] = [Number(from.value), Number(to.value)];
+      $("#fiche-objets-plage").disabled = !(Number.isInteger(a) && Number.isInteger(b) && a >= 1 && a <= b && b <= ol.children.length);
+    };
+    from.oninput = to.oninput = range;
+    $("#fiche-objets-plage").onclick = () => {
+      ol.querySelectorAll("input").forEach((box, i) => { box.checked = i + 1 >= Number(from.value) && i + 1 <= Number(to.value); });
+      count();
+    };
+    range();
+    count();
+  }
+
+  // build(step) : HTML de la fiche ; par défaut, celle de k (buildFiche) ; counted : pourcentage donné par build seul,
+  // sans décompte fictif (fiches de plusieurs objets : part des fiches déjà faites)
+  async function makeFiche(k, auto = true, title = "", build = (step) => buildFiche(k, auto, title, step), counted = false) {
     if (!app || !psv) return;
     // Ouverte tout de suite (après une attente, bloquée), en petite fenêtre à part : dans un onglet, la page
     // passerait en arrière-plan, où Chrome et Edge arrêtent requestAnimationFrame et la capture attendrait
@@ -4041,7 +4086,7 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
         bar?.replaceChildren(`${value} %`);
         bar?.setAttribute("aria-valuenow", String(value));
       };
-      tick = setInterval(() => show(Math.min(95, percent + 5)), 2000);
+      if (!counted) tick = setInterval(() => show(Math.min(95, percent + 5)), 2000);
       const html = await build((text, value) => {
         const step = win.document.getElementById("etape");
         if (step) step.textContent = text;
@@ -4064,31 +4109,31 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     }
   }
 
-  /** Fiches de tous les objets de la couche en un seul document, une page chacun (et ses suites), en
+  /** Fiches des objets ids de la couche (retenus dans askFiche) en un seul document, une page chacun (et ses suites), en
    * cadrage automatique, ou type (view : { pitch, zoom, chosen }, voir modelFiche) ; champs : données choisies (askFiche),
    * title : celui de la couche. Toutes les photos d'une même séquence : celle de la photo choisie (cadrage type), sinon
-   * celle de la photo du 1er objet ; chaque objet sur la plus proche de cette séquence, décalée comme la photo choisie
+   * celle de la photo du 1er objet retenu ; chaque objet sur la plus proche de cette séquence, décalée comme la photo choisie
    * l'est de celle du 1er objet. */
-  function makeFiches(champs, title, view = true) {
+  function makeFiches(ids, champs, title, view = true) {
     return makeFiche(null, true, title, async (step) => {  // lu ici : la fenêtre s'ouvre d'abord, au clic
       step("Séquence des photos", 0);
       const read = (id) => (id ? Carte.photoById(id).catch(() => null) : null);
       const rank = (f) => Number(f?.properties?.["geovisio:rank_in_collection"]);
       // Rangs relus dans l'API : la fiche d'une photo atteinte par les flèches de la visionneuse peut ne pas les avoir
       const chosen = await read(view.chosen);
-      const seq = chosen?.collection || (await read((await overlayFicheData(0, null, true)).photo))?.collection || null;
+      const seq = chosen?.collection || (await read((await overlayFicheData(ids[0], null, true)).photo))?.collection || null;
       if (chosen) {
-        const base = await read((await overlayFicheData(0, null, true, seq)).photo);
+        const base = await read((await overlayFicheData(ids[0], null, true, seq)).photo);
         view = { ...view, offset: base?.collection === seq ? rank(chosen) - rank(base) || 0 : 0 };
       }
       let doc = null;
-      const n = overlay.features.length, missed = [];
-      for (let id = 0; id < n; id++) {
+      const n = ids.length, missed = [];
+      for (const [i, id] of ids.entries()) {
         const name = overlayObjectName(id);
         try {
           // own : la photo de chaque objet, pas celle affichée (où des objets proches seraient tous dessinés)
           const html = await buildFiche({ objet: id, champs, own: true, seq }, view, `${title || overlay.name}, objet ${name}`,
-            (text, value) => step(`Objet ${name} (${id + 1} / ${n}) : ${text.toLowerCase()}`, Math.round((id + value / 100) / n * 100)));
+            (text) => step(`Objet ${name} (${i + 1} / ${n}) : ${text.toLowerCase()}`, Math.round(i / n * 100)));
           const page = new DOMParser().parseFromString(html, "text/html");
           if (doc) doc.body.append(page.querySelector(".page"));
           else doc = page;
@@ -4096,13 +4141,14 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
           console.warn(`Fiche de l'objet ${name} :`, error);
           missed.push(`${name} (${error.message})`);
         }
+        step(`${i + 1} fiche${i ? "s" : ""} sur ${n}`, Math.round((i + 1) / n * 100));
       }
       if (missed.length) {
         setStatus(`Fiches : ${missed.length} objet${missed.length > 1 ? "s" : ""} sans fiche : ${missed.join(" ; ")}.`, "echec");
       }
       if (!doc) throw new Error(`aucun objet n'a pu avoir sa fiche (${missed[0] || "couche vide"})`);
       return `<!doctype html>${doc.documentElement.outerHTML}`;
-    });
+    }, true);
   }
 
   /** Vue de la visionneuse immobile (cap, élévation, zoom) depuis 400 ms, ses tuiles chargées, et redessinée : la

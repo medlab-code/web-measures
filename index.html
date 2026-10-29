@@ -514,6 +514,17 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
       <p>Données de la fiche (cochées, dans cet ordre) :</p>
       <ol id="fiche-champs"></ol>
     </div>
+    <!-- Fiches de tous les objets : objets retenus (cochés ; d'abord ceux qui ne sont pas masqués dans la légende) -->
+    <div class="fiche-tous" hidden>
+      <p>Objets retenus (<span id="fiche-objets-nombre"></span>) :
+        <button id="fiche-objets-tous" type="button">Tous</button>
+        <button id="fiche-objets-aucun" type="button">Aucun</button></p>
+      <!-- Rangs dans la liste (1 = premier), bornes comprises : seuls ceux-là sont retenus -->
+      <p class="fiche-plage">Du <input id="fiche-objets-de" type="number" min="1" step="1" aria-label="Premier rang retenu">
+        au <input id="fiche-objets-a" type="number" min="1" step="1" aria-label="Dernier rang retenu">
+        <button id="fiche-objets-plage" type="button" title="Ne retenir que les objets de ces rangs de la liste, bornes comprises">Retenir</button></p>
+      <ol id="fiche-objets"></ol>
+    </div>
     <form method="dialog">
       <label class="titre-fiche">Titre <input id="titre-fiche" type="text" maxlength="120"
         title="Texte libre après « Fiche de mesure — » ; à laisser tel quel ou à modifier"></label>
