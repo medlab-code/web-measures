@@ -1290,6 +1290,6 @@ const Carte = (() => {
 
   return {
     PANORAMAX_API: META_API, GEOPF, OSM_TILES, createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, pcrsAt, instances, setInstance, setFilter,
-    showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre, nearestPhoto, photoById, apiUrl: () => apiUrl,
+    showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre, nearestPhoto, photoById, metresBetween, apiUrl: () => apiUrl,
   };
 })();

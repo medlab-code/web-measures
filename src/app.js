@@ -1498,10 +1498,7 @@
   // carte) ; speed en m/ms ; held : carte saisie à la main
   const follow = { path: [], speed: 0, last: 0, frame: 0, held: false };
 
-  function metresBetween(a, b) {
-    const k = Math.cos(a[1] * Math.PI / 180);
-    return Math.hypot((b[0] - a[0]) * 111320 * k, (b[1] - a[1]) * 111320);
-  }
+  const metresBetween = Carte.metresBetween;
 
   function followPhoto(coords) {
     if (follow.held) return;
