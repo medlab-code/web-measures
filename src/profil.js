@@ -431,7 +431,7 @@ const Profil = (() => {
       const at = (d) => { const k = ds.findIndex((v) => v >= d); return k <= 0 ? zs[0] : zs[k - 1] + (zs[k] - zs[k - 1]) * (d - ds[k - 1]) / (ds[k] - ds[k - 1]); };
       if (b <= a) continue;
       svg.append(el("line", { x1: X(a), y1: Z(at(a)) - 4, x2: X(b), y2: Z(at(b)) - 4, class: "ouvrage" }),
-        el("text", { x: X((a + b) / 2), y: Z(at((a + b) / 2)) - 10, class: "graduation", "text-anchor": "middle" },
+        el("text", { x: X((a + b) / 2), y: Z(at((a + b) / 2)) - 10, class: "graduation place", "text-anchor": "middle" },
           o.type === "pont" ? "pont (tablier interpolé)" : o.type === "creux" ? "creux du terrain (pont ?), comblé" : "tunnel"));
     }
     // Fin de la route de la photo et carrefours avec une voie nommée : trait pointillé et nom
@@ -444,12 +444,14 @@ const Profil = (() => {
       const road = e.voie ? (/^[A-Z]+\d/.test(e.voie) ? `la ${e.voie}` : e.voie) : "la route";
       const lines = [...(e.type === "fin" ? [`fin de ${road}`] : []), ...(e.avec?.length ? [`carrefour avec ${e.avec.join(", ")}`] : [])];
       svg.append(el("line", { x1: X(e.d), x2: X(e.d), y1: T, y2: T + ph, class: "bord" }));
-      lines.forEach((t, i) => svg.append(el("text", { x: X(e.d) + dx, y: y + 13 * i, class: "graduation", "text-anchor": anchor }, t)));
+      // comme « bord » du profil en travers : la 1re ligne en étiquette, la suite en graduation, liserées sur le terrain
+      lines.forEach((t, i) => svg.append(el("text", { x: X(e.d) + dx, y: y + 14 * i,
+        class: i ? "graduation place" : "etiquette-profil place", "text-anchor": anchor }, t)));
     }
     if (top !== null) {  // caméra à sa hauteur au-dessus du sol, pointillé jusqu'à lui
       svg.append(el("line", { x1: X(0), x2: X(0), y1: Z(ground), y2: Z(top), class: "bord" }),
         el("circle", { cx: X(0), cy: Z(top), r: 5, class: "origine" }),
-        el("text", { x: X(0) + 9, y: Z(top) + 4, class: "graduation" }, `caméra (${num(camera, 2)} m)`));
+        el("text", { x: X(0) + 9, y: Z(top) + 4, class: "graduation place" }, `caméra (${num(camera, 2)} m)`));
     }
     const g = long.pente;
     svg.append(el("text", { x: L, y: 18, class: "etiquette-profil" }, `Profil en long\u00a0: ${g >= 0 ? "montée" : "descente"} de ${num(Math.abs(g))} %`
