@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # SPDX-FileCopyrightText: 2026 Cédric COCHART
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Application de mesure dans le navigateur : la session de mesure du cœur du plugin
+"""Application de mesure dans le navigateur : la session de mesure du cœur
 (core/session.py), reliée à la page (src/app.js), qui en appelle les méthodes ; les résultats
 sont rendus en JSON (texte). Ce qui est propre à la page reste ici : services du navigateur
 (web_host), dessin de la carte en GeoJSON, filtre des photos, calage enregistré dans le
@@ -2665,7 +2665,7 @@ class App(session.Session):
         point à viser : triangulé par les visées déjà faites (dès la 3e visée), sinon tel qu'il est
         placé avant de l'être (voir _provisional_point). Une seule fois par photo affichée, et
         seulement si elle n'a pas encore servi à le viser ; null sinon. Propre à la page (pas dans
-        le cœur du plugin)."""
+        le cœur)."""
         if not self.aim_frame or not self.active or not self.item:
             return "null"
         self.aim_frame = False

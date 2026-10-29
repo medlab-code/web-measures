@@ -7,12 +7,11 @@ Ce document explique, mode par mode, comment l'application calcule ce qu'elle af
 les seuils retenus et ce qui limite la précision. Le mode d'emploi est dans le
 [README](../README.md) (« Utilisation »), et les essais chiffrés dans sa partie « Précision ».
 Les calculs communs avec le plugin QGIS (triangulation, inclinaison, vérification RTK) sont
-détaillés dans `docs/MESURES.md` du plugin
-[Visionneuse Panoramax](https://github.com/medlab-code/visionneuse_panoramax), sections 0, 2.7,
+détaillés dans [`MESURES.md`](MESURES.md) (repris du plugin Visionneuse Panoramax), sections 0, 2.7,
 4.4 et 6.1 bis. Ici, ils sont résumés. Les calculs propres à l'application (pont, « Dévers »,
 analyse fine, relevé) sont décrits en entier.
 
-Code : cœur du plugin dans `py/core/` (copie, ne pas modifier ici), calculs propres à
+Code : cœur de calcul dans `py/core/` (tests : `tests/coeur/`), calculs propres à
 l'application dans `py/web_app.py`, analyse fine du nuage dans `src/nuage.js`, dessin du profil
 dans `src/profil.js`.
 

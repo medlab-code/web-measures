@@ -1,10 +1,9 @@
 # Mesures Panoramax (web-measures) — notes pour Claude Code
 
 Application web de mesure sur les photos Panoramax, pour les utilisateurs sans QGIS.
-Reprend les calculs du plugin QGIS « Visionneuse Panoramax »
-(`~/claude/visionneuse_panoramax`, dépôt `medlab-code/visionneuse_panoramax`) : voir son
-`docs/MESURES.md` (méthodes et validations) et `docs/feuille-de-route.md` (choix de cette
-application). Auteur : Cédric COCHART.
+Les calculs viennent du plugin QGIS « Visionneuse Panoramax » (`~/claude/visionneuse_panoramax`),
+qui n'en a plus depuis le 29/10/2026 : ils vivent ici (`py/core/`, `py/web_app.py`). Méthodes et
+validations : `docs/MESURES.md` (repris du plugin) et `docs/CALCULS.md`. Auteur : Cédric COCHART.
 
 ## Règles
 
@@ -17,15 +16,17 @@ application). Auteur : Cédric COCHART.
   par CDN (jsDelivr), versions épinglées.
 - Services appelés depuis le navigateur : ils doivent renvoyer les en-têtes CORS (la page
   d'accueil les vérifie). OpenTopoData, qui ne les renvoie pas, a été retiré (ticket #1).
-- Calculs : ne pas réécrire ceux du plugin. Le cœur Python du plugin (sans QGIS) doit
-  tourner tel quel dans Pyodide ; ses tests restent la référence.
+- Cœur de calcul (`py/core/`, repris du plugin) : ses tests sont dans `tests/coeur/` (scènes
+  synthétiques à réponse connue) ; tout correctif du cœur s'accompagne d'un test qui échoue sur
+  l'ancien code.
 - Contrôle de syntaxe JavaScript : `gjs` (pas de Node sur le poste).
 - Essai dans un vrai navigateur sans fenêtre : Google Chrome du paquet Fedora
   (`google-chrome`, plus de Flatpak), profil temporaire, lancé par `setsid` : à la fin,
   n'arrêter que ce Chrome-là (son groupe de processus, ou les processus portant son profil),
   jamais tous les Chrome par nom (celui de l'utilisateur serait tué).
 - Essais rapides d'abord : un calcul de `py/web_app.py` se vérifie par `tests/test_calculs.py`
-  (`python3 -m unittest discover -s tests`, sans navigateur ni réseau, moins d'une seconde) ; y
+  (`python3 -m unittest discover -s tests`, sans navigateur ni réseau, quelques secondes avec
+  `tests/coeur/`) ; y
   ajouter un cas court par correctif. Les pages d'essai dans le navigateur (plusieurs minutes,
   réseau) : une page ciblée pendant la mise au point, l'ensemble seulement avant de publier.
   Retirer les essais qui ne servent plus (faisabilité, diagnostic, option sans enjeu).
@@ -41,9 +42,8 @@ application). Auteur : Cédric COCHART.
   pont, inclinaison…), mettre à jour dans le même changement les commentaires du code qui la
   décrivent (docstrings, constantes, infobulles, messages), sa description dans le `README.md`
   (« Utilisation », « Précision ») et dans `docs/CALCULS.md`.
-- `py/core/` est une copie du plugin (`tools/update-core.sh`) : corriger dans le plugin,
-  puis recopier. Après toute modification d'un fichier Python sous `py/`, relancer le script :
-  il régénère `py/sources.js` (seul chargé par la page).
+- Après toute modification d'un fichier Python sous `py/`, relancer `tools/sources.sh` : il
+  régénère `py/sources.js` (seul chargé par la page).
 - Essai en `file://` : l'iframe de
   `tests/navigateur.html` n'y est pas accessible (origines distinctes), essayer sur une
   copie de `index.html` qui embarque le script d'essai.

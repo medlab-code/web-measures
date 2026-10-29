@@ -4,8 +4,9 @@ Application web de mesure sur les photos de rue [Panoramax](https://panoramax.fr
 installer QGIS : hauteur d'un objet, largeur d'une chaussée, distance entre deux points, à
 préparer ou vérifier depuis le bureau.
 
-Elle reprend les calculs du plugin QGIS
-[Visionneuse Panoramax](https://github.com/medlab-code/visionneuse_panoramax), validés sur
+Ses calculs viennent du plugin QGIS
+[Visionneuse Panoramax](https://github.com/medlab-code/visionneuse_panoramax) (qui ne garde depuis que la
+visionneuse), validés sur
 des photos imajbox 360 HD à position RTK (Pouilly-en-Auxois, Montbard, Semur-en-Auxois…).
 
 ![Mesures Panoramax : hauteur et largeur depuis des points triangulés, à Châteauneuf](docs/demo.jpg)
@@ -601,8 +602,9 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,4
 | `py/web_host.py` | accès réseau du cœur par le `fetch` du navigateur |
 | `py/web_worker.py` | calculs lourds dans le Pyodide d'arrière-plan |
 | `py/geoid.py` | altitude NGF (grille RAF20 de l'IGN) |
-| `py/core/` | cœur de calcul du plugin, **copié** par `tools/update-core.sh` (ne pas modifier ici) ; dont `widths.py`, la largeur depuis un point triangulé |
-| `py/sources.js` | fichiers Python de `py/` regroupés pour la page (généré par le même script) |
+| `py/core/` | cœur de calcul (repris du plugin) : triangulation, calage, précision, mesures ; dont `widths.py`, la largeur depuis un point triangulé |
+| `py/sources.js` | fichiers Python de `py/` regroupés pour la page (généré par `tools/sources.sh`) |
+| `tests/coeur/` | tests du cœur de calcul : scènes synthétiques à réponse connue (lancés avec `tests/test_calculs.py`) |
 | `tests/essai-cadastre.html` | cadastre sur la mini-carte (PNG dans le journal) |
 | `tests/test_calculs.py` | essais rapides des calculs, sans navigateur ni réseau (`python3 -m unittest discover -s tests`, moins d'une seconde) |
 | `tests/navigateur.html` | essai de bout en bout dans un vrai navigateur |
@@ -613,10 +615,8 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,4
 | `py/web_terrain.py` | inclinaison par le terrain hors agglomération : grille LiDAR HD, modèle de séquence |
 | `tools/serveur-essai.py` | serveur des essais : sert le site et affiche leur journal |
 
-Mettre à jour le cœur : `tools/update-core.sh [dossier du plugin] [révision]` (par défaut
-`../visionneuse_panoramax`, branche `dev`) ; la révision copiée est notée dans
-`py/core/SOURCE`. À relancer aussi après toute modification d'un fichier Python sous `py/`
-(il régénère `py/sources.js`).
+Après toute modification d'un fichier Python sous `py/` : `tools/sources.sh` (régénère
+`py/sources.js`). Tests sans navigateur : `python3 -m unittest discover -s tests`.
 
 ## Choix
 

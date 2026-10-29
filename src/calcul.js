@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Cédric COCHART
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// Cœur de calcul du plugin Visionneuse Panoramax (py/core/, copié par tools/update-core.sh),
+// Cœur de calcul (py/core/, repris du plugin Visionneuse Panoramax),
 // exécuté dans le navigateur par Pyodide, et piloté par py/web_app.py. Les fichiers Python
-// sont dans py/sources.js (généré par le même script) : la page s'ouvre aussi en double-
+// sont dans py/sources.js (généré par tools/sources.sh) : la page s'ouvre aussi en double-
 // cliquant sur index.html (file://), où le navigateur interdit de lire les fichiers voisins.
 //
 // Deux Pyodide : celui de la page (mesures, rapide) et un second en arrière-plan (Web Worker)

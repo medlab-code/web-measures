@@ -1,0 +1,314 @@
+# -*- coding: utf-8 -*-
+# SPDX-FileCopyrightText: 2026 Cédric COCHART
+# SPDX-License-Identifier: GPL-2.0-or-later
+"""Tests de precision.py : précision GPS vérifiée sur la séquence, mode dégradé.
+
+Les services sont simulés : photos voisines de la séquence (Panoramax), sol LiDAR HD (IGN) et
+géoïde (écart constant de GEOID m entre altitude GPS et altitude NGF)."""
+
+import random
+import unittest
+from unittest import mock
+from urllib.parse import parse_qs, urlsplit
+
+from support import LAT0, module, point
+
+precision = module("core.precision")
+
+GEOID, GROUND, CAMERA = 47.59, 391.4, 1.88
+
+
+def photo(i, noise=0.0, differential=True, sequence="seq", altitude=True):
+    lon, lat = point(0, 5.0 * i)
+    exif = {"Exif.GPSInfo.GPSDifferential": "1" if differential else "0"}
+    if altitude:
+        exif["Exif.GPSInfo.GPSAltitude"] = "{:.0f}/100".format((GROUND + 0.01 * i + CAMERA + GEOID + noise) * 100)
+    return {"id": "p{}".format(i), "collection": sequence, "geometry": {"coordinates": [lon, lat]},
+            "properties": {"exif": exif, "quality:horizontal_accuracy": 2.0}}
+
+
+class FakeServices:
+    def __init__(self, photos, lidar=True, down=(), bbox=False, fail_after=None, rge=False):
+        """lidar, rge : LiDAR HD, RGE ALTI publiés ; bbox : la recherche ne renvoie que les photos
+        de son emprise (limite comprise) ; fail_after : service d'altimétrie injoignable après
+        autant de requêtes."""
+        self.photos, self.lidar, self.rge, self.down, self.calls = photos, lidar, rge, set(down), []
+        self.bbox, self.fail_after = bbox, fail_after
+
+    def __call__(self, url, callback, timeout_ms=None, prefer_cache=False):
+        host = urlsplit(url).netloc
+        self.calls.append(host)
+        if host in self.down:
+            callback(None, "délai dépassé")
+        elif "search" in url:
+            photos = self.photos
+            if self.bbox:
+                query = parse_qs(urlsplit(url).query)
+                x0, y0, x1, y1 = (float(v) for v in query["bbox"][0].split(","))
+                photos = [p for p in photos if x0 <= p["geometry"]["coordinates"][0] <= x1
+                          and y0 <= p["geometry"]["coordinates"][1] <= y1][:int(query["limit"][0])]
+            callback({"features": photos}, None)
+        elif self.fail_after is not None and self.calls.count(host) > self.fail_after:
+            callback(None, "HTTP 429")
+        else:
+            query = parse_qs(urlsplit(url).query)
+            lats = [float(v) for v in query["lat"][0].split("|")]
+            published = self.lidar if query["resource"][0] == precision.LIDAR_RESOURCE else self.rge
+            # Sol qui monte de 1 cm par photo (5 m), comme l'altitude des photos
+            callback({"elevations": [GROUND + 0.01 * round((lat - LAT0) * 111195 / 5) if published else -99999
+                                     for lat in lats]}, None)
+
+
+class Check(unittest.TestCase):
+    def check(self, item, services, checker=None):
+        checker = checker or precision.PrecisionChecker()
+        out = []
+        with mock.patch.object(precision.host, "fetch_json", services), \
+                mock.patch.object(precision.host, "ngf_altitude", lambda lon, lat, h: None if h is None else h - GEOID):
+            checker.check(item, out.append)
+        self.assertEqual(len(out), 1)
+        return out[0]
+
+    def test_rtk_sequence_verified(self):
+        rng = random.Random(1)
+        photos = [photo(i, rng.gauss(0, 0.04)) for i in range(20)]
+        res = self.check(photos[0], FakeServices(photos))
+        self.assertTrue(res["precise"])
+        self.assertEqual(res["accuracy"], precision.VERIFIED_ACCURACY)
+        self.assertAlmostEqual(res["height"], CAMERA, delta=0.03)
+        self.assertLess(res["spread"], precision.MAX_SPREAD)
+        self.assertFalse(precision.degraded(res))
+
+    def test_one_outlier_ignored(self):
+        # Une photo sous un pont (sol LiDAR faux) : la séquence RTK reste vérifiée
+        rng = random.Random(3)
+        photos = [photo(i, rng.gauss(0, 0.02)) for i in range(20)]
+        photos[7] = photo(7, 1.5)
+        res = self.check(photos[0], FakeServices(photos))
+        self.assertTrue(res["precise"])
+        self.assertEqual(res["count"], 19)
+        self.assertIn("1 écartée", res["reason"])
+
+    def test_slow_drift_refused(self):
+        # GPS lisse mais qui dérive de 2 cm par photo (40 cm sur 100 m) : écart-type sous 20 cm,
+        # mais pas une hauteur de caméra constante
+        photos = [photo(i, 0.02 * i) for i in range(20)]
+        res = self.check(photos[0], FakeServices(photos))
+        self.assertFalse(res["precise"])
+        self.assertIn("dérive", res["reason"])
+
+    def test_other_portion_verifies_sequence(self):
+        # Séquence de 1 km : hauteur de caméra dispersée autour de la photo (pont, défaut du
+        # LiDAR), constante plus loin : la séquence est vérifiée par une autre portion
+        rng = random.Random(3)
+        photos = [photo(i, rng.gauss(0, 0.5) if i < 30 else rng.gauss(0, 0.02)) for i in range(200)]
+        services, checker = FakeServices(photos, bbox=True), precision.PrecisionChecker()
+        res = self.check(photos[0], services, checker)
+        self.assertTrue(res["precise"])
+        self.assertIn("m de la photo (même séquence)", res["reason"])
+        self.assertTrue(checker.known(photos[5])["precise"])  # pour toute la séquence
+
+    def test_other_portions_refused(self):
+        rng = random.Random(4)
+        photos = [photo(i, rng.gauss(0, 0.5)) for i in range(200)]  # DGPS sur toute la séquence
+        services = FakeServices(photos, bbox=True)
+        res = self.check(photos[0], services)
+        self.assertFalse(res["precise"])
+        self.assertIn("2 autres portions de la séquence non vérifiées", res["reason"])
+        # Une recherche par portion (3), la recherche des autres portions, une requête LiDAR par portion
+        self.assertEqual(services.calls.count("data.geopf.fr"), 3)
+
+    def test_other_portion_service_down(self):
+        # Service d'altimétrie injoignable pendant les autres portions : résultat provisoire
+        rng = random.Random(5)
+        photos = [photo(i, rng.gauss(0, 0.5) if i < 30 else 0.0) for i in range(200)]
+        checker = precision.PrecisionChecker()
+        res = self.check(photos[0], FakeServices(photos, bbox=True, fail_after=1), checker)
+        self.assertFalse(res["precise"])
+        self.assertTrue(res["transient"])
+        self.assertIsNone(checker.known(photos[0]))  # refait à la prochaine photo
+
+    def test_dgps_sequence_not_verified(self):
+        rng = random.Random(2)
+        photos = [photo(i, rng.gauss(0, 0.5)) for i in range(20)]  # altitude GPS à ±0,5 m
+        res = self.check(photos[0], FakeServices(photos))
+        self.assertFalse(res["precise"])
+        self.assertTrue(res["lidar"])
+        self.assertTrue(precision.degraded(res))  # LiDAR publié, mais position non vérifiée
+        self.assertIsNone(precision.camera_suggestion(res))
+
+    def test_degraded_without_lidar(self):
+        photos = [photo(i) for i in range(20)]
+        res = self.check(photos[0], FakeServices(photos, lidar=False))
+        self.assertFalse(res["precise"])
+        self.assertIs(res["lidar"], False)
+        self.assertTrue(precision.degraded(res))
+        res = self.check(photo(0, differential=False), FakeServices([], lidar=False))  # GPS simple
+        self.assertTrue(precision.degraded(res))
+
+    def test_rge_alti_without_lidar(self):
+        # LiDAR HD pas encore publié : le RGE ALTI vérifie la séquence, la source est dite
+        photos = [photo(i) for i in range(20)]
+        res = self.check(photos[0], FakeServices(photos, lidar=False, rge=True))
+        self.assertTrue(res["precise"])
+        self.assertIs(res["lidar"], True)
+        self.assertEqual(res["terrain"], "RGE ALTI")
+        self.assertAlmostEqual(res["height"], CAMERA, delta=0.03)
+        self.assertIn("RGE ALTI", precision.state_text(res))
+        self.assertIn("moins le sol RGE ALTI", precision.camera_suggestion(res)[1])
+        res = self.check(photos[0], FakeServices(photos, rge=True))  # LiDAR HD publié : lui d'abord
+        self.assertEqual(res["terrain"], "LiDAR HD")
+
+    def test_declared_accuracy(self):
+        item = photo(0, differential=False)
+        item["properties"]["exif"]["Exif.GPSInfo.GPSHPositioningError"] = "5/100"
+        res = self.check(item, FakeServices([], lidar=True))
+        self.assertEqual((res["precise"], res["accuracy"], res["lidar"]), (True, 0.05, True))
+        self.assertAlmostEqual(res["height"], CAMERA, places=6)  # hauteur de caméra de la photo
+        self.assertFalse(precision.degraded(res))
+        services = FakeServices([], lidar=False)
+        res = self.check(item, services)
+        self.assertTrue(res["precise"])
+        self.assertTrue(precision.degraded(res))  # précise, mais sans LiDAR HD
+        self.assertIsNone(res["height"])
+        self.assertEqual(services.calls, ["data.geopf.fr"] * 2)  # sol sous la photo seulement (LiDAR, RGE ALTI)
+
+    def test_too_few_photos_or_altitudes(self):
+        photos = [photo(i) for i in range(5)] + [photo(i, altitude=False) for i in range(5, 20)]
+        res = self.check(photos[0], FakeServices(photos))
+        self.assertFalse(res["precise"])
+        self.assertIn("5 photos voisines", res["reason"])
+
+    def test_once_per_sequence(self):
+        photos = [photo(i) for i in range(20)]
+        services, checker = FakeServices(photos), precision.PrecisionChecker()
+        self.check(photos[0], services, checker)
+        self.check(photos[7], services, checker)
+        self.assertEqual(len(services.calls), 2)  # une recherche et une requête LiDAR
+        self.assertTrue(checker.known(photos[3])["precise"])
+
+    def test_differential_required(self):
+        # Altitudes cohérentes, mais aucune correction différentielle déclarée : non vérifiée
+        photos = [photo(i, differential=False) for i in range(20)]
+        services = FakeServices(photos)
+        res = self.check(photos[0], services)
+        self.assertFalse(res["precise"])
+        self.assertTrue(res["lidar"])
+        self.assertEqual(services.calls, ["data.geopf.fr"])  # LiDAR sous la photo seulement
+
+    def test_service_down_simple_gps(self):
+        res = self.check(photo(0, differential=False), FakeServices([], down={"data.geopf.fr"}))
+        self.assertIsNone(res["lidar"])
+        self.assertTrue(precision.degraded(res))
+
+    def test_service_down(self):
+        photos = [photo(i) for i in range(20)]
+        res = self.check(photos[0], FakeServices(photos, down={"data.geopf.fr"}))
+        self.assertFalse(res["precise"])
+        self.assertIsNone(res["lidar"])  # inconnu
+        self.assertTrue(precision.degraded(res))  # position non vérifiée
+        self.assertIn("non vérifié (service d'altimétrie indisponible)", precision.degraded_reasons(res)[-1])
+
+
+    def test_camera_suggestion(self):
+        photos = [photo(i) for i in range(20)]
+        height, tip = precision.camera_suggestion(self.check(photos[0], FakeServices(photos)))
+        self.assertAlmostEqual(height, CAMERA, delta=0.01)
+        self.assertIn("médiane de 20 photos de la séquence, écart-type 0 cm", tip)
+        item = photo(0, differential=False)
+        item["properties"]["exif"]["Exif.GPSInfo.GPSHPositioningError"] = "5/100"
+        height, tip = precision.camera_suggestion(self.check(item, FakeServices([])))
+        self.assertAlmostEqual(height, CAMERA, places=6)
+        self.assertIn("précision déclarée ±5 cm", tip)
+        item["properties"]["exif"]["Exif.GPSInfo.GPSAltitude"] = "{:.0f}/100".format((GROUND + 8 + GEOID) * 100)
+        self.assertIsNone(precision.camera_suggestion(self.check(item, FakeServices([]))))  # invraisemblable
+
+    def test_service_down_not_kept(self):
+        """Résultat obtenu malgré un service injoignable : la vérification est refaite ensuite."""
+        photos = [photo(i) for i in range(20)]
+        checker = precision.PrecisionChecker()
+        res = self.check(photos[0], FakeServices(photos, down={"data.geopf.fr"}), checker)
+        self.assertTrue(res["transient"])
+        self.assertIsNone(checker.known(photos[0]))
+        res = self.check(photos[1], FakeServices(photos), checker)  # service revenu
+        self.assertTrue(res["precise"])
+        self.assertTrue(checker.known(photos[0])["precise"])
+
+    def test_search_down_not_kept(self):
+        photos = [photo(i) for i in range(20)]
+        checker = precision.PrecisionChecker()
+        services = FakeServices(photos, down={"api.panoramax.xyz"})
+        res = self.check(photos[0], services, checker)
+        self.assertFalse(res["precise"])
+        self.assertTrue(res["transient"])
+        self.assertIsNone(checker.known(photos[0]))
+
+    def test_photos_without_sequence(self):
+        """Deux photos sans séquence vérifiées en même temps : chacune son résultat."""
+        declared = photo(0, differential=False, sequence=None)
+        declared["properties"]["exif"]["Exif.GPSInfo.GPSHPositioningError"] = "5/100"
+        simple = photo(1, differential=False, sequence=None)
+        pending = []
+        checker, out = precision.PrecisionChecker(), {}
+
+        def fake(url, callback, **kwargs):
+            pending.append(callback)
+
+        with mock.patch.object(precision.host, "fetch_json", fake):
+            checker.check(declared, lambda res: out.setdefault("declared", res))
+            checker.check(simple, lambda res: out.setdefault("simple", res))
+        self.assertEqual(len(pending), 2)  # deux vérifications, pas une seule partagée
+        for callback in pending:
+            callback({"elevations": [{"z": GROUND}]}, None)
+        self.assertTrue(out["declared"]["precise"])
+        self.assertFalse(out["simple"]["precise"])
+
+
+class Texts(unittest.TestCase):
+    def test_computed(self):
+        self.assertEqual(precision.computed_text(None), "en cours…")
+        res = precision.result(True, 0.1, True, "vérifiée", count=20, spread=0.06, height=2.0, terrain="RGE ALTI")
+        self.assertEqual(precision.computed_text(res), "±0,10 m (hauteur de caméra constante à 6 cm, RGE ALTI)")
+        res = precision.result(True, 0.05, True, "précision déclarée")
+        self.assertEqual(precision.computed_text(res), "±0,05 m (précision déclarée dans la photo)")
+        res = precision.result(False, lidar=True, reason="position non vérifiée : hauteur de caméra variable de 35 cm "
+                                                          "sur 20 photos")
+        self.assertEqual(precision.computed_text(res), "non vérifiée (hauteur de caméra variable de 35 cm sur 20 photos)")
+        res = precision.result(False, lidar=True, reason="pas de correction différentielle déclarée")
+        self.assertEqual(precision.computed_text(res), "non vérifiée (pas de correction différentielle déclarée)")
+        self.assertEqual(precision.computed_text(precision.result(False, lidar=False)),
+                         "impossible (pas de LiDAR HD ni de RGE ALTI)")
+        self.assertIn("service d'altimétrie indisponible", precision.computed_text(precision.result(False)))
+
+    def test_full_mode(self):
+        res = precision.result(True, 0.1, True, "vérifiée")
+        self.assertFalse(precision.degraded(res))
+        self.assertEqual(precision.degraded_reasons(res), [])
+        self.assertEqual(precision.state_text(res), "Position GPS vérifiée (±0,10 m) · LiDAR HD")
+
+    def test_degraded(self):
+        res = precision.result(False, lidar=False, reason="pas de correction différentielle déclarée")
+        self.assertEqual(precision.degraded_reasons(res), [
+            "position GPS non vérifiée au décimètre (pas de correction différentielle déclarée)",
+            "pas de modèle de terrain (LiDAR HD, RGE ALTI) à cet endroit"])
+        self.assertEqual(precision.state_text(res, 4.0),
+                         "⚠ Position GPS non vérifiée (±4 m annoncés) · pas de modèle de terrain : mode de mesure dégradé")
+        self.assertFalse(precision.degraded(None))  # vérification en cours
+        self.assertIn("en cours", precision.state_text(None))
+
+    def test_tilt(self):
+        res = precision.result(True, 0.1, True, "vérifiée")
+        self.assertEqual(precision.state_text(res, tilt=("inclinaison calée à la main", False)),
+                         "Position GPS vérifiée (±0,10 m) · LiDAR HD · inclinaison calée à la main")
+        # Position et LiDAR, mais inclinaison non calée : avertissement
+        self.assertEqual(precision.state_text(res, tilt=("inclinaison non calée", True)),
+                         "⚠ Position GPS vérifiée (±0,10 m) · LiDAR HD · inclinaison non calée : calez-la sur deux "
+                         "objets verticaux")
+        degraded = precision.result(False, lidar=True, reason="GPS simple")
+        self.assertTrue(precision.state_text(degraded, 4.0, ("inclinaison non calée", True)).endswith(
+            "inclinaison non calée : mode de mesure dégradé"))
+        self.assertEqual(precision.state_text(None, tilt=("inclinaison non calée", True)),
+                         "⚠ Position GPS et LiDAR HD : vérification en cours… · inclinaison non calée")
+
+if __name__ == "__main__":
+    unittest.main()
