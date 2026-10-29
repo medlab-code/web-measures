@@ -21,6 +21,10 @@ La précision dépend donc de celle de la position et du cap des photos : les me
 fiables sur des photos à **position GPS RTK vérifiée** (voyant RTK vert). Ailleurs, elles
 restent possibles, mais la page prévient qu'elles seront probablement incohérentes.
 
+Les calculs de chaque mode (point triangulé, hauteur, largeur, relevé, chute sur un pont,
+« Dévers », pente en long, analyse fine du nuage LiDAR) sont expliqués dans
+[docs/CALCULS.md](docs/CALCULS.md).
+
 ## Utilisation
 
 **Télécharger** : prendre l'archive `web-measures-X.Y.Z.zip` de la dernière version
@@ -231,10 +235,12 @@ après.
     même route ne continue : le profil s'arrête là aussi, même si la caméra a continué sur une autre route, et les
     pentes ne portent que sur la partie gardée), « carrefour avec D18 » là où une voie nommée (numéro ou nom) s'y
     raccorde (deux raccordements de la même voie à moins de 30 m, comme autour d'un îlot séparateur : un seul
-    carrefour, au milieu) ; les voies sans numéro ni nom ne sont pas mentionnées ; ponts et tunnels de la route (BD
-    TOPO) : le MNT y donne le fond franchi ou le dessus du tunnel, remplacé par la droite d'une culée à l'autre (le
-    tablier, à peu près, en tirets « pont (tablier interpolé) »), pentes comprises ; ouvrage au bout du profil, une
-    seule culée : pas de terrain dessus ; pente moyenne par les moindres
+    carrefour, au milieu) ; les voies sans numéro ni nom ne sont pas mentionnées ; ponts : le MNT y donne le fond
+    franchi ; tout creux où le terrain plonge de plus de 20 % (une route : 15 % au plus) est remplacé par la droite d'un
+    bord à l'autre, jusqu'en haut de la remontée (le tablier, à peu près, en tirets « pont (tablier interpolé) », ou
+    « creux du terrain (pont ?) » hors des ponts de la BD TOPO, souvent plus courts que la brèche), pentes comprises ;
+    creux ouvert au bout du profil : coupé ; tunnels de la route (BD TOPO) : le dessus remplacé par la droite d'une tête
+    à l'autre ; pente moyenne par les moindres
     carrés (montée ou descente dans le sens de la photo) et pente la plus forte sur 10 m ; une ligne de l'encadré,
     et un petit graphique (profil en long) sous le profil en travers, repris dans l'image PNG.
 
@@ -526,6 +532,17 @@ Sous des arbres ou un mur, le modèle de terrain est interpolé et adoucit la pe
 la chaussée vient d'une rupture de pente du terrain, sinon de la largeur BD TOPO. Pas encore
 comparé à des talus de hauteur connue.
 
+Pente en long (`tests/essai-bords.html`, photos 732c2c09, cd5e947c, d148d430 et 70b78dc8) : profils
+cohérents avec la route vue sur la photo, arrêt à la fin de la D16, un seul carrefour autour d'un
+îlot séparateur, tablier d'un pont interpolé, y compris quand le pont de la BD TOPO est plus court
+que la brèche du terrain (70b78dc8 : 86 % sur 10 m avant correction, 4,7 % après). Le MNT donne la pente à quelques dixièmes de point près
+sur 100 m ; sur un pont, le tablier est une droite d'une culée à l'autre, sans sa courbure.
+
+Analyse fine (`tests/essai-nuage.html`, A38, RD903bis, D1074, RD700) : bords de chaussée et
+séparateur placés à la case du nuage près (0,25 m). Un marquage effacé ou une ligne de rive
+absente renvoie à la fin de l'enrobé. L'herbe du séparateur de l'A38 n'est pas reconnue, et l'eau
+du nuage n'a été vue sur aucune photo d'essai.
+
 L'incertitude de la largeur vient surtout de l'axe de la route et de la position du point de
 référence le long de la route. Sur une séquence RTK vérifiée, l'axe est la direction de la
 trajectoire sur ±20 m (±0,5°) quand elle est droite (photos à moins de 10 cm de leur droite,
@@ -555,6 +572,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,4
 
 | Fichier | Rôle |
 |---|---|
+| `docs/CALCULS.md` | calculs de chaque mode, seuils et précision |
 | `index.html`, `src/style.css` | page et mise en page |
 | `src/app.js` | relie carte, visionneuse et calcul : clics, clavier, repères, liseré, filtre |
 | `src/carte.js` | carte MapLibre : fonds, filaire, points de repère (PR), mesures, étiquettes, poignées, photo la plus proche |

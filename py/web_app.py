@@ -1764,6 +1764,10 @@ class App(session.Session):
     # et la plus forte sur LONG_WINDOW m
     LONG_REACH, LONG_STEP, LONG_WINDOW = 50, 2, 10
     LONG_JUNCTION = 30.0  # m : repères de carrefour avec la même voie plus proches : un seul carrefour (îlot séparateur)
+    # Creux du profil en long : le MNT n'a pas les ponts (fond franchi), et le tronçon BD TOPO en pont est souvent plus court
+    # que la brèche, ou absent ; une route ne plonge pas de plus de DIP_SLOPE (15 % au plus), le terrain qui le fait est sous
+    # un ouvrage, comblé d'un bord à l'autre (_bridged)
+    DIP_SLOPE = 0.2
     EDGE_CONSENSUS = 3.0  # m : bord (ou séparateur) d'un travers plus loin de la médiane des autres : ramené à elle
     # Séparateur étroit sans marches (glissières dos à dos, muret : le MNT n'en garde que l'assise) : pic de 1 ou 2 points au
     # moins PEAK_Z m au-dessus des points voisins, au même endroit (PEAK_SPREAD m près) sur PEAK_TRAVERS travers au moins
@@ -1854,6 +1858,35 @@ class App(session.Session):
 
     CHAIN_TURN = 60.0  # degrés de déviation au plus d'un tronçon à l'autre en prolongeant la route
     CHAIN_REACH, CHAIN_TOUCH = 60.0, 2.0  # m ajoutés au plus de chaque côté ; bouts de tronçons qui se touchent
+
+    def _bridged(self, pts):
+        """Profil en long [(d, z)] sans ses creux : là où le terrain plonge de plus de DIP_SLOPE d'un point au suivant, droite
+        du bord jusqu'au point où il revient au niveau de la route (pas plus bas que DIP_SLOPE depuis le bord), poussé jusqu'en
+        haut de la remontée. Dans les deux sens : un creux ouvert au bout du profil (pas d'autre bord) y est coupé.
+        Rend (profil, [(de, à)] des creux comblés)."""
+        slope, out, dips = self.DIP_SLOPE, list(pts), []
+        for rev in (False, True):
+            if rev:
+                out = [(-d, v) for d, v in reversed(out)]
+            k = 0
+            while k < len(out) - 1:
+                (da, za), (db, zb) = out[k], out[k + 1]
+                if za - zb <= slope * (db - da):
+                    k += 1
+                    continue
+                j = next((j for j in range(k + 2, len(out)) if out[j][1] >= za - slope * (out[j][0] - da)), None)
+                if j is None:
+                    out = out[:k + 1]
+                    break
+                while j < len(out) - 1 and out[j + 1][1] - out[j][1] > slope * (out[j + 1][0] - out[j][0]):
+                    j += 1
+                d1, z1 = out[j]
+                out = out[:k + 1] + [(d, za + (z1 - za) * (d - da) / (d1 - da)) for d, _ in out[k + 1:j]] + out[j:]
+                dips.append((-d1, -da) if rev else (da, d1))
+                k = j
+            if rev:
+                out = [(-d, v) for d, v in reversed(out)]
+        return out, dips
 
     def _chained(self, line, sec, sections, lon, lat):
         """Ligne du tronçon de la photo (mètres locaux) prolongée à chaque bout par les tronçons au sol de la même route
@@ -2289,21 +2322,25 @@ class App(session.Session):
                 if e["type"] == "fin":
                     pts = [(d, v) for d, v in pts if (d <= e["d"] + 1e-6 if e["d"] > 0 else d >= e["d"] - 1e-6)]
             cuts = [e for e in cuts if pts and pts[0][0] - 1 <= e["d"] <= pts[-1][0] + 1]
-            # Ponts et tunnels de la route : le MNT y donne le fond franchi (ou le dessus du tunnel) ; terrain remplacé par la
-            # droite d'une culée à l'autre (le tablier, à peu près), pente comprise
-            spans = []
+            # Creux (ponts, même absents de la BD TOPO) : terrain remplacé par la droite d'un bord à l'autre (le tablier, à peu
+            # près), pente comprise ; nommés « pont » s'ils recouvrent un pont de la route
+            pts, dips = self._bridged(pts)
+            bridges = [sorted((along_of(a), along_of(b))) for level, a, b in ends[2] if level > 0]
+            spans = [{"de": round(lo, 1), "a": round(hi, 1),
+                      "type": "pont" if any(b0 <= hi and b1 >= lo for b0, b1 in bridges) else "creux"} for lo, hi in dips]
+            # Tunnels de la route : le MNT y donne le dessus, remplacé par la droite d'une tête à l'autre
             for level, a, b in ends[2]:
                 lo, hi = sorted((along_of(a), along_of(b)))
                 before = [(d, v) for d, v in pts if d <= lo + 1e-6]
                 after = [(d, v) for d, v in pts if d >= hi - 1e-6]
-                if not pts or hi < pts[0][0] or lo > pts[-1][0]:
+                if level > 0 or not pts or hi < pts[0][0] or lo > pts[-1][0]:
                     continue
                 if before and after:
                     (d0, z0), (d1, z1) = before[-1], after[0]
                     pts = [(d, z0 + (z1 - z0) * (d - d0) / ((d1 - d0) or 1.0)) if d0 < d < d1 else (d, v) for d, v in pts]
-                else:  # ouvrage au bout du profil, une seule culée : pas de terrain dessus
+                else:  # tunnel au bout du profil, une seule tête : pas de terrain dessus
                     pts = [(d, v) for d, v in pts if not lo < d < hi]
-                spans.append({"de": round(lo, 1), "a": round(hi, 1), "type": "pont" if level > 0 else "tunnel"})
+                spans.append({"de": round(lo, 1), "a": round(hi, 1), "type": "tunnel"})
             grade = None
             if len(pts) >= 5:
                 md, mz = sum(d for d, _ in pts) / len(pts), sum(v for _, v in pts) / len(pts)

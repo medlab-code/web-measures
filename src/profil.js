@@ -425,14 +425,14 @@ const Profil = (() => {
       const [, a, b] = long.max, za = zs[ds.indexOf(a)], zb = zs[ds.indexOf(b)];
       svg.append(el("line", { x1: X(a), y1: Z(za), x2: X(b), y2: Z(zb), class: "devers" }));
     }
-    // Ponts et tunnels : le tablier (droite d'une culée à l'autre) en tirets, nommé au-dessus
+    // Ponts, creux comblés et tunnels : le tablier (droite d'un bord à l'autre) en tirets, nommé au-dessus
     for (const o of long.ouvrages || []) {
       const [a, b] = [Math.max(o.de, d0, Math.min(...ds)), Math.min(o.a, d1, Math.max(...ds))];
       const at = (d) => { const k = ds.findIndex((v) => v >= d); return k <= 0 ? zs[0] : zs[k - 1] + (zs[k] - zs[k - 1]) * (d - ds[k - 1]) / (ds[k] - ds[k - 1]); };
       if (b <= a) continue;
       svg.append(el("line", { x1: X(a), y1: Z(at(a)) - 4, x2: X(b), y2: Z(at(b)) - 4, class: "ouvrage" }),
         el("text", { x: X((a + b) / 2), y: Z(at((a + b) / 2)) - 10, class: "graduation", "text-anchor": "middle" },
-          o.type === "pont" ? "pont (tablier interpolé)" : "tunnel"));
+          o.type === "pont" ? "pont (tablier interpolé)" : o.type === "creux" ? "creux du terrain (pont ?), comblé" : "tunnel"));
     }
     // Fin de la route de la photo et carrefours avec une voie nommée : trait pointillé et nom
     for (const [k, e] of (long.fins || []).entries()) {

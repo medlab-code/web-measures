@@ -34,8 +34,8 @@ application). Auteur : Cédric COCHART.
   plutôt que masqué. Son état se recalcule à chaque changement qui le concerne.
 - Quand la manière de calculer une mesure change (hauteur, largeur, hauteur de chute sur un
   pont, inclinaison…), mettre à jour dans le même changement les commentaires du code qui la
-  décrivent (docstrings, constantes, infobulles, messages) et sa description dans le `README.md`
-  (« Utilisation », « Précision »).
+  décrivent (docstrings, constantes, infobulles, messages), sa description dans le `README.md`
+  (« Utilisation », « Précision ») et dans `docs/CALCULS.md`.
 - `py/core/` est une copie du plugin (`tools/update-core.sh`) : corriger dans le plugin,
   puis recopier. Après toute modification d'un fichier Python sous `py/`, relancer le script :
   il régénère `py/sources.js` (seul chargé par la page).
