@@ -1,0 +1,54 @@
+<!doctype html><meta charset="utf-8"><title>Essai du profil en PDF</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Profil en travers enregistré en PDF (bouton « Enregistrer en PDF ») : la 1re feuille A4 paysage tient sur une page
+     (Profil.fit), le profil en long sur la 2e (case cochée), lieu de la photo en tête ; sa page HTML part dans le journal (ligne « PAGE », base64) pour en tirer le PDF. Photo D1074 Pommard
+     (#photo=id : une autre). Lancer comme tests/navigateur.html. -->
+<script>try { localStorage.clear(); } catch {}</script>
+<iframe id="f" src="../index.html" style="width:1400px;height:900px;border:0"></iframe>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const ID = location.hash.startsWith("#photo=") ? location.hash.slice(7) : "6d99cba2-2284-4215-a3fb-1fd390353005";
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  try {
+    const t0 = Date.now();
+    while (!(w.mesures?.app && w.mesures.map?.loaded?.())) { if (Date.now() - t0 > 120000) throw new Error("Pyodide"); await sleep(250); }
+    const doc = w.document;
+    w.addEventListener("unhandledrejection", (e) => log("rejet : " + (e.reason?.stack || e.reason)));
+    doc.querySelector("#reglages-defaut")?.close();
+    const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + ID)).json()).features[0];
+    w.mesures.openPhoto(f);
+    await sleep(4000);
+    doc.querySelector("#bords").click();
+    for (let t = Date.now(); /Calcul en cours/.test(doc.querySelector("#chute").textContent) && Date.now() - t < 60000;) await sleep(1000);
+    await sleep(1000);
+    doc.querySelector("#profil").click();
+    await sleep(1000);
+    // Fenêtre d'impression remplacée par un cadre, sans impression : page lue après fit
+    let page = null;
+    w.open = () => {  // cadre de la taille d'une A4 paysage (pas de fenêtre surgissante sans fenêtre)
+      const frame = Object.assign(document.createElement("iframe"), { style: "width:1123px;height:794px;border:0" });
+      document.body.append(frame);
+      page = frame.contentWindow;
+      page.print = () => {};
+      return page;
+    };
+    const withLong = doc.querySelector("#profil-pdf-long");
+    if (!withLong.checked) withLong.click();  // 2e page : profil en long
+    doc.querySelector("#profil-pdf").click();
+    for (let t = Date.now(); !page?.document.querySelector(".page") && Date.now() - t < 45000;) await sleep(250);
+    await sleep(3000);  // styles, polices, puis fit
+    const sheet = page?.document.querySelector(".page");
+    if (!sheet) throw new Error("pas de feuille : " + (page ? page.document.body?.textContent.slice(0, 200) : "fenêtre non ouverte"));
+    const pages = page.document.querySelectorAll(".page").length;
+    const fits = sheet.scrollHeight <= sheet.clientHeight + 1 && pages === 2;
+    log(`pages : ${pages} · lieu : ${page.document.querySelector(".lieu")?.textContent || "(aucun)"}`);
+    log(`feuille : ${sheet.scrollHeight} / ${sheet.clientHeight} px, réglages ${page.document.documentElement.getAttribute("style") || "aucun"}`);
+    const html = "<!doctype html>" + page.document.documentElement.outerHTML;
+    await log("PAGE " + btoa(unescape(encodeURIComponent(html))));
+    log(fits ? "FIN" : "ERREUR feuille plus haute qu'une page, ou pas de 2e page");
+  } catch (e) { log("ERREUR " + (e.stack || e)); }
+})();
+</script>

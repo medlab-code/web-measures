@@ -250,6 +250,7 @@
     const dialog = $("#fenetre-profil"), { svg, legend, long } = Profil.draw(edgeProfile.profile, trueScale.checked, nuage.get(nuageKey(edgeProfile.profile)), plants.checked,
       Number($("#camera").value) || 1.9);  // hauteur de caméra des réglages
     dialog.querySelector(".graphique").replaceChildren(svg, ...(long ? [long] : []));  // profil en long dessous
+    $("#profil-pdf-long").disabled = !long;  // pas de 2e page sans profil en long
     dialog.querySelector(".legende").replaceChildren(legend);
   };
   trueScale.addEventListener("change", () => {
@@ -333,6 +334,33 @@
     if (!save) return;
     await save(await Profil.png(dialog.querySelector("svg"), title, dialog.querySelector(".legende"), dialog.querySelector("svg.profil-long")));
     setStatus("Profil enregistré en PNG.");
+  });
+  $("#profil-pdf-long").checked = store.get("profil-pdf-long") === "1";
+  $("#profil-pdf-long").addEventListener("change", (event) => store.set("profil-pdf-long", event.target.checked ? "1" : "0"));
+  $("#profil-pdf").addEventListener("click", async () => {
+    const dialog = $("#fenetre-profil"), meta = psv?.getPictureMetadata?.(), feature = photo;
+    const win = window.open("", "_blank", "popup,width=1120,height=800");  // au clic : pas bloquée
+    if (!win) {
+      setStatus("Profil en PDF : fenêtre bloquée par le navigateur (autorisez les fenêtres de cette page).", "echec");
+      return;
+    }
+    win.document.write('<p style="font: 15px sans-serif; margin: 2rem">Préparation du PDF…</p>');
+    win.document.close();
+    // Lieu de la photo comme l'encart de la visionneuse (route, PR, commune ; d'ordinaire déjà lu : sans requête)
+    const { text, parts } = await Lieu.describe(...feature.geometry.coordinates.slice(0, 2)).catch(() => ({ text: "" }));
+    const long = $("#profil-pdf-long").checked ? dialog.querySelector("svg.profil-long") : null;
+    win.document.open();
+    win.document.write(Profil.pdfPage(dialog.querySelector("svg"), dialog.querySelector(".legende"), long, {
+      stylesheet: new URL("src/style.css", location.href).href, fonts: FICHE_FONTS, photo: meta?.id || "",
+      place: text ? placeMarkup(text, parts) : escapeHtml(edgeProfile?.road || ""),
+      edited: `Édité le ${new Date().toLocaleDateString("fr-FR")}`,
+    }));
+    win.document.close();
+    await new Promise((resolve) => (win.document.readyState === "complete" ? resolve() : win.addEventListener("load", resolve)));
+    await win.document.fonts.ready;
+    Profil.fit(win.document);
+    win.focus();
+    win.print();
   });
   // Droite de mesure tracée sur la carte (expérimental, ticket #28) : décochée, bouton non proposé
   $("#droite-carte").checked = store.get("droite-carte") === "1";

@@ -469,5 +469,51 @@ const Profil = (() => {
     return svg;
   }
 
-  return { draw, png };
+  /** Page HTML A4 paysage (impression en PDF) : 1re page, graphique svg en vectoriel et légende legend en petits
+   * caractères sur deux colonnes ; 2e page, profil en long (long, ou null : pas de 2e page). En-tête : place (HTML du
+   * lieu, comme l'encart de la visionneuse : route, PR, commune) ; pied : sources, photo, date d'édition. Styles de la
+   * page repris (stylesheet : adresse de src/style.css), en thème clair ; fit(doc) resserre la 1re page sur une page. */
+  function pdfPage(svg, legend, long, { stylesheet, fonts = "", photo = "", place = "", edited = "" }) {
+    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    const head = (name) => `<header><div><h1>${name}</h1>${place ? `<div class="lieu">${place}</div>` : ""}</div>
+<div class="date">${esc(edited)}</div></header>`;
+    const foot = `<footer><span>Mesures Panoramax — terrain IGN (MNT LiDAR HD ou RGE ALTI), tronçons BD TOPO</span><span>${
+      photo ? `Photo Panoramax ${esc(photo)}` : ""}</span></footer>`;
+    return `<!doctype html><html lang="fr" data-theme="light"><head><meta charset="utf-8"><title>Profil en travers</title>
+${fonts}<link rel="stylesheet" href="${esc(stylesheet)}"><style>
+@page { size: A4 landscape; margin: 0; }
+html, body { background: #fff; height: auto; overflow: visible; }
+body { margin: 0; display: block; font-family: Inter, Arial, sans-serif; color: #1c1c1c; }
+.page { box-sizing: border-box; flex: none; width: 297mm; height: 210mm; padding: 9mm 11mm 7mm; display: flex; flex-direction: column; overflow: hidden;
+  break-after: page; }
+.page:last-child { break-after: auto; }
+header { display: flex; justify-content: space-between; align-items: flex-end; gap: 8mm; border-bottom: 2.5px solid #e65100; padding-bottom: 2.5mm; }
+h1 { margin: 0; font-size: 20px; letter-spacing: -0.2px; }
+.lieu { font-size: 14px; color: #444; margin-top: 3px; } .lieu b { color: #1c1c1c; font-weight: 600; }
+.date { font-size: 11px; color: #555; text-align: right; white-space: nowrap; }
+dialog.profil { position: static; max-width: none; max-height: none; width: auto; height: auto; overflow: visible; margin: 0;
+  padding: 0; border: 0; box-shadow: none; background: #fff; color: #1c1c1c; display: block; }
+dialog.profil .graphique { flex: none; margin: 2.5mm 0 0; }
+dialog.profil .graphique svg { width: 100%; height: auto; max-height: var(--haut, 125mm); }
+.en-long { margin: auto 0; } .en-long svg { display: block; width: 100%; height: auto; max-height: 150mm; }
+dialog.profil .legende { font-size: var(--legende, 8.5px); line-height: 1.35; columns: 2; column-gap: 7mm; margin-top: 2.5mm; }
+dialog.profil .legende ul { margin: 0 0 1mm; padding-left: 1.1em; }
+dialog.profil .legende li { margin: 0.4mm 0; break-inside: avoid; }
+dialog.profil .legende p.aide { font-size: 1em; margin: 0 0 0.8mm; break-inside: avoid; }
+footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #ddd; font-size: 8px; color: #666; display: flex; justify-content: space-between; }
+</style></head><body><div class="page">${head("Profil en travers")}
+<dialog class="profil" open><div class="graphique">${svg.outerHTML}</div>
+<div class="legende">${legend.innerHTML}</div></dialog>${foot}</div>${long ? `
+<div class="page">${head("Profil en long")}<div class="en-long">${long.outerHTML}</div>${foot}</div>` : ""}</body></html>`;
+  }
+
+  /** 1re page de pdfPage resserrée jusqu'à tenir sur sa page : graphique moins haut, puis légende plus petite. */
+  function fit(doc) {
+    const page = doc.querySelector(".page"), root = doc.documentElement.style;  // page : overflow caché, hauteur fixe
+    const over = () => page.scrollHeight > page.clientHeight + 1;
+    for (let h = 125; over() && h > 70; h -= 5) root.setProperty("--haut", `${h - 5}mm`);
+    for (let s = 8.5; over() && s > 6; s -= 0.5) root.setProperty("--legende", `${s - 0.5}px`);
+  }
+
+  return { draw, png, pdfPage, fit };
 })();

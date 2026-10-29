@@ -260,7 +260,9 @@ après.
   hauteurs exagérées (facteur écrit sous le graphique) ; la case « Hauteurs à l'échelle » (cochée à chaque
   ouverture) les remet à l'échelle des distances, caméra dessinée à sa hauteur (réglage « Hauteur de caméra »), masquée quand
   les hauteurs sont exagérées. « Enregistrer en PNG » en fait une image
-  avec son titre et sa légende ; la loupe agrandit le graphique (sans la légende) au mieux dans la
+  avec son titre et sa légende ; « Enregistrer en PDF » met le graphique et la légende (en petits caractères, sur deux
+  colonnes) sur une page A4 paysage, en vectoriel, sous le lieu de la photo (route, PR, commune), à enregistrer en PDF
+  dans la boîte d'impression ; « Profil en long (2e page) » (choix retenu) y ajoute une page pour le profil en long ; la loupe agrandit le graphique (sans la légende) au mieux dans la
   visionneuse. Le bouton est grisé tant que « Dévers » n'a rien calculé pour la photo.
 
   **« Analyse fine »** (fenêtre du profil) : lit le nuage de points LiDAR HD de l'IGN (dalles COPC, à la volée,
@@ -606,6 +608,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,4
 | `py/sources.js` | fichiers Python de `py/` regroupés pour la page (généré par `tools/sources.sh`) |
 | `tests/coeur/` | tests du cœur de calcul : scènes synthétiques à réponse connue (lancés avec `tests/test_calculs.py`) |
 | `tests/essai-cadastre.html` | cadastre sur la mini-carte (PNG dans le journal) |
+| `tests/essai-profil-pdf.html` | profil en travers en PDF : la feuille tient sur une page (sa page HTML dans le journal) |
 | `tests/test_calculs.py` | essais rapides des calculs, sans navigateur ni réseau (`python3 -m unittest discover -s tests`, quelques secondes avec `tests/coeur/`) |
 | `tests/navigateur.html` | essai de bout en bout dans un vrai navigateur |
 | `tests/essai-rtk.html`, `essai-largeur.html`, `essai-libre.html` | hauteur, largeur, mesure libre sur photos RTK, avec recalages |
