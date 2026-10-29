@@ -492,7 +492,7 @@ Chrome et Edge (emplacement et nom au choix, demandés dès le clic pour une cap
 pas l'accès aux pages : le fichier est téléchargé, avec sa boîte si « Toujours vous demander où
 enregistrer les fichiers » est coché (Paramètres › Général › Fichiers et applications).
 
-Les calculs sont ceux du plugin, exécutés dans le navigateur par Pyodide (environ 10 Mo au
+Les calculs (cœur Python repris du plugin Visionneuse Panoramax) sont exécutés dans le navigateur par Pyodide (environ 10 Mo au
 premier chargement, puis en cache) ; les calculs lourds (inclinaison automatique, capture
 Full HD) tournent dans un second Pyodide en arrière-plan. La page vérifie aussi l'accès aux
 services depuis le poste (bouton « Services » en bas du panneau).
@@ -606,7 +606,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,4
 | `py/sources.js` | fichiers Python de `py/` regroupés pour la page (généré par `tools/sources.sh`) |
 | `tests/coeur/` | tests du cœur de calcul : scènes synthétiques à réponse connue (lancés avec `tests/test_calculs.py`) |
 | `tests/essai-cadastre.html` | cadastre sur la mini-carte (PNG dans le journal) |
-| `tests/test_calculs.py` | essais rapides des calculs, sans navigateur ni réseau (`python3 -m unittest discover -s tests`, moins d'une seconde) |
+| `tests/test_calculs.py` | essais rapides des calculs, sans navigateur ni réseau (`python3 -m unittest discover -s tests`, quelques secondes avec `tests/coeur/`) |
 | `tests/navigateur.html` | essai de bout en bout dans un vrai navigateur |
 | `tests/essai-rtk.html`, `essai-largeur.html`, `essai-libre.html` | hauteur, largeur, mesure libre sur photos RTK, avec recalages |
 | `tests/inclinaison.html` | inclinaison automatique |
@@ -660,7 +660,9 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 ## Étapes
 
 1. ~~Séparer le cœur de calcul de QGIS~~, dans le plugin : paquet `core/` sans import QGIS,
-   services de l'hôte (réseau, altitude NGF, décodage d'image) installés par l'application.
+   services de l'hôte (réseau, altitude NGF, décodage d'image) installés par l'application. Le
+   29/10/2026, le cœur et ses tests sont repris ici : le plugin ne garde que la visionneuse (et
+   reçoit la recherche de lieu et le requêteur route + PR de l'application).
 2. ~~Maquette~~ : visionneuse officielle, cœur dans Pyodide, largeur, longueur et hauteur,
    recalage sur la carte, export CSV et GeoJSON.
 3. ~~Indicateur de fiabilité, inclinaison automatique, triangulation~~ : voyants RTK, LiDAR
