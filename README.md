@@ -236,8 +236,9 @@ après.
     pentes ne portent que sur la partie gardée), « carrefour avec D18 » là où une voie nommée (numéro ou nom) s'y
     raccorde (deux raccordements de la même voie à moins de 30 m, comme autour d'un îlot séparateur : un seul
     carrefour, au milieu) ; les voies sans numéro ni nom ne sont pas mentionnées ; ponts : le MNT y donne le fond
-    franchi ; tout creux où le terrain plonge de plus de 20 % (une route : 15 % au plus) est remplacé par la droite d'un
-    bord à l'autre, jusqu'en haut de la remontée (le tablier, à peu près, en tirets « pont (tablier interpolé) », ou
+    franchi ; un creux (corde de 40 m au plus à plus de 0,1 m au-dessus du terrain, appuyée en haut des parois) est
+    remplacé par cette corde s'il recouvre un pont de la BD TOPO ou si le terrain y plonge de plus de 20 % (une route :
+    15 % au plus), un vallon que la route suit restant tel quel (le tablier, à peu près, en tirets « pont (tablier interpolé) », ou
     « creux du terrain (pont ?) » hors des ponts de la BD TOPO, souvent plus courts que la brèche), pentes comprises ;
     creux ouvert au bout du profil : coupé ; tunnels de la route (BD TOPO) : le dessus remplacé par la droite d'une tête
     à l'autre ; pente moyenne par les moindres
@@ -535,7 +536,8 @@ comparé à des talus de hauteur connue.
 Pente en long (`tests/essai-bords.html`, photos 732c2c09, cd5e947c, d148d430 et 70b78dc8) : profils
 cohérents avec la route vue sur la photo, arrêt à la fin de la D16, un seul carrefour autour d'un
 îlot séparateur, tablier d'un pont interpolé, y compris quand le pont de la BD TOPO est plus court
-que la brèche du terrain (70b78dc8 : 86 % sur 10 m avant correction, 4,7 % après). Le MNT donne la pente à quelques dixièmes de point près
+que la brèche du terrain (70b78dc8 : 86 % sur 10 m avant correction, 4,7 % après), ou en creux peu profond sur un
+ruisseau (92e3faf1). Le MNT donne la pente à quelques dixièmes de point près
 sur 100 m ; sur un pont, le tablier est une droite d'une culée à l'autre, sans sa courbure.
 
 Analyse fine (`tests/essai-nuage.html`, A38, RD903bis, D1074, RD700) : bords de chaussée et
@@ -676,6 +678,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.12** (30/10/2026) : profil en long, tablier des ponts : creux du terrain comblé par une corde appuyée en haut des parois, s'il recouvre un pont de la BD TOPO (souvent plus court que la brèche) ou plonge de plus de 20 % (pont absent de la BD TOPO), un vallon suivi par la route restant tel quel ; étiquettes liserées, écartées l'une de l'autre et des tabliers, repères de fin et de carrefour en gras ; document `docs/CALCULS.md` : calculs de chaque mode, seuils et précision.
 - **0.6.11** (29/10/2026) : profil en long (±50 m, le long de la trajectoire de la caméra, sinon de l'axe BD TOPO prolongé), avec pente moyenne et la plus forte sur 10 m, fin de la route et carrefours avec les voies nommées, ponts et tunnels (tablier interpolé) ; caméra à sa hauteur (réglage) dans les deux profils, « Hauteurs à l'échelle » cochée à chaque ouverture ; tronçons BD TOPO lus jusqu'à 60 m autour de la photo, prolongement de la route dans l'alignement.
 - **0.6.10** (28/10/2026) : « Analyse fine » du profil (nuage LiDAR HD de l'IGN, barre d'avancement) : bords de chaussée (ligne de rive), séparateur de chaussée (bande non revêtue, glissières comprises), lignes blanches, herbe au sol, hauteur de la végétation (case « Végétation »), surface de l'eau ; eau de la BD TOPO dès « Dévers » ; autres travers transparents ; repère « fin de lecture » retiré ; fenêtre du profil : boutons immobiles quand on actionne les cases.
 - **0.6.9-14** (28/10/2026) : « Dévers » : séparateur de chaussée étroit sans marches (glissières dos à dos, muret) reconnu à sa bosse dans le relief, au même endroit sur deux travers au moins (RD700 à Varois-et-Chaignot).

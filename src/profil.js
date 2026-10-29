@@ -50,7 +50,8 @@ const Profil = (() => {
   /** Étiquettes du graphique (classe « place ») écartées verticalement de celles déjà posées, dans l'ordre du dessin,
    * entre top et bottom (hauteurs à l'échelle : chute, dévers, travers et plateforme presque à la même hauteur).
    * Largeurs estimées : le SVG n'est pas encore dans la page. */
-  function declutter(svg, top, bottom) {
+  // obstacles : [gauche, haut, droite, bas] à éviter aussi (tablier d'un pont…)
+  function declutter(svg, top, bottom, obstacles = []) {
     const box = (t, y) => {  // étiquette sur plusieurs lignes (tspan) : la plus longue, et LINE px par ligne de plus
       const lines = t.querySelectorAll("tspan").length ? [...t.querySelectorAll("tspan")].map((s) => s.textContent) : [t.textContent];
       const size = t.classList.contains("graduation") ? 12 : 13, w = Math.max(...lines.map((s) => s.length)) * size * 0.56;
@@ -59,7 +60,7 @@ const Profil = (() => {
       return [left - 2, y - size, left + w + 2, y + 3 + (lines.length - 1) * LINE];
     };
     const hit = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
-    const placed = [];
+    const placed = [...obstacles];
     for (const t of svg.querySelectorAll("text.place")) {
       const y0 = Number(t.getAttribute("y"));
       // 0, puis 16 px dessous, dessus, 32 px dessous… sans sortir du graphique ; vers le haut seulement pour une étiquette
@@ -425,13 +426,21 @@ const Profil = (() => {
       const [, a, b] = long.max, za = zs[ds.indexOf(a)], zb = zs[ds.indexOf(b)];
       svg.append(el("line", { x1: X(a), y1: Z(za), x2: X(b), y2: Z(zb), class: "devers" }));
     }
+    // caméra d'abord : son étiquette reste à sa place, les autres s'en écartent (declutter)
+    if (top !== null) {  // caméra à sa hauteur au-dessus du sol, pointillé jusqu'à lui
+      svg.append(el("line", { x1: X(0), x2: X(0), y1: Z(ground), y2: Z(top), class: "bord" }),
+        el("circle", { cx: X(0), cy: Z(top), r: 5, class: "origine" }),
+        el("text", { x: X(0) + 9, y: Z(top) + 4, class: "graduation place" }, `caméra (${num(camera, 2)} m)`));
+    }
     // Ponts, creux comblés et tunnels : le tablier (droite d'un bord à l'autre) en tirets, nommé au-dessus
+    const decks = [];  // tabliers dessinés : les étiquettes s'en écartent
     for (const o of long.ouvrages || []) {
       const [a, b] = [Math.max(o.de, d0, Math.min(...ds)), Math.min(o.a, d1, Math.max(...ds))];
       const at = (d) => { const k = ds.findIndex((v) => v >= d); return k <= 0 ? zs[0] : zs[k - 1] + (zs[k] - zs[k - 1]) * (d - ds[k - 1]) / (ds[k] - ds[k - 1]); };
       if (b <= a) continue;
+      decks.push([X(a), Math.min(Z(at(a)), Z(at(b))) - 7, X(b), Math.max(Z(at(a)), Z(at(b))) - 1]);
       svg.append(el("line", { x1: X(a), y1: Z(at(a)) - 4, x2: X(b), y2: Z(at(b)) - 4, class: "ouvrage" }),
-        el("text", { x: X((a + b) / 2), y: Z(at((a + b) / 2)) - 10, class: "graduation place", "text-anchor": "middle" },
+        el("text", { x: X((a + b) / 2), y: Z(at((a + b) / 2)) - 10, class: "graduation place", "data-haut": "", "text-anchor": "middle" },
           o.type === "pont" ? "pont (tablier interpolé)" : o.type === "creux" ? "creux du terrain (pont ?), comblé" : "tunnel"));
     }
     // Fin de la route de la photo et carrefours avec une voie nommée : trait pointillé et nom
@@ -444,15 +453,13 @@ const Profil = (() => {
       const road = e.voie ? (/^[A-Z]+\d/.test(e.voie) ? `la ${e.voie}` : e.voie) : "la route";
       const lines = [...(e.type === "fin" ? [`fin de ${road}`] : []), ...(e.avec?.length ? [`carrefour avec ${e.avec.join(", ")}`] : [])];
       svg.append(el("line", { x1: X(e.d), x2: X(e.d), y1: T, y2: T + ph, class: "bord" }));
-      // comme « bord » du profil en travers : la 1re ligne en étiquette, la suite en graduation, liserées sur le terrain
-      lines.forEach((t, i) => svg.append(el("text", { x: X(e.d) + dx, y: y + 14 * i,
-        class: i ? "graduation place" : "etiquette-profil place", "text-anchor": anchor }, t)));
+      // comme « bord » du profil en travers : la 1re ligne en étiquette, la suite en graduation, liserées sur le terrain ;
+      // une seule étiquette (tspan) pour declutter
+      const label = el("text", { x: X(e.d) + dx, y, class: "etiquette-profil place", "text-anchor": anchor });
+      lines.forEach((t, i) => label.append(el("tspan", { x: X(e.d) + dx, ...(i ? { dy: LINE, class: "graduation" } : {}) }, t)));
+      svg.append(label);
     }
-    if (top !== null) {  // caméra à sa hauteur au-dessus du sol, pointillé jusqu'à lui
-      svg.append(el("line", { x1: X(0), x2: X(0), y1: Z(ground), y2: Z(top), class: "bord" }),
-        el("circle", { cx: X(0), cy: Z(top), r: 5, class: "origine" }),
-        el("text", { x: X(0) + 9, y: Z(top) + 4, class: "graduation place" }, `caméra (${num(camera, 2)} m)`));
-    }
+    declutter(svg, T, T + ph, decks);
     const g = long.pente;
     svg.append(el("text", { x: L, y: 18, class: "etiquette-profil" }, `Profil en long\u00a0: ${g >= 0 ? "montée" : "descente"} de ${num(Math.abs(g))} %`
         + (long.max ? `, jusqu'à ${num(Math.abs(long.max[0]))} % sur 10 m (en rouge)` : "")),

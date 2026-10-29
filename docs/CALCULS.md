@@ -266,13 +266,17 @@ l'origine, seulement quand les hauteurs sont à l'échelle.
   (îlot séparateur) font un seul carrefour, au milieu. Les voies sans numéro ni nom ne sont pas
   mentionnées.
 - **Creux et ponts** : le MNT n'a pas les ponts, il donne le fond franchi. Le tronçon BD TOPO en
-  pont est souvent plus court que la brèche, ou absent. Une route ne plonge pas de plus de 15 % :
-  là où le terrain plonge de plus de **20 %** d'un point au suivant, il est remplacé par une droite
-  (le tablier, à peu près, en tirets). Elle va du bord jusqu'au point où le terrain revient au
-  niveau de la route (pas plus bas qu'une pente de 20 % depuis le bord), puis jusqu'en haut de la
-  remontée. Le creux est nommé « pont » s'il recouvre un pont de la route, sinon « creux du terrain
-  (pont ?) ». Les deux sens sont parcourus : un creux ouvert au bout du profil (pas d'autre bord) y
-  est coupé.
+  pont est souvent plus court que la brèche, ou absent. Au-dessus de chaque point, on cherche la
+  **corde** la plus haute tendue entre deux points du terrain distants de **40 m** au plus. Là où
+  elle passe à plus de **0,1 m** au-dessus du terrain, il y a un creux. Sa corde est celle qui
+  passe au-dessus du point le plus profond, resserrée tant que le point suivant est encore sur
+  elle (à 0,1 m près) : ses appuis sont les culées, en haut des parois. Le creux n'est comblé (la
+  corde remplace le terrain, en tirets) que s'il recouvre un **pont de la BD TOPO** (« pont
+  (tablier interpolé) ») ou contient une **plongée de plus de 20 %** d'un point au suivant, alors
+  qu'une route ne dépasse pas 15 % (« creux du terrain (pont ?) »). Un vallon que la route suit
+  elle-même n'est ni l'un ni l'autre : il reste tel quel. Une plongée de plus de 20 % qui reste
+  (creux de plus de 40 m) est comblée du bord jusqu'au retour au niveau de la route. Un creux
+  ouvert au bout du profil (pas d'autre bord) y est coupé.
 - **Tunnels** de la route (BD TOPO) : le MNT y donne le dessus, remplacé par la droite d'une tête
   à l'autre. Un tunnel au bout du profil n'a qu'une tête : rien n'est dessiné dessus.
 - **Pentes** : pente moyenne par les moindres carrés (montée ou descente dans le sens de la
@@ -326,7 +330,7 @@ Précision : celle du nuage (±0,1 m en altitude) et des cases (0,25 m en traver
 | Objet placé sur la carte | ±1 m | orthophoto |
 | Chute (pont, bords de route) | ±0,1 m LiDAR HD, ±0,4 m RGE ALTI | MNT ; sur un pont, altitude RTK |
 | Dévers | pas des points (0,5 m près du bord, 0,6 m à 10 m, 1,9 m à 30 m) | talus court, MNT interpolé sous arbres et murs |
-| Pente en long | MNT ±0,1 m sur 100 m | tablier des ponts interpolé en droite, creux de moins de 20 % non comblés |
+| Pente en long | MNT ±0,1 m sur 100 m | tablier des ponts interpolé en droite, creux sans pont BD TOPO ni plongée de 20 % non comblés, ponts de plus de 40 m en pente douce |
 | Bord, séparateur (nuage) | 0,25 m | cases du nuage, marquage effacé |
 
 Avec un GPS grand public (±4 m), le point de référence est à plusieurs mètres près, et une

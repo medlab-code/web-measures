@@ -1768,6 +1768,9 @@ class App(session.Session):
     # que la brèche, ou absent ; une route ne plonge pas de plus de DIP_SLOPE (15 % au plus), le terrain qui le fait est sous
     # un ouvrage, comblé d'un bord à l'autre (_bridged)
     DIP_SLOPE = 0.2
+    # Tablier : enveloppe haute du terrain, cordes de DIP_SPAN m au plus (le fond d'un creux plus large n'est pas un pont) ;
+    # gardée là où elle passe à plus de DIP_TOL m du terrain et recouvre un pont de la route ou une plongée de DIP_SLOPE
+    DIP_SPAN, DIP_TOL = 40.0, 0.1
     EDGE_CONSENSUS = 3.0  # m : bord (ou séparateur) d'un travers plus loin de la médiane des autres : ramené à elle
     # Séparateur étroit sans marches (glissières dos à dos, muret : le MNT n'en garde que l'assise) : pic de 1 ou 2 points au
     # moins PEAK_Z m au-dessus des points voisins, au même endroit (PEAK_SPREAD m près) sur PEAK_TRAVERS travers au moins
@@ -1859,12 +1862,54 @@ class App(session.Session):
     CHAIN_TURN = 60.0  # degrés de déviation au plus d'un tronçon à l'autre en prolongeant la route
     CHAIN_REACH, CHAIN_TOUCH = 60.0, 2.0  # m ajoutés au plus de chaque côté ; bouts de tronçons qui se touchent
 
-    def _bridged(self, pts):
-        """Profil en long [(d, z)] sans ses creux : là où le terrain plonge de plus de DIP_SLOPE d'un point au suivant, droite
-        du bord jusqu'au point où il revient au niveau de la route (pas plus bas que DIP_SLOPE depuis le bord), poussé jusqu'en
-        haut de la remontée. Dans les deux sens : un creux ouvert au bout du profil (pas d'autre bord) y est coupé.
+    def _bridged(self, pts, bridges=()):
+        """Profil en long [(d, z)] sans ses creux (le MNT n'a pas les ponts : il donne le fond franchi).
+        1. Enveloppe haute du terrain par des cordes de DIP_SPAN m au plus : là où elle passe à plus de DIP_TOL m au-dessus,
+        un creux, dont les bouts (le terrain touche la corde) sont les culées ; gardé s'il recouvre un pont de la route
+        (bridges : [(de, à)], souvent plus court que la brèche) ou une plongée de plus de DIP_SLOPE d'un point au suivant
+        (pont absent de la BD TOPO).
+        2. Plongée de plus de DIP_SLOPE qui reste : droite du bord jusqu'au point où le terrain revient au niveau de la route
+        (pas plus bas que DIP_SLOPE depuis le bord), poussé jusqu'en haut de la remontée ; dans les deux sens, un creux
+        ouvert au bout du profil (pas d'autre bord) y est coupé.
         Rend (profil, [(de, à)] des creux comblés)."""
         slope, out, dips = self.DIP_SLOPE, list(pts), []
+        top = [(z, None) for _, z in out]  # plus haute corde au-dessus de chaque point : (altitude, (bout, bout))
+        for i, (da, za) in enumerate(out):
+            for j in range(i + 2, len(out)):
+                db, zb = out[j]
+                if db - da > self.DIP_SPAN:
+                    break
+                for k in range(i + 1, j):
+                    z = za + (zb - za) * (out[k][0] - da) / (db - da)
+                    if z > top[k][0]:
+                        top[k] = (z, (i, j))
+        lift = [t - z for (t, _), (_, z) in zip(top, out)]
+        steep = lambda a, b: abs(out[b][1] - out[a][1]) > slope * (out[b][0] - out[a][0])
+        k = 1
+        while k < len(out) - 1:
+            if lift[k] <= self.DIP_TOL:
+                k += 1
+                continue
+            core = k
+            while k < len(out) - 1 and lift[k] > self.DIP_TOL:
+                k += 1
+            # creux : la corde la plus haute au-dessus de son point le plus profond, d'une culée (appui) à l'autre
+            deep = max(range(core, k), key=lambda m: lift[m])
+            a, b = top[deep][1]
+            # appuis rapprochés tant que le point suivant est sur la corde (à DIP_TOL près) : la route, pas encore le creux
+            on = lambda m, a, b: out[m][1] >= (out[a][1] + (out[b][1] - out[a][1]) * (out[m][0] - out[a][0])
+                                               / (out[b][0] - out[a][0])) - self.DIP_TOL
+            while a + 1 < deep and on(a + 1, a, b):
+                a += 1
+            while b - 1 > deep and on(b - 1, a, b):
+                b -= 1
+            lo, hi = out[a][0], out[b][0]
+            if any(b0 <= hi and b1 >= lo for b0, b1 in bridges) or any(steep(m, m + 1) for m in range(a, b)):
+                (da, za), (db, zb) = out[a], out[b]
+                out = out[:a + 1] + [(d, za + (zb - za) * (d - da) / (db - da)) for d, _ in out[a + 1:b]] + out[b:]
+                lift[a:b] = [0.0] * (b - a)
+                dips.append((lo, hi))
+                k = max(k, b)
         for rev in (False, True):
             if rev:
                 out = [(-d, v) for d, v in reversed(out)]
@@ -2324,8 +2369,8 @@ class App(session.Session):
             cuts = [e for e in cuts if pts and pts[0][0] - 1 <= e["d"] <= pts[-1][0] + 1]
             # Creux (ponts, même absents de la BD TOPO) : terrain remplacé par la droite d'un bord à l'autre (le tablier, à peu
             # près), pente comprise ; nommés « pont » s'ils recouvrent un pont de la route
-            pts, dips = self._bridged(pts)
             bridges = [sorted((along_of(a), along_of(b))) for level, a, b in ends[2] if level > 0]
+            pts, dips = self._bridged(pts, bridges)
             spans = [{"de": round(lo, 1), "a": round(hi, 1),
                       "type": "pont" if any(b0 <= hi and b1 >= lo for b0, b1 in bridges) else "creux"} for lo, hi in dips]
             # Tunnels de la route : le MNT y donne le dessus, remplacé par la droite d'une tête à l'autre
