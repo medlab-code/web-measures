@@ -594,6 +594,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,4
 | `index.html`, `src/style.css` | page et mise en page |
 | `src/app.js` | relie carte, visionneuse et calcul : clics, clavier, repères, liseré, filtre |
 | `src/carte.js` | carte MapLibre : fonds, filaire, points de repère (PR), mesures, étiquettes, poignées, photo la plus proche |
+| `src/traits.js` | surcouche des mesures dans la visionneuse, en WebGL : traits, croix, réticule glissant, étiquettes des mesures et noms des points (la couche importée reste en repères HTML) |
 | `src/calcul.js` | chargement de Pyodide (page et arrière-plan) et des fichiers Python (`py/sources.js`) |
 | `src/services.js` | vérification de l'accès aux services |
 | `src/recherche.js` | recherche de lieux sur la carte (commune, lieu-dit, voie, adresse) |

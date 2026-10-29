@@ -2328,7 +2328,6 @@
    * temps, là où le bord se posera : seule la direction du clic compte, le bord est sur cette droite (ticket #18).
    * event null : repère retiré.
    */
-  const SLIDE = "glisse-largeur";
   let slideKind = null;  // réticule affiché : "largeur", "hauteur" (trait jaune en travers), ou null
   let heightAxis = null;  // hauteur : [pied, sommet] de la 1re hauteur depuis A (App.height_axis), ou null
 
@@ -2362,8 +2361,7 @@
   }
 
   function slideOnGuide(event) {
-    const markers = psv?.getPlugin?.("markers");
-    if (!markers) return;
+    if (!psv) return;
     // Hauteur suivante depuis A : réticule sur l'axe de la première, sauf sur une croix (sélection)
     const box = event && psv.container.getBoundingClientRect();
     const onPhoto = event?.target?.closest?.(".psv-canvas-container, .psv-markers")
@@ -2373,7 +2371,7 @@
       if (pointer) {
         const position = onAxis(heightAxis, pointer.yaw, pointer.pitch);
         const [a, c] = heightAxis.map(([yaw, pitch]) => psv.dataHelper.sphericalCoordsToViewerCoords({ yaw, pitch }));
-        showSlide(markers, position, "hauteur", Math.atan2(c.y - a.y, c.x - a.x) * 180 / Math.PI + 90);
+        showSlide(position, "hauteur", Math.atan2(c.y - a.y, c.x - a.x) * 180 / Math.PI + 90);
         return;
       }
     }
@@ -2394,28 +2392,18 @@
         if (t >= 0 && t <= 1) position = { yaw: y0 + t * span, pitch: p0 + t * (p1 - p0) };
       }
     }
-    showSlide(markers, position, position && "largeur");
+    showSlide(position, position && "largeur");
   }
 
   /** Réticule glissant à position (ou retiré si null) ; hauteur : trait jaune en travers de l'axe
    * (angle en degrés à l'écran), environ six fois la largeur du réticule. */
-  function showSlide(markers, position, kind, angle = 0) {
-    let shown = (() => { try { return markers.getMarker(SLIDE); } catch { return null; } })();  // lève s'il n'existe pas
-    if (shown && (!position || kind !== slideKind)) {
-      markers.removeMarker(SLIDE);
-      shown = null;
-    }
-    if (position && shown) {
-      markers.updateMarker({ id: SLIDE, position });
-    } else if (position) {
-      markers.addMarker({ id: SLIDE, position, anchor: "center center",
-        html: `<div class="glisse">${kind === "hauteur" ? "<div class='travers'></div>" : ""}${
-          reticle(reticleColor(tilted, false, false))}</div>` });  // hors visée et calage
+  function showSlide(position, kind, angle = 0) {
+    if (position || slideKind) {  // dessiné en WebGL (Traits), comme les mesures ; couleur hors visée et calage
+      Traits.attach(psv);
+      Traits.setSlide(position && { at: [position.yaw, position.pitch], color: reticleColor(tilted, false, false),
+        angle: kind === "hauteur" ? angle : null });
     }
     slideKind = position ? kind : null;
-    if (kind === "hauteur") {
-      markers.getMarker(SLIDE)?.domElement?.querySelector(".travers")?.style.setProperty("--angle", `${angle}deg`);
-    }
     psv.container.classList.toggle("sur-droite", !!position);
   }
 
@@ -2838,8 +2826,9 @@
       markIds.push(config.id);
     };
     const names = namesOf(marks);
-    const lines = [];  // traits, dessinés en WebGL (Traits) sous les croix et les étiquettes
-    marks.forEach((mark, m) => {
+    // traits, croix et étiquettes des mesures : dessinés en WebGL (Traits), sous les repères HTML de la couche
+    const lines = [], crosses = [], labels = [];
+    marks.forEach((mark) => {
       const points = mark.points.map(([yaw, pitch]) => ({ yaw, pitch }));
       if (mark.guide) {  // sans croix : droite de mesure (largeur, tirets bleus), verticale (hauteur,
         // tirets verts), visée d'une autre photo (ligne épipolaire, trait plein vert)
@@ -2851,42 +2840,26 @@
       }
       if (mark.name) {  // nom d'un point triangulé : étiquette seule, du côté opposé à la mesure ;
         // grise pour le bord cliqué d'une largeur, pas encore triangulé (nom provisoire)
-        add({
-          id: `${MARK}${m}-nom`, position: points[0], anchor: "center center",
-          html: `<div class="ancre"><div class="etiquette nom ${mark.side || "below"}${mark.provisional ? " provisoire" : ""}">${
-            escapeHtml(mark.label)}</div></div>`,
-        });
+        labels.push({ at: mark.points[0], type: "nom", place: mark.side || "below", text: mark.label, provisional: mark.provisional });
         return;
       }
       if (points.length >= 2) {  // objet vertical du calage de l'inclinaison : bleu clair ; mesure : rouge
         lines.push({ points: mark.points, color: mark.calage ? "#8ee8ff" : "#e53935", width: mark.calage ? 2 : 4, dash: null });
       }
-      mark.points.forEach(([yaw, pitch, sel], i) => {
-        add({
-          id: `${MARK}${m}-${i}`, position: { yaw, pitch }, anchor: "center center",
-          html: `<div class="croix${sel ? " choisie" : ""}${mark.sighting ? " visee" : ""}${mark.calage ? " calage" : ""}"></div>`,
-        });
+      // croix jaunes, bleues pour les visées, rouge clair en calage ; la choisie dans un cercle
+      const color = mark.sighting ? "#00bce6" : mark.calage ? "#ff8a80" : "#ffeb00";
+      mark.points.forEach(([yaw, pitch, sel]) => {
+        crosses.push({ at: [yaw, pitch], color, ring: sel ? (mark.calage ? "#ff8a80" : "#ffeb00") : null,
+          visee: !!mark.sighting, calage: !!mark.calage });
       });
       if (mark.label && mark.end && points.length >= 2) {
-        // Hauteur, largeur : étiquette au point d'arrivée (à droite du sommet, sous le bord),
-        // ouverte par son nom (pastille bordeaux, grise s'il est provisoire) ; trait de renvoi
-        // vers la croix quand elle est écartée d'une autre (declutterLabels)
-        add({
-          id: `${MARK}${m}-etiquette`, position: points[points.length - 1], anchor: "center center",
-          html: `<div class="ancre"><div class="renvoi ${mark.beside ? "cote" : "dessous"}"></div>`
-            + `<div class="etiquette mesure fin ${mark.beside ? "cote" : "dessous"}"><span class="puce${
-              mark.end.provisional ? " provisoire" : ""}">${escapeHtml(mark.end.name)}</span>${
-              escapeHtml(measureLabel(mark, names))}</div></div>`,
-        });
+        // Hauteur, largeur : étiquette au point d'arrivée (à droite du sommet, sous le bord), ouverte par son nom
+        // (pastille bordeaux, grise s'il est provisoire) ; écartée vers le bas d'une autre, avec un trait de renvoi
+        labels.push({ at: mark.points[mark.points.length - 1], type: "fin", place: mark.beside ? "cote" : "dessous",
+          text: measureLabel(mark, names), chip: mark.end.name, provisional: mark.end.provisional });
       } else if (mark.label) {  // au milieu du trait, un peu au-dessus (à côté pour une hauteur)
-        // Repère de taille nulle au milieu du trait, étiquette décalée d'un nombre fixe de pixels
-        // par le CSS : la visionneuse mesure la taille d'un repère une seule fois, parfois avant
-        // sa mise en page, et l'ancrerait alors trop loin
-        add({
-          id: `${MARK}${m}-etiquette`, position: middle(points), anchor: "center center",
-          html: `<div class="ancre"><div class="etiquette mesure ${mark.beside ? "cote" : "dessus"}">${
-            escapeHtml(measureLabel(mark, names))}</div></div>`,
-        });
+        const mid = middle(points);
+        labels.push({ at: [mid.yaw, mid.pitch], type: "mesure", place: mark.beside ? "cote" : "dessus", text: measureLabel(mark, names) });
       }
     });
     // Couche importée : lignes et contours en traits de sa couleur, points en pastilles, étiquettes
@@ -2917,7 +2890,7 @@
       }
     }
     Traits.attach(psv);
-    Traits.set(lines);
+    Traits.set(lines, { crosses, labels });
     markers.renderMarkers?.();
     requestAnimationFrame(() => requestAnimationFrame(declutterLabels));  // une fois placées
   }
@@ -2931,27 +2904,10 @@
   function declutterLabels() {
     const root = viewer;
     if (!root) return;
-    const moving = [...root.querySelectorAll(".etiquette.fin")];
     const overlayLabels = [...root.querySelectorAll(".etiquette.couche")];
-    for (const el of [...moving, ...overlayLabels]) el.style.setProperty("--decalage", "0px");
-    const placed = [...root.querySelectorAll(".ancre .etiquette:not(.fin):not(.couche)")]
-      .map((el) => el.getBoundingClientRect()).filter((r) => r.width);
-    const items = moving.map((el) => ({ el, rect: el.getBoundingClientRect() }))
-      .filter(({ rect }) => rect.width).sort((a, b) => a.rect.top - b.rect.top);
+    for (const el of overlayLabels) el.style.setProperty("--decalage", "0px");
+    const placed = Traits.labelRects();  // étiquettes des mesures (WebGL), écartées entre elles à chaque image
     const hit = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom + 2 && a.bottom + 2 > b.top;
-    for (const { el, rect } of items) {
-      let shift = 0, r = rect;
-      for (let k = 0; k < 20; k++) {
-        const other = placed.find((p) => hit(r, p));
-        if (!other) break;
-        shift += other.bottom + 2 - r.top;
-        r = { left: rect.left, right: rect.right, top: rect.top + shift, bottom: rect.bottom + shift };
-      }
-      el.style.setProperty("--decalage", `${shift}px`);
-      const leader = el.previousElementSibling;
-      if (leader?.classList.contains("renvoi")) leader.style.height = shift > 0 ? `${shift}px` : "0";
-      placed.push(r);
-    }
     // Couche importée : de la plus proche de la caméra à la plus lointaine, chacune remontée au-dessus
     // de celles déjà placées ; masquée s'il faudrait la remonter de plus de OVERLAY_MAX_LIFT fois sa
     // hauteur (trop loin de son point pour s'y rapporter)

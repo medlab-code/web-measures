@@ -8,6 +8,10 @@
 <iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
 <script>
 const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+// Surcouche des mesures dessinée en WebGL (src/traits.js) : repères demandés, à l'écran ou non
+const traitsIn = () => document.getElementById("f").contentWindow.eval("Traits").items();
+const labelsIn = () => traitsIn().labels.map((l) => ({ textContent: l.text }));
+const crossesIn = (visee) => traitsIn().crosses.filter((c) => visee === undefined || c.visee === visee).length;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Contrôles : valeur comparée à l'attendu, avec une tolérance ; échecs journalisés (« ÉCHEC ») et
 // comptés, bilan avant « FIN » (« ERREUR » s'il y en a : le serveur d'essai s'arrête)
@@ -221,7 +225,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       && doc.querySelector("#releve-infos").textContent === "2 objets");
     // Sur une photo d'où l'objet B n'a pas été visé : projeté au sol, toujours visible
     await open(photos[0]);
-    const crosses = w.mesures.psv.container.querySelectorAll(".croix:not(.visee)").length;
+    const crosses = crossesIn(false);
     expect("objets relevés visibles sur une photo d'où ils n'ont pas tous été visés", crosses === 2, `${crosses} croix`);
     expect("pas de fiche PDF pour un objet relevé", ![...doc.querySelectorAll("#resultats > ol li")]
       .some((li) => li.textContent.includes("Objet") && li.querySelector("button.fiche")));
@@ -578,7 +582,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         && last.properties.classe === "borne" && Math.hypot(...metres(last.geometry.coordinates, spot)) < 0.5 && last.properties.voie,
         `${Math.hypot(...metres(last.geometry.coordinates, spot)).toFixed(3)} m de l'endroit cliqué`);
       await sleep(500);
-      const crosses = w.mesures.psv.container.querySelectorAll(".croix:not(.visee)").length;
+      const crosses = crossesIn(false);
       expect("objet posé sur la carte : dessiné dans la photo (au sol)", crosses === 3, `${crosses} croix`);
     }
     // Vider : objets retirés du relevé, la couche reste

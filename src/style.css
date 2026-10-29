@@ -1154,46 +1154,6 @@ dd { margin: 0; overflow-wrap: anywhere; }
 #aller-photo .aide { margin: 0.3rem 0 0; }
 
 /* Repères dans la photo et étiquettes sur la carte : mêmes couleurs que le plugin QGIS */
-.croix {
-  width: 18px;
-  height: 18px;
-  background:
-    linear-gradient(#ffeb00, #ffeb00) center / 2px 100% no-repeat,
-    linear-gradient(#ffeb00, #ffeb00) center / 100% 2px no-repeat;
-  filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000);
-  pointer-events: none;
-}
-.croix.visee {  /* visée de triangulation : bleue, pour ne pas la confondre avec un point de mesure */
-  background:
-    linear-gradient(#00bce6, #00bce6) center / 2px 100% no-repeat,
-    linear-gradient(#00bce6, #00bce6) center / 100% 2px no-repeat;
-}
-/* Largeur : réticule tenu sur la droite de mesure sous le pointeur (là où le bord se posera), qui
-   remplace le pointeur */
-.glisse { position: relative; width: 33px; height: 33px; pointer-events: none; }
-.glisse svg { position: relative; display: block; }
-/* Hauteur suivante depuis A : trait jaune en travers de l'axe de la première, six réticules de long */
-.glisse .travers {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 198px;
-  height: 2px;
-  background: #ffeb00;
-  box-shadow: 0 0 2px rgb(0 0 0 / 0.8);
-  transform: translate(-50%, -50%) rotate(var(--angle, 0deg));
-}
-.croix.calage {  /* calage de l'inclinaison : pied et sommet des objets verticaux, rouge clair */
-  background:
-    linear-gradient(#ff8a80, #ff8a80) center / 2px 100% no-repeat,
-    linear-gradient(#ff8a80, #ff8a80) center / 100% 2px no-repeat;
-}
-.croix.calage.choisie { border-color: #ff8a80; }
-.croix.choisie {
-  border: 2px solid #ffeb00;
-  border-radius: 50%;
-}
-
 .etiquette {
   padding: 0.1rem 0.4rem;
   border-radius: 3px;
@@ -1254,40 +1214,7 @@ dd { margin: 0; overflow-wrap: anywhere; }
 /* Visionneuse : étiquette à distance fixe du milieu du trait de mesure (repère de taille nulle) */
 .ancre { position: relative; width: 0; height: 0; }
 .ancre .etiquette { position: absolute; font-size: 15px; }  /* 25 % plus grandes que sur la carte */
-/* Mesure : noms de ses points et valeur, sur fond bleu comme une mesure libre sur la carte */
-.etiquette.mesure { background: rgba(21, 76, 121, 0.92); }
 .etiquette.dessus { bottom: 7px; left: 0; transform: translateX(-50%); }
-.etiquette.cote { left: 9px; top: 0; transform: translateY(-50%); }
-/* Nom d'un point triangulé (A, B…) à côté de sa croix, du côté opposé à la mesure, bordeaux
-   comme sur la carte */
-.etiquette.nom { background: rgba(142, 27, 27, 0.92); font-weight: 600; }
-/* Hauteur, largeur : étiquette au point d'arrivée (à droite du sommet, sous le bord), ouverte
-   par le nom du point ; --decalage : écart vers le bas quand elle en chevauche une autre */
-.etiquette.fin.cote { left: 10px; top: 0; transform: translateY(calc(-50% + var(--decalage, 0px))); }
-.etiquette.fin.dessous { top: 10px; left: 0; transform: translate(-50%, var(--decalage, 0px)); }
-.etiquette .puce {
-  margin: 0 0.4em 0 -0.25em;
-  padding: 0 0.3em;
-  border-radius: 3px;
-  background: rgba(142, 27, 27, 0.95);
-  font-weight: 600;
-}
-.etiquette .puce.provisoire { background: rgba(95, 99, 104, 0.95); }  /* point pas encore triangulé */
-/* Visionneuse : étiquettes de mesure et noms de points en pilules, lettre du point en pastille ronde */
-.ancre .etiquette.mesure, .ancre .etiquette.nom { border-radius: 999px; padding: 0.15rem 0.7rem; font-weight: 600; }
-.ancre .etiquette.mesure { background: rgba(24, 25, 28, 0.82); }
-.ancre .etiquette.fin { padding-left: 0.25rem; }
-.ancre .etiquette .puce { display: inline-block; min-width: 1.35em; margin: 0 0.45em 0 0; padding: 0 0.3em; border-radius: 999px;
-  text-align: center; }
-/* Trait de renvoi de l'étiquette écartée vers sa croix */
-.renvoi { position: absolute; top: 0; height: 0; border-left: 1.5px solid rgba(255, 255, 255, 0.85); }
-.renvoi.cote { left: 6px; }
-.renvoi.dessous { left: 0; top: 10px; }
-.etiquette.nom.left { right: 10px; top: 0; transform: translateY(-50%); }
-.etiquette.nom.right { left: 10px; top: 0; transform: translateY(-50%); }
-.etiquette.nom.above { bottom: 10px; left: 0; transform: translateX(-50%); }
-.etiquette.nom.below { top: 10px; left: 0; transform: translateX(-50%); }
-
 /* Poignée d'un point cliqué : croix jaune comme dans la visionneuse */
 .poignee {
   width: 18px;

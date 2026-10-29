@@ -9,6 +9,10 @@
 <iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
 <script>
 const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+// Surcouche des mesures dessinée en WebGL (src/traits.js) : repères demandés, à l'écran ou non
+const traitsIn = () => document.getElementById("f").contentWindow.eval("Traits").items();
+const labelsIn = () => traitsIn().labels.map((l) => ({ textContent: l.text }));
+const crossesIn = (visee) => traitsIn().crosses.filter((c) => visee === undefined || c.visee === visee).length;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Contrôles : valeur comparée à l'attendu, avec une tolérance ; échecs journalisés (« ÉCHEC ») et
 // comptés, bilan avant « FIN » (« ERREUR » s'il y en a : le serveur d'essai s'arrête)
@@ -144,8 +148,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       + " " + getComputedStyle(doc.querySelector("#etat-mesure"), "::before").animationName);
 
     await sleep(300);
-    log("croix du point de référence : " + w.mesures.psv.container.querySelectorAll(".croix:not(.visee)").length
-      + " · visées bleues : " + w.mesures.psv.container.querySelectorAll(".croix.visee").length);
+    log("croix du point de référence : " + crossesIn(false)
+      + " · visées bleues : " + crossesIn(true));
     await until(() => JSON.parse(app.map_geojson()).features.some((f) => f.properties.kind === "trace"), 30000, "axe de la route");
     const features = JSON.parse(app.map_geojson()).features;
     const ref = features.filter((f) => f.properties.kind === "triangule").pop().geometry.coordinates;
@@ -164,7 +168,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     w.mesures.openPhoto(photos[0]);
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "photo 1");
     await sleep(1000);
-    log("croix du point sur l'autre photo : " + box.querySelectorAll(".croix:not(.visee)").length);
+    log("croix du point sur l'autre photo : " + crossesIn(false));
     // Point de référence sélectionnable dès sa validation, avant toute largeur
     const refMark = JSON.parse(app.viewer_marks()).find((m) => m.points.length === 1 && !m.guide && !m.sighting && !m.vertical);
     psvClick(refMark.points[0][0], refMark.points[0][1]);
@@ -184,7 +188,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await sleep(300);
     expect("autre clic refusé : une seule largeur", widthsCount() === 1);
     log("autre clic : " + doc.querySelector("#statut").textContent.slice(0, 80));
-    log("étiquettes : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
+    log("étiquettes : " + labelsIn().map((e) => e.textContent).join(" | ")
       + " · carte : " + JSON.parse(app.map_geojson()).features.map((f) => f.properties.kind).join(","));
     if (location.hash === "#capture") await sleep(5000);  // capture d'écran de la vue (outil d'essai)
     // Carte : pas de longueur affichée (seulement les noms des points)
@@ -195,10 +199,10 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[1].id, 30000, "photo 2");
     await sleep(1000);
     const width = () => JSON.parse(app.viewer_marks()).find((m) => m.label.startsWith("↔"));
-    log("sur l'autre photo : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
-      + " · croix " + box.querySelectorAll(".croix").length);
+    log("sur l'autre photo : " + labelsIn().map((e) => e.textContent).join(" | ")
+      + " · croix " + crossesIn());
     expect("largeur absente de l'autre photo", !width()
-      && ![...box.querySelectorAll(".etiquette")].some((e) => e.textContent.includes("↔")));
+      && !labelsIn().some((e) => e.textContent.includes("↔")));
     w.mesures.openPhoto(photos[0]);
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "retour photo 1");
     await sleep(1000);
@@ -270,19 +274,19 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       const move = async (target) => {
         target.dispatchEvent(new w.PointerEvent("pointermove", { clientX: box.left + at.x, clientY: box.top + at.y, bubbles: true }));
         await sleep(200);
-        try { return psv.getPlugin("markers").getMarker("glisse-largeur"); } catch { return null; }  // absent
+        return traitsIn().slide;  // null : absent
       };
       // Largeur faite : un clic ne pose plus de bord, pointeur libre (pour les boutons de la visionneuse)
       expect("largeur faite : réticule libre", !(await move(canvas)) && !psv.container.classList.contains("sur-droite"));
       psvClick(edge[0], edge[1]);  // clic sur la croix du bord : sélectionné, à recaler
       expect("bord sélectionné", JSON.parse(app.state()).point_sel);
       const slide = await move(canvas);
-      const pos = slide?.state?.position ?? slide?.config?.position;
+      const pos = slide && { yaw: slide.at[0], pitch: slide.at[1] };
       log("repère glissant : " + (pos ? `cap ${pos.yaw.toFixed(4)}, élévation ${pos.pitch.toFixed(4)} (droite ${onLine(pos.yaw).toFixed(4)})` : "absent"));
       expect("repère glissant sur la droite sous le pointeur", pos && Math.abs(wrap(pos.yaw - mid)) < 0.01
         && Math.abs(pos.pitch - onLine(pos.yaw)) < 0.005);
       expect("pointeur masqué, remplacé par le réticule", getComputedStyle(psv.container.querySelector(".psv-canvas-container") || psv.container).cursor === "none"
-        && psv.container.querySelector(".glisse svg circle"));
+        && slide);
       const button = psv.container.querySelector("button, .psv-button");  // flèche de la visite
       expect("pointeur rendu sur les boutons de la visionneuse", button && !(await move(button)) && !psv.container.classList.contains("sur-droite"));
       await move(canvas);

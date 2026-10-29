@@ -8,6 +8,10 @@
 <iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
 <script>
 const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+// Surcouche des mesures dessinée en WebGL (src/traits.js) : repères demandés, à l'écran ou non
+const traitsIn = () => document.getElementById("f").contentWindow.eval("Traits").items();
+const labelsIn = () => traitsIn().labels.map((l) => ({ textContent: l.text }));
+const crossesIn = (visee) => traitsIn().crosses.filter((c) => visee === undefined || c.visee === visee).length;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Contrôles : valeur comparée à l'attendu, avec une tolérance ; échecs journalisés (« ÉCHEC ») et
 // comptés, bilan avant « FIN » (« ERREUR » s'il y en a : le serveur d'essai s'arrête)
@@ -89,17 +93,17 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         + Math.round(pb.y) + ") dans " + c.clientWidth + "×" + c.clientHeight); }
     const box = w.mesures.psv.container;
     await sleep(500);
-    log("visionneuse : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
-      + " · croix " + box.querySelectorAll(".croix:not(.visee)").length + " · liseré " + doc.querySelector("#vue").className
+    log("visionneuse : " + labelsIn().map((e) => e.textContent).join(" | ")
+      + " · croix " + crossesIn(false) + " · liseré " + doc.querySelector("#vue").className
       + " · état " + doc.querySelector("#etat-mesure").textContent + " · rappel : " + doc.querySelector("#mode-mesure").textContent);
     w.mesures.openPhoto(photos[0]);
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "photo 1");
     await sleep(800);
-    log("autre photo : " + [...box.querySelectorAll(".etiquette")].map((e) => e.textContent).join(" | ")
-      + " · croix " + box.querySelectorAll(".croix:not(.visee)").length);
+    log("autre photo : " + labelsIn().map((e) => e.textContent).join(" | ")
+      + " · croix " + crossesIn(false));
     // les deux points visés aussi depuis cette photo : la distance y reste (ticket #24)
     expect("distance sur l'autre photo d'où ses deux points ont été visés",
-      [...box.querySelectorAll(".etiquette")].some((e) => e.textContent.includes("↔")));
+      labelsIn().some((e) => e.textContent.includes("↔")));
     log("résultats : " + JSON.parse(app.results()).map((r) => r.text).join(" | ")
       + " · carte : " + JSON.parse(app.map_geojson()).features.map((f) => f.properties.kind).join(","));
     log("modes : " + [...doc.querySelectorAll("#mode option")].map((o) => o.textContent).join(" | "));
