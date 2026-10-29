@@ -29,7 +29,7 @@ const Carte = (() => {
   // demandes sans page d'origine, celles de la page ouverte par double-clic (file://)
   const OSM_TILES = "https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png";
   const osmTiles = ["a", "b", "c"].map((sub) => OSM_TILES.replace("{s}", sub));
-  const BACKGROUNDS = ["plan", "ortho", "noms", "express", "pcrs", "osm"];
+  const BACKGROUNDS = ["plan", "ortho", "noms", "express", "pcrs", "mnh", "osm"];
   // Limites administratives (ADMIN EXPRESS de l'IGN, par le WFS) : chaque niveau à partir d'un
   // zoom ; géométries de petite échelle vues de loin, plus précises de près (communes : celles de
   // la BD TOPO, pour savoir de quel côté d'une limite tombe une mesure)
@@ -132,6 +132,11 @@ const Carte = (() => {
             tileSize: 256, maxzoom: 20, attribution: ATTRIBUTION_IGN,
           },
           pcrs: { type: "raster", tiles: [pcrsTiles(pcrsLayer)], tileSize: 256, maxzoom: 22, attribution: ATTRIBUTION_IGN },
+          // Modèle Numérique de Hauteur, issu du LiDAR HD (IGN) : estompage de la hauteur du sursol (bâtiments, arbres, talus) au-dessus du sol
+          mnh: {
+            type: "raster", tiles: [wmts("IGNF_LIDAR-HD_MNH_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW", "image/png")],
+            tileSize: 256, maxzoom: 18, attribution: ATTRIBUTION_IGN,
+          },
           osm: { type: "raster", tiles: osmTiles, tileSize: 256, maxzoom: 19, attribution: ATTRIBUTION_OSM },
           panoramax: {
             type: "vector", tiles: [tilesUrl()], minzoom: 0, maxzoom: 15, attribution: ATTRIBUTION_PANORAMAX,
@@ -157,6 +162,7 @@ const Carte = (() => {
           { id: "ortho", type: "raster", source: "ortho", layout: { visibility: "none" } },
           { id: "express", type: "raster", source: "express", layout: { visibility: "none" } },
           { id: "pcrs", type: "raster", source: "pcrs", minzoom: 15, layout: { visibility: "none" } },
+          { id: "mnh", type: "raster", source: "mnh", layout: { visibility: "none" } },
           { id: "osm", type: "raster", source: "osm", layout: { visibility: "none" } },
           // Cadastre, sur le fond et sous le filaire (couleurs du Parcellaire Express de l'IGN) : bâtiments, limites des
           // parcelles et des feuilles, feuilles mal raccordées (limites peut-être décalées) teintées

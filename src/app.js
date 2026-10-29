@@ -4188,6 +4188,7 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     const name = value === "plan" ? "Plan IGN"
       : value === "express" && year ? `Ortho-express ${Number(year) >= 2025 ? "RVB " : ""}${year}`
       : value === "pcrs" ? (layer === "PCRS.LAMB93" || !layer ? "PCRS" : layer)
+      : value === "mnh" ? "Modèle Numérique de Hauteur LiDAR HD"
       : "Photographies aériennes";  // orthophoto, avec ou sans noms
     return `${name} (IGN)`;
   }

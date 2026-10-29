@@ -60,7 +60,8 @@ mesure est dans la carte d'étape de la visionneuse. Thème jour ou nuit : comme
 dans Réglages. Une section
 s'affiche à la fois ; la dernière choisie est rouverte à la visite suivante.
 
-**La carte** : fonds Plan IGN, orthophoto, ortho-express, PCRS, OpenStreetMap, et
+**La carte** : fonds Plan IGN, orthophoto, ortho-express, PCRS, Modèle Numérique de Hauteur (LiDAR HD : estompage de la hauteur du
+sursol : bâtiments, arbres, haies, talus), OpenStreetMap, et
 **orthophoto avec noms** : noms des lieux et des rues, voies, avec les numéros de route dans
 des cartouches dessinés comme ceux de l'IISR (rouge pour les autoroutes et nationales, jaune
 pour les départementales, cyan pour les métropolitaines, vert pour les européennes), limites
@@ -465,7 +466,7 @@ pas utilisé (talus et murs pris pour la route).
 
 - voyants **RTK**, **LiDAR HD** (ou **RGE ALTI** en secours) et **inclinaison** de la photo ;
 - fonds de carte : Plan IGN, orthophoto, Ortho-express de l'année de la photo, PCRS de la
-  Géoplateforme là où il est publié, OpenStreetMap ; recherche de lieux ; points de repère
+  Géoplateforme là où il est publié, Modèle Numérique de Hauteur (LiDAR HD), OpenStreetMap ; recherche de lieux ; points de repère
   (PR) des routes ; requêteur route + PR (+ distance), à listes qui se réduisent à la frappe ;
 - lieu de la photo incrusté en bas à gauche de la visionneuse : route, PR et distance mesurée
   le long du filaire IGN depuis le dernier PR passé, nom de la voie, hameau ou quartier (zone
@@ -700,6 +701,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.16** (29/10/2026) : fond de carte « Modèle Numérique de Hauteur » (estompage du MNH issu du LiDAR HD, IGN) ; profil en travers : droites du dévers sous les textes et la végétation, étiquettes sans parenthèses (précisions en légende), légende du profil en long avec lui en 2e page du PDF ; loupe du profil : la fenêtre ne dépasse plus de la visionneuse.
 - **0.6.15** (29/10/2026) : croix, réticule glissant, étiquettes des mesures et noms des points dessinés en WebGL avec les traits (affichage bien plus fluide ; la couche importée reste en repères HTML) ; vignette et photo des fiches tirées de cette même surcouche, identiques à l'écran ; nom provisoire d'un bord pas encore triangulé en gris.
 - **0.6.14** (29/10/2026) : profil en travers enregistré en PDF (page A4 paysage, lieu de la photo comme l'encart de la visionneuse, légende en petits caractères ; profil en long en 2e page au choix) ; hauteur de chute d'un pont : hauteur de caméra mesurée sur la séquence, sinon calée, sinon le réglage « Caméra à » seulement si on l'accepte, incertitude selon cette source ; terrain d'une seule source (LiDAR HD ou RGE ALTI) par calcul ; « Dévers » sur le tronçon orienté comme la route parcourue ; croix sélectionnée sous le clic à 12 px près (hauteur, largeur, calage) ; requêtes limitées à 30 s et échecs des services redemandés ; cadastre : section et numéro des parcelles en tuiles vectorielles, 25 % plus grands ; cœur de calcul repris du plugin, avec ses tests (`tests/coeur/`).
 - **0.6.13** (30/10/2026) : cadastre sur la mini-carte (#36, réglage « Cadastre sur la carte », décoché par défaut) : parcelles du Parcellaire Express dès le zoom 15, bornes de limite de propriété et section au-dessus du numéro de parcelle dès le zoom 17, feuilles cadastrales mal raccordées (écart moyen aux raccords de plus de 2 m) en orange ; essais rapides des calculs sans navigateur (`tests/test_calculs.py`) ; téléchargement par l'archive des sources de la release.
