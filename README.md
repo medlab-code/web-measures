@@ -355,8 +355,8 @@ sans répéter ce qui est déjà dit, ni le nom de la mesure) ; la mini-carte ce
 son attribution et son lien Panoramax, aussi en QR code. La mini-carte manque si elle est repliée.
 
 **Cadastre** (réglage « Cadastre sur la carte », Réglages › Affichage, décoché par défaut ; ticket #36) : parcelles
-du Parcellaire Express (IGN) sur la mini-carte dès le zoom 15, bornes de limite de propriété et section cadastrale au-dessus du numéro de chaque parcelle (« B » pour la
-section 0B) dès le zoom 17, feuilles
+du Parcellaire Express (IGN) sur la mini-carte dès le zoom 15, bornes de limite de propriété et étiquette de chaque parcelle (section au-dessus du numéro, « B » pour la
+section 0B) dès le zoom 17, en tuiles vectorielles de l'IGN (nettes à tout zoom), feuilles
 cadastrales mal raccordées à leurs voisines teintées d'orange (écart moyen aux raccords de plus de 2 m : limites
 peut-être décalées, le cadastre étant un plan numérisé). Limites indicatives. Pas de projection dans la photo : un
 essai l'a montrée trop imprécise au pied des façades (plan, sol interpolé sous les bâtiments, inclinaison de la photo).

@@ -32,9 +32,9 @@ const IDS = location.hash.startsWith("#photos=") ? location.hash.slice(8).split(
       await log(`IMAGE carte-${id.slice(0, 8)} ` + shot);
     }
     const map = w.mesures.map;
-    log(`carte : ${map.querySourceFeatures("cadastre-sections").length} sections, ${map.querySourceFeatures("cadastre-bornes").length} bornes, ${map.querySourceFeatures("cadastre-decale").length} parties de feuilles décalées`);
+    log(`carte : ${map.querySourceFeatures("cadastre", { sourceLayer: "localisant" }).length} sections, ${map.querySourceFeatures("cadastre", { sourceLayer: "borne_limite_propriete" }).length} bornes, ${map.querySourceFeatures("cadastre-decale").length} parties de feuilles décalées`);
     expect("carte : couches du cadastre affichées", map.getLayoutProperty("cadastre", "visibility") === "visible");
-    expect("carte : sections des parcelles lues au zoom 18", map.querySourceFeatures("cadastre-sections").length > 0);
+    expect("carte : sections des parcelles lues au zoom 18", map.querySourceFeatures("cadastre", { sourceLayer: "localisant" }).length > 0);
     log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
     log(failures ? "ERREUR" : "FIN");
   } catch (error) {

@@ -140,14 +140,11 @@ const Carte = (() => {
           precedents: { type: "geojson", data: EMPTY },  // résultats de la session précédente (showPrevious)
           couche: { type: "geojson", data: EMPTY },  // couche importée (showOverlay)
           pr: { type: "geojson", data: EMPTY },
-          // Cadastre (#36, réglage « Cadastre », voir setCadastre) : parcelles en tuiles, feuilles décalées et bornes
-          cadastre: {
-            type: "raster", tiles: [wmts("CADASTRALPARCELS.PARCELLAIRE_EXPRESS", "image/png")],
-            tileSize: 256, maxzoom: 19, attribution: ATTRIBUTION_IGN,
-          },
+          // Cadastre (#36, réglage « Cadastre sur la carte », voir setCadastre) : Parcellaire Express en tuiles vectorielles
+          // (parcelles et feuilles dès le zoom 15 ; bâtiments, bornes et points d'étiquette dès le zoom 17), nettes à tout zoom ;
+          // feuilles mal raccordées lues au WFS
+          cadastre: { type: "vector", tiles: [`${GEOPF}/tms/1.0.0/PCI/{z}/{x}/{y}.pbf`], minzoom: 5, maxzoom: 19, attribution: ATTRIBUTION_IGN },
           "cadastre-decale": { type: "geojson", data: EMPTY },
-          "cadastre-bornes": { type: "geojson", data: EMPTY },
-          "cadastre-sections": { type: "geojson", data: EMPTY },  // point d'étiquette de chaque parcelle (localisant)
           contour: { type: "geojson", data: EMPTY },  // commune choisie dans la recherche (recherche.js)
           voies: { type: "vector", tiles: [ROADS_TILES], minzoom: ROADS_MINZOOM, maxzoom: 19, attribution: ATTRIBUTION_IGN },
           // tuiles jusqu'au zoom 13 seulement, agrandies au-delà : à partir du zoom 14, le Plan IGN
@@ -161,8 +158,20 @@ const Carte = (() => {
           { id: "express", type: "raster", source: "express", layout: { visibility: "none" } },
           { id: "pcrs", type: "raster", source: "pcrs", minzoom: 15, layout: { visibility: "none" } },
           { id: "osm", type: "raster", source: "osm", layout: { visibility: "none" } },
-          // Cadastre, sur le fond et sous le filaire : feuilles mal raccordées (limites peut-être décalées) teintées
-          { id: "cadastre", type: "raster", source: "cadastre", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" } },
+          // Cadastre, sur le fond et sous le filaire (couleurs du Parcellaire Express de l'IGN) : bâtiments, limites des
+          // parcelles et des feuilles, feuilles mal raccordées (limites peut-être décalées) teintées
+          {
+            id: "cadastre-batiments", type: "fill", source: "cadastre", "source-layer": "batiment", layout: { visibility: "none" },
+            paint: { "fill-color": "#c17d73", "fill-opacity": 0.45, "fill-outline-color": "#b580ff" },
+          },
+          {
+            id: "cadastre", type: "line", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
+            paint: { "line-color": "#ff8000", "line-width": ["interpolate", ["linear"], ["zoom"], 15, 0.6, 18, 1.6, 21, 2.5] },
+          },
+          {
+            id: "cadastre-feuilles", type: "line", source: "cadastre", "source-layer": "feuille", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
+            paint: { "line-color": "#808080", "line-width": ["interpolate", ["linear"], ["zoom"], 15, 1, 18, 2.5] },
+          },
           {
             id: "cadastre-decale", type: "fill", source: "cadastre-decale", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
             paint: { "fill-color": "#ffa000", "fill-opacity": 0.15, "fill-outline-color": "#ffa000" },
@@ -263,19 +272,15 @@ const Carte = (() => {
             },
           },
           {
-            id: "cadastre-bornes", type: "circle", source: "cadastre-bornes", minzoom: CADASTRE_BORNES_ZOOM, layout: { visibility: "none" },
+            id: "cadastre-bornes", type: "circle", source: "cadastre", "source-layer": "borne_limite_propriete", minzoom: CADASTRE_BORNES_ZOOM,
+            layout: { visibility: "none" },
             paint: { "circle-color": "#ffffff", "circle-radius": 3, "circle-stroke-color": "#ff4fd8", "circle-stroke-width": 1.5 },
           },
-          // Section cadastrale au-dessus du numéro de chaque parcelle (écrit dans les tuiles, centré sur son localisant) :
-          // image dessinée à la demande (sectionImage), qui grandit avec les tuiles agrandies au-delà de leur zoom 19
+          // Section et numéro de chaque parcelle, à son point d'étiquette (localisant) : image dessinée à la demande
+          // (parcelImage), de taille fixe à l'écran ; celles qui se chevauchent sont masquées
           {
-            id: "cadastre-sections", type: "symbol", source: "cadastre-sections", minzoom: CADASTRE_SECTIONS_ZOOM,
-            layout: {
-              visibility: "none", "icon-image": ["concat", "section:", ["get", "section"]], "icon-anchor": "bottom",
-              "icon-allow-overlap": true, "icon-ignore-placement": true,
-              "icon-offset": ["interpolate", ["exponential", 2], ["zoom"], 19, ["literal", [0, -7]], 22, ["literal", [0, -56]]],
-              "icon-size": ["interpolate", ["exponential", 2], ["zoom"], 19, 1, 22, 8],
-            },
+            id: "cadastre-sections", type: "symbol", source: "cadastre", "source-layer": "localisant", minzoom: CADASTRE_SECTIONS_ZOOM,
+            layout: { visibility: "none", "icon-image": ["concat", "parcelle:", ["get", "section"], "|", ["get", "numero"]], "icon-padding": 1 },
           },
           // Couche importée (GeoJSON) : couleur de chaque objet (Couche.style), sous les mesures
           {
@@ -345,7 +350,7 @@ const Carte = (() => {
       if (e.id.startsWith("cartouche:") && !map.hasImage(e.id)) {
         map.addImage(e.id, cartoucheImage(e.id.slice("cartouche:".length)), { pixelRatio: 2 });
       }
-      if (e.id.startsWith("section:") && !map.hasImage(e.id)) map.addImage(e.id, sectionImage(e.id.slice("section:".length)), { pixelRatio: 2 });
+      if (e.id.startsWith("parcelle:") && !map.hasImage(e.id)) map.addImage(e.id, parcelImage(e.id.slice("parcelle:".length)), { pixelRatio: 2 });
     });
     map.addControl(new maplibregl.NavigationControl(), "top-left");
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
@@ -358,23 +363,26 @@ const Carte = (() => {
     return map;
   }
 
-  /** Section cadastrale ("0C" : « C », zéros de tête retirés comme sur le plan), du violet des numéros, liseré blanc
-   * (dessinée au double). */
-  function sectionImage(code) {
-    const text = code.replace(/^0+(?=.)/, ""), scale = 2, font = `600 ${11 * scale}px sans-serif`;
+  /** Étiquette d'une parcelle, "section|numéro" : section ("0C" : « C », zéros de tête retirés comme sur le plan) au-dessus
+   * du numéro, même police, violet des numéros du Parcellaire Express, liseré blanc (dessinée au double). */
+  function parcelImage(spec) {
+    const [section, number] = spec.split("|");
+    const lines = [section.replace(/^0+(?=.)/, ""), number], scale = 2, font = `600 ${11 * scale}px sans-serif`, line = 13 * scale;
     const canvas = document.createElement("canvas"), ctx = canvas.getContext("2d");
     ctx.font = font;
-    canvas.width = Math.ceil(ctx.measureText(text).width) + 6 * scale;
-    canvas.height = 15 * scale;
+    canvas.width = Math.ceil(Math.max(...lines.map((t) => ctx.measureText(t).width))) + 6 * scale;
+    canvas.height = line * lines.length + 2 * scale;
     ctx.font = font;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.lineJoin = "round";
     ctx.lineWidth = 3 * scale;
     ctx.strokeStyle = "#ffffff";
-    ctx.fillStyle = "#6a00ff";  // violet des numéros de parcelle des tuiles
-    ctx.strokeText(text, canvas.width / 2, canvas.height / 2);
-    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+    ctx.fillStyle = "#6a00ff";
+    lines.forEach((t, i) => {
+      ctx.strokeText(t, canvas.width / 2, scale + line * (i + 0.5));
+      ctx.fillText(t, canvas.width / 2, scale + line * (i + 0.5));
+    });
     return ctx.getImageData(0, 0, canvas.width, canvas.height);
   }
 
@@ -718,7 +726,8 @@ const Carte = (() => {
     all();  // entités déjà connues tout de suite (changement de zoom)
   }
 
-  // Cadastre : parcelles dès CADASTRE_MINZOOM, bornes de limite de propriété dès CADASTRE_BORNES_ZOOM (nombreuses)
+  // Cadastre : parcelles dès CADASTRE_MINZOOM, bornes de limite de propriété et étiquettes dès CADASTRE_BORNES_ZOOM (nombreuses ;
+  // tuiles vectorielles du PCI : ni bornes ni étiquettes avant le zoom 17)
   const CADASTRE_MINZOOM = 15, CADASTRE_BORNES_ZOOM = 17, CADASTRE_SECTIONS_ZOOM = 17;
   // feuille teintée : écart moyen aux raccords avec ses voisines (dst_raccor, qualité du géoréférencement de la BD Parcellaire)
   // au-delà de CADASTRE_DECALAGE m (médiane en Côte-d'Or : 1,5 m ; un quart au-delà de 5,8 m) : limites peut-être décalées
@@ -730,7 +739,7 @@ const Carte = (() => {
     cadastreOn = on;
     // pas whenLoaded (voir setMilestones) : « load » peut être passé alors que le style se dit « pas chargé »
     const apply = () => {
-      for (const id of ["cadastre", "cadastre-decale", "cadastre-bornes", "cadastre-sections"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+      for (const id of ["cadastre", "cadastre-batiments", "cadastre-feuilles", "cadastre-decale", "cadastre-bornes", "cadastre-sections"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
       if (!cadastreFollow) {
         cadastreFollow = true;
         map.on("moveend", () => {
@@ -749,14 +758,6 @@ const Carte = (() => {
     const view = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
     adminFetch("CADASTRALPARCELS.QUALREFBDP:divcadmtd", view, "dst_raccor,geom", (features) => map.getSource("cadastre-decale")
       ?.setData({ type: "FeatureCollection", features: features.filter((f) => (f.properties.dst_raccor ?? 0) > CADASTRE_DECALAGE) }));
-    if (zoom >= CADASTRE_BORNES_ZOOM) {
-      adminFetch("CADASTRALPARCELS.PARCELLAIRE_EXPRESS:borne_limite_propriete", view, "geom",
-        (features) => map.getSource("cadastre-bornes")?.setData({ type: "FeatureCollection", features }));
-    }
-    if (zoom >= CADASTRE_SECTIONS_ZOOM) {
-      adminFetch("CADASTRALPARCELS.PARCELLAIRE_EXPRESS:localisant", view, "section,geom",
-        (features) => map.getSource("cadastre-sections")?.setData({ type: "FeatureCollection", features }));
-    }
   }
 
   function showMilestones(map) {
