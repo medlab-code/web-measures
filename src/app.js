@@ -261,13 +261,16 @@
   const fitProfile = () => {
     const dialog = $("#fenetre-profil"), chart = dialog.querySelector(".graphique");
     chart.style.width = "";
+    dialog.style.maxWidth = "";
     if (!dialog.classList.contains("agrandi")) return;
     const box = $("#vue").getBoundingClientRect();
     const ratio = chart.offsetWidth / (chart.offsetHeight || 1);  // les deux graphiques (en travers, en long) ensemble
-    // Place prise par le reste de la fenêtre (titre, boutons, marges), mesurée graphique compris, puis retirée
-    const otherW = dialog.offsetWidth - chart.offsetWidth, otherH = dialog.offsetHeight - chart.offsetHeight;
-    const width = Math.min(box.width - 16 - otherW, (box.height - 16 - otherH) * ratio);
-    chart.style.width = `${Math.max(200, Math.floor(width))}px`;
+    // Marges de la fenêtre en largeur ; en hauteur, place prise par le reste (titre, boutons), mesurée graphique compris
+    const css = getComputedStyle(dialog), otherW = ["paddingLeft", "paddingRight", "borderLeftWidth", "borderRightWidth"]
+      .reduce((sum, k) => sum + parseFloat(css[k]), 0), otherH = dialog.offsetHeight - chart.offsetHeight;
+    const width = Math.max(200, Math.floor(Math.min(box.width - 16 - otherW, (box.height - 16 - otherH) * ratio)));
+    chart.style.width = `${width}px`;
+    dialog.style.maxWidth = `${width + otherW}px`;  // la rangée de boutons passe à la ligne au lieu d'élargir la fenêtre
   };
   const zoomProfile = (on) => {
     const dialog = $("#fenetre-profil"), button = $("#profil-loupe");

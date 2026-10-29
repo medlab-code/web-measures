@@ -133,7 +133,8 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
         doc.querySelector("#profil").click();
         await sleep(1000);
         const dialog = doc.querySelector("#fenetre-profil");
-        if (![...dialog.querySelectorAll("svg text")].some((e) => e.textContent === "séparateur de chaussée(relief)")
+        if (![...dialog.querySelectorAll("svg text")].some((e) => e.textContent === "séparateur de chaussée")
+          || !dialog.querySelector(".legende").textContent.includes("trouvé dans le relief")  // d'où il vient : en légende
           || !dialog.querySelector("svg .separateur")) twin = 0;
         const blob = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
         await log("IMAGE 61dd94c4 " + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));

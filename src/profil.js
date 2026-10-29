@@ -112,7 +112,7 @@ const Profil = (() => {
         el("text", { x: LEFT - 6, y: Z(z + ref) + 4, class: "graduation", "text-anchor": "end" }, `${z > 0 ? "+" : ""}${num(z, zStep < 1 ? 2 : 0)}`));
     }
     // Source des altitudes, en haut à gauche : l'image enregistrée la garde
-    svg.append(el("text", { x: 4, y: 16, class: "etiquette-profil" }, `Mesure ${profile.source} (IGN)`),
+    svg.append(el("text", { x: 4, y: 16, class: "etiquette-profil" }, `Mesure ${profile.source}`),
       el("text", { x: 4, y: 32, class: "graduation" }, `altitudes à ±${num(profile.erreur)} m`));
     svg.append(el("text", { x: LEFT, y: H - 6, class: "graduation" }, "← gauche"),
       el("text", { x: LEFT + plotW, y: H - 6, class: "graduation", "text-anchor": "end" }, "droite →"),
@@ -146,10 +146,9 @@ const Profil = (() => {
     // (d'après la BD TOPO), nommée au-dessus ; autrement que les bords, qui seuls limitent la plateforme
     if (main.separateur) {
       const [s0, s1] = main.separateur, gx = X((s0 + s1) / 2), gy = Z(zAt(main.points, (s0 + s1) / 2));
-      // nommé sur deux lignes, d'où vient sa position dessous (comme les bords) : une seule étiquette pour declutter
-      const label = el("text", { x: gx, y: gy - 38, class: "graduation place", "data-haut": "", "text-anchor": "middle" });
-      label.append(el("tspan", { x: gx }, "séparateur de chaussée"), el("tspan", { x: gx, dy: LINE },
-        `(${main.separateurRelief === "nuage" ? "nuage LiDAR" : main.separateurRelief ? "relief" : "BD TOPO"})`));
+      // d'où vient sa position : dans la légende
+      const label = el("text", { x: gx, y: gy - 24, class: "graduation place", "data-haut": "", "text-anchor": "middle" },
+        "séparateur de chaussée");
       svg.append(el("line", { x1: gx, x2: gx, y1: gy - 2, y2: gy - 18, class: "separateur" }), label);
     }
     // Analyse fine : hauteur maximale de la végétation (ligne verte, coupée en haut du graphique, interrompue là où il n'y
@@ -221,8 +220,7 @@ const Profil = (() => {
     } else if (factor === 1) {
       svg.append(el("line", { x1: X(0), x2: X(0), y1: Z(ref), y2: Z(ref + camera), class: "bord" }),
         el("circle", { cx: X(0), cy: Z(ref + camera), r: 5, class: "origine" }),
-        el("text", { x: X(0) + 9, y: Z(ref + camera) + 4, class: "graduation place", "data-haut": "" },  // à droite du point
-          `caméra (${num(camera, 2)} m)`));
+        el("text", { x: X(0) + 9, y: Z(ref + camera) + 4, class: "graduation place", "data-haut": "" }, "caméra"));  // à droite du point
     }
 
     // Chute et dévers, sur le travers où ils ont été mesurés ; une puce par côté dans la légende
@@ -278,6 +276,9 @@ const Profil = (() => {
             td === main ? "" : `, travers à ${td.along > 0 ? "+" : "−"}${Math.abs(td.along)} m`})`);
       }
     }
+    // droites du dévers juste au-dessus du terrain : sous la végétation, l'eau, les flèches et les textes
+    const ground = svg.querySelector("path.sol");
+    for (const line of [...svg.querySelectorAll("line.devers")].reverse()) ground.after(line);
     declutter(svg, TOP, TOP + plotH);
     const marker = el("marker", { id: "fleche", viewBox: "0 0 10 10", refX: 10, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" });
     marker.append(el("path", { d: "M0,0L10,5L0,10Z", class: "fleche" }));
@@ -292,11 +293,12 @@ const Profil = (() => {
         profile.origine === "caméra" ? "la caméra" : "l'axe"}.`,
       "Trait brun\u00a0: travers de la photo · pointillés\u00a0: travers à 5 et 10 m devant et derrière · "
         + "trait gris\u00a0: travers où la chute ou le dévers ont été mesurés.",
+      ...(profile.origine === "caméra" && factor === 1 ? [`Point bleu\u00a0: la caméra, à ${num(camera, 2)} m au-dessus de la plateforme.`] : []),
       ...(main.separateur ? [`Petite barre verticale\u00a0: milieu du séparateur de chaussée (terre-plein central), ${main.separateurRelief
         ? main.separateurRelief === "nuage" ? "trouvé dans le nuage LiDAR\u00a0: bande non revêtue (herbe, gravillons, glissières) entre les deux chaussées"
           : main.separateurRelief === "bosse" ? "trouvé dans le relief\u00a0: bosse étroite (assise de glissières ou de muret)"
           : `trouvé dans le relief entre deux marches du terrain (${num(Math.abs(main.separateur[1] - main.separateur[0]))} m de large)`
-        : "placé d'après les largeurs BD TOPO (pas de marche du terrain trouvée)"}\u00a0; la plateforme va jusqu'au bord `
+        : `placé d'après les largeurs BD TOPO (pas de marche du terrain trouvée${fine ? ", ni de bande non revêtue dans le nuage LiDAR" : ""})`}\u00a0; la plateforme va jusqu'au bord `
         + "extérieur de l'autre chaussée."] : []),
       ...(fine ? [`Analyse fine (nuage LiDAR HD, ${fine.points} points du sol)\u00a0: carrés blancs, lignes blanches lues à `
         + "l'intensité du retour laser\u00a0; tirets courts, bords de chaussée\u00a0: ligne de rive, sinon fin de l'enrobé"
@@ -325,7 +327,9 @@ const Profil = (() => {
         + "(talus, butte)\u00a0: derrière, ce n'est pas une chute.",
       `${factor > 1 ? `Hauteurs exagérées ×${factor} pour la lisibilité` : "Hauteurs à l'échelle des distances"}. `
         + `Terrain ${profile.source} (IGN), altitudes à ±${num(profile.erreur)} m près.`,
+      ...(profile.en_long?.points?.length && longLegend(profile.en_long) ? [longLegend(profile.en_long)] : []),
     ].map((t) => html("p", "aide", t)));
+    if (profile.en_long?.points?.length && longLegend(profile.en_long)) legend.lastElementChild.classList.add("legende-long");  // PDF : avec la 2e page
     return { svg, legend, long: drawLong(profile.en_long, camera) };
   }
 
@@ -395,6 +399,15 @@ const Profil = (() => {
     return new Promise((resolve) => g.canvas.toBlob(resolve, "image/png"));
   }
 
+  /** Lecture du profil en long (drawLong), pour la légende : ponts, creux comblés et tunnels, ou "" s'il n'y en a pas. */
+  function longLegend(long) {
+    const kinds = new Set((long.ouvrages || []).map((o) => o.type)), parts = [
+      ...(kinds.has("pont") ? ["pont\u00a0: tablier interpolé d'un bord à l'autre (tirets)"] : []),
+      ...(kinds.has("creux") ? ["creux comblé\u00a0: creux du terrain sous la route, sans doute un pont absent de la BD TOPO"] : []),
+      ...(kinds.has("tunnel") ? ["tunnel\u00a0: route tracée de bout en bout (tirets)"] : [])];
+    return parts.length ? `Profil en long\u00a0: ${parts.join(" · ")}.` : "";
+  }
+
   /** Profil en long (App._compute_edges : en_long, points [d, z], d > 0 dans le sens de la photo) : petit graphique sous le
    * profil en travers, 0 = le sol sous la caméra, la caméra flottant à camera m au-dessus, la pente la plus forte sur 10 m
    * en rouge ; null sans données. */
@@ -430,7 +443,7 @@ const Profil = (() => {
     if (top !== null) {  // caméra à sa hauteur au-dessus du sol, pointillé jusqu'à lui
       svg.append(el("line", { x1: X(0), x2: X(0), y1: Z(ground), y2: Z(top), class: "bord" }),
         el("circle", { cx: X(0), cy: Z(top), r: 5, class: "origine" }),
-        el("text", { x: X(0) + 9, y: Z(top) + 4, class: "graduation place" }, `caméra (${num(camera, 2)} m)`));
+        el("text", { x: X(0) + 9, y: Z(top) + 4, class: "graduation place" }, "caméra"));
     }
     // Ponts, creux comblés et tunnels : le tablier (droite d'un bord à l'autre) en tirets, nommé au-dessus
     const decks = [];  // tabliers dessinés : les étiquettes s'en écartent
@@ -441,7 +454,7 @@ const Profil = (() => {
       decks.push([X(a), Math.min(Z(at(a)), Z(at(b))) - 7, X(b), Math.max(Z(at(a)), Z(at(b))) - 1]);
       svg.append(el("line", { x1: X(a), y1: Z(at(a)) - 4, x2: X(b), y2: Z(at(b)) - 4, class: "ouvrage" }),
         el("text", { x: X((a + b) / 2), y: Z(at((a + b) / 2)) - 10, class: "graduation place", "data-haut": "", "text-anchor": "middle" },
-          o.type === "pont" ? "pont (tablier interpolé)" : o.type === "creux" ? "creux du terrain (pont ?), comblé" : "tunnel"));
+          o.type === "pont" ? "pont" : o.type === "creux" ? "creux comblé" : "tunnel"));
     }
     // Fin de la route de la photo et carrefours avec une voie nommée : trait pointillé et nom
     for (const [k, e] of (long.fins || []).entries()) {
@@ -462,10 +475,10 @@ const Profil = (() => {
     declutter(svg, T, T + ph, decks);
     const g = long.pente;
     svg.append(el("text", { x: L, y: 18, class: "etiquette-profil" }, `Profil en long\u00a0: ${g >= 0 ? "montée" : "descente"} de ${num(Math.abs(g))} %`
-        + (long.max ? `, jusqu'à ${num(Math.abs(long.max[0]))} % sur 10 m (en rouge)` : "")),
+        + (long.max ? `, jusqu'à ${num(Math.abs(long.max[0]))} % sur 10 m` : "")),
       el("text", { x: L + pw, y: LH - 4, class: "graduation", "text-anchor": "end" }, "sens de la photo →"),
       el("text", { x: L, y: LH - 4, class: "graduation" },
-        `hauteurs exagérées, 0 = le sol sous la caméra${long.suivi ? ` · le long de la ${long.suivi === "axe BD TOPO" ? "route (axe BD TOPO)" : long.suivi}` : ""}`));
+        `hauteurs exagérées, 0 = le sol sous la caméra${long.suivi ? ` · le long de ${long.suivi === "axe BD TOPO" ? "l'axe BD TOPO de la route" : `la ${long.suivi}`}` : ""}`));
     return svg;
   }
 
@@ -477,6 +490,9 @@ const Profil = (() => {
     const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
     const head = (name) => `<header><div><h1>${name}</h1>${place ? `<div class="lieu">${place}</div>` : ""}</div>
 <div class="date">${esc(edited)}</div></header>`;
+    // légende du profil en long : avec lui, sur la 2e page (sinon, pas de profil en long du tout)
+    const first = legend.cloneNode(true), longText = first.querySelector(".legende-long")?.outerHTML || "";
+    first.querySelector(".legende-long")?.remove();
     const foot = `<footer><span>Mesures Panoramax — terrain IGN (MNT LiDAR HD ou RGE ALTI), tronçons BD TOPO</span><span>${
       photo ? `Photo Panoramax ${esc(photo)}` : ""}</span></footer>`;
     return `<!doctype html><html lang="fr" data-theme="light"><head><meta charset="utf-8"><title>Profil en travers</title>
@@ -495,7 +511,8 @@ dialog.profil { position: static; max-width: none; max-height: none; width: auto
   padding: 0; border: 0; box-shadow: none; background: #fff; color: #1c1c1c; display: block; }
 dialog.profil .graphique { flex: none; margin: 2.5mm 0 0; }
 dialog.profil .graphique svg { width: 100%; height: auto; max-height: var(--haut, 125mm); }
-.en-long { margin: auto 0; } .en-long svg { display: block; width: 100%; height: auto; max-height: 150mm; }
+dialog.profil.long { margin: auto 0; } .en-long svg { display: block; width: 100%; height: auto; max-height: 150mm; }
+dialog.profil.long .legende { columns: 1; font-size: 10px; margin-top: 3mm; }
 dialog.profil .legende { font-size: var(--legende, 8.5px); line-height: 1.35; columns: 2; column-gap: 7mm; margin-top: 2.5mm; }
 dialog.profil .legende ul { margin: 0 0 1mm; padding-left: 1.1em; }
 dialog.profil .legende li { margin: 0.4mm 0; break-inside: avoid; }
@@ -503,8 +520,9 @@ dialog.profil .legende p.aide { font-size: 1em; margin: 0 0 0.8mm; break-inside:
 footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #ddd; font-size: 8px; color: #666; display: flex; justify-content: space-between; }
 </style></head><body><div class="page">${head("Profil en travers")}
 <dialog class="profil" open><div class="graphique">${svg.outerHTML}</div>
-<div class="legende">${legend.innerHTML}</div></dialog>${foot}</div>${long ? `
-<div class="page">${head("Profil en long")}<div class="en-long">${long.outerHTML}</div>${foot}</div>` : ""}</body></html>`;
+<div class="legende">${first.innerHTML}</div></dialog>${foot}</div>${long ? `
+<div class="page">${head("Profil en long")}<dialog class="profil long" open><div class="en-long">${long.outerHTML}</div>
+<div class="legende">${longText}</div></dialog>${foot}</div>` : ""}</body></html>`;
   }
 
   /** 1re page de pdfPage resserrée jusqu'à tenir sur sa page : graphique moins haut, puis légende plus petite. */
