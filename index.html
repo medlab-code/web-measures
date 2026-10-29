@@ -34,7 +34,7 @@
   <header>
     <div class="marque">
       <h1>Mesures Panoramax</h1>
-      <span class="essai" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.6.10— projet personnel – POC</span>
+      <span class="essai" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.6.11— projet personnel – POC</span>
     </div>
     <!-- Mesure : gros bouton sur les deux rangées ; réglages, puis effacement en dessous -->
     <div class="bloc mesure carte-barre">
@@ -625,7 +625,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
     <p class="nuage-etat"><progress id="profil-nuage-barre" max="1" hidden aria-label="Avancement de la lecture du nuage LiDAR"></progress>
       <span id="profil-nuage-etat" class="aide" aria-live="polite"></span></p>
     <form method="dialog">
-      <label title="Hauteurs à la même échelle que les distances, sans exagération : le relief tel qu'il est (choix retenu pour les profils suivants)"><input id="profil-echelle" type="checkbox" class="interrupteur"> Hauteurs à l'échelle</label>
+      <label title="Hauteurs à la même échelle que les distances, sans exagération : le relief tel qu'il est, caméra à sa hauteur (cochée à chaque ouverture)"><input id="profil-echelle" type="checkbox" checked class="interrupteur"> Hauteurs à l'échelle</label>
       <label title="Végétation lue par l'analyse fine : ligne verte (hauteur maximale) et herbe au sol (choix retenu pour les profils suivants)"><input id="profil-vegetation" type="checkbox" class="interrupteur" checked disabled> Végétation</label>
       <button id="profil-nuage" type="button" title="Lire le nuage de points LiDAR HD de l'IGN sur ce travers (une vingtaine de secondes) : lignes blanches et nature du sol (enrobé, herbe, gravillons), pour placer le bord de chaussée et le séparateur de chaussée">Analyse fine</button>
       <button id="profil-loupe" type="button" aria-pressed="false" aria-label="Agrandir le graphique"

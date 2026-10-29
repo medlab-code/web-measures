@@ -180,6 +180,12 @@ def _ign_bridges(data):
     return out
 
 
+# Natures de la BD TOPO : nom d'une voie sans numéro ni nom (roads.parse_sections) ; ces voies ne sont pas citées aux carrefours
+_WAY_KINDS = {"Route à 1 chaussée": "une route", "Route à 2 chaussées": "une route", "Route empierrée": "un chemin empierré",
+              "Chemin": "un chemin", "Sentier": "un sentier", "Rond-point": "un rond-point", "Bretelle": "une bretelle",
+              "Type autoroutier": "une voie rapide", "Piste cyclable": "une piste cyclable", "Escalier": "un escalier"}
+
+
 def _crossing(a, b, c, d):
     """Point (x, y) où les segments [a, b] et [c, d] se coupent ou se touchent (sommet commun : la BD TOPO
     en met un au croisement de deux niveaux), ou None (pas de contact, ou parallèles)."""
@@ -322,6 +328,7 @@ class App(session.Session):
         self.falls = {}  # (séquence, pont) -> hauteur de chute calculée (dict text, title) ou en cours
         self.edges = {}  # (photo, largeur examinée) -> chute et dévers des bords de route (voir _edges)
         self.edges_asked = {}  # photo -> largeur examinée au dernier appui sur « Dévers »
+        self.long_tracks = {}  # photo -> trajectoire de la caméra autour d'elle (_track_line), None pendant la lecture
         self.edge_zone = self.EDGE_ZONE
         self.bdtopo = {}  # (couche BD TOPO, maille) -> objets lus (voir _bdtopo)
         self.map_line = None  # droite de mesure tracée sur la carte, pour le prochain point A (ticket #28)
@@ -1753,6 +1760,10 @@ class App(session.Session):
     STEP_Z, STEP_HOLD = 0.05, 0.04
     SEPARATOR_WIDTH = (0.5, 10.0)  # m : largeurs possibles d'un séparateur de chaussée trouvé dans le relief
     SEPARATOR_NEAR = 4.0  # m au plus entre son milieu et celui que donne la BD TOPO
+    # Profil en long : terrain sur ±LONG_REACH m le long du tronçon, tous les LONG_STEP m ; pente moyenne (moindres carrés)
+    # et la plus forte sur LONG_WINDOW m
+    LONG_REACH, LONG_STEP, LONG_WINDOW = 50, 2, 10
+    LONG_JUNCTION = 30.0  # m : repères de carrefour avec la même voie plus proches : un seul carrefour (îlot séparateur)
     EDGE_CONSENSUS = 3.0  # m : bord (ou séparateur) d'un travers plus loin de la médiane des autres : ramené à elle
     # Séparateur étroit sans marches (glissières dos à dos, muret : le MNT n'en garde que l'assise) : pic de 1 ou 2 points au
     # moins PEAK_Z m au-dessus des points voisins, au même endroit (PEAK_SPREAD m près) sur PEAK_TRAVERS travers au moins
@@ -1785,6 +1796,22 @@ class App(session.Session):
         def told(text):
             return {"text": "Bords de route\n" + text, "title": "", "edges": True}
 
+        # Tronçons des mailles voisines aussi (±LONG_REACH m et plus) : la route prolongée (_chained) sort de la maille de la
+        # photo ; doublons (un tronçon lu dans deux mailles) fusionnés
+        reach = self.LONG_REACH + 10.0
+        dlat, dlon = reach / 111320.0, reach / (111320.0 * math.cos(math.radians(lat)))
+        merged, seen = [], set()
+        for cell in {roads._cell(lon + i * dlon, lat + j * dlat) for i in (-1, 0, 1) for j in (-1, 0, 1)}:
+            more = sections if cell == roads._cell(lon, lat) else self._fall_sections(cell[0] * roads.CELL + 1e-9, cell[1] * roads.CELL + 1e-9)
+            if more is roads.PENDING:
+                return told("Calcul en cours…")
+            for sec in more or []:
+                tag = (sec.get("name"), sec.get("level"), tuple(sec["line"][0]), tuple(sec["line"][-1]))
+                if tag not in seen:
+                    seen.add(tag)
+                    merged.append(sec)
+        sections = merged
+
         near = None
         for sec in sections:
             if sec.get("level", 0) != 0:
@@ -1797,6 +1824,8 @@ class App(session.Session):
             return told("Pas de route de la BD TOPO à moins de {} m de la photo".format(
                 measures._num(roads.MAX_DISTANCE, 0)))
         _, s, line, sec = near
+        line, ends, works = self._chained(line, sec, sections, lon, lat)  # prolongé par les tronçons voisins de la même route
+        s = roads._project(line, 0.0, 0.0)[1]
         # Autres chaussées possibles (voir TWIN_REACH) : [(tronçon en mètres locaux, largeur)], vérifiées travers par
         # travers (_compute_edges) : un tronçon voisin de la même chaussée, dans son prolongement, n'en est pas une
         twin = []
@@ -1810,14 +1839,76 @@ class App(session.Session):
         key = (item.get("id"), zone, camera)
         res = self.edges.get(key)
         if res is None or time.monotonic() >= res.get("retry_at", float("inf")):
+            track = self._track_line(item, lon, lat)  # profil en long le long de la trajectoire de la caméra
+            if track is None:
+                return told("Calcul en cours…")
             res = self.edges[key] = {"text": "Calcul en cours…", "title": ""}
-            self._compute_edges(key, line, s, sec["width"], metadata.item_heading(item), lon, lat, twin)
+            self._compute_edges(key, line, s, sec["width"], metadata.item_heading(item), lon, lat, twin, track,
+                                (ends, sec.get("name"), works))
         road = sec.get("name") if re.match(r"[A-Z]+\d", sec.get("name") or "") else None
         profile = res.get("profile")
         if profile:  # eau de la BD TOPO sur le travers de la photo (lue à part : None pendant la lecture)
             profile = dict(profile, eau=self._water_across(res["frame"], lon, lat))
         return {"text": "Bords de route" + (" ({})".format(road) if road else "") + "\n" + res["text"],
                 "title": res["title"], "edges": True, "profile": profile, "road": road}
+
+    CHAIN_TURN = 60.0  # degrés de déviation au plus d'un tronçon à l'autre en prolongeant la route
+    CHAIN_REACH, CHAIN_TOUCH = 60.0, 2.0  # m ajoutés au plus de chaque côté ; bouts de tronçons qui se touchent
+
+    def _chained(self, line, sec, sections, lon, lat):
+        """Ligne du tronçon de la photo (mètres locaux) prolongée à chaque bout par les tronçons au sol de la même route
+        (même nom) qui s'y raccordent, jusqu'à CHAIN_REACH m de plus : le profil en long et les travers ne s'arrêtent pas
+        au bout du tronçon. Un seul voisin pris par bout (le premier trouvé) ; sans nom ou sans voisin, la ligne telle quelle.
+        Rend aussi les points remarquables de cette route : [(point, "fin" ou "carrefour", voies nommées qui s'y raccordent)],
+        « fin » au bout de la ligne prolongée (la route s'arrête, ou continue sous un autre nom), « carrefour » là où une
+        voie nommée (numéro ou nom, pas une simple nature) s'y raccorde sans l'interrompre. Les tronçons en pont ou en tunnel
+        de la route en font partie : leurs bouts sont rendus à part, [(niveau, bout, bout)] (le MNT y est le fond franchi
+        ou le dessus du tunnel, pas la chaussée)."""
+        touch = lambda a, b: math.hypot(a[0] - b[0], a[1] - b[1]) <= self.CHAIN_TOUCH
+        if not sec.get("name"):
+            return line, [], []
+        others = [[triangulation._local(p[0], p[1], lon, lat) for p in o["line"]] for o in sections
+                  if o is not sec and o.get("name") == sec["name"]]
+        levels = [o.get("level", 0) for o in sections if o is not sec and o.get("name") == sec["name"]]
+        works = []  # ouvrages de la route : (niveau, bout, bout)
+        foreign = [(o.get("name") or "", [triangulation._local(p[0], p[1], lon, lat) for p in (o["line"][0], o["line"][-1])])
+                   for o in sections if o.get("level", 0) == 0 and o.get("name") != sec["name"]]
+        joints = [line[0], line[-1]]  # bouts des tronçons de la route mis bout à bout
+        out = list(line)
+        for at_end in (True, False):
+            added, used = 0.0, set()
+            while added < self.CHAIN_REACH:
+                tip, back = (out[-1], out[-2]) if at_end else (out[0], out[1])
+                way = (tip[0] - back[0], tip[1] - back[1])  # sens de la route en sortant par ce bout
+                # le tronçon qui la continue le plus dans l'alignement (à un nœud, plusieurs tronçons du même nom peuvent
+                # partir : l'autre branche d'une intersection, un pont…), à moins de CHAIN_TURN° de déviation
+                best = None
+                for k, o in enumerate(others):
+                    if k in used or not (touch(o[0], tip) or touch(o[-1], tip)):
+                        continue
+                    o = o if touch(o[0], tip) else o[::-1]  # part du bout touché
+                    v = (o[1][0] - o[0][0], o[1][1] - o[0][1])
+                    turn = (way[0] * v[0] + way[1] * v[1]) / ((math.hypot(*way) * math.hypot(*v)) or 1.0)
+                    if turn >= math.cos(math.radians(self.CHAIN_TURN)) and (best is None or turn > best[0]):
+                        best = (turn, k, o)
+                if best is None:
+                    break
+                _, k, o = best
+                used.add(k)
+                if levels[k]:
+                    works.append((levels[k], o[0], o[-1]))
+                joints.append(o[-1])
+                o = o[1:]
+                added += sum(math.hypot(q[0] - p[0], q[1] - p[1]) for p, q in zip([tip] + o, o))
+                out = out + o if at_end else o[::-1] + out
+        ends = []
+        for j in joints:
+            names = sorted({n for n, tips in foreign if n and n not in _WAY_KINDS and any(touch(t, j) for t in tips)})
+            if touch(j, out[0]) or touch(j, out[-1]):  # bout de la ligne prolongée : la route s'arrête là
+                ends.append((j, "fin", names))
+            elif names:
+                ends.append((j, "carrefour", names))
+        return out, ends, works
 
     WATER_REACH = 45.0  # m de part et d'autre de l'origine du travers où l'eau de la BD TOPO est cherchée
 
@@ -1863,7 +1954,51 @@ class App(session.Session):
             out += [{"de": xs[k], "a": xs[k + 1], "nature": props.get("nature")} for k in range(0, len(xs) - 1, 2)]
         return out
 
-    def _compute_edges(self, key, line, s, width, heading, lon, lat, twin=None):
+    def _track_line(self, item, lon, lat):
+        """Trajectoire de la caméra autour de la photo : positions des photos de la même séquence, de rangs qui se suivent
+        (un trou d'une photo admis), en mètres locaux, dans le sens de la photo, la photo à (0, 0) ; [] si moins de 3
+        photos ou rang inconnu (profil en long sur l'axe BD TOPO) ; None pendant la lecture."""
+        key = item.get("id")
+        if key in self.long_tracks:
+            return self.long_tracks[key]
+        self.long_tracks[key] = None
+        seq, rank0 = item.get("collection"), (item.get("properties") or {}).get("geovisio:rank_in_collection")
+
+        def done(data, error):
+            out = []
+            if not error and seq is not None and isinstance(rank0, int):
+                at = {rank0: (0.0, 0.0)}
+                for feat in (data or {}).get("features") or []:
+                    rank = (feat.get("properties") or {}).get("geovisio:rank_in_collection")
+                    try:
+                        if feat.get("collection") == seq and isinstance(rank, int) and rank != rank0:
+                            at[rank] = triangulation._local(*(float(v) for v in feat["geometry"]["coordinates"][:2]), lon, lat)
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                ranks = [rank0]
+                for step in (1, -1):  # de proche en proche, un trou d'une photo admis
+                    r = rank0
+                    while True:
+                        r = next((r + step * g for g in (1, 2) if r + step * g in at), None)
+                        if r is None:
+                            break
+                        ranks.append(r)
+                ranks.sort()
+                out = [at[r] for r in ranks]
+                heading, k = metadata.item_heading(item), ranks.index(rank0)
+                if len(out) >= 3 and heading is not None:
+                    a, b = out[max(0, k - 1)], out[min(len(out) - 1, k + 1)]
+                    if abs((math.degrees(math.atan2(b[0] - a[0], b[1] - a[1])) - heading + 180) % 360 - 180) > 90:
+                        out = out[::-1]  # dans le sens de la photo
+                else:
+                    out = []
+            self.long_tracks[key] = out
+            self.notify()
+
+        host.fetch_json(metadata.search_url(lon, lat, self.LONG_REACH + 15, 100, seq, host.api_url), done)
+        return None
+
+    def _compute_edges(self, key, line, s, width, heading, lon, lat, twin=None, track=None, ends=([], None, [])):
         """Calcul des bords (voir _edges), rangé dans self.edges[key], puis notify() ; twin : autre chaussée
         (tronçon, largeur) d'une route à chaussées séparées, ou None."""
         _, zone, camera = key
@@ -1905,8 +2040,7 @@ class App(session.Session):
         profiles = []  # (travers, côté, bord BD TOPO depuis l'origine, distances depuis l'origine), travers après travers
         samples = []
         for along in self.EDGE_ALONG:
-            # shortcut: _at borne aux bouts du tronçon, les travers s'y superposent ; suivre les tronçons
-            # voisins si des photos près d'un carrefour le demandent
+            # shortcut: _at borne aux bouts de la ligne prolongée (_chained) : au-delà, les travers s'y superposent
             x, y, nx, ny = frame(s + along)
             other = across(x, y, nx, ny, ny, -nx)  # sens du tronçon : normale tournée d'un quart de tour à droite
             for name, sign in sides:
@@ -1923,6 +2057,33 @@ class App(session.Session):
                 offsets = near + [near[-1] + zone * k / self.EDGE_FAR for k in range(1, self.EDGE_FAR + 1)]
                 profiles.append((along, name, guess, offsets, beyond, between, reach))
                 samples += [(x + (shift + sign * o) * nx, y + (shift + sign * o) * ny) for o in offsets]
+
+        # Profil en long, d > 0 dans le sens de la photo : le long de la trajectoire de la caméra (track, _track_line : là où
+        # elle a roulé, sol sous elle) ; sans elle, sur l'axe BD TOPO prolongé par les tronçons voisins (_chained), à la même
+        # distance de l'axe que l'origine (l'axe peut s'écarter de la voie de quelques mètres) ; borné aux bouts
+        if track and len(track) >= 3:
+            k0 = track.index((0.0, 0.0))
+            cum = [0.0]
+            for p, q in zip(track, track[1:]):
+                cum.append(cum[-1] + math.hypot(q[0] - p[0], q[1] - p[1]))
+            cum = [c - cum[k0] for c in cum]
+            lengthwise = [d for d in range(-self.LONG_REACH, self.LONG_REACH + 1, self.LONG_STEP) if cum[0] <= d <= cum[-1]]
+            for d in lengthwise:
+                j = max(1, next((j for j in range(1, len(cum)) if cum[j] >= d), len(cum) - 1))
+                t = (d - cum[j - 1]) / ((cum[j] - cum[j - 1]) or 1.0)
+                samples.append((track[j - 1][0] + t * (track[j][0] - track[j - 1][0]), track[j - 1][1] + t * (track[j][1] - track[j - 1][1])))
+            followed = "trajectoire de la caméra"
+        else:
+            ahead = 1 if forward else -1
+            length = sum(math.hypot(q[0] - p[0], q[1] - p[1]) for p, q in zip(line, line[1:]))
+            lengthwise = [d for d in range(-self.LONG_REACH, self.LONG_REACH + 1, self.LONG_STEP) if 0 <= s + ahead * d <= length]
+            for d in lengthwise:
+                px, py, qx, qy = frame(s + ahead * d)
+                samples.append((px + shift * qx, py + shift * qy))
+            followed = "axe BD TOPO"
+
+        def along_of(p):  # distance d'une fin de tronçon le long de la route BD TOPO (la caméra a pu couper le carrefour)
+            return (1 if forward else -1) * (roads._project(line, p[0], p[1])[1] - s)
 
         def slope(z, offsets, i, span):  # pente vers le bas en s'éloignant, de i au premier point à span m au moins
             j = next((j for j in range(i + 1, len(offsets)) if offsets[j] - offsets[i] >= span - 1e-6), None)
@@ -2102,6 +2263,57 @@ class App(session.Session):
                     mean = height / (oo[foot] - oo[top]) if foot > top else 0
                     if height >= self.FALL_MIN and (found[name][1] is None or mean > found[name][1][0]):
                         found[name][1] = (mean, oo[top], along, oo[foot], height)
+            # Profil en long (derniers points lus) : pente moyenne, montée > 0 dans le sens de la photo, et la plus forte
+            pts = [(d, v) for d, v in zip(lengthwise, ground[len(ground) - len(lengthwise):]) if v is not None] if lengthwise else []
+            # Fin de la route de la photo et carrefours avec une voie nommée, le long d'elle ; au-delà d'une fin, pas de profil
+            # (la caméra a pu continuer sur une autre route)
+            cuts = []
+            for p, kind, names in ends[0]:
+                d = round(along_of(p), 1)
+                if -self.LONG_REACH - 1 <= d <= self.LONG_REACH + 1 and all(abs(d - e["d"]) > 1 for e in cuts):
+                    cuts.append({"d": d, "type": kind, "voie": ends[1], "avec": names})
+            # Carrefour à îlot séparateur : la voie qui arrive y est faite d'un tronçon par sens, qui touchent la route en deux
+            # points proches ; un seul repère au milieu (LONG_JUNCTION m au plus entre eux, même voie)
+            cuts.sort(key=lambda e: e["d"])
+            merged = []
+            for e in cuts:
+                last = merged[-1] if merged else None
+                if (last and e["type"] == last["type"] == "carrefour" and set(e["avec"]) & set(last["avec"])
+                        and e["d"] - last["d0"] <= self.LONG_JUNCTION):
+                    last["d"] = round((last["d0"] + e["d"]) / 2, 1)
+                    last["avec"] = sorted(set(last["avec"]) | set(e["avec"]))
+                else:
+                    merged.append(dict(e, d0=e["d"]))
+            cuts = [{k: v for k, v in e.items() if k != "d0"} for e in merged]
+            for e in cuts:
+                if e["type"] == "fin":
+                    pts = [(d, v) for d, v in pts if (d <= e["d"] + 1e-6 if e["d"] > 0 else d >= e["d"] - 1e-6)]
+            cuts = [e for e in cuts if pts and pts[0][0] - 1 <= e["d"] <= pts[-1][0] + 1]
+            # Ponts et tunnels de la route : le MNT y donne le fond franchi (ou le dessus du tunnel) ; terrain remplacé par la
+            # droite d'une culée à l'autre (le tablier, à peu près), pente comprise
+            spans = []
+            for level, a, b in ends[2]:
+                lo, hi = sorted((along_of(a), along_of(b)))
+                before = [(d, v) for d, v in pts if d <= lo + 1e-6]
+                after = [(d, v) for d, v in pts if d >= hi - 1e-6]
+                if not pts or hi < pts[0][0] or lo > pts[-1][0]:
+                    continue
+                if before and after:
+                    (d0, z0), (d1, z1) = before[-1], after[0]
+                    pts = [(d, z0 + (z1 - z0) * (d - d0) / ((d1 - d0) or 1.0)) if d0 < d < d1 else (d, v) for d, v in pts]
+                else:  # ouvrage au bout du profil, une seule culée : pas de terrain dessus
+                    pts = [(d, v) for d, v in pts if not lo < d < hi]
+                spans.append({"de": round(lo, 1), "a": round(hi, 1), "type": "pont" if level > 0 else "tunnel"})
+            grade = None
+            if len(pts) >= 5:
+                md, mz = sum(d for d, _ in pts) / len(pts), sum(v for _, v in pts) / len(pts)
+                mean = sum((d - md) * (v - mz) for d, v in pts) / (sum((d - md) ** 2 for d, _ in pts) or 1.0)
+                windows = [((b[1] - a[1]) / (b[0] - a[0]), a[0], b[0]) for k, a in enumerate(pts) for b in pts[k + 1:]
+                           if abs(b[0] - a[0] - self.LONG_WINDOW) < 1e-6]  # (pente, de, à) sur LONG_WINDOW m
+                steep = max(windows, key=lambda c: abs(c[0]), default=None)
+                grade = {"points": [[d, round(v, 2)] for d, v in pts], "pente": round(100 * mean, 1), "suivi": followed,
+                         "fins": sorted(cuts, key=lambda e: e["d"]), "ouvrages": spans,
+                         "max": [round(100 * steep[0], 1), steep[1], steep[2]] if steep else None}
             terrain = triangulation.RGE_ALTI_ERROR if source == "RGE ALTI" else triangulation.LIDAR_ERROR
             sigma = math.hypot(terrain, terrain)  # deux altitudes du même MNT
             origin = "la caméra" if camera else "l'axe BD TOPO"
@@ -2141,9 +2353,14 @@ class App(session.Session):
                             "repere": [[round(v, 8) for v in p] for p in frame0],
                             "axe": round(-shift * right, 2),  # axe de la chaussée de la photo, en m vers la droite
                             "zone": zone, "fenetre": self.EDGE_WINDOW, "remontee": self.EDGE_RISE, "profils": drawn,
-                            "resultats": shown, "arrets": {name: sorted(v)[len(v) // 2] for name, v in stops.items() if v}},
-                "text": "\n".join(lines) or "Aucun bord ne descend de {} m ou plus jusqu'à {} m".format(
-                    measures._num(self.FALL_MIN, 1), measures._num(zone, 0)),
+                            "resultats": shown, "arrets": {name: sorted(v)[len(v) // 2] for name, v in stops.items() if v},
+                            "en_long": grade},
+                "text": ("\n".join(lines) or "Aucun bord ne descend de {} m ou plus jusqu'à {} m".format(
+                    measures._num(self.FALL_MIN, 1), measures._num(zone, 0))) + ("\nPente en long : {} de {} % sur {} m{}".format(
+                        "montée" if grade["pente"] >= 0 else "descente", measures._num(abs(grade["pente"]), 1),
+                        measures._num(grade["points"][-1][0] - grade["points"][0][0], 0),
+                        ", jusqu'à {} % sur {} m".format(measures._num(abs(grade["max"][0]), 1), self.LONG_WINDOW)
+                        if grade["max"] else "") if grade else ""),
                 "title": ("Terrain ({}) en travers de la route, depuis {} jusqu'à {} m au-delà du bord de la chaussée, "
                           "sur ±{} m le long de la route ; côtés vus dans le sens de la photo. Bord : rupture de pente "
                           "ou marche du terrain (bordure), sinon largeur BD TOPO (ou {} m supposés) ; chaussées séparées : "

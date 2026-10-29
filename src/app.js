@@ -236,8 +236,7 @@
   $("#bords").addEventListener("click", () => { app.request_edges(); refresh(); });
   // « Profil » : coupe du terrain du dernier calcul de « Dévers » pour la photo affichée
   let edgeProfile = null;
-  // Case « Hauteurs à l'échelle » : retenue d'une fois sur l'autre, donc jamais grisée (même si le profil affiché est
-  // déjà à l'échelle, elle vaut pour les suivants)
+  // Case « Hauteurs à l'échelle » : cochée à chaque ouverture du profil (caméra à sa hauteur), jamais grisée
   const trueScale = $("#profil-echelle");
   // Case « Végétation » (analyse fine : ligne verte, herbe), de même retenue ; cochée par défaut, grisée sans analyse fine
   const plants = $("#profil-vegetation");
@@ -246,14 +245,14 @@
     store.set("profil-vegetation", plants.checked ? "1" : "0");
     if (edgeProfile) drawProfile();
   });
-  trueScale.checked = store.get("profil-echelle") === "1";
+  trueScale.checked = true;
   const drawProfile = () => {
-    const dialog = $("#fenetre-profil"), { svg, legend } = Profil.draw(edgeProfile.profile, trueScale.checked, nuage.get(nuageKey(edgeProfile.profile)), plants.checked);
-    dialog.querySelector(".graphique").replaceChildren(svg);
+    const dialog = $("#fenetre-profil"), { svg, legend, long } = Profil.draw(edgeProfile.profile, trueScale.checked, nuage.get(nuageKey(edgeProfile.profile)), plants.checked,
+      Number($("#camera").value) || 1.9);  // hauteur de caméra des réglages
+    dialog.querySelector(".graphique").replaceChildren(svg, ...(long ? [long] : []));  // profil en long dessous
     dialog.querySelector(".legende").replaceChildren(legend);
   };
   trueScale.addEventListener("change", () => {
-    store.set("profil-echelle", trueScale.checked ? "1" : "0");
     if (edgeProfile) drawProfile();
   });
   // Loupe : graphique le plus grand possible (sans la légende) sans que la fenêtre dépasse de la visionneuse ;
@@ -262,8 +261,8 @@
     const dialog = $("#fenetre-profil"), chart = dialog.querySelector(".graphique");
     chart.style.width = "";
     if (!dialog.classList.contains("agrandi")) return;
-    const box = $("#vue").getBoundingClientRect(), svg = chart.querySelector("svg");
-    const ratio = svg ? svg.viewBox.baseVal.width / svg.viewBox.baseVal.height : 2;
+    const box = $("#vue").getBoundingClientRect();
+    const ratio = chart.offsetWidth / (chart.offsetHeight || 1);  // les deux graphiques (en travers, en long) ensemble
     // Place prise par le reste de la fenêtre (titre, boutons, marges), mesurée graphique compris, puis retirée
     const otherW = dialog.offsetWidth - chart.offsetWidth, otherH = dialog.offsetHeight - chart.offsetHeight;
     const width = Math.min(box.width - 16 - otherW, (box.height - 16 - otherH) * ratio);
@@ -284,6 +283,7 @@
     const dialog = $("#fenetre-profil"), feature = photo;
     const title = dialog.querySelector("h2");
     title.textContent = "Profil en travers" + (edgeProfile.road ? ` · ${edgeProfile.road}` : "");
+    trueScale.checked = true;  // à l'échelle à chaque ouverture
     drawProfile();
     $("#profil-nuage-etat").textContent = "";
     nuageReady();
@@ -331,7 +331,7 @@
     const id = psv?.getPictureMetadata?.()?.id || "photo";
     const save = await saveAs(`profil-${edgeProfile?.road || "route"}-${id.slice(0, 8)}.png`, "image/png");  // au clic
     if (!save) return;
-    await save(await Profil.png(dialog.querySelector("svg"), title, dialog.querySelector(".legende")));
+    await save(await Profil.png(dialog.querySelector("svg"), title, dialog.querySelector(".legende"), dialog.querySelector("svg.profil-long")));
     setStatus("Profil enregistré en PNG.");
   });
   // Droite de mesure tracée sur la carte (expérimental, ticket #28) : décochée, bouton non proposé

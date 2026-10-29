@@ -75,7 +75,8 @@ const Profil = (() => {
    * à la même échelle que les distances. */
   // fine : analyse fine (Nuage.analyse) : séparateur et bords de chaussée tirés du nuage LiDAR, lignes blanches
   // plants : végétation de l'analyse fine (ligne verte, herbe) dessinée et légendée
-  function draw(profile, trueScale = false, fine = null, plants = true) {
+  // camera : hauteur de la caméra au-dessus du sol (réglage « Hauteur de caméra »), pour le profil en long
+  function draw(profile, trueScale = false, fine = null, plants = true, camera = 1.9) {
     const all = crossings(profile);
     const main = all.get(0) || [...all.values()][0];
     if (fine?.separateur) [main.separateur, main.separateurRelief] = [[...fine.separateur].sort((a, b) => a - b), "nuage"];
@@ -85,6 +86,7 @@ const Profil = (() => {
     let [xmin, xmax] = [Math.min(...xs), Math.max(...xs)];
     const plotW = W - LEFT - RIGHT, plotH = H - TOP - BOTTOM;
     let [zmin, zmax] = [Math.min(...zs) - 0.3, Math.max(...zs) + 0.3];
+    if (trueScale && profile.origine === "caméra") zmax = Math.max(zmax, camera + 0.3);  // caméra à sa hauteur, dans le cadre
     // Échelle des distances : toute la largeur, réduite (largeur centrée) si les hauteurs ne tiennent pas à ×1
     const sx = Math.min(plotW / (xmax - xmin), plotH / (zmax - zmin)), xmid = (xmin + xmax) / 2;
     [xmin, xmax] = [xmid - plotW / sx / 2, xmid + plotW / sx / 2];
@@ -210,8 +212,17 @@ const Profil = (() => {
         svg.append(el("line", { x1: X(b.x), x2: X(b.x), y1: gy - 4, y2: gy - 22, class: "bord-chaussee" }));  // nommé dans la légende
       }
     }
-    svg.append(el("circle", { cx: X(0), cy: Z(ref) - 8, r: 5, class: "origine" }),
-      el("text", { x: X(0), y: Z(ref) - 18, class: "graduation place", "data-haut": "", "text-anchor": "middle" }, profile.origine === "caméra" ? "caméra" : "axe"));
+    // Caméra à sa hauteur au-dessus de la plateforme, hauteurs à l'échelle seulement (exagérées, sa place ne voudrait rien
+    // dire : masquée) ; profil depuis l'axe : son repère posé sur la plateforme
+    if (profile.origine !== "caméra") {
+      svg.append(el("circle", { cx: X(0), cy: Z(ref) - 8, r: 5, class: "origine" }),
+        el("text", { x: X(0), y: Z(ref) - 18, class: "graduation place", "data-haut": "", "text-anchor": "middle" }, "axe"));
+    } else if (factor === 1) {
+      svg.append(el("line", { x1: X(0), x2: X(0), y1: Z(ref), y2: Z(ref + camera), class: "bord" }),
+        el("circle", { cx: X(0), cy: Z(ref + camera), r: 5, class: "origine" }),
+        el("text", { x: X(0) + 9, y: Z(ref + camera) + 4, class: "graduation place", "data-haut": "" },  // à droite du point
+          `caméra (${num(camera, 2)} m)`));
+    }
 
     // Chute et dévers, sur le travers où ils ont été mesurés ; une puce par côté dans la légende
     const html = (tag, className, text) => Object.assign(document.createElement(tag), { className, textContent: text });
@@ -314,28 +325,35 @@ const Profil = (() => {
       `${factor > 1 ? `Hauteurs exagérées ×${factor} pour la lisibilité` : "Hauteurs à l'échelle des distances"}. `
         + `Terrain ${profile.source} (IGN), altitudes à ±${num(profile.erreur)} m près.`,
     ].map((t) => html("p", "aide", t)));
-    return { svg, legend };
+    return { svg, legend, long: drawLong(profile.en_long, camera) };
   }
 
   /** Image PNG (Blob) du graphique svg affiché, avec son titre et sa légende legend (élément rendu par draw, dans
    * la page) : styles calculés recopiés (le CSS de la page n'entre pas dans une image SVG), couleurs et graisses
    * de la légende reprises, sur le fond de la fenêtre, en double résolution. */
-  async function png(svg, title, legend) {
-    const w = window, copy = svg.cloneNode(true), scale = 2;
+  // long : profil en long (drawLong), sous le graphique ; absent si null
+  async function png(svg, title, legend, long = null) {
+    const w = window, scale = 2;
     const props = ["fill", "stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "stroke-linejoin", "paint-order",
       "opacity", "font-size", "font-weight", "font-family"];
-    const nodes = [svg, ...svg.querySelectorAll("*")], copies = [copy, ...copy.querySelectorAll("*")];
-    nodes.forEach((node, k) => {
-      const style = w.getComputedStyle(node);
-      copies[k].setAttribute("style", props.map((p) => `${p}:${style.getPropertyValue(p)}`).join(";"));
-    });
-    copy.setAttribute("width", W * scale);
-    copy.setAttribute("height", H * scale);
-    const image = new Image();
-    image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(copy));
-    await image.decode();
+    const raster = async (source) => {  // image du SVG affiché, styles calculés recopiés, à sa taille (viewBox) × scale
+      const copy = source.cloneNode(true), [, , vw, vh] = source.getAttribute("viewBox").split(" ").map(Number);
+      const nodes = [source, ...source.querySelectorAll("*")], copies = [copy, ...copy.querySelectorAll("*")];
+      nodes.forEach((node, k) => {
+        const style = w.getComputedStyle(node);
+        copies[k].setAttribute("style", props.map((p) => `${p}:${style.getPropertyValue(p)}`).join(";"));
+      });
+      copy.setAttribute("width", vw * scale);
+      copy.setAttribute("height", vh * scale);
+      const image = new Image();
+      image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(copy));
+      await image.decode();
+      return { image, height: vh * scale };
+    };
+    const main = await raster(svg), below = long ? await raster(long) : null;
     const box = w.getComputedStyle(svg.closest("dialog") || document.body), font = w.getComputedStyle(svg).fontFamily;
-    const pad = 16 * scale, width = W * scale, head = 40 * scale, top = head + H * scale + 6 * scale;
+    const pad = 16 * scale, width = W * scale, head = 40 * scale;
+    const top = head + main.height + (below ? 8 * scale + below.height : 0) + 6 * scale;
     // Légende : lignes (puces, paragraphes) coupées à la largeur de l'image, mot à mot, chaque mot à son style
     const g = document.createElement("canvas").getContext("2d"), placed = [];
     let y = top;
@@ -366,13 +384,80 @@ const Profil = (() => {
     g.fillStyle = box.color;
     g.font = `500 ${18 * scale}px ${font}`;
     g.fillText(title, pad, 28 * scale);
-    g.drawImage(image, 0, head);
+    g.drawImage(main.image, 0, head);
+    if (below) g.drawImage(below.image, 0, head + main.height + 8 * scale);
     for (const { text, x, y: at, font: f, color } of placed) {
       g.font = f;
       g.fillStyle = color;
       g.fillText(text, x, at);
     }
     return new Promise((resolve) => g.canvas.toBlob(resolve, "image/png"));
+  }
+
+  /** Profil en long (App._compute_edges : en_long, points [d, z], d > 0 dans le sens de la photo) : petit graphique sous le
+   * profil en travers, 0 = le sol sous la caméra, la caméra flottant à camera m au-dessus, la pente la plus forte sur 10 m
+   * en rouge ; null sans données. */
+  function drawLong(long, camera = 1.9) {
+    if (!long?.points?.length) return null;
+    const LW = 760, LH = 170, L = 52, R = 16, T = 34, B = 34, pw = LW - L - R, ph = LH - T - B;
+    const ds = long.points.map(([d]) => d), zs = long.points.map(([, z]) => z);
+    const ground = zs[ds.indexOf(0)], top = ground !== undefined ? ground + camera : null;  // caméra dans le cadre aussi
+    const all = top !== null ? [...zs, top] : zs;
+    // axe fixe de −50 à +50 m (App.LONG_REACH) ; au-delà du bout du tronçon, pas de terrain : vide
+    const [d0, d1] = [-50, 50], zmid = (Math.min(...all) + Math.max(...all)) / 2;
+    const span = Math.max(2, (Math.max(...all) - Math.min(...all)) * 1.25);  // 2 m au moins : une route plate reste plate
+    const X = (d) => L + (d - d0) / ((d1 - d0) || 1) * pw, Z = (z) => T + (zmid + span / 2 - z) / span * ph;
+    const svg = el("svg", { viewBox: `0 0 ${LW} ${LH}`, class: "profil-svg profil-long", role: "img", "aria-label": "Profil en long de la route" });
+    // graduations des hauteurs par rapport au sol sous la caméra (0), sinon au milieu
+    const zStep = [0.25, 0.5, 1, 2, 5, 10].find((s) => span / s <= 5) || 20, base = zs[ds.indexOf(0)] ?? zmid;
+    for (let r = Math.ceil((zmid - span / 2 - base) / zStep) * zStep; base + r <= zmid + span / 2; r += zStep) {
+      svg.append(el("line", { x1: L, x2: L + pw, y1: Z(base + r), y2: Z(base + r), class: r ? "grille" : "grille zero" }),
+        el("text", { x: L - 6, y: Z(base + r) + 4, class: "graduation", "text-anchor": "end" }, `${r > 0 ? "+" : ""}${num(r, zStep < 1 ? 2 : 0)}`));
+    }
+    for (let d = Math.ceil(d0 / 10) * 10; d <= d1; d += 10) {
+      svg.append(el("line", { x1: X(d), x2: X(d), y1: T, y2: T + ph, class: d ? "grille" : "grille zero" }),
+        el("text", { x: X(d), y: T + ph + 14, class: "graduation", "text-anchor": "middle" }, `${d > 0 ? "+" : d < 0 ? "−" : ""}${Math.abs(d)} m`));
+    }
+    const path = long.points.map(([d, z], k) => `${k ? "L" : "M"}${X(d).toFixed(1)},${Z(z).toFixed(1)}`).join("");
+    const [first, last] = [Math.min(...ds), Math.max(...ds)];
+    svg.append(el("path", { d: `${path}L${X(last)},${T + ph}L${X(first)},${T + ph}Z`, class: "terre" }), el("path", { d: path, class: "sol" }));
+    if (long.max) {  // pente la plus forte sur 10 m
+      const [, a, b] = long.max, za = zs[ds.indexOf(a)], zb = zs[ds.indexOf(b)];
+      svg.append(el("line", { x1: X(a), y1: Z(za), x2: X(b), y2: Z(zb), class: "devers" }));
+    }
+    // Ponts et tunnels : le tablier (droite d'une culée à l'autre) en tirets, nommé au-dessus
+    for (const o of long.ouvrages || []) {
+      const [a, b] = [Math.max(o.de, d0, Math.min(...ds)), Math.min(o.a, d1, Math.max(...ds))];
+      const at = (d) => { const k = ds.findIndex((v) => v >= d); return k <= 0 ? zs[0] : zs[k - 1] + (zs[k] - zs[k - 1]) * (d - ds[k - 1]) / (ds[k] - ds[k - 1]); };
+      if (b <= a) continue;
+      svg.append(el("line", { x1: X(a), y1: Z(at(a)) - 4, x2: X(b), y2: Z(at(b)) - 4, class: "ouvrage" }),
+        el("text", { x: X((a + b) / 2), y: Z(at((a + b) / 2)) - 10, class: "graduation", "text-anchor": "middle" },
+          o.type === "pont" ? "pont (tablier interpolé)" : "tunnel"));
+    }
+    // Fin de la route de la photo et carrefours avec une voie nommée : trait pointillé et nom
+    for (const [k, e] of (long.fins || []).entries()) {
+      if (e.d < d0 || e.d > d1) continue;
+      // nommée du côté opposé à la caméra (derrière : à gauche du trait), plus bas près d'elle (son étiquette est en haut)
+      const anchor = e.d < 0 || e.d > 30 ? "end" : "start", dx = anchor === "end" ? -4 : 4;
+      const y = T + 12 + (Math.abs(e.d) < 25 ? 30 : 0) + (k % 2) * 4;
+      // « fin de la D16 » (la route s'arrête : le profil aussi), puis le carrefour ; sinon le carrefour seul
+      const road = e.voie ? (/^[A-Z]+\d/.test(e.voie) ? `la ${e.voie}` : e.voie) : "la route";
+      const lines = [...(e.type === "fin" ? [`fin de ${road}`] : []), ...(e.avec?.length ? [`carrefour avec ${e.avec.join(", ")}`] : [])];
+      svg.append(el("line", { x1: X(e.d), x2: X(e.d), y1: T, y2: T + ph, class: "bord" }));
+      lines.forEach((t, i) => svg.append(el("text", { x: X(e.d) + dx, y: y + 13 * i, class: "graduation", "text-anchor": anchor }, t)));
+    }
+    if (top !== null) {  // caméra à sa hauteur au-dessus du sol, pointillé jusqu'à lui
+      svg.append(el("line", { x1: X(0), x2: X(0), y1: Z(ground), y2: Z(top), class: "bord" }),
+        el("circle", { cx: X(0), cy: Z(top), r: 5, class: "origine" }),
+        el("text", { x: X(0) + 9, y: Z(top) + 4, class: "graduation" }, `caméra (${num(camera, 2)} m)`));
+    }
+    const g = long.pente;
+    svg.append(el("text", { x: L, y: 18, class: "etiquette-profil" }, `Profil en long\u00a0: ${g >= 0 ? "montée" : "descente"} de ${num(Math.abs(g))} %`
+        + (long.max ? `, jusqu'à ${num(Math.abs(long.max[0]))} % sur 10 m (en rouge)` : "")),
+      el("text", { x: L + pw, y: LH - 4, class: "graduation", "text-anchor": "end" }, "sens de la photo →"),
+      el("text", { x: L, y: LH - 4, class: "graduation" },
+        `hauteurs exagérées, 0 = le sol sous la caméra${long.suivi ? ` · le long de la ${long.suivi === "axe BD TOPO" ? "route (axe BD TOPO)" : long.suivi}` : ""}`));
+    return svg;
   }
 
   return { draw, png };

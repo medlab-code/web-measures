@@ -222,14 +222,31 @@ après.
   Sinon s'affichent « Calcul en cours… », « Aucun bord ne descend de 0,5 m ou plus », « Pas de
   route de la BD TOPO à moins de 15 m » ou « Calcul impossible » avec sa cause.
 
+  - **pente en long** : terrain (même modèle) lu tous les 2 m sur ±50 m autour de la photo, le long de la
+    **trajectoire de la caméra** (photos de la même séquence, de rangs qui se suivent : là où elle a roulé, virage
+    à un carrefour compris) ; à défaut, le long de l'axe BD TOPO prolongé par les tronçons voisins de la même route (lus jusqu'à
+    60 m autour de la photo ; à un nœud, celui qui continue le plus dans l'alignement, à 60° près),
+    à la même distance de l'axe que l'origine (l'axe peut s'écarter de la voie de quelques mètres) ;
+    repères de la BD TOPO, placés le long de la route : « fin de la D16 » là où elle s'arrête (aucun tronçon de la
+    même route ne continue : le profil s'arrête là aussi, même si la caméra a continué sur une autre route, et les
+    pentes ne portent que sur la partie gardée), « carrefour avec D18 » là où une voie nommée (numéro ou nom) s'y
+    raccorde (deux raccordements de la même voie à moins de 30 m, comme autour d'un îlot séparateur : un seul
+    carrefour, au milieu) ; les voies sans numéro ni nom ne sont pas mentionnées ; ponts et tunnels de la route (BD
+    TOPO) : le MNT y donne le fond franchi ou le dessus du tunnel, remplacé par la droite d'une culée à l'autre (le
+    tablier, à peu près, en tirets « pont (tablier interpolé) »), pentes comprises ; ouvrage au bout du profil, une
+    seule culée : pas de terrain dessus ; pente moyenne par les moindres
+    carrés (montée ou descente dans le sens de la photo) et pente la plus forte sur 10 m ; une ligne de l'encadré,
+    et un petit graphique (profil en long) sous le profil en travers, repris dans l'image PNG.
+
   Le bouton **« Profil »**, à côté, montre la coupe du terrain que ce calcul a lue (mesure LiDAR
   HD, ou RGE ALTI en secours) : travers de la photo en brun, les quatre autres en pointillés,
   plateforme entre les deux bords trouvés (et comment : rupture de pente ou largeur BD TOPO), milieu du
   séparateur de chaussée sur une route à chaussées séparées (petite barre verticale ; la légende dit s'il a
   été trouvé dans le relief ou placé d'après la BD TOPO), flèche
   de la chute et droite rouge du talus (haut → pied) sur le travers où ils ont été mesurés,
-  hauteurs exagérées (facteur écrit sous le graphique) ; la case « Hauteurs à l'échelle » les remet
-  à l'échelle des distances (choix retenu d'un profil à l'autre). « Enregistrer en PNG » en fait une image
+  hauteurs exagérées (facteur écrit sous le graphique) ; la case « Hauteurs à l'échelle » (cochée à chaque
+  ouverture) les remet à l'échelle des distances, caméra dessinée à sa hauteur (réglage « Hauteur de caméra »), masquée quand
+  les hauteurs sont exagérées. « Enregistrer en PNG » en fait une image
   avec son titre et sa légende ; la loupe agrandit le graphique (sans la légende) au mieux dans la
   visionneuse. Le bouton est grisé tant que « Dévers » n'a rien calculé pour la photo.
 
@@ -641,6 +658,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.6.11** (29/10/2026) : profil en long (±50 m, le long de la trajectoire de la caméra, sinon de l'axe BD TOPO prolongé), avec pente moyenne et la plus forte sur 10 m, fin de la route et carrefours avec les voies nommées, ponts et tunnels (tablier interpolé) ; caméra à sa hauteur (réglage) dans les deux profils, « Hauteurs à l'échelle » cochée à chaque ouverture ; tronçons BD TOPO lus jusqu'à 60 m autour de la photo, prolongement de la route dans l'alignement.
 - **0.6.10** (28/10/2026) : « Analyse fine » du profil (nuage LiDAR HD de l'IGN, barre d'avancement) : bords de chaussée (ligne de rive), séparateur de chaussée (bande non revêtue, glissières comprises), lignes blanches, herbe au sol, hauteur de la végétation (case « Végétation »), surface de l'eau ; eau de la BD TOPO dès « Dévers » ; autres travers transparents ; repère « fin de lecture » retiré ; fenêtre du profil : boutons immobiles quand on actionne les cases.
 - **0.6.9-14** (28/10/2026) : « Dévers » : séparateur de chaussée étroit sans marches (glissières dos à dos, muret) reconnu à sa bosse dans le relief, au même endroit sur deux travers au moins (RD700 à Varois-et-Chaignot).
 - **0.6.9-13** (28/10/2026) : « Dévers » : séparateur de chaussée trouvé dans le relief (entre deux marches du terrain, sinon d'après la BD TOPO, origine écrite sur le profil), bord de chaussée aussi à une marche du terrain (bordure), bord extérieur de l'autre chaussée cherché plus loin, travers recoupés entre eux ; autre chaussée mieux reconnue (tronçon dans le prolongement écarté). Essais sur l'A38, la RD903bis, la D1074 et la RD700.
