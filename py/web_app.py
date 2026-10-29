@@ -331,6 +331,7 @@ class App(session.Session):
         self.long_tracks = {}  # photo -> trajectoire de la caméra autour d'elle (_track_line), None pendant la lecture
         self.edge_zone = self.EDGE_ZONE
         self.bdtopo = {}  # (couche BD TOPO, maille) -> objets lus (voir _bdtopo)
+        self.bdtopo_retry = {}  # (couche BD TOPO, maille) -> instant du nouvel essai après un échec
         self.map_line = None  # droite de mesure tracée sur la carte, pour le prochain point A (ticket #28)
         self.redo_stack, self.redo_key = [], None  # états d'avant chaque « Effacer » (Ctrl+Y, voir redo)
         self.overlay = []  # couche importée : (n° de l'objet, "point" ou "ligne", [(lon, lat, z)]), voir set_overlay
@@ -725,6 +726,65 @@ class App(session.Session):
 
     def _height_near(self, click):
         return self._filtered(super()._height_near, click)
+
+    # Croix sous le clic : la page le sait en pixels (CROSS_PX autour de la croix, quel que soit le zoom), le calcul
+    # seulement en degrés (measures.SELECT_ANGLE : une centaine de pixels quand on zoome). cross_hit : True, False, ou
+    # None (pas d'information : essais, plugin) ; quand la page a vu une croix, la plus proche à CROSS_REACH° au plus
+    CROSS_REACH = 10.0
+    cross_hit = None
+
+    _picks = None  # liste : _nearest y relève ses candidats au lieu de chercher (pick_points)
+
+    def pick_points(self):
+        """JSON [[cap, élévation]] (radians, repère de la photo) des croix qu'un clic sélectionnerait dans le mode en cours :
+        celles que cherche _nearest (hauteurs et point de référence, largeurs), ou celles du calage de l'inclinaison. La
+        page les teste en pixels (on_cross) : une croix d'un autre mode ou de visée ne compte pas."""
+        if not (self.active and self.item) or self._aiming():
+            return "[]"
+        if self.mode == "tilt":
+            return json.dumps([list(c["pos"][:2]) for c in self.tilt_clicks if self._tilt_pending()])
+        self._picks, probe = [], {"raw": [0.0, 0.0]}
+        try:
+            if self.mode == "height":
+                self._height_near(probe)
+                self._ref_near(probe)
+            elif self.mode == "road":
+                self._width_near(probe)
+            picks = self._picks
+        finally:
+            self._picks = None
+        heading = self._heading()
+        return json.dumps([[math.radians((p["abs_yaw"] - heading + 540) % 360 - 180), math.radians(p["elev"])]
+                           for p in picks if p.get("abs_yaw") is not None and p.get("elev") is not None])
+
+    def _nearest(self, click, candidates):
+        if self._picks is not None:
+            self._picks += [p for _, points in candidates for p in points]
+            return None
+        if self.cross_hit is None:
+            return super()._nearest(click, candidates)
+        if not self.cross_hit:
+            return None
+        raw = click.get("raw") or [click["yaw"], click["elev"]]  # comme Session._nearest, à CROSS_REACH° au plus
+        best, best_d = None, self.CROSS_REACH
+        for m, points in candidates:
+            for index, p in enumerate(points):
+                dyaw = (raw[0] - p["abs_yaw"] + 540) % 360 - 180
+                d = math.hypot(dyaw * math.cos(math.radians(raw[1])), raw[1] - p["elev"])
+                if d < best_d:
+                    best, best_d = (m, index), d
+        return best
+
+    def _with_cross(self, on_cross, method, *args):
+        """method(*args), la croix sous le clic connue de la page (on_cross, ou None)."""
+        self.cross_hit = None if on_cross is None else bool(on_cross)
+        try:
+            return method(*args)
+        finally:
+            self.cross_hit = None
+
+    def select_point(self, yaw, pitch, on_cross=None):
+        return self._with_cross(on_cross, super().select_point, yaw, pitch)
 
     def _width_near(self, click):
         return self._filtered(super()._width_near, click)
@@ -1193,13 +1253,20 @@ class App(session.Session):
             return None
         return [[foot["yaw"], foot["pitch"]], [top["yaw"], top["pitch"]]]
 
-    def click(self, yaw, pitch):
+    def click(self, yaw, pitch, on_cross=None):
+        """Clic dans la photo ; on_cross : la page a vu une croix sous le pointeur (CROSS_PX), ou None (en degrés)."""
+        return self._with_cross(on_cross, self._click, yaw, pitch)
+
+    def _click(self, yaw, pitch):
         axis = self._height_axis() if self.mode == "height" else None
         if axis:
             click = tools.photo_click(self.item, (math.degrees(yaw) + self._heading()) % 360, math.degrees(pitch),
                                       self.calibration, self.quality, [yaw, pitch], self._axis(self.item))
-            if click is not None and self._height_near(click) is None:  # pas sur une croix (sélection)
+            if click is not None and self._height_near(click) is None and not self._ref_near(click):
+                # pas sur une croix : ramené sur l'axe, et plus une sélection (le pied, A et les sommets depuis A sont
+                # sur l'axe : le point ramené tomberait près d'eux)
                 yaw, pitch = _on_axis(axis, yaw, pitch)
+                self.cross_hit = False
         if not (self.active and self.mode == "tilt" and self.item):
             return super().click(yaw, pitch)
         self._check_tilt()
@@ -1214,8 +1281,10 @@ class App(session.Session):
         if self.tilt_sel is not None:  # croix sélectionnée : nouvelle position
             self.tilt_clicks[self.tilt_sel], self.tilt_sel = click, None
             return self.status()
-        near = [k for k, c in enumerate(self.tilt_clicks)
-                if math.hypot(math.degrees(c["pos"][0] - yaw), math.degrees(c["pos"][1] - pitch)) < self.TILT_NEAR]
+        reach = self.TILT_NEAR if self.cross_hit is None else self.CROSS_REACH if self.cross_hit else 0.0
+        gaps = [(math.hypot(math.degrees(c["pos"][0] - yaw), math.degrees(c["pos"][1] - pitch)), k)
+                for k, c in enumerate(self.tilt_clicks)]
+        near = [k for d, k in sorted(gaps) if d < reach]
         if near:
             self.tilt_sel = near[0]
         elif len(self.tilt_clicks) < 2:
@@ -1494,7 +1563,7 @@ class App(session.Session):
     # l'écart du tablier (le MNT, interpolé sous lui, y descend en pente douce : ticket #27)
     FALL_SIDES = (1.0, 3.0, 6.0, 10.0)
     FALL_STEP = 2.0  # m entre deux travers le long du pont (plus si le pont est long)
-    FALL_POINTS = 160  # points au plus : une seule requête au service d'altimétrie
+    FALL_POINTS = 160  # points par requête au service d'altimétrie (longueur de l'adresse ; voir _terrain)
     FALL_MIN = 0.5  # m : en dessous, terrain non distingué du tablier (végétation, buse)
     FALL_WIDTH = 6.0  # m : largeur de chaussée supposée quand la BD TOPO ne la donne pas
     FALL_TOUCH = 1.0  # m : tronçons en pont bout à bout (un pont coupé en plusieurs tronçons)
@@ -1536,12 +1605,44 @@ class App(session.Session):
             return {"text": bridge + "\nHauteur de chute : vérification de la position GPS en cours…", "title": ""}
         if not self.quality.get("precise"):
             return {"text": bridge + "\n" + self.FALL_NO_RTK, "title": ""}
-        key = (item.get("collection"), min(p for c in chain for p in c["line"]))
+        camera = self._fall_camera()
+        if camera is None:  # ni mesurée ni calée : le réglage, seulement si l'utilisateur l'accepte
+            return {"text": bridge + "\nHauteur de chute : hauteur de caméra inconnue sur ce pont", "title": self.FALL_ASK,
+                    "ask": "Calculer avec « Caméra à » ({} m)".format(measures._num(self.tool.camera_height, 2))}
+        key = (item.get("collection"), min(p for c in chain for p in c["line"]), camera)
         res = self.falls.get(key)
         if res is None or time.monotonic() >= res.get("retry_at", float("inf")):
             res = self.falls[key] = {"text": "Hauteur de chute : calcul en cours…", "title": ""}
             self._compute_fall(key, chain, item, lon, lat)
         return {"text": bridge + "\n" + res["text"], "title": res["title"]}
+
+    # Hauteur de caméra du tablier : mesurée sur la séquence vérifiée (médiane de l'altitude RTK moins le sol LiDAR, photos du
+    # pont écartées), sinon calée pour la séquence. Une photo de précision déclarée n'a que sa propre hauteur, altitude moins
+    # le sol sous elle : sur un pont, le fond franchi (plausible encore sur un pont bas) ; le réglage « Caméra à » prend sa
+    # place, seulement si l'utilisateur l'accepte (use_fall_setting)
+    FALL_ASK = ("La hauteur de caméra n'est ni mesurée sur la séquence (précision déclarée dans la photo : sa hauteur est "
+                "prise au-dessus du sol sous elle, ici le fond franchi) ni calée. Le calcul peut utiliser le réglage "
+                "« Caméra à » : la hauteur de chute en dépend directement.")
+    fall_setting = False  # l'utilisateur accepte le réglage « Caméra à » pour la hauteur de chute
+
+    def _fall_camera(self):
+        """(hauteur de caméra en m, sa source, son incertitude en m) pour le tablier, ou None (à demander)."""
+        q = self.quality or {}
+        h = q.get("height")
+        if q.get("count") and q.get("lidar") is True and h is not None \
+                and measures.CAMERA_RANGE[0] <= h <= measures.CAMERA_RANGE[1]:
+            return round(h, 3), "séquence", q.get("spread") or measures.CAMERA_ERRORS["altitude GPS"]
+        cam = self.calibration.camera((self.item or {}).get("collection"))
+        if cam:
+            return round(cam["height"], 3), "calée", cam["sigma"]
+        if self.fall_setting:
+            return round(self.tool.camera_height, 3), "réglage", measures.CAMERA_ERRORS[None]
+        return None
+
+    def use_fall_setting(self):
+        """Bouton de l'encadré du pont : la hauteur de chute utilise le réglage « Caméra à » (pour la session)."""
+        self.fall_setting = True
+        return self.status()
 
     def _fall_sections(self, lon, lat):
         """Tronçons BD TOPO de la maille du point, avec leur largeur de chaussée (« width », m ou None),
@@ -1584,13 +1685,16 @@ class App(session.Session):
 
     def _bdtopo(self, layer, cell):
         """Objets GeoJSON d'une couche de la BD TOPO dans la maille (et MARGIN m autour), lus comme les
-        tronçons : liste, None pendant la lecture, [] si la BD TOPO n'a pas répondu (pas de nouvel essai)."""
+        tronçons : liste, None pendant la lecture, [] si la BD TOPO n'a pas répondu (nouvel essai FALL_RETRY s après)."""
         key = (layer, cell)
-        if key not in self.bdtopo:
+        if key not in self.bdtopo or time.monotonic() >= self.bdtopo_retry.get(key, float("inf")):
             self.bdtopo[key] = None
+            self.bdtopo_retry.pop(key, None)
 
             def done(data, error):
                 self.bdtopo[key] = [] if error else (data or {}).get("features") or []
+                if error:
+                    self.bdtopo_retry[key] = time.monotonic() + self.FALL_RETRY
                 if self.bdtopo[key]:
                     self.notify()
 
@@ -1656,8 +1760,9 @@ class App(session.Session):
         return chain
 
     def _compute_fall(self, key, chain, item, lon, lat):
-        """Calcul de la hauteur de chute du pont (chain), rangé dans self.falls[key], puis notify()."""
-        camera = self._camera_height()
+        """Calcul de la hauteur de chute du pont (chain), rangé dans self.falls[key], puis notify() ; key[2] : hauteur de
+        caméra (_fall_camera)."""
+        camera, camera_source, camera_error = key[2]
         lines = [[triangulation._local(p[0], p[1], lon, lat) for p in c["line"]] for c in chain]
         total = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for line in lines for a, b in zip(line, line[1:]))
         step = max(self.FALL_STEP, 2 * len(self.FALL_SIDES) * total / self.FALL_POINTS)
@@ -1696,8 +1801,8 @@ class App(session.Session):
                 decks.append(triangulation._local(plon, plat, lon, lat) + (ngf - camera,))
             if not decks:
                 return failed("pas d'altitude GPS de la séquence sur le pont")  # grille du géoïde pas encore lue ?
-            precision.fetch_terrain([triangulation._geographic(x, y, lon, lat) for x, y in samples],
-                                    lambda ground, source, error: got_ground(decks, ground, source, error))
+            self._terrain([triangulation._geographic(x, y, lon, lat) for x, y in samples],
+                          lambda ground, source, error: got_ground(decks, ground, source, error))
 
         def got_ground(decks, ground, source, error):
             if error:
@@ -1718,13 +1823,21 @@ class App(session.Session):
                                            "pas du tablier (végétation, buse ?)", "title": ""}
                 return self.notify()
             terrain = triangulation.RGE_ALTI_ERROR if source == "RGE ALTI" else triangulation.LIDAR_ERROR
-            sigma = math.hypot(precision.VERIFIED_ACCURACY, triangulation.GROUND_ERROR, terrain)
+            # Mesurée sur la séquence : tablier = altitude RTK moins (altitude RTK moins sol LiDAR) des photos voisines, le
+            # biais vertical du GPS s'annule ; restent la dispersion de cette hauteur et le sol sous ces photos. Calée ou
+            # réglage : l'altitude RTK elle-même compte (VERIFIED_ACCURACY), avec l'incertitude de la hauteur
+            if camera_source == "séquence":
+                sigma = math.hypot(camera_error, triangulation.LIDAR_ERROR, terrain)
+            else:
+                sigma = math.hypot(precision.VERIFIED_ACCURACY, camera_error, terrain)
             self.falls[key] = {
                 "text": "Hauteur de chute max : {} m (±{} m)".format(measures._num(best[0], 1), measures._num(sigma, 1)),
                 "title": ("Plus grande hauteur entre le tablier (altitude GPS RTK moins hauteur de caméra) et le "
                           "terrain sous le pont ({}), le long des deux bords jusqu'à {} m de la chaussée, à {} m de la photo. Au-dessus de "
-                          "l'eau : niveau au relevé, pas le fond.").format(
-                    source, measures._num(self.FALL_SIDES[-1], 0), measures._num(best[1], 0))}
+                          "l'eau : niveau au relevé, pas le fond. Hauteur de caméra : {} m ({}).").format(
+                    source, measures._num(self.FALL_SIDES[-1], 0), measures._num(best[1], 0), measures._num(camera, 2),
+                    {"séquence": "mesurée sur la séquence", "calée": "calée pour la séquence",
+                     "réglage": "réglage « Caméra à »"}[camera_source])}
             self.notify()
 
         host.fetch_json(metadata.search_url(lon, lat, reach, 100, item.get("collection"), host.api_url), got_photos)
@@ -1819,14 +1932,30 @@ class App(session.Session):
                     merged.append(sec)
         sections = merged
 
-        near = None
+        # Route de la photo : le tronçon au sol le plus proche parmi ceux orientés comme la route parcourue (à ROAD_TURN°
+        # près, sens de la trajectoire de la caméra au droit de la photo, sinon son cap) ; à un carrefour, la voie qui
+        # croise peut passer plus près ; aucun ainsi orienté : le plus proche
+        track = self.long_tracks.get(item.get("id"))
+        heading = metadata.item_heading(item)
+        if track and len(track) >= 2:
+            k0 = track.index((0.0, 0.0))
+            p, q = track[max(0, k0 - 1)], track[min(len(track) - 1, k0 + 1)]
+            heading = math.degrees(math.atan2(q[0] - p[0], q[1] - p[1]))
+        near, aligned = None, None
         for sec in sections:
             if sec.get("level", 0) != 0:
                 continue  # pont ou tunnel
             line = [triangulation._local(p[0], p[1], lon, lat) for p in sec["line"]]
             d, s = roads._project(line, 0.0, 0.0)
-            if d <= roads.MAX_DISTANCE and (near is None or d < near[0]):
+            if d > roads.MAX_DISTANCE:
+                continue
+            a, b = roads._at(line, s - roads.TANGENT), roads._at(line, s + roads.TANGENT)
+            course = math.degrees(math.atan2(b[0] - a[0], b[1] - a[1]))
+            if near is None or d < near[0]:
                 near = (d, s, line, sec)
+            if (heading is None or roads._axis_diff(course, heading) <= self.ROAD_TURN) and (aligned is None or d < aligned[0]):
+                aligned = (d, s, line, sec)
+        near = aligned or near
         if near is None:
             return told("Pas de route de la BD TOPO à moins de {} m de la photo".format(
                 measures._num(roads.MAX_DISTANCE, 0)))
@@ -1849,9 +1978,13 @@ class App(session.Session):
             track = self._track_line(item, lon, lat)  # profil en long le long de la trajectoire de la caméra
             if track is None:
                 return told("Calcul en cours…")
-            res = self.edges[key] = {"text": "Calcul en cours…", "title": ""}
-            self._compute_edges(key, line, s, sec["width"], metadata.item_heading(item), lon, lat, twin, track,
-                                (ends, sec.get("name"), works))
+            if track is False:  # pas de repli silencieux sur l'axe BD TOPO : nouvel essai plus tard
+                res = self.edges[key] = {"text": "Calcul impossible (service injoignable)", "title": "",
+                                         "retry_at": time.monotonic() + self.FALL_RETRY}
+            else:
+                res = self.edges[key] = {"text": "Calcul en cours…", "title": ""}
+                self._compute_edges(key, line, s, sec["width"], metadata.item_heading(item), lon, lat, twin, track,
+                                    (ends, sec.get("name"), works))
         road = sec.get("name") if re.match(r"[A-Z]+\d", sec.get("name") or "") else None
         profile = res.get("profile")
         if profile:  # eau de la BD TOPO sur le travers de la photo (lue à part : None pendant la lecture)
@@ -1859,6 +1992,7 @@ class App(session.Session):
         return {"text": "Bords de route" + (" ({})".format(road) if road else "") + "\n" + res["text"],
                 "title": res["title"], "edges": True, "profile": profile, "road": road}
 
+    ROAD_TURN = 45.0  # degrés au plus entre le tronçon de la photo et la route parcourue (_edges)
     CHAIN_TURN = 60.0  # degrés de déviation au plus d'un tronçon à l'autre en prolongeant la route
     CHAIN_REACH, CHAIN_TOUCH = 60.0, 2.0  # m ajoutés au plus de chaque côté ; bouts de tronçons qui se touchent
 
@@ -2035,9 +2169,10 @@ class App(session.Session):
     def _track_line(self, item, lon, lat):
         """Trajectoire de la caméra autour de la photo : positions des photos de la même séquence, de rangs qui se suivent
         (un trou d'une photo admis), en mètres locaux, dans le sens de la photo, la photo à (0, 0) ; [] si moins de 3
-        photos ou rang inconnu (profil en long sur l'axe BD TOPO) ; None pendant la lecture."""
+        photos ou rang inconnu (profil en long sur l'axe BD TOPO) ; None pendant la lecture ; False si Panoramax n'a pas
+        répondu (relue à l'appel suivant)."""
         key = item.get("id")
-        if key in self.long_tracks:
+        if self.long_tracks.get(key, False) is not False:
             return self.long_tracks[key]
         self.long_tracks[key] = None
         seq, rank0 = item.get("collection"), (item.get("properties") or {}).get("geovisio:rank_in_collection")
@@ -2070,7 +2205,7 @@ class App(session.Session):
                         out = out[::-1]  # dans le sens de la photo
                 else:
                     out = []
-            self.long_tracks[key] = out
+            self.long_tracks[key] = False if error else out
             self.notify()
 
         host.fetch_json(metadata.search_url(lon, lat, self.LONG_REACH + 15, 100, seq, host.api_url), done)
@@ -2460,20 +2595,36 @@ class App(session.Session):
 
     def _terrain(self, points, done):
         """precision.fetch_terrain par paquets de FALL_POINTS points (une requête chacun), l'un après l'autre ;
-        done(altitudes, source, erreur), source RGE ALTI dès qu'un paquet en vient (la moins précise)."""
-        out, sources = [], set()
+        done(altitudes, source, erreur). Une seule source pour des altitudes comparées entre elles : chaque paquet choisit
+        la sienne (LiDAR HD, RGE ALTI s'il y manque un point) ; si l'un est passé en RGE ALTI, tous sont relus en RGE ALTI."""
+        out, sources = [], []
+        chunks = [points[k:k + self.FALL_POINTS] for k in range(0, len(points), self.FALL_POINTS)]
 
-        def step(start):
+        def step(k):
             def got(ground, source, error):
                 if error or not source:
                     return done(None, source, error)
-                out.extend(ground)
-                sources.add(source)
-                if start + self.FALL_POINTS < len(points):
-                    return step(start + self.FALL_POINTS)
-                done(out, "RGE ALTI" if "RGE ALTI" in sources else source, None)
+                out.extend(ground if len(ground) == len(chunks[k]) else [None] * len(chunks[k]))  # incomplète : pas décalée
+                sources.append(source)
+                if k + 1 < len(chunks):
+                    return step(k + 1)
+                if len(set(sources)) == 1:
+                    return done(out, source, None)
+                relay(0, [])  # sources mêlées
 
-            precision.fetch_terrain(points[start:start + self.FALL_POINTS], got)
+            precision.fetch_terrain(chunks[k], got)
+
+        def relay(k, zs):  # tous les paquets en RGE ALTI
+            def got(data, error):
+                if error:
+                    return done(None, None, error)
+                z = precision._ground(data) if data else []
+                zs.extend(z if len(z) == len(chunks[k]) else [None] * len(chunks[k]))  # réponse incomplète : pas décalée
+                if k + 1 < len(chunks):
+                    return relay(k + 1, zs)
+                done(zs, "RGE ALTI", None)
+
+            host.fetch_json(precision.lidar_url(chunks[k], precision.RGE_RESOURCE), got, timeout_ms=precision.TIMEOUT_MS)
 
         step(0)
 

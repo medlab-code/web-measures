@@ -798,6 +798,7 @@ button.principal { font-weight: 600; }
 #chute[hidden] { display: none; }
 #chute .pont { color: #2ecc40; }  /* vert des voyants RTK et LiDAR HD */
 #chute .dessus { color: #00bce6; }  /* ce que le pont franchit : bleu des visées */
+#chute .chute-reglage { margin-top: 0.3rem; font: inherit; font-size: 13px; text-shadow: none; cursor: pointer; }  /* hauteur de caméra du réglage */
 #etat-mesure::before {
   content: "";
   flex: none;

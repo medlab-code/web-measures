@@ -26,6 +26,7 @@ API_URL = "https://api.panoramax.xyz/api"
 THROTTLED = "data.geopf.fr/altimetrie/"
 SPACING = 0.25  # s entre deux requêtes au service
 RETRIES = (1.0, 3.0)  # pauses (s) avant de retenter après un refus
+TIMEOUT_MS = 30000  # délai par défaut d'une requête sans délai propre (images : le double), pas d'attente sans fin
 _throttle = None  # verrou des requêtes au service (créé dans la boucle asyncio)
 
 _local_run = host.run_task  # calcul sur place, sans arrière-plan (valeur par défaut du cœur)
@@ -62,6 +63,7 @@ async def _fetch_throttled(url, timeout_ms):
 
 
 async def _get(url, callback, as_json, timeout_ms):
+    timeout_ms = timeout_ms or (TIMEOUT_MS if as_json else 2 * TIMEOUT_MS)
     try:
         response = await (_fetch_throttled if THROTTLED in url else _fetch)(url, timeout_ms)
         if not response.ok:

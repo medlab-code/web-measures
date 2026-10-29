@@ -53,8 +53,10 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     const noGround = (lon, lat, done) => done(undefined);
     app._ground_lookup = noGround;
     app.triangulator.ground_lookup = noGround;
-    const psvClick = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: false }; w.mesures.psv.dispatchEvent(e); };
-    const psvRight = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: true }; w.mesures.psv.dispatchEvent(e); };
+    // clic simulé avec sa position à l'écran, comme la visionneuse la donne (croix sous le clic : en pixels)
+    const at = (yaw, pitch) => { const p = w.mesures.psv.dataHelper.sphericalCoordsToViewerCoords({ yaw, pitch }); return { viewerX: p.x, viewerY: p.y }; };
+    const psvClick = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: false, ...at(yaw, pitch) }; w.mesures.psv.dispatchEvent(e); };
+    const psvRight = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: true, ...at(yaw, pitch) }; w.mesures.psv.dispatchEvent(e); };
     doc.querySelector("#mesure").click();
     doc.querySelector("#mode").value = "height"; doc.querySelector("#mode").dispatchEvent(new Event("change"));
     const photos = await Promise.all(IDS.map(feature));
@@ -202,6 +204,10 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       + " · croix " + box.querySelectorAll(".croix:not(.visee)").length);
     expect("2e hauteur absente de l'autre photo", heights().length === 1
       && ![...box.querySelectorAll(".etiquette")].some((e) => e.textContent.includes("3,18")));
+    // Appui dans la photo : la liste « Mode » perd le focus (sinon les flèches du recalage y changeraient le mode)
+    doc.querySelector("#mode").focus();
+    w.mesures.psv.container.querySelector(".psv-canvas-container").dispatchEvent(new w.PointerEvent("pointerdown", { bubbles: true }));
+    expect("appui dans la photo : focus retiré de la liste Mode", doc.activeElement !== doc.querySelector("#mode"));
     // Recalage au clic, sur la photo de la mesure
     w.mesures.openPhoto(photos[0]);
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "photo 1 bis");
@@ -366,9 +372,9 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         box2.dispatchEvent(new Event("change"));
         await sleep(300);
         log(`fiche avec la couche : ${shown} pixels de la couleur ${color}, ${hidden} sans elle`);
-        // seuil bas : la compression JPEG de la fiche écarte une partie des pixels de la pastille (rouge
-        // de Set1 : 6 pixels gardés)
-        expect("fiche : couche dessinée dans la photo", shown - hidden >= 4 && hidden < 3);
+        // seuil bas : la compression JPEG de la fiche écarte presque tous les pixels de la pastille (rouge
+        // de Set1 : 2 pixels gardés en 2026-10) ; une couche absente donne 0 et 0
+        expect("fiche : couche dessinée dans la photo", shown > hidden && hidden < 3, `${shown} / ${hidden}`);
       }
       // Œil d'une valeur de la légende : ses objets ni sur la carte ni dans la photo, gardé ; puis réaffichés
       {

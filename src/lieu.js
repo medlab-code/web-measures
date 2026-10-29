@@ -22,6 +22,7 @@ const Lieu = (() => {
   // Requêtes WFS : au plus PARALLEL à la fois ; un refus (HTTP 429) est retenté après une pause
   const PARALLEL = 2;
   const RETRIES = [1000, 3000];  // ms
+  const TIMEOUT = 30000;  // ms
   let running = 0;
   const waiting = [];
 
@@ -57,7 +58,7 @@ const Lieu = (() => {
       running++;
       let response;
       try {
-        response = await fetch(url);
+        response = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT) });  // une requête bloquée occuperait la file
       } finally {
         running--;
         waiting.shift()?.();

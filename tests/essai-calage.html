@@ -1,0 +1,53 @@
+<!doctype html><meta charset="utf-8"><title>Essai du calage par clics</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Calage de l'inclinaison, clics à l'écran (viewerX, viewerY) au zoom fort : une croix se sélectionne à 12 px près
+     (App.pick_points, on_cross), pas à 20 px, quel que soit l'angle que fait un pixel. Lancer comme tests/navigateur.html. -->
+<script>try { localStorage.clear(); } catch {}</script>
+<iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
+let failures = 0, checks = 0;
+const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + (detail ? " : " + detail : "")); } };
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  try {
+    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 180000, "Pyodide");
+    const doc = w.document, app = w.mesures.app;
+    for (const d of doc.querySelectorAll("dialog[open]")) d.close();
+    const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=1108ca14-6669-49e8-a26a-955becc79e81")).json()).features[0];
+    w.mesures.openPhoto(f);
+    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "photo");
+    await sleep(3000);
+    const psv = w.mesures.psv;
+    psv.zoom(80);  // zoom fort : 1° y fait bien plus de 12 px
+    await sleep(800);
+    doc.querySelector("#mesure").click();
+    doc.querySelector("#mode").value = "tilt"; doc.querySelector("#mode").dispatchEvent(new w.Event("change"));
+    await sleep(500);
+    const click = (x, y) => { const s = psv.dataHelper.viewerCoordsToSphericalCoords({ x, y }); const e = new w.Event("click");
+      e.data = { yaw: s.yaw, pitch: s.pitch, rightclick: false, viewerX: x, viewerY: y }; psv.dispatchEvent(e); };
+    const r = psv.container.getBoundingClientRect(), cx = r.width / 2, cy = r.height / 2;
+    const marks = () => JSON.parse(app.viewer_marks()).filter((m) => m.calage).pop()?.points || [];
+    click(cx, cy + 100);  // pied
+    click(cx + 3, cy - 100);  // sommet
+    await sleep(300);
+    expect("pied et sommet posés", marks().length === 2, JSON.stringify(marks()));
+    log("degrés par pixel : " + (Math.abs(psv.dataHelper.viewerCoordsToSphericalCoords({ x: cx + 100, y: cy }).yaw - psv.dataHelper.viewerCoordsToSphericalCoords({ x: cx, y: cy }).yaw) * 180 / Math.PI / 100).toFixed(4));
+    click(cx + 3 + 20, cy - 100);  // à 20 px du sommet : pas une sélection (1° en ferait une à ce zoom)
+    await sleep(300);
+    expect("à 20 px : pas de sélection", !marks().some((p) => p[2]), JSON.stringify(marks()) + " " + app.status().slice(0, 80));
+    click(cx + 3, cy - 100);  // sur la croix du sommet : sélectionnée
+    await sleep(300);
+    expect("sur la croix : sommet sélectionné", marks()[1]?.[2] === true, JSON.stringify(marks()));
+    click(cx + 3 + 20, cy - 100);  // nouvelle position du sommet
+    await sleep(300);
+    const s = psv.dataHelper.viewerCoordsToSphericalCoords({ x: cx + 23, y: cy - 100 });
+    expect("sommet déplacé", Math.abs(marks()[1][0] - s.yaw) < 1e-4 && !marks()[1][2], JSON.stringify(marks()));
+    log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
+    log(failures ? "ERREUR" : "FIN");
+  } catch (error) { log("ERREUR " + (error.stack || error)); }
+})();
+</script>

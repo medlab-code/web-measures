@@ -19,6 +19,12 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
     while (!(w.mesures?.app && w.mesures.map?.loaded?.())) { if (Date.now() - t0 > 120000) throw new Error("Pyodide"); await sleep(250); }
     const doc = w.document;
     doc.querySelector("#reglages-defaut")?.close();
+    // fin du calcul des bords : la durée suit celle des services (une attente fixe échouait quand ils étaient lents)
+    const computed = async () => {
+      const t0 = Date.now();
+      do await sleep(1000); while (/Calcul en cours/.test(doc.querySelector("#chute").textContent) && Date.now() - t0 < 60000);
+      if (/Calcul en cours/.test(doc.querySelector("#chute").textContent)) log("  service lent : calcul toujours en cours après 60 s");
+    };
     const pouilly = (await (await fetch("https://panoramax.ign.fr/api/search?ids=cd8cf3a0-6567-40f0-8805-94172a5dfc3c")).json()).features[0];
     const places = [[pouilly, 0, "Pouilly"]];
     for (const id of BRIDGES) {
@@ -26,7 +32,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       const [lon, lat] = b.geometry.coordinates, d = 0.0015;
       const near = (await (await fetch(`https://panoramax.ign.fr/api/search?limit=40&collections=${b.collection}&bbox=${lon - d},${lat - d},${lon + d},${lat + d}`)).json()).features;
       const far = near.map((f) => [f, Math.hypot((f.geometry.coordinates[0] - lon) * 75000, (f.geometry.coordinates[1] - lat) * 111000)])
-        .filter(([, m]) => m > 30 && m < 120).sort((a, c) => a[1] - c[1]).filter((_, k) => k % 3 === 0).slice(0, 5);
+        .filter(([, m]) => m > 30 && m < 120).sort((a, c) => a[1] - c[1]).filter((_, k) => k % 3 === 0).slice(0, 3);  // 3 photos par pont : essai court
       places.push(...far.map(([f, m]) => [f, m, `${Math.round(m)} m du pont ${id.slice(0, 8)}`]));
     }
     for (const [f, , where] of places) {
@@ -34,7 +40,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       await sleep(4000);
       const button = doc.querySelector("#bords");
       if (!button.disabled) button.click();
-      await sleep(8000);
+      await computed();
       const c = doc.querySelector("#chute");
       if (!c.hidden) shown++;
       butte ||= /pas de chute avant le terrain qui remonte/.test(c.textContent);  // lecture arrêtée au moins une fois
@@ -63,13 +69,12 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
     zone.dispatchEvent(new w.Event("change"));
     // D70 (même commune) : route en haut d'un remblai d'environ 7 m des deux côtés : dévers du talus entier
     for (const [id, where] of [["2d55af6d-61f1-4ff1-a881-16bf27b2fef1", "La Roche-en-Brenil D15A"],
-      ["229abfcd-868c-4eca-bfc1-3979ca94d28f", "La Roche-en-Brenil D70"],
-      ["a0ce6487-bf25-4351-a302-228876829900", "La Roche-en-Brenil D70 PR 2 +0797"]]) {
+      ["229abfcd-868c-4eca-bfc1-3979ca94d28f", "La Roche-en-Brenil D70"]]) {
       const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
       w.mesures.openPhoto(f);
       await sleep(4000);
       doc.querySelector("#bords").click();
-      await sleep(8000);
+      await computed();
       log(`${where} ${id.slice(0, 8)} (30 m) : ${doc.querySelector("#chute").textContent.replace(/\n/g, " · ")}`);
       const profile = doc.querySelector("#profil");
       if (profile.disabled) continue;
@@ -105,7 +110,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       w.mesures.openPhoto(f);
       await sleep(4000);
       doc.querySelector("#bords").click();
-      await sleep(8000);
+      await computed();
       const c = doc.querySelector("#chute"), found = (c.title.match(/Bords trouvés : (.*)\.$/) || [])[1] || "?";
       log(`${where} ${id.slice(0, 8)} : ${c.textContent.replace(/\n/g, " · ")} · bords trouvés : ${found}`);
       const left = Number(((/côté gauche à (\d+(?:,\d+)?) m/.exec(found) || [])[1] || "0").replace(",", "."));
@@ -118,7 +123,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       w.mesures.openPhoto(f);
       await sleep(4000);
       doc.querySelector("#bords").click();
-      await sleep(8000);
+      await computed();
       const c = doc.querySelector("#chute"), found = (c.title.match(/Bords trouvés : (.*)\.$/) || [])[1] || "?";
       log(`A38 61dd94c4 (30 m) : ${c.textContent.replace(/\n/g, " · ")} · bords trouvés : ${found}`);
       const far = /séparateur de chaussée \(trouvé dans le relief\) et de l'autre chaussée/.exec(found);

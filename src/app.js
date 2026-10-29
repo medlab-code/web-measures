@@ -863,6 +863,11 @@
     const line = (text, className) => Object.assign(document.createElement("span"), { className, textContent: text });
     $("#chute").replaceChildren(line(bridge, "pont"),
       ...rest.flatMap((t) => ["\n", t.startsWith("Au-dessus") ? line(t, "dessus") : t]));
+    if (fall?.ask) {  // hauteur de caméra ni mesurée ni calée : le réglage, si l'utilisateur l'accepte (App.use_fall_setting)
+      const ask = Object.assign(document.createElement("button"), { type: "button", className: "chute-reglage", textContent: fall.ask });
+      ask.addEventListener("click", () => refresh(app.use_fall_setting()));
+      $("#chute").append("\n", ask);
+    }
     pointReady = state.point;
     singleM = state.single_m;
     tiltReady = state.tilt_ready;
@@ -2315,13 +2320,29 @@
     return { yaw: Math.atan2(w[0], w[2]), pitch: Math.asin(Math.max(-1, Math.min(1, w[1] / length))) };
   }
 
+  /** Croix sélectionnable (App.pick_points : celles du mode en cours) à CROSS_PX pixels au plus du point (x, y) de la
+   * visionneuse : un clic là la sélectionne (App.click, on_cross). En pixels, quel que soit le zoom ; le calcul ne
+   * connaît que des degrés. */
+  const CROSS_PX = 12;
+  let crossAt = [];  // croix sélectionnables (drawViewerMarks) : [[cap, élévation]]
+  function nearCross(x, y) {
+    const view = psv?.getPosition?.();
+    if (!view) return false;
+    return crossAt.some(([yaw, pitch]) => {
+      const cos = Math.sin(pitch) * Math.sin(view.pitch) + Math.cos(pitch) * Math.cos(view.pitch) * Math.cos(yaw - view.yaw);
+      if (cos <= 0.05) return false;  // derrière la vue
+      const p = psv.dataHelper.sphericalCoordsToViewerCoords({ yaw, pitch });
+      return Math.hypot(p.x - x, p.y - y) <= CROSS_PX;
+    });
+  }
+
   function slideOnGuide(event) {
     const markers = psv?.getPlugin?.("markers");
     if (!markers) return;
     // Hauteur suivante depuis A : réticule sur l'axe de la première, sauf sur une croix (sélection)
-    const onPhoto = event?.target?.closest?.(".psv-canvas-container, .psv-markers")
-      && !event.target.closest(".psv-virtual-tour-link, .croix");
     const box = event && psv.container.getBoundingClientRect();
+    const onPhoto = event?.target?.closest?.(".psv-canvas-container, .psv-markers")
+      && !event.target.closest(".psv-virtual-tour-link") && !nearCross(event.clientX - box.left, event.clientY - box.top);
     if (event && measuring && $("#mode").value === "height" && heightAxis && onPhoto) {
       const pointer = psv.dataHelper?.viewerCoordsToSphericalCoords?.({ x: event.clientX - box.left, y: event.clientY - box.top });
       if (pointer) {
@@ -2336,6 +2357,7 @@
     const line = event && measuring && $("#mode").value === "road" && (!aiming || lineDrawn) && !edgeBAiming
       && (!newMeasure || pointSelected) && event.target?.closest?.(".psv-canvas-container, .psv-markers")
       && !event.target.closest(".psv-virtual-tour-link")
+      && (pointSelected || !nearCross(event.clientX - box.left, event.clientY - box.top))  // sur une croix : sélection
       && currentMarks.find((m) => m.guide && !m.vertical && !m.epipolar);
     let position = null;
     if (line) {
@@ -2397,17 +2419,28 @@
           }
         }
         if (event?.type === "click" && measuring && !onArrow(event)) {
+          // croix sous le clic, en pixels (voir CROSS_PX) ; sans position dans la vue (clic simulé) : le calcul en juge
+          const box = psv.container.getBoundingClientRect(), d = event.data;
+          const [x, y] = [d.viewerX ?? d.clientX - box.left, d.viewerY ?? d.clientY - box.top];
+          const inside = Number.isFinite(x) && Number.isFinite(y) && x >= 0 && y >= 0 && x <= box.width && y <= box.height;
+          const onCross = inside ? nearCross(x, y) : undefined;  // undefined : None en Python (null y serait jsnull)
           if (app && event.data?.rightclick) {  // clic droit : sélection d'un point à recaler
-            refresh(photoReady() ? app.select_point(event.data.yaw, event.data.pitch) : LOADING);
+            refresh(photoReady() ? app.select_point(event.data.yaw, event.data.pitch, onCross) : LOADING);
           } else if (app) {
             if (photoReady()) remindZoom();
-            refresh(photoReady() ? app.click(event.data.yaw, event.data.pitch) : LOADING);
+            refresh(photoReady() ? app.click(event.data.yaw, event.data.pitch, onCross) : LOADING);
           }
           return true;
         }
         return dispatch.call(this, event);
       };
       psv.container.addEventListener("pointermove", slideOnGuide);
+      // Appui dans la photo : le bouton ou la liste qui avait le focus le perd (sinon les flèches et Entrée, destinées
+      // au point sélectionné, changeraient le mode ou relanceraient le bouton : onNudgeKey les lui laisse)
+      psv.container.addEventListener("pointerdown", (event) => {
+        const active = document.activeElement;
+        if (event.target.closest?.(".psv-canvas-container, .psv-markers") && active?.matches?.("input, select, textarea, button")) active.blur();
+      });
       psv.container.addEventListener("pointerleave", () => slideOnGuide(null));
       attachPlayer();
       psv.addEventListener("position-updated", updateCursor);
@@ -2766,6 +2799,7 @@
 
   function drawViewerMarks(marks) {
     currentMarks = marks;
+    crossAt = app ? JSON.parse(app.pick_points()) : [];
     // « Avec les mesures » : seulement s'il y a une mesure (valeur en mètres) sur la photo affichée
     $("#vignette").disabled = !photo || !marks.some((m) => !m.guide && /\d m\b/.test(m.label || ""));
     const markers = psv?.getPlugin?.("markers");

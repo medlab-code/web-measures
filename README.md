@@ -168,7 +168,10 @@ après.
   toute sa longueur s'affichent en haut à gauche de la visionneuse (pas pendant la lecture de
   la séquence). Calcul :
   - **tablier** : altitude GPS des photos de la séquence prises sur le pont, convertie en
-    altitude NGF, moins la hauteur de caméra ; pour chaque point, la photo la plus proche ;
+    altitude NGF, moins la hauteur de caméra (mesurée sur la séquence vérifiée, sinon calée ; à
+    défaut, le réglage « Caméra à », seulement après un appui sur le bouton de l'encadré : une photo
+    de précision déclarée n'a que sa hauteur au-dessus du fond franchi) ; pour chaque point, la
+    photo la plus proche ;
   - **dessous** : modèle de terrain LiDAR HD (RGE ALTI en secours) lu en travers du pont, à 1,
     3, 6 et 10 m au-delà du bord de la chaussée (largeur BD TOPO, sinon 6 m), des deux côtés,
     tous les 2 m (plus espacé sur un long pont) ; sous le tablier, le modèle de terrain est
@@ -183,7 +186,8 @@ après.
   de modèle de terrain). Un creux sans rapport avec ce que franchit le pont, à moins de 10 m de
   la chaussée (fossé profond), augmente la valeur.
 - **Chute et dévers des bords de route** (bouton « Dévers » de la barre du haut, ticket #31) :
-  sur une photo hors pont, à moins de 15 m d'une route de la BD TOPO, un appui sur « Dévers »
+  sur une photo hors pont, à moins de 15 m d'une route de la BD TOPO (orientée comme la route parcourue, à 45°
+  près : à un carrefour, pas la voie qui croise), un appui sur « Dévers »
   affiche en haut à gauche, pour chaque côté (vu dans le sens de la photo) qui descend d'au
   moins 0,5 m, la hauteur de chute et le dévers du bord. La réglette à côté du bouton fixe la
   distance examinée au-delà de la chaussée (2 à 30 m, 10 m par défaut) ; après l'avoir changée,
@@ -413,7 +417,8 @@ la mesure dessinée telle qu'elle était à l'écran (colonnes `photo_ref` et `v
 en étiquette (colonne `etiquette`). Un clic sur une autre mesure de la mini-carte la montre de même.
 En lecture seule ; les fichiers exportés avant la version 0.6.6 n'ont pas ces colonnes.
 
-**Recaler un point** : **clic** (gauche ou droit) sur sa croix pour le sélectionner, puis :
+**Recaler un point** : **clic** (gauche ou droit) sur sa croix pour le sélectionner (à 12 pixels près, quel que
+soit le zoom ; ailleurs, le clic est un point de mesure), puis :
 
 - clic gauche : nouvelle position (largeur : bord ou point de référence, là où la direction
   du clic coupe la droite de mesure, dont ils ne sortent jamais ; le point de référence se
@@ -603,6 +608,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,4
 | `tests/navigateur.html` | essai de bout en bout dans un vrai navigateur |
 | `tests/essai-rtk.html`, `essai-largeur.html`, `essai-libre.html` | hauteur, largeur, mesure libre sur photos RTK, avec recalages |
 | `tests/inclinaison.html` | inclinaison automatique |
+| `tests/essai-calage.html` | calage de l'inclinaison : croix sélectionnée à 12 px près, au zoom fort |
 | `tests/inclinaison-terrain.html` | inclinaison par le terrain hors agglomération (option) |
 | `py/web_terrain.py` | inclinaison par le terrain hors agglomération : grille LiDAR HD, modèle de séquence |
 | `tools/serveur-essai.py` | serveur des essais : sert le site et affiche leur journal |

@@ -61,7 +61,9 @@ une ou deux secondes après.
 ### 1.4 Terrain
 
 **MNT LiDAR HD** de l'IGN (sol nu à 50 cm, ±0,1 m ; ponts et ouvrages retirés), sinon
-**RGE ALTI** (1 m, ±0,4 m) là où il n'est pas encore publié. Le MNT sert à vérifier la position
+**RGE ALTI** (1 m, ±0,4 m) là où il n'est pas encore publié. Les altitudes d'un même calcul
+viennent toutes de la même source : lues par paquets de 160 points, elles sont toutes relues en
+RGE ALTI dès qu'un paquet a dû y passer (un point manquant en LiDAR HD). Le MNT sert à vérifier la position
 (§ 1.2), à l'inclinaison (§ 1.3), à fixer l'altitude d'un point au sol triangulé en 3D (§ 2) et à
 tous les profils (§ 7 à 9). Les tronçons de route, ponts, cours d'eau et zones d'habitation
 viennent de la **BD TOPO** (WFS de la Géoplateforme).
@@ -177,14 +179,22 @@ Ce calcul est automatique sur une photo prise sur un pont de la BD TOPO. Les tro
 qui se touchent à 1 m près forment un seul ouvrage.
 
 - **Tablier** : altitude GPS des photos de la séquence prises sur le pont, convertie en NGF,
-  moins la hauteur de caméra. En chaque point, la photo la plus proche est retenue.
+  moins la hauteur de caméra. En chaque point, la photo la plus proche est retenue. La hauteur de
+  caméra est celle **mesurée sur la séquence** vérifiée (médiane de l'altitude RTK moins le sol
+  LiDAR, photos du pont écartées), sinon celle **calée** pour la séquence. Une photo de précision
+  déclarée n'a que sa propre hauteur, prise au-dessus du sol sous elle : sur un pont, le fond
+  franchi. Le réglage « Caméra à » ne sert alors que si l'utilisateur l'accepte (bouton de
+  l'encadré du pont).
 - **Dessous** : MNT lu en travers du pont, à 1, 3, 6 et 10 m au-delà du bord de la chaussée
   (largeur BD TOPO, sinon 6 m), des deux côtés. Un travers tous les 2 m le long du pont (plus
   espacé sur un long pont), 160 points au plus : une seule requête. Sous le tablier, le MNT
   est interpolé à sa hauteur : le fond se lit à l'écart. Le terrain lu à 1 m seulement tombait
   sur le talus de la culée.
-- **Hauteur** : la plus grande différence entre les deux, avec son incertitude (altitude RTK,
-  tablier tiré des photos, terrain). Au-dessus de l'eau, c'est le niveau de l'eau le jour du
+- **Hauteur** : la plus grande différence entre les deux. Incertitude : hauteur mesurée sur la
+  séquence, le biais vertical du GPS s'annule (tablier = altitude moins (altitude moins sol)) et
+  restent la dispersion de cette hauteur, le sol sous les photos et le terrain sous le pont ;
+  hauteur calée ou réglage, l'altitude RTK compte (0,10 m), avec l'incertitude de la hauteur
+  (calage, ou 0,15 m pour le réglage). Au-dessus de l'eau, c'est le niveau de l'eau le jour du
   relevé LiDAR.
 
 Rien n'est affiché sans position RTK vérifiée : l'altitude du tablier serait fausse de plusieurs
@@ -198,7 +208,9 @@ d'une route de la BD TOPO. Il ne dépend pas de l'altitude GPS et n'a donc pas b
 
 ### 8.1 Profils lus
 
-La route est celle du tronçon BD TOPO le plus proche, prolongée par les tronçons voisins de même
+La route est celle du tronçon BD TOPO au sol le plus proche parmi ceux orientés comme la route
+parcourue, à 45° près (sens de la trajectoire de la caméra au droit de la photo, sinon son cap) :
+à un carrefour, la voie qui croise peut passer plus près. Elle est prolongée par les tronçons voisins de même
 nom (lus jusqu'à 60 m autour de la photo, mailles voisines comprises). Le MNT est lu en travers à
 **−10, −5, 0, +5 et +10 m** de la photo le long de la route, des deux côtés. Les travers partent
 de la caméra (séquence vérifiée RTK), sinon de l'axe BD TOPO. Un point est lu tous les **0,5 m**

@@ -39,7 +39,7 @@ const verdict = () => log(failures ? `ERREUR ${failures} contrôle(s) sur ${chec
 const DIJON = ["33565d3f-5e27-47fb-9137-ba4de564530d", "a3996fff-7cf7-44b4-8c54-afd556f2632c"];
 const POUILLY = "cd8cf3a0-6567-40f0-8805-94172a5dfc3c";
 const PONT = "b40045bd-1fc5-4a7a-a5bd-7b7952902a1c";  // CD21, tablier de la RD111 au-dessus de l'A6 (Beaune)
-const SANS_LIDAR = "eb5ece3a-381a-47f6-963e-6f3d7ad0029b";  // CD21, pont Camille Baudry (D116), LiDAR HD pas publié
+const SANS_LIDAR = "eb5ece3a-381a-47f6-963e-6f3d7ad0029b";  // CD21, pont Camille Baudry (D116), hors LiDAR HD jusqu'en 2026
 const APRES_PONT = "2f6bf2e3-4818-4659-8b9a-84190cc5af18";  // même séquence, 70 m après le pont
 const MONTBARD = "f533e240-7d37-40ef-babc-1d37140dc5d2";  // plugin : inclinaison 1,95° vers 219° (±0,22°)
 
@@ -298,10 +298,11 @@ async function feature(id) {
     const row = [...doc.querySelectorAll("#fiche dt")].find((dt) => dt.textContent === "Précision GPS annoncée");
     const text = row?.nextElementSibling?.textContent || "";
     log("fiche : Précision GPS annoncée " + text);
-    expect("fiche : précision annoncée et calculée", /^2 m · calculée ±0,10 m \(hauteur de caméra constante à \d+ cm, RGE ALTI\)/.test(text), text);
+    expect("fiche : précision annoncée et calculée", /^2 m · calculée ±0,10 m \(hauteur de caméra constante à \d+ cm, (LiDAR HD|RGE ALTI)\)/.test(text), text);
   }
-  expect("hors LiDAR HD : vérifiée sur le RGE ALTI", state().quality.includes("Position GPS vérifiée")
-    && state().quality.includes("RGE ALTI"));
+  // le RGE ALTI de secours se vérifie dans tests/test_calculs.py (Terrain) : la photo est maintenant sous le LiDAR HD
+  expect("hors LiDAR HD : position vérifiée", state().quality.includes("Position GPS vérifiée")
+    && /LiDAR HD|RGE ALTI/.test(state().quality));
   try { await until(() => pont.open, 30000, "pont Camille Baudry"); } catch (e) { log(String(e)); }
   expect("hors LiDAR HD : pas d'alerte RTK, pont proposé", !doc.querySelector("#alerte-rtk").open && pont.open && pont.textContent.includes("D116"));
   pont.querySelector("button[value=non]").click();
@@ -416,10 +417,12 @@ async function feature(id) {
 
   // Capture « Avec les mesures » : active avec la hauteur sur la photo (grisée sans mesure, voir plus haut)
   expect("« Avec les mesures » actif avec la hauteur", !doc.querySelector("#vignette").disabled);
+  let png = 0;  // boîte « Enregistrer sous » remplacée : sans fenêtre, elle ne répondrait pas
+  w.showSaveFilePicker = async () => ({ createWritable: async () => ({ write: async (blob) => { png = blob.size; }, close: async () => {} }) });
   doc.querySelector("#vignette").click();
   await until(() => doc.querySelector("#statut").textContent.includes("Vignette"), 10000, "vignette");
   log("vignette : " + doc.querySelector("#statut").textContent);
-  expect("vignette enregistrée", doc.querySelector("#statut").textContent.includes("Vignette enregistrée"));
+  expect("vignette enregistrée", doc.querySelector("#statut").textContent.includes("Vignette enregistrée") && png > 0, `${png} octets`);
 
   // Photo affichée stable (fin d'un chargement) : l'objet vertical se clique sur une seule photo
   await sleep(1500);
