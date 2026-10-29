@@ -6,8 +6,8 @@
 // travers de la photo. Le terrain (MNT) du calcul « Dévers » ne voit ni la peinture ni la nature du sol ; l'intensité
 // du retour laser des points du sol, si : enrobé sombre, lignes blanches très claires, herbe, gravillons et béton
 // clairs. D'où le bord de chaussée (ligne de rive, sinon fin de l'enrobé) et le séparateur de chaussée (bande non
-// revêtue entre les deux chaussées, glissières comprises). Lecteur repris de tests/essai-lidar.html (essai du
-// 2026-10-27) ; décompression par laz-perf, chargé au premier usage.
+// revêtue entre les deux chaussées, glissières comprises). Lecteur repris de l'essai de faisabilité du
+// 2026-10-27 (tests/essai-lidar.html, retiré) ; décompression par laz-perf, chargé au premier usage.
 
 const Nuage = (() => {
   const WFS = "https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&OUTPUTFORMAT=application/json"

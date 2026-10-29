@@ -24,6 +24,11 @@ application). Auteur : Cédric COCHART.
   (`google-chrome`, plus de Flatpak), profil temporaire, lancé par `setsid` : à la fin,
   n'arrêter que ce Chrome-là (son groupe de processus, ou les processus portant son profil),
   jamais tous les Chrome par nom (celui de l'utilisateur serait tué).
+- Essais rapides d'abord : un calcul de `py/web_app.py` se vérifie par `tests/test_calculs.py`
+  (`python3 -m unittest discover -s tests`, sans navigateur ni réseau, moins d'une seconde) ; y
+  ajouter un cas court par correctif. Les pages d'essai dans le navigateur (plusieurs minutes,
+  réseau) : une page ciblée pendant la mise au point, l'ensemble seulement avant de publier.
+  Retirer les essais qui ne servent plus (faisabilité, diagnostic, option sans enjeu).
 - Essai de bout en bout : `tools/serveur-essai.py 8766` (s'arrête quand la page écrit « FIN »
   ou « ERREUR »), puis `google-chrome --headless=new --user-data-dir=/tmp/... --no-first-run
   --remote-debugging-port=0 --window-size=1400,1000 http://127.0.0.1:8766/tests/<page>` ;

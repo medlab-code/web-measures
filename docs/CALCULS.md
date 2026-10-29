@@ -157,6 +157,20 @@ posée sur le MNT lu sous la caméra et sous chaque objet (lignes redécoupées 
 n'est qu'un affichage. Le **recalage dans la photo** est un décalage angulaire propre à la photo
 (pas de 0,05°). La position de l'objet sur la carte ne change pas.
 
+### 6.1 Cadastre (mini-carte)
+
+Le **Parcellaire Express** (IGN) est un plan numérisé : ses limites peuvent être à plusieurs mètres
+du terrain. Une feuille cadastrale est teintée d'orange quand son écart moyen aux raccords avec ses
+voisines (`dst_raccor`, qualité du géoréférencement de la BD Parcellaire) dépasse **2 m**. En
+Côte-d'Or, cet écart vaut 1,5 m en médiane, et plus de 5,8 m pour un quart des feuilles. C'est un
+indice, pas un écart mesuré au terrain.
+
+La projection dans la photo a été essayée puis abandonnée (30/10/2026). À Pouilly-en-Auxois, la
+limite apparaissait au-dessus du sol au pied des façades. Trois causes y concourent : le plan du
+cadastre (0,46 m de décalage avec les bâtiments de la BD TOPO), le sol interpolé sous les
+bâtiments (0,8 m plus bas que le trottoir) et l'inclinaison de la photo, calculée seulement au
+premier clic.
+
 ## 7. Hauteur de chute sur un pont
 
 Ce calcul est automatique sur une photo prise sur un pont de la BD TOPO. Les tronçons en pont

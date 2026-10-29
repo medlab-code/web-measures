@@ -1,0 +1,44 @@
+<!doctype html><meta charset="utf-8"><title>Essai du cadastre</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Cadastre sur la mini-carte (#36, Carte.setCadastre) : réglage coché, parcelles en tuiles, bornes de propriété et
+     feuilles mal raccordées autour de la photo, au zoom 18. Photo de Pouilly-en-Auxois (#photos=id,… : d'autres) ;
+     chaque carte part dans le journal en PNG. Lancer comme tests/navigateur.html. -->
+<script>try { localStorage.clear(); localStorage.setItem("web-measures/cadastre", "1"); } catch {}</script>
+<iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
+let failures = 0, checks = 0;
+const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + (detail ? " : " + detail : "")); } };
+const IDS = location.hash.startsWith("#photos=") ? location.hash.slice(8).split(",") : ["1108ca14-6669-49e8-a26a-955becc79e81"];
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  try {
+    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 180000, "Pyodide");
+    const doc = w.document;
+    doc.querySelector("#reglages-defaut")?.close();
+    expect("réglage « Cadastre » coché", doc.querySelector("#cadastre").checked);
+    for (const id of IDS) {
+      const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
+      w.mesures.openPhoto(f);
+      await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === id, 30000, "photo");
+      // mini-carte au zoom 18 sur la photo : image prise pendant un rendu (sinon tampon WebGL vide)
+      const map = w.mesures.map;
+      map.jumpTo({ center: f.geometry.coordinates, zoom: 18 });
+      await sleep(6000);  // tuiles et bornes (pas « idle » : la carte ne s'arrête jamais de se redessiner)
+      const shot = await new Promise((r) => { map.once("render", () => r(map.getCanvas().toDataURL("image/png"))); map.triggerRepaint(); });
+      await log(`IMAGE carte-${id.slice(0, 8)} ` + shot);
+    }
+    const map = w.mesures.map;
+    log(`carte : ${map.querySourceFeatures("cadastre-sections").length} sections, ${map.querySourceFeatures("cadastre-bornes").length} bornes, ${map.querySourceFeatures("cadastre-decale").length} parties de feuilles décalées`);
+    expect("carte : couches du cadastre affichées", map.getLayoutProperty("cadastre", "visibility") === "visible");
+    expect("carte : sections des parcelles lues au zoom 18", map.querySourceFeatures("cadastre-sections").length > 0);
+    log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
+    log(failures ? "ERREUR" : "FIN");
+  } catch (error) {
+    log("ERREUR " + (error.stack || error));
+  }
+})();
+</script>

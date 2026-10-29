@@ -27,8 +27,9 @@ Les calculs de chaque mode (point triangulé, hauteur, largeur, relevé, chute s
 
 ## Utilisation
 
-**Télécharger** : prendre l'archive `web-measures-X.Y.Z.zip` de la dernière version
-(page *Releases* du dépôt) et la décompresser ; elle ne contient que la page et ses fichiers.
+**Télécharger** : prendre l'archive « Source code (zip) » de la dernière version (page
+*Releases* du dépôt) et la décompresser ; seuls `index.html`, `src/` et `py/` servent à la page
+(`tests/`, `tools/` et `docs/` peuvent être ignorés).
 
 **Ouvrir la page** : double-cliquer sur `index.html` suffit (Edge, Chrome, Firefox), sans
 installation ni serveur ; une connexion à internet est nécessaire (bibliothèques, Pyodide et
@@ -353,6 +354,13 @@ sans répéter ce qui est déjà dit, ni le nom de la mesure) ; la mini-carte ce
 (même échelle qu'à l'écran), avec le cône de vue et le nom du fond de carte et de son producteur ; l'identifiant de la photo,
 son attribution et son lien Panoramax, aussi en QR code. La mini-carte manque si elle est repliée.
 
+**Cadastre** (réglage « Cadastre sur la carte », Réglages › Affichage, décoché par défaut ; ticket #36) : parcelles
+du Parcellaire Express (IGN) sur la mini-carte dès le zoom 15, bornes de limite de propriété et section cadastrale au-dessus du numéro de chaque parcelle (« B » pour la
+section 0B) dès le zoom 17, feuilles
+cadastrales mal raccordées à leurs voisines teintées d'orange (écart moyen aux raccords de plus de 2 m : limites
+peut-être décalées, le cadastre étant un plan numérisé). Limites indicatives. Pas de projection dans la photo : un
+essai l'a montrée trop imprécise au pied des façades (plan, sol interpolé sous les bâtiments, inclinaison de la photo).
+
 **Couche importée** (onglet « Couche » du panneau : bouton « Importer un fichier… », ou fichier glissé sur
 l'onglet) : un fichier GeoJSON, Shapefile (en .zip, ou le
 .shp choisi avec son .dbf et son .prj ; reprojeté d'après le .prj) ou GeoPackage (table au choix s'il
@@ -590,6 +598,8 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,4
 | `py/geoid.py` | altitude NGF (grille RAF20 de l'IGN) |
 | `py/core/` | cœur de calcul du plugin, **copié** par `tools/update-core.sh` (ne pas modifier ici) ; dont `widths.py`, la largeur depuis un point triangulé |
 | `py/sources.js` | fichiers Python de `py/` regroupés pour la page (généré par le même script) |
+| `tests/essai-cadastre.html` | cadastre sur la mini-carte (PNG dans le journal) |
+| `tests/test_calculs.py` | essais rapides des calculs, sans navigateur ni réseau (`python3 -m unittest discover -s tests`, moins d'une seconde) |
 | `tests/navigateur.html` | essai de bout en bout dans un vrai navigateur |
 | `tests/essai-rtk.html`, `essai-largeur.html`, `essai-libre.html` | hauteur, largeur, mesure libre sur photos RTK, avec recalages |
 | `tests/inclinaison.html` | inclinaison automatique |

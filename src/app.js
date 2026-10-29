@@ -380,6 +380,13 @@
     store.set("bornes", event.target.checked ? "1" : "0");
     Carte.setMilestones(map, event.target.checked);
   });
+  // Cadastre (#36) sur la mini-carte, décoché par défaut
+  $("#cadastre").checked = store.get("cadastre") === "1";
+  Carte.setCadastre(map, $("#cadastre").checked);
+  $("#cadastre").addEventListener("change", (event) => {
+    store.set("cadastre", event.target.checked ? "1" : "0");
+    Carte.setCadastre(map, event.target.checked);
+  });
   $("#anisotrope").checked = store.get("anisotrope") === "1";
   $("#anisotrope").addEventListener("change", (event) => {
     store.set("anisotrope", event.target.checked ? "1" : "0");

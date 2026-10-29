@@ -140,6 +140,14 @@ const Carte = (() => {
           precedents: { type: "geojson", data: EMPTY },  // résultats de la session précédente (showPrevious)
           couche: { type: "geojson", data: EMPTY },  // couche importée (showOverlay)
           pr: { type: "geojson", data: EMPTY },
+          // Cadastre (#36, réglage « Cadastre », voir setCadastre) : parcelles en tuiles, feuilles décalées et bornes
+          cadastre: {
+            type: "raster", tiles: [wmts("CADASTRALPARCELS.PARCELLAIRE_EXPRESS", "image/png")],
+            tileSize: 256, maxzoom: 19, attribution: ATTRIBUTION_IGN,
+          },
+          "cadastre-decale": { type: "geojson", data: EMPTY },
+          "cadastre-bornes": { type: "geojson", data: EMPTY },
+          "cadastre-sections": { type: "geojson", data: EMPTY },  // point d'étiquette de chaque parcelle (localisant)
           contour: { type: "geojson", data: EMPTY },  // commune choisie dans la recherche (recherche.js)
           voies: { type: "vector", tiles: [ROADS_TILES], minzoom: ROADS_MINZOOM, maxzoom: 19, attribution: ATTRIBUTION_IGN },
           // tuiles jusqu'au zoom 13 seulement, agrandies au-delà : à partir du zoom 14, le Plan IGN
@@ -153,6 +161,12 @@ const Carte = (() => {
           { id: "express", type: "raster", source: "express", layout: { visibility: "none" } },
           { id: "pcrs", type: "raster", source: "pcrs", minzoom: 15, layout: { visibility: "none" } },
           { id: "osm", type: "raster", source: "osm", layout: { visibility: "none" } },
+          // Cadastre, sur le fond et sous le filaire : feuilles mal raccordées (limites peut-être décalées) teintées
+          { id: "cadastre", type: "raster", source: "cadastre", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" } },
+          {
+            id: "cadastre-decale", type: "fill", source: "cadastre-decale", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
+            paint: { "fill-color": "#ffa000", "fill-opacity": 0.15, "fill-outline-color": "#ffa000" },
+          },
           // Filaire des voies, sous les limites administratives : voies sans numéro de la BD TOPO
           // (sentiers, escaliers et bacs exclus), puis routes numérotées du Plan IGN
           ...[["voies-lisere", true], ["voies", false]].map(([id, casing]) => ({
@@ -248,7 +262,21 @@ const Carte = (() => {
               "circle-stroke-color": "#ffffff", "circle-stroke-width": 1,
             },
           },
-          // Curseur de vue : position, direction et ouverture de la vue
+          {
+            id: "cadastre-bornes", type: "circle", source: "cadastre-bornes", minzoom: CADASTRE_BORNES_ZOOM, layout: { visibility: "none" },
+            paint: { "circle-color": "#ffffff", "circle-radius": 3, "circle-stroke-color": "#ff4fd8", "circle-stroke-width": 1.5 },
+          },
+          // Section cadastrale au-dessus du numéro de chaque parcelle (écrit dans les tuiles, centré sur son localisant) :
+          // image dessinée à la demande (sectionImage), qui grandit avec les tuiles agrandies au-delà de leur zoom 19
+          {
+            id: "cadastre-sections", type: "symbol", source: "cadastre-sections", minzoom: CADASTRE_SECTIONS_ZOOM,
+            layout: {
+              visibility: "none", "icon-image": ["concat", "section:", ["get", "section"]], "icon-anchor": "bottom",
+              "icon-allow-overlap": true, "icon-ignore-placement": true,
+              "icon-offset": ["interpolate", ["exponential", 2], ["zoom"], 19, ["literal", [0, -7]], 22, ["literal", [0, -56]]],
+              "icon-size": ["interpolate", ["exponential", 2], ["zoom"], 19, 1, 22, 8],
+            },
+          },
           // Couche importée (GeoJSON) : couleur de chaque objet (Couche.style), sous les mesures
           {
             id: "couche-traits", type: "line", source: "couche", filter: ["!=", ["geometry-type"], "Point"],
@@ -317,6 +345,7 @@ const Carte = (() => {
       if (e.id.startsWith("cartouche:") && !map.hasImage(e.id)) {
         map.addImage(e.id, cartoucheImage(e.id.slice("cartouche:".length)), { pixelRatio: 2 });
       }
+      if (e.id.startsWith("section:") && !map.hasImage(e.id)) map.addImage(e.id, sectionImage(e.id.slice("section:".length)), { pixelRatio: 2 });
     });
     map.addControl(new maplibregl.NavigationControl(), "top-left");
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
@@ -327,6 +356,26 @@ const Carte = (() => {
       map.getContainer().querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show");
     });
     return map;
+  }
+
+  /** Section cadastrale ("0C" : « C », zéros de tête retirés comme sur le plan), du violet des numéros, liseré blanc
+   * (dessinée au double). */
+  function sectionImage(code) {
+    const text = code.replace(/^0+(?=.)/, ""), scale = 2, font = `600 ${11 * scale}px sans-serif`;
+    const canvas = document.createElement("canvas"), ctx = canvas.getContext("2d");
+    ctx.font = font;
+    canvas.width = Math.ceil(ctx.measureText(text).width) + 6 * scale;
+    canvas.height = 15 * scale;
+    ctx.font = font;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 3 * scale;
+    ctx.strokeStyle = "#ffffff";
+    ctx.fillStyle = "#6a00ff";  // violet des numéros de parcelle des tuiles
+    ctx.strokeText(text, canvas.width / 2, canvas.height / 2);
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+    return ctx.getImageData(0, 0, canvas.width, canvas.height);
   }
 
   /** Croix jaune d'un point cliqué, cernée de sombre (18 pixels, dessinée au double). */
@@ -667,6 +716,47 @@ const Carte = (() => {
         });
     }
     all();  // entités déjà connues tout de suite (changement de zoom)
+  }
+
+  // Cadastre : parcelles dès CADASTRE_MINZOOM, bornes de limite de propriété dès CADASTRE_BORNES_ZOOM (nombreuses)
+  const CADASTRE_MINZOOM = 15, CADASTRE_BORNES_ZOOM = 17, CADASTRE_SECTIONS_ZOOM = 17;
+  // feuille teintée : écart moyen aux raccords avec ses voisines (dst_raccor, qualité du géoréférencement de la BD Parcellaire)
+  // au-delà de CADASTRE_DECALAGE m (médiane en Côte-d'Or : 1,5 m ; un quart au-delà de 5,8 m) : limites peut-être décalées
+  const CADASTRE_DECALAGE = 2;
+  let cadastreOn = false, cadastreFollow = false, cadastreTimer = null;
+
+  /** Cadastre affiché ou non sur la carte (réglage « Cadastre »). */
+  function setCadastre(map, on) {
+    cadastreOn = on;
+    // pas whenLoaded (voir setMilestones) : « load » peut être passé alors que le style se dit « pas chargé »
+    const apply = () => {
+      for (const id of ["cadastre", "cadastre-decale", "cadastre-bornes", "cadastre-sections"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+      if (!cadastreFollow) {
+        cadastreFollow = true;
+        map.on("moveend", () => {
+          clearTimeout(cadastreTimer);
+          cadastreTimer = setTimeout(() => loadCadastre(map), 300);
+        });
+      }
+      loadCadastre(map);
+    };
+    try { apply(); } catch { map.once("load", apply); }
+  }
+
+  function loadCadastre(map) {
+    const zoom = map.getZoom(), b = map.getBounds();
+    if (!cadastreOn || zoom < CADASTRE_MINZOOM) return;
+    const view = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+    adminFetch("CADASTRALPARCELS.QUALREFBDP:divcadmtd", view, "dst_raccor,geom", (features) => map.getSource("cadastre-decale")
+      ?.setData({ type: "FeatureCollection", features: features.filter((f) => (f.properties.dst_raccor ?? 0) > CADASTRE_DECALAGE) }));
+    if (zoom >= CADASTRE_BORNES_ZOOM) {
+      adminFetch("CADASTRALPARCELS.PARCELLAIRE_EXPRESS:borne_limite_propriete", view, "geom",
+        (features) => map.getSource("cadastre-bornes")?.setData({ type: "FeatureCollection", features }));
+    }
+    if (zoom >= CADASTRE_SECTIONS_ZOOM) {
+      adminFetch("CADASTRALPARCELS.PARCELLAIRE_EXPRESS:localisant", view, "section,geom",
+        (features) => map.getSource("cadastre-sections")?.setData({ type: "FeatureCollection", features }));
+    }
   }
 
   function showMilestones(map) {
@@ -1198,6 +1288,6 @@ const Carte = (() => {
 
   return {
     PANORAMAX_API: META_API, GEOPF, OSM_TILES, createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, pcrsAt, instances, setInstance, setFilter,
-    showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, nearestPhoto, photoById, apiUrl: () => apiUrl,
+    showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre, nearestPhoto, photoById, apiUrl: () => apiUrl,
   };
 })();
