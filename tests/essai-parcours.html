@@ -1,0 +1,227 @@
+<!doctype html><meta charset="utf-8"><title>Essai du parcours</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Onglet « Parcours » : D115D du PR 1 + 146 (sortie d'Aloxe-Corton) au PR 0 (RD18), photos du CD21 du
+     10 juillet 2025 (filtre « depuis le 5 juillet 2025 »). Contrôles : lecture rapide arrêtée près de l'arrivée, vue
+     dans l'axe de la route, pente corrigée. Une vue sur 5 part dans le journal en JPEG (#toutes : chaque vue ; #capture : pause de 8 s, onglet rempli). Lancer comme tests/navigateur.html. -->
+<script>try {
+  localStorage.clear();
+  localStorage.setItem("web-measures/filtre", JSON.stringify({ since: "2025-07-05" }));
+} catch {}</script>
+<iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
+let failures = 0, checks = 0;
+const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + (detail ? " : " + detail : "")); } };
+const START = [4.85562, 47.06807];  // PR 1 : carte dans le bon département
+const END = [4.84938, 47.07541];  // PR 0, sur la RD18
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  try {
+    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 180000, "Pyodide");
+    const doc = w.document;
+    doc.querySelector("#reglages-defaut")?.close();
+    w.mesures.map.jumpTo({ center: START, zoom: 15 });
+    await sleep(1500);
+    const type = (input, text) => { input.focus(); input.value = text; input.dispatchEvent(new w.Event("input", { bubbles: true })); };
+    doc.querySelector("#onglet-parcours").click();
+    const dialog = doc.querySelector("#parcours");
+    expect("onglet « Parcours » affiché", !dialog.hidden);
+    const tabs = doc.querySelector("#onglets");
+    expect("cinq onglets sans débordement", tabs.scrollWidth <= tabs.clientWidth, `${tabs.scrollWidth} > ${tabs.clientWidth}`);
+    expect("panneau sans défilement horizontal", doc.querySelector("#contenu-panneau").scrollWidth <= doc.querySelector("#contenu-panneau").clientWidth);
+    const [route, pr, end] = dialog.querySelectorAll(".champ input");
+    const [distance, endDistance] = dialog.querySelectorAll(".distance");
+    const button = doc.querySelector("#parcours-lancer");
+    expect("« ▶ Parcourir » grisé sans route", button.disabled);
+    expect("export grisé sans parcours", doc.querySelector("#parcours-export").disabled);
+    type(route, "115d");
+    type(pr, "1");
+    distance.value = "146";
+    type(end, "0");
+    endDistance.value = "0";
+    expect("vitesse 2x par défaut", doc.querySelector("#parcours-vitesse").value === "2");
+    doc.querySelector("#parcours-vitesse").value = "4";  // essai deux fois plus court
+    await sleep(3000);  // suggestions des routes et des PR
+    if (location.hash.includes("capture")) {  // #capture : pause pour une capture d'écran par CDP
+      await log("PAUSE onglet");
+      await sleep(8000);
+    }
+    expect("« ▶ Parcourir » actif une fois la route et les deux PR saisis", !button.disabled);
+    button.click();
+    await until(() => doc.querySelector("#lecture-pause").classList.contains("en-lecture"), 60000, "lecture lancée");
+    const psv = w.mesures.psv;
+    const seen = [];
+    w.performance.setResourceTimingBufferSize(5000);  // plus que les 250 entrées par défaut
+    const t0 = w.performance.now();
+    psv.addEventListener("picture-loaded", (event) => setTimeout(() => {
+      const meta = psv.getPictureMetadata();
+      const { yaw, pitch } = psv.getPosition();
+      const rec = { id: meta?.id, gps: meta?.gps, seq: meta?.sequence?.id, yaw: yaw * 180 / Math.PI, pitch: pitch * 180 / Math.PI,
+        relative: psv.getPictureRelativeHeading?.(), road: psv.getRoadAbsoluteHeading?.() };
+      seen.push(rec);
+      log(`photo ${seen.length} ${rec.id?.slice(0, 8)} lacet ${((rec.yaw + 540) % 360 - 180).toFixed(1)}° tangage ${rec.pitch.toFixed(2)}°`);
+      if (seen.length % 5 === 1 || location.hash.includes("toutes")) {  // #toutes : chaque vue (animation)
+        const r = psv.renderer;
+        r.renderer.render(r.scene, r.camera);
+        log(`IMAGE vue-${String(seen.length).padStart(2, "0")} ` + r.renderer.domElement.toDataURL("image/jpeg", 0.7));
+      }
+    }, 150));
+    await until(() => !doc.querySelector("#lecture-pause").classList.contains("en-lecture"), 300000, "fin du parcours");
+    await sleep(500);
+    const last = seen[seen.length - 1];
+    const k = Math.cos(END[1] * Math.PI / 180) * 111320;
+    const d = last?.gps ? Math.hypot((last.gps[0] - END[0]) * k, (last.gps[1] - END[1]) * 111320) : Infinity;
+    log(`${seen.length} photos lues, dernière à ${d.toFixed(0)} m du PR 0`);
+    // Images chargées pendant le parcours : nombre, durée, octets (0 si le stockage ne les annonce pas)
+    const kinds = { "pleine définition": /\/hd\.jpg/, "réduite": /\/sd\.jpg/, "tuile": /\/tile[sd]\//, "vignette": /\/thumb\.jpg/ };
+    const loads = w.performance.getEntriesByType("resource").filter((e) => e.startTime >= t0);
+    const secs = (w.performance.now() - t0) / 1000;
+    log(`parcours : ${secs.toFixed(1)} s, ${(seen.length / secs).toFixed(1)} photo(s)/s`);
+    for (const [name, re] of Object.entries(kinds)) {
+      const list = loads.filter((e) => re.test(e.name));
+      if (!list.length) continue;
+      const ms = list.map((e) => e.duration).sort((x, y) => x - y);
+      const bytes = list.reduce((n, e) => n + (e.transferSize || e.encodedBodySize || 0), 0);
+      log(`${name} : ${list.length} requêtes, durée médiane ${ms[ms.length >> 1].toFixed(0)} ms, max ${ms[ms.length - 1].toFixed(0)} ms, ${(bytes / 1e6).toFixed(1)} Mo annoncés`);
+    }
+    expect("une quarantaine de photos ou plus (1 146 m, une tous les 20 m)", seen.length >= 40, String(seen.length));
+    expect("arrêt près de l'arrivée (moins de 60 m)", d < 60, d.toFixed(0));
+    const yaws = seen.map((s) => Math.abs((s.yaw + 540) % 360 - 180));
+    expect("vue dans l'axe du véhicule (lacet de moins de 5° de la caméra)", Math.max(...yaws) < 5, Math.max(...yaws).toFixed(1));
+    expect("tangage corrigé (non nul sur la pente du village)", seen.some((s) => Math.abs(s.pitch) > 1));
+    // Export en WebP animé : vues gardées, conteneur RIFF lisible par le navigateur
+    const views = w.mesures.tourViews;
+    expect("export : « WebP animé » actif après le parcours", !doc.querySelector("#parcours-export").disabled);
+    expect("requêteur de la carte sur une ligne (sans parcours)", !doc.querySelector(".requeteur .parcours"));
+    expect("export : une vue gardée par photo (sauf la dernière)", views.length >= seen.length - 2, `${views.length}/${seen.length}`);
+    const t1 = performance.now();
+    const blob = await w.eval("Hyperlapse").webp(views);  // const de haut niveau : pas une propriété de window
+    const head = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
+    expect("export : en-tête RIFF/WEBP/VP8X", String.fromCharCode(...head.subarray(0, 4)) === "RIFF"
+      && String.fromCharCode(...head.subarray(8, 16)) === "WEBPVP8X");
+    if (location.hash.includes("toutes")) {
+      const data = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+      await log("FICHIER parcours.webp " + data);
+    }
+    const img = new Image();
+    img.src = URL.createObjectURL(blob);
+    await img.decode();
+    expect("export : WebP animé lu par le navigateur (largeur de la vue, 1 280 px au plus)", img.naturalWidth >= 640 && img.naturalWidth <= 1280, String(img.naturalWidth));
+    log(`export : ${views.length} vues, ${(blob.size / 1e6).toFixed(1)} Mo, assemblé en ${((performance.now() - t1) / 1000).toFixed(1)} s`);
+    // 1x : toutes les photos (une tous les 5 m), sur 146 m (PR 1 + 146 → PR 1 + 0)
+    type(pr, "1");
+    distance.value = "146";
+    type(end, "1");
+    endDistance.value = "0";
+    doc.querySelector("#parcours-vitesse").value = "1";
+    await sleep(500);
+    seen.length = 0;
+    button.click();
+    await until(() => doc.querySelector("#lecture-pause").classList.contains("en-lecture"), 60000, "lecture 1x lancée");
+    await until(() => !doc.querySelector("#lecture-pause").classList.contains("en-lecture"), 300000, "fin du parcours 1x");
+    await sleep(500);
+    const gaps = seen.slice(1).map((s, i) => Math.hypot((s.gps[0] - seen[i].gps[0]) * k, (s.gps[1] - seen[i].gps[1]) * 111320)).sort((x, y) => x - y);
+    const gap = gaps[gaps.length >> 1];
+    log(`1x : ${seen.length} photos, écart médian ${gap?.toFixed(1)} m`);
+    expect("1x : toutes les photos (écart médian de 4 à 6 m, 20 photos ou plus)", seen.length >= 20 && gap > 4 && gap < 6, `${seen.length}, ${gap}`);
+    expect("1x : vue dans l'axe aussi", seen.every((s) => Math.abs((s.yaw + 540) % 360 - 180) < 5),
+      seen.map((s) => ((s.yaw + 540) % 360 - 180).toFixed(0)).join(" "));
+    // Regard libre : lecture en attente de « ▶ Partir », la vue réglée sur la première photo gardée ensuite
+    doc.querySelector("#parcours-vitesse").value = "2";
+    doc.querySelector("#parcours-regard").value = "libre";
+    seen.length = 0;
+    button.click();
+    const banner = doc.querySelector("#parcours-orienter");
+    await until(() => !banner.hidden, 60000, "invitation à orienter la vue");
+    await sleep(1500);
+    expect("libre : lecture en attente de « ▶ Partir »", !doc.querySelector("#lecture-pause").classList.contains("en-lecture"));
+    w.mesures.psv.rotate({ yaw: 30 * Math.PI / 180, pitch: 0 });
+    await sleep(300);
+    seen.length = 0;
+    doc.querySelector("#parcours-partir").click();
+    expect("libre : invitation retirée au départ", banner.hidden);
+    await until(() => doc.querySelector("#lecture-pause").classList.contains("en-lecture"), 30000, "lecture libre lancée");
+    await until(() => !doc.querySelector("#lecture-pause").classList.contains("en-lecture"), 300000, "fin du parcours libre");
+    await sleep(500);
+    const yawsFree = seen.map((s) => ((s.yaw + 540) % 360 - 180).toFixed(0));
+    log(`libre : ${seen.length} photos, lacets ${yawsFree.join(" ")}`);
+    expect("libre : vue réglée gardée (lacet de 30 ± 3°)", seen.length >= 5 && seen.every((s) => Math.abs((s.yaw + 540) % 360 - 180 - 30) < 3));
+    doc.querySelector("#parcours-regard").value = "axe";
+    // 📍 : départ et arrivée choisis sur la mini-carte, champs remplis d'après la route et le PR du lieu
+    for (const input of [route, pr, end]) type(input, "");
+    expect("📍 : « ▶ Parcourir » grisé, champs vidés", button.disabled);
+    const pick = async (which, lonlat) => {
+      dialog.querySelector(`.sur-carte[data-cote="${which}"]`).click();
+      const m = w.mesures.map;
+      m.fire("click", { lngLat: new w.maplibregl.LngLat(...lonlat), point: m.project(lonlat), originalEvent: new w.MouseEvent("click") });
+      await until(() => (which === "start" ? pr : end).value, 30000, `PR du point ${which}`);
+    };
+    await pick("start", START);
+    await pick("end", END);
+    log(`📍 départ : ${route.value} PR ${pr.value} + ${distance.value} m ; arrivée : PR ${end.value} + ${endDistance.value} m`);
+    expect("📍 : route trouvée au point cliqué", route.value === "D115D", route.value);
+    expect("📍 : PR du départ (PR 1, ou PR 0 + ~990 m)", pr.value === "1" || (pr.value === "0" && Number(distance.value) > 900), `${pr.value} + ${distance.value}`);
+    expect("📍 : PR de l'arrivée (PR 0)", end.value === "0", end.value);
+    expect("📍 : « ▶ Parcourir » actif", !button.disabled);
+    expect("📍 : pointeur rendu à la carte", w.mesures.map.getCanvas().style.cursor === "");
+    // Bug du 30/10 : départ et arrivée sur la RD18, de part et d'autre du carrefour avec la D115D, photos du CD21 sans
+    // date imposée ; aucune séquence ne passe par les deux (celles de juillet 2025 tournent vers le sud, celle de mai
+    // vient de la D115D) : avertissement au départ, puis rebranchement là où la première s'écarte de l'arrivée
+    const since = doc.querySelector("#depuis");
+    since.value = "";
+    since.dispatchEvent(new w.Event("change"));
+    await sleep(1000);
+    await pick("start", [4.84829, 47.07301]);
+    await pick("end", [4.84996, 47.07736]);
+    doc.querySelector("#parcours-vitesse").value = "4";
+    seen.length = 0;
+    button.click();
+    await until(() => !banner.hidden, 60000, "avertissement au départ");
+    const warning = doc.querySelector("#parcours-consigne").textContent;
+    log("avertissement : " + warning);
+    expect("plusieurs séquences : avertissement au départ, lecture en attente", /séquence unique/.test(warning)
+      && !doc.querySelector("#lecture-pause").classList.contains("en-lecture"));
+    doc.querySelector("#parcours-partir").click();
+    await until(() => doc.querySelector("#lecture-pause").classList.contains("en-lecture"), 30000, "lecture lancée");
+    await until(() => !w.mesures.touring, 300000, "fin du parcours à plusieurs séquences");
+    await sleep(500);
+    const lastOne = seen[seen.length - 1];
+    const dEnd = lastOne?.gps ? Math.hypot((lastOne.gps[0] - 4.84996) * k, (lastOne.gps[1] - 47.07736) * 111320) : Infinity;
+    log(`plusieurs séquences : ${seen.length} photos, ${new Set(seen.map((x) => x.seq)).size} séquence(s), dernière à ${dEnd.toFixed(0)} m de l'arrivée ; ${doc.querySelector("#avis").textContent}`);
+    expect("plusieurs séquences : arrivée atteinte (moins de 40 m)", dEnd < 40, dEnd.toFixed(0));
+    expect("plusieurs séquences : rebranchement fait (deux séquences ou plus)", new Set(seen.map((x) => x.seq)).size >= 2);
+    // Bug du 30/10 (2) : départ au nord du carrefour RD18 / D115D (photo 69f5822b, séquence de mai qui passe à 24 m
+    // de l'arrivée sans y aller), arrivée sur la branche sud-ouest (photo 3dc34aaf) : bifurcation au carrefour sur une
+    // séquence de juillet, sans photo sautée (lecture 1x : une photo tous les 5 m)
+    const A = [4.849496011, 47.075705494], B = [4.849261606, 47.075125126];
+    await pick("start", A);
+    await pick("end", B);
+    doc.querySelector("#parcours-vitesse").value = "1";
+    seen.length = 0;
+    button.click();
+    await until(() => !banner.hidden || doc.querySelector("#lecture-pause").classList.contains("en-lecture"), 60000, "parcours du carrefour lancé");
+    if (!banner.hidden) doc.querySelector("#parcours-partir").click();
+    await until(() => !w.mesures.touring, 300000, "fin du parcours du carrefour");
+    await sleep(500);
+    const dist = (p, q) => Math.hypot((p[0] - q[0]) * k, (p[1] - q[1]) * 111320);
+    const steps = seen.slice(1).map((s, i) => dist(s.gps, seen[i].gps));
+    const dB = seen.length ? dist(seen[seen.length - 1].gps, B) : Infinity;
+    log(`carrefour : ${seen.length} photos, ${new Set(seen.map((x) => x.seq)).size} séquence(s), écarts ${steps.map((x) => x.toFixed(0)).join(" ")} m, dernière à ${dB.toFixed(0)} m ; ${doc.querySelector("#avis").textContent}`);
+    expect("carrefour : arrivée atteinte (moins de 10 m)", dB < 10, dB.toFixed(0));
+    expect("carrefour : bifurcation (deux séquences)", new Set(seen.map((x) => x.seq)).size >= 2);
+    // Trajectoire lisse : virage entre deux pas successifs (cap d'une photo à la suivante)
+    const cap = (p, q) => Math.atan2((q[0] - p[0]) * k, (q[1] - p[1]) * 111320) * 180 / Math.PI;
+    const turns = steps.slice(1).map((_, i) => Math.abs(((cap(seen[i + 1].gps, seen[i + 2].gps) - cap(seen[i].gps, seen[i + 1].gps)) % 360 + 540) % 360 - 180));
+    log(`carrefour : virages ${turns.map((x) => x.toFixed(0)).join(" ")}°`);
+    expect("carrefour : bifurcation en 30 m au plus", steps.every((x) => x <= 30), Math.max(...steps).toFixed(0));
+    expect("carrefour : trajectoire lisse (virages de 30° au plus d'un pas à l'autre)", turns.every((x) => x <= 30), Math.max(...turns).toFixed(0));
+    log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
+    log(failures ? "ERREUR" : "FIN");
+  } catch (error) {
+    log("ERREUR " + (error.stack || error));
+  }
+})();
+</script>

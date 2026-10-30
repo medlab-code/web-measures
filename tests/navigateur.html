@@ -518,34 +518,6 @@ async function feature(id) {
   log("lecture 2x : " + doc.querySelector("#vitesse-avant").textContent + " · rangs " + ranks.join(" "));
   expect("lecture 2x : une photo sur deux, au moins 3 pas", steps.length >= 4 && steps.slice(-3).every((d) => d === 2),
     "pas " + steps.join(" "));
-  {  // 16x : photo en fondu sur la visionneuse (2 s, jusqu'à 50 %), pas avant
-    const turbo = doc.querySelector("#turbo"), runs = () => turbo.getAnimations().length;
-    const before = [], scanner = [];
-    doc.querySelector("#lecture-avant").click();  // après la pause : 1x
-    await sleep(1000);
-    for (const next of ["2x", "4x", "8x", "16x"]) {
-      doc.querySelector("#lecture-avant").click();
-      await until(() => doc.querySelector("#vitesse-avant").textContent.includes(next), 10000, "lecture " + next);
-      scanner.push(`${next} ${!doc.querySelector("#scanner").hidden}`);
-      if (next !== "16x") { before.push(runs()); await sleep(1000); }
-    }
-    const anim = turbo.getAnimations()[0], peak = anim?.effect.getKeyframes()[1]?.opacity;
-    log(`16x : ${doc.querySelector("#vitesse-avant").textContent} · fondu ${anim?.effect.getTiming().duration} ms, jusqu'à ${peak} · image ${turbo.naturalWidth}×${turbo.naturalHeight} · avant ${before}`);
-    expect("16x : photo en fondu de 3 s jusqu'à 50 %", anim && anim.effect.getTiming().duration === 3000 && Number(peak) === 0.5
-      && turbo.naturalWidth > 0 && before.every((n) => n === 0));
-    const bars = doc.querySelector("#scanner"), block = doc.querySelector("#lecteur").getBoundingClientRect(), r = bars.getBoundingClientRect();
-    log(`barres : ${scanner.join(", ")} · ${Math.round(r.width)}×${Math.round(r.height)} px au-dessus du lecteur de ${Math.round(block.width)} px (bas ${Math.round(r.bottom)}, lecteur ${Math.round(block.top)})`);
-    expect("barres animées à 4x et plus, de la largeur du lecteur, au-dessus", scanner.join() === "2x false,4x true,8x true,16x true"
-      && Math.abs(r.width - block.width) < 1 && r.bottom <= block.top && bars.naturalWidth > 0);
-    const k2000 = doc.querySelector("#sans-k2000");
-    k2000.click();
-    expect("« Désactiver K2000 » : barres masquées en 16x", bars.hidden);
-    k2000.click();
-    expect("K2000 réactivé : barres de retour", !bars.hidden);
-    doc.querySelector("#lecture-pause").click();
-    await sleep(300);
-    expect("barres masquées à la pause", bars.hidden);
-  }
   {  // séquence dense passant sur un pont (D905) : vérifiée sur une autre portion, prise par rang
     await open("dea8bdaa-e8e2-4fee-a64f-512ce80b5871");
     try { await until(() => /Position GPS (non )?vérifiée/.test(state().quality), 90000, "vérification sur le pont de la D905"); }

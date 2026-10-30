@@ -80,6 +80,41 @@ par le **requêteur route + PR**, ou coller l'**identifiant** d'une photo (ou un
 Panoramax) dans « Aller à la photo » ; « 📋 Copier » sous l'identifiant de la photo affichée
 le copie, pour la passer à un collègue.
 
+**Parcourir une route** : onglet **« Parcours »** du panneau : la
+route, le PR de départ (+ distance) et le PR d'arrivée (+ distance), choisis dans des listes
+comme dans le requêteur, la vitesse (1x, 2x par défaut, 4x ou 8x : une photo tous les 5, 10, 20 ou 40 m
+pour les photos du CD21) et le regard ; puis **« ▶ Parcourir »**. Départ et arrivée peuvent aussi se
+choisir sur la mini-carte : **📍** puis un clic (Échap : annuler) ; le point cliqué est gardé tel
+quel et les champs se remplissent d'après la route et le PR trouvés là (la route déjà saisie
+d'abord : à un carrefour, l'autre route ne la remplace pas) ; retaper un PR revient au PR. Les deux points sont marqués sur
+la carte (départ vert, arrivée rouge, en épingles) ; la photo la plus proche du départ, prise dans le sens du parcours (le filtre
+s'applique : « Depuis » pour choisir une campagne), défile jusqu'à l'arrivée, où la lecture
+s'arrête. Chaque photo attend que les tuiles HD de la vue soient chargées (4 s au plus) : vue
+nette, mais une quinzaine de tuiles par photo (de l'ordre de 200 Mo par kilomètre en 2x, 100 Mo en 4x) et une
+lecture qui ralentit sur un réseau lent. **Regard dans l'axe** : la vue reste dans l'axe du véhicule, y compris dans les
+virages (la caméra, parfois montée de biais, est redressée de son écart médian avec la
+trajectoire), et elle est abaissée ou relevée de la pente de la route (altitudes GPS des photos
+sur ± 20 m) : les panoramas ne sont pas mis à niveau et penchent avec le véhicule ; l'horizon
+reste ainsi en place. Le roulis (dévers) n'est pas corrigé. **Regard libre** : le parcours s'arrête
+d'abord sur la photo de départ, le temps d'orienter la vue (bandeau « ▶ Partir » en haut de la
+visionneuse) ; elle est ensuite gardée tout le long. Le parcours prend d'abord une séquence qui passe à moins de 40 m du départ et à l'arrivée (au
+plus 10 m plus loin que la plus proche : une route voisine n'y passe pas), et
+s'arrête à la photo d'arrivée. S'il n'y en a pas, il en est prévenu au départ (bandeau
+« ▶ Partir » : les photos peuvent différer, date, lumière, sens de prise de vue) : il part sur
+la séquence qui va vers l'arrivée et bifurque sur une séquence qui passe à l'arrivée (tracé lu
+sur 500 m de part et d'autre) quand elle passe à 30 m : au saut le plus lisse (moindre virage,
+quitte à sauter jusqu'à 30 m au lieu des 5 m d'une séquence), pas tant que la séquence lue suit
+ce tracé vers l'arrivée. À défaut, là où elle s'écarte de l'arrivée (40 m de plus qu'au plus près) ou
+finit, il se rebranche à cet endroit sur une autre séquence qui y va (une qui passe à l'arrivée
+d'abord, sinon d'après le cap de la caméra) ; les vues prises sur la branche quittée ne vont pas
+dans l'export. Sans séquence pour continuer, il s'arrête en le disant. Pause et
+reprise par le lecteur ; une autre photo choisie (carte, requêteur) y met fin.
+**« WebP animé »**, dans le même onglet, exporte le dernier parcours (largeur de la vue, 1 280 px
+au plus ; 0,4 s par vue, fondu enchaîné de 0,14 s entre deux vues, en boucle ; environ 15 Mo par
+kilomètre à 970 px) :
+chaque vue est gardée pendant la lecture, l'export ne recharge rien. Grisé pendant la lecture,
+sans parcours et dans Safari, qui n'encode pas le WebP.
+
 **Mesurer** : bouton « Mesure », puis le mode. Pendant la mesure, une carte d'étape en bas à gauche de
 la visionneuse donne la mesure et ses étapes (pied puis sommet, premier bord puis bord opposé), l'état
 (triangulation ou mesure en cours) et la consigne ; le haut de la photo et les flèches restent libres. Le

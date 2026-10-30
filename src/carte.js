@@ -1262,7 +1262,13 @@ const Carte = (() => {
    * parmi celles qui passent le filtre `accept` (fiche -> booléen).
    */
   async function nearestPhoto(map, lng, lat, accept = () => true) {
-    const radius = Math.min(150, Math.max(10, 15 * metresPerPixel(map, lat)));
+    return (await photosNear(map, lng, lat, accept))[0] || null;
+  }
+
+  /** Photos qui passent le filtre `accept` autour du point, de la plus proche à la plus lointaine,
+   * dans un carré de `radius` m de demi-côté (par défaut adapté à l'échelle : 10 à 150 m). */
+  async function photosNear(map, lng, lat, accept = () => true, radius = null) {
+    radius ??= Math.min(150, Math.max(10, 15 * metresPerPixel(map, lat)));
     const dlat = radius / 111320;
     const dlon = radius / (111320 * Math.cos(lat * Math.PI / 180));
     const bbox = [lng - dlon, lat - dlat, lng + dlon, lat + dlat].map((v) => v.toFixed(7)).join(",");
@@ -1270,19 +1276,16 @@ const Carte = (() => {
       const response = await fetch(`${apiUrl}/search?bbox=${bbox}&limit=${limit}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const features = (await response.json()).features || [];
-      let best = null;
-      for (const feature of features) {
-        if (!accept(feature)) continue;
-        const d = metresBetween([lng, lat], feature.geometry.coordinates);
-        if (!best || d < best.d) best = { feature, d };
-      }
-      return { best, full: features.length >= limit };
+      const found = features.filter((f) => accept(f))
+        .map((feature) => ({ feature, d: metresBetween([lng, lat], feature.geometry.coordinates) }))
+        .sort((a, b) => a.d - b.d).map((f) => f.feature);
+      return { found, full: features.length >= limit };
     };
     // 50 photos suffisent d'ordinaire ; si le filtre les écarte toutes et qu'il y en a d'autres
     // (réponse pleine, zone dense), une seconde recherche plus large (lourde : faite seulement là)
-    let { best, full } = await search(SEARCH_LIMIT);
-    if (!best && full) ({ best } = await search(SEARCH_LIMIT_FILTERED));
-    return best ? best.feature : null;
+    let { found, full } = await search(SEARCH_LIMIT);
+    if (!found.length && full) ({ found } = await search(SEARCH_LIMIT_FILTERED));
+    return found;
   }
   const SEARCH_LIMIT = 50, SEARCH_LIMIT_FILTERED = 1000;
 
@@ -1296,6 +1299,6 @@ const Carte = (() => {
 
   return {
     PANORAMAX_API: META_API, GEOPF, OSM_TILES, createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, pcrsAt, instances, setInstance, setFilter,
-    showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre, nearestPhoto, photoById, metresBetween, apiUrl: () => apiUrl,
+    showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre, nearestPhoto, photosNear, photoById, metresBetween, apiUrl: () => apiUrl,
   };
 })();

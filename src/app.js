@@ -175,7 +175,7 @@
       : `Vider le cache (${(size / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mo)`;
   }
   // Panneau : une section affichée à la fois, choisie par les onglets (Résultats, Photo, Favoris,
-  // Couche) ou les outils du pied (Mesure, Filtre, Réglages, Services) ; la dernière est rouverte à la visite suivante
+  // Couche, Parcours) ou les outils du pied (Mesure, Filtre, Réglages, Services) ; la dernière est rouverte à la visite suivante
   const paneButtons = [...document.querySelectorAll("#panneau [data-panneau]")];
   function showPane(id) {
     if (!paneButtons.some((b) => b.dataset.panneau === id)) id = "resultats";
@@ -372,11 +372,6 @@
     if (!app) return;
     if (!event.target.checked && lineDraft !== null) endLineDraft();
     refresh(!event.target.checked && JSON.parse(app.axis_state()).drawn ? app.cancel_measure_line() : undefined);
-  });
-  $("#sans-k2000").checked = store.get("sans-k2000") === "1";  // barres (4x et plus) et photo (16x) de la lecture rapide
-  $("#sans-k2000").addEventListener("change", (event) => {
-    store.set("sans-k2000", event.target.checked ? "1" : "0");
-    updatePlayer();
   });
   // Filtrage anisotrope 16x des textures du panorama (4x dans le plugin), contre le crénelage et
   // le scintillement des détails fins vus de loin. Photo Sphere Viewer crée ses textures sans
@@ -1063,6 +1058,7 @@
   map.on("click", (event) => {
     if (lineDraft !== null) addLinePoint(event.lngLat);
     else if (placing) placeOnMap(event.lngLat);
+    else if (travelPick) pickTravelPoint(event.lngLat);
     else {
       // Mesure exportée de la couche sous le clic : revue sur sa photo ; sinon la photo la plus proche
       const { x, y } = event.point, layers = ["couche-traits", "couche-points"].filter((l) => map.getLayer(l));
@@ -1143,6 +1139,7 @@
       setPlacing(false);
       refresh();
     }
+    if (event.key === "Escape" && travelPick) setTravelPick(null);
   }
   document.addEventListener("keydown", onLineEscape);
 
@@ -1468,7 +1465,11 @@
     $("#rattacher-carte").addEventListener("click", toggleMapWindow);
   }
 
-  function openPhoto(feature) {
+  function openPhoto(feature, touring = false) {
+    if (!touring) {  // autre photo demandée : fin du parcours
+      tour = null;
+      $("#parcours-orienter").hidden = true;
+    }
     setPhoto(feature, false);
     $("#invite").hidden = true;
     viewer.hidden = false;
@@ -2508,7 +2509,26 @@
   const WINDOW = 100;  // photos de la séquence lues d'un coup (environ 5 Ko chacune)
   let backward = false;  // sens de la dernière lecture, repris par « pause/reprise »
   let speed = 1;  // vitesse de la dernière lecture, reprise de même
-  let fast = null;  // lecture rapide (2x à 16x) en cours : { collection, apis, rank, step, id, ids, timer }
+  let fast = null;  // lecture rapide (2x à 16x) en cours : { collection, apis, rank, step, id, ids, points, timer }
+  // Parcours (onglet « Parcours ») en cours : voir travel ; endRank : rang de la photo d'arrivée dans la séquence lue
+  // (null si elle n'y passe pas) ; best, bestAt : plus courte distance (m) à l'arrivée et son point ; axis : vue
+  // dans l'axe du véhicule ; freeYaw : en regard libre, écart réglé à l'avant du véhicule
+  let tour = null;
+  let travelPick = null;  // 📍 de l'onglet « Parcours » : point attendu sur la carte (« start », « end »)
+  // Vues du dernier parcours (WebP réduits), pour son export en WebP animé ; tourTitle : son intitulé
+  let tourViews = [], tourTitle = "";
+  const webpOk = Hyperlapse.supported();  // Safari n'encode pas le WebP
+  const TOUR_AXIS = 4;  // rangs de part et d'autre de la photo pour l'axe et la pente (± 20 m)
+  const TILES_WAIT = 4000;  // ms : attente au plus des tuiles HD d'une vue du parcours (réseau lent)
+  const TOUR_REACH = 40;  // m : photos du départ et de l'arrivée cherchées à cette distance (même séquence)
+  const TOUR_END = 30;  // m : hors de la séquence de l'arrivée, arrivée passée quand la distance remonte sous ce seuil
+  const TOUR_AWAY = 40;  // m : séquence qui s'écarte d'autant de son point le plus proche de l'arrivée : rebranchement
+  const TOUR_BRANCH = 25;  // m : séquences cherchées autour de ce point pour s'y rebrancher
+  const TOUR_PASS = 10;  // m : séquences d'arrivée : celles qui y passent à moins de la plus proche + TOUR_PASS
+  const TOUR_PATH = 100;  // rangs (500 m) du tracé des séquences d'arrivée lus de part et d'autre de l'arrivée
+  const TOUR_JOIN = 10;  // m : photo lue sur le tracé d'une séquence d'arrivée à moins de cette distance
+  const TOUR_LEAP = 30;  // m : écart au plus entre les deux photos d'une bifurcation (trajectoire lisse d'abord)
+  const TOUR_TURN = 90;  // points (degrés de virage + mètres au-delà de 5 m) : saut au plus, hors du tracé quitté
 
   function playing() {
     return Boolean(fast) || Boolean(psv?.isSequencePlaying?.());
@@ -2550,14 +2570,15 @@
     speed = k;
     const rank = Number(photo?.properties?.["geovisio:rank_in_collection"]);
     const apis = photo?.collection ? sequenceApis(photo) : [];
-    if (k === 1 || !Number.isInteger(rank) || !apis.length) {
+    // Parcours en 1x : lecture pas à pas aussi (celle de la visionneuse coupe les tuiles HD et la vue dans l'axe)
+    if ((k === 1 && !tour) || !Number.isInteger(rank) || !apis.length) {
       if (k !== 1) console.warn("Lecture rapide impossible (rang ou instance de la photo inconnus) : 1x");
       speed = 1;
       psv.playSequence(back);
       return;
     }
-    fast = { collection: photo.collection, apis, rank, step: back ? -k : k, id: photo.id, ids: new Map(), timer: null };
-    if (k === 16 && !$("#sans-k2000").checked) $("#turbo").animate([{ opacity: 0 }, { opacity: 0.5 }, { opacity: 0 }], 3000);  // vitesse maximale
+    fast = { collection: photo.collection, apis, rank, step: back ? -k : k, id: photo.id, ids: new Map(), points: new Map(),
+      timer: null };
     updatePlayer();
     fastStep(fast);
   }
@@ -2573,7 +2594,11 @@
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         for (const f of (await response.json()).features || []) {
           const rank = Number(f.properties?.["geovisio:rank_in_collection"]);
-          if (Number.isInteger(rank) && f.id) run.ids.set(rank, f.id);
+          if (!Number.isInteger(rank) || !f.id) continue;
+          run.ids.set(rank, f.id);
+          const exif = f.properties?.exif || {};
+          run.points.set(rank, { coords: f.geometry?.coordinates, alt: exifNumber(exif["Exif.GPSInfo.GPSAltitude"]),
+            heading: exifNumber(exif["Exif.GPSInfo.GPSImgDirection"]) ?? Number(f.properties?.["view:azimuth"]) });
         }
         return;
       } catch (error) {
@@ -2604,13 +2629,359 @@
     }
     while (target !== run.rank && !run.ids.has(target)) target -= sign;  // fin de la séquence
     if (target === run.rank) {
-      stopPlayer();
+      if (tour && tour.endRank == null) tourBranch(tour);  // parcours : une autre séquence vers l'arrivée
+      else stopPlayer();
       return;
     }
     run.rank = target;
     run.id = run.ids.get(target);
     viewer.select(run.collection, run.id, true);
   }
+
+  /** Attente des tuiles HD en cours de chargement (file de la visionneuse vide), TILES_WAIT ms au plus. */
+  async function tilesLoaded(run) {
+    const t0 = performance.now();
+    while (run === fast && Object.keys(psv.adapter?.queue?.tasks || {}).length && performance.now() - t0 < TILES_WAIT) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+
+  /** Valeur EXIF « 31072/100 » ou « 310.72 » en nombre, ou null. */
+  function exifNumber(text) {
+    const [n, d = 1] = String(text ?? "").split("/").map(Number);
+    return text != null && Number.isFinite(n / d) && d ? n / d : null;
+  }
+
+  const rankOf = (f) => Number(f.properties?.["geovisio:rank_in_collection"]);
+  const angleBetween = (a, b) => Math.abs(((a - b) % 360 + 540) % 360 - 180);
+
+  /**
+   * Parcours du départ à l'arrivée ([lon, lat]) à la vitesse speed ; axis : vue dans l'axe du véhicule.
+   * D'abord une séquence qui passe par les deux : lecture vers le rang de la photo d'arrivée (dans le sens
+   * de la prise de vue de préférence : véhicules croisés à l'endroit). Sinon, la séquence qui part vers
+   * l'arrivée, puis d'autres là où elle s'en écarte (tourBranch) : l'utilisateur en est prévenu au départ.
+   */
+  async function travel(start, end, title, speed, axis) {
+    stopPlayer();
+    tourViews = [];
+    tourTitle = title || "";
+    // Séquence qui passe à l'arrivée -> rang de sa photo la plus proche ; seulement celles qui passent à TOUR_PASS m
+    // de la plus proche (une route voisine à 25 m ne passe pas à l'arrivée)
+    const endRanks = new Map(), endPhotos = [];
+    let closest = null;
+    for (const f of await Carte.photosNear(map, ...end, passesFilter, TOUR_REACH).catch(() => [])) {
+      if (endRanks.has(f.collection) || !Number.isInteger(rankOf(f))) continue;
+      const d = metresBetween(f.geometry.coordinates, end);
+      if (closest != null && d > closest + TOUR_PASS) continue;
+      closest ??= d;
+      endRanks.set(f.collection, rankOf(f));
+      endPhotos.push(f);
+    }
+    // Tracé des séquences d'arrivée, TOUR_PATH rangs de part et d'autre de l'arrivée : bifurcation au carrefour (tourJoin)
+    const paths = new Map();
+    await Promise.all(endPhotos.map(async (f) => {
+      const path = { apis: sequenceApis(f), step: 1, ids: new Map(), points: new Map() };
+      const r = rankOf(f);
+      try {
+        await loadRanks(path, Math.max(0, r - TOUR_PATH + 1));
+        await loadRanks(path, r + 1);
+      } catch (error) {
+        console.warn("Parcours : tracé de la séquence d'arrivée", f.collection, error);
+      }
+      if (path.points.size) paths.set(f.collection, path);
+    }));
+    const near = await Carte.photosNear(map, ...start, (f) => passesFilter(f) && Number.isInteger(rankOf(f)), TOUR_REACH)
+      .catch(() => []);
+    const t = { end, endRanks, paths, speed, axis, best: Infinity, bestAt: null, used: new Set(), switches: 0, dates: new Set() };
+    const common = near.filter((f) => endRanks.has(f.collection) && rankOf(f) !== endRanks.get(f.collection));
+    let first = common.find((f) => endRanks.get(f.collection) > rankOf(f)) || common[0];
+    let back = first ? endRanks.get(first.collection) < rankOf(first) : null;
+    if (!first) ({ feature: first, back } = towardEnd(near, end) || {});
+    if (!first) {
+      const text = `Parcours impossible : aucune photo${filterActive() ? " retenue par le filtre" : ""} à moins de `
+        + `${TOUR_REACH} m du départ ne part vers l'arrivée. Rapprochez le départ d'une route photographiée, ou changez le filtre.`;
+      setStatus(text, "echec");
+      notice(text);
+      return;
+    }
+    startTour(t, first, back, common.length ? "" : "Pas de séquence unique du départ à l'arrivée : le parcours passera "
+      + "d'une séquence à l'autre, les photos peuvent différer (date, lumière, sens de prise de vue).");
+  }
+
+  /** Parmi les photos `list` (les plus proches d'abord), la première dont la séquence va vers `end` :
+   * { feature, back } (back : lecture à rebours), d'après le cap de la caméra (à 45° près de la direction
+   * de l'arrivée, ou de son opposé à rebours) ; null sans photo qui convienne. */
+  function towardEnd(list, end) {
+    for (const f of list) {
+      const azimuth = Number(f.properties?.["view:azimuth"]);
+      if (!Number.isFinite(azimuth)) continue;
+      const toEnd = Requeteur.bearing(f.geometry.coordinates, end);
+      if (angleBetween(azimuth, toEnd) < 45) return { feature: f, back: false };
+      if (angleBetween(azimuth + 180, toEnd) < 45) return { feature: f, back: true };
+    }
+    return null;
+  }
+
+  /**
+   * Parcours t parti (ou reparti) de la photo first, à rebours si back : vue tournée vers l'avant du
+   * véhicule (regard libre : l'écart réglé par l'utilisateur), puis lecture. Au départ, en regard libre
+   * ou avec un avertissement (warning), le bandeau attend « ▶ Partir ».
+   */
+  function startTour(t, first, back, warning = "") {
+    t.used.add(first.collection);
+    t.dates.add((first.properties?.datetime || "").slice(0, 10));
+    t.endRank = t.endRanks.get(first.collection) ?? null;
+    t.back = back;
+    openPhoto(first, true);
+    tour = t;
+    const t0 = Date.now();
+    let asked = t0;
+    const timer = setInterval(() => {  // lecture une fois la photo affichée
+      if (tour !== t || Date.now() - t0 > 30000) {
+        clearInterval(timer);
+        return;
+      }
+      // Photo de la lecture précédente arrivée après la demande (rebranchement) : la nôtre redemandée
+      // (comparée par identifiant : sa fiche est recréée au chargement)
+      if (photo?.id !== first.id || !photoReady()) {
+        if (Date.now() - asked > 3000) {
+          asked = Date.now();
+          openPhoto(first, true);
+        }
+        return;
+      }
+      clearInterval(timer);
+      const ahead = back ? Math.PI : 0;  // avant du véhicule
+      psv.rotate({ yaw: ahead + (t.freeYaw ?? 0), pitch: 0 });
+      if ((t.axis || t.freeYaw != null) && !warning) {
+        play(back, t.speed);
+        return;
+      }
+      // Regard libre : la vue se règle d'abord sur la photo de départ ; avertissement : lu avant de partir
+      $("#parcours-consigne").textContent = [warning, t.axis ? ""
+        : "Regard libre : orientez la vue (glisser dans la photo), elle sera gardée tout le long."].filter(Boolean).join(" ");
+      $("#parcours-orienter").hidden = false;
+      $("#parcours-partir").onclick = () => {
+        $("#parcours-orienter").hidden = true;
+        if (tour !== t || photo?.id !== first.id) return;
+        if (!t.axis) t.freeYaw = psv.getPosition().yaw - ahead;
+        play(back, t.speed);
+      };
+    }, 200);
+  }
+
+  /**
+   * Parcours sans séquence jusqu'à l'arrivée : celle lue s'en écarte, ou finit. Rebranchement là où elle en
+   * est passée au plus près (t.bestAt) sur une autre séquence (pas déjà lue) qui va vers l'arrivée : une
+   * qui y passe d'abord, sinon d'après le cap de la caméra. Sans elle, parcours arrêté.
+   */
+  async function tourBranch(t) {
+    const at = t.bestAt;
+    stopPlayer();  // lecture en cours arrêtée ; le parcours reste
+    if (t.bestViews != null) tourViews.length = Math.min(tourViews.length, t.bestViews);  // export sans l'écart
+    const list = at ? await Carte.photosNear(map, ...at,
+      (f) => passesFilter(f) && !t.used.has(f.collection) && Number.isInteger(rankOf(f)), TOUR_BRANCH).catch(() => []) : [];
+    if (tour !== t) return;  // parcours quitté entre-temps
+    const viaEnd = list.find((f) => t.endRanks.has(f.collection) && t.endRanks.get(f.collection) !== rankOf(f));
+    const next = viaEnd ? { feature: viaEnd, back: t.endRanks.get(viaEnd.collection) < rankOf(viaEnd) } : towardEnd(list, t.end);
+    if (!next) {
+      tour = null;
+      updatePlayer();
+      const text = `Parcours arrêté à ${Math.round(t.best)} m de l'arrivée : aucune séquence${filterActive() ? " retenue par le filtre" : ""} `
+        + "ne continue vers elle depuis ici.";
+      setStatus(text, "echec");
+      notice(text);
+      return;
+    }
+    t.switches++;
+    t.best = Infinity;
+    t.bestAt = null;
+    startTour(t, next.feature, next.back);
+  }
+
+  /**
+   * Parcours, photo affichée : vue dans l'axe du véhicule, c'est-à-dire tournée du biais de montage
+   * de la caméra (médiane, sur les photos lues, de l'écart entre le cap de la trajectoire sur
+   * ± 20 m et le cap EXIF au centième) : elle suit ainsi les virages et les carrefours. Vue abaissée
+   * de la pente de la route (altitudes GPS des photos sur ± 20 m) : les panoramas ne sont pas mis à
+   * niveau, la caméra penche avec le véhicule ; l'horizon reste ainsi en place. Le roulis (dévers)
+   * n'est pas corrigé. Arrivée et rebranchement sur une autre séquence : voir la fin.
+   */
+  function tourStep(run) {
+    const sign = Math.sign(run.step);
+    const near = (rank, k) => {
+      for (let i = TOUR_AXIS; i > 0; i--) if (run.points.get(rank + k * i)?.coords) return run.points.get(rank + k * i);
+      return run.points.get(rank);
+    };
+    const offsets = [];
+    for (const [rank, p] of run.points) {
+      const a = near(rank, -1), b = near(rank, 1);
+      if (p.coords && a !== b && Number.isFinite(p.heading)) {
+        offsets.push(((Requeteur.bearing(a.coords, b.coords) - p.heading) % 360 + 540) % 360 - 180);
+      }
+    }
+    offsets.sort((x, y) => x - y);
+    const here = run.points.get(run.rank);
+    const before = near(run.rank, -sign), after = near(run.rank, sign);
+    if (tour.axis && here?.coords && offsets.length) {
+      const d = metresBetween(before.coords, after.coords);
+      const slope = before.alt != null && after.alt != null && d > 1 ? (after.alt - before.alt) / d : 0;
+      const yaw = offsets[offsets.length >> 1] + (sign < 0 ? 180 : 0);  // lecture à rebours : vers l'arrière de la caméra
+      psv.rotate({ yaw: yaw * Math.PI / 180, pitch: -Math.atan(slope) });
+    }
+    // Arrivée : rang de la photo d'arrivée atteint ou passé ; hors de sa séquence, à moins de TOUR_END m quand
+    // la distance remonte (arrivée passée) ou s'écarte de TOUR_AWAY m du plus près (rebranchement)
+    const d = here?.coords ? metresBetween(here.coords, tour.end) : Infinity;
+    const arrived = tour.endRank != null ? (run.rank - tour.endRank) * sign >= 0 : tour.best < TOUR_END && d > tour.best;
+    if (arrived) {
+      const t = tour;
+      tour = null;
+      stopPlayer();
+      notice(t.switches ? `Parcours terminé : arrivée atteinte, ${t.switches + 1} séquences (${[...t.dates].sort().join(", ")}).`
+        : "Parcours terminé : arrivée atteinte.");
+      return false;
+    }
+    if (d < tour.best) {
+      tour.best = d;
+      tour.bestAt = here.coords;
+      tour.bestViews = tourViews.length + 1;  // vues gardées jusqu'à celle-ci (prise après ce calcul) comprise
+    }
+    if (tour.endRank == null && tourJoin(tour, run, here)) return false;
+    if (tour.endRank == null && d > tour.best + TOUR_AWAY) {
+      tourBranch(tour);
+      return false;
+    }
+    return true;
+  }
+
+  /** Photo des tracés d'arrivée (t.paths) à moins de TOUR_JOIN m de coords, la plus près de l'arrivée en rangs
+   * (puis en mètres) : { collection, rank, left (rangs jusqu'à l'arrivée), d } ; null sans photo assez proche. */
+  function nearestOnPaths(t, coords) {
+    let best = null;
+    for (const [collection, path] of t.paths) {
+      const endRank = t.endRanks.get(collection);
+      for (const [rank, p] of path.points) {
+        const d = p.coords ? metresBetween(p.coords, coords) : Infinity;
+        const left = Math.abs(rank - endRank);
+        if (d < TOUR_JOIN && (!best || left < best.left || (left === best.left && d < best.d))) best = { collection, rank, left, d };
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Saut depuis le point from (cap heading) sur un tracé d'arrivée : photo à TOUR_LEAP m au plus (pas à moins d'un
+   * demi-pas : même endroit) qui prolonge le mieux la trajectoire : moindre somme des virages (vers elle, puis vers sa
+   * suivante en allant à l'arrivée), plus 1 point par mètre au-delà d'un pas de 5 m (écart plus grand accepté plutôt
+   * qu'un crochet). Rend { collection, rank, score, sign } (sign : sens de lecture), score Infinity sans photo.
+   */
+  function leap(t, from, heading) {
+    let best = { score: Infinity };
+    for (const [collection, path] of t.paths) {
+      const endRank = t.endRanks.get(collection);
+      for (const [rank, p] of path.points) {
+        const d = p.coords ? metresBetween(from, p.coords) : Infinity;
+        if (d > TOUR_LEAP || d < 2.5) continue;
+        const sign = Math.sign(endRank - rank);
+        const go = Requeteur.bearing(from, p.coords);
+        const after = sign ? path.points.get(rank + sign)?.coords : null;
+        const turn = (Number.isFinite(heading) ? angleBetween(heading, go) : 0) + (after ? angleBetween(go, Requeteur.bearing(p.coords, after)) : 0);
+        const score = turn + Math.max(0, d - 5);
+        if (score < best.score) best = { collection, rank, score, sign };
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Parcours hors d'une séquence d'arrivée : bifurcation sur l'une d'elles dès que son tracé passe à TOUR_LEAP m, au
+   * saut le plus lisse (leap), quand la photo suivante n'en offre pas de meilleur : la trajectoire garde ainsi sa ligne
+   * au carrefour, quitte à un écart plus grand que le pas de la séquence. Rien tant que la séquence lue suit ce tracé
+   * vers l'arrivée (à TOUR_JOIN m), ni pour un saut à plus de TOUR_TURN points sauf là où elle le quitte. Rend true si
+   * le parcours bifurque.
+   */
+  function tourJoin(t, run, here) {
+    if (!t.paths?.size || !here?.coords) return false;
+    const next = run.points.get(run.rank + run.step);
+    if (!next?.coords && run.ids.has(run.rank + run.step)) return false;  // suivante sans position : décidé plus loin
+    const at = nearestOnPaths(t, here.coords);
+    const then = next?.coords ? nearestOnPaths(t, next.coords) : null;
+    if (at && then && then.left < at.left) return false;  // tracé suivi vers l'arrivée
+    const prev = run.points.get(run.rank - run.step)?.coords;
+    const heading = prev ? Requeteur.bearing(prev, here.coords) : here.heading + (run.step < 0 ? 180 : 0);
+    const jump = leap(t, here.coords, heading);
+    if (jump.score === Infinity || (jump.score > TOUR_TURN && !at)) return false;
+    if (next?.coords && leap(t, next.coords, Requeteur.bearing(here.coords, next.coords)).score < jump.score) return false;
+    const { rank, sign } = jump;
+    const path = t.paths.get(jump.collection);
+    const t0 = tour;
+    stopPlayer();
+    Carte.photoById(path.ids.get(rank)).then((feature) => {
+      if (tour !== t0) return;
+      if (!feature) {
+        tourBranch(t);
+        return;
+      }
+      t.switches++;
+      t.best = Infinity;
+      t.bestAt = null;
+      startTour(t, feature, sign < 0);
+    }).catch(() => { if (tour === t0) tourBranch(t); });
+    return true;
+  }
+
+  // Onglet « Parcours » : « ▶ Parcourir » grisé tant que la route ou un PR manque
+  const travelPane = $("#parcours");
+  const travelFields = Requeteur.travelForm(travelPane.querySelector(".champs-route"), map);
+  const updateTravel = () => { $("#parcours-lancer").disabled = !travelFields.ready(); };
+  travelPane.addEventListener("input", updateTravel);
+  travelPane.addEventListener("click", () => setTimeout(updateTravel));  // PR choisi dans une liste
+  // 📍 : le prochain clic sur la mini-carte pose le départ ou l'arrivée (« start », « end ») ; Échap annule
+  function setTravelPick(which) {
+    travelPick = which;
+    map.getCanvas().style.cursor = which ? "crosshair" : "";
+    for (const button of travelPane.querySelectorAll(".sur-carte")) {
+      button.setAttribute("aria-pressed", String(button.dataset.cote === which));
+    }
+    if (which) setStatus(`Parcours : cliquez sur la mini-carte ${which === "start" ? "le départ" : "l'arrivée"} ; Échap pour annuler.`);
+  }
+  async function pickTravelPoint(lngLat) {
+    const which = travelPick;
+    setTravelPick(null);
+    await travelFields.pick(which, [lngLat.lng, lngLat.lat]);
+    updateTravel();
+  }
+  for (const button of travelPane.querySelectorAll(".sur-carte")) {
+    button.addEventListener("click", () => setTravelPick(travelPick === button.dataset.cote ? null : button.dataset.cote));
+  }
+  $("#parcours-lancer").addEventListener("click", async () => {
+    const button = $("#parcours-lancer");
+    button.disabled = true;
+    try {
+      const found = await travelFields.go();
+      if (!found) return;
+      map.fitBounds([found.start, found.end].reduce((b, p) => b.extend(p), new maplibregl.LngLatBounds()),
+        { padding: 60, maxZoom: 18 });
+      await new Promise((resolve) => map.once("moveend", resolve));
+      travel(found.start, found.end, found.title, Number($("#parcours-vitesse").value),
+        $("#parcours-regard").value === "axe");
+    } catch (error) {
+      notice(`Parcours impossible : ${error.message}`);
+    } finally {
+      updateTravel();
+    }
+  });
+  $("#parcours-export").addEventListener("click", async () => {
+    const save = await saveAs(`parcours ${tourTitle || "Panoramax"}.webp`.replace(/[\\/:*?"<>|→]/g, "-"), "image/webp");
+    if (!save) return;
+    $("#parcours-export").disabled = true;
+    try {
+      await save(await Hyperlapse.webp(tourViews));
+    } catch (error) {
+      notice(`Export du parcours impossible : ${error.message}`);
+    }
+    updatePlayer();
+  });
 
   function updatePlayer() {
     const seq = psv?.getPictureMetadata?.()?.sequence || {};
@@ -2631,7 +3002,9 @@
       label.textContent = `${speed}x`;
       label.classList.toggle("arret", !on);
     }
-    $("#scanner").hidden = blocked || !on || speed < 4 || $("#sans-k2000").checked;
+    $("#parcours-export").disabled = on || tourViews.length < 2 || !webpOk;
+    $("#parcours-vues").textContent = !webpOk ? "export impossible : ce navigateur n'encode pas le WebP"
+      : tourViews.length ? `${tourTitle} : ${tourViews.length} vues${on && tour ? " (lecture en cours)" : ""}` : "aucun parcours";
   }
 
   function attachPlayer() {
@@ -2659,7 +3032,18 @@
       // la visionneuse (comme sa lecture 1x)
       if (fast && event.detail?.picId === fast.id) {
         const run = fast;
-        run.timer = setTimeout(() => fastStep(run), psv.getTransitionDuration?.() ?? 250);
+        if (tour && !tourStep(run)) return;
+        run.timer = setTimeout(async () => {
+          // Parcours : tuiles HD de la vue chargées avant la vue gardée pour l'export et la photo suivante
+          // (la visionneuse ne les coupe que pendant sa propre lecture rapide, pas pendant celle-ci)
+          if (tour) await tilesLoaded(run);
+          if (run !== fast) return;
+          if (tour && tourViews.length < Hyperlapse.MAX_FRAMES && webpOk) {
+            const view = await Hyperlapse.grab(psv).catch(() => null);
+            if (view) tourViews.push(view);
+          }
+          fastStep(run);
+        }, psv.getTransitionDuration?.() ?? 250);
       }
       updatePlayer();
     });
@@ -4482,6 +4866,6 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
   }
 
   // Pour les essais depuis la console : window.mesures.app.click(yaw, pitch)
-  window.mesures = { get app() { return app; }, get psv() { return psv; }, map, openPhoto, buildFiche, paginateFiche, photoAtOffset, importOverlay, thumbnail,
+  window.mesures = { get app() { return app; }, get psv() { return psv; }, get tourViews() { return tourViews; }, get touring() { return Boolean(tour); }, map, openPhoto, buildFiche, paginateFiche, photoAtOffset, importOverlay, thumbnail,
     overlayFile: (handle) => { overlay.fichier = handle; } };  // fichier de la couche remplacé (essais)
 })();

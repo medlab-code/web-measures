@@ -194,6 +194,29 @@ const Requeteur = (() => {
     return { refresh: update };
   }
 
+  /** Saisie de la route en majuscules, « D » ajouté devant un numéro seul (RD974 -> D974). */
+  function normalize(text) {
+    const t = text.trim().toUpperCase().replace(/\s+/g, "").replace(/^RD/, "D");
+    return /^\d/.test(t) ? `D${t}` : t;
+  }
+
+  /** Champ de distance depuis un PR : chiffres seulement (champ texte, sans flèches), « 0 » de tête
+   * prérempli et saisie après lui ; il s'efface pour un écart de plus de 1 000 m (« 1052 »). */
+  function distanceField(input) {
+    input.addEventListener("input", () => {
+      const digits = input.value.replace(/\D/g, "").slice(0, 4);
+      if (digits !== input.value) input.value = digits;
+    });
+    input.addEventListener("focus", () => {
+      if (!input.value) input.value = "0";
+      const end = input.value.length;
+      setTimeout(() => input.setSelectionRange(end, end));  // après le clic qui place le curseur
+    });
+    input.addEventListener("blur", () => {
+      if (!input.value) input.value = "0";
+    });
+  }
+
   /** Requêteur sous la recherche de lieux ; `found(lon, lat, cap)` est appelé une fois la carte
    * arrivée au point demandé, avec le cap des PR croissants (ou null). */
   function attach(map, found) {
@@ -213,30 +236,13 @@ const Requeteur = (() => {
     const distanceInput = box.querySelector(".distance");
     // Distance « 0xyz » : le 0 de tête est prérempli et la saisie commence après lui ; il
     // s'efface pour un écart de plus de 1 000 m (« 1052 »)
-    distanceInput.addEventListener("input", () => {  // chiffres seulement (champ texte, sans flèches)
-      const digits = distanceInput.value.replace(/\D/g, "").slice(0, 4);
-      if (digits !== distanceInput.value) distanceInput.value = digits;
-    });
-    distanceInput.addEventListener("focus", () => {
-      if (!distanceInput.value) distanceInput.value = "0";
-      const end = distanceInput.value.length;
-      setTimeout(() => distanceInput.setSelectionRange(end, end));  // après le clic qui place le curseur
-    });
-    distanceInput.addEventListener("blur", () => {
-      if (!distanceInput.value) distanceInput.value = "0";
-    });
+    distanceField(distanceInput);
     let dept = "", route = "", pr = null, marker = null, going = 0;
 
     async function currentDept() {
       const { lng, lat } = map.getCenter();
       dept = (await department(lng, lat).catch(() => "")) || dept;
       return dept;
-    }
-
-    /** Saisie de la route en majuscules, « D » ajouté devant un numéro seul (RD974 -> D974). */
-    function normalize(text) {
-      const t = text.trim().toUpperCase().replace(/\s+/g, "").replace(/^RD/, "D");
-      return /^\d/.test(t) ? `D${t}` : t;
     }
 
     /** Route retenue ; le champ PR s'ouvre (et reçoit le curseur si `focus`). */
@@ -329,5 +335,125 @@ const Requeteur = (() => {
     for (const type of ["keydown", "wheel", "dblclick"]) box.addEventListener(type, (e) => e.stopPropagation());
   }
 
-  return { attach, department };
+  /**
+   * Champs de l'onglet « Parcours » (form) : route, PR de départ et d'arrivée (listes qui se
+   * réduisent à chaque frappe, comme le requêteur), distances depuis eux ; ou points choisis sur la
+   * carte (pick), gardés tels quels, les champs remplis d'après la route et le PR trouvés là. Rend
+   * { ready, pick, go } : ready() dit si départ et arrivée sont connus ; go() marque les deux points
+   * sur la carte et rend { start, end, title } (points [lon, lat], « D115D PR 1+0146 → PR 0+0000 »),
+   * ou null (champ inconnu, signalé en rouge).
+   */
+  function travelForm(form, map) {
+    const [routeInput, fromInput, toInput] = form.querySelectorAll(".champ input");
+    const [routeList, fromList, toList] = form.querySelectorAll(".champ ul");
+    const [fromDistance, toDistance] = form.querySelectorAll(".distance");
+    const sides = {
+      start: { pr: fromInput, distance: fromDistance, point: null, pin: null, name: "Départ", css: "depart" },
+      end: { pr: toInput, distance: toDistance, point: null, pin: null, name: "Arrivée", css: "arrivee" },
+    };
+    let dept = "";
+    distanceField(fromDistance);
+    distanceField(toDistance);
+
+    async function currentDept() {
+      const { lng, lat } = map.getCenter();
+      dept = (await department(lng, lat).catch(() => "")) || dept;
+      return dept;
+    }
+
+    /** Repère du départ (vert) ou de l'arrivée (rouge) : side ; intitulé title ; lonlat null : retiré. */
+    function setPin(side, lonlat, title) {
+      side.pin?.remove();
+      side.pin = null;
+      if (!lonlat) return;
+      const element = Object.assign(document.createElement("div"), { className: `repere-requete ${side.css}`, title });
+      side.pin = new maplibregl.Marker({ element, anchor: "bottom" }).setLngLat(lonlat).addTo(map);
+    }
+
+    // Saisie à la main : le point choisi sur la carte de ce côté (des deux pour la route) est oublié
+    routeInput.addEventListener("input", () => { for (const side of Object.values(sides)) side.point = null; });
+    for (const side of Object.values(sides)) {
+      for (const input of [side.pr, side.distance]) input.addEventListener("input", () => { side.point = null; });
+    }
+
+    combo(routeInput, routeList, async (text) => {
+      const typed = normalize(text);
+      if (!typed || !await currentDept()) return [];
+      const list = (await routes(dept)).filter((r) => r.startsWith(typed));
+      routeInput.classList.toggle("inconnu", !list.length);
+      return list.slice(0, MAX_ITEMS).map((r) => ({ label: r, value: r }));
+    }, (item) => {
+      routeInput.value = item.value;
+      fromInput.focus();
+    });
+    for (const [input, list, next] of [[fromInput, fromList, fromDistance], [toInput, toList, toDistance]]) {
+      combo(input, list, async (text) => {
+        const route = normalize(routeInput.value);
+        if (!route || !(dept || await currentDept())) return [];
+        const typed = text.trim();
+        const found = (await milestones(dept, route)).filter((p) => String(p.n).startsWith(typed));
+        input.classList.toggle("inconnu", Boolean(typed) && !found.length);
+        return found.slice(0, MAX_ITEMS).map((p) => ({ label: `PR ${p.n}`, value: p.n }));
+      }, (item) => {
+        input.value = String(item.value);
+        input.classList.remove("inconnu");
+        next.focus();
+      });
+    }
+    // Les touches des champs ne doivent pas déplacer la carte ni la photo
+    form.addEventListener("keydown", (event) => event.stopPropagation());
+
+    /** Point choisi sur la carte pour le départ ou l'arrivée (« start », « end ») : marqué, et les
+     * champs remplis d'après la route et le PR du lieu (Lieu.describe), s'il y en a. */
+    async function pick(which, lonlat) {
+      const side = sides[which];
+      side.point = lonlat;
+      setPin(side, lonlat, `${side.name} du parcours (point de la carte)`);
+      for (const input of [routeInput, side.pr]) input.classList.remove("inconnu");
+      // Route déjà saisie : le PR sur elle, si elle passe à moins de 40 m (un carrefour donnerait
+      // sinon l'autre route) ; sinon la route et le PR du lieu
+      const route = normalize(routeInput.value);
+      let text = route ? await Lieu.milestone(route, ...lonlat).catch(() => "") : "";
+      let voie = text ? route : "";
+      if (!text) {
+        const { parts } = await Lieu.describe(...lonlat).catch(() => ({ parts: {} }));
+        [text, voie] = [parts.pr || "", parts.voie || ""];
+      }
+      if (side.point !== lonlat) return;  // autre point choisi entre-temps
+      const m = /^PR (\d+) ([+-])(\d+)$/.exec(text);
+      if (/^[A-Z]+\d/.test(voie)) routeInput.value = voie;
+      side.pr.value = m ? m[1] : "";
+      side.distance.value = m && m[2] === "+" ? String(Number(m[3])) : "0";  // avant le premier PR : 0
+    }
+
+    async function go() {
+      const route = normalize(routeInput.value);
+      routeInput.value = route;
+      const needPrs = !sides.start.point || !sides.end.point;
+      const prs = needPrs && route && (dept || await currentDept()) ? await milestones(dept, route).catch(() => []) : [];
+      if (needPrs) routeInput.classList.toggle("inconnu", !prs.length);
+      const at = {};
+      for (const [which, side] of Object.entries(sides)) {
+        const pr = prs.find((p) => String(p.n) === side.pr.value.trim()) || null;
+        const offset = Math.max(0, Math.round(Number(side.distance.value) || 0));
+        if (!side.point) side.pr.classList.toggle("inconnu", Boolean(prs.length) && !pr);
+        at[which] = { pr, offset, label: pr || side.pr.value.trim() ? `PR ${side.pr.value.trim()}+${String(offset).padStart(4, "0")}`
+          : "point de la carte" };
+      }
+      if ((!sides.start.point && !at.start.pr) || (!sides.end.point && !at.end.pr)) return null;
+      const [start, end] = await Promise.all(["start", "end"].map((w) => (sides[w].point
+        ? { lonlat: sides[w].point, heading: null } : locate(at[w].pr, at[w].offset))));
+      for (const [which, side] of Object.entries(sides)) {
+        setPin(side, which === "start" ? start.lonlat : end.lonlat, `${side.name} du parcours : ${route} ${at[which].label}`);
+      }
+      return { start: start.lonlat, end: end.lonlat, title: `${route} ${at.start.label} → ${at.end.label}`.trim() };
+    }
+
+    return {
+      go, pick,
+      ready: () => Object.values(sides).every((side) => side.point || (normalize(routeInput.value) && side.pr.value.trim())),
+    };
+  }
+
+  return { attach, department, bearing, travelForm };
 })();

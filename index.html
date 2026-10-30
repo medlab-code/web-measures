@@ -103,7 +103,6 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
       <div id="axe-vue" hidden></div>
       <pnx-photo-viewer id="visionneuse" endpoint="https://api.panoramax.xyz/api" widgets="false"
                         url-parameters="false" keyboard-shortcuts="false" hidden></pnx-photo-viewer>
-      <img id="turbo" src="src/turbo.webp" alt="" aria-hidden="true">  <!-- lecture rapide à 16x : clin d'œil -->
       <ul id="voyants" hidden></ul>
       <div class="bas-vue">  <!-- localisation à gauche, lecture de la séquence au centre, producteur à droite -->
         <div class="lieu-favori">  <!-- étoile des favoris, comme dans la barre d'adresse d'un navigateur -->
@@ -121,7 +120,6 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <button id="lecture-avant" type="button" title="Lecture rapide en avant (appuis suivants : 2x, 4x, 8x, 16x, 1x)" aria-pressed="false">
             <svg viewBox="0 0 24 16" aria-hidden="true"><path d="M2 1v14l10-7zM13 1v14l10-7z"/></svg></button>
           <span id="vitesse-avant" class="vitesse" hidden></span>
-          <img id="scanner" src="src/scanner.webp" alt="" aria-hidden="true" hidden>  <!-- lecture à 4x et plus -->
         </div>
         <p id="producteur-photo" hidden></p>
       </div>
@@ -135,6 +133,9 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         </div>
         <p id="mode-mesure" hidden>Mode mesure en cours : désélectionner pour naviguer</p>
         <p id="avis" hidden></p>
+        <!-- Parcours en regard libre : la vue de la première photo est réglée avant le départ -->
+        <p id="parcours-orienter" hidden><span id="parcours-consigne"></span>
+          <button id="parcours-partir" type="button">▶ Partir</button></p>
         <p id="calcul-inclinaison" hidden>Calcul de l'inclinaison en cours : attendez avant de mesurer</p>
         <!-- Pendant les visées, dès qu'elles donnent un point : le garder -->
         <button id="garder" type="button" hidden title="Garder le point triangulé par ces visées">✔ Valider le point triangulé</button>
@@ -189,6 +190,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <button id="onglet-photo" type="button" role="tab" data-panneau="photo" aria-controls="photo">Photo</button>
           <button id="onglet-favoris" type="button" role="tab" data-panneau="favoris" aria-controls="favoris">Favoris <span id="compte-favoris" class="compte"></span></button>
           <button id="onglet-couche" type="button" role="tab" data-panneau="couche" aria-controls="couche">Couche</button>
+          <button id="onglet-parcours" type="button" role="tab" data-panneau="parcours" aria-controls="parcours">Parcours</button>
         </nav>
         <div id="contenu-panneau">
         <section id="resultats" role="tabpanel" aria-labelledby="onglet-resultats">
@@ -360,6 +362,38 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           </div>
           <input id="couche-fichier" type="file" multiple accept=".geojson,.json,.zip,.shp,.dbf,.prj,.cpg,.shx,.gpkg" hidden>
         </section>
+        <!-- Parcours : route, PR de départ et d'arrivée (Requeteur.travelForm), lecture accélérée, export du dernier parcours -->
+        <section id="parcours" role="tabpanel" aria-labelledby="onglet-parcours" hidden>
+          <div class="champs-route">
+            <div class="ligne"><span>Route</span><div class="champ route"><input placeholder="D115D" aria-label="Numéro de route"
+              autocomplete="off" spellcheck="false"><ul role="listbox" hidden></ul></div></div>
+            <div class="ligne"><span><span class="pastille depart" aria-hidden="true"></span>Départ</span><div class="champ pr"><span class="prefixe" aria-hidden="true">PR</span><input
+              placeholder="n°" aria-label="PR de départ" inputmode="numeric" autocomplete="off"><ul role="listbox" hidden></ul></div>
+              + <input class="distance" type="text" maxlength="4" value="0" inputmode="numeric" autocomplete="off"
+              aria-label="Distance depuis le PR de départ (m)"> m
+              <button type="button" class="sur-carte" data-cote="start" aria-pressed="false"
+                title="Choisir le départ d'un clic sur la mini-carte (Échap : annuler)">📍</button></div>
+            <div class="ligne"><span><span class="pastille arrivee" aria-hidden="true"></span>Arrivée</span><div class="champ pr"><span class="prefixe" aria-hidden="true">PR</span><input placeholder="n°"
+              aria-label="PR d'arrivée" inputmode="numeric" autocomplete="off"><ul role="listbox" hidden></ul></div>
+              + <input class="distance" type="text" maxlength="4" value="0" inputmode="numeric" autocomplete="off"
+              aria-label="Distance depuis le PR d'arrivée (m)"> m
+              <button type="button" class="sur-carte" data-cote="end" aria-pressed="false"
+                title="Choisir l'arrivée d'un clic sur la mini-carte (Échap : annuler)">📍</button></div>
+            <div class="ligne"><span>Lecture</span>
+              <select id="parcours-vitesse" aria-label="Vitesse de lecture" title="Toutes les photos, ou une sur 2, 4 ou 8 : tous les 5, 10, 20 ou 40 m pour les photos du CD21">
+                <option value="1">1x (5 m)</option><option value="2" selected>2x (10 m)</option><option value="4">4x (20 m)</option><option value="8">8x (40 m)</option></select>
+              <select id="parcours-regard" aria-label="Regard" title="Dans l'axe : vue tournée dans l'axe du véhicule et horizon corrigé de la pente ; libre : la vue reste où on la tourne">
+                <option value="axe" selected>Regard dans l'axe</option><option value="libre">Regard libre</option></select></div>
+          </div>
+          <p class="aide">Départ et arrivée : un PR et une distance, ou 📍 puis un clic sur la mini-carte. La photo la plus
+            proche du départ, prise dans le sens du parcours et retenue par le filtre (« Depuis » pour
+            choisir une campagne), défile jusqu'à l'arrivée.</p>
+          <div class="lancer"><button id="parcours-lancer" type="button" class="principal" disabled>▶ Parcourir</button></div>
+          <h3>Export du dernier parcours</h3>
+          <div class="ligne"><button id="parcours-export" type="button" disabled
+            title="Le dernier parcours en WebP animé : largeur de la vue (1 280 px au plus), 0,4 s par vue, fondu enchaîné, en boucle">🎞 WebP animé</button>
+            <span id="parcours-vues" class="aide">aucun parcours</span></div>
+        </section>
         <section id="filtre" hidden>
           <!-- Résumé du filtre actif (app.js applyFilter) -->
           <div class="fiche-couche fiche-filtre">
@@ -444,7 +478,6 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             </label>
             </div>
           </div>
-          <label id="case-k2000"><input id="sans-k2000" type="checkbox"> Désactiver K2000</label>  <!-- barres et photo de la lecture rapide -->
         </section>
         <section id="reseau" hidden>
           <!-- Bilan des services vérifiés depuis ce navigateur (proxy et pare-feu du poste compris) -->
@@ -700,6 +733,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
   <script src="src/lieu.js"></script>
   <script src="src/recherche.js"></script>
   <script src="src/requeteur.js"></script>
+  <script src="src/hyperlapse.js"></script>
   <script src="src/calcul.js"></script>
   <script src="src/traits.js"></script>
   <script src="src/couche.js"></script>

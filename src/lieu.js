@@ -314,5 +314,5 @@ const Lieu = (() => {
     return { text, complete: !failed, parts };
   }
 
-  return { describe, features, project, segmentLength };
+  return { describe, features, milestone, project, segmentLength };
 })();
