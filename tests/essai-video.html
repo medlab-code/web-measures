@@ -141,6 +141,21 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("croisements : carrefours trouvés (BD TOPO)", jn.length > 0, jn.length);
       expect("croisements : au moins un regard dans l'axe d'une voie", aims.length > 0);
       expect("croisements : regard de 120° au plus", looks.every((v) => Math.abs(v) <= 120.01));
+      // Ralentissement au regard (vitesse de regard 70 km/h) : à 360 km/h ~ 70 au carrefour, à 30 km/h presque rien
+      const lookedAt = Video.lookedJunctions(long, jn);
+      const speedAtJunction = (kmh) => {
+        const t = Video.timeline(long, kmh / 3.6, false, lookedAt, 70 / 3.6);
+        const i = t.findIndex((x) => x >= lookedAt[0].x);
+        return (t[i + 1] - t[i]) * Video.FPS * 3.6;
+      };
+      const [fast, slow30] = [speedAtJunction(360), speedAtJunction(30)];
+      const [d360, d360look] = [Video.duration(longPhotos, 360), Video.duration(longPhotos, 360, false, jn, 70)];
+      log(`regard à 70 km/h : au carrefour ${fast.toFixed(0)} km/h en roulant à 360, ${slow30.toFixed(1)} à 30 ; durée à 360 : ${d360.toFixed(1)} s, ${d360look.toFixed(1)} s avec les regards`);
+      expect("regard : à 360 km/h, ~ 70 km/h au carrefour (66 à 72)", fast > 66 && fast < 72, fast);
+      expect("regard : à 30 km/h, presque pas ralenti (28 km/h au moins)", slow30 >= 28, slow30);
+      expect("regard : vidéo plus longue à 360 km/h avec les regards", d360look > d360 + 2, `${d360} / ${d360look}`);
+      expect("réglette de la vitesse de regard : 70 km/h par défaut", doc.querySelector("#regard-vitesse").value === "70"
+        && doc.querySelector("#regard-valeur").textContent === "70 km/h");
       // Retour dans l'axe deux fois plus rapide que l'aller : images de rotation avant le passage ~ 2 × celles d'après
       const firstLook = looks.findIndex((v) => v), peak = looks.findIndex((v, i) => i > firstLook && v && Math.abs(v) === Math.max(...looks.slice(firstLook, firstLook + 90).map(Math.abs)));
       let last = peak;
@@ -149,17 +164,37 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       while (Math.abs(looks[hold + 1] - looks[hold]) < 0.01 && hold < last) hold++;
       log(`regard : aller ${peak - firstLook} images, retour ${last - hold} images`);
       expect("croisements : retour dans l'axe environ deux fois plus rapide que l'aller", Math.abs((peak - firstLook) / Math.max(1, last - hold) - 2) < 0.5, `${peak - firstLook} / ${last - hold}`);
+      // Tonneau au milieu du parcours : tour complet en 3 s (90 images), sans retour ; endroit à plus de 30 m refusé
+      const rollAt = long.at(long.length / 2), turns = Video.rolls(long, plain, [rollAt]);
+      const rolling = turns.filter((v) => v > 0 && v < 360).length;
+      log(`tonneau : ${rolling} images de roulis, jusqu'à ${Math.max(...turns).toFixed(0)}°`);
+      expect("tonneau : tour complet en 3 s environ (85 à 92 images)", rolling >= 85 && rolling <= 92 && Math.max(...turns) > 359, rolling);
+      expect("tonneau : sans retour en arrière", turns.every((v, i) => !i || v >= turns[i - 1] || v === 0));
+      const slow = Video.rolls(long, plain, [rollAt], 6).filter((v) => v > 0 && v < 360).length;
+      // Plusieurs tonneaux, sens alterné dans l'ordre du parcours (posés dans le désordre)
+      const two = Video.rolls(long, plain, [long.at(long.length * 0.7), long.at(long.length * 0.3)]);
+      const firstSign = Math.sign(two.find((v) => v)), lastSign = Math.sign(two.findLast((v) => v));
+      log(`deux tonneaux : ${two.filter((v) => v > 0).length} images dans un sens, ${two.filter((v) => v < 0).length} dans l'autre`);
+      expect("tonneaux : le suivant tourne dans l'autre sens (ordre du parcours)", firstSign === 1 && lastSign === -1);
+      expect("tonneau : durée réglable (6 s : 175 à 182 images)", slow >= 175 && slow <= 182, slow);
+      expect("réglette de la durée du tonneau : 3 s par défaut", doc.querySelector("#tonneau-duree").value === "3"
+        && doc.querySelector("#tonneau-valeur").textContent === "3 s");
+      let refused = "";
+      try { Video.rolls(long, plain, [rollAt, [rollAt[0] + 0.01, rollAt[1]]]); } catch (error) { refused = error.message; }
+      expect("tonneau : endroit loin du parcours refusé avec un message (n° du tonneau)", /tonneau n° 2 .* du parcours/.test(refused), refused);
       const sub = longPhotos.filter((_, i) => i % 8 === 0 || i === longPhotos.length - 1);
       const tv = await Video.mp4(sub, 720,
         (done, total) => { if (done % 60 === 0) log(`titre et compteur : image ${done} / ${total}`); }, null,
-        { counter: true, title: { text: "D115D PR 1+146 → PR 0+0", sub: "Photos du 10/07/2025" }, junctions: jn });
+        { counter: true, title: { text: "D115D PR 1+146 → PR 0+0", sub: "Photos du 10/07/2025" }, junctions: jn, rolls: [rollAt] });
+      const subRolls = Video.rolls(Video.trajectory(sub), Video.timeline(Video.trajectory(sub), 200, false), [rollAt]);
+      const rollFrame = subRolls.findIndex((v) => v >= 120);
       const subLooks = Video.pans(Video.trajectory(sub), Video.timeline(Video.trajectory(sub), 200, false), { junctions: jn });
       const lookFrame = subLooks.reduce((best, v, i) => (Math.abs(v) > Math.abs(subLooks[best]) ? i : best), 0);
       log(`regard le plus marqué de la vidéo d'essai : ${subLooks[lookFrame].toFixed(0)}° à l'image ${lookFrame}`);
       const tvv = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(tv) });
       await new Promise((resolve) => { tvv.onloadedmetadata = resolve; });
       const shot = Object.assign(document.createElement("canvas"), { width: 960, height: 540 }), sctx = shot.getContext("2d");
-      for (const [name, t] of [["titre", 1], ["compteur", tvv.duration / 2], ["regard", (lookFrame + 0.5) / 30]]) {
+      for (const [name, t] of [["titre", 1], ["compteur", tvv.duration / 2], ["regard", (lookFrame + 0.5) / 30], ["tonneau", (rollFrame + 0.5) / 30]]) {
         tvv.currentTime = t;
         await new Promise((resolve) => { tvv.onseeked = resolve; });
         sctx.drawImage(tvv, 0, 0, 960, 540);

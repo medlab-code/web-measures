@@ -150,8 +150,14 @@ vigne), la vue se tourne en 0,8 s vers la voie croisée, dans son axe dès 0,9 s
 le reste au niveau du carrefour (cap de la
 voie à 10 m du carrefour, 120° au plus ; voies des deux côtés : la gauche jusqu'au passage, puis la droite), puis
 revient dans l'axe du parcours par le même mouvement, deux fois plus vite (un seul regard pour des carrefours à moins
-de 60 m, giratoire) ; la maquette de la chaussée reste dans l'axe de la route. Ces
-deux options chargent plus de tuiles aux endroits concernés (tout le tour pour le panoramique). « Flou cinétique »
+de 60 m, giratoire) ; pour avoir le temps de voir la voie, la vidéo ralentit pendant tout le regard (freinage et
+reprise en 1,5 s) jusqu'à la « vitesse de regard » (réglette de 30 à 130 km/h, 70 par défaut), en plafond progressif :
+v / (1 + (v / V)³)^(1/3), presque rien en dessous (30 → 29 km/h), V au plus au-dessus (90 → 62, 360 → 70 km/h) ; la maquette de la chaussée reste dans l'axe de la route. « Tonneau » (décochée) : aux endroits choisis par 📍 sur la mini-carte (un par clic, repère bleu, un clic
+sur le repère le retire ; à moins de 30 m du parcours, sinon la vidéo le refuse avec son numéro), l'image fait un
+tour complet de roulis, dans un sens puis dans l'autre d'un tonneau au suivant (ordre du parcours) (durée réglable de 1 à 10 s, 3 s par défaut), lent au
+départ et à l'arrivée, pendant que la caméra avance ; titre et compteur restent droits ; activer l'interrupteur sans endroit
+lance le choix sur la carte, poser un endroit l'active, retirer le dernier le désactive. Ces
+options chargent plus de tuiles aux endroits concernés (tout le tour pour le panoramique). « Flou cinétique »
 (décochée par défaut) : chaque
 image est la moyenne de 8 vues réparties depuis la position de l'image précédente (obturateur ouvert toute l'image) ;
 ce qui défile vite près de la caméra (chaussée, muret, vignes du bord) s'étire dans le sens du mouvement, le lointain

@@ -44,8 +44,12 @@ const Video = (() => {
   const PAN_SPIN = 0.7;  // s : tour complet du panoramique au changement de séquence
   const LOOK_LEAD = 0.9;  // s : regard déjà dans l'axe de la voie croisée avant le passage au carrefour (anticipation)
   const LOOK_TURN = 0.8;  // s : rotation vers la voie croisée ; retour dans l'axe du parcours en LOOK_TURN / 2
+  const LOOK_BRAKE = 1.5;  // s : freinage avant le regard d'un carrefour, et reprise après
+  const LOOK_SPEED = 70;  // km/h : vitesse de regard par défaut (réglette de 30 à 130)
   const LOOK_MAX = 120;  // degrés : regard dans l'axe d'une voie croisée au plus (voie qui repart vers l'arrière)
   const LOOK_GAP = 60;  // m : carrefours plus proches du précédent regardé (giratoire, double carrefour) : un seul regard
+  const ROLL_TIME = 3;  // s : tour complet du tonneau par défaut (réglette de 1 à 10 s ; pas trop rapide : demande)
+  const ROLL_REACH = 30;  // m : endroit du tonneau ramené sur le parcours à cette distance au plus
   const BLUR = 8;  // vues moyennées par image pour le flou cinétique (obturateur ouvert toute l'image : 360°)
 
   const supported = () => typeof VideoEncoder === "function" && typeof VideoFrame === "function"
@@ -73,9 +77,26 @@ const Video = (() => {
    * cap lissé / RAMP_TURN), la rotation au-delà de RAMP_MARKED °/m comptant double ; au plus bas RAMP_MIN·v) et en douceur sur RAMP_EDGE m au départ et à l'arrivée,
    * lissée sur ± RAMP_SMOOTH m : v devient la vitesse des lignes droites.
    */
-  function timeline(path, v, ramp) {
+  function timeline(path, v, ramp, looks = [], lookSpeed = null) {
     const xs = Array(HOLD * FPS + 1).fill(0);
     let factor = () => 1;
+    if (ramp || (looks.length && lookSpeed)) {
+      factor = curve(path, v, ramp, looks, lookSpeed);
+    }
+    for (let x = 0; x < path.length;) xs.push(x = Math.min(path.length, x + v * factor(x) / FPS));
+    for (let k = 0; k < HOLD * FPS; k++) xs.push(path.length);
+    return xs;
+  }
+
+  /**
+   * Facteur de vitesse le long du parcours (fonction de x, en m) : rampe (ramp, voir timeline) et ralentissement aux
+   * carrefours regardés (looks, lookedJunctions) : vitesse ramenée à v / (1 + (v / lookSpeed)³)^(1/3) (presque rien
+   * sous lookSpeed, lookSpeed au plus au-dessus : 70 km/h → 45 à 50 km/h, 62 à 90, 70 à 360) pendant tout le regard
+   * (rotation, regard dans l'axe, retour), freinage et reprise en douceur sur LOOK_BRAKE s ; le plus fort des deux.
+   */
+  function curve(path, v, ramp, looks, lookSpeed) {
+    const n = Math.ceil(path.length) + 2;
+    let base = Array(n).fill(1);
     if (ramp) {
       const raw = [];  // facteur de vitesse par mètre
       for (let x = 0; x <= path.length + 1; x++) {
@@ -85,15 +106,27 @@ const Video = (() => {
         const slow = (Math.min(turn, RAMP_MARKED) + 2 * Math.max(0, turn - RAMP_MARKED)) / RAMP_TURN;
         raw.push(Math.max(RAMP_MIN, Math.min(1 / (1 + slow), RAMP_MIN + (1 - RAMP_MIN) * edge)));
       }
-      const smooth = raw.map((_, i) => {
+      base = raw.map((_, i) => {
         const part = raw.slice(Math.max(0, i - RAMP_SMOOTH), i + RAMP_SMOOTH + 1);
         return part.reduce((sum, f) => sum + f, 0) / part.length;
       });
-      factor = (x) => smooth[Math.min(smooth.length - 1, Math.max(0, Math.round(x)))];
     }
-    for (let x = 0; x < path.length;) xs.push(x = Math.min(path.length, x + v * factor(x) / FPS));
-    for (let k = 0; k < HOLD * FPS; k++) xs.push(path.length);
-    return xs;
+    if (looks.length && lookSpeed) {
+      const k = 1 / Math.cbrt(1 + (v / lookSpeed) ** 3), slow = v * k;
+      const brake = LOOK_BRAKE * (v + slow) / 2;  // m parcourus pendant le freinage (vitesse moyenne)
+      const ease = (p) => p * p * (3 - 2 * p);
+      for (const { x: at, left, right } of looks) {
+        const before = (LOOK_LEAD + LOOK_TURN) * slow;
+        const after = ((left != null && right != null ? 0.7 : 0.3) + LOOK_TURN / 2) * slow;
+        for (let x = Math.max(0, Math.floor(at - before - brake)); x < Math.min(n, at + after + brake); x++) {
+          const d = x - at;
+          const f = d < -before ? k + (1 - k) * ease((-before - d) / brake)
+            : d > after ? k + (1 - k) * ease((d - after) / brake) : k;
+          base[x] = Math.min(base[x], f);
+        }
+      }
+    }
+    return (x) => base[Math.min(base.length - 1, Math.max(0, Math.round(x)))];
   }
 
   /**
@@ -199,26 +232,7 @@ const Video = (() => {
         }
       }
     }
-    const found = [];
-    for (const { lonlat, branches } of junctions) {
-      let best = null;
-      for (let x = 0; x <= path.length; x += 2) {
-        const d = metres(path.at(x), lonlat);
-        if (d < 12 && (!best || d < best.d)) best = { x, d };
-      }
-      if (best && best.x > 30 && best.x < path.length - 10) found.push({ x: best.x, branches });
-    }
-    found.sort((a, b) => a.x - b.x);
-    let last = -Infinity;
-    for (const { x, branches } of found) {
-      if (x - last < LOOK_GAP) continue;
-      const rel = branches.map((b) => wrap(b - path.course(x)));
-      // Voie de chaque côté la plus proche de la perpendiculaire (axe de la voie croisée)
-      const side = (sign) => rel.filter((r) => sign * r > 30 && sign * r < 150)
-        .sort((a, b) => Math.abs(Math.abs(a) - 90) - Math.abs(Math.abs(b) - 90))[0];
-      const left = side(-1), right = side(1);
-      if (left == null && right == null) continue;
-      last = x;
+    for (const { x, left, right } of lookedJunctions(path, junctions)) {
       const aim = (r) => Math.sign(r) * Math.min(LOOK_MAX, Math.abs(r));
       // Images clés (secondes depuis le passage au carrefour, degrés) : dans l'axe de la voie au niveau du carrefour ;
       // retour dans l'axe du parcours symétrique de l'aller (même courbe), deux fois plus rapide (LOOK_TURN / 2)
@@ -237,8 +251,68 @@ const Video = (() => {
     return out;
   }
 
+  /** Carrefours regardés le long du parcours path (pans, timeline) : [{ x, left, right }] (x : position sur le
+   * parcours ; left, right : cap relatif de la voie croisée de chaque côté, la plus proche de la perpendiculaire, ou
+   * undefined) ; carrefour à plus de 12 m du parcours, à ses 30 premiers ou 10 derniers mètres, sans voie de côté ou à
+   * moins de LOOK_GAP m du précédent regardé : ignoré. */
+  function lookedJunctions(path, junctions = []) {
+    const found = [];
+    for (const { lonlat, branches } of junctions) {
+      let best = null;
+      for (let x = 0; x <= path.length; x += 2) {
+        const d = metres(path.at(x), lonlat);
+        if (d < 12 && (!best || d < best.d)) best = { x, d };
+      }
+      if (best && best.x > 30 && best.x < path.length - 10) found.push({ x: best.x, branches });
+    }
+    found.sort((a, b) => a.x - b.x);
+    const out = [];
+    let last = -Infinity;
+    for (const { x, branches } of found) {
+      if (x - last < LOOK_GAP) continue;
+      const rel = branches.map((b) => wrap(b - path.course(x)));
+      // Voie de chaque côté la plus proche de la perpendiculaire (axe de la voie croisée)
+      const side = (sign) => rel.filter((r) => sign * r > 30 && sign * r < 150)
+        .sort((a, b) => Math.abs(Math.abs(a) - 90) - Math.abs(Math.abs(b) - 90))[0];
+      const left = side(-1), right = side(1);
+      if (left == null && right == null) continue;
+      last = x;
+      out.push({ x, left, right });
+    }
+    return out;
+  }
+
+  /** Roulis (degrés) à chaque image de la chronologie xs : tonneaux aux endroits lonlats ([lon, lat], ramenés sur le
+   * parcours), tour complet en seconds s chacun (lent au départ et à l'arrivée), centré sur l'endroit, sens alterné dans
+   * l'ordre du parcours (le premier à droite, le suivant à gauche…) ; erreur si l'un est à plus de ROLL_REACH m. */
+  function rolls(path, xs, lonlats = [], seconds = ROLL_TIME) {
+    const out = xs.map(() => 0);
+    const places = lonlats.map((lonlat, k) => {
+      let best = null;
+      for (let x = 0; x <= path.length; x += 1) {
+        const d = metres(path.at(x), lonlat);
+        if (!best || d < best.d) best = { x, d };
+      }
+      if (best.d > ROLL_REACH) {
+        throw new Error(`tonneau n° ${k + 1} à ${Math.round(best.d)} m du parcours (${ROLL_REACH} m au plus)`);
+      }
+      return best.x;
+    }).sort((a, b) => a - b);
+    const half = seconds * FPS / 2, ease = (p) => p * p * (3 - 2 * p);
+    places.forEach((x, k) => {
+      const centre = Math.max(0, xs.findIndex((v) => v >= x)), sign = k % 2 ? -1 : 1;
+      for (let n = Math.max(0, Math.ceil(centre - half)); n <= Math.min(xs.length - 1, centre + half); n++) {
+        out[n] += sign * 360 * ease((n - centre + half) / (2 * half));
+      }
+    });
+    return out;
+  }
+
   /** Durée (s) de la vidéo des photos [record] à kmh, avec ou sans rampe de vitesse. */
-  const duration = (photos, kmh, ramp = false) => timeline(trajectory(photos), kmh / 3.6, ramp).length / FPS;
+  const duration = (photos, kmh, ramp = false, junctions = [], lookKmh = LOOK_SPEED) => {
+    const path = trajectory(photos);
+    return timeline(path, kmh / 3.6, ramp, lookedJunctions(path, junctions), lookKmh / 3.6).length / FPS;
+  };
 
   /** Exposition d'une photo : moyenne des logarithmes de R, V, B sur sa vignette, de 45° au-dessus de l'horizon à 20°
    * dessous (ni le haut du ciel, ni le toit du véhicule, sous ROOF), sur tout le tour d'horizon : deux photos voisines
@@ -403,6 +477,7 @@ const Video = (() => {
     uniform vec2 grid0, grid1;  // colonnes et lignes de la grille entière
     uniform vec4 cam0, cam1;  // cap de la route, tangage (radians), tan du demi-champ horizontal, avancée (m) depuis la photo
     uniform float look;  // regard décalé de l'axe de la route (radians, à droite) : panoramique, croisements
+    uniform float roll;  // roulis de l'image (radians) : tonneau
     uniform float aspect, blend, height, bowl, road, roof;
     uniform vec3 gain0, gain1;  // exposition de chaque photo (changement de séquence)
     vec4 pick(sampler2D t, vec4 crop, vec2 grid, vec4 cam) {
@@ -410,6 +485,7 @@ const Video = (() => {
       // point touché sur la maquette (chaussée dans l'axe de la route, sinon sphère), puis direction de ce point vue de
       // la caméra de la photo
       vec3 r = normalize(vec3(ndc.x * cam.z, ndc.y * cam.z / aspect, 1.0));
+      r = vec3(r.x * cos(roll) - r.y * sin(roll), r.x * sin(roll) + r.y * cos(roll), r.z);
       r = vec3(r.x * cos(look) + r.z * sin(look), r.y, -r.x * sin(look) + r.z * cos(look));
       vec3 o = vec3(0.0, 0.0, cam.w);
       float b = dot(o, r);
@@ -492,8 +568,9 @@ const Video = (() => {
       drop: (tex) => gl.deleteTexture(tex),
       /** Vue : views = [{ tex, crop, grid, yaw, pitch, tan, move, gain }] (yaw : cap de la route), look : regard décalé ; (photo quittée, photo suivante), blend : part de la
        * suivante ; weight < 1 : vue mêlée à l'image déjà dessinée dans cette proportion (moyenne du flou cinétique). */
-      draw(views, blend, weight = 1, look = 0) {
+      draw(views, blend, weight = 1, look = 0, roll = 0) {
         gl.uniform1f(u("look"), look);
+        gl.uniform1f(u("roll"), roll);
         if (weight < 1) {
           gl.enable(gl.BLEND);
           gl.blendColor(0, 0, 0, weight);
@@ -561,10 +638,12 @@ const Video = (() => {
    * précédente et celle-ci : le proche défilant vite s'étale) ; options.exposure : false pour ne pas accorder
    * l'exposition aux changements de séquence ; options.ramp : rampe de vitesse (timeline) ; options.title :
    * { text, sub } en titre au début ; options.counter : compteur PR (photo.pr, prAt) ; options.whip : panoramique au
-   * changement de séquence, options.junctions : carrefours où regarder (pans). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
+   * changement de séquence, options.junctions : carrefours où regarder (pans) ; options.rolls : endroits des tonneaux
+   * ([[lon, lat]…], rolls), options.rollTime : durée de chacun (s) ; options.lookSpeed : vitesse de regard aux carrefours (km/h). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
    */
   async function mp4(photos, kmh, progress = () => {}, signal = null,
-    { blur = false, exposure = true, ramp = false, title = null, counter = false, whip = false, junctions = [] } = {}) {
+    { blur = false, exposure = true, ramp = false, title = null, counter = false, whip = false, junctions = [], rolls: rollPlaces = [],
+    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED } = {}) {
     const path = trajectory(photos);
     if (path.list.length < 2 || path.length < 1) throw new Error("parcours trop court");
     const [chosen] = await Promise.all([encoderConfig(), loadMuxer()]);
@@ -580,8 +659,17 @@ const Video = (() => {
     const scaleOf = (t) => Math.min(1, 1.25 * (width / HFOV) / (t.size / (360 / t.cols)));
     const yawAt = (i, x) => wrap(path.course(x) - path.list[i].heading);
     const gains = exposure ? await exposures(path, signal) : path.list.map(() => [1, 1, 1]);
-    const xs = timeline(path, kmh / 3.6, ramp);
+    const xs = timeline(path, kmh / 3.6, ramp, lookedJunctions(path, junctions), lookSpeed / 3.6);
     const pan = pans(path, xs, { whip, junctions });
+    const tilt = rolls(path, xs, rollPlaces, rollTime);
+    // Image tournée par le tonneau : le coin de la vue passe en haut et en bas (demi-diagonale du champ)
+    const diagonal = 2 * Math.atan(Math.hypot(tan, tan * height / width)) / toRad;
+    const rolled = path.list.map(() => false);
+    xs.forEach((x, n) => {
+      if (!(Math.abs(tilt[n]) % 360)) return;
+      const i = path.segment(x)[0];
+      rolled[i] = rolled[Math.min(i + 1, path.list.length - 1)] = true;
+    });
     // Regard décalé (panoramique, croisements) : tuiles chargées d'autant plus larges pour les photos concernées
     const extra = path.list.map(() => 0);
     xs.forEach((x, n) => {
@@ -592,7 +680,8 @@ const Video = (() => {
     const load = (i) => {
       if (!loads.has(i)) {
         const photo = path.list[i];
-        const crop = cropOf(photo.tiles, yawAt(i, path.s[i]), photo.pitch, widest(HFOV) + 2 * extra[i], widest(vfov));
+        const crop = cropOf(photo.tiles, yawAt(i, path.s[i]), photo.pitch,
+          Math.max(widest(HFOV), rolled[i] ? widest(diagonal) : 0) + 2 * extra[i], rolled[i] ? widest(diagonal) : widest(vfov));
         // Zone élargie (regard décalé) : réduite au besoin pour tenir dans la plus grande texture du poste
         const t = photo.tiles, fit = Math.min(gl.max / (crop.nc * t.size), gl.max / (crop.nr * t.size));
         loads.set(i, loadCrop(photo, crop, Math.min(scaleOf(t), fit), signal).then((image) => {
@@ -618,9 +707,11 @@ const Video = (() => {
         // Flou cinétique : vues de la position de l'image précédente (exclue) à celle-ci, dans l'ordre du parcours ;
         // toujours pendant un pivot rapide du regard (panoramique, croisement), flou de mouvement de la rotation
         const before = pan[Math.max(0, n - 1)], turn = wrap(pan[n] - before);
+        // (écart au plus court : 360° puis 0° en fin de tonneau, même image, pas un tour à l'envers)
+        const rollBefore = tilt[Math.max(0, n - 1)], rollTurn = wrap(tilt[n] - rollBefore);
         // (une vue tous les 1,5° de rotation, BLUR à 48 : le tour du panoramique fait jusqu'à 60° par image)
-        const subs = Math.abs(turn) > 1 ? Math.min(48, Math.max(BLUR, Math.ceil(Math.abs(turn) / 1.5)))
-          : blur && at(n - 1) < x ? BLUR : 1;
+        const spin = Math.max(Math.abs(turn), Math.abs(rollTurn));
+        const subs = spin > 1 ? Math.min(48, Math.max(BLUR, Math.ceil(spin / 1.5))) : blur && at(n - 1) < x ? BLUR : 1;
         const first = path.segment(x - (x - at(n - 1)) * (subs - 1) / subs)[0];
         for (let k = first; k < Math.min(path.list.length, path.segment(x)[0] + AHEAD); k++) load(k).catch(() => {});
         for (const [k, job] of loads) {  // photos passées : textures rendues
@@ -632,6 +723,7 @@ const Video = (() => {
         for (let k = 0; k < subs; k++) {
           const xs = x - (x - at(n - 1)) * (subs - 1 - k) / subs;
           const look = (before + turn * (k + 1) / subs) * toRad;
+          const tilted = (rollBefore + rollTurn * (k + 1) / subs) * toRad;
           const [i, u] = path.segment(xs);
           const j = Math.min(i + 1, path.list.length - 1);
           const [a, b] = await Promise.all([load(i), load(j)]);
@@ -641,7 +733,7 @@ const Video = (() => {
           gl.draw([
             { ...a, yaw: yawAt(i, xs) * toRad, pitch: path.list[i].pitch, tan, move: u * gap, gain: gains[i] },
             { ...b, yaw: yawAt(j, xs) * toRad, pitch: path.list[j].pitch, tan, move: -(1 - u) * gap, gain: gains[j] },
-          ], j === i ? 0 : smooth(Math.min(1, Math.max(0, (u - 0.25) / 0.5))), 1 / (k + 1), look);
+          ], j === i ? 0 : smooth(Math.min(1, Math.max(0, (u - 0.25) / 0.5))), 1 / (k + 1), look, tilted);
         }
         // Titre et compteur PR : image recopiée dans un canevas 2D, puis écrits dessus
         let image = gl.canvas;
@@ -668,5 +760,5 @@ const Video = (() => {
     }
   }
 
-  return { supported, record, mp4, trajectory, timeline, duration, exposures, prAt, pans, FPS, HOLD };
+  return { supported, record, mp4, trajectory, timeline, duration, exposures, prAt, pans, rolls, lookedJunctions, FPS, HOLD };
 })();

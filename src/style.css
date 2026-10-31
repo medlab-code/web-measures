@@ -359,12 +359,13 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
    arrivée rouge ; pastilles reprises devant « Départ » et « Arrivée ». Forme dans ::before (masque SVG) : MapLibre
    impose son transform à l'élément du repère ; pas de position ici : celle de MapLibre (absolue) doit rester, sinon
    les repères s'empilent (arrivée décalée de la hauteur du départ) */
-.repere-requete:is(.depart, .arrivee) { width: 26px; height: 42px; border: 0; border-radius: 0;
+.repere-requete:is(.depart, .arrivee, .tonneau) { width: 26px; height: 42px; border: 0; border-radius: 0;
   background: none; box-shadow: none; --epingle: #d40000; filter: drop-shadow(-1px 1px 2px rgba(0, 0, 0, 0.5)); }
 .repere-requete.depart { --epingle: #1e9e3a; }
-.repere-requete:is(.depart, .arrivee)::before { content: ""; position: absolute; inset: 0; background: var(--epingle);
+.repere-requete.tonneau { --epingle: #1e6fd9; }  /* endroit du tonneau de la vidéo */
+.repere-requete:is(.depart, .arrivee, .tonneau)::before { content: ""; position: absolute; inset: 0; background: var(--epingle);
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 42'%3E%3Cpath d='M13 42 L4.6 21.5 A12 12 0 1 1 21.4 21.5 Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
-.repere-requete:is(.depart, .arrivee)::after { content: ""; position: absolute; left: 8px; top: 8px; width: 10px; height: 10px;
+.repere-requete:is(.depart, .arrivee, .tonneau)::after { content: ""; position: absolute; left: 8px; top: 8px; width: 10px; height: 10px;
   border-radius: 50%; background: #fff; }
 .pastille.depart { background: #1e9e3a; }
 .pastille.arrivee { background: #d40000; }
@@ -516,6 +517,12 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .options .option:first-child { border-top: 0; }
 .texte-option { flex: 1; min-width: 0; }
 .texte-option .aide { display: block; margin-top: 0.1rem; font-size: 0.85em; }
+.texte-option .reglette-option { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.2rem; font-size: 0.85em; }
+.texte-option .reglette-option input { width: 8em; margin: 0; }
+/* Valeur de largeur fixe (« 3 s », « 4,5 s », « 100 km/h ») : la réglette ne se décale pas pendant qu'on la tire */
+.texte-option .reglette-option output { display: inline-block; text-align: right; font-variant-numeric: tabular-nums; }
+#tonneau-valeur { min-width: 3.2em; }
+#regard-valeur { min-width: 4.8em; }
 input.interrupteur { appearance: none; flex: none; position: relative; width: 2.4rem; height: 1.35rem; margin: 0;
   border-radius: 999px; background: var(--bord); cursor: pointer; transition: background 0.15s; }
 input.interrupteur::before { content: ""; position: absolute; top: 0.15rem; left: 0.15rem; width: 1.05rem; height: 1.05rem;
@@ -1102,7 +1109,7 @@ dialog.avertissement form button:focus-visible { outline: 2px solid var(--texte)
 #parcours h3 { margin: 1rem 0 0.2rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.75; }
 #parcours .aide { font-size: 0.85em; opacity: 0.8; }
 #parcours button:disabled { opacity: 0.5; cursor: default; }
-#parcours .sur-carte { padding: 0 0.4rem; height: 28px; }
+#parcours .sur-carte { padding: 0 0.4rem; height: 28px; flex: none; }
 #parcours .sur-carte[aria-pressed="true"] { outline: 2px solid #ff6f00; }
 #parcours .lancer { display: flex; justify-content: center; margin: 0.6rem 0; }
 dialog.profil { max-width: min(52rem, calc(100vw - 16px)); }

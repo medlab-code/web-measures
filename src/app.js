@@ -2514,7 +2514,9 @@
   // (null si elle n'y passe pas) ; best, bestAt : plus courte distance (m) à l'arrivée et son point ; axis : vue
   // dans l'axe du véhicule ; freeYaw : en regard libre, écart réglé à l'avant du véhicule
   let tour = null;
-  let travelPick = null;  // 📍 de l'onglet « Vidéo » : point attendu sur la carte (« start », « end »)
+  let travelPick = null;  // 📍 de l'onglet « Vidéo » : point attendu sur la carte (« start », « end », « roll » : tonneau)
+  // Endroits des tonneaux de la vidéo : { lonlat, marker } (repère bleu sur la carte ; un clic dessus le retire)
+  let rollPoints = [];
   // Vues du dernier parcours (WebP réduits), pour son export en WebP animé ; tourTitle : son intitulé
   let tourViews = [], tourTitle = "";
   // Vidéo : parcours préparé (planPhotos : { photos, switches, dates, warning, title }), sa préparation ou son calcul en
@@ -3048,18 +3050,55 @@
     for (const button of travelPane.querySelectorAll(".sur-carte")) {
       button.setAttribute("aria-pressed", String(button.dataset.cote === which));
     }
-    if (which) setStatus(`Parcours : cliquez sur la mini-carte ${which === "start" ? "le départ" : "l'arrivée"} ; Échap pour annuler.`);
+    if (which) {
+      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau" }[which]} ; `
+        + "Échap pour annuler.");
+    }
   }
   async function pickTravelPoint(lngLat) {
     const which = travelPick;
     setTravelPick(null);
+    if (which === "roll") {  // tonneau : endroit ajouté, interrupteur activé ; le parcours ne change pas
+      const lonlat = [lngLat.lng, lngLat.lat];
+      const element = Object.assign(document.createElement("div"), { className: "repere-requete tonneau",
+        title: "Tonneau de la vidéo (clic : le retirer)" });
+      const point = { lonlat, marker: new maplibregl.Marker({ element, anchor: "bottom" }).setLngLat(lonlat).addTo(map) };
+      element.addEventListener("click", (event) => {
+        event.stopPropagation();  // pas un clic sur la carte
+        point.marker.remove();
+        rollPoints = rollPoints.filter((p) => p !== point);
+        if (!rollPoints.length) $("#video-tonneau").checked = false;
+        setStatus(`Tonneau retiré ; ${rollPoints.length || "aucun"} tonneau${rollPoints.length > 1 ? "x" : ""} restant${rollPoints.length > 1 ? "s" : ""}.`);
+      });
+      rollPoints.push(point);
+      $("#video-tonneau").checked = true;
+      setStatus(`Tonneau placé (${rollPoints.length} en tout ; sens alterné dans l'ordre du parcours, à moins de 30 m de `
+        + "lui) ; 📍 pour en ajouter un, clic sur un repère bleu pour le retirer.");
+      return;
+    }
     await travelFields.pick(which, [lngLat.lng, lngLat.lat]);
     videoPlan = null;
     updateTravel();
   }
   for (const button of travelPane.querySelectorAll(".sur-carte")) {
-    button.addEventListener("click", () => setTravelPick(travelPick === button.dataset.cote ? null : button.dataset.cote));
+    button.addEventListener("click", (event) => {
+      event.preventDefault();  // 📍 du tonneau : dans la ligne de l'interrupteur, sans le basculer
+      setTravelPick(travelPick === button.dataset.cote ? null : button.dataset.cote);
+    });
   }
+  // Vitesse de regard affichée à côté de sa réglette ; elle change la durée de la vidéo
+  $("#regard-vitesse").addEventListener("input", () => {
+    $("#regard-valeur").textContent = `${$("#regard-vitesse").value} km/h`;
+    updatePlayer();
+  });
+  // Durée du tonneau affichée à côté de sa réglette
+  $("#tonneau-duree").addEventListener("input", () => {
+    $("#tonneau-valeur").textContent = `${String($("#tonneau-duree").value).replace(".", ",")} s`;
+  });
+  // Tonneau activé sans endroit : le choisir sur la carte
+  $("#video-tonneau").addEventListener("change", () => {
+    if ($("#video-tonneau").checked && !rollPoints.length) setTravelPick("roll");
+  });
   $("#parcours-lancer").addEventListener("click", async () => {
     const button = $("#parcours-lancer");
     button.disabled = true;
@@ -3136,6 +3175,8 @@
       }, videoRun.signal, { blur: $("#video-flou").checked, exposure: $("#video-expo").checked, ramp: $("#video-rampe").checked,
         counter: $("#video-compteur").checked, whip: $("#video-pano").checked,
         junctions: $("#video-regard").checked ? videoPlan.junctions : [],
+        rolls: $("#video-tonneau").checked ? rollPoints.map((p) => p.lonlat) : [], rollTime: Number($("#tonneau-duree").value),
+        lookSpeed: Number($("#regard-vitesse").value),
         title: $("#video-titre").checked ? { text: videoPlan.title.replace(/\+0*(\d)/g, "+$1"),
           sub: `Photos du ${videoPlan.dates.map((d) => d.split("-").reverse().join("/")).join(", du ") || "?"}` } : null });
       await save(blob);
@@ -3153,7 +3194,7 @@
     }
   });
   $("#parcours-video-arret").addEventListener("click", () => videoRun?.abort());
-  for (const id of ["#video-vitesse", "#video-photos", "#video-rampe"]) $(id).addEventListener("change", updatePlayer);
+  for (const id of ["#video-vitesse", "#video-photos", "#video-rampe", "#video-regard"]) $(id).addEventListener("change", updatePlayer);
 
   /** PR de chaque photo (photo.pr : { route, n, m }, m en mètres depuis le PR n, ou null) pour le compteur de la
    * vidéo : sur la route du parcours (route), sinon sur celle du lieu (autre route après une bifurcation). Sections et PR
@@ -3203,7 +3244,8 @@
     const path = Video.trajectory(videoPhotos());
     const n = path.list.length, perSecond = v * (n - 1) / Math.max(1, path.length);
     return `${n} photos (une tous les ${(path.length / Math.max(1, n - 1)).toFixed(0)} m) · `
-      + `${Math.round(Video.duration(videoPhotos(), v * 3.6, $("#video-rampe").checked))} s · `
+      + `${Math.round(Video.duration(videoPhotos(), v * 3.6, $("#video-rampe").checked,
+        $("#video-regard").checked ? videoPlan.junctions : [], Number($("#regard-vitesse").value)))} s · `
       + `${perSecond.toFixed(perSecond < 10 ? 1 : 0)} photos/s${$("#video-rampe").checked ? " au plus" : ""}`
       + (perSecond > Video.FPS ? " (photos sautées)" : "") + (videoPlan.switches ? ` ⚠ ${videoWarning()}` : "");
   }
@@ -3234,7 +3276,7 @@
     $("#parcours-video").textContent = videoPlan ? "🎬 Enregistrer la vidéo" : "🎬 Préparer la vidéo";
     $("#parcours-video-arret").hidden = !videoRun;
     for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-expo", "#video-rampe", "#video-titre",
-      "#video-compteur", "#video-pano", "#video-regard"]) {
+      "#video-compteur", "#video-pano", "#video-regard", "#video-tonneau", "#tonneau-duree", "#regard-vitesse"]) {
       $(id).disabled = Boolean(videoRun);
     }
     if (!videoRun) $("#video-info").textContent = videoOk ? videoInfo() : "ce navigateur n'encode pas la vidéo";

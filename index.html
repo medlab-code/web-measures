@@ -430,9 +430,19 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <span class="texte-option">Panoramique au changement de séquence<span class="aide">Tour complet rapide sur le raccord.</span></span>
               <input id="video-pano" type="checkbox" class="interrupteur">
             </label>
-            <label class="option" title="Regard aux croisements : à l'approche d'un carrefour avec une route revêtue (BD TOPO), la vue se tourne vers la voie croisée, regarde dans son axe dès 0,9 s avant le carrefour et au passage (gauche puis droite s'il y en a des deux côtés), puis revient dans l'axe du parcours deux fois plus vite">
-              <span class="texte-option">Regard aux croisements<span class="aide">Dans l'axe de la voie croisée.</span></span>
+            <label class="option" title="Regard aux croisements : à l'approche d'un carrefour avec une route revêtue (BD TOPO), la vue se tourne vers la voie croisée, regarde dans son axe dès 0,9 s avant le carrefour et au passage (gauche puis droite s'il y en a des deux côtés), puis revient dans l'axe du parcours deux fois plus vite ; la vidéo ralentit autour du regard jusqu'à la vitesse de regard (presque rien en dessous, plafond progressif au-dessus : à 70 km/h, 90 → 62, 360 → 70 km/h)">
+              <span class="texte-option">Regard aux croisements<span class="aide">Dans l'axe de la voie croisée, en ralentissant.</span>
+                <span class="reglette-option">Vitesse de regard <output id="regard-valeur" for="regard-vitesse">70 km/h</output>
+                  <input id="regard-vitesse" type="range" min="30" max="130" step="10" value="70" aria-label="Vitesse de regard aux croisements (km/h)"></span></span>
               <input id="video-regard" type="checkbox" class="interrupteur">
+            </label>
+            <label class="option" title="Tonneau (barrel roll) : à l'endroit choisi sur la mini-carte (📍, à moins de 30 m du parcours), l'image fait un tour complet de roulis (durée réglable, 3 s par défaut), lent au départ et à l'arrivée, pendant que la caméra continue d'avancer">
+              <span class="texte-option">Tonneau<span class="aide">Tour complet de roulis, à l'endroit choisi.</span>
+                <span class="reglette-option">Durée <output id="tonneau-valeur" for="tonneau-duree">3 s</output>
+                  <input id="tonneau-duree" type="range" min="1" max="10" step="0.5" value="3" aria-label="Durée du tonneau (s)"></span></span>
+              <button type="button" class="sur-carte" data-cote="roll" aria-pressed="false"
+                title="Choisir l'endroit du tonneau d'un clic sur la mini-carte (Échap : annuler)">📍</button>
+              <input id="video-tonneau" type="checkbox" class="interrupteur">
             </label>
           </div>
           <p id="video-info" class="aide"></p>
