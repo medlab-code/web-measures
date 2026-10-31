@@ -1117,7 +1117,7 @@ dialog.avertissement form button:focus-visible { outline: 2px solid var(--texte)
 
 /* Bouton « Profil » : coupe du terrain en travers de la route (src/profil.js) */
 /* Onglet « Parcours » : champs du requêteur (route, PR) sur des lignes étiquetées */
-#parcours .ligne { display: flex; align-items: center; gap: 6px; margin: 0.45rem 0; }
+#parcours .ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0.45rem 0; }  /* boutons de la vidéo : à la ligne plutôt qu'en largeur */
 #parcours .champs-route .ligne > span:first-child { width: 5rem; font-weight: 600; white-space: nowrap; }
 #parcours .champ { flex: 0 0 auto; }
 #parcours .champ.route { width: 7rem; }

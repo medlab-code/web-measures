@@ -30,7 +30,7 @@ const END = [4.84938, 47.07541];  // PR 0, sur la RD18
     const dialog = doc.querySelector("#parcours");
     expect("onglet « Vidéo » affiché", !dialog.hidden);
     const tabs = doc.querySelector("#onglets");
-    expect("cinq onglets sans débordement", tabs.scrollWidth <= tabs.clientWidth, `${tabs.scrollWidth} > ${tabs.clientWidth}`);
+    expect("six onglets sans débordement", tabs.scrollWidth <= tabs.clientWidth, `${tabs.scrollWidth} > ${tabs.clientWidth}`);
     expect("panneau sans défilement horizontal", doc.querySelector("#contenu-panneau").scrollWidth <= doc.querySelector("#contenu-panneau").clientWidth);
     const [route, pr, end] = dialog.querySelectorAll(".champ input");
     const [distance, endDistance] = dialog.querySelectorAll(".distance");

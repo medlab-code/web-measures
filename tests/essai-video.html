@@ -664,7 +664,8 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       doc.querySelector("#video-photos").value = "4";
       button.click();
       await until(() => !doc.querySelector("#parcours-video-arret").hidden, 10000, "calcul lancé (« ■ Arrêter » affiché)");
-      await sleep(3000);
+      // Avancement lu dès qu'il paraît (avec la carte graphique, le calcul dure à peine quelques secondes)
+      await until(() => /image *[\u2007\d]*[1-9]/.test(status()), 30000, "avancement affiché");
       expect("avancement dans la ligne d'état", /Calcul de la vidéo en cours : image [\u2007\d]{5} \/ [\u2007\d]{5} \([\u2007\d]{3} %\)$/.test(status()), status());
       const statut = doc.querySelector("#statut");
       const bar = parseFloat(statut.style.getPropertyValue("--avancement"));
