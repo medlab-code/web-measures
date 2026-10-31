@@ -165,14 +165,14 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       log(`regard : aller ${peak - firstLook} images, retour ${last - hold} images`);
       expect("croisements : retour dans l'axe environ deux fois plus rapide que l'aller", Math.abs((peak - firstLook) / Math.max(1, last - hold) - 2) < 0.5, `${peak - firstLook} / ${last - hold}`);
       // Tonneau au milieu du parcours : tour complet en 3 s (90 images), sans retour ; endroit à plus de 30 m refusé
-      const rollAt = long.at(long.length / 2), turns = Video.rolls(long, plain, [rollAt]);
+      const rollAt = long.at(long.length / 3), turns = Video.rolls(long, plain, [rollAt]);  // pas au milieu : point d'intérêt
       const rolling = turns.filter((v) => v > 0 && v < 360).length;
       log(`tonneau : ${rolling} images de roulis, jusqu'à ${Math.max(...turns).toFixed(0)}°`);
       expect("tonneau : tour complet en 3 s environ (85 à 92 images)", rolling >= 85 && rolling <= 92 && Math.max(...turns) > 359, rolling);
       expect("tonneau : sans retour en arrière", turns.every((v, i) => !i || v >= turns[i - 1] || v === 0));
       const slow = Video.rolls(long, plain, [rollAt], 6).filter((v) => v > 0 && v < 360).length;
       // Plusieurs tonneaux, sens alterné dans l'ordre du parcours (posés dans le désordre)
-      const two = Video.rolls(long, plain, [long.at(long.length * 0.7), long.at(long.length * 0.3)]);
+      const two = Video.rolls(long, plain, [long.at(long.length * 0.8), long.at(long.length * 0.2)]);
       const firstSign = Math.sign(two.find((v) => v)), lastSign = Math.sign(two.findLast((v) => v));
       log(`deux tonneaux : ${two.filter((v) => v > 0).length} images dans un sens, ${two.filter((v) => v < 0).length} dans l'autre`);
       expect("tonneaux : le suivant tourne dans l'autre sens (ordre du parcours)", firstSign === 1 && lastSign === -1);
@@ -182,10 +182,72 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       let refused = "";
       try { Video.rolls(long, plain, [rollAt, [rollAt[0] + 0.01, rollAt[1]]]); } catch (error) { refused = error.message; }
       expect("tonneau : endroit loin du parcours refusé avec un message (n° du tonneau)", /tonneau n° 2 .* du parcours/.test(refused), refused);
+      // Point d'intérêt : cible à 60 m à gauche au milieu du parcours, objet relevé à 260 m d'altitude (20 m au-dessus
+      // d'un sol plat supposé à 240 m), zone non tracée (150 m de part et d'autre), zone x2 en bosse, 70 km/h
+      const mid = long.at(long.length / 2), side = (long.course(long.length / 2) - 90) * Math.PI / 180;
+      const target = [mid[0] + 60 * Math.sin(side) / (111320 * Math.cos(mid[1] * Math.PI / 180)), mid[1] + 60 * Math.cos(side) / 111320];
+      const flat = long.list.map(() => 240);
+      const poiTest = { target, z: 260, start: null, end: null, speed: 70, zoom: 2, zoomByDistance: false, roll: true,
+        ground: { target: 240, photos: [] } };
+      const span = Video.poiSpan(long, poiTest);
+      const views = Video.poiViews(long, plain, poiTest, flat);
+      const closest = plain.findIndex((x) => x >= span.xc);
+      log(`point d'intérêt : bornes ${span.x0.toFixed(0)} → ${span.x1.toFixed(0)} m, au plus près à ${span.xc.toFixed(0)} m (${span.dmin.toFixed(0)} m) ; `
+        + `au passage : regard ${views.yaw[closest].toFixed(0)}°, visée ${views.lift[closest].toFixed(1)}°, zoom × ${views.zoom[closest].toFixed(2)}`);
+      expect("intérêt : bornes à 150 m de part et d'autre du passage au plus près", Math.abs(span.xc - span.x0 - 150) < 2 && Math.abs(span.x1 - span.xc - 150) < 2);
+      expect("intérêt : regard vers la cible à gauche au passage (-80 à -100°)", views.yaw[closest] < -80 && views.yaw[closest] > -100, views.yaw[closest]);
+      expect("intérêt : visée en hauteur (20 m à 60 m, caméra à 2,4 m : ~ 16°)", Math.abs(views.lift[closest] - 16.3) < 1.5, views.lift[closest]);
+      expect("intérêt : zoom × 2 au plus près, × 1 hors de l'effet", Math.abs(views.zoom[closest] - 2) < 0.05 && views.zoom[5] === 1);
+      const byDistance = Video.poiViews(long, plain, { ...poiTest, zoomByDistance: true }, flat);
+      const afterRise = plain.findIndex((x) => x >= span.x0) + 31;
+      log(`zoom lié à la distance : × ${byDistance.zoom[afterRise].toFixed(2)} après la borne de début, × ${byDistance.zoom[closest].toFixed(2)} au plus près`);
+      expect("intérêt : zoom lié à la distance (× 2 de loin, × 1 au plus près)", byDistance.zoom[afterRise] > 1.9 && byDistance.zoom[closest] < 1.05);
+      const slowXs = Video.timeline(long, 100, false, [], null, { ...span, speed: 70 / 3.6 });
+      const sc = slowXs.findIndex((x) => x >= span.xc), poiSpeedKmh = (slowXs[sc + 1] - slowXs[sc]) * 30 * 3.6;
+      expect("intérêt : à 360 km/h, ~ 70 km/h entre les bornes", poiSpeedKmh > 66 && poiSpeedKmh < 72, poiSpeedKmh);
+      expect("intérêt : réglages par défaut (sans ralentir, × 1)", doc.querySelector("#interet-vitesse-valeur").textContent === "sans ralentir"
+        && doc.querySelector("#interet-zoom-valeur").textContent === "× 1");
+      expect("intérêt : sans objet relevé, liste des cibles grisée et invitation à en relever un",
+        doc.querySelector("#interet-cible").disabled && !doc.querySelector("#interet-aucun").hidden);
+      let farZone = "";
+      try { Video.poiSpan(long, { ...poiTest, start: [target[0] + 0.01, target[1]], end: null }); } catch (error) { farZone = error.message; }
+      expect("intérêt : zone tracée loin du parcours refusée avec un message", /début de la zone .* du parcours/.test(farZone), farZone);
+      const zoned = Video.poiSpan(long, { ...poiTest, start: long.at(400), end: long.at(800) });
+      expect("intérêt : zone tracée ramenée sur le parcours (400 → 800 m)", Math.abs(zoned.x0 - 400) < 2 && Math.abs(zoned.x1 - 800) < 2);
+      // Interface : objet relevé injecté (cible), liste remplie ; zone tracée par deux clics sur la mini-carte, portion
+      // du parcours en violet ; clic sur le trait : zone retirée
+      w.mesures.app.load_releve(JSON.stringify({ named: 1, points: [[target[0], target[1], { id: 1, nom: "A", releve: { Nom: "Église" },
+        z_ngf: 260, nb_visees: 2, incert_m: 0.4 }, {}]] }));
+      w.mesures.refresh();
+      const cible = doc.querySelector("#interet-cible");
+      log(`liste des cibles : ${[...cible.options].map((o) => o.textContent).join(" ; ")} ; grisée : ${cible.disabled}`);
+      expect("intérêt : objet relevé proposé comme cible", cible.options.length === 1 && /n° 1 · Église/.test(cible.options[0].textContent) && !cible.disabled
+        && doc.querySelector("#interet-aucun").hidden);
+      doc.querySelector("#video-interet").checked = true;
+      doc.querySelector("#video-interet").dispatchEvent(new w.Event("change"));
+      const m = w.mesures.map, click = (ll) => m.fire("click", { lngLat: new w.maplibregl.LngLat(...ll), point: m.project(ll), originalEvent: new w.MouseEvent("click") });
+      m.fitBounds([long.at(300), long.at(900)].reduce((b, p) => b.extend(p), new w.maplibregl.LngLatBounds()), { animate: false, padding: 40 });
+      doc.querySelector('#parcours .sur-carte[data-cote="poiZone"]').click();
+      click(long.at(400));
+      click(long.at(800));
+      await new Promise((resolve) => m.once("idle", resolve));
+      await sleep(300);
+      const zoneData = m.getSource("zone-interet")?.serialize().data, sectionData = m.getSource("zone-interet-parcours")?.serialize().data;
+      const sectionLength = sectionData?.features?.[0]?.geometry.coordinates.length || 0;
+      log(`zone tracée : ${zoneData?.features?.length || 0} trait, portion du parcours : ${sectionLength} points`);
+      expect("intérêt : zone tracée et portion du parcours en violet (400 → 800 m)", zoneData?.features?.length === 1 && sectionLength > 150);
+      const [z0, z1] = [long.at(400), long.at(800)];
+      click([(z0[0] + z1[0]) / 2, (z0[1] + z1[1]) / 2]);  // au milieu du trait (droit ; la route peut s'en écarter)
+      await sleep(300);
+      await new Promise((resolve) => (m.isStyleLoaded() ? resolve() : m.once("idle", resolve)));
+      expect("intérêt : clic sur le trait, zone retirée", !m.getSource("zone-interet").serialize().data.features.length);
       const sub = longPhotos.filter((_, i) => i % 8 === 0 || i === longPhotos.length - 1);
       const tv = await Video.mp4(sub, 720,
         (done, total) => { if (done % 60 === 0) log(`titre et compteur : image ${done} / ${total}`); }, null,
-        { counter: true, title: { text: "D115D PR 1+146 → PR 0+0", sub: "Photos du 10/07/2025" }, junctions: jn, rolls: [rollAt] });
+        { counter: true, title: { text: "D115D PR 1+146 → PR 0+0", sub: "Photos du 10/07/2025" }, junctions: jn, rolls: [rollAt],
+          poi: { ...poiTest, roll: false, z: 240, zoom: 1.5, ground: { target: 240, photos: sub.map(() => 240) } } });
+      const subPath = Video.trajectory(sub), subXs = Video.timeline(subPath, 200, false, [], null, { ...Video.poiSpan(subPath, poiTest), speed: 70 / 3.6 });
+      const poiFrame = subXs.findIndex((x) => x >= Video.poiSpan(subPath, poiTest).xc);
       const subRolls = Video.rolls(Video.trajectory(sub), Video.timeline(Video.trajectory(sub), 200, false), [rollAt]);
       const rollFrame = subRolls.findIndex((v) => v >= 120);
       const subLooks = Video.pans(Video.trajectory(sub), Video.timeline(Video.trajectory(sub), 200, false), { junctions: jn });
@@ -194,7 +256,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       const tvv = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(tv) });
       await new Promise((resolve) => { tvv.onloadedmetadata = resolve; });
       const shot = Object.assign(document.createElement("canvas"), { width: 960, height: 540 }), sctx = shot.getContext("2d");
-      for (const [name, t] of [["titre", 1], ["compteur", tvv.duration / 2], ["regard", (lookFrame + 0.5) / 30], ["tonneau", (rollFrame + 0.5) / 30]]) {
+      for (const [name, t] of [["titre", 1], ["compteur", tvv.duration / 2], ["regard", (lookFrame + 0.5) / 30], ["tonneau", (rollFrame + 0.5) / 30], ["interet", (poiFrame + 0.5) / 30]]) {
         tvv.currentTime = t;
         await new Promise((resolve) => { tvv.onseeked = resolve; });
         sctx.drawImage(tvv, 0, 0, 960, 540);

@@ -436,6 +436,22 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
                   <input id="regard-vitesse" type="range" min="30" max="130" step="10" value="70" aria-label="Vitesse de regard aux croisements (km/h)"></span></span>
               <input id="video-regard" type="checkbox" class="interrupteur">
             </label>
+            <!-- Point d'intérêt : div (pas label) pour contenir sa liste, ses réglettes et ses interrupteurs -->
+            <div class="option" title="Point d'intérêt : la cible est un objet du relevé (onglet Résultats), triangulé dans Mesure → Relevé d'objets : sa position et son altitude font viser juste, jusqu'en hauteur. Zone de l'effet : ✏ Zone puis deux clics sur la mini-carte le long de la route (extrémités ramenées sur le parcours, à 30 m au plus ; portion en violet une fois la vidéo préparée ; clic sur le trait : le retirer) ; sans trait, 150 m avant et après le passage au plus près. Dans la zone, la vue se tourne vers la cible en 1 s et la suit, puis revient dans l'axe deux fois plus vite.">
+              <span class="texte-option">Point d'intérêt<span class="aide">La vue suit la cible dans la zone tracée.</span>
+                <span class="reglette-option">Cible <select id="interet-cible" aria-label="Cible : objet du relevé" disabled></select></span>
+                <span id="interet-aucun" class="aide avertissement-option">Aucun objet relevé : créez la cible dans Mesure → Relevé d'objets, visez-la depuis au moins deux photos, puis « Valider le point triangulé ».</span>
+                <span class="reglette-option">Vitesse <output id="interet-vitesse-valeur" for="interet-vitesse">sans ralentir</output>
+                  <input id="interet-vitesse" type="range" min="30" max="140" step="10" value="140" aria-label="Vitesse pendant l'effet (km/h ; au bout : sans ralentir)"></span>
+                <span class="reglette-option">Zoom max <output id="interet-zoom-valeur" for="interet-zoom">× 1</output>
+                  <input id="interet-zoom" type="range" min="1" max="3" step="0.1" value="1" aria-label="Zoom au plus fort (net jusqu'à × 1,4 environ)"></span>
+                <label class="reglette-option" title="Zoom lié à la distance : la cible garde à peu près sa taille à l'écran (zoom plus fort de loin, × 1 au plus près), dans la limite du zoom max ; sinon le zoom monte jusqu'au passage au plus près puis redescend"><input id="interet-zoom-distance" type="checkbox" class="interrupteur petit"> Zoom lié à la distance</label>
+                <label class="reglette-option" title="Tonneau au passage au plus près de la cible (durée et alternance des sens : ceux des tonneaux)"><input id="interet-tonneau" type="checkbox" class="interrupteur petit"> Tonneau au plus près</label>
+              </span>
+              <button type="button" class="sur-carte" data-cote="poiZone" aria-pressed="false"
+                title="Tracer la zone de l'effet : deux clics sur la mini-carte le long de la route (Échap : annuler)">✏ Zone</button>
+              <input id="video-interet" type="checkbox" class="interrupteur" aria-label="Point d'intérêt">
+            </div>
             <label class="option" title="Tonneau (barrel roll) : à l'endroit choisi sur la mini-carte (📍, à moins de 30 m du parcours), l'image fait un tour complet de roulis (durée réglable, 3 s par défaut), lent au départ et à l'arrivée, pendant que la caméra continue d'avancer">
               <span class="texte-option">Tonneau<span class="aide">Tour complet de roulis, à l'endroit choisi.</span>
                 <span class="reglette-option">Durée <output id="tonneau-valeur" for="tonneau-duree">3 s</output>

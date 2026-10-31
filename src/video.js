@@ -46,6 +46,8 @@ const Video = (() => {
   const LOOK_TURN = 0.8;  // s : rotation vers la voie croisée ; retour dans l'axe du parcours en LOOK_TURN / 2
   const LOOK_BRAKE = 1.5;  // s : freinage avant le regard d'un carrefour, et reprise après
   const LOOK_SPEED = 70;  // km/h : vitesse de regard par défaut (réglette de 30 à 130)
+  const POI_SPAN = 150;  // m : bornes de l'effet du point d'intérêt non posées : avant et après le passage au plus près
+  const POI_IN = 1;  // s : vue tournée vers la cible après la borne de début ; retour dans l'axe en POI_IN / 2 après la fin
   const LOOK_MAX = 120;  // degrés : regard dans l'axe d'une voie croisée au plus (voie qui repart vers l'arrière)
   const LOOK_GAP = 60;  // m : carrefours plus proches du précédent regardé (giratoire, double carrefour) : un seul regard
   const ROLL_TIME = 3;  // s : tour complet du tonneau par défaut (réglette de 1 à 10 s ; pas trop rapide : demande)
@@ -77,11 +79,11 @@ const Video = (() => {
    * cap lissé / RAMP_TURN), la rotation au-delà de RAMP_MARKED °/m comptant double ; au plus bas RAMP_MIN·v) et en douceur sur RAMP_EDGE m au départ et à l'arrivée,
    * lissée sur ± RAMP_SMOOTH m : v devient la vitesse des lignes droites.
    */
-  function timeline(path, v, ramp, looks = [], lookSpeed = null) {
+  function timeline(path, v, ramp, looks = [], lookSpeed = null, poiSlow = null) {
     const xs = Array(HOLD * FPS + 1).fill(0);
     let factor = () => 1;
-    if (ramp || (looks.length && lookSpeed)) {
-      factor = curve(path, v, ramp, looks, lookSpeed);
+    if (ramp || (looks.length && lookSpeed) || poiSlow) {
+      factor = curve(path, v, ramp, looks, lookSpeed, poiSlow);
     }
     for (let x = 0; x < path.length;) xs.push(x = Math.min(path.length, x + v * factor(x) / FPS));
     for (let k = 0; k < HOLD * FPS; k++) xs.push(path.length);
@@ -92,9 +94,10 @@ const Video = (() => {
    * Facteur de vitesse le long du parcours (fonction de x, en m) : rampe (ramp, voir timeline) et ralentissement aux
    * carrefours regardés (looks, lookedJunctions) : vitesse ramenée à v / (1 + (v / lookSpeed)³)^(1/3) (presque rien
    * sous lookSpeed, lookSpeed au plus au-dessus : 70 km/h → 45 à 50 km/h, 62 à 90, 70 à 360) pendant tout le regard
-   * (rotation, regard dans l'axe, retour), freinage et reprise en douceur sur LOOK_BRAKE s ; le plus fort des deux.
+   * (rotation, regard dans l'axe, retour), freinage et reprise en douceur sur LOOK_BRAKE s ; de même entre les bornes du
+   * point d'intérêt (poiSlow : { x0, x1, speed } en m et m/s) ; le plus fort des ralentissements.
    */
-  function curve(path, v, ramp, looks, lookSpeed) {
+  function curve(path, v, ramp, looks, lookSpeed, poiSlow = null) {
     const n = Math.ceil(path.length) + 2;
     let base = Array(n).fill(1);
     if (ramp) {
@@ -124,6 +127,15 @@ const Video = (() => {
             : d > after ? k + (1 - k) * ease((d - after) / brake) : k;
           base[x] = Math.min(base[x], f);
         }
+      }
+    }
+    if (poiSlow) {
+      const k = 1 / Math.cbrt(1 + (v / poiSlow.speed) ** 3), slow = v * k;
+      const brake = LOOK_BRAKE * (v + slow) / 2;
+      for (let x = Math.max(0, Math.floor(poiSlow.x0 - brake)); x < Math.min(n, poiSlow.x1 + brake); x++) {
+        const f = x < poiSlow.x0 ? k + (1 - k) * smooth((poiSlow.x0 - x) / brake)
+          : x > poiSlow.x1 ? k + (1 - k) * smooth((x - poiSlow.x1) / brake) : k;
+        base[x] = Math.min(base[x], f);
       }
     }
     return (x) => base[Math.min(base.length - 1, Math.max(0, Math.round(x)))];
@@ -282,6 +294,73 @@ const Video = (() => {
     return out;
   }
 
+  /**
+   * Étendue de l'effet du point d'intérêt poi (options.poi de mp4) sur le parcours path : { x0, x1, xc, dmin } (bornes
+   * de début et de fin, passage au plus près de la cible, distance à la cible alors) ; bornes posées ramenées sur le
+   * parcours (extrémités de la zone tracée, ROLL_REACH m au plus, sinon erreur), sinon POI_SPAN m avant et après le
+   * passage au plus près.
+   */
+  function poiSpan(path, poi) {
+    const nearest = (lonlat) => {
+      let best = null;
+      for (let x = 0; x <= path.length; x++) {
+        const d = metres(path.at(x), lonlat);
+        if (!best || d < best.d) best = { x, d };
+      }
+      return best;
+    };
+    const c = nearest(poi.target);
+    const bound = (lonlat, name, fallback) => {
+      if (!lonlat) return fallback;
+      const b = nearest(lonlat);
+      if (b.d > ROLL_REACH) throw new Error(`${name} de la zone du point d'intérêt à ${Math.round(b.d)} m du parcours (${ROLL_REACH} m au plus)`);
+      return b.x;
+    };
+    let x0 = bound(poi.start, "début", Math.max(0, c.x - POI_SPAN)), x1 = bound(poi.end, "fin", Math.min(path.length, c.x + POI_SPAN));
+    if (x1 < x0) [x0, x1] = [x1, x0];
+    return { x0, x1, xc: Math.min(x1, Math.max(x0, c.x)), dmin: Math.max(1, c.d) };
+  }
+
+  /**
+   * Effet du point d'intérêt à chaque image de la chronologie xs : { yaw, lift, zoom, span } ; yaw : regard vers la
+   * cible (cap depuis la caméra, LOOK_MAX° au plus), lift : visée en hauteur (degrés, altitude de l'objet relevé poi.z,
+   * sinon du sol sous la cible, contre sol sous la caméra + CAM_HEIGHT ; inconnues : à l'horizontale ; ground : altitudes
+   * du sol, par photo de path.list), zoom : jusqu'à poi.zoom, en bosse au passage au plus près ou, avec poi.zoomByDistance, en
+   * proportion de la distance (cible de taille à peu près constante) ; le tout pesé de 0 à 1 en POI_IN s après la borne
+   * de début, de 1 à 0 en POI_IN / 2 s après celle de fin.
+   */
+  function poiViews(path, xs, poi, ground) {
+    const yaw = xs.map(() => 0), lift = xs.map(() => 0), zoom = xs.map(() => 1);
+    if (!poi) return { yaw, lift, zoom, span: null };
+    const span = poiSpan(path, poi);
+    const frame = (x) => {
+      const n = xs.findIndex((v) => v >= x);
+      return n < 0 ? xs.length - 1 : n;
+    };
+    const n0 = frame(span.x0), n1 = frame(span.x1), rise = POI_IN * FPS, fall = POI_IN * FPS / 2;
+    const camAlt = (x) => {
+      const [i, u] = path.segment(x), j = Math.min(i + 1, path.list.length - 1);
+      return ground?.[i] != null && ground?.[j] != null ? ground[i] + (ground[j] - ground[i]) * u + CAM_HEIGHT : null;
+    };
+    // Altitude visée : celle de l'objet relevé (triangulé) ; sinon le sol sous la cible ; sinon à l'horizontale
+    const targetAlt = poi.z ?? poi.ground?.target ?? null;
+    for (let n = n0; n <= Math.min(xs.length - 1, n1 + fall); n++) {
+      const w = n < n0 + rise ? smooth((n - n0) / rise) : n <= n1 ? 1 : 1 - smooth(Math.min(1, (n - n1) / fall));
+      const x = xs[n], at = path.at(x), d = Math.max(1, metres(at, poi.target));
+      const rel = wrap(bearing(at, poi.target) - path.course(x));
+      yaw[n] = w * Math.sign(rel) * Math.min(LOOK_MAX, Math.abs(rel));
+      const cam = camAlt(x);
+      if (targetAlt != null && cam != null) lift[n] = w * Math.max(-60, Math.min(60, Math.atan2(targetAlt - cam, d) / toRad));
+      if (poi.zoom > 1) {
+        const bump = x <= span.xc ? smooth(Math.min(1, Math.max(0, (x - span.x0) / Math.max(1, span.xc - span.x0))))
+          : smooth(Math.min(1, Math.max(0, (span.x1 - x) / Math.max(1, span.x1 - span.xc))));
+        const z = poi.zoomByDistance ? Math.min(poi.zoom, Math.max(1, d / span.dmin)) : 1 + (poi.zoom - 1) * bump;
+        zoom[n] = 1 + (z - 1) * w;
+      }
+    }
+    return { yaw, lift, zoom, span };
+  }
+
   /** Roulis (degrés) à chaque image de la chronologie xs : tonneaux aux endroits lonlats ([lon, lat], ramenés sur le
    * parcours), tour complet en seconds s chacun (lent au départ et à l'arrivée), centré sur l'endroit, sens alterné dans
    * l'ordre du parcours (le premier à droite, le suivant à gauche…) ; erreur si l'un est à plus de ROLL_REACH m. */
@@ -309,9 +388,13 @@ const Video = (() => {
   }
 
   /** Durée (s) de la vidéo des photos [record] à kmh, avec ou sans rampe de vitesse. */
-  const duration = (photos, kmh, ramp = false, junctions = [], lookKmh = LOOK_SPEED) => {
+  const duration = (photos, kmh, ramp = false, junctions = [], lookKmh = LOOK_SPEED, poi = null) => {
     const path = trajectory(photos);
-    return timeline(path, kmh / 3.6, ramp, lookedJunctions(path, junctions), lookKmh / 3.6).length / FPS;
+    let poiSlow = null;
+    try {
+      if (poi?.speed) poiSlow = { ...poiSpan(path, poi), speed: poi.speed / 3.6 };
+    } catch { /* borne loin du parcours : signalée au calcul de la vidéo */ }
+    return timeline(path, kmh / 3.6, ramp, lookedJunctions(path, junctions), lookKmh / 3.6, poiSlow).length / FPS;
   };
 
   /** Exposition d'une photo : moyenne des logarithmes de R, V, B sur sa vignette, de 45° au-dessus de l'horizon à 20°
@@ -429,7 +512,7 @@ const Video = (() => {
   /** Image (OffscreenCanvas) des tuiles crop de la photo, réduite du facteur scale ; tuile perdue : transparente. */
   async function loadCrop(photo, crop, scale, signal) {
     const t = photo.tiles;
-    const size = Math.round(t.size * scale);
+    const size = Math.floor(t.size * scale);  // vers le bas : la découpe ne dépasse pas la texture visée
     if (t.image) {
       const bitmap = await createImageBitmap(await (await fetch(t.image, { signal })).blob());
       const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
@@ -478,6 +561,7 @@ const Video = (() => {
     uniform vec4 cam0, cam1;  // cap de la route, tangage (radians), tan du demi-champ horizontal, avancée (m) depuis la photo
     uniform float look;  // regard décalé de l'axe de la route (radians, à droite) : panoramique, croisements
     uniform float roll;  // roulis de l'image (radians) : tonneau
+    uniform float lift;  // regard levé (radians) : visée en hauteur du point d'intérêt
     uniform float aspect, blend, height, bowl, road, roof;
     uniform vec3 gain0, gain1;  // exposition de chaque photo (changement de séquence)
     vec4 pick(sampler2D t, vec4 crop, vec2 grid, vec4 cam) {
@@ -486,6 +570,7 @@ const Video = (() => {
       // la caméra de la photo
       vec3 r = normalize(vec3(ndc.x * cam.z, ndc.y * cam.z / aspect, 1.0));
       r = vec3(r.x * cos(roll) - r.y * sin(roll), r.x * sin(roll) + r.y * cos(roll), r.z);
+      r = vec3(r.x, r.y * cos(lift) + r.z * sin(lift), -r.y * sin(lift) + r.z * cos(lift));
       r = vec3(r.x * cos(look) + r.z * sin(look), r.y, -r.x * sin(look) + r.z * cos(look));
       vec3 o = vec3(0.0, 0.0, cam.w);
       float b = dot(o, r);
@@ -568,9 +653,10 @@ const Video = (() => {
       drop: (tex) => gl.deleteTexture(tex),
       /** Vue : views = [{ tex, crop, grid, yaw, pitch, tan, move, gain }] (yaw : cap de la route), look : regard décalé ; (photo quittée, photo suivante), blend : part de la
        * suivante ; weight < 1 : vue mêlée à l'image déjà dessinée dans cette proportion (moyenne du flou cinétique). */
-      draw(views, blend, weight = 1, look = 0, roll = 0) {
+      draw(views, blend, weight = 1, look = 0, roll = 0, lift = 0) {
         gl.uniform1f(u("look"), look);
         gl.uniform1f(u("roll"), roll);
+        gl.uniform1f(u("lift"), lift);
         if (weight < 1) {
           gl.enable(gl.BLEND);
           gl.blendColor(0, 0, 0, weight);
@@ -639,11 +725,14 @@ const Video = (() => {
    * l'exposition aux changements de séquence ; options.ramp : rampe de vitesse (timeline) ; options.title :
    * { text, sub } en titre au début ; options.counter : compteur PR (photo.pr, prAt) ; options.whip : panoramique au
    * changement de séquence, options.junctions : carrefours où regarder (pans) ; options.rolls : endroits des tonneaux
-   * ([[lon, lat]…], rolls), options.rollTime : durée de chacun (s) ; options.lookSpeed : vitesse de regard aux carrefours (km/h). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
+   * ([[lon, lat]…], rolls), options.rollTime : durée de chacun (s) ; options.lookSpeed : vitesse de regard aux carrefours (km/h) ;
+   * options.poi : point d'intérêt { target, z (altitude NGF de l'objet relevé ou null), start, end (extrémités de la
+   * zone tracée, [lon, lat] ou null), speed (km/h ou null), zoom, zoomByDistance, roll, ground: { target, photos }
+   * (altitudes du sol, par photo de photos) } (poiViews). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
    */
   async function mp4(photos, kmh, progress = () => {}, signal = null,
     { blur = false, exposure = true, ramp = false, title = null, counter = false, whip = false, junctions = [], rolls: rollPlaces = [],
-    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED } = {}) {
+    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null } = {}) {
     const path = trajectory(photos);
     if (path.list.length < 2 || path.length < 1) throw new Error("parcours trop court");
     const [chosen] = await Promise.all([encoderConfig(), loadMuxer()]);
@@ -659,9 +748,15 @@ const Video = (() => {
     const scaleOf = (t) => Math.min(1, 1.25 * (width / HFOV) / (t.size / (360 / t.cols)));
     const yawAt = (i, x) => wrap(path.course(x) - path.list[i].heading);
     const gains = exposure ? await exposures(path, signal) : path.list.map(() => [1, 1, 1]);
-    const xs = timeline(path, kmh / 3.6, ramp, lookedJunctions(path, junctions), lookSpeed / 3.6);
+    const span = poi ? poiSpan(path, poi) : null;
+    const xs = timeline(path, kmh / 3.6, ramp, lookedJunctions(path, junctions), lookSpeed / 3.6,
+      poi?.speed ? { ...span, speed: poi.speed / 3.6 } : null);
     const pan = pans(path, xs, { whip, junctions });
-    const tilt = rolls(path, xs, rollPlaces, rollTime);
+    // Point d'intérêt : regard vers la cible (ajouté au décalage du regard), visée en hauteur, zoom ; tonneau au plus près
+    const ground = poi?.ground ? path.list.map((p) => poi.ground.photos[photos.indexOf(p)] ?? null) : null;
+    const aim = poiViews(path, xs, poi, ground);
+    aim.yaw.forEach((v, n) => { pan[n] += v; });
+    const tilt = rolls(path, xs, poi?.roll ? [...rollPlaces, path.at(span.xc)] : rollPlaces, rollTime);
     // Image tournée par le tonneau : le coin de la vue passe en haut et en bas (demi-diagonale du champ)
     const diagonal = 2 * Math.atan(Math.hypot(tan, tan * height / width)) / toRad;
     const rolled = path.list.map(() => false);
@@ -672,19 +767,26 @@ const Video = (() => {
     });
     // Regard décalé (panoramique, croisements) : tuiles chargées d'autant plus larges pour les photos concernées
     const extra = path.list.map(() => 0);
+    const raise = path.list.map(() => 0), sharp = path.list.map(() => 1);  // visée en hauteur, zoom : par photo
     xs.forEach((x, n) => {
       const i = path.segment(x)[0], off = Math.min(180, Math.abs(pan[n]));  // tour complet : tout le panorama
-      for (const k of [i, Math.min(i + 1, path.list.length - 1)]) extra[k] = Math.max(extra[k], off);
+      for (const k of [i, Math.min(i + 1, path.list.length - 1)]) {
+        extra[k] = Math.max(extra[k], off);
+        raise[k] = Math.max(raise[k], Math.abs(aim.lift[n]));
+        sharp[k] = Math.max(sharp[k], aim.zoom[n]);
+      }
     });
     const loads = new Map();  // rang de la photo -> Promise de { tex, crop, grid }
     const load = (i) => {
       if (!loads.has(i)) {
         const photo = path.list[i];
         const crop = cropOf(photo.tiles, yawAt(i, path.s[i]), photo.pitch,
-          Math.max(widest(HFOV), rolled[i] ? widest(diagonal) : 0) + 2 * extra[i], rolled[i] ? widest(diagonal) : widest(vfov));
+          Math.max(widest(HFOV), rolled[i] ? widest(diagonal) : 0) + 2 * extra[i],
+          (rolled[i] ? widest(diagonal) : widest(vfov)) + 2 * raise[i]);
         // Zone élargie (regard décalé) : réduite au besoin pour tenir dans la plus grande texture du poste
         const t = photo.tiles, fit = Math.min(gl.max / (crop.nc * t.size), gl.max / (crop.nr * t.size));
-        loads.set(i, loadCrop(photo, crop, Math.min(scaleOf(t), fit), signal).then((image) => {
+        // Zoom : tuiles moins réduites, jusqu'à leur pleine définition (au-delà de × 1,4 environ, l'image s'adoucit)
+        loads.set(i, loadCrop(photo, crop, Math.min(scaleOf(t) * sharp[i], 1, fit), signal).then((image) => {
           if (image.width > gl.max || image.height > gl.max) throw new Error(`image trop grande (${image.width} px)`);
           return { tex: gl.texture(image), crop, grid: [photo.tiles.cols, photo.tiles.rows] };
         }));
@@ -722,7 +824,7 @@ const Video = (() => {
         }
         for (let k = 0; k < subs; k++) {
           const xs = x - (x - at(n - 1)) * (subs - 1 - k) / subs;
-          const look = (before + turn * (k + 1) / subs) * toRad;
+          const look = (before + turn * (k + 1) / subs) * toRad, view = tan / aim.zoom[n];
           const tilted = (rollBefore + rollTurn * (k + 1) / subs) * toRad;
           const [i, u] = path.segment(xs);
           const j = Math.min(i + 1, path.list.length - 1);
@@ -731,9 +833,9 @@ const Video = (() => {
           // moyenne courante
           const gap = Math.min(path.s[j] - path.s[i], GAP);
           gl.draw([
-            { ...a, yaw: yawAt(i, xs) * toRad, pitch: path.list[i].pitch, tan, move: u * gap, gain: gains[i] },
-            { ...b, yaw: yawAt(j, xs) * toRad, pitch: path.list[j].pitch, tan, move: -(1 - u) * gap, gain: gains[j] },
-          ], j === i ? 0 : smooth(Math.min(1, Math.max(0, (u - 0.25) / 0.5))), 1 / (k + 1), look, tilted);
+            { ...a, yaw: yawAt(i, xs) * toRad, pitch: path.list[i].pitch, tan: view, move: u * gap, gain: gains[i] },
+            { ...b, yaw: yawAt(j, xs) * toRad, pitch: path.list[j].pitch, tan: view, move: -(1 - u) * gap, gain: gains[j] },
+          ], j === i ? 0 : smooth(Math.min(1, Math.max(0, (u - 0.25) / 0.5))), 1 / (k + 1), look, tilted, aim.lift[n] * toRad);
         }
         // Titre et compteur PR : image recopiée dans un canevas 2D, puis écrits dessus
         let image = gl.canvas;
@@ -760,5 +862,6 @@ const Video = (() => {
     }
   }
 
-  return { supported, record, mp4, trajectory, timeline, duration, exposures, prAt, pans, rolls, lookedJunctions, FPS, HOLD };
+  return { supported, record, mp4, trajectory, timeline, duration, exposures, prAt, pans, rolls, lookedJunctions,
+    poiSpan, poiViews, FPS, HOLD };
 })();

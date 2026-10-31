@@ -152,7 +152,19 @@ voie à 10 m du carrefour, 120° au plus ; voies des deux côtés : la gauche ju
 revient dans l'axe du parcours par le même mouvement, deux fois plus vite (un seul regard pour des carrefours à moins
 de 60 m, giratoire) ; pour avoir le temps de voir la voie, la vidéo ralentit pendant tout le regard (freinage et
 reprise en 1,5 s) jusqu'à la « vitesse de regard » (réglette de 30 à 130 km/h, 70 par défaut), en plafond progressif :
-v / (1 + (v / V)³)^(1/3), presque rien en dessous (30 → 29 km/h), V au plus au-dessus (90 → 62, 360 → 70 km/h) ; la maquette de la chaussée reste dans l'axe de la route. « Tonneau » (décochée) : aux endroits choisis par 📍 sur la mini-carte (un par clic, repère bleu, un clic
+v / (1 + (v / V)³)^(1/3), presque rien en dessous (30 → 29 km/h), V au plus au-dessus (90 → 62, 360 → 70 km/h) ; la maquette de la chaussée reste dans l'axe de la route. « Point d'intérêt » (décochée, un seul pour l'instant) : la cible est un objet du relevé (liste « Cible » :
+« n° 3 · premier champ »), triangulé dans Mesure → Relevé d'objets ; sans objet, la liste est grisée et invite à en
+relever un. Sa position et son altitude NGF font viser juste, jusqu'en hauteur (le sommet d'un clocher si c'est lui
+qu'on a visé) ; la caméra : sol sous elle (LiDAR HD, sinon RGE ALTI) plus 2,4 m ; objet sans altitude : sol sous lui.
+Zone de l'effet : « ✏ Zone » puis deux clics sur la mini-carte le long de la route (seules les extrémités comptent,
+ramenées sur le parcours à 30 m au plus ; la vidéo préparée, la portion du parcours concernée s'affiche en violet ;
+clic sur le trait : zone retirée) ; sans trait, 150 m avant et après le passage au plus près. Dans la zone, la vue se
+tourne vers la cible en 1 s et la suit (120° au plus), puis revient dans l'axe en 0,5 s. Réglettes : vitesse pendant
+l'effet (de 30 à 130 km/h, même plafond progressif que le regard aux croisements, ou « sans ralentir »), zoom max
+(× 1 à × 3 ; net jusqu'à × 1,4 environ, les tuiles étant prises en pleine définition) ; interrupteurs « Zoom lié à
+la distance » (la cible garde à peu près sa taille : zoom plus fort de loin, × 1 au plus près ; sinon il monte
+jusqu'au passage au plus près puis redescend) et « Tonneau au plus près » (durée et alternance des tonneaux).
+« Tonneau » (décochée) : aux endroits choisis par 📍 sur la mini-carte (un par clic, repère bleu, un clic
 sur le repère le retire ; à moins de 30 m du parcours, sinon la vidéo le refuse avec son numéro), l'image fait un
 tour complet de roulis, dans un sens puis dans l'autre d'un tonneau au suivant (ordre du parcours) (durée réglable de 1 à 10 s, 3 s par défaut), lent au
 départ et à l'arrivée, pendant que la caméra avance ; titre et compteur restent droits ; activer l'interrupteur sans endroit

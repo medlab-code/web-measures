@@ -1056,6 +1056,15 @@
   // Choix de la photo sur la carte ---------------------------------------------------------
 
   map.on("click", (event) => {
+    // Clic sur le trait de la zone du point d'intérêt (hors tracé) : zone retirée
+    if (!travelPick && poi.zone && map.getLayer(ZONE_ID) && map.queryRenderedFeatures(
+      [[event.point.x - 6, event.point.y - 6], [event.point.x + 6, event.point.y + 6]], { layers: [ZONE_ID] }).length) {
+      poi.zone = null;
+      showPoiZone();
+      setStatus("Zone de l'effet retirée : 150 m avant et après le passage au plus près de la cible.");
+      updatePlayer();
+      return;
+    }
     if (lineDraft !== null) addLinePoint(event.lngLat);
     else if (placing) placeOnMap(event.lngLat);
     else if (travelPick) pickTravelPoint(event.lngLat);
@@ -1139,7 +1148,11 @@
       setPlacing(false);
       refresh();
     }
-    if (event.key === "Escape" && travelPick) setTravelPick(null);
+    if (event.key === "Escape" && travelPick) {
+      poi.draft = null;  // tracé de la zone interrompu
+      setTravelPick(null);
+      showPoiZone();
+    }
   }
   document.addEventListener("keydown", onLineEscape);
 
@@ -2514,9 +2527,18 @@
   // (null si elle n'y passe pas) ; best, bestAt : plus courte distance (m) à l'arrivée et son point ; axis : vue
   // dans l'axe du véhicule ; freeYaw : en regard libre, écart réglé à l'avant du véhicule
   let tour = null;
-  let travelPick = null;  // 📍 de l'onglet « Vidéo » : point attendu sur la carte (« start », « end », « roll » : tonneau)
-  // Endroits des tonneaux de la vidéo : { lonlat, marker } (repère bleu sur la carte ; un clic dessus le retire)
-  let rollPoints = [];
+  // 📍 de l'onglet « Vidéo » : point attendu sur la carte (« start », « end », « roll » : tonneau, « poiZone » : zone de
+  // l'effet du point d'intérêt, en deux clics)
+  let travelPick = null;
+  // Endroits posés pour la vidéo, par sorte (« roll ») : [{ lonlat, marker }] (repère sur la carte ; un clic dessus le
+  // retire) ; css : classe du repère, label : nom, check : interrupteur de l'option, note : rappel à la pose
+  const placed = {
+    roll: { points: [], css: "tonneau", label: ["tonneau", "tonneaux"], check: "#video-tonneau",
+      note: "sens alterné dans l'ordre du parcours, à moins de 30 m de lui" },
+  };
+  // Point d'intérêt (un seul ; cible : objet du relevé, liste #interet-cible) : zone de l'effet tracée sur la carte
+  // ([[lon, lat], [lon, lat]] ou null), premier clic du tracé en cours (LngLat ou null)
+  const poi = { zone: null, draft: null };
   // Vues du dernier parcours (WebP réduits), pour son export en WebP animé ; tourTitle : son intitulé
   let tourViews = [], tourTitle = "";
   // Vidéo : parcours préparé (planPhotos : { photos, switches, dates, warning, title }), sa préparation ou son calcul en
@@ -3051,29 +3073,43 @@
       button.setAttribute("aria-pressed", String(button.dataset.cote === which));
     }
     if (which) {
-      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau" }[which]} ; `
+      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau",
+        poiZone: poi.draft ? "la fin de la zone de l'effet" : "le début de la zone de l'effet (le long de la route)" }[which]} ; `
         + "Échap pour annuler.");
     }
   }
   async function pickTravelPoint(lngLat) {
     const which = travelPick;
     setTravelPick(null);
-    if (which === "roll") {  // tonneau : endroit ajouté, interrupteur activé ; le parcours ne change pas
-      const lonlat = [lngLat.lng, lngLat.lat];
-      const element = Object.assign(document.createElement("div"), { className: "repere-requete tonneau",
-        title: "Tonneau de la vidéo (clic : le retirer)" });
+    if (which === "poiZone") {  // zone de l'effet : premier clic, puis second (trait fixé) ; le parcours ne change pas
+      if (!poi.draft) {
+        poi.draft = lngLat;
+        setTravelPick("poiZone");
+        return;
+      }
+      poi.zone = [[poi.draft.lng, poi.draft.lat], [lngLat.lng, lngLat.lat]];
+      poi.draft = null;
+      showPoiZone();
+      setStatus("Zone de l'effet tracée (extrémités ramenées sur le parcours, à 30 m au plus) ; clic sur le trait pour la retirer.");
+      updatePlayer();
+      return;
+    }
+    if (placed[which]) {  // tonneau : endroit ajouté, interrupteur activé ; le parcours ne change pas
+      const kind = placed[which], lonlat = [lngLat.lng, lngLat.lat];
+      const count = () => `${kind.points.length || "aucun"} ${kind.label[kind.points.length > 1 ? 1 : 0]}`;
+      const element = Object.assign(document.createElement("div"), { className: `repere-requete ${kind.css}`,
+        title: `${kind.label[0][0].toUpperCase()}${kind.label[0].slice(1)} de la vidéo (clic : le retirer)` });
       const point = { lonlat, marker: new maplibregl.Marker({ element, anchor: "bottom" }).setLngLat(lonlat).addTo(map) };
       element.addEventListener("click", (event) => {
         event.stopPropagation();  // pas un clic sur la carte
         point.marker.remove();
-        rollPoints = rollPoints.filter((p) => p !== point);
-        if (!rollPoints.length) $("#video-tonneau").checked = false;
-        setStatus(`Tonneau retiré ; ${rollPoints.length || "aucun"} tonneau${rollPoints.length > 1 ? "x" : ""} restant${rollPoints.length > 1 ? "s" : ""}.`);
+        kind.points = kind.points.filter((p) => p !== point);
+        if (!kind.points.length) $(kind.check).checked = false;
+        setStatus(`Retiré ; ${count()} en tout.`);
       });
-      rollPoints.push(point);
-      $("#video-tonneau").checked = true;
-      setStatus(`Tonneau placé (${rollPoints.length} en tout ; sens alterné dans l'ordre du parcours, à moins de 30 m de `
-        + "lui) ; 📍 pour en ajouter un, clic sur un repère bleu pour le retirer.");
+      kind.points.push(point);
+      $(kind.check).checked = true;
+      setStatus(`Placé : ${count()} en tout (${kind.note}) ; 📍 pour en ajouter, clic sur un repère pour le retirer.`);
       return;
     }
     await travelFields.pick(which, [lngLat.lng, lngLat.lat]);
@@ -3095,10 +3131,105 @@
   $("#tonneau-duree").addEventListener("input", () => {
     $("#tonneau-valeur").textContent = `${String($("#tonneau-duree").value).replace(".", ",")} s`;
   });
-  // Tonneau activé sans endroit : le choisir sur la carte
-  $("#video-tonneau").addEventListener("change", () => {
-    if ($("#video-tonneau").checked && !rollPoints.length) setTravelPick("roll");
+  // Tonneau ou point d'intérêt activé sans endroit : le choisir sur la carte
+  for (const [which, kind] of Object.entries(placed)) {
+    $(kind.check).addEventListener("change", () => {
+      if ($(kind.check).checked && !kind.points.length) setTravelPick(which);
+    });
+  }
+  $("#video-interet").addEventListener("change", () => {
+    if ($("#video-interet").checked && !$("#interet-cible").value) {
+      setStatus($("#interet-aucun").textContent, "avertissement");
+    }
+    updatePlayer();
   });
+  $("#interet-cible").addEventListener("change", updatePlayer);
+  /** Liste des cibles : objets du relevé (releve_json de App), « n° 3 · premier champ » ; choix gardé s'il existe encore ;
+   * sans objet, liste grisée et invitation à en relever un. */
+  function refreshPoiTargets(json) {
+    const select = $("#interet-cible"), kept = select.value;
+    const objects = (JSON.parse(json || "null")?.points || []).map(([lon, lat, values]) => ({ lon, lat, values }));
+    select.replaceChildren(...objects.map(({ lon, lat, values }) => {
+      const first = Object.values(values.releve || {}).find((v) => v != null && v !== "");
+      return Object.assign(document.createElement("option"), {
+        value: String(values.id), textContent: `n° ${values.id} · ${first ?? `Objet ${values.nom}`}`
+          + (values.z_ngf == null ? " (sans altitude)" : ""),
+      });
+    }));
+    poiTargets = new Map(objects.map((o) => [String(o.values.id), { lonlat: [o.lon, o.lat], z: o.values.z_ngf ?? null }]));
+    if (poiTargets.has(kept)) select.value = kept;
+    select.disabled = !objects.length || Boolean(videoRun);
+    $("#interet-aucun").hidden = Boolean(objects.length);
+  }
+  let poiTargets = new Map();  // identifiant d'objet du relevé -> { lonlat, z (altitude NGF ou null) }
+  // Zone de l'effet sur la carte : trait tracé (plein, violet, large) et, la vidéo préparée, portion du parcours concernée
+  const ZONE_ID = "zone-interet", ZONE_PATH_ID = "zone-interet-parcours";
+  function showPoiZone(draftTo = null) {
+    if (!map.isStyleLoaded()) {  // tuiles en cours de chargement : dessinée une fois la carte au repos
+      map.once("idle", () => showPoiZone(draftTo));
+      return;
+    }
+    const ends = poi.draft && draftTo ? [[poi.draft.lng, poi.draft.lat], [draftTo.lng, draftTo.lat]] : poi.zone;
+    let section = null;
+    const aim = poiOptions();
+    if (aim && poi.zone && videoPlan?.photos?.length > 1) {
+      try {
+        const path = Video.trajectory(videoPhotos()), span = Video.poiSpan(path, aim);
+        section = [];
+        for (let x = span.x0; x < span.x1; x += 2) section.push(path.at(x));
+        section.push(path.at(span.x1));
+      } catch { /* zone loin du parcours : signalée au calcul de la vidéo */ }
+    }
+    const layers = [[ZONE_PATH_ID, section, { "line-color": "#8e24aa", "line-width": 7, "line-opacity": 0.75 }],
+      [ZONE_ID, ends, { "line-color": "#8e24aa", "line-width": 6 }]];
+    for (const [id, coordinates, paint] of layers) {
+      const data = { type: "FeatureCollection", features: coordinates
+        ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates } }] : [] };
+      if (map.getSource(id)) map.getSource(id).setData(data);
+      else if (coordinates) {
+        map.addSource(id, { type: "geojson", data });
+        map.addLayer({ id, type: "line", source: id, paint });
+      }
+    }
+  }
+  map.on("mousemove", (event) => { if (poi.draft) showPoiZone(event.lngLat); });
+  // Réglettes du point d'intérêt : valeur affichée ; la vitesse change la durée de la vidéo
+  const poiSpeed = () => (Number($("#interet-vitesse").value) > 130 ? null : Number($("#interet-vitesse").value));
+  for (const [id, text] of [["#interet-vitesse", () => (poiSpeed() ? `${poiSpeed()} km/h` : "sans ralentir")],
+    ["#interet-zoom", () => `× ${String($("#interet-zoom").value).replace(".", ",")}`]]) {
+    $(id).addEventListener("input", () => {
+      $(`${id}-valeur`).textContent = text();
+      updatePlayer();
+    });
+  }
+  /** Réglages du point d'intérêt pour Video (cible : objet du relevé choisi, son altitude NGF z ou null ; sans les
+   * altitudes du sol), ou null s'il n'est pas actif. */
+  function poiOptions() {
+    const target = poiTargets.get($("#interet-cible").value);
+    if (!$("#video-interet").checked || !target) return null;
+    return { target: target.lonlat, z: target.z, start: poi.zone?.[0] || null, end: poi.zone?.[1] || null,
+      speed: poiSpeed(), zoom: Number($("#interet-zoom").value),
+      zoomByDistance: $("#interet-zoom-distance").checked, roll: $("#interet-tonneau").checked };
+  }
+  /** Altitudes du sol (LiDAR HD, sinon RGE ALTI ; null si inconnue) aux points [lon, lat], par lots de 150. */
+  async function groundAltitudes(points) {
+    const out = [];
+    for (let i = 0; i < points.length; i += 150) {
+      const part = points.slice(i, i + 150);
+      const ask = async (resource) => {
+        const url = `${Carte.GEOPF}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=${part.map((p) => p[0].toFixed(6)).join("|")}`
+          + `&lat=${part.map((p) => p[1].toFixed(6)).join("|")}&resource=${resource}&zonly=true`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return (await response.json()).elevations || [];
+      };
+      const lidar = await ask("ign_lidar_hd_mnt_mono_wld").catch(() => []);
+      const missing = part.some((_, k) => !(lidar[k] > -1000));
+      const alti = missing ? await ask("ign_rge_alti_wld").catch(() => []) : [];
+      part.forEach((_, k) => out.push(lidar[k] > -1000 ? lidar[k] : alti[k] > -1000 ? alti[k] : null));
+    }
+    return out;
+  }
   $("#parcours-lancer").addEventListener("click", async () => {
     const button = $("#parcours-lancer");
     button.disabled = true;
@@ -3162,6 +3293,15 @@
     updatePlayer();
     const t0 = Date.now();
     try {
+      // Point d'intérêt : altitudes du sol sous les photos (caméra) et sous la cible si l'objet n'a pas d'altitude (visée
+      // en hauteur ; inconnues : à l'horizontale)
+      let poiAim = poiOptions();
+      if (poiAim) {
+        setStatus("Vidéo : altitudes pour viser le point d'intérêt…");
+        const photos = videoPhotos();
+        const alts = await groundAltitudes([poiAim.target, ...photos.map((p) => p.coords)]).catch(() => []);
+        poiAim = { ...poiAim, ground: { target: alts[0] ?? null, photos: photos.map((_, k) => alts[k + 1] ?? null) } };
+      }
       // Avancement aussi dans la ligne d'état : le fichier n'est écrit qu'à la fin du calcul (plusieurs minutes)
       const blob = await Video.mp4(videoPhotos(), Number($("#video-vitesse").value), (done, total) => {
         // Largeur fixe (chiffres de même largeur, espaces de la largeur d'un chiffre) : le texte ne saute pas
@@ -3175,7 +3315,8 @@
       }, videoRun.signal, { blur: $("#video-flou").checked, exposure: $("#video-expo").checked, ramp: $("#video-rampe").checked,
         counter: $("#video-compteur").checked, whip: $("#video-pano").checked,
         junctions: $("#video-regard").checked ? videoPlan.junctions : [],
-        rolls: $("#video-tonneau").checked ? rollPoints.map((p) => p.lonlat) : [], rollTime: Number($("#tonneau-duree").value),
+        rolls: $("#video-tonneau").checked ? placed.roll.points.map((p) => p.lonlat) : [], rollTime: Number($("#tonneau-duree").value),
+        poi: poiAim,
         lookSpeed: Number($("#regard-vitesse").value),
         title: $("#video-titre").checked ? { text: videoPlan.title.replace(/\+0*(\d)/g, "+$1"),
           sub: `Photos du ${videoPlan.dates.map((d) => d.split("-").reverse().join("/")).join(", du ") || "?"}` } : null });
@@ -3245,7 +3386,7 @@
     const n = path.list.length, perSecond = v * (n - 1) / Math.max(1, path.length);
     return `${n} photos (une tous les ${(path.length / Math.max(1, n - 1)).toFixed(0)} m) · `
       + `${Math.round(Video.duration(videoPhotos(), v * 3.6, $("#video-rampe").checked,
-        $("#video-regard").checked ? videoPlan.junctions : [], Number($("#regard-vitesse").value)))} s · `
+        $("#video-regard").checked ? videoPlan.junctions : [], Number($("#regard-vitesse").value), poiOptions()))} s · `
       + `${perSecond.toFixed(perSecond < 10 ? 1 : 0)} photos/s${$("#video-rampe").checked ? " au plus" : ""}`
       + (perSecond > Video.FPS ? " (photos sautées)" : "") + (videoPlan.switches ? ` ⚠ ${videoWarning()}` : "");
   }
@@ -3275,8 +3416,11 @@
       || Boolean(videoPlan && plan.length < 2);
     $("#parcours-video").textContent = videoPlan ? "🎬 Enregistrer la vidéo" : "🎬 Préparer la vidéo";
     $("#parcours-video-arret").hidden = !videoRun;
+    $("#interet-cible").disabled = !poiTargets.size || Boolean(videoRun);
+    showPoiZone();  // portion du parcours concernée : suit la préparation, la cible et la zone
     for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-expo", "#video-rampe", "#video-titre",
-      "#video-compteur", "#video-pano", "#video-regard", "#video-tonneau", "#tonneau-duree", "#regard-vitesse"]) {
+      "#video-compteur", "#video-pano", "#video-regard", "#video-tonneau", "#tonneau-duree", "#regard-vitesse",
+      "#video-interet", "#interet-vitesse", "#interet-zoom", "#interet-zoom-distance", "#interet-tonneau"]) {
       $(id).disabled = Boolean(videoRun);
     }
     if (!videoRun) $("#video-info").textContent = videoOk ? videoInfo() : "ce navigateur n'encode pas la vidéo";
@@ -3927,6 +4071,7 @@
     $("#releve-vider").disabled = !n;
     $("#releve-infos").textContent = n ? `${n} objet${n > 1 ? "s" : ""}` : "Aucun objet";
     const json = n ? app.releve_json() : "";
+    if (json !== releveSaved || !poiTargets.size !== !n) refreshPoiTargets(json);
     if (json === releveSaved) return;
     releveSaved = json;
     store.set("releve", json);
@@ -5149,6 +5294,6 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
   }
 
   // Pour les essais depuis la console : window.mesures.app.click(yaw, pitch)
-  window.mesures = { get app() { return app; }, get psv() { return psv; }, get tourViews() { return tourViews; }, get videoPlan() { return videoPlan; }, get touring() { return Boolean(tour); }, map, openPhoto, buildFiche, paginateFiche, photoAtOffset, importOverlay, thumbnail,
+  window.mesures = { refresh, get app() { return app; }, get psv() { return psv; }, get tourViews() { return tourViews; }, get videoPlan() { return videoPlan; }, get touring() { return Boolean(tour); }, map, openPhoto, buildFiche, paginateFiche, photoAtOffset, importOverlay, thumbnail,
     overlayFile: (handle) => { overlay.fichier = handle; } };  // fichier de la couche remplacé (essais)
 })();
