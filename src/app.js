@@ -3103,6 +3103,8 @@
         videoPlan = { ...await planPhotos(found.start, found.end), title: found.title };
         setStatus("Vidéo : PR des photos…");
         await prOfPhotos(videoPlan.photos, found.title.split(" ")[0]);
+        // Carrefours du parcours (regard aux croisements) : tronçons de la BD TOPO, mailles en cache
+        videoPlan.junctions = await Lieu.junctions(videoPlan.photos.map((p) => p.coords)).catch(() => []);
         setStatus(videoPlan.switches ? `Vidéo prête à enregistrer. ${videoWarning()}` : "Vidéo prête à enregistrer.",
           videoPlan.switches ? "avertissement" : "");
       } catch (error) {
@@ -3132,7 +3134,8 @@
         setStatus(text, "avancement");
         $("#statut").style.setProperty("--avancement", `${(100 * done / total).toFixed(1)}%`);
       }, videoRun.signal, { blur: $("#video-flou").checked, exposure: $("#video-expo").checked, ramp: $("#video-rampe").checked,
-        counter: $("#video-compteur").checked,
+        counter: $("#video-compteur").checked, whip: $("#video-pano").checked,
+        junctions: $("#video-regard").checked ? videoPlan.junctions : [],
         title: $("#video-titre").checked ? { text: videoPlan.title.replace(/\+0*(\d)/g, "+$1"),
           sub: `Photos du ${videoPlan.dates.map((d) => d.split("-").reverse().join("/")).join(", du ") || "?"}` } : null });
       await save(blob);
@@ -3230,7 +3233,8 @@
       || Boolean(videoPlan && plan.length < 2);
     $("#parcours-video").textContent = videoPlan ? "🎬 Enregistrer la vidéo" : "🎬 Préparer la vidéo";
     $("#parcours-video-arret").hidden = !videoRun;
-    for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-expo", "#video-rampe", "#video-titre", "#video-compteur"]) {
+    for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-expo", "#video-rampe", "#video-titre",
+      "#video-compteur", "#video-pano", "#video-regard"]) {
       $(id).disabled = Boolean(videoRun);
     }
     if (!videoRun) $("#video-info").textContent = videoOk ? videoInfo() : "ce navigateur n'encode pas la vidéo";

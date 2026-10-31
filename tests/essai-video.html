@@ -122,13 +122,44 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       log(`compteur : ${jumps} saut(s), passages ${crossings.join(" ; ")}`);
       expect("compteur : défilement continu (pas de saut de plus de 2 m par image)", jumps === 0, jumps);
       expect("compteur : passage du PR 1 au PR 0 en descendant (PR 1 fini près de 0)", crossings.some((c) => /PR 1 \+[0-2]\.\d → PR 0/.test(c)), crossings.join(" ; "));
-      const tv = await Video.mp4(longPhotos.filter((_, i) => i % 8 === 0 || i === longPhotos.length - 1), 720,
+      // Regard aux croisements : carrefours de la BD TOPO le long du parcours ; au niveau du carrefour, regard dans
+      // l'axe de la voie croisée (cap de la voie depuis le carrefour, par rapport à la route), 120° au plus
+      const jn = w.mesures.videoPlan.junctions || [];
+      const looks = Video.pans(long, plain, { junctions: jn });
+      const aims = [];
+      for (const { lonlat, branches } of jn) {
+        let bx = -1, bd = 12;
+        for (let x = 0; x <= long.length; x += 2) { const d = dist(long.at(x), lonlat); if (d < bd) [bx, bd] = [x, d]; }
+        if (bx < 30 || bx > long.length - 10) continue;
+        const frame = plain.findIndex((x) => x >= bx);
+        const rel = branches.map((b) => ((b - long.course(bx)) % 360 + 540) % 360 - 180).filter((r) => Math.abs(r) > 30 && Math.abs(r) < 150);
+        if (rel.length && looks[frame]) aims.push(`${looks[frame].toFixed(0)}° (voie à ${rel.map((r) => r.toFixed(0)).join(", ")}°)`);
+        if (rel.length && looks[frame]) expect("croisements : au niveau du carrefour, regard dans l'axe d'une voie croisée (± 3°)",
+          rel.some((r) => Math.abs(Math.sign(r) * Math.min(120, Math.abs(r)) - looks[frame]) < 3), `${looks[frame]} / ${rel}`);
+      }
+      log(`croisements : ${jn.length} carrefour(s) près du parcours ; au niveau des carrefours regardés : ${aims.join(" ; ") || "aucun"}`);
+      expect("croisements : carrefours trouvés (BD TOPO)", jn.length > 0, jn.length);
+      expect("croisements : au moins un regard dans l'axe d'une voie", aims.length > 0);
+      expect("croisements : regard de 120° au plus", looks.every((v) => Math.abs(v) <= 120.01));
+      // Retour dans l'axe deux fois plus rapide que l'aller : images de rotation avant le passage ~ 2 × celles d'après
+      const firstLook = looks.findIndex((v) => v), peak = looks.findIndex((v, i) => i > firstLook && v && Math.abs(v) === Math.max(...looks.slice(firstLook, firstLook + 90).map(Math.abs)));
+      let last = peak;
+      while (looks[last + 1]) last++;
+      let hold = peak;
+      while (Math.abs(looks[hold + 1] - looks[hold]) < 0.01 && hold < last) hold++;
+      log(`regard : aller ${peak - firstLook} images, retour ${last - hold} images`);
+      expect("croisements : retour dans l'axe environ deux fois plus rapide que l'aller", Math.abs((peak - firstLook) / Math.max(1, last - hold) - 2) < 0.5, `${peak - firstLook} / ${last - hold}`);
+      const sub = longPhotos.filter((_, i) => i % 8 === 0 || i === longPhotos.length - 1);
+      const tv = await Video.mp4(sub, 720,
         (done, total) => { if (done % 60 === 0) log(`titre et compteur : image ${done} / ${total}`); }, null,
-        { counter: true, title: { text: "D115D PR 1+146 → PR 0+0", sub: "Photos du 10/07/2025" } });
+        { counter: true, title: { text: "D115D PR 1+146 → PR 0+0", sub: "Photos du 10/07/2025" }, junctions: jn });
+      const subLooks = Video.pans(Video.trajectory(sub), Video.timeline(Video.trajectory(sub), 200, false), { junctions: jn });
+      const lookFrame = subLooks.reduce((best, v, i) => (Math.abs(v) > Math.abs(subLooks[best]) ? i : best), 0);
+      log(`regard le plus marqué de la vidéo d'essai : ${subLooks[lookFrame].toFixed(0)}° à l'image ${lookFrame}`);
       const tvv = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(tv) });
       await new Promise((resolve) => { tvv.onloadedmetadata = resolve; });
       const shot = Object.assign(document.createElement("canvas"), { width: 960, height: 540 }), sctx = shot.getContext("2d");
-      for (const [name, t] of [["titre", 1], ["compteur", tvv.duration / 2]]) {
+      for (const [name, t] of [["titre", 1], ["compteur", tvv.duration / 2], ["regard", (lookFrame + 0.5) / 30]]) {
         tvv.currentTime = t;
         await new Promise((resolve) => { tvv.onseeked = resolve; });
         sctx.drawImage(tvv, 0, 0, 960, 540);
@@ -276,7 +307,21 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       log(`exposition au carrefour : gains ${gains.map((g) => g.toFixed(2)).join(" ")} (changement à la photo ${change})`);
       expect("exposition : séquence de départ inchangée", gains.slice(0, change).every((g) => g === 1));
       expect("exposition : juillet ramené sur mai au changement (gain 0,55 à 0,75)", gains[change] > 0.55 && gains[change] < 0.75, gains[change]);
-      expect("exposition : retour progressif vers sa propre exposition", gains.slice(change + 1).every((g, i) => g >= gains[change + i] - 1e-9));
+      // Panoramique au changement de séquence : tour complet en 0,7 s centré sur le fondu, image en plein tour
+    const flatXs = Video.timeline(trajet, 25, false), spin = Video.pans(trajet, flatXs, { whip: true });
+    const spinMax = Math.max(...spin.map(Math.abs)), mid = spin.findIndex((v) => Math.abs(v) >= 180);
+    log(`panoramique : ${spin.filter((v) => v).length} images, jusqu'à ${spinMax.toFixed(0)}°, demi-tour à l'image ${mid}`);
+    expect("panoramique : tour complet (360°) en 0,7 s environ", spinMax > 350 && spin.filter((v) => v).length <= 22);
+    const whipVideo = await Video.mp4(cross.photos, 90, () => {}, null, { whip: true });
+    const wv = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(whipVideo) });
+    await new Promise((resolve) => { wv.onloadedmetadata = resolve; });
+    for (const [name, f] of [["avant-tour", mid - 8], ["tour", mid], ["apres-tour", mid + 8]]) {
+      wv.currentTime = (f + 0.5) / 30;
+      await new Promise((resolve) => { wv.onseeked = resolve; });
+      ctx.drawImage(wv, 0, 0, canvas.width, canvas.height);
+      await log(`IMAGE ${name} ` + canvas.toDataURL("image/jpeg", 0.85));
+    }
+    expect("exposition : retour progressif vers sa propre exposition", gains.slice(change + 1).every((g, i) => g >= gains[change + i] - 1e-9));
     }
     log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
     log(failures ? "ERREUR" : "FIN");

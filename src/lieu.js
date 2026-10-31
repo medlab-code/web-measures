@@ -314,5 +314,40 @@ const Lieu = (() => {
     return { text, complete: !failed, parts };
   }
 
-  return { describe, features, milestone, project, segmentLength };
+  /**
+   * Carrefours le long des points lonlats ([lon, lat] du parcours) : extrémités communes à trois tronçons de route
+   * revêtue ou plus (JUNCTION_ROADS) (BD TOPO, mailles gardées en cache comme pour describe) : [{ lonlat, branches }], branches :
+   * cap (degrés) de chaque tronçon depuis le carrefour, pris à 10 m (ou à son autre bout s'il est plus court).
+   */
+  // Voies comptées dans les carrefours : routes revêtues, pas les chemins (de vigne, agricoles), pistes ni sentiers
+  const JUNCTION_ROADS = new Set(["Route à 1 chaussée", "Route à 2 chaussées", "Rond-point", "Bretelle", "Type autoroutier"]);
+  async function junctions(lonlats) {
+    const cells = new Map();
+    for (const [lon, lat] of lonlats) cells.set(`${Math.floor(lon / CELL)} ${Math.floor(lat / CELL)}`, [lon, lat]);
+    const seen = new Set(), ends = new Map();
+    const metres = (a, b) => Math.hypot((b[0] - a[0]) * 111320 * Math.cos(a[1] * Math.PI / 180), (b[1] - a[1]) * 111320);
+    const heading = (a, b) => (Math.atan2((b[0] - a[0]) * Math.cos(a[1] * Math.PI / 180), b[1] - a[1]) * 180 / Math.PI + 360) % 360;
+    for (const [lon, lat] of cells.values()) {
+      for (const f of await zone("troncon_de_route", TRONCON_PROPERTIES, lon, lat)) {
+        const id = f.id ?? JSON.stringify(f.geometry?.coordinates?.[0]);
+        if (!JUNCTION_ROADS.has(f.properties?.nature) || seen.has(id)) continue;
+        seen.add(id);
+        const lines = f.geometry?.type === "LineString" ? [f.geometry.coordinates]
+          : f.geometry?.type === "MultiLineString" ? f.geometry.coordinates : [];
+        for (const line of lines) {
+          if (line.length < 2) continue;
+          for (const way of [line, [...line].reverse()]) {
+            let k = 1;
+            while (k < way.length - 1 && metres(way[0], way[k]) < 10) k++;
+            const key = `${way[0][0].toFixed(6)} ${way[0][1].toFixed(6)}`;
+            if (!ends.has(key)) ends.set(key, { lonlat: way[0].slice(0, 2), branches: [] });
+            ends.get(key).branches.push(heading(way[0], way[k]));
+          }
+        }
+      }
+    }
+    return [...ends.values()].filter((j) => j.branches.length >= 3);
+  }
+
+  return { describe, features, junctions, milestone, project, segmentLength };
 })();

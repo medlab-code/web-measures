@@ -142,7 +142,17 @@ d'arrivée et la date des photos, effacé en fondu vers 3 s. « Compteur PR » (
 le PR ; les mètres défilent en continu, en rouleaux comme un compteur kilométrique (interpolés image par image entre
 les photos ; au passage d'un PR, l'ancien va jusqu'à son bout, puis le nouveau). Le PR de chaque photo est cherché à
 la préparation, sur la route du parcours (autre route après une bifurcation : cherchée une fois), avec les sections
-et PR de la BD TOPO déjà gardés en cache. « Flou cinétique » (décochée par défaut) : chaque
+et PR de la BD TOPO déjà gardés en cache. « Panoramique au changement de séquence » (décochée) : la vue fait un tour complet en 0,7 s, du côté où
+tourne la route, au plus vite pendant le fondu entre les deux séquences, qui passe ainsi inaperçu (flou de mouvement
+d'une vue tous les 1,5° de rotation). « Regard aux croisements » (décochée) : à l'approche d'un carrefour avec une
+route revêtue (BD TOPO : route à une ou deux chaussées, rond-point, bretelle, type autoroutier ; pas les chemins de
+vigne), la vue se tourne en 0,8 s vers la voie croisée, dans son axe dès 0,9 s avant le carrefour (anticipation), et
+le reste au niveau du carrefour (cap de la
+voie à 10 m du carrefour, 120° au plus ; voies des deux côtés : la gauche jusqu'au passage, puis la droite), puis
+revient dans l'axe du parcours par le même mouvement, deux fois plus vite (un seul regard pour des carrefours à moins
+de 60 m, giratoire) ; la maquette de la chaussée reste dans l'axe de la route. Ces
+deux options chargent plus de tuiles aux endroits concernés (tout le tour pour le panoramique). « Flou cinétique »
+(décochée par défaut) : chaque
 image est la moyenne de 8 vues réparties depuis la position de l'image précédente (obturateur ouvert toute l'image) ;
 ce qui défile vite près de la caméra (chaussée, muret, vignes du bord) s'étire dans le sens du mouvement, le lointain
 reste net ; calcul plus long (rendu huit fois, sans téléchargement de plus). Moins de photos :
