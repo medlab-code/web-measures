@@ -214,12 +214,17 @@ const Video = (() => {
   }
 
   /** Titre (fondu à TITLE_FADE s), compteur PR (en bas à gauche), compteur de vitesse (speed : { kmh, digits }, en bas à
-   * droite) et accélération latérale (lateral : { mg, kmh, devers } en millièmes de g, affichée ressentie, |mg - dévers|,
-   * colorée par lateralColor ; à
+   * droite) et accélération latérale ressentie (lateral : { felt, color } : millièmes de g et couleur de lateralColor ; à
    * gauche du compteur de vitesse, sinon à sa place) et vitesse max ARP (arp : { kmh }, kmh null : « — » ; au-dessus du
    * compteur de vitesse) sur l'image (contexte 2D ctx, w × h) ; t : secondes depuis le début. */
   function drawOverlay(ctx, w, h, { title, pr, speed, lateral = null, arp = null, t }) {
     const font = (size, weight = 500) => `${weight} ${Math.round(size)}px Roboto, "Segoe UI", sans-serif`;
+    // Cadre aux coins arrondis (rayon : un centième de la hauteur de l'image)
+    const box = (x, y, bw, bh) => {
+      ctx.beginPath();
+      ctx.roundRect(x, y, bw, bh, h * 0.01);
+      ctx.fill();
+    };
     ctx.textBaseline = "alphabetic";
     const alpha = title ? Math.max(0, Math.min(1, (TITLE_FADE[1] - t) / (TITLE_FADE[1] - TITLE_FADE[0]))) : 0;
     if (alpha > 0) {
@@ -228,7 +233,7 @@ const Video = (() => {
       const width = Math.max(ctx.measureText(title.text).width, (ctx.font = font(small, 400), ctx.measureText(title.sub || "").width));
       ctx.globalAlpha = alpha;
       ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
-      ctx.fillRect((w - width) / 2 - big * 0.6, h * 0.06, width + big * 1.2, big * 1.5 + (title.sub ? small * 1.5 : 0));
+      box((w - width) / 2 - big * 0.6, h * 0.06, width + big * 1.2, big * 1.5 + (title.sub ? small * 1.5 : 0));
       ctx.fillStyle = "#fff";
       ctx.textAlign = "center";
       ctx.font = font(big);
@@ -248,7 +253,7 @@ const Video = (() => {
       ctx.font = font(size * 0.6, 700);
       const roadWidth = ctx.measureText(pr.route).width;
       ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
-      ctx.fillRect(x0 - pad, y0 - size - size * 0.75 - pad, Math.max(width, roadWidth) + 2 * pad, size * 1.75 + 2 * pad);
+      box(x0 - pad, y0 - size - size * 0.75 - pad, Math.max(width, roadWidth) + 2 * pad, size * 1.75 + 2 * pad);
       ctx.fillStyle = "#ffb300";
       ctx.fillText(pr.route, x0, y0 - size - size * 0.12);
       ctx.fillStyle = "#fff";
@@ -258,30 +263,34 @@ const Video = (() => {
     }
     const size = h * 0.045, pad = size * 0.45, y0 = h - h * 0.05;
     let right = w - h * 0.04;  // bord droit du prochain cadre, de droite à gauche
+    // Compteur de vitesse et « V max ARP » au-dessus : même largeur (la plus grande des deux), colonne alignée
+    const unit = " km/h", arpLabel = "V max ARP";
+    ctx.font = font(size);
+    const digitsWidth = speed ? speed.digits * ctx.measureText("0").width : 0, arpValueWidth = ctx.measureText("000").width;
+    ctx.font = font(size * 0.6);
+    const unitWidth = ctx.measureText(unit).width;
+    ctx.font = font(size * 0.6, 700);
+    const column = Math.max(speed ? digitsWidth + unitWidth : 0,
+      arp ? Math.max(ctx.measureText(arpLabel).width, arpValueWidth + unitWidth) : 0);
     if (speed) {
       // Même cadre que le compteur PR, aligné à droite : libellé, chiffres en rouleaux (zéros de tête masqués), unité
-      const unit = " km/h";
-      ctx.font = font(size);
-      const digitsWidth = speed.digits * ctx.measureText("0").width;
-      ctx.font = font(size * 0.6);
-      const unitWidth = ctx.measureText(unit).width;
-      const width = digitsWidth + unitWidth, x0 = right - width;
+      const x0 = right - column, xd = right - digitsWidth - unitWidth;
       right = x0 - 3 * pad;
       ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
-      ctx.fillRect(x0 - pad, y0 - size - size * 0.75 - pad, width + 2 * pad, size * 1.75 + 2 * pad);
+      box(x0 - pad, y0 - size - size * 0.75 - pad, column + 2 * pad, size * 1.75 + 2 * pad);
       ctx.fillStyle = "#ffb300";
       ctx.font = font(size * 0.6, 700);
       ctx.fillText("Vitesse", x0, y0 - size - size * 0.12);
       ctx.fillStyle = "#fff";
       ctx.font = font(size * 0.6);
-      ctx.fillText(unit, x0 + digitsWidth, y0);
+      ctx.fillText(unit, xd + digitsWidth, y0);
       ctx.font = font(size);
-      drawRollers(ctx, speed.kmh, x0, y0, size, speed.digits, true);
+      drawRollers(ctx, speed.kmh, xd, y0, size, speed.digits, true);
     }
     if (lateral) {
       // Accélération latérale ressentie (moins le dévers ; en ligne droite, la pente en travers), en millièmes de g, chiffre
       // coloré selon les rayons de l'ARP
-      const text = String(Math.round(Math.abs(lateral.mg - 1000 * (lateral.devers ?? 0)))), label = "Accél. ressentie", unitA = " mG";
+      const text = String(Math.round(lateral.felt)), label = "Accél. ressentie", unitA = " mG";
       ctx.font = font(size);
       const valueWidth = ctx.measureText("0000").width;
       ctx.font = font(size * 0.6, 700);
@@ -290,7 +299,7 @@ const Video = (() => {
       const widthA = Math.max(labelWidth, valueWidth + ctx.measureText(unitA).width), xa = right - widthA;
       right = xa - 3 * pad;
       ctx.fillStyle = "rgba(0, 0, 0, 0.35)";  // plus transparent que les autres cadres (demande)
-      ctx.fillRect(xa - pad, y0 - size - size * 0.75 - pad, widthA + 2 * pad, size * 1.75 + 2 * pad);
+      box(xa - pad, y0 - size - size * 0.75 - pad, widthA + 2 * pad, size * 1.75 + 2 * pad);
       ctx.fillStyle = "#ffb300";
       ctx.font = font(size * 0.6, 700);
       ctx.fillText(label, xa, y0 - size - size * 0.12);
@@ -298,7 +307,7 @@ const Video = (() => {
       ctx.font = font(size * 0.6);
       ctx.fillText(unitA, xa + valueWidth, y0);
       ctx.font = font(size);
-      ctx.fillStyle = lateralColor(lateral.mg, lateral.kmh, lateral.devers);
+      ctx.fillStyle = lateral.color;
       ctx.textAlign = "right";
       ctx.fillText(text, xa + valueWidth, y0);
       ctx.textAlign = "left";
@@ -306,25 +315,20 @@ const Video = (() => {
     if (arp) {
       // Vitesse max ARP : même cadre, au-dessus du compteur de vitesse (à sa place), en km/h (« — » : pas de limite en
       // dessous de ARP_TOP)
-      const text = arp.kmh == null ? "—" : String(arp.kmh), label = "V max ARP", unitV = " km/h";
-      ctx.font = font(size);
-      const valueWidth = ctx.measureText("000").width;
-      ctx.font = font(size * 0.6, 700);
-      const labelWidth = ctx.measureText(label).width;
-      ctx.font = font(size * 0.6);
-      const widthV = Math.max(labelWidth, valueWidth + ctx.measureText(unitV).width), xv = w - h * 0.04 - widthV;
+      const text = arp.kmh == null ? "—" : String(arp.kmh);
+      const xv = w - h * 0.04 - column, xn = w - h * 0.04 - unitWidth;  // cadre ; fin des chiffres, début de l'unité
       const yv = y0 - size * 1.75 - 3 * pad;  // un cadre plus haut, écart de pad
       ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
-      ctx.fillRect(xv - pad, yv - size - size * 0.75 - pad, widthV + 2 * pad, size * 1.75 + 2 * pad);
+      box(xv - pad, yv - size - size * 0.75 - pad, column + 2 * pad, size * 1.75 + 2 * pad);
       ctx.fillStyle = "#ffb300";
       ctx.font = font(size * 0.6, 700);
-      ctx.fillText(label, xv, yv - size - size * 0.12);
+      ctx.fillText(arpLabel, xv, yv - size - size * 0.12);
       ctx.fillStyle = "#fff";
       ctx.font = font(size * 0.6);
-      ctx.fillText(unitV, xv + valueWidth, yv);
+      ctx.fillText(unit, xn, yv);
       ctx.font = font(size);
       ctx.textAlign = "right";
-      ctx.fillText(text, xv + valueWidth, yv);
+      ctx.fillText(text, xn, yv);
       ctx.textAlign = "left";
     }
   }
@@ -572,12 +576,34 @@ const Video = (() => {
     return f <= g0 + (g1 - g0) * u ? GREEN : f <= r0 + (r1 - r0) * u ? "#ffd600" : "#ff3d3d";
   }
   const GREEN = "#4caf50";
+  const STEADY = 8;  // images : accélération ressentie et dévers lissés sur ± STEADY images (un quart de seconde)
+  const STEP_MG = 20, STEP_KMH = 5;  // retour en arrière minimal de l'accélération ressentie (mG), de la vitesse max ARP (km/h)
+
+  /** Moyenne glissante de values sur ± half images ; null ignoré (null si tout l'est). */
+  function smoothed(values, half) {
+    return values.map((_, n) => {
+      const part = values.slice(Math.max(0, n - half), n + half + 1).filter((v) => v != null);
+      return part.length ? part.reduce((a, b) => a + b, 0) / part.length : null;
+    });
+  }
+
+  /** Valeurs affichées sans battement, extrêmes gardés : le chiffre suit aussitôt la valeur vers l'extrême (vers le haut si
+   * high, vers le bas sinon), à l'unité près, et ne revient en arrière que d'au moins step à la fois. null : rien
+   * d'affiché (« — »). */
+  function steady(values, step, high = true) {
+    let shown = null;
+    return values.map((v) => {
+      if (v == null) return (shown = null);
+      if (shown == null || (high ? v > shown : v < shown) || Math.abs(v - shown) >= step) shown = Math.round(v);
+      return shown;
+    });
+  }
   const ARP_TOP = 150;  // km/h : vitesse max ARP non affichée au-delà (ligne droite, grande courbe)
-  const ARP_SMOOTH = 10;  // m : vitesse max ARP moyennée sur ± ARP_SMOOTH m (20 m : pas de saut d'une image à l'autre)
+  const ARP_SMOOTH = 15;  // m : vitesse max ARP = la plus basse sur ± ARP_SMOOTH m (30 m : le point critique du virage)
 
   /** Vitesse max ARP par image de xs (km/h) : la plus haute où l'accélération latérale du virage resterait verte
-   * (lateralColor), avec le dévers vers l'intérieur (insideDevers, inconnu : compté nul), calculée mètre par mètre puis
-   * moyennée sur ± ARP_SMOOTH m (ARP_TOP compté pour la ligne droite) ; null à ARP_TOP km/h et au-delà. */
+   * (lateralColor), avec le dévers vers l'intérieur (insideDevers, inconnu : compté nul), calculée mètre par mètre, la
+   * plus basse sur ± ARP_SMOOTH m ; null à ARP_TOP km/h et au-delà. */
   function arpSpeeds(path, xs) {
     const raw = new Map();  // mètre du parcours -> vitesse max en ce point
     const at = (m) => {
@@ -590,9 +616,8 @@ const Video = (() => {
       return raw.get(m);
     };
     return xs.map((x) => {
-      let sum = 0;
-      for (let m = Math.round(x) - ARP_SMOOTH; m <= Math.round(x) + ARP_SMOOTH; m++) sum += at(Math.min(Math.round(path.length), Math.max(0, m)));
-      const v = Math.round(sum / (2 * ARP_SMOOTH + 1));
+      let v = ARP_TOP;
+      for (let m = Math.round(x) - ARP_SMOOTH; m <= Math.round(x) + ARP_SMOOTH; m++) v = Math.min(v, at(Math.min(Math.round(path.length), Math.max(0, m))));
       return v < ARP_TOP ? v : null;
     });
   }
@@ -1001,8 +1026,12 @@ const Video = (() => {
     const xs = turns.xs;
     const pan = pans(path, xs, { junctions });
     const kmhs = speedometer || lateral ? speeds(xs) : null;
-    const devs = lateral ? insideDevers(path, xs) : null;
-    const lats = lateral ? laterals(path, xs, kmhs) : null, vmax = arpSpeed ? arpSpeeds(path, xs) : null;
+    // Accélération ressentie (|a / g - dévers|) et sa couleur, lissées sur ± STEADY images ; chiffres sans battement mais
+    // extrêmes gardés : pic de l'accélération, creux de la vitesse max ARP (la plus basse sur 20 m)
+    const devs = lateral ? smoothed(insideDevers(path, xs), STEADY) : null;
+    const lats = lateral ? smoothed(laterals(path, xs, kmhs), STEADY) : null;
+    const felt = lateral ? steady(lats.map((a, n) => Math.abs(a - 1000 * (devs[n] ?? 0))), STEP_MG) : null;
+    const vmax = arpSpeed ? steady(arpSpeeds(path, xs), STEP_KMH, false) : null;
     turns.look.forEach((v, n) => { pan[n] += v; });
     // Point d'intérêt : regard vers la cible (ajouté au décalage du regard), visée en hauteur, zoom ; tonneau au plus près
     const ground = poi?.ground ? path.list.map((p) => poi.ground.photos[photos.indexOf(p)] ?? null) : null;
@@ -1108,7 +1137,7 @@ const Video = (() => {
           ctx2d.drawImage(gl.canvas, 0, 0, width, height);
           drawOverlay(ctx2d, width, height, { title, pr: counter ? prAt(path, x) : null,
             speed: speedometer ? { kmh: kmhs[n], digits: String(Math.round(Math.max(...kmhs))).length } : null,
-            lateral: lateral ? { mg: lats[n], kmh: kmhs[n], devers: devs[n] } : null, arp: arpSpeed ? { kmh: vmax[n] } : null,
+            lateral: lateral ? { felt: felt[n], color: lateralColor(lats[n], kmhs[n], devs[n]) } : null, arp: arpSpeed ? { kmh: vmax[n] } : null,
             t: n / FPS });
           image = overlay;
         }
@@ -1129,5 +1158,5 @@ const Video = (() => {
   }
 
   return { supported, record, mp4, trajectory, timeline, duration, exposures, prAt, pans, rolls, lookedJunctions,
-    poiSpan, poiViews, planets, tours, speeds, laterals, insideDevers, lateralColor, arpSpeeds, drawOverlay, fetchImage, FPS, HOLD };
+    poiSpan, poiViews, planets, tours, speeds, laterals, insideDevers, lateralColor, arpSpeeds, steady, drawOverlay, fetchImage, FPS, HOLD };
 })();

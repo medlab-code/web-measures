@@ -175,6 +175,12 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       const wideTrack = Video.trajectory(wide.map((c) => ({ coords: [4.85 + c[0], 47 + c[1]], alt: 200, heading: 0 })));
       const [vStraight, vBend] = Video.arpSpeeds(wideTrack, [150, 300 + Math.PI * 50]);
       expect("vitesse max ARP : « — » sur la droite, 42 km/h dans le virage de 200 m sans dévers", vStraight === null && vBend === 42, `${vStraight} ${vBend}`);
+      // Affichage sans battement, extrêmes gardés : monte aussitôt (pic exact), ne redescend que de 10 au moins ; vitesse
+      // max : descend aussitôt (creux exact), ne remonte que de 5 au moins
+      const peakShown = Video.steady([100, 104, 96, 109, 111, 105, 98, null, 37], 10).join(" ");
+      const dip = Video.steady([80, 77, 79, 81, 72, 75, 78], 5, false).join(" ");
+      expect("compteurs : pic gardé, retour d'au moins 10", peakShown === "100 104 104 109 111 111 98  37", peakShown);
+      expect("compteurs : creux gardé, retour d'au moins 5", dip === "80 77 77 77 72 72 78", dip);
       expect("dévers vers l'intérieur : celui de la photo dans un virage à droite, opposé à gauche", Math.abs(dl(1) - 0.04) < 1e-9 && Math.abs(dl(-1) + 0.04) < 1e-9, `${dl(1)} ${dl(-1)}`);
       doc.querySelector("#video-rampe").checked = true;
       doc.querySelector("#video-rampe").dispatchEvent(new w.Event("change"));
@@ -476,7 +482,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       for (const [k, v] of [[0, 9], [1, 99.5], [2, 135]]) {
         dctx.fillStyle = "#567";
         dctx.fillRect(0, 0, 960, 540);
-        Video.drawOverlay(dctx, 960, 540, { title: null, pr: null, speed: { kmh: v, digits: 3 }, lateral: { mg: 1.4 * v, kmh: v, devers: null }, t: 10 });
+        Video.drawOverlay(dctx, 960, 540, { title: null, pr: null, speed: { kmh: v, digits: 3 }, lateral: { felt: 1.4 * v, color: Video.lateralColor(1.4 * v, v) }, t: 10 });
         await log(`IMAGE vitesse-${k} ` + dial.toDataURL("image/jpeg", 0.9));
       }
       const blob = await Video.mp4(sub, 90, () => {}, null, { tours: [place], tourTime: 8, tourStop: true, speedometer: true, lateral: true, counter: true });

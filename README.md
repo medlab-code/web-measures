@@ -147,6 +147,7 @@ la vitesse de la vidéo à chaque instant en km/h (rampe, ralentissements, arrê
 quart de seconde comme une aiguille ; chiffres en rouleaux, zéros de tête masqués. « Accélération latérale » (décochée) : en bas à droite, à gauche du compteur
 de vitesse s'il est affiché, l'accélération latérale ressentie (« Accél. ressentie »), en millièmes de g (mG) :
 a / g - dévers en valeur absolue (en ligne droite, la pente en travers de la chaussée ; dévers compté nul s'il manque),
+pic du virage affiché tel quel (le chiffre monte aussitôt et ne redescend que de 20 mG au moins : pas de battement),
 a = v² × courbure, la courbure étant la rotation du cap lissé sur 10 m (trajectoire lissée sur ± 15 m : les
 virages de moins de 30 m de rayon environ sont sous-estimés). Chiffre coloré selon le frottement transversal mobilisé
 f = a / g - dévers (dévers vers l'intérieur du virage), comparé à celui des rayons de l'ARP (SETRA, août 1994, § 3.1) à
@@ -158,7 +159,7 @@ environ pour 5 km, avancement affiché) : plan ajusté sur 15 points à ± 1,5 m
 l'option ou à la préparation ; l'aide de l'option dit si les couleurs sont conformes à l'ARP (dévers lu partout) ou
 approchées (dévers compté nul là où il manque). Sur un pont, le LiDAR donne le terrain sous le tablier : dévers faux. « Vitesse max ARP » (décochée) : en bas à
 droite, au-dessus du compteur de vitesse, la plus haute vitesse à laquelle le virage resterait vert (même calcul, même
-dévers, seuil du rayon non déversé de l'ARP à cette vitesse), moyennée sur 20 m, au km/h ; « — » à 150 km/h ou plus (ligne droite,
+dévers, seuil du rayon non déversé de l'ARP à cette vitesse), la plus basse sur 30 m (point critique du virage, affiché tel quel ; le chiffre ne remonte que de 5 km/h au moins) ; « — » à 150 km/h ou plus (ligne droite,
 grande courbe). Calcul, seuils de l'ARP et exemples détaillés : [`docs/CALCULS.md`](docs/CALCULS.md),
 § 11. Au raccord de deux séquences, le cap de la vue est lissé plus
 largement à moins de 40 m (± 40 m au lieu de ± 15 m, retour en douceur sur les 40 m suivants : le décalage des deux

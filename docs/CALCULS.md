@@ -413,6 +413,9 @@ viaducs en virage comptent) ; un véhicule garé ou un mur bas est retiré du MN
   25 mG. Sans dévers lu, `d = 0` : le chiffre est l'accélération brute.
 - **Couleur** : selon le frottement transversal mobilisé `f = a / g − d` (même grandeur, avec son
   signe), comparé aux seuils de l'ARP à la vitesse de l'image (§ 11.5).
+- **Affichage sans battement, pics gardés** : accélération et dévers moyennés sur ±8 images (±0,27 s) avant le calcul du chiffre et de sa couleur. Le chiffre **monte aussitôt**
+  jusqu'au pic, à l'unité près, et ne redescend que d'au moins **20 mG** à la fois : il ne bat pas
+  entre deux valeurs voisines, et la valeur la plus forte du virage s'affiche telle quelle.
 
 Exemples à 90 km/h (25 m/s) : virage de 200 m, `a = 3,1 m/s²`, 319 mG ; déversé à 5 % vers
 l'intérieur, 269 mG ressentis, `f = 0,269`, rouge (seuil du rayon minimal à 90 km/h : 0,128).
@@ -462,9 +465,10 @@ exclues ; elles relèvent de l'ICTAAL, non repris ici). À 130 km/h, ce sont don
 Pour chaque image (`arpSpeeds`) : la plus haute vitesse entière V (km/h) pour laquelle l'image
 serait **verte**, avec la même courbure κ et le même dévers d. On essaie V = 1, 2, 3… tant que
 `1000 · (V / 3,6)² · κ / 9,81` reste vert à la vitesse V (les seuils dépendent eux aussi de V).
-Ce calcul est fait mètre par mètre le long du parcours, puis **moyenné sur 20 m** (±10 m autour
-de l'image, 150 km/h comptés pour la ligne droite) : le chiffre ne saute pas d'une image à l'autre
-et annonce le virage un peu avant d'y entrer. À 150 km/h ou plus (ligne droite, grande courbe), le
+Ce calcul est fait mètre par mètre le long du parcours ; l'image affiche **la plus basse sur
+30 m** (±15 m autour d'elle) : le point critique du virage s'annonce 15 m avant et reste affiché
+15 m après. Le chiffre **descend aussitôt** jusqu'à ce creux, au km/h près, et ne remonte que d'au
+moins **5 km/h** à la fois (pas de battement). À 150 km/h ou plus (ligne droite, grande courbe), le
 cadre affiche « — ». Le dévers inconnu compte pour nul. Le cadre « V max ARP » est au-dessus du
 compteur de vitesse.
 
