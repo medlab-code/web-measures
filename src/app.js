@@ -3101,6 +3101,8 @@
         const found = await travelFields.go();
         if (!found) throw new Error("départ ou arrivée introuvable");
         videoPlan = { ...await planPhotos(found.start, found.end), title: found.title };
+        setStatus("Vidéo : PR des photos…");
+        await prOfPhotos(videoPlan.photos, found.title.split(" ")[0]);
         setStatus(videoPlan.switches ? `Vidéo prête à enregistrer. ${videoWarning()}` : "Vidéo prête à enregistrer.",
           videoPlan.switches ? "avertissement" : "");
       } catch (error) {
@@ -3129,7 +3131,10 @@
         $("#video-info").textContent = text;
         setStatus(text, "avancement");
         $("#statut").style.setProperty("--avancement", `${(100 * done / total).toFixed(1)}%`);
-      }, videoRun.signal, { blur: $("#video-flou").checked });
+      }, videoRun.signal, { blur: $("#video-flou").checked, exposure: $("#video-expo").checked, ramp: $("#video-rampe").checked,
+        counter: $("#video-compteur").checked,
+        title: $("#video-titre").checked ? { text: videoPlan.title.replace(/\+0*(\d)/g, "+$1"),
+          sub: `Photos du ${videoPlan.dates.map((d) => d.split("-").reverse().join("/")).join(", du ") || "?"}` } : null });
       await save(blob);
       const text = `Vidéo enregistrée dans « ${save.fileName} » : ${(blob.size / 1e6).toFixed(1)} Mo, `
         + `${Math.round((Date.now() - t0) / 1000)} s de calcul.`;
@@ -3145,7 +3150,35 @@
     }
   });
   $("#parcours-video-arret").addEventListener("click", () => videoRun?.abort());
-  for (const id of ["#video-vitesse", "#video-photos"]) $(id).addEventListener("change", updatePlayer);
+  for (const id of ["#video-vitesse", "#video-photos", "#video-rampe"]) $(id).addEventListener("change", updatePlayer);
+
+  /** PR de chaque photo (photo.pr : { route, n, m }, m en mètres depuis le PR n, ou null) pour le compteur de la
+   * vidéo : sur la route du parcours (route), sinon sur celle du lieu (autre route après une bifurcation). Sections et PR
+   * gardés en cache par Lieu : une requête par section, pas par photo. */
+  async function prOfPhotos(photos, route) {
+    const roads = /^[A-Z]+\d/.test(route) ? [route] : [];  // routes déjà vues, celle du parcours d'abord
+    let asked = null;  // dernier lieu demandé : voie sans numéro (sans PR), pas redemandé avant 50 m
+    for (const photo of photos) {
+      const [lon, lat] = photo.coords;
+      let voie = "", text = "";
+      for (const road of roads) {
+        text = await Lieu.milestone(road, lon, lat).catch(() => "");
+        if (text) {
+          voie = road;
+          break;
+        }
+      }
+      // Hors des routes déjà vues : la route du lieu, une fois (ensuite ses PR, en cache, suffisent) ; voie sans numéro :
+      // redemandée tous les 50 m au plus
+      if (!text && (!asked || metresBetween(asked, photo.coords) > 50)) {
+        asked = photo.coords;
+        [text, voie] = await Lieu.describe(lon, lat).then(({ parts }) => [parts.pr || "", parts.voie || ""]).catch(() => ["", ""]);
+        if (/^[A-Z]+\d/.test(voie) && !roads.includes(voie)) roads.push(voie);
+      }
+      const m = /^PR (\d+) ([+-])(\d+)$/.exec(text);
+      photo.pr = m ? { route: voie, n: Number(m[1]), m: (m[2] === "-" ? -1 : 1) * Number(m[3]) } : null;
+    }
+  }
 
   /** Photos du parcours préparé retenues pour la vidéo : une sur n (liste « Photos »), la dernière toujours. */
   function videoPhotos() {
@@ -3167,7 +3200,8 @@
     const path = Video.trajectory(videoPhotos());
     const n = path.list.length, perSecond = v * (n - 1) / Math.max(1, path.length);
     return `${n} photos (une tous les ${(path.length / Math.max(1, n - 1)).toFixed(0)} m) · `
-      + `${Math.round(path.length / v + 2 * Video.HOLD)} s · ${perSecond.toFixed(perSecond < 10 ? 1 : 0)} photos/s`
+      + `${Math.round(Video.duration(videoPhotos(), v * 3.6, $("#video-rampe").checked))} s · `
+      + `${perSecond.toFixed(perSecond < 10 ? 1 : 0)} photos/s${$("#video-rampe").checked ? " au plus" : ""}`
       + (perSecond > Video.FPS ? " (photos sautées)" : "") + (videoPlan.switches ? ` ⚠ ${videoWarning()}` : "");
   }
 
@@ -3196,7 +3230,9 @@
       || Boolean(videoPlan && plan.length < 2);
     $("#parcours-video").textContent = videoPlan ? "🎬 Enregistrer la vidéo" : "🎬 Préparer la vidéo";
     $("#parcours-video-arret").hidden = !videoRun;
-    $("#video-vitesse").disabled = $("#video-photos").disabled = $("#video-flou").disabled = Boolean(videoRun);
+    for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-expo", "#video-rampe", "#video-titre", "#video-compteur"]) {
+      $(id).disabled = Boolean(videoRun);
+    }
     if (!videoRun) $("#video-info").textContent = videoOk ? videoInfo() : "ce navigateur n'encode pas la vidéo";
     // Écart des photos de chaque choix, d'après l'écart médian des photos du parcours préparé
     const gaps = plan.slice(1).map((p, i) => metresBetween(plan[i].coords, p.coords)).sort((a, b) => a - b);

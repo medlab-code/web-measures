@@ -35,6 +35,12 @@ const Video = (() => {
   const EXPO_SIDE = 3;  // photos mesurées de part et d'autre d'un changement de séquence (exposition)
   const EXPO_RAMP = 100;  // m : retour progressif à l'exposition propre de la nouvelle séquence
   const EXPO_MAX = 2;  // gain d'exposition au plus (ou 1 / EXPO_MAX)
+  const RAMP_MIN = 0.35;  // rampe de vitesse : part de la vitesse choisie au plus bas (virage serré, départ, arrivée)
+  const RAMP_TURN = 1.5;  // °/m : courbe (cap lissé) qui réduirait la vitesse de moitié sans RAMP_MARKED
+  const RAMP_MARKED = 1;  // °/m : au-delà (virage marqué, rayon de moins de 57 m), sensibilité doublée
+  const RAMP_EDGE = 50;  // m : départ et arrivée en douceur sur cette distance
+  const RAMP_SMOOTH = 15;  // m : vitesse lissée sur ± RAMP_SMOOTH m (pas d'à-coup)
+  const TITLE_FADE = [2, 3];  // s : titre plein jusqu'à 2 s, effacé à 3 s
   const BLUR = 8;  // vues moyennées par image pour le flou cinétique (obturateur ouvert toute l'image : 360°)
 
   const supported = () => typeof VideoEncoder === "function" && typeof VideoFrame === "function"
@@ -55,6 +61,116 @@ const Video = (() => {
   }
 
   const toRad = Math.PI / 180;
+
+  /**
+   * Position (m le long du parcours path) de chaque image : HOLD s d'arrêt au début et à la fin, et entre les deux la
+   * vitesse v (m/s), constante, ou avec ramp (rampe de vitesse) réduite dans les virages (facteur 1 / (1 + rotation du
+   * cap lissé / RAMP_TURN), la rotation au-delà de RAMP_MARKED °/m comptant double ; au plus bas RAMP_MIN·v) et en douceur sur RAMP_EDGE m au départ et à l'arrivée,
+   * lissée sur ± RAMP_SMOOTH m : v devient la vitesse des lignes droites.
+   */
+  function timeline(path, v, ramp) {
+    const xs = Array(HOLD * FPS + 1).fill(0);
+    let factor = () => 1;
+    if (ramp) {
+      const raw = [];  // facteur de vitesse par mètre
+      for (let x = 0; x <= path.length + 1; x++) {
+        const a = path.course(x - 5), b = path.course(x + 5);
+        const turn = Math.abs(((b - a) % 360 + 540) % 360 - 180) / 10;  // °/m
+        const edge = Math.min(1, Math.min(x, path.length - x) / RAMP_EDGE);
+        const slow = (Math.min(turn, RAMP_MARKED) + 2 * Math.max(0, turn - RAMP_MARKED)) / RAMP_TURN;
+        raw.push(Math.max(RAMP_MIN, Math.min(1 / (1 + slow), RAMP_MIN + (1 - RAMP_MIN) * edge)));
+      }
+      const smooth = raw.map((_, i) => {
+        const part = raw.slice(Math.max(0, i - RAMP_SMOOTH), i + RAMP_SMOOTH + 1);
+        return part.reduce((sum, f) => sum + f, 0) / part.length;
+      });
+      factor = (x) => smooth[Math.min(smooth.length - 1, Math.max(0, Math.round(x)))];
+    }
+    for (let x = 0; x < path.length;) xs.push(x = Math.min(path.length, x + v * factor(x) / FPS));
+    for (let k = 0; k < HOLD * FPS; k++) xs.push(path.length);
+    return xs;
+  }
+
+  /**
+   * Compteur PR à la position x (m) du parcours path : { route, n, m } (m : mètres depuis le PR n), interpolé entre les
+   * photos qui l'encadrent pour défiler en continu ; PR franchi entre deux photos : l'ancien jusqu'à son bout, puis le
+   * nouveau (depuis 0 en montant, depuis sa longueur en descendant) ; autre route ou PR inconnu : à mi-chemin. null
+   * sans PR.
+   */
+  function prAt(path, x) {
+    const [i, u] = path.segment(x);
+    const j = Math.min(i + 1, path.list.length - 1);
+    const a = path.list[i].pr, b = path.list[j].pr;
+    if (!a || !b || a.route !== b.route) return u < 0.5 ? a : b;
+    if (a.n === b.n) return { ...a, m: a.m + (b.m - a.m) * u };
+    const gap = path.s[j] - path.s[i], up = b.n > a.n;
+    const fromA = a.m + (up ? 1 : -1) * u * gap, fromB = b.m - (up ? 1 : -1) * (1 - u) * gap;
+    if (up) return fromB >= 0 ? { ...b, m: fromB } : { ...a, m: fromA };
+    return fromA >= 0 ? { ...a, m: fromA } : { ...b, m: fromB };
+  }
+
+  /** Mètres du compteur en rouleaux (compteur kilométrique) : chaque chiffre glisse vers le suivant quand les chiffres
+   * de droite passent de 9… à 0… ; continu dans les deux sens. ctx : contexte 2D, x, y : coin bas gauche, size : corps. */
+  function drawRollers(ctx, value, x, y, size) {
+    const v = Math.abs(value), cell = ctx.measureText("0").width, line = size * 1.15;
+    for (let k = 3; k >= 0; k--) {
+      const unit = 10 ** k, base = Math.floor(v / unit) % 10;
+      const roll = k === 0 ? v % 1 : Math.max(0, (v % unit) - (unit - 1));
+      const left = x + (3 - k) * cell;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(left, y - size, cell, line);
+      ctx.clip();
+      ctx.fillText(String(base), left, y - roll * line);
+      ctx.fillText(String((base + 1) % 10), left, y + (1 - roll) * line);
+      ctx.restore();
+    }
+    return 4 * cell;
+  }
+
+  /** Titre (fondu à TITLE_FADE s) et compteur PR sur l'image (contexte 2D ctx, w × h) ; t : secondes depuis le début. */
+  function drawOverlay(ctx, w, h, { title, pr, t }) {
+    const font = (size, weight = 500) => `${weight} ${Math.round(size)}px Roboto, "Segoe UI", sans-serif`;
+    ctx.textBaseline = "alphabetic";
+    const alpha = title ? Math.max(0, Math.min(1, (TITLE_FADE[1] - t) / (TITLE_FADE[1] - TITLE_FADE[0]))) : 0;
+    if (alpha > 0) {
+      const big = h * 0.055, small = h * 0.032;
+      ctx.font = font(big);
+      const width = Math.max(ctx.measureText(title.text).width, (ctx.font = font(small, 400), ctx.measureText(title.sub || "").width));
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+      ctx.fillRect((w - width) / 2 - big * 0.6, h * 0.06, width + big * 1.2, big * 1.5 + (title.sub ? small * 1.5 : 0));
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.font = font(big);
+      ctx.fillText(title.text, w / 2, h * 0.06 + big * 1.15);
+      if (title.sub) {
+        ctx.font = font(small, 400);
+        ctx.fillText(title.sub, w / 2, h * 0.06 + big * 1.15 + small * 1.4);
+      }
+      ctx.textAlign = "left";
+      ctx.globalAlpha = 1;
+    }
+    if (pr) {
+      const size = h * 0.045, pad = size * 0.45, x0 = h * 0.04, y0 = h - h * 0.05;
+      ctx.font = font(size);
+      const head = `PR ${pr.n} ${pr.m < 0 ? "−" : "+"} `;
+      const width = ctx.measureText(head).width + 4 * ctx.measureText("0").width;
+      ctx.font = font(size * 0.6, 700);
+      const roadWidth = ctx.measureText(pr.route).width;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+      ctx.fillRect(x0 - pad, y0 - size - size * 0.75 - pad, Math.max(width, roadWidth) + 2 * pad, size * 1.75 + 2 * pad);
+      ctx.fillStyle = "#ffb300";
+      ctx.fillText(pr.route, x0, y0 - size - size * 0.12);
+      ctx.fillStyle = "#fff";
+      ctx.font = font(size);
+      ctx.fillText(head, x0, y0);
+      drawRollers(ctx, pr.m, x0 + ctx.measureText(head).width, y0, size);
+    }
+  }
+
+  /** Durée (s) de la vidéo des photos [record] à kmh, avec ou sans rampe de vitesse. */
+  const duration = (photos, kmh, ramp = false) => timeline(trajectory(photos), kmh / 3.6, ramp).length / FPS;
 
   /** Exposition d'une photo : moyenne des logarithmes de R, V, B sur sa vignette, de 45° au-dessus de l'horizon à 20°
    * dessous (ni le haut du ciel, ni le toit du véhicule, sous ROOF), sur tout le tour d'horizon : deux photos voisines
@@ -367,9 +483,11 @@ const Video = (() => {
    * Vidéo MP4 (Blob) des photos du parcours [record], à la vitesse simulée kmh, exposition accordée aux changements de
    * séquence (exposures). options.blur : flou cinétique (moyenne de BLUR vues réparties entre la position de l'image
    * précédente et celle-ci : le proche défilant vite s'étale) ; options.exposure : false pour ne pas accorder
-   * l'exposition (essais). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
+   * l'exposition aux changements de séquence ; options.ramp : rampe de vitesse (timeline) ; options.title :
+   * { text, sub } en titre au début ; options.counter : compteur PR (photo.pr, prAt). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
    */
-  async function mp4(photos, kmh, progress = () => {}, signal = null, { blur = false, exposure = true } = {}) {
+  async function mp4(photos, kmh, progress = () => {}, signal = null,
+    { blur = false, exposure = true, ramp = false, title = null, counter = false } = {}) {
     const path = trajectory(photos);
     if (path.list.length < 2 || path.length < 1) throw new Error("parcours trop court");
     const [chosen] = await Promise.all([encoderConfig(), loadMuxer()]);
@@ -402,13 +520,14 @@ const Video = (() => {
     let failure = null;
     const encoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => { failure = e; } });
     encoder.configure(config);
-    const v = kmh / 3.6;
-    const total = Math.ceil(path.length / v * FPS) + 2 * HOLD * FPS;
+    const xs = timeline(path, kmh / 3.6, ramp);
+    let overlay = null;  // canevas 2D du titre et du compteur
+    const total = xs.length;
     try {
       for (let n = 0; n < total; n++) {
         if (signal?.aborted) throw new DOMException("Vidéo arrêtée", "AbortError");
         if (failure) throw failure;
-        const at = (m) => Math.min(path.length, Math.max(0, (m - HOLD * FPS) * v / FPS));
+        const at = (m) => xs[Math.max(0, Math.min(total - 1, m))];
         const x = at(n);
         // Flou cinétique : vues de la position de l'image précédente (exclue) à celle-ci, dans l'ordre du parcours
         const subs = blur && at(n - 1) < x ? BLUR : 1;
@@ -433,7 +552,16 @@ const Video = (() => {
             { ...b, yaw: yawAt(j, xs) * toRad, pitch: path.list[j].pitch, tan, move: -(1 - u) * gap, gain: gains[j] },
           ], j === i ? 0 : smooth(Math.min(1, Math.max(0, (u - 0.25) / 0.5))), 1 / (k + 1));
         }
-        const frame = new VideoFrame(gl.canvas, { timestamp: Math.round(n * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
+        // Titre et compteur PR : image recopiée dans un canevas 2D, puis écrits dessus
+        let image = gl.canvas;
+        if (title || counter) {
+          overlay ??= new OffscreenCanvas(width, height);
+          const ctx2d = overlay.getContext("2d");
+          ctx2d.drawImage(gl.canvas, 0, 0);
+          drawOverlay(ctx2d, width, height, { title, pr: counter ? prAt(path, x) : null, t: n / FPS });
+          image = overlay;
+        }
+        const frame = new VideoFrame(image, { timestamp: Math.round(n * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
         encoder.encode(frame, { keyFrame: n % (2 * FPS) === 0 });
         frame.close();
         while (encoder.encodeQueueSize > 4) await new Promise((resolve) => setTimeout(resolve, 5));
@@ -449,5 +577,5 @@ const Video = (() => {
     }
   }
 
-  return { supported, record, mp4, trajectory, exposures, FPS, HOLD };
+  return { supported, record, mp4, trajectory, timeline, duration, exposures, prAt, FPS, HOLD };
 })();
