@@ -1,7 +1,7 @@
 <!doctype html><meta charset="utf-8"><title>Essai du parcours</title>
 <!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
-<!-- Onglet « Parcours » : D115D du PR 1 + 146 (sortie d'Aloxe-Corton) au PR 0 (RD18), photos du CD21 du
+<!-- Onglet « Vidéo » (parcours) : D115D du PR 1 + 146 (sortie d'Aloxe-Corton) au PR 0 (RD18), photos du CD21 du
      10 juillet 2025 (filtre « depuis le 5 juillet 2025 »). Contrôles : lecture rapide arrêtée près de l'arrivée, vue
      dans l'axe de la route, pente corrigée. Une vue sur 5 part dans le journal en JPEG (#toutes : chaque vue ; #capture : pause de 8 s, onglet rempli). Lancer comme tests/navigateur.html. -->
 <script>try {
@@ -28,7 +28,7 @@ const END = [4.84938, 47.07541];  // PR 0, sur la RD18
     const type = (input, text) => { input.focus(); input.value = text; input.dispatchEvent(new w.Event("input", { bubbles: true })); };
     doc.querySelector("#onglet-parcours").click();
     const dialog = doc.querySelector("#parcours");
-    expect("onglet « Parcours » affiché", !dialog.hidden);
+    expect("onglet « Vidéo » affiché", !dialog.hidden);
     const tabs = doc.querySelector("#onglets");
     expect("cinq onglets sans débordement", tabs.scrollWidth <= tabs.clientWidth, `${tabs.scrollWidth} > ${tabs.clientWidth}`);
     expect("panneau sans défilement horizontal", doc.querySelector("#contenu-panneau").scrollWidth <= doc.querySelector("#contenu-panneau").clientWidth);

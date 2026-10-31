@@ -190,7 +190,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <button id="onglet-photo" type="button" role="tab" data-panneau="photo" aria-controls="photo">Photo</button>
           <button id="onglet-favoris" type="button" role="tab" data-panneau="favoris" aria-controls="favoris">Favoris <span id="compte-favoris" class="compte"></span></button>
           <button id="onglet-couche" type="button" role="tab" data-panneau="couche" aria-controls="couche">Couche</button>
-          <button id="onglet-parcours" type="button" role="tab" data-panneau="parcours" aria-controls="parcours">Parcours</button>
+          <button id="onglet-parcours" type="button" role="tab" data-panneau="parcours" aria-controls="parcours">Vidéo</button>
         </nav>
         <div id="contenu-panneau">
         <section id="resultats" role="tabpanel" aria-labelledby="onglet-resultats">
@@ -393,6 +393,18 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <div class="ligne"><button id="parcours-export" type="button" disabled
             title="Le dernier parcours en WebP animé : largeur de la vue (1 280 px au plus), 0,4 s par vue, fondu enchaîné, en boucle">🎞 WebP animé</button>
             <span id="parcours-vues" class="aide">aucun parcours</span></div>
+          <h3>Vidéo du départ à l'arrivée</h3>
+          <div class="ligne">
+            <button id="parcours-video" type="button" disabled
+              title="Vidéo MP4 du départ à l'arrivée, sans lire le parcours (1920 × 1080, sinon 1280 × 720 ; 30 images/s), calculée depuis les tuiles HD : « Préparer » cherche les photos et prévient d'un changement de séquence, « Enregistrer » la calcule">🎬 Préparer la vidéo</button>
+            <select id="video-vitesse" aria-label="Vitesse simulée" title="Vitesse simulée de la vidéo">
+              <option value="30">30 km/h</option><option value="50">50 km/h</option><option value="70">70 km/h</option><option value="90" selected>90 km/h</option><option value="130">130 km/h</option><option value="180">180 km/h</option><option value="360">360 km/h</option><option value="720">720 km/h</option><option value="1235">Mach 1 (1 235 km/h)</option><option value="2470">Mach 2 (2 470 km/h)</option></select>
+            <select id="video-photos" aria-label="Photos de la séquence" title="Photos de la séquence prises pour la vidéo : toutes (une tous les 5 m pour le CD21), une sur 2, 4 ou 8 (plus d'écart, moins de téléchargement)">
+              <option value="1" selected>Photos 1/1</option><option value="2">Photos 1/2</option><option value="4">Photos 1/4</option><option value="8">Photos 1/8</option></select>
+            <label title="Flou cinétique : chaque image est la moyenne de 8 vues réparties depuis l'image précédente ; ce qui défile vite près de la caméra (chaussée, poteaux) s'étale dans le sens du mouvement, le lointain reste net"><input id="video-flou" type="checkbox"> Flou cinétique</label>
+            <button id="parcours-video-arret" type="button" hidden>■ Arrêter</button>
+          </div>
+          <p id="video-info" class="aide"></p>
         </section>
         <section id="filtre" hidden>
           <!-- Résumé du filtre actif (app.js applyFilter) -->
@@ -734,6 +746,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
   <script src="src/recherche.js"></script>
   <script src="src/requeteur.js"></script>
   <script src="src/hyperlapse.js"></script>
+  <script src="src/video.js"></script>
   <script src="src/calcul.js"></script>
   <script src="src/traits.js"></script>
   <script src="src/couche.js"></script>

@@ -336,7 +336,7 @@ const Requeteur = (() => {
   }
 
   /**
-   * Champs de l'onglet « Parcours » (form) : route, PR de départ et d'arrivée (listes qui se
+   * Champs de l'onglet « Vidéo » (form) : route, PR de départ et d'arrivée (listes qui se
    * réduisent à chaque frappe, comme le requêteur), distances depuis eux ; ou points choisis sur la
    * carte (pick), gardés tels quels, les champs remplis d'après la route et le PR trouvés là. Rend
    * { ready, pick, go } : ready() dit si départ et arrivée sont connus ; go() marque les deux points

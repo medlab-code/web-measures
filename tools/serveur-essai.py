@@ -27,6 +27,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if text.strip() == "FIN" or text.startswith("ERREUR"):
             threading.Thread(target=self.server.shutdown).start()
 
+    def end_headers(self):
+        # Fichiers du site jamais repris du cache : un profil de navigateur réutilisé garde les tuiles, pas le code
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def log_message(self, *args):
         pass
 

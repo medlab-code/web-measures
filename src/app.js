@@ -2510,13 +2510,17 @@
   let backward = false;  // sens de la dernière lecture, repris par « pause/reprise »
   let speed = 1;  // vitesse de la dernière lecture, reprise de même
   let fast = null;  // lecture rapide (2x à 16x) en cours : { collection, apis, rank, step, id, ids, points, timer }
-  // Parcours (onglet « Parcours ») en cours : voir travel ; endRank : rang de la photo d'arrivée dans la séquence lue
+  // Parcours (onglet « Vidéo ») en cours : voir travel ; endRank : rang de la photo d'arrivée dans la séquence lue
   // (null si elle n'y passe pas) ; best, bestAt : plus courte distance (m) à l'arrivée et son point ; axis : vue
   // dans l'axe du véhicule ; freeYaw : en regard libre, écart réglé à l'avant du véhicule
   let tour = null;
-  let travelPick = null;  // 📍 de l'onglet « Parcours » : point attendu sur la carte (« start », « end »)
+  let travelPick = null;  // 📍 de l'onglet « Vidéo » : point attendu sur la carte (« start », « end »)
   // Vues du dernier parcours (WebP réduits), pour son export en WebP animé ; tourTitle : son intitulé
   let tourViews = [], tourTitle = "";
+  // Vidéo : parcours préparé (planPhotos : { photos, switches, dates, warning, title }), sa préparation ou son calcul en
+  // cours ; videoReady : départ et arrivée connus (onglet « Vidéo »)
+  let videoPlan = null, videoPreparing = false, videoRun = null, videoReady = false;
+  const videoOk = Video.supported();
   const webpOk = Hyperlapse.supported();  // Safari n'encode pas le WebP
   const TOUR_AXIS = 4;  // rangs de part et d'autre de la photo pour l'axe et la pente (± 20 m)
   const TILES_WAIT = 4000;  // ms : attente au plus des tuiles HD d'une vue du parcours (réseau lent)
@@ -2597,8 +2601,9 @@
           if (!Number.isInteger(rank) || !f.id) continue;
           run.ids.set(rank, f.id);
           const exif = f.properties?.exif || {};
-          run.points.set(rank, { coords: f.geometry?.coordinates, alt: exifNumber(exif["Exif.GPSInfo.GPSAltitude"]),
-            heading: exifNumber(exif["Exif.GPSInfo.GPSImgDirection"]) ?? Number(f.properties?.["view:azimuth"]) });
+          const point = { coords: f.geometry?.coordinates, alt: exifNumber(exif["Exif.GPSInfo.GPSAltitude"]),
+            heading: exifNumber(exif["Exif.GPSInfo.GPSImgDirection"]) ?? Number(f.properties?.["view:azimuth"]) };
+          run.points.set(rank, { ...point, record: point.coords ? Video.record(f, point) : null });
         }
         return;
       } catch (error) {
@@ -2665,6 +2670,22 @@
     stopPlayer();
     tourViews = [];
     tourTitle = title || "";
+    const plan = await tourPlan(start, end);
+    if (plan.error) {
+      setStatus(plan.error, "echec");
+      notice(plan.error);
+      return;
+    }
+    Object.assign(plan.t, { speed, axis });
+    startTour(plan.t, plan.first, plan.back, plan.warning);
+  }
+
+  /**
+   * Départ du parcours de start à end, commun à la lecture (travel) et à la vidéo (planPhotos) : séquences qui
+   * passent à l'arrivée et leur tracé, photo de départ et sens. Rend { t, first, back, warning } (warning : pas de
+   * séquence unique, le parcours en changera), ou { error } (texte).
+   */
+  async function tourPlan(start, end) {
     // Séquence qui passe à l'arrivée -> rang de sa photo la plus proche ; seulement celles qui passent à TOUR_PASS m
     // de la plus proche (une route voisine à 25 m ne passe pas à l'arrivée)
     const endRanks = new Map(), endPhotos = [];
@@ -2692,20 +2713,17 @@
     }));
     const near = await Carte.photosNear(map, ...start, (f) => passesFilter(f) && Number.isInteger(rankOf(f)), TOUR_REACH)
       .catch(() => []);
-    const t = { end, endRanks, paths, speed, axis, best: Infinity, bestAt: null, used: new Set(), switches: 0, dates: new Set() };
+    const t = { end, endRanks, paths, best: Infinity, bestAt: null, used: new Set(), switches: 0, dates: new Set() };
     const common = near.filter((f) => endRanks.has(f.collection) && rankOf(f) !== endRanks.get(f.collection));
     let first = common.find((f) => endRanks.get(f.collection) > rankOf(f)) || common[0];
     let back = first ? endRanks.get(first.collection) < rankOf(first) : null;
     if (!first) ({ feature: first, back } = towardEnd(near, end) || {});
     if (!first) {
-      const text = `Parcours impossible : aucune photo${filterActive() ? " retenue par le filtre" : ""} à moins de `
-        + `${TOUR_REACH} m du départ ne part vers l'arrivée. Rapprochez le départ d'une route photographiée, ou changez le filtre.`;
-      setStatus(text, "echec");
-      notice(text);
-      return;
+      return { error: `Parcours impossible : aucune photo${filterActive() ? " retenue par le filtre" : ""} à moins de `
+        + `${TOUR_REACH} m du départ ne part vers l'arrivée. Rapprochez le départ d'une route photographiée, ou changez le filtre.` };
     }
-    startTour(t, first, back, common.length ? "" : "Pas de séquence unique du départ à l'arrivée : le parcours passera "
-      + "d'une séquence à l'autre, les photos peuvent différer (date, lumière, sens de prise de vue).");
+    return { t, first, back, warning: common.length ? "" : "Pas de séquence unique du départ à l'arrivée : le parcours "
+      + "passera d'une séquence à l'autre, les photos peuvent différer (date, lumière, sens de prise de vue)." };
   }
 
   /** Parmi les photos `list` (les plus proches d'abord), la première dont la séquence va vers `end` :
@@ -2776,27 +2794,57 @@
    * qui y passe d'abord, sinon d'après le cap de la caméra. Sans elle, parcours arrêté.
    */
   async function tourBranch(t) {
-    const at = t.bestAt;
     stopPlayer();  // lecture en cours arrêtée ; le parcours reste
     if (t.bestViews != null) tourViews.length = Math.min(tourViews.length, t.bestViews);  // export sans l'écart
-    const list = at ? await Carte.photosNear(map, ...at,
-      (f) => passesFilter(f) && !t.used.has(f.collection) && Number.isInteger(rankOf(f)), TOUR_BRANCH).catch(() => []) : [];
+    const next = await branchTarget(t);
     if (tour !== t) return;  // parcours quitté entre-temps
-    const viaEnd = list.find((f) => t.endRanks.has(f.collection) && t.endRanks.get(f.collection) !== rankOf(f));
-    const next = viaEnd ? { feature: viaEnd, back: t.endRanks.get(viaEnd.collection) < rankOf(viaEnd) } : towardEnd(list, t.end);
     if (!next) {
       tour = null;
       updatePlayer();
-      const text = `Parcours arrêté à ${Math.round(t.best)} m de l'arrivée : aucune séquence${filterActive() ? " retenue par le filtre" : ""} `
-        + "ne continue vers elle depuis ici.";
-      setStatus(text, "echec");
-      notice(text);
+      setStatus(branchFailure(t), "echec");
+      notice(branchFailure(t));
       return;
     }
     t.switches++;
     t.best = Infinity;
     t.bestAt = null;
     startTour(t, next.feature, next.back);
+  }
+
+  /** Séquence de rebranchement du parcours t, là où la séquence lue est passée au plus près de l'arrivée (t.bestAt),
+   * pas déjà lue : une qui passe à l'arrivée d'abord, sinon d'après le cap de la caméra ; { feature, back } ou null. */
+  async function branchTarget(t) {
+    const list = t.bestAt ? await Carte.photosNear(map, ...t.bestAt,
+      (f) => passesFilter(f) && !t.used.has(f.collection) && Number.isInteger(rankOf(f)), TOUR_BRANCH).catch(() => []) : [];
+    const viaEnd = list.find((f) => t.endRanks.has(f.collection) && t.endRanks.get(f.collection) !== rankOf(f));
+    return viaEnd ? { feature: viaEnd, back: t.endRanks.get(viaEnd.collection) < rankOf(viaEnd) } : towardEnd(list, t.end);
+  }
+
+  const branchFailure = (t) => `Parcours arrêté à ${Math.round(t.best)} m de l'arrivée : aucune séquence`
+    + `${filterActive() ? " retenue par le filtre" : ""} ne continue vers elle depuis ici.`;
+
+  /**
+   * Décision du parcours t à la photo here (rang run.rank), commune à la lecture et à la vidéo : { action, join,
+   * closer } ; action : "arrived" (rang de la photo d'arrivée atteint ou passé ; hors de sa séquence, à moins de
+   * TOUR_END m quand la distance remonte), "join" (saut join sur une séquence d'arrivée, joinTarget), "branch"
+   * (séquence qui s'écarte de TOUR_AWAY m de son point le plus proche de l'arrivée) ou null ; closer : plus près de
+   * l'arrivée que jamais (t.best, t.bestAt mis à jour).
+   */
+  function tourDecide(t, run, here) {
+    const sign = Math.sign(run.step);
+    const d = here?.coords ? metresBetween(here.coords, t.end) : Infinity;
+    if (t.endRank != null ? (run.rank - t.endRank) * sign >= 0 : t.best < TOUR_END && d > t.best) return { action: "arrived" };
+    const closer = d < t.best;
+    if (closer) {
+      t.best = d;
+      t.bestAt = here.coords;
+    }
+    if (t.endRank == null) {
+      const join = joinTarget(t, run, here);
+      if (join) return { action: "join", join, closer };
+      if (d > t.best + TOUR_AWAY) return { action: "branch", closer };
+    }
+    return { action: null, closer };
   }
 
   /**
@@ -2829,11 +2877,9 @@
       const yaw = offsets[offsets.length >> 1] + (sign < 0 ? 180 : 0);  // lecture à rebours : vers l'arrière de la caméra
       psv.rotate({ yaw: yaw * Math.PI / 180, pitch: -Math.atan(slope) });
     }
-    // Arrivée : rang de la photo d'arrivée atteint ou passé ; hors de sa séquence, à moins de TOUR_END m quand
-    // la distance remonte (arrivée passée) ou s'écarte de TOUR_AWAY m du plus près (rebranchement)
-    const d = here?.coords ? metresBetween(here.coords, tour.end) : Infinity;
-    const arrived = tour.endRank != null ? (run.rank - tour.endRank) * sign >= 0 : tour.best < TOUR_END && d > tour.best;
-    if (arrived) {
+    const decision = tourDecide(tour, run, here);
+    if (decision.closer) tour.bestViews = tourViews.length + 1;  // vues gardées jusqu'à celle-ci (prise ensuite) comprise
+    if (decision.action === "arrived") {
       const t = tour;
       tour = null;
       stopPlayer();
@@ -2841,17 +2887,9 @@
         : "Parcours terminé : arrivée atteinte.");
       return false;
     }
-    if (d < tour.best) {
-      tour.best = d;
-      tour.bestAt = here.coords;
-      tour.bestViews = tourViews.length + 1;  // vues gardées jusqu'à celle-ci (prise après ce calcul) comprise
-    }
-    if (tour.endRank == null && tourJoin(tour, run, here)) return false;
-    if (tour.endRank == null && d > tour.best + TOUR_AWAY) {
-      tourBranch(tour);
-      return false;
-    }
-    return true;
+    if (decision.action === "join") tourJoin(tour, decision.join);
+    if (decision.action === "branch") tourBranch(tour);
+    return !decision.action;
   }
 
   /** Photo des tracés d'arrivée (t.paths) à moins de TOUR_JOIN m de coords, la plus près de l'arrivée en rangs
@@ -2897,21 +2935,26 @@
    * Parcours hors d'une séquence d'arrivée : bifurcation sur l'une d'elles dès que son tracé passe à TOUR_LEAP m, au
    * saut le plus lisse (leap), quand la photo suivante n'en offre pas de meilleur : la trajectoire garde ainsi sa ligne
    * au carrefour, quitte à un écart plus grand que le pas de la séquence. Rien tant que la séquence lue suit ce tracé
-   * vers l'arrivée (à TOUR_JOIN m), ni pour un saut à plus de TOUR_TURN points sauf là où elle le quitte. Rend true si
-   * le parcours bifurque.
+   * vers l'arrivée (à TOUR_JOIN m), ni pour un saut à plus de TOUR_TURN points sauf là où elle le quitte. Rend le saut
+   * { collection, rank, sign } ou null.
    */
-  function tourJoin(t, run, here) {
-    if (!t.paths?.size || !here?.coords) return false;
+  function joinTarget(t, run, here) {
+    if (!t.paths?.size || !here?.coords) return null;
     const next = run.points.get(run.rank + run.step);
-    if (!next?.coords && run.ids.has(run.rank + run.step)) return false;  // suivante sans position : décidé plus loin
+    if (!next?.coords && run.ids.has(run.rank + run.step)) return null;  // suivante sans position : décidé plus loin
     const at = nearestOnPaths(t, here.coords);
     const then = next?.coords ? nearestOnPaths(t, next.coords) : null;
-    if (at && then && then.left < at.left) return false;  // tracé suivi vers l'arrivée
+    if (at && then && then.left < at.left) return null;  // tracé suivi vers l'arrivée
     const prev = run.points.get(run.rank - run.step)?.coords;
     const heading = prev ? Requeteur.bearing(prev, here.coords) : here.heading + (run.step < 0 ? 180 : 0);
     const jump = leap(t, here.coords, heading);
-    if (jump.score === Infinity || (jump.score > TOUR_TURN && !at)) return false;
-    if (next?.coords && leap(t, next.coords, Requeteur.bearing(here.coords, next.coords)).score < jump.score) return false;
+    if (jump.score === Infinity || (jump.score > TOUR_TURN && !at)) return null;
+    if (next?.coords && leap(t, next.coords, Requeteur.bearing(here.coords, next.coords)).score < jump.score) return null;
+    return jump;
+  }
+
+  /** Lecture : bifurcation du parcours t par le saut jump (joinTarget), sur la photo de la séquence d'arrivée. */
+  function tourJoin(t, jump) {
     const { rank, sign } = jump;
     const path = t.paths.get(jump.collection);
     const t0 = tour;
@@ -2927,13 +2970,75 @@
       t.bestAt = null;
       startTour(t, feature, sign < 0);
     }).catch(() => { if (tour === t0) tourBranch(t); });
-    return true;
   }
 
-  // Onglet « Parcours » : « ▶ Parcourir » grisé tant que la route ou un PR manque
+  /**
+   * Photos du parcours de start à end pour la vidéo, sans la visionneuse : mêmes décisions que la lecture (tourPlan,
+   * tourDecide, branchTarget), rang après rang (toutes les photos des séquences parcourues). Rend { photos
+   * [Video.record], switches, dates, warning } ; erreur (texte) si le parcours est impossible.
+   */
+  async function planPhotos(start, end) {
+    const plan = await tourPlan(start, end);
+    if (plan.error) throw new Error(plan.error);
+    const { t } = plan;
+    const photos = [];
+    let run = null, bestIndex = 0;
+    const begin = (collection, apis, rank, sign, ids = new Map(), points = new Map()) => {
+      t.used.add(collection);
+      t.endRank = t.endRanks.get(collection) ?? null;
+      t.best = Infinity;
+      t.bestAt = null;
+      run = { apis, step: sign, rank, ids, points };
+    };
+    begin(plan.first.collection, sequenceApis(plan.first), rankOf(plan.first), plan.back ? -1 : 1);
+    // Rang suivant présent dans la séquence (rangs manquants sautés), ou null en fin de séquence
+    const following = () => {
+      for (let k = 1; k <= WINDOW; k++) if (run.ids.has(run.rank + k * run.step)) return run.rank + k * run.step;
+      return null;
+    };
+    for (let guard = 0; guard < 100000; guard++) {
+      if (!run.ids.has(run.rank) || following() == null) await loadRanks(run, run.rank);
+      const here = run.points.get(run.rank);
+      if (here?.record) {
+        photos.push(here.record);
+        t.dates.add(here.record.date);
+      }
+      const decision = tourDecide(t, run, here);
+      if (decision.closer) bestIndex = photos.length;
+      const done = () => ({ photos, switches: t.switches, dates: [...t.dates].filter(Boolean).sort(), warning: plan.warning });
+      if (decision.action === "arrived") return done();
+      if (decision.action === "join") {
+        const { collection, rank, sign } = decision.join;
+        const path = t.paths.get(collection);
+        t.switches++;
+        begin(collection, path.apis, rank, sign < 0 ? -1 : 1, path.ids, path.points);
+        continue;
+      }
+      const next = following();
+      if (decision.action === "branch" || (next == null && t.endRank == null)) {
+        photos.length = Math.min(photos.length, bestIndex);  // sans l'écart
+        const target = await branchTarget(t);
+        if (!target) throw new Error(branchFailure(t));
+        t.switches++;
+        begin(target.feature.collection, sequenceApis(target.feature), rankOf(target.feature), target.back ? -1 : 1);
+        continue;
+      }
+      if (next == null) return done();  // séquence d'arrivée finie avant sa photo d'arrivée
+      run.rank = next;
+    }
+    throw new Error("parcours trop long");
+  }
+
+  // Onglet « Vidéo » : « ▶ Parcourir » grisé tant que la route ou un PR manque
   const travelPane = $("#parcours");
   const travelFields = Requeteur.travelForm(travelPane.querySelector(".champs-route"), map);
-  const updateTravel = () => { $("#parcours-lancer").disabled = !travelFields.ready(); };
+  const updateTravel = () => {
+    $("#parcours-lancer").disabled = !travelFields.ready();
+    videoReady = travelFields.ready();
+    updatePlayer();
+  };
+  // Départ ou arrivée changés : vidéo à préparer de nouveau (pas les listes de la vidéo, qui ne changent pas le parcours)
+  travelPane.querySelector(".champs-route").addEventListener("input", () => { videoPlan = null; });
   travelPane.addEventListener("input", updateTravel);
   travelPane.addEventListener("click", () => setTimeout(updateTravel));  // PR choisi dans une liste
   // 📍 : le prochain clic sur la mini-carte pose le départ ou l'arrivée (« start », « end ») ; Échap annule
@@ -2949,6 +3054,7 @@
     const which = travelPick;
     setTravelPick(null);
     await travelFields.pick(which, [lngLat.lng, lngLat.lat]);
+    videoPlan = null;
     updateTravel();
   }
   for (const button of travelPane.querySelectorAll(".sur-carte")) {
@@ -2983,6 +3089,88 @@
     updatePlayer();
   });
 
+  // Vidéo MP4 du parcours, sans le lire dans la visionneuse, en deux clics : « Préparer » cherche ses photos
+  // (planPhotos) et prévient d'un changement de séquence ; « Enregistrer » demande le fichier (la boîte ne s'ouvre que
+  // juste après un clic), puis calcule la vidéo image par image
+  $("#parcours-video").addEventListener("click", async () => {
+    if (!videoPlan) {
+      videoPreparing = true;
+      updatePlayer();
+      setStatus("Vidéo : recherche des photos du parcours…");
+      try {
+        const found = await travelFields.go();
+        if (!found) throw new Error("départ ou arrivée introuvable");
+        videoPlan = { ...await planPhotos(found.start, found.end), title: found.title };
+        setStatus(videoPlan.switches ? `Vidéo prête à enregistrer. ${videoWarning()}` : "Vidéo prête à enregistrer.",
+          videoPlan.switches ? "avertissement" : "");
+      } catch (error) {
+        setStatus(`Vidéo impossible : ${error.message}`, "echec");
+        notice(`Vidéo impossible : ${error.message}`);
+      } finally {
+        videoPreparing = false;
+        updatePlayer();
+      }
+      return;
+    }
+    const save = await saveAs(`parcours ${videoPlan.title || "Panoramax"} ${$("#video-vitesse").value} km-h.mp4`
+      .replace(/[\\/:*?"<>|→]/g, "-"), "video/mp4");
+    if (!save) return;
+    videoRun = new AbortController();
+    updatePlayer();
+    const t0 = Date.now();
+    try {
+      // Avancement aussi dans la ligne d'état : le fichier n'est écrit qu'à la fin du calcul (plusieurs minutes)
+      const blob = await Video.mp4(videoPhotos(), Number($("#video-vitesse").value), (done, total) => {
+        // Largeur fixe (chiffres de même largeur, espaces de la largeur d'un chiffre) : le texte ne saute pas
+        const pad = (n, width) => String(n).padStart(width, "\u2007");
+        const width = Math.max(5, String(total).length);  // place pour une longue vidéo (99 999 images, 55 min)
+        const text = `Calcul de la vidéo en cours : image ${pad(done, width)} / ${pad(total, width)} `
+          + `(${pad(Math.round(100 * done / total), 3)} %)`;
+        $("#video-info").textContent = text;
+        setStatus(text, "avancement");
+        $("#statut").style.setProperty("--avancement", `${(100 * done / total).toFixed(1)}%`);
+      }, videoRun.signal, $("#video-flou").checked);
+      await save(blob);
+      const text = `Vidéo enregistrée dans « ${save.fileName} » : ${(blob.size / 1e6).toFixed(1)} Mo, `
+        + `${Math.round((Date.now() - t0) / 1000)} s de calcul.`;
+      setStatus(text);
+      notice(text);
+    } catch (error) {
+      setStatus(error.name === "AbortError" ? "Vidéo arrêtée : rien d'enregistré." : `Vidéo impossible : ${error.message}`,
+        error.name === "AbortError" ? "" : "echec");
+      if (error.name !== "AbortError") notice(`Vidéo impossible : ${error.message}`);
+    } finally {
+      videoRun = null;
+      updatePlayer();
+    }
+  });
+  $("#parcours-video-arret").addEventListener("click", () => videoRun?.abort());
+  for (const id of ["#video-vitesse", "#video-photos"]) $(id).addEventListener("change", updatePlayer);
+
+  /** Photos du parcours préparé retenues pour la vidéo : une sur n (liste « Photos »), la dernière toujours. */
+  function videoPhotos() {
+    const n = Number($("#video-photos").value), all = videoPlan?.photos || [];
+    return all.filter((_, i) => i % n === 0 || i === all.length - 1);
+  }
+
+  /** Changement de séquence du parcours préparé, à signaler avant la vidéo. */
+  const videoWarning = () => `Le parcours passe par ${videoPlan.switches + 1} séquences`
+    + (videoPlan.dates.length > 1 ? ` (${videoPlan.dates.join(", ")})` : "")
+    + " : les photos peuvent différer (date, lumière, sens de prise de vue).";
+
+  /** Parcours préparé : photos retenues, écart moyen, durée de la vidéo et photos par seconde (au-delà d'une par
+   * image, 30/s, des photos sont sautées), changement de séquence. */
+  function videoInfo() {
+    if (!videoPlan) return videoPreparing ? "recherche des photos du parcours…" : "";
+    if (videoPlan.photos.length < 2) return "moins de deux photos sur ce parcours";
+    const v = Number($("#video-vitesse").value) / 3.6;
+    const path = Video.trajectory(videoPhotos());
+    const n = path.list.length, perSecond = v * (n - 1) / Math.max(1, path.length);
+    return `${n} photos (une tous les ${(path.length / Math.max(1, n - 1)).toFixed(0)} m) · `
+      + `${Math.round(path.length / v + 2 * Video.HOLD)} s · ${perSecond.toFixed(perSecond < 10 ? 1 : 0)} photos/s`
+      + (perSecond > Video.FPS ? " (photos sautées)" : "") + (videoPlan.switches ? ` ⚠ ${videoWarning()}` : "");
+  }
+
   function updatePlayer() {
     const seq = psv?.getPictureMetadata?.()?.sequence || {};
     const on = playing();
@@ -3003,6 +3191,19 @@
       label.classList.toggle("arret", !on);
     }
     $("#parcours-export").disabled = on || tourViews.length < 2 || !webpOk;
+    const plan = videoPlan?.photos || [];
+    $("#parcours-video").disabled = !videoOk || !videoReady || videoPreparing || Boolean(videoRun)
+      || Boolean(videoPlan && plan.length < 2);
+    $("#parcours-video").textContent = videoPlan ? "🎬 Enregistrer la vidéo" : "🎬 Préparer la vidéo";
+    $("#parcours-video-arret").hidden = !videoRun;
+    $("#video-vitesse").disabled = $("#video-photos").disabled = $("#video-flou").disabled = Boolean(videoRun);
+    if (!videoRun) $("#video-info").textContent = videoOk ? videoInfo() : "ce navigateur n'encode pas la vidéo";
+    // Écart des photos de chaque choix, d'après l'écart médian des photos du parcours préparé
+    const gaps = plan.slice(1).map((p, i) => metresBetween(plan[i].coords, p.coords)).sort((a, b) => a - b);
+    const gap = gaps[gaps.length >> 1];
+    for (const option of $("#video-photos").options) {
+      option.textContent = `Photos 1/${option.value}` + (gap ? ` · une tous les ${Math.round(gap * option.value)} m` : "");
+    }
     $("#parcours-vues").textContent = !webpOk ? "export impossible : ce navigateur n'encode pas le WebP"
       : tourViews.length ? `${tourTitle} : ${tourViews.length} vues${on && tour ? " (lecture en cours)" : ""}` : "aucun parcours";
   }
@@ -4017,22 +4218,22 @@
       try {
         const handle = await window.showSaveFilePicker({ suggestedName: name,
           types: [{ accept: { [type]: [name.slice(name.lastIndexOf("."))] } }] });
-        return async (content) => {
+        return Object.assign(async (content) => {
           const file = await handle.createWritable();
           await file.write(blobOf(content));
           await file.close();
-        };
+        }, { fileName: handle.name });  // nom choisi, rappelé à l'utilisateur (le dossier n'est pas connu de la page)
       } catch (error) {
         if (error.name === "AbortError") return null;  // boîte fermée sans enregistrer
       }
     }
     const chosen = await askFileName(name);  // sans boîte « Enregistrer sous » (Firefox) : le nom, au moins
     if (!chosen) return null;
-    return async (content) => {
+    return Object.assign(async (content) => {
       const url = URL.createObjectURL(blobOf(content));
       Object.assign(document.createElement("a"), { href: url, download: chosen }).click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-    };
+    }, { fileName: `${chosen} (dossier des téléchargements)` });
   }
 
   /** Nom du fichier à télécharger, proposé (name) puis modifiable ; extension remise si elle manque ;
@@ -4866,6 +5067,6 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
   }
 
   // Pour les essais depuis la console : window.mesures.app.click(yaw, pitch)
-  window.mesures = { get app() { return app; }, get psv() { return psv; }, get tourViews() { return tourViews; }, get touring() { return Boolean(tour); }, map, openPhoto, buildFiche, paginateFiche, photoAtOffset, importOverlay, thumbnail,
+  window.mesures = { get app() { return app; }, get psv() { return psv; }, get tourViews() { return tourViews; }, get videoPlan() { return videoPlan; }, get touring() { return Boolean(tour); }, map, openPhoto, buildFiche, paginateFiche, photoAtOffset, importOverlay, thumbnail,
     overlayFile: (handle) => { overlay.fichier = handle; } };  // fichier de la couche remplacé (essais)
 })();

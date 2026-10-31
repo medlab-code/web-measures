@@ -355,14 +355,15 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   background: #d40000;
   box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
 }
-/* Parcours : épingles (goutte à pointe basse, rond blanc), départ vert, arrivée rouge ; pastilles reprises devant
-   « Départ » et « Arrivée ». Forme dans ::before : MapLibre impose son transform à l'élément du repère */
-.repere-requete:is(.depart, .arrivee) { position: relative; width: 26px; height: 30px; border: 0; border-radius: 0;
-  background: none; box-shadow: none; --epingle: #d40000; }
+/* Parcours : épingles (tête ronde, pointe longue et fine pour bien voir le point posé, rond blanc), départ vert,
+   arrivée rouge ; pastilles reprises devant « Départ » et « Arrivée ». Forme dans ::before (masque SVG) : MapLibre
+   impose son transform à l'élément du repère ; pas de position ici : celle de MapLibre (absolue) doit rester, sinon
+   les repères s'empilent (arrivée décalée de la hauteur du départ) */
+.repere-requete:is(.depart, .arrivee) { width: 26px; height: 42px; border: 0; border-radius: 0;
+  background: none; box-shadow: none; --epingle: #d40000; filter: drop-shadow(-1px 1px 2px rgba(0, 0, 0, 0.5)); }
 .repere-requete.depart { --epingle: #1e9e3a; }
-.repere-requete:is(.depart, .arrivee)::before { content: ""; position: absolute; left: 1px; top: 1px; width: 24px; height: 24px;
-  border-radius: 50% 50% 50% 0; background: var(--epingle); transform: rotate(-45deg);
-  box-shadow: -1px 1px 3px rgba(0, 0, 0, 0.5); }
+.repere-requete:is(.depart, .arrivee)::before { content: ""; position: absolute; inset: 0; background: var(--epingle);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 42'%3E%3Cpath d='M13 42 L4.6 21.5 A12 12 0 1 1 21.4 21.5 Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
 .repere-requete:is(.depart, .arrivee)::after { content: ""; position: absolute; left: 8px; top: 8px; width: 10px; height: 10px;
   border-radius: 50%; background: #fff; }
 .pastille.depart { background: #1e9e3a; }
@@ -434,6 +435,10 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   white-space: pre-line;
 }
 .statut.echec { border-left-color: var(--echec); }
+.statut.avertissement { border-left-color: #ff6f00; }  /* à lire avant de continuer (vidéo : changement de séquence) */
+/* Avancement d'un calcul (vidéo) : ligne remplie d'orange jusqu'à --avancement, texte par-dessus */
+.statut.avancement { font-variant-numeric: tabular-nums; background: linear-gradient(to right, color-mix(in srgb, var(--panoramax) 40%, var(--encart))
+  var(--avancement, 0%), var(--encart) var(--avancement, 0%)); }
 .statut svg { width: 1.05em; height: 1.05em; vertical-align: -0.15em; }
 
 .ligne { margin: 0.4rem 0 0; color: var(--discret); font-size: 0.9em; }

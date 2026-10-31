@@ -80,7 +80,7 @@ par le **requêteur route + PR**, ou coller l'**identifiant** d'une photo (ou un
 Panoramax) dans « Aller à la photo » ; « 📋 Copier » sous l'identifiant de la photo affichée
 le copie, pour la passer à un collègue.
 
-**Parcourir une route** : onglet **« Parcours »** du panneau : la
+**Parcourir une route** : onglet **« Vidéo »** du panneau : la
 route, le PR de départ (+ distance) et le PR d'arrivée (+ distance), choisis dans des listes
 comme dans le requêteur, la vitesse (1x, 2x par défaut, 4x ou 8x : une photo tous les 5, 10, 20 ou 40 m
 pour les photos du CD21) et le regard ; puis **« ▶ Parcourir »**. Départ et arrivée peuvent aussi se
@@ -114,6 +114,35 @@ au plus ; 0,4 s par vue, fondu enchaîné de 0,14 s entre deux vues, en boucle ;
 kilomètre à 970 px) :
 chaque vue est gardée pendant la lecture, l'export ne recharge rien. Grisé pendant la lecture,
 sans parcours et dans Safari, qui n'encode pas le WebP.
+**Vidéo du départ à l'arrivée** (même onglet), sans lire le parcours dans la visionneuse :
+« 🎬 Préparer la vidéo » cherche ses photos (mêmes choix de séquences, de bifurcation et d'arrivée que la lecture,
+toutes les photos des séquences parcourues) et prévient, dans la ligne d'état en orange et sous les listes, si le
+parcours passe d'une séquence à l'autre (dates des séquences ; les photos peuvent différer) ; « 🎬 Enregistrer la
+vidéo » demande le fichier puis la calcule (deux clics : le navigateur n'ouvre la boîte d'enregistrement que juste
+après un clic). Changer le départ ou l'arrivée oblige à la préparer de nouveau. La vidéo est calculée image par
+image, hors de la visionneuse : 1920 × 1080 (1280 × 720 si le poste n'encode pas le 1080p), 30 images par seconde, H.264 à 30 Mbit/s
+(environ 3 Mo par seconde de vidéo ; 10 Mbit/s donnaient une image floue). Firefox sous Linux, en français, annonce le
+H.264 sans réussir à l'encoder (bug Mozilla 2085549 : niveau « 3,1 » écrit avec une virgule ; lancé avec
+`LC_NUMERIC=C`, il l'encode) : VP9 à 20 Mbit/s, de qualité voisine, calcul environ quatre fois plus long, fichier lu
+par Chrome, Firefox et VLC, peut-être pas par PowerPoint, une seconde d'arrêt au début et à la fin. Deux listes à côté du bouton : la vitesse
+simulée (de 30 à 720 km/h, 90 par défaut, puis Mach 1 et Mach 2 : 1 235 et 2 470 km/h, vitesse du son au niveau de
+la mer ; des photos y sont sautées) et la part des photos de la séquence prises (1/1, 1/2, 1/4, 1/8 ;
+chaque choix indique l'écart obtenu, par exemple « une tous les 10 m »).  S'affichent aussi le nombre de photos retenues, la durée de la vidéo et le nombre de photos
+par seconde ; au-delà de 30 photos par seconde (une par image), des photos sont sautées. Case « Flou cinétique » (décochée par défaut) : chaque
+image est la moyenne de 8 vues réparties depuis la position de l'image précédente (obturateur ouvert toute l'image) ;
+ce qui défile vite près de la caméra (chaussée, muret, vignes du bord) s'étire dans le sens du mouvement, le lointain
+reste net ; calcul plus long (rendu huit fois, sans téléchargement de plus). Moins de photos :
+moins de téléchargement (environ 5 Mo de tuiles par photo), mais plus d'écart à combler entre deux photos. Les images viennent des tuiles HD des photos du parcours (seulement celles du champ).
+Regard dans l'axe de la trajectoire lissée sur ± 15 m (sans les à-coups du cap de chaque photo), horizon
+corrigé de la pente de la route, champ de 80° (le toit du véhicule n'y entre pas). Entre deux photos, la
+caméra avance réellement dans une maquette simple de chacune (chaussée plane sur 4 m de part et d'autre
+de l'axe, reste du décor sur une sphère de 60 m) : la chaussée défile sans à-coup, puis la photo suivante
+prend le relais en fondu. Limites : un objet proche et haut (arbre, poteau) se dédouble pendant le
+fondu, la ligne des collines aussi un peu (photos qui ne penchent pas pareil). Le calcul prend environ
+deux fois la durée de la vidéo si les tuiles sont déjà en cache (« ■ Arrêter » l'interrompt) ; le fichier
+n'est écrit qu'à la fin : l'avancement s'affiche dans la ligne d'état, et l'erreur éventuelle y reste. Bibliothèque
+mp4-muxer chargée au premier export seulement. Grisé tant que le départ ou l'arrivée manque, pendant la
+préparation et le calcul, et dans les navigateurs sans WebCodecs.
 
 **Mesurer** : bouton « Mesure », puis le mode. Pendant la mesure, une carte d'étape en bas à gauche de
 la visionneuse donne la mesure et ses étapes (pied puis sommet, premier bord puis bord opposé), l'état
