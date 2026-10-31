@@ -29,6 +29,7 @@ const Video = (() => {
   const MUXER = "https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.1/build/mp4-muxer.min.js";
   const HFOV = 80;  // degrés : champ horizontal de la vue (vertical : ± 24° en 16/9, au-dessus du toit du véhicule)
   const SMOOTH = 15;  // m : cap de la vue = direction de la trajectoire de s - SMOOTH à s + SMOOTH (stabilisation)
+  const SEAM = 40;  // m : autour du raccord de deux séquences, cap lissé sur ± SEAM m (décalage des trajectoires)
   const SLOPE = 20;  // m : pente de la route mesurée de part et d'autre de la photo (altitudes GPS)
   const CAM_HEIGHT = 2.4;  // m : caméra au-dessus de la chaussée (toit du véhicule)
   const BOWL = 60;  // m : rayon de la sphère du décor de la maquette
@@ -47,7 +48,6 @@ const Video = (() => {
   const RAMP_EDGE = 50;  // m : départ et arrivée en douceur sur cette distance
   const RAMP_SMOOTH = 15;  // m : vitesse lissée sur ± RAMP_SMOOTH m (pas d'à-coup)
   const TITLE_FADE = [2, 3];  // s : titre plein jusqu'à 2 s, effacé à 3 s
-  const PAN_SPIN = 0.7;  // s : tour complet du panoramique au changement de séquence
   const LOOK_LEAD = 0.9;  // s : regard déjà dans l'axe de la voie croisée avant le passage au carrefour (anticipation)
   const LOOK_TURN = 0.8;  // s : rotation vers la voie croisée ; retour dans l'axe du parcours en LOOK_TURN / 2
   const LOOK_BRAKE = 1.5;  // s : freinage avant le regard d'un carrefour, et reprise après
@@ -65,6 +65,7 @@ const Video = (() => {
   const SPEED_SMOOTH = 4;  // images : vitesse affichée lissée sur ± SPEED_SMOOTH images (un quart de seconde)
   const TOUR_TIME = 8;  // s : tour d'horizon par défaut (réglette de 2 à 20 s)
   const BLUR = 8;  // vues moyennées par image pour le flou cinétique (obturateur ouvert toute l'image : 360°)
+  const STALL = 15;  // s : requête d'image sans réponse abandonnée, puis reprise (serveur d'images bloqué)
 
   const supported = () => typeof VideoEncoder === "function" && typeof VideoFrame === "function"
     && typeof OffscreenCanvas === "function";
@@ -84,6 +85,27 @@ const Video = (() => {
   }
 
   const toRad = Math.PI / 180;
+
+  /** Image (ImageBitmap) de l'adresse url : requête reprise tant que le serveur ne répond pas (STALL s sans réponse,
+   * erreur réseau, HTTP 429 ou 5xx), pause croissante jusqu'à 5 s, jusqu'à l'arrêt par signal (l'application avertit au
+   * bout de 30 s sans image calculée et arrête au bout de 5 min) ; autre erreur HTTP : abandon au 2e essai. */
+  async function fetchImage(url, signal) {
+    for (let attempt = 1; ; attempt++) {
+      let response = null, blob = null;
+      try {
+        response = await fetch(url, { signal: AbortSignal.any([AbortSignal.timeout(STALL * 1000), ...(signal ? [signal] : [])]) });
+        if (response.ok) blob = await response.blob();
+      } catch (error) {
+        if (signal?.aborted) throw error;
+      }
+      if (blob) return createImageBitmap(blob);
+      if (response && !response.ok && response.status < 500 && response.status !== 429 && attempt >= 2) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, Math.min(5000, 500 * 2 ** attempt)));
+      if (signal?.aborted) throw new DOMException("Vidéo arrêtée", "AbortError");
+    }
+  }
 
   /**
    * Position (m le long du parcours path) de chaque image : HOLD s d'arrêt au début et à la fin, et entre les deux la
@@ -191,9 +213,12 @@ const Video = (() => {
     return digits * cell;
   }
 
-  /** Titre (fondu à TITLE_FADE s), compteur PR (en bas à gauche) et compteur de vitesse (speed : { kmh, digits }, en bas à
-   * droite) sur l'image (contexte 2D ctx, w × h) ; t : secondes depuis le début. */
-  function drawOverlay(ctx, w, h, { title, pr, speed, t }) {
+  /** Titre (fondu à TITLE_FADE s), compteur PR (en bas à gauche), compteur de vitesse (speed : { kmh, digits }, en bas à
+   * droite) et accélération latérale (lateral : { mg, kmh, devers } en millièmes de g, affichée ressentie, |mg - dévers|,
+   * colorée par lateralColor ; à
+   * gauche du compteur de vitesse, sinon à sa place) et vitesse max ARP (arp : { kmh }, kmh null : « — » ; au-dessus du
+   * compteur de vitesse) sur l'image (contexte 2D ctx, w × h) ; t : secondes depuis le début. */
+  function drawOverlay(ctx, w, h, { title, pr, speed, lateral = null, arp = null, t }) {
     const font = (size, weight = 500) => `${weight} ${Math.round(size)}px Roboto, "Segoe UI", sans-serif`;
     ctx.textBaseline = "alphabetic";
     const alpha = title ? Math.max(0, Math.min(1, (TITLE_FADE[1] - t) / (TITLE_FADE[1] - TITLE_FADE[0]))) : 0;
@@ -231,14 +256,17 @@ const Video = (() => {
       ctx.fillText(head, x0, y0);
       drawRollers(ctx, pr.m, x0 + ctx.measureText(head).width, y0, size);
     }
+    const size = h * 0.045, pad = size * 0.45, y0 = h - h * 0.05;
+    let right = w - h * 0.04;  // bord droit du prochain cadre, de droite à gauche
     if (speed) {
       // Même cadre que le compteur PR, aligné à droite : libellé, chiffres en rouleaux (zéros de tête masqués), unité
-      const size = h * 0.045, pad = size * 0.45, y0 = h - h * 0.05, unit = " km/h";
+      const unit = " km/h";
       ctx.font = font(size);
       const digitsWidth = speed.digits * ctx.measureText("0").width;
       ctx.font = font(size * 0.6);
       const unitWidth = ctx.measureText(unit).width;
-      const width = digitsWidth + unitWidth, x0 = w - h * 0.04 - width;
+      const width = digitsWidth + unitWidth, x0 = right - width;
+      right = x0 - 3 * pad;
       ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
       ctx.fillRect(x0 - pad, y0 - size - size * 0.75 - pad, width + 2 * pad, size * 1.75 + 2 * pad);
       ctx.fillStyle = "#ffb300";
@@ -250,33 +278,70 @@ const Video = (() => {
       ctx.font = font(size);
       drawRollers(ctx, speed.kmh, x0, y0, size, speed.digits, true);
     }
+    if (lateral) {
+      // Accélération latérale ressentie (moins le dévers ; en ligne droite, la pente en travers), en millièmes de g, chiffre
+      // coloré selon les rayons de l'ARP
+      const text = String(Math.round(Math.abs(lateral.mg - 1000 * (lateral.devers ?? 0)))), label = "Accél. ressentie", unitA = " mG";
+      ctx.font = font(size);
+      const valueWidth = ctx.measureText("0000").width;
+      ctx.font = font(size * 0.6, 700);
+      const labelWidth = ctx.measureText(label).width;
+      ctx.font = font(size * 0.6);
+      const widthA = Math.max(labelWidth, valueWidth + ctx.measureText(unitA).width), xa = right - widthA;
+      right = xa - 3 * pad;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.35)";  // plus transparent que les autres cadres (demande)
+      ctx.fillRect(xa - pad, y0 - size - size * 0.75 - pad, widthA + 2 * pad, size * 1.75 + 2 * pad);
+      ctx.fillStyle = "#ffb300";
+      ctx.font = font(size * 0.6, 700);
+      ctx.fillText(label, xa, y0 - size - size * 0.12);
+      ctx.fillStyle = "#fff";
+      ctx.font = font(size * 0.6);
+      ctx.fillText(unitA, xa + valueWidth, y0);
+      ctx.font = font(size);
+      ctx.fillStyle = lateralColor(lateral.mg, lateral.kmh, lateral.devers);
+      ctx.textAlign = "right";
+      ctx.fillText(text, xa + valueWidth, y0);
+      ctx.textAlign = "left";
+    }
+    if (arp) {
+      // Vitesse max ARP : même cadre, au-dessus du compteur de vitesse (à sa place), en km/h (« — » : pas de limite en
+      // dessous de ARP_TOP)
+      const text = arp.kmh == null ? "—" : String(arp.kmh), label = "V max ARP", unitV = " km/h";
+      ctx.font = font(size);
+      const valueWidth = ctx.measureText("000").width;
+      ctx.font = font(size * 0.6, 700);
+      const labelWidth = ctx.measureText(label).width;
+      ctx.font = font(size * 0.6);
+      const widthV = Math.max(labelWidth, valueWidth + ctx.measureText(unitV).width), xv = w - h * 0.04 - widthV;
+      const yv = y0 - size * 1.75 - 3 * pad;  // un cadre plus haut, écart de pad
+      ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+      ctx.fillRect(xv - pad, yv - size - size * 0.75 - pad, widthV + 2 * pad, size * 1.75 + 2 * pad);
+      ctx.fillStyle = "#ffb300";
+      ctx.font = font(size * 0.6, 700);
+      ctx.fillText(label, xv, yv - size - size * 0.12);
+      ctx.fillStyle = "#fff";
+      ctx.font = font(size * 0.6);
+      ctx.fillText(unitV, xv + valueWidth, yv);
+      ctx.font = font(size);
+      ctx.textAlign = "right";
+      ctx.fillText(text, xv + valueWidth, yv);
+      ctx.textAlign = "left";
+    }
   }
 
   /**
-   * Décalage du regard (degrés, positif à droite) à chaque image de la chronologie xs : panoramique au changement de
-   * séquence (whip : tour complet en PAN_SPIN s du côté où tourne la route, au plus vite au milieu du fondu entre les
-   * deux séquences, qui passe ainsi inaperçu) et regard aux croisements (junctions, Lieu.junctions : au niveau du
+   * Décalage du regard (degrés, positif à droite) à chaque image de la chronologie xs : regard aux croisements (junctions, Lieu.junctions : au niveau du
    * carrefour, dans l'axe de la voie croisée, cap de la voie à 10 m du carrefour, LOOK_MAX° au plus ; voies des deux
    * côtés : gauche jusqu'au passage, puis droite 0,3 s après ; retour dans l'axe deux fois plus rapide que l'aller ; voie dans l'axe ou en arrière ignorée, carrefour à
    * moins de LOOK_GAP m du précédent ignoré).
    */
-  function pans(path, xs, { whip = false, junctions = [] } = {}) {
+  function pans(path, xs, { junctions = [] } = {}) {
     const out = xs.map(() => 0);
     const frameAt = (x) => {
       const n = xs.findIndex((v) => v >= x);
       return n < 0 ? xs.length - 1 : n;
     };
     const ease = (p) => p * p * (3 - 2 * p);
-    if (whip) {
-      for (let k = 1; k < path.list.length; k++) {
-        if (path.list[k].collection === path.list[k - 1].collection) continue;
-        const centre = frameAt((path.s[k - 1] + path.s[k]) / 2), half = PAN_SPIN * FPS / 2;
-        const sign = wrap(path.course(path.s[k] + 20) - path.course(path.s[k - 1] - 20)) < 0 ? -1 : 1;
-        for (let n = Math.max(0, Math.ceil(centre - half)); n <= Math.min(xs.length - 1, centre + half); n++) {
-          out[n] += sign * 360 * ease((n - centre + half) / (2 * half));
-        }
-      }
-    }
     for (const { x, left, right } of lookedJunctions(path, junctions)) {
       const aim = (r) => Math.sign(r) * Math.min(LOOK_MAX, Math.abs(r));
       // Images clés (secondes depuis le passage au carrefour, degrés) : dans l'axe de la voie au niveau du carrefour ;
@@ -471,6 +536,67 @@ const Video = (() => {
     });
   }
 
+  /** Accélération latérale par image de xs (millièmes de g, sans signe) : v² × courbure ; v du compteur (kmhs, km/h), courbure =
+   * rotation du cap lissé (course) sur 10 m. shortcut: trajectoire lissée sur ± SMOOTH m, virages de moins de ~30 m de
+   * rayon sous-estimés ; calculer la courbure sur la trajectoire brute si ces virages comptent. */
+  function laterals(path, xs, kmhs) {
+    return xs.map((x, n) => 1000 / 9.81 * (kmhs[n] / 3.6) ** 2 * Math.abs(wrap(path.course(x + 5) - path.course(x - 5))) * toRad / 10);
+  }
+
+  /** Dévers vers l'intérieur du virage par image de xs (fraction, positif s'il aide à tourner ; null s'il n'est pas
+   * connu) : dévers des photos (photo.devers, pente descendant vers la droite, lue par l'application sur le LiDAR HD)
+   * interpolé, signé selon le sens du virage (cap lissé). */
+  function insideDevers(path, xs) {
+    return xs.map((x) => {
+      const [i, u] = path.segment(x);
+      const a = path.list[i].devers, b = path.list[Math.min(i + 1, path.list.length - 1)].devers;
+      if (a == null || b == null) return null;
+      const right = a + (b - a) * u;
+      return wrap(path.course(x + 5) - path.course(x - 5)) >= 0 ? right : -right;
+    });
+  }
+
+  // ARP (SETRA, août 1994, § 3.1 a et d), par vitesse de la catégorie (R 60, T 80 et R 80, T 100) : rayon non déversé Rnd
+  // (chaussée en toit, 2,5 % vers l'extérieur) et rayon minimal Rm (dévers de 7 %) ; frottement transversal mobilisé
+  // f = V² / (127 R) - dévers : 0,072 / 0,166 à 60 km/h, 0,081 / 0,140 à 80, 0,086 / 0,116 à 100
+  const ARP = [[60, 600, 120], [80, 900, 240], [100, 1300, 425]].map(([v, rnd, rm]) =>
+    [v, v * v / (127 * rnd) + 0.025, v * v / (127 * rm) - 0.07]);
+  /** Couleur de l'accélération latérale mg (millièmes de g) à kmh, dévers vers l'intérieur devers (fraction ; null :
+   * inconnu, compté nul) : frottement mobilisé f = mg / 1000 - devers, vert jusqu'à celui du rayon non déversé de l'ARP à
+   * cette vitesse, jaune jusqu'à celui du rayon minimal, rouge au-delà. Vitesse ramenée entre 60 et 100 km/h (l'ARP ne
+   * va pas au-delà : autoroutes exclues). */
+  function lateralColor(mg, kmh, devers = null) {
+    const v = Math.min(100, Math.max(60, kmh)), k = Math.max(1, ARP.findIndex(([s]) => s >= v));
+    const [[v0, g0, r0], [v1, g1, r1]] = [ARP[k - 1], ARP[k]], u = (v - v0) / (v1 - v0);
+    const f = mg / 1000 - (devers ?? 0);
+    return f <= g0 + (g1 - g0) * u ? GREEN : f <= r0 + (r1 - r0) * u ? "#ffd600" : "#ff3d3d";
+  }
+  const GREEN = "#4caf50";
+  const ARP_TOP = 150;  // km/h : vitesse max ARP non affichée au-delà (ligne droite, grande courbe)
+  const ARP_SMOOTH = 10;  // m : vitesse max ARP moyennée sur ± ARP_SMOOTH m (20 m : pas de saut d'une image à l'autre)
+
+  /** Vitesse max ARP par image de xs (km/h) : la plus haute où l'accélération latérale du virage resterait verte
+   * (lateralColor), avec le dévers vers l'intérieur (insideDevers, inconnu : compté nul), calculée mètre par mètre puis
+   * moyennée sur ± ARP_SMOOTH m (ARP_TOP compté pour la ligne droite) ; null à ARP_TOP km/h et au-delà. */
+  function arpSpeeds(path, xs) {
+    const raw = new Map();  // mètre du parcours -> vitesse max en ce point
+    const at = (m) => {
+      if (!raw.has(m)) {
+        const k = Math.abs(wrap(path.course(m + 5) - path.course(m - 5))) * toRad / 10, d = insideDevers(path, [m])[0];
+        let v = 0;
+        while (v < ARP_TOP && lateralColor(1000 / 9.81 * ((v + 1) / 3.6) ** 2 * k, v + 1, d) === GREEN) v++;
+        raw.set(m, v);
+      }
+      return raw.get(m);
+    };
+    return xs.map((x) => {
+      let sum = 0;
+      for (let m = Math.round(x) - ARP_SMOOTH; m <= Math.round(x) + ARP_SMOOTH; m++) sum += at(Math.min(Math.round(path.length), Math.max(0, m)));
+      const v = Math.round(sum / (2 * ARP_SMOOTH + 1));
+      return v < ARP_TOP ? v : null;
+    });
+  }
+
   function rolls(path, xs, lonlats = [], seconds = ROLL_TIME) {
     const out = xs.map(() => 0);
     const places = placesOn(path, lonlats, "tonneau");
@@ -500,7 +626,7 @@ const Video = (() => {
    * D115D : arbre à l'ombre d'un côté, vignes au soleil de l'autre, rapport 2 au lieu de 1,5 ; tour complet : 1,51,
    * contre 1,58 mesuré au même endroit dans le même sens). */
   async function exposureOf(photo, signal) {
-    const bitmap = await createImageBitmap(await (await fetch(photo.thumb, { signal })).blob());
+    const bitmap = await fetchImage(photo.thumb, signal);
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const ctx = canvas.getContext("2d");
     ctx.drawImage(bitmap, 0, 0);
@@ -587,7 +713,16 @@ const Video = (() => {
       const [s0, z0] = known[j], [s1, z1] = known[j + 1];
       return s1 > s0 ? z0 + (z1 - z0) * (x - s0) / (s1 - s0) : z0;
     };
-    const course = (x) => bearing(at(x - SMOOTH), at(x + SMOOTH));
+    // Raccords de séquence (milieu des deux photos) : cap lissé sur ± SEAM m jusqu'à SEAM m du raccord, revenu à ± SMOOTH m
+    // en douceur sur les SEAM m suivants (essai : décalage de 1,5 m entre deux séquences, cap écarté de 1,1° au plus au
+    // lieu de 2,9°, 0,23 °/m au lieu de 0,56)
+    const seamsAt = list.map((p, i) => (i && p.collection !== list[i - 1].collection ? (s[i - 1] + s[i]) / 2 : null))
+      .filter((v) => v != null);
+    const reach = (x) => SMOOTH + (SEAM - SMOOTH) * Math.max(0, ...seamsAt.map((c) => smooth(Math.min(1, Math.max(0, 2 - Math.abs(x - c) / SEAM)))));
+    const course = (x) => {
+      const h = reach(x);
+      return bearing(at(x - h), at(x + h));
+    };
     for (let i = 0; i < list.length; i++) {
       const x0 = Math.max(0, s[i] - SLOPE), x1 = Math.min(length, s[i] + SLOPE);
       list[i].pitch = x1 - x0 > 1 ? -Math.atan((altAt(x1) - altAt(x0)) / (x1 - x0)) : 0;
@@ -611,7 +746,7 @@ const Video = (() => {
     const t = photo.tiles;
     const size = Math.floor(t.size * scale);  // vers le bas : la découpe ne dépasse pas la texture visée
     if (t.image) {
-      const bitmap = await createImageBitmap(await (await fetch(t.image, { signal })).blob());
+      const bitmap = await fetchImage(t.image, signal);
       const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
       canvas.getContext("2d").drawImage(bitmap, 0, 0);
       bitmap.close();
@@ -623,21 +758,13 @@ const Video = (() => {
     for (let i = 0; i < crop.nc; i++) {
       for (let j = 0; j < crop.nr; j++) {
         const url = `${t.base}${(crop.c0 + i) % t.cols}_${crop.r0 + j}.jpg`;
-        jobs.push((async () => {
-          for (let attempt = 0; attempt < 2; attempt++) {
-            try {
-              const response = await fetch(url, { signal });
-              if (!response.ok) throw new Error(`HTTP ${response.status}`);
-              const bitmap = await createImageBitmap(await response.blob());
-              ctx.drawImage(bitmap, i * size, j * size, size, size);
-              bitmap.close();
-              return;
-            } catch (error) {
-              if (signal?.aborted) throw error;
-              if (attempt) console.warn("Vidéo : tuile perdue", url, error);
-            }
-          }
-        })());
+        jobs.push(fetchImage(url, signal).then((bitmap) => {
+          ctx.drawImage(bitmap, i * size, j * size, size, size);
+          bitmap.close();
+        }, (error) => {
+          if (signal?.aborted) throw error;
+          console.warn("Vidéo : tuile perdue", url, error);
+        }));
       }
     }
     await Promise.all(jobs);
@@ -829,8 +956,8 @@ const Video = (() => {
    * précédente et celle-ci : le proche défilant vite s'étale) ; options.exposure : false pour ne pas accorder
    * l'exposition aux changements de séquence ; options.ramp : rampe de vitesse (timeline) ; options.title :
    * { text, sub } en titre au début ; options.counter : compteur PR (photo.pr, prAt) ; options.speedometer : compteur de
-   * vitesse (speeds) ; options.whip : panoramique au
-   * changement de séquence, options.junctions : carrefours où regarder (pans) ; options.rolls : endroits des tonneaux
+   * vitesse (speeds) ; options.lateral : accélération latérale (laterals, insideDevers) ; options.arpSpeed : vitesse
+   * max ARP (arpSpeeds) ; options.junctions : carrefours où regarder (pans) ; options.rolls : endroits des tonneaux
    * ([[lon, lat]…], rolls), options.rollTime : durée de chacun (s) ; options.lookSpeed : vitesse de regard aux carrefours (km/h) ;
    * options.poi : point d'intérêt { target, z (altitude NGF de l'objet relevé ou null), start, end (extrémités de la
    * zone tracée, [lon, lat] ou null), speed (km/h ou null), zoom, zoomByDistance, roll, ground: { target, photos }
@@ -842,7 +969,7 @@ const Video = (() => {
    * définition, vue calculée en HQ_SUPERSAMPLE fois la définition ; lent). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
    */
   async function mp4(photos, kmh, progress = () => {}, signal = null,
-    { blur = false, exposure = true, ramp = false, title = null, counter = false, speedometer = false, whip = false, junctions = [], rolls: rollPlaces = [],
+    { blur = false, exposure = true, ramp = false, title = null, counter = false, speedometer = false, lateral = false, arpSpeed = false, junctions = [], rolls: rollPlaces = [],
     rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, hq = false, planets: planetPlaces = [], planetTime = PLANET_TIME,
     planetSpin = PLANET_SPIN, advance = true, tours: tourPlaces = [], tourTime = TOUR_TIME, tourStop = true } = {}) {
     const path = trajectory(photos);
@@ -872,8 +999,10 @@ const Video = (() => {
     const turns = tours(path, timeline(path, kmh / 3.6, ramp, lookedJunctions(path, junctions), lookSpeed / 3.6,
       poi?.speed ? { ...span, speed: poi.speed / 3.6 } : null), tourPlaces, tourTime, tourStop);
     const xs = turns.xs;
-    const pan = pans(path, xs, { whip, junctions });
-    const kmhs = speedometer ? speeds(xs) : null;
+    const pan = pans(path, xs, { junctions });
+    const kmhs = speedometer || lateral ? speeds(xs) : null;
+    const devs = lateral ? insideDevers(path, xs) : null;
+    const lats = lateral ? laterals(path, xs, kmhs) : null, vmax = arpSpeed ? arpSpeeds(path, xs) : null;
     turns.look.forEach((v, n) => { pan[n] += v; });
     // Point d'intérêt : regard vers la cible (ajouté au décalage du regard), visée en hauteur, zoom ; tonneau au plus près
     const ground = poi?.ground ? path.list.map((p) => poi.ground.photos[photos.indexOf(p)] ?? null) : null;
@@ -891,7 +1020,7 @@ const Video = (() => {
       const i = path.segment(x)[0];
       rolled[i] = rolled[Math.min(i + 1, path.list.length - 1)] = true;
     });
-    // Regard décalé (panoramique, croisements) : tuiles chargées d'autant plus larges pour les photos concernées
+    // Regard décalé (croisements, point d'intérêt, tour d'horizon) : tuiles chargées d'autant plus larges pour les photos concernées
     const extra = path.list.map(() => 0);
     const raise = path.list.map(() => 0), sharp = path.list.map(() => 1);  // visée en hauteur, zoom : par photo
     const round = path.list.map(() => false);  // petite planète : tout le panorama, tuiles réduites
@@ -935,15 +1064,17 @@ const Video = (() => {
         const at = (m) => xs[Math.max(0, Math.min(total - 1, m))];
         const x = at(n);
         // Flou cinétique : vues de la position de l'image précédente (exclue) à celle-ci, dans l'ordre du parcours ;
-        // toujours pendant un pivot rapide du regard (panoramique, croisement), flou de mouvement de la rotation
+        // toujours au raccord de deux séquences (fondu entre elles : masque leur décalage) et pendant un pivot rapide du
+        // regard (croisement, tonneau), flou de mouvement de la rotation
         const before = pan[Math.max(0, n - 1)], turn = wrap(pan[n] - before);
         // (écart au plus court : 360° puis 0° en fin de tonneau, même image, pas un tour à l'envers)
         const rollBefore = tilt[Math.max(0, n - 1)], rollTurn = wrap(tilt[n] - rollBefore);
-        // (une vue tous les 1,5° de rotation, BLUR à 48 : le tour du panoramique fait jusqu'à 60° par image)
+        // (une vue tous les 1,5° de rotation, BLUR à 48)
         // (tour d'horizon : lent, pour montrer le paysage, sans flou de rotation)
         const sweep = wrap(turn - turns.look[n] + turns.look[Math.max(0, n - 1)]);
         const spin = Math.max(Math.abs(sweep), Math.abs(rollTurn));
-        const subs = spin > 1 ? Math.min(48, Math.max(BLUR, Math.ceil(spin / 1.5))) : blur && at(n - 1) < x ? BLUR : 1;
+        const [seamI] = path.segment(x), seam = path.list[seamI].collection !== path.list[Math.min(seamI + 1, path.list.length - 1)].collection;
+        const subs = spin > 1 ? Math.min(48, Math.max(BLUR, Math.ceil(spin / 1.5))) : (blur || seam) && at(n - 1) < x ? BLUR : 1;
         const first = path.segment(x - (x - at(n - 1)) * (subs - 1) / subs)[0];
         for (let k = first; k < Math.min(path.list.length, path.segment(x)[0] + AHEAD); k++) load(k).catch(() => {});
         for (const [k, job] of loads) {  // photos passées : textures rendues
@@ -970,13 +1101,15 @@ const Video = (() => {
         }
         // Titre et compteurs : image recopiée dans un canevas 2D (réduite en haute qualité), puis écrits dessus
         let image = gl.canvas;
-        if (title || counter || speedometer || ss > 1) {
+        if (title || counter || speedometer || lateral || arpSpeed || ss > 1) {
           overlay ??= new OffscreenCanvas(width, height);
           const ctx2d = overlay.getContext("2d");
           ctx2d.imageSmoothingQuality = "high";
           ctx2d.drawImage(gl.canvas, 0, 0, width, height);
           drawOverlay(ctx2d, width, height, { title, pr: counter ? prAt(path, x) : null,
-            speed: speedometer ? { kmh: kmhs[n], digits: String(Math.round(Math.max(...kmhs))).length } : null, t: n / FPS });
+            speed: speedometer ? { kmh: kmhs[n], digits: String(Math.round(Math.max(...kmhs))).length } : null,
+            lateral: lateral ? { mg: lats[n], kmh: kmhs[n], devers: devs[n] } : null, arp: arpSpeed ? { kmh: vmax[n] } : null,
+            t: n / FPS });
           image = overlay;
         }
         const frame = new VideoFrame(image, { timestamp: Math.round(n * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
@@ -996,5 +1129,5 @@ const Video = (() => {
   }
 
   return { supported, record, mp4, trajectory, timeline, duration, exposures, prAt, pans, rolls, lookedJunctions,
-    poiSpan, poiViews, planets, tours, speeds, drawOverlay, FPS, HOLD };
+    poiSpan, poiViews, planets, tours, speeds, laterals, insideDevers, lateralColor, arpSpeeds, drawOverlay, fetchImage, FPS, HOLD };
 })();

@@ -9,11 +9,12 @@ les seuils retenus et ce qui limite la précision. Le mode d'emploi est dans le
 Les calculs communs avec le plugin QGIS (triangulation, inclinaison, vérification RTK) sont
 détaillés dans [`MESURES.md`](MESURES.md) (repris du plugin Visionneuse Panoramax), sections 0, 2.7,
 4.4 et 6.1 bis. Ici, ils sont résumés. Les calculs propres à l'application (pont, « Dévers »,
-analyse fine, relevé) sont décrits en entier.
+analyse fine, relevé, compteurs de la vidéo) sont décrits en entier.
 
 Code : cœur de calcul dans `py/core/` (tests : `tests/coeur/`), calculs propres à
 l'application dans `py/web_app.py`, analyse fine du nuage dans `src/nuage.js`, dessin du profil
-dans `src/profil.js`.
+dans `src/profil.js`, vidéo du parcours dans `src/video.js` (dévers de la vidéo : `readDevers` dans
+`src/app.js`).
 
 ## 1. Ce qui sert à tous les modes
 
@@ -343,7 +344,149 @@ Ce que l'analyse en tire :
 
 Précision : celle du nuage (±0,1 m en altitude) et des cases (0,25 m en travers).
 
-## 11. Récapitulatif de la précision
+## 11. Vidéo : accélération latérale et vitesse max ARP
+
+Deux options de la vidéo du parcours (onglet « Vidéo »), indépendantes du compteur de vitesse :
+« Accélération latérale » (cadre « Accél. ressentie », en mG, à gauche du compteur de vitesse) et
+« Vitesse max ARP » (cadre « V max ARP », en km/h, au-dessus du compteur de vitesse). Les deux utilisent la même courbure, le même dévers et les mêmes seuils.
+Code : `laterals`, `insideDevers`, `lateralColor`, `arpSpeeds` et `drawOverlay` dans `src/video.js`.
+
+### 11.1 Vitesse
+
+La vitesse est celle de la **vidéo**, image par image (`speeds`) : vitesse choisie, rampe de
+vitesse, ralentissements aux carrefours et au point d'intérêt, arrêts du tour d'horizon, lissée
+sur ±4 images comme une aiguille. Ce n'est **pas** la vitesse du véhicule de prise de vue : la
+question posée est « que ressentirait-on à cette vitesse dans ce virage ? ».
+
+### 11.2 Courbure
+
+- **Trajectoire** : positions GPS des photos, reliées en ligne brisée ; abscisse curviligne `x`.
+- **Cap lissé** `course(x)` : direction de la corde de `x - 15 m` à `x + 15 m`. Sur un cercle,
+  cette corde est exactement parallèle à la tangente en `x` : le cap n'est pas biaisé.
+  Au raccord de deux séquences, la corde passe à ±40 m jusqu'à 40 m du raccord, puis revient à
+  ±15 m sur les 40 m suivants (les deux trajectoires sont décalées de quelques décimètres à
+  quelques mètres).
+- **Courbure** κ = |cap(x + 5 m) − cap(x − 5 m)| / 10 m, en radians par mètre (1/R). Le
+  sens du virage est le signe de cette différence (positif : à droite).
+
+Conséquence du lissage sur 30 m de corde : les virages de moins de **30 m** de rayon environ
+(épingles, giratoires) sont sous-estimés. Sur une trajectoire RTK (±2 cm), la courbure d'un
+virage de 200 m est juste à 4 % près environ. Hors RTK (±4 m, mais erreur commune aux photos
+voisines), elle varie davantage d'une image à l'autre : ce n'est pas vérifié sur une vraie séquence.
+
+### 11.3 Dévers
+
+- **Lecture** (`readDevers`, quand l'une des deux options est cochée, à la préparation ou au
+  calcul) : MNT **LiDAR HD** du service d'altimétrie de la Géoplateforme
+  (`ign_lidar_hd_mnt_mono_wld`, 50 cm, ±0,08 m), **jamais le RGE ALTI** (7,7° d'écart quadratique
+  sur le dévers, voir ticket #29). Une couche WMTS n'aurait servi à rien : c'est une image colorée,
+  pas des altitudes.
+- **Débit** : le calcul altimétrique de la Géoplateforme accepte 5 requêtes par seconde et par
+  adresse IP ; au-delà, il répond HTTP 429 et bloque 5 s. Les altitudes sont donc demandées par
+  150 points (10 photos) à **2,5 requêtes par seconde au plus**, et après un refus on attend la fin
+  du blocage (5,5 s) avant de redemander, jusqu'à 12 fois. C'est **lent** : 1 min environ pour
+  5 km de parcours (une photo tous les 5 m), avec l'avancement dans l'aide de l'option et dans la
+  ligne d'état pendant la préparation. Sans cette limite, l'essai de la D115D perdait le dévers de
+  156 photos sur 226 (refus en rafale).
+- **Grille** : 15 points autour de la caméra, à −1,5, −0,75, 0, +0,75 et +1,5 m en travers et à
+  −1,5, 0 et +1,5 m le long du cap lissé. C'est la voie où roule le véhicule (3 m environ).
+- **Pente en travers** : plan des moindres carrés, `pente = Σ c·z / Σ c²` (c : décalage en
+  travers ; la grille est symétrique). Elle est gardée en fraction, **positive si la droite est
+  plus basse** (`photo.devers`). Si une seule des 15 altitudes manque, le dévers de la photo est
+  inconnu.
+- **Vers l'intérieur** (`insideDevers`) : dévers de la photo interpolé entre les deux photos qui
+  encadrent l'image, puis signé selon le virage : tel quel dans un virage à droite, opposé dans un
+  virage à gauche. Positif, il aide à tourner ; négatif (chaussée en toit, dévers à contre-sens),
+  il gêne.
+- **Aide de l'option** : « Conforme au classement de l'ARP » si le dévers est lu sous toutes les
+  photos ; sinon le nombre de photos où il manque (dévers compté nul là, « approché ») ; « non
+  conforme à l'ARP » s'il n'a pas pu être lu du tout.
+
+Limites : sur un **pont**, le MNT donne le terrain sous le tablier (dévers faux, à écarter si des
+viaducs en virage comptent) ; un véhicule garé ou un mur bas est retiré du MNT et interpolé.
+
+### 11.4 Accélération latérale ressentie
+
+- **Accélération** : `a = v² · κ` (v en m/s), en millièmes de g : `mg = 1000 · a / 9,81`.
+- **Ressentie** (chiffre affiché) : `|a / g − d|` en mG, `d` étant le dévers vers l'intérieur.
+  En ligne droite (`a = 0`), c'est la pente en travers : une chaussée en toit à 2,5 % donne
+  25 mG. Sans dévers lu, `d = 0` : le chiffre est l'accélération brute.
+- **Couleur** : selon le frottement transversal mobilisé `f = a / g − d` (même grandeur, avec son
+  signe), comparé aux seuils de l'ARP à la vitesse de l'image (§ 11.5).
+
+Exemples à 90 km/h (25 m/s) : virage de 200 m, `a = 3,1 m/s²`, 319 mG ; déversé à 5 % vers
+l'intérieur, 269 mG ressentis, `f = 0,269`, rouge (seuil du rayon minimal à 90 km/h : 0,128).
+Virage de 800 m déversé à 5 % : 80 mG d'accélération, 30 mG ressentis, `f = 0,030`, vert.
+
+### 11.5 Seuils de l'ARP
+
+Source : *Aménagement des Routes Principales*, guide technique du SETRA, août 1994, chapitre 3,
+§ 3.1 a (p. 63, rayons minimal et non déversé) et § 3.1 d (p. 66, rayon au dévers minimal). L'ARP
+ne donne **pas de coefficient de frottement** : il donne des **rayons** par catégorie de route.
+
+| Catégorie | R 60 | T 80 et R 80 | T 100 |
+|---|---|---|---|
+| Rayon minimal Rm (dévers 7 %) | 120 m | 240 m | 425 m |
+| Rayon au dévers minimal Rdm (dévers 2,5 %) | 450 m | 650 m | 900 m |
+| Rayon non déversé Rnd (chaussée en toit, 2,5 % vers l'extérieur) | 600 m | 900 m | 1 300 m |
+
+Entre Rdm et Rm, le dévers varie linéairement en 1/R de 2,5 % à 7 % (note de la p. 66). En
+dessous de Rnd, la courbe est obligatoirement déversée vers l'intérieur (note de la p. 63).
+
+Le **frottement transversal mobilisé** se tire de l'équilibre d'un véhicule dans un virage de
+rayon R à la vitesse V (km/h) sur un dévers d : `V² / (127 · R) = f + d`, soit
+`f = V² / (127 · R) − d` (127 = 3,6² × 9,81). On le calcule à la vitesse de chaque catégorie :
+
+| Vitesse | 60 km/h | 80 km/h | 100 km/h |
+|---|---|---|---|
+| f au rayon non déversé (`d = −0,025`) | 0,072 | 0,081 | 0,086 |
+| f au rayon minimal (`d = 0,07`) | 0,166 | 0,140 | 0,115 |
+
+Classement de chaque image (`lateralColor`) :
+
+- **vert** : `f` ne dépasse pas celui du rayon non déversé. Le virage se prend à cette vitesse
+  sans demander plus au pneu qu'un virage que l'ARP admet sans dévers : confortable ;
+- **jaune** : `f` entre les deux. L'ARP l'admet à condition que le virage soit bien déversé :
+  pas très bon ;
+- **rouge** : `f` dépasse celui du rayon minimal. Plus serré que ce que l'ARP admet à cette
+  vitesse, même avec 7 % de dévers : hors limites.
+
+Entre 60 et 100 km/h, les seuils sont interpolés linéairement en vitesse. En dessous de 60 km/h
+et au-dessus de 100 km/h, ils restent ceux de 60 et de 100 km/h : l'ARP ne va pas plus bas
+(R 60 est sa plus petite catégorie) ni plus haut (autoroutes et routes express à deux chaussées
+exclues ; elles relèvent de l'ICTAAL, non repris ici). À 130 km/h, ce sont donc les seuils de
+100 km/h.
+
+### 11.6 Vitesse max ARP
+
+Pour chaque image (`arpSpeeds`) : la plus haute vitesse entière V (km/h) pour laquelle l'image
+serait **verte**, avec la même courbure κ et le même dévers d. On essaie V = 1, 2, 3… tant que
+`1000 · (V / 3,6)² · κ / 9,81` reste vert à la vitesse V (les seuils dépendent eux aussi de V).
+Ce calcul est fait mètre par mètre le long du parcours, puis **moyenné sur 20 m** (±10 m autour
+de l'image, 150 km/h comptés pour la ligne droite) : le chiffre ne saute pas d'une image à l'autre
+et annonce le virage un peu avant d'y entrer. À 150 km/h ou plus (ligne droite, grande courbe), le
+cadre affiche « — ». Le dévers inconnu compte pour nul. Le cadre « V max ARP » est au-dessus du
+compteur de vitesse.
+
+| Rayon | sans dévers | 2,5 % | 5 % | 7 % |
+|---|---|---|---|---|
+| 100 m | 30 km/h | 35 | 39 | 42 |
+| 200 m | 42 km/h | 49 | 55 | 60 |
+| 400 m | 60 km/h | 72 | 81 | 88 |
+| 800 m | 93 km/h | 107 | 118 | 127 |
+
+Le vert est exigeant : un virage de 200 m déversé à 7 % (au-dessus du rayon minimal de R 60,
+120 m) n'est vert que jusqu'à 60 km/h, jaune de 61 à 74 km/h, rouge dès 75 km/h. La vitesse max
+ARP n'est donc **pas** une vitesse limite réglementaire ni une vitesse conseillée : c'est la
+vitesse de confort au sens des rayons non déversés de l'ARP.
+
+Vérifié sans réseau sur des virages synthétiques (`tests/essai-video.html` : 665 mG dans un
+virage de 200 m à 130 km/h, dévers vers l'intérieur selon le sens du virage, couleurs à
+90 km/h, vitesse max de 42 km/h sans dévers dans le virage de 200 m). Lecture du dévers essayée
+sur la D115D à Aloxe-Corton (`tests/essai-video.html#long` : dévers lu sous toutes les photos,
+moins de 10 %, vers l'intérieur dans les virages marqués).
+
+## 12. Récapitulatif de la précision
 
 | Calcul | Ordre de grandeur | Ce qui la limite |
 |---|---|---|
@@ -357,6 +500,7 @@ Précision : celle du nuage (±0,1 m en altitude) et des cases (0,25 m en traver
 | Dévers | pas des points (0,5 m près du bord, 0,6 m à 10 m, 1,9 m à 30 m) | talus court, MNT interpolé sous arbres et murs |
 | Pente en long | MNT ±0,1 m sur 100 m | tablier des ponts interpolé en droite, creux sans pont BD TOPO ni plongée de 20 % non comblés, ponts de plus de 40 m en pente douce |
 | Bord, séparateur (nuage) | 0,25 m | cases du nuage, marquage effacé |
+| Accélération latérale (vidéo) | courbure à 4 % près en RTK sur un virage de 200 m ; dévers ±2 % au plus (MNT ±0,08 m par point, 15 points sur 3 m ; moins si ses erreurs sont liées) | lissage sur 30 m (virages de moins de 30 m sous-estimés), GPS hors RTK, ponts |
 
 Avec un GPS grand public (±4 m), le point de référence est à plusieurs mètres près, et une
 hauteur à ±2 à 3 m. Les essais et leurs valeurs attendues sont dans le README (« Précision »).

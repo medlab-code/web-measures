@@ -2549,6 +2549,7 @@
   // Vidéo : parcours préparé (planPhotos : { photos, switches, dates, warning, title }), sa préparation ou son calcul en
   // cours ; videoReady : départ et arrivée connus (onglet « Vidéo »)
   let videoPlan = null, videoPreparing = false, videoRun = null, videoReady = false;
+  const VIDEO_STALL = 30, VIDEO_GIVE_UP = 300;  // s sans image calculée : avertissement, puis arrêt de la vidéo
   const videoOk = Video.supported();
   const webpOk = Hyperlapse.supported();  // Safari n'encode pas le WebP
   const TOUR_AXIS = 4;  // rangs de part et d'autre de la photo pour l'axe et la pente (± 20 m)
@@ -3354,7 +3355,7 @@
   }
   // Effets « communication » : pastille jaune sur le parcours gardé si l'un d'eux est activé, verte sinon
   const ROUTE_EFFECTS = [["video-tonneau", "tonneau"], ["video-planete", "petite planète"], ["video-interet", "point d'intérêt"],
-    ["video-regard", "regard aux croisements"], ["video-pano", "panoramique"], ["video-tour", "tour d'horizon"]];
+    ["video-regard", "regard aux croisements"], ["video-tour", "tour d'horizon"]];
   /** Réglage remis à sa valeur de la page (case, liste, réglette). */
   function resetSetting(e) {
     if (e.type === "checkbox") e.checked = e.defaultChecked;
@@ -3467,24 +3468,96 @@
   });
   showSavedRoutes();
   /** Altitudes du sol (LiDAR HD, sinon RGE ALTI ; null si inconnue) aux points [lon, lat], par lots de 150. */
-  async function groundAltitudes(points) {
+  async function groundAltitudes(points, fallback = true, progress = () => {}) {
     const out = [];
     for (let i = 0; i < points.length; i += 150) {
+      progress(i, points.length);
       const part = points.slice(i, i + 150);
       const ask = async (resource) => {
         const url = `${Carte.GEOPF}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=${part.map((p) => p[0].toFixed(6)).join("|")}`
           + `&lat=${part.map((p) => p[1].toFixed(6)).join("|")}&resource=${resource}&zonly=true`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return (await response.json()).elevations || [];
+        // Calcul altimétrique de la Géoplateforme : 5 requêtes/s par adresse IP au plus, puis HTTP 429 et blocage de 5 s
+        // (geoservices.ign.fr, « Limite d'usage ») : une requête tous les ALTI_GAP ms au plus ; refus ou serveur
+        // occupé : attente de la fin du blocage, jusqu'à ALTI_TRIES essais
+        for (let attempt = 1; ; attempt++) {
+          const wait = altiNext - Date.now();
+          altiNext = Math.max(Date.now(), altiNext) + ALTI_GAP;
+          if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+          const response = await fetch(url);
+          if (response.ok) return (await response.json()).elevations || [];
+          if (attempt === ALTI_TRIES || (response.status !== 429 && response.status < 500)) throw new Error(`HTTP ${response.status}`);
+          altiNext = Date.now() + ALTI_BLOCK;
+        }
       };
-      const lidar = await ask("ign_lidar_hd_mnt_mono_wld").catch(() => []);
+      const warn = (error) => {
+        console.warn("Altitudes du sol non lues", error);
+        return [];
+      };
+      const lidar = await ask("ign_lidar_hd_mnt_mono_wld").catch(warn);
       const missing = part.some((_, k) => !(lidar[k] > -1000));
-      const alti = missing ? await ask("ign_rge_alti_wld").catch(() => []) : [];
+      const alti = missing && fallback ? await ask("ign_rge_alti_wld").catch(warn) : [];
       part.forEach((_, k) => out.push(lidar[k] > -1000 ? lidar[k] : alti[k] > -1000 ? alti[k] : null));
     }
+    progress(points.length, points.length);
     return out;
   }
+  // Une requête d'altitudes tous les ALTI_GAP ms (2,5/s, la moitié de la limite : place pour les autres calculs du sol),
+  // ALTI_BLOCK ms d'attente après un refus, ALTI_TRIES essais (une minute environ)
+  const ALTI_GAP = 400, ALTI_BLOCK = 5500, ALTI_TRIES = 12;
+  let altiNext = 0;  // heure de la prochaine requête permise
+  // Dévers sous chaque photo du parcours préparé, pour classer l'accélération latérale selon l'ARP :
+  // pente en travers du MNT LiDAR HD seul (le RGE ALTI est trop grossier pour un dévers), plan ajusté sur une grille de
+  // DEVERS_ACROSS × DEVERS_ALONG m autour de la caméra (la voie du véhicule). shortcut: sur un pont, le LiDAR donne le
+  // terrain sous le tablier ; écarter ces photos (Lieu, ponts BD TOPO) si des viaducs en virage comptent.
+  const DEVERS_ACROSS = [-1.5, -0.75, 0, 0.75, 1.5], DEVERS_ALONG = [-1.5, 0, 1.5];
+  // Aide des deux options qui classent selon l'ARP : dit si le dévers a été lu (couleurs, vitesse conformes)
+  const arpOptions = ["#video-acceleration", "#video-vmax-arp"].map((id) => ({ box: $(id),
+    help: $(id).closest("label").querySelector(".aide") })).map((o) => ({ ...o, text: o.help.textContent }));
+  const arpWanted = () => arpOptions.some((o) => o.box.checked);
+  const arpHelp = (text) => arpOptions.forEach((o) => { o.help.textContent = o.box.checked && text ? text : o.text; });
+  async function readDevers() {
+    const plan = videoPlan;
+    if (!plan || !arpWanted()) {
+      arpHelp(null);
+      return;
+    }
+    plan.devers ??= (async () => {
+      arpHelp("Dévers lu sur le LiDAR HD…");
+      const path = Video.trajectory(plan.photos), toRad = Math.PI / 180, points = [];
+      path.list.forEach((p, i) => {
+        const b = path.course(path.s[i]) * toRad, k = 111320 * Math.cos(p.coords[1] * toRad);
+        for (const a of DEVERS_ALONG) {
+          for (const c of DEVERS_ACROSS) {
+            const east = Math.sin(b) * a + Math.cos(b) * c, north = Math.cos(b) * a - Math.sin(b) * c;
+            points.push([p.coords[0] + east / k, p.coords[1] + north / 111320]);
+          }
+        }
+      });
+      const z = await groundAltitudes(points, false, (done, all) => {
+        arpHelp(`Dévers lu sur le LiDAR HD (lent) : ${Math.round(100 * done / all)} %…`);
+        if (videoPreparing) setStatus(`Vidéo : dévers des photos (LiDAR HD, lent) : ${Math.round(100 * done / all)} %…`);
+      }).catch(() => []), n = DEVERS_ACROSS.length * DEVERS_ALONG.length;
+      const sum2 = DEVERS_ALONG.length * DEVERS_ACROSS.reduce((t, c) => t + c * c, 0);
+      let read = 0;
+      path.list.forEach((p, i) => {
+        const part = z.slice(i * n, i * n + n);
+        p.devers = part.length === n && part.every((h) => h != null)
+          ? -part.reduce((t, h, j) => t + DEVERS_ACROSS[j % DEVERS_ACROSS.length] * h, 0) / sum2 : null;
+        if (p.devers != null) read++;
+      });
+      return { read, total: path.list.length };
+    })();
+    const { read, total } = await plan.devers;
+    if (videoPlan !== plan || !arpWanted()) return;
+    arpHelp(read === total
+      ? "Conforme au classement de l'ARP (dévers lu sur le LiDAR HD)."
+      : read
+        ? `Dévers lu sur le LiDAR HD pour ${read} photos sur ${total} : conforme à l'ARP là seulement, `
+          + "ailleurs approché (dévers compté nul)."
+        : "Dévers non lu (LiDAR HD absent ou sans réponse) : approché (dévers compté nul), non conforme à l'ARP.");
+  }
+  for (const { box } of arpOptions) box.addEventListener("change", readDevers);
+
   $("#parcours-lancer").addEventListener("click", async () => {
     const button = $("#parcours-lancer");
     button.disabled = true;
@@ -3530,6 +3603,10 @@
         await prOfPhotos(videoPlan.photos, found.title.split(" ")[0]);
         // Carrefours du parcours (regard aux croisements) : tronçons de la BD TOPO, mailles en cache
         videoPlan.junctions = await Lieu.junctions(videoPlan.photos.map((p) => p.coords)).catch(() => []);
+        if (arpWanted()) {
+          setStatus("Vidéo : dévers des photos (LiDAR HD)…");
+          await readDevers();
+        }
         setStatus(videoPlan.switches ? `Vidéo prête à enregistrer. ${videoWarning()}` : "Vidéo prête à enregistrer.",
           videoPlan.switches ? "avertissement" : "");
       } catch (error) {
@@ -3547,6 +3624,7 @@
     videoRun = new AbortController();
     updatePlayer();
     const t0 = Date.now();
+    let watch = null, stalled = false;
     try {
       // Point d'intérêt : altitudes du sol sous les photos (caméra) et sous la cible si l'objet n'a pas d'altitude (visée
       // en hauteur ; inconnues : à l'horizontale)
@@ -3557,8 +3635,29 @@
         const alts = await groundAltitudes([poiAim.target, ...photos.map((p) => p.coords)]).catch(() => []);
         poiAim = { ...poiAim, ground: { target: alts[0] ?? null, photos: photos.map((_, k) => alts[k + 1] ?? null) } };
       }
+      if (arpWanted()) await readDevers();
+      // Serveur d'images bloqué (Video réessaie) : avertissement au bout de VIDEO_STALL s sans image calculée, Attendre
+      // ou Annuler ; fenêtre refermée dès que le calcul reprend ; arrêt au bout de VIDEO_GIVE_UP s
+      let last = Date.now(), warned = false;
+      watch = setInterval(() => {
+        const idle = (Date.now() - last) / 1000;
+        if (idle >= VIDEO_GIVE_UP) {
+          stalled = true;
+          videoRun?.abort();
+        } else if (idle >= VIDEO_STALL && !warned) {
+          warned = true;
+          ask($("#video-attente"), `Le serveur d'images ne répond plus depuis ${VIDEO_STALL} s ; nouveaux essais en cours. `
+            + `Sans réponse, le calcul s'arrêtera de lui-même au bout de ${VIDEO_GIVE_UP / 60} min.`)
+            .then((choice) => { if (choice === "annuler") videoRun?.abort(); });
+        }
+      }, 1000);
       // Avancement aussi dans la ligne d'état : le fichier n'est écrit qu'à la fin du calcul (plusieurs minutes)
       const blob = await Video.mp4(videoPhotos(), Number($("#video-vitesse").value), (done, total) => {
+        last = Date.now();
+        if (warned) {
+          warned = false;
+          if ($("#video-attente").open) $("#video-attente").close();
+        }
         // Largeur fixe (chiffres de même largeur, espaces de la largeur d'un chiffre) : le texte ne saute pas
         const pad = (n, width) => String(n).padStart(width, "\u2007");
         const width = Math.max(5, String(total).length);  // place pour une longue vidéo (99 999 images, 55 min)
@@ -3568,7 +3667,7 @@
         setStatus(text, "avancement");
         $("#statut").style.setProperty("--avancement", `${(100 * done / total).toFixed(1)}%`);
       }, videoRun.signal, { blur: $("#video-flou").checked, hq: $("#video-hq").checked, advance: $("#video-avancee").checked, exposure: $("#video-expo").checked, ramp: $("#video-rampe").checked,
-        counter: $("#video-compteur").checked, speedometer: $("#video-compteur-vitesse").checked, whip: $("#video-pano").checked,
+        counter: $("#video-compteur").checked, speedometer: $("#video-compteur-vitesse").checked, lateral: $("#video-acceleration").checked, arpSpeed: $("#video-vmax-arp").checked,
         junctions: $("#video-regard").checked ? videoPlan.junctions : [],
         rolls: $("#video-tonneau").checked ? placed.roll.points.map((p) => p.lonlat) : [], rollTime: Number($("#tonneau-duree").value),
         planets: $("#video-planete").checked ? placed.planet.points.map((p) => p.lonlat) : [],
@@ -3585,10 +3684,13 @@
       setStatus(text);
       notice(text);
     } catch (error) {
+      if (stalled) error = new Error(`serveur d'images sans réponse depuis ${VIDEO_GIVE_UP / 60} min, rien d'enregistré`);
       setStatus(error.name === "AbortError" ? "Vidéo arrêtée : rien d'enregistré." : `Vidéo impossible : ${error.message}`,
         error.name === "AbortError" ? "" : "echec");
       if (error.name !== "AbortError") notice(`Vidéo impossible : ${error.message}`);
     } finally {
+      clearInterval(watch);
+      if ($("#video-attente").open) $("#video-attente").close();
       videoRun = null;
       updatePlayer();
     }
@@ -3687,7 +3789,7 @@
     $("#parcours-raz").disabled = Boolean(videoRun) || routeIsBlank();
     showPoiZone();  // portion du parcours concernée : suit la préparation, la cible et la zone
     for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-hq", "#video-avancee", "#video-expo", "#video-rampe", "#video-titre",
-      "#video-compteur", "#video-compteur-vitesse", "#video-pano", "#video-regard", "#video-tonneau", "#tonneau-duree", "#regard-vitesse",
+      "#video-compteur", "#video-compteur-vitesse", "#video-acceleration", "#video-vmax-arp", "#video-regard", "#video-tonneau", "#tonneau-duree", "#regard-vitesse",
       "#video-interet", "#interet-vitesse", "#interet-zoom", "#interet-zoom-distance", "#interet-tonneau",
       "#video-planete", "#planete-duree", "#planete-rotation", "#video-tour", "#tour-duree", "#tour-arret"]) {
       $(id).disabled = Boolean(videoRun);

@@ -8,7 +8,8 @@
      3dc34aaf, sans filtre) : changement de séquence signalé. Petite planète (#planete) : au milieu des 300 premiers
      mètres depuis le PR 1 + 146 (une photo sur 4), enroulement, tenue, déroulement. Parcours gardés (#garder) : « ☆ Garder »,
      export d'un seul, import, réglages et endroits rétablis d'un clic. Tour d'horizon (#tour) : arrêt sur une photo, tour
-     complet à l'horizontale, sens alterné. Haute qualité (#hq) : 1080p à 80 Mbit/s, plus nette, durée du calcul comparée. Lancer comme tests/navigateur.html. -->
+     complet à l'horizontale, sens alterné. Haute qualité (#hq) : 1080p à 80 Mbit/s, plus nette, durée du calcul comparée. Serveur d'images bloqué (#attente) :
+     avertissement au bout de 30 s, reprise, annulation. Lancer comme tests/navigateur.html. -->
 <script>try {
   localStorage.clear();
   localStorage.setItem("web-measures/filtre", JSON.stringify({ since: "2025-07-05" }));
@@ -50,23 +51,75 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     const dist = (p, q) => Math.hypot((p[0] - q[0]) * k, (p[1] - q[1]) * 111320);
     // Parties : 1,1 km (rampe de vitesse, titre, compteur PR), D115D courte (vidéo calculée et enregistrée), carrefour
     // (changement de séquence, exposition) ; ancre #long ou #exposition : cette partie seule (mise au point, plus court)
-    const only = location.hash.match(/#(long|exposition|planete|garder|tour|hq)/)?.[1];
+    const only = location.hash.match(/#(long|exposition|planete|garder|tour|hq|attente)/)?.[1];
     const Video = w.eval("Video");
     let select = doc.querySelector("#video-vitesse");
     let canvas = Object.assign(document.createElement("canvas"), { width: 960, height: 540 });
     let ctx = canvas.getContext("2d");
+    if (only === "attente") {
+      // Serveur d'images bloqué (tuiles sans réponse, requêtes reprises par Video) : avertissement au bout de 30 s, fenêtre
+      // refermée dès que les images reviennent, vidéo écrite ; puis nouveau blocage et « Annuler la vidéo »
+      button.click();
+      await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 120000, "vidéo préparée");
+      let hold = true, closed = false;
+      const pass = w.fetch;
+      w.fetch = (url, options = {}) => (hold && /\/tiles\//.test(String(url))
+        ? new Promise((_, reject) => options.signal?.addEventListener("abort", () => reject(options.signal.reason)))
+        : pass(url, options));
+      w.showSaveFilePicker = async (o) => ({ name: o.suggestedName, createWritable: async () => ({ write: async () => {}, close: async () => { closed = true; } }) });
+      const dialog = doc.querySelector("#video-attente");
+      const t0 = Date.now();
+      button.click();
+      await until(() => dialog.open, 60000, "avertissement du serveur bloqué");
+      const after = (Date.now() - t0) / 1000;
+      log(`avertissement au bout de ${after.toFixed(0)} s : ${dialog.querySelector("p").textContent}`);
+      expect("serveur bloqué : avertissement au bout de 30 s", after >= 29 && after < 40, after);
+      expect("serveur bloqué : boutons Annuler la vidéo / Attendre", /Annuler la vidéo/.test(dialog.textContent) && /Attendre/.test(dialog.textContent));
+      hold = false;
+      await until(() => !dialog.open, 60000, "fenêtre refermée à la reprise");
+      await until(() => closed || /impossible|arrêtée/.test(status()), 300000, "vidéo écrite après la reprise");
+      expect("serveur revenu : vidéo écrite", closed, status());
+      hold = true;
+      button.click();
+      await until(() => dialog.open, 60000, "second avertissement");
+      dialog.querySelector("button[value=annuler]").click();
+      await until(() => /arrêtée/.test(status()), 30000, "vidéo annulée");
+      expect("« Annuler la vidéo » : calcul arrêté, rien d'enregistré", /Vidéo arrêtée : rien d'enregistré/.test(status()), status());
+      w.fetch = pass;
+    }
     if (!only || only === "long") {
       // Rampe de vitesse, D115D du PR 1 + 146 au PR 0 (1,1 km : virages de la sortie d'Aloxe-Corton, carrefour de la
       // RD18) à 90 km/h (25 m/s) : pleine vitesse en ligne droite, ralentie au virage le plus serré, jamais sous 35 %,
       // départ et arrivée en douceur ; vidéo seulement préparée (pas calculée)
-      expect("cases : « Exposition accordée » cochée, « Rampe de vitesse » et « Flou cinétique » décochées",
-        doc.querySelector("#video-expo").checked && !doc.querySelector("#video-rampe").checked && !doc.querySelector("#video-flou").checked);
+      // Aucune option cochée par défaut ; ordre demandé : compteurs, accélération, titre, qualité, flou, exposition, rampe, avancée
+      const boxes = [...doc.querySelectorAll("#parcours .options > label.option > input[type=checkbox]")];
+      expect("options : aucune cochée par défaut", boxes.every((b) => !b.checked), boxes.filter((b) => b.checked).map((b) => b.id).join(" "));
+      expect("options : dans l'ordre demandé", boxes.slice(0, 10).map((b) => b.id).join(" ")
+        === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp video-titre video-hq video-flou video-expo video-rampe video-avancee",
+        boxes.map((b) => b.id).join(" "));
+      expect("options : plus de panoramique au changement de séquence", !doc.querySelector("#video-pano"));
       type(end, "0");
       endDistance.value = "0";
       await sleep(1500);
       button.click();
       await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 120000, "vidéo de 1,1 km préparée");
       const long = Video.trajectory(w.mesures.videoPlan?.photos || []);
+      // Dévers lu sur le LiDAR HD en cochant « Accélération latérale » : vers l'intérieur dans les virages marqués, plausible
+      const meter = doc.querySelector("#video-acceleration"), help = meter.closest("label").querySelector(".aide");
+      meter.checked = true;
+      meter.dispatchEvent(new w.Event("change"));
+      await until(() => /ARP/.test(help.textContent), 120000, "dévers lu");
+      const samples = long.list.map((p, i) => [p.devers, Video.insideDevers(long, [long.s[i]])[0],
+        Math.abs(((long.course(long.s[i] + 5) - long.course(long.s[i] - 5)) % 360 + 540) % 360 - 180) / 10]);
+      const bends = samples.filter(([, , t]) => t > 0.3).map(([, d]) => d).sort((a, b) => a - b);
+      log(`dévers : ${help.textContent} ; ${samples.filter(([d]) => d != null).length} photos sur ${samples.length}, `
+        + `de ${(100 * Math.min(...samples.map(([d]) => d ?? 0))).toFixed(1)} à ${(100 * Math.max(...samples.map(([d]) => d ?? 0))).toFixed(1)} % ; `
+        + `virages (> 0,3 °/m) : ${bends.length} photos, médiane ${(100 * bends[bends.length >> 1]).toFixed(1)} % vers l'intérieur`);
+      expect("dévers : lu sur le LiDAR HD pour toutes les photos (classement ARP annoncé)", /^Conforme au classement de l'ARP/.test(help.textContent), help.textContent);
+      expect("dévers : plausible (moins de 10 %)", samples.every(([d]) => d == null || Math.abs(d) < 0.1));
+      expect("dévers : vers l'intérieur dans les virages marqués (médiane)", bends.length > 3 && bends[bends.length >> 1] > 0, bends.join(" "));
+      meter.checked = false;
+      meter.dispatchEvent(new w.Event("change"));
       const xs = Video.timeline(long, 25, true), plain = Video.timeline(long, 25, false);
       const speedAt = (i) => (xs[i + 1] - xs[i]) * Video.FPS;
       const run = xs.slice(Video.HOLD * Video.FPS, -Video.HOLD * Video.FPS - 1).map((_, i) => i + Video.HOLD * Video.FPS);
@@ -103,6 +156,26 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       log(`virage marqué (30 m de rayon) : ${bendSpeed(150).toFixed(1)} m/s sur la droite, ${bendSpeed(apex).toFixed(1)} au milieu du virage`);
       expect("rampe : virage marqué ralenti à 40 % au plus", bendSpeed(apex) <= 0.4 * 25, bendSpeed(apex));
       expect("rampe : pleine vitesse sur la droite avant le virage", bendSpeed(150) >= 0.95 * 25, bendSpeed(150));
+      // Accélération latérale : nulle sur la droite, v²/R au milieu d'un virage de 200 m de rayon (130 km/h : 665 mG)
+      const wide = [];
+      for (let m = 0; m <= 300; m += 5) wide.push([lon(0), deg(m)]);
+      for (let a = 1; a <= 90; a++) wide.push([lon(200 - 200 * Math.cos(a * Math.PI / 180)), deg(300 + 200 * Math.sin(a * Math.PI / 180))]);
+      const [onStraight, curved] = Video.laterals(Video.trajectory(wide.map((c) => ({ coords: [4.85 + c[0], 47 + c[1]], alt: 200, heading: 0 }))),
+        [150, 300 + Math.PI * 50], [130, 130]);
+      expect("accélération latérale : nulle sur la droite, 665 mG dans le virage de 200 m à 130 km/h",
+        onStraight < 1 && Math.abs(curved - 1000 * 36.11 ** 2 / 200 / 9.81) < 20, `${onStraight} ${curved}`);
+      // Seuils de l'ARP à 90 km/h (entre R 80 et T 100) : frottement 0,083 au rayon non déversé, 0,128 au rayon minimal
+      expect("accélération latérale : vert / jaune / rouge selon l'ARP, dévers déduit",
+        Video.lateralColor(60, 90) === "#4caf50" && Video.lateralColor(100, 90) === "#ffd600" && Video.lateralColor(150, 90) === "#ff3d3d"
+        && Video.lateralColor(150, 90, 0.05) === "#ffd600");
+      const dl = (sign) => Video.insideDevers(Video.trajectory(wide.map((c) => ({ coords: [4.85 + sign * c[0], 47 + c[1]], alt: 200, heading: 0, devers: 0.04 }))),
+        [300 + Math.PI * 50])[0];
+      // Vitesse max ARP dans le virage de 200 m : sans dévers, V² / (127 × 200) = 0,072 (seuil du rayon non déversé de
+      // R 60, gardé sous 60 km/h) : 42 km/h
+      const wideTrack = Video.trajectory(wide.map((c) => ({ coords: [4.85 + c[0], 47 + c[1]], alt: 200, heading: 0 })));
+      const [vStraight, vBend] = Video.arpSpeeds(wideTrack, [150, 300 + Math.PI * 50]);
+      expect("vitesse max ARP : « — » sur la droite, 42 km/h dans le virage de 200 m sans dévers", vStraight === null && vBend === 42, `${vStraight} ${vBend}`);
+      expect("dévers vers l'intérieur : celui de la photo dans un virage à droite, opposé à gauche", Math.abs(dl(1) - 0.04) < 1e-9 && Math.abs(dl(-1) + 0.04) < 1e-9, `${dl(1)} ${dl(-1)}`);
       doc.querySelector("#video-rampe").checked = true;
       doc.querySelector("#video-rampe").dispatchEvent(new w.Event("change"));
       const info = doc.querySelector("#video-info").textContent;
@@ -299,7 +372,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       const t1 = performance.now();
       const blob = await Video.mp4(sub, 90, () => {}, null, { planets: [place], planetTime: 4, planetSpin: 20 });
       // Sans avancée simulée : fondu enchaîné, chaque photo vue de sa caméra (même vidéo, image au milieu d'un fondu)
-      expect("« Avancée simulée » proposée, cochée par défaut", doc.querySelector("#video-avancee")?.checked === true);
+      expect("« Avancée simulée » proposée, décochée par défaut", doc.querySelector("#video-avancee")?.checked === false);
       const still = await Video.mp4(sub, 90, () => {}, null, { advance: false });
       expect("sans avancée simulée : vidéo calculée", still.size > 100000, still.size);
       const sv = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(still) });
@@ -403,10 +476,10 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       for (const [k, v] of [[0, 9], [1, 99.5], [2, 135]]) {
         dctx.fillStyle = "#567";
         dctx.fillRect(0, 0, 960, 540);
-        Video.drawOverlay(dctx, 960, 540, { title: null, pr: null, speed: { kmh: v, digits: 3 }, t: 10 });
+        Video.drawOverlay(dctx, 960, 540, { title: null, pr: null, speed: { kmh: v, digits: 3 }, lateral: { mg: 1.4 * v, kmh: v, devers: null }, t: 10 });
         await log(`IMAGE vitesse-${k} ` + dial.toDataURL("image/jpeg", 0.9));
       }
-      const blob = await Video.mp4(sub, 90, () => {}, null, { tours: [place], tourTime: 8, tourStop: true, speedometer: true, counter: true });
+      const blob = await Video.mp4(sub, 90, () => {}, null, { tours: [place], tourTime: 8, tourStop: true, speedometer: true, lateral: true, counter: true });
       log(`vidéo avec tour : ${(blob.size / 1e6).toFixed(1)} Mo en ${((performance.now() - t1) / 1000).toFixed(0)} s`);
       const v = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(blob) });
       await new Promise((resolve) => { v.onloadedmetadata = resolve; });
@@ -530,7 +603,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       const opened = [...doc.querySelectorAll("#mes-parcours li")].at(-1);
       expect("rouvert : ligne entourée, « ☆ Gardé » grisé", opened.classList.contains("actuelle") && keep.disabled
         && keep.textContent === "☆ Gardé", keep.textContent);
-      for (const id of ["#video-tonneau", "#video-planete", "#video-interet", "#video-regard", "#video-pano"]) set(id, false);
+      for (const id of ["#video-tonneau", "#video-planete", "#video-interet", "#video-regard"]) set(id, false);
       expect("modifié : « ☆ Enregistrer… » actif", !keep.disabled && keep.textContent === "☆ Enregistrer…", keep.textContent);
       const choose = async (value) => {
         keep.click();
@@ -547,7 +620,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       two[1].querySelectorAll(".effacer-resultat")[1].click();  // retiré : on repart du premier, rouvert puis modifié
       two[0].querySelector(".aller-favori").click();
       await sleep(500);
-      for (const id of ["#video-tonneau", "#video-planete", "#video-interet", "#video-regard", "#video-pano"]) set(id, false);
+      for (const id of ["#video-tonneau", "#video-planete", "#video-interet", "#video-regard"]) set(id, false);
       await choose("remplacer");
       await until(() => [...doc.querySelectorAll("#mes-parcours li .pastille")].at(-1)?.classList.contains("sobre"), 30000, "parcours mis à jour");
       const plain = [...doc.querySelectorAll("#mes-parcours li .pastille")].at(-1);
@@ -723,20 +796,13 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       log(`exposition au carrefour : gains ${gains.map((g) => g.toFixed(2)).join(" ")} (changement à la photo ${change})`);
       expect("exposition : séquence de départ inchangée", gains.slice(0, change).every((g) => g === 1));
       expect("exposition : juillet ramené sur mai au changement (gain 0,55 à 0,75)", gains[change] > 0.55 && gains[change] < 0.75, gains[change]);
-      // Panoramique au changement de séquence : tour complet en 0,7 s centré sur le fondu, image en plein tour
-    const flatXs = Video.timeline(trajet, 25, false), spin = Video.pans(trajet, flatXs, { whip: true });
-    const spinMax = Math.max(...spin.map(Math.abs)), mid = spin.findIndex((v) => Math.abs(v) >= 180);
-    log(`panoramique : ${spin.filter((v) => v).length} images, jusqu'à ${spinMax.toFixed(0)}°, demi-tour à l'image ${mid}`);
-    expect("panoramique : tour complet (360°) en 0,7 s environ", spinMax > 350 && spin.filter((v) => v).length <= 22);
-    const whipVideo = await Video.mp4(cross.photos, 90, () => {}, null, { whip: true });
-    const wv = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(whipVideo) });
-    await new Promise((resolve) => { wv.onloadedmetadata = resolve; });
-    for (const [name, f] of [["avant-tour", mid - 8], ["tour", mid], ["apres-tour", mid + 8]]) {
-      wv.currentTime = (f + 0.5) / 30;
-      await new Promise((resolve) => { wv.onseeked = resolve; });
-      ctx.drawImage(wv, 0, 0, canvas.width, canvas.height);
-      await log(`IMAGE ${name} ` + canvas.toDataURL("image/jpeg", 0.85));
-    }
+      // Raccord de séquence : cap lissé plus largement (± 40 m) ; sans raccord (même séquence partout), cap plus heurté
+    const plain = Video.trajectory(cross.photos.map((p) => ({ ...p, collection: "une" })));
+    const seamAt = (trajet.s[change - 1] + trajet.s[change]) / 2;
+    const jerk = (t) => Math.max(...Array.from({ length: 81 }, (_, k) => seamAt - 40 + k)
+      .map((x) => Math.abs(((t.course(x + 1) - t.course(x)) % 360 + 540) % 360 - 180)));
+    log(`raccord : cap au plus ${jerk(trajet).toFixed(2)} °/m lissé, ${jerk(plain).toFixed(2)} °/m sans lissage`);
+    expect("raccord : cap lissé autour du changement de séquence", jerk(trajet) <= jerk(plain) + 1e-9, `${jerk(trajet)} ${jerk(plain)}`);
     expect("exposition : retour progressif vers sa propre exposition", gains.slice(change + 1).every((g, i) => g >= gains[change + i] - 1e-9));
     }
     log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);

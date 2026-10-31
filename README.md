@@ -128,7 +128,7 @@ par Chrome, Firefox et VLC, peut-être pas par PowerPoint, une seconde d'arrêt 
 simulée (de 30 à 720 km/h, 90 par défaut, puis Mach 1 et Mach 2 : 1 235 et 2 470 km/h, vitesse du son au niveau de
 la mer ; des photos y sont sautées) et la part des photos de la séquence prises (1/1, 1/2, 1/4, 1/8 ;
 chaque choix indique l'écart obtenu, par exemple « une tous les 10 m »).  S'affichent aussi le nombre de photos retenues, la durée de la vidéo et le nombre de photos
-par seconde ; au-delà de 30 photos par seconde (une par image), des photos sont sautées. Chaque option a sa case. « Exposition accordée » (cochée par défaut) : aux changements de séquence, une autre campagne peut être bien
+par seconde ; au-delà de 30 photos par seconde (une par image), des photos sont sautées. Chaque option a sa case. « Exposition accordée » (décochée) : aux changements de séquence, une autre campagne peut être bien
 plus claire ou plus sombre (juillet 2025 : 1,5 fois plus clair que mai au carrefour RD18 / D115D) ; la nouvelle
 séquence est ramenée sur la précédente (3 photos de part et d'autre, rouge, vert et bleu séparément, sur tout le tour
 d'horizon des vignettes, sans le ciel ni le toit du véhicule), puis revient peu à peu à sa propre exposition sur
@@ -144,9 +144,26 @@ les photos ; au passage d'un PR, l'ancien va jusqu'à son bout, puis le nouveau)
 la préparation, sur la route du parcours (autre route après une bifurcation : cherchée une fois), avec les sections
 et PR de la BD TOPO déjà gardés en cache. « Compteur de vitesse » (décochée) : en bas à droite, dans le même cadre,
 la vitesse de la vidéo à chaque instant en km/h (rampe, ralentissements, arrêts du tour d'horizon), lissée sur un
-quart de seconde comme une aiguille ; chiffres en rouleaux, zéros de tête masqués. « Panoramique au changement de séquence » (décochée) : la vue fait un tour complet en 0,7 s, du côté où
-tourne la route, au plus vite pendant le fondu entre les deux séquences, qui passe ainsi inaperçu (flou de mouvement
-d'une vue tous les 1,5° de rotation). « Regard aux croisements » (décochée) : à l'approche d'un carrefour avec une
+quart de seconde comme une aiguille ; chiffres en rouleaux, zéros de tête masqués. « Accélération latérale » (décochée) : en bas à droite, à gauche du compteur
+de vitesse s'il est affiché, l'accélération latérale ressentie (« Accél. ressentie »), en millièmes de g (mG) :
+a / g - dévers en valeur absolue (en ligne droite, la pente en travers de la chaussée ; dévers compté nul s'il manque),
+a = v² × courbure, la courbure étant la rotation du cap lissé sur 10 m (trajectoire lissée sur ± 15 m : les
+virages de moins de 30 m de rayon environ sont sous-estimés). Chiffre coloré selon le frottement transversal mobilisé
+f = a / g - dévers (dévers vers l'intérieur du virage), comparé à celui des rayons de l'ARP (SETRA, août 1994, § 3.1) à
+cette vitesse (ramenée entre 60 et 100 km/h, les catégories R 60, T 80 et R 80, T 100) : vert jusqu'au rayon non déversé
+Rnd (600, 900, 1 300 m, chaussée en toit à 2,5 % : f = 0,072, 0,081, 0,086), jaune jusqu'au rayon minimal Rm (120, 240,
+425 m, dévers de 7 % : f = 0,166, 0,140, 0,116), rouge au-delà. Dévers lu sur le MNT LiDAR HD (service d'altimétrie de
+la Géoplateforme ; pas le RGE ALTI, trop grossier ; lent, car le service n'accepte que 5 requêtes par seconde : 1 min
+environ pour 5 km, avancement affiché) : plan ajusté sur 15 points à ± 1,5 m autour de la caméra, en cochant
+l'option ou à la préparation ; l'aide de l'option dit si les couleurs sont conformes à l'ARP (dévers lu partout) ou
+approchées (dévers compté nul là où il manque). Sur un pont, le LiDAR donne le terrain sous le tablier : dévers faux. « Vitesse max ARP » (décochée) : en bas à
+droite, au-dessus du compteur de vitesse, la plus haute vitesse à laquelle le virage resterait vert (même calcul, même
+dévers, seuil du rayon non déversé de l'ARP à cette vitesse), moyennée sur 20 m, au km/h ; « — » à 150 km/h ou plus (ligne droite,
+grande courbe). Calcul, seuils de l'ARP et exemples détaillés : [`docs/CALCULS.md`](docs/CALCULS.md),
+§ 11. Au raccord de deux séquences, le cap de la vue est lissé plus
+largement à moins de 40 m (± 40 m au lieu de ± 15 m, retour en douceur sur les 40 m suivants : le décalage des deux
+trajectoires ne fait pas de coup de volant ; 1,5 m de décalage : cap écarté de 1,1° au lieu de 2,9°) et le fondu d'une séquence à l'autre est toujours flouté (flou cinétique, même décoché) pour masquer
+leurs différences. Le panoramique au changement de séquence (tour complet sur le raccord) a été retiré. « Regard aux croisements » (décochée) : à l'approche d'un carrefour avec une
 route revêtue (BD TOPO : route à une ou deux chaussées, rond-point, bretelle, type autoroutier ; pas les chemins de
 vigne), la vue se tourne en 0,8 s vers la voie croisée, dans son axe dès 0,9 s avant le carrefour (anticipation), et
 le reste au niveau du carrefour (cap de la
@@ -181,7 +198,7 @@ choisis de même (📍, repère brun), la vue fait un tour complet dans le plan 
 plats, lent au départ et à l'arrivée, sens alterné d'un tour au suivant (réglette de 2 à 20 s, 8 s par défaut) ;
 « Arrêt pendant le tour » (coché) : la caméra s'arrête le temps du tour sur la photo la plus proche (image nette, la
 vidéo s'allonge d'autant), sinon elle continue d'avancer. Ces
-options chargent plus de tuiles aux endroits concernés (tout le tour pour le panoramique). « Flou cinétique »
+options chargent plus de tuiles aux endroits concernés (tout le tour pour le tour d'horizon). « Flou cinétique »
 (décochée par défaut) : chaque
 image est la moyenne de 8 vues réparties depuis la position de l'image précédente (obturateur ouvert toute l'image) ;
 ce qui défile vite près de la caméra (chaussée, muret, vignes du bord) s'étire dans le sens du mouvement, le lointain
@@ -196,8 +213,8 @@ fondu, la ligne des collines aussi un peu (photos qui ne penchent pas pareil). �
 (décochée) : toujours en 1920 × 1080, mais débit bien plus élevé (H.264 80 Mbit/s au lieu de 30, VP9 50 au lieu de 20)
 pour les détails fins (vignes, graviers, feuillages, fils), photos en pleine définition et vue calculée en double
 définition puis réduite (bords sans escalier) ; calcul environ 1,5 à 2 fois plus long (davantage avec un réseau lent),
-fichier 2,5 fois plus gros. « Avancée simulée » (cochée par
-défaut) : désactivée, chaque photo est vue de sa propre caméra et passe à la suivante par un simple fondu enchaîné :
+fichier 2,5 fois plus gros. « Avancée simulée » (décochée) :
+désactivée, chaque photo est vue de sa propre caméra et passe à la suivante par un simple fondu enchaîné :
 rien de déformé ni de dédoublé par la maquette, mais la route avance par bonds (d'autant plus avec une photo sur 4 ou 8). Le calcul prend environ
 deux fois la durée de la vidéo si les tuiles sont déjà en cache (« ■ Arrêter » l'interrompt) ; le fichier
 n'est écrit qu'à la fin : l'avancement s'affiche dans la ligne d'état, et l'erreur éventuelle y reste. Bibliothèque
@@ -212,7 +229,7 @@ des photos et les parcours gardés ne changent pas. Grisé quand tout est déjà
 parcours avec tous ses réglages : départ et arrivée (route, PR et distances, points sur la carte), vitesse, part des
 photos, toutes les options et leurs réglettes, endroits des tonneaux, des petites planètes et des tours d'horizon, zone et cible du point
 d'intérêt, filtre de date des photos. Nommé d'après la route et les PR, daté ; pastille jaune si au moins un effet « communication » est activé (tonneau,
-petite planète, point d'intérêt, regard aux croisements, panoramique, tour d'horizon), verte sinon ; gardé dans ce navigateur. Un clic sur
+petite planète, point d'intérêt, regard aux croisements, tour d'horizon), verte sinon ; gardé dans ce navigateur. Un clic sur
 son nom le rouvre dans l'onglet Vidéo (vidéo à préparer), ⤓ l'exporte seul (fichier JSON à envoyer à un collègue),
 × le retire ; rouvert, la ligne est entourée et « ☆ Garder » devient « ☆ Gardé » (grisé) ; modifié, « ☆ Enregistrer… »
 propose de l'enregistrer dans ce parcours ou d'en créer un nouveau (l'ancien reste tel quel) ; en tête, export de toute la liste et import (la liste ou un seul, ajoutés à ceux-ci ; fichier venu
