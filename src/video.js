@@ -32,13 +32,17 @@ const Video = (() => {
   const AHEAD = 4;  // photos chargées d'avance
   const HOLD = 1;  // s : arrêt sur la première et la dernière vue
   const MARGIN = 8;  // degrés : marge des tuiles chargées autour du champ (cap qui varie le long de la photo)
+  const EXPO_SIDE = 3;  // photos mesurées de part et d'autre d'un changement de séquence (exposition)
+  const EXPO_RAMP = 100;  // m : retour progressif à l'exposition propre de la nouvelle séquence
+  const EXPO_MAX = 2;  // gain d'exposition au plus (ou 1 / EXPO_MAX)
   const BLUR = 8;  // vues moyennées par image pour le flou cinétique (obturateur ouvert toute l'image : 360°)
 
   const supported = () => typeof VideoEncoder === "function" && typeof VideoFrame === "function"
     && typeof OffscreenCanvas === "function";
 
   /** Photo du parcours gardée pour la vidéo : position, altitude, cap EXIF, grille de tuiles HD (sinon l'image SD
-   * entière), date de prise de vue. feature : fiche STAC ; point : { coords, alt, heading } de la lecture. */
+   * entière), date de prise de vue, séquence et vignette (exposition). feature : fiche STAC ; point : { coords, alt,
+   * heading } de la lecture. */
   function record(feature, point) {
     const matrix = feature.properties?.["tiles:tile_matrix_sets"]?.geovisio?.tileMatrix?.[0];
     const sd = feature.assets?.sd?.href || "";
@@ -46,10 +50,74 @@ const Video = (() => {
       ? { base: sd.replace(/sd\.jpg$/, "tiles/"), cols: matrix.matrixWidth, rows: matrix.matrixHeight, size: matrix.tileWidth }
       : { image: sd || feature.assets?.hd?.href, cols: 1, rows: 1, size: 2048 };
     return { id: feature.id, coords: point.coords, alt: point.alt, heading: point.heading, tiles,
-      date: (feature.properties?.datetime || "").slice(0, 10) };
+      date: (feature.properties?.datetime || "").slice(0, 10), collection: feature.collection,
+      thumb: feature.assets?.thumb?.href || sd };
   }
 
   const toRad = Math.PI / 180;
+
+  /** Exposition d'une photo : moyenne des logarithmes de R, V, B sur sa vignette, de 45° au-dessus de l'horizon à 20°
+   * dessous (ni le haut du ciel, ni le toit du véhicule, sous ROOF), sur tout le tour d'horizon : deux photos voisines
+   * voient à peu près le même entourage, alors que le décor du seul regard change (essai du 31/10 au carrefour RD18 /
+   * D115D : arbre à l'ombre d'un côté, vignes au soleil de l'autre, rapport 2 au lieu de 1,5 ; tour complet : 1,51,
+   * contre 1,58 mesuré au même endroit dans le même sens). */
+  async function exposureOf(photo, signal) {
+    const bitmap = await createImageBitmap(await (await fetch(photo.thumb, { signal })).blob());
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const { width: w, height: h } = canvas;
+    const top = Math.round(h / 4), bottom = Math.round(h * (90 + 20) / 180);
+    const px = ctx.getImageData(0, top, w, bottom - top).data;
+    const sum = [0, 0, 0];
+    for (let i = 0; i < px.length; i += 4) {
+      for (let c = 0; c < 3; c++) sum[c] += Math.log(Math.max(px[i + c], 1) / 255);
+    }
+    return sum.map((v) => v / Math.max(1, px.length / 4));
+  }
+
+  /**
+   * Exposition de chaque photo (gain R, V, B, multiplié dans le rendu) : seulement aux changements de séquence, où une
+   * autre campagne peut être bien plus claire ou plus sombre (juillet 2025 : 58 % plus clair que mai au même endroit).
+   * La nouvelle séquence est ramenée sur la précédente (EXPO_SIDE photos de part et d'autre, médiane), puis revient
+   * peu à peu à sa propre exposition sur EXPO_RAMP m. Une séquence seule n'est pas touchée : d'une photo à la suivante,
+   * son exposition ne varie que d'environ 1 % ; ce qui varie (haie, bois) est le décor, à ne pas éclaircir.
+   */
+  async function exposures(path, signal) {
+    const { list, s } = path;
+    const gains = list.map(() => [1, 1, 1]);
+    const median = (values) => [0, 1, 2].map((c) => values.map((v) => v[c]).sort((a, b) => a - b)[values.length >> 1]);
+    let carried = [0, 0, 0];  // correction (log) de la séquence précédente à sa dernière photo
+    for (let k = 1; k < list.length; k++) {
+      if (list[k].collection === list[k - 1].collection) {
+        continue;
+      }
+      const before = [], after = [];
+      for (let i = k - 1; i >= Math.max(0, k - EXPO_SIDE) && list[i].collection === list[k - 1].collection; i--) before.push(i);
+      for (let i = k; i < Math.min(list.length, k + EXPO_SIDE) && list[i].collection === list[k].collection; i++) after.push(i);
+      let shift = [0, 0, 0];
+      try {
+        const measure = (ids) => Promise.all(ids.map((i) => exposureOf(list[i], signal)));
+        const [a, b] = await Promise.all([measure(before), measure(after)]);
+        const [ma, mb] = [median(a), median(b)];
+        shift = [0, 1, 2].map((c) => ma[c] + carried[c] - mb[c]);
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        console.warn("Vidéo : exposition non mesurée au changement de séquence", error);
+      }
+      // Rampe jusqu'au prochain changement de séquence (ou la fin)
+      let i = k;
+      for (; i < list.length && (i === k || list[i].collection === list[i - 1].collection); i++) {
+        const fade = 1 - Math.min(1, (s[i] - s[k]) / EXPO_RAMP);
+        const ease = fade * fade * (3 - 2 * fade);
+        gains[i] = shift.map((v) => Math.min(EXPO_MAX, Math.max(1 / EXPO_MAX, Math.exp(v * ease))));
+      }
+      carried = gains[i - 1].map(Math.log);
+      k = i - 1;
+    }
+    return gains;
+  }
   const metres = (a, b) => Math.hypot((b[0] - a[0]) * 111320 * Math.cos(a[1] * toRad), (b[1] - a[1]) * 111320);
   const bearing = (a, b) => (Math.atan2((b[0] - a[0]) * Math.cos(a[1] * toRad), b[1] - a[1]) / toRad + 360) % 360;
   const wrap = (deg) => ((deg % 360) + 540) % 360 - 180;
@@ -151,6 +219,7 @@ const Video = (() => {
     uniform vec2 grid0, grid1;  // colonnes et lignes de la grille entière
     uniform vec4 cam0, cam1;  // cap, tangage (radians), tan du demi-champ horizontal, avancée (m) depuis la photo
     uniform float aspect, blend, height, bowl, road, roof;
+    uniform vec3 gain0, gain1;  // exposition de chaque photo (changement de séquence)
     vec4 pick(sampler2D t, vec4 crop, vec2 grid, vec4 cam) {
       // Rayon de la caméra virtuelle, avancée de cam.w m dans l'axe de la vue (horizontal) : point touché sur la
       // maquette (sol, sinon sphère), puis direction de ce point vue de la caméra de la photo
@@ -179,6 +248,8 @@ const Video = (() => {
     }
     void main() {
       vec4 a = pick(tex0, crop0, grid0, cam0), b = pick(tex1, crop1, grid1, cam1);
+      a.rgb = min(a.rgb * gain0, 1.0);
+      b.rgb = min(b.rgb * gain1, 1.0);
       float w = mix(b.a, blend * b.a, a.a);  // photo quittée absente : la suivante seule
       color = vec4(mix(a.rgb, b.rgb, w), 1.0);
     }`;
@@ -228,7 +299,7 @@ const Video = (() => {
         return tex;
       },
       drop: (tex) => gl.deleteTexture(tex),
-      /** Vue : views = [{ tex, crop, grid, yaw, pitch, tan, move }] (photo quittée, photo suivante), blend : part de la
+      /** Vue : views = [{ tex, crop, grid, yaw, pitch, tan, move, gain }] (photo quittée, photo suivante), blend : part de la
        * suivante ; weight < 1 : vue mêlée à l'image déjà dessinée dans cette proportion (moyenne du flou cinétique). */
       draw(views, blend, weight = 1) {
         if (weight < 1) {
@@ -244,6 +315,7 @@ const Video = (() => {
           gl.uniform4f(u(`crop${k}`), v.crop.c0, v.crop.nc, v.crop.r0, v.crop.nr);
           gl.uniform2f(u(`grid${k}`), v.grid[0], v.grid[1]);
           gl.uniform4f(u(`cam${k}`), v.yaw, v.pitch, v.tan, v.move);
+          gl.uniform3f(u(`gain${k}`), ...(v.gain || [1, 1, 1]));
         });
         gl.uniform1f(u("blend"), blend);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -292,11 +364,12 @@ const Video = (() => {
   }
 
   /**
-   * Vidéo MP4 (Blob) des photos du parcours [record], à la vitesse simulée kmh ; blur : flou cinétique (moyenne de
-   * BLUR vues réparties entre la position de l'image précédente et celle-ci : le proche défilant vite s'étale). progress(fait, total) à chaque image ;
-   * signal : AbortSignal pour arrêter.
+   * Vidéo MP4 (Blob) des photos du parcours [record], à la vitesse simulée kmh, exposition accordée aux changements de
+   * séquence (exposures). options.blur : flou cinétique (moyenne de BLUR vues réparties entre la position de l'image
+   * précédente et celle-ci : le proche défilant vite s'étale) ; options.exposure : false pour ne pas accorder
+   * l'exposition (essais). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
    */
-  async function mp4(photos, kmh, progress = () => {}, signal = null, blur = false) {
+  async function mp4(photos, kmh, progress = () => {}, signal = null, { blur = false, exposure = true } = {}) {
     const path = trajectory(photos);
     if (path.list.length < 2 || path.length < 1) throw new Error("parcours trop court");
     const [chosen] = await Promise.all([encoderConfig(), loadMuxer()]);
@@ -311,6 +384,7 @@ const Video = (() => {
     const widest = (fov) => 2 * Math.atan(Math.tan(fov / 2 * toRad) * 1.6) / toRad;
     const scaleOf = (t) => Math.min(1, 1.25 * (width / HFOV) / (t.size / (360 / t.cols)));
     const yawAt = (i, x) => wrap(path.course(x) - path.list[i].heading);
+    const gains = exposure ? await exposures(path, signal) : path.list.map(() => [1, 1, 1]);
     const loads = new Map();  // rang de la photo -> Promise de { tex, crop, grid }
     const load = (i) => {
       if (!loads.has(i)) {
@@ -355,8 +429,8 @@ const Video = (() => {
           // moyenne courante
           const gap = Math.min(path.s[j] - path.s[i], GAP);
           gl.draw([
-            { ...a, yaw: yawAt(i, xs) * toRad, pitch: path.list[i].pitch, tan, move: u * gap },
-            { ...b, yaw: yawAt(j, xs) * toRad, pitch: path.list[j].pitch, tan, move: -(1 - u) * gap },
+            { ...a, yaw: yawAt(i, xs) * toRad, pitch: path.list[i].pitch, tan, move: u * gap, gain: gains[i] },
+            { ...b, yaw: yawAt(j, xs) * toRad, pitch: path.list[j].pitch, tan, move: -(1 - u) * gap, gain: gains[j] },
           ], j === i ? 0 : smooth(Math.min(1, Math.max(0, (u - 0.25) / 0.5))), 1 / (k + 1));
         }
         const frame = new VideoFrame(gl.canvas, { timestamp: Math.round(n * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
@@ -375,5 +449,5 @@ const Video = (() => {
     }
   }
 
-  return { supported, record, mp4, trajectory, FPS, HOLD };
+  return { supported, record, mp4, trajectory, exposures, FPS, HOLD };
 })();

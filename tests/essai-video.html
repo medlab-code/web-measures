@@ -44,100 +44,107 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     expect("« 🎬 Préparer la vidéo » actif une fois départ et arrivée saisis (sans lire le parcours)", !button.disabled);
     const k = 111320 * Math.cos(47.07 * Math.PI / 180);
     const dist = (p, q) => Math.hypot((p[0] - q[0]) * k, (p[1] - q[1]) * 111320);
-    // Préparer : photos cherchées sans la visionneuse
-    const before = w.mesures.psv.getPictureMetadata?.()?.id;
-    button.click();
-    await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 120000, "vidéo préparée");
-    const plan = w.mesures.videoPlan;
-    const photos = plan?.photos || [];
-    const gaps = photos.slice(1).map((p, i) => dist(p.coords, photos[i].coords)).sort((a, b) => a - b);
-    log(`préparée : ${photos.length} photos, écart médian ${gaps[gaps.length >> 1]?.toFixed(1)} m, ${plan?.switches} changement(s) ; ${status()}`);
-    expect("préparée sans changer la photo de la visionneuse", w.mesures.psv.getPictureMetadata?.()?.id === before);
-    expect("toutes les photos du parcours (une tous les 5 m)", photos.length >= 25 && gaps[gaps.length >> 1] < 6, `${photos.length}, ${gaps[gaps.length >> 1]}`);
-    expect("une seule séquence, sans avertissement", plan?.switches === 0 && !/⚠/.test(doc.querySelector("#video-info").textContent));
-    expect("tuiles HD connues", photos.every((p) => p.tiles?.base && p.tiles.cols === 16));
-    const select = doc.querySelector("#video-vitesse");
-    select.value = "180";
-    doc.querySelector("#video-photos").value = "2";
-    select.dispatchEvent(new w.Event("change"));
-    const info = doc.querySelector("#video-info").textContent;
-    log("vidéo : " + info);
-    expect("vidéo : photos retenues, écart, durée et photos/s affichés", /^\d+ photos \(une tous les 1\d m\) · \d+ s · [\d.]+ photos\/s$/.test(info), info);
-    const labels = [...doc.querySelector("#video-photos").options].map((o) => o.textContent);
-    expect("écart de chaque choix affiché (1/2 : une tous les 10 m)", labels[1] === "Photos 1/2 · une tous les 10 m", labels[1]);
-    const chosen = photos.filter((_, i) => i % 2 === 0 || i === photos.length - 1);
+    // Commun aux deux parties ; #exposition : seulement le carrefour (mise au point de l'exposition, plus court)
     const Video = w.eval("Video");
-    const t0 = performance.now();
-    let last = 0;
-    const blob = await Video.mp4(chosen, Number(select.value), (done, total) => {
-      if (done - last >= 30 || done === total) { last = done; log(`image ${done} / ${total} (${((performance.now() - t0) / 1000).toFixed(0)} s)`); }
-    });
-    log(`vidéo : ${(blob.size / 1e6).toFixed(1)} Mo en ${((performance.now() - t0) / 1000).toFixed(0)} s`);
-    const head = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
-    expect("MP4 : boîte ftyp", String.fromCharCode(...head.subarray(4, 8)) === "ftyp");
-    // Relecture : taille, durée attendue (longueur à 180 km/h + 2 s d'arrêt), une image par seconde dans le journal
-    const video = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(blob) });
-    await new Promise((resolve, reject) => { video.onloadedmetadata = resolve; video.onerror = () => reject(new Error("vidéo illisible")); });
-    const length = Video.trajectory(chosen).length;
-    log(`relue : ${video.videoWidth} × ${video.videoHeight}, ${video.duration.toFixed(2)} s pour ${length.toFixed(0)} m`);
-    expect("relue en 1920 × 1080 (ou 1280 × 720)", (video.videoWidth === 1920 && video.videoHeight === 1080) || (video.videoWidth === 1280 && video.videoHeight === 720));
-    const expected = length / (180 / 3.6) + 2 * Video.HOLD;
-    expect("durée attendue (± 0,5 s)", Math.abs(video.duration - expected) < 0.5, `${video.duration} / ${expected}`);
-    const canvas = Object.assign(document.createElement("canvas"), { width: 960, height: Math.round(960 * video.videoHeight / video.videoWidth) });
-    const ctx = canvas.getContext("2d");
-    let dark = 0;
-    for (let t = 0.5; t < video.duration; t += location.hash.includes("toutes") ? 1 / 30 : 1) {
-      video.currentTime = t;
-      await new Promise((resolve) => { video.onseeked = resolve; });
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const px = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-      let sum = 0;
-      for (let i = 0; i < px.length; i += 4 * 97) sum += px[i] + px[i + 1] + px[i + 2];
-      if (sum / (px.length / (4 * 97)) / 3 < 20) dark++;
-      await log(`IMAGE video-${t.toFixed(2).padStart(6, "0")} ` + canvas.toDataURL("image/jpeg", 0.8));
-    }
-    expect("pas d'image noire (tuiles manquantes)", dark === 0, String(dark));
-    // Flou cinétique : même vidéo, netteté du bas de l'image (chaussée qui défile) plus faible au même instant
-    const t1 = performance.now();
-    const blurred = await Video.mp4(chosen, Number(select.value), () => {}, null, true);
-    log(`flou cinétique : ${(blurred.size / 1e6).toFixed(1)} Mo en ${((performance.now() - t1) / 1000).toFixed(0)} s`);
-    const sharpness = async (b, name) => {
-      const v2 = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(b) });
-      await new Promise((resolve) => { v2.onloadedmetadata = resolve; });
-      v2.currentTime = 2.5;
-      await new Promise((resolve) => { v2.onseeked = resolve; });
-      ctx.drawImage(v2, 0, 0, canvas.width, canvas.height);
-      await log(`IMAGE ${name} ` + canvas.toDataURL("image/jpeg", 0.85));
-      const h0 = Math.round(canvas.height * 0.6), px = ctx.getImageData(0, h0, canvas.width, canvas.height - h0).data;
-      let e = 0;
-      for (let i = 4; i < px.length; i += 4) e += Math.abs(px[i] - px[i - 4]);
-      return e / (px.length / 4);
-    };
-    const [sharp, soft] = [await sharpness(blob, "net"), await sharpness(blurred, "flou")];
-    log(`netteté du bas de l'image : ${sharp.toFixed(2)} sans flou, ${soft.toFixed(2)} avec`);
-    expect("flou cinétique : bas de l'image moins net", soft < sharp * 0.9, `${soft} / ${sharp}`);
-    expect("« Flou cinétique » proposé, décoché par défaut", doc.querySelector("#video-flou") && !doc.querySelector("#video-flou").checked);
-    // « 🎬 Enregistrer la vidéo » : boîte d'enregistrement simulée, avancement dans la ligne d'état, fichier écrit
-    let written = null, closed = false;
-    w.showSaveFilePicker = async (o) => ({ name: o.suggestedName, createWritable: async () => ({ write: async (b) => { written = b; }, close: async () => { closed = true; } }) });
-    doc.querySelector("#video-photos").value = "4";
-    button.click();
-    await until(() => !doc.querySelector("#parcours-video-arret").hidden, 10000, "calcul lancé (« ■ Arrêter » affiché)");
-    await sleep(3000);
-    expect("avancement dans la ligne d'état", /Calcul de la vidéo en cours : image [\u2007\d]{5} \/ [\u2007\d]{5} \([\u2007\d]{3} %\)$/.test(status()), status());
-    const statut = doc.querySelector("#statut");
-    const bar = parseFloat(statut.style.getPropertyValue("--avancement"));
-    log(`barre d'avancement : ${bar} % ; fond ${w.getComputedStyle(statut).backgroundImage.slice(0, 80)}`);
-    expect("ligne d'état remplie d'orange selon l'avancement", statut.classList.contains("avancement") && bar > 0 && bar < 100
-      && /linear-gradient/.test(w.getComputedStyle(statut).backgroundImage), `${bar}`);
-    await until(() => closed || /impossible/.test(status()), 300000, "fichier écrit");
-    log("après : " + status());
-    expect("barre retirée à la fin", !doc.querySelector("#statut").classList.contains("avancement"));
-    expect("bouton : fichier MP4 écrit", closed && written?.size > 100000, String(written?.size));
-    expect("nom du fichier rappelé à la fin", /Vidéo enregistrée dans « parcours D115D .+ 180 km-h\.mp4 »/.test(status()), status());
-    if (location.hash.includes("fichier")) {
-      const data = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
-      await log("FICHIER parcours.mp4 " + data);
+    let select = doc.querySelector("#video-vitesse");
+    let canvas = Object.assign(document.createElement("canvas"), { width: 960, height: 540 });
+    let ctx = canvas.getContext("2d");
+    if (!location.hash.includes("exposition")) {
+      // Préparer : photos cherchées sans la visionneuse
+      const before = w.mesures.psv.getPictureMetadata?.()?.id;
+      button.click();
+      await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 120000, "vidéo préparée");
+      const plan = w.mesures.videoPlan;
+      const photos = plan?.photos || [];
+      const gaps = photos.slice(1).map((p, i) => dist(p.coords, photos[i].coords)).sort((a, b) => a - b);
+      log(`préparée : ${photos.length} photos, écart médian ${gaps[gaps.length >> 1]?.toFixed(1)} m, ${plan?.switches} changement(s) ; ${status()}`);
+      expect("préparée sans changer la photo de la visionneuse", w.mesures.psv.getPictureMetadata?.()?.id === before);
+      expect("toutes les photos du parcours (une tous les 5 m)", photos.length >= 25 && gaps[gaps.length >> 1] < 6, `${photos.length}, ${gaps[gaps.length >> 1]}`);
+      expect("une seule séquence, sans avertissement", plan?.switches === 0 && !/⚠/.test(doc.querySelector("#video-info").textContent));
+      expect("tuiles HD connues", photos.every((p) => p.tiles?.base && p.tiles.cols === 16));
+      select = doc.querySelector("#video-vitesse");
+      select.value = "180";
+      doc.querySelector("#video-photos").value = "2";
+      select.dispatchEvent(new w.Event("change"));
+      const info = doc.querySelector("#video-info").textContent;
+      log("vidéo : " + info);
+      expect("vidéo : photos retenues, écart, durée et photos/s affichés", /^\d+ photos \(une tous les 1\d m\) · \d+ s · [\d.]+ photos\/s$/.test(info), info);
+      const labels = [...doc.querySelector("#video-photos").options].map((o) => o.textContent);
+      expect("écart de chaque choix affiché (1/2 : une tous les 10 m)", labels[1] === "Photos 1/2 · une tous les 10 m", labels[1]);
+      const chosen = photos.filter((_, i) => i % 2 === 0 || i === photos.length - 1);
+    
+      const t0 = performance.now();
+      let last = 0;
+      const blob = await Video.mp4(chosen, Number(select.value), (done, total) => {
+        if (done - last >= 30 || done === total) { last = done; log(`image ${done} / ${total} (${((performance.now() - t0) / 1000).toFixed(0)} s)`); }
+      });
+      log(`vidéo : ${(blob.size / 1e6).toFixed(1)} Mo en ${((performance.now() - t0) / 1000).toFixed(0)} s`);
+      const head = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
+      expect("MP4 : boîte ftyp", String.fromCharCode(...head.subarray(4, 8)) === "ftyp");
+      // Relecture : taille, durée attendue (longueur à 180 km/h + 2 s d'arrêt), une image par seconde dans le journal
+      const video = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(blob) });
+      await new Promise((resolve, reject) => { video.onloadedmetadata = resolve; video.onerror = () => reject(new Error("vidéo illisible")); });
+      const length = Video.trajectory(chosen).length;
+      log(`relue : ${video.videoWidth} × ${video.videoHeight}, ${video.duration.toFixed(2)} s pour ${length.toFixed(0)} m`);
+      expect("relue en 1920 × 1080 (ou 1280 × 720)", (video.videoWidth === 1920 && video.videoHeight === 1080) || (video.videoWidth === 1280 && video.videoHeight === 720));
+      const expected = length / (180 / 3.6) + 2 * Video.HOLD;
+      expect("durée attendue (± 0,5 s)", Math.abs(video.duration - expected) < 0.5, `${video.duration} / ${expected}`);
+      canvas = Object.assign(document.createElement("canvas"), { width: 960, height: Math.round(960 * video.videoHeight / video.videoWidth) });
+      ctx = canvas.getContext("2d");
+      let dark = 0;
+      for (let t = 0.5; t < video.duration; t += location.hash.includes("toutes") ? 1 / 30 : 1) {
+        video.currentTime = t;
+        await new Promise((resolve) => { video.onseeked = resolve; });
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const px = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        let sum = 0;
+        for (let i = 0; i < px.length; i += 4 * 97) sum += px[i] + px[i + 1] + px[i + 2];
+        if (sum / (px.length / (4 * 97)) / 3 < 20) dark++;
+        await log(`IMAGE video-${t.toFixed(2).padStart(6, "0")} ` + canvas.toDataURL("image/jpeg", 0.8));
+      }
+      expect("pas d'image noire (tuiles manquantes)", dark === 0, String(dark));
+      // Flou cinétique : même vidéo, netteté du bas de l'image (chaussée qui défile) plus faible au même instant
+      const t1 = performance.now();
+      const blurred = await Video.mp4(chosen, Number(select.value), () => {}, null, { blur: true });
+      log(`flou cinétique : ${(blurred.size / 1e6).toFixed(1)} Mo en ${((performance.now() - t1) / 1000).toFixed(0)} s`);
+      const sharpness = async (b, name) => {
+        const v2 = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(b) });
+        await new Promise((resolve) => { v2.onloadedmetadata = resolve; });
+        v2.currentTime = 2.5;
+        await new Promise((resolve) => { v2.onseeked = resolve; });
+        ctx.drawImage(v2, 0, 0, canvas.width, canvas.height);
+        await log(`IMAGE ${name} ` + canvas.toDataURL("image/jpeg", 0.85));
+        const h0 = Math.round(canvas.height * 0.6), px = ctx.getImageData(0, h0, canvas.width, canvas.height - h0).data;
+        let e = 0;
+        for (let i = 4; i < px.length; i += 4) e += Math.abs(px[i] - px[i - 4]);
+        return e / (px.length / 4);
+      };
+      const [sharp, soft] = [await sharpness(blob, "net"), await sharpness(blurred, "flou")];
+      log(`netteté du bas de l'image : ${sharp.toFixed(2)} sans flou, ${soft.toFixed(2)} avec`);
+      expect("flou cinétique : bas de l'image moins net", soft < sharp * 0.9, `${soft} / ${sharp}`);
+      expect("« Flou cinétique » proposé, décoché par défaut", doc.querySelector("#video-flou") && !doc.querySelector("#video-flou").checked);
+      // « 🎬 Enregistrer la vidéo » : boîte d'enregistrement simulée, avancement dans la ligne d'état, fichier écrit
+      let written = null, closed = false;
+      w.showSaveFilePicker = async (o) => ({ name: o.suggestedName, createWritable: async () => ({ write: async (b) => { written = b; }, close: async () => { closed = true; } }) });
+      doc.querySelector("#video-photos").value = "4";
+      button.click();
+      await until(() => !doc.querySelector("#parcours-video-arret").hidden, 10000, "calcul lancé (« ■ Arrêter » affiché)");
+      await sleep(3000);
+      expect("avancement dans la ligne d'état", /Calcul de la vidéo en cours : image [\u2007\d]{5} \/ [\u2007\d]{5} \([\u2007\d]{3} %\)$/.test(status()), status());
+      const statut = doc.querySelector("#statut");
+      const bar = parseFloat(statut.style.getPropertyValue("--avancement"));
+      log(`barre d'avancement : ${bar} % ; fond ${w.getComputedStyle(statut).backgroundImage.slice(0, 80)}`);
+      expect("ligne d'état remplie d'orange selon l'avancement", statut.classList.contains("avancement") && bar > 0 && bar < 100
+        && /linear-gradient/.test(w.getComputedStyle(statut).backgroundImage), `${bar}`);
+      await until(() => closed || /impossible/.test(status()), 300000, "fichier écrit");
+      log("après : " + status());
+      expect("barre retirée à la fin", !doc.querySelector("#statut").classList.contains("avancement"));
+      expect("bouton : fichier MP4 écrit", closed && written?.size > 100000, String(written?.size));
+      expect("nom du fichier rappelé à la fin", /Vidéo enregistrée dans « parcours D115D .+ 180 km-h\.mp4 »/.test(status()), status());
+      if (location.hash.includes("fichier")) {
+        const data = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+        await log("FICHIER parcours.mp4 " + data);
+      }
     }
     // Carrefour RD18 / D115D, sans filtre de date : la séquence de mai bifurque sur une de juillet, signalé avant la vidéo
     const since = doc.querySelector("#depuis");
@@ -171,6 +178,15 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     expect("carrefour : signalé dans la ligne d'état (en orange) et sous les listes", /séquences/.test(status())
       && doc.querySelector("#statut").classList.contains("avertissement") && /⚠/.test(doc.querySelector("#video-info").textContent));
     expect("carrefour : arrivée atteinte (moins de 10 m)", lastPhoto && dist(lastPhoto.coords, B) < 10);
+    // Exposition accordée au changement de séquence : juillet 1,5 fois plus clair que mai sur le tour d'horizon (1,58 au
+    // même endroit dans le même sens) : gain de la première photo de juillet ~ 1 / 1,5, puis retour vers 1 en 100 m
+    const trajet = Video.trajectory(cross.photos);
+    const change = trajet.list.findIndex((p, i) => i && p.collection !== trajet.list[i - 1].collection);
+    const gains = (await Video.exposures(trajet)).map((g) => (g[0] + g[1] + g[2]) / 3);
+    log(`exposition au carrefour : gains ${gains.map((g) => g.toFixed(2)).join(" ")} (changement à la photo ${change})`);
+    expect("exposition : séquence de départ inchangée", gains.slice(0, change).every((g) => g === 1));
+    expect("exposition : juillet ramené sur mai au changement (gain 0,55 à 0,75)", gains[change] > 0.55 && gains[change] < 0.75, gains[change]);
+    expect("exposition : retour progressif vers sa propre exposition", gains.slice(change + 1).every((g, i) => g >= gains[change + i] - 1e-9));
     log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
     log(failures ? "ERREUR" : "FIN");
   } catch (error) {

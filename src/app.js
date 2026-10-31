@@ -3129,7 +3129,7 @@
         $("#video-info").textContent = text;
         setStatus(text, "avancement");
         $("#statut").style.setProperty("--avancement", `${(100 * done / total).toFixed(1)}%`);
-      }, videoRun.signal, $("#video-flou").checked);
+      }, videoRun.signal, { blur: $("#video-flou").checked });
       await save(blob);
       const text = `Vidéo enregistrée dans « ${save.fileName} » : ${(blob.size / 1e6).toFixed(1)} Mo, `
         + `${Math.round((Date.now() - t0) / 1000)} s de calcul.`;
