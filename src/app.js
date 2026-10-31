@@ -175,7 +175,7 @@
       : `Vider le cache (${(size / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mo)`;
   }
   // Panneau : une section affichée à la fois, choisie par les onglets (Résultats, Photo, Favoris,
-  // Couche, Parcours) ou les outils du pied (Mesure, Filtre, Réglages, Services) ; la dernière est rouverte à la visite suivante
+  // Couche, Vidéo, Parcours) ou les outils du pied (Mesure, Filtre, Réglages, Services) ; la dernière est rouverte à la visite suivante
   const paneButtons = [...document.querySelectorAll("#panneau [data-panneau]")];
   function showPane(id) {
     if (!paneButtons.some((b) => b.dataset.panneau === id)) id = "resultats";
@@ -2527,7 +2527,8 @@
   // (null si elle n'y passe pas) ; best, bestAt : plus courte distance (m) à l'arrivée et son point ; axis : vue
   // dans l'axe du véhicule ; freeYaw : en regard libre, écart réglé à l'avant du véhicule
   let tour = null;
-  // 📍 de l'onglet « Vidéo » : point attendu sur la carte (« start », « end », « roll » : tonneau, « poiZone » : zone de
+  // 📍 de l'onglet « Vidéo » : point attendu sur la carte (« start », « end », « roll » : tonneau, « planet » : petite
+  // planète, « poiZone » : zone de
   // l'effet du point d'intérêt, en deux clics)
   let travelPick = null;
   // Endroits posés pour la vidéo, par sorte (« roll ») : [{ lonlat, marker }] (repère sur la carte ; un clic dessus le
@@ -2535,6 +2536,10 @@
   const placed = {
     roll: { points: [], css: "tonneau", label: ["tonneau", "tonneaux"], check: "#video-tonneau",
       note: "sens alterné dans l'ordre du parcours, à moins de 30 m de lui" },
+    planet: { points: [], css: "planete", label: ["petite planète", "petites planètes"], check: "#video-planete",
+      note: "à moins de 30 m du parcours" },
+    tour: { points: [], css: "tour", label: ["tour d'horizon", "tours d'horizon"], check: "#video-tour",
+      note: "sens alterné, à moins de 30 m du parcours, arrêt sur la photo la plus proche" },
   };
   // Point d'intérêt (un seul ; cible : objet du relevé, liste #interet-cible) : zone de l'effet tracée sur la carte
   // ([[lon, lat], [lon, lat]] ou null), premier clic du tracé en cours (LngLat ou null)
@@ -3073,10 +3078,31 @@
       button.setAttribute("aria-pressed", String(button.dataset.cote === which));
     }
     if (which) {
-      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau",
+      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau", planet: "l'endroit de la petite planète", tour: "l'endroit du tour d'horizon",
         poiZone: poi.draft ? "la fin de la zone de l'effet" : "le début de la zone de l'effet (le long de la route)" }[which]} ; `
         + "Échap pour annuler.");
     }
+  }
+  const placedCount = (kind) => `${kind.points.length || "aucun"} ${kind.label[kind.points.length > 1 ? 1 : 0]}`;
+  /** Endroit de la sorte which (placed) posé en lonlat : repère sur la carte (un clic dessus le retire), interrupteur
+   * de l'option activé ; rend la sorte. */
+  function placePoint(which, lonlat) {
+    const kind = placed[which];
+    const element = Object.assign(document.createElement("div"), { className: `repere-requete ${kind.css}`,
+      title: `${kind.label[0][0].toUpperCase()}${kind.label[0].slice(1)} de la vidéo (clic : le retirer)` });
+    const point = { lonlat, marker: new maplibregl.Marker({ element, anchor: "bottom" }).setLngLat(lonlat).addTo(map) };
+    element.addEventListener("click", (event) => {
+      event.stopPropagation();  // pas un clic sur la carte
+      point.marker.remove();
+      kind.points = kind.points.filter((p) => p !== point);
+      if (!kind.points.length) $(kind.check).checked = false;
+      setStatus(`Retiré ; ${placedCount(kind)} en tout.`);
+      updatePlayer();
+    });
+    kind.points.push(point);
+    $(kind.check).checked = true;
+    updatePlayer();
+    return kind;
   }
   async function pickTravelPoint(lngLat) {
     const which = travelPick;
@@ -3094,22 +3120,9 @@
       updatePlayer();
       return;
     }
-    if (placed[which]) {  // tonneau : endroit ajouté, interrupteur activé ; le parcours ne change pas
-      const kind = placed[which], lonlat = [lngLat.lng, lngLat.lat];
-      const count = () => `${kind.points.length || "aucun"} ${kind.label[kind.points.length > 1 ? 1 : 0]}`;
-      const element = Object.assign(document.createElement("div"), { className: `repere-requete ${kind.css}`,
-        title: `${kind.label[0][0].toUpperCase()}${kind.label[0].slice(1)} de la vidéo (clic : le retirer)` });
-      const point = { lonlat, marker: new maplibregl.Marker({ element, anchor: "bottom" }).setLngLat(lonlat).addTo(map) };
-      element.addEventListener("click", (event) => {
-        event.stopPropagation();  // pas un clic sur la carte
-        point.marker.remove();
-        kind.points = kind.points.filter((p) => p !== point);
-        if (!kind.points.length) $(kind.check).checked = false;
-        setStatus(`Retiré ; ${count()} en tout.`);
-      });
-      kind.points.push(point);
-      $(kind.check).checked = true;
-      setStatus(`Placé : ${count()} en tout (${kind.note}) ; 📍 pour en ajouter, clic sur un repère pour le retirer.`);
+    if (placed[which]) {  // tonneau, petite planète : endroit ajouté, interrupteur activé ; le parcours ne change pas
+      const kind = placePoint(which, [lngLat.lng, lngLat.lat]);
+      setStatus(`Placé : ${placedCount(kind)} en tout (${kind.note}) ; 📍 pour en ajouter, clic sur un repère pour le retirer.`);
       return;
     }
     await travelFields.pick(which, [lngLat.lng, lngLat.lat]);
@@ -3127,10 +3140,17 @@
     $("#regard-valeur").textContent = `${$("#regard-vitesse").value} km/h`;
     updatePlayer();
   });
-  // Durée du tonneau affichée à côté de sa réglette
-  $("#tonneau-duree").addEventListener("input", () => {
-    $("#tonneau-valeur").textContent = `${String($("#tonneau-duree").value).replace(".", ",")} s`;
+  // Vitesse de rotation de la petite planète, durées du tonneau et de la planète affichées à côté de leur réglette
+  for (const id of ["#tour-duree", "#tour-arret"]) $(id).addEventListener("input", updatePlayer);  // durée de la vidéo
+  $("#planete-rotation").addEventListener("input", () => {
+    const speed = Number($("#planete-rotation").value);
+    $("#planete-rotation-valeur").textContent = speed ? `${speed} °/s` : "sans";
   });
+  for (const name of ["tonneau", "planete", "tour"]) {
+    $(`#${name}-duree`).addEventListener("input", () => {
+      $(`#${name}-valeur`).textContent = `${String($(`#${name}-duree`).value).replace(".", ",")} s`;
+    });
+  }
   // Tonneau ou point d'intérêt activé sans endroit : le choisir sur la carte
   for (const [which, kind] of Object.entries(placed)) {
     $(kind.check).addEventListener("change", () => {
@@ -3157,11 +3177,19 @@
       });
     }));
     poiTargets = new Map(objects.map((o) => [String(o.values.id), { lonlat: [o.lon, o.lat], z: o.values.z_ngf ?? null }]));
+    // Cible d'un parcours gardé qui n'est pas dans ce relevé (parcours importé) : proposée aussi
+    if (poiKept) {
+      select.append(Object.assign(document.createElement("option"), { value: "parcours", textContent: `${poiKept.label} (parcours gardé)` }));
+      poiTargets.set("parcours", poiKept);
+    }
+    poiJson = json;
     if (poiTargets.has(kept)) select.value = kept;
-    select.disabled = !objects.length || Boolean(videoRun);
-    $("#interet-aucun").hidden = Boolean(objects.length);
+    select.disabled = !poiTargets.size || Boolean(videoRun);
+    $("#interet-aucun").hidden = Boolean(poiTargets.size);
   }
   let poiTargets = new Map();  // identifiant d'objet du relevé -> { lonlat, z (altitude NGF ou null) }
+  // Cible rétablie d'un parcours gardé, absente du relevé : { lonlat, z, label } ou null ; dernier relevé de la liste
+  let poiKept = null, poiJson = "";
   // Zone de l'effet sur la carte : trait tracé (plein, violet, large) et, la vidéo préparée, portion du parcours concernée
   const ZONE_ID = "zone-interet", ZONE_PATH_ID = "zone-interet-parcours";
   function showPoiZone(draftTo = null) {
@@ -3211,6 +3239,233 @@
       speed: poiSpeed(), zoom: Number($("#interet-zoom").value),
       zoomByDistance: $("#interet-zoom-distance").checked, roll: $("#interet-tonneau").checked };
   }
+  // Parcours gardés (onglet « Parcours ») : départ, arrivée et réglages de la vidéo (options, endroits des tonneaux et
+  // des planètes, zone et cible du point d'intérêt, filtre de date), rouverts d'un clic ; export de la liste ou d'un
+  // seul (pour un collègue), import ajouté à la liste
+  const routeSettings = () => [$("#video-vitesse"), $("#video-photos"), ...travelPane.querySelectorAll(".options input")];
+  // Parcours gardé rouvert (ou venant d'être gardé) : son identifiant, et l'état de ses réglages à l'ouverture (routeSnapshot) ;
+  // modifié : « ☆ Enregistrer… » propose de le remplacer dans la liste ou d'en créer un nouveau
+  let openedRoute = null, openedSnapshot = "";
+  const routeId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  function savedRoutes() {
+    let list;
+    try { list = JSON.parse(store.get("parcours", "[]")) || []; } catch { list = []; }
+    return list.map((r) => (r.id ? r : { ...r, id: routeId() }));  // gardé avant les identifiants
+  }
+  /** Réglages du parcours en cours, sans chercher les PR (comparaison avec ceux de l'ouverture). */
+  function routeSnapshot() {
+    const t = travelFields.state();
+    return JSON.stringify([t, routeSettings().map((e) => (e.type === "checkbox" ? e.checked : e.value)),
+      Object.values(placed).map((kind) => kind.points.map((p) => p.lonlat)), poi.zone,
+      poiTargets.get($("#interet-cible").value)?.lonlat || null, $("#depuis").value]);
+  }
+  const routeChanged = () => Boolean(openedRoute) && routeSnapshot() !== openedSnapshot;
+  function markOpened(id) {
+    openedRoute = id;
+    openedSnapshot = id ? routeSnapshot() : "";
+    showSavedRoutes();
+    updatePlayer();
+  }
+  function setSavedRoutes(list) {
+    store.set("parcours", JSON.stringify(list));
+    showSavedRoutes();
+  }
+  /** Parcours en cours et ses réglages : { name, date, travel (Requeteur travelForm state, points résolus), settings
+   * (identifiant -> valeur ou case), places, zone, target, since } (id : celui du parcours gardé à remplacer) ; null sans
+   * départ ou arrivée trouvés. */
+  async function currentRoute(id = routeId()) {
+    const found = await travelFields.go();
+    if (!found) return null;
+    const travel = travelFields.state();
+    travel.start.point = found.start;
+    travel.end.point = found.end;
+    const key = $("#interet-cible").value, target = poiTargets.get(key);
+    return {
+      id, name: found.title, date: new Date().toISOString().slice(0, 10), travel,
+      settings: Object.fromEntries(routeSettings().map((e) => [e.id, e.type === "checkbox" ? e.checked : e.value])),
+      places: Object.fromEntries(Object.entries(placed).map(([k, kind]) => [k, kind.points.map((p) => p.lonlat)])),
+      zone: poi.zone,
+      target: target ? { lonlat: target.lonlat, z: target.z,
+        label: key === "parcours" ? poiKept.label : $("#interet-cible").selectedOptions[0]?.textContent || "Cible" } : null,
+      since: $("#depuis").value || null,
+    };
+  }
+  /** Parcours lu d'un fichier (venu d'ailleurs) : seulement des textes courts, des nombres, des [lon, lat] et les
+   * réglages connus ; null s'il n'en est pas un. */
+  function cleanRoute(r) {
+    if (!r || typeof r !== "object" || !r.travel || typeof r.travel !== "object") return null;
+    const lonlat = (p) => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite) && Math.abs(p[0]) <= 180
+      && Math.abs(p[1]) <= 90;
+    const text = (v, n) => (typeof v === "string" || typeof v === "number" ? String(v).slice(0, n) : "");
+    const side = (s) => ({ pr: text(s?.pr, 10), distance: text(s?.distance, 10), point: lonlat(s?.point) ? s.point : null });
+    const ids = new Set(routeSettings().map((e) => e.id));
+    return {
+      id: routeId(), name: text(r.name, 200) || "Parcours", date: /^\d{4}-\d{2}-\d{2}$/.test(r.date) ? r.date : "",
+      travel: { route: text(r.travel.route, 20), start: side(r.travel.start), end: side(r.travel.end) },
+      settings: Object.fromEntries(Object.entries(r.settings || {})
+        .filter(([k, v]) => ids.has(k) && (typeof v === "boolean" || typeof v === "string"))
+        .map(([k, v]) => [k, typeof v === "string" ? v.slice(0, 20) : v])),
+      places: Object.fromEntries(Object.keys(placed).map((k) => [k,
+        (Array.isArray(r.places?.[k]) ? r.places[k] : []).filter(lonlat).slice(0, 50)])),
+      zone: Array.isArray(r.zone) && r.zone.length === 2 && r.zone.every(lonlat) ? r.zone : null,
+      target: lonlat(r.target?.lonlat) ? { lonlat: r.target.lonlat, z: Number.isFinite(r.target.z) ? r.target.z : null,
+        label: text(r.target.label, 100).replace(/ \(parcours gardé\)$/, "") || "Cible" } : null,
+      since: /^\d{4}-\d{2}-\d{2}$/.test(r.since) ? r.since : null,
+    };
+  }
+  /** Parcours gardé rouvert dans l'onglet « Vidéo » : départ, arrivée, réglages, endroits, zone, cible et filtre de date ;
+   * vidéo à préparer. */
+  function openRoute(r) {
+    if (videoRun) return notice("Vidéo en cours de calcul : arrêtez-la avant d'ouvrir un parcours.");
+    showPane("parcours");
+    if (($("#depuis").value || null) !== r.since) {
+      $("#depuis").value = r.since || "";
+      applyFilter();
+    }
+    travelFields.restore(r.travel);
+    for (const kind of Object.values(placed)) {
+      for (const p of kind.points) p.marker.remove();
+      kind.points = [];
+    }
+    for (const [which, list] of Object.entries(r.places)) list.forEach((lonlat) => placePoint(which, lonlat));
+    poi.zone = r.zone;
+    poi.draft = null;
+    // Cible : objet du relevé au même endroit (moins de 0,5 m), sinon celle du parcours, proposée en plus du relevé
+    const near = r.target && [...poiTargets].find(([key, t]) => key !== "parcours" && metresBetween(t.lonlat, r.target.lonlat) < 0.5);
+    poiKept = r.target && !near ? r.target : null;
+    refreshPoiTargets(poiJson);
+    if (r.target) $("#interet-cible").value = near ? near[0] : "parcours";
+    for (const e of routeSettings()) {
+      if (!(e.id in r.settings)) continue;
+      if (e.type === "checkbox") e.checked = r.settings[e.id] === true;
+      else e.value = r.settings[e.id];
+      if (e.type === "range") e.dispatchEvent(new Event("input"));  // valeur affichée à côté
+    }
+    videoPlan = null;
+    showPoiZone();
+    updateTravel();
+    const [a, b] = [r.travel.start.point, r.travel.end.point];
+    if (a && b) {
+      map.fitBounds([[Math.min(a[0], b[0]), Math.min(a[1], b[1])], [Math.max(a[0], b[0]), Math.max(a[1], b[1])]],
+        { padding: 60, maxZoom: 17 });
+    }
+    markOpened(r.id);
+    setStatus(`Parcours « ${r.name} » rouvert : « 🎬 Préparer la vidéo » pour la calculer ; modifié, « ☆ Enregistrer les modifications » le remplace.`);
+  }
+  // Effets « communication » : pastille jaune sur le parcours gardé si l'un d'eux est activé, verte sinon
+  const ROUTE_EFFECTS = [["video-tonneau", "tonneau"], ["video-planete", "petite planète"], ["video-interet", "point d'intérêt"],
+    ["video-regard", "regard aux croisements"], ["video-pano", "panoramique"], ["video-tour", "tour d'horizon"]];
+  /** Réglage remis à sa valeur de la page (case, liste, réglette). */
+  function resetSetting(e) {
+    if (e.type === "checkbox") e.checked = e.defaultChecked;
+    else if (e.tagName === "SELECT") e.value = ([...e.options].find((o) => o.defaultSelected) || e.options[0]).value;
+    else e.value = e.defaultValue;
+  }
+  /** Parcours et réglages déjà à zéro (« ↺ RAZ » sans effet) ? */
+  function routeIsBlank() {
+    const t = travelFields.state();
+    return !t.route && [t.start, t.end].every((s) => !s.pr && !s.point && !Number(s.distance))
+      && Object.values(placed).every((kind) => !kind.points.length) && !poi.zone && !poi.draft && !poiKept
+      && routeSettings().every((e) => (e.type === "checkbox" ? e.checked === e.defaultChecked
+        : e.tagName === "SELECT" ? e.selectedOptions[0]?.defaultSelected || (!e.selectedIndex && ![...e.options].some((o) => o.defaultSelected))
+          : e.value === e.defaultValue));
+  }
+  // Remise à zéro du parcours et de ses réglages (le filtre des photos et les parcours gardés ne changent pas)
+  $("#parcours-raz").addEventListener("click", () => {
+    if (videoRun) return;
+    setTravelPick(null);
+    travelFields.restore({ route: "", start: {}, end: {} });
+    for (const kind of Object.values(placed)) {
+      for (const p of kind.points) p.marker.remove();
+      kind.points = [];
+    }
+    poi.zone = null;
+    poi.draft = null;
+    poiKept = null;
+    refreshPoiTargets(poiJson);
+    for (const e of routeSettings()) {
+      resetSetting(e);
+      if (e.type === "range") e.dispatchEvent(new Event("input"));  // valeur affichée à côté
+    }
+    videoPlan = null;
+    showPoiZone();
+    updateTravel();
+    markOpened(null);
+    setStatus("Parcours et réglages remis à zéro.");
+  });
+  const routeFile = (list) => JSON.stringify({ format: "parcours-panoramax", parcours: list }, null, 1);
+  function showSavedRoutes() {
+    const list = savedRoutes();
+    $("#mes-parcours ol").replaceChildren(...list.map((r, k) => {
+      const li = Object.assign(document.createElement("li"), { className: r.id === openedRoute ? "actuelle" : "" });
+      const effects = ROUTE_EFFECTS.filter(([id]) => r.settings?.[id] === true).map(([, name]) => name);
+      const dot = Object.assign(document.createElement("span"), { className: `pastille ${effects.length ? "communication" : "sobre"}`,
+        title: effects.length ? `Effets de communication : ${effects.join(", ")}` : "Sans effet de communication" });
+      dot.setAttribute("role", "img");
+      dot.setAttribute("aria-label", dot.title);
+      const go = Object.assign(document.createElement("button"), { type: "button", className: "aller-favori",
+        title: "Rouvrir ce parcours et ses réglages dans l'onglet Vidéo" });
+      go.append(r.name, ...(r.date ? [Object.assign(document.createElement("span"), { className: "aide",
+        textContent: ` · ${r.date.split("-").reverse().join("/")}` })] : []));
+      go.addEventListener("click", () => openRoute(r));
+      const share = Object.assign(document.createElement("button"), { type: "button", className: "effacer-resultat",
+        textContent: "⤓", title: "Exporter ce parcours seul (fichier à envoyer, à importer dans l'onglet Parcours)" });
+      share.setAttribute("aria-label", `Exporter le parcours : ${r.name}`);
+      share.addEventListener("click", () => download(routeFile([r]), `parcours ${r.name.replace(/[\\/:*?"<>|]/g, "-")}.json`,
+        "application/json"));
+      const remove = Object.assign(document.createElement("button"), { type: "button", className: "effacer-resultat",
+        textContent: "×", title: "Retirer ce parcours" });
+      remove.setAttribute("aria-label", `Retirer le parcours : ${r.name}`);
+      remove.addEventListener("click", () => {
+        if (r.id === openedRoute) openedRoute = null;  // plus rien à mettre à jour
+        setSavedRoutes(savedRoutes().filter((_, i) => i !== k));
+        updatePlayer();
+      });
+      li.append(dot, go, share, remove);
+      return li;
+    }));
+    const n = list.length;
+    $("#mes-parcours-exporter").disabled = !n;
+    $("#compte-mes-parcours").textContent = n || "";
+    $("#mes-parcours-infos").textContent = n ? `${n} parcours · gardé${n > 1 ? "s" : ""} dans ce navigateur` : "Aucun parcours";
+  }
+  // Parcours gardé rouvert et modifié : enregistré dans celui-ci ou en nouveau parcours, au choix
+  $("#parcours-garder").addEventListener("click", () => {
+    if (!routeChanged()) return keepRoute(routeId());
+    const dialog = $("#enregistrer-parcours");
+    dialog.querySelector("p span").textContent = savedRoutes().find((r) => r.id === openedRoute)?.name || "";
+    dialog.returnValue = "";
+    dialog.addEventListener("close", () => {
+      if (dialog.returnValue) keepRoute(dialog.returnValue === "remplacer" ? openedRoute : routeId());
+    }, { once: true });
+    dialog.showModal();
+  });
+  /** Parcours en cours gardé sous l'identifiant id : remplace le parcours gardé de même identifiant, sinon ajouté. */
+  async function keepRoute(id) {
+    const route = await currentRoute(id).catch(() => null);
+    if (!route) return notice("Parcours : départ ou arrivée introuvable, rien de gardé.");
+    const list = savedRoutes(), k = list.findIndex((r) => r.id === route.id);
+    if (k >= 0) list[k] = route; else list.push(route);
+    setSavedRoutes(list);
+    markOpened(route.id);
+    setStatus(k >= 0 ? `Parcours « ${route.name} » mis à jour avec ses réglages (onglet Parcours).`
+      : `Parcours « ${route.name} » gardé avec ses réglages (onglet Parcours).`);
+  }
+  $("#mes-parcours-exporter").addEventListener("click", () => download(routeFile(savedRoutes()), "parcours-panoramax.json",
+    "application/json"));
+  $("#mes-parcours-importer").addEventListener("click", () => $("#mes-parcours-fichier").click());
+  $("#mes-parcours-fichier").addEventListener("change", async (event) => {
+    const file = event.target.files[0];
+    event.target.value = "";
+    if (!file) return;
+    let read;
+    try { read = JSON.parse(await file.text()); } catch { read = null; }
+    const list = (Array.isArray(read) ? read : Array.isArray(read?.parcours) ? read.parcours : [read]).map(cleanRoute).filter(Boolean);
+    if (!list.length) return notice("Fichier de parcours illisible.");
+    setSavedRoutes([...savedRoutes(), ...list]);
+    notice(`${list.length} parcours importé${list.length > 1 ? "s" : ""}.`);
+  });
+  showSavedRoutes();
   /** Altitudes du sol (LiDAR HD, sinon RGE ALTI ; null si inconnue) aux points [lon, lat], par lots de 150. */
   async function groundAltitudes(points) {
     const out = [];
@@ -3312,10 +3567,14 @@
         $("#video-info").textContent = text;
         setStatus(text, "avancement");
         $("#statut").style.setProperty("--avancement", `${(100 * done / total).toFixed(1)}%`);
-      }, videoRun.signal, { blur: $("#video-flou").checked, exposure: $("#video-expo").checked, ramp: $("#video-rampe").checked,
-        counter: $("#video-compteur").checked, whip: $("#video-pano").checked,
+      }, videoRun.signal, { blur: $("#video-flou").checked, hq: $("#video-hq").checked, advance: $("#video-avancee").checked, exposure: $("#video-expo").checked, ramp: $("#video-rampe").checked,
+        counter: $("#video-compteur").checked, speedometer: $("#video-compteur-vitesse").checked, whip: $("#video-pano").checked,
         junctions: $("#video-regard").checked ? videoPlan.junctions : [],
         rolls: $("#video-tonneau").checked ? placed.roll.points.map((p) => p.lonlat) : [], rollTime: Number($("#tonneau-duree").value),
+        planets: $("#video-planete").checked ? placed.planet.points.map((p) => p.lonlat) : [],
+        planetTime: Number($("#planete-duree").value), planetSpin: Number($("#planete-rotation").value),
+        tours: $("#video-tour").checked ? placed.tour.points.map((p) => p.lonlat) : [],
+        tourTime: Number($("#tour-duree").value), tourStop: $("#tour-arret").checked,
         poi: poiAim,
         lookSpeed: Number($("#regard-vitesse").value),
         title: $("#video-titre").checked ? { text: videoPlan.title.replace(/\+0*(\d)/g, "+$1"),
@@ -3376,6 +3635,9 @@
     + (videoPlan.dates.length > 1 ? ` (${videoPlan.dates.join(", ")})` : "")
     + " : les photos peuvent différer (date, lumière, sens de prise de vue).";
 
+  // Tours d'horizon avec arrêt : leur durée s'ajoute à celle de la vidéo
+  const tourStops = () => ($("#video-tour").checked && $("#tour-arret").checked
+    ? placed.tour.points.length * Number($("#tour-duree").value) : 0);
   /** Parcours préparé : photos retenues, écart moyen, durée de la vidéo et photos par seconde (au-delà d'une par
    * image, 30/s, des photos sont sautées), changement de séquence. */
   function videoInfo() {
@@ -3386,7 +3648,8 @@
     const n = path.list.length, perSecond = v * (n - 1) / Math.max(1, path.length);
     return `${n} photos (une tous les ${(path.length / Math.max(1, n - 1)).toFixed(0)} m) · `
       + `${Math.round(Video.duration(videoPhotos(), v * 3.6, $("#video-rampe").checked,
-        $("#video-regard").checked ? videoPlan.junctions : [], Number($("#regard-vitesse").value), poiOptions()))} s · `
+        $("#video-regard").checked ? videoPlan.junctions : [], Number($("#regard-vitesse").value), poiOptions())
+        + tourStops())} s · `
       + `${perSecond.toFixed(perSecond < 10 ? 1 : 0)} photos/s${$("#video-rampe").checked ? " au plus" : ""}`
       + (perSecond > Video.FPS ? " (photos sautées)" : "") + (videoPlan.switches ? ` ⚠ ${videoWarning()}` : "");
   }
@@ -3417,10 +3680,16 @@
     $("#parcours-video").textContent = videoPlan ? "🎬 Enregistrer la vidéo" : "🎬 Préparer la vidéo";
     $("#parcours-video-arret").hidden = !videoRun;
     $("#interet-cible").disabled = !poiTargets.size || Boolean(videoRun);
+    // Parcours gardé rouvert : grisé tant qu'il n'est pas modifié, puis il le remplace
+    const changed = routeChanged();
+    $("#parcours-garder").disabled = !videoReady || Boolean(videoRun) || (Boolean(openedRoute) && !changed);
+    $("#parcours-garder").textContent = !openedRoute ? "☆ Garder" : changed ? "☆ Enregistrer…" : "☆ Gardé";
+    $("#parcours-raz").disabled = Boolean(videoRun) || routeIsBlank();
     showPoiZone();  // portion du parcours concernée : suit la préparation, la cible et la zone
-    for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-expo", "#video-rampe", "#video-titre",
-      "#video-compteur", "#video-pano", "#video-regard", "#video-tonneau", "#tonneau-duree", "#regard-vitesse",
-      "#video-interet", "#interet-vitesse", "#interet-zoom", "#interet-zoom-distance", "#interet-tonneau"]) {
+    for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-hq", "#video-avancee", "#video-expo", "#video-rampe", "#video-titre",
+      "#video-compteur", "#video-compteur-vitesse", "#video-pano", "#video-regard", "#video-tonneau", "#tonneau-duree", "#regard-vitesse",
+      "#video-interet", "#interet-vitesse", "#interet-zoom", "#interet-zoom-distance", "#interet-tonneau",
+      "#video-planete", "#planete-duree", "#planete-rotation", "#video-tour", "#tour-duree", "#tour-arret"]) {
       $(id).disabled = Boolean(videoRun);
     }
     if (!videoRun) $("#video-info").textContent = videoOk ? videoInfo() : "ce navigateur n'encode pas la vidéo";

@@ -359,16 +359,18 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
    arrivée rouge ; pastilles reprises devant « Départ » et « Arrivée ». Forme dans ::before (masque SVG) : MapLibre
    impose son transform à l'élément du repère ; pas de position ici : celle de MapLibre (absolue) doit rester, sinon
    les repères s'empilent (arrivée décalée de la hauteur du départ) */
-.repere-requete:is(.depart, .arrivee, .tonneau) { width: 26px; height: 42px; border: 0; border-radius: 0;
+.repere-requete:is(.depart, .arrivee, .tonneau, .planete, .tour) { width: 26px; height: 42px; border: 0; border-radius: 0;
   background: none; box-shadow: none; --epingle: #d40000; filter: drop-shadow(-1px 1px 2px rgba(0, 0, 0, 0.5)); }
 .repere-requete.depart { --epingle: #1e9e3a; }
 .repere-requete.tonneau { --epingle: #1e6fd9; }  /* endroit du tonneau de la vidéo */
+.repere-requete.planete { --epingle: #00897b; }  /* endroit de la petite planète */
+.repere-requete.tour { --epingle: #6d4c41; }  /* endroit du tour d'horizon */
 .texte-option .avertissement-option { color: #e65100; }
 .texte-option .avertissement-option[hidden] { display: none; }
 #interet-cible { max-width: 15em; }
-.repere-requete:is(.depart, .arrivee, .tonneau)::before { content: ""; position: absolute; inset: 0; background: var(--epingle);
+.repere-requete:is(.depart, .arrivee, .tonneau, .planete, .tour)::before { content: ""; position: absolute; inset: 0; background: var(--epingle);
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 42'%3E%3Cpath d='M13 42 L4.6 21.5 A12 12 0 1 1 21.4 21.5 Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
-.repere-requete:is(.depart, .arrivee, .tonneau)::after { content: ""; position: absolute; left: 8px; top: 8px; width: 10px; height: 10px;
+.repere-requete:is(.depart, .arrivee, .tonneau, .planete, .tour)::after { content: ""; position: absolute; left: 8px; top: 8px; width: 10px; height: 10px;
   border-radius: 50%; background: #fff; }
 .pastille.depart { background: #1e9e3a; }
 .pastille.arrivee { background: #d40000; }
@@ -460,16 +462,20 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 #ajouter-favori:disabled:not(.en-favori) .etoile { color: var(--discret); }
 .fiche-couche #ajouter-favori.en-favori:disabled { opacity: 1; }
 /* Favoris : une ligne par photo (étoile, nom, ×), celle de la photo affichée entourée */
-#favoris ol { margin: 0.8rem 0 0; padding: 0; list-style: none; }
-#favoris ol:empty { display: none; }
-#favoris ol:not(:empty) + .aide { display: none; }
-#favoris li { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem; padding: 0.35rem 0.35rem 0.35rem 0.6rem;
+:is(#favoris, #mes-parcours) ol { margin: 0.8rem 0 0; padding: 0; list-style: none; }
+:is(#favoris, #mes-parcours) ol:empty { display: none; }
+:is(#favoris, #mes-parcours) ol:not(:empty) + .aide { display: none; }
+:is(#favoris, #mes-parcours) li { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem; padding: 0.35rem 0.35rem 0.35rem 0.6rem;
   border: 1px solid transparent; border-radius: 8px; background: var(--encart); }
 #favoris li.actuelle { border-color: var(--panoramax); }
 #favoris li::before { content: "★"; flex: none; color: #ffa000; }
-#favoris li .aller-favori { flex: 1; padding: 0; border: 0; background: none; color: inherit; font: inherit;
+/* Parcours gardé : pastille jaune avec un effet « communication » (tonneau, planète, point d'intérêt, regard, panoramique), verte sinon */
+#mes-parcours li .pastille { flex: none; margin: 0; }
+.pastille.communication { background: #fbc02d; }
+.pastille.sobre { background: #2e9d4a; }
+:is(#favoris, #mes-parcours) li .aller-favori { flex: 1; padding: 0; border: 0; background: none; color: inherit; font: inherit;
   text-align: left; cursor: pointer; }
-#favoris li .aller-favori:hover { text-decoration: underline; }
+:is(#favoris, #mes-parcours) li .aller-favori:hover { text-decoration: underline; }
 
 /* Résultats : un bloc par point de référence (pastille bordeaux, comme sur la photo), ses mesures dessous */
 #resultats ol { list-style: none; margin: 0.8rem 0 0; padding: 0; }
@@ -490,7 +496,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 #resultats li .fiche { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 1.9rem;
   height: 1.9rem; padding: 0; border: 0; border-radius: 6px; background: none; color: inherit; cursor: pointer; }
 #resultats li .fiche:hover { background: var(--bord); }
-#resultats .effacer-resultat, #favoris .effacer-resultat {
+#resultats .effacer-resultat, :is(#favoris, #mes-parcours) .effacer-resultat {
   flex: none;
   width: 1.4rem;
   height: 1.4rem;
@@ -504,7 +510,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   opacity: 0.6;
   cursor: pointer;
 }
-#resultats .effacer-resultat:hover, #favoris .effacer-resultat:hover { opacity: 1; background: var(--bord); }
+#resultats .effacer-resultat:hover, :is(#favoris, #mes-parcours) .effacer-resultat:hover { opacity: 1; background: var(--bord); }
 #resultats li input { width: 100%; margin-top: 0.3rem; }
 .fiche-resultats .nom-couche { padding-left: 0.5rem; }
 #favoris-titre, #filtre-titre, #reglages-titre, #reseau-titre { margin: 0; font-weight: 600; }
@@ -524,7 +530,8 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .texte-option .reglette-option input { width: 8em; margin: 0; }
 /* Valeur de largeur fixe (« 3 s », « 4,5 s », « 100 km/h ») : la réglette ne se décale pas pendant qu'on la tire */
 .texte-option .reglette-option output { display: inline-block; text-align: right; font-variant-numeric: tabular-nums; }
-#tonneau-valeur { min-width: 3.2em; }
+#tonneau-valeur, #planete-valeur, #tour-valeur { min-width: 3.2em; }
+#planete-rotation-valeur { min-width: 4em; }
 #interet-vitesse-valeur { min-width: 6.6em; }
 #interet-zoom-valeur { min-width: 3.2em; }
 /* Petits interrupteurs dans une option (point d'intérêt) */

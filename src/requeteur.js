@@ -449,8 +449,27 @@ const Requeteur = (() => {
       return { start: start.lonlat, end: end.lonlat, title: `${route} ${at.start.label} → ${at.end.label}`.trim() };
     }
 
+    /** Saisie du formulaire, pour un parcours gardé : { route, start, end } ({ pr, distance, point }). */
+    function state() {
+      const side = (s) => ({ pr: s.pr.value.trim(), distance: s.distance.value.trim(), point: s.point });
+      return { route: normalize(routeInput.value), start: side(sides.start), end: side(sides.end) };
+    }
+
+    /** Saisie d'un parcours gardé (state) rétablie : champs, points de la carte et leurs repères. */
+    function restore(saved) {
+      routeInput.value = saved.route || "";
+      for (const [which, side] of Object.entries(sides)) {
+        const s = saved[which] || {};
+        side.pr.value = s.pr || "";
+        side.distance.value = s.distance || "";
+        side.point = s.point || null;
+        for (const input of [routeInput, side.pr]) input.classList.remove("inconnu");
+        setPin(side, side.point, side.point ? `${side.name} du parcours (point de la carte)` : "");
+      }
+    }
+
     return {
-      go, pick,
+      go, pick, state, restore,
       ready: () => Object.values(sides).every((side) => side.point || (normalize(routeInput.value) && side.pr.value.trim())),
     };
   }

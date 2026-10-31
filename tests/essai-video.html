@@ -5,7 +5,10 @@
      (toutes les photos, une tous les 5 m), vidéo à 180 km/h avec une photo sur 2 calculée par Video.mp4 puis relue :
      taille, durée ; une image par seconde dans le journal en JPEG (« IMAGE nom data: », #fichier : le MP4 aussi) ;
      « Enregistrer » par le bouton (boîte d'enregistrement simulée). Puis carrefour RD18 / D115D (photos 69f5822b →
-     3dc34aaf, sans filtre) : changement de séquence signalé. Lancer comme tests/navigateur.html. -->
+     3dc34aaf, sans filtre) : changement de séquence signalé. Petite planète (#planete) : au milieu des 300 premiers
+     mètres depuis le PR 1 + 146 (une photo sur 4), enroulement, tenue, déroulement. Parcours gardés (#garder) : « ☆ Garder »,
+     export d'un seul, import, réglages et endroits rétablis d'un clic. Tour d'horizon (#tour) : arrêt sur une photo, tour
+     complet à l'horizontale, sens alterné. Haute qualité (#hq) : 1080p à 80 Mbit/s, plus nette, durée du calcul comparée. Lancer comme tests/navigateur.html. -->
 <script>try {
   localStorage.clear();
   localStorage.setItem("web-measures/filtre", JSON.stringify({ since: "2025-07-05" }));
@@ -35,6 +38,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     const button = doc.querySelector("#parcours-video");
     const status = () => doc.querySelector("#statut")?.textContent || "";
     expect("« 🎬 Préparer la vidéo » grisé sans départ ni arrivée", button.disabled && /Préparer/.test(button.textContent));
+    expect("« ↺ RAZ » grisé à l'ouverture (tout à zéro)", doc.querySelector("#parcours-raz").disabled);
     type(route, "115d");
     type(pr, "1");
     distance.value = "146";
@@ -46,7 +50,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     const dist = (p, q) => Math.hypot((p[0] - q[0]) * k, (p[1] - q[1]) * 111320);
     // Parties : 1,1 km (rampe de vitesse, titre, compteur PR), D115D courte (vidéo calculée et enregistrée), carrefour
     // (changement de séquence, exposition) ; ancre #long ou #exposition : cette partie seule (mise au point, plus court)
-    const only = location.hash.match(/#(long|exposition)/)?.[1];
+    const only = location.hash.match(/#(long|exposition|planete|garder|tour|hq)/)?.[1];
     const Video = w.eval("Video");
     let select = doc.querySelector("#video-vitesse");
     let canvas = Object.assign(document.createElement("canvas"), { width: 960, height: 540 });
@@ -262,6 +266,320 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
         sctx.drawImage(tvv, 0, 0, 960, 540);
         await log(`IMAGE ${name} ` + shot.toDataURL("image/jpeg", 0.85));
       }
+      type(end, "1");
+      endDistance.value = "0";
+      await sleep(1500);
+    }
+    if (!only || only === "planete") {
+      // Petite planète au milieu des 300 premiers mètres de la D115D depuis le PR 1 + 146, 4 s, rotation lente
+      type(end, "0");
+      endDistance.value = "0";
+      await sleep(1500);
+      if (!/Enregistrer/.test(button.textContent)) {
+        button.click();
+        await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 120000, "vidéo de 1,1 km préparée");
+      }
+      const sub = w.mesures.videoPlan.photos.slice(0, 61).filter((_, i) => i % 4 === 0);
+      const path = Video.trajectory(sub), xs = Video.timeline(path, 25, false);
+      const place = path.at(path.length / 2);
+      const globe = Video.planets(path, xs, [place], 4, 20);
+      const on = globe.mix.filter((m) => m > 0).length, full = globe.mix.filter((m) => m === 1).length;
+      const spinMax = Math.max(...globe.spin.map(Math.abs));
+      log(`planète : ${on} images d'effet, ${full} en pleine planète, rotation jusqu'à ${spinMax.toFixed(0)}°`);
+      expect("planète : 4 s d'effet (120 images ± 2)", Math.abs(on - 120) <= 2, on);
+      expect("planète : tenue d'un tiers (40 images ± 2)", Math.abs(full - 40) <= 2, full);
+      expect("planète : enroulement progressif (pas de saut de plus de 0,1 par image)",
+        globe.mix.every((m, n) => !n || Math.abs(m - globe.mix[n - 1]) <= 0.1));
+      // Rotation lente : 20°/s depuis le passage, ± 2 s au bout de l'effet (± 1 s pondérée par la part) ; vue droite après
+      expect("planète : rotation lente (de 15 à 40° au plus)", spinMax > 15 && spinMax < 40, spinMax);
+      expect("planète : vue redevenue droite après l'effet", globe.spin.every((a, n) => globe.mix[n] || a === 0));
+      let far = null;
+      try { Video.planets(path, xs, [[place[0] + 0.003, place[1] + 0.003]]); } catch (error) { far = error.message; }
+      expect("planète : endroit à plus de 30 m du parcours refusé", /petite planète n° 1 à \d+ m du parcours/.test(far || ""), far);
+      const t1 = performance.now();
+      const blob = await Video.mp4(sub, 90, () => {}, null, { planets: [place], planetTime: 4, planetSpin: 20 });
+      // Sans avancée simulée : fondu enchaîné, chaque photo vue de sa caméra (même vidéo, image au milieu d'un fondu)
+      expect("« Avancée simulée » proposée, cochée par défaut", doc.querySelector("#video-avancee")?.checked === true);
+      const still = await Video.mp4(sub, 90, () => {}, null, { advance: false });
+      expect("sans avancée simulée : vidéo calculée", still.size > 100000, still.size);
+      const sv = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(still) });
+      await new Promise((resolve) => { sv.onloadedmetadata = resolve; });
+      for (const t of [2.2, 5.4]) {
+        sv.currentTime = t;
+        await new Promise((resolve) => { sv.onseeked = resolve; });
+        ctx.drawImage(sv, 0, 0, canvas.width, canvas.height);
+        await log(`IMAGE sans-avancee-${t} ` + canvas.toDataURL("image/jpeg", 0.85));
+      }
+      expect("planète : durée de 5 à 30 s, de 5 en 5, 5 s par défaut", ["min", "max", "step", "value"]
+        .map((a) => doc.querySelector("#planete-duree")[a]).join() === "5,30,5,5");
+      expect("planète : réglette de rotation à 20 °/s par défaut", doc.querySelector("#planete-rotation").value === "20"
+        && doc.querySelector("#planete-rotation-valeur").textContent === "20 °/s");
+      expect("planète : sans rotation à 0 °/s", Video.planets(path, xs, [place], 4, 0).spin.every((a) => a === 0));
+      log(`vidéo avec planète : ${(blob.size / 1e6).toFixed(1)} Mo en ${((performance.now() - t1) / 1000).toFixed(0)} s`);
+      const v = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(blob) });
+      await new Promise((resolve) => { v.onloadedmetadata = resolve; });
+      const first = globe.mix.findIndex((m) => m > 0);
+      for (const [name, f] of [["avant", first - 5], ["quart", first + 15], ["moitie", first + 25], ["pleine", first + 60],
+        ["fin-tenue", first + 79], ["sortie", first + 100]]) {
+        v.currentTime = (f + 0.5) / 30;
+        await new Promise((resolve) => { v.onseeked = resolve; });
+        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+        await log(`IMAGE planete-${name} ` + canvas.toDataURL("image/jpeg", 0.85));
+      }
+      type(end, "1");
+      endDistance.value = "0";
+      await sleep(1500);
+    }
+    if (only === "hq") {
+      // Haute qualité : 300 premiers mètres, une photo sur 4, contre la qualité ordinaire (temps, définition, netteté)
+      type(end, "0");
+      endDistance.value = "0";
+      await sleep(1500);
+      button.click();
+      await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 120000, "vidéo de 1,1 km préparée");
+      const sub = w.mesures.videoPlan.photos.slice(0, 61).filter((_, i) => i % 4 === 0);
+      expect("« Haute qualité » proposée, décochée", doc.querySelector("#video-hq") && !doc.querySelector("#video-hq").checked);
+      const runs = {};
+      for (const hq of [false, true]) {
+        await Video.mp4(sub, 90, () => {}, null, { hq });  // tuiles en cache : le temps mesuré est celui du calcul
+        const t1 = performance.now();
+        const blob = await Video.mp4(sub, 90, () => {}, null, { hq });
+        const v = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(blob) });
+        await new Promise((resolve) => { v.onloadedmetadata = resolve; });
+        runs[hq] = { s: (performance.now() - t1) / 1000, w: v.videoWidth, h: v.videoHeight, mb: blob.size / 1e6, v };
+        log(`${hq ? "haute qualité" : "ordinaire"} : ${v.videoWidth} × ${v.videoHeight}, ${runs[hq].mb.toFixed(1)} Mo en ${runs[hq].s.toFixed(1)} s`);
+      }
+      log(`haute qualité : calcul ${(runs[true].s / runs[false].s).toFixed(1)} fois plus long`);
+      expect("haute qualité : 1920 × 1080 aussi", runs[true].w === 1920 && runs[true].h === 1080, `${runs[true].w} × ${runs[true].h}`);
+      expect("haute qualité : débit au moins 2,5 fois plus élevé", runs[true].mb > 2.5 * runs[false].mb, `${runs[true].mb} / ${runs[false].mb}`);
+      // Même instant, recadré au centre en pixels natifs : la haute qualité montre plus de détail
+      const detail = async (r, name) => {
+        r.v.currentTime = 6;
+        await new Promise((resolve) => { r.v.onseeked = resolve; });
+        // Même champ (640 × 360 pixels au centre), agrandi deux fois pour voir les détails
+        const c = Object.assign(document.createElement("canvas"), { width: 1280, height: 720 }), g = c.getContext("2d");
+        g.imageSmoothingEnabled = false;
+        g.drawImage(r.v, 640, 260, 640, 360, 0, 0, 1280, 720);
+        await log(`IMAGE hq-${name} ` + c.toDataURL("image/png"));  // sans perte : les détails comparés
+      };
+      await detail(runs[false], "ordinaire");
+      await detail(runs[true], "haute");
+    }
+    if (!only || only === "tour") {
+      // Tour d'horizon au milieu des 300 premiers mètres de la D115D depuis le PR 1 + 146 : 8 s, arrêt sur une photo
+      type(end, "0");
+      endDistance.value = "0";
+      await sleep(1500);
+      if (!/Enregistrer/.test(button.textContent)) {
+        button.click();
+        await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 120000, "vidéo de 1,1 km préparée");
+      }
+      const sub = w.mesures.videoPlan.photos.slice(0, 61).filter((_, i) => i % 4 === 0);
+      const path = Video.trajectory(sub), xs = Video.timeline(path, 25, false);
+      const place = path.at(path.length / 2), second = path.at(path.length * 0.8);
+      const turn = Video.tours(path, xs, [place, second], 8, true);
+      const start = turn.look.findIndex((v) => v !== 0);
+      const held = turn.xs.slice(start, start + 240);
+      log(`tour : ${turn.xs.length - xs.length} images ajoutées, arrêt à ${held[0].toFixed(1)} m, regard ${turn.look[start + 60].toFixed(0)}° au quart, `
+        + `${turn.look[start + 239].toFixed(0)}° à la fin ; second tour ${Math.min(...turn.look).toFixed(0)}°`);
+      expect("tour : 8 s d'arrêt ajoutées par tour (2 × 240 images)", turn.xs.length - xs.length === 480);
+      expect("tour : arrêt sur une photo (même abscisse, moins d'une image après une photo)", held.every((x) => x === held[0])
+        && path.s.some((s) => held[0] >= s && held[0] - s < 25 / 30 + 1e-9));
+      expect("tour : tour complet (360°), lent au départ", Math.abs(turn.look[start + 239] - 360) < 0.01 && turn.look[start] < 1);
+      expect("tour : second tour dans l'autre sens", Math.min(...turn.look) <= -359.9);
+      const moving = Video.tours(path, xs, [place], 8, false);
+      expect("tour sans arrêt : durée inchangée", moving.xs.length === xs.length && Math.max(...moving.look) > 359.9);
+      const t1 = performance.now();
+      // Compteur de vitesse : 90 km/h en route, 0 pendant l'arrêt du tour, sans à-coup
+      const kmh = Video.speeds(Video.tours(path, xs, [place], 8, true).xs);
+      const jump = Math.max(...kmh.slice(1).map((v, n) => Math.abs(v - kmh[n])));
+      log(`vitesse : ${Math.max(...kmh).toFixed(1)} km/h au plus, ${kmh[Math.round(kmh.length / 2)].toFixed(1)} au milieu, saut de ${jump.toFixed(1)} km/h par image au plus`);
+      expect("compteur de vitesse : 90 km/h en route", Math.abs(Math.max(...kmh) - 90) < 0.5, Math.max(...kmh));
+      expect("compteur de vitesse : 0 pendant l'arrêt du tour", kmh.some((v) => v === 0) && kmh.indexOf(0, 50) > 0);
+      expect("compteur de vitesse : lissé (20 km/h par image au plus)", jump <= 20, jump);
+      expect("compteur de vitesse : proposé, décoché", doc.querySelector("#video-compteur-vitesse") && !doc.querySelector("#video-compteur-vitesse").checked);
+      // Passage de 99 à 100 km/h : le chiffre des centaines arrive en glissant, zéros de tête masqués
+      const dial = Object.assign(document.createElement("canvas"), { width: 960, height: 540 }), dctx = dial.getContext("2d");
+      for (const [k, v] of [[0, 9], [1, 99.5], [2, 135]]) {
+        dctx.fillStyle = "#567";
+        dctx.fillRect(0, 0, 960, 540);
+        Video.drawOverlay(dctx, 960, 540, { title: null, pr: null, speed: { kmh: v, digits: 3 }, t: 10 });
+        await log(`IMAGE vitesse-${k} ` + dial.toDataURL("image/jpeg", 0.9));
+      }
+      const blob = await Video.mp4(sub, 90, () => {}, null, { tours: [place], tourTime: 8, tourStop: true, speedometer: true, counter: true });
+      log(`vidéo avec tour : ${(blob.size / 1e6).toFixed(1)} Mo en ${((performance.now() - t1) / 1000).toFixed(0)} s`);
+      const v = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(blob) });
+      await new Promise((resolve) => { v.onloadedmetadata = resolve; });
+      const first = Video.tours(path, xs, [place], 8, true).look.findIndex((a) => a !== 0);
+      expect("tour : vidéo allongée de 8 s", Math.abs(v.duration - (xs.length + 240) / 30) < 0.2, v.duration);
+      for (const [name, f] of [["avant", first - 10], ["quart", first + 90], ["moitie", first + 120], ["trois-quarts", first + 150], ["apres", first + 250]]) {
+        v.currentTime = (f + 0.5) / 30;
+        await new Promise((resolve) => { v.onseeked = resolve; });
+        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+        await log(`IMAGE tour-${name} ` + canvas.toDataURL("image/jpeg", 0.85));
+      }
+      type(end, "1");
+      endDistance.value = "0";
+      await sleep(1500);
+    }
+    if (!only || only === "garder") {
+      // Parcours gardé : D115D PR 1 + 146 -> PR 0, réglages changés, un tonneau et une planète posés, puis tout changé,
+      // export du parcours seul, import, et rouvert d'un clic
+      type(end, "0");
+      endDistance.value = "0";
+      await sleep(1500);
+      const keep = doc.querySelector("#parcours-garder");
+      expect("« ☆ Garder » actif une fois départ et arrivée saisis", !keep.disabled);
+      const set = (id, value) => {
+        const e = doc.querySelector(id);
+        if (e.type === "checkbox") e.checked = value; else e.value = value;
+        e.dispatchEvent(new w.Event("input", { bubbles: true }));  // comme un vrai clic : input, puis change
+        if (e.type !== "range") e.dispatchEvent(new w.Event("change", { bubbles: true }));
+      };
+      const m = w.mesures.map;
+      const drop = async (which, lonlat) => {
+        dialog.querySelector(`.sur-carte[data-cote="${which}"]`).click();
+        m.fire("click", { lngLat: new w.maplibregl.LngLat(...lonlat), point: m.project(lonlat), originalEvent: new w.MouseEvent("click") });
+        await sleep(300);
+      };
+      const rollAt = [4.85410, 47.06690], planetAt = [4.85200, 47.06500];
+      await drop("roll", rollAt);
+      await drop("planet", planetAt);
+      // Point d'intérêt : objet du relevé (cible), option cochée, zone tracée
+      const target = [4.85350, 47.06650];
+      w.mesures.app.load_releve(JSON.stringify({ named: 1, points: [[target[0], target[1], { id: 1, nom: "A", releve: { Nom: "Église" },
+        z_ngf: 260, nb_visees: 2, incert_m: 0.4 }, {}]] }));
+      w.mesures.refresh();
+      set("#video-interet", true);
+      const zoneAt = [[4.85500, 47.06760], [4.85300, 47.06600]];
+      dialog.querySelector('.sur-carte[data-cote="poiZone"]').click();  // puis deux clics : début et fin
+      for (const ll of zoneAt) {
+        m.fire("click", { lngLat: new w.maplibregl.LngLat(...ll), point: m.project(ll), originalEvent: new w.MouseEvent("click") });
+        await sleep(300);
+      }
+      set("#video-vitesse", "180");
+      set("#video-flou", true);
+      set("#video-avancee", false);
+      set("#tonneau-duree", "6");
+      set("#planete-duree", "15");
+      set("#planete-rotation", "45");
+      const before = doc.querySelectorAll("#mes-parcours li").length;
+      keep.click();
+      await until(() => doc.querySelectorAll("#mes-parcours li").length > before, 30000, "parcours gardé");
+      const name = doc.querySelector("#mes-parcours li .aller-favori").textContent;
+      log(`parcours gardé : ${name} ; ${doc.querySelector("#mes-parcours-infos").textContent}`);
+      expect("parcours gardé : nommé d'après la route et les PR", /D115D PR 1\+0146 → PR 0\+0000/.test(name), name);
+      const dots = [...doc.querySelectorAll("#mes-parcours li .pastille")];
+      expect("pastille jaune : tonneau et planète activés", dots.at(-1)?.classList.contains("communication")
+        && /tonneau, petite planète/.test(dots.at(-1).title), dots.at(-1)?.title);
+      expect("onglet Parcours : compte affiché", doc.querySelector("#compte-mes-parcours").textContent === String(before + 1));
+      // Export d'un seul (boîte d'enregistrement simulée)
+      let file = null, fileName = "";
+      w.showSaveFilePicker = async (o) => { fileName = o.suggestedName; return { name: o.suggestedName,
+        createWritable: async () => ({ write: async (b) => { file = b; }, close: async () => {} }) }; };
+      [...doc.querySelectorAll("#mes-parcours li")].at(-1).querySelectorAll(".effacer-resultat")[0].click();
+      await until(() => file, 10000, "parcours exporté");
+      const text = typeof file === "string" ? file : await file.text();
+      const data = JSON.parse(text);
+      log(`export : ${fileName}, ${text.length} octets`);
+      expect("export d'un seul : fichier nommé d'après le parcours", /^parcours D115D .+\.json$/.test(fileName), fileName);
+      expect("export d'un seul : format, un parcours, deux endroits et les réglages", data.format === "parcours-panoramax"
+        && data.parcours.length === 1 && data.parcours[0].places.roll.length === 1 && data.parcours[0].places.planet.length === 1
+        && data.parcours[0].settings["planete-rotation"] === "45" && data.parcours[0].settings["video-avancee"] === false);
+      const kept = data.parcours[0];
+      log(`point d'intérêt gardé : ${JSON.stringify(kept.target)}, zone ${JSON.stringify(kept.zone)}`);
+      expect("point d'intérêt gardé : option, cible (position, altitude, nom) et zone", kept.settings["video-interet"] === true
+        && kept.target?.lonlat?.join() === target.join() && kept.target.z === 260 && /Église/.test(kept.target.label)
+        && kept.zone?.length === 2);
+      // Tout changé, puis le parcours retiré, importé (fichier d'un collègue) et rouvert
+      set("#video-vitesse", "90");
+      set("#video-flou", false);
+      set("#video-avancee", true);
+      set("#planete-rotation", "20");
+      type(route, "18");
+      set("#video-interet", false);
+      // Relevé vidé : chez un collègue, la cible n'est pas dans son relevé
+      w.mesures.refresh(w.mesures.app.clear_releve());
+      [...doc.querySelectorAll("#mes-parcours li")].at(-1).querySelectorAll(".effacer-resultat")[1].click();
+      expect("parcours retiré", doc.querySelectorAll("#mes-parcours li").length === before);
+      const input = doc.querySelector("#mes-parcours-fichier"), dt = new w.DataTransfer();
+      dt.items.add(new w.File([text], fileName, { type: "application/json" }));
+      input.files = dt.files;
+      input.dispatchEvent(new w.Event("change"));
+      await until(() => doc.querySelectorAll("#mes-parcours li").length === before + 1, 10000, "parcours importé");
+      [...doc.querySelectorAll("#mes-parcours li")].at(-1).querySelector(".aller-favori").click();
+      await sleep(500);
+      const restored = ["#video-vitesse", "#video-flou", "#video-avancee", "#tonneau-duree", "#planete-duree", "#planete-rotation"]
+        .map((id) => { const e = doc.querySelector(id); return e.type === "checkbox" ? e.checked : e.value; });
+      log(`rouvert : ${JSON.stringify(restored)} ; route ${route.value} PR ${pr.value}+${distance.value} → ${end.value}+${endDistance.value}`);
+      expect("rouvert : onglet Vidéo affiché", !doc.querySelector("#parcours").hidden);
+      expect("rouvert : réglages rétablis", JSON.stringify(restored) === JSON.stringify(["180", true, false, "6", "15", "45"]), JSON.stringify(restored));
+      expect("rouvert : valeurs affichées des réglettes", doc.querySelector("#planete-rotation-valeur").textContent === "45 °/s"
+        && doc.querySelector("#planete-valeur").textContent === "15 s");
+      expect("rouvert : route et PR rétablis", route.value === "D115D" && pr.value === "1" && end.value === "0");
+      const cible = doc.querySelector("#interet-cible");
+      const zoneBack = w.mesures.map.getSource("zone-interet")?.serialize().data?.features?.length;
+      log(`cible rouverte : ${cible.value} « ${cible.selectedOptions[0]?.textContent} », grisée ${cible.disabled}, zone ${zoneBack}`);
+      expect("rouvert sans le relevé : point d'intérêt coché, cible du parcours choisie, zone tracée",
+        doc.querySelector("#video-interet").checked && cible.value === "parcours" && /Église.*\(parcours gardé\)/.test(cible.selectedOptions[0]?.textContent)
+        && !cible.disabled && zoneBack === 1);
+      expect("rouvert : un tonneau et une planète sur la carte", doc.querySelectorAll(".repere-requete.tonneau").length === 1
+        && doc.querySelectorAll(".repere-requete.planete").length === 1);
+      // Rouvert : ligne entourée, « ☆ Gardé » grisé ; modifié (effets retirés) : « ☆ Enregistrer… » propose de remplacer
+      // la ligne ou d'en créer une ; « Créer un nouveau parcours », puis « Enregistrer dans ce parcours »
+      const opened = [...doc.querySelectorAll("#mes-parcours li")].at(-1);
+      expect("rouvert : ligne entourée, « ☆ Gardé » grisé", opened.classList.contains("actuelle") && keep.disabled
+        && keep.textContent === "☆ Gardé", keep.textContent);
+      for (const id of ["#video-tonneau", "#video-planete", "#video-interet", "#video-regard", "#video-pano"]) set(id, false);
+      expect("modifié : « ☆ Enregistrer… » actif", !keep.disabled && keep.textContent === "☆ Enregistrer…", keep.textContent);
+      const choose = async (value) => {
+        keep.click();
+        const box = doc.querySelector("#enregistrer-parcours");
+        await until(() => box.open, 5000, "choix proposé");
+        box.querySelector(`button[value="${value}"]`).click();
+      };
+      await choose("nouveau");
+      await until(() => doc.querySelectorAll("#mes-parcours li").length === before + 2, 30000, "nouveau parcours créé");
+      const two = [...doc.querySelectorAll("#mes-parcours li")];
+      expect("« Créer un nouveau parcours » : ajouté, l'ancien tel quel (jaune), le nouveau ouvert (vert)",
+        two[0].querySelector(".pastille").classList.contains("communication") && two[1].querySelector(".pastille").classList.contains("sobre")
+        && two[1].classList.contains("actuelle") && keep.disabled);
+      two[1].querySelectorAll(".effacer-resultat")[1].click();  // retiré : on repart du premier, rouvert puis modifié
+      two[0].querySelector(".aller-favori").click();
+      await sleep(500);
+      for (const id of ["#video-tonneau", "#video-planete", "#video-interet", "#video-regard", "#video-pano"]) set(id, false);
+      await choose("remplacer");
+      await until(() => [...doc.querySelectorAll("#mes-parcours li .pastille")].at(-1)?.classList.contains("sobre"), 30000, "parcours mis à jour");
+      const plain = [...doc.querySelectorAll("#mes-parcours li .pastille")].at(-1);
+      log(`mis à jour : ${doc.querySelectorAll("#mes-parcours li").length} ligne(s) ; ${status()}`);
+      expect("modifications enregistrées sur la même ligne (pas de doublon)", doc.querySelectorAll("#mes-parcours li").length === before + 1
+        && /mis à jour/.test(status()));
+      expect("pastille verte sans effet de communication", plain.classList.contains("sobre") && plain.title === "Sans effet de communication");
+      expect("enregistré : « ☆ Gardé » grisé de nouveau", keep.disabled && keep.textContent === "☆ Gardé");
+      expect("rouvert : vidéo à préparer", /Préparer/.test(button.textContent) && !button.disabled);
+      button.click();
+      await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 120000, "parcours rouvert préparé");
+      expect("rouvert : vidéo préparée", /Enregistrer/.test(button.textContent), status());
+      // ↺ RAZ : parcours, réglages, endroits et zone remis à zéro, puis grisé
+      const raz = doc.querySelector("#parcours-raz");
+      expect("« ↺ RAZ » actif avec un parcours et des réglages", !raz.disabled);
+      raz.click();
+      await sleep(300);
+      const blank = ["#video-vitesse", "#video-photos", "#video-flou", "#video-avancee", "#video-expo", "#planete-rotation", "#tour-duree"]
+        .map((id) => { const e = doc.querySelector(id); return e.type === "checkbox" ? e.checked : e.value; });
+      log(`après RAZ : ${JSON.stringify(blank)} ; route « ${route.value} », PR « ${pr.value} » → « ${end.value} » ; ${status()}`);
+      expect("RAZ : réglages par défaut", JSON.stringify(blank) === JSON.stringify(["90", "1", false, true, true, "20", "8"]), JSON.stringify(blank));
+      expect("RAZ : départ et arrivée effacés, sans repère", !route.value && !pr.value && !end.value
+        && !doc.querySelector(".repere-requete.depart, .repere-requete.arrivee"));
+      expect("RAZ : endroits, zone et option du point d'intérêt retirés", !doc.querySelector(".repere-requete.tonneau, .repere-requete.planete, .repere-requete.tour")
+        && !doc.querySelector("#video-interet").checked && !w.mesures.map.getSource("zone-interet")?.serialize().data?.features?.length);
+      expect("RAZ : bouton grisé une fois tout à zéro, « Préparer » et « Garder » aussi", raz.disabled && button.disabled
+        && doc.querySelector("#parcours-garder").disabled);
+      expect("RAZ : parcours gardés intacts", doc.querySelectorAll("#mes-parcours li").length === before + 1);
+      // Saisie de départ de la suite
+      type(route, "115d");
+      type(pr, "1");
+      distance.value = "146";
       type(end, "1");
       endDistance.value = "0";
       await sleep(1500);

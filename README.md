@@ -53,8 +53,8 @@ GeoJSON ; chaque point de référence avec ses mesures dessous, fiche PDF, comme
 producteur et caméra, étoile des favoris, identifiant à copier ; position : précision GPS, sol, inclinaison
 et calage, chacun avec son voyant ; détails ; « Aller à une photo » par son identifiant ou un lien ; export et
 import du calage), **Favoris**
-(photos favorites, export et import) et **Couche**, avec le nombre de résultats et de
-favoris sur l'onglet ; en bas, les boutons **Filtre** (instance Panoramax, filtre des photos ; point orange quand un filtre est actif),
+(photos favorites, export et import), **Couche**, **Vidéo** et **Parcours** (parcours gardés), avec le nombre de
+résultats, de favoris et de parcours sur l'onglet ; en bas, les boutons **Filtre** (instance Panoramax, filtre des photos ; point orange quand un filtre est actif),
 **Réglages** (hauteur de caméra, thème, options) et **Services**. La consigne de
 mesure est dans la carte d'étape de la visionneuse. Thème jour ou nuit : comme le système par défaut, ou choisi
 dans Réglages. Une section
@@ -142,7 +142,9 @@ d'arrivée et la date des photos, effacé en fondu vers 3 s. « Compteur PR » (
 le PR ; les mètres défilent en continu, en rouleaux comme un compteur kilométrique (interpolés image par image entre
 les photos ; au passage d'un PR, l'ancien va jusqu'à son bout, puis le nouveau). Le PR de chaque photo est cherché à
 la préparation, sur la route du parcours (autre route après une bifurcation : cherchée une fois), avec les sections
-et PR de la BD TOPO déjà gardés en cache. « Panoramique au changement de séquence » (décochée) : la vue fait un tour complet en 0,7 s, du côté où
+et PR de la BD TOPO déjà gardés en cache. « Compteur de vitesse » (décochée) : en bas à droite, dans le même cadre,
+la vitesse de la vidéo à chaque instant en km/h (rampe, ralentissements, arrêts du tour d'horizon), lissée sur un
+quart de seconde comme une aiguille ; chiffres en rouleaux, zéros de tête masqués. « Panoramique au changement de séquence » (décochée) : la vue fait un tour complet en 0,7 s, du côté où
 tourne la route, au plus vite pendant le fondu entre les deux séquences, qui passe ainsi inaperçu (flou de mouvement
 d'une vue tous les 1,5° de rotation). « Regard aux croisements » (décochée) : à l'approche d'un carrefour avec une
 route revêtue (BD TOPO : route à une ou deux chaussées, rond-point, bretelle, type autoroutier ; pas les chemins de
@@ -168,7 +170,17 @@ jusqu'au passage au plus près puis redescend) et « Tonneau au plus près » (d
 sur le repère le retire ; à moins de 30 m du parcours, sinon la vidéo le refuse avec son numéro), l'image fait un
 tour complet de roulis, dans un sens puis dans l'autre d'un tonneau au suivant (ordre du parcours) (durée réglable de 1 à 10 s, 3 s par défaut), lent au
 départ et à l'arrivée, pendant que la caméra avance ; titre et compteur restent droits ; activer l'interrupteur sans endroit
-lance le choix sur la carte, poser un endroit l'active, retirer le dernier le désactive. Ces
+lance le choix sur la carte, poser un endroit l'active, retirer le dernier le désactive. « Petite planète » (décochée) :
+aux endroits choisis de même (📍, repère vert d'eau, à moins de 30 m du parcours), la vue descend vers le sol en
+s'élargissant jusqu'à 300° (passage continu de la perspective à la projection stéréographique) : le paysage s'enroule
+en boule, route vers le haut, et la planète tourne avec la route ; enroulement, tenue et déroulement d'un tiers de la
+durée chacun (réglette de 5 à 30 s, de 5 en 5, 5 s par défaut), la caméra continue d'avancer ; réglette « Rotation » : elle
+tourne aussi sur elle-même (de 0, sans, à 90° par seconde, 20 par défaut ; vue revenue droite à la fin) ; tout le tour des photos est chargé à ces
+endroits (tuiles réduites au tiers). Le toit du véhicule occupe le centre de la planète. « Tour d'horizon » (décochée) : aux endroits
+choisis de même (📍, repère brun), la vue fait un tour complet dans le plan de l'horizon pour montrer les espaces
+plats, lent au départ et à l'arrivée, sens alterné d'un tour au suivant (réglette de 2 à 20 s, 8 s par défaut) ;
+« Arrêt pendant le tour » (coché) : la caméra s'arrête le temps du tour sur la photo la plus proche (image nette, la
+vidéo s'allonge d'autant), sinon elle continue d'avancer. Ces
 options chargent plus de tuiles aux endroits concernés (tout le tour pour le panoramique). « Flou cinétique »
 (décochée par défaut) : chaque
 image est la moyenne de 8 vues réparties depuis la position de l'image précédente (obturateur ouvert toute l'image) ;
@@ -180,11 +192,33 @@ corrigé de la pente de la route, champ de 80° (le toit du véhicule n'y entre 
 caméra avance réellement dans une maquette simple de chacune (chaussée plane sur 4 m de part et d'autre
 de l'axe, reste du décor sur une sphère de 60 m) : la chaussée défile sans à-coup, puis la photo suivante
 prend le relais en fondu. Limites : un objet proche et haut (arbre, poteau) se dédouble pendant le
-fondu, la ligne des collines aussi un peu (photos qui ne penchent pas pareil). Le calcul prend environ
+fondu, la ligne des collines aussi un peu (photos qui ne penchent pas pareil). « Haute qualité (lent) »
+(décochée) : toujours en 1920 × 1080, mais débit bien plus élevé (H.264 80 Mbit/s au lieu de 30, VP9 50 au lieu de 20)
+pour les détails fins (vignes, graviers, feuillages, fils), photos en pleine définition et vue calculée en double
+définition puis réduite (bords sans escalier) ; calcul environ 1,5 à 2 fois plus long (davantage avec un réseau lent),
+fichier 2,5 fois plus gros. « Avancée simulée » (cochée par
+défaut) : désactivée, chaque photo est vue de sa propre caméra et passe à la suivante par un simple fondu enchaîné :
+rien de déformé ni de dédoublé par la maquette, mais la route avance par bonds (d'autant plus avec une photo sur 4 ou 8). Le calcul prend environ
 deux fois la durée de la vidéo si les tuiles sont déjà en cache (« ■ Arrêter » l'interrompt) ; le fichier
 n'est écrit qu'à la fin : l'avancement s'affiche dans la ligne d'état, et l'erreur éventuelle y reste. Bibliothèque
 mp4-muxer chargée au premier export seulement. Grisé tant que le départ ou l'arrivée manque, pendant la
 préparation et le calcul, et dans les navigateurs sans WebCodecs.
+
+« ↺ RAZ » (onglet Vidéo) remet le parcours et ses réglages à zéro : départ et arrivée effacés, options et réglettes
+à leur valeur par défaut, endroits des tonneaux, planètes et tours retirés, zone du point d'intérêt effacée ; le filtre
+des photos et les parcours gardés ne changent pas. Grisé quand tout est déjà à zéro et pendant le calcul.
+
+**Parcours gardés** (onglet Parcours) : « ☆ Garder » (onglet Vidéo, dès que départ et arrivée sont saisis) garde le
+parcours avec tous ses réglages : départ et arrivée (route, PR et distances, points sur la carte), vitesse, part des
+photos, toutes les options et leurs réglettes, endroits des tonneaux, des petites planètes et des tours d'horizon, zone et cible du point
+d'intérêt, filtre de date des photos. Nommé d'après la route et les PR, daté ; pastille jaune si au moins un effet « communication » est activé (tonneau,
+petite planète, point d'intérêt, regard aux croisements, panoramique, tour d'horizon), verte sinon ; gardé dans ce navigateur. Un clic sur
+son nom le rouvre dans l'onglet Vidéo (vidéo à préparer), ⤓ l'exporte seul (fichier JSON à envoyer à un collègue),
+× le retire ; rouvert, la ligne est entourée et « ☆ Garder » devient « ☆ Gardé » (grisé) ; modifié, « ☆ Enregistrer… »
+propose de l'enregistrer dans ce parcours ou d'en créer un nouveau (l'ancien reste tel quel) ; en tête, export de toute la liste et import (la liste ou un seul, ajoutés à ceux-ci ; fichier venu
+d'ailleurs : seuls les réglages connus sont repris). Cible du point d'intérêt : l'objet du relevé au même endroit,
+sinon celle du parcours, proposée en plus dans la liste « Cible » (« parcours gardé »). Les autres filtres
+(instance, producteur…) ne sont pas gardés.
 
 **Mesurer** : bouton « Mesure », puis le mode. Pendant la mesure, une carte d'étape en bas à gauche de
 la visionneuse donne la mesure et ses étapes (pied puis sommet, premier bord puis bord opposé), l'état

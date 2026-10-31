@@ -9,17 +9,23 @@
 // entier, sans se plier ; des murs le long de la route captaient aussi les collines des côtés), où la caméra
 // virtuelle avance réellement : la chaussée défile, le lointain bouge peu ; la photo quittée cède la place à la
 // suivante (vue depuis le même point) en fondu. Le toit du véhicule (bas du panorama, sous ROOF) est écarté :
-// l'autre photo le remplace. Encodage H.264 par le navigateur (WebCodecs ; VP9 s'il n'encode pas le H.264, Firefox
+// l'autre photo le remplace. Sans avancée simulée (option) : chaque photo vue de sa caméra, simple fondu enchaîné.
+// Encodage H.264 par le navigateur (WebCodecs ; VP9 s'il n'encode pas le H.264, Firefox
 // sous Linux), fichier assemblé par mp4-muxer, chargé au premier export seulement.
 
 const Video = (() => {
   const FPS = 30;
   const SIZES = [[1920, 1080, 1], [1280, 720, 0.5]];  // largeur, hauteur, part du débit du codec : la première encodable
+  // Haute qualité (option, lente) : 1080p aussi (choix de l'utilisateur), débit HQ_CODECS (détails fins mieux rendus),
+  // tuiles en pleine définition, vue calculée en HQ_SUPERSAMPLE fois la définition puis réduite (bords sans escalier)
+  const HQ_SUPERSAMPLE = 2;
   // H.264 High, Main, Baseline (niveau 4.0), puis VP9 (Firefox sous Linux : H.264 annoncé mais pas encodé, bug
   // Mozilla 2085549), dans un MP4 aussi ; codec du fichier pour mp4-muxer ; débit en 1080p (bit/s). Mesuré le 31/10/2026
   // contre une version à 80 Mbit/s : H.264 10 Mbit/s très flou (PSNR 32 dB), 30 Mbit/s 37,6 dB ; VP9 20 Mbit/s 36,8 dB
   const CODECS = [["avc1.640028", "avc", 30e6], ["avc1.4d0028", "avc", 30e6], ["avc1.42e028", "avc", 30e6],
     ["vp09.00.40.08", "vp9", 20e6]];
+  // Haute qualité : H.264 niveau 5.1 (débit admis bien au-delà), 80 Mbit/s ; VP9 50 Mbit/s
+  const HQ_CODECS = [["avc1.640033", "avc", 80e6], ["avc1.4d0033", "avc", 80e6], ["vp09.00.40.08", "vp9", 50e6]];
   const MUXER = "https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.1/build/mp4-muxer.min.js";
   const HFOV = 80;  // degrés : champ horizontal de la vue (vertical : ± 24° en 16/9, au-dessus du toit du véhicule)
   const SMOOTH = 15;  // m : cap de la vue = direction de la trajectoire de s - SMOOTH à s + SMOOTH (stabilisation)
@@ -52,6 +58,12 @@ const Video = (() => {
   const LOOK_GAP = 60;  // m : carrefours plus proches du précédent regardé (giratoire, double carrefour) : un seul regard
   const ROLL_TIME = 3;  // s : tour complet du tonneau par défaut (réglette de 1 à 10 s ; pas trop rapide : demande)
   const ROLL_REACH = 30;  // m : endroit du tonneau ramené sur le parcours à cette distance au plus
+  const PLANET_TIME = 5;  // s : petite planète par défaut, enroulement, tenue, déroulement d'un tiers chacun (réglette 5 à 30 s)
+  const PLANET_FOV = 300;  // degrés : champ horizontal de la planète (projection stéréographique, regard vers le sol)
+  const PLANET_SPIN = 20;  // °/s : rotation de la planète sur elle-même par défaut (réglette de 0, sans, à 90)
+  const PLANET_SCALE = 1 / 3;  // tuiles réduites au plus (tout le tour de la photo, dans un champ très large)
+  const SPEED_SMOOTH = 4;  // images : vitesse affichée lissée sur ± SPEED_SMOOTH images (un quart de seconde)
+  const TOUR_TIME = 8;  // s : tour d'horizon par défaut (réglette de 2 à 20 s)
   const BLUR = 8;  // vues moyennées par image pour le flou cinétique (obturateur ouvert toute l'image : 360°)
 
   const supported = () => typeof VideoEncoder === "function" && typeof VideoFrame === "function"
@@ -160,26 +172,28 @@ const Video = (() => {
   }
 
   /** Mètres du compteur en rouleaux (compteur kilométrique) : chaque chiffre glisse vers le suivant quand les chiffres
-   * de droite passent de 9… à 0… ; continu dans les deux sens. ctx : contexte 2D, x, y : coin bas gauche, size : corps. */
-  function drawRollers(ctx, value, x, y, size) {
+   * de droite passent de 9… à 0… ; continu dans les deux sens. ctx : contexte 2D, x, y : coin bas gauche, size : corps ;
+   * digits : nombre de chiffres ; blank : zéros de tête masqués (le chiffre qui arrive glisse quand même). */
+  function drawRollers(ctx, value, x, y, size, digits = 4, blank = false) {
     const v = Math.abs(value), cell = ctx.measureText("0").width, line = size * 1.15;
-    for (let k = 3; k >= 0; k--) {
+    for (let k = digits - 1; k >= 0; k--) {
       const unit = 10 ** k, base = Math.floor(v / unit) % 10;
       const roll = k === 0 ? v % 1 : Math.max(0, (v % unit) - (unit - 1));
-      const left = x + (3 - k) * cell;
+      const left = x + (digits - 1 - k) * cell;
       ctx.save();
       ctx.beginPath();
       ctx.rect(left, y - size, cell, line);
       ctx.clip();
-      ctx.fillText(String(base), left, y - roll * line);
+      if (!(blank && k && v < unit)) ctx.fillText(String(base), left, y - roll * line);
       ctx.fillText(String((base + 1) % 10), left, y + (1 - roll) * line);
       ctx.restore();
     }
-    return 4 * cell;
+    return digits * cell;
   }
 
-  /** Titre (fondu à TITLE_FADE s) et compteur PR sur l'image (contexte 2D ctx, w × h) ; t : secondes depuis le début. */
-  function drawOverlay(ctx, w, h, { title, pr, t }) {
+  /** Titre (fondu à TITLE_FADE s), compteur PR (en bas à gauche) et compteur de vitesse (speed : { kmh, digits }, en bas à
+   * droite) sur l'image (contexte 2D ctx, w × h) ; t : secondes depuis le début. */
+  function drawOverlay(ctx, w, h, { title, pr, speed, t }) {
     const font = (size, weight = 500) => `${weight} ${Math.round(size)}px Roboto, "Segoe UI", sans-serif`;
     ctx.textBaseline = "alphabetic";
     const alpha = title ? Math.max(0, Math.min(1, (TITLE_FADE[1] - t) / (TITLE_FADE[1] - TITLE_FADE[0]))) : 0;
@@ -216,6 +230,25 @@ const Video = (() => {
       ctx.font = font(size);
       ctx.fillText(head, x0, y0);
       drawRollers(ctx, pr.m, x0 + ctx.measureText(head).width, y0, size);
+    }
+    if (speed) {
+      // Même cadre que le compteur PR, aligné à droite : libellé, chiffres en rouleaux (zéros de tête masqués), unité
+      const size = h * 0.045, pad = size * 0.45, y0 = h - h * 0.05, unit = " km/h";
+      ctx.font = font(size);
+      const digitsWidth = speed.digits * ctx.measureText("0").width;
+      ctx.font = font(size * 0.6);
+      const unitWidth = ctx.measureText(unit).width;
+      const width = digitsWidth + unitWidth, x0 = w - h * 0.04 - width;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+      ctx.fillRect(x0 - pad, y0 - size - size * 0.75 - pad, width + 2 * pad, size * 1.75 + 2 * pad);
+      ctx.fillStyle = "#ffb300";
+      ctx.font = font(size * 0.6, 700);
+      ctx.fillText("Vitesse", x0, y0 - size - size * 0.12);
+      ctx.fillStyle = "#fff";
+      ctx.font = font(size * 0.6);
+      ctx.fillText(unit, x0 + digitsWidth, y0);
+      ctx.font = font(size);
+      drawRollers(ctx, speed.kmh, x0, y0, size, speed.digits, true);
     }
   }
 
@@ -364,19 +397,83 @@ const Video = (() => {
   /** Roulis (degrés) à chaque image de la chronologie xs : tonneaux aux endroits lonlats ([lon, lat], ramenés sur le
    * parcours), tour complet en seconds s chacun (lent au départ et à l'arrivée), centré sur l'endroit, sens alterné dans
    * l'ordre du parcours (le premier à droite, le suivant à gauche…) ; erreur si l'un est à plus de ROLL_REACH m. */
-  function rolls(path, xs, lonlats = [], seconds = ROLL_TIME) {
-    const out = xs.map(() => 0);
-    const places = lonlats.map((lonlat, k) => {
+  /** Abscisses (m, croissantes) des endroits [lon, lat] ramenés sur le parcours ; erreur pour un endroit à plus de
+   * ROLL_REACH m (name : nom de l'effet). */
+  function placesOn(path, lonlats, name) {
+    return lonlats.map((lonlat, k) => {
       let best = null;
       for (let x = 0; x <= path.length; x += 1) {
         const d = metres(path.at(x), lonlat);
         if (!best || d < best.d) best = { x, d };
       }
       if (best.d > ROLL_REACH) {
-        throw new Error(`tonneau n° ${k + 1} à ${Math.round(best.d)} m du parcours (${ROLL_REACH} m au plus)`);
+        throw new Error(`${name} n° ${k + 1} à ${Math.round(best.d)} m du parcours (${ROLL_REACH} m au plus)`);
       }
       return best.x;
     }).sort((a, b) => a - b);
+  }
+
+  /** Petites planètes aux endroits [lon, lat] (à ROLL_REACH m au plus du parcours), seconds chacune autour du passage :
+   * { mix, spin } par image de xs : part de la planète (0 : vue normale, 1 : planète ; enroulement et déroulement
+   * adoucis, d'un tiers de la durée chacun) et rotation sur elle-même (degrés : spin °/s depuis le passage,
+   * multipliés par la part : nulle hors de l'effet, la vue revient droite). */
+  function planets(path, xs, lonlats = [], seconds = PLANET_TIME, spin = PLANET_SPIN) {
+    const mix = xs.map(() => 0), turn = xs.map(() => 0);
+    const third = seconds * FPS / 3;
+    for (const x of placesOn(path, lonlats, "petite planète")) {
+      const centre = Math.max(0, xs.findIndex((v) => v >= x));
+      for (let n = Math.max(0, Math.ceil(centre - 1.5 * third)); n <= Math.min(xs.length - 1, centre + 1.5 * third); n++) {
+        const edge = Math.min(1, (1.5 * third - Math.abs(n - centre)) / third);
+        const m = smooth(Math.max(0, edge));
+        if (m <= mix[n]) continue;
+        mix[n] = m;
+        turn[n] = m * spin * (n - centre) / FPS;
+      }
+    }
+    return { mix, spin: turn };
+  }
+
+  /** Tours d'horizon aux endroits [lon, lat] (à ROLL_REACH m au plus du parcours) : le regard fait un tour complet dans
+   * le plan de l'horizon en seconds (départ et arrivée adoucis, sens alterné dans l'ordre du parcours), pour montrer
+   * les espaces plats ; stop : caméra arrêtée pendant le tour, sur la photo la plus proche (image nette, pas un
+   * fondu) ; sinon centré sur le passage. Rend { xs, look } : abscisses des images (arrêt : images ajoutées) et regard
+   * (degrés) par image. */
+  function tours(path, xs, lonlats = [], seconds = TOUR_TIME, stop = true) {
+    const frames = Math.round(seconds * FPS), out = xs.slice(), starts = [];
+    for (const x of placesOn(path, lonlats, "tour d'horizon")) {
+      if (stop) {
+        // Arrêt à la première image qui atteint la photo la plus proche (moins d'une image après elle : la photo
+        // seule, sans fondu ni saut de la caméra)
+        const photo = path.s.reduce((a, b) => (Math.abs(b - x) < Math.abs(a - x) ? b : a));
+        const at = Math.max(0, out.findIndex((v) => v >= photo));
+        out.splice(at, 0, ...Array(frames).fill(out[at]));
+        starts.push(at);
+      } else {
+        starts.push(Math.max(0, out.findIndex((v) => v >= x) - Math.round(frames / 2)));
+      }
+    }
+    const look = out.map(() => 0);
+    starts.forEach((start, k) => {
+      for (let n = start; n < Math.min(out.length, start + frames); n++) {
+        look[n] = (k % 2 ? -1 : 1) * 360 * smooth((n - start + 1) / frames);
+      }
+    });
+    return { xs: out, look };
+  }
+
+  /** Vitesse affichée par image de xs (km/h) : avancée d'une image à l'autre, lissée sur ± SPEED_SMOOTH images comme
+   * une aiguille (départ, arrêts), au centième. */
+  function speeds(xs) {
+    const raw = xs.map((x, n) => (n ? (x - xs[n - 1]) * FPS * 3.6 : 0));
+    return raw.map((_, n) => {
+      const part = raw.slice(Math.max(0, n - SPEED_SMOOTH), n + SPEED_SMOOTH + 1);
+      return Math.round(100 * part.reduce((a, b) => a + b, 0) / part.length) / 100;
+    });
+  }
+
+  function rolls(path, xs, lonlats = [], seconds = ROLL_TIME) {
+    const out = xs.map(() => 0);
+    const places = placesOn(path, lonlats, "tonneau");
     const half = seconds * FPS / 2, ease = (p) => p * p * (3 - 2 * p);
     places.forEach((x, k) => {
       const centre = Math.max(0, xs.findIndex((v) => v >= x)), sign = k % 2 ? -1 : 1;
@@ -561,14 +658,20 @@ const Video = (() => {
     uniform vec4 cam0, cam1;  // cap de la route, tangage (radians), tan du demi-champ horizontal, avancée (m) depuis la photo
     uniform float look;  // regard décalé de l'axe de la route (radians, à droite) : panoramique, croisements
     uniform float roll;  // roulis de l'image (radians) : tonneau
-    uniform float lift;  // regard levé (radians) : visée en hauteur du point d'intérêt
+    uniform float lift;  // regard levé (radians) : visée en hauteur du point d'intérêt, petite planète (vers le sol)
+    uniform float planet;  // projection : 0 perspective, 1 stéréographique (petite planète), entre les deux : passage
     uniform float aspect, blend, height, bowl, road, roof;
     uniform vec3 gain0, gain1;  // exposition de chaque photo (changement de séquence)
     vec4 pick(sampler2D t, vec4 crop, vec2 grid, vec4 cam) {
       // Rayon de la caméra virtuelle, tourné du regard décalé, avancée de cam.w m dans l'axe de la route (horizontal) :
       // point touché sur la maquette (chaussée dans l'axe de la route, sinon sphère), puis direction de ce point vue de
       // la caméra de la photo
-      vec3 r = normalize(vec3(ndc.x * cam.z, ndc.y * cam.z / aspect, 1.0));
+      // Point de vue de la projection à planet en arrière du centre de la sphère des directions (0 : perspective, 1 :
+      // stéréographique) : rayon par le point (s, 1) de l'écran
+      vec2 s = vec2(ndc.x * cam.z, ndc.y * cam.z / aspect);
+      float P = planet, A = dot(s, s) + (1.0 + P) * (1.0 + P);
+      float t1 = (P * (1.0 + P) + sqrt(P * P * (1.0 + P) * (1.0 + P) - A * (P * P - 1.0))) / A;
+      vec3 r = normalize(vec3(t1 * s, -P + t1 * (1.0 + P)));
       r = vec3(r.x * cos(roll) - r.y * sin(roll), r.x * sin(roll) + r.y * cos(roll), r.z);
       r = vec3(r.x, r.y * cos(lift) + r.z * sin(lift), -r.y * sin(lift) + r.z * cos(lift));
       r = vec3(r.x * cos(look) + r.z * sin(look), r.y, -r.x * sin(look) + r.z * cos(look));
@@ -652,8 +755,9 @@ const Video = (() => {
       },
       drop: (tex) => gl.deleteTexture(tex),
       /** Vue : views = [{ tex, crop, grid, yaw, pitch, tan, move, gain }] (yaw : cap de la route), look : regard décalé ; (photo quittée, photo suivante), blend : part de la
-       * suivante ; weight < 1 : vue mêlée à l'image déjà dessinée dans cette proportion (moyenne du flou cinétique). */
-      draw(views, blend, weight = 1, look = 0, roll = 0, lift = 0) {
+       * suivante ; planet : projection (0 perspective, 1 stéréographique) ; weight < 1 : vue mêlée à l'image déjà dessinée dans cette proportion (moyenne du flou cinétique). */
+      draw(views, blend, weight = 1, look = 0, roll = 0, lift = 0, planet = 0) {
+        gl.uniform1f(u("planet"), planet);
         gl.uniform1f(u("look"), look);
         gl.uniform1f(u("roll"), roll);
         gl.uniform1f(u("lift"), lift);
@@ -705,15 +809,16 @@ const Video = (() => {
     return chunks > 0;
   }
 
-  /** Première configuration qui encode vraiment : { config, codec (pour mp4-muxer) } ; null sans aucune. */
-  async function encoderConfig() {
-    for (const [width, height, share] of SIZES) {
-      for (const [name, codec, rate] of CODECS) {
-        const config = { codec: name, width, height, bitrate: rate * share, framerate: FPS, ...(codec === "avc" ? { avc: { format: "avc" } } : {}) };
-        try {
-          if ((await VideoEncoder.isConfigSupported(config)).supported && await encodes(config)) return { config, codec };
-        } catch { /* configuration refusée : la suivante */ }
-      }
+  /** Première configuration qui encode vraiment : { config, codec (pour mp4-muxer) } ; null sans aucune. hq : haute
+   * qualité (HQ_CODECS en 1080p, puis la qualité ordinaire si le poste n'en encode aucun). */
+  async function encoderConfig(hq = false) {
+    const pairs = (sizes, codecs) => sizes.flatMap((size) => codecs.map((codec) => [size, codec]));
+    const choices = hq ? [...pairs([SIZES[0]], HQ_CODECS), ...pairs(SIZES, CODECS)] : pairs(SIZES, CODECS);
+    for (const [[width, height, share], [name, codec, rate]] of choices) {
+      const config = { codec: name, width, height, bitrate: rate * share, framerate: FPS, ...(codec === "avc" ? { avc: { format: "avc" } } : {}) };
+      try {
+        if ((await VideoEncoder.isConfigSupported(config)).supported && await encodes(config)) return { config, codec };
+      } catch { /* configuration refusée : la suivante */ }
     }
     return null;
   }
@@ -723,40 +828,61 @@ const Video = (() => {
    * séquence (exposures). options.blur : flou cinétique (moyenne de BLUR vues réparties entre la position de l'image
    * précédente et celle-ci : le proche défilant vite s'étale) ; options.exposure : false pour ne pas accorder
    * l'exposition aux changements de séquence ; options.ramp : rampe de vitesse (timeline) ; options.title :
-   * { text, sub } en titre au début ; options.counter : compteur PR (photo.pr, prAt) ; options.whip : panoramique au
+   * { text, sub } en titre au début ; options.counter : compteur PR (photo.pr, prAt) ; options.speedometer : compteur de
+   * vitesse (speeds) ; options.whip : panoramique au
    * changement de séquence, options.junctions : carrefours où regarder (pans) ; options.rolls : endroits des tonneaux
    * ([[lon, lat]…], rolls), options.rollTime : durée de chacun (s) ; options.lookSpeed : vitesse de regard aux carrefours (km/h) ;
    * options.poi : point d'intérêt { target, z (altitude NGF de l'objet relevé ou null), start, end (extrémités de la
    * zone tracée, [lon, lat] ou null), speed (km/h ou null), zoom, zoomByDistance, roll, ground: { target, photos }
-   * (altitudes du sol, par photo de photos) } (poiViews). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
+   * (altitudes du sol, par photo de photos) } (poiViews) ; options.planets : endroits des petites planètes ([[lon, lat]…],
+   * planets), options.planetTime : durée de chacune (s), options.planetSpin : vitesse de rotation (°/s) ;
+   * options.advance : false pour ne pas avancer dans la maquette (fondu enchaîné d'une photo à l'autre) ;
+   * options.tours : endroits des tours d'horizon ([[lon, lat]…], tours), options.tourTime : durée de chacun (s),
+   * options.tourStop : caméra arrêtée pendant le tour ; options.hq : haute qualité (HQ_CODECS, tuiles en pleine
+   * définition, vue calculée en HQ_SUPERSAMPLE fois la définition ; lent). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
    */
   async function mp4(photos, kmh, progress = () => {}, signal = null,
-    { blur = false, exposure = true, ramp = false, title = null, counter = false, whip = false, junctions = [], rolls: rollPlaces = [],
-    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null } = {}) {
+    { blur = false, exposure = true, ramp = false, title = null, counter = false, speedometer = false, whip = false, junctions = [], rolls: rollPlaces = [],
+    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, hq = false, planets: planetPlaces = [], planetTime = PLANET_TIME,
+    planetSpin = PLANET_SPIN, advance = true, tours: tourPlaces = [], tourTime = TOUR_TIME, tourStop = true } = {}) {
     const path = trajectory(photos);
     if (path.list.length < 2 || path.length < 1) throw new Error("parcours trop court");
-    const [chosen] = await Promise.all([encoderConfig(), loadMuxer()]);
+    const [chosen] = await Promise.all([encoderConfig(hq), loadMuxer()]);
     if (!chosen) throw new Error("ce navigateur n'encode ni le H.264 ni le VP9");
     const { config, codec } = chosen;
     const { width, height } = config;
-    const gl = renderer(width, height);
+    const ss = hq ? HQ_SUPERSAMPLE : 1;
+    const gl = renderer(width * ss, height * ss);
     const tan = Math.tan(HFOV / 2 * toRad);
+    // Demi-largeur de l'écran pour la part m de la planète : demi-champ de HFOV / 2 à PLANET_FOV / 2, point de vue de
+    // la projection reculé deux fois plus vite (stéréographique dès la moitié : le champ passe 180° sans se retourner)
+    const planetTan = (m) => {
+      const a = (HFOV / 2 + (PLANET_FOV - HFOV) / 2 * m) * toRad, P = Math.min(1, 2 * m);
+      return Math.sin(a) * (1 + P) / (Math.cos(a) + P);
+    };
     const vfov = 2 * Math.atan(tan * height / width) / toRad;
     // Champ le plus large demandé à une photo (vue depuis l'avant, au début du fondu : le décor proche s'écarte),
     // découpe et réduction des tuiles à la finesse de la vue (plus un quart pour l'avancée)
     const widest = (fov) => 2 * Math.atan(Math.tan(fov / 2 * toRad) * 1.6) / toRad;
-    const scaleOf = (t) => Math.min(1, 1.25 * (width / HFOV) / (t.size / (360 / t.cols)));
+    const scaleOf = (t) => (hq ? 1 : Math.min(1, 1.25 * (width / HFOV) / (t.size / (360 / t.cols))));
     const yawAt = (i, x) => wrap(path.course(x) - path.list[i].heading);
     const gains = exposure ? await exposures(path, signal) : path.list.map(() => [1, 1, 1]);
     const span = poi ? poiSpan(path, poi) : null;
-    const xs = timeline(path, kmh / 3.6, ramp, lookedJunctions(path, junctions), lookSpeed / 3.6,
-      poi?.speed ? { ...span, speed: poi.speed / 3.6 } : null);
+    // Tours d'horizon : images ajoutées pendant l'arrêt, avant les autres effets (calés sur les images)
+    const turns = tours(path, timeline(path, kmh / 3.6, ramp, lookedJunctions(path, junctions), lookSpeed / 3.6,
+      poi?.speed ? { ...span, speed: poi.speed / 3.6 } : null), tourPlaces, tourTime, tourStop);
+    const xs = turns.xs;
     const pan = pans(path, xs, { whip, junctions });
+    const kmhs = speedometer ? speeds(xs) : null;
+    turns.look.forEach((v, n) => { pan[n] += v; });
     // Point d'intérêt : regard vers la cible (ajouté au décalage du regard), visée en hauteur, zoom ; tonneau au plus près
     const ground = poi?.ground ? path.list.map((p) => poi.ground.photos[photos.indexOf(p)] ?? null) : null;
     const aim = poiViews(path, xs, poi, ground);
     aim.yaw.forEach((v, n) => { pan[n] += v; });
     const tilt = rolls(path, xs, poi?.roll ? [...rollPlaces, path.at(span.xc)] : rollPlaces, rollTime);
+    // Petite planète : regard vers le sol, champ élargi jusqu'à PLANET_FOV, rotation lente ajoutée au roulis
+    const globe = planets(path, xs, planetPlaces, planetTime, planetSpin);
+    globe.spin.forEach((v, n) => { tilt[n] += v; });
     // Image tournée par le tonneau : le coin de la vue passe en haut et en bas (demi-diagonale du champ)
     const diagonal = 2 * Math.atan(Math.hypot(tan, tan * height / width)) / toRad;
     const rolled = path.list.map(() => false);
@@ -768,9 +894,11 @@ const Video = (() => {
     // Regard décalé (panoramique, croisements) : tuiles chargées d'autant plus larges pour les photos concernées
     const extra = path.list.map(() => 0);
     const raise = path.list.map(() => 0), sharp = path.list.map(() => 1);  // visée en hauteur, zoom : par photo
+    const round = path.list.map(() => false);  // petite planète : tout le panorama, tuiles réduites
     xs.forEach((x, n) => {
       const i = path.segment(x)[0], off = Math.min(180, Math.abs(pan[n]));  // tour complet : tout le panorama
       for (const k of [i, Math.min(i + 1, path.list.length - 1)]) {
+        if (globe.mix[n]) round[k] = true;
         extra[k] = Math.max(extra[k], off);
         raise[k] = Math.max(raise[k], Math.abs(aim.lift[n]));
         sharp[k] = Math.max(sharp[k], aim.zoom[n]);
@@ -781,12 +909,12 @@ const Video = (() => {
       if (!loads.has(i)) {
         const photo = path.list[i];
         const crop = cropOf(photo.tiles, yawAt(i, path.s[i]), photo.pitch,
-          Math.max(widest(HFOV), rolled[i] ? widest(diagonal) : 0) + 2 * extra[i],
-          (rolled[i] ? widest(diagonal) : widest(vfov)) + 2 * raise[i]);
+          round[i] ? 360 : Math.max(widest(HFOV), rolled[i] ? widest(diagonal) : 0) + 2 * extra[i],
+          round[i] ? 360 : (rolled[i] ? widest(diagonal) : widest(vfov)) + 2 * raise[i]);
         // Zone élargie (regard décalé) : réduite au besoin pour tenir dans la plus grande texture du poste
         const t = photo.tiles, fit = Math.min(gl.max / (crop.nc * t.size), gl.max / (crop.nr * t.size));
         // Zoom : tuiles moins réduites, jusqu'à leur pleine définition (au-delà de × 1,4 environ, l'image s'adoucit)
-        loads.set(i, loadCrop(photo, crop, Math.min(scaleOf(t) * sharp[i], 1, fit), signal).then((image) => {
+        loads.set(i, loadCrop(photo, crop, Math.min(scaleOf(t) * sharp[i], 1, fit, round[i] ? PLANET_SCALE : 1), signal).then((image) => {
           if (image.width > gl.max || image.height > gl.max) throw new Error(`image trop grande (${image.width} px)`);
           return { tex: gl.texture(image), crop, grid: [photo.tiles.cols, photo.tiles.rows] };
         }));
@@ -812,7 +940,9 @@ const Video = (() => {
         // (écart au plus court : 360° puis 0° en fin de tonneau, même image, pas un tour à l'envers)
         const rollBefore = tilt[Math.max(0, n - 1)], rollTurn = wrap(tilt[n] - rollBefore);
         // (une vue tous les 1,5° de rotation, BLUR à 48 : le tour du panoramique fait jusqu'à 60° par image)
-        const spin = Math.max(Math.abs(turn), Math.abs(rollTurn));
+        // (tour d'horizon : lent, pour montrer le paysage, sans flou de rotation)
+        const sweep = wrap(turn - turns.look[n] + turns.look[Math.max(0, n - 1)]);
+        const spin = Math.max(Math.abs(sweep), Math.abs(rollTurn));
         const subs = spin > 1 ? Math.min(48, Math.max(BLUR, Math.ceil(spin / 1.5))) : blur && at(n - 1) < x ? BLUR : 1;
         const first = path.segment(x - (x - at(n - 1)) * (subs - 1) / subs)[0];
         for (let k = first; k < Math.min(path.list.length, path.segment(x)[0] + AHEAD); k++) load(k).catch(() => {});
@@ -824,26 +954,29 @@ const Video = (() => {
         }
         for (let k = 0; k < subs; k++) {
           const xs = x - (x - at(n - 1)) * (subs - 1 - k) / subs;
-          const look = (before + turn * (k + 1) / subs) * toRad, view = tan / aim.zoom[n];
+          const look = (before + turn * (k + 1) / subs) * toRad, view = planetTan(globe.mix[n]) / aim.zoom[n];
           const tilted = (rollBefore + rollTurn * (k + 1) / subs) * toRad;
           const [i, u] = path.segment(xs);
           const j = Math.min(i + 1, path.list.length - 1);
           const [a, b] = await Promise.all([load(i), load(j)]);
           // Avancée : u·écart après la photo quittée, (1 - u)·écart avant la suivante ; vue k : 1 / (k + 1) de la
           // moyenne courante
-          const gap = Math.min(path.s[j] - path.s[i], GAP);
+          const gap = advance ? Math.min(path.s[j] - path.s[i], GAP) : 0;
           gl.draw([
             { ...a, yaw: yawAt(i, xs) * toRad, pitch: path.list[i].pitch, tan: view, move: u * gap, gain: gains[i] },
             { ...b, yaw: yawAt(j, xs) * toRad, pitch: path.list[j].pitch, tan: view, move: -(1 - u) * gap, gain: gains[j] },
-          ], j === i ? 0 : smooth(Math.min(1, Math.max(0, (u - 0.25) / 0.5))), 1 / (k + 1), look, tilted, aim.lift[n] * toRad);
+          ], j === i ? 0 : smooth(Math.min(1, Math.max(0, (u - 0.25) / 0.5))), 1 / (k + 1), look, tilted,
+          (aim.lift[n] - 90 * globe.mix[n]) * toRad, Math.min(1, 2 * globe.mix[n]));
         }
-        // Titre et compteur PR : image recopiée dans un canevas 2D, puis écrits dessus
+        // Titre et compteurs : image recopiée dans un canevas 2D (réduite en haute qualité), puis écrits dessus
         let image = gl.canvas;
-        if (title || counter) {
+        if (title || counter || speedometer || ss > 1) {
           overlay ??= new OffscreenCanvas(width, height);
           const ctx2d = overlay.getContext("2d");
-          ctx2d.drawImage(gl.canvas, 0, 0);
-          drawOverlay(ctx2d, width, height, { title, pr: counter ? prAt(path, x) : null, t: n / FPS });
+          ctx2d.imageSmoothingQuality = "high";
+          ctx2d.drawImage(gl.canvas, 0, 0, width, height);
+          drawOverlay(ctx2d, width, height, { title, pr: counter ? prAt(path, x) : null,
+            speed: speedometer ? { kmh: kmhs[n], digits: String(Math.round(Math.max(...kmhs))).length } : null, t: n / FPS });
           image = overlay;
         }
         const frame = new VideoFrame(image, { timestamp: Math.round(n * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
@@ -863,5 +996,5 @@ const Video = (() => {
   }
 
   return { supported, record, mp4, trajectory, timeline, duration, exposures, prAt, pans, rolls, lookedJunctions,
-    poiSpan, poiViews, FPS, HOLD };
+    poiSpan, poiViews, planets, tours, speeds, drawOverlay, FPS, HOLD };
 })();
