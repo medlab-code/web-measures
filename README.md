@@ -116,7 +116,15 @@ chaque vue est gardée pendant la lecture, l'export ne recharge rien. Grisé pen
 sans parcours et dans Safari, qui n'encode pas le WebP.
 **Vidéo du départ à l'arrivée** (même onglet), sans lire le parcours dans la visionneuse :
 « 🎬 Préparer la vidéo » cherche ses photos (mêmes choix de séquences, de bifurcation et d'arrivée que la lecture,
-toutes les photos des séquences parcourues) et prévient, dans la ligne d'état en orange et sous les listes, si le
+toutes les photos des séquences parcourues) et prévient ; sur une départementale (route à PR, départ et arrivée sur elle),
+le parcours reste sur la route de départ : quand la séquence s'en écarte de plus de 25 m (boucle ou aller-retour sur une
+voie secondaire), il reprend la même séquence là où elle revient sur la route (à 30 m de l'endroit quitté, vers
+l'arrivée : détour sauté), sinon une autre séquence qui suit la route, sinon demande où continuer (repère rouge à
+l'endroit quitté, clic sur la mini-carte ; Échap : détour gardé ; le point devient un repère violet gardé avec le
+parcours, repris sans question à la préparation suivante) ; plusieurs séquences au départ : chacune est essayée, celle
+qui demande le moins de questions, puis le moins de changements de séquence, est retenue (cas de la D906, PR 84 + 220 au
+PR 76 + 900 : boucles sur la RD 33 retirées, 1 492 photos au lieu de 1 828 ; essai `tests/essai-boucle.html`). Il prévient
+aussi, dans la ligne d'état en orange et sous les listes, si le
 parcours passe d'une séquence à l'autre (dates des séquences ; les photos peuvent différer) ; « 🎬 Enregistrer la
 vidéo » demande le fichier puis la calcule (deux clics : le navigateur n'ouvre la boîte d'enregistrement que juste
 après un clic). Changer le départ ou l'arrivée oblige à la préparer de nouveau. La vidéo est calculée image par

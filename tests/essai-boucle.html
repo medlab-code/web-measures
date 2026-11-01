@@ -1,0 +1,67 @@
+<!doctype html><meta charset="utf-8"><title>Essai du parcours sur la route de départ</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Recherche des photos de la vidéo (planPhotos) sur la D906 du PR 84 + 220 au PR 76 + 900 (cas de l'utilisateur du
+     01/11/2026 : la séquence quittait la D906 pour une boucle sur la RD 33 à deux croisements) : aucune photo à plus de
+     25 m du tracé de la D906. Une question « où continuer » est notée puis refusée (Échap). Lancer comme
+     tests/navigateur.html. -->
+<script>try { localStorage.clear(); } catch {}</script>
+<iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
+let failures = 0, checks = 0;
+const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + (detail ? " : " + detail : "")); } };
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  try {
+    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 180000, "Pyodide");
+    const doc = w.document;
+    doc.querySelector("#reglages-defaut")?.close();
+    w.mesures.map.jumpTo({ center: [4.3, 47.2], zoom: 13 });
+    await sleep(1500);
+    const type = (input, text) => { input.focus(); input.value = text; input.dispatchEvent(new w.Event("input", { bubbles: true })); };
+    doc.querySelector("#onglet-parcours").click();
+    const pane = doc.querySelector("#parcours");
+    const [route, pr, end] = pane.querySelectorAll(".champ input");
+    const [distance, endDistance] = pane.querySelectorAll(".distance");
+    const button = doc.querySelector("#parcours-video");
+    const status = () => doc.querySelector("#statut")?.textContent || "";
+    type(route, "906");
+    type(pr, "84");
+    distance.value = "220";
+    type(end, "76");
+    endDistance.value = "900";
+    await sleep(3000);
+    const t0 = Date.now();
+    button.click();
+    let asked = 0;
+    while (!/Enregistrer/.test(button.textContent) && !/impossible/.test(status())) {
+      if (Date.now() - t0 > 600000) throw new Error("délai dépassé : vidéo préparée");
+      if (/quitte la/.test(status())) {
+        asked++;
+        log(`question : ${status()}`);
+        doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      }
+      await sleep(500);
+    }
+    const plan = w.mesures.videoPlan;
+    log(`préparée en ${((Date.now() - t0) / 1000).toFixed(0)} s : ${plan?.photos?.length} photos, ${plan?.switches} changement(s) de séquence ; ${status()}`);
+    expect("vidéo préparée", plan?.photos?.length > 100, status());
+    const Lieu = w.eval("Lieu");
+    const away = [];
+    for (const p of plan?.photos || []) {
+      const d = await Lieu.roadDistance("D906", ...p.coords);
+      if (d > 25) away.push(`${p.coords.map((v) => v.toFixed(5)).join(",")} (${d.toFixed(0)} m, ${p.collection.slice(0, 8)})`);
+    }
+    log(`photos à plus de 25 m de la D906 : ${away.length}${away.length ? " : " + away.slice(0, 12).join(" ; ") : ""} ; questions : ${asked}`);
+    expect("parcours resté sur la D906 (aucune photo à plus de 25 m)", !away.length, away.length);
+  } catch (error) {
+    failures++;
+    log("ERREUR " + error + " " + (error.stack || "").split("\n")[1]);
+  }
+  log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
+  log(failures ? "ERREUR" : "FIN");
+})();
+</script>

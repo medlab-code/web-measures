@@ -382,5 +382,17 @@ const Lieu = (() => {
     return out;
   }
 
-  return { describe, features, junctions, milestone, project, segmentLength, structures };
+  /** Distance (m) du point (lon, lat) au tracé de la route numero (sections de PR de la BD TOPO, mailles en cache), ou
+   * Infinity si elle ne passe pas par là (ou n'a pas de PR). */
+  async function roadDistance(numero, lon, lat) {
+    let best = Infinity;
+    for (const f of await zone("section_de_points_de_repere", "numero_de_route,identifiant_de_section,geometrie", lon, lat)) {
+      if (f.properties?.numero_de_route === numero && f.geometry?.type === "LineString") {
+        best = Math.min(best, project(f.geometry.coordinates, lon, lat).d);
+      }
+    }
+    return best;
+  }
+
+  return { describe, features, junctions, milestone, project, roadDistance, segmentLength, structures };
 })();

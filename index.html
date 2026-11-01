@@ -439,6 +439,9 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <option value="presentation" selected>Présentation de l'itinéraire</option>
               <option value="revue">Revue détaillée</option></select></div>
           <p id="video-mode-aide" class="aide"></p>
+          <!-- Points de passage (où continuer quand la séquence quitte la route de départ, app.js viaBranch) : repères
+               violets, gardés avec le parcours ; case cachée, tenue par placePoint comme celles des autres endroits -->
+          <input id="video-passage" type="checkbox" hidden>
           <!-- Mode Présentation : allure (Video.presentationSpeeds ; réglettes provisoires, à affiner) et arrêts -->
           <div id="video-presentation" class="options">
             <div class="option" title="Allure de la présentation : vite dans les lignes droites, ralentie dans les virages pour que la vue n'y tourne pas trop vite (courbe large : un peu ; virage serré : beaucoup), jamais sous la vitesse au plus bas ; départ, arrivée et arrêts en douceur, accélérations et freinages progressifs. Réglages provisoires, à affiner.">
