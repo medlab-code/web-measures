@@ -41,11 +41,31 @@
     showLights();
   }
   const nativeFetch = window.fetch.bind(window);
+  // Requêtes GET aux API Panoramax et à la Géoplateforme : RETRY_TIMEOUT ms au plus chacune, reprises jusqu'à RETRIES
+  // fois après une panne réseau, un délai dépassé ou une erreur 5xx (pause de 1, 2, puis 4 s) : un service lent ou
+  // en panne passagère ne fait plus échouer la préparation d'une vidéo. Les refus en rafale (429) restent à chaque
+  // appelant (quotas de la Géoplateforme) ; une requête annulée par la page n'est pas reprise.
+  const RETRIES = 3, RETRY_TIMEOUT = 20000;
+  async function patientFetch(input, init) {
+    for (let attempt = 0; ; attempt++) {
+      const signals = [AbortSignal.timeout(RETRY_TIMEOUT), ...(init?.signal ? [init.signal] : [])];
+      try {
+        const response = await nativeFetch(input, { ...init, signal: AbortSignal.any(signals) });
+        if (response.status < 500 || attempt === RETRIES) return response;
+      } catch (error) {
+        if (init?.signal?.aborted || attempt === RETRIES) throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
+      if (init?.signal?.aborted) throw init.signal.reason;
+    }
+  }
   const trackedFetch = (input, init) => {
     const name = serviceName(input?.url ?? String(input));
     if (!name) return nativeFetch(input, init);
     const timer = setTimeout(() => markService(name, true), SILENT_AFTER);
-    return nativeFetch(input, init).then((response) => {
+    const patient = typeof input === "string" && (init?.method || "GET") === "GET" && init?.cache !== "no-store"  // no-store : vérification d'accès, réponse immédiate
+      && (name.startsWith("Panoramax") || /^(IGN|Géoplateforme)/.test(name));
+    return (patient ? patientFetch(input, init) : nativeFetch(input, init)).then((response) => {
       clearTimeout(timer);
       if (response.status !== 429) markService(name, response.status >= 500);
       return response;
@@ -2533,7 +2553,8 @@
   // planète, « poiZone » : zone de
   // l'effet du point d'intérêt ; petite planète et zone : en deux clics)
   let travelPick = null;
-  let planetDraft = null;  // premier clic du tronçon de petite planète en cours de tracé (LngLat ou null)
+  let planetDraft = null;
+  let chainedPick = false;  // arrivée demandée d'elle-même après le départ : son 📍 la garde au lieu de l'annuler  // premier clic du tronçon de petite planète en cours de tracé (LngLat ou null)
   // Endroits posés pour la vidéo, par sorte (« roll ») : [{ lonlat, marker, end }] (repère sur la carte ; un clic dessus
   // le retire ; end : fin du tronçon de la petite planète, lonlat en étant le début) ; css : classe du repère, label : nom, check : interrupteur de l'option, note : rappel à la pose
   const placed = {
@@ -3149,12 +3170,17 @@
     updateTravel();
     // Départ posé sans arrivée : le clic suivant pose l'arrivée (oubli du 📍 de l'arrivée : départ déplacé à sa place)
     const t = travelFields.state();
-    if (which === "start" && !t.end.point && !t.end.pr) setTravelPick("end");
+    if (which === "start" && !t.end.point && !t.end.pr) {
+      setTravelPick("end");
+      chainedPick = true;
+    }
   }
   for (const button of travelPane.querySelectorAll(".sur-carte")) {
     button.addEventListener("click", (event) => {
       event.preventDefault();  // 📍 du tonneau : dans la ligne de l'interrupteur, sans le basculer
-      setTravelPick(travelPick === button.dataset.cote ? null : button.dataset.cote);
+      const off = travelPick === button.dataset.cote && !chainedPick;
+      chainedPick = false;
+      setTravelPick(off ? null : button.dataset.cote);
     });
   }
   // Vitesse de regard affichée à côté de sa réglette ; elle change la durée de la vidéo
