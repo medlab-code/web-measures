@@ -719,8 +719,9 @@ const Video = (() => {
       }
       if (near.length < 3) return null;
       const m = median(near);
-      const shift = [0, 1, 2].map((c) => m[c] - values[i][c]);
-      return Math.abs(shift[0] + shift[1] + shift[2]) / 3 > EXPO_JUMP ? shift : null;
+      // Même gain sur les trois couleurs : la luminosité seule (par couleur, la teinte changeait d'une photo à l'autre)
+      const shift = (m[0] + m[1] + m[2] - values[i][0] - values[i][1] - values[i][2]) / 3;
+      return Math.abs(shift) > EXPO_JUMP ? [shift, shift, shift] : null;
     });
   }
 

@@ -133,7 +133,7 @@ d'horizon, sans le ciel ni le toit du véhicule ; rouge, vert et bleu séparéme
 dans le navigateur (un second rendu du même parcours ne recharge rien ; une photo toutes les 0,2 s : environ 30 Kio par
 photo, 50 Mo pour 5 km la première fois). Une photo isolée que la caméra a ratée (25 à 85 % plus claire ou plus sombre
 que ses voisines dans une forêt) est ramenée sur la médiane des photos de sa séquence prises à ± 0,6 s, si elle s'en
-écarte de plus de 22 % : la vidéo ne clignote plus, et les vrais changements du décor (clairière, champ) sont gardés.
+écarte de plus de 22 % (même gain sur les trois couleurs : la teinte ne change pas) : la vidéo ne clignote plus, et les vrais changements du décor (clairière, champ) sont gardés.
 Ne sont pas corrigés : la surexposition qui dure 2 à 3 s à la sortie de l'ombre (la caméra s'adapte lentement ; une
 médiane plus large l'atténue mais assombrit aussi le décor des forêts) et le ciel brûlé sous les arbres (perdu dans la
 photo). Aux changements de séquence, une autre campagne peut être bien plus claire ou plus sombre (juillet 2025 : 1,5
