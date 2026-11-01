@@ -528,6 +528,10 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .texte-option .aide { display: block; margin-top: 0.1rem; font-size: 0.85em; }
 .texte-option .reglette-option { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.2rem; font-size: 0.85em; }
 .texte-option .reglette-option input { width: 8em; margin: 0; }
+/* Titre de la vidéo : champs à la hauteur des listes de l'onglet (28 px), sur toute la largeur ; rappel à la taille normale */
+.texte-option .reglette-option.champ-titre { font-size: 1em; }
+.texte-option .reglette-option.champ-titre input[type="text"] { width: 100%; height: 28px; box-sizing: border-box; padding: 0 0.5em; }
+.texte-option .reglette-option.champ-titre input.interrupteur { width: 2.4rem; }
 /* Valeur de largeur fixe (« 3 s », « 4,5 s », « 100 km/h ») : la réglette ne se décale pas pendant qu'on la tire */
 .texte-option .reglette-option output { display: inline-block; text-align: right; font-variant-numeric: tabular-nums; }
 #tonneau-valeur, #planete-valeur, #tour-valeur { min-width: 3.2em; }
