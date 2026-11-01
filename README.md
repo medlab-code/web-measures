@@ -1134,4 +1134,5 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Licence
 
-GPL v2 ou ultérieure (fichier `LICENSE`), comme le plugin dont les calculs sont repris.
+GPL v2 ou ultérieure (fichier `LICENSE`), comme le plugin dont les calculs sont repris. Bibliothèques, données et
+services tiers, avec leurs licences et les mentions à garder : `LICENCES-TIERCES.md`.
