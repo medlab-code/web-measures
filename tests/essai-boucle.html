@@ -65,6 +65,21 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     }
     log(`photos à plus de 25 m de la D906 : ${away.length}${away.length ? " : " + away.slice(0, 12).join(" ; ") : ""} ; questions : ${asked}`);
     expect("parcours resté sur la D906 (aucune photo à plus de 25 m)", !away.length, away.length);
+    // Étape posée au milieu, sur la D906 : même parcours (à 2 % près), toujours sur la D906, par deux tronçons
+    const middle = plan.photos[plan.photos.length >> 1].coords, m = w.mesures.map;
+    pane.querySelector('.sur-carte[data-cote="waypoint"]').click();
+    m.fire("click", { lngLat: new w.maplibregl.LngLat(...middle), point: m.project(middle), originalEvent: new w.MouseEvent("click") });
+    await sleep(500);
+    expect("étape : repère posée, vidéo à préparer de nouveau", doc.querySelectorAll(".repere-requete.etape").length === 1
+      && /Préparer/.test(button.textContent), doc.querySelector("#parcours-etapes-infos").textContent);
+    button.click();
+    await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 600000, "vidéo préparée par l'étape");
+    const via = w.mesures.videoPlan;
+    let off = 0;
+    for (const p of via?.photos || []) if ((await Lieu.roadDistance("D906", ...p.coords)) > 25) off++;
+    log(`par l'étape : ${via?.photos?.length} photos (${plan.photos.length} sans), ${via?.switches} changement(s), ${off} hors de la D906 ; ${status()}`);
+    expect("étape : même parcours, sur la D906", via && Math.abs(via.photos.length - plan.photos.length) <= 0.02 * plan.photos.length && !off,
+      `${via?.photos?.length} ${off}`);
   } catch (error) {
     failures++;
     log("ERREUR " + error + " " + (error.stack || "").split("\n")[1]);

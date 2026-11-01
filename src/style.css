@@ -362,6 +362,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .repere-requete:is(.depart, .arrivee, .tonneau, .planete, .tour) { width: 26px; height: 42px; border: 0; border-radius: 0;
   background: none; box-shadow: none; --epingle: #d40000; filter: drop-shadow(-1px 1px 2px rgba(0, 0, 0, 0.5)); }
 .repere-requete.depart { --epingle: #1e9e3a; }
+.repere-requete.etape { --epingle: #3949ab; }  /* étape de la vidéo, entre le départ et l'arrivée */
 .repere-requete.tonneau { --epingle: #1e6fd9; }  /* endroit du tonneau de la vidéo */
 .repere-requete.planete { --epingle: #00897b; }  /* endroit de la petite planète */
 .repere-requete.tour { --epingle: #6d4c41; }  /* endroit du tour d'horizon */
@@ -383,6 +384,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   border-radius: 50%; background: #fff; }
 .pastille.depart { background: #1e9e3a; }
 .pastille.arrivee { background: #d40000; }
+.pastille.etape { background: #3949ab; }
 .pastille { display: inline-block; width: 10px; height: 10px; margin-right: 0.3rem; border: 1px solid #555; border-radius: 50%;
   vertical-align: -1px; }
 

@@ -403,6 +403,12 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               aria-label="Distance depuis le PR d'arrivée (m)"> m
               <button type="button" class="sur-carte" data-cote="end" aria-pressed="false"
                 title="Choisir l'arrivée d'un clic sur la mini-carte (Échap : annuler)">📍</button></div>
+            <!-- Étapes de la vidéo (app.js planLegs) : repères bleus, dans l'ordre de pose ; case cachée tenue par placePoint -->
+            <div class="ligne"><span><span class="pastille etape" aria-hidden="true"></span>Étapes</span>
+              <span id="parcours-etapes-infos" class="aide">aucune</span>
+              <button type="button" class="sur-carte" data-cote="waypoint" aria-pressed="false"
+                title="Ajouter une étape d'un clic sur la mini-carte, sur une route photographiée : la vidéo y passe, dans l'ordre de pose des étapes ; clic sur son repère : la retirer (Échap : annuler)">📍</button>
+              <input id="parcours-etapes" type="checkbox" hidden></div>
             <div class="ligne"><span>Lecture</span>
               <select id="parcours-vitesse" aria-label="Vitesse de lecture" title="Toutes les photos, ou une sur 2, 4 ou 8 : tous les 5, 10, 20 ou 40 m pour les photos du CD21">
                 <option value="1">1x (5 m)</option><option value="2" selected>2x (10 m)</option><option value="4">4x (20 m)</option><option value="8">8x (40 m)</option></select>

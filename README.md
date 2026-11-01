@@ -125,7 +125,11 @@ l'arrivée : détour sauté), sinon une autre séquence qui suit la route, sinon
 l'endroit quitté, clic sur la mini-carte ; Échap : détour gardé ; le point devient un repère violet gardé avec le
 parcours, repris sans question à la préparation suivante) ; plusieurs séquences au départ : chacune est essayée, celle
 qui demande le moins de questions, puis le moins de changements de séquence, est retenue (cas de la D906, PR 84 + 220 au
-PR 76 + 900 : boucles sur la RD 33 retirées, 1 492 photos au lieu de 1 828 ; essai `tests/essai-boucle.html`). Il prévient
+PR 76 + 900 : boucles sur la RD 33 retirées, 1 492 photos au lieu de 1 828 ; essai `tests/essai-boucle.html`). Étapes : 📍
+sous l'arrivée, un clic sur la mini-carte (sur une route photographiée, à 40 m au plus) pose une étape, repère bleu ; la
+vidéo y passe, dans l'ordre de pose, cherchée tronçon par tronçon avec les mêmes règles, tronçons mis bout à bout
+(changement de séquence entre deux tronçons compté) ; clic sur un repère : étape retirée ; gardées avec le parcours ;
+pour la vidéo seulement, pas pour « ▶ Parcourir ». Il prévient
 aussi, dans la ligne d'état en orange et sous les listes, si le
 parcours passe d'une séquence à l'autre (dates des séquences ; les photos peuvent différer) ; « 🎬 Enregistrer la
 vidéo » demande le fichier puis la calcule (deux clics : le navigateur n'ouvre la boîte d'enregistrement que juste

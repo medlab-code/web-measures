@@ -2567,6 +2567,8 @@
       note: "à moins de 30 m du parcours" },
     stop: { points: [], css: "arret", label: ["arrêt", "arrêts"], check: "#video-arret",
       note: "à moins de 30 m du parcours ; ralentir, s'arrêter, repartir" },
+    waypoint: { points: [], css: "etape", label: ["étape", "étapes"], check: "#parcours-etapes",
+      note: "la vidéo y passe, dans l'ordre de pose des étapes" },
     via: { points: [], css: "passage", label: ["point de passage", "points de passage"], check: "#video-passage",
       note: "là où la séquence quitte la route" },
     tour: { points: [], css: "tour", label: ["tour d'horizon", "tours d'horizon"], check: "#video-tour",
@@ -3174,6 +3176,32 @@
     throw new Error("parcours trop long");
   }
 
+  /** Photos du parcours de start à end par ses étapes (placed.waypoint, dans l'ordre de pose) : planPhotos d'un point au
+   * suivant, mis bout à bout (photo commune une seule fois, changement de séquence compté entre deux tronçons) ; même
+   * forme de résultat. */
+  async function planLegs(start, end, road) {
+    const points = [start, ...placed.waypoint.points.map((p) => p.lonlat), end];
+    const out = { photos: [], switches: 0, dates: [], warning: "" };
+    for (let k = 1; k < points.length; k++) {
+      if (points.length > 2) setStatus(`Vidéo : recherche des photos, tronçon ${k} / ${points.length - 1}…`);
+      let leg;
+      try {
+        leg = await planPhotos(points[k - 1], points[k], road);
+      } catch (error) {
+        throw points.length > 2 ? new Error(`${k === 1 ? "du départ" : `de l'étape ${k - 1}`} à `
+          + `${k === points.length - 1 ? "l'arrivée" : `l'étape ${k}`} : ${error.message}`) : error;
+      }
+      const last = out.photos.at(-1);
+      if (last && leg.photos[0]?.id === last.id) leg.photos.shift();
+      if (last && leg.photos[0] && leg.photos[0].collection !== last.collection) out.switches++;
+      out.photos.push(...leg.photos);
+      out.switches += leg.switches;
+      out.dates = [...new Set([...out.dates, ...leg.dates])].sort();
+      out.warning ||= leg.warning;
+    }
+    return out;
+  }
+
   const ROAD_KEEP = 15, ROAD_LEAVE = 25;  // m du tracé de la route : sur elle ; au-delà, quittée (détour, boucle)
   const ROAD_BACK = 30, ROAD_AHEAD = 400;  // m de l'endroit quitté, rangs lus plus loin : retour de la même séquence
   const VIA_REACH = 300;  // m : point de passage gardé repris pour une sortie de route à moins de cette distance
@@ -3246,7 +3274,7 @@
       button.setAttribute("aria-pressed", String(button.dataset.cote === which));
     }
     if (which) {
-      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau", stop: "l'endroit de l'arrêt", slow: "un point de ralentissement", via: "où continuer", planet: planetDraft ? "la fin de la petite planète" : "le début de la petite planète (le long de la route)", tour: "l'endroit du tour d'horizon",
+      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau", stop: "l'endroit de l'arrêt", slow: "un point de ralentissement", via: "où continuer", waypoint: "une étape (sur une route photographiée)", planet: planetDraft ? "la fin de la petite planète" : "le début de la petite planète (le long de la route)", tour: "l'endroit du tour d'horizon",
         poiZone: poi.draft ? "la fin de la zone de l'effet" : "le début de la zone de l'effet (le long de la route)" }[which]} ; `
         + "Échap pour annuler.");
     }
@@ -3265,11 +3293,13 @@
       point.marker.remove();
       kind.points = kind.points.filter((p) => p !== point);
       if (!kind.points.length && !(which === "planet" && $("#planete-tout").checked)) $(kind.check).checked = false;
+      if (which === "waypoint") videoPlan = null;  // parcours changé : vidéo à préparer de nouveau
       setStatus(`Retiré ; ${placedCount(kind)} en tout.`);
       showPlanets();
       updatePlayer();
     });
     kind.points.push(point);
+    if (which === "waypoint") videoPlan = null;
     $(kind.check).checked = true;
     showPlanets();
     updatePlayer();
@@ -3300,7 +3330,7 @@
       setTravelPick("planet");
       return;
     }
-    if (placed[which]) {  // tonneau, petite planète : endroit ajouté, interrupteur activé ; le parcours ne change pas
+    if (placed[which]) {  // tonneau, petite planète… : endroit ajouté, interrupteur activé (étape : vidéo à préparer)
       const kind = which === "planet" ? placePoint(which, [planetDraft.lng, planetDraft.lat], [lngLat.lng, lngLat.lat])
         : placePoint(which, [lngLat.lng, lngLat.lat]);
       planetDraft = null;
@@ -3880,7 +3910,7 @@
         if (metresBetween(found.start, found.end) < TOUR_REACH) {
           throw new Error(`départ et arrivée au même endroit (moins de ${TOUR_REACH} m) : choisissez l'arrivée (📍 de l'arrivée, ou son PR)`);
         }
-        videoPlan = { ...await planPhotos(found.start, found.end, travelFields.state().route), title: found.title };
+        videoPlan = { ...await planLegs(found.start, found.end, travelFields.state().route), title: found.title };
         setStatus("Vidéo : PR des photos…");
         await prOfPhotos(videoPlan.photos, found.title.split(" ")[0]);
         // Carrefours du parcours (regard aux croisements) : tronçons de la BD TOPO, mailles en cache
@@ -4197,6 +4227,8 @@
     }
     for (const which of ["stop", "slow"]) travelPane.querySelector(`.sur-carte[data-cote="${which}"]`).disabled = Boolean(videoRun);
     showModeHelp();  // mode rétabli par un parcours gardé ou la RAZ
+    const stops = placed.waypoint.points.length;
+    $("#parcours-etapes-infos").textContent = stops ? `${stops} étape${stops > 1 ? "s" : ""}, dans l'ordre de pose` : "aucune";
     $("#parcours-apercu").disabled = !preview && (!videoPlan || videoPlan.photos.length < 2 || Boolean(videoRun));
     $("#parcours-apercu").textContent = preview ? "■ Arrêter l'aperçu" : "▶ Aperçu";
     clearTimeout(allureTimer);
