@@ -52,7 +52,8 @@ const Video = (() => {
   const RAMP_MARKED = 1;  // °/m : au-delà (virage marqué, rayon de moins de 57 m), sensibilité doublée
   const RAMP_EDGE = 50;  // m : départ et arrivée en douceur sur cette distance
   const RAMP_SMOOTH = 15;  // m : vitesse lissée sur ± RAMP_SMOOTH m (pas d'à-coup)
-  const TITLE_FADE = [2, 3];  // s : titre plein jusqu'à 2 s, effacé à 3 s
+  const TITLE_TIME = [0.3, 0.9, 4, 4.6];  // s : carton du titre glissé à l'entrée (de 0,3 à 0,9 s), plein jusqu'à 4 s, effacé à 4,6 s
+  const TITLE_ACCENT = "#ffb300";  // trait du titre (même ambre que les libellés des compteurs)
   const LOOK_LEAD = 0.9;  // s : regard déjà dans l'axe de la voie croisée avant le passage au carrefour (anticipation)
   const LOOK_TURN = 0.8;  // s : rotation vers la voie croisée ; retour dans l'axe du parcours en LOOK_TURN / 2
   const LOOK_BRAKE = 1.5;  // s : freinage avant le regard d'un carrefour, et reprise après
@@ -219,12 +220,59 @@ const Video = (() => {
     return digits * cell;
   }
 
-  /** Titre (fondu à TITLE_FADE s), compteur PR (en bas à gauche), compteur de vitesse (speed : { kmh, digits }, en bas à
+  /** Carton du titre (title : { text, sub, keep }) à l'instant t (s) : bandeau sombre au tiers inférieur, trait ambre à
+   * gauche, titre en gras et sous-titre plus clair, glissé et fondu à l'entrée, fondu à la sortie (TITLE_TIME) ; keep :
+   * rappel en petit en haut à gauche ensuite, jusqu'à la fin. font(taille, graisse) : police des incrustations. */
+  function drawTitle(ctx, w, h, title, t, font) {
+    const ease = (x) => 1 - (1 - x) ** 3;
+    const [a, b, c, d] = TITLE_TIME;
+    const show = t < a ? 0 : t < b ? ease((t - a) / (b - a)) : t < c ? 1 : t < d ? 1 - (t - c) / (d - c) : 0;
+    if (show > 0) {
+      const big = h * 0.062, small = h * 0.034, pad = h * 0.035, bar = h * 0.008, x0 = h * 0.06, y0 = h * 0.6;
+      ctx.font = font(big, 700);
+      const textWidth = Math.max(ctx.measureText(title.text).width, (ctx.font = font(small, 400), title.sub ? ctx.measureText(title.sub).width : 0));
+      const boxW = Math.min(w - 2 * x0, textWidth + 2 * pad + bar), boxH = big * 1.25 + (title.sub ? small * 1.6 : 0) + 1.2 * pad;
+      const x = x0 - (t < b ? (1 - show) * h * 0.08 : 0);  // glissé depuis la gauche à l'entrée
+      ctx.globalAlpha = show;
+      ctx.fillStyle = "rgba(12, 18, 26, 0.78)";
+      ctx.fillRect(x, y0, boxW, boxH);
+      ctx.fillStyle = TITLE_ACCENT;
+      ctx.fillRect(x, y0, bar, boxH);
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#fff";
+      ctx.font = font(big, 700);
+      ctx.fillText(title.text, x + bar + pad, y0 + 0.6 * pad + big, boxW - bar - 2 * pad);
+      if (title.sub) {
+        ctx.fillStyle = "#cfd8dc";
+        ctx.font = font(small, 400);
+        ctx.fillText(title.sub, x + bar + pad, y0 + 0.6 * pad + big * 1.25 + small * 1.25, boxW - bar - 2 * pad);
+      }
+      ctx.globalAlpha = 1;
+    }
+    // Rappel : le titre en petit en haut à gauche, apparu en fondu après le carton
+    const keep = title.keep ? Math.max(0, Math.min(1, (t - d) / 0.5)) : 0;
+    if (keep > 0) {
+      const size = h * 0.03, pad = size * 0.45, bar = h * 0.005, x0 = h * 0.04, y0 = h * 0.04;
+      ctx.font = font(size, 600);
+      const width = Math.min(w * 0.6, ctx.measureText(title.text).width);
+      ctx.globalAlpha = keep;
+      ctx.fillStyle = "rgba(12, 18, 26, 0.6)";
+      ctx.fillRect(x0, y0, width + 2 * pad + bar, size + 2 * pad);
+      ctx.fillStyle = TITLE_ACCENT;
+      ctx.fillRect(x0, y0, bar, size + 2 * pad);
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "left";
+      ctx.fillText(title.text, x0 + bar + pad, y0 + pad + size * 0.85, width);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /** Titre (drawTitle), compteur PR (en bas à gauche), compteur de vitesse (speed : { kmh, digits }, en bas à
    * droite) et accélération latérale ressentie (lateral : { felt, color } : millièmes de g et couleur de lateralColor ; à
    * gauche du compteur de vitesse, sinon à sa place) et vitesse max ARP (arp : { kmh }, kmh null : « — » ; au-dessus du
    * compteur de vitesse) sur l'image (contexte 2D ctx, w × h) ; t : secondes depuis le début. */
   function drawOverlay(ctx, w, h, { title, pr, speed, lateral = null, arp = null, t }) {
-    const font = (size, weight = 500) => `${weight} ${Math.round(size)}px Roboto, "Segoe UI", sans-serif`;
+    const font = (size, weight = 500) => `${weight} ${Math.round(size)}px Inter, Roboto, "Segoe UI", sans-serif`;
     // Cadre aux coins arrondis (rayon : un centième de la hauteur de l'image)
     const box = (x, y, bw, bh) => {
       ctx.beginPath();
@@ -232,25 +280,7 @@ const Video = (() => {
       ctx.fill();
     };
     ctx.textBaseline = "alphabetic";
-    const alpha = title ? Math.max(0, Math.min(1, (TITLE_FADE[1] - t) / (TITLE_FADE[1] - TITLE_FADE[0]))) : 0;
-    if (alpha > 0) {
-      const big = h * 0.055, small = h * 0.032;
-      ctx.font = font(big);
-      const width = Math.max(ctx.measureText(title.text).width, (ctx.font = font(small, 400), ctx.measureText(title.sub || "").width));
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
-      box((w - width) / 2 - big * 0.6, h * 0.06, width + big * 1.2, big * 1.5 + (title.sub ? small * 1.5 : 0));
-      ctx.fillStyle = "#fff";
-      ctx.textAlign = "center";
-      ctx.font = font(big);
-      ctx.fillText(title.text, w / 2, h * 0.06 + big * 1.15);
-      if (title.sub) {
-        ctx.font = font(small, 400);
-        ctx.fillText(title.sub, w / 2, h * 0.06 + big * 1.15 + small * 1.4);
-      }
-      ctx.textAlign = "left";
-      ctx.globalAlpha = 1;
-    }
+    if (title) drawTitle(ctx, w, h, title, t, font);
     if (pr) {
       const size = h * 0.045, pad = size * 0.45, x0 = h * 0.04, y0 = h - h * 0.05;
       ctx.font = font(size);
@@ -1065,7 +1095,7 @@ const Video = (() => {
    * options.blur : flou cinétique (moyenne de BLUR vues réparties entre la position de l'image
    * précédente et celle-ci : le proche défilant vite s'étale) ; options.exposure : false pour ne pas corriger la
    * luminosité ; options.ramp : rampe de vitesse (timeline) ; options.title :
-   * { text, sub } en titre au début ; options.counter : compteur PR (photo.pr, prAt) ; options.speedometer : compteur de
+   * { text, sub, keep } en titre au début (drawTitle ; keep : rappel en incrustation) ; options.counter : compteur PR (photo.pr, prAt) ; options.speedometer : compteur de
    * vitesse (speeds) ; options.lateral : accélération latérale (laterals, insideDevers) ; options.arpSpeed : vitesse
    * max ARP (arpSpeeds) ; options.junctions : carrefours où regarder (pans) ; options.rolls : endroits des tonneaux
    * ([[lon, lat]…], rolls), options.rollTime : durée de chacun (s) ; options.lookSpeed : vitesse de regard aux carrefours (km/h) ;

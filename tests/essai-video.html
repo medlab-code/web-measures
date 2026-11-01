@@ -91,12 +91,24 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       // Rampe de vitesse, D115D du PR 1 + 146 au PR 0 (1,1 km : virages de la sortie d'Aloxe-Corton, carrefour de la
       // RD18) à 90 km/h (25 m/s) : pleine vitesse en ligne droite, ralentie au virage le plus serré, jamais sous 35 %,
       // départ et arrivée en douceur ; vidéo seulement préparée (pas calculée)
-      // Aucune option cochée par défaut ; ordre demandé : compteurs, accélération, titre, qualité, flou, exposition, rampe, avancée
-      const boxes = [...doc.querySelectorAll("#parcours .options > label.option > input[type=checkbox]")];
-      expect("options : aucune cochée par défaut", boxes.every((b) => !b.checked), boxes.filter((b) => b.checked).map((b) => b.id).join(" "));
-      expect("options : dans l'ordre demandé", boxes.slice(0, 10).map((b) => b.id).join(" ")
-        === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp video-titre video-hq video-flou video-expo video-rampe video-avancee",
+      // Mode Présentation à l'ouverture : compteurs PR et vitesse, rampe et titre cochés, le reste non ; options actuelles
+      // repliées dans « Options avancées », dans l'ordre demandé : compteurs, accélération, qualité, flou, exposition,
+      // rampe, avancée ; titre à part, au-dessus
+      const boxes = [...doc.querySelectorAll("#video-avancees .options > label.option > input[type=checkbox]")];
+      const on = (list) => list.filter((b) => b.checked).map((b) => b.id).join(" ");
+      expect("mode Présentation par défaut", doc.querySelector("#video-mode").value === "presentation" && doc.querySelector("#video-titre").checked
+        && on(boxes) === "video-compteur video-compteur-vitesse video-rampe", on(boxes));
+      expect("options avancées repliées, dans l'ordre demandé", !doc.querySelector("#video-avancees").open && boxes.slice(0, 9).map((b) => b.id).join(" ")
+        === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp video-hq video-flou video-expo video-rampe video-avancee",
         boxes.map((b) => b.id).join(" "));
+      const mode = doc.querySelector("#video-mode");
+      mode.value = "revue";
+      mode.dispatchEvent(new w.Event("change"));
+      expect("mode Revue : quatre compteurs, sans rampe", on(boxes) === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp", on(boxes));
+      mode.value = "presentation";
+      mode.dispatchEvent(new w.Event("change"));
+      expect("titre : champs grisés sans titre", (() => { const t = doc.querySelector("#video-titre"); t.click();
+        const off = doc.querySelector("#video-titre-texte").disabled; t.click(); return off && !doc.querySelector("#video-titre-texte").disabled; })());
       expect("options : plus de panoramique au changement de séquence", !doc.querySelector("#video-pano"));
       type(end, "0");
       endDistance.value = "0";

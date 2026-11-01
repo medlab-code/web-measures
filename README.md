@@ -128,7 +128,11 @@ par Chrome, Firefox et VLC, peut-être pas par PowerPoint, une seconde d'arrêt 
 simulée (de 30 à 720 km/h, 90 par défaut, puis Mach 1 et Mach 2 : 1 235 et 2 470 km/h, vitesse du son au niveau de
 la mer ; des photos y sont sautées) et la part des photos de la séquence prises (1/1, 1/2, 1/4, 1/8 ;
 chaque choix indique l'écart obtenu, par exemple « une tous les 10 m »).  S'affichent aussi le nombre de photos retenues, la durée de la vidéo et le nombre de photos
-par seconde ; au-delà de 30 photos par seconde (une par image), des photos sont sautées. Chaque option a sa case. « Corrections de luminosité » (décochée) : la luminosité de chaque photo est mesurée sur sa vignette (tout le tour
+par seconde ; au-delà de 30 photos par seconde (une par image), des photos sont sautées. Liste « Mode » : « Présentation de
+l'itinéraire » (à l'ouverture : compteurs PR et vitesse, rampe de vitesse et titre ; ni accélération, ni V max ARP, ni haute
+qualité, flou ou corrections de luminosité) ou « Revue détaillée » (compteurs PR, vitesse, accélération latérale et
+V max ARP, sans rampe) ; le choix coche ou décoche ces options, retouchables ensuite, et une ligne d'aide le résume.
+Les options ci-dessous sont repliées sous « Options avancées », sauf le titre ; chacune a sa case. « Corrections de luminosité » (décochée) : la luminosité de chaque photo est mesurée sur sa vignette (tout le tour
 d'horizon, sans le ciel ni le toit du véhicule ; rouge, vert et bleu séparément), six à la fois à la préparation, et gardée
 dans le navigateur (un second rendu du même parcours ne recharge rien ; une photo toutes les 0,2 s : environ 30 Kio par
 photo, 50 Mo pour 5 km la première fois). Une photo isolée que la caméra a ratée (25 à 85 % plus claire ou plus sombre
@@ -138,16 +142,19 @@ Ne sont pas corrigés : la surexposition qui dure 2 à 3 s à la sortie de l'omb
 médiane plus large l'atténue mais assombrit aussi le décor des forêts) et le ciel brûlé sous les arbres (perdu dans la
 photo). Aux changements de séquence, une autre campagne peut être bien plus claire ou plus sombre (juillet 2025 : 1,5
 fois plus clair que mai au carrefour RD18 / D115D) ; la nouvelle séquence est ramenée sur la précédente (3 photos de part
-et d'autre), puis revient peu à peu à sa propre exposition sur 100 m. « Rampe de vitesse » (décochée par défaut) : la vitesse choisie devient celle des lignes droites ; la
+et d'autre), puis revient peu à peu à sa propre exposition sur 100 m. « Rampe de vitesse » (cochée à l'ouverture) : la vitesse choisie devient celle des lignes droites ; la
 vidéo ralentit dans les virages et aux carrefours (facteur 1 / (1 + rotation du cap / 1,5° par mètre), la rotation
 au-delà de 1° par mètre, virage marqué, comptant double ; jusqu'à 35 % au plus bas : virage de 30 m de rayon à 37 %), part et s'arrête en douceur sur 50 m, sans à-coup (vitesse lissée sur ± 15 m) ; la durée affichée en
 tient compte. Sur la D115D (1,1 km, rayon de 95 m au plus serré), la vitesse varie de 76 à 100 % et la vidéo passe
-de 47,5 à 53 s à 90 km/h. « Titre » (décochée) : au début, en haut au centre, la route, les PR de départ et
-d'arrivée et la date des photos, effacé en fondu vers 3 s. « Compteur PR » (décochée) : en bas à gauche, la route et
+de 47,5 à 53 s à 90 km/h. « Titre » (cochée, au-dessus des options avancées) : carton au début,
+bandeau sombre au tiers inférieur avec un trait ambre à gauche, titre en gras et sous-titre plus clair, glissé depuis la
+gauche à l'entrée (0,3 à 0,9 s), effacé en fondu de 4 à 4,6 s ; texte libre (80 caractères) et sous-titre libre, ou,
+laissés vides, la route et les PR de départ et d'arrivée, et la date des photos ; « Rappel en incrustation » (décoché) :
+le titre en petit en haut à gauche ensuite, jusqu'à la fin ; champs grisés sans titre. Aperçu : `tests/apercu-titre.html`. « Compteur PR » (cochée à l'ouverture) : en bas à gauche, la route et
 le PR ; les mètres défilent en continu, en rouleaux comme un compteur kilométrique (interpolés image par image entre
 les photos ; au passage d'un PR, l'ancien va jusqu'à son bout, puis le nouveau). Le PR de chaque photo est cherché à
 la préparation, sur la route du parcours (autre route après une bifurcation : cherchée une fois), avec les sections
-et PR de la BD TOPO déjà gardés en cache. « Compteur de vitesse » (décochée) : en bas à droite, dans le même cadre,
+et PR de la BD TOPO déjà gardés en cache. « Compteur de vitesse » (cochée à l'ouverture) : en bas à droite, dans le même cadre,
 la vitesse de la vidéo à chaque instant en km/h (rampe, ralentissements, arrêts du tour d'horizon), lissée sur un
 quart de seconde comme une aiguille ; chiffres en rouleaux, zéros de tête masqués. « Accélération latérale » (décochée) : en bas à droite, à gauche du compteur
 de vitesse s'il est affiché, l'accélération latérale ressentie (« Accél. ressentie »), en millièmes de g (mG) :

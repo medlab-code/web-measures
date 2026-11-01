@@ -3323,7 +3323,7 @@
   // Parcours gardés (onglet « Parcours ») : départ, arrivée et réglages de la vidéo (options, endroits des tonneaux et
   // des planètes, zone et cible du point d'intérêt, filtre de date), rouverts d'un clic ; export de la liste ou d'un
   // seul (pour un collègue), import ajouté à la liste
-  const routeSettings = () => [$("#video-vitesse"), $("#video-photos"), ...travelPane.querySelectorAll(".options input")];
+  const routeSettings = () => [$("#video-mode"), $("#video-vitesse"), $("#video-photos"), ...travelPane.querySelectorAll(".options input")];
   // Parcours gardé rouvert (ou venant d'être gardé) : son identifiant, et l'état de ses réglages à l'ouverture (routeSnapshot) ;
   // modifié : « ☆ Enregistrer… » propose de le remplacer dans la liste ou d'en créer un nouveau
   let openedRoute = null, openedSnapshot = "";
@@ -3386,7 +3386,7 @@
       travel: { route: text(r.travel.route, 20), start: side(r.travel.start), end: side(r.travel.end) },
       settings: Object.fromEntries(Object.entries(r.settings || {})
         .filter(([k, v]) => ids.has(k) && (typeof v === "boolean" || typeof v === "string"))
-        .map(([k, v]) => [k, typeof v === "string" ? v.slice(0, 20) : v])),
+        .map(([k, v]) => [k, typeof v === "string" ? v.slice(0, 120) : v])),  // titre libre : 80 caractères
       places: Object.fromEntries(Object.keys(placed).map((k) => [k,
         (Array.isArray(r.places?.[k]) ? r.places[k] : []).filter((p) => lonlat(p) || (k === "planet" && Array.isArray(p)
           && p.length === 2 && p.every(lonlat))).slice(0, 50)])),
@@ -3438,6 +3438,26 @@
     setStatus(`Parcours « ${r.name} » rouvert : « 🎬 Préparer la vidéo » pour la calculer ; modifié, « ☆ Enregistrer les modifications » le remplace.`);
   }
   // Effets « communication » : pastille jaune sur le parcours gardé si l'un d'eux est activé, verte sinon
+  // Modes de la vidéo : réglages de départ des options (avancées), appliqués au choix du mode et retouchables ensuite ;
+  // la page s'ouvre en mode Présentation (cases cochées d'origine)
+  const VIDEO_MODES = {
+    presentation: { help: "Vue rapide de l'itinéraire : compteurs PR et vitesse, vitesse adaptée aux virages, sans option coûteuse en calcul.",
+      on: ["video-compteur", "video-compteur-vitesse", "video-rampe", "video-titre"],
+      off: ["video-acceleration", "video-vmax-arp", "video-hq", "video-flou", "video-expo"] },
+    revue: { help: "Revue à vitesse fixe : compteurs PR, vitesse, accélération latérale et V max ARP (dévers lu sur le LiDAR HD, plus lent) ; options de qualité dans les options avancées.",
+      on: ["video-compteur", "video-compteur-vitesse", "video-acceleration", "video-vmax-arp", "video-titre"],
+      off: ["video-rampe"] },
+  };
+  const showModeHelp = () => { $("#video-mode-aide").textContent = VIDEO_MODES[$("#video-mode").value]?.help || ""; };
+  $("#video-mode").addEventListener("change", () => {
+    const mode = VIDEO_MODES[$("#video-mode").value];
+    for (const id of mode.on) $(`#${id}`).checked = true;
+    for (const id of mode.off) $(`#${id}`).checked = false;
+    showModeHelp();
+    updatePlayer();
+  });
+  showModeHelp();
+  $("#video-titre").addEventListener("change", updatePlayer);
   const ROUTE_EFFECTS = [["video-tonneau", "tonneau"], ["video-planete", "petite planète"], ["video-interet", "point d'intérêt"],
     ["video-regard", "regard aux croisements"], ["video-tour", "tour d'horizon"]];
   /** Réglage remis à sa valeur de la page (case, liste, réglette). */
@@ -3769,8 +3789,10 @@
         tourTime: Number($("#tour-duree").value), tourStop: $("#tour-arret").checked,
         poi: poiAim,
         lookSpeed: Number($("#regard-vitesse").value),
-        title: $("#video-titre").checked ? { text: videoPlan.title.replace(/\+0*(\d)/g, "+$1"),
-          sub: `Photos du ${videoPlan.dates.map((d) => d.split("-").reverse().join("/")).join(", du ") || "?"}` } : null,
+        title: $("#video-titre").checked ? { text: $("#video-titre-texte").value.trim() || videoPlan.title.replace(/\+0*(\d)/g, "+$1"),
+          sub: $("#video-titre-sous").value.trim()
+            || `Photos du ${videoPlan.dates.map((d) => d.split("-").reverse().join("/")).join(", du ") || "?"}`,
+          keep: $("#video-titre-rappel").checked } : null,
         stream });
       if (!stream) await save(blob);
       const size = stream ? (await save.handle.getFile()).size : blob.size;
@@ -3892,6 +3914,11 @@
     }
     travelPane.querySelector('.sur-carte[data-cote="planet"]').disabled = $("#planete-tout").checked;  // rien à tracer
     $("#planete-tonneau").disabled = Boolean(videoRun) || !Number($("#planete-transition").value);
+    $("#video-mode").disabled = Boolean(videoRun);
+    showModeHelp();  // mode rétabli par un parcours gardé ou la RAZ
+    for (const id of ["#video-titre-texte", "#video-titre-sous", "#video-titre-rappel"]) {
+      $(id).disabled = Boolean(videoRun) || !$("#video-titre").checked;  // sans titre, rien à régler
+    }
     if (!videoRun) $("#video-info").textContent = videoOk ? videoInfo() : "ce navigateur n'encode pas la vidéo";
     // Écart des photos de chaque choix, d'après l'écart médian des photos du parcours préparé
     const gaps = plan.slice(1).map((p, i) => metresBetween(plan[i].coords, p.coords)).sort((a, b) => a - b);
