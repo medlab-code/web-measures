@@ -42,6 +42,11 @@ const Video = (() => {
   const EXPO_SIDE = 3;  // photos mesurées de part et d'autre d'un changement de séquence (exposition)
   const EXPO_RAMP = 100;  // m : retour progressif à l'exposition propre de la nouvelle séquence
   const EXPO_MAX = 2;  // gain d'exposition au plus (ou 1 / EXPO_MAX)
+  const EXPO_NEAR = 0.6;  // s : photo comparée à la médiane des photos prises à ± EXPO_NEAR s (3 au moins)
+  const EXPO_JUMP = 0.2;  // écart (logarithme, × 1,22) au-delà duquel la photo est ramenée sur cette médiane
+  const EXPO_PARALLEL = 6;  // vignettes mesurées à la fois
+  const EXPO_STORE = "web-measures/expositions";  // mesures gardées dans le navigateur (localStorage)
+  const EXPO_KEPT = 20000;  // mesures gardées au plus (les plus anciennes oubliées)
   const RAMP_MIN = 0.35;  // rampe de vitesse : part de la vitesse choisie au plus bas (virage serré, départ, arrivée)
   const RAMP_TURN = 1.5;  // °/m : courbe (cap lissé) qui réduirait la vitesse de moitié sans RAMP_MARKED
   const RAMP_MARKED = 1;  // °/m : au-delà (virage marqué, rayon de moins de 57 m), sensibilité doublée
@@ -80,8 +85,8 @@ const Video = (() => {
       ? { base: sd.replace(/sd\.jpg$/, "tiles/"), cols: matrix.matrixWidth, rows: matrix.matrixHeight, size: matrix.tileWidth }
       : { image: sd || feature.assets?.hd?.href, cols: 1, rows: 1, size: 2048 };
     return { id: feature.id, coords: point.coords, alt: point.alt, heading: point.heading, tiles,
-      date: (feature.properties?.datetime || "").slice(0, 10), collection: feature.collection,
-      thumb: feature.assets?.thumb?.href || sd };
+      date: (feature.properties?.datetime || "").slice(0, 10), time: Date.parse(feature.properties?.datetime) || null,
+      collection: feature.collection, thumb: feature.assets?.thumb?.href || sd };
   }
 
   const toRad = Math.PI / 180;
@@ -649,8 +654,15 @@ const Video = (() => {
    * dessous (ni le haut du ciel, ni le toit du véhicule, sous ROOF), sur tout le tour d'horizon : deux photos voisines
    * voient à peu près le même entourage, alors que le décor du seul regard change (essai du 31/10 au carrefour RD18 /
    * D115D : arbre à l'ombre d'un côté, vignes au soleil de l'autre, rapport 2 au lieu de 1,5 ; tour complet : 1,51,
-   * contre 1,58 mesuré au même endroit dans le même sens). */
+   * contre 1,58 mesuré au même endroit dans le même sens). Mesure gardée par identifiant de photo (exposureCache). */
   async function exposureOf(photo, signal) {
+    const cache = exposureCache();
+    const kept = cache.get(photo.id);
+    if (kept) {
+      cache.delete(photo.id);  // remise en fin de liste : oubliée la dernière
+      cache.set(photo.id, kept);
+      return kept;
+    }
     const bitmap = await fetchImage(photo.thumb, signal);
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const ctx = canvas.getContext("2d");
@@ -663,37 +675,93 @@ const Video = (() => {
     for (let i = 0; i < px.length; i += 4) {
       for (let c = 0; c < 3; c++) sum[c] += Math.log(Math.max(px[i + c], 1) / 255);
     }
-    return sum.map((v) => v / Math.max(1, px.length / 4));
+    const value = sum.map((v) => Math.round(1e4 * v / Math.max(1, px.length / 4)) / 1e4);
+    cache.set(photo.id, value);
+    return value;
+  }
+
+  /** Expositions déjà mesurées (Map identifiant → [R, V, B]), gardées d'une vidéo et d'une session à l'autre
+   * (keepExposures) : un second rendu du même parcours ne recharge aucune vignette. */
+  let measured = null;
+  function exposureCache() {
+    if (!measured) {
+      try {
+        measured = new Map(JSON.parse(localStorage.getItem(EXPO_STORE)) || []);
+      } catch {
+        measured = new Map();
+      }
+    }
+    return measured;
+  }
+  function keepExposures() {
+    try {
+      localStorage.setItem(EXPO_STORE, JSON.stringify([...exposureCache()].slice(-EXPO_KEPT)));
+    } catch { /* stockage plein ou absent : gardées pour cette session seulement */ }
   }
 
   /**
-   * Exposition de chaque photo (gain R, V, B, multiplié dans le rendu) : seulement aux changements de séquence, où une
-   * autre campagne peut être bien plus claire ou plus sombre (juillet 2025 : 58 % plus clair que mai au même endroit).
-   * La nouvelle séquence est ramenée sur la précédente (EXPO_SIDE photos de part et d'autre, médiane), puis revient
-   * peu à peu à sa propre exposition sur EXPO_RAMP m. Une séquence seule n'est pas touchée : d'une photo à la suivante,
-   * son exposition ne varie que d'environ 1 % ; ce qui varie (haie, bois) est le décor, à ne pas éclaircir.
+   * Corrections des photos isolées (logarithmes R, V, B à ajouter, ou null) : la caméra rate parfois l'exposition d'une
+   * ou deux photos, 25 à 85 % plus claires ou plus sombres que leurs voisines (essai du 01/11, forêt de la séquence
+   * d8fd3b08, une photo toutes les 0,2 s), ce qui clignote dans la vidéo. Chaque photo est comparée à la médiane des
+   * photos de sa séquence prises à ± EXPO_NEAR s (3 au moins) et y est ramenée si elle s'en écarte de plus de
+   * EXPO_JUMP. La médiane garde les vrais changements du décor (entrée dans une clairière, un champ) ; la surexposition
+   * lente à la sortie de l'ombre (2 à 3 s) et le ciel brûlé sous les arbres ne sont pas corrigés. values : expositions
+   * de list (exposureOf, null si non mesurée).
    */
-  async function exposures(path, signal) {
+  function isolated(list, values) {
+    const median = (vs) => [0, 1, 2].map((c) => vs.map((v) => v[c]).sort((a, b) => a - b)[vs.length >> 1]);
+    return list.map((p, i) => {
+      if (!values[i] || !p.time) return null;
+      const near = [];
+      for (let j = 0; j < list.length; j++) {
+        const q = list[j];
+        if (values[j] && q.time && q.collection === p.collection && Math.abs(q.time - p.time) <= EXPO_NEAR * 1000) near.push(values[j]);
+      }
+      if (near.length < 3) return null;
+      const m = median(near);
+      const shift = [0, 1, 2].map((c) => m[c] - values[i][c]);
+      return Math.abs(shift[0] + shift[1] + shift[2]) / 3 > EXPO_JUMP ? shift : null;
+    });
+  }
+
+  /**
+   * Corrections de luminosité de chaque photo (gain R, V, B, multiplié dans le rendu). Toutes les photos sont mesurées
+   * (exposureOf, EXPO_PARALLEL vignettes à la fois, mesures gardées). Photos isolées trop claires ou trop sombres :
+   * ramenées sur leurs voisines (isolated ; isolatedToo à false pour s'en passer). Changements de séquence : une autre
+   * campagne peut être bien plus claire ou plus sombre (juillet 2025 : 58 % plus clair que mai au même endroit) ; la
+   * nouvelle séquence est ramenée sur la précédente (EXPO_SIDE photos de part et d'autre, médiane), puis revient peu à
+   * peu à sa propre exposition sur EXPO_RAMP m.
+   */
+  async function exposures(path, signal, isolatedToo = true) {
     const { list, s } = path;
     const gains = list.map(() => [1, 1, 1]);
-    const median = (values) => [0, 1, 2].map((c) => values.map((v) => v[c]).sort((a, b) => a - b)[values.length >> 1]);
+    const values = list.map(() => null);
+    let next = 0;
+    await Promise.all(Array.from({ length: EXPO_PARALLEL }, async () => {
+      while (next < list.length) {
+        const i = next++;
+        try {
+          values[i] = await exposureOf(list[i], signal);
+        } catch (error) {
+          if (signal?.aborted) throw error;
+          console.warn("Vidéo : exposition non mesurée", list[i].id, error);
+        }
+      }
+    }));
+    keepExposures();
+    const median = (vs) => [0, 1, 2].map((c) => vs.map((v) => v[c]).sort((a, b) => a - b)[vs.length >> 1]);
     let carried = [0, 0, 0];  // correction (log) de la séquence précédente à sa dernière photo
     for (let k = 1; k < list.length; k++) {
       if (list[k].collection === list[k - 1].collection) {
         continue;
       }
       const before = [], after = [];
-      for (let i = k - 1; i >= Math.max(0, k - EXPO_SIDE) && list[i].collection === list[k - 1].collection; i--) before.push(i);
-      for (let i = k; i < Math.min(list.length, k + EXPO_SIDE) && list[i].collection === list[k].collection; i++) after.push(i);
+      for (let i = k - 1; i >= Math.max(0, k - EXPO_SIDE) && list[i].collection === list[k - 1].collection; i--) if (values[i]) before.push(values[i]);
+      for (let i = k; i < Math.min(list.length, k + EXPO_SIDE) && list[i].collection === list[k].collection; i++) if (values[i]) after.push(values[i]);
       let shift = [0, 0, 0];
-      try {
-        const measure = (ids) => Promise.all(ids.map((i) => exposureOf(list[i], signal)));
-        const [a, b] = await Promise.all([measure(before), measure(after)]);
-        const [ma, mb] = [median(a), median(b)];
+      if (before.length && after.length) {
+        const [ma, mb] = [median(before), median(after)];
         shift = [0, 1, 2].map((c) => ma[c] + carried[c] - mb[c]);
-      } catch (error) {
-        if (signal?.aborted) throw error;
-        console.warn("Vidéo : exposition non mesurée au changement de séquence", error);
       }
       // Rampe jusqu'au prochain changement de séquence (ou la fin)
       let i = k;
@@ -705,7 +773,8 @@ const Video = (() => {
       carried = gains[i - 1].map(Math.log);
       k = i - 1;
     }
-    return gains;
+    const fixes = isolatedToo ? isolated(list, values) : [];
+    return gains.map((g, i) => g.map((v, c) => Math.min(EXPO_MAX, Math.max(1 / EXPO_MAX, v * Math.exp(fixes[i]?.[c] || 0)))));
   }
   const metres = (a, b) => Math.hypot((b[0] - a[0]) * 111320 * Math.cos(a[1] * toRad), (b[1] - a[1]) * 111320);
   const bearing = (a, b) => (Math.atan2((b[0] - a[0]) * Math.cos(a[1] * toRad), b[1] - a[1]) / toRad + 360) % 360;
@@ -976,10 +1045,10 @@ const Video = (() => {
   }
 
   /**
-   * Vidéo MP4 (Blob) des photos du parcours [record], à la vitesse simulée kmh, exposition accordée aux changements de
-   * séquence (exposures). options.blur : flou cinétique (moyenne de BLUR vues réparties entre la position de l'image
-   * précédente et celle-ci : le proche défilant vite s'étale) ; options.exposure : false pour ne pas accorder
-   * l'exposition aux changements de séquence ; options.ramp : rampe de vitesse (timeline) ; options.title :
+   * Vidéo MP4 (Blob) des photos du parcours [record], à la vitesse simulée kmh, corrections de luminosité (exposures).
+   * options.blur : flou cinétique (moyenne de BLUR vues réparties entre la position de l'image
+   * précédente et celle-ci : le proche défilant vite s'étale) ; options.exposure : false pour ne pas corriger la
+   * luminosité ; options.ramp : rampe de vitesse (timeline) ; options.title :
    * { text, sub } en titre au début ; options.counter : compteur PR (photo.pr, prAt) ; options.speedometer : compteur de
    * vitesse (speeds) ; options.lateral : accélération latérale (laterals, insideDevers) ; options.arpSpeed : vitesse
    * max ARP (arpSpeeds) ; options.junctions : carrefours où regarder (pans) ; options.rolls : endroits des tonneaux
@@ -1157,6 +1226,6 @@ const Video = (() => {
     }
   }
 
-  return { supported, record, mp4, trajectory, timeline, duration, exposures, prAt, pans, rolls, lookedJunctions,
+  return { supported, record, mp4, trajectory, timeline, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
     poiSpan, poiViews, planets, tours, speeds, laterals, insideDevers, lateralColor, arpSpeeds, steady, drawOverlay, fetchImage, FPS, HOLD };
 })();

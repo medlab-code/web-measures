@@ -798,10 +798,19 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       // même endroit dans le même sens) : gain de la première photo de juillet ~ 1 / 1,5, puis retour vers 1 en 100 m
       const trajet = Video.trajectory(cross.photos);
       const change = trajet.list.findIndex((p, i) => i && p.collection !== trajet.list[i - 1].collection);
-      const gains = (await Video.exposures(trajet)).map((g) => (g[0] + g[1] + g[2]) / 3);
+      const gains = (await Video.exposures(trajet, null, false)).map((g) => (g[0] + g[1] + g[2]) / 3);
       log(`exposition au carrefour : gains ${gains.map((g) => g.toFixed(2)).join(" ")} (changement à la photo ${change})`);
       expect("exposition : séquence de départ inchangée", gains.slice(0, change).every((g) => g === 1));
       expect("exposition : juillet ramené sur mai au changement (gain 0,55 à 0,75)", gains[change] > 0.55 && gains[change] < 0.75, gains[change]);
+      // Photos isolées (exemple du 01/11, forêt de la séquence d8fd3b08) : une photo ratée ramenée sur ses voisines, une
+      // marche franche du décor (entrée dans un champ) gardée
+      const step = Array.from({ length: 20 }, (_, i) => ({ collection: "a", time: i * 200 }));
+      const values = step.map((_, i) => (i < 10 ? [-1.5, -1.5, -1.5] : [-0.8, -0.8, -0.8]));
+      expect("luminosité : marche du décor gardée", Video.isolated(step, values).every((f) => f === null));
+      values[5] = [-1, -1, -1];
+      const fixed = Video.isolated(step, values);
+      expect("luminosité : photo isolée ramenée sur ses voisines", fixed[5] && Math.abs(fixed[5][0] + 0.5) < 1e-9
+        && fixed.every((f, i) => i === 5 || f === null), JSON.stringify(fixed[5]));
       // Raccord de séquence : cap lissé plus largement (± 40 m) ; sans raccord (même séquence partout), cap plus heurté
     const plain = Video.trajectory(cross.photos.map((p) => ({ ...p, collection: "une" })));
     const seamAt = (trajet.s[change - 1] + trajet.s[change]) / 2;

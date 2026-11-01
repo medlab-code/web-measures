@@ -128,12 +128,17 @@ par Chrome, Firefox et VLC, peut-être pas par PowerPoint, une seconde d'arrêt 
 simulée (de 30 à 720 km/h, 90 par défaut, puis Mach 1 et Mach 2 : 1 235 et 2 470 km/h, vitesse du son au niveau de
 la mer ; des photos y sont sautées) et la part des photos de la séquence prises (1/1, 1/2, 1/4, 1/8 ;
 chaque choix indique l'écart obtenu, par exemple « une tous les 10 m »).  S'affichent aussi le nombre de photos retenues, la durée de la vidéo et le nombre de photos
-par seconde ; au-delà de 30 photos par seconde (une par image), des photos sont sautées. Chaque option a sa case. « Exposition accordée » (décochée) : aux changements de séquence, une autre campagne peut être bien
-plus claire ou plus sombre (juillet 2025 : 1,5 fois plus clair que mai au carrefour RD18 / D115D) ; la nouvelle
-séquence est ramenée sur la précédente (3 photos de part et d'autre, rouge, vert et bleu séparément, sur tout le tour
-d'horizon des vignettes, sans le ciel ni le toit du véhicule), puis revient peu à peu à sa propre exposition sur
-100 m. Une séquence seule n'est pas retouchée (son exposition varie d'environ 1 % d'une photo à l'autre ; ce qui
-change, haie ou bois, est le décor). « Rampe de vitesse » (décochée par défaut) : la vitesse choisie devient celle des lignes droites ; la
+par seconde ; au-delà de 30 photos par seconde (une par image), des photos sont sautées. Chaque option a sa case. « Corrections de luminosité » (décochée) : la luminosité de chaque photo est mesurée sur sa vignette (tout le tour
+d'horizon, sans le ciel ni le toit du véhicule ; rouge, vert et bleu séparément), six à la fois à la préparation, et gardée
+dans le navigateur (un second rendu du même parcours ne recharge rien ; une photo toutes les 0,2 s : environ 30 Kio par
+photo, 50 Mo pour 5 km la première fois). Une photo isolée que la caméra a ratée (25 à 85 % plus claire ou plus sombre
+que ses voisines dans une forêt) est ramenée sur la médiane des photos de sa séquence prises à ± 0,6 s, si elle s'en
+écarte de plus de 22 % : la vidéo ne clignote plus, et les vrais changements du décor (clairière, champ) sont gardés.
+Ne sont pas corrigés : la surexposition qui dure 2 à 3 s à la sortie de l'ombre (la caméra s'adapte lentement ; une
+médiane plus large l'atténue mais assombrit aussi le décor des forêts) et le ciel brûlé sous les arbres (perdu dans la
+photo). Aux changements de séquence, une autre campagne peut être bien plus claire ou plus sombre (juillet 2025 : 1,5
+fois plus clair que mai au carrefour RD18 / D115D) ; la nouvelle séquence est ramenée sur la précédente (3 photos de part
+et d'autre), puis revient peu à peu à sa propre exposition sur 100 m. « Rampe de vitesse » (décochée par défaut) : la vitesse choisie devient celle des lignes droites ; la
 vidéo ralentit dans les virages et aux carrefours (facteur 1 / (1 + rotation du cap / 1,5° par mètre), la rotation
 au-delà de 1° par mètre, virage marqué, comptant double ; jusqu'à 35 % au plus bas : virage de 30 m de rayon à 37 %), part et s'arrête en douceur sur 50 m, sans à-coup (vitesse lissée sur ± 15 m) ; la durée affichée en
 tient compte. Sur la D115D (1,1 km, rayon de 95 m au plus serré), la vitesse varie de 76 à 100 % et la vidéo passe
