@@ -3713,7 +3713,7 @@
     videoRun = new AbortController();
     updatePlayer();
     const t0 = Date.now();
-    let watch = null, stalled = false;
+    let watch = null, stalled = false, stream = null;
     try {
       // Point d'intérêt : altitudes du sol sous les photos (caméra) et sous la cible si l'objet n'a pas d'altitude (visée
       // en hauteur ; inconnues : à l'horizontale)
@@ -3740,7 +3740,10 @@
             .then((choice) => { if (choice === "annuler") videoRun?.abort(); });
         }
       }, 1000);
-      // Avancement aussi dans la ligne d'état : le fichier n'est écrit qu'à la fin du calcul (plusieurs minutes)
+      // Avancement aussi dans la ligne d'état : calcul de plusieurs minutes
+      // Fichier choisi (Chrome, Edge) : vidéo écrite au fur et à mesure, mémoire constante quelle que soit la longueur ;
+      // sinon (Firefox) assemblée en mémoire puis téléchargée
+      if (save.handle) stream = await save.handle.createWritable();
       const blob = await Video.mp4(videoPhotos(), Number($("#video-vitesse").value), (done, total) => {
         last = Date.now();
         if (warned) {
@@ -3767,13 +3770,16 @@
         poi: poiAim,
         lookSpeed: Number($("#regard-vitesse").value),
         title: $("#video-titre").checked ? { text: videoPlan.title.replace(/\+0*(\d)/g, "+$1"),
-          sub: `Photos du ${videoPlan.dates.map((d) => d.split("-").reverse().join("/")).join(", du ") || "?"}` } : null });
-      await save(blob);
-      const text = `Vidéo enregistrée dans « ${save.fileName} » : ${(blob.size / 1e6).toFixed(1)} Mo, `
+          sub: `Photos du ${videoPlan.dates.map((d) => d.split("-").reverse().join("/")).join(", du ") || "?"}` } : null,
+        stream });
+      if (!stream) await save(blob);
+      const size = stream ? (await save.handle.getFile()).size : blob.size;
+      const text = `Vidéo enregistrée dans « ${save.fileName} » : ${(size / 1e6).toFixed(1)} Mo, `
         + `${Math.round((Date.now() - t0) / 1000)} s de calcul.`;
       setStatus(text);
       notice(text);
     } catch (error) {
+      stream?.abort().catch(() => {});  // fichier entamé : rien d'écrit
       if (stalled) error = new Error(`serveur d'images sans réponse depuis ${VIDEO_GIVE_UP / 60} min, rien d'enregistré`);
       setStatus(error.name === "AbortError" ? "Vidéo arrêtée : rien d'enregistré." : `Vidéo impossible : ${error.message}`,
         error.name === "AbortError" ? "" : "echec");
@@ -4912,7 +4918,7 @@
           const file = await handle.createWritable();
           await file.write(blobOf(content));
           await file.close();
-        }, { fileName: handle.name });  // nom choisi, rappelé à l'utilisateur (le dossier n'est pas connu de la page)
+        }, { fileName: handle.name, handle });  // nom choisi, rappelé à l'utilisateur (le dossier n'est pas connu de la page)
       } catch (error) {
         if (error.name === "AbortError") return null;  // boîte fermée sans enregistrer
       }

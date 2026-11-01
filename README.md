@@ -227,8 +227,10 @@ définition puis réduite (bords sans escalier) ; calcul environ 1,5 à 2 fois p
 fichier 2,5 fois plus gros. « Avancée simulée » (décochée) :
 désactivée, chaque photo est vue de sa propre caméra et passe à la suivante par un simple fondu enchaîné :
 rien de déformé ni de dédoublé par la maquette, mais la route avance par bonds (d'autant plus avec une photo sur 4 ou 8). Le calcul prend environ
-deux fois la durée de la vidéo si les tuiles sont déjà en cache (« ■ Arrêter » l'interrompt) ; le fichier
-n'est écrit qu'à la fin : l'avancement s'affiche dans la ligne d'état, et l'erreur éventuelle y reste. Bibliothèque
+deux fois la durée de la vidéo si les tuiles sont déjà en cache (« ■ Arrêter » l'interrompt) ; sous Chrome et Edge, la
+vidéo est écrite dans le fichier choisi au fur et à mesure (mémoire constante, même pour un long parcours ; arrêt ou
+échec : fichier laissé vide), sous Firefox assemblée en mémoire puis téléchargée ; l'avancement s'affiche dans la ligne
+d'état, et l'erreur éventuelle y reste. Bibliothèque
 mp4-muxer chargée au premier export seulement. Grisé tant que le départ ou l'arrivée manque, pendant la
 préparation et le calcul, et dans les navigateurs sans WebCodecs.
 

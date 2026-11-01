@@ -410,6 +410,15 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
         ctx.drawImage(sv, 0, 0, canvas.width, canvas.height);
         await log(`IMAGE sans-avancee-${t} ` + canvas.toDataURL("image/jpeg", 0.85));
       }
+      // Vidéo écrite au fur et à mesure dans un fichier (stockage privé de la page, comme un fichier choisi) : lisible,
+      // même durée qu'assemblée en mémoire
+      const dir = await w.navigator.storage.getDirectory(), handle = await dir.getFileHandle("essai.mp4", { create: true });
+      const none = await Video.mp4(sub, 90, () => {}, null, { advance: false, stream: await handle.createWritable() });
+      const written = await handle.getFile();
+      const wv = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(written) });
+      await new Promise((resolve, reject) => { wv.onloadedmetadata = resolve; wv.onerror = reject; });
+      expect("vidéo écrite dans le fichier : lisible, même durée qu'en mémoire", none === null && written.size > 100000
+        && Math.abs(wv.duration - sv.duration) < 0.1, `${written.size} o, ${wv.duration} s contre ${sv.duration} s`);
       expect("planète : réglette de rotation à 20 °/s par défaut", doc.querySelector("#planete-rotation").value === "20"
         && doc.querySelector("#planete-rotation-valeur").textContent === "20 °/s");
       expect("planète : sans rotation à 0 °/s", Video.planets(path, xs, [span], 0).spin.every((a) => a === 0));

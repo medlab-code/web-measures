@@ -1076,12 +1076,14 @@ const Video = (() => {
    * options.advance : false pour ne pas avancer dans la maquette (fondu enchaîné d'une photo à l'autre) ;
    * options.tours : endroits des tours d'horizon ([[lon, lat]…], tours), options.tourTime : durée de chacun (s),
    * options.tourStop : caméra arrêtée pendant le tour ; options.hq : haute qualité (HQ_CODECS, tuiles en pleine
-   * définition, vue calculée en HQ_SUPERSAMPLE fois la définition ; lent). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
+   * définition, vue calculée en HQ_SUPERSAMPLE fois la définition ; lent) ; options.stream : fichier ouvert
+   * (FileSystemWritableFileStream) où écrire la vidéo au fur et à mesure, refermé à la fin (rend null ; sans lui, la
+   * vidéo est assemblée en mémoire et rendue en Blob : un long parcours peut alors dépasser la mémoire de l'onglet). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
    */
   async function mp4(photos, kmh, progress = () => {}, signal = null,
     { blur = false, exposure = true, ramp = false, title = null, counter = false, speedometer = false, lateral = false, arpSpeed = false, junctions = [], rolls: rollPlaces = [],
     rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, hq = false, planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false, planetRoll = false,
-    planetSpin = PLANET_SPIN, advance = true, tours: tourPlaces = [], tourTime = TOUR_TIME, tourStop = true } = {}) {
+    planetSpin = PLANET_SPIN, advance = true, tours: tourPlaces = [], tourTime = TOUR_TIME, tourStop = true, stream = null } = {}) {
     const path = trajectory(photos);
     if (path.list.length < 2 || path.length < 1) throw new Error("parcours trop court");
     const [chosen] = await Promise.all([encoderConfig(hq), loadMuxer()]);
@@ -1164,7 +1166,9 @@ const Video = (() => {
       }
       return loads.get(i);
     };
-    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), fastStart: "in-memory",
+    // Écrite dans le fichier : index (moov) à la fin, rien gardé en mémoire
+    const muxer = new Mp4Muxer.Muxer({ target: stream ? new Mp4Muxer.FileSystemWritableFileStreamTarget(stream)
+      : new Mp4Muxer.ArrayBufferTarget(), fastStart: stream ? false : "in-memory",
       video: { codec, width, height, frameRate: FPS } });
     let failure = null;
     const encoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => { failure = e; } });
@@ -1235,6 +1239,10 @@ const Video = (() => {
       await encoder.flush();
       if (failure) throw failure;
       muxer.finalize();
+      if (stream) {
+        await stream.close();
+        return null;
+      }
       return new Blob([muxer.target.buffer], { type: "video/mp4" });
     } finally {
       if (encoder.state !== "closed") encoder.close();
