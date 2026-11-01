@@ -115,23 +115,18 @@ kilomètre à 970 px) :
 chaque vue est gardée pendant la lecture, l'export ne recharge rien. Grisé pendant la lecture,
 sans parcours et dans Safari, qui n'encode pas le WebP.
 **Vidéo du départ à l'arrivée** (même onglet), sans lire le parcours dans la visionneuse :
-« 🎬 Préparer la vidéo » cherche ses photos (mêmes choix de séquences, de bifurcation et d'arrivée que la lecture,
-toutes les photos des séquences parcourues) et prévient ; sur une départementale (route à PR, départ et arrivée sur
-elle, de même pour chaque tronçon entre deux étapes), les photos sont choisies le long du tracé de la route : ses
-sections de PR de la BD TOPO enchaînées du départ à l'arrivée (interruptions, en tronc commun avec une autre route,
-franchies), puis tous les 5 m les photos à moins de 12 m prises dans le sens de la marche (ou dans l'autre sens, lues à
-rebours : l'arrière du véhicule se retrouve à l'avant de la vidéo, évité autant que possible, 25 m à rebours valant un
-changement de séquence ; leur nombre est affiché sous les listes) ; la séquence de chaque pas est choisie sur tout le
-parcours d'un coup, pour le moins de changements de séquence (programmation dynamique) ; un passage sans photo est sauté (essais : `tests/essai-boucle.html`, D906 du
-PR 84 + 220 au PR 76 + 900, boucles sur la RD 33 évitées ; `tests/essai-chassagne.html`, croisement de la D113A à
-Chassagne-Montrachet et grand détour de la D906 jusqu'au PR 75 + 645 : 7 séquences, sans quitter la route). Ailleurs,
-recherche de proche en proche : sur la route de départ, une séquence qui s'en écarte de plus de 25 m (boucle ou
-aller-retour sur une voie secondaire ; pas là où la route s'interrompt : bout d'une section de PR sans autre section à
-30 m) est reprise là où elle revient sur la route, sinon remplacée par une autre qui la suit dans le sens où l'on roulait
-(même séquence à un autre passage comprise), sinon l'utilisateur indique où continuer (repère rouge à faire glisser sur
-la route à suivre, ou clic sur la mini-carte ; Échap : détour gardé) : le point devient une étape et tout le parcours est
-recalculé ; plusieurs séquences au départ d'un tronçon : chacune est essayée, celle qui demande le moins de questions,
-puis le moins de changements, est retenue. Il prévient
+« 🎬 Préparer la vidéo » cherche ses photos : elles sont choisies le long de l'itinéraire routier de la Géoplateforme (Valhalla sur la BD TOPO, en voiture, le
+plus rapide) du départ à l'arrivée par les étapes (une étape impose un passage que l'itinéraire n'aurait pas pris) : tous
+les 5 m, les photos à moins de 12 m prises dans le sens de la marche, ou dans l'autre sens (lues à rebours : l'arrière du
+véhicule se retrouve à l'avant de la vidéo ; leur nombre est affiché sous les listes) ; la séquence de chaque pas est
+choisie sur tout le parcours d'un coup (programmation dynamique), par ordre d'importance : le sens (vers l'avant, à
+rebours seulement faute d'autres photos), puis la proximité dans le temps des séquences enchaînées et le moins de
+changements (un changement vaut 1, plus 1 par 90 jours d'écart entre les deux séquences) ; un passage sans photo est
+sauté (essais : `tests/essai-chassagne.html`, croisement de la D113A à Chassagne-Montrachet et grand détour de la D906
+jusqu'au PR 75 + 645 : 3 séquences, aucune photo à rebours ; `tests/essai-boucle.html`, D906 du PR 84 + 220 au
+PR 76 + 900 : une séquence, sans les boucles sur la RD 33). Sans réponse du service d'itinéraire, ou sans photo le long,
+recherche de proche en proche (même choix de séquences que la lecture ; plusieurs séquences au départ : celle qui fait
+le moins de changements). Il prévient
 aussi, dans la ligne d'état en orange et sous les listes, si le
 parcours passe d'une séquence à l'autre (dates des séquences ; les photos peuvent différer) ; « 🎬 Enregistrer la
 vidéo » demande le fichier puis la calcule (deux clics : le navigateur n'ouvre la boîte d'enregistrement que juste

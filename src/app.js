@@ -1171,7 +1171,6 @@
     if (event.key === "Escape" && travelPick) {
       poi.draft = null;  // tracé de la zone ou de la planète interrompu
       planetDraft = null;
-      viaAnswer?.(null);  // où continuer : détour gardé
       setTravelPick(null);
       showPoiZone();
       showPlanets();
@@ -2750,10 +2749,9 @@
   /**
    * Départ du parcours de start à end, commun à la lecture (travel) et à la vidéo (planPhotos) : séquences qui
    * passent à l'arrivée et leur tracé, photo de départ et sens. Rend { t, first, back, warning } (warning : pas de
-   * séquence unique, le parcours en changera), ou { error } (texte). heading : cap où l'on roule déjà (départ depuis
-   * une étape), pour le sens des séquences qui ne passent pas à l'arrivée (towardEnd).
+   * séquence unique, le parcours en changera), ou { error } (texte).
    */
-  async function tourPlan(start, end, heading = null) {
+  async function tourPlan(start, end) {
     // Séquence qui passe à l'arrivée -> rang de sa photo la plus proche ; seulement celles qui passent à TOUR_PASS m
     // de la plus proche (une route voisine à 25 m ne passe pas à l'arrivée)
     const endRanks = new Map(), endPhotos = [];
@@ -2785,7 +2783,7 @@
     const common = near.filter((f) => endRanks.has(f.collection) && rankOf(f) !== endRanks.get(f.collection));
     let first = common.find((f) => endRanks.get(f.collection) > rankOf(f)) || common[0];
     let back = first ? endRanks.get(first.collection) < rankOf(first) : null;
-    if (!first) ({ feature: first, back } = towardEnd(near, end, heading) || {});
+    if (!first) ({ feature: first, back } = towardEnd(near, end) || {});
     if (!first) {
       return { error: `Parcours impossible : aucune photo${filterActive() ? " retenue par le filtre" : ""} à moins de `
         + `${TOUR_REACH} m du départ ne part vers l'arrivée. Rapprochez le départ d'une route photographiée, ou changez le filtre.` };
@@ -2796,7 +2794,7 @@
     for (const f of [...common, ...near]) {
       if (candidates.length >= TOUR_CANDIDATES || candidates.some((c) => c.feature.collection === f.collection)) continue;
       const choice = endRanks.has(f.collection) && rankOf(f) !== endRanks.get(f.collection)
-        ? { feature: f, back: endRanks.get(f.collection) < rankOf(f) } : towardEnd([f], end, heading);
+        ? { feature: f, back: endRanks.get(f.collection) < rankOf(f) } : towardEnd([f], end);
       if (choice) candidates.push(choice);
     }
     return { t, first, back, candidates, warning: common.length ? "" : "Pas de séquence unique du départ à l'arrivée : le parcours "
@@ -2805,14 +2803,12 @@
 
   /** Parmi les photos `list` (les plus proches d'abord), la première dont la séquence va vers `end` :
    * { feature, back } (back : lecture à rebours), d'après le cap de la caméra (à 45° près de la direction
-   * de l'arrivée, ou de son opposé à rebours) ; heading : cap à suivre à la place de la direction de l'arrivée (celui
-   * où l'on roulait : sur une route sinueuse, l'arrivée à vol d'oiseau peut être à plus de 45° de la route) ; null
-   * sans photo qui convienne. */
-  function towardEnd(list, end, heading = null) {
+   * de l'arrivée, ou de son opposé à rebours) ; null sans photo qui convienne. */
+  function towardEnd(list, end) {
     for (const f of list) {
       const azimuth = Number(f.properties?.["view:azimuth"]);
       if (!Number.isFinite(azimuth)) continue;
-      const toEnd = heading ?? Requeteur.bearing(f.geometry.coordinates, end);
+      const toEnd = Requeteur.bearing(f.geometry.coordinates, end);
       if (angleBetween(azimuth, toEnd) < 45) return { feature: f, back: false };
       if (angleBetween(azimuth + 180, toEnd) < 45) return { feature: f, back: true };
     }
@@ -3052,37 +3048,28 @@
   }
 
   /**
-   * Photos du parcours de start à end pour la vidéo, sans la visionneuse : mêmes décisions que la lecture (tourPlan,
-   * tourDecide, branchTarget), rang après rang (toutes les photos des séquences parcourues), en restant sur la route de
-   * départ road (walkPhotos). Plusieurs séquences au départ : chacune essayée sans rien demander, celle qui demande le
-   * moins de points de passage à l'utilisateur, puis le moins de changements de séquence, est retenue (refaite en
-   * posant les questions s'il en reste). Rend { photos [Video.record], switches, dates, warning } ; erreur (texte) si
-   * le parcours est impossible.
+   * Photos du parcours de start à end pour la vidéo, de proche en proche (secours de planLegs, sans itinéraire) : mêmes
+   * décisions que la lecture (tourPlan, tourDecide, branchTarget), rang après rang (toutes les photos des séquences
+   * parcourues) ; plusieurs séquences au départ : chacune est essayée, celle qui fait le moins de changements est
+   * retenue. Rend { photos [Video.record], switches, dates, warning } ; erreur (texte) si le parcours est impossible.
    */
-  async function planPhotos(start, end, road = "", leg = 0, prefer = null, heading = null) {
-    const plan = await tourPlan(start, end, heading);
+  async function planPhotos(start, end) {
+    const plan = await tourPlan(start, end);
     if (plan.error) throw new Error(plan.error);
-    const fresh = () => ({ ...plan.t, best: Infinity, bestAt: null, used: new Set(), switches: 0, dates: new Set(), unresolved: 0 });
-    if (plan.candidates.length < 2) return walkPhotos(plan, fresh(), plan.first, plan.back, road, true, leg);
+    const fresh = () => ({ ...plan.t, best: Infinity, bestAt: null, used: new Set(), switches: 0, dates: new Set() });
+    if (plan.candidates.length < 2) return walkPhotos(plan, fresh(), plan.first, plan.back);
     const trials = [];
     for (const [k, c] of plan.candidates.entries()) {
       setStatus(`Vidéo : comparaison des séquences de départ (${k + 1} / ${plan.candidates.length})…`);
-      const t = fresh();
-      const result = await walkPhotos(plan, t, c.feature, c.back, road, false, leg).catch(() => null);
-      // Changements comptés : ceux du tronçon, plus un si sa séquence de départ n'est pas celle qui finit le tronçon
-      // précédent (prefer)
-      if (result) trials.push({ c, result, unresolved: t.unresolved, cost: result.switches + (prefer && c.feature.collection !== prefer ? 1 : 0) });
+      const result = await walkPhotos(plan, fresh(), c.feature, c.back).catch(() => null);
+      if (result) trials.push(result);
     }
-    trials.sort((a, b) => a.unresolved - b.unresolved || a.cost - b.cost);  // tri stable : ordre de tourPlan
-    const best = trials[0];
-    if (!best) return walkPhotos(plan, fresh(), plan.first, plan.back, road, true, leg);  // échec : son message
-    return best.unresolved ? walkPhotos(plan, fresh(), best.c.feature, best.c.back, road, true, leg) : best.result;
+    trials.sort((a, b) => a.switches - b.switches);  // tri stable : ordre de tourPlan
+    return trials[0] || walkPhotos(plan, fresh(), plan.first, plan.back);  // échec : son message
   }
 
-  /** Photos du parcours t (tourPlan plan) depuis la photo first (à rebours si back) : voir planPhotos ; interactive :
-   * étape demandée à l'utilisateur si la route est quittée sans autre séquence (sinon compté dans t.unresolved, détour
-   * gardé) ; leg : rang du tronçon dans planLegs. */
-  async function walkPhotos(plan, t, first, back, road, interactive, leg = 0) {
+  /** Photos du parcours t (tourPlan plan) depuis la photo first (à rebours si back) : voir planPhotos. */
+  async function walkPhotos(plan, t, first, back) {
     const photos = [];
     let run = null, bestIndex = 0;
     const begin = (collection, apis, rank, sign, ids = new Map(), points = new Map()) => {
@@ -3098,60 +3085,9 @@
       for (let k = 1; k <= WINDOW; k++) if (run.ids.has(run.rank + k * run.step)) return run.rank + k * run.step;
       return null;
     };
-    // Route de départ suivie (départ et arrivée sur elle) : séquence qui la quitte (détour, boucle) remplacée là où elle
-    // l'a quittée par une autre qui la suit vers l'arrivée (roadBranch) ; sans autre séquence, la boucle est gardée
-    const roadOf = async (coords) => (road ? Lieu.roadDistance(road, ...coords).catch(() => 0) : 0);
-    const keepRoad = Boolean(road) && (await roadOf(first.geometry.coordinates)) < ROAD_KEEP && (await roadOf(t.end)) < ROAD_KEEP;
-    let onRoad = null, offTried = false;  // dernière photo sur la route : { coords, index } ; quittée, autre séquence cherchée
-    // Rang de la séquence lue, plus loin (ROAD_AHEAD rangs au plus), où elle revient sur la route à ROAD_BACK m de coords
-    // et repart vers l'arrivée ; null sinon
-    const rejoin = async (coords) => {
-      for (let r = run.rank + run.step, k = 0; k < ROAD_AHEAD; k++, r += run.step) {
-        if (!run.ids.has(r)) {
-          await loadRanks(run, r).catch(() => {});
-          if (![...run.ids.keys()].some((q) => (q - r) * run.step >= 0)) return null;  // fin de la séquence
-          if (!run.ids.has(r)) continue;  // rang manquant
-        }
-        const p = run.points.get(r), q = run.points.get(r + run.step);
-        if (p?.coords && q?.coords && metresBetween(p.coords, coords) < ROAD_BACK && (await roadOf(p.coords)) <= ROAD_KEEP
-          && metresBetween(q.coords, t.end) < metresBetween(p.coords, t.end)) return r;
-      }
-      return null;
-    };
     for (let guard = 0; guard < 100000; guard++) {
       if (!run.ids.has(run.rank) || following() == null) await loadRanks(run, run.rank);
       const here = run.points.get(run.rank);
-      if (keepRoad && here?.coords) {
-        const place = await Lieu.roadPlace(road, ...here.coords).catch(() => ({ d: 0, gap: false }));
-        const d = place.d;
-        if (d <= ROAD_KEEP) {
-          // Cap suivi sur la route (de la photo précédente sur elle à celle-ci) : direction où continuer si elle est quittée
-          const heading = onRoad && metresBetween(onRoad.coords, here.coords) > 1 ? Requeteur.bearing(onRoad.coords, here.coords) : onRoad?.heading ?? null;
-          onRoad = { coords: here.coords, index: photos.length, heading, rank: run.rank };
-          offTried = false;
-        } else if (d > ROAD_LEAVE && onRoad && !offTried && place.gap) {
-          offTried = true;  // route interrompue (tronc commun) : séquence suivie jusqu'à ce qu'elle reprenne
-        } else if (d > ROAD_LEAVE && onRoad && !offTried) {
-          // Route quittée : 1) même séquence revenue sur la route au même endroit, repartant vers l'arrivée (aller-retour
-          // sur une voie secondaire : détour sauté) ; 2) autre séquence qui suit la route ; 3) étape choisie par
-          // l'utilisateur sur la mini-carte, parcours recalculé (viaBranch) ; Échap : le détour est gardé
-          offTried = true;
-          const again = await rejoin(onRoad.coords);
-          const target = again == null ? await roadBranch(t, onRoad, road, run.collection)
-            ?? await viaBranch(t, onRoad.coords, road, interactive, leg) : null;
-          if (again != null || target) {
-            photos.length = onRoad.index;  // sans le détour
-            bestIndex = Math.min(bestIndex, photos.length);
-            if (again != null) run.rank = again;
-            else {
-              t.switches++;
-              begin(target.feature.collection, sequenceApis(target.feature), rankOf(target.feature), target.back ? -1 : 1);
-            }
-            onRoad = null;
-            continue;
-          }
-        }
-      }
       if (here?.record) {
         photos.push(here.record);
         t.dates.add(here.record.date);
@@ -3182,38 +3118,26 @@
     throw new Error("parcours trop long");
   }
 
-  /** Photos du parcours de start à end par ses étapes (placed.waypoint, dans l'ordre de pose) : planPhotos d'un point au
-   * suivant, mis bout à bout (photo commune une seule fois, changement de séquence compté entre deux tronçons) ; même
-   * forme de résultat. */
-  async function planLegs(start, end, road) {
-    // Étape ajoutée en cours de route (viaBranch : « où continuer ») : tout le parcours recalculé, LEGS_RESTARTS fois au plus
-    for (let restart = 0; ; restart++) {
-      try {
-        return await planLegsOnce(start, end, road);
-      } catch (error) {
-        if (!error?.restart) throw error;
-        if (restart >= LEGS_RESTARTS) throw new Error("trop d'étapes ajoutées en cours de route : vérifiez-les sur la carte");
-      }
-    }
-  }
-  const LEGS_RESTARTS = 10;
-  async function planLegsOnce(start, end, road) {
+  /**
+   * Photos du parcours de start à end par ses étapes (placed.waypoint, dans l'ordre de pose) : itinéraire routier de la
+   * Géoplateforme par ces points (routeLine), photos choisies le long de son tracé (planAlongLine) ; une étape impose un
+   * passage que l'itinéraire n'aurait pas pris. Secours (service muet, aucune photo le long) : de proche en proche d'un
+   * point au suivant (planPhotos), tronçons mis bout à bout (photo commune une seule fois, changement de séquence compté
+   * entre deux tronçons). Même forme de résultat que planPhotos.
+   */
+  async function planLegs(start, end) {
     const points = [start, ...placed.waypoint.points.map((p) => p.lonlat), end];
-    const out = { photos: [], switches: 0, reversed: 0, dates: [], warning: "" };
+    setStatus("Vidéo : itinéraire (Géoplateforme IGN)…");
+    const route = await routeLine(points).catch((error) => { console.warn("Vidéo :", error); return null; });
+    const along = route && await planAlongLine(route, "l'itinéraire");
+    if (along) return along;
+    const out = { photos: [], switches: 0, dates: [], warning: "" };
     for (let k = 1; k < points.length; k++) {
       if (points.length > 2) setStatus(`Vidéo : recherche des photos, tronçon ${k} / ${points.length - 1}…`);
       let leg;
       try {
-        // Tronçon depuis une étape : séquence de départ dans le sens où finissait le tronçon précédent
-        const [a, b] = out.photos.slice(-2).map((p) => p.coords);
-        const heading = a && b && metresBetween(a, b) > 1 ? Requeteur.bearing(a, b) : null;
-        // Départ et arrivée du tronçon sur la route : photos choisies le long de son tracé ; sinon recherche de proche en proche
-        const onIt = road && (await Promise.all([points[k - 1], points[k]].map((p) => Lieu.roadDistance(road, ...p).catch(() => Infinity))))
-          .every((d) => d < 40);
-        leg = (onIt && await planAlongRoad(points[k - 1], points[k], road))
-          || await planPhotos(points[k - 1], points[k], road, k - 1, out.photos.at(-1)?.collection ?? null, heading);
+        leg = await planPhotos(points[k - 1], points[k]);
       } catch (error) {
-        if (error?.restart) throw error;
         throw points.length > 2 ? new Error(`${k === 1 ? "du départ" : `de l'étape ${k - 1}`} à `
           + `${k === points.length - 1 ? "l'arrivée" : `l'étape ${k}`} : ${error.message}`) : error;
       }
@@ -3224,21 +3148,33 @@
       out.switches += leg.switches;
       out.dates = [...new Set([...out.dates, ...leg.dates])].sort();
       out.warning ||= leg.warning;
-      out.reversed += leg.reversed || 0;
     }
     return out;
   }
 
+  /** Itinéraire routier de la Géoplateforme (Valhalla sur la BD TOPO, voiture, le plus rapide) par les points
+   * [lon, lat] (départ, étapes, arrivée) : [[lon, lat]…], ou null. */
+  async function routeLine(points) {
+    const at = (p) => `${p[0].toFixed(6)},${p[1].toFixed(6)}`;
+    const params = new URLSearchParams({ resource: "bdtopo-valhalla", profile: "car", optimization: "fastest",
+      start: at(points[0]), end: at(points[points.length - 1]), geometryFormat: "geojson", getSteps: "false", getBbox: "false" });
+    if (points.length > 2) params.set("intermediates", points.slice(1, -1).map(at).join("|"));
+    const response = await fetch(`${Carte.GEOPF}/navigation/itineraire?${params}`);
+    if (!response.ok) throw new Error(`itinéraire IGN : HTTP ${response.status}`);
+    const line = (await response.json()).geometry?.coordinates;
+    return Array.isArray(line) && line.length > 1 ? line.map((p) => p.slice(0, 2)) : null;
+  }
+
   /**
-   * Photos du parcours le long du tracé de la route road de start à end (Lieu.roadLine : sections enchaînées,
-   * interruptions franchies) : tous les ALONG_STEP m, photos à ALONG_NEAR m au plus, prises dans le sens de la marche
+   * Photos du parcours le long du tracé line ([[lon, lat]…], itinéraire ; label : son nom dans la ligne d'état) : tous
+   * les ALONG_STEP m, photos à ALONG_NEAR m au plus, prises dans le sens de la marche
    * (ou à l'opposé, lues à rebours) à ALONG_ANGLE° près ; choix de la séquence (et du sens) à chaque pas, sur tout le
-   * parcours d'un coup, pour le moins de changements (programmation dynamique ; changement : 1, chaque pas lu à rebours :
-   * ALONG_BACK, l'arrière du véhicule se retrouvant à l'avant de la vidéo) ; pas sans photo : sautés. Même forme de résultat que planPhotos ; null si le tracé de la route manque.
+   * parcours d'un coup (programmation dynamique), par ordre d'importance : le sens (chaque pas lu à rebours coûte
+   * ALONG_BACK, l'arrière du véhicule se retrouvant à l'avant de la vidéo), puis la proximité dans le temps et le nombre
+   * des changements (un changement : 1, plus 1 par ALONG_DAYS jours d'écart entre les deux séquences) ; pas sans photo :
+   * sautés. Même forme de résultat que planPhotos, plus reversed (photos lues à rebours) ; null sans photo le long.
    */
-  async function planAlongRoad(start, end, road) {
-    const line = await Lieu.roadLine(road, start, end).catch(() => null);
-    if (!line || line.length < 2) return null;
+  async function planAlongLine(line, label) {
     // Points du tracé tous les ALONG_STEP m, avec le cap de la route
     const stations = [];
     for (let k = 1, carry = 0; k < line.length; k++) {
@@ -3252,7 +3188,7 @@
     // Photos le long du tracé : recherches de ALONG_CHUNK m de demi-côté, tous les ALONG_CHUNK m (4 à la fois)
     const photosById = new Map(), centres = stations.filter((_, i) => i % Math.round(ALONG_CHUNK / ALONG_STEP) === 0);
     for (let i = 0; i < centres.length; i += 4) {
-      setStatus(`Vidéo : photos le long de la ${road} (${Math.round(100 * i / centres.length)} %)…`);
+      setStatus(`Vidéo : photos le long de ${label} (${Math.round(100 * i / centres.length)} %)…`);
       const found = await Promise.all(centres.slice(i, i + 4).map((c) => Carte.photosNear(map, ...c.at,
         (f) => passesFilter(f) && Number.isInteger(rankOf(f)), ALONG_CHUNK + ALONG_NEAR, 1000).catch(() => [])));
       for (const f of found.flat()) photosById.set(f.id, f);
@@ -3285,26 +3221,25 @@
     });
     // Programmation dynamique : coût le plus bas pour arriver à chaque pas sur chaque séquence et sens
     let cost = new Map();
-    const from = [];
+    const from = [], days = new Map();  // séquence et sens -> jour de prise de vue
     for (const choice of options) {
       const next = new Map(), back = new Map();
       if (!choice.size) {  // pas sans photo : rien ne change
         from.push(null);
         continue;
       }
-      let bestPrev = null;
-      for (const [key, c] of cost) if (!bestPrev || c < bestPrev.c) bestPrev = { key, c };
       for (const [key, o] of choice) {
+        days.set(key, Date.parse(o.f.properties?.datetime) / 86400e3 || 0);
         const reverse = o.back ? ALONG_BACK : 0;  // lecture à rebours (l'arrière du véhicule à l'écran) : coûte à chaque pas
-        const stay = cost.get(key) == null ? null : cost.get(key) + reverse;
-        const change = (bestPrev ? bestPrev.c + 1 : 0) + reverse;
-        if (stay != null && stay <= change) {
-          next.set(key, stay);
-          back.set(key, key);
-        } else {
-          next.set(key, change);
-          back.set(key, bestPrev?.key ?? null);
+        // Rester sur la séquence, ou en changer : 1, plus 1 par ALONG_DAYS jours d'écart entre les deux séquences
+        let best = cost.has(key) ? { c: cost.get(key), from: key } : null;
+        for (const [prev, c] of cost) {
+          if (prev === key) continue;
+          const change = c + 1 + Math.abs(days.get(prev) - days.get(key)) / ALONG_DAYS;
+          if (!best || change < best.c) best = { c: change, from: prev };
         }
+        next.set(key, (best?.c ?? 0) + reverse);
+        back.set(key, best?.from ?? null);
       }
       cost = next;
       from.push(back);
@@ -3340,61 +3275,8 @@
       warning: switches ? "Le parcours passe d'une séquence à l'autre : les photos peuvent différer (date, lumière, sens de prise de vue)." : "" };
   }
   const ALONG_STEP = 5, ALONG_NEAR = 12, ALONG_ANGLE = 50, ALONG_CHUNK = 150;  // m, m, degrés, m
-  const ALONG_BACK = 0.2;  // pas lu à rebours : 25 m à rebours valent un changement de séquence
-
-  const ROAD_KEEP = 15, ROAD_LEAVE = 25;  // m du tracé de la route : sur elle ; au-delà, quittée (détour, boucle)
-  const ROAD_BACK = 30, ROAD_AHEAD = 400;  // m de l'endroit quitté, rangs lus plus loin : retour de la même séquence
-  /** Où aller quand la route est quittée sans autre séquence pour la suivre (tronçon leg de planLegs) : demandé à
-   * l'utilisateur (askVia) ; le point choisi devient une étape (placed.waypoint, rangée avant celle qui finit ce tronçon)
-   * et tout le parcours est recalculé (exception { restart }). Échap : null, détour gardé. Sans question permise (ask
-   * faux : essai d'une séquence de départ) : question comptée dans t.unresolved, null. */
-  async function viaBranch(t, coords, road, ask = true, leg = 0) {
-    if (!ask) {
-      t.unresolved++;
-      return null;
-    }
-    const where = await askVia(coords, road);
-    if (!where) return null;
-    placePoint("waypoint", where);
-    const list = placed.waypoint.points;
-    list.splice(leg, 0, list.pop());  // dans l'ordre du parcours : avant l'étape qui finit ce tronçon
-    throw { restart: true };
-  }
-  let viaAnswer = null;  // réponse attendue à askVia : fonction (lonlat ou null)
-  /** Demande à l'utilisateur où continuer : repère rouge là où la séquence quitte la route road, carte centrée dessus,
-   * un clic sur la mini-carte (Échap : garder le détour) ; rend [lon, lat] ou null. */
-  function askVia(coords, road) {
-    return new Promise((resolve) => {
-      const element = Object.assign(document.createElement("div"), { className: "repere-requete arret",
-        title: `La séquence quitte la ${road} ici : faites glisser ce repère où continuer` });
-      const marker = new maplibregl.Marker({ element, anchor: "bottom", draggable: true }).setLngLat(coords).addTo(map);
-      marker.on("dragend", () => viaAnswer?.(marker.getLngLat().toArray()));  // repère glissé : la réponse
-      map.flyTo({ center: coords, zoom: Math.max(map.getZoom(), 16) });
-      viaAnswer = (lonlat) => {
-        marker.remove();
-        viaAnswer = null;
-        resolve(lonlat);
-      };
-      setTravelPick("via");
-      setStatus(`Vidéo : la séquence quitte la ${road} au repère rouge et aucune autre ne la suit. Faites glisser le repère sur `
-        + "la route à suivre, au-delà du croisement, sur des photos (ou cliquez-y sur la mini-carte) : il devient une étape et "
-        + "le parcours est recalculé ; Échap : garder le détour.", "avertissement");
-    });
-  }
-  /** Autre séquence qui reprend la route road là où la séquence current l'a quittée (at : dernière photo sur elle,
-   * { coords, heading, rank }, à TOUR_BRANCH m), dans le sens où l'on roulait (at.heading, lue à rebours si elle a été
-   * prise dans l'autre sens) : une qui passe à l'arrivée d'abord ; la même séquence à un autre passage (à plus de
-   * ROAD_SAME rangs) compte ; sa photo doit être sur la route. { feature, back } ou null. */
-  async function roadBranch(t, at, road, current) {
-    const list = [];
-    for (const f of await Carte.photosNear(map, ...at.coords, (f) => passesFilter(f) && Number.isInteger(rankOf(f))
-      && (f.collection !== current || Math.abs(rankOf(f) - at.rank) > ROAD_SAME), TOUR_BRANCH).catch(() => [])) {
-      if ((await Lieu.roadDistance(road, ...f.geometry.coordinates).catch(() => Infinity)) <= ROAD_KEEP) list.push(f);
-    }
-    const viaEnd = list.find((f) => t.endRanks.has(f.collection) && t.endRanks.get(f.collection) !== rankOf(f));
-    return viaEnd ? { feature: viaEnd, back: t.endRanks.get(viaEnd.collection) < rankOf(viaEnd) } : towardEnd(list, t.end, at.heading);
-  }
-  const ROAD_SAME = 50;  // rangs : même séquence repassée au même endroit (autre passage), et non sa photo voisine
+  const ALONG_BACK = 25;  // pas lu à rebours (5 m) : plus qu'un changement entre séquences à cinq ans d'écart (le sens d'abord)
+  const ALONG_DAYS = 90;  // jours d'écart entre deux séquences qui valent un changement de plus
 
   // Onglet « Vidéo » : « ▶ Parcourir » grisé tant que la route ou un PR manque
   const travelPane = $("#parcours");
@@ -3416,7 +3298,7 @@
       button.setAttribute("aria-pressed", String(button.dataset.cote === which));
     }
     if (which) {
-      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau", stop: "l'endroit de l'arrêt", slow: "un point de ralentissement", via: "où continuer", waypoint: "une étape (sur une route photographiée)", planet: planetDraft ? "la fin de la petite planète" : "le début de la petite planète (le long de la route)", tour: "l'endroit du tour d'horizon",
+      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau", stop: "l'endroit de l'arrêt", slow: "un point de ralentissement", waypoint: "une étape (sur une route photographiée)", planet: planetDraft ? "la fin de la petite planète" : "le début de la petite planète (le long de la route)", tour: "l'endroit du tour d'horizon",
         poiZone: poi.draft ? "la fin de la zone de l'effet" : "le début de la zone de l'effet (le long de la route)" }[which]} ; `
         + "Échap pour annuler.");
     }
@@ -3461,10 +3343,6 @@
       showPoiZone();
       setStatus("Zone de l'effet tracée (extrémités ramenées sur le parcours, à 30 m au plus) ; clic sur le trait pour la retirer.");
       updatePlayer();
-      return;
-    }
-    if (which === "via") {  // réponse à askVia
-      viaAnswer?.([lngLat.lng, lngLat.lat]);
       return;
     }
     if (which === "planet" && !planetDraft) {  // petite planète : début du tronçon, puis sa fin
@@ -4052,7 +3930,7 @@
         if (metresBetween(found.start, found.end) < TOUR_REACH) {
           throw new Error(`départ et arrivée au même endroit (moins de ${TOUR_REACH} m) : choisissez l'arrivée (📍 de l'arrivée, ou son PR)`);
         }
-        videoPlan = { ...await planLegs(found.start, found.end, travelFields.state().route), title: found.title };
+        videoPlan = { ...await planLegs(found.start, found.end), title: found.title };
         setStatus("Vidéo : PR des photos…");
         await prOfPhotos(videoPlan.photos, found.title.split(" ")[0]);
         // Carrefours du parcours (regard aux croisements) : tronçons de la BD TOPO, mailles en cache

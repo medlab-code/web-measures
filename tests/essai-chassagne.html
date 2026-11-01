@@ -3,8 +3,8 @@
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
 <!-- Vidéo sur la D906 à travers le croisement de la D113A à Chassagne-Montrachet (4,7357 ; 46,9404), cas de
      l'utilisateur du 01/11/2026 : la séquence y quitte la D906. Départ et arrivée posés sur la carte (1,2 km au nord,
-     0,7 km au sud) ; à chaque question « où continuer », clic sur la D906 au-delà du croisement (comme l'utilisateur) ;
-     contrôles : préparation finie, au plus une question, repères sans doublon, parcours resté sur la D906 (sauf dans son
+     0,7 km au sud ; #nord : dans l'autre sens) ; contrôles : préparation finie (itinéraire de la Géoplateforme, photos le
+     long de son tracé), aucune question, repères sans doublon, aucune photo lue à rebours, parcours resté sur la D906 (sauf dans son
      interruption de Beaune, de 4,7394 à 4,7428, en tronc commun). #utilisateur : parcours exact de l'utilisateur. Lancer comme
      tests/navigateur.html. -->
 <script>try { localStorage.clear(); } catch {}</script>
@@ -75,22 +75,27 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     }
     await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 600000, "fin de la préparation");
     const plan = w.mesures.videoPlan;
+    // Écart à la D906 : sections de PR de la BD TOPO en Côte-d'Or, projection (Lieu.project)
     const Lieu = w.eval("Lieu");
+    const sections = (await Lieu.features("section_de_points_de_repere", { count: 500, properties: "numero_de_route,geometrie",
+      filter: "numero_de_route='D906' AND BBOX(geometrie,46.80,4.00,47.50,4.90)" })).map((f) => f.geometry.coordinates);
+    const toD906 = (p) => Math.min(...sections.map((line) => Lieu.project(line, ...p).d));
     let off = 0;
     const offAt = [];
     for (const [i, p] of (plan?.photos || []).entries()) {
-      const place = await Lieu.roadPlace("D906", ...p.coords);
+      const place = { d: toD906(p.coords) };
       const beaune = p.coords[0] > 4.739 && p.coords[0] < 4.743 && Math.abs(p.coords[1] - 46.9268) < 0.001;  // interruption
       if (place.d > 25 && !beaune) {
         off++;
-        offAt.push(`n° ${i} ${p.coords.map((v) => v.toFixed(5)).join(",")} à ${place.d.toFixed(0)} m${place.gap ? " (interruption)" : ""}`);
+        offAt.push(`n° ${i} ${p.coords.map((v) => v.toFixed(5)).join(",")} à ${place.d.toFixed(0)} m`);
       }
     }
     if (offAt.length) log(`hors de la D906 : ${offAt.join(" ; ")}`);
     log(`préparée en ${((Date.now() - t0) / 1000).toFixed(0)} s : ${plan?.photos?.length} photos, ${plan?.switches} changement(s), `
       + `${off} hors de la D906, ${asked} question(s), ${plan?.reversed ?? 0} à rebours ; repères ${marks()} ; ${status()}`);
     expect("vidéo préparée", plan?.photos?.length > 50, status());
-    expect("au plus une question", asked <= 1, asked);
+    expect("aucune question", asked === 0, asked);
+    expect("aucune photo lue à rebours (photos vers l'avant d'abord)", !plan?.reversed, plan?.reversed);
     expect("parcours resté sur la D906", !off, off);
     expect("repères sans doublon (départ, arrivée, une étape au plus)", doc.querySelectorAll(".repere-requete.etape").length <= 1
       && !doc.querySelector(".repere-requete.arret"), marks());
