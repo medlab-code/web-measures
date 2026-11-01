@@ -516,8 +516,10 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <input id="video-tour" type="checkbox" class="interrupteur" aria-label="Tour d'horizon">
             </div>
             <!-- Petite planète : div (pas label) pour contenir ses réglettes -->
-            <div class="option" title="Petite planète : sur le tronçon tracé sur la mini-carte (📍 : début puis fin, à moins de 30 m du parcours ; 50 m au moins), la vue descend vers le sol en s'élargissant jusqu'à enrouler le paysage en boule (projection stéréographique, route vers le haut, la planète tourne avec la route), tient, puis se déroule ; un tiers du tronçon chacun, la caméra continue d'avancer">
+            <div class="option" title="Petite planète : sur le tronçon tracé sur la mini-carte (📍 : début puis fin, à moins de 30 m du parcours ; 50 m au moins), la vue descend vers le sol en s'élargissant jusqu'à enrouler le paysage en boule (projection stéréographique, route vers le haut, la planète tourne avec la route), tient, puis se déroule à la fin du tronçon (réglette « Transition » : 0 à 3 s, 1 s par défaut ; 0 : planète d'emblée), la caméra continue d'avancer">
               <span class="texte-option">Petite planète<span class="aide">Le paysage s'enroule en boule, sur le tronçon tracé.</span>
+                <span class="reglette-option">Transition <output id="planete-transition-valeur" for="planete-transition">1 s</output>
+                  <input id="planete-transition" type="range" min="0" max="3" step="1" value="1" aria-label="Durée de l'enroulement et du déroulement de la petite planète (s ; 0 : planète d'emblée)"></span>
                 <span class="reglette-option">Rotation <output id="planete-rotation-valeur" for="planete-rotation">20 °/s</output>
                   <input id="planete-rotation" type="range" min="0" max="90" step="5" value="20" aria-label="Vitesse de rotation de la planète sur elle-même (°/s ; 0 : sans)"></span>
               </span>

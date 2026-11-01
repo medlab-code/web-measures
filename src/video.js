@@ -63,6 +63,7 @@ const Video = (() => {
   const LOOK_GAP = 60;  // m : carrefours plus proches du précédent regardé (giratoire, double carrefour) : un seul regard
   const ROLL_TIME = 3;  // s : tour complet du tonneau par défaut (réglette de 1 à 10 s ; pas trop rapide : demande)
   const ROLL_REACH = 30;  // m : endroit du tonneau ramené sur le parcours à cette distance au plus
+  const PLANET_FADE = 1;  // s : enroulement et déroulement de la petite planète par défaut (réglette 0 à 3 s ; 0 : planète d'emblée)
   const PLANET_MIN = 50;  // m : petite planète au moins (tracé trop court ou endroit seul d'un parcours gardé avant le 01/11)
   const PLANET_FOV = 300;  // degrés : champ horizontal de la planète (projection stéréographique, regard vers le sol)
   const PLANET_SPIN = 20;  // °/s : rotation de la planète sur elle-même par défaut (réglette de 0, sans, à 90)
@@ -489,10 +490,11 @@ const Video = (() => {
 
   /** Petites planètes sur les tronçons spans ([[début, fin]…], [lon, lat] ramenés sur le parcours, à ROLL_REACH m au
    * plus ; un endroit seul [lon, lat] : PLANET_MIN m centrés sur lui) : { mix, spin } par image de xs : part de la
-   * planète (0 : vue normale, 1 : planète ; enroulement, tenue et déroulement d'un tiers du tronçon chacun, adoucis) et
+   * planète (0 : vue normale, 1 : planète ; enroulement au début du tronçon et déroulement à la fin, fade s chacun
+   * adoucis, la moitié du tronçon au plus ; 0 : planète d'emblée sur tout le tronçon) et
    * rotation sur elle-même (degrés : spin °/s depuis le milieu du tronçon, multipliés par la part : nulle hors de
    * l'effet, la vue revient droite). */
-  function planets(path, xs, spans = [], spin = PLANET_SPIN) {
+  function planets(path, xs, spans = [], spin = PLANET_SPIN, fade = PLANET_FADE) {
     const mix = xs.map(() => 0), turn = xs.map(() => 0);
     const frame = (x) => Math.max(0, xs.findIndex((v) => v >= x));
     spans.forEach((span, k) => {
@@ -502,9 +504,10 @@ const Video = (() => {
         const c = (x0 + x1) / 2;
         [x0, x1] = [Math.max(0, c - PLANET_MIN / 2), Math.min(path.length, c + PLANET_MIN / 2)];
       }
-      const n0 = frame(x0), n1 = Math.max(n0 + 3, frame(x1)), third = (n1 - n0) / 3, centre = (n0 + n1) / 2;
+      const n0 = frame(x0), n1 = Math.max(n0 + 3, frame(x1)), centre = (n0 + n1) / 2;
+      const f = Math.min(fade * FPS, (n1 - n0) / 2);
       for (let n = n0; n <= Math.min(xs.length - 1, n1); n++) {
-        const m = smooth(Math.max(0, Math.min(1, (n - n0) / third, (n1 - n) / third)));
+        const m = f ? smooth(Math.max(0, Math.min(1, (n - n0) / f, (n1 - n) / f))) : 1;
         if (m <= mix[n]) continue;
         mix[n] = m;
         turn[n] = m * spin * (n - centre) / FPS;
@@ -1063,7 +1066,7 @@ const Video = (() => {
    * options.poi : point d'intérêt { target, z (altitude NGF de l'objet relevé ou null), start, end (extrémités de la
    * zone tracée, [lon, lat] ou null), speed (km/h ou null), zoom, zoomByDistance, roll, ground: { target, photos }
    * (altitudes du sol, par photo de photos) } (poiViews) ; options.planets : tronçons des petites planètes ([[début, fin]…],
-   * planets), options.planetSpin : vitesse de rotation (°/s) ;
+   * planets), options.planetFade : enroulement et déroulement (s), options.planetSpin : vitesse de rotation (°/s) ;
    * options.advance : false pour ne pas avancer dans la maquette (fondu enchaîné d'une photo à l'autre) ;
    * options.tours : endroits des tours d'horizon ([[lon, lat]…], tours), options.tourTime : durée de chacun (s),
    * options.tourStop : caméra arrêtée pendant le tour ; options.hq : haute qualité (HQ_CODECS, tuiles en pleine
@@ -1071,7 +1074,7 @@ const Video = (() => {
    */
   async function mp4(photos, kmh, progress = () => {}, signal = null,
     { blur = false, exposure = true, ramp = false, title = null, counter = false, speedometer = false, lateral = false, arpSpeed = false, junctions = [], rolls: rollPlaces = [],
-    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, hq = false, planets: planetPlaces = [],
+    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, hq = false, planets: planetPlaces = [], planetFade = PLANET_FADE,
     planetSpin = PLANET_SPIN, advance = true, tours: tourPlaces = [], tourTime = TOUR_TIME, tourStop = true } = {}) {
     const path = trajectory(photos);
     if (path.list.length < 2 || path.length < 1) throw new Error("parcours trop court");
@@ -1115,7 +1118,7 @@ const Video = (() => {
     aim.yaw.forEach((v, n) => { pan[n] += v; });
     const tilt = rolls(path, xs, poi?.roll ? [...rollPlaces, path.at(span.xc)] : rollPlaces, rollTime);
     // Petite planète : regard vers le sol, champ élargi jusqu'à PLANET_FOV, rotation lente ajoutée au roulis
-    const globe = planets(path, xs, planetPlaces, planetSpin);
+    const globe = planets(path, xs, planetPlaces, planetSpin, planetFade);
     globe.spin.forEach((v, n) => { tilt[n] += v; });
     // Image tournée par le tonneau : le coin de la vue passe en haut et en bas (demi-diagonale du champ)
     const diagonal = 2 * Math.atan(Math.hypot(tan, tan * height / width)) / toRad;

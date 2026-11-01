@@ -367,7 +367,12 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       const spinMax = Math.max(...globe.spin.map(Math.abs));
       log(`planète : ${on} images d'effet, ${full} en pleine planète, rotation jusqu'à ${spinMax.toFixed(0)}°`);
       expect("planète : 4 s d'effet (120 images ± 2)", Math.abs(on - 120) <= 2, on);
-      expect("planète : tenue d'un tiers (40 images ± 2)", Math.abs(full - 40) <= 2, full);
+      expect("planète : transition de 1 s par défaut, tenue de 2 s (60 images ± 3)", Math.abs(full - 60) <= 3, full);
+      const sharp = Video.planets(path, xs, [span], 20, 0).mix.filter((m) => m > 0);
+      expect("planète : transition 0, planète d'emblée sur tout le tronçon", Math.abs(sharp.length - 120) <= 2 && sharp.every((m) => m === 1), sharp.length);
+      expect("planète : réglette « Transition » de 0 à 3 s, 1 s par défaut", ["min", "max", "step", "value"]
+        .map((a) => doc.querySelector("#planete-transition")[a]).join() === "0,3,1,1"
+        && doc.querySelector("#planete-transition-valeur").textContent === "1 s");
       expect("planète : enroulement progressif (pas de saut de plus de 0,1 par image)",
         globe.mix.every((m, n) => !n || Math.abs(m - globe.mix[n - 1]) <= 0.1));
       // Rotation lente : 20°/s depuis le passage, ± 2 s au bout de l'effet (± 1 s pondérée par la part) ; vue droite après

@@ -3156,6 +3156,10 @@
   });
   // Vitesse de rotation de la petite planète, durées du tonneau et de la planète affichées à côté de leur réglette
   for (const id of ["#tour-duree", "#tour-arret"]) $(id).addEventListener("input", updatePlayer);  // durée de la vidéo
+  $("#planete-transition").addEventListener("input", () => {
+    const fade = Number($("#planete-transition").value);
+    $("#planete-transition-valeur").textContent = fade ? `${fade} s` : "aucune";
+  });
   $("#planete-rotation").addEventListener("input", () => {
     const speed = Number($("#planete-rotation").value);
     $("#planete-rotation-valeur").textContent = speed ? `${speed} °/s` : "sans";
@@ -3710,7 +3714,7 @@
         junctions: $("#video-regard").checked ? videoPlan.junctions : [],
         rolls: $("#video-tonneau").checked ? placed.roll.points.map((p) => p.lonlat) : [], rollTime: Number($("#tonneau-duree").value),
         planets: $("#video-planete").checked ? placed.planet.points.map(placeOf) : [],
-        planetSpin: Number($("#planete-rotation").value),
+        planetFade: Number($("#planete-transition").value), planetSpin: Number($("#planete-rotation").value),
         tours: $("#video-tour").checked ? placed.tour.points.map((p) => p.lonlat) : [],
         tourTime: Number($("#tour-duree").value), tourStop: $("#tour-arret").checked,
         poi: poiAim,
@@ -3830,7 +3834,7 @@
     for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-hq", "#video-avancee", "#video-expo", "#video-rampe", "#video-titre",
       "#video-compteur", "#video-compteur-vitesse", "#video-acceleration", "#video-vmax-arp", "#video-regard", "#video-tonneau", "#tonneau-duree", "#regard-vitesse",
       "#video-interet", "#interet-vitesse", "#interet-zoom", "#interet-zoom-distance", "#interet-tonneau",
-      "#video-planete", "#planete-rotation", "#video-tour", "#tour-duree", "#tour-arret"]) {
+      "#video-planete", "#planete-transition", "#planete-rotation", "#video-tour", "#tour-duree", "#tour-arret"]) {
       $(id).disabled = Boolean(videoRun);
     }
     if (!videoRun) $("#video-info").textContent = videoOk ? videoInfo() : "ce navigateur n'encode pas la vidéo";
