@@ -902,9 +902,19 @@ const Video = (() => {
     const s = [0];
     for (let i = 1; i < list.length; i++) s.push(s[i - 1] + metres(list[i - 1].coords, list[i].coords));
     const length = s[s.length - 1];
+    // Segment de x : premier i (au plus le dernier segment) où s[i + 1] >= x, par dichotomie (appelé plusieurs fois par
+    // image : une recherche depuis le début ralentissait la vidéo à mesure qu'elle avançait)
+    const firstAtLeast = (n, reached) => {
+      let lo = 0, hi = Math.max(0, n);
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (reached(mid)) hi = mid;
+        else lo = mid + 1;
+      }
+      return lo;
+    };
     const segment = (x) => {
-      let i = 0;
-      while (i < s.length - 2 && s[i + 1] < x) i++;
+      const i = firstAtLeast(s.length - 2, (k) => s[k + 1] >= x);
       return [i, s[i + 1] > s[i] ? Math.min(1, Math.max(0, (x - s[i]) / (s[i + 1] - s[i]))) : 0];
     };
     const at = (x) => {
@@ -916,8 +926,7 @@ const Video = (() => {
     const known = list.map((p, i) => [s[i], p.alt]).filter(([, z]) => Number.isFinite(z));
     const altAt = (x) => {
       if (known.length < 2) return 0;
-      let j = 0;
-      while (j < known.length - 2 && known[j + 1][0] < x) j++;
+      const j = firstAtLeast(known.length - 2, (k) => known[k + 1][0] >= x);
       const [s0, z0] = known[j], [s1, z1] = known[j + 1];
       return s1 > s0 ? z0 + (z1 - z0) * (x - s0) / (s1 - s0) : z0;
     };
@@ -1274,6 +1283,8 @@ const Video = (() => {
     encoder.configure(config);
     let overlay = null;  // canevas 2D du titre et du compteur
     const total = xs.length;
+    // Chiffres du compteur de vitesse : ceux de la plus grande vitesse de la vidéo (calculés une fois, pas à chaque image)
+    const kmhDigits = speedometer ? String(Math.round(kmhs.reduce((a, b) => Math.max(a, b), 0))).length : 0;
     try {
       for (let n = 0; n < total; n++) {
         if (signal?.aborted) throw new DOMException("Vidéo arrêtée", "AbortError");
@@ -1324,7 +1335,7 @@ const Video = (() => {
           ctx2d.imageSmoothingQuality = "high";
           ctx2d.drawImage(gl.canvas, 0, 0, width, height);
           drawOverlay(ctx2d, width, height, { title, pr: counter ? prAt(path, x) : null,
-            speed: speedometer ? { kmh: kmhs[n], digits: String(Math.round(Math.max(...kmhs))).length } : null,
+            speed: speedometer ? { kmh: kmhs[n], digits: kmhDigits } : null,
             lateral: lateral ? { felt: felt[n], color: lateralColor(lats[n], kmhs[n], devs[n]) } : null, arp: arpSpeed ? { kmh: vmax[n] } : null,
             t: n / FPS });
           image = overlay;
