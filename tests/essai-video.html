@@ -370,6 +370,9 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("planète : transition de 1 s par défaut, tenue de 2 s (60 images ± 3)", Math.abs(full - 60) <= 3, full);
       const sharp = Video.planets(path, xs, [span], 20, 0).mix.filter((m) => m > 0);
       expect("planète : transition 0, planète d'emblée sur tout le tronçon", Math.abs(sharp.length - 120) <= 2 && sharp.every((m) => m === 1), sharp.length);
+      const whole = Video.planets(path, xs, [], 20, 0, true).mix;
+      expect("planète : tout le parcours, de la première à la dernière image", whole.every((m) => m === 1), whole.filter((m) => m < 1).length);
+      expect("planète : interrupteur « Tout le parcours » décoché par défaut", doc.querySelector("#planete-tout")?.checked === false);
       expect("planète : réglette « Transition » de 0 à 3 s, 1 s par défaut", ["min", "max", "step", "value"]
         .map((a) => doc.querySelector("#planete-transition")[a]).join() === "0,3,1,1"
         && doc.querySelector("#planete-transition-valeur").textContent === "1 s");

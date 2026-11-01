@@ -493,18 +493,22 @@ const Video = (() => {
    * planète (0 : vue normale, 1 : planète ; enroulement au début du tronçon et déroulement à la fin, fade s chacun
    * adoucis, la moitié du tronçon au plus ; 0 : planète d'emblée sur tout le tronçon) et
    * rotation sur elle-même (degrés : spin °/s depuis le milieu du tronçon, multipliés par la part : nulle hors de
-   * l'effet, la vue revient droite). */
-  function planets(path, xs, spans = [], spin = PLANET_SPIN, fade = PLANET_FADE) {
+   * l'effet, la vue revient droite) ; all : planète sur tout le parcours (spans ignorés). */
+  function planets(path, xs, spans = [], spin = PLANET_SPIN, fade = PLANET_FADE, all = false) {
     const mix = xs.map(() => 0), turn = xs.map(() => 0);
-    const frame = (x) => Math.max(0, xs.findIndex((v) => v >= x));
-    spans.forEach((span, k) => {
-      const ends = Array.isArray(span[0]) ? span : [span, span];
-      let [x0, x1] = placesOn(path, ends, `petite planète n° ${k + 1}, extrémité`);
+    const frame = (x) => {
+      const n = xs.findIndex((v) => v >= x);
+      return n < 0 ? xs.length - 1 : n;
+    };
+    (all ? [null] : spans).forEach((span, k) => {
+      const ends = all ? null : Array.isArray(span[0]) ? span : [span, span];
+      let [x0, x1] = all ? [0, path.length] : placesOn(path, ends, `petite planète n° ${k + 1}, extrémité`);
       if (x1 - x0 < PLANET_MIN) {
         const c = (x0 + x1) / 2;
         [x0, x1] = [Math.max(0, c - PLANET_MIN / 2), Math.min(path.length, c + PLANET_MIN / 2)];
       }
-      const n0 = frame(x0), n1 = Math.max(n0 + 3, frame(x1)), centre = (n0 + n1) / 2;
+      // Tout le parcours : arrêts sur la première et la dernière vue compris
+      const n0 = all ? 0 : frame(x0), n1 = all ? xs.length - 1 : Math.max(n0 + 3, frame(x1)), centre = (n0 + n1) / 2;
       const f = Math.min(fade * FPS, (n1 - n0) / 2);
       for (let n = n0; n <= Math.min(xs.length - 1, n1); n++) {
         const m = f ? smooth(Math.max(0, Math.min(1, (n - n0) / f, (n1 - n) / f))) : 1;
@@ -1066,7 +1070,7 @@ const Video = (() => {
    * options.poi : point d'intérêt { target, z (altitude NGF de l'objet relevé ou null), start, end (extrémités de la
    * zone tracée, [lon, lat] ou null), speed (km/h ou null), zoom, zoomByDistance, roll, ground: { target, photos }
    * (altitudes du sol, par photo de photos) } (poiViews) ; options.planets : tronçons des petites planètes ([[début, fin]…],
-   * planets), options.planetFade : enroulement et déroulement (s), options.planetSpin : vitesse de rotation (°/s) ;
+   * planets), options.planetFade : enroulement et déroulement (s), options.planetAll : sur tout le parcours, options.planetSpin : vitesse de rotation (°/s) ;
    * options.advance : false pour ne pas avancer dans la maquette (fondu enchaîné d'une photo à l'autre) ;
    * options.tours : endroits des tours d'horizon ([[lon, lat]…], tours), options.tourTime : durée de chacun (s),
    * options.tourStop : caméra arrêtée pendant le tour ; options.hq : haute qualité (HQ_CODECS, tuiles en pleine
@@ -1074,7 +1078,7 @@ const Video = (() => {
    */
   async function mp4(photos, kmh, progress = () => {}, signal = null,
     { blur = false, exposure = true, ramp = false, title = null, counter = false, speedometer = false, lateral = false, arpSpeed = false, junctions = [], rolls: rollPlaces = [],
-    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, hq = false, planets: planetPlaces = [], planetFade = PLANET_FADE,
+    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, hq = false, planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false,
     planetSpin = PLANET_SPIN, advance = true, tours: tourPlaces = [], tourTime = TOUR_TIME, tourStop = true } = {}) {
     const path = trajectory(photos);
     if (path.list.length < 2 || path.length < 1) throw new Error("parcours trop court");
@@ -1118,7 +1122,7 @@ const Video = (() => {
     aim.yaw.forEach((v, n) => { pan[n] += v; });
     const tilt = rolls(path, xs, poi?.roll ? [...rollPlaces, path.at(span.xc)] : rollPlaces, rollTime);
     // Petite planète : regard vers le sol, champ élargi jusqu'à PLANET_FOV, rotation lente ajoutée au roulis
-    const globe = planets(path, xs, planetPlaces, planetSpin, planetFade);
+    const globe = planets(path, xs, planetPlaces, planetSpin, planetFade, planetAll);
     globe.spin.forEach((v, n) => { tilt[n] += v; });
     // Image tournée par le tonneau : le coin de la vue passe en haut et en bas (demi-diagonale du champ)
     const diagonal = 2 * Math.atan(Math.hypot(tan, tan * height / width)) / toRad;
