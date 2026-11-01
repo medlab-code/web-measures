@@ -137,7 +137,12 @@ large, un peu plus lent, virage serré, beaucoup ; jamais sous « Au plus bas »
 arrêts en douceur, accélérations et freinages à « Accélération » au plus, 2 m/s² par défaut, de 0,5 à 6 : une longue
 ligne droite atteint la vitesse choisie, une courte non ; vitesse lissée sur ± 15 m ; réglettes provisoires, à affiner ;
 « Arrêts » : aux endroits choisis sur la mini-carte (📍, repère rouge, à moins de 30 m du parcours), la vidéo ralentit,
-s'arrête le temps choisi, 3 s par défaut, de 1 à 10, et repart). Bouton « ▶ Aperçu » (la vidéo préparée) : sans calculer la
+s'arrête le temps choisi, 3 s par défaut, de 1 à 10, et repart); « Croisements et ouvrages d'art » (décochée) : à la préparation (ou en la cochant), repères orange posés
+d'eux-mêmes sur les croisements de routes revêtues de la BD TOPO (départementales, voies communales, giratoires ; pas les
+chemins ni les routes empierrées) et sur les tronçons hors du sol (ponts, passages supérieurs, tunnels), à moins de 15 m
+des photos, un par 30 m ; la vidéo y passe à la vitesse choisie (50 km/h par défaut, de 20 à 90) sur ± 15 m, freinage et
+reprise progressifs ; clic sur un repère : retiré, 📍 : un point ajouté ; gardés avec le parcours, retirés à la
+préparation s'ils sont à plus de 30 m du nouveau tracé. Bouton « ▶ Aperçu » (la vidéo préparée) : sans calculer la
 vidéo, un repère ambre parcourt le tracé sur la mini-carte en temps réel, à l'allure de la vidéo (virages, arrêts, regards
 aux croisements, point d'intérêt, tours d'horizon), avec sa vitesse et le temps écoulé ; second clic : arrêt. Le tracé de
 la vidéo préparée est coloré selon la vitesse (tronçons de 10 m : bleu à 20 km/h, vert à 60, jaune à 100, rouge à 150 et

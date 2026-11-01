@@ -130,6 +130,24 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("aperçu : repère avec vitesse et temps", /^\d+ km\/h · 0 min 0[12] s$/.test(dot), dot);
       preview.click();
       expect("aperçu : arrêté au second clic", !doc.querySelector(".apercu-video") && /Aperçu/.test(preview.textContent));
+      // Croisements et ouvrages d'art : posés d'eux-mêmes en cochant l'option (carrefour de la RD18 à l'arrivée au moins),
+      // vitesse ramenée à 50 km/h sur eux ; un clic sur un repère le retire
+      const slowBox = doc.querySelector("#video-ralenti");
+      slowBox.click();
+      await sleep(300);
+      const slowMarks = () => [...doc.querySelectorAll(".repere-requete.ralenti")];
+      const slowAt = w.mesures.videoPlan && slowMarks().length;
+      log(`ralentissements posés : ${slowAt} ; ${status()}`);
+      expect("ralentissements : posés d'eux-mêmes sur le parcours", slowAt >= 1, slowAt);
+      const slowPres = { vmax: 150 / 3.6, vmin: 30 / 3.6, turn: 12, accel: 2, slow: 50 / 3.6,
+        slows: [w.mesures.videoPlan.photos.at(-3).coords] };
+      const withSlow = Video.presentationSpeeds(long, slowPres);
+      const slowX = long.s[long.list.findIndex((p) => p.coords === w.mesures.videoPlan.photos.at(-3).coords)] ?? long.length - 10;
+      expect("ralentissements : 50 km/h au plus sur le point", 3.6 * withSlow[Math.round(slowX)] <= 50 + 1e-6, 3.6 * withSlow[Math.round(slowX)]);
+      slowMarks()[0].click();
+      expect("ralentissements : un clic sur un repère le retire", slowMarks().length === slowAt - 1, slowMarks().length);
+      slowBox.click();
+      for (const m of slowMarks()) m.click();
       // Dévers lu sur le LiDAR HD en cochant « Accélération latérale » : vers l'intérieur dans les virages marqués, plausible
       const meter = doc.querySelector("#video-acceleration"), help = meter.closest("label").querySelector(".aide");
       meter.checked = true;

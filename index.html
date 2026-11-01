@@ -462,6 +462,15 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
                 title="Choisir l'endroit d'un arrêt d'un clic sur la mini-carte (Échap : annuler)">📍</button>
               <input id="video-arret" type="checkbox" class="interrupteur" aria-label="Arrêts">
             </div>
+            <div class="option" title="Ralentir aux croisements et aux ouvrages d'art : croisements de routes revêtues de la BD TOPO (départementales, voies communales, giratoires ; pas les chemins ni les routes empierrées) et tronçons hors du sol (ponts, passages supérieurs, tunnels), à moins de 15 m du parcours, posés d'eux-mêmes à la préparation (repères orange : clic pour en retirer un, 📍 pour en ajouter) ; vitesse tenue à ± 15 m, freinage et reprise progressifs">
+              <span class="texte-option">Croisements et ouvrages d'art<span class="aide">Ralentir aux croisements et aux ponts. Repères orange : clic pour en retirer un, 📍 pour en ajouter.</span>
+                <span class="reglette-option">Vitesse <output id="ralenti-vitesse-valeur" for="ralenti-vitesse">50 km/h</output>
+                  <input id="ralenti-vitesse" type="range" min="20" max="90" step="5" value="50" aria-label="Vitesse aux croisements et aux ouvrages d'art (km/h)"></span>
+              </span>
+              <button type="button" class="sur-carte" data-cote="slow" aria-pressed="false"
+                title="Ajouter un point de ralentissement d'un clic sur la mini-carte (Échap : annuler)">📍</button>
+              <input id="video-ralenti" type="checkbox" class="interrupteur" aria-label="Ralentir aux croisements et aux ouvrages d'art">
+            </div>
           </div>
           <div class="options">
             <!-- Titre : div (pas label) pour contenir ses champs et son interrupteur de rappel -->

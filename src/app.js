@@ -2562,6 +2562,8 @@
       note: "sens alterné dans l'ordre du parcours, à moins de 30 m de lui" },
     planet: { points: [], css: "planete", label: ["petite planète", "petites planètes"], check: "#video-planete",
       note: "tronçon de l'effet, extrémités à moins de 30 m du parcours" },
+    slow: { points: [], css: "ralenti", label: ["ralentissement", "ralentissements"], check: "#video-ralenti",
+      note: "à moins de 30 m du parcours" },
     stop: { points: [], css: "arret", label: ["arrêt", "arrêts"], check: "#video-arret",
       note: "à moins de 30 m du parcours ; ralentir, s'arrêter, repartir" },
     tour: { points: [], css: "tour", label: ["tour d'horizon", "tours d'horizon"], check: "#video-tour",
@@ -3110,7 +3112,7 @@
       button.setAttribute("aria-pressed", String(button.dataset.cote === which));
     }
     if (which) {
-      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau", stop: "l'endroit de l'arrêt", planet: planetDraft ? "la fin de la petite planète" : "le début de la petite planète (le long de la route)", tour: "l'endroit du tour d'horizon",
+      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau", stop: "l'endroit de l'arrêt", slow: "un point de ralentissement", planet: planetDraft ? "la fin de la petite planète" : "le début de la petite planète (le long de la route)", tour: "l'endroit du tour d'horizon",
         poiZone: poi.draft ? "la fin de la zone de l'effet" : "le début de la zone de l'effet (le long de la route)" }[which]} ; `
         + "Échap pour annuler.");
     }
@@ -3217,6 +3219,7 @@
   // Tonneau ou point d'intérêt activé sans endroit : le choisir sur la carte
   for (const [which, kind] of Object.entries(placed)) {
     $(kind.check).addEventListener("change", () => {
+      if (which === "slow" && $(kind.check).checked && !kind.points.length) return fillSlows();  // posés d'eux-mêmes
       if ($(kind.check).checked && !kind.points.length && !(which === "planet" && $("#planete-tout").checked)) setTravelPick(which);
     });
   }
@@ -3459,10 +3462,23 @@
     if ($("#video-mode").value !== "presentation") return null;
     return { vmax: Number($("#pres-vmax").value) / 3.6, vmin: Number($("#pres-vmin").value) / 3.6, turn: Number($("#pres-virage").value),
       accel: Number($("#pres-accel").value), stop: Number($("#arret-duree").value),
-      stops: $("#video-arret").checked ? placed.stop.points.map((p) => p.lonlat) : [] };
+      stops: $("#video-arret").checked ? placed.stop.points.map((p) => p.lonlat) : [],
+      slows: $("#video-ralenti").checked ? placed.slow.points.map((p) => p.lonlat) : [], slow: Number($("#ralenti-vitesse").value) / 3.6 };
+  }
+  /** Points de ralentissement posés d'eux-mêmes : croisements de routes revêtues et ouvrages d'art de la vidéo préparée
+   * à moins de 15 m de ses photos, un par 30 m (giratoire : un seul) ; retouchables (clic : retirer, 📍 : ajouter). */
+  function fillSlows() {
+    if (!videoPlan) return setStatus("Croisements et ouvrages d'art : préparez la vidéo, ils seront posés d'eux-mêmes.");
+    const coords = videoPlan.photos.map((p) => p.coords).filter(Boolean), found = [];
+    for (const { lonlat } of [...videoPlan.junctions || [], ...videoPlan.structures || []]) {
+      if (coords.some((c) => metresBetween(c, lonlat) < 15) && !found.some((f) => metresBetween(f, lonlat) < 30)) found.push(lonlat);
+    }
+    for (const lonlat of found) placePoint("slow", lonlat);
+    setStatus(`${found.length} point${found.length > 1 ? "s" : ""} de ralentissement posé${found.length > 1 ? "s" : ""} `
+      + "(repères orange) : clic sur un repère pour le retirer, 📍 pour en ajouter.");
   }
   // Réglettes du mode Présentation : valeur affichée à côté ; elles changent la durée de la vidéo
-  for (const [id, unit] of [["pres-vmax", "km/h"], ["pres-virage", "°/s"], ["pres-vmin", "km/h"], ["pres-accel", "m/s²"], ["arret-duree", "s"]]) {
+  for (const [id, unit] of [["pres-vmax", "km/h"], ["pres-virage", "°/s"], ["pres-vmin", "km/h"], ["pres-accel", "m/s²"], ["arret-duree", "s"], ["ralenti-vitesse", "km/h"]]) {
     $(`#${id}`).addEventListener("input", () => {
       $(`#${id.replace("-duree", "")}-valeur`).textContent = `${String($(`#${id}`).value).replace(".", ",")} ${unit}`;
       updatePlayer();
@@ -3731,6 +3747,17 @@
         await prOfPhotos(videoPlan.photos, found.title.split(" ")[0]);
         // Carrefours du parcours (regard aux croisements) : tronçons de la BD TOPO, mailles en cache
         videoPlan.junctions = await Lieu.junctions(videoPlan.photos.map((p) => p.coords)).catch(() => []);
+        // Ouvrages d'art (ralentissements du mode Présentation), posés d'eux-mêmes avec les croisements si l'option est
+        // cochée et qu'aucun n'est encore posé (ceux d'un parcours gardé, retouchés, restent)
+        videoPlan.structures = await Lieu.structures(videoPlan.photos.map((p) => p.coords)).catch(() => []);
+        const coords = videoPlan.photos.map((p) => p.coords).filter(Boolean);
+        for (const p of [...placed.slow.points]) {  // parcours changé : ceux de l'ancien tracé retirés
+          if (!coords.some((c) => metresBetween(c, p.lonlat) < 30)) {
+            p.marker.remove();
+            placed.slow.points = placed.slow.points.filter((q) => q !== p);
+          }
+        }
+        if ($("#video-ralenti").checked && !placed.slow.points.length) fillSlows();
         if (arpWanted()) {
           setStatus("Vidéo : dévers des photos (LiDAR HD)…");
           await readDevers();
@@ -3892,7 +3919,7 @@
     try {
       xs = go(pres);
     } catch {
-      xs = go(pres && { ...pres, stops: [] });  // arrêt loin du parcours
+      xs = go(pres && { ...pres, stops: [], slows: [] });  // arrêt ou ralentissement loin du parcours
     }
     if ($("#video-tour").checked) {
       try {
@@ -4027,8 +4054,10 @@
     $("#video-mode").disabled = Boolean(videoRun);
     // Présentation : vitesse et rampe remplacées par l'allure ; ses réglettes et arrêts figés pendant le calcul
     if (presOptions()) $("#video-vitesse").disabled = $("#video-rampe").disabled = true;
-    for (const id of ["#pres-vmax", "#pres-virage", "#pres-vmin", "#pres-accel", "#arret-duree", "#video-arret"]) $(id).disabled = Boolean(videoRun);
-    travelPane.querySelector('.sur-carte[data-cote="stop"]').disabled = Boolean(videoRun);
+    for (const id of ["#pres-vmax", "#pres-virage", "#pres-vmin", "#pres-accel", "#arret-duree", "#video-arret", "#ralenti-vitesse", "#video-ralenti"]) {
+      $(id).disabled = Boolean(videoRun);
+    }
+    for (const which of ["stop", "slow"]) travelPane.querySelector(`.sur-carte[data-cote="${which}"]`).disabled = Boolean(videoRun);
     showModeHelp();  // mode rétabli par un parcours gardé ou la RAZ
     $("#parcours-apercu").disabled = !preview && (!videoPlan || videoPlan.photos.length < 2 || Boolean(videoRun));
     $("#parcours-apercu").textContent = preview ? "■ Arrêter l'aperçu" : "▶ Aperçu";

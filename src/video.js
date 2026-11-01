@@ -48,7 +48,8 @@ const Video = (() => {
   const EXPO_STORE = "web-measures/expositions";  // mesures gardées dans le navigateur (localStorage)
   const EXPO_KEPT = 20000;  // mesures gardées au plus (les plus anciennes oubliées)
   // Mode Présentation (presentationSpeeds) : réglages par défaut des réglettes, provisoires (à affiner avec l'utilisateur)
-  const PRES = { vmax: 150, turn: 12, vmin: 30, accel: 2, stop: 3 };  // km/h, °/s, km/h, m/s², s
+  const PRES = { vmax: 150, turn: 12, vmin: 30, accel: 2, stop: 3, slow: 50 };  // km/h, °/s, km/h, m/s², s, km/h
+  const PRES_SLOW_REACH = 15;  // m : vitesse de ralentissement tenue à ± PRES_SLOW_REACH m du croisement ou de l'ouvrage
   const PRES_REACH = 10;  // m : courbure prise sur le cap lissé à ± PRES_REACH m
   const PRES_SMOOTH = 15;  // m : vitesse lissée sur ± PRES_SMOOTH m (pas d'à-coup aux bouts des accélérations)
   const CREEP = 0.3;  // m/s : vitesse plancher de l'avancée image par image (arrêts : images ajoutées)
@@ -159,15 +160,19 @@ const Video = (() => {
    * Vitesse (m/s) à chaque mètre du parcours en mode Présentation : vite dans les lignes droites (vmax), ralentie dans
    * les virages pour que la vue n'y tourne pas plus vite que turn °/s (vitesse = turn / rotation du cap lissé en °/m,
    * prise sur ± PRES_REACH m : courbe large, un peu ; virage serré, beaucoup), jamais sous vmin ; arrêtée au départ, à
-   * l'arrivée et aux arrêts (stops, [lon, lat]) ; accélérations et freinages à accel m/s² au plus (une longue ligne
+   * l'arrivée et aux arrêts (stops, [lon, lat]) ; ramenée à slow (m/s) à ± PRES_SLOW_REACH m des points de
+   * ralentissement (slows, [lon, lat] : croisements, ouvrages d'art) ; accélérations et freinages à accel m/s² au plus (une longue ligne
    * droite atteint vmax, une courte non), puis lissée sur ± PRES_SMOOTH m sans dépasser ces limites.
    */
-  function presentationSpeeds(path, { vmax, vmin, turn, accel, stops = [] }) {
+  function presentationSpeeds(path, { vmax, vmin, turn, accel, stops = [], slows = [], slow = vmax }) {
     const n = Math.ceil(path.length) + 1, v = [];
     for (let x = 0; x < n; x++) {
       const a = path.course(x - PRES_REACH), b = path.course(x + PRES_REACH);
       const rate = Math.abs(((b - a) % 360 + 540) % 360 - 180) / (2 * PRES_REACH);  // °/m
       v.push(Math.min(vmax, Math.max(vmin, rate ? turn / rate : vmax)));
+    }
+    for (const x of placesOn(path, slows, "ralentissement")) {
+      for (let i = Math.max(0, Math.round(x - PRES_SLOW_REACH)); i <= Math.min(n - 1, x + PRES_SLOW_REACH); i++) v[i] = Math.min(v[i], slow);
     }
     v[0] = v[n - 1] = 0;
     for (const x of placesOn(path, stops, "arrêt")) v[Math.min(n - 1, Math.round(x))] = 0;
@@ -743,7 +748,7 @@ const Video = (() => {
   }
 
   /** Durée (s) de la vidéo des photos [record] à kmh, avec ou sans rampe de vitesse ; pres : mode Présentation (timeline ;
-   * arrêt loin du parcours : compté sans les arrêts, signalé au calcul de la vidéo). */
+   * arrêt ou ralentissement loin du parcours : compté sans eux, signalé au calcul de la vidéo). */
   const duration = (photos, kmh, ramp = false, junctions = [], lookKmh = LOOK_SPEED, poi = null, pres = null) => {
     const path = trajectory(photos);
     let poiSlow = null;
@@ -754,7 +759,7 @@ const Video = (() => {
     try {
       return go(pres).length / FPS;
     } catch {
-      return go(pres && { ...pres, stops: [] }).length / FPS;
+      return go(pres && { ...pres, stops: [], slows: [] }).length / FPS;
     }
   };
 

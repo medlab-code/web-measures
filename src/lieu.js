@@ -171,7 +171,7 @@ const Lieu = (() => {
   // passer plus près de la photo que l'axe de la chaussée
   const NOT_DRIVEN = new Set(["Sentier", "Escalier", "Bac ou liaison maritime"]);
   // Attributs des tronçons lus (route, véloroutes), sans les autres : réponse six fois plus légère
-  const TRONCON_PROPERTIES = "nature,cpx_numero,nom_voie_ban_gauche,nom_voie_ban_droite,"
+  const TRONCON_PROPERTIES = "nature,cpx_numero,nom_voie_ban_gauche,nom_voie_ban_droite,position_par_rapport_au_sol,"
     + "cpx_nature_itineraire_autre,cpx_toponyme_itineraire_autre,geometrie";
 
   /** Tronçon de route (praticable en voiture) le plus proche parmi troncons : { numero, nom } ou null. */
@@ -349,5 +349,38 @@ const Lieu = (() => {
     return [...ends.values()].filter((j) => j.branches.length >= 3);
   }
 
-  return { describe, features, junctions, milestone, project, segmentLength };
+  /**
+   * Ouvrages d'art le long des points lonlats ([lon, lat] du parcours) : tronçons de route hors du sol (BD TOPO,
+   * position par rapport au sol autre que 0 : pont, passage supérieur, tunnel), quelle que soit leur nature, mailles en
+   * cache comme pour junctions : [{ lonlat }], milieu de chaque tronçon (un pont est un tronçon à part), un par 20 m.
+   */
+  async function structures(lonlats) {
+    const cells = new Map();
+    for (const [lon, lat] of lonlats) cells.set(`${Math.floor(lon / CELL)} ${Math.floor(lat / CELL)}`, [lon, lat]);
+    const metres = (a, b) => Math.hypot((b[0] - a[0]) * 111320 * Math.cos(a[1] * Math.PI / 180), (b[1] - a[1]) * 111320);
+    const out = [];
+    for (const [lon, lat] of cells.values()) {
+      for (const f of await zone("troncon_de_route", TRONCON_PROPERTIES, lon, lat)) {
+        if (!f.properties?.position_par_rapport_au_sol || f.properties.position_par_rapport_au_sol === "0") continue;
+        const line = f.geometry?.type === "LineString" ? f.geometry.coordinates : f.geometry?.coordinates?.[0] || [];
+        if (line.length < 2) continue;
+        // Milieu du tronçon, le long de sa ligne
+        const total = line.slice(1).reduce((sum, p, k) => sum + metres(line[k], p), 0);
+        let walked = 0, mid = line[0];
+        for (let k = 1; k < line.length; k++) {
+          const d = metres(line[k - 1], line[k]);
+          if (walked + d >= total / 2) {
+            const u = d ? (total / 2 - walked) / d : 0;
+            mid = [line[k - 1][0] + (line[k][0] - line[k - 1][0]) * u, line[k - 1][1] + (line[k][1] - line[k - 1][1]) * u];
+            break;
+          }
+          walked += d;
+        }
+        if (!out.some((o) => metres(o.lonlat, mid) < 20)) out.push({ lonlat: mid });
+      }
+    }
+    return out;
+  }
+
+  return { describe, features, junctions, milestone, project, segmentLength, structures };
 })();
