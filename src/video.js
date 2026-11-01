@@ -35,7 +35,6 @@ const Video = (() => {
   const BOWL = 60;  // m : rayon de la sphère du décor de la maquette
   const ROAD = 4;  // m : chaussée plane de la maquette, de part et d'autre de l'axe de la vue
   const ROOF = -25;  // degrés : sous cette latitude du panorama, le toit du véhicule
-  const GAP = 15;  // m : avancée au plus sur une photo (photos plus espacées : la maquette déforme trop au-delà)
   const AHEAD = 4;  // photos chargées d'avance
   const HOLD = 1;  // s : arrêt sur la première et la dernière vue
   const MARGIN = 8;  // degrés : marge des tuiles chargées autour du champ (cap qui varie le long de la photo)
@@ -567,21 +566,28 @@ const Video = (() => {
 
   /** Roulis (degrés) à chaque image de la chronologie xs : tonneaux aux endroits lonlats ([lon, lat], ramenés sur le
    * parcours), tour complet en seconds s chacun (lent au départ et à l'arrivée), centré sur l'endroit, sens alterné dans
-   * l'ordre du parcours (le premier à droite, le suivant à gauche…) ; erreur si l'un est à plus de ROLL_REACH m. */
-  /** Abscisses (m, croissantes) des endroits [lon, lat] ramenés sur le parcours ; erreur pour un endroit à plus de
-   * ROLL_REACH m (name : nom de l'effet). */
+   * l'ordre du parcours (le premier à droite, le suivant à gauche…) ; un endroit à plus de ROLL_REACH m est ignoré. */
+  /** Abscisses (m, croissantes) des endroits [lon, lat] ramenés sur le parcours ; un endroit à plus de ROLL_REACH m
+   * (repère d'un autre parcours) est ignoré, et noté dans ignored (name : nom de l'effet). */
   function placesOn(path, lonlats, name) {
-    return lonlats.map((lonlat, k) => {
+    const out = [];
+    lonlats.forEach((lonlat, k) => {
       let best = null;
       for (let x = 0; x <= path.length; x += 1) {
         const d = metres(path.at(x), lonlat);
         if (!best || d < best.d) best = { x, d };
       }
-      if (best.d > ROLL_REACH) {
-        throw new Error(`${name} n° ${k + 1} à ${Math.round(best.d)} m du parcours (${ROLL_REACH} m au plus)`);
-      }
-      return best.x;
-    }).sort((a, b) => a - b);
+      if (best.d > ROLL_REACH) ignored.add(`${name} n° ${k + 1} à ${Math.round(best.d)} m`);
+      else out.push(best.x);
+    });
+    return out.sort((a, b) => a - b);
+  }
+  let ignored = new Set();  // endroits ignorés (loin du parcours) depuis le dernier ignoredPlaces()
+  /** Endroits ignorés depuis le dernier appel (textes), puis liste remise à zéro. */
+  function ignoredPlaces() {
+    const list = [...ignored];
+    ignored = new Set();
+    return list;
   }
 
   /** Petites planètes sur les tronçons spans ([[début, fin]…], [lon, lat] ramenés sur le parcours, à ROLL_REACH m au
@@ -599,7 +605,9 @@ const Video = (() => {
     };
     (all ? [null] : spans).forEach((span, k) => {
       const ends = all ? null : Array.isArray(span[0]) ? span : [span, span];
-      let [x0, x1] = all ? [0, path.length] : placesOn(path, ends, `petite planète n° ${k + 1}, extrémité`);
+      const on = all ? [0, path.length] : placesOn(path, ends, `petite planète n° ${k + 1}, extrémité`);
+      if (on.length < 2) return;  // extrémité loin du parcours : planète ignorée
+      let [x0, x1] = on;
       if (x1 - x0 < PLANET_MIN) {
         const c = (x0 + x1) / 2;
         [x0, x1] = [Math.max(0, c - PLANET_MIN / 2), Math.min(path.length, c + PLANET_MIN / 2)];
@@ -1222,7 +1230,6 @@ const Video = (() => {
    * (altitudes du sol, par photo de photos) } (poiViews) ; options.planets : tronçons des petites planètes ([[début, fin]…],
    * planets), options.planetFade : enroulement et déroulement (s), options.planetAll : sur tout le parcours, options.planetRoll : tonneau pendant les transitions, options.presentation : mode
    * Présentation (timeline, presentationSpeeds ; vitesses en m/s) à la place de kmh et de la rampe, options.planetSpin : vitesse de rotation (°/s) ;
-   * options.advance : false pour ne pas avancer dans la maquette (fondu enchaîné d'une photo à l'autre) ;
    * options.tours : endroits des tours d'horizon ([[lon, lat]…], tours), options.tourTime : durée de chacun (s),
    * options.tourStop : caméra arrêtée pendant le tour ; options.hq : haute qualité (HQ_CODECS, tuiles en pleine
    * définition, vue calculée en HQ_SUPERSAMPLE fois la définition ; lent) ; options.stream : fichier ouvert
@@ -1232,7 +1239,9 @@ const Video = (() => {
   async function mp4(photos, kmh, progress = () => {}, signal = null,
     { blur = false, exposure = true, ramp = false, title = null, counter = false, speedometer = false, lateral = false, arpSpeed = false, junctions = [], rolls: rollPlaces = [],
     rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, hq = false, planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false, planetRoll = false, presentation = null,
-    planetSpin = PLANET_SPIN, advance = true, tours: tourPlaces = [], tourTime = TOUR_TIME, tourStop = true, stream = null } = {}) {
+    planetSpin = PLANET_SPIN, tours: tourPlaces = [], tourTime = TOUR_TIME, tourStop = true, stream = null } = {}) {
+    const timelineOf = (p) => timeline(p, kmh / 3.6, ramp, lookedJunctions(p, junctions), lookSpeed / 3.6,
+      poi?.speed ? { ...poiSpan(p, poi), speed: poi.speed / 3.6 } : null, presentation);
     const path = trajectory(photos);
     if (path.list.length < 2 || path.length < 1) throw new Error("parcours trop court");
     const [chosen] = await Promise.all([encoderConfig(hq), loadMuxer()]);
@@ -1257,8 +1266,7 @@ const Video = (() => {
     const gains = exposure ? await exposures(path, signal) : path.list.map(() => [1, 1, 1]);
     const span = poi ? poiSpan(path, poi) : null;
     // Tours d'horizon : images ajoutées pendant l'arrêt, avant les autres effets (calés sur les images)
-    const turns = tours(path, timeline(path, kmh / 3.6, ramp, lookedJunctions(path, junctions), lookSpeed / 3.6,
-      poi?.speed ? { ...span, speed: poi.speed / 3.6 } : null, presentation), tourPlaces, tourTime, tourStop);
+    const turns = tours(path, timelineOf(path), tourPlaces, tourTime, tourStop);
     const xs = turns.xs;
     const pan = pans(path, xs, { junctions });
     const kmhs = speedometer || lateral ? speeds(xs) : null;
@@ -1361,7 +1369,7 @@ const Video = (() => {
           const [a, b] = await Promise.all([load(i), load(j)]);
           // Avancée : u·écart après la photo quittée, (1 - u)·écart avant la suivante ; vue k : 1 / (k + 1) de la
           // moyenne courante
-          const gap = advance ? Math.min(path.s[j] - path.s[i], GAP) : 0;
+          const gap = 0;  // fondu enchaîné, chaque photo vue de sa propre caméra (l'avancée dans une maquette faisait sauter le ciel et les côtés)
           gl.draw([
             { ...a, yaw: yawAt(i, xs) * toRad, pitch: path.list[i].pitch, tan: view, move: u * gap, gain: gains[i] },
             { ...b, yaw: yawAt(j, xs) * toRad, pitch: path.list[j].pitch, tan: view, move: -(1 - u) * gap, gain: gains[j] },
@@ -1409,6 +1417,6 @@ const Video = (() => {
     }
   }
 
-  return { supported, record, mp4, trajectory, timeline, presentationSpeeds, PRES, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
+  return { supported, record, mp4, trajectory, timeline, ignoredPlaces, presentationSpeeds, PRES, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
     poiSpan, poiViews, planets, tours, speeds, laterals, insideDevers, lateralColor, arpSpeeds, steady, drawOverlay, fetchImage, FPS, HOLD };
 })();

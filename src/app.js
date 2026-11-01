@@ -3998,6 +3998,7 @@
       // Fichier choisi (Chrome, Edge) : vidéo écrite au fur et à mesure, mémoire constante quelle que soit la longueur ;
       // sinon (Firefox) assemblée en mémoire puis téléchargée
       if (save.handle) stream = await save.handle.createWritable();
+      Video.ignoredPlaces();  // liste remise à zéro (aperçus et durées déjà calculés)
       const blob = await Video.mp4(videoPhotos(), Number($("#video-vitesse").value), (done, total) => {
         last = Date.now();
         if (warned) {
@@ -4012,7 +4013,7 @@
         $("#video-info").textContent = text;
         setStatus(text, "avancement");
         $("#statut").style.setProperty("--avancement", `${(100 * done / total).toFixed(1)}%`);
-      }, videoRun.signal, { blur: $("#video-flou").checked, hq: $("#video-hq").checked, advance: $("#video-avancee").checked, exposure: $("#video-expo").checked,
+      }, videoRun.signal, { blur: $("#video-flou").checked, hq: $("#video-hq").checked, exposure: $("#video-expo").checked,
         ramp: !presOptions() && $("#video-rampe").checked, presentation: presOptions(),
         counter: $("#video-compteur").checked, speedometer: $("#video-compteur-vitesse").checked, lateral: $("#video-acceleration").checked, arpSpeed: $("#video-vmax-arp").checked,
         junctions: $("#video-regard").checked ? videoPlan.junctions : [],
@@ -4031,8 +4032,10 @@
         stream });
       if (!stream) await save(blob);
       const size = stream ? (await save.handle.getFile()).size : blob.size;
+      const away = Video.ignoredPlaces();  // repères d'effets à plus de 30 m du parcours : ignorés, signalés
       const text = `Vidéo enregistrée dans « ${save.fileName} » : ${(size / 1e6).toFixed(1)} Mo, `
-        + `${Math.round((Date.now() - t0) / 1000)} s de calcul.`;
+        + `${Math.round((Date.now() - t0) / 1000)} s de calcul.`
+        + (away.length ? ` Repères ignorés, à plus de 30 m du parcours : ${away.join(", ")}.` : "");
       setStatus(text);
       notice(text);
     } catch (error) {
@@ -4233,7 +4236,7 @@
     $("#parcours-garder").textContent = !openedRoute ? "☆ Garder" : changed ? "☆ Enregistrer…" : "☆ Gardé";
     $("#parcours-raz").disabled = Boolean(videoRun) || routeIsBlank();
     showPoiZone();  // portion du parcours concernée : suit la préparation, la cible et la zone
-    for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-hq", "#video-avancee", "#video-expo", "#video-rampe", "#video-titre",
+    for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-hq", "#video-expo", "#video-rampe", "#video-titre",
       "#video-compteur", "#video-compteur-vitesse", "#video-acceleration", "#video-vmax-arp", "#video-regard", "#video-tonneau", "#tonneau-duree", "#regard-vitesse",
       "#video-interet", "#interet-vitesse", "#interet-zoom", "#interet-zoom-distance", "#interet-tonneau",
       "#video-planete", "#planete-tout", "#planete-transition", "#planete-rotation", "#video-tour", "#tour-duree", "#tour-arret"]) {

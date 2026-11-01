@@ -258,15 +258,18 @@ fondu, la ligne des collines aussi un peu (photos qui ne penchent pas pareil). �
 (décochée) : toujours en 1920 × 1080, mais débit bien plus élevé (H.264 80 Mbit/s au lieu de 30, VP9 50 au lieu de 20)
 pour les détails fins (vignes, graviers, feuillages, fils), photos en pleine définition et vue calculée en double
 définition puis réduite (bords sans escalier) ; calcul environ 1,5 à 2 fois plus long (davantage avec un réseau lent),
-fichier 2,5 fois plus gros. « Avancée simulée » (décochée) :
-désactivée, chaque photo est vue de sa propre caméra et passe à la suivante par un simple fondu enchaîné :
-rien de déformé ni de dédoublé par la maquette, mais la route avance par bonds (d'autant plus avec une photo sur 4 ou 8). Le calcul prend environ
+fichier 2,5 fois plus gros. Chaque photo est vue de sa propre caméra et passe à la suivante par un fondu enchaîné
+(l'avancée simulée dans une maquette, retirée le 01/11/2026, faisait sauter le ciel et les côtés). Le calcul prend environ
 deux fois la durée de la vidéo si les tuiles sont déjà en cache (« ■ Arrêter » l'interrompt) ; sous Chrome et Edge, la
 vidéo est écrite dans le fichier choisi au fur et à mesure (mémoire constante, même pour un long parcours ; arrêt ou
 échec : fichier laissé vide), sous Firefox assemblée en mémoire puis téléchargée ; l'avancement s'affiche dans la ligne
 d'état, et l'erreur éventuelle y reste. Bibliothèque
 mp4-muxer chargée au premier export seulement. Grisé tant que le départ ou l'arrivée manque, pendant la
 préparation et le calcul, et dans les navigateurs sans WebCodecs.
+
+Les endroits des effets (arrêts, ralentissements, tonneaux, petites planètes, tours d'horizon) à plus de 30 m du
+parcours, repères d'un autre parcours par exemple, sont ignorés par la vidéo (elle n'échoue plus) et nommés dans le
+message de fin (« Repères ignorés, à plus de 30 m du parcours : arrêt n° 1 à 791 m »).
 
 « ↺ RAZ » (onglet Vidéo) remet le parcours et ses réglages à zéro : départ et arrivée effacés, options et réglettes
 à leur valeur par défaut, endroits des tonneaux, planètes et tours retirés, zone du point d'intérêt effacée ; le filtre

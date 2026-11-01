@@ -100,8 +100,8 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("mode Présentation par défaut", doc.querySelector("#video-mode").value === "presentation" && doc.querySelector("#video-titre").checked
         && on(boxes) === "video-compteur video-compteur-vitesse" && !doc.querySelector("#video-presentation").hidden
         && doc.querySelector("#video-rampe").disabled && doc.querySelector("#video-vitesse").disabled, on(boxes));
-      expect("options avancées repliées, dans l'ordre demandé", !doc.querySelector("#video-avancees").open && boxes.slice(0, 9).map((b) => b.id).join(" ")
-        === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp video-hq video-flou video-expo video-rampe video-avancee",
+      expect("options avancées repliées, dans l'ordre demandé", !doc.querySelector("#video-avancees").open && boxes.slice(0, 8).map((b) => b.id).join(" ")
+        === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp video-hq video-flou video-expo video-rampe",
         boxes.map((b) => b.id).join(" "));
       const mode = doc.querySelector("#video-mode");
       mode.value = "revue";
@@ -314,7 +314,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       while (Math.abs(looks[hold + 1] - looks[hold]) < 0.01 && hold < last) hold++;
       log(`regard : aller ${peak - firstLook} images, retour ${last - hold} images`);
       expect("croisements : retour dans l'axe environ deux fois plus rapide que l'aller", Math.abs((peak - firstLook) / Math.max(1, last - hold) - 2) < 0.5, `${peak - firstLook} / ${last - hold}`);
-      // Tonneau au milieu du parcours : tour complet en 3 s (90 images), sans retour ; endroit à plus de 30 m refusé
+      // Tonneau au milieu du parcours : tour complet en 3 s (90 images), sans retour ; endroit à plus de 30 m ignoré (signalé)
       const rollAt = long.at(long.length / 3), turns = Video.rolls(long, plain, [rollAt]);  // pas au milieu : point d'intérêt
       const rolling = turns.filter((v) => v > 0 && v < 360).length;
       log(`tonneau : ${rolling} images de roulis, jusqu'à ${Math.max(...turns).toFixed(0)}°`);
@@ -329,9 +329,10 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("tonneau : durée réglable (6 s : 175 à 182 images)", slow >= 175 && slow <= 182, slow);
       expect("réglette de la durée du tonneau : 3 s par défaut", doc.querySelector("#tonneau-duree").value === "3"
         && doc.querySelector("#tonneau-valeur").textContent === "3 s");
-      let refused = "";
-      try { Video.rolls(long, plain, [rollAt, [rollAt[0] + 0.01, rollAt[1]]]); } catch (error) { refused = error.message; }
-      expect("tonneau : endroit loin du parcours refusé avec un message (n° du tonneau)", /tonneau n° 2 .* du parcours/.test(refused), refused);
+      Video.ignoredPlaces();
+      const kept = Video.rolls(long, plain, [rollAt, [rollAt[0] + 0.01, rollAt[1]]]), refused = Video.ignoredPlaces().join(" ; ");
+      expect("tonneau : endroit loin du parcours ignoré et signalé (n° du tonneau), l'autre fait", /^tonneau n° 2 à \d+ m$/.test(refused)
+        && Math.max(...kept.map(Math.abs)) > 300, refused);
       // Point d'intérêt : cible à 60 m à gauche au milieu du parcours, objet relevé à 260 m d'altitude (20 m au-dessus
       // d'un sol plat supposé à 240 m), zone non tracée (150 m de part et d'autre), zone x2 en bosse, 70 km/h
       const mid = long.at(long.length / 2), side = (long.course(long.length / 2) - 90) * Math.PI / 180;
@@ -457,17 +458,18 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       // Rotation lente : 20°/s depuis le passage, ± 2 s au bout de l'effet (± 1 s pondérée par la part) ; vue droite après
       expect("planète : rotation lente (de 15 à 40° au plus)", spinMax > 15 && spinMax < 40, spinMax);
       expect("planète : vue redevenue droite après l'effet", globe.spin.every((a, n) => globe.mix[n] || a === 0));
-      let far = null;
-      try { Video.planets(path, xs, [[[place[0] + 0.003, place[1] + 0.003], span[1]]]); } catch (error) { far = error.message; }
-      expect("planète : extrémité à plus de 30 m du parcours refusée", /petite planète n° 1, extrémité n° 1 à \d+ m du parcours/.test(far || ""), far);
+      Video.ignoredPlaces();
+      const farMix = Video.planets(path, xs, [[[place[0] + 0.003, place[1] + 0.003], span[1]]]).mix, far = Video.ignoredPlaces().join(" ; ");
+      expect("planète : extrémité à plus de 30 m du parcours, planète ignorée et signalée",
+        /^petite planète n° 1, extrémité n° 1 à \d+ m$/.test(far) && farMix.every((v) => v === 0), far);
       // Endroit seul (parcours gardé avant le 01/11) : 50 m centrés sur lui, 2 s à 25 m/s
       const alone = Video.planets(path, xs, [place], 20).mix.filter((m) => m > 0).length;
       expect("planète : endroit seul, 50 m (60 images ± 2)", Math.abs(alone - 60) <= 2, alone);
       const t1 = performance.now();
       const blob = await Video.mp4(sub, 90, () => {}, null, { planets: [span], planetSpin: 20 });
       // Sans avancée simulée : fondu enchaîné, chaque photo vue de sa caméra (même vidéo, image au milieu d'un fondu)
-      expect("« Avancée simulée » proposée, décochée par défaut", doc.querySelector("#video-avancee")?.checked === false);
-      const still = await Video.mp4(sub, 90, () => {}, null, { advance: false });
+      expect("plus d'« Avancée simulée »", !doc.querySelector("#video-avancee"));
+      const still = await Video.mp4(sub, 90, () => {}, null, {});
       expect("sans avancée simulée : vidéo calculée", still.size > 100000, still.size);
       const sv = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(still) });
       await new Promise((resolve) => { sv.onloadedmetadata = resolve; });
@@ -480,7 +482,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       // Vidéo écrite au fur et à mesure dans un fichier (stockage privé de la page, comme un fichier choisi) : lisible,
       // même durée qu'assemblée en mémoire
       const dir = await w.navigator.storage.getDirectory(), handle = await dir.getFileHandle("essai.mp4", { create: true });
-      const none = await Video.mp4(sub, 90, () => {}, null, { advance: false, stream: await handle.createWritable() });
+      const none = await Video.mp4(sub, 90, () => {}, null, { stream: await handle.createWritable() });
       const written = await handle.getFile();
       const wv = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(written) });
       await new Promise((resolve, reject) => { wv.onloadedmetadata = resolve; wv.onerror = reject; });
@@ -639,7 +641,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       }
       set("#video-vitesse", "180");
       set("#video-flou", true);
-      set("#video-avancee", false);
+      set("#video-expo", false);
       set("#tonneau-duree", "6");
       set("#planete-rotation", "45");
       const before = doc.querySelectorAll("#mes-parcours li").length;
@@ -665,7 +667,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("export d'un seul : format, un parcours, deux endroits et les réglages", data.format === "parcours-panoramax"
         && data.parcours.length === 1 && data.parcours[0].places.roll.length === 1 && data.parcours[0].places.planet.length === 1 && data.parcours[0].places.planet[0].length === 2
         && Array.isArray(data.parcours[0].places.planet[0][0])
-        && data.parcours[0].settings["planete-rotation"] === "45" && data.parcours[0].settings["video-avancee"] === false);
+        && data.parcours[0].settings["planete-rotation"] === "45" && data.parcours[0].settings["video-expo"] === false);
       const kept = data.parcours[0];
       log(`point d'intérêt gardé : ${JSON.stringify(kept.target)}, zone ${JSON.stringify(kept.zone)}`);
       expect("point d'intérêt gardé : option, cible (position, altitude, nom) et zone", kept.settings["video-interet"] === true
@@ -674,7 +676,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       // Tout changé, puis le parcours retiré, importé (fichier d'un collègue) et rouvert
       set("#video-vitesse", "90");
       set("#video-flou", false);
-      set("#video-avancee", true);
+      set("#video-expo", true);
       set("#planete-rotation", "20");
       type(route, "18");
       set("#video-interet", false);
@@ -689,7 +691,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       await until(() => doc.querySelectorAll("#mes-parcours li").length === before + 1, 10000, "parcours importé");
       [...doc.querySelectorAll("#mes-parcours li")].at(-1).querySelector(".aller-favori").click();
       await sleep(500);
-      const restored = ["#video-vitesse", "#video-flou", "#video-avancee", "#tonneau-duree", "#planete-rotation"]
+      const restored = ["#video-vitesse", "#video-flou", "#video-expo", "#tonneau-duree", "#planete-rotation"]
         .map((id) => { const e = doc.querySelector(id); return e.type === "checkbox" ? e.checked : e.value; });
       log(`rouvert : ${JSON.stringify(restored)} ; route ${route.value} PR ${pr.value}+${distance.value} → ${end.value}+${endDistance.value}`);
       expect("rouvert : onglet Vidéo affiché", !doc.querySelector("#parcours").hidden);
@@ -744,14 +746,15 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("« ↺ RAZ » actif avec un parcours et des réglages", !raz.disabled);
       raz.click();
       await sleep(300);
-      const blank = ["#video-vitesse", "#video-photos", "#video-flou", "#video-avancee", "#video-expo", "#planete-rotation", "#tour-duree"]
+      const blank = ["#video-vitesse", "#video-photos", "#video-flou", "#video-hq", "#video-expo", "#planete-rotation", "#tour-duree"]
         .map((id) => { const e = doc.querySelector(id); return e.type === "checkbox" ? e.checked : e.value; });
       log(`après RAZ : ${JSON.stringify(blank)} ; route « ${route.value} », PR « ${pr.value} » → « ${end.value} » ; ${status()}`);
       expect("RAZ : réglages par défaut", JSON.stringify(blank) === JSON.stringify(["90", "1", false, false, false, "20", "8"]), JSON.stringify(blank));
       expect("RAZ : départ et arrivée effacés, sans repère", !route.value && !pr.value && !end.value
         && !doc.querySelector(".repere-requete.depart, .repere-requete.arrivee"));
       expect("RAZ : endroits, zone et option du point d'intérêt retirés", !doc.querySelector(".repere-requete.tonneau, .repere-requete.planete, .repere-requete.tour")
-        && !doc.querySelector("#video-interet").checked && !w.mesures.map.getSource("zone-interet")?.serialize().data?.features?.length);
+        && !doc.querySelector("#video-interet").checked && !w.mesures.map.getSource("zone-interet")?.serialize().data?.features?.length,
+        `${[...doc.querySelectorAll(".repere-requete")].map((e) => e.className.split(" ")[1]).join(",")} intérêt ${doc.querySelector("#video-interet").checked} zone ${w.mesures.map.getSource("zone-interet")?.serialize().data?.features?.length}`);
       expect("RAZ : bouton grisé une fois tout à zéro, « Préparer » et « Garder » aussi", raz.disabled && button.disabled
         && doc.querySelector("#parcours-garder").disabled);
       expect("RAZ : parcours gardés intacts", doc.querySelectorAll("#mes-parcours li").length === before + 1);
