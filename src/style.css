@@ -367,8 +367,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .repere-requete.planete { --epingle: #00897b; }  /* endroit de la petite planète */
 .repere-requete.tour { --epingle: #6d4c41; }  /* endroit du tour d'horizon */
 .repere-requete.arret { --epingle: #c62828; }  /* arrêt du mode Présentation */
-.repere-requete.ralenti { --epingle: #ef6c00; }
-.repere-requete.passage { --epingle: #6a1b9a; }  /* point de passage : où continuer quand la séquence quitte la route */  /* croisement ou ouvrage d'art où ralentir (mode Présentation) */
+.repere-requete.ralenti { --epingle: #ef6c00; }  /* croisement ou ouvrage d'art où ralentir (mode Présentation) */
 /* Aperçu de la vidéo sur la mini-carte : point ambre au point courant, vitesse et temps écoulé à côté */
 .apercu-video { display: flex; align-items: center; gap: 6px; pointer-events: none; }
 .apercu-video::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: #ffb300; border: 2px solid #fff;
