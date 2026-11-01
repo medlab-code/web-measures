@@ -106,7 +106,7 @@ const Video = (() => {
       }
       if (blob) return createImageBitmap(blob);
       if (response && !response.ok && response.status < 500 && response.status !== 429 && attempt >= 2) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(`serveur d'images, ${url.split("/").slice(2, 3)} : HTTP ${response.status}`);
       }
       await new Promise((resolve) => setTimeout(resolve, Math.min(5000, 500 * 2 ** attempt)));
       if (signal?.aborted) throw new DOMException("Vidéo arrêtée", "AbortError");

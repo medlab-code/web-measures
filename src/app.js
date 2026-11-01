@@ -2627,8 +2627,13 @@
     let failure = null;
     while (run.apis.length) {
       try {
-        const response = await fetch(`${run.apis[0]}/items?limit=${WINDOW}&startAfterRank=${start}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        // startAfterRank : 1 au moins (0 ou moins : HTTP 400), sinon depuis la première photo de la séquence
+        const response = await fetch(`${run.apis[0]}/items?limit=${WINDOW}${start >= 1 ? `&startAfterRank=${start}` : ""}`);
+        if (!response.ok) {
+          const detail = await response.json().then((d) => d.message).catch(() => "");
+          if (response.status === 404 && /last available rank/.test(detail)) return;  // au-delà de la fin de la séquence
+          throw new Error(`Panoramax, photos de la séquence ${(run.collection || "").slice(0, 8)} : HTTP ${response.status}${detail ? ` (${detail})` : ""}`);
+        }
         for (const f of (await response.json()).features || []) {
           const rank = Number(f.properties?.["geovisio:rank_in_collection"]);
           if (!Number.isInteger(rank) || !f.id) continue;
@@ -2734,7 +2739,7 @@
     // Tracé des séquences d'arrivée, TOUR_PATH rangs de part et d'autre de l'arrivée : bifurcation au carrefour (tourJoin)
     const paths = new Map();
     await Promise.all(endPhotos.map(async (f) => {
-      const path = { apis: sequenceApis(f), step: 1, ids: new Map(), points: new Map() };
+      const path = { apis: sequenceApis(f), step: 1, ids: new Map(), points: new Map(), collection: f.collection };
       const r = rankOf(f);
       try {
         await loadRanks(path, Math.max(0, r - TOUR_PATH + 1));
@@ -3021,7 +3026,7 @@
       t.endRank = t.endRanks.get(collection) ?? null;
       t.best = Infinity;
       t.bestAt = null;
-      run = { apis, step: sign, rank, ids, points };
+      run = { apis, step: sign, rank, ids, points, collection };
     };
     begin(plan.first.collection, sequenceApis(plan.first), rankOf(plan.first), plan.back ? -1 : 1);
     // Rang suivant présent dans la séquence (rangs manquants sautés), ou null en fin de séquence
@@ -3142,6 +3147,9 @@
     await travelFields.pick(which, [lngLat.lng, lngLat.lat]);
     videoPlan = null;
     updateTravel();
+    // Départ posé sans arrivée : le clic suivant pose l'arrivée (oubli du 📍 de l'arrivée : départ déplacé à sa place)
+    const t = travelFields.state();
+    if (which === "start" && !t.end.point && !t.end.pr) setTravelPick("end");
   }
   for (const button of travelPane.querySelectorAll(".sur-carte")) {
     button.addEventListener("click", (event) => {
@@ -3650,6 +3658,9 @@
       try {
         const found = await travelFields.go();
         if (!found) throw new Error("départ ou arrivée introuvable");
+        if (metresBetween(found.start, found.end) < TOUR_REACH) {
+          throw new Error(`départ et arrivée au même endroit (moins de ${TOUR_REACH} m) : choisissez l'arrivée (📍 de l'arrivée, ou son PR)`);
+        }
         videoPlan = { ...await planPhotos(found.start, found.end), title: found.title };
         setStatus("Vidéo : PR des photos…");
         await prOfPhotos(videoPlan.photos, found.title.split(" ")[0]);
