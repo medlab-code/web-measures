@@ -52,7 +52,7 @@ const Video = (() => {
   const RAMP_MARKED = 1;  // °/m : au-delà (virage marqué, rayon de moins de 57 m), sensibilité doublée
   const RAMP_EDGE = 50;  // m : départ et arrivée en douceur sur cette distance
   const RAMP_SMOOTH = 15;  // m : vitesse lissée sur ± RAMP_SMOOTH m (pas d'à-coup)
-  const TITLE_TIME = [0.3, 0.9, 4, 4.6];  // s : carton du titre glissé à l'entrée (de 0,3 à 0,9 s), plein jusqu'à 4 s, effacé à 4,6 s
+  const TITLE_TIME = [0.3, 0.9, 4, 4.6];  // s : carton du titre descendu à l'entrée (de 0,3 à 0,9 s), plein jusqu'à 4 s, effacé à 4,6 s
   const TITLE_ACCENT = "#ffb300";  // trait du titre (même ambre que les libellés des compteurs)
   const LOOK_LEAD = 0.9;  // s : regard déjà dans l'axe de la voie croisée avant le passage au carrefour (anticipation)
   const LOOK_TURN = 0.8;  // s : rotation vers la voie croisée ; retour dans l'axe du parcours en LOOK_TURN / 2
@@ -220,33 +220,35 @@ const Video = (() => {
     return digits * cell;
   }
 
-  /** Carton du titre (title : { text, sub, keep }) à l'instant t (s) : bandeau sombre au tiers inférieur, trait ambre à
-   * gauche, titre en gras et sous-titre plus clair, glissé et fondu à l'entrée, fondu à la sortie (TITLE_TIME) ; keep :
+  /** Carton du titre (title : { text, sub, keep }) à l'instant t (s) : cadre sombre en haut au centre (à 6 % de la
+   * hauteur du bord), trait ambre dessous, titre en gras et sous-titre plus clair, centrés, descendu et fondu à l'entrée,
+   * fondu à la sortie (TITLE_TIME) ; keep :
    * rappel en petit en haut à gauche ensuite, jusqu'à la fin. font(taille, graisse) : police des incrustations. */
   function drawTitle(ctx, w, h, title, t, font) {
     const ease = (x) => 1 - (1 - x) ** 3;
     const [a, b, c, d] = TITLE_TIME;
     const show = t < a ? 0 : t < b ? ease((t - a) / (b - a)) : t < c ? 1 : t < d ? 1 - (t - c) / (d - c) : 0;
     if (show > 0) {
-      const big = h * 0.062, small = h * 0.034, pad = h * 0.035, bar = h * 0.008, x0 = h * 0.06, y0 = h * 0.6;
+      const big = h * 0.062, small = h * 0.034, pad = h * 0.035, bar = h * 0.008;
       ctx.font = font(big, 700);
       const textWidth = Math.max(ctx.measureText(title.text).width, (ctx.font = font(small, 400), title.sub ? ctx.measureText(title.sub).width : 0));
-      const boxW = Math.min(w - 2 * x0, textWidth + 2 * pad + bar), boxH = big * 1.25 + (title.sub ? small * 1.6 : 0) + 1.2 * pad;
-      const x = x0 - (t < b ? (1 - show) * h * 0.08 : 0);  // glissé depuis la gauche à l'entrée
+      const boxW = Math.min(w - 2 * h * 0.06, textWidth + 2 * pad), boxH = big * 1.25 + (title.sub ? small * 1.6 : 0) + 1.2 * pad + bar;
+      const x = (w - boxW) / 2, y0 = h * 0.06 - (t < b ? (1 - show) * h * 0.04 : 0);  // descendu d'en haut à l'entrée
       ctx.globalAlpha = show;
       ctx.fillStyle = "rgba(12, 18, 26, 0.78)";
       ctx.fillRect(x, y0, boxW, boxH);
       ctx.fillStyle = TITLE_ACCENT;
-      ctx.fillRect(x, y0, bar, boxH);
-      ctx.textAlign = "left";
+      ctx.fillRect(x, y0 + boxH - bar, boxW, bar);
+      ctx.textAlign = "center";
       ctx.fillStyle = "#fff";
       ctx.font = font(big, 700);
-      ctx.fillText(title.text, x + bar + pad, y0 + 0.6 * pad + big, boxW - bar - 2 * pad);
+      ctx.fillText(title.text, w / 2, y0 + 0.6 * pad + big, boxW - 2 * pad);
       if (title.sub) {
         ctx.fillStyle = "#cfd8dc";
         ctx.font = font(small, 400);
-        ctx.fillText(title.sub, x + bar + pad, y0 + 0.6 * pad + big * 1.25 + small * 1.25, boxW - bar - 2 * pad);
+        ctx.fillText(title.sub, w / 2, y0 + 0.6 * pad + big * 1.25 + small * 1.25, boxW - 2 * pad);
       }
+      ctx.textAlign = "left";
       ctx.globalAlpha = 1;
     }
     // Rappel : le titre en petit en haut à gauche, apparu en fondu après le carton

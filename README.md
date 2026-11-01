@@ -147,8 +147,8 @@ vidéo ralentit dans les virages et aux carrefours (facteur 1 / (1 + rotation du
 au-delà de 1° par mètre, virage marqué, comptant double ; jusqu'à 35 % au plus bas : virage de 30 m de rayon à 37 %), part et s'arrête en douceur sur 50 m, sans à-coup (vitesse lissée sur ± 15 m) ; la durée affichée en
 tient compte. Sur la D115D (1,1 km, rayon de 95 m au plus serré), la vitesse varie de 76 à 100 % et la vidéo passe
 de 47,5 à 53 s à 90 km/h. « Titre » (cochée, au-dessus des options avancées) : carton au début,
-bandeau sombre au tiers inférieur avec un trait ambre à gauche, titre en gras et sous-titre plus clair, glissé depuis la
-gauche à l'entrée (0,3 à 0,9 s), effacé en fondu de 4 à 4,6 s ; texte libre (80 caractères) et sous-titre libre, ou,
+cadre sombre en haut au centre, un peu écarté du bord, souligné d'un trait ambre, titre en gras et sous-titre plus clair
+centrés, descendu en fondu à l'entrée (0,3 à 0,9 s), effacé en fondu de 4 à 4,6 s ; texte libre (80 caractères) et sous-titre libre, ou,
 laissés vides, la route et les PR de départ et d'arrivée, et la date des photos ; « Rappel en incrustation » (décoché) :
 le titre en petit en haut à gauche ensuite, jusqu'à la fin ; champs grisés sans titre. Aperçu : `tests/apercu-titre.html`. « Compteur PR » (cochée à l'ouverture) : en bas à gauche, la route et
 le PR ; les mètres défilent en continu, en rouleaux comme un compteur kilométrique (interpolés image par image entre
