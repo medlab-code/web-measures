@@ -447,7 +447,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <p id="video-mode-aide" class="aide"></p>
           <!-- Mode Présentation : allure (Video.presentationSpeeds ; réglettes provisoires, à affiner) et arrêts -->
           <div id="video-presentation" class="options">
-            <div class="option" title="Allure de la présentation : vite dans les lignes droites, ralentie dans les virages pour que la vue n'y tourne pas trop vite (courbe large : un peu ; virage serré : beaucoup), jamais sous la vitesse au plus bas ; départ, arrivée et arrêts en douceur, accélérations et freinages progressifs. Réglages provisoires, à affiner.">
+            <div class="option" title="Allure de la présentation : vite dans les lignes droites, ralentie dans les virages pour que la vue n'y tourne pas trop vite (courbe large : un peu ; virage serré : beaucoup), jamais sous la vitesse au plus bas ; départ, arrivée et arrêts en douceur, changements d'allure rapides (réglette Transitions). Réglages provisoires, à affiner.">
               <span class="texte-option">Allure<span class="aide">Réglages provisoires, à affiner ensemble.</span>
                 <span class="reglette-option">Lignes droites <output id="pres-vmax-valeur" for="pres-vmax">150 km/h</output>
                   <input id="pres-vmax" type="range" min="50" max="300" step="10" value="150" aria-label="Vitesse dans les lignes droites (km/h)"></span>
@@ -455,8 +455,8 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
                   <input id="pres-virage" type="range" min="4" max="40" step="2" value="12" aria-label="Rotation de la vue au plus dans les virages (°/s ; moins : plus lent)"></span>
                 <span class="reglette-option">Au plus bas <output id="pres-vmin-valeur" for="pres-vmin">30 km/h</output>
                   <input id="pres-vmin" type="range" min="10" max="70" step="5" value="30" aria-label="Vitesse au plus bas, hors arrêts (km/h)"></span>
-                <span class="reglette-option">Accélération <output id="pres-accel-valeur" for="pres-accel">2 m/s²</output>
-                  <input id="pres-accel" type="range" min="0.5" max="6" step="0.5" value="2" aria-label="Accélération et freinage au plus (m/s²)"></span>
+                <span class="reglette-option">Transitions <output id="pres-transition-valeur" for="pres-transition">1 s</output>
+                  <input id="pres-transition" type="range" min="0.5" max="3" step="0.5" value="1" aria-label="Durée des changements d'allure (s ; la vitesse varie d'un facteur 2,7 dans ce temps)"></span>
               </span>
             </div>
             <div class="option" title="Arrêts : aux endroits choisis sur la mini-carte (📍, à moins de 30 m du parcours), la vidéo ralentit progressivement, s'arrête le temps choisi, puis repart progressivement (même accélération que l'allure)">

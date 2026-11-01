@@ -47,10 +47,11 @@ const Video = (() => {
   const EXPO_STORE = "web-measures/expositions";  // mesures gardées dans le navigateur (localStorage)
   const EXPO_KEPT = 20000;  // mesures gardées au plus (les plus anciennes oubliées)
   // Mode Présentation (presentationSpeeds) : réglages par défaut des réglettes, provisoires (à affiner avec l'utilisateur)
-  const PRES = { vmax: 150, turn: 12, vmin: 30, accel: 2, stop: 3, slow: 50 };  // km/h, °/s, km/h, m/s², s, km/h
+  const PRES = { vmax: 150, turn: 12, vmin: 30, fade: 1, stop: 3, slow: 50 };  // km/h, °/s, km/h, s, s, km/h
+  const PRES_START = 3;  // m/s² : accélération au moins, près de l'arrêt (départ, arrêts), où un changement proportionnel serait trop lent
   const PRES_SLOW_REACH = 15;  // m : vitesse de ralentissement tenue à ± PRES_SLOW_REACH m du croisement ou de l'ouvrage
   const PRES_REACH = 10;  // m : courbure prise sur le cap lissé à ± PRES_REACH m
-  const PRES_SMOOTH = 15;  // m : vitesse lissée sur ± PRES_SMOOTH m (pas d'à-coup aux bouts des accélérations)
+  const PRES_SMOOTH = 8;  // m : vitesse lissée sur ± PRES_SMOOTH m (pas d'à-coup aux bouts des changements d'allure)
   const CREEP = 0.3;  // m/s : vitesse plancher de l'avancée image par image (arrêts : images ajoutées)
   const RAMP_MIN = 0.35;  // rampe de vitesse : part de la vitesse choisie au plus bas (virage serré, départ, arrivée)
   const RAMP_TURN = 1.5;  // °/m : courbe (cap lissé) qui réduirait la vitesse de moitié sans RAMP_MARKED
@@ -128,7 +129,7 @@ const Video = (() => {
    * vitesse v (m/s), constante, ou avec ramp (rampe de vitesse) réduite dans les virages (facteur 1 / (1 + rotation du
    * cap lissé / RAMP_TURN), la rotation au-delà de RAMP_MARKED °/m comptant double ; au plus bas RAMP_MIN·v) et en douceur sur RAMP_EDGE m au départ et à l'arrivée,
    * lissée sur ± RAMP_SMOOTH m : v devient la vitesse des lignes droites. pres : mode Présentation ({ vmax, vmin (m/s),
-   * turn (°/s), accel (m/s²), stops ([lon, lat] des arrêts), stop (s) }, presentationSpeeds) à la place de v et ramp :
+   * turn (°/s), fade (s), stops ([lon, lat] des arrêts), stop (s) }, presentationSpeeds) à la place de v et ramp :
    * arrêt de pres.stop s (images ajoutées) à chaque arrêt.
    */
   function timeline(path, v, ramp, looks = [], lookSpeed = null, poiSlow = null, pres = null) {
@@ -164,10 +165,11 @@ const Video = (() => {
    * les virages pour que la vue n'y tourne pas plus vite que turn °/s (vitesse = turn / rotation du cap lissé en °/m,
    * prise sur ± PRES_REACH m : courbe large, un peu ; virage serré, beaucoup), jamais sous vmin ; arrêtée au départ, à
    * l'arrivée et aux arrêts (stops, [lon, lat]) ; ramenée à slow (m/s) à ± PRES_SLOW_REACH m des points de
-   * ralentissement (slows, [lon, lat] : croisements, ouvrages d'art) ; accélérations et freinages à accel m/s² au plus (une longue ligne
-   * droite atteint vmax, une courte non), puis lissée sur ± PRES_SMOOTH m sans dépasser ces limites.
+   * ralentissement (slows, [lon, lat] : croisements, ouvrages d'art) ; changements d'allure rapides, pas réalistes : la
+   * vitesse varie d'un facteur e (2,7) en fade s au plus, quelle que soit sa valeur (150 → 55 km/h en 1 s, 150 → 30 en
+   * 1,6 s ; près de l'arrêt, PRES_START m/s² au moins), puis lissée sur ± PRES_SMOOTH m sans dépasser ces limites.
    */
-  function presentationSpeeds(path, { vmax, vmin, turn, accel, stops = [], slows = [], slow = vmax }) {
+  function presentationSpeeds(path, { vmax, vmin, turn, fade = PRES.fade, stops = [], slows = [], slow = vmax }) {
     const n = Math.ceil(path.length) + 1, v = [];
     for (let x = 0; x < n; x++) {
       const a = path.course(x - PRES_REACH), b = path.course(x + PRES_REACH);
@@ -179,9 +181,12 @@ const Video = (() => {
     }
     v[0] = v[n - 1] = 0;
     for (const x of placesOn(path, stops, "arrêt")) v[Math.min(n - 1, Math.round(x))] = 0;
-    const hold = (u) => {  // accélération et freinage à accel m/s² au plus
-      for (let x = 1; x < n; x++) u[x] = Math.min(u[x], Math.sqrt(u[x - 1] ** 2 + 2 * accel));
-      for (let x = n - 2; x >= 0; x--) u[x] = Math.min(u[x], Math.sqrt(u[x + 1] ** 2 + 2 * accel));
+    // Vitesse permise un mètre plus loin : × e^(1 / (fade · v)) (d ln v / dt = 1 / fade), au moins PRES_START m/s² près de
+    // l'arrêt
+    const grow = (w) => Math.max(Math.sqrt(w * w + 2 * PRES_START), w * Math.exp(1 / (fade * Math.max(w, 1))));
+    const hold = (u) => {
+      for (let x = 1; x < n; x++) u[x] = Math.min(u[x], grow(u[x - 1]));
+      for (let x = n - 2; x >= 0; x--) u[x] = Math.min(u[x], grow(u[x + 1]));
       return u;
     };
     hold(v);
@@ -1421,6 +1426,6 @@ const Video = (() => {
     }
   }
 
-  return { supported, record, mp4, trajectory, timeline, ignoredPlaces, presentationSpeeds, PRES, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
+  return { supported, record, mp4, trajectory, timeline, ignoredPlaces, presentationSpeeds, PRES, PRES_START, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
     poiSpan, poiViews, planets, tours, speeds, laterals, insideDevers, lateralColor, arpSpeeds, steady, drawOverlay, fetchImage, FPS, HOLD };
 })();

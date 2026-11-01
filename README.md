@@ -145,8 +145,9 @@ ou corrections de luminosité ; la vitesse simulée et la rampe, grisées, y son
 lignes droites, 150 km/h par défaut, de 50 à 300 ; dans les virages, vitesse telle que la vue ne tourne pas plus vite que
 la réglette « Virages, rotation », 12 °/s par défaut, de 4 à 40, d'après la rotation du cap lissé sur ± 10 m : courbe
 large, un peu plus lent, virage serré, beaucoup ; jamais sous « Au plus bas », 30 km/h par défaut ; départ, arrivée et
-arrêts en douceur, accélérations et freinages à « Accélération » au plus, 2 m/s² par défaut, de 0,5 à 6 : une longue
-ligne droite atteint la vitesse choisie, une courte non ; vitesse lissée sur ± 15 m ; réglettes provisoires, à affiner ;
+arrêts en douceur ; changements d'allure rapides, pas réalistes : la vitesse varie d'un facteur 2,7 en « Transitions »
+au plus, 1 s par défaut, de 0,5 à 3 (150 → 55 km/h en 1 s, 150 → 30 km/h en 1,6 s ; 3 m/s² au moins près de l'arrêt) ;
+vitesse lissée sur ± 8 m ; réglettes provisoires, à affiner ;
 « Arrêts » : aux endroits choisis sur la mini-carte (📍, repère rouge, à moins de 30 m du parcours), la vidéo ralentit,
 s'arrête le temps choisi, 3 s par défaut, de 1 à 10, et repart); « Croisements et ouvrages d'art » (décochée) : à la préparation (ou en la cochant), repères orange posés
 d'eux-mêmes sur les croisements de routes revêtues de la BD TOPO (départementales, voies communales, giratoires ; pas les

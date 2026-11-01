@@ -139,7 +139,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       const slowAt = w.mesures.videoPlan && slowMarks().length;
       log(`ralentissements posés : ${slowAt} ; ${status()}`);
       expect("ralentissements : posés d'eux-mêmes sur le parcours", slowAt >= 1, slowAt);
-      const slowPres = { vmax: 150 / 3.6, vmin: 30 / 3.6, turn: 12, accel: 2, slow: 50 / 3.6,
+      const slowPres = { vmax: 150 / 3.6, vmin: 30 / 3.6, turn: 12, fade: 1, slow: 50 / 3.6,
         slows: [w.mesures.videoPlan.photos.at(-3).coords] };
       const withSlow = Video.presentationSpeeds(long, slowPres);
       const slowX = long.s[long.list.findIndex((p) => p.coords === w.mesures.videoPlan.photos.at(-3).coords)] ?? long.length - 10;
@@ -165,20 +165,21 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       meter.checked = false;
       meter.dispatchEvent(new w.Event("change"));
       // Allure du mode Présentation (réglages par défaut) : bornée par la vitesse des lignes droites, arrêtée aux bouts,
-      // accélérations et freinages tenus, plus lente au virage le plus serré qu'en ligne droite ; un arrêt au milieu tenu
+      // changements d'allure tenus (facteur e en 1 s au plus, PRES_START m/s² près de l'arrêt), plus lente au virage le plus serré qu'en ligne droite ; un arrêt au milieu tenu
       // 3 s (images identiques)
-      const P = Video.PRES, pres = { vmax: P.vmax / 3.6, vmin: P.vmin / 3.6, turn: P.turn, accel: P.accel, stop: P.stop, stops: [] };
+      const P = Video.PRES, pres = { vmax: P.vmax / 3.6, vmin: P.vmin / 3.6, turn: P.turn, fade: P.fade, stop: P.stop, stops: [] };
       const ps = Video.presentationSpeeds(long, pres);
-      const jerk = Math.max(...ps.slice(1).map((v, x) => Math.abs(v * v - ps[x] * ps[x]) / 2));
+      const grow = (w) => Math.max(Math.sqrt(w * w + 2 * Video.PRES_START), w * Math.exp(1 / (pres.fade * Math.max(w, 1))));
+      const over = ps.slice(1).filter((v, x) => v > grow(ps[x]) + 1e-9 || ps[x] > grow(v) + 1e-9).length;
       let tight = 0, tightTurn = 0;
       for (let x = 60; x < long.length - 60; x++) {
         const turn = Math.abs(((long.course(x + 10) - long.course(x - 10)) % 360 + 540) % 360 - 180);
         if (turn > tightTurn) [tight, tightTurn] = [x, turn];
       }
       log(`allure : ${[0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000].filter((x) => x < ps.length).map((x) => `${x} m ${(3.6 * ps[x]).toFixed(0)}`).join(", ")} km/h ; `
-        + `virage le plus serré à ${tight} m : ${(3.6 * ps[tight]).toFixed(0)} km/h ; accélération au plus ${jerk.toFixed(2)} m/s²`);
+        + `virage le plus serré à ${tight} m : ${(3.6 * ps[tight]).toFixed(0)} km/h`);
       expect("allure : bornée, arrêtée aux bouts", Math.max(...ps) <= pres.vmax + 1e-9 && ps[0] === 0 && ps.at(-1) === 0);
-      expect("allure : accélération et freinage tenus", jerk <= pres.accel + 1e-6, jerk);
+      expect("allure : changements d'allure tenus", over === 0, over);
       expect("allure : plus lente au virage le plus serré", ps[tight] < 0.8 * Math.max(...ps), `${ps[tight]} ${Math.max(...ps)}`);
       const stopAt = long.at(long.length / 2), held = Video.timeline(long, 25, false, [], null, null, { ...pres, stops: [stopAt] });
       let still = 0, best = 0;

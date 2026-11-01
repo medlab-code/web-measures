@@ -3653,7 +3653,7 @@
   function presOptions() {
     if ($("#video-mode").value !== "presentation") return null;
     return { vmax: Number($("#pres-vmax").value) / 3.6, vmin: Number($("#pres-vmin").value) / 3.6, turn: Number($("#pres-virage").value),
-      accel: Number($("#pres-accel").value), stop: Number($("#arret-duree").value),
+      fade: Number($("#pres-transition").value), stop: Number($("#arret-duree").value),
       stops: $("#video-arret").checked ? placed.stop.points.map((p) => p.lonlat) : [],
       slows: $("#video-ralenti").checked ? placed.slow.points.map((p) => p.lonlat) : [], slow: Number($("#ralenti-vitesse").value) / 3.6 };
   }
@@ -3670,7 +3670,7 @@
       + "(repères orange) : clic sur un repère pour le retirer, 📍 pour en ajouter.");
   }
   // Réglettes du mode Présentation : valeur affichée à côté ; elles changent la durée de la vidéo
-  for (const [id, unit] of [["pres-vmax", "km/h"], ["pres-virage", "°/s"], ["pres-vmin", "km/h"], ["pres-accel", "m/s²"], ["arret-duree", "s"], ["ralenti-vitesse", "km/h"]]) {
+  for (const [id, unit] of [["pres-vmax", "km/h"], ["pres-virage", "°/s"], ["pres-vmin", "km/h"], ["pres-transition", "s"], ["arret-duree", "s"], ["ralenti-vitesse", "km/h"]]) {
     $(`#${id}`).addEventListener("input", () => {
       $(`#${id.replace("-duree", "")}-valeur`).textContent = `${String($(`#${id}`).value).replace(".", ",")} ${unit}`;
       updatePlayer();
@@ -4251,7 +4251,7 @@
     $("#video-mode").disabled = Boolean(videoRun);
     // Présentation : vitesse et rampe remplacées par l'allure ; ses réglettes et arrêts figés pendant le calcul
     if (presOptions()) $("#video-vitesse").disabled = $("#video-rampe").disabled = true;
-    for (const id of ["#pres-vmax", "#pres-virage", "#pres-vmin", "#pres-accel", "#arret-duree", "#video-arret", "#ralenti-vitesse", "#video-ralenti"]) {
+    for (const id of ["#pres-vmax", "#pres-virage", "#pres-vmin", "#pres-transition", "#arret-duree", "#video-arret", "#ralenti-vitesse", "#video-ralenti"]) {
       $(id).disabled = Boolean(videoRun);
     }
     for (const which of ["stop", "slow"]) travelPane.querySelector(`.sur-carte[data-cote="${which}"]`).disabled = Boolean(videoRun);
