@@ -862,10 +862,13 @@ const Video = (() => {
     const { list, s } = path;
     const gains = list.map(() => [1, 1, 1]);
     const values = list.map(() => null);
+    // Photos mesurées : toutes pour les photos isolées, sinon celles de part et d'autre des changements de séquence
+    const wanted = isolatedToo ? list.map((_, i) => i) : list.map((_, i) => i).filter((i) => list.some((p, k) => k
+      && p.collection !== list[k - 1].collection && i >= k - EXPO_SIDE && i < k + EXPO_SIDE));
     let next = 0;
     await Promise.all(Array.from({ length: EXPO_PARALLEL }, async () => {
-      while (next < list.length) {
-        const i = next++;
+      while (next < wanted.length) {
+        const i = wanted[next++];
         try {
           values[i] = await exposureOf(list[i], signal);
         } catch (error) {
@@ -1263,7 +1266,8 @@ const Video = (() => {
     const widest = (fov) => 2 * Math.atan(Math.tan(fov / 2 * toRad) * 1.6) / toRad;
     const scaleOf = (t) => (hq ? 1 : Math.min(1, 1.25 * (width / HFOV) / (t.size / (360 / t.cols))));
     const yawAt = (i, x) => wrap(path.course(x) - path.list[i].heading);
-    const gains = exposure ? await exposures(path, signal) : path.list.map(() => [1, 1, 1]);
+    // Couleurs accordées à chaque changement de séquence (raccord discret) ; photos isolées seulement avec l'option
+    const gains = await exposures(path, signal, exposure);
     const span = poi ? poiSpan(path, poi) : null;
     // Tours d'horizon : images ajoutées pendant l'arrêt, avant les autres effets (calés sur les images)
     const turns = tours(path, timelineOf(path), tourPlaces, tourTime, tourStop);
@@ -1340,9 +1344,9 @@ const Video = (() => {
         if (failure) throw failure;
         const at = (m) => xs[Math.max(0, Math.min(total - 1, m))];
         const x = at(n);
-        // Flou cinétique : vues de la position de l'image précédente (exclue) à celle-ci, dans l'ordre du parcours ;
-        // toujours au raccord de deux séquences (fondu entre elles : masque leur décalage) et pendant un pivot rapide du
-        // regard (croisement, tonneau), flou de mouvement de la rotation
+        // Flou cinétique (option) : vues de la position de l'image précédente (exclue) à celle-ci, dans l'ordre du
+        // parcours ; et pendant un pivot rapide du regard (croisement, tonneau), flou de mouvement de la rotation ; plus au
+        // raccord de deux séquences (le fondu y suffit, le flou s'y voyait)
         const before = pan[Math.max(0, n - 1)], turn = wrap(pan[n] - before);
         // (écart au plus court : 360° puis 0° en fin de tonneau, même image, pas un tour à l'envers)
         const rollBefore = tilt[Math.max(0, n - 1)], rollTurn = wrap(tilt[n] - rollBefore);
@@ -1350,8 +1354,7 @@ const Video = (() => {
         // (tour d'horizon : lent, pour montrer le paysage, sans flou de rotation)
         const sweep = wrap(turn - turns.look[n] + turns.look[Math.max(0, n - 1)]);
         const spin = Math.max(Math.abs(sweep), Math.abs(rollTurn));
-        const [seamI] = path.segment(x), seam = path.list[seamI].collection !== path.list[Math.min(seamI + 1, path.list.length - 1)].collection;
-        const subs = spin > 1 ? Math.min(48, Math.max(BLUR, Math.ceil(spin / 1.5))) : (blur || seam) && at(n - 1) < x ? BLUR : 1;
+        const subs = spin > 1 ? Math.min(48, Math.max(BLUR, Math.ceil(spin / 1.5))) : blur && at(n - 1) < x ? BLUR : 1;
         const first = path.segment(x - (x - at(n - 1)) * (subs - 1) / subs)[0];
         for (let k = first; k < Math.min(path.list.length, path.segment(x)[0] + AHEAD); k++) load(k).catch(() => {});
         for (const [k, job] of loads) {  // photos passées : textures rendues
@@ -1373,7 +1376,8 @@ const Video = (() => {
           gl.draw([
             { ...a, yaw: yawAt(i, xs) * toRad, pitch: path.list[i].pitch, tan: view, move: u * gap, gain: gains[i] },
             { ...b, yaw: yawAt(j, xs) * toRad, pitch: path.list[j].pitch, tan: view, move: -(1 - u) * gap, gain: gains[j] },
-          ], j === i ? 0 : smooth(Math.min(1, Math.max(0, (u - 0.25) / 0.5))), 1 / (k + 1), look, tilted,
+          ], j === i ? 0 : smooth(Math.min(1, Math.max(0, path.list[i].collection !== path.list[j].collection ? u  // raccord : fondu sur tout l'écart
+            : (u - 0.25) / 0.5))), 1 / (k + 1), look, tilted,
           (aim.lift[n] - 90 * globe.mix[n]) * toRad, Math.min(1, 2 * globe.mix[n]));
         }
         // Titre et compteurs : dessinés dans un calque transparent posé par la carte graphique sur la vue (l'image ne fait

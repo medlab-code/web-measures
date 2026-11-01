@@ -95,6 +95,13 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     log(`préparée en ${((Date.now() - t0) / 1000).toFixed(0)} s : ${plan?.photos?.length} photos, ${plan?.switches} changement(s), `
       + `${off} hors de la D906, ${asked} question(s), ${plan?.reversed ?? 0} à rebours ; repères ${marks()} ; ${status()}`);
     expect("vidéo préparée", plan?.photos?.length > 50, status());
+    // Raccords : écart entre la dernière photo d'une séquence et la première de la suivante
+    const seams = (plan?.photos || []).map((p, i, all) => (i && p.collection !== all[i - 1].collection
+      ? Math.hypot((p.coords[0] - all[i - 1].coords[0]) * 76000, (p.coords[1] - all[i - 1].coords[1]) * 111320) : null)).filter((d) => d != null);
+    log(`raccords : ${seams.map((d) => d.toFixed(1)).join(", ") || "aucun"} m`);
+    (plan?.photos || []).forEach((p, i, all) => { if (i && p.collection !== all[i - 1].collection) log(`raccord ${all[i - 1].collection.slice(0, 8)} → ${p.collection.slice(0, 8)} : ${all[i - 1].coords.map((v) => v.toFixed(5))} → ${p.coords.map((v) => v.toFixed(5))}`); });
+    // (D906 / D973, 4,6720 ; 46,9482 : la route tourne, aucune séquence n'y passe dans les deux sens : 20 m, inévitable)
+    expect("raccords : photos des deux séquences à moins de 25 m", seams.every((d) => d < 25), seams.join(" "));
     // Rendu de 40 photos (#rendu) : images de la vidéo non noires (luminosité moyenne au-dessus de 30 sur 255)
     if (/rendu/.test(location.hash)) {
       const Video = w.eval("Video");

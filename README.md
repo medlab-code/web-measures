@@ -167,9 +167,12 @@ que ses voisines dans une forêt) est ramenée sur la médiane des photos de sa 
 écarte de plus de 22 % (même gain sur les trois couleurs : la teinte ne change pas) : la vidéo ne clignote plus, et les vrais changements du décor (clairière, champ) sont gardés.
 Ne sont pas corrigés : la surexposition qui dure 2 à 3 s à la sortie de l'ombre (la caméra s'adapte lentement ; une
 médiane plus large l'atténue mais assombrit aussi le décor des forêts) et le ciel brûlé sous les arbres (perdu dans la
-photo). Aux changements de séquence, une autre campagne peut être bien plus claire ou plus sombre (juillet 2025 : 1,5
-fois plus clair que mai au carrefour RD18 / D115D) ; la nouvelle séquence est ramenée sur la précédente (3 photos de part
-et d'autre), puis revient peu à peu à sa propre exposition sur 100 m. « Rampe de vitesse » (décochée, grisée en Présentation) : la vitesse choisie devient celle des lignes droites ; la
+photo). Raccords de séquence, avec ou sans l'option, pour qu'ils se voient le moins possible : la séquence suivante est
+choisie là où ses photos et celles de la précédente sont au même endroit (un mètre d'écart compte comme un tiers de
+changement de séquence) ; une autre campagne pouvant être bien plus claire ou plus sombre (juillet 2025 : 1,5 fois plus
+clair que mai au carrefour RD18 / D115D), la nouvelle séquence est ramenée sur la précédente (3 photos mesurées de part
+et d'autre, rouge, vert et bleu), puis revient peu à peu à sa propre exposition sur 100 m ; le fondu entre les deux
+photos du raccord occupe tout leur écart (et non sa moitié centrale), sans flou ajouté. « Rampe de vitesse » (décochée, grisée en Présentation) : la vitesse choisie devient celle des lignes droites ; la
 vidéo ralentit dans les virages et aux carrefours (facteur 1 / (1 + rotation du cap / 1,5° par mètre), la rotation
 au-delà de 1° par mètre, virage marqué, comptant double ; jusqu'à 35 % au plus bas : virage de 30 m de rayon à 37 %), part et s'arrête en douceur sur 50 m, sans à-coup (vitesse lissée sur ± 15 m) ; la durée affichée en
 tient compte. Sur la D115D (1,1 km, rayon de 95 m au plus serré), la vitesse varie de 76 à 100 % et la vidéo passe

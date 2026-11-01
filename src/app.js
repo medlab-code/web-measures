@@ -3235,7 +3235,10 @@
         let best = cost.has(key) ? { c: cost.get(key), from: key } : null;
         for (const [prev, c] of cost) {
           if (prev === key) continue;
-          const change = c + 1 + Math.abs(days.get(prev) - days.get(key)) / ALONG_DAYS;
+          // Raccord discret : là où les photos des deux séquences sont au même endroit (1 de plus par ALONG_SEAM m d'écart)
+          const there = choice.get(prev);
+          const apart = there ? metresBetween(there.f.geometry.coordinates, o.f.geometry.coordinates) : 2 * ALONG_NEAR;
+          const change = c + 1 + Math.abs(days.get(prev) - days.get(key)) / ALONG_DAYS + apart / ALONG_SEAM;
           if (!best || change < best.c) best = { c: change, from: prev };
         }
         next.set(key, (best?.c ?? 0) + reverse);
@@ -3276,6 +3279,7 @@
   }
   const ALONG_STEP = 5, ALONG_NEAR = 12, ALONG_ANGLE = 50, ALONG_CHUNK = 150;  // m, m, degrés, m
   const ALONG_BACK = 25;  // pas lu à rebours (5 m) : plus qu'un changement entre séquences à cinq ans d'écart (le sens d'abord)
+  const ALONG_SEAM = 3;  // m d'écart entre les photos des deux séquences au raccord qui valent un changement de plus
   const ALONG_DAYS = 90;  // jours d'écart entre deux séquences qui valent un changement de plus
 
   // Onglet « Vidéo » : « ▶ Parcourir » grisé tant que la route ou un PR manque
