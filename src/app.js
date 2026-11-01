@@ -3167,6 +3167,7 @@
   $("#planete-transition").addEventListener("input", () => {
     const fade = Number($("#planete-transition").value);
     $("#planete-transition-valeur").textContent = fade ? `${fade} s` : "aucune";
+    updatePlayer();  // tonneau des transitions grisé sans transition
   });
   $("#planete-rotation").addEventListener("input", () => {
     const speed = Number($("#planete-rotation").value);
@@ -3722,7 +3723,7 @@
         junctions: $("#video-regard").checked ? videoPlan.junctions : [],
         rolls: $("#video-tonneau").checked ? placed.roll.points.map((p) => p.lonlat) : [], rollTime: Number($("#tonneau-duree").value),
         planets: $("#video-planete").checked ? placed.planet.points.map(placeOf) : [],
-        planetAll: $("#video-planete").checked && $("#planete-tout").checked,
+        planetAll: $("#video-planete").checked && $("#planete-tout").checked, planetRoll: $("#planete-tonneau").checked,
         planetFade: Number($("#planete-transition").value), planetSpin: Number($("#planete-rotation").value),
         tours: $("#video-tour").checked ? placed.tour.points.map((p) => p.lonlat) : [],
         tourTime: Number($("#tour-duree").value), tourStop: $("#tour-arret").checked,
@@ -3847,6 +3848,7 @@
       $(id).disabled = Boolean(videoRun);
     }
     travelPane.querySelector('.sur-carte[data-cote="planet"]').disabled = $("#planete-tout").checked;  // rien à tracer
+    $("#planete-tonneau").disabled = Boolean(videoRun) || !Number($("#planete-transition").value);
     if (!videoRun) $("#video-info").textContent = videoOk ? videoInfo() : "ce navigateur n'encode pas la vidéo";
     // Écart des photos de chaque choix, d'après l'écart médian des photos du parcours préparé
     const gaps = plan.slice(1).map((p, i) => metresBetween(plan[i].coords, p.coords)).sort((a, b) => a - b);

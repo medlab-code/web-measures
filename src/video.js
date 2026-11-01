@@ -493,8 +493,9 @@ const Video = (() => {
    * planète (0 : vue normale, 1 : planète ; enroulement au début du tronçon et déroulement à la fin, fade s chacun
    * adoucis, la moitié du tronçon au plus ; 0 : planète d'emblée sur tout le tronçon) et
    * rotation sur elle-même (degrés : spin °/s depuis le milieu du tronçon, multipliés par la part : nulle hors de
-   * l'effet, la vue revient droite) ; all : planète sur tout le parcours (spans ignorés). */
-  function planets(path, xs, spans = [], spin = PLANET_SPIN, fade = PLANET_FADE, all = false) {
+   * l'effet, la vue revient droite) ; all : planète sur tout le parcours (spans ignorés) ; barrel : un tonneau (tour
+   * complet de roulis, adouci) pendant l'enroulement, un autre en sens inverse pendant le déroulement. */
+  function planets(path, xs, spans = [], spin = PLANET_SPIN, fade = PLANET_FADE, all = false, barrel = false) {
     const mix = xs.map(() => 0), turn = xs.map(() => 0);
     const frame = (x) => {
       const n = xs.findIndex((v) => v >= x);
@@ -515,6 +516,7 @@ const Video = (() => {
         if (m <= mix[n]) continue;
         mix[n] = m;
         turn[n] = m * spin * (n - centre) / FPS;
+        if (barrel && f) turn[n] += 360 * (n - n0 < f ? smooth((n - n0) / f) : n1 - n < f ? -smooth((n - n1 + f) / f) : 0);
       }
     });
     return { mix, spin: turn };
@@ -1070,7 +1072,7 @@ const Video = (() => {
    * options.poi : point d'intérêt { target, z (altitude NGF de l'objet relevé ou null), start, end (extrémités de la
    * zone tracée, [lon, lat] ou null), speed (km/h ou null), zoom, zoomByDistance, roll, ground: { target, photos }
    * (altitudes du sol, par photo de photos) } (poiViews) ; options.planets : tronçons des petites planètes ([[début, fin]…],
-   * planets), options.planetFade : enroulement et déroulement (s), options.planetAll : sur tout le parcours, options.planetSpin : vitesse de rotation (°/s) ;
+   * planets), options.planetFade : enroulement et déroulement (s), options.planetAll : sur tout le parcours, options.planetRoll : tonneau pendant les transitions, options.planetSpin : vitesse de rotation (°/s) ;
    * options.advance : false pour ne pas avancer dans la maquette (fondu enchaîné d'une photo à l'autre) ;
    * options.tours : endroits des tours d'horizon ([[lon, lat]…], tours), options.tourTime : durée de chacun (s),
    * options.tourStop : caméra arrêtée pendant le tour ; options.hq : haute qualité (HQ_CODECS, tuiles en pleine
@@ -1078,7 +1080,7 @@ const Video = (() => {
    */
   async function mp4(photos, kmh, progress = () => {}, signal = null,
     { blur = false, exposure = true, ramp = false, title = null, counter = false, speedometer = false, lateral = false, arpSpeed = false, junctions = [], rolls: rollPlaces = [],
-    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, hq = false, planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false,
+    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, hq = false, planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false, planetRoll = false,
     planetSpin = PLANET_SPIN, advance = true, tours: tourPlaces = [], tourTime = TOUR_TIME, tourStop = true } = {}) {
     const path = trajectory(photos);
     if (path.list.length < 2 || path.length < 1) throw new Error("parcours trop court");
@@ -1122,7 +1124,7 @@ const Video = (() => {
     aim.yaw.forEach((v, n) => { pan[n] += v; });
     const tilt = rolls(path, xs, poi?.roll ? [...rollPlaces, path.at(span.xc)] : rollPlaces, rollTime);
     // Petite planète : regard vers le sol, champ élargi jusqu'à PLANET_FOV, rotation lente ajoutée au roulis
-    const globe = planets(path, xs, planetPlaces, planetSpin, planetFade, planetAll);
+    const globe = planets(path, xs, planetPlaces, planetSpin, planetFade, planetAll, planetRoll);
     globe.spin.forEach((v, n) => { tilt[n] += v; });
     // Image tournée par le tonneau : le coin de la vue passe en haut et en bas (demi-diagonale du champ)
     const diagonal = 2 * Math.atan(Math.hypot(tan, tan * height / width)) / toRad;
