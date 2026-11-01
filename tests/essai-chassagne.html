@@ -99,7 +99,14 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     if (/rendu/.test(location.hash)) {
       const Video = w.eval("Video");
       const dir = await w.navigator.storage.getDirectory(), handle = await dir.getFileHandle("rendu.mp4", { create: true });
-      await Video.mp4(plan.photos.slice(0, 40), 90, () => {}, null, { stream: await handle.createWritable() });
+      const t0 = performance.now();
+      await Video.mp4(plan.photos.slice(0, 40), 90, () => {}, null, { stream: await handle.createWritable(), counter: true, speedometer: true,
+        title: { text: "Essai", sub: "", keep: true }, presentation: { vmax: 150 / 3.6, vmin: 30 / 3.6, turn: 12, accel: 2, stop: 3 } });
+      log(`rendu avec titre et compteurs : ${((performance.now() - t0) / 1000).toFixed(1)} s`);
+      const t1 = performance.now(), h2 = await dir.getFileHandle("rendu2.mp4", { create: true });
+      await Video.mp4(plan.photos.slice(0, 40), 90, () => {}, null, { stream: await h2.createWritable(),
+        presentation: { vmax: 150 / 3.6, vmin: 30 / 3.6, turn: 12, accel: 2, stop: 3 } });
+      log(`rendu sans incrustation : ${((performance.now() - t1) / 1000).toFixed(1)} s`);
       const v = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(await handle.getFile()) });
       await new Promise((resolve) => { v.onloadedmetadata = resolve; });
       const canvas = Object.assign(document.createElement("canvas"), { width: 320, height: 180 }), ctx = canvas.getContext("2d");
@@ -114,6 +121,12 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
         levels.push(sum / (px.length / 4));
       }
       log(`rendu : luminosité ${levels.map((l) => l.toFixed(0)).join(" ")}`);
+      // Image du milieu, avec titre et compteurs, dans le journal (vérification à l'œil)
+      const big = Object.assign(document.createElement("canvas"), { width: 960, height: 540 });
+      v.currentTime = 6;
+      await new Promise((resolve) => { v.onseeked = resolve; });
+      big.getContext("2d").drawImage(v, 0, 0, 960, 540);
+      log(`IMAGE rendu ${big.toDataURL("image/jpeg", 0.85)}`);
       expect("rendu : images non noires", levels.every((l) => l > 30), levels.join(" "));
     }
     expect("aucune question", asked === 0, asked);

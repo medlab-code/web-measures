@@ -995,6 +995,12 @@ const Video = (() => {
   const VERTEX = `#version 300 es
     in vec2 p; out vec2 ndc;
     void main() { ndc = p; gl_Position = vec4(p, 0.0, 1.0); }`;
+  // Incrustations (titre, compteurs) : calque 2D transparent posé sur l'image, sur la carte graphique (renderer.overlay)
+  const OVERLAY = `#version 300 es
+    precision mediump float;
+    in vec2 ndc; out vec4 color;
+    uniform sampler2D over;
+    void main() { color = texture(over, vec2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5)); }`;
   // Pour chaque photo : rayon de la vue (cap yaw, tangage pitch relatifs à l'avant de la photo, tan du demi-champ
   // horizontal) vers longitude et latitude du panorama (avant = milieu de l'image), puis case de la découpe
   const FRAGMENT = `#version 300 es
@@ -1073,10 +1079,20 @@ const Video = (() => {
     gl.attachShader(program, shader(gl.FRAGMENT_SHADER, FRAGMENT));
     gl.linkProgram(program);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+    const p = gl.getAttribLocation(program, "p");
+    // Programme des incrustations : même carré, attribut au même emplacement
+    const over = gl.createProgram();
+    gl.attachShader(over, shader(gl.VERTEX_SHADER, VERTEX));
+    gl.attachShader(over, shader(gl.FRAGMENT_SHADER, OVERLAY));
+    gl.bindAttribLocation(over, p, "p");
+    gl.linkProgram(over);
+    if (!gl.getProgramParameter(over, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(over));
+    gl.useProgram(over);
+    gl.uniform1i(gl.getUniformLocation(over, "over"), 2);
+    let overTex = null;
     gl.useProgram(program);
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-    const p = gl.getAttribLocation(program, "p");
     gl.enableVertexAttribArray(p);
     gl.vertexAttribPointer(p, 2, gl.FLOAT, false, 0, 0);
     gl.viewport(0, 0, width, height);
@@ -1102,6 +1118,27 @@ const Video = (() => {
         return tex;
       },
       drop: (tex) => gl.deleteTexture(tex),
+      /** Calque image (canevas 2D transparent de la taille de la vue) posé sur la vue dessinée, en mélange alpha (l'alpha
+       * de la vue reste opaque) : pas de va-et-vient de l'image entre la carte graphique et le processeur. */
+      overlay(image) {
+        gl.useProgram(over);
+        gl.activeTexture(gl.TEXTURE2);
+        if (!overTex) {
+          overTex = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, overTex);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        }
+        gl.bindTexture(gl.TEXTURE_2D, overTex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        gl.enable(gl.BLEND);
+        gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ZERO, gl.ONE);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.disable(gl.BLEND);
+        gl.useProgram(program);
+      },
       /** Vue : views = [{ tex, crop, grid, yaw, pitch, tan, move, gain }] (yaw : cap de la route), look : regard décalé ; (photo quittée, photo suivante), blend : part de la
        * suivante ; planet : projection (0 perspective, 1 stéréographique) ; weight < 1 : vue mêlée à l'image déjà dessinée dans cette proportion (moyenne du flou cinétique). */
       draw(views, blend, weight = 1, look = 0, roll = 0, lift = 0, planet = 0) {
@@ -1331,18 +1368,26 @@ const Video = (() => {
           ], j === i ? 0 : smooth(Math.min(1, Math.max(0, (u - 0.25) / 0.5))), 1 / (k + 1), look, tilted,
           (aim.lift[n] - 90 * globe.mix[n]) * toRad, Math.min(1, 2 * globe.mix[n]));
         }
-        // Titre et compteurs : image recopiée dans un canevas 2D (réduite en haute qualité), puis écrits dessus
+        // Titre et compteurs : dessinés dans un calque transparent posé par la carte graphique sur la vue (l'image ne fait
+        // pas l'aller-retour vers le processeur : un tiers du calcul) ; haute qualité (vue plus grande que la vidéo) : vue
+        // réduite dans un canevas 2D, incrustations écrites dessus
         let image = gl.canvas;
-        if (title || counter || speedometer || lateral || arpSpeed || ss > 1) {
+        const marks = { title, pr: counter ? prAt(path, x) : null, speed: speedometer ? { kmh: kmhs[n], digits: kmhDigits } : null,
+          lateral: lateral ? { felt: felt[n], color: lateralColor(lats[n], kmhs[n], devs[n]) } : null, arp: arpSpeed ? { kmh: vmax[n] } : null,
+          t: n / FPS };
+        if (ss > 1) {
           overlay ??= new OffscreenCanvas(width, height);
           const ctx2d = overlay.getContext("2d");
           ctx2d.imageSmoothingQuality = "high";
           ctx2d.drawImage(gl.canvas, 0, 0, width, height);
-          drawOverlay(ctx2d, width, height, { title, pr: counter ? prAt(path, x) : null,
-            speed: speedometer ? { kmh: kmhs[n], digits: kmhDigits } : null,
-            lateral: lateral ? { felt: felt[n], color: lateralColor(lats[n], kmhs[n], devs[n]) } : null, arp: arpSpeed ? { kmh: vmax[n] } : null,
-            t: n / FPS });
+          drawOverlay(ctx2d, width, height, marks);
           image = overlay;
+        } else if (title || counter || speedometer || lateral || arpSpeed) {
+          overlay ??= new OffscreenCanvas(width, height);
+          const ctx2d = overlay.getContext("2d");
+          ctx2d.clearRect(0, 0, width, height);
+          drawOverlay(ctx2d, width, height, marks);
+          gl.overlay(overlay);
         }
         const frame = new VideoFrame(image, { timestamp: Math.round(n * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
         encoder.encode(frame, { keyFrame: n % (2 * FPS) === 0 });
