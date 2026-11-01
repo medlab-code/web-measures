@@ -137,7 +137,11 @@ large, un peu plus lent, virage serré, beaucoup ; jamais sous « Au plus bas »
 arrêts en douceur, accélérations et freinages à « Accélération » au plus, 2 m/s² par défaut, de 0,5 à 6 : une longue
 ligne droite atteint la vitesse choisie, une courte non ; vitesse lissée sur ± 15 m ; réglettes provisoires, à affiner ;
 « Arrêts » : aux endroits choisis sur la mini-carte (📍, repère rouge, à moins de 30 m du parcours), la vidéo ralentit,
-s'arrête le temps choisi, 3 s par défaut, de 1 à 10, et repart) ou « Revue détaillée » (compteurs PR, vitesse, accélération latérale et
+s'arrête le temps choisi, 3 s par défaut, de 1 à 10, et repart). Bouton « ▶ Aperçu » (la vidéo préparée) : sans calculer la
+vidéo, un repère ambre parcourt le tracé sur la mini-carte en temps réel, à l'allure de la vidéo (virages, arrêts, regards
+aux croisements, point d'intérêt, tours d'horizon), avec sa vitesse et le temps écoulé ; second clic : arrêt. Le tracé de
+la vidéo préparée est coloré selon la vitesse (tronçons de 10 m : bleu à 20 km/h, vert à 60, jaune à 100, rouge à 150 et
+plus) et suit chaque changement de réglage ou « Revue détaillée » (compteurs PR, vitesse, accélération latérale et
 V max ARP, sans rampe) ; le choix coche ou décoche ces options, retouchables ensuite, et une ligne d'aide le résume.
 Les options ci-dessous sont repliées sous « Options avancées », sauf le titre ; chacune a sa case. « Corrections de luminosité » (décochée) : la luminosité de chaque photo est mesurée sur sa vignette (tout le tour
 d'horizon, sans le ciel ni le toit du véhicule ; rouge, vert et bleu séparément), six à la fois à la préparation, et gardée

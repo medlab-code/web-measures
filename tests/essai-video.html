@@ -119,6 +119,17 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       button.click();
       await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 120000, "vidéo de 1,1 km préparée");
       const long = Video.trajectory(w.mesures.videoPlan?.photos || []);
+      // Aperçu sur la carte : tracé coloré selon la vitesse, repère qui avance à l'allure de la vidéo
+      await sleep(800);
+      const allure = w.mesures.map.getSource("allure-video")?.serialize().data?.features || [];
+      const preview = doc.querySelector("#parcours-apercu");
+      expect("aperçu : tracé coloré selon la vitesse, bouton actif", allure.length > 20 && !preview.disabled, allure.length);
+      preview.click();
+      await sleep(2000);
+      const dot = doc.querySelector(".apercu-video span")?.textContent || "";
+      expect("aperçu : repère avec vitesse et temps", /^\d+ km\/h · 0 min 0[12] s$/.test(dot), dot);
+      preview.click();
+      expect("aperçu : arrêté au second clic", !doc.querySelector(".apercu-video") && /Aperçu/.test(preview.textContent));
       // Dévers lu sur le LiDAR HD en cochant « Accélération latérale » : vers l'intérieur dans les virages marqués, plausible
       const meter = doc.querySelector("#video-acceleration"), help = meter.closest("label").querySelector(".aide");
       meter.checked = true;

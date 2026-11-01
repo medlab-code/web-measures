@@ -3876,6 +3876,96 @@
     + " : les photos peuvent différer (date, lumière, sens de prise de vue).";
 
   // Tours d'horizon avec arrêt : leur durée s'ajoute à celle de la vidéo
+  /** Chronologie de la vidéo préparée, sans image, pour l'aperçu sur la carte : { path, xs } (positions des images, comme
+   * Video.mp4 : allure ou rampe, regards aux croisements, point d'intérêt, tours d'horizon), ou null. */
+  function videoFrames() {
+    if (!videoPlan || videoPlan.photos.length < 2) return null;
+    const path = Video.trajectory(videoPhotos()), pres = presOptions(), poi = poiOptions();
+    let poiSlow = null;
+    try {
+      if (poi?.speed) poiSlow = { ...Video.poiSpan(path, poi), speed: poi.speed / 3.6 };
+    } catch { /* zone loin du parcours : signalée au calcul de la vidéo */ }
+    const looks = Video.lookedJunctions(path, $("#video-regard").checked ? videoPlan.junctions : []);
+    const go = (p) => Video.timeline(path, Number($("#video-vitesse").value) / 3.6, !pres && $("#video-rampe").checked, looks,
+      Number($("#regard-vitesse").value) / 3.6, poiSlow, p);
+    let xs;
+    try {
+      xs = go(pres);
+    } catch {
+      xs = go(pres && { ...pres, stops: [] });  // arrêt loin du parcours
+    }
+    if ($("#video-tour").checked) {
+      try {
+        xs = Video.tours(path, xs, placed.tour.points.map((p) => p.lonlat), Number($("#tour-duree").value), $("#tour-arret").checked).xs;
+      } catch { /* endroit loin du parcours */ }
+    }
+    return { path, xs };
+  }
+  // Vitesse d'une image (km/h), moyennée sur ± 5 images (pas de battement d'une image à l'autre)
+  const frameKmh = (xs, n) => 3.6 * Video.FPS * (xs[Math.min(xs.length - 1, n + 5)] - xs[Math.max(0, n - 5)])
+    / (Math.min(xs.length - 1, n + 5) - Math.max(0, n - 5) || 1);
+  // Tracé coloré selon la vitesse (tronçons de 10 m) sur la mini-carte, recalculé un peu après chaque changement de réglage
+  const ALLURE_ID = "allure-video";
+  let allureTimer = null;
+  function showAllure() {
+    if (!map.isStyleLoaded()) {
+      map.once("idle", showAllure);
+      return;
+    }
+    const frames = videoFrames(), features = [];
+    if (frames) {
+      const { path, xs } = frames;
+      for (let n = 0, start = 0; n < xs.length; n++) {
+        if (xs[n] - xs[start] < 10 && n < xs.length - 1) continue;
+        if (xs[n] > xs[start]) {
+          const line = [];
+          for (let x = xs[start]; x < xs[n]; x += 2) line.push(path.at(x));
+          line.push(path.at(xs[n]));
+          features.push({ type: "Feature", properties: { kmh: 3.6 * Video.FPS * (xs[n] - xs[start]) / (n - start) },
+            geometry: { type: "LineString", coordinates: line } });
+        }
+        start = n;
+      }
+    }
+    const data = { type: "FeatureCollection", features };
+    if (map.getSource(ALLURE_ID)) map.getSource(ALLURE_ID).setData(data);
+    else if (features.length) {
+      map.addSource(ALLURE_ID, { type: "geojson", data });
+      map.addLayer({ id: ALLURE_ID, type: "line", source: ALLURE_ID, layout: { "line-cap": "round" }, paint: { "line-width": 5,
+        "line-color": ["interpolate", ["linear"], ["get", "kmh"], 20, "#1e88e5", 60, "#43a047", 100, "#fdd835", 150, "#e53935"] } });
+    }
+  }
+  // Aperçu en cours : { marker, label, raf } ; le repère parcourt le tracé en temps réel (une image de la vidéo par 1/30 s)
+  let preview = null;
+  function stopPreview() {
+    if (!preview) return;
+    cancelAnimationFrame(preview.raf);
+    preview.marker.remove();
+    preview = null;
+    updatePlayer();
+  }
+  $("#parcours-apercu").addEventListener("click", () => {
+    if (preview) return stopPreview();
+    const frames = videoFrames();
+    if (!frames) return;
+    const { path, xs } = frames;
+    const element = Object.assign(document.createElement("div"), { className: "apercu-video" });
+    const label = element.appendChild(document.createElement("span"));
+    const marker = new maplibregl.Marker({ element, anchor: "left", offset: [-8, 0] }).setLngLat(path.at(0)).addTo(map);
+    const t0 = performance.now();
+    preview = { marker };
+    const step = () => {
+      const n = Math.floor((performance.now() - t0) / 1000 * Video.FPS);
+      if (n >= xs.length || !videoPlan) return stopPreview();
+      const at = path.at(xs[n]);
+      marker.setLngLat(at);
+      label.textContent = `${Math.round(frameKmh(xs, n))} km/h · ${Math.floor(n / Video.FPS / 60)} min ${String(Math.floor(n / Video.FPS) % 60).padStart(2, "0")} s`;
+      if (!map.getBounds().contains(at)) map.panTo(at);
+      preview.raf = requestAnimationFrame(step);
+    };
+    step();
+    updatePlayer();
+  });
   const tourStops = () => ($("#video-tour").checked && $("#tour-arret").checked
     ? placed.tour.points.length * Number($("#tour-duree").value) : 0);
   /** Parcours préparé : photos retenues, écart moyen, durée de la vidéo et photos par seconde (au-delà d'une par
@@ -3940,6 +4030,10 @@
     for (const id of ["#pres-vmax", "#pres-virage", "#pres-vmin", "#pres-accel", "#arret-duree", "#video-arret"]) $(id).disabled = Boolean(videoRun);
     travelPane.querySelector('.sur-carte[data-cote="stop"]').disabled = Boolean(videoRun);
     showModeHelp();  // mode rétabli par un parcours gardé ou la RAZ
+    $("#parcours-apercu").disabled = !preview && (!videoPlan || videoPlan.photos.length < 2 || Boolean(videoRun));
+    $("#parcours-apercu").textContent = preview ? "■ Arrêter l'aperçu" : "▶ Aperçu";
+    clearTimeout(allureTimer);
+    allureTimer = setTimeout(showAllure, 300);  // tracé coloré : après une rafale de changements, une fois
     for (const id of ["#video-titre-texte", "#video-titre-sous", "#video-titre-rappel"]) {
       $(id).disabled = Boolean(videoRun) || !$("#video-titre").checked;  // sans titre, rien à régler
     }

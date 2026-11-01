@@ -366,6 +366,12 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .repere-requete.planete { --epingle: #00897b; }  /* endroit de la petite planète */
 .repere-requete.tour { --epingle: #6d4c41; }  /* endroit du tour d'horizon */
 .repere-requete.arret { --epingle: #c62828; }  /* arrêt du mode Présentation */
+/* Aperçu de la vidéo sur la mini-carte : point ambre au point courant, vitesse et temps écoulé à côté */
+.apercu-video { display: flex; align-items: center; gap: 6px; pointer-events: none; }
+.apercu-video::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: #ffb300; border: 2px solid #fff;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.6); }
+.apercu-video span { padding: 1px 7px; border-radius: 9px; background: rgba(12, 18, 26, 0.85); color: #fff;
+  font: 600 12px Inter, sans-serif; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .texte-option .avertissement-option { color: #e65100; }
 .texte-option .avertissement-option[hidden] { display: none; }
 #interet-cible { max-width: 15em; }
