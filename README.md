@@ -122,7 +122,8 @@ voie secondaire ; pas là où la route s'interrompt, en tronc commun avec une au
 reprend plus loin : bout d'une section de PR de la BD TOPO sans autre section de la route à 30 m, la séquence est alors
 suivie jusqu'à la reprise), il reprend la même séquence là où elle revient sur la route (à 30 m de l'endroit quitté, vers
 l'arrivée : détour sauté), sinon une autre séquence qui suit la route, sinon demande où continuer (repère rouge à
-l'endroit quitté, clic sur la mini-carte ; Échap : détour gardé ; le point devient un repère violet gardé avec le
+l'endroit quitté, à faire glisser sur la route à suivre, ou clic sur la mini-carte ; point sans photo qui parte vers
+l'arrivée : question reposée, avec la raison ; Échap : détour gardé ; le point devient un repère violet gardé avec le
 parcours, repris sans question à la préparation suivante) ; plusieurs séquences au départ : chacune est essayée, celle
 qui demande le moins de questions, puis le moins de changements de séquence, est retenue (cas de la D906, PR 84 + 220 au
 PR 76 + 900 : boucles sur la RD 33 retirées, 1 492 photos au lieu de 1 828 ; essai `tests/essai-boucle.html`). Étapes : 📍

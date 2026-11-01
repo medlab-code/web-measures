@@ -3209,28 +3209,39 @@
    * VIA_REACH m au plus, sinon demandé à l'utilisateur (askVia) ; puis séquence qui en part vers l'arrivée (comme
    * branchTarget). { feature, back } ou null (Échap : détour gardé). */
   async function viaBranch(t, coords, road, ask = true) {
-    let via = placed.via.points.find((p) => metresBetween(p.lonlat, coords) < VIA_REACH)?.lonlat;
-    if (!via) {
-      if (!ask) {  // essai d'une séquence de départ : question comptée, pas posée
-        t.unresolved++;
-        return null;
+    let via = placed.via.points.find((p) => metresBetween(p.lonlat, coords) < VIA_REACH)?.lonlat, why = "";
+    for (;;) {
+      const asked = !via;
+      if (asked) {
+        if (!ask) {  // essai d'une séquence de départ : question comptée, pas posée
+          t.unresolved++;
+          return null;
+        }
+        via = await askVia(coords, road, why);
+        if (!via) return null;
       }
-      via = await askVia(coords, road);
-      if (!via) return null;
-      placePoint("via", via);
+      const list = await Carte.photosNear(map, ...via, (f) => passesFilter(f) && Number.isInteger(rankOf(f)), TOUR_BRANCH).catch(() => []);
+      const viaEnd = list.find((f) => t.endRanks.has(f.collection) && t.endRanks.get(f.collection) !== rankOf(f));
+      const target = viaEnd ? { feature: viaEnd, back: t.endRanks.get(viaEnd.collection) < rankOf(viaEnd) } : towardEnd(list, t.end);
+      if (target) {
+        if (asked) placePoint("via", via);
+        return target;
+      }
+      // Point sans photo qui parte vers l'arrivée : question (re)posée
+      why = list.length ? "Aucune séquence ne part vers l'arrivée depuis le point choisi. "
+        : `Aucune photo à moins de ${TOUR_BRANCH} m du point choisi. `;
+      via = null;
     }
-    const list = await Carte.photosNear(map, ...via, (f) => passesFilter(f) && Number.isInteger(rankOf(f)), TOUR_BRANCH).catch(() => []);
-    const viaEnd = list.find((f) => t.endRanks.has(f.collection) && t.endRanks.get(f.collection) !== rankOf(f));
-    return viaEnd ? { feature: viaEnd, back: t.endRanks.get(viaEnd.collection) < rankOf(viaEnd) } : towardEnd(list, t.end);
   }
   let viaAnswer = null;  // réponse attendue à askVia : fonction (lonlat ou null)
   /** Demande à l'utilisateur où continuer : repère rouge là où la séquence quitte la route road, carte centrée dessus,
    * un clic sur la mini-carte (Échap : garder le détour) ; rend [lon, lat] ou null. */
-  function askVia(coords, road) {
+  function askVia(coords, road, why = "") {
     return new Promise((resolve) => {
       const element = Object.assign(document.createElement("div"), { className: "repere-requete arret",
-        title: `La séquence quitte la ${road} ici` });
-      const marker = new maplibregl.Marker({ element, anchor: "bottom" }).setLngLat(coords).addTo(map);
+        title: `La séquence quitte la ${road} ici : faites glisser ce repère où continuer` });
+      const marker = new maplibregl.Marker({ element, anchor: "bottom", draggable: true }).setLngLat(coords).addTo(map);
+      marker.on("dragend", () => viaAnswer?.(marker.getLngLat().toArray()));  // repère glissé : la réponse
       map.flyTo({ center: coords, zoom: Math.max(map.getZoom(), 16) });
       viaAnswer = (lonlat) => {
         marker.remove();
@@ -3238,8 +3249,8 @@
         resolve(lonlat);
       };
       setTravelPick("via");
-      setStatus(`Vidéo : la séquence quitte la ${road} au repère rouge et aucune autre ne la suit. Cliquez sur la mini-carte `
-        + "où continuer (sur une photo) ; Échap : garder le détour.", "avertissement");
+      setStatus(`${why}Vidéo : la séquence quitte la ${road} au repère rouge et aucune autre ne la suit. Faites glisser le repère `
+        + "sur la route à suivre, ou cliquez sur la mini-carte où continuer (sur des photos) ; Échap : garder le détour.", "avertissement");
     });
   }
   /** Autre séquence que current qui reprend la route road à coords (à TOUR_BRANCH m) vers l'arrivée : une qui passe à
