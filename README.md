@@ -1016,7 +1016,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
   défaut sur le château de Semur-en-Auxois. Lecture rapide façon K2000 (barres à 4x et plus, photo
   à 16x), désactivable dans les réglages.
 - **0.3.3** (22/10/2026) : cache des informations géographiques (routes, PR, ponts, altitudes,
-  communes) gardé dans le navigateur 3 mois (50 Mo au plus) : plus rapide, et toujours là quand
+  communes) gardé dans le navigateur 3 mois (500 Mo au plus) : plus rapide, et toujours là quand
   un service ne répond pas ; taille et bouton « Vider le cache » dans « Accès aux services ».
 - **0.3.2** (22/10/2026) : largeur, le bord cliqué se pose sur la droite de mesure dans la
   direction du clic (seule la direction compte) : croix, trait et valeur concordent ; un cercle

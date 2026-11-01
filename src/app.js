@@ -65,7 +65,7 @@
   const CACHED_SERVICES = ["data.geopf.fr/wfs", "data.geopf.fr/altimetrie"];
   const CACHE_LIFE = 90 * 86400e3;  // ms : mises à jour trimestrielles de la BD TOPO
   const CACHE_EMPTY_LIFE = 7 * 86400e3;
-  const CACHE_MAX = 50e6;  // octets : au-delà, les réponses les plus anciennes sont supprimées
+  const CACHE_MAX = 500e6;  // octets : au-delà, les réponses les plus anciennes sont supprimées
   let geoCache = null;  // promesse du cache (résolue à null s'il est indisponible)
   let geoStored = 0;
   function openGeoCache() {
