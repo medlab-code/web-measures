@@ -89,8 +89,12 @@ const Video = (() => {
   function record(feature, point) {
     const matrix = feature.properties?.["tiles:tile_matrix_sets"]?.geovisio?.tileMatrix?.[0];
     const sd = feature.assets?.sd?.href || "";
-    const tiles = matrix && /\/sd\.jpg$/.test(sd)
-      ? { base: sd.replace(/sd\.jpg$/, "tiles/"), cols: matrix.matrixWidth, rows: matrix.matrixHeight, size: matrix.tileWidth }
+    // Adresse des tuiles : modèle de la fiche (asset_templates, ex. …/api/pictures/<id>/tiled/{TileCol}_{TileRow}.jpg
+    // pour une fiche de la recherche) ; sinon déduite de l'image SD (…/sd.jpg → …/tiles/, fiches des séquences)
+    const template = feature.asset_templates?.tiles?.href
+      || (/\/sd\.jpg$/.test(sd) ? sd.replace(/sd\.jpg$/, "tiles/{TileCol}_{TileRow}.jpg") : "");
+    const tiles = matrix && template
+      ? { template, cols: matrix.matrixWidth, rows: matrix.matrixHeight, size: matrix.tileWidth }
       : { image: sd || feature.assets?.hd?.href, cols: 1, rows: 1, size: 2048 };
     return { id: feature.id, coords: point.coords, alt: point.alt, heading: point.heading, tiles,
       date: (feature.properties?.datetime || "").slice(0, 10), time: Date.parse(feature.properties?.datetime) || null,
@@ -974,7 +978,7 @@ const Video = (() => {
     const jobs = [];
     for (let i = 0; i < crop.nc; i++) {
       for (let j = 0; j < crop.nr; j++) {
-        const url = `${t.base}${(crop.c0 + i) % t.cols}_${crop.r0 + j}.jpg`;
+        const url = t.template.replace("{TileCol}", (crop.c0 + i) % t.cols).replace("{TileRow}", crop.r0 + j);
         jobs.push(fetchImage(url, signal).then((bitmap) => {
           ctx.drawImage(bitmap, i * size, j * size, size, size);
           bitmap.close();

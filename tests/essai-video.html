@@ -775,7 +775,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("préparée sans changer la photo de la visionneuse", w.mesures.psv.getPictureMetadata?.()?.id === before);
       expect("toutes les photos du parcours (une tous les 5 m)", photos.length >= 25 && gaps[gaps.length >> 1] < 6, `${photos.length}, ${gaps[gaps.length >> 1]}`);
       expect("une seule séquence, sans avertissement", plan?.switches === 0 && !/⚠/.test(doc.querySelector("#video-info").textContent));
-      expect("tuiles HD connues", photos.every((p) => p.tiles?.base && p.tiles.cols === 16));
+      expect("tuiles HD connues", photos.every((p) => p.tiles?.template && p.tiles.cols === 16));
       select = doc.querySelector("#video-vitesse");
       select.value = "180";
       doc.querySelector("#video-photos").value = "2";
