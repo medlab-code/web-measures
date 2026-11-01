@@ -91,20 +91,23 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       // Rampe de vitesse, D115D du PR 1 + 146 au PR 0 (1,1 km : virages de la sortie d'Aloxe-Corton, carrefour de la
       // RD18) à 90 km/h (25 m/s) : pleine vitesse en ligne droite, ralentie au virage le plus serré, jamais sous 35 %,
       // départ et arrivée en douceur ; vidéo seulement préparée (pas calculée)
-      // Mode Présentation à l'ouverture : compteurs PR et vitesse, rampe et titre cochés, le reste non ; options actuelles
+      // Mode Présentation à l'ouverture : compteurs PR et vitesse et titre cochés, le reste non (allure à la place de la
+      // rampe et de la vitesse, grisées) ; options actuelles
       // repliées dans « Options avancées », dans l'ordre demandé : compteurs, accélération, qualité, flou, exposition,
       // rampe, avancée ; titre à part, au-dessus
       const boxes = [...doc.querySelectorAll("#video-avancees .options > label.option > input[type=checkbox]")];
       const on = (list) => list.filter((b) => b.checked).map((b) => b.id).join(" ");
       expect("mode Présentation par défaut", doc.querySelector("#video-mode").value === "presentation" && doc.querySelector("#video-titre").checked
-        && on(boxes) === "video-compteur video-compteur-vitesse video-rampe", on(boxes));
+        && on(boxes) === "video-compteur video-compteur-vitesse" && !doc.querySelector("#video-presentation").hidden
+        && doc.querySelector("#video-rampe").disabled && doc.querySelector("#video-vitesse").disabled, on(boxes));
       expect("options avancées repliées, dans l'ordre demandé", !doc.querySelector("#video-avancees").open && boxes.slice(0, 9).map((b) => b.id).join(" ")
         === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp video-hq video-flou video-expo video-rampe video-avancee",
         boxes.map((b) => b.id).join(" "));
       const mode = doc.querySelector("#video-mode");
       mode.value = "revue";
       mode.dispatchEvent(new w.Event("change"));
-      expect("mode Revue : quatre compteurs, sans rampe", on(boxes) === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp", on(boxes));
+      expect("mode Revue : quatre compteurs, sans rampe, sans allure", on(boxes) === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp"
+        && doc.querySelector("#video-presentation").hidden && !doc.querySelector("#video-vitesse").disabled, on(boxes));
       mode.value = "presentation";
       mode.dispatchEvent(new w.Event("change"));
       expect("titre : champs grisés sans titre", (() => { const t = doc.querySelector("#video-titre"); t.click();
@@ -132,6 +135,26 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("dévers : vers l'intérieur dans les virages marqués (médiane)", bends.length > 3 && bends[bends.length >> 1] > 0, bends.join(" "));
       meter.checked = false;
       meter.dispatchEvent(new w.Event("change"));
+      // Allure du mode Présentation (réglages par défaut) : bornée par la vitesse des lignes droites, arrêtée aux bouts,
+      // accélérations et freinages tenus, plus lente au virage le plus serré qu'en ligne droite ; un arrêt au milieu tenu
+      // 3 s (images identiques)
+      const P = Video.PRES, pres = { vmax: P.vmax / 3.6, vmin: P.vmin / 3.6, turn: P.turn, accel: P.accel, stop: P.stop, stops: [] };
+      const ps = Video.presentationSpeeds(long, pres);
+      const jerk = Math.max(...ps.slice(1).map((v, x) => Math.abs(v * v - ps[x] * ps[x]) / 2));
+      let tight = 0, tightTurn = 0;
+      for (let x = 60; x < long.length - 60; x++) {
+        const turn = Math.abs(((long.course(x + 10) - long.course(x - 10)) % 360 + 540) % 360 - 180);
+        if (turn > tightTurn) [tight, tightTurn] = [x, turn];
+      }
+      log(`allure : ${[0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000].filter((x) => x < ps.length).map((x) => `${x} m ${(3.6 * ps[x]).toFixed(0)}`).join(", ")} km/h ; `
+        + `virage le plus serré à ${tight} m : ${(3.6 * ps[tight]).toFixed(0)} km/h ; accélération au plus ${jerk.toFixed(2)} m/s²`);
+      expect("allure : bornée, arrêtée aux bouts", Math.max(...ps) <= pres.vmax + 1e-9 && ps[0] === 0 && ps.at(-1) === 0);
+      expect("allure : accélération et freinage tenus", jerk <= pres.accel + 1e-6, jerk);
+      expect("allure : plus lente au virage le plus serré", ps[tight] < 0.8 * Math.max(...ps), `${ps[tight]} ${Math.max(...ps)}`);
+      const stopAt = long.at(long.length / 2), held = Video.timeline(long, 25, false, [], null, null, { ...pres, stops: [stopAt] });
+      let still = 0, best = 0;
+      held.forEach((x, i) => { still = i && x === held[i - 1] ? still + 1 : 0; if (i > Video.HOLD * Video.FPS + 1 && i < held.length - Video.HOLD * Video.FPS - 1) best = Math.max(best, still); });
+      expect("arrêt : position tenue 3 s au milieu", Math.abs(best + 1 - 3 * Video.FPS) <= 1, best);
       const xs = Video.timeline(long, 25, true), plain = Video.timeline(long, 25, false);
       const speedAt = (i) => (xs[i + 1] - xs[i]) * Video.FPS;
       const run = xs.slice(Video.HOLD * Video.FPS, -Video.HOLD * Video.FPS - 1).map((_, i) => i + Video.HOLD * Video.FPS);
@@ -194,9 +217,12 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("compteurs : pic gardé, retour d'au moins 10", peakShown === "100 104 104 109 111 111 98  37", peakShown);
       expect("compteurs : creux gardé, retour d'au moins 5", dip === "80 77 77 77 72 72 78", dip);
       expect("dévers vers l'intérieur : celui de la photo dans un virage à droite, opposé à gauche", Math.abs(dl(1) - 0.04) < 1e-9 && Math.abs(dl(-1) + 0.04) < 1e-9, `${dl(1)} ${dl(-1)}`);
+      // Rampe : hors du mode Présentation (qui la remplace par son allure), sans changer les autres options
+      doc.querySelector("#video-mode").value = "revue";
       doc.querySelector("#video-rampe").checked = true;
       doc.querySelector("#video-rampe").dispatchEvent(new w.Event("change"));
       const info = doc.querySelector("#video-info").textContent;
+      doc.querySelector("#video-mode").value = "presentation";
       log("avec la rampe : " + info);
       expect("rampe : durée de la vidéo allongée dans l'affichage", new RegExp(` ${Math.round(xs.length / 30)} s · `).test(info), info);
       doc.querySelector("#video-rampe").checked = false;

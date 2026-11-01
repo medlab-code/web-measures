@@ -2562,6 +2562,8 @@
       note: "sens alterné dans l'ordre du parcours, à moins de 30 m de lui" },
     planet: { points: [], css: "planete", label: ["petite planète", "petites planètes"], check: "#video-planete",
       note: "tronçon de l'effet, extrémités à moins de 30 m du parcours" },
+    stop: { points: [], css: "arret", label: ["arrêt", "arrêts"], check: "#video-arret",
+      note: "à moins de 30 m du parcours ; ralentir, s'arrêter, repartir" },
     tour: { points: [], css: "tour", label: ["tour d'horizon", "tours d'horizon"], check: "#video-tour",
       note: "sens alterné, à moins de 30 m du parcours, arrêt sur la photo la plus proche" },
   };
@@ -3108,7 +3110,7 @@
       button.setAttribute("aria-pressed", String(button.dataset.cote === which));
     }
     if (which) {
-      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau", planet: planetDraft ? "la fin de la petite planète" : "le début de la petite planète (le long de la route)", tour: "l'endroit du tour d'horizon",
+      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau", stop: "l'endroit de l'arrêt", planet: planetDraft ? "la fin de la petite planète" : "le début de la petite planète (le long de la route)", tour: "l'endroit du tour d'horizon",
         poiZone: poi.draft ? "la fin de la zone de l'effet" : "le début de la zone de l'effet (le long de la route)" }[which]} ; `
         + "Échap pour annuler.");
     }
@@ -3442,13 +3444,30 @@
   // la page s'ouvre en mode Présentation (cases cochées d'origine)
   const VIDEO_MODES = {
     presentation: { help: "Vue rapide de l'itinéraire : compteurs PR et vitesse, vitesse adaptée aux virages, sans option coûteuse en calcul.",
-      on: ["video-compteur", "video-compteur-vitesse", "video-rampe", "video-titre"],
-      off: ["video-acceleration", "video-vmax-arp", "video-hq", "video-flou", "video-expo"] },
+      on: ["video-compteur", "video-compteur-vitesse", "video-titre"],
+      off: ["video-acceleration", "video-vmax-arp", "video-hq", "video-flou", "video-expo", "video-rampe"] },
     revue: { help: "Revue à vitesse fixe : compteurs PR, vitesse, accélération latérale et V max ARP (dévers lu sur le LiDAR HD, plus lent) ; options de qualité dans les options avancées.",
       on: ["video-compteur", "video-compteur-vitesse", "video-acceleration", "video-vmax-arp", "video-titre"],
       off: ["video-rampe"] },
   };
-  const showModeHelp = () => { $("#video-mode-aide").textContent = VIDEO_MODES[$("#video-mode").value]?.help || ""; };
+  const showModeHelp = () => {
+    $("#video-mode-aide").textContent = VIDEO_MODES[$("#video-mode").value]?.help || "";
+    $("#video-presentation").hidden = $("#video-mode").value !== "presentation";
+  };
+  /** Réglages du mode Présentation pour Video (vitesses en m/s), ou null dans un autre mode. */
+  function presOptions() {
+    if ($("#video-mode").value !== "presentation") return null;
+    return { vmax: Number($("#pres-vmax").value) / 3.6, vmin: Number($("#pres-vmin").value) / 3.6, turn: Number($("#pres-virage").value),
+      accel: Number($("#pres-accel").value), stop: Number($("#arret-duree").value),
+      stops: $("#video-arret").checked ? placed.stop.points.map((p) => p.lonlat) : [] };
+  }
+  // Réglettes du mode Présentation : valeur affichée à côté ; elles changent la durée de la vidéo
+  for (const [id, unit] of [["pres-vmax", "km/h"], ["pres-virage", "°/s"], ["pres-vmin", "km/h"], ["pres-accel", "m/s²"], ["arret-duree", "s"]]) {
+    $(`#${id}`).addEventListener("input", () => {
+      $(`#${id.replace("-duree", "")}-valeur`).textContent = `${String($(`#${id}`).value).replace(".", ",")} ${unit}`;
+      updatePlayer();
+    });
+  }
   $("#video-mode").addEventListener("change", () => {
     const mode = VIDEO_MODES[$("#video-mode").value];
     for (const id of mode.on) $(`#${id}`).checked = true;
@@ -3778,7 +3797,8 @@
         $("#video-info").textContent = text;
         setStatus(text, "avancement");
         $("#statut").style.setProperty("--avancement", `${(100 * done / total).toFixed(1)}%`);
-      }, videoRun.signal, { blur: $("#video-flou").checked, hq: $("#video-hq").checked, advance: $("#video-avancee").checked, exposure: $("#video-expo").checked, ramp: $("#video-rampe").checked,
+      }, videoRun.signal, { blur: $("#video-flou").checked, hq: $("#video-hq").checked, advance: $("#video-avancee").checked, exposure: $("#video-expo").checked,
+        ramp: !presOptions() && $("#video-rampe").checked, presentation: presOptions(),
         counter: $("#video-compteur").checked, speedometer: $("#video-compteur-vitesse").checked, lateral: $("#video-acceleration").checked, arpSpeed: $("#video-vmax-arp").checked,
         junctions: $("#video-regard").checked ? videoPlan.junctions : [],
         rolls: $("#video-tonneau").checked ? placed.roll.points.map((p) => p.lonlat) : [], rollTime: Number($("#tonneau-duree").value),
@@ -3863,14 +3883,14 @@
   function videoInfo() {
     if (!videoPlan) return videoPreparing ? "recherche des photos du parcours…" : "";
     if (videoPlan.photos.length < 2) return "moins de deux photos sur ce parcours";
-    const v = Number($("#video-vitesse").value) / 3.6;
+    const v = presOptions()?.vmax ?? Number($("#video-vitesse").value) / 3.6;  // Présentation : celle des lignes droites
     const path = Video.trajectory(videoPhotos());
     const n = path.list.length, perSecond = v * (n - 1) / Math.max(1, path.length);
     return `${n} photos (une tous les ${(path.length / Math.max(1, n - 1)).toFixed(0)} m) · `
       + `${Math.round(Video.duration(videoPhotos(), v * 3.6, $("#video-rampe").checked,
-        $("#video-regard").checked ? videoPlan.junctions : [], Number($("#regard-vitesse").value), poiOptions())
+        $("#video-regard").checked ? videoPlan.junctions : [], Number($("#regard-vitesse").value), poiOptions(), presOptions())
         + tourStops())} s · `
-      + `${perSecond.toFixed(perSecond < 10 ? 1 : 0)} photos/s${$("#video-rampe").checked ? " au plus" : ""}`
+      + `${perSecond.toFixed(perSecond < 10 ? 1 : 0)} photos/s${$("#video-rampe").checked || presOptions() ? " au plus" : ""}`
       + (perSecond > Video.FPS ? " (photos sautées)" : "") + (videoPlan.switches ? ` ⚠ ${videoWarning()}` : "");
   }
 
@@ -3915,6 +3935,10 @@
     travelPane.querySelector('.sur-carte[data-cote="planet"]').disabled = $("#planete-tout").checked;  // rien à tracer
     $("#planete-tonneau").disabled = Boolean(videoRun) || !Number($("#planete-transition").value);
     $("#video-mode").disabled = Boolean(videoRun);
+    // Présentation : vitesse et rampe remplacées par l'allure ; ses réglettes et arrêts figés pendant le calcul
+    if (presOptions()) $("#video-vitesse").disabled = $("#video-rampe").disabled = true;
+    for (const id of ["#pres-vmax", "#pres-virage", "#pres-vmin", "#pres-accel", "#arret-duree", "#video-arret"]) $(id).disabled = Boolean(videoRun);
+    travelPane.querySelector('.sur-carte[data-cote="stop"]').disabled = Boolean(videoRun);
     showModeHelp();  // mode rétabli par un parcours gardé ou la RAZ
     for (const id of ["#video-titre-texte", "#video-titre-sous", "#video-titre-rappel"]) {
       $(id).disabled = Boolean(videoRun) || !$("#video-titre").checked;  // sans titre, rien à régler

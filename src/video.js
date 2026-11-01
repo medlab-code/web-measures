@@ -47,6 +47,11 @@ const Video = (() => {
   const EXPO_PARALLEL = 6;  // vignettes mesurées à la fois
   const EXPO_STORE = "web-measures/expositions";  // mesures gardées dans le navigateur (localStorage)
   const EXPO_KEPT = 20000;  // mesures gardées au plus (les plus anciennes oubliées)
+  // Mode Présentation (presentationSpeeds) : réglages par défaut des réglettes, provisoires (à affiner avec l'utilisateur)
+  const PRES = { vmax: 150, turn: 12, vmin: 30, accel: 2, stop: 3 };  // km/h, °/s, km/h, m/s², s
+  const PRES_REACH = 10;  // m : courbure prise sur le cap lissé à ± PRES_REACH m
+  const PRES_SMOOTH = 15;  // m : vitesse lissée sur ± PRES_SMOOTH m (pas d'à-coup aux bouts des accélérations)
+  const CREEP = 0.3;  // m/s : vitesse plancher de l'avancée image par image (arrêts : images ajoutées)
   const RAMP_MIN = 0.35;  // rampe de vitesse : part de la vitesse choisie au plus bas (virage serré, départ, arrivée)
   const RAMP_TURN = 1.5;  // °/m : courbe (cap lissé) qui réduirait la vitesse de moitié sans RAMP_MARKED
   const RAMP_MARKED = 1;  // °/m : au-delà (virage marqué, rayon de moins de 57 m), sensibilité doublée
@@ -118,10 +123,29 @@ const Video = (() => {
    * Position (m le long du parcours path) de chaque image : HOLD s d'arrêt au début et à la fin, et entre les deux la
    * vitesse v (m/s), constante, ou avec ramp (rampe de vitesse) réduite dans les virages (facteur 1 / (1 + rotation du
    * cap lissé / RAMP_TURN), la rotation au-delà de RAMP_MARKED °/m comptant double ; au plus bas RAMP_MIN·v) et en douceur sur RAMP_EDGE m au départ et à l'arrivée,
-   * lissée sur ± RAMP_SMOOTH m : v devient la vitesse des lignes droites.
+   * lissée sur ± RAMP_SMOOTH m : v devient la vitesse des lignes droites. pres : mode Présentation ({ vmax, vmin (m/s),
+   * turn (°/s), accel (m/s²), stops ([lon, lat] des arrêts), stop (s) }, presentationSpeeds) à la place de v et ramp :
+   * arrêt de pres.stop s (images ajoutées) à chaque arrêt.
    */
-  function timeline(path, v, ramp, looks = [], lookSpeed = null, poiSlow = null) {
+  function timeline(path, v, ramp, looks = [], lookSpeed = null, poiSlow = null, pres = null) {
     const xs = Array(HOLD * FPS + 1).fill(0);
+    if (pres) {
+      const speeds = presentationSpeeds(path, pres);
+      const stops = placesOn(path, pres.stops || [], "arrêt");
+      // Carrefours regardés et point d'intérêt : leur ralentissement s'ajoute (le plus fort des deux)
+      const factor = (looks.length && lookSpeed) || poiSlow ? curve(path, pres.vmax, false, looks, lookSpeed, poiSlow) : () => 1;
+      for (let x = 0, k = 0; x < path.length;) {
+        const speed = Math.min(speeds[Math.min(speeds.length - 1, Math.round(x))], pres.vmax * factor(x));
+        x = Math.min(path.length, x + Math.max(CREEP, speed) / FPS);
+        while (k < stops.length && stops[k] <= x) {  // arrêt : position tenue pres.stop s
+          xs.push(x = Math.max(xs[xs.length - 1], stops[k++]));
+          for (let h = 1; h < pres.stop * FPS; h++) xs.push(x);
+        }
+        xs.push(x);
+      }
+      for (let k = 0; k < HOLD * FPS; k++) xs.push(path.length);
+      return xs;
+    }
     let factor = () => 1;
     if (ramp || (looks.length && lookSpeed) || poiSlow) {
       factor = curve(path, v, ramp, looks, lookSpeed, poiSlow);
@@ -129,6 +153,35 @@ const Video = (() => {
     for (let x = 0; x < path.length;) xs.push(x = Math.min(path.length, x + v * factor(x) / FPS));
     for (let k = 0; k < HOLD * FPS; k++) xs.push(path.length);
     return xs;
+  }
+
+  /**
+   * Vitesse (m/s) à chaque mètre du parcours en mode Présentation : vite dans les lignes droites (vmax), ralentie dans
+   * les virages pour que la vue n'y tourne pas plus vite que turn °/s (vitesse = turn / rotation du cap lissé en °/m,
+   * prise sur ± PRES_REACH m : courbe large, un peu ; virage serré, beaucoup), jamais sous vmin ; arrêtée au départ, à
+   * l'arrivée et aux arrêts (stops, [lon, lat]) ; accélérations et freinages à accel m/s² au plus (une longue ligne
+   * droite atteint vmax, une courte non), puis lissée sur ± PRES_SMOOTH m sans dépasser ces limites.
+   */
+  function presentationSpeeds(path, { vmax, vmin, turn, accel, stops = [] }) {
+    const n = Math.ceil(path.length) + 1, v = [];
+    for (let x = 0; x < n; x++) {
+      const a = path.course(x - PRES_REACH), b = path.course(x + PRES_REACH);
+      const rate = Math.abs(((b - a) % 360 + 540) % 360 - 180) / (2 * PRES_REACH);  // °/m
+      v.push(Math.min(vmax, Math.max(vmin, rate ? turn / rate : vmax)));
+    }
+    v[0] = v[n - 1] = 0;
+    for (const x of placesOn(path, stops, "arrêt")) v[Math.min(n - 1, Math.round(x))] = 0;
+    const hold = (u) => {  // accélération et freinage à accel m/s² au plus
+      for (let x = 1; x < n; x++) u[x] = Math.min(u[x], Math.sqrt(u[x - 1] ** 2 + 2 * accel));
+      for (let x = n - 2; x >= 0; x--) u[x] = Math.min(u[x], Math.sqrt(u[x + 1] ** 2 + 2 * accel));
+      return u;
+    };
+    hold(v);
+    // Lissage (sans dépasser la vitesse permise), puis limites de nouveau (le lissage les déplace un peu)
+    return hold(v.map((limit, x) => {
+      const part = v.slice(Math.max(0, x - PRES_SMOOTH), x + PRES_SMOOTH + 1);
+      return Math.min(limit, part.reduce((sum, u) => sum + u, 0) / part.length);
+    }));
   }
 
   /**
@@ -689,14 +742,20 @@ const Video = (() => {
     return out;
   }
 
-  /** Durée (s) de la vidéo des photos [record] à kmh, avec ou sans rampe de vitesse. */
-  const duration = (photos, kmh, ramp = false, junctions = [], lookKmh = LOOK_SPEED, poi = null) => {
+  /** Durée (s) de la vidéo des photos [record] à kmh, avec ou sans rampe de vitesse ; pres : mode Présentation (timeline ;
+   * arrêt loin du parcours : compté sans les arrêts, signalé au calcul de la vidéo). */
+  const duration = (photos, kmh, ramp = false, junctions = [], lookKmh = LOOK_SPEED, poi = null, pres = null) => {
     const path = trajectory(photos);
     let poiSlow = null;
     try {
       if (poi?.speed) poiSlow = { ...poiSpan(path, poi), speed: poi.speed / 3.6 };
     } catch { /* borne loin du parcours : signalée au calcul de la vidéo */ }
-    return timeline(path, kmh / 3.6, ramp, lookedJunctions(path, junctions), lookKmh / 3.6, poiSlow).length / FPS;
+    const looks = lookedJunctions(path, junctions), go = (p) => timeline(path, kmh / 3.6, ramp, looks, lookKmh / 3.6, poiSlow, p);
+    try {
+      return go(pres).length / FPS;
+    } catch {
+      return go(pres && { ...pres, stops: [] }).length / FPS;
+    }
   };
 
   /** Exposition d'une photo : moyenne des logarithmes de R, V, B sur sa vignette, de 45° au-dessus de l'horizon à 20°
@@ -1106,7 +1165,8 @@ const Video = (() => {
    * options.poi : point d'intérêt { target, z (altitude NGF de l'objet relevé ou null), start, end (extrémités de la
    * zone tracée, [lon, lat] ou null), speed (km/h ou null), zoom, zoomByDistance, roll, ground: { target, photos }
    * (altitudes du sol, par photo de photos) } (poiViews) ; options.planets : tronçons des petites planètes ([[début, fin]…],
-   * planets), options.planetFade : enroulement et déroulement (s), options.planetAll : sur tout le parcours, options.planetRoll : tonneau pendant les transitions, options.planetSpin : vitesse de rotation (°/s) ;
+   * planets), options.planetFade : enroulement et déroulement (s), options.planetAll : sur tout le parcours, options.planetRoll : tonneau pendant les transitions, options.presentation : mode
+   * Présentation (timeline, presentationSpeeds ; vitesses en m/s) à la place de kmh et de la rampe, options.planetSpin : vitesse de rotation (°/s) ;
    * options.advance : false pour ne pas avancer dans la maquette (fondu enchaîné d'une photo à l'autre) ;
    * options.tours : endroits des tours d'horizon ([[lon, lat]…], tours), options.tourTime : durée de chacun (s),
    * options.tourStop : caméra arrêtée pendant le tour ; options.hq : haute qualité (HQ_CODECS, tuiles en pleine
@@ -1116,7 +1176,7 @@ const Video = (() => {
    */
   async function mp4(photos, kmh, progress = () => {}, signal = null,
     { blur = false, exposure = true, ramp = false, title = null, counter = false, speedometer = false, lateral = false, arpSpeed = false, junctions = [], rolls: rollPlaces = [],
-    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, hq = false, planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false, planetRoll = false,
+    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, hq = false, planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false, planetRoll = false, presentation = null,
     planetSpin = PLANET_SPIN, advance = true, tours: tourPlaces = [], tourTime = TOUR_TIME, tourStop = true, stream = null } = {}) {
     const path = trajectory(photos);
     if (path.list.length < 2 || path.length < 1) throw new Error("parcours trop court");
@@ -1143,7 +1203,7 @@ const Video = (() => {
     const span = poi ? poiSpan(path, poi) : null;
     // Tours d'horizon : images ajoutées pendant l'arrêt, avant les autres effets (calés sur les images)
     const turns = tours(path, timeline(path, kmh / 3.6, ramp, lookedJunctions(path, junctions), lookSpeed / 3.6,
-      poi?.speed ? { ...span, speed: poi.speed / 3.6 } : null), tourPlaces, tourTime, tourStop);
+      poi?.speed ? { ...span, speed: poi.speed / 3.6 } : null, presentation), tourPlaces, tourTime, tourStop);
     const xs = turns.xs;
     const pan = pans(path, xs, { junctions });
     const kmhs = speedometer || lateral ? speeds(xs) : null;
@@ -1284,6 +1344,6 @@ const Video = (() => {
     }
   }
 
-  return { supported, record, mp4, trajectory, timeline, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
+  return { supported, record, mp4, trajectory, timeline, presentationSpeeds, PRES, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
     poiSpan, poiViews, planets, tours, speeds, laterals, insideDevers, lateralColor, arpSpeeds, steady, drawOverlay, fetchImage, FPS, HOLD };
 })();

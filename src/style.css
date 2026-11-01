@@ -365,6 +365,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .repere-requete.tonneau { --epingle: #1e6fd9; }  /* endroit du tonneau de la vidéo */
 .repere-requete.planete { --epingle: #00897b; }  /* endroit de la petite planète */
 .repere-requete.tour { --epingle: #6d4c41; }  /* endroit du tour d'horizon */
+.repere-requete.arret { --epingle: #c62828; }  /* arrêt du mode Présentation */
 .texte-option .avertissement-option { color: #e65100; }
 .texte-option .avertissement-option[hidden] { display: none; }
 #interet-cible { max-width: 15em; }
