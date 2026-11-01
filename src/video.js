@@ -254,7 +254,9 @@ const Video = (() => {
     // Rappel : le titre en petit en haut à gauche, apparu en fondu après le carton
     const keep = title.keep ? Math.max(0, Math.min(1, (t - d) / 0.5)) : 0;
     if (keep > 0) {
-      const size = h * 0.03, pad = size * 0.45, bar = h * 0.005, x0 = h * 0.04, y0 = h * 0.04;
+      // Écart aux bords de l'image : celui des cadres des compteurs (bord à h * 0,04 moins leur marge de h * 0,045 * 0,45 ;
+      // en haut, comme leur écart au bas de l'image)
+      const size = h * 0.03, pad = size * 0.45, bar = h * 0.005, x0 = h * (0.04 - 0.045 * 0.45), y0 = h * (0.05 - 0.045 * 0.45);
       ctx.font = font(size, 600);
       const width = Math.min(w * 0.6, ctx.measureText(title.text).width);
       ctx.globalAlpha = keep;
