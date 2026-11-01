@@ -194,12 +194,14 @@ sur le repère le retire ; à moins de 30 m du parcours, sinon la vidéo le refu
 tour complet de roulis, dans un sens puis dans l'autre d'un tonneau au suivant (ordre du parcours) (durée réglable de 1 à 10 s, 3 s par défaut), lent au
 départ et à l'arrivée, pendant que la caméra avance ; titre et compteur restent droits ; activer l'interrupteur sans endroit
 lance le choix sur la carte, poser un endroit l'active, retirer le dernier le désactive. « Petite planète » (décochée) :
-aux endroits choisis de même (📍, repère vert d'eau, à moins de 30 m du parcours), la vue descend vers le sol en
+sur les tronçons tracés sur la mini-carte (📍 puis un clic au début et un à la fin, trait bleu nuit et repère vert
+d'eau en son milieu, extrémités à moins de 30 m du parcours, 50 m au moins ; un parcours gardé avant le 01/11 n'a que
+l'endroit : 50 m centrés sur lui), la vue descend vers le sol en
 s'élargissant jusqu'à 300° (passage continu de la perspective à la projection stéréographique) : le paysage s'enroule
-en boule, route vers le haut, et la planète tourne avec la route ; enroulement, tenue et déroulement d'un tiers de la
-durée chacun (réglette de 5 à 30 s, de 5 en 5, 5 s par défaut), la caméra continue d'avancer ; réglette « Rotation » : elle
-tourne aussi sur elle-même (de 0, sans, à 90° par seconde, 20 par défaut ; vue revenue droite à la fin) ; tout le tour des photos est chargé à ces
-endroits (tuiles réduites au tiers). Le toit du véhicule occupe le centre de la planète. « Tour d'horizon » (décochée) : aux endroits
+en boule, route vers le haut, et la planète tourne avec la route ; enroulement, tenue et déroulement d'un tiers du
+tronçon chacun (sa durée suit la vitesse simulée), la caméra continue d'avancer ; réglette « Rotation » : elle
+tourne aussi sur elle-même (de 0, sans, à 90° par seconde, 20 par défaut ; vue revenue droite à la fin) ; tout le tour des photos est chargé sur ces
+tronçons (tuiles réduites au tiers). Le toit du véhicule occupe le centre de la planète. « Tour d'horizon » (décochée) : aux endroits
 choisis de même (📍, repère brun), la vue fait un tour complet dans le plan de l'horizon pour montrer les espaces
 plats, lent au départ et à l'arrivée, sens alterné d'un tour au suivant (réglette de 2 à 20 s, 8 s par défaut) ;
 « Arrêt pendant le tour » (coché) : la caméra s'arrête le temps du tour sur la photo la plus proche (image nette, la

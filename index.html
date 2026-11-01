@@ -516,15 +516,13 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <input id="video-tour" type="checkbox" class="interrupteur" aria-label="Tour d'horizon">
             </div>
             <!-- Petite planète : div (pas label) pour contenir ses réglettes -->
-            <div class="option" title="Petite planète : à l'endroit choisi sur la mini-carte (📍, à moins de 30 m du parcours), la vue descend vers le sol en s'élargissant jusqu'à enrouler le paysage en boule (projection stéréographique, route vers le haut, la planète tourne avec la route), tient, puis se déroule ; un tiers de la durée chacun, la caméra continue d'avancer">
-              <span class="texte-option">Petite planète<span class="aide">Le paysage s'enroule en boule, à l'endroit choisi.</span>
-                <span class="reglette-option">Durée <output id="planete-valeur" for="planete-duree">5 s</output>
-                  <input id="planete-duree" type="range" min="5" max="30" step="5" value="5" aria-label="Durée de la petite planète (s)"></span>
+            <div class="option" title="Petite planète : sur le tronçon tracé sur la mini-carte (📍 : début puis fin, à moins de 30 m du parcours ; 50 m au moins), la vue descend vers le sol en s'élargissant jusqu'à enrouler le paysage en boule (projection stéréographique, route vers le haut, la planète tourne avec la route), tient, puis se déroule ; un tiers du tronçon chacun, la caméra continue d'avancer">
+              <span class="texte-option">Petite planète<span class="aide">Le paysage s'enroule en boule, sur le tronçon tracé.</span>
                 <span class="reglette-option">Rotation <output id="planete-rotation-valeur" for="planete-rotation">20 °/s</output>
                   <input id="planete-rotation" type="range" min="0" max="90" step="5" value="20" aria-label="Vitesse de rotation de la planète sur elle-même (°/s ; 0 : sans)"></span>
               </span>
               <button type="button" class="sur-carte" data-cote="planet" aria-pressed="false"
-                title="Choisir l'endroit de la petite planète d'un clic sur la mini-carte (Échap : annuler)">📍</button>
+                title="Tracer le tronçon de la petite planète sur la mini-carte : un clic au début, un à la fin (Échap : annuler)">📍</button>
               <input id="video-planete" type="checkbox" class="interrupteur" aria-label="Petite planète">
             </div>
           </div>

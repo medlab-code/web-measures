@@ -350,7 +350,8 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       await sleep(1500);
     }
     if (!only || only === "planete") {
-      // Petite planète au milieu des 300 premiers mètres de la D115D depuis le PR 1 + 146, 4 s, rotation lente
+      // Petite planète au milieu des 300 premiers mètres de la D115D depuis le PR 1 + 146, tronçon de 100 m (4 s à 25 m/s),
+      // rotation lente
       type(end, "0");
       endDistance.value = "0";
       await sleep(1500);
@@ -360,8 +361,8 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       }
       const sub = w.mesures.videoPlan.photos.slice(0, 61).filter((_, i) => i % 4 === 0);
       const path = Video.trajectory(sub), xs = Video.timeline(path, 25, false);
-      const place = path.at(path.length / 2);
-      const globe = Video.planets(path, xs, [place], 4, 20);
+      const place = path.at(path.length / 2), span = [path.at(path.length / 2 - 50), path.at(path.length / 2 + 50)];
+      const globe = Video.planets(path, xs, [span], 20);
       const on = globe.mix.filter((m) => m > 0).length, full = globe.mix.filter((m) => m === 1).length;
       const spinMax = Math.max(...globe.spin.map(Math.abs));
       log(`planète : ${on} images d'effet, ${full} en pleine planète, rotation jusqu'à ${spinMax.toFixed(0)}°`);
@@ -373,10 +374,13 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("planète : rotation lente (de 15 à 40° au plus)", spinMax > 15 && spinMax < 40, spinMax);
       expect("planète : vue redevenue droite après l'effet", globe.spin.every((a, n) => globe.mix[n] || a === 0));
       let far = null;
-      try { Video.planets(path, xs, [[place[0] + 0.003, place[1] + 0.003]]); } catch (error) { far = error.message; }
-      expect("planète : endroit à plus de 30 m du parcours refusé", /petite planète n° 1 à \d+ m du parcours/.test(far || ""), far);
+      try { Video.planets(path, xs, [[[place[0] + 0.003, place[1] + 0.003], span[1]]]); } catch (error) { far = error.message; }
+      expect("planète : extrémité à plus de 30 m du parcours refusée", /petite planète n° 1, extrémité n° 1 à \d+ m du parcours/.test(far || ""), far);
+      // Endroit seul (parcours gardé avant le 01/11) : 50 m centrés sur lui, 2 s à 25 m/s
+      const alone = Video.planets(path, xs, [place], 20).mix.filter((m) => m > 0).length;
+      expect("planète : endroit seul, 50 m (60 images ± 2)", Math.abs(alone - 60) <= 2, alone);
       const t1 = performance.now();
-      const blob = await Video.mp4(sub, 90, () => {}, null, { planets: [place], planetTime: 4, planetSpin: 20 });
+      const blob = await Video.mp4(sub, 90, () => {}, null, { planets: [span], planetSpin: 20 });
       // Sans avancée simulée : fondu enchaîné, chaque photo vue de sa caméra (même vidéo, image au milieu d'un fondu)
       expect("« Avancée simulée » proposée, décochée par défaut", doc.querySelector("#video-avancee")?.checked === false);
       const still = await Video.mp4(sub, 90, () => {}, null, { advance: false });
@@ -389,11 +393,9 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
         ctx.drawImage(sv, 0, 0, canvas.width, canvas.height);
         await log(`IMAGE sans-avancee-${t} ` + canvas.toDataURL("image/jpeg", 0.85));
       }
-      expect("planète : durée de 5 à 30 s, de 5 en 5, 5 s par défaut", ["min", "max", "step", "value"]
-        .map((a) => doc.querySelector("#planete-duree")[a]).join() === "5,30,5,5");
       expect("planète : réglette de rotation à 20 °/s par défaut", doc.querySelector("#planete-rotation").value === "20"
         && doc.querySelector("#planete-rotation-valeur").textContent === "20 °/s");
-      expect("planète : sans rotation à 0 °/s", Video.planets(path, xs, [place], 4, 0).spin.every((a) => a === 0));
+      expect("planète : sans rotation à 0 °/s", Video.planets(path, xs, [span], 0).spin.every((a) => a === 0));
       log(`vidéo avec planète : ${(blob.size / 1e6).toFixed(1)} Mo en ${((performance.now() - t1) / 1000).toFixed(0)} s`);
       const v = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(blob) });
       await new Promise((resolve) => { v.onloadedmetadata = resolve; });
@@ -523,7 +525,13 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       };
       const rollAt = [4.85410, 47.06690], planetAt = [4.85200, 47.06500];
       await drop("roll", rollAt);
-      await drop("planet", planetAt);
+      // Petite planète : tronçon tracé en deux clics, repère en son milieu
+      dialog.querySelector('.sur-carte[data-cote="planet"]').click();
+      for (const ll of [[planetAt[0] - 0.0004, planetAt[1] - 0.0003], [planetAt[0] + 0.0004, planetAt[1] + 0.0003]]) {
+        m.fire("click", { lngLat: new w.maplibregl.LngLat(...ll), point: m.project(ll), originalEvent: new w.MouseEvent("click") });
+        await sleep(300);
+      }
+      expect("planète : tronçon tracé sur la carte", m.getSource("petites-planetes")?.serialize().data?.features?.length === 1);
       // Point d'intérêt : objet du relevé (cible), option cochée, zone tracée
       const target = [4.85350, 47.06650];
       w.mesures.app.load_releve(JSON.stringify({ named: 1, points: [[target[0], target[1], { id: 1, nom: "A", releve: { Nom: "Église" },
@@ -540,7 +548,6 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       set("#video-flou", true);
       set("#video-avancee", false);
       set("#tonneau-duree", "6");
-      set("#planete-duree", "15");
       set("#planete-rotation", "45");
       const before = doc.querySelectorAll("#mes-parcours li").length;
       keep.click();
@@ -563,7 +570,8 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       log(`export : ${fileName}, ${text.length} octets`);
       expect("export d'un seul : fichier nommé d'après le parcours", /^parcours D115D .+\.json$/.test(fileName), fileName);
       expect("export d'un seul : format, un parcours, deux endroits et les réglages", data.format === "parcours-panoramax"
-        && data.parcours.length === 1 && data.parcours[0].places.roll.length === 1 && data.parcours[0].places.planet.length === 1
+        && data.parcours.length === 1 && data.parcours[0].places.roll.length === 1 && data.parcours[0].places.planet.length === 1 && data.parcours[0].places.planet[0].length === 2
+        && Array.isArray(data.parcours[0].places.planet[0][0])
         && data.parcours[0].settings["planete-rotation"] === "45" && data.parcours[0].settings["video-avancee"] === false);
       const kept = data.parcours[0];
       log(`point d'intérêt gardé : ${JSON.stringify(kept.target)}, zone ${JSON.stringify(kept.zone)}`);
@@ -588,13 +596,12 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       await until(() => doc.querySelectorAll("#mes-parcours li").length === before + 1, 10000, "parcours importé");
       [...doc.querySelectorAll("#mes-parcours li")].at(-1).querySelector(".aller-favori").click();
       await sleep(500);
-      const restored = ["#video-vitesse", "#video-flou", "#video-avancee", "#tonneau-duree", "#planete-duree", "#planete-rotation"]
+      const restored = ["#video-vitesse", "#video-flou", "#video-avancee", "#tonneau-duree", "#planete-rotation"]
         .map((id) => { const e = doc.querySelector(id); return e.type === "checkbox" ? e.checked : e.value; });
       log(`rouvert : ${JSON.stringify(restored)} ; route ${route.value} PR ${pr.value}+${distance.value} → ${end.value}+${endDistance.value}`);
       expect("rouvert : onglet Vidéo affiché", !doc.querySelector("#parcours").hidden);
-      expect("rouvert : réglages rétablis", JSON.stringify(restored) === JSON.stringify(["180", true, false, "6", "15", "45"]), JSON.stringify(restored));
-      expect("rouvert : valeurs affichées des réglettes", doc.querySelector("#planete-rotation-valeur").textContent === "45 °/s"
-        && doc.querySelector("#planete-valeur").textContent === "15 s");
+      expect("rouvert : réglages rétablis", JSON.stringify(restored) === JSON.stringify(["180", true, false, "6", "45"]), JSON.stringify(restored));
+      expect("rouvert : valeurs affichées des réglettes", doc.querySelector("#planete-rotation-valeur").textContent === "45 °/s");
       expect("rouvert : route et PR rétablis", route.value === "D115D" && pr.value === "1" && end.value === "0");
       const cible = doc.querySelector("#interet-cible");
       const zoneBack = w.mesures.map.getSource("zone-interet")?.serialize().data?.features?.length;
@@ -647,7 +654,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       const blank = ["#video-vitesse", "#video-photos", "#video-flou", "#video-avancee", "#video-expo", "#planete-rotation", "#tour-duree"]
         .map((id) => { const e = doc.querySelector(id); return e.type === "checkbox" ? e.checked : e.value; });
       log(`après RAZ : ${JSON.stringify(blank)} ; route « ${route.value} », PR « ${pr.value} » → « ${end.value} » ; ${status()}`);
-      expect("RAZ : réglages par défaut", JSON.stringify(blank) === JSON.stringify(["90", "1", false, true, true, "20", "8"]), JSON.stringify(blank));
+      expect("RAZ : réglages par défaut", JSON.stringify(blank) === JSON.stringify(["90", "1", false, false, false, "20", "8"]), JSON.stringify(blank));
       expect("RAZ : départ et arrivée effacés, sans repère", !route.value && !pr.value && !end.value
         && !doc.querySelector(".repere-requete.depart, .repere-requete.arrivee"));
       expect("RAZ : endroits, zone et option du point d'intérêt retirés", !doc.querySelector(".repere-requete.tonneau, .repere-requete.planete, .repere-requete.tour")

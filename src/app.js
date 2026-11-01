@@ -1149,9 +1149,11 @@
       refresh();
     }
     if (event.key === "Escape" && travelPick) {
-      poi.draft = null;  // tracé de la zone interrompu
+      poi.draft = null;  // tracé de la zone ou de la planète interrompu
+      planetDraft = null;
       setTravelPick(null);
       showPoiZone();
+      showPlanets();
     }
   }
   document.addEventListener("keydown", onLineEscape);
@@ -2529,15 +2531,16 @@
   let tour = null;
   // 📍 de l'onglet « Vidéo » : point attendu sur la carte (« start », « end », « roll » : tonneau, « planet » : petite
   // planète, « poiZone » : zone de
-  // l'effet du point d'intérêt, en deux clics)
+  // l'effet du point d'intérêt ; petite planète et zone : en deux clics)
   let travelPick = null;
-  // Endroits posés pour la vidéo, par sorte (« roll ») : [{ lonlat, marker }] (repère sur la carte ; un clic dessus le
-  // retire) ; css : classe du repère, label : nom, check : interrupteur de l'option, note : rappel à la pose
+  let planetDraft = null;  // premier clic du tronçon de petite planète en cours de tracé (LngLat ou null)
+  // Endroits posés pour la vidéo, par sorte (« roll ») : [{ lonlat, marker, end }] (repère sur la carte ; un clic dessus
+  // le retire ; end : fin du tronçon de la petite planète, lonlat en étant le début) ; css : classe du repère, label : nom, check : interrupteur de l'option, note : rappel à la pose
   const placed = {
     roll: { points: [], css: "tonneau", label: ["tonneau", "tonneaux"], check: "#video-tonneau",
       note: "sens alterné dans l'ordre du parcours, à moins de 30 m de lui" },
     planet: { points: [], css: "planete", label: ["petite planète", "petites planètes"], check: "#video-planete",
-      note: "à moins de 30 m du parcours" },
+      note: "tronçon de l'effet, extrémités à moins de 30 m du parcours" },
     tour: { points: [], css: "tour", label: ["tour d'horizon", "tours d'horizon"], check: "#video-tour",
       note: "sens alterné, à moins de 30 m du parcours, arrêt sur la photo la plus proche" },
   };
@@ -3079,29 +3082,32 @@
       button.setAttribute("aria-pressed", String(button.dataset.cote === which));
     }
     if (which) {
-      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau", planet: "l'endroit de la petite planète", tour: "l'endroit du tour d'horizon",
+      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau", planet: planetDraft ? "la fin de la petite planète" : "le début de la petite planète (le long de la route)", tour: "l'endroit du tour d'horizon",
         poiZone: poi.draft ? "la fin de la zone de l'effet" : "le début de la zone de l'effet (le long de la route)" }[which]} ; `
         + "Échap pour annuler.");
     }
   }
   const placedCount = (kind) => `${kind.points.length || "aucun"} ${kind.label[kind.points.length > 1 ? 1 : 0]}`;
-  /** Endroit de la sorte which (placed) posé en lonlat : repère sur la carte (un clic dessus le retire), interrupteur
-   * de l'option activé ; rend la sorte. */
-  function placePoint(which, lonlat) {
+  /** Endroit de la sorte which (placed) posé en lonlat (petite planète : tronçon de lonlat à end, repère au milieu) :
+   * repère sur la carte (un clic dessus le retire), interrupteur de l'option activé ; rend la sorte. */
+  function placePoint(which, lonlat, end = null) {
     const kind = placed[which];
     const element = Object.assign(document.createElement("div"), { className: `repere-requete ${kind.css}`,
       title: `${kind.label[0][0].toUpperCase()}${kind.label[0].slice(1)} de la vidéo (clic : le retirer)` });
-    const point = { lonlat, marker: new maplibregl.Marker({ element, anchor: "bottom" }).setLngLat(lonlat).addTo(map) };
+    const at = end ? [(lonlat[0] + end[0]) / 2, (lonlat[1] + end[1]) / 2] : lonlat;
+    const point = { lonlat, end, marker: new maplibregl.Marker({ element, anchor: "bottom" }).setLngLat(at).addTo(map) };
     element.addEventListener("click", (event) => {
       event.stopPropagation();  // pas un clic sur la carte
       point.marker.remove();
       kind.points = kind.points.filter((p) => p !== point);
       if (!kind.points.length) $(kind.check).checked = false;
       setStatus(`Retiré ; ${placedCount(kind)} en tout.`);
+      showPlanets();
       updatePlayer();
     });
     kind.points.push(point);
     $(kind.check).checked = true;
+    showPlanets();
     updatePlayer();
     return kind;
   }
@@ -3121,8 +3127,15 @@
       updatePlayer();
       return;
     }
+    if (which === "planet" && !planetDraft) {  // petite planète : début du tronçon, puis sa fin
+      planetDraft = lngLat;
+      setTravelPick("planet");
+      return;
+    }
     if (placed[which]) {  // tonneau, petite planète : endroit ajouté, interrupteur activé ; le parcours ne change pas
-      const kind = placePoint(which, [lngLat.lng, lngLat.lat]);
+      const kind = which === "planet" ? placePoint(which, [planetDraft.lng, planetDraft.lat], [lngLat.lng, lngLat.lat])
+        : placePoint(which, [lngLat.lng, lngLat.lat]);
+      planetDraft = null;
       setStatus(`Placé : ${placedCount(kind)} en tout (${kind.note}) ; 📍 pour en ajouter, clic sur un repère pour le retirer.`);
       return;
     }
@@ -3147,7 +3160,7 @@
     const speed = Number($("#planete-rotation").value);
     $("#planete-rotation-valeur").textContent = speed ? `${speed} °/s` : "sans";
   });
-  for (const name of ["tonneau", "planete", "tour"]) {
+  for (const name of ["tonneau", "tour"]) {
     $(`#${name}-duree`).addEventListener("input", () => {
       $(`#${name}-valeur`).textContent = `${String($(`#${name}-duree`).value).replace(".", ",")} s`;
     });
@@ -3221,7 +3234,27 @@
       }
     }
   }
-  map.on("mousemove", (event) => { if (poi.draft) showPoiZone(event.lngLat); });
+  map.on("mousemove", (event) => {
+    if (poi.draft) showPoiZone(event.lngLat);
+    if (planetDraft) showPlanets(event.lngLat);
+  });
+  // Tronçons des petites planètes sur la carte (trait plein, bleu nuit), et celui en cours de tracé jusqu'au pointeur
+  const PLANETS_ID = "petites-planetes";
+  function showPlanets(draftTo = null) {
+    if (!map.isStyleLoaded()) {
+      map.once("idle", () => showPlanets(draftTo));
+      return;
+    }
+    const lines = placed.planet.points.filter((p) => p.end).map((p) => [p.lonlat, p.end]);
+    if (planetDraft && draftTo) lines.push([[planetDraft.lng, planetDraft.lat], [draftTo.lng, draftTo.lat]]);
+    const data = { type: "FeatureCollection", features: lines.map((coordinates) =>
+      ({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates } })) };
+    if (map.getSource(PLANETS_ID)) map.getSource(PLANETS_ID).setData(data);
+    else if (lines.length) {
+      map.addSource(PLANETS_ID, { type: "geojson", data });
+      map.addLayer({ id: PLANETS_ID, type: "line", source: PLANETS_ID, paint: { "line-color": "#283593", "line-width": 6, "line-opacity": 0.8 } });
+    }
+  }
   // Réglettes du point d'intérêt : valeur affichée ; la vitesse change la durée de la vidéo
   const poiSpeed = () => (Number($("#interet-vitesse").value) > 130 ? null : Number($("#interet-vitesse").value));
   for (const [id, text] of [["#interet-vitesse", () => (poiSpeed() ? `${poiSpeed()} km/h` : "sans ralentir")],
@@ -3257,9 +3290,10 @@
   function routeSnapshot() {
     const t = travelFields.state();
     return JSON.stringify([t, routeSettings().map((e) => (e.type === "checkbox" ? e.checked : e.value)),
-      Object.values(placed).map((kind) => kind.points.map((p) => p.lonlat)), poi.zone,
+      Object.values(placed).map((kind) => kind.points.map(placeOf)), poi.zone,
       poiTargets.get($("#interet-cible").value)?.lonlat || null, $("#depuis").value]);
   }
+  const placeOf = (p) => (p.end ? [p.lonlat, p.end] : p.lonlat);  // endroit gardé (petite planète : [début, fin])
   const routeChanged = () => Boolean(openedRoute) && routeSnapshot() !== openedSnapshot;
   function markOpened(id) {
     openedRoute = id;
@@ -3284,7 +3318,7 @@
     return {
       id, name: found.title, date: new Date().toISOString().slice(0, 10), travel,
       settings: Object.fromEntries(routeSettings().map((e) => [e.id, e.type === "checkbox" ? e.checked : e.value])),
-      places: Object.fromEntries(Object.entries(placed).map(([k, kind]) => [k, kind.points.map((p) => p.lonlat)])),
+      places: Object.fromEntries(Object.entries(placed).map(([k, kind]) => [k, kind.points.map(placeOf)])),
       zone: poi.zone,
       target: target ? { lonlat: target.lonlat, z: target.z,
         label: key === "parcours" ? poiKept.label : $("#interet-cible").selectedOptions[0]?.textContent || "Cible" } : null,
@@ -3307,7 +3341,8 @@
         .filter(([k, v]) => ids.has(k) && (typeof v === "boolean" || typeof v === "string"))
         .map(([k, v]) => [k, typeof v === "string" ? v.slice(0, 20) : v])),
       places: Object.fromEntries(Object.keys(placed).map((k) => [k,
-        (Array.isArray(r.places?.[k]) ? r.places[k] : []).filter(lonlat).slice(0, 50)])),
+        (Array.isArray(r.places?.[k]) ? r.places[k] : []).filter((p) => lonlat(p) || (k === "planet" && Array.isArray(p)
+          && p.length === 2 && p.every(lonlat))).slice(0, 50)])),
       zone: Array.isArray(r.zone) && r.zone.length === 2 && r.zone.every(lonlat) ? r.zone : null,
       target: lonlat(r.target?.lonlat) ? { lonlat: r.target.lonlat, z: Number.isFinite(r.target.z) ? r.target.z : null,
         label: text(r.target.label, 100).replace(/ \(parcours gardé\)$/, "") || "Cible" } : null,
@@ -3328,7 +3363,9 @@
       for (const p of kind.points) p.marker.remove();
       kind.points = [];
     }
-    for (const [which, list] of Object.entries(r.places)) list.forEach((lonlat) => placePoint(which, lonlat));
+    planetDraft = null;
+    // Petite planète : [début, fin] ; endroit seul (gardé avant le 01/11) : tronçon court centré sur lui (Video.planets)
+    for (const [which, list] of Object.entries(r.places)) list.forEach((p) => placePoint(which, ...(Array.isArray(p[0]) ? p : [p])));
     poi.zone = r.zone;
     poi.draft = null;
     // Cible : objet du relevé au même endroit (moins de 0,5 m), sinon celle du parcours, proposée en plus du relevé
@@ -3366,7 +3403,7 @@
   function routeIsBlank() {
     const t = travelFields.state();
     return !t.route && [t.start, t.end].every((s) => !s.pr && !s.point && !Number(s.distance))
-      && Object.values(placed).every((kind) => !kind.points.length) && !poi.zone && !poi.draft && !poiKept
+      && Object.values(placed).every((kind) => !kind.points.length) && !poi.zone && !poi.draft && !planetDraft && !poiKept
       && routeSettings().every((e) => (e.type === "checkbox" ? e.checked === e.defaultChecked
         : e.tagName === "SELECT" ? e.selectedOptions[0]?.defaultSelected || (!e.selectedIndex && ![...e.options].some((o) => o.defaultSelected))
           : e.value === e.defaultValue));
@@ -3382,6 +3419,8 @@
     }
     poi.zone = null;
     poi.draft = null;
+    planetDraft = null;
+    showPlanets();
     poiKept = null;
     refreshPoiTargets(poiJson);
     for (const e of routeSettings()) {
@@ -3670,8 +3709,8 @@
         counter: $("#video-compteur").checked, speedometer: $("#video-compteur-vitesse").checked, lateral: $("#video-acceleration").checked, arpSpeed: $("#video-vmax-arp").checked,
         junctions: $("#video-regard").checked ? videoPlan.junctions : [],
         rolls: $("#video-tonneau").checked ? placed.roll.points.map((p) => p.lonlat) : [], rollTime: Number($("#tonneau-duree").value),
-        planets: $("#video-planete").checked ? placed.planet.points.map((p) => p.lonlat) : [],
-        planetTime: Number($("#planete-duree").value), planetSpin: Number($("#planete-rotation").value),
+        planets: $("#video-planete").checked ? placed.planet.points.map(placeOf) : [],
+        planetSpin: Number($("#planete-rotation").value),
         tours: $("#video-tour").checked ? placed.tour.points.map((p) => p.lonlat) : [],
         tourTime: Number($("#tour-duree").value), tourStop: $("#tour-arret").checked,
         poi: poiAim,
@@ -3791,7 +3830,7 @@
     for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-hq", "#video-avancee", "#video-expo", "#video-rampe", "#video-titre",
       "#video-compteur", "#video-compteur-vitesse", "#video-acceleration", "#video-vmax-arp", "#video-regard", "#video-tonneau", "#tonneau-duree", "#regard-vitesse",
       "#video-interet", "#interet-vitesse", "#interet-zoom", "#interet-zoom-distance", "#interet-tonneau",
-      "#video-planete", "#planete-duree", "#planete-rotation", "#video-tour", "#tour-duree", "#tour-arret"]) {
+      "#video-planete", "#planete-rotation", "#video-tour", "#tour-duree", "#tour-arret"]) {
       $(id).disabled = Boolean(videoRun);
     }
     if (!videoRun) $("#video-info").textContent = videoOk ? videoInfo() : "ce navigateur n'encode pas la vidéo";
