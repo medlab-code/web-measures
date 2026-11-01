@@ -3256,16 +3256,44 @@
       chosen[i] = key;
       key = from[i].get(key);
     }
-    // Photos retenues, dans l'ordre ; dans une même séquence, rangs croissants (décroissants à rebours)
+    // Trajectoire virtuelle : le tracé lui-même (abscisse curviligne de ses sommets) ; chaque photo y est ramenée au
+    // point le plus proche, près du pas où elle a été choisie : la vidéo avance et prend son cap le long de la route, sans
+    // recul, arrêt ni balayage aux changements de séquence (photos de voies voisines, décalées de quelques mètres)
+    const cum = [0];
+    for (let k = 1; k < line.length; k++) cum.push(cum[k - 1] + metresBetween(line[k - 1], line[k]));
+    const pointAt = (s) => {
+      let k = 1;
+      while (k < line.length - 1 && cum[k] < s) k++;
+      const u = Math.min(1, Math.max(0, (s - cum[k - 1]) / ((cum[k] - cum[k - 1]) || 1)));
+      return [line[k - 1][0] + (line[k][0] - line[k - 1][0]) * u, line[k - 1][1] + (line[k][1] - line[k - 1][1]) * u];
+    };
+    const projectNear = ([lon, lat], s0) => {  // { d, s } sur les segments à ± 50 m de l'abscisse s0
+      const kx = 111320 * Math.cos(lat * Math.PI / 180);
+      let best = { d: Infinity, s: s0 };
+      for (let k = 1; k < line.length; k++) {
+        if (cum[k] < s0 - 50 || cum[k - 1] > s0 + 50) continue;
+        const ax = (line[k - 1][0] - lon) * kx, ay = (line[k - 1][1] - lat) * 111320;
+        const dx = (line[k][0] - line[k - 1][0]) * kx, dy = (line[k][1] - line[k - 1][1]) * 111320;
+        const u = Math.max(0, Math.min(1, -(ax * dx + ay * dy) / ((dx * dx + dy * dy) || 1)));
+        const d = Math.hypot(ax + u * dx, ay + u * dy);
+        if (d < best.d) best = { d, s: cum[k - 1] + u * (cum[k] - cum[k - 1]) };
+      }
+      return best;
+    };
+    // Photos retenues, dans l'ordre ; dans une même séquence, rangs croissants (décroissants à rebours) ; photos à plus de
+    // ALONG_OFFSET m du tracé retirées (autre voie, mal placées)
     const out = [], dates = new Set();
-    let switches = 0, last = null, reversed = 0;
+    let switches = 0, last = null, reversed = 0, lastS = -Infinity;
     for (const [i, k] of chosen.entries()) {
       if (!k) continue;
       const { f, back } = options[i].get(k);
       if (last && last.key === k && (rankOf(f) - last.rank) * (back ? -1 : 1) <= 0) continue;  // déjà passée
+      const on = projectNear(f.geometry.coordinates, i * ALONG_STEP);
+      if (on.d > ALONG_OFFSET || on.s < lastS + 0.5) continue;  // trop loin du tracé, ou pas plus loin que la précédente
       if (last && last.key !== k) switches++;
+      lastS = on.s;
       const exif = f.properties?.exif || {};
-      const point = { coords: f.geometry.coordinates, alt: exifNumber(exif["Exif.GPSInfo.GPSAltitude"]),
+      const point = { coords: pointAt(on.s), alt: exifNumber(exif["Exif.GPSInfo.GPSAltitude"]),
         heading: exifNumber(exif["Exif.GPSInfo.GPSImgDirection"]) ?? Number(f.properties?.["view:azimuth"]) };
       const record = Video.record(f, point);
       if (back) reversed++;
@@ -3279,6 +3307,7 @@
   }
   const ALONG_STEP = 5, ALONG_NEAR = 12, ALONG_ANGLE = 50, ALONG_CHUNK = 150;  // m, m, degrés, m
   const ALONG_BACK = 25;  // pas lu à rebours (5 m) : plus qu'un changement entre séquences à cinq ans d'écart (le sens d'abord)
+  const ALONG_OFFSET = 6;  // m : photo plus loin du tracé (autre voie, mal placée) retirée
   const ALONG_SEAM = 3;  // m d'écart entre les photos des deux séquences au raccord qui valent un changement de plus
   const ALONG_DAYS = 90;  // jours d'écart entre deux séquences qui valent un changement de plus
 

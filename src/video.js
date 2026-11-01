@@ -77,6 +77,7 @@ const Video = (() => {
   const PLANET_SCALE = 1 / 3;  // tuiles réduites au plus (tout le tour de la photo, dans un champ très large)
   const SPEED_SMOOTH = 4;  // images : vitesse affichée lissée sur ± SPEED_SMOOTH images (un quart de seconde)
   const TOUR_TIME = 8;  // s : tour d'horizon par défaut (réglette de 2 à 20 s)
+  const SEAM_BLUR = 4;  // vues moyennées au raccord de deux séquences (léger : moitié du flou cinétique)
   const BLUR = 8;  // vues moyennées par image pour le flou cinétique (obturateur ouvert toute l'image : 360°)
   const STALL = 15;  // s : requête d'image sans réponse abandonnée, puis reprise (serveur d'images bloqué)
 
@@ -1350,8 +1351,7 @@ const Video = (() => {
         const at = (m) => xs[Math.max(0, Math.min(total - 1, m))];
         const x = at(n);
         // Flou cinétique (option) : vues de la position de l'image précédente (exclue) à celle-ci, dans l'ordre du
-        // parcours ; et pendant un pivot rapide du regard (croisement, tonneau), flou de mouvement de la rotation ; plus au
-        // raccord de deux séquences (le fondu y suffit, le flou s'y voyait)
+        // parcours ; et pendant un pivot rapide du regard (croisement, tonneau), flou de mouvement de la rotation
         const before = pan[Math.max(0, n - 1)], turn = wrap(pan[n] - before);
         // (écart au plus court : 360° puis 0° en fin de tonneau, même image, pas un tour à l'envers)
         const rollBefore = tilt[Math.max(0, n - 1)], rollTurn = wrap(tilt[n] - rollBefore);
@@ -1359,7 +1359,10 @@ const Video = (() => {
         // (tour d'horizon : lent, pour montrer le paysage, sans flou de rotation)
         const sweep = wrap(turn - turns.look[n] + turns.look[Math.max(0, n - 1)]);
         const spin = Math.max(Math.abs(sweep), Math.abs(rollTurn));
-        const subs = spin > 1 ? Math.min(48, Math.max(BLUR, Math.ceil(spin / 1.5))) : blur && at(n - 1) < x ? BLUR : 1;
+        // Raccord de deux séquences : léger flou (SEAM_BLUR vues), pour masquer un peu le passage sans qu'il se voie
+        const [seamI] = path.segment(x), seam = path.list[seamI].collection !== path.list[Math.min(seamI + 1, path.list.length - 1)].collection;
+        const subs = spin > 1 ? Math.min(48, Math.max(BLUR, Math.ceil(spin / 1.5)))
+          : at(n - 1) < x ? (blur ? BLUR : seam ? SEAM_BLUR : 1) : 1;
         const first = path.segment(x - (x - at(n - 1)) * (subs - 1) / subs)[0];
         for (let k = first; k < Math.min(path.list.length, path.segment(x)[0] + AHEAD); k++) load(k).catch(() => {});
         for (const [k, job] of loads) {  // photos passées : textures rendues

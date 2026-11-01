@@ -122,7 +122,10 @@ véhicule se retrouve à l'avant de la vidéo ; leur nombre est affiché sous le
 choisie sur tout le parcours d'un coup (programmation dynamique), par ordre d'importance : le sens (vers l'avant, à
 rebours seulement faute d'autres photos), puis la proximité dans le temps des séquences enchaînées et le moins de
 changements (un changement vaut 1, plus 1 par 90 jours d'écart entre les deux séquences) ; un passage sans photo est
-sauté (essais : `tests/essai-chassagne.html`, croisement de la D113A à Chassagne-Montrachet et grand détour de la D906
+sauté ; trajectoire virtuelle : chaque photo retenue est ramenée sur le tracé de l'itinéraire (le point le plus
+proche), qui donne l'avancée et le cap de la vidéo (l'axe de la route, y compris aux changements de séquence : pas
+d'arrêt, de recul ni de balayage latéral, la vitesse continue) ; photos à plus de 6 m du tracé (autre voie, mal
+placées) retirées ; léger flou au raccord de deux séquences (4 vues moyennées) (essais : `tests/essai-chassagne.html`, croisement de la D113A à Chassagne-Montrachet et grand détour de la D906
 jusqu'au PR 75 + 645 : 3 séquences, aucune photo à rebours ; `tests/essai-boucle.html`, D906 du PR 84 + 220 au
 PR 76 + 900 : une séquence, sans les boucles sur la RD 33). Sans réponse du service d'itinéraire, ou sans photo le long,
 recherche de proche en proche (même choix de séquences que la lecture ; plusieurs séquences au départ : celle qui fait
