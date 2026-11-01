@@ -382,17 +382,30 @@ const Lieu = (() => {
     return out;
   }
 
-  /** Distance (m) du point (lon, lat) au tracé de la route numero (sections de PR de la BD TOPO, mailles en cache), ou
-   * Infinity si elle ne passe pas par là (ou n'a pas de PR). */
-  async function roadDistance(numero, lon, lat) {
-    let best = Infinity;
-    for (const f of await zone("section_de_points_de_repere", "numero_de_route,identifiant_de_section,geometrie", lon, lat)) {
-      if (f.properties?.numero_de_route === numero && f.geometry?.type === "LineString") {
-        best = Math.min(best, project(f.geometry.coordinates, lon, lat).d);
-      }
+  /**
+   * Place du point (lon, lat) par rapport au tracé de la route numero (sections de PR de la BD TOPO, mailles en cache) :
+   * { d, gap } ; d : distance (m), Infinity si elle ne passe pas par là (ou n'a pas de PR) ; gap : la route s'interrompt
+   * ici (tronc commun avec une autre, souvent de catégorie supérieure ; elle reprend plus loin) : point le plus proche au
+   * bout d'une section, sans autre section de la route à GAP_JOIN m de ce bout (une route est coupée en sections
+   * bout à bout, à chaque changement de côté par exemple), ou route absente.
+   */
+  async function roadPlace(numero, lon, lat) {
+    const lines = (await zone("section_de_points_de_repere", "numero_de_route,identifiant_de_section,geometrie", lon, lat))
+      .filter((f) => f.properties?.numero_de_route === numero && f.geometry?.type === "LineString").map((f) => f.geometry.coordinates);
+    let best = null;
+    for (const line of lines) {
+      const p = project(line, lon, lat);
+      if (!best || p.d < best.p.d) best = { line, p };
     }
-    return best;
+    if (!best) return { d: Infinity, gap: true };
+    const { line, p } = best, total = project(line, ...line[line.length - 1]).s;
+    const tip = p.s < 1 ? line[0] : p.s > total - 1 ? line[line.length - 1] : null;
+    const gap = Boolean(tip) && !lines.some((other) => other !== line
+      && [other[0], other[other.length - 1]].some((q) => segmentLength(q, tip) < GAP_JOIN));
+    return { d: p.d, gap };
   }
+  const GAP_JOIN = 30;  // m : sections de la même route qui se suivent (pas une interruption)
+  const roadDistance = async (numero, lon, lat) => (await roadPlace(numero, lon, lat)).d;
 
-  return { describe, features, junctions, milestone, project, roadDistance, segmentLength, structures };
+  return { describe, features, junctions, milestone, project, roadDistance, roadPlace, segmentLength, structures };
 })();

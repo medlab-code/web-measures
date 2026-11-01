@@ -19,6 +19,15 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 180000, "Pyodide");
     const doc = w.document;
     doc.querySelector("#reglages-defaut")?.close();
+    // Interruption de la D906 à Beaune (section 21-D906-U-3 finie en 4,7394 ; 46,9268, reprise 250 m plus loin) : à 40 m
+    // au-delà de son bout, interruption ; à 40 m du début de cette même section, qui prolonge les sections 21-D906-G-4 et
+    // U-11 (simple découpage de la route), non
+    const Lieu = w.eval("Lieu"), east = 40 / (111320 * Math.cos(46.93 * Math.PI / 180));
+    const atGap = await Lieu.roadPlace("D906", 4.7394 + east, 46.9268);
+    const besideLine = await Lieu.roadPlace("D906", 4.2242 - east, 47.2871);
+    log(`D906 à Beaune après le bout de section : ${atGap.d.toFixed(0)} m, interruption ${atGap.gap} ; au bout prolongé : ${besideLine.d.toFixed(0)} m, interruption ${besideLine.gap}`);
+    expect("interruption de la D906 reconnue au bout de sa section", atGap.gap && atGap.d > 25, JSON.stringify(atGap));
+    expect("bout de section prolongé par une autre : pas une interruption", !besideLine.gap && besideLine.d > 25, JSON.stringify(besideLine));
     w.mesures.map.jumpTo({ center: [4.3, 47.2], zoom: 13 });
     await sleep(1500);
     const type = (input, text) => { input.focus(); input.value = text; input.dispatchEvent(new w.Event("input", { bubbles: true })); };
@@ -49,7 +58,6 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     const plan = w.mesures.videoPlan;
     log(`préparée en ${((Date.now() - t0) / 1000).toFixed(0)} s : ${plan?.photos?.length} photos, ${plan?.switches} changement(s) de séquence ; ${status()}`);
     expect("vidéo préparée", plan?.photos?.length > 100, status());
-    const Lieu = w.eval("Lieu");
     const away = [];
     for (const p of plan?.photos || []) {
       const d = await Lieu.roadDistance("D906", ...p.coords);

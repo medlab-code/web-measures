@@ -118,7 +118,9 @@ sans parcours et dans Safari, qui n'encode pas le WebP.
 « 🎬 Préparer la vidéo » cherche ses photos (mêmes choix de séquences, de bifurcation et d'arrivée que la lecture,
 toutes les photos des séquences parcourues) et prévient ; sur une départementale (route à PR, départ et arrivée sur elle),
 le parcours reste sur la route de départ : quand la séquence s'en écarte de plus de 25 m (boucle ou aller-retour sur une
-voie secondaire), il reprend la même séquence là où elle revient sur la route (à 30 m de l'endroit quitté, vers
+voie secondaire ; pas là où la route s'interrompt, en tronc commun avec une autre, souvent de catégorie supérieure, et
+reprend plus loin : bout d'une section de PR de la BD TOPO sans autre section de la route à 30 m, la séquence est alors
+suivie jusqu'à la reprise), il reprend la même séquence là où elle revient sur la route (à 30 m de l'endroit quitté, vers
 l'arrivée : détour sauté), sinon une autre séquence qui suit la route, sinon demande où continuer (repère rouge à
 l'endroit quitté, clic sur la mini-carte ; Échap : détour gardé ; le point devient un repère violet gardé avec le
 parcours, repris sans question à la préparation suivante) ; plusieurs séquences au départ : chacune est essayée, celle

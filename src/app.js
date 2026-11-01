@@ -3116,10 +3116,13 @@
       if (!run.ids.has(run.rank) || following() == null) await loadRanks(run, run.rank);
       const here = run.points.get(run.rank);
       if (keepRoad && here?.coords) {
-        const d = await roadOf(here.coords);
+        const place = await Lieu.roadPlace(road, ...here.coords).catch(() => ({ d: 0, gap: false }));
+        const d = place.d;
         if (d <= ROAD_KEEP) {
           onRoad = { coords: here.coords, index: photos.length };
           offTried = false;
+        } else if (d > ROAD_LEAVE && onRoad && !offTried && place.gap) {
+          offTried = true;  // route interrompue (tronc commun) : séquence suivie jusqu'à ce qu'elle reprenne
         } else if (d > ROAD_LEAVE && onRoad && !offTried) {
           // Route quittée : 1) même séquence revenue sur la route au même endroit, repartant vers l'arrivée (aller-retour
           // sur une voie secondaire : détour sauté) ; 2) autre séquence qui suit la route ; 3) point de passage choisi par
