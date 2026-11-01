@@ -3199,7 +3199,7 @@
   const LEGS_RESTARTS = 10;
   async function planLegsOnce(start, end, road) {
     const points = [start, ...placed.waypoint.points.map((p) => p.lonlat), end];
-    const out = { photos: [], switches: 0, dates: [], warning: "" };
+    const out = { photos: [], switches: 0, reversed: 0, dates: [], warning: "" };
     for (let k = 1; k < points.length; k++) {
       if (points.length > 2) setStatus(`Vidéo : recherche des photos, tronçon ${k} / ${points.length - 1}…`);
       let leg;
@@ -3224,6 +3224,7 @@
       out.switches += leg.switches;
       out.dates = [...new Set([...out.dates, ...leg.dates])].sort();
       out.warning ||= leg.warning;
+      out.reversed += leg.reversed || 0;
     }
     return out;
   }
@@ -3232,8 +3233,8 @@
    * Photos du parcours le long du tracé de la route road de start à end (Lieu.roadLine : sections enchaînées,
    * interruptions franchies) : tous les ALONG_STEP m, photos à ALONG_NEAR m au plus, prises dans le sens de la marche
    * (ou à l'opposé, lues à rebours) à ALONG_ANGLE° près ; choix de la séquence (et du sens) à chaque pas, sur tout le
-   * parcours d'un coup, pour le moins de changements (programmation dynamique ; changement : 1, lecture à rebours : 0,2
-   * de plus) ; pas sans photo : sautés. Même forme de résultat que planPhotos ; null si le tracé de la route manque.
+   * parcours d'un coup, pour le moins de changements (programmation dynamique ; changement : 1, chaque pas lu à rebours :
+   * ALONG_BACK, l'arrière du véhicule se retrouvant à l'avant de la vidéo) ; pas sans photo : sautés. Même forme de résultat que planPhotos ; null si le tracé de la route manque.
    */
   async function planAlongRoad(start, end, road) {
     const line = await Lieu.roadLine(road, start, end).catch(() => null);
@@ -3294,8 +3295,9 @@
       let bestPrev = null;
       for (const [key, c] of cost) if (!bestPrev || c < bestPrev.c) bestPrev = { key, c };
       for (const [key, o] of choice) {
-        const stay = cost.get(key);
-        const change = bestPrev ? bestPrev.c + 1 + (o.back ? 0.2 : 0) : (o.back ? 0.2 : 0);
+        const reverse = o.back ? ALONG_BACK : 0;  // lecture à rebours (l'arrière du véhicule à l'écran) : coûte à chaque pas
+        const stay = cost.get(key) == null ? null : cost.get(key) + reverse;
+        const change = (bestPrev ? bestPrev.c + 1 : 0) + reverse;
         if (stay != null && stay <= change) {
           next.set(key, stay);
           back.set(key, key);
@@ -3318,7 +3320,7 @@
     }
     // Photos retenues, dans l'ordre ; dans une même séquence, rangs croissants (décroissants à rebours)
     const out = [], dates = new Set();
-    let switches = 0, last = null;
+    let switches = 0, last = null, reversed = 0;
     for (const [i, k] of chosen.entries()) {
       if (!k) continue;
       const { f, back } = options[i].get(k);
@@ -3328,15 +3330,17 @@
       const point = { coords: f.geometry.coordinates, alt: exifNumber(exif["Exif.GPSInfo.GPSAltitude"]),
         heading: exifNumber(exif["Exif.GPSInfo.GPSImgDirection"]) ?? Number(f.properties?.["view:azimuth"]) };
       const record = Video.record(f, point);
+      if (back) reversed++;
       out.push(record);
       dates.add(record.date);
       last = { key: k, rank: rankOf(f) };
     }
     if (out.length < 2) return null;
-    return { photos: out, switches, dates: [...dates].filter(Boolean).sort(),
+    return { photos: out, switches, reversed, dates: [...dates].filter(Boolean).sort(),
       warning: switches ? "Le parcours passe d'une séquence à l'autre : les photos peuvent différer (date, lumière, sens de prise de vue)." : "" };
   }
   const ALONG_STEP = 5, ALONG_NEAR = 12, ALONG_ANGLE = 50, ALONG_CHUNK = 150;  // m, m, degrés, m
+  const ALONG_BACK = 0.2;  // pas lu à rebours : 25 m à rebours valent un changement de séquence
 
   const ROAD_KEEP = 15, ROAD_LEAVE = 25;  // m du tracé de la route : sur elle ; au-delà, quittée (détour, boucle)
   const ROAD_BACK = 30, ROAD_AHEAD = 400;  // m de l'endroit quitté, rangs lus plus loin : retour de la même séquence
@@ -4314,7 +4318,9 @@
         $("#video-regard").checked ? videoPlan.junctions : [], Number($("#regard-vitesse").value), poiOptions(), presOptions())
         + tourStops())} s · `
       + `${perSecond.toFixed(perSecond < 10 ? 1 : 0)} photos/s${$("#video-rampe").checked || presOptions() ? " au plus" : ""}`
-      + (perSecond > Video.FPS ? " (photos sautées)" : "") + (videoPlan.switches ? ` ⚠ ${videoWarning()}` : "");
+      + (perSecond > Video.FPS ? " (photos sautées)" : "")
+      + (videoPlan.reversed ? ` · ${videoPlan.reversed} photos lues à rebours (prises dans l'autre sens, pas d'autres ici)` : "")
+      + (videoPlan.switches ? ` ⚠ ${videoWarning()}` : "");
   }
 
   function updatePlayer() {

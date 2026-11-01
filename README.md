@@ -120,8 +120,9 @@ toutes les photos des séquences parcourues) et prévient ; sur une département
 elle, de même pour chaque tronçon entre deux étapes), les photos sont choisies le long du tracé de la route : ses
 sections de PR de la BD TOPO enchaînées du départ à l'arrivée (interruptions, en tronc commun avec une autre route,
 franchies), puis tous les 5 m les photos à moins de 12 m prises dans le sens de la marche (ou dans l'autre sens, lues à
-rebours) ; la séquence de chaque pas est choisie sur tout le parcours d'un coup, pour le moins de changements de
-séquence (programmation dynamique) ; un passage sans photo est sauté (essais : `tests/essai-boucle.html`, D906 du
+rebours : l'arrière du véhicule se retrouve à l'avant de la vidéo, évité autant que possible, 25 m à rebours valant un
+changement de séquence ; leur nombre est affiché sous les listes) ; la séquence de chaque pas est choisie sur tout le
+parcours d'un coup, pour le moins de changements de séquence (programmation dynamique) ; un passage sans photo est sauté (essais : `tests/essai-boucle.html`, D906 du
 PR 84 + 220 au PR 76 + 900, boucles sur la RD 33 évitées ; `tests/essai-chassagne.html`, croisement de la D113A à
 Chassagne-Montrachet et grand détour de la D906 jusqu'au PR 75 + 645 : 7 séquences, sans quitter la route). Ailleurs,
 recherche de proche en proche : sur la route de départ, une séquence qui s'en écarte de plus de 25 m (boucle ou

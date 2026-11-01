@@ -88,7 +88,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     }
     if (offAt.length) log(`hors de la D906 : ${offAt.join(" ; ")}`);
     log(`préparée en ${((Date.now() - t0) / 1000).toFixed(0)} s : ${plan?.photos?.length} photos, ${plan?.switches} changement(s), `
-      + `${off} hors de la D906, ${asked} question(s) ; repères ${marks()} ; ${status()}`);
+      + `${off} hors de la D906, ${asked} question(s), ${plan?.reversed ?? 0} à rebours ; repères ${marks()} ; ${status()}`);
     expect("vidéo préparée", plan?.photos?.length > 50, status());
     expect("au plus une question", asked <= 1, asked);
     expect("parcours resté sur la D906", !off, off);
