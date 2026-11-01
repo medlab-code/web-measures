@@ -2750,9 +2750,10 @@
   /**
    * Départ du parcours de start à end, commun à la lecture (travel) et à la vidéo (planPhotos) : séquences qui
    * passent à l'arrivée et leur tracé, photo de départ et sens. Rend { t, first, back, warning } (warning : pas de
-   * séquence unique, le parcours en changera), ou { error } (texte).
+   * séquence unique, le parcours en changera), ou { error } (texte). heading : cap où l'on roule déjà (départ depuis
+   * une étape), pour le sens des séquences qui ne passent pas à l'arrivée (towardEnd).
    */
-  async function tourPlan(start, end) {
+  async function tourPlan(start, end, heading = null) {
     // Séquence qui passe à l'arrivée -> rang de sa photo la plus proche ; seulement celles qui passent à TOUR_PASS m
     // de la plus proche (une route voisine à 25 m ne passe pas à l'arrivée)
     const endRanks = new Map(), endPhotos = [];
@@ -2784,7 +2785,7 @@
     const common = near.filter((f) => endRanks.has(f.collection) && rankOf(f) !== endRanks.get(f.collection));
     let first = common.find((f) => endRanks.get(f.collection) > rankOf(f)) || common[0];
     let back = first ? endRanks.get(first.collection) < rankOf(first) : null;
-    if (!first) ({ feature: first, back } = towardEnd(near, end) || {});
+    if (!first) ({ feature: first, back } = towardEnd(near, end, heading) || {});
     if (!first) {
       return { error: `Parcours impossible : aucune photo${filterActive() ? " retenue par le filtre" : ""} à moins de `
         + `${TOUR_REACH} m du départ ne part vers l'arrivée. Rapprochez le départ d'une route photographiée, ou changez le filtre.` };
@@ -2795,7 +2796,7 @@
     for (const f of [...common, ...near]) {
       if (candidates.length >= TOUR_CANDIDATES || candidates.some((c) => c.feature.collection === f.collection)) continue;
       const choice = endRanks.has(f.collection) && rankOf(f) !== endRanks.get(f.collection)
-        ? { feature: f, back: endRanks.get(f.collection) < rankOf(f) } : towardEnd([f], end);
+        ? { feature: f, back: endRanks.get(f.collection) < rankOf(f) } : towardEnd([f], end, heading);
       if (choice) candidates.push(choice);
     }
     return { t, first, back, candidates, warning: common.length ? "" : "Pas de séquence unique du départ à l'arrivée : le parcours "
@@ -2804,12 +2805,14 @@
 
   /** Parmi les photos `list` (les plus proches d'abord), la première dont la séquence va vers `end` :
    * { feature, back } (back : lecture à rebours), d'après le cap de la caméra (à 45° près de la direction
-   * de l'arrivée, ou de son opposé à rebours) ; null sans photo qui convienne. */
-  function towardEnd(list, end) {
+   * de l'arrivée, ou de son opposé à rebours) ; heading : cap à suivre à la place de la direction de l'arrivée (celui
+   * où l'on roulait : sur une route sinueuse, l'arrivée à vol d'oiseau peut être à plus de 45° de la route) ; null
+   * sans photo qui convienne. */
+  function towardEnd(list, end, heading = null) {
     for (const f of list) {
       const azimuth = Number(f.properties?.["view:azimuth"]);
       if (!Number.isFinite(azimuth)) continue;
-      const toEnd = Requeteur.bearing(f.geometry.coordinates, end);
+      const toEnd = heading ?? Requeteur.bearing(f.geometry.coordinates, end);
       if (angleBetween(azimuth, toEnd) < 45) return { feature: f, back: false };
       if (angleBetween(azimuth + 180, toEnd) < 45) return { feature: f, back: true };
     }
@@ -3056,8 +3059,8 @@
    * posant les questions s'il en reste). Rend { photos [Video.record], switches, dates, warning } ; erreur (texte) si
    * le parcours est impossible.
    */
-  async function planPhotos(start, end, road = "", leg = 0, prefer = null) {
-    const plan = await tourPlan(start, end);
+  async function planPhotos(start, end, road = "", leg = 0, prefer = null, heading = null) {
+    const plan = await tourPlan(start, end, heading);
     if (plan.error) throw new Error(plan.error);
     const fresh = () => ({ ...plan.t, best: Infinity, bestAt: null, used: new Set(), switches: 0, dates: new Set(), unresolved: 0 });
     if (plan.candidates.length < 2) return walkPhotos(plan, fresh(), plan.first, plan.back, road, true, leg);
@@ -3122,7 +3125,9 @@
         const place = await Lieu.roadPlace(road, ...here.coords).catch(() => ({ d: 0, gap: false }));
         const d = place.d;
         if (d <= ROAD_KEEP) {
-          onRoad = { coords: here.coords, index: photos.length };
+          // Cap suivi sur la route (de la photo précédente sur elle à celle-ci) : direction où continuer si elle est quittée
+          const heading = onRoad && metresBetween(onRoad.coords, here.coords) > 1 ? Requeteur.bearing(onRoad.coords, here.coords) : onRoad?.heading ?? null;
+          onRoad = { coords: here.coords, index: photos.length, heading, rank: run.rank };
           offTried = false;
         } else if (d > ROAD_LEAVE && onRoad && !offTried && place.gap) {
           offTried = true;  // route interrompue (tronc commun) : séquence suivie jusqu'à ce qu'elle reprenne
@@ -3132,7 +3137,7 @@
           // l'utilisateur sur la mini-carte, parcours recalculé (viaBranch) ; Échap : le détour est gardé
           offTried = true;
           const again = await rejoin(onRoad.coords);
-          const target = again == null ? await roadBranch(t, onRoad.coords, road, run.collection)
+          const target = again == null ? await roadBranch(t, onRoad, road, run.collection)
             ?? await viaBranch(t, onRoad.coords, road, interactive, leg) : null;
           if (again != null || target) {
             photos.length = onRoad.index;  // sans le détour
@@ -3199,7 +3204,14 @@
       if (points.length > 2) setStatus(`Vidéo : recherche des photos, tronçon ${k} / ${points.length - 1}…`);
       let leg;
       try {
-        leg = await planPhotos(points[k - 1], points[k], road, k - 1, out.photos.at(-1)?.collection ?? null);
+        // Tronçon depuis une étape : séquence de départ dans le sens où finissait le tronçon précédent
+        const [a, b] = out.photos.slice(-2).map((p) => p.coords);
+        const heading = a && b && metresBetween(a, b) > 1 ? Requeteur.bearing(a, b) : null;
+        // Départ et arrivée du tronçon sur la route : photos choisies le long de son tracé ; sinon recherche de proche en proche
+        const onIt = road && (await Promise.all([points[k - 1], points[k]].map((p) => Lieu.roadDistance(road, ...p).catch(() => Infinity))))
+          .every((d) => d < 40);
+        leg = (onIt && await planAlongRoad(points[k - 1], points[k], road))
+          || await planPhotos(points[k - 1], points[k], road, k - 1, out.photos.at(-1)?.collection ?? null, heading);
       } catch (error) {
         if (error?.restart) throw error;
         throw points.length > 2 ? new Error(`${k === 1 ? "du départ" : `de l'étape ${k - 1}`} à `
@@ -3215,6 +3227,116 @@
     }
     return out;
   }
+
+  /**
+   * Photos du parcours le long du tracé de la route road de start à end (Lieu.roadLine : sections enchaînées,
+   * interruptions franchies) : tous les ALONG_STEP m, photos à ALONG_NEAR m au plus, prises dans le sens de la marche
+   * (ou à l'opposé, lues à rebours) à ALONG_ANGLE° près ; choix de la séquence (et du sens) à chaque pas, sur tout le
+   * parcours d'un coup, pour le moins de changements (programmation dynamique ; changement : 1, lecture à rebours : 0,2
+   * de plus) ; pas sans photo : sautés. Même forme de résultat que planPhotos ; null si le tracé de la route manque.
+   */
+  async function planAlongRoad(start, end, road) {
+    const line = await Lieu.roadLine(road, start, end).catch(() => null);
+    if (!line || line.length < 2) return null;
+    // Points du tracé tous les ALONG_STEP m, avec le cap de la route
+    const stations = [];
+    for (let k = 1, carry = 0; k < line.length; k++) {
+      const a = line[k - 1], b = line[k], d = metresBetween(a, b);
+      if (d < 0.01) continue;
+      const heading = Requeteur.bearing(a, b);
+      let s = carry;
+      for (; s < d; s += ALONG_STEP) stations.push({ at: [a[0] + (b[0] - a[0]) * s / d, a[1] + (b[1] - a[1]) * s / d], heading });
+      carry = s - d;  // reste jusqu'au pas suivant, sur le segment d'après
+    }
+    // Photos le long du tracé : recherches de ALONG_CHUNK m de demi-côté, tous les ALONG_CHUNK m (4 à la fois)
+    const photosById = new Map(), centres = stations.filter((_, i) => i % Math.round(ALONG_CHUNK / ALONG_STEP) === 0);
+    for (let i = 0; i < centres.length; i += 4) {
+      setStatus(`Vidéo : photos le long de la ${road} (${Math.round(100 * i / centres.length)} %)…`);
+      const found = await Promise.all(centres.slice(i, i + 4).map((c) => Carte.photosNear(map, ...c.at,
+        (f) => passesFilter(f) && Number.isInteger(rankOf(f)), ALONG_CHUNK + ALONG_NEAR, 1000).catch(() => [])));
+      for (const f of found.flat()) photosById.set(f.id, f);
+    }
+    // Photos rangées par cases de CELL degrés (une vingtaine de mètres) : chaque pas ne regarde que les cases voisines
+    const CELL = 0.0002, cells = new Map(), cellOf = ([lon, lat]) => [Math.floor(lon / CELL), Math.floor(lat / CELL)];
+    for (const f of photosById.values()) {
+      const key = cellOf(f.geometry.coordinates).join(" ");
+      if (!cells.has(key)) cells.set(key, []);
+      cells.get(key).push(f);
+    }
+    const around = (at) => {
+      const [i, j] = cellOf(at), out = [];
+      for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) out.push(...(cells.get(`${i + di} ${j + dj}`) || []));
+      return out;
+    };
+    // Candidats de chaque pas : séquence et sens -> photo la plus proche
+    const options = stations.map(({ at, heading }) => {
+      const best = new Map();
+      for (const f of around(at)) {
+        const d = metresBetween(at, f.geometry.coordinates);
+        const azimuth = Number(f.properties?.["view:azimuth"]);
+        if (d > ALONG_NEAR || !Number.isFinite(azimuth)) continue;
+        const back = angleBetween(azimuth, heading) < ALONG_ANGLE ? false : angleBetween(azimuth + 180, heading) < ALONG_ANGLE ? true : null;
+        if (back == null) continue;
+        const key = `${f.collection}|${back}`;
+        if (!best.has(key) || d < best.get(key).d) best.set(key, { f, d, back });
+      }
+      return best;
+    });
+    // Programmation dynamique : coût le plus bas pour arriver à chaque pas sur chaque séquence et sens
+    let cost = new Map();
+    const from = [];
+    for (const choice of options) {
+      const next = new Map(), back = new Map();
+      if (!choice.size) {  // pas sans photo : rien ne change
+        from.push(null);
+        continue;
+      }
+      let bestPrev = null;
+      for (const [key, c] of cost) if (!bestPrev || c < bestPrev.c) bestPrev = { key, c };
+      for (const [key, o] of choice) {
+        const stay = cost.get(key);
+        const change = bestPrev ? bestPrev.c + 1 + (o.back ? 0.2 : 0) : (o.back ? 0.2 : 0);
+        if (stay != null && stay <= change) {
+          next.set(key, stay);
+          back.set(key, key);
+        } else {
+          next.set(key, change);
+          back.set(key, bestPrev?.key ?? null);
+        }
+      }
+      cost = next;
+      from.push(back);
+    }
+    if (!cost.size) return null;
+    // Remontée : séquence et sens retenus à chaque pas
+    let key = [...cost].sort((x, y) => x[1] - y[1])[0][0];
+    const chosen = Array(options.length).fill(null);
+    for (let i = options.length - 1; i >= 0; i--) {
+      if (!from[i]) continue;
+      chosen[i] = key;
+      key = from[i].get(key);
+    }
+    // Photos retenues, dans l'ordre ; dans une même séquence, rangs croissants (décroissants à rebours)
+    const out = [], dates = new Set();
+    let switches = 0, last = null;
+    for (const [i, k] of chosen.entries()) {
+      if (!k) continue;
+      const { f, back } = options[i].get(k);
+      if (last && last.key === k && (rankOf(f) - last.rank) * (back ? -1 : 1) <= 0) continue;  // déjà passée
+      if (last && last.key !== k) switches++;
+      const exif = f.properties?.exif || {};
+      const point = { coords: f.geometry.coordinates, alt: exifNumber(exif["Exif.GPSInfo.GPSAltitude"]),
+        heading: exifNumber(exif["Exif.GPSInfo.GPSImgDirection"]) ?? Number(f.properties?.["view:azimuth"]) };
+      const record = Video.record(f, point);
+      out.push(record);
+      dates.add(record.date);
+      last = { key: k, rank: rankOf(f) };
+    }
+    if (out.length < 2) return null;
+    return { photos: out, switches, dates: [...dates].filter(Boolean).sort(),
+      warning: switches ? "Le parcours passe d'une séquence à l'autre : les photos peuvent différer (date, lumière, sens de prise de vue)." : "" };
+  }
+  const ALONG_STEP = 5, ALONG_NEAR = 12, ALONG_ANGLE = 50, ALONG_CHUNK = 150;  // m, m, degrés, m
 
   const ROAD_KEEP = 15, ROAD_LEAVE = 25;  // m du tracé de la route : sur elle ; au-delà, quittée (détour, boucle)
   const ROAD_BACK = 30, ROAD_AHEAD = 400;  // m de l'endroit quitté, rangs lus plus loin : retour de la même séquence
@@ -3255,17 +3377,20 @@
         + "le parcours est recalculé ; Échap : garder le détour.", "avertissement");
     });
   }
-  /** Autre séquence que current qui reprend la route road à coords (à TOUR_BRANCH m) vers l'arrivée : une qui passe à
-   * l'arrivée d'abord, sinon d'après le cap de la caméra ; sa photo doit être sur la route. { feature, back } ou null. */
-  async function roadBranch(t, coords, road, current) {
+  /** Autre séquence qui reprend la route road là où la séquence current l'a quittée (at : dernière photo sur elle,
+   * { coords, heading, rank }, à TOUR_BRANCH m), dans le sens où l'on roulait (at.heading, lue à rebours si elle a été
+   * prise dans l'autre sens) : une qui passe à l'arrivée d'abord ; la même séquence à un autre passage (à plus de
+   * ROAD_SAME rangs) compte ; sa photo doit être sur la route. { feature, back } ou null. */
+  async function roadBranch(t, at, road, current) {
     const list = [];
-    for (const f of await Carte.photosNear(map, ...coords,
-      (f) => passesFilter(f) && f.collection !== current && Number.isInteger(rankOf(f)), TOUR_BRANCH).catch(() => [])) {
+    for (const f of await Carte.photosNear(map, ...at.coords, (f) => passesFilter(f) && Number.isInteger(rankOf(f))
+      && (f.collection !== current || Math.abs(rankOf(f) - at.rank) > ROAD_SAME), TOUR_BRANCH).catch(() => [])) {
       if ((await Lieu.roadDistance(road, ...f.geometry.coordinates).catch(() => Infinity)) <= ROAD_KEEP) list.push(f);
     }
     const viaEnd = list.find((f) => t.endRanks.has(f.collection) && t.endRanks.get(f.collection) !== rankOf(f));
-    return viaEnd ? { feature: viaEnd, back: t.endRanks.get(viaEnd.collection) < rankOf(viaEnd) } : towardEnd(list, t.end);
+    return viaEnd ? { feature: viaEnd, back: t.endRanks.get(viaEnd.collection) < rankOf(viaEnd) } : towardEnd(list, t.end, at.heading);
   }
+  const ROAD_SAME = 50;  // rangs : même séquence repassée au même endroit (autre passage), et non sa photo voisine
 
   // Onglet « Vidéo » : « ▶ Parcourir » grisé tant que la route ou un PR manque
   const travelPane = $("#parcours");

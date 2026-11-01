@@ -116,22 +116,21 @@ chaque vue est gardée pendant la lecture, l'export ne recharge rien. Grisé pen
 sans parcours et dans Safari, qui n'encode pas le WebP.
 **Vidéo du départ à l'arrivée** (même onglet), sans lire le parcours dans la visionneuse :
 « 🎬 Préparer la vidéo » cherche ses photos (mêmes choix de séquences, de bifurcation et d'arrivée que la lecture,
-toutes les photos des séquences parcourues) et prévient ; sur une départementale (route à PR, départ et arrivée sur elle),
-le parcours reste sur la route de départ : quand la séquence s'en écarte de plus de 25 m (boucle ou aller-retour sur une
-voie secondaire ; pas là où la route s'interrompt, en tronc commun avec une autre, souvent de catégorie supérieure, et
-reprend plus loin : bout d'une section de PR de la BD TOPO sans autre section de la route à 30 m, la séquence est alors
-suivie jusqu'à la reprise), il reprend la même séquence là où elle revient sur la route (à 30 m de l'endroit quitté, vers
-l'arrivée : détour sauté), sinon une autre séquence qui suit la route, sinon demande où continuer (repère rouge à
-l'endroit quitté, à faire glisser sur la route à suivre, au-delà du croisement, ou clic sur la mini-carte ; Échap :
-détour gardé) : le point devient une étape (repère bleu, rangée à sa place dans le parcours, gardée avec lui) et tout le
-parcours est recalculé, avec les séquences qui y passent ; plusieurs séquences au départ d'un tronçon : chacune est
-essayée, celle qui demande le moins de questions, puis le moins de changements de séquence (en comptant celui avec la
-séquence qui finit le tronçon précédent), est retenue (cas de la D906, PR 84 + 220 au
-PR 76 + 900 : boucles sur la RD 33 retirées, 1 492 photos au lieu de 1 828 ; essai `tests/essai-boucle.html`). Étapes : 📍
-sous l'arrivée, un clic sur la mini-carte (sur une route photographiée, à 40 m au plus) pose une étape, repère bleu ; la
-vidéo y passe, dans l'ordre de pose, cherchée tronçon par tronçon avec les mêmes règles, tronçons mis bout à bout
-(changement de séquence entre deux tronçons compté) ; clic sur un repère : étape retirée ; gardées avec le parcours ;
-pour la vidéo seulement, pas pour « ▶ Parcourir ». Il prévient
+toutes les photos des séquences parcourues) et prévient ; sur une départementale (route à PR, départ et arrivée sur
+elle, de même pour chaque tronçon entre deux étapes), les photos sont choisies le long du tracé de la route : ses
+sections de PR de la BD TOPO enchaînées du départ à l'arrivée (interruptions, en tronc commun avec une autre route,
+franchies), puis tous les 5 m les photos à moins de 12 m prises dans le sens de la marche (ou dans l'autre sens, lues à
+rebours) ; la séquence de chaque pas est choisie sur tout le parcours d'un coup, pour le moins de changements de
+séquence (programmation dynamique) ; un passage sans photo est sauté (essais : `tests/essai-boucle.html`, D906 du
+PR 84 + 220 au PR 76 + 900, boucles sur la RD 33 évitées ; `tests/essai-chassagne.html`, croisement de la D113A à
+Chassagne-Montrachet et grand détour de la D906 jusqu'au PR 75 + 645 : 7 séquences, sans quitter la route). Ailleurs,
+recherche de proche en proche : sur la route de départ, une séquence qui s'en écarte de plus de 25 m (boucle ou
+aller-retour sur une voie secondaire ; pas là où la route s'interrompt : bout d'une section de PR sans autre section à
+30 m) est reprise là où elle revient sur la route, sinon remplacée par une autre qui la suit dans le sens où l'on roulait
+(même séquence à un autre passage comprise), sinon l'utilisateur indique où continuer (repère rouge à faire glisser sur
+la route à suivre, ou clic sur la mini-carte ; Échap : détour gardé) : le point devient une étape et tout le parcours est
+recalculé ; plusieurs séquences au départ d'un tronçon : chacune est essayée, celle qui demande le moins de questions,
+puis le moins de changements, est retenue. Il prévient
 aussi, dans la ligne d'état en orange et sous les listes, si le
 parcours passe d'une séquence à l'autre (dates des séquences ; les photos peuvent différer) ; « 🎬 Enregistrer la
 vidéo » demande le fichier puis la calcule (deux clics : le navigateur n'ouvre la boîte d'enregistrement que juste

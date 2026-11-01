@@ -1266,8 +1266,9 @@ const Carte = (() => {
   }
 
   /** Photos qui passent le filtre `accept` autour du point, de la plus proche à la plus lointaine,
-   * dans un carré de `radius` m de demi-côté (par défaut adapté à l'échelle : 10 à 150 m). */
-  async function photosNear(map, lng, lat, accept = () => true, radius = null) {
+   * dans un carré de `radius` m de demi-côté (par défaut adapté à l'échelle : 10 à 150 m) ; limit : photos demandées
+   * au plus (SEARCH_LIMIT par défaut). */
+  async function photosNear(map, lng, lat, accept = () => true, radius = null, limit = SEARCH_LIMIT) {
     radius ??= Math.min(150, Math.max(10, 15 * metresPerPixel(map, lat)));
     const dlat = radius / 111320;
     const dlon = radius / (111320 * Math.cos(lat * Math.PI / 180));
@@ -1283,7 +1284,7 @@ const Carte = (() => {
     };
     // 50 photos suffisent d'ordinaire ; si le filtre les écarte toutes et qu'il y en a d'autres
     // (réponse pleine, zone dense), une seconde recherche plus large (lourde : faite seulement là)
-    let { found, full } = await search(SEARCH_LIMIT);
+    let { found, full } = await search(limit);
     if (!found.length && full) ({ found } = await search(SEARCH_LIMIT_FILTERED));
     return found;
   }
