@@ -5580,8 +5580,8 @@
     const f = await Carte.photoById(id).catch(() => null);
     const rank = Number(f?.properties?.["geovisio:rank_in_collection"]), apis = f?.collection ? sequenceApis(f) : [];
     if (!Number.isInteger(rank) || !apis.length) return id;
-    const run = { apis, ids: new Map(), step: offset };
-    await loadRanks(run, rank + offset).catch(() => null);
+    const run = { apis, ids: new Map(), points: new Map(), step: offset };  // points : rempli par loadRanks
+    await loadRanks(run, rank + offset).catch((error) => console.warn("Photo décalée dans la séquence :", error));
     return run.ids.get(rank + offset) || id;
   }
 
