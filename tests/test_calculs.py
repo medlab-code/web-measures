@@ -142,6 +142,20 @@ class Pannes(unittest.TestCase):
         self.assertEqual(len(asked), 2)
 
 
+class Tablier(unittest.TestCase):
+    """Hauteur de chute : altitude du tablier entre les photos du pont (web_app._deck_at)."""
+
+    def test_pont_pente_interpole(self):
+        # pont de 40 m en pente de 5 % (photos tous les 10 m, rangs désordonnés) : bord à 4 m de l'axe, à mi-chemin
+        decks = [(20, 0, 101.0, 3), (0, 0, 100.0, 1), (10, 0, 100.5, 2), (30, 0, 101.5, 4), (40, 0, 102.0, 5)]
+        self.assertAlmostEqual(web_app._deck_at(decks, 15, 4), 100.75)
+        self.assertAlmostEqual(web_app._deck_at(decks, 33, -4), 101.65)
+        self.assertAlmostEqual(web_app._deck_at(decks, -5, 4), 100.0)  # avant la première photo : la sienne
+
+    def test_une_seule_photo(self):
+        self.assertEqual(web_app._deck_at([(0, 0, 250.0, 7)], 12, 3), 250.0)
+
+
 class CameraPont(unittest.TestCase):
     """Hauteur de caméra du tablier (App._fall_camera) : séquence, sinon calée, sinon le réglage accepté."""
 

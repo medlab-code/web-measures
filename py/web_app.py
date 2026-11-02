@@ -186,6 +186,23 @@ _WAY_KINDS = {"Route à 1 chaussée": "une route", "Route à 2 chaussées": "une
               "Type autoroutier": "une voie rapide", "Piste cyclable": "une piste cyclable", "Escalier": "un escalier"}
 
 
+def _deck_at(decks, x, y):
+    """Altitude du tablier en (x, y) (repère local, m) d'après les photos de la séquence prises sur le pont, decks
+    [(x, y, altitude, rang)] : point ramené sur le segment le plus proche entre deux photos consécutives (rangs) et
+    altitude interpolée entre elles (pont long et pentu) ; une seule photo : son altitude."""
+    path = sorted(decks, key=lambda d: d[3])
+    if len(path) == 1:
+        return path[0][2]
+    best = None
+    for a, b in zip(path, path[1:]):
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        u = max(0.0, min(1.0, ((x - a[0]) * dx + (y - a[1]) * dy) / ((dx * dx + dy * dy) or 1.0)))
+        d = math.hypot(a[0] + u * dx - x, a[1] + u * dy - y)
+        if best is None or d < best[0]:
+            best = (d, a[2] + u * (b[2] - a[2]))
+    return best[1]
+
+
 def _crossing(a, b, c, d):
     """Point (x, y) où les segments [a, b] et [c, d] se coupent ou se touchent (sommet commun : la BD TOPO
     en met un au croisement de deux niveaux), ou None (pas de contact, ou parallèles)."""
@@ -1798,7 +1815,8 @@ class App(session.Session):
                 if ngf is None or feat.get("collection") != item.get("collection") or \
                         roads.on_bridge(chain, plon, plat) is None:
                     continue
-                decks.append(triangulation._local(plon, plat, lon, lat) + (ngf - camera,))
+                rank = (feat.get("properties") or {}).get("geovisio:rank_in_collection")
+                decks.append(triangulation._local(plon, plat, lon, lat) + (ngf - camera, rank if isinstance(rank, int) else 0))
             if not decks:
                 return failed("pas d'altitude GPS de la séquence sur le pont")  # grille du géoïde pas encore lue ?
             self._terrain([triangulation._geographic(x, y, lon, lat) for x, y in samples],
@@ -1811,9 +1829,7 @@ class App(session.Session):
             for (x, y), z in zip(samples, ground or []):
                 if z is None:
                     continue
-                # shortcut: tablier à l'altitude de la photo la plus proche (photos tous les ~5 m) ;
-                # interpoler entre les photos si des ponts longs et pentus le demandent
-                deck = min(decks, key=lambda d: math.hypot(d[0] - x, d[1] - y))[2]
+                deck = _deck_at(decks, x, y)
                 if best is None or deck - z > best[0]:
                     best = (deck - z, math.hypot(x, y))
             if best is None:

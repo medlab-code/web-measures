@@ -386,8 +386,8 @@ après.
   - **tablier** : altitude GPS des photos de la séquence prises sur le pont, convertie en
     altitude NGF, moins la hauteur de caméra (mesurée sur la séquence vérifiée, sinon calée ; à
     défaut, le réglage « Caméra à », seulement après un appui sur le bouton de l'encadré : une photo
-    de précision déclarée n'a que sa hauteur au-dessus du fond franchi) ; pour chaque point, la
-    photo la plus proche ;
+    de précision déclarée n'a que sa hauteur au-dessus du fond franchi) ; pour chaque point,
+    interpolée entre les deux photos consécutives les plus proches (pont long et pentu) ;
   - **dessous** : modèle de terrain LiDAR HD (RGE ALTI en secours) lu en travers du pont, à 1,
     3, 6 et 10 m au-delà du bord de la chaussée (largeur BD TOPO, sinon 6 m), des deux côtés,
     tous les 2 m (plus espacé sur un long pont) ; sous le tablier, le modèle de terrain est
@@ -750,9 +750,10 @@ qu'avec (−1,1° à 4,5°/g), contrairement aux 16 photos de village du 23/10 :
 mesurées l'option cochée et décochée.
 
 Hauteur de chute (`tests/navigateur.html`, `tests/essai-ponts.html`, ticket #27), d'après les
-profils LiDAR HD relevés autour des ponts : 6,3 m pour le pont de la D111 au-dessus de l'A6 à
-Beaune ; 4,3 m pour la D977 bis au-dessus du canal de Bourgogne (tablier à 361,4 m, eau à
-357,4 m) ; 1,7 m pour la D114 au-dessus du ruisseau de la Gironde à Barbirey-sur-Ouche (lit
+profils LiDAR HD relevés autour des ponts : 6,4 m pour le pont de la D111 au-dessus de l'A6 à
+Beaune ; 4,2 m pour la D977 bis au-dessus du canal de Bourgogne (tablier à 361,4 m, eau à
+357,4 m) ; tablier interpolé entre les photos du pont depuis le 02/11/2026 (avant : photo la plus proche, 6,3 et
+4,3 m) ; 1,7 m pour la D114 au-dessus du ruisseau de la Gironde à Barbirey-sur-Ouche (lit
 vers 314 m, route à 315,8 m). Le terrain lu à 1 m du bord seulement donnait 2 m et 0 m : il
 tombait sur le talus de la culée.
 

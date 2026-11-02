@@ -179,7 +179,9 @@ Ce calcul est automatique sur une photo prise sur un pont de la BD TOPO. Les tro
 qui se touchent à 1 m près forment un seul ouvrage.
 
 - **Tablier** : altitude GPS des photos de la séquence prises sur le pont, convertie en NGF,
-  moins la hauteur de caméra. En chaque point, la photo la plus proche est retenue. La hauteur de
+  moins la hauteur de caméra. En chaque point, l'altitude est interpolée entre les deux photos
+  consécutives (rangs dans la séquence) dont le segment passe au plus près (pont long et pentu ; une
+  seule photo : son altitude ; `web_app._deck_at`). La hauteur de
   caméra est celle **mesurée sur la séquence** vérifiée (médiane de l'altitude RTK moins le sol
   LiDAR, photos du pont écartées), sinon celle **calée** pour la séquence. Une photo de précision
   déclarée n'a que sa propre hauteur, prise au-dessus du sol sous elle : sur un pont, le fond
