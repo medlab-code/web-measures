@@ -175,8 +175,13 @@
         return fallback;
       }
     },
-    set(key, value) {
-      try { localStorage.setItem(`web-measures/${key}`, value); } catch { /* sans stockage */ }
+    set(key, value) {  // false : pas écrit (sans stockage, ou stockage plein)
+      try {
+        localStorage.setItem(`web-measures/${key}`, value);
+        return true;
+      } catch {
+        return false;
+      }
     },
   };
 
@@ -5253,8 +5258,12 @@
     if (key === savedKey) return;
     savedKey = key;
     const n = JSON.parse(geojson).features.length;  // en mesure libre, points et distances hors de la liste (#30)
-    store.set("resultats", n ? JSON.stringify({ when: Date.now(), n, exported: geojson === exported,
+    const saved = store.set("resultats", n ? JSON.stringify({ when: Date.now(), n, exported: geojson === exported,
       csv: app.export_csv(), geojson }) : "");
+    if (!saved && n) {  // stockage plein : pas de copie ancienne proposée à la prochaine ouverture comme si c'était tout
+      store.set("resultats", "");
+      setStatus("Résultats trop nombreux pour être gardés dans le navigateur : exportez-les avant de fermer la page.", "echec");
+    }
   }
   {
     // Session précédente : gardée en mémoire seulement, retirée du navigateur avant que celle-ci

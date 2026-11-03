@@ -247,7 +247,9 @@ const Couche = (() => {
       const features = rows(`SELECT * FROM ${quote(table.table_name)}`).map((row) => {
         const { [table.column_name]: blob, ...rest } = row;
         const properties = Object.fromEntries(Object.entries(rest).filter(([, v]) => !(v instanceof Uint8Array)));  // sans les blobs
-        return { type: "Feature", properties, geometry: blob ? gpkgGeometry(blob) : null };
+        let geometry = null;
+        try { geometry = blob ? gpkgGeometry(blob) : null; } catch { /* type non pris en charge (collection, courbe) : objet sans géométrie */ }
+        return { type: "Feature", properties, geometry };
       });
       const crs = { type: "name", properties: { name: `urn:ogc:def:crs:EPSG::${epsg}` } };
       return { name: `${file.name} (${table.table_name})`, ...read(JSON.stringify({ type: "FeatureCollection", crs, features })) };

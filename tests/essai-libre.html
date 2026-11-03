@@ -126,6 +126,17 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         && Math.abs(borne[0] - 5.019448) < 2e-6 && Math.abs(borne[1] - 47.3577) < 2e-6);
     }
     doc.querySelector("#couche-retirer").click();
+    // Stockage plein : ancienne copie effacée (pas proposée comme si c'était tout), message affiché
+    const setItem = w.Storage.prototype.setItem;
+    w.Storage.prototype.setItem = function (key, value) {
+      if (key === "web-measures/resultats" && value) throw new w.DOMException("plein", "QuotaExceededError");
+      return setItem.call(this, key, value);
+    };
+    w.mesures.refresh(app.undo());
+    expect("stockage plein : copie effacée et message", !w.localStorage.getItem("web-measures/resultats")
+      && doc.querySelector("#statut").textContent.includes("trop nombreux"), doc.querySelector("#statut").textContent);
+    w.Storage.prototype.setItem = setItem;
+    w.mesures.refresh(app.redo());
     // Résultats gardés dans le navigateur, proposés à l'export à l'ouverture suivante
     const saved = JSON.parse(w.localStorage.getItem("web-measures/resultats") || "null");
     expect("résultats gardés dans le navigateur", saved && saved.n === JSON.parse(app.export_geojson()).features.length && saved.csv.includes(";"), JSON.stringify(saved)?.slice(0, 80));
