@@ -14,6 +14,7 @@
 // sous Linux), fichier assemblé par mp4-muxer, chargé au premier export seulement.
 
 const Video = (() => {
+  let lastTimes = null;  // chronos du dernier export (voir mp4)
   const FPS = 30;
   const SIZES = [[1920, 1080, 1], [1280, 720, 0.5]];  // largeur, hauteur, part du débit du codec : la première encodable
   // Haute qualité (option, lente) : 1080p aussi (choix de l'utilisateur), débit HQ_CODECS (détails fins mieux rendus),
@@ -1342,6 +1343,11 @@ const Video = (() => {
     encoder.configure(config);
     let overlay = null;  // canevas 2D du titre et du compteur
     const total = xs.length;
+    // Chronos de l'export (ms) : attente des tuiles, dessin et remise à l'encodeur, attente de l'encodeur (Video.times)
+    const times = { tuiles: 0, dessin: 0, encodeur: 0, total: 0, images: total };
+    const t0 = performance.now();
+    let tick = t0;
+    const lap = (key) => { const now = performance.now(); times[key] += now - tick; tick = now; };
     // Chiffres du compteur de vitesse : ceux de la plus grande vitesse de la vidéo (calculés une fois, pas à chaque image)
     const kmhDigits = speedometer ? String(Math.round(kmhs.reduce((a, b) => Math.max(a, b), 0))).length : 0;
     try {
@@ -1377,7 +1383,9 @@ const Video = (() => {
           const tilted = (rollBefore + rollTurn * (k + 1) / subs) * toRad;
           const [i, u] = path.segment(xs);
           const j = Math.min(i + 1, path.list.length - 1);
+          lap("dessin");
           const [a, b] = await Promise.all([load(i), load(j)]);
+          lap("tuiles");
           // Avancée : u·écart après la photo quittée, (1 - u)·écart avant la suivante ; vue k : 1 / (k + 1) de la
           // moyenne courante
           const gap = 0;  // fondu enchaîné, chaque photo vue de sa propre caméra (l'avancée dans une maquette faisait sauter le ciel et les côtés)
@@ -1412,10 +1420,15 @@ const Video = (() => {
         const frame = new VideoFrame(image, { timestamp: Math.round(n * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
         encoder.encode(frame, { keyFrame: n % (2 * FPS) === 0 });
         frame.close();
+        lap("dessin");
         while (encoder.encodeQueueSize > 4) await new Promise((resolve) => setTimeout(resolve, 5));
+        lap("encodeur");
         progress(n + 1, total);
       }
       await encoder.flush();
+      lap("encodeur");
+      times.total = tick - t0;
+      lastTimes = times;
       if (failure) throw failure;
       muxer.finalize();
       if (stream) {
@@ -1429,6 +1442,6 @@ const Video = (() => {
     }
   }
 
-  return { supported, record, mp4, trajectory, timeline, ignoredPlaces, presentationSpeeds, PRES, PRES_START, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
+  return { get times() { return lastTimes; }, supported, record, mp4, trajectory, timeline, ignoredPlaces, presentationSpeeds, PRES, PRES_START, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
     poiSpan, poiViews, planets, tours, speeds, laterals, insideDevers, lateralColor, arpSpeeds, steady, drawOverlay, fetchImage, FPS, HOLD };
 })();

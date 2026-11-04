@@ -20,6 +20,7 @@ const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
 let failures = 0, checks = 0;
+const chronos = () => { const c = document.getElementById("f").contentWindow.eval("Video").times; return c ? `chronos (s) : tuiles ${(c.tuiles / 1000).toFixed(1)}, dessin ${(c.dessin / 1000).toFixed(1)}, encodeur ${(c.encodeur / 1000).toFixed(1)}, total ${(c.total / 1000).toFixed(1)} pour ${c.images} images` : ""; };
 const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + (detail ? " : " + detail : "")); } };
 (async () => {
   const w = document.getElementById("f").contentWindow;
@@ -524,7 +525,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
         const v = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(blob) });
         await new Promise((resolve) => { v.onloadedmetadata = resolve; });
         runs[hq] = { s: (performance.now() - t1) / 1000, w: v.videoWidth, h: v.videoHeight, mb: blob.size / 1e6, v };
-        log(`${hq ? "haute qualité" : "ordinaire"} : ${v.videoWidth} × ${v.videoHeight}, ${runs[hq].mb.toFixed(1)} Mo en ${runs[hq].s.toFixed(1)} s`);
+        log(`${hq ? "haute qualité" : "ordinaire"} : ${v.videoWidth} × ${v.videoHeight}, ${runs[hq].mb.toFixed(1)} Mo en ${runs[hq].s.toFixed(1)} s · ${chronos()}`);
       }
       log(`haute qualité : calcul ${(runs[true].s / runs[false].s).toFixed(1)} fois plus long`);
       expect("haute qualité : 1920 × 1080 aussi", runs[true].w === 1920 && runs[true].h === 1080, `${runs[true].w} × ${runs[true].h}`);
@@ -796,7 +797,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       const blob = await Video.mp4(chosen, Number(select.value), (done, total) => {
         if (done - last >= 30 || done === total) { last = done; log(`image ${done} / ${total} (${((performance.now() - t0) / 1000).toFixed(0)} s)`); }
       });
-      log(`vidéo : ${(blob.size / 1e6).toFixed(1)} Mo en ${((performance.now() - t0) / 1000).toFixed(0)} s`);
+      log(`vidéo : ${(blob.size / 1e6).toFixed(1)} Mo en ${((performance.now() - t0) / 1000).toFixed(0)} s · ${chronos()}`);
       const head = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
       expect("MP4 : boîte ftyp", String.fromCharCode(...head.subarray(4, 8)) === "ftyp");
       // Relecture : taille, durée attendue (longueur à 180 km/h + 2 s d'arrêt), une image par seconde dans le journal
@@ -824,7 +825,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       // Flou cinétique : même vidéo, netteté du bas de l'image (chaussée qui défile) plus faible au même instant
       const t1 = performance.now();
       const blurred = await Video.mp4(chosen, Number(select.value), () => {}, null, { blur: true });
-      log(`flou cinétique : ${(blurred.size / 1e6).toFixed(1)} Mo en ${((performance.now() - t1) / 1000).toFixed(0)} s`);
+      log(`flou cinétique : ${(blurred.size / 1e6).toFixed(1)} Mo en ${((performance.now() - t1) / 1000).toFixed(0)} s · ${chronos()}`);
       const sharpness = async (b, name) => {
         const v2 = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(b) });
         await new Promise((resolve) => { v2.onloadedmetadata = resolve; });
