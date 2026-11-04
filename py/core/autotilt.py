@@ -92,42 +92,52 @@ def segments(band, row0, height, width, azimuth):
         local = peak >= np.maximum.reduce([np.roll(peak, d) for d in range(-4, 5)])
         yc = row0 + top + (rows - 1) / 2.0
         half = rows / 2.0
-        for x in np.nonzero(local & (peak > thr))[0]:
-            if abs(slopes[best[x]]) > MAX_SLOPE:
-                continue  # pente hors de la plage cherchée
-            line = _refine(win, x, slopes[best[x]], offs)
-            if line is None:
-                continue
-            xc, b = line
-            out.append((direction(xc + b * half, yc + half), direction(xc - b * half, yc - half)))
+        xs = np.nonzero(local & (peak > thr))[0]
+        xs = xs[np.abs(slopes[best[xs]]) <= MAX_SLOPE]  # pente dans la plage cherchée
+        if not len(xs):
+            continue
+        for xc, b, ok in zip(*_refine(win, xs, slopes[best[xs]], offs)):
+            if ok:
+                out.append((direction(xc + b * half, yc + half), direction(xc - b * half, yc - half)))
     return out
 
 
-def _refine(win, x, slope, offs, reach=5):
-    """Position et pente précises d'une arête détectée en x avec la pente approchée `slope` :
-    centre du gradient sur chaque ligne (autour de la droite approchée), puis droite des
-    moindres carrés. (x au milieu de la bande, pente) ou None si l'arête n'est pas rectiligne
-    ou pas continue sur toute la bande."""
+def _refine(win, xs, slopes, offs, reach=5):
+    """Position et pente précises des arêtes détectées aux colonnes `xs` avec les pentes
+    approchées `slopes` : centre du gradient sur chaque ligne (autour de la droite approchée),
+    puis droite des moindres carrés. Toutes les arêtes de la fenêtre à la fois (un appel à numpy
+    par étape pour toutes, et non par arête : plusieurs fois plus rapide, surtout dans Pyodide).
+    Rend (x au milieu de la bande, pente, ok) en tableaux ; ok faux si l'arête n'est pas
+    rectiligne ou pas continue sur toute la bande."""
     import numpy as np
 
     width = win.shape[1]
-    a, b = float(x), float(slope)
+    a, b = xs.astype(float), slopes.astype(float)
+    ok = np.ones(len(xs), bool)
+    span = np.arange(-reach, reach + 1)
+    lines = np.arange(win.shape[0])[None, :, None]
     for _ in range(3):  # recentrée sur la droite trouvée : moins d'effet de la grille des pixels
-        pred = a + b * offs
-        cols = np.round(pred).astype(int)[:, None] + np.arange(-reach, reach + 1)[None, :]
-        g = np.take_along_axis(win, cols % width, axis=1)
-        sign = 1.0 if g.sum() >= 0 else -1.0
-        wts = np.clip(sign * g, 0, None)
-        total = wts.sum(axis=1)
-        strong = total > 0.3 * np.median(total) if total.any() else total > 0
-        if strong.mean() < 0.8:
-            return None  # arête interrompue
-        centre = (wts * cols).sum(axis=1)[strong] / total[strong]
-        o = offs[strong]
-        b, a = np.polyfit(o, centre, 1)
-    if np.std(centre - (a + b * o)) > 0.4:
-        return None  # pas rectiligne
-    return a, b
+        pred = a[:, None] + b[:, None] * offs  # (arête, ligne)
+        cols = np.round(pred).astype(int)[:, :, None] + span  # (arête, ligne, colonne voisine)
+        g = win[lines, cols % width]
+        sign = np.where(g.sum(axis=(1, 2)) >= 0, 1.0, -1.0).astype(win.dtype)
+        wts = np.clip(sign[:, None, None] * g, 0, None)
+        total = wts.sum(axis=2)
+        strong = np.where(total.any(axis=1)[:, None], total > 0.3 * np.median(total, axis=1)[:, None], total > 0)
+        ok &= strong.mean(axis=1) >= 0.8  # sinon arête interrompue
+        centre = (wts * cols).sum(axis=2) / np.where(strong, total, 1)
+        # Droite des moindres carrés sur les lignes nettes (m), écrite directement
+        m = strong.astype(float)
+        count = np.maximum(m.sum(axis=1), 1)
+        om, cm = (m * offs).sum(axis=1) / count, (m * centre).sum(axis=1) / count
+        do = (offs - om[:, None]) * m
+        den = (do * do).sum(axis=1)
+        b = np.where(ok, (do * (centre - cm[:, None])).sum(axis=1) / np.where(den > 0, den, 1), b)
+        a = np.where(ok, cm - b * om, a)
+    res = centre - (a[:, None] + b[:, None] * offs)
+    mean = (m * res).sum(axis=1) / count
+    ok &= np.sqrt((m * (res - mean[:, None]) ** 2).sum(axis=1) / count) <= 0.4  # sinon pas rectiligne
+    return a, b, ok
 
 
 def fit(pairs):
