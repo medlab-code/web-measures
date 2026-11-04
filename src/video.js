@@ -1421,7 +1421,14 @@ const Video = (() => {
         encoder.encode(frame, { keyFrame: n % (2 * FPS) === 0 });
         frame.close();
         lap("dessin");
-        while (encoder.encodeQueueSize > 4) await new Promise((resolve) => setTimeout(resolve, 5));
+        // File de l'encodeur pleine : réveil par son événement dequeue (les minuteries d'un onglet caché sont ralenties
+        // à 1 s au moins) ; minuterie en secours (encodeur en erreur : 1 s ; navigateur sans cet événement : 5 ms)
+        while (encoder.encodeQueueSize > 4) {
+          await new Promise((resolve) => {
+            encoder.addEventListener("dequeue", resolve, { once: true });
+            setTimeout(resolve, "ondequeue" in encoder ? 1000 : 5);
+          });
+        }
         lap("encodeur");
         progress(n + 1, total);
       }
