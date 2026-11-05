@@ -8,7 +8,7 @@
      3dc34aaf, sans filtre) : changement de séquence signalé. Petite planète (#planete) : au milieu des 300 premiers
      mètres depuis le PR 1 + 146 (une photo sur 4), enroulement, tenue, déroulement. Parcours gardés (#garder) : « ☆ Garder »,
      export d'un seul, import, réglages et endroits rétablis d'un clic. Tour d'horizon (#tour) : arrêt sur une photo, tour
-     complet à l'horizontale, sens alterné. Haute qualité (#hq) : 1080p à 80 Mbit/s, plus nette, durée du calcul comparée. Serveur d'images bloqué (#attente) :
+     complet à l'horizontale, sens alterné. Serveur d'images bloqué (#attente) :
      avertissement au bout de 30 s, reprise, annulation. Lancer comme tests/navigateur.html. -->
 <script>try {
   localStorage.clear();
@@ -52,7 +52,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     const dist = (p, q) => Math.hypot((p[0] - q[0]) * k, (p[1] - q[1]) * 111320);
     // Parties : 1,1 km (rampe de vitesse, titre, compteur PR), D115D courte (vidéo calculée et enregistrée), carrefour
     // (changement de séquence, exposition) ; ancre #long ou #exposition : cette partie seule (mise au point, plus court)
-    const only = location.hash.match(/#(long|exposition|planete|garder|tour|hq|attente)/)?.[1];
+    const only = location.hash.match(/#(long|exposition|planete|garder|tour|attente)/)?.[1];
     const Video = w.eval("Video");
     let select = doc.querySelector("#video-vitesse");
     let canvas = Object.assign(document.createElement("canvas"), { width: 960, height: 540 });
@@ -102,7 +102,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
         && on(boxes) === "video-compteur video-compteur-vitesse" && !doc.querySelector("#video-presentation").hidden
         && doc.querySelector("#video-rampe").disabled && doc.querySelector("#video-vitesse").disabled, on(boxes));
       expect("options avancées repliées, dans l'ordre demandé", !doc.querySelector("#video-avancees").open && boxes.slice(0, 8).map((b) => b.id).join(" ")
-        === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp video-hq video-flou video-expo video-rampe",
+        === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp video-brouillon video-flou video-expo video-rampe",
         boxes.map((b) => b.id).join(" "));
       const mode = doc.querySelector("#video-mode");
       mode.value = "revue";
@@ -508,41 +508,6 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       endDistance.value = "0";
       await sleep(1500);
     }
-    if (only === "hq") {
-      // Haute qualité : 300 premiers mètres, une photo sur 4, contre la qualité ordinaire (temps, définition, netteté)
-      type(end, "0");
-      endDistance.value = "0";
-      await sleep(1500);
-      button.click();
-      await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 120000, "vidéo de 1,1 km préparée");
-      const sub = w.mesures.videoPlan.photos.slice(0, 61).filter((_, i) => i % 4 === 0);
-      expect("« Haute qualité » proposée, décochée", doc.querySelector("#video-hq") && !doc.querySelector("#video-hq").checked);
-      const runs = {};
-      for (const hq of [false, true]) {
-        await Video.mp4(sub, 90, () => {}, null, { hq });  // tuiles en cache : le temps mesuré est celui du calcul
-        const t1 = performance.now();
-        const blob = await Video.mp4(sub, 90, () => {}, null, { hq });
-        const v = Object.assign(document.createElement("video"), { muted: true, src: URL.createObjectURL(blob) });
-        await new Promise((resolve) => { v.onloadedmetadata = resolve; });
-        runs[hq] = { s: (performance.now() - t1) / 1000, w: v.videoWidth, h: v.videoHeight, mb: blob.size / 1e6, v };
-        log(`${hq ? "haute qualité" : "ordinaire"} : ${v.videoWidth} × ${v.videoHeight}, ${runs[hq].mb.toFixed(1)} Mo en ${runs[hq].s.toFixed(1)} s · ${chronos()}`);
-      }
-      log(`haute qualité : calcul ${(runs[true].s / runs[false].s).toFixed(1)} fois plus long`);
-      expect("haute qualité : 1920 × 1080 aussi", runs[true].w === 1920 && runs[true].h === 1080, `${runs[true].w} × ${runs[true].h}`);
-      expect("haute qualité : débit au moins 2,5 fois plus élevé", runs[true].mb > 2.5 * runs[false].mb, `${runs[true].mb} / ${runs[false].mb}`);
-      // Même instant, recadré au centre en pixels natifs : la haute qualité montre plus de détail
-      const detail = async (r, name) => {
-        r.v.currentTime = 6;
-        await new Promise((resolve) => { r.v.onseeked = resolve; });
-        // Même champ (640 × 360 pixels au centre), agrandi deux fois pour voir les détails
-        const c = Object.assign(document.createElement("canvas"), { width: 1280, height: 720 }), g = c.getContext("2d");
-        g.imageSmoothingEnabled = false;
-        g.drawImage(r.v, 640, 260, 640, 360, 0, 0, 1280, 720);
-        await log(`IMAGE hq-${name} ` + c.toDataURL("image/png"));  // sans perte : les détails comparés
-      };
-      await detail(runs[false], "ordinaire");
-      await detail(runs[true], "haute");
-    }
     if (!only || only === "tour") {
       // Tour d'horizon au milieu des 300 premiers mètres de la D115D depuis le PR 1 + 146 : 8 s, arrêt sur une photo
       type(end, "0");
@@ -748,7 +713,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("« ↺ RAZ » actif avec un parcours et des réglages", !raz.disabled);
       raz.click();
       await sleep(300);
-      const blank = ["#video-vitesse", "#video-photos", "#video-flou", "#video-hq", "#video-expo", "#planete-rotation", "#tour-duree"]
+      const blank = ["#video-vitesse", "#video-photos", "#video-flou", "#video-brouillon", "#video-expo", "#planete-rotation", "#tour-duree"]
         .map((id) => { const e = doc.querySelector(id); return e.type === "checkbox" ? e.checked : e.value; });
       log(`après RAZ : ${JSON.stringify(blank)} ; route « ${route.value} », PR « ${pr.value} » → « ${end.value} » ; ${status()}`);
       expect("RAZ : réglages par défaut", JSON.stringify(blank) === JSON.stringify(["90", "1", false, false, false, "20", "8"]), JSON.stringify(blank));

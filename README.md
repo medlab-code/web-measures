@@ -140,8 +140,8 @@ aussi, dans la ligne d'état en orange et sous les listes, si le
 parcours passe d'une séquence à l'autre (dates des séquences ; les photos peuvent différer) ; « 🎬 Enregistrer la
 vidéo » demande le fichier puis la calcule (deux clics : le navigateur n'ouvre la boîte d'enregistrement que juste
 après un clic). Changer le départ ou l'arrivée oblige à la préparer de nouveau. La vidéo est calculée image par
-image, hors de la visionneuse : 1920 × 1080 (1280 × 720 si le poste n'encode pas le 1080p), 30 images par seconde, H.264 à 30 Mbit/s
-(environ 3 Mo par seconde de vidéo ; 10 Mbit/s donnaient une image floue). Firefox sous Linux, en français, annonce le
+image, hors de la visionneuse : 1920 × 1080 ou 1280 × 720 au choix (720p si le poste n'encode pas le 1080p), 30 images par seconde, H.264 à 80 Mbit/s
+en 1080p, 40 en 720p (environ 10 Mo par seconde de vidéo en 1080p, moins si le poste n'atteint pas ce débit ; à 30 Mbit/s, image en blocs sous Windows). Firefox sous Linux, en français, annonce le
 H.264 sans réussir à l'encoder (bug Mozilla 2085549 : niveau « 3,1 » écrit avec une virgule ; lancé avec
 `LC_NUMERIC=C`, il l'encode) : VP9 à 20 Mbit/s, de qualité voisine, calcul environ quatre fois plus long, fichier lu
 par Chrome, Firefox et VLC, peut-être pas par PowerPoint, une seconde d'arrêt au début et à la fin. Deux listes à côté du bouton : la vitesse
@@ -149,7 +149,7 @@ simulée (de 30 à 720 km/h, 90 par défaut, puis Mach 1 et Mach 2 : 1 235 et 2 
 la mer ; des photos y sont sautées) et la part des photos de la séquence prises (1/1, 1/2, 1/4, 1/8 ;
 chaque choix indique l'écart obtenu, par exemple « une tous les 10 m »).  S'affichent aussi le nombre de photos retenues, la durée de la vidéo et le nombre de photos
 par seconde ; au-delà de 30 photos par seconde (une par image), des photos sont sautées. Liste « Mode » : « Présentation de
-l'itinéraire » (à l'ouverture : compteurs PR et vitesse et titre ; ni accélération, ni V max ARP, ni haute qualité, flou
+l'itinéraire » (à l'ouverture : compteurs PR et vitesse et titre ; ni accélération, ni V max ARP, ni flou
 ou corrections de luminosité ; la vitesse simulée et la rampe, grisées, y sont remplacées par l'« Allure » : vite dans les
 lignes droites, 150 km/h par défaut, de 50 à 300 ; dans les virages, vitesse telle que la vue ne tourne pas plus vite que
 la réglette « Virages, rotation », 12 °/s par défaut, de 4 à 40, d'après la rotation du cap lissé sur ± 10 m : courbe
@@ -267,13 +267,10 @@ corrigé de la pente de la route, champ de 80° (le toit du véhicule n'y entre 
 caméra avance réellement dans une maquette simple de chacune (chaussée plane sur 4 m de part et d'autre
 de l'axe, reste du décor sur une sphère de 60 m) : la chaussée défile sans à-coup, puis la photo suivante
 prend le relais en fondu. Limites : un objet proche et haut (arbre, poteau) se dédouble pendant le
-fondu, la ligne des collines aussi un peu (photos qui ne penchent pas pareil). « Brouillon (rapide) » (décochée) : image SD
-de chaque photo au lieu de ses tuiles HD, vidéo en 960 × 540, pour vérifier un parcours et ses effets avant le calcul final ;
-image floue (panneaux et marquage lointain illisibles), et « Haute qualité » grisée. « Haute qualité (lent) »
-(décochée) : toujours en 1920 × 1080, mais débit bien plus élevé (H.264 80 Mbit/s au lieu de 30, VP9 50 au lieu de 20)
-pour les détails fins (vignes, graviers, feuillages, fils), photos en pleine définition et vue calculée en double
-définition puis réduite (bords sans escalier) ; calcul environ 1,5 à 2 fois plus long (davantage avec un réseau lent),
-fichier 2,5 fois plus gros. Chaque photo est vue de sa propre caméra et passe à la suivante par un fondu enchaîné
+fondu, la ligne des collines aussi un peu (photos qui ne penchent pas pareil). « Format » : H.265 (grisé si le poste n'a pas d'encodeur : navigateurs à base de Chromium, encodeur matériel nécessaire ; 30 Mbit/s en 1080p, fichier pas lu par
+tous les lecteurs ; H.264 si l'encodeur le refuse, dit à la fin du calcul) et 1080p ou 720p (grisé en brouillon). « Brouillon (rapide) » (décochée) : image SD
+de chaque photo au lieu de ses tuiles HD, vidéo en 960 × 540, à 7,5 Mbit/s, pour vérifier un parcours et ses effets avant le calcul final ;
+image floue (panneaux et marquage lointain illisibles). Chaque photo est vue de sa propre caméra et passe à la suivante par un fondu enchaîné
 (l'avancée simulée dans une maquette, retirée le 01/11/2026, faisait sauter le ciel et les côtés). Le calcul prend environ
 deux fois la durée de la vidéo si les tuiles sont déjà en cache (« ■ Arrêter » l'interrompt) ; sous Chrome et Edge, la
 vidéo est écrite dans le fichier choisi au fur et à mesure (mémoire constante, même pour un long parcours ; arrêt ou

@@ -428,7 +428,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <h3>Vidéo du départ à l'arrivée</h3>
           <div class="ligne">
             <button id="parcours-video" type="button" disabled
-              title="Vidéo MP4 du départ à l'arrivée, sans lire le parcours (1920 × 1080, sinon 1280 × 720 ; 30 images/s), calculée depuis les tuiles HD : « Préparer » cherche les photos et prévient d'un changement de séquence, « Enregistrer » la calcule">🎬 Préparer la vidéo</button>
+              title="Vidéo MP4 du départ à l'arrivée, sans lire le parcours (1920 × 1080 ou 1280 × 720 au choix ; 30 images/s), calculée depuis les tuiles HD : « Préparer » cherche les photos et prévient d'un changement de séquence, « Enregistrer » la calcule">🎬 Préparer la vidéo</button>
             <select id="video-vitesse" aria-label="Vitesse simulée" title="Vitesse simulée de la vidéo">
               <option value="30">30 km/h</option><option value="50">50 km/h</option><option value="70">70 km/h</option><option value="90" selected>90 km/h</option><option value="130">130 km/h</option><option value="180">180 km/h</option><option value="360">360 km/h</option><option value="720">720 km/h</option><option value="1235">Mach 1 (1 235 km/h)</option><option value="2470">Mach 2 (2 470 km/h)</option></select>
             <select id="video-photos" aria-label="Photos de la séquence" title="Photos de la séquence prises pour la vidéo : toutes (une tous les 5 m pour le CD21), une sur 2, 4 ou 8 (plus d'écart, moins de téléchargement)">
@@ -509,13 +509,14 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <span class="texte-option">Vitesse max ARP<span class="aide">Plus haute vitesse où le virage reste vert. Lent : dévers lu sur le LiDAR HD (1 min environ pour 5 km).</span></span>
               <input id="video-vmax-arp" type="checkbox" class="interrupteur">
             </label>
+            <div class="option" title="Format du fichier MP4. 720p : calcul plus rapide, fichier plus léger. Brouillon : toujours 960 × 540">
+              <span class="texte-option">Format<span class="aide">H.265 : fichier plus léger, si le poste a un encodeur matériel.</span></span>
+              <select id="video-codec" aria-label="Codec de la vidéo" disabled><option value="h264" selected>H.264</option><option value="h265">H.265</option></select>
+              <select id="video-definition" aria-label="Définition de la vidéo"><option value="1080" selected>1080p</option><option value="720">720p</option></select>
+            </div>
             <label class="option" title="Brouillon, pour vérifier un parcours, ses arrêts et ses effets avant le calcul final : image SD de chaque photo au lieu de ses tuiles HD, vidéo en 960 × 540. Image floue : panneaux et marquage lointain illisibles, zoom du point d'intérêt encore plus flou">
               <span class="texte-option">Brouillon (rapide)<span class="aide">Image SD, 960 × 540 ; image floue.</span></span>
               <input id="video-brouillon" type="checkbox" class="interrupteur">
-            </label>
-            <label class="option" title="Haute qualité, toujours en 1920 × 1080 : débit bien plus élevé (H.264 80 Mbit/s au lieu de 30 ; VP9 50 au lieu de 20 sous Firefox) pour les détails fins (vignes, graviers, feuillages), photos en pleine définition, vue calculée en double définition puis réduite (bords sans escalier). Lent : calcul environ deux fois plus long, davantage avec un réseau lent ; fichier deux à trois fois plus gros">
-              <span class="texte-option">Haute qualité (lent)<span class="aide">Plus de débit et de détail ; calcul environ deux fois plus long.</span></span>
-              <input id="video-hq" type="checkbox" class="interrupteur">
             </label>
             <label class="option" title="Flou cinétique : chaque image est la moyenne de 8 vues réparties depuis l'image précédente ; ce qui défile vite près de la caméra (chaussée, poteaux) s'étale dans le sens du mouvement, le lointain reste net">
               <span class="texte-option">Flou cinétique<span class="aide">Le proche s'étire dans le sens du mouvement.</span></span>

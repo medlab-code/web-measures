@@ -2681,6 +2681,11 @@
   let videoPlan = null, videoPreparing = false, videoRun = null, videoReady = false;
   const VIDEO_STALL = 30, VIDEO_GIVE_UP = 300;  // s sans image calculée : avertissement, puis arrêt de la vidéo
   const videoOk = Video.supported();
+  let hevcOk = false;  // poste qui annonce un encodeur H.265 : proposé
+  Video.hevcSupported().then((ok) => {
+    hevcOk = ok;
+    updatePlayer();
+  });
   const webpOk = Hyperlapse.supported();  // Safari n'encode pas le WebP
   const TOUR_AXIS = 4;  // rangs de part et d'autre de la photo pour l'axe et la pente (± 20 m)
   const TILES_WAIT = 4000;  // ms : attente au plus des tuiles HD d'une vue du parcours (réseau lent)
@@ -3649,7 +3654,7 @@
   // Parcours gardés (onglet « Parcours ») : départ, arrivée et réglages de la vidéo (options, endroits des tonneaux et
   // des planètes, zone et cible du point d'intérêt, filtre de date), rouverts d'un clic ; export de la liste ou d'un
   // seul (pour un collègue), import ajouté à la liste
-  const routeSettings = () => [$("#video-mode"), $("#video-vitesse"), $("#video-photos"), ...travelPane.querySelectorAll(".options input")];
+  const routeSettings = () => [$("#video-mode"), $("#video-vitesse"), $("#video-photos"), $("#video-codec"), $("#video-definition"), ...travelPane.querySelectorAll(".options input")];
   // Parcours gardé rouvert (ou venant d'être gardé) : son identifiant, et l'état de ses réglages à l'ouverture (routeSnapshot) ;
   // modifié : « ☆ Enregistrer… » propose de le remplacer dans la liste ou d'en créer un nouveau
   let openedRoute = null, openedSnapshot = "";
@@ -3782,6 +3787,7 @@
       else e.value = r.settings[e.id];
       if (e.type === "range") e.dispatchEvent(new Event("input"));  // valeur affichée à côté
     }
+    if (!hevcOk) $("#video-codec").value = "h264";  // gardé sur un poste qui a l'encodeur
     videoPlan = null;
     showPoiZone();
     updateTravel();
@@ -3800,7 +3806,7 @@
   const VIDEO_MODES = {
     presentation: { help: "Vue rapide de l'itinéraire : compteurs PR et vitesse, vitesse adaptée aux virages, sans option coûteuse en calcul.",
       on: ["video-compteur", "video-compteur-vitesse", "video-titre"],
-      off: ["video-acceleration", "video-vmax-arp", "video-hq", "video-flou", "video-expo", "video-rampe"] },
+      off: ["video-acceleration", "video-vmax-arp", "video-flou", "video-expo", "video-rampe"] },
     revue: { help: "Revue à vitesse fixe : compteurs PR, vitesse, accélération latérale et V max ARP (dévers lu sur le LiDAR HD, plus lent) ; options de qualité dans les options avancées.",
       on: ["video-compteur", "video-compteur-vitesse", "video-acceleration", "video-vmax-arp", "video-titre"],
       off: ["video-rampe"] },
@@ -3845,10 +3851,7 @@
   });
   showModeHelp();
   $("#video-titre").addEventListener("change", updatePlayer);
-  $("#video-brouillon").addEventListener("change", () => {
-    if ($("#video-brouillon").checked) $("#video-hq").checked = false;
-    updatePlayer();
-  });
+  $("#video-brouillon").addEventListener("change", updatePlayer);
   const ROUTE_EFFECTS = [["video-tonneau", "tonneau"], ["video-planete", "petite planète"], ["video-interet", "point d'intérêt"],
     ["video-regard", "regard aux croisements"], ["video-tour", "tour d'horizon"]];
   /** Réglage remis à sa valeur de la page (case, liste, réglette). */
@@ -4181,7 +4184,7 @@
         $("#video-info").textContent = text;
         setStatus(text, "avancement");
         $("#statut").style.setProperty("--avancement", `${(100 * done / total).toFixed(1)}%`);
-      }, videoRun.signal, { blur: $("#video-flou").checked, hq: $("#video-hq").checked, draft: $("#video-brouillon").checked, exposure: $("#video-expo").checked,
+      }, videoRun.signal, { blur: $("#video-flou").checked, draft: $("#video-brouillon").checked, h265: $("#video-codec").value === "h265", height: Number($("#video-definition").value), exposure: $("#video-expo").checked,
         ramp: !presOptions() && $("#video-rampe").checked, presentation: presOptions(),
         counter: $("#video-compteur").checked, speedometer: $("#video-compteur-vitesse").checked, lateral: $("#video-acceleration").checked, arpSpeed: $("#video-vmax-arp").checked,
         junctions: $("#video-regard").checked ? videoPlan.junctions : [],
@@ -4201,8 +4204,10 @@
       if (!stream) await save(blob);
       const size = stream ? (await save.handle.getFile()).size : blob.size;
       const away = Video.ignoredPlaces();  // repères d'effets à plus de 30 m du parcours : ignorés, signalés
-      const text = `Vidéo enregistrée dans « ${save.fileName} » : ${(size / 1e6).toFixed(1)} Mo, `
+      const made = Video.times, format = { avc: "H.264", hevc: "H.265", vp9: "VP9" }[made.codec];
+      const text = `Vidéo enregistrée dans « ${save.fileName} » : ${made.width} × ${made.height}, ${format}, ${(size / 1e6).toFixed(1)} Mo, `
         + `${Math.round((Date.now() - t0) / 1000)} s de calcul.`
+        + ($("#video-codec").value === "h265" && made.codec !== "hevc" ? " H.265 refusé par l'encodeur du poste." : "")
         + (away.length ? ` Repères ignorés, à plus de 30 m du parcours : ${away.join(", ")}.` : "");
       setStatus(text);
       notice(text);
@@ -4410,7 +4415,10 @@
       "#video-planete", "#planete-tout", "#planete-transition", "#planete-rotation", "#video-tour", "#tour-duree", "#tour-arret"]) {
       $(id).disabled = Boolean(videoRun);
     }
-    $("#video-hq").disabled = Boolean(videoRun) || $("#video-brouillon").checked;  // sans effet en brouillon
+    $("#video-codec").disabled = Boolean(videoRun) || !hevcOk;
+    $("#video-codec").title = hevcOk ? "H.265 : fichier plus léger, mais pas lu par tous les lecteurs et navigateurs"
+      : "Ce navigateur ou ce poste n'encode pas le H.265 (encodeur matériel nécessaire, navigateurs à base de Chromium)";
+    $("#video-definition").disabled = Boolean(videoRun) || $("#video-brouillon").checked;  // toujours 960 × 540
     travelPane.querySelector('.sur-carte[data-cote="planet"]').disabled = $("#planete-tout").checked;  // rien à tracer
     $("#planete-tonneau").disabled = Boolean(videoRun) || !Number($("#planete-transition").value);
     $("#video-mode").disabled = Boolean(videoRun);

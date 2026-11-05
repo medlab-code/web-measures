@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Cédric COCHART
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// Vidéo MP4 du parcours (1920 × 1080, sinon 1280 × 720 ; 30 images par seconde) : chaque image est calculée hors
+// Vidéo MP4 du parcours (1920 × 1080 ou 1280 × 720 au choix ; 30 images par seconde) : chaque image est calculée hors
 // écran (WebGL2) depuis les tuiles HD des photos, et non capturée dans la visionneuse : cadence régulière quel que
 // soit le réseau. Regard dans l'axe de la trajectoire lissée, horizon corrigé de la pente. D'une photo à la suivante,
 // avancée simulée : chaque photo est plaquée sur une maquette simple autour de sa caméra (chaussée plane à CAM_HEIGHT m
@@ -11,24 +11,28 @@
 // suivante (vue depuis le même point) en fondu. Le toit du véhicule (bas du panorama, sous ROOF) est écarté :
 // l'autre photo le remplace. Sans avancée simulée (option) : chaque photo vue de sa caméra, simple fondu enchaîné.
 // Brouillon (option) : image SD de chaque photo et non ses tuiles, vidéo en 960 × 540 : calcul plus rapide, image floue.
-// Encodage H.264 par le navigateur (WebCodecs ; VP9 s'il n'encode pas le H.264, Firefox
+// Encodage H.264 par le navigateur (WebCodecs ; H.265 au choix, avec un encodeur matériel ; VP9 s'il n'encode pas le H.264, Firefox
 // sous Linux), fichier assemblé par mp4-muxer, chargé au premier export seulement.
 
 const Video = (() => {
   let lastTimes = null;  // chronos du dernier export (voir mp4)
   const FPS = 30;
   const SIZES = [[1920, 1080, 1], [1280, 720, 0.5]];  // largeur, hauteur, part du débit du codec : la première encodable
-  // Haute qualité (option, lente) : 1080p aussi (choix de l'utilisateur), débit HQ_CODECS (détails fins mieux rendus),
-  // tuiles en pleine définition, vue calculée en HQ_SUPERSAMPLE fois la définition puis réduite (bords sans escalier)
-  const HQ_SUPERSAMPLE = 2;
   const DRAFT_SIZE = [960, 540, 0.25];  // brouillon : image SD (2048 px pour 360°, soit 6 px par degré ; la vue en demande 12)
   // H.264 High, Main, Baseline (niveau 4.0), puis VP9 (Firefox sous Linux : H.264 annoncé mais pas encodé, bug
   // Mozilla 2085549), dans un MP4 aussi ; codec du fichier pour mp4-muxer ; débit en 1080p (bit/s). Mesuré le 31/10/2026
   // contre une version à 80 Mbit/s : H.264 10 Mbit/s très flou (PSNR 32 dB), 30 Mbit/s 37,6 dB ; VP9 20 Mbit/s 36,8 dB
   const CODECS = [["avc1.640028", "avc", 30e6], ["avc1.4d0028", "avc", 30e6], ["avc1.42e028", "avc", 30e6],
     ["vp09.00.40.08", "vp9", 20e6]];
-  // Haute qualité : H.264 niveau 5.1 (débit admis bien au-delà), 80 Mbit/s ; VP9 50 Mbit/s
-  const HQ_CODECS = [["avc1.640033", "avc", 80e6], ["avc1.4d0033", "avc", 80e6], ["vp09.00.40.08", "vp9", 50e6]];
+  // H.264 d'abord en niveau 5.1, 80 Mbit/s : à 30 Mbit/s (au-delà du niveau 4.0), image en blocs sous Windows (05/11/2026) ;
+  // CODECS : si le poste n'en encode aucun, et pour le brouillon
+  const HIGH_CODECS = [["avc1.640033", "avc", 80e6], ["avc1.4d0033", "avc", 80e6]];
+  // H.265 (option ; navigateurs à base de Chromium avec encodeur matériel, pas d'encodeur logiciel) : Main, niveau 5.1 ;
+  // un peu plus du tiers du débit du H.264 : fichiers réencodés en H.265 matériel environ 3 fois plus légers (essai de
+  // l'utilisateur, 05/11/2026) ; encodage direct non essayé (pas d'encodeur sur le poste de développement)
+  const HEVC_CODECS = [["hvc1.1.6.L153.B0", "hevc", 30e6]];
+  const encoderSettings = ([width, height, share], [name, codec, rate]) => ({ codec: name, width, height, bitrate: rate * share, framerate: FPS,
+    ...(codec === "avc" ? { avc: { format: "avc" } } : codec === "hevc" ? { hevc: { format: "hevc" } } : {}) });
   const MUXER = "https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.1/build/mp4-muxer.min.js";
   const HFOV = 80;  // degrés : champ horizontal de la vue (vertical : ± 24° en 16/9, au-dessus du toit du véhicule)
   const SMOOTH = 15;  // m : cap de la vue = direction de la trajectoire de s - SMOOTH à s + SMOOTH (stabilisation)
@@ -1214,13 +1218,25 @@ const Video = (() => {
     return chunks > 0;
   }
 
-  /** Première configuration qui encode vraiment : { config, codec (pour mp4-muxer) } ; null sans aucune. hq : haute
-   * qualité (HQ_CODECS en 1080p, puis la qualité ordinaire si le poste n'en encode aucun) ; draft : brouillon (DRAFT_SIZE). */
-  async function encoderConfig(hq = false, draft = false) {
+  /** Ce poste annonce-t-il un encodeur H.265 ? */
+  async function hevcSupported() {
+    if (!supported()) return false;
+    for (const size of SIZES) {
+      try {
+        if ((await VideoEncoder.isConfigSupported(encoderSettings(size, HEVC_CODECS[0]))).supported) return true;
+      } catch { /* configuration refusée : la suivante */ }
+    }
+    return false;
+  }
+
+  /** Première configuration qui encode vraiment : { config, codec (pour mp4-muxer) } ; null sans aucune. draft : brouillon
+   * (DRAFT_SIZE, CODECS) ; h265 : H.265 d'abord, sinon le reste ; height : 720 pour le 720p d'abord (sans effet en brouillon). */
+  async function encoderConfig({ draft = false, h265 = false, height = 1080 } = {}) {
     const pairs = (sizes, codecs) => sizes.flatMap((size) => codecs.map((codec) => [size, codec]));
-    const choices = [...(draft ? pairs([DRAFT_SIZE], CODECS) : hq ? pairs([SIZES[0]], HQ_CODECS) : []), ...pairs(SIZES, CODECS)];
-    for (const [[width, height, share], [name, codec, rate]] of choices) {
-      const config = { codec: name, width, height, bitrate: rate * share, framerate: FPS, ...(codec === "avc" ? { avc: { format: "avc" } } : {}) };
+    const sizes = draft ? [DRAFT_SIZE, ...SIZES] : height === 720 ? [SIZES[1], SIZES[0]] : SIZES;
+    const choices = [...(h265 ? pairs(sizes, HEVC_CODECS) : []), ...pairs(sizes, draft ? CODECS : [...HIGH_CODECS, ...CODECS])];
+    for (const [size, chosen] of choices) {
+      const config = encoderSettings(size, chosen), codec = chosen[1];
       try {
         if ((await VideoEncoder.isConfigSupported(config)).supported && await encodes(config)) return { config, codec };
       } catch { /* configuration refusée : la suivante */ }
@@ -1243,29 +1259,24 @@ const Video = (() => {
    * planets), options.planetFade : enroulement et déroulement (s), options.planetAll : sur tout le parcours, options.planetRoll : tonneau pendant les transitions, options.presentation : mode
    * Présentation (timeline, presentationSpeeds ; vitesses en m/s) à la place de kmh et de la rampe, options.planetSpin : vitesse de rotation (°/s) ;
    * options.tours : endroits des tours d'horizon ([[lon, lat]…], tours), options.tourTime : durée de chacun (s),
-   * options.tourStop : caméra arrêtée pendant le tour ; options.hq : haute qualité (HQ_CODECS, tuiles en pleine
-   * définition, vue calculée en HQ_SUPERSAMPLE fois la définition ; lent) ; options.draft : brouillon (image SD des photos, DRAFT_SIZE ; prime sur hq) ; options.stream : fichier ouvert
+   * options.tourStop : caméra arrêtée pendant le tour ; options.draft : brouillon (image SD des photos, DRAFT_SIZE) ; options.h265 : H.265 si le poste l'encode ; options.height : 720 pour le 720p ; options.stream : fichier ouvert
    * (FileSystemWritableFileStream) où écrire la vidéo au fur et à mesure, refermé à la fin (rend null ; sans lui, la
    * vidéo est assemblée en mémoire et rendue en Blob : un long parcours peut alors dépasser la mémoire de l'onglet). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
    */
   async function mp4(photos, kmh, progress = () => {}, signal = null,
     { blur = false, exposure = true, ramp = false, title = null, counter = false, speedometer = false, lateral = false, arpSpeed = false, junctions = [], rolls: rollPlaces = [],
-    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, hq = false, draft = false, planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false, planetRoll = false, presentation = null,
+    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, draft = false, h265 = false, height: wantedHeight = 1080, planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false, planetRoll = false, presentation = null,
     planetSpin = PLANET_SPIN, tours: tourPlaces = [], tourTime = TOUR_TIME, tourStop = true, stream = null } = {}) {
     const timelineOf = (p) => timeline(p, kmh / 3.6, ramp, lookedJunctions(p, junctions), lookSpeed / 3.6,
       poi?.speed ? { ...poiSpan(p, poi), speed: poi.speed / 3.6 } : null, presentation);
-    if (draft) {
-      hq = false;
-      photos = photos.map((p) => (p.sd ? { ...p, tiles: { image: p.sd, cols: 1, rows: 1, size: 2048 } } : p));
-    }
+    if (draft) photos = photos.map((p) => (p.sd ? { ...p, tiles: { image: p.sd, cols: 1, rows: 1, size: 2048 } } : p));
     const path = trajectory(photos);
     if (path.list.length < 2 || path.length < 1) throw new Error("parcours trop court");
-    const [chosen] = await Promise.all([encoderConfig(hq, draft), loadMuxer()]);
+    const [chosen] = await Promise.all([encoderConfig({ draft, h265, height: wantedHeight }), loadMuxer()]);
     if (!chosen) throw new Error("ce navigateur n'encode ni le H.264 ni le VP9");
     const { config, codec } = chosen;
     const { width, height } = config;
-    const ss = hq ? HQ_SUPERSAMPLE : 1;
-    const gl = renderer(width * ss, height * ss);
+    const gl = renderer(width, height);
     const tan = Math.tan(HFOV / 2 * toRad);
     // Demi-largeur de l'écran pour la part m de la planète : demi-champ de HFOV / 2 à PLANET_FOV / 2, point de vue de
     // la projection reculé deux fois plus vite (stéréographique dès la moitié : le champ passe 180° sans se retourner)
@@ -1277,7 +1288,7 @@ const Video = (() => {
     // Champ le plus large demandé à une photo (vue depuis l'avant, au début du fondu : le décor proche s'écarte),
     // découpe et réduction des tuiles à la finesse de la vue (plus un quart pour l'avancée)
     const widest = (fov) => 2 * Math.atan(Math.tan(fov / 2 * toRad) * 1.6) / toRad;
-    const scaleOf = (t) => (hq ? 1 : Math.min(1, 1.25 * (width / HFOV) / (t.size / (360 / t.cols))));
+    const scaleOf = (t) => Math.min(1, 1.25 * (width / HFOV) / (t.size / (360 / t.cols)));
     const yawAt = (i, x) => wrap(path.course(x) - path.list[i].heading);
     // Couleurs accordées à chaque changement de séquence (raccord discret) ; photos isolées seulement avec l'option
     const gains = await exposures(path, signal, exposure);
@@ -1350,7 +1361,7 @@ const Video = (() => {
     let overlay = null;  // canevas 2D du titre et du compteur
     const total = xs.length;
     // Chronos de l'export (ms) : attente des tuiles, dessin et remise à l'encodeur, attente de l'encodeur (Video.times)
-    const times = { tuiles: 0, dessin: 0, encodeur: 0, total: 0, images: total };
+    const times = { tuiles: 0, dessin: 0, encodeur: 0, total: 0, images: total, codec, width, height };
     const t0 = performance.now();
     let tick = t0;
     const lap = (key) => { const now = performance.now(); times[key] += now - tick; tick = now; };
@@ -1403,27 +1414,18 @@ const Video = (() => {
           (aim.lift[n] - 90 * globe.mix[n]) * toRad, Math.min(1, 2 * globe.mix[n]));
         }
         // Titre et compteurs : dessinés dans un calque transparent posé par la carte graphique sur la vue (l'image ne fait
-        // pas l'aller-retour vers le processeur : un tiers du calcul) ; haute qualité (vue plus grande que la vidéo) : vue
-        // réduite dans un canevas 2D, incrustations écrites dessus
-        let image = gl.canvas;
+        // pas l'aller-retour vers le processeur : un tiers du calcul)
         const marks = { title, pr: counter ? prAt(path, x) : null, speed: speedometer ? { kmh: kmhs[n], digits: kmhDigits } : null,
           lateral: lateral ? { felt: felt[n], color: lateralColor(lats[n], kmhs[n], devs[n]) } : null, arp: arpSpeed ? { kmh: vmax[n] } : null,
           t: n / FPS };
-        if (ss > 1) {
-          overlay ??= new OffscreenCanvas(width, height);
-          const ctx2d = overlay.getContext("2d");
-          ctx2d.imageSmoothingQuality = "high";
-          ctx2d.drawImage(gl.canvas, 0, 0, width, height);
-          drawOverlay(ctx2d, width, height, marks);
-          image = overlay;
-        } else if (title || counter || speedometer || lateral || arpSpeed) {
+        if (title || counter || speedometer || lateral || arpSpeed) {
           overlay ??= new OffscreenCanvas(width, height);
           const ctx2d = overlay.getContext("2d");
           ctx2d.clearRect(0, 0, width, height);
           drawOverlay(ctx2d, width, height, marks);
           gl.overlay(overlay);
         }
-        const frame = new VideoFrame(image, { timestamp: Math.round(n * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
+        const frame = new VideoFrame(gl.canvas, { timestamp: Math.round(n * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
         encoder.encode(frame, { keyFrame: n % (2 * FPS) === 0 });
         frame.close();
         lap("dessin");
@@ -1455,6 +1457,6 @@ const Video = (() => {
     }
   }
 
-  return { get times() { return lastTimes; }, supported, record, mp4, trajectory, timeline, ignoredPlaces, presentationSpeeds, PRES, PRES_START, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
+  return { get times() { return lastTimes; }, supported, hevcSupported, record, mp4, trajectory, timeline, ignoredPlaces, presentationSpeeds, PRES, PRES_START, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
     poiSpan, poiViews, planets, tours, speeds, laterals, insideDevers, lateralColor, arpSpeeds, steady, drawOverlay, fetchImage, FPS, HOLD };
 })();
