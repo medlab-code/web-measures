@@ -879,7 +879,7 @@ button.principal { font-weight: 600; }
 /* Visionneuse : voyants en haut à droite (vert : oui, rouge : non, jaune : inconnu ou en cours) */
 #voyants {
   position: absolute;
-  top: 0.6rem;
+  top: 2.9rem;  /* sous le bouton de plein écran */
   right: 0.8rem;
   margin: 0;
   padding: 0;
@@ -903,6 +903,36 @@ button.principal { font-weight: 600; }
   background: rgba(24, 25, 28, 0.82);
 }
 #voyants[hidden] { display: none; }
+
+/* Plein écran (app.js) : seule la visionneuse, et les boutons de capture de la barre du haut, à leur place dans
+   le document ; boutons presque transparents, tout s'efface souris immobile pour une capture d'écran propre.
+   La carte d'étape et les messages restent. */
+#plein-ecran {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.8rem;
+  z-index: 5;
+  display: flex;
+  width: 2rem;
+  height: 2rem;
+  padding: 0.3rem;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(24, 25, 28, 0.82);
+  color: #fff;
+}
+#plein-ecran:not(:disabled) { cursor: pointer; }
+#plein-ecran:disabled { opacity: 0.35; }
+#plein-ecran .sortir, #plein-ecran[aria-pressed="true"] .entrer { display: none; }
+#plein-ecran[aria-pressed="true"] .sortir { display: inline; }
+html:fullscreen header { display: contents; }
+html:fullscreen header > :not(.captures), html:fullscreen aside, html:fullscreen #poignee-colonne { display: none; }
+html:fullscreen header .captures { position: fixed; top: 0.6rem; left: 50%; transform: translateX(-50%); z-index: 5; flex-direction: row; background: var(--fond); }
+html:fullscreen .haut-centre { top: 3.6rem; }  /* avis passagers sous les captures */
+html:fullscreen :is(#plein-ecran, header .captures) { opacity: 0.35; }
+html:fullscreen :is(#plein-ecran, header .captures):hover { opacity: 1; }
+html:fullscreen :is(#plein-ecran, header .captures, #voyants, .bas-vue) { transition: opacity 0.2s; }
+html.souris-immobile:fullscreen :is(#plein-ecran, header .captures, #voyants, .bas-vue):not(:hover) { opacity: 0; }
 
 /* Visionneuse : route et commune de la photo, en bas à gauche */
 /* Bandeau du bas de la visionneuse : localisation à gauche, producteur de la photo à droite,

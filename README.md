@@ -80,6 +80,12 @@ par le **requêteur route + PR**, ou coller l'**identifiant** d'une photo (ou un
 Panoramax) dans « Aller à la photo » ; « 📋 Copier » sous l'identifiant de la photo affichée
 le copie, pour la passer à un collègue.
 
+**Plein écran** : le bouton en haut à droite de la visionneuse (grisé sans photo) affiche la photo sur tout l'écran, sans
+la barre du haut, la carte ni le panneau ; à nouveau, ou `Échap`, pour revenir. Les boutons de capture y restent, presque
+transparents, et les boutons, voyants, lieu et lecteur s'effacent après 3 s de souris immobile : une capture d'écran
+reste propre. Une mesure en cours s'y poursuit, avec sa carte d'étape ; pour en lancer une autre, quitter le plein écran.
+`Échap` y quitte d'abord le plein écran : un second appui annule le trait en cours.
+
 **Parcourir une route** : onglet **« Vidéo »** du panneau : la
 route, le PR de départ (+ distance) et le PR d'arrivée (+ distance), choisis dans des listes
 comme dans le requêteur, la vitesse (1x, 2x par défaut, 4x ou 8x : une photo tous les 5, 10, 20 ou 40 m
@@ -734,6 +740,10 @@ Pour s'ouvrir en `file://`, la page n'utilise pas de modules JavaScript ni de le
 fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/sources.js`.
 
 ## Précision
+
+**État de la validation (05/11/2026)** : les mesures de hauteur sont validées sur des objets connus. Les retours
+de terrain sont encore attendus pour les mesures de largeur, les hauteurs de chute de pont, les dévers et les
+largeurs de chaussée LiDAR (analyse fine) : ces valeurs n'ont pas encore été comparées à des relevés sur place.
 
 Essais sur deux photos imajbox à position RTK (±0,10 m) de Pouilly-en-Auxois, distantes de
 5 m, sur des cibles connues (`tests/essai-rtk.html`, `essai-largeur.html`,

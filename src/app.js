@@ -608,6 +608,34 @@
     window.addEventListener("pointercancel", end);
   });
 
+  // Plein écran de la visionneuse (ticket #39) : toute la page, le reste masqué par style.css --------------
+
+  const FULLSCREEN_IDLE = 3000;  // ms : souris immobile, boutons et étiquettes s'effacent
+  let idleTimer = null;
+  function wakeFullscreen() {
+    document.documentElement.classList.remove("souris-immobile");
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => document.documentElement.classList.add("souris-immobile"), FULLSCREEN_IDLE);
+  }
+  $("#plein-ecran").addEventListener("click", () => {
+    const change = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+    change.catch((error) => setStatus(`Plein écran impossible : ${error.message}`, "echec"));
+  });
+  document.addEventListener("fullscreenchange", () => {
+    const full = Boolean(document.fullscreenElement), button = $("#plein-ecran");
+    button.setAttribute("aria-pressed", String(full));
+    button.title = full ? "Quitter le plein écran (Échap)" : "Afficher la visionneuse en plein écran";
+    clearTimeout(idleTimer);
+    window.removeEventListener("pointermove", wakeFullscreen, true);
+    if (full) {
+      window.addEventListener("pointermove", wakeFullscreen, true);  // capture : la visionneuse garde ses événements
+      wakeFullscreen();
+    } else {
+      map.resize();  // masquée pendant le plein écran
+    }
+    window.dispatchEvent(new Event("resize"));  // visionneuse à la nouvelle taille
+  });
+
   // Largeur de la colonne de droite (grand écran) : poignée à glisser, mémorisée -------------
 
   const column = $("aside");
@@ -739,6 +767,11 @@
     const status = $("#statut");
     status.replaceChildren(...text.split("📐").flatMap((part, i) => i ? [EQUERRE.cloneNode(true), part] : [part]));
     status.className = "statut " + kind;  // replie aussi la ligne
+    if (kind === "echec" || kind === "avertissement") noticeInFullscreen(text);
+  }
+  /** En plein écran, le panneau et sa ligne d'état sont masqués : le message passe sur la visionneuse. */
+  function noticeInFullscreen(text) {
+    if (document.fullscreenElement) notice(text);
   }
   // Ligne d'état sur une ligne : le texte entier au clic
   $("#statut").addEventListener("click", () => $("#statut").classList.toggle("deplie"));
@@ -1556,6 +1589,8 @@
     $("#producteur-photo").hidden = true;
     $("#capture-hd").disabled = true;
     $("#vignette").disabled = true;
+    $("#plein-ecran").disabled = true;
+    if (document.fullscreenElement) document.exitFullscreen();  // plus de photo à montrer
     Carte.showView(map, null);
     showPhotoInfo(null, message);
   }
@@ -1681,6 +1716,7 @@
     lastPhotoAt = now;
     showPhotoInfo(feature);
     $("#capture-hd").disabled = !Calcul.hasWorker();  // « Avec les mesures » : selon les mesures (drawViewerMarks)
+    $("#plein-ecran").disabled = !document.fullscreenEnabled;
     if (app) refresh(app.set_picture(JSON.stringify(feature)));
     proposeRecaledPhoto();
     updateProducers();
@@ -5487,8 +5523,10 @@
       try {
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
         setStatus("Vignette enregistrée et copiée dans le presse-papiers.");
+        noticeInFullscreen("Vignette enregistrée et copiée dans le presse-papiers.");
       } catch {
         setStatus("Vignette enregistrée (copie dans le presse-papiers refusée par le navigateur).");
+        noticeInFullscreen("Vignette enregistrée (copie dans le presse-papiers refusée par le navigateur).");
       }
     } catch (error) {
       setStatus(`Capture « Avec les mesures » impossible : ${error.message}`, "echec");
