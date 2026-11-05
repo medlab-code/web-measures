@@ -38,7 +38,10 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     const app = w.mesures.app, doc = w.document;
     // Incertitude annoncée sur le bouton d'une photo proposée, puis obtenue après la visée réelle
     const predicted = (id) => (JSON.parse(app.state()).guide?.choices || []).find((c) => c.id === id)?.expect;
-    const obtained = () => { const r = app.triangulator.result; return r ? r.get("uncertainty") : null; };
+    // Comme la proposition (App.guide) : en travers de la route
+    const obtained = () => { const r = app.triangulator.result; if (!r) return null;
+      const [c11, c12, c22] = r.get("cov").toJs(), [ux, uy] = app._aim_across().toJs();
+      return Math.sqrt(ux * ux * c11 + 2 * ux * uy * c12 + uy * uy * c22); };
     const compare = (what, before) => {
       const after = obtained();
       log(`${what} : annoncée ±${before?.toFixed(3)} m, obtenue ±${after?.toFixed(3)} m`);
@@ -328,9 +331,43 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         aimedAt("le bord B", f, b12, zoom0);
         expect("droite de mesure masquée hors de la photo de la mesure", JSON.parse(app.viewer_marks()).filter((m) => m.guide && !m.epipolar && !m.vertical).length === 0);
       }
-      const announced = f === photos[1] ? predicted(f.id) : null;
+      const announcedB = f === photos[1] ? predicted(f.id) : null;
+      if (f === photos[1]) {  // Réticule tenu sur le trait de la visée déjà faite : à 25 pixels au plus, sauf touche Maj
+        const psv = w.mesures.psv, rect = psv.container.getBoundingClientRect();
+        const canvas = psv.container.querySelector(".psv-canvas-container");
+        const trait = JSON.parse(app.viewer_marks()).find((m) => m.epipolar);
+        const view = psv.getPosition();
+        const seen = trait.points.filter(([yaw, pitch]) => {
+          const q = psv.dataHelper.sphericalCoordsToViewerCoords({ yaw, pitch });
+          return Math.abs(wrap(yaw - view.yaw)) < 0.8 && q.x > 40 && q.x < rect.width - 40 && q.y > 140 && q.y < rect.height - 140; });
+        expect("trait de la visée visible", seen.length > 0);
+        const [yaw, pitch] = seen[seen.length >> 1];
+        const q = psv.dataHelper.sphericalCoordsToViewerCoords({ yaw, pitch });
+        const hover = async (dy, shiftKey) => {
+          canvas.dispatchEvent(new w.PointerEvent("pointermove", { clientX: rect.left + q.x + 2, clientY: rect.top + q.y + dy, bubbles: true, shiftKey }));
+          await sleep(150);
+          return traitsIn().slide;
+        };
+        const near = await hover(10, false);
+        const gap = near && Math.min(...trait.points.map(([y0, p0]) => Math.hypot(wrap(y0 - near.at[0]), p0 - near.at[1])));
+        log("réticule sur le trait : " + (near ? "écart " + gap.toFixed(4) + " rad" : "absent"));
+        expect("réticule tenu sur le trait près du pointeur", near && gap < 0.1);
+        expect("touche Maj : réticule libre", !(await hover(10, true)));
+        expect("loin du trait : réticule libre", !(await hover(120, false)));
+        await hover(10, false);
+        const e = new Event("click");
+        e.data = { yaw, pitch: pitch + 0.0001, rightclick: false, viewerX: q.x + 2, viewerY: q.y + 10 };
+        psv.dispatchEvent(e);
+        await sleep(200);
+        const v = JSON.parse(app.viewer_marks()).find((m) => m.sighting).points.pop();
+        const seenAt = psv.dataHelper.sphericalCoordsToViewerCoords({ yaw: v[0], pitch: v[1] });
+        log("visée tenue : à " + Math.hypot(seenAt.x - q.x - 2, seenAt.y - q.y - 10).toFixed(1) + " pixels du clic");
+        expect("clic ramené sur le trait", Math.hypot(wrap(v[0] - yaw), v[1] - pitch) < 0.03
+          && Math.hypot(seenAt.x - q.x - 2, seenAt.y - q.y - 10) > 1);
+        await hover(120, false);
+      }
       psvClick(yawTo(f, b12), -0.3);
-      if (f === photos[1]) compare("bord B, 2e visée", announced);
+      if (f === photos[1]) compare("bord B, 2e visée", announcedB);
     }
     log("bord B visé : " + app.status().slice(0, 160));
     doc.querySelector("#garder").click();
@@ -383,7 +420,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     {  // Mesures exportées puis réimportées en couche : la première revue sur sa photo, telle que dessinée
       const exported = JSON.parse(app.export_geojson()).features.filter((f) => f.properties.vue_ref);
       expect("export : photo et repères des largeurs", exported.length >= 2 && exported.every((f) => f.properties.photo_ref
-        && JSON.parse(f.properties.vue_ref).length === 2 && /^\d+,\d+ m ± \d+,\d+ m$/.test(f.properties.etiquette)),
+        && JSON.parse(f.properties.vue_ref).length === 2 && /^(≈ )?\d+,\d+ m ± \d+,\d+ m$/.test(f.properties.etiquette)),
         JSON.stringify(exported.map((f) => [f.properties.photo_ref, f.properties.vue_ref, f.properties.etiquette])));
       doc.querySelector("#mesure").click();  // hors mesure
       await sleep(500);

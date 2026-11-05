@@ -944,7 +944,7 @@
     }
     drawViewerMarks(JSON.parse(app.viewer_marks()));
     heightAxis = JSON.parse(app.height_axis());
-    if (!heightAxis && slideKind === "hauteur") slideOnGuide(null);
+    if ((!heightAxis && slideKind === "hauteur") || (!aiming && slideKind === "visée")) slideOnGuide(null);
     Carte.showMeasures(map, JSON.parse(app.map_geojson()));
     Carte.showHandles(map, JSON.parse(app.handles()), (index, lon, lat) => refresh(app.move_handle(index, lon, lat)));
     frame(app.focus());
@@ -2404,8 +2404,40 @@
     });
   }
 
+  /** Largeur, visée suivante : point du trait d'une visée déjà faite (vert, ligne épipolaire) le plus proche de (x, y)
+   * dans la visionneuse, à SIGHT_PX pixels au plus, ou null. Un bord n'a pas de repère le long de son tracé : sur ce
+   * trait, la visée retombe au même endroit du bord que les précédentes. */
+  const SIGHT_PX = 25;
+  function onSighting(x, y) {
+    if (!measuring || $("#mode").value !== "road" || !aiming) return null;
+    const view = psv?.getPosition?.();
+    if (!view) return null;
+    const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+    let best = null, bestD = SIGHT_PX;
+    for (const mark of currentMarks.filter((m) => m.epipolar)) {
+      for (let i = 1; i < mark.points.length; i++) {
+        const [y0, p0] = mark.points[i - 1], [y1, p1] = mark.points[i];
+        const visible = [[y0, p0], [y1, p1]].every(([yaw, pitch]) =>
+          Math.sin(pitch) * Math.sin(view.pitch) + Math.cos(pitch) * Math.cos(view.pitch) * Math.cos(yaw - view.yaw) > 0.05);
+        if (!visible) continue;
+        const a = psv.dataHelper.sphericalCoordsToViewerCoords({ yaw: y0, pitch: p0 });
+        const b = psv.dataHelper.sphericalCoordsToViewerCoords({ yaw: y1, pitch: p1 });
+        const dx = b.x - a.x, dy = b.y - a.y, length2 = dx * dx + dy * dy;
+        const t = length2 ? Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / length2)) : 0;
+        const d = Math.hypot(a.x + t * dx - x, a.y + t * dy - y);
+        if (d <= bestD) {
+          bestD = d;
+          best = { yaw: y0 + t * wrap(y1 - y0), pitch: p0 + t * (p1 - p0) };
+        }
+      }
+    }
+    return best;
+  }
+  let freeAim = false;  // touche Maj tenue au dernier mouvement du pointeur : visée libre, hors du trait
+
   function slideOnGuide(event) {
     if (!psv) return;
+    freeAim = !!event?.shiftKey;
     // Hauteur suivante depuis A : réticule sur l'axe de la première, sauf sur une croix (sélection)
     const box = event && psv.container.getBoundingClientRect();
     const onPhoto = event?.target?.closest?.(".psv-canvas-container, .psv-markers")
@@ -2418,6 +2450,10 @@
         showSlide(position, "hauteur", Math.atan2(c.y - a.y, c.x - a.x) * 180 / Math.PI + 90);
         return;
       }
+    }
+    if (event && onPhoto && !freeAim) {
+      const position = onSighting(event.clientX - box.left, event.clientY - box.top);
+      if (position) return showSlide(position, "visée");
     }
     // Seulement quand un clic poserait le bord (largeur pas encore faite, ou bord sélectionné à
     // recaler), et sur la photo : pas sur les boutons et flèches de la visionneuse
@@ -2444,7 +2480,7 @@
   function showSlide(position, kind, angle = 0) {
     if (position || slideKind) {  // dessiné en WebGL (Traits), comme les mesures ; couleur hors visée et calage
       Traits.attach(psv);
-      Traits.setSlide(position && { at: [position.yaw, position.pitch], color: reticleColor(tilted, false, false),
+      Traits.setSlide(position && { at: [position.yaw, position.pitch], color: reticleColor(tilted, false, kind === "visée"),
         angle: kind === "hauteur" ? angle : null });
     }
     slideKind = position ? kind : null;
@@ -2485,7 +2521,8 @@
             refresh(photoReady() ? app.select_point(event.data.yaw, event.data.pitch, onCross) : LOADING);
           } else if (app) {
             if (photoReady()) remindZoom();
-            refresh(photoReady() ? app.click(event.data.yaw, event.data.pitch, onCross) : LOADING);
+            const held = inside && !freeAim ? onSighting(x, y) : null;  // comme le réticule (slideOnGuide)
+            refresh(photoReady() ? app.click(held?.yaw ?? event.data.yaw, held?.pitch ?? event.data.pitch, onCross) : LOADING);
           }
           return true;
         }
@@ -4452,8 +4489,8 @@
       : mode === "height" && aiming ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
       : mode === "height" && newMeasure ? `Hauteur faite : cliquez une de ses croix pour l'ajuster ; autre hauteur : « Nouvelle mesure depuis ${newMeasure} »`
       : mode === "height" ? "Hauteur, étape 2 : cliquez le sommet (le pied est le point visé) ; autre photo : par la carte"
-      : mode === "road" && edgeBAiming ? "Largeur, bord opposé : le clic de la mesure est la 1re visée ; photo suivante, même bord, puis « Valider le point triangulé »"
-      : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
+      : mode === "road" && edgeBAiming ? "Largeur, bord opposé : le clic de la mesure est la 1re visée ; photo suivante, même bord (réticule calé sur le trait vert, Maj : visée libre), puis « Valider le point triangulé »"
+      : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), de préférence un repère net (fin de tiret, joint, regard) ; réticule calé sur le trait vert, Maj : visée libre ; puis « Valider le point triangulé »"
       : mode === "road" && newMeasure ? `Largeur faite : cliquez une de ses croix pour l'ajuster ; autre largeur : « Nouvelle mesure depuis ${newMeasure} »`
       : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé ; autre photo, prise avant ou après : par la carte"
       : mode === "tilt" ? "Calage de l'inclinaison : pied puis sommet de deux objets verticaux, à 90° l'un de l'autre"
@@ -4702,8 +4739,8 @@
       const arrow = guideArrow(choice);
       // Incertitude attendue du point avec cette visée en plus (voir App.guide)
       const m = (v) => v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const label = choice.expect == null ? choice.label : `${choice.label} · ±${m(choice.expect)} m`;
-      const title = choice.expect == null ? choice.title : `${choice.title}. Incertitude attendue du point : `
+      const label = choice.expect == null ? choice.label : `${choice.label} · ±${m(choice.expect)} m${choice.across ? " en travers" : ""}`;
+      const title = choice.expect == null ? choice.title : `${choice.title}. Incertitude attendue ${choice.across ? "en travers de la route" : "du point"} : `
         + (choice.now == null ? `±${m(choice.expect)} m` : `±${m(choice.now)} m → ±${m(choice.expect)} m`);
       const button = Object.assign(document.createElement("button"), { type: "button",
         textContent: arrow === "◀" ? `◀ ${label}` : arrow ? `${label} ${arrow}` : label, title });

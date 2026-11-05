@@ -220,15 +220,16 @@ class EdgeB(Base):
         self.s.set_picture(self.p1)
         frame = self.s.take_frame()  # largeur entière : A et B
         self.assertEqual(len(frame), 2)
-        self.assertAlmostEqual(frame[1][0], direction(0.0, b)[0], places=6)
+        on_line = direction(0.0, (b[0], a[1], 0.0))  # B ramené sur la droite passant par A (#37)
+        self.assertAlmostEqual(frame[1][0], on_line[0], places=6)
         self.assertIsNone(self.s.take_frame())  # une seule fois
         marks = self.s.viewer_marks()
         self.assertTrue(any(m["guide"] for m in marks))  # droite de mesure de retour
-        # Une seule croix pour B : celle de la largeur, là où B a été visé sur cette photo
+        # Une seule croix pour B : celle de la largeur, sur la droite de mesure, pas là où B a été visé (#37)
         width = next(mk for mk in marks if mk["label"].startswith("↔"))
-        aimed = direction(0.0, b)
-        self.assertAlmostEqual(width["points"][1][0], aimed[0], places=6)
-        self.assertAlmostEqual(width["points"][1][1], aimed[1], places=6)
+        self.assertAlmostEqual(width["points"][1][0], on_line[0], places=6)
+        self.assertAlmostEqual(width["points"][1][1], on_line[1], places=6)
+        self.assertGreater(abs(width["points"][1][0] - direction(0.0, b)[0]), 0.01)
         lone = [mk for mk in marks if not mk["label"] and not mk["guide"] and not mk["name"] and not mk["sighting"]]
         self.assertEqual(lone, [])  # pas de croix « B » à part (point gardé)
         self.assertIsNotNone(m.edge_b)

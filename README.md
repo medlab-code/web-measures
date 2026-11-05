@@ -351,7 +351,8 @@ après.
      est là où elle coupe la droite. Il reçoit la lettre suivante (B…), sur une étiquette
      grise tant qu'il n'est pas triangulé ; l'étiquette de la mesure nomme ses deux points
      (« A↔B 7,50 m ± 0,20 m »). Le sommet d'une hauteur est nommé de même (« A↕C 3,20 m »).
-  3. Facultatif, plus précis : **« 🎯 Trianguler le point B »**. Le clic de l'étape 2
+  3. Conseillé, le bord cliqué n'étant qu'une estimation (« ≈ » devant la valeur) : **« 🎯
+     Trianguler le point B »**. Le clic de l'étape 2
      compte comme première visée ; viser le même bord depuis la photo proposée, puis « Valider
      le point triangulé ». Le point garde sa lettre (étiquette bordeaux) ; la largeur devient la
      distance des deux bords triangulés,
@@ -366,14 +367,22 @@ après.
   fixe l'orientation (4 m au moins ; Échap annule). La droite est tracée en bleu dans la photo.
   Le premier bord se pose alors d'un clic, sans visées depuis plusieurs photos : là où la
   direction du clic coupe la droite, comme le bord opposé ; le pointeur glisse sur la droite.
-  Une photo qui voit la droite presque en enfilade (moins de 10°) est refusée. « Annuler la
+  Une photo qui voit la droite presque en enfilade (moins de 10°) est refusée, comme une visée à peine au-dessus (jusqu'à 11° environ) dont l'incertitude ne s'évalue pas. « Annuler la
   droite » revient à l'axe automatique jusqu'au clic du premier bord. La droite ne sert qu'une
   fois : la largeur suivante reprend l'axe automatique, qui reste celui par défaut. Le résultat
   se lit alors « Largeur le long de la droite tracée sur la carte … depuis le point A · droite
   à 75° (tracée sur la carte, ±2,4°) ».
 
-  Sur une photo qui a servi à viser un bord, sa croix est là où il a été visé, et la droite
-  de mesure passe par la croix du premier bord.
+  Visées suivantes d'un bord : à moins de 25 pixels du trait vert de la visée déjà faite, le
+  réticule s'y cale, pour retomber au même endroit du bord, qui n'a pas de repère le long de son
+  tracé ; la touche Maj le libère. De préférence, viser un repère net (fin de tiret, joint, regard).
+  L'incertitude attendue des photos proposées est celle en travers de la route. Sur une photo
+  calée, avec le sol LiDAR HD, si les visées touchent le sol à plus de 0,6 m l'une de l'autre en
+  travers, un avertissement propose d'en réviser une, et ce désaccord s'ajoute au « ± ».
+
+  Sur une photo qui a servi à viser le premier bord, sa croix est là où il a été visé, et la
+  droite de mesure passe par elle. Toutes les largeurs depuis un même point restent sur cette
+  droite : un bord opposé triangulé y est dessiné ramené, comme dans son calcul.
 
   Une fois la largeur faite, les clics ne servent plus qu'à l'ajuster (clic sur une de ses croix, puis nouveau clic ou flèches : 1 cm le long de la droite de mesure). Pour une autre largeur depuis le même point, cliquer « ↺ Nouvelle mesure depuis A » dans la visionneuse.
 
@@ -727,7 +736,7 @@ Essais sur deux photos imajbox à position RTK (±0,10 m) de Pouilly-en-Auxois, 
 |---|---|---|
 | Point de référence (visées croisées à 54°) | ±0,17 m | sur la cible |
 | Hauteur | 3,46 m ± 0,11 m | 3,464 m |
-| Largeur (clic à 40° de la droite de mesure) | 8,00 m ± 0,33 m | 8 m |
+| Largeur (clic à 40° de la droite de mesure) | 8,00 m ± 0,23 m | 8 m |
 | Distance entre deux points | 3,60 m ± 0,24 m | 3,606 m |
 | Objet relevé sur une seule photo, à 6 m (`essai-releve.html`) | ±0,2 à 0,8 m selon le calage de l'inclinaison | à moins de 1 m de la cible |
 
@@ -777,15 +786,23 @@ séparateur placés à la case du nuage près (0,25 m). Un marquage effacé ou u
 absente renvoie à la fin de l'enrobé. L'herbe du séparateur de l'A38 n'est pas reconnue, et l'eau
 du nuage n'a été vue sur aucune photo d'essai.
 
-L'incertitude de la largeur vient surtout de l'axe de la route et de la position du point de
-référence le long de la route. Sur une séquence RTK vérifiée, l'axe est la direction de la
+L'incertitude de la largeur ne compte que l'erreur en travers de la route : celle des points,
+souvent plus grande le long de la route, n'y pèse presque pas, et l'axe très peu (±2° coûtent
+environ 1 cm sur 6,5 m, car le clic suit la droite jusqu'au bord vu). Une largeur au **bord
+cliqué** (« ≈ ») est une estimation : la droite est dessinée à plat à la hauteur du point de
+référence, si bien qu'un dévers ou une bordure entre les deux bords la fausse d'environ
+`écart latéral caméra-bord × Δh / (H + Δh)`, soit jusqu'à 0,5 m pour 2,5 % de dévers sur 6,5 m (caméra à 1,9 m au bord de A ; 0,25 m depuis le milieu de la chaussée), sans
+que le « ± » le compte. Le bord triangulé n'a pas ce biais. Des visées tombées à des endroits
+différents du bord ne sont comptées que sur une photo calée, avec le sol LiDAR HD. Ces chiffres viennent d'une
+simulation avec le code de calcul ; la vérification sur des longueurs mesurées est en cours.
+Sur une séquence RTK vérifiée, l'axe est la direction de la
 trajectoire sur ±20 m (±0,5°) quand elle est droite (photos à moins de 10 cm de leur droite,
 chaque sens de passage sur sa voie) et concorde à 2° près avec la BD TOPO, sinon le tronçon de
-la BD TOPO (±2° supposés ; ±0,48 m à Pouilly avec elle seule), ou la droite tracée sur la carte
+la BD TOPO (±2° supposés), ou la droite tracée sur la carte
 (chaque clic à ~0,3 m près : ±2,4° pour une droite de 10 m, ±6° pour 4 m ; premier bord à
 ±0,17 m à 10 m de la caméra, plus quand la photo voit la droite en biais). Essai
 (`tests/essai-largeur.html`) : droite tracée à 10° de la perpendiculaire, premier bord posé
-d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,48 m. Un clic depuis une photo plus
+d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,28 m. Un clic depuis une photo plus
 éloignée, qui voit la droite plus en face, réduit aussi l'incertitude. Avec un GPS grand public
 (±4 m), le point de référence est à plusieurs mètres près, et une hauteur à ±2 à 3 m.
 

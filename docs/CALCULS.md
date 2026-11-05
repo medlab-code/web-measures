@@ -126,12 +126,25 @@ l'axe de la route en `A`. Cet axe est pris, dans l'ordre :
    être vue à plus de 10°.
 
 Le **bord opposé** `B` est là où la direction horizontale du clic coupe la droite : seule la
-direction compte. Un clic à moins de 10° de la droite est refusé, et signalé rasant sous 25°.
-La largeur vaut `|AB|`. Si `B` est triangulé à son tour (« Trianguler le point B »), la largeur
+direction compte. Un clic à moins de 10° de la droite est refusé, de même qu'un clic à peine au-dessus (jusqu'à 11° environ) : une erreur de cap ou de position le ferait passer dessous, l'incertitude n'est pas évaluable. Il est signalé rasant sous 25°.
+La largeur vaut `|AB|`. Le clic se pose là où la droite, dessinée à plat à la hauteur de `A`,
+croise le bord vu : si le sol de `B` n'est pas à cette hauteur (dévers, bordure), la largeur est
+faussée d'environ `écart latéral caméra-B × Δh / (H + Δh)`, `H` étant la hauteur de la caméra
+au-dessus de `A`. Cette largeur est donc une estimation, notée « ≈ ». Si `B` est triangulé à son tour (« Trianguler le point B »), la largeur
 devient `|(B − A) · u|`, `u` étant perpendiculaire à l'axe : `B` peut être un peu avant ou après
-`A`. L'incertitude combine, en somme quadratique, la position de `A` (et de `B`), l'axe, le cap
-du clic et la position de la photo. L'axe et la position de `A` le long de la route pèsent le
-plus.
+`A`, et il est dessiné ramené sur la droite. L'incertitude ne compte l'erreur des points qu'en travers de la route, d'après leur covariance
+(`triangulation.projected`). Triangulé : `√(uᵀΣ_A u + uᵀΣ_B u)`, plus l'axe. Cliqué : réponse de
+la largeur à un déplacement de `A` selon sa covariance, cap du clic, position de la photo (moitié
+de sa précision si elle est de la séquence de `A` : la part commune s'annule), inclinaison (±2°
+sans calage), plus `|t|·(1/cos δ − 1)` pour l'axe, car le clic suit la droite jusqu'au bord vu.
+S'y ajoute le désaccord des visées de chaque point (`triangulation.sight_spread`) : plus grand
+écart en travers au point de l'endroit où chaque visée touche le sol, à l'altitude LiDAR HD lue
+au point (celle du calcul absorberait le désaccord). Il n'est évalué que sur des photos calées ;
+au-delà de 0,6 m, le texte des visées propose d'en réviser une. Le dévers n'y est pas compté.
+
+Visées suivantes : à moins de 25 pixels du trait d'une visée déjà faite, le réticule s'y cale
+(touche Maj : visée libre), car un bord n'a pas de repère le long de son tracé. 0,5 m d'écart le
+long du bord donne environ 0,4 m d'erreur sur la largeur (simulation : photos à 10 et 5 m).
 
 ## 5. Mesure libre
 

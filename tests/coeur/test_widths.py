@@ -38,12 +38,12 @@ def edge(uncertainty=0.1):
     return {"lon": lon, "lat": lat, "uncertainty": uncertainty, "name": "A"}
 
 
-def click(camera=(0.0, 0.0), target=(-3.0, 10.0), accuracy=0.1, precise=True):
+def click(camera=(0.0, 0.0), target=(-3.0, 10.0), accuracy=0.1, precise=True, elev_error=0.3):
     """Clic sur le sol en target (est, nord) depuis la caméra en camera."""
     lon, lat = point(*camera)
     yaw = bearing((lon, lat), point(*target))
     return {"pic": "p1", "lon": lon, "lat": lat, "yaw": yaw, "elev": -10.0, "raw": [yaw, -10.0],
-            "pos": [0.1, -0.2], "accuracy": accuracy, "precise": precise, "sequence": "s1"}
+            "pos": [0.1, -0.2], "accuracy": accuracy, "precise": precise, "sequence": "s1", "elev_error": elev_error}
 
 
 class Base(unittest.TestCase):
@@ -88,6 +88,72 @@ class Width(Base):
         marks = m.viewer_marks()["points"]
         self.assertEqual([p["pic"] for p in marks], ["p1", "p1"])
         self.assertAlmostEqual(marks[0]["abs_yaw"], bearing(point(0.0, 0.0), point(5.0, 10.0)), places=6)
+
+    def test_uncertainty_across_the_road(self):
+        """#3 de l'audit : l'erreur du point, surtout le long de la route, ne pèse qu'en travers."""
+        along = dict(edge(0.5), cov=(0.01, 0.0, 0.25))  # ±0,1 m en travers (est), ±0,5 m le long (nord)
+        wide = dict(edge(0.5))  # sans covariance : ±0,5 m dans toutes les directions
+        m = widths.PerpendicularWidth(self.tool, along, BDTOPO, click())
+        iso = widths.PerpendicularWidth(self.tool, wide, BDTOPO, click())
+        self.assertLess(m.result["uncertainty"], iso.result["uncertainty"])
+        b = {"lon": point(-3.0, 10.0)[0], "lat": point(-3.0, 10.0)[1], "uncertainty": 0.5,
+             "cov": (0.01, 0.0, 0.25), "name": "B", "sightings": []}
+        m.set_edge_b(b)
+        self.assertLess(m.result["uncertainty"], 0.2)  # hypot(0,1, 0,1) et un peu d'axe, pas hypot(0,5, 0,5)
+
+    def test_sight_disagreement_counts(self):
+        """Visées d'un bord tombées à deux endroits : l'incertitude le dit, pour A comme pour B."""
+        def sight(north, target_north):
+            lon, lat = point(0.0, north)
+            x, d = 5.0, target_north - north
+            return {"lon": lon, "lat": lat, "heading": math.degrees(math.atan2(x, d)),
+                    "elev": -math.degrees(math.atan2(2.0, math.hypot(x, d))), "alt": 2.0, "elev_error": 0.3}
+        # Les visées touchent le bord à x = 5 ; leur croisement, décalé en travers, est à x = 5,8
+        lon, lat = point(5.8, 10.0)
+        off = dict(edge(), lon=lon, lat=lat, sightings=[sight(0, 10), sight(5, 12)], ground_z=(lon, lat, 0.0))
+        alone = dict(edge(), lon=lon, lat=lat)  # le même point, sans visées
+        def uncertainty(a):
+            return widths.PerpendicularWidth(self.tool, a, BDTOPO, click()).result["uncertainty"]
+        self.assertGreater(uncertainty(off), uncertainty(alone) + 0.5)
+        self.assertAlmostEqual(uncertainty(dict(off, moved=True)), uncertainty(alone), places=6)  # déplacé à la main
+        m = widths.PerpendicularWidth(self.tool, edge(), BDTOPO, click())
+        m.set_edge_b(dict(alone, name="B", sightings=[]))
+        before = m.result["uncertainty"]
+        m.set_edge_b(dict(off, name="B"))
+        self.assertGreater(m.result["uncertainty"], before + 0.5)
+
+    def test_axis_barely_matters_for_a_click(self):
+        """La droite tourne avec l'axe et le clic la suit jusqu'au bord vu : seul le cosinus compte."""
+        bd = widths.PerpendicularWidth(self.tool, edge(0.001), BDTOPO, click()).result["uncertainty"]
+        track = widths.PerpendicularWidth(self.tool, edge(0.001), TRACK, click()).result["uncertainty"]
+        self.assertLess(track - bd, 0.01)
+
+    def test_uncalibrated_tilt_counts(self):
+        calibrated = widths.PerpendicularWidth(self.tool, edge(), BDTOPO, click()).result["uncertainty"]
+        free = widths.PerpendicularWidth(self.tool, edge(), BDTOPO, click(elev_error=None)).result["uncertainty"]
+        self.assertGreater(free, calibrated + 0.1)
+
+    def test_same_sequence_gps_counts_less(self):
+        apart = widths.PerpendicularWidth(self.tool, edge(), BDTOPO, click(accuracy=1.0)).result["uncertainty"]
+        same = widths.PerpendicularWidth(self.tool, dict(edge(), sequences=["s1"]), BDTOPO, click(accuracy=1.0)).result["uncertainty"]
+        self.assertLess(same, apart)
+
+    def test_click_is_an_estimate(self):
+        m = widths.PerpendicularWidth(self.tool, edge(), BDTOPO, click())
+        self.assertTrue(m.label().startswith("↔ ≈ "))
+        self.assertIn("Estimation", m.status())
+        lon, lat = point(-3.0, 10.0)
+        m.set_edge_b({"lon": lon, "lat": lat, "uncertainty": 0.1, "name": "B", "sightings": []})
+        self.assertFalse(m.label().startswith("↔ ≈"))
+        self.assertNotIn("Estimation", m.status())
+
+    def test_barely_grazing_click_refused(self):
+        """Visée à 10,2° : l'incertitude était infinie (« ± inf m ») ; elle est refusée, comme sous 10°."""
+        m = widths.PerpendicularWidth(self.tool, edge(), BDTOPO, click(camera=(0.0, 10.54)))
+        self.assertIsNone(m.result)
+        self.assertIn("rasante", m.error)
+        ok = widths.PerpendicularWidth(self.tool, edge(), BDTOPO, click(camera=(0.0, 10.7)))
+        self.assertLess(ok.result["uncertainty"], 5.0)
 
     def test_terrain_and_camera_height_without_effect(self):
         m = widths.PerpendicularWidth(self.tool, edge(), BDTOPO, click())

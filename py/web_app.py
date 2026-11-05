@@ -2721,7 +2721,8 @@ class App(session.Session):
     def guide(self):
         """Visées guidées (voir Session.guide), chaque photo proposée avec « expect » : incertitude
         du point (m) une fois visé aussi depuis elle, d'après une visée simulée vers le point triangulé
-        (ou provisoire), et « now » : celle d'aujourd'hui (None avec une seule visée)."""
+        (ou provisoire), et « now » : celle d'aujourd'hui (None avec une seule visée). Largeur : en travers
+        de la route seulement, ce qui compte pour elle (« across »)."""
         guide = super().guide()
         tri = self.triangulator
         r = tri.result
@@ -2731,6 +2732,11 @@ class App(session.Session):
         lon, lat = target[:2]
         z = target[2] if len(target) > 2 else tri.sightings[0].get("ground")
         base = tri.sightings[-1]  # même séquence : précision GPS, cap, hauteur de caméra
+        across = self._aim_across() if self.mode == "road" else None
+
+        def sigma(result):
+            return triangulation.projected(result, *across) if across else result["uncertainty"]
+
         for choice in guide["choices"]:
             if choice["lon"] is None:
                 continue
@@ -2744,7 +2750,8 @@ class App(session.Session):
                 res = tools.solve_on_ground(tri.sightings + [sim], tri.ground, tri.ground_z if tri.lidar else None)
             except triangulation.TriangulationError:
                 continue
-            choice["expect"], choice["now"] = res["uncertainty"], r["uncertainty"] if r else None
+            choice["expect"], choice["now"] = sigma(res), sigma(r) if r else None
+            choice["across"] = across is not None
         return guide
 
     # Dessin ------------------------------------------------------------------------------
@@ -2873,7 +2880,7 @@ class App(session.Session):
                 # de la fiche) et repères tels que dessinés dessus ([[cap, élévation]] en radians, texte JSON)
                 "photo_ref": m.clicks[0 if m.kind == "height" else 1].get("pic"),
                 "vue_ref": json.dumps(m.view_ref) if getattr(m, "view_ref", None) else None,
-                "etiquette": "{} m ± {} m".format(measures._num(r["value"], 2), measures._num(r["uncertainty"], 2)),
+                "etiquette": m.label()[2:],  # sans le symbole ; « ≈ » : bord cliqué, une estimation
             }))
         for lon, lat, values in self.points:
             if "releve" not in values:  # objets relevés : export à part, gardés à part dans le navigateur

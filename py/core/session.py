@@ -77,6 +77,7 @@ class Session:
         self.triangulator.AIM = "Cliquez sur l'objet dans la photo"
         self.triangulator.AIM_AGAIN = "cliquez sur le même objet"
         self.triangulator.ground_lookup = self._ground_lookup  # sol (LiDAR HD, RGE ALTI) au point visé
+        self.triangulator.across = lambda: self._aim_across() if self.mode == "road" else None  # voir sight_spread
         self.triangulator.ground_changed = lambda: self.notify()
         self.ground_cache = {}  # (lon, lat) arrondis -> (altitude du sol ou None, incertitude, source)
         self.bridge = False  # « Sur un pont » : LiDAR HD ignoré (voir set_bridge)
@@ -291,7 +292,7 @@ class Session:
             r = tools.solve_on_ground(ref["sightings"], True, self._lidar_z(ref))
         except triangulation.TriangulationError:
             return None
-        ref.update(lon=r["lon"], lat=r["lat"], uncertainty=r["uncertainty"])
+        ref.update(lon=r["lon"], lat=r["lat"], uncertainty=r["uncertainty"], cov=r.get("cov"))
         self._edge_moved(ref, [])  # son point gardé (export) suit
         mates = [w for w in self._widths() if w.edge is ref]
         mates += [m for m in self._heights() if (m.reference or {}).get("name") == ref["name"]]
@@ -578,20 +579,15 @@ class Session:
         """Repères du point de référence et du bord d'une largeur dans la photo affichée :
         [{yaw, pitch (radians, repère de la photo), abs_yaw, elev (degrés)}]. Le point de
         référence, projeté au sol comme la droite de mesure (il est dessus), ou là où il a été visé
-        (voir _aim_anchor) ; le bord, là où il a été cliqué (ou visé, s'il est triangulé) sur la
-        photo, projeté au sol sur les autres."""
+        (voir _aim_anchor) ; le bord, là où il a été cliqué sur la photo, projeté au sol sur les
+        autres. Triangulé, le bord est projeté ramené sur la droite de mesure, même sur une photo qui
+        l'a visé : toutes les largeurs d'un point de référence restent sur la même droite (#37)."""
         pic = (self.item or {}).get("id")
         anchor = self._aim_anchor() if m.edge is self.ref_point and pic is not None else None
         height = anchor[2] if anchor else None  # photo de la visée de A : au niveau du sol visé
         points = [self._project(plon, plat, height) for plon, plat in m.result["points"]]
         if anchor:
             points[0] = anchor[0]  # A là où il a été visé (croix bleue)
-        aimed = next((v.get("view") for v in (m.edge_b or {}).get("sightings", [])
-                      if v["pic"] == pic and v.get("view")), None)
-        if aimed is not None and not m.offset:  # bord triangulé, visé depuis cette photo : là où il l'a été
-            heading = self._heading()
-            points[1] = {"yaw": aimed[0], "pitch": aimed[1], "abs_yaw": (math.degrees(aimed[0]) + heading) % 360,
-                         "elev": math.degrees(aimed[1])}
         if pic is not None and pic == m.clicks[1].get("pic") and m.edge_b is None:  # bord cliqué, pas triangulé
             p = m.viewer_marks()["points"][1]
             points[1] = {"yaw": p["yaw"], "pitch": p["pitch"], "abs_yaw": p["abs_yaw"], "elev": p["elev"]}
@@ -916,6 +912,16 @@ class Session:
             w.clicks[0] = w._edge_mark(w.clicks[1])
             w.compute()
 
+    def _aim_across(self):
+        """Direction (est, nord) en travers de la route pour le point visé : axe de la largeur (bord B),
+        sinon trajectoire ou orientation de la photo (l'axe du point de référence n'est lu qu'à sa
+        validation), ou None."""
+        if self.b_aiming is not None:
+            return widths.perpendicular(self.b_aiming.road["axis"])
+        heading = self._axis(self.item) if self.item else None
+        heading = metadata.item_heading(self.item or {}) if heading is None else heading
+        return None if heading is None else widths.perpendicular(heading)
+
     def _road_at_reference(self):
         """Axe de la route au point de référence de la largeur : tronçon de la BD TOPO qui
         longe la trajectoire de la photo, sinon trajectoire de la séquence (voir roads.py).
@@ -999,7 +1005,7 @@ class Session:
         ground_z = self.triangulator.ground_z
         m, self.b_aiming = self.b_aiming, None
         self.triangulator.clear()
-        m.set_edge_b({"lon": r["lon"], "lat": r["lat"], "uncertainty": r["uncertainty"], "name": name,
+        m.set_edge_b({"lon": r["lon"], "lat": r["lat"], "uncertainty": r["uncertainty"], "cov": r.get("cov"), "name": name,
                       "sightings": sightings, "ground_z": ground_z})
         if self.ref_photo and self.ref_photo != (self.item or {}).get("id"):
             self.goto = self.ref_photo
@@ -1017,7 +1023,7 @@ class Session:
                     r = tools.solve_on_ground(b["sightings"], True, self._lidar_z(b))
                 except triangulation.TriangulationError:
                     continue
-                b.update(lon=r["lon"], lat=r["lat"], uncertainty=r["uncertainty"])
+                b.update(lon=r["lon"], lat=r["lat"], uncertainty=r["uncertainty"], cov=r.get("cov"))
                 for k, (_, _, v) in enumerate(self.points):
                     if v["nom"] == b["name"]:
                         self.points[k] = (b["lon"], b["lat"], v)
@@ -1198,7 +1204,7 @@ class Session:
             if self.ref_photo and self.ref_photo != (self.item or {}).get("id"):
                 self.goto = self.ref_photo  # retour sur la photo de référence pour la mesure
             self.frame_request = "reference"  # vue cadrée sur A (take_frame)
-            self.ref_point = {"lon": r["lon"], "lat": r["lat"], "uncertainty": r["uncertainty"], "name": name,
+            self.ref_point = {"lon": r["lon"], "lat": r["lat"], "uncertainty": r["uncertainty"], "cov": r.get("cov"), "name": name,
                               "sequences": sequences, "road": None, "sightings": list(sightings),
                               "ground_z": ground_z}  # sol LiDAR au point, s'il est lu
             self._ref_ground()  # sinon demandé maintenant

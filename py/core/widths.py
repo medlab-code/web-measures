@@ -5,9 +5,16 @@
 
 Le premier bord A est un point triangulé (voir triangulation.py). La largeur se prend sur
 la droite passant par A, perpendiculaire à l'axe de la route. Le second bord B est là où la
-visée d'un clic dans une photo coupe cette droite : seule la direction horizontale du clic
-compte, ni le terrain ni la hauteur de caméra. La visée doit couper la droite franchement :
-depuis une photo prise quelques mètres avant ou après A, pas juste en face.
+visée d'un clic dans une photo coupe cette droite : le calcul ne garde que la direction
+horizontale du clic. La visée doit couper la droite franchement : depuis une photo prise
+quelques mètres avant ou après A, pas juste en face.
+
+Ce bord cliqué reste une estimation : le clic se pose là où la droite, dessinée à plat à la
+hauteur de A, croise le bord vu dans la photo. Si le sol de B n'est pas à cette hauteur (dévers,
+bordure), la largeur est faussée d'environ |écart latéral caméra-B| · Δh / (H + Δh), H étant la
+hauteur de la caméra au-dessus de A, sans que l'incertitude le compte. Le bord triangulé
+(set_edge_b) n'a pas ce biais. L'incertitude n'est prise qu'en travers de la route : l'erreur
+des points, surtout le long de la route, n'y pèse presque pas (triangulation.projected).
 
 Calcul dans un plan tangent local centré sur A (voir triangulation._local). Module sans
 dépendance à QGIS.
@@ -23,10 +30,21 @@ from .calibration import AIM_ERROR
 # toujours parallèlement à la route)
 AXIS_ERROR_BDTOPO = 2.0
 AXIS_ERROR_TRACK = 3.0
+SAME_SEQUENCE_GPS = 0.5  # part de la précision GPS d'une photo qui n'est pas commune à sa séquence (s'annule avec A)
 MIN_ANGLE = 10.0  # angle minimal (degrés) entre la visée et la droite perpendiculaire
 GRAZING_ANGLE = 25.0  # en dessous, visée signalée comme rasante
 GUIDE_LENGTH = 15.0  # m de part et d'autre de A : droite tracée sur la carte et dans la photo
 MIN_WIDTH = 0.01  # m : le bord décalé au clavier ne dépasse pas le point de référence
+PROBE = 0.01  # m : petit déplacement de A pour mesurer la réponse de la largeur
+MIN_TILT_TANGENT = 0.01  # sous cette pente de visée, l'effet de l'inclinaison n'est pas évalué
+
+
+def too_grazing(angle):
+    """Visée à peine au-dessus de MIN_ANGLE : une erreur de cap ou de position la ferait tomber dessous,
+    l'incertitude de la largeur n'est pas évaluable."""
+    return geometry.GeometryError(
+        "Visée trop rasante ({} °) pour estimer la largeur : cliquez le bord depuis une photo prise quelques "
+        "mètres avant ou après le point de référence.".format(measures._num(angle, 0)))
 
 
 def axis_error(source):
@@ -139,12 +157,20 @@ class PerpendicularWidth(measures.Measure):
         perpendicular(axe), -1 à l'opposé."""
         return 1.0 if (self._across() if self.edge_b else self._width()[1]) >= 0 else -1.0
 
-    def _across(self, da=(0.0, 0.0), db=(0.0, 0.0), daxis=0.0):
+    def _across(self, daxis=0.0):
         """Bord B triangulé : son abscisse signée sur la droite de mesure depuis A (m), c'est-à-dire
-        la largeur perpendiculaire à l'axe ; da, db, daxis : écarts pour l'incertitude."""
+        la largeur perpendiculaire à l'axe ; daxis : écart pour l'incertitude."""
         bx, by = triangulation._local(self.edge_b["lon"], self.edge_b["lat"], self.edge["lon"], self.edge["lat"])
         ux, uy = perpendicular(self.road["axis"] + daxis)
-        return (bx + db[0] - da[0]) * ux + (by + db[1] - da[1]) * uy
+        return bx * ux + by * uy
+
+    def _spread(self, point):
+        """Désaccord de ses visées en travers de la route (triangulation.sight_spread), m : point
+        déplacé à la main, sans objet."""
+        if point.get("moved"):
+            return 0.0
+        return triangulation.sight_spread(point.get("sightings") or [], point["lon"], point["lat"],
+                                          point.get("ground_z"), *perpendicular(self.road["axis"]))
 
     def _width(self, da=(0.0, 0.0), daxis=0.0, dheading=0.0, dcam=(0.0, 0.0)):
         click = self.clicks[1]
@@ -157,12 +183,11 @@ class PerpendicularWidth(measures.Measure):
         ux, uy = perpendicular(self.road["axis"])
         if self.offset:  # bord décalé au clavier le long de la droite
             t += self.offset if t >= 0 else -self.offset
-        sa, sb = self.edge["uncertainty"], self.edge_b["uncertainty"]
-        groups = [[{"da": (k * sa, 0.0)} for k in (-1, 1)], [{"da": (0.0, k * sa)} for k in (-1, 1)],
-                  [{"db": (k * sb, 0.0)} for k in (-1, 1)], [{"db": (0.0, k * sb)} for k in (-1, 1)],
-                  [{"daxis": k * axis_error(self.road["source"])} for k in (-1, 1)]]
         base = abs(self._across())
-        total = sum(max(abs(abs(self._across(**v)) - base) for v in variants) ** 2 for variants in groups)
+        error = axis_error(self.road["source"])
+        total = (triangulation.projected(self.edge, ux, uy) ** 2 + triangulation.projected(self.edge_b, ux, uy) ** 2
+                 + self._spread(self.edge) ** 2 + self._spread(self.edge_b) ** 2
+                 + max(abs(abs(self._across(k * error)) - base) for k in (-1, 1)) ** 2)
         click = self.clicks[1]
         cam = triangulation._local(click["lon"], click["lat"], self.edge["lon"], self.edge["lat"])
         a = (self.edge["lon"], self.edge["lat"])
@@ -193,19 +218,28 @@ class PerpendicularWidth(measures.Measure):
                 shifts[1] = ((dyaw + 540) % 360 - 180,
                              math.degrees(math.atan2(height, d0) - math.atan2(height, max(d1, 0.1))))
                 bx, by, t, s = ox, oy, t + k, d1
-            sigma_a, sigma_cam = self.edge["uncertainty"], click.get("accuracy") or triangulation.GPS_ACCURACY
-            groups = [[{"da": (k * sigma_a, 0.0)} for k in (-1, 1)], [{"da": (0.0, k * sigma_a)} for k in (-1, 1)],
-                      [{"daxis": k * axis_error(self.road["source"])} for k in (-1, 1)],
-                      [{"dheading": k * heading_error(click)} for k in (-1, 1)],
+            sigma_cam = click.get("accuracy") or triangulation.GPS_ACCURACY
+            if click.get("sequence") in (self.edge.get("sequences") or []):
+                sigma_cam *= SAME_SEQUENCE_GPS
+            groups = [[{"dheading": k * heading_error(click)} for k in (-1, 1)],
                       [{"dcam": (k * sigma_cam, 0.0)} for k in (-1, 1)], [{"dcam": (0.0, k * sigma_cam)} for k in (-1, 1)]]
-            total = 0.0
+            # Axe : la droite tourne avec lui et le clic la suit jusqu'au bord vu, qui ne bouge pas : la largeur
+            # n'y perd que le cosinus
+            total = (abs(t) * (1.0 / math.cos(math.radians(axis_error(self.road["source"]))) - 1.0)) ** 2
+            total += self._tilt_spread(cam, s) ** 2 + self._spread(self.edge) ** 2
+            try:  # position de A : réponse de la largeur à son déplacement, selon sa covariance
+                t0 = self._width()[1]
+                total += triangulation.projected(self.edge, *((self._width(da=da)[1] - t0) / PROBE
+                                                              for da in ((PROBE, 0.0), (0.0, PROBE)))) ** 2
+            except geometry.GeometryError:
+                raise too_grazing(self.angle)
             for variants in groups:
                 worst = 0.0
                 for variant in variants:
                     try:
                         worst = max(worst, abs(abs(self._width(**variant)[1]) - abs(t)))
                     except geometry.GeometryError:
-                        worst = float("inf")
+                        raise too_grazing(self.angle)
                 total += worst * worst
             a = (self.edge["lon"], self.edge["lat"])
             b = triangulation._geographic(bx, by, *a)
@@ -216,6 +250,26 @@ class PerpendicularWidth(measures.Measure):
         except geometry.GeometryError as exc:
             self.error = str(exc)
         self._draw()
+
+    def _tilt_spread(self, cam, s):
+        """Écart de la largeur (m) dû à l'inclinaison de la photo du clic : A cale la droite dessinée à
+        son cap, mais au cap de B elle est décalée en élévation, donc le clic le long du bord."""
+        click = self.clicks[1]
+        tangent = abs(math.tan(math.radians(click.get("elev") or 0.0)))
+        if tangent < MIN_TILT_TANGENT:
+            return 0.0  # clic presque à l'horizon : pas un bord au sol
+        ux, uy = perpendicular(self.road["axis"])
+        lateral_a = -(cam[0] * ux + cam[1] * uy)  # écarts latéraux de A et de B à la caméra
+        lateral_b = lateral_a + self._width()[1]
+        sigma = click.get("elev_error")
+        sigma = triangulation.ELEV_ERROR if sigma is None else sigma
+        return (abs(lateral_b) * math.radians(sigma) / tangent
+                * abs(lateral_b / max(s, 0.5) - lateral_a / max(math.hypot(*cam), 0.5)))
+
+    def label(self):
+        """Étiquette ; « ≈ » : bord cliqué, une estimation (voir le module)."""
+        text = super().label()
+        return text.replace("↔ ", "↔ ≈ ", 1) if text and self.edge_b is None else text
 
     def guide(self):
         """Extrémités (lon, lat) de la droite de mesure tracée sur la carte."""
@@ -239,7 +293,8 @@ class PerpendicularWidth(measures.Measure):
             text += " · bord décalé de {} cm au clavier".format(measures._num(self.offset * 100, 0))
         if self.angle < GRAZING_ANGLE:
             text += ". Visée rasante : un clic depuis une photo plus éloignée le long de la route sera plus précis"
-        return text + ". Terrain et hauteur de caméra sans effet."
+        return text + (". Estimation : un dévers ou une bordure entre les deux bords la fausse (jusqu'à environ 0,5 m pour "
+                       "2,5 % sur 6,5 m) ; « Trianguler le point » pour une largeur sûre.")
 
 
 def move_edge(edge, axis, distance):
