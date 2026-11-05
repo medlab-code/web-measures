@@ -550,6 +550,7 @@
     viewer.setAttribute("endpoint", apiUrl);
     app?.set_api_url(apiUrl);
     checkPhoto();
+    updatePlayer();  // parcours gardé rouvert : modifié (« ☆ Enregistrer… »)
   });
 
   // Hauteur de la carte : poignée à glisser (mémorisée), bouton pour la replier --------------
@@ -3663,7 +3664,7 @@
     const t = travelFields.state();
     return JSON.stringify([t, routeSettings().map((e) => (e.type === "checkbox" ? e.checked : e.value)),
       Object.values(placed).map((kind) => kind.points.map(placeOf)), poi.zone,
-      poiTargets.get($("#interet-cible").value)?.lonlat || null, $("#depuis").value]);
+      poiTargets.get($("#interet-cible").value)?.lonlat || null, $("#depuis").value, instance.value, $("#producteur").value]);
   }
   const placeOf = (p) => (p.end ? [p.lonlat, p.end] : p.lonlat);  // endroit gardé (petite planète : [début, fin])
   const routeChanged = () => Boolean(openedRoute) && routeSnapshot() !== openedSnapshot;
@@ -3678,8 +3679,8 @@
     showSavedRoutes();
   }
   /** Parcours en cours et ses réglages : { name, date, travel (Requeteur travelForm state, points résolus), settings
-   * (identifiant -> valeur ou case), places, zone, target, since } (id : celui du parcours gardé à remplacer) ; null sans
-   * départ ou arrivée trouvés. */
+   * (identifiant -> valeur ou case), places, zone, target, since, instance, producer : celui de la photo affichée, [id, nom]
+   * ou null } (id : celui du parcours gardé à remplacer) ; null sans départ ou arrivée trouvés. */
   async function currentRoute(id = routeId()) {
     const found = await travelFields.go();
     if (!found) return null;
@@ -3695,6 +3696,8 @@
       target: target ? { lonlat: target.lonlat, z: target.z,
         label: key === "parcours" ? poiKept.label : $("#interet-cible").selectedOptions[0]?.textContent || "Cible" } : null,
       since: $("#depuis").value || null,
+      instance: instance.value,
+      producer: app && photo ? JSON.parse(app.producer()) : null,
     };
   }
   /** Parcours lu d'un fichier (venu d'ailleurs) : seulement des textes courts, des nombres, des [lon, lat] et les
@@ -3719,15 +3722,43 @@
       target: lonlat(r.target?.lonlat) ? { lonlat: r.target.lonlat, z: Number.isFinite(r.target.z) ? r.target.z : null,
         label: text(r.target.label, 100).replace(/ \(parcours gardé\)$/, "") || "Cible" } : null,
       since: /^\d{4}-\d{2}-\d{2}$/.test(r.since) ? r.since : null,
+      // Absents d'un parcours gardé avant le ticket #40 : à l'ouverture, ceux en cours ne changent pas
+      ...(typeof r.instance === "string" ? { instance: text(r.instance, 200) } : {}),
+      ...("producer" in r ? { producer: Array.isArray(r.producer) && r.producer.length === 2 && r.producer.every((v) => typeof v === "string")
+        ? r.producer.map((v) => v.slice(0, 200)) : null } : {}),
     };
+  }
+  /** Parcours rouvert : plus aucune photo de son producteur à son départ ni à son arrivée (instance ou méta-catalogue
+   * en cours) : filtre producteur retiré, le parcours se fait avec les photos qui restent. Réseau en échec : filtre gardé. */
+  async function dropMissingProducer(r) {
+    if (!r.producer) return;
+    const fromProducer = (f) => (f.providers || f.properties?.providers || []).some((p) => p.id === r.producer[0] && p.roles?.includes("producer"));
+    const near = await Promise.all([r.travel.start.point, r.travel.end.point].filter(Boolean)
+      .map((p) => Carte.photosNear(map, ...p, fromProducer, TOUR_REACH))).catch(() => null);
+    if (!near || near.some((found) => found.length) || openedRoute !== r.id || $("#producteur").value !== JSON.stringify(r.producer)) return;
+    $("#producteur").value = "";
+    applyFilter();
+    markOpened(r.id);  // pas une modification du parcours : il garde son producteur
+    notice(`Plus de photos de ${r.producer[1]} sur ce parcours : filtre producteur retiré.`);
   }
   /** Parcours gardé rouvert dans l'onglet « Vidéo » : départ, arrivée, réglages, endroits, zone, cible et filtre de date ;
    * vidéo à préparer. */
   function openRoute(r) {
     if (videoRun) return notice("Vidéo en cours de calcul : arrêtez-la avant d'ouvrir un parcours.");
     showPane("parcours");
-    if (($("#depuis").value || null) !== r.since) {
+    if ("instance" in r && r.instance !== instance.value) {
+      if ([...instance.options].some((o) => o.value === r.instance)) {
+        instance.value = r.instance;
+        instance.dispatchEvent(new Event("change"));
+      } else {  // fichier reçu : pas d'appel à un serveur que la liste des instances ne connaît pas
+        notice(`Instance du parcours inconnue (${r.instance}) : l'instance choisie reste.`);
+      }
+    }
+    if (r.producer) addProducer(r.producer);
+    const producer = !("producer" in r) ? $("#producteur").value : r.producer ? JSON.stringify(r.producer) : "";
+    if (($("#depuis").value || null) !== r.since || $("#producteur").value !== producer) {
       $("#depuis").value = r.since || "";
+      $("#producteur").value = producer;
       applyFilter();
     }
     travelFields.restore(r.travel);
@@ -3760,6 +3791,7 @@
         { padding: 60, maxZoom: 17 });
     }
     markOpened(r.id);
+    dropMissingProducer(r);
     setStatus(`Parcours « ${r.name} » rouvert : « 🎬 Préparer la vidéo » pour la calculer ; modifié, « ☆ Enregistrer les modifications » le remplace.`);
   }
   // Effets « communication » : pastille jaune sur le parcours gardé si l'un d'eux est activé, verte sinon
@@ -5002,7 +5034,10 @@
     }
   } catch { /* filtre enregistré illisible : aucun */ }
   map.on("load", () => applyFilter(false));
-  for (const id of ["#depuis", "#type", "#gps", "#producteur"]) $(id).addEventListener("change", () => applyFilter());
+  for (const id of ["#depuis", "#type", "#gps", "#producteur"]) $(id).addEventListener("change", () => {
+    applyFilter();
+    updatePlayer();  // parcours gardé rouvert : modifié (« ☆ Enregistrer… »)
+  });
 
   // Exports ----------------------------------------------------------------------------------
 

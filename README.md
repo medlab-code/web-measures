@@ -291,7 +291,10 @@ des photos et les parcours gardés ne changent pas. Grisé quand tout est déjà
 **Parcours gardés** (onglet Parcours) : « ☆ Garder » (onglet Vidéo, dès que départ et arrivée sont saisis) garde le
 parcours avec tous ses réglages : départ et arrivée (route, PR et distances, points sur la carte), vitesse, part des
 photos, toutes les options et leurs réglettes, endroits des tonneaux, des petites planètes et des tours d'horizon, zone et cible du point
-d'intérêt, filtre de date des photos. Nommé d'après la route et les PR, daté ; pastille jaune si au moins un effet « communication » est activé (tonneau,
+d'intérêt, filtre de date des photos, instance choisie et producteur de la photo affichée au moment de garder. Rouvert, le parcours
+remet cette instance et ce producteur dans le filtre (« Tous » s'il n'en avait pas ; un parcours gardé avant cette version les laisse
+tels quels) ; plus aucune photo de ce producteur à son départ ni à son arrivée : le filtre producteur est retiré, et le parcours se fait avec les photos qui restent ; instance
+inconnue d'un fichier importé : l'instance choisie reste, avec un message. Nommé d'après la route et les PR, daté ; pastille jaune si au moins un effet « communication » est activé (tonneau,
 petite planète, point d'intérêt, regard aux croisements, tour d'horizon), verte sinon ; gardé dans ce navigateur. Un clic sur
 son nom le rouvre dans l'onglet Vidéo (vidéo à préparer), ⤓ l'exporte seul (fichier JSON à envoyer à un collègue),
 × le retire ; rouvert, la ligne est entourée et « ☆ Garder » devient « ☆ Gardé » (grisé) ; modifié, « ☆ Enregistrer… »
