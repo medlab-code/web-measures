@@ -7,7 +7,8 @@
 // du retour laser des points du sol, si : enrobé sombre, lignes blanches très claires, herbe, gravillons et béton
 // clairs. D'où le bord de chaussée (ligne de rive, sinon fin de l'enrobé) et le séparateur de chaussée (bande non
 // revêtue entre les deux chaussées, glissières comprises). Lecteur repris de l'essai de faisabilité du
-// 2026-10-27 (tests/essai-lidar.html, retiré) ; décompression par laz-perf, chargé au premier usage.
+// 2026-10-27 (tests/essai-lidar.html, retiré) ; décompression par laz-perf, chargé au premier usage. Le même lecteur
+// donne la hauteur de chute d'un pont (bridgeFall) : points classés pont (17), sol (2) et eau (9).
 
 const Nuage = (() => {
   const WFS = "https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&OUTPUTFORMAT=application/json"
@@ -25,6 +26,14 @@ const Nuage = (() => {
   const PAVED_REACH = 12, PAVED_BEYOND = 3;
   const PAVED_STEPS = [-4, -2, 0, 2, 4];  // m le long de la route : travers de ±STRIP dont le bord d'enrobé est la médiane
   const SEPARATOR = [0.5, 12];  // m : largeurs possibles du séparateur, et son milieu à 2 m au plus de celui du calcul
+  // Hauteur de chute d'un pont (bridgeHeight, bridgeFall)
+  const DECK_CELL = 2;  // m : côté des cases du tablier et du dessous
+  const DECK_POINTS = 3;  // points classés pont au moins dans une case du tablier
+  const DECK_MIN = 4;  // cases au moins d'un tablier (en deçà : point isolé mal classé)
+  const DECK_NEAR = 15;  // m au plus entre la photo et le tablier
+  const DECK_REACH = 10;  // m : dessous cherché jusqu'à cette distance du tablier (sous lui et à côté)
+  const DECK_JOIN = 12;  // m : cases du tablier encore reliées à cette distance (canal de Bourgogne : 8 m sans point classé pont au milieu)
+  const DECK_ROUNDS = 40;  // lectures successives le long du tablier, au plus
 
   // Lambert 93 (RGF93, EPSG:2154), sens direct (IGN, ALG0001 à ALG0003 ; RGF93 ≈ WGS 84)
   const L93 = { n: 0.7256077650532670, c: 11754255.426096, xs: 700000, ys: 12655612.049876, e: 0.0818191910428158 };
@@ -106,8 +115,8 @@ const Nuage = (() => {
   }
 
   /** Points du sol (classe 2), de la végétation (3 basse, 4 moyenne, 5 haute) et de l'eau (9) d'un nœud : [x, y, z, intensité, classe]
-   * (Lambert 93, altitude IGN69 comme le terrain du calcul). */
-  async function ground(tile, node) {
+   * (Lambert 93, altitude IGN69 comme le terrain du calcul) ; keep : autres classes à garder. */
+  async function ground(tile, node, keep = (cls) => (cls >= 2 && cls <= 5) || cls === 9) {
     const lib = await laz();
     const data = await range(tile.url, node.at, node.length);
     const input = lib._malloc(node.length), output = lib._malloc(tile.length);
@@ -121,7 +130,7 @@ const Nuage = (() => {
         decoder.getPoint(output);
         const v = new DataView(lib.HEAPU8.buffer, output, tile.length);  // HEAPU8 peut changer en grandissant
         const cls = tile.format >= 6 ? v.getUint8(16) : v.getUint8(15) & 31;
-        if ((cls >= 2 && cls <= 5) || cls === 9) {
+        if (keep(cls)) {
           out.push([v.getInt32(0, true) * sx + ox, v.getInt32(4, true) * sy + oy, v.getInt32(8, true) * sz + oz, v.getUint16(12, true), cls]);
         }
       }
@@ -325,5 +334,98 @@ const Nuage = (() => {
     return out;
   }
 
-  return { analyse, toL93, pavedEdge };
+  /** Tablier le plus proche de o [x, y] et sa hauteur de chute, d'après points [x, y, z, intensité, classe] (Lambert 93) :
+   * cases du tablier reliées à DECK_JOIN m près (altitude : médiane des points classés pont), sans leur rangée de bord (parapets, flancs) ; dessous :
+   * sol (deuxième point le plus bas de la case : pas un point aberrant) ou eau (médiane) à DECK_REACH m au plus du tablier ;
+   * hauteur : la plus grande différence sur tout le tablier, qui suit ainsi un pont bombé. { height, below, keys }, sans height
+   * si rien n'est lu dessous ; null sans tablier près de o. */
+  function bridgeHeight(points, o) {
+    const key = (i, j) => `${i},${j}`, cell = (v) => Math.floor(v / DECK_CELL);
+    const decks = new Map(), soils = new Map(), waters = new Map();
+    const add = (map, k, z) => { if (map.has(k)) map.get(k).push(z); else map.set(k, [z]); };
+    for (const [x, y, z, , cls] of points) {
+      add(cls === 17 ? decks : cls === 9 ? waters : soils, key(cell(x), cell(y)), z);
+    }
+    const heights = new Map([...decks].filter(([, z]) => z.length >= DECK_POINTS).map(([k, z]) => [k, median(z)]));
+    const at = (k) => k.split(",").map(Number), centre = (i) => (i + 0.5) * DECK_CELL;
+    let start = null, nearest = DECK_NEAR;
+    for (const k of heights.keys()) {
+      const [i, j] = at(k), d = Math.hypot(centre(i) - o[0], centre(j) - o[1]);
+      if (d <= nearest) [start, nearest] = [k, d];
+    }
+    if (!start) return null;
+    const keys = new Set([start]), around = [-1, 0, 1].flatMap((a) => [-1, 0, 1].map((b) => [a, b]));
+    const join = Math.ceil(DECK_JOIN / DECK_CELL);
+    for (const k of keys) {  // un Set parcouru voit les ajouts
+      const [i, j] = at(k);
+      for (let a = -join; a <= join; a++) {
+        for (let b = -join; b <= join; b++) {
+          if (Math.hypot(a, b) * DECK_CELL <= DECK_JOIN && heights.has(key(i + a, j + b))) keys.add(key(i + a, j + b));
+        }
+      }
+    }
+    if (keys.size < DECK_MIN) return null;
+    const cells = [...keys].map(at);
+    const inner = cells.filter(([i, j]) => around.every(([a, b]) => keys.has(key(i + a, j + b))));
+    const below = new Map();  // case -> [altitude, "sol" ou "eau"]
+    for (const [k, z] of soils) if (z.length >= 2) below.set(k, [[...z].sort((a, b) => a - b)[1], "sol"]);
+    for (const [k, z] of waters) if (!below.has(k) || median(z) < below.get(k)[0]) below.set(k, [median(z), "eau"]);
+    // Comptée depuis la case gardée, à une rangée du bord du tablier
+    const reach = DECK_REACH + DECK_CELL, rings = Math.ceil(reach / DECK_CELL);
+    let best = null;
+    for (const [i, j] of inner.length ? inner : cells) {
+      const top = heights.get(key(i, j));
+      for (let a = -rings; a <= rings; a++) {
+        for (let b = -rings; b <= rings; b++) {
+          const under = Math.hypot(a, b) * DECK_CELL <= reach && below.get(key(i + a, j + b));
+          if (under && (!best || top - under[0] > best.height)) best = { height: top - under[0], below: under[1] };
+        }
+      }
+    }
+    return { ...best, keys };
+  }
+
+  const bridges = [], reads = new Map();  // ponts déjà calculés ; points des nœuds déjà lus (dalle:adresse)
+  /** Hauteur de chute du pont sous la photo (lon, lat), tronçon BD TOPO chain [[lon, lat]…] : { height, below } (m ; « sol »
+   * ou « eau »), une fois par pont : même réponse sur toutes ses photos, quel que soit le tronçon ; null sans points classés
+   * pont ici (la hauteur se calcule alors autrement). */
+  async function bridgeFall(lon, lat, chain) {
+    const o = toL93(lon, lat);
+    // Le long du tablier : nœuds proches de ce qu'on en connaît, jusqu'à n'en plus trouver de nouveau (pont plus long que son
+    // tronçon BD TOPO ; bien moins de nœuds qu'un carré autour d'un long pont)
+    let seeds = [o, ...chain.map((p) => toL93(...p))], found = null;
+    for (let round = 0, added = true; added && round < DECK_ROUNDS; round++) {
+      added = false;
+      const room = DECK_REACH + 2 * DECK_CELL, xs = seeds.map((p) => p[0]), ys = seeds.map((p) => p[1]);
+      const box = [Math.min(...xs) - room, Math.min(...ys) - room, Math.max(...xs) + room, Math.max(...ys) + room];
+      const d = Math.max(box[2] - o[0], o[0] - box[0], box[3] - o[1], o[1] - box[1]) / 70000;  // degrés : large partout en métropole
+      const response = await fetch(`${WFS}&BBOX=${lat - d},${lon - d},${lat + d},${lon + d},urn:ogc:def:crs:EPSG::4326`);
+      if (!response.ok) throw new Error(`nuage LiDAR : métadonnées IGN, HTTP ${response.status}`);
+      const points = [];
+      for (const m of (await response.json()).features || []) {
+        const tile = await openTile(m.properties.url_npl), nodes = await nodesIn(tile, box);
+        const deepest = Math.max(...nodes.map((n) => n.d));
+        // shortcut: les deux niveaux les plus fins, comme l'analyse fine ; tout lire si un tablier peu dense manque
+        for (const n of nodes.filter((p) => p.d >= deepest - 1)) {
+          const size = 2 * tile.half / 2 ** n.d, x0 = tile.center[0] - tile.half + n.x * size, y0 = tile.center[1] - tile.half + n.y * size;
+          const near = seeds.some(([x, y]) => Math.hypot(Math.max(x0 - x, 0, x - x0 - size), Math.max(y0 - y, 0, y - y0 - size)) <= room);
+          const id = `${tile.url}:${n.at}`;
+          if (near && !reads.has(id)) {
+            reads.set(id, await ground(tile, n, (cls) => cls === 2 || cls === 9 || cls === 17));
+            added = true;
+          }
+          if (reads.has(id)) points.push(...reads.get(id));
+        }
+      }
+      found = bridgeHeight(points, o);
+      if (!found) return null;
+      seeds = [...found.keys].map((k) => k.split(",").map((v) => (Number(v) + 0.5) * DECK_CELL));
+    }
+    const same = bridges.find((b) => [...found.keys].some((k) => b.keys.has(k)));
+    if (same) return { height: same.height, below: same.below };
+    bridges.push(found);
+    return { height: found.height, below: found.below };
+  }
+
+  return { analyse, toL93, pavedEdge, bridgeHeight, bridgeFall };
 })();

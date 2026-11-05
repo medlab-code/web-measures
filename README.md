@@ -401,7 +401,11 @@ après.
 - **Hauteur de chute sur un pont** (automatique, sans clic) : sur une photo prise sur un pont
   de la BD TOPO, le nom du pont, ce qu'il franchit et la hauteur de chute la plus grande sur
   toute sa longueur s'affichent en haut à gauche de la visionneuse (pas pendant la lecture de
-  la séquence). Calcul :
+  la séquence). Calcul par le nuage LiDAR HD, une fois par pont, même valeur sur toutes ses photos, sans GPS ni hauteur de caméra :
+  plus grande différence entre le tablier (points classés pont, altitude de chaque case de 2 m, parapets écartés) et le sol ou l'eau
+  sous lui et jusqu'à 10 m de son bord ; lecture de quelques secondes à une demi-minute selon la longueur (au-dessus de l'eau :
+  niveau au relevé, seulement là où le laser a renvoyé des points d'eau, sinon la berge). Sans points classés pont, ou nuage illisible,
+  en secours :
   - **tablier** : altitude GPS des photos de la séquence prises sur le pont, convertie en
     altitude NGF, moins la hauteur de caméra (mesurée sur la séquence vérifiée, sinon calée ; à
     défaut, le réglage « Caméra à », seulement après un appui sur le bouton de l'encadré : une photo
@@ -415,7 +419,7 @@ après.
     tablier tiré des photos : dévers, bordure ; terrain) ; l'infobulle dit où elle est. Au-dessus de l'eau, c'est le
     niveau de l'eau le jour du relevé LiDAR, pas le fond.
 
-  Pas de valeur sans position RTK vérifiée (l'altitude du tablier serait fausse de plusieurs
+  Dans ce secours, pas de valeur sans position RTK vérifiée (l'altitude du tablier serait fausse de plusieurs
   mètres) ; « non mesurée » sous 0,5 m (terrain non distingué du tablier : végétation, buse) ;
   « calcul impossible » avec sa cause (service injoignable, pas d'altitude GPS sur le pont, pas
   de modèle de terrain). Un creux sans rapport avec ce que franchit le pont, à moins de 10 m de

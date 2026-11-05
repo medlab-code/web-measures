@@ -275,6 +275,34 @@ class Tablier(unittest.TestCase):
         self.assertEqual(web_app._deck_at([(0, 0, 250.0, 7)], 12, 3), 250.0)
 
 
+class ChuteLidar(unittest.TestCase):
+    """Hauteur de chute par le nuage LiDAR (App.use_bridge_lidar)."""
+
+    def app(self):
+        a = App.__new__(App)
+        a.lidar_falls = {}
+        a.status = lambda: None
+        return a
+
+    def test_reponses(self):
+        a = self.app()
+        a.use_bridge_lidar("p", json.dumps({"height": 5.234, "below": "eau"}))
+        self.assertIn("max : 5,2 m (±0,1 m)", a.lidar_falls["p"]["text"])
+        self.assertIn("l'eau", a.lidar_falls["p"]["title"])
+        a.use_bridge_lidar("bas", json.dumps({"height": 0.2, "below": "sol"}))
+        self.assertIn("non mesurée", a.lidar_falls["bas"]["text"])
+        a.use_bridge_lidar("vide", json.dumps({"keys": {}}))  # tablier, rien de lu dessous
+        self.assertIn("non mesurée", a.lidar_falls["vide"]["text"])
+
+    def test_secours_par_le_gps(self):
+        a = self.app()
+        a.use_bridge_lidar("sans", json.dumps({"none": True}))
+        self.assertEqual(a.lidar_falls["sans"], {})  # pas de nouvel essai
+        a.use_bridge_lidar("panne", json.dumps({"error": True}))
+        self.assertNotIn("text", a.lidar_falls["panne"])
+        self.assertIn("retry_at", a.lidar_falls["panne"])
+
+
 class CameraPont(unittest.TestCase):
     """Hauteur de caméra du tablier (App._fall_camera) : séquence, sinon calée, sinon le réglage accepté."""
 

@@ -409,6 +409,7 @@ class App(session.Session):
         self.tilt_clicks, self.tilt_sel = [], None
         self.fall_cells = {}  # maille -> tronçons BD TOPO avec leur largeur (hauteur de chute, voir fall)
         self.falls = {}  # (séquence, pont) -> hauteur de chute calculée (dict text, title) ou en cours
+        self.lidar_falls = {}  # tronçon du pont -> réponse du nuage LiDAR (use_bridge_lidar)
         self.edges = {}  # (photo, largeur examinée) -> chute et dévers des bords de route (voir _edges)
         self.paved = {}  # repère du profil -> bords d'enrobé de l'analyse fine (use_paved_edges)
         self.paved_redo = {}  # repère du profil -> (clé de self.edges, calcul à refaire sans relire le terrain)
@@ -1667,13 +1668,16 @@ class App(session.Session):
     FALL_WIDTH = 6.0  # m : largeur de chaussée supposée quand la BD TOPO ne la donne pas
     FALL_TOUCH = 1.0  # m : tronçons en pont bout à bout (un pont coupé en plusieurs tronçons)
     FALL_RETRY = 60.0  # s avant de refaire un calcul qui a échoué (service injoignable)
+    FALL_LIDAR_REACH = 10.0  # m : dessous cherché à cette distance du tablier (DECK_REACH de src/nuage.js)
     FALL_NO_RTK = ("Hauteur de chute non calculée : la position GPS de cette séquence n'est pas vérifiée RTK. "
                    "L'altitude du tablier, tirée de l'altitude GPS de la caméra, serait fausse de plusieurs mètres.")
 
     def fall(self):
         """Photo prise sur un pont (BD TOPO) : hauteur de chute la plus grande sur toute la longueur du
         pont ({text, title}), son explication sans RTK vérifié, ou l'attente de son calcul ; hors d'un
-        pont, chute et dévers des bords de la route (_edges, ticket #31). Tablier : altitude GPS RTK (NGF) moins hauteur de caméra, aux photos de la séquence
+        pont, chute et dévers des bords de la route (_edges, ticket #31). D'abord le nuage LiDAR HD (Nuage.bridgeFall, lu par la
+        page : champ « lidar » ; use_bridge_lidar), même valeur sur tout le pont, sans GPS. Sans points classés pont, ou nuage
+        illisible : tablier = altitude GPS RTK (NGF) moins hauteur de caméra, aux photos de la séquence
         prises sur le pont (la plus proche de chaque point) ; dessous : MNT LiDAR HD (RGE ALTI en
         secours), le point le plus bas en travers du pont, de 1 à 10 m au-delà du bord de la chaussée
         des deux côtés (FALL_SIDES : sous le tablier, le MNT est interpolé à sa hauteur)."""
@@ -1700,6 +1704,13 @@ class App(session.Session):
         bridge = "{} ({})".format(name, road) if name and road else name or of_road or "Pont"
         over = self._crossed(chain, sections, lon, lat)  # « Au-dessus de l'Armançon », sous le nom
         bridge += "\n" + over if over else ""
+        lidar_key = "{:.6f},{:.6f}".format(*min(p for c in chain for p in c["line"]))
+        lidar = self.lidar_falls.get(lidar_key)
+        if lidar is None or time.monotonic() >= lidar.get("retry_at", float("inf")):
+            return {"text": bridge + "\nHauteur de chute : lecture du nuage LiDAR HD…", "title": "",
+                    "lidar": {"key": lidar_key, "lon": lon, "lat": lat, "chain": [list(p[:2]) for c in chain for p in c["line"]]}}
+        if "text" in lidar:
+            return {"text": bridge + "\n" + lidar["text"], "title": lidar["title"]}
         if self.quality is None:
             return {"text": bridge + "\nHauteur de chute : vérification de la position GPS en cours…", "title": ""}
         if not self.quality.get("precise"):
@@ -1714,6 +1725,27 @@ class App(session.Session):
             res = self.falls[key] = {"text": "Hauteur de chute : calcul en cours…", "title": ""}
             self._compute_fall(key, chain, item, lon, lat)
         return {"text": bridge + "\n" + res["text"], "title": res["title"]}
+
+    def use_bridge_lidar(self, key, answer):
+        """Réponse de Nuage.bridgeFall pour le pont key (JSON) : { height, below } ; { none } : pas de points classés pont, ou
+        { error } : nuage illisible (nouvel essai après FALL_RETRY s) ; dans ces deux cas, la méthode par l'altitude GPS."""
+        found = json.loads(answer)
+        if found.get("error"):
+            self.lidar_falls[key] = {"retry_at": time.monotonic() + self.FALL_RETRY}
+        elif found.get("none"):
+            self.lidar_falls[key] = {}
+        elif found.get("height") is None or found["height"] < self.FALL_MIN:
+            self.lidar_falls[key] = {"text": "Hauteur de chute non mesurée : le terrain sous le pont ne se distingue "
+                                             "pas du tablier (végétation, buse ?)", "title": ""}
+        else:
+            sigma = math.hypot(triangulation.LIDAR_ERROR, triangulation.LIDAR_ERROR)
+            self.lidar_falls[key] = {
+                "text": "Hauteur de chute max : {} m (±{} m)".format(measures._num(found["height"], 1), measures._num(sigma, 1)),
+                "title": ("Plus grande hauteur entre le tablier (points du nuage LiDAR HD classés pont) et {} sous le pont "
+                          "ou à côté, jusqu'à {} m du tablier ; même valeur sur tout le pont. Au-dessus de l'eau : niveau "
+                          "au relevé, pas le fond.").format("l'eau" if found["below"] == "eau" else "le sol",
+                                                           measures._num(self.FALL_LIDAR_REACH, 0))}
+        return self.status()
 
     # Hauteur de caméra du tablier : mesurée sur la séquence vérifiée (médiane de l'altitude RTK moins le sol LiDAR, photos du
     # pont écartées), sinon calée pour la séquence. Une photo de précision déclarée n'a que sa propre hauteur, altitude moins

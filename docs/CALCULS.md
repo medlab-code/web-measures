@@ -188,7 +188,22 @@ premier clic.
 
 ## 7. Hauteur de chute sur un pont
 
-Ce calcul est automatique sur une photo prise sur un pont de la BD TOPO. Les tronçons en pont
+Ce calcul est automatique sur une photo prise sur un pont de la BD TOPO.
+
+**Par le nuage LiDAR HD** (`Nuage.bridgeFall`, une fois par pont, sans GPS ni hauteur de caméra), quand il y a des points
+classés pont (classe 17) à 15 m au plus de la photo :
+
+- **Tablier** : cases de 2 m d'au moins 3 points classés pont, altitude médiane de la case, reliées à 12 m près (le canal de
+  Bourgogne a 8 m sans point classé au milieu du pont). La lecture suit le tablier, au-delà du tronçon BD TOPO s'il le faut.
+  La rangée de bord est écartée (parapets, flancs).
+- **Dessous** : sol (classe 2 ; deuxième point le plus bas de la case, pour écarter un point aberrant) ou eau (classe 9 ;
+  médiane de la case), sous le tablier et jusqu'à 10 m de son bord.
+- **Hauteur** : la plus grande différence sur tout le tablier, chaque case avec sa propre altitude (pont bombé), identique sur
+  toutes les photos du pont. Incertitude : deux lectures LiDAR. Au-dessus de l'eau, c'est le niveau le jour du relevé, et
+  seulement si des points d'eau existent à cet endroit (le laser en renvoie peu) : sinon la berge, donc un peu moins. Sous
+  0,5 m, la valeur est « non mesurée ». Un fossé profond à moins de 10 m peut augmenter la valeur.
+
+**Par l'altitude GPS, en secours** (pas de points classés pont, ou nuage illisible). Les tronçons en pont
 qui se touchent à 1 m près forment un seul ouvrage.
 
 - **Tablier** : altitude GPS des photos de la séquence prises sur le pont, convertie en NGF,
@@ -212,7 +227,7 @@ qui se touchent à 1 m près forment un seul ouvrage.
   (calage, ou 0,15 m pour le réglage). Au-dessus de l'eau, c'est le niveau de l'eau le jour du
   relevé LiDAR.
 
-Rien n'est affiché sans position RTK vérifiée : l'altitude du tablier serait fausse de plusieurs
+Dans ce secours, rien n'est affiché sans position RTK vérifiée : l'altitude du tablier serait fausse de plusieurs
 mètres. Sous 0,5 m, la valeur est « non mesurée » (végétation, buse). Un fossé profond à moins
 de 10 m de la chaussée peut augmenter la valeur.
 
@@ -552,7 +567,7 @@ moins de 10 %, vers l'intérieur dans les virages marqués).
 | Distance libre | ±0,25 m | les deux points |
 | Objet sur une seule photo, à 6 m | ±0,2 à 0,8 m | inclinaison, sol supposé plat |
 | Objet placé sur la carte | ±1 m | orthophoto |
-| Chute (pont, bords de route) | ±0,1 m LiDAR HD, ±0,4 m RGE ALTI | MNT ; sur un pont, altitude RTK |
+| Chute (pont, bords de route) | ±0,1 m LiDAR HD, ±0,4 m RGE ALTI | MNT ; sur un pont, nuage LiDAR HD, sinon altitude RTK |
 | Dévers | pas des points (0,5 m près du bord, 0,6 m à 10 m, 1,9 m à 30 m) | talus court, MNT interpolé sous arbres et murs |
 | Pente en long | MNT ±0,1 m sur 100 m | tablier des ponts interpolé en droite, creux sans pont BD TOPO ni plongée de 20 % non comblés, ponts de plus de 40 m en pente douce |
 | Bord, séparateur (nuage) | 0,25 m | cases du nuage, marquage effacé |

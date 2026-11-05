@@ -227,8 +227,8 @@ async function feature(id) {
   pont.querySelector("button[value=oui]").click();
   try { await until(() => doc.querySelector("#pont").checked, 5000, "case cochée"); } catch (e) { log(String(e)); }
   expect("case « Sur un pont » cochée", doc.querySelector("#pont").checked && app.bridge);
-  // Hauteur de chute du pont en haut à gauche de la visionneuse (tablier RTK moins MNT LiDAR HD : ~6,3 m au-dessus de l'A6)
-  try { await until(() => doc.querySelector("#chute")?.textContent.includes("max"), 30000, "hauteur de chute"); } catch (e) { log(String(e)); }
+  // Hauteur de chute du pont en haut à gauche de la visionneuse (nuage LiDAR HD : 6,6 m au-dessus de l'A6 ; altitude RTK : 6,3 m)
+  try { await until(() => doc.querySelector("#chute")?.textContent.includes("max"), 60000, "hauteur de chute"); } catch (e) { log(String(e)); }
   const chute = doc.querySelector("#chute");
   log("chute : " + chute?.textContent + " · " + chute?.title);
   near("hauteur de chute du pont D111", metresIn(chute?.textContent), 6.3, 0.5);

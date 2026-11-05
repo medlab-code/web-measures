@@ -918,6 +918,22 @@
   }
 
   /** Redessine tout : texte de la mesure, état de la photo, repères, carte, résultats. */
+  /** Hauteur de chute d'un pont demandée par App.fall : nuage LiDAR lu une fois par demande, réponse rendue au calcul. */
+  let bridgeReading = null;
+  async function readBridgeFall(ask) {
+    if (bridgeReading === ask.key) return;
+    bridgeReading = ask.key;
+    let answer;
+    try {
+      answer = await Nuage.bridgeFall(ask.lon, ask.lat, ask.chain) || { none: true };
+    } catch (error) {
+      console.warn("Hauteur de chute : nuage LiDAR illisible", error);
+      answer = { error: true };
+    }
+    bridgeReading = null;
+    refresh(app.use_bridge_lidar(ask.key, JSON.stringify(answer)));
+  }
+
   function refresh(text) {
     if (!app) return;
     setStatus(text ?? app.status());
@@ -964,6 +980,7 @@
     Object.assign($("#chute"), { hidden: !fall, title: fall?.title || "" });
     $("#bords").disabled = playing() || (fall && !fall.edges) || !app.edges_ready();  // pas sur un pont
     edgeProfile = fall?.profile ? fall : null;
+    if (fall?.lidar) readBridgeFall(fall.lidar);
     $("#profil").disabled = !edgeProfile;
     // Nom du pont en vert, « Au-dessus de … » en bleu, puis la hauteur
     const line = (text, className) => Object.assign(document.createElement("span"), { className, textContent: text });

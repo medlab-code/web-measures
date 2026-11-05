@@ -1,9 +1,9 @@
 <!doctype html><meta charset="utf-8"><title>Essai des ponts</title>
 <!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
-<!-- Hauteur de chute (ticket #27) : terrain lu à l'écart du tablier, pas sur le talus de la culée.
-     Pont de la D977 bis au-dessus du canal de Bourgogne : eau à 357,4 m NGF, tablier à 361,4 m
-     (MNT LiDAR HD) ; pont de la D114 au-dessus du ruisseau de la Gironde (Barbirey-sur-Ouche) :
+<!-- Hauteur de chute : nuage LiDAR HD, même valeur sur tout le pont ; altitude GPS en secours (ticket #27 : terrain lu à l'écart
+     du tablier, pas sur le talus de la culée). Pont de la D977 bis au-dessus du canal de Bourgogne : eau à 357,4 m NGF, tablier à
+     361,4 m au milieu, plus bas aux abords, au-dessus d'un terrain à 355,7 m, d'où 5,1 m ; pont de la D114 au-dessus du ruisseau de la Gironde (Barbirey-sur-Ouche) :
      lit vers 314 m, route à 315,8 m (lu à 1 m du bord : 0 m). Lancer comme tests/navigateur.html. -->
 <script>try { localStorage.clear(); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:900px;border:0"></iframe>
@@ -13,7 +13,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failures = 0, checks = 0;
 const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + " " + detail); } };
 const metres = (t) => { const m = /max : ([\d,]+) m/.exec(t || ""); return m ? parseFloat(m[1].replace(",", ".")) : NaN; };
-const CASES = [["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "canal de Bourgogne", 3.3, 4.8],
+// Canal et Saône : nuage LiDAR ; ruisseau de la Gironde : pas de points classés pont, altitude GPS en secours
+const CASES = [["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "canal de Bourgogne", 4.8, 5.6],
+               ["bbf7a0be-f532-4362-afb4-114268317258", "Pont de France à Auxonne", 6.5, 8.5],
                ["e375c98e-31c5-426a-ba93-c63ac344d675", "ruisseau de la Gironde", 1.0, 2.5]];
 (async () => {
   const w = document.getElementById("f").contentWindow;
@@ -27,11 +29,25 @@ const CASES = [["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "canal de Bourgogne", 3.
       w.mesures.openPhoto(f);
       const t1 = Date.now();
       const done = () => /max :|non mesurée|impossible|non calculée/.test(doc.querySelector("#chute")?.textContent || "");
-      while (!done() && Date.now() - t1 < 60000) await sleep(250);
+      while (!done() && Date.now() - t1 < 120000) await sleep(250);
       const chute = doc.querySelector("#chute");
       log(what + " : " + chute?.textContent.replace(/\n/g, " · ") + " · " + chute?.title);
       const h = metres(chute?.textContent);
       expect("hauteur de chute au-dessus du " + what, h >= lo && h <= hi, `${h} m au lieu de ${lo} à ${hi} m`);
+      // Même valeur sur les photos voisines du pont, de la même séquence
+      const [lon, lat] = f.geometry.coordinates, d = 0.0006;
+      const near = (await (await fetch(`https://panoramax.ign.fr/api/search?bbox=${lon - d},${lat - d},${lon + d},${lat + d}&collections=${f.collection}&limit=30`)).json()).features;
+      const seen = new Set();
+      for (const other of near) {
+        w.mesures.openPhoto(other);
+        await sleep(1500);
+        const t2 = Date.now();
+        while (/lecture|en cours/.test(doc.querySelector("#chute")?.textContent || "") && Date.now() - t2 < 60000) await sleep(250);
+        const text = doc.querySelector("#chute");
+        if (!text.hidden && /max :/.test(text.textContent)) seen.add(metres(text.textContent));
+      }
+      log(`${what} : ${near.length} photos voisines, valeurs ${[...seen].join(" ; ")}`);
+      expect("même valeur sur tout le pont, " + what, seen.size === 1 && seen.has(h), [...seen].join(" "));
     }
     log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
   } catch (e) { log("exception " + e); }

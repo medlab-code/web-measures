@@ -22,8 +22,9 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
     // fin du calcul des bords : la durée suit celle des services (une attente fixe échouait quand ils étaient lents)
     const computed = async () => {
       const t0 = Date.now();
-      do await sleep(1000); while (/Calcul en cours/.test(doc.querySelector("#chute").textContent) && Date.now() - t0 < 60000);
-      if (/Calcul en cours/.test(doc.querySelector("#chute").textContent)) log("  service lent : calcul toujours en cours après 60 s");
+      const busy = () => /Calcul en cours|calcul en cours|lecture du nuage/.test(doc.querySelector("#chute").textContent);
+      do await sleep(1000); while (busy() && Date.now() - t0 < 60000);
+      if (busy()) log("  service lent : calcul toujours en cours après 60 s");
     };
     const pouilly = (await (await fetch("https://panoramax.ign.fr/api/search?ids=cd8cf3a0-6567-40f0-8805-94172a5dfc3c")).json()).features[0];
     const places = [[pouilly, 0, "Pouilly"]];
