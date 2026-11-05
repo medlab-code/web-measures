@@ -1,0 +1,47 @@
+<!doctype html><meta charset="utf-8"><title>Essai du fond du profil en travers</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Fond du graphique du profil en travers (ticket #38) sur des profils synthétiques, sans réseau : 1 m sous le point le
+     plus bas du terrain si son haut reste dans la moitié basse du cadre, sinon 0,3 m ; place libre en haut.
+     Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
+<script src="../src/profil.js"></script>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+let checks = 0, failures = 0;
+// Un travers : plateforme plane de −3 à +3 m (z = 0), terrain de part et d'autre selon h(distance au bord), jusqu'à width m
+const crossing = (along, h, width) => ["gauche", "droit"].map((cote) => ({ le_long: along, cote, bord: 3, relief: "marche", arret: null,
+  points: [...Array(width + 1).keys()].map((k) => [k, k <= 3 ? 0 : h(k - 3)]) }));
+const profile = (crossings, origine = "axe") => ({ origine, source: "essai", erreur: 0.1, resultats: { gauche: null, droit: null },
+  arrets: {}, zone: 10, remontee: 1, profils: crossings.flat() });
+// Mètres de sol sous le point le plus bas, lus sur le SVG (échelle verticale : ligne zéro et un autre repère)
+function ground(svg) {
+  document.documentElement.append(svg);
+  const zero = svg.querySelector("line.zero"), y0 = Number(zero.getAttribute("y1"));
+  const row = [...svg.querySelectorAll("line.grille")].find((l) => l !== zero && l.getAttribute("y1") === l.getAttribute("y2"));
+  const y1 = Number(row.getAttribute("y1")), label = [...svg.querySelectorAll("text.graduation[text-anchor=end]")]
+    .find((t) => Math.abs(Number(t.getAttribute("y")) - 4 - y1) < 0.6);
+  const px = (y0 - y1) / Number(label.textContent.replace(",", ".").replace("−", "-"));
+  const low = Math.max(...[...svg.querySelectorAll(".sol, .autre-travers")].map((e) => { const b = e.getBBox(); return b.y + b.height; }));
+  const metres = (svg.viewBox.baseVal.height - 44 - low) / px;
+  svg.remove();
+  return metres;
+}
+const check = (what, drawn, expected) => {
+  const metres = ground(drawn.svg);
+  checks++;
+  if (Math.abs(metres - expected) > 0.02) failures++;
+  log(`${Math.abs(metres - expected) > 0.02 ? "ÉCHEC " : ""}${what} : ${metres.toFixed(2)} m de sol sous le point le plus bas (attendu ${expected})`);
+};
+try {
+  const flat = [crossing(0, () => -0.1, 17)];
+  check("terrain plat, à l'échelle", Profil.draw(profile(flat), true), 1);
+  check("talus descendant à −3 m, à l'échelle", Profil.draw(profile([crossing(0, (x) => -Math.min(3, x), 17)]), true), 1);
+  check("talus montant à +8 m, à l'échelle", Profil.draw(profile([crossing(0, (x) => Math.min(8, x * 1.5), 17)]), true), 0.3);
+  check("terrain plat, hauteurs exagérées", Profil.draw(profile(flat), false), 0.3);
+  check("point le plus bas sur un autre travers", Profil.draw(profile([...flat, crossing(5, (x) => -Math.min(2, x), 17)]), true), 1);
+  // Route étroite : le graphique est à sa hauteur ; la caméra (1,9 m) ne compte pas comme haut du terrain
+  check("caméra au-dessus d'un terrain plat", Profil.draw(profile([crossing(0, () => -0.1, 4)], "caméra"), true, null, true, 1.9), 1);
+} catch (error) { failures++; log("ÉCHEC exception : " + (error.stack || error)); }
+log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
+log(failures ? "ERREUR" : "FIN");
+</script>

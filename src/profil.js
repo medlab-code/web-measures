@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Cédric COCHART
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// Profil en travers des bords de route (bouton « Profil », à côté de « Dévers ») : la coupe du
+// Profil en travers des bords de route (bouton « Graphiques », à côté de « Profils ») : la coupe du
 // terrain telle que le calcul de App._compute_edges l'a lue (py/web_app.py), en SVG. Plateforme entre
 // les deux bords trouvés, chute et dévers à l'endroit où ils ont été mesurés. Les hauteurs sont
 // exagérées (le facteur est écrit) : sur 30 m de large, un talus de 2 m serait illisible ; la case
@@ -10,6 +10,7 @@
 const Profil = (() => {
   const NS = "http://www.w3.org/2000/svg";
   const W = 760, H = 380, LEFT = 52, RIGHT = 16, TOP = 56, BOTTOM = 44;
+  const GROUND_BELOW = 1, GROUND_MIN = 0.3;  // m de sol dessinés sous le point le plus bas du terrain (voir draw)
   const LINE = 14;  // px entre deux lignes d'une étiquette
   const num = (v, digits = 1) => v.toFixed(digits).replace(".", ",").replace(/^-/, "−");
 
@@ -86,15 +87,25 @@ const Profil = (() => {
     const zs = [...all.values()].flatMap((t) => t.points.map((p) => p[1] - ref));
     let [xmin, xmax] = [Math.min(...xs), Math.max(...xs)];
     const plotW = W - LEFT - RIGHT, plotH = H - TOP - BOTTOM;
-    let [zmin, zmax] = [Math.min(...zs) - 0.3, Math.max(...zs) + 0.3];
+    const [lowest, terrainTop] = [Math.min(...zs), Math.max(...zs)];
+    let zmax = terrainTop + 0.3;
     if (trueScale && profile.origine === "caméra") zmax = Math.max(zmax, camera + 0.3);  // caméra à sa hauteur, dans le cadre
-    // Échelle des distances : toute la largeur, réduite (largeur centrée) si les hauteurs ne tiennent pas à ×1
-    const sx = Math.min(plotW / (xmax - xmin), plotH / (zmax - zmin)), xmid = (xmin + xmax) / 2;
+    // Échelle des distances : toute la largeur, réduite (largeur centrée) si les hauteurs ne tiennent pas à ×1 ;
+    // exagération entière, la plus forte qui fait tenir les hauteurs (au moins ×1), ×1 à l'échelle
+    const scale = (bottom) => {
+      const sx = Math.min(plotW / (xmax - xmin), plotH / (zmax - bottom));
+      return { sx, factor: trueScale ? 1 : Math.max(1, Math.floor(plotH / (zmax - bottom) / sx)) };
+    };
+    // Fond : GROUND_BELOW sous le point le plus bas du terrain si son haut (ni caméra ni végétation) reste dans la
+    // moitié basse du cadre, sinon GROUND_MIN ; la place libre va en haut, pour la végétation
+    let zmin = lowest - GROUND_BELOW, { sx, factor } = scale(zmin);
+    if (terrainTop - zmin > plotH / (sx * factor) / 2) {
+      zmin = lowest - GROUND_MIN;
+      ({ sx, factor } = scale(zmin));
+    }
+    const xmid = (xmin + xmax) / 2;
     [xmin, xmax] = [xmid - plotW / sx / 2, xmid + plotW / sx / 2];
-    // Exagération entière, la plus forte qui fait tenir les hauteurs (au moins ×1) ; ×1 à l'échelle
-    const exaggeration = Math.max(1, Math.floor(plotH / (zmax - zmin) / sx)), factor = trueScale ? 1 : exaggeration;
-    const span = plotH / (sx * factor), zmid = (zmin + zmax) / 2;
-    [zmin, zmax] = [zmid - span / 2, zmid + span / 2];
+    zmax = zmin + plotH / (sx * factor);
     const X = (x) => LEFT + (x - xmin) * sx, Z = (z) => TOP + (zmax - (z - ref)) / (zmax - zmin) * plotH;
     const path = (points) => points.map(([x, z], k) => `${k ? "L" : "M"}${X(x).toFixed(1)},${Z(z).toFixed(1)}`).join("");
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, class: "profil-svg", role: "img",

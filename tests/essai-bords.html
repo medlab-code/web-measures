@@ -1,7 +1,7 @@
 <!doctype html><meta charset="utf-8"><title>Essai des bords de route</title>
 <!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
-<!-- Chute et dévers des bords de route hors pont, bouton « Dévers » (ticket #31) : photos de la séquence à 30-120 m des
+<!-- Chute et dévers des bords de route hors pont, bouton « Profils » (ticket #31) : photos de la séquence à 30-120 m des
      ponts de tests/essai-ponts.html (remblais d'approche, ruisseau). Journal seulement : pas encore de
      talus de hauteur connue ; Pouilly-en-Auxois (photos RTK de essai-largeur.html, largeur réelle non relevée) pour les bords
      trouvés. Lancer comme tests/navigateur.html. -->
@@ -13,7 +13,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba93-c63ac344d675"];
 (async () => {
   const w = document.getElementById("f").contentWindow;
-  let shown = 0, drawn = 0, images = 0, butte = false, zoomed = 0, twin = 0, separated = 0;
+  let shown = 0, drawn = 0, folded = 0, images = 0, butte = false, zoomed = 0, twin = 0, separated = 0;
   try {
     const t0 = Date.now();
     while (!(w.mesures?.app && w.mesures.map?.loaded?.())) { if (Date.now() - t0 > 120000) throw new Error("Pyodide"); await sleep(250); }
@@ -50,6 +50,12 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
         await sleep(300);
         const dialog = doc.querySelector("#fenetre-profil"), svg = dialog.querySelector("svg");
         drawn += dialog.open && svg?.querySelector(".sol") ? 1 : 0;
+        // Légende pliée par son bouton, dépliée ensuite ; PNG et PDF la gardent (elle n'est que masquée)
+        const fold = doc.querySelector("#profil-legende"), legend = dialog.querySelector(".legende");
+        fold.click();
+        const hidden = w.getComputedStyle(legend).display === "none" && fold.getAttribute("aria-pressed") === "true";
+        fold.click();
+        folded += hidden && w.getComputedStyle(legend).display !== "none" && !fold.disabled ? 1 : 0;
         await sleep(700);  // titre complété par le lieu (route, PR, commune)
         log(`  profil : ${dialog.querySelector("h2").textContent} · ${[...dialog.querySelectorAll(".legende li, .legende p")].map((e) => e.textContent).join(" | ")}`);
         // Image du bouton « Enregistrer en PNG » (Profil.png), sans la boîte d'enregistrement
@@ -148,6 +154,6 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       } }
     log(`encadrés affichés : ${shown} · profils dessinés : ${drawn} · loupe : ${zoomed} · chaussées séparées : ${twin} · séparateur dans le relief : ${separated}`);
   } catch (e) { log("exception " + e); }
-  log(shown && drawn === shown - 1 && butte && zoomed > 0 && twin && separated === 4 ? "FIN" : `ERREUR encadrés ${shown}, profils ${drawn}`);  // le pont : pas de profil
+  log(shown && drawn === shown - 1 && folded === drawn && butte && zoomed > 0 && twin && separated === 4 ? "FIN" : `ERREUR encadrés ${shown}, profils ${drawn}, légende pliable ${folded}`);  // le pont : pas de profil
 })();
 </script>

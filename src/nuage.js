@@ -3,7 +3,7 @@
 //
 // Analyse fine du profil en travers (bouton « Analyse fine » de la fenêtre du profil) : nuage de points LiDAR HD de
 // l'IGN, lu à la volée (dalles COPC, lecture partielle par Range) sur une bande de ±STRIP m le long de la route au
-// travers de la photo. Le terrain (MNT) du calcul « Dévers » ne voit ni la peinture ni la nature du sol ; l'intensité
+// travers de la photo. Le terrain (MNT) du calcul « Profils » ne voit ni la peinture ni la nature du sol ; l'intensité
 // du retour laser des points du sol, si : enrobé sombre, lignes blanches très claires, herbe, gravillons et béton
 // clairs. D'où le bord de chaussée (ligne de rive, sinon fin de l'enrobé) et le séparateur de chaussée (bande non
 // revêtue entre les deux chaussées, glissières comprises). Lecteur repris de l'essai de faisabilité du

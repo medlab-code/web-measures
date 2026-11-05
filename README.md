@@ -23,7 +23,7 @@ fiables sur des photos à **position GPS RTK vérifiée** (voyant RTK vert). Ail
 restent possibles, mais la page prévient qu'elles seront probablement incohérentes.
 
 Les calculs de chaque mode (point triangulé, hauteur, largeur, relevé, chute sur un pont,
-« Dévers », pente en long, analyse fine du nuage LiDAR) sont expliqués dans
+« Profils », pente en long, analyse fine du nuage LiDAR) sont expliqués dans
 [docs/CALCULS.md](docs/CALCULS.md).
 
 ## Utilisation
@@ -410,9 +410,9 @@ après.
   « calcul impossible » avec sa cause (service injoignable, pas d'altitude GPS sur le pont, pas
   de modèle de terrain). Un creux sans rapport avec ce que franchit le pont, à moins de 10 m de
   la chaussée (fossé profond), augmente la valeur.
-- **Chute et dévers des bords de route** (bouton « Dévers » de la barre du haut, ticket #31) :
+- **Chute et dévers des bords de route** (bouton « Profils » de la barre du haut, ticket #31) :
   sur une photo hors pont, à moins de 15 m d'une route de la BD TOPO (orientée comme la route parcourue, à 45°
-  près : à un carrefour, pas la voie qui croise), un appui sur « Dévers »
+  près : à un carrefour, pas la voie qui croise), un appui sur « Profils »
   affiche en haut à gauche, pour chaque côté (vu dans le sens de la photo) qui descend d'au
   moins 0,5 m, la hauteur de chute et le dévers du bord. La réglette à côté du bouton fixe la
   distance examinée au-delà de la chaussée (2 à 30 m, 10 m par défaut) ; après l'avoir changée,
@@ -475,7 +475,7 @@ après.
     carrés (montée ou descente dans le sens de la photo) et pente la plus forte sur 10 m ; une ligne de l'encadré,
     et un petit graphique (profil en long) sous le profil en travers, repris dans l'image PNG.
 
-  Le bouton **« Profil »**, à côté, montre la coupe du terrain que ce calcul a lue (mesure LiDAR
+  Le bouton **« Graphiques »**, à côté, montre la coupe du terrain que ce calcul a lue (mesure LiDAR
   HD, ou RGE ALTI en secours) : travers de la photo en brun, les quatre autres en pointillés,
   plateforme entre les deux bords trouvés (et comment : rupture de pente ou largeur BD TOPO), milieu du
   séparateur de chaussée sur une route à chaussées séparées (petite barre verticale ; la légende dit s'il a
@@ -487,7 +487,9 @@ après.
   avec son titre et sa légende ; « Enregistrer en PDF » met le graphique et la légende (en petits caractères, sur deux
   colonnes) sur une page A4 paysage, en vectoriel, sous le lieu de la photo (route, PR, commune), à enregistrer en PDF
   dans la boîte d'impression ; « Profil en long (2e page) » (choix retenu) y ajoute une page pour le profil en long ; la loupe agrandit le graphique (sans la légende) au mieux dans la
-  visionneuse. Le bouton est grisé tant que « Dévers » n'a rien calculé pour la photo.
+  visionneuse ; « Masquer la légende » la plie sous le graphique (choix retenu ; le PNG et le PDF la gardent). Le fond du
+  graphique descend à 1 m sous le point le plus bas du terrain si le haut du terrain (sans la caméra ni la végétation) reste alors dans
+  la moitié basse du cadre, sinon à 0,3 m ; la place libre est en haut, pour la végétation. Le bouton est grisé tant que « Profils » n'a rien calculé pour la photo.
 
   **« Analyse fine »** (fenêtre du profil) : lit le nuage de points LiDAR HD de l'IGN (dalles COPC, à la volée,
   1 requête par seconde au plus : une vingtaine de secondes, 1 à 2 Mo) sur ±1 m le long de la route au travers
@@ -505,7 +507,7 @@ après.
   vert clair et la ligne verte. **Ligne verte** : hauteur maximale de la
   végétation (points classés herbe haute, arbustes et arbres par l'IGN), plus haut point à ±0,25 m près, coupée en
   haut du graphique ; la légende dit, de chaque côté, où elle commence et sa hauteur au-dessus du sol (relevé LiDAR
-  de 2021 à 2024 : fauchage, élagage ou repousse depuis). **Eau** : dès le calcul « Dévers », cours d'eau de la BD
+  de 2021 à 2024 : fauchage, élagage ou repousse depuis). **Eau** : dès le calcul « Profils », cours d'eau de la BD
   TOPO croisés par le travers de la photo (triangle bleu nommé ; tronçons fictifs et souterrains écartés) et surfaces
   d'eau traversées (canal, plan d'eau : bande bleue posée sur le terrain, qui est sur l'eau au niveau de sa surface), sur 45 m de part et d'autre ; avec l'analyse
   fine, surface de l'eau lue dans le nuage (points classés eau par l'IGN, ligne bleue à leur altitude, au niveau du
@@ -848,6 +850,8 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 | `tests/essai-rtk.html`, `essai-largeur.html`, `essai-libre.html` | hauteur, largeur, mesure libre sur photos RTK, avec recalages |
 | `tests/inclinaison.html` | inclinaison automatique |
 | `tests/essai-calage.html` | calage de l'inclinaison : croix sélectionnée à 8 px près, au zoom fort |
+| `tests/essai-profil.html` | fond du graphique du profil en travers, sur des profils synthétiques (sans réseau) : 1 m ou 0,3 m sous le point le plus bas |
+| `tests/mesure-souris.html` | essai manuel : dispersion de la souris sur des cibles (ticket #43) |
 | `tests/inclinaison-terrain.html` | inclinaison par le terrain hors agglomération (option) |
 | `py/web_terrain.py` | inclinaison par le terrain hors agglomération : grille LiDAR HD, modèle de séquence |
 | `tools/serveur-essai.py` | serveur des essais : sert le site et affiche leur journal |

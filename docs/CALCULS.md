@@ -8,7 +8,7 @@ les seuils retenus et ce qui limite la précision. Le mode d'emploi est dans le
 [README](../README.md) (« Utilisation »), et les essais chiffrés dans sa partie « Précision ».
 Les calculs communs avec le plugin QGIS (triangulation, inclinaison, vérification RTK) sont
 détaillés dans [`MESURES.md`](MESURES.md) (repris du plugin Visionneuse Panoramax), sections 0, 2.7,
-4.4 et 6.1 bis. Ici, ils sont résumés. Les calculs propres à l'application (pont, « Dévers »,
+4.4 et 6.1 bis. Ici, ils sont résumés. Les calculs propres à l'application (pont, « Profils »,
 analyse fine, relevé, compteurs de la vidéo) sont décrits en entier.
 
 Code : cœur de calcul dans `py/core/` (tests : `tests/coeur/`), calculs propres à
@@ -216,9 +216,9 @@ Rien n'est affiché sans position RTK vérifiée : l'altitude du tablier serait 
 mètres. Sous 0,5 m, la valeur est « non mesurée » (végétation, buse). Un fossé profond à moins
 de 10 m de la chaussée peut augmenter la valeur.
 
-## 8. « Dévers » : profil en travers
+## 8. « Profils » : profil en travers
 
-Ce calcul se lance d'un appui sur le bouton « Dévers », sur une photo hors pont, à moins de 15 m
+Ce calcul se lance d'un appui sur le bouton « Profils », sur une photo hors pont, à moins de 15 m
 d'une route de la BD TOPO. Il ne dépend pas de l'altitude GPS et n'a donc pas besoin du RTK.
 
 ### 8.1 Profils lus
@@ -291,7 +291,7 @@ sont dessinées sur le terrain : le MNT y donne la surface de l'eau le jour du r
 La caméra est dessinée à sa hauteur (réglage « Hauteur de caméra ») au-dessus du sol sous
 l'origine, seulement quand les hauteurs sont à l'échelle.
 
-## 9. « Dévers » : pente en long
+## 9. « Profils » : pente en long
 
 - **Ligne suivie** : la **trajectoire de la caméra** (photos de la même séquence, de rangs qui
   se suivent, un trou d'une photo admis), orientée dans le sens de la photo. C'est là où le

@@ -247,7 +247,7 @@
     store.set("inclinaison-terrain", event.target.checked ? "1" : "0");
     if (app) refresh(app.set_terrain_relay(event.target.checked));
   });
-  // Bords de route (chute et dévers, ticket #31) : calculés à l'appui sur « Dévers », jusqu'à la
+  // Bords de route (chute et dévers, ticket #31) : calculés à l'appui sur « Profils », jusqu'à la
   // distance de la réglette, gardée dans le navigateur
   const edgeZone = $("#bords-largeur");
   edgeZone.value = store.get("bords", edgeZone.value);
@@ -259,7 +259,7 @@
     if (app) { app.set_edge_zone(Number(edgeZone.value)); refresh(); }
   });
   $("#bords").addEventListener("click", () => { app.request_edges(); refresh(); });
-  // « Profil » : coupe du terrain du dernier calcul de « Dévers » pour la photo affichée
+  // « Profil » : coupe du terrain du dernier calcul de « Profils » pour la photo affichée
   let edgeProfile = null;
   // Case « Hauteurs à l'échelle » : cochée à chaque ouverture du profil (caméra à sa hauteur), jamais grisée
   const trueScale = $("#profil-echelle");
@@ -297,9 +297,20 @@
     chart.style.width = `${width}px`;
     dialog.style.maxWidth = `${width + otherW}px`;  // la rangée de boutons passe à la ligne au lieu d'élargir la fenêtre
   };
+  // Légende pliée (choix retenu) : l'image PNG et le PDF la gardent ; grisé en loupe, où elle est déjà masquée
+  const foldLegend = (on) => {
+    const button = $("#profil-legende");
+    $("#fenetre-profil").classList.toggle("legende-pliee", on);
+    button.setAttribute("aria-pressed", String(on));
+    button.textContent = on ? "Afficher la légende" : "Masquer la légende";
+    store.set("profil-legende", on ? "1" : "0");
+  };
+  foldLegend(store.get("profil-legende") === "1");
+  $("#profil-legende").addEventListener("click", () => foldLegend(!$("#fenetre-profil").classList.contains("legende-pliee")));
   const zoomProfile = (on) => {
     const dialog = $("#fenetre-profil"), button = $("#profil-loupe");
     dialog.classList.toggle("agrandi", on);
+    $("#profil-legende").disabled = on;
     button.setAttribute("aria-pressed", String(on));
     button.setAttribute("aria-label", on ? "Taille normale du graphique" : "Agrandir le graphique");
     fitProfile();
@@ -903,7 +914,7 @@
     tiltReason = state.tilt_reason;
     showLights(state.lights);
     // Photo sur un pont, en haut à gauche : nom et hauteur de chute ; ailleurs, chute et dévers des
-    // bords de route après un appui sur « Dévers » (pas pendant la lecture)
+    // bords de route après un appui sur « Profils » (pas pendant la lecture)
     const fall = playing() ? null : JSON.parse(app.fall_json());
     const [bridge, ...rest] = (fall?.text || "").split("\n");
     Object.assign($("#chute"), { hidden: !fall, title: fall?.title || "" });

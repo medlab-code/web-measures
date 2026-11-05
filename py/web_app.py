@@ -344,7 +344,7 @@ class App(session.Session):
         self.fall_cells = {}  # maille -> tronçons BD TOPO avec leur largeur (hauteur de chute, voir fall)
         self.falls = {}  # (séquence, pont) -> hauteur de chute calculée (dict text, title) ou en cours
         self.edges = {}  # (photo, largeur examinée) -> chute et dévers des bords de route (voir _edges)
-        self.edges_asked = {}  # photo -> largeur examinée au dernier appui sur « Dévers »
+        self.edges_asked = {}  # photo -> largeur examinée au dernier appui sur « Profils »
         self.long_tracks = {}  # photo -> trajectoire de la caméra autour d'elle (_track_line), None pendant la lecture
         self.edge_zone = self.EDGE_ZONE
         self.bdtopo = {}  # (couche BD TOPO, maille) -> objets lus (voir _bdtopo)
@@ -1859,7 +1859,7 @@ class App(session.Session):
         host.fetch_json(metadata.search_url(lon, lat, reach, 100, item.get("collection"), host.api_url), got_photos)
 
     # Hauteur de chute et dévers des bords de route, hors pont (ticket #31) -----------------------
-    # Calcul lancé seulement par le bouton « Dévers » de la page (request_edges), pour la photo
+    # Calcul lancé seulement par le bouton « Profils » de la page (request_edges), pour la photo
     # affichée. Travers de part et d'autre de la route, à EDGE_ALONG m de la photo le long du tronçon,
     # depuis la caméra (séquence vérifiée RTK ; sinon l'axe BD TOPO) jusqu'à edge_zone m au-delà du bord
     # de la chaussée (réglette de la page) ; terrain MNT LiDAR HD (RGE ALTI en secours). Bord : rupture de
@@ -1906,23 +1906,23 @@ class App(session.Session):
     PEAK_Z, PEAK_SPREAD, PEAK_TRAVERS, PEAK_HALF = 0.04, 1.0, 2, 0.4
 
     def set_edge_zone(self, metres):
-        """Réglette du bouton « Dévers » : largeur (m) lue au-delà du bord de la chaussée au prochain appui
+        """Réglette du bouton « Profils » : largeur (m) lue au-delà du bord de la chaussée au prochain appui
         (le résultat déjà affiché reste celui de sa largeur)."""
         self.edge_zone = float(metres)
         self.notify()
 
     def request_edges(self):
-        """Bouton « Dévers » : calcul pour la photo affichée et la largeur de la réglette (voir _edges)."""
+        """Bouton « Profils » : calcul pour la photo affichée et la largeur de la réglette (voir _edges)."""
         if self.item:
             self.edges_asked[self.item.get("id")] = self.edge_zone
             self.notify()
 
     def edges_ready(self):
-        """Le bouton « Dévers » aurait un effet : photo affichée, pas déjà calculée à cette largeur."""
+        """Le bouton « Profils » aurait un effet : photo affichée, pas déjà calculée à cette largeur."""
         return bool(self.item) and self.edges_asked.get(self.item.get("id")) != self.edge_zone
 
     def _edges(self, item, sections, lon, lat):
-        """Photo hors pont où le bouton « Dévers » a été pressé : chute et dévers des deux bords de la route
+        """Photo hors pont où le bouton « Profils » a été pressé : chute et dévers des deux bords de la route
         la plus proche (roads.MAX_DISTANCE m au plus), {text, title, edges}, l'attente du calcul ou sa raison
         d'échouer ; None sans appui sur le bouton pour cette photo."""
         zone = self.edges_asked.get(item.get("id"))
@@ -2396,7 +2396,7 @@ class App(session.Session):
                 return self.notify()
             # côté -> [(chute, à m du bord, bout du profil, travers),
             #          (dévers, haut du talus à m du bord, travers, pied du talus à m du bord, hauteur du talus)],
-            # bords [(m depuis l'origine, relief)] ; drawn : profils pour le graphique de la page (bouton « Profil »)
+            # bords [(m depuis l'origine, relief)] ; drawn : profils pour le graphique de la page (bouton « Graphiques »)
             found = {name: [None, None] for name, _ in sides}
             borders = {name: [] for name, _ in sides}
             stops = {name: [] for name, _ in sides}  # côté -> distances au bord où le terrain remonte de EDGE_RISE

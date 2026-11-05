@@ -1147,7 +1147,7 @@ dialog.profil { max-width: min(52rem, calc(100vw - 16px)); }
 dialog.profil .graphique svg { display: block; width: 100%; height: auto; }
 dialog.profil .graphique svg.profil-long { margin-top: 0.6rem; }
 dialog.profil.agrandi { max-width: none; }  /* loupe : largeur du graphique calculée (fitProfile), sans la légende */
-dialog.profil.agrandi .legende { display: none; }
+dialog.profil.agrandi .legende, dialog.profil.legende-pliee .legende { display: none; }
 dialog.profil .graphique { margin: 0 auto; }
 #profil-loupe { display: inline-flex; align-items: center; justify-content: center; }
 #profil-loupe[aria-pressed="true"] { background: var(--panoramax); border-color: var(--panoramax); color: #fff; }
