@@ -3,7 +3,7 @@
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
 <!-- Banc : D115D du PR 1 + 146 au PR 0 (1,1 km), une photo sur 2, 90 km/h, exporté N fois (#n=4) sans cache HTTP
      (chaque export recharge ses tuiles ; #cache : tuiles gardées, après un premier export non compté) ; #compteurs :
-     compteurs PR et vitesse ; #brouillon : option Brouillon ; #stabilisation : option Stabilisation ; #extrait : MP4 des 60 premières photos dans le journal (ligne « EXTRAIT », base64) ; encodeur H.264 matériel ou logiciel, puis chronos de chaque export dans le journal. -->
+     compteurs PR et vitesse ; #brouillon : option Brouillon ; #stabilisation : option Stabilisation ; #presentation : mode Présentation ; #planete : petite planète sur tout le parcours ; #court : 20 photos ; #extrait : MP4 des 60 premières photos dans le journal (ligne « EXTRAIT », base64) ; encodeur H.264 matériel ou logiciel, puis chronos de chaque export dans le journal. -->
 <script>try {
   localStorage.clear();
   localStorage.setItem("web-measures/filtre", JSON.stringify({ since: "2025-07-05" }));
@@ -37,8 +37,9 @@ async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { 
     await sleep(3000);
     button.click();
     await until(() => /Enregistrer/.test(button.textContent), 120000, "vidéo préparée");
-    const photos = w.mesures.videoPlan.photos.filter((_, i) => i % 2 === 0);
-    const options = { ...(location.hash.includes("compteurs") ? { counter: true, speedometer: true } : {}), draft: location.hash.includes("brouillon"), stabilize: location.hash.includes("stabilisation") };
+    const photos = w.mesures.videoPlan.photos.filter((_, i) => i % 2 === 0).slice(0, location.hash.includes("court") ? 20 : Infinity);
+    const options = { ...(location.hash.includes("compteurs") ? { counter: true, speedometer: true } : {}), draft: location.hash.includes("brouillon"), stabilize: location.hash.includes("stabilisation"),
+      ...(location.hash.includes("presentation") ? { presentation: { ...Video.PRES, vmax: Video.PRES.vmax / 3.6, vmin: Video.PRES.vmin / 3.6, slow: Video.PRES.slow / 3.6 } } : {}), planetAll: location.hash.includes("planete") };
     if (location.hash.includes("cache")) await Video.mp4(photos, 90, () => {}, null, options);  // tuiles mises en cache
     else {
       const fetch0 = w.fetch;

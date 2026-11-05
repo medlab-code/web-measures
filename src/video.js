@@ -90,6 +90,7 @@ const Video = (() => {
   const PLANET_FOV = 300;  // degrés : champ horizontal de la planète (projection stéréographique, regard vers le sol)
   const PLANET_SPIN = 20;  // °/s : rotation de la planète sur elle-même par défaut (réglette de 0, sans, à 90)
   const PLANET_SCALE = 1 / 3;  // tuiles réduites au plus (tout le tour de la photo, dans un champ très large)
+  const PLANET_SD = 0.5;  // part de la planète au-delà de laquelle l'image SD suffit, au lieu des 128 tuiles de la photo
   const SPEED_SMOOTH = 4;  // images : vitesse affichée lissée sur ± SPEED_SMOOTH images (un quart de seconde)
   const TOUR_TIME = 8;  // s : tour d'horizon par défaut (réglette de 2 à 20 s)
   const SEAM_BLUR = 4;  // vues moyennées au raccord de deux séquences (léger : moitié du flou cinétique)
@@ -407,7 +408,10 @@ const Video = (() => {
       ctx.font = font(size * 0.6);
       ctx.fillText(unit, xd + digitsWidth, y0);
       ctx.font = font(size);
-      drawRollers(ctx, speed.kmh, xd, y0, size, speed.digits, true);
+      // Le chiffre ne glisse qu'en fin de kilomètre/heure : sinon, une vitesse qui varie lentement le laisse entre deux
+      // positions, décalé et flou, pendant de longues secondes
+      const whole = Math.floor(speed.kmh);
+      drawRollers(ctx, whole + smooth(Math.max(0, (speed.kmh - whole - 0.8) / 0.2)), xd, y0, size, speed.digits, true);
     }
     if (lateral) {
       // Accélération latérale ressentie (moins le dévers ; en ligne droite, la pente en travers), en millièmes de g, chiffre
@@ -1437,10 +1441,12 @@ const Video = (() => {
     const extra = path.list.map(() => 0);
     const raise = path.list.map(() => 0), sharp = path.list.map(() => 1);  // visée en hauteur, zoom : par photo
     const round = path.list.map(() => false);  // petite planète : tout le panorama, tuiles réduites
+    const narrow = path.list.map(() => false);  // vue encore trop peu ouverte pour l'image SD à un moment de la photo
     xs.forEach((x, n) => {
       const i = path.segment(x)[0], off = Math.min(180, Math.abs(pan[n]));  // tour complet : tout le panorama
       for (const k of [i, Math.min(i + 1, path.list.length - 1)]) {
         if (globe.mix[n]) round[k] = true;
+        if (globe.mix[n] <= PLANET_SD) narrow[k] = true;
         extra[k] = Math.max(extra[k], off);
         raise[k] = Math.max(raise[k], Math.abs(aim.lift[n]));
         sharp[k] = Math.max(sharp[k], aim.zoom[n]);
@@ -1449,7 +1455,8 @@ const Video = (() => {
     const loads = new Map();  // rang de la photo -> Promise de { tex, crop, grid }
     const load = (i) => {
       if (!loads.has(i)) {
-        const photo = path.list[i];
+        const photo = round[i] && !narrow[i] && path.list[i].sd
+          ? { ...path.list[i], tiles: { image: path.list[i].sd, cols: 1, rows: 1, size: 2048 } } : path.list[i];
         const crop = cropOf(photo.tiles, yawAt(i, path.s[i]), photo.pitch,
           round[i] ? 360 : Math.max(widest(HFOV), rolled[i] ? widest(diagonal) : 0) + 2 * extra[i],
           round[i] ? 360 : (rolled[i] ? widest(diagonal) : widest(vfov)) + 2 * raise[i]);

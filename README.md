@@ -247,7 +247,7 @@ l'endroit : 50 m centrés sur lui), la vue descend vers le sol en
 s'élargissant jusqu'à 300° (passage continu de la perspective à la projection stéréographique) : le paysage s'enroule
 en boule, route vers le haut, et la planète tourne avec la route ; enroulement au début du tronçon et déroulement à
 sa fin (réglette « Transition » : 0, 1, 2 ou 3 s, 1 s par défaut, la moitié du tronçon au plus ; 0 : planète d'emblée
-sur tout le tronçon ; interrupteur « Tonneau pendant la transition » : un tour complet de roulis pendant l'enroulement,
+sur tout le tronçon ; image SD des photos une fois la vue assez ouverte (moitié de la transition), tuiles réduites avant : calcul environ 3 fois plus rapide ; interrupteur « Tonneau pendant la transition » : un tour complet de roulis pendant l'enroulement,
 un autre en sens inverse pendant le déroulement, grisé sans transition ; interrupteur « Tout le parcours » : du départ à l'arrivée, sans tronçon à tracer, 📍 grisé), la
 caméra continue d'avancer ; réglette « Rotation » : elle
 tourne aussi sur elle-même (de 0, sans, à 90° par seconde, 20 par défaut ; vue revenue droite à la fin) ; tout le tour des photos est chargé sur ces
