@@ -514,9 +514,13 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <select id="video-codec" aria-label="Codec de la vidéo" disabled><option value="h264" selected>H.264</option><option value="h265">H.265</option></select>
               <select id="video-definition" aria-label="Définition de la vidéo"><option value="1080" selected>1080p</option><option value="720">720p</option></select>
             </div>
-            <label class="option" title="Brouillon, pour vérifier un parcours, ses arrêts et ses effets avant le calcul final : image SD de chaque photo au lieu de ses tuiles HD, vidéo en 960 × 540. Image floue : panneaux et marquage lointain illisibles, zoom du point d'intérêt encore plus flou">
-              <span class="texte-option">Brouillon (rapide)<span class="aide">Image SD, 960 × 540 ; image floue.</span></span>
+            <label class="option" title="Brouillon, pour vérifier un parcours, ses arrêts et ses effets avant le calcul final : image SD de chaque photo au lieu de ses tuiles HD, vidéo en 960 × 540 ; image floue : panneaux et marquage lointain illisibles. Seuls restent le titre, le compteur de vitesse et les variations de vitesse automatiques (allure, ralentissements, rampe) : le reste est grisé et ignoré">
+              <span class="texte-option">Brouillon (rapide)<span class="aide">Image SD, 960 × 540, image floue ; seuls restent le titre, le compteur de vitesse et les variations de vitesse automatiques.</span></span>
               <input id="video-brouillon" type="checkbox" class="interrupteur">
+            </label>
+            <label class="option" title="Stabilisation : les photos ne donnent ni tangage ni roulis, et la caméra bouge d'une prise à l'autre. Le décalage entre deux photos voisines est mesuré sur leur image SD, et les petits sauts retirés du tangage de la vue ; une photo mal mesurée reste non corrigée. Le cap et le roulis ne sont pas corrigés">
+              <span class="texte-option">Stabilisation<span class="aide">Moins de sauts d'une photo à l'autre ; une image SD de plus à télécharger par photo.</span></span>
+              <input id="video-stabilisation" type="checkbox" class="interrupteur" checked>
             </label>
             <label class="option" title="Flou cinétique : chaque image est la moyenne de 8 vues réparties depuis l'image précédente ; ce qui défile vite près de la caméra (chaussée, poteaux) s'étale dans le sens du mouvement, le lointain reste net">
               <span class="texte-option">Flou cinétique<span class="aide">Le proche s'étire dans le sens du mouvement.</span></span>

@@ -3646,7 +3646,7 @@
    * altitudes du sol), ou null s'il n'est pas actif. */
   function poiOptions() {
     const target = poiTargets.get($("#interet-cible").value);
-    if (!$("#video-interet").checked || !target) return null;
+    if (!videoOption("#video-interet") || !target) return null;
     return { target: target.lonlat, z: target.z, start: poi.zone?.[0] || null, end: poi.zone?.[1] || null,
       speed: poiSpeed(), zoom: Number($("#interet-zoom").value),
       zoomByDistance: $("#interet-zoom-distance").checked, roll: $("#interet-tonneau").checked };
@@ -3815,12 +3815,19 @@
     $("#video-mode-aide").textContent = VIDEO_MODES[$("#video-mode").value]?.help || "";
     $("#video-presentation").hidden = $("#video-mode").value !== "presentation";
   };
+  /** Option de la vidéo active ? Brouillon : seuls le titre, le compteur de vitesse et les variations de vitesse automatiques
+   * restent (DRAFT_OFF). */
+  const videoOption = (id) => $(id).checked && !$("#video-brouillon").checked;
+  const DRAFT_OFF = ["#video-compteur", "#video-acceleration", "#video-vmax-arp", "#video-stabilisation", "#video-flou", "#video-expo", "#video-regard", "#regard-vitesse",
+    "#video-interet", "#interet-cible", "#interet-vitesse", "#interet-zoom", "#interet-zoom-distance", "#interet-tonneau", "#video-tonneau", "#tonneau-duree",
+    "#video-tour", "#tour-duree", "#tour-arret", "#video-planete", "#planete-tout", "#planete-transition", "#planete-tonneau", "#planete-rotation", "#arret-duree", "#video-arret",
+    "#video-codec", "#video-definition"];
   /** Réglages du mode Présentation pour Video (vitesses en m/s), ou null dans un autre mode. */
   function presOptions() {
     if ($("#video-mode").value !== "presentation") return null;
     return { vmax: Number($("#pres-vmax").value) / 3.6, vmin: Number($("#pres-vmin").value) / 3.6, turn: Number($("#pres-virage").value),
       fade: Number($("#pres-transition").value), stop: Number($("#arret-duree").value),
-      stops: $("#video-arret").checked ? placed.stop.points.map((p) => p.lonlat) : [],
+      stops: videoOption("#video-arret") ? placed.stop.points.map((p) => p.lonlat) : [],
       slows: $("#video-ralenti").checked ? placed.slow.points.map((p) => p.lonlat) : [], slow: Number($("#ralenti-vitesse").value) / 3.6 };
   }
   /** Points de ralentissement posés d'eux-mêmes : croisements de routes revêtues et ouvrages d'art de la vidéo préparée
@@ -4184,15 +4191,15 @@
         $("#video-info").textContent = text;
         setStatus(text, "avancement");
         $("#statut").style.setProperty("--avancement", `${(100 * done / total).toFixed(1)}%`);
-      }, videoRun.signal, { blur: $("#video-flou").checked, draft: $("#video-brouillon").checked, h265: $("#video-codec").value === "h265", height: Number($("#video-definition").value), exposure: $("#video-expo").checked,
+      }, videoRun.signal, { blur: videoOption("#video-flou"), draft: $("#video-brouillon").checked, stabilize: videoOption("#video-stabilisation"), h265: !$("#video-brouillon").checked && $("#video-codec").value === "h265", height: Number($("#video-definition").value), exposure: videoOption("#video-expo"),
         ramp: !presOptions() && $("#video-rampe").checked, presentation: presOptions(),
-        counter: $("#video-compteur").checked, speedometer: $("#video-compteur-vitesse").checked, lateral: $("#video-acceleration").checked, arpSpeed: $("#video-vmax-arp").checked,
-        junctions: $("#video-regard").checked ? videoPlan.junctions : [],
-        rolls: $("#video-tonneau").checked ? placed.roll.points.map((p) => p.lonlat) : [], rollTime: Number($("#tonneau-duree").value),
-        planets: $("#video-planete").checked ? placed.planet.points.map(placeOf) : [],
-        planetAll: $("#video-planete").checked && $("#planete-tout").checked, planetRoll: $("#planete-tonneau").checked,
+        counter: videoOption("#video-compteur"), speedometer: $("#video-compteur-vitesse").checked, lateral: videoOption("#video-acceleration"), arpSpeed: videoOption("#video-vmax-arp"),
+        junctions: videoOption("#video-regard") ? videoPlan.junctions : [],
+        rolls: videoOption("#video-tonneau") ? placed.roll.points.map((p) => p.lonlat) : [], rollTime: Number($("#tonneau-duree").value),
+        planets: videoOption("#video-planete") ? placed.planet.points.map(placeOf) : [],
+        planetAll: videoOption("#video-planete") && $("#planete-tout").checked, planetRoll: $("#planete-tonneau").checked,
         planetFade: Number($("#planete-transition").value), planetSpin: Number($("#planete-rotation").value),
-        tours: $("#video-tour").checked ? placed.tour.points.map((p) => p.lonlat) : [],
+        tours: videoOption("#video-tour") ? placed.tour.points.map((p) => p.lonlat) : [],
         tourTime: Number($("#tour-duree").value), tourStop: $("#tour-arret").checked,
         poi: poiAim,
         lookSpeed: Number($("#regard-vitesse").value),
@@ -4276,7 +4283,7 @@
     try {
       if (poi?.speed) poiSlow = { ...Video.poiSpan(path, poi), speed: poi.speed / 3.6 };
     } catch { /* zone loin du parcours : signalée au calcul de la vidéo */ }
-    const looks = Video.lookedJunctions(path, $("#video-regard").checked ? videoPlan.junctions : []);
+    const looks = Video.lookedJunctions(path, videoOption("#video-regard") ? videoPlan.junctions : []);
     const go = (p) => Video.timeline(path, Number($("#video-vitesse").value) / 3.6, !pres && $("#video-rampe").checked, looks,
       Number($("#regard-vitesse").value) / 3.6, poiSlow, p);
     let xs;
@@ -4285,7 +4292,7 @@
     } catch {
       xs = go(pres && { ...pres, stops: [], slows: [] });  // arrêt ou ralentissement loin du parcours
     }
-    if ($("#video-tour").checked) {
+    if (videoOption("#video-tour")) {
       try {
         xs = Video.tours(path, xs, placed.tour.points.map((p) => p.lonlat), Number($("#tour-duree").value), $("#tour-arret").checked).xs;
       } catch { /* endroit loin du parcours */ }
@@ -4357,7 +4364,7 @@
     step();
     updatePlayer();
   });
-  const tourStops = () => ($("#video-tour").checked && $("#tour-arret").checked
+  const tourStops = () => (videoOption("#video-tour") && $("#tour-arret").checked
     ? placed.tour.points.length * Number($("#tour-duree").value) : 0);
   /** Parcours préparé : photos retenues, écart moyen, durée de la vidéo et photos par seconde (au-delà d'une par
    * image, 30/s, des photos sont sautées), changement de séquence. */
@@ -4369,7 +4376,7 @@
     const n = path.list.length, perSecond = v * (n - 1) / Math.max(1, path.length);
     return `${n} photos (une tous les ${(path.length / Math.max(1, n - 1)).toFixed(0)} m) · `
       + `${Math.round(Video.duration(videoPhotos(), v * 3.6, $("#video-rampe").checked,
-        $("#video-regard").checked ? videoPlan.junctions : [], Number($("#regard-vitesse").value), poiOptions(), presOptions())
+        videoOption("#video-regard") ? videoPlan.junctions : [], Number($("#regard-vitesse").value), poiOptions(), presOptions())
         + tourStops())} s · `
       + `${perSecond.toFixed(perSecond < 10 ? 1 : 0)} photos/s${$("#video-rampe").checked || presOptions() ? " au plus" : ""}`
       + (perSecond > Video.FPS ? " (photos sautées)" : "")
@@ -4409,7 +4416,7 @@
     $("#parcours-garder").textContent = !openedRoute ? "☆ Garder" : changed ? "☆ Enregistrer…" : "☆ Gardé";
     $("#parcours-raz").disabled = Boolean(videoRun) || routeIsBlank();
     showPoiZone();  // portion du parcours concernée : suit la préparation, la cible et la zone
-    for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-brouillon", "#video-expo", "#video-rampe", "#video-titre",
+    for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-brouillon", "#video-stabilisation", "#video-expo", "#video-rampe", "#video-titre",
       "#video-compteur", "#video-compteur-vitesse", "#video-acceleration", "#video-vmax-arp", "#video-regard", "#video-tonneau", "#tonneau-duree", "#regard-vitesse",
       "#video-interet", "#interet-vitesse", "#interet-zoom", "#interet-zoom-distance", "#interet-tonneau",
       "#video-planete", "#planete-tout", "#planete-transition", "#planete-rotation", "#video-tour", "#tour-duree", "#tour-arret"]) {
@@ -4428,6 +4435,10 @@
       $(id).disabled = Boolean(videoRun);
     }
     for (const which of ["stop", "slow"]) travelPane.querySelector(`.sur-carte[data-cote="${which}"]`).disabled = Boolean(videoRun);
+    if ($("#video-brouillon").checked) {
+      for (const id of DRAFT_OFF) $(id).disabled = true;
+      for (const which of ["stop", "roll", "tour", "planet"]) travelPane.querySelector(`.sur-carte[data-cote="${which}"]`).disabled = true;
+    }
     showModeHelp();  // mode rétabli par un parcours gardé ou la RAZ
     const stops = placed.waypoint.points.length;
     $("#parcours-etapes-infos").textContent = stops ? `${stops} étape${stops > 1 ? "s" : ""}, dans l'ordre de pose` : "aucune";

@@ -11,6 +11,9 @@
 // suivante (vue depuis le même point) en fondu. Le toit du véhicule (bas du panorama, sous ROOF) est écarté :
 // l'autre photo le remplace. Sans avancée simulée (option) : chaque photo vue de sa caméra, simple fondu enchaîné.
 // Brouillon (option) : image SD de chaque photo et non ses tuiles, vidéo en 960 × 540 : calcul plus rapide, image floue.
+// Stabilisation (option) : les photos ne donnent ni tangage ni roulis, et la caméra bouge d'une prise à l'autre : décalage
+// mesuré entre les images SD de deux photos voisines (stabilization), petits sauts retirés du tangage de la vue. Cap non
+// corrigé : pas de gain mesuré (D115D, routes sinueuses : le décor proche fausse le décalage horizontal).
 // Encodage H.264 par le navigateur (WebCodecs ; H.265 au choix, avec un encodeur matériel ; VP9 s'il n'encode pas le H.264, Firefox
 // sous Linux), fichier assemblé par mp4-muxer, chargé au premier export seulement.
 
@@ -43,6 +46,10 @@ const Video = (() => {
   const ROAD = 4;  // m : chaussée plane de la maquette, de part et d'autre de l'axe de la vue
   const ROOF = -25;  // degrés : sous cette latitude du panorama, le toit du véhicule
   const AHEAD = 4;  // photos chargées d'avance
+  const STAB_SPAN = 40;  // m : variation lente gardée (pente, virage) : moyenne des décalages sur ± STAB_SPAN m
+  const STAB_MAX = 2;  // degrés : correction au plus, d'une photo
+  const STAB_SEARCH = 14;  // px de l'image SD (2048 px pour 360°, soit 5,7 px/°) : décalage cherché, ± 2,5°
+  const STAB_FIELD = [40, 16];  // degrés : zone comparée, devant la vue, sur l'horizon
   const HOLD = 1;  // s : arrêt sur la première et la dernière vue
   const MARGIN = 8;  // degrés : marge des tuiles chargées autour du champ (cap qui varie le long de la photo)
   const EXPO_SIDE = 3;  // photos mesurées de part et d'autre d'un changement de séquence (exposition)
@@ -975,6 +982,98 @@ const Video = (() => {
     return { list, s, length, segment, course, at };
   }
 
+  /** Zone comparée de la photo autour du cap relatif yaw (degrés), image SD : { data (niveaux de gris), w, h } ; null si
+   * l'image n'est pas un panorama complet (rapport 2 : 1). */
+  async function stabCrop(photo, yaw, signal) {
+    const bitmap = await fetchImage(photo.sd, signal);
+    const W = bitmap.width, H = bitmap.height;
+    if (W !== 2 * H) {
+      bitmap.close();
+      return null;
+    }
+    const w = Math.round(STAB_FIELD[0] * W / 360) + 2 * STAB_SEARCH, h = Math.round(STAB_FIELD[1] * W / 360) + 2 * STAB_SEARCH;
+    const canvas = new OffscreenCanvas(w, h), ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const left = (((yaw + 180) * W / 360 - w / 2) % W + W) % W;
+    ctx.drawImage(bitmap, -left, (h - H) / 2);
+    ctx.drawImage(bitmap, W - left, (h - H) / 2);  // autour du raccord du panorama
+    bitmap.close();
+    const rgba = ctx.getImageData(0, 0, w, h).data, data = new Float32Array(w * h);
+    for (let k = 0; k < data.length; k++) data[k] = 0.3 * rgba[4 * k] + 0.59 * rgba[4 * k + 1] + 0.11 * rgba[4 * k + 2];
+    return { data, w, h };
+  }
+
+  /** Décalage [dx, dy] (px, au dixième environ) de l'image b par rapport à a, de même taille : ce qui est en (x, y) dans
+   * a est en (x + dx, y + dy) dans b. Moindres écarts à une différence de luminosité près, jusqu'à search px. null sans
+   * réponse sûre : image trop unie, ressemblance faible, ou meilleur décalage au bord de la recherche. */
+  function imageOffset(a, b, search = STAB_SEARCH) {
+    const { w, h } = a, side = 2 * search + 1, scores = new Float64Array(side * side);
+    let best = Infinity, bx = 0, by = 0, energy = 0, count = 0, total = 0;
+    for (let y = search; y < h - search; y += 2) {
+      for (let x = search; x < w - search; x += 2) {
+        const v = a.data[y * w + x];
+        total += v;
+        energy += v * v;
+        count++;
+      }
+    }
+    energy -= total * total / count;
+    for (let dy = -search; dy <= search; dy++) {
+      for (let dx = -search; dx <= search; dx++) {
+        let sum = 0, squares = 0;
+        for (let y = search; y < h - search; y += 2) {
+          const ra = y * w, rb = (y + dy) * w + dx;
+          for (let x = search; x < w - search; x += 2) {
+            const d = a.data[ra + x] - b.data[rb + x];
+            sum += d;
+            squares += d * d;
+          }
+        }
+        const score = squares - sum * sum / count;
+        scores[(dy + search) * side + dx + search] = score;
+        if (score < best) [best, bx, by] = [score, dx, dy];
+      }
+    }
+    if (energy / count < 25 || best > 0.5 * energy || Math.abs(bx) === search || Math.abs(by) === search) return null;
+    const at = (dx, dy) => scores[(dy + search) * side + dx + search];
+    const vertex = (m, o, p) => (m - 2 * o + p > 0 ? 0.5 * (m - p) / (m - 2 * o + p) : 0);  // parabole par trois points
+    return [bx + vertex(at(bx - 1, by), best, at(bx + 1, by)), by + vertex(at(bx, by - 1), best, at(bx, by + 1))];
+  }
+
+  /** Correction du tangage de la vue, en degrés, pour chaque photo du parcours. Décalages verticaux cumulés d'une photo à la
+   * suivante, moins leur moyenne sur ± STAB_SPAN m : les petits sauts seulement, pas la pente ni les virages. Pas de
+   * mesure entre deux séquences ; photo sans mesure sûre : pas de saut compté. wait() : pour dire que le calcul avance. */
+  async function stabilization(path, yawOf, signal, wait = () => {}) {
+    const { list, s } = path, crops = list.map(() => null);
+    let next = 0;
+    await Promise.all(Array.from({ length: EXPO_PARALLEL }, async () => {
+      while (next < list.length) {
+        const i = next++;
+        wait();
+        if (!list[i].sd) continue;
+        try {
+          crops[i] = await stabCrop(list[i], yawOf(i), signal);
+        } catch (error) {
+          if (signal?.aborted) throw error;
+          console.warn("Vidéo : stabilisation sans mesure", list[i].id, error);
+        }
+      }
+    }));
+    const sum = [0];
+    for (let i = 1; i < list.length; i++) {
+      wait();
+      const same = list[i].collection === list[i - 1].collection && crops[i] && crops[i - 1];
+      const d = same && imageOffset(crops[i - 1], crops[i]);
+      sum.push(sum[i - 1] + (d ? d[1] * STAB_FIELD[0] / (crops[i].w - 2 * STAB_SEARCH) : 0));
+      crops[i - 1] = null;  // mémoire
+    }
+    return sum.map((v, i) => {
+      let total = 0, n = 0;
+      for (let k = i; k >= 0 && s[i] - s[k] <= STAB_SPAN; k--) { total += sum[k]; n++; }
+      for (let k = i + 1; k < sum.length && s[k] - s[i] <= STAB_SPAN; k++) { total += sum[k]; n++; }
+      return Math.min(STAB_MAX, Math.max(-STAB_MAX, v - total / n));
+    });
+  }
+
   /** Tuiles de la photo qui couvrent le champ autour du cap relatif yaw (degrés), pour une vue au plus large de
    * hfov × vfov : { c0, nc, r0, nr } (colonnes à partir de c0, modulo la grille ; lignes à partir de r0). */
   function cropOf(tiles, yaw, pitch, hfov, vfov) {
@@ -1259,13 +1358,13 @@ const Video = (() => {
    * planets), options.planetFade : enroulement et déroulement (s), options.planetAll : sur tout le parcours, options.planetRoll : tonneau pendant les transitions, options.presentation : mode
    * Présentation (timeline, presentationSpeeds ; vitesses en m/s) à la place de kmh et de la rampe, options.planetSpin : vitesse de rotation (°/s) ;
    * options.tours : endroits des tours d'horizon ([[lon, lat]…], tours), options.tourTime : durée de chacun (s),
-   * options.tourStop : caméra arrêtée pendant le tour ; options.draft : brouillon (image SD des photos, DRAFT_SIZE) ; options.h265 : H.265 si le poste l'encode ; options.height : 720 pour le 720p ; options.stream : fichier ouvert
+   * options.tourStop : caméra arrêtée pendant le tour ; options.draft : brouillon (image SD des photos, DRAFT_SIZE) ; options.h265 : H.265 si le poste l'encode ; options.height : 720 pour le 720p ; options.stabilize : tangage de chaque photo corrigé (stabilization) ; options.stream : fichier ouvert
    * (FileSystemWritableFileStream) où écrire la vidéo au fur et à mesure, refermé à la fin (rend null ; sans lui, la
    * vidéo est assemblée en mémoire et rendue en Blob : un long parcours peut alors dépasser la mémoire de l'onglet). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
    */
   async function mp4(photos, kmh, progress = () => {}, signal = null,
     { blur = false, exposure = true, ramp = false, title = null, counter = false, speedometer = false, lateral = false, arpSpeed = false, junctions = [], rolls: rollPlaces = [],
-    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, draft = false, h265 = false, height: wantedHeight = 1080, planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false, planetRoll = false, presentation = null,
+    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, draft = false, h265 = false, height: wantedHeight = 1080, stabilize = false, planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false, planetRoll = false, presentation = null,
     planetSpin = PLANET_SPIN, tours: tourPlaces = [], tourTime = TOUR_TIME, tourStop = true, stream = null } = {}) {
     const timelineOf = (p) => timeline(p, kmh / 3.6, ramp, lookedJunctions(p, junctions), lookSpeed / 3.6,
       poi?.speed ? { ...poiSpan(p, poi), speed: poi.speed / 3.6 } : null, presentation);
@@ -1290,6 +1389,11 @@ const Video = (() => {
     const widest = (fov) => 2 * Math.atan(Math.tan(fov / 2 * toRad) * 1.6) / toRad;
     const scaleOf = (t) => Math.min(1, 1.25 * (width / HFOV) / (t.size / (360 / t.cols)));
     const yawAt = (i, x) => wrap(path.course(x) - path.list[i].heading);
+    if (stabilize) {
+      const steady = await stabilization(path, (i) => yawAt(i, path.s[i]), signal, () => progress(0, path.list.length));
+      // Sens vérifié sur une vidéo : photo dont le décor est plus bas (dy > 0) : tangage de la vue diminué
+      path.list.forEach((p, i) => { p.pitch -= steady[i] * toRad; });
+    }
     // Couleurs accordées à chaque changement de séquence (raccord discret) ; photos isolées seulement avec l'option
     const gains = await exposures(path, signal, exposure);
     const span = poi ? poiSpan(path, poi) : null;
@@ -1457,6 +1561,6 @@ const Video = (() => {
     }
   }
 
-  return { get times() { return lastTimes; }, supported, hevcSupported, record, mp4, trajectory, timeline, ignoredPlaces, presentationSpeeds, PRES, PRES_START, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
+  return { get times() { return lastTimes; }, supported, hevcSupported, imageOffset, record, mp4, trajectory, timeline, ignoredPlaces, presentationSpeeds, PRES, PRES_START, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
     poiSpan, poiViews, planets, tours, speeds, laterals, insideDevers, lateralColor, arpSpeeds, steady, drawOverlay, fetchImage, FPS, HOLD };
 })();

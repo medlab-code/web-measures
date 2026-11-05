@@ -3,7 +3,7 @@
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
 <!-- Banc : D115D du PR 1 + 146 au PR 0 (1,1 km), une photo sur 2, 90 km/h, exporté N fois (#n=4) sans cache HTTP
      (chaque export recharge ses tuiles ; #cache : tuiles gardées, après un premier export non compté) ; #compteurs :
-     compteurs PR et vitesse ; #brouillon : option Brouillon ; #extrait : MP4 des 30 premières photos dans le journal (ligne « EXTRAIT », base64) ; encodeur H.264 matériel ou logiciel, puis chronos de chaque export dans le journal. -->
+     compteurs PR et vitesse ; #brouillon : option Brouillon ; #stabilisation : option Stabilisation ; #extrait : MP4 des 60 premières photos dans le journal (ligne « EXTRAIT », base64) ; encodeur H.264 matériel ou logiciel, puis chronos de chaque export dans le journal. -->
 <script>try {
   localStorage.clear();
   localStorage.setItem("web-measures/filtre", JSON.stringify({ since: "2025-07-05" }));
@@ -38,7 +38,7 @@ async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { 
     button.click();
     await until(() => /Enregistrer/.test(button.textContent), 120000, "vidéo préparée");
     const photos = w.mesures.videoPlan.photos.filter((_, i) => i % 2 === 0);
-    const options = { ...(location.hash.includes("compteurs") ? { counter: true, speedometer: true } : {}), draft: location.hash.includes("brouillon") };
+    const options = { ...(location.hash.includes("compteurs") ? { counter: true, speedometer: true } : {}), draft: location.hash.includes("brouillon"), stabilize: location.hash.includes("stabilisation") };
     if (location.hash.includes("cache")) await Video.mp4(photos, 90, () => {}, null, options);  // tuiles mises en cache
     else {
       const fetch0 = w.fetch;
@@ -46,13 +46,14 @@ async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { 
     }
     const n = Number(/n=(\d+)/.exec(location.hash)?.[1] || 4);
     for (let k = 0; k < n; k++) {
+      const t0 = performance.now();
       const blob = await Video.mp4(photos, 90, () => {}, null, options);
       const c = Video.times;
       log(`export ${k + 1} : tuiles ${(c.tuiles / 1000).toFixed(1)} s, dessin ${(c.dessin / 1000).toFixed(1)} s, encodeur ${
-        (c.encodeur / 1000).toFixed(1)} s, total ${(c.total / 1000).toFixed(1)} s pour ${c.images} images (${photos.length} photos), ${(blob.size / 1e6).toFixed(1)} Mo`);
+        (c.encodeur / 1000).toFixed(1)} s, total ${(c.total / 1000).toFixed(1)} s (${((performance.now() - t0) / 1000).toFixed(1)} s avec les mesures préalables) pour ${c.images} images (${photos.length} photos), ${(blob.size / 1e6).toFixed(1)} Mo`);
     }
     if (location.hash.includes("extrait")) {  // 30 premières photos, à regarder (ffmpeg, après décodage du base64)
-      const blob = await Video.mp4(photos.slice(0, 30), 90, () => {}, null, options);
+      const blob = await Video.mp4(photos.slice(0, 60), 90, () => {}, null, options);
       const data = await new Promise((resolve) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.readAsDataURL(blob); });
       await log("EXTRAIT " + data.split(",")[1]);
     }

@@ -8,7 +8,7 @@
      3dc34aaf, sans filtre) : changement de séquence signalé. Petite planète (#planete) : au milieu des 300 premiers
      mètres depuis le PR 1 + 146 (une photo sur 4), enroulement, tenue, déroulement. Parcours gardés (#garder) : « ☆ Garder »,
      export d'un seul, import, réglages et endroits rétablis d'un clic. Tour d'horizon (#tour) : arrêt sur une photo, tour
-     complet à l'horizontale, sens alterné. Serveur d'images bloqué (#attente) :
+     complet à l'horizontale, sens alterné. Stabilisation (#stabilisation) : décalages connus entre deux images. Serveur d'images bloqué (#attente) :
      avertissement au bout de 30 s, reprise, annulation. Lancer comme tests/navigateur.html. -->
 <script>try {
   localStorage.clear();
@@ -52,11 +52,23 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     const dist = (p, q) => Math.hypot((p[0] - q[0]) * k, (p[1] - q[1]) * 111320);
     // Parties : 1,1 km (rampe de vitesse, titre, compteur PR), D115D courte (vidéo calculée et enregistrée), carrefour
     // (changement de séquence, exposition) ; ancre #long ou #exposition : cette partie seule (mise au point, plus court)
-    const only = location.hash.match(/#(long|exposition|planete|garder|tour|attente)/)?.[1];
+    const only = location.hash.match(/#(long|exposition|planete|garder|tour|attente|stabilisation)/)?.[1];
     const Video = w.eval("Video");
     let select = doc.querySelector("#video-vitesse");
     let canvas = Object.assign(document.createElement("canvas"), { width: 960, height: 540 });
     let ctx = canvas.getContext("2d");
+    if (only === "stabilisation") {
+      // Décalage connu entre deux images de synthèse ; image unie : pas de réponse
+      const W = 256, H = 120, scene = (x, y) => 128 + 60 * Math.sin(x * 0.21 + y * 0.09) + 40 * Math.sin(y * 0.31 - x * 0.05) + 20 * Math.sin((x + 3 * y) * 0.13);
+      const make = (dx, dy) => ({ w: W, h: H, data: Float32Array.from({ length: W * H }, (_, k) => scene(k % W - dx, Math.floor(k / W) - dy)) });
+      for (const [dx, dy] of [[0, 0], [3, -5], [-7, 4], [2.5, 1.5]]) {
+        const [x, y] = Video.imageOffset(make(0, 0), make(dx, dy)) || [NaN, NaN];
+        expect(`décalage ${dx}, ${dy}`, Math.abs(x - dx) < 0.3 && Math.abs(y - dy) < 0.3, `${x}, ${y}`);
+      }
+      const flat = { w: W, h: H, data: new Float32Array(W * H).fill(100) };
+      expect("image unie : pas de réponse", Video.imageOffset(flat, flat) === null);
+      expect("décalage hors de la recherche : pas de réponse", Video.imageOffset(make(0, 0), make(14, 0)) === null);
+    }
     if (only === "attente") {
       // Serveur d'images bloqué (tuiles sans réponse, requêtes reprises par Video) : avertissement au bout de 30 s, fenêtre
       // refermée dès que les images reviennent, vidéo écrite ; puis nouveau blocage et « Annuler la vidéo »
@@ -99,10 +111,10 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       const boxes = [...doc.querySelectorAll("#video-avancees .options > label.option > input[type=checkbox]")];
       const on = (list) => list.filter((b) => b.checked).map((b) => b.id).join(" ");
       expect("mode Présentation par défaut", doc.querySelector("#video-mode").value === "presentation" && doc.querySelector("#video-titre").checked
-        && on(boxes) === "video-compteur video-compteur-vitesse" && !doc.querySelector("#video-presentation").hidden
+        && on(boxes) === "video-compteur video-compteur-vitesse video-stabilisation" && !doc.querySelector("#video-presentation").hidden
         && doc.querySelector("#video-rampe").disabled && doc.querySelector("#video-vitesse").disabled, on(boxes));
-      expect("options avancées repliées, dans l'ordre demandé", !doc.querySelector("#video-avancees").open && boxes.slice(0, 8).map((b) => b.id).join(" ")
-        === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp video-brouillon video-flou video-expo video-rampe",
+      expect("options avancées repliées, dans l'ordre demandé", !doc.querySelector("#video-avancees").open && boxes.slice(0, 9).map((b) => b.id).join(" ")
+        === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp video-brouillon video-stabilisation video-flou video-expo video-rampe",
         boxes.map((b) => b.id).join(" "));
       const mode = doc.querySelector("#video-mode");
       mode.value = "revue";

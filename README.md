@@ -270,7 +270,9 @@ prend le relais en fondu. Limites : un objet proche et haut (arbre, poteau) se d
 fondu, la ligne des collines aussi un peu (photos qui ne penchent pas pareil). « Format » : H.265 (grisé si le poste n'a pas d'encodeur : navigateurs à base de Chromium, encodeur matériel nécessaire ; 30 Mbit/s en 1080p, fichier pas lu par
 tous les lecteurs ; H.264 si l'encodeur le refuse, dit à la fin du calcul) et 1080p ou 720p (grisé en brouillon). « Brouillon (rapide) » (décochée) : image SD
 de chaque photo au lieu de ses tuiles HD, vidéo en 960 × 540, à 7,5 Mbit/s, pour vérifier un parcours et ses effets avant le calcul final ;
-image floue (panneaux et marquage lointain illisibles). Chaque photo est vue de sa propre caméra et passe à la suivante par un fondu enchaîné
+image floue (panneaux et marquage lointain illisibles) ; seuls restent le titre, le compteur de vitesse et les variations de vitesse automatiques (allure, ralentissements, rampe), le reste est grisé et ignoré.
+« Stabilisation » (cochée, sauf en brouillon) : les photos ne donnent ni tangage ni roulis ; le décalage entre deux photos voisines est mesuré sur leur image SD et les petits
+sauts sont retirés du tangage de la vue (au plus 2° par photo, variations sur plus de 40 m gardées) ; cap et roulis non corrigés ; une image SD de plus à télécharger par photo. Chaque photo est vue de sa propre caméra et passe à la suivante par un fondu enchaîné
 (l'avancée simulée dans une maquette, retirée le 01/11/2026, faisait sauter le ciel et les côtés). Le calcul prend environ
 deux fois la durée de la vidéo si les tuiles sont déjà en cache (« ■ Arrêter » l'interrompt) ; sous Chrome et Edge, la
 vidéo est écrite dans le fichier choisi au fur et à mesure (mémoire constante, même pour un long parcours ; arrêt ou
