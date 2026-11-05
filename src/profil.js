@@ -216,8 +216,10 @@ const Profil = (() => {
       }
       svg.append(el("path", { d, class: "eau-nuage" }));
     }
+    let canopy = false;
     if (plants && fine?.vegetation?.length) {
       let d = "", prev = null;
+      const peaks = new Map();  // plus haut point de la ligne de chaque côté
       // plus haut point des cases voisines (±0,25 m) : une case où le laser n'a touché que des branches basses ne creuse pas ;
       // puis moyenne sur ±1 m : le feuillage des arbres sans dents de scie
       const top = new Map(fine.vegetation.map(([x]) => [x, Math.max(...fine.vegetation.filter(([v]) => Math.abs(v - x) <= 0.25 + 1e-6).map(([, z]) => z))]));
@@ -225,10 +227,18 @@ const Profil = (() => {
       for (const [x] of fine.vegetation) {
         const z = near(x);
         if (x < xmin || x > xmax) { prev = null; continue; }
+        if (!(z <= peaks.get(x < 0)?.[1])) peaks.set(x < 0, [x, z]);
         d += `${prev !== null && x - prev <= 0.5 + 1e-6 ? "L" : "M"}${X(x).toFixed(1)},${Math.max(TOP, Z(z)).toFixed(1)}`;
         prev = x;
       }
       svg.append(el("path", { d, class: "vegetation" }));
+      // À l'échelle seulement : canopée hors du cadre, sa hauteur au-dessus de la plateforme, comme les graduations
+      for (const [x, z] of trueScale ? peaks.values() : []) {
+        if (z - ref <= zmax) continue;
+        canopy = true;
+        svg.append(el("text", { x: Math.max(LEFT + 50, Math.min(W - RIGHT - 50, X(x))), y: TOP + 14, class: "etiquette-profil place canopee", "text-anchor": "middle" },
+          `canopée +${num(z - ref, 0)} m`));
+      }
     }
     if (fine) {
       for (const [a, b] of plants ? fine.herbe || [] : []) {  // herbe au sol : bande vert clair posée sur le terrain
@@ -355,7 +365,8 @@ const Profil = (() => {
           return mine.length ? `\u00a0; ${side}\u00a0: dès ${num(Math.min(...mine.map(([a, b]) => Math.min(Math.abs(a), Math.abs(b)))))} m` : "";
         }).join("") + "."] : []),
       ...(plants && fine?.vegetation?.length ? ["Ligne verte\u00a0: hauteur maximale de la végétation (herbe haute, arbustes, arbres, classés par "
-        + "l'IGN) sur ±1 m le long de la route, coupée en haut du graphique" + ["gauche", "droit"].map((side) => {
+        + "l'IGN) sur ±1 m le long de la route, coupée en haut du graphique"
+        + (canopy ? " (« canopée +… m »\u00a0: sa hauteur au-dessus de la plateforme)" : "") + ["gauche", "droit"].map((side) => {
           const sign = side === "gauche" ? -1 : 1, seen = fine.vegetation.filter(([x]) => sign * x > 0);
           if (!seen.length) return "";
           const above = ([x, z]) => z - (zAt(main.points, x) ?? z);
@@ -450,17 +461,35 @@ const Profil = (() => {
 
   /** Profil en long (App._compute_edges : en_long, points [d, z], d > 0 dans le sens de la photo) : petit graphique sous le
    * profil en travers, 0 = le sol sous la caméra, la caméra flottant à camera m au-dessus, la pente la plus forte sur 10 m
-   * en rouge ; null sans données. */
+   * en rouge ; null sans données. Fin de la route et carrefours sont nommés dans une bande au-dessus du cadre, pour ne
+   * jamais couvrir le terrain : le graphique grandit d'autant. */
   function drawLong(long, camera = 1.9) {
     if (!long?.points?.length) return null;
-    const LW = 760, LH = 170, L = 52, R = 16, T = 34, B = 34, pw = LW - L - R, ph = LH - T - B;
+    const LW = 760, L = 52, R = 16, B = 34, pw = LW - L - R, ph = 102;
+    const [d0, d1] = [-50, 50];  // axe fixe (App.LONG_REACH) ; au-delà du bout du tronçon, pas de terrain : vide
+    const X = (d) => L + (d - d0) / ((d1 - d0) || 1) * pw;
+    // Fin de la route de la photo et carrefours avec une voie nommée : nom à côté du trait pointillé, à droite s'il y tient,
+    // sur la première ligne de la bande où il ne couvre aucun autre nom
+    const marks = [];
+    for (const e of long.fins || []) {
+      if (e.d < d0 || e.d > d1) continue;
+      // « fin de la D16 » (la route s'arrête : le profil aussi), puis le carrefour ; sinon le carrefour seul
+      const road = e.voie ? (/^[A-Z]+\d/.test(e.voie) ? `la ${e.voie}` : e.voie) : "la route";
+      const lines = [...(e.type === "fin" ? [`fin de ${road}`] : []), ...(e.avec?.length ? [`carrefour avec ${e.avec.join(", ")}`] : [])];
+      const width = Math.max(0, ...lines.map((t) => t.length)) * 13 * 0.56;  // comme declutter
+      const right = X(e.d) + 4 + width <= LW;
+      const [from, to] = right ? [X(e.d), X(e.d) + 4 + width] : [X(e.d) - 4 - width, X(e.d)];
+      let row = 0;
+      while (marks.some((m) => from < m.to && m.from < to && row < m.row + m.lines.length && m.row < row + lines.length)) row++;
+      marks.push({ d: e.d, lines, right, from, to, row });
+    }
+    const T = 34 + Math.max(0, ...marks.map((m) => m.row + m.lines.length)) * LINE, LH = T + ph + B;
     const ds = long.points.map(([d]) => d), zs = long.points.map(([, z]) => z);
     const ground = zs[ds.indexOf(0)], top = ground !== undefined ? ground + camera : null;  // caméra dans le cadre aussi
     const all = top !== null ? [...zs, top] : zs;
-    // axe fixe de −50 à +50 m (App.LONG_REACH) ; au-delà du bout du tronçon, pas de terrain : vide
-    const [d0, d1] = [-50, 50], zmid = (Math.min(...all) + Math.max(...all)) / 2;
+    const zmid = (Math.min(...all) + Math.max(...all)) / 2;
     const span = Math.max(2, (Math.max(...all) - Math.min(...all)) * 1.25);  // 2 m au moins : une route plate reste plate
-    const X = (d) => L + (d - d0) / ((d1 - d0) || 1) * pw, Z = (z) => T + (zmid + span / 2 - z) / span * ph;
+    const Z = (z) => T + (zmid + span / 2 - z) / span * ph;
     const svg = el("svg", { viewBox: `0 0 ${LW} ${LH}`, class: "profil-svg profil-long", role: "img", "aria-label": "Profil en long de la route" });
     // graduations des hauteurs par rapport au sol sous la caméra (0), sinon au milieu
     const zStep = [0.25, 0.5, 1, 2, 5, 10].find((s) => span / s <= 5) || 20, base = zs[ds.indexOf(0)] ?? zmid;
@@ -496,23 +525,16 @@ const Profil = (() => {
         el("text", { x: X((a + b) / 2), y: Z(at((a + b) / 2)) - 10, class: "graduation place", "data-haut": "", "text-anchor": "middle" },
           o.type === "pont" ? "pont" : o.type === "creux" ? "creux comblé" : "tunnel"));
     }
-    // Fin de la route de la photo et carrefours avec une voie nommée : trait pointillé et nom
-    for (const [k, e] of (long.fins || []).entries()) {
-      if (e.d < d0 || e.d > d1) continue;
-      // nommée du côté opposé à la caméra (derrière : à gauche du trait), plus bas près d'elle (son étiquette est en haut)
-      const anchor = e.d < 0 || e.d > 30 ? "end" : "start", dx = anchor === "end" ? -4 : 4;
-      const y = T + 12 + (Math.abs(e.d) < 25 ? 30 : 0) + (k % 2) * 4;
-      // « fin de la D16 » (la route s'arrête : le profil aussi), puis le carrefour ; sinon le carrefour seul
-      const road = e.voie ? (/^[A-Z]+\d/.test(e.voie) ? `la ${e.voie}` : e.voie) : "la route";
-      const lines = [...(e.type === "fin" ? [`fin de ${road}`] : []), ...(e.avec?.length ? [`carrefour avec ${e.avec.join(", ")}`] : [])];
-      svg.append(el("line", { x1: X(e.d), x2: X(e.d), y1: T, y2: T + ph, class: "bord" }));
-      // comme « bord » du profil en travers : la 1re ligne en étiquette, la suite en graduation, liserées sur le terrain ;
-      // une seule étiquette (tspan) pour declutter
-      const label = el("text", { x: X(e.d) + dx, y, class: "etiquette-profil place", "text-anchor": anchor });
-      lines.forEach((t, i) => label.append(el("tspan", { x: X(e.d) + dx, ...(i ? { dy: LINE, class: "graduation" } : {}) }, t)));
+    declutter(svg, T, T + ph, decks);
+    // Traits avant les noms : un nom liseré reste lisible si le trait d'un autre passe derrière
+    const baseline = (m) => 34 + m.row * LINE + 10;  // ligne de base de la 1re ligne du nom
+    for (const m of marks) svg.append(el("line", { x1: X(m.d), x2: X(m.d), y1: baseline(m) - 10, y2: T + ph, class: "bord" }));
+    for (const m of marks) {
+      // comme « bord » du profil en travers : la 1re ligne en étiquette, la suite en graduation
+      const x = X(m.d) + (m.right ? 4 : -4), label = el("text", { x, y: baseline(m), class: "etiquette-profil place", "text-anchor": m.right ? "start" : "end" });
+      m.lines.forEach((t, i) => label.append(el("tspan", { x, ...(i ? { dy: LINE, class: "graduation" } : {}) }, t)));
       svg.append(label);
     }
-    declutter(svg, T, T + ph, decks);
     const g = long.pente;
     svg.append(el("text", { x: L, y: 18, class: "etiquette-profil" }, `Profil en long\u00a0: ${g >= 0 ? "montée" : "descente"} de ${num(Math.abs(g))} %`
         + (long.max ? `, jusqu'à ${num(Math.abs(long.max[0]))} % sur 10 m` : "")),

@@ -45,6 +45,8 @@ BRIDGE_LEFT = MARGIN  # m : photo sortie du pont, aucun tronçon en pont plus pr
 # Natures de la BD TOPO retenues comme voies carrossables : routes revêtues, ni route empierrée, chemin, sentier, piste cyclable ou escalier
 DRIVABLE_NATURES = {"Route à 1 chaussée", "Route à 2 chaussées", "Rond-point", "Bretelle", "Type autoroutier"}
 CLOSED_ACCESS = {"Restreint aux ayants droit", "Physiquement impossible"}  # accès des véhicules légers : voie non ouverte
+# Chemins nommés que la BD TOPO classe en « Route à 1 chaussée » (« CHE DE L ARGENTALET ») : seul leur nom les distingue
+PATH_NAMES = {"CHE", "CHEM", "CHEMIN"}
 
 
 def _axis_diff(a, b):
@@ -71,7 +73,8 @@ def wfs_url(cell):
 
 def parse_sections(data):
     """Tronçons d'une réponse WFS (GeoJSON) : liste de dicts line ([(lon, lat)]), name, level
-    (position par rapport au sol : 1 ou plus sur un pont, -1 en tunnel), drivable (voie carrossable ouverte, ni privée)."""
+    (position par rapport au sol : 1 ou plus sur un pont, -1 en tunnel), drivable (voie carrossable ouverte, ni privée,
+    ni chemin d'après son nom s'il n'a pas de numéro)."""
     out = []
     for feat in (data or {}).get("features") or []:
         geom = feat.get("geometry") or {}
@@ -94,7 +97,8 @@ def parse_sections(data):
             if len(pts) >= 2:
                 out.append({"line": pts, "name": str(name), "level": level,
                             "drivable": props.get("nature") in DRIVABLE_NATURES and not props.get("prive")
-                            and props.get("acces_vehicule_leger") not in CLOSED_ACCESS})
+                            and props.get("acces_vehicule_leger") not in CLOSED_ACCESS
+                            and str(name).split(" ")[0] not in PATH_NAMES})
     return out
 
 

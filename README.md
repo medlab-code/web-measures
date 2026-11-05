@@ -465,7 +465,7 @@ après.
     même route ne continue : le profil s'arrête là aussi, même si la caméra a continué sur une autre route, et les
     pentes ne portent que sur la partie gardée), « carrefour avec D18 » là où une voie carrossable nommée (numéro ou nom) s'y
     raccorde (deux raccordements de la même voie à moins de 30 m, comme autour d'un îlot séparateur : un seul
-    carrefour, au milieu) ; les voies sans numéro ni nom, les routes empierrées, chemins, sentiers et voies privées ou réservées aux ayants droit ne sont pas mentionnés ; ponts : le MNT y donne le fond
+    carrefour, au milieu), noms au-dessus du graphique, reliés au profil par un trait pointillé ; les voies sans numéro ni nom, les routes empierrées, chemins (nature BD TOPO, ou nom en « CHE » sans numéro, même classé route), sentiers et voies privées ou réservées aux ayants droit ne sont pas mentionnés ; ponts : le MNT y donne le fond
     franchi ; un creux (corde de 40 m au plus à plus de 0,1 m au-dessus du terrain, appuyée en haut des parois) est
     remplacé par cette corde s'il recouvre un pont de la BD TOPO ou si le terrain y plonge de plus de 20 % (une route :
     15 % au plus), un vallon que la route suit restant tel quel (le tablier, à peu près, en tirets « pont (tablier interpolé) », ou
@@ -509,7 +509,7 @@ après.
   n'a pas été faite) montre ou masque la bande
   vert clair et la ligne verte. **Ligne verte** : hauteur maximale de la
   végétation (points classés herbe haute, arbustes et arbres par l'IGN), plus haut point à ±0,25 m près, coupée en
-  haut du graphique ; la légende dit, de chaque côté, où elle commence et sa hauteur au-dessus du sol (relevé LiDAR
+  haut du graphique (hauteurs à l'échelle : « canopée +18 m » si elle en sort, sa hauteur au-dessus de la plateforme) ; la légende dit, de chaque côté, où elle commence et sa hauteur au-dessus du sol (relevé LiDAR
   de 2021 à 2024 : fauchage, élagage ou repousse depuis). **Eau** : dès le calcul « Profils », cours d'eau de la BD
   TOPO croisés par le travers de la photo (triangle bleu nommé ; tronçons fictifs et souterrains écartés) et surfaces
   d'eau traversées (canal, plan d'eau : bande bleue posée sur le terrain, qui est sur l'eau au niveau de sa surface), sur 45 m de part et d'autre ; avec l'analyse

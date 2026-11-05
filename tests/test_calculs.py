@@ -94,6 +94,14 @@ class Carrefours(unittest.TestCase):
                       {"acces_vehicule_leger": "Restreint aux ayants droit"}):
             self.assertEqual(self.cites(self.voie("VOIE", **props)), [], props)
 
+    def test_chemin_classe_route(self):
+        # photo 9b97c187 : « CHE DE L ARGENTALET », 3,5 m, en « Route à 1 chaussée » ; seul le nom le dit chemin
+        for name in ("CHE DE L ARGENTALET", "CHEM DES VIGNES", "CHEMIN DU LAVOIR"):
+            self.assertEqual(self.cites(self.voie(None, nom_collaboratif_gauche=name)), [], name)
+        self.assertEqual(self.cites(self.voie(None, nom_collaboratif_gauche="RTE DE VILLERIN")), ["RTE DE VILLERIN"])
+        self.assertEqual(self.cites(self.voie(None, nom_collaboratif_gauche="CHEMINOTS")), ["CHEMINOTS"])
+        self.assertEqual(self.cites(self.voie("D70", nom_collaboratif_gauche="CHE DE DIJON")), ["D70"])  # numérotée : gardée
+
 
 class Creux(unittest.TestCase):
     """Profil en long : tablier des ponts (App._bridged)."""

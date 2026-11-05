@@ -47,6 +47,31 @@ try {
   says("toit", text({ type: "toit", pente: 2.5, gauche: -2.4, droite: 2.6 }), "toit 3\u00a0%", "en toit, pente moyenne 3\u00a0%");
   says("demi-chaussées", text({ type: "demi", gauche: -3, droite: 0.2 }), "dévers ← 3\u00a0% | moins de 1\u00a0%", "à gauche 3\u00a0% vers la gauche, à droite moins de 1\u00a0%");
   says("non déterminé", text({ type: "indetermine" }), "plateforme", "dévers non déterminé");
+  // Canopée hors du cadre : sa hauteur, à l'échelle seulement, de chaque côté où elle dépasse
+  const fine = (vegetation) => ({ points: 100, lignes: [], bords: {}, herbe: [], eau: [], separateur: null, vegetation });
+  const trees = (x0, z) => [...Array(9).keys()].map((k) => [x0 + k * 0.5, z]);
+  const labels = (veg, scale = true, plants = true) => [...Profil.draw(profile(flat), scale, fine(veg), plants).svg.querySelectorAll("text.canopee")].map((t) => t.textContent).join(" | ");
+  const canopy = (what, got, expected) => { checks++; if (got !== expected) failures++; log(`${got !== expected ? "ÉCHEC " : ""}${what} : « ${got} » (attendu « ${expected} »)`); };
+  canopy("arbres de 40 m à droite", labels(trees(5, 40)), "canopée +40 m");
+  canopy("arbres des deux côtés", labels([...trees(-12, 30), ...trees(5, 40)]), "canopée +30 m | canopée +40 m");
+  canopy("arbres de 5 m, dans le cadre", labels(trees(5, 5)), "");
+  canopy("hauteurs exagérées", labels(trees(5, 40), false), "");
+  canopy("case Végétation décochée", labels(trees(5, 40), true, false), "");
+  // Profil en long : noms de carrefours dans la bande au-dessus du cadre, jamais sur le terrain, ni l'un sur l'autre ni coupés
+  const road = (fins) => { const svg = Profil.draw({ ...profile(flat), en_long: { pente: 4.7, max: null, fins,
+    points: [...Array(51).keys()].map((k) => [k * 2 - 50, (k * 2 - 50) * 0.047]) } }, true).long; document.documentElement.append(svg); return svg; };
+  const names = (what, fins, count) => {
+    const svg = road(fins), width = svg.viewBox.baseVal.width, plotTop = Math.min(...[...svg.querySelectorAll(".grille")].map((l) => Number(l.getAttribute("y1"))));
+    const boxes = [...svg.querySelectorAll("text.etiquette-profil.place")].map((t) => t.getBBox()), ground = svg.querySelector(".sol").getBBox();
+    const ok = boxes.length === count && boxes.every((b, i) => b.y + b.height <= plotTop + 1 && b.y + b.height <= ground.y && b.x >= 0 && b.x + b.width <= width
+      && boxes.every((o, j) => j === i || b.x + b.width <= o.x || o.x + o.width <= b.x || b.y + b.height <= o.y + 4 || o.y + o.height <= b.y + 4));  // boîtes de 17,4 px pour 14 px d'interligne
+    svg.remove(); checks++; if (!ok) failures++; log(`${ok ? "" : "ÉCHEC "}${what} : ${boxes.length} nom(s), cadre à ${plotTop.toFixed(0)} px`);
+  };
+  const near = { d: 30, type: "carrefour", avec: ["CHE DE L'ARGENTALET"] };
+  names("carrefour de l'image du 05/11", [near], 1);
+  names("carrefour en début d'axe", [{ d: -45, type: "carrefour", avec: ["D18"] }], 1);
+  names("deux carrefours proches", [near, { d: 25, type: "carrefour", avec: ["RUE DE LA GARE"] }], 2);
+  names("fin de route et carrefour", [{ d: 20, type: "fin", voie: "D16", avec: ["D18"] }, near], 2);
   // Route étroite : le graphique est à sa hauteur ; la caméra (1,9 m) ne compte pas comme haut du terrain
   check("caméra au-dessus d'un terrain plat", Profil.draw(profile([crossing(0, () => -0.1, 4)], "caméra"), true, null, true, 1.9), 1);
 } catch (error) { failures++; log("ÉCHEC exception : " + (error.stack || error)); }

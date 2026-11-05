@@ -320,11 +320,12 @@ de la détection (§ 8.2), accotement parfois compris, sans l'analyse fine.
   (« fin de la D16 »), même si la caméra a continué sur une autre route. Les pentes ne portent
   que sur la partie gardée.
 - **Carrefours** : « carrefour avec D18 » là où une voie **carrossable** et **nommée** (numéro ou nom) se raccorde
-  à la route, placé le long de la route. Deux raccordements de la même voie à moins de 30 m
+  à la route, placé le long de la route (nom au-dessus du graphique, relié par un trait pointillé). Deux raccordements de la même voie à moins de 30 m
   (îlot séparateur) font un seul carrefour, au milieu. Les voies sans numéro ni nom ne sont pas
   mentionnées, ni, d'après la BD TOPO, les routes empierrées, chemins, sentiers, pistes cyclables et
   escaliers, les voies privées ou réservées aux ayants droit. La BD TOPO ne distingue pas les voies
-  communales : le tri se fait sur la nature et l'accès.
+  communales : le tri se fait sur la nature et l'accès, et sur le nom pour les chemins classés « Route à 1 chaussée »
+  (« CHE DE L ARGENTALET ») : un nom en « CHE » sans numéro n'est pas mentionné, même s'il est revêtu.
 - **Creux et ponts** : le MNT n'a pas les ponts, il donne le fond franchi. Le tronçon BD TOPO en
   pont est souvent plus court que la brèche, ou absent. Au-dessus de chaque point, on cherche la
   **corde** la plus haute tendue entre deux points du terrain distants de **40 m** au plus. Là où
@@ -372,7 +373,8 @@ Ce que l'analyse en tire :
 - **Végétation haute** : plus haut point des classes 3 à 5 (herbe haute, arbustes, arbres) à
   ±0,25 m près. La ligne est lissée sur ±1 m. La légende dit où elle commence de chaque côté, et
   sa hauteur au-dessus du sol au moment du relevé LiDAR (2021 à 2024 : fauchage, élagage ou
-  repousse depuis).
+  repousse depuis). Hauteurs à l'échelle, si elle sort du cadre : « canopée +18 m », plus haut point
+  de la ligne de ce côté au-dessus de la plateforme ; rien avec les hauteurs exagérées.
 - **Eau** : points de la classe 9, à leur altitude (niveau du jour du relevé). Souvent absents,
   car l'eau renvoie mal le laser.
 

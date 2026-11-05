@@ -1184,6 +1184,7 @@ dialog.profil form label { white-space: nowrap; }
 #profil-nuage-barre { width: 8rem; height: 0.6rem; accent-color: var(--panoramax); vertical-align: middle; }
 .profil-svg .herbe { fill: none; stroke: #9ccc65; stroke-width: 5; stroke-linejoin: round; opacity: 0.9; }  /* analyse fine */
 .profil-svg .ouvrage { stroke: var(--texte); stroke-width: 2; stroke-dasharray: 6 3; }  /* pont ou tunnel du profil en long */
+.profil-svg text.canopee { fill: #188038; }
 .profil-svg .vegetation { fill: none; stroke: #34a853; stroke-width: 2; stroke-linejoin: round; }  /* analyse fine */
 .profil-svg .ligne-blanche { fill: #fff; stroke: #5f6368; stroke-width: 1; }  /* analyse fine : peinture au sol */
 .profil-svg .bord-chaussee { stroke: var(--texte); stroke-width: 1.5; stroke-dasharray: 3 2; }  /* analyse fine */
