@@ -20,6 +20,10 @@ const Nuage = (() => {
   const GRASS = 3.5;  // herbe : bande non revêtue (VERGE m au moins) en moyenne GRASS fois plus claire que l'enrobé (le laser,
   // en proche infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois)
   const AXIS = 1.2;  // m : ligne blanche aussi près de l'axe d'une chaussée : ligne entre voies, pas de rive
+  const PAVED_RISE = 2.2;  // abords de l'enrobé : VERGE m au moins, chaque case à PAVED_RISE fois l'enrobé ou plus (essai du 05/11/2026, 13 photos)
+  // m : l'enrobé peut finir loin du bord du calcul (bande d'arrêt d'urgence, rupture de pente sur la chaussée : D70 9b97c187, bord à 2 m, enrobé à 5,2 m)
+  const PAVED_REACH = 12, PAVED_BEYOND = 3;
+  const PAVED_STEPS = [-4, -2, 0, 2, 4];  // m le long de la route : travers de ±STRIP dont le bord d'enrobé est la médiane
   const SEPARATOR = [0.5, 12];  // m : largeurs possibles du séparateur, et son milieu à 2 m au plus de celui du calcul
 
   // Lambert 93 (RGF93, EPSG:2154), sens direct (IGN, ALG0001 à ALG0003 ; RGF93 ≈ WGS 84)
@@ -155,6 +159,32 @@ const Nuage = (() => {
     return line ? { x: line.x, comment: "ligne de rive" } : null;
   }
 
+  /** Bord de l'enrobé d'un côté d'un travers (rows : case -> intensité, sign : -1 à gauche, 1 à droite), de from à limit m
+   * de l'origine, ref : intensité de l'enrobé : début de la première bande claire d'au moins VERGE m (ni une ligne blanche
+   * ni une reprise d'enrobé), à mi-hauteur entre l'enrobé et ces abords, interpolé ; m signés, ou null. */
+  function pavedEdge(rows, sign, from, limit, ref) {
+    const first = Math.ceil(from / BIN);
+    let start = null, found = false;
+    for (let k = first; !found && k * BIN <= limit + VERGE; k++) {
+      const v = rows.get(sign * k);
+      if (v === undefined) continue;
+      if (v < PAVED_RISE * ref) start = null;
+      else {
+        start ??= k;
+        found = (k - start + 1) * BIN >= VERGE;
+      }
+    }
+    if (!found) return null;
+    const verge = median([...Array(Math.round(1.5 / BIN)).keys()].map((j) => rows.get(sign * (start + j))).filter((v) => v !== undefined));
+    const level = (ref + verge) / 2;
+    let j = start;
+    while ((rows.get(sign * j) ?? -Infinity) < level) j++;
+    while (j > first && (rows.get(sign * (j - 1)) ?? -Infinity) >= level) j--;
+    const [a, b] = [rows.get(sign * (j - 1)) ?? ref, rows.get(sign * j)];
+    const x = (j - 1 + (level - a) / ((b - a) || 1)) * BIN;
+    return x <= limit ? sign * x : null;
+  }
+
   /** Analyse fine du profil (voir App._compute_edges : profile.repere, profils, bords, séparateur) ; progress(texte,
    * part lue de 0 à 1, ou absente tant que le nombre de blocs n'est pas connu) pendant la lecture. Résultat en m signés comme le graphique (négatif à gauche). */
   async function analyse(profile, progress = () => {}) {
@@ -169,7 +199,7 @@ const Nuage = (() => {
     const meta = (await response.json()).features || [];
     if (!meta.length) throw new Error("pas de nuage LiDAR HD ici");
     // case -> intensités du sol ; altitude la plus haute de la végétation ; altitudes des points d'eau
-    const bins = new Map(), plants = new Map(), water = new Map();
+    const bins = new Map(), plants = new Map(), water = new Map(), soil = [];
     let points = 0;
     // Blocs à lire, dalle par dalle (hiérarchie d'abord : leur nombre fait l'avancement de la barre)
     // shortcut: les deux niveaux les plus fins (9/10 des points, 1/4 des octets : essai du 2026-10-27)
@@ -184,6 +214,7 @@ const Nuage = (() => {
         done / todo.length);
       for (const [x, y, z, intensity, cls] of await ground(tile, n)) {
         const ex = x - o[0], ey = y - o[1], across = ex * ux + ey * uy, along = ey * ux - ex * uy;
+        if (cls === 2 && Math.abs(across) <= HALF) soil.push([along, across, intensity]);
         if (Math.abs(along) > STRIP || Math.abs(across) > HALF) continue;
         const k = Math.round(across / BIN);
         if (cls === 9) {
@@ -256,15 +287,43 @@ const Nuage = (() => {
         sepEnd = Math.max(Math.abs(near[0][0]), Math.abs(near[0][1]));
       }
     }
-    // Bords de chaussée : jusqu'au bord du calcul (plateforme) + 1 m ; du côté du séparateur, au-delà de lui
+    // Travers voisins pour le bord d'enrobé : chacun sa case et son enrobé (la route peut tourner sous ±STRIP)
+    const sections = PAVED_STEPS.map((at) => {
+      const near = new Map();
+      for (const [along, across, i] of soil) {
+        if (Math.abs(along - at) > STRIP) continue;
+        const k = Math.round(across / BIN);
+        if (!near.has(k)) near.set(k, []);
+        near.get(k).push(i);
+      }
+      const rows = new Map([...near].map(([k, v]) => [k, median(v)]));
+      return { rows, ref: median([...rows].filter(([k]) => Math.abs(k * BIN) <= (profile.origine === "caméra" ? 1.5 : 3)).map(([, i]) => i)) };
+    }).filter((s) => s.ref);
+    // Bords de chaussée : jusqu'au bord du calcul (plateforme) + 1 m ; du côté du séparateur, au-delà de lui. Bord de
+    // l'enrobé si au moins 3 travers le trouvent, sinon ligne de rive ou fin de l'enrobé du seul travers de la photo
+    const found = {};
     for (const [name, sign] of [["gauche", -1], ["droit", 1]]) {
       const e = main.find((m) => m.cote === name);
       if (!e) continue;
       const from = sign === sepSign && out.separateur ? sepEnd : 1.0;
-      out.bords[name] = edge(cells, sign, from, e.bord + 1, [profile.axe ?? null, e.autre_axe ? sign * e.autre_axe : null]);
+      found[name] = sections.map((s) => pavedEdge(s.rows, sign, from, Math.max(PAVED_REACH, e.bord + PAVED_BEYOND), s.ref));
+      const xs = found[name].filter((x) => x !== null);
+      out.bords[name] = xs.length >= 3 ? { x: median(xs), comment: "enrobé" }
+        : edge(cells, sign, from, e.bord + 1, [profile.axe ?? null, e.autre_axe ? sign * e.autre_axe : null]);
+    }
+    // Largeur d'enrobé de la chaussée de l'origine, travers par travers : du séparateur, s'il est de ce côté, au bord opposé
+    const inner = out.separateur ? Math.min(Math.abs(out.separateur[0]), Math.abs(out.separateur[1])) : null;
+    if (!out.separateur || out.separateur[0] > 0 || out.separateur[1] < 0) {
+      const [left, right] = ["gauche", "droit"].map((name) => (out.separateur && name === (sepSign < 0 ? "gauche" : "droit") ? null : found[name]));
+      const widths = sections.map((_, k) => (left ? left[k] : -inner) === null || (right ? right[k] : inner) === null ? null
+        : (right ? right[k] : inner) - (left ? left[k] : -inner)).filter((w) => w !== null && !Number.isNaN(w));
+      if (widths.length >= 3) {
+        const m = median(widths);
+        out.largeur = { m, plus: Math.max(0.1, 1.48 * median(widths.map((w) => Math.abs(w - m)))) };
+      }
     }
     return out;
   }
 
-  return { analyse, toL93 };
+  return { analyse, toL93, pavedEdge };
 })();

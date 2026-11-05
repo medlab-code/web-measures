@@ -9,7 +9,7 @@
 <script>
 const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const ID = location.hash.startsWith("#photo=") ? location.hash.slice(7) : "6d99cba2-2284-4215-a3fb-1fd390353005";
+const ID = location.hash.startsWith("#photo=") ? location.hash.slice(7).split("#")[0] : "6d99cba2-2284-4215-a3fb-1fd390353005";
 (async () => {
   const w = document.getElementById("f").contentWindow;
   try {
@@ -27,14 +27,24 @@ const ID = location.hash.startsWith("#photo=") ? location.hash.slice(7) : "6d99c
     doc.querySelector("#profil").click();
     await sleep(1000);
     // Fenêtre d'impression remplacée par un cadre, sans impression : page lue après fit
-    let page = null;
-    w.open = () => {  // cadre de la taille d'une A4 paysage (pas de fenêtre surgissante sans fenêtre)
+    let page = null, styled = null;
+    const realOpen = w.open;
+    w.open = (...args) => {  // #fenetre : vraie fenêtre surgissante (Chrome lancé avec --disable-popup-blocking) ; sinon, cadre d'une A4 paysage
+      if (location.hash.includes("fenetre")) {
+        page = realOpen.apply(w, args);
+        page.print = () => { const sol = page.document.querySelector(".profil-svg .sol"); styled = sol ? page.getComputedStyle(sol).fill : "pas de terrain"; };
+        return page;
+      }
       const frame = Object.assign(document.createElement("iframe"), { style: "width:1123px;height:794px;border:0" });
       document.body.append(frame);
       page = frame.contentWindow;
-      page.print = () => {};
+      // Au moment d'imprimer, les styles du site sont déjà appliqués (sinon : terrain et textes bruts dans le PDF)
+      page.print = () => { const sol = page.document.querySelector(".profil-svg .sol"); styled = sol ? page.getComputedStyle(sol).fill : "pas de terrain"; };
       return page;
     };
+    // Feuille de styles hors du cache, comme une fenêtre neuve après une mise à jour du site : son chargement prend du temps
+    const P = w.eval("Profil"), pdfPage = P.pdfPage;
+    P.pdfPage = (svg, legend, long, options) => pdfPage(svg, legend, long, { ...options, stylesheet: `${options.stylesheet}?${Date.now()}` });
     const withLong = doc.querySelector("#profil-pdf-long");
     if (!withLong.checked) withLong.click();  // 2e page : profil en long
     doc.querySelector("#profil-pdf").click();
@@ -48,7 +58,8 @@ const ID = location.hash.startsWith("#photo=") ? location.hash.slice(7) : "6d99c
     log(`feuille : ${sheet.scrollHeight} / ${sheet.clientHeight} px, réglages ${page.document.documentElement.getAttribute("style") || "aucun"}`);
     const html = "<!doctype html>" + page.document.documentElement.outerHTML;
     await log("PAGE " + btoa(unescape(encodeURIComponent(html))));
-    log(fits ? "FIN" : "ERREUR feuille plus haute qu'une page, ou pas de 2e page");
+    log(`terrain à l'impression : remplissage ${styled}`);
+    log(styled !== "none" ? "ERREUR styles non appliqués au moment d'imprimer" : fits ? "FIN" : "ERREUR feuille plus haute qu'une page, ou pas de 2e page");
   } catch (e) { log("ERREUR " + (e.stack || e)); }
 })();
 </script>

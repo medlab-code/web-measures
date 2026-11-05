@@ -297,15 +297,13 @@
     chart.style.width = `${width}px`;
     dialog.style.maxWidth = `${width + otherW}px`;  // la rangée de boutons passe à la ligne au lieu d'élargir la fenêtre
   };
-  // Légende pliée (choix retenu) : l'image PNG et le PDF la gardent ; grisé en loupe, où elle est déjà masquée
+  // Légende pliée à chaque ouverture, le bouton la déplie : l'image PNG et le PDF la gardent ; grisé en loupe, où elle est déjà masquée
   const foldLegend = (on) => {
     const button = $("#profil-legende");
     $("#fenetre-profil").classList.toggle("legende-pliee", on);
     button.setAttribute("aria-pressed", String(on));
-    button.textContent = on ? "Afficher la légende" : "Masquer la légende";
-    store.set("profil-legende", on ? "1" : "0");
+    button.textContent = on ? "Déplier la légende" : "Replier la légende";
   };
-  foldLegend(store.get("profil-legende") === "1");
   $("#profil-legende").addEventListener("click", () => foldLegend(!$("#fenetre-profil").classList.contains("legende-pliee")));
   const zoomProfile = (on) => {
     const dialog = $("#fenetre-profil"), button = $("#profil-loupe");
@@ -324,6 +322,7 @@
     const title = dialog.querySelector("h2");
     title.textContent = "Profil en travers" + (edgeProfile.road ? ` · ${edgeProfile.road}` : "");
     trueScale.checked = true;  // à l'échelle à chaque ouverture
+    foldLegend(true);
     drawProfile();
     $("#profil-nuage-etat").textContent = "";
     nuageReady();
@@ -357,6 +356,12 @@
         if (part !== undefined) bar.value = part;
       });
       nuage.set(nuageKey(profile), found);
+      // Bords d'enrobé trouvés : plateforme, chute et dévers du profil relus depuis eux
+      const paved = Object.fromEntries(Object.entries(found.bords).filter(([, b]) => b?.comment === "enrobé").map(([side, b]) => [side, Math.abs(b.x)]));
+      if (Object.keys(paved).length) {
+        app.use_paved_edges(JSON.stringify(profile.repere), JSON.stringify(paved));
+        refresh();
+      }
       state.textContent = `Nuage LiDAR HD : ${found.points} points du sol, ${found.requetes} requêtes, ${found.secondes} s.`;
       if (nuageKey(edgeProfile?.profile) === nuageKey(profile)) drawProfile();
     } catch (error) {
@@ -396,6 +401,11 @@
     }));
     win.document.close();
     await new Promise((resolve) => (win.document.readyState === "complete" ? resolve() : win.addEventListener("load", resolve)));
+    // Styles du site chargés avant d'imprimer : « complete » ne les attend pas sur un document réécrit
+    await Promise.all([...win.document.querySelectorAll('link[rel="stylesheet"]')].map((link) => link.sheet || new Promise((resolve) => {
+      link.addEventListener("load", resolve);
+      link.addEventListener("error", resolve);
+    })));
     await win.document.fonts.ready;
     Profil.fit(win.document);
     win.focus();

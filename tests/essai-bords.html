@@ -50,12 +50,12 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
         await sleep(300);
         const dialog = doc.querySelector("#fenetre-profil"), svg = dialog.querySelector("svg");
         drawn += dialog.open && svg?.querySelector(".sol") ? 1 : 0;
-        // Légende pliée par son bouton, dépliée ensuite ; PNG et PDF la gardent (elle n'est que masquée)
+        // Légende pliée à l'ouverture, dépliée par son bouton, repliée ensuite ; PNG et PDF la gardent (elle n'est que masquée)
         const fold = doc.querySelector("#profil-legende"), legend = dialog.querySelector(".legende");
-        fold.click();
         const hidden = w.getComputedStyle(legend).display === "none" && fold.getAttribute("aria-pressed") === "true";
         fold.click();
         folded += hidden && w.getComputedStyle(legend).display !== "none" && !fold.disabled ? 1 : 0;
+        fold.click();
         await sleep(700);  // titre complété par le lieu (route, PR, commune)
         log(`  profil : ${dialog.querySelector("h2").textContent} · ${[...dialog.querySelectorAll(".legende li, .legende p")].map((e) => e.textContent).join(" | ")}`);
         // Image du bouton « Enregistrer en PNG » (Profil.png), sans la boîte d'enregistrement
@@ -90,6 +90,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       const blob = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
       await log(`IMAGE ${id.slice(0, 8)} ` + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));
       // Loupe : graphique agrandi sans la légende, la fenêtre dans la visionneuse ; à nouveau : taille normale
+      doc.querySelector("#profil-legende").click();  // repliée à l'ouverture : dépliée, la loupe doit la masquer puis la rendre
       const before = dialog.querySelector("svg").getBoundingClientRect().width;
       doc.querySelector("#profil-loupe").click();
       await sleep(500);

@@ -5,6 +5,7 @@
      plus bas du terrain si son haut reste dans la moitié basse du cadre, sinon 0,3 m ; place libre en haut.
      Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
 <script src="../src/profil.js"></script>
+<script src="../src/nuage.js"></script>
 <script>
 const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
 let checks = 0, failures = 0;
@@ -72,6 +73,17 @@ try {
   names("carrefour en début d'axe", [{ d: -45, type: "carrefour", avec: ["D18"] }], 1);
   names("deux carrefours proches", [near, { d: 25, type: "carrefour", avec: ["RUE DE LA GARE"] }], 2);
   names("fin de route et carrefour", [{ d: 20, type: "fin", voie: "D16", avec: ["D18"] }, near], 2);
+  // Bord d'enrobé (D70 9b97c187) : enrobé à 300, ligne centrale, reprise plus claire, herbe à 1400 à partir de 5 m
+  const rows = (fn) => new Map([...Array(49).keys()].map((k) => { const x = k * 0.25; return [k, fn(x)]; }));
+  const paved = (what, fn, expected) => { const got = Nuage.pavedEdge(rows(fn), 1, 1, 12, 300), ok = expected === null ? got === null : got !== null && Math.abs(got - expected) <= 0.13;
+    checks++; if (!ok) failures++; log(`${ok ? "" : "ÉCHEC "}bord d'enrobé, ${what} : ${got} (attendu ${expected})`); };
+  const asphalt = (x) => (x < 5 ? 300 : 1400);
+  paved("net", asphalt, 4.9);
+  paved("ligne blanche étroite", (x) => (Math.abs(x - 2) < 0.1 ? 900 : asphalt(x)), 4.9);
+  paved("reprise claire à 1,6 fois", (x) => (x >= 1.5 && x < 3 ? 480 : asphalt(x)), 4.9);
+  paved("gravillons à 3 fois puis herbe", (x) => (x < 5 ? 300 : x < 8 ? 900 : 2000), 4.9);
+  paved("pas d'abords clairs", () => 320, null);
+  paved("bord au-delà de la limite", (x) => (x < 14 ? 300 : 1400), null);
   // Route étroite : le graphique est à sa hauteur ; la caméra (1,9 m) ne compte pas comme haut du terrain
   check("caméra au-dessus d'un terrain plat", Profil.draw(profile([crossing(0, () => -0.1, 4)], "caméra"), true, null, true, 1.9), 1);
 } catch (error) { failures++; log("ÉCHEC exception : " + (error.stack || error)); }

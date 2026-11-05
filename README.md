@@ -487,7 +487,7 @@ après.
   avec son titre et sa légende ; « Enregistrer en PDF » met le graphique et la légende (en petits caractères, sur deux
   colonnes) sur une page A4 paysage, en vectoriel, sous le lieu de la photo (route, PR, commune), à enregistrer en PDF
   dans la boîte d'impression ; « Profil en long (2e page) » (choix retenu) y ajoute une page pour le profil en long ; la loupe agrandit le graphique (sans la légende) au mieux dans la
-  visionneuse ; « Masquer la légende » la plie sous le graphique (choix retenu ; le PNG et le PDF la gardent). Le fond du
+  visionneuse ; la légende est repliée à chaque ouverture, « Déplier la légende » l'affiche (le PNG et le PDF la gardent). Le fond du
   graphique descend à 1 m sous le point le plus bas du terrain si le haut du terrain (sans la caméra ni la végétation) reste alors dans
   la moitié basse du cadre, sinon à 0,3 m ; la place libre est en haut, pour la végétation. Le graphique et la
   légende donnent le **dévers de la plateforme** (LiDAR HD seulement), arrondi au point : un chiffre si elle penche d'un seul sens, sinon un
@@ -498,9 +498,11 @@ après.
   1 requête par seconde au plus : une vingtaine de secondes, 1 à 2 Mo) sur ±1 m le long de la route au travers
   de la photo. L'intensité du retour laser des points du sol distingue l'enrobé (sombre), les lignes blanches
   (bandes étroites très claires) et les surfaces non revêtues (herbe, gravillons, béton : larges et claires).
-  **Bord de chaussée** (tiret court) : la ligne de rive, ligne blanche au début de la première bande non revêtue
+  **Bord de chaussée** (tiret court) : le bord de la bande d'enrobé, médiane de 5 travers sur ±5 m autour de la photo :
+  début de la première bande d'1 m ou plus, 2,2 fois plus claire que l'enrobé au moins, à mi-hauteur entre les deux ; la légende donne la largeur
+  d'enrobé et sa dispersion entre travers ; la plateforme, son dévers, la chute et le dévers du talus se relisent alors depuis ces bords, l'encadré compris. Sans ces abords clairs (village, béton), à défaut : la ligne de rive, ligne blanche au début de la première bande non revêtue
   d'1 m ou plus, ou la dernière avant elle, hors des lignes entre voies (à moins de 1,2 m de l'axe d'une
-  chaussée) ; sinon la fin de l'enrobé. **Séparateur de chaussée** : la bande non revêtue entre les deux
+  chaussée), sinon la fin de l'enrobé du seul travers de la photo. **Séparateur de chaussée** : la bande non revêtue entre les deux
   chaussées (glissières comprises, que le terrain seul ne voit pas), à 2 m au plus de celui du calcul, qu'elle
   remplace (« nuage LiDAR »). Les lignes blanches sont dessinées en petits carrés blancs. Le bouton est grisé
   pendant la lecture et une fois l'analyse faite pour ce profil. **Bande vert clair** : herbe au sol (classée « sol »
@@ -786,9 +788,8 @@ que la brèche du terrain (70b78dc8 : 86 % sur 10 m avant correction, 4,7 % apr�
 ruisseau (92e3faf1). Le MNT donne la pente à quelques dixièmes de point près
 sur 100 m ; sur un pont, le tablier est une droite d'une culée à l'autre, sans sa courbure.
 
-Analyse fine (`tests/essai-nuage.html`, A38, RD903bis, D1074, RD700) : bords de chaussée et
-séparateur placés à la case du nuage près (0,25 m). Un marquage effacé ou une ligne de rive
-absente renvoie à la fin de l'enrobé. L'herbe du séparateur de l'A38 n'est pas reconnue, et l'eau
+Analyse fine (`tests/essai-nuage.html`, A38, RD903bis, D1074, RD700) : séparateur placé à la case du nuage près (0,25 m).
+Largeur d'enrobé : trouvée sur 7 photos sur 9, à ±0,1 ou ±0,2 m entre travers voisins (village, faible contraste : règle à défaut), jamais comparée à des mesures de terrain. L'herbe du séparateur de l'A38 n'est pas reconnue, et l'eau
 du nuage n'a été vue sur aucune photo d'essai.
 
 L'incertitude de la largeur ne compte que l'erreur en travers de la route : celle des points,

@@ -5,6 +5,7 @@ python3 -m unittest discover -s tests (moins d'une seconde). Pyodide est remplac
 
 import math
 import sys
+import json
 import types
 import unittest
 from pathlib import Path
@@ -101,6 +102,42 @@ class Carrefours(unittest.TestCase):
         self.assertEqual(self.cites(self.voie(None, nom_collaboratif_gauche="RTE DE VILLERIN")), ["RTE DE VILLERIN"])
         self.assertEqual(self.cites(self.voie(None, nom_collaboratif_gauche="CHEMINOTS")), ["CHEMINOTS"])
         self.assertEqual(self.cites(self.voie("D70", nom_collaboratif_gauche="CHE DE DIJON")), ["D70"])  # numérotée : gardée
+
+
+class BordsEnrobe(unittest.TestCase):
+    """Chute et dévers relus depuis les bords d'enrobé de l'analyse fine (App.use_paved_edges, ticket #38)."""
+
+    def test_relecture_depuis_l_enrobe(self):
+        lon, lat = 5.0, 47.0
+        calc = App.__new__(App)
+        calc.edges, calc.paved, calc.paved_redo = {}, {}, {}
+        calc.notify = lambda: None
+        reads = []
+
+        def terrain(points, done):  # plat jusqu'à 6 m de l'axe, puis talus à 50 %
+            reads.append(1)
+            local = [web_app.triangulation._local(p[0], p[1], lon, lat) for p in points]
+            done([-0.5 * max(0.0, abs(x) - 6.0) for x, _ in local], web_app.triangulation.LIDAR_NAME, None)
+        calc._terrain = terrain
+        key = ("photo", 10, False)
+        calc._compute_edges(key, [(0.0, -200.0), (0.0, 200.0)], 200.0, 6.0, 0.0, lon, lat)
+        before = calc.edges[key]["profile"]
+        fall = before["resultats"]["droit"]["chute"][0]
+        self.assertAlmostEqual(next(e for e in before["profils"] if e["cote"] == "droit")["bord"], 6.0, delta=1.0)
+        calc.use_paved_edges(json.dumps(before["repere"]), json.dumps({"droit": 8.0}))
+        after = calc.edges[key]["profile"]
+        droit = [e for e in after["profils"] if e["cote"] == "droit"]
+        self.assertTrue(droit and all(e["bord"] == 8.0 and e["enrobe"] for e in droit), [(e["bord"], e["enrobe"]) for e in droit])
+        # chute comptée depuis le nouveau bord, à son niveau (le talus y a déjà descendu de 1 m)
+        chute = after["resultats"]["droit"]["chute"]
+        entry = next(e for e in droit if e["le_long"] == chute[3])
+        start = min(o for o, _ in entry["points"] if abs(o - 8.0) == min(abs(q - 8.0) for q, _ in entry["points"]))  # point du terrain le plus proche du bord
+        kept = [z for o, z in entry["points"] if start <= o <= start + 10]
+        self.assertLess(chute[0], fall)
+        self.assertAlmostEqual(chute[0], kept[0] - min(kept), delta=0.01)
+        gauche = [e for e in after["profils"] if e["cote"] == "gauche"]
+        self.assertTrue(gauche and not any(e["enrobe"] for e in gauche))  # l'autre côté garde son bord
+        self.assertEqual(len(reads), 1)  # sans relire le terrain
 
 
 class Creux(unittest.TestCase):

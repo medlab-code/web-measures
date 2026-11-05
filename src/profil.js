@@ -28,7 +28,7 @@ const Profil = (() => {
       const t = out.get(p.le_long) || { along: p.le_long, points: [], bords: {} };
       const sign = p.cote === "gauche" ? -1 : 1;
       t.points.push(...p.points.map(([o, z]) => [sign * o, z]));
-      t.bords[p.cote] = { x: sign * p.bord, relief: p.relief, arret: p.arret === null ? null : sign * p.arret };
+      t.bords[p.cote] = { x: sign * p.bord, relief: p.relief, enrobe: p.enrobe, arret: p.arret === null ? null : sign * p.arret };
       if (p.separateur) {  // chaussées séparées : trouvé dans le relief ou d'après la BD TOPO
         t.separateur = p.separateur.map((o) => sign * o).sort((a, b) => a - b);
         t.separateurRelief = p.separateur_relief;
@@ -175,7 +175,7 @@ const Profil = (() => {
       svg.append(el("line", { x1: X(b.x), x2: X(b.x), y1: TOP - 4, y2: Z(zAt(main.points, b.x)), class: "bord" }),
         el("text", { x: X(b.x) + dx, y: TOP - 26, class: "etiquette-profil", "text-anchor": anchor }, "bord"),
         el("text", { x: X(b.x) + dx, y: TOP - 12, class: "graduation", "text-anchor": anchor },
-          b.relief ? "rupture de pente" : "largeur BD TOPO"));
+          b.enrobe ? "fin de l'enrobé" : b.relief ? "rupture de pente" : "largeur BD TOPO"));
     }
     // Séparateur de chaussée (chaussées séparées, ticket #34) : petite barre verticale posée sur le terrain en son milieu
     // (d'après la BD TOPO), nommée au-dessus ; autrement que les bords, qui seuls limitent la plateforme
@@ -351,9 +351,10 @@ const Profil = (() => {
         : `placé d'après les largeurs BD TOPO (pas de marche du terrain trouvée${fine ? ", ni de bande non revêtue dans le nuage LiDAR" : ""})`}\u00a0; la plateforme va jusqu'au bord `
         + "extérieur de l'autre chaussée."] : []),
       ...(fine ? [`Analyse fine (nuage LiDAR HD, ${fine.points} points du sol)\u00a0: carrés blancs, lignes blanches lues à `
-        + "l'intensité du retour laser\u00a0; tirets courts, bords de chaussée\u00a0: ligne de rive, sinon fin de l'enrobé"
+        + "l'intensité du retour laser\u00a0; tirets courts, bords de chaussée"
         + `${["gauche", "droit"].map((side) => fine.bords[side] ? ` (${side}\u00a0: ${num(Math.abs(fine.bords[side].x))} m, `
-          + `${fine.bords[side].comment})` : "").join("")}.`] : []),
+          + `${fine.bords[side].comment})` : "").join("")}.`
+        + (fine.largeur ? ` Largeur d'enrobé\u00a0: ${num(fine.largeur.m)}\u00a0m ±\u00a0${num(fine.largeur.plus)}.` : "")] : []),
       ...((profile.eau || []).length || fine?.eau?.length ? [`Bleu\u00a0: eau${(profile.eau || []).length ? ` de la BD TOPO (${profile.eau
         .map((w) => (w.x !== undefined ? `${w.nom || (w.nature || "cours d'eau").toLowerCase()} à ${num(Math.abs(w.x))} m ${w.x < 0 ? "à gauche" : "à droite"}`
           : `${(w.nature || "plan d'eau").toLowerCase()} de ${num(Math.min(Math.abs(w.de), Math.abs(w.a)))} à ${num(Math.max(Math.abs(w.de), Math.abs(w.a)))} m `

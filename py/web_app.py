@@ -410,6 +410,8 @@ class App(session.Session):
         self.fall_cells = {}  # maille -> tronçons BD TOPO avec leur largeur (hauteur de chute, voir fall)
         self.falls = {}  # (séquence, pont) -> hauteur de chute calculée (dict text, title) ou en cours
         self.edges = {}  # (photo, largeur examinée) -> chute et dévers des bords de route (voir _edges)
+        self.paved = {}  # repère du profil -> bords d'enrobé de l'analyse fine (use_paved_edges)
+        self.paved_redo = {}  # repère du profil -> (clé de self.edges, calcul à refaire sans relire le terrain)
         self.edges_asked = {}  # photo -> largeur examinée au dernier appui sur « Profils »
         self.long_tracks = {}  # photo -> trajectoire de la caméra autour d'elle (_track_line), None pendant la lecture
         self.edge_zone = self.EDGE_ZONE
@@ -736,6 +738,20 @@ class App(session.Session):
             "OUTPUTFORMAT": "application/json", "SRSNAME": "EPSG:4326", "COUNT": 500,
             "BBOX": "{},{},{},{},urn:ogc:def:crs:EPSG::4326".format(lat - dlat, lon - dlon, lat + dlat, lon + dlon)})
         host.fetch_json(url, got_zones, timeout_ms=20000)
+
+    def use_paved_edges(self, frame, edges):
+        """Bords d'enrobé de l'analyse fine (src/nuage.js) pour le profil de repère frame (JSON de profile.repere) : edges,
+        en JSON, m depuis l'origine par côté (« gauche », « droit »). Plateforme, dévers, chute et dévers du talus de ce
+        profil se relisent depuis eux, sur tous les travers, sans nouvelle lecture du terrain s'il vient d'être calculé."""
+        frame = tuple(tuple(p) for p in json.loads(frame))
+        self.paved[frame] = json.loads(edges)
+        redo = self.paved_redo.get(frame)
+        for key, res in list(self.edges.items()):  # autre largeur examinée : recalculée à la demande
+            profile = res.get("profile")
+            if profile and tuple(tuple(p) for p in profile["repere"]) == frame and (not redo or key != redo[0]):
+                del self.edges[key]
+        if redo:
+            redo[1]()
 
     def fall_json(self):
         """Hauteur de chute (voir fall), en JSON : demandée par la page hors lecture de la séquence
@@ -1942,6 +1958,7 @@ class App(session.Session):
     EDGE_HOLD = 3  # pas consécutifs où l'écart doit tenir : un seul pas de 1 m tient du bruit du MNT (±5 cm)
     EDGE_NEAR = 1.5  # m : pas de bord plus près de l'origine (le véhicule occupe sa voie ; demi-voie sur l'axe)
     EDGE_FAR = 16  # points au-delà, jusqu'à edge_zone m
+    PAVED_REDO_MAX = 50  # profils gardés avec leur terrain, pour use_paved_edges sans relecture
     EDGE_RISE = 1.0  # m : terrain remonté d'autant au-dessus du bord (talus, butte) : lecture arrêtée, derrière n'est pas une chute
     # Chaussées séparées (autoroute, voie express : un tronçon BD TOPO par sens, ticket #34) : tronçon de même nom, au sol,
     # parallèle (TWIN_ANGLE° près), son axe à TWIN_MIN à TWIN_REACH m de celui de la photo en travers ; de son côté, la
@@ -2332,6 +2349,7 @@ class App(session.Session):
         across0 = (x + shift * nx, y + shift * ny, right * nx, right * ny)  # pour l'eau de la BD TOPO (_water_across)
         frame0 = [triangulation._geographic(x + shift * nx + k * right * nx, y + shift * ny + k * right * ny, lon, lat)
                   for k in (0, 1)]
+        frame_key = tuple(tuple(round(v, 8) for v in p) for p in frame0)
         profiles = []  # (travers, côté, bord BD TOPO depuis l'origine, distances depuis l'origine), travers après travers
         samples = []
         for along in self.EDGE_ALONG:
@@ -2460,6 +2478,10 @@ class App(session.Session):
                     "service injoignable" if error else "pas de modèle de terrain ici"), "title": "",
                     "retry_at": time.monotonic() + self.FALL_RETRY if error else float("inf")}
                 return self.notify()
+            if len(self.paved_redo) >= self.PAVED_REDO_MAX:
+                self.paved_redo.clear()
+            self.paved_redo[frame_key] = (key, lambda: got_ground(ground, source, None))
+            paved = self.paved.get(frame_key, {})
             # côté -> [(chute, à m du bord, bout du profil, travers),
             #          (dévers, haut du talus à m du bord, travers, pied du talus à m du bord, hauteur du talus)],
             # bords [(m depuis l'origine, relief)] ; drawn : profils pour le graphique de la page (bouton « Graphiques »)
@@ -2503,12 +2525,14 @@ class App(session.Session):
                         r[5] = min(range(len(r[3])), key=lambda k: abs(r[3][k] - med))
                     if sep_med and r[6] and (not r[7] or max(abs(r[6][k] - sep_med[k]) for k in (0, 1)) > self.EDGE_CONSENSUS):
                         r[6], r[7] = sep_med, "marches"
+                    if name in paved:  # analyse fine : le bord de l'enrobé remplace celui du relief
+                        r[5] = min(range(len(r[3])), key=lambda k: abs(r[3][k] - paved[name]))
             for along, name, guess, offsets, z, i, between, sep_relief, _ in read:
                 relief = i is not None
                 if not relief:
                     i = min(range(len(offsets)), key=lambda k: abs(offsets[k] - guess))
                 borders[name].append((offsets[i], relief))
-                entry = {"le_long": along, "cote": name, "bord": offsets[i], "relief": relief, "arret": None,
+                entry = {"le_long": along, "cote": name, "bord": round(paved.get(name, offsets[i]), 2), "relief": relief, "enrobe": name in paved, "arret": None,
                          "separateur": [round(v, 2) for v in between] if between else None,
                          "autre_axe": round(beyond, 2) if beyond else None,  # axe de l'autre chaussée, m depuis l'origine
                          "separateur_relief": sep_relief if between else None,  # "marches", "bosse" ou None (BD TOPO)

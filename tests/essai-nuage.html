@@ -13,11 +13,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
 let failures = 0, checks = 0;
 const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + (detail ? " : " + detail : "")); } };
-// photo, milieu attendu du séparateur à gauche (m, d'après la photo et le relief), bord de chaussée droit attendu (ligne de rive)
+// photo, milieu attendu du séparateur à gauche (m, d'après la photo et le relief), bord d'enrobé droit attendu (décision du 05/11/2026 : la chaussée est la bande d'enrobé, BAU comprise)
 // #photos=id,id : ces photos seulement, sans contrôle de position (essai d'une autre route)
 const PHOTOS = location.hash.startsWith("#photos=") ? location.hash.slice(8).split(",").map((id) => [id, id.slice(0, 8), null, null]) : null;
-const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 2.1], ["1640bc3f-e948-4239-a4c1-548dd748a16d", "RD903bis", 3.4, 1.4],
-  ["067e83ca-a3d8-4f2a-bbe6-0c10df70fc96", "RD700 (glissières dos à dos)", 6.8, 2.25]];
+const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.8], ["1640bc3f-e948-4239-a4c1-548dd748a16d", "RD903bis", 3.4, 3.3],
+  ["067e83ca-a3d8-4f2a-bbe6-0c10df70fc96", "RD700 (glissières dos à dos)", 6.8, 1.9]];
 (async () => {
   const w = document.getElementById("f").contentWindow;
   try {
@@ -47,6 +47,15 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 2.
       const right = Number((/droit\s:\s(\d+,\d+) m/.exec(legend) || [])[1]?.replace(",", "."));
       log(`${where} ${id.slice(0, 8)} : ${state} · ${sep} · bords : ${(/bords de chaussée[^.]*/.exec(legend) || [""])[0]}`);
       log(`  eau : ${(/Bleu[^.]*\./.exec(legend) || ["aucune"])[0]} · BD TOPO : ${JSON.stringify(JSON.parse(app.fall_json()).profile?.eau)}`);
+      // Légende repliée à l'ouverture, dépliée pour le reste des contrôles
+      const unfold = doc.querySelector("#profil-legende");
+      expect(`${where} : légende repliée à l'ouverture`, w.getComputedStyle(dialog.querySelector(".legende")).display === "none");
+      unfold.click();
+      // Plateforme limitée aux bords d'enrobé, dans le graphique et ses repères
+      const [edgeL, edgeR] = [/gauche\s:\s([\d,]+) m, enrobé/, /droit\s:\s([\d,]+) m, enrobé/].map((re) => Number((re.exec(legend) || [])[1]?.replace(",", ".")));
+      const platformText = [...dialog.querySelectorAll("svg text")].map((e) => e.textContent).find((t) => /^plateforme /.test(t)) || "";
+      log(`  ${platformText} · ${[...dialog.querySelectorAll("svg text")].map((e) => e.textContent).find((t) => /^(dévers|toit|plateforme$)/.test(t)) || "pas de dévers"} · ${[...dialog.querySelectorAll(".legende li")][0]?.textContent}`);
+      if (edgeL && edgeR) expect(`${where} : plateforme jusqu'aux bords d'enrobé`, Math.abs(Number(platformText.replace(/[^\d,]/g, "").replace(",", ".")) - edgeL - edgeR) <= 0.11, `${platformText} / ${edgeL} + ${edgeR}`);
       // Rangée du bas : cases et boutons sans chevauchement, l'avancement et le bilan sur leur propre ligne
       const boxes = [...dialog.querySelectorAll("form > *")].filter((e) => e.offsetParent).map((e) => e.getBoundingClientRect());
       const overlap = boxes.some((a, i) => boxes.some((b, j) => i < j && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1));
@@ -62,6 +71,7 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 2.
       expect(`${where} : case « Végétation »`, before > 0 && hidden === 0 && drawn() === before, `${before} → ${hidden} → ${drawn()}`);
       // les cases et boutons ne bougent pas quand on actionne les cases (interrupteurs, profil redessiné)
       const rows = () => [...dialog.querySelectorAll("form > *")].filter((e) => e.offsetParent).map((e) => { const r = e.getBoundingClientRect(); return `${Math.round(r.left)},${Math.round(r.top)}`; }).join(" ");
+      await sleep(300);  // fenêtre replacée après le dépliage de la légende
       const rest = rows(), scale = doc.querySelector("#profil-echelle");  // relevés une fois la fenêtre replacée
       plants.checked = false; plants.dispatchEvent(new w.Event("change"));
       await sleep(200);
@@ -76,6 +86,7 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 2.
       expect(`${where} : cases et boutons immobiles quand on actionne les cases`, still(rest, off) && still(rest, scaled), `${rest} / ${off} / ${scaled}`);
       log(`  en long : ${dialog.querySelector("svg.profil-long text")?.textContent || "absent"} · ${(/Pente en long[^·]*/.exec(doc.querySelector("#chute").textContent) || ["pas dans l'encadré"])[0]}`);
       if (sepMid === null) {
+        log(`  ${(/Largeur d'enrobé[^.]*/.exec(legend) || ["pas de largeur d'enrobé"])[0]} · origine ${JSON.parse(app.fall_json()).profile?.origine}`);
         const blob = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"), dialog.querySelector("svg.profil-long"));
         await log(`IMAGE ${id.slice(0, 8)} ` + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));
         dialog.close();
@@ -84,7 +95,8 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 2.
       expect(`${where} : séparateur du nuage LiDAR`, texts.includes("séparateur de chaussée")
         && dialog.querySelector(".legende").textContent.includes("trouvé dans le nuage LiDAR"), sep);  // d'où il vient : en légende
       expect(`${where} : lignes blanches et bords de chaussée dessinés`, dialog.querySelector("svg .ligne-blanche") && dialog.querySelector("svg .bord-chaussee"));
-      expect(`${where} : bord de chaussée droit à la ligne de rive (${rightEdge} m attendu)`, Math.abs(right - rightEdge) <= 0.5, String(right));
+      expect(`${where} : bord d'enrobé droit (${rightEdge} m attendu)`, /droit\s:\s[\d,]+ m, enrobé/.test(legend) && Math.abs(right - rightEdge) <= 0.5, String(right));
+      log(`  ${(/Largeur d'enrobé[^.]*\.?\d?/.exec(legend) || ["pas de largeur d'enrobé"])[0]}`);
       expect(`${where} : bouton grisé une fois l'analyse faite`, button.disabled);
       const blob = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
       await log(`IMAGE ${id.slice(0, 8)} ` + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));

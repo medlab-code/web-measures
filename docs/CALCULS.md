@@ -363,10 +363,21 @@ laser est en proche infrarouge :
 
 Ce que l'analyse en tire :
 
-- **Bord de chaussée** : la ligne de rive, c'est-à-dire la ligne blanche au début de la première
-  bande non revêtue, ou la dernière avant elle. Les lignes à moins de 1,2 m de l'axe d'une
-  chaussée sont des lignes entre voies et sont écartées. Sans ligne de rive, le bord est la fin
-  de l'enrobé. Les lignes blanches ne sont cherchées que sur la plateforme.
+- **Bord de chaussée** : le bord de la bande d'enrobé. Sur 5 travers de ±1 m à −4, −2, 0, +2 et +4 m
+  le long de la route, chacun avec sa propre intensité d'enrobé : début de la première bande
+  d'au moins 1 m dont chaque case est au moins **2,2 fois** plus claire que l'enrobé (ni une ligne
+  blanche, ni une reprise d'enrobé), placé à mi-hauteur entre l'enrobé et ces abords et interpolé
+  entre deux cases. Le bord est la médiane des travers, si au moins 3 le trouvent. La **largeur
+  d'enrobé** (légende) est la médiane des largeurs des travers, ± 1,48 fois leur écart médian (0,1 m
+  au moins) ; du côté du séparateur, elle s'arrête à lui. Les surlargeurs revêtues et bandes
+  d'arrêt d'urgence en font partie. Ces bords remplacent alors celui du § 8.2, sur tous les travers et
+  au même écart de l'origine : **plateforme**, son **dévers** (§ 8.7), **chute** et **dévers du talus**
+  (§ 8.4) se relisent depuis eux, dans le graphique et dans l'encadré.
+- **À défaut** (abords trop peu clairs : village, béton) : sur le seul travers de la photo, la
+  ligne de rive, c'est-à-dire la ligne blanche au début de la première bande non revêtue, ou la
+  dernière avant elle. Les lignes à moins de 1,2 m de l'axe d'une chaussée sont des lignes entre
+  voies et sont écartées. Sans ligne de rive, le bord est la fin de l'enrobé. Les lignes blanches
+  ne sont cherchées que sur la plateforme.
 - **Séparateur** : la bande non revêtue entre les deux chaussées (0,5 à 12 m, glissières
   comprises, que le MNT ne voit pas), son milieu à 2 m au plus de celui du § 8.3, qu'elle
   remplace.
@@ -378,7 +389,12 @@ Ce que l'analyse en tire :
 - **Eau** : points de la classe 9, à leur altitude (niveau du jour du relevé). Souvent absents,
   car l'eau renvoie mal le laser.
 
-Précision : celle du nuage (±0,1 m en altitude) et des cases (0,25 m en travers).
+Précision : celle du nuage (±0,1 m en altitude) et des cases (0,25 m en travers). Essai du
+05/11/2026 sur 9 photos, sans mesure de terrain (stabilité, pas exactitude) : largeur d'enrobé sur 7
+(D70 8,7 m, A38 9,4 m, RD903bis 5,2 m, RD700 6,5 m, Pouilly 6,5 m, deux autres 10,4 et 12,4 m), à
+±0,1 ou ±0,2 m entre travers ; sur les 2 autres (village, faible contraste), pas de largeur et règle à
+défaut sur un côté ou les deux. Une reprise d'enrobé ou un accotement gravillonné peut déplacer le bord :
+la largeur reste à comparer au terrain.
 
 ## 11. Vidéo : accélération latérale et vitesse max ARP
 
