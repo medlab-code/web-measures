@@ -1,8 +1,8 @@
 <!doctype html><meta charset="utf-8"><title>Essai du calage par clics</title>
 <!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
-<!-- Calage de l'inclinaison, clics à l'écran (viewerX, viewerY) au zoom fort : une croix se sélectionne à 12 px près
-     (App.pick_points, on_cross), pas à 20 px, quel que soit l'angle que fait un pixel. Lancer comme tests/navigateur.html. -->
+<!-- Calage de l'inclinaison, clics à l'écran (viewerX, viewerY) au zoom fort : une croix se sélectionne à 8 px près
+     (App.pick_points, on_cross), pas à 10 px, quel que soit l'angle que fait un pixel. Lancer comme tests/navigateur.html. -->
 <script>try { localStorage.clear(); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
 <script>
@@ -22,7 +22,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "photo");
     await sleep(3000);
     const psv = w.mesures.psv;
-    psv.zoom(80);  // zoom fort : 1° y fait bien plus de 12 px
+    psv.zoom(80);  // zoom fort : 1° y fait bien plus de 8 px
     await sleep(800);
     doc.querySelector("#mesure").click();
     doc.querySelector("#mode").value = "tilt"; doc.querySelector("#mode").dispatchEvent(new w.Event("change"));
@@ -36,9 +36,9 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     await sleep(300);
     expect("pied et sommet posés", marks().length === 2, JSON.stringify(marks()));
     log("degrés par pixel : " + (Math.abs(psv.dataHelper.viewerCoordsToSphericalCoords({ x: cx + 100, y: cy }).yaw - psv.dataHelper.viewerCoordsToSphericalCoords({ x: cx, y: cy }).yaw) * 180 / Math.PI / 100).toFixed(4));
-    click(cx + 3 + 20, cy - 100);  // à 20 px du sommet : pas une sélection (1° en ferait une à ce zoom)
+    click(cx + 3 + 10, cy - 100);  // à 10 px du sommet : pas une sélection (1° en ferait une à ce zoom)
     await sleep(300);
-    expect("à 20 px : pas de sélection", !marks().some((p) => p[2]), JSON.stringify(marks()) + " " + app.status().slice(0, 80));
+    expect("à 10 px : pas de sélection", !marks().some((p) => p[2]), JSON.stringify(marks()) + " " + app.status().slice(0, 80));
     click(cx + 3, cy - 100);  // sur la croix du sommet : sélectionnée
     await sleep(300);
     expect("sur la croix : sommet sélectionné", marks()[1]?.[2] === true, JSON.stringify(marks()));

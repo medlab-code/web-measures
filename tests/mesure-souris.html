@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Précision de la souris</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Essai manuel (ticket #43) : l'utilisateur clique à la souris le centre de cibles qui apparaissent une à une.
+     La page mesure l'écart de chaque clic (pixels CSS) et en tire la dispersion σ de sa souris, puis, pour
+     plusieurs rayons de sélection, la part des clics qui tomberaient dehors. Ouvrir par double-clic (file://). -->
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.45 system-ui, sans-serif; margin: 16px; max-width: 980px; }
+  #zone { position: relative; width: 900px; height: 480px; border: 1px solid #888; cursor: crosshair; user-select: none; }
+  #cible { position: absolute; width: 0; height: 0; }
+  #cible::before, #cible::after { content: ""; position: absolute; background: #d02020; }
+  #cible::before { left: -10px; top: 0; width: 21px; height: 1px; }
+  #cible::after { top: -10px; left: 0; height: 21px; width: 1px; }
+  button { font: inherit; padding: 4px 12px; }
+  table { border-collapse: collapse; margin: 8px 0; }
+  td, th { border: 1px solid #888; padding: 2px 10px; text-align: right; }
+  #bilan[hidden] { display: none; }
+</style>
+<h1 style="font-size: 20px">Précision de la souris</h1>
+<p>Cliquez le <b>centre</b> de la croix rouge, aussi précisément que possible, comme pour poser un point de mesure.
+  Les <span id="n-essai"></span> premiers clics servent d'échauffement et ne comptent pas, puis <span id="n-mesure"></span> clics sont mesurés.</p>
+<p id="etat" aria-live="polite"></p>
+<div id="zone"><div id="cible"></div></div>
+<p><button id="recommencer" disabled>Recommencer</button> <button id="copier" disabled>Copier le bilan</button></p>
+<div id="bilan" hidden></div>
+<script>
+const ESSAI = 3, N = 30, RAYONS = [6, 8, 10, 12, 25], MARGE = 30;
+const $ = (id) => document.getElementById(id);
+const zone = $("zone"), cible = $("cible"), etat = $("etat"), bilan = $("bilan");
+const virgule = (x, d = 1) => x.toFixed(d).replace(".", ",");
+let essais, ecarts, centre;
+
+function suivante() {
+  centre = [MARGE + Math.random() * (zone.clientWidth - 2 * MARGE), MARGE + Math.random() * (zone.clientHeight - 2 * MARGE)];
+  cible.style.left = centre[0] + "px";
+  cible.style.top = centre[1] + "px";
+  etat.textContent = essais < ESSAI ? `Échauffement ${essais + 1} / ${ESSAI}` : `Clic ${ecarts.length + 1} / ${N}`;
+}
+
+function recommencer() {
+  essais = 0; ecarts = [];
+  bilan.hidden = true;
+  $("recommencer").disabled = true; $("copier").disabled = true;
+  cible.hidden = false;
+  suivante();
+}
+
+// Quantile d'une liste déjà triée
+const quantile = (tri, q) => tri[Math.min(tri.length - 1, Math.ceil(q * tri.length) - 1)];
+
+function resultat() {
+  const r = ecarts.map(([dx, dy]) => Math.hypot(dx, dy)).sort((a, b) => a - b);
+  const n = r.length;
+  const sigma = Math.sqrt(r.reduce((s, v) => s + v * v, 0) / (2 * n));  // loi de Rayleigh : σ par axe
+  const biais = [0, 1].map((k) => ecarts.reduce((s, e) => s + e[k], 0) / n);
+  const lignes = RAYONS.map((R) => `${R} px : ${virgule(100 * r.filter((v) => v > R).length / n, 0)} % dehors`);
+  const conseil = Math.max(4, Math.ceil(quantile(r, 0.99)));
+  return { n, sigma, biais, r, lignes, conseil,
+    texte: [`Précision de la souris : ${n} clics (pixels CSS, devicePixelRatio ${window.devicePixelRatio})`,
+      `σ par axe : ${virgule(sigma)} px · écart médian ${virgule(quantile(r, 0.5))} px · 95 % sous ${virgule(quantile(r, 0.95))} px · ` +
+      `99 % sous ${virgule(quantile(r, 0.99))} px · maximum ${virgule(r[n - 1])} px`,
+      `Biais moyen : x ${virgule(biais[0])} px, y ${virgule(biais[1])} px`, ...lignes,
+      `Rayon conseillé : ${conseil} px`].join("\n") };
+}
+
+function afficher() {
+  const b = resultat();
+  bilan.innerHTML = `<h2 style="font-size: 17px">Bilan</h2>
+    <p>σ par axe : <b>${virgule(b.sigma)} px</b> · écart médian ${virgule(quantile(b.r, 0.5))} px · 95 % des clics sous
+    ${virgule(quantile(b.r, 0.95))} px · 99 % sous ${virgule(quantile(b.r, 0.99))} px · maximum ${virgule(b.r[b.n - 1])} px.
+    Biais moyen : x ${virgule(b.biais[0])} px, y ${virgule(b.biais[1])} px.</p>
+    <table><tr><th>Rayon</th><th>Clics dehors</th></tr>
+    ${RAYONS.map((R) => `<tr><td>${R} px</td><td>${virgule(100 * b.r.filter((v) => v > R).length / b.n, 0)} %</td></tr>`).join("")}</table>
+    <p><b>Rayon conseillé : ${b.conseil} px</b> (99 % des clics tombent dedans).</p>`;
+  bilan.hidden = false;
+  bilan.dataset.texte = b.texte;
+  cible.hidden = true;
+  etat.textContent = "Terminé.";
+  $("copier").disabled = false;
+}
+
+zone.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0 || ecarts.length >= N) return;
+  const box = zone.getBoundingClientRect();
+  const dx = event.clientX - box.left - 1 - centre[0], dy = event.clientY - box.top - 1 - centre[1];  // 1 px de bordure
+  if (essais < ESSAI) essais++;
+  else ecarts.push([dx, dy]);
+  $("recommencer").disabled = false;
+  if (ecarts.length >= N) afficher();
+  else suivante();
+});
+$("recommencer").addEventListener("click", recommencer);
+$("copier").addEventListener("click", () => navigator.clipboard?.writeText(bilan.dataset.texte).catch(() => {}));
+$("n-essai").textContent = ESSAI;
+$("n-mesure").textContent = N;
+recommencer();
+</script>

@@ -2391,7 +2391,7 @@
   /** Croix sélectionnable (App.pick_points : celles du mode en cours) à CROSS_PX pixels au plus du point (x, y) de la
    * visionneuse : un clic là la sélectionne (App.click, on_cross). En pixels, quel que soit le zoom ; le calcul ne
    * connaît que des degrés. */
-  const CROSS_PX = 12;
+  const CROSS_PX = 8;  // 99 % des clics à la souris tombent à moins de 4,5 px (tests/mesure-souris.html, ticket #43)
   let crossAt = [];  // croix sélectionnables (drawViewerMarks) : [[cap, élévation]]
   function nearCross(x, y) {
     const view = psv?.getPosition?.();
@@ -2407,7 +2407,7 @@
   /** Largeur, visée suivante : point du trait d'une visée déjà faite (vert, ligne épipolaire) le plus proche de (x, y)
    * dans la visionneuse, à SIGHT_PX pixels au plus, ou null. Un bord n'a pas de repère le long de son tracé : sur ce
    * trait, la visée retombe au même endroit du bord que les précédentes. */
-  const SIGHT_PX = 25;
+  const SIGHT_PX = 12;
   function onSighting(x, y) {
     if (!measuring || $("#mode").value !== "road" || !aiming) return null;
     const view = psv?.getPosition?.();

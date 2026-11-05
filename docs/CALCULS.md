@@ -142,7 +142,7 @@ S'y ajoute le désaccord des visées de chaque point (`triangulation.sight_sprea
 au point (celle du calcul absorberait le désaccord). Il n'est évalué que sur des photos calées ;
 au-delà de 0,6 m, le texte des visées propose d'en réviser une. Le dévers n'y est pas compté.
 
-Visées suivantes : à moins de 25 pixels du trait d'une visée déjà faite, le réticule s'y cale
+Visées suivantes : à moins de 12 pixels du trait d'une visée déjà faite, le réticule s'y cale
 (touche Maj : visée libre), car un bord n'a pas de repère le long de son tracé. 0,5 m d'écart le
 long du bord donne environ 0,4 m d'erreur sur la largeur (simulation : photos à 10 et 5 m).
 

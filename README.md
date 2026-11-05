@@ -373,7 +373,7 @@ après.
   se lit alors « Largeur le long de la droite tracée sur la carte … depuis le point A · droite
   à 75° (tracée sur la carte, ±2,4°) ».
 
-  Visées suivantes d'un bord : à moins de 25 pixels du trait vert de la visée déjà faite, le
+  Visées suivantes d'un bord : à moins de 12 pixels du trait vert de la visée déjà faite, le
   réticule s'y cale, pour retomber au même endroit du bord, qui n'a pas de repère le long de son
   tracé ; la touche Maj le libère. De préférence, viser un repère net (fin de tiret, joint, regard).
   L'incertitude attendue des photos proposées est celle en travers de la route. Sur une photo
@@ -644,7 +644,7 @@ la mesure dessinée telle qu'elle était à l'écran (colonnes `photo_ref` et `v
 en étiquette (colonne `etiquette`). Un clic sur une autre mesure de la mini-carte la montre de même.
 En lecture seule ; les fichiers exportés avant la version 0.6.6 n'ont pas ces colonnes.
 
-**Recaler un point** : **clic** (gauche ou droit) sur sa croix pour le sélectionner (à 12 pixels près, quel que
+**Recaler un point** : **clic** (gauche ou droit) sur sa croix pour le sélectionner (à 8 pixels près, quel que
 soit le zoom ; ailleurs, le clic est un point de mesure), puis :
 
 - clic gauche : nouvelle position (largeur : bord ou point de référence, là où la direction
@@ -847,7 +847,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 | `tests/navigateur.html` | essai de bout en bout dans un vrai navigateur |
 | `tests/essai-rtk.html`, `essai-largeur.html`, `essai-libre.html` | hauteur, largeur, mesure libre sur photos RTK, avec recalages |
 | `tests/inclinaison.html` | inclinaison automatique |
-| `tests/essai-calage.html` | calage de l'inclinaison : croix sélectionnée à 12 px près, au zoom fort |
+| `tests/essai-calage.html` | calage de l'inclinaison : croix sélectionnée à 8 px près, au zoom fort |
 | `tests/inclinaison-terrain.html` | inclinaison par le terrain hors agglomération (option) |
 | `py/web_terrain.py` | inclinaison par le terrain hors agglomération : grille LiDAR HD, modèle de séquence |
 | `tools/serveur-essai.py` | serveur des essais : sert le site et affiche leur journal |

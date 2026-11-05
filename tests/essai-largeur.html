@@ -332,7 +332,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         expect("droite de mesure masquée hors de la photo de la mesure", JSON.parse(app.viewer_marks()).filter((m) => m.guide && !m.epipolar && !m.vertical).length === 0);
       }
       const announcedB = f === photos[1] ? predicted(f.id) : null;
-      if (f === photos[1]) {  // Réticule tenu sur le trait de la visée déjà faite : à 25 pixels au plus, sauf touche Maj
+      if (f === photos[1]) {  // Réticule tenu sur le trait de la visée déjà faite : à 12 pixels au plus, sauf touche Maj
         const psv = w.mesures.psv, rect = psv.container.getBoundingClientRect();
         const canvas = psv.container.querySelector(".psv-canvas-container");
         const trait = JSON.parse(app.viewer_marks()).find((m) => m.epipolar);
