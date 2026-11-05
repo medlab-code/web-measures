@@ -12,7 +12,7 @@
 // l'autre photo le remplace. Sans avancée simulée (option) : chaque photo vue de sa caméra, simple fondu enchaîné.
 // Brouillon (option) : image SD de chaque photo et non ses tuiles, vidéo en 960 × 540 : calcul plus rapide, image floue.
 // Stabilisation (option) : les photos ne donnent ni tangage ni roulis, et la caméra bouge d'une prise à l'autre : décalage
-// mesuré entre les images SD de deux photos voisines (stabilization), petits sauts retirés du tangage de la vue. Cap non
+// mesuré entre les images SD de deux photos voisines (stabilization), petits sauts retirés du tangage et du roulis. Cap non
 // corrigé : pas de gain mesuré (D115D, routes sinueuses : le décor proche fausse le décalage horizontal).
 // Encodage H.264 par le navigateur (WebCodecs ; H.265 au choix, avec un encodeur matériel ; VP9 s'il n'encode pas le H.264, Firefox
 // sous Linux), fichier assemblé par mp4-muxer, chargé au premier export seulement.
@@ -49,7 +49,8 @@ const Video = (() => {
   const STAB_SPAN = 40;  // m : variation lente gardée (pente, virage) : moyenne des décalages sur ± STAB_SPAN m
   const STAB_MAX = 2;  // degrés : correction au plus, d'une photo
   const STAB_SEARCH = 14;  // px de l'image SD (2048 px pour 360°, soit 5,7 px/°) : décalage cherché, ± 2,5°
-  const STAB_FIELD = [40, 16];  // degrés : zone comparée, devant la vue, sur l'horizon
+  const STAB_FIELD = [40, 16];  // degrés : zone comparée, sur l'horizon, devant la vue et à STAB_SIDE de part et d'autre
+  const STAB_SIDE = 70;
   const HOLD = 1;  // s : arrêt sur la première et la dernière vue
   const MARGIN = 8;  // degrés : marge des tuiles chargées autour du champ (cap qui varie le long de la photo)
   const EXPO_SIDE = 3;  // photos mesurées de part et d'autre d'un changement de séquence (exposition)
@@ -982,21 +983,14 @@ const Video = (() => {
     return { list, s, length, segment, course, at };
   }
 
-  /** Zone comparée de la photo autour du cap relatif yaw (degrés), image SD : { data (niveaux de gris), w, h } ; null si
-   * l'image n'est pas un panorama complet (rapport 2 : 1). */
-  async function stabCrop(photo, yaw, signal) {
-    const bitmap = await fetchImage(photo.sd, signal);
+  /** Zone comparée de l'image SD (ImageBitmap) autour du cap relatif yaw (degrés) : { data (niveaux de gris), w, h }. */
+  function stabCrop(bitmap, yaw) {
     const W = bitmap.width, H = bitmap.height;
-    if (W !== 2 * H) {
-      bitmap.close();
-      return null;
-    }
     const w = Math.round(STAB_FIELD[0] * W / 360) + 2 * STAB_SEARCH, h = Math.round(STAB_FIELD[1] * W / 360) + 2 * STAB_SEARCH;
     const canvas = new OffscreenCanvas(w, h), ctx = canvas.getContext("2d", { willReadFrequently: true });
     const left = (((yaw + 180) * W / 360 - w / 2) % W + W) % W;
     ctx.drawImage(bitmap, -left, (h - H) / 2);
     ctx.drawImage(bitmap, W - left, (h - H) / 2);  // autour du raccord du panorama
-    bitmap.close();
     const rgba = ctx.getImageData(0, 0, w, h).data, data = new Float32Array(w * h);
     for (let k = 0; k < data.length; k++) data[k] = 0.3 * rgba[4 * k] + 0.59 * rgba[4 * k + 1] + 0.11 * rgba[4 * k + 2];
     return { data, w, h };
@@ -1039,8 +1033,9 @@ const Video = (() => {
     return [bx + vertex(at(bx - 1, by), best, at(bx + 1, by)), by + vertex(at(bx, by - 1), best, at(bx, by + 1))];
   }
 
-  /** Correction du tangage de la vue, en degrés, pour chaque photo du parcours. Décalages verticaux cumulés d'une photo à la
-   * suivante, moins leur moyenne sur ± STAB_SPAN m : les petits sauts seulement, pas la pente ni les virages. Pas de
+  /** Correction de la vue, en degrés, pour chaque photo du parcours : { pitch, roll }. Tangage : décalage vertical devant la
+   * vue ; roulis : décalages verticaux opposés sur les côtés (STAB_SIDE). Décalages cumulés d'une photo à la suivante, moins
+   * leur moyenne sur ± STAB_SPAN m : les petits sauts seulement, pas la pente ni les virages. Pas de
    * mesure entre deux séquences ; photo sans mesure sûre : pas de saut compté. wait() : pour dire que le calcul avance. */
   async function stabilization(path, yawOf, signal, wait = () => {}) {
     const { list, s } = path, crops = list.map(() => null);
@@ -1051,27 +1046,33 @@ const Video = (() => {
         wait();
         if (!list[i].sd) continue;
         try {
-          crops[i] = await stabCrop(list[i], yawOf(i), signal);
+          const bitmap = await fetchImage(list[i].sd, signal);
+          // Pas un panorama complet (rapport 2 : 1) : pas de mesure
+          if (bitmap.width === 2 * bitmap.height) crops[i] = [0, -STAB_SIDE, STAB_SIDE].map((side) => stabCrop(bitmap, yawOf(i) + side));
+          bitmap.close();
         } catch (error) {
           if (signal?.aborted) throw error;
           console.warn("Vidéo : stabilisation sans mesure", list[i].id, error);
         }
       }
     }));
-    const sum = [0];
+    const pitch = [0], roll = [0];
     for (let i = 1; i < list.length; i++) {
       wait();
       const same = list[i].collection === list[i - 1].collection && crops[i] && crops[i - 1];
-      const d = same && imageOffset(crops[i - 1], crops[i]);
-      sum.push(sum[i - 1] + (d ? d[1] * STAB_FIELD[0] / (crops[i].w - 2 * STAB_SEARCH) : 0));
+      const [front, left, right] = [0, 1, 2].map((k) => same && imageOffset(crops[i - 1][k], crops[i][k]));
+      const perPixel = same ? STAB_FIELD[0] / (crops[i][0].w - 2 * STAB_SEARCH) : 0;
+      pitch.push(pitch[i - 1] + (front ? front[1] * perPixel : 0));
+      roll.push(roll[i - 1] + (left && right ? (right[1] - left[1]) / 2 * perPixel / Math.sin(STAB_SIDE * toRad) : 0));
       crops[i - 1] = null;  // mémoire
     }
-    return sum.map((v, i) => {
+    const fix = (sum) => sum.map((v, i) => {
       let total = 0, n = 0;
       for (let k = i; k >= 0 && s[i] - s[k] <= STAB_SPAN; k--) { total += sum[k]; n++; }
       for (let k = i + 1; k < sum.length && s[k] - s[i] <= STAB_SPAN; k++) { total += sum[k]; n++; }
       return Math.min(STAB_MAX, Math.max(-STAB_MAX, v - total / n));
     });
+    return { pitch: fix(pitch), roll: fix(roll) };
   }
 
   /** Tuiles de la photo qui couvrent le champ autour du cap relatif yaw (degrés), pour une vue au plus large de
@@ -1135,11 +1136,12 @@ const Video = (() => {
     uniform vec4 cam0, cam1;  // cap de la route, tangage (radians), tan du demi-champ horizontal, avancée (m) depuis la photo
     uniform float look;  // regard décalé de l'axe de la route (radians, à droite) : panoramique, croisements
     uniform float roll;  // roulis de l'image (radians) : tonneau
+    uniform float tilt0, tilt1;  // roulis de chaque photo à retirer (radians) : stabilisation
     uniform float lift;  // regard levé (radians) : visée en hauteur du point d'intérêt, petite planète (vers le sol)
     uniform float planet;  // projection : 0 perspective, 1 stéréographique (petite planète), entre les deux : passage
     uniform float aspect, blend, height, bowl, road, roof;
     uniform vec3 gain0, gain1;  // exposition de chaque photo (changement de séquence)
-    vec4 pick(sampler2D t, vec4 crop, vec2 grid, vec4 cam) {
+    vec4 pick(sampler2D t, vec4 crop, vec2 grid, vec4 cam, float tilt) {
       // Rayon de la caméra virtuelle, tourné du regard décalé, avancée de cam.w m dans l'axe de la route (horizontal) :
       // point touché sur la maquette (chaussée dans l'axe de la route, sinon sphère), puis direction de ce point vue de
       // la caméra de la photo
@@ -1165,6 +1167,7 @@ const Video = (() => {
       vec3 d = normalize(o + k * r);
       float cp = cos(cam.y), sp = sin(cam.y), cy = cos(cam.x), sy = sin(cam.x);
       d = vec3(d.x, d.y * cp + d.z * sp, -d.y * sp + d.z * cp);
+      d = vec3(d.x * cos(tilt) - d.y * sin(tilt), d.x * sin(tilt) + d.y * cos(tilt), d.z);
       d = vec3(d.x * cy + d.z * sy, d.y, -d.x * sy + d.z * cy);
       float lon = degrees(atan(d.x, d.z)), lat = degrees(asin(clamp(d.y, -1.0, 1.0)));
       float u = mod((lon + 180.0) / (360.0 / grid.x) - crop.x, grid.x) / crop.y;
@@ -1176,7 +1179,7 @@ const Video = (() => {
       return vec4(c.rgb, lat < roof ? 0.0 : c.a * keep);
     }
     void main() {
-      vec4 a = pick(tex0, crop0, grid0, cam0), b = pick(tex1, crop1, grid1, cam1);
+      vec4 a = pick(tex0, crop0, grid0, cam0, tilt0), b = pick(tex1, crop1, grid1, cam1, tilt1);
       a.rgb = min(a.rgb * gain0, 1.0);
       b.rgb = min(b.rgb * gain1, 1.0);
       float ta = max(a.a, 0.0), tb = max(b.a, 0.0);
@@ -1282,6 +1285,7 @@ const Video = (() => {
           gl.uniform4f(u(`crop${k}`), v.crop.c0, v.crop.nc, v.crop.r0, v.crop.nr);
           gl.uniform2f(u(`grid${k}`), v.grid[0], v.grid[1]);
           gl.uniform4f(u(`cam${k}`), v.yaw, v.pitch, v.tan, v.move);
+          gl.uniform1f(u(`tilt${k}`), v.tilt || 0);
           gl.uniform3f(u(`gain${k}`), ...(v.gain || [1, 1, 1]));
         });
         gl.uniform1f(u("blend"), blend);
@@ -1358,7 +1362,7 @@ const Video = (() => {
    * planets), options.planetFade : enroulement et déroulement (s), options.planetAll : sur tout le parcours, options.planetRoll : tonneau pendant les transitions, options.presentation : mode
    * Présentation (timeline, presentationSpeeds ; vitesses en m/s) à la place de kmh et de la rampe, options.planetSpin : vitesse de rotation (°/s) ;
    * options.tours : endroits des tours d'horizon ([[lon, lat]…], tours), options.tourTime : durée de chacun (s),
-   * options.tourStop : caméra arrêtée pendant le tour ; options.draft : brouillon (image SD des photos, DRAFT_SIZE) ; options.h265 : H.265 si le poste l'encode ; options.height : 720 pour le 720p ; options.stabilize : tangage de chaque photo corrigé (stabilization) ; options.stream : fichier ouvert
+   * options.tourStop : caméra arrêtée pendant le tour ; options.draft : brouillon (image SD des photos, DRAFT_SIZE) ; options.h265 : H.265 si le poste l'encode ; options.height : 720 pour le 720p ; options.stabilize : tangage et roulis de chaque photo corrigés (stabilization) ; options.stream : fichier ouvert
    * (FileSystemWritableFileStream) où écrire la vidéo au fur et à mesure, refermé à la fin (rend null ; sans lui, la
    * vidéo est assemblée en mémoire et rendue en Blob : un long parcours peut alors dépasser la mémoire de l'onglet). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
    */
@@ -1389,10 +1393,14 @@ const Video = (() => {
     const widest = (fov) => 2 * Math.atan(Math.tan(fov / 2 * toRad) * 1.6) / toRad;
     const scaleOf = (t) => Math.min(1, 1.25 * (width / HFOV) / (t.size / (360 / t.cols)));
     const yawAt = (i, x) => wrap(path.course(x) - path.list[i].heading);
+    const tilts = path.list.map(() => 0);  // roulis de chaque photo à retirer (radians)
     if (stabilize) {
       const steady = await stabilization(path, (i) => yawAt(i, path.s[i]), signal, () => progress(0, path.list.length));
       // Sens vérifié sur une vidéo : photo dont le décor est plus bas (dy > 0) : tangage de la vue diminué
-      path.list.forEach((p, i) => { p.pitch -= steady[i] * toRad; });
+      path.list.forEach((p, i) => {
+        p.pitch -= steady.pitch[i] * toRad;
+        tilts[i] = steady.roll[i] * toRad;
+      });
     }
     // Couleurs accordées à chaque changement de séquence (raccord discret) ; photos isolées seulement avec l'option
     const gains = await exposures(path, signal, exposure);
@@ -1511,8 +1519,8 @@ const Video = (() => {
           // moyenne courante
           const gap = 0;  // fondu enchaîné, chaque photo vue de sa propre caméra (l'avancée dans une maquette faisait sauter le ciel et les côtés)
           gl.draw([
-            { ...a, yaw: yawAt(i, xs) * toRad, pitch: path.list[i].pitch, tan: view, move: u * gap, gain: gains[i] },
-            { ...b, yaw: yawAt(j, xs) * toRad, pitch: path.list[j].pitch, tan: view, move: -(1 - u) * gap, gain: gains[j] },
+            { ...a, yaw: yawAt(i, xs) * toRad, pitch: path.list[i].pitch, tilt: tilts[i], tan: view, move: u * gap, gain: gains[i] },
+            { ...b, yaw: yawAt(j, xs) * toRad, pitch: path.list[j].pitch, tilt: tilts[j], tan: view, move: -(1 - u) * gap, gain: gains[j] },
           ], j === i ? 0 : smooth(Math.min(1, Math.max(0, path.list[i].collection !== path.list[j].collection ? u  // raccord : fondu sur tout l'écart
             : (u - 0.25) / 0.5))), 1 / (k + 1), look, tilted,
           (aim.lift[n] - 90 * globe.mix[n]) * toRad, Math.min(1, 2 * globe.mix[n]));
