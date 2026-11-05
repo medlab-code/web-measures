@@ -168,6 +168,72 @@ def _straight_track_axis(features, sequence, lon, lat):
     return (90.0 - math.degrees(angle)) % 180
 
 
+def _line_slope(points):
+    """Pente (%, positive si le terrain descend vers les x croissants) de la droite des moindres carrés, ou None sous 3 points."""
+    if len(points) < 3:
+        return None
+    mx, mz = sum(p[0] for p in points) / len(points), sum(p[1] for p in points) / len(points)
+    sxx = sum((p[0] - mx) ** 2 for p in points)
+    return -100 * sum((p[0] - mx) * (p[1] - mz) for p in points) / sxx if sxx else None
+
+
+def _spread(values):
+    """Écart type des valeurs."""
+    mean = sum(values) / len(values)
+    return math.sqrt(sum((v - mean) ** 2 for v in values) / len(values))
+
+
+PLATFORM_MIN_CROSSINGS = 3  # travers exploitables au moins
+PLATFORM_SPREAD = 1.0  # points : écart entre travers au-delà duquel le dévers n'est pas déterminé
+PLATFORM_SIDE_MIN = 0.8  # points : moitiés de sens opposés seulement si chacune penche au moins de cela
+PLATFORM_TWIN_GAP = 1.0  # points : chaussées séparées : un chiffre par chaussée dès cet écart
+PLATFORM_ROOF_GAP = 1.0  # points : toit symétrique, pente moyenne affichée, jusqu'à cet écart entre ses deux pentes
+
+
+def platform_slope(drawn):
+    """Dévers de la plateforme (ticket #38) d'après les travers du profil (entrées de App._compute_edges), en %, positif
+    s'il descend vers la droite : droite ajustée sur chaque moitié (chaque chaussée, séparateur exclu) et sur l'ensemble,
+    moyennées sur les travers. Retourne {"type": ...} : "sens" (pente), "toit" (pente moyenne, gauche, droite), "demi"
+    (gauche, droite) ou "indetermine" : travers trop différents (voir docs/CALCULS.md, 8.7)."""
+    crossings = {}
+    for entry in drawn:
+        sign = -1 if entry["cote"] == "gauche" else 1
+        c = crossings.setdefault(entry["le_long"], {"points": set(), "edges": {}, "between": None})
+        c["points"].update((sign * o, z) for o, z in entry["points"])
+        c["edges"][entry["cote"]] = sign * entry["bord"]
+        if entry.get("separateur"):
+            c["between"] = sorted(sign * v for v in entry["separateur"])
+    whole, left, right, twin = [], [], [], False
+    for c in crossings.values():
+        if len(c["edges"]) < 2:
+            continue
+        low, high = c["edges"]["gauche"], c["edges"]["droit"]
+        twin = twin or bool(c["between"])
+        a, b = c["between"] or ((low + high) / 2, (low + high) / 2)
+        points = [p for p in c["points"] if low <= p[0] <= high]
+        slopes = (_line_slope([p for p in points if p[0] <= a or p[0] >= b]), _line_slope([p for p in points if p[0] <= a]),
+                  _line_slope([p for p in points if p[0] >= b]))
+        if None not in slopes:
+            whole.append(slopes[0])
+            left.append(slopes[1])
+            right.append(slopes[2])
+    if len(whole) < PLATFORM_MIN_CROSSINGS:
+        return {"type": "indetermine"}
+    mean = lambda values: sum(values) / len(values)
+    s, g, d = mean(whole), mean(left), mean(right)
+    opposed = g * d < 0 and min(abs(g), abs(d)) >= PLATFORM_SIDE_MIN
+    if opposed or (twin and abs(g - d) >= PLATFORM_TWIN_GAP):
+        if max(_spread(left), _spread(right)) > PLATFORM_SPREAD:
+            return {"type": "indetermine"}
+        sides = {"gauche": round(g, 2), "droite": round(d, 2)}
+        if opposed and g < 0 < d and abs(abs(g) - abs(d)) <= PLATFORM_ROOF_GAP:  # chaque moitié descend vers son bord
+            return dict(sides, type="toit", pente=round((abs(g) + abs(d)) / 2, 2))
+        return dict(sides, type="demi")
+    if _spread(whole) > PLATFORM_SPREAD:
+        return {"type": "indetermine"}
+    return {"type": "sens", "pente": round(s, 2)}
+
+
 def _ign_bridges(data):
     """Ponts nommés de la BD TOPO (constructions linéaires de nature « Pont ») : [(ligne, nom)]."""
     out = []
@@ -2586,6 +2652,7 @@ class App(session.Session):
                             "repere": [[round(v, 8) for v in p] for p in frame0],
                             "axe": round(-shift * right, 2),  # axe de la chaussée de la photo, en m vers la droite
                             "zone": zone, "fenetre": self.EDGE_WINDOW, "remontee": self.EDGE_RISE, "profils": drawn,
+                            "plateforme": platform_slope(drawn) if source == triangulation.LIDAR_NAME else None,  # RGE ALTI trop imprécis
                             "resultats": shown, "arrets": {name: sorted(v)[len(v) // 2] for name, v in stops.items() if v},
                             "en_long": grade},
                 "text": ("\n".join(lines) or "Aucun bord ne descend de {} m ou plus jusqu'à {} m".format(

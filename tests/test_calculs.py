@@ -21,6 +21,53 @@ App = web_app.App
 app = App.__new__(App)  # seulement les constantes de la classe
 
 
+def crossings(z, width=3.0, along=(-10, -5, 0, 5, 10), between=None):
+    """Travers d'une plateforme de ±width m tous les 0,5 m, altitude z(x, le long) ; x positif à droite."""
+    drawn = []
+    for a in along:
+        for name, sign in (("gauche", -1), ("droit", 1)):
+            offsets = [k * 0.5 for k in range(int(width / 0.5) + 1)]
+            drawn.append({"le_long": a, "cote": name, "bord": width, "separateur": between if sign == 1 else None,
+                          "points": [[o, z(sign * o, a)] for o in offsets]})
+    return drawn
+
+
+class Plateforme(unittest.TestCase):
+    """Dévers de la plateforme (web_app.platform_slope, ticket #38)."""
+
+    def test_un_seul_sens(self):
+        out = web_app.platform_slope(crossings(lambda x, a: -0.03 * x))
+        self.assertEqual(out["type"], "sens")
+        self.assertAlmostEqual(out["pente"], 3.0)
+
+    def test_toit(self):
+        out = web_app.platform_slope(crossings(lambda x, a: -0.025 * abs(x)))
+        self.assertEqual((out["type"], out["pente"]), ("toit", 2.5))
+        self.assertLess(out["gauche"], 0)
+        self.assertGreater(out["droite"], 0)
+
+    def test_toit_dissymetrique_et_cuvette(self):
+        self.assertEqual(web_app.platform_slope(crossings(lambda x, a: -(0.05 if x > 0 else -0.01) * x))["type"], "demi")
+        self.assertEqual(web_app.platform_slope(crossings(lambda x, a: 0.025 * abs(x)))["type"], "demi")
+
+    def test_travers_trop_differents(self):
+        out = web_app.platform_slope(crossings(lambda x, a: -0.01 * a * x))  # de -10 % à +10 %
+        self.assertEqual(out, {"type": "indetermine"})
+        toit = web_app.platform_slope(crossings(lambda x, a: -(0.025 + (0.01 if a > 0 else 0) * a) * abs(x)))
+        self.assertEqual(toit, {"type": "indetermine"})
+
+    def test_trop_peu_de_travers(self):
+        self.assertEqual(web_app.platform_slope(crossings(lambda x, a: 0.0, along=(0, 5))), {"type": "indetermine"})
+
+    def test_chaussees_separees(self):
+        # une chaussée plate, l'autre à 2,5 %, séparateur surélevé de 1 à 2 m : exclu du calcul
+        z = lambda x, a: 1.0 if 1 < x < 2 else (0.0 if x <= 1 else -0.025 * (x - 2))
+        out = web_app.platform_slope(crossings(z, width=10.0, between=[1.0, 2.0]))
+        self.assertEqual(out["type"], "demi")
+        self.assertAlmostEqual(out["gauche"], 0.0)
+        self.assertAlmostEqual(out["droite"], 2.5)
+
+
 class Creux(unittest.TestCase):
     """Profil en long : tablier des ponts (App._bridged)."""
 

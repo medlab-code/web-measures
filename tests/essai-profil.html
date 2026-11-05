@@ -39,6 +39,14 @@ try {
   check("talus montant à +8 m, à l'échelle", Profil.draw(profile([crossing(0, (x) => Math.min(8, x * 1.5), 17)]), true), 0.3);
   check("terrain plat, hauteurs exagérées", Profil.draw(profile(flat), false), 0.3);
   check("point le plus bas sur un autre travers", Profil.draw(profile([...flat, crossing(5, (x) => -Math.min(2, x), 17)]), true), 1);
+  // Dévers de la plateforme : sur le graphique et dans la légende
+  const text = (plateforme) => { const d = Profil.draw({ ...profile(flat), plateforme }, true); return [d.svg.textContent, d.legend.textContent]; };
+  const says = (what, [graph, legend], inGraph, inLegend) => { checks++; const ok = graph.includes(inGraph) && legend.includes(inLegend); if (!ok) failures++;
+    log(`${ok ? "" : "ÉCHEC "}${what} : ${inLegend}`); };
+  says("un sens", text({ type: "sens", pente: 2.3 }), "dévers 2\u00a0% →", "dévers 2\u00a0% vers la droite");
+  says("toit", text({ type: "toit", pente: 2.5, gauche: -2.4, droite: 2.6 }), "toit 3\u00a0%", "en toit, pente moyenne 3\u00a0%");
+  says("demi-chaussées", text({ type: "demi", gauche: -3, droite: 0.2 }), "dévers ← 3\u00a0% | moins de 1\u00a0%", "à gauche 3\u00a0% vers la gauche, à droite moins de 1\u00a0%");
+  says("non déterminé", text({ type: "indetermine" }), "plateforme", "dévers non déterminé");
   // Route étroite : le graphique est à sa hauteur ; la caméra (1,9 m) ne compte pas comme haut du terrain
   check("caméra au-dessus d'un terrain plat", Profil.draw(profile([crossing(0, () => -0.1, 4)], "caméra"), true, null, true, 1.9), 1);
 } catch (error) { failures++; log("ÉCHEC exception : " + (error.stack || error)); }

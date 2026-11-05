@@ -39,6 +39,26 @@ const Profil = (() => {
     return out;
   }
 
+  /** Valeur d'un dévers (%, positif vers la droite), arrondie au point : l'écart entre travers n'autorise pas mieux. */
+  const slopeValue = (s) => (Math.abs(s) < 0.5 ? "moins de 1\u00a0%" : `${num(Math.abs(s), 0)}\u00a0%`);
+  const slopeWay = (s) => (Math.abs(s) < 0.5 ? "" : s > 0 ? " vers la droite" : " vers la gauche");
+  /** Dévers de la plateforme (App : platform_slope), pour la légende. */
+  function platformText(p) {
+    const sides = () => `à gauche ${slopeValue(p.gauche)}${slopeWay(p.gauche)}, à droite ${slopeValue(p.droite)}${slopeWay(p.droite)}`;
+    if (p.type === "sens") return `dévers ${slopeValue(p.pente)}${slopeWay(p.pente)}`;
+    if (p.type === "toit") return `en toit, pente moyenne ${slopeValue(p.pente)} (${sides()})`;
+    if (p.type === "demi") return `dévers ${sides()}`;
+    return "dévers non déterminé (travers trop différents d'un endroit à l'autre)";
+  }
+  /** Même dévers, en bref sur le graphique ; rien s'il n'est pas déterminé. */
+  function platformLabel(p) {
+    const arrow = (s) => (Math.abs(s) < 0.5 ? "" : s > 0 ? " →" : " ←");
+    if (p?.type === "sens") return `dévers ${slopeValue(p.pente)}${arrow(p.pente)}`;
+    if (p?.type === "toit") return `toit ${slopeValue(p.pente)}`;
+    if (p?.type === "demi") return `dévers${arrow(p.gauche)} ${slopeValue(p.gauche)} | ${slopeValue(p.droite)}${arrow(p.droite)}`;
+    return "";
+  }
+
   /** Altitude du travers en x (interpolée). */
   function zAt(points, x) {
     for (let k = 1; k < points.length; k++) {
@@ -143,6 +163,10 @@ const Profil = (() => {
       svg.append(el("path", { d: path(road), class: "chaussee" }),
         el("text", { x: X((bl + br) / 2), y: Z(zAt(main.points, (bl + br) / 2)) + 26, class: "etiquette-profil place", "text-anchor": "middle" },
           `plateforme ${num(br - bl)} m`));
+      const slope = platformLabel(profile.plateforme);
+      if (slope) {
+        svg.append(el("text", { x: X((bl + br) / 2), y: Z(zAt(main.points, (bl + br) / 2)) + 42, class: "etiquette-profil place", "text-anchor": "middle" }, slope));
+      }
     }
     for (const side of ["gauche", "droit"]) {
       const b = main.bords[side];
@@ -237,6 +261,11 @@ const Profil = (() => {
     // Chute et dévers, sur le travers où ils ont été mesurés ; une puce par côté dans la légende
     const html = (tag, className, text) => Object.assign(document.createElement(tag), { className, textContent: text });
     const results = document.createElement("ul");
+    if (profile.plateforme) {
+      const item = document.createElement("li");
+      item.append(html("b", "", "Plateforme\u00a0: "), platformText(profile.plateforme));
+      results.append(item);
+    }
     for (const side of ["gauche", "droit"]) {
       const r = profile.resultats[side], sign = side === "gauche" ? -1 : 1;
       const item = document.createElement("li");

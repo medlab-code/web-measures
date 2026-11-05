@@ -1144,6 +1144,7 @@ dialog.avertissement form button:focus-visible { outline: 2px solid var(--texte)
 #parcours .sur-carte[aria-pressed="true"] { outline: 2px solid #ff6f00; }
 #parcours .lancer { display: flex; justify-content: center; margin: 0.6rem 0; }
 dialog.profil { max-width: min(52rem, calc(100vw - 16px)); }
+dialog.profil:not(.agrandi) { scrollbar-gutter: stable; }  /* légende plus courte, sans ascenseur : les boutons ne bougent pas */
 dialog.profil .graphique svg { display: block; width: 100%; height: auto; }
 dialog.profil .graphique svg.profil-long { margin-top: 0.6rem; }
 dialog.profil.agrandi { max-width: none; }  /* loupe : largeur du graphique calculée (fitProfile), sans la légende */

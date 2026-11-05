@@ -291,6 +291,23 @@ sont dessinées sur le terrain : le MNT y donne la surface de l'eau le jour du r
 La caméra est dessinée à sa hauteur (réglage « Hauteur de caméra ») au-dessus du sol sous
 l'origine, seulement quand les hauteurs sont à l'échelle.
 
+### 8.7 Dévers de la plateforme
+
+Sur chaque travers, une droite des moindres carrés est ajustée sur la plateforme entière et sur
+chaque moitié (coupée au milieu entre les bords, ou de part et d'autre du séparateur, exclu), puis
+les pentes sont moyennées sur les travers, trois au moins. Sur une chaussée, seules des moitiés de
+sens opposés d'au moins 0,8 point chacune donnent deux chiffres ; sur des chaussées séparées, aussi
+un écart d'au moins 1 point entre elles. Elles forment un toit si chacune descend vers son bord :
+pente moyenne affichée si leurs pentes diffèrent de 1 point au plus. Sinon, un seul chiffre, celui
+de la plateforme entière. Au-delà de 1 point d'écart type entre travers sur la valeur utilisée, le
+dévers est « non déterminé ». Rien en RGE ALTI, trop imprécis. Affichage arrondi au point.
+
+Essai du 05/11/2026 sur 31 photos LiDAR HD, sans mesure de terrain (stabilité, pas exactitude) :
+écart médian entre travers de 0,55 point sur la plateforme entière d'une chaussée, 1,17 point par
+moitié, soit trop pour reconnaître sûrement un toit à 2,5 % sur 6 m (2,2 cm d'écart à une droite,
+2,1 cm de résidu médian) ; 0,1 à 0,8 point par moitié sur des chaussées séparées. Les bords sont ceux
+de la détection (§ 8.2), accotement parfois compris, sans l'analyse fine.
+
 ## 9. « Profils » : pente en long
 
 - **Ligne suivie** : la **trajectoire de la caméra** (photos de la même séquence, de rangs qui

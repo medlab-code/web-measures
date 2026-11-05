@@ -489,7 +489,10 @@ après.
   dans la boîte d'impression ; « Profil en long (2e page) » (choix retenu) y ajoute une page pour le profil en long ; la loupe agrandit le graphique (sans la légende) au mieux dans la
   visionneuse ; « Masquer la légende » la plie sous le graphique (choix retenu ; le PNG et le PDF la gardent). Le fond du
   graphique descend à 1 m sous le point le plus bas du terrain si le haut du terrain (sans la caméra ni la végétation) reste alors dans
-  la moitié basse du cadre, sinon à 0,3 m ; la place libre est en haut, pour la végétation. Le bouton est grisé tant que « Profils » n'a rien calculé pour la photo.
+  la moitié basse du cadre, sinon à 0,3 m ; la place libre est en haut, pour la végétation. Le graphique et la
+  légende donnent le **dévers de la plateforme** (LiDAR HD seulement), arrondi au point : un chiffre si elle penche d'un seul sens, sinon un
+  par demi-chaussée, avec la pente moyenne pour un toit symétrique, ou « non déterminé » si les travers diffèrent trop. Sur une route à une
+  chaussée, un toit reste difficile à reconnaître (voir `docs/CALCULS.md`, 8.7) : ce chiffre n'a pas été comparé à des mesures de terrain. Le bouton est grisé tant que « Profils » n'a rien calculé pour la photo.
 
   **« Analyse fine »** (fenêtre du profil) : lit le nuage de points LiDAR HD de l'IGN (dalles COPC, à la volée,
   1 requête par seconde au plus : une vingtaine de secondes, 1 à 2 Mo) sur ±1 m le long de la route au travers
