@@ -10,6 +10,7 @@
 // virtuelle avance réellement : la chaussée défile, le lointain bouge peu ; la photo quittée cède la place à la
 // suivante (vue depuis le même point) en fondu. Le toit du véhicule (bas du panorama, sous ROOF) est écarté :
 // l'autre photo le remplace. Sans avancée simulée (option) : chaque photo vue de sa caméra, simple fondu enchaîné.
+// Brouillon (option) : image SD de chaque photo et non ses tuiles, vidéo en 960 × 540 : calcul plus rapide, image floue.
 // Encodage H.264 par le navigateur (WebCodecs ; VP9 s'il n'encode pas le H.264, Firefox
 // sous Linux), fichier assemblé par mp4-muxer, chargé au premier export seulement.
 
@@ -20,6 +21,7 @@ const Video = (() => {
   // Haute qualité (option, lente) : 1080p aussi (choix de l'utilisateur), débit HQ_CODECS (détails fins mieux rendus),
   // tuiles en pleine définition, vue calculée en HQ_SUPERSAMPLE fois la définition puis réduite (bords sans escalier)
   const HQ_SUPERSAMPLE = 2;
+  const DRAFT_SIZE = [960, 540, 0.25];  // brouillon : image SD (2048 px pour 360°, soit 6 px par degré ; la vue en demande 12)
   // H.264 High, Main, Baseline (niveau 4.0), puis VP9 (Firefox sous Linux : H.264 annoncé mais pas encodé, bug
   // Mozilla 2085549), dans un MP4 aussi ; codec du fichier pour mp4-muxer ; débit en 1080p (bit/s). Mesuré le 31/10/2026
   // contre une version à 80 Mbit/s : H.264 10 Mbit/s très flou (PSNR 32 dB), 30 Mbit/s 37,6 dB ; VP9 20 Mbit/s 36,8 dB
@@ -100,7 +102,7 @@ const Video = (() => {
       : { image: sd || feature.assets?.hd?.href, cols: 1, rows: 1, size: 2048 };
     return { id: feature.id, coords: point.coords, alt: point.alt, heading: point.heading, tiles,
       date: (feature.properties?.datetime || "").slice(0, 10), time: Date.parse(feature.properties?.datetime) || null,
-      collection: feature.collection, thumb: feature.assets?.thumb?.href || sd };
+      collection: feature.collection, thumb: feature.assets?.thumb?.href || sd, sd };
   }
 
   const toRad = Math.PI / 180;
@@ -1213,10 +1215,10 @@ const Video = (() => {
   }
 
   /** Première configuration qui encode vraiment : { config, codec (pour mp4-muxer) } ; null sans aucune. hq : haute
-   * qualité (HQ_CODECS en 1080p, puis la qualité ordinaire si le poste n'en encode aucun). */
-  async function encoderConfig(hq = false) {
+   * qualité (HQ_CODECS en 1080p, puis la qualité ordinaire si le poste n'en encode aucun) ; draft : brouillon (DRAFT_SIZE). */
+  async function encoderConfig(hq = false, draft = false) {
     const pairs = (sizes, codecs) => sizes.flatMap((size) => codecs.map((codec) => [size, codec]));
-    const choices = hq ? [...pairs([SIZES[0]], HQ_CODECS), ...pairs(SIZES, CODECS)] : pairs(SIZES, CODECS);
+    const choices = [...(draft ? pairs([DRAFT_SIZE], CODECS) : hq ? pairs([SIZES[0]], HQ_CODECS) : []), ...pairs(SIZES, CODECS)];
     for (const [[width, height, share], [name, codec, rate]] of choices) {
       const config = { codec: name, width, height, bitrate: rate * share, framerate: FPS, ...(codec === "avc" ? { avc: { format: "avc" } } : {}) };
       try {
@@ -1242,19 +1244,23 @@ const Video = (() => {
    * Présentation (timeline, presentationSpeeds ; vitesses en m/s) à la place de kmh et de la rampe, options.planetSpin : vitesse de rotation (°/s) ;
    * options.tours : endroits des tours d'horizon ([[lon, lat]…], tours), options.tourTime : durée de chacun (s),
    * options.tourStop : caméra arrêtée pendant le tour ; options.hq : haute qualité (HQ_CODECS, tuiles en pleine
-   * définition, vue calculée en HQ_SUPERSAMPLE fois la définition ; lent) ; options.stream : fichier ouvert
+   * définition, vue calculée en HQ_SUPERSAMPLE fois la définition ; lent) ; options.draft : brouillon (image SD des photos, DRAFT_SIZE ; prime sur hq) ; options.stream : fichier ouvert
    * (FileSystemWritableFileStream) où écrire la vidéo au fur et à mesure, refermé à la fin (rend null ; sans lui, la
    * vidéo est assemblée en mémoire et rendue en Blob : un long parcours peut alors dépasser la mémoire de l'onglet). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
    */
   async function mp4(photos, kmh, progress = () => {}, signal = null,
     { blur = false, exposure = true, ramp = false, title = null, counter = false, speedometer = false, lateral = false, arpSpeed = false, junctions = [], rolls: rollPlaces = [],
-    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, hq = false, planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false, planetRoll = false, presentation = null,
+    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, hq = false, draft = false, planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false, planetRoll = false, presentation = null,
     planetSpin = PLANET_SPIN, tours: tourPlaces = [], tourTime = TOUR_TIME, tourStop = true, stream = null } = {}) {
     const timelineOf = (p) => timeline(p, kmh / 3.6, ramp, lookedJunctions(p, junctions), lookSpeed / 3.6,
       poi?.speed ? { ...poiSpan(p, poi), speed: poi.speed / 3.6 } : null, presentation);
+    if (draft) {
+      hq = false;
+      photos = photos.map((p) => (p.sd ? { ...p, tiles: { image: p.sd, cols: 1, rows: 1, size: 2048 } } : p));
+    }
     const path = trajectory(photos);
     if (path.list.length < 2 || path.length < 1) throw new Error("parcours trop court");
-    const [chosen] = await Promise.all([encoderConfig(hq), loadMuxer()]);
+    const [chosen] = await Promise.all([encoderConfig(hq, draft), loadMuxer()]);
     if (!chosen) throw new Error("ce navigateur n'encode ni le H.264 ni le VP9");
     const { config, codec } = chosen;
     const { width, height } = config;

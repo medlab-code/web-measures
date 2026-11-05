@@ -3845,6 +3845,10 @@
   });
   showModeHelp();
   $("#video-titre").addEventListener("change", updatePlayer);
+  $("#video-brouillon").addEventListener("change", () => {
+    if ($("#video-brouillon").checked) $("#video-hq").checked = false;
+    updatePlayer();
+  });
   const ROUTE_EFFECTS = [["video-tonneau", "tonneau"], ["video-planete", "petite planète"], ["video-interet", "point d'intérêt"],
     ["video-regard", "regard aux croisements"], ["video-tour", "tour d'horizon"]];
   /** Réglage remis à sa valeur de la page (case, liste, réglette). */
@@ -4177,7 +4181,7 @@
         $("#video-info").textContent = text;
         setStatus(text, "avancement");
         $("#statut").style.setProperty("--avancement", `${(100 * done / total).toFixed(1)}%`);
-      }, videoRun.signal, { blur: $("#video-flou").checked, hq: $("#video-hq").checked, exposure: $("#video-expo").checked,
+      }, videoRun.signal, { blur: $("#video-flou").checked, hq: $("#video-hq").checked, draft: $("#video-brouillon").checked, exposure: $("#video-expo").checked,
         ramp: !presOptions() && $("#video-rampe").checked, presentation: presOptions(),
         counter: $("#video-compteur").checked, speedometer: $("#video-compteur-vitesse").checked, lateral: $("#video-acceleration").checked, arpSpeed: $("#video-vmax-arp").checked,
         junctions: $("#video-regard").checked ? videoPlan.junctions : [],
@@ -4400,12 +4404,13 @@
     $("#parcours-garder").textContent = !openedRoute ? "☆ Garder" : changed ? "☆ Enregistrer…" : "☆ Gardé";
     $("#parcours-raz").disabled = Boolean(videoRun) || routeIsBlank();
     showPoiZone();  // portion du parcours concernée : suit la préparation, la cible et la zone
-    for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-hq", "#video-expo", "#video-rampe", "#video-titre",
+    for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-brouillon", "#video-expo", "#video-rampe", "#video-titre",
       "#video-compteur", "#video-compteur-vitesse", "#video-acceleration", "#video-vmax-arp", "#video-regard", "#video-tonneau", "#tonneau-duree", "#regard-vitesse",
       "#video-interet", "#interet-vitesse", "#interet-zoom", "#interet-zoom-distance", "#interet-tonneau",
       "#video-planete", "#planete-tout", "#planete-transition", "#planete-rotation", "#video-tour", "#tour-duree", "#tour-arret"]) {
       $(id).disabled = Boolean(videoRun);
     }
+    $("#video-hq").disabled = Boolean(videoRun) || $("#video-brouillon").checked;  // sans effet en brouillon
     travelPane.querySelector('.sur-carte[data-cote="planet"]').disabled = $("#planete-tout").checked;  // rien à tracer
     $("#planete-tonneau").disabled = Boolean(videoRun) || !Number($("#planete-transition").value);
     $("#video-mode").disabled = Boolean(videoRun);

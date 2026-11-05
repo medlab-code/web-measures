@@ -267,7 +267,9 @@ corrigé de la pente de la route, champ de 80° (le toit du véhicule n'y entre 
 caméra avance réellement dans une maquette simple de chacune (chaussée plane sur 4 m de part et d'autre
 de l'axe, reste du décor sur une sphère de 60 m) : la chaussée défile sans à-coup, puis la photo suivante
 prend le relais en fondu. Limites : un objet proche et haut (arbre, poteau) se dédouble pendant le
-fondu, la ligne des collines aussi un peu (photos qui ne penchent pas pareil). « Haute qualité (lent) »
+fondu, la ligne des collines aussi un peu (photos qui ne penchent pas pareil). « Brouillon (rapide) » (décochée) : image SD
+de chaque photo au lieu de ses tuiles HD, vidéo en 960 × 540, pour vérifier un parcours et ses effets avant le calcul final ;
+image floue (panneaux et marquage lointain illisibles), et « Haute qualité » grisée. « Haute qualité (lent) »
 (décochée) : toujours en 1920 × 1080, mais débit bien plus élevé (H.264 80 Mbit/s au lieu de 30, VP9 50 au lieu de 20)
 pour les détails fins (vignes, graviers, feuillages, fils), photos en pleine définition et vue calculée en double
 définition puis réduite (bords sans escalier) ; calcul environ 1,5 à 2 fois plus long (davantage avec un réseau lent),
