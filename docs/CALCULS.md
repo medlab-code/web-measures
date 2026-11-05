@@ -319,10 +319,12 @@ de la détection (§ 8.2), accotement parfois compris, sans l'analyse fine.
 - **Fin de la route** : là où aucun tronçon de la même route ne continue, le profil s'arrête
   (« fin de la D16 »), même si la caméra a continué sur une autre route. Les pentes ne portent
   que sur la partie gardée.
-- **Carrefours** : « carrefour avec D18 » là où une voie **nommée** (numéro ou nom) se raccorde
+- **Carrefours** : « carrefour avec D18 » là où une voie **carrossable** et **nommée** (numéro ou nom) se raccorde
   à la route, placé le long de la route. Deux raccordements de la même voie à moins de 30 m
   (îlot séparateur) font un seul carrefour, au milieu. Les voies sans numéro ni nom ne sont pas
-  mentionnées.
+  mentionnées, ni, d'après la BD TOPO, les routes empierrées, chemins, sentiers, pistes cyclables et
+  escaliers, les voies privées ou réservées aux ayants droit. La BD TOPO ne distingue pas les voies
+  communales : le tri se fait sur la nature et l'accès.
 - **Creux et ponts** : le MNT n'a pas les ponts, il donne le fond franchi. Le tronçon BD TOPO en
   pont est souvent plus court que la brèche, ou absent. Au-dessus de chaque point, on cherche la
   **corde** la plus haute tendue entre deux points du terrain distants de **40 m** au plus. Là où

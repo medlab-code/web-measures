@@ -463,9 +463,9 @@ après.
     à la même distance de l'axe que l'origine (l'axe peut s'écarter de la voie de quelques mètres) ;
     repères de la BD TOPO, placés le long de la route : « fin de la D16 » là où elle s'arrête (aucun tronçon de la
     même route ne continue : le profil s'arrête là aussi, même si la caméra a continué sur une autre route, et les
-    pentes ne portent que sur la partie gardée), « carrefour avec D18 » là où une voie nommée (numéro ou nom) s'y
+    pentes ne portent que sur la partie gardée), « carrefour avec D18 » là où une voie carrossable nommée (numéro ou nom) s'y
     raccorde (deux raccordements de la même voie à moins de 30 m, comme autour d'un îlot séparateur : un seul
-    carrefour, au milieu) ; les voies sans numéro ni nom ne sont pas mentionnées ; ponts : le MNT y donne le fond
+    carrefour, au milieu) ; les voies sans numéro ni nom, les routes empierrées, chemins, sentiers et voies privées ou réservées aux ayants droit ne sont pas mentionnés ; ponts : le MNT y donne le fond
     franchi ; un creux (corde de 40 m au plus à plus de 0,1 m au-dessus du terrain, appuyée en haut des parois) est
     remplacé par cette corde s'il recouvre un pont de la BD TOPO ou si le terrain y plonge de plus de 20 % (une route :
     15 % au plus), un vallon que la route suit restant tel quel (le tablier, à peu près, en tirets « pont (tablier interpolé) », ou

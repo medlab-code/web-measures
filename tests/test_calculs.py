@@ -68,6 +68,33 @@ class Plateforme(unittest.TestCase):
         self.assertAlmostEqual(out["droite"], 2.5)
 
 
+class Carrefours(unittest.TestCase):
+    """Profil en long : seules les voies carrossables nommées sont citées (App._chained, ticket #38)."""
+
+    def voie(self, name, **props):
+        lon, lat = 5.0, 47.0
+        return {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[lon, lat], [lon, lat + 0.001]]},
+                "properties": dict({"cpx_numero": name, "nature": "Route à 1 chaussée", "prive": False,
+                                    "acces_vehicule_leger": "Libre"}, **props)}
+
+    def cites(self, *features):
+        road = lambda a, b: {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[a, 47.0], [b, 47.0]]},
+                             "properties": {"cpx_numero": "D1", "nature": "Route à 1 chaussée"}}
+        sections = web_app.roads.parse_sections({"features": [road(4.999, 5.0), road(5.0, 5.001), *features]})
+        line = [web_app.triangulation._local(p[0], p[1], 5.0, 47.0) for p in sections[0]["line"]]
+        _, ends, _ = app._chained(line, sections[0], sections, 5.0, 47.0)
+        return [name for _, kind, names in ends if kind == "carrefour" for name in names]
+
+    def test_voies_citees(self):
+        self.assertEqual(self.cites(self.voie("R DE LA RUEE")), ["R DE LA RUEE"])
+        self.assertEqual(self.cites(self.voie("D18", nature="Route à 2 chaussées")), ["D18"])
+
+    def test_voies_ecartees(self):
+        for props in ({"nature": "Route empierrée"}, {"nature": "Chemin"}, {"nature": "Sentier"}, {"nature": "Escalier"}, {"prive": True},
+                      {"acces_vehicule_leger": "Restreint aux ayants droit"}):
+            self.assertEqual(self.cites(self.voie("VOIE", **props)), [], props)
+
+
 class Creux(unittest.TestCase):
     """Profil en long : tablier des ponts (App._bridged)."""
 
@@ -101,7 +128,7 @@ class Route(unittest.TestCase):
 
     def section(self, name, *xy, level=0):
         k = 1 / (111320 * math.cos(math.radians(self.LAT)))
-        return {"name": name, "level": level, "line": [(self.LON + x * k, self.LAT + y / 111320) for x, y in xy]}
+        return {"name": name, "level": level, "drivable": True, "line": [(self.LON + x * k, self.LAT + y / 111320) for x, y in xy]}
 
     def test_prolongement_fin_et_carrefour(self):
         photo = self.section("D16", (-20, 0), (0, 0))

@@ -42,6 +42,9 @@ PENDING = "pending"  # résultat de lookup quand une lecture est en cours
 BRIDGE_REACH = 8.0  # m entre la photo et un tronçon en pont : demi-chaussée et précision GPS
 BRIDGE_ANGLE = 30.0  # degrés au plus entre le tronçon en pont et le sens de la séquence
 BRIDGE_LEFT = MARGIN  # m : photo sortie du pont, aucun tronçon en pont plus près (photos d'approche)
+# Natures de la BD TOPO retenues comme voies carrossables : routes revêtues, ni route empierrée, chemin, sentier, piste cyclable ou escalier
+DRIVABLE_NATURES = {"Route à 1 chaussée", "Route à 2 chaussées", "Rond-point", "Bretelle", "Type autoroutier"}
+CLOSED_ACCESS = {"Restreint aux ayants droit", "Physiquement impossible"}  # accès des véhicules légers : voie non ouverte
 
 
 def _axis_diff(a, b):
@@ -68,7 +71,7 @@ def wfs_url(cell):
 
 def parse_sections(data):
     """Tronçons d'une réponse WFS (GeoJSON) : liste de dicts line ([(lon, lat)]), name, level
-    (position par rapport au sol : 1 ou plus sur un pont, -1 en tunnel)."""
+    (position par rapport au sol : 1 ou plus sur un pont, -1 en tunnel), drivable (voie carrossable ouverte, ni privée)."""
     out = []
     for feat in (data or {}).get("features") or []:
         geom = feat.get("geometry") or {}
@@ -89,7 +92,9 @@ def parse_sections(data):
             except (TypeError, ValueError, IndexError):
                 continue
             if len(pts) >= 2:
-                out.append({"line": pts, "name": str(name), "level": level})
+                out.append({"line": pts, "name": str(name), "level": level,
+                            "drivable": props.get("nature") in DRIVABLE_NATURES and not props.get("prive")
+                            and props.get("acces_vehicule_leger") not in CLOSED_ACCESS})
     return out
 
 

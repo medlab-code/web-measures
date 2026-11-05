@@ -2155,7 +2155,7 @@ class App(session.Session):
         au bout du tronçon. Un seul voisin pris par bout (le premier trouvé) ; sans nom ou sans voisin, la ligne telle quelle.
         Rend aussi les points remarquables de cette route : [(point, "fin" ou "carrefour", voies nommées qui s'y raccordent)],
         « fin » au bout de la ligne prolongée (la route s'arrête, ou continue sous un autre nom), « carrefour » là où une
-        voie nommée (numéro ou nom, pas une simple nature) s'y raccorde sans l'interrompre. Les tronçons en pont ou en tunnel
+        voie carrossable nommée (numéro ou nom, pas une simple nature ; roads.parse_sections) s'y raccorde sans l'interrompre. Les tronçons en pont ou en tunnel
         de la route en font partie : leurs bouts sont rendus à part, [(niveau, bout, bout)] (le MNT y est le fond franchi
         ou le dessus du tunnel, pas la chaussée)."""
         touch = lambda a, b: math.hypot(a[0] - b[0], a[1] - b[1]) <= self.CHAIN_TOUCH
@@ -2166,7 +2166,7 @@ class App(session.Session):
         levels = [o.get("level", 0) for o in sections if o is not sec and o.get("name") == sec["name"]]
         works = []  # ouvrages de la route : (niveau, bout, bout)
         foreign = [(o.get("name") or "", [triangulation._local(p[0], p[1], lon, lat) for p in (o["line"][0], o["line"][-1])])
-                   for o in sections if o.get("level", 0) == 0 and o.get("name") != sec["name"]]
+                   for o in sections if o.get("level", 0) == 0 and o.get("name") != sec["name"] and o.get("drivable")]
         joints = [line[0], line[-1]]  # bouts des tronçons de la route mis bout à bout
         out = list(line)
         for at_end in (True, False):
