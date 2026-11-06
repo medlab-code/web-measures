@@ -12,6 +12,7 @@ const Profil = (() => {
   const W = 760, H = 380, LEFT = 52, RIGHT = 16, TOP = 56, BOTTOM = 44;
   const GROUND_BELOW = 1, GROUND_MIN = 0.3;  // m de sol dessinés sous le point le plus bas du terrain (voir draw)
   const LINE = 14;  // px entre deux lignes d'une étiquette
+  const ROAD_ROOM = 58;  // px sous la chaussée : ses deux étiquettes (largeur, dévers) et une marge au-dessus du bas du cadre
   const num = (v, digits = 1) => v.toFixed(digits).replace(".", ",").replace(/^-/, "−");
 
   function el(name, attrs, text) {
@@ -103,6 +104,8 @@ const Profil = (() => {
     const main = all.get(0) || [...all.values()][0];
     if (fine?.separateur) [main.separateur, main.separateurRelief] = [[...fine.separateur].sort((a, b) => a - b), "nuage"];
     const ref = zAt(main.points, 0) ?? main.points[0][1];  // 0 : plateforme sous l'origine
+    const [bl, br] = [main.bords.gauche?.x ?? 0, main.bords.droit?.x ?? 0];
+    const road = main.points.filter(([x]) => x >= bl && x <= br);
     const xs = [...all.values()].flatMap((t) => t.points.map((p) => p[0]));
     const zs = [...all.values()].flatMap((t) => t.points.map((p) => p[1] - ref));
     let [xmin, xmax] = [Math.min(...xs), Math.max(...xs)];
@@ -122,6 +125,14 @@ const Profil = (() => {
     if (terrainTop - zmin > plotH / (sx * factor) / 2) {
       zmin = lowest - GROUND_MIN;
       ({ sx, factor } = scale(zmin));
+    }
+    // Place sous la chaussée, même sans dévers affiché : l'échelle ne change pas après l'analyse fine
+    if (road.length > 1) {
+      const roadLow = Math.min(...road.map(([, z]) => z)) - ref;
+      for (let k = 0; k < 8 && (roadLow - zmin) * sx * factor < ROAD_ROOM; k++) {
+        zmin = roadLow - ROAD_ROOM / (sx * factor);
+        ({ sx, factor } = scale(zmin));
+      }
     }
     const xmid = (xmin + xmax) / 2;
     [xmin, xmax] = [xmid - plotW / sx / 2, xmid + plotW / sx / 2];
@@ -157,15 +168,14 @@ const Profil = (() => {
       el("path", { d: path(main.points), class: "sol" }));
 
     // Plateforme entre les deux bords du travers de la photo
-    const [bl, br] = [main.bords.gauche?.x ?? 0, main.bords.droit?.x ?? 0];
-    const road = main.points.filter(([x]) => x >= bl && x <= br);
     if (road.length > 1) {
+      const under = Math.max(...road.map(([, z]) => Z(z)));  // sous le point le plus bas : pas de texte sur une chaussée en dévers
       svg.append(el("path", { d: path(road), class: "chaussee" }),
-        el("text", { x: X((bl + br) / 2), y: Z(zAt(main.points, (bl + br) / 2)) + 26, class: "etiquette-profil place", "text-anchor": "middle" },
+        el("text", { x: X((bl + br) / 2), y: under + 26, class: "etiquette-profil place", "text-anchor": "middle" },
           `plateforme ${num(br - bl)} m`));
       const slope = platformLabel(profile.plateforme);
       if (slope) {
-        svg.append(el("text", { x: X((bl + br) / 2), y: Z(zAt(main.points, (bl + br) / 2)) + 42, class: "etiquette-profil place", "text-anchor": "middle" }, slope));
+        svg.append(el("text", { x: X((bl + br) / 2), y: under + 42, class: "etiquette-profil place", "text-anchor": "middle" }, slope));
       }
     }
     for (const side of ["gauche", "droit"]) {
