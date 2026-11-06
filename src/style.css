@@ -143,6 +143,8 @@ header .essai {
   color: var(--attente);
   white-space: nowrap;
 }
+/* Site de la branche dev : sous la mention « version test » */
+header .branche { font-size: 0.8em; line-height: 1; font-weight: 600; color: var(--echec); white-space: nowrap; }
 h2 { font-size: 0.95rem; margin: 0 0 0.4rem; }
 
 main { flex: 1; display: flex; min-height: 0; }
