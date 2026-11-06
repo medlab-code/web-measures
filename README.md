@@ -319,7 +319,7 @@ visées, sol LiDAR HD lu au point). Si la vérification RTK ou l'inclinaison aut
 après les clics, tout est recalculé : une mesure peut changer d'elle-même une ou deux secondes
 après.
 
-- **Hauteur d'un objet**
+- **Hauteur d'un objet** (mode à l'ouverture de la page)
   1. Viser le **pied** de l'objet depuis au moins deux photos (un clic par photo, flèches
      pour changer de photo), puis « Valider le point triangulé » : c'est le point de référence,
      et le pied de la hauteur.

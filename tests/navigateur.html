@@ -114,6 +114,7 @@ async function feature(id) {
     theme.dispatchEvent(new Event("change"));
     expect("thème nuit forcé puis automatique", dark && !doc.documentElement.dataset.theme);
   }
+  expect("mode de départ : hauteur, dans la liste et dans le calcul", doc.querySelector("#mode").value === "height" && app.mode === "height", `${doc.querySelector("#mode").value} / ${app.mode}`);
   log("bouton Mesure désactivé : " + app.status());
   doc.querySelector("#mesure").click();
   log("bouton Mesure activé : " + app.status());
