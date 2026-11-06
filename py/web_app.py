@@ -1740,7 +1740,7 @@ class App(session.Session):
         else:
             sigma = math.hypot(triangulation.LIDAR_ERROR, triangulation.LIDAR_ERROR)
             self.lidar_falls[key] = {
-                "text": "Hauteur de chute max : {} m (±{} m)".format(measures._num(found["height"], 1), measures._num(sigma, 1)),
+                "text": "Hauteur de chute max : {} m (±{} m), LiDAR".format(measures._num(found["height"], 1), measures._num(sigma, 1)),
                 "title": ("Plus grande hauteur entre le tablier (points du nuage LiDAR HD classés pont) et {} sous le pont "
                           "ou à côté, jusqu'à {} m du tablier ; même valeur sur tout le pont. Au-dessus de l'eau : niveau "
                           "au relevé, pas le fond.").format("l'eau" if found["below"] == "eau" else "le sol",
@@ -1961,7 +1961,7 @@ class App(session.Session):
             else:
                 sigma = math.hypot(precision.VERIFIED_ACCURACY, camera_error, terrain)
             self.falls[key] = {
-                "text": "Hauteur de chute max : {} m (±{} m)".format(measures._num(best[0], 1), measures._num(sigma, 1)),
+                "text": "Hauteur de chute max : {} m (±{} m), RTK".format(measures._num(best[0], 1), measures._num(sigma, 1)),
                 "title": ("Plus grande hauteur entre le tablier (altitude GPS RTK moins hauteur de caméra) et le "
                           "terrain sous le pont ({}), le long des deux bords jusqu'à {} m de la chaussée, à {} m de la photo. Au-dessus de "
                           "l'eau : niveau au relevé, pas le fond. Hauteur de caméra : {} m ({}).").format(

@@ -39,6 +39,11 @@ const Video = (() => {
   const MUXER = "https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.1/build/mp4-muxer.min.js";
   const HFOV = 80;  // degrés : champ horizontal de la vue (vertical : ± 24° en 16/9, au-dessus du toit du véhicule)
   const SMOOTH = 15;  // m : cap de la vue = direction de la trajectoire de s - SMOOTH à s + SMOOTH (stabilisation)
+  // Cap de la vue (path.axis) : direction du tracé sur la plus longue de ces portions (m de part et d'autre) qui s'écarte de
+  // moins de AXIS_TOL m de sa corde, en moyenne sur ± AXIS_SMOOTH m. Fixe en ligne droite, où le tracé de la BD TOPO fait de petits
+  // coudes ; revient à ± SMOOTH m dans les virages (écart à la corde : L² / 2R ; ± 150 m au-delà de 11 km de rayon, ± 60 m
+  // de 1 800 m, ± 30 m de 450 m). Seuil choisi sur deux itinéraires réels (86 km) : à 0,5 m la vue tourne encore nettement plus, à 1,5 m elle s'écarte de 13° du virage
+  const AXIS_REACHES = [15, 30, 60, 100, 150], AXIS_TOL = 1, AXIS_STEP = 5, AXIS_SMOOTH = 30;
   const SEAM = 40;  // m : autour du raccord de deux séquences, cap lissé sur ± SEAM m (décalage des trajectoires)
   const SLOPE = 20;  // m : pente de la route mesurée de part et d'autre de la photo (altitudes GPS)
   const CAM_HEIGHT = 2.4;  // m : caméra au-dessus de la chaussée (toit du véhicule)
@@ -47,6 +52,7 @@ const Video = (() => {
   const ROOF = -25;  // degrés : sous cette latitude du panorama, le toit du véhicule
   const AHEAD = 4;  // photos chargées d'avance
   const STAB_SPAN = 40;  // m : variation lente gardée (pente, virage) : moyenne des décalages sur ± STAB_SPAN m
+  const HEADING_SPAN = 60;  // m : cap des photos lissé sur ± HEADING_SPAN m (steadyHeadings)
   const STAB_MAX = 2;  // degrés : correction au plus, d'une photo
   const STAB_SEARCH = 14;  // px de l'image SD (2048 px pour 360°, soit 5,7 px/°) : décalage cherché, ± 2,5°
   const STAB_FIELD = [40, 16];  // degrés : zone comparée, sur l'horizon, devant la vue et à STAB_SIDE de part et d'autre
@@ -62,8 +68,11 @@ const Video = (() => {
   const EXPO_STORE = "web-measures/expositions";  // mesures gardées dans le navigateur (localStorage)
   const EXPO_KEPT = 20000;  // mesures gardées au plus (les plus anciennes oubliées)
   // Mode Présentation (presentationSpeeds) : réglages par défaut des réglettes, provisoires (à affiner avec l'utilisateur)
-  const PRES = { vmax: 150, turn: 12, vmin: 30, fade: 1, stop: 3, slow: 50 };  // km/h, °/s, km/h, s, s, km/h
-  const PRES_START = 3;  // m/s² : accélération au moins, près de l'arrêt (départ, arrêts), où un changement proportionnel serait trop lent
+  const PRES = { vmax: 400, turn: 12, vmin: 15, fade: 0.5, stop: 3, slow: 50 };  // km/h, °/s, km/h, s, s, km/h
+  const PRES_HOLD = 0.5;  // s : arrêt sur la première et la dernière vue (départ et arrivée rapides)
+  const PRES_START = 8;  // m/s² : accélération au moins, près de l'arrêt (départ, arrêts), où un changement proportionnel serait trop lent
+  const PRES_WIDE = 300;  // m : rayon qui double la vitesse (grandes courbes, bonne visibilité : pas de ralentissement inutile)
+  const PRES_SIGHT = 2;  // s : vitesse de la courbe atteinte avant son entrée, pour voir ce que voit le conducteur en approchant
   const PRES_SLOW_REACH = 15;  // m : vitesse de ralentissement tenue à ± PRES_SLOW_REACH m du croisement ou de l'ouvrage
   const PRES_REACH = 10;  // m : courbure prise sur le cap lissé à ± PRES_REACH m
   const PRES_SMOOTH = 8;  // m : vitesse lissée sur ± PRES_SMOOTH m (pas d'à-coup aux bouts des changements d'allure)
@@ -142,7 +151,7 @@ const Video = (() => {
   }
 
   /**
-   * Position (m le long du parcours path) de chaque image : HOLD s d'arrêt au début et à la fin, et entre les deux la
+   * Position (m le long du parcours path) de chaque image : HOLD s d'arrêt au début et à la fin (PRES_HOLD en Présentation), et entre les deux la
    * vitesse v (m/s), constante, ou avec ramp (rampe de vitesse) réduite dans les virages (facteur 1 / (1 + rotation du
    * cap lissé / RAMP_TURN), la rotation au-delà de RAMP_MARKED °/m comptant double ; au plus bas RAMP_MIN·v) et en douceur sur RAMP_EDGE m au départ et à l'arrivée,
    * lissée sur ± RAMP_SMOOTH m : v devient la vitesse des lignes droites. pres : mode Présentation ({ vmax, vmin (m/s),
@@ -150,7 +159,8 @@ const Video = (() => {
    * arrêt de pres.stop s (images ajoutées) à chaque arrêt.
    */
   function timeline(path, v, ramp, looks = [], lookSpeed = null, poiSlow = null, pres = null) {
-    const xs = Array(HOLD * FPS + 1).fill(0);
+    const hold = pres ? PRES_HOLD : HOLD;
+    const xs = Array(hold * FPS + 1).fill(0);
     if (pres) {
       const speeds = presentationSpeeds(path, pres);
       const stops = placesOn(path, pres.stops || [], "arrêt");
@@ -165,7 +175,7 @@ const Video = (() => {
         }
         xs.push(x);
       }
-      for (let k = 0; k < HOLD * FPS; k++) xs.push(path.length);
+      for (let k = 0; k < hold * FPS; k++) xs.push(path.length);
       return xs;
     }
     let factor = () => 1;
@@ -178,21 +188,27 @@ const Video = (() => {
   }
 
   /**
-   * Vitesse (m/s) à chaque mètre du parcours en mode Présentation : vite dans les lignes droites (vmax), ralentie dans
-   * les virages pour que la vue n'y tourne pas plus vite que turn °/s (vitesse = turn / rotation du cap lissé en °/m,
-   * prise sur ± PRES_REACH m : courbe large, un peu ; virage serré, beaucoup), jamais sous vmin ; arrêtée au départ, à
-   * l'arrivée et aux arrêts (stops, [lon, lat]) ; ramenée à slow (m/s) à ± PRES_SLOW_REACH m des points de
-   * ralentissement (slows, [lon, lat] : croisements, ouvrages d'art) ; changements d'allure rapides, pas réalistes : la
-   * vitesse varie d'un facteur e (2,7) en fade s au plus, quelle que soit sa valeur (150 → 55 km/h en 1 s, 150 → 30 en
-   * 1,6 s ; près de l'arrêt, PRES_START m/s² au moins), puis lissée sur ± PRES_SMOOTH m sans dépasser ces limites.
+   * Vitesse (m/s) à chaque mètre du parcours en mode Présentation : très vite dans les lignes droites (vmax), ralentie
+   * dans les virages selon leur rayon R : turn / rotation du cap lissé en °/m, prise sur ± PRES_REACH m (la vue y tourne
+   * à turn °/s), × (1 + R / PRES_WIDE) pour ne pas freiner les grandes courbes ; jamais sous vmin. Vitesse de la courbe
+   * atteinte PRES_SIGHT s avant son entrée. Arrêtée au départ, à l'arrivée et aux arrêts (stops, [lon, lat]) ; ramenée à
+   * slow (m/s) à ± PRES_SLOW_REACH m des points de ralentissement (slows, [lon, lat] : croisements, ouvrages d'art) ;
+   * changements d'allure rapides, pas réalistes : la vitesse varie d'un facteur e (2,7) en fade s au plus, quelle que
+   * soit sa valeur (400 → 147 km/h en 0,5 s ; près de l'arrêt, PRES_START m/s² au moins), puis lissée sur ± PRES_SMOOTH m
+   * sans dépasser ces limites.
    */
   function presentationSpeeds(path, { vmax, vmin, turn, fade = PRES.fade, stops = [], slows = [], slow = vmax }) {
     const n = Math.ceil(path.length) + 1, v = [];
     for (let x = 0; x < n; x++) {
-      const a = path.course(x - PRES_REACH), b = path.course(x + PRES_REACH);
+      const a = path.axis(x - PRES_REACH), b = path.axis(x + PRES_REACH);
       const rate = Math.abs(((b - a) % 360 + 540) % 360 - 180) / (2 * PRES_REACH);  // °/m
-      v.push(Math.min(vmax, Math.max(vmin, rate ? turn / rate : vmax)));
+      v.push(Math.min(vmax, Math.max(vmin, rate ? turn / rate * (1 + 180 / Math.PI / rate / PRES_WIDE) : vmax)));
     }
+    const bends = v.slice();
+    bends.forEach((u, x) => {
+      // Le cap lissé n'atteint la rotation de la courbe qu'une fois PRES_REACH + SMOOTH m parcourus dans celle-ci
+      if (u < vmax) for (let i = Math.max(0, x - Math.round(PRES_SIGHT * u + PRES_REACH + SMOOTH)); i < x; i++) v[i] = Math.min(v[i], u);
+    });
     for (const x of placesOn(path, slows, "ralentissement")) {
       for (let i = Math.max(0, Math.round(x - PRES_SLOW_REACH)); i <= Math.min(n - 1, x + PRES_SLOW_REACH); i++) v[i] = Math.min(v[i], slow);
     }
@@ -980,11 +996,37 @@ const Video = (() => {
       const h = reach(x);
       return bearing(at(x - h), at(x + h));
     };
+    let reaches = null;  // portion de chaque pas de AXIS_STEP m, calculée au premier appel
+    const axisReach = (x) => {
+      if (!reaches) {
+        const raw = [];
+        for (let u = 0; u <= length + AXIS_STEP; u += AXIS_STEP) {
+          const fits = (L) => {
+            const a = at(u - L), b = at(u + L), chord = metres(a, b) || 1;
+            return [-0.5, 0, 0.5].every((part) => {
+              const p = at(u + part * L), k = Math.cos(a[1] * toRad);
+              return Math.abs((b[0] - a[0]) * k * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]) * k) * 111320 / chord * 111320 <= AXIS_TOL;
+            });
+          };
+          raw.push(AXIS_REACHES.filter(fits).at(-1) ?? AXIS_REACHES[0]);
+        }
+        const half = AXIS_SMOOTH / AXIS_STEP;
+        reaches = raw.map((_, k) => {
+          const part = raw.slice(Math.max(0, k - half), k + half + 1);
+          return part.reduce((sum, v) => sum + v, 0) / part.length;
+        });
+      }
+      return reaches[Math.min(reaches.length - 1, Math.max(0, Math.round(x / AXIS_STEP)))];
+    };
+    const axis = (x) => {
+      const h = Math.max(axisReach(x), reach(x));
+      return bearing(at(x - h), at(x + h));
+    };
     for (let i = 0; i < list.length; i++) {
       const x0 = Math.max(0, s[i] - SLOPE), x1 = Math.min(length, s[i] + SLOPE);
       list[i].pitch = x1 - x0 > 1 ? -Math.atan((altAt(x1) - altAt(x0)) / (x1 - x0)) : 0;
     }
-    return { list, s, length, segment, course, at };
+    return { list, s, length, segment, course, axis, at };
   }
 
   /** Zone comparée de l'image SD (ImageBitmap) autour du cap relatif yaw (degrés) : { data (niveaux de gris), w, h }. */
@@ -1035,6 +1077,22 @@ const Video = (() => {
     const at = (dx, dy) => scores[(dy + search) * side + dx + search];
     const vertex = (m, o, p) => (m - 2 * o + p > 0 ? 0.5 * (m - p) / (m - 2 * o + p) : 0);  // parabole par trois points
     return [bx + vertex(at(bx - 1, by), best, at(bx + 1, by)), by + vertex(at(bx, by - 1), best, at(bx, by + 1))];
+  }
+
+  /** Cap de chaque photo sans l'arrondi au degré de ses métadonnées, qui fait osciller la vue en ligne droite : écart entre
+   * le cap de la photo et celui de la route, moyenné sur ± HEADING_SPAN m dans sa séquence (la caméra est fixe sur le véhicule). */
+  function steadyHeadings({ list, s, axis }) {
+    const gaps = list.map((p, i) => wrap(p.heading - axis(s[i])));
+    return list.map((p, i) => {
+      let total = 0, n = 0;
+      for (const step of [-1, 1]) {
+        for (let k = i + (step > 0 ? 1 : 0); list[k]?.collection === p.collection && Math.abs(s[k] - s[i]) <= HEADING_SPAN; k += step) {
+          total += wrap(gaps[k] - gaps[i]);
+          n++;
+        }
+      }
+      return axis(s[i]) + gaps[i] + total / n;
+    });
   }
 
   /** Correction de la vue, en degrés, pour chaque photo du parcours : { pitch, roll }. Tangage : décalage vertical devant la
@@ -1396,7 +1454,8 @@ const Video = (() => {
     // découpe et réduction des tuiles à la finesse de la vue (plus un quart pour l'avancée)
     const widest = (fov) => 2 * Math.atan(Math.tan(fov / 2 * toRad) * 1.6) / toRad;
     const scaleOf = (t) => Math.min(1, 1.25 * (width / HFOV) / (t.size / (360 / t.cols)));
-    const yawAt = (i, x) => wrap(path.course(x) - path.list[i].heading);
+    const headings = steadyHeadings(path);
+    const yawAt = (i, x) => wrap(path.axis(x) - headings[i]);
     const tilts = path.list.map(() => 0);  // roulis de chaque photo à retirer (radians)
     if (stabilize) {
       const steady = await stabilization(path, (i) => yawAt(i, path.s[i]), signal, () => progress(0, path.list.length));
@@ -1576,6 +1635,6 @@ const Video = (() => {
     }
   }
 
-  return { get times() { return lastTimes; }, supported, hevcSupported, imageOffset, record, mp4, trajectory, timeline, ignoredPlaces, presentationSpeeds, PRES, PRES_START, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
+  return { get times() { return lastTimes; }, supported, hevcSupported, imageOffset, record, mp4, trajectory, timeline, ignoredPlaces, presentationSpeeds, steadyHeadings, PRES, PRES_HOLD, PRES_START, PRES_SIGHT, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
     poiSpan, poiViews, planets, tours, speeds, laterals, insideDevers, lateralColor, arpSpeeds, steady, drawOverlay, fetchImage, FPS, HOLD };
 })();

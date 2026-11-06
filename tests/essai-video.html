@@ -39,7 +39,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     const [distance, endDistance] = dialog.querySelectorAll(".distance");
     const button = doc.querySelector("#parcours-video");
     const status = () => doc.querySelector("#statut")?.textContent || "";
-    expect("« 🎬 Préparer la vidéo » grisé sans départ ni arrivée", button.disabled && /Préparer/.test(button.textContent));
+    expect("« 🎬 Enregistrer » grisé sans départ ni arrivée, accueil affiché", button.disabled && /Tracez/.test(button.textContent) && !doc.querySelector("#video-accueil").hidden);
     expect("« ↺ RAZ » grisé à l'ouverture (tout à zéro)", doc.querySelector("#parcours-raz").disabled);
     type(route, "115d");
     type(pr, "1");
@@ -47,7 +47,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     type(end, "1");
     endDistance.value = "0";
     await sleep(3000);
-    expect("« 🎬 Préparer la vidéo » actif une fois départ et arrivée saisis (sans lire le parcours)", !button.disabled);
+    expect("photos cherchées d'elles-mêmes une fois départ et arrivée saisis, accueil masqué", /Recherche|Enregistrer/.test(button.textContent) && !doc.querySelector("#video-bandeau").hidden && doc.querySelector("#video-accueil").hidden, button.textContent);
     const k = 111320 * Math.cos(47.07 * Math.PI / 180);
     const dist = (p, q) => Math.hypot((p[0] - q[0]) * k, (p[1] - q[1]) * 111320);
     // Parties : 1,1 km (rampe de vitesse, titre, compteur PR), D115D courte (vidéo calculée et enregistrée), carrefour
@@ -111,16 +111,16 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       const boxes = [...doc.querySelectorAll("#video-avancees .options > label.option > input[type=checkbox]")];
       const on = (list) => list.filter((b) => b.checked).map((b) => b.id).join(" ");
       expect("mode Présentation par défaut", doc.querySelector("#video-mode").value === "presentation" && doc.querySelector("#video-titre").checked
-        && on(boxes) === "video-compteur video-compteur-vitesse video-stabilisation" && !doc.querySelector("#video-presentation").hidden
+        && on(boxes) === "video-compteur video-compteur-vitesse video-stabilisation" && !doc.querySelector("#pres-vmax").disabled
         && doc.querySelector("#video-rampe").disabled && doc.querySelector("#video-vitesse").disabled, on(boxes));
-      expect("options avancées repliées, dans l'ordre demandé", !doc.querySelector("#video-avancees").open && boxes.slice(0, 9).map((b) => b.id).join(" ")
-        === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp video-brouillon video-stabilisation video-flou video-expo video-rampe",
+      expect("options avancées repliées, dans l'ordre demandé", !doc.querySelector("#video-avancees").open && boxes.slice(0, 8).map((b) => b.id).join(" ")
+        === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp video-rampe video-stabilisation video-flou video-expo",
         boxes.map((b) => b.id).join(" "));
       const mode = doc.querySelector("#video-mode");
       mode.value = "revue";
       mode.dispatchEvent(new w.Event("change"));
       expect("mode Revue : quatre compteurs, sans rampe, sans allure", on(boxes) === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp"
-        && doc.querySelector("#video-presentation").hidden && !doc.querySelector("#video-vitesse").disabled, on(boxes));
+        && doc.querySelector("#pres-vmax").disabled && !doc.querySelector("#video-vitesse").disabled, on(boxes));
       mode.value = "presentation";
       mode.dispatchEvent(new w.Event("change"));
       expect("titre : champs grisés sans titre", (() => { const t = doc.querySelector("#video-titre"); t.click();
@@ -146,8 +146,9 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       // Croisements et ouvrages d'art : posés d'eux-mêmes en cochant l'option (carrefour de la RD18 à l'arrivée au moins),
       // vitesse ramenée à 50 km/h sur eux ; un clic sur un repère le retire
       const slowBox = doc.querySelector("#video-ralenti");
+      expect("croisements et ouvrages : pas cherchés tant que l'option n'est pas cochée", w.mesures.videoPlan.junctions === undefined && w.mesures.videoPlan.structures === undefined);
       slowBox.click();
-      await sleep(300);
+      await until(() => /de ralentissement posé/.test(status()), 60000, "croisements et ouvrages lus");
       const slowMarks = () => [...doc.querySelectorAll(".repere-requete.ralenti")];
       const slowAt = w.mesures.videoPlan && slowMarks().length;
       log(`ralentissements posés : ${slowAt} ; ${status()}`);
@@ -194,6 +195,37 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("allure : bornée, arrêtée aux bouts", Math.max(...ps) <= pres.vmax + 1e-9 && ps[0] === 0 && ps.at(-1) === 0);
       expect("allure : changements d'allure tenus", over === 0, over);
       expect("allure : plus lente au virage le plus serré", ps[tight] < 0.8 * Math.max(...ps), `${ps[tight]} ${Math.max(...ps)}`);
+      // Courbe serrée entre deux lignes droites, puis grande courbe : vitesse selon le rayon, atteinte PRES_SIGHT s avant
+      const arc = (start, radius, degrees) => Array.from({ length: Math.ceil(radius * degrees * Math.PI / 180 / 5) + 1 }, (_, i) => {
+        const a = i * 5 / radius;
+        return [start[0] + radius * Math.sin(a) / 73000, start[1] + radius * (1 - Math.cos(a)) / 111320];
+      });
+      const line = (n, y = 0) => Array.from({ length: n }, (_, i) => [5 + i * 5 / 73000, 47 + y]);
+      const bendPath = (radius) => {
+        const before = line(100), turn = arc(before.at(-1), radius, 90), end = turn.at(-1);
+        return Video.trajectory([...before, ...turn.slice(1), ...Array.from({ length: 100 }, (_, i) => [end[0], end[1] + (i + 1) * 5 / 111320])].map((coords) => ({ coords })));
+      };
+      const allureOf = (radius) => {
+        const path = bendPath(radius), speeds = Video.presentationSpeeds(path, pres), bendAt = 495 + radius * Math.PI / 4;
+        return { speeds, entry: 495, bendAt, atBend: 3.6 * speeds[Math.round(bendAt)] };
+      };
+      const tightBend = allureOf(50), wideBend = allureOf(200);
+      log(`allure selon le rayon : ${tightBend.atBend.toFixed(0)} km/h à 50 m, ${wideBend.atBend.toFixed(0)} km/h à 200 m`);
+      expect("allure : virage de 50 m de rayon lent, courbe de 200 m rapide", tightBend.atBend < 55 && wideBend.atBend > 200, `${tightBend.atBend} ${wideBend.atBend}`);
+      const brakeAt = Math.round(tightBend.entry - Video.PRES_SIGHT * tightBend.atBend / 3.6);
+      expect("allure : vitesse de la courbe atteinte avant son entrée", 3.6 * tightBend.speeds[brakeAt] < 1.4 * tightBend.atBend, 3.6 * tightBend.speeds[brakeAt]);
+      // Cap de la vue : fixe en ligne droite malgré les coudes du tracé, qui suit encore un virage
+      const zigzag = Video.trajectory(Array.from({ length: 200 }, (_, i) => ({ coords: [5 + i * 5 / 73000, 47 + Math.sin(i / 8) * 0.5 / 111320] })));
+      const swing = (f) => { const v = []; for (let x = 200; x < zigzag.length - 200; x += 5) v.push(f(x)); return Math.max(...v) - Math.min(...v); };
+      expect("axe : moins d'oscillation en ligne droite", swing(zigzag.axis) < swing(zigzag.course) / 3, `${swing(zigzag.axis)} ${swing(zigzag.course)}`);
+      const bent = bendPath(50);
+      let astray = 0;
+      for (let x = 0; x < bent.length; x += 5) astray = Math.max(astray, Math.abs(((bent.axis(x) - bent.course(x)) % 360 + 540) % 360 - 180));
+      expect("axe : suit un virage de 50 m de rayon", astray < 5, astray);
+      // Cap des photos arrondi au degré, en ligne droite : lissé à moins de 0,3° du vrai cap
+      const rounded = Video.trajectory(line(100).map((coords, i) => ({ coords, collection: "a", heading: 90 + 10 + (i % 3 - 1) })));
+      const steadied = Video.steadyHeadings(rounded);
+      expect("cap : arrondi lissé", steadied.slice(15, 85).every((h) => Math.abs(h - 100) < 0.3), steadied.slice(15, 85).join(" "));
       const stopAt = long.at(long.length / 2), held = Video.timeline(long, 25, false, [], null, null, { ...pres, stops: [stopAt] });
       let still = 0, best = 0;
       held.forEach((x, i) => { still = i && x === held[i - 1] ? still + 1 : 0; if (i > Video.HOLD * Video.FPS + 1 && i < held.length - Video.HOLD * Video.FPS - 1) best = Math.max(best, still); });
@@ -716,7 +748,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
         && /mis à jour/.test(status()));
       expect("pastille verte sans effet de communication", plain.classList.contains("sobre") && plain.title === "Sans effet de communication");
       expect("enregistré : « ☆ Gardé » grisé de nouveau", keep.disabled && keep.textContent === "☆ Gardé");
-      expect("rouvert : vidéo à préparer", /Préparer/.test(button.textContent) && !button.disabled);
+      expect("rouvert : photos cherchées d'elles-mêmes", /Recherche|Enregistrer/.test(button.textContent));
       button.click();
       await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 120000, "parcours rouvert préparé");
       expect("rouvert : vidéo préparée", /Enregistrer/.test(button.textContent), status());
@@ -734,7 +766,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("RAZ : endroits, zone et option du point d'intérêt retirés", !doc.querySelector(".repere-requete.tonneau, .repere-requete.planete, .repere-requete.tour")
         && !doc.querySelector("#video-interet").checked && !w.mesures.map.getSource("zone-interet")?.serialize().data?.features?.length,
         `${[...doc.querySelectorAll(".repere-requete")].map((e) => e.className.split(" ")[1]).join(",")} intérêt ${doc.querySelector("#video-interet").checked} zone ${w.mesures.map.getSource("zone-interet")?.serialize().data?.features?.length}`);
-      expect("RAZ : bouton grisé une fois tout à zéro, « Préparer » et « Garder » aussi", raz.disabled && button.disabled
+      expect("RAZ : bouton grisé une fois tout à zéro, « Enregistrer » et « Garder » aussi", raz.disabled && button.disabled
         && doc.querySelector("#parcours-garder").disabled);
       expect("RAZ : parcours gardés intacts", doc.querySelectorAll("#mes-parcours li").length === before + 1);
       // Saisie de départ de la suite
@@ -866,7 +898,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
         const gap = Math.hypot(r.left + r.width / 2 - c.left - p.x, r.bottom - c.top - p.y);
         expect(`épingle « ${css} » : pointe sur le point cliqué (moins de 2 px)`, gap < 2, gap.toFixed(1));
       }
-      expect("départ ou arrivée changés : vidéo à préparer de nouveau", /Préparer/.test(button.textContent) && !button.disabled);
+      expect("départ ou arrivée changés : photos cherchées de nouveau", /Recherche/.test(button.textContent));
       button.click();
       await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 120000, "vidéo du carrefour préparée");
       const cross = w.mesures.videoPlan;

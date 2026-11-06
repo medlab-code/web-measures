@@ -606,10 +606,7 @@ button.principal { font-weight: 600; }
   text-align: center;
 }
 #avis[hidden] { display: none; }
-#parcours-orienter { margin: 0; padding: 0.4rem 0.8rem; border-radius: 4px; background: rgba(32, 33, 36, 0.9); color: #fff;
   text-align: center; pointer-events: auto; }
-#parcours-orienter[hidden] { display: none; }
-#parcours-orienter button { margin-left: 0.5rem; font-weight: 600; }
 
 /* « Valider le point » sous les messages du haut de la visionneuse : bleu des visées */
 #garder, #valider-objet {
@@ -1167,12 +1164,36 @@ dialog.avertissement form button:focus-visible { outline: 2px solid var(--texte)
 #parcours .champ.route { width: 7rem; }
 #parcours .champ.pr { width: 5rem; }
 #parcours select { flex: none; height: 28px; }
-#parcours h3 { margin: 1rem 0 0.2rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.75; }
 #parcours .aide { font-size: 0.85em; opacity: 0.8; }
 #parcours button:disabled { opacity: 0.5; cursor: default; }
 #parcours .sur-carte { padding: 0 0.4rem; height: 28px; flex: none; }
 #parcours .sur-carte[aria-pressed="true"] { outline: 2px solid #ff6f00; }
-#parcours .lancer { display: flex; justify-content: center; margin: 0.6rem 0; }
+#parcours .ligne[hidden] { display: none; }
+#parcours-tracer, #parcours-video, #parcours-video-arret { width: 100%; min-height: 36px; }
+#parcours-tracer[aria-pressed="true"] { outline: 2px solid #ff6f00; }
+#parcours #video-mode { display: none; }
+.bandeau-video { margin: 0.6rem 0; padding: 0.5rem 0.65rem; border: 1px solid var(--bord); border-radius: 7px; background: var(--encart); font-size: 0.93em; }
+.bandeau-video[hidden] { display: none; }
+.bandeau-video.ok { border-color: var(--ok); }
+.bandeau-video.ok strong { color: var(--ok); }
+.bandeau-video.alerte { border: 2px solid #ff6f00; }
+.bandeau-video strong { display: block; }
+.bandeau-video ul { margin: 0.3rem 0 0; padding: 0; list-style: none; }
+.bandeau-video li { margin-top: 0.2rem; }
+.bandeau-video p { margin: 0.2rem 0 0; }
+.bandeau-video progress, #video-barre { display: block; width: 100%; height: 8px; accent-color: var(--panoramax); }
+#video-barre { margin-top: 0.4rem; }
+#video-barre[hidden] { display: none; }
+.modes-video { display: flex; margin: 0.6rem 0 0.3rem; border: 1px solid var(--bord); border-radius: 7px; overflow: hidden; }
+.modes-video button { flex: 1; min-height: 36px; border: 0; border-radius: 0; background: var(--fond); color: var(--discret); }
+.modes-video button + button { border-left: 1px solid var(--bord); }
+.modes-video button[aria-pressed="true"] { background: var(--encart); color: var(--texte); font-weight: 600; box-shadow: inset 0 -2px 0 var(--panoramax); }
+.action-video { margin: 0.5rem 0 0; }
+.secondaires-video { display: flex; gap: 6px; margin: 0.5rem 0; }
+.secondaires-video button { flex: 1; min-height: 28px; }
+#video-avancees { margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px solid var(--bord); }
+.theme-video { margin-top: 0.5rem; }
+.repere-requete.raccord { --epingle: #ff6f00; }  /* changement de séquence du parcours de la vidéo */
 dialog.profil { max-width: min(52rem, calc(100vw - 16px)); }
 dialog.profil:not(.agrandi) { scrollbar-gutter: stable; }  /* légende plus courte, sans ascenseur : les boutons ne bougent pas */
 dialog.profil .graphique svg { display: block; width: 100%; height: auto; }

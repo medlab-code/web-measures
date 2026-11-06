@@ -287,7 +287,7 @@ class ChuteLidar(unittest.TestCase):
     def test_reponses(self):
         a = self.app()
         a.use_bridge_lidar("p", json.dumps({"height": 5.234, "below": "eau"}))
-        self.assertIn("max : 5,2 m (±0,1 m)", a.lidar_falls["p"]["text"])
+        self.assertIn("max : 5,2 m (±0,1 m), LiDAR", a.lidar_falls["p"]["text"])
         self.assertIn("l'eau", a.lidar_falls["p"]["title"])
         a.use_bridge_lidar("bas", json.dumps({"height": 0.2, "below": "sol"}))
         self.assertIn("non mesurée", a.lidar_falls["bas"]["text"])

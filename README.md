@@ -86,42 +86,28 @@ transparents, et les boutons, voyants, lieu et lecteur s'effacent après 3 s de 
 reste propre. Une mesure en cours s'y poursuit, avec sa carte d'étape ; pour en lancer une autre, quitter le plein écran.
 `Échap` y quitte d'abord le plein écran : un second appui annule le trait en cours.
 
-**Parcourir une route** : onglet **« Vidéo »** du panneau : la
-route, le PR de départ (+ distance) et le PR d'arrivée (+ distance), choisis dans des listes
-comme dans le requêteur, la vitesse (1x, 2x par défaut, 4x ou 8x : une photo tous les 5, 10, 20 ou 40 m
-pour les photos du CD21) et le regard ; puis **« ▶ Parcourir »**. Départ et arrivée peuvent aussi se
-choisir sur la mini-carte : **📍** puis un clic (Échap : annuler) ; le point cliqué est gardé tel
-quel et les champs se remplissent d'après la route et le PR trouvés là (la route déjà saisie
-d'abord : à un carrefour, l'autre route ne la remplace pas) ; retaper un PR revient au PR. Les deux points sont marqués sur
-la carte (départ vert, arrivée rouge, en épingles) ; la photo la plus proche du départ, prise dans le sens du parcours (le filtre
-s'applique : « Depuis » pour choisir une campagne), défile jusqu'à l'arrivée, où la lecture
-s'arrête. Chaque photo attend que les tuiles HD de la vue soient chargées (4 s au plus) : vue
-nette, mais une quinzaine de tuiles par photo (de l'ordre de 200 Mo par kilomètre en 2x, 100 Mo en 4x) et une
-lecture qui ralentit sur un réseau lent. **Regard dans l'axe** : la vue reste dans l'axe du véhicule, y compris dans les
-virages (la caméra, parfois montée de biais, est redressée de son écart médian avec la
-trajectoire), et elle est abaissée ou relevée de la pente de la route (altitudes GPS des photos
-sur ± 20 m) : les panoramas ne sont pas mis à niveau et penchent avec le véhicule ; l'horizon
-reste ainsi en place. Le roulis (dévers) n'est pas corrigé. **Regard libre** : le parcours s'arrête
-d'abord sur la photo de départ, le temps d'orienter la vue (bandeau « ▶ Partir » en haut de la
-visionneuse) ; elle est ensuite gardée tout le long. Le parcours prend d'abord une séquence qui passe à moins de 40 m du départ et à l'arrivée (au
-plus 10 m plus loin que la plus proche : une route voisine n'y passe pas), et
-s'arrête à la photo d'arrivée. S'il n'y en a pas, il en est prévenu au départ (bandeau
-« ▶ Partir » : les photos peuvent différer, date, lumière, sens de prise de vue) : il part sur
-la séquence qui va vers l'arrivée et bifurque sur une séquence qui passe à l'arrivée (tracé lu
-sur 500 m de part et d'autre) quand elle passe à 30 m : au saut le plus lisse (moindre virage,
-quitte à sauter jusqu'à 30 m au lieu des 5 m d'une séquence), pas tant que la séquence lue suit
-ce tracé vers l'arrivée. À défaut, là où elle s'écarte de l'arrivée (40 m de plus qu'au plus près) ou
-finit, il se rebranche à cet endroit sur une autre séquence qui y va (une qui passe à l'arrivée
-d'abord, sinon d'après le cap de la caméra) ; les vues prises sur la branche quittée ne vont pas
-dans l'export. Sans séquence pour continuer, il s'arrête en le disant. Pause et
-reprise par le lecteur ; une autre photo choisie (carte, requêteur) y met fin.
-**« WebP animé »**, dans le même onglet, exporte le dernier parcours (largeur de la vue, 1 280 px
-au plus ; 0,4 s par vue, fondu enchaîné de 0,14 s entre deux vues, en boucle ; environ 15 Mo par
-kilomètre à 970 px) :
-chaque vue est gardée pendant la lecture, l'export ne recharge rien. Grisé pendant la lecture,
-sans parcours et dans Safari, qui n'encode pas le WebP.
-**Vidéo du départ à l'arrivée** (même onglet), sans lire le parcours dans la visionneuse :
-« 🎬 Préparer la vidéo » cherche ses photos : elles sont choisies le long de l'itinéraire routier de la Géoplateforme (Valhalla sur la BD TOPO, en voiture, le
+**Vidéo d'un itinéraire** : onglet **« Vidéo »** du panneau, en trois temps.
+
+**1. Tracer.** « 📍 Tracer sur la carte » enchaîne les clics sur la mini-carte : le départ, l'arrivée, puis les étapes
+éventuelles ; `Échap` ou un second appui termine (un nouveau tracé remplace l'ancien). Ou bien la route, le PR de départ
+(+ distance) et le PR d'arrivée (+ distance), choisis dans des listes comme dans le requêteur, ou chacun par son 📍 ; le point
+cliqué est gardé tel quel et les champs se remplissent d'après la route et le PR trouvés là (la route déjà saisie d'abord : à
+un carrefour, l'autre route ne la remplace pas) ; retaper un PR revient au PR. Les points sont marqués sur la carte (départ
+vert, arrivée rouge, étapes bleues, en épingles).
+
+**2. Vérifier.** Les photos sont cherchées d'elles-mêmes dès que départ et arrivée sont connus, de nouveau si le tracé change,
+avec une barre d'avancement (croisements et ouvrages d'art : seulement si l'option qui s'en sert est cochée, ou en la cochant). Un bandeau donne la longueur, le nombre de photos et leurs dates : vert pour une seule séquence ;
+orange s'il y a des changements de séquence, avec le PR et les dates de chacun, un bouton « Voir » qui y centre la carte et un
+repère orange sur le tracé.
+
+**3. Choisir le mode et enregistrer.** « Brouillon » (vérifier vite le trajet : allure de la présentation, image 960 × 540, titre
+et compteur de vitesse), « Présentation » ou « Revue détaillée » (vitesse fixe, accélération latérale et V max ARP ; dévers lu
+sur le LiDAR HD à l'enregistrement, environ 1 min de plus). Cliquer sur un mode rétablit tous ses réglages (les textes du titre
+et les endroits posés restent) ; toute autre retouche est signalée « Réglages modifiés ». « 🎬 Enregistrer la vidéo » affiche la
+durée de la vidéo ; « ▶ Aperçu », « ☆ Garder » et « ↺ Effacer » suivent. Les autres réglages sont dans la liste repliée
+« Options », par thème : Compteurs, Allure, Réglages qualité, Effets spéciaux ; ce qui ne s'applique pas au mode est grisé.
+
+**Choix des photos** : elles sont choisies le long de l'itinéraire routier de la Géoplateforme (Valhalla sur la BD TOPO, en voiture, le
 plus rapide) du départ à l'arrivée par les étapes (une étape impose un passage que l'itinéraire n'aurait pas pris) : tous
 les 5 m, les photos à moins de 12 m prises dans le sens de la marche, ou dans l'autre sens (lues à rebours : l'arrière du
 véhicule se retrouve à l'avant de la vidéo ; leur nombre est affiché sous les listes) ; la séquence de chaque pas est
@@ -148,14 +134,14 @@ par Chrome, Firefox et VLC, peut-être pas par PowerPoint, une seconde d'arrêt 
 simulée (de 30 à 720 km/h, 90 par défaut, puis Mach 1 et Mach 2 : 1 235 et 2 470 km/h, vitesse du son au niveau de
 la mer ; des photos y sont sautées) et la part des photos de la séquence prises (1/1, 1/2, 1/4, 1/8 ;
 chaque choix indique l'écart obtenu, par exemple « une tous les 10 m »).  S'affichent aussi le nombre de photos retenues, la durée de la vidéo et le nombre de photos
-par seconde ; au-delà de 30 photos par seconde (une par image), des photos sont sautées. Liste « Mode » : « Présentation de
-l'itinéraire » (à l'ouverture : compteurs PR et vitesse et titre ; ni accélération, ni V max ARP, ni flou
-ou corrections de luminosité ; la vitesse simulée et la rampe, grisées, y sont remplacées par l'« Allure » : vite dans les
-lignes droites, 150 km/h par défaut, de 50 à 300 ; dans les virages, vitesse telle que la vue ne tourne pas plus vite que
-la réglette « Virages, rotation », 12 °/s par défaut, de 4 à 40, d'après la rotation du cap lissé sur ± 10 m : courbe
-large, un peu plus lent, virage serré, beaucoup ; jamais sous « Au plus bas », 30 km/h par défaut ; départ, arrivée et
-arrêts en douceur ; changements d'allure rapides, pas réalistes : la vitesse varie d'un facteur 2,7 en « Transitions »
-au plus, 1 s par défaut, de 0,5 à 3 (150 → 55 km/h en 1 s, 150 → 30 km/h en 1,6 s ; 3 m/s² au moins près de l'arrêt) ;
+par seconde ; au-delà de 30 photos par seconde (une par image), des photos sont sautées. Mode « Présentation » (à l'ouverture : compteurs PR et vitesse et titre ; ni accélération, ni V max ARP, ni flou
+ou corrections de luminosité ; la vitesse simulée et la rampe, grisées, y sont remplacées par l'« Allure » : très vite dans les
+lignes droites, 400 km/h par défaut, de 50 à 600 ; dans les virages, vitesse selon le rayon R, d'après la rotation du cap
+lissé sur ± 10 m : celle où la vue tourne à la réglette « Virages, rotation », 12 °/s par défaut, de 4 à 40, multipliée par
+1 + R / 300 m pour ne pas freiner les grandes courbes (par défaut, environ 45 km/h à 50 m de rayon, 100 à 100 m, 240 à 200 m), atteinte
+environ 2 s avant l'entrée de la courbe pour voir ce que voit le conducteur en approchant ; jamais sous « Au plus bas », 15 km/h par
+défaut ; arrêt de 0,5 s sur la première et la dernière vue ; changements d'allure rapides, pas réalistes : la vitesse varie
+d'un facteur 2,7 en « Transitions » au plus, 0,5 s par défaut, de 0,25 à 3 (400 → 147 km/h en 0,5 s ; 8 m/s² au moins près de l'arrêt) ;
 vitesse lissée sur ± 8 m ; réglettes provisoires, à affiner ;
 « Arrêts » : aux endroits choisis sur la mini-carte (📍, repère rouge, à moins de 30 m du parcours), la vidéo ralentit,
 s'arrête le temps choisi, 3 s par défaut, de 1 à 10, et repart); « Croisements et ouvrages d'art » (décochée) : à la préparation (ou en la cochant), repères orange posés
@@ -169,7 +155,7 @@ aux croisements, point d'intérêt, tours d'horizon), avec sa vitesse et le temp
 la vidéo préparée est coloré selon la vitesse (tronçons de 10 m : bleu à 20 km/h, vert à 60, jaune à 100, rouge à 150 et
 plus) et suit chaque changement de réglage ou « Revue détaillée » (compteurs PR, vitesse, accélération latérale et
 V max ARP, sans rampe) ; le choix coche ou décoche ces options, retouchables ensuite, et une ligne d'aide le résume.
-Les options ci-dessous sont repliées sous « Options avancées », sauf le titre ; chacune a sa case. « Corrections de luminosité » (décochée) : la luminosité de chaque photo est mesurée sur sa vignette (tout le tour
+Les options ci-dessous sont repliées sous « Options » ; chacune a sa case. « Corrections de luminosité » (décochée) : la luminosité de chaque photo est mesurée sur sa vignette (tout le tour
 d'horizon, sans le ciel ni le toit du véhicule ; rouge, vert et bleu séparément), six à la fois à la préparation, et gardée
 dans le navigateur (un second rendu du même parcours ne recharge rien ; une photo toutes les 0,2 s : environ 30 Kio par
 photo, 50 Mo pour 5 km la première fois). Une photo isolée que la caméra a ratée (25 à 85 % plus claire ou plus sombre
@@ -186,7 +172,7 @@ photos du raccord occupe tout leur écart (et non sa moitié centrale), sans flo
 vidéo ralentit dans les virages et aux carrefours (facteur 1 / (1 + rotation du cap / 1,5° par mètre), la rotation
 au-delà de 1° par mètre, virage marqué, comptant double ; jusqu'à 35 % au plus bas : virage de 30 m de rayon à 37 %), part et s'arrête en douceur sur 50 m, sans à-coup (vitesse lissée sur ± 15 m) ; la durée affichée en
 tient compte. Sur la D115D (1,1 km, rayon de 95 m au plus serré), la vitesse varie de 76 à 100 % et la vidéo passe
-de 47,5 à 53 s à 90 km/h. « Titre » (cochée, au-dessus des options avancées) : carton au début,
+de 47,5 à 53 s à 90 km/h. « Titre » (cochée, thème Compteurs) : carton au début,
 cadre sombre en haut au centre, un peu écarté du bord, souligné d'un trait ambre, titre en gras et sous-titre plus clair
 centrés, descendu en fondu à l'entrée (0,3 à 0,9 s), effacé en fondu de 4 à 4,6 s ; texte libre (80 caractères) et sous-titre libre, ou,
 laissés vides, la route et les PR de départ et d'arrivée, et la date des photos ; « Rappel en incrustation » (décoché) :
@@ -272,7 +258,7 @@ tous les lecteurs ; H.264 si l'encodeur le refuse, dit à la fin du calcul) et 1
 de chaque photo au lieu de ses tuiles HD, vidéo en 960 × 540, à 7,5 Mbit/s, pour vérifier un parcours et ses effets avant le calcul final ;
 image floue (panneaux et marquage lointain illisibles) ; seuls restent le titre, le compteur de vitesse et les variations de vitesse automatiques (allure, ralentissements, rampe), le reste est grisé et ignoré.
 « Stabilisation » (cochée, sauf en brouillon) : les photos ne donnent ni tangage ni roulis ; le décalage entre deux photos voisines est mesuré sur leur image SD et les petits
-sauts sont retirés du tangage et du roulis (au plus 2° par photo, variations sur plus de 40 m gardées) ; cap non corrigé ; une image SD de plus à télécharger par photo. Chaque photo est vue de sa propre caméra et passe à la suivante par un fondu enchaîné
+sauts sont retirés du tangage et du roulis (au plus 2° par photo, variations sur plus de 40 m gardées) ; cap non corrigé par les images (le décor proche fausse la mesure), mais, avec ou sans l'option, l'arrondi au degré du cap des photos est lissé sur ± 60 m dans chaque séquence ; le cap de la vue suit la direction de l'axe de la route sur la plus longue portion, jusqu'à ± 150 m, qui s'écarte de moins de 1 m de sa corde : fixe en ligne droite malgré les petits coudes du tracé BD TOPO, il revient à ± 15 m dans les virages (± 30 m à 450 m de rayon, ± 60 m à 1 800 m) ; une image SD de plus à télécharger par photo. Chaque photo est vue de sa propre caméra et passe à la suivante par un fondu enchaîné
 (l'avancée simulée dans une maquette, retirée le 01/11/2026, faisait sauter le ciel et les côtés). Le calcul prend environ
 deux fois la durée de la vidéo si les tuiles sont déjà en cache (« ■ Arrêter » l'interrompt) ; sous Chrome et Edge, la
 vidéo est écrite dans le fichier choisi au fur et à mesure (mémoire constante, même pour un long parcours ; arrêt ou
@@ -285,7 +271,7 @@ Les endroits des effets (arrêts, ralentissements, tonneaux, petites planètes, 
 parcours, repères d'un autre parcours par exemple, sont ignorés par la vidéo (elle n'échoue plus) et nommés dans le
 message de fin (« Repères ignorés, à plus de 30 m du parcours : arrêt n° 1 à 791 m »).
 
-« ↺ RAZ » (onglet Vidéo) remet le parcours et ses réglages à zéro : départ et arrivée effacés, options et réglettes
+« ↺ Effacer » (onglet Vidéo) remet le parcours et ses réglages à zéro : départ et arrivée effacés, options et réglettes
 à leur valeur par défaut, endroits des tonneaux, planètes et tours retirés, zone du point d'intérêt effacée ; le filtre
 des photos et les parcours gardés ne changent pas. Grisé quand tout est déjà à zéro et pendant le calcul.
 
@@ -401,7 +387,7 @@ après.
 - **Hauteur de chute sur un pont** (automatique, sans clic) : sur une photo prise sur un pont
   de la BD TOPO, le nom du pont, ce qu'il franchit et la hauteur de chute la plus grande sur
   toute sa longueur s'affichent en haut à gauche de la visionneuse (pas pendant la lecture de
-  la séquence). Calcul par le nuage LiDAR HD, une fois par pont, même valeur sur toutes ses photos, sans GPS ni hauteur de caméra :
+  la séquence), suivie de la méthode qui l'a donnée (« LiDAR » ou « RTK »). Calcul par le nuage LiDAR HD, une fois par pont, même valeur sur toutes ses photos, sans GPS ni hauteur de caméra :
   plus grande différence entre le tablier (points classés pont, altitude de chaque case de 2 m, parapets écartés) et le sol ou l'eau
   sous lui et jusqu'à 10 m de son bord ; lecture de quelques secondes à une demi-minute selon la longueur (au-dessus de l'eau :
   niveau au relevé, seulement là où le laser a renvoyé des points d'eau, sinon la berge). Sans points classés pont, ou nuage illisible,
@@ -959,6 +945,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 
 ## Versions
 
+- **0.7.6** (06/11/2026) : onglet Vidéo réorganisé en trois temps : « Tracer sur la carte » (clics enchaînés, départ, arrivée, étapes), photos cherchées d'elles-mêmes avec un bandeau des séquences (raccords, dates, repères sur la carte), modes Brouillon, Présentation et Revue détaillée, options repliées par thème (Compteurs, Allure, Réglages qualité, Effets spéciaux) ; « Parcourir » et l'image animée WebP retirés. Mode Présentation : 400 km/h en ligne droite par défaut, grandes courbes moins freinées, vitesse de la courbe atteinte environ 2 s avant son entrée, départ, arrivée et transitions plus rapides. Cap de la vue recalé sur l'axe de la route hors des virages, arrondi du cap des photos lissé. Croisements et ouvrages d'art cherchés seulement si l'option qui s'en sert est cochée. Hauteur de chute d'un pont : méthode affichée (LiDAR ou RTK). Essais du parcours et de la vidéo non relancés pour cette version.
 - **0.7.5** (06/11/2026) : mesures : largeur, incertitude en travers de la route seulement, bord cliqué estimé (« ≈ »), visée trop rasante refusée, réticule calé sur le trait d'une visée déjà faite (Maj : visée libre) ; zones de clic réduites, croix à 8 px, trait de visée à 12 px (#43). Hauteur de chute d'un pont par le nuage LiDAR HD : une seule valeur par pont, sans GPS ni hauteur de caméra, altitude GPS en secours. Profils (#38) : boutons « Profils » et « Graphiques », légende pliable, dévers de la plateforme, hauteur de la canopée, carrefours avec les seules voies carrossables, noms hors du terrain ; analyse fine : bord et largeur d'enrobé, profil relu depuis eux. Visionneuse : bouton de plein écran, captures centrées (#39). Parcours gardés : instance et producteur remis à la réouverture (#40). Vidéo : option Brouillon (image SD, 960 × 540), H.265 et 1080p ou 720p au choix, H.264 à 80 Mbit/s, case « Haute qualité » retirée (#42), stabilisation du tangage et du roulis par comparaison des images SD, petite planète environ 3 fois plus rapide.
 - **0.7.4** (02/11/2026) : fiches PDF des objets (onglet Couche), « Cadrage type » : le décalage de photos dans la séquence, réglé sur le 1er objet (photos avant ou après la sienne), est de nouveau repris pour chaque objet (perdu depuis le 30/10).
 - **0.7.3** (01/11/2026) : vidéo du parcours refondue. Photos choisies le long de l'itinéraire de la Géoplateforme (Valhalla sur la BD TOPO), étapes 📍 pour imposer un passage, trajectoire virtuelle sur ce tracé (cap dans l'axe de la route, sans arrêt ni balayage aux raccords) ; séquences choisies sur tout le parcours d'un coup, par le sens (vers l'avant), puis la proximité des dates et le moins de changements ; raccords discrets (là où les photos se recouvrent, couleurs accordées, fondu sur tout l'écart, léger flou). Modes « Présentation de l'itinéraire » (allure selon les virages, changements d'allure rapides, arrêts, ralentissements aux croisements et ouvrages d'art retouchables, aperçu animé sur la mini-carte, tracé coloré selon la vitesse) et « Revue détaillée » ; options actuelles repliées en « Options avancées » ; titre soigné (carton en haut, texte libre, rappel en incrustation). Petite planète sur un tronçon tracé ou sur tout le parcours, transition réglable, tonneau pendant la transition. « Corrections de luminosité » (photos isolées ratées par la caméra). « Avancée simulée » retirée. Calcul : vidéo écrite au fur et à mesure dans le fichier (longs parcours sans manque de mémoire), titre et compteurs posés par la carte graphique (un tiers de temps en moins), plus de ralentissement en fin de vidéo, tuiles des photos de la recherche corrigées (vidéo noire). Services : délai maximal et nouveaux essais, cache géographique à 500 Mo ; repères loin du parcours ignorés. `LICENCES-TIERCES.md` (licences des bibliothèques, données et services).

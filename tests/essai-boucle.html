@@ -67,7 +67,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     m.fire("click", { lngLat: new w.maplibregl.LngLat(...middle), point: m.project(middle), originalEvent: new w.MouseEvent("click") });
     await sleep(500);
     expect("étape : repère posée, vidéo à préparer de nouveau", doc.querySelectorAll(".repere-requete.etape").length === 1
-      && /Préparer/.test(button.textContent), doc.querySelector("#parcours-etapes-infos").textContent);
+      && /Recherche/.test(button.textContent), doc.querySelector("#parcours-etapes-infos").textContent);
     button.click();
     await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 600000, "vidéo préparée par l'étape");
     const via = w.mesures.videoPlan;

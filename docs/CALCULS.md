@@ -188,7 +188,8 @@ premier clic.
 
 ## 7. Hauteur de chute sur un pont
 
-Ce calcul est automatique sur une photo prise sur un pont de la BD TOPO.
+Ce calcul est automatique sur une photo prise sur un pont de la BD TOPO. La méthode qui a donné la valeur est affichée à sa
+suite : « LiDAR » ou « RTK ».
 
 **Par le nuage LiDAR HD** (`Nuage.bridgeFall`, une fois par pont, sans GPS ni hauteur de caméra), quand il y a des points
 classés pont (classe 17) à 15 m au plus de la photo :

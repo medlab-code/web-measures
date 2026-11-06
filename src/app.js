@@ -1577,11 +1577,7 @@
     $("#rattacher-carte").addEventListener("click", toggleMapWindow);
   }
 
-  function openPhoto(feature, touring = false) {
-    if (!touring) {  // autre photo demandée : fin du parcours
-      tour = null;
-      $("#parcours-orienter").hidden = true;
-    }
+  function openPhoto(feature) {
     setPhoto(feature, false);
     $("#invite").hidden = true;
     viewer.hidden = false;
@@ -2665,7 +2661,6 @@
   // Parcours (onglet « Vidéo ») en cours : voir travel ; endRank : rang de la photo d'arrivée dans la séquence lue
   // (null si elle n'y passe pas) ; best, bestAt : plus courte distance (m) à l'arrivée et son point ; axis : vue
   // dans l'axe du véhicule ; freeYaw : en regard libre, écart réglé à l'avant du véhicule
-  let tour = null;
   // 📍 de l'onglet « Vidéo » : point attendu sur la carte (« start », « end », « roll » : tonneau, « planet » : petite
   // planète, « poiZone » : zone de
   // l'effet du point d'intérêt ; petite planète et zone : en deux clics)
@@ -2691,11 +2686,13 @@
   // Point d'intérêt (un seul ; cible : objet du relevé, liste #interet-cible) : zone de l'effet tracée sur la carte
   // ([[lon, lat], [lon, lat]] ou null), premier clic du tracé en cours (LngLat ou null)
   const poi = { zone: null, draft: null };
-  // Vues du dernier parcours (WebP réduits), pour son export en WebP animé ; tourTitle : son intitulé
-  let tourViews = [], tourTitle = "";
   // Vidéo : parcours préparé (planPhotos : { photos, switches, dates, warning, title }), sa préparation ou son calcul en
   // cours ; videoReady : départ et arrivée connus (onglet « Vidéo »)
   let videoPlan = null, videoPreparing = false, videoRun = null, videoReady = false;
+  let tracing = false;  // « Tracer sur la carte » : clics enchaînés (départ, arrivée, étapes) jusqu'à Échap
+  let planTimer = null, planTimerKey = "", planError = null;  // recherche des photos à venir ; planError : { key, text } de la dernière en échec
+  let bandeauKey = "", seamMarkers = [];  // bandeau du parcours (showVideoPlan) : son état, repères des raccords
+  const VIDEO_PLAN_DELAY = 800;  // ms : recherche des photos après le dernier changement du parcours
   const VIDEO_STALL = 30, VIDEO_GIVE_UP = 300;  // s sans image calculée : avertissement, puis arrêt de la vidéo
   const videoOk = Video.supported();
   let hevcOk = false;  // poste qui annonce un encodeur H.265 : proposé
@@ -2703,8 +2700,6 @@
     hevcOk = ok;
     updatePlayer();
   });
-  const webpOk = Hyperlapse.supported();  // Safari n'encode pas le WebP
-  const TOUR_AXIS = 4;  // rangs de part et d'autre de la photo pour l'axe et la pente (± 20 m)
   const TILES_WAIT = 4000;  // ms : attente au plus des tuiles HD d'une vue du parcours (réseau lent)
   const TOUR_REACH = 40;  // m : photos du départ et de l'arrivée cherchées à cette distance (même séquence)
   const TOUR_END = 30;  // m : hors de la séquence de l'arrivée, arrivée passée quand la distance remonte sous ce seuil
@@ -2757,8 +2752,7 @@
     speed = k;
     const rank = Number(photo?.properties?.["geovisio:rank_in_collection"]);
     const apis = photo?.collection ? sequenceApis(photo) : [];
-    // Parcours en 1x : lecture pas à pas aussi (celle de la visionneuse coupe les tuiles HD et la vue dans l'axe)
-    if ((k === 1 && !tour) || !Number.isInteger(rank) || !apis.length) {
+    if (k === 1 || !Number.isInteger(rank) || !apis.length) {
       if (k !== 1) console.warn("Lecture rapide impossible (rang ou instance de la photo inconnus) : 1x");
       speed = 1;
       psv.playSequence(back);
@@ -2822,21 +2816,12 @@
     }
     while (target !== run.rank && !run.ids.has(target)) target -= sign;  // fin de la séquence
     if (target === run.rank) {
-      if (tour && tour.endRank == null) tourBranch(tour);  // parcours : une autre séquence vers l'arrivée
-      else stopPlayer();
+      stopPlayer();
       return;
     }
     run.rank = target;
     run.id = run.ids.get(target);
     viewer.select(run.collection, run.id, true);
-  }
-
-  /** Attente des tuiles HD en cours de chargement (file de la visionneuse vide), TILES_WAIT ms au plus. */
-  async function tilesLoaded(run) {
-    const t0 = performance.now();
-    while (run === fast && Object.keys(psv.adapter?.queue?.tasks || {}).length && performance.now() - t0 < TILES_WAIT) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
   }
 
   /** Valeur EXIF « 31072/100 » ou « 310.72 » en nombre, ou null. */
@@ -2849,27 +2834,7 @@
   const angleBetween = (a, b) => Math.abs(((a - b) % 360 + 540) % 360 - 180);
 
   /**
-   * Parcours du départ à l'arrivée ([lon, lat]) à la vitesse speed ; axis : vue dans l'axe du véhicule.
-   * D'abord une séquence qui passe par les deux : lecture vers le rang de la photo d'arrivée (dans le sens
-   * de la prise de vue de préférence : véhicules croisés à l'endroit). Sinon, la séquence qui part vers
-   * l'arrivée, puis d'autres là où elle s'en écarte (tourBranch) : l'utilisateur en est prévenu au départ.
-   */
-  async function travel(start, end, title, speed, axis) {
-    stopPlayer();
-    tourViews = [];
-    tourTitle = title || "";
-    const plan = await tourPlan(start, end);
-    if (plan.error) {
-      setStatus(plan.error, "echec");
-      notice(plan.error);
-      return;
-    }
-    Object.assign(plan.t, { speed, axis });
-    startTour(plan.t, plan.first, plan.back, plan.warning);
-  }
-
-  /**
-   * Départ du parcours de start à end, commun à la lecture (travel) et à la vidéo (planPhotos) : séquences qui
+   * Départ du parcours de start à end, pour la vidéo (planPhotos) : séquences qui
    * passent à l'arrivée et leur tracé, photo de départ et sens. Rend { t, first, back, warning } (warning : pas de
    * séquence unique, le parcours en changera), ou { error } (texte).
    */
@@ -2886,7 +2851,7 @@
       endRanks.set(f.collection, rankOf(f));
       endPhotos.push(f);
     }
-    // Tracé des séquences d'arrivée, TOUR_PATH rangs de part et d'autre de l'arrivée : bifurcation au carrefour (tourJoin)
+    // Tracé des séquences d'arrivée, TOUR_PATH rangs de part et d'autre de l'arrivée : bifurcation au carrefour
     const paths = new Map();
     await Promise.all(endPhotos.map(async (f) => {
       const path = { apis: sequenceApis(f), step: 1, ids: new Map(), points: new Map(), collection: f.collection };
@@ -2942,72 +2907,6 @@
    * véhicule (regard libre : l'écart réglé par l'utilisateur), puis lecture. Au départ, en regard libre
    * ou avec un avertissement (warning), le bandeau attend « ▶ Partir ».
    */
-  function startTour(t, first, back, warning = "") {
-    t.used.add(first.collection);
-    t.dates.add((first.properties?.datetime || "").slice(0, 10));
-    t.endRank = t.endRanks.get(first.collection) ?? null;
-    t.back = back;
-    openPhoto(first, true);
-    tour = t;
-    const t0 = Date.now();
-    let asked = t0;
-    const timer = setInterval(() => {  // lecture une fois la photo affichée
-      if (tour !== t || Date.now() - t0 > 30000) {
-        clearInterval(timer);
-        return;
-      }
-      // Photo de la lecture précédente arrivée après la demande (rebranchement) : la nôtre redemandée
-      // (comparée par identifiant : sa fiche est recréée au chargement)
-      if (photo?.id !== first.id || !photoReady()) {
-        if (Date.now() - asked > 3000) {
-          asked = Date.now();
-          openPhoto(first, true);
-        }
-        return;
-      }
-      clearInterval(timer);
-      const ahead = back ? Math.PI : 0;  // avant du véhicule
-      psv.rotate({ yaw: ahead + (t.freeYaw ?? 0), pitch: 0 });
-      if ((t.axis || t.freeYaw != null) && !warning) {
-        play(back, t.speed);
-        return;
-      }
-      // Regard libre : la vue se règle d'abord sur la photo de départ ; avertissement : lu avant de partir
-      $("#parcours-consigne").textContent = [warning, t.axis ? ""
-        : "Regard libre : orientez la vue (glisser dans la photo), elle sera gardée tout le long."].filter(Boolean).join(" ");
-      $("#parcours-orienter").hidden = false;
-      $("#parcours-partir").onclick = () => {
-        $("#parcours-orienter").hidden = true;
-        if (tour !== t || photo?.id !== first.id) return;
-        if (!t.axis) t.freeYaw = psv.getPosition().yaw - ahead;
-        play(back, t.speed);
-      };
-    }, 200);
-  }
-
-  /**
-   * Parcours sans séquence jusqu'à l'arrivée : celle lue s'en écarte, ou finit. Rebranchement là où elle en
-   * est passée au plus près (t.bestAt) sur une autre séquence (pas déjà lue) qui va vers l'arrivée : une
-   * qui y passe d'abord, sinon d'après le cap de la caméra. Sans elle, parcours arrêté.
-   */
-  async function tourBranch(t) {
-    stopPlayer();  // lecture en cours arrêtée ; le parcours reste
-    if (t.bestViews != null) tourViews.length = Math.min(tourViews.length, t.bestViews);  // export sans l'écart
-    const next = await branchTarget(t);
-    if (tour !== t) return;  // parcours quitté entre-temps
-    if (!next) {
-      tour = null;
-      updatePlayer();
-      setStatus(branchFailure(t), "echec");
-      notice(branchFailure(t));
-      return;
-    }
-    t.switches++;
-    t.best = Infinity;
-    t.bestAt = null;
-    startTour(t, next.feature, next.back);
-  }
-
   /** Séquence de rebranchement du parcours t, là où la séquence lue est passée au plus près de l'arrivée (t.bestAt),
    * pas déjà lue : une qui passe à l'arrivée d'abord, sinon d'après le cap de la caméra ; { feature, back } ou null. */
   async function branchTarget(t) {
@@ -3021,7 +2920,7 @@
     + `${filterActive() ? " retenue par le filtre" : ""} ne continue vers elle depuis ici.`;
 
   /**
-   * Décision du parcours t à la photo here (rang run.rank), commune à la lecture et à la vidéo : { action, join,
+   * Décision du parcours t à la photo here (rang run.rank) : { action, join,
    * closer } ; action : "arrived" (rang de la photo d'arrivée atteint ou passé ; hors de sa séquence, à moins de
    * TOUR_END m quand la distance remonte), "join" (saut join sur une séquence d'arrivée, joinTarget), "branch"
    * (séquence qui s'écarte de TOUR_AWAY m de son point le plus proche de l'arrivée) ou null ; closer : plus près de
@@ -3044,50 +2943,6 @@
     return { action: null, closer };
   }
 
-  /**
-   * Parcours, photo affichée : vue dans l'axe du véhicule, c'est-à-dire tournée du biais de montage
-   * de la caméra (médiane, sur les photos lues, de l'écart entre le cap de la trajectoire sur
-   * ± 20 m et le cap EXIF au centième) : elle suit ainsi les virages et les carrefours. Vue abaissée
-   * de la pente de la route (altitudes GPS des photos sur ± 20 m) : les panoramas ne sont pas mis à
-   * niveau, la caméra penche avec le véhicule ; l'horizon reste ainsi en place. Le roulis (dévers)
-   * n'est pas corrigé. Arrivée et rebranchement sur une autre séquence : voir la fin.
-   */
-  function tourStep(run) {
-    const sign = Math.sign(run.step);
-    const near = (rank, k) => {
-      for (let i = TOUR_AXIS; i > 0; i--) if (run.points.get(rank + k * i)?.coords) return run.points.get(rank + k * i);
-      return run.points.get(rank);
-    };
-    const offsets = [];
-    for (const [rank, p] of run.points) {
-      const a = near(rank, -1), b = near(rank, 1);
-      if (p.coords && a !== b && Number.isFinite(p.heading)) {
-        offsets.push(((Requeteur.bearing(a.coords, b.coords) - p.heading) % 360 + 540) % 360 - 180);
-      }
-    }
-    offsets.sort((x, y) => x - y);
-    const here = run.points.get(run.rank);
-    const before = near(run.rank, -sign), after = near(run.rank, sign);
-    if (tour.axis && here?.coords && offsets.length) {
-      const d = metresBetween(before.coords, after.coords);
-      const slope = before.alt != null && after.alt != null && d > 1 ? (after.alt - before.alt) / d : 0;
-      const yaw = offsets[offsets.length >> 1] + (sign < 0 ? 180 : 0);  // lecture à rebours : vers l'arrière de la caméra
-      psv.rotate({ yaw: yaw * Math.PI / 180, pitch: -Math.atan(slope) });
-    }
-    const decision = tourDecide(tour, run, here);
-    if (decision.closer) tour.bestViews = tourViews.length + 1;  // vues gardées jusqu'à celle-ci (prise ensuite) comprise
-    if (decision.action === "arrived") {
-      const t = tour;
-      tour = null;
-      stopPlayer();
-      notice(t.switches ? `Parcours terminé : arrivée atteinte, ${t.switches + 1} séquences (${[...t.dates].sort().join(", ")}).`
-        : "Parcours terminé : arrivée atteinte.");
-      return false;
-    }
-    if (decision.action === "join") tourJoin(tour, decision.join);
-    if (decision.action === "branch") tourBranch(tour);
-    return !decision.action;
-  }
 
   /** Photo des tracés d'arrivée (t.paths) à moins de TOUR_JOIN m de coords, la plus près de l'arrivée en rangs
    * (puis en mètres) : { collection, rank, left (rangs jusqu'à l'arrivée), d } ; null sans photo assez proche. */
@@ -3148,25 +3003,6 @@
     if (jump.score === Infinity || (jump.score > TOUR_TURN && !at)) return null;
     if (next?.coords && leap(t, next.coords, Requeteur.bearing(here.coords, next.coords)).score < jump.score) return null;
     return jump;
-  }
-
-  /** Lecture : bifurcation du parcours t par le saut jump (joinTarget), sur la photo de la séquence d'arrivée. */
-  function tourJoin(t, jump) {
-    const { rank, sign } = jump;
-    const path = t.paths.get(jump.collection);
-    const t0 = tour;
-    stopPlayer();
-    Carte.photoById(path.ids.get(rank)).then((feature) => {
-      if (tour !== t0) return;
-      if (!feature) {
-        tourBranch(t);
-        return;
-      }
-      t.switches++;
-      t.best = Infinity;
-      t.bestAt = null;
-      startTour(t, feature, sign < 0);
-    }).catch(() => { if (tour === t0) tourBranch(t); });
   }
 
   /**
@@ -3311,6 +3147,7 @@
     const photosById = new Map(), centres = stations.filter((_, i) => i % Math.round(ALONG_CHUNK / ALONG_STEP) === 0);
     for (let i = 0; i < centres.length; i += 4) {
       setStatus(`Vidéo : photos le long de ${label} (${Math.round(100 * i / centres.length)} %)…`);
+      if ($("#video-recherche")) $("#video-recherche").value = i / centres.length;
       const found = await Promise.all(centres.slice(i, i + 4).map((c) => Carte.photosNear(map, ...c.at,
         (f) => passesFilter(f) && Number.isInteger(rankOf(f)), ALONG_CHUNK + ALONG_NEAR, 1000).catch(() => [])));
       for (const f of found.flat()) photosById.set(f.id, f);
@@ -3433,11 +3270,10 @@
   const ALONG_SEAM = 3;  // m d'écart entre les photos des deux séquences au raccord qui valent un changement de plus
   const ALONG_DAYS = 90;  // jours d'écart entre deux séquences qui valent un changement de plus
 
-  // Onglet « Vidéo » : « ▶ Parcourir » grisé tant que la route ou un PR manque
+  // Onglet « Vidéo » : photos cherchées d'elles-mêmes dès que départ et arrivée sont connus (scheduleVideoPlan)
   const travelPane = $("#parcours");
   const travelFields = Requeteur.travelForm(travelPane.querySelector(".champs-route"), map);
   const updateTravel = () => {
-    $("#parcours-lancer").disabled = !travelFields.ready();
     videoReady = travelFields.ready();
     updatePlayer();
   };
@@ -3448,6 +3284,10 @@
   // 📍 : le prochain clic sur la mini-carte pose le départ ou l'arrivée (« start », « end ») ; Échap annule
   function setTravelPick(which) {
     travelPick = which;
+    if (!which && tracing) {
+      tracing = false;
+      updatePlayer();
+    }
     map.getCanvas().style.cursor = which ? "crosshair" : "";
     for (const button of travelPane.querySelectorAll(".sur-carte")) {
       button.setAttribute("aria-pressed", String(button.dataset.cote === which));
@@ -3484,8 +3324,15 @@
     updatePlayer();
     return kind;
   }
+  /** Tracé enchaîné : le clic suivant pose le point which (« Tracer sur la carte »). */
+  function traceNext(which) {
+    setTravelPick(which);
+    tracing = true;
+    setStatus(`Tracé : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", waypoint: "une étape, si besoin" }[which]} ; Échap pour terminer.`);
+    updatePlayer();
+  }
   async function pickTravelPoint(lngLat) {
-    const which = travelPick;
+    const which = travelPick, chain = tracing;
     setTravelPick(null);
     if (which === "poiZone") {  // zone de l'effet : premier clic, puis second (trait fixé) ; le parcours ne change pas
       if (!poi.draft) {
@@ -3510,11 +3357,13 @@
         : placePoint(which, [lngLat.lng, lngLat.lat]);
       planetDraft = null;
       setStatus(`Placé : ${placedCount(kind)} en tout (${kind.note}) ; 📍 pour en ajouter, clic sur un repère pour le retirer.`);
+      if (chain) traceNext("waypoint");
       return;
     }
     await travelFields.pick(which, [lngLat.lng, lngLat.lat]);
     videoPlan = null;
     updateTravel();
+    if (chain) return traceNext(which === "start" ? "end" : "waypoint");
     // Départ posé sans arrivée : le clic suivant pose l'arrivée (oubli du 📍 de l'arrivée : départ déplacé à sa place)
     const t = travelFields.state();
     if (which === "start" && !t.end.point && !t.end.pr) {
@@ -3522,6 +3371,20 @@
       chainedPick = true;
     }
   }
+  // Nouveau tracé : l'ancien parcours (départ, arrivée, étapes) est remplacé ; second clic, comme Échap : fin du tracé
+  $("#parcours-tracer").addEventListener("click", () => {
+    if (tracing) {
+      setTravelPick(null);
+      setStatus("Tracé terminé.");
+      return updatePlayer();
+    }
+    travelFields.restore({ route: "", start: {}, end: {} });
+    for (const p of placed.waypoint.points) p.marker.remove();
+    placed.waypoint.points = [];
+    videoPlan = null;
+    updateTravel();
+    traceNext("start");
+  });
   for (const button of travelPane.querySelectorAll(".sur-carte")) {
     button.addEventListener("click", (event) => {
       event.preventDefault();  // 📍 du tonneau : dans la ligne de l'interrupteur, sans le basculer
@@ -3821,16 +3684,24 @@
   // Modes de la vidéo : réglages de départ des options (avancées), appliqués au choix du mode et retouchables ensuite ;
   // la page s'ouvre en mode Présentation (cases cochées d'origine)
   const VIDEO_MODES = {
-    presentation: { help: "Vue rapide de l'itinéraire : compteurs PR et vitesse, vitesse adaptée aux virages, sans option coûteuse en calcul.",
-      on: ["video-compteur", "video-compteur-vitesse", "video-titre"],
+    brouillon: { help: "Vérifier vite le trajet : allure de la présentation, image 960 × 540, titre et compteur de vitesse.",
+      on: ["video-brouillon", "video-compteur", "video-compteur-vitesse", "video-titre"],
       off: ["video-acceleration", "video-vmax-arp", "video-flou", "video-expo", "video-rampe"] },
-    revue: { help: "Revue à vitesse fixe : compteurs PR, vitesse, accélération latérale et V max ARP (dévers lu sur le LiDAR HD, plus lent) ; options de qualité dans les options avancées.",
+    presentation: { help: "Vue rapide de l'itinéraire : vitesse selon les virages, compteurs PR et vitesse, sans option coûteuse en calcul.",
+      on: ["video-compteur", "video-compteur-vitesse", "video-titre"],
+      off: ["video-brouillon", "video-acceleration", "video-vmax-arp", "video-flou", "video-expo", "video-rampe"] },
+    revue: { help: "Vitesse fixe : compteurs PR et vitesse, accélération latérale et V max ARP. Dévers lu sur le LiDAR HD, environ 1 min de plus.",
       on: ["video-compteur", "video-compteur-vitesse", "video-acceleration", "video-vmax-arp", "video-titre"],
-      off: ["video-rampe"] },
+      off: ["video-brouillon", "video-rampe"] },
   };
   const showModeHelp = () => {
-    $("#video-mode-aide").textContent = VIDEO_MODES[$("#video-mode").value]?.help || "";
-    $("#video-presentation").hidden = $("#video-mode").value !== "presentation";
+    // Parcours gardé autrefois avec la case « Brouillon » : ce mode, quelle que soit la liste
+    const name = $("#video-brouillon").checked ? "brouillon" : $("#video-mode").value;
+    for (const button of travelPane.querySelectorAll(".modes-video button")) {
+      button.setAttribute("aria-pressed", String(button.dataset.mode === name));
+      button.disabled = Boolean(videoRun) || !videoPlan;
+    }
+    $("#video-mode-aide").textContent = `${VIDEO_MODES[name]?.help || ""}${modeTouched(name) ? " Réglages modifiés : cliquer sur le mode rétablit les siens." : ""}`;
   };
   /** Option de la vidéo active ? Brouillon : seuls le titre, le compteur de vitesse et les variations de vitesse automatiques
    * restent (DRAFT_OFF). */
@@ -3841,16 +3712,27 @@
     "#video-codec", "#video-definition"];
   /** Réglages du mode Présentation pour Video (vitesses en m/s), ou null dans un autre mode. */
   function presOptions() {
-    if ($("#video-mode").value !== "presentation") return null;
+    if ($("#video-mode").value === "revue") return null;
     return { vmax: Number($("#pres-vmax").value) / 3.6, vmin: Number($("#pres-vmin").value) / 3.6, turn: Number($("#pres-virage").value),
       fade: Number($("#pres-transition").value), stop: Number($("#arret-duree").value),
       stops: videoOption("#video-arret") ? placed.stop.points.map((p) => p.lonlat) : [],
       slows: $("#video-ralenti").checked ? placed.slow.points.map((p) => p.lonlat) : [], slow: Number($("#ralenti-vitesse").value) / 3.6 };
   }
+  /** Carrefours du parcours préparé plan (tronçons de la BD TOPO, mailles en cache) et, avec structures, ses ouvrages d'art : lus une
+   * fois, seulement pour les options qui s'en servent (croisements et ouvrages d'art, regard aux croisements). */
+  async function readCrossings(plan, structures) {
+    const coords = plan.photos.map((p) => p.coords);
+    plan.junctions ??= await Lieu.junctions(coords).catch(() => []);
+    if (structures) plan.structures ??= await Lieu.structures(coords).catch(() => []);
+  }
   /** Points de ralentissement posés d'eux-mêmes : croisements de routes revêtues et ouvrages d'art de la vidéo préparée
    * à moins de 15 m de ses photos, un par 30 m (giratoire : un seul) ; retouchables (clic : retirer, 📍 : ajouter). */
-  function fillSlows() {
-    if (!videoPlan) return setStatus("Croisements et ouvrages d'art : préparez la vidéo, ils seront posés d'eux-mêmes.");
+  async function fillSlows() {
+    if (!videoPlan) return setStatus("Croisements et ouvrages d'art : ils seront posés d'eux-mêmes une fois les photos trouvées.");
+    const plan = videoPlan;
+    setStatus("Vidéo : recherche des croisements et des ouvrages d'art…");
+    await readCrossings(plan, true);
+    if (plan !== videoPlan || !$("#video-ralenti").checked) return;  // parcours changé ou option décochée entre-temps
     const coords = videoPlan.photos.map((p) => p.coords).filter(Boolean), found = [];
     for (const { lonlat } of [...videoPlan.junctions || [], ...videoPlan.structures || []]) {
       if (coords.some((c) => metresBetween(c, lonlat) < 15) && !found.some((f) => metresBetween(f, lonlat) < 30)) found.push(lonlat);
@@ -3864,6 +3746,28 @@
     $(`#${id}`).addEventListener("input", () => {
       $(`#${id.replace("-duree", "")}-valeur`).textContent = `${String($(`#${id}`).value).replace(".", ",")} ${unit}`;
       updatePlayer();
+    });
+  }
+  /** Options autres que celles du mode name ? */
+  function modeTouched(name) {
+    const mode = VIDEO_MODES[name];
+    return Boolean(mode) && routeSettings().some((e) => {
+      if (e.id === "video-mode" || e.type === "text") return false;
+      if (e.type === "checkbox") return e.checked !== (mode.on.includes(e.id) || (!mode.off.includes(e.id) && e.defaultChecked));
+      if (e.tagName === "SELECT") return e.selectedOptions[0] !== ([...e.options].find((o) => o.defaultSelected) || e.options[0]);
+      return e.value !== e.defaultValue;
+    });
+  }
+  // Choix du mode : ses réglages, ceux des autres options remis à leur valeur de la page (les textes du titre et les endroits restent)
+  for (const button of travelPane.querySelectorAll(".modes-video button")) {
+    button.addEventListener("click", () => {
+      for (const e of routeSettings()) {
+        if (e.id === "video-mode" || e.type === "text") continue;
+        resetSetting(e);
+        if (e.type === "range") e.dispatchEvent(new Event("input"));  // valeur affichée à côté
+      }
+      $("#video-mode").value = button.dataset.mode;
+      $("#video-mode").dispatchEvent(new Event("change"));
     });
   }
   $("#video-mode").addEventListener("change", () => {
@@ -4082,80 +3986,127 @@
   }
   for (const { box } of arpOptions) box.addEventListener("change", readDevers);
 
-  $("#parcours-lancer").addEventListener("click", async () => {
-    const button = $("#parcours-lancer");
-    button.disabled = true;
+  // Photos du parcours cherchées d'elles-mêmes dès que départ et arrivée sont connus (planPhotos), de nouveau s'ils changent ;
+  // une réponse pour un parcours changé entre-temps est jetée
+  const planKey = () => JSON.stringify([travelFields.state(), placed.waypoint.points.map(placeOf), $("#depuis").value, instance.value, $("#producteur").value]);
+  function scheduleVideoPlan() {
+    if (videoPlan || !videoReady || !videoOk || videoPreparing || videoRun || planTimer) return;
+    const key = planKey();
+    if (planError?.key === key) return;
+    planTimerKey = key;
+    planTimer = setTimeout(() => {
+      planTimer = null;
+      if (planKey() === planTimerKey) prepareVideo();
+      else updatePlayer();  // encore en train de changer
+    }, VIDEO_PLAN_DELAY);
+  }
+  async function prepareVideo() {
+    if (videoPlan || !videoReady || videoPreparing || videoRun) return;
+    const key = planKey();
+    videoPreparing = true;
+    planError = null;
+    updatePlayer();
+    setStatus("Vidéo : recherche des photos du parcours…");
     try {
       const found = await travelFields.go();
-      if (!found) return;
-      map.fitBounds([found.start, found.end].reduce((b, p) => b.extend(p), new maplibregl.LngLatBounds()),
-        { padding: 60, maxZoom: 18 });
-      await new Promise((resolve) => map.once("moveend", resolve));
-      travel(found.start, found.end, found.title, Number($("#parcours-vitesse").value),
-        $("#parcours-regard").value === "axe");
-    } catch (error) {
-      notice(`Parcours impossible : ${error.message}`);
-    } finally {
-      updateTravel();
-    }
-  });
-  $("#parcours-export").addEventListener("click", async () => {
-    const save = await saveAs(`parcours ${tourTitle || "Panoramax"}.webp`.replace(/[\\/:*?"<>|→]/g, "-"), "image/webp");
-    if (!save) return;
-    $("#parcours-export").disabled = true;
-    try {
-      await save(await Hyperlapse.webp(tourViews));
-    } catch (error) {
-      notice(`Export du parcours impossible : ${error.message}`);
-    }
-    updatePlayer();
-  });
-
-  // Vidéo MP4 du parcours, sans le lire dans la visionneuse, en deux clics : « Préparer » cherche ses photos
-  // (planPhotos) et prévient d'un changement de séquence ; « Enregistrer » demande le fichier (la boîte ne s'ouvre que
-  // juste après un clic), puis calcule la vidéo image par image
-  $("#parcours-video").addEventListener("click", async () => {
-    if (!videoPlan) {
-      videoPreparing = true;
-      updatePlayer();
-      setStatus("Vidéo : recherche des photos du parcours…");
-      try {
-        const found = await travelFields.go();
-        if (!found) throw new Error("départ ou arrivée introuvable");
-        if (metresBetween(found.start, found.end) < TOUR_REACH) {
-          throw new Error(`départ et arrivée au même endroit (moins de ${TOUR_REACH} m) : choisissez l'arrivée (📍 de l'arrivée, ou son PR)`);
-        }
-        videoPlan = { ...await planLegs(found.start, found.end), title: found.title };
-        setStatus("Vidéo : PR des photos…");
-        await prOfPhotos(videoPlan.photos, found.title.split(" ")[0]);
-        // Carrefours du parcours (regard aux croisements) : tronçons de la BD TOPO, mailles en cache
-        videoPlan.junctions = await Lieu.junctions(videoPlan.photos.map((p) => p.coords)).catch(() => []);
-        // Ouvrages d'art (ralentissements du mode Présentation), posés d'eux-mêmes avec les croisements si l'option est
-        // cochée et qu'aucun n'est encore posé (ceux d'un parcours gardé, retouchés, restent)
-        videoPlan.structures = await Lieu.structures(videoPlan.photos.map((p) => p.coords)).catch(() => []);
-        const coords = videoPlan.photos.map((p) => p.coords).filter(Boolean);
-        for (const p of [...placed.slow.points]) {  // parcours changé : ceux de l'ancien tracé retirés
-          if (!coords.some((c) => metresBetween(c, p.lonlat) < 30)) {
-            p.marker.remove();
-            placed.slow.points = placed.slow.points.filter((q) => q !== p);
-          }
-        }
-        if ($("#video-ralenti").checked && !placed.slow.points.length) fillSlows();
-        if (arpWanted()) {
-          setStatus("Vidéo : dévers des photos (LiDAR HD)…");
-          await readDevers();
-        }
-        setStatus(videoPlan.switches ? `Vidéo prête à enregistrer. ${videoWarning()}` : "Vidéo prête à enregistrer.",
-          videoPlan.switches ? "avertissement" : "");
-      } catch (error) {
-        setStatus(`Vidéo impossible : ${error.message}`, "echec");
-        notice(`Vidéo impossible : ${error.message}`);
-      } finally {
-        videoPreparing = false;
-        updatePlayer();
+      if (!found) throw new Error("départ ou arrivée introuvable");
+      if (metresBetween(found.start, found.end) < TOUR_REACH) {
+        throw new Error(`départ et arrivée au même endroit (moins de ${TOUR_REACH} m) : choisissez l'arrivée (📍 de l'arrivée, ou son PR)`);
       }
-      return;
+      const plan = { ...await planLegs(found.start, found.end), title: found.title };
+      setStatus("Vidéo : PR des photos…");
+      await prOfPhotos(plan.photos, found.title.split(" ")[0]);
+      if ($("#video-regard").checked) await readCrossings(plan, false);
+      if (planKey() !== key) return;  // parcours changé : recherche relancée (updatePlayer, ci-dessous)
+      videoPlan = plan;
+      const coords = plan.photos.map((p) => p.coords).filter(Boolean);
+      for (const p of [...placed.slow.points]) {  // parcours changé : ceux de l'ancien tracé retirés
+        if (!coords.some((c) => metresBetween(c, p.lonlat) < 30)) {
+          p.marker.remove();
+          placed.slow.points = placed.slow.points.filter((q) => q !== p);
+        }
+      }
+      // Croisements et ouvrages posés d'eux-mêmes si l'option est cochée et qu'aucun n'est encore posé (ceux d'un parcours gardé,
+      // retouchés, restent)
+      if ($("#video-ralenti").checked && !placed.slow.points.length) await fillSlows();
+      setStatus(videoPlan.switches ? `Vidéo prête à enregistrer. ${videoWarning()}` : "Vidéo prête à enregistrer.",
+        videoPlan.switches ? "avertissement" : "");
+    } catch (error) {
+      if (planKey() === key) {
+        planError = { key, text: error.message };
+        setStatus(`Vidéo impossible : ${error.message}`, "echec");
+      }
+    } finally {
+      videoPreparing = false;
+      updatePlayer();
     }
+  }
+  /** Raccords du parcours : { at (position), pr, before, after (dates des séquences) }. */
+  function videoSeams(photos) {
+    const dateOf = (p) => (p.date ? p.date.split("-").reverse().join("/") : "date inconnue");
+    return photos.slice(1).flatMap((p, k) => (p.collection === photos[k].collection ? []
+      : [{ at: p.coords, pr: p.pr, before: dateOf(photos[k]), after: dateOf(p) }]));
+  }
+  /** Bandeau du parcours : recherche, échec, séquence unique ou raccords à voir sur la carte (repères) ; refait seulement s'il change. */
+  function showVideoPlan() {
+    const box = $("#video-bandeau"), plan = videoPlan;
+    const failed = planError && videoReady && planError.key === planKey() ? planError.text : null;
+    const searching = !plan && videoReady && !failed;
+    const key = JSON.stringify([videoReady, searching, failed, plan && plan.photos.length, plan?.title, plan && plan.photos[0]?.id, plan?.switches]);
+    if (key === bandeauKey) return;
+    bandeauKey = key;
+    for (const marker of seamMarkers) marker.remove();
+    seamMarkers = [];
+    box.hidden = !videoReady;
+    box.className = "bandeau-video";
+    const strong = (text) => Object.assign(document.createElement("strong"), { textContent: text });
+    if (searching) {
+      box.replaceChildren(strong("Recherche des photos le long du tracé…"),
+        Object.assign(document.createElement("progress"), { id: "video-recherche", max: 1, ariaLabel: "Avancement de la recherche des photos" }),
+        Object.assign(document.createElement("p"), { className: "aide", textContent: "Relancée si le tracé change." }));
+    } else if (failed) {
+      box.classList.add("alerte");
+      box.replaceChildren(strong("Vidéo impossible"), failed);
+    } else if (plan && plan.photos.length < 2) {
+      box.classList.add("alerte");
+      box.replaceChildren(strong("Vidéo impossible"), "moins de deux photos sur ce parcours");
+    } else if (plan) {
+      const seams = videoSeams(plan.photos), sequences = new Set(plan.photos.map((p) => p.collection)).size;
+      const km = (Video.trajectory(plan.photos).length / 1000).toFixed(1).replace(".", ",");
+      const dates = [...new Set(plan.dates)].map((d) => d.split("-").reverse().join("/")).join(", ");
+      const facts = `${km} km · ${plan.photos.length} photos${dates ? ` · ${dates}` : ""}`;
+      if (!seams.length) {
+        box.classList.add("ok");
+        box.replaceChildren(strong("Une seule séquence"), facts);
+      } else {
+        box.classList.add("alerte");
+        const list = document.createElement("ul");
+        for (const seam of seams) {
+          const see = Object.assign(document.createElement("button"), { type: "button", textContent: "Voir", title: "Centrer la carte sur ce changement de séquence" });
+          see.addEventListener("click", () => map.easeTo({ center: seam.at, zoom: Math.max(map.getZoom(), 15) }));
+          const where = seam.pr ? `PR ${seam.pr.n} ${seam.pr.m < 0 ? "-" : "+"} ${Math.abs(seam.pr.m)}` : "Hors PR";
+          const li = document.createElement("li");
+          li.append(see, ` ${where} : ${seam.before} puis ${seam.after}`);
+          list.append(li);
+          seamMarkers.push(new maplibregl.Marker({ element: Object.assign(document.createElement("div"), { className: "repere-requete raccord", title: `Changement de séquence : ${seam.before} puis ${seam.after}` }), anchor: "bottom" }).setLngLat(seam.at).addTo(map));
+        }
+        box.replaceChildren(strong(`${sequences} séquences : ${seams.length} changement${seams.length > 1 ? "s" : ""}`), facts, list,
+          Object.assign(document.createElement("p"), { className: "aide", textContent: "Les photos peuvent différer (date, lumière, sens de prise de vue)." }));
+      }
+    }
+  }
+  /** Durée de la vidéo préparée, en secondes. */
+  const videoSeconds = () => {
+    const v = presOptions()?.vmax ?? Number($("#video-vitesse").value) / 3.6;  // Présentation : celle des lignes droites
+    return Video.duration(videoPhotos(), v * 3.6, $("#video-rampe").checked,
+      videoOption("#video-regard") ? videoPlan.junctions || [] : [], Number($("#regard-vitesse").value), poiOptions(), presOptions()) + tourStops();
+  };
+  const secondsText = (s) => (s < 60 ? `${Math.round(s)} s` : `${Math.floor(s / 60)} min ${String(Math.round(s % 60)).padStart(2, "0")} s`);
+
+  // Vidéo MP4 du parcours préparé : « Enregistrer » demande le fichier (la boîte ne s'ouvre que juste après un clic), puis
+  // calcule la vidéo image par image
+  $("#parcours-video").addEventListener("click", async () => {
+    if (!videoPlan) return;
     const save = await saveAs(`parcours ${videoPlan.title || "Panoramax"} ${$("#video-vitesse").value} km-h.mp4`
       .replace(/[\\/:*?"<>|→]/g, "-"), "video/mp4");
     if (!save) return;
@@ -4174,6 +4125,7 @@
         poiAim = { ...poiAim, ground: { target: alts[0] ?? null, photos: photos.map((_, k) => alts[k + 1] ?? null) } };
       }
       if (arpWanted()) await readDevers();
+      if (videoOption("#video-regard")) await readCrossings(videoPlan, false);
       // Serveur d'images bloqué (Video réessaie) : avertissement au bout de VIDEO_STALL s sans image calculée, Attendre
       // ou Annuler ; fenêtre refermée dès que le calcul reprend ; arrêt au bout de VIDEO_GIVE_UP s
       let last = Date.now(), warned = false;
@@ -4206,12 +4158,13 @@
         const text = `Calcul de la vidéo en cours : image ${pad(done, width)} / ${pad(total, width)} `
           + `(${pad(Math.round(100 * done / total), 3)} %)`;
         $("#video-info").textContent = text;
+        $("#video-barre").value = done / total;
         setStatus(text, "avancement");
         $("#statut").style.setProperty("--avancement", `${(100 * done / total).toFixed(1)}%`);
       }, videoRun.signal, { blur: videoOption("#video-flou"), draft: $("#video-brouillon").checked, stabilize: videoOption("#video-stabilisation"), h265: !$("#video-brouillon").checked && $("#video-codec").value === "h265", height: Number($("#video-definition").value), exposure: videoOption("#video-expo"),
         ramp: !presOptions() && $("#video-rampe").checked, presentation: presOptions(),
         counter: videoOption("#video-compteur"), speedometer: $("#video-compteur-vitesse").checked, lateral: videoOption("#video-acceleration"), arpSpeed: videoOption("#video-vmax-arp"),
-        junctions: videoOption("#video-regard") ? videoPlan.junctions : [],
+        junctions: videoOption("#video-regard") ? videoPlan.junctions || [] : [],
         rolls: videoOption("#video-tonneau") ? placed.roll.points.map((p) => p.lonlat) : [], rollTime: Number($("#tonneau-duree").value),
         planets: videoOption("#video-planete") ? placed.planet.points.map(placeOf) : [],
         planetAll: videoOption("#video-planete") && $("#planete-tout").checked, planetRoll: $("#planete-tonneau").checked,
@@ -4250,6 +4203,11 @@
   });
   $("#parcours-video-arret").addEventListener("click", () => videoRun?.abort());
   for (const id of ["#video-vitesse", "#video-photos", "#video-rampe", "#video-regard"]) $(id).addEventListener("change", updatePlayer);
+  $("#video-regard").addEventListener("change", async () => {  // carrefours lus en cochant : durée et aperçu les suivent
+    if (!$("#video-regard").checked || !videoPlan) return;
+    await readCrossings(videoPlan, false);
+    updatePlayer();
+  });
 
   /** PR de chaque photo (photo.pr : { route, n, m }, m en mètres depuis le PR n, ou null) pour le compteur de la
    * vidéo : sur la route du parcours (route), sinon sur celle du lieu (autre route après une bifurcation). Sections et PR
@@ -4300,7 +4258,7 @@
     try {
       if (poi?.speed) poiSlow = { ...Video.poiSpan(path, poi), speed: poi.speed / 3.6 };
     } catch { /* zone loin du parcours : signalée au calcul de la vidéo */ }
-    const looks = Video.lookedJunctions(path, videoOption("#video-regard") ? videoPlan.junctions : []);
+    const looks = Video.lookedJunctions(path, videoOption("#video-regard") ? videoPlan.junctions || [] : []);
     const go = (p) => Video.timeline(path, Number($("#video-vitesse").value) / 3.6, !pres && $("#video-rampe").checked, looks,
       Number($("#regard-vitesse").value) / 3.6, poiSlow, p);
     let xs;
@@ -4385,20 +4343,17 @@
     ? placed.tour.points.length * Number($("#tour-duree").value) : 0);
   /** Parcours préparé : photos retenues, écart moyen, durée de la vidéo et photos par seconde (au-delà d'une par
    * image, 30/s, des photos sont sautées), changement de séquence. */
-  function videoInfo() {
-    if (!videoPlan) return videoPreparing ? "recherche des photos du parcours…" : "";
+  function videoInfo(seconds) {
+    if (!videoPlan) return "";
     if (videoPlan.photos.length < 2) return "moins de deux photos sur ce parcours";
     const v = presOptions()?.vmax ?? Number($("#video-vitesse").value) / 3.6;  // Présentation : celle des lignes droites
     const path = Video.trajectory(videoPhotos());
     const n = path.list.length, perSecond = v * (n - 1) / Math.max(1, path.length);
     return `${n} photos (une tous les ${(path.length / Math.max(1, n - 1)).toFixed(0)} m) · `
-      + `${Math.round(Video.duration(videoPhotos(), v * 3.6, $("#video-rampe").checked,
-        videoOption("#video-regard") ? videoPlan.junctions : [], Number($("#regard-vitesse").value), poiOptions(), presOptions())
-        + tourStops())} s · `
+      + `${Math.round(seconds)} s · `
       + `${perSecond.toFixed(perSecond < 10 ? 1 : 0)} photos/s${$("#video-rampe").checked || presOptions() ? " au plus" : ""}`
       + (perSecond > Video.FPS ? " (photos sautées)" : "")
-      + (videoPlan.reversed ? ` · ${videoPlan.reversed} photos lues à rebours (prises dans l'autre sens, pas d'autres ici)` : "")
-      + (videoPlan.switches ? ` ⚠ ${videoWarning()}` : "");
+      + (videoPlan.reversed ? ` · ${videoPlan.reversed} photos lues à rebours (prises dans l'autre sens, pas d'autres ici)` : "");
   }
 
   function updatePlayer() {
@@ -4420,12 +4375,25 @@
       label.textContent = `${speed}x`;
       label.classList.toggle("arret", !on);
     }
-    $("#parcours-export").disabled = on || tourViews.length < 2 || !webpOk;
     const plan = videoPlan?.photos || [];
     $("#parcours-video").disabled = !videoOk || !videoReady || videoPreparing || Boolean(videoRun)
       || Boolean(videoPlan && plan.length < 2);
-    $("#parcours-video").textContent = videoPlan ? "🎬 Enregistrer la vidéo" : "🎬 Préparer la vidéo";
+    const seconds = plan.length >= 2 && !videoRun ? videoSeconds() : 0;
+    $("#parcours-video").textContent = plan.length >= 2 ? `🎬 Enregistrer la vidéo · ${secondsText(seconds)}`
+      : videoPlan ? "🎬 Pas assez de photos" : planError ? "🎬 Vidéo impossible" : videoReady ? "🎬 Recherche des photos…" : "🎬 Tracez le parcours";
+    $("#parcours-video").hidden = Boolean(videoRun);
     $("#parcours-video-arret").hidden = !videoRun;
+    $("#video-barre").hidden = !videoRun;
+    if (!videoRun) $("#video-barre").value = 0;
+    // Accueil seulement sans parcours ; bouton principal tant que rien n'est tracé
+    $("#video-accueil").hidden = videoReady || tracing;
+    $("#parcours-tracer").classList.toggle("principal", !videoReady && !tracing);
+    $("#parcours-tracer").disabled = Boolean(videoRun);
+    $("#parcours-tracer").setAttribute("aria-pressed", String(tracing));
+    $("#parcours-tracer").textContent = tracing ? "📍 Tracé en cours : Échap pour terminer" : "📍 Tracer sur la carte";
+    $("#parcours-ligne-etapes").hidden = !videoReady;
+    showVideoPlan();
+    scheduleVideoPlan();
     $("#interet-cible").disabled = !poiTargets.size || Boolean(videoRun);
     // Parcours gardé rouvert : grisé tant qu'il n'est pas modifié, puis il le remplace
     const changed = routeChanged();
@@ -4446,12 +4414,12 @@
     travelPane.querySelector('.sur-carte[data-cote="planet"]').disabled = $("#planete-tout").checked;  // rien à tracer
     $("#planete-tonneau").disabled = Boolean(videoRun) || !Number($("#planete-transition").value);
     $("#video-mode").disabled = Boolean(videoRun);
-    // Présentation : vitesse et rampe remplacées par l'allure ; ses réglettes et arrêts figés pendant le calcul
+    // Présentation et Brouillon : vitesse et rampe remplacées par l'allure ; Revue : l'inverse ; tout figé pendant le calcul
     if (presOptions()) $("#video-vitesse").disabled = $("#video-rampe").disabled = true;
     for (const id of ["#pres-vmax", "#pres-virage", "#pres-vmin", "#pres-transition", "#arret-duree", "#video-arret", "#ralenti-vitesse", "#video-ralenti"]) {
-      $(id).disabled = Boolean(videoRun);
+      $(id).disabled = Boolean(videoRun) || !presOptions();
     }
-    for (const which of ["stop", "slow"]) travelPane.querySelector(`.sur-carte[data-cote="${which}"]`).disabled = Boolean(videoRun);
+    for (const which of ["stop", "slow"]) travelPane.querySelector(`.sur-carte[data-cote="${which}"]`).disabled = Boolean(videoRun) || !presOptions();
     if ($("#video-brouillon").checked) {
       for (const id of DRAFT_OFF) $(id).disabled = true;
       for (const which of ["stop", "roll", "tour", "planet"]) travelPane.querySelector(`.sur-carte[data-cote="${which}"]`).disabled = true;
@@ -4466,15 +4434,13 @@
     for (const id of ["#video-titre-texte", "#video-titre-sous", "#video-titre-rappel"]) {
       $(id).disabled = Boolean(videoRun) || !$("#video-titre").checked;  // sans titre, rien à régler
     }
-    if (!videoRun) $("#video-info").textContent = videoOk ? videoInfo() : "ce navigateur n'encode pas la vidéo";
+    if (!videoRun) $("#video-info").textContent = videoOk ? videoInfo(seconds) : "ce navigateur n'encode pas la vidéo";
     // Écart des photos de chaque choix, d'après l'écart médian des photos du parcours préparé
     const gaps = plan.slice(1).map((p, i) => metresBetween(plan[i].coords, p.coords)).sort((a, b) => a - b);
     const gap = gaps[gaps.length >> 1];
     for (const option of $("#video-photos").options) {
       option.textContent = `Photos 1/${option.value}` + (gap ? ` · une tous les ${Math.round(gap * option.value)} m` : "");
     }
-    $("#parcours-vues").textContent = !webpOk ? "export impossible : ce navigateur n'encode pas le WebP"
-      : tourViews.length ? `${tourTitle} : ${tourViews.length} vues${on && tour ? " (lecture en cours)" : ""}` : "aucun parcours";
   }
 
   function attachPlayer() {
@@ -4502,17 +4468,8 @@
       // la visionneuse (comme sa lecture 1x)
       if (fast && event.detail?.picId === fast.id) {
         const run = fast;
-        if (tour && !tourStep(run)) return;
-        run.timer = setTimeout(async () => {
-          // Parcours : tuiles HD de la vue chargées avant la vue gardée pour l'export et la photo suivante
-          // (la visionneuse ne les coupe que pendant sa propre lecture rapide, pas pendant celle-ci)
-          if (tour) await tilesLoaded(run);
-          if (run !== fast) return;
-          if (tour && tourViews.length < Hyperlapse.MAX_FRAMES && webpOk) {
-            const view = await Hyperlapse.grab(psv).catch(() => null);
-            if (view) tourViews.push(view);
-          }
-          fastStep(run);
+        run.timer = setTimeout(() => {
+          if (run === fast) fastStep(run);
         }, psv.getTransitionDuration?.() ?? 250);
       }
       updatePlayer();
@@ -6346,6 +6303,6 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
   }
 
   // Pour les essais depuis la console : window.mesures.app.click(yaw, pitch)
-  window.mesures = { refresh, get app() { return app; }, get psv() { return psv; }, get tourViews() { return tourViews; }, get videoPlan() { return videoPlan; }, get touring() { return Boolean(tour); }, map, openPhoto, buildFiche, paginateFiche, photoAtOffset, importOverlay, thumbnail,
+  window.mesures = { refresh, get app() { return app; }, get psv() { return psv; }, get videoPlan() { return videoPlan; }, get touring() { return Boolean(tour); }, map, openPhoto, buildFiche, paginateFiche, photoAtOffset, importOverlay, thumbnail,
     overlayFile: (handle) => { overlay.fichier = handle; } };  // fichier de la couche remplacé (essais)
 })();
