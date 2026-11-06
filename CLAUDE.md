@@ -24,6 +24,10 @@ validations : `docs/MESURES.md` (repris du plugin) et `docs/CALCULS.md`. Auteur 
   (`google-chrome`, plus de Flatpak), profil temporaire, lancé par `setsid` : à la fin,
   n'arrêter que ce Chrome-là (son groupe de processus, ou les processus portant son profil),
   jamais tous les Chrome par nom (celui de l'utilisateur serait tué).
+  Le lancer dans son propre scope limité en mémoire (`systemd-run --user --scope --quiet
+  --unit=essai-x -p MemoryMax=6G -p MemorySwapMax=1G setsid google-chrome …`, arrêt par
+  `systemctl --user stop essai-x.scope`) : lancé dans le service de la session, un Chrome tué
+  par manque de mémoire a fait tomber la session (06/11/2026).
 - Essais rapides d'abord : un calcul de `py/web_app.py` se vérifie par `tests/test_calculs.py`
   (`python3 -m unittest discover -s tests`, sans navigateur ni réseau, quelques secondes avec
   `tests/coeur/`) ; y
