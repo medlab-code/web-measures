@@ -59,3 +59,5 @@ validations : `docs/MESURES.md` (repris du plugin) et `docs/CALCULS.md`. Auteur 
   dans le même commit le numéro affiché sous le titre (`index.html`, mention « Version test
   X.Y.Z ») et la rubrique « Versions » du `README.md`. Le site Cloudflare
   (https://mesures-panoramax-web.medlab-code.workers.dev/) se met à jour à chaque push sur `main`.
+  Celui de la branche `dev` (https://web-measures-dev.medlab-code.workers.dev/, second Worker) se met à
+  jour à chaque push sur `dev`.
