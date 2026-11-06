@@ -126,10 +126,10 @@ aussi, dans la ligne d'état en orange et sous les listes, si le
 parcours passe d'une séquence à l'autre (dates des séquences ; les photos peuvent différer) ; « 🎬 Enregistrer la
 vidéo » demande le fichier puis la calcule (deux clics : le navigateur n'ouvre la boîte d'enregistrement que juste
 après un clic). Changer le départ ou l'arrivée oblige à la préparer de nouveau. La vidéo est calculée image par
-image, hors de la visionneuse : 1920 × 1080 ou 1280 × 720 au choix (720p si le poste n'encode pas le 1080p), 30 images par seconde, H.264 à 80 Mbit/s
-en 1080p, 40 en 720p (environ 10 Mo par seconde de vidéo en 1080p, moins si le poste n'atteint pas ce débit ; à 30 Mbit/s, image en blocs sous Windows). Firefox sous Linux, en français, annonce le
+image, hors de la visionneuse : 1080p, 720p ou 480p au choix (voir « Format »), 30 images par seconde, H.264 à 80 Mbit/s
+en 1080p, 40 en 720p, 20 en 480p (environ 10 Mo par seconde de vidéo en 1080p, moins si le poste n'atteint pas ce débit ; à 30 Mbit/s, image en blocs sous Windows). Firefox sous Linux, en français, annonce le
 H.264 sans réussir à l'encoder (bug Mozilla 2085549 : niveau « 3,1 » écrit avec une virgule ; lancé avec
-`LC_NUMERIC=C`, il l'encode) : VP9 à 20 Mbit/s, de qualité voisine, calcul environ quatre fois plus long, fichier lu
+`LC_NUMERIC=C`, il l'encode) : VP9, à 20 Mbit/s en 1080p, pris alors d'office, de qualité voisine, calcul environ quatre fois plus long, fichier lu
 par Chrome, Firefox et VLC, peut-être pas par PowerPoint, une seconde d'arrêt au début et à la fin. Deux listes à côté du bouton : la vitesse
 simulée (de 30 à 720 km/h, 90 par défaut, puis Mach 1 et Mach 2 : 1 235 et 2 470 km/h, vitesse du son au niveau de
 la mer ; des photos y sont sautées) et la part des photos de la séquence prises (1/1, 1/2, 1/4, 1/8 ;
@@ -253,8 +253,8 @@ corrigé de la pente de la route, champ de 80° (le toit du véhicule n'y entre 
 caméra avance réellement dans une maquette simple de chacune (chaussée plane sur 4 m de part et d'autre
 de l'axe, reste du décor sur une sphère de 60 m) : la chaussée défile sans à-coup, puis la photo suivante
 prend le relais en fondu. Limites : un objet proche et haut (arbre, poteau) se dédouble pendant le
-fondu, la ligne des collines aussi un peu (photos qui ne penchent pas pareil). « Format » : H.265 (grisé si le poste n'a pas d'encodeur : navigateurs à base de Chromium, encodeur matériel nécessaire ; 30 Mbit/s en 1080p, fichier pas lu par
-tous les lecteurs ; H.264 si l'encodeur le refuse, dit à la fin du calcul) et 1080p ou 720p (grisé en brouillon). « Brouillon (rapide) » (décochée) : image SD
+fondu, la ligne des collines aussi un peu (photos qui ne penchent pas pareil). « Format » : grille VP9, H.264, H.265 × 1080p, 720p, 480p, chaque choix testé sur le poste (une image encodée) à la première ouverture de l'onglet : vert, encodeur matériel ; jaune, encodeur logiciel, plus lent ; grisé, pas disponible (H.265 : 30 Mbit/s en 1080p, fichier pas lu par
+tous les lecteurs, pas d'encodeur logiciel). Si l'encodeur refuse finalement le format choisi, le premier autre format qui encode est pris, dit à la fin du calcul. Toute la grille est grisée en brouillon. Le VP8 n'est pas proposé : il n'entre pas dans un fichier MP4. « Brouillon (rapide) » (décochée) : image SD
 de chaque photo au lieu de ses tuiles HD, vidéo en 960 × 540, à 7,5 Mbit/s, pour vérifier un parcours et ses effets avant le calcul final ;
 image floue (panneaux et marquage lointain illisibles) ; seuls restent le titre, le compteur de vitesse et les variations de vitesse automatiques (allure, ralentissements, rampe), le reste est grisé et ignoré.
 « Stabilisation » (cochée, sauf en brouillon) : les photos ne donnent ni tangage ni roulis ; le décalage entre deux photos voisines est mesuré sur leur image SD et les petits
