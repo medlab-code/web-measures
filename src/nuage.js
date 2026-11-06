@@ -20,6 +20,8 @@ const Nuage = (() => {
   const VERGE = 1.0;  // m : surface non revêtue (herbe, gravillons) d'au moins cette largeur : l'enrobé s'arrête là
   const GRASS = 3.5;  // herbe : bande non revêtue (VERGE m au moins) en moyenne GRASS fois plus claire que l'enrobé (le laser,
   // en proche infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois)
+  const LINE_CONTRAST = 2;  // ligne blanche : au moins LINE_CONTRAST fois ses cases voisines (D903bis 1640bc3f : surface du séparateur à 3,0 et 2,9 fois l'enrobé, pas une ligne)
+  const LINE_SECTIONS = 2, LINE_MATCH = 0.5;  // ligne à tirets vue ailleurs qu'au travers de la photo : sur 2 travers au moins, à 0,5 m près
   const AXIS = 1.2;  // m : ligne blanche aussi près de l'axe d'une chaussée : ligne entre voies, pas de rive
   const PAVED_RISE = 2.2;  // abords de l'enrobé : VERGE m au moins, chaque case à PAVED_RISE fois l'enrobé ou plus (essai du 05/11/2026, 13 photos)
   // m : l'enrobé peut finir loin du bord du calcul (bande d'arrêt d'urgence, rupture de pente sur la chaussée : D70 9b97c187, bord à 2 m, enrobé à 5,2 m)
@@ -144,6 +146,41 @@ const Nuage = (() => {
 
   const median = (a) => { if (!a.length) return null; const s = [...a].sort((p, q) => p - q); return s[s.length >> 1]; };
 
+  /** Bandes claires d'un travers (cases { x, i } triées, ref : intensité de l'enrobé) : [k, w, étroite], premier et dernier
+   * rang de chaque bande à PAINT fois l'enrobé ou plus ; étroite : pas plus large que PAINT_WIDTH et nettement plus claire
+   * que ses cases voisines (LINE_CONTRAST), donc de la peinture. */
+  function brightRuns(cells, ref) {
+    const runs = [];
+    for (let k = 0; k < cells.length; k++) {
+      if (cells[k].i < PAINT * ref) continue;
+      let w = k;
+      while (w + 1 < cells.length && cells[w + 1].i >= PAINT * ref && cells[w + 1].x - cells[w].x <= BIN + 1e-6) w++;
+      const peak = Math.max(...cells.slice(k, w + 1).map((c) => c.i));
+      const next = (j, c) => cells[j] && Math.abs(cells[j].x - c.x) <= BIN + 1e-6 ? cells[j].i : 0;  // case vide : pas une voisine
+      runs.push([k, w, cells[w].x - cells[k].x + BIN <= PAINT_WIDTH + 1e-6
+        && peak >= LINE_CONTRAST * Math.max(next(k - 1, cells[k]), next(w + 1, cells[w]))]);
+      k = w;
+    }
+    return runs;
+  }
+
+  /** Lignes à tirets : le travers de la photo peut tomber entre deux tirets (f478a847 : 4 m de vide, ±STRIP n'en voit
+   * rien). sections : [at, [x des lignes du travers]] ; position, lue au travers le plus proche de la photo, des lignes vues
+   * sur LINE_SECTIONS travers au moins, à LINE_MATCH m près d'un travers à l'autre. */
+  function dashedLines(sections) {
+    const seen = sections.flatMap(([at, xs]) => xs.map((x) => ({ at, x }))).sort((p, q) => p.x - q.x), out = [];
+    for (let k = 0; k < seen.length; k++) {
+      let w = k;
+      while (w + 1 < seen.length && seen[w + 1].x - seen[w].x <= LINE_MATCH) w++;
+      const group = seen.slice(k, w + 1);
+      if (new Set(group.map((g) => g.at)).size >= LINE_SECTIONS) {
+        out.push(group.reduce((p, q) => (Math.abs(q.at) < Math.abs(p.at) ? q : p)).x);
+      }
+      k = w;
+    }
+    return out;
+  }
+
   /** Bord de chaussée d'un côté (sign : -1 à gauche, 1 à droite), de from à limit m de l'origine : fin de l'enrobé
    * (première bande non revêtue de VERGE m au moins), ligne de rive (ligne blanche au début de cette bande, sinon la
    * dernière avant elle, hors des lignes entre voies : à moins de AXIS m d'un axe, axes en m signés) ; { x, comment }
@@ -246,15 +283,10 @@ const Nuage = (() => {
     // Nature du sol : enrobé, peinture (bande claire étroite), autre (herbe, gravillons, béton)
     for (const c of cells) c.kind = c.i < ROAD * ref ? "enrobé" : "autre";
     const lines = [];  // milieux des lignes blanches
-    for (let k = 0; k < cells.length; k++) {
-      if (cells[k].i < PAINT * ref) continue;
-      let w = k;
-      while (w + 1 < cells.length && cells[w + 1].i >= PAINT * ref && cells[w + 1].x - cells[w].x <= BIN + 1e-6) w++;
-      if (cells[w].x - cells[k].x + BIN <= PAINT_WIDTH + 1e-6) {  // étroite : peinture ; large : herbe, gravillons
-        for (let j = k; j <= w; j++) cells[j].kind = "peinture";
-        lines.push((cells[k].x + cells[w].x) / 2);
-      }
-      k = w;
+    for (const [k, w, narrow] of brightRuns(cells, ref)) {
+      if (!narrow) continue;  // large : herbe, gravillons
+      for (let j = k; j <= w; j++) cells[j].kind = "peinture";
+      lines.push((cells[k].x + cells[w].x) / 2);
     }
     // Herbe au sol (l'IGN la classe « sol ») : bandes « autre » larges et très claires
     const grass = [];
@@ -306,17 +338,30 @@ const Nuage = (() => {
         near.get(k).push(i);
       }
       const rows = new Map([...near].map(([k, v]) => [k, median(v)]));
-      return { rows, ref: median([...rows].filter(([k]) => Math.abs(k * BIN) <= (profile.origine === "caméra" ? 1.5 : 3)).map(([, i]) => i)) };
+      return { at, rows, ref: median([...rows].filter(([k]) => Math.abs(k * BIN) <= (profile.origine === "caméra" ? 1.5 : 3)).map(([, i]) => i)) };
     }).filter((s) => s.ref);
     // Bords de chaussée : jusqu'au bord du calcul (plateforme) + 1 m ; du côté du séparateur, au-delà de lui. Bord de
-    // l'enrobé si au moins 3 travers le trouvent, sinon ligne de rive ou fin de l'enrobé du seul travers de la photo
+    // l'enrobé si au moins 3 travers le trouvent, sinon ligne de rive (tirets vus sur les travers voisins compris) ou fin de l'enrobé
     const found = {};
+    const dashes = dashedLines(sections.map((s) => {
+      const row = [...s.rows].sort((a, b) => a[0] - b[0]).map(([k, i]) => ({ x: k * BIN, i }));
+      return [s.at, brightRuns(row, s.ref).filter(([, , narrow]) => narrow).map(([k, w]) => (row[k].x + row[w].x) / 2)];
+    }));
     for (const [name, sign] of [["gauche", -1], ["droit", 1]]) {
       const e = main.find((m) => m.cote === name);
       if (!e) continue;
       const from = sign === sepSign && out.separateur ? sepEnd : 1.0;
       found[name] = sections.map((s) => pavedEdge(s.rows, sign, from, Math.max(PAVED_REACH, e.bord + PAVED_BEYOND), s.ref));
       const xs = found[name].filter((x) => x !== null);
+      // Tirets de ce côté, sur la chaussée seulement (hors séparateur) : l'herbe est mouchetée de cases claires
+      const reach = xs.length >= 3 ? Math.abs(median(xs)) : e.bord + 1;
+      for (const x of dashes) {
+        if (sign * x < 0 || sign * x > reach || lines.some((l) => Math.abs(l - x) <= LINE_MATCH)) continue;
+        if (out.separateur && x >= out.separateur[0] && x <= out.separateur[1]) continue;
+        lines.push(x);
+        const cell = cells.find((c) => Math.abs(c.x - x) <= BIN / 2);
+        if (cell?.kind === "enrobé") cell.kind = "peinture";
+      }
       out.bords[name] = xs.length >= 3 ? { x: median(xs), comment: "enrobé" }
         : edge(cells, sign, from, e.bord + 1, [profile.axe ?? null, e.autre_axe ? sign * e.autre_axe : null]);
     }
@@ -427,5 +472,5 @@ const Nuage = (() => {
     return { height: found.height, below: found.below };
   }
 
-  return { analyse, toL93, pavedEdge, bridgeHeight, bridgeFall };
+  return { analyse, toL93, pavedEdge, brightRuns, dashedLines, bridgeHeight, bridgeFall };
 })();
