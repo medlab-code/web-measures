@@ -4203,7 +4203,7 @@
       // sinon (Firefox) assemblée en mémoire puis téléchargée
       if (save.handle) stream = await save.handle.createWritable();
       Video.ignoredPlaces();  // liste remise à zéro (aperçus et durées déjà calculés)
-      const blob = await Video.mp4(videoPhotos(), Number($("#video-vitesse").value), (done, total) => {
+      const blob = await Video.mp4(videoPhotos(), Number($("#video-vitesse").value), (done, total, step) => {
         last = Date.now();
         if (warned) {
           warned = false;
@@ -4212,8 +4212,9 @@
         // Largeur fixe (chiffres de même largeur, espaces de la largeur d'un chiffre) : le texte ne saute pas
         const pad = (n, width) => String(n).padStart(width, "\u2007");
         const width = Math.max(5, String(total).length);  // place pour une longue vidéo (99 999 images, 55 min)
-        const text = `Calcul de la vidéo en cours : image ${pad(done, width)} / ${pad(total, width)} `
-          + `(${pad(Math.round(100 * done / total), 3)} %)`;
+        // step : préparation avant la première image (Stabilisation, Exposition)
+        const text = step ? `${step} avant le calcul de la vidéo : ${pad(Math.round(100 * done / total), 3)} %`
+          : `Calcul de la vidéo en cours : image ${pad(done, width)} / ${pad(total, width)} (${pad(Math.round(100 * done / total), 3)} %)`;
         $("#video-info").textContent = text;
         $("#video-barre").value = done / total;
         setStatus(text, "avancement");

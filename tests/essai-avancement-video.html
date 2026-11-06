@@ -1,0 +1,32 @@
+<!doctype html><meta charset="utf-8"><title>Essai de l'avancement de la stabilisation</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Avancement de la stabilisation, sur des images synthétiques, sans réseau : monte de 0 au total sans reculer, y compris
+     si une photo n'a pas d'image SD ; navigateur rendu la main pendant la comparaison. Lancer comme tests/navigateur.html. -->
+<script src="../src/video.js"></script>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+(async () => {
+  const canvas = new OffscreenCanvas(2048, 1024), c = canvas.getContext("2d");
+  for (let k = 0; k < 4000; k++) { c.fillStyle = `hsl(${k * 37 % 360} 60% ${20 + k % 60}%)`; c.fillRect(k * 7 % 2048, k * 13 % 1024, 40, 30); }
+  const url = URL.createObjectURL(await canvas.convertToBlob({ type: "image/jpeg" }));
+  const list = Array.from({ length: 60 }, (_, i) => ({ id: String(i), collection: "a", sd: i === 5 ? null : url }));
+  const seen = [];
+  let timers = 0, stop = false;
+  (function tick() { if (!stop) { timers++; setTimeout(tick); } })();
+  const t0 = performance.now();
+  const out = await Video.stabilization({ list, s: list.map((_, i) => i * 5) }, () => 0, null, (done, total) => seen.push([done, total]));
+  stop = true;
+  const total = seen[0][1], rising = seen.every(([d], k) => !k || d >= seen[k - 1][0]);
+  let failures = 0;
+  const expect = async (what, ok, detail = "") => { if (!ok) failures++; await log(`${ok ? "" : "ÉCHEC "}${what}${detail ? " : " + detail : ""}`); };
+  await expect("part de 0", seen[0][0] === 0);
+  await expect("ne recule jamais", rising);
+  await expect("va jusqu'à la fin", seen.at(-1)[0] >= total - 1, `${seen.at(-1)[0]} / ${total}`);
+  await expect("plusieurs étapes visibles", new Set(seen.map(([d]) => d)).size > 60, `${new Set(seen.map(([d]) => d)).size} valeurs`);
+  await expect("résultat complet", out.pitch.length === 60 && out.roll.length === 60);
+  await log(`durée ${Math.round(performance.now() - t0)} ms, la main rendue ${timers} fois`);
+  await log(`contrôles : ${5 - failures} réussis`);
+  await log(failures ? "ERREUR" : "FIN");
+})().catch((e) => log("ERREUR " + e.message));
+</script>

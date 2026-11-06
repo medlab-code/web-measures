@@ -902,14 +902,14 @@ const Video = (() => {
    * nouvelle séquence est ramenée sur la précédente (EXPO_SIDE photos de part et d'autre, médiane), puis revient peu à
    * peu à sa propre exposition sur EXPO_RAMP m.
    */
-  async function exposures(path, signal, isolatedToo = true) {
+  async function exposures(path, signal, isolatedToo = true, wait = () => {}) {
     const { list, s } = path;
     const gains = list.map(() => [1, 1, 1]);
     const values = list.map(() => null);
     // Photos mesurées : toutes pour les photos isolées, sinon celles de part et d'autre des changements de séquence
     const wanted = isolatedToo ? list.map((_, i) => i) : list.map((_, i) => i).filter((i) => list.some((p, k) => k
       && p.collection !== list[k - 1].collection && i >= k - EXPO_SIDE && i < k + EXPO_SIDE));
-    let next = 0;
+    let next = 0, measured = 0;
     await Promise.all(Array.from({ length: EXPO_PARALLEL }, async () => {
       while (next < wanted.length) {
         const i = wanted[next++];
@@ -919,6 +919,7 @@ const Video = (() => {
           if (signal?.aborted) throw error;
           console.warn("Vidéo : exposition non mesurée", list[i].id, error);
         }
+        wait(++measured, wanted.length);
       }
     }));
     keepExposures();
@@ -1101,15 +1102,19 @@ const Video = (() => {
   /** Correction de la vue, en degrés, pour chaque photo du parcours : { pitch, roll }. Tangage : décalage vertical devant la
    * vue ; roulis : décalages verticaux opposés sur les côtés (STAB_SIDE). Décalages cumulés d'une photo à la suivante, moins
    * leur moyenne sur ± STAB_SPAN m : les petits sauts seulement, pas la pente ni les virages. Pas de
-   * mesure entre deux séquences ; photo sans mesure sûre : pas de saut compté. wait() : pour dire que le calcul avance. */
+   * mesure entre deux séquences ; photo sans mesure sûre : pas de saut compté. wait(fait, total) : avancement, lecture des
+   * photos puis comparaison. */
   async function stabilization(path, yawOf, signal, wait = () => {}) {
-    const { list, s } = path, crops = list.map(() => null);
-    let next = 0;
+    const { list, s } = path, crops = list.map(() => null), total = 2 * list.length;
+    let next = 0, read = 0;
+    wait(0, total);
     await Promise.all(Array.from({ length: EXPO_PARALLEL }, async () => {
       while (next < list.length) {
         const i = next++;
-        wait();
-        if (!list[i].sd) continue;
+        if (!list[i].sd) {
+          wait(++read, total);
+          continue;
+        }
         try {
           const bitmap = await fetchImage(list[i].sd, signal);
           // Pas un panorama complet (rapport 2 : 1) : pas de mesure
@@ -1119,11 +1124,18 @@ const Video = (() => {
           if (signal?.aborted) throw error;
           console.warn("Vidéo : stabilisation sans mesure", list[i].id, error);
         }
+        wait(++read, total);
       }
     }));
     const pitch = [0], roll = [0];
+    let shown = performance.now();
     for (let i = 1; i < list.length; i++) {
-      wait();
+      wait(list.length + i, total);
+      if (performance.now() - shown > 100) {  // la main au navigateur : avancement affiché, page qui répond
+        if (signal?.aborted) throw new DOMException("Vidéo arrêtée", "AbortError");
+        await new Promise((resolve) => setTimeout(resolve));
+        shown = performance.now();
+      }
       const same = list[i].collection === list[i - 1].collection && crops[i] && crops[i - 1];
       const [front, left, right] = [0, 1, 2].map((k) => same && imageOffset(crops[i - 1][k], crops[i][k]));
       const perPixel = same ? STAB_FIELD[0] / (crops[i][0].w - 2 * STAB_SEARCH) : 0;
@@ -1487,7 +1499,7 @@ const Video = (() => {
     const yawAt = (i, x) => wrap(path.axis(x) - headings[i]);
     const tilts = path.list.map(() => 0);  // roulis de chaque photo à retirer (radians)
     if (stabilize) {
-      const steady = await stabilization(path, (i) => yawAt(i, path.s[i]), signal, () => progress(0, path.list.length));
+      const steady = await stabilization(path, (i) => yawAt(i, path.s[i]), signal, (done, all) => progress(done, all, "Stabilisation"));
       // Sens vérifié sur une vidéo : photo dont le décor est plus bas (dy > 0) : tangage de la vue diminué
       path.list.forEach((p, i) => {
         p.pitch -= steady.pitch[i] * toRad;
@@ -1495,7 +1507,7 @@ const Video = (() => {
       });
     }
     // Couleurs accordées à chaque changement de séquence (raccord discret) ; photos isolées seulement avec l'option
-    const gains = await exposures(path, signal, exposure);
+    const gains = await exposures(path, signal, exposure, (done, all) => progress(done, all, "Exposition"));
     const span = poi ? poiSpan(path, poi) : null;
     // Tours d'horizon : images ajoutées pendant l'arrêt, avant les autres effets (calés sur les images)
     const turns = tours(path, timelineOf(path), tourPlaces, tourTime, tourStop);
@@ -1664,6 +1676,6 @@ const Video = (() => {
     }
   }
 
-  return { get times() { return lastTimes; }, supported, encoderChoices, encoderConfig, imageOffset, record, mp4, trajectory, timeline, ignoredPlaces, presentationSpeeds, steadyHeadings, PRES, PRES_HOLD, PRES_START, PRES_SIGHT, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
+  return { get times() { return lastTimes; }, supported, encoderChoices, encoderConfig, stabilization, imageOffset, record, mp4, trajectory, timeline, ignoredPlaces, presentationSpeeds, steadyHeadings, PRES, PRES_HOLD, PRES_START, PRES_SIGHT, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
     poiSpan, poiViews, planets, tours, speeds, laterals, insideDevers, lateralColor, arpSpeeds, steady, drawOverlay, fetchImage, FPS, HOLD };
 })();
