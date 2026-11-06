@@ -8,6 +8,9 @@
 (() => {
   const $ = (selector) => document.querySelector(selector);
 
+  // Site de la branche dev (second Worker) : même code que main, seul le nom d'hôte les distingue
+  if (location.hostname.startsWith("web-measures-dev.")) $(".essai").append(" – branche expérimentale");
+
   // Services qui ne répondent pas (panne, réseau, plus de SILENT_AFTER ms sans réponse, erreur
   // HTTP 5xx) : signalés discrètement sous les voyants, jusqu'à leur réponse suivante. Toutes les
   // requêtes de la page passent par fetch, celles du calcul Python (pyfetch) comprises ; les refus
