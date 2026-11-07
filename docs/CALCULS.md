@@ -600,8 +600,11 @@ trajectoire entre les photos voisines, à défaut cap de la photo), sur ±8 m en
 pèse le moins. L'incertitude affichée vaut au moins 5 % de la longueur (écart à l'orthophoto, plus bas).
 
 Les photos précédente et suivante complètent l'image : chaque point prend la photo où l'erreur due à
-l'inclinaison est la plus faible, hors de l'ellipse du véhicule (relevée sur l'imajbox du CD21) ; une
-voisine sans inclinaison ne sert donc qu'à combler. Chacune a sa position, sa hauteur et son
+l'inclinaison est la plus faible, hors de l'ellipse du véhicule (relevée sur l'imajbox du CD21 :
+±5,8 m en long, ±2,9 m en travers, pour couvrir aussi les reflets du capot et du coffre) ; une
+voisine sans inclinaison ne sert donc qu'à combler. Les voisines étant à 5 m environ, le sol juste
+sous la caméra est dans l'ellipse de toutes les photos : il vient de celle où il est le plus près du
+bord de l'ellipse. Chacune a sa position, sa hauteur et son
 inclinaison, posées sur le même terrain. Une distance entre deux points de photos différentes
 additionne l'erreur de chaque point et leur position relative (5 cm en RTK vérifié, sinon 30 cm).
 

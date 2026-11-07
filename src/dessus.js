@@ -14,7 +14,7 @@ const Dessus = (() => {
   const STEP = 1;  // m : maille du terrain (LiDAR HD à 50 cm, toit de la chaussée compris)
   const SIZE = 1024;  // px : côté de l'image, soit 3 cm par pixel
   const CHUNK = 150;  // points par requête d'altitude (longueur de l'adresse)
-  const CAR = { ahead: 0, long: 4.5, wide: 2.5 };  // m : véhicule étalé sur le sol, centre en avant de la caméra (voir hidden)
+  const CAR = { ahead: 0, long: 5.8, wide: 2.9 };  // m : véhicule étalé sur le sol, reflets du capot et du coffre compris (voir hidden)
   const NEAR_LIMIT = 6144;  // px : largeur des photos voisines, qui ne servent que près de leur caméra (mémoire graphique)
   const BEST = { along: 2, wide: 8 };  // m : zone idéale d'une largeur, en face de la caméra : le tangage y pèse peu
   const MEASURED = 0.05;  // part de la longueur : incertitude affichée au moins égale à l'écart à l'orthophoto (voir docs/CALCULS.md)
@@ -62,30 +62,37 @@ const Dessus = (() => {
     return Math.hypot(east, north, scale, ground);
   }
 
-  /** Le point (est, nord, m depuis la caméra) est-il caché par le véhicule ? Ellipse dans l'axe de la photo, le toit et le
-   * capot s'étalant sur le sol. shortcut: forme relevée sur l'imajbox du CD21, à adapter aux autres véhicules. */
-  function hidden(east, north, pose) {
+  /** Place du point (est, nord, m depuis la caméra) dans l'ellipse du véhicule, dans l'axe de la photo (le toit, le capot et
+   * leurs reflets s'étalant sur le sol) : sous 1, il est caché. shortcut: forme relevée sur l'imajbox du CD21, à adapter
+   * aux autres véhicules. */
+  function inCar(east, north, pose) {
     const h = pose.heading * toRad, along = east * Math.sin(h) + north * Math.cos(h), across = east * Math.cos(h) - north * Math.sin(h);
-    return ((along - CAR.ahead) / CAR.long) ** 2 + (across / CAR.wide) ** 2 < 1;
+    return ((along - CAR.ahead) / CAR.long) ** 2 + (across / CAR.wide) ** 2;
   }
+  const hidden = (east, north, pose) => inCar(east, north, pose) < 1;
 
   /** Erreur attendue (m) d'un point au sol à la distance d, due à l'inclinaison : c'est la photo où elle est la plus faible
    * qui fournit le point (une voisine sans inclinaison ne sert ainsi qu'à combler). Même calcul dans le dessin (FRAGMENT). */
   const tiltError = (d, pose) => (pose.height * pose.height + d * d) / pose.height * pose.sigma * toRad;
 
   /** Couche qui fournit le point (est, nord, m depuis la caméra principale), voir tiltError, parmi celles où il n'est pas
-   * caché ; null si aucune. layers[].at : position de sa caméra. */
+   * caché ; caché partout, celle où il est le plus près du bord du véhicule (comme render) ; null hors de la vue.
+   * layers[].at : position de sa caméra. */
   function sourceOf(point, layers) {
-    let best = null, bestDist = Infinity;
+    let best = null, bestDist = Infinity, least = null, leastIn = -1;
     if (Math.hypot(...point) > REACH) return null;
     for (const layer of layers) {
-      const e = point[0] - layer.at[0], n = point[1] - layer.at[1], d = Math.hypot(e, n);
-      if (d <= REACH && tiltError(d, layer.pose) < bestDist && !(layers.length > 1 && hidden(e, n, layer.pose))) {
+      const e = point[0] - layer.at[0], n = point[1] - layer.at[1], d = Math.hypot(e, n), share = layers.length > 1 ? inCar(e, n, layer.pose) : 1;
+      if (d > REACH) continue;
+      if (share >= 1 && tiltError(d, layer.pose) < bestDist) {
         best = layer;
         bestDist = tiltError(d, layer.pose);
+      } else if (share < 1 && share > leastIn) {
+        least = layer;
+        leastIn = share;
       }
     }
-    return best;
+    return best || least;
   }
 
   /** Axe de la route (vecteur unitaire est, nord) : la trajectoire entre les photos voisines, à défaut le cap de la photo,
@@ -234,8 +241,9 @@ const Dessus = (() => {
       if (dist > reach || length(world.xy - frameCentre) > reach) discard;  // une voisine ne déborde pas du cercle de la vue
       if (abs(dot(world.xy, band.xy)) > band.z || abs(world.x * band.y - world.y * band.x) > band.w) discard;
       float along = (ray.x * car.x + ray.y * car.y - car.z) / car.w, across = (ray.x * car.y - ray.y * car.x) / wide;
-      if (masked > 0.5 && along * along + across * across < 1.0) discard;
-      gl_FragDepth = min((height * height + dist * dist) / height * sigma / 50.0, 1.0);
+      float inCar = along * along + across * across;
+      // sol sous un véhicule : derrière tout le reste, pris seulement là où aucune photo ne le voit (le plus près du bord)
+      gl_FragDepth = masked > 0.5 && inCar < 1.0 ? 0.99 - 0.49 * inCar : 0.5 * min((height * height + dist * dist) / height * sigma / 50.0, 1.0);
       vec3 v = normalize(turn * ray);
       float u = (atan(v.x, v.y) - heading) / (2.0 * PI) + 0.5;
       float a = fract(u), b = fract(u + 0.5) - 0.5;  // la coupure du panorama ne doit pas faire choisir un niveau flou
