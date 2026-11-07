@@ -134,8 +134,9 @@ const Dessus = (() => {
   /** Inclinaison d'une caméra sans verticales à lire, le véhicule étant posé sur la route : verticale vraie vue depuis la caméra
    * (voir rotation), la route sous le véhicule étant un plan ajusté sur ±2,5 m en long et ±1,5 m en travers. La route monte devant :
    * la caméra regarde vers le haut et voit la verticale penchée vers l'avant. at : position de la caméra (est, nord, m),
-   * heading : cap (degrés), rollShare : part du dévers prise en roulis (le tangage suit la pente entière, voir docs/CALCULS.md). */
-  function groundUp(terrain, at, heading, rollShare = 1) {
+   * heading : cap (degrés), rollShare : part du dévers prise en roulis (le tangage suit la pente entière, voir docs/CALCULS.md),
+   * pitch : tangage ajouté (degrés, positif : caméra relevée vers l'avant), défaut de fixation de la caméra. */
+  function groundUp(terrain, at, heading, rollShare = 1, pitch = 0) {
     const h = heading * toRad, hu = [Math.sin(h), Math.cos(h)];
     let along = 0, side = 0, aa = 0, ss = 0;
     for (let a = -2.5; a <= 2.5; a += 0.5) {
@@ -144,7 +145,7 @@ const Dessus = (() => {
         along += a * z; side += s * z; aa += a * a; ss += s * s;
       }
     }
-    const ga = along / aa, gs = rollShare * side / ss, east = ga * hu[0] + gs * hu[1], north = ga * hu[1] - gs * hu[0], length = Math.hypot(east, north, 1);
+    const ga = along / aa + Math.tan(pitch * toRad), gs = rollShare * side / ss, east = ga * hu[0] + gs * hu[1], north = ga * hu[1] - gs * hu[0], length = Math.hypot(east, north, 1);
     return [east / length, north / length, 1 / length];
   }
 
@@ -431,7 +432,7 @@ const Dessus = (() => {
   let map = null, shown = null;  // shown : { pic, sequence, height, estimated, estimating, key, pose, features, panos (photo -> texture), loading, terrain, sigmaGround, terrainFailed, url }
   let abort = null, measuringOn = false, bandOnly = false, start = null, hover = null, live = null;  // live : longueur affichée au pointeur
   // shortcut: part du dévers prise en roulis réglée à la main (option d'essai), à fixer une fois calée sur l'orthophoto
-  let rollShare = 0.7;
+  let rollShare = 0.7, pitchOffset = 0;  // pitchOffset : tangage ajouté (degrés), même réglage d'essai
   let swapViews = () => {}, zoomBefore = null;  // échange de la carte et de la visionneuse (app.js) ; zoom à retrouver
   const $ = (selector) => document.querySelector(selector);
   const number = (v, digits) => v.toFixed(digits).replace(".", ",");
@@ -443,7 +444,7 @@ const Dessus = (() => {
     .filter((pose) => shown.panos.has(pose.pic))
     .map((pose) => {
       const at = toLocal(pose.lon, pose.lat, shown.pose);
-      const leveled = pose.up || !shown.terrain ? pose : { ...pose, up: groundUp(shown.terrain, at, pose.heading, rollShare), sigma: Math.min(pose.sigma, GROUND_SIGMA), groundTilt: true };
+      const leveled = pose.up || !shown.terrain ? pose : { ...pose, up: groundUp(shown.terrain, at, pose.heading, rollShare, pitchOffset), sigma: Math.min(pose.sigma, GROUND_SIGMA), groundTilt: true };
       return { pose: shown.height ? { ...leveled, height: shown.height, height_sigma: HEIGHT_SIGMA } : leveled, pano: shown.panos.get(pose.pic), at };
     });
 
@@ -508,6 +509,12 @@ const Dessus = (() => {
     map.on("mousemove", (event) => {
       hover = [event.lngLat.lng, event.lngLat.lat];
       if (measuringOn && start) drawTrace();
+    });
+    const pitch = $("#dessus-tangage"), degrees = (v) => `${v > 0 ? "+" : ""}${number(Number(v), 1)}°`;
+    pitch.addEventListener("input", () => { $("#dessus-tangage-valeur").textContent = degrees(pitch.value); });
+    pitch.addEventListener("change", () => {
+      pitchOffset = Number(pitch.value);
+      if (shown?.url) showImage();
     });
     const share = $("#dessus-devers");
     share.addEventListener("input", () => { $("#dessus-devers-valeur").textContent = `${share.value} %`; });
@@ -581,7 +588,7 @@ const Dessus = (() => {
       map.addLayer({ id: BEST_ID, type: "fill", source: BEST_ID, paint: { "fill-color": "#00c853", "fill-opacity": 0.12 } }, below);
     }
     const place = shown.terrain ? "Terrain LiDAR HD" : `Sol supposé plat (${shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
-    const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
+    const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${pitchOffset ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
     say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? " (décalage entre photos)" : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : busy() ? " ; photos voisines en cours…" : ""}`);
     if (!busy() && !shown.estimated) measureHeight();
