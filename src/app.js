@@ -1171,8 +1171,10 @@
     const pose = app && photo ? JSON.parse(app.birdeye_pose()) : null, shown = pose && pose.pic === photo.id;
     $("#dessus").disabled = !shown;
     const on = shown && $("#dessus").checked;
-    $("#dessus-bande").disabled = $("#dessus-raccords").disabled = $("#dessus-position").disabled = $("#dessus-devers").disabled = $("#dessus-tangage").disabled = !on;
-    if (!on) $("#dessus-caler").disabled = true;
+    const inMap = (selector) => mapBox.querySelector(selector);  // réglages sur la carte, peut-être détachée
+    inMap("#dessus-bande").disabled = inMap("#dessus-raccords").disabled = inMap("#dessus-position").disabled = inMap("#dessus-devers").disabled = inMap("#dessus-tangage").disabled = !on;
+    if (!on) inMap("#dessus-caler").disabled = true;
+    inMap("#dessus-reglages").hidden = !on;  // vue du dessus allumée seulement
     showMapMeasureButton();
     if (on && birdeyeAsked !== photo.id) {
       birdeyeAsked = photo.id;
@@ -1263,7 +1265,7 @@
     const on = measuring && $("#mode").value === "carte";
     measureButton.setAttribute("aria-pressed", String(on));
     measureButton.textContent = on ? "📏 Arrêter la mesure" : "📏 Mesurer une longueur";
-    measureButton.title = on ? "Arrêter la mesure de longueur sur la carte" : "Mesurer une longueur sur la vue du dessus : deux clics sur la carte";
+    measureButton.title = on ? "Arrêter la mesure de longueur sur la carte" : "Mesurer une longueur sur la vue Bird Eye : deux clics sur la carte";
     measureButton.disabled = !on && ($("#dessus").disabled || $("#mode").disabled);
   }
   Dessus.setup(map, (on) => {
@@ -1299,8 +1301,8 @@
     }
     if (measuring && $("#mode").value === "carte") {  // longueur sur la carte : jamais d'autre photo ouverte d'un clic
       if (!Dessus.measuring()) {
-        setStatus($("#dessus").disabled ? "Longueur sur la carte : photo 360° nécessaire (vue du dessus indisponible)."
-          : "Longueur sur la carte : vue du dessus en préparation, patientez.");
+        setStatus($("#dessus").disabled ? "Longueur sur la carte : photo 360° nécessaire (Bird Eye indisponible)."
+          : "Longueur sur la carte : Bird Eye en préparation, patientez.");
         return;
       }
       const done = Dessus.addPoint(event.lngLat);
@@ -4784,7 +4786,7 @@
       : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), de préférence un repère net (fin de tiret, joint, regard) ; réticule calé sur le trait vert, Maj : visée libre ; puis « Valider le point triangulé »"
       : mode === "road" && newMeasure ? `Largeur faite : cliquez une de ses croix pour l'ajuster ; autre largeur : « Nouvelle mesure depuis ${newMeasure} »`
       : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé ; autre photo, prise avant ou après : par la carte"
-      : mode === "carte" ? `Longueur sur la carte : cliquez ${Dessus.hasStart() ? "l'arrivée" : "le départ"} sur la vue du dessus, de préférence dans la bande verte ; Échap : retirer le départ`
+      : mode === "carte" ? `Longueur sur la carte : cliquez ${Dessus.hasStart() ? "l'arrivée" : "le départ"} sur la vue Bird Eye, de préférence dans la bande verte ; Échap : retirer le départ`
       : mode === "tilt" ? "Calage de l'inclinaison : pied puis sommet de deux objets verticaux, à 90° l'un de l'autre"
       : "Mode mesure en cours : désélectionner pour naviguer";
     // Nom de la mesure et étape déjà dans l'en-tête de la carte d'étape (« Hauteur, étape 1 : »…) : retirés

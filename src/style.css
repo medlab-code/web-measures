@@ -102,11 +102,24 @@ header .captures .icone { display: inline-flex; width: 1.3em; justify-content: c
 /* Fond de carte : libellé et liste, filaire centré sous la liste */
 header .fond { display: grid; grid-template-columns: auto auto; align-items: center; gap: 0.5em 0.35em; }
 header .fond > label:last-child { grid-column: 2; justify-self: center; }
-header .dessus { gap: 0.3em; }
-header .dessus .rang { display: flex; gap: 0.3em; }
-header .dessus .devers { display: flex; align-items: center; gap: 0.4em; }
-header .dessus .devers input { width: 7em; }
-header .dessus .devers output { min-width: 3.2em; font-variant-numeric: tabular-nums; }
+/* Réglages d'essai de la vue du dessus : panneau sur la carte, sous la recherche et le requêteur, seulement carte en
+   grand ou détachée (comme l'étiquette d'état) ; repliable sur son titre */
+#dessus-reglages { position: absolute; top: 78px; right: 10px; z-index: 1; width: min(16rem, calc(100% - 70px)); box-sizing: border-box;
+  padding: 0.4rem 0.6rem; border: 1px solid var(--bord); border-radius: 6px; background: var(--fond); color: var(--texte);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); font-size: 13px; }
+#dessus-reglages[hidden], body:not(.carte-en-grand):not(.fenetre-carte) #dessus-reglages { display: none; }
+#dessus-reglages .titre { display: flex; justify-content: space-between; align-items: center; gap: 0.5em; font-weight: 700; }
+#dessus-reglages .corps { display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem; margin-top: 0.45rem; }
+#dessus-reglages.replie .corps { display: none; }
+#dessus-reglages label { display: flex; align-items: center; gap: 0.45em; }
+#dessus-reglages .devers input { width: 7em; }
+#dessus-reglages .devers output { min-width: 3.2em; font-variant-numeric: tabular-nums; }
+#dessus-reglages button { border: 1px solid var(--bord); border-radius: 5px; background: var(--encart); color: var(--texte); font: inherit; padding: 0.15em 0.55em; }
+#dessus-reglages button:not(:disabled) { cursor: pointer; }
+#dessus-reglages button:disabled { color: var(--discret); opacity: 0.6; }
+#dessus-reglages input.interrupteur { width: 2.1em; height: 1.2em; }  /* comme ceux de la barre */
+#dessus-reglages input.interrupteur::before { width: 0.9em; height: 0.9em; top: 0.15em; left: 0.15em; }
+#dessus-reglages input.interrupteur:checked::before { transform: translateX(0.9em); }
 /* même format que les étiquettes incrustées dans la photo (--etiquette-vue, plus bas) */
 #dessus-etat { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 2; max-width: 92%; padding: 0.3rem 0.8rem; border-radius: 5px;
   background: var(--etiquette-vue); color: #fff; font-size: 15px; font-weight: 600; line-height: 1.3; text-align: center; text-shadow: var(--detoure-vue); pointer-events: none; }

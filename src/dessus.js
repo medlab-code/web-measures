@@ -892,7 +892,8 @@ const Dessus = (() => {
     $("#dessus-tangage-valeur").textContent = `${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°`;
   }
   let swapViews = () => {}, zoomBefore = null;  // échange de la carte et de la visionneuse (app.js) ; zoom à retrouver
-  const $ = (selector) => document.querySelector(selector);
+  // Dans la carte d'abord : détachée, elle est dans le document d'une autre fenêtre
+  const $ = (selector) => map?.getContainer().querySelector(selector) || document.querySelector(selector);
   const number = (v, digits) => v.toFixed(digits).replace(".", ",");
   const say = (text) => { $("#dessus-etat").textContent = text; };
 
@@ -1035,6 +1036,12 @@ const Dessus = (() => {
       positionOn = event.target.checked;
       cancelStart();  // le départ a été pris dans l'autre position
       if (shown?.url) showImage();
+    });
+    $("#dessus-replier").addEventListener("click", (event) => {
+      const folded = $("#dessus-reglages").classList.toggle("replie");
+      event.currentTarget.setAttribute("aria-expanded", String(!folded));
+      event.currentTarget.textContent = folded ? "▾" : "▴";
+      event.currentTarget.title = folded ? "Déplier les réglages" : "Replier les réglages";
     });
     $("#dessus-raccords").addEventListener("change", (event) => {
       joinsOn = event.target.checked;
@@ -1223,7 +1230,7 @@ const Dessus = (() => {
       loadNeighbours(signal);
       await showImage();
     } catch (error) {
-      if (!signal.aborted) { console.error(error); say(`Vue du dessus impossible : ${error.message}`); }
+      if (!signal.aborted) { console.error(error); say(`Bird Eye impossible : ${error.message}`); }
     }
   }
 

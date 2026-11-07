@@ -48,7 +48,7 @@
                 <option value="height">Hauteur d'un objet</option>
                 <option value="road">Largeur perpendiculaire à la chaussée</option>
                 <option value="tri">Mesure libre (points triangulés)</option>
-                <option value="carte" title="Segment tracé en deux clics sur la vue du dessus (carte en grand, à la place de la visionneuse)">Longueur sur la carte (vue du dessus)</option>
+                <option value="carte" title="Segment tracé en deux clics sur la vue Bird Eye (carte en grand, à la place de la visionneuse)">Longueur sur la carte (Bird Eye)</option>
               </optgroup>
               <optgroup label="Relevé">
                 <option value="releve">Relevé d'objets (couche SIG)</option>
@@ -94,17 +94,8 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         <option value="pcrs" disabled title="Aucun PCRS publié sur la Géoplateforme à cet endroit">PCRS Géoplateforme</option>
         <option value="mnh" title="Estompage du modèle numérique de hauteur (IGN) : hauteur du sursol (bâtiments, arbres, haies, talus) au-dessus du sol, là où le LiDAR HD est publié">Modèle Numérique de Hauteur</option>
         <option value="osm">OpenStreetMap</option></select>
+      <label title="Reprojette le sol de la photo sur la mini-carte, jusqu'à 15 m de la caméra (grisé au-delà de 10 m : peu précis). Seul ce qui est au sol est à sa place."><input type="checkbox" id="dessus" class="interrupteur" disabled> Bird Eye</label>
       <label title="Séquences et photos Panoramax sur la carte"><input type="checkbox" id="filaire" class="interrupteur" checked> Filaire Panoramax</label>
-    </div>
-    <!-- Vue du dessus (src/dessus.js) : photo reprojetée au sol, mesurée sur la mini-carte -->
-    <div class="bloc dessus carte-barre">
-      <label title="Reprojette le sol de la photo sur la mini-carte, jusqu'à 15 m de la caméra (grisé au-delà de 10 m : peu précis). Seul ce qui est au sol est à sa place."><input type="checkbox" id="dessus" class="interrupteur" disabled> Vue du dessus</label>
-      <label title="N'afficher que la bande verte, en face de la caméra : la partie la plus sûre de la vue (essai)"><input type="checkbox" id="dessus-bande" class="interrupteur" disabled> Bande verte seule</label>
-      <label class="devers" title="Sans verticale à lire : part du dévers de la route prise comme roulis de la caméra (essai : à caler sur l'orthophoto avec la bande verte seule, retenu pour la séquence dans ce navigateur). Le tangage suit toujours la pente entière.">Roulis <input type="range" id="dessus-devers" min="0" max="100" step="5" value="70" disabled> <output id="dessus-devers-valeur">70 %</output></label>
-      <label class="devers" title="Sans verticale à lire : tangage ajouté à la pente de la route, défaut de fixation de la caméra (essai : régler jusqu'à des bords de chaussée parallèles avec la bande verte seule ; positif : caméra relevée vers l'avant ; retenu pour la séquence dans ce navigateur)">Tangage <input type="range" id="dessus-tangage" min="-2" max="2" step="0.1" value="0" disabled> <output id="dessus-tangage-valeur">0,0°</output></label>
-      <button id="dessus-caler" type="button" disabled title="Essai : cale le tangage sur les lignes de peinture de l'orthophoto (photo affichée et ses voisines, médiane), retenu pour la séquence. Le roulis reste à régler à la main.">Caler le tangage sur l'orthophoto</button>
-      <label title="Essai : recale chaque photo voisine sur la photo affichée par les lignes de peinture, pour effacer les marches aux raccords (gardé seulement si aucune ligne n'y empire). La photo affichée ne bouge pas."><input type="checkbox" id="dessus-raccords" class="interrupteur" checked disabled> Raccords recalés</label>
-      <label title="Essai : décale la vue en travers pour poser ses lignes de peinture sur celles de l'orthophoto, si l'écart dépasse 30 cm. En cas d'écart, le GPS est à suspecter avant l'orthophoto (D33, 07/2025 : séquence décalée de 0,75 m, l'orthophoto juste à quelques cm près d'après une autre séquence)."><input type="checkbox" id="dessus-position" class="interrupteur" checked disabled> Position calée sur l'orthophoto</label>
     </div>
   </header>
   <main>
@@ -183,7 +174,20 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               title="Masquer la carte et le panneau">▸</button>
     </div>
     <aside id="colonne">
-      <div id="carte"><div id="dessus-etat" role="status"></div></div>
+      <div id="carte"><div id="dessus-etat" role="status"></div>
+        <!-- Réglages d'essai de la vue du dessus (src/dessus.js), sur la carte en grand ou détachée -->
+        <section id="dessus-reglages" hidden aria-label="Réglages de la vue Bird Eye">
+          <div class="titre"><span>Bird Eye · essai</span><button id="dessus-replier" type="button" aria-expanded="true" title="Replier les réglages">▴</button></div>
+          <div class="corps">
+            <label title="N'afficher que la bande verte, en face de la caméra : la partie la plus sûre de la vue (essai)"><input type="checkbox" id="dessus-bande" class="interrupteur" disabled> Bande verte seule</label>
+            <label class="devers" title="Sans verticale à lire : part du dévers de la route prise comme roulis de la caméra (essai : à caler sur l'orthophoto avec la bande verte seule, retenu pour la séquence dans ce navigateur). Le tangage suit toujours la pente entière.">Roulis <input type="range" id="dessus-devers" min="0" max="100" step="5" value="70" disabled> <output id="dessus-devers-valeur">70 %</output></label>
+            <label class="devers" title="Sans verticale à lire : tangage ajouté à la pente de la route, défaut de fixation de la caméra (essai : régler jusqu'à des bords de chaussée parallèles avec la bande verte seule ; positif : caméra relevée vers l'avant ; retenu pour la séquence dans ce navigateur)">Tangage <input type="range" id="dessus-tangage" min="-2" max="2" step="0.1" value="0" disabled> <output id="dessus-tangage-valeur">0,0°</output></label>
+            <button id="dessus-caler" type="button" disabled title="Essai : cale le tangage sur les lignes de peinture de l'orthophoto (photo affichée et ses voisines, médiane), retenu pour la séquence. Le roulis reste à régler à la main.">Caler le tangage sur l'orthophoto</button>
+            <label title="Essai : recale chaque photo voisine sur la photo affichée par les lignes de peinture, pour effacer les marches aux raccords (gardé seulement si aucune ligne n'y empire). La photo affichée ne bouge pas."><input type="checkbox" id="dessus-raccords" class="interrupteur" checked disabled> Raccords recalés</label>
+            <label title="Essai : décale la vue en travers pour poser ses lignes de peinture sur celles de l'orthophoto, si l'écart dépasse 30 cm. En cas d'écart, le GPS est à suspecter avant l'orthophoto (D33, 07/2025 : séquence décalée de 0,75 m, l'orthophoto juste à quelques cm près d'après une autre séquence)."><input type="checkbox" id="dessus-position" class="interrupteur" checked disabled> Position calée sur l'orthophoto</label>
+          </div>
+        </section>
+      </div>
       <div id="place-carte" hidden></div>
       <!-- Carte détachée dans une fenêtre à part (voir app.js : carte détachable) -->
       <div id="carte-detachee" hidden>

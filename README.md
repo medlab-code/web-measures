@@ -735,7 +735,8 @@ fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/so
 
 ### Mesure d'une longueur sur la carte (essai, branche `birdeye`)
 
-« Vue du dessus » reprojette le sol de la photo sur la mini-carte ; « Bande verte seule » n'en garde que la bande en face
+« Bird Eye » (vue du dessus, dans le bloc du fond de carte) reprojette le sol de la photo sur la mini-carte ; ses réglages
+d'essai sont dans un panneau repliable sur la carte en grand ou détachée ; « Bande verte seule » n'en garde que la bande en face
 de la caméra, la plus sûre. Le bouton ⇄ de la carte échange la carte et la visionneuse, chacune à la place et à la taille
 de l'autre ; la carte en grand, comme la carte détachée (⧉), propose alors « Mesurer une longueur » (aussi : mode « Longueur sur la carte » puis
 « Mesure »). Un clic pose le départ, le trait suit le pointeur avec sa longueur, un second clic la garde dans les
