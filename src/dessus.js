@@ -1091,6 +1091,15 @@ const Dessus = (() => {
   // Bird Eye éteinte : la dernière vue gardée (photos, terrain, hauteur, raccords, position) pour la rallumer sur la même
   // photo sans rien refaire, le temps de la session ; jetée dès qu'une autre photo est montrée
   let parked = null;
+  // Calculs des photos déjà vues dans la session (photo -> terrain, hauteur lue, raccords, position), repris en y revenant ; les photos
+  // elles-mêmes sont relues (mémoire graphique). Raccords : gardés pour les mêmes réglages et voisines (voir joinKey)
+  const computed = new Map(), COMPUTED_MAX = 200;
+  function remember(view) {
+    if (!view?.panos.has(view.pic)) return;  // photo et terrain pas encore lus
+    computed.delete(view.pic);
+    computed.set(view.pic, { terrain: view.terrain, terrainFailed: view.terrainFailed, estimated: view.estimated && !view.estimating, joins: view.joins, joinText: view.joinText, shift: view.shift, located: view.located });
+    if (computed.size > COMPUTED_MAX) computed.delete(computed.keys().next().value);  // la plus ancienne
+  }
 
   // shortcut: mémorisées pour la session seulement, à garder d'une visite à l'autre si la méthode est retenue
   const heights = new Map();  // séquence -> hauteurs de caméra mesurées (m)
@@ -1215,10 +1224,11 @@ const Dessus = (() => {
       abort?.abort();
       removeImage();
       if (shown?.panos.has(shown.pic)) {  // photo et terrain lus
+        remember(parked);
         forget(parked);
         parked = shown;  // calculs en cours interrompus : repris au retour (voir resume)
       } else {
-        forget(shown);
+        forget(shown);  // rien de lu : rien à garder
       }
       shown = null;
       say("");
@@ -1234,11 +1244,15 @@ const Dessus = (() => {
     }
     abort?.abort();
     removeImage();
-    forget(shown);
-    forget(parked);
+    for (const view of [shown, parked]) {
+      remember(view);
+      forget(view);
+    }
     parked = null;
     const controller = abort = new AbortController(), { signal } = controller;
     shown = { photo, pic: photo.id, sequence: photo.collection, height: median(heights.get(photo.collection) || []) ?? null, estimated: false, estimating: false, key, pose, features, panos: new Map(), loading: new Set(), terrain: null, sigmaGround: FLAT_SIGMA, terrainFailed: false, url: null };
+    const known = computed.get(photo.id);
+    if (known) Object.assign(shown, known);  // déjà vue : terrain, raccords et position repris
     applySettings(photo.collection);
     shown.sequenceHeight = pose.pending ? null : sequenceHeight(photo.collection, pose);
     const mine = shown;
@@ -1246,7 +1260,7 @@ const Dessus = (() => {
     try {
       const tiles = Video.record(photo, { coords: photo.geometry.coordinates }).tiles;
       const [terrain, part] = await Promise.all([
-        readTerrain(pose, signal).catch((error) => { console.warn("Terrain de la vue du dessus :", error); mine.terrainFailed = true; return null; }),
+        known ? Promise.resolve(known.terrain) : readTerrain(pose, signal).catch((error) => { console.warn("Terrain de la vue du dessus :", error); mine.terrainFailed = true; return null; }),
         loadPano(tiles, context().getParameter(gl.MAX_TEXTURE_SIZE), signal)]);
       if (shown !== mine) { part.canvas.width = 0; return; }
       mine.terrain = terrain;
