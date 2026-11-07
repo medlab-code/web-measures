@@ -14,7 +14,11 @@ const REFERENCES = [
   ["D33", "dbdaa47b-6e4d-4416-b352-ab324cb14735"],
   ["petite RD", "894c3f0f-3d30-486b-b0f9-c7e6505d8d03"],
   ["village", "e2d81cb7-f303-4cbf-93d7-8a2dbbc7c2b7"],
+  ["D33 du 04/07", "6c6e4972-f565-4198-84fe-24ab72d95398"],  // GPS décalé de 0,75 m (la D33 du 20/06, au même endroit, est juste)
 ];
+// Écart à l'orthophoto attendu (m) : position calée au-delà de 30 cm, GPS gardé en deçà
+const SHIFTS = { "D33": [0, 0.3], "D33 du 04/07": [0.5, 1.0] };
+const ONLY_SHIFT = new Set(["D33 du 04/07"]);
 const WAIT = 240000;  // ms par photo : photo, terrain, voisines et hauteur de caméra
 const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
 let checks = 0, failures = 0;
@@ -24,7 +28,7 @@ const frame = document.getElementById("f");
 const number = (v, d = 2) => (v == null || Number.isNaN(v) ? "-" : v.toFixed(d).replace(".", ","));
 
 /** Ouvre la page sur la photo et attend la vue du dessus prête (rien en cours) ; renvoie la fenêtre et l'image, ou null. */
-async function open(id) {
+async function open(id, enough = () => false) {
   frame.contentWindow.localStorage?.setItem("web-measures/photo", id);
   await new Promise((resolve) => { frame.onload = resolve; frame.src = `../index.html?essai=${Date.now()}`; });
   const w = frame.contentWindow, doc = w.document, $ = (s) => doc.querySelector(s);
@@ -42,6 +46,7 @@ async function open(id) {
   while (Date.now() - start < WAIT) {
     const state = $("#dessus-etat").textContent;
     if (/caméra à/.test(state) && !/en calcul|en cours|Lecture/.test(state)) return { w, state, blob: () => blob };
+    if (enough(state)) return { w, state, blob: () => blob, partial: true };
     await sleep(1000);
   }
   return { w, state: $("#dessus-etat").textContent, blob: () => blob, late: true };
@@ -51,7 +56,8 @@ async function open(id) {
   frame.src = "../index.html";
   await new Promise((resolve) => { frame.onload = resolve; });
   for (const [name, id] of REFERENCES) {
-    const shown = await open(id);
+    // Contrôle de position seul : les voisines peuvent attendre longtemps le calage de leur inclinaison
+    const shown = await open(id, (state) => ONLY_SHIFT.has(name) && /position (calée|GPS gardée)/.test(state));
     if (!shown) { await expect(`${name} : vue du dessus disponible`, false); continue; }
     const { w, state } = shown, Dessus = w.eval("Dessus"), now = Dessus.layersNow(), [main, ...others] = now.layers, pose = main.pose;
     const h = pose.heading * Math.PI / 180, u = pose.up || [0, 0, 1];
@@ -64,6 +70,11 @@ async function open(id) {
     await log(`${name} (${id.slice(0, 8)}) : ${state}`);
     await log(`  ${now.layers.length} photo(s), caméra ${number(pose.height)} m, décalage ${parallax ? parallax.map((v) => number(v)).join(" / ") : "-"} m, `
       + `inclinaison ${pose.groundTilt ? "de la route" : pose.up ? "des verticales" : "aucune"} (avant ${number(forward)}°, droite ${number(right)}°, ±${number(pose.sigma, 1)}°)`);
+    if (shown.partial) {
+      const shift = state.match(/(?:décalage|écart à l'orthophoto) (\d+,\d+) m\)/), metres = shift && Number(shift[1].replace(",", "."));
+      await expect(`${name} : écart à l'orthophoto attendu`, metres !== null && metres >= SHIFTS[name][0] && metres <= SHIFTS[name][1], shift ? `${shift[1]} m` : "non mesuré");
+      continue;
+    }
     await expect(`${name} : prête dans le délai`, !shown.late);
     await expect(`${name} : terrain LiDAR HD`, Boolean(now.terrain));
     await expect(`${name} : inclinaison connue`, Boolean(pose.up));
@@ -71,6 +82,8 @@ async function open(id) {
     const joins = now.joins?.results || [], fixed = joins.filter((r) => r?.fix);
     await log(`  raccords (${number((now.joins?.ms || 0) / 1000, 1)} s) : ${joins.map((r) => (r ? `${number(100 * r.before, 1)} → ${number(100 * r.after, 1)} cm${r.fix ? "" : " (non gardé)"}` : "sans marquages")).join(" ; ") || "-"}`);
     for (const r of joins.filter(Boolean)) await log(`    par ligne : ${r.perLine.map((l) => `${number(l.line, 1)} m : ${number(100 * l.before, 1)} → ${number(100 * l.after, 1)} (${l.n})`).join(" ; ")}`);
+    const shift = state.match(/(?:décalage|écart à l'orthophoto) (\d+,\d+) m\)/), metres = shift && Number(shift[1].replace(",", "."));
+    if (SHIFTS[name]) await expect(`${name} : écart à l'orthophoto attendu`, metres !== null && metres >= SHIFTS[name][0] && metres <= SHIFTS[name][1], shift ? `${shift[1]} m` : "non mesuré");
     if (name === "A38") await expect(`${name} : raccords recalés, marche réduite`, fixed.length > 0 && fixed.every((r) => r.after < r.before));
     const blob = shown.blob();
     await expect(`${name} : vue recomposée`, Boolean(blob));

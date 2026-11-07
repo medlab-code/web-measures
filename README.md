@@ -745,7 +745,8 @@ longueur est mesurée sur le fond de carte seul, sans incertitude (« hors vue �
 le départ. Sans façade pour caler l'inclinaison, les curseurs « Roulis » et « Tangage » recalent la vue sur
 l'orthophoto (bande verte seule) ; le réglage est retenu pour toute la séquence, dans ce navigateur. « Raccords recalés » (essai, coché) recale chaque
 photo voisine sur la photo affichée par les lignes de peinture, pour effacer les marches aux raccords ; la barre d'état
-indique la marche avant et après. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Méthode et
+indique la marche avant et après. « Position calée sur l'orthophoto » (essai, coché) pose la vue sur l'orthophoto
+quand ses lignes s'en écartent de plus de 30 cm en travers : le GPS est alors suspecté avant l'orthophoto. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Méthode et
 limites : `docs/CALCULS.md`.
 
 ## Précision

@@ -1171,7 +1171,7 @@
     const pose = app && photo ? JSON.parse(app.birdeye_pose()) : null, shown = pose && pose.pic === photo.id;
     $("#dessus").disabled = !shown;
     const on = shown && $("#dessus").checked;
-    $("#dessus-bande").disabled = $("#dessus-raccords").disabled = $("#dessus-devers").disabled = $("#dessus-tangage").disabled = !on;
+    $("#dessus-bande").disabled = $("#dessus-raccords").disabled = $("#dessus-position").disabled = $("#dessus-devers").disabled = $("#dessus-tangage").disabled = !on;
     if (!on) $("#dessus-caler").disabled = true;
     showMapMeasureButton();
     if (on && birdeyeAsked !== photo.id) {

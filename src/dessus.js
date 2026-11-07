@@ -597,6 +597,33 @@ const Dessus = (() => {
     return { pitch, shift: median(lines.map((l) => l.dc)), lines: n, us };
   }
 
+  /** Décalage en travers de la vue sur l'orthophoto (m, vue moins orthophoto, selon us), par corrélation des profils en
+   * travers de la chaussée (ROAD de part et d'autre, hors véhicule) : { shift, us, score } ou null (corrélation sous 0,3).
+   * L'appariement ligne à ligne de compareLines se trompe dès que herbe et bordures donnent des pics. shortcut: recherche sur
+   * ±1,2 m, moins qu'un écart entre lignes (2,5 m et plus) ; au-delà, le décalage trouvé serait celui d'une autre ligne. */
+  function orthoShift(view, ortho, theta) {
+    const seen = (a) => Math.abs(a) > CAR_GAP && Math.abs(a) < 11, cols = Math.round(2 * SIDE / 0.02);
+    const profile = (frame) => {
+      const rows = frame.filter((_, r) => seen(alongOf(r)));
+      return smooth(Array.from({ length: cols }, (_, c) => percentile(rows.map((row) => row[c]), 0.9)), 2);
+    };
+    const pv = profile(roadFrame(view, theta)), po = profile(roadFrame(ortho, theta)), MAX = 60;
+    const inside = (c) => Math.abs(sideOf(c)) <= ROAD;
+    const score = (lag) => {  // corrélation normée de pv(s) et po(s - lag)
+      const pairs = [];
+      for (let c = 0; c < cols; c++) if (inside(c) && c - lag >= 0 && c - lag < cols && !Number.isNaN(pv[c]) && !Number.isNaN(po[c - lag])) pairs.push([pv[c], po[c - lag]]);
+      if (pairs.length < 200) return -1;
+      const ma = pairs.reduce((t, p) => t + p[0], 0) / pairs.length, mb = pairs.reduce((t, p) => t + p[1], 0) / pairs.length;
+      const ab = pairs.reduce((t, p) => t + (p[0] - ma) * (p[1] - mb), 0), aa = pairs.reduce((t, p) => t + (p[0] - ma) ** 2, 0), bb = pairs.reduce((t, p) => t + (p[1] - mb) ** 2, 0);
+      return aa && bb ? ab / Math.sqrt(aa * bb) : -1;
+    };
+    const scores = Array.from({ length: 2 * MAX + 1 }, (_, k) => score(k - MAX)), best = scores.indexOf(Math.max(...scores));
+    if (scores[best] < 0.3 || best === 0 || best === 2 * MAX) return null;  // au bord : le vrai maximum est plus loin
+    const [a, b, c] = [scores[best - 1], scores[best], scores[best + 1]], dk = (a - c) / (2 * (a - 2 * b + c)) || 0;
+    const ua = [Math.sin(theta), Math.cos(theta)];
+    return { shift: (best - MAX + dk) * 0.02, us: [ua[1], -ua[0]], score: scores[best] };
+  }
+
   const FLAT = Array.from({ length: (2 * REACH / STEP + 1) ** 2 }, () => 0);  // sol plan du repère de la route
   const FURTHER = 4;  // photos de plus de chaque côté pour le calage, au-delà des voisines : environ 50 m de route en tout
   const headingOf = (item) => {  // comme py/core/metadata.py : cap EXIF au centième s'il concorde avec view:azimuth
@@ -812,7 +839,10 @@ const Dessus = (() => {
 
   // Sur la mini-carte -----------------------------------------------------------------------
   let map = null, shown = null;  // shown : { pic, sequence, height, estimated, estimating, key, pose, features, panos (photo -> texture), loading, terrain, sigmaGround, terrainFailed, url }
-  let positionOn = false;  // image décalée en travers pour se poser sur l'orthophoto (option d'essai, voir calibrate)
+  // Image décalée en travers pour se poser sur l'orthophoto (option d'essai, voir locate) : le GPS est à suspecter avant elle
+  // (D33 : séquence du 04/07/2025 décalée de 0,75 m, celle du 20/06/2025 sur l'orthophoto à 2 cm près)
+  let positionOn = true;
+  const SHIFT_MIN = 0.3;  // m : écart en deçà duquel la position GPS est gardée (lignes repérées à quelques cm, orthophoto à 20 cm)
   let joinsOn = true;  // voisines recalées sur la principale par les marquages (option d'essai, voir alignJoin)
   let abort = null, measuringOn = false, bandOnly = false, start = null, hover = null, live = null;  // live : longueur affichée au pointeur
   // Roulis (part du dévers) et tangage ajouté (degrés), réglés à la main (options d'essai) et retenus par séquence dans le
@@ -866,7 +896,7 @@ const Dessus = (() => {
   const number = (v, digits) => v.toFixed(digits).replace(".", ",");
   const say = (text) => { $("#dessus-etat").textContent = text; };
 
-  const busy = () => shown.estimating || shown.joining || shown.pose.pending || shown.features === null || shown.loading.size > 0 || shown.pose.neighbours.some((p) => p.pending);
+  const busy = () => shown.estimating || shown.joining || shown.locating || shown.pose.pending || shown.features === null || shown.loading.size > 0 || shown.pose.neighbours.some((p) => p.pending);
   /** Photos prêtes à dessiner, la principale d'abord. */
   const readyLayers = () => [shown.pose, ...shown.pose.neighbours.filter((p) => !p.pending)]
     .filter((pose) => shown.panos.has(pose.pic))
@@ -898,7 +928,7 @@ const Dessus = (() => {
   /** Longueur du départ au point (lon, lat) : { length, error, photos }. Un bout hors de la vue (contrôle sur le fond de
    * carte, l'orthophoto) : longueur sur la carte seule, sans incertitude (error null) ni photo. */
   /** Décalage de l'image (est, nord, m) : celui de l'orthophoto si l'option est cochée. */
-  const shiftOf = () => (positionOn && shown?.shift ? shown.shift : [0, 0]);
+  const shiftOf = () => (positionOn && shown?.shift && Math.hypot(...shown.shift) > SHIFT_MIN ? shown.shift : [0, 0]);
   /** Point de la carte dans le repère de la photo (est, nord, m), image décalée comprise. */
   const localOf = (point) => { const [e, n] = toLocal(...point, shown.pose), [de, dn] = shiftOf(); return [e - de, n - dn]; };
   function lengthTo(point) {
@@ -968,10 +998,8 @@ const Dessus = (() => {
         $("#dessus-tangage").value = pitchOffset;
         $("#dessus-tangage-valeur").textContent = `${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°`;
         keepSettings();
-        const main = found.find((f) => f.main);
-        if (main) mine.shift = [-main.shift * main.us[0], -main.shift * main.us[1]];  // vue posée sur l'orthophoto
-        $("#dessus-position").disabled = !mine.shift;
-        mine.calibrated = `tangage calé sur l'orthophoto (${found.length} photo${found.length > 1 ? "s" : ""}${found.length > 1 ? `, écart ${number(spread, 2)}°` : ""}${main ? `, décalage ${number(Math.abs(main.shift), 2)} m` : ""})`;
+        mine.located = undefined;  // position sur l'orthophoto refaite avec le nouveau tangage (voir locate)
+        mine.calibrated = `tangage calé sur l'orthophoto (${found.length} photo${found.length > 1 ? "s" : ""}${found.length > 1 ? `, écart ${number(spread, 2)}°` : ""})`;
       }
     } catch (error) {
       mine.calibrated = `calage impossible : ${error.message}`;
@@ -1083,12 +1111,40 @@ const Dessus = (() => {
     const place = shown.terrain ? "Terrain LiDAR HD" : `Sol supposé plat (${shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
     const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${pitchOffset ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${readSettings()[shown.sequence] ? ", réglage de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
-    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? " (décalage entre photos)" : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${shown.calibrated ? ` ; ${shown.calibrated}` : ""}${joinsOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
+    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? " (décalage entre photos)" : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${shown.calibrated ? ` ; ${shown.calibrated}` : ""}${joinsOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
     $("#dessus-caler").disabled = !shown.terrain || busy();  // toutes les photos prêtes, posées sur le terrain
-    $("#dessus-position").disabled = !shown.shift;
-    if (!busy() && !shown.estimated) measureHeight();
+    if (positionOn && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
+    else if (!busy() && !shown.estimated) measureHeight();
     else if (!busy() && joinsOn && layers.length > 1 && shown.joins?.key !== shown.joinKeyNow) alignJoins();
   }
+
+  /** Écart en travers de la photo principale à l'orthophoto (profils en travers, voir orthoShift), sans toucher au
+   * tangage : la vue s'y pose au-delà de SHIFT_MIN (voir shiftOf). */
+  async function locate() {
+    const mine = shown, [main] = readyLayers();
+    mine.locating = true;
+    say("Position sur l'orthophoto en cours…");
+    try {
+      const ortho = await readOrtho(mine.pose, abort.signal);
+      if (shown !== mine) return;
+      const found = orthoShift(readView(main, mine.terrain, mine.pose), ortho, roadHeading(ortho, mine.pose.heading));
+      if (found) mine.shift = [-found.shift * found.us[0], -found.shift * found.us[1]];
+      mine.located = found ? Math.abs(found.shift) : null;
+    } catch (error) {
+      if (abort.signal.aborted) return;
+      mine.located = null;  // orthophoto injoignable : position GPS gardée
+    } finally {
+      mine.locating = false;
+    }
+    if (shown !== mine) return;
+    if (positionOn && mine.located > SHIFT_MIN) cancelStart();  // départ pris sur l'image avant décalage
+    await showImage();
+  }
+  /** Bilan de la position pour la barre d'état. */
+  const locatedText = () => (!positionOn || shown.located === undefined ? ""
+    : shown.located === null ? "position GPS gardée (profil de la chaussée sans accord avec l'orthophoto)"
+    : Math.hypot(...shown.shift) > SHIFT_MIN ? `position calée sur l'orthophoto (décalage ${number(Math.hypot(...shown.shift), 2)} m)`
+    : `position GPS gardée (écart à l'orthophoto ${number(Math.hypot(...shown.shift), 2)} m)`);
 
   /** Hauteur de caméra de la séquence, lue une fois toutes les photos prêtes, puis image refaite. */
   async function measureHeight() {
@@ -1171,5 +1227,5 @@ const Dessus = (() => {
     }
   }
 
-  return { setup, update, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins }, view, uncertainty, measureError, shownError, groundUp, roadAxis, bestZones, sourceOf, toLonLat, estimateHeight, render, panoTexture, loadPano, REACH, SIZE };
+  return { setup, update, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins }, view, uncertainty, measureError, shownError, groundUp, roadAxis, bestZones, sourceOf, toLonLat, estimateHeight, render, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, REACH, SIZE };
 })();
