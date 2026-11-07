@@ -4,6 +4,7 @@
 """Serveur des essais dans un vrai navigateur : sert le dossier du site et écrit sur la
 sortie standard les lignes que la page d'essai envoie (POST /journal), en temps réel. La
 page envoie « FIN » à la fin : le serveur s'arrête alors (le navigateur peut être fermé).
+Une page peut aussi déposer une image (POST /capture/<nom>), écrite dans tests/captures/.
 
     tools/serveur-essai.py [port]   # puis ouvrir http://127.0.0.1:<port>/tests/navigateur.html
 """
@@ -16,6 +17,14 @@ import threading
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):  # noqa: N802
+        if self.path.startswith("/capture/"):  # image d'une page d'essai, gardée dans tests/captures/ (hors dépôt)
+            name = os.path.basename(self.path[len("/capture/"):])
+            os.makedirs(os.path.join("tests", "captures"), exist_ok=True)
+            with open(os.path.join("tests", "captures", name), "wb") as f:
+                f.write(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+            self.send_response(204)
+            self.end_headers()
+            return
         if self.path != "/journal":
             self.send_error(404)
             return

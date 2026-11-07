@@ -95,8 +95,17 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         <option value="osm">OpenStreetMap</option></select>
       <label title="Séquences et photos Panoramax sur la carte"><input type="checkbox" id="filaire" class="interrupteur" checked> Filaire Panoramax</label>
     </div>
+    <!-- Vue du dessus (src/dessus.js) : photo reprojetée au sol, mesurée sur la mini-carte -->
+    <div class="bloc dessus carte-barre">
+      <label title="Reprojette le sol de la photo sur la mini-carte, jusqu'à 15 m de la caméra (grisé au-delà de 10 m : peu précis). Seul ce qui est au sol est à sa place."><input type="checkbox" id="dessus" class="interrupteur" disabled> Vue du dessus</label>
+      <div class="rang">
+        <button id="dessus-mesure" type="button" aria-pressed="false" disabled title="La carte prend la place de la visionneuse, et inversement. Tracer un segment de droite en deux clics sur la carte : sa longueur et son incertitude ; pour une largeur, de préférence dans la bande verte, en face de la caméra. Échap pour arrêter">Mesure d'une longueur (carte)</button>
+        <button id="dessus-effacer" type="button" disabled title="Effacer les longueurs de la vue du dessus">Effacer</button>
+      </div>
+    </div>
   </header>
   <main>
+    <div id="place-vue" hidden></div>
     <section id="vue">
       <p id="invite">Cliquez sur le filaire orange de la carte pour choisir une photo.</p>
       <!-- Largeur, hauteur, mesure libre : centre de la vue, même cap que le trait de la mini-carte -->
@@ -171,7 +180,8 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               title="Masquer la carte et le panneau">▸</button>
     </div>
     <aside id="colonne">
-      <div id="carte"></div>
+      <div id="carte"><div id="dessus-etat" role="status"></div></div>
+      <div id="place-carte" hidden></div>
       <!-- Carte détachée dans une fenêtre à part (voir app.js : carte détachable) -->
       <div id="carte-detachee" hidden>
         <p>Carte dans une fenêtre à part.</p>
@@ -968,6 +978,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
   <script src="src/couche.js"></script>
   <script src="src/profil.js"></script>
   <script src="src/nuage.js"></script>
+  <script src="src/dessus.js"></script>
   <script src="src/app.js"></script>
 </body>
 </html>

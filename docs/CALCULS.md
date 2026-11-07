@@ -583,3 +583,75 @@ moins de 10 %, vers l'intérieur dans les virages marqués).
 
 Avec un GPS grand public (±4 m), le point de référence est à plusieurs mètres près, et une
 hauteur à ±2 à 3 m. Les essais et leurs valeurs attendues sont dans le README (« Précision »).
+
+## Vue du dessus (essai, branche `birdeye`)
+
+Le sol de la photo 360° est reprojeté sur la mini-carte, à ±15 m de la caméra (`src/dessus.js`) : un
+maillage de 1 m suit le MNT LiDAR HD (sinon un plan horizontal), posé à la hauteur de caméra sous la
+photo. Chaque point y reçoit le pixel qui le voit, inclinaison et cap de la séquence compris
+(rotation identique à `Calibration.uncorrect`). Cette vue ne sert qu'à la « mesure d'une longueur (carte) » : un
+segment de droite tracé en deux clics sur la carte, qui prend pour cela la place et la taille de la
+visionneuse (et inversement). Aucun point n'est ramené sur une perpendiculaire à la route.
+Une bande verte transparente marque la zone idéale d'une largeur : ±2 m en face de la caméra (axe :
+trajectoire entre les photos voisines, à défaut cap de la photo), sur ±8 m en travers, là où le tangage
+pèse le moins. L'incertitude affichée vaut au moins 5 % de la longueur (écart à l'orthophoto, plus bas).
+
+Les photos précédente et suivante complètent l'image : chaque point prend la photo où l'erreur due à
+l'inclinaison est la plus faible, hors de l'ellipse du véhicule (relevée sur l'imajbox du CD21) ; une
+voisine sans inclinaison ne sert donc qu'à combler. Chacune a sa position, sa hauteur et son
+inclinaison, posées sur le même terrain. Une distance entre deux points de photos différentes
+additionne l'erreur de chaque point et leur position relative (5 cm en RTK vérifié, sinon 30 cm).
+
+La hauteur de caméra est lue sur les photos elles-mêmes. Avec une hauteur fausse dans un rapport `k`, le
+sol projeté depuis deux caméras distantes de `b` se décale de `b (1 - k)` : ce décalage, cherché par
+corrélation dans le grain de la chaussée, donne la hauteur, indépendamment de l'orthophoto et de la
+peinture. Il faut le terrain et l'inclinaison des deux photos ; une mesure n'est gardée que si elle se
+stabilise (corrélation d'au moins 0,2, entre 1,5 et 2,6 m). La valeur retenue est la médiane des
+mesures de la séquence dans la session ; sans mesure valable, l'image garde la hauteur RTK moins sol.
+Sur 28 paires de 11 séquences de 2025 : environ 1,92 m du 21/05 au 09/06, environ 2,05 m du 26/06 au
+10/07. Cette méthode mesure l'échelle en long ; plusieurs sites donnent environ 8 % de plus d'après
+l'orthophoto, en travers, sans explication à ce jour.
+
+L'erreur sur un point au sol à la distance `d` vaut environ `(H² + d²) / H × δ` pour une erreur
+d'inclinaison `δ` (radians), et `d × Δz / H` pour un écart de sol `Δz`. L'image est donc grisée
+au-delà de 10 m. L'incertitude affichée (un écart-type) combine l'inclinaison sur ses deux axes, la
+hauteur de caméra et l'écart du sol (2 cm sur LiDAR, 10 cm sur sol plat). Les objets en relief
+s'étalent : seuls les points réellement au sol sont à leur place.
+
+Scène de synthèse (`tests/essai-dessus.html`, sol en dévers de 3 %, caméra penchée) : traits de
+peinture retrouvés à moins de 4 cm, aussi sous le véhicule et par-delà le raccord entre photos. Pas encore de comparaison à des longueurs mesurées sur le terrain.
+
+Sans verticale à lire (rase campagne), l'inclinaison vient de la route : le véhicule est supposé posé sur le
+plan ajusté au MNT sur ±2,5 m en long et ±1,5 m en travers. L'A38 penche d'environ 2,5 % en travers et 1,2 %
+en long, ce qui expliquait l'écart entre tirets devant et derrière. Les verticales gardent la priorité.
+
+Validation (07/11/2026, A38, 20 photos CD21 prises une à une, relevé automatique ; tirets de norme 3 m et 15 cm),
+sans puis avec cette inclinaison : tirets à 4-9 m devant 3,29 puis 2,98 m, derrière 2,72 puis 3,03 m ; écart médian
+à 3 m (4-14 m) 0,40 puis 0,21 m ; largeur 15,2 cm environ avant comme après. Écart entre lignes de rive comparé à
+l'orthophoto IGN (écart médian par photo) : en face de la caméra 3,9 puis 2,7 %, à 4-6 m 4,2 puis 1,9 %, à 6-10 m
+5,2 puis 2,4 %. Non validé hors autoroute, en virage ni sur un toit de chaussée marqué ; le MNT ignore les ponts.
+
+L'orthophoto sert d'étalon pour un écart de plusieurs mètres : la période des tirets varie de moins de 0,1 % entre les
+vols de 2017, 2020, 2023 et 2025, alors qu'elle va de 12,82 à 13,11 m selon le site (13 m en norme). Le marquage étant
+repeint chaque année, l'écart entre lignes change un peu d'un vol à l'autre. Elle ne convient pas pour une largeur de
+peinture (15 cm, pixel de 20 cm).
+
+Essais à la main de l'auteur (07/11/2026, petite route départementale, en agglomération et en rase campagne) :
+la chaussée de la vue se raccorde plutôt bien à celle de l'orthophoto. Elle montre aussi la chaussée cachée par
+les arbres sur l'orthophoto.
+
+Photos de référence de la vue du dessus (CD21, choisies par l'auteur), à reprendre pour chaque changement :
+
+| Cas | Photo | Séquence, date |
+|---|---|---|
+| A38, autoroute | `66d45404-a22d-4b07-8bc8-1f3edcdf1b8a` | `5bab4dc2`, 03/07/2025 |
+| RD 1074 | `6f585daf-8e96-448d-9efb-2523927bc8c9` | `59d37636`, 07/07/2025 |
+| D33, route propre, rives et axe marqués | `dbdaa47b-6e4d-4416-b352-ab324cb14735` | `a88c160e`, 20/06/2025 |
+| Petite RD sans rive, axe en « éclair » souvent effacé | `894c3f0f-3d30-486b-b0f9-c7e6505d8d03` | `61b3aa24`, 10/06/2025 |
+| Petite route de village | `e2d81cb7-f303-4cbf-93d7-8a2dbbc7c2b7` | `3e1d703f`, 28/05/2025 |
+
+Essai répétable : `tests/essai-dessus-reference.html` (avec le réseau, quelques minutes) note pour chacune l'état
+affiché, la hauteur de caméra et celle lue sur le décalage entre photos, l'inclinaison retenue, et dépose la vue
+recomposée dans `tests/captures/` (hors dépôt) pour comparer d'un changement à l'autre. Premier passage
+(07/11/2026) : 23 contrôles sur 23 ; hauteur et décalage d'accord à 1,4-2,2 % là où le décalage se mesure
+(pas sur l'A38 ni au village).

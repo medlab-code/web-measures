@@ -33,6 +33,37 @@ def crossings(z, width=3.0, along=(-10, -5, 0, 5, 10), between=None):
     return drawn
 
 
+class VueDessus(unittest.TestCase):
+    """Pose de la photo pour la vue du dessus (App.birdeye_pose)."""
+
+    def app_on(self, field_of_view):
+        class Cal:
+            auto = {}
+            position = staticmethod(lambda *a: None)
+            pose = staticmethod(lambda *a: {"offset": 1.5})
+            tilt = staticmethod(lambda pic: {"up": (0.0, 0.1, 0.99), "sigma": 0.2})
+            camera = staticmethod(lambda seq: None)
+
+        class Tilts:
+            pending = staticmethod(lambda pic: False)
+
+        a = App.__new__(App)
+        a.calibration, a.tilts, a.quality = Cal, Tilts, {"precise": True, "lidar": True, "height": 2.4, "spread": 0.02}
+        a.item = {"id": "p", "collection": "s", "geometry": {"coordinates": [5.0, 47.0, 300.0]},
+                  "properties": {"view:azimuth": 40, "pers:interior_orientation": {"field_of_view": field_of_view}}}
+        a.birdeye_items, a.birdeye_checks = [dict(a.item, id="v", geometry={"coordinates": [5.0, 47.00005]})], (Tilts,)
+        return a
+
+    def test_pose(self):
+        pose = json.loads(self.app_on(360).birdeye_pose())
+        self.assertEqual((pose["lon"], pose["heading"], pose["offset"], pose["height"]), (5.0, 40.0, 1.5, 2.4))
+        self.assertEqual((pose["up"], pose["sigma"], pose["height_sigma"]), ([0.0, 0.1, 0.99], 0.2, 0.05))
+        self.assertEqual([(n["pic"], n["lat"], n["relative_sigma"]) for n in pose["neighbours"]], [("v", 47.00005, 0.05)])
+
+    def test_hors_360(self):
+        self.assertEqual(self.app_on(90).birdeye_pose(), "null")
+
+
 class Plateforme(unittest.TestCase):
     """Dévers de la plateforme (web_app.platform_slope, ticket #38)."""
 

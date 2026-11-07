@@ -1,0 +1,156 @@
+<!doctype html><meta charset="utf-8"><title>Essai de la vue du dessus</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Conformité géométrique de la vue du dessus, sans réseau : panoramas de synthèse d'un sol en dévers portant des traits
+     de peinture à des positions connues, depuis trois caméras penchées chacune à sa façon, avec leur véhicule ; les traits
+     doivent se retrouver à leur place, aussi sous le véhicule et d'une photo à l'autre. -->
+<div id="dessus-etat"></div>
+<script src="../src/video.js"></script>
+<script src="../src/dessus.js"></script>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+let checks = 0, failures = 0;
+const expect = (what, ok, detail = "") => { checks++; if (!ok) failures++; return log(`${ok ? "" : "ÉCHEC "}${what}${detail ? " : " + detail : ""}`); };
+const toRad = Math.PI / 180;
+const unit = (x, y) => { const n = Math.hypot(x, y, 1); return [x / n, y / n, 1 / n]; };
+const pose = { pic: "p", lon: 5, lat: 47, heading: 37, offset: 1.5, up: unit(0.03, -0.02), sigma: 0.2, height: 2.4, height_sigma: 0.05, relative_sigma: 0.05, pending: false };
+const SLOPE = 0.03;  // le sol monte vers l'est
+const LONG = [-3, 0.8, 2.5], ACROSS = [0.5, 4, 7], HALF = 0.06;  // traits (m) : le long du nord à ces est, en travers à ces nord
+// Voisines à 5 m, dans leurs propres cap et inclinaison ; hauteurs de caméra différentes
+const at = (east, north) => Dessus.toLonLat(east, north, pose);
+const before = () => { const [lon, lat] = at(0.3, -5); return { ...pose, pic: "a", lon, lat, heading: 30, up: unit(-0.02, 0.025), height: 2.35 }; };
+const after = () => { const [lon, lat] = at(-0.2, 5); return { ...pose, pic: "b", lon, lat, heading: 44, up: unit(0.01, 0.03), height: 2.45 }; };
+const EARTH = 6371008.8;
+const offsetOf = (p) => [EARTH * (p.lon - pose.lon) * toRad * Math.cos(pose.lat * toRad), EARTH * (p.lat - pose.lat) * toRad];
+
+// Inverse indépendant de Dessus : direction vue → direction vraie, comme calibration.untilt (correction directe)
+function truth(yaw, elev, p) {
+  const y = yaw * toRad, e = elev * toRad, v = [Math.sin(y) * Math.cos(e), Math.cos(y) * Math.cos(e), Math.sin(e)], up = p.up;
+  const s = Math.hypot(up[0], up[1]), k = [up[1] / s, -up[0] / s, 0], c = up[2];
+  const cross = [k[1] * v[2] - k[2] * v[1], k[2] * v[0] - k[0] * v[2], k[0] * v[1] - k[1] * v[0]], dot = k[0] * v[0] + k[1] * v[1];
+  const r = v.map((value, i) => value * c + cross[i] * s + k[i] * dot * (1 - c));
+  const o = p.offset * toRad;
+  return [r[0] * Math.cos(o) + r[1] * Math.sin(o), -r[0] * Math.sin(o) + r[1] * Math.cos(o), r[2]];
+}
+
+const texture = (e, n) => { const v = Math.sin(Math.floor(e / 0.15) * 12.9898 + Math.floor(n / 0.15) * 78.233) * 43758.5453; return 30 * (v - Math.floor(v)); };
+
+// Sol en dévers, traits, et véhicule (rouge) autour de la caméra
+function panorama(p, W) {
+  const H = W / 2, canvas = new OffscreenCanvas(W, H), context = canvas.getContext("2d");
+  const image = context.createImageData(W, H), { data } = image, [cx, cy] = offsetOf(p), cz = SLOPE * cx + p.height, h = p.heading * toRad;
+  for (let j = H / 2; j < H; j++) {
+    const elev = 90 - (j + 0.5) * 180 / H;
+    for (let i = 0; i < W; i++) {
+      const [x, y, z] = truth((i + 0.5) * 360 / W - 180 + p.heading, elev, p);
+      const t = (SLOPE * cx - cz) / (z - SLOPE * x), k = 4 * (j * W + i), e = cx + t * x, n = cy + t * y;
+      const along = t * x * Math.sin(h) + t * y * Math.cos(h), across = t * x * Math.cos(h) - t * y * Math.sin(h);
+      const car = t > 0 && ((along - 0.2) / 3.6) ** 2 + (across / 2.1) ** 2 < 1;
+      const paint = t > 0 && (LONG.some((v) => Math.abs(e - v) < HALF) || ACROSS.some((v) => Math.abs(n - v) < HALF));
+      const grain = t > 0 ? 40 + texture(e, n) : 40;  // bitume : le décalage entre photos s'y lit
+      data[k] = car ? 220 : paint ? 255 : grain;
+      data[k + 1] = data[k + 2] = car ? 0 : paint ? 255 : grain;
+      data[k + 3] = 255;
+    }
+  }
+  context.putImageData(image, 0, 0);
+  return canvas.convertToBlob({ type: "image/png" });
+}
+
+// Centre du trait blanc le long d'une ligne de l'image, autour de la position attendue (m)
+function centre(pixels, line, around) {
+  const size = Dessus.SIZE, m = Dessus.REACH * 2 / size, c = Math.round((around + Dessus.REACH) / m), g = (p) => pixels(line, p);
+  let sum = 0, weight = 0;
+  for (let p = c - 12; p <= c + 12; p++) { const w = Math.max(0, g(p) - 120); sum += w * p; weight += w; }
+  return weight ? (sum / weight + 0.5) * m - Dessus.REACH : NaN;
+}
+
+(async () => {
+  // Valeurs de référence de py/core/calibration.py (untilt inverse, cap de séquence 1,5°)
+  const refs = [[[10, -20], [7.838023, -19.110245]], [[200, -5], [198.683876, -5.537915]], [[95, -60], [91.581946, -61.767519]], [[300, -30], [298.602414, -27.943363]]];
+  for (const [[yaw, elev], [ry, re]] of refs) {
+    const y = yaw * toRad, e = elev * toRad;
+    const [vy, ve] = Dessus.view(Math.sin(y) * Math.cos(e), Math.cos(y) * Math.cos(e), Math.sin(e), pose);
+    await expect(`direction identique au cœur, cap ${yaw}°`, Math.abs(vy - ry) < 1e-5 && Math.abs(ve - re) < 1e-5, `${vy.toFixed(6)} ${ve.toFixed(6)}`);
+  }
+  const poses = [pose, before(), after()], panos = [];
+  for (const [k, p] of poses.entries()) {
+    const url = URL.createObjectURL(await panorama(p, k ? 6144 : 8192));
+    panos.push(Dessus.panoTexture(await Dessus.loadPano({ image: url, cols: 1, rows: 1 }, 8192)));
+  }
+  const n = 2 * Dessus.REACH + 1, terrain = [];
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) terrain.push(300 + SLOPE * (-Dessus.REACH + i));
+  const read = (count, ground) => {
+    const canvas = Dessus.render(poses.slice(0, count).map((p, k) => ({ pose: p, pano: panos[k] })), ground), gl = canvas.getContext("webgl2");
+    const size = Dessus.SIZE, rgba = new Uint8Array(4 * size * size);
+    gl.readPixels(0, 0, size, size, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+    return { rows: (line, p) => rgba[4 * (line * size + p) + 1], cols: (line, p) => rgba[4 * (p * size + line) + 1],
+      red: (line, p) => rgba[4 * (line * size + p)] - rgba[4 * (line * size + p) + 1], alpha: (line, p) => rgba[4 * (line * size + p) + 3] };
+  };
+  const m = Dessus.REACH * 2 / Dessus.SIZE, cell = (metres) => Math.round((metres + Dessus.REACH) / m);
+  const near = (found, wanted) => found.every((v, i) => Math.abs(v - wanted[i]) < 0.04);
+  const fixed = (list) => list.map((v) => v.toFixed(3)).join(" ");
+  const alone = read(1, terrain);
+  const eastAlone = [-3, 2.5].map((v) => centre(alone.rows, cell(-5.5), v)), northAlone = [4, 7].map((v) => centre(alone.cols, cell(0.5), v));
+  await log(`photo seule, traits en long : ${fixed(eastAlone)} ; en travers : ${fixed(northAlone)}`);
+  await expect("photo seule : traits en long à moins de 4 cm", near(eastAlone, [-3, 2.5]));
+  await expect("photo seule : traits en travers à moins de 4 cm", near(northAlone, [4, 7]));
+  const flatAlone = read(1, null), flatWidth = centre(flatAlone.rows, cell(-5.5), 2.5) - centre(flatAlone.rows, cell(-5.5), -3);
+  await log(`même scène, sol supposé plat : largeur ${flatWidth.toFixed(3)} m au lieu de 5,5 m`);
+  let cars = 0;
+  for (let line = cell(-3.2); line <= cell(3.5); line++) for (let p = cell(-1.5); p <= cell(1.5); p++) if (alone.red(line, p) > 100) cars++;
+  await expect("photo seule : véhicule visible (rien pour le remplacer)", cars > 1000, `${cars} px`);
+
+  const all = read(3, terrain);
+  const under = [-3, 0.8, 2.5].map((v) => centre(all.rows, cell(0), v));
+  await log(`trois photos, à hauteur de la caméra principale, traits : ${fixed(under)}`);
+  await expect("sous le véhicule : traits en long à moins de 4 cm", near(under, [-3, 0.8, 2.5]));
+  const across = centre(all.cols, cell(0.2), 0.5);
+  await expect("sous le véhicule : trait en travers à moins de 4 cm", Math.abs(across - 0.5) < 0.04, across.toFixed(3));
+  const sides = [-4, -2.6, -1, 1, 2.6, 4].map((north) => centre(all.rows, cell(north), 0.8));
+  await log(`trait à 0,8 m suivi d'une photo à l'autre : ${fixed(sides)}`);
+  await expect("trait continu d'une photo à l'autre (moins de 4 cm)", sides.every((v) => Math.abs(v - 0.8) < 0.04));
+  let leftover = 0, holes = 0;
+  for (let line = cell(-3.5); line <= cell(3.5); line++) {
+    for (let p = cell(-2); p <= cell(2); p++) { if (all.red(line, p) > 100) leftover++; if (!all.alpha(line, p)) holes++; }
+  }
+  await expect("plus de véhicule ni de trou au centre", leftover === 0 && holes === 0, `${leftover} px rouges, ${holes} trous`);
+
+  // Source de chaque point et incertitude entre deux photos
+  const layers = poses.map((p) => ({ pose: p, at: offsetOf(p) }));
+  await expect("point sous le véhicule : pris sur une voisine", Dessus.sourceOf([0, 0], layers).pose.pic !== "p");
+  await expect("point dégagé : pris sur la principale", Dessus.sourceOf([4, 0], layers).pose.pic === "p");
+  const rough = layers.map((l, k) => (k ? { ...l, pose: { ...l.pose, sigma: 2 } } : l));
+  await expect("voisine sans inclinaison : seulement pour combler", Dessus.sourceOf([0, 7], rough).pose.pic === "p" && Dessus.sourceOf([0, 0], rough).pose.pic !== "p");
+  const single = Dessus.measureError([3, 0], [5, 0], layers, 0.02), crossing = Dessus.measureError([0, 0], [4, 0], layers, 0.02);
+  await expect("distance entre deux photos : position relative comptée", crossing >= 0.05, `${single.toFixed(3)} / ${crossing.toFixed(3)} m`);
+  await expect("hauteur de caméra : erreur proportionnelle", Math.abs(Dessus.uncertainty([0, 0], [6, 0], { ...pose, sigma: 0 }, 0) - 6 * 0.05 / 2.4) < 1e-9);
+  // Axe de la route : orientation des bandes de la zone idéale
+  const road = Dessus.roadAxis([{ pose, at: [0, 0] }, { pose, at: [1, -5] }, { pose, at: [-1, 5] }]);
+  await expect("axe : trajectoire entre les voisines", Math.abs(Math.abs(road[0] / road[1]) - 0.2) < 1e-9);
+  const headed = Dessus.roadAxis([{ pose, at: [0, 0] }]);
+  await expect("axe sans voisine : cap de la photo", Math.abs(headed[0] - Math.sin(37 * toRad)) < 1e-9 && Math.abs(headed[1] - Math.cos(37 * toRad)) < 1e-9);
+  const cells = 2 * Dessus.REACH + 1, slope = Array.from({ length: cells * cells }, (_, k) => 100 + 0.03 * ((k % cells) - Dessus.REACH) - 0.02 * (Math.floor(k / cells) - Dessus.REACH));
+  const up = Dessus.groundUp(slope, [2, -3], 37), norm = Math.hypot(0.03, 0.02, 1);
+  await expect("route en pente : la caméra suit le plan", Math.abs(up[0] - 0.03 / norm) < 1e-6 && Math.abs(up[1] + 0.02 / norm) < 1e-6 && Math.abs(up[2] - 1 / norm) < 1e-6);
+  const [, normal] = Dessus.view(-0.03, 0.02, 1, { ...pose, offset: 0, up });  // la perpendiculaire à la route doit être l'axe vertical de la caméra
+  await expect("route en pente : perpendiculaire vue à la verticale de la caméra", normal > 89.99, normal.toFixed(3));
+  const zones = Dessus.bestZones([0, 1]);
+  await expect("incertitude affichée : au moins 5 % de la longueur", Math.abs(Dessus.shownError([0, 0], [0, 10], [{ pose: { ...pose, sigma: 0, height_sigma: 0 }, at: [0, 0] }], 0) - 0.5) < 1e-9);
+  await expect("zone idéale : une bande de ±2 m en face de la caméra", zones.length === 1 && Math.min(...zones[0].map((p) => p[1])) === -2 && Math.max(...zones[0].map((p) => p[1])) === 2 && Math.max(...zones[0].map((p) => p[0])) === 8);
+  // Hauteur lue sur le décalage entre photos : caméras à 2,05 m, de départ fausse
+  const twin = async (p) => ({ ...p, height: 2.05 });
+  const [p0, p1] = [await twin(pose), await twin(after())];
+  const pano0 = Dessus.panoTexture(await Dessus.loadPano({ image: URL.createObjectURL(await panorama(p0, 8192)), cols: 1, rows: 1 }, 8192));
+  const pano1 = Dessus.panoTexture(await Dessus.loadPano({ image: URL.createObjectURL(await panorama(p1, 8192)), cols: 1, rows: 1 }, 8192));
+  for (const start of [1.85, 2.05, 2.3]) {
+    const main = { pano: pano0, pose: { ...p0, height: start } }, other = { pano: pano1, pose: { ...p1, height: start } };
+    const found = Dessus.estimateHeight(main, [other], terrain);
+    await expect(`hauteur retrouvée en partant de ${start} m`, found && Math.abs(found[0] - 2.05) < 0.03, found ? found[0].toFixed(3) : "aucune");
+  }
+  await expect("sans terrain : pas de mesure", Dessus.estimateHeight({ pano: pano0, pose: p0 }, [{ pano: pano1, pose: p1 }], null) === null);
+  await expect("sans inclinaison : pas de mesure", Dessus.estimateHeight({ pano: pano0, pose: { ...p0, up: null } }, [{ pano: pano1, pose: p1 }], terrain) === null);
+  await log(`contrôles : ${checks - failures} réussis sur ${checks}`);
+  await log(failures ? "ERREUR" : "FIN");
+})().catch(async (error) => { await log("ERREUR " + error); });
+</script>

@@ -733,6 +733,13 @@ services depuis le poste (bouton « Services » en bas du panneau).
 Pour s'ouvrir en `file://`, la page n'utilise pas de modules JavaScript ni de lecture de
 fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/sources.js`.
 
+### Mesure d'une longueur sur la carte (essai, branche `birdeye`)
+
+« Vue du dessus » reprojette le sol de la photo sur la mini-carte. « Mesure d'une longueur (carte) » échange alors la
+carte et la visionneuse, chacune à la place et à la taille de l'autre : on trace un segment de droite en deux clics. Pour une
+largeur, viser de préférence la bande verte, en face de la caméra (±5 % au mieux, inclinaison lue sur les façades ou, à défaut, sur la pente de la route). Échap ou le même bouton rétablit la disposition. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Méthode et
+limites : `docs/CALCULS.md`.
+
 ## Précision
 
 **État de la validation (05/11/2026)** : les mesures de hauteur sont validées sur des objets connus. Les retours

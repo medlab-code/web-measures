@@ -635,6 +635,7 @@
     clearTimeout(idleTimer);
     window.removeEventListener("pointermove", wakeFullscreen, true);
     if (full) {
+      Dessus.stop();  // colonne masquée, carte comprise
       window.addEventListener("pointermove", wakeFullscreen, true);  // capture : la visionneuse garde ses événements
       wakeFullscreen();
     } else {
@@ -943,6 +944,7 @@
   function refresh(text) {
     if (!app) return;
     setStatus(text ?? app.status());
+    updateBirdeye();
     const rtkAlert = app.take_rtk_alert();  // séquence sans RTK : fenêtre, une fois par séquence
     if (rtkAlert && !$("#alerte-rtk").open) {
       $("#alerte-rtk p").textContent = rtkAlert;
@@ -1156,6 +1158,71 @@
     showOverViewer(dialog);
   }
 
+  // Vue du dessus (src/dessus.js) : photo reprojetée au sol sur la mini-carte
+  let birdeyeAsked = null, birdeyeNear = null;  // photo dont l'inclinaison a été demandée ; fiches de ses voisines (null : en lecture)
+  async function birdeyeNeighbours(feature) {
+    const links = (feature.links || []).filter((l) => l.rel === "prev" || l.rel === "next");
+    const read = await Promise.all(links.map((l) => fetch(l.href).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
+    return read.filter(Boolean);
+  }
+  function updateBirdeye() {
+    const pose = app && photo ? JSON.parse(app.birdeye_pose()) : null, shown = pose && pose.pic === photo.id;
+    $("#dessus").disabled = !shown;
+    const on = shown && $("#dessus").checked;
+    if (on && birdeyeAsked !== photo.id) {
+      birdeyeAsked = photo.id;
+      birdeyeNear = null;
+      app.birdeye_neighbours("[]");
+      app.birdeye_request();  // peut répondre tout de suite (déjà calée) : la pose est relue ensuite
+      const feature = photo;
+      birdeyeNeighbours(feature).then((near) => {
+        if (photo !== feature) return;
+        birdeyeNear = near;
+        app.birdeye_neighbours(JSON.stringify(near));
+        updateBirdeye();
+      });
+    }
+    Dessus.update(on ? photo : null, on ? JSON.parse(app.birdeye_pose()) : null, birdeyeNear);
+  }
+  // Mesure de longueur : la carte prend la place et la taille de la visionneuse, et inversement. Deux gabarits vides gardent la
+  // mise en page, #vue et #carte se posent dessus. Carte détachée : déjà à part, rien à échanger.
+  const viewerSlot = $("#place-vue"), mapSlot = $("#place-carte");
+  function placeSwapped() {
+    const set = (name, rect) => {
+      for (const side of ["left", "top", "width", "height"]) document.body.style.setProperty(`--${name}-${side}`, `${rect[side]}px`);
+    };
+    set("place-vue", viewerSlot.getBoundingClientRect());
+    set("place-carte", mapSlot.getBoundingClientRect());
+    map.resize();
+    window.dispatchEvent(new Event("resize"));  // visionneuse à la nouvelle taille
+  }
+  const swapWatch = new ResizeObserver(placeSwapped);
+  function swapMapAndViewer(on) {
+    if (mapWindow) return;
+    if (on) {
+      setColumnFolded(false);
+      setFolded(false);
+      mapSlot.style.height = `${mapBox.getBoundingClientRect().height}px`;
+    }
+    viewerSlot.hidden = mapSlot.hidden = !on;
+    fold.disabled = columnFold.disabled = on;
+    document.body.classList.toggle("carte-en-grand", on);
+    if (on) {
+      placeSwapped();
+      swapWatch.observe(viewerSlot);
+      swapWatch.observe(mapSlot);
+    } else {
+      swapWatch.disconnect();
+      map.resize();
+      window.dispatchEvent(new Event("resize"));
+    }
+  }
+  Dessus.setup(map, swapMapAndViewer);
+  $("#dessus").addEventListener("change", (event) => {
+    if (event.target.checked && map.getZoom() < 20 && photo) map.jumpTo({ center: photo.geometry.coordinates, zoom: 20 });
+    updateBirdeye();
+  });
+
   // Choix de la photo sur la carte ---------------------------------------------------------
 
   map.on("click", (event) => {
@@ -1168,7 +1235,8 @@
       updatePlayer();
       return;
     }
-    if (lineDraft !== null) addLinePoint(event.lngLat);
+    if (Dessus.measuring()) Dessus.addPoint(event.lngLat);
+    else if (lineDraft !== null) addLinePoint(event.lngLat);
     else if (placing) placeOnMap(event.lngLat);
     else if (travelPick) pickTravelPoint(event.lngLat);
     else {
@@ -1507,6 +1575,7 @@
   const detachButton = document.createElement("button");
 
   async function toggleMapWindow() {
+    Dessus.stop();  // carte et visionneuse échangées : remises en place d'abord
     if (mapWindow) {
       mapWindow.close();  // pagehide : carte remise en place
       return;

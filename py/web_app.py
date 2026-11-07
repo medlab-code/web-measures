@@ -429,6 +429,7 @@ class App(session.Session):
         # Inclinaison par le terrain hors agglomération, expérimentale (option, voir web_terrain)
         self.terrain_relay = False
         self.relay_tilts = {}  # photo -> inclinaison par le terrain (dict comme Calibration.auto_tilt)
+        self.birdeye_items, self.birdeye_checks = [], (autotilt.TiltChecker(), autotilt.TiltChecker())  # voir birdeye_neighbours
         self.relay_pending = {}  # photo -> étape du calcul en cours
         self.relay_failed = {}  # photo -> raison de l'échec
         self.relay_models = {}  # séquence -> références, modèle (web_terrain.model), raison d'un échec
@@ -610,6 +611,61 @@ class App(session.Session):
     def _heading_of(item):
         heading = metadata.precise_heading(item)
         return metadata.item_heading(item) if heading is None else heading
+
+    def birdeye_request(self):
+        """Vue du dessus demandée sur la photo affichée : son inclinaison automatique est lancée
+        (une fois par photo : Calibration.auto la garde, sinon ce sont les clics qui la relancent)."""
+        if self.item and autotilt.is_360(self.item):
+            pic = self.item.get("id")
+            before = self.calibration.auto.get(pic)
+            self.tilts.check(self.item, self.calibration, lambda: self._on_tilt(pic, before))
+
+    def birdeye_neighbours(self, items_json):
+        """Photos voisines de la vue du dessus (fiches STAC, photo précédente puis suivante) : leur
+        inclinaison est lancée à part, chacune son vérificateur (TiltChecker n'en suit qu'une)."""
+        self.birdeye_items = json.loads(items_json)
+
+        def run(function, args, done):
+            web_host.run_task(web_tilt.estimate, args, lambda res: done(None if res is None or "reason" in res else res))
+
+        for item, checker in zip(self.birdeye_items, self.birdeye_checks):
+            checker.run = run
+            pic = item.get("id")
+            before = self.calibration.auto.get(pic)
+            checker.check(item, self.calibration, lambda pic=pic, before=before: self._on_tilt(pic, before))
+
+    def _birdeye_of(self, item, pending):
+        """Pose d'une photo pour la vue du dessus (voir birdeye_pose), ou None sans position, sans
+        cap ou hors 360°."""
+        heading = self._heading_of(item)
+        if not autotilt.is_360(item) or heading is None:
+            return None
+        try:
+            lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
+        except (KeyError, TypeError, ValueError):
+            return None
+        pic, sequence, cal, q = item.get("id"), item.get("collection"), self.calibration, self.quality or {}
+        fixed, pose, tilt, cam = cal.position(sequence, lon, lat), cal.pose(sequence, lon, lat), cal.tilt(pic), cal.camera(sequence)
+        verified = q.get("precise") and q.get("lidar") is True
+        return {"pic": pic, "lon": fixed[0] if fixed else lon, "lat": fixed[1] if fixed else lat,
+                "heading": float(heading), "offset": pose["offset"] if pose else 0.0,
+                "up": list(tilt["up"]) if tilt else None,
+                "sigma": tilt["sigma"] if tilt else calibration.UNCALIBRATED,
+                "pending": pending(pic), "height": self._camera_height(),
+                "height_sigma": max(q.get("spread") or 0, 0.05) if verified else cam["sigma"] if cam else 0.3,
+                "relative_sigma": 0.05 if verified else 0.3}  # position d'une photo à sa voisine (trajectoire)
+
+    def birdeye_pose(self):
+        """Pose de la photo affichée pour la vue du dessus (src/dessus.js), en JSON : position
+        (recalée si la séquence l'est), cap du centre de l'image, correction de cap de la séquence
+        (degrés), verticale vraie vue de la caméra (None sans calage) et son incertitude (degrés),
+        hauteur de caméra, son incertitude et celle de la position relative entre photos voisines (m) ;
+        neighbours : les poses des photos voisines. null si la photo ne convient pas."""
+        pose = self._birdeye_of(self.item, self.tilts.pending) if self.item else None
+        if pose is None:
+            return "null"
+        near = (self._birdeye_of(item, checker.pending) for item, checker in zip(self.birdeye_items, self.birdeye_checks))
+        return json.dumps(dict(pose, neighbours=[p for p in near if p]))
 
     def _terrain_of(self, item, done):
         """Terrain sous la photo item : done({slopes, heading}, None), ou done(None, raison). Grille

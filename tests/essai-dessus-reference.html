@@ -1,0 +1,78 @@
+<!doctype html><meta charset="utf-8"><title>Vue du dessus : photos de référence</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Essai répétable de la vue du dessus sur les photos de référence (docs/CALCULS.md), avec le réseau : pour
+     chacune, l'état affiché, la hauteur de caméra (GPS RTK moins sol, et lue sur le décalage entre photos),
+     l'inclinaison retenue et la vue recomposée, déposée dans tests/captures/ pour comparer d'un changement à
+     l'autre. tools/serveur-essai.py 8766, puis ouvrir tests/essai-dessus-reference.html (plusieurs minutes). -->
+<style>body{margin:0}iframe{border:0;display:block}</style>
+<iframe id="f" src="about:blank" style="width:1400px;height:900px"></iframe>
+<script>
+const REFERENCES = [
+  ["A38", "66d45404-a22d-4b07-8bc8-1f3edcdf1b8a"],
+  ["RD 1074", "6f585daf-8e96-448d-9efb-2523927bc8c9"],
+  ["D33", "dbdaa47b-6e4d-4416-b352-ab324cb14735"],
+  ["petite RD", "894c3f0f-3d30-486b-b0f9-c7e6505d8d03"],
+  ["village", "e2d81cb7-f303-4cbf-93d7-8a2dbbc7c2b7"],
+];
+const WAIT = 240000;  // ms par photo : photo, terrain, voisines et hauteur de caméra
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+let checks = 0, failures = 0;
+const expect = (what, ok, detail = "") => { checks++; if (!ok) failures++; return log(`${ok ? "" : "ÉCHEC "}${what}${detail ? ` (${detail})` : ""}`); };
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const frame = document.getElementById("f");
+const number = (v, d = 2) => (v == null || Number.isNaN(v) ? "-" : v.toFixed(d).replace(".", ","));
+
+/** Ouvre la page sur la photo et attend la vue du dessus prête (rien en cours) ; renvoie la fenêtre et l'image, ou null. */
+async function open(id) {
+  frame.contentWindow.localStorage?.setItem("web-measures/photo", id);
+  await new Promise((resolve) => { frame.onload = resolve; frame.src = `../index.html?essai=${Date.now()}`; });
+  const w = frame.contentWindow, doc = w.document, $ = (s) => doc.querySelector(s);
+  let blob = null;
+  const create = w.URL.createObjectURL.bind(w.URL);
+  w.URL.createObjectURL = (b) => { if (b instanceof w.Blob && b.type === "image/png") blob = b; return create(b); };
+  const start = Date.now();
+  while (Date.now() - start < WAIT) {
+    [...doc.querySelectorAll("dialog[open] button.oui, dialog[open] button.non")].forEach((b) => b.click());
+    if (!$("#dessus").disabled) break;
+    await sleep(1000);
+  }
+  if ($("#dessus").disabled) return null;
+  $("#dessus").click();
+  while (Date.now() - start < WAIT) {
+    const state = $("#dessus-etat").textContent;
+    if (/caméra à/.test(state) && !/en calcul|en cours|Lecture/.test(state)) return { w, state, blob: () => blob };
+    await sleep(1000);
+  }
+  return { w, state: $("#dessus-etat").textContent, blob: () => blob, late: true };
+}
+
+(async () => {
+  frame.src = "../index.html";
+  await new Promise((resolve) => { frame.onload = resolve; });
+  for (const [name, id] of REFERENCES) {
+    const shown = await open(id);
+    if (!shown) { await expect(`${name} : vue du dessus disponible`, false); continue; }
+    const { w, state } = shown, Dessus = w.eval("Dessus"), now = Dessus.layersNow(), [main, ...others] = now.layers, pose = main.pose;
+    const h = pose.heading * Math.PI / 180, u = pose.up || [0, 0, 1];
+    const forward = Math.atan2(u[0] * Math.sin(h) + u[1] * Math.cos(h), u[2]) * 180 / Math.PI;
+    const right = Math.atan2(u[0] * Math.cos(h) - u[1] * Math.sin(h), u[2]) * 180 / Math.PI;
+    // Hauteur lue sur le décalage entre photos, l'inclinaison retenue tenue pour juste (contrôle croisé du GPS RTK)
+    const level = (l) => ({ ...l, pose: { ...l.pose, groundTilt: false } });
+    const parallax = now.terrain ? Dessus.estimateHeight(level(main), others.map(level), now.terrain) : null;
+    const read = parallax && parallax.reduce((a, b) => a + b, 0) / parallax.length;
+    await log(`${name} (${id.slice(0, 8)}) : ${state}`);
+    await log(`  ${now.layers.length} photo(s), caméra ${number(pose.height)} m, décalage ${parallax ? parallax.map((v) => number(v)).join(" / ") : "-"} m, `
+      + `inclinaison ${pose.groundTilt ? "de la route" : pose.up ? "des verticales" : "aucune"} (avant ${number(forward)}°, droite ${number(right)}°, ±${number(pose.sigma, 1)}°)`);
+    await expect(`${name} : prête dans le délai`, !shown.late);
+    await expect(`${name} : terrain LiDAR HD`, Boolean(now.terrain));
+    await expect(`${name} : inclinaison connue`, Boolean(pose.up));
+    if (read) await expect(`${name} : hauteur GPS RTK et décalage d'accord à 5 %`, Math.abs(read / pose.height - 1) < 0.05, `${number(100 * (read / pose.height - 1), 1)} %`);
+    const blob = shown.blob();
+    await expect(`${name} : vue recomposée`, Boolean(blob));
+    if (blob) await fetch(`/capture/dessus-${name.replace(/\W+/g, "-")}.png`, { method: "POST", body: blob });
+  }
+  await log(`contrôles : ${checks - failures} réussis sur ${checks}`);
+  await log(failures ? "ERREUR" : "FIN");
+})().catch(async (error) => { await log("ERREUR " + error); });
+</script>
