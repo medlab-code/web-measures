@@ -745,10 +745,10 @@ bande verte (±5 % au mieux, inclinaison lue sur les façades ou, à défaut, su
 longueur est mesurée sur le fond de carte seul, sans incertitude (« hors vue »), pour un contrôle rapide. Échap retire
 le départ. Sans façade pour caler l'inclinaison, les curseurs « Roulis » et « Tangage » recalent la vue sur
 l'orthophoto (bande verte seule) ; le réglage est retenu pour toute la séquence, dans ce navigateur. « Raccords recalés » (essai, coché) recale chaque
-photo voisine sur la photo affichée par les lignes de peinture, pour effacer les marches aux raccords ; la barre d'état
-indique la marche avant et après. « Position calée sur l'orthophoto » (essai, coché) pose la vue sur l'orthophoto
-quand ses lignes s'en écartent de plus de 30 cm en travers : le GPS est alors suspecté avant l'orthophoto. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Méthode et
-limites : `docs/CALCULS.md`.
+photo voisine sur la photo affichée, par corrélation du sol commun (marquages, passages piétons, grain), pour effacer
+les marches aux raccords ; la barre d'état indique l'écart avant et après. « Position calée sur l'orthophoto » (essai, coché) pose la vue sur l'orthophoto
+quand ses lignes s'en écartent de plus de 30 cm en travers : le GPS est alors suspecté avant l'orthophoto. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Construction de
+la vue et recalages : `docs/BIRDEYE.md` ; chiffres des essais : `docs/CALCULS.md`.
 
 ## Précision
 

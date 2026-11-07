@@ -18,6 +18,11 @@ const Dessus = (() => {
   const SHOWN_SIZE = 2048;
   const CHUNK = 150;  // points par requête d'altitude (longueur de l'adresse)
   const CAR = { ahead: 0, long: 5.8, wide: 2.9 };  // m : véhicule étalé sur le sol, reflets du capot et du coffre compris (voir hidden)
+  const BODY = { long: 4.5, wide: 2.5 };  // m : son corps seul, sol vraiment caché ; entre les deux, la bande des reflets
+  // Bande des reflets : la photo y reste prise, son erreur attendue comptée REFLECT fois (voir sourceOf). shortcut: valeur
+  // choisie sur un cas (village, 07/11/2026 : une voisine à 5 m dans ses reflets valait mieux qu'une photo à 10 m, dont
+  // l'inclinaison lue sur les façades s'écartait de 1,6° pour ±0,2° annoncés) ; à revoir sur d'autres
+  const REFLECT = 3;
   const NEAR_LIMIT = 6144;  // px : largeur des photos voisines, qui ne servent que près de leur caméra (mémoire graphique)
   const BEST = { along: 2, wide: 8 };  // m : zone idéale d'une largeur, en face de la caméra : le tangage y pèse peu
   const MEASURED = 0.05;  // part de la longueur : incertitude affichée au moins égale à l'écart à l'orthophoto (voir docs/CALCULS.md)
@@ -73,24 +78,30 @@ const Dessus = (() => {
     return ((along - CAR.ahead) / CAR.long) ** 2 + (across / CAR.wide) ** 2;
   }
   const hidden = (east, north, pose) => inCar(east, north, pose) < 1;
+  /** Le point est-il sous le corps du véhicule (BODY) ? */
+  function underBody(east, north, pose) {
+    const h = pose.heading * toRad, along = east * Math.sin(h) + north * Math.cos(h), across = east * Math.cos(h) - north * Math.sin(h);
+    return ((along - CAR.ahead) / BODY.long) ** 2 + (across / BODY.wide) ** 2 < 1;
+  }
 
   /** Erreur attendue (m) d'un point au sol à la distance d, due à l'inclinaison : c'est la photo où elle est la plus faible
    * qui fournit le point (une voisine sans inclinaison ne sert ainsi qu'à combler). Même calcul dans le dessin (FRAGMENT). */
   const tiltError = (d, pose) => (pose.height * pose.height + d * d) / pose.height * pose.sigma * toRad;
 
-  /** Couche qui fournit le point (est, nord, m depuis la caméra principale), voir tiltError, parmi celles où il n'est pas
-   * caché ; caché partout, celle où il est le plus près du bord du véhicule (comme render) ; null hors de la vue.
-   * layers[].at : position de sa caméra. */
+  /** Couche qui fournit le point (est, nord, m depuis la caméra principale), comme render : la plus faible erreur attendue
+   * (tiltError, REFLECT fois dans la bande des reflets) parmi celles où il n'est pas sous le corps du véhicule ; sous le
+   * corps partout, celle où il est le plus près du bord du véhicule ; null hors de la vue. layers[].at : position de sa caméra. */
   function sourceOf(point, layers) {
     let best = null, bestDist = Infinity, least = null, leastIn = -1;
     if (Math.hypot(...point) > REACH) return null;
     for (const layer of layers) {
       const e = point[0] - layer.at[0], n = point[1] - layer.at[1], d = Math.hypot(e, n), share = layers.length > 1 ? inCar(e, n, layer.pose) : 1;
       if (d > REACH) continue;
-      if (share >= 1 && tiltError(d, layer.pose) < bestDist) {
+      const body = layers.length > 1 && underBody(e, n, layer.pose), score = tiltError(d, layer.pose) * (share < 1 ? REFLECT : 1);
+      if (!body && score < bestDist) {
         best = layer;
-        bestDist = tiltError(d, layer.pose);
-      } else if (share < 1 && share > leastIn) {
+        bestDist = score;
+      } else if (body && share > leastIn) {
         least = layer;
         leastIn = share;
       }
@@ -236,7 +247,8 @@ const Dessus = (() => {
     const vec2 frameCentre = vec2(0.0);
     uniform vec4 car;  // sin et cos du cap, centre et demi-longueur du véhicule ; demi-largeur à part
     uniform vec4 band;  // axe de la route (est, nord), demi-longueur et demi-largeur de la bande gardée
-    uniform float wide, masked, heading, top, reach, sure, height, sigma;
+    uniform float wide, masked, heading, top, reach, sure, height, sigma, reflect;
+    uniform vec2 body;  // demi-longueur et demi-largeur du corps du véhicule (BODY)
     uniform vec4 fix;  // recalage sur la principale (voir alignJoin) : décalage le long et en travers, tangage, lacet
     uniform vec2 fixMore;  // et échelle, roulis
     const float PI = 3.14159265358979;
@@ -251,8 +263,11 @@ const Dessus = (() => {
       if (abs(dot(world.xy, band.xy)) > band.z || abs(world.x * band.y - world.y * band.x) > band.w) discard;
       float along = (ray.x * car.x + ray.y * car.y - car.z) / car.w, across = (ray.x * car.y - ray.y * car.x) / wide;
       float inCar = along * along + across * across;
-      // sol sous un véhicule : derrière tout le reste, pris seulement là où aucune photo ne le voit (le plus près du bord)
-      gl_FragDepth = masked > 0.5 && inCar < 1.0 ? 0.99 - 0.49 * inCar : 0.5 * min((height * height + dist * dist) / height * sigma / 50.0, 1.0);
+      float inBody = pow(along * car.w / body.x, 2.0) + pow(across * wide / body.y, 2.0);
+      // sous le corps du véhicule : derrière tout le reste, pris seulement là où aucune photo ne le voit (le plus près du
+      // bord) ; dans ses reflets : erreur attendue comptée reflect fois (voir sourceOf)
+      float error = (height * height + dist * dist) / height * sigma / 50.0 * (masked > 0.5 && inCar < 1.0 ? reflect : 1.0);
+      gl_FragDepth = masked > 0.5 && inBody < 1.0 ? 0.99 - 0.49 * inBody : 0.5 * min(error, 1.0);
       vec3 v = normalize(turn * ray);
       float u = (atan(v.x, v.y) - heading) / (2.0 * PI) + 0.5;
       float a = fract(u), b = fract(u + 0.5) - 0.5;  // la coupure du panorama ne doit pas faire choisir un niveau flou
@@ -336,6 +351,8 @@ const Dessus = (() => {
     g.uniform1f(uniform("reach"), REACH);
     g.uniform1f(uniform("sure"), SURE);
     g.uniform1f(uniform("wide"), CAR.wide);
+    g.uniform2f(uniform("body"), BODY.long, BODY.wide);
+    g.uniform1f(uniform("reflect"), REFLECT);
     g.uniform1f(uniform("masked"), layers.length > 1 ? 1 : 0);  // photo seule : son véhicule plutôt qu'un trou
     g.uniform4f(uniform("band"), band ? band[0] : 0, band ? band[1] : 1, band ? BEST.along : 1e6, band ? BEST.wide : 1e6);
     for (const { pano, pose, fix } of layers) {
@@ -672,88 +689,144 @@ const Dessus = (() => {
     }
   }
 
-  // Raccords entre photos, recalés sur les marquages ---------------------------------------
-  // Une voisine qui ne s'accorde pas avec la principale fait une marche aux lignes de peinture, au raccord. Ses lignes sont
-  // relevées dans les deux photos dessinées seules, hors du raccord et loin des véhicules, puis sa pose relative ajustée :
-  // décalage, tangage, lacet, échelle, roulis. Essai du 07/11/2026, 37 raccords (A38, RD 1074, D33) :
-  // marche médiane au raccord de 8,3 à 3,6 cm, mesurée là où l'ajustement n'a pas regardé. Gardé seulement si aucune ligne n'y
-  // empire (au-delà de JOIN_NOISE) : une ligne peu vue peut casser quand les autres se raccordent. La principale ne bouge pas (échelle : tangage).
-  const JOIN_NOISE = 0.03;  // m : marche sous laquelle le relevé des lignes ne distingue plus rien
-  const SEAM = 1.5, CAR_ZONE = { along: 3, side: 1.3 };  // m : demi-zone du raccord, véhicule (corps) où les lignes sont faussées
+  // Raccords entre photos, recalés par corrélation --------------------------------------------
+  // Une voisine qui ne s'accorde pas avec la principale fait une marche au raccord. Les deux photos sont dessinées seules ;
+  // dans leur zone commune sûre (hors véhicule et reflets, à moins de 11 m de chaque caméra), des blocs de 1,4 m sont
+  // cherchés de l'une à l'autre par corrélation (grain, marquages, plaques). Un bloc ne donne que les directions où le pic
+  // est net : une ligne en long fixe le travers seulement. La pose relative de la voisine (décalage, tangage, roulis,
+  // lacet, échelle) est ajustée hors du raccord, vérifiée au raccord. Essai du 07/11/2026 : écart médian au raccord de
+  // 10,8 à 2,9 cm sur 38 raccords de route, de 17,6 à 3,9 cm sur 14 en ville (passages piétons), tous améliorés.
+  const SEAM = 1.5;  // m : demi-zone du raccord, où l'ajustement est vérifié
+  const BLOCK = 48, SEARCH = 40, BLOCK_STEP = 20;  // px (3 cm) : côté d'un bloc, recherche de part et d'autre, pas des blocs
+  const JOIN_REACH = 11;  // m : au-delà, photo trop floue pour s'y fier
+  // A priori sur la pose relative (écarts types : décalage 0,3 m, angles 1°, échelle 3 % ; mesures à 2 cm) : un terme mal
+  // déterminé par une zone commune étroite reste près de 0. Au-delà de JOIN_LIMIT, correction refusée
+  const JOIN_PRIOR = [0.3, 0.3, toRad, toRad, toRad, 0.03].map((s) => (0.02 / s) ** 2);
+  const JOIN_LIMIT = [0.8, 0.8, 3 * toRad, 3 * toRad, 3 * toRad, 0.06];
 
-  /** Photo seule dessinée (réglages en cours, sans recalage) : { gray (0-765), alpha }, interpolés en (est, nord, m). */
-  function readSharp(layer, terrain, frame) {
+  /** Photo seule dessinée (réglages en cours, sans recalage) : gris (0-255) passe-haut, sûr (0/1), lignes du sud au nord. */
+  function readRaster(layer, terrain, frame) {
     const g = context(), rgba = new Uint8Array(4 * SIZE * SIZE), M = 2 * REACH / SIZE;
     render([{ ...layer, fix: null }], terrain, frame);
-    g.readPixels(0, 0, SIZE, SIZE, g.RGBA, g.UNSIGNED_BYTE, rgba);  // lignes du sud au nord
-    const at = (east, north, alpha) => {
-      const x = (east + REACH) / M - 0.5, y = (north + REACH) / M - 0.5;
-      if (x < 0 || y < 0 || x >= SIZE - 1 || y >= SIZE - 1) return 0;
-      const i = Math.floor(x), j = Math.floor(y), u = x - i, v = y - j;
-      const c = (a, b) => { const k = 4 * (b * SIZE + a); return alpha ? rgba[k + 3] : rgba[k] + rgba[k + 1] + rgba[k + 2]; };
-      return (c(i, j) * (1 - u) + c(i + 1, j) * u) * (1 - v) + (c(i, j + 1) * (1 - u) + c(i + 1, j + 1) * u) * v;
-    };
-    return { gray: (e, n) => at(e, n, false), alpha: (e, n) => at(e, n, true) };
-  }
-  const range = (from, to, step) => Array.from({ length: Math.round((to - from) / step) }, (_, k) => from + k * step);
-
-  /** Lignes le long de la route dans la vue (côte en travers, m, vers la droite de l'axe ax) : pics du 8e décile. */
-  function joinLines(view, ax, vx) {
-    const ss = range(-8, 8, 0.015), rows = [];
-    for (const t of range(-12, 12, 0.1)) {
-      if (Math.abs(t) <= 3.5) continue;  // le véhicule
-      const S = ss.map((s) => { const e = t * ax[0] + s * vx[0], n = t * ax[1] + s * vx[1]; return view.alpha(e, n) < 100 ? NaN : view.gray(e, n) / 3; });
-      const base = smooth(S.map((v) => (Number.isNaN(v) ? 120 : v)), 30);
-      rows.push(S.map((v, c) => v - base[c]));
-    }
-    const p = smooth(ss.map((_, c) => percentile(rows.map((row) => row[c]), 0.8)), 3), found = [];
-    for (let c = 0; c < ss.length; c++) {
-      if (!(p[c] >= 12) || Math.abs(ss[c]) <= 0.8 || Math.abs(ss[c]) > ROAD) continue;  // au-delà : glissières et bordures en relief
-      let top = true;
-      for (let k = Math.max(0, c - 66); k <= Math.min(ss.length - 1, c + 66) && top; k++) if (p[k] > p[c] || (p[k] === p[c] && k < c)) top = false;
-      if (top) found.push(ss[c]);
-    }
-    return found;
-  }
-
-  /** Centre en travers (m) de la ligne près de s0, à t le long : centroïde au-dessus de la mi-hauteur, ou null. */
-  function lineCentre(view, ax, vx, t, s0) {
-    const at = (s) => [t * ax[0] + s * vx[0], t * ax[1] + s * vx[1]], ss = range(s0 - 0.3, s0 + 0.3, 0.01);
-    if (ss.some((s) => view.alpha(...at(s)) < 200)) return null;
-    const bg = median(range(s0 - 0.9, s0 + 0.9, 0.01).map((s) => view.gray(...at(s)) / 3));
-    const b = smooth(ss.map((s) => view.gray(...at(s)) / 3), 2).map((v) => v - bg), top = Math.max(...b), i = b.indexOf(top);
-    if (top < 20 || i < 5 || i > b.length - 6) return null;
-    let sum = 0, weight = 0, count = 0;
-    b.forEach((v, k) => { const w = Math.max(0, v - 0.5 * top); if (w > 0) count++; sum += w * ss[k]; weight += w; });
-    return count * 0.01 > 0.06 && count * 0.01 < 0.35 ? sum / weight : null;  // largeur d'une ligne peinte
-  }
-
-  /** Bouts des tirets sur la ligne s0 : [[t (m le long), 1 début ou -1 fin], …], passages à mi-contraste. */
-  function dashEnds(view, ax, vx, s0) {
-    const ts = range(-11, 11, 0.01), pr = [], ok = [];
-    for (const t of ts) {
-      let sum = 0, alpha = 255;
-      for (const d of [-0.05, -0.025, 0, 0.025, 0.05]) {
-        const e = t * ax[0] + (s0 + d) * vx[0], n = t * ax[1] + (s0 + d) * vx[1];
-        sum += view.gray(e, n) / 3;
-        alpha = Math.min(alpha, view.alpha(e, n));
+    g.readPixels(0, 0, SIZE, SIZE, g.RGBA, g.UNSIGNED_BYTE, rgba);
+    const gray = new Float32Array(SIZE * SIZE), safe = new Uint8Array(SIZE * SIZE);
+    for (let j = 0, k = 0; j < SIZE; j++) {
+      for (let i = 0; i < SIZE; i++, k++) {
+        gray[k] = (rgba[4 * k] + rgba[4 * k + 1] + rgba[4 * k + 2]) / 3;
+        const e = (i + 0.5) * M - REACH - layer.at[0], n = (j + 0.5) * M - REACH - layer.at[1];
+        safe[k] = rgba[4 * k + 3] >= 250 && !hidden(e, n, layer.pose) && Math.hypot(e, n) < JOIN_REACH ? 1 : 0;
       }
-      pr.push(sum / 5);
-      ok.push(alpha >= 200);
     }
-    const level = pr.map((_, i) => { const w = pr.slice(Math.max(0, i - 100), i + 100); return [percentile(w, 0.2), percentile(w, 0.9)]; });
-    const out = [];
-    for (let i = 0; i < ts.length - 1; i++) {
-      if (!ok[i] || !ok[i + 1] || level[i][1] - level[i][0] < 25) continue;
-      const c0 = pr[i] - (level[i][0] + level[i][1]) / 2, c1 = pr[i + 1] - (level[i + 1][0] + level[i + 1][1]) / 2;
-      if ((c0 < 0) !== (c1 < 0)) out.push([ts[i] + (ts[i + 1] - ts[i]) * c0 / (c0 - c1), c1 > 0 ? 1 : -1]);
+    let blur = gray;
+    for (let pass = 0; pass < 3; pass++) blur = boxBlur(blur, 8);  // presque une gaussienne de 8 px
+    return { high: gray.map((v, k) => v - blur[k]), safe };
+  }
+
+  /** Transformée de Fourier en place (re, im : Float64Array de longueur 2^n), inverse si invert. */
+  function fft(re, im, invert) {
+    const n = re.length;
+    for (let i = 1, j = 0; i < n; i++) {
+      let bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+      const a = (invert ? 2 : -2) * Math.PI / len, wr = Math.cos(a), wi = Math.sin(a);
+      for (let i = 0; i < n; i += len) {
+        let cr = 1, ci = 0;
+        for (let k = 0; k < len / 2; k++) {
+          const p = i + k, q = p + len / 2, tr = re[q] * cr - im[q] * ci, ti = re[q] * ci + im[q] * cr;
+          re[q] = re[p] - tr; im[q] = im[p] - ti; re[p] += tr; im[p] += ti;
+          [cr, ci] = [cr * wr - ci * wi, cr * wi + ci * wr];
+        }
+      }
+    }
+    if (invert) for (let i = 0; i < n; i++) { re[i] /= n; im[i] /= n; }
+  }
+  /** En 2D (côté size, puissance de 2), lignes puis colonnes. */
+  function fft2(re, im, size, invert) {
+    const r = new Float64Array(size), i = new Float64Array(size);
+    for (const [step, stride] of [[1, size], [size, 1]]) {
+      for (let l = 0; l < size; l++) {
+        for (let k = 0; k < size; k++) { r[k] = re[l * stride + k * step]; i[k] = im[l * stride + k * step]; }
+        fft(r, i, invert);
+        for (let k = 0; k < size; k++) { re[l * stride + k * step] = r[k]; im[l * stride + k * step] = i[k]; }
+      }
+    }
+  }
+
+  // Quadrique ajustée sur 5 x 5 autour d'un pic : [c, gx, gy, hxx/2, hxy, hyy/2]
+  const QUAD = [];
+  for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) QUAD.push([1, x, y, x * x, x * y, y * y]);
+
+  /** Décalages de blocs de la principale (a) dans la voisine (b) : [{ p (est, nord, m), dir, d (m) }]. */
+  function blockShifts(a, b) {
+    const M = 2 * REACH / SIZE, W = BLOCK + 2 * SEARCH, half = BLOCK / 2, out = [];  // W = 128 : puissance de 2
+    // Sommes cumulées de la voisine (valeurs et carrés) : normalisation de chaque position en temps constant
+    const S1 = new Float64Array((SIZE + 1) * (SIZE + 1)), S2 = new Float64Array((SIZE + 1) * (SIZE + 1));
+    for (let j = 0; j < SIZE; j++) {
+      for (let i = 0; i < SIZE; i++) {
+        const v = b.high[j * SIZE + i], k = (j + 1) * (SIZE + 1) + i + 1;
+        S1[k] = v + S1[k - 1] + S1[k - SIZE - 1] - S1[k - SIZE - 2];
+        S2[k] = v * v + S2[k - 1] + S2[k - SIZE - 1] - S2[k - SIZE - 2];
+      }
+    }
+    const box = (S, x, y) => S[(y + BLOCK) * (SIZE + 1) + x + BLOCK] - S[y * (SIZE + 1) + x + BLOCK] - S[(y + BLOCK) * (SIZE + 1) + x] + S[y * (SIZE + 1) + x];
+    const share = (safe, x0, y0, n) => { let s = 0; for (let y = y0; y < y0 + n; y++) for (let x = x0; x < x0 + n; x++) s += safe[y * SIZE + x]; return s / (n * n); };
+    for (let cy = SEARCH + half; cy < SIZE - SEARCH - half; cy += BLOCK_STEP) {
+      for (let cx = SEARCH + half; cx < SIZE - SEARCH - half; cx += BLOCK_STEP) {
+        const x0 = cx - half, y0 = cy - half;
+        if (share(a.safe, x0, y0, BLOCK) < 0.95 || share(b.safe, x0 - SEARCH, y0 - SEARCH, W) < 0.95) continue;
+        let mean = 0;
+        for (let y = 0; y < BLOCK; y++) for (let x = 0; x < BLOCK; x++) mean += a.high[(y0 + y) * SIZE + x0 + x];
+        mean /= BLOCK * BLOCK;
+        const tr = new Float64Array(W * W), ti = new Float64Array(W * W), wr = new Float64Array(W * W), wi = new Float64Array(W * W);
+        let norm = 0;
+        for (let y = 0; y < BLOCK; y++) for (let x = 0; x < BLOCK; x++) { const v = a.high[(y0 + y) * SIZE + x0 + x] - mean; tr[y * W + x] = v; norm += v * v; }
+        if (Math.sqrt(norm / (BLOCK * BLOCK)) < 4) continue;  // sans texture
+        for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) wr[y * W + x] = b.high[(y0 - SEARCH + y) * SIZE + x0 - SEARCH + x];
+        fft2(tr, ti, W, false);
+        fft2(wr, wi, W, false);
+        for (let k = 0; k < W * W; k++) {  // fenêtre fois conjugué du gabarit : corrélation
+          const r = wr[k] * tr[k] + wi[k] * ti[k], i = wi[k] * tr[k] - wr[k] * ti[k];
+          wr[k] = r; wi[k] = i;
+        }
+        fft2(wr, wi, W, true);
+        const side = 2 * SEARCH + 1, c = new Float64Array(side * side);
+        let top = -2, ky = 0, kx = 0;
+        for (let y = 0; y < side; y++) {
+          for (let x = 0; x < side; x++) {
+            const px = x0 - SEARCH + x, py = y0 - SEARCH + y, s1 = box(S1, px, py), s2 = box(S2, px, py);
+            const v = wr[y * W + x] / Math.sqrt(Math.max(s2 - s1 * s1 / (BLOCK * BLOCK), 1e-9) * norm);
+            c[y * side + x] = v;
+            if (v > top) { top = v; ky = y; kx = x; }
+          }
+        }
+        if (top < 0.4 || kx < 2 || ky < 2 || kx > side - 3 || ky > side - 3) continue;
+        const z = [];
+        for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) z.push(c[(ky + y) * side + kx + x]);
+        const q = leastSquares(QUAD, z);
+        if (!q) continue;
+        const hxx = 2 * q[3], hxy = q[4], hyy = 2 * q[5], tr2 = (hxx + hyy) / 2, dt = Math.sqrt(((hxx - hyy) / 2) ** 2 + hxy * hxy);
+        for (const lam of [tr2 - dt, tr2 + dt]) {
+          if (lam > -0.02) continue;  // pic plat dans cette direction
+          let e = Math.abs(hxy) > 1e-12 ? [lam - hyy, hxy] : (hxx <= hyy) === (lam === tr2 - dt) ? [1, 0] : [0, 1];  // vecteur propre
+          const len = Math.hypot(...e);
+          e = [e[0] / len, e[1] / len];
+          const ds = -(q[1] * e[0] + q[2] * e[1]) / lam;
+          if (Math.abs(ds) > 1.5) continue;
+          const shift = (kx - SEARCH) * e[0] + (ky - SEARCH) * e[1] + ds;  // px, colonnes vers l'est, lignes vers le nord
+          out.push({ p: [(cx + 0.5) * M - REACH, (cy + 0.5) * M - REACH], dir: e, d: shift * M });
+        }
+      }
     }
     return out;
   }
 
-  /** Moindres carrés (lignes X, valeurs y), par les équations normales : coefficients, ou null. */
-  function leastSquares(X, y) {
-    const n = X[0].length, A = Array.from({ length: n }, (_, i) => [...Array.from({ length: n }, (_, j) => X.reduce((t, r) => t + r[i] * r[j], 0)), X.reduce((t, r, k) => t + r[i] * y[k], 0)]);
+  /** Moindres carrés (lignes X, valeurs y, a priori ridge ajouté à la diagonale), par les équations normales, ou null. */
+  function leastSquares(X, y, ridge = null) {
+    const n = X[0].length, A = Array.from({ length: n }, (_, i) => [...Array.from({ length: n }, (_, j) => X.reduce((t, r) => t + r[i] * r[j], 0) + (ridge && i === j ? ridge[i] : 0)), X.reduce((t, r, k) => t + r[i] * y[k], 0)]);
     for (let c = 0; c < n; c++) {
       const p = A.slice(c).reduce((b, r, k) => (Math.abs(r[c]) > Math.abs(A[b][c]) ? c + k : b), c);
       [A[c], A[p]] = [A[p], A[c]];
@@ -763,23 +836,11 @@ const Dessus = (() => {
     return A.map((r, i) => r[n] / r[i]);
   }
 
-  /** Pose relative de la voisine other sur la principale main (vues : principale et voisine dessinées seules ; lines : joinLines de
-   * la principale ; ax, vx : axe de la route et sa droite) : { fix ([décalage avant, gauche (m), tangage, lacet (rad), échelle, roulis (rad)])
-   * ou null, before, after (marche médiane au raccord, m) }, ou null sans assez de lignes. */
-  function alignJoin(main, other, views, lines, ax, vx) {
-    const [ce, cn] = other.at, tc = ce * ax[0] + cn * ax[1], sc = ce * vx[0] + cn * vx[1], seam = tc / 2, obs = [];
-    for (const s0 of lines) {
-      for (const t of range(-11, 11.2, 0.2)) {
-        if ((Math.abs(t) < CAR_ZONE.along && Math.abs(s0) < CAR_ZONE.side) || (Math.abs(t - tc) < CAR_ZONE.along && Math.abs(s0 - sc) < CAR_ZONE.side)) continue;
-        const a = lineCentre(views[0], ax, vx, t, s0), b = a === null ? null : lineCentre(views[1], ax, vx, t, a);
-        if (b !== null && Math.abs(b - a) <= 0.25) obs.push({ p: [t * ax[0] + a * vx[0], t * ax[1] + a * vx[1]], dir: vx, d: b - a, t, line: s0, across: true });
-      }
-      const ends = dashEnds(views[1], ax, vx, s0);
-      for (const [t0, sign] of dashEnds(views[0], ax, vx, s0)) {
-        const match = ends.filter(([t1, s1]) => s1 === sign && Math.abs(t1 - t0) < 0.4);
-        if (match.length === 1) obs.push({ p: [t0 * ax[0] + s0 * vx[0], t0 * ax[1] + s0 * vx[1]], dir: ax, d: match[0][0] - t0, t: t0, line: s0, across: false });
-      }
-    }
+  /** Pose relative de la voisine other sur la principale main (rasters : readRaster des deux ; ax : axe de la route) :
+   * { fix ([décalage avant, gauche (m), tangage, lacet (rad), échelle, roulis (rad)]) ou null, before, after (écart médian
+   * au raccord, m), n (mesures) }, ou null sans assez de mesures. */
+  function alignJoin(main, other, rasters, ax) {
+    const obs = blockShifts(...rasters), [ce, cn] = other.at, seam = (ce * ax[0] + cn * ax[1]) / 2;
     // Déplacement d'un point dû à une erreur de pose de la voisine (petits angles, sol plan, voir docs/CALCULS.md)
     const h = other.pose.heading * toRad, f = [Math.sin(h), Math.cos(h)], side = [-f[1], f[0]], H = other.pose.height;
     const row = ({ p, dir }) => {
@@ -787,25 +848,21 @@ const Dessus = (() => {
       const pu = dir[0] * f[0] + dir[1] * f[1], pv = dir[0] * side[0] + dir[1] * side[1];
       return [pu, pv, (H * H + u * u) / H * pu + u * v / H * pv, v * pu - u * pv, u * pu + v * pv, u * v / H * pu + (H * H + v * v) / H * pv];
     };
-    // Contrôle au raccord, hors des deux véhicules et de leurs reflets : là, aucune des deux photos ne montre la ligne juste
-    const clear = (p) => !hidden(p[0], p[1], main.pose) && !hidden(p[0] - ce, p[1] - cn, other.pose);
-    const X = obs.map(row), y = obs.map((o) => o.d), test = obs.map((o) => o.across && Math.abs(o.t - seam) < SEAM && clear(o.p));
-    let keep = obs.map((o, k) => !test[k] && Math.abs(o.t - seam) >= SEAM), w = null;
+    const X = obs.map(row), y = obs.map((o) => o.d), test = obs.map((o) => Math.abs(o.p[0] * ax[0] + o.p[1] * ax[1] - seam) < SEAM);
+    let keep = test.map((t) => !t), w = null;
     for (let pass = 0; pass < 4; pass++) {
-      if (keep.filter(Boolean).length < 12) return null;
-      w = leastSquares(X.filter((_, k) => keep[k]), y.filter((_, k) => keep[k]));
+      if (keep.filter(Boolean).length < 16) return null;
+      w = leastSquares(X.filter((_, k) => keep[k]), y.filter((_, k) => keep[k]), JOIN_PRIOR);
       if (!w) return null;
       const r = y.map((v, k) => v - X[k].reduce((t, x, i) => t + x * w[i], 0));
       const sd = 1.4826 * median(r.filter((_, k) => keep[k]).map(Math.abs)) + 0.005;
       keep = keep.map((on, k) => on && Math.abs(r[k]) < 3 * sd);  // mauvaises correspondances écartées
     }
-    const checked = obs.map((o, k) => ({ line: o.line, before: Math.abs(o.d), after: Math.abs(o.d - X[k].reduce((t, x, i) => t + x * w[i], 0)) })).filter((_, k) => test[k]);
+    const checked = obs.map((o, k) => [Math.abs(o.d), Math.abs(o.d - X[k].reduce((t, x, i) => t + x * w[i], 0))]).filter((_, k) => test[k]);
     if (checked.length < 3) return null;
-    const before = median(checked.map((c) => c.before)), after = median(checked.map((c) => c.after));
-    const perLine = lines.map((l) => checked.filter((c) => c.line === l)).filter((m) => m.length >= 3)
-      .map((m) => ({ line: m[0].line, n: m.length, before: median(m.map((c) => c.before)), after: median(m.map((c) => c.after)) }));
-    const worse = perLine.some((l) => l.after > Math.max(l.before + 0.01, JOIN_NOISE));
-    return { fix: after < before && !worse ? w : null, before, after, perLine };
+    const before = median(checked.map((c) => c[0])), after = median(checked.map((c) => c[1]));
+    const sane = w.every((v, i) => Math.abs(v) <= JOIN_LIMIT[i]);
+    return { fix: after < before && sane ? w : null, before, after, n: obs.length };
   }
 
   /** Recalage de chaque voisine sur la principale : Map (photo -> fix), et le bilan affiché. */
@@ -817,11 +874,11 @@ const Dessus = (() => {
     const joins = new Map(), results = [];
     try {
       if (shown === mine && others.length) {
-        const ax = roadAxis([main, ...others]), vx = [ax[1], -ax[0]], view = readSharp(main, mine.terrain, main.pose), lines = joinLines(view, ax, vx);
+        const ax = roadAxis([main, ...others]), raster = readRaster(main, mine.terrain, main.pose);
         for (const other of others) {
           await new Promise((resolve) => setTimeout(resolve));
           if (shown !== mine) return;
-          const found = lines.length ? alignJoin(main, other, [view, readSharp(other, mine.terrain, main.pose)], lines, ax, vx) : null;
+          const found = alignJoin(main, other, [raster, readRaster(other, mine.terrain, main.pose)], ax);
           if (found?.fix) joins.set(other.pose.pic, found.fix);
           results.push(found);
         }
@@ -835,8 +892,8 @@ const Dessus = (() => {
     const done = results.filter((r) => r?.fix), cm = (v) => number(100 * v, 1);
     mine.joins = { key, map: joins, results, ms: performance.now() - begun };
     mine.joinText = !others.length ? "" : done.length
-      ? `raccords recalés ${done.length}/${others.length} (marche ${done.map((r) => `${cm(r.before)} → ${cm(r.after)}`).join(", ")} cm)`
-      : `raccords non recalés (${results.some(Boolean) ? "sans gain sûr" : "pas assez de marquages nets"})`;
+      ? `raccords recalés ${done.length}/${others.length} (écart ${done.map((r) => `${cm(r.before)} → ${cm(r.after)}`).join(", ")} cm)`
+      : `raccords non recalés (${results.some(Boolean) ? "sans gain sûr" : "pas assez de sol net en commun"})`;
     await showImage();
   }
   // Réglages dont dépend le recalage : à refaire s'ils changent

@@ -586,6 +586,9 @@ hauteur à ±2 à 3 m. Les essais et leurs valeurs attendues sont dans le README
 
 ## Vue du dessus (essai, branche `birdeye`)
 
+Explication d'ensemble (construction de l'image, recalages, pourquoi et comment) : `docs/BIRDEYE.md`. Ici, le
+détail et les chiffres des essais.
+
 Le sol de la photo 360° est reprojeté sur la mini-carte, à ±15 m de la caméra (`src/dessus.js`) : un
 maillage de 1 m suit le MNT LiDAR HD (sinon un plan horizontal), posé à la hauteur de caméra sous la
 photo. Chaque point y reçoit le pixel qui le voit, inclinaison et cap de la séquence compris
@@ -603,32 +606,35 @@ trajectoire entre les photos voisines, à défaut cap de la photo), sur ±8 m en
 pèse le moins. L'incertitude affichée vaut au moins 5 % de la longueur (écart à l'orthophoto, plus bas).
 
 Les photos précédente et suivante complètent l'image : chaque point prend la photo où l'erreur due à
-l'inclinaison est la plus faible, hors de l'ellipse du véhicule (relevée sur l'imajbox du CD21 :
-±5,8 m en long, ±2,9 m en travers, pour couvrir aussi les reflets du capot et du coffre) ; une
-voisine sans inclinaison ne sert donc qu'à combler. Les voisines étant à 5 m environ, le sol juste
-sous la caméra est dans l'ellipse de toutes les photos : il vient de celle où il est le plus près du
-bord de l'ellipse. Chacune a sa position, sa hauteur et son
+l'inclinaison est la plus faible ; une voisine sans inclinaison ne sert donc qu'à combler. Le véhicule (relevé sur
+l'imajbox du CD21) compte en deux parts : son corps (±4,5 m en long, ±2,5 m en travers), où le sol est caché, pris en
+dernier recours seulement (là où toutes les photos l'ont sous le corps, celle où il est le plus près du bord) ; et la
+bande des reflets du capot et du coffre (jusqu'à ±5,8 m et ±2,9 m), où la photo reste prise, son erreur attendue
+comptée trois fois (`REFLECT`). Sans cette bande, un point à 5 m devant la caméra, sous la voisine suivante, venait de
+la photo précédente vue à 10 m (passage piéton dédoublé d'un mètre en agglomération, 07/11/2026). Chacune a sa position, sa hauteur et son
 inclinaison, posées sur le même terrain. Une distance entre deux points de photos différentes
 additionne l'erreur de chaque point et leur position relative (5 cm en RTK vérifié, sinon 30 cm).
 
-Option « Raccords recalés » (cochée par défaut, `alignJoin`, `src/dessus.js`) : une voisine qui ne s'accorde pas
-avec la principale fait une marche aux lignes de peinture, au raccord. Les deux photos sont dessinées seules ; les
-lignes de la chaussée (6 m de part et d'autre au plus : au-delà, glissières et bordures en relief) sont relevées dans
-la principale. On mesure ensuite leur centre en travers dans les deux photos, tous les 20 cm, et les bouts des tirets,
-hors du corps des véhicules. Le déplacement d'un point du sol (u devant, v à gauche de la voisine, hauteur H) dû à une
-petite erreur de sa pose vaut, en long, `tu + t (H² + u²) / H + r u v / H + l v + e u` et, en travers,
-`tv + t u v / H + r (H² + v²) / H - l u + e v` (t tangage, r roulis, l lacet, e échelle, tu et tv décalage). Ces six
-termes sont ajustés aux moindres carrés, mauvaises correspondances écartées, **hors de la zone du raccord** (±1,5 m) :
-la marche y est mesurée avant et après, sur des points que l'ajustement n'a pas vus. La correction n'est gardée que
-si la marche médiane baisse et qu'aucune ligne vue sur au moins 3 points n'empire de plus de 1 cm au-delà de 3 cm
-(précision du relevé). La voisine est alors dessinée au point déplacé ; la principale ne bouge pas, et son erreur
-d'échelle reste à caler (tangage). Pas de recalage sans marquages nets (petites routes, village).
+Option « Raccords recalés » (cochée par défaut, `alignJoin` et `blockShifts`, `src/dessus.js`) : une voisine qui ne
+s'accorde pas avec la principale fait une marche au raccord. Les deux photos sont dessinées seules (3 cm par pixel),
+filtrées en passe-haut ; dans leur zone commune sûre (hors véhicule et reflets, à moins de 11 m de chaque caméra), des
+blocs de 48 px (1,4 m), tous les 20 px, sont cherchés de l'une à l'autre sur ±40 px par corrélation normée (transformée
+de Fourier) : grain, marquages, plaques. Une quadrique ajustée autour du pic donne les directions où il est net : une
+ligne en long ne fixe que le travers, un passage piéton ou une plaque les deux. Le déplacement d'un point du sol
+(u devant, v à gauche de la voisine, hauteur H) dû à une petite erreur de sa pose vaut, en long,
+`tu + t (H² + u²) / H + r u v / H + l v + e u` et, en travers, `tv + t u v / H + r (H² + v²) / H - l u + e v`
+(t tangage, r roulis, l lacet, e échelle, tu et tv décalage). Ces six termes sont ajustés aux moindres carrés,
+mauvaises correspondances écartées, avec un a priori qui garde près de 0 un terme mal déterminé (écarts types 0,3 m,
+1°, 3 %), **hors de la zone du raccord** (±1,5 m) : l'écart y est mesuré avant et après, sur des blocs que
+l'ajustement n'a pas vus. La correction est gardée si l'écart médian baisse et qu'elle reste dans des bornes
+plausibles (0,8 m, 3°, 6 %). La voisine est alors dessinée au point déplacé ; la principale ne bouge pas, et son
+erreur d'échelle reste à caler (tangage). Pas de recalage sans assez de sol net en commun.
 
-Essai hors application du 07/11/2026, 37 raccords (A38, RD 1074, D33) : marche médiane d'une ligne au raccord de
-8,3 à 3,6 cm, encore plus de 5 cm pour 9 raccords au lieu de 29 ; une ligne peu vue peut casser quand les autres se
-raccordent, d'où le contrôle par ligne. Sur les photos de référence (`tests/essai-dessus-reference.html`), environ
-2 s par vue : A38 7,4 → 2,4 cm, RD 1074 6,8 → 3,1 cm, D33 12,0 → 4,6 cm, la seconde voisine écartée par le contrôle
-ou faute de lignes.
+Essai hors application du 07/11/2026 : écart médian au raccord de 10,8 à 2,9 cm sur 38 raccords de route (A38,
+RD 1074, D33), de 17,6 à 3,9 cm sur 14 en agglomération (passage piéton, village), tous améliorés ; 6 paires de
+village sur 20 sans assez de sol commun. Il remplace un recalage par les seules lignes en long (8,3 à 3,6 cm sur la
+route, rien en ville). Sur les photos de référence (`tests/essai-dessus-reference.html`) : A38 5,3 → 1,6 et
+7,3 → 3,2 cm, passage piéton (d946f2cf) 5,0 → 2,9 et 16,5 → 2,8 cm.
 
 La hauteur de caméra est lue sur les photos elles-mêmes. Avec une hauteur fausse dans un rapport `k`, le
 sol projeté depuis deux caméras distantes de `b` se décale de `b (1 - k)` : ce décalage, cherché par

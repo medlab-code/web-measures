@@ -14,6 +14,7 @@ const REFERENCES = [
   ["D33", "dbdaa47b-6e4d-4416-b352-ab324cb14735"],
   ["petite RD", "894c3f0f-3d30-486b-b0f9-c7e6505d8d03"],
   ["village", "e2d81cb7-f303-4cbf-93d7-8a2dbbc7c2b7"],
+  ["ville", "d946f2cf-cddc-4476-a414-35aee429c05a"],  // passage piéton en agglomération : raccords sans lignes en long
   ["D33 du 04/07", "6c6e4972-f565-4198-84fe-24ab72d95398"],  // GPS décalé de 0,75 m (la D33 du 20/06, au même endroit, est juste)
 ];
 // Écart à l'orthophoto attendu (m) : position calée au-delà de 30 cm, GPS gardé en deçà
@@ -80,11 +81,10 @@ async function open(id, enough = () => false) {
     await expect(`${name} : inclinaison connue`, Boolean(pose.up));
     if (read) await expect(`${name} : hauteur GPS RTK et décalage d'accord à 5 %`, Math.abs(read / pose.height - 1) < 0.05, `${number(100 * (read / pose.height - 1), 1)} %`);
     const joins = now.joins?.results || [], fixed = joins.filter((r) => r?.fix);
-    await log(`  raccords (${number((now.joins?.ms || 0) / 1000, 1)} s) : ${joins.map((r) => (r ? `${number(100 * r.before, 1)} → ${number(100 * r.after, 1)} cm${r.fix ? "" : " (non gardé)"}` : "sans marquages")).join(" ; ") || "-"}`);
-    for (const r of joins.filter(Boolean)) await log(`    par ligne : ${r.perLine.map((l) => `${number(l.line, 1)} m : ${number(100 * l.before, 1)} → ${number(100 * l.after, 1)} (${l.n})`).join(" ; ")}`);
+    await log(`  raccords (${number((now.joins?.ms || 0) / 1000, 1)} s) : ${joins.map((r) => (r ? `${number(100 * r.before, 1)} → ${number(100 * r.after, 1)} cm${r.fix ? "" : " (non gardé)"}, ${r.n} mesures` : "pas assez de sol commun")).join(" ; ") || "-"}`);
     const shift = state.match(/(?:décalage|écart à l'orthophoto) (\d+,\d+) m\)/), metres = shift && Number(shift[1].replace(",", "."));
     if (SHIFTS[name]) await expect(`${name} : écart à l'orthophoto attendu`, metres !== null && metres >= SHIFTS[name][0] && metres <= SHIFTS[name][1], shift ? `${shift[1]} m` : "non mesuré");
-    if (name === "A38") await expect(`${name} : raccords recalés, marche réduite`, fixed.length > 0 && fixed.every((r) => r.after < r.before));
+    if (name === "A38" || name === "ville") await expect(`${name} : raccords recalés, marche réduite`, fixed.length > 0 && fixed.every((r) => r.after < r.before));
     const blob = shown.blob();
     await expect(`${name} : vue recomposée`, Boolean(blob));
     if (blob) await fetch(`/capture/dessus-${name.replace(/\W+/g, "-")}.png`, { method: "POST", body: blob });
