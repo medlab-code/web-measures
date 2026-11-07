@@ -133,6 +133,8 @@ function centre(pixels, line, around) {
   const cells = 2 * Dessus.REACH + 1, slope = Array.from({ length: cells * cells }, (_, k) => 100 + 0.03 * ((k % cells) - Dessus.REACH) - 0.02 * (Math.floor(k / cells) - Dessus.REACH));
   const up = Dessus.groundUp(slope, [2, -3], 37), norm = Math.hypot(0.03, 0.02, 1);
   await expect("route en pente : la caméra suit le plan", Math.abs(up[0] - 0.03 / norm) < 1e-6 && Math.abs(up[1] + 0.02 / norm) < 1e-6 && Math.abs(up[2] - 1 / norm) < 1e-6);
+  const pitchOnly = Dessus.groundUp(slope, [2, -3], 37, 0), h37 = 37 * toRad;  // roulis à 0 % du dévers : pente en long seule
+  await expect("part du dévers à 0 : pas de roulis", Math.abs(pitchOnly[0] * Math.cos(h37) - pitchOnly[1] * Math.sin(h37)) < 1e-9);
   const [, normal] = Dessus.view(-0.03, 0.02, 1, { ...pose, offset: 0, up });  // la perpendiculaire à la route doit être l'axe vertical de la caméra
   await expect("route en pente : perpendiculaire vue à la verticale de la caméra", normal > 89.99, normal.toFixed(3));
   const zones = Dessus.bestZones([0, 1]);

@@ -627,6 +627,11 @@ peinture retrouvés à moins de 4 cm, aussi sous le véhicule et par-delà le ra
 Sans verticale à lire (rase campagne), l'inclinaison vient de la route : le véhicule est supposé posé sur le
 plan ajusté au MNT sur ±2,5 m en long et ±1,5 m en travers. L'A38 penche d'environ 2,5 % en travers et 1,2 %
 en long, ce qui expliquait l'écart entre tirets devant et derrière. Les verticales gardent la priorité.
+Le roulis ne suit qu'une part du dévers (option d'essai « Roulis », 70 % par défaut) : sur la RD 1074
+(`81049c82`, véhicule dans la voie de droite), l'écart entre lignes de rive vaut 6,37 m sans roulis et 6,90 m
+avec tout le dévers, pour 6,58 m sur l'orthophoto (environ 40 % du dévers) ; sur l'A38, environ 75 %. Le roulis
+déplace surtout la ligne la plus éloignée de la caméra, d'où l'impression d'un milieu étiré. Le tangage suit la
+pente entière (tirets de 3 m retrouvés devant et derrière).
 
 Validation (07/11/2026, A38, 20 photos CD21 prises une à une, relevé automatique ; tirets de norme 3 m et 15 cm),
 sans puis avec cette inclinaison : tirets à 4-9 m devant 3,29 puis 2,98 m, derrière 2,72 puis 3,03 m ; écart médian
