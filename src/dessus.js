@@ -896,7 +896,7 @@ const Dessus = (() => {
     $("#dessus-tangage").value = pitchOffset;
     $("#dessus-tangage-valeur").textContent = `${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°`;
   }
-  let swapViews = () => {}, zoomBefore = null;  // échange de la carte et de la visionneuse (app.js) ; zoom à retrouver
+  let swapViews = () => {};  // échange de la carte et de la visionneuse (app.js)
   // Dans la carte d'abord : détachée, elle est dans le document d'une autre fenêtre
   const $ = (selector) => map?.getContainer().querySelector(selector) || document.querySelector(selector);
   const number = (v, digits) => v.toFixed(digits).replace(".", ",");
@@ -914,20 +914,13 @@ const Dessus = (() => {
       return { pose: height ? { ...leveled, height, height_sigma: HEIGHT_SIGMA } : leveled, pano: shown.panos.get(pose.pic), at, fix };
     });
 
-  /** Mode « Longueur sur la carte » (app.js) : curseur, carte et visionneuse échangées, cadrage sur la vue. */
+  /** Mode « Longueur sur la carte » (app.js) : curseur, carte et visionneuse échangées, sans toucher au zoom. */
   function setMeasuring(on) {
     if (on === measuringOn) return;
     measuringOn = on;
     start = null;
     map.getCanvas().style.cursor = on ? "crosshair" : "";
-    swapViews(on);
-    if (on && shown) {
-      zoomBefore = map.getZoom();
-      map.fitBounds([toLonLat(-REACH, -REACH, shown.pose), toLonLat(REACH, REACH, shown.pose)], { padding: 20, animate: false });
-    } else if (!on && zoomBefore !== null) {
-      map.setZoom(zoomBefore);
-      zoomBefore = null;
-    }
+    swapViews(on);  // carte en grand ; son cadrage et son zoom ne bougent pas
     drawTrace();
   }
 
