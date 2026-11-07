@@ -590,8 +590,11 @@ Explication d'ensemble (construction de l'image, recalages, pourquoi et comment)
 détail et les chiffres des essais.
 
 Le sol de la photo 360° est reprojeté sur la mini-carte, à ±15 m de la caméra (`src/dessus.js`) : un
-maillage de 1 m suit le MNT LiDAR HD (sinon un plan horizontal), posé à la hauteur de caméra sous la
-photo. Chaque point y reçoit le pixel qui le voit, inclinaison et cap de la séquence compris
+maillage de 1 m suit le MNT LiDAR HD lissé sur 2 m (sinon un plan horizontal), posé à la hauteur de caméra sous la
+photo. Lissage (`smoothTerrain`, 08/11/2026) : sur l'A38 (`f9f83571`), le MNT s'écarte d'une surface lisse de 1,7 cm
+(écart type, 5 cm au plus) sous la chaussée, et la rive, à 5 m de la caméra, ondulait de 3,5 cm (13,7 au plus) ; lissé,
+0,4 cm (0,8 au plus). Largeurs entre lignes comparées à l'orthophoto (22 vues, 2 500 largeurs) : écart médian 1,93 %
+sans lissage, 1,85 % avec ; variation d'une même largeur le long de la route 0,49 puis 0,29 %. Chaque point y reçoit le pixel qui le voit, inclinaison et cap de la séquence compris
 (rotation identique à `Calibration.uncorrect`). Image affichée de 2 048 px (1,5 cm par pixel, carte zoomable
 jusqu'à 0,6 cm par pixel) ; les calculs (hauteur, raccords, position) gardent 1 024 px. La photo (12 288 px de large)
 est plus fine jusqu'à 10 m : un pixel couvre au sol 0,2 cm en travers et 0,5 cm le long à 4 m, 0,5 et 2,6 cm à 10 m

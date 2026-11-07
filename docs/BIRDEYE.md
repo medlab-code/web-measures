@@ -29,7 +29,11 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
 
 **Calcul (`render`, WebGL) :**
 
-1. Un maillage de 31 × 31 points (pas de 1 m) suit le terrain sur ±15 m autour de la caméra.
+1. Un maillage de 31 × 31 points (pas de 1 m) suit le terrain sur ±15 m autour de la caméra, **lissé sur 2 m**
+   (`smoothTerrain` : écarts au plan moyen lissés par une gaussienne). Le MNT s'écarte d'une surface lisse de 1 à 3 cm
+   d'un mètre à l'autre ; une bosse `Δz` sous un point à `d` de la caméra le déplace de `d × Δz / H`, soit 8 cm à 5 m :
+   sans lissage, les lignes droites ondulent. La pente, le dévers et le bombement restent ; un dos-d'âne ou un caniveau
+   est adouci.
 2. La caméra est posée à sa hauteur au-dessus du plan de la route sous le véhicule (moyenne du terrain sur
    ±2,5 m en long et ±1,5 m en travers, `groundLevel`), plutôt que sur un seul point du maillage.
 3. Pour chaque pixel de l'image, le shader calcule le rayon de la caméra au point du sol, le tourne dans le repère de

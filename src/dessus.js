@@ -204,7 +204,30 @@ const Dessus = (() => {
         await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** (attempt - 1)));
       }
     }
-    return z.length === points.length && z.every((v) => v > -1000) ? z : null;
+    return z.length === points.length && z.every((v) => v > -1000) ? smoothTerrain(z) : null;
+  }
+
+  // Le MNT s'écarte d'une surface lisse de 1 à 3 cm d'un mètre à l'autre (5 cm au plus sous la chaussée de l'A38) : une bosse
+  // Δz sous un point à d de la caméra le déplace de d Δz / H, soit 8 cm à 5 m, et les lignes ondulent. Lissé sur
+  // TERRAIN_SMOOTH (gaussienne), la pente, le dévers et le bombement restent. Essai du 07/11/2026 (A38, f9f83571) : écart
+  // de la rive à une courbe douce de 3,5 cm (13,7 au plus) à 0,4 cm (0,8 au plus).
+  const TERRAIN_SMOOTH = 2;  // m
+  /** Maillage lissé : plan moyen gardé tel quel, écarts au plan lissés (pas de biais au bord du maillage). */
+  function smoothTerrain(z) {
+    const n = 2 * REACH / STEP + 1, xs = [], ys = [];
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { xs.push(i - (n - 1) / 2); ys.push(j - (n - 1) / 2); }
+    const plane = leastSquares(xs.map((x, k) => [1, x, ys[k]]), z), at = (k) => plane[0] + plane[1] * xs[k] + plane[2] * ys[k];
+    const r = Math.ceil(2.5 * TERRAIN_SMOOTH / STEP), w = Array.from({ length: 2 * r + 1 }, (_, k) => Math.exp(-(((k - r) * STEP / TERRAIN_SMOOTH) ** 2) / 2));
+    const pass = (from, dx, dy) => from.map((_, q) => {
+      const i = q % n, j = Math.floor(q / n);
+      let sum = 0, weight = 0;
+      for (let k = -r; k <= r; k++) {
+        const ii = i + k * dx, jj = j + k * dy;
+        if (ii >= 0 && jj >= 0 && ii < n && jj < n) { sum += from[jj * n + ii] * w[k + r]; weight += w[k + r]; }
+      }
+      return sum / weight;
+    });
+    return pass(pass(z.map((v, k) => v - at(k)), 1, 0), 0, 1).map((v, k) => v + at(k));
   }
 
   /** Moitié basse du panorama sur un canevas : { canvas, top (part du panorama au-dessus) }. tiles : voir Video.record. */
