@@ -266,7 +266,8 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .maplibregl-ctrl button.echanger-vues { font-size: 17px; line-height: 1; color: #333; }
 .maplibregl-ctrl button.echanger-vues[aria-pressed="true"] { background: var(--panoramax); color: #fff; }
 /* Carte en grand : bouton de mesure explicite, orange comme « Mesure » une fois enfoncé */
-.maplibregl-ctrl button.mesurer-carte { padding: 0.35em 0.8em; border: 0; border-radius: 4px; background: #fff; color: #333; font: inherit; font-weight: 600;
+.maplibregl-ctrl button.mesurer-carte { height: 43px; padding: 0 0.9em;  /* 50 % plus haut que les boutons de la carte : moins de clics à côté */
+  border: 0; border-radius: 4px; background: #fff; color: #333; font: inherit; font-weight: 600;
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); cursor: pointer; }
 .maplibregl-ctrl button.mesurer-carte[hidden] { display: none; }
 .maplibregl-ctrl button.mesurer-carte[aria-pressed="true"] { background: var(--panoramax); color: #fff; }
