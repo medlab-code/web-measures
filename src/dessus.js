@@ -431,8 +431,31 @@ const Dessus = (() => {
   // Sur la mini-carte -----------------------------------------------------------------------
   let map = null, shown = null;  // shown : { pic, sequence, height, estimated, estimating, key, pose, features, panos (photo -> texture), loading, terrain, sigmaGround, terrainFailed, url }
   let abort = null, measuringOn = false, bandOnly = false, start = null, hover = null, live = null;  // live : longueur affichée au pointeur
-  // shortcut: part du dévers prise en roulis réglée à la main (option d'essai), à fixer une fois calée sur l'orthophoto
-  let rollShare = 0.7, pitchOffset = 0;  // pitchOffset : tangage ajouté (degrés), même réglage d'essai
+  // Roulis (part du dévers) et tangage ajouté (degrés), réglés à la main (options d'essai) et retenus par séquence dans le
+  // navigateur : la fixation de la caméra ne change pas au cours d'une séquence (A38 du 09/10/2025 : même tangage à deux endroits)
+  const DEFAULT_ROLL = 0.7, DEFAULT_PITCH = 0, SETTINGS_KEY = "web-measures/dessus-reglages";
+  let rollShare = DEFAULT_ROLL, pitchOffset = DEFAULT_PITCH;
+  const readSettings = () => {
+    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch { return {}; }  // stockage absent ou illisible
+  };
+  /** Réglage de la séquence affichée gardé ; les valeurs par défaut ne sont pas gardées. */
+  function keepSettings() {
+    if (!shown) return;
+    const all = readSettings();
+    if (rollShare === DEFAULT_ROLL && pitchOffset === DEFAULT_PITCH) delete all[shown.sequence];
+    else all[shown.sequence] = { roll: rollShare, pitch: pitchOffset };
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(all)); } catch { /* sans stockage : pour cette page seulement */ }
+  }
+  /** Réglage retenu pour la séquence (ou par défaut), curseurs compris. */
+  function applySettings(sequence) {
+    const kept = readSettings()[sequence];
+    rollShare = kept?.roll ?? DEFAULT_ROLL;
+    pitchOffset = kept?.pitch ?? DEFAULT_PITCH;
+    $("#dessus-devers").value = Math.round(rollShare * 100);
+    $("#dessus-devers-valeur").textContent = `${Math.round(rollShare * 100)} %`;
+    $("#dessus-tangage").value = pitchOffset;
+    $("#dessus-tangage-valeur").textContent = `${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°`;
+  }
   let swapViews = () => {}, zoomBefore = null;  // échange de la carte et de la visionneuse (app.js) ; zoom à retrouver
   const $ = (selector) => document.querySelector(selector);
   const number = (v, digits) => v.toFixed(digits).replace(".", ",");
@@ -514,12 +537,14 @@ const Dessus = (() => {
     pitch.addEventListener("input", () => { $("#dessus-tangage-valeur").textContent = degrees(pitch.value); });
     pitch.addEventListener("change", () => {
       pitchOffset = Number(pitch.value);
+      keepSettings();
       if (shown?.url) showImage();
     });
     const share = $("#dessus-devers");
     share.addEventListener("input", () => { $("#dessus-devers-valeur").textContent = `${share.value} %`; });
     share.addEventListener("change", () => {  // au lâcher : une image par réglage
       rollShare = share.value / 100;
+      keepSettings();
       if (shown?.url) showImage();
     });
     $("#dessus-bande").addEventListener("change", (event) => {
@@ -588,7 +613,7 @@ const Dessus = (() => {
       map.addLayer({ id: BEST_ID, type: "fill", source: BEST_ID, paint: { "fill-color": "#00c853", "fill-opacity": 0.12 } }, below);
     }
     const place = shown.terrain ? "Terrain LiDAR HD" : `Sol supposé plat (${shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
-    const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${pitchOffset ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
+    const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${pitchOffset ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${readSettings()[shown.sequence] ? ", réglage de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
     say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? " (décalage entre photos)" : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : busy() ? " ; photos voisines en cours…" : ""}`);
     if (!busy() && !shown.estimated) measureHeight();
@@ -653,6 +678,7 @@ const Dessus = (() => {
     removeImage();
     const controller = abort = new AbortController(), { signal } = controller;
     shown = { pic: photo.id, sequence: photo.collection, height: median(heights.get(photo.collection) || []) ?? null, estimated: false, estimating: false, key, pose, features, panos: new Map(), loading: new Set(), terrain: null, sigmaGround: FLAT_SIGMA, terrainFailed: false, url: null };
+    applySettings(photo.collection);
     const mine = shown;
     say("Lecture de la photo et du terrain…");
     try {

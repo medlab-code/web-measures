@@ -635,6 +635,9 @@ pente entière (tirets de 3 m retrouvés devant et derrière).
 Option d'essai « Tangage » : tangage ajouté à la pente (défaut de fixation de la caméra, ±2°). Sur la D33
 (`dbdaa47b`, 20/06/2025), la chaussée se resserre vers l'avant sans réglage (environ 5 % sur 12 m) ; à l'œil, le
 meilleur roulis vaut 45 % du dévers sur la RD 1074 et 100 % sur l'A38, pour des dévers voisins (2,5 et 3 %).
+Tangage réglé à l'œil par l'auteur : de -0,2 à +0,5° selon la séquence, sans règle par période, mais identique
+(+0,2°) sur deux portions de l'A38 d'une même séquence. Roulis et tangage sont donc retenus par séquence, dans le
+navigateur (`web-measures/dessus-reglages`) ; la barre d'état l'indique (« réglage de la séquence »).
 
 Validation (07/11/2026, A38, 20 photos CD21 prises une à une, relevé automatique ; tirets de norme 3 m et 15 cm),
 sans puis avec cette inclinaison : tirets à 4-9 m devant 3,29 puis 2,98 m, derrière 2,72 puis 3,03 m ; écart médian

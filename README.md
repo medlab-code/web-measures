@@ -742,7 +742,8 @@ de l'autre ; la carte en grand propose alors « Mesurer une longueur » (aussi :
 résultats, comme les autres mesures (Effacer, Refaire, commentaire, export). Pour une largeur, viser de préférence la
 bande verte (±5 % au mieux, inclinaison lue sur les façades ou, à défaut, sur la pente de la route). Hors de la vue, la
 longueur est mesurée sur le fond de carte seul, sans incertitude (« hors vue »), pour un contrôle rapide. Échap retire
-le départ. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Méthode et
+le départ. Sans façade pour caler l'inclinaison, les curseurs « Roulis » et « Tangage » recalent la vue sur
+l'orthophoto (bande verte seule) ; le réglage est retenu pour toute la séquence, dans ce navigateur. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Méthode et
 limites : `docs/CALCULS.md`.
 
 ## Précision
