@@ -831,6 +831,7 @@ button.principal { font-weight: 600; }
   pointer-events: auto;
 }
 #vue.en-mesure #entete-etape { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+#vue.en-mesure #entete-etape[hidden] { display: none; }  /* longueur sur la carte : aide sur la carte seulement */
 #nom-mesure { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--panoramax); }
 #etapes { display: flex; flex: 1; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
 #etapes li { display: flex; align-items: center; gap: 0.35rem; color: var(--discret); font-size: 13px; font-weight: 600;

@@ -4747,8 +4747,10 @@
     $("#mesure").setAttribute("aria-pressed", String(measuring));
     $("#mesure").classList.toggle("actif", measuring);
     showMapMeasureButton();
-    $("#mode-mesure").hidden = !measuring;
     const mode = $("#mode").value;
+    // Longueur sur la carte : tout se fait sur la carte, pas d'aide dans la visionneuse
+    $("#mode-mesure").hidden = !measuring || mode === "carte";
+    $("#entete-etape").hidden = mode === "carte";
     // Liseré autour de la visionneuse : bleu pendant les visées de triangulation, jaune pendant la
     // prise de mesure (couleurs de leurs croix)
     const sighting = measuring && aiming && mode !== "carte";  // longueur sur la carte : le cœur reste en mesure libre, sans visée
