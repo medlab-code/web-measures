@@ -1208,7 +1208,7 @@
     if (on === swapped || (on && mapWindow)) return;
     swapped = on;
     swapButton.setAttribute("aria-pressed", String(on));
-    measureButton.hidden = !on;  // carte en grand : la mesure s'y lance d'un clic
+    measureButton.hidden = !on && !mapWindow;  // carte en grand ou détachée : la mesure s'y lance d'un clic
     swapButton.title = on ? "Remettre la carte et la visionneuse à leur place" : "Échanger la carte et la visionneuse (place et taille)";
     if (on) {
       setColumnFolded(false);
@@ -1241,7 +1241,7 @@
     onAdd: () => Object.assign(document.createElement("div"), { className: "maplibregl-ctrl maplibregl-ctrl-group" }).appendChild(swapButton).parentNode,
     onRemove: () => {},
   }, "top-left");
-  // Carte en grand : « Mesurer une longueur », sans passer par le mode du bandeau (même mesure que le mode « carte »)
+  // Carte en grand ou détachée : « Mesurer une longueur », sans passer par le mode du bandeau (même mesure que le mode « carte »)
   const measureButton = Object.assign(document.createElement("button"), { type: "button", className: "mesurer-carte", hidden: true,
     textContent: "📏 Mesurer une longueur" });
   measureButton.setAttribute("aria-pressed", "false");
@@ -1707,6 +1707,7 @@
     $("#carte-detachee").hidden = !detached;
     grip.hidden = detached;
     swapButton.disabled = detached;  // carte déjà à part : rien à échanger
+    measureButton.hidden = !detached && !swapped;  // détachée : comme en grand
     detachButton.textContent = "⧉";
     detachButton.title = detached ? "Remettre la carte dans la page"
       : "Détacher la carte dans une fenêtre à part (second écran)";
