@@ -667,7 +667,9 @@ dessinée seule, dans le repère de la route (cap où le profil en travers est l
 direction donne cap et tangage (terme en distance à la caméra / H) ; la médiane des photos s'ajoute au tangage de
 la séquence. Le roulis n'est pas calé : avec des lignes repérées à 5 cm près, il varie de -400 à +240 % du dévers
 et absorbe tout écart de largeur. Option « Position calée sur l'orthophoto » : vue décalée en travers de l'écart
-médian des lignes de la photo principale. Sur 6 photos réglées à l'œil par l'auteur (07/11/2026) : 0 / +0,1 / +0,4
+médian des lignes de la photo principale. En cas d'écart, le GPS est à suspecter avant l'orthophoto : au même endroit de
+la D33, la séquence du 04/07/2025 (photo 6c6e4972, « RTK vérifié ») est décalée de 0,75 m en travers, translation
+pure, alors que celle du 20/06/2025 tombe sur l'orthophoto à 2 cm près. Sur 6 photos réglées à l'œil par l'auteur (07/11/2026) : 0 / +0,1 / +0,4
 / +0,2 / -0,2 / +0,2° pour +0,5 / +0,5 / +0,2 / +0,2 / -0,2 / 0°, écart entre photos 0,05 à 0,21°, décalage 0 à
 0,14 m, environ 3 s par calage. Étendu à 4 photos de plus de chaque côté (environ 50 m) : mêmes tangages, 15 à 20 s.
 Ces photos lointaines sont dessinées dans le repère de la route (sol plan, caméra posée dessus), sans LiDAR : seul
