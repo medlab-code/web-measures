@@ -111,6 +111,8 @@ header .dessus .devers output { min-width: 3.2em; font-variant-numeric: tabular-
 #dessus-etat { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 2; max-width: 92%; padding: 0.3rem 0.8rem; border-radius: 5px;
   background: var(--etiquette-vue); color: #fff; font-size: 15px; font-weight: 600; line-height: 1.3; text-align: center; text-shadow: var(--detoure-vue); pointer-events: none; }
 #dessus-etat:empty { display: none; }
+/* carte à sa place, en petit : l'étiquette cacherait la vue ; seulement carte en grand ou détachée */
+body:not(.carte-en-grand):not(.fenetre-carte) #dessus-etat { display: none; }
 .dessus-etiquette { padding: 0 0.35em; border-radius: 4px; background: #fff; color: #111; font: 600 12px sans-serif; white-space: nowrap; }
 /* Bouton Mesure : à gauche des réglages, sur la hauteur des deux rangées, liseré orange comme
    les alertes */
