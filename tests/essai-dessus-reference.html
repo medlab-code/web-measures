@@ -68,6 +68,10 @@ async function open(id) {
     await expect(`${name} : terrain LiDAR HD`, Boolean(now.terrain));
     await expect(`${name} : inclinaison connue`, Boolean(pose.up));
     if (read) await expect(`${name} : hauteur GPS RTK et décalage d'accord à 5 %`, Math.abs(read / pose.height - 1) < 0.05, `${number(100 * (read / pose.height - 1), 1)} %`);
+    const joins = now.joins?.results || [], fixed = joins.filter((r) => r?.fix);
+    await log(`  raccords (${number((now.joins?.ms || 0) / 1000, 1)} s) : ${joins.map((r) => (r ? `${number(100 * r.before, 1)} → ${number(100 * r.after, 1)} cm${r.fix ? "" : " (non gardé)"}` : "sans marquages")).join(" ; ") || "-"}`);
+    for (const r of joins.filter(Boolean)) await log(`    par ligne : ${r.perLine.map((l) => `${number(l.line, 1)} m : ${number(100 * l.before, 1)} → ${number(100 * l.after, 1)} (${l.n})`).join(" ; ")}`);
+    if (name === "A38") await expect(`${name} : raccords recalés, marche réduite`, fixed.length > 0 && fixed.every((r) => r.after < r.before));
     const blob = shown.blob();
     await expect(`${name} : vue recomposée`, Boolean(blob));
     if (blob) await fetch(`/capture/dessus-${name.replace(/\W+/g, "-")}.png`, { method: "POST", body: blob });

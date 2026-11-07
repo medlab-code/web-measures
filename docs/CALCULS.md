@@ -608,6 +608,25 @@ bord de l'ellipse. Chacune a sa position, sa hauteur et son
 inclinaison, posées sur le même terrain. Une distance entre deux points de photos différentes
 additionne l'erreur de chaque point et leur position relative (5 cm en RTK vérifié, sinon 30 cm).
 
+Option « Raccords recalés » (cochée par défaut, `alignJoin`, `src/dessus.js`) : une voisine qui ne s'accorde pas
+avec la principale fait une marche aux lignes de peinture, au raccord. Les deux photos sont dessinées seules ; les
+lignes de la chaussée (6 m de part et d'autre au plus : au-delà, glissières et bordures en relief) sont relevées dans
+la principale. On mesure ensuite leur centre en travers dans les deux photos, tous les 20 cm, et les bouts des tirets,
+hors du corps des véhicules. Le déplacement d'un point du sol (u devant, v à gauche de la voisine, hauteur H) dû à une
+petite erreur de sa pose vaut, en long, `tu + t (H² + u²) / H + r u v / H + l v + e u` et, en travers,
+`tv + t u v / H + r (H² + v²) / H - l u + e v` (t tangage, r roulis, l lacet, e échelle, tu et tv décalage). Ces six
+termes sont ajustés aux moindres carrés, mauvaises correspondances écartées, **hors de la zone du raccord** (±1,5 m) :
+la marche y est mesurée avant et après, sur des points que l'ajustement n'a pas vus. La correction n'est gardée que
+si la marche médiane baisse et qu'aucune ligne vue sur au moins 3 points n'empire de plus de 1 cm au-delà de 3 cm
+(précision du relevé). La voisine est alors dessinée au point déplacé ; la principale ne bouge pas, et son erreur
+d'échelle reste à caler (tangage). Pas de recalage sans marquages nets (petites routes, village).
+
+Essai hors application du 07/11/2026, 37 raccords (A38, RD 1074, D33) : marche médiane d'une ligne au raccord de
+8,3 à 3,6 cm, encore plus de 5 cm pour 9 raccords au lieu de 29 ; une ligne peu vue peut casser quand les autres se
+raccordent, d'où le contrôle par ligne. Sur les photos de référence (`tests/essai-dessus-reference.html`), environ
+2 s par vue : A38 7,4 → 2,4 cm, RD 1074 6,8 → 3,1 cm, D33 12,0 → 4,6 cm, la seconde voisine écartée par le contrôle
+ou faute de lignes.
+
 La hauteur de caméra est lue sur les photos elles-mêmes. Avec une hauteur fausse dans un rapport `k`, le
 sol projeté depuis deux caméras distantes de `b` se décale de `b (1 - k)` : ce décalage, cherché par
 corrélation dans le grain de la chaussée, donne la hauteur, indépendamment de l'orthophoto et de la
