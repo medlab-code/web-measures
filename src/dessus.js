@@ -1076,14 +1076,21 @@ const Dessus = (() => {
     return true;
   }
 
+  /** Image et bande verte retirées de la carte ; la vue (photos, calculs) reste. */
   function removeImage() {
     if (map.getLayer(BEST_ID)) map.removeLayer(BEST_ID);
     if (map.getSource(BEST_ID)) map.removeSource(BEST_ID);
     if (map.getLayer(IMAGE_ID)) map.removeLayer(IMAGE_ID);
     if (map.getSource(IMAGE_ID)) map.removeSource(IMAGE_ID);
-    if (shown?.url) URL.revokeObjectURL(shown.url);
-    shown?.panos.forEach((pano) => gl.deleteTexture(pano.texture));
   }
+  /** Vue jetée : image et photos libérées (mémoire graphique). */
+  function forget(view) {
+    if (view?.url) URL.revokeObjectURL(view.url);
+    view?.panos.forEach((pano) => gl.deleteTexture(pano.texture));
+  }
+  // Bird Eye éteinte : la dernière vue gardée (photos, terrain, hauteur, raccords, position) pour la rallumer sur la même
+  // photo sans rien refaire, le temps de la session ; jetée dès qu'une autre photo est montrée
+  let parked = null;
 
   // shortcut: mémorisées pour la session seulement, à garder d'une visite à l'autre si la méthode est retenue
   const heights = new Map();  // séquence -> hauteurs de caméra mesurées (m)
@@ -1188,6 +1195,16 @@ const Dessus = (() => {
     }
   }
 
+  /** Vue gardée (parked) remise : les calculs qu'elle avait en cours, interrompus, sont à refaire. */
+  function resume() {
+    shown = parked;
+    parked = null;
+    abort = new AbortController();
+    if (shown.estimating) shown.estimated = shown.estimating = false;
+    shown.joining = shown.locating = false;
+    applySettings(shown.sequence);
+  }
+
   /** Photo à montrer (fiche STAC, pose avec ses voisines et fiches des voisines, null s'il faut encore les lire ; photo null
    * pour tout retirer), à chaque changement : ne refait que ce qui a changé. */
   async function update(photo, pose, features) {
@@ -1197,10 +1214,17 @@ const Dessus = (() => {
     if (!photo) {
       abort?.abort();
       removeImage();
+      if (shown?.panos.has(shown.pic)) {  // photo et terrain lus
+        forget(parked);
+        parked = shown;  // calculs en cours interrompus : repris au retour (voir resume)
+      } else {
+        forget(shown);
+      }
       shown = null;
       say("");
       return;
     }
+    if (!shown && parked?.pic === photo.id) resume();
     if (shown?.pic === photo.id) {  // même photo : inclinaison, hauteur ou voisines arrivées, image refaite
       Object.assign(shown, { key, pose, features });
       if (!pose.pending) shown.sequenceHeight = sequenceHeight(photo.collection, pose);  // hauteur vérifiée arrivée après
@@ -1210,6 +1234,9 @@ const Dessus = (() => {
     }
     abort?.abort();
     removeImage();
+    forget(shown);
+    forget(parked);
+    parked = null;
     const controller = abort = new AbortController(), { signal } = controller;
     shown = { photo, pic: photo.id, sequence: photo.collection, height: median(heights.get(photo.collection) || []) ?? null, estimated: false, estimating: false, key, pose, features, panos: new Map(), loading: new Set(), terrain: null, sigmaGround: FLAT_SIGMA, terrainFailed: false, url: null };
     applySettings(photo.collection);
