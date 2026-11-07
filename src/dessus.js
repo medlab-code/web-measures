@@ -149,6 +149,18 @@ const Dessus = (() => {
     return [east / length, north / length, 1 / length];
   }
 
+  /** Altitude de la route sous une caméra (depuis le sol au centre du maillage) : moyenne du terrain sur ±2,5 m en long et
+   * ±1,5 m en travers, la valeur au centre du plan de groundUp. Moins bruitée qu'un seul point du maillage : 2 à 3 cm de trop
+   * sous une photo changent son échelle d'environ 1 %, de quoi décaler les lignes aux raccords. */
+  function groundLevel(terrain, at, heading) {
+    const h = heading * toRad, hu = [Math.sin(h), Math.cos(h)];
+    let sum = 0, n = 0;
+    for (let a = -2.5; a <= 2.5; a += 0.5) {
+      for (let s = -1.5; s <= 1.5; s += 0.5) { sum += terrainAt(terrain, at[0] + a * hu[0] + s * hu[1], at[1] + a * hu[1] - s * hu[0]); n++; }
+    }
+    return sum / n;
+  }
+
   /** Altitudes LiDAR HD du maillage (lignes du sud au nord, colonnes d'ouest en est), ou null s'il en manque une ;
    * exception si le service ne répond pas. */
   async function readTerrain(pose, signal) {
@@ -310,7 +322,7 @@ const Dessus = (() => {
     for (const { pano, pose } of layers) {
       const m = rotation(pose), [east, north] = toLocal(pose.lon, pose.lat, main), h = pose.heading * toRad;
       g.uniformMatrix3fv(uniform("turn"), false, [0, 1, 2].flatMap((c) => m.map((row) => row[c])));
-      g.uniform3f(uniform("camera"), east, north, (terrain ? terrainAt(terrain, east, north) : 0) + pose.height);
+      g.uniform3f(uniform("camera"), east, north, (terrain ? groundLevel(terrain, [east, north], pose.heading) : 0) + pose.height);
       g.uniform4f(uniform("car"), Math.sin(h), Math.cos(h), CAR.ahead, CAR.long);
       g.uniform1f(uniform("height"), pose.height);
       g.uniform1f(uniform("sigma"), pose.sigma * toRad);
@@ -622,6 +634,27 @@ const Dessus = (() => {
   const readSettings = () => {
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch { return {}; }  // stockage absent ou illisible
   };
+  // Hauteur de caméra par séquence : la caméra ne bouge pas, mais l'altitude GPS RTK moins le sol LiDAR varie d'une photo à
+  // l'autre (A38, une séquence : 1,83 à 2,36 m) ; la médiane des photos vues (vérifiées RTK) sert à toutes, gardée dans le
+  // navigateur comme le roulis et le tangage
+  const HEIGHTS_KEY = "web-measures/dessus-hauteurs", HEIGHTS_MIN = 3;
+  const readHeights = () => {
+    try { return JSON.parse(localStorage.getItem(HEIGHTS_KEY)) || {}; } catch { return {}; }
+  };
+  /** Hauteur de la photo affichée ajoutée à sa séquence (photo vérifiée seulement) ; { height, count } de la séquence, ou null. */
+  function sequenceHeight(sequence, pose) {
+    const all = readHeights(), kept = all[sequence] || {};
+    if (pose && pose.relative_sigma <= 0.05 && pose.height >= MIN_HEIGHT && pose.height <= MAX_HEIGHT && !(pose.pic in kept)) {
+      kept[pose.pic] = Math.round(pose.height * 1000) / 1000;
+      const pics = Object.keys(kept);
+      if (pics.length > 60) delete kept[pics[0]];  // les plus anciennes d'abord
+      all[sequence] = kept;
+      try { localStorage.setItem(HEIGHTS_KEY, JSON.stringify(all)); } catch { /* sans stockage : pour cette page seulement */ }
+    }
+    const values = Object.values(kept);
+    return values.length >= HEIGHTS_MIN ? { height: median(values), count: values.length } : null;
+  }
+
   /** Réglage de la séquence affichée gardé ; les valeurs par défaut ne sont pas gardées. */
   function keepSettings() {
     if (!shown) return;
@@ -652,7 +685,8 @@ const Dessus = (() => {
     .map((pose) => {
       const at = toLocal(pose.lon, pose.lat, shown.pose);
       const leveled = pose.up || !shown.terrain ? pose : { ...pose, up: groundUp(shown.terrain, at, pose.heading, rollShare, pitchOffset), sigma: Math.min(pose.sigma, GROUND_SIGMA), groundTilt: true };
-      return { pose: shown.height ? { ...leveled, height: shown.height, height_sigma: HEIGHT_SIGMA } : leveled, pano: shown.panos.get(pose.pic), at };
+      const height = shown.height || shown.sequenceHeight?.height;  // décalage entre photos, sinon hauteur de la séquence
+      return { pose: height ? { ...leveled, height, height_sigma: HEIGHT_SIGMA } : leveled, pano: shown.panos.get(pose.pic), at };
     });
 
   /** Mode « Longueur sur la carte » (app.js) : curseur, carte et visionneuse échangées, cadrage sur la vue. */
@@ -854,7 +888,7 @@ const Dessus = (() => {
     const place = shown.terrain ? "Terrain LiDAR HD" : `Sol supposé plat (${shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
     const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${pitchOffset ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${readSettings()[shown.sequence] ? ", réglage de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
-    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? " (décalage entre photos)" : ""}${shown.calibrated ? ` ; ${shown.calibrated}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : busy() ? " ; photos voisines en cours…" : ""}`);
+    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? " (décalage entre photos)" : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${shown.calibrated ? ` ; ${shown.calibrated}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : busy() ? " ; photos voisines en cours…" : ""}`);
     $("#dessus-caler").disabled = !shown.terrain || busy();  // toutes les photos prêtes, posées sur le terrain
     $("#dessus-position").disabled = !shown.shift;
     if (!busy() && !shown.estimated) measureHeight();
@@ -912,6 +946,7 @@ const Dessus = (() => {
     }
     if (shown?.pic === photo.id) {  // même photo : inclinaison, hauteur ou voisines arrivées, image refaite
       Object.assign(shown, { key, pose, features });
+      if (!pose.pending) shown.sequenceHeight = sequenceHeight(photo.collection, pose);  // hauteur vérifiée arrivée après
       loadNeighbours(abort.signal);
       if (shown.panos.has(shown.pic)) await showImage();
       return;
@@ -921,6 +956,7 @@ const Dessus = (() => {
     const controller = abort = new AbortController(), { signal } = controller;
     shown = { photo, pic: photo.id, sequence: photo.collection, height: median(heights.get(photo.collection) || []) ?? null, estimated: false, estimating: false, key, pose, features, panos: new Map(), loading: new Set(), terrain: null, sigmaGround: FLAT_SIGMA, terrainFailed: false, url: null };
     applySettings(photo.collection);
+    shown.sequenceHeight = pose.pending ? null : sequenceHeight(photo.collection, pose);
     const mine = shown;
     say("Lecture de la photo et du terrain…");
     try {

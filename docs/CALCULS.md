@@ -652,6 +652,16 @@ Ces photos lointaines sont dessinées dans le repère de la route (sol plan, cam
 compte le défaut de fixation ; mêmes tangages qu'avec le terrain LiDAR HD, écart entre photos 0,25 à 0,33° au lieu
 de 0,26 à 0,48°.
 
+Hauteur de caméra par séquence : médiane des hauteurs vérifiées (GPS RTK moins sol) des photos vues de la séquence, dès
+3 photos, gardée dans le navigateur (`web-measures/dessus-hauteurs`) ; une même séquence de l'A38 allait de 1,83 à
+2,36 m d'une photo à l'autre. Chaque caméra est posée à cette hauteur au-dessus du plan de la route sous le véhicule
+(moyenne du terrain sur ±2,5 m x ±1,5 m), plutôt que sur un seul point du maillage.
+
+Raccords entre photos (D33, `fb158480`) : des marches de 10 cm sur la rive (4,2 m de la caméra) et 3 à 5 cm sur l'axe
+(1,6 m) viennent du tangage. Au raccord, la principale voit le point devant elle et la voisine derrière la sienne :
+une erreur de tangage δ change leurs échelles en travers en sens opposés, d'environ 2 x 2,6 m x δ / H x s. Elles
+disparaissent entre +0,3 et +0,5° (réglage à l'œil de l'auteur : +0,5° ; calage sur l'orthophoto : +0,1°).
+
 Validation (07/11/2026, A38, 20 photos CD21 prises une à une, relevé automatique ; tirets de norme 3 m et 15 cm),
 sans puis avec cette inclinaison : tirets à 4-9 m devant 3,29 puis 2,98 m, derrière 2,72 puis 3,03 m ; écart médian
 à 3 m (4-14 m) 0,40 puis 0,21 m ; largeur 15,2 cm environ avant comme après. Écart entre lignes de rive comparé à
