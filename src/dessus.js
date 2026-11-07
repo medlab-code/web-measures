@@ -12,7 +12,10 @@ const Dessus = (() => {
   const REACH = 15;  // m : portée de la vue
   const SURE = 10;  // m : grisé au-delà (0,6° d'inclinaison y déplacent déjà un point de 45 cm)
   const STEP = 1;  // m : maille du terrain (LiDAR HD à 50 cm, toit de la chaussée compris)
-  const SIZE = 1024;  // px : côté de l'image, soit 3 cm par pixel
+  const SIZE = 1024;  // px : côté de l'image des calculs (hauteur, raccords, position), soit 3 cm par pixel
+  // px : côté de l'image affichée, 1,5 cm par pixel ; la photo est plus fine jusqu'à 10 m (12 288 px : 0,5 cm en travers et
+  // 2,6 cm le long à 10 m, 0,2 et 0,5 cm à 4 m), les voisines (NEAR_LIMIT) deux fois moins
+  const SHOWN_SIZE = 2048;
   const CHUNK = 150;  // points par requête d'altitude (longueur de l'adresse)
   const CAR = { ahead: 0, long: 5.8, wide: 2.9 };  // m : véhicule étalé sur le sol, reflets du capot et du coffre compris (voir hidden)
   const NEAR_LIMIT = 6144;  // px : largeur des photos voisines, qui ne servent que près de leur caméra (mémoire graphique)
@@ -294,12 +297,14 @@ const Dessus = (() => {
     return { texture, top };
   }
 
-  /** Dessine la vue : canevas de SIZE px, nord en haut, ±REACH m autour de la caméra de layers[0]. layers : [{ pano, pose }]
+  /** Dessine la vue : canevas de size px (SIZE par défaut), nord en haut, ±REACH m autour de la caméra de layers[0]. layers : [{ pano, pose }]
    * (photo principale d'abord) ; terrain : altitudes du maillage (voir readTerrain), ou null pour un plan horizontal ;
    * frame : pose de la photo qui centre l'image et le maillage (par défaut, la principale) ; band : axe de la route (vecteur
    * unitaire est, nord) pour ne garder que la bande de la zone idéale (BEST), ou null. */
-  function render(layers, terrain, frame = layers[0].pose, band = null) {
-    const g = context(), n = 2 * REACH / STEP + 1, base = terrain ? terrain[(n * n - 1) / 2] : 0;
+  function render(layers, terrain, frame = layers[0].pose, band = null, size = SIZE) {
+    const g = context();
+    if (g.canvas.width !== size) g.canvas.width = g.canvas.height = size;
+    const n = 2 * REACH / STEP + 1, base = terrain ? terrain[(n * n - 1) / 2] : 0;
     const vertices = new Float32Array(3 * n * n);
     for (let j = 0, k = 0; j < n; j++) {
       for (let i = 0; i < n; i++, k++) {
@@ -314,7 +319,7 @@ const Dessus = (() => {
       }
     }
     g.useProgram(program);
-    g.viewport(0, 0, SIZE, SIZE);
+    g.viewport(0, 0, size, size);
     g.clearColor(0, 0, 0, 0);
     g.clearDepth(1);
     g.enable(g.DEPTH_TEST);
@@ -1092,7 +1097,7 @@ const Dessus = (() => {
   let drawing = 0;  // dernier dessin demandé : l'image d'un dessin dépassé est jetée
   async function showImage() {
     shown.joinKeyNow = joinKey();  // recalage des raccords valable pour ces réglages seulement
-    const layers = readyLayers(), pose = shown.pose, mine = ++drawing, canvas = render(layers, shown.terrain, layers[0].pose, bandOnly ? roadAxis(layers) : null);
+    const layers = readyLayers(), pose = shown.pose, mine = ++drawing, canvas = render(layers, shown.terrain, layers[0].pose, bandOnly ? roadAxis(layers) : null, SHOWN_SIZE);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
     if (mine !== drawing || !shown) return;
     const old = shown.url, url = shown.url = URL.createObjectURL(blob);
