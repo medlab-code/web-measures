@@ -107,7 +107,9 @@ header .dessus .rang { display: flex; gap: 0.3em; }
 header .dessus .devers { display: flex; align-items: center; gap: 0.4em; }
 header .dessus .devers input { width: 7em; }
 header .dessus .devers output { min-width: 3.2em; font-variant-numeric: tabular-nums; }
-#dessus-etat { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 2; max-width: 92%; padding: 0.25em 0.7em; border-radius: 4px; background: rgba(0, 0, 0, 0.75); color: #fff; font-size: 0.9rem; line-height: 1.35; text-align: center; pointer-events: none; }
+/* même format que les étiquettes incrustées dans la photo (--etiquette-vue, plus bas) */
+#dessus-etat { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 2; max-width: 92%; padding: 0.3rem 0.8rem; border-radius: 5px;
+  background: var(--etiquette-vue); color: #fff; font-size: 15px; font-weight: 600; line-height: 1.3; text-align: center; text-shadow: var(--detoure-vue); pointer-events: none; }
 #dessus-etat:empty { display: none; }
 .dessus-etiquette { padding: 0 0.35em; border-radius: 4px; background: #fff; color: #111; font: 600 12px sans-serif; white-space: nowrap; }
 /* Bouton Mesure : à gauche des réglages, sur la hauteur des deux rangées, liseré orange comme
@@ -254,6 +256,11 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .maplibregl-ctrl button.mesurer-carte[hidden] { display: none; }
 .maplibregl-ctrl button.mesurer-carte[aria-pressed="true"] { background: var(--panoramax); color: #fff; }
 .maplibregl-ctrl button.mesurer-carte:disabled { opacity: 0.5; cursor: default; }
+/* fond de survol de MapLibre (presque transparent) remplacé : le bouton reste lisible sur l'image */
+.maplibregl-ctrl button.mesurer-carte:not(:disabled):hover { background: #eee; }
+.maplibregl-ctrl button.mesurer-carte[aria-pressed="true"]:not(:disabled):hover { background: var(--panoramax); filter: brightness(1.1); }
+/* en haut, à droite des boutons de zoom plutôt que sous la pile de gauche */
+.maplibregl-ctrl-top-left .place-mesurer { position: absolute; top: 0; left: 40px; white-space: nowrap; }
 
 /* Recherche de lieux, en haut à droite de la carte (voir recherche.js) */
 .recherche {

@@ -1255,7 +1255,7 @@
     if (!measuring) $("#mesure").click();
   });
   map.addControl({
-    onAdd: () => Object.assign(document.createElement("div"), { className: "maplibregl-ctrl" }).appendChild(measureButton).parentNode,
+    onAdd: () => Object.assign(document.createElement("div"), { className: "maplibregl-ctrl place-mesurer" }).appendChild(measureButton).parentNode,
     onRemove: () => {},
   }, "top-left");
   /** Bouton de la carte en grand : enfoncé pendant la mesure, grisé sans photo 360° (pas de vue du dessus). */
