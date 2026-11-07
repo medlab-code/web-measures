@@ -568,6 +568,49 @@ const Dessus = (() => {
     return { pitch, shift: median(lines.map((l) => l.dc)), lines: n, us };
   }
 
+  const FLAT = Array.from({ length: (2 * REACH / STEP + 1) ** 2 }, () => 0);  // sol plan du repère de la route
+  const FURTHER = 4;  // photos de plus de chaque côté pour le calage, au-delà des voisines : environ 50 m de route en tout
+  const headingOf = (item) => {  // comme py/core/metadata.py : cap EXIF au centième s'il concorde avec view:azimuth
+    const rounded = Number(item.properties?.["view:azimuth"]), exif = item.properties?.exif?.["Exif.GPSInfo.GPSImgDirection"];
+    const [num, den] = String(exif ?? "").split("/").map(Number), value = num / (den || 1);
+    return exif && Number.isFinite(value) && Math.abs(((value - rounded + 540) % 360) - 180) < 1 ? value % 360 : rounded;
+  };
+
+  /** Photos de la séquence au-delà des voisines (FURTHER de chaque côté, à 60 m au plus), fiches STAC lues de proche en proche. */
+  async function* furtherPhotos(mine, signal) {
+    for (const rel of ["prev", "next"]) {
+      const first = (mine.photo.links || []).find((l) => l.rel === rel)?.href;
+      let item = (mine.features || []).find((f) => first && first.endsWith(f.id)) || null;
+      for (let k = 0; k < FURTHER && item; k++) {
+        const href = (item.links || []).find((l) => l.rel === rel)?.href;
+        if (!href) break;
+        const response = await fetch(href, { signal });
+        if (!response.ok) break;
+        item = await response.json();
+        if (Math.hypot(...toLocal(...item.geometry.coordinates.slice(0, 2), mine.pose)) > 60) break;
+        yield item;
+      }
+    }
+  }
+
+  /** Écarts à l'orthophoto d'une photo plus loin dans la séquence, dessinée seule autour de sa caméra dans le repère de la
+   * route (sol plan, caméra posée dessus) : seul compte le défaut de fixation, sans LiDAR. Essai du 07/11/2026 : mêmes
+   * tangages qu'avec le terrain LiDAR HD, moins dispersés. Ou null. */
+  async function compareFurther(item, mine, signal) {
+    const [lon, lat] = item.geometry.coordinates, base = { ...mine.pose, pic: item.id, lon, lat, heading: headingOf(item), neighbours: [] };
+    const [part, ortho] = await Promise.all([
+      loadPano(Video.record(item, { coords: item.geometry.coordinates }).tiles, Math.min(NEAR_LIMIT, context().getParameter(gl.MAX_TEXTURE_SIZE)), signal),
+      readOrtho(base, signal)]);
+    const pano = panoTexture(part);
+    try {
+      const pose = { ...base, height: shown.height || base.height, up: groundUp(FLAT, [0, 0], base.heading, rollShare, pitchOffset), sigma: GROUND_SIGMA, groundTilt: true };
+      const layer = { pano, pose, at: [0, 0] };
+      return compareLines(layer, readView(layer, null, pose), ortho, roadHeading(ortho, base.heading), pose.height);
+    } finally {
+      gl.deleteTexture(pano.texture);
+    }
+  }
+
   // Sur la mini-carte -----------------------------------------------------------------------
   let map = null, shown = null;  // shown : { pic, sequence, height, estimated, estimating, key, pose, features, panos (photo -> texture), loading, terrain, sigmaGround, terrainFailed, url }
   let positionOn = false;  // image décalée en travers pour se poser sur l'orthophoto (option d'essai, voir calibrate)
@@ -675,7 +718,7 @@ const Dessus = (() => {
    * médiane ajoutée au réglage de la séquence ; décalage en travers de la principale gardé pour l'option de position. */
   async function calibrate() {
     const mine = shown, button = $("#dessus-caler");
-    if (!mine?.url || !mine.terrain) return;
+    if (!mine?.url || !mine.terrain || busy()) return;  // photo voisine en lecture : le bouton se réactive ensuite
     button.disabled = true;
     say("Calage sur l'orthophoto : lecture et repérage des lignes…");
     try {
@@ -685,6 +728,14 @@ const Dessus = (() => {
         if (shown !== mine) return;
         const result = compareLines(layer, readView(layer, mine.terrain, mine.pose), ortho, theta, layer.pose.height);
         if (result) found.push({ ...result, main: layer.pose.pic === mine.pic });
+      }
+      // Plus loin dans la séquence : des lignes plus longues en tout, et des photos qui ne voient pas la même portion
+      let seen = readyLayers().length;
+      for await (const item of furtherPhotos(mine, abort.signal)) {
+        if (shown !== mine) return;
+        say(`Calage sur l'orthophoto : photo ${++seen}, ${found.length} calée${found.length > 1 ? "s" : ""}…`);
+        const result = await compareFurther(item, mine, abort.signal).catch(() => null);  // photo illisible : la suivante
+        if (result) found.push({ ...result, main: false });
       }
       if (!found.length) {
         mine.calibrated = "calage impossible : moins de deux lignes nettes en commun avec l'orthophoto";
@@ -832,6 +883,7 @@ const Dessus = (() => {
       if (!feature || pose.pending || mine.panos.has(pose.pic) || mine.loading.has(pose.pic)
           || Math.hypot(...toLocal(pose.lon, pose.lat, mine.pose)) > REACH) continue;
       mine.loading.add(pose.pic);
+      $("#dessus-caler").disabled = true;  // la photo attendue entre dans le calage
       const tiles = Video.record(feature, { coords: feature.geometry.coordinates }).tiles;
       loadPano(tiles, Math.min(NEAR_LIMIT, context().getParameter(gl.MAX_TEXTURE_SIZE)), signal).then((part) => {
         if (shown !== mine) { part.canvas.width = 0; return; }
@@ -867,7 +919,7 @@ const Dessus = (() => {
     abort?.abort();
     removeImage();
     const controller = abort = new AbortController(), { signal } = controller;
-    shown = { pic: photo.id, sequence: photo.collection, height: median(heights.get(photo.collection) || []) ?? null, estimated: false, estimating: false, key, pose, features, panos: new Map(), loading: new Set(), terrain: null, sigmaGround: FLAT_SIGMA, terrainFailed: false, url: null };
+    shown = { photo, pic: photo.id, sequence: photo.collection, height: median(heights.get(photo.collection) || []) ?? null, estimated: false, estimating: false, key, pose, features, panos: new Map(), loading: new Set(), terrain: null, sigmaGround: FLAT_SIGMA, terrainFailed: false, url: null };
     applySettings(photo.collection);
     const mine = shown;
     say("Lecture de la photo et du terrain…");

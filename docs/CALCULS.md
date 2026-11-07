@@ -647,7 +647,10 @@ la séquence. Le roulis n'est pas calé : avec des lignes repérées à 5 cm pr�
 et absorbe tout écart de largeur. Option « Position calée sur l'orthophoto » : vue décalée en travers de l'écart
 médian des lignes de la photo principale. Sur 6 photos réglées à l'œil par l'auteur (07/11/2026) : 0 / +0,1 / +0,4
 / +0,2 / -0,2 / +0,2° pour +0,5 / +0,5 / +0,2 / +0,2 / -0,2 / 0°, écart entre photos 0,05 à 0,21°, décalage 0 à
-0,14 m, environ 3 s par calage.
+0,14 m, environ 3 s par calage. Étendu à 4 photos de plus de chaque côté (environ 50 m) : mêmes tangages, 15 à 20 s.
+Ces photos lointaines sont dessinées dans le repère de la route (sol plan, caméra posée dessus), sans LiDAR : seul
+compte le défaut de fixation ; mêmes tangages qu'avec le terrain LiDAR HD, écart entre photos 0,25 à 0,33° au lieu
+de 0,26 à 0,48°.
 
 Validation (07/11/2026, A38, 20 photos CD21 prises une à une, relevé automatique ; tirets de norme 3 m et 15 cm),
 sans puis avec cette inclinaison : tirets à 4-9 m devant 3,29 puis 2,98 m, derrière 2,72 puis 3,03 m ; écart médian
