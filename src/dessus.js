@@ -428,8 +428,149 @@ const Dessus = (() => {
     return values.length ? values : null;
   }
 
+  // Calage sur l'orthophoto (essai) ----------------------------------------------------------------
+  // Lignes de peinture repérées à la fois sur l'orthophoto et sur la vue d'une photo seule, dans le repère de la route : leur
+  // direction relative donne le cap et le tangage (terme en distance à la caméra), leur position commune le décalage latéral.
+  // Le roulis n'est pas calé : il se confond avec un écart de largeur (essai du 07/11/2026, docs/CALCULS.md).
+  const ORTHO_URL = "https://data.geopf.fr/wms-r/wms", ORTHO_LAYER = "ORTHOIMAGERY.ORTHOPHOTOS";  // 20 cm, la plus récente
+  const GRID = 0.05, ALONG = 12, SIDE = 8, CAR_GAP = 3.2, ROAD = 6;  // m : pas, demi-longueur et demi-largeur du repère, véhicule, chaussée
+
+  /** Orthophoto autour de la pose : fonction (est, nord en m) -> gris (0-765), ou NaN hors image. */
+  async function readOrtho(pose, signal) {
+    const [w, s] = toLonLat(-REACH - 1, -REACH - 1, pose), [e, n] = toLonLat(REACH + 1, REACH + 1, pose), px = 640;
+    const url = `${ORTHO_URL}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&STYLES=&FORMAT=image/jpeg&CRS=EPSG:4326&LAYERS=${ORTHO_LAYER}`
+      + `&WIDTH=${px}&HEIGHT=${px}&BBOX=${s},${w},${n},${e}`;  // WMS 1.3.0 en EPSG:4326 : latitude d'abord
+    const response = await fetch(url, { signal });
+    if (!response.ok) throw new Error(`orthophoto : HTTP ${response.status}`);
+    const bitmap = await createImageBitmap(await response.blob()), canvas = new OffscreenCanvas(px, px), c = canvas.getContext("2d");
+    c.drawImage(bitmap, 0, 0, px, px);
+    const data = c.getImageData(0, 0, px, px).data, [x0, y0] = toLocal(w, s, pose), [x1, y1] = toLocal(e, n, pose);
+    return (east, north) => {
+      const x = (east - x0) / (x1 - x0) * px - 0.5, y = (y1 - north) / (y1 - y0) * px - 0.5;
+      if (x < 0 || y < 0 || x >= px - 1 || y >= px - 1) return NaN;
+      const i = Math.floor(x), j = Math.floor(y), u = x - i, v = y - j, g = (a, b) => data[4 * (b * px + a)] + data[4 * (b * px + a) + 1] + data[4 * (b * px + a) + 2];
+      return (g(i, j) * (1 - u) + g(i + 1, j) * u) * (1 - v) + (g(i, j + 1) * (1 - u) + g(i + 1, j + 1) * u) * v;
+    };
+  }
+
+  /** Vue d'une photo seule (réglages en cours), même convention que readOrtho. */
+  function readView(layer, terrain, frame) {
+    const g = context(), rgba = new Uint8Array(4 * SIZE * SIZE);
+    render([layer], terrain, frame);
+    g.readPixels(0, 0, SIZE, SIZE, g.RGBA, g.UNSIGNED_BYTE, rgba);  // lignes du sud au nord
+    const M = 2 * REACH / SIZE;
+    return (east, north) => {
+      const x = (east + REACH) / M - 0.5, y = (north + REACH) / M - 0.5;
+      if (x < 0 || y < 0 || x >= SIZE - 1 || y >= SIZE - 1) return NaN;
+      const i = Math.round(x), j = Math.round(y), k = 4 * (j * SIZE + i);
+      return rgba[k + 3] > 100 ? rgba[k] + rgba[k + 1] + rgba[k + 2] : NaN;
+    };
+  }
+
+  const percentile = (values, q) => {
+    const v = values.filter((x) => !Number.isNaN(x)).sort((a, b) => a - b);
+    return v.length ? v[Math.min(v.length - 1, Math.floor(q * v.length))] : NaN;
+  };
+  const smooth = (p, r) => p.map((_, i) => {
+    let sum = 0, n = 0;
+    for (let k = Math.max(0, i - r); k <= Math.min(p.length - 1, i + r); k++) if (!Number.isNaN(p[k])) { sum += p[k]; n++; }
+    return n ? sum / n : NaN;
+  });
+
+  /** Image dans le repère de la route (cap theta, rad) : rangées le long (a), colonnes en travers (s, vers la droite), sans le
+   * fond (moyenne glissante sur 0,6 m en travers). */
+  function roadFrame(sample, theta) {
+    const ua = [Math.sin(theta), Math.cos(theta)], us = [ua[1], -ua[0]], cols = Math.round(2 * SIDE / 0.02), rows = Math.round(2 * ALONG / GRID);
+    const out = [];
+    for (let r = 0; r < rows; r++) {
+      const a = -ALONG + (r + 0.5) * GRID, row = new Float32Array(cols);
+      for (let c = 0; c < cols; c++) {
+        const s = -SIDE + (c + 0.5) * 0.02;
+        row[c] = sample(a * ua[0] + s * us[0], a * ua[1] + s * us[1]);
+      }
+      const base = smooth([...row], 15);
+      out.push(row.map((v, c) => v - base[c]));
+    }
+    return out;
+  }
+  const sideOf = (c) => -SIDE + (c + 0.5) * 0.02, alongOf = (r) => -ALONG + (r + 0.5) * GRID;
+
+  /** Lignes claires (côte en travers, m) : pics du 9e décile le long, rangées choisies par keep(a). */
+  function peaks(frame, keep, low) {
+    const rows = frame.filter((_, r) => keep(alongOf(r))), cols = frame[0].length;
+    const p = smooth(Array.from({ length: cols }, (_, c) => percentile(rows.map((row) => row[c]), 0.9)), 2), found = [];
+    for (let c = 25; c < cols - 25; c++) {
+      const near = p.slice(c - 25, c + 26).filter((v) => !Number.isNaN(v));
+      if (!(p[c] >= low) || near.some((v) => v > p[c])) continue;
+      if (p[c] - Math.min(...near) >= 0.8 * low) found.push(sideOf(c));
+    }
+    return found;
+  }
+
+  /** Droite suivie par une ligne autour de la côte s0 : { c (côte à a = 0), m (pente), n }, ou null. */
+  function trackLine(frame, s0, keep, low) {
+    const points = [], c0 = Math.round((s0 + SIDE) / 0.02 - 0.5), cs = [];
+    for (let c = c0 - 17; c <= c0 + 17; c++) if (c >= 0 && c < frame[0].length) cs.push(c);
+    for (let a = -11; a <= 11; a += 0.5) {
+      if (!keep(a)) continue;
+      const rows = frame.filter((_, r) => Math.abs(alongOf(r) - a) < 0.5);
+      const pr = smooth(cs.map((c) => percentile(rows.map((row) => row[c]), 0.9)), 2);
+      if (pr.some(Number.isNaN) || Math.max(...pr) < low) continue;
+      const top = Math.max(...pr);
+      let sum = 0, weight = 0;
+      pr.forEach((v, k) => { const w = Math.max(0, v - 0.5 * top); sum += w * sideOf(cs[k]); weight += w; });
+      points.push([a, sum / weight]);
+    }
+    const fit = (list) => {
+      const n = list.length, ma = list.reduce((t, p) => t + p[0], 0) / n, ms = list.reduce((t, p) => t + p[1], 0) / n;
+      const m = list.reduce((t, p) => t + (p[0] - ma) * (p[1] - ms), 0) / list.reduce((t, p) => t + (p[0] - ma) ** 2, 0);
+      return { c: ms - m * ma, m, n };
+    };
+    if (points.length < 6) return null;
+    const first = fit(points), kept = points.filter(([a, s]) => Math.abs(s - first.c - first.m * a) < 0.12);
+    return kept.length >= 6 ? fit(kept) : null;
+  }
+
+  /** Cap de la route (rad) : l'orientation où le profil en travers de l'orthophoto est le plus contrasté (±12° du cap). */
+  function roadHeading(ortho, heading) {
+    let best = heading * toRad, top = -1;
+    for (let d = -12; d <= 12; d += 0.25) {
+      const theta = (heading + d) * toRad, ua = [Math.sin(theta), Math.cos(theta)], us = [ua[1], -ua[0]], profile = [];
+      for (let s = -SIDE; s <= SIDE; s += 0.04) {
+        const v = [];
+        for (let a = -ALONG; a <= ALONG; a += 0.5) v.push(ortho(a * ua[0] + s * us[0], a * ua[1] + s * us[1]));
+        profile.push(percentile(v, 0.5));
+      }
+      const base = smooth(profile, 15), d2 = profile.map((v, i) => v - base[i]).filter((v) => !Number.isNaN(v));
+      const mean = d2.reduce((t, v) => t + v, 0) / d2.length, variance = d2.reduce((t, v) => t + (v - mean) ** 2, 0) / d2.length;
+      if (variance > top) { top = variance; best = theta; }
+    }
+    return best;
+  }
+
+  /** Écarts d'une photo à l'orthophoto : { pitch (rad, tangage en trop dans la vue), shift (m, en travers, vue moins
+   * orthophoto), lines } ou null (moins de deux lignes communes, ou trop proches). layer.at : position de sa caméra. */
+  function compareLines(layer, view, ortho, theta, H) {
+    const ua = [Math.sin(theta), Math.cos(theta)], us = [ua[1], -ua[0]];
+    const ca = layer.at[0] * ua[0] + layer.at[1] * ua[1], cs = layer.at[0] * us[0] + layer.at[1] * us[1];  // caméra dans le repère
+    const Do = roadFrame(ortho, theta), Dv = roadFrame(view, theta), seen = (a) => Math.abs(a - ca) > CAR_GAP && Math.abs(a - ca) < 11;
+    const fromOrtho = peaks(Do, seen, 3), fromView = peaks(Dv, seen, 6), lines = [];
+    for (const so of fromOrtho) {
+      const sv = fromView.filter((s) => Math.abs(s - so) < 0.9).sort((x, y) => Math.abs(x - so) - Math.abs(y - so))[0];
+      if (sv === undefined || Math.abs(so - cs) > ROAD) continue;  // au-delà de la chaussée : herbe et bordures en relief
+      const o = trackLine(Do, so, seen, 3), v = trackLine(Dv, sv, seen, 6);
+      if (o && v) lines.push({ s: o.c + o.m * ca - cs, dc: (v.c + v.m * ca) - (o.c + o.m * ca), dm: v.m - o.m });
+    }
+    if (lines.length < 2 || Math.max(...lines.map((l) => l.s)) - Math.min(...lines.map((l) => l.s)) < 2) return null;
+    // Pente relative : cap + tangage x (côte depuis la caméra) / H, ajustés aux moindres carrés
+    const n = lines.length, mx = lines.reduce((t, l) => t + l.s / H, 0) / n, my = lines.reduce((t, l) => t + l.dm, 0) / n;
+    const pitch = lines.reduce((t, l) => t + (l.s / H - mx) * (l.dm - my), 0) / lines.reduce((t, l) => t + (l.s / H - mx) ** 2, 0);
+    return { pitch, shift: median(lines.map((l) => l.dc)), lines: n, us };
+  }
+
   // Sur la mini-carte -----------------------------------------------------------------------
   let map = null, shown = null;  // shown : { pic, sequence, height, estimated, estimating, key, pose, features, panos (photo -> texture), loading, terrain, sigmaGround, terrainFailed, url }
+  let positionOn = false;  // image décalée en travers pour se poser sur l'orthophoto (option d'essai, voir calibrate)
   let abort = null, measuringOn = false, bandOnly = false, start = null, hover = null, live = null;  // live : longueur affichée au pointeur
   // Roulis (part du dévers) et tangage ajouté (degrés), réglés à la main (options d'essai) et retenus par séquence dans le
   // navigateur : la fixation de la caméra ne change pas au cours d'une séquence (A38 du 09/10/2025 : même tangage à deux endroits)
@@ -490,8 +631,12 @@ const Dessus = (() => {
 
   /** Longueur du départ au point (lon, lat) : { length, error, photos }. Un bout hors de la vue (contrôle sur le fond de
    * carte, l'orthophoto) : longueur sur la carte seule, sans incertitude (error null) ni photo. */
+  /** Décalage de l'image (est, nord, m) : celui de l'orthophoto si l'option est cochée. */
+  const shiftOf = () => (positionOn && shown?.shift ? shown.shift : [0, 0]);
+  /** Point de la carte dans le repère de la photo (est, nord, m), image décalée comprise. */
+  const localOf = (point) => { const [e, n] = toLocal(...point, shown.pose), [de, dn] = shiftOf(); return [e - de, n - dn]; };
   function lengthTo(point) {
-    const pose = shown.pose, layers = readyLayers(), a = toLocal(...start, pose), b = toLocal(...point, pose);
+    const layers = readyLayers(), a = localOf(start), b = localOf(point);
     const la = sourceOf(a, layers), lb = sourceOf(b, layers), length = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (!la || !lb) return { length, error: null, photos: "" };
     return { length, error: shownError(a, b, layers, shown.sigmaGround), photos: [...new Set([la.pose.pic, lb.pose.pic])].join(",") };
@@ -526,6 +671,42 @@ const Dessus = (() => {
     live.setLngLat(hover).addTo(map);
   }
 
+  /** « Caler le tangage sur l'orthophoto » : tangage en trop mesuré sur chaque photo prête (la principale et ses voisines), la
+   * médiane ajoutée au réglage de la séquence ; décalage en travers de la principale gardé pour l'option de position. */
+  async function calibrate() {
+    const mine = shown, button = $("#dessus-caler");
+    if (!mine?.url || !mine.terrain) return;
+    button.disabled = true;
+    say("Calage sur l'orthophoto : lecture et repérage des lignes…");
+    try {
+      const ortho = await readOrtho(mine.pose), theta = roadHeading(ortho, mine.pose.heading), found = [];
+      for (const layer of readyLayers()) {
+        await new Promise((resolve) => setTimeout(resolve));  // la page reste à jour entre deux photos
+        if (shown !== mine) return;
+        const result = compareLines(layer, readView(layer, mine.terrain, mine.pose), ortho, theta, layer.pose.height);
+        if (result) found.push({ ...result, main: layer.pose.pic === mine.pic });
+      }
+      if (!found.length) {
+        mine.calibrated = "calage impossible : moins de deux lignes nettes en commun avec l'orthophoto";
+      } else {
+        const pitches = found.map((f) => f.pitch / toRad), spread = Math.max(...pitches) - Math.min(...pitches);
+        pitchOffset = Math.round((pitchOffset - median(pitches)) * 20) / 20;  // tangage en trop dans la vue : retiré
+        $("#dessus-tangage").value = pitchOffset;
+        $("#dessus-tangage-valeur").textContent = `${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°`;
+        keepSettings();
+        const main = found.find((f) => f.main);
+        if (main) mine.shift = [-main.shift * main.us[0], -main.shift * main.us[1]];  // vue posée sur l'orthophoto
+        $("#dessus-position").disabled = !mine.shift;
+        mine.calibrated = `tangage calé sur l'orthophoto (${found.length} photo${found.length > 1 ? "s" : ""}${found.length > 1 ? `, écart ${number(spread, 2)}°` : ""}${main ? `, décalage ${number(Math.abs(main.shift), 2)} m` : ""})`;
+      }
+    } catch (error) {
+      mine.calibrated = `calage impossible : ${error.message}`;
+    } finally {
+      button.disabled = false;
+    }
+    if (shown === mine) await showImage();
+  }
+
   function setup(theMap, swap) {
     map = theMap;
     swapViews = swap;
@@ -545,6 +726,12 @@ const Dessus = (() => {
     share.addEventListener("change", () => {  // au lâcher : une image par réglage
       rollShare = share.value / 100;
       keepSettings();
+      if (shown?.url) showImage();
+    });
+    $("#dessus-caler").addEventListener("click", calibrate);
+    $("#dessus-position").addEventListener("change", (event) => {
+      positionOn = event.target.checked;
+      cancelStart();  // le départ a été pris dans l'autre position
       if (shown?.url) showImage();
     });
     $("#dessus-bande").addEventListener("change", (event) => {
@@ -596,7 +783,8 @@ const Dessus = (() => {
     const old = shown.url, url = shown.url = URL.createObjectURL(blob);
     // Sous les mesures de la page (source « mesures », src/carte.js) et le tracé en cours ; le reste de la carte reste dessous
     const below = map.getStyle().layers.find((l) => l.source === "mesures" || l.id === LINE_ID)?.id;
-    const coordinates = [[-REACH, REACH], [REACH, REACH], [REACH, -REACH], [-REACH, -REACH]].map(([e, n]) => toLonLat(e, n, pose));
+    const [de, dn] = shiftOf(), placed = (e, n) => toLonLat(e + de, n + dn, pose);
+    const coordinates = [[-REACH, REACH], [REACH, REACH], [REACH, -REACH], [-REACH, -REACH]].map(([e, n]) => placed(e, n));
     if (map.getSource(IMAGE_ID)) {
       map.getSource(IMAGE_ID).updateImage({ url, coordinates });
     } else {
@@ -605,7 +793,7 @@ const Dessus = (() => {
     }
     if (old) setTimeout(() => URL.revokeObjectURL(old), 5000);
     const zones = { type: "Feature", properties: {}, geometry: { type: "MultiPolygon",
-      coordinates: bestZones(roadAxis(layers)).map((ring) => [ring.map(([e, n]) => toLonLat(e, n, pose))]) } };
+      coordinates: bestZones(roadAxis(layers)).map((ring) => [ring.map(([e, n]) => placed(e, n))]) } };
     if (map.getSource(BEST_ID)) {
       map.getSource(BEST_ID).setData(zones);
     } else {
@@ -615,7 +803,9 @@ const Dessus = (() => {
     const place = shown.terrain ? "Terrain LiDAR HD" : `Sol supposé plat (${shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
     const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${pitchOffset ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${readSettings()[shown.sequence] ? ", réglage de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
-    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? " (décalage entre photos)" : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : busy() ? " ; photos voisines en cours…" : ""}`);
+    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? " (décalage entre photos)" : ""}${shown.calibrated ? ` ; ${shown.calibrated}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : busy() ? " ; photos voisines en cours…" : ""}`);
+    $("#dessus-caler").disabled = !shown.terrain || busy();  // toutes les photos prêtes, posées sur le terrain
+    $("#dessus-position").disabled = !shown.shift;
     if (!busy() && !shown.estimated) measureHeight();
   }
 

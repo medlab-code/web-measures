@@ -639,6 +639,16 @@ Tangage réglé à l'œil par l'auteur : de -0,2 à +0,5° selon la séquence, s
 (+0,2°) sur deux portions de l'A38 d'une même séquence. Roulis et tangage sont donc retenus par séquence, dans le
 navigateur (`web-measures/dessus-reglages`) ; la barre d'état l'indique (« réglage de la séquence »).
 
+Essai « Caler le tangage sur l'orthophoto » (`calibrate`, `src/dessus.js`) : orthophoto la plus nette (20 cm ; la
+PAC 2025 est plus floue) lue autour de la photo, lignes de peinture repérées sur elle et sur chaque photo prête
+dessinée seule, dans le repère de la route (cap où le profil en travers est le plus contrasté). Leur écart de
+direction donne cap et tangage (terme en distance à la caméra / H) ; la médiane des photos s'ajoute au tangage de
+la séquence. Le roulis n'est pas calé : avec des lignes repérées à 5 cm près, il varie de -400 à +240 % du dévers
+et absorbe tout écart de largeur. Option « Position calée sur l'orthophoto » : vue décalée en travers de l'écart
+médian des lignes de la photo principale. Sur 6 photos réglées à l'œil par l'auteur (07/11/2026) : 0 / +0,1 / +0,4
+/ +0,2 / -0,2 / +0,2° pour +0,5 / +0,5 / +0,2 / +0,2 / -0,2 / 0°, écart entre photos 0,05 à 0,21°, décalage 0 à
+0,14 m, environ 3 s par calage.
+
 Validation (07/11/2026, A38, 20 photos CD21 prises une à une, relevé automatique ; tirets de norme 3 m et 15 cm),
 sans puis avec cette inclinaison : tirets à 4-9 m devant 3,29 puis 2,98 m, derrière 2,72 puis 3,03 m ; écart médian
 à 3 m (4-14 m) 0,40 puis 0,21 m ; largeur 15,2 cm environ avant comme après. Écart entre lignes de rive comparé à
