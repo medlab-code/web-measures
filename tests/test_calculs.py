@@ -33,6 +33,36 @@ def crossings(z, width=3.0, along=(-10, -5, 0, 5, 10), between=None):
     return drawn
 
 
+class LongueurCarte(unittest.TestCase):
+    """Longueurs mesurées sur la vue du dessus : liste des résultats, effacement, retour, export."""
+
+    def test_cycle(self):
+        a = App(lambda *args: None)
+        a.set_mode("carte")
+        self.assertEqual((a.mode, a.map_mode, a._can_undo()), ("tri", True, False))
+        a.add_map_length(5.0, 47.0, 5.0001, 47.0, 7.6, 0.38, "p,q")
+        a.add_map_length(5.0, 47.0, 5.0, 47.0001, 11.1, 0.56, "p")
+        rows = [r for r in json.loads(a.results()) if r["kind"] == "longueur"]
+        self.assertEqual([r["text"] for r in rows], ["↔ 7,60 m ± 0,38 m (carte)", "↔ 11,10 m ± 0,56 m (carte)"])
+        a.set_comment("longueur", 1, "bord à bord")
+        records = [attrs for _, attrs in a._records() if attrs["type"].startswith("longueur")]
+        self.assertEqual([(r["valeur_m"], r["photo_ref"], r["commentaire"]) for r in records], [(7.6, "p", ""), (11.1, "p", "bord à bord")])
+        self.assertIn("longueur sur la carte", a.export_csv())
+        self.assertEqual(sum(f["properties"]["label"] == "7,60 m" for f in json.loads(a.map_geojson())["features"]), 1)
+        a.undo()  # Effacer : la dernière
+        self.assertEqual([v["valeur_m"] for v in a.map_lengths], [7.6])
+        a.redo()  # Refaire
+        self.assertEqual(len(a.map_lengths), 2)
+        a.add_map_length(5.0, 47.0, 5.001, 47.0, 75.8, None, "")  # bout hors de la vue : fond de carte seul
+        self.assertEqual(json.loads(a.results())[-1]["text"], "↔ 75,80 m hors vue (carte)")
+        self.assertEqual([(attrs["type"], attrs["incert_m"]) for _, attrs in a._records()][-1], ("longueur sur la carte (hors vue du dessus)", None))
+        a.undo()
+        a.delete_result("longueur", 0)
+        self.assertEqual([v["valeur_m"] for v in a.map_lengths], [11.1])
+        a.clear_all()
+        self.assertEqual((a.map_lengths, a.has_results()), ([], False))
+
+
 class VueDessus(unittest.TestCase):
     """Pose de la photo pour la vue du dessus (App.birdeye_pose)."""
 

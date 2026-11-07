@@ -212,12 +212,14 @@ const Dessus = (() => {
     uniform vec3 camera;
     const vec2 frameCentre = vec2(0.0);
     uniform vec4 car;  // sin et cos du cap, centre et demi-longueur du véhicule ; demi-largeur à part
+    uniform vec4 band;  // axe de la route (est, nord), demi-longueur et demi-largeur de la bande gardée
     uniform float wide, masked, heading, top, reach, sure, height, sigma;
     const float PI = 3.14159265358979;
     void main() {
       vec3 ray = world - camera;
       float dist = length(ray.xy);
       if (dist > reach || length(world.xy - frameCentre) > reach) discard;  // une voisine ne déborde pas du cercle de la vue
+      if (abs(dot(world.xy, band.xy)) > band.z || abs(world.x * band.y - world.y * band.x) > band.w) discard;
       float along = (ray.x * car.x + ray.y * car.y - car.z) / car.w, across = (ray.x * car.y - ray.y * car.x) / wide;
       if (masked > 0.5 && along * along + across * across < 1.0) discard;
       gl_FragDepth = min((height * height + dist * dist) / height * sigma / 50.0, 1.0);
@@ -267,8 +269,9 @@ const Dessus = (() => {
 
   /** Dessine la vue : canevas de SIZE px, nord en haut, ±REACH m autour de la caméra de layers[0]. layers : [{ pano, pose }]
    * (photo principale d'abord) ; terrain : altitudes du maillage (voir readTerrain), ou null pour un plan horizontal ;
-   * frame : pose de la photo qui centre l'image et le maillage (par défaut, la principale). */
-  function render(layers, terrain, frame = layers[0].pose) {
+   * frame : pose de la photo qui centre l'image et le maillage (par défaut, la principale) ; band : axe de la route (vecteur
+   * unitaire est, nord) pour ne garder que la bande de la zone idéale (BEST), ou null. */
+  function render(layers, terrain, frame = layers[0].pose, band = null) {
     const g = context(), n = 2 * REACH / STEP + 1, base = terrain ? terrain[(n * n - 1) / 2] : 0;
     const vertices = new Float32Array(3 * n * n);
     for (let j = 0, k = 0; j < n; j++) {
@@ -302,6 +305,7 @@ const Dessus = (() => {
     g.uniform1f(uniform("sure"), SURE);
     g.uniform1f(uniform("wide"), CAR.wide);
     g.uniform1f(uniform("masked"), layers.length > 1 ? 1 : 0);  // photo seule : son véhicule plutôt qu'un trou
+    g.uniform4f(uniform("band"), band ? band[0] : 0, band ? band[1] : 1, band ? BEST.along : 1e6, band ? BEST.wide : 1e6);
     for (const { pano, pose } of layers) {
       const m = rotation(pose), [east, north] = toLocal(pose.lon, pose.lat, main), h = pose.heading * toRad;
       g.uniformMatrix3fv(uniform("turn"), false, [0, 1, 2].flatMap((c) => m.map((row) => row[c])));
@@ -425,7 +429,7 @@ const Dessus = (() => {
 
   // Sur la mini-carte -----------------------------------------------------------------------
   let map = null, shown = null;  // shown : { pic, sequence, height, estimated, estimating, key, pose, features, panos (photo -> texture), loading, terrain, sigmaGround, terrainFailed, url }
-  let abort = null, measuringOn = false, start = null, hover = null, measures = [], markers = [];
+  let abort = null, measuringOn = false, bandOnly = false, start = null, hover = null, live = null;  // live : longueur affichée au pointeur
   let swapViews = () => {}, zoomBefore = null;  // échange de la carte et de la visionneuse (app.js) ; zoom à retrouver
   const $ = (selector) => document.querySelector(selector);
   const number = (v, digits) => v.toFixed(digits).replace(".", ",");
@@ -441,61 +445,59 @@ const Dessus = (() => {
       return { pose: shown.height ? { ...leveled, height: shown.height, height_sigma: HEIGHT_SIGMA } : leveled, pano: shown.panos.get(pose.pic), at };
     });
 
-  function buttons() {
-    $("#dessus-mesure").disabled = !measuringOn && (!shown?.url || busy());  // une inclinaison ou une photo attendue changerait l'image
-    $("#dessus-mesure").setAttribute("aria-pressed", String(measuringOn));
-    $("#dessus-effacer").disabled = !measures.length && !start;
-  }
-
+  /** Mode « Longueur sur la carte » (app.js) : curseur, carte et visionneuse échangées, cadrage sur la vue. */
   function setMeasuring(on) {
+    if (on === measuringOn) return;
     measuringOn = on;
     start = null;
     map.getCanvas().style.cursor = on ? "crosshair" : "";
     swapViews(on);
-    if (on) {
+    if (on && shown) {
       zoomBefore = map.getZoom();
-      const pose = shown.pose;
-      map.fitBounds([toLonLat(-REACH, -REACH, pose), toLonLat(REACH, REACH, pose)], { padding: 20, animate: false });
-    } else if (zoomBefore !== null) {
+      map.fitBounds([toLonLat(-REACH, -REACH, shown.pose), toLonLat(REACH, REACH, shown.pose)], { padding: 20, animate: false });
+    } else if (!on && zoomBefore !== null) {
       map.setZoom(zoomBefore);
       zoomBefore = null;
     }
-    drawMeasures();
-    buttons();
+    drawTrace();
   }
 
-  /** Segments posés, et celui en cours de tracé jusqu'au pointeur. */
-  function tracedData() {
-    const line = (coordinates) => ({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates } });
-    const point = (coordinates) => ({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates } });
-    return { type: "FeatureCollection", features: [
-      ...measures.flatMap((m) => [line([m.a, m.b]), point(m.a), point(m.b)]), ...(start ? [point(start), line([start, hover || start])] : [])] };
+  /** Longueur du départ au point (lon, lat) : { length, error, photos }. Un bout hors de la vue (contrôle sur le fond de
+   * carte, l'orthophoto) : longueur sur la carte seule, sans incertitude (error null) ni photo. */
+  function lengthTo(point) {
+    const pose = shown.pose, layers = readyLayers(), a = toLocal(...start, pose), b = toLocal(...point, pose);
+    const la = sourceOf(a, layers), lb = sourceOf(b, layers), length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (!la || !lb) return { length, error: null, photos: "" };
+    return { length, error: shownError(a, b, layers, shown.sigmaGround), photos: [...new Set([la.pose.pic, lb.pose.pic])].join(",") };
   }
+  const lengthText = ({ length, error }) => `${number(length, 2)} m ${error === null ? "(hors vue)" : `±${number(error, 2)}`}`;
 
-  function drawMeasures() {
-    const data = tracedData();
+  /** Segment en cours de tracé : départ, trait jusqu'au pointeur et sa longueur. Les longueurs faites sont dessinées
+   * avec les autres mesures (App.map_geojson). */
+  function drawTrace() {
+    const data = { type: "FeatureCollection", features: start ? [
+      { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: start } },
+      { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [start, hover || start] } }] : [] };
     if (!map.getSource(LINE_ID)) {
       map.addSource(LINE_ID, { type: "geojson", data });
-      map.addLayer({ id: LINE_ID, type: "line", source: LINE_ID, filter: ["==", "$type", "LineString"], paint: { "line-color": "#ff1744", "line-width": 2 } });
+      map.addLayer({ id: LINE_ID, type: "line", source: LINE_ID, filter: ["==", "$type", "LineString"], paint: { "line-color": "#e53935", "line-width": 2, "line-dasharray": [3, 2] } });
       map.addLayer({ id: `${LINE_ID}-points`, type: "circle", source: LINE_ID, filter: ["==", "$type", "Point"],
-        paint: { "circle-radius": 3, "circle-color": "#ff1744", "circle-stroke-color": "#fff", "circle-stroke-width": 1 } });
+        paint: { "circle-radius": 3, "circle-color": "#e53935", "circle-stroke-color": "#fff", "circle-stroke-width": 1 } });
     } else {
       map.getSource(LINE_ID).setData(data);
     }
-    markers.forEach((m) => m.remove());
-    markers = measures.map((m) => {
-      const element = document.createElement("div");
-      element.className = "dessus-etiquette";
-      element.textContent = m.text;
-      return new maplibregl.Marker({ element }).setLngLat([(m.a[0] + m.b[0]) / 2, (m.a[1] + m.b[1]) / 2]).addTo(map);
-    });
-  }
-
-  function clearMeasures() {
-    measures = [];
-    start = null;
-    if (map.getSource(LINE_ID)) drawMeasures();
-    buttons();
+    const found = start && hover && shown ? lengthTo(hover) : null;
+    if (!found) {
+      live?.remove();
+      live = null;
+      return;
+    }
+    if (!live) {
+      const element = Object.assign(document.createElement("div"), { className: "dessus-etiquette" });
+      live = new maplibregl.Marker({ element, offset: [0, -14] });
+    }
+    live.getElement().textContent = lengthText(found);
+    live.setLngLat(hover).addTo(map);
   }
 
   function setup(theMap, swap) {
@@ -503,31 +505,36 @@ const Dessus = (() => {
     swapViews = swap;
     map.on("mousemove", (event) => {
       hover = [event.lngLat.lng, event.lngLat.lat];
-      if (measuringOn && start) map.getSource(LINE_ID)?.setData(tracedData());
+      if (measuringOn && start) drawTrace();
     });
-    $("#dessus-mesure").addEventListener("click", () => setMeasuring(!measuringOn));
-    $("#dessus-effacer").addEventListener("click", clearMeasures);
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && measuringOn) setMeasuring(false);
+    $("#dessus-bande").addEventListener("change", (event) => {
+      bandOnly = event.target.checked;
+      if (shown?.url) showImage();
     });
   }
 
-  /** Clic sur la carte en mesure : début du segment, puis fin. */
+  /** Clic sur la carte en mesure : départ, puis arrivée. Renvoie la longueur faite { a, b ([lon, lat]), length, error (m, null
+   * hors de la vue), photos }, sinon null (départ posé, ou arrivée sur le départ refusée). */
   function addPoint(lngLat) {
-    const pose = shown.pose, point = [lngLat.lng, lngLat.lat], here = toLocal(...point, pose), layers = readyLayers();
-    if (!sourceOf(here, layers)) {
-      say(`Point sans image : hors de la vue (${REACH} m au plus) ou caché par le véhicule.`);
-      return;
-    }
+    const point = [lngLat.lng, lngLat.lat];
     if (!start) {
       start = point;
-    } else {
-      const a = toLocal(...start, pose), length = Math.hypot(here[0] - a[0], here[1] - a[1]);
-      measures.push({ a: start, b: point, text: `${number(length, 2)} m ±${number(shownError(a, here, layers, shown.sigmaGround), 2)}` });
-      start = null;
+      drawTrace();
+      return null;
     }
-    drawMeasures();
-    buttons();
+    const done = { a: start, b: point, ...lengthTo(point) };
+    if (done.length < 0.05) return null;  // second clic au même endroit : départ gardé
+    start = null;
+    drawTrace();
+    return done;
+  }
+
+  /** Départ posé, pas encore d'arrivée : retiré (Échap, Effacer). Faux s'il n'y en avait pas. */
+  function cancelStart() {
+    if (!start) return false;
+    start = null;
+    drawTrace();
+    return true;
   }
 
   function removeImage() {
@@ -543,17 +550,18 @@ const Dessus = (() => {
   const heights = new Map();  // séquence -> hauteurs de caméra mesurées (m)
   let drawing = 0;  // dernier dessin demandé : l'image d'un dessin dépassé est jetée
   async function showImage() {
-    const layers = readyLayers(), pose = shown.pose, mine = ++drawing, canvas = render(layers, shown.terrain);
+    const layers = readyLayers(), pose = shown.pose, mine = ++drawing, canvas = render(layers, shown.terrain, layers[0].pose, bandOnly ? roadAxis(layers) : null);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
     if (mine !== drawing || !shown) return;
     const old = shown.url, url = shown.url = URL.createObjectURL(blob);
+    // Sous les mesures de la page (source « mesures », src/carte.js) et le tracé en cours ; le reste de la carte reste dessous
+    const below = map.getStyle().layers.find((l) => l.source === "mesures" || l.id === LINE_ID)?.id;
     const coordinates = [[-REACH, REACH], [REACH, REACH], [REACH, -REACH], [-REACH, -REACH]].map(([e, n]) => toLonLat(e, n, pose));
     if (map.getSource(IMAGE_ID)) {
       map.getSource(IMAGE_ID).updateImage({ url, coordinates });
     } else {
       map.addSource(IMAGE_ID, { type: "image", url, coordinates });
-      // Sous les traits de mesure (s'ils existent déjà) ; le reste de la carte reste dessous
-      map.addLayer({ id: IMAGE_ID, type: "raster", source: IMAGE_ID, paint: { "raster-fade-duration": 0 } }, map.getLayer(LINE_ID) ? LINE_ID : undefined);
+      map.addLayer({ id: IMAGE_ID, type: "raster", source: IMAGE_ID, paint: { "raster-fade-duration": 0 } }, below);
     }
     if (old) setTimeout(() => URL.revokeObjectURL(old), 5000);
     const zones = { type: "Feature", properties: {}, geometry: { type: "MultiPolygon",
@@ -562,13 +570,12 @@ const Dessus = (() => {
       map.getSource(BEST_ID).setData(zones);
     } else {
       map.addSource(BEST_ID, { type: "geojson", data: zones });
-      map.addLayer({ id: BEST_ID, type: "fill", source: BEST_ID, paint: { "fill-color": "#00c853", "fill-opacity": 0.12 } }, map.getLayer(LINE_ID) ? LINE_ID : undefined);
+      map.addLayer({ id: BEST_ID, type: "fill", source: BEST_ID, paint: { "fill-color": "#00c853", "fill-opacity": 0.12 } }, below);
     }
     const place = shown.terrain ? "Terrain LiDAR HD" : `Sol supposé plat (${shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
     const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route, ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
     say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? " (décalage entre photos)" : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : busy() ? " ; photos voisines en cours…" : ""}`);
-    buttons();
     if (!busy() && !shown.estimated) measureHeight();
   }
 
@@ -577,7 +584,6 @@ const Dessus = (() => {
     const mine = shown;
     mine.estimated = mine.estimating = true;
     say("Hauteur de caméra en calcul…");
-    buttons();
     await new Promise((resolve) => setTimeout(resolve));  // l'image déjà faite s'affiche d'abord
     if (shown !== mine) return;
     const [main, ...others] = readyLayers(), found = estimateHeight(main, others, mine.terrain);
@@ -614,13 +620,11 @@ const Dessus = (() => {
   async function update(photo, pose, features) {
     const key = pose && JSON.stringify([pose, (features || []).map((f) => f.id), features === null]);
     if (key === (shown?.key ?? null)) return;
-    clearMeasures();  // leurs points viennent de l'ancienne image
+    cancelStart();  // départ pris sur l'ancienne image
     if (!photo) {
       abort?.abort();
       removeImage();
       shown = null;
-      if (measuringOn) setMeasuring(false);
-      buttons();
       say("");
       return;
     }
@@ -636,7 +640,6 @@ const Dessus = (() => {
     shown = { pic: photo.id, sequence: photo.collection, height: median(heights.get(photo.collection) || []) ?? null, estimated: false, estimating: false, key, pose, features, panos: new Map(), loading: new Set(), terrain: null, sigmaGround: FLAT_SIGMA, terrainFailed: false, url: null };
     const mine = shown;
     say("Lecture de la photo et du terrain…");
-    buttons();
     try {
       const tiles = Video.record(photo, { coords: photo.geometry.coordinates }).tiles;
       const [terrain, part] = await Promise.all([
@@ -653,5 +656,5 @@ const Dessus = (() => {
     }
   }
 
-  return { setup, update, addPoint, measuring: () => measuringOn && Boolean(shown?.url), stop: () => { if (measuringOn) setMeasuring(false); }, layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height }, view, uncertainty, measureError, shownError, groundUp, roadAxis, bestZones, sourceOf, toLonLat, estimateHeight, render, panoTexture, loadPano, REACH, SIZE };
+  return { setup, update, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height }, view, uncertainty, measureError, shownError, groundUp, roadAxis, bestZones, sourceOf, toLonLat, estimateHeight, render, panoTexture, loadPano, REACH, SIZE };
 })();

@@ -735,9 +735,14 @@ fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/so
 
 ### Mesure d'une longueur sur la carte (essai, branche `birdeye`)
 
-« Vue du dessus » reprojette le sol de la photo sur la mini-carte. « Mesure d'une longueur (carte) » échange alors la
-carte et la visionneuse, chacune à la place et à la taille de l'autre : on trace un segment de droite en deux clics. Pour une
-largeur, viser de préférence la bande verte, en face de la caméra (±5 % au mieux, inclinaison lue sur les façades ou, à défaut, sur la pente de la route). Échap ou le même bouton rétablit la disposition. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Méthode et
+« Vue du dessus » reprojette le sol de la photo sur la mini-carte ; « Bande verte seule » n'en garde que la bande en face
+de la caméra, la plus sûre. Le bouton ⇄ de la carte échange la carte et la visionneuse, chacune à la place et à la taille
+de l'autre ; la carte en grand propose alors « Mesurer une longueur » (aussi : mode « Longueur sur la carte » puis
+« Mesure »). Un clic pose le départ, le trait suit le pointeur avec sa longueur, un second clic la garde dans les
+résultats, comme les autres mesures (Effacer, Refaire, commentaire, export). Pour une largeur, viser de préférence la
+bande verte (±5 % au mieux, inclinaison lue sur les façades ou, à défaut, sur la pente de la route). Hors de la vue, la
+longueur est mesurée sur le fond de carte seul, sans incertitude (« hors vue »), pour un contrôle rapide. Échap retire
+le départ. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Méthode et
 limites : `docs/CALCULS.md`.
 
 ## Précision

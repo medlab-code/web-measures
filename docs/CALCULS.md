@@ -589,9 +589,12 @@ hauteur à ±2 à 3 m. Les essais et leurs valeurs attendues sont dans le README
 Le sol de la photo 360° est reprojeté sur la mini-carte, à ±15 m de la caméra (`src/dessus.js`) : un
 maillage de 1 m suit le MNT LiDAR HD (sinon un plan horizontal), posé à la hauteur de caméra sous la
 photo. Chaque point y reçoit le pixel qui le voit, inclinaison et cap de la séquence compris
-(rotation identique à `Calibration.uncorrect`). Cette vue ne sert qu'à la « mesure d'une longueur (carte) » : un
-segment de droite tracé en deux clics sur la carte, qui prend pour cela la place et la taille de la
-visionneuse (et inversement). Aucun point n'est ramené sur une perpendiculaire à la route.
+(rotation identique à `Calibration.uncorrect`). Cette vue sert à la « longueur sur la carte » : un segment de droite tracé en deux clics sur la
+carte, mise pour cela à la place et à la taille de la visionneuse (et inversement). Aucun point n'est ramené
+sur une perpendiculaire à la route. La longueur rejoint les résultats de la séance (`App.add_map_length`,
+`py/web_app.py`), avec son incertitude (`shownError`) et les photos qui ont fourni ses deux bouts. Un bout hors
+de la vue : longueur sur le fond de carte seul, sans incertitude, marquée « hors vue », pour un contrôle rapide de
+cohérence (orthophoto). « Bande verte seule » ne dessine que la bande de la zone idéale.
 Une bande verte transparente marque la zone idéale d'une largeur : ±2 m en face de la caméra (axe :
 trajectoire entre les photos voisines, à défaut cap de la photo), sur ±8 m en travers, là où le tangage
 pèse le moins. L'incertitude affichée vaut au moins 5 % de la longueur (écart à l'orthophoto, plus bas).

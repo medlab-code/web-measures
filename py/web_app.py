@@ -294,6 +294,11 @@ def _nearest_name(bridges, lon, lat, reach):
     return best and best[1]
 
 
+def _length_text(value, sigma):
+    """« 7,60 m ± 0,38 m », ou « 7,60 m hors vue » (longueur sur le fond de carte seul, voir App.add_map_length)."""
+    return "{} m {}".format(measures._num(value, 2), "hors vue" if sigma is None else "± {} m".format(measures._num(sigma, 2)))
+
+
 class WebItem:
     """Dessin d'une mesure sur la carte (voir measures.MeasureTool.new_item) : gardé ici, rendu
     en GeoJSON par App.map_geojson."""
@@ -421,6 +426,9 @@ class App(session.Session):
         self.bdtopo = {}  # (couche BD TOPO, maille) -> objets lus (voir _bdtopo)
         self.bdtopo_retry = {}  # (couche BD TOPO, maille) -> instant du nouvel essai après un échec
         self.map_line = None  # droite de mesure tracée sur la carte, pour le prochain point A (ticket #28)
+        # Longueurs mesurées sur la vue du dessus (src/dessus.js), mode « carte » : rien à viser dans la photo
+        self.map_lengths = []  # {"ends": [[lon, lat], [lon, lat]], "valeur_m", "incert_m", "photos", "commentaire"}
+        self.map_mode = False
         self.redo_stack, self.redo_key = [], None  # états d'avant chaque « Effacer » (Ctrl+Y, voir redo)
         self.overlay = []  # couche importée : (n° de l'objet, "point" ou "ligne", [(lon, lat, z)]), voir set_overlay
         self.overlay_ground = {}  # photo -> {(lon, lat): altitude LiDAR HD} sous la couche (_overlay_ground)
@@ -449,7 +457,7 @@ class App(session.Session):
         """Bouton « Mesure » : l'inclinaison automatique de la photo est calculée dès l'activation,
         pas au premier clic comme dans le cœur (_check_tilt), qui la lance encore au premier clic
         sur une autre photo."""
-        super().set_active(on)
+        super().set_active(on and not self.map_mode)  # mesure sur la carte : clics dans la photo sans effet
         self._check_tilt()  # rien hors mesure, en mesure libre ou si déjà calculée
         return self.status()
 
@@ -1024,7 +1032,9 @@ class App(session.Session):
                 out += [r] + under.pop(name, [])
         for subs in under.values():
             orphans += [dict(r, sous=False) for r in subs]
-        return json.dumps(out + orphans)
+        lengths = [{"id": k, "kind": "longueur", "text": "↔ {} (carte)".format(_length_text(v["valeur_m"], v["incert_m"])),
+                    "comment": v["commentaire"]} for k, v in enumerate(self.map_lengths)]
+        return json.dumps(out + orphans + lengths)
 
     # Fiche PDF d'un point de référence (src/app.js, makeFiche) ------------------------------------
     def _fiche_measures(self, name):
@@ -1237,13 +1247,14 @@ class App(session.Session):
         kept = [] if self.releve else [p for p in self.points if "releve" in p[2]]
         views, named = {p[2]["nom"]: self.point_views.get(p[2]["nom"], {}) for p in kept}, self.named
         super().clear_all()
+        self.map_lengths = []
         if kept:
             self.points, self.point_views, self.named = kept, views, named
         return self.status()
 
     def has_results(self):
         """Mesures, points triangulés ou distances à exporter (les objets relevés à part : has_releve)."""
-        return bool(self.links) or any("releve" not in v for _, _, v in self.points) or any(
+        return bool(self.links or self.map_lengths) or any("releve" not in v for _, _, v in self.points) or any(
             m.result for m in self.tool.measures())
 
     def has_releve(self):
@@ -1477,11 +1488,11 @@ class App(session.Session):
     # État remis par Ctrl+Y : listes copiées (les objets gardés tels quels : « Effacer » ne fait que
     # les retirer), sauf le calage du cap et de la position (CalibrationTool), non rétabli
     REDO_ATTRS = ("points", "links", "named", "last_free", "point_views", "ref_point", "measure_done", "width_sel",
-                  "ref_sel", "b_aiming", "proposal", "tilt_clicks", "tilt_sel", "map_line")
+                  "ref_sel", "b_aiming", "proposal", "tilt_clicks", "tilt_sel", "map_line", "map_lengths")
 
     def _snapshot(self):
         snap = {k: getattr(self, k, None) for k in self.REDO_ATTRS}
-        for k in ("points", "links", "tilt_clicks"):
+        for k in ("points", "links", "tilt_clicks", "map_lengths"):
             snap[k] = list(snap[k])
         snap["point_views"] = dict(snap["point_views"])
         tool = self.tool
@@ -1494,7 +1505,7 @@ class App(session.Session):
         tool, current = self.tool, self.tool.current
         return (len(self.points), len(self.links), len(tool.done), id(current), len(current.clicks) if current else 0,
                 len(self.triangulator.sightings), id(self.ref_point), len(self.tilt_clicks), self.mode,
-                id(self.b_aiming), self.measure_done)
+                id(self.b_aiming), self.measure_done, len(self.map_lengths))
 
     def redo(self):
         """Ctrl+Y (ou Ctrl+Maj+Z) : rétablit ce que le dernier « Effacer » a retiré, si rien n'a été fait
@@ -1532,6 +1543,8 @@ class App(session.Session):
 
     def _can_undo(self):
         """« Effacer » aurait-il un effet ? (mêmes cas que _undo et Session.clear)"""
+        if self.map_mode:  # mesure sur la carte : la dernière longueur
+            return bool(self.map_lengths)
         if self.mode == "tilt":  # objet vertical en cours, ou inclinaison calée à la main de la photo
             pic = (self.item or {}).get("id")
             return bool(self._tilt_pending() or self.calibrator.clicks or (pic and pic in self.calibration.verticals))
@@ -1543,13 +1556,18 @@ class App(session.Session):
 
     def _can_clear(self):
         """« Tout effacer » aurait-il un effet ?"""
-        return bool(self.points or self.links or self.tool.measures() or self.triangulator.sightings
+        return bool(self.points or self.links or self.map_lengths or self.tool.measures() or self.triangulator.sightings
                     or self.ref_point is not None or self.tilt_clicks or self.calibrator.clicks)
 
     def _undo(self):
         """« Effacer » et Ctrl+Z : annule le dernier geste. Visées : la dernière seule (le bord B garde sa première,
         le clic de la mesure) ; objet vertical du calage : son dernier clic ; sinon comme Session.clear
         (sélection, mesure en cours, puis dernier point posé)."""
+        if self.map_mode:
+            if self.map_lengths:
+                self.map_lengths.pop()
+                self.message = "Dernière longueur sur la carte effacée."
+            return self.status()
         if self._tilt_pending() and self.tilt_clicks:
             self.tilt_clicks.pop()
             self.tilt_sel = None
@@ -1615,7 +1633,33 @@ class App(session.Session):
         self.tilt_clicks, self.tilt_sel = [], None
         self.map_line = None
         self.releve = mode == "releve"
-        return super().set_mode("tri" if self.releve else mode)
+        self.map_mode = mode == "carte"  # mesure sur la carte : le cœur reste en mesure libre, inactif
+        return super().set_mode("tri" if self.releve or self.map_mode else mode)
+
+    def add_map_length(self, lon1, lat1, lon2, lat2, value, sigma, photos):
+        """Longueur mesurée sur la vue du dessus (deux clics sur la carte) : valeur et incertitude (m) calculées par
+        la page (src/dessus.js), photos qui ont fourni l'image (séparées par des virgules). Incertitude None : un bout
+        hors de la vue, longueur sur le fond de carte seul (contrôle rapide de cohérence)."""
+        sigma = float(sigma) if isinstance(sigma, (int, float)) else None  # null de la page : JsNull, pas None
+        self.map_lengths.append({"ends": [[lon1, lat1], [lon2, lat2]], "valeur_m": float(value), "incert_m": sigma,
+                                 "photos": photos, "commentaire": ""})
+        self.message = "Longueur sur la carte : {}.".format(_length_text(value, sigma))
+        return self.status()
+
+    def delete_result(self, kind, ident):
+        if kind == "longueur":
+            if 0 <= ident < len(self.map_lengths):
+                del self.map_lengths[ident]
+                self.message = "Longueur effacée."
+            return self.status()
+        return super().delete_result(kind, ident)
+
+    def set_comment(self, kind, ident, text):
+        if kind == "longueur":
+            if 0 <= ident < len(self.map_lengths):
+                self.map_lengths[ident]["commentaire"] = text
+            return
+        super().set_comment(kind, ident, text)
 
     def aim(self, yaw, pitch):
         if self.mode == "road" and self.map_line is not None and self.ref_point is None and self.b_aiming is None:
@@ -3021,6 +3065,10 @@ class App(session.Session):
             add("triangule", "Point", [lon, lat], values["nom"])  # nom seul : pas d'incertitude sur la carte
         for i, j, values in self.links:  # distance entre deux points gardés : trait rouge, sans longueur
             add("distance", "LineString", [list(self.points[i][:2]), list(self.points[j][:2])])
+        for v in self.map_lengths:  # longueur sur la vue du dessus : trait et valeur, comme une mesure
+            add("mesure", "LineString", v["ends"], "{} m".format(measures._num(v["valeur_m"], 2)))
+            for p in v["ends"]:
+                add("point", "Point", p)
         return json.dumps({"type": "FeatureCollection", "features": features})
 
     # Export ------------------------------------------------------------------------------
@@ -3066,6 +3114,13 @@ class App(session.Session):
         for lon, lat, values in self.points:
             if "releve" not in values:  # objets relevés : export à part, gardés à part dans le navigateur
                 out.append(([(lon, lat)], dict({"type": "point triangulé"}, **values)))
+        for v in self.map_lengths:
+            out.append(([tuple(p) for p in v["ends"]], {
+                "type": "longueur sur la carte ({})".format("vue du dessus" if v["incert_m"] is not None else "hors vue du dessus"),
+                "valeur_m": round(v["valeur_m"], 3), "incert_m": None if v["incert_m"] is None else round(v["incert_m"], 3),
+                "horiz_m": round(v["valeur_m"], 3), "photos": v["photos"],
+                "photo_ref": v["photos"].split(",")[0] or None, "date_mesure": datetime.now().isoformat(timespec="seconds"),
+                "commentaire": v["commentaire"]}))
         for i, j, values in self.links:
             (lon1, lat1, v1), (lon2, lat2, v2) = self.points[i], self.points[j]
             out.append(([(lon1, lat1), (lon2, lat2)], {

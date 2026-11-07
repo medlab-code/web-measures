@@ -635,11 +635,12 @@
     clearTimeout(idleTimer);
     window.removeEventListener("pointermove", wakeFullscreen, true);
     if (full) {
-      Dessus.stop();  // colonne masquée, carte comprise
+      setSwapped(false);  // colonne masquée, carte comprise
       window.addEventListener("pointermove", wakeFullscreen, true);  // capture : la visionneuse garde ses événements
       wakeFullscreen();
     } else {
       map.resize();  // masquée pendant le plein écran
+      wantSwap();
     }
     window.dispatchEvent(new Event("resize"));  // visionneuse à la nouvelle taille
   });
@@ -853,7 +854,8 @@
     const triangulating = $("#mode").value === "tri";  // pas de calcul d'inclinaison (visée en cap)
     const manual = tilt === "non" && !calibrating;
     const before = tilt === "avant" && !calibrating;  // calcul lancé au premier clic sur la photo
-    message.hidden = !measuring || triangulating || !(calibrating || tilt === "attente" || manual || before);
+    // Longueur sur la carte : la vue du dessus a sa propre inclinaison (verticales ou pente de la route, voir sa barre d'état)
+    message.hidden = !measuring || triangulating || $("#mode").value === "carte" || !(calibrating || tilt === "attente" || manual || before);
     message.classList.toggle("manuel", manual);
     message.classList.toggle("calage", calibrating);
     message.classList.toggle("attente", tilt === "attente");  // petite roue : calcul en cours
@@ -966,7 +968,7 @@
       showInCorner(dialog);
     }
     const state = JSON.parse(app.state());
-    $("#effacer").disabled = !state.can_undo;  // grisés quand ils n'auraient pas d'effet
+    $("#effacer").disabled = !state.can_undo && !Dessus.hasStart();  // grisés quand ils n'auraient pas d'effet ; départ d'une longueur sur la carte
     $("#refaire").disabled = !state.can_redo;
     $("#tout-effacer").disabled = !state.can_clear;
     const computed = $("#fiche .precision-calculee");
@@ -1169,6 +1171,8 @@
     const pose = app && photo ? JSON.parse(app.birdeye_pose()) : null, shown = pose && pose.pic === photo.id;
     $("#dessus").disabled = !shown;
     const on = shown && $("#dessus").checked;
+    $("#dessus-bande").disabled = !on;
+    showMapMeasureButton();
     if (on && birdeyeAsked !== photo.id) {
       birdeyeAsked = photo.id;
       birdeyeNear = null;
@@ -1184,8 +1188,9 @@
     }
     Dessus.update(on ? photo : null, on ? JSON.parse(app.birdeye_pose()) : null, birdeyeNear);
   }
-  // Mesure de longueur : la carte prend la place et la taille de la visionneuse, et inversement. Deux gabarits vides gardent la
-  // mise en page, #vue et #carte se posent dessus. Carte détachée : déjà à part, rien à échanger.
+  // Carte et visionneuse échangées (bouton ⇄ de la carte, ou longueur sur la carte) : la carte prend la place et la taille de
+  // la visionneuse, et inversement. Deux gabarits vides gardent la mise en page, #vue et #carte se posent dessus. Carte
+  // détachée : déjà à part, rien à échanger.
   const viewerSlot = $("#place-vue"), mapSlot = $("#place-carte");
   function placeSwapped() {
     const set = (name, rect) => {
@@ -1197,8 +1202,13 @@
     window.dispatchEvent(new Event("resize"));  // visionneuse à la nouvelle taille
   }
   const swapWatch = new ResizeObserver(placeSwapped);
-  function swapMapAndViewer(on) {
-    if (mapWindow) return;
+  let swapped = false, userSwap = false, measureSwap = false;  // échange en cours ; demandé par le bouton ; par la mesure
+  function setSwapped(on) {
+    if (on === swapped || (on && mapWindow)) return;
+    swapped = on;
+    swapButton.setAttribute("aria-pressed", String(on));
+    measureButton.hidden = !on;  // carte en grand : la mesure s'y lance d'un clic
+    swapButton.title = on ? "Remettre la carte et la visionneuse à leur place" : "Échanger la carte et la visionneuse (place et taille)";
     if (on) {
       setColumnFolded(false);
       setFolded(false);
@@ -1217,7 +1227,58 @@
       window.dispatchEvent(new Event("resize"));
     }
   }
-  Dessus.setup(map, swapMapAndViewer);
+  const wantSwap = () => setSwapped(!document.fullscreenElement && (userSwap || measureSwap));
+  const swapButton = Object.assign(document.createElement("button"), { type: "button", className: "echanger-vues", textContent: "⇄" });
+  swapButton.setAttribute("aria-pressed", "false");
+  swapButton.title = "Échanger la carte et la visionneuse (place et taille)";
+  swapButton.addEventListener("click", () => {
+    userSwap = !swapped;
+    if (!userSwap) measureSwap = false;  // remis en place à la main, même pendant la mesure
+    wantSwap();
+  });
+  map.addControl({
+    onAdd: () => Object.assign(document.createElement("div"), { className: "maplibregl-ctrl maplibregl-ctrl-group" }).appendChild(swapButton).parentNode,
+    onRemove: () => {},
+  }, "top-left");
+  // Carte en grand : « Mesurer une longueur », sans passer par le mode du bandeau (même mesure que le mode « carte »)
+  const measureButton = Object.assign(document.createElement("button"), { type: "button", className: "mesurer-carte", hidden: true,
+    textContent: "📏 Mesurer une longueur" });
+  measureButton.setAttribute("aria-pressed", "false");
+  measureButton.addEventListener("click", () => {
+    const on = measuring && $("#mode").value === "carte";
+    if (on) return $("#mesure").click();  // arrêt, comme le bouton « Mesure »
+    if ($("#mode").value !== "carte") {
+      $("#mode").value = "carte";
+      $("#mode").dispatchEvent(new Event("change"));
+    }
+    if (!measuring) $("#mesure").click();
+  });
+  map.addControl({
+    onAdd: () => Object.assign(document.createElement("div"), { className: "maplibregl-ctrl" }).appendChild(measureButton).parentNode,
+    onRemove: () => {},
+  }, "top-left");
+  /** Bouton de la carte en grand : enfoncé pendant la mesure, grisé sans photo 360° (pas de vue du dessus). */
+  function showMapMeasureButton() {
+    const on = measuring && $("#mode").value === "carte";
+    measureButton.setAttribute("aria-pressed", String(on));
+    measureButton.textContent = on ? "📏 Arrêter la mesure" : "📏 Mesurer une longueur";
+    measureButton.title = on ? "Arrêter la mesure de longueur sur la carte" : "Mesurer une longueur sur la vue du dessus : deux clics sur la carte";
+    measureButton.disabled = !on && ($("#dessus").disabled || $("#mode").disabled);
+  }
+  Dessus.setup(map, (on) => {
+    measureSwap = on;
+    wantSwap();
+  });
+
+  /** Mode « Longueur sur la carte » : vue du dessus allumée et clics sur la carte, tant que « Mesure » est enfoncé. */
+  function syncMapMeasure() {
+    const on = measuring && $("#mode").value === "carte";
+    if (on && !$("#dessus").checked && !$("#dessus").disabled) {
+      $("#dessus").checked = true;
+      $("#dessus").dispatchEvent(new Event("change"));
+    }
+    Dessus.setMeasuring(on);
+  }
   $("#dessus").addEventListener("change", (event) => {
     if (event.target.checked && map.getZoom() < 20 && photo) map.jumpTo({ center: photo.geometry.coordinates, zoom: 20 });
     updateBirdeye();
@@ -1235,8 +1296,17 @@
       updatePlayer();
       return;
     }
-    if (Dessus.measuring()) Dessus.addPoint(event.lngLat);
-    else if (lineDraft !== null) addLinePoint(event.lngLat);
+    if (measuring && $("#mode").value === "carte") {  // longueur sur la carte : jamais d'autre photo ouverte d'un clic
+      if (!Dessus.measuring()) {
+        setStatus($("#dessus").disabled ? "Longueur sur la carte : photo 360° nécessaire (vue du dessus indisponible)."
+          : "Longueur sur la carte : vue du dessus en préparation, patientez.");
+        return;
+      }
+      const done = Dessus.addPoint(event.lngLat);
+      if (done) refresh(app.add_map_length(done.a[0], done.a[1], done.b[0], done.b[1], done.length, done.error, done.photos));
+      else refresh();  // Effacer : le départ se retire
+      applyMeasureUi();
+    } else if (lineDraft !== null) addLinePoint(event.lngLat);
     else if (placing) placeOnMap(event.lngLat);
     else if (travelPick) pickTravelPoint(event.lngLat);
     else {
@@ -1311,6 +1381,7 @@
     if (lineDraft) showDrawnLine([[lineDraft.lng, lineDraft.lat], [event.lngLat.lng, event.lngLat.lat]]);
   });
   function onLineEscape(event) {  // aussi dans la carte détachée (toggleMapWindow)
+    if (event.key === "Escape" && Dessus.cancelStart()) applyMeasureUi();  // départ d'une longueur sur la carte
     if (event.key === "Escape" && lineDraft !== null) {
       endLineDraft();
       refresh();
@@ -1561,6 +1632,7 @@
     if (!(event.ctrlKey || event.metaKey) || event.altKey || !["z", "y"].includes(key)) return;
     if (!app || !measuring || event.target.closest?.("input, select, textarea")) return;
     event.preventDefault();
+    if (key === "z" && !event.shiftKey && Dessus.cancelStart()) return applyMeasureUi();  // départ d'une longueur sur la carte
     refresh(key === "y" || event.shiftKey ? app.redo() : app.undo());
     proposeDistance();
   }
@@ -1575,7 +1647,7 @@
   const detachButton = document.createElement("button");
 
   async function toggleMapWindow() {
-    Dessus.stop();  // carte et visionneuse échangées : remises en place d'abord
+    setSwapped(false);  // carte et visionneuse échangées : remises en place d'abord
     if (mapWindow) {
       mapWindow.close();  // pagehide : carte remise en place
       return;
@@ -1633,6 +1705,7 @@
   function showDetached(detached) {
     $("#carte-detachee").hidden = !detached;
     grip.hidden = detached;
+    swapButton.disabled = detached;  // carte déjà à part : rien à échanger
     detachButton.textContent = "⧉";
     detachButton.title = detached ? "Remettre la carte dans la page"
       : "Détacher la carte dans une fenêtre à part (second écran)";
@@ -4669,12 +4742,13 @@
   function applyMeasureUi() {
     $("#mesure").setAttribute("aria-pressed", String(measuring));
     $("#mesure").classList.toggle("actif", measuring);
+    showMapMeasureButton();
     $("#mode-mesure").hidden = !measuring;
     const mode = $("#mode").value;
     // Liseré autour de la visionneuse : bleu pendant les visées de triangulation, jaune pendant la
     // prise de mesure (couleurs de leurs croix)
-    const sighting = measuring && aiming;
-    const taking = measuring && !aiming && ["road", "height"].includes(mode);
+    const sighting = measuring && aiming && mode !== "carte";  // longueur sur la carte : le cœur reste en mesure libre, sans visée
+    const taking = measuring && !aiming && ["road", "height", "carte"].includes(mode);
     const calibrating = measuring && mode === "tilt";
     $("#vue").classList.toggle("visee", sighting);
     $("#vue").classList.toggle("prise", taking);
@@ -4689,6 +4763,7 @@
       : mode === "road" ? ["Largeur", ["Premier bord", "Bord opposé"], aiming && !edgeBAiming ? 0 : newMeasure ? 2 : 1]
       : mode === "tri" ? ["Mesure libre", ["Points visés depuis plusieurs photos"], 0]
       : mode === "releve" ? ["Relevé d'objets", ["Objet visé", "Ses champs"], 0]
+      : mode === "carte" ? ["Longueur sur la carte", ["Départ", "Arrivée"], Dessus.hasStart() ? 1 : 0]
       : ["Calage de l'inclinaison", ["Deux objets verticaux"], 0];
     $("#nom-mesure").textContent = title;
     $("#etapes").replaceChildren(...steps.map((step, k) => Object.assign(document.createElement("li"), {
@@ -4707,10 +4782,11 @@
       : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), de préférence un repère net (fin de tiret, joint, regard) ; réticule calé sur le trait vert, Maj : visée libre ; puis « Valider le point triangulé »"
       : mode === "road" && newMeasure ? `Largeur faite : cliquez une de ses croix pour l'ajuster ; autre largeur : « Nouvelle mesure depuis ${newMeasure} »`
       : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé ; autre photo, prise avant ou après : par la carte"
+      : mode === "carte" ? `Longueur sur la carte : cliquez ${Dessus.hasStart() ? "l'arrivée" : "le départ"} sur la vue du dessus, de préférence dans la bande verte ; Échap : retirer le départ`
       : mode === "tilt" ? "Calage de l'inclinaison : pied puis sommet de deux objets verticaux, à 90° l'un de l'autre"
       : "Mode mesure en cours : désélectionner pour naviguer";
     // Nom de la mesure et étape déjà dans l'en-tête de la carte d'étape (« Hauteur, étape 1 : »…) : retirés
-    const tip = $("#mode-mesure").textContent.replace(/^(?:Hauteur|Largeur|Mesure libre|Relevé d'objets|Calage de l'inclinaison)[^:]*: /, "");
+    const tip = $("#mode-mesure").textContent.replace(/^(?:Hauteur|Largeur|Mesure libre|Relevé d'objets|Longueur sur la carte|Calage de l'inclinaison)[^:]*: /, "");
     $("#mode-mesure").textContent = tip[0].toUpperCase() + tip.slice(1);
     showModeOptions();
     const box = psv?.container;
@@ -4742,6 +4818,7 @@
   $("#mesure").addEventListener("click", () => {
     measuring = !measuring;
     if (measuring) stopPlayer();  // la mesure se fait sur une photo arrêtée
+    syncMapMeasure();
     applyMeasureUi();
     if (psv) updatePlayer();
     refresh(app.set_active(measuring));
@@ -5038,6 +5115,7 @@
   }
 
   $("#mode").addEventListener("change", (event) => {
+    syncMapMeasure();
     applyMeasureUi();  // triangulation : navigation rétablie
     refresh(app.set_mode(event.target.value));
   });
@@ -5072,6 +5150,10 @@
   $("#axe-auto").addEventListener("click", () => refresh(app.cancel_measure_line()));
   $("#nouvelle-reference").addEventListener("click", () => refresh(app.new_reference()));
   $("#effacer").addEventListener("click", () => {  // comme Ctrl+Z : le dernier geste (onUndoKey)
+    if (Dessus.cancelStart()) {
+      refresh();
+      return applyMeasureUi();
+    }
     refresh(app.undo());
     proposeDistance();
   });

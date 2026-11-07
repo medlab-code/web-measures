@@ -48,6 +48,7 @@
                 <option value="height">Hauteur d'un objet</option>
                 <option value="road">Largeur perpendiculaire à la chaussée</option>
                 <option value="tri">Mesure libre (points triangulés)</option>
+                <option value="carte" title="Segment tracé en deux clics sur la vue du dessus (carte en grand, à la place de la visionneuse)">Longueur sur la carte (vue du dessus)</option>
               </optgroup>
               <optgroup label="Relevé">
                 <option value="releve">Relevé d'objets (couche SIG)</option>
@@ -98,10 +99,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
     <!-- Vue du dessus (src/dessus.js) : photo reprojetée au sol, mesurée sur la mini-carte -->
     <div class="bloc dessus carte-barre">
       <label title="Reprojette le sol de la photo sur la mini-carte, jusqu'à 15 m de la caméra (grisé au-delà de 10 m : peu précis). Seul ce qui est au sol est à sa place."><input type="checkbox" id="dessus" class="interrupteur" disabled> Vue du dessus</label>
-      <div class="rang">
-        <button id="dessus-mesure" type="button" aria-pressed="false" disabled title="La carte prend la place de la visionneuse, et inversement. Tracer un segment de droite en deux clics sur la carte : sa longueur et son incertitude ; pour une largeur, de préférence dans la bande verte, en face de la caméra. Échap pour arrêter">Mesure d'une longueur (carte)</button>
-        <button id="dessus-effacer" type="button" disabled title="Effacer les longueurs de la vue du dessus">Effacer</button>
-      </div>
+      <label title="N'afficher que la bande verte, en face de la caméra : la partie la plus sûre de la vue (essai)"><input type="checkbox" id="dessus-bande" class="interrupteur" disabled> Bande verte seule</label>
     </div>
   </header>
   <main>
