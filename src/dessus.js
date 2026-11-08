@@ -833,7 +833,9 @@ const Dessus = (() => {
   // (D33 : séquence du 04/07/2025 décalée de 0,75 m, celle du 20/06/2025 sur l'orthophoto à 2 cm près)
   let positionOn = true;
   const SHIFT_MIN = 0.3;  // m : écart en deçà duquel la position GPS est gardée (lignes repérées à quelques cm, orthophoto à 20 cm)
-  let joinsOn = true;  // voisines recalées sur la principale par les marquages (option d'essai, voir alignJoin)
+  // Photos voisines (interrupteur « Véhicule masqué », éteint par défaut) : lues, analysées, dessinées sous le véhicule et
+  // recalées sur la principale (alignJoin), tangage de la séquence lu sur les raccords ; sinon la photo affichée seule
+  let neighboursOn = false;
   let abort = null, measuringOn = false, bandOnly = false, start = null, hover = null, live = null;  // live : longueur affichée au pointeur
   // Roulis (part du dévers) et tangage ajouté (degrés), réglés à la main (options d'essai) et retenus par séquence dans le
   // navigateur : la fixation de la caméra ne change pas au cours d'une séquence (A38 du 09/10/2025 : même tangage à deux endroits)
@@ -926,15 +928,16 @@ const Dessus = (() => {
   const number = (v, digits) => v.toFixed(digits).replace(".", ",");
   const say = (text) => { $("#dessus-etat").textContent = text; };
 
-  const busy = () => shown.estimating || shown.joining || shown.locating || shown.pose.pending || shown.features === null || shown.loading.size > 0 || shown.pose.neighbours.some((p) => p.pending);
-  /** Photos prêtes à dessiner, la principale d'abord. */
-  const readyLayers = () => [shown.pose, ...shown.pose.neighbours.filter((p) => !p.pending)]
+  const busy = () => shown.estimating || shown.joining || shown.locating || shown.pose.pending
+    || (neighboursOn && (shown.features === null || shown.loading.size > 0 || shown.pose.neighbours.some((p) => p.pending)));
+  /** Photos prêtes à dessiner, la principale d'abord (seule sans « Véhicule masqué »). */
+  const readyLayers = () => [shown.pose, ...(neighboursOn ? shown.pose.neighbours.filter((p) => !p.pending) : [])]
     .filter((pose) => shown.panos.has(pose.pic))
     .map((pose) => {
       const at = toLocal(pose.lon, pose.lat, shown.pose);
       const leveled = pose.up || !shown.terrain ? pose : { ...pose, up: groundUp(shown.terrain, at, pose.heading, rollShare, pitchOffset), sigma: Math.min(pose.sigma, GROUND_SIGMA), groundTilt: true };
       const height = shown.height || shown.sequenceHeight?.height;  // décalage entre photos, sinon hauteur de la séquence
-      const fix = joinsOn && shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.map.get(pose.pic) : undefined;
+      const fix = neighboursOn && shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.map.get(pose.pic) : undefined;
       return { pose: height ? { ...leveled, height, height_sigma: HEIGHT_SIGMA } : leveled, pano: shown.panos.get(pose.pic), at, fix };
     });
 
@@ -1023,8 +1026,9 @@ const Dessus = (() => {
       event.currentTarget.textContent = folded ? "▾" : "▴";
       event.currentTarget.title = folded ? "Déplier les réglages" : "Replier les réglages";
     });
-    $("#dessus-raccords").addEventListener("change", (event) => {
-      joinsOn = event.target.checked;
+    $("#dessus-voisines").addEventListener("change", (event) => {
+      neighboursOn = event.target.checked;
+      if (shown) loadNeighbours(abort.signal);
       cancelStart();  // le départ a été pris sur l'autre image
       if (shown?.url) showImage();
     });
@@ -1114,11 +1118,11 @@ const Dessus = (() => {
     const place = shown.terrain ? "Terrain LiDAR HD" : `Sol supposé plat (${pose.bridge ? "pont à proximité, LiDAR HD écarté" : shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
     const auto = !pitchManual && pitchOffset ? sequencePitch(shown.sequence) : null;
     const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${pitchOffset || pitchManual ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? " réglé à la main" : auto ? ` lu sur les raccords (${auto.count} photo${auto.count > 1 ? "s" : ""})` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
-    const others = shown.terrain ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
-    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? " (décalage entre photos)" : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${joinsOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
+    const others = shown.terrain || !neighboursOn ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
+    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? " (décalage entre photos)" : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
     if (positionOn && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
     else if (!busy() && !shown.estimated) measureHeight();
-    else if (!busy() && joinsOn && layers.length > 1 && shown.joins?.key !== shown.joinKeyNow) alignJoins();
+    else if (!busy() && neighboursOn && layers.length > 1 && shown.joins?.key !== shown.joinKeyNow) alignJoins();
   }
 
   /** Écart en travers de la photo principale à l'orthophoto (profils en travers, voir orthoShift), sans toucher au
@@ -1167,6 +1171,7 @@ const Dessus = (() => {
   /** Lance la lecture des photos voisines dont l'inclinaison est connue (inutile de les charger avant), à portée. */
   function loadNeighbours(signal) {
     const mine = shown;
+    if (!neighboursOn) return;
     for (const pose of mine.pose.neighbours) {
       const feature = (mine.features || []).find((f) => f.id === pose.pic);
       if (!feature || pose.pending || mine.panos.has(pose.pic) || mine.loading.has(pose.pic)

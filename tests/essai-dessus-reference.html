@@ -44,6 +44,7 @@ async function open(id, enough = () => false) {
   }
   if ($("#dessus").disabled) return null;
   $("#dessus").click();
+  $("#dessus-voisines").click();  // « Véhicule masqué » : voisines, raccords, tangage lu sur les raccords
   while (Date.now() - start < WAIT) {
     const state = $("#dessus-etat").textContent;
     if (/caméra à/.test(state) && !/en calcul|en cours|Lecture/.test(state)) return { w, state, blob: () => blob };

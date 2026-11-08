@@ -28,7 +28,10 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
   **Près d'un pont** (tronçon BD TOPO en pont à moins de 20 m, photo dessus ou dessous, `App._near_bridge`), le MNT
   est écarté : il donne le sol sous le tablier, ou la brèche sous la photo. Sol plat, pas d'inclinaison tirée de la
   route ni de tangage lu sur les raccords, hauteur de caméra de la séquence ou réglée (pas RTK moins sol LiDAR) ;
-- les photos précédente et suivante de la séquence, chacune avec sa propre pose.
+- avec l'interrupteur **« Véhicule masqué »** (éteint par défaut), les photos précédente et suivante de la séquence,
+  chacune avec sa propre pose : elles comblent le sol sous le véhicule et ses reflets, et entraînent les raccords
+  (§ 4.3), le tangage lu sur les raccords (§ 4.1) et la hauteur lue entre photos (§ 4.2). Éteint, la photo affichée
+  seule : véhicule visible, rien à lire de plus.
 
 **Calcul (`render`, WebGL) :**
 

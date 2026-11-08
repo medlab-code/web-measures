@@ -1161,7 +1161,7 @@
   }
 
   // Vue du dessus (src/dessus.js) : photo reprojetée au sol sur la mini-carte
-  let birdeyeAsked = null, birdeyeNear = null;  // photo dont l'inclinaison a été demandée ; fiches de ses voisines (null : en lecture)
+  let birdeyeAsked = null, birdeyeNearAsked = null, birdeyeNear = null;  // photo dont l'inclinaison, les voisines ont été demandées ; fiches de ses voisines (null : en lecture)
   async function birdeyeNeighbours(feature) {
     const links = (feature.links || []).filter((l) => l.rel === "prev" || l.rel === "next");
     const read = await Promise.all(links.map((l) => fetch(l.href).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
@@ -1172,7 +1172,7 @@
     $("#dessus").disabled = !shown;
     const on = shown && $("#dessus").checked;
     const inMap = (selector) => mapBox.querySelector(selector);  // réglages sur la carte, peut-être détachée
-    inMap("#dessus-bande").disabled = inMap("#dessus-raccords").disabled = inMap("#dessus-position").disabled = inMap("#dessus-devers").disabled = inMap("#dessus-tangage").disabled = !on;
+    inMap("#dessus-bande").disabled = inMap("#dessus-voisines").disabled = inMap("#dessus-position").disabled = inMap("#dessus-devers").disabled = inMap("#dessus-tangage").disabled = !on;
     inMap("#dessus-reglages").hidden = !on;  // vue du dessus allumée seulement
     showMapMeasureButton();
     if (on && birdeyeAsked !== photo.id) {
@@ -1180,6 +1180,10 @@
       birdeyeNear = null;
       app.birdeye_neighbours("[]");
       app.birdeye_request();  // peut répondre tout de suite (déjà calée) : la pose est relue ensuite
+    }
+    // Voisines (« Véhicule masqué ») : fiches lues et inclinaison lancée seulement à la demande
+    if (on && inMap("#dessus-voisines").checked && birdeyeNearAsked !== photo.id) {
+      birdeyeNearAsked = photo.id;
       const feature = photo;
       birdeyeNeighbours(feature).then((near) => {
         if (photo !== feature) return;
@@ -1285,6 +1289,7 @@
     if (event.target.checked && photo) map.jumpTo({ center: photo.geometry.coordinates });  // le zoom ne bouge pas
     updateBirdeye();
   });
+  mapBox.querySelector("#dessus-voisines").addEventListener("change", updateBirdeye);  // voisines à lire
 
   // Choix de la photo sur la carte ---------------------------------------------------------
 

@@ -620,7 +620,8 @@ la photo précédente vue à 10 m (passage piéton dédoublé d'un mètre en agg
 inclinaison, posées sur le même terrain. Une distance entre deux points de photos différentes
 additionne l'erreur de chaque point et leur position relative (5 cm en RTK vérifié, sinon 30 cm).
 
-Option « Raccords recalés » (cochée par défaut, `alignJoin` et `blockShifts`, `src/dessus.js`) : une voisine qui ne
+Avec « Véhicule masqué » (éteint par défaut : la photo affichée seule), raccords recalés (`alignJoin` et
+`blockShifts`, `src/dessus.js`) : une voisine qui ne
 s'accorde pas avec la principale fait une marche au raccord. Les deux photos sont dessinées seules (3 cm par pixel),
 filtrées en passe-haut ; dans leur zone commune sûre (hors véhicule et reflets, à moins de 11 m de chaque caméra), des
 blocs de 48 px (1,4 m), tous les 20 px, sont cherchés de l'une à l'autre sur ±40 px par corrélation normée (transformée
