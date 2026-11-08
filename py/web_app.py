@@ -677,12 +677,33 @@ class App(session.Session):
         (recalée si la séquence l'est), cap du centre de l'image, correction de cap de la séquence
         (degrés), verticale vraie vue de la caméra (None sans calage) et son incertitude (degrés),
         hauteur de caméra, son incertitude et celle de la position relative entre photos voisines (m) ;
-        neighbours : les poses des photos voisines. null si la photo ne convient pas."""
+        neighbours : les poses des photos voisines ; bridge : pont à portée de la vue (None en lecture),
+        la vue se passe alors du terrain LiDAR et la hauteur de caméra ne vient pas du sol LiDAR. null si la
+        photo ne convient pas."""
         pose = self._birdeye_of(self.item, self.tilts.pending) if self.item else None
         if pose is None:
             return "null"
-        near = (self._birdeye_of(item, checker.pending) for item, checker in zip(self.birdeye_items, self.birdeye_checks))
-        return json.dumps(dict(pose, neighbours=[p for p in near if p]))
+        near = [p for p in (self._birdeye_of(item, checker.pending)
+                            for item, checker in zip(self.birdeye_items, self.birdeye_checks)) if p]
+        bridge = self._near_bridge(pose["lon"], pose["lat"])
+        if bridge:  # altitude RTK moins sol LiDAR : le sol sous le pont, ou la brèche sous la photo
+            cam = self.calibration.camera(self.item.get("collection"))
+            height = {"height": cam["height"] if cam else self.tool.camera_height, "height_sigma": cam["sigma"] if cam else 0.3}
+            pose.update(height)
+            near = [dict(p, **height) for p in near]
+        return json.dumps(dict(pose, neighbours=near, bridge=bridge))
+
+    BIRDEYE_BRIDGE = 20.0  # m : portée de la vue (15 m) et un peu plus
+
+    def _near_bridge(self, lon, lat):
+        """Tronçon BD TOPO en pont à moins de BIRDEYE_BRIDGE m de la photo, dessus ou dessous : le MNT LiDAR
+        n'y donne pas le sol vu par la caméra (tablier retiré). None en lecture ; BD TOPO injoignable : False."""
+        sections = self._fall_sections(lon, lat)
+        if sections is roads.PENDING:
+            return None
+        return any(sec.get("level", 0) > 0 and roads._project(
+            [triangulation._local(q[0], q[1], lon, lat) for q in sec["line"]], 0.0, 0.0)[0] <= self.BIRDEYE_BRIDGE
+            for sec in sections or [])
 
     def _terrain_of(self, item, done):
         """Terrain sous la photo item : done({slopes, heading}, None), ou done(None, raison). Grille

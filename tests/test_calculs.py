@@ -82,6 +82,7 @@ class VueDessus(unittest.TestCase):
         a.item = {"id": "p", "collection": "s", "geometry": {"coordinates": [5.0, 47.0, 300.0]},
                   "properties": {"view:azimuth": 40, "pers:interior_orientation": {"field_of_view": field_of_view}}}
         a.birdeye_items, a.birdeye_checks = [dict(a.item, id="v", geometry={"coordinates": [5.0, 47.00005]})], (Tilts,)
+        a.fall_cells, a.tool = {web_app.roads._cell(5.0, 47.0): []}, types.SimpleNamespace(camera_height=2.1)
         return a
 
     def test_pose(self):
@@ -92,6 +93,18 @@ class VueDessus(unittest.TestCase):
 
     def test_hors_360(self):
         self.assertEqual(self.app_on(90).birdeye_pose(), "null")
+
+    def test_pont(self):
+        """Pont à portée de la vue (dessus ou dessous) : signalé, hauteur de caméra hors sol LiDAR (le réglage) ;
+        plus loin, rien ne change."""
+        def pose_with(east):  # tronçon en pont, nord-sud, à east m à l'est de la photo
+            a = self.app_on(360)
+            lon = 5.0 + east / (6378137 * math.cos(math.radians(47.0))) * 180 / math.pi
+            a.fall_cells[web_app.roads._cell(5.0, 47.0)] = [{"level": 1, "line": [[lon, 46.999], [lon, 47.001]]}]
+            return json.loads(a.birdeye_pose())
+        near, far = pose_with(10), pose_with(40)
+        self.assertEqual((near["bridge"], near["height"], near["neighbours"][0]["height"]), (True, 2.1, 2.1))
+        self.assertEqual((far["bridge"], far["height"]), (False, 2.4))
 
     def test_voisine_sans_inclinaison(self):
         """Analyse d'une voisine finie sans inclinaison (verticales et LiDAR en échec) : la page est

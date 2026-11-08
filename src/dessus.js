@@ -852,7 +852,7 @@ const Dessus = (() => {
   /** Hauteur de la photo affichée ajoutée à sa séquence (photo vérifiée seulement) ; { height, count } de la séquence, ou null. */
   function sequenceHeight(sequence, pose) {
     const all = readHeights(), kept = all[sequence] || {};
-    if (pose && pose.relative_sigma <= 0.05 && pose.height >= MIN_HEIGHT && pose.height <= MAX_HEIGHT && !(pose.pic in kept)) {
+    if (pose && !pose.bridge && pose.relative_sigma <= 0.05 && pose.height >= MIN_HEIGHT && pose.height <= MAX_HEIGHT && !(pose.pic in kept)) {
       kept[pose.pic] = Math.round(pose.height * 1000) / 1000;
       const pics = Object.keys(kept);
       if (pics.length > 60) delete kept[pics[0]];  // les plus anciennes d'abord
@@ -1111,7 +1111,7 @@ const Dessus = (() => {
       map.addSource(BEST_ID, { type: "geojson", data: zones });
       map.addLayer({ id: BEST_ID, type: "fill", source: BEST_ID, paint: { "fill-color": "#00c853", "fill-opacity": 0.12 } }, below);
     }
-    const place = shown.terrain ? "Terrain LiDAR HD" : `Sol supposé plat (${shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
+    const place = shown.terrain ? "Terrain LiDAR HD" : `Sol supposé plat (${pose.bridge ? "pont à proximité, LiDAR HD écarté" : shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
     const auto = !pitchManual && pitchOffset ? sequencePitch(shown.sequence) : null;
     const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${pitchOffset || pitchManual ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? " réglé à la main" : auto ? ` lu sur les raccords (${auto.count} photo${auto.count > 1 ? "s" : ""})` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
@@ -1197,6 +1197,12 @@ const Dessus = (() => {
 
   /** Photo à montrer (fiche STAC, pose avec ses voisines et fiches des voisines, null s'il faut encore les lire ; photo null
    * pour tout retirer), à chaque changement : ne refait que ce qui a changé. */
+  /** Pont à portée (photo dessus ou dessous) : le MNT LiDAR HD n'y donne pas le sol vu (tablier retiré, ou brèche sous la
+   * photo). Sol plat ; inclinaison par la route, hauteur entre photos, raccords et position refaits sans lui. */
+  function dropTerrain(view) {
+    Object.assign(view, { terrain: null, sigmaGround: FLAT_SIGMA, estimated: false, joins: null, joinText: "", located: undefined });
+  }
+
   async function update(photo, pose, features) {
     const key = pose && JSON.stringify([pose, (features || []).map((f) => f.id), features === null]);
     if (key === (shown?.key ?? null)) return;
@@ -1218,6 +1224,7 @@ const Dessus = (() => {
     if (!shown && parked?.pic === photo.id) resume();
     if (shown?.pic === photo.id) {  // même photo : inclinaison, hauteur ou voisines arrivées, image refaite
       Object.assign(shown, { key, pose, features });
+      if (pose.bridge && shown.terrain) dropTerrain(shown);  // pont connu après le terrain
       if (!pose.pending) shown.sequenceHeight = sequenceHeight(photo.collection, pose);  // hauteur vérifiée arrivée après
       loadNeighbours(abort.signal);
       if (shown.panos.has(shown.pic)) await showImage();
@@ -1234,6 +1241,7 @@ const Dessus = (() => {
     shown = { photo, pic: photo.id, sequence: photo.collection, height: median(heights.get(photo.collection) || []) ?? null, estimated: false, estimating: false, key, pose, features, panos: new Map(), loading: new Set(), terrain: null, sigmaGround: FLAT_SIGMA, terrainFailed: false, url: null };
     const known = computed.get(photo.id);
     if (known) Object.assign(shown, known);  // déjà vue : terrain, raccords et position repris
+    if (pose.bridge && shown.terrain) dropTerrain(shown);
     applySettings(photo.collection);
     shown.sequenceHeight = pose.pending ? null : sequenceHeight(photo.collection, pose);
     const mine = shown;
@@ -1241,11 +1249,11 @@ const Dessus = (() => {
     try {
       const tiles = Video.record(photo, { coords: photo.geometry.coordinates }).tiles;
       const [terrain, part] = await Promise.all([
-        known ? Promise.resolve(known.terrain) : readTerrain(pose, signal).catch((error) => { console.warn("Terrain de la vue du dessus :", error); mine.terrainFailed = true; return null; }),
+        known || pose.bridge ? Promise.resolve(shown.terrain) : readTerrain(pose, signal).catch((error) => { console.warn("Terrain de la vue du dessus :", error); mine.terrainFailed = true; return null; }),
         loadPano(tiles, context().getParameter(gl.MAX_TEXTURE_SIZE), signal)]);
       if (shown !== mine) { part.canvas.width = 0; return; }
-      mine.terrain = terrain;
-      mine.sigmaGround = terrain ? LIDAR_SIGMA : FLAT_SIGMA;
+      mine.terrain = mine.pose.bridge ? null : terrain;  // pont signalé pendant la lecture
+      mine.sigmaGround = mine.terrain ? LIDAR_SIGMA : FLAT_SIGMA;
       mine.panos.set(mine.pic, panoTexture(part));
       loadNeighbours(signal);
       await showImage();

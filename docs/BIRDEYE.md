@@ -24,7 +24,10 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
 
 - la photo et sa pose : position GPS (RTK pour le CD21), cap (EXIF au centième, plutôt que `view:azimuth` arrondi),
   inclinaison (voir § 4.1) et hauteur de caméra (voir § 4.2) ;
-- le terrain : MNT LiDAR HD de l'IGN, lu sur une grille de 1 m sur ±15 m (`readTerrain`), sinon un plan horizontal ;
+- le terrain : MNT LiDAR HD de l'IGN, lu sur une grille de 1 m sur ±15 m (`readTerrain`), sinon un plan horizontal.
+  **Près d'un pont** (tronçon BD TOPO en pont à moins de 20 m, photo dessus ou dessous, `App._near_bridge`), le MNT
+  est écarté : il donne le sol sous le tablier, ou la brèche sous la photo. Sol plat, pas d'inclinaison tirée de la
+  route ni de tangage lu sur les raccords, hauteur de caméra de la séquence ou réglée (pas RTK moins sol LiDAR) ;
 - les photos précédente et suivante de la séquence, chacune avec sa propre pose.
 
 **Calcul (`render`, WebGL) :**

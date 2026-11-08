@@ -680,6 +680,10 @@ tangage est lu sur les raccords (`learnPitch`, voir docs/BIRDEYE.md § 4.1) : é
 l'arrière, environ 9,6 % pour 1° de tangage commun ; retenu par photo (`web-measures/dessus-tangages`), médiane par
 séquence.
 
+Près d'un pont (tronçon BD TOPO en pont à moins de 20 m de la photo, dessus ou dessous), la vue se passe du terrain
+LiDAR HD : le MNT n'a pas le tablier (sol sous le pont, ou brèche sous la photo). Sol plat, sans inclinaison tirée de
+la route, hauteur de caméra calée ou réglée. Pont de France à Auxonne (bbf7a0be) : tangage lu sur les raccords à
+-1,2° avec le MNT, raccords 33,5 → 1,3 cm sur sol plat.
 Le calage du tangage sur l'orthophoto (lignes de peinture repérées sur elle et sur chaque photo, essai du 07/11/2026)
 a été retiré le 08/11/2026 au profit du tangage lu sur les raccords. Option « Position calée sur l'orthophoto » (cochée par défaut, `locate` et `orthoShift`) :
 dès la photo principale prête, son profil en travers de la chaussée (6 m de part et d'autre, 9e décile le long, hors
