@@ -626,7 +626,16 @@ class App(session.Session):
         if self.item and autotilt.is_360(self.item):
             pic = self.item.get("id")
             before = self.calibration.auto.get(pic)
-            self.tilts.check(self.item, self.calibration, lambda: self._on_tilt(pic, before))
+            self.tilts.check(self.item, self.calibration, lambda: self._birdeye_tilt_done(pic, before))
+
+    def _birdeye_tilt_done(self, pic, before):
+        """Analyse d'une photo de la vue du dessus finie : la page est prévenue même sans inclinaison
+        nouvelle (_on_tilt se tait alors : verticales et LiDAR en échec), sinon elle attend la photo
+        sans fin."""
+        if self.calibration.auto.get(pic) == before:
+            self.notify()
+        else:
+            self._on_tilt(pic, before)
 
     def birdeye_neighbours(self, items_json):
         """Photos voisines de la vue du dessus (fiches STAC, photo précédente puis suivante) : leur
@@ -640,7 +649,7 @@ class App(session.Session):
             checker.run = run
             pic = item.get("id")
             before = self.calibration.auto.get(pic)
-            checker.check(item, self.calibration, lambda pic=pic, before=before: self._on_tilt(pic, before))
+            checker.check(item, self.calibration, lambda pic=pic, before=before: self._birdeye_tilt_done(pic, before))
 
     def _birdeye_of(self, item, pending):
         """Pose d'une photo pour la vue du dessus (voir birdeye_pose), ou None sans position, sans

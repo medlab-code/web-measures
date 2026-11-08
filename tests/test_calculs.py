@@ -93,6 +93,19 @@ class VueDessus(unittest.TestCase):
     def test_hors_360(self):
         self.assertEqual(self.app_on(90).birdeye_pose(), "null")
 
+    def test_voisine_sans_inclinaison(self):
+        """Analyse d'une voisine finie sans inclinaison (verticales et LiDAR en échec) : la page est
+        prévenue, sinon la vue l'attend sans fin (D33, 08/11/2026)."""
+        class Checker:
+            def check(self, item, cal, done):
+                done()
+
+        a = self.app_on(360)
+        a.birdeye_checks, calls = (Checker(),), []
+        a.notify = lambda: calls.append(1)
+        a.birdeye_neighbours(json.dumps(a.birdeye_items))
+        self.assertEqual(calls, [1])
+
 
 class Plateforme(unittest.TestCase):
     """Dévers de la plateforme (web_app.platform_slope, ticket #38)."""

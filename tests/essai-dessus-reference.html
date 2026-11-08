@@ -20,7 +20,7 @@ const REFERENCES = [
 // Écart à l'orthophoto attendu (m) : position calée au-delà de 30 cm, GPS gardé en deçà
 const SHIFTS = { "D33": [0, 0.3], "D33 du 04/07": [0.5, 1.0] };
 const ONLY_SHIFT = new Set(["D33 du 04/07"]);
-const WAIT = 240000;  // ms par photo : photo, terrain, voisines et hauteur de caméra
+const WAIT = 90000;  // ms par photo : photo, terrain, voisines et hauteur de caméra (une vingtaine de secondes d'ordinaire)
 const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
 let checks = 0, failures = 0;
 const expect = (what, ok, detail = "") => { checks++; if (!ok) failures++; return log(`${ok ? "" : "ÉCHEC "}${what}${detail ? ` (${detail})` : ""}`); };
