@@ -132,6 +132,11 @@ c'est ce que corrigent les raccords (§ 4.3).
    caméras distantes de `b` se décale de `b (1 − k)`. Ce décalage, cherché par corrélation dans le grain de la
    chaussée entre la photo et ses voisines, donne la hauteur sans orthophoto ni peinture. Gardée si la mesure se
    stabilise (corrélation d'au moins 0,2, hauteur entre 1,5 et 2,6 m) ; médiane de la séquence dans la session.
+   **Photos du CD21** (imajbox sur Clio 5, deux montures ; la caméra ne bouge plus une fois montée) : la séquence prend la
+   **monture** la plus proche de sa hauteur lue, 1,93 ou 2,07 m (±4 cm), même lue avec l'inclinaison de la route quand les
+   photos n'ont pas de verticales (les deux concordent au cm près là où elles existent). Relevé du 08/11/2026 sur 36 vues :
+   1,90 à 1,95 m du 28/05 au 23/06/2025, 2,05 à 2,07 m le 03/07 (2,15 le 07/07, dispersé en octobre) ; l'altitude RTK moins
+   le sol reste vers 2,05-2,10 m tout du long (antenne fixe, caméra plus basse sur la première monture).
    Retenue par photo dans le navigateur (`web-measures/dessus-parallaxes`) : la médiane sert à toute la séquence, même
    vue photo seule, avant l'altitude RTK moins le sol. Giratoire b47b4351 : 1,94 m par le décalage, 2,06 m par le RTK
    (15 photos, 2,04 à 2,09 m) ; largeur entre lignes de 8,0 m sur le terrain, environ 8,2 m avec 1,94 m, 8,7 m avec

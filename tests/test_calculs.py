@@ -92,6 +92,13 @@ class VueDessus(unittest.TestCase):
         self.assertEqual((pose["up"], pose["sigma"], pose["height_sigma"]), ([0.0, 0.1, 0.99], 0.2, 0.05))
         self.assertEqual([(n["pic"], n["lat"], n["relative_sigma"]) for n in pose["neighbours"]], [("v", 47.00005, 0.05)])
 
+    def test_flotte_cd21(self):
+        """Photo du CD21 (producteur) signalée à la vue du dessus (hauteur par monture) ; autre producteur : non."""
+        a = self.app_on(360)
+        self.assertFalse(json.loads(a.birdeye_pose())["fleet"])
+        a.item["providers"] = [{"id": App.FLEET_PRODUCER, "roles": ["producer"]}]
+        self.assertTrue(json.loads(a.birdeye_pose())["fleet"])
+
     def test_hors_360(self):
         self.assertEqual(self.app_on(90).birdeye_pose(), "null")
 

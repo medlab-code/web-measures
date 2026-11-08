@@ -705,7 +705,8 @@ class App(session.Session):
                 "sigma": tilt["sigma"] if tilt else calibration.UNCALIBRATED,
                 "pending": pending(pic), "height": self._camera_height(),
                 "height_sigma": max(q.get("spread") or 0, 0.05) if verified else cam["sigma"] if cam else 0.3,
-                "relative_sigma": 0.05 if verified else 0.3}  # position d'une photo à sa voisine (trajectoire)
+                "relative_sigma": 0.05 if verified else 0.3,  # position d'une photo à sa voisine (trajectoire)
+                "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or [])}
 
     def birdeye_pose(self):
         """Pose de la photo affichée pour la vue du dessus (src/dessus.js), en JSON : position
@@ -729,6 +730,7 @@ class App(session.Session):
         return json.dumps(dict(pose, neighbours=near, bridge=bridge))
 
     BIRDEYE_BRIDGE = 20.0  # m : portée de la vue (15 m) et un peu plus
+    FLEET_PRODUCER = "8f943f10-a781-4e03-a18c-de035be6f6f8"  # CD21 : imajbox sur Clio 5, deux montures (voir src/dessus.js, MOUNTS)
 
     def _near_bridge(self, lon, lat):
         """Tronçon BD TOPO en pont à moins de BIRDEYE_BRIDGE m de la photo, dessus ou dessous : le MNT LiDAR

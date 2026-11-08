@@ -1033,7 +1033,8 @@ const Dessus = (() => {
       const seam = shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.seams?.get(pose.pic) : undefined;  // raccord de la voisine
       const fix = neighboursOn && shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.map.get(pose.pic) : undefined;
       // hauteur : décalage entre photos, sinon RTK moins le sol (de la séquence, ou de la photo)
-      const height = shown.height ? { height: shown.height, height_sigma: HEIGHT_SIGMA }
+      const height = shown.height && shown.pose.fleet ? { height: mountOf(shown.height), height_sigma: MOUNT_SIGMA }  // CD21 : la monture
+        : shown.height ? { height: shown.height, height_sigma: HEIGHT_SIGMA }
         : { height: shown.sequenceHeight?.height ?? leveled.height, height_sigma: Math.max(leveled.height_sigma, RTK_SIGMA) };
       return { pose: { ...leveled, ...height }, pano: shown.panos.get(pose.pic), at, fix, seam };
     });
@@ -1206,6 +1207,14 @@ const Dessus = (() => {
   /** Hauteur de la séquence lue entre photos (médiane), ou null. */
   const sequenceParallax = (sequence) => median(Object.values(readParallax()[sequence] || {}).flat()) ?? null;
   const parallaxCount = (sequence) => Object.keys(readParallax()[sequence] || {}).length;
+  // Photos du CD21 (pose.fleet) : imajbox sur Clio 5, deux montures, la caméra ne bouge plus une fois montée. Hauteurs lues entre
+  // photos sur 36 vues (08/11/2026) : 1,90 à 1,95 m du 28/05 au 23/06/2025, 2,05 à 2,07 m le 03/07 (2,15 le 07/07 ; dispersé en
+  // octobre, 2,04 à 2,34 m) ; l'altitude RTK moins le sol reste vers 2,05-2,10 m tout du long (antenne fixe, caméra plus basse
+  // sur la première monture). La séquence prend la monture la plus proche de sa hauteur lue, même par la seule inclinaison de
+  // la route (verticales et route concordent au cm près là où les deux existent). shortcut: hauteurs à remplacer par celles
+  // mesurées sur les véhicules (campagne suivante)
+  const MOUNTS = [1.93, 2.07], MOUNT_SIGMA = 0.04;
+  const mountOf = (h) => MOUNTS.reduce((a, b) => (Math.abs(b - h) < Math.abs(a - h) ? b : a));
   let drawing = 0;  // dernier dessin demandé : l'image d'un dessin dépassé est jetée
   async function showImage() {
     shown.joinKeyNow = joinKey();  // recalage des raccords valable pour ces réglages seulement
@@ -1239,7 +1248,7 @@ const Dessus = (() => {
     const auto = !pitchManual && pitchOffset ? sequencePitch(shown.sequence) : null;
     const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${LEAN * (shown.lateral || 0) >= 0.5 ? `, virage : véhicule penché jusqu'à ${number(LEAN * shown.lateral, 1)}°` : ""}${pitchOffset || pitchManual ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? " réglé à la main" : auto ? ` lu sur les raccords (${auto.count} photo${auto.count > 1 ? "s" : ""})` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain || !neighboursOn ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
-    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
+    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height && shown.pose.fleet ? ` (monture ${mountOf(shown.height) === MOUNTS[0] ? "basse" : "haute"}, lue entre photos : ${number(shown.height, 2)} m)` : shown.height ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
     if (positionOn && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
     else if (!busy() && !shown.estimated) measureHeight();
     else if (!busy() && neighboursOn && layers.length > 1 && shown.joins?.key !== shown.joinKeyNow) alignJoins();
@@ -1280,7 +1289,9 @@ const Dessus = (() => {
     say("Hauteur de caméra en calcul…");
     await new Promise((resolve) => setTimeout(resolve));  // l'image déjà faite s'affiche d'abord
     if (shown !== mine) return;
-    const [main, ...others] = readyLayers(), found = estimateHeight(main, others, mine.terrain);
+    const [main, ...others] = readyLayers(), flat = (l) => ({ ...l, pose: { ...l.pose, groundTilt: false } });
+    // CD21 : sans verticales, la hauteur lue avec l'inclinaison de la route suffit à choisir la monture
+    const found = estimateHeight(main, others, mine.terrain) || (main.pose.fleet && main.pose.up ? estimateHeight(flat(main), others.map(flat), mine.terrain) : null);
     if (found?.length) {
       const all = readParallax(), kept = all[mine.sequence] || {};
       kept[main.pose.pic] = found.map((h) => Math.round(h * 1000) / 1000);
