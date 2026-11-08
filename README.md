@@ -168,8 +168,8 @@ choisie là où ses photos et celles de la précédente sont au même endroit (u
 changement de séquence) ; une autre campagne pouvant être bien plus claire ou plus sombre (juillet 2025 : 1,5 fois plus
 clair que mai au carrefour RD18 / D115D), la nouvelle séquence est ramenée sur la précédente (3 photos mesurées de part
 et d'autre, rouge, vert et bleu), puis revient peu à peu à sa propre exposition sur 100 m ; sur l'écart entre les deux
-photos du raccord, la vue avance dans la photo quittée par un zoom progressif (jusqu'à 2 fois), puis passe à la
-suivante par un fondu court sur les 4 derniers mètres : le mouvement continue et l'image double ne dure qu'un instant
+photos du raccord, la vue avance dans la photo quittée par un zoom progressif (jusqu'à 2 fois) centré sur la
+direction de la photo suivante, puis passe à celle-ci par un fondu court sur les 4 derniers mètres : le mouvement continue et l'image double ne dure qu'un instant
 (raccord à 15 m d'écart : 0,3 s au lieu de 1,1 s figée). « Rampe de vitesse » (décochée, grisée en Présentation) : la vitesse choisie devient celle des lignes droites ; la
 vidéo ralentit dans les virages et aux carrefours (facteur 1 / (1 + rotation du cap / 1,5° par mètre), la rotation
 au-delà de 1° par mètre, virage marqué, comptant double ; jusqu'à 35 % au plus bas : virage de 30 m de rayon à 37 %), part et s'arrête en douceur sur 50 m, sans à-coup (vitesse lissée sur ± 15 m) ; la durée affichée en

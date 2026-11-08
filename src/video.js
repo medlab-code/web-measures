@@ -1633,8 +1633,11 @@ const Video = (() => {
           const joint = j !== i && path.list[i].collection !== path.list[j].collection;
           const apart = joint ? Math.min(path.s[j] - path.s[i], SEAM_DEPTH / 2) : 0;  // (zoom borné : 2 au plus)
           const zoomA = SEAM_DEPTH / (SEAM_DEPTH - u * apart);
+          // Zoom centré sur la direction de la photo suivante (point vers lequel on avance), pas sur le cap de la vue :
+          // sinon la vue semble prendre la route que suit la séquence quittée
+          const toward = joint ? wrap(bearing(path.list[i].coords, path.list[j].coords) - path.axis(xs)) * (1 - 1 / zoomA) : 0;
           gl.draw([
-            { ...a, yaw: yawAt(i, xs) * toRad, pitch: path.list[i].pitch, tilt: tilts[i], tan: view / zoomA, move: u * gap, gain: gains[i] },
+            { ...a, yaw: (yawAt(i, xs) + toward) * toRad, pitch: path.list[i].pitch, tilt: tilts[i], tan: view / zoomA, move: u * gap, gain: gains[i] },
             { ...b, yaw: yawAt(j, xs) * toRad, pitch: path.list[j].pitch, tilt: tilts[j], tan: view, move: -(1 - u) * gap, gain: gains[j] },
           ], j === i ? 0 : smooth(Math.min(1, Math.max(0, joint ? 1 - (1 - u) * (path.s[j] - path.s[i]) / SEAM_FADE
             : (u - 0.25) / 0.5))), 1 / (k + 1), look, tilted,
