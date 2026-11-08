@@ -1,0 +1,58 @@
+<!doctype html><meta charset="utf-8"><title>Essai du raccord de séquences</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Raccord entre deux séquences sur la D906, du PR 76 + 658 au PR 76 + 373 (cas de l'utilisateur du 08/11/2026, ticket
+     #44) : parcours saisi par ses PR, photos et raccords dans le journal, vidéo complète (vitesse 50 km/h,
+     stabilisation et exposition) dans le stockage de la page (OPFS, raccord.mp4 : environ 160 Mo, trop lourd pour l'envoi au
+     serveur d'essai ; le copier depuis le profil de Chrome). Lancer comme tests/navigateur.html. -->
+<script>try { localStorage.clear(); } catch {}</script>
+<iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
+let failures = 0, checks = 0;
+const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + (detail ? " : " + detail : "")); } };
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  try {
+    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 180000, "Pyodide");
+    const doc = w.document;
+    doc.querySelector("#reglages-defaut")?.close();
+    doc.querySelector("#onglet-parcours").click();
+    const pane = doc.querySelector("#parcours"), button = doc.querySelector("#parcours-video");
+    const status = () => doc.querySelector("#statut")?.textContent || "";
+    const [route, startPr, endPr] = pane.querySelectorAll(".champ input"), [startDistance, endDistance] = pane.querySelectorAll(".distance");
+    const type = (input, value) => {
+      input.focus();
+      input.value = value;
+      input.dispatchEvent(new w.Event("input", { bubbles: true }));
+    };
+    type(route, "D906");
+    await sleep(2000);
+    type(startPr, "76");
+    type(startDistance, "658");
+    type(endPr, "76");
+    type(endDistance, "373");
+    await sleep(4000);
+    const t0 = Date.now();
+    button.click();
+    await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 600000, "fin de la préparation");
+    const plan = w.mesures.videoPlan, photos = plan?.photos || [];
+    log(`préparée en ${((Date.now() - t0) / 1000).toFixed(0)} s : ${photos.length} photos, ${plan?.switches} changement(s) ; ${status()}`);
+    expect("vidéo préparée", photos.length > 5, status());
+    const Video = w.eval("Video"), path = Video.trajectory(photos);
+    path.list.forEach((p, i) => log(`${String(i).padStart(3)} s ${path.s[i].toFixed(1).padStart(6)} ${p.collection.slice(0, 8)} ${p.coords.map((v) => v.toFixed(6))} cap ${p.heading?.toFixed(1)} ${p.id.slice(0, 8)}`));
+    expect("au moins un raccord", plan?.switches >= 1, plan?.switches);
+    const dir = await w.navigator.storage.getDirectory(), handle = await dir.getFileHandle("raccord.mp4", { create: true });
+    const t1 = performance.now();
+    await Video.mp4(photos, 50, () => {}, null, { stream: await handle.createWritable(), stabilize: true, exposure: true });
+    log(`rendu : ${((performance.now() - t1) / 1000).toFixed(1)} s`);
+  } catch (error) {
+    failures++;
+    log("ERREUR " + error + " " + (error.stack || "").split("\n")[1]);
+  }
+  log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
+  log(failures ? "ERREUR" : "FIN");
+})();
+</script>

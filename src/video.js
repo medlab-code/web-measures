@@ -106,6 +106,11 @@ const Video = (() => {
   const SPEED_SMOOTH = 4;  // images : vitesse affichée lissée sur ± SPEED_SMOOTH images (un quart de seconde)
   const TOUR_TIME = 8;  // s : tour d'horizon par défaut (réglette de 2 à 20 s)
   const SEAM_BLUR = 4;  // vues moyennées au raccord de deux séquences (léger : moitié du flou cinétique)
+  // Raccord de deux séquences : la vue avance dans la photo quittée par le zoom jusqu'à la suivante (objets à SEAM_DEPTH m
+  // vus du point courant, sans maquette), puis fondu court sur les SEAM_FADE derniers mètres ; la suivante n'est jamais
+  // élargie (le toit du véhicule entrerait dans l'image). Essai D906, carrefour du PR 76 + 500 : 15,5 m d'écart, fondu de
+  // 1,1 s sur tout l'écart, image double figée
+  const SEAM_DEPTH = 40, SEAM_FADE = 4;
   const BLUR = 8;  // vues moyennées par image pour le flou cinétique (obturateur ouvert toute l'image : 360°)
   const STALL = 15;  // s : requête d'image sans réponse abandonnée, puis reprise (serveur d'images bloqué)
 
@@ -1625,10 +1630,13 @@ const Video = (() => {
           // Avancée : u·écart après la photo quittée, (1 - u)·écart avant la suivante ; vue k : 1 / (k + 1) de la
           // moyenne courante
           const gap = 0;  // fondu enchaîné, chaque photo vue de sa propre caméra (l'avancée dans une maquette faisait sauter le ciel et les côtés)
+          const joint = j !== i && path.list[i].collection !== path.list[j].collection;
+          const apart = joint ? Math.min(path.s[j] - path.s[i], SEAM_DEPTH / 2) : 0;  // (zoom borné : 2 au plus)
+          const zoomA = SEAM_DEPTH / (SEAM_DEPTH - u * apart);
           gl.draw([
-            { ...a, yaw: yawAt(i, xs) * toRad, pitch: path.list[i].pitch, tilt: tilts[i], tan: view, move: u * gap, gain: gains[i] },
+            { ...a, yaw: yawAt(i, xs) * toRad, pitch: path.list[i].pitch, tilt: tilts[i], tan: view / zoomA, move: u * gap, gain: gains[i] },
             { ...b, yaw: yawAt(j, xs) * toRad, pitch: path.list[j].pitch, tilt: tilts[j], tan: view, move: -(1 - u) * gap, gain: gains[j] },
-          ], j === i ? 0 : smooth(Math.min(1, Math.max(0, path.list[i].collection !== path.list[j].collection ? u  // raccord : fondu sur tout l'écart
+          ], j === i ? 0 : smooth(Math.min(1, Math.max(0, joint ? 1 - (1 - u) * (path.s[j] - path.s[i]) / SEAM_FADE
             : (u - 0.25) / 0.5))), 1 / (k + 1), look, tilted,
           (aim.lift[n] - 90 * globe.mix[n]) * toRad, Math.min(1, 2 * globe.mix[n]));
         }
