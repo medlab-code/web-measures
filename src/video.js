@@ -111,6 +111,7 @@ const Video = (() => {
   // élargie (le toit du véhicule entrerait dans l'image). Essai D906, carrefour du PR 76 + 500 : 15,5 m d'écart, fondu de
   // 1,1 s sur tout l'écart, image double figée
   const SEAM_DEPTH = 40, SEAM_FADE = 4;
+  const SEAM_SKIP = 25;  // m : écart au plus entre les photos du raccord, une fois la dernière de la séquence quittée écartée
   const BLUR = 8;  // vues moyennées par image pour le flou cinétique (obturateur ouvert toute l'image : 360°)
   const STALL = 15;  // s : requête d'image sans réponse abandonnée, puis reprise (serveur d'images bloqué)
 
@@ -963,7 +964,16 @@ const Video = (() => {
   /** Trajectoire : abscisses curvilignes des photos (doublons de position écartés), position et altitude à
    * l'abscisse s, cap lissé, pente de chaque photo. */
   function trajectory(photos) {
-    const list = photos.filter((p, i) => p.coords && (i === 0 || metres(photos[i - 1].coords || p.coords, p.coords) > 0.5));
+    const kept = photos.filter((p, i) => p.coords && (i === 0 || metres(photos[i - 1].coords || p.coords, p.coords) > 0.5));
+    // Raccord de deux séquences : dernière photo de la séquence quittée écartée (souvent déjà engagée là où cette séquence
+    // quitte le parcours : la vue semblait la suivre) si la suivante reste devant l'avant-dernière, à SEAM_SKIP m au plus
+    const list = kept.filter((p, i) => {
+      const a = kept[i - 1], b = kept[i + 1];
+      if (!a || !b || a.collection !== p.collection || b.collection === p.collection) return true;
+      const k = Math.cos(a.coords[1] * toRad), ahead = (p.coords[0] - a.coords[0]) * k * (b.coords[0] - a.coords[0]) * k
+        + (p.coords[1] - a.coords[1]) * (b.coords[1] - a.coords[1]) > 0;
+      return !(ahead && metres(a.coords, b.coords) <= SEAM_SKIP);
+    });
     const s = [0];
     for (let i = 1; i < list.length; i++) s.push(s[i - 1] + metres(list[i - 1].coords, list[i].coords));
     const length = s[s.length - 1];

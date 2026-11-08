@@ -167,7 +167,8 @@ photo). Raccords de séquence, avec ou sans l'option, pour qu'ils se voient le m
 choisie là où ses photos et celles de la précédente sont au même endroit (un mètre d'écart compte comme un tiers de
 changement de séquence) ; une autre campagne pouvant être bien plus claire ou plus sombre (juillet 2025 : 1,5 fois plus
 clair que mai au carrefour RD18 / D115D), la nouvelle séquence est ramenée sur la précédente (3 photos mesurées de part
-et d'autre, rouge, vert et bleu), puis revient peu à peu à sa propre exposition sur 100 m ; sur l'écart entre les deux
+et d'autre, rouge, vert et bleu), puis revient peu à peu à sa propre exposition sur 100 m ; la dernière photo de la séquence quittée est écartée (souvent déjà engagée là où
+cette séquence quitte le parcours) si la suivante reste devant, à 25 m au plus ; sur l'écart entre les deux
 photos du raccord, la vue avance dans la photo quittée par un zoom progressif (jusqu'à 2 fois) centré sur la
 direction de la photo suivante, puis passe à celle-ci par un fondu court sur les 4 derniers mètres : le mouvement continue et l'image double ne dure qu'un instant
 (raccord à 15 m d'écart : 0,3 s au lieu de 1,1 s figée). « Rampe de vitesse » (décochée, grisée en Présentation) : la vitesse choisie devient celle des lignes droites ; la
