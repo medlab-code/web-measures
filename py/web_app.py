@@ -433,6 +433,7 @@ class App(session.Session):
         self.overlay = []  # couche importée : (n° de l'objet, "point" ou "ligne", [(lon, lat, z)]), voir set_overlay
         self.overlay_ground = {}  # photo -> {(lon, lat): altitude LiDAR HD} sous la couche (_overlay_ground)
         self.tilt_reasons = {}  # photo -> raison de l'échec de l'inclinaison automatique (ticket #29)
+        self.birdeye_loose = {}  # photo -> verticales refusées pour les mesures, gardées pour la vue du dessus (web_tilt.LOOSE_SIGMA)
         self.tilts.run = self._run_tilt
         # Inclinaison par le terrain hors agglomération, expérimentale (option, voir web_terrain)
         self.terrain_relay = False
@@ -482,6 +483,8 @@ class App(session.Session):
         pic = self.tilts.current
 
         def got(res):
+            if res and res.get("loose"):
+                self.birdeye_loose[pic] = res["loose"]
             if res is None or "reason" in res:
                 self.tilt_reasons[pic] = (res or {}).get("reason", "calcul des verticales indisponible")
                 res = None
@@ -627,6 +630,30 @@ class App(session.Session):
             pic = self.item.get("id")
             before = self.calibration.auto.get(pic)
             self.tilts.check(self.item, self.calibration, lambda: self._birdeye_tilt_done(pic, before))
+            self._birdeye_relook(self.item)
+
+    def _birdeye_relook(self, item):
+        """Photo déjà analysée sans verticales retenues (calage gardé d'une séance précédente : l'analyse
+        n'est pas refaite) : refaite une fois pour la vue du dessus, pour ses verticales moins sûres
+        (web_tilt.LOOSE_SIGMA)."""
+        pic, entry = item.get("id"), self.calibration.auto.get(item.get("id"))
+        href = ((item.get("assets") or {}).get("hd") or {}).get("href")
+        if not href or entry is None or entry.get("verticals") is not None or pic in self.birdeye_loose:
+            return
+        self.birdeye_loose[pic] = None  # en cours (ou sans résultat) : pas relancée
+        heading = metadata.precise_heading(item)
+        heading = metadata.item_heading(item) if heading is None else heading
+
+        def got_estimate(res):
+            if res and res.get("loose"):
+                self.birdeye_loose[pic] = res["loose"]
+                self.notify()
+
+        def got_image(data, error):
+            if not error and data and heading is not None:
+                web_host.run_task(web_tilt.estimate, (bytes(data), float(heading)), got_estimate)
+
+        host.fetch(href, got_image, prefer_cache=True)
 
     def _birdeye_tilt_done(self, pic, before):
         """Analyse d'une photo de la vue du dessus finie : la page est prévenue même sans inclinaison
@@ -642,14 +669,19 @@ class App(session.Session):
         inclinaison est lancée à part, chacune son vérificateur (TiltChecker n'en suit qu'une)."""
         self.birdeye_items = json.loads(items_json)
 
-        def run(function, args, done):
-            web_host.run_task(web_tilt.estimate, args, lambda res: done(None if res is None or "reason" in res else res))
+        def runner(pic):
+            def got(res, done):
+                if res and res.get("loose"):
+                    self.birdeye_loose[pic] = res["loose"]
+                done(None if res is None or "reason" in res else res)
+            return lambda function, args, done: web_host.run_task(web_tilt.estimate, args, lambda res: got(res, done))
 
         for item, checker in zip(self.birdeye_items, self.birdeye_checks):
-            checker.run = run
             pic = item.get("id")
+            checker.run = runner(pic)
             before = self.calibration.auto.get(pic)
             checker.check(item, self.calibration, lambda pic=pic, before=before: self._birdeye_tilt_done(pic, before))
+            self._birdeye_relook(item)
 
     def _birdeye_of(self, item, pending):
         """Pose d'une photo pour la vue du dessus (voir birdeye_pose), ou None sans position, sans
@@ -663,6 +695,7 @@ class App(session.Session):
             return None
         pic, sequence, cal, q = item.get("id"), item.get("collection"), self.calibration, self.quality or {}
         fixed, pose, tilt, cam = cal.position(sequence, lon, lat), cal.pose(sequence, lon, lat), cal.tilt(pic), cal.camera(sequence)
+        tilt = tilt or self.birdeye_loose.get(pic) or None  # verticales moins sûres : mieux que la pente de la route
         verified = q.get("precise") and q.get("lidar") is True
         return {"pic": pic, "lon": fixed[0] if fixed else lon, "lat": fixed[1] if fixed else lat,
                 "heading": float(heading), "offset": pose["offset"] if pose else 0.0,

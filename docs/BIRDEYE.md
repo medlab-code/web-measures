@@ -94,6 +94,10 @@ fixation peut être un peu de travers.
 
 1. **Verticales lues sur la photo** (façades, poteaux), quand il y en a : c'est la mesure la plus directe (de l'ordre
    de ±0,1 à 0,2°). Elles ont la priorité.
+   Pour Bird Eye seulement, des verticales refusées pour les mesures (au-delà de ±0,25°) sont gardées jusqu'à
+   ±0,5° (`web_tilt.LOOSE_SIGMA`) : elles voient le véhicule penché en virage, que la route ignore. Giratoire
+   b47b4351 : roulis de 3,0° contre 0,95° par la route, bord extérieur à 8 m ramené de 1,3 m. Une photo déjà
+   analysée lors d'une séance précédente (calage gardé) est réanalysée une fois pour cela.
 2. **Sinon, la route** : le véhicule est supposé posé sur le plan ajusté au MNT sous lui (`groundUp`). Le tangage suit
    la pente entière ; le roulis ne suit qu'une part du dévers, réglable (« Roulis », 70 % par défaut : environ 40 %
    sur la RD 1074, 75 à 100 % sur l'A38). Le tangage ajoute le défaut de fixation de la caméra (−0,4 à +0,6° selon

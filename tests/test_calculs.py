@@ -83,6 +83,7 @@ class VueDessus(unittest.TestCase):
                   "properties": {"view:azimuth": 40, "pers:interior_orientation": {"field_of_view": field_of_view}}}
         a.birdeye_items, a.birdeye_checks = [dict(a.item, id="v", geometry={"coordinates": [5.0, 47.00005]})], (Tilts,)
         a.fall_cells, a.tool = {web_app.roads._cell(5.0, 47.0): []}, types.SimpleNamespace(camera_height=2.1)
+        a.birdeye_loose = {}
         return a
 
     def test_pose(self):
@@ -105,6 +106,28 @@ class VueDessus(unittest.TestCase):
         near, far = pose_with(10), pose_with(40)
         self.assertEqual((near["bridge"], near["height"], near["neighbours"][0]["height"]), (True, 2.1, 2.1))
         self.assertEqual((far["bridge"], far["height"]), (False, 2.4))
+
+    def test_verticales_moins_sures(self):
+        """Verticales refusées pour les mesures (±0,42° > autotilt.MAX_SIGMA) : renvoyées à part par
+        web_tilt.estimate, et prises par la vue du dessus faute d'inclinaison retenue (giratoire b47b4351,
+        08/11/2026 : roulis du véhicule penché en virage, que la pente de la route ignore)."""
+        import web_tilt
+        loose = {"up": (0.0, -0.052, 0.9986), "tilt": 3.0, "count": 73, "sigma": 0.42, "auto": True}
+        calls = []
+        saved = web_tilt.host.decode_band, web_tilt.autotilt.segments, web_tilt.autotilt.fit
+        web_tilt.host.decode_band = lambda *a: ("bande", 0, 1, 1)
+        web_tilt.autotilt.segments = lambda *a: []
+        web_tilt.autotilt.fit = lambda pairs: calls.append(1) or (None if len(calls) == 1 else loose)
+        try:
+            res = web_tilt.estimate(b"", 0.0)
+        finally:
+            web_tilt.host.decode_band, web_tilt.autotilt.segments, web_tilt.autotilt.fit = saved
+        self.assertEqual((res["reason"], res["loose"]["sigma"]), (web_tilt.FEW_EDGES, 0.42))
+        a = self.app_on(360)
+        a.calibration.tilt = staticmethod(lambda pic: None)
+        a.birdeye_loose = {"p": res["loose"]}
+        pose = json.loads(a.birdeye_pose())
+        self.assertEqual((pose["up"], pose["sigma"]), ([0.0, -0.052, 0.9986], 0.42))
 
     def test_voisine_sans_inclinaison(self):
         """Analyse d'une voisine finie sans inclinaison (verticales et LiDAR en échec) : la page est
