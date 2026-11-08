@@ -1282,7 +1282,7 @@
     Dessus.setMeasuring(on);
   }
   $("#dessus").addEventListener("change", (event) => {
-    if (event.target.checked && map.getZoom() < 20 && photo) map.jumpTo({ center: photo.geometry.coordinates, zoom: 20 });
+    if (event.target.checked && photo) map.jumpTo({ center: photo.geometry.coordinates });  // le zoom ne bouge pas
     updateBirdeye();
   });
 
