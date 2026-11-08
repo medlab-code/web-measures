@@ -929,7 +929,7 @@ const Dessus = (() => {
   // Photos voisines (interrupteur « Véhicule masqué », éteint par défaut) : lues, analysées, dessinées sous le véhicule et
   // recalées sur la principale (alignJoin), tangage de la séquence lu sur les raccords ; sinon la photo affichée seule
   let neighboursOn = false;
-  let abort = null, measuringOn = false, bandOnly = false, bandShown = true, fine = false, blendOn = false, start = null, hover = null, live = null;  // live : longueur affichée au pointeur
+  let abort = null, measuringOn = false, bandOnly = false, bandShown = true, fine = false, blendOn = true, start = null, hover = null, live = null;  // live : longueur affichée au pointeur
   // Roulis (part du dévers) et tangage ajouté (degrés), réglés à la main (options d'essai) et retenus par séquence dans le
   // navigateur : la fixation de la caméra ne change pas au cours d'une séquence (A38 du 09/10/2025 : même tangage à deux endroits)
   const DEFAULT_ROLL = 0.7, DEFAULT_PITCH = 0, SETTINGS_KEY = "web-measures/dessus-reglages";

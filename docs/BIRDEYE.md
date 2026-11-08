@@ -184,7 +184,7 @@ raison.
 3,9 cm sur 14 en agglomération, tous améliorés. Un premier recalage, par les seules lignes en long, faisait 8,3 à
 3,6 cm sur route et rien en ville : il a été remplacé.
 
-**Fondu (option « Raccords fondus », essai, `renderBlended`) :** le même sol paraît plus clair sur une photo que sur
+**Fondu (option « Raccords fondus », cochée par défaut depuis le 08/11/2026, `renderBlended`) :** le même sol paraît plus clair sur une photo que sur
 l'autre selon l'angle au soleil, d'où des taches en ellipse autour des raccords (le gain global entre photos n'est que de
 1 à 3 %). Fondu en deux bandes : chaque photo rendue seule, sans son véhicule ; sa luminosité lente (256 px pour 30 m,
 floutée sur environ 1 m) est mélangée selon les zones gagnantes floutées, le détail fin reste celui de la photo choisie,
