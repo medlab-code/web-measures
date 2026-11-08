@@ -436,8 +436,21 @@ const Dessus = (() => {
   // sur l'une que sur l'autre (ellipses aux raccords, gain global de 1 à 3 % seulement). Bande basse (LOW px, flou de
   // LOW_SIGMA m) mélangée sur quelques mètres selon les zones gagnantes floutées ; détail fin de la photo gagnante, raccord net.
   const LOW = 256, LOW_SIGMA = 1;
+  let faithful = null;
+  /** Relecture des pixels fidèle : Firefox (resistFingerprinting) la remplace par du bruit, d'où des taches de couleur. */
+  function readsBack() {
+    if (faithful !== null) return faithful;
+    const g = context(), px = new Uint8Array(4 * 16 * 16);
+    g.clearColor(1 / 255, 120 / 255, 200 / 255, 1);
+    g.clear(g.COLOR_BUFFER_BIT);
+    g.readPixels(0, 0, 16, 16, g.RGBA, g.UNSIGNED_BYTE, px);
+    faithful = px.every((v, k) => v === [1, 120, 200, 255][k % 4]);
+    if (!faithful) console.warn("Vue du dessus : relecture des pixels faussée par le navigateur, raccords non fondus");
+    return faithful;
+  }
+
   function renderBlended(layers, terrain, frame = layers[0].pose, band = null, size = SIZE) {
-    if (layers.length < 2) return render(layers, terrain, frame, band, size);
+    if (layers.length < 2 || !readsBack()) return render(layers, terrain, frame, band, size);
     const g = context(), read = () => {
       const px = new Uint8Array(4 * size * size);
       g.readPixels(0, 0, size, size, g.RGBA, g.UNSIGNED_BYTE, px);  // lignes du sud au nord

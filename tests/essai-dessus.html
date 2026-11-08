@@ -152,6 +152,18 @@ function centre(pixels, line, around) {
     const found = Dessus.estimateHeight(main, [other], terrain);
     await expect(`hauteur retrouvée en partant de ${start} m`, found && Math.abs(found[0] - 2.05) < 0.03, found ? found[0].toFixed(3) : "aucune");
   }
+  // Fondu des raccords : la teinte (rouge moins bleu) doit rester celle de l'image non fondue (couleurs faussées sous
+  // Firefox, 08/11) ; le véhicule de synthèse est rouge, le sol gris
+  const pair = [{ pano: pano0, pose: p0 }, { pano: pano1, pose: p1 }], pixels = (canvas) => {
+    const copy = document.createElement("canvas");
+    copy.width = copy.height = canvas.width;
+    copy.getContext("2d").drawImage(canvas, 0, 0);
+    return copy.getContext("2d").getImageData(0, 0, copy.width, copy.height).data;
+  };
+  const blended = pixels(Dessus.renderBlended(pair, terrain)), plain = pixels(Dessus.render(pair, terrain));
+  let tint = 0;
+  for (let k = 0; k < plain.length; k += 4) if (plain[k + 3] > 250) tint = Math.max(tint, Math.abs(blended[k] - blended[k + 2] - plain[k] + plain[k + 2]));
+  await expect("raccords fondus : teinte inchangée", tint <= 20, `écart ${tint}`);
   await expect("sans terrain : pas de mesure", Dessus.estimateHeight({ pano: pano0, pose: p0 }, [{ pano: pano1, pose: p1 }], null) === null);
   await expect("sans inclinaison : pas de mesure", Dessus.estimateHeight({ pano: pano0, pose: { ...p0, up: null } }, [{ pano: pano1, pose: p1 }], terrain) === null);
   await log(`contrôles : ${checks - failures} réussis sur ${checks}`);
