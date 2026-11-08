@@ -1166,8 +1166,16 @@ const Dessus = (() => {
     if (computed.size > COMPUTED_MAX) computed.delete(computed.keys().next().value);  // la plus ancienne
   }
 
-  // shortcut: mémorisées pour la session seulement, à garder d'une visite à l'autre si la méthode est retenue
-  const heights = new Map();  // séquence -> hauteurs de caméra mesurées (m)
+  // Hauteurs de caméra lues sur le décalage entre photos (estimateHeight), retenues par photo dans le navigateur ; la médiane
+  // sert à toute la séquence, même vue photo seule, avant l'altitude RTK moins le sol LiDAR (giratoire b47b4351 : 1,94 m par le
+  // décalage contre 2,06 m par le RTK sur 15 photos, largeur mesurée sur le terrain conforme à environ 1,90 m)
+  const PARALLAX_KEY = "web-measures/dessus-parallaxes";
+  const readParallax = () => {
+    try { return JSON.parse(localStorage.getItem(PARALLAX_KEY)) || {}; } catch { return {}; }
+  };
+  /** Hauteur de la séquence lue entre photos (médiane), ou null. */
+  const sequenceParallax = (sequence) => median(Object.values(readParallax()[sequence] || {}).flat()) ?? null;
+  const parallaxCount = (sequence) => Object.keys(readParallax()[sequence] || {}).length;
   let drawing = 0;  // dernier dessin demandé : l'image d'un dessin dépassé est jetée
   async function showImage() {
     shown.joinKeyNow = joinKey();  // recalage des raccords valable pour ces réglages seulement
@@ -1198,7 +1206,7 @@ const Dessus = (() => {
     const auto = !pitchManual && pitchOffset ? sequencePitch(shown.sequence) : null;
     const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${pitchOffset || pitchManual ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? " réglé à la main" : auto ? ` lu sur les raccords (${auto.count} photo${auto.count > 1 ? "s" : ""})` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain || !neighboursOn ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
-    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? " (décalage entre photos)" : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
+    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
     if (positionOn && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
     else if (!busy() && !shown.estimated) measureHeight();
     else if (!busy() && neighboursOn && layers.length > 1 && shown.joins?.key !== shown.joinKeyNow) alignJoins();
@@ -1240,9 +1248,16 @@ const Dessus = (() => {
     await new Promise((resolve) => setTimeout(resolve));  // l'image déjà faite s'affiche d'abord
     if (shown !== mine) return;
     const [main, ...others] = readyLayers(), found = estimateHeight(main, others, mine.terrain);
-    const known = heights.get(mine.sequence) || [];
-    if (found) heights.set(mine.sequence, [...known, ...found]);
-    mine.height = median(heights.get(mine.sequence) || []) ?? null;
+    if (found?.length) {
+      const all = readParallax(), kept = all[mine.sequence] || {};
+      kept[main.pose.pic] = found.map((h) => Math.round(h * 1000) / 1000);
+      const pics = Object.keys(kept);
+      if (pics.length > 60) delete kept[pics[0]];  // les plus anciennes d'abord
+      all[mine.sequence] = kept;
+      try { localStorage.setItem(PARALLAX_KEY, JSON.stringify(all)); } catch { /* sans stockage : pour cette page seulement */ }
+      mine.parallax = found;
+    }
+    mine.height = sequenceParallax(mine.sequence) ?? median(mine.parallax || []) ?? null;
     mine.estimating = false;
     await showImage();
   }
@@ -1307,6 +1322,8 @@ const Dessus = (() => {
     }
     if (!shown && parked?.pic === photo.id) resume();
     if (shown?.pic === photo.id) {  // même photo : inclinaison, hauteur ou voisines arrivées, image refaite
+      const vertical = (p) => [p, ...p.neighbours].filter((q) => q.up && !q.pending).length;
+      if (vertical(pose) > vertical(shown.pose) && !shown.estimating) shown.estimated = false;  // verticales arrivées : hauteur entre photos refaite
       Object.assign(shown, { key, pose, features });
       if (pose.bridge && shown.terrain) dropTerrain(shown);  // pont connu après le terrain
       if (!pose.pending) shown.sequenceHeight = sequenceHeight(photo.collection, pose);  // hauteur vérifiée arrivée après
@@ -1322,7 +1339,7 @@ const Dessus = (() => {
     }
     parked = null;
     const controller = abort = new AbortController(), { signal } = controller;
-    shown = { photo, pic: photo.id, sequence: photo.collection, height: median(heights.get(photo.collection) || []) ?? null, estimated: false, estimating: false, key, pose, features, panos: new Map(), loading: new Set(), terrain: null, sigmaGround: FLAT_SIGMA, terrainFailed: false, url: null };
+    shown = { photo, pic: photo.id, sequence: photo.collection, height: sequenceParallax(photo.collection), estimated: false, estimating: false, key, pose, features, panos: new Map(), loading: new Set(), terrain: null, sigmaGround: FLAT_SIGMA, terrainFailed: false, url: null };
     const known = computed.get(photo.id);
     if (known) Object.assign(shown, known);  // déjà vue : terrain, raccords et position repris
     if (pose.bridge && shown.terrain) dropTerrain(shown);
