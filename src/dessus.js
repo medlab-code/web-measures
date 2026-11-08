@@ -722,10 +722,12 @@ const Dessus = (() => {
   const SEAM = 1.5;  // m : demi-zone du raccord, où l'ajustement est vérifié
   const BLOCK = 48, SEARCH = 40, BLOCK_STEP = 20;  // px (3 cm) : côté d'un bloc, recherche de part et d'autre, pas des blocs
   const JOIN_REACH = 11;  // m : au-delà, photo trop floue pour s'y fier
-  // A priori sur la pose relative (écarts types : décalage 0,3 m, angles 1°, échelle 3 % ; mesures à 2 cm) : un terme mal
-  // déterminé par une zone commune étroite reste près de 0. Au-delà de JOIN_LIMIT, correction refusée. Même ordre que
+  // A priori sur la pose relative (écarts types : décalage 0,3 m, angles 1°, échelle 0,5 % ; mesures à 2 cm) : un terme mal
+  // déterminé par une zone commune étroite reste près de 0. Échelle tenue serrée : même caméra, même hauteur ; le long de
+  // la route, elle se confond presque avec le décalage (a9fd217d, 08/11/2026 : 85 cm et 11 % d'un côté, 3 cm et 2 % dans
+  // l'autre sens pour le même raccord, l'image tordue au-delà). Au-delà de JOIN_LIMIT, correction refusée. Même ordre que
   // les termes de alignJoin : décalages, tangage, lacet, échelle, roulis
-  const JOIN_PRIOR = [0.3, 0.3, toRad, toRad, 0.03, toRad].map((s) => (0.02 / s) ** 2);
+  const JOIN_PRIOR = [0.3, 0.3, toRad, toRad, 0.005, toRad].map((s) => (0.02 / s) ** 2);
   const JOIN_LIMIT = [0.8, 0.8, 3 * toRad, 3 * toRad, 0.06, 3 * toRad];
 
   /** Photo seule dessinée (réglages en cours, sans recalage) : gris (0-255) passe-haut, sûr (0/1), lignes du sud au nord. */

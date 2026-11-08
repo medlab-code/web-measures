@@ -140,7 +140,10 @@ recalée sur elle.
    (t tangage, r roulis, l lacet, e échelle). Les six termes sont ajustés aux moindres carrés, les mauvaises
    correspondances écartées.
 6. Un **a priori** garde près de 0 un terme mal déterminé quand la zone commune est étroite (écarts types : 0,3 m, 1°,
-   3 %).
+   0,5 %). L'échelle est tenue serrée : deux photos de la même caméra ont la même hauteur, et le long de la route une
+   échelle se confond presque avec un décalage (lignes parallèles). Plus lâche (3 %), l'ajustement trouvait parfois
+   85 cm et 11 % là où 3 cm et 2 % suffisaient : juste au raccord, l'image tordue au-delà (a9fd217d, 08/11/2026). Sur
+   34 vues : 61 raccords recalés sur 68 au lieu de 59, écart final médian inchangé (2,4 cm).
 7. **Contrôle :** l'ajustement se fait hors de la zone du raccord (±1,5 m), et l'écart est mesuré au raccord, sur des
    blocs qu'il n'a pas vus. La correction n'est gardée que si l'écart médian y baisse et si elle reste plausible
    (0,8 m, 3°, 6 %). Sinon la voisine reste telle quelle.

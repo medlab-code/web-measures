@@ -630,7 +630,9 @@ ligne en long ne fixe que le travers, un passage piéton ou une plaque les deux.
 `tu + t (H² + u²) / H + r u v / H + l v + e u` et, en travers, `tv + t u v / H + r (H² + v²) / H - l u + e v`
 (t tangage, r roulis, l lacet, e échelle, tu et tv décalage). Ces six termes sont ajustés aux moindres carrés,
 mauvaises correspondances écartées, avec un a priori qui garde près de 0 un terme mal déterminé (écarts types 0,3 m,
-1°, 3 %), **hors de la zone du raccord** (±1,5 m) : l'écart y est mesuré avant et après, sur des blocs que
+1°, 0,5 % : même caméra, même hauteur ; plus lâche, l'échelle se confondait avec le décalage le long de la
+route et tordait l'image au-delà du raccord), **hors de la zone du raccord** (±1,5 m) : l'écart y est mesuré avant
+et après, sur des blocs que
 l'ajustement n'a pas vus. La correction est gardée si l'écart médian baisse et qu'elle reste dans des bornes
 plausibles (0,8 m, 3°, 6 %). La voisine est alors dessinée au point déplacé ; la principale ne bouge pas, et son
 erreur d'échelle reste à caler (tangage). Pas de recalage sans assez de sol net en commun.
