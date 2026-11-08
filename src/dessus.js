@@ -384,7 +384,8 @@ const Dessus = (() => {
     g.uniform1f(uniform("reflect"), REFLECT);
     g.uniform1f(uniform("masked"), layers.length > 1 ? 1 : 0);  // photo seule : son véhicule plutôt qu'un trou
     g.uniform1i(uniform("stage"), stage);
-    g.uniform4f(uniform("band"), band ? band[0] : 0, band ? band[1] : 1, band ? BEST.along : 1e6, band ? BEST.wide : 1e6);
+    // band : axe de la route [est, nord], et demi-longueur, demi-largeur gardées (par défaut la bande verte)
+    g.uniform4f(uniform("band"), band ? band[0] : 0, band ? band[1] : 1, band ? band[2] ?? BEST.along : 1e6, band ? band[3] ?? BEST.wide : 1e6);
     for (const [k, { pano, pose, fix }] of layers.entries()) {
       g.uniform1f(uniform("index"), k + 1);
       const [tu, tv, pitch, yaw, scale, roll] = fix || [0, 0, 0, 0, 0, 0];
@@ -1179,7 +1180,10 @@ const Dessus = (() => {
   let drawing = 0;  // dernier dessin demandé : l'image d'un dessin dépassé est jetée
   async function showImage() {
     shown.joinKeyNow = joinKey();  // recalage des raccords valable pour ces réglages seulement
-    const layers = readyLayers(), pose = shown.pose, mine = ++drawing, canvas = (blendOn ? renderBlended : render)(layers, shown.terrain, layers[0].pose, bandOnly ? roadAxis(layers) : null, fine ? FINE_SIZE : SHOWN_SIZE);
+    const layers = readyLayers(), pose = shown.pose, mine = ++drawing, axis = roadAxis(layers);
+    // découpée à 90° dans le prolongement des grands côtés de la bande verte : rien de plus loin de la route ; « Bande verte
+    // seule » : la bande
+    const canvas = (blendOn ? renderBlended : render)(layers, shown.terrain, layers[0].pose, bandOnly ? axis : [...axis, 1e6, BEST.wide], fine ? FINE_SIZE : SHOWN_SIZE);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
     if (mine !== drawing || !shown) return;
     const old = shown.url, url = shown.url = URL.createObjectURL(blob);

@@ -45,7 +45,9 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
 3. Pour chaque pixel de l'image, le shader calcule le rayon de la caméra au point du sol, le tourne dans le repère de
    la photo (cap et inclinaison, même rotation que `Calibration.uncorrect`), en déduit les coordonnées dans la photo
    équirectangulaire et y lit la couleur.
-4. Au-delà de 10 m, l'image est grisée : 0,6° d'inclinaison y déplacent déjà un point d'environ 50 cm (§ 3).
+4. L'image affichée est **découpée à ±8 m de l'axe de la route**, dans le prolongement des grands côtés de la bande
+   verte (bords droits, parallèles à la route) : rien de plus loin de la route. « Bande verte seule » ne garde que la bande.
+5. Au-delà de 10 m, l'image est grisée : 0,6° d'inclinaison y déplacent déjà un point d'environ 50 cm (§ 3).
 
 **Résolution :** l'image affichée fait 2 048 px pour 30 m, soit 1,5 cm par pixel ; l'interrupteur « Haute résolution »
 la porte à 4 096 px (0,7 cm par pixel : grain et bords de ligne plus nets près de la caméra, quelques secondes de plus).
