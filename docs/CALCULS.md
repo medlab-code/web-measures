@@ -371,7 +371,8 @@ L'**intensité** du retour laser des points classés sol (classe 2) distingue le
 laser est en proche infrarouge :
 
 - **enrobé** : sombre, sous 1,6 fois l'intensité sous l'origine ;
-- **ligne blanche** : bande étroite (0,75 m au plus) au moins 3 fois plus claire que l'enrobé ;
+- **ligne blanche** : bande étroite (0,75 m au plus) au moins 3 fois plus claire que l'enrobé et
+  2 fois plus claire que ses cases voisines ;
 - **surface non revêtue** (herbe, gravillons, béton) : bande d'au moins 1 m plus claire que
   l'enrobé ;
 - **herbe au sol** : bande non revêtue en moyenne **3,5 fois** plus claire que l'enrobé. La
@@ -394,6 +395,12 @@ Ce que l'analyse en tire :
   dernière avant elle. Les lignes à moins de 1,2 m de l'axe d'une chaussée sont des lignes entre
   voies et sont écartées. Sans ligne de rive, le bord est la fin de l'enrobé. Les lignes blanches
   ne sont cherchées que sur la plateforme.
+- **Lignes blanches à tirets** : le travers de la photo (±1 m le long de la route, soit 2 m) peut
+  tomber entre deux tirets (f478a847 : tirets tous les 6,5 m environ, 4 m de vide à la photo). Une ligne
+  absente de ce travers est reprise si elle se voit sur au moins 2 des 5 travers de −4 à +4 m, à
+  0,5 m près d'un travers à l'autre, et seulement sur la chaussée (hors séparateur), à sa position au
+  travers le plus proche de la photo. Elle sert au dessin et à la ligne de rive ci-dessus, pas
+  au bord d'enrobé. Limite : une ligne à tirets très espacés (10 m de vide) peut encore échapper.
 - **Séparateur** : la bande non revêtue entre les deux chaussées (0,5 à 12 m, glissières
   comprises, que le MNT ne voit pas), son milieu à 2 m au plus de celui du § 8.3, qu'elle
   remplace.

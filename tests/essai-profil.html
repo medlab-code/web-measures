@@ -2,7 +2,8 @@
 <!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
 <!-- Fond du graphique du profil en travers (ticket #38) sur des profils synthétiques, sans réseau : 1 m sous le point le
-     plus bas du terrain si son haut reste dans la moitié basse du cadre, sinon 0,3 m ; place libre en haut.
+     plus bas du terrain si son haut reste dans la moitié basse du cadre, sinon 0,3 m ; place libre en haut ; toujours assez
+     de place sous la chaussée pour ses deux étiquettes (2,85 m à l'échelle de ces profils, 20,35 px/m).
      Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
 <script src="../src/profil.js"></script>
 <script src="../src/nuage.js"></script>
@@ -35,11 +36,29 @@ const check = (what, drawn, expected) => {
 };
 try {
   const flat = [crossing(0, () => -0.1, 17)];
-  check("terrain plat, à l'échelle", Profil.draw(profile(flat), true), 1);
+  check("terrain plat, à l'échelle", Profil.draw(profile(flat), true), 2.75);
   check("talus descendant à −3 m, à l'échelle", Profil.draw(profile([crossing(0, (x) => -Math.min(3, x), 17)]), true), 1);
-  check("talus montant à +8 m, à l'échelle", Profil.draw(profile([crossing(0, (x) => Math.min(8, x * 1.5), 17)]), true), 0.3);
+  check("talus montant à +8 m, à l'échelle", Profil.draw(profile([crossing(0, (x) => Math.min(8, x * 1.5), 17)]), true), 2.85);
   check("terrain plat, hauteurs exagérées", Profil.draw(profile(flat), false), 0.3);
   check("point le plus bas sur un autre travers", Profil.draw(profile([...flat, crossing(5, (x) => -Math.min(2, x), 17)]), true), 1);
+  // Étiquettes sous la chaussée : ni sur la chaussée, ni l'une sur l'autre, ni collées au bas du cadre
+  const roomy = (what, crossings, trueScale) => {
+    const { svg } = Profil.draw({ ...profile(crossings), plateforme: { type: "sens", pente: 2.3 } }, trueScale);
+    document.documentElement.append(svg);
+    const [width, slope] = [...svg.querySelectorAll("text.place")].filter((t) => /^(plateforme|dévers)/.test(t.textContent)).map((t) => t.getBBox());
+    const road = svg.querySelector(".chaussee").getBBox(), plotBottom = Math.max(...[...svg.querySelectorAll("line.grille")].map((l) => Number(l.getAttribute("y2"))));
+    svg.remove();
+    const ok = width.y >= road.y + road.height && slope.y >= width.y + width.height - 2 &&  /* cadres de ligne : 17,4 px pour 16 px de pas, sans contact des lettres */ slope.y + slope.height <= plotBottom - 8;
+    checks++; if (!ok) failures++;
+    log(`${ok ? "" : "ÉCHEC "}étiquettes sous la chaussée, ${what} : ${(plotBottom - slope.y - slope.height).toFixed(0)} px au-dessus du bas`);
+  };
+  const tilted = crossing(0, () => -0.1, 17).map((c) => ({ ...c, points: c.points.map(([d, z]) => [d, d <= 3 && c.cote === "droit" ? -0.03 * d : z]) }));
+  const hill = (x) => Math.min(8, x * 1.5);
+  roomy("terrain plat, à l'échelle", flat, true);
+  roomy("terrain plat, exagéré", flat, false);
+  roomy("talus montant, à l'échelle", [crossing(0, hill, 17)], true);
+  roomy("talus montant, exagéré", [crossing(0, hill, 17)], false);
+  roomy("chaussée en dévers, exagéré", [tilted], false);
   // Dévers de la plateforme : sur le graphique et dans la légende
   const text = (plateforme) => { const d = Profil.draw({ ...profile(flat), plateforme }, true); return [d.svg.textContent, d.legend.textContent]; };
   const says = (what, [graph, legend], inGraph, inLegend) => { checks++; const ok = graph.includes(inGraph) && legend.includes(inLegend); if (!ok) failures++;
@@ -84,6 +103,20 @@ try {
   paved("gravillons à 3 fois puis herbe", (x) => (x < 5 ? 300 : x < 8 ? 900 : 2000), 4.9);
   paved("pas d'abords clairs", () => 320, null);
   paved("bord au-delà de la limite", (x) => (x < 14 ? 300 : 1400), null);
+  // Ligne blanche : nettement plus claire que ses voisines ; surface du séparateur au seuil (1640bc3f, −3,5 m) écartée, malgré la case vide à côté
+  const narrow = (what, cases, expected) => { const got = Nuage.brightRuns(cases.map(([x, i]) => ({ x, i })), 100).map((r) => r[2]), ok = JSON.stringify(got) === JSON.stringify(expected);
+    checks++; if (!ok) failures++; log(`${ok ? "" : "ÉCHEC "}ligne blanche, ${what} : ${JSON.stringify(got)} (attendu ${JSON.stringify(expected)})`); };
+  narrow("sur l'enrobé", [[-0.25, 110], [0, 1000], [0.25, 120]], [true]);
+  narrow("sur deux cases", [[-0.25, 110], [0, 900], [0.25, 1600], [0.5, 370]], [true]);
+  narrow("surface du séparateur", [[-3.75, 290], [-3.5, 300], [-3, 200]], [false]);
+  narrow("large : pas de la peinture", [0, 1, 2, 3, 4].map((k) => [k * 0.25, 900]), [false]);
+  // Lignes à tirets (f478a847) : vue sur 2 travers, gardée au plus près de la photo ; vue sur 1 seul, écartée ; deux lignes distinctes
+  const dashes = (what, sections, expected) => { const got = Nuage.dashedLines(sections), ok = JSON.stringify(got) === JSON.stringify(expected);
+    checks++; if (!ok) failures++; log(`${ok ? "" : "ÉCHEC "}lignes à tirets, ${what} : ${JSON.stringify(got)} (attendu ${JSON.stringify(expected)})`); };
+  dashes("deux travers, le plus proche de la photo", [[-4, [1.25]], [-2, []], [0, []], [2, [1]], [4, [1.25]]], [1]);
+  dashes("un seul travers : écartée", [[-4, []], [-2, [1]], [0, []], [2, []], [4, []]], []);
+  dashes("deux lignes distinctes", [[-4, [-2.5, 1]], [2, [-2.25, 1.25]]], [-2.25, 1.25]);
+  dashes("trop éloignées d'un travers à l'autre", [[-4, [1]], [2, [2]]], []);
   // Route étroite : le graphique est à sa hauteur ; la caméra (1,9 m) ne compte pas comme haut du terrain
   check("caméra au-dessus d'un terrain plat", Profil.draw(profile([crossing(0, () => -0.1, 4)], "caméra"), true, null, true, 1.9), 1);
 } catch (error) { failures++; log("ÉCHEC exception : " + (error.stack || error)); }

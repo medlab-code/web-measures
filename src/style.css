@@ -143,6 +143,8 @@ header .essai {
   color: var(--attente);
   white-space: nowrap;
 }
+/* Site de la branche dev : sous la mention « version test » */
+header .branche { font-size: 0.8em; line-height: 1; font-weight: 600; color: var(--echec); white-space: nowrap; }
 h2 { font-size: 0.95rem; margin: 0 0 0.4rem; }
 
 main { flex: 1; display: flex; min-height: 0; }
@@ -535,6 +537,12 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   cursor: pointer; }
 .options .option:first-child { border-top: 0; }
 .texte-option { flex: 1; min-width: 0; }
+/* Format de la vidéo : vert encodeur matériel, jaune logiciel ; couleurs vives, texte foncé dans les deux thèmes */
+#video-formats { display: grid; grid-template-columns: auto repeat(3, 1fr); align-items: center; gap: 0.25rem; font-size: 0.85em; white-space: nowrap; }
+#video-formats button { padding: 0.15rem 0.35rem; border: 1px solid var(--bord); border-radius: 4px; background: var(--encart); color: var(--texte); font-size: 1em; }
+#video-formats button[data-encodeur="materiel"]:not(:disabled) { border-color: #2e7d32; background: #8fd694; color: #111; cursor: pointer; }
+#video-formats button[data-encodeur="logiciel"]:not(:disabled) { border-color: #a88600; background: #ffdf6b; color: #111; cursor: pointer; }
+#video-formats button[aria-pressed="true"]:not(:disabled) { outline: 2px solid var(--texte); outline-offset: 1px; font-weight: 600; }
 .texte-option .aide { display: block; margin-top: 0.1rem; font-size: 0.85em; }
 .texte-option .reglette-option { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.2rem; font-size: 0.85em; }
 .texte-option .reglette-option input { width: 8em; margin: 0; }

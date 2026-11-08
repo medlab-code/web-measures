@@ -8,6 +8,12 @@
 (() => {
   const $ = (selector) => document.querySelector(selector);
 
+  // Site de la branche dev (second Worker) : même code que main, seul le nom d'hôte les distingue
+  if (location.hostname.startsWith("web-measures-dev.")) {
+    $(".essai").insertAdjacentHTML("afterend", '<span class="branche">Branche expérimentale</span>');
+    $('link[rel="icon"]').href = "src/favicon-dev.svg";
+  }
+
   // Services qui ne répondent pas (panne, réseau, plus de SILENT_AFTER ms sans réponse, erreur
   // HTTP 5xx) : signalés discrètement sous les voyants, jusqu'à leur réponse suivante. Toutes les
   // requêtes de la page passent par fetch, celles du calcul Python (pyfetch) comprises ; les refus
@@ -2695,11 +2701,66 @@
   const VIDEO_PLAN_DELAY = 800;  // ms : recherche des photos après le dernier changement du parcours
   const VIDEO_STALL = 30, VIDEO_GIVE_UP = 300;  // s sans image calculée : avertissement, puis arrêt de la vidéo
   const videoOk = Video.supported();
-  let hevcOk = false;  // poste qui annonce un encodeur H.265 : proposé
-  Video.hevcSupported().then((ok) => {
-    hevcOk = ok;
-    updatePlayer();
-  });
+  // Format de la vidéo : grille codec × définition, au-dessus des listes #video-codec et #video-definition (cachées, gardées
+  // dans les réglages du parcours). Encodeurs testés à la première ouverture de l'onglet : une image par format
+  const FORMAT_NAMES = { vp9: "VP9", h264: "H.264", h265: "H.265" };
+  const FORMAT_ORDER = ["h264", "vp9", "h265"];  // format pris quand celui demandé n'est pas disponible
+  let videoFormats = null;  // encodeur par format (Video.encoderChoices), null avant le test
+  const formatGrid = $("#video-formats");
+  for (const [format, name] of Object.entries(FORMAT_NAMES)) {
+    formatGrid.append(Object.assign(document.createElement("span"), { textContent: name }));
+    for (const option of $("#video-definition").options) {
+      const button = Object.assign(document.createElement("button"), { type: "button", textContent: option.text, disabled: true });
+      Object.assign(button.dataset, { format, height: option.value });
+      button.addEventListener("click", () => {
+        $("#video-codec").value = format;
+        $("#video-definition").value = option.value;
+        updatePlayer();
+      });
+      formatGrid.append(button);
+    }
+  }
+  /** Format disponible le plus proche de la définition height : [codec, définition] ; null sans aucun. */
+  function nearestFormat(height) {
+    for (const h of [height, ...[...$("#video-definition").options].map((o) => o.value)]) {
+      const format = FORMAT_ORDER.find((f) => videoFormats[`${f}-${h}`]);
+      if (format) return [format, h];
+    }
+    return null;
+  }
+  /** Format demandé indisponible (parcours gardé sur un autre poste, Firefox sous Linux sans H.264) : le plus proche. */
+  function keepFormat() {
+    if (!videoFormats || videoFormats[`${$("#video-codec").value}-${$("#video-definition").value}`]) return;
+    const near = nearestFormat($("#video-definition").value);
+    if (near) [$("#video-codec").value, $("#video-definition").value] = near;
+  }
+  function updateFormats() {
+    const draft = $("#video-brouillon").checked;
+    for (const button of formatGrid.querySelectorAll("button")) {
+      const { format, height } = button.dataset, encoder = videoFormats?.[`${format}-${height}`];
+      button.dataset.encodeur = encoder || "";
+      button.disabled = Boolean(videoRun) || draft || !encoder;
+      button.setAttribute("aria-pressed", String($("#video-codec").value === format && $("#video-definition").value === height));
+      button.title = `${FORMAT_NAMES[format]}, ${height}p : ${!videoFormats ? "test de l'encodeur en cours"
+        : !encoder ? "pas disponible sur ce poste" : encoder === "materiel" ? "encodeur matériel" : "encodeur logiciel, plus lent"}${draft ? " (brouillon : toujours 960 × 540)" : ""}`;
+    }
+  }
+  new IntersectionObserver(([entry], observer) => {
+    if (!entry.isIntersecting) return;
+    observer.disconnect();
+    Video.encoderChoices().then((choices) => {
+      videoFormats = choices;
+      // Valeurs de la page (remise à zéro, choix du mode) : un format que le poste encode
+      const [format, height] = nearestFormat("1080") || ["h264", "1080"];
+      for (const [select, value] of [[$("#video-codec"), format], [$("#video-definition"), height]]) {
+        const kept = select.value;
+        for (const option of select.options) option.defaultSelected = option.value === value;
+        select.value = kept;
+      }
+      keepFormat();
+      updatePlayer();
+    });
+  }).observe($("#parcours"));
   const TILES_WAIT = 4000;  // ms : attente au plus des tuiles HD d'une vue du parcours (réseau lent)
   const TOUR_REACH = 40;  // m : photos du départ et de l'arrivée cherchées à cette distance (même séquence)
   const TOUR_END = 30;  // m : hors de la séquence de l'arrivée, arrivée passée quand la distance remonte sous ce seuil
@@ -3667,7 +3728,7 @@
       else e.value = r.settings[e.id];
       if (e.type === "range") e.dispatchEvent(new Event("input"));  // valeur affichée à côté
     }
-    if (!hevcOk) $("#video-codec").value = "h264";  // gardé sur un poste qui a l'encodeur
+    keepFormat();
     videoPlan = null;
     showPoiZone();
     updateTravel();
@@ -3708,8 +3769,7 @@
   const videoOption = (id) => $(id).checked && !$("#video-brouillon").checked;
   const DRAFT_OFF = ["#video-compteur", "#video-acceleration", "#video-vmax-arp", "#video-stabilisation", "#video-flou", "#video-expo", "#video-regard", "#regard-vitesse",
     "#video-interet", "#interet-cible", "#interet-vitesse", "#interet-zoom", "#interet-zoom-distance", "#interet-tonneau", "#video-tonneau", "#tonneau-duree",
-    "#video-tour", "#tour-duree", "#tour-arret", "#video-planete", "#planete-tout", "#planete-transition", "#planete-tonneau", "#planete-rotation", "#arret-duree", "#video-arret",
-    "#video-codec", "#video-definition"];
+    "#video-tour", "#tour-duree", "#tour-arret", "#video-planete", "#planete-tout", "#planete-transition", "#planete-tonneau", "#planete-rotation", "#arret-duree", "#video-arret"];
   /** Réglages du mode Présentation pour Video (vitesses en m/s), ou null dans un autre mode. */
   function presOptions() {
     if ($("#video-mode").value === "revue") return null;
@@ -4146,7 +4206,7 @@
       // sinon (Firefox) assemblée en mémoire puis téléchargée
       if (save.handle) stream = await save.handle.createWritable();
       Video.ignoredPlaces();  // liste remise à zéro (aperçus et durées déjà calculés)
-      const blob = await Video.mp4(videoPhotos(), Number($("#video-vitesse").value), (done, total) => {
+      const blob = await Video.mp4(videoPhotos(), Number($("#video-vitesse").value), (done, total, step) => {
         last = Date.now();
         if (warned) {
           warned = false;
@@ -4155,13 +4215,14 @@
         // Largeur fixe (chiffres de même largeur, espaces de la largeur d'un chiffre) : le texte ne saute pas
         const pad = (n, width) => String(n).padStart(width, "\u2007");
         const width = Math.max(5, String(total).length);  // place pour une longue vidéo (99 999 images, 55 min)
-        const text = `Calcul de la vidéo en cours : image ${pad(done, width)} / ${pad(total, width)} `
-          + `(${pad(Math.round(100 * done / total), 3)} %)`;
+        // step : préparation avant la première image (Stabilisation, Exposition)
+        const text = step ? `${step} avant le calcul de la vidéo : ${pad(Math.round(100 * done / total), 3)} %`
+          : `Calcul de la vidéo en cours : image ${pad(done, width)} / ${pad(total, width)} (${pad(Math.round(100 * done / total), 3)} %)`;
         $("#video-info").textContent = text;
         $("#video-barre").value = done / total;
         setStatus(text, "avancement");
         $("#statut").style.setProperty("--avancement", `${(100 * done / total).toFixed(1)}%`);
-      }, videoRun.signal, { blur: videoOption("#video-flou"), draft: $("#video-brouillon").checked, stabilize: videoOption("#video-stabilisation"), h265: !$("#video-brouillon").checked && $("#video-codec").value === "h265", height: Number($("#video-definition").value), exposure: videoOption("#video-expo"),
+      }, videoRun.signal, { blur: videoOption("#video-flou"), draft: $("#video-brouillon").checked, stabilize: videoOption("#video-stabilisation"), format: $("#video-codec").value, height: Number($("#video-definition").value), exposure: videoOption("#video-expo"),
         ramp: !presOptions() && $("#video-rampe").checked, presentation: presOptions(),
         counter: videoOption("#video-compteur"), speedometer: $("#video-compteur-vitesse").checked, lateral: videoOption("#video-acceleration"), arpSpeed: videoOption("#video-vmax-arp"),
         junctions: videoOption("#video-regard") ? videoPlan.junctions || [] : [],
@@ -4184,7 +4245,7 @@
       const made = Video.times, format = { avc: "H.264", hevc: "H.265", vp9: "VP9" }[made.codec];
       const text = `Vidéo enregistrée dans « ${save.fileName} » : ${made.width} × ${made.height}, ${format}, ${(size / 1e6).toFixed(1)} Mo, `
         + `${Math.round((Date.now() - t0) / 1000)} s de calcul.`
-        + ($("#video-codec").value === "h265" && made.codec !== "hevc" ? " H.265 refusé par l'encodeur du poste." : "")
+        + (!$("#video-brouillon").checked && format !== FORMAT_NAMES[$("#video-codec").value] ? ` ${FORMAT_NAMES[$("#video-codec").value]} refusé par l'encodeur du poste.` : "")
         + (away.length ? ` Repères ignorés, à plus de 30 m du parcours : ${away.join(", ")}.` : "");
       setStatus(text);
       notice(text);
@@ -4407,10 +4468,7 @@
       "#video-planete", "#planete-tout", "#planete-transition", "#planete-rotation", "#video-tour", "#tour-duree", "#tour-arret"]) {
       $(id).disabled = Boolean(videoRun);
     }
-    $("#video-codec").disabled = Boolean(videoRun) || !hevcOk;
-    $("#video-codec").title = hevcOk ? "H.265 : fichier plus léger, mais pas lu par tous les lecteurs et navigateurs"
-      : "Ce navigateur ou ce poste n'encode pas le H.265 (encodeur matériel nécessaire, navigateurs à base de Chromium)";
-    $("#video-definition").disabled = Boolean(videoRun) || $("#video-brouillon").checked;  // toujours 960 × 540
+    updateFormats();
     travelPane.querySelector('.sur-carte[data-cote="planet"]').disabled = $("#planete-tout").checked;  // rien à tracer
     $("#planete-tonneau").disabled = Boolean(videoRun) || !Number($("#planete-transition").value);
     $("#video-mode").disabled = Boolean(videoRun);

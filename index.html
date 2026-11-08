@@ -45,8 +45,8 @@
           <label>Mode
             <select id="mode" disabled>
               <optgroup label="Mesures">
-                <option value="road">Largeur perpendiculaire à la chaussée</option>
                 <option value="height">Hauteur d'un objet</option>
+                <option value="road">Largeur perpendiculaire à la chaussée</option>
                 <option value="tri">Mesure libre (points triangulés)</option>
               </optgroup>
               <optgroup label="Relevé">
@@ -432,7 +432,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           </div>
           <p id="video-mode-aide" class="aide"></p>
           <div class="action-video"><button id="parcours-video" type="button" class="principal" disabled
-              title="Vidéo MP4 du départ à l'arrivée, sans lire le parcours (1920 × 1080 ou 1280 × 720 au choix ; 30 images/s), calculée depuis les tuiles HD : « Préparer » cherche les photos et prévient d'un changement de séquence, « Enregistrer » la calcule">🎬 Préparer la vidéo</button>
+              title="Vidéo MP4 du départ à l'arrivée, sans lire le parcours (1080p, 720p ou 480p au choix ; 30 images/s), calculée depuis les tuiles HD : « Préparer » cherche les photos et prévient d'un changement de séquence, « Enregistrer » la calcule">🎬 Préparer la vidéo</button>
             <button id="parcours-video-arret" type="button" class="principal" hidden>■ Arrêter</button></div>
           <progress id="video-barre" max="1" value="0" hidden aria-label="Avancement du calcul de la vidéo"></progress>
           <p id="video-info" class="aide"></p>
@@ -516,10 +516,11 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           </details>
           <details class="theme-video" open><summary>Réglages qualité</summary>
           <div class="options">
-            <div class="option" title="Format du fichier MP4. 720p : calcul plus rapide, fichier plus léger. Brouillon : toujours 960 × 540">
-              <span class="texte-option">Format<span class="aide">H.265 : fichier plus léger, si le poste a un encodeur matériel.</span></span>
-              <select id="video-codec" aria-label="Codec de la vidéo" disabled><option value="h264" selected>H.264</option><option value="h265">H.265</option></select>
-              <select id="video-definition" aria-label="Définition de la vidéo"><option value="1080" selected>1080p</option><option value="720">720p</option></select>
+            <div class="option" title="Format du fichier MP4. Définition plus basse : calcul plus rapide, fichier plus léger. H.265 : fichier plus léger, pas lu par tous les lecteurs. VP9 : calcul plus long, peut-être pas lu par PowerPoint. Brouillon : toujours 960 × 540">
+              <span class="texte-option">Format<span class="aide">Vert : encodeur matériel. Jaune : encodeur logiciel, plus lent. Grisé : pas disponible sur ce poste.</span></span>
+              <select id="video-codec" hidden><option value="h264" selected>H.264</option><option value="h265">H.265</option><option value="vp9">VP9</option></select>
+              <select id="video-definition" hidden><option value="1080" selected>1080p</option><option value="720">720p</option><option value="480">480p</option></select>
+              <div id="video-formats" role="group" aria-label="Codec et définition de la vidéo"></div>
             </div>
             <div class="option" title="Photos de la séquence prises pour la vidéo : toutes, une sur 2, 4 ou 8 (plus d'écart, moins de téléchargement)">
               <span class="texte-option">Part des photos<span class="aide">Moins de photos : moins de téléchargement.</span></span>

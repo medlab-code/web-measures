@@ -397,6 +397,8 @@ class App(session.Session):
         if remote is not None:
             autotilt.HAS_NUMPY = True  # verticales calculées dans le Pyodide d'arrière-plan, qui a numpy
         super().__init__(notify, precision_checker=RankPrecisionChecker())
+        self.mode = "height"  # mode de départ : première option de la liste Mode (index.html)
+        self.tool.set_mode(self.mode)
         self.items, self.rays = [], []
         self.tool.new_item = self._new_item
         self.triangulator.new_item = self._new_rays

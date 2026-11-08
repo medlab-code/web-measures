@@ -126,10 +126,10 @@ aussi, dans la ligne d'état en orange et sous les listes, si le
 parcours passe d'une séquence à l'autre (dates des séquences ; les photos peuvent différer) ; « 🎬 Enregistrer la
 vidéo » demande le fichier puis la calcule (deux clics : le navigateur n'ouvre la boîte d'enregistrement que juste
 après un clic). Changer le départ ou l'arrivée oblige à la préparer de nouveau. La vidéo est calculée image par
-image, hors de la visionneuse : 1920 × 1080 ou 1280 × 720 au choix (720p si le poste n'encode pas le 1080p), 30 images par seconde, H.264 à 80 Mbit/s
-en 1080p, 40 en 720p (environ 10 Mo par seconde de vidéo en 1080p, moins si le poste n'atteint pas ce débit ; à 30 Mbit/s, image en blocs sous Windows). Firefox sous Linux, en français, annonce le
+image, hors de la visionneuse : 1080p, 720p ou 480p au choix (voir « Format »), 30 images par seconde, H.264 à 80 Mbit/s
+en 1080p, 40 en 720p, 20 en 480p (environ 10 Mo par seconde de vidéo en 1080p, moins si le poste n'atteint pas ce débit ; à 30 Mbit/s, image en blocs sous Windows). Firefox sous Linux, en français, annonce le
 H.264 sans réussir à l'encoder (bug Mozilla 2085549 : niveau « 3,1 » écrit avec une virgule ; lancé avec
-`LC_NUMERIC=C`, il l'encode) : VP9 à 20 Mbit/s, de qualité voisine, calcul environ quatre fois plus long, fichier lu
+`LC_NUMERIC=C`, il l'encode) : VP9, à 20 Mbit/s en 1080p, pris alors d'office, de qualité voisine, calcul environ quatre fois plus long, fichier lu
 par Chrome, Firefox et VLC, peut-être pas par PowerPoint, une seconde d'arrêt au début et à la fin. Deux listes à côté du bouton : la vitesse
 simulée (de 30 à 720 km/h, 90 par défaut, puis Mach 1 et Mach 2 : 1 235 et 2 470 km/h, vitesse du son au niveau de
 la mer ; des photos y sont sautées) et la part des photos de la séquence prises (1/1, 1/2, 1/4, 1/8 ;
@@ -253,11 +253,11 @@ corrigé de la pente de la route, champ de 80° (le toit du véhicule n'y entre 
 caméra avance réellement dans une maquette simple de chacune (chaussée plane sur 4 m de part et d'autre
 de l'axe, reste du décor sur une sphère de 60 m) : la chaussée défile sans à-coup, puis la photo suivante
 prend le relais en fondu. Limites : un objet proche et haut (arbre, poteau) se dédouble pendant le
-fondu, la ligne des collines aussi un peu (photos qui ne penchent pas pareil). « Format » : H.265 (grisé si le poste n'a pas d'encodeur : navigateurs à base de Chromium, encodeur matériel nécessaire ; 30 Mbit/s en 1080p, fichier pas lu par
-tous les lecteurs ; H.264 si l'encodeur le refuse, dit à la fin du calcul) et 1080p ou 720p (grisé en brouillon). « Brouillon (rapide) » (décochée) : image SD
+fondu, la ligne des collines aussi un peu (photos qui ne penchent pas pareil). « Format » : grille VP9, H.264, H.265 × 1080p, 720p, 480p, chaque choix testé sur le poste (une image encodée) à la première ouverture de l'onglet : vert, encodeur matériel ; jaune, encodeur logiciel, plus lent ; grisé, pas disponible (H.265 : 30 Mbit/s en 1080p, fichier pas lu par
+tous les lecteurs, pas d'encodeur logiciel). Si l'encodeur refuse finalement le format choisi, le premier autre format qui encode est pris, dit à la fin du calcul. Toute la grille est grisée en brouillon. Le VP8 n'est pas proposé : il n'entre pas dans un fichier MP4. « Brouillon (rapide) » (décochée) : image SD
 de chaque photo au lieu de ses tuiles HD, vidéo en 960 × 540, à 7,5 Mbit/s, pour vérifier un parcours et ses effets avant le calcul final ;
 image floue (panneaux et marquage lointain illisibles) ; seuls restent le titre, le compteur de vitesse et les variations de vitesse automatiques (allure, ralentissements, rampe), le reste est grisé et ignoré.
-« Stabilisation » (cochée, sauf en brouillon) : les photos ne donnent ni tangage ni roulis ; le décalage entre deux photos voisines est mesuré sur leur image SD et les petits
+« Stabilisation » (cochée, sauf en brouillon ; une étape avant la première image, avec son avancement dans la barre d'état) : les photos ne donnent ni tangage ni roulis ; le décalage entre deux photos voisines est mesuré sur leur image SD et les petits
 sauts sont retirés du tangage et du roulis (au plus 2° par photo, variations sur plus de 40 m gardées) ; cap non corrigé par les images (le décor proche fausse la mesure), mais, avec ou sans l'option, l'arrondi au degré du cap des photos est lissé sur ± 60 m dans chaque séquence ; le cap de la vue suit la direction de l'axe de la route sur la plus longue portion, jusqu'à ± 150 m, qui s'écarte de moins de 1 m de sa corde : fixe en ligne droite malgré les petits coudes du tracé BD TOPO, il revient à ± 15 m dans les virages (± 30 m à 450 m de rayon, ± 60 m à 1 800 m) ; une image SD de plus à télécharger par photo. Chaque photo est vue de sa propre caméra et passe à la suivante par un fondu enchaîné
 (l'avancée simulée dans une maquette, retirée le 01/11/2026, faisait sauter le ciel et les côtés). Le calcul prend environ
 deux fois la durée de la vidéo si les tuiles sont déjà en cache (« ■ Arrêter » l'interrompt) ; sous Chrome et Edge, la
@@ -319,7 +319,7 @@ visées, sol LiDAR HD lu au point). Si la vérification RTK ou l'inclinaison aut
 après les clics, tout est recalculé : une mesure peut changer d'elle-même une ou deux secondes
 après.
 
-- **Hauteur d'un objet**
+- **Hauteur d'un objet** (mode à l'ouverture de la page)
   1. Viser le **pied** de l'objet depuis au moins deux photos (un clic par photo, flèches
      pour changer de photo), puis « Valider le point triangulé » : c'est le point de référence,
      et le pied de la hauteur.
@@ -497,14 +497,14 @@ après.
   **« Analyse fine »** (fenêtre du profil) : lit le nuage de points LiDAR HD de l'IGN (dalles COPC, à la volée,
   1 requête par seconde au plus : une vingtaine de secondes, 1 à 2 Mo) sur ±1 m le long de la route au travers
   de la photo. L'intensité du retour laser des points du sol distingue l'enrobé (sombre), les lignes blanches
-  (bandes étroites très claires) et les surfaces non revêtues (herbe, gravillons, béton : larges et claires).
+  (bandes étroites très claires, 2 fois plus que leurs voisines au moins) et les surfaces non revêtues (herbe, gravillons, béton : larges et claires).
   **Bord de chaussée** (tiret court) : le bord de la bande d'enrobé, médiane de 5 travers sur ±5 m autour de la photo :
   début de la première bande d'1 m ou plus, 2,2 fois plus claire que l'enrobé au moins, à mi-hauteur entre les deux ; la légende donne la largeur
   d'enrobé et sa dispersion entre travers ; la plateforme, son dévers, la chute et le dévers du talus se relisent alors depuis ces bords, l'encadré compris. Sans ces abords clairs (village, béton), à défaut : la ligne de rive, ligne blanche au début de la première bande non revêtue
   d'1 m ou plus, ou la dernière avant elle, hors des lignes entre voies (à moins de 1,2 m de l'axe d'une
   chaussée), sinon la fin de l'enrobé du seul travers de la photo. **Séparateur de chaussée** : la bande non revêtue entre les deux
   chaussées (glissières comprises, que le terrain seul ne voit pas), à 2 m au plus de celui du calcul, qu'elle
-  remplace (« nuage LiDAR »). Les lignes blanches sont dessinées en petits carrés blancs. Le bouton est grisé
+  remplace (« nuage LiDAR »). Les lignes blanches sont dessinées en petits carrés blancs ; une ligne à tirets absente du travers de la photo (vide entre deux tirets) est reprise si au moins 2 des 5 travers la voient. Le bouton est grisé
   pendant la lecture et une fois l'analyse faite pour ce profil. **Bande vert clair** : herbe au sol (classée « sol »
   par l'IGN) : bande non revêtue d'1 m au moins, en moyenne 3,5 fois plus claire que l'enrobé (le laser, en proche
   infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois). La case « Végétation » (cochée par défaut, choix retenu, grisée tant que l'analyse fine

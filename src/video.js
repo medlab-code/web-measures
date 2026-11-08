@@ -20,7 +20,7 @@
 const Video = (() => {
   let lastTimes = null;  // chronos du dernier export (voir mp4)
   const FPS = 30;
-  const SIZES = [[1920, 1080, 1], [1280, 720, 0.5]];  // largeur, hauteur, part du débit du codec : la première encodable
+  const SIZES = [[1920, 1080, 1], [1280, 720, 0.5], [854, 480, 0.25]];  // largeur, hauteur, part du débit du codec
   const DRAFT_SIZE = [960, 540, 0.25];  // brouillon : image SD (2048 px pour 360°, soit 6 px par degré ; la vue en demande 12)
   // H.264 High, Main, Baseline (niveau 4.0), puis VP9 (Firefox sous Linux : H.264 annoncé mais pas encodé, bug
   // Mozilla 2085549), dans un MP4 aussi ; codec du fichier pour mp4-muxer ; débit en 1080p (bit/s). Mesuré le 31/10/2026
@@ -34,8 +34,11 @@ const Video = (() => {
   // un peu plus du tiers du débit du H.264 : fichiers réencodés en H.265 matériel environ 3 fois plus légers (essai de
   // l'utilisateur, 05/11/2026) ; encodage direct non essayé (pas d'encodeur sur le poste de développement)
   const HEVC_CODECS = [["hvc1.1.6.L153.B0", "hevc", 30e6]];
-  const encoderSettings = ([width, height, share], [name, codec, rate]) => ({ codec: name, width, height, bitrate: rate * share, framerate: FPS,
-    ...(codec === "avc" ? { avc: { format: "avc" } } : codec === "hevc" ? { hevc: { format: "hevc" } } : {}) });
+  // Formats proposés (liste « Format » de l'onglet Vidéo) ; pas de VP8 : mp4-muxer ne l'accepte pas, et le MP4 non plus
+  const FORMATS = { vp9: CODECS.filter(([, codec]) => codec === "vp9"), h264: [...HIGH_CODECS, ...CODECS.filter(([, codec]) => codec === "avc")], h265: HEVC_CODECS };
+  const ENCODERS = { materiel: "prefer-hardware", logiciel: "prefer-software" };
+  const encoderSettings = ([width, height, share], [name, codec, rate], acceleration = "no-preference") => ({ codec: name, width, height, bitrate: rate * share, framerate: FPS,
+    hardwareAcceleration: acceleration, ...(codec === "avc" ? { avc: { format: "avc" } } : codec === "hevc" ? { hevc: { format: "hevc" } } : {}) });
   const MUXER = "https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.1/build/mp4-muxer.min.js";
   const HFOV = 80;  // degrés : champ horizontal de la vue (vertical : ± 24° en 16/9, au-dessus du toit du véhicule)
   const SMOOTH = 15;  // m : cap de la vue = direction de la trajectoire de s - SMOOTH à s + SMOOTH (stabilisation)
@@ -899,14 +902,14 @@ const Video = (() => {
    * nouvelle séquence est ramenée sur la précédente (EXPO_SIDE photos de part et d'autre, médiane), puis revient peu à
    * peu à sa propre exposition sur EXPO_RAMP m.
    */
-  async function exposures(path, signal, isolatedToo = true) {
+  async function exposures(path, signal, isolatedToo = true, wait = () => {}) {
     const { list, s } = path;
     const gains = list.map(() => [1, 1, 1]);
     const values = list.map(() => null);
     // Photos mesurées : toutes pour les photos isolées, sinon celles de part et d'autre des changements de séquence
     const wanted = isolatedToo ? list.map((_, i) => i) : list.map((_, i) => i).filter((i) => list.some((p, k) => k
       && p.collection !== list[k - 1].collection && i >= k - EXPO_SIDE && i < k + EXPO_SIDE));
-    let next = 0;
+    let next = 0, measured = 0;
     await Promise.all(Array.from({ length: EXPO_PARALLEL }, async () => {
       while (next < wanted.length) {
         const i = wanted[next++];
@@ -916,6 +919,7 @@ const Video = (() => {
           if (signal?.aborted) throw error;
           console.warn("Vidéo : exposition non mesurée", list[i].id, error);
         }
+        wait(++measured, wanted.length);
       }
     }));
     keepExposures();
@@ -1098,15 +1102,19 @@ const Video = (() => {
   /** Correction de la vue, en degrés, pour chaque photo du parcours : { pitch, roll }. Tangage : décalage vertical devant la
    * vue ; roulis : décalages verticaux opposés sur les côtés (STAB_SIDE). Décalages cumulés d'une photo à la suivante, moins
    * leur moyenne sur ± STAB_SPAN m : les petits sauts seulement, pas la pente ni les virages. Pas de
-   * mesure entre deux séquences ; photo sans mesure sûre : pas de saut compté. wait() : pour dire que le calcul avance. */
+   * mesure entre deux séquences ; photo sans mesure sûre : pas de saut compté. wait(fait, total) : avancement, lecture des
+   * photos puis comparaison. */
   async function stabilization(path, yawOf, signal, wait = () => {}) {
-    const { list, s } = path, crops = list.map(() => null);
-    let next = 0;
+    const { list, s } = path, crops = list.map(() => null), total = 2 * list.length;
+    let next = 0, read = 0;
+    wait(0, total);
     await Promise.all(Array.from({ length: EXPO_PARALLEL }, async () => {
       while (next < list.length) {
         const i = next++;
-        wait();
-        if (!list[i].sd) continue;
+        if (!list[i].sd) {
+          wait(++read, total);
+          continue;
+        }
         try {
           const bitmap = await fetchImage(list[i].sd, signal);
           // Pas un panorama complet (rapport 2 : 1) : pas de mesure
@@ -1116,11 +1124,18 @@ const Video = (() => {
           if (signal?.aborted) throw error;
           console.warn("Vidéo : stabilisation sans mesure", list[i].id, error);
         }
+        wait(++read, total);
       }
     }));
     const pitch = [0], roll = [0];
+    let shown = performance.now();
     for (let i = 1; i < list.length; i++) {
-      wait();
+      wait(list.length + i, total);
+      if (performance.now() - shown > 100) {  // la main au navigateur : avancement affiché, page qui répond
+        if (signal?.aborted) throw new DOMException("Vidéo arrêtée", "AbortError");
+        await new Promise((resolve) => setTimeout(resolve));
+        shown = performance.now();
+      }
       const same = list[i].collection === list[i - 1].collection && crops[i] && crops[i - 1];
       const [front, left, right] = [0, 1, 2].map((k) => same && imageOffset(crops[i - 1][k], crops[i][k]));
       const perPixel = same ? STAB_FIELD[0] / (crops[i][0].w - 2 * STAB_SEARCH) : 0;
@@ -1383,28 +1398,54 @@ const Video = (() => {
     return chunks > 0;
   }
 
-  /** Ce poste annonce-t-il un encodeur H.265 ? */
-  async function hevcSupported() {
-    if (!supported()) return false;
-    for (const size of SIZES) {
-      try {
-        if ((await VideoEncoder.isConfigSupported(encoderSettings(size, HEVC_CODECS[0]))).supported) return true;
-      } catch { /* configuration refusée : la suivante */ }
+  /** Annoncée et encodée ? */
+  async function works(config) {
+    try {
+      return (await VideoEncoder.isConfigSupported(config)).supported && await encodes(config);
+    } catch {
+      return false;  // configuration refusée
     }
-    return false;
   }
 
-  /** Première configuration qui encode vraiment : { config, codec (pour mp4-muxer) } ; null sans aucune. draft : brouillon
-   * (DRAFT_SIZE, CODECS) ; h265 : H.265 d'abord, sinon le reste ; height : 720 pour le 720p d'abord (sans effet en brouillon). */
-  async function encoderConfig({ draft = false, h265 = false, height = 1080 } = {}) {
-    const pairs = (sizes, codecs) => sizes.flatMap((size) => codecs.map((codec) => [size, codec]));
-    const sizes = draft ? [DRAFT_SIZE, ...SIZES] : height === 720 ? [SIZES[1], SIZES[0]] : SIZES;
-    const choices = [...(h265 ? pairs(sizes, HEVC_CODECS) : []), ...pairs(sizes, draft ? CODECS : [...HIGH_CODECS, ...CODECS])];
-    for (const [size, chosen] of choices) {
-      const config = encoderSettings(size, chosen), codec = chosen[1];
-      try {
-        if ((await VideoEncoder.isConfigSupported(config)).supported && await encodes(config)) return { config, codec };
-      } catch { /* configuration refusée : la suivante */ }
+  /** Encodeur du format en cette taille : { encoder (« materiel », « logiciel »), config, codec (pour mp4-muxer) }, matériel
+   * d'abord ; null sans aucun. */
+  async function formatEncoder(format, size) {
+    for (const [encoder, acceleration] of Object.entries(ENCODERS)) {
+      for (const chosen of FORMATS[format]) {
+        const config = encoderSettings(size, chosen, acceleration);
+        if (await works(config)) return { encoder, config, codec: chosen[1] };
+      }
+    }
+    return null;
+  }
+
+  /** Encodeurs du poste, une image encodée par format : { "h264-1080": "materiel" ou "logiciel"… } (format indisponible : absent). */
+  async function encoderChoices() {
+    const choices = {};
+    if (!supported()) return choices;
+    for (const format of Object.keys(FORMATS)) {
+      for (const size of SIZES) {
+        const found = await formatEncoder(format, size);
+        if (found) choices[`${format}-${size[1]}`] = found.encoder;
+      }
+    }
+    return choices;
+  }
+
+  /** Configuration qui encode vraiment : { config, codec (pour mp4-muxer) } ; null sans aucune. format et height : le format
+   * demandé (sans effet en brouillon : DRAFT_SIZE, CODECS), sinon le premier du reste qui encode, pour ne pas perdre le calcul. */
+  async function encoderConfig({ draft = false, format = "h264", height = 1080 } = {}) {
+    const wanted = SIZES.find((size) => size[1] === height) || SIZES[0];
+    if (!draft) {
+      const found = await formatEncoder(format, wanted);
+      if (found) return found;
+    }
+    const sizes = draft ? [DRAFT_SIZE, ...SIZES] : [wanted, ...SIZES.filter((size) => size !== wanted)];
+    for (const size of sizes) {
+      for (const chosen of draft ? CODECS : [...HIGH_CODECS, ...CODECS]) {
+        const config = encoderSettings(size, chosen);
+        if (await works(config)) return { config, codec: chosen[1] };
+      }
     }
     return null;
   }
@@ -1424,20 +1465,20 @@ const Video = (() => {
    * planets), options.planetFade : enroulement et déroulement (s), options.planetAll : sur tout le parcours, options.planetRoll : tonneau pendant les transitions, options.presentation : mode
    * Présentation (timeline, presentationSpeeds ; vitesses en m/s) à la place de kmh et de la rampe, options.planetSpin : vitesse de rotation (°/s) ;
    * options.tours : endroits des tours d'horizon ([[lon, lat]…], tours), options.tourTime : durée de chacun (s),
-   * options.tourStop : caméra arrêtée pendant le tour ; options.draft : brouillon (image SD des photos, DRAFT_SIZE) ; options.h265 : H.265 si le poste l'encode ; options.height : 720 pour le 720p ; options.stabilize : tangage et roulis de chaque photo corrigés (stabilization) ; options.stream : fichier ouvert
+   * options.tourStop : caméra arrêtée pendant le tour ; options.draft : brouillon (image SD des photos, DRAFT_SIZE) ; options.format : « h264 », « h265 » ou « vp9 » ; options.height : 1080, 720 ou 480 (encoderConfig) ; options.stabilize : tangage et roulis de chaque photo corrigés (stabilization) ; options.stream : fichier ouvert
    * (FileSystemWritableFileStream) où écrire la vidéo au fur et à mesure, refermé à la fin (rend null ; sans lui, la
    * vidéo est assemblée en mémoire et rendue en Blob : un long parcours peut alors dépasser la mémoire de l'onglet). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
    */
   async function mp4(photos, kmh, progress = () => {}, signal = null,
     { blur = false, exposure = true, ramp = false, title = null, counter = false, speedometer = false, lateral = false, arpSpeed = false, junctions = [], rolls: rollPlaces = [],
-    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, draft = false, h265 = false, height: wantedHeight = 1080, stabilize = false, planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false, planetRoll = false, presentation = null,
+    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, draft = false, format = "h264", height: wantedHeight = 1080, stabilize = false, planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false, planetRoll = false, presentation = null,
     planetSpin = PLANET_SPIN, tours: tourPlaces = [], tourTime = TOUR_TIME, tourStop = true, stream = null } = {}) {
     const timelineOf = (p) => timeline(p, kmh / 3.6, ramp, lookedJunctions(p, junctions), lookSpeed / 3.6,
       poi?.speed ? { ...poiSpan(p, poi), speed: poi.speed / 3.6 } : null, presentation);
     if (draft) photos = photos.map((p) => (p.sd ? { ...p, tiles: { image: p.sd, cols: 1, rows: 1, size: 2048 } } : p));
     const path = trajectory(photos);
     if (path.list.length < 2 || path.length < 1) throw new Error("parcours trop court");
-    const [chosen] = await Promise.all([encoderConfig({ draft, h265, height: wantedHeight }), loadMuxer()]);
+    const [chosen] = await Promise.all([encoderConfig({ draft, format, height: wantedHeight }), loadMuxer()]);
     if (!chosen) throw new Error("ce navigateur n'encode ni le H.264 ni le VP9");
     const { config, codec } = chosen;
     const { width, height } = config;
@@ -1458,7 +1499,7 @@ const Video = (() => {
     const yawAt = (i, x) => wrap(path.axis(x) - headings[i]);
     const tilts = path.list.map(() => 0);  // roulis de chaque photo à retirer (radians)
     if (stabilize) {
-      const steady = await stabilization(path, (i) => yawAt(i, path.s[i]), signal, () => progress(0, path.list.length));
+      const steady = await stabilization(path, (i) => yawAt(i, path.s[i]), signal, (done, all) => progress(done, all, "Stabilisation"));
       // Sens vérifié sur une vidéo : photo dont le décor est plus bas (dy > 0) : tangage de la vue diminué
       path.list.forEach((p, i) => {
         p.pitch -= steady.pitch[i] * toRad;
@@ -1466,7 +1507,7 @@ const Video = (() => {
       });
     }
     // Couleurs accordées à chaque changement de séquence (raccord discret) ; photos isolées seulement avec l'option
-    const gains = await exposures(path, signal, exposure);
+    const gains = await exposures(path, signal, exposure, (done, all) => progress(done, all, "Exposition"));
     const span = poi ? poiSpan(path, poi) : null;
     // Tours d'horizon : images ajoutées pendant l'arrêt, avant les autres effets (calés sur les images)
     const turns = tours(path, timelineOf(path), tourPlaces, tourTime, tourStop);
@@ -1635,6 +1676,6 @@ const Video = (() => {
     }
   }
 
-  return { get times() { return lastTimes; }, supported, hevcSupported, imageOffset, record, mp4, trajectory, timeline, ignoredPlaces, presentationSpeeds, steadyHeadings, PRES, PRES_HOLD, PRES_START, PRES_SIGHT, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
+  return { get times() { return lastTimes; }, supported, encoderChoices, encoderConfig, stabilization, imageOffset, record, mp4, trajectory, timeline, ignoredPlaces, presentationSpeeds, steadyHeadings, PRES, PRES_HOLD, PRES_START, PRES_SIGHT, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
     poiSpan, poiViews, planets, tours, speeds, laterals, insideDevers, lateralColor, arpSpeeds, steady, drawOverlay, fetchImage, FPS, HOLD };
 })();

@@ -1,0 +1,49 @@
+<!doctype html><meta charset="utf-8"><title>Essai de la grille des formats vidéo</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Grille codec × définition de l'onglet Vidéo, avec les encodeurs du navigateur qui lance l'essai (Chrome, Firefox) :
+     couleurs et grisés conformes au test, encodeur demandé bien utilisé. Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
+<iframe id="page" src="../index.html" style="width:1400px;height:900px"></iframe>
+<script>
+const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+let checks = 0, failures = 0;
+const expect = (what, ok, detail = "") => { checks++; if (!ok) failures++; return log(`${ok ? "" : "ÉCHEC "}${what}${detail ? " : " + detail : ""}`); };
+const until = async (test, ms = 20000) => { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé"); await new Promise((r) => setTimeout(r, 100)); } };
+(async () => {
+  const frame = document.querySelector("#page");
+  await new Promise((r) => { frame.onload = r; });
+  const Video = frame.contentWindow.eval("Video");  // const du script : pas une propriété de window
+  const doc = frame.contentDocument, buttons = () => [...doc.querySelectorAll("#video-formats button")];
+  const selected = () => `${doc.querySelector("#video-codec").value}-${doc.querySelector("#video-definition").value}`;
+  await log(navigator.userAgent);
+  await until(() => buttons().length);
+  await expect("9 choix, grisés avant le test", buttons().length === 9 && buttons().every((b) => b.disabled));
+  doc.querySelector("#onglet-parcours").click();
+  await until(() => buttons().some((b) => b.dataset.encodeur));
+  const choices = await Video.encoderChoices();
+  await log("encodeurs : " + JSON.stringify(choices));
+  await expect("couleur et grisé conformes au test", buttons().every((b) => { const e = choices[`${b.dataset.format}-${b.dataset.height}`]; return b.dataset.encodeur === (e || "") && b.disabled === !e; }));
+  await expect("format sélectionné disponible", Boolean(choices[selected()]), selected());
+  const pressed = () => buttons().filter((b) => b.getAttribute("aria-pressed") === "true").map((b) => `${b.dataset.format}-${b.dataset.height}`).join();
+  await expect("un seul choix marqué, le sélectionné", pressed() === selected(), pressed());
+  for (const key of Object.keys(choices)) {
+    const [format, height] = key.split("-"), made = await Video.encoderConfig({ format, height: Number(height) });
+    await expect(`${key} demandé, utilisé`, made.encoder === choices[key] && made.config.height === Number(height)
+      && made.codec === { h264: "avc", h265: "hevc", vp9: "vp9" }[format], `${made.codec} ${made.config.width}×${made.config.height} ${made.config.hardwareAcceleration}`);
+  }
+  const last = buttons().filter((b) => !b.disabled).at(-1);
+  last.click();
+  await expect("clic : listes et marque suivent", selected() === `${last.dataset.format}-${last.dataset.height}` && last.getAttribute("aria-pressed") === "true", selected());
+  doc.querySelector('.modes-video button[data-mode="revue"]').click();
+  await new Promise((r) => setTimeout(r, 200));
+  await expect("choix du mode : format de la page, disponible", Boolean(choices[selected()]), selected());
+  const draft = doc.querySelector("#video-brouillon");
+  draft.checked = true; draft.dispatchEvent(new Event("change", { bubbles: true }));
+  await expect("brouillon : toute la grille grisée", buttons().every((b) => b.disabled));
+  draft.checked = false; draft.dispatchEvent(new Event("change", { bubbles: true }));
+  await expect("hors brouillon : disponibles de nouveau", buttons().some((b) => !b.disabled));
+  await log(`contrôles : ${checks - failures} réussis`);
+  await log(failures ? `ERREUR ${failures} contrôle(s) en échec` : "FIN");
+  if (failures) await log("ERREUR");
+})().catch((e) => log("ERREUR " + e.message));
+</script>
