@@ -141,7 +141,7 @@ function centre(pixels, line, around) {
   await expect("route en pente : perpendiculaire vue à la verticale de la caméra", normal > 89.99, normal.toFixed(3));
   const zones = Dessus.bestZones([0, 1]);
   await expect("incertitude affichée : au moins 5 % de la longueur", Math.abs(Dessus.shownError([0, 0], [0, 10], [{ pose: { ...pose, sigma: 0, height_sigma: 0 }, at: [0, 0] }], 0) - 0.5) < 1e-9);
-  await expect("zone idéale : une bande de ±2 m en face de la caméra", zones.length === 1 && Math.min(...zones[0].map((p) => p[1])) === -2 && Math.max(...zones[0].map((p) => p[1])) === 2 && Math.max(...zones[0].map((p) => p[0])) === 8);
+  await expect("zone idéale : une bande de ±4 m en face de la caméra", zones.length === 1 && Math.min(...zones[0].map((p) => p[1])) === -4 && Math.max(...zones[0].map((p) => p[1])) === 4 && Math.max(...zones[0].map((p) => p[0])) === 8);
   // Hauteur lue sur le décalage entre photos : caméras à 2,05 m, de départ fausse
   const twin = async (p) => ({ ...p, height: 2.05 });
   const [p0, p1] = [await twin(pose), await twin(after())];

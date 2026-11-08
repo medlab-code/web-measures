@@ -24,7 +24,7 @@ const Dessus = (() => {
   // l'inclinaison lue sur les façades s'écartait de 1,6° pour ±0,2° annoncés) ; à revoir sur d'autres
   const REFLECT = 3;
   const NEAR_LIMIT = 6144;  // px : largeur des photos voisines, qui ne servent que près de leur caméra (mémoire graphique)
-  const BEST = { along: 2, wide: 8 };  // m : zone idéale d'une largeur, en face de la caméra : le tangage y pèse peu
+  const BEST = { along: 4, wide: 8 };  // m : zone idéale d'une largeur, en face de la caméra (essai du 08/11 : écart à l'orthophoto ≤ 1,5 % jusqu'à 4 m en long, 2 % au-delà)
   const MEASURED = 0.05;  // part de la longueur : incertitude affichée au moins égale à l'écart à l'orthophoto (voir docs/CALCULS.md)
   const HEIGHT_SIGMA = 0.05;  // m : hauteur de caméra lue sur le décalage entre photos voisines (essai de 28 paires)
   const GROUND_SIGMA = 1;  // degrés : inclinaison déduite de la route, sans verticales à lire (voir docs/CALCULS.md)

@@ -70,7 +70,7 @@ Pour un point au sol à la distance `d` d'une caméra à la hauteur `H` :
 - une erreur de position GPS déplace toute l'image d'autant.
 
 **Conséquences :** l'inclinaison domine loin de la caméra, d'où le grisé au-delà de 10 m et la bande verte en face de la
-caméra (±2 m en long, ±8 m en travers), où le tangage pèse le moins. Chaque recalage ci-dessous s'attaque à une de ces
+caméra (±4 m en long, ±8 m en travers), où le tangage pèse le moins. Chaque recalage ci-dessous s'attaque à une de ces
 causes.
 
 ## 4. Les recalages

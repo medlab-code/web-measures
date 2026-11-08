@@ -604,9 +604,11 @@ sur une perpendiculaire à la route. La longueur rejoint les résultats de la s�
 `py/web_app.py`), avec son incertitude (`shownError`) et les photos qui ont fourni ses deux bouts. Un bout hors
 de la vue : longueur sur le fond de carte seul, sans incertitude, marquée « hors vue », pour un contrôle rapide de
 cohérence (orthophoto). « Bande verte seule » ne dessine que la bande de la zone idéale.
-Une bande verte transparente marque la zone idéale d'une largeur : ±2 m en face de la caméra (axe :
+Une bande verte transparente marque la zone idéale d'une largeur : ±4 m en face de la caméra (axe :
 trajectoire entre les photos voisines, à défaut cap de la photo), sur ±8 m en travers, là où le tangage
-pèse le moins. L'incertitude affichée vaut au moins 5 % de la longueur (écart à l'orthophoto, plus bas).
+pèse le moins (essai du 08/11 sur les lignes peintes, vue lissée contre orthophoto : écart de largeur 1,2 à
+1,5 % jusqu'à 4 m en long, 2 % au-delà ; pas de dégradation en travers jusqu'à 9 m). L'incertitude affichée
+vaut au moins 5 % de la longueur (écart à l'orthophoto, plus bas).
 
 Les photos précédente et suivante complètent l'image : chaque point prend la photo où l'erreur due à
 l'inclinaison est la plus faible ; une voisine sans inclinaison ne sert donc qu'à combler. Le véhicule (relevé sur
