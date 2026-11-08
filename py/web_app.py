@@ -695,7 +695,9 @@ class App(session.Session):
             return None
         pic, sequence, cal, q = item.get("id"), item.get("collection"), self.calibration, self.quality or {}
         fixed, pose, tilt, cam = cal.position(sequence, lon, lat), cal.pose(sequence, lon, lat), cal.tilt(pic), cal.camera(sequence)
-        tilt = tilt or self.birdeye_loose.get(pic) or None  # verticales moins sûres : mieux que la pente de la route
+        loose = self.birdeye_loose.get(pic)  # verticales moins sûres : mieux que la pente de la route, ou que le relais par le
+        if loose and (not tilt or loose["sigma"] < tilt["sigma"]):  # terrain (±0,5°, sans le véhicule penché en virage)
+            tilt = loose
         verified = q.get("precise") and q.get("lidar") is True
         return {"pic": pic, "lon": fixed[0] if fixed else lon, "lat": fixed[1] if fixed else lat,
                 "heading": float(heading), "offset": pose["offset"] if pose else 0.0,

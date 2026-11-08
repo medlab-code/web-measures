@@ -128,6 +128,10 @@ class VueDessus(unittest.TestCase):
         a.birdeye_loose = {"p": res["loose"]}
         pose = json.loads(a.birdeye_pose())
         self.assertEqual((pose["up"], pose["sigma"]), ([0.0, -0.052, 0.9986], 0.42))
+        a.calibration.tilt = staticmethod(lambda pic: {"up": (0.0, -0.016, 0.9999), "sigma": 0.5})  # relais par le terrain
+        self.assertEqual(json.loads(a.birdeye_pose())["sigma"], 0.42)
+        a.calibration.tilt = staticmethod(lambda pic: {"up": (0.0, 0.0, 1.0), "sigma": 0.2})  # calage plus sûr : gardé
+        self.assertEqual(json.loads(a.birdeye_pose())["sigma"], 0.2)
 
     def test_voisine_sans_inclinaison(self):
         """Analyse d'une voisine finie sans inclinaison (verticales et LiDAR en échec) : la page est
