@@ -169,6 +169,13 @@ raison.
 3,9 cm sur 14 en agglomération, tous améliorés. Un premier recalage, par les seules lignes en long, faisait 8,3 à
 3,6 cm sur route et rien en ville : il a été remplacé.
 
+**Fondu (option « Raccords fondus », essai, `renderBlended`) :** le même sol paraît plus clair sur une photo que sur
+l'autre selon l'angle au soleil, d'où des taches en ellipse autour des raccords (le gain global entre photos n'est que de
+1 à 3 %). Fondu en deux bandes : chaque photo rendue seule, sans son véhicule ; sa luminosité lente (256 px pour 30 m,
+floutée sur environ 1 m) est mélangée selon les zones gagnantes floutées, le détail fin reste celui de la photo choisie,
+le raccord reste net. Essai du 08/11/2026 : ellipses effacées sur la D33 du 04/07 et a9fd217d, atténuées en ville ; un
+fondu simple de ±60 cm dans le shader n'y faisait presque rien. Environ 1,8 s de plus par image (calcul en JavaScript).
+
 **Limites :** sans assez de sol net en commun (véhicules garés, trottoirs, reflets), pas de recalage. La photo
 affichée garde ses propres erreurs : les raccords disparaissent, pas l'erreur d'échelle de la photo affichée.
 

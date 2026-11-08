@@ -274,6 +274,8 @@ const Dessus = (() => {
     uniform vec2 body;  // demi-longueur et demi-largeur du corps du véhicule (BODY)
     uniform vec4 fix;  // recalage sur la principale (voir alignJoin) : décalage le long et en travers, tangage, lacet
     uniform vec2 fixMore;  // et échelle, roulis
+    uniform int stage;  // 2 : photo seule sans son véhicule, 3 : numéro de la photo gagnante (voir renderBlended)
+    uniform float index;
     const float PI = 3.14159265358979;
     void main() {
       vec2 rel = world.xy - camera.xy, f = car.xy, side = vec2(-car.y, car.x);  // repère de la photo : avant, gauche
@@ -298,6 +300,8 @@ const Dessus = (() => {
       vec3 c = texture(pano, vec2(fwidth(a) < fwidth(b) ? a : b, w)).rgb;
       float far = smoothstep(sure, reach, dist);
       color = vec4(mix(c, vec3(dot(c, vec3(0.3, 0.59, 0.11))), far), 1.0 - 0.5 * far);
+      if (stage == 2 && inBody < 1.0) discard;
+      if (stage == 3) color = vec4(index / 255.0, 0.0, 0.0, 1.0);
     }`;
 
   let gl = null, program = null;
@@ -339,7 +343,7 @@ const Dessus = (() => {
    * (photo principale d'abord) ; terrain : altitudes du maillage (voir readTerrain), ou null pour un plan horizontal ;
    * frame : pose de la photo qui centre l'image et le maillage (par défaut, la principale) ; band : axe de la route (vecteur
    * unitaire est, nord) pour ne garder que la bande de la zone idéale (BEST), ou null. */
-  function render(layers, terrain, frame = layers[0].pose, band = null, size = SIZE) {
+  function render(layers, terrain, frame = layers[0].pose, band = null, size = SIZE, stage = 0) {
     const g = context();
     if (g.canvas.width !== size) g.canvas.width = g.canvas.height = size;
     const n = 2 * REACH / STEP + 1, base = terrain ? terrain[(n * n - 1) / 2] : 0;
@@ -377,8 +381,10 @@ const Dessus = (() => {
     g.uniform2f(uniform("body"), BODY.long, BODY.wide);
     g.uniform1f(uniform("reflect"), REFLECT);
     g.uniform1f(uniform("masked"), layers.length > 1 ? 1 : 0);  // photo seule : son véhicule plutôt qu'un trou
+    g.uniform1i(uniform("stage"), stage);
     g.uniform4f(uniform("band"), band ? band[0] : 0, band ? band[1] : 1, band ? BEST.along : 1e6, band ? BEST.wide : 1e6);
-    for (const { pano, pose, fix } of layers) {
+    for (const [k, { pano, pose, fix }] of layers.entries()) {
+      g.uniform1f(uniform("index"), k + 1);
       const [tu, tv, pitch, yaw, scale, roll] = fix || [0, 0, 0, 0, 0, 0];
       g.uniform4f(uniform("fix"), tu, tv, pitch, yaw);
       g.uniform2f(uniform("fixMore"), scale, roll);
@@ -398,6 +404,64 @@ const Dessus = (() => {
     return g.canvas;
   }
 
+  // Fondu en deux bandes (essai) : la luminosité lente d'une photo dépend de l'angle du soleil, le même sol paraît plus clair
+  // sur l'une que sur l'autre (ellipses aux raccords, gain global de 1 à 3 % seulement). Bande basse (LOW px, flou de
+  // LOW_SIGMA m) mélangée sur quelques mètres selon les zones gagnantes floutées ; détail fin de la photo gagnante, raccord net.
+  const LOW = 256, LOW_SIGMA = 1;
+  function renderBlended(layers, terrain, frame = layers[0].pose, band = null, size = SIZE) {
+    if (layers.length < 2) return render(layers, terrain, frame, band, size);
+    const g = context(), read = () => {
+      const px = new Uint8Array(4 * size * size);
+      g.readPixels(0, 0, size, size, g.RGBA, g.UNSIGNED_BYTE, px);  // lignes du sud au nord
+      return px;
+    };
+    render(layers, terrain, frame, band, size, 3);
+    const winner = read(), alone = layers.map((layer) => { render([layer], terrain, frame, band, size, 2); return read(); });
+    render(layers, terrain, frame, band, size);
+    const shown = read(), k = size / LOW, r = Math.max(1, Math.round(LOW_SIGMA * LOW / (2 * REACH) / 1.7));  // 3 boîtes : σ ≈ 1,7 r
+    const blur = (a) => { let b = a; for (let pass = 0; pass < 3; pass++) b = boxBlur(b, r, LOW); return b; };
+    // Bande basse de chaque photo (moyenne sur ses pixels valides) et poids de sa zone gagnante
+    const low = layers.map((_, l) => {
+      const sums = [0, 1, 2].map(() => new Float32Array(LOW * LOW)), seen = new Float32Array(LOW * LOW), wins = new Float32Array(LOW * LOW);
+      for (let j = 0; j < size; j++) {
+        for (let i = 0; i < size; i++) {
+          const p = 4 * (j * size + i), q = Math.floor(j / k) * LOW + Math.floor(i / k);
+          if (winner[p] === l + 1) wins[q]++;
+          if (alone[l][p + 3] < 250) continue;
+          seen[q]++;
+          for (let c = 0; c < 3; c++) sums[c][q] += alone[l][p + c];
+        }
+      }
+      const m = blur(seen), w = blur(wins);
+      return { color: sums.map((s) => blur(s).map((v, q) => (m[q] > 0.05 * k * k ? v / m[q] : NaN))), weight: w.map((v, q) => (m[q] > 0.05 * k * k ? v : 0)) };
+    });
+    const mixed = [0, 1, 2].map((c) => new Float32Array(LOW * LOW).map((_, q) => {
+      let sum = 0, weight = 0;
+      for (const { color, weight: w } of low) if (w[q] > 0) { sum += w[q] * color[c][q]; weight += w[q]; }
+      return weight ? sum / weight : NaN;
+    }));
+    const at = (grid, x, y) => {  // bilinéaire, centres des cases basses
+      const fx = Math.min(LOW - 1, Math.max(0, x / k - 0.5)), fy = Math.min(LOW - 1, Math.max(0, y / k - 0.5));
+      const x0 = Math.floor(fx), y0 = Math.floor(fy), x1 = Math.min(LOW - 1, x0 + 1), y1 = Math.min(LOW - 1, y0 + 1), ax = fx - x0, ay = fy - y0;
+      return (grid[y0 * LOW + x0] * (1 - ax) + grid[y0 * LOW + x1] * ax) * (1 - ay) + (grid[y1 * LOW + x0] * (1 - ax) + grid[y1 * LOW + x1] * ax) * ay;
+    };
+    const out = document.createElement("canvas");
+    out.width = out.height = size;
+    const image = new ImageData(size, size);
+    for (let j = 0; j < size; j++) {
+      for (let i = 0; i < size; i++) {
+        const p = 4 * (j * size + i), o = 4 * ((size - 1 - j) * size + i), l = winner[p] - 1;
+        for (let c = 0; c < 3; c++) {
+          const shift = l >= 0 ? at(mixed[c], i + 0.5, j + 0.5) - at(low[l].color[c], i + 0.5, j + 0.5) : 0;
+          image.data[o + c] = Number.isNaN(shift) ? shown[p + c] : shown[p + c] + shift;
+        }
+        image.data[o + 3] = shown[p + 3];
+      }
+    }
+    out.getContext("2d").putImageData(image, 0, 0);
+    return out;
+  }
+
   // Hauteur de la caméra, lue sur le décalage entre photos voisines ------------------------
   // Avec une hauteur fausse dans un rapport k, le sol projeté depuis deux caméras distantes de b se décale de b(1 - k) : le
   // grain de la chaussée le montre, sans donnée extérieure. L'inclinaison commune aux deux photos s'y annule.
@@ -408,21 +472,21 @@ const Dessus = (() => {
     return sorted.length % 2 ? sorted[k] : (sorted[k - 1] + sorted[k]) / 2;
   };
 
-  function boxBlur(source, r) {
+  function boxBlur(source, r, n = SIZE) {
     const out = new Float32Array(source.length), pass = (from, to, step, lines, along) => {
       for (let l = 0; l < lines; l++) {
         let sum = 0;
-        const at = (k) => from[l * (step === 1 ? SIZE : 1) + Math.min(along - 1, Math.max(0, k)) * step];
+        const at = (k) => from[l * (step === 1 ? n : 1) + Math.min(along - 1, Math.max(0, k)) * step];
         for (let k = -r; k <= r; k++) sum += at(k);
         for (let k = 0; k < along; k++) {
-          to[l * (step === 1 ? SIZE : 1) + k * step] = sum / (2 * r + 1);
+          to[l * (step === 1 ? n : 1) + k * step] = sum / (2 * r + 1);
           sum += at(k + r + 1) - at(k - r);
         }
       }
     };
     const middle = new Float32Array(source.length);
-    pass(source, middle, 1, SIZE, SIZE);
-    pass(middle, out, SIZE, SIZE, SIZE);
+    pass(source, middle, 1, n, n);
+    pass(middle, out, n, n, n);
     return out;
   }
 
@@ -837,7 +901,7 @@ const Dessus = (() => {
   // Photos voisines (interrupteur « Véhicule masqué », éteint par défaut) : lues, analysées, dessinées sous le véhicule et
   // recalées sur la principale (alignJoin), tangage de la séquence lu sur les raccords ; sinon la photo affichée seule
   let neighboursOn = false;
-  let abort = null, measuringOn = false, bandOnly = false, bandShown = true, fine = false, start = null, hover = null, live = null;  // live : longueur affichée au pointeur
+  let abort = null, measuringOn = false, bandOnly = false, bandShown = true, fine = false, blendOn = false, start = null, hover = null, live = null;  // live : longueur affichée au pointeur
   // Roulis (part du dévers) et tangage ajouté (degrés), réglés à la main (options d'essai) et retenus par séquence dans le
   // navigateur : la fixation de la caméra ne change pas au cours d'une séquence (A38 du 09/10/2025 : même tangage à deux endroits)
   const DEFAULT_ROLL = 0.7, DEFAULT_PITCH = 0, SETTINGS_KEY = "web-measures/dessus-reglages";
@@ -1045,6 +1109,10 @@ const Dessus = (() => {
       fine = event.target.checked;
       if (shown?.url) showImage();
     });
+    $("#dessus-fondu").addEventListener("change", (event) => {
+      blendOn = event.target.checked;
+      if (shown?.url) showImage();
+    });
   }
 
   /** Clic sur la carte en mesure : départ, puis arrivée. Renvoie la longueur faite { a, b ([lon, lat]), length, error (m, null
@@ -1101,7 +1169,7 @@ const Dessus = (() => {
   let drawing = 0;  // dernier dessin demandé : l'image d'un dessin dépassé est jetée
   async function showImage() {
     shown.joinKeyNow = joinKey();  // recalage des raccords valable pour ces réglages seulement
-    const layers = readyLayers(), pose = shown.pose, mine = ++drawing, canvas = render(layers, shown.terrain, layers[0].pose, bandOnly ? roadAxis(layers) : null, fine ? FINE_SIZE : SHOWN_SIZE);
+    const layers = readyLayers(), pose = shown.pose, mine = ++drawing, canvas = (blendOn ? renderBlended : render)(layers, shown.terrain, layers[0].pose, bandOnly ? roadAxis(layers) : null, fine ? FINE_SIZE : SHOWN_SIZE);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
     if (mine !== drawing || !shown) return;
     const old = shown.url, url = shown.url = URL.createObjectURL(blob);
@@ -1276,5 +1344,5 @@ const Dessus = (() => {
     }
   }
 
-  return { setup, update, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins }, view, uncertainty, measureError, shownError, groundUp, roadAxis, bestZones, sourceOf, toLonLat, estimateHeight, render, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, REACH, SIZE };
+  return { setup, update, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins }, view, uncertainty, measureError, shownError, groundUp, roadAxis, bestZones, sourceOf, toLonLat, estimateHeight, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, REACH, SIZE };
 })();
