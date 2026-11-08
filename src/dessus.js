@@ -298,7 +298,9 @@ const Dessus = (() => {
       float a = fract(u), b = fract(u + 0.5) - 0.5;  // la coupure du panorama ne doit pas faire choisir un niveau flou
       float w = ((0.5 - asin(clamp(v.z, -1.0, 1.0)) / PI) - top) / (1.0 - top);
       vec3 c = texture(pano, vec2(fwidth(a) < fwidth(b) ? a : b, w)).rgb;
-      float far = smoothstep(sure, reach, dist);
+      // grisé au-delà de sure m de la photo affichée (centre de la vue) : une voisine plus précise peut fournir un point proche
+      // d'elle mais à plus de sure m de sa propre caméra (14f7bc5a : taches transparentes à 7 m) ; photo seule : sa caméra
+      float far = smoothstep(sure, reach, masked > 0.5 ? length(world.xy - frameCentre) : dist);
       color = vec4(mix(c, vec3(dot(c, vec3(0.3, 0.59, 0.11))), far), 1.0 - 0.5 * far);
       if (stage == 2 && inBody < 1.0) discard;
       if (stage == 3) color = vec4(index / 255.0, 0.0, 0.0, 1.0);
