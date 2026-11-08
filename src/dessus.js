@@ -626,10 +626,11 @@ const Dessus = (() => {
   // A priori sur la pose relative (écarts types : décalage 0,3 m, angles 1°, échelle 0,5 % ; mesures à 2 cm) : un terme mal
   // déterminé par une zone commune étroite reste près de 0. Échelle tenue serrée : même caméra, même hauteur ; le long de
   // la route, elle se confond presque avec le décalage (a9fd217d, 08/11/2026 : 85 cm et 11 % d'un côté, 3 cm et 2 % dans
-  // l'autre sens pour le même raccord, l'image tordue au-delà). Au-delà de JOIN_LIMIT, correction refusée. Même ordre que
+  // l'autre sens pour le même raccord, l'image tordue au-delà). Au-delà de JOIN_LIMIT, correction refusée (décalage jusqu'à
+  // 1,2 m, la portée de la recherche : GPS décalé de 1 m le long entre deux photos sur la D33 du 04/07/2025). Même ordre que
   // les termes de alignJoin : décalages, tangage, lacet, échelle, roulis
   const JOIN_PRIOR = [0.3, 0.3, toRad, toRad, 0.005, toRad].map((s) => (0.02 / s) ** 2);
-  const JOIN_LIMIT = [0.8, 0.8, 3 * toRad, 3 * toRad, 0.06, 3 * toRad];
+  const JOIN_LIMIT = [1.2, 1.2, 3 * toRad, 3 * toRad, 0.06, 3 * toRad];
 
   /** Photo seule dessinée (réglages en cours, sans recalage) : gris (0-255) passe-haut, sûr (0/1), lignes du sud au nord. */
   function readRaster(layer, terrain, frame) {

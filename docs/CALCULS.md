@@ -635,7 +635,7 @@ mauvaises correspondances écartées, avec un a priori qui garde près de 0 un t
 route et tordait l'image au-delà du raccord), **hors de la zone du raccord** (±1,5 m) : l'écart y est mesuré avant
 et après, sur des blocs que
 l'ajustement n'a pas vus. La correction est gardée si l'écart médian baisse et qu'elle reste dans des bornes
-plausibles (0,8 m, 3°, 6 %). La voisine est alors dessinée au point déplacé ; la principale ne bouge pas, et son
+plausibles (1,2 m, 3°, 6 %). La voisine est alors dessinée au point déplacé ; la principale ne bouge pas, et son
 erreur d'échelle reste à caler (tangage). Pas de recalage sans assez de sol net en commun.
 
 Essai hors application du 07/11/2026 : écart médian au raccord de 10,8 à 2,9 cm sur 38 raccords de route (A38,

@@ -156,7 +156,7 @@ recalée sur elle.
    34 vues : 61 raccords recalés sur 68 au lieu de 59, écart final médian inchangé (2,4 cm).
 7. **Contrôle :** l'ajustement se fait hors de la zone du raccord (±1,5 m), et l'écart est mesuré au raccord, sur des
    blocs qu'il n'a pas vus. La correction n'est gardée que si l'écart médian y baisse et si elle reste plausible
-   (0,8 m, 3°, 6 %). Sinon la voisine reste telle quelle.
+   (1,2 m, 3°, 6 %). Sinon la voisine reste telle quelle.
 8. La voisine est dessinée au point déplacé (shader) ; la barre d'état indique l'écart avant et après.
 
 **Pourquoi un modèle physique plutôt qu'une déformation libre (type Thin Plate Spline) :** les erreurs viennent de
