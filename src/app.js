@@ -478,10 +478,10 @@
   // dans un navigateur qui avait déjà ses réglages ; chacun peut ensuite en changer.
   const DEFAULT_INSTANCE = "https://panoramax.ign.fr";
   const DEFAULT_PRODUCER = ["8f943f10-a781-4e03-a18c-de035be6f6f8", "conseil départemental de la côte-d'or"];
-  // Photo ouverte à la première utilisation (et sans dernière photo gardée) : château de Semur-en-Auxois,
-  // vue tournée entre ses deux tours (cap en degrés)
-  const DEFAULT_PHOTO = "7752eb30-a733-4213-b57a-5d5086e261a4";
-  const DEFAULT_HEADING = 163;
+  // Photo ouverte à la première utilisation (et sans dernière photo gardée) : Venarey-les-Laumes (D103T), route plate et droite,
+  // vue tournée vers le bâtiment rond sur la gauche (cap en degrés). L'ancienne : Semur-en-Auxois (7752eb30), sur un pont
+  const DEFAULT_PHOTO = "8625c7ff-90c1-4865-b936-fd8952ac908f";
+  const DEFAULT_HEADING = 210;
   const firstUse = store.get("defauts") !== "1";
   if (firstUse) {
     showOverViewer($("#reglages-defaut"));  // pourquoi ces réglages, et où les changer
