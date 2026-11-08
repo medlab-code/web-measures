@@ -15,7 +15,7 @@ const Dessus = (() => {
   const SIZE = 1024;  // px : côté de l'image des calculs (hauteur, raccords, position), soit 3 cm par pixel
   // px : côté de l'image affichée, 1,5 cm par pixel ; la photo est plus fine jusqu'à 10 m (12 288 px : 0,5 cm en travers et
   // 2,6 cm le long à 10 m, 0,2 et 0,5 cm à 4 m), les voisines (NEAR_LIMIT) deux fois moins
-  const SHOWN_SIZE = 2048;
+  const SHOWN_SIZE = 2048, FINE_SIZE = 4096;  // FINE_SIZE : « Haute résolution », 0,7 cm par pixel (zoom 24 de la carte)
   const CHUNK = 150;  // points par requête d'altitude (longueur de l'adresse)
   const CAR = { ahead: 0, long: 5.8, wide: 2.9 };  // m : véhicule étalé sur le sol, reflets du capot et du coffre compris (voir hidden)
   const BODY = { long: 4.5, wide: 2.5 };  // m : son corps seul, sol vraiment caché ; entre les deux, la bande des reflets
@@ -837,7 +837,7 @@ const Dessus = (() => {
   // Photos voisines (interrupteur « Véhicule masqué », éteint par défaut) : lues, analysées, dessinées sous le véhicule et
   // recalées sur la principale (alignJoin), tangage de la séquence lu sur les raccords ; sinon la photo affichée seule
   let neighboursOn = false;
-  let abort = null, measuringOn = false, bandOnly = false, start = null, hover = null, live = null;  // live : longueur affichée au pointeur
+  let abort = null, measuringOn = false, bandOnly = false, bandShown = true, fine = false, start = null, hover = null, live = null;  // live : longueur affichée au pointeur
   // Roulis (part du dévers) et tangage ajouté (degrés), réglés à la main (options d'essai) et retenus par séquence dans le
   // navigateur : la fixation de la caméra ne change pas au cours d'une séquence (A38 du 09/10/2025 : même tangage à deux endroits)
   const DEFAULT_ROLL = 0.7, DEFAULT_PITCH = 0, SETTINGS_KEY = "web-measures/dessus-reglages";
@@ -1037,6 +1037,14 @@ const Dessus = (() => {
       bandOnly = event.target.checked;
       if (shown?.url) showImage();
     });
+    $("#dessus-vert").addEventListener("change", (event) => {
+      bandShown = event.target.checked;
+      if (map.getLayer(BEST_ID)) map.setLayoutProperty(BEST_ID, "visibility", bandShown ? "visible" : "none");
+    });
+    $("#dessus-fine").addEventListener("change", (event) => {
+      fine = event.target.checked;
+      if (shown?.url) showImage();
+    });
   }
 
   /** Clic sur la carte en mesure : départ, puis arrivée. Renvoie la longueur faite { a, b ([lon, lat]), length, error (m, null
@@ -1093,7 +1101,7 @@ const Dessus = (() => {
   let drawing = 0;  // dernier dessin demandé : l'image d'un dessin dépassé est jetée
   async function showImage() {
     shown.joinKeyNow = joinKey();  // recalage des raccords valable pour ces réglages seulement
-    const layers = readyLayers(), pose = shown.pose, mine = ++drawing, canvas = render(layers, shown.terrain, layers[0].pose, bandOnly ? roadAxis(layers) : null, SHOWN_SIZE);
+    const layers = readyLayers(), pose = shown.pose, mine = ++drawing, canvas = render(layers, shown.terrain, layers[0].pose, bandOnly ? roadAxis(layers) : null, fine ? FINE_SIZE : SHOWN_SIZE);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
     if (mine !== drawing || !shown) return;
     const old = shown.url, url = shown.url = URL.createObjectURL(blob);
@@ -1114,7 +1122,7 @@ const Dessus = (() => {
       map.getSource(BEST_ID).setData(zones);
     } else {
       map.addSource(BEST_ID, { type: "geojson", data: zones });
-      map.addLayer({ id: BEST_ID, type: "fill", source: BEST_ID, paint: { "fill-color": "#00c853", "fill-opacity": 0.12 } }, below);
+      map.addLayer({ id: BEST_ID, type: "fill", source: BEST_ID, paint: { "fill-color": "#00c853", "fill-opacity": 0.12 }, layout: { visibility: bandShown ? "visible" : "none" } }, below);
     }
     const place = shown.terrain ? "Terrain LiDAR HD" : `Sol supposé plat (${pose.bridge ? "pont à proximité, LiDAR HD écarté" : shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
     const auto = !pitchManual && pitchOffset ? sequencePitch(shown.sequence) : null;

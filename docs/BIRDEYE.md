@@ -47,8 +47,9 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
    équirectangulaire et y lit la couleur.
 4. Au-delà de 10 m, l'image est grisée : 0,6° d'inclinaison y déplacent déjà un point d'environ 50 cm (§ 3).
 
-**Résolution :** l'image affichée fait 2 048 px pour 30 m, soit 1,5 cm par pixel, et la carte se zoome jusqu'à
-0,6 cm par pixel. La photo est plus fine jusqu'à 10 m : un de ses pixels couvre au sol 0,2 cm en travers et 0,5 cm le
+**Résolution :** l'image affichée fait 2 048 px pour 30 m, soit 1,5 cm par pixel ; l'interrupteur « Haute résolution »
+la porte à 4 096 px (0,7 cm par pixel : grain et bords de ligne plus nets près de la caméra, quelques secondes de plus).
+La carte se zoome jusqu'à 0,6 cm par pixel. La photo est plus fine jusqu'à 10 m : un de ses pixels couvre au sol 0,2 cm en travers et 0,5 cm le
 long à 4 m, 0,5 et 2,6 cm à 10 m. Les calculs (hauteur, raccords, position) travaillent sur une image de 1 024 px,
 suffisante et quatre fois moins coûteuse.
 
