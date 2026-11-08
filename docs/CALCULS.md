@@ -675,28 +675,23 @@ Option d'essai « Tangage » : tangage ajouté à la pente (défaut de fixation 
 meilleur roulis vaut 45 % du dévers sur la RD 1074 et 100 % sur l'A38, pour des dévers voisins (2,5 et 3 %).
 Tangage réglé à l'œil par l'auteur : de -0,2 à +0,5° selon la séquence, sans règle par période, mais identique
 (+0,2°) sur deux portions de l'A38 d'une même séquence. Roulis et tangage sont donc retenus par séquence, dans le
-navigateur (`web-measures/dessus-reglages`) ; la barre d'état l'indique (« réglage de la séquence »).
+navigateur (`web-measures/dessus-reglages`) ; la barre d'état l'indique (« réglé à la main »). Sans réglage, le
+tangage est lu sur les raccords (`learnPitch`, voir docs/BIRDEYE.md § 4.1) : échelle de la voisine avant moins celle de
+l'arrière, environ 9,6 % pour 1° de tangage commun ; retenu par photo (`web-measures/dessus-tangages`), médiane par
+séquence.
 
-Essai « Caler le tangage sur l'orthophoto » (`calibrate`, `src/dessus.js`) : orthophoto la plus nette (20 cm ; la
-PAC 2025 est plus floue) lue autour de la photo, lignes de peinture repérées sur elle et sur chaque photo prête
-dessinée seule, dans le repère de la route (cap où le profil en travers est le plus contrasté). Leur écart de
-direction donne cap et tangage (terme en distance à la caméra / H) ; la médiane des photos s'ajoute au tangage de
-la séquence. Le roulis n'est pas calé : avec des lignes repérées à 5 cm près, il varie de -400 à +240 % du dévers
-et absorbe tout écart de largeur. Option « Position calée sur l'orthophoto » (cochée par défaut, `locate` et `orthoShift`) :
+Le calage du tangage sur l'orthophoto (lignes de peinture repérées sur elle et sur chaque photo, essai du 07/11/2026)
+a été retiré le 08/11/2026 au profit du tangage lu sur les raccords. Option « Position calée sur l'orthophoto » (cochée par défaut, `locate` et `orthoShift`) :
 dès la photo principale prête, son profil en travers de la chaussée (6 m de part et d'autre, 9e décile le long, hors
 véhicule) est corrélé à celui de l'orthophoto, sur ±1,2 m ; au-delà de 30 cm d'écart, la vue s'y pose (décalée en
-travers), sinon la position GPS est gardée. L'appariement ligne à ligne du calage du tangage ne convient pas ici :
+travers), sinon la position GPS est gardée. Un appariement ligne à ligne ne convient pas ici :
 herbe et bordures donnent des pics sur l'orthophoto (14 « lignes » sur la D33), la médiane des écarts tombait à
 0,17 m pour 0,71 m. En cas d'écart, le GPS est à suspecter avant l'orthophoto : au même endroit de la D33, la
 séquence du 04/07/2025 (photo 6c6e4972, « RTK vérifié ») est décalée de 0,71 à 0,75 m en travers, translation pure,
 alors que celle du 20/06/2025 tombe sur l'orthophoto à 5 cm près. Écart trouvé sur les autres photos de référence :
 A38 0,11 m, RD 1074 0,19 m, D33 0,02 m, petite RD sans peinture 0,31 m (calée, de justesse : bords d'enrobé seuls),
-village sans accord (position gardée). Limite : un décalage de plus de 1,2 m serait pris pour celui d'une autre ligne. Sur 6 photos réglées à l'œil par l'auteur (07/11/2026) : 0 / +0,1 / +0,4
-/ +0,2 / -0,2 / +0,2° pour +0,5 / +0,5 / +0,2 / +0,2 / -0,2 / 0°, écart entre photos 0,05 à 0,21°, décalage 0 à
-0,14 m, environ 3 s par calage. Étendu à 4 photos de plus de chaque côté (environ 50 m) : mêmes tangages, 15 à 20 s.
-Ces photos lointaines sont dessinées dans le repère de la route (sol plan, caméra posée dessus), sans LiDAR : seul
-compte le défaut de fixation ; mêmes tangages qu'avec le terrain LiDAR HD, écart entre photos 0,25 à 0,33° au lieu
-de 0,26 à 0,48°.
+village sans accord (position gardée). Limite : un décalage de plus de 1,2 m serait pris pour celui d'une autre ligne. Le calage du tangage sur l'orthophoto trouvait, sur 6 photos réglées à l'œil par l'auteur (07/11/2026), 0 / +0,1 / +0,4
+/ +0,2 / -0,2 / +0,2° pour +0,5 / +0,5 / +0,2 / +0,2 / -0,2 / 0°.
 
 Hauteur de caméra par séquence : médiane des hauteurs vérifiées (GPS RTK moins sol) des photos vues de la séquence, dès
 3 photos, gardée dans le navigateur (`web-measures/dessus-hauteurs`) ; une même séquence de l'A38 allait de 1,83 à

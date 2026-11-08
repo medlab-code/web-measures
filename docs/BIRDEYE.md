@@ -89,14 +89,18 @@ fixation peut être un peu de travers.
    de ±0,1 à 0,2°). Elles ont la priorité.
 2. **Sinon, la route** : le véhicule est supposé posé sur le plan ajusté au MNT sous lui (`groundUp`). Le tangage suit
    la pente entière ; le roulis ne suit qu'une part du dévers, réglable (« Roulis », 70 % par défaut : environ 40 %
-   sur la RD 1074, 75 à 100 % sur l'A38). Le curseur « Tangage » ajoute le défaut de fixation de la caméra
-   (−0,2 à +0,5° selon les séquences).
-3. Roulis et tangage sont **retenus par séquence** dans le navigateur : la fixation ne change pas au cours d'une
-   séquence.
-4. Bouton **« Caler le tangage sur l'orthophoto »** (`calibrate`) : les lignes de peinture sont repérées sur
-   l'orthophoto IGN (20 cm) et sur chaque photo dessinée seule ; leur écart de direction donne le tangage en trop. La
-   médiane de la photo, de ses voisines et de 4 photos de plus de chaque côté (environ 50 m) s'ajoute au réglage de
-   la séquence.
+   sur la RD 1074, 75 à 100 % sur l'A38). Le tangage ajoute le défaut de fixation de la caméra (−0,4 à +0,6° selon
+   les séquences).
+3. **Tangage lu sur les raccords** (`learnPitch`) : une erreur de tangage commune aux photos paraît, dans le
+   recalage des raccords (§ 4.3), comme une échelle de signe opposé sur la voisine avant et sur l'arrière (environ
+   ±4,8 % pour 1°). Leur différence donne le tangage de chaque vue ; il est retenu par photo dans le navigateur, et
+   la médiane des photos vues sert à toute la séquence (la vue est refaite si elle change de 0,1° ou plus). Essai du
+   08/11/2026 sur 30 vues : stable par séquence (+0,45 à +0,57°, +0,27 à +0,49°, −0,13 à −0,38° sur trois
+   séquences), proche de 0 sur les vues calées par leurs verticales ; à +0,4° sur une vue, les écarts bruts aux
+   raccords passent de 14,9 et 11,4 cm à 9,5 et 2,7 cm.
+4. Le curseur « Tangage », réglé à la main, prime ; avec le roulis, il est **retenu par séquence** dans le navigateur
+   (la fixation ne change pas au cours d'une séquence). Le calage du tangage sur l'orthophoto (lignes de peinture,
+   20 cm) a été retiré : trop peu précis (0,1° trouvé là où l'œil voyait 0,5° sur la D33).
 
 **Limites :** le roulis ne se cale pas sur l'orthophoto (il absorberait tout écart de largeur). En agglomération,
 l'inclinaison lue sur les façades peut différer de 1,6° entre deux photos voisines alors que chacune annonce ±0,2° :

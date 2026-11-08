@@ -743,8 +743,9 @@ de l'autre ; la carte en grand, comme la carte détachée (⧉), propose alors �
 résultats, comme les autres mesures (Effacer, Refaire, commentaire, export). Pour une largeur, viser de préférence la
 bande verte (±5 % au mieux, inclinaison lue sur les façades ou, à défaut, sur la pente de la route). Hors de la vue, la
 longueur est mesurée sur le fond de carte seul, sans incertitude (« hors vue »), pour un contrôle rapide. Échap retire
-le départ. Sans façade pour caler l'inclinaison, les curseurs « Roulis » et « Tangage » recalent la vue sur
-l'orthophoto (bande verte seule) ; le réglage est retenu pour toute la séquence, dans ce navigateur. « Raccords recalés » (essai, coché) recale chaque
+le départ. Sans façade pour caler l'inclinaison, le tangage de fixation de la caméra est lu sur les raccords entre photos
+voisines (médiane des photos vues de la séquence) ; les curseurs « Roulis » et « Tangage » recalent la vue à la main
+(bande verte seule), réglage retenu pour toute la séquence, dans ce navigateur. « Raccords recalés » (essai, coché) recale chaque
 photo voisine sur la photo affichée, par corrélation du sol commun (marquages, passages piétons, grain), pour effacer
 les marches aux raccords ; la barre d'état indique l'écart avant et après. « Position calée sur l'orthophoto » (essai, coché) pose la vue sur l'orthophoto
 quand ses lignes s'en écartent de plus de 30 cm en travers : le GPS est alors suspecté avant l'orthophoto. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Construction de

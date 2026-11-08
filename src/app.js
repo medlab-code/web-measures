@@ -1173,7 +1173,6 @@
     const on = shown && $("#dessus").checked;
     const inMap = (selector) => mapBox.querySelector(selector);  // réglages sur la carte, peut-être détachée
     inMap("#dessus-bande").disabled = inMap("#dessus-raccords").disabled = inMap("#dessus-position").disabled = inMap("#dessus-devers").disabled = inMap("#dessus-tangage").disabled = !on;
-    if (!on) inMap("#dessus-caler").disabled = true;
     inMap("#dessus-reglages").hidden = !on;  // vue du dessus allumée seulement
     showMapMeasureButton();
     if (on && birdeyeAsked !== photo.id) {

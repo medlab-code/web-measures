@@ -569,42 +569,6 @@ const Dessus = (() => {
   }
   const sideOf = (c) => -SIDE + (c + 0.5) * 0.02, alongOf = (r) => -ALONG + (r + 0.5) * GRID;
 
-  /** Lignes claires (côte en travers, m) : pics du 9e décile le long, rangées choisies par keep(a). */
-  function peaks(frame, keep, low) {
-    const rows = frame.filter((_, r) => keep(alongOf(r))), cols = frame[0].length;
-    const p = smooth(Array.from({ length: cols }, (_, c) => percentile(rows.map((row) => row[c]), 0.9)), 2), found = [];
-    for (let c = 25; c < cols - 25; c++) {
-      const near = p.slice(c - 25, c + 26).filter((v) => !Number.isNaN(v));
-      if (!(p[c] >= low) || near.some((v) => v > p[c])) continue;
-      if (p[c] - Math.min(...near) >= 0.8 * low) found.push(sideOf(c));
-    }
-    return found;
-  }
-
-  /** Droite suivie par une ligne autour de la côte s0 : { c (côte à a = 0), m (pente), n }, ou null. */
-  function trackLine(frame, s0, keep, low) {
-    const points = [], c0 = Math.round((s0 + SIDE) / 0.02 - 0.5), cs = [];
-    for (let c = c0 - 17; c <= c0 + 17; c++) if (c >= 0 && c < frame[0].length) cs.push(c);
-    for (let a = -11; a <= 11; a += 0.5) {
-      if (!keep(a)) continue;
-      const rows = frame.filter((_, r) => Math.abs(alongOf(r) - a) < 0.5);
-      const pr = smooth(cs.map((c) => percentile(rows.map((row) => row[c]), 0.9)), 2);
-      if (pr.some(Number.isNaN) || Math.max(...pr) < low) continue;
-      const top = Math.max(...pr);
-      let sum = 0, weight = 0;
-      pr.forEach((v, k) => { const w = Math.max(0, v - 0.5 * top); sum += w * sideOf(cs[k]); weight += w; });
-      points.push([a, sum / weight]);
-    }
-    const fit = (list) => {
-      const n = list.length, ma = list.reduce((t, p) => t + p[0], 0) / n, ms = list.reduce((t, p) => t + p[1], 0) / n;
-      const m = list.reduce((t, p) => t + (p[0] - ma) * (p[1] - ms), 0) / list.reduce((t, p) => t + (p[0] - ma) ** 2, 0);
-      return { c: ms - m * ma, m, n };
-    };
-    if (points.length < 6) return null;
-    const first = fit(points), kept = points.filter(([a, s]) => Math.abs(s - first.c - first.m * a) < 0.12);
-    return kept.length >= 6 ? fit(kept) : null;
-  }
-
   /** Cap de la route (rad) : l'orientation où le profil en travers de l'orthophoto est le plus contrasté (±12° du cap). */
   function roadHeading(ortho, heading) {
     let best = heading * toRad, top = -1;
@@ -622,29 +586,9 @@ const Dessus = (() => {
     return best;
   }
 
-  /** Écarts d'une photo à l'orthophoto : { pitch (rad, tangage en trop dans la vue), shift (m, en travers, vue moins
-   * orthophoto), lines } ou null (moins de deux lignes communes, ou trop proches). layer.at : position de sa caméra. */
-  function compareLines(layer, view, ortho, theta, H) {
-    const ua = [Math.sin(theta), Math.cos(theta)], us = [ua[1], -ua[0]];
-    const ca = layer.at[0] * ua[0] + layer.at[1] * ua[1], cs = layer.at[0] * us[0] + layer.at[1] * us[1];  // caméra dans le repère
-    const Do = roadFrame(ortho, theta), Dv = roadFrame(view, theta), seen = (a) => Math.abs(a - ca) > CAR_GAP && Math.abs(a - ca) < 11;
-    const fromOrtho = peaks(Do, seen, 3), fromView = peaks(Dv, seen, 6), lines = [];
-    for (const so of fromOrtho) {
-      const sv = fromView.filter((s) => Math.abs(s - so) < 0.9).sort((x, y) => Math.abs(x - so) - Math.abs(y - so))[0];
-      if (sv === undefined || Math.abs(so - cs) > ROAD) continue;  // au-delà de la chaussée : herbe et bordures en relief
-      const o = trackLine(Do, so, seen, 3), v = trackLine(Dv, sv, seen, 6);
-      if (o && v) lines.push({ s: o.c + o.m * ca - cs, dc: (v.c + v.m * ca) - (o.c + o.m * ca), dm: v.m - o.m });
-    }
-    if (lines.length < 2 || Math.max(...lines.map((l) => l.s)) - Math.min(...lines.map((l) => l.s)) < 2) return null;
-    // Pente relative : cap + tangage x (côte depuis la caméra) / H, ajustés aux moindres carrés
-    const n = lines.length, mx = lines.reduce((t, l) => t + l.s / H, 0) / n, my = lines.reduce((t, l) => t + l.dm, 0) / n;
-    const pitch = lines.reduce((t, l) => t + (l.s / H - mx) * (l.dm - my), 0) / lines.reduce((t, l) => t + (l.s / H - mx) ** 2, 0);
-    return { pitch, shift: median(lines.map((l) => l.dc)), lines: n, us };
-  }
-
   /** Décalage en travers de la vue sur l'orthophoto (m, vue moins orthophoto, selon us), par corrélation des profils en
    * travers de la chaussée (ROAD de part et d'autre, hors véhicule) : { shift, us, score } ou null (corrélation sous 0,3).
-   * L'appariement ligne à ligne de compareLines se trompe dès que herbe et bordures donnent des pics. shortcut: recherche sur
+   * Un appariement ligne à ligne se trompe dès que herbe et bordures donnent des pics. shortcut: recherche sur
    * ±1,2 m, moins qu'un écart entre lignes (2,5 m et plus) ; au-delà, le décalage trouvé serait celui d'une autre ligne. */
   function orthoShift(view, ortho, theta) {
     const seen = (a) => Math.abs(a) > CAR_GAP && Math.abs(a) < 11, cols = Math.round(2 * SIDE / 0.02);
@@ -667,49 +611,6 @@ const Dessus = (() => {
     const [a, b, c] = [scores[best - 1], scores[best], scores[best + 1]], dk = (a - c) / (2 * (a - 2 * b + c)) || 0;
     const ua = [Math.sin(theta), Math.cos(theta)];
     return { shift: (best - MAX + dk) * 0.02, us: [ua[1], -ua[0]], score: scores[best] };
-  }
-
-  const FLAT = Array.from({ length: (2 * REACH / STEP + 1) ** 2 }, () => 0);  // sol plan du repère de la route
-  const FURTHER = 4;  // photos de plus de chaque côté pour le calage, au-delà des voisines : environ 50 m de route en tout
-  const headingOf = (item) => {  // comme py/core/metadata.py : cap EXIF au centième s'il concorde avec view:azimuth
-    const rounded = Number(item.properties?.["view:azimuth"]), exif = item.properties?.exif?.["Exif.GPSInfo.GPSImgDirection"];
-    const [num, den] = String(exif ?? "").split("/").map(Number), value = num / (den || 1);
-    return exif && Number.isFinite(value) && Math.abs(((value - rounded + 540) % 360) - 180) < 1 ? value % 360 : rounded;
-  };
-
-  /** Photos de la séquence au-delà des voisines (FURTHER de chaque côté, à 60 m au plus), fiches STAC lues de proche en proche. */
-  async function* furtherPhotos(mine, signal) {
-    for (const rel of ["prev", "next"]) {
-      const first = (mine.photo.links || []).find((l) => l.rel === rel)?.href;
-      let item = (mine.features || []).find((f) => first && first.endsWith(f.id)) || null;
-      for (let k = 0; k < FURTHER && item; k++) {
-        const href = (item.links || []).find((l) => l.rel === rel)?.href;
-        if (!href) break;
-        const response = await fetch(href, { signal });
-        if (!response.ok) break;
-        item = await response.json();
-        if (Math.hypot(...toLocal(...item.geometry.coordinates.slice(0, 2), mine.pose)) > 60) break;
-        yield item;
-      }
-    }
-  }
-
-  /** Écarts à l'orthophoto d'une photo plus loin dans la séquence, dessinée seule autour de sa caméra dans le repère de la
-   * route (sol plan, caméra posée dessus) : seul compte le défaut de fixation, sans LiDAR. Essai du 07/11/2026 : mêmes
-   * tangages qu'avec le terrain LiDAR HD, moins dispersés. Ou null. */
-  async function compareFurther(item, mine, signal) {
-    const [lon, lat] = item.geometry.coordinates, base = { ...mine.pose, pic: item.id, lon, lat, heading: headingOf(item), neighbours: [] };
-    const [part, ortho] = await Promise.all([
-      loadPano(Video.record(item, { coords: item.geometry.coordinates }).tiles, Math.min(NEAR_LIMIT, context().getParameter(gl.MAX_TEXTURE_SIZE)), signal),
-      readOrtho(base, signal)]);
-    const pano = panoTexture(part);
-    try {
-      const pose = { ...base, height: shown.height || base.height, up: groundUp(FLAT, [0, 0], base.heading, rollShare, pitchOffset), sigma: GROUND_SIGMA, groundTilt: true };
-      const layer = { pano, pose, at: [0, 0] };
-      return compareLines(layer, readView(layer, null, pose), ortho, roadHeading(ortho, base.heading), pose.height);
-    } finally {
-      gl.deleteTexture(pano.texture);
-    }
   }
 
   // Raccords entre photos, recalés par corrélation --------------------------------------------
@@ -888,7 +789,7 @@ const Dessus = (() => {
     if (checked.length < 3) return null;
     const before = median(checked.map((c) => c[0])), after = median(checked.map((c) => c[1]));
     const sane = w.every((v, i) => Math.abs(v) <= JOIN_LIMIT[i]);
-    return { fix: after < before && sane ? w : null, before, after, n: obs.length };
+    return { fix: after < before && sane ? w : null, before, after, n: obs.length, w };
   }
 
   /** Recalage de chaque voisine sur la principale : Map (photo -> fix), et le bilan affiché. */
@@ -915,6 +816,7 @@ const Dessus = (() => {
       mine.joining = false;
     }
     if (shown !== mine) return;
+    if (learnPitch(main, others, results)) return showImage();  // tangage de la séquence changé : raccords refaits avec lui
     const done = results.filter((r) => r?.fix), cm = (v) => number(100 * v, 1);
     mine.joins = { key, map: joins, results, ms: performance.now() - begun };
     mine.joinText = !others.length ? "" : done.length
@@ -936,7 +838,7 @@ const Dessus = (() => {
   // Roulis (part du dévers) et tangage ajouté (degrés), réglés à la main (options d'essai) et retenus par séquence dans le
   // navigateur : la fixation de la caméra ne change pas au cours d'une séquence (A38 du 09/10/2025 : même tangage à deux endroits)
   const DEFAULT_ROLL = 0.7, DEFAULT_PITCH = 0, SETTINGS_KEY = "web-measures/dessus-reglages";
-  let rollShare = DEFAULT_ROLL, pitchOffset = DEFAULT_PITCH;
+  let rollShare = DEFAULT_ROLL, pitchOffset = DEFAULT_PITCH, pitchManual = false;  // pitchManual : tangage réglé à la main
   const readSettings = () => {
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch { return {}; }  // stockage absent ou illisible
   };
@@ -961,23 +863,62 @@ const Dessus = (() => {
     return values.length >= HEIGHTS_MIN ? { height: median(values), count: values.length } : null;
   }
 
-  /** Réglage de la séquence affichée gardé ; les valeurs par défaut ne sont pas gardées. */
+  /** Réglage de la séquence affichée gardé ; les valeurs par défaut, et le tangage des raccords, ne sont pas gardés. */
   function keepSettings() {
     if (!shown) return;
     const all = readSettings();
-    if (rollShare === DEFAULT_ROLL && pitchOffset === DEFAULT_PITCH) delete all[shown.sequence];
-    else all[shown.sequence] = { roll: rollShare, pitch: pitchOffset };
+    if (rollShare === DEFAULT_ROLL && !pitchManual) delete all[shown.sequence];
+    else all[shown.sequence] = { roll: rollShare, ...(pitchManual ? { pitch: pitchOffset } : {}) };
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(all)); } catch { /* sans stockage : pour cette page seulement */ }
   }
-  /** Réglage retenu pour la séquence (ou par défaut), curseurs compris. */
+  /** Réglage retenu pour la séquence (ou par défaut ; tangage : à la main, sinon celui des raccords), curseurs compris. */
   function applySettings(sequence) {
-    const kept = readSettings()[sequence];
+    const kept = readSettings()[sequence], auto = sequencePitch(sequence);
     rollShare = kept?.roll ?? DEFAULT_ROLL;
-    pitchOffset = kept?.pitch ?? DEFAULT_PITCH;
+    pitchManual = kept?.pitch !== undefined;
+    pitchOffset = pitchManual ? kept.pitch : auto ? auto.pitch : DEFAULT_PITCH;
     $("#dessus-devers").value = Math.round(rollShare * 100);
     $("#dessus-devers-valeur").textContent = `${Math.round(rollShare * 100)} %`;
+    showPitch();
+  }
+  const showPitch = () => {
     $("#dessus-tangage").value = pitchOffset;
     $("#dessus-tangage-valeur").textContent = `${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°`;
+  };
+
+  // Tangage de fixation de la caméra lu sur les raccords : une erreur de tangage commune aux photos y paraît comme une échelle
+  // de signe opposé devant et derrière (environ 1,8 L / H par radian, L : écart entre photos ; avant moins arrière). Retenu par
+  // photo dans le navigateur, la médiane sert à la séquence, comme la hauteur. Essai du 08/11/2026 : stable par séquence
+  // (+0,45 à +0,57°, +0,27 à +0,49°, -0,13 à -0,38° sur trois séquences), proche de 0 sur les photos calées par leurs verticales.
+  const PITCHES_KEY = "web-measures/dessus-tangages", PITCH_STEP = 0.1;  // degrés : écart en deçà duquel la vue n'est pas refaite
+  const readPitches = () => {
+    try { return JSON.parse(localStorage.getItem(PITCHES_KEY)) || {}; } catch { return {}; }
+  };
+  /** Tangage de la séquence lu sur les raccords : { pitch (degrés, au 0,05° près), count }, ou null. */
+  function sequencePitch(sequence) {
+    const values = Object.values(readPitches()[sequence] || {});
+    return values.length ? { pitch: Math.round(median(values) * 20) / 20, count: values.length } : null;
+  }
+  /** Tangage de la photo affichée lu sur ses deux raccords (results d'alignJoin, others : voisines), retenu pour la séquence ;
+   * vrai si le tangage de la séquence change assez pour refaire la vue. */
+  function learnPitch(main, others, results) {
+    const both = others.map((other, k) => ({ other, r: results[k] })).filter(({ r }) => r && r.after < r.before);
+    if (both.length !== 2 || !main.pose.groundTilt || !others.every((o) => o.pose.groundTilt)) return false;
+    const h = main.pose.heading * toRad, along = both.map(({ other }) => other.at[0] * Math.sin(h) + other.at[1] * Math.cos(h));
+    if (along[0] * along[1] >= 0) return false;  // une voisine devant, une derrière
+    const [front, back] = along[0] > 0 ? both : [both[1], both[0]], L = (Math.abs(along[0]) + Math.abs(along[1])) / 2;
+    const residual = (front.r.w[4] - back.r.w[4]) / (1.8 * L / main.pose.height) / toRad;
+    const all = readPitches(), kept = all[shown.sequence] || {};
+    kept[main.pose.pic] = Math.round((pitchOffset + residual) * 100) / 100;
+    const pics = Object.keys(kept);
+    if (pics.length > 60) delete kept[pics[0]];  // les plus anciennes d'abord
+    all[shown.sequence] = kept;
+    try { localStorage.setItem(PITCHES_KEY, JSON.stringify(all)); } catch { /* sans stockage : pour cette page seulement */ }
+    const auto = sequencePitch(shown.sequence);
+    if (pitchManual || Math.abs(auto.pitch - pitchOffset) < PITCH_STEP) return false;
+    pitchOffset = auto.pitch;
+    showPitch();
+    return true;
   }
   let swapViews = () => {};  // échange de la carte et de la visionneuse (app.js)
   // Dans la carte d'abord : détachée, elle est dans le document d'une autre fenêtre
@@ -1049,48 +990,6 @@ const Dessus = (() => {
     live.setLngLat(hover).addTo(map);
   }
 
-  /** « Caler le tangage sur l'orthophoto » : tangage en trop mesuré sur chaque photo prête (la principale et ses voisines), la
-   * médiane ajoutée au réglage de la séquence ; décalage en travers de la principale gardé pour l'option de position. */
-  async function calibrate() {
-    const mine = shown, button = $("#dessus-caler");
-    if (!mine?.url || !mine.terrain || busy()) return;  // photo voisine en lecture : le bouton se réactive ensuite
-    button.disabled = true;
-    say("Calage sur l'orthophoto : lecture et repérage des lignes…");
-    try {
-      const ortho = await readOrtho(mine.pose), theta = roadHeading(ortho, mine.pose.heading), found = [];
-      for (const layer of readyLayers()) {
-        await new Promise((resolve) => setTimeout(resolve));  // la page reste à jour entre deux photos
-        if (shown !== mine) return;
-        const result = compareLines(layer, readView(layer, mine.terrain, mine.pose), ortho, theta, layer.pose.height);
-        if (result) found.push({ ...result, main: layer.pose.pic === mine.pic });
-      }
-      // Plus loin dans la séquence : des lignes plus longues en tout, et des photos qui ne voient pas la même portion
-      let seen = readyLayers().length;
-      for await (const item of furtherPhotos(mine, abort.signal)) {
-        if (shown !== mine) return;
-        say(`Calage sur l'orthophoto : photo ${++seen}, ${found.length} calée${found.length > 1 ? "s" : ""}…`);
-        const result = await compareFurther(item, mine, abort.signal).catch(() => null);  // photo illisible : la suivante
-        if (result) found.push({ ...result, main: false });
-      }
-      if (!found.length) {
-        mine.calibrated = "calage impossible : moins de deux lignes nettes en commun avec l'orthophoto";
-      } else {
-        const pitches = found.map((f) => f.pitch / toRad), spread = Math.max(...pitches) - Math.min(...pitches);
-        pitchOffset = Math.round((pitchOffset - median(pitches)) * 20) / 20;  // tangage en trop dans la vue : retiré
-        $("#dessus-tangage").value = pitchOffset;
-        $("#dessus-tangage-valeur").textContent = `${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°`;
-        keepSettings();
-        mine.located = undefined;  // position sur l'orthophoto refaite avec le nouveau tangage (voir locate)
-        mine.calibrated = `tangage calé sur l'orthophoto (${found.length} photo${found.length > 1 ? "s" : ""}${found.length > 1 ? `, écart ${number(spread, 2)}°` : ""})`;
-      }
-    } catch (error) {
-      mine.calibrated = `calage impossible : ${error.message}`;
-    } finally {
-      button.disabled = false;
-    }
-    if (shown === mine) await showImage();
-  }
-
   function setup(theMap, swap) {
     map = theMap;
     swapViews = swap;
@@ -1102,6 +1001,7 @@ const Dessus = (() => {
     pitch.addEventListener("input", () => { $("#dessus-tangage-valeur").textContent = degrees(pitch.value); });
     pitch.addEventListener("change", () => {
       pitchOffset = Number(pitch.value);
+      pitchManual = true;
       keepSettings();
       if (shown?.url) showImage();
     });
@@ -1112,7 +1012,6 @@ const Dessus = (() => {
       keepSettings();
       if (shown?.url) showImage();
     });
-    $("#dessus-caler").addEventListener("click", calibrate);
     $("#dessus-position").addEventListener("change", (event) => {
       positionOn = event.target.checked;
       cancelStart();  // le départ a été pris dans l'autre position
@@ -1213,10 +1112,10 @@ const Dessus = (() => {
       map.addLayer({ id: BEST_ID, type: "fill", source: BEST_ID, paint: { "fill-color": "#00c853", "fill-opacity": 0.12 } }, below);
     }
     const place = shown.terrain ? "Terrain LiDAR HD" : `Sol supposé plat (${shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
-    const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${pitchOffset ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${readSettings()[shown.sequence] ? ", réglage de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
+    const auto = !pitchManual && pitchOffset ? sequencePitch(shown.sequence) : null;
+    const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${pitchOffset || pitchManual ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? " réglé à la main" : auto ? ` lu sur les raccords (${auto.count} photo${auto.count > 1 ? "s" : ""})` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
-    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? " (décalage entre photos)" : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${shown.calibrated ? ` ; ${shown.calibrated}` : ""}${joinsOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
-    $("#dessus-caler").disabled = !shown.terrain || busy();  // toutes les photos prêtes, posées sur le terrain
+    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? " (décalage entre photos)" : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${joinsOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
     if (positionOn && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
     else if (!busy() && !shown.estimated) measureHeight();
     else if (!busy() && joinsOn && layers.length > 1 && shown.joins?.key !== shown.joinKeyNow) alignJoins();
@@ -1273,7 +1172,6 @@ const Dessus = (() => {
       if (!feature || pose.pending || mine.panos.has(pose.pic) || mine.loading.has(pose.pic)
           || Math.hypot(...toLocal(pose.lon, pose.lat, mine.pose)) > REACH) continue;
       mine.loading.add(pose.pic);
-      $("#dessus-caler").disabled = true;  // la photo attendue entre dans le calage
       const tiles = Video.record(feature, { coords: feature.geometry.coordinates }).tiles;
       loadPano(tiles, Math.min(NEAR_LIMIT, context().getParameter(gl.MAX_TEXTURE_SIZE)), signal).then((part) => {
         if (shown !== mine) { part.canvas.width = 0; return; }
