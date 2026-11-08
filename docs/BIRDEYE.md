@@ -212,6 +212,11 @@ l'inclinaison sur ses deux axes, la hauteur, l'écart du sol et, entre deux phot
 vérifié, sinon 30 cm), sans descendre sous 5 % de la longueur (écart constaté à l'orthophoto). Le mieux est de mesurer
 dans la bande verte. Un bout hors de la vue se mesure sur le fond de carte seul, sans incertitude.
 
+**Incertitude selon la situation** (`measureError`) : inclinaison tirée de la route dans un virage, incertitude majorée du
+penchement probable du véhicule (0,5° par m/s² d'accélération latérale, photos précédente et suivante) ; hauteur par
+l'altitude RTK moins le sol, au moins ±10 cm (12 cm d'écart avec le décalage entre photos sur le giratoire b47b4351) ;
+mesure à cheval sur deux photos, au moins l'écart mesuré à leurs raccords (après recalage, sinon d'origine).
+
 ## 6. Session et réglages gardés
 
 - Dans le navigateur : roulis et tangage par séquence (`web-measures/dessus-reglages`), hauteurs vérifiées par séquence

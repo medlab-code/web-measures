@@ -27,6 +27,9 @@ const Dessus = (() => {
   const BEST = { along: 4, wide: 8 };  // m : zone idéale d'une largeur, en face de la caméra (essai du 08/11 : écart à l'orthophoto ≤ 1,5 % jusqu'à 4 m en long, 2 % au-delà)
   const MEASURED = 0.05;  // part de la longueur : incertitude affichée au moins égale à l'écart à l'orthophoto (voir docs/CALCULS.md)
   const HEIGHT_SIGMA = 0.05;  // m : hauteur de caméra lue sur le décalage entre photos voisines (essai de 28 paires)
+  // m : hauteur par l'altitude RTK moins le sol, au moins : 12 cm d'écart avec le décalage entre photos sur le giratoire
+  // b47b4351 (2,06 contre 1,94 m, stable sur 15 photos), alors que l'écart entre photos de la séquence n'est que de 2 cm
+  const RTK_SIGMA = 0.1;
   const GROUND_SIGMA = 1;  // degrés : inclinaison déduite de la route, sans verticales à lire (voir docs/CALCULS.md)
   const LIDAR_SIGMA = 0.02, FLAT_SIGMA = 0.1;  // m : écart du sol au terrain utilisé (résidu LiDAR ; sol supposé plat)
   const ELEVATION_URL = "https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json";
@@ -134,7 +137,9 @@ const Dessus = (() => {
       const H = pose.height, d = Math.hypot(...p);
       return Math.hypot((H * H + d * d) / H * pose.sigma * toRad, d * pose.height_sigma / H, d * sigmaGround / H);
     };
-    return Math.hypot(single(local(a, la), la), single(local(b, lb), lb), la.pose.relative_sigma);
+    // position relative des deux photos : au moins l'écart mesuré à leurs raccords (recalé, sinon d'origine)
+    const seam = (l) => (l.seam ? (l.seam.fix ? l.seam.after : l.seam.before) : 0);
+    return Math.hypot(single(local(a, la), la), single(local(b, lb), lb), Math.max(la.pose.relative_sigma, Math.hypot(seam(la), seam(lb))));
   }
 
   /** Incertitude affichée pour une longueur entre a et b : voir measureError, sans descendre sous l'écart mesuré (MEASURED). */
@@ -168,6 +173,26 @@ const Dessus = (() => {
     }
     const ga = along / aa + Math.tan(pitch * toRad), gs = rollShare * side / ss, east = ga * hu[0] + gs * hu[1], north = ga * hu[1] - gs * hu[0], length = Math.hypot(east, north, 1);
     return [east / length, north / length, 1 / length];
+  }
+
+  // Véhicule penché en virage : environ LEAN degrés par m/s² d'accélération latérale (5° par g), que l'inclinaison tirée de
+  // la route ignore ; ajouté à son incertitude, sans corriger la vue (giratoire b47b4351, 4,4 m/s² : bord à 8 m décalé de
+  // 1,3 m avec la route, juste avec les verticales qui voient 2° de plus). Courbure et vitesse : photos précédente et suivante.
+  const LEAN = 0.5;
+  /** Accélération latérale (m/s², valeur absolue) au passage de la photo, ou 0 (trajectoire inconnue, arrêt). */
+  async function lateralOf(photo, pose, signal) {
+    const links = (photo.links || []).filter((l) => l.rel === "prev" || l.rel === "next");
+    if (links.length < 2) return 0;
+    const items = await Promise.all(links.map((l) => fetch(l.href, { signal }).then((r) => (r.ok ? r.json() : null))));
+    const points = [photo, ...items].filter((item) => item?.geometry && item.properties?.datetime)
+      .map((item) => ({ at: toLocal(...item.geometry.coordinates.slice(0, 2), pose), t: Date.parse(item.properties.datetime) / 1000 }))
+      .sort((p, q) => p.t - q.t);
+    if (points.length < 3) return 0;
+    const [a, b, c] = points, ab = Math.hypot(b.at[0] - a.at[0], b.at[1] - a.at[1]), bc = Math.hypot(c.at[0] - b.at[0], c.at[1] - b.at[1]);
+    const ac = Math.hypot(c.at[0] - a.at[0], c.at[1] - a.at[1]), dt = c.t - a.t;
+    if (ab < 1 || bc < 1 || ab > 15 || bc > 15 || dt <= 0) return 0;
+    const curvature = 2 * Math.abs((b.at[0] - a.at[0]) * (c.at[1] - b.at[1]) - (b.at[1] - a.at[1]) * (c.at[0] - b.at[0])) / (ab * bc * ac);
+    return ((ab + bc) / dt) ** 2 * curvature;
   }
 
   /** Altitude de la route sous une caméra (depuis le sol au centre du maillage) : moyenne du terrain sur ±2,5 m en long et
@@ -886,7 +911,7 @@ const Dessus = (() => {
     if (shown !== mine) return;
     if (learnPitch(main, others, results)) return showImage();  // tangage de la séquence changé : raccords refaits avec lui
     const done = results.filter((r) => r?.fix), cm = (v) => number(100 * v, 1);
-    mine.joins = { key, map: joins, results, ms: performance.now() - begun };
+    mine.joins = { key, map: joins, results, seams: new Map(others.map((o, k) => [o.pose.pic, results[k]])), ms: performance.now() - begun };
     mine.joinText = !others.length ? "" : done.length
       ? `raccords recalés ${done.length}/${others.length} (écart ${done.map((r) => `${cm(r.before)} → ${cm(r.after)}`).join(", ")} cm)`
       : `raccords non recalés (${results.some(Boolean) ? "sans gain sûr" : "pas assez de sol net en commun"})`;
@@ -1003,10 +1028,14 @@ const Dessus = (() => {
     .filter((pose) => shown.panos.has(pose.pic))
     .map((pose) => {
       const at = toLocal(pose.lon, pose.lat, shown.pose);
-      const leveled = pose.up || !shown.terrain ? pose : { ...pose, up: groundUp(shown.terrain, at, pose.heading, rollShare, pitchOffset), sigma: Math.min(pose.sigma, GROUND_SIGMA), groundTilt: true };
-      const height = shown.height || shown.sequenceHeight?.height;  // décalage entre photos, sinon hauteur de la séquence
+      const leveled = pose.up || !shown.terrain ? pose : { ...pose, up: groundUp(shown.terrain, at, pose.heading, rollShare, pitchOffset),
+        sigma: Math.hypot(Math.min(pose.sigma, GROUND_SIGMA), LEAN * (shown.lateral || 0)), groundTilt: true };  // virage : véhicule penché
+      const seam = shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.seams?.get(pose.pic) : undefined;  // raccord de la voisine
       const fix = neighboursOn && shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.map.get(pose.pic) : undefined;
-      return { pose: height ? { ...leveled, height, height_sigma: HEIGHT_SIGMA } : leveled, pano: shown.panos.get(pose.pic), at, fix };
+      // hauteur : décalage entre photos, sinon RTK moins le sol (de la séquence, ou de la photo)
+      const height = shown.height ? { height: shown.height, height_sigma: HEIGHT_SIGMA }
+        : { height: shown.sequenceHeight?.height ?? leveled.height, height_sigma: Math.max(leveled.height_sigma, RTK_SIGMA) };
+      return { pose: { ...leveled, ...height }, pano: shown.panos.get(pose.pic), at, fix, seam };
     });
 
   /** Mode « Longueur sur la carte » (app.js) : curseur, carte et visionneuse échangées, sans toucher au zoom. */
@@ -1163,7 +1192,7 @@ const Dessus = (() => {
   function remember(view) {
     if (!view?.panos.has(view.pic)) return;  // photo et terrain pas encore lus
     computed.delete(view.pic);
-    computed.set(view.pic, { terrain: view.terrain, terrainFailed: view.terrainFailed, estimated: view.estimated && !view.estimating, joins: view.joins, joinText: view.joinText, shift: view.shift, located: view.located });
+    computed.set(view.pic, { terrain: view.terrain, terrainFailed: view.terrainFailed, estimated: view.estimated && !view.estimating, joins: view.joins, joinText: view.joinText, shift: view.shift, located: view.located, lateral: view.lateral });
     if (computed.size > COMPUTED_MAX) computed.delete(computed.keys().next().value);  // la plus ancienne
   }
 
@@ -1208,7 +1237,7 @@ const Dessus = (() => {
     }
     const place = shown.terrain ? "Terrain LiDAR HD" : `Sol supposé plat (${pose.bridge ? "pont à proximité, LiDAR HD écarté" : shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
     const auto = !pitchManual && pitchOffset ? sequencePitch(shown.sequence) : null;
-    const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${pitchOffset || pitchManual ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? " réglé à la main" : auto ? ` lu sur les raccords (${auto.count} photo${auto.count > 1 ? "s" : ""})` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
+    const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${LEAN * (shown.lateral || 0) >= 0.5 ? `, virage : véhicule penché jusqu'à ${number(LEAN * shown.lateral, 1)}°` : ""}${pitchOffset || pitchManual ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? " réglé à la main" : auto ? ` lu sur les raccords (${auto.count} photo${auto.count > 1 ? "s" : ""})` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain || !neighboursOn ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
     say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
     if (positionOn && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
@@ -1350,6 +1379,12 @@ const Dessus = (() => {
     applySettings(photo.collection);
     shown.sequenceHeight = pose.pending ? null : sequenceHeight(photo.collection, pose);
     const mine = shown;
+    if (mine.lateral === undefined) {  // virage : incertitude d'inclinaison majorée à son arrivée
+      lateralOf(photo, pose, signal).catch(() => 0).then((lateral) => {
+        mine.lateral = lateral;
+        if (shown === mine && mine.panos.has(mine.pic) && LEAN * lateral >= 0.1) showImage();
+      });
+    }
     say("Lecture de la photo et du terrain…");
     try {
       const tiles = Video.record(photo, { coords: photo.geometry.coordinates }).tiles;
