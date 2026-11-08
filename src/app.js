@@ -1168,7 +1168,9 @@
     const read = await Promise.all(links.map((l) => fetch(l.href).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
     return read.filter(Boolean);
   }
+  let birdeyeFor = null;  // photo pour laquelle Bird Eye a été allumée : une autre photo l'éteint, rien n'est calculé sans clic
   function updateBirdeye() {
+    if ($("#dessus").checked && photo && birdeyeFor && birdeyeFor !== photo.id) $("#dessus").checked = false;
     const pose = app && photo ? JSON.parse(app.birdeye_pose()) : null, shown = pose && pose.pic === photo.id;
     $("#dessus").disabled = !shown;
     const on = shown && $("#dessus").checked;
@@ -1214,7 +1216,7 @@
     if (on === swapped || (on && mapWindow)) return;
     swapped = on;
     swapButton.setAttribute("aria-pressed", String(on));
-    measureButton.hidden = !on && !mapWindow;  // carte en grand ou détachée : la mesure s'y lance d'un clic
+    measureButton.hidden = birdeyeButton.hidden = !on && !mapWindow;  // carte en grand ou détachée : mesure et Bird Eye d'un clic
     swapButton.title = on ? "Remettre la carte et la visionneuse à leur place" : "Échanger la carte et la visionneuse (place et taille)";
     if (on) {
       setColumnFolded(false);
@@ -1260,8 +1262,21 @@
     }
     if (!measuring) $("#mesure").click();
   });
+  // Faucon : Bird Eye de la photo affichée, d'un clic (comme l'interrupteur du bandeau) ; une autre photo l'éteint (updateBirdeye)
+  const birdeyeButton = Object.assign(document.createElement("button"), { type: "button", className: "birdeye-carte", hidden: true,
+    ariaLabel: "Bird Eye" });
+  birdeyeButton.append(Object.assign(document.createElement("img"), { src: "src/faucon.svg", alt: "" }));
+  birdeyeButton.setAttribute("aria-pressed", "false");
+  birdeyeButton.addEventListener("click", () => {
+    $("#dessus").checked = !$("#dessus").checked;
+    $("#dessus").dispatchEvent(new Event("change"));
+  });
   map.addControl({
-    onAdd: () => Object.assign(document.createElement("div"), { className: "maplibregl-ctrl place-mesurer" }).appendChild(measureButton).parentNode,
+    onAdd: () => {
+      const place = Object.assign(document.createElement("div"), { className: "maplibregl-ctrl place-mesurer" });
+      place.append(measureButton, birdeyeButton);
+      return place;
+    },
     onRemove: () => {},
   }, "top-left");
   /** Bouton de la carte en grand : enfoncé pendant la mesure, grisé sans photo 360° (pas de vue du dessus). */
@@ -1271,6 +1286,10 @@
     measureButton.textContent = on ? "📏 Arrêter la mesure" : "📏 Mesurer une longueur";
     measureButton.title = on ? "Arrêter la mesure de longueur sur la carte" : "Mesurer une longueur sur la vue Bird Eye : deux clics sur la carte";
     measureButton.disabled = !on && ($("#dessus").disabled || $("#mode").disabled);
+    const bird = $("#dessus").checked;
+    birdeyeButton.setAttribute("aria-pressed", String(bird));
+    birdeyeButton.disabled = $("#dessus").disabled;
+    birdeyeButton.title = bird ? "Éteindre la vue Bird Eye" : "Vue Bird Eye de cette photo (calculée pour elle seule : une autre photo l'éteint)";
   }
   Dessus.setup(map, (on) => {
     measureSwap = on;
@@ -1288,6 +1307,7 @@
   }
   $("#dessus").addEventListener("change", (event) => {
     if (event.target.checked && photo) map.jumpTo({ center: photo.geometry.coordinates });  // le zoom ne bouge pas
+    birdeyeFor = event.target.checked && photo ? photo.id : null;
     updateBirdeye();
   });
   mapBox.querySelector("#dessus-voisines").addEventListener("change", updateBirdeye);  // voisines à lire
@@ -1714,7 +1734,7 @@
     $("#carte-detachee").hidden = !detached;
     grip.hidden = detached;
     swapButton.disabled = detached;  // carte déjà à part : rien à échanger
-    measureButton.hidden = !detached && !swapped;  // détachée : comme en grand
+    measureButton.hidden = birdeyeButton.hidden = !detached && !swapped;  // détachée : comme en grand
     detachButton.textContent = "⧉";
     detachButton.title = detached ? "Remettre la carte dans la page"
       : "Détacher la carte dans une fenêtre à part (second écran)";

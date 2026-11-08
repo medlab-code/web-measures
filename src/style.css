@@ -275,6 +275,15 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 /* fond de survol de MapLibre (presque transparent) remplacé : le bouton reste lisible sur l'image */
 .maplibregl-ctrl button.mesurer-carte:not(:disabled):hover { background: #eee; }
 .maplibregl-ctrl button.mesurer-carte[aria-pressed="true"]:not(:disabled):hover { background: var(--panoramax); filter: brightness(1.1); }
+/* Faucon : Bird Eye de la photo affichée, même hauteur que « Mesurer une longueur » */
+.maplibregl-ctrl button.birdeye-carte { width: 43px; height: 43px; margin-left: 6px; padding: 5px; border: 0; border-radius: 4px;
+  background: #fff; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); cursor: pointer; vertical-align: top; }
+.maplibregl-ctrl button.birdeye-carte img { display: block; width: 100%; height: 100%; }
+.maplibregl-ctrl button.birdeye-carte[hidden] { display: none; }
+.maplibregl-ctrl button.birdeye-carte[aria-pressed="true"] { background: var(--panoramax); }
+.maplibregl-ctrl button.birdeye-carte:disabled { opacity: 0.5; cursor: default; }
+.maplibregl-ctrl button.birdeye-carte:not(:disabled):hover { background: #eee; }
+.maplibregl-ctrl button.birdeye-carte[aria-pressed="true"]:not(:disabled):hover { background: var(--panoramax); filter: brightness(1.1); }
 /* en haut, à droite des boutons de zoom plutôt que sous la pile de gauche */
 .maplibregl-ctrl-top-left .place-mesurer { position: absolute; top: 0; left: 40px; white-space: nowrap; }
 

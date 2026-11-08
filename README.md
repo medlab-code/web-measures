@@ -735,7 +735,9 @@ fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/so
 
 ### Mesure d'une longueur sur la carte (essai, branche `birdeye`)
 
-« Bird Eye » (vue du dessus, dans le bloc du fond de carte) reprojette le sol de la photo sur la mini-carte ; ses réglages
+« Bird Eye » (vue du dessus, dans le bloc du fond de carte, ou bouton faucon de la carte en grand ou détachée, à droite de « Mesurer une longueur »)
+reprojette le sol de la photo sur la mini-carte, pour la photo affichée seulement (une autre photo l'éteint : rien
+n'est calculé sans le demander) ; ses réglages
 d'essai sont dans un panneau repliable sur la carte en grand ou détachée ; « Bande verte seule » n'en garde que la bande en face
 de la caméra, la plus sûre ; « Bande verte » la montre ou la cache ; « Haute résolution » double la finesse de l'image
 (0,7 cm par pixel, quelques secondes de plus) ; « Raccords fondus » (essai) efface les taches claires ou sombres autour
