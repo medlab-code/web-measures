@@ -431,7 +431,7 @@ const Dessus = (() => {
       color = vec4(mix(c, vec3(dot(c, vec3(0.3, 0.59, 0.11))), far), 1.0 - 0.5 * far);
       if (stage == 2) { if (hidden || far > 0.02) discard; color.a = 1.0; }
       if (stage == 3) color = vec4(index / 255.0, 0.0, 0.0, 1.0);
-      if (stage == 4) color.a = !hidden && dist < joinReach && far < 0.04 ? 1.0 : 0.0;  // couleur gardée, alpha : sol sûr
+      if (stage == 4) color.a = !hidden && dist < joinReach ? 1.0 : 0.0;  // couleur gardée, alpha : sol sûr
     }`;
 
   let gl = null, program = null;
@@ -510,7 +510,7 @@ const Dessus = (() => {
     g.uniform1f(uniform("sure"), SURE);
     g.uniform1f(uniform("wide"), CAR.wide);
     g.uniform1f(uniform("shade"), SHADE);
-    g.uniform1f(uniform("joinReach"), JOIN_REACH);
+    g.uniform1f(uniform("joinReach"), rasterReach);
     g.uniform1f(uniform("masked"), layers.length > 1 ? 1 : 0);  // photo seule : son véhicule plutôt qu'un trou
     g.uniform1i(uniform("stage"), stage);
     // band : axe de la route [est, nord], et demi-longueur, demi-largeur gardées (par défaut la zone idéale, BEST)
@@ -971,7 +971,9 @@ const Dessus = (() => {
   const JOIN_SHIFT_ONLY = JOIN_PRIOR.map((v, i) => (i < 2 ? v : 1e12));  // décalage seul : les autres termes tenus à 0
 
   /** Photo seule dessinée (réglages en cours, sans recalage) : gris (0-255) passe-haut, sûr (0/1), lignes du sud au nord. */
-  function readRaster(layer, terrain, frame, keepFix = false) {
+  let rasterReach = 11;  // m : portée du sol sûr de readRaster (JOIN_REACH ; LINE_REACH pour les lignes)
+  function readRaster(layer, terrain, frame, keepFix = false, reach = JOIN_REACH) {
+    rasterReach = reach;
     const g = context(), rgba = new Uint8Array(4 * SIZE * SIZE);
     render([{ ...layer, fix: keepFix ? layer.fix : null, bend: null }], terrain, frame, null, SIZE, 4);  // gris et sol sûr (hors véhicule, à moins de JOIN_REACH m)
     g.readPixels(0, 0, SIZE, SIZE, g.RGBA, g.UNSIGNED_BYTE, rgba);
@@ -1143,7 +1145,8 @@ const Dessus = (() => {
   // une bande de LINE_BAND m juste hors du masque, où les deux photos voient le sol ; lignes : pics du passe-haut de la photo
   // affichée (LINE_PEAK fois l'écart médian), écart cherché à ±LINE_SEARCH m sur ±LINE_WINDOW m ; entre deux lignes,
   // interpolé ; au-delà, celui de la plus proche.
-  const LINE_BAND = 0.5, LINE_SEARCH = 0.15, LINE_WINDOW = 0.4, LINE_PEAK = 4;
+  // LINE_REACH : le bord du masque d'un côté n'est vu que par la voisine de l'autre côté, à 10 m environ (bc400f2b)
+  const LINE_BAND = 0.5, LINE_SEARCH = 0.15, LINE_WINDOW = 0.4, LINE_PEAK = 4, LINE_REACH = 13;
 
   /** Champ de déplacement (comme bendField) qui cale les lignes en long de la voisine other sur celles de la principale au bord
    * du masque, ou null sans ligne. a, b : readRaster de la principale et de la voisine (recalée) ; ax : axe de la route. */
@@ -1159,12 +1162,13 @@ const Dessus = (() => {
         const i = Math.floor((e + REACH) / M), j = Math.floor((n + REACH) / M);
         return i >= 0 && j >= 0 && i < SIZE && j < SIZE ? j * SIZE + i : -1;
       };
-      const profileA = new Float32Array(2 * T), profileB = new Float32Array(2 * T), seen = new Uint8Array(2 * T);
+      const profileA = new Float32Array(2 * T), profileB = new Float32Array(2 * T), seen = new Uint8Array(2 * T), edges = new Float32Array(2 * T);
       for (let k = 0; k < 2 * T; k++) {
         const t = (k - T + 0.5) * M;
         let edge = 0;  // bord du masque : premier point vu en partant de la caméra
         while (edge < 8 && hidden(ahead * edge * ax[0] + t * side[0], ahead * edge * ax[1] + t * side[1], main.pose)) edge += 0.05;
         if (edge === 0 || edge >= 8) continue;  // pas de masque à cette distance de l'axe
+        edges[k] = edge;
         let sa = 0, sb = 0, n = 0;
         for (let u = edge + 0.05; u < edge + LINE_BAND; u += M) {
           const q = at(u, t);
@@ -1181,10 +1185,12 @@ const Dessus = (() => {
         for (let d = -S; d <= S; d++) if (score(d) > score(best)) best = d;
         if (Math.abs(best) === S) continue;  // au bout de la recherche : pas la même ligne
         const l = score(best - 1), c = score(best), r = score(best + 1), sub = (l - r) / (2 * (l - 2 * c + r) || 1);
-        lines.push({ t: (k - T + 0.5) * M, d: (best + Math.max(-0.5, Math.min(0.5, sub))) * M, ahead });
+        lines.push({ t: (k - T + 0.5) * M, d: (best + Math.max(-0.5, Math.min(0.5, sub))) * M, ahead, edge: edges[k] });
       }
       if (!lines.length) continue;
       found.push(...lines);
+      // déformation entière au bord du masque, nulle sous la caméra : les deux voisines s'y raccordent déjà entre elles
+      const edge = lines.reduce((t, l) => t + l.edge, 0) / lines.length;
       const shiftAt = (t) => {  // écart en travers à t : interpolé entre les lignes, celui de la plus proche au-delà
         if (t <= lines[0].t) return lines[0].d;
         for (let i = 1; i < lines.length; i++) if (t <= lines[i].t) return lines[i - 1].d + (lines[i].d - lines[i - 1].d) * (t - lines[i - 1].t) / (lines[i].t - lines[i - 1].t);
@@ -1193,8 +1199,9 @@ const Dessus = (() => {
       for (let j = 0; j < BEND; j++) {
         for (let i = 0; i < BEND; i++) {
           const e = -REACH + (i + 0.5) * cell, n = -REACH + (j + 0.5) * cell;
-          if (ahead * (e * ax[0] + n * ax[1]) <= 0) continue;  // l'autre côté de la caméra
-          const d = shiftAt(e * side[0] + n * side[1]), k = 4 * (j * BEND + i);
+          const along = ahead * (e * ax[0] + n * ax[1]);
+          if (along <= 0) continue;  // l'autre côté de la caméra
+          const d = shiftAt(e * side[0] + n * side[1]) * Math.min(1, along / edge), k = 4 * (j * BEND + i);
           field[k] = d * side[0];
           field[k + 1] = d * side[1];
         }
@@ -1220,7 +1227,7 @@ const Dessus = (() => {
           if (shown !== mine) return;
           const found = alignJoin(main, other, [raster, readRaster(other, mine.terrain, main.pose)], ax);
           // lignes calées au bord du masque, sur la voisine recalée (ou brute) ; à défaut, écarts restants des blocs
-          const lines = found && lineField(main, other, raster, found.fix ? readRaster({ ...other, fix: found.fix }, mine.terrain, main.pose, true) : readRaster(other, mine.terrain, main.pose), ax);
+          const lines = found && lineField(main, other, raster, readRaster({ ...other, fix: found.fix }, mine.terrain, main.pose, true, LINE_REACH), ax);
           if (lines) found.bend = lines;
           if (found?.fix) joins.set(other.pose.pic, found.fix);
           results.push(found);
