@@ -75,7 +75,7 @@ function centre(pixels, line, around) {
   }
   const poses = [pose, before(), after()], panos = [];
   for (const [k, p] of poses.entries()) {
-    const url = URL.createObjectURL(await panorama(p, k ? 6144 : 8192));
+    const url = URL.createObjectURL(await panorama(p, k ? 1536 : 2048));
     panos.push(Dessus.panoTexture(await Dessus.loadPano({ image: url, cols: 1, rows: 1 }, 8192)));
   }
   const n = 2 * Dessus.REACH + 1, terrain = [];
@@ -143,8 +143,8 @@ function centre(pixels, line, around) {
   // Hauteur lue sur le décalage entre photos : caméras à 2,05 m, de départ fausse
   const twin = async (p) => ({ ...p, height: 2.05 });
   const [p0, p1] = [await twin(pose), await twin(after())];
-  const pano0 = Dessus.panoTexture(await Dessus.loadPano({ image: URL.createObjectURL(await panorama(p0, 8192)), cols: 1, rows: 1 }, 8192));
-  const pano1 = Dessus.panoTexture(await Dessus.loadPano({ image: URL.createObjectURL(await panorama(p1, 8192)), cols: 1, rows: 1 }, 8192));
+  const pano0 = Dessus.panoTexture(await Dessus.loadPano({ image: URL.createObjectURL(await panorama(p0, 2048)), cols: 1, rows: 1 }, 8192));
+  const pano1 = Dessus.panoTexture(await Dessus.loadPano({ image: URL.createObjectURL(await panorama(p1, 2048)), cols: 1, rows: 1 }, 8192));
   for (const start of [1.85, 2.05, 2.3]) {
     const main = { pano: pano0, pose: { ...p0, height: start } }, other = { pano: pano1, pose: { ...p1, height: start } };
     const found = Dessus.estimateHeight(main, [other], terrain);

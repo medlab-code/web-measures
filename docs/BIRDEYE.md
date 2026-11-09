@@ -236,7 +236,11 @@ mesure à cheval sur deux photos, au moins l'écart mesuré à leurs raccords (a
 
 ## 7. Essais
 
-- `tests/essai-dessus.html` : scène de synthèse à réponse connue (sol en dévers, caméra penchée), sans réseau.
+- `tests/essai-dessus.html` : scène de synthèse à réponse connue (sol en dévers, caméra penchée), sans réseau ;
+  panoramas de synthèse en 2 048 px (marges intactes : trait à 0,6 cm pour 4 cm tolérés), environ 7 s.
 - `tests/essai-dessus-reference.html` : photos de référence du CD21 (A38, RD 1074, D33, petite RD, village, passage
   piéton en ville, D33 au GPS décalé), avec le réseau ; vérifie l'état affiché, la hauteur, les raccords et la
   position, et dépose les vues dans `tests/captures/`.
+  `#rapide` : 3 photos seulement (A38, ville, D33 du 04/07 : chacune porte un contrôle propre), pendant la mise au
+  point ; les 7 avant une fusion. Durée de chaque étape dans le journal (page, vue).
+- `tools/essais.sh birdeye` : les deux, environ 1 min (processeur graphique, cache HTTP gardé) ; avant : 5 min.

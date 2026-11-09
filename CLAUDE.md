@@ -34,7 +34,10 @@ validations : `docs/MESURES.md` (repris du plugin) et `docs/CALCULS.md`. Auteur 
   ajouter un cas court par correctif. Les pages d'essai dans le navigateur (plusieurs minutes,
   réseau) : une page ciblée pendant la mise au point, l'ensemble seulement avant de publier.
   Retirer les essais qui ne servent plus (faisabilité, diagnostic, option sans enjeu).
-- Essai de bout en bout : `tools/serveur-essai.py 8766` (s'arrête quand la page écrit « FIN »
+- Lanceur des essais : `tools/essais.sh rapide|birdeye|complet|video|<page>[#…]` (durée et bilan par page, cache
+  HTTP gardé entre essais, processeur graphique, Chrome arrêté seul). Vue du dessus pendant la mise au point :
+  `tools/essais.sh birdeye` (environ 1 min) ; les 7 photos de référence seulement avant une fusion.
+- Essai de bout en bout à la main : `tools/serveur-essai.py 8766` (s'arrête quand la page écrit « FIN »
   ou « ERREUR »), puis `google-chrome --headless=new --user-data-dir=/tmp/... --no-first-run
   --remote-debugging-port=0 --window-size=1400,1000 http://127.0.0.1:8766/tests/<page>` ;
   le journal s'affiche dans le terminal du serveur (bilan « contrôles : n réussis »).

@@ -884,6 +884,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 | `tests/inclinaison-terrain.html` | inclinaison par le terrain hors agglomération (option) |
 | `py/web_terrain.py` | inclinaison par le terrain hors agglomération : grille LiDAR HD, modèle de séquence |
 | `tools/serveur-essai.py` | serveur des essais : sert le site et affiche leur journal |
+| `tools/essais.sh` | lanceur des essais (`rapide`, `birdeye`, `complet`, `video` ou pages) : durée et bilan par page |
 
 Après toute modification d'un fichier Python sous `py/` : `tools/sources.sh` (régénère
 `py/sources.js`). Tests sans navigateur : `python3 -m unittest discover -s tests`.

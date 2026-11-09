@@ -8,7 +8,7 @@
 <style>body{margin:0}iframe{border:0;display:block}</style>
 <iframe id="f" src="about:blank" style="width:1400px;height:900px"></iframe>
 <script>
-const REFERENCES = [
+const ALL_REFERENCES = [
   ["A38", "66d45404-a22d-4b07-8bc8-1f3edcdf1b8a"],
   ["RD 1074", "6f585daf-8e96-448d-9efb-2523927bc8c9"],
   ["D33", "dbdaa47b-6e4d-4416-b352-ab324cb14735"],
@@ -17,6 +17,10 @@ const REFERENCES = [
   ["ville", "d946f2cf-cddc-4476-a414-35aee429c05a"],  // passage piéton en agglomération : raccords sans lignes en long
   ["D33 du 04/07", "6c6e4972-f565-4198-84fe-24ab72d95398"],  // GPS décalé de 0,75 m (la D33 du 20/06, au même endroit, est juste)
 ];
+// #rapide (mise au point) : les photos qui portent un contrôle propre (raccords sur route et en ville, inclinaison par la
+// route et par les verticales, GPS décalé) ; toutes avant une fusion
+const QUICK = new Set(["A38", "ville", "D33 du 04/07"]);
+const REFERENCES = location.hash === "#rapide" ? ALL_REFERENCES.filter(([name]) => QUICK.has(name)) : ALL_REFERENCES;
 // Écart à l'orthophoto attendu (m) : position calée au-delà de 30 cm, GPS gardé en deçà
 const SHIFTS = { "D33": [0, 0.3], "D33 du 04/07": [0.5, 1.0] };
 const ONLY_SHIFT = new Set(["D33 du 04/07"]);
@@ -43,12 +47,14 @@ async function open(id, enough = () => false) {
     await sleep(1000);
   }
   if ($("#dessus").disabled) return null;
+  const loaded = (Date.now() - start) / 1000;  // page et photo chargées
   $("#dessus").click();
   $("#dessus-voisines").click();  // « Véhicule masqué » : voisines, raccords, tangage lu sur les raccords
   while (Date.now() - start < WAIT) {
     const state = $("#dessus-etat").textContent;
-    if (/caméra à/.test(state) && !/en calcul|en cours|Lecture/.test(state)) return { w, state, blob: () => blob };
-    if (enough(state)) return { w, state, blob: () => blob, partial: true };
+    const times = () => `page ${number(loaded, 0)} s, vue ${number((Date.now() - start) / 1000 - loaded, 0)} s`;
+    if (/caméra à/.test(state) && !/en calcul|en cours|Lecture/.test(state)) return { w, state, blob: () => blob, times: times() };
+    if (enough(state)) return { w, state, blob: () => blob, partial: true, times: times() };
     await sleep(1000);
   }
   return { w, state: $("#dessus-etat").textContent, blob: () => blob, late: true };
@@ -69,7 +75,7 @@ async function open(id, enough = () => false) {
     const level = (l) => ({ ...l, pose: { ...l.pose, groundTilt: false } });
     const parallax = now.terrain ? Dessus.estimateHeight(level(main), others.map(level), now.terrain) : null;
     const read = parallax && parallax.reduce((a, b) => a + b, 0) / parallax.length;
-    await log(`${name} (${id.slice(0, 8)}) : ${state}`);
+    await log(`${name} (${id.slice(0, 8)}, ${shown.times || "délai dépassé"}) : ${state}`);
     await log(`  ${now.layers.length} photo(s), caméra ${number(pose.height)} m, décalage ${parallax ? parallax.map((v) => number(v)).join(" / ") : "-"} m, `
       + `inclinaison ${pose.groundTilt ? "de la route" : pose.up ? "des verticales" : "aucune"} (avant ${number(forward)}°, droite ${number(right)}°, ±${number(pose.sigma, 1)}°)`);
     if (shown.partial) {
