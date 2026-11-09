@@ -936,7 +936,7 @@ const Dessus = (() => {
   // Écarts restants après le recalage, lissés en un champ de déplacement de la voisine (bendField) : la pose ajustée est
   // juste en moyenne, pas partout (bc400f2b, 09/11/2026 : axe rompu de quelques cm au bord du masque). BEND cases sur la vue,
   // portée BEND_SIGMA m, BEND_PRIOR : poids d'un déplacement nul (loin des mesures, le champ s'éteint)
-  const BEND = 60, BEND_SIGMA = 0.8, BEND_PRIOR = 0.3;
+  const BEND = 60, BEND_SIGMA = 1.2, BEND_PRIOR = 0.02;  // a priori faible : sous le masque, les écarts du bord sont repris
 
   /** Champ de déplacement (est, nord, m ; BEND x BEND cases, lignes du sud au nord, RGBA) qui annule au mieux les écarts
    * restants points ([{ p, dir, r }] : r, écart le long de dir) : moindres carrés pondérés par case, a priori nul. */
