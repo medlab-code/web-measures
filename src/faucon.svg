@@ -1,10 +1,10 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
-<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
-<!-- Faucon du bouton Bird Eye (tracé potrace, fourni par l'auteur) -->
+<?xml version="1.0" standalone="no"?>
 <svg version="1.0" xmlns="http://www.w3.org/2000/svg"
  width="598" height="581" viewBox="0 0 598 581"
  preserveAspectRatio="xMidYMid meet">
+<metadata>
+Created by potrace 1.16, written by Peter Selinger 2001-2019
+</metadata>
 <g transform="translate(0.000000,581.000000) scale(0.100000,-0.100000)"
 fill="#000000" stroke="none">
 <path d="M2860 5600 c-514 -49 -987 -233 -1402 -545 -384 -289 -535 -501 -567
