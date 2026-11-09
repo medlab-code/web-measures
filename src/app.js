@@ -1176,7 +1176,7 @@
     const on = shown && $("#dessus").checked;
     if (photo) Carte.showView(map, photo.geometry.coordinates, coneHeading(), viewFov());  // cône retiré ou remis
     const inMap = (selector) => mapBox.querySelector(selector);  // réglages sur la carte, peut-être détachée
-    inMap("#dessus-fine").disabled = inMap("#dessus-voisines").disabled = inMap("#dessus-position").disabled = inMap("#dessus-devers").disabled = inMap("#dessus-tangage").disabled = !on;
+    inMap("#dessus-fine").disabled = inMap("#dessus-voisines").disabled = inMap("#dessus-position").disabled = inMap("#dessus-sans-cache").disabled = inMap("#dessus-devers").disabled = inMap("#dessus-tangage").disabled = !on;
     inMap("#dessus-reglages").hidden = !on;  // vue du dessus allumée seulement
     showMapMeasureButton();
     if (on && birdeyeAsked !== photo.id) {

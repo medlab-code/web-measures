@@ -201,6 +201,13 @@ raison.
 après correction, et moins qu'avant. Dans la courbe serrée du 15/07/2025 (9d92052e), 19,7 → 7,4 cm déformait les
 lignes de l'axe, visiblement mieux raccordées sans recalage (constat de l'auteur).
 
+**Décalage seul, en repli** (`JOIN_SHIFT_ONLY`) : quand la pose complète est refusée (peu de mesures, zone commune
+étroite : angles mal tenus, bc400f2b, 37 mesures, 78 cm et 3° de lacet), le recalage est refait sur le seul décalage.
+
+**Écarts restants** (`bendField`, recalage appliqué seulement) : la pose ajustée est juste en moyenne, pas partout ;
+les écarts restants des blocs gardés sont lissés en un champ de déplacement de la voisine (portée 0,8 m, nul loin des
+mesures, cases de 0,5 m), appliqué dans le shader, donc sous le véhicule de la photo affichée seulement.
+
 **Résultats (essai du 07/11/2026) :** écart médian au raccord de 10,8 à 2,9 cm sur 38 raccords de route, de 17,6 à
 3,9 cm sur 14 en agglomération, tous améliorés. Un premier recalage, par les seules lignes en long, faisait 8,3 à
 3,6 cm sur route et rien en ville : il a été remplacé.
@@ -215,6 +222,10 @@ fondu simple de ±60 cm dans le shader n'y faisait presque rien. Calcul par la c
 photo seule rendue dans une texture, sa bande basse lue sur ses niveaux réduits (mipmaps, 256 px) ; écarts de teinte
 floutés en JavaScript (256 x 256) ; mélange final dans un shader. 0,14 s par image (0,5 s en JavaScript), 0,27 s en
 haute résolution (1,7 s).
+
+**« Sans cache (essais) »** (interrupteur, éteint, pas retenu) : oublie tout ce que Bird Eye a retenu (contours,
+tangages, hauteurs, raccords, terrain, vues ; pas les réglages faits à la main) et recommence à chaque photo montrée,
+même déjà vue.
 
 **Calculs par la carte graphique :** dessin, masque du véhicule, fondu, et gris et sol sûr des raccords (`readRaster`,
 étape 4 du shader : 0,1 s par photo au lieu de 0,26 s). Restent en JavaScript : la recherche des blocs des raccords (FFT de

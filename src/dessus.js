@@ -390,6 +390,8 @@ const Dessus = (() => {
     uniform int hasOutline;
     uniform vec4 fix;  // recalage sur la principale (voir alignJoin) : décalage le long et en travers, tangage, lacet
     uniform vec2 fixMore;  // et échelle, roulis
+    uniform sampler2D bend;  // écarts restants (est, nord, m) sur ±reach, si hasBend (voir bendField)
+    uniform int hasBend;
     // 2 : photo seule sans son véhicule ni son grisé, opaque (voir renderBlended) ; 3 : numéro de la photo gagnante ; 4 : gris et
     // sol sûr pour les raccords (voir readRaster)
     uniform int stage;
@@ -400,6 +402,7 @@ const Dessus = (() => {
       float u0 = dot(rel, f), v0 = dot(rel, side);
       vec2 moved = rel + (fix.x + fix.z * (height * height + u0 * u0) / height + fix.w * v0 + fixMore.x * u0 + fixMore.y * u0 * v0 / height) * f
         + (fix.y + fix.z * u0 * v0 / height - fix.w * u0 + fixMore.x * v0 + fixMore.y * (height * height + v0 * v0) / height) * side;
+      if (hasBend == 1) moved += texture(bend, world.xy / (2.0 * reach) + 0.5).xy;
       vec3 ray = vec3(moved, world.z - camera.z);  // shortcut: altitude du point non déplacée (quelques cm de déplacement)
       float dist = length(ray.xy);
       if (dist > reach || length(world.xy - frameCentre) > reach) discard;  // une voisine ne déborde pas du cercle de la vue
@@ -512,7 +515,14 @@ const Dessus = (() => {
     g.uniform1i(uniform("stage"), stage);
     // band : axe de la route [est, nord], et demi-longueur, demi-largeur gardées (par défaut la zone idéale, BEST)
     g.uniform4f(uniform("band"), band ? band[0] : 0, band ? band[1] : 1, band ? band[2] ?? BEST.along : 1e6, band ? band[3] ?? BEST.wide : 1e6);
-    for (const [k, { pano, pose, fix }] of layers.entries()) {
+    g.uniform1i(uniform("bend"), 1);
+    for (const [k, { pano, pose, fix, bend }] of layers.entries()) {
+      g.uniform1i(uniform("hasBend"), bend ? 1 : 0);
+      if (bend) {
+        g.activeTexture(g.TEXTURE1);
+        g.bindTexture(g.TEXTURE_2D, bendTexture(bend));
+        g.activeTexture(g.TEXTURE0);
+      }
       g.uniform1f(uniform("index"), k + 1);
       const [tu, tv, pitch, yaw, scale, roll] = fix || [0, 0, 0, 0, 0, 0];
       g.uniform4f(uniform("fix"), tu, tv, pitch, yaw);
@@ -534,6 +544,20 @@ const Dessus = (() => {
     g.deleteBuffer(indexBuffer);
     g.bindFramebuffer(g.FRAMEBUFFER, null);
     return g.canvas;
+  }
+
+  const bendTextures = new WeakMap();  // champ (bendField) -> texture, faite une fois
+  function bendTexture(field) {
+    if (!bendTextures.has(field)) {
+      const g = context(), texture = g.createTexture();
+      g.bindTexture(g.TEXTURE_2D, texture);
+      g.texImage2D(g.TEXTURE_2D, 0, g.RGBA16F, BEND, BEND, 0, g.RGBA, g.FLOAT, field);  // filtrable : bilinéaire
+      g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR);
+      g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE);
+      g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE);
+      bendTextures.set(field, texture);
+    }
+    return bendTextures.get(field);
   }
 
   /** Cible de dessin hors du canevas : texture RGBA de size px (avec ses niveaux réduits si levels), profondeur. */
@@ -909,6 +933,33 @@ const Dessus = (() => {
   // m : écart au raccord après recalage au-delà duquel il n'est pas appliqué (route et ville : 2 à 4 cm ; courbe serrée du
   // 15/07/2025, 9d92052e : 19,7 → 7,4 cm, lignes de l'axe déformées, mieux sans recalage, constat de l'utilisateur 09/11/2026)
   const JOIN_GOOD = 0.05;
+  // Écarts restants après le recalage, lissés en un champ de déplacement de la voisine (bendField) : la pose ajustée est
+  // juste en moyenne, pas partout (bc400f2b, 09/11/2026 : axe rompu de quelques cm au bord du masque). BEND cases sur la vue,
+  // portée BEND_SIGMA m, BEND_PRIOR : poids d'un déplacement nul (loin des mesures, le champ s'éteint)
+  const BEND = 60, BEND_SIGMA = 0.8, BEND_PRIOR = 0.3;
+
+  /** Champ de déplacement (est, nord, m ; BEND x BEND cases, lignes du sud au nord, RGBA) qui annule au mieux les écarts
+   * restants points ([{ p, dir, r }] : r, écart le long de dir) : moindres carrés pondérés par case, a priori nul. */
+  function bendField(points) {
+    const field = new Float32Array(4 * BEND * BEND), cell = 2 * REACH / BEND, far = (3 * BEND_SIGMA) ** 2;
+    for (let j = 0; j < BEND; j++) {
+      for (let i = 0; i < BEND; i++) {
+        const x = -REACH + (i + 0.5) * cell, y = -REACH + (j + 0.5) * cell;
+        let a11 = BEND_PRIOR, a12 = 0, a22 = BEND_PRIOR, b1 = 0, b2 = 0;
+        for (const { p, dir, r } of points) {
+          const d2 = (p[0] - x) ** 2 + (p[1] - y) ** 2;
+          if (d2 > far) continue;
+          const w = Math.exp(-d2 / (2 * BEND_SIGMA ** 2));
+          a11 += w * dir[0] * dir[0]; a12 += w * dir[0] * dir[1]; a22 += w * dir[1] * dir[1];
+          b1 += w * dir[0] * r; b2 += w * dir[1] * r;
+        }
+        const det = a11 * a22 - a12 * a12, k = 4 * (j * BEND + i);
+        field[k] = (a22 * b1 - a12 * b2) / det;
+        field[k + 1] = (a11 * b2 - a12 * b1) / det;
+      }
+    }
+    return field;
+  }
   // A priori sur la pose relative (écarts types : décalage 0,3 m, angles 1°, échelle 0,5 % ; mesures à 2 cm) : un terme mal
   // déterminé par une zone commune étroite reste près de 0. Échelle tenue serrée : même caméra, même hauteur ; le long de
   // la route, elle se confond presque avec le décalage (a9fd217d, 08/11/2026 : 85 cm et 11 % d'un côté, 3 cm et 2 % dans
@@ -917,6 +968,7 @@ const Dessus = (() => {
   // les termes de alignJoin : décalages, tangage, lacet, échelle, roulis
   const JOIN_PRIOR = [0.3, 0.3, toRad, toRad, 0.005, toRad].map((s) => (0.02 / s) ** 2);
   const JOIN_LIMIT = [1.2, 1.2, 3 * toRad, 3 * toRad, 0.06, 3 * toRad];
+  const JOIN_SHIFT_ONLY = JOIN_PRIOR.map((v, i) => (i < 2 ? v : 1e12));  // décalage seul : les autres termes tenus à 0
 
   /** Photo seule dessinée (réglages en cours, sans recalage) : gris (0-255) passe-haut, sûr (0/1), lignes du sud au nord. */
   function readRaster(layer, terrain, frame) {
@@ -1060,20 +1112,30 @@ const Dessus = (() => {
       return [pu, pv, (H * H + u * u) / H * pu + u * v / H * pv, v * pu - u * pv, u * pu + v * pv, u * v / H * pu + (H * H + v * v) / H * pv];
     };
     const X = obs.map(row), y = obs.map((o) => o.d), test = obs.map((o) => Math.abs(o.p[0] * ax[0] + o.p[1] * ax[1] - seam) < SEAM);
-    let keep = test.map((t) => !t), w = null;
-    for (let pass = 0; pass < 4; pass++) {
-      if (keep.filter(Boolean).length < 16) return null;
-      w = leastSquares(X.filter((_, k) => keep[k]), y.filter((_, k) => keep[k]), JOIN_PRIOR);
-      if (!w) return null;
-      const r = y.map((v, k) => v - X[k].reduce((t, x, i) => t + x * w[i], 0));
-      const sd = 1.4826 * median(r.filter((_, k) => keep[k]).map(Math.abs)) + 0.005;
-      keep = keep.map((on, k) => on && Math.abs(r[k]) < 3 * sd);  // mauvaises correspondances écartées
+    // Pose complète, sinon décalage seul (JOIN_SHIFT_ONLY) : peu de mesures ou zone commune étroite tiennent mal les angles
+    // (bc400f2b, 09/11/2026 : 37 mesures, pose complète à 78 cm et 3° de lacet, voisine brute à 2,4 cm du raccord)
+    let found = null;
+    for (const prior of [JOIN_PRIOR, JOIN_SHIFT_ONLY]) {
+      let keep = test.map((t) => !t), w = null, sd = 0;
+      for (let pass = 0; pass < 4 && w !== undefined; pass++) {
+        if (keep.filter(Boolean).length < 16) return found;
+        w = leastSquares(X.filter((_, k) => keep[k]), y.filter((_, k) => keep[k]), prior) ?? undefined;
+        if (!w) break;
+        const r = y.map((v, k) => v - X[k].reduce((t, x, i) => t + x * w[i], 0));
+        sd = 1.4826 * median(r.filter((_, k) => keep[k]).map(Math.abs)) + 0.005;
+        keep = keep.map((on, k) => on && Math.abs(r[k]) < 3 * sd);  // mauvaises correspondances écartées
+      }
+      if (!w) continue;
+      const checked = obs.map((o, k) => [Math.abs(o.d), Math.abs(o.d - X[k].reduce((t, x, i) => t + x * w[i], 0))]).filter((_, k) => test[k]);
+      if (checked.length < 3) return found;
+      const before = median(checked.map((c) => c[0])), after = median(checked.map((c) => c[1]));
+      const sane = w.every((v, i) => Math.abs(v) <= JOIN_LIMIT[i]);
+      const fix = after < before && after <= JOIN_GOOD && sane ? w : null;
+      const rest = obs.map((o, k) => ({ ...o, r: o.d - X[k].reduce((t, x, i) => t + x * w[i], 0) })).filter((o) => Math.abs(o.r) < 3 * sd);
+      found = found || { before, after, n: obs.length, w, fix: null, bend: null };  // bilan de la pose complète, si rien n'est gardé
+      if (fix) return { fix, bend: bendField(rest), before, after, n: obs.length, w, shiftOnly: prior === JOIN_SHIFT_ONLY };
     }
-    const checked = obs.map((o, k) => [Math.abs(o.d), Math.abs(o.d - X[k].reduce((t, x, i) => t + x * w[i], 0))]).filter((_, k) => test[k]);
-    if (checked.length < 3) return null;
-    const before = median(checked.map((c) => c[0])), after = median(checked.map((c) => c[1]));
-    const sane = w.every((v, i) => Math.abs(v) <= JOIN_LIMIT[i]);
-    return { fix: after < before && after <= JOIN_GOOD && sane ? w : null, before, after, n: obs.length, w };
+    return found;
   }
 
   /** Recalage de chaque voisine sur la principale : Map (photo -> fix), et le bilan affiché. */
@@ -1241,7 +1303,8 @@ const Dessus = (() => {
         : { height: shown.sequenceHeight?.height ?? leveled.height, height_sigma: Math.max(leveled.height_sigma, RTK_SIGMA) };
       const read = outlines.get(shown.sequence);  // CD21 : contour lu sur la séquence, sinon celui de sa monture
       const outline = !shown.pose.fleet ? null : Array.isArray(read) ? read : shown.height ? OUTLINES[mountOf(shown.height)] : EITHER;
-      return { pose: { ...leveled, ...height, outline }, pano: shown.panos.get(pose.pic), at, fix, seam };
+      const bend = fix ? seam?.bend : undefined;  // écarts restants au raccord (bendField)
+      return { pose: { ...leveled, ...height, outline }, pano: shown.panos.get(pose.pic), at, fix, seam, bend };
     });
 
   /** Mode « Longueur sur la carte » (app.js) : curseur, carte et visionneuse échangées, sans toucher au zoom. */
@@ -1335,6 +1398,17 @@ const Dessus = (() => {
       cancelStart();  // le départ a été pris sur l'autre image
       if (shown?.url) showImage();
     });
+    $("#dessus-sans-cache").addEventListener("change", (event) => {
+      noCache = event.target.checked;
+      if (!noCache || !shown) return;
+      const { photo, pose, features } = shown;  // vue refaite sans rien de retenu
+      abort?.abort();
+      removeImage();
+      forget(shown);
+      shown = null;
+      clearCache();
+      update(photo, pose, features);
+    });
     $("#dessus-fine").addEventListener("change", (event) => {
       fine = event.target.checked;
       if (shown?.url) showImage();
@@ -1381,6 +1455,16 @@ const Dessus = (() => {
   // Calculs des photos déjà vues dans la session (photo -> terrain, hauteur lue, raccords, position), repris en y revenant ; les photos
   // elles-mêmes sont relues (mémoire graphique). Raccords : gardés pour les mêmes réglages et voisines (voir joinKey)
   const computed = new Map(), COMPUTED_MAX = 200;
+  let noCache = false;  // « Sans cache (essais) » : tout est recalculé à chaque photo montrée, même déjà vue
+  /** Oublie ce que Bird Eye a retenu : navigateur (sauf les réglages faits à la main) et session. */
+  function clearCache() {
+    try {
+      for (const key of Object.keys(localStorage)) if (key.startsWith("web-measures/dessus-") && key !== SETTINGS_KEY) localStorage.removeItem(key);
+    } catch { /* sans stockage : rien à vider */ }
+    outlines.clear();
+    computed.clear();
+    parked = null;
+  }
   function remember(view) {
     if (!view?.panos.has(view.pic)) return;  // photo et terrain pas encore lus
     computed.delete(view.pic);
@@ -1557,6 +1641,7 @@ const Dessus = (() => {
   async function update(photo, pose, features) {
     const key = pose && JSON.stringify([pose, (features || []).map((f) => f.id), features === null]);
     if (key === (shown?.key ?? null)) return;
+    if (noCache && photo && shown?.pic !== photo.id) clearCache();  // autre photo, ou la même remontrée : tout refait
     cancelStart();  // départ pris sur l'ancienne image
     if (!photo) {
       abort?.abort();

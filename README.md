@@ -750,7 +750,7 @@ le départ. Sans façade pour caler l'inclinaison, le tangage de fixation de la 
 voisines (« Véhicule masqué » allumé ; celui de la photo, qui suit une bosse ou un creux, sinon la médiane des photos vues de la séquence) ; les curseurs « Roulis » et « Tangage » recalent la vue à la main,
 réglage retenu pour toute la séquence, dans ce navigateur. « Véhicule masqué » (éteint par défaut) recompose la vue avec les photos précédente et suivante pour cacher le véhicule : masque au plus près de son contour (lu une fois sur 12 photos de la séquence pour le CD21, environ 5 Mo ; cône de la vue retiré de la carte), photo affichée intacte hors du masque, voisines seulement dessous ; il recale chaque
 photo voisine sur la photo affichée, par corrélation du sol commun (marquages, passages piétons, grain), pour effacer
-les marches aux raccords, et accorde leur luminosité à celle de la photo affichée (plus de taches claires ou sombres autour des raccords) ; la barre d'état indique l'écart avant et après. « Position calée sur l'orthophoto » (essai, coché) pose la vue sur l'orthophoto
+les marches aux raccords, et accorde leur luminosité à celle de la photo affichée (plus de taches claires ou sombres autour des raccords) ; la barre d'état indique l'écart avant et après. « Sans cache (essais) » oublie ce que Bird Eye a retenu et recalcule tout à chaque photo, même déjà vue. « Position calée sur l'orthophoto » (essai, coché) pose la vue sur l'orthophoto
 quand ses lignes s'en écartent de plus de 30 cm en travers : le GPS est alors suspecté avant l'orthophoto. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Construction de
 la vue et recalages : `docs/BIRDEYE.md` ; chiffres des essais : `docs/CALCULS.md`.
 
