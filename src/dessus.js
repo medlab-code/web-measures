@@ -971,9 +971,9 @@ const Dessus = (() => {
   const JOIN_SHIFT_ONLY = JOIN_PRIOR.map((v, i) => (i < 2 ? v : 1e12));  // décalage seul : les autres termes tenus à 0
 
   /** Photo seule dessinée (réglages en cours, sans recalage) : gris (0-255) passe-haut, sûr (0/1), lignes du sud au nord. */
-  function readRaster(layer, terrain, frame) {
+  function readRaster(layer, terrain, frame, keepFix = false) {
     const g = context(), rgba = new Uint8Array(4 * SIZE * SIZE);
-    render([{ ...layer, fix: null }], terrain, frame, null, SIZE, 4);  // gris et sol sûr (hors véhicule, à moins de JOIN_REACH m)
+    render([{ ...layer, fix: keepFix ? layer.fix : null, bend: null }], terrain, frame, null, SIZE, 4);  // gris et sol sûr (hors véhicule, à moins de JOIN_REACH m)
     g.readPixels(0, 0, SIZE, SIZE, g.RGBA, g.UNSIGNED_BYTE, rgba);
     const gray = new Float32Array(SIZE * SIZE), safe = new Uint8Array(SIZE * SIZE);
     for (let k = 0; k < gray.length; k++) {
@@ -1138,6 +1138,73 @@ const Dessus = (() => {
     return found;
   }
 
+  // Peintures et bords calés au bord du masque (09/11/2026, idée de l'auteur) : le morceau de voisine sous le véhicule de la
+  // photo affichée est déformé en travers pour que chaque ligne en long y arrive sur celle de la photo affichée. Écart lu dans
+  // une bande de LINE_BAND m juste hors du masque, où les deux photos voient le sol ; lignes : pics du passe-haut de la photo
+  // affichée (LINE_PEAK fois l'écart médian), écart cherché à ±LINE_SEARCH m sur ±LINE_WINDOW m ; entre deux lignes,
+  // interpolé ; au-delà, celui de la plus proche.
+  const LINE_BAND = 0.5, LINE_SEARCH = 0.15, LINE_WINDOW = 0.4, LINE_PEAK = 4;
+
+  /** Champ de déplacement (comme bendField) qui cale les lignes en long de la voisine other sur celles de la principale au bord
+   * du masque, ou null sans ligne. a, b : readRaster de la principale et de la voisine (recalée) ; ax : axe de la route. */
+  function lineField(main, other, a, b, ax) {
+    const M = 2 * REACH / SIZE, side = [-ax[1], ax[0]], T = Math.round(8 / M);
+    const W = Math.round(LINE_WINDOW / M), S = Math.round(LINE_SEARCH / M);
+    const field = new Float32Array(4 * BEND * BEND), cell = 2 * REACH / BEND, found = [];
+    // Devant et derrière la caméra : le bord avant du masque est souvent comblé par la voisine arrière (la voisine avant a le
+    // sien juste là, bc400f2b) ; chaque côté où la voisine voit le sol hors du masque est calé à part
+    for (const ahead of [1, -1]) {
+      const at = (u, t) => {  // pixel du point à u m le long de la route (côté ahead), t m en travers
+        const e = ahead * u * ax[0] + t * side[0], n = ahead * u * ax[1] + t * side[1];
+        const i = Math.floor((e + REACH) / M), j = Math.floor((n + REACH) / M);
+        return i >= 0 && j >= 0 && i < SIZE && j < SIZE ? j * SIZE + i : -1;
+      };
+      const profileA = new Float32Array(2 * T), profileB = new Float32Array(2 * T), seen = new Uint8Array(2 * T);
+      for (let k = 0; k < 2 * T; k++) {
+        const t = (k - T + 0.5) * M;
+        let edge = 0;  // bord du masque : premier point vu en partant de la caméra
+        while (edge < 8 && hidden(ahead * edge * ax[0] + t * side[0], ahead * edge * ax[1] + t * side[1], main.pose)) edge += 0.05;
+        if (edge === 0 || edge >= 8) continue;  // pas de masque à cette distance de l'axe
+        let sa = 0, sb = 0, n = 0;
+        for (let u = edge + 0.05; u < edge + LINE_BAND; u += M) {
+          const q = at(u, t);
+          if (q < 0 || !a.safe[q] || !b.safe[q]) continue;
+          sa += a.high[q]; sb += b.high[q]; n++;
+        }
+        if (n > 3) { profileA[k] = sa / n; profileB[k] = sb / n; seen[k] = 1; }
+      }
+      const strong = LINE_PEAK * (median([...profileA].filter((_, k) => seen[k]).map(Math.abs)) || Infinity), lines = [];
+      for (let k = W + S; k < 2 * T - W - S; k++) {
+        if (!seen[k] || profileA[k] < strong || profileA[k] < profileA[k - 1] || profileA[k] < profileA[k + 1]) continue;
+        const score = (d) => { let v = 0; for (let i = -W; i <= W; i++) if (seen[k + i] && seen[k + i + d]) v += profileA[k + i] * profileB[k + i + d]; return v; };
+        let best = 0;
+        for (let d = -S; d <= S; d++) if (score(d) > score(best)) best = d;
+        if (Math.abs(best) === S) continue;  // au bout de la recherche : pas la même ligne
+        const l = score(best - 1), c = score(best), r = score(best + 1), sub = (l - r) / (2 * (l - 2 * c + r) || 1);
+        lines.push({ t: (k - T + 0.5) * M, d: (best + Math.max(-0.5, Math.min(0.5, sub))) * M, ahead });
+      }
+      if (!lines.length) continue;
+      found.push(...lines);
+      const shiftAt = (t) => {  // écart en travers à t : interpolé entre les lignes, celui de la plus proche au-delà
+        if (t <= lines[0].t) return lines[0].d;
+        for (let i = 1; i < lines.length; i++) if (t <= lines[i].t) return lines[i - 1].d + (lines[i].d - lines[i - 1].d) * (t - lines[i - 1].t) / (lines[i].t - lines[i - 1].t);
+        return lines[lines.length - 1].d;
+      };
+      for (let j = 0; j < BEND; j++) {
+        for (let i = 0; i < BEND; i++) {
+          const e = -REACH + (i + 0.5) * cell, n = -REACH + (j + 0.5) * cell;
+          if (ahead * (e * ax[0] + n * ax[1]) <= 0) continue;  // l'autre côté de la caméra
+          const d = shiftAt(e * side[0] + n * side[1]), k = 4 * (j * BEND + i);
+          field[k] = d * side[0];
+          field[k + 1] = d * side[1];
+        }
+      }
+    }
+    if (!found.length) return null;
+    field.lines = found;  // pour le bilan et les essais
+    return field;
+  }
+
   /** Recalage de chaque voisine sur la principale : Map (photo -> fix), et le bilan affiché. */
   async function alignJoins() {
     const mine = shown, [main, ...others] = readyLayers(), key = joinKey(), begun = performance.now();
@@ -1152,6 +1219,9 @@ const Dessus = (() => {
           await new Promise((resolve) => setTimeout(resolve));
           if (shown !== mine) return;
           const found = alignJoin(main, other, [raster, readRaster(other, mine.terrain, main.pose)], ax);
+          // lignes calées au bord du masque, sur la voisine recalée (ou brute) ; à défaut, écarts restants des blocs
+          const lines = found && lineField(main, other, raster, found.fix ? readRaster({ ...other, fix: found.fix }, mine.terrain, main.pose, true) : readRaster(other, mine.terrain, main.pose), ax);
+          if (lines) found.bend = lines;
           if (found?.fix) joins.set(other.pose.pic, found.fix);
           results.push(found);
         }
@@ -1303,7 +1373,7 @@ const Dessus = (() => {
         : { height: shown.sequenceHeight?.height ?? leveled.height, height_sigma: Math.max(leveled.height_sigma, RTK_SIGMA) };
       const read = outlines.get(shown.sequence);  // CD21 : contour lu sur la séquence, sinon celui de sa monture
       const outline = !shown.pose.fleet ? null : Array.isArray(read) ? read : shown.height ? OUTLINES[mountOf(shown.height)] : EITHER;
-      const bend = fix ? seam?.bend : undefined;  // écarts restants au raccord (bendField)
+      const bend = neighboursOn ? seam?.bend ?? undefined : undefined;  // lignes calées (lineField) ou écarts restants (bendField)
       return { pose: { ...leveled, ...height, outline }, pano: shown.panos.get(pose.pic), at, fix, seam, bend };
     });
 

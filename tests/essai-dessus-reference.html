@@ -124,6 +124,7 @@ async function open(id, enough = () => false) {
       await fetch("/capture/dessus-sources.png", { method: "POST", body: await new Promise((r) => copy.toBlob(r)) });
       const time = (f) => { const t = performance.now(); f(); return ((performance.now() - t) / 1000).toFixed(2); };
       await log(`  durées (s) : dessin 2048 ${time(() => Dessus.render(now.layers, now.terrain, pose, null, 2048))}, fondu 2048 ${time(() => Dessus.renderBlended(now.layers, now.terrain, pose, null, 2048))}, fondu 4096 ${time(() => Dessus.renderBlended(now.layers, now.terrain, pose, null, 4096))}, hauteur ${time(() => Dessus.estimateHeight(main, others, now.terrain))}, raccords ${((now.joins?.ms || 0) / 1000).toFixed(2)}`);
+      for (const r of now.joins?.results || []) if (r?.bend?.lines) await log(`  lignes calées : ${r.bend.lines.map((l) => `${l.ahead > 0 ? "devant" : "derrière"} ${l.t.toFixed(2)} m : ${(100 * l.d).toFixed(1)} cm`).join(" ; ")}`);
       for (const r of now.joins?.results || []) if (r) await log(`  pose relative : ${r.w.map((v, i) => (i === 4 ? (100 * v).toFixed(1) + " %" : i < 2 ? (100 * v).toFixed(1) + " cm" : (v * 180 / Math.PI).toFixed(2) + "°")).join(", ")}${r.fix ? (r.shiftOnly ? " (décalage seul)" : "") : " (non gardée)"}`);
       // « Sans cache (essais) » : la vue est refaite de zéro (contour du véhicule relu)
       const doc = w.document, before = Date.now();
