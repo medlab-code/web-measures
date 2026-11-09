@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
 // Vérification des services appelés depuis le navigateur : un échec signale un proxy, un
-// pare-feu ou un en-tête CORS manquant sur le poste.
+// pare-feu ou un en-tête CORS manquant sur le poste. Adresses de l'API d'une séquence (app.js, dessus.js).
 
 const Services = (() => {
   const { GEOPF, OSM_TILES, PANORAMAX_API } = Carte;
@@ -60,5 +60,24 @@ const Services = (() => {
     for (const [name, url] of SERVICES) checkService(list, name, url).then(count);
   }
 
-  return { checkServices };
+  /** Adresses possibles de la séquence de la photo dans l'API de son instance, la plus sûre
+   * d'abord : son lien « collection » (sauf celui du méta-catalogue), le lien « via » vers son
+   * instance d'origine (fiche du méta-catalogue), puis l'adresse de ses images (juste pour les
+   * instances qui les servent elles-mêmes : celles de l'IGN sont sur un stockage OVH, qui
+   * refuse l'API). */
+  function sequenceApis(feature) {
+    const links = feature?.links || [];
+    const out = [];
+    const link = links.find((l) => l.rel === "collection")?.href || "";
+    if (link && !link.startsWith(PANORAMAX_API)) out.push(link.replace(/\/$/, ""));
+    const sites = [links.find((l) => l.rel === "via")?.href, feature?.assets?.sd?.href || feature?.assets?.hd?.href];
+    for (const href of sites) {
+      try {
+        out.push(`${new URL(href).origin}/api/collections/${encodeURIComponent(feature.collection)}`);
+      } catch { /* adresse absente ou illisible */ }
+    }
+    return [...new Set(out)];
+  }
+
+  return { checkServices, sequenceApis };
 })();

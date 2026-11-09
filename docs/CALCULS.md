@@ -612,13 +612,12 @@ compte 3,5 % de la part de la mesure en travers de la route (bandes de passages 
 0,50 m, vue trop étroite en travers, comptée plutôt que corrigée) et vaut au moins 5 % de la longueur (écart à
 l'orthophoto, plus bas).
 
-Les photos précédente et suivante complètent l'image : chaque point prend la photo où l'erreur due à
-l'inclinaison est la plus faible ; une voisine sans inclinaison ne sert donc qu'à combler. Le véhicule (relevé sur
-l'imajbox du CD21) compte en deux parts : son corps (±4,5 m en long, ±2,5 m en travers), où le sol est caché, pris en
-dernier recours seulement (là où toutes les photos l'ont sous le corps, celle où il est le plus près du bord) ; et la
-bande des reflets du capot et du coffre (jusqu'à ±5,8 m et ±2,9 m), où la photo reste prise, son erreur attendue
-comptée trois fois (`REFLECT`). Sans cette bande, un point à 5 m devant la caméra, sous la voisine suivante, venait de
-la photo précédente vue à 10 m (passage piéton dédoublé d'un mètre en agglomération, 07/11/2026). Chacune a sa position, sa hauteur et son
+Les photos précédente et suivante complètent l'image sous le véhicule seulement : hors du masque du véhicule de la
+photo affichée, celle-ci n'est pas retouchée. Masque au plus près (09/11/2026) : contour du véhicule dans le panorama,
+lu sur 12 photos de la séquence pour le CD21 (`readOutline`, marge de 1,5°, forme symétrique sans encoche ; à défaut
+celui de la monture, `OUTLINES`), sinon ellipse au sol de ±5,8 m en long et ±2,9 m en travers.
+Dessous, la voisine où l'erreur due à l'inclinaison est la plus faible, comptée trois fois près de son propre véhicule
+(`SHADE`, ombre portée et reflets) ; une voisine sans inclinaison ne sert qu'à défaut d'une autre. Chacune a sa position, sa hauteur et son
 inclinaison, posées sur le même terrain. Une distance entre deux points de photos différentes
 additionne l'erreur de chaque point et leur position relative (5 cm en RTK vérifié, sinon 30 cm).
 

@@ -20,7 +20,9 @@ const ALL_REFERENCES = [
 // #rapide (mise au point) : les photos qui portent un contrôle propre (raccords sur route et en ville, inclinaison par la
 // route et par les verticales, GPS décalé) ; toutes avant une fusion
 const QUICK = new Set(["A38", "ville", "D33 du 04/07"]);
-const REFERENCES = location.hash === "#rapide" ? ALL_REFERENCES.filter(([name]) => QUICK.has(name)) : ALL_REFERENCES;
+// #photo=<id> : une autre photo seule (cas signalé), avec la carte des photos qui fournissent chaque point
+const ONE = location.hash.match(/^#photo=([\w-]+)/)?.[1];
+const REFERENCES = ONE ? [["photo", ONE]] : location.hash === "#rapide" ? ALL_REFERENCES.filter(([name]) => QUICK.has(name)) : ALL_REFERENCES;
 // Écart à l'orthophoto attendu (m) : position calée au-delà de 30 cm, GPS gardé en deçà
 const SHIFTS = { "D33": [0, 0.3], "D33 du 04/07": [0.5, 1.0] };
 const ONLY_SHIFT = new Set(["D33 du 04/07"]);
@@ -92,6 +94,36 @@ async function open(id, enough = () => false) {
     const shift = state.match(/(?:décalage|écart à l'orthophoto) (\d+,\d+) m\)/), metres = shift && Number(shift[1].replace(",", "."));
     if (SHIFTS[name]) await expect(`${name} : écart à l'orthophoto attendu`, metres !== null && metres >= SHIFTS[name][0] && metres <= SHIFTS[name][1], shift ? `${shift[1]} m` : "non mesuré");
     if (name === "A38" || name === "ville") await expect(`${name} : raccords recalés, marche réduite`, fixed.length > 0 && fixed.every((r) => r.after < r.before));
+    await expect(`${name} : contour du véhicule lu sur la séquence`, Array.isArray(now.outline), String(now.outline?.length ?? now.outline));
+    if (Array.isArray(now.outline)) {  // forme d'un véhicule : symétrique, sans encoche (plus bas que ses deux voisins à 3°)
+      const o = now.outline, notches = o.filter((v, k) => v < Math.min(o[(k + 127) % 128], o[(k + 1) % 128]) - 1).length;
+      await expect(`${name} : contour symétrique et sans encoche`, o.every((v, k) => Math.abs(v - o[(128 - k) % 128]) <= 1.5) && notches === 0, `${notches} encoche(s), écart gauche-droite ${Math.max(...o.map((v, k) => Math.abs(v - o[(128 - k) % 128]))).toFixed(1)}°`);
+    }
+    // Sol caché par le véhicule de la photo affichée : part vue par une voisine (le reste : véhicule en dernier recours)
+    if (others.length) {
+      let under = 0, seen = 0;
+      for (let e = -5; e <= 5; e += 0.1) for (let n = -5; n <= 5; n += 0.1) {
+        if (!Dessus.hidden(e, n, pose)) continue;
+        under++;
+        if (Dessus.sourceOf([e, n], now.layers) !== main) seen++;
+      }
+      await expect(`${name} : sol sous le véhicule vu par une voisine`, seen >= 0.99 * under, `${seen} points sur ${under}`);
+    }
+    if (ONE) {  // photo fournissant chaque point : rouge = affichée, vert, bleu = voisines
+      const canvas = Dessus.render(now.layers, now.terrain, pose, null, 1024, 3), copy = w.document.createElement("canvas");
+      copy.width = copy.height = 1024;
+      const c2 = copy.getContext("2d"), px = new Uint8Array(4 * 1024 * 1024), gl = canvas.getContext("webgl2");
+      gl.readPixels(0, 0, 1024, 1024, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      const image = c2.createImageData(1024, 1024);
+      for (let k = 0; k < 1024 * 1024; k++) {
+        const o = 4 * ((1023 - Math.floor(k / 1024)) * 1024 + k % 1024), l = px[4 * k];
+        image.data.set(l ? [[255, 0, 0], [0, 200, 0], [0, 0, 255], [200, 200, 0]][l - 1] || [255, 255, 255] : [0, 0, 0], o);
+        image.data[o + 3] = 255;
+      }
+      c2.putImageData(image, 0, 0);
+      await fetch("/capture/dessus-sources.png", { method: "POST", body: await new Promise((r) => copy.toBlob(r)) });
+      await log(`  couches : ${now.layers.map((l) => `${l.pose.pic.slice(0, 8)} ${l.pose.outline ? "contour" : "ellipse"} à ${l.at.map((v) => v.toFixed(1)).join(", ")} m`).join(" ; ")}`);
+    }
     const blob = shown.blob();
     await expect(`${name} : vue recomposée`, Boolean(blob));
     if (blob) await fetch(`/capture/dessus-${name.replace(/\W+/g, "-")}.png`, { method: "POST", body: blob });

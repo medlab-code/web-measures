@@ -1174,6 +1174,7 @@
     const pose = app && photo ? JSON.parse(app.birdeye_pose()) : null, shown = pose && pose.pic === photo.id;
     $("#dessus").disabled = !shown;
     const on = shown && $("#dessus").checked;
+    if (photo) Carte.showView(map, photo.geometry.coordinates, coneHeading(), viewFov());  // cône retiré ou remis
     const inMap = (selector) => mapBox.querySelector(selector);  // réglages sur la carte, peut-être détachée
     inMap("#dessus-fine").disabled = inMap("#dessus-voisines").disabled = inMap("#dessus-position").disabled = inMap("#dessus-devers").disabled = inMap("#dessus-tangage").disabled = !on;
     inMap("#dessus-reglages").hidden = !on;  // vue du dessus allumée seulement
@@ -1893,7 +1894,7 @@
     if (moving) detailsTimer = setTimeout(() => { if (photo === feature) photoDetails(feature); }, PLAYING_DETAILS_DELAY);
     else photoDetails(feature);
     const coords = feature.geometry.coordinates;
-    Carte.showView(map, coords, viewHeading(), viewFov());
+    Carte.showView(map, coords, coneHeading(), viewFov());
     const now = performance.now();
     if (recenter && $("#centrer").checked) {
       if (moving) {
@@ -2604,9 +2605,12 @@
     return vertical ? 60 : 90;
   }
 
+  /** Cap du cône de la vue sur la carte ; null (croix seule) avec Bird Eye, qui couvrirait la vue du dessus. */
+  function coneHeading() { return $("#dessus").checked ? null : viewHeading(); }
+
   let guideHeading = null;
   function updateCursor() {
-    if (photo) Carte.showView(map, photo.geometry.coordinates, viewHeading(), viewFov());
+    if (photo) Carte.showView(map, photo.geometry.coordinates, coneHeading(), viewFov());
     // Flèches des photos proposées : refaites quand la vue a tourné de plus de 5°
     const heading = viewHeading();
     if (guideShown && heading != null && (guideHeading == null || Math.abs(((heading - guideHeading) % 360 + 540) % 360 - 180) > 5)) {
@@ -2958,24 +2962,7 @@
     if (psv?.isSequencePlaying?.()) psv.stopSequence();
   }
 
-  /** Adresses possibles de la séquence de la photo dans l'API de son instance, la plus sûre
-   * d'abord : son lien « collection » (sauf celui du méta-catalogue), le lien « via » vers son
-   * instance d'origine (fiche du méta-catalogue), puis l'adresse de ses images (juste pour les
-   * instances qui les servent elles-mêmes : celles de l'IGN sont sur un stockage OVH, qui
-   * refuse l'API). */
-  function sequenceApis(feature) {
-    const links = feature?.links || [];
-    const out = [];
-    const link = links.find((l) => l.rel === "collection")?.href || "";
-    if (link && !link.startsWith(Carte.PANORAMAX_API)) out.push(link.replace(/\/$/, ""));
-    const sites = [links.find((l) => l.rel === "via")?.href, feature?.assets?.sd?.href || feature?.assets?.hd?.href];
-    for (const href of sites) {
-      try {
-        out.push(`${new URL(href).origin}/api/collections/${encodeURIComponent(feature.collection)}`);
-      } catch { /* adresse absente ou illisible */ }
-    }
-    return [...new Set(out)];
-  }
+  const { sequenceApis } = Services;
 
   function play(back, k) {
     stopPlayer();

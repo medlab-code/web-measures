@@ -29,7 +29,7 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
   est écarté : il donne le sol sous le tablier, ou la brèche sous la photo. Sol plat, pas d'inclinaison tirée de la
   route ni de tangage lu sur les raccords, hauteur de caméra de la séquence ou réglée (pas RTK moins sol LiDAR) ;
 - avec l'interrupteur **« Véhicule masqué »** (éteint par défaut), les photos précédente et suivante de la séquence,
-  chacune avec sa propre pose : elles comblent le sol sous le véhicule et ses reflets, et entraînent les raccords
+  chacune avec sa propre pose : elles comblent le sol sous le véhicule (masque au plus près, § 2), et entraînent les raccords
   (§ 4.3), le tangage lu sur les raccords (§ 4.1) et la hauteur lue entre photos (§ 4.2). Éteint, la photo affichée
   seule : véhicule visible, rien à lire de plus.
 
@@ -54,18 +54,32 @@ La carte se zoome jusqu'à 0,6 cm par pixel. La photo est plus fine jusqu'à 10 
 long à 4 m, 0,5 et 2,6 cm à 10 m. Les calculs (hauteur, raccords, position) travaillent sur une image de 1 024 px,
 suffisante et quatre fois moins coûteuse.
 
-**Recomposition de trois photos :** le véhicule cache le sol sous lui, et ses reflets salissent le sol proche. Les
-photos voisines, prises environ 5 m avant et après, voient ce sol. Chaque point de l'image prend la photo où l'erreur
-attendue est la plus faible (§ 3), avec deux zones à part autour de chaque caméra :
+**Recomposition de trois photos (09/11/2026) :** le véhicule cache le sol sous lui. Les photos voisines, prises environ
+5 m avant et après, voient ce sol. Trois règles :
 
-- **le corps du véhicule** (ellipse de ±4,5 m en long, ±2,5 m en travers) : le sol y est caché ; une photo n'y sert
-  qu'en dernier recours, quand toutes les photos ont ce point sous leur corps (celle où il est le plus près du bord) ;
-- **la bande des reflets** du capot et du coffre (jusqu'à ±5,8 m et ±2,9 m) : la photo y reste utilisable, mais son
-  erreur attendue compte trois fois (`REFLECT`). Une voisine proche vue dans ses reflets vaut mieux qu'une photo
-  lointaine, pas qu'une autre photo proche sans reflets.
+- **masque au plus près du véhicule** : pour les photos du CD21, le contour du véhicule dans le panorama (élévation
+  tous les 2,8° d'azimut, marge de 1,5°, environ 10 cm au sol). La caméra est fixe sur le toit : le véhicule occupe
+  toujours la même place dans les images d'une séquence. Ce contour est **lu sur la séquence** (`readOutline`, une
+  fois, gardé dans le navigateur) : moyenne de 12 photos SD réparties dans la séquence, où le sol est flou et le
+  véhicule net ; par colonne, le bord le plus haut assez marqué (45 % du plus fort) dans une bande de ±6° autour des
+  contours relevés à la main (`OUTLINES`), au-dessus du logo du CD21 (sinon son bord blanc sur une carrosserie noire
+  écrase les autres) : le haut du capot plutôt que l'essuie-glace. Forme d'un véhicule imposée : médiane sur 9
+  colonnes, fermeture sur ±4° (une encoche étroite est impossible sur une carrosserie), symétrie gauche-droite (le plus
+  haut des deux côtés), jamais sous les contours relevés (même Clio). Les montages diffèrent : rétroviseurs 7 à 9° plus
+  près de l'avant le 15/07/2025 (3e222d68) que sur les deux séquences relevées à la main (67e2ef09, 10/06/2025 ;
+  5bab4dc2, 03/07/2025). Contour pas encore lu : celui de la monture (`MOUNTS`), sinon les deux relevés réunis.
+  Autres producteurs : ellipse de ±5,8 m en long, ±2,9 m en travers ;
+- **la photo affichée n'est pas retouchée hors de ce masque** : elle passe devant tout, même là où une voisine serait
+  plus précise ; le fondu des raccords ne la touche pas non plus ;
+- **sous le masque seulement, les voisines**, recalées sur la photo affichée (raccords, § 7) : celle où l'erreur
+  attendue (§ 3) est la plus faible ; près de son propre véhicule (ellipse ci-dessus : ombre portée, reflets), cette
+  erreur compte trois fois (`SHADE`). Sol caché sur toutes les photos : le véhicule en dernier recours, pas de trou.
 
-**Pourquoi ces deux zones :** une seule grande ellipse effaçait aussi le sol à 5 m devant la caméra, qui était alors
-pris dans la photo précédente, à 10 m, beaucoup moins précise (passage piéton dédoublé d'un mètre en agglomération).
+**Pourquoi :** l'ellipse au sol d'avant (corps ±4,5 × ±2,5 m, reflets jusqu'à ±5,8 × ±2,9 m) laissait passer des
+morceaux de carrosserie (rétroviseurs, A38) et remplaçait du sol bien vu par la photo affichée ; un contour fixe par
+monture en laissait passer sur un autre montage (15/07/2025). Sans la pénalité près
+du véhicule des voisines, leur ombre portée faisait des taches sombres (ville d946f2cf). Reste visible : objets en
+relief (bordures) coupés au bord du masque, légère différence de teinte dessous.
 
 ## 3. D'où viennent les erreurs
 
@@ -189,8 +203,9 @@ raison.
 **Fondu (avec « Véhicule masqué » ; la case « Raccords fondus » a été retirée le 09/11/2026, `renderBlended`) :** le même sol paraît plus clair sur une photo que sur
 l'autre selon l'angle au soleil, d'où des taches en ellipse autour des raccords (le gain global entre photos n'est que de
 1 à 3 %). Fondu en deux bandes : chaque photo rendue seule, sans son véhicule ; sa luminosité lente (256 px pour 30 m,
-floutée sur environ 1 m) est mélangée selon les zones gagnantes floutées, le détail fin reste celui de la photo choisie,
-le raccord reste net. Essai du 08/11/2026 : ellipses effacées sur la D33 du 04/07 et a9fd217d, atténuées en ville ; un
+floutée sur environ 1 m) ; les voisines prennent celle de la photo affichée (écart lu là où les deux voient le sol,
+étendu sous le véhicule sur environ 3 m), le détail fin reste le leur, le raccord reste net ; la photo affichée
+n'est pas retouchée (09/11/2026 ; avant, les deux allaient vers une moyenne). Essai du 08/11/2026 : ellipses effacées sur la D33 du 04/07 et a9fd217d, atténuées en ville ; un
 fondu simple de ±60 cm dans le shader n'y faisait presque rien. Environ 1,8 s de plus par image (calcul en JavaScript).
 
 **Limites :** sans assez de sol net en commun (véhicules garés, trottoirs, reflets), pas de recalage. La photo

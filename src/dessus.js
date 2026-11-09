@@ -17,12 +17,45 @@ const Dessus = (() => {
   // 2,6 cm le long à 10 m, 0,2 et 0,5 cm à 4 m), les voisines (NEAR_LIMIT) deux fois moins
   const SHOWN_SIZE = 2048, FINE_SIZE = 4096;  // FINE_SIZE : « Haute résolution », 0,7 cm par pixel (zoom 24 de la carte)
   const CHUNK = 150;  // points par requête d'altitude (longueur de l'adresse)
-  const CAR = { ahead: 0, long: 5.8, wide: 2.9 };  // m : véhicule étalé sur le sol, reflets du capot et du coffre compris (voir hidden)
-  const BODY = { long: 4.5, wide: 2.5 };  // m : son corps seul, sol vraiment caché ; entre les deux, la bande des reflets
-  // Bande des reflets : la photo y reste prise, son erreur attendue comptée REFLECT fois (voir sourceOf). shortcut: valeur
-  // choisie sur un cas (village, 07/11/2026 : une voisine à 5 m dans ses reflets valait mieux qu'une photo à 10 m, dont
-  // l'inclinaison lue sur les façades s'écartait de 1,6° pour ±0,2° annoncés) ; à revoir sur d'autres
-  const REFLECT = 3;
+  // Contour du véhicule dans le panorama, par monture (voir MOUNTS) : élévation (degrés) sous laquelle le véhicule cache le sol,
+  // tous les 2,8° depuis l'arrière (bord du panorama), avant au milieu ; marge de 1,5° comprise (environ 10 cm au sol ; à 1°, des bords de
+  // carrosserie des voisines restaient visibles). Relevé le
+  // 09/11/2026 sur la médiane de 16 photos d'une séquence (basse : 67e2ef09, 10/06/2025 ; haute : 5bab4dc2, 03/07/2025).
+  // shortcut: relevé à la main sur deux séquences, à refaire si la monture ou le véhicule change
+  const OUTLINES = {
+    1.93: [
+      -26.7, -26.8, -26.8, -26.8, -26.9, -27.1, -27.2, -27.5, -27.8, -28.3, -28.8, -29.7, -30.6, -31.5, -32.3, -33.1, -33.9,
+      -34.7, -35.5, -36.4, -37.3, -38.1, -38.8, -39.5, -40.2, -41.0, -41.8, -42.5, -43.2, -43.9, -44.6, -45.1, -45.5, -45.7,
+      -45.9, -45.8, -45.7, -45.5, -45.3, -45.0, -44.6, -44.1, -43.6, -42.8, -42.0, -41.3, -40.6, -36.2, -33.7, -33.0, -33.0,
+      -33.0, -32.3, -31.5, -30.6, -28.3, -26.0, -25.7, -25.3, -25.2, -25.1, -25.1, -25.1, -25.1, -25.1, -25.3, -25.5, -25.7,
+      -25.8, -26.2, -26.5, -27.2, -27.8, -28.7, -29.7, -30.8, -32.0, -32.5, -32.9, -33.0, -33.6, -35.0, -37.3, -38.3, -39.4,
+      -40.2, -41.1, -41.9, -42.7, -43.2, -43.8, -44.2, -44.6, -45.0, -45.3, -45.5, -45.7, -45.7, -45.7, -45.5, -45.3, -44.9,
+      -44.5, -44.0, -43.6, -43.0, -42.4, -41.6, -40.8, -39.9, -39.0, -38.1, -37.1, -36.0, -35.0, -33.8, -32.7, -31.4, -30.1,
+      -29.0, -27.9, -27.4, -26.9, -26.8, -26.7, -26.7, -26.7, -26.7],
+    2.07: [
+      -24.3, -24.3, -24.3, -24.4, -24.4, -24.5, -24.5, -25.2, -25.8, -26.9, -27.9, -29.5, -31.1, -32.4, -33.7, -34.8, -35.9,
+      -36.7, -37.6, -38.5, -39.4, -40.2, -41.1, -41.9, -42.7, -43.2, -43.8, -44.5, -45.2, -45.4, -45.7, -45.8, -45.9, -45.8,
+      -45.7, -45.4, -45.2, -44.8, -44.5, -43.9, -43.4, -42.7, -42.0, -41.3, -40.6, -35.3, -34.6, -33.2, -33.2, -33.2, -33.4,
+      -32.8, -32.3, -31.3, -30.2, -27.9, -25.7, -25.4, -25.1, -25.0, -25.0, -24.9, -24.8, -24.8, -24.8, -24.8, -24.8, -24.9,
+      -25.0, -25.1, -25.3, -26.4, -27.6, -29.3, -31.1, -32.0, -32.9, -33.2, -33.6, -33.7, -34.1, -36.2, -40.2, -40.9, -41.5,
+      -42.1, -42.7, -43.2, -43.8, -44.2, -44.6, -45.0, -45.3, -45.5, -45.7, -45.8, -45.9, -45.8, -45.7, -45.5, -45.3, -44.9,
+      -44.5, -43.9, -43.4, -42.7, -42.0, -41.4, -40.8, -40.0, -39.2, -38.2, -37.3, -36.3, -35.3, -34.1, -32.9, -30.7, -28.5,
+      -26.7, -25.0, -24.6, -24.3, -24.3, -24.3, -24.3, -24.3, -24.3],
+  };
+  const EITHER = OUTLINES[1.93].map((e, k) => Math.max(e, OUTLINES[2.07][k]));  // monture pas encore connue : les deux
+  const LOWEST = OUTLINES[1.93].map((e, k) => Math.min(e, OUTLINES[2.07][k]));
+  // Contour lu sur la séquence elle-même (readOutline), d'abord : d'autres montages existent (15/07/2025, 3e222d68 : caméra plus
+  // en arrière, rétroviseurs 7 à 9° plus près de l'avant). Moyenne de OUTLINE_PHOTOS photos SD de la séquence : le sol y est
+  // flou, le véhicule net. Par colonne, le bord le plus haut assez marqué (OUTLINE_EDGE fois le plus fort) entre OUTLINE_BAND
+  // degrés au-dessus et au-dessous des contours relevés et OUTLINE_FLOOR (logo du CD21 sous le véhicule) : le haut du capot
+  // plutôt que l'essuie-glace. Gardé par séquence dans ce navigateur (OUTLINES_KEY).
+  // OUTLINE_FLOOR : au-dessus du haut du logo (-48,3°), dont le bord blanc sur la carrosserie noire écraserait les autres
+  const OUTLINE_PHOTOS = 12, OUTLINE_BAND = 6, OUTLINE_EDGE = 0.45, OUTLINE_FLOOR = -47, OUTLINE_MARGIN = 1.5;
+  const OUTLINES_KEY = "web-measures/dessus-contours";
+  const CAR = { ahead: 0, long: 5.8, wide: 2.9 };  // m : ellipse au sol, hors CD21 (véhicule inconnu) : toit, capot et leurs reflets
+  // Ombre et reflets du véhicule sur le sol, autour de lui (ellipse CAR) : une voisine y compte son erreur attendue SHADE fois,
+  // pour combler le sol caché par le véhicule de la photo affichée (ville d946f2cf, 09/11/2026 : taches sombres sinon)
+  const SHADE = 3;
   const NEAR_LIMIT = 6144;  // px : largeur des photos voisines, qui ne servent que près de leur caméra (mémoire graphique)
   const BEST = { along: 4, wide: 8 };  // m : zone idéale d'une largeur, en face de la caméra (essai du 08/11 : écart à l'orthophoto ≤ 1,5 % jusqu'à 4 m en long, 2 % au-delà)
   const MEASURED = 0.05;  // part de la longueur : incertitude affichée au moins égale à l'écart à l'orthophoto (voir docs/CALCULS.md)
@@ -76,43 +109,43 @@ const Dessus = (() => {
     return Math.hypot(east, north, scale, ground);
   }
 
-  /** Place du point (est, nord, m depuis la caméra) dans l'ellipse du véhicule, dans l'axe de la photo (le toit, le capot et
-   * leurs reflets s'étalant sur le sol) : sous 1, il est caché. shortcut: forme relevée sur l'imajbox du CD21, à adapter
-   * aux autres véhicules. */
+  /** Place du point (est, nord, m depuis la caméra) dans l'ellipse du véhicule (CAR), dans l'axe de la photo : sous 1, il est
+   * caché. */
   function inCar(east, north, pose) {
     const h = pose.heading * toRad, along = east * Math.sin(h) + north * Math.cos(h), across = east * Math.cos(h) - north * Math.sin(h);
     return ((along - CAR.ahead) / CAR.long) ** 2 + (across / CAR.wide) ** 2;
   }
-  const hidden = (east, north, pose) => inCar(east, north, pose) < 1;
-  /** Le point est-il sous le corps du véhicule (BODY) ? */
-  function underBody(east, north, pose) {
-    const h = pose.heading * toRad, along = east * Math.sin(h) + north * Math.cos(h), across = east * Math.cos(h) - north * Math.sin(h);
-    return ((along - CAR.ahead) / BODY.long) ** 2 + (across / BODY.wide) ** 2 < 1;
+  /** Élévation du contour du véhicule (OUTLINES) à la place u (0 à 1) dans la largeur du panorama. */
+  function outlineAt(outline, u) {
+    const x = u * outline.length, k = Math.floor(x) % outline.length;
+    return outline[k] + (outline[(k + 1) % outline.length] - outline[k]) * (x - Math.floor(x));
+  }
+  /** Le point au sol (est, nord, m depuis la caméra) est-il caché par le véhicule ? Contour de la monture (pose.outline), sinon
+   * ellipse. Même calcul dans le dessin (FRAGMENT). */
+  function hidden(east, north, pose) {
+    if (!pose.outline) return inCar(east, north, pose) < 1;
+    const [azimuth, elevation] = view(east, north, -pose.height, pose);
+    return elevation < outlineAt(pose.outline, (((azimuth - pose.heading) / 360 + 0.5) % 1 + 1) % 1);
   }
 
-  /** Erreur attendue (m) d'un point au sol à la distance d, due à l'inclinaison : c'est la photo où elle est la plus faible
-   * qui fournit le point (une voisine sans inclinaison ne sert ainsi qu'à combler). Même calcul dans le dessin (FRAGMENT). */
+  /** Erreur attendue (m) d'un point au sol à la distance d, due à l'inclinaison : sous le véhicule de la photo affichée, c'est
+   * la voisine où elle est la plus faible qui fournit le point. Même calcul dans le dessin (FRAGMENT). */
   const tiltError = (d, pose) => (pose.height * pose.height + d * d) / pose.height * pose.sigma * toRad;
 
-  /** Couche qui fournit le point (est, nord, m depuis la caméra principale), comme render : la plus faible erreur attendue
-   * (tiltError, REFLECT fois dans la bande des reflets) parmi celles où il n'est pas sous le corps du véhicule ; sous le
-   * corps partout, celle où il est le plus près du bord du véhicule ; null hors de la vue. layers[].at : position de sa caméra. */
+  /** Couche qui fournit le point (est, nord, m depuis la caméra principale), comme render : la principale partout où son
+   * véhicule ne cache pas le sol (sa photo n'est pas retouchée) ; dessous, la voisine de plus faible erreur attendue (tiltError,
+   * SHADE fois près de son véhicule) qui le voit ; à défaut la principale ; null hors de la vue. layers[].at : position de sa caméra. */
   function sourceOf(point, layers) {
-    let best = null, bestDist = Infinity, least = null, leastIn = -1;
     if (Math.hypot(...point) > REACH) return null;
-    for (const layer of layers) {
-      const e = point[0] - layer.at[0], n = point[1] - layer.at[1], d = Math.hypot(e, n), share = layers.length > 1 ? inCar(e, n, layer.pose) : 1;
-      if (d > REACH) continue;
-      const body = layers.length > 1 && underBody(e, n, layer.pose), score = tiltError(d, layer.pose) * (share < 1 ? REFLECT : 1);
-      if (!body && score < bestDist) {
-        best = layer;
-        bestDist = score;
-      } else if (body && share > leastIn) {
-        least = layer;
-        leastIn = share;
-      }
+    const [main, ...others] = layers;
+    if (!others.length || !hidden(point[0], point[1], main.pose)) return main;
+    let best = main, bestError = Infinity;
+    for (const layer of others) {
+      const e = point[0] - layer.at[0], n = point[1] - layer.at[1], d = Math.hypot(e, n);
+      const error = tiltError(d, layer.pose) * (inCar(e, n, layer.pose) < 1 ? SHADE : 1);
+      if (d <= REACH && !hidden(e, n, layer.pose) && error < bestError) [best, bestError] = [layer, error];
     }
-    return best || least;
+    return best;
   }
 
   /** Axe de la route (vecteur unitaire est, nord) : la trajectoire entre les photos voisines, à défaut le cap de la photo,
@@ -280,6 +313,59 @@ const Dessus = (() => {
     return { canvas, top };
   }
 
+  /** Contour du véhicule (128 élévations, marge comprise, comme OUTLINES) lu sur les photos de la séquence de photo, ou null. */
+  async function readOutline(photo, signal) {
+    let items = [];
+    for (const api of Services.sequenceApis(photo)) {
+      try {
+        const response = await fetch(`${api}/items?limit=500`, { signal });
+        if (response.ok) { items = (await response.json()).features || []; break; }
+      } catch (error) { if (signal.aborted) throw error; }
+    }
+    const urls = items.map((f) => f.assets?.sd?.href).filter(Boolean), step = urls.length / OUTLINE_PHOTOS;
+    const picked = urls.length < OUTLINE_PHOTOS ? urls : [...Array(OUTLINE_PHOTOS)].map((_, i) => urls[Math.floor(i * step)]);
+    const bitmaps = (await Promise.allSettled(picked.map((url) => Video.fetchImage(url, signal))))
+      .filter((r) => r.status === "fulfilled").map((r) => r.value);
+    if (signal.aborted) throw new DOMException("Interrompu", "AbortError");
+    const W = 1024, H = 512, canvas = new OffscreenCanvas(W, H), context = canvas.getContext("2d");
+    let n = 0;
+    for (const bitmap of bitmaps) {
+      if (bitmap.width === 2 * bitmap.height) {  // panorama entier seulement
+        context.globalAlpha = 1 / ++n;  // moyenne au fil des photos (dessin par la carte graphique)
+        context.drawImage(bitmap, 0, 0, W, H);
+      }
+      bitmap.close();
+    }
+    if (n < OUTLINE_PHOTOS / 2) return null;
+    const { data } = context.getImageData(0, 0, W, H), rowOf = (e) => -e * H / 180 - 0.5 + H / 2;
+    const rows = new Float32Array(W);
+    for (let x = 0; x < W; x++) {
+      const u = (x + 0.5) / W, r0 = Math.max(2, Math.floor(rowOf(outlineAt(EITHER, u) + OUTLINE_BAND)));
+      const r1 = Math.min(H - 3, Math.floor(rowOf(Math.max(outlineAt(LOWEST, u) - OUTLINE_BAND, OUTLINE_FLOOR))));
+      const grad = [];
+      for (let y = r0; y < r1; y++) {  // bord horizontal : écart de couleur entre 2 lignes au-dessus et au-dessous
+        const a = 4 * ((y - 2) * W + x), b = 4 * ((y + 2) * W + x);
+        grad.push(Math.hypot(data[b] - data[a], data[b + 1] - data[a + 1], data[b + 2] - data[a + 2]));
+      }
+      const strong = OUTLINE_EDGE * Math.max(...grad);
+      rows[x] = r0 + grad.findIndex((v) => v >= strong);
+    }
+    // Forme d'un véhicule : médiane sur 9 colonnes (bords isolés dans l'herbe) ; fermeture sur ±12 colonnes (4°) : une encoche
+    // étroite, impossible sur une carrosserie, est comblée sans gonfler le reste (15/07/2025, 3e222d68 : triangles sombres) ;
+    // symétrie gauche-droite : de chaque côté, le plus haut des deux
+    const ring = (list, r, pick) => list.map((_, x) => pick(...[...Array(2 * r + 1)].map((__, d) => list[(x + d - r + W) % W])));
+    const smooth = rows.map((_, x) => median([...Array(9)].map((__, d) => rows[(x + d - 4 + W) % W])));
+    const closed = ring(ring(smooth, 12, Math.min), 12, Math.max);  // lignes : le plus petit est le plus haut
+    const shape = closed.map((v, x) => Math.min(v, closed[W - 1 - x]));  // avant au milieu, arrière aux bords : x <-> W - 1 - x
+    const outline = [...Array(128)].map((_, k) => {
+      const top = Math.min(...[...Array(9)].map((__, d) => shape[(8 * k + d - 4 + W) % W]));
+      // côtés : le bas des portières touche presque le logo, hors de la recherche ; 1° au-dessus de son bas au moins ; jamais
+      // sous le plus bas des contours relevés (même Clio)
+      return Math.round(Math.max(-(top + 0.5 - H / 2) * 180 / H + OUTLINE_MARGIN, OUTLINE_FLOOR + 1, LOWEST[k]) * 10) / 10;
+    });
+    return outline.map((v, k) => Math.max(v, outline[(128 - k) % 128]));  // symétrie, les contours relevés compris
+  }
+
   const VERTEX = `#version 300 es
     in vec3 ground;
     out vec3 world;
@@ -296,8 +382,9 @@ const Dessus = (() => {
     const vec2 frameCentre = vec2(0.0);
     uniform vec4 car;  // sin et cos du cap, centre et demi-longueur du véhicule ; demi-largeur à part
     uniform vec4 band;  // axe de la route (est, nord), demi-longueur et demi-largeur de la bande gardée
-    uniform float wide, masked, heading, top, reach, sure, height, sigma, reflect;
-    uniform vec2 body;  // demi-longueur et demi-largeur du corps du véhicule (BODY)
+    uniform float wide, masked, heading, top, reach, sure, height, sigma, shade;
+    uniform float outline[128];  // contour du véhicule dans le panorama (OUTLINES), si hasOutline ; sinon ellipse (car, wide)
+    uniform int hasOutline;
     uniform vec4 fix;  // recalage sur la principale (voir alignJoin) : décalage le long et en travers, tangage, lacet
     uniform vec2 fixMore;  // et échelle, roulis
     uniform int stage;  // 2 : photo seule sans son véhicule, 3 : numéro de la photo gagnante (voir renderBlended)
@@ -312,15 +399,21 @@ const Dessus = (() => {
       float dist = length(ray.xy);
       if (dist > reach || length(world.xy - frameCentre) > reach) discard;  // une voisine ne déborde pas du cercle de la vue
       if (abs(dot(world.xy, band.xy)) > band.z || abs(world.x * band.y - world.y * band.x) > band.w) discard;
-      float along = (ray.x * car.x + ray.y * car.y - car.z) / car.w, across = (ray.x * car.y - ray.y * car.x) / wide;
-      float inCar = along * along + across * across;
-      float inBody = pow(along * car.w / body.x, 2.0) + pow(across * wide / body.y, 2.0);
-      // sous le corps du véhicule : derrière tout le reste, pris seulement là où aucune photo ne le voit (le plus près du
-      // bord) ; dans ses reflets : erreur attendue comptée reflect fois (voir sourceOf)
-      float error = (height * height + dist * dist) / height * sigma / 50.0 * (masked > 0.5 && inCar < 1.0 ? reflect : 1.0);
-      gl_FragDepth = masked > 0.5 && inBody < 1.0 ? 0.99 - 0.49 * inBody : 0.5 * min(error, 1.0);
       vec3 v = normalize(turn * ray);
       float u = (atan(v.x, v.y) - heading) / (2.0 * PI) + 0.5;
+      float along = (ray.x * car.x + ray.y * car.y - car.z) / car.w, across = (ray.x * car.y - ray.y * car.x) / wide;
+      bool hidden, near = along * along + across * across < 1.0;  // sol caché par le véhicule (voir hidden) ; près de lui (CAR)
+      if (hasOutline == 1) {
+        float x = fract(u) * 128.0;
+        int k = int(x) % 128;
+        hidden = degrees(asin(clamp(v.z, -1.0, 1.0))) < mix(outline[k], outline[(k + 1) % 128], fract(x));
+      } else {
+        hidden = near;
+      }
+      // photo affichée (index 1) devant tout hors de son véhicule : elle n'est pas retouchée ; voisines sous ce véhicule
+      // seulement, la plus précise (erreur attendue, voir sourceOf) ; sol caché partout : en dernier recours, pas de trou
+      float error = (height * height + dist * dist) / height * sigma / 50.0 * (near ? shade : 1.0);
+      gl_FragDepth = masked > 0.5 && hidden ? 0.99 : index < 1.5 ? 0.0 : 0.01 + 0.49 * min(error, 1.0);
       float a = fract(u), b = fract(u + 0.5) - 0.5;  // la coupure du panorama ne doit pas faire choisir un niveau flou
       float w = ((0.5 - asin(clamp(v.z, -1.0, 1.0)) / PI) - top) / (1.0 - top);
       vec3 c = texture(pano, vec2(fwidth(a) < fwidth(b) ? a : b, w)).rgb;
@@ -328,7 +421,7 @@ const Dessus = (() => {
       // d'elle mais à plus de sure m de sa propre caméra (14f7bc5a : taches transparentes à 7 m) ; photo seule : sa caméra
       float far = smoothstep(sure, reach, masked > 0.5 ? length(world.xy - frameCentre) : dist);
       color = vec4(mix(c, vec3(dot(c, vec3(0.3, 0.59, 0.11))), far), 1.0 - 0.5 * far);
-      if (stage == 2 && inBody < 1.0) discard;
+      if (stage == 2 && hidden) discard;
       if (stage == 3) color = vec4(index / 255.0, 0.0, 0.0, 1.0);
     }`;
 
@@ -406,8 +499,7 @@ const Dessus = (() => {
     g.uniform1f(uniform("reach"), REACH);
     g.uniform1f(uniform("sure"), SURE);
     g.uniform1f(uniform("wide"), CAR.wide);
-    g.uniform2f(uniform("body"), BODY.long, BODY.wide);
-    g.uniform1f(uniform("reflect"), REFLECT);
+    g.uniform1f(uniform("shade"), SHADE);
     g.uniform1f(uniform("masked"), layers.length > 1 ? 1 : 0);  // photo seule : son véhicule plutôt qu'un trou
     g.uniform1i(uniform("stage"), stage);
     // band : axe de la route [est, nord], et demi-longueur, demi-largeur gardées (par défaut la zone idéale, BEST)
@@ -421,6 +513,8 @@ const Dessus = (() => {
       g.uniformMatrix3fv(uniform("turn"), false, [0, 1, 2].flatMap((c) => m.map((row) => row[c])));
       g.uniform3f(uniform("camera"), east, north, (terrain ? groundLevel(terrain, [east, north], pose.heading) : 0) + pose.height);
       g.uniform4f(uniform("car"), Math.sin(h), Math.cos(h), CAR.ahead, CAR.long);
+      g.uniform1i(uniform("hasOutline"), pose.outline ? 1 : 0);
+      if (pose.outline) g.uniform1fv(uniform("outline"), pose.outline);
       g.uniform1f(uniform("height"), pose.height);
       g.uniform1f(uniform("sigma"), pose.sigma * toRad);
       g.uniform1f(uniform("heading"), pose.heading * toRad);
@@ -433,10 +527,11 @@ const Dessus = (() => {
     return g.canvas;
   }
 
-  // Fondu en deux bandes (essai) : la luminosité lente d'une photo dépend de l'angle du soleil, le même sol paraît plus clair
-  // sur l'une que sur l'autre (ellipses aux raccords, gain global de 1 à 3 % seulement). Bande basse (LOW px, flou de
-  // LOW_SIGMA m) mélangée sur quelques mètres selon les zones gagnantes floutées ; détail fin de la photo gagnante, raccord net.
-  const LOW = 256, LOW_SIGMA = 1;
+  // Fondu des raccords : la luminosité lente d'une photo dépend de l'angle du soleil, le même sol paraît plus clair sur l'une que
+  // sur l'autre. Les voisines, sous le véhicule de la photo affichée, prennent sa bande basse (LOW px, flou de LOW_SIGMA m) :
+  // écart de teinte lu là où les deux voient le sol, étendu dessous (FILL_SIGMA m) ; détail fin gardé. La photo affichée n'est
+  // pas retouchée.
+  const LOW = 256, LOW_SIGMA = 1, FILL_SIGMA = 3;
   let faithful = null;
   /** Relecture des pixels fidèle : Firefox (resistFingerprinting) la remplace par du bruit, d'où des taches de couleur. */
   function readsBack() {
@@ -460,27 +555,31 @@ const Dessus = (() => {
     render(layers, terrain, frame, band, size, 3);
     const winner = read(), alone = layers.map((layer) => { render([layer], terrain, frame, band, size, 2); return read(); });
     render(layers, terrain, frame, band, size);
-    const shown = read(), k = size / LOW, r = Math.max(1, Math.round(LOW_SIGMA * LOW / (2 * REACH) / 1.7));  // 3 boîtes : σ ≈ 1,7 r
-    const blur = (a) => { let b = a; for (let pass = 0; pass < 3; pass++) b = boxBlur(b, r, LOW); return b; };
-    // Bande basse de chaque photo (moyenne sur ses pixels valides) et poids de sa zone gagnante
+    const shown = read(), k = size / LOW, radius = (sigma) => Math.max(1, Math.round(sigma * LOW / (2 * REACH) / 1.7));  // 3 boîtes : σ ≈ 1,7 r
+    const blur = (a, r) => { let b = a; for (let pass = 0; pass < 3; pass++) b = boxBlur(b, r, LOW); return b; };
+    // Bande basse de chaque photo (moyenne sur ses pixels valides, hors de son véhicule)
     const low = layers.map((_, l) => {
-      const sums = [0, 1, 2].map(() => new Float32Array(LOW * LOW)), seen = new Float32Array(LOW * LOW), wins = new Float32Array(LOW * LOW);
+      const sums = [0, 1, 2].map(() => new Float32Array(LOW * LOW)), seen = new Float32Array(LOW * LOW);
       for (let j = 0; j < size; j++) {
         for (let i = 0; i < size; i++) {
           const p = 4 * (j * size + i), q = Math.floor(j / k) * LOW + Math.floor(i / k);
-          if (winner[p] === l + 1) wins[q]++;
           if (alone[l][p + 3] < 250) continue;
           seen[q]++;
           for (let c = 0; c < 3; c++) sums[c][q] += alone[l][p + c];
         }
       }
-      const m = blur(seen), w = blur(wins);
-      return { color: sums.map((s) => blur(s).map((v, q) => (m[q] > 0.05 * k * k ? v / m[q] : NaN))), weight: w.map((v, q) => (m[q] > 0.05 * k * k ? v : 0)) };
+      const m = blur(seen, radius(LOW_SIGMA));
+      return sums.map((s) => blur(s, radius(LOW_SIGMA)).map((v, q) => (m[q] > 0.05 * k * k ? v / m[q] : NaN)));
     });
-    const mixed = [0, 1, 2].map((c) => new Float32Array(LOW * LOW).map((_, q) => {
-      let sum = 0, weight = 0;
-      for (const { color, weight: w } of low) if (w[q] > 0) { sum += w[q] * color[c][q]; weight += w[q]; }
-      return weight ? sum / weight : NaN;
+    // Écart de chaque voisine à la photo affichée, étendu sous le véhicule (moyenne pondérée par les cases où il est lu)
+    const shift = low.map((color, l) => l === 0 ? null : [0, 1, 2].map((c) => {
+      const known = new Float32Array(LOW * LOW), sum = new Float32Array(LOW * LOW);
+      for (let q = 0; q < known.length; q++) {
+        const d = low[0][c][q] - color[c][q];
+        if (!Number.isNaN(d)) { known[q] = 1; sum[q] = d; }
+      }
+      const w = blur(known, radius(FILL_SIGMA)), v = blur(sum, radius(FILL_SIGMA));
+      return v.map((x, q) => (w[q] > 1e-3 ? x / w[q] : 0));
     }));
     const at = (grid, x, y) => {  // bilinéaire, centres des cases basses
       const fx = Math.min(LOW - 1, Math.max(0, x / k - 0.5)), fy = Math.min(LOW - 1, Math.max(0, y / k - 0.5));
@@ -493,10 +592,7 @@ const Dessus = (() => {
     for (let j = 0; j < size; j++) {
       for (let i = 0; i < size; i++) {
         const p = 4 * (j * size + i), o = 4 * ((size - 1 - j) * size + i), l = winner[p] - 1;
-        for (let c = 0; c < 3; c++) {
-          const shift = l >= 0 ? at(mixed[c], i + 0.5, j + 0.5) - at(low[l].color[c], i + 0.5, j + 0.5) : 0;
-          image.data[o + c] = Number.isNaN(shift) ? shown[p + c] : shown[p + c] + shift;
-        }
+        for (let c = 0; c < 3; c++) image.data[o + c] = shown[p + c] + (l > 0 ? at(shift[l][c], i + 0.5, j + 0.5) : 0);
         image.data[o + 3] = shown[p + 3];
       }
     }
@@ -932,7 +1028,7 @@ const Dessus = (() => {
     await showImage();
   }
   // Réglages dont dépend le recalage : à refaire s'ils changent
-  const joinKey = () => JSON.stringify([rollShare, readyLayers().map((l) => [l.pose.pic, l.pose.height, pitchFor(l.pose.pic)])]);
+  const joinKey = () => JSON.stringify([rollShare, readyLayers().map((l) => [l.pose.pic, l.pose.height, pitchFor(l.pose.pic), l.pose.outline?.reduce((a, b) => a + b, 0)])]);
 
   // Sur la mini-carte -----------------------------------------------------------------------
   let map = null, shown = null;  // shown : { pic, sequence, height, estimated, estimating, key, pose, features, panos (photo -> texture), loading, terrain, sigmaGround, terrainFailed, url }
@@ -1048,7 +1144,7 @@ const Dessus = (() => {
   const say = (text) => { $("#dessus-etat").textContent = text; };
 
   const busy = () => shown.estimating || shown.joining || shown.locating || shown.pose.pending
-    || (neighboursOn && (shown.features === null || shown.loading.size > 0 || shown.pose.neighbours.some((p) => p.pending)));
+    || (neighboursOn && (outlines.get(shown.sequence) === "reading" || shown.features === null || shown.loading.size > 0 || shown.pose.neighbours.some((p) => p.pending)));
   /** Photos prêtes à dessiner, la principale d'abord (seule sans « Véhicule masqué »). */
   const readyLayers = () => [shown.pose, ...(neighboursOn ? shown.pose.neighbours.filter((p) => !p.pending) : [])]
     .filter((pose) => shown.panos.has(pose.pic))
@@ -1062,7 +1158,9 @@ const Dessus = (() => {
       const height = shown.height && shown.pose.fleet ? { height: mountOf(shown.height), height_sigma: MOUNT_SIGMA }  // CD21 : la monture
         : shown.height ? { height: shown.height, height_sigma: HEIGHT_SIGMA }
         : { height: shown.sequenceHeight?.height ?? leveled.height, height_sigma: Math.max(leveled.height_sigma, RTK_SIGMA) };
-      return { pose: { ...leveled, ...height }, pano: shown.panos.get(pose.pic), at, fix, seam };
+      const read = outlines.get(shown.sequence);  // CD21 : contour lu sur la séquence, sinon celui de sa monture
+      const outline = !shown.pose.fleet ? null : Array.isArray(read) ? read : shown.height ? OUTLINES[mountOf(shown.height)] : EITHER;
+      return { pose: { ...leveled, ...height, outline }, pano: shown.panos.get(pose.pic), at, fix, seam };
     });
 
   /** Mode « Longueur sur la carte » (app.js) : curseur, carte et visionneuse échangées, sans toucher au zoom. */
@@ -1253,7 +1351,7 @@ const Dessus = (() => {
     const auto = !pitchManual && pitchOffset && own === undefined ? sequencePitch(shown.sequence) : null;
     const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${LEAN * (shown.lateral || 0) >= 0.5 ? `, virage : véhicule penché jusqu'à ${number(LEAN * shown.lateral, 1)}°` : ""}${pitchOffset || pitchManual ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? " réglé à la main" : own !== undefined ? " lu sur les raccords de la photo" : auto ? ` de la séquence, lu sur les raccords (${auto.count} photo${auto.count > 1 ? "s" : ""})` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain || !neighboursOn ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
-    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height && shown.pose.fleet ? ` (monture ${mountOf(shown.height) === MOUNTS[0] ? "basse" : "haute"}, lue entre photos : ${number(shown.height, 2)} m)` : shown.height ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
+    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height && shown.pose.fleet ? ` (monture ${mountOf(shown.height) === MOUNTS[0] ? "basse" : "haute"}, lue entre photos : ${number(shown.height, 2)} m)` : shown.height ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : neighboursOn && outlines.get(shown.sequence) === "reading" ? " ; contour du véhicule en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
     if (positionOn && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
     else if (!busy() && !shown.estimated) measureHeight();
     else if (!busy() && neighboursOn && layers.length > 1 && shown.joins?.key !== shown.joinKeyNow) alignJoins();
@@ -1315,6 +1413,7 @@ const Dessus = (() => {
   function loadNeighbours(signal) {
     const mine = shown;
     if (!neighboursOn) return;
+    readSequenceOutline(mine, signal);
     for (const pose of mine.pose.neighbours) {
       const feature = (mine.features || []).find((f) => f.id === pose.pic);
       if (!feature || pose.pending || mine.panos.has(pose.pic) || mine.loading.has(pose.pic)
@@ -1331,6 +1430,29 @@ const Dessus = (() => {
         if (shown === mine && mine.panos.has(mine.pic)) showImage();
       });
     }
+  }
+
+  const outlines = new Map();  // séquence -> contour du véhicule lu (readOutline), null s'il n'a pas pu l'être, "reading"
+  /** Contour du véhicule de la séquence de mine : gardé dans ce navigateur, sinon lu (une fois), puis vue refaite. */
+  function readSequenceOutline(mine, signal) {
+    const sequence = mine.sequence;
+    if (!mine.pose.fleet || outlines.has(sequence)) return;
+    let saved;
+    try { saved = JSON.parse(localStorage.getItem(OUTLINES_KEY))?.[sequence]; } catch { /* stockage absent ou illisible */ }
+    if (saved) { outlines.set(sequence, saved); return; }
+    outlines.set(sequence, "reading");
+    readOutline(mine.photo, signal).then((outline) => {
+      outlines.set(sequence, outline);
+      if (outline) {
+        try {
+          const all = JSON.parse(localStorage.getItem(OUTLINES_KEY)) || {};
+          localStorage.setItem(OUTLINES_KEY, JSON.stringify({ ...all, [sequence]: outline }));
+        } catch { /* sans stockage : pour cette page seulement */ }
+      }
+    }).catch((error) => {
+      if (signal.aborted) outlines.delete(sequence);  // repris à la prochaine vue
+      else { outlines.set(sequence, null); console.warn("Contour du véhicule :", error); }
+    }).finally(() => { if (shown?.sequence === sequence && shown.panos.has(shown.pic)) showImage(); });
   }
 
   /** Vue gardée (parked) remise : les calculs qu'elle avait en cours, interrompus, sont à refaire. */
@@ -1418,5 +1540,5 @@ const Dessus = (() => {
     }
   }
 
-  return { setup, update, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins }, view, uncertainty, measureError, shownError, groundUp, roadAxis, sourceOf, toLonLat, estimateHeight, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, REACH, SIZE };
+  return { setup, update, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins, outline: outlines.get(shown.sequence) }, view, hidden, uncertainty, measureError, shownError, groundUp, roadAxis, sourceOf, toLonLat, estimateHeight, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, REACH, SIZE };
 })();
