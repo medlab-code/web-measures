@@ -603,12 +603,14 @@ carte, mise pour cela à la place et à la taille de la visionneuse (et inversem
 sur une perpendiculaire à la route. La longueur rejoint les résultats de la séance (`App.add_map_length`,
 `py/web_app.py`), avec son incertitude (`shownError`) et les photos qui ont fourni ses deux bouts. Un bout hors
 de la vue : longueur sur le fond de carte seul, sans incertitude, marquée « hors vue », pour un contrôle rapide de
-cohérence (orthophoto). « Bande verte seule » ne dessine que la bande de la zone idéale.
-Une bande verte transparente marque la zone idéale d'une largeur : ±4 m en face de la caméra (axe :
+cohérence (orthophoto).
+Zone idéale d'une largeur : ±4 m en face de la caméra (axe :
 trajectoire entre les photos voisines, à défaut cap de la photo), sur ±8 m en travers, là où le tangage
 pèse le moins (essai du 08/11 sur les lignes peintes, vue lissée contre orthophoto : écart de largeur 1,2 à
 1,5 % jusqu'à 4 m en long, 2 % au-delà ; pas de dégradation en travers jusqu'à 9 m). L'incertitude affichée
-vaut au moins 5 % de la longueur (écart à l'orthophoto, plus bas).
+compte 3,5 % de la part de la mesure en travers de la route (bandes de passages piétons du CD21 : 0,483 m pour
+0,50 m, vue trop étroite en travers, comptée plutôt que corrigée) et vaut au moins 5 % de la longueur (écart à
+l'orthophoto, plus bas).
 
 Les photos précédente et suivante complètent l'image : chaque point prend la photo où l'erreur due à
 l'inclinaison est la plus faible ; une voisine sans inclinaison ne sert donc qu'à combler. Le véhicule (relevé sur
@@ -678,8 +680,8 @@ Tangage réglé à l'œil par l'auteur : de -0,2 à +0,5° selon la séquence, s
 (+0,2°) sur deux portions de l'A38 d'une même séquence. Roulis et tangage sont donc retenus par séquence, dans le
 navigateur (`web-measures/dessus-reglages`) ; la barre d'état l'indique (« réglé à la main »). Sans réglage, le
 tangage est lu sur les raccords (`learnPitch`, voir docs/BIRDEYE.md § 4.1) : échelle de la voisine avant moins celle de
-l'arrière, environ 9,6 % pour 1° de tangage commun ; retenu par photo (`web-measures/dessus-tangages`), médiane par
-séquence.
+l'arrière, environ 9,6 % pour 1° de tangage ; retenu et appliqué par photo (`web-measures/dessus-tangages`) : il bouge
+sur une bosse ou un creux, que le plan de la route ne suit pas ; médiane de la séquence pour une photo sans le sien.
 
 Près d'un pont (tronçon BD TOPO en pont à moins de 20 m de la photo, dessus ou dessous), la vue se passe du terrain
 LiDAR HD : le MNT n'a pas le tablier (sol sous le pont, ou brèche sous la photo). Sol plat, sans inclinaison tirée de

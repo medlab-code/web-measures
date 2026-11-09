@@ -45,8 +45,7 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
 3. Pour chaque pixel de l'image, le shader calcule le rayon de la caméra au point du sol, le tourne dans le repère de
    la photo (cap et inclinaison, même rotation que `Calibration.uncorrect`), en déduit les coordonnées dans la photo
    équirectangulaire et y lit la couleur.
-4. L'image affichée est **découpée à ±8 m de l'axe de la route**, dans le prolongement des grands côtés de la bande
-   verte (bords droits, parallèles à la route) : rien de plus loin de la route. « Bande verte seule » ne garde que la bande.
+4. L'image affichée est **découpée à ±8 m de l'axe de la route**, bords droits, parallèles à la route : rien de plus loin de la route.
 5. Au-delà de 10 m, l'image est grisée : 0,6° d'inclinaison y déplacent déjà un point d'environ 50 cm (§ 3).
 
 **Résolution :** l'image affichée fait 2 048 px pour 30 m, soit 1,5 cm par pixel ; l'interrupteur « Haute résolution »
@@ -78,7 +77,7 @@ Pour un point au sol à la distance `d` d'une caméra à la hauteur `H` :
 - un écart du sol réel au terrain `Δz` le déplace de `d × Δz / H` ;
 - une erreur de position GPS déplace toute l'image d'autant.
 
-**Conséquences :** l'inclinaison domine loin de la caméra, d'où le grisé au-delà de 10 m et la bande verte en face de la
+**Conséquences :** l'inclinaison domine loin de la caméra, d'où le grisé au-delà de 10 m et la zone idéale en face de la
 caméra (±4 m en long, ±8 m en travers), où le tangage pèse le moins. Chaque recalage ci-dessous s'attaque à une de ces
 causes.
 
@@ -104,15 +103,18 @@ fixation peut être un peu de travers.
    la pente entière ; le roulis ne suit qu'une part du dévers, réglable (« Roulis », 70 % par défaut : environ 40 %
    sur la RD 1074, 75 à 100 % sur l'A38). Le tangage ajoute le défaut de fixation de la caméra (−0,4 à +0,6° selon
    les séquences).
-3. **Tangage lu sur les raccords** (`learnPitch`) : une erreur de tangage commune aux photos paraît, dans le
+3. **Tangage lu sur les raccords** (`learnPitch`) : une erreur de tangage de la photo affichée paraît, dans le
    recalage des raccords (§ 4.3), comme une échelle de signe opposé sur la voisine avant et sur l'arrière (environ
-   ±4,8 % pour 1°). Leur différence donne le tangage de chaque vue ; il est retenu par photo dans le navigateur, et
-   la médiane des photos vues sert à toute la séquence (la vue est refaite si elle change de 0,1° ou plus). Essai du
+   ±4,8 % pour 1°). Leur différence donne le tangage de la vue ; il est retenu par photo dans le navigateur et
+   **appliqué à cette photo** (`pitchFor`) : il bouge sur une bosse ou un creux, que le plan de la route sous le véhicule
+   ne suit pas (choix de l'auteur, 09/11/2026). La vue est refaite s'il change de 0,1° ou plus, trois fois au plus ;
+   une lecture au-delà de ±2° est écartée. Une photo affichée sans le sien (pas de voisine devant et derrière) prend
+   la médiane des photos vues de la séquence (fixation de la caméra) ; une voisine pas encore lue prend celui de la
+   photo affichée (avec la médiane, qui compte la photo affichée, les raccords repartaient sans fin). Essai du
    08/11/2026 sur 30 vues : stable par séquence (+0,45 à +0,57°, +0,27 à +0,49°, −0,13 à −0,38° sur trois
    séquences), proche de 0 sur les vues calées par leurs verticales ; à +0,4° sur une vue, les écarts bruts aux
    raccords passent de 14,9 et 11,4 cm à 9,5 et 2,7 cm.
-4. Le curseur « Tangage », réglé à la main, prime ; avec le roulis, il est **retenu par séquence** dans le navigateur
-   (la fixation ne change pas au cours d'une séquence). Le calage du tangage sur l'orthophoto (lignes de peinture,
+4. Le curseur « Tangage », réglé à la main, prime ; avec le roulis, il est **retenu par séquence** dans le navigateur. Le calage du tangage sur l'orthophoto (lignes de peinture,
    20 cm) a été retiré : trop peu précis (0,1° trouvé là où l'œil voyait 0,5° sur la D33).
 
 **Limites :** le roulis ne se cale pas sur l'orthophoto (il absorberait tout écart de largeur). En agglomération,
@@ -184,7 +186,7 @@ raison.
 3,9 cm sur 14 en agglomération, tous améliorés. Un premier recalage, par les seules lignes en long, faisait 8,3 à
 3,6 cm sur route et rien en ville : il a été remplacé.
 
-**Fondu (option « Raccords fondus », cochée par défaut depuis le 08/11/2026, `renderBlended`) :** le même sol paraît plus clair sur une photo que sur
+**Fondu (avec « Véhicule masqué » ; la case « Raccords fondus » a été retirée le 09/11/2026, `renderBlended`) :** le même sol paraît plus clair sur une photo que sur
 l'autre selon l'angle au soleil, d'où des taches en ellipse autour des raccords (le gain global entre photos n'est que de
 1 à 3 %). Fondu en deux bandes : chaque photo rendue seule, sans son véhicule ; sa luminosité lente (256 px pour 30 m,
 floutée sur environ 1 m) est mélangée selon les zones gagnantes floutées, le détail fin reste celui de la photo choisie,
@@ -214,8 +216,10 @@ seuls), le calage est moins sûr.
 
 L'outil « Longueur sur la carte » trace un segment en deux clics. Il donne sa longueur et une incertitude qui combine
 l'inclinaison sur ses deux axes, la hauteur, l'écart du sol et, entre deux photos, leur position relative (5 cm en RTK
-vérifié, sinon 30 cm), sans descendre sous 5 % de la longueur (écart constaté à l'orthophoto). Le mieux est de mesurer
-dans la bande verte. Un bout hors de la vue se mesure sur le fond de carte seul, sans incertitude.
+vérifié, sinon 30 cm), plus 3,5 % de sa part en travers de la route (vue trop étroite en travers : bandes de passages
+piétons du CD21, 0,483 m pour 0,50 m sur 10 sites, compté dans l'incertitude plutôt que corrigé, `ACROSS_BIAS`), sans
+descendre sous 5 % de la longueur (écart constaté à l'orthophoto). Le mieux est de mesurer
+en face de la caméra (±4 m). Un bout hors de la vue se mesure sur le fond de carte seul, sans incertitude.
 
 **Incertitude selon la situation** (`measureError`) : inclinaison tirée de la route dans un virage, incertitude majorée du
 penchement probable du véhicule (0,5° par m/s² d'accélération latérale, photos précédente et suivante) ; hauteur par
@@ -224,7 +228,8 @@ mesure à cheval sur deux photos, au moins l'écart mesuré à leurs raccords (a
 
 ## 6. Session et réglages gardés
 
-- Dans le navigateur : roulis et tangage par séquence (`web-measures/dessus-reglages`), hauteurs vérifiées par séquence
+- Dans le navigateur : roulis et tangage réglés à la main, par séquence (`web-measures/dessus-reglages`), tangage lu sur
+  les raccords, par photo (`web-measures/dessus-tangages`), hauteurs vérifiées par séquence
   (`web-measures/dessus-hauteurs`).
 - Dans la session : Bird Eye éteinte puis rallumée sur la même photo revient sans rien refaire ; pour les photos déjà
   vues, terrain, hauteur lue, raccords et position sont repris (les photos elles-mêmes sont relues).

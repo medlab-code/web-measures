@@ -26,6 +26,9 @@ const Dessus = (() => {
   const NEAR_LIMIT = 6144;  // px : largeur des photos voisines, qui ne servent que près de leur caméra (mémoire graphique)
   const BEST = { along: 4, wide: 8 };  // m : zone idéale d'une largeur, en face de la caméra (essai du 08/11 : écart à l'orthophoto ≤ 1,5 % jusqu'à 4 m en long, 2 % au-delà)
   const MEASURED = 0.05;  // part de la longueur : incertitude affichée au moins égale à l'écart à l'orthophoto (voir docs/CALCULS.md)
+  // Vue trop étroite en travers d'environ 3,5 % (bandes de passages piétons du CD21 : 0,483 m pour 0,50 m, 10 sites, 07/11/2026) :
+  // compté dans l'incertitude, en proportion de la part de la mesure en travers de la route, pas corrigé
+  const ACROSS_BIAS = 0.035;
   const HEIGHT_SIGMA = 0.05;  // m : hauteur de caméra lue sur le décalage entre photos voisines (essai de 28 paires)
   // m : hauteur par l'altitude RTK moins le sol, au moins : 12 cm d'écart avec le décalage entre photos sur le giratoire
   // b47b4351 (2,06 contre 1,94 m, stable sur 15 photos), alors que l'écart entre photos de la séquence n'est que de 2 cm
@@ -35,7 +38,7 @@ const Dessus = (() => {
   const ELEVATION_URL = "https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json";
   const LIDAR_RESOURCE = "ign_lidar_hd_mnt_mono_wld";
   const toRad = Math.PI / 180;
-  const IMAGE_ID = "dessus-image", BEST_ID = "dessus-zones", LINE_ID = "dessus-traits";
+  const IMAGE_ID = "dessus-image", LINE_ID = "dessus-traits";
 
   /** Rotation (matrice par lignes) d'une direction vraie (est, nord, haut) vers celle vue par la caméra :
    * inverse de Calibration.correct (cap de la séquence, puis inclinaison, voir calibration.untilt). */
@@ -120,13 +123,6 @@ const Dessus = (() => {
     return length >= 1 ? [e / length, n / length] : [Math.sin(h), Math.cos(h)];
   }
 
-  /** Bande de la zone idéale (BEST), en face de la caméra : un contour fermé de points (est, nord, m). */
-  function bestZones(axis) {
-    const corner = (along, side) => [along * axis[0] + side * axis[1], along * axis[1] - side * axis[0]];
-    return [[[-BEST.along, -BEST.wide], [BEST.along, -BEST.wide], [BEST.along, BEST.wide], [-BEST.along, BEST.wide], [-BEST.along, -BEST.wide]]
-      .map(([along, side]) => corner(along, side))];
-  }
-
   /** Incertitude d'une distance entre deux points : même photo (uncertainty, les erreurs d'inclinaison se compensent en
    * partie), sinon celle de chaque point dans sa photo et la position relative des deux photos. */
   function measureError(a, b, layers, sigmaGround) {
@@ -142,8 +138,13 @@ const Dessus = (() => {
     return Math.hypot(single(local(a, la), la), single(local(b, lb), lb), Math.max(la.pose.relative_sigma, Math.hypot(seam(la), seam(lb))));
   }
 
-  /** Incertitude affichée pour une longueur entre a et b : voir measureError, sans descendre sous l'écart mesuré (MEASURED). */
-  const shownError = (a, b, layers, sigmaGround) => Math.max(measureError(a, b, layers, sigmaGround), MEASURED * Math.hypot(a[0] - b[0], a[1] - b[1]));
+  /** Incertitude affichée pour une longueur entre a et b : measureError et le biais en travers (ACROSS_BIAS, selon le cap de
+   * la photo affichée), sans descendre sous l'écart mesuré (MEASURED). */
+  const shownError = (a, b, layers, sigmaGround) => {
+    const h = layers[0].pose.heading * toRad, de = b[0] - a[0], dn = b[1] - a[1];
+    const across = Math.abs(de * Math.cos(h) - dn * Math.sin(h));  // composante perpendiculaire au cap
+    return Math.max(Math.hypot(measureError(a, b, layers, sigmaGround), ACROSS_BIAS * across), MEASURED * Math.hypot(de, dn));
+  };
 
   const toLocal = (lon, lat, pose) => [EARTH_RADIUS * (lon - pose.lon) * toRad * Math.cos(pose.lat * toRad),
     EARTH_RADIUS * (lat - pose.lat) * toRad];
@@ -409,7 +410,7 @@ const Dessus = (() => {
     g.uniform1f(uniform("reflect"), REFLECT);
     g.uniform1f(uniform("masked"), layers.length > 1 ? 1 : 0);  // photo seule : son véhicule plutôt qu'un trou
     g.uniform1i(uniform("stage"), stage);
-    // band : axe de la route [est, nord], et demi-longueur, demi-largeur gardées (par défaut la bande verte)
+    // band : axe de la route [est, nord], et demi-longueur, demi-largeur gardées (par défaut la zone idéale, BEST)
     g.uniform4f(uniform("band"), band ? band[0] : 0, band ? band[1] : 1, band ? band[2] ?? BEST.along : 1e6, band ? band[3] ?? BEST.wide : 1e6);
     for (const [k, { pano, pose, fix }] of layers.entries()) {
       g.uniform1f(uniform("index"), k + 1);
@@ -922,7 +923,7 @@ const Dessus = (() => {
       mine.joining = false;
     }
     if (shown !== mine) return;
-    if (learnPitch(main, others, results)) return showImage();  // tangage de la séquence changé : raccords refaits avec lui
+    if (learnPitch(main, others, results)) return showImage();  // tangage de la photo changé : raccords refaits avec lui
     const done = results.filter((r) => r?.fix), cm = (v) => number(100 * v, 1);
     mine.joins = { key, map: joins, results, seams: new Map(others.map((o, k) => [o.pose.pic, results[k]])), ms: performance.now() - begun };
     mine.joinText = !others.length ? "" : done.length
@@ -931,7 +932,7 @@ const Dessus = (() => {
     await showImage();
   }
   // Réglages dont dépend le recalage : à refaire s'ils changent
-  const joinKey = () => JSON.stringify([rollShare, pitchOffset, readyLayers().map((l) => [l.pose.pic, l.pose.height])]);
+  const joinKey = () => JSON.stringify([rollShare, readyLayers().map((l) => [l.pose.pic, l.pose.height, pitchFor(l.pose.pic)])]);
 
   // Sur la mini-carte -----------------------------------------------------------------------
   let map = null, shown = null;  // shown : { pic, sequence, height, estimated, estimating, key, pose, features, panos (photo -> texture), loading, terrain, sigmaGround, terrainFailed, url }
@@ -942,7 +943,7 @@ const Dessus = (() => {
   // Photos voisines (interrupteur « Véhicule masqué », éteint par défaut) : lues, analysées, dessinées sous le véhicule et
   // recalées sur la principale (alignJoin), tangage de la séquence lu sur les raccords ; sinon la photo affichée seule
   let neighboursOn = false;
-  let abort = null, measuringOn = false, bandOnly = false, bandShown = true, fine = false, blendOn = true, start = null, hover = null, live = null;  // live : longueur affichée au pointeur
+  let abort = null, measuringOn = false, fine = false, start = null, hover = null, live = null;  // live : longueur affichée au pointeur
   // Roulis (part du dévers) et tangage ajouté (degrés), réglés à la main (options d'essai) et retenus par séquence dans le
   // navigateur : la fixation de la caméra ne change pas au cours d'une séquence (A38 du 09/10/2025 : même tangage à deux endroits)
   const DEFAULT_ROLL = 0.7, DEFAULT_PITCH = 0, SETTINGS_KEY = "web-measures/dessus-reglages";
@@ -979,12 +980,13 @@ const Dessus = (() => {
     else all[shown.sequence] = { roll: rollShare, ...(pitchManual ? { pitch: pitchOffset } : {}) };
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(all)); } catch { /* sans stockage : pour cette page seulement */ }
   }
-  /** Réglage retenu pour la séquence (ou par défaut ; tangage : à la main, sinon celui des raccords), curseurs compris. */
-  function applySettings(sequence) {
-    const kept = readSettings()[sequence], auto = sequencePitch(sequence);
+  /** Réglage retenu pour la séquence (ou par défaut ; tangage : à la main, sinon celui de la photo lu sur ses raccords, sinon
+   * la médiane de la séquence), curseurs compris. */
+  function applySettings(sequence, pic) {
+    const kept = readSettings()[sequence], own = photoPitch(sequence, pic), auto = sequencePitch(sequence);
     rollShare = kept?.roll ?? DEFAULT_ROLL;
     pitchManual = kept?.pitch !== undefined;
-    pitchOffset = pitchManual ? kept.pitch : auto ? auto.pitch : DEFAULT_PITCH;
+    pitchOffset = pitchManual ? kept.pitch : own !== undefined ? Math.round(own * 20) / 20 : auto ? auto.pitch : DEFAULT_PITCH;
     $("#dessus-devers").value = Math.round(rollShare * 100);
     $("#dessus-devers-valeur").textContent = `${Math.round(rollShare * 100)} %`;
     showPitch();
@@ -994,21 +996,30 @@ const Dessus = (() => {
     $("#dessus-tangage-valeur").textContent = `${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°`;
   };
 
-  // Tangage de fixation de la caméra lu sur les raccords : une erreur de tangage commune aux photos y paraît comme une échelle
-  // de signe opposé devant et derrière (environ 1,8 L / H par radian, L : écart entre photos ; avant moins arrière). Retenu par
-  // photo dans le navigateur, la médiane sert à la séquence, comme la hauteur. Essai du 08/11/2026 : stable par séquence
-  // (+0,45 à +0,57°, +0,27 à +0,49°, -0,13 à -0,38° sur trois séquences), proche de 0 sur les photos calées par leurs verticales.
+  // Tangage lu sur les raccords : une erreur de tangage de la photo affichée y paraît comme une échelle de signe opposé devant
+  // et derrière (environ 1,8 L / H par radian, L : écart entre photos ; avant moins arrière). Retenu par photo dans le
+  // navigateur et appliqué à cette photo : il bouge sur une bosse ou un creux, que le plan de la route sous le véhicule ne suit
+  // pas (demande de l'auteur, 09/11/2026). Une photo sans le sien (pas de voisine devant et derrière) prend la médiane de la
+  // séquence : fixation de la caméra, stable par séquence (08/11/2026 : +0,45 à +0,57°, +0,27 à +0,49°, -0,13 à -0,38°).
   const PITCHES_KEY = "web-measures/dessus-tangages", PITCH_STEP = 0.1;  // degrés : écart en deçà duquel la vue n'est pas refaite
+  const PITCH_MAX = 2, PITCH_PASSES = 3;  // degrés : au-delà, lecture écartée ; vues refaites au plus 3 fois par photo
   const readPitches = () => {
     try { return JSON.parse(localStorage.getItem(PITCHES_KEY)) || {}; } catch { return {}; }
   };
+  /** Tangage d'une photo lu sur ses propres raccords (degrés), ou undefined. */
+  const photoPitch = (sequence, pic) => readPitches()[sequence]?.[pic];
+  /** Tangage appliqué à une photo : réglé à la main, sinon celui de la photo affichée, sinon le sien (raccords), sinon celui
+   * de la photo affichée. Pas la médiane de la séquence : elle compte la photo affichée, que chaque passe réenregistre ; les
+   * voisines changeaient alors à chaque passe et les raccords repartaient sans fin (RD 1074, 09/11/2026). */
+  const pitchFor = (pic) => pitchManual || !shown || pic === shown.pic ? pitchOffset
+    : photoPitch(shown.sequence, pic) ?? pitchOffset;
   /** Tangage de la séquence lu sur les raccords : { pitch (degrés, au 0,05° près), count }, ou null. */
   function sequencePitch(sequence) {
     const values = Object.values(readPitches()[sequence] || {});
     return values.length ? { pitch: Math.round(median(values) * 20) / 20, count: values.length } : null;
   }
-  /** Tangage de la photo affichée lu sur ses deux raccords (results d'alignJoin, others : voisines), retenu pour la séquence ;
-   * vrai si le tangage de la séquence change assez pour refaire la vue. */
+  /** Tangage de la photo affichée lu sur ses deux raccords (results d'alignJoin, others : voisines), retenu pour elle ; vrai si
+   * son tangage change assez pour refaire la vue (au plus PITCH_PASSES fois). */
   function learnPitch(main, others, results) {
     const both = others.map((other, k) => ({ other, r: results[k] })).filter(({ r }) => r && r.after < r.before);
     if (both.length !== 2 || !main.pose.groundTilt || !others.every((o) => o.pose.groundTilt)) return false;
@@ -1016,15 +1027,17 @@ const Dessus = (() => {
     if (along[0] * along[1] >= 0) return false;  // une voisine devant, une derrière
     const [front, back] = along[0] > 0 ? both : [both[1], both[0]], L = (Math.abs(along[0]) + Math.abs(along[1])) / 2;
     const residual = (front.r.w[4] - back.r.w[4]) / (1.8 * L / main.pose.height) / toRad;
+    const own = Math.round((pitchOffset + residual) * 100) / 100;
+    if (Math.abs(own) > PITCH_MAX) return false;  // lecture aberrante (raccord mal conditionné) : ni gardée ni appliquée
     const all = readPitches(), kept = all[shown.sequence] || {};
-    kept[main.pose.pic] = Math.round((pitchOffset + residual) * 100) / 100;
+    kept[main.pose.pic] = own;
     const pics = Object.keys(kept);
     if (pics.length > 60) delete kept[pics[0]];  // les plus anciennes d'abord
     all[shown.sequence] = kept;
     try { localStorage.setItem(PITCHES_KEY, JSON.stringify(all)); } catch { /* sans stockage : pour cette page seulement */ }
-    const auto = sequencePitch(shown.sequence);
-    if (pitchManual || Math.abs(auto.pitch - pitchOffset) < PITCH_STEP) return false;
-    pitchOffset = auto.pitch;
+    shown.pitchPasses = (shown.pitchPasses || 0) + 1;
+    if (pitchManual || shown.pitchPasses > PITCH_PASSES || Math.abs(own - pitchOffset) < PITCH_STEP) return false;
+    pitchOffset = Math.round(own * 20) / 20;
     showPitch();
     return true;
   }
@@ -1041,7 +1054,7 @@ const Dessus = (() => {
     .filter((pose) => shown.panos.has(pose.pic))
     .map((pose) => {
       const at = toLocal(pose.lon, pose.lat, shown.pose);
-      const leveled = pose.up || !shown.terrain ? pose : { ...pose, up: groundUp(shown.terrain, at, pose.heading, rollShare, pitchOffset),
+      const leveled = pose.up || !shown.terrain ? pose : { ...pose, up: groundUp(shown.terrain, at, pose.heading, rollShare, pitchFor(pose.pic)),
         sigma: Math.hypot(Math.min(pose.sigma, GROUND_SIGMA), LEAN * (shown.lateral || 0)), groundTilt: true };  // virage : véhicule penché
       const seam = shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.seams?.get(pose.pic) : undefined;  // raccord de la voisine
       const fix = neighboursOn && shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.map.get(pose.pic) : undefined;
@@ -1143,20 +1156,8 @@ const Dessus = (() => {
       cancelStart();  // le départ a été pris sur l'autre image
       if (shown?.url) showImage();
     });
-    $("#dessus-bande").addEventListener("change", (event) => {
-      bandOnly = event.target.checked;
-      if (shown?.url) showImage();
-    });
-    $("#dessus-vert").addEventListener("change", (event) => {
-      bandShown = event.target.checked;
-      if (map.getLayer(BEST_ID)) map.setLayoutProperty(BEST_ID, "visibility", bandShown ? "visible" : "none");
-    });
     $("#dessus-fine").addEventListener("change", (event) => {
       fine = event.target.checked;
-      if (shown?.url) showImage();
-    });
-    $("#dessus-fondu").addEventListener("change", (event) => {
-      blendOn = event.target.checked;
       if (shown?.url) showImage();
     });
   }
@@ -1185,10 +1186,8 @@ const Dessus = (() => {
     return true;
   }
 
-  /** Image et bande verte retirées de la carte ; la vue (photos, calculs) reste. */
+  /** Image retirée de la carte ; la vue (photos, calculs) reste. */
   function removeImage() {
-    if (map.getLayer(BEST_ID)) map.removeLayer(BEST_ID);
-    if (map.getSource(BEST_ID)) map.removeSource(BEST_ID);
     if (map.getLayer(IMAGE_ID)) map.removeLayer(IMAGE_ID);
     if (map.getSource(IMAGE_ID)) map.removeSource(IMAGE_ID);
   }
@@ -1232,9 +1231,9 @@ const Dessus = (() => {
   async function showImage() {
     shown.joinKeyNow = joinKey();  // recalage des raccords valable pour ces réglages seulement
     const layers = readyLayers(), pose = shown.pose, mine = ++drawing, axis = roadAxis(layers);
-    // découpée à 90° dans le prolongement des grands côtés de la bande verte : rien de plus loin de la route ; « Bande verte
-    // seule » : la bande
-    const canvas = (blendOn ? renderBlended : render)(layers, shown.terrain, layers[0].pose, bandOnly ? axis : [...axis, 1e6, BEST.wide], fine ? FINE_SIZE : SHOWN_SIZE);
+    // découpée à ±8 m de l'axe de la route (BEST.wide), bords parallèles à la route : rien de plus loin de la route ; fondue
+    // aux raccords avec les voisines (« Véhicule masqué »)
+    const canvas = (neighboursOn ? renderBlended : render)(layers, shown.terrain, layers[0].pose, [...axis, 1e6, BEST.wide], fine ? FINE_SIZE : SHOWN_SIZE);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
     if (mine !== drawing || !shown) return;
     const old = shown.url, url = shown.url = URL.createObjectURL(blob);
@@ -1249,17 +1248,10 @@ const Dessus = (() => {
       map.addLayer({ id: IMAGE_ID, type: "raster", source: IMAGE_ID, paint: { "raster-fade-duration": 0 } }, below);
     }
     if (old) setTimeout(() => URL.revokeObjectURL(old), 5000);
-    const zones = { type: "Feature", properties: {}, geometry: { type: "MultiPolygon",
-      coordinates: bestZones(roadAxis(layers)).map((ring) => [ring.map(([e, n]) => placed(e, n))]) } };
-    if (map.getSource(BEST_ID)) {
-      map.getSource(BEST_ID).setData(zones);
-    } else {
-      map.addSource(BEST_ID, { type: "geojson", data: zones });
-      map.addLayer({ id: BEST_ID, type: "fill", source: BEST_ID, paint: { "fill-color": "#00c853", "fill-opacity": 0.12 }, layout: { visibility: bandShown ? "visible" : "none" } }, below);
-    }
     const place = shown.terrain ? "Terrain LiDAR HD" : `Sol supposé plat (${pose.bridge ? "pont à proximité, LiDAR HD écarté" : shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
-    const auto = !pitchManual && pitchOffset ? sequencePitch(shown.sequence) : null;
-    const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${LEAN * (shown.lateral || 0) >= 0.5 ? `, virage : véhicule penché jusqu'à ${number(LEAN * shown.lateral, 1)}°` : ""}${pitchOffset || pitchManual ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? " réglé à la main" : auto ? ` lu sur les raccords (${auto.count} photo${auto.count > 1 ? "s" : ""})` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
+    const own = !pitchManual && pitchOffset ? photoPitch(shown.sequence, shown.pic) : undefined;
+    const auto = !pitchManual && pitchOffset && own === undefined ? sequencePitch(shown.sequence) : null;
+    const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${LEAN * (shown.lateral || 0) >= 0.5 ? `, virage : véhicule penché jusqu'à ${number(LEAN * shown.lateral, 1)}°` : ""}${pitchOffset || pitchManual ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? " réglé à la main" : own !== undefined ? " lu sur les raccords de la photo" : auto ? ` de la séquence, lu sur les raccords (${auto.count} photo${auto.count > 1 ? "s" : ""})` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain || !neighboursOn ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
     say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height && shown.pose.fleet ? ` (monture ${mountOf(shown.height) === MOUNTS[0] ? "basse" : "haute"}, lue entre photos : ${number(shown.height, 2)} m)` : shown.height ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
     if (positionOn && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
@@ -1348,7 +1340,7 @@ const Dessus = (() => {
     abort = new AbortController();
     if (shown.estimating) shown.estimated = shown.estimating = false;
     shown.joining = shown.locating = false;
-    applySettings(shown.sequence);
+    applySettings(shown.sequence, shown.pic);
   }
 
   /** Photo à montrer (fiche STAC, pose avec ses voisines et fiches des voisines, null s'il faut encore les lire ; photo null
@@ -1400,7 +1392,7 @@ const Dessus = (() => {
     const known = computed.get(photo.id);
     if (known) Object.assign(shown, known);  // déjà vue : terrain, raccords et position repris
     if (pose.bridge && shown.terrain) dropTerrain(shown);
-    applySettings(photo.collection);
+    applySettings(photo.collection, photo.id);
     shown.sequenceHeight = pose.pending ? null : sequenceHeight(photo.collection, pose);
     const mine = shown;
     if (mine.lateral === undefined) {  // virage : incertitude d'inclinaison majorée à son arrivée
@@ -1426,5 +1418,5 @@ const Dessus = (() => {
     }
   }
 
-  return { setup, update, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins }, view, uncertainty, measureError, shownError, groundUp, roadAxis, bestZones, sourceOf, toLonLat, estimateHeight, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, REACH, SIZE };
+  return { setup, update, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins }, view, uncertainty, measureError, shownError, groundUp, roadAxis, sourceOf, toLonLat, estimateHeight, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, REACH, SIZE };
 })();

@@ -738,20 +738,19 @@ fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/so
 « Bird Eye » (vue du dessus, dans le bloc du fond de carte, ou bouton faucon de la carte en grand ou détachée, à droite de « Mesurer une longueur »)
 reprojette le sol de la photo sur la mini-carte, pour la photo affichée seulement (une autre photo l'éteint : rien
 n'est calculé sans le demander) ; ses réglages
-d'essai sont dans un panneau repliable sur la carte en grand ou détachée ; « Bande verte seule » n'en garde que la bande en face
-de la caméra, la plus sûre ; « Bande verte » la montre ou la cache ; « Haute résolution » double la finesse de l'image
-(0,7 cm par pixel, quelques secondes de plus) ; « Raccords fondus » (coché par défaut) efface les taches claires ou sombres autour
-des raccords. Le bouton ⇄ de la carte échange la carte et la visionneuse, chacune à la place et à la taille
+d'essai sont dans un panneau repliable sur la carte en grand ou détachée ; « Haute résolution » double la finesse de l'image
+(0,7 cm par pixel, quelques secondes de plus). Le bouton ⇄ de la carte échange la carte et la visionneuse, chacune à la place et à la taille
 de l'autre ; la carte en grand, comme la carte détachée (⧉), propose alors « Mesurer une longueur » (aussi : mode « Longueur sur la carte » puis
 « Mesure »). Un clic pose le départ, le trait suit le pointeur avec sa longueur, un second clic la garde dans les
-résultats, comme les autres mesures (Effacer, Refaire, commentaire, export). Pour une largeur, viser de préférence la
-bande verte (±5 % au mieux, inclinaison lue sur les façades ou, à défaut, sur la pente de la route). Hors de la vue, la
+résultats, comme les autres mesures (Effacer, Refaire, commentaire, export). Pour une largeur, viser de préférence en
+face de la caméra, à ±4 m (±5 % au mieux, inclinaison lue sur les façades ou, à défaut, sur la pente de la route ; une largeur porte
+en plus 3,5 % d'incertitude : la vue est un peu trop étroite en travers, d'après les passages piétons). Hors de la vue, la
 longueur est mesurée sur le fond de carte seul, sans incertitude (« hors vue »), pour un contrôle rapide. Échap retire
 le départ. Sans façade pour caler l'inclinaison, le tangage de fixation de la caméra est lu sur les raccords entre photos
-voisines (« Véhicule masqué » allumé ; médiane des photos vues de la séquence) ; les curseurs « Roulis » et « Tangage » recalent la vue à la main
-(bande verte seule), réglage retenu pour toute la séquence, dans ce navigateur. « Véhicule masqué » (éteint par défaut) recompose la vue avec les photos précédente et suivante pour cacher le véhicule ; il recale chaque
+voisines (« Véhicule masqué » allumé ; celui de la photo, qui suit une bosse ou un creux, sinon la médiane des photos vues de la séquence) ; les curseurs « Roulis » et « Tangage » recalent la vue à la main,
+réglage retenu pour toute la séquence, dans ce navigateur. « Véhicule masqué » (éteint par défaut) recompose la vue avec les photos précédente et suivante pour cacher le véhicule ; il recale chaque
 photo voisine sur la photo affichée, par corrélation du sol commun (marquages, passages piétons, grain), pour effacer
-les marches aux raccords ; la barre d'état indique l'écart avant et après. « Position calée sur l'orthophoto » (essai, coché) pose la vue sur l'orthophoto
+les marches aux raccords, et fond leur luminosité (plus de taches claires ou sombres autour des raccords) ; la barre d'état indique l'écart avant et après. « Position calée sur l'orthophoto » (essai, coché) pose la vue sur l'orthophoto
 quand ses lignes s'en écartent de plus de 30 cm en travers : le GPS est alors suspecté avant l'orthophoto. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Construction de
 la vue et recalages : `docs/BIRDEYE.md` ; chiffres des essais : `docs/CALCULS.md`.
 
