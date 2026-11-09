@@ -678,7 +678,8 @@ meilleur roulis vaut 45 % du dévers sur la RD 1074 et 100 % sur l'A38, pour des
 Tangage réglé à l'œil par l'auteur : de -0,2 à +0,5° selon la séquence, sans règle par période, mais identique
 (+0,2°) sur deux portions de l'A38 d'une même séquence. Roulis et tangage sont donc retenus par séquence, dans le
 navigateur (`web-measures/dessus-reglages`) ; la barre d'état l'indique (« réglé à la main »). Sans réglage, le
-tangage est lu sur les raccords (`learnPitch`, voir docs/BIRDEYE.md § 4.1) : échelle de la voisine avant moins celle de
+tangage est lu sur les raccords (`learnPitch`, voir docs/BIRDEYE.md § 4.1 ; deux recalages appliqués seulement, écart
+au raccord sous 5 cm, `JOIN_GOOD`) : échelle de la voisine avant moins celle de
 l'arrière, environ 9,6 % pour 1° de tangage ; retenu et appliqué par photo (`web-measures/dessus-tangages`) : il bouge
 sur une bosse ou un creux, que le plan de la route ne suit pas ; médiane de la séquence pour une photo sans le sien.
 

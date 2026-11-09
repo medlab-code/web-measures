@@ -119,7 +119,8 @@ fixation peut être un peu de travers.
    les séquences).
 3. **Tangage lu sur les raccords** (`learnPitch`) : une erreur de tangage de la photo affichée paraît, dans le
    recalage des raccords (§ 4.3), comme une échelle de signe opposé sur la voisine avant et sur l'arrière (environ
-   ±4,8 % pour 1°). Leur différence donne le tangage de la vue ; il est retenu par photo dans le navigateur et
+   ±4,8 % pour 1°). Leur différence donne le tangage de la vue (deux recalages appliqués seulement, § 4.3 : dans une
+   courbe serrée, un recalage mal conditionné déformait la vue après coup, 9d92052e, 09/11/2026) ; il est retenu par photo dans le navigateur et
    **appliqué à cette photo** (`pitchFor`) : il bouge sur une bosse ou un creux, que le plan de la route sous le véhicule
    ne suit pas (choix de l'auteur, 09/11/2026). La vue est refaite s'il change de 0,1° ou plus, trois fois au plus ;
    une lecture au-delà de ±2° est écartée. Une photo affichée sans le sien (pas de voisine devant et derrière) prend
@@ -196,6 +197,10 @@ quelques causes lisses (pose de la caméra). Six termes les décrivent, se véri
 correctement plus loin ; une déformation libre recalerait aussi le bruit et ne dirait pas laquelle des deux photos a
 raison.
 
+**Recalage appliqué seulement s'il est bon** (`JOIN_GOOD`, 09/11/2026) : moins de 5 cm d'écart médian au raccord
+après correction, et moins qu'avant. Dans la courbe serrée du 15/07/2025 (9d92052e), 19,7 → 7,4 cm déformait les
+lignes de l'axe, visiblement mieux raccordées sans recalage (constat de l'auteur).
+
 **Résultats (essai du 07/11/2026) :** écart médian au raccord de 10,8 à 2,9 cm sur 38 raccords de route, de 17,6 à
 3,9 cm sur 14 en agglomération, tous améliorés. Un premier recalage, par les seules lignes en long, faisait 8,3 à
 3,6 cm sur route et rien en ville : il a été remplacé.
@@ -206,7 +211,16 @@ l'autre selon l'angle au soleil, d'où des taches en ellipse autour des raccords
 floutée sur environ 1 m) ; les voisines prennent celle de la photo affichée (écart lu là où les deux voient le sol,
 étendu sous le véhicule sur environ 3 m), le détail fin reste le leur, le raccord reste net ; la photo affichée
 n'est pas retouchée (09/11/2026 ; avant, les deux allaient vers une moyenne). Essai du 08/11/2026 : ellipses effacées sur la D33 du 04/07 et a9fd217d, atténuées en ville ; un
-fondu simple de ±60 cm dans le shader n'y faisait presque rien. Environ 1,8 s de plus par image (calcul en JavaScript).
+fondu simple de ±60 cm dans le shader n'y faisait presque rien. Calcul par la carte graphique (09/11/2026) : chaque
+photo seule rendue dans une texture, sa bande basse lue sur ses niveaux réduits (mipmaps, 256 px) ; écarts de teinte
+floutés en JavaScript (256 x 256) ; mélange final dans un shader. 0,14 s par image (0,5 s en JavaScript), 0,27 s en
+haute résolution (1,7 s).
+
+**Calculs par la carte graphique :** dessin, masque du véhicule, fondu, et gris et sol sûr des raccords (`readRaster`,
+étape 4 du shader : 0,1 s par photo au lieu de 0,26 s). Restent en JavaScript : la recherche des blocs des raccords (FFT de
+blocs de 128 px, 0,4 s par voisine ; une recherche directe sur la carte graphique demanderait des milliards de lectures,
+bien plus lente sur un poste sans accélération graphique), le contour du véhicule (petit, une fois par séquence), la
+hauteur entre photos (0,1 s).
 
 **Limites :** sans assez de sol net en commun (véhicules garés, trottoirs, reflets), pas de recalage. La photo
 affichée garde ses propres erreurs : les raccords disparaissent, pas l'erreur d'échelle de la photo affichée.

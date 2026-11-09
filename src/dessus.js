@@ -51,7 +51,7 @@ const Dessus = (() => {
   // plutôt que l'essuie-glace. Gardé par séquence dans ce navigateur (OUTLINES_KEY).
   // OUTLINE_FLOOR : au-dessus du haut du logo (-48,3°), dont le bord blanc sur la carrosserie noire écraserait les autres
   const OUTLINE_PHOTOS = 12, OUTLINE_BAND = 6, OUTLINE_EDGE = 0.45, OUTLINE_FLOOR = -47, OUTLINE_MARGIN = 1.5;
-  const OUTLINES_KEY = "web-measures/dessus-contours";
+  const OUTLINES_KEY = "web-measures/dessus-contours-2";  // -2 : contours lus avant la fermeture finale abandonnés
   const CAR = { ahead: 0, long: 5.8, wide: 2.9 };  // m : ellipse au sol, hors CD21 (véhicule inconnu) : toit, capot et leurs reflets
   // Ombre et reflets du véhicule sur le sol, autour de lui (ellipse CAR) : une voisine y compte son erreur attendue SHADE fois,
   // pour combler le sol caché par le véhicule de la photo affichée (ville d946f2cf, 09/11/2026 : taches sombres sinon)
@@ -363,7 +363,10 @@ const Dessus = (() => {
       // sous le plus bas des contours relevés (même Clio)
       return Math.round(Math.max(-(top + 0.5 - H / 2) * 180 / H + OUTLINE_MARGIN, OUTLINE_FLOOR + 1, LOWEST[k]) * 10) / 10;
     });
-    return outline.map((v, k) => Math.max(v, outline[(128 - k) % 128]));  // symétrie, les contours relevés compris
+    // fermeture sur ±2 valeurs (±5,6°) : pas d'encoche d'une ou deux valeurs (rétroviseurs, 7e0cd23d), puis symétrie
+    const close = (o, pick) => o.map((_, k) => pick(...[-2, -1, 0, 1, 2].map((d) => o[(k + d + 128) % 128])));
+    const filled = close(close(outline, Math.max), Math.min);
+    return filled.map((v, k) => Math.max(v, filled[(128 - k) % 128]));
   }
 
   const VERTEX = `#version 300 es
@@ -387,8 +390,10 @@ const Dessus = (() => {
     uniform int hasOutline;
     uniform vec4 fix;  // recalage sur la principale (voir alignJoin) : décalage le long et en travers, tangage, lacet
     uniform vec2 fixMore;  // et échelle, roulis
-    uniform int stage;  // 2 : photo seule sans son véhicule, 3 : numéro de la photo gagnante (voir renderBlended)
-    uniform float index;
+    // 2 : photo seule sans son véhicule ni son grisé, opaque (voir renderBlended) ; 3 : numéro de la photo gagnante ; 4 : gris et
+    // sol sûr pour les raccords (voir readRaster)
+    uniform int stage;
+    uniform float index, joinReach;
     const float PI = 3.14159265358979;
     void main() {
       vec2 rel = world.xy - camera.xy, f = car.xy, side = vec2(-car.y, car.x);  // repère de la photo : avant, gauche
@@ -421,8 +426,9 @@ const Dessus = (() => {
       // d'elle mais à plus de sure m de sa propre caméra (14f7bc5a : taches transparentes à 7 m) ; photo seule : sa caméra
       float far = smoothstep(sure, reach, masked > 0.5 ? length(world.xy - frameCentre) : dist);
       color = vec4(mix(c, vec3(dot(c, vec3(0.3, 0.59, 0.11))), far), 1.0 - 0.5 * far);
-      if (stage == 2 && hidden) discard;
+      if (stage == 2) { if (hidden || far > 0.02) discard; color.a = 1.0; }
       if (stage == 3) color = vec4(index / 255.0, 0.0, 0.0, 1.0);
+      if (stage == 4) color.a = !hidden && dist < joinReach && far < 0.04 ? 1.0 : 0.0;  // couleur gardée, alpha : sol sûr
     }`;
 
   let gl = null, program = null;
@@ -464,9 +470,10 @@ const Dessus = (() => {
    * (photo principale d'abord) ; terrain : altitudes du maillage (voir readTerrain), ou null pour un plan horizontal ;
    * frame : pose de la photo qui centre l'image et le maillage (par défaut, la principale) ; band : axe de la route (vecteur
    * unitaire est, nord) pour ne garder que la bande de la zone idéale (BEST), ou null. */
-  function render(layers, terrain, frame = layers[0].pose, band = null, size = SIZE, stage = 0) {
+  function render(layers, terrain, frame = layers[0].pose, band = null, size = SIZE, stage = 0, into = null) {
     const g = context();
-    if (g.canvas.width !== size) g.canvas.width = g.canvas.height = size;
+    if (!into && g.canvas.width !== size) g.canvas.width = g.canvas.height = size;
+    g.bindFramebuffer(g.FRAMEBUFFER, into ? into.frame : null);  // into : cible (voir target), sinon le canevas
     const n = 2 * REACH / STEP + 1, base = terrain ? terrain[(n * n - 1) / 2] : 0;
     const vertices = new Float32Array(3 * n * n);
     for (let j = 0, k = 0; j < n; j++) {
@@ -500,6 +507,7 @@ const Dessus = (() => {
     g.uniform1f(uniform("sure"), SURE);
     g.uniform1f(uniform("wide"), CAR.wide);
     g.uniform1f(uniform("shade"), SHADE);
+    g.uniform1f(uniform("joinReach"), JOIN_REACH);
     g.uniform1f(uniform("masked"), layers.length > 1 ? 1 : 0);  // photo seule : son véhicule plutôt qu'un trou
     g.uniform1i(uniform("stage"), stage);
     // band : axe de la route [est, nord], et demi-longueur, demi-largeur gardées (par défaut la zone idéale, BEST)
@@ -524,7 +532,24 @@ const Dessus = (() => {
     }
     g.deleteBuffer(vertexBuffer);
     g.deleteBuffer(indexBuffer);
+    g.bindFramebuffer(g.FRAMEBUFFER, null);
     return g.canvas;
+  }
+
+  /** Cible de dessin hors du canevas : texture RGBA de size px (avec ses niveaux réduits si levels), profondeur. */
+  function target(size, levels = 1) {
+    const g = context(), texture = g.createTexture(), frame = g.createFramebuffer(), depth = g.createRenderbuffer();
+    g.bindTexture(g.TEXTURE_2D, texture);
+    g.texStorage2D(g.TEXTURE_2D, levels, g.RGBA8, size, size);
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.NEAREST);  // lue pixel à pixel (texelFetch)
+    g.bindRenderbuffer(g.RENDERBUFFER, depth);
+    g.renderbufferStorage(g.RENDERBUFFER, g.DEPTH_COMPONENT24, size, size);
+    g.bindFramebuffer(g.FRAMEBUFFER, frame);
+    g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, texture, 0);
+    g.framebufferRenderbuffer(g.FRAMEBUFFER, g.DEPTH_ATTACHMENT, g.RENDERBUFFER, depth);
+    g.bindFramebuffer(g.FRAMEBUFFER, null);
+    const free = () => { g.deleteTexture(texture); g.deleteFramebuffer(frame); g.deleteRenderbuffer(depth); };
+    return { texture, frame, free };
   }
 
   // Fondu des raccords : la luminosité lente d'une photo dépend de l'angle du soleil, le même sol paraît plus clair sur l'une que
@@ -545,59 +570,115 @@ const Dessus = (() => {
     return faithful;
   }
 
-  function renderBlended(layers, terrain, frame = layers[0].pose, band = null, size = SIZE) {
-    if (layers.length < 2 || !readsBack()) return render(layers, terrain, frame, band, size);
-    const g = context(), read = () => {
-      const px = new Uint8Array(4 * size * size);
-      g.readPixels(0, 0, size, size, g.RGBA, g.UNSIGNED_BYTE, px);  // lignes du sud au nord
-      return px;
-    };
-    render(layers, terrain, frame, band, size, 3);
-    const winner = read(), alone = layers.map((layer) => { render([layer], terrain, frame, band, size, 2); return read(); });
-    render(layers, terrain, frame, band, size);
-    const shown = read(), k = size / LOW, radius = (sigma) => Math.max(1, Math.round(sigma * LOW / (2 * REACH) / 1.7));  // 3 boîtes : σ ≈ 1,7 r
-    const blur = (a, r) => { let b = a; for (let pass = 0; pass < 3; pass++) b = boxBlur(b, r, LOW); return b; };
-    // Bande basse de chaque photo (moyenne sur ses pixels valides, hors de son véhicule)
-    const low = layers.map((_, l) => {
-      const sums = [0, 1, 2].map(() => new Float32Array(LOW * LOW)), seen = new Float32Array(LOW * LOW);
-      for (let j = 0; j < size; j++) {
-        for (let i = 0; i < size; i++) {
-          const p = 4 * (j * size + i), q = Math.floor(j / k) * LOW + Math.floor(i / k);
-          if (alone[l][p + 3] < 250) continue;
-          seen[q]++;
-          for (let c = 0; c < 3; c++) sums[c][q] += alone[l][p + c];
-        }
-      }
-      const m = blur(seen, radius(LOW_SIGMA));
-      return sums.map((s) => blur(s, radius(LOW_SIGMA)).map((v, q) => (m[q] > 0.05 * k * k ? v / m[q] : NaN)));
-    });
-    // Écart de chaque voisine à la photo affichée, étendu sous le véhicule (moyenne pondérée par les cases où il est lu)
-    const shift = low.map((color, l) => l === 0 ? null : [0, 1, 2].map((c) => {
-      const known = new Float32Array(LOW * LOW), sum = new Float32Array(LOW * LOW);
-      for (let q = 0; q < known.length; q++) {
-        const d = low[0][c][q] - color[c][q];
-        if (!Number.isNaN(d)) { known[q] = 1; sum[q] = d; }
-      }
-      const w = blur(known, radius(FILL_SIGMA)), v = blur(sum, radius(FILL_SIGMA));
-      return v.map((x, q) => (w[q] > 1e-3 ? x / w[q] : 0));
-    }));
-    const at = (grid, x, y) => {  // bilinéaire, centres des cases basses
-      const fx = Math.min(LOW - 1, Math.max(0, x / k - 0.5)), fy = Math.min(LOW - 1, Math.max(0, y / k - 0.5));
-      const x0 = Math.floor(fx), y0 = Math.floor(fy), x1 = Math.min(LOW - 1, x0 + 1), y1 = Math.min(LOW - 1, y0 + 1), ax = fx - x0, ay = fy - y0;
-      return (grid[y0 * LOW + x0] * (1 - ax) + grid[y0 * LOW + x1] * ax) * (1 - ay) + (grid[y1 * LOW + x0] * (1 - ax) + grid[y1 * LOW + x1] * ax) * ay;
-    };
-    const out = document.createElement("canvas");
-    out.width = out.height = size;
-    const image = new ImageData(size, size);
-    for (let j = 0; j < size; j++) {
-      for (let i = 0; i < size; i++) {
-        const p = 4 * (j * size + i), o = 4 * ((size - 1 - j) * size + i), l = winner[p] - 1;
-        for (let c = 0; c < 3; c++) image.data[o + c] = shown[p + c] + (l > 0 ? at(shift[l][c], i + 0.5, j + 0.5) : 0);
-        image.data[o + 3] = shown[p + 3];
-      }
+  // Mélange final (renderBlended) : image dessinée plus l'écart de teinte de la photo gagnante, si c'est une voisine
+  const BLEND_VERTEX = `#version 300 es
+    in vec2 corner;
+    void main() { gl_Position = vec4(corner, 0.0, 1.0); }`;
+  const BLEND = `#version 300 es
+    precision highp float;
+    out vec4 color;
+    uniform sampler2D shown, winner, shift1, shift2;  // shift : écart de teinte de chaque voisine (LOW x LOW, 0-255)
+    uniform float scale;  // px de l'image par case basse
+    vec3 at(sampler2D grid, vec2 p) {  // bilinéaire entre les centres des cases basses
+      vec2 f = clamp(p / scale - 0.5, 0.0, ${LOW - 1}.0), t = f - floor(f);
+      ivec2 a = ivec2(floor(f)), b = min(a + 1, ivec2(${LOW - 1}));
+      return mix(mix(texelFetch(grid, a, 0).rgb, texelFetch(grid, ivec2(b.x, a.y), 0).rgb, t.x),
+                 mix(texelFetch(grid, ivec2(a.x, b.y), 0).rgb, texelFetch(grid, b, 0).rgb, t.x), t.y);
     }
-    out.getContext("2d").putImageData(image, 0, 0);
-    return out;
+    void main() {
+      ivec2 p = ivec2(gl_FragCoord.xy);
+      vec4 c = texelFetch(shown, p, 0);
+      int l = int(texelFetch(winner, p, 0).r * 255.0 + 0.5);
+      vec3 s = l == 2 ? at(shift1, gl_FragCoord.xy) : l == 3 ? at(shift2, gl_FragCoord.xy) : vec3(0.0);
+      color = vec4(c.rgb + s / 255.0, c.a);
+    }`;
+  let blend = null;
+  function blendProgram() {
+    if (blend) return blend;
+    const g = context();
+    blend = g.createProgram();
+    for (const [type, source] of [[g.VERTEX_SHADER, BLEND_VERTEX], [g.FRAGMENT_SHADER, BLEND]]) {
+      const shader = g.createShader(type);
+      g.shaderSource(shader, source);
+      g.compileShader(shader);
+      if (!g.getShaderParameter(shader, g.COMPILE_STATUS)) throw new Error(g.getShaderInfoLog(shader));
+      g.attachShader(blend, shader);
+    }
+    g.linkProgram(blend);
+    if (!g.getProgramParameter(blend, g.LINK_STATUS)) throw new Error(g.getProgramInfoLog(blend));
+    return blend;
+  }
+
+  /** Comme render, raccords fondus : tout par la carte graphique, sauf les bandes basses (LOW x LOW), lues et floutées ici.
+   * shortcut: deux voisines au plus (précédente et suivante), à étendre si la vue en prend davantage */
+  function renderBlended(layers, terrain, frame = layers[0].pose, band = null, size = SIZE) {
+    if (layers.length < 2 || layers.length > 3 || !readsBack()) return render(layers, terrain, frame, band, size);
+    const g = context(), level = Math.log2(size / LOW), k = size / LOW;
+    const radius = (sigma) => Math.max(1, Math.round(sigma * LOW / (2 * REACH) / 1.7));  // 3 boîtes : σ ≈ 1,7 r
+    const blur = (a, r) => { let b = a; for (let pass = 0; pass < 3; pass++) b = boxBlur(b, r, LOW); return b; };
+    // Bande basse de chaque photo seule (hors de son véhicule) : moyenne des pixels vus, par les niveaux réduits de sa texture
+    const read = g.createFramebuffer(), px = new Uint8Array(4 * LOW * LOW);
+    const low = layers.map((layer) => {
+      const alone = target(size, level + 1);
+      render([layer], terrain, frame, band, size, 2, alone);
+      g.bindTexture(g.TEXTURE_2D, alone.texture);
+      g.generateMipmap(g.TEXTURE_2D);
+      g.bindFramebuffer(g.FRAMEBUFFER, read);
+      g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, alone.texture, level);
+      g.readPixels(0, 0, LOW, LOW, g.RGBA, g.UNSIGNED_BYTE, px);  // lignes du sud au nord
+      alone.free();
+      const seen = new Float32Array(LOW * LOW).map((_, q) => px[4 * q + 3] / 255);
+      const m = blur(seen, radius(LOW_SIGMA));
+      return [0, 1, 2].map((c) => blur(new Float32Array(LOW * LOW).map((_, q) => px[4 * q + c]), radius(LOW_SIGMA))
+        .map((v, q) => (m[q] > 0.05 ? v / m[q] : NaN)));
+    });
+    g.bindFramebuffer(g.FRAMEBUFFER, null);
+    g.deleteFramebuffer(read);
+    // Écart de chaque voisine à la photo affichée, étendu sous le véhicule (moyenne pondérée par les cases où il est lu)
+    const shifts = low.slice(1).map((color) => {
+      const grid = new Float32Array(4 * LOW * LOW);
+      for (let c = 0; c < 3; c++) {
+        const known = new Float32Array(LOW * LOW), sum = new Float32Array(LOW * LOW);
+        for (let q = 0; q < known.length; q++) {
+          const d = low[0][c][q] - color[c][q];
+          if (!Number.isNaN(d)) { known[q] = 1; sum[q] = d; }
+        }
+        const w = blur(known, radius(FILL_SIGMA)), v = blur(sum, radius(FILL_SIGMA));
+        for (let q = 0; q < known.length; q++) grid[4 * q + c] = w[q] > 1e-3 ? v[q] / w[q] : 0;
+      }
+      const texture = g.createTexture();
+      g.bindTexture(g.TEXTURE_2D, texture);
+      g.texImage2D(g.TEXTURE_2D, 0, g.RGBA32F, LOW, LOW, 0, g.RGBA, g.FLOAT, grid);
+      g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.NEAREST);
+      g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.NEAREST);
+      return texture;
+    });
+    const winner = target(size), shown = target(size);
+    render(layers, terrain, frame, band, size, 3, winner);
+    render(layers, terrain, frame, band, size, 0, shown);
+    // Mélange sur le canevas
+    if (g.canvas.width !== size) g.canvas.width = g.canvas.height = size;
+    const program = blendProgram(), corners = g.createBuffer(), place = g.getAttribLocation(program, "corner");
+    g.useProgram(program);
+    g.viewport(0, 0, size, size);
+    g.disable(g.DEPTH_TEST);
+    g.bindBuffer(g.ARRAY_BUFFER, corners);
+    g.bufferData(g.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), g.STATIC_DRAW);
+    g.enableVertexAttribArray(place);
+    g.vertexAttribPointer(place, 2, g.FLOAT, false, 0, 0);
+    [shown.texture, winner.texture, ...shifts, shifts[0]].slice(0, 4).forEach((texture, unit) => {
+      g.activeTexture(g.TEXTURE0 + unit);
+      g.bindTexture(g.TEXTURE_2D, texture);
+    });
+    ["shown", "winner", "shift1", "shift2"].forEach((name, unit) => g.uniform1i(g.getUniformLocation(program, name), unit));
+    g.uniform1f(g.getUniformLocation(program, "scale"), k);
+    g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
+    g.activeTexture(g.TEXTURE0);
+    g.deleteBuffer(corners);
+    winner.free();
+    shown.free();
+    shifts.forEach((texture) => g.deleteTexture(texture));
+    return g.canvas;
   }
 
   // Hauteur de la caméra, lue sur le décalage entre photos voisines ------------------------
@@ -825,6 +906,9 @@ const Dessus = (() => {
   const SEAM = 1.5;  // m : demi-zone du raccord, où l'ajustement est vérifié
   const BLOCK = 48, SEARCH = 40, BLOCK_STEP = 20;  // px (3 cm) : côté d'un bloc, recherche de part et d'autre, pas des blocs
   const JOIN_REACH = 11;  // m : au-delà, photo trop floue pour s'y fier
+  // m : écart au raccord après recalage au-delà duquel il n'est pas appliqué (route et ville : 2 à 4 cm ; courbe serrée du
+  // 15/07/2025, 9d92052e : 19,7 → 7,4 cm, lignes de l'axe déformées, mieux sans recalage, constat de l'utilisateur 09/11/2026)
+  const JOIN_GOOD = 0.05;
   // A priori sur la pose relative (écarts types : décalage 0,3 m, angles 1°, échelle 0,5 % ; mesures à 2 cm) : un terme mal
   // déterminé par une zone commune étroite reste près de 0. Échelle tenue serrée : même caméra, même hauteur ; le long de
   // la route, elle se confond presque avec le décalage (a9fd217d, 08/11/2026 : 85 cm et 11 % d'un côté, 3 cm et 2 % dans
@@ -836,16 +920,13 @@ const Dessus = (() => {
 
   /** Photo seule dessinée (réglages en cours, sans recalage) : gris (0-255) passe-haut, sûr (0/1), lignes du sud au nord. */
   function readRaster(layer, terrain, frame) {
-    const g = context(), rgba = new Uint8Array(4 * SIZE * SIZE), M = 2 * REACH / SIZE;
-    render([{ ...layer, fix: null }], terrain, frame);
+    const g = context(), rgba = new Uint8Array(4 * SIZE * SIZE);
+    render([{ ...layer, fix: null }], terrain, frame, null, SIZE, 4);  // gris et sol sûr (hors véhicule, à moins de JOIN_REACH m)
     g.readPixels(0, 0, SIZE, SIZE, g.RGBA, g.UNSIGNED_BYTE, rgba);
     const gray = new Float32Array(SIZE * SIZE), safe = new Uint8Array(SIZE * SIZE);
-    for (let j = 0, k = 0; j < SIZE; j++) {
-      for (let i = 0; i < SIZE; i++, k++) {
-        gray[k] = (rgba[4 * k] + rgba[4 * k + 1] + rgba[4 * k + 2]) / 3;
-        const e = (i + 0.5) * M - REACH - layer.at[0], n = (j + 0.5) * M - REACH - layer.at[1];
-        safe[k] = rgba[4 * k + 3] >= 250 && !hidden(e, n, layer.pose) && Math.hypot(e, n) < JOIN_REACH ? 1 : 0;
-      }
+    for (let k = 0; k < gray.length; k++) {
+      gray[k] = (rgba[4 * k] + rgba[4 * k + 1] + rgba[4 * k + 2]) / 3;
+      safe[k] = rgba[4 * k + 3] > 127 ? 1 : 0;
     }
     let blur = gray;
     for (let pass = 0; pass < 3; pass++) blur = boxBlur(blur, 8);  // presque une gaussienne de 8 px
@@ -992,7 +1073,7 @@ const Dessus = (() => {
     if (checked.length < 3) return null;
     const before = median(checked.map((c) => c[0])), after = median(checked.map((c) => c[1]));
     const sane = w.every((v, i) => Math.abs(v) <= JOIN_LIMIT[i]);
-    return { fix: after < before && sane ? w : null, before, after, n: obs.length, w };
+    return { fix: after < before && after <= JOIN_GOOD && sane ? w : null, before, after, n: obs.length, w };
   }
 
   /** Recalage de chaque voisine sur la principale : Map (photo -> fix), et le bilan affiché. */
@@ -1117,7 +1198,7 @@ const Dessus = (() => {
   /** Tangage de la photo affichée lu sur ses deux raccords (results d'alignJoin, others : voisines), retenu pour elle ; vrai si
    * son tangage change assez pour refaire la vue (au plus PITCH_PASSES fois). */
   function learnPitch(main, others, results) {
-    const both = others.map((other, k) => ({ other, r: results[k] })).filter(({ r }) => r && r.after < r.before);
+    const both = others.map((other, k) => ({ other, r: results[k] })).filter(({ r }) => r?.fix);  // recalages appliqués seulement
     if (both.length !== 2 || !main.pose.groundTilt || !others.every((o) => o.pose.groundTilt)) return false;
     const h = main.pose.heading * toRad, along = both.map(({ other }) => other.at[0] * Math.sin(h) + other.at[1] * Math.cos(h));
     if (along[0] * along[1] >= 0) return false;  // une voisine devant, une derrière
