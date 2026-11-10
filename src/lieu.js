@@ -180,19 +180,27 @@ const Lieu = (() => {
   const TRONCON_PROPERTIES = "nature,cpx_numero,nom_voie_ban_gauche,nom_voie_ban_droite,position_par_rapport_au_sol,"
     + "cpx_nature_itineraire_autre,cpx_toponyme_itineraire_autre,geometrie";
 
-  /** Tronçon de route (praticable en voiture) le plus proche parmi troncons : { numero, nom } ou null. */
+  // m : à un croisement, la route numérotée passe avant un tronçon sans numéro plus proche d'au plus CROSSING m (D931 à
+  // Fixin, PR 2 +050 : chemin sans nom à 0,2 m, D931 à 0,5 m)
+  const CROSSING = 3;
+
+  /** Tronçon de route (praticable en voiture) le plus proche parmi troncons, la route numérotée d'abord à un croisement
+   * (CROSSING) : { numero, nom } ou null. */
   function road(troncons, lon, lat) {
-    let best = null;
+    let best = null, numbered = null;
     for (const feature of troncons) {
       if (NOT_DRIVEN.has(feature.properties?.nature)) continue;
       const geometry = feature.geometry || {};
       const lines = geometry.type === "MultiLineString" ? geometry.coordinates : [geometry.coordinates || []];
       for (const line of lines) {
         const { d } = project(line, lon, lat);
-        if (d <= REACH && (!best || d < best.d)) best = { d, props: feature.properties || {} };
+        if (d > REACH) continue;
+        if (!best || d < best.d) best = { d, props: feature.properties || {} };
+        if (feature.properties?.cpx_numero && (!numbered || d < numbered.d)) numbered = { d, props: feature.properties };
       }
     }
     if (!best) return null;
+    if (numbered && numbered.d <= best.d + CROSSING) best = numbered;
     const p = best.props;
     return { numero: p.cpx_numero || "", nom: p.nom_voie_ban_gauche || p.nom_voie_ban_droite || "" };
   }
