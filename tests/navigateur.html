@@ -288,6 +288,11 @@ async function feature(id) {
     const crossing = await Lieu.describe(5.014174, 47.244521);
     log(`lieu à un croisement : « ${crossing.text} »`);
     expect("lieu : route la plus importante à un croisement", /^D931 – PR 2 \+00[45]/.test(crossing.text));
+    // D905 sous le pont de l'A38 (Sainte-Marie-sur-Ouche) : A38 à 0,1 m, D905 à 1,7 m ; la séquence suit la D905
+    const under = await feature("4e031b43-54d4-4cdb-b178-6ea828666a23");
+    const below = await Lieu.describe(...under.geometry.coordinates.slice(0, 2), under);
+    log(`lieu sous un pont : « ${below.text} »`);
+    expect("lieu : route suivie par la séquence sous un pont", /^D905 – PR 72 /.test(below.text));
   }
 
   // 70 m après le pont : décocher la case proposé, décochée sur « Oui »
