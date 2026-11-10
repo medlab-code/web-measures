@@ -90,12 +90,15 @@ async function open(id, enough = () => false) {
     await expect(`${name} : inclinaison connue`, Boolean(pose.up));
     await expect(`${name} : roulis et tangage grisés sauf inclinaison par la route`, w.document.querySelector("#dessus-tangage").disabled === !pose.groundTilt
       && w.document.querySelector("#dessus-devers").disabled === !pose.groundTilt, pose.groundTilt ? "route" : "verticales");
-    if (!pose.groundTilt) {  // verticales écartées : inclinaison par la route, réglettes actives
-      w.document.querySelector("#dessus-verticales").click();
-      for (let t = 0; t < 20 && w.document.querySelector("#dessus-tangage").disabled; t++) await sleep(250);
-      await expect(`${name} : sans calage par les verticales, roulis et tangage réglables`, Dessus.layersNow().layers[0].pose.groundTilt && !w.document.querySelector("#dessus-tangage").disabled);
-      w.document.querySelector("#dessus-verticales").click();
-      for (let t = 0; t < 20 && !w.document.querySelector("#dessus-tangage").disabled; t++) await sleep(250);
+    // Calage par les verticales coché d'office en zone d'habitation seulement (ville : Pouilly-en-Auxois ; A38 : rase campagne)
+    const town = name === "ville", box = w.document.querySelector("#dessus-verticales");
+    await expect(`${name} : ${town ? "en ville, calage par les verticales" : "hors agglomération, inclinaison par la route"}`, box.checked === town && !pose.groundTilt === town);
+    if (!box.disabled) {  // verticales lues : l'autre calage à la main, puis retour
+      box.click();
+      for (let t = 0; t < 20 && w.document.querySelector("#dessus-tangage").disabled === town; t++) await sleep(250);
+      await expect(`${name} : interrupteur changé à la main`, Boolean(Dessus.layersNow().layers[0].pose.groundTilt) === town && w.document.querySelector("#dessus-tangage").disabled === !town);
+      box.click();
+      for (let t = 0; t < 20 && w.document.querySelector("#dessus-tangage").disabled !== town; t++) await sleep(250);
     }
     if (read) await expect(`${name} : hauteur GPS RTK et décalage d'accord à 5 %`, Math.abs(read / pose.height - 1) < 0.05, `${number(100 * (read / pose.height - 1), 1)} %`);
     const joins = now.joins?.results || [], fixed = joins.filter((r) => r?.fix);

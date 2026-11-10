@@ -1259,7 +1259,10 @@ const Dessus = (() => {
   // Photos voisines (interrupteur « Véhicule masqué », éteint par défaut) : lues, analysées, dessinées sous le véhicule et
   // recalées sur la principale (alignJoin), tangage de la séquence lu sur les raccords ; sinon la photo affichée seule
   let neighboursOn = false;
-  let verticalsOn = true;  // « Calage par les verticales » : décoché, inclinaison par la route, roulis et tangage à la main
+  // « Calage par les verticales » : coché d'office pour une photo en zone d'habitation (Lieu.inTown), décoché ailleurs (sur 3
+  // essais de l'auteur, 10/11/2026, la vue était meilleure inclinée par la route hors agglomération ; en ville, photo de
+  // référence de Pouilly-en-Auxois : raccords recalés avec les verticales, pas avec la route) ; changé à la main pour la photo
+  let verticalsOn = false;
   let abort = null, measuringOn = false, fine = false, start = null, hover = null, live = null;  // live : longueur affichée au pointeur
   // Roulis (part du dévers) et tangage ajouté (degrés), réglés à la main (options d'essai) et retenus par séquence dans le
   // navigateur : la fixation de la caméra ne change pas au cours d'une séquence (A38 du 09/10/2025 : même tangage à deux endroits)
@@ -1372,7 +1375,7 @@ const Dessus = (() => {
     .map((pose) => {
       const at = toLocal(pose.lon, pose.lat, shown.pose);
       const leveled = (pose.up && verticalsOn) || !shown.terrain ? pose : { ...pose, up: groundUp(shown.terrain, at, pose.heading, rollShare, pitchFor(pose.pic)),
-        sigma: Math.hypot(Math.min(pose.sigma, GROUND_SIGMA), LEAN * (shown.lateral || 0)), groundTilt: true };  // virage : véhicule penché
+        sigma: Math.hypot(pose.up ? GROUND_SIGMA : Math.min(pose.sigma, GROUND_SIGMA), LEAN * (shown.lateral || 0)), groundTilt: true };  // virage : véhicule penché ; verticales écartées : incertitude de la route
       const seam = shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.seams?.get(pose.pic) : undefined;  // raccord de la voisine
       const fix = neighboursOn && shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.map.get(pose.pic) : undefined;
       const parallax = neighboursOn ? shown.height : null;  // lue avec les voisines : sans « Véhicule masqué », ignorée
@@ -1782,6 +1785,12 @@ const Dessus = (() => {
     applySettings(photo.collection, photo.id);
     shown.sequenceHeight = pose.pending ? null : sequenceHeight(photo.collection, pose);
     const mine = shown;
+    verticalsOn = $("#dessus-verticales").checked = false;  // route d'abord ; verticales si la photo est en zone d'habitation
+    Lieu.inTown(...photo.geometry.coordinates.slice(0, 2)).catch(() => false).then((town) => {
+      if (shown !== mine || !town || verticalsOn) return;
+      verticalsOn = $("#dessus-verticales").checked = true;
+      if (mine.panos.has(mine.pic)) showImage();
+    });
     if (mine.lateral === undefined) {  // virage : incertitude d'inclinaison majorée à son arrivée
       lateralOf(photo, pose, signal).catch(() => 0).then((lateral) => {
         mine.lateral = lateral;
