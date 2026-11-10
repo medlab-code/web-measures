@@ -284,6 +284,10 @@ async function feature(id) {
     const fixin = await Lieu.describe(5.015017598, 47.244862773);
     log(`lieu près d'une section sans PR : « ${fixin.text} »`);
     expect("lieu : PR de la section voisine si la plus proche n'en a pas", /^D931 – PR 2 /.test(fixin.text));
+    // Même route, PR 2 +050 : croisement d'un chemin sans nom (0,2 m) et de la D931 (0,5 m), la route numérotée retenue
+    const crossing = await Lieu.describe(5.014174, 47.244521);
+    log(`lieu à un croisement : « ${crossing.text} »`);
+    expect("lieu : route numérotée à un croisement", /^D931 – PR 2 \+00[45]/.test(crossing.text));
   }
 
   // 70 m après le pont : décocher la case proposé, décochée sur « Oui »
