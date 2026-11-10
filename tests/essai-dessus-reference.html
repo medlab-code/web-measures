@@ -99,12 +99,12 @@ async function open(id, enough = () => false) {
       const o = now.outline, notches = o.filter((v, k) => v < Math.min(o[(k + 127) % 128], o[(k + 1) % 128]) - 1).length;
       await expect(`${name} : contour symétrique et sans encoche`, o.every((v, k) => Math.abs(v - o[(128 - k) % 128]) <= 1.5) && notches === 0, `${notches} encoche(s) ${o.map((v, k) => (v < Math.min(o[(k + 127) % 128], o[(k + 1) % 128]) - 1 ? `${k}:${o[(k + 127) % 128]}/${v}/${o[(k + 1) % 128]}` : "")).filter(Boolean).join(" ")}, écart gauche-droite ${Math.max(...o.map((v, k) => Math.abs(v - o[(128 - k) % 128]))).toFixed(1)}°`);
     }
-    // « Véhicule masqué » éteint : rien de ce qui a été lu avec les voisines n'est appliqué (tangage, hauteur, contour)
+    // « Véhicule masqué » éteint : rien de ce qui a été lu avec les voisines n'est appliqué (tangage, hauteur, contour, position)
     w.document.querySelector("#dessus-voisines").click();
-    await sleep(500);
+    for (let t = 0; t < 30 && !/ 1 photo,.*position/.test(w.document.querySelector("#dessus-etat").textContent) || /en cours/.test(w.document.querySelector("#dessus-etat").textContent); t++) await sleep(500);  // position refaite
     const alone = Dessus.layersNow().layers, off = w.document.querySelector("#dessus-etat").textContent;
-    await expect(`${name} : éteint, photo seule sans tangage, hauteur ni contour lus`, alone.length === 1 && (!Array.isArray(now.outline) || alone[0].pose.outline !== now.outline)
-      && !/lu sur les raccords|lue entre photos|décalage entre photos/.test(off) && !alone[0].fix && !alone[0].bend, off);
+    await expect(`${name} : éteint, photo seule sans tangage, hauteur ni contour lus, position refaite`, alone.length === 1 && (!Array.isArray(now.outline) || alone[0].pose.outline !== now.outline)
+      && !/lu sur les raccords|lue entre photos|décalage entre photos/.test(off) && !alone[0].fix && !alone[0].bend && Dessus.layersNow().locatedWith === false, off);
     w.document.querySelector("#dessus-voisines").click();
     // Sol caché par le véhicule de la photo affichée : part vue par une voisine (le reste : véhicule en dernier recours)
     if (others.length) {

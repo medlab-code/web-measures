@@ -1547,7 +1547,7 @@ const Dessus = (() => {
   function remember(view) {
     if (!view?.panos.has(view.pic)) return;  // photo et terrain pas encore lus
     computed.delete(view.pic);
-    computed.set(view.pic, { terrain: view.terrain, terrainFailed: view.terrainFailed, estimated: view.estimated && !view.estimating, joins: view.joins, joinText: view.joinText, shift: view.shift, located: view.located, lateral: view.lateral });
+    computed.set(view.pic, { terrain: view.terrain, terrainFailed: view.terrainFailed, estimated: view.estimated && !view.estimating, joins: view.joins, joinText: view.joinText, shift: view.shift, located: view.located, locatedWith: view.locatedWith, placed: view.placed, lateral: view.lateral });
     if (computed.size > COMPUTED_MAX) computed.delete(computed.keys().next().value);  // la plus ancienne
   }
 
@@ -1571,6 +1571,7 @@ const Dessus = (() => {
   const mountOf = (h) => MOUNTS.reduce((a, b) => (Math.abs(b - h) < Math.abs(a - h) ? b : a));
   let drawing = 0;  // dernier dessin demandé : l'image d'un dessin dépassé est jetée
   async function showImage() {
+    placeFor(shown);
     shown.joinKeyNow = joinKey();  // recalage des raccords valable pour ces réglages seulement
     const layers = readyLayers(), pose = shown.pose, mine = ++drawing, axis = roadAxis(layers);
     // découpée à ±8 m de l'axe de la route (BEST.wide), bords parallèles à la route : rien de plus loin de la route ; fondue
@@ -1607,6 +1608,7 @@ const Dessus = (() => {
   async function locate() {
     const mine = shown, [main] = readyLayers();
     mine.locating = true;
+    mine.locatedWith = neighboursOn;
     say("Position sur l'orthophoto en cours…");
     try {
       const ortho = await readOrtho(mine.pose, abort.signal);
@@ -1710,12 +1712,20 @@ const Dessus = (() => {
     applySettings(shown.sequence, shown.pic);
   }
 
+  /** Position calée faite avec l'autre état de « Véhicule masqué » (tangage, hauteur lus ou non avec les voisines) : mise de
+   * côté, celle de cet état reprise, sinon refaite. */
+  function placeFor(view) {
+    if (view.located === undefined || view.locatedWith === neighboursOn) return;
+    view.placed = { ...view.placed, [view.locatedWith]: { located: view.located, shift: view.shift, locatedWith: view.locatedWith } };
+    Object.assign(view, view.placed[neighboursOn] || { located: undefined, shift: undefined, locatedWith: neighboursOn });
+  }
+
   /** Photo à montrer (fiche STAC, pose avec ses voisines et fiches des voisines, null s'il faut encore les lire ; photo null
    * pour tout retirer), à chaque changement : ne refait que ce qui a changé. */
   /** Pont à portée (photo dessus ou dessous) : le MNT LiDAR HD n'y donne pas le sol vu (tablier retiré, ou brèche sous la
    * photo). Sol plat ; inclinaison par la route, hauteur entre photos, raccords et position refaits sans lui. */
   function dropTerrain(view) {
-    Object.assign(view, { terrain: null, sigmaGround: FLAT_SIGMA, estimated: false, joins: null, joinText: "", located: undefined });
+    Object.assign(view, { terrain: null, sigmaGround: FLAT_SIGMA, estimated: false, joins: null, joinText: "", located: undefined, placed: undefined });
   }
 
   async function update(photo, pose, features) {
@@ -1786,5 +1796,5 @@ const Dessus = (() => {
     }
   }
 
-  return { setup, update, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins, outline: outlines.get(shown.sequence) }, view, hidden, uncertainty, measureError, shownError, groundUp, roadAxis, sourceOf, toLonLat, estimateHeight, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, REACH, SIZE };
+  return { setup, update, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins, outline: outlines.get(shown.sequence), locatedWith: shown.locatedWith }, view, hidden, uncertainty, measureError, shownError, groundUp, roadAxis, sourceOf, toLonLat, estimateHeight, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, REACH, SIZE };
 })();
