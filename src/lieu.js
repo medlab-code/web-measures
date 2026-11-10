@@ -139,19 +139,25 @@ const Lieu = (() => {
    * PR 24 +0892 à PR 25 +0000), et l'écart entre deux PR peut dépasser 1 000 m. */
   async function milestone(numero, lon, lat) {
     if (!numero) return "";
-    let section = null;
+    const sections = [];
     for (const f of await zone("section_de_points_de_repere", "numero_de_route,identifiant_de_section,geometrie", lon, lat)) {
       if ((f.properties || {}).numero_de_route !== numero || f.geometry?.type !== "LineString") continue;
       const p = project(f.geometry.coordinates, lon, lat);
-      if (p.d <= SECTION_REACH && (!section || p.d < section.p.d)) section = { f, p };
+      if (p.d <= SECTION_REACH) sections.push({ f, p });
     }
-    if (!section) return "";
-    const line = section.f.geometry.coordinates;
-    const prs = (await sectionMilestones(section.f.properties.identifiant_de_section))
-      .filter((f) => /^\d+$/.test(String(f.properties?.numero)) && f.properties.abscisse != null)
-      .map((f) => ({ n: Number(f.properties.numero), a: f.properties.abscisse,
-        s: project(line, ...f.geometry.coordinates).s }))
-      .sort((x, y) => x.a - y.a);
+    // La plus proche qui a des PR numérotés : une section sans PR (que début et fin, chaussée d'une route à 2 chaussées,
+    // D931 à Fixin) laisse sinon la photo sans PR, la section voisine en ayant à quelques mètres
+    let section = null, line = null, prs = [];
+    for (const candidate of sections.sort((x, y) => x.p.d - y.p.d)) {
+      section = candidate;
+      line = section.f.geometry.coordinates;
+      prs = (await sectionMilestones(section.f.properties.identifiant_de_section))
+        .filter((f) => /^\d+$/.test(String(f.properties?.numero)) && f.properties.abscisse != null)
+        .map((f) => ({ n: Number(f.properties.numero), a: f.properties.abscisse,
+          s: project(line, ...f.geometry.coordinates).s }))
+        .sort((x, y) => x.a - y.a);
+      if (prs.length) break;
+    }
     if (!prs.length) return "";
     // Section tracée dans le sens des PR décroissants : abscisses curvilignes retournées
     let s = section.p.s;

@@ -280,6 +280,10 @@ async function feature(id) {
     const crepey = await Lieu.describe(...(await feature("a04557c8-3b4d-4184-8b3e-ff7ed9fa4197")).geometry.coordinates.slice(0, 2));
     log(`lieu à l'entrée d'un hameau : « ${crepey.text} »`);
     expect("lieu : hameau le plus proche à moins de 100 m", crepey.parts.lieudit === "Crépey");
+    // D931 à 2 chaussées, Fixin : section la plus proche sans PR numéroté (21-D931-G-4), PR lu sur la voisine
+    const fixin = await Lieu.describe(5.015017598, 47.244862773);
+    log(`lieu près d'une section sans PR : « ${fixin.text} »`);
+    expect("lieu : PR de la section voisine si la plus proche n'en a pas", /^D931 – PR 2 /.test(fixin.text));
   }
 
   // 70 m après le pont : décocher la case proposé, décochée sur « Oui »
