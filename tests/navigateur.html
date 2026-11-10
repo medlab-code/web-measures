@@ -293,6 +293,11 @@ async function feature(id) {
     const below = await Lieu.describe(...under.geometry.coordinates.slice(0, 2), under);
     log(`lieu sous un pont : « ${below.text} »`);
     expect("lieu : route suivie par la séquence sous un pont", /^D905 – PR 72 /.test(below.text));
+    // Même séquence, autre passage : véloroute sous le viaduc de l'A38 (A38 à 1,3 m, sur pont ; véloroute à 2,6 m), vérifié sur la photo
+    const towpath = await feature("1f3d19ac-7821-42eb-9ffe-89b83661a15d");
+    const along = await Lieu.describe(...towpath.geometry.coordinates.slice(0, 2), towpath);
+    log(`lieu sous un viaduc : « ${along.text} »`);
+    expect("lieu : véloroute sous le viaduc, pas l'A38", along.text.startsWith("Véloroute du Canal de Bourgogne"));
   }
 
   // 70 m après le pont : décocher la case proposé, décochée sur « Oui »
