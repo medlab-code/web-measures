@@ -180,14 +180,17 @@ const Lieu = (() => {
   const TRONCON_PROPERTIES = "nature,importance,cpx_numero,nom_voie_ban_gauche,nom_voie_ban_droite,position_par_rapport_au_sol,"
     + "cpx_nature_itineraire_autre,cpx_toponyme_itineraire_autre,geometrie";
 
-  // m : à un croisement, la route la plus importante (importance de la BD TOPO, 1 la plus forte) passe avant les tronçons
-  // plus proches d'au plus CROSSING m (D931 à Fixin, PR 2 +050 : chemin d'importance 5 à 0,2 m, D931 d'importance 3 à 0,5 m)
+  // Croisement : routes différentes à moins de CROSSING m du tronçon le plus proche (D931 à Fixin, PR 2 +050 : chemin à
+  // 0,2 m, D931 à 0,5 m ; D905 sous le pont de l'A38 à Sainte-Marie-sur-Ouche : A38 à 0,1 m, D905 à 1,7 m). La route que
+  // suit la séquence de la photo avant et après le croisement (followedRoad) l'emporte ; sinon, au même niveau, la plus
+  // importante (importance de la BD TOPO, 1 la plus forte), à niveaux différents (pont, tunnel) la plus proche
   const CROSSING = 3;
   const rank = (props) => Number(props.importance) || 9;  // importance absente : après les autres
+  const identity = (props) => props.cpx_numero || props.nom_voie_ban_gauche || props.nom_voie_ban_droite || "";
 
-  /** Tronçon de route (praticable en voiture) le plus proche parmi troncons, à un croisement (CROSSING) le plus important,
-   * à importance égale le plus proche : { numero, nom } ou null. */
-  function road(troncons, lon, lat) {
+  /** Tronçons de route (praticables en voiture) à moins de CROSSING m du plus proche, lui compris (à REACH m au plus),
+   * le plus proche d'abord : [{ d, props }]. */
+  function candidates(troncons, lon, lat) {
     const near = [];
     for (const feature of troncons) {
       if (NOT_DRIVEN.has(feature.properties?.nature)) continue;
@@ -198,11 +201,49 @@ const Lieu = (() => {
         if (d <= REACH) near.push({ d, props: feature.properties || {} });
       }
     }
+    near.sort((a, b) => a.d - b.d);
+    return near.filter((t) => t.d <= near[0].d + CROSSING);
+  }
+
+  /** Route de la photo parmi near (candidates) : celle que suit la séquence (identité followed, voir followedRoad), sinon
+   * voir CROSSING : { numero, nom } ou null. */
+  function road(near, followed = null) {
     if (!near.length) return null;
-    const closest = Math.min(...near.map((t) => t.d));
-    const best = near.filter((t) => t.d <= closest + CROSSING).sort((a, b) => rank(a.props) - rank(b.props) || a.d - b.d)[0];
+    const level = (t) => String(t.props.position_par_rapport_au_sol ?? "0");
+    const best = near.find((t) => followed !== null && identity(t.props) === followed)
+      || (near.every((t) => level(t) === level(near[0])) ? [...near].sort((a, b) => rank(a.props) - rank(b.props) || a.d - b.d)[0] : near[0]);
     const p = best.props;
     return { numero: p.cpx_numero || "", nom: p.nom_voie_ban_gauche || p.nom_voie_ban_droite || "" };
+  }
+
+  const PANORAMAX = "https://api.panoramax.xyz/api";
+  // Photos de la séquence lues autour d'un croisement : entre FOLLOW_FROM et FOLLOW_TO m de la photo (le croisement passé,
+  // routes en angle fermé comprises : D905 et A38 encore à 3 m l'une de l'autre à 30 m du pont), à FOLLOW_RANKS rangs au plus
+  // (pas les autres passages de la séquence au même endroit)
+  const FOLLOW_FROM = 30, FOLLOW_TO = 80, FOLLOW_RANKS = 40;
+
+  /** Identité de la route (numéro, sinon nom, "" sans l'un ni l'autre) que suit la séquence de feature (fiche STAC de la
+   * photo) avant et après elle, la plus vue des deux côtés ; null sans photos des deux côtés ni route commune. */
+  async function followedRoad(feature, lon, lat) {
+    const r0 = Number(feature?.properties?.["geovisio:rank_in_collection"]);
+    if (!feature?.collection || !Number.isFinite(r0)) return null;
+    const dlat = FOLLOW_TO / 111320, dlon = FOLLOW_TO / (111320 * Math.cos(lat * Math.PI / 180));
+    const params = new URLSearchParams({ bbox: [lon - dlon, lat - dlat, lon + dlon, lat + dlat].join(","), collections: feature.collection, limit: "500" });
+    const response = await fetch(`${PANORAMAX}/search?${params}`, { signal: AbortSignal.timeout(TIMEOUT) });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const sides = [new Map(), new Map()];  // avant, après : identité -> photos
+    for (const f of (await response.json()).features || []) {
+      const rank = Number(f.properties?.["geovisio:rank_in_collection"]), [x, y] = f.geometry?.coordinates || [];
+      const d = Math.hypot(...local([x, y], [lon, lat]));
+      if (!Number.isFinite(rank) || rank === r0 || Math.abs(rank - r0) > FOLLOW_RANKS || d < FOLLOW_FROM || d > FOLLOW_TO) continue;
+      const near = candidates(await zone("troncon_de_route", TRONCON_PROPERTIES, x, y), x, y);
+      if (!near.length) continue;
+      const side = sides[rank < r0 ? 0 : 1], id = identity(near[0].props);
+      side.set(id, (side.get(id) || 0) + 1);
+    }
+    const both = [...sides[0].keys()].filter((id) => sides[1].has(id));
+    both.sort((a, b) => sides[0].get(b) + sides[1].get(b) - sides[0].get(a) - sides[1].get(a));
+    return both.length ? both[0] : null;
   }
 
   const CYCLE_REACH = 12;  // m : véloroute du tronçon le plus proche, à cette distance au plus
@@ -306,15 +347,20 @@ const Lieu = (() => {
     return found[0]?.z.properties.toponyme || "";
   }
 
-  async function describe(lon, lat) {
-    const key = `${lon.toFixed(5)},${lat.toFixed(5)}`;
+  /** feature (facultative) : fiche STAC de la photo, dont la séquence départage les routes d'un croisement (followedRoad). */
+  async function describe(lon, lat, feature = null) {
+    const key = `${lon.toFixed(5)},${lat.toFixed(5)},${feature?.collection || ""}`;
     if (cache.has(key)) return { ...cache.get(key), complete: true };
     let failed = false;
     const fail = (value) => () => { failed = true; return value; };
     const [troncons, c, habitations] = await Promise.all([zone("troncon_de_route", TRONCON_PROPERTIES, lon, lat).catch(fail(null)),
       commune(lon, lat).catch(fail("")), zone("zone_d_habitation", HABITATION_PROPERTIES, lon, lat, HAMLET_REACH).catch(fail([]))]);
     const place = hamlet(habitations, lon, lat, c);
-    const r = troncons ? road(troncons, lon, lat) : null;
+    const near = troncons ? candidates(troncons, lon, lat) : [];
+    // Croisement (routes différentes) : la route suivie par la séquence, si elle est connue
+    const followed = new Set(near.map((t) => identity(t.props))).size > 1 && feature
+      ? await followedRoad(feature, lon, lat).catch(fail(null)) : null;
+    const r = road(near, followed);
     const pr = await milestone(r?.numero, lon, lat).catch(fail(""));
     // Hors route départementale : la véloroute suivie, s'il y en a une (chemin de halage, voie verte…)
     const bike = troncons && !/^D\d/.test(r?.numero || "") ? cycleRoutes(troncons, lon, lat) : "";

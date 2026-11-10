@@ -334,7 +334,7 @@
     nuageReady();
     showOverViewer(dialog);
     // Route, PR et commune de la photo, comme l'étiquette du lieu (déjà lus : sans requête)
-    Lieu.describe(...feature.geometry.coordinates.slice(0, 2)).then(({ parts }) => {
+    Lieu.describe(...feature.geometry.coordinates.slice(0, 2), feature).then(({ parts }) => {
       const place = [parts.voie || edgeProfile.road, parts.pr, parts.commune].filter(Boolean).join(" – ");
       if (place && photo === feature && dialog.open) title.textContent = `Profil en travers · ${place}`;
     }).catch(() => {});
@@ -397,7 +397,7 @@
     win.document.write('<p style="font: 15px sans-serif; margin: 2rem">Préparation du PDF…</p>');
     win.document.close();
     // Lieu de la photo comme l'encart de la visionneuse (route, PR, commune ; d'ordinaire déjà lu : sans requête)
-    const { text, parts } = await Lieu.describe(...feature.geometry.coordinates.slice(0, 2)).catch(() => ({ text: "" }));
+    const { text, parts } = await Lieu.describe(...feature.geometry.coordinates.slice(0, 2), feature).catch(() => ({ text: "" }));
     const long = $("#profil-pdf-long").checked ? dialog.querySelector("svg.profil-long") : null;
     win.document.open();
     win.document.write(Profil.pdfPage(dialog.querySelector("svg"), dialog.querySelector(".legende"), long, {
@@ -723,7 +723,7 @@
   }
   async function showPlace(feature, attempt = 0) {
     const [lon, lat] = feature.geometry.coordinates;
-    const { text, complete, parts } = await Lieu.describe(lon, lat);
+    const { text, complete, parts } = await Lieu.describe(lon, lat, feature);
     if (photo !== feature) return;
     if (text || complete) {
       $("#lieu").innerHTML = placeMarkup(text, parts);
@@ -2555,7 +2555,7 @@
     const feature = photo;
     if (!feature || favorites().some((f) => f.id === feature.id)) return;
     const [lon, lat] = feature.geometry.coordinates;
-    const { parts } = await Lieu.describe(lon, lat);
+    const { parts } = await Lieu.describe(lon, lat, feature);
     // Pont : son nom affiché en haut à gauche de la visionneuse, sans la route déjà nommée
     const bridge = $("#chute").hidden ? "" : ($("#chute .pont")?.textContent || "").replace(/\s*\([^)]*\)$/, "");
     const name = [parts?.lieudit, parts?.commune, parts?.voie, parts?.pr, bridge].filter(Boolean).join(" – ")
@@ -6265,7 +6265,7 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     }
     const mapImage = await mapSnapshot(data.bounds, !auto);  // vue actuelle : la carte telle que recadrée
     step("Mise en page", 95);
-    if (photo) data.place = (await Lieu.describe(...photo.geometry.coordinates.slice(0, 2)).catch(() => ({}))).parts;  // déjà lu : sans requête
+    if (photo) data.place = (await Lieu.describe(...photo.geometry.coordinates.slice(0, 2), photo).catch(() => ({}))).parts;  // déjà lu : sans requête
     // Sur un pont : son nom (sans la route, déjà écrite) et ce qu'il franchit, sans la hauteur de chute
     const onBridge = JSON.parse(app.fall_json());
     const [bridge, ...more] = (onBridge?.edges ? "" : onBridge?.text || "").split("\n");
