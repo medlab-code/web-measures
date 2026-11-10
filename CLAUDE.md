@@ -5,6 +5,14 @@ Les calculs viennent du plugin QGIS « Visionneuse Panoramax » (`~/claude/visio
 qui n'en a plus depuis le 29/10/2026 : ils vivent ici (`py/core/`, `py/web_app.py`). Méthodes et
 validations : `docs/MESURES.md` (repris du plugin) et `docs/CALCULS.md`. Auteur : Cédric COCHART.
 
+## Priorité du dépôt (10/11/2026)
+
+**Priorité absolue : simplifier et optimiser les tests.** Avant toute nouvelle fonction, alléger les essais :
+code commun des pages d'essai mis en commun, pages de diagnostic ou de faisabilité retirées, chaque page
+automatique terminée par un bilan « contrôles : n réussis » (sinon le lanceur la compte en échec), durée
+des pages réduite (attentes fixes remplacées par des attentes de condition), essais rapides préférés aux
+pages dans le navigateur.
+
 ## Règles
 
 - Français partout : interface, messages, commentaires, documentation, messages de commit.
