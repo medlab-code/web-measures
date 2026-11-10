@@ -177,30 +177,30 @@ const Lieu = (() => {
   // passer plus près de la photo que l'axe de la chaussée
   const NOT_DRIVEN = new Set(["Sentier", "Escalier", "Bac ou liaison maritime"]);
   // Attributs des tronçons lus (route, véloroutes), sans les autres : réponse six fois plus légère
-  const TRONCON_PROPERTIES = "nature,cpx_numero,nom_voie_ban_gauche,nom_voie_ban_droite,position_par_rapport_au_sol,"
+  const TRONCON_PROPERTIES = "nature,importance,cpx_numero,nom_voie_ban_gauche,nom_voie_ban_droite,position_par_rapport_au_sol,"
     + "cpx_nature_itineraire_autre,cpx_toponyme_itineraire_autre,geometrie";
 
-  // m : à un croisement, la route numérotée passe avant un tronçon sans numéro plus proche d'au plus CROSSING m (D931 à
-  // Fixin, PR 2 +050 : chemin sans nom à 0,2 m, D931 à 0,5 m)
+  // m : à un croisement, la route la plus importante (importance de la BD TOPO, 1 la plus forte) passe avant les tronçons
+  // plus proches d'au plus CROSSING m (D931 à Fixin, PR 2 +050 : chemin d'importance 5 à 0,2 m, D931 d'importance 3 à 0,5 m)
   const CROSSING = 3;
+  const rank = (props) => Number(props.importance) || 9;  // importance absente : après les autres
 
-  /** Tronçon de route (praticable en voiture) le plus proche parmi troncons, la route numérotée d'abord à un croisement
-   * (CROSSING) : { numero, nom } ou null. */
+  /** Tronçon de route (praticable en voiture) le plus proche parmi troncons, à un croisement (CROSSING) le plus important,
+   * à importance égale le plus proche : { numero, nom } ou null. */
   function road(troncons, lon, lat) {
-    let best = null, numbered = null;
+    const near = [];
     for (const feature of troncons) {
       if (NOT_DRIVEN.has(feature.properties?.nature)) continue;
       const geometry = feature.geometry || {};
       const lines = geometry.type === "MultiLineString" ? geometry.coordinates : [geometry.coordinates || []];
       for (const line of lines) {
         const { d } = project(line, lon, lat);
-        if (d > REACH) continue;
-        if (!best || d < best.d) best = { d, props: feature.properties || {} };
-        if (feature.properties?.cpx_numero && (!numbered || d < numbered.d)) numbered = { d, props: feature.properties };
+        if (d <= REACH) near.push({ d, props: feature.properties || {} });
       }
     }
-    if (!best) return null;
-    if (numbered && numbered.d <= best.d + CROSSING) best = numbered;
+    if (!near.length) return null;
+    const closest = Math.min(...near.map((t) => t.d));
+    const best = near.filter((t) => t.d <= closest + CROSSING).sort((a, b) => rank(a.props) - rank(b.props) || a.d - b.d)[0];
     const p = best.props;
     return { numero: p.cpx_numero || "", nom: p.nom_voie_ban_gauche || p.nom_voie_ban_droite || "" };
   }
