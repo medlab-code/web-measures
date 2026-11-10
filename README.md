@@ -854,6 +854,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 
 | Fichier | Rôle |
 |---|---|
+| `docs/analyses/` | notes d'analyse (novembre 2026) : détection des bords en « Dévers », critique de `MESURES.md`, limites structurelles ; pistes, pas des descriptions du code |
 | `docs/CALCULS.md` | calculs de chaque mode, seuils et précision |
 | `index.html`, `src/style.css` | page et mise en page |
 | `src/app.js` | relie carte, visionneuse et calcul : clics, clavier, repères, liseré, filtre |

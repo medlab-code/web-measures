@@ -1,3 +1,10 @@
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- © Cédric COCHART -->
+
+# Limites structurelles des mesures
+
+Document de synthèse – novembre 2026
+
 Voici ce qu’on peut faire **structurellement** (changements d’architecture ou de paradigme) pour améliorer significativement la précision, au-delà des simples réglages de seuils.
 
 ### 1. Passer d’un modèle « caméra + GPS » à un modèle multi-capteurs
@@ -45,5 +52,3 @@ Aujourd’hui on fait de la triangulation « sparse » manuelle. Passer à une r
 4. **RTK + synchronisation** → position absolue de référence.
 
 Les points 1 et 2 sont les plus « structurels » : ils changent la nature des données d’entrée et le modèle de calcul, pas seulement les paramètres.
-
-Souhaitez-vous que je détaille l’un de ces axes (par exemple comment intégrer un bundle adjustment léger, ou comment utiliser le nuage LiDAR en intersection directe) ?
