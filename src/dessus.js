@@ -1296,10 +1296,10 @@ const Dessus = (() => {
     else all[shown.sequence] = { roll: rollShare, ...(pitchManual ? { pitch: pitchOffset } : {}) };
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(all)); } catch { /* sans stockage : pour cette page seulement */ }
   }
-  /** Réglage retenu pour la séquence (ou par défaut ; tangage : à la main, sinon celui de la photo lu sur ses raccords, sinon
-   * la médiane de la séquence), curseurs compris. */
+  /** Réglage retenu pour la séquence (ou par défaut ; tangage : à la main, sinon, avec « Véhicule masqué », celui de la photo
+   * lu sur ses raccords, sinon la médiane de la séquence), curseurs compris. */
   function applySettings(sequence, pic) {
-    const kept = readSettings()[sequence], own = photoPitch(sequence, pic), auto = sequencePitch(sequence);
+    const kept = readSettings()[sequence], own = neighboursOn ? photoPitch(sequence, pic) : undefined, auto = neighboursOn && sequencePitch(sequence);
     rollShare = kept?.roll ?? DEFAULT_ROLL;
     pitchManual = kept?.pitch !== undefined;
     pitchOffset = pitchManual ? kept.pitch : own !== undefined ? Math.round(own * 20) / 20 : auto ? auto.pitch : DEFAULT_PITCH;
@@ -1374,12 +1374,13 @@ const Dessus = (() => {
         sigma: Math.hypot(Math.min(pose.sigma, GROUND_SIGMA), LEAN * (shown.lateral || 0)), groundTilt: true };  // virage : véhicule penché
       const seam = shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.seams?.get(pose.pic) : undefined;  // raccord de la voisine
       const fix = neighboursOn && shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.map.get(pose.pic) : undefined;
+      const parallax = neighboursOn ? shown.height : null;  // lue avec les voisines : sans « Véhicule masqué », ignorée
       // hauteur : décalage entre photos, sinon RTK moins le sol (de la séquence, ou de la photo)
-      const height = shown.height && shown.pose.fleet ? { height: mountOf(shown.height), height_sigma: MOUNT_SIGMA }  // CD21 : la monture
-        : shown.height ? { height: shown.height, height_sigma: HEIGHT_SIGMA }
+      const height = parallax && shown.pose.fleet ? { height: mountOf(parallax), height_sigma: MOUNT_SIGMA }  // CD21 : la monture
+        : parallax ? { height: parallax, height_sigma: HEIGHT_SIGMA }
         : { height: shown.sequenceHeight?.height ?? leveled.height, height_sigma: Math.max(leveled.height_sigma, RTK_SIGMA) };
-      const read = outlines.get(shown.sequence);  // CD21 : contour lu sur la séquence, sinon celui de sa monture
-      const outline = !shown.pose.fleet ? null : Array.isArray(read) ? read : shown.height ? OUTLINES[mountOf(shown.height)] : EITHER;
+      const read = neighboursOn ? outlines.get(shown.sequence) : null;  // CD21 : contour lu sur la séquence, sinon celui de sa monture
+      const outline = !shown.pose.fleet ? null : Array.isArray(read) ? read : parallax ? OUTLINES[mountOf(parallax)] : EITHER;
       const bend = neighboursOn ? seam?.bend ?? undefined : undefined;  // lignes calées (lineField) ou écarts restants (bendField)
       return { pose: { ...leveled, ...height, outline }, pano: shown.panos.get(pose.pic), at, fix, seam, bend };
     });
@@ -1471,6 +1472,7 @@ const Dessus = (() => {
     });
     $("#dessus-voisines").addEventListener("change", (event) => {
       neighboursOn = event.target.checked;
+      if (shown) applySettings(shown.sequence, shown.pic);  // tangage lu sur les raccords : seulement avec les voisines
       if (shown) loadNeighbours(abort.signal);
       cancelStart();  // le départ a été pris sur l'autre image
       if (shown?.url) showImage();
@@ -1589,13 +1591,14 @@ const Dessus = (() => {
     }
     if (old) setTimeout(() => URL.revokeObjectURL(old), 5000);
     const place = shown.terrain ? "Terrain LiDAR HD" : `Sol supposé plat (${pose.bridge ? "pont à proximité, LiDAR HD écarté" : shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
-    const own = !pitchManual && pitchOffset ? photoPitch(shown.sequence, shown.pic) : undefined;
-    const auto = !pitchManual && pitchOffset && own === undefined ? sequencePitch(shown.sequence) : null;
+    const parallax = neighboursOn ? shown.height : null;
+    const own = !pitchManual && pitchOffset && neighboursOn ? photoPitch(shown.sequence, shown.pic) : undefined;
+    const auto = !pitchManual && pitchOffset && neighboursOn && own === undefined ? sequencePitch(shown.sequence) : null;
     const tilt = pose.pending ? "inclinaison en calcul" : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${LEAN * (shown.lateral || 0) >= 0.5 ? `, virage : véhicule penché jusqu'à ${number(LEAN * shown.lateral, 1)}°` : ""}${pitchOffset || pitchManual ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? " réglé à la main" : own !== undefined ? " lu sur les raccords de la photo" : auto ? ` de la séquence, lu sur les raccords (${auto.count} photo${auto.count > 1 ? "s" : ""})` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain || !neighboursOn ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
-    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.height && shown.pose.fleet ? ` (monture ${mountOf(shown.height) === MOUNTS[0] ? "basse" : "haute"}, lue entre photos : ${number(shown.height, 2)} m)` : shown.height ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : neighboursOn && outlines.get(shown.sequence) === "reading" ? " ; contour du véhicule en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
+    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${parallax && shown.pose.fleet ? ` (monture ${mountOf(parallax) === MOUNTS[0] ? "basse" : "haute"}, lue entre photos : ${number(parallax, 2)} m)` : parallax ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : neighboursOn && outlines.get(shown.sequence) === "reading" ? " ; contour du véhicule en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
     if (positionOn && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
-    else if (!busy() && !shown.estimated) measureHeight();
+    else if (!busy() && neighboursOn && !shown.estimated) measureHeight();
     else if (!busy() && neighboursOn && layers.length > 1 && shown.joins?.key !== shown.joinKeyNow) alignJoins();
   }
 

@@ -31,7 +31,8 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
 - avec l'interrupteur **« Véhicule masqué »** (éteint par défaut), les photos précédente et suivante de la séquence,
   chacune avec sa propre pose : elles comblent le sol sous le véhicule (masque au plus près, § 2), et entraînent les raccords
   (§ 4.3), le tangage lu sur les raccords (§ 4.1) et la hauteur lue entre photos (§ 4.2). Éteint, la photo affichée
-  seule : véhicule visible, rien à lire de plus.
+  seule : véhicule visible, rien à lire de plus, et rien de ce qui a été lu avec les voisines n'est appliqué (tangage,
+  hauteur entre photos, contour lu : gardés pour la rallumer sans tout refaire).
 
 **Calcul (`render`, WebGL) :**
 
