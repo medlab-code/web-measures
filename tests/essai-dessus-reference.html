@@ -88,6 +88,15 @@ async function open(id, enough = () => false) {
     await expect(`${name} : prête dans le délai`, !shown.late);
     await expect(`${name} : terrain LiDAR HD`, Boolean(now.terrain));
     await expect(`${name} : inclinaison connue`, Boolean(pose.up));
+    await expect(`${name} : roulis et tangage grisés sauf inclinaison par la route`, w.document.querySelector("#dessus-tangage").disabled === !pose.groundTilt
+      && w.document.querySelector("#dessus-devers").disabled === !pose.groundTilt, pose.groundTilt ? "route" : "verticales");
+    if (!pose.groundTilt) {  // verticales écartées : inclinaison par la route, réglettes actives
+      w.document.querySelector("#dessus-verticales").click();
+      for (let t = 0; t < 20 && w.document.querySelector("#dessus-tangage").disabled; t++) await sleep(250);
+      await expect(`${name} : sans calage par les verticales, roulis et tangage réglables`, Dessus.layersNow().layers[0].pose.groundTilt && !w.document.querySelector("#dessus-tangage").disabled);
+      w.document.querySelector("#dessus-verticales").click();
+      for (let t = 0; t < 20 && !w.document.querySelector("#dessus-tangage").disabled; t++) await sleep(250);
+    }
     if (read) await expect(`${name} : hauteur GPS RTK et décalage d'accord à 5 %`, Math.abs(read / pose.height - 1) < 0.05, `${number(100 * (read / pose.height - 1), 1)} %`);
     const joins = now.joins?.results || [], fixed = joins.filter((r) => r?.fix);
     await log(`  raccords (${number((now.joins?.ms || 0) / 1000, 1)} s) : ${joins.map((r) => (r ? `${number(100 * r.before, 1)} → ${number(100 * r.after, 1)} cm${r.fix ? "" : " (non gardé)"}, ${r.n} mesures` : "pas assez de sol commun")).join(" ; ") || "-"}`);

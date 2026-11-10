@@ -131,7 +131,9 @@ fixation peut être un peu de travers.
    08/11/2026 sur 30 vues : stable par séquence (+0,45 à +0,57°, +0,27 à +0,49°, −0,13 à −0,38° sur trois
    séquences), proche de 0 sur les vues calées par leurs verticales ; à +0,4° sur une vue, les écarts bruts aux
    raccords passent de 14,9 et 11,4 cm à 9,5 et 2,7 cm.
-4. Le curseur « Tangage », réglé à la main, prime ; avec le roulis, il est **retenu par séquence** dans le navigateur. Le calage du tangage sur l'orthophoto (lignes de peinture,
+4. Interrupteur « Calage par les verticales » (coché ; grisé sans verticales lues ou sans terrain LiDAR HD) : décoché, la photo
+   est inclinée par la route, comme sans verticales, roulis et tangage réglables à la main.
+5. Le curseur « Tangage », réglé à la main, prime ; avec le roulis, il est **retenu par séquence** dans le navigateur. Le calage du tangage sur l'orthophoto (lignes de peinture,
    20 cm) a été retiré : trop peu précis (0,1° trouvé là où l'œil voyait 0,5° sur la D33).
 
 **Limites :** le roulis ne se cale pas sur l'orthophoto (il absorberait tout écart de largeur). En agglomération,
