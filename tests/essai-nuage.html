@@ -28,7 +28,7 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
       const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
       w.mesures.openPhoto(f);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === id, 30000, "photo");
-      await sleep(4000);
+      await until(() => !doc.querySelector("#bords").disabled, 20000, "bouton « Profils »");
       doc.querySelector("#bords").click();
       await until(() => JSON.parse(app.fall_json() || "null")?.profile, 40000, "profil");
       doc.querySelector("#profil").click();
@@ -36,8 +36,9 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
       const dialog = doc.querySelector("#fenetre-profil"), button = doc.querySelector("#profil-nuage");
       expect(`${where} : « Analyse fine » active, « Végétation » grisée avant elle`, !button.disabled && doc.querySelector("#profil-vegetation").disabled);
       button.click();
-      await sleep(6000);  // en cours de lecture : barre d'avancement affichée, et remplie en partie
+      // en cours de lecture : barre d'avancement affichée, et remplie en partie
       const bar = doc.querySelector("#profil-nuage-barre");
+      await until(() => (!bar.hidden && bar.value > 0.1) || /points du sol|impossible/.test(doc.querySelector("#profil-nuage-etat").textContent), 30000, "avancement");
       log(`  en cours : barre ${bar.hidden ? "masquée" : bar.hasAttribute("value") ? Math.round(100 * bar.value) + " %" : "animée"} · ${doc.querySelector("#profil-nuage-etat").textContent}`);
       await until(() => /points du sol|impossible/.test(doc.querySelector("#profil-nuage-etat").textContent), 120000, "analyse fine");
       const state = doc.querySelector("#profil-nuage-etat").textContent;
