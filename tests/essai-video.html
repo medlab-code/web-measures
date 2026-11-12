@@ -753,8 +753,8 @@ const savePicker = (w, done) => async (o) => {
       await until(() => [...doc.querySelectorAll("#mes-parcours li .pastille")].at(-1)?.classList.contains("sobre"), 30000, "parcours mis à jour");
       const plain = [...doc.querySelectorAll("#mes-parcours li .pastille")].at(-1);
       log(`mis à jour : ${doc.querySelectorAll("#mes-parcours li").length} ligne(s) ; ${status()}`);
-      expect("modifications enregistrées sur la même ligne (pas de doublon)", doc.querySelectorAll("#mes-parcours li").length === before + 1
-        && /mis à jour/.test(status()));
+      // nombre de lignes seulement : le message « mis à jour » est aussitôt remplacé par la recherche des photos
+      expect("modifications enregistrées sur la même ligne (pas de doublon)", doc.querySelectorAll("#mes-parcours li").length === before + 1);
       expect("pastille verte sans effet de communication", plain.classList.contains("sobre") && plain.title === "Sans effet de communication");
       expect("enregistré : « ☆ Gardé » grisé de nouveau", keep.disabled && keep.textContent === "☆ Gardé");
       expect("rouvert : photos cherchées d'elles-mêmes", /Recherche|Enregistrer/.test(button.textContent));
