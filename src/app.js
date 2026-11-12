@@ -2644,7 +2644,7 @@
   /** Croix sélectionnable (App.pick_points : celles du mode en cours) à CROSS_PX pixels au plus du point (x, y) de la
    * visionneuse : un clic là la sélectionne (App.click, on_cross). En pixels, quel que soit le zoom ; le calcul ne
    * connaît que des degrés. */
-  const CROSS_PX = 8;  // 99 % des clics à la souris tombent à moins de 4,5 px (tests/mesure-souris.html, ticket #43)
+  const CROSS_PX = 8;  // 99 % des clics à la souris tombent à moins de 4,5 px (mesure à la souris, ticket #43)
   let crossAt = [];  // croix sélectionnables (drawViewerMarks) : [[cap, élévation]]
   function nearCross(x, y) {
     const view = psv?.getPosition?.();

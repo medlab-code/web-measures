@@ -176,7 +176,7 @@ de 47,5 à 53 s à 90 km/h. « Titre » (cochée, thème Compteurs) : carton au 
 cadre sombre en haut au centre, un peu écarté du bord, souligné d'un trait ambre, titre en gras et sous-titre plus clair
 centrés, descendu en fondu à l'entrée (0,3 à 0,9 s), effacé en fondu de 4 à 4,6 s ; texte libre (80 caractères) et sous-titre libre, ou,
 laissés vides, la route et les PR de départ et d'arrivée, et la date des photos ; « Rappel en incrustation » (décoché) :
-le titre en petit en haut à gauche ensuite, jusqu'à la fin ; champs grisés sans titre. Aperçu : `tests/apercu-titre.html`. « Compteur PR » (cochée à l'ouverture) : en bas à gauche, la route et
+le titre en petit en haut à gauche ensuite, jusqu'à la fin ; champs grisés sans titre. « Compteur PR » (cochée à l'ouverture) : en bas à gauche, la route et
 le PR ; les mètres défilent en continu, en rouleaux comme un compteur kilométrique (interpolés image par image entre
 les photos ; au passage d'un PR, l'ancien va jusqu'à son bout, puis le nouveau). Le PR de chaque photo est cherché à
 la préparation, sur la route du parcours (autre route après une bifurcation : cherchée une fois), avec les sections
@@ -879,10 +879,8 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 | `tests/test_calculs.py` | essais rapides des calculs, sans navigateur ni réseau (`python3 -m unittest discover -s tests`, quelques secondes avec `tests/coeur/`) |
 | `tests/navigateur.html` | essai de bout en bout dans un vrai navigateur |
 | `tests/essai-rtk.html`, `essai-largeur.html`, `essai-libre.html` | hauteur, largeur, mesure libre sur photos RTK, avec recalages |
-| `tests/inclinaison.html` | inclinaison automatique |
 | `tests/essai-calage.html` | calage de l'inclinaison : croix sélectionnée à 8 px près, au zoom fort |
 | `tests/essai-profil.html` | fond du graphique du profil en travers, sur des profils synthétiques (sans réseau) : 1 m ou 0,3 m sous le point le plus bas |
-| `tests/mesure-souris.html` | essai manuel : dispersion de la souris sur des cibles (ticket #43) |
 | `tests/inclinaison-terrain.html` | inclinaison par le terrain hors agglomération (option) |
 | `py/web_terrain.py` | inclinaison par le terrain hors agglomération : grille LiDAR HD, modèle de séquence |
 | `tools/serveur-essai.py` | serveur des essais : sert le site et affiche leur journal |
