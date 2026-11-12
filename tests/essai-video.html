@@ -119,7 +119,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       const mode = doc.querySelector("#video-mode");
       mode.value = "revue";
       mode.dispatchEvent(new w.Event("change"));
-      expect("mode Revue : quatre compteurs, sans rampe, sans allure", on(boxes) === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp"
+      expect("mode Revue : quatre compteurs, sans rampe, sans allure", on(boxes) === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp video-stabilisation"
         && doc.querySelector("#pres-vmax").disabled && !doc.querySelector("#video-vitesse").disabled, on(boxes));
       mode.value = "presentation";
       mode.dispatchEvent(new w.Event("change"));
@@ -584,7 +584,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("compteur de vitesse : 90 km/h en route", Math.abs(Math.max(...kmh) - 90) < 0.5, Math.max(...kmh));
       expect("compteur de vitesse : 0 pendant l'arrêt du tour", kmh.some((v) => v === 0) && kmh.indexOf(0, 50) > 0);
       expect("compteur de vitesse : lissé (20 km/h par image au plus)", jump <= 20, jump);
-      expect("compteur de vitesse : proposé, décoché", doc.querySelector("#video-compteur-vitesse") && !doc.querySelector("#video-compteur-vitesse").checked);
+      expect("compteur de vitesse : proposé, coché par le mode Présentation", doc.querySelector("#video-compteur-vitesse")?.checked);
       // Passage de 99 à 100 km/h : le chiffre des centaines arrive en glissant, zéros de tête masqués
       const dial = Object.assign(document.createElement("canvas"), { width: 960, height: 540 }), dctx = dial.getContext("2d");
       for (const [k, v] of [[0, 9], [1, 99.5], [2, 135]]) {
@@ -796,7 +796,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       select.dispatchEvent(new w.Event("change"));
       const info = doc.querySelector("#video-info").textContent;
       log("vidéo : " + info);
-      expect("vidéo : photos retenues, écart, durée et photos/s affichés", /^\d+ photos \(une tous les 1\d m\) · \d+ s · [\d.]+ photos\/s$/.test(info), info);
+      expect("vidéo : photos retenues, écart, durée et photos/s affichés", /^\d+ photos \(une tous les 1\d m\) · \d+ s · [\d.]+ photos\/s( au plus)?$/.test(info), info);
       const labels = [...doc.querySelector("#video-photos").options].map((o) => o.textContent);
       expect("écart de chaque choix affiché (1/2 : une tous les 10 m)", labels[1] === "Photos 1/2 · une tous les 10 m", labels[1]);
       const chosen = photos.filter((_, i) => i % 2 === 0 || i === photos.length - 1);
@@ -857,8 +857,9 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       doc.querySelector("#video-photos").value = "4";
       button.click();
       await until(() => !doc.querySelector("#parcours-video-arret").hidden, 10000, "calcul lancé (« ■ Arrêter » affiché)");
-      // Avancement lu dès qu'il paraît (avec la carte graphique, le calcul dure à peine quelques secondes)
-      await until(() => /image *[\u2007\d]*[1-9]/.test(status()), 30000, "avancement affiché");
+      // Avancement lu dès qu'il paraît (avec la carte graphique, le calcul dure à peine quelques secondes), après celui de
+      // la stabilisation (« Stabilisation avant le calcul de la vidéo : n % »)
+      await until(() => /image *[\u2007\d]*[1-9]/.test(status()), 60000, "avancement affiché");
       expect("avancement dans la ligne d'état", /Calcul de la vidéo en cours : image [\u2007\d]{5} \/ [\u2007\d]{5} \([\u2007\d]{3} %\)$/.test(status()), status());
       const statut = doc.querySelector("#statut");
       const bar = parseFloat(statut.style.getPropertyValue("--avancement"));
