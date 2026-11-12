@@ -15,7 +15,7 @@
 # Cache HTTP de Chrome gardé entre les essais (~/.cache/web-measures-essais) : photos et tuiles ne
 # viennent du réseau qu'une fois. Profil gardé lui aussi (~/.cache/web-measures-essais-profil) pour le cache de
 # l'application (BD TOPO, altitudes, morceaux de nuage LiDAR : sans lui, l'attente d'1 s par requête LiDAR à chaque
-# essai) ; stockage local vidé à chaque page ; essai-cache, qui vide ce cache, sur un profil jetable. Premier passage
+# essai) ; le reste du profil vidé à chaque page ; essai-cache, qui vide ce cache, sur un profil jetable. Premier passage
 # complet : supprimer ce profil. Le serveur d'essai sert le code du site sans cache (no-store) : les modifications
 # sont toujours prises.
 # Chrome est lancé dans son propre scope limité en mémoire et arrêté seul (jamais celui de l'utilisateur) ; le
@@ -53,7 +53,11 @@ fi
 echots() { printf '%-28s %5s s  %s\n' "$1" "$2" "$3"; }
 for page in $pages; do
   debut=$(date +%s)
-  rm -rf "$profil/Default/Local Storage" "$profil/Default/Session Storage" "$profil/Default/IndexedDB"  # comme un premier passage
+  # comme un premier passage : tout le profil retiré sauf le cache de l'application (Cache API, sous « Service Worker ») et
+  # le registre des quotas, sans lequel Chrome l'abandonne ; en retirer seulement le stockage local laissait des parcours
+  # vidéo d'un essai à l'autre (système de fichiers, etc.)
+  find "$profil" -mindepth 1 -maxdepth 2 ! -path "$profil/Default" ! -path "$profil/Default/Service Worker" \
+    ! -path "$profil/Default/WebStorage" -exec rm -rf {} + 2> /dev/null
   fichier=${page%%#*}; suite=${page#"$fichier"}; nom=${fichier}${suite:+-${suite#\#}}
   dossier=$profil
   [ "$fichier" = essai-cache ] && dossier=$(mktemp -d "$journaux/profil-XXXX")  # il vide le cache : profil jetable
