@@ -146,6 +146,9 @@ async function feature(id) {
     120000, "inclinaison") + " ms");
   log("état : " + state().quality);
   log("calage : " + state().calibration);
+  // Valeur reprise de l'ancienne page tests/inclinaison.html (plugin : 1,95° ±0,22°)
+  const tilt = parseFloat((/inclinaison ([\d,]+)°/.exec(state().calibration)?.[1] || "").replace(",", "."));
+  near("inclinaison automatique de Montbard", tilt, 1.95, 0.3);
   app.set_active(wasActive);
 
   // Pont de la RD111 (BD TOPO) : « Sur un pont » proposé, coché sur « Oui »

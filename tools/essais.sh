@@ -8,6 +8,7 @@
 #   tools/essais.sh rapide        # sans réseau, quelques secondes : pendant la mise au point
 #   tools/essais.sh birdeye       # vue du dessus : synthèse et 3 photos de référence (environ 1 min 30)
 #   tools/essais.sh complet       # toutes les pages automatiques hors vidéo : avant une fusion ou une publication
+#                                 (vue du dessus : 3 photos de référence ; les 7 : tools/essais.sh essai-dessus-reference)
 #   tools/essais.sh video         # pages de la vidéo (longues) : seulement si l'auteur le demande
 #   tools/essais.sh essai-ponts essai-dessus-reference#rapide   # pages choisies (#… : passé à la page)
 #
@@ -19,8 +20,8 @@
 
 RAPIDE="essai-dessus essai-profil"
 BIRDEYE="essai-dessus essai-dessus-reference#rapide"
-COMPLET="$RAPIDE navigateur essai-rtk essai-largeur essai-libre essai-releve inclinaison inclinaison-terrain
-  essai-calage essai-profil-pdf essai-cadastre essai-cache essai-ponts essai-bords essai-nuage essai-dessus-reference"
+COMPLET="$RAPIDE navigateur essai-rtk essai-largeur essai-libre essai-releve inclinaison-terrain
+  essai-calage essai-profil-pdf essai-cadastre essai-cache essai-ponts essai-bords essai-nuage essai-dessus-reference#rapide"
 VIDEO="essai-avancement-video essai-video essai-boucle essai-chassagne essai-format-video"
 PORT=8766 DELAI=900  # secondes au plus par page
 # Vrai processeur graphique (Vulkan) : WebGL environ 1,5 fois plus rapide qu'en logiciel (SwiftShader), mêmes résultats

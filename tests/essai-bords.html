@@ -26,6 +26,12 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       do await sleep(1000); while (busy() && Date.now() - t0 < 60000);
       if (busy()) log("  service lent : calcul toujours en cours après 60 s");
     };
+    // photo affichée, puis le temps que la BD TOPO dise si elle est sur un pont (bouton grisé)
+    const show = async (f) => {
+      w.mesures.openPhoto(f);
+      for (const t = Date.now(); w.mesures.psv?.getPictureMetadata?.()?.id !== f.id && Date.now() - t < 30000;) await sleep(250);
+      await sleep(1500);
+    };
     const pouilly = (await (await fetch("https://panoramax.ign.fr/api/search?ids=cd8cf3a0-6567-40f0-8805-94172a5dfc3c")).json()).features[0];
     const places = [[pouilly, 0, "Pouilly"]];
     for (const id of BRIDGES) {
@@ -33,12 +39,11 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       const [lon, lat] = b.geometry.coordinates, d = 0.0015;
       const near = (await (await fetch(`https://panoramax.ign.fr/api/search?limit=40&collections=${b.collection}&bbox=${lon - d},${lat - d},${lon + d},${lat + d}`)).json()).features;
       const far = near.map((f) => [f, Math.hypot((f.geometry.coordinates[0] - lon) * 75000, (f.geometry.coordinates[1] - lat) * 111000)])
-        .filter(([, m]) => m > 30 && m < 120).sort((a, c) => a[1] - c[1]).filter((_, k) => k % 3 === 0).slice(0, 3);  // 3 photos par pont : essai court
+        .filter(([, m]) => m > 30 && m < 120).sort((a, c) => a[1] - c[1]).slice(0, 1);  // 1 photo par pont (la plus proche, à plus de 30 m) : essai court
       places.push(...far.map(([f, m]) => [f, m, `${Math.round(m)} m du pont ${id.slice(0, 8)}`]));
     }
     for (const [f, , where] of places) {
-      w.mesures.openPhoto(f);
-      await sleep(4000);
+      await show(f);
       const button = doc.querySelector("#bords");
       if (!button.disabled) button.click();
       await computed();
@@ -78,8 +83,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
     for (const [id, where] of [["2d55af6d-61f1-4ff1-a881-16bf27b2fef1", "La Roche-en-Brenil D15A"],
       ["229abfcd-868c-4eca-bfc1-3979ca94d28f", "La Roche-en-Brenil D70"]]) {
       const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
-      w.mesures.openPhoto(f);
-      await sleep(4000);
+      await show(f);
       doc.querySelector("#bords").click();
       await computed();
       log(`${where} ${id.slice(0, 8)} (30 m) : ${doc.querySelector("#chute").textContent.replace(/\n/g, " · ")}`);
@@ -115,8 +119,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       ["6d99cba2-2284-4215-a3fb-1fd390353005", "D1074 Pommard"], ["d63ace61-7261-4acb-93f9-788aed29cb23", "RD700 Couternon"],
       ["067e83ca-a3d8-4f2a-bbe6-0c10df70fc96", "RD700 Varois-et-Chaignot (glissières dos à dos)"]]) {
       const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
-      w.mesures.openPhoto(f);
-      await sleep(4000);
+      await show(f);
       doc.querySelector("#bords").click();
       await computed();
       const c = doc.querySelector("#chute"), found = (c.title.match(/Bords trouvés : (.*)\.$/) || [])[1] || "?";
@@ -128,8 +131,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
     // A38 à chaussées séparées (ticket #34) : du côté du terre-plein central, la plateforme va jusqu'au bord extérieur
     // de l'autre chaussée (son axe à ~12 m de la photo, 10 m de large)
     { const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=61dd94c4-e5d1-4eb0-9762-73a72f18b5cb")).json()).features[0];
-      w.mesures.openPhoto(f);
-      await sleep(4000);
+      await show(f);
       doc.querySelector("#bords").click();
       await computed();
       const c = doc.querySelector("#chute"), found = (c.title.match(/Bords trouvés : (.*)\.$/) || [])[1] || "?";
@@ -156,6 +158,8 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       } }
     log(`encadrés affichés : ${shown} · profils dessinés : ${drawn} · loupe : ${zoomed} · chaussées séparées : ${twin} · séparateur dans le relief : ${separated}`);
   } catch (e) { log("exception " + e); }
-  log(shown && drawn === shown - 1 && folded === drawn && butte && zoomed > 0 && twin && separated === 4 ? "FIN" : `ERREUR encadrés ${shown}, profils ${drawn}, légende pliable ${folded}`);  // le pont : pas de profil
+  const ok = shown && drawn === shown - 1 && folded === drawn && butte && zoomed > 0 && twin && separated === 4;  // le pont : pas de profil
+  await log(ok ? "contrôles : 7 réussis" : `ERREUR encadrés ${shown}, profils ${drawn}, légende pliable ${folded}`);
+  log("FIN");
 })();
 </script>

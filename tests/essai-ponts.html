@@ -36,7 +36,10 @@ const CASES = [["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "canal de Bourgogne", 4.
       expect("hauteur de chute au-dessus du " + what, h >= lo && h <= hi, `${h} m au lieu de ${lo} à ${hi} m`);
       // Même valeur sur les photos voisines du pont, de la même séquence
       const [lon, lat] = f.geometry.coordinates, d = 0.0006;
-      const near = (await (await fetch(`https://panoramax.ign.fr/api/search?bbox=${lon - d},${lat - d},${lon + d},${lat + d}&collections=${f.collection}&limit=30`)).json()).features;
+      const all = (await (await fetch(`https://panoramax.ign.fr/api/search?bbox=${lon - d},${lat - d},${lon + d},${lat + d}&collections=${f.collection}&limit=30`)).json()).features;
+      // 8 voisines réparties du pont jusqu'à ses abords, les plus éloignées comprises (talus de la culée, ticket #27) : essai court
+      const dist = (g) => Math.hypot(g.geometry.coordinates[0] - lon, g.geometry.coordinates[1] - lat);
+      const sorted = all.sort((a, b) => dist(a) - dist(b)), near = [...new Set([0, 1, 2, 3, 4, 5, 6, 7].map((k) => sorted[Math.round(k * (sorted.length - 1) / 7)]))];
       const seen = new Set();
       for (const other of near) {
         w.mesures.openPhoto(other);
@@ -46,7 +49,7 @@ const CASES = [["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "canal de Bourgogne", 4.
         const text = doc.querySelector("#chute");
         if (!text.hidden && /max :/.test(text.textContent)) seen.add(metres(text.textContent));
       }
-      log(`${what} : ${near.length} photos voisines, valeurs ${[...seen].join(" ; ")}`);
+      log(`${what} : ${near.length} photos voisines sur ${all.length}, valeurs ${[...seen].join(" ; ")}`);
       expect("même valeur sur tout le pont, " + what, seen.size === 1 && seen.has(h), [...seen].join(" "));
     }
     log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);

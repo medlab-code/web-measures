@@ -58,8 +58,11 @@ const ID = location.hash.startsWith("#photo=") ? location.hash.slice(7).split("#
     log(`feuille : ${sheet.scrollHeight} / ${sheet.clientHeight} px, réglages ${page.document.documentElement.getAttribute("style") || "aucun"}`);
     const html = "<!doctype html>" + page.document.documentElement.outerHTML;
     await log("PAGE " + btoa(unescape(encodeURIComponent(html))));
-    log(`terrain à l'impression : remplissage ${styled}`);
-    log(styled !== "none" ? "ERREUR styles non appliqués au moment d'imprimer" : fits ? "FIN" : "ERREUR feuille plus haute qu'une page, ou pas de 2e page");
+    await log(`terrain à l'impression : remplissage ${styled}`);
+    const failed = [styled !== "none" && "styles non appliqués au moment d'imprimer",
+                    !fits && "feuille plus haute qu'une page, ou pas de 2e page"].filter(Boolean);
+    await log(failed.length ? "ERREUR " + failed.join(" ; ") : "contrôles : 2 réussis");
+    log("FIN");
   } catch (e) { log("ERREUR " + (e.stack || e)); }
 })();
 </script>
