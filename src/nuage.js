@@ -46,11 +46,26 @@ const Nuage = (() => {
     return [xs + r * Math.sin(g), ys - r * Math.cos(g)];
   }
 
-  // Téléchargement des dalles : 1 requête par seconde au plus (en-tête x-ratelimit-limit-second du serveur)
+  // Téléchargement des dalles : 1 requête par seconde au plus (en-tête x-ratelimit-limit-second du serveur). Morceaux lus
+  // gardés dans le cache des services géographiques (src/app.js, GEO_CACHE : même taille maximale, même « Vider le
+  // cache ») : une dalle publiée ne change plus (nouvelle publication = nouvelle adresse), pas de durée de vie ; un
+  // morceau déjà lu revient sans requête ni attente. Le cache HTTP n'y suffit pas : sans ETag, Chrome ne garde pas
+  // les réponses partielles (essai du 12/11/2026).
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const count = { requests: 0, bytes: 0 };
-  let last = 0;
+  let last = 0, store = null;
+  const openStore = () => (store ??= window.caches ? caches.open("web-measures-geo").catch(() => null) : Promise.resolve(null));
   async function range(url, start, length) {
+    const key = `${url}?octets=${start}-${start + length - 1}`, cache = await openStore();
+    const hit = await cache?.match(key).catch(() => undefined);
+    if (hit) return new DataView(await hit.arrayBuffer());
+    const view = await download(url, start, length);
+    cache?.put(key, new Response(view.buffer.slice(0), { headers: {
+      "x-mis-en-cache": String(Date.now()), "x-vide": "0", "x-taille": String(view.byteLength) } }))
+      .catch((error) => console.warn("Cache :", error));
+    return view;
+  }
+  async function download(url, start, length) {
     for (let attempt = 0; ; attempt++) {
       const wait = last + 1100 - Date.now();
       if (wait > 0) await sleep(wait);

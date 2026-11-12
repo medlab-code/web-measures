@@ -103,6 +103,10 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
       await log(`IMAGE ${id.slice(0, 8)} ` + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));
       dialog.close();
     }
+    // Morceaux de dalles gardés (Nuage, range) : relus sans requête ni attente
+    const kept = (await (await w.caches.open("web-measures-geo")).keys()).filter((r) => r.url.includes("?octets=")).length;
+    expect("morceaux du nuage LiDAR gardés en cache", kept > 0, String(kept));
+    log(`  morceaux gardés : ${kept}`);
     log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
     log(failures ? "ERREUR" : "FIN");
   } catch (e) { log("ERREUR " + e); }
