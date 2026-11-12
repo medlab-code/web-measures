@@ -7,16 +7,13 @@
      tests/navigateur.html. -->
 <script>try { localStorage.clear(); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
+<script src="commun.js"></script>
 <script>
-const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
-let failures = 0, checks = 0;
-const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + (detail ? " : " + detail : "")); } };
+const { log, sleep, until, ready, expect, fail, fin } = Essai;
 (async () => {
   const w = document.getElementById("f").contentWindow;
   try {
-    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 180000, "Pyodide");
+    await ready(w);
     const doc = w.document;
     doc.querySelector("#reglages-defaut")?.close();
     // Écart à la D906 : sections de PR de la BD TOPO en Côte-d'Or, projection (Lieu.project)
@@ -77,10 +74,8 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     expect("étape : même parcours, sur la D906", via && Math.abs(via.photos.length - plan.photos.length) <= 0.02 * plan.photos.length && !off,
       `${via?.photos?.length} ${off}`);
   } catch (error) {
-    failures++;
-    log("ERREUR " + error + " " + (error.stack || "").split("\n")[1]);
+    fail("exception : " + error + " " + (error.stack || "").split("\n")[1]);
   }
-  log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
-  log(failures ? "ERREUR" : "FIN");
+  await fin();
 })();
 </script>

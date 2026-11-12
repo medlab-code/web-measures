@@ -7,12 +7,9 @@
 <script>try { localStorage.clear(); } catch {}</script>
 <!-- assez haute pour que la fenêtre du profil tienne dans la visionneuse (sinon elle défile : ses boutons bougent) -->
 <iframe id="f" src="../index.html" style="width:1400px;height:1300px"></iframe>
+<script src="commun.js"></script>
 <script>
-const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
-let failures = 0, checks = 0;
-const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + (detail ? " : " + detail : "")); } };
+const { log, sleep, until, ready, expect, fin } = Essai;
 // photo, milieu attendu du séparateur à gauche (m, d'après la photo et le relief), bord d'enrobé droit attendu (décision du 05/11/2026 : la chaussée est la bande d'enrobé, BAU comprise)
 // #photos=id,id : ces photos seulement, sans contrôle de position (essai d'une autre route)
 const PHOTOS = location.hash.startsWith("#photos=") ? location.hash.slice(8).split(",").map((id) => [id, id.slice(0, 8), null, null]) : null;
@@ -21,7 +18,7 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
 (async () => {
   const w = document.getElementById("f").contentWindow;
   try {
-    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 180000, "Pyodide");
+    await ready(w);
     const doc = w.document, app = w.mesures.app;
     doc.querySelector("#reglages-defaut")?.close();
     for (const [id, where, sepMid, rightEdge] of CASES) {
@@ -107,8 +104,7 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
     const kept = (await (await w.caches.open("web-measures-geo")).keys()).filter((r) => r.url.includes("?octets=")).length;
     expect("morceaux du nuage LiDAR gardés en cache", kept > 0, String(kept));
     log(`  morceaux gardés : ${kept}`);
-    log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
-    log(failures ? "ERREUR" : "FIN");
+    await fin();
   } catch (e) { log("ERREUR " + e); }
 })();
 </script>

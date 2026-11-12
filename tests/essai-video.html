@@ -15,11 +15,9 @@
   localStorage.setItem("web-measures/filtre", JSON.stringify({ since: "2025-07-05" }));
 } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
+<script src="commun.js"></script>
 <script>
-const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
-let failures = 0, checks = 0;
+const { log, sleep, until, ready, expect, fin } = Essai;
 const chronos = () => { const c = document.getElementById("f").contentWindow.eval("Video").times; return c ? `chronos (s) : tuiles ${(c.tuiles / 1000).toFixed(1)}, dessin ${(c.dessin / 1000).toFixed(1)}, encodeur ${(c.encodeur / 1000).toFixed(1)}, total ${(c.total / 1000).toFixed(1)} pour ${c.images} images` : ""; };
 // Boîte d'enregistrement simulée : vrai fichier du stockage privé de la page (mp4-muxer refuse un faux flux d'écriture),
 // done(fichier) appelé à sa fermeture
@@ -33,11 +31,10 @@ const savePicker = (w, done) => async (o) => {
   };
   return handle;
 };
-const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + (detail ? " : " + detail : "")); } };
 (async () => {
   const w = document.getElementById("f").contentWindow;
   try {
-    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 180000, "Pyodide");
+    await ready(w);
     const doc = w.document;
     const warn = w.console.warn.bind(w.console);
     w.console.warn = (...args) => { log("AVERT " + args.map(String).join(" ").slice(0, 300)); warn(...args); };
@@ -948,8 +945,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     expect("raccord : cap lissé autour du changement de séquence", jerk(trajet) <= jerk(plain) + 1e-9, `${jerk(trajet)} ${jerk(plain)}`);
     expect("exposition : retour progressif vers sa propre exposition", gains.slice(change + 1).every((g, i) => g >= gains[change + i] - 1e-9));
     }
-    log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
-    log(failures ? "ERREUR" : "FIN");
+    await fin();
   } catch (error) {
     log("ERREUR " + error + " " + (error.stack || ""));
   }

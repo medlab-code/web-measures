@@ -7,7 +7,10 @@
      l'autre. tools/serveur-essai.py 8766, puis ouvrir tests/essai-dessus-reference.html (plusieurs minutes). -->
 <style>body{margin:0}iframe{border:0;display:block}</style>
 <iframe id="f" src="about:blank" style="width:1400px;height:900px"></iframe>
+<script src="commun.js"></script>
 <script>
+const { log, sleep, expect, fin } = Essai;
+Essai.verbose = true;  // chaque contrôle journalisé
 const ALL_REFERENCES = [
   ["A38", "66d45404-a22d-4b07-8bc8-1f3edcdf1b8a"],
   ["RD 1074", "6f585daf-8e96-448d-9efb-2523927bc8c9"],
@@ -27,10 +30,6 @@ const REFERENCES = ONE ? [["photo", ONE]] : location.hash === "#rapide" ? ALL_RE
 const SHIFTS = { "D33": [0, 0.3], "D33 du 04/07": [0.5, 1.0] };
 const ONLY_SHIFT = new Set(["D33 du 04/07"]);
 const WAIT = 90000;  // ms par photo : photo, terrain, voisines et hauteur de caméra (une vingtaine de secondes d'ordinaire)
-const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
-let checks = 0, failures = 0;
-const expect = (what, ok, detail = "") => { checks++; if (!ok) failures++; return log(`${ok ? "" : "ÉCHEC "}${what}${detail ? ` (${detail})` : ""}`); };
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const frame = document.getElementById("f");
 const number = (v, d = 2) => (v == null || Number.isNaN(v) ? "-" : v.toFixed(d).replace(".", ","));
 
@@ -163,7 +162,6 @@ async function open(id, enough = () => false) {
     await expect(`${name} : vue recomposée`, Boolean(blob));
     if (blob) await fetch(`/capture/dessus-${name.replace(/\W+/g, "-")}.png`, { method: "POST", body: blob });
   }
-  await log(`contrôles : ${checks - failures} réussis sur ${checks}`);
-  await log(failures ? "ERREUR" : "FIN");
+  await fin();
 })().catch(async (error) => { await log("ERREUR " + error); });
 </script>

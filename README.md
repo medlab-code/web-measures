@@ -878,6 +878,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 | `tests/essai-profil-pdf.html` | profil en travers en PDF : la feuille tient sur une page (sa page HTML dans le journal) |
 | `tests/test_calculs.py` | essais rapides des calculs, sans navigateur ni réseau (`python3 -m unittest discover -s tests`, quelques secondes avec `tests/coeur/`) |
 | `tests/navigateur.html` | essai de bout en bout dans un vrai navigateur |
+| `tests/commun.js` | code commun des pages d'essai : journal, attentes de condition, contrôles et bilan (« contrôles : n réussis ») |
 | `tests/essai-rtk.html`, `essai-largeur.html`, `essai-libre.html` | hauteur, largeur, mesure libre sur photos RTK, avec recalages |
 | `tests/essai-calage.html` | calage de l'inclinaison : croix sélectionnée à 8 px près, au zoom fort |
 | `tests/essai-profil.html` | fond du graphique du profil en travers, sur des profils synthétiques (sans réseau) : 1 m ou 0,3 m sous le point le plus bas |

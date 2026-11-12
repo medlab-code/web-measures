@@ -7,11 +7,9 @@
      lit vers 314 m, route à 315,8 m (lu à 1 m du bord : 0 m). Lancer comme tests/navigateur.html. -->
 <script>try { localStorage.clear(); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:900px;border:0"></iframe>
+<script src="commun.js"></script>
 <script>
-const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-let failures = 0, checks = 0;
-const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + " " + detail); } };
+const { log, sleep, ready, expect, fail, fin } = Essai;
 const metres = (t) => { const m = /max : ([\d,]+) m/.exec(t || ""); return m ? parseFloat(m[1].replace(",", ".")) : NaN; };
 // Canal et Saône : nuage LiDAR ; ruisseau de la Gironde : pas de points classés pont, altitude GPS en secours
 const CASES = [["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "canal de Bourgogne", 4.8, 5.6],
@@ -20,8 +18,7 @@ const CASES = [["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "canal de Bourgogne", 4.
 (async () => {
   const w = document.getElementById("f").contentWindow;
   try {
-    const t0 = Date.now();
-    while (!(w.mesures?.app && w.mesures.map?.loaded?.())) { if (Date.now() - t0 > 120000) throw new Error("Pyodide"); await sleep(250); }
+    await ready(w);
     const doc = w.document;
     doc.querySelector("#reglages-defaut")?.close();
     for (const [id, what, lo, hi] of CASES) {
@@ -57,8 +54,7 @@ const CASES = [["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "canal de Bourgogne", 4.
       log(`${what} : ${opened} photos voisines sur ${all.length} (${valued} sur le pont), valeurs ${[...seen].join(" ; ")}`);
       expect("même valeur sur tout le pont, " + what, seen.size === 1 && seen.has(h), [...seen].join(" "));
     }
-    log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
-  } catch (e) { log("exception " + e); }
-  log("FIN");
+  } catch (e) { fail("exception : " + (e.stack || e)); }
+  await fin();
 })();
 </script>

@@ -6,16 +6,13 @@
      bouton « Vider le cache ». Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
 <script>try { localStorage.clear(); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:900px;border:0"></iframe>
+<script src="commun.js"></script>
 <script>
-const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-let failures = 0, checks = 0;
-const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + " " + detail); } };
+const { log, sleep, ready, expect, fail, fin } = Essai;
 (async () => {
   const w = document.getElementById("f").contentWindow;
   try {
-    const t0 = Date.now();
-    while (!(w.mesures?.app && w.mesures.map?.loaded?.())) { if (Date.now() - t0 > 120000) throw new Error("Pyodide"); await sleep(250); }
+    await ready(w);
     const doc = w.document;
     doc.querySelector("#reglages-defaut")?.close();
     const cache = await w.caches.open("web-measures-geo");
@@ -49,8 +46,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     log("après vidage : " + doc.querySelector("#vider-cache").textContent + " · " + (await cache.keys()).length + " réponse(s)");
     expect("cache vidé", (await cache.keys()).length === 0);
     expect("« Vider le cache » grisé, cache vide", doc.querySelector("#vider-cache").disabled);
-    log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
-  } catch (e) { log("exception " + e); }
-  log("FIN");
+  } catch (e) { fail("exception : " + (e.stack || e)); }
+  await fin();
 })();
 </script>

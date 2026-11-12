@@ -4,10 +4,10 @@
 <!-- Grille codec × définition de l'onglet Vidéo, avec les encodeurs du navigateur qui lance l'essai (Chrome, Firefox) :
      couleurs et grisés conformes au test, encodeur demandé bien utilisé. Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
 <iframe id="page" src="../index.html" style="width:1400px;height:900px"></iframe>
+<script src="commun.js"></script>
 <script>
-const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
-let checks = 0, failures = 0;
-const expect = (what, ok, detail = "") => { checks++; if (!ok) failures++; return log(`${ok ? "" : "ÉCHEC "}${what}${detail ? " : " + detail : ""}`); };
+const { log, expect, fin } = Essai;
+Essai.verbose = true;  // chaque contrôle journalisé
 const until = async (test, ms = 20000) => { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé"); await new Promise((r) => setTimeout(r, 100)); } };
 (async () => {
   const frame = document.querySelector("#page");
@@ -42,8 +42,6 @@ const until = async (test, ms = 20000) => { const t0 = Date.now(); while (!test(
   await expect("brouillon : toute la grille grisée", buttons().every((b) => b.disabled));
   draft.checked = false; draft.dispatchEvent(new Event("change", { bubbles: true }));
   await expect("hors brouillon : disponibles de nouveau", buttons().some((b) => !b.disabled));
-  await log(`contrôles : ${checks - failures} réussis`);
-  await log(failures ? `ERREUR ${failures} contrôle(s) en échec` : "FIN");
-  if (failures) await log("ERREUR");
+  await fin();
 })().catch((e) => log("ERREUR " + e.message));
 </script>

@@ -5,16 +5,13 @@
      (App.pick_points, on_cross), pas à 10 px, quel que soit l'angle que fait un pixel. Lancer comme tests/navigateur.html. -->
 <script>try { localStorage.clear(); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
+<script src="commun.js"></script>
 <script>
-const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
-let failures = 0, checks = 0;
-const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + (detail ? " : " + detail : "")); } };
+const { log, sleep, until, ready, expect, fin } = Essai;
 (async () => {
   const w = document.getElementById("f").contentWindow;
   try {
-    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 180000, "Pyodide");
+    await ready(w);
     const doc = w.document, app = w.mesures.app;
     for (const d of doc.querySelectorAll("dialog[open]")) d.close();
     const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=1108ca14-6669-49e8-a26a-955becc79e81")).json()).features[0];
@@ -46,8 +43,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     await sleep(300);
     const s = psv.dataHelper.viewerCoordsToSphericalCoords({ x: cx + 23, y: cy - 100 });
     expect("sommet déplacé", Math.abs(marks()[1][0] - s.yaw) < 1e-4 && !marks()[1][2], JSON.stringify(marks()));
-    log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
-    log(failures ? "ERREUR" : "FIN");
+    await fin();
   } catch (error) { log("ERREUR " + (error.stack || error)); }
 })();
 </script>

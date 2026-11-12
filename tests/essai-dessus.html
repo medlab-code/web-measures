@@ -7,10 +7,10 @@
 <div id="dessus-etat"></div>
 <script src="../src/video.js"></script>
 <script src="../src/dessus.js"></script>
+<script src="commun.js"></script>
 <script>
-const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
-let checks = 0, failures = 0;
-const expect = (what, ok, detail = "") => { checks++; if (!ok) failures++; return log(`${ok ? "" : "ÉCHEC "}${what}${detail ? " : " + detail : ""}`); };
+const { log, expect, fin } = Essai;
+Essai.verbose = true;  // chaque contrôle journalisé
 const toRad = Math.PI / 180;
 const unit = (x, y) => { const n = Math.hypot(x, y, 1); return [x / n, y / n, 1 / n]; };
 const pose = { pic: "p", lon: 5, lat: 47, heading: 37, offset: 1.5, up: unit(0.03, -0.02), sigma: 0.2, height: 2.4, height_sigma: 0.05, relative_sigma: 0.05, pending: false };
@@ -181,7 +181,6 @@ function centre(pixels, line, around) {
     Dessus.sourceOf([0, 0], ringLayers).pose !== ring[0].pose && Dessus.sourceOf([0, 3], ringLayers).pose === ring[0].pose);
   await expect("sans terrain : pas de mesure", Dessus.estimateHeight({ pano: pano0, pose: p0 }, [{ pano: pano1, pose: p1 }], null) === null);
   await expect("sans inclinaison : pas de mesure", Dessus.estimateHeight({ pano: pano0, pose: { ...p0, up: null } }, [{ pano: pano1, pose: p1 }], terrain) === null);
-  await log(`contrôles : ${checks - failures} réussis sur ${checks}`);
-  await log(failures ? "ERREUR" : "FIN");
+  await fin();
 })().catch(async (error) => { await log("ERREUR " + error); });
 </script>
