@@ -16,8 +16,8 @@
 # viennent du réseau qu'une fois. Profil gardé lui aussi (~/.cache/web-measures-essais-profil) pour le cache de
 # l'application (BD TOPO, altitudes, morceaux de nuage LiDAR : sans lui, l'attente d'1 s par requête LiDAR à chaque
 # essai) ; stockage local vidé à chaque page ; essai-cache, qui vide ce cache, sur un profil jetable. Premier passage
-# complet : supprimer ce profil. Le serveur d'essai
-# sert le code du site sans cache (no-store) : les modifications sont toujours prises.
+# complet : supprimer ce profil. Le serveur d'essai sert le code du site sans cache (no-store) : les modifications
+# sont toujours prises.
 # Chrome est lancé dans son propre scope limité en mémoire et arrêté seul (jamais celui de l'utilisateur) ; le
 # serveur est attendu par son numéro de processus (chercher son nom trouverait aussi la commande qui l'attend).
 
