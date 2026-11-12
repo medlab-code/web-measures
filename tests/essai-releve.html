@@ -580,8 +580,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       expect("modèle d'un KML : sans colonnes techniques ni position, liste pour les valeurs courtes seulement",
         listed.join(" | ") === "Name : texte | description : texte | Etat : liste de valeurs (bon, mauvais) | Observation : texte");
       box.querySelector('button[value=""]').click(); }
-    verdict();
+    await verdict();
   } catch (e) { log("ERREUR " + e + " " + (e.stack || "").split("\n")[1]); }
-  log("FIN");
+  await log("FIN");
 })();
 </script>

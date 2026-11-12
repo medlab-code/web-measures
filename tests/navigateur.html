@@ -520,7 +520,7 @@ async function feature(id) {
     log("pont de la D905 : " + state().quality + " · " + state().computed);
     expect("séquence vérifiée RTK depuis le pont", state().quality.includes("Position GPS vérifiée"));
   }
-  verdict();
-  log("FIN");
+  await verdict();
+  await log("FIN");
 })().catch((e) => log("ERREUR " + (e.stack || e)));
 </script>

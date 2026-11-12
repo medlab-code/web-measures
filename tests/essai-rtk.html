@@ -8,7 +8,7 @@
 <iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
 <script src="commun.js"></script>
 <script>
-const { log, sleep, until, ready, expect, near, metresIn, verdict } = Essai;
+const { log, sleep, until, soon, ready, expect, expectSoon, near, metresIn, verdict } = Essai;
 // Surcouche des mesures dessinée en WebGL (src/traits.js) : repères demandés, à l'écran ou non
 const traitsIn = () => document.getElementById("f").contentWindow.eval("Traits").items();
 const labelsIn = () => traitsIn().labels.map((l) => ({ textContent: l.text }));
@@ -63,10 +63,10 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "photo");
       const zoom0 = w.mesures.psv.getZoomLevel();
       await until(() => JSON.parse(app.state()).quality.includes("vérifiée"), 60000, "position vérifiée");
-      await sleep(1000);
       if (f === photos[1]) {  // visée suivante : vue tournée vers le pied placé par la première
-        await sleep(1500);
-        const pos = w.mesures.psv.getPosition(), wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+        const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+        await soon(() => Math.abs(wrap(w.mesures.psv.getPosition().yaw - yawTo(f, target))) < 0.1);  // animation du cadrage
+        const pos = w.mesures.psv.getPosition();
         expect("vue tournée vers le pied sur la 2e photo", Math.abs(wrap(pos.yaw - yawTo(f, target))) < 0.1,
           `cap ${pos.yaw.toFixed(3)} au lieu de ${yawTo(f, target).toFixed(3)}`);
         expect("zoom gardé pour viser le pied", Math.abs(w.mesures.psv.getZoomLevel() - zoom0) < 1, `zoom ${w.mesures.psv.getZoomLevel()} au lieu de ${zoom0}`);
@@ -150,8 +150,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     psvClick(yawTo(photos[1], target), 0.3);  // seul le sommet : le pied est la visée du point (-0,35)
     await until(() => doc.querySelector("#statut").textContent.startsWith("Hauteur :"), 30000, "hauteur");
     log("résultat : " + doc.querySelector("#statut").textContent);
-    await sleep(1000);
     const box = w.mesures.psv.container;
+    await soon(() => [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden"));
     log("dans la visionneuse : " + labelsIn().map((e) => e.textContent).join(" | ")
       + " · croix " + crossesIn() + " · sur la carte : "
       + JSON.parse(app.map_geojson()).features.map((f) => f.properties.kind).join(","));
@@ -164,7 +164,6 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       + " · bouton nouveau point : " + !doc.querySelector("#nouvelle-reference").hidden);
     w.mesures.openPhoto(photos[0]);
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "photo 1");
-    await sleep(1000);
     log("photo 1 : " + app.status().slice(0, 80));
     const d0 = Math.hypot(...metres(ref, p0));
     // Hauteur faite : un autre clic ne mesure pas, jusqu'à « Nouvelle mesure depuis A »
@@ -181,7 +180,6 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("2e hauteur : " + doc.querySelector("#statut").textContent.slice(0, 110));
     log("attendu sans inclinaison : " + (d0 * (Math.tan(0.2) + Math.tan(0.35))).toFixed(3) + " m");
     near("hauteur depuis la photo 1", metresIn(doc.querySelector("#statut").textContent), d0 * (Math.tan(0.2) + Math.tan(0.35)), 0.02);
-    await sleep(500);
     log("étiquettes : " + labelsIn().map((e) => e.textContent).join(" | "));
     if (location.hash === "#image") {  // vue avec sa surcouche WebGL (photo, puis traits, croix et étiquettes) en PNG
       const psv = w.mesures.psv;
@@ -201,8 +199,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     // Sur l'autre photo, seulement la hauteur qui y a été prise (ticket #24 : projetée, la 2e y serait décalée)
     w.mesures.openPhoto(photos[1]);
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[1].id, 30000, "retour photo 2");
-    await sleep(1000);
     const heights = () => JSON.parse(app.viewer_marks()).filter((m) => m.label.startsWith("↕"));
+    await soon(() => heights().length === 1);
     const second = () => heights().at(-1);  // sur la photo 1 : la 2e hauteur, seule à y avoir été prise
     log("sur la photo 2 : " + labelsIn().map((e) => e.textContent).join(" | ")
       + " · croix " + crossesIn(false));
@@ -215,7 +213,6 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     // Recalage au clic, sur la photo de la mesure
     w.mesures.openPhoto(photos[0]);
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "photo 1 bis");
-    await sleep(1000);
     const top = second().points[1];
     psvClick(top[0], top[1]);  // clic gauche sur la croix : sélection
     log("clic sur le sommet : " + doc.querySelector("#statut").textContent.slice(0, 60));
@@ -265,7 +262,6 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     for (const f of photos) {
       w.mesures.openPhoto(f);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "nouveau pied");
-      await sleep(1000);
       psvClick(yawTo(f, target), -0.35);
     }
     const third = (JSON.parse(app.state()).guide?.choices || [])[0];
@@ -275,9 +271,10 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       const f3 = await feature(third.id);
       w.mesures.openPhoto(f3);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f3.id, 30000, "3e photo");
-      await sleep(2500);  // animation du cadrage
       {  // vue tournée vers le point déjà triangulé par les deux premières visées
-        const pos = w.mesures.psv.getPosition(), wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+        const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+        await soon(() => Math.abs(wrap(w.mesures.psv.getPosition().yaw - yawTo(f3, target))) < 0.05);  // animation du cadrage
+        const pos = w.mesures.psv.getPosition();
         const gap = wrap(pos.yaw - yawTo(f3, target));
         log(`3e photo : vue au cap ${pos.yaw.toFixed(3)}, point à ${yawTo(f3, target).toFixed(3)} (écart ${gap.toFixed(3)} rad)`);
         expect("3e visée : vue tournée vers le point triangulé", Math.abs(gap) < 0.05, gap.toFixed(3));
@@ -291,7 +288,6 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       const f3 = photos[0];
       w.mesures.openPhoto(f3);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f3.id, 30000, "photo de la couche");
-      await sleep(1000);
       const geojson = { type: "FeatureCollection", features: [
         { type: "Feature", properties: { nom: "cible", h: 1.5 }, geometry: { type: "Point", coordinates: target } },
         { type: "Feature", properties: { nom: "ligne", h: 2 }, geometry: { type: "LineString", coordinates: [target, mid] } },
@@ -310,7 +306,10 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       doc.querySelector("#couche-couleur").value = "nom";
       doc.querySelector("#couche-couleur").dispatchEvent(new Event("change"));
       const flat = JSON.parse(app.overlay_marks()).find((m) => m.kind === "point")?.points[0][1];  // en attendant le LiDAR : à plat
-      await sleep(4000);  // altitudes du sol lues sous la caméra et la couche
+      await soon(() => {  // altitudes du sol lues sous la caméra et la couche
+        const m = JSON.parse(app.overlay_marks()), p = m.find((x) => x.kind === "point");
+        return m.length === 4 && p && Math.abs(p.points[0][1] - flat) > 1e-4;
+      }, 15000);
       const marks = JSON.parse(app.overlay_marks());
       const point = marks.find((m) => m.kind === "point");
       const gap = point ? Math.abs(Math.atan2(Math.sin(point.points[0][0] - yawTo(f3, target)), Math.cos(point.points[0][0] - yawTo(f3, target)))) : 9;
@@ -319,7 +318,14 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       expect("couche : points et ligne projetés, point sur la cible", marks.length === 4 && gap < 0.02);
       // Étiquettes écartées ; texte seul, sans fond ni transparence
       w.mesures.psv.needsUpdate();
-      await sleep(600);
+      const mapOverlapsNow = () => {  // étiquettes de la couche qui se chevauchent sur la mini-carte
+        const r = [...w.mesures.map.getContainer().querySelectorAll(".etiquette.couche")]
+          .filter((e) => e.style.visibility !== "hidden").map((e) => e.getBoundingClientRect());
+        return r.reduce((n, a, i) => n + r.slice(i + 1).filter((b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top).length, 0);
+      };
+      await soon(() => !w.mesures.map.isMoving() && w.mesures.map.getContainer().querySelectorAll(".etiquette.couche").length === 4
+        && mapOverlapsNow() === 0, 10000);  // carte cadrée sur la couche, étiquettes écartées
+      await sleep(600);  // placement des étiquettes
       const shown = [...box.querySelectorAll(".etiquette.couche")].filter((e) => e.style.visibility !== "hidden");
       const rects = shown.map((e) => e.getBoundingClientRect()).filter((r) => r.width);
       let overlaps = 0;
@@ -388,15 +394,14 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         const inPhoto = () => box.querySelectorAll(".pastille-couche[data-objet]").length;
         const [map0, photo0] = [onMap(), inPhoto()];
         eyeOf("p3").click();
-        await sleep(400);
+        await soon(() => onMap() === map0 - 1 && inPhoto() === photo0 - 1);
         const [map1, photo1] = [onMap(), inPhoto()];
         const kept = JSON.parse(w.localStorage.getItem("web-measures/couche")).masques?.nom;
         log(`couche, valeur p3 masquée : carte ${map0} → ${map1}, photo ${photo0} → ${photo1}, gardé ${JSON.stringify(kept)}`);
         expect("couche : valeur masquée par son œil (carte, photo, gardé)", map1 === map0 - 1 && photo1 === photo0 - 1
           && kept?.length === 1 && doc.querySelector("#couche-legende li.masquee")?.textContent === "p3");
         eyeOf("p3").click();
-        await sleep(400);
-        expect("couche : valeur réaffichée", onMap() === map0 && inPhoto() === photo0 && !doc.querySelector("#couche-legende li.masquee"));
+        await expectSoon("couche : valeur réaffichée", () => onMap() === map0 && inPhoto() === photo0 && !doc.querySelector("#couche-legende li.masquee"));
       }
       // Recalage d'un objet dans la photo, hors mesure : clic sur sa pastille, clic à sa nouvelle place,
       // ↑ (0,05°), Entrée ; puis Suppr le remet à sa place calculée. La carte n'est pas touchée.
@@ -442,22 +447,20 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       const visible = doc.querySelector("#couche-visible");
       visible.checked = false;
       visible.dispatchEvent(new Event("change"));
-      await sleep(300);
-      expect("couche masquée par la case", !box.querySelector(".etiquette.couche") && !box.querySelector(".pastille-couche")
+      await expectSoon("couche masquée par la case", () => !box.querySelector(".etiquette.couche") && !box.querySelector(".pastille-couche")
         && !w.mesures.map.getSource("couche").serialize().data.features.length
         && JSON.parse(w.localStorage.getItem("web-measures/couche")).visible === false);
       visible.checked = true;
       visible.dispatchEvent(new Event("change"));
-      await sleep(300);
-      expect("couche réaffichée par la case", !!box.querySelector(".pastille-couche"));
+      await expectSoon("couche réaffichée par la case", () => !!box.querySelector(".pastille-couche"));
       const kept = JSON.parse(w.localStorage.getItem("web-measures/couche") || "null");
       expect("couche gardée dans le navigateur avec ses réglages", kept?.features?.length === 4 && kept.couleur === "nom" && kept.etiquette === "nom");
       doc.querySelector("#couche-retirer").click();
       expect("couche retirée du navigateur", !w.localStorage.getItem("web-measures/couche"));
       expect("couche retirée", JSON.parse(app.overlay_marks()).length === 0 && !box.querySelector(".etiquette.couche"));
     }
-    verdict();
+    await verdict();
   } catch (e) { log("ERREUR " + e); }
-  log("FIN");
+  await log("FIN");
 })();
 </script>

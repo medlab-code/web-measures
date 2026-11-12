@@ -421,8 +421,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       expect("mesure revue : vue tournée vers elle", Math.abs(Math.atan2(Math.sin(pos.yaw - yaw), Math.cos(pos.yaw - yaw))) < 0.02);
       expect("mesure revue : étiquette de sa valeur", labels.includes(first.etiquette), JSON.stringify(labels));
     }
-    verdict();
+    await verdict();
   } catch (e) { log("ERREUR " + e); }
-  log("FIN");
+  await log("FIN");
 })();
 </script>

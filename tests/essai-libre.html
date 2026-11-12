@@ -154,8 +154,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await until(() => w.document.readyState === "complete" && w.document.querySelector("#precedents"), 60000, "2e rechargement");
     await sleep(500);
     expect("résultats précédents oubliés après une session sans export", w.document.querySelector("#precedents").hidden);
-    verdict();
+    await verdict();
   } catch (e) { log("ERREUR " + e); }
-  log("FIN");
+  await log("FIN");
 })();
 </script>
