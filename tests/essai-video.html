@@ -21,6 +21,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
 let failures = 0, checks = 0;
 const chronos = () => { const c = document.getElementById("f").contentWindow.eval("Video").times; return c ? `chronos (s) : tuiles ${(c.tuiles / 1000).toFixed(1)}, dessin ${(c.dessin / 1000).toFixed(1)}, encodeur ${(c.encodeur / 1000).toFixed(1)}, total ${(c.total / 1000).toFixed(1)} pour ${c.images} images` : ""; };
+// Boîte d'enregistrement simulée : vrai fichier du stockage privé de la page (mp4-muxer refuse un faux flux d'écriture),
+// done(fichier) appelé à sa fermeture
+const savePicker = (w, done) => async (o) => {
+  const handle = await (await w.navigator.storage.getDirectory()).getFileHandle(o.suggestedName, { create: true });
+  const open = handle.createWritable.bind(handle);
+  handle.createWritable = async () => {
+    const stream = await open(), close = stream.close.bind(stream);
+    stream.close = async () => { await close(); done(await handle.getFile()); };
+    return stream;
+  };
+  return handle;
+};
 const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + (detail ? " : " + detail : "")); } };
 (async () => {
   const w = document.getElementById("f").contentWindow;
@@ -79,7 +91,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       w.fetch = (url, options = {}) => (hold && /\/tiles\//.test(String(url))
         ? new Promise((_, reject) => options.signal?.addEventListener("abort", () => reject(options.signal.reason)))
         : pass(url, options));
-      w.showSaveFilePicker = async (o) => ({ name: o.suggestedName, createWritable: async () => ({ write: async () => {}, close: async () => { closed = true; } }) });
+      w.showSaveFilePicker = savePicker(w, () => { closed = true; });
       const dialog = doc.querySelector("#video-attente");
       const t0 = Date.now();
       button.click();
@@ -853,7 +865,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("« Flou cinétique » proposé, décoché par défaut", doc.querySelector("#video-flou") && !doc.querySelector("#video-flou").checked);
       // « 🎬 Enregistrer la vidéo » : boîte d'enregistrement simulée, avancement dans la ligne d'état, fichier écrit
       let written = null, closed = false;
-      w.showSaveFilePicker = async (o) => ({ name: o.suggestedName, createWritable: async () => ({ write: async (b) => { written = b; }, close: async () => { closed = true; } }) });
+      w.showSaveFilePicker = savePicker(w, (file) => { written = file; closed = true; });
       doc.querySelector("#video-photos").value = "4";
       button.click();
       await until(() => !doc.querySelector("#parcours-video-arret").hidden, 10000, "calcul lancé (« ■ Arrêter » affiché)");
@@ -906,8 +918,9 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       const lastPhoto = cross?.photos?.[cross.photos.length - 1];
       log(`carrefour : ${cross?.photos?.length} photos, ${cross?.switches} changement(s), dernière à ${lastPhoto ? dist(lastPhoto.coords, B).toFixed(0) : "?"} m ; ${status()} | ${doc.querySelector("#video-info").textContent}`);
       expect("carrefour : changement de séquence trouvé", cross?.switches >= 1);
-      expect("carrefour : signalé dans la ligne d'état (en orange) et sous les listes", /séquences/.test(status())
-        && doc.querySelector("#statut").classList.contains("avertissement") && /⚠/.test(doc.querySelector("#video-info").textContent));
+      // (plus répété sous les listes depuis 0.7.6)
+      expect("carrefour : signalé dans la ligne d'état (en orange)", /séquences/.test(status())
+        && doc.querySelector("#statut").classList.contains("avertissement"));
       expect("carrefour : arrivée atteinte (moins de 10 m)", lastPhoto && dist(lastPhoto.coords, B) < 10);
       // Exposition accordée au changement de séquence : juillet 1,5 fois plus clair que mai sur le tour d'horizon (1,58 au
       // même endroit dans le même sens) : gain de la première photo de juillet ~ 1 / 1,5, puis retour vers 1 en 100 m
