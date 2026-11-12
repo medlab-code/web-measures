@@ -4,7 +4,7 @@
 // Code commun des pages d'essai (tests/*.html) : journal envoyé au serveur d'essai (tools/serveur-essai.py),
 // attentes de condition, contrôles et bilan. Le lanceur (tools/essais.sh) lit la dernière ligne « contrôles : n
 // réussis » ou « ERREUR … » ; le serveur s'arrête sur « FIN » ou « ERREUR ».
-//   const { log, sleep, until, soon, expect, near, fin } = Essai;
+//   const { log, sleep, until, soon, expect, expectSoon, near, fin } = Essai;
 const Essai = (() => {
   // Journal : envoyé au serveur d'essai, et sous la page si elle a un élément #log
   const log = (t) => {
@@ -39,12 +39,16 @@ const Essai = (() => {
   };
   const near = (what, value, expected, tol) =>
     expect(what, Math.abs(value - expected) <= tol, `${value} au lieu de ${expected.toFixed(3)} (±${tol})`);
+  // Contrôle d'un état attendu après une action : condition attendue jusqu'au délai, puis contrôlée ; detail peut être
+  // une fonction, lue après l'attente. Un contrôle « rien ne change » garde une attente fixe (sa condition est déjà vraie).
+  const expectSoon = async (what, test, detail = "", ms = 5000) =>
+    expect(what, await soon(test, ms), typeof detail === "function" ? detail() : detail);
   // Échec hors contrôle (exception, état inattendu) : compté et journalisé
   const fail = (what) => { failures++; return log("ÉCHEC " + what); };
   const metresIn = (text) => Number(((text || "").match(/(\d+,\d+) m\b/) || [])[1]?.replace(",", "."));
   const verdict = () => log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
   // Bilan puis fin de la page
   const fin = async () => { await verdict(); await log(failures ? "ERREUR" : "FIN"); };
-  return { log, sleep, until, soon, ready, expect, near, fail, metresIn, verdict, fin, verbose: false,
+  return { log, sleep, until, soon, ready, expect, expectSoon, near, fail, metresIn, verdict, fin, verbose: false,
     get failures() { return failures; }, get checks() { return checks; } };
 })();

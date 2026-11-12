@@ -8,7 +8,7 @@
 <iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
 <script src="commun.js"></script>
 <script>
-const { log, sleep, until, ready, expect, near, verdict } = Essai;
+const { log, sleep, until, soon, ready, expect, expectSoon, near, verdict } = Essai;
 // Surcouche des mesures dessinée en WebGL (src/traits.js) : repères demandés, à l'écran ou non
 const traitsIn = () => document.getElementById("f").contentWindow.eval("Traits").items();
 const labelsIn = () => traitsIn().labels.map((l) => ({ textContent: l.text }));
@@ -40,7 +40,6 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       w.mesures.openPhoto(f);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "photo");
       await until(() => JSON.parse(app.state()).quality.includes("vérifiée"), 60000, "position vérifiée");
-      await sleep(800);
     };
     const shown = (id) => !doc.querySelector(id).hidden;
     // Mini-carte : points de repère et bornes sur tous les fonds, selon le réglage « Bornes des PR sur la carte »
@@ -65,15 +64,14 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     // 1er objet : triangulé depuis les deux photos ; après la première visée, la question d'une seule photo
     await open(photos[0]);
     psvClick(yawTo(photos[0], target), pitchTo(photos[0], target));
-    await sleep(300);
+    await soon(() => shown("#garder-seul") && /± \d+,\d+ m/.test(doc.querySelector("#garder-seul").textContent));
     log("1 visée : " + doc.querySelector("#garder-seul").textContent + " · " + doc.querySelector("#statut").textContent);
     if (location.hash === "#capture") { log("CAPTURE"); await sleep(5000); }  // question d'une seule photo
     expect("une visée : « Garder sur cette seule photo » proposé avec sa précision", shown("#garder-seul")
       && /± \d+,\d+ m/.test(doc.querySelector("#garder-seul").textContent));
     await open(photos[1]);
     psvClick(yawTo(photos[1], target), pitchTo(photos[1], target));
-    await sleep(300);
-    expect("deux visées : plus de proposition d'une seule photo", !shown("#garder-seul") && shown("#garder"));
+    await expectSoon("deux visées : plus de proposition d'une seule photo", () => !shown("#garder-seul") && shown("#garder"));
     doc.querySelector("#garder").click();
     const dialog = doc.querySelector("#releve-objet");
     await until(() => dialog.open, 5000, "fenêtre des champs");
@@ -98,8 +96,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       && doc.querySelector("#releve-modele-retirer").disabled && doc.querySelector("#releve-modeles-exporter").disabled
       && !doc.querySelector("#releve-modeles-importer").disabled && !shown("#releve-garder-modele"));
     modelFile("faux.json", "pas du JSON");
-    await sleep(200);
-    expect("fichier sans modèle refusé", shown("#releve-erreur") && !models().length, doc.querySelector("#releve-erreur").textContent);
+    await expectSoon("fichier sans modèle refusé", () => shown("#releve-erreur") && !models().length, () => doc.querySelector("#releve-erreur").textContent);
     modelFile("modeles-releve.json", { format: "web-measures/modeles-releve", modeles: [
       { nom: "Vieux", champs: [{ nom: "etat", type: "texte", valeurs: [] }] },
       { nom: "Bornes", champs: [{ nom: "distance_bord_m", type: "nombre", valeurs: [] }] },
@@ -112,8 +109,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     doc.querySelector("#releve-modele-retirer").click();
     await until(() => doc.querySelector("#retirer-modele").open, 3000, "fenêtre Retirer le modèle");
     doc.querySelector('#retirer-modele button[value="retirer"]').click();
-    await sleep(200);
-    expect("modèle retiré, retrait grisé", models().map((m) => m.nom).join() === "Bornes" && doc.querySelector("#releve-modele-retirer").disabled
+    await expectSoon("modèle retiré, retrait grisé", () => models().map((m) => m.nom).join() === "Bornes" && doc.querySelector("#releve-modele-retirer").disabled
       && dialog.open);
     // Modèle de nombreux champs choisi fenêtre ouverte : la fenêtre se replace, boutons dans l'écran
     modelFile("grand.json", { format: "web-measures/modeles-releve", modeles: [{ nom: "Grand",
@@ -135,8 +131,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       && rows()[0].querySelector(".type").value === "nombre" && !shown("#releve-garder-modele"));
     setRow(rows()[0], "incert_m", "texte");  // colonne automatique : refusée
     doc.querySelector("#releve-enregistrer").click();
-    await sleep(200);
-    expect("nom de colonne réservé refusé", shown("#releve-erreur") && dialog.open, doc.querySelector("#releve-erreur").textContent);
+    await expectSoon("nom de colonne réservé refusé", () => shown("#releve-erreur") && dialog.open, () => doc.querySelector("#releve-erreur").textContent);
     setRow(rows()[0], "distance_bord_m", "nombre");
     doc.querySelector("#releve-ajouter").click();
     setRow(rows()[1], "essence", "liste", "chêne ; tilleul");
@@ -155,8 +150,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     if (location.hash === "#capture") { log("CAPTURE"); await sleep(5000); }  // capture par CDP (fenêtre des champs)
     doc.querySelector("#releve-enregistrer").click();
     await until(() => !dialog.open, 15000, "fenêtre fermée (lieu lu)");
-    await sleep(300);
-    expect("modèle « Arbres » gardé avec les trois champs", models().map((m) => m.nom).join() === "Arbres,Bornes"
+    await expectSoon("modèle « Arbres » gardé avec les trois champs", () => models().map((m) => m.nom).join() === "Arbres,Bornes"
       && models()[0].champs.map((f) => f.nom).join() === "distance_bord_m,essence,classe" && models()[0].champs[1].valeurs.join() === "chêne,tilleul");
     let objects = JSON.parse(app.results()).filter((r) => r.releve);
     log("résultats : " + objects.map((r) => r.text).join(" | "));
@@ -164,7 +158,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     // 2e objet : une seule visée, gardé sur cette photo ; les champs ne se redéfinissent pas
     const target2 = [target[0] + 6 * Math.sin(along) / kx, target[1] + 6 * Math.cos(along) / 111320];
     psvClick(yawTo(photos[1], target2), pitchTo(photos[1], target2));
-    await sleep(300);
+    await soon(() => JSON.parse(app.state()).single_m > 0);
     const single = JSON.parse(app.state()).single_m;
     log("seule photo : ±" + single + " m · " + doc.querySelector("#garder-seul").textContent);
     expect("objet sur une seule photo : précision de l'ordre du mètre au plus", single > 0 && single < 1.5, String(single));
@@ -186,7 +180,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     if (location.hash === "#capture") { log("CAPTURE"); await sleep(5000); }
     doc.querySelector("#releve-enregistrer").click();
     await until(() => !dialog.open, 15000, "fenêtre fermée (2)");
-    await sleep(300);
+    await soon(() => JSON.parse(app.export_geojson(true)).features.length === 2);
     const geo = JSON.parse(app.export_geojson(true));
     const [a, b] = geo.features;
     log("export : " + JSON.stringify(geo.features.map((f) => f.properties)));
@@ -232,10 +226,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         stamps[suggestedName] = Date.now();
       }, close: async () => {} }) });
     doc.querySelector("#releve-couche").click();
-    await sleep(500);
-    expect("relevé envoyé dans Couche", doc.querySelector("#couche-nom").textContent.startsWith("Relevé du")
-      && w.mesures.map.getSource("couche").serialize().data.features.length === 2 && !doc.querySelector("#couche").hidden,
-      doc.querySelector("#couche-nom").textContent);
+    await expectSoon("relevé envoyé dans Couche", () => doc.querySelector("#couche-nom").textContent.startsWith("Relevé du")
+      && w.mesures.map.getSource("couche").serialize().data.features.length === 2 && !doc.querySelector("#couche").hidden, () => doc.querySelector("#couche-nom").textContent);
     // « Enregistrer » : relevé dans aucun fichier encore, donc actif ; Enregistrer sous, puis grisé
     expect("relevé envoyé : « Enregistrer » actif", !doc.querySelector("#couche-enregistrer").disabled);
     doc.querySelector("#couche-enregistrer").click();
@@ -268,7 +260,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     doc.querySelector("#couche-etiquette").dispatchEvent(new Event("change"));
     doc.querySelector("#couche-intitule").checked = true;
     doc.querySelector("#couche-intitule").dispatchEvent(new Event("change"));
-    await sleep(300);
+    await soon(() => labels().includes("essence : tilleul"));
     log("étiquettes : " + labels());
     expect("étiquettes avec l'intitulé du champ", labels().includes("essence : tilleul") && !doc.querySelector("#couche-intitule").disabled, labels());
     expect("case de l'intitulé gardée avec la couche", JSON.parse(w.localStorage.getItem("web-measures/couche")).intitule === true);
@@ -277,42 +269,42 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       doc.querySelector("#couche-etiquette2").dispatchEvent(new Event("change"));
       doc.querySelector("#couche-suffixe2").value = "visées";
       doc.querySelector("#couche-suffixe2").dispatchEvent(new Event("input"));
-      await sleep(300);
+      await soon(() => /essence : tilleul\n\d+ visées/.test(labels()));
       log("deux étiquettes : " + labels().replace(/\n/g, " ⏎ "));
       expect("2e étiquette sur une 2e ligne", /essence : tilleul\n\d+ visées/.test(labels()) && !doc.querySelector("#couche-intitule2").disabled, labels());
       expect("2e étiquette gardée avec la couche", JSON.parse(w.localStorage.getItem("web-measures/couche")).suffixe2 === "visées");
       doc.querySelector("#couche-etiquette2").value = "";
       doc.querySelector("#couche-etiquette2").dispatchEvent(new Event("change"));
-      await sleep(300);
-      expect("sans 2e étiquette : une ligne", !labels().includes("\n") && doc.querySelector("#couche-suffixe2").disabled, labels());
+      await expectSoon("sans 2e étiquette : une ligne", () => !labels().includes("\n") && doc.querySelector("#couche-suffixe2").disabled, () => labels());
     }
     doc.querySelector("#couche-etiquette").value = "distance_bord_m";
     doc.querySelector("#couche-etiquette").dispatchEvent(new Event("change"));
     doc.querySelector("#couche-suffixe").value = "m";
     doc.querySelector("#couche-suffixe").dispatchEvent(new Event("input"));
-    await sleep(300);
+    await soon(() => labels() === "distance_bord_m : 2,4 m | distance_bord_m : 3 m");
     log("étiquettes : " + labels());
     expect("texte après la valeur", labels() === "distance_bord_m : 2,4 m | distance_bord_m : 3 m", labels());
     expect("mini-carte : colonne « id » par défaut, étiquettes indépendantes de la visionneuse", doc.querySelector("#couche-etiquette-carte").value === "id"
       && w.mesures.map.getSource("couche").serialize().data.features.map((f) => f.properties._etiquette_carte).join() === "1,2");
     doc.querySelector("#couche-etiquette-carte").value = "classe";
     doc.querySelector("#couche-etiquette-carte").dispatchEvent(new Event("change"));
-    await sleep(300);
-    { const m = w.mesures.map; m.jumpTo({ center: target, zoom: 18 }); await sleep(800);
+    { const m = w.mesures.map; m.jumpTo({ center: target, zoom: 18 });
+      await soon(() => m.getContainer().querySelector(".maplibregl-marker .etiquette.couche")
+        && m.getSource("couche").serialize().data.features.map((f) => f.properties._etiquette_carte).join() === "panneau,borne");
       const size = w.getComputedStyle(m.getContainer().querySelector(".maplibregl-marker .etiquette.couche")).fontSize;
       expect("étiquettes de la couche sur la mini-carte : 15 px", size === "15px", size); }
     expect("mini-carte : autre colonne choisie, gardée avec la couche", w.mesures.map.getSource("couche").serialize().data.features
       .map((f) => f.properties._etiquette_carte).join() === "panneau,borne" && JSON.parse(w.localStorage.getItem("web-measures/couche")).etiquetteCarte === "classe");
     expect("texte après la valeur gardé avec la couche", JSON.parse(w.localStorage.getItem("web-measures/couche")).suffixe === "m");
     doc.querySelector("#couche-csv").click();
-    await sleep(500);
+    await soon(() => Object.keys(saved).some((k) => k.endsWith(".csv")));
     const layerCsv = Object.entries(saved).find(([k]) => k.endsWith(".csv"))?.[1] || "";
     log("CSV de la couche : " + layerCsv.split("\n").slice(0, 3).join(" / "));
     expect("CSV de la couche : colonnes du relevé, puis lon et lat", layerCsv.replace(/^\ufeff/, "").startsWith("id;distance_bord_m;essence;classe;")
       && layerCsv.split("\n")[0].endsWith(";lon;lat") && layerCsv.includes("tronc creux") && layerCsv.includes(";2,4;"), layerCsv.split("\n")[0]);
     // Clic droit sur un objet de la couche dans la photo (hors mesure) : sa fiche PDF
     doc.querySelector("#mesure").click();
-    await sleep(1000);
+    await soon(() => w.mesures.psv.container.querySelector(".pastille-couche[data-objet]"));
     const pastille = w.mesures.psv.container.querySelector(".pastille-couche[data-objet]");
     expect("objet de la couche dessiné dans la photo", Boolean(pastille));
     if (pastille) {
@@ -463,13 +455,11 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       click({ yaw: 0, pitch: 0, target: live });
       click({ yaw: 0.05, pitch: -0.2, target: w.mesures.psv.container });
       doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-      await sleep(300);
-      expect("objet recalé : « Enregistrer » actif", !doc.querySelector("#couche-enregistrer").disabled);
+      await expectSoon("objet recalé : « Enregistrer » actif", () => !doc.querySelector("#couche-enregistrer").disabled);
       doc.querySelector("#couche-enregistrer").click();
-      await sleep(500);
-      expect("« Enregistrer » : même fichier réécrit, avec le recalage, sans nouvelle boîte", Object.keys(saved).length === before
+      await expectSoon("« Enregistrer » : même fichier réécrit, avec le recalage, sans nouvelle boîte", () => Object.keys(saved).length === before
         && JSON.parse(saved[file]).features.some((f) => f.recalages) && doc.querySelector("#couche-enregistrer").disabled
-        && !doc.querySelector("#fichier-change").open, file);
+        && !doc.querySelector("#fichier-change").open, () => file);
       // Fichier modifié ailleurs entre-temps : question avant d'écraser
       stamps[file] += 60000;
       click({ yaw: 0, pitch: 0, target: w.mesures.psv.container.querySelector(".pastille-couche[data-objet]") });
@@ -479,9 +469,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       doc.querySelector("#couche-enregistrer").click();
       await until(() => doc.querySelector("#fichier-change").open, 5000, "question du fichier modifié");
       doc.querySelector('#fichier-change button[value="ecraser"]').click();
-      await sleep(500);
-      expect("fichier modifié entre-temps : écrasé après la question", doc.querySelector("#couche-enregistrer").disabled
-        && doc.querySelector("#statut").textContent.includes("enregistrée"), doc.querySelector("#statut").textContent);
+      await expectSoon("fichier modifié entre-temps : écrasé après la question", () => doc.querySelector("#couche-enregistrer").disabled
+        && doc.querySelector("#statut").textContent.includes("enregistrée"), () => doc.querySelector("#statut").textContent);
       // Fichier effacé ou déplacé : « Enregistrer sous » proposé aussitôt
       const lost = Object.keys(saved).length;
       const picker = w.showSaveFilePicker;
@@ -511,8 +500,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     expect("nom proposé", nameDialog.querySelector("input").value.endsWith(".csv"), nameDialog.querySelector("input").value);
     nameDialog.querySelector("input").value = "arbres D977";
     nameDialog.querySelector("input").dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-    await sleep(300);
-    expect("téléchargé sous le nom choisi, extension remise", clicks.join() === "arbres D977.csv", clicks.join());
+    await expectSoon("téléchargé sous le nom choisi, extension remise", () => clicks.join() === "arbres D977.csv", () => clicks.join());
     doc.querySelector("#couche-csv").click();
     await until(() => nameDialog.open, 5000, "fenêtre du nom de fichier (2)");
     nameDialog.querySelector('button[value=""]').click();
@@ -524,9 +512,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     doc.querySelector("#releve-couche").click();
     await until(() => doc.querySelector("#remplacer-couche").open, 5000, "fenêtre de remplacement");
     doc.querySelector('#remplacer-couche button[value="enregistrer"]').click();
-    await sleep(800);
-    expect("couche chargée enregistrée en GeoJSON avant d'être remplacée", Object.keys(saved).some((k) => k.endsWith("-recale.geojson"))
-      && w.mesures.map.getSource("couche").serialize().data.features.length === 2, Object.keys(saved).join(", "));
+    await expectSoon("couche chargée enregistrée en GeoJSON avant d'être remplacée", () => Object.keys(saved).some((k) => k.endsWith("-recale.geojson"))
+      && w.mesures.map.getSource("couche").serialize().data.features.length === 2, () => Object.keys(saved).join(", "));
     expect("relevé gardé après l'envoi", JSON.parse(app.results()).filter((r) => r.releve).length === 2);
     // Tout effacer dans un autre mode : le relevé reste
     doc.querySelector("#mode").value = "tri"; doc.querySelector("#mode").dispatchEvent(new Event("change"));
@@ -537,7 +524,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     w.location.reload();
     await sleep(1000);
     await until(() => w.document.readyState === "complete" && w.mesures?.app, 120000, "Pyodide rechargé");
-    await sleep(2000);
+    await soon(() => JSON.parse(w.mesures.app.export_geojson(true)).features.length === 2, 10000);
     const back = JSON.parse(w.mesures.app.export_geojson(true)).features;
     expect("relevé remis au rechargement", back.length === 2 && back[0].properties.essence === "tilleul");
     expect("relevé actif après rechargement", !w.document.querySelector("#releve-couche").disabled);
@@ -547,8 +534,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       if (d.querySelector("#mesure").getAttribute("aria-pressed") !== "true") d.querySelector("#mesure").click();
       await w.mesures.openPhoto(photos[0]);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "photo (carte)");
-      await sleep(500);
-      expect("relevé : « Placer sur la carte » proposé", !d.querySelector("#placer-carte").hidden);
+      await expectSoon("relevé : « Placer sur la carte » proposé", () => !d.querySelector("#placer-carte").hidden);
       d.querySelector("#placer-carte").click();
       const spot = [target[0] + 3 * Math.sin(along) / kx, target[1] + 3 * Math.cos(along) / 111320];
       { const m = w.mesures.map; m.jumpTo({ center: spot, zoom: 19 }); await sleep(800);
@@ -566,7 +552,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       expect("objet posé sur la carte : à l'endroit cliqué, sans visée", last.properties.id === 3 && last.properties.nb_visees === 0
         && last.properties.classe === "borne" && Math.hypot(...metres(last.geometry.coordinates, spot)) < 0.5 && last.properties.voie,
         `${Math.hypot(...metres(last.geometry.coordinates, spot)).toFixed(3)} m de l'endroit cliqué`);
-      await sleep(500);
+      await soon(() => crossesIn(false) === 3);
       const crosses = crossesIn(false);
       expect("objet posé sur la carte : dessiné dans la photo (au sol)", crosses === 3, `${crosses} croix`);
     }
@@ -574,8 +560,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     w.document.querySelector("#releve-vider").click();
     await until(() => w.document.querySelector("#vider-releve").open, 5000, "fenêtre Vider");
     w.document.querySelector('#vider-releve button[value="vider"]').click();
-    await sleep(500);
-    expect("relevé vidé, couche gardée", JSON.parse(w.mesures.app.results()).filter((r) => r.releve).length === 0
+    await expectSoon("relevé vidé, couche gardée", () => JSON.parse(w.mesures.app.results()).filter((r) => r.releve).length === 0
       && w.document.querySelector("#releve-vider").disabled && w.mesures.map.getSource("couche").serialize().data.features.length === 2);
     // Modèle tiré d'un KML converti : colonnes techniques et position écartées (casse ignorée), liste
     // seulement pour des valeurs courtes
