@@ -12,16 +12,19 @@
 #   tools/essais.sh video         # pages de la vidéo (longues) : seulement si l'auteur le demande
 #   tools/essais.sh essai-ponts essai-dessus-reference#rapide   # pages choisies (#… : passé à la page)
 #
-# Cache HTTP de Chrome gardé entre les essais (~/.cache/web-measures-essais) : photos, tuiles et nuages LiDAR ne
-# viennent du réseau qu'une fois. Profil neuf à chaque page : stockage local vide, comme un premier passage. Le
-# serveur d'essai sert le code du site sans cache (no-store) : les modifications sont toujours prises.
+# Cache HTTP de Chrome gardé entre les essais (~/.cache/web-measures-essais) : photos et tuiles ne
+# viennent du réseau qu'une fois. Profil gardé lui aussi (~/.cache/web-measures-essais-profil) pour le cache de
+# l'application (BD TOPO, altitudes, morceaux de nuage LiDAR : sans lui, l'attente d'1 s par requête LiDAR à chaque
+# essai) ; stockage local vidé à chaque page. Premier passage complet : supprimer ce profil. Le serveur d'essai
+# sert le code du site sans cache (no-store) : les modifications sont toujours prises.
 # Chrome est lancé dans son propre scope limité en mémoire et arrêté seul (jamais celui de l'utilisateur) ; le
 # serveur est attendu par son numéro de processus (chercher son nom trouverait aussi la commande qui l'attend).
 
 RAPIDE="essai-dessus essai-profil"
 BIRDEYE="essai-dessus essai-dessus-reference#rapide"
 COMPLET="$RAPIDE navigateur essai-rtk essai-largeur essai-libre essai-releve inclinaison-terrain
-  essai-calage essai-profil-pdf essai-cadastre essai-cache essai-ponts essai-bords essai-nuage essai-dessus-reference#rapide"
+  essai-calage essai-profil-pdf essai-cadastre essai-ponts essai-bords essai-nuage essai-dessus-reference#rapide
+  essai-cache"  # en dernier : il vide le cache de l'application
 VIDEO="essai-avancement-video essai-video essai-boucle essai-chassagne essai-format-video"
 PORT=8766 DELAI=900  # secondes au plus par page
 # Vrai processeur graphique (Vulkan) : WebGL environ 1,5 fois plus rapide qu'en logiciel (SwiftShader), mêmes résultats
@@ -37,6 +40,7 @@ case "${1:-rapide}" in
   *) pages="$*" ;;
 esac
 cache=${XDG_CACHE_HOME:-$HOME/.cache}/web-measures-essais
+profil=$cache-profil  # gardé entre les pages et les essais : cache de l'application (Cache API) ; le reste vidé à chaque page
 journaux=${TMPDIR:-/tmp}/web-measures-essais
 mkdir -p "$cache" "$journaux"
 total=0 echecs=0
@@ -48,8 +52,8 @@ fi
 
 echots() { printf '%-28s %5s s  %s\n' "$1" "$2" "$3"; }
 for page in $pages; do
-  profil=$(mktemp -d "$journaux/profil-XXXX")
   debut=$(date +%s)
+  rm -rf "$profil/Default/Local Storage" "$profil/Default/Session Storage" "$profil/Default/IndexedDB"  # comme un premier passage
   fichier=${page%%#*}; suite=${page#"$fichier"}; nom=${fichier}${suite:+-${suite#\#}}
   timeout "$DELAI" python3 tools/serveur-essai.py "$PORT" > "$journaux/$nom.log" 2>&1 &
   serveur=$!
@@ -60,7 +64,6 @@ for page in $pages; do
   wait "$serveur"
   fin=$?
   systemctl --user stop "essai-$nom-$$.scope" 2> /dev/null
-  rm -rf "$profil"
   duree=$(( $(date +%s) - debut )); total=$(( total + duree ))
   bilan=$(grep -E "^(contrôles|ERREUR)" "$journaux/$nom.log" | tail -1)
   [ $fin = 124 ] && bilan="délai dépassé ($DELAI s)"
