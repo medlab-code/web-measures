@@ -15,7 +15,8 @@
 # Cache HTTP de Chrome gardé entre les essais (~/.cache/web-measures-essais) : photos et tuiles ne
 # viennent du réseau qu'une fois. Profil gardé lui aussi (~/.cache/web-measures-essais-profil) pour le cache de
 # l'application (BD TOPO, altitudes, morceaux de nuage LiDAR : sans lui, l'attente d'1 s par requête LiDAR à chaque
-# essai) ; stockage local vidé à chaque page. Premier passage complet : supprimer ce profil. Le serveur d'essai
+# essai) ; stockage local vidé à chaque page ; essai-cache, qui vide ce cache, sur un profil jetable. Premier passage
+# complet : supprimer ce profil. Le serveur d'essai
 # sert le code du site sans cache (no-store) : les modifications sont toujours prises.
 # Chrome est lancé dans son propre scope limité en mémoire et arrêté seul (jamais celui de l'utilisateur) ; le
 # serveur est attendu par son numéro de processus (chercher son nom trouverait aussi la commande qui l'attend).
@@ -23,8 +24,7 @@
 RAPIDE="essai-dessus essai-profil"
 BIRDEYE="essai-dessus essai-dessus-reference#rapide"
 COMPLET="$RAPIDE navigateur essai-rtk essai-largeur essai-libre essai-releve inclinaison-terrain
-  essai-calage essai-profil-pdf essai-cadastre essai-ponts essai-bords essai-nuage essai-dessus-reference#rapide
-  essai-cache"  # en dernier : il vide le cache de l'application
+  essai-calage essai-profil-pdf essai-cadastre essai-cache essai-ponts essai-bords essai-nuage essai-dessus-reference#rapide"
 VIDEO="essai-avancement-video essai-video essai-boucle essai-chassagne essai-format-video"
 PORT=8766 DELAI=900  # secondes au plus par page
 # Vrai processeur graphique (Vulkan) : WebGL environ 1,5 fois plus rapide qu'en logiciel (SwiftShader), mêmes résultats
@@ -55,15 +55,18 @@ for page in $pages; do
   debut=$(date +%s)
   rm -rf "$profil/Default/Local Storage" "$profil/Default/Session Storage" "$profil/Default/IndexedDB"  # comme un premier passage
   fichier=${page%%#*}; suite=${page#"$fichier"}; nom=${fichier}${suite:+-${suite#\#}}
+  dossier=$profil
+  [ "$fichier" = essai-cache ] && dossier=$(mktemp -d "$journaux/profil-XXXX")  # il vide le cache : profil jetable
   timeout "$DELAI" python3 tools/serveur-essai.py "$PORT" > "$journaux/$nom.log" 2>&1 &
   serveur=$!
   sleep 0.5
   ( systemd-run --user --scope --quiet --unit="essai-$nom-$$" -p MemoryMax=6G -p MemorySwapMax=1G \
-    setsid google-chrome --headless=new $CHROME_OPTIONS --user-data-dir="$profil" --disk-cache-dir="$cache" --no-first-run \
+    setsid google-chrome --headless=new $CHROME_OPTIONS --user-data-dir="$dossier" --disk-cache-dir="$cache" --no-first-run \
     --remote-debugging-port=0 --window-size=1400,1000 "http://127.0.0.1:$PORT/tests/$fichier.html$suite" > /dev/null 2>&1 & )
   wait "$serveur"
   fin=$?
   systemctl --user stop "essai-$nom-$$.scope" 2> /dev/null
+  [ "$dossier" = "$profil" ] || rm -rf "$dossier"
   duree=$(( $(date +%s) - debut )); total=$(( total + duree ))
   bilan=$(grep -E "^(contrôles|ERREUR)" "$journaux/$nom.log" | tail -1)
   [ $fin = 124 ] && bilan="délai dépassé ($DELAI s)"
