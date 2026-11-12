@@ -38,10 +38,14 @@ esac
 cache=${XDG_CACHE_HOME:-$HOME/.cache}/web-measures-essais
 journaux=${TMPDIR:-/tmp}/web-measures-essais
 mkdir -p "$cache" "$journaux"
-[ "${1:-rapide}" = rapide ] || [ "${1:-rapide}" = complet ] && python3 -m unittest discover -s tests 2>&1 | tail -1
+total=0 echecs=0
+if [ "${1:-rapide}" = rapide ] || [ "${1:-rapide}" = complet ]; then
+  # Statut gardé à part : derrière « | tail -1 », un échec des tests Python passait inaperçu.
+  sortie=$(python3 -m unittest discover -s tests 2>&1) || echecs=1
+  echo "${sortie##*$'\n'}"
+fi
 
 echots() { printf '%-28s %5s s  %s\n' "$1" "$2" "$3"; }
-total=0 echecs=0
 for page in $pages; do
   profil=$(mktemp -d "$journaux/profil-XXXX")
   debut=$(date +%s)
@@ -63,5 +67,5 @@ for page in $pages; do
   case "$bilan" in contrôles*) ;; *) echecs=$(( echecs + 1 )) ;; esac
   echots "$page" "$duree" "$bilan"
 done
-echo "total : $total s ; pages en échec : $echecs (journaux : $journaux)"
+echo "total : $total s ; échecs (pages, tests Python) : $echecs (journaux : $journaux)"
 [ $echecs = 0 ]
