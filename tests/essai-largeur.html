@@ -9,7 +9,7 @@
 <iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
 <script src="commun.js"></script>
 <script>
-const { log, sleep, until, ready, expect, metresIn, verdict } = Essai;
+const { log, sleep, until, ready, expect, near, metresIn, verdict } = Essai;
 // Surcouche des mesures dessinée en WebGL (src/traits.js) : repères demandés, à l'écran ou non
 const traitsIn = () => document.getElementById("f").contentWindow.eval("Traits").items();
 const labelsIn = () => traitsIn().labels.map((l) => ({ textContent: l.text }));
