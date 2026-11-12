@@ -7,7 +7,7 @@
 <iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
 <script src="commun.js"></script>
 <script>
-const { log, sleep, until, ready, expect, fin } = Essai;
+const { log, sleep, until, soon, ready, expect, fin } = Essai;
 (async () => {
   const w = document.getElementById("f").contentWindow;
   try {
@@ -17,31 +17,29 @@ const { log, sleep, until, ready, expect, fin } = Essai;
     const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=1108ca14-6669-49e8-a26a-955becc79e81")).json()).features[0];
     w.mesures.openPhoto(f);
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "photo");
-    await sleep(3000);
     const psv = w.mesures.psv;
     psv.zoom(80);  // zoom fort : 1° y fait bien plus de 8 px
-    await sleep(800);
+    await until(() => Math.abs(psv.getZoomLevel() - 80) < 1, 10000, "zoom");
     doc.querySelector("#mesure").click();
     doc.querySelector("#mode").value = "tilt"; doc.querySelector("#mode").dispatchEvent(new w.Event("change"));
-    await sleep(500);
     const click = (x, y) => { const s = psv.dataHelper.viewerCoordsToSphericalCoords({ x, y }); const e = new w.Event("click");
       e.data = { yaw: s.yaw, pitch: s.pitch, rightclick: false, viewerX: x, viewerY: y }; psv.dispatchEvent(e); };
     const r = psv.container.getBoundingClientRect(), cx = r.width / 2, cy = r.height / 2;
     const marks = () => JSON.parse(app.viewer_marks()).filter((m) => m.calage).pop()?.points || [];
     click(cx, cy + 100);  // pied
     click(cx + 3, cy - 100);  // sommet
-    await sleep(300);
+    await soon(() => marks().length === 2);
     expect("pied et sommet posés", marks().length === 2, JSON.stringify(marks()));
     log("degrés par pixel : " + (Math.abs(psv.dataHelper.viewerCoordsToSphericalCoords({ x: cx + 100, y: cy }).yaw - psv.dataHelper.viewerCoordsToSphericalCoords({ x: cx, y: cy }).yaw) * 180 / Math.PI / 100).toFixed(4));
     click(cx + 3 + 10, cy - 100);  // à 10 px du sommet : pas une sélection (1° en ferait une à ce zoom)
-    await sleep(300);
+    await sleep(200);  // rien ne doit changer : courte attente
     expect("à 10 px : pas de sélection", !marks().some((p) => p[2]), JSON.stringify(marks()) + " " + app.status().slice(0, 80));
     click(cx + 3, cy - 100);  // sur la croix du sommet : sélectionnée
-    await sleep(300);
+    await soon(() => marks()[1]?.[2] === true);
     expect("sur la croix : sommet sélectionné", marks()[1]?.[2] === true, JSON.stringify(marks()));
     click(cx + 3 + 20, cy - 100);  // nouvelle position du sommet
-    await sleep(300);
     const s = psv.dataHelper.viewerCoordsToSphericalCoords({ x: cx + 23, y: cy - 100 });
+    await soon(() => Math.abs(marks()[1][0] - s.yaw) < 1e-4 && !marks()[1][2]);
     expect("sommet déplacé", Math.abs(marks()[1][0] - s.yaw) < 1e-4 && !marks()[1][2], JSON.stringify(marks()));
     await fin();
   } catch (error) { log("ERREUR " + (error.stack || error)); }

@@ -13,7 +13,7 @@
 <iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
 <script src="commun.js"></script>
 <script>
-const { log, sleep, until, ready, expect, fin } = Essai;
+const { log, sleep, until, soon, ready, expect, fin } = Essai;
 const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-6669-49e8-a26a-955becc79e81"];
 (async () => {
   const w = document.getElementById("f").contentWindow;
@@ -29,7 +29,9 @@ const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-
       // mini-carte au zoom 18 sur la photo : image prise pendant un rendu (sinon tampon WebGL vide)
       const map = w.mesures.map;
       map.jumpTo({ center: f.geometry.coordinates, zoom: 18 });
-      await sleep(6000);  // tuiles et bornes (pas « idle » : la carte ne s'arrête jamais de se redessiner)
+      // tuiles et sections lues (pas « idle » : la carte ne s'arrête jamais de se redessiner)
+      await soon(() => map.areTilesLoaded() && map.querySourceFeatures("cadastre", { sourceLayer: "localisant" }).length > 0, 15000);
+      await sleep(500);  // dessin des tuiles reçues
       const shot = await new Promise((r) => { map.once("render", () => r(map.getCanvas().toDataURL("image/png"))); map.triggerRepaint(); });
       await log(`IMAGE carte-${id.slice(0, 8)} ` + shot);
     }

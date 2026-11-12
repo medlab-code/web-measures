@@ -4,7 +4,7 @@
 // Code commun des pages d'essai (tests/*.html) : journal envoyé au serveur d'essai (tools/serveur-essai.py),
 // attentes de condition, contrôles et bilan. Le lanceur (tools/essais.sh) lit la dernière ligne « contrôles : n
 // réussis » ou « ERREUR … » ; le serveur s'arrête sur « FIN » ou « ERREUR ».
-//   const { log, sleep, until, expect, near, fin } = Essai;
+//   const { log, sleep, until, soon, expect, near, fin } = Essai;
 const Essai = (() => {
   // Journal : envoyé au serveur d'essai, et sous la page si elle a un élément #log
   const log = (t) => {
@@ -21,6 +21,11 @@ const Essai = (() => {
       await sleep(250);
     }
     return Date.now() - t0;
+  }
+  // Attente d'une condition sans exception : vrai si elle est remplie avant le délai (contrôle fait ensuite par expect)
+  async function soon(test, ms = 5000) {
+    for (const t0 = Date.now(); !test() && Date.now() - t0 < ms;) await sleep(100);
+    return !!test();
   }
   // Application chargée dans l'iframe (Pyodide prêt, carte chargée)
   const ready = (w, ms = 180000) => until(() => w.mesures?.app && w.mesures.map?.loaded?.(), ms, "Pyodide");
@@ -40,6 +45,6 @@ const Essai = (() => {
   const verdict = () => log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
   // Bilan puis fin de la page
   const fin = async () => { await verdict(); await log(failures ? "ERREUR" : "FIN"); };
-  return { log, sleep, until, ready, expect, near, fail, metresIn, verdict, fin, verbose: false,
+  return { log, sleep, until, soon, ready, expect, near, fail, metresIn, verdict, fin, verbose: false,
     get failures() { return failures; }, get checks() { return checks; } };
 })();
