@@ -9,7 +9,7 @@
 <iframe id="f" src="about:blank" style="width:1400px;height:900px"></iframe>
 <script src="commun.js"></script>
 <script>
-const { log, sleep, expect, fin } = Essai;
+const { log, sleep, soon, expect, fin } = Essai;
 Essai.verbose = true;  // chaque contrôle journalisé
 const ALL_REFERENCES = [
   ["A38", "66d45404-a22d-4b07-8bc8-1f3edcdf1b8a"],
@@ -45,7 +45,7 @@ async function open(id, enough = () => false) {
   while (Date.now() - start < WAIT) {
     [...doc.querySelectorAll("dialog[open] button.oui, dialog[open] button.non")].forEach((b) => b.click());
     if (!$("#dessus").disabled) break;
-    await sleep(1000);
+    await sleep(250);
   }
   if ($("#dessus").disabled) return null;
   const loaded = (Date.now() - start) / 1000;  // page et photo chargées
@@ -56,7 +56,7 @@ async function open(id, enough = () => false) {
     const times = () => `page ${number(loaded, 0)} s, vue ${number((Date.now() - start) / 1000 - loaded, 0)} s`;
     if (/caméra à/.test(state) && !/en calcul|en cours|Lecture/.test(state)) return { w, state, blob: () => blob, times: times() };
     if (enough(state)) return { w, state, blob: () => blob, partial: true, times: times() };
-    await sleep(1000);
+    await sleep(250);
   }
   return { w, state: $("#dessus-etat").textContent, blob: () => blob, late: true };
 }
@@ -117,7 +117,7 @@ async function open(id, enough = () => false) {
     }
     // « Véhicule masqué » éteint : rien de ce qui a été lu avec les voisines n'est appliqué (tangage, hauteur, contour, position)
     w.document.querySelector("#dessus-voisines").click();
-    for (let t = 0; t < 30 && !/ 1 photo,.*position/.test(w.document.querySelector("#dessus-etat").textContent) || /en cours/.test(w.document.querySelector("#dessus-etat").textContent); t++) await sleep(500);  // position refaite
+    for (let t = 0; t < 60 && !/ 1 photo,.*position/.test(w.document.querySelector("#dessus-etat").textContent) || /en cours/.test(w.document.querySelector("#dessus-etat").textContent); t++) await sleep(250);  // position refaite
     const alone = Dessus.layersNow().layers, off = w.document.querySelector("#dessus-etat").textContent;
     await expect(`${name} : éteint, photo seule sans tangage, hauteur ni contour lus, position refaite`, alone.length === 1 && (!Array.isArray(now.outline) || alone[0].pose.outline !== now.outline)
       && !/lu sur les raccords|lue entre photos|décalage entre photos/.test(off) && !alone[0].fix && !alone[0].bend && Dessus.layersNow().locatedWith === false, off);
@@ -152,8 +152,8 @@ async function open(id, enough = () => false) {
       // « Sans cache (essais) » : la vue est refaite de zéro (contour du véhicule relu)
       const doc = w.document, before = Date.now();
       doc.querySelector("#dessus-sans-cache").click();
-      await sleep(1500);
-      while (Date.now() - before < WAIT && !(/caméra à/.test(doc.querySelector("#dessus-etat").textContent) && !/en calcul|en cours|Lecture/.test(doc.querySelector("#dessus-etat").textContent))) await sleep(500);
+      await soon(() => /en calcul|en cours|Lecture/.test(doc.querySelector("#dessus-etat").textContent), 1500);  // vue refaite
+      while (Date.now() - before < WAIT && !(/caméra à/.test(doc.querySelector("#dessus-etat").textContent) && !/en calcul|en cours|Lecture/.test(doc.querySelector("#dessus-etat").textContent))) await sleep(250);
       const again = Dessus.layersNow();
       await expect("sans cache : vue refaite, contour relu", Array.isArray(again?.outline) && again.outline !== now.outline, `${((Date.now() - before) / 1000).toFixed(0)} s`);
       await log(`  couches : ${now.layers.map((l) => `${l.pose.pic.slice(0, 8)} ${l.pose.outline ? "contour" : "ellipse"} à ${l.at.map((v) => v.toFixed(1)).join(", ")} m`).join(" ; ")}`);

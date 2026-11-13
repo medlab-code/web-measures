@@ -9,7 +9,7 @@
 <iframe id="f" src="../index.html" style="width:1400px;height:900px;border:0"></iframe>
 <script src="commun.js"></script>
 <script>
-const { log, sleep, ready, expect, fail, fin } = Essai;
+const { log, sleep, soon, ready, expect, fail, fin } = Essai;
 const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba93-c63ac344d675"];
 (async () => {
   const w = document.getElementById("f").contentWindow;
@@ -22,14 +22,15 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
     const computed = async () => {
       const t0 = Date.now();
       const busy = () => /Calcul en cours|calcul en cours|lecture du nuage/.test(doc.querySelector("#chute").textContent);
-      do await sleep(1000); while (busy() && Date.now() - t0 < 60000);
+      await soon(() => busy() || !doc.querySelector("#chute").hidden, 3000);  // calcul lancé
+      await soon(() => !busy(), 60000);
       if (busy()) log("  service lent : calcul toujours en cours après 60 s");
     };
     // photo affichée, puis le temps que la BD TOPO dise si elle est sur un pont (bouton grisé)
     const show = async (f) => {
       w.mesures.openPhoto(f);
-      for (const t = Date.now(); w.mesures.psv?.getPictureMetadata?.()?.id !== f.id && Date.now() - t < 30000;) await sleep(250);
-      await sleep(1500);
+      await soon(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000);
+      await soon(() => !doc.querySelector("#bords").disabled || !doc.querySelector("#chute").hidden, 5000);
     };
     const pouilly = (await (await fetch("https://panoramax.ign.fr/api/search?ids=cd8cf3a0-6567-40f0-8805-94172a5dfc3c")).json()).features[0];
     const places = [[pouilly, 0, "Pouilly"]];
@@ -52,7 +53,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       const profile = doc.querySelector("#profil");
       if (!profile.disabled) {
         profile.click();
-        await sleep(300);
+        await soon(() => doc.querySelector("#fenetre-profil").open && doc.querySelector("#fenetre-profil svg .sol"));
         const dialog = doc.querySelector("#fenetre-profil"), svg = dialog.querySelector("svg");
         drawn += dialog.open && svg?.querySelector(".sol") ? 1 : 0;
         // Légende pliée à l'ouverture, dépliée par son bouton, repliée ensuite ; PNG et PDF la gardent (elle n'est que masquée)
@@ -89,7 +90,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       const profile = doc.querySelector("#profil");
       if (profile.disabled) continue;
       profile.click();
-      await sleep(1000);
+      await soon(() => doc.querySelector("#fenetre-profil").open && doc.querySelector("#fenetre-profil svg .sol"));
       const dialog = doc.querySelector("#fenetre-profil");
       const blob = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
       await log(`IMAGE ${id.slice(0, 8)} ` + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));
@@ -97,7 +98,11 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       doc.querySelector("#profil-legende").click();  // repliée à l'ouverture : dépliée, la loupe doit la masquer puis la rendre
       const before = dialog.querySelector("svg").getBoundingClientRect().width;
       doc.querySelector("#profil-loupe").click();
-      await sleep(500);
+      await soon(() => {  // agrandie, légende masquée, fenêtre replacée dans la visionneuse
+        const r = dialog.getBoundingClientRect(), v = doc.querySelector("#vue").getBoundingClientRect();
+        return dialog.querySelector("svg").getBoundingClientRect().width > before && !dialog.querySelector(".legende").offsetHeight
+          && r.left >= v.left - 1 && r.right <= v.right + 1 && r.top >= v.top - 1 && r.bottom <= v.bottom + 1;
+      });
       const r = dialog.getBoundingClientRect(), v = doc.querySelector("#vue").getBoundingClientRect();
       const after = dialog.querySelector("svg").getBoundingClientRect();
       const inside = r.left >= v.left - 1 && r.right <= v.right + 1 && r.top >= v.top - 1 && r.bottom <= v.bottom + 1;
@@ -140,7 +145,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       twin = far && widths.some((d) => d > 15) ? 1 : 0;
       if (!doc.querySelector("#profil").disabled) {
         doc.querySelector("#profil").click();
-        await sleep(1000);
+        await soon(() => doc.querySelector("#fenetre-profil").open && doc.querySelector("#fenetre-profil svg text"));
         const dialog = doc.querySelector("#fenetre-profil");
         if (![...dialog.querySelectorAll("svg text")].some((e) => e.textContent === "séparateur de chaussée")
           || !dialog.querySelector(".legende").textContent.includes("trouvé dans le relief")  // d'où il vient : en légende
