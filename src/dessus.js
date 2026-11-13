@@ -11,14 +11,11 @@ const Dessus = (() => {
   const EARTH_RADIUS = 6371008.8;  // comme py/core/triangulation.py
   const REACH = 15;  // m : portée de la vue
   const SURE = 10;  // m : grisé au-delà (0,6° d'inclinaison y déplacent déjà un point de 45 cm)
-  // m : portée le long de la vue longue (« Vue longue ») : photos à deux pas (environ 10 m) comprises, chacune nette jusqu'à SURE
-  // de sa caméra ; la photo affichée y garde le sol à moins de SURE d'elle, au-delà la photo la plus précise (tiltError)
-  const LONG = 25;
   const STEP = 1;  // m : maille du terrain (LiDAR HD à 50 cm, toit de la chaussée compris)
   const SIZE = 1024;  // px : côté de l'image des calculs (hauteur, raccords, position), soit 3 cm par pixel
   // px : côté de l'image affichée, 1,5 cm par pixel ; la photo est plus fine jusqu'à 10 m (12 288 px : 0,5 cm en travers et
   // 2,6 cm le long à 10 m, 0,2 et 0,5 cm à 4 m), les voisines (NEAR_LIMIT) deux fois moins
-  const SHOWN_SIZE = 2048, FINE_SIZE = 4096, LONG_SIZE = 4096;  // FINE_SIZE : « Haute résolution », 0,7 cm par pixel (zoom 24 de la carte)
+  const SHOWN_SIZE = 2048, FINE_SIZE = 4096;  // FINE_SIZE : « Haute résolution », 0,7 cm par pixel (zoom 24 de la carte)
   const CHUNK = 150;  // points par requête d'altitude (longueur de l'adresse)
   // Contour du véhicule dans le panorama, par monture (voir MOUNTS) : élévation (degrés) sous laquelle le véhicule cache le sol,
   // tous les 2,8° depuis l'arrière (bord du panorama), avant au milieu ; marge de 1,5° comprise (environ 10 cm au sol ; à 1°, des bords de
@@ -144,12 +141,12 @@ const Dessus = (() => {
   /** Couche qui fournit le point (est, nord, m depuis la caméra principale), comme render : la principale partout où son
    * véhicule ne cache pas le sol (sa photo n'est pas retouchée) ; dessous, la voisine de plus faible erreur attendue (tiltError,
    * SHADE fois près de son véhicule) qui le voit ; à défaut la principale ; null hors de la vue. layers[].at : position de sa caméra. */
-  function sourceOf(point, layers, reach = REACH) {
-    if (Math.hypot(...point) > reach) return null;
-    const [main, ...others] = layers, long = reach > REACH;  // vue longue : la principale à moins de SURE d'elle seulement
-    if (!others.length || (!hidden(point[0], point[1], main.pose) && (!long || Math.hypot(...point) < SURE))) return main;
+  function sourceOf(point, layers) {
+    if (Math.hypot(...point) > REACH) return null;
+    const [main, ...others] = layers;
+    if (!others.length || !hidden(point[0], point[1], main.pose)) return main;
     let best = main, bestError = Infinity;
-    for (const layer of long ? layers : others) {
+    for (const layer of others) {
       const e = point[0] - layer.at[0], n = point[1] - layer.at[1], d = Math.hypot(e, n);
       const error = tiltError(d, layer.pose) * (inCar(e, n, layer.pose) < 1 ? SHADE : 1);
       if (d <= REACH && !hidden(e, n, layer.pose) && error < bestError) [best, bestError] = [layer, error];
@@ -167,8 +164,8 @@ const Dessus = (() => {
 
   /** Incertitude d'une distance entre deux points : même photo (uncertainty, les erreurs d'inclinaison se compensent en
    * partie), sinon celle de chaque point dans sa photo et la position relative des deux photos. */
-  function measureError(a, b, layers, sigmaGround, reach = REACH) {
-    const la = sourceOf(a, layers, reach), lb = sourceOf(b, layers, reach);
+  function measureError(a, b, layers, sigmaGround) {
+    const la = sourceOf(a, layers), lb = sourceOf(b, layers);
     const local = (p, l) => [p[0] - l.at[0], p[1] - l.at[1]];
     if (la === lb) return uncertainty(local(a, la), local(b, la), la.pose, sigmaGround);
     const single = (p, { pose }) => {
@@ -182,19 +179,17 @@ const Dessus = (() => {
 
   /** Incertitude affichée pour une longueur entre a et b : measureError, sans descendre sous l'écart mesuré (MEASURED).
    * (Les 3,5 % comptés en travers jusqu'au 13/11/2026 venaient du roulis de la caméra, désormais corrigé : ROLL_DEFECTS.) */
-  const shownError = (a, b, layers, sigmaGround, reach = REACH) =>
-    Math.max(measureError(a, b, layers, sigmaGround, reach), MEASURED * Math.hypot(b[0] - a[0], b[1] - a[1]));
+  const shownError = (a, b, layers, sigmaGround) =>
+    Math.max(measureError(a, b, layers, sigmaGround), MEASURED * Math.hypot(b[0] - a[0], b[1] - a[1]));
 
   const toLocal = (lon, lat, pose) => [EARTH_RADIUS * (lon - pose.lon) * toRad * Math.cos(pose.lat * toRad),
     EARTH_RADIUS * (lat - pose.lat) * toRad];
   const toLonLat = (east, north, pose) => [pose.lon + east / (EARTH_RADIUS * toRad * Math.cos(pose.lat * toRad)),
     pose.lat + north / (EARTH_RADIUS * toRad)];
 
-  /** Côté (points) d'un maillage de terrain carré (readTerrain : ±REACH, ou ±LONG pour la vue longue). */
-  const meshSide = (terrain) => Math.round(Math.sqrt(terrain.length));
   /** Altitude du terrain (voir readTerrain) à (est, nord, m depuis le centre du maillage), depuis le sol au centre. */
   function terrainAt(terrain, east, north) {
-    const n = meshSide(terrain), R = (n - 1) * STEP / 2, x = Math.min(n - 1.001, Math.max(0, (east + R) / STEP)), y = Math.min(n - 1.001, Math.max(0, (north + R) / STEP));
+    const n = 2 * REACH / STEP + 1, x = Math.min(n - 1.001, Math.max(0, (east + REACH) / STEP)), y = Math.min(n - 1.001, Math.max(0, (north + REACH) / STEP));
     const i = Math.floor(x), j = Math.floor(y), u = x - i, v = y - j, z = (a, b) => terrain[b * n + a] - terrain[(n * n - 1) / 2];
     return (z(i, j) * (1 - u) + z(i + 1, j) * u) * (1 - v) + (z(i, j + 1) * (1 - u) + z(i + 1, j + 1) * u) * v;
   }
@@ -253,10 +248,10 @@ const Dessus = (() => {
 
   /** Altitudes LiDAR HD du maillage (lignes du sud au nord, colonnes d'ouest en est), ou null s'il en manque une ;
    * exception si le service ne répond pas. */
-  async function readTerrain(pose, signal, reach = REACH) {
-    const n = 2 * reach / STEP + 1, points = [];
+  async function readTerrain(pose, signal) {
+    const n = 2 * REACH / STEP + 1, points = [];
     for (let j = 0; j < n; j++) {
-      for (let i = 0; i < n; i++) points.push(toLonLat(-reach + i * STEP, -reach + j * STEP, pose));
+      for (let i = 0; i < n; i++) points.push(toLonLat(-REACH + i * STEP, -REACH + j * STEP, pose));
     }
     const z = [];
     for (let k = 0; k < points.length; k += CHUNK) {  // une requête à la fois : le service limite le débit (HTTP 429)
@@ -283,7 +278,7 @@ const Dessus = (() => {
   const TERRAIN_SMOOTH = 2;  // m
   /** Maillage lissé : plan moyen gardé tel quel, écarts au plan lissés (pas de biais au bord du maillage). */
   function smoothTerrain(z) {
-    const n = meshSide(z), xs = [], ys = [];
+    const n = 2 * REACH / STEP + 1, xs = [], ys = [];
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { xs.push(i - (n - 1) / 2); ys.push(j - (n - 1) / 2); }
     const plane = leastSquares(xs.map((x, k) => [1, x, ys[k]]), z), at = (k) => plane[0] + plane[1] * xs[k] + plane[2] * ys[k];
     const r = Math.ceil(2.5 * TERRAIN_SMOOTH / STEP), w = Array.from({ length: 2 * r + 1 }, (_, k) => Math.exp(-(((k - r) * STEP / TERRAIN_SMOOTH) ** 2) / 2));
@@ -382,8 +377,8 @@ const Dessus = (() => {
   const VERTEX = `#version 300 es
     in vec3 ground;
     out vec3 world;
-    uniform float viewReach;
-    void main() { world = ground; gl_Position = vec4(ground.xy / viewReach, 0.0, 1.0); }`;
+    uniform float reach;
+    void main() { world = ground; gl_Position = vec4(ground.xy / reach, 0.0, 1.0); }`;
   // Chaque photo est dessinée à son tour ; la profondeur (erreur attendue, voir tiltError) garde la plus précise
   const FRAGMENT = `#version 300 es
     precision highp float;
@@ -395,7 +390,7 @@ const Dessus = (() => {
     const vec2 frameCentre = vec2(0.0);
     uniform vec4 car;  // sin et cos du cap, centre et demi-longueur du véhicule ; demi-largeur à part
     uniform vec4 band;  // axe de la route (est, nord), demi-longueur et demi-largeur de la bande gardée
-    uniform float wide, masked, heading, top, reach, viewReach, longView, sure, height, sigma, shade;
+    uniform float wide, masked, heading, top, reach, sure, height, sigma, shade;
     uniform float outline[128];  // contour du véhicule dans le panorama (OUTLINES), si hasOutline ; sinon ellipse (car, wide)
     uniform int hasOutline;
     uniform vec4 fix;  // recalage sur la principale (voir alignJoin) : décalage le long et en travers, tangage, lacet
@@ -415,7 +410,7 @@ const Dessus = (() => {
       if (hasBend == 1) moved += texture(bend, world.xy / (2.0 * reach) + 0.5).xy;
       vec3 ray = vec3(moved, world.z - camera.z);  // shortcut: altitude du point non déplacée (quelques cm de déplacement)
       float dist = length(ray.xy);
-      if (dist > reach || length(world.xy - frameCentre) > viewReach) discard;  // une voisine ne déborde pas de la vue
+      if (dist > reach || length(world.xy - frameCentre) > reach) discard;  // une voisine ne déborde pas du cercle de la vue
       if (abs(dot(world.xy, band.xy)) > band.z || abs(world.x * band.y - world.y * band.x) > band.w) discard;
       vec3 v = normalize(turn * ray);
       float u = (atan(v.x, v.y) - heading) / (2.0 * PI) + 0.5;
@@ -431,14 +426,13 @@ const Dessus = (() => {
       // photo affichée (index 1) devant tout hors de son véhicule : elle n'est pas retouchée ; voisines sous ce véhicule
       // seulement, la plus précise (erreur attendue, voir sourceOf) ; sol caché partout : en dernier recours, pas de trou
       float error = (height * height + dist * dist) / height * sigma / 50.0 * (near ? shade : 1.0);
-      // vue longue : au-delà de sure m d'elle, la photo affichée cède à plus précise
-      gl_FragDepth = masked > 0.5 && hidden ? 0.99 : index < 1.5 && (longView < 0.5 || dist < sure) ? 0.0 : 0.01 + 0.49 * min(error, 1.0);
+      gl_FragDepth = masked > 0.5 && hidden ? 0.99 : index < 1.5 ? 0.0 : 0.01 + 0.49 * min(error, 1.0);
       float a = fract(u), b = fract(u + 0.5) - 0.5;  // la coupure du panorama ne doit pas faire choisir un niveau flou
       float w = ((0.5 - asin(clamp(v.z, -1.0, 1.0)) / PI) - top) / (1.0 - top);
       vec3 c = texture(pano, vec2(fwidth(a) < fwidth(b) ? a : b, w)).rgb;
       // grisé au-delà de sure m de la photo affichée (centre de la vue) : une voisine plus précise peut fournir un point proche
       // d'elle mais à plus de sure m de sa propre caméra (14f7bc5a : taches transparentes à 7 m) ; photo seule : sa caméra
-      float far = smoothstep(sure, reach, masked > 0.5 && longView < 0.5 ? length(world.xy - frameCentre) : dist);
+      float far = smoothstep(sure, reach, masked > 0.5 ? length(world.xy - frameCentre) : dist);
       color = vec4(mix(c, vec3(dot(c, vec3(0.3, 0.59, 0.11))), far), 1.0 - 0.5 * far);
       if (stage == 2) { if (hidden || far > 0.02) discard; color.a = 1.0; }
       if (stage == 3) color = vec4(index / 255.0, 0.0, 0.0, 1.0);
@@ -484,16 +478,15 @@ const Dessus = (() => {
    * (photo principale d'abord) ; terrain : altitudes du maillage (voir readTerrain), ou null pour un plan horizontal ;
    * frame : pose de la photo qui centre l'image et le maillage (par défaut, la principale) ; band : axe de la route (vecteur
    * unitaire est, nord) pour ne garder que la bande de la zone idéale (BEST), ou null. */
-  function render(layers, terrain, frame = layers[0].pose, band = null, size = SIZE, stage = 0, into = null, reach = REACH) {
+  function render(layers, terrain, frame = layers[0].pose, band = null, size = SIZE, stage = 0, into = null) {
     const g = context();
     if (!into && g.canvas.width !== size) g.canvas.width = g.canvas.height = size;
     g.bindFramebuffer(g.FRAMEBUFFER, into ? into.frame : null);  // into : cible (voir target), sinon le canevas
-    // maillage du terrain (sa propre portée), sinon plan sur la portée de la vue ; reach > REACH : vue longue
-    const n = terrain ? meshSide(terrain) : 2 * reach / STEP + 1, R = (n - 1) * STEP / 2, base = terrain ? terrain[(n * n - 1) / 2] : 0;
+    const n = 2 * REACH / STEP + 1, base = terrain ? terrain[(n * n - 1) / 2] : 0;
     const vertices = new Float32Array(3 * n * n);
     for (let j = 0, k = 0; j < n; j++) {
       for (let i = 0; i < n; i++, k++) {
-        vertices.set([-R + i * STEP, -R + j * STEP, terrain ? terrain[k] - base : 0], 3 * k);
+        vertices.set([-REACH + i * STEP, -REACH + j * STEP, terrain ? terrain[k] - base : 0], 3 * k);
       }
     }
     const indices = new Uint16Array(6 * (n - 1) * (n - 1));
@@ -519,8 +512,6 @@ const Dessus = (() => {
     g.vertexAttribPointer(place, 3, g.FLOAT, false, 0, 0);
     const uniform = (name) => g.getUniformLocation(program, name), main = frame;
     g.uniform1f(uniform("reach"), REACH);
-    g.uniform1f(uniform("viewReach"), reach);
-    g.uniform1f(uniform("longView"), reach > REACH ? 1 : 0);
     g.uniform1f(uniform("sure"), SURE);
     g.uniform1f(uniform("wide"), CAR.wide);
     g.uniform1f(uniform("shade"), SHADE);
@@ -615,7 +606,7 @@ const Dessus = (() => {
   const BLEND = `#version 300 es
     precision highp float;
     out vec4 color;
-    uniform sampler2D shown, winner, shift1, shift2, shift3, shift4;  // shift : écart de teinte de chaque voisine (LOW x LOW, 0-255)
+    uniform sampler2D shown, winner, shift1, shift2;  // shift : écart de teinte de chaque voisine (LOW x LOW, 0-255)
     uniform float scale;  // px de l'image par case basse
     vec3 at(sampler2D grid, vec2 p) {  // bilinéaire entre les centres des cases basses
       vec2 f = clamp(p / scale - 0.5, 0.0, ${LOW - 1}.0), t = f - floor(f);
@@ -627,8 +618,7 @@ const Dessus = (() => {
       ivec2 p = ivec2(gl_FragCoord.xy);
       vec4 c = texelFetch(shown, p, 0);
       int l = int(texelFetch(winner, p, 0).r * 255.0 + 0.5);
-      vec3 s = l == 2 ? at(shift1, gl_FragCoord.xy) : l == 3 ? at(shift2, gl_FragCoord.xy) : l == 4 ? at(shift3, gl_FragCoord.xy)
-        : l == 5 ? at(shift4, gl_FragCoord.xy) : vec3(0.0);
+      vec3 s = l == 2 ? at(shift1, gl_FragCoord.xy) : l == 3 ? at(shift2, gl_FragCoord.xy) : vec3(0.0);
       color = vec4(c.rgb + s / 255.0, c.a);
     }`;
   let blend = null;
@@ -649,17 +639,17 @@ const Dessus = (() => {
   }
 
   /** Comme render, raccords fondus : tout par la carte graphique, sauf les bandes basses (LOW x LOW), lues et floutées ici.
-   * Quatre voisines au plus (vue longue : voisines et photos à deux pas). */
-  function renderBlended(layers, terrain, frame = layers[0].pose, band = null, size = SIZE, reach = REACH) {
-    if (layers.length < 2 || layers.length > 5 || !readsBack()) return render(layers, terrain, frame, band, size, 0, null, reach);
+   * shortcut: deux voisines au plus (précédente et suivante), à étendre si la vue en prend davantage */
+  function renderBlended(layers, terrain, frame = layers[0].pose, band = null, size = SIZE) {
+    if (layers.length < 2 || layers.length > 3 || !readsBack()) return render(layers, terrain, frame, band, size);
     const g = context(), level = Math.log2(size / LOW), k = size / LOW;
-    const radius = (sigma) => Math.max(1, Math.round(sigma * LOW / (2 * reach) / 1.7));  // 3 boîtes : σ ≈ 1,7 r
+    const radius = (sigma) => Math.max(1, Math.round(sigma * LOW / (2 * REACH) / 1.7));  // 3 boîtes : σ ≈ 1,7 r
     const blur = (a, r) => { let b = a; for (let pass = 0; pass < 3; pass++) b = boxBlur(b, r, LOW); return b; };
     // Bande basse de chaque photo seule (hors de son véhicule) : moyenne des pixels vus, par les niveaux réduits de sa texture
     const read = g.createFramebuffer(), px = new Uint8Array(4 * LOW * LOW);
     const low = layers.map((layer) => {
       const alone = target(size, level + 1);
-      render([layer], terrain, frame, band, size, 2, alone, reach);
+      render([layer], terrain, frame, band, size, 2, alone);
       g.bindTexture(g.TEXTURE_2D, alone.texture);
       g.generateMipmap(g.TEXTURE_2D);
       g.bindFramebuffer(g.FRAMEBUFFER, read);
@@ -693,8 +683,8 @@ const Dessus = (() => {
       return texture;
     });
     const winner = target(size), shown = target(size);
-    render(layers, terrain, frame, band, size, 3, winner, reach);
-    render(layers, terrain, frame, band, size, 0, shown, reach);
+    render(layers, terrain, frame, band, size, 3, winner);
+    render(layers, terrain, frame, band, size, 0, shown);
     // Mélange sur le canevas
     if (g.canvas.width !== size) g.canvas.width = g.canvas.height = size;
     const program = blendProgram(), corners = g.createBuffer(), place = g.getAttribLocation(program, "corner");
@@ -705,11 +695,11 @@ const Dessus = (() => {
     g.bufferData(g.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), g.STATIC_DRAW);
     g.enableVertexAttribArray(place);
     g.vertexAttribPointer(place, 2, g.FLOAT, false, 0, 0);
-    [shown.texture, winner.texture, ...[0, 1, 2, 3].map((i) => shifts[i] ?? shifts[0])].forEach((texture, unit) => {
+    [shown.texture, winner.texture, ...shifts, shifts[0]].slice(0, 4).forEach((texture, unit) => {
       g.activeTexture(g.TEXTURE0 + unit);
       g.bindTexture(g.TEXTURE_2D, texture);
     });
-    ["shown", "winner", "shift1", "shift2", "shift3", "shift4"].forEach((name, unit) => g.uniform1i(g.getUniformLocation(program, name), unit));
+    ["shown", "winner", "shift1", "shift2"].forEach((name, unit) => g.uniform1i(g.getUniformLocation(program, name), unit));
     g.uniform1f(g.getUniformLocation(program, "scale"), k);
     g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
     g.activeTexture(g.TEXTURE0);
@@ -1361,9 +1351,7 @@ const Dessus = (() => {
         for (const other of readyFar()) {  // à deux pas : raccord lu pour le tangage seulement
           await new Promise((resolve) => setTimeout(resolve));
           if (shown !== mine) return;
-          const found = alignJoin(main, other, [raster, readRaster(other, mine.terrain, main.pose)], ax);
-          if (found?.fix) joins.set(other.pose.pic, found.fix);  // dessinée recalée dans la vue longue
-          farResults.push({ other, r: found });
+          farResults.push({ other, r: alignJoin(main, other, [raster, readRaster(other, mine.terrain, main.pose)], ax) });
         }
       }
     } catch (error) {
@@ -1374,7 +1362,7 @@ const Dessus = (() => {
     if (shown !== mine) return;
     if (learnPitch(main, [...others.map((other, k) => ({ other, r: results[k] })), ...farResults])) return showImage();  // tangage de la photo changé : raccords refaits avec lui
     const done = results.filter((r) => r?.fix), cm = (v) => number(100 * v, 1);
-    mine.joins = { key, map: joins, results, seams: new Map([...others.map((o, k) => [o.pose.pic, results[k]]), ...farResults.map(({ other, r }) => [other.pose.pic, r])]), ms: performance.now() - begun };
+    mine.joins = { key, map: joins, results, seams: new Map(others.map((o, k) => [o.pose.pic, results[k]])), ms: performance.now() - begun };
     mine.joinText = !others.length ? "" : done.length
       ? `raccords recalés ${done.length}/${others.length} (écart ${done.map((r) => `${cm(r.before)} → ${cm(r.after)}`).join(", ")} cm)`
       : `raccords non recalés (${results.some(Boolean) ? "sans gain sûr" : "pas assez de sol net en commun"})`;
@@ -1394,9 +1382,6 @@ const Dessus = (() => {
   // Photos voisines (interrupteur « Véhicule masqué », éteint par défaut) : lues, analysées, dessinées sous le véhicule et
   // recalées sur la principale (alignJoin), tangage de la séquence lu sur les raccords ; sinon la photo affichée seule
   let neighboursOn = false;
-  // « Vue longue » (éteinte par défaut, avec « Véhicule masqué » seulement) : ±LONG m, photos à deux pas dessinées, recalées
-  // par leur raccord ; terrain LiDAR HD lu sur ±LONG m à part (shown.longTerrain : undefined pas encore demandé, "reading")
-  let longOn = false;
   // « Calage par les verticales » : coché d'office pour une photo en zone d'habitation (Lieu.inTown), décoché ailleurs (sur 3
   // essais de l'auteur, 10/11/2026, la vue était meilleure inclinée par la route hors agglomération ; en ville, photo de
   // référence de Pouilly-en-Auxois : raccords recalés avec les verticales, pas avec la route) ; changé à la main pour la photo
@@ -1566,21 +1551,6 @@ const Dessus = (() => {
   /** Photos à deux pas prêtes (avec « Véhicule masqué », inclinées par la route : terrain LiDAR HD) : raccords pour le tangage
    * seulement (learnPitch), pas dessinées. */
   const readyFar = () => (neighboursOn && onLidar(shown) ? (shown.pose.far || []).filter((pose) => shown.panos.has(pose.pic)).map(layerOf) : []);
-  /** Vue longue dessinable : allumée, avec les voisines, terrain élargi lu (ou sol plat). */
-  const longReady = () => longOn && neighboursOn && shown.longTerrain !== undefined && shown.longTerrain !== "reading";
-  /** Photos de la vue dessinée (et de ses mesures) : avec les photos à deux pas dans la vue longue ; sa portée. */
-  const drawnLayers = () => (longReady() ? [...readyLayers(), ...readyFar()] : readyLayers());
-  const drawnReach = () => (longReady() ? LONG : REACH);
-  /** Terrain de la vue longue (±LONG m) : LiDAR HD lu à part, plat sur un pont ou sans LiDAR ; puis vue refaite. */
-  async function readLongTerrain(mine, signal) {
-    mine.longTerrain = "reading";
-    let terrain = null;
-    if (mine.pose.bridge) terrain = new Array((2 * LONG / STEP + 1) ** 2).fill(0);
-    else if (onLidar(mine)) terrain = await readTerrain(mine.pose, signal, LONG).then((z) => z && smoothTerrain(z)).catch((error) => { console.warn("Terrain de la vue longue :", error); return null; });
-    if (shown !== mine) return;
-    mine.longTerrain = terrain;
-    showImage();
-  }
   /** Couche d'une photo (pose) dans la vue affichée : position, inclinaison (verticales, sinon route), hauteur, contour. */
   function layerOf(pose) {
     const at = toLocal(pose.lon, pose.lat, shown.pose), ground = onLidar(shown) ? GROUND_SIGMA : DECK_SIGMA;
@@ -1618,10 +1588,10 @@ const Dessus = (() => {
   /** Point de la carte dans le repère de la photo (est, nord, m), image décalée comprise. */
   const localOf = (point) => { const [e, n] = toLocal(...point, shown.pose), [de, dn] = shiftOf(); return [e - de, n - dn]; };
   function lengthTo(point) {
-    const layers = drawnLayers(), reach = drawnReach(), a = localOf(start), b = localOf(point);
-    const la = sourceOf(a, layers, reach), lb = sourceOf(b, layers, reach), length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const layers = readyLayers(), a = localOf(start), b = localOf(point);
+    const la = sourceOf(a, layers), lb = sourceOf(b, layers), length = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (!la || !lb) return { length, error: null, photos: "" };
-    return { length, error: shownError(a, b, layers, shown.sigmaGround, reach), photos: [...new Set([la.pose.pic, lb.pose.pic])].join(",") };
+    return { length, error: shownError(a, b, layers, shown.sigmaGround), photos: [...new Set([la.pose.pic, lb.pose.pic])].join(",") };
   }
   const lengthText = ({ length, error }) => `${number(length, 2)} m ${error === null ? "(hors vue)" : `±${number(error, 2)}`}`;
 
@@ -1698,14 +1668,8 @@ const Dessus = (() => {
       cancelStart();  // le départ a été pris sur l'autre image
       if (shown?.url) showImage();
     });
-    $("#dessus-longue").addEventListener("change", (event) => {
-      longOn = event.target.checked;
-      cancelStart();  // le départ a été pris sur l'autre image
-      if (shown?.url) showImage();
-    });
     $("#dessus-voisines").addEventListener("change", (event) => {
       neighboursOn = event.target.checked;
-      $("#dessus-longue").disabled = !neighboursOn;  // les photos à deux pas viennent avec les voisines
       if (shown) applySettings(shown.sequence, shown.pic);  // tangage lu sur les raccords : seulement avec les voisines
       if (shown) loadNeighbours(abort.signal);
       cancelStart();  // le départ a été pris sur l'autre image
@@ -1781,7 +1745,7 @@ const Dessus = (() => {
   function remember(view) {
     if (!view?.panos.has(view.pic)) return;  // photo et terrain pas encore lus
     computed.delete(view.pic);
-    computed.set(view.pic, { terrain: view.terrain, longTerrain: view.longTerrain === "reading" ? undefined : view.longTerrain, terrainFailed: view.terrainFailed, estimated: view.estimated && !view.estimating, joins: view.joins, joinText: view.joinText, shift: view.shift, located: view.located, locatedWith: view.locatedWith, placed: view.placed, lateral: view.lateral });
+    computed.set(view.pic, { terrain: view.terrain, terrainFailed: view.terrainFailed, estimated: view.estimated && !view.estimating, joins: view.joins, joinText: view.joinText, shift: view.shift, located: view.located, locatedWith: view.locatedWith, placed: view.placed, lateral: view.lateral });
     if (computed.size > COMPUTED_MAX) computed.delete(computed.keys().next().value);  // la plus ancienne
   }
 
@@ -1816,18 +1780,14 @@ const Dessus = (() => {
     $("#dessus-verticales").disabled = !(pose.up && shown.terrain);  // verticales lues, route pour les remplacer
     // découpée à ±8 m de l'axe de la route (BEST.wide), bords parallèles à la route : rien de plus loin de la route ; fondue
     // aux raccords avec les voisines (« Véhicule masqué »)
-    if (longOn && neighboursOn && shown.longTerrain === undefined) readLongTerrain(shown, abort.signal);
-    // vue longue : image de LONG_SIZE px (1,2 cm par pixel), raccords fondus comme la vue courte
-    const long = longReady(), reach = drawnReach();
-    const canvas = long ? renderBlended(drawnLayers(), shown.longTerrain, layers[0].pose, [...axis, 1e6, BEST.wide], LONG_SIZE, LONG)
-      : (neighboursOn ? renderBlended : render)(layers, shown.terrain, layers[0].pose, [...axis, 1e6, BEST.wide], fine ? FINE_SIZE : SHOWN_SIZE);
+    const canvas = (neighboursOn ? renderBlended : render)(layers, shown.terrain, layers[0].pose, [...axis, 1e6, BEST.wide], fine ? FINE_SIZE : SHOWN_SIZE);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
     if (mine !== drawing || !shown) return;
     const old = shown.url, url = shown.url = URL.createObjectURL(blob);
     // Sous les mesures de la page (source « mesures », src/carte.js) et le tracé en cours ; le reste de la carte reste dessous
     const below = map.getStyle().layers.find((l) => l.source === "mesures" || l.id === LINE_ID)?.id;
     const [de, dn] = shiftOf(), placed = (e, n) => toLonLat(e + de, n + dn, pose);
-    const coordinates = [[-reach, reach], [reach, reach], [reach, -reach], [-reach, -reach]].map(([e, n]) => placed(e, n));
+    const coordinates = [[-REACH, REACH], [REACH, REACH], [REACH, -REACH], [-REACH, -REACH]].map(([e, n]) => placed(e, n));
     if (map.getSource(IMAGE_ID)) {
       map.getSource(IMAGE_ID).updateImage({ url, coordinates });
     } else {
@@ -1841,7 +1801,7 @@ const Dessus = (() => {
     const linesPending = !pitchManual && !pose.pending && layers[0].pose.groundTilt && shown.linesAt !== pitchOffset && (shown.linePasses || 0) <= PITCH_PASSES;
     const tilt = pose.pending ? "inclinaison en calcul" : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${layers[0].pose.roll_defect ? `, ${number(layers[0].pose.roll_defect, 1)}° de défaut de la caméra (campagne)` : ""}${LEAN * (shown.lateral || 0) >= 0.5 ? `, virage : véhicule penché jusqu'à ${number(LEAN * shown.lateral, 1)}°` : ""}${pitchOffset || pitchManual || auto ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? ` réglé à la main${pitchForced ? " (forcé)" : ""}` : auto ? ` ${auto.text}` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain || !neighboursOn ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
-    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.pose.fleet && shown.pose.mount ? ` (monture ${shown.pose.mount === MOUNTS[0] ? "basse" : "haute"} d'après la date${parallax ? `, lue entre photos : ${number(parallax, 2)} m` : ""})` : parallax && shown.pose.fleet ? ` (monture ${mountOf(parallax) === MOUNTS[0] ? "basse" : "haute"}, lue entre photos : ${number(parallax, 2)} m)` : parallax ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${long ? ` ; vue longue ±${LONG} m (${drawnLayers().length} photos)` : ""}${linesPending ? " ; tangage en cours…" : longOn && neighboursOn && shown.longTerrain === "reading" ? " ; terrain de la vue longue en cours…" : shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : neighboursOn && outlines.get(shown.sequence) === "reading" ? " ; contour du véhicule en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
+    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.pose.fleet && shown.pose.mount ? ` (monture ${shown.pose.mount === MOUNTS[0] ? "basse" : "haute"} d'après la date${parallax ? `, lue entre photos : ${number(parallax, 2)} m` : ""})` : parallax && shown.pose.fleet ? ` (monture ${mountOf(parallax) === MOUNTS[0] ? "basse" : "haute"}, lue entre photos : ${number(parallax, 2)} m)` : parallax ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${linesPending ? " ; tangage en cours…" : shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : neighboursOn && outlines.get(shown.sequence) === "reading" ? " ; contour du véhicule en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
     if (linesPending) learnLines();
     else if (positionOn && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
     else if (!busy() && neighboursOn && !shown.estimated) measureHeight();
