@@ -5,13 +5,11 @@ Les calculs viennent du plugin QGIS « Visionneuse Panoramax » (`~/claude/visio
 qui n'en a plus depuis le 29/10/2026 : ils vivent ici (`py/core/`, `py/web_app.py`). Méthodes et
 validations : `docs/MESURES.md` (repris du plugin) et `docs/CALCULS.md`. Auteur : Cédric COCHART.
 
-## Priorité du dépôt (10/11/2026)
+## Priorité du dépôt
 
-**Priorité absolue : simplifier et optimiser les tests.** Avant toute nouvelle fonction, alléger les essais :
-code commun des pages d'essai mis en commun, pages de diagnostic ou de faisabilité retirées, chaque page
-automatique terminée par un bilan « contrôles : n réussis » (sinon le lanceur la compte en échec), durée
-des pages réduite (attentes fixes remplacées par des attentes de condition), essais rapides préférés aux
-pages dans le navigateur.
+Prochaine priorité : à définir par l'auteur. Simplification des essais (priorité du 10/11/2026) terminée le
+13/11/2026 : code commun des pages (`tests/commun.js`), pages de diagnostic retirées, bilan sur chaque page,
+attentes de condition (essai complet : environ 7 → 5 min), parcours de mesure de bout en bout en Python.
 
 ## Règles
 
@@ -39,9 +37,13 @@ pages dans le navigateur.
 - Essais rapides d'abord : un calcul de `py/web_app.py` se vérifie par `tests/test_calculs.py`
   (`python3 -m unittest discover -s tests`, sans navigateur ni réseau, quelques secondes avec
   `tests/coeur/`) ; y
-  ajouter un cas court par correctif. Les pages d'essai dans le navigateur (plusieurs minutes,
+  ajouter un cas court par correctif. Mesure de bout en bout (clics, points gardés, résultats, export) : classe
+  `Parcours` (App pilotée comme par la page, cœur sans hôte, photos synthétiques). Les pages d'essai dans le navigateur (plusieurs minutes,
   réseau) : une page ciblée pendant la mise au point, l'ensemble seulement avant de publier.
   Retirer les essais qui ne servent plus (faisabilité, diagnostic, option sans enjeu).
+- Pages d'essai : code commun dans `tests/commun.js` (`Essai` : journal, `until`, `soon`, `expect`, `expectSoon`,
+  bilan par `fin()` ou `await verdict()` avant « FIN »). Attendre une condition, pas une durée ; une attente fixe
+  seulement pour un contrôle « rien ne change » (sa condition est déjà vraie avant l'action).
 - Lanceur des essais : `tools/essais.sh rapide|birdeye|complet|video|<page>[#…]` (durée et bilan par page, cache
   HTTP gardé entre essais, processeur graphique, Chrome arrêté seul). Vue du dessus pendant la mise au point :
   `tools/essais.sh birdeye` (environ 1 min) ; les 7 photos de référence seulement avant une fusion.
