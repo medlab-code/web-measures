@@ -5,7 +5,7 @@
 
 Ce document explique, mode par mode, comment l'application calcule ce qu'elle affiche, avec
 les seuils retenus et ce qui limite la précision. Le mode d'emploi est dans le
-[README](../README.md) (« Utilisation »), et les essais chiffrés dans sa partie « Précision ».
+[guide](GUIDE.md) (« Utilisation »), et les essais chiffrés dans sa partie « Précision ».
 Les calculs communs avec le plugin QGIS (triangulation, inclinaison, vérification RTK) sont
 détaillés dans [`MESURES.md`](MESURES.md) (repris du plugin Visionneuse Panoramax), sections 0, 2.7,
 4.4 et 6.1 bis. Ici, ils sont résumés. Les calculs propres à l'application (pont, « Profils »,
@@ -582,7 +582,7 @@ moins de 10 %, vers l'intérieur dans les virages marqués).
 | Accélération latérale (vidéo) | courbure à 4 % près en RTK sur un virage de 200 m ; dévers ±2 % au plus (MNT ±0,08 m par point, 15 points sur 3 m ; moins si ses erreurs sont liées) | lissage sur 30 m (virages de moins de 30 m sous-estimés), GPS hors RTK, ponts |
 
 Avec un GPS grand public (±4 m), le point de référence est à plusieurs mètres près, et une
-hauteur à ±2 à 3 m. Les essais et leurs valeurs attendues sont dans le README (« Précision »).
+hauteur à ±2 à 3 m. Les essais et leurs valeurs attendues sont dans le guide (docs/GUIDE.md, « Précision »).
 
 ## Vue du dessus (essai, branche `birdeye`)
 

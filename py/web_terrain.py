@@ -12,7 +12,7 @@ sur le véhicule :
 - décalage : appris sur des photos de la même séquence calées par leurs verticales (références,
   prises en zone d'habitation, où les verticales réussissent).
 
-Mesures du 24/10/2026 (README, « Précision ») : 14 photos témoins hors des villages de référence
+Mesures du 24/10/2026 (docs/GUIDE.md, « Précision ») : 14 photos témoins hors des villages de référence
 (hameaux, sorties de village, 56 à 67 km/h), calées par leurs verticales : dévers à ±0,6°, pente
 à ±0,5° (±1,2° et ±1,6° sans terrain ; ±0,8° et ±0,6° avec la grille du cœur). Le roulis en virage
 n'est pas corrigé : la correction tirée des photos de village (3 à 6°/g) aggravait le seul virage

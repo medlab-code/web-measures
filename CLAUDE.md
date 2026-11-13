@@ -58,7 +58,7 @@ attentes de condition (essai complet : environ 7 → 5 min), parcours de mesure 
   plutôt que masqué. Son état se recalcule à chaque changement qui le concerne.
 - Quand la manière de calculer une mesure change (hauteur, largeur, hauteur de chute sur un
   pont, inclinaison…), mettre à jour dans le même changement les commentaires du code qui la
-  décrivent (docstrings, constantes, infobulles, messages), sa description dans le `README.md`
+  décrivent (docstrings, constantes, infobulles, messages), sa description dans `docs/GUIDE.md`
   (« Utilisation », « Précision ») et dans `docs/CALCULS.md`.
 - Après toute modification d'un fichier Python sous `py/`, relancer `tools/sources.sh` : il
   régénère `py/sources.js` (seul chargé par la page).
@@ -71,7 +71,7 @@ attentes de condition (essai complet : environ 7 → 5 min), parcours de mesure 
 - Branche `main`, dépôt privé `medlab-code/web-measures` sur GitHub (privé depuis le 13/10/2026).
 - Release : tag `vX.Y.Z` et release GitHub (`gh release create … --target main`). Mettre à jour
   dans le même commit le numéro affiché sous le titre (`index.html`, mention « Version test
-  X.Y.Z ») et la rubrique « Versions » du `README.md`. Le site Cloudflare
+  X.Y.Z »), la rubrique « Version » du `README.md` (résumé court) et `docs/VERSIONS.md`. Le site Cloudflare
   (https://mesures-panoramax-web.medlab-code.workers.dev/) se met à jour à chaque push sur `main`.
   Celui de la branche `dev` (https://web-measures-dev.medlab-code.workers.dev/, second Worker) se met à
   jour à chaque push sur `dev`.
