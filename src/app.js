@@ -2856,7 +2856,7 @@
   // Lecture en arrière, pause et reprise (même sens, même vitesse), lecture en avant. Chaque
   // appui sur un sens déjà en lecture passe à la vitesse suivante : 1x → 2x → 4x → 8x → 16x → 1x.
   // 1x : lecteur de la visionneuse officielle (playSequence, stopSequence). 2x à 16x : une photo
-  // sur 2, 4, 8 ou 16, les autres jamais chargées ; leur liste vient de l'instance de la photo, par
+  // sur 2, 4, 8 ou 16 (image SD comme en 1x), les autres jamais chargées ; leur liste vient de l'instance de la photo, par
   // rangs dans la séquence (le méta-catalogue ignore startAfterRank). Hors de la prise de
   // mesure : on y change de photo par la carte. Si aucune adresse ne donne la liste : lecture 1x.
   const SPEEDS = [1, 2, 4, 8, 16];
@@ -3004,6 +3004,9 @@
     }
     fast = { collection: photo.collection, apis, rank, step: back ? -k : k, id: photo.id, ids: new Map(), points: new Map(),
       timer: null };
+    // Comme en 1x : la visionneuse se croit en lecture (shouldGoFast) et charge l'image SD sans transition, la HD
+    // seulement à l'arrêt (stopSequence, appelé par stopPlayer : forceRefresh)
+    psv._sequencePlaying = back ? -1 : 1;
     updatePlayer();
     fastStep(fast);
   }

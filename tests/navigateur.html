@@ -490,8 +490,10 @@ async function feature(id) {
   };
   w.requestAnimationFrame(sample);
   const playStart = Date.now();
-  while (Date.now() - playStart < 8000) { seen(); await sleep(100); }
+  let hd = 0;  // échantillons où la visionneuse chargerait la HD (shouldGoFast faux) : en lecture rapide, SD comme en 1x
+  while (Date.now() - playStart < 8000) { seen(); if (!w.mesures.psv._shouldGoFast()) hd++; await sleep(100); }
   sampling = false;
+  expect("lecture 2x : image SD, comme en 1x (shouldGoFast)", hd === 0, hd + " échantillons sans");
   const moves = frames.slice(30).map((f) => f.dx).filter((d) => d > 0);
   const median = moves.sort((x, y) => x - y)[Math.floor(moves.length / 2)] || 0;
   const body = frames.slice(30);
