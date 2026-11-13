@@ -9,7 +9,7 @@
 <iframe id="f" src="../index.html" style="width:1400px;height:1300px"></iframe>
 <script src="commun.js"></script>
 <script>
-const { log, sleep, until, ready, expect, fin } = Essai;
+const { log, sleep, until, soon, ready, expect, fin } = Essai;
 // photo, milieu attendu du séparateur à gauche (m, d'après la photo et le relief), bord d'enrobé droit attendu (décision du 05/11/2026 : la chaussée est la bande d'enrobé, BAU comprise)
 // #photos=id,id : ces photos seulement, sans contrôle de position (essai d'une autre route)
 const PHOTOS = location.hash.startsWith("#photos=") ? location.hash.slice(8).split(",").map((id) => [id, id.slice(0, 8), null, null]) : null;
@@ -29,7 +29,7 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
       doc.querySelector("#bords").click();
       await until(() => JSON.parse(app.fall_json() || "null")?.profile, 40000, "profil");
       doc.querySelector("#profil").click();
-      await sleep(800);
+      await soon(() => doc.querySelector("#fenetre-profil").open && !doc.querySelector("#profil-nuage").disabled);
       const dialog = doc.querySelector("#fenetre-profil"), button = doc.querySelector("#profil-nuage");
       expect(`${where} : « Analyse fine » active, « Végétation » grisée avant elle`, !button.disabled && doc.querySelector("#profil-vegetation").disabled);
       button.click();
