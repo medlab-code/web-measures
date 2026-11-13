@@ -165,8 +165,13 @@ const Carte = (() => {
           { id: "pcrs", type: "raster", source: "pcrs", minzoom: 15, layout: { visibility: "none" } },
           { id: "mnh", type: "raster", source: "mnh", layout: { visibility: "none" } },
           { id: "osm", type: "raster", source: "osm", layout: { visibility: "none" } },
-          // Cadastre, sur le fond et sous le filaire (couleurs du Parcellaire Express de l'IGN) : bâtiments, limites des
-          // parcelles et des feuilles, feuilles mal raccordées (limites peut-être décalées) teintées
+          // Cadastre, sur le fond et sous le filaire (couleurs du Parcellaire Express de l'IGN) : parcelles numérotées teintées (le
+          // domaine public, voirie et cours d'eau, n'en a pas : sans teinte), bâtiments, limites des parcelles et des feuilles,
+          // feuilles mal raccordées (limites peut-être décalées) cernées de tirets
+          {
+            id: "cadastre-parcelles", type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
+            paint: { "fill-color": "#ff8000", "fill-opacity": 0.12 },
+          },
           {
             id: "cadastre-batiments", type: "fill", source: "cadastre", "source-layer": "batiment", layout: { visibility: "none" },
             paint: { "fill-color": "#c17d73", "fill-opacity": 0.45, "fill-outline-color": "#b580ff" },
@@ -180,8 +185,8 @@ const Carte = (() => {
             paint: { "line-color": "#808080", "line-width": ["interpolate", ["linear"], ["zoom"], 15, 1, 18, 2.5] },
           },
           {
-            id: "cadastre-decale", type: "fill", source: "cadastre-decale", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
-            paint: { "fill-color": "#ffa000", "fill-opacity": 0.15, "fill-outline-color": "#ffa000" },
+            id: "cadastre-decale", type: "line", source: "cadastre-decale", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
+            paint: { "line-color": "#c62828", "line-width": 2, "line-dasharray": [3, 2] },
           },
           // Filaire des voies, sous les limites administratives : voies sans numéro de la BD TOPO
           // (sentiers, escaliers et bacs exclus), puis routes numérotées du Plan IGN
@@ -747,7 +752,7 @@ const Carte = (() => {
     cadastreOn = on;
     // pas whenLoaded (voir setMilestones) : « load » peut être passé alors que le style se dit « pas chargé »
     const apply = () => {
-      for (const id of ["cadastre", "cadastre-batiments", "cadastre-feuilles", "cadastre-decale", "cadastre-bornes", "cadastre-sections"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+      for (const id of ["cadastre-parcelles", "cadastre", "cadastre-batiments", "cadastre-feuilles", "cadastre-decale", "cadastre-bornes", "cadastre-sections"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
       if (!cadastreFollow) {
         cadastreFollow = true;
         map.on("moveend", () => {
