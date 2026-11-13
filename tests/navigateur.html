@@ -17,7 +17,7 @@ try { localStorage.removeItem("web-measures/calage"); } catch { /* sans stockage
 <iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe><pre id="log"></pre>
 <script src="commun.js"></script>
 <script>
-const { log, sleep, until, expect, near, metresIn, verdict } = Essai;
+const { log, sleep, until, soon, expect, near, metresIn, verdict } = Essai;
 const DIJON = ["20a5b40f-ab06-40ab-97e1-b3f74032bec7", "f85566ac-8b7a-46a2-a9c2-4df0a3fa6e20"];  // CD21, avenue Raymond Poincaré (instance IGN), sans RTK (±4 m), voisines
 const POUILLY = "cd8cf3a0-6567-40f0-8805-94172a5dfc3c";
 const PONT = "b40045bd-1fc5-4a7a-a5bd-7b7952902a1c";  // CD21, tablier de la RD111 au-dessus de l'A6 (Beaune)
@@ -353,7 +353,6 @@ async function feature(id) {
   psvClick(0.95, 0.0);
   log("viser pendant le chargement : " + doc.querySelector("#statut").textContent);
   await until(() => w.mesures.psv.getPictureMetadata?.()?.id === DIJON[1], 30000, "photo suivante");
-  await sleep(1000);
   psvClick(0.95, 0.0);
   log(doc.querySelector("#statut").textContent);
   log("cartes : " + JSON.parse(app.map_geojson()).features.filter((f) => f.properties.kind === "visee").length + " visées");
@@ -390,7 +389,6 @@ async function feature(id) {
   for (const f of photos) {
     w.mesures.openPhoto(f);
     await until(() => w.mesures.psv.getPictureMetadata?.()?.id === f.id, 30000, "photo " + f.id);
-    await sleep(1000);
     psvClick(yawTo(f), -0.3);
   }
   log("visées : " + app.status() + " · bouton Valider affiché : " + !doc.querySelector("#garder").hidden);
@@ -425,7 +423,7 @@ async function feature(id) {
   log("== calage inclinaison : " + app.set_mode("tilt"));
   psvClick(0.62, -0.12);
   psvClick(0.64, 0.35);  // sommet un peu à côté
-  await sleep(300);
+  await soon(() => JSON.parse(app.viewer_marks()).filter((m) => m.calage).pop()?.points.length === 2);
   // Pied et sommet affichés (croix rouge clair, trait bleu clair), pas encore calés : bouton de validation
   const tiltMark = () => JSON.parse(app.viewer_marks()).filter((m) => m.calage).pop();
   expect("objet vertical affiché avant validation", tiltMark()?.points.length === 2);
@@ -436,7 +434,7 @@ async function feature(id) {
   psvClick(0.625, 0.35);  // nouvelle position
   expect("sommet déplacé", Math.abs(tiltMark().points[1][0] - 0.625) < 1e-6 && !tiltMark().points[1][2]);
   doc.querySelector("#valider-objet").click();
-  await sleep(300);
+  await soon(() => doc.querySelector("#valider-objet").hidden);
   log("validé : " + app.status());
   expect("bouton masqué après validation", doc.querySelector("#valider-objet").hidden);
   expect("croix effacées après validation", !tiltMark());
@@ -469,7 +467,6 @@ async function feature(id) {
   const ign = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + PONT)).json()).features[0];
   w.mesures.openPhoto(ign);
   await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === PONT, 30000, "photo IGN affichée");
-  await sleep(1000);
   {  // hors mesure : voyants RTK et sol visibles, pas celui de l'inclinaison
     const lights = () => [...doc.querySelectorAll("#voyants li")].map((li) => li.textContent);
     try { await until(() => lights().includes("RTK"), 30000, "voyants hors mesure"); } catch (e) { log(String(e)); }
