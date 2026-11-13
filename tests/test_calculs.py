@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # © Cédric COCHART
 """Essais rapides des calculs propres à l'application (py/web_app.py), sans navigateur ni réseau :
-python3 -m unittest discover -s tests (moins d'une seconde). Pyodide est remplacé par un faux module."""
+python3 -m unittest discover -s tests (quelques secondes). Pyodide est remplacé par un faux module."""
 
 import math
+import re
 import sys
 import json
 import types
@@ -17,6 +18,9 @@ sys.modules["pyodide.http"].pyfetch = None
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "py"))
 
 import web_app  # noqa: E402
+from core import host, triangulation  # noqa: E402
+
+HOST = {name: getattr(host, name) for name in host.SERVICES}  # cœur sans hôte : pas de réseau, calcul immédiat
 
 App = web_app.App
 app = App.__new__(App)  # seulement les constantes de la classe
@@ -444,6 +448,116 @@ class CameraPont(unittest.TestCase):
         a.use_fall_setting = App.use_fall_setting.__get__(a)
         a.fall_setting = True
         self.assertEqual(a._fall_camera()[:2], (1.9, "réglage"))
+
+
+class Parcours(unittest.TestCase):
+    """Mesures de bout en bout dans App, comme les pages d'essai du navigateur (essai-libre, essai-rtk, essai-largeur,
+    essai-releve) mais sans réseau : deux photos 360° à 6 m l'une de l'autre sur une route nord-sud, sol plat, caméra
+    à 1,9 m ; les clics visent des points connus (cap et élévation en radians, repère de la photo)."""
+
+    CAMERA = 1.9
+    NORTH = {"p1": 0.0, "p2": 6.0}
+    A, B = (5.0, 3.0, 0.0), (5.0, 7.0, 0.0)  # au sol, à 5 m à l'est (est, nord, z en m)
+
+    def setUp(self):
+        self.app = App(lambda *args: None)
+        host.install(**HOST)  # App installe le réseau du navigateur : retiré
+
+    def tearDown(self):
+        host.install(**HOST)
+
+    def show(self, pic):
+        lon, lat = triangulation._geographic(0.0, self.NORTH[pic], 5.0415, 47.3220)
+        self.app.set_picture(json.dumps({
+            "id": pic, "collection": "s1", "type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]},
+            "properties": {"view:azimuth": 0, "datetime": "2026-01-01T00:00:00Z",
+                           "pers:interior_orientation": {"field_of_view": 360}}, "links": []}))
+        self.app.set_active(True)
+
+    def aim(self, pic, t, pitch=None):
+        """Clic depuis la photo pic vers t (est, nord, z), ou à l'élévation pitch."""
+        dx, dy = t[0], t[1] - self.NORTH[pic]
+        return self.app.click(math.atan2(dx, dy), math.atan2(t[2] - self.CAMERA, math.hypot(dx, dy)) if pitch is None else pitch)
+
+    def sighted(self, t, pitch=None):
+        """Visées de t depuis les deux photos, puis point gardé (bouton « Valider »)."""
+        for pic in ("p1", "p2"):
+            self.show(pic)
+            self.aim(pic, t, pitch)
+        return self.app.keep_point()
+
+    def metres(self, text):
+        return float(re.search(r"(\d+,\d+) m", text).group(1).replace(",", "."))
+
+    def test_distance_libre(self):
+        self.app.set_mode("tri")
+        self.sighted(self.A)
+        self.assertIn("Distance A–B : 4,00 m", self.sighted(self.B))
+        values = [f["properties"]["valeur_m"] for f in json.loads(self.app.export_geojson())["features"]
+                  if f["properties"]["type"].startswith("distance")]
+        self.assertEqual(len(values), 1)
+        self.assertAlmostEqual(values[0], 4.0, delta=0.02)
+
+    def test_hauteur_depuis_A(self):
+        a = self.app
+        a.set_mode("height")
+        self.assertIn("c'est le pied", self.sighted(self.A, pitch=-0.35))  # pied : visées à -0,35 rad
+        foot = [f for f in json.loads(a.map_geojson())["features"] if f["properties"]["kind"] == "triangule"][-1]
+        d = math.hypot(*triangulation._local(*foot["geometry"]["coordinates"], *triangulation._geographic(0.0, 6.0, 5.0415, 47.3220)))
+        cross = next(m for m in json.loads(a.viewer_marks()) if len(m["points"]) == 1
+                     and not m.get("guide") and not m.get("sighting") and not m.get("vertical"))
+        a.click(*cross["points"][0][:2], True)  # clic sur la croix de A : sélection, Entrée : désélection
+        self.assertTrue(json.loads(a.state())["point_sel"])
+        a.finish_point()
+        self.assertFalse(json.loads(a.state())["point_sel"])
+        status = self.aim("p2", self.A, pitch=0.3)  # sommet
+        self.assertTrue(status.startswith("Hauteur :"), status)
+        self.assertAlmostEqual(self.metres(status), d * (math.tan(0.3) + math.tan(0.35)), delta=0.02)
+        self.show("p1")
+        self.aim("p1", self.A, pitch=0.2)  # hauteur faite : autre clic refusé
+        self.assertEqual(sum(r["text"].startswith("↕") for r in json.loads(a.results())), 1)
+        a.new_measure()  # « Nouvelle mesure depuis A »
+        self.assertTrue(self.aim("p1", self.A, pitch=0.2).startswith("Hauteur :"))
+
+    def test_largeur_depuis_A(self):
+        a = self.app
+        a.set_mode("road")
+        self.assertIn("Cliquez maintenant le bord opposé", self.sighted(self.A))
+        self.show("p1")
+        status = self.aim("p1", (-3.0, 3.0, 0.0), pitch=-0.3)  # seule la direction du clic compte
+        self.assertTrue(status.startswith("Largeur perpendiculaire à la chaussée"), status)
+        self.assertAlmostEqual(self.metres(status), 8.0, delta=0.02)
+        widths = lambda: [m for m in json.loads(a.viewer_marks()) if m["label"].startswith("↔")]
+        self.aim("p1", (-7.0, 3.0, 0.0), pitch=-0.3)  # autre clic refusé : une seule largeur
+        self.assertEqual(len(widths()), 1)
+        a.new_measure()
+        self.assertAlmostEqual(self.metres(self.aim("p1", (-7.0, 3.0, 0.0), pitch=-0.3)), 12.0, delta=0.02)
+        listed = json.loads(a.results())  # liste : point de référence, puis ses largeurs nommées (#30)
+        self.assertEqual(listed[0]["kind"], "point")
+        self.assertTrue(all(r.get("sous") and re.match(r"^↔ [A-Z] ", r["text"]) for r in listed[1:]), listed)
+        self.assertEqual(len(listed), 3)
+
+    def test_releve(self):
+        a = self.app
+        a.set_mode("releve")
+        self.sighted(self.A)
+        a.set_releve(0, json.dumps({"distance_bord_m": 2.4, "essence": "tilleul"}))
+        self.show("p2")
+        self.aim("p2", self.B)  # une seule visée : gardé sur cette photo
+        self.assertGreater(json.loads(a.state())["single_m"], 0)
+        a.keep_single()
+        a.set_releve(1, json.dumps({"distance_bord_m": 3, "essence": "chêne", "etat": "penché"}))
+        first, second = json.loads(a.export_geojson(True))["features"]
+        self.assertEqual((first["properties"]["distance_bord_m"], first["properties"]["essence"], first["properties"]["nb_visees"]),
+                         (2.4, "tilleul", 2))
+        self.assertEqual((second["properties"]["etat"], second["properties"]["nb_visees"], first["properties"].get("etat")),
+                         ("penché", 1, None))
+        target = triangulation._geographic(self.B[0], self.B[1], 5.0415, 47.3220)
+        self.assertLess(math.hypot(*triangulation._local(*second["geometry"]["coordinates"], *target)), 0.05)
+        self.assertEqual(json.loads(a.export_geojson())["features"], [])  # mesures sans les objets relevés
+        a.set_mode("tri")
+        a.clear_all()  # « Tout effacer » hors relevé : objets relevés gardés
+        self.assertEqual(len(json.loads(a.export_geojson(True))["features"]), 2)
 
 
 if __name__ == "__main__":
