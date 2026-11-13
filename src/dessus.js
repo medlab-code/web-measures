@@ -65,6 +65,7 @@ const Dessus = (() => {
   const RTK_SIGMA = 0.1;
   const GROUND_SIGMA = 1;  // degrés : inclinaison déduite de la route, sans verticales à lire (voir docs/CALCULS.md)
   const LIDAR_SIGMA = 0.02, FLAT_SIGMA = 0.1;  // m : écart du sol au terrain utilisé (résidu LiDAR ; sol supposé plat)
+  const GROUND_CORRELATION = 2;  // m : portée de la corrélation de cet écart entre deux points (gaussienne : terrain lissé sur 2 m)
   const ELEVATION_URL = "https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json";
   const LIDAR_RESOURCE = "ign_lidar_hd_mnt_mono_wld";
   const toRad = Math.PI / 180;
@@ -102,7 +103,12 @@ const Dessus = (() => {
     };
     const east = length(moved(a, 1, 0), moved(b, 1, 0)) - L, north = length(moved(a, 0, 1), moved(b, 0, 1)) - L;
     const scale = L * pose.height_sigma / H;
-    const ground = Math.hypot(Math.hypot(...a), Math.hypot(...b)) * sigmaGround / H;
+    // écart du sol Δz : un point vu à p s'écarte de p Δz / H. Écarts des deux bouts corrélés à courte distance (terrain lissé
+    // sur 2 m, GROUND_CORRELATION) : deux points proches bougent ensemble, la distance change de L Δz / H seulement (l'écart
+    // compté indépendamment à chaque bout donnait 9 cm sur une bande de passage piéton de 0,50 m à 5 m, 13/11/2026)
+    const u = L ? [(b[0] - a[0]) / L, (b[1] - a[1]) / L] : [0, 0], ua = u[0] * a[0] + u[1] * a[1], ub = u[0] * b[0] + u[1] * b[1];
+    const rho = Math.exp(-0.5 * (L / GROUND_CORRELATION) ** 2);
+    const ground = Math.sqrt(Math.max(0, ua * ua + ub * ub - 2 * rho * ua * ub)) * sigmaGround / H;
     return Math.hypot(east, north, scale, ground);
   }
 

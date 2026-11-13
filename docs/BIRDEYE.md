@@ -272,7 +272,8 @@ seuls), le calage est moins sûr.
 ## 5. Mesurer sur la vue
 
 L'outil « Longueur sur la carte » trace un segment en deux clics. Il donne sa longueur et une incertitude qui combine
-l'inclinaison sur ses deux axes, la hauteur, l'écart du sol et, entre deux photos, leur position relative (5 cm en RTK
+l'inclinaison sur ses deux axes, la hauteur, l'écart du sol (corrélé entre deux points proches : sur une courte distance,
+une erreur d'échelle) et, entre deux photos, leur position relative (5 cm en RTK
 vérifié, sinon 30 cm), sans descendre sous 5 % de la longueur (écart constaté à l'orthophoto). Le mieux est de mesurer
 en face de la caméra (±4 m). Un bout hors de la vue se mesure sur le fond de carte seul, sans incertitude.
 
@@ -298,4 +299,11 @@ mesure à cheval sur deux photos, au moins l'écart mesuré à leurs raccords (a
   position, et dépose les vues dans `tests/captures/`.
   `#rapide` : 3 photos seulement (A38, ville, D33 du 04/07 : chacune porte un contrôle propre), pendant la mise au
   point ; les 7 avant une fusion. Durée de chaque étape dans le journal (page, vue).
-- `tools/essais.sh birdeye` : les deux, environ 1 min (processeur graphique, cache HTTP gardé) ; avant : 5 min.
+- `tests/essai-passages.html` : passages piétons de l'auteur (`tests/passages-pietons.js`, bandes de 0,50 m), avec le
+  réseau : vue calée par la route puis par les verticales, largeur des bandes et roulis restant (§ 4.1) ; contrôle la
+  largeur médiane (0,50 m ± 2 %) et le roulis restant médian (sous 0,5°), qui protègent le défaut de roulis de la
+  campagne ; journalise l'écart de chaque bande à l'incertitude affichée. Orientation des bandes cherchée à ±4° de l'axe
+  de la route (sur ±45°, des rangées en biais faussaient la largeur de 6 à 15 %). 17 photos mesurables sur 25, environ
+  6 min (`tools/essais.sh passages`) ; `#rapide` : 6 photos, ±4 % et 0,6°, environ 2 min.
+- `tools/essais.sh birdeye` : synthèse, références `#rapide` et passages `#rapide`, environ 3 min 30 (processeur
+  graphique, cache HTTP gardé).

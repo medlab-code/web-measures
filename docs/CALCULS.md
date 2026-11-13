@@ -658,7 +658,10 @@ l'orthophoto, en travers, sans explication à ce jour.
 L'erreur sur un point au sol à la distance `d` vaut environ `(H² + d²) / H × δ` pour une erreur
 d'inclinaison `δ` (radians), et `d × Δz / H` pour un écart de sol `Δz`. L'image est donc grisée
 au-delà de 10 m. L'incertitude affichée (un écart-type) combine l'inclinaison sur ses deux axes, la
-hauteur de caméra et l'écart du sol (2 cm sur LiDAR, 10 cm sur sol plat). Les objets en relief
+hauteur de caméra et l'écart du sol (2 cm sur LiDAR, 10 cm sur sol plat). Cet écart est corrélé entre deux points proches
+(gaussienne de portée 2 m, `GROUND_CORRELATION` : le terrain est lissé sur 2 m) : sur une courte distance, il agit comme une
+échelle (`L × Δz / H`) ; compté indépendamment à chaque bout jusqu'au 13/11/2026, il donnait 7 à 13 cm pour une bande de
+passage piéton de 0,50 m vue à 5 m (2,5 à 5 cm depuis, plancher de 5 % compris). Les objets en relief
 s'étalent : seuls les points réellement au sol sont à leur place.
 
 Scène de synthèse (`tests/essai-dessus.html`, sol en dévers de 3 %, caméra penchée) : traits de
