@@ -611,6 +611,25 @@ class Parcours(unittest.TestCase):
         self.assertEqual(a.redo(), "Rétabli.")
         self.assertEqual(len(distances()), 1)
 
+    def test_bandes_triangulees(self):
+        """Passage piéton : coins des bandes (0,50 m, de 8 à 11 m devant la première, à 1,5 m au moins de l'axe des photos : dans l'axe, visées parallèles) triangulés depuis les deux
+        photos ; largeur de chaque bande au millimètre (diag-triangulation : même calcul sur de vraies photos)."""
+        self.app.set_mode("tri")
+        corners = lambda: [f["geometry"]["coordinates"] for f in json.loads(self.app.map_geojson())["features"]
+                           if f["properties"]["kind"] == "triangule"]
+        origin = (5.0415, 47.3220)
+        for k, left in enumerate((-4.0, -3.0, -2.0, 1.5, 2.5, 3.5)):  # hors de l'axe des photos : visées presque parallèles
+            for north in (8.0, 11.0):
+                self.sighted((left, north, 0.0))
+                a = corners()[-1]
+                self.sighted((left + 0.5, north, 0.0))
+                b = corners()[-1]
+                ea, na = triangulation._local(*a[:2], *origin)
+                eb, nb = triangulation._local(*b[:2], *origin)
+                self.assertAlmostEqual(eb - ea, 0.5, delta=0.001, msg=f"bande {k}, à {north} m")
+                self.assertAlmostEqual(nb - na, 0.0, delta=0.001)
+                self.assertAlmostEqual(ea, left, delta=0.002)
+
     def test_releve_recharge(self):
         """Relevé gardé dans le navigateur (releve_json), remis au rechargement (load_releve)."""
         self.app.set_mode("releve")
