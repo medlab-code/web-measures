@@ -6,26 +6,24 @@
      (#photo=id : une autre). Lancer comme tests/navigateur.html. -->
 <script>try { localStorage.clear(); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:900px;border:0"></iframe>
+<script src="commun.js"></script>
 <script>
-const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const { log, sleep, until, soon, ready, expect, fin } = Essai;
 const ID = location.hash.startsWith("#photo=") ? location.hash.slice(7).split("#")[0] : "6d99cba2-2284-4215-a3fb-1fd390353005";
 (async () => {
   const w = document.getElementById("f").contentWindow;
   try {
-    const t0 = Date.now();
-    while (!(w.mesures?.app && w.mesures.map?.loaded?.())) { if (Date.now() - t0 > 120000) throw new Error("Pyodide"); await sleep(250); }
+    await ready(w);
     const doc = w.document;
     w.addEventListener("unhandledrejection", (e) => log("rejet : " + (e.reason?.stack || e.reason)));
     doc.querySelector("#reglages-defaut")?.close();
     const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + ID)).json()).features[0];
     w.mesures.openPhoto(f);
-    await sleep(4000);
+    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === ID && !doc.querySelector("#bords").disabled, 30000, "photo et bords");
     doc.querySelector("#bords").click();
-    for (let t = Date.now(); /Calcul en cours/.test(doc.querySelector("#chute").textContent) && Date.now() - t < 60000;) await sleep(1000);
-    await sleep(1000);
+    await until(() => !doc.querySelector("#profil").disabled, 60000, "profils des bords");
     doc.querySelector("#profil").click();
-    await sleep(1000);
+    await until(() => doc.querySelector("#profil-pdf")?.checkVisibility?.() && !doc.querySelector("#profil-pdf").disabled, 10000, "bouton PDF");
     // Fenêtre d'impression remplacée par un cadre, sans impression : page lue après fit
     let page = null, styled = null;
     const realOpen = w.open;
@@ -49,7 +47,7 @@ const ID = location.hash.startsWith("#photo=") ? location.hash.slice(7).split("#
     if (!withLong.checked) withLong.click();  // 2e page : profil en long
     doc.querySelector("#profil-pdf").click();
     for (let t = Date.now(); !page?.document.querySelector(".page") && Date.now() - t < 45000;) await sleep(250);
-    await sleep(3000);  // styles, polices, puis fit
+    await soon(() => styled !== null, 15000);  // styles, polices, fit, puis impression
     const sheet = page?.document.querySelector(".page");
     if (!sheet) throw new Error("pas de feuille : " + (page ? page.document.body?.textContent.slice(0, 200) : "fenêtre non ouverte"));
     const pages = page.document.querySelectorAll(".page").length;
@@ -58,8 +56,10 @@ const ID = location.hash.startsWith("#photo=") ? location.hash.slice(7).split("#
     log(`feuille : ${sheet.scrollHeight} / ${sheet.clientHeight} px, réglages ${page.document.documentElement.getAttribute("style") || "aucun"}`);
     const html = "<!doctype html>" + page.document.documentElement.outerHTML;
     await log("PAGE " + btoa(unescape(encodeURIComponent(html))));
-    log(`terrain à l'impression : remplissage ${styled}`);
-    log(styled !== "none" ? "ERREUR styles non appliqués au moment d'imprimer" : fits ? "FIN" : "ERREUR feuille plus haute qu'une page, ou pas de 2e page");
+    await log(`terrain à l'impression : remplissage ${styled}`);
+    expect("styles appliqués au moment d'imprimer", styled === "none");
+    expect("feuille tenant sur une page, et 2e page", fits);
+    await fin();
   } catch (e) { log("ERREUR " + (e.stack || e)); }
 })();
 </script>

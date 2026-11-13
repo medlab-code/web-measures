@@ -7,9 +7,10 @@
      Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
 <script src="../src/profil.js"></script>
 <script src="../src/nuage.js"></script>
+<script src="commun.js"></script>
 <script>
-const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
-let checks = 0, failures = 0;
+const { expect, fail, fin } = Essai;
+Essai.verbose = true;  // chaque contrôle journalisé, avec sa valeur
 // Un travers : plateforme plane de −3 à +3 m (z = 0), terrain de part et d'autre selon h(distance au bord), jusqu'à width m
 const crossing = (along, h, width) => ["gauche", "droit"].map((cote) => ({ le_long: along, cote, bord: 3, relief: "marche", arret: null,
   points: [...Array(width + 1).keys()].map((k) => [k, k <= 3 ? 0 : h(k - 3)]) }));
@@ -30,9 +31,7 @@ function ground(svg) {
 }
 const check = (what, drawn, expected) => {
   const metres = ground(drawn.svg);
-  checks++;
-  if (Math.abs(metres - expected) > 0.02) failures++;
-  log(`${Math.abs(metres - expected) > 0.02 ? "ÉCHEC " : ""}${what} : ${metres.toFixed(2)} m de sol sous le point le plus bas (attendu ${expected})`);
+  expect(`${what} : ${metres.toFixed(2)} m de sol sous le point le plus bas (attendu ${expected})`, Math.abs(metres - expected) <= 0.02);
 };
 try {
   const flat = [crossing(0, () => -0.1, 17)];
@@ -49,8 +48,7 @@ try {
     const road = svg.querySelector(".chaussee").getBBox(), plotBottom = Math.max(...[...svg.querySelectorAll("line.grille")].map((l) => Number(l.getAttribute("y2"))));
     svg.remove();
     const ok = width.y >= road.y + road.height && slope.y >= width.y + width.height - 2 &&  /* cadres de ligne : 17,4 px pour 16 px de pas, sans contact des lettres */ slope.y + slope.height <= plotBottom - 8;
-    checks++; if (!ok) failures++;
-    log(`${ok ? "" : "ÉCHEC "}étiquettes sous la chaussée, ${what} : ${(plotBottom - slope.y - slope.height).toFixed(0)} px au-dessus du bas`);
+    expect(`étiquettes sous la chaussée, ${what} : ${(plotBottom - slope.y - slope.height).toFixed(0)} px au-dessus du bas`, ok);
   };
   const tilted = crossing(0, () => -0.1, 17).map((c) => ({ ...c, points: c.points.map(([d, z]) => [d, d <= 3 && c.cote === "droit" ? -0.03 * d : z]) }));
   const hill = (x) => Math.min(8, x * 1.5);
@@ -61,8 +59,7 @@ try {
   roomy("chaussée en dévers, exagéré", [tilted], false);
   // Dévers de la plateforme : sur le graphique et dans la légende
   const text = (plateforme) => { const d = Profil.draw({ ...profile(flat), plateforme }, true); return [d.svg.textContent, d.legend.textContent]; };
-  const says = (what, [graph, legend], inGraph, inLegend) => { checks++; const ok = graph.includes(inGraph) && legend.includes(inLegend); if (!ok) failures++;
-    log(`${ok ? "" : "ÉCHEC "}${what} : ${inLegend}`); };
+  const says = (what, [graph, legend], inGraph, inLegend) => expect(`${what} : ${inLegend}`, graph.includes(inGraph) && legend.includes(inLegend));
   says("un sens", text({ type: "sens", pente: 2.3 }), "dévers 2\u00a0% →", "dévers 2\u00a0% vers la droite");
   says("toit", text({ type: "toit", pente: 2.5, gauche: -2.4, droite: 2.6 }), "toit 3\u00a0%", "en toit, pente moyenne 3\u00a0%");
   says("demi-chaussées", text({ type: "demi", gauche: -3, droite: 0.2 }), "dévers ← 3\u00a0% | moins de 1\u00a0%", "à gauche 3\u00a0% vers la gauche, à droite moins de 1\u00a0%");
@@ -71,7 +68,7 @@ try {
   const fine = (vegetation) => ({ points: 100, lignes: [], bords: {}, herbe: [], eau: [], separateur: null, vegetation });
   const trees = (x0, z) => [...Array(9).keys()].map((k) => [x0 + k * 0.5, z]);
   const labels = (veg, scale = true, plants = true) => [...Profil.draw(profile(flat), scale, fine(veg), plants).svg.querySelectorAll("text.canopee")].map((t) => t.textContent).join(" | ");
-  const canopy = (what, got, expected) => { checks++; if (got !== expected) failures++; log(`${got !== expected ? "ÉCHEC " : ""}${what} : « ${got} » (attendu « ${expected} »)`); };
+  const canopy = (what, got, expected) => expect(`${what} : « ${got} » (attendu « ${expected} »)`, got === expected);
   canopy("arbres de 40 m à droite", labels(trees(5, 40)), "canopée +40 m");
   canopy("arbres des deux côtés", labels([...trees(-12, 30), ...trees(5, 40)]), "canopée +30 m | canopée +40 m");
   canopy("arbres de 5 m, dans le cadre", labels(trees(5, 5)), "");
@@ -85,7 +82,7 @@ try {
     const boxes = [...svg.querySelectorAll("text.etiquette-profil.place")].map((t) => t.getBBox()), ground = svg.querySelector(".sol").getBBox();
     const ok = boxes.length === count && boxes.every((b, i) => b.y + b.height <= plotTop + 1 && b.y + b.height <= ground.y && b.x >= 0 && b.x + b.width <= width
       && boxes.every((o, j) => j === i || b.x + b.width <= o.x || o.x + o.width <= b.x || b.y + b.height <= o.y + 4 || o.y + o.height <= b.y + 4));  // boîtes de 17,4 px pour 14 px d'interligne
-    svg.remove(); checks++; if (!ok) failures++; log(`${ok ? "" : "ÉCHEC "}${what} : ${boxes.length} nom(s), cadre à ${plotTop.toFixed(0)} px`);
+    svg.remove(); expect(`${what} : ${boxes.length} nom(s), cadre à ${plotTop.toFixed(0)} px`, ok);
   };
   const near = { d: 30, type: "carrefour", avec: ["CHE DE L'ARGENTALET"] };
   names("carrefour de l'image du 05/11", [near], 1);
@@ -95,7 +92,7 @@ try {
   // Bord d'enrobé (D70 9b97c187) : enrobé à 300, ligne centrale, reprise plus claire, herbe à 1400 à partir de 5 m
   const rows = (fn) => new Map([...Array(49).keys()].map((k) => { const x = k * 0.25; return [k, fn(x)]; }));
   const paved = (what, fn, expected) => { const got = Nuage.pavedEdge(rows(fn), 1, 1, 12, 300), ok = expected === null ? got === null : got !== null && Math.abs(got - expected) <= 0.13;
-    checks++; if (!ok) failures++; log(`${ok ? "" : "ÉCHEC "}bord d'enrobé, ${what} : ${got} (attendu ${expected})`); };
+    expect(`bord d'enrobé, ${what} : ${got} (attendu ${expected})`, ok); };
   const asphalt = (x) => (x < 5 ? 300 : 1400);
   paved("net", asphalt, 4.9);
   paved("ligne blanche étroite", (x) => (Math.abs(x - 2) < 0.1 ? 900 : asphalt(x)), 4.9);
@@ -105,21 +102,20 @@ try {
   paved("bord au-delà de la limite", (x) => (x < 14 ? 300 : 1400), null);
   // Ligne blanche : nettement plus claire que ses voisines ; surface du séparateur au seuil (1640bc3f, −3,5 m) écartée, malgré la case vide à côté
   const narrow = (what, cases, expected) => { const got = Nuage.brightRuns(cases.map(([x, i]) => ({ x, i })), 100).map((r) => r[2]), ok = JSON.stringify(got) === JSON.stringify(expected);
-    checks++; if (!ok) failures++; log(`${ok ? "" : "ÉCHEC "}ligne blanche, ${what} : ${JSON.stringify(got)} (attendu ${JSON.stringify(expected)})`); };
+    expect(`ligne blanche, ${what} : ${JSON.stringify(got)} (attendu ${JSON.stringify(expected)})`, ok); };
   narrow("sur l'enrobé", [[-0.25, 110], [0, 1000], [0.25, 120]], [true]);
   narrow("sur deux cases", [[-0.25, 110], [0, 900], [0.25, 1600], [0.5, 370]], [true]);
   narrow("surface du séparateur", [[-3.75, 290], [-3.5, 300], [-3, 200]], [false]);
   narrow("large : pas de la peinture", [0, 1, 2, 3, 4].map((k) => [k * 0.25, 900]), [false]);
   // Lignes à tirets (f478a847) : vue sur 2 travers, gardée au plus près de la photo ; vue sur 1 seul, écartée ; deux lignes distinctes
   const dashes = (what, sections, expected) => { const got = Nuage.dashedLines(sections), ok = JSON.stringify(got) === JSON.stringify(expected);
-    checks++; if (!ok) failures++; log(`${ok ? "" : "ÉCHEC "}lignes à tirets, ${what} : ${JSON.stringify(got)} (attendu ${JSON.stringify(expected)})`); };
+    expect(`lignes à tirets, ${what} : ${JSON.stringify(got)} (attendu ${JSON.stringify(expected)})`, ok); };
   dashes("deux travers, le plus proche de la photo", [[-4, [1.25]], [-2, []], [0, []], [2, [1]], [4, [1.25]]], [1]);
   dashes("un seul travers : écartée", [[-4, []], [-2, [1]], [0, []], [2, []], [4, []]], []);
   dashes("deux lignes distinctes", [[-4, [-2.5, 1]], [2, [-2.25, 1.25]]], [-2.25, 1.25]);
   dashes("trop éloignées d'un travers à l'autre", [[-4, [1]], [2, [2]]], []);
   // Route étroite : le graphique est à sa hauteur ; la caméra (1,9 m) ne compte pas comme haut du terrain
   check("caméra au-dessus d'un terrain plat", Profil.draw(profile([crossing(0, () => -0.1, 4)], "caméra"), true, null, true, 1.9), 1);
-} catch (error) { failures++; log("ÉCHEC exception : " + (error.stack || error)); }
-log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
-log(failures ? "ERREUR" : "FIN");
+} catch (error) { fail("exception : " + (error.stack || error)); }
+fin();
 </script>

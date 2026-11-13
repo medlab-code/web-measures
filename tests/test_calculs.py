@@ -33,6 +33,127 @@ def crossings(z, width=3.0, along=(-10, -5, 0, 5, 10), between=None):
     return drawn
 
 
+class LongueurCarte(unittest.TestCase):
+    """Longueurs mesurées sur la vue du dessus : liste des résultats, effacement, retour, export."""
+
+    def test_cycle(self):
+        a = App(lambda *args: None)
+        a.set_mode("carte")
+        self.assertEqual((a.mode, a.map_mode, a._can_undo()), ("tri", True, False))
+        a.add_map_length(5.0, 47.0, 5.0001, 47.0, 7.6, 0.38, "p,q")
+        a.add_map_length(5.0, 47.0, 5.0, 47.0001, 11.1, 0.56, "p")
+        rows = [r for r in json.loads(a.results()) if r["kind"] == "longueur"]
+        self.assertEqual([r["text"] for r in rows], ["↔ 7,60 m ± 0,38 m (carte)", "↔ 11,10 m ± 0,56 m (carte)"])
+        a.set_comment("longueur", 1, "bord à bord")
+        records = [attrs for _, attrs in a._records() if attrs["type"].startswith("longueur")]
+        self.assertEqual([(r["valeur_m"], r["photo_ref"], r["commentaire"]) for r in records], [(7.6, "p", ""), (11.1, "p", "bord à bord")])
+        self.assertIn("longueur sur la carte", a.export_csv())
+        self.assertEqual(sum(f["properties"]["label"] == "7,60 m" for f in json.loads(a.map_geojson())["features"]), 1)
+        a.undo()  # Effacer : la dernière
+        self.assertEqual([v["valeur_m"] for v in a.map_lengths], [7.6])
+        a.redo()  # Refaire
+        self.assertEqual(len(a.map_lengths), 2)
+        a.add_map_length(5.0, 47.0, 5.001, 47.0, 75.8, None, "")  # bout hors de la vue : fond de carte seul
+        self.assertEqual(json.loads(a.results())[-1]["text"], "↔ 75,80 m hors vue (carte)")
+        self.assertEqual([(attrs["type"], attrs["incert_m"]) for _, attrs in a._records()][-1], ("longueur sur la carte (hors vue du dessus)", None))
+        a.undo()
+        a.delete_result("longueur", 0)
+        self.assertEqual([v["valeur_m"] for v in a.map_lengths], [11.1])
+        a.clear_all()
+        self.assertEqual((a.map_lengths, a.has_results()), ([], False))
+
+
+class VueDessus(unittest.TestCase):
+    """Pose de la photo pour la vue du dessus (App.birdeye_pose)."""
+
+    def app_on(self, field_of_view):
+        class Cal:
+            auto = {}
+            position = staticmethod(lambda *a: None)
+            pose = staticmethod(lambda *a: {"offset": 1.5})
+            tilt = staticmethod(lambda pic: {"up": (0.0, 0.1, 0.99), "sigma": 0.2})
+            camera = staticmethod(lambda seq: None)
+
+        class Tilts:
+            pending = staticmethod(lambda pic: False)
+
+        a = App.__new__(App)
+        a.calibration, a.tilts, a.quality = Cal, Tilts, {"precise": True, "lidar": True, "height": 2.4, "spread": 0.02}
+        a.item = {"id": "p", "collection": "s", "geometry": {"coordinates": [5.0, 47.0, 300.0]},
+                  "properties": {"view:azimuth": 40, "pers:interior_orientation": {"field_of_view": field_of_view}}}
+        a.birdeye_items, a.birdeye_checks = [dict(a.item, id="v", geometry={"coordinates": [5.0, 47.00005]})], (Tilts,)
+        a.fall_cells, a.tool = {web_app.roads._cell(5.0, 47.0): []}, types.SimpleNamespace(camera_height=2.1)
+        a.birdeye_loose = {}
+        return a
+
+    def test_pose(self):
+        pose = json.loads(self.app_on(360).birdeye_pose())
+        self.assertEqual((pose["lon"], pose["heading"], pose["offset"], pose["height"]), (5.0, 40.0, 1.5, 2.4))
+        self.assertEqual((pose["up"], pose["sigma"], pose["height_sigma"]), ([0.0, 0.1, 0.99], 0.2, 0.05))
+        self.assertEqual([(n["pic"], n["lat"], n["relative_sigma"]) for n in pose["neighbours"]], [("v", 47.00005, 0.05)])
+
+    def test_flotte_cd21(self):
+        """Photo du CD21 (producteur) signalée à la vue du dessus (hauteur par monture) ; autre producteur : non."""
+        a = self.app_on(360)
+        self.assertFalse(json.loads(a.birdeye_pose())["fleet"])
+        a.item["providers"] = [{"id": App.FLEET_PRODUCER, "roles": ["producer"]}]
+        self.assertTrue(json.loads(a.birdeye_pose())["fleet"])
+
+    def test_hors_360(self):
+        self.assertEqual(self.app_on(90).birdeye_pose(), "null")
+
+    def test_pont(self):
+        """Pont à portée de la vue (dessus ou dessous) : signalé, hauteur de caméra hors sol LiDAR (le réglage) ;
+        plus loin, rien ne change."""
+        def pose_with(east):  # tronçon en pont, nord-sud, à east m à l'est de la photo
+            a = self.app_on(360)
+            lon = 5.0 + east / (6378137 * math.cos(math.radians(47.0))) * 180 / math.pi
+            a.fall_cells[web_app.roads._cell(5.0, 47.0)] = [{"level": 1, "line": [[lon, 46.999], [lon, 47.001]]}]
+            return json.loads(a.birdeye_pose())
+        near, far = pose_with(10), pose_with(40)
+        self.assertEqual((near["bridge"], near["height"], near["neighbours"][0]["height"]), (True, 2.1, 2.1))
+        self.assertEqual((far["bridge"], far["height"]), (False, 2.4))
+
+    def test_verticales_moins_sures(self):
+        """Verticales refusées pour les mesures (±0,42° > autotilt.MAX_SIGMA) : renvoyées à part par
+        web_tilt.estimate, et prises par la vue du dessus faute d'inclinaison retenue (giratoire b47b4351,
+        08/11/2026 : roulis du véhicule penché en virage, que la pente de la route ignore)."""
+        import web_tilt
+        loose = {"up": (0.0, -0.052, 0.9986), "tilt": 3.0, "count": 73, "sigma": 0.42, "auto": True}
+        calls = []
+        saved = web_tilt.host.decode_band, web_tilt.autotilt.segments, web_tilt.autotilt.fit
+        web_tilt.host.decode_band = lambda *a: ("bande", 0, 1, 1)
+        web_tilt.autotilt.segments = lambda *a: []
+        web_tilt.autotilt.fit = lambda pairs: calls.append(1) or (None if len(calls) == 1 else loose)
+        try:
+            res = web_tilt.estimate(b"", 0.0)
+        finally:
+            web_tilt.host.decode_band, web_tilt.autotilt.segments, web_tilt.autotilt.fit = saved
+        self.assertEqual((res["reason"], res["loose"]["sigma"]), (web_tilt.FEW_EDGES, 0.42))
+        a = self.app_on(360)
+        a.calibration.tilt = staticmethod(lambda pic: None)
+        a.birdeye_loose = {"p": res["loose"]}
+        pose = json.loads(a.birdeye_pose())
+        self.assertEqual((pose["up"], pose["sigma"]), ([0.0, -0.052, 0.9986], 0.42))
+        a.calibration.tilt = staticmethod(lambda pic: {"up": (0.0, -0.016, 0.9999), "sigma": 0.5})  # relais par le terrain
+        self.assertEqual(json.loads(a.birdeye_pose())["sigma"], 0.42)
+        a.calibration.tilt = staticmethod(lambda pic: {"up": (0.0, 0.0, 1.0), "sigma": 0.2})  # calage plus sûr : gardé
+        self.assertEqual(json.loads(a.birdeye_pose())["sigma"], 0.2)
+
+    def test_voisine_sans_inclinaison(self):
+        """Analyse d'une voisine finie sans inclinaison (verticales et LiDAR en échec) : la page est
+        prévenue, sinon la vue l'attend sans fin (D33, 08/11/2026)."""
+        class Checker:
+            def check(self, item, cal, done):
+                done()
+
+        a = self.app_on(360)
+        a.birdeye_checks, calls = (Checker(),), []
+        a.notify = lambda: calls.append(1)
+        a.birdeye_neighbours(json.dumps(a.birdeye_items))
+        self.assertEqual(calls, [1])
+
+
 class Plateforme(unittest.TestCase):
     """Dévers de la plateforme (web_app.platform_slope, ticket #38)."""
 

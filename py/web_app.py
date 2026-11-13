@@ -294,6 +294,11 @@ def _nearest_name(bridges, lon, lat, reach):
     return best and best[1]
 
 
+def _length_text(value, sigma):
+    """« 7,60 m ± 0,38 m », ou « 7,60 m hors vue » (longueur sur le fond de carte seul, voir App.add_map_length)."""
+    return "{} m {}".format(measures._num(value, 2), "hors vue" if sigma is None else "± {} m".format(measures._num(sigma, 2)))
+
+
 class WebItem:
     """Dessin d'une mesure sur la carte (voir measures.MeasureTool.new_item) : gardé ici, rendu
     en GeoJSON par App.map_geojson."""
@@ -421,14 +426,19 @@ class App(session.Session):
         self.bdtopo = {}  # (couche BD TOPO, maille) -> objets lus (voir _bdtopo)
         self.bdtopo_retry = {}  # (couche BD TOPO, maille) -> instant du nouvel essai après un échec
         self.map_line = None  # droite de mesure tracée sur la carte, pour le prochain point A (ticket #28)
+        # Longueurs mesurées sur la vue du dessus (src/dessus.js), mode « carte » : rien à viser dans la photo
+        self.map_lengths = []  # {"ends": [[lon, lat], [lon, lat]], "valeur_m", "incert_m", "photos", "commentaire"}
+        self.map_mode = False
         self.redo_stack, self.redo_key = [], None  # états d'avant chaque « Effacer » (Ctrl+Y, voir redo)
         self.overlay = []  # couche importée : (n° de l'objet, "point" ou "ligne", [(lon, lat, z)]), voir set_overlay
         self.overlay_ground = {}  # photo -> {(lon, lat): altitude LiDAR HD} sous la couche (_overlay_ground)
         self.tilt_reasons = {}  # photo -> raison de l'échec de l'inclinaison automatique (ticket #29)
+        self.birdeye_loose = {}  # photo -> verticales refusées pour les mesures, gardées pour la vue du dessus (web_tilt.LOOSE_SIGMA)
         self.tilts.run = self._run_tilt
         # Inclinaison par le terrain hors agglomération, expérimentale (option, voir web_terrain)
         self.terrain_relay = False
         self.relay_tilts = {}  # photo -> inclinaison par le terrain (dict comme Calibration.auto_tilt)
+        self.birdeye_items, self.birdeye_checks = [], (autotilt.TiltChecker(), autotilt.TiltChecker())  # voir birdeye_neighbours
         self.relay_pending = {}  # photo -> étape du calcul en cours
         self.relay_failed = {}  # photo -> raison de l'échec
         self.relay_models = {}  # séquence -> références, modèle (web_terrain.model), raison d'un échec
@@ -448,7 +458,7 @@ class App(session.Session):
         """Bouton « Mesure » : l'inclinaison automatique de la photo est calculée dès l'activation,
         pas au premier clic comme dans le cœur (_check_tilt), qui la lance encore au premier clic
         sur une autre photo."""
-        super().set_active(on)
+        super().set_active(on and not self.map_mode)  # mesure sur la carte : clics dans la photo sans effet
         self._check_tilt()  # rien hors mesure, en mesure libre ou si déjà calculée
         return self.status()
 
@@ -473,6 +483,8 @@ class App(session.Session):
         pic = self.tilts.current
 
         def got(res):
+            if res and res.get("loose"):
+                self.birdeye_loose[pic] = res["loose"]
             if res is None or "reason" in res:
                 self.tilt_reasons[pic] = (res or {}).get("reason", "calcul des verticales indisponible")
                 res = None
@@ -610,6 +622,125 @@ class App(session.Session):
     def _heading_of(item):
         heading = metadata.precise_heading(item)
         return metadata.item_heading(item) if heading is None else heading
+
+    def birdeye_request(self):
+        """Vue du dessus demandée sur la photo affichée : son inclinaison automatique est lancée
+        (une fois par photo : Calibration.auto la garde, sinon ce sont les clics qui la relancent)."""
+        if self.item and autotilt.is_360(self.item):
+            pic = self.item.get("id")
+            before = self.calibration.auto.get(pic)
+            self.tilts.check(self.item, self.calibration, lambda: self._birdeye_tilt_done(pic, before))
+            self._birdeye_relook(self.item)
+
+    def _birdeye_relook(self, item):
+        """Photo déjà analysée sans verticales retenues (calage gardé d'une séance précédente : l'analyse
+        n'est pas refaite) : refaite une fois pour la vue du dessus, pour ses verticales moins sûres
+        (web_tilt.LOOSE_SIGMA)."""
+        pic, entry = item.get("id"), self.calibration.auto.get(item.get("id"))
+        href = ((item.get("assets") or {}).get("hd") or {}).get("href")
+        if not href or entry is None or entry.get("verticals") is not None or pic in self.birdeye_loose:
+            return
+        self.birdeye_loose[pic] = None  # en cours (ou sans résultat) : pas relancée
+        heading = metadata.precise_heading(item)
+        heading = metadata.item_heading(item) if heading is None else heading
+
+        def got_estimate(res):
+            if res and res.get("loose"):
+                self.birdeye_loose[pic] = res["loose"]
+                self.notify()
+
+        def got_image(data, error):
+            if not error and data and heading is not None:
+                web_host.run_task(web_tilt.estimate, (bytes(data), float(heading)), got_estimate)
+
+        host.fetch(href, got_image, prefer_cache=True)
+
+    def _birdeye_tilt_done(self, pic, before):
+        """Analyse d'une photo de la vue du dessus finie : la page est prévenue même sans inclinaison
+        nouvelle (_on_tilt se tait alors : verticales et LiDAR en échec), sinon elle attend la photo
+        sans fin."""
+        if self.calibration.auto.get(pic) == before:
+            self.notify()
+        else:
+            self._on_tilt(pic, before)
+
+    def birdeye_neighbours(self, items_json):
+        """Photos voisines de la vue du dessus (fiches STAC, photo précédente puis suivante) : leur
+        inclinaison est lancée à part, chacune son vérificateur (TiltChecker n'en suit qu'une)."""
+        self.birdeye_items = json.loads(items_json)
+
+        def runner(pic):
+            def got(res, done):
+                if res and res.get("loose"):
+                    self.birdeye_loose[pic] = res["loose"]
+                done(None if res is None or "reason" in res else res)
+            return lambda function, args, done: web_host.run_task(web_tilt.estimate, args, lambda res: got(res, done))
+
+        for item, checker in zip(self.birdeye_items, self.birdeye_checks):
+            pic = item.get("id")
+            checker.run = runner(pic)
+            before = self.calibration.auto.get(pic)
+            checker.check(item, self.calibration, lambda pic=pic, before=before: self._birdeye_tilt_done(pic, before))
+            self._birdeye_relook(item)
+
+    def _birdeye_of(self, item, pending):
+        """Pose d'une photo pour la vue du dessus (voir birdeye_pose), ou None sans position, sans
+        cap ou hors 360°."""
+        heading = self._heading_of(item)
+        if not autotilt.is_360(item) or heading is None:
+            return None
+        try:
+            lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
+        except (KeyError, TypeError, ValueError):
+            return None
+        pic, sequence, cal, q = item.get("id"), item.get("collection"), self.calibration, self.quality or {}
+        fixed, pose, tilt, cam = cal.position(sequence, lon, lat), cal.pose(sequence, lon, lat), cal.tilt(pic), cal.camera(sequence)
+        loose = self.birdeye_loose.get(pic)  # verticales moins sûres : mieux que la pente de la route, ou que le relais par le
+        if loose and (not tilt or loose["sigma"] < tilt["sigma"]):  # terrain (±0,5°, sans le véhicule penché en virage)
+            tilt = loose
+        verified = q.get("precise") and q.get("lidar") is True
+        return {"pic": pic, "lon": fixed[0] if fixed else lon, "lat": fixed[1] if fixed else lat,
+                "heading": float(heading), "offset": pose["offset"] if pose else 0.0,
+                "up": list(tilt["up"]) if tilt else None,
+                "sigma": tilt["sigma"] if tilt else calibration.UNCALIBRATED,
+                "pending": pending(pic), "height": self._camera_height(),
+                "height_sigma": max(q.get("spread") or 0, 0.05) if verified else cam["sigma"] if cam else 0.3,
+                "relative_sigma": 0.05 if verified else 0.3,  # position d'une photo à sa voisine (trajectoire)
+                "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or [])}
+
+    def birdeye_pose(self):
+        """Pose de la photo affichée pour la vue du dessus (src/dessus.js), en JSON : position
+        (recalée si la séquence l'est), cap du centre de l'image, correction de cap de la séquence
+        (degrés), verticale vraie vue de la caméra (None sans calage) et son incertitude (degrés),
+        hauteur de caméra, son incertitude et celle de la position relative entre photos voisines (m) ;
+        neighbours : les poses des photos voisines ; bridge : pont à portée de la vue (None en lecture),
+        la vue se passe alors du terrain LiDAR et la hauteur de caméra ne vient pas du sol LiDAR. null si la
+        photo ne convient pas."""
+        pose = self._birdeye_of(self.item, self.tilts.pending) if self.item else None
+        if pose is None:
+            return "null"
+        near = [p for p in (self._birdeye_of(item, checker.pending)
+                            for item, checker in zip(self.birdeye_items, self.birdeye_checks)) if p]
+        bridge = self._near_bridge(pose["lon"], pose["lat"])
+        if bridge:  # altitude RTK moins sol LiDAR : le sol sous le pont, ou la brèche sous la photo
+            cam = self.calibration.camera(self.item.get("collection"))
+            height = {"height": cam["height"] if cam else self.tool.camera_height, "height_sigma": cam["sigma"] if cam else 0.3}
+            pose.update(height)
+            near = [dict(p, **height) for p in near]
+        return json.dumps(dict(pose, neighbours=near, bridge=bridge))
+
+    BIRDEYE_BRIDGE = 20.0  # m : portée de la vue (15 m) et un peu plus
+    FLEET_PRODUCER = "8f943f10-a781-4e03-a18c-de035be6f6f8"  # CD21 : imajbox sur Clio 5, deux montures (voir src/dessus.js, MOUNTS)
+
+    def _near_bridge(self, lon, lat):
+        """Tronçon BD TOPO en pont à moins de BIRDEYE_BRIDGE m de la photo, dessus ou dessous : le MNT LiDAR
+        n'y donne pas le sol vu par la caméra (tablier retiré). None en lecture ; BD TOPO injoignable : False."""
+        sections = self._fall_sections(lon, lat)
+        if sections is roads.PENDING:
+            return None
+        return any(sec.get("level", 0) > 0 and roads._project(
+            [triangulation._local(q[0], q[1], lon, lat) for q in sec["line"]], 0.0, 0.0)[0] <= self.BIRDEYE_BRIDGE
+            for sec in sections or [])
 
     def _terrain_of(self, item, done):
         """Terrain sous la photo item : done({slopes, heading}, None), ou done(None, raison). Grille
@@ -968,7 +1099,9 @@ class App(session.Session):
                 out += [r] + under.pop(name, [])
         for subs in under.values():
             orphans += [dict(r, sous=False) for r in subs]
-        return json.dumps(out + orphans)
+        lengths = [{"id": k, "kind": "longueur", "text": "↔ {} (carte)".format(_length_text(v["valeur_m"], v["incert_m"])),
+                    "comment": v["commentaire"]} for k, v in enumerate(self.map_lengths)]
+        return json.dumps(out + orphans + lengths)
 
     # Fiche PDF d'un point de référence (src/app.js, makeFiche) ------------------------------------
     def _fiche_measures(self, name):
@@ -1181,13 +1314,14 @@ class App(session.Session):
         kept = [] if self.releve else [p for p in self.points if "releve" in p[2]]
         views, named = {p[2]["nom"]: self.point_views.get(p[2]["nom"], {}) for p in kept}, self.named
         super().clear_all()
+        self.map_lengths = []
         if kept:
             self.points, self.point_views, self.named = kept, views, named
         return self.status()
 
     def has_results(self):
         """Mesures, points triangulés ou distances à exporter (les objets relevés à part : has_releve)."""
-        return bool(self.links) or any("releve" not in v for _, _, v in self.points) or any(
+        return bool(self.links or self.map_lengths) or any("releve" not in v for _, _, v in self.points) or any(
             m.result for m in self.tool.measures())
 
     def has_releve(self):
@@ -1421,11 +1555,11 @@ class App(session.Session):
     # État remis par Ctrl+Y : listes copiées (les objets gardés tels quels : « Effacer » ne fait que
     # les retirer), sauf le calage du cap et de la position (CalibrationTool), non rétabli
     REDO_ATTRS = ("points", "links", "named", "last_free", "point_views", "ref_point", "measure_done", "width_sel",
-                  "ref_sel", "b_aiming", "proposal", "tilt_clicks", "tilt_sel", "map_line")
+                  "ref_sel", "b_aiming", "proposal", "tilt_clicks", "tilt_sel", "map_line", "map_lengths")
 
     def _snapshot(self):
         snap = {k: getattr(self, k, None) for k in self.REDO_ATTRS}
-        for k in ("points", "links", "tilt_clicks"):
+        for k in ("points", "links", "tilt_clicks", "map_lengths"):
             snap[k] = list(snap[k])
         snap["point_views"] = dict(snap["point_views"])
         tool = self.tool
@@ -1438,7 +1572,7 @@ class App(session.Session):
         tool, current = self.tool, self.tool.current
         return (len(self.points), len(self.links), len(tool.done), id(current), len(current.clicks) if current else 0,
                 len(self.triangulator.sightings), id(self.ref_point), len(self.tilt_clicks), self.mode,
-                id(self.b_aiming), self.measure_done)
+                id(self.b_aiming), self.measure_done, len(self.map_lengths))
 
     def redo(self):
         """Ctrl+Y (ou Ctrl+Maj+Z) : rétablit ce que le dernier « Effacer » a retiré, si rien n'a été fait
@@ -1476,6 +1610,8 @@ class App(session.Session):
 
     def _can_undo(self):
         """« Effacer » aurait-il un effet ? (mêmes cas que _undo et Session.clear)"""
+        if self.map_mode:  # mesure sur la carte : la dernière longueur
+            return bool(self.map_lengths)
         if self.mode == "tilt":  # objet vertical en cours, ou inclinaison calée à la main de la photo
             pic = (self.item or {}).get("id")
             return bool(self._tilt_pending() or self.calibrator.clicks or (pic and pic in self.calibration.verticals))
@@ -1487,13 +1623,18 @@ class App(session.Session):
 
     def _can_clear(self):
         """« Tout effacer » aurait-il un effet ?"""
-        return bool(self.points or self.links or self.tool.measures() or self.triangulator.sightings
+        return bool(self.points or self.links or self.map_lengths or self.tool.measures() or self.triangulator.sightings
                     or self.ref_point is not None or self.tilt_clicks or self.calibrator.clicks)
 
     def _undo(self):
         """« Effacer » et Ctrl+Z : annule le dernier geste. Visées : la dernière seule (le bord B garde sa première,
         le clic de la mesure) ; objet vertical du calage : son dernier clic ; sinon comme Session.clear
         (sélection, mesure en cours, puis dernier point posé)."""
+        if self.map_mode:
+            if self.map_lengths:
+                self.map_lengths.pop()
+                self.message = "Dernière longueur sur la carte effacée."
+            return self.status()
         if self._tilt_pending() and self.tilt_clicks:
             self.tilt_clicks.pop()
             self.tilt_sel = None
@@ -1559,7 +1700,33 @@ class App(session.Session):
         self.tilt_clicks, self.tilt_sel = [], None
         self.map_line = None
         self.releve = mode == "releve"
-        return super().set_mode("tri" if self.releve else mode)
+        self.map_mode = mode == "carte"  # mesure sur la carte : le cœur reste en mesure libre, inactif
+        return super().set_mode("tri" if self.releve or self.map_mode else mode)
+
+    def add_map_length(self, lon1, lat1, lon2, lat2, value, sigma, photos):
+        """Longueur mesurée sur la vue du dessus (deux clics sur la carte) : valeur et incertitude (m) calculées par
+        la page (src/dessus.js), photos qui ont fourni l'image (séparées par des virgules). Incertitude None : un bout
+        hors de la vue, longueur sur le fond de carte seul (contrôle rapide de cohérence)."""
+        sigma = float(sigma) if isinstance(sigma, (int, float)) else None  # null de la page : JsNull, pas None
+        self.map_lengths.append({"ends": [[lon1, lat1], [lon2, lat2]], "valeur_m": float(value), "incert_m": sigma,
+                                 "photos": photos, "commentaire": ""})
+        self.message = "Longueur sur la carte : {}.".format(_length_text(value, sigma))
+        return self.status()
+
+    def delete_result(self, kind, ident):
+        if kind == "longueur":
+            if 0 <= ident < len(self.map_lengths):
+                del self.map_lengths[ident]
+                self.message = "Longueur effacée."
+            return self.status()
+        return super().delete_result(kind, ident)
+
+    def set_comment(self, kind, ident, text):
+        if kind == "longueur":
+            if 0 <= ident < len(self.map_lengths):
+                self.map_lengths[ident]["commentaire"] = text
+            return
+        super().set_comment(kind, ident, text)
 
     def aim(self, yaw, pitch):
         if self.mode == "road" and self.map_line is not None and self.ref_point is None and self.b_aiming is None:
@@ -2965,6 +3132,10 @@ class App(session.Session):
             add("triangule", "Point", [lon, lat], values["nom"])  # nom seul : pas d'incertitude sur la carte
         for i, j, values in self.links:  # distance entre deux points gardés : trait rouge, sans longueur
             add("distance", "LineString", [list(self.points[i][:2]), list(self.points[j][:2])])
+        for v in self.map_lengths:  # longueur sur la vue du dessus : trait et valeur, comme une mesure
+            add("mesure", "LineString", v["ends"], "{} m".format(measures._num(v["valeur_m"], 2)))
+            for p in v["ends"]:
+                add("point", "Point", p)
         return json.dumps({"type": "FeatureCollection", "features": features})
 
     # Export ------------------------------------------------------------------------------
@@ -3010,6 +3181,13 @@ class App(session.Session):
         for lon, lat, values in self.points:
             if "releve" not in values:  # objets relevés : export à part, gardés à part dans le navigateur
                 out.append(([(lon, lat)], dict({"type": "point triangulé"}, **values)))
+        for v in self.map_lengths:
+            out.append(([tuple(p) for p in v["ends"]], {
+                "type": "longueur sur la carte ({})".format("vue du dessus" if v["incert_m"] is not None else "hors vue du dessus"),
+                "valeur_m": round(v["valeur_m"], 3), "incert_m": None if v["incert_m"] is None else round(v["incert_m"], 3),
+                "horiz_m": round(v["valeur_m"], 3), "photos": v["photos"],
+                "photo_ref": v["photos"].split(",")[0] or None, "date_mesure": datetime.now().isoformat(timespec="seconds"),
+                "commentaire": v["commentaire"]}))
         for i, j, values in self.links:
             (lon1, lat1, v1), (lon2, lat2, v2) = self.points[i], self.points[j]
             out.append(([(lon1, lat1), (lon2, lat2)], {

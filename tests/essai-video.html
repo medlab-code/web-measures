@@ -15,17 +15,26 @@
   localStorage.setItem("web-measures/filtre", JSON.stringify({ since: "2025-07-05" }));
 } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
+<script src="commun.js"></script>
 <script>
-const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
-let failures = 0, checks = 0;
+const { log, sleep, until, ready, expect, fin } = Essai;
 const chronos = () => { const c = document.getElementById("f").contentWindow.eval("Video").times; return c ? `chronos (s) : tuiles ${(c.tuiles / 1000).toFixed(1)}, dessin ${(c.dessin / 1000).toFixed(1)}, encodeur ${(c.encodeur / 1000).toFixed(1)}, total ${(c.total / 1000).toFixed(1)} pour ${c.images} images` : ""; };
-const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + (detail ? " : " + detail : "")); } };
+// Boîte d'enregistrement simulée : vrai fichier du stockage privé de la page (mp4-muxer refuse un faux flux d'écriture),
+// done(fichier) appelé à sa fermeture
+const savePicker = (w, done) => async (o) => {
+  const handle = await (await w.navigator.storage.getDirectory()).getFileHandle(o.suggestedName, { create: true });
+  const open = handle.createWritable.bind(handle);
+  handle.createWritable = async () => {
+    const stream = await open(), close = stream.close.bind(stream);
+    stream.close = async () => { await close(); done(await handle.getFile()); };
+    return stream;
+  };
+  return handle;
+};
 (async () => {
   const w = document.getElementById("f").contentWindow;
   try {
-    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 180000, "Pyodide");
+    await ready(w);
     const doc = w.document;
     const warn = w.console.warn.bind(w.console);
     w.console.warn = (...args) => { log("AVERT " + args.map(String).join(" ").slice(0, 300)); warn(...args); };
@@ -79,7 +88,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       w.fetch = (url, options = {}) => (hold && /\/tiles\//.test(String(url))
         ? new Promise((_, reject) => options.signal?.addEventListener("abort", () => reject(options.signal.reason)))
         : pass(url, options));
-      w.showSaveFilePicker = async (o) => ({ name: o.suggestedName, createWritable: async () => ({ write: async () => {}, close: async () => { closed = true; } }) });
+      w.showSaveFilePicker = savePicker(w, () => { closed = true; });
       const dialog = doc.querySelector("#video-attente");
       const t0 = Date.now();
       button.click();
@@ -119,7 +128,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       const mode = doc.querySelector("#video-mode");
       mode.value = "revue";
       mode.dispatchEvent(new w.Event("change"));
-      expect("mode Revue : quatre compteurs, sans rampe, sans allure", on(boxes) === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp"
+      expect("mode Revue : quatre compteurs, sans rampe, sans allure", on(boxes) === "video-compteur video-compteur-vitesse video-acceleration video-vmax-arp video-stabilisation"
         && doc.querySelector("#pres-vmax").disabled && !doc.querySelector("#video-vitesse").disabled, on(boxes));
       mode.value = "presentation";
       mode.dispatchEvent(new w.Event("change"));
@@ -584,7 +593,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("compteur de vitesse : 90 km/h en route", Math.abs(Math.max(...kmh) - 90) < 0.5, Math.max(...kmh));
       expect("compteur de vitesse : 0 pendant l'arrêt du tour", kmh.some((v) => v === 0) && kmh.indexOf(0, 50) > 0);
       expect("compteur de vitesse : lissé (20 km/h par image au plus)", jump <= 20, jump);
-      expect("compteur de vitesse : proposé, décoché", doc.querySelector("#video-compteur-vitesse") && !doc.querySelector("#video-compteur-vitesse").checked);
+      expect("compteur de vitesse : proposé, coché par le mode Présentation", doc.querySelector("#video-compteur-vitesse")?.checked);
       // Passage de 99 à 100 km/h : le chiffre des centaines arrive en glissant, zéros de tête masqués
       const dial = Object.assign(document.createElement("canvas"), { width: 960, height: 540 }), dctx = dial.getContext("2d");
       for (const [k, v] of [[0, 9], [1, 99.5], [2, 135]]) {
@@ -744,8 +753,8 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       await until(() => [...doc.querySelectorAll("#mes-parcours li .pastille")].at(-1)?.classList.contains("sobre"), 30000, "parcours mis à jour");
       const plain = [...doc.querySelectorAll("#mes-parcours li .pastille")].at(-1);
       log(`mis à jour : ${doc.querySelectorAll("#mes-parcours li").length} ligne(s) ; ${status()}`);
-      expect("modifications enregistrées sur la même ligne (pas de doublon)", doc.querySelectorAll("#mes-parcours li").length === before + 1
-        && /mis à jour/.test(status()));
+      // nombre de lignes seulement : le message « mis à jour » est aussitôt remplacé par la recherche des photos
+      expect("modifications enregistrées sur la même ligne (pas de doublon)", doc.querySelectorAll("#mes-parcours li").length === before + 1);
       expect("pastille verte sans effet de communication", plain.classList.contains("sobre") && plain.title === "Sans effet de communication");
       expect("enregistré : « ☆ Gardé » grisé de nouveau", keep.disabled && keep.textContent === "☆ Gardé");
       expect("rouvert : photos cherchées d'elles-mêmes", /Recherche|Enregistrer/.test(button.textContent));
@@ -796,7 +805,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       select.dispatchEvent(new w.Event("change"));
       const info = doc.querySelector("#video-info").textContent;
       log("vidéo : " + info);
-      expect("vidéo : photos retenues, écart, durée et photos/s affichés", /^\d+ photos \(une tous les 1\d m\) · \d+ s · [\d.]+ photos\/s$/.test(info), info);
+      expect("vidéo : photos retenues, écart, durée et photos/s affichés", /^\d+ photos \(une tous les 1\d m\) · \d+ s · [\d.]+ photos\/s( au plus)?$/.test(info), info);
       const labels = [...doc.querySelector("#video-photos").options].map((o) => o.textContent);
       expect("écart de chaque choix affiché (1/2 : une tous les 10 m)", labels[1] === "Photos 1/2 · une tous les 10 m", labels[1]);
       const chosen = photos.filter((_, i) => i % 2 === 0 || i === photos.length - 1);
@@ -853,12 +862,13 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       expect("« Flou cinétique » proposé, décoché par défaut", doc.querySelector("#video-flou") && !doc.querySelector("#video-flou").checked);
       // « 🎬 Enregistrer la vidéo » : boîte d'enregistrement simulée, avancement dans la ligne d'état, fichier écrit
       let written = null, closed = false;
-      w.showSaveFilePicker = async (o) => ({ name: o.suggestedName, createWritable: async () => ({ write: async (b) => { written = b; }, close: async () => { closed = true; } }) });
+      w.showSaveFilePicker = savePicker(w, (file) => { written = file; closed = true; });
       doc.querySelector("#video-photos").value = "4";
       button.click();
       await until(() => !doc.querySelector("#parcours-video-arret").hidden, 10000, "calcul lancé (« ■ Arrêter » affiché)");
-      // Avancement lu dès qu'il paraît (avec la carte graphique, le calcul dure à peine quelques secondes)
-      await until(() => /image *[\u2007\d]*[1-9]/.test(status()), 30000, "avancement affiché");
+      // Avancement lu dès qu'il paraît (avec la carte graphique, le calcul dure à peine quelques secondes), après celui de
+      // la stabilisation (« Stabilisation avant le calcul de la vidéo : n % »)
+      await until(() => /image *[\u2007\d]*[1-9]/.test(status()), 60000, "avancement affiché");
       expect("avancement dans la ligne d'état", /Calcul de la vidéo en cours : image [\u2007\d]{5} \/ [\u2007\d]{5} \([\u2007\d]{3} %\)$/.test(status()), status());
       const statut = doc.querySelector("#statut");
       const bar = parseFloat(statut.style.getPropertyValue("--avancement"));
@@ -905,8 +915,9 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
       const lastPhoto = cross?.photos?.[cross.photos.length - 1];
       log(`carrefour : ${cross?.photos?.length} photos, ${cross?.switches} changement(s), dernière à ${lastPhoto ? dist(lastPhoto.coords, B).toFixed(0) : "?"} m ; ${status()} | ${doc.querySelector("#video-info").textContent}`);
       expect("carrefour : changement de séquence trouvé", cross?.switches >= 1);
-      expect("carrefour : signalé dans la ligne d'état (en orange) et sous les listes", /séquences/.test(status())
-        && doc.querySelector("#statut").classList.contains("avertissement") && /⚠/.test(doc.querySelector("#video-info").textContent));
+      // (plus répété sous les listes depuis 0.7.6)
+      expect("carrefour : signalé dans la ligne d'état (en orange)", /séquences/.test(status())
+        && doc.querySelector("#statut").classList.contains("avertissement"));
       expect("carrefour : arrivée atteinte (moins de 10 m)", lastPhoto && dist(lastPhoto.coords, B) < 10);
       // Exposition accordée au changement de séquence : juillet 1,5 fois plus clair que mai sur le tour d'horizon (1,58 au
       // même endroit dans le même sens) : gain de la première photo de juillet ~ 1 / 1,5, puis retour vers 1 en 100 m
@@ -934,8 +945,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     expect("raccord : cap lissé autour du changement de séquence", jerk(trajet) <= jerk(plain) + 1e-9, `${jerk(trajet)} ${jerk(plain)}`);
     expect("exposition : retour progressif vers sa propre exposition", gains.slice(change + 1).every((g, i) => g >= gains[change + i] - 1e-9));
     }
-    log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
-    log(failures ? "ERREUR" : "FIN");
+    await fin();
   } catch (error) {
     log("ERREUR " + error + " " + (error.stack || ""));
   }

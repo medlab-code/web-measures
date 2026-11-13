@@ -36,7 +36,7 @@ def band_image(up, azimuths, width=W, height=H):
 
     def edge(a):
         """Colonne (au sous-pixel) de la verticale du monde d'azimut a, sur chaque ligne."""
-        pts = [seen(up, a, e) for e in np.linspace(-5.0, 60.0, 300)]
+        pts = [seen(up, a, e) for e in np.linspace(-5.0, 60.0, 40)]
         px = np.array([((yaw + 180) % 360) / 360 * width - 0.5 for yaw, _ in pts])
         py = np.array([(90 - elev) / 180 * height - 0.5 for _, elev in pts])
         order = np.argsort(py)

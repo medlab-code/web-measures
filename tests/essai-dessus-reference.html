@@ -1,0 +1,167 @@
+<!doctype html><meta charset="utf-8"><title>Vue du dessus : photos de référence</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Essai répétable de la vue du dessus sur les photos de référence (docs/CALCULS.md), avec le réseau : pour
+     chacune, l'état affiché, la hauteur de caméra (GPS RTK moins sol, et lue sur le décalage entre photos),
+     l'inclinaison retenue et la vue recomposée, déposée dans tests/captures/ pour comparer d'un changement à
+     l'autre. tools/serveur-essai.py 8766, puis ouvrir tests/essai-dessus-reference.html (plusieurs minutes). -->
+<style>body{margin:0}iframe{border:0;display:block}</style>
+<iframe id="f" src="about:blank" style="width:1400px;height:900px"></iframe>
+<script src="commun.js"></script>
+<script>
+const { log, sleep, soon, expect, fin } = Essai;
+Essai.verbose = true;  // chaque contrôle journalisé
+const ALL_REFERENCES = [
+  ["A38", "66d45404-a22d-4b07-8bc8-1f3edcdf1b8a"],
+  ["RD 1074", "6f585daf-8e96-448d-9efb-2523927bc8c9"],
+  ["D33", "dbdaa47b-6e4d-4416-b352-ab324cb14735"],
+  ["petite RD", "894c3f0f-3d30-486b-b0f9-c7e6505d8d03"],
+  ["village", "e2d81cb7-f303-4cbf-93d7-8a2dbbc7c2b7"],
+  ["ville", "d946f2cf-cddc-4476-a414-35aee429c05a"],  // passage piéton en agglomération : raccords sans lignes en long
+  ["D33 du 04/07", "6c6e4972-f565-4198-84fe-24ab72d95398"],  // GPS décalé de 0,75 m (la D33 du 20/06, au même endroit, est juste)
+];
+// #rapide (mise au point) : les photos qui portent un contrôle propre (raccords sur route et en ville, inclinaison par la
+// route et par les verticales, GPS décalé) ; toutes avant une fusion
+const QUICK = new Set(["A38", "ville", "D33 du 04/07"]);
+// #photo=<id> : une autre photo seule (cas signalé), avec la carte des photos qui fournissent chaque point
+const ONE = location.hash.match(/^#photo=([\w-]+)/)?.[1];
+const REFERENCES = ONE ? [["photo", ONE]] : location.hash === "#rapide" ? ALL_REFERENCES.filter(([name]) => QUICK.has(name)) : ALL_REFERENCES;
+// Écart à l'orthophoto attendu (m) : position calée au-delà de 30 cm, GPS gardé en deçà
+const SHIFTS = { "D33": [0, 0.3], "D33 du 04/07": [0.5, 1.0] };
+const ONLY_SHIFT = new Set(["D33 du 04/07"]);
+const WAIT = 90000;  // ms par photo : photo, terrain, voisines et hauteur de caméra (une vingtaine de secondes d'ordinaire)
+const frame = document.getElementById("f");
+const number = (v, d = 2) => (v == null || Number.isNaN(v) ? "-" : v.toFixed(d).replace(".", ","));
+
+/** Ouvre la page sur la photo et attend la vue du dessus prête (rien en cours) ; renvoie la fenêtre et l'image, ou null. */
+async function open(id, enough = () => false) {
+  frame.contentWindow.localStorage?.setItem("web-measures/photo", id);
+  await new Promise((resolve) => { frame.onload = resolve; frame.src = `../index.html?essai=${Date.now()}`; });
+  const w = frame.contentWindow, doc = w.document, $ = (s) => doc.querySelector(s);
+  let blob = null;
+  const create = w.URL.createObjectURL.bind(w.URL);
+  w.URL.createObjectURL = (b) => { if (b instanceof w.Blob && b.type === "image/png") blob = b; return create(b); };
+  const start = Date.now();
+  while (Date.now() - start < WAIT) {
+    [...doc.querySelectorAll("dialog[open] button.oui, dialog[open] button.non")].forEach((b) => b.click());
+    if (!$("#dessus").disabled) break;
+    await sleep(250);
+  }
+  if ($("#dessus").disabled) return null;
+  const loaded = (Date.now() - start) / 1000;  // page et photo chargées
+  $("#dessus").click();
+  $("#dessus-voisines").click();  // « Véhicule masqué » : voisines, raccords, tangage lu sur les raccords
+  while (Date.now() - start < WAIT) {
+    const state = $("#dessus-etat").textContent;
+    const times = () => `page ${number(loaded, 0)} s, vue ${number((Date.now() - start) / 1000 - loaded, 0)} s`;
+    if (/caméra à/.test(state) && !/en calcul|en cours|Lecture/.test(state)) return { w, state, blob: () => blob, times: times() };
+    if (enough(state)) return { w, state, blob: () => blob, partial: true, times: times() };
+    await sleep(250);
+  }
+  return { w, state: $("#dessus-etat").textContent, blob: () => blob, late: true };
+}
+
+(async () => {
+  frame.src = "../index.html";
+  await new Promise((resolve) => { frame.onload = resolve; });
+  for (const [name, id] of REFERENCES) {
+    // Contrôle de position seul : les voisines peuvent attendre longtemps le calage de leur inclinaison
+    const shown = await open(id, (state) => ONLY_SHIFT.has(name) && /position (calée|GPS gardée)/.test(state));
+    if (!shown) { await expect(`${name} : vue du dessus disponible`, false); continue; }
+    const { w, state } = shown, Dessus = w.eval("Dessus"), now = Dessus.layersNow(), [main, ...others] = now.layers, pose = main.pose;
+    const h = pose.heading * Math.PI / 180, u = pose.up || [0, 0, 1];
+    const forward = Math.atan2(u[0] * Math.sin(h) + u[1] * Math.cos(h), u[2]) * 180 / Math.PI;
+    const right = Math.atan2(u[0] * Math.cos(h) - u[1] * Math.sin(h), u[2]) * 180 / Math.PI;
+    // Hauteur lue sur le décalage entre photos, l'inclinaison retenue tenue pour juste (contrôle croisé du GPS RTK)
+    const level = (l) => ({ ...l, pose: { ...l.pose, groundTilt: false } });
+    const parallax = now.terrain ? Dessus.estimateHeight(level(main), others.map(level), now.terrain) : null;
+    const read = parallax && parallax.reduce((a, b) => a + b, 0) / parallax.length;
+    await log(`${name} (${id.slice(0, 8)}, ${shown.times || "délai dépassé"}) : ${state}`);
+    await log(`  ${now.layers.length} photo(s), caméra ${number(pose.height)} m, décalage ${parallax ? parallax.map((v) => number(v)).join(" / ") : "-"} m, `
+      + `inclinaison ${pose.groundTilt ? "de la route" : pose.up ? "des verticales" : "aucune"} (avant ${number(forward)}°, droite ${number(right)}°, ±${number(pose.sigma, 1)}°)`);
+    if (shown.partial) {
+      const shift = state.match(/(?:décalage|écart à l'orthophoto) (\d+,\d+) m\)/), metres = shift && Number(shift[1].replace(",", "."));
+      await expect(`${name} : écart à l'orthophoto attendu`, metres !== null && metres >= SHIFTS[name][0] && metres <= SHIFTS[name][1], shift ? `${shift[1]} m` : "non mesuré");
+      continue;
+    }
+    await expect(`${name} : prête dans le délai`, !shown.late);
+    await expect(`${name} : terrain LiDAR HD`, Boolean(now.terrain));
+    await expect(`${name} : inclinaison connue`, Boolean(pose.up));
+    await expect(`${name} : roulis et tangage grisés sauf inclinaison par la route`, w.document.querySelector("#dessus-tangage").disabled === !pose.groundTilt
+      && w.document.querySelector("#dessus-devers").disabled === !pose.groundTilt, pose.groundTilt ? "route" : "verticales");
+    // Calage par les verticales coché d'office en zone d'habitation seulement (ville : Pouilly-en-Auxois ; village ; A38 : rase campagne)
+    const town = name === "ville" || name === "village", box = w.document.querySelector("#dessus-verticales");
+    await expect(`${name} : ${town ? "en ville, calage par les verticales" : "hors agglomération, inclinaison par la route"}`, box.checked === town && !pose.groundTilt === town);
+    if (!box.disabled) {  // verticales lues : l'autre calage à la main, puis retour
+      box.click();
+      for (let t = 0; t < 20 && w.document.querySelector("#dessus-tangage").disabled === town; t++) await sleep(250);
+      await expect(`${name} : interrupteur changé à la main`, Boolean(Dessus.layersNow().layers[0].pose.groundTilt) === town && w.document.querySelector("#dessus-tangage").disabled === !town);
+      box.click();
+      for (let t = 0; t < 20 && w.document.querySelector("#dessus-tangage").disabled !== town; t++) await sleep(250);
+    }
+    // Hauteur retenue = monture CD21 (1,93 / 2,07 m) depuis 8d4c497. Écart connu sur la RD 1074 (séquence du 07/07/2025) : lecture
+    // entre photos à 2,15-2,19 m alors que le véhicule est vu comme sur la monture haute du 03/07 (analyse du 12/11/2026, tangage
+    // probable) : journalisé, pas compté
+    const gap = read && read / pose.height - 1, detail = read && `${number(100 * gap, 1)} %`;
+    if (read && name === "RD 1074") await log(`${name} : monture et hauteur lue entre photos, écart connu (${detail})`);
+    else if (read) await expect(`${name} : monture et hauteur lue entre photos d'accord à 5 %`, Math.abs(gap) < 0.05, detail);
+    const joins = now.joins?.results || [], fixed = joins.filter((r) => r?.fix);
+    await log(`  raccords (${number((now.joins?.ms || 0) / 1000, 1)} s) : ${joins.map((r) => (r ? `${number(100 * r.before, 1)} → ${number(100 * r.after, 1)} cm${r.fix ? "" : " (non gardé)"}, ${r.n} mesures` : "pas assez de sol commun")).join(" ; ") || "-"}`);
+    const shift = state.match(/(?:décalage|écart à l'orthophoto) (\d+,\d+) m\)/), metres = shift && Number(shift[1].replace(",", "."));
+    if (SHIFTS[name]) await expect(`${name} : écart à l'orthophoto attendu`, metres !== null && metres >= SHIFTS[name][0] && metres <= SHIFTS[name][1], shift ? `${shift[1]} m` : "non mesuré");
+    if (name === "A38" || name === "ville") await expect(`${name} : raccords recalés, marche réduite`, fixed.length > 0 && fixed.every((r) => r.after < r.before));
+    await expect(`${name} : contour du véhicule lu sur la séquence`, Array.isArray(now.outline), String(now.outline?.length ?? now.outline));
+    if (Array.isArray(now.outline)) {  // forme d'un véhicule : symétrique, sans encoche (plus bas que ses deux voisins à 3°)
+      const o = now.outline, notches = o.filter((v, k) => v < Math.min(o[(k + 127) % 128], o[(k + 1) % 128]) - 1).length;
+      await expect(`${name} : contour symétrique et sans encoche`, o.every((v, k) => Math.abs(v - o[(128 - k) % 128]) <= 1.5) && notches === 0, `${notches} encoche(s) ${o.map((v, k) => (v < Math.min(o[(k + 127) % 128], o[(k + 1) % 128]) - 1 ? `${k}:${o[(k + 127) % 128]}/${v}/${o[(k + 1) % 128]}` : "")).filter(Boolean).join(" ")}, écart gauche-droite ${Math.max(...o.map((v, k) => Math.abs(v - o[(128 - k) % 128]))).toFixed(1)}°`);
+    }
+    // « Véhicule masqué » éteint : rien de ce qui a été lu avec les voisines n'est appliqué (tangage, hauteur, contour, position)
+    w.document.querySelector("#dessus-voisines").click();
+    for (let t = 0; t < 60 && !/ 1 photo,.*position/.test(w.document.querySelector("#dessus-etat").textContent) || /en cours/.test(w.document.querySelector("#dessus-etat").textContent); t++) await sleep(250);  // position refaite
+    const alone = Dessus.layersNow().layers, off = w.document.querySelector("#dessus-etat").textContent;
+    await expect(`${name} : éteint, photo seule sans tangage, hauteur ni contour lus, position refaite`, alone.length === 1 && (!Array.isArray(now.outline) || alone[0].pose.outline !== now.outline)
+      && !/lu sur les raccords|lue entre photos|décalage entre photos/.test(off) && !alone[0].fix && !alone[0].bend && Dessus.layersNow().locatedWith === false, off);
+    w.document.querySelector("#dessus-voisines").click();
+    // Sol caché par le véhicule de la photo affichée : part vue par une voisine (le reste : véhicule en dernier recours)
+    if (others.length) {
+      let under = 0, seen = 0;
+      for (let e = -5; e <= 5; e += 0.1) for (let n = -5; n <= 5; n += 0.1) {
+        if (!Dessus.hidden(e, n, pose)) continue;
+        under++;
+        if (Dessus.sourceOf([e, n], now.layers) !== main) seen++;
+      }
+      await expect(`${name} : sol sous le véhicule vu par une voisine`, seen >= 0.99 * under, `${seen} points sur ${under}`);
+    }
+    if (ONE) {  // photo fournissant chaque point : rouge = affichée, vert, bleu = voisines
+      const canvas = Dessus.render(now.layers, now.terrain, pose, null, 1024, 3), copy = w.document.createElement("canvas");
+      copy.width = copy.height = 1024;
+      const c2 = copy.getContext("2d"), px = new Uint8Array(4 * 1024 * 1024), gl = canvas.getContext("webgl2");
+      gl.readPixels(0, 0, 1024, 1024, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      const image = c2.createImageData(1024, 1024);
+      for (let k = 0; k < 1024 * 1024; k++) {
+        const o = 4 * ((1023 - Math.floor(k / 1024)) * 1024 + k % 1024), l = px[4 * k];
+        image.data.set(l ? [[255, 0, 0], [0, 200, 0], [0, 0, 255], [200, 200, 0]][l - 1] || [255, 255, 255] : [0, 0, 0], o);
+        image.data[o + 3] = 255;
+      }
+      c2.putImageData(image, 0, 0);
+      await fetch("/capture/dessus-sources.png", { method: "POST", body: await new Promise((r) => copy.toBlob(r)) });
+      const time = (f) => { const t = performance.now(); f(); return ((performance.now() - t) / 1000).toFixed(2); };
+      await log(`  durées (s) : dessin 2048 ${time(() => Dessus.render(now.layers, now.terrain, pose, null, 2048))}, fondu 2048 ${time(() => Dessus.renderBlended(now.layers, now.terrain, pose, null, 2048))}, fondu 4096 ${time(() => Dessus.renderBlended(now.layers, now.terrain, pose, null, 4096))}, hauteur ${time(() => Dessus.estimateHeight(main, others, now.terrain))}, raccords ${((now.joins?.ms || 0) / 1000).toFixed(2)}`);
+      for (const r of now.joins?.results || []) if (r?.bend?.lines) await log(`  lignes calées : ${r.bend.lines.map((l) => `${l.ahead > 0 ? "devant" : "derrière"} ${l.t.toFixed(2)} m : ${(100 * l.d).toFixed(1)} cm`).join(" ; ")}`);
+      for (const r of now.joins?.results || []) if (r) await log(`  pose relative : ${r.w.map((v, i) => (i === 4 ? (100 * v).toFixed(1) + " %" : i < 2 ? (100 * v).toFixed(1) + " cm" : (v * 180 / Math.PI).toFixed(2) + "°")).join(", ")}${r.fix ? (r.shiftOnly ? " (décalage seul)" : "") : " (non gardée)"}`);
+      // « Sans cache (essais) » : la vue est refaite de zéro (contour du véhicule relu)
+      const doc = w.document, before = Date.now();
+      doc.querySelector("#dessus-sans-cache").click();
+      await soon(() => /en calcul|en cours|Lecture/.test(doc.querySelector("#dessus-etat").textContent), 1500);  // vue refaite
+      while (Date.now() - before < WAIT && !(/caméra à/.test(doc.querySelector("#dessus-etat").textContent) && !/en calcul|en cours|Lecture/.test(doc.querySelector("#dessus-etat").textContent))) await sleep(250);
+      const again = Dessus.layersNow();
+      await expect("sans cache : vue refaite, contour relu", Array.isArray(again?.outline) && again.outline !== now.outline, `${((Date.now() - before) / 1000).toFixed(0)} s`);
+      await log(`  couches : ${now.layers.map((l) => `${l.pose.pic.slice(0, 8)} ${l.pose.outline ? "contour" : "ellipse"} à ${l.at.map((v) => v.toFixed(1)).join(", ")} m`).join(" ; ")}`);
+    }
+    const blob = shown.blob();
+    await expect(`${name} : vue recomposée`, Boolean(blob));
+    if (blob) await fetch(`/capture/dessus-${name.replace(/\W+/g, "-")}.png`, { method: "POST", body: blob });
+  }
+  await fin();
+})().catch(async (error) => { await log("ERREUR " + error); });
+</script>

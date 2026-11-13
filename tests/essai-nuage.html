@@ -7,12 +7,9 @@
 <script>try { localStorage.clear(); } catch {}</script>
 <!-- assez haute pour que la fenêtre du profil tienne dans la visionneuse (sinon elle défile : ses boutons bougent) -->
 <iframe id="f" src="../index.html" style="width:1400px;height:1300px"></iframe>
+<script src="commun.js"></script>
 <script>
-const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
-let failures = 0, checks = 0;
-const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + (detail ? " : " + detail : "")); } };
+const { log, sleep, until, soon, ready, expect, fin } = Essai;
 // photo, milieu attendu du séparateur à gauche (m, d'après la photo et le relief), bord d'enrobé droit attendu (décision du 05/11/2026 : la chaussée est la bande d'enrobé, BAU comprise)
 // #photos=id,id : ces photos seulement, sans contrôle de position (essai d'une autre route)
 const PHOTOS = location.hash.startsWith("#photos=") ? location.hash.slice(8).split(",").map((id) => [id, id.slice(0, 8), null, null]) : null;
@@ -21,23 +18,24 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
 (async () => {
   const w = document.getElementById("f").contentWindow;
   try {
-    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 180000, "Pyodide");
+    await ready(w);
     const doc = w.document, app = w.mesures.app;
     doc.querySelector("#reglages-defaut")?.close();
     for (const [id, where, sepMid, rightEdge] of CASES) {
       const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
       w.mesures.openPhoto(f);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === id, 30000, "photo");
-      await sleep(4000);
+      await until(() => !doc.querySelector("#bords").disabled, 20000, "bouton « Profils »");
       doc.querySelector("#bords").click();
       await until(() => JSON.parse(app.fall_json() || "null")?.profile, 40000, "profil");
       doc.querySelector("#profil").click();
-      await sleep(800);
+      await soon(() => doc.querySelector("#fenetre-profil").open && !doc.querySelector("#profil-nuage").disabled);
       const dialog = doc.querySelector("#fenetre-profil"), button = doc.querySelector("#profil-nuage");
       expect(`${where} : « Analyse fine » active, « Végétation » grisée avant elle`, !button.disabled && doc.querySelector("#profil-vegetation").disabled);
       button.click();
-      await sleep(6000);  // en cours de lecture : barre d'avancement affichée, et remplie en partie
+      // en cours de lecture : barre d'avancement affichée, et remplie en partie
       const bar = doc.querySelector("#profil-nuage-barre");
+      await until(() => (!bar.hidden && bar.value > 0.1) || /points du sol|impossible/.test(doc.querySelector("#profil-nuage-etat").textContent), 30000, "avancement");
       log(`  en cours : barre ${bar.hidden ? "masquée" : bar.hasAttribute("value") ? Math.round(100 * bar.value) + " %" : "animée"} · ${doc.querySelector("#profil-nuage-etat").textContent}`);
       await until(() => /points du sol|impossible/.test(doc.querySelector("#profil-nuage-etat").textContent), 120000, "analyse fine");
       const state = doc.querySelector("#profil-nuage-etat").textContent;
@@ -102,8 +100,11 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
       await log(`IMAGE ${id.slice(0, 8)} ` + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));
       dialog.close();
     }
-    log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
-    log(failures ? "ERREUR" : "FIN");
+    // Morceaux de dalles gardés (Nuage, range) : relus sans requête ni attente
+    const kept = (await (await w.caches.open("web-measures-geo")).keys()).filter((r) => r.url.includes("?octets=")).length;
+    expect("morceaux du nuage LiDAR gardés en cache", kept > 0, String(kept));
+    log(`  morceaux gardés : ${kept}`);
+    await fin();
   } catch (e) { log("ERREUR " + e); }
 })();
 </script>

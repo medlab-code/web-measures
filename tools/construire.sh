@@ -15,3 +15,8 @@ if [ -n "$branch" ] && [ "$branch" != HEAD ] && [ "$branch" != main ]; then
   sed -i "s|Version test [0-9.]*|Version $branch du $date|" dist/index.html
   grep -q "Version $branch du $date" dist/index.html  # bandeau introuvable : construction en échec plutôt que muette
 fi
+# Favicon propre à la branche birdeye (faucon) : index.html garde l'équerre, une fusion dans main ne l'emporte pas
+if [ "$branch" = birdeye ]; then
+  sed -i 's|href="src/favicon.svg"|href="src/faucon.svg"|' dist/index.html
+  grep -q 'href="src/faucon.svg"' dist/index.html  # lien introuvable : construction en échec plutôt que muette
+fi

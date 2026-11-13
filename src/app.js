@@ -479,7 +479,8 @@
   const DEFAULT_INSTANCE = "https://panoramax.ign.fr";
   const DEFAULT_PRODUCER = ["8f943f10-a781-4e03-a18c-de035be6f6f8", "conseil départemental de la côte-d'or"];
   // Photo ouverte à la première utilisation (et sans dernière photo gardée) : Venarey-les-Laumes (D103T), route plate et droite,
-  // vue tournée vers le bâtiment rond sur la gauche (cap en degrés). L'ancienne : Semur-en-Auxois (7752eb30), sur un pont
+  // vue tournée vers le bâtiment rond sur la gauche (cap en degrés). L'ancienne (Semur-en-Auxois, 7752eb30) était sur un
+  // pont pavé : vue Bird Eye sans LiDAR, voie rétrécie
   const DEFAULT_PHOTO = "8625c7ff-90c1-4865-b936-fd8952ac908f";
   const DEFAULT_HEADING = 210;
   const firstUse = store.get("defauts") !== "1";
@@ -635,10 +636,12 @@
     clearTimeout(idleTimer);
     window.removeEventListener("pointermove", wakeFullscreen, true);
     if (full) {
+      setSwapped(false);  // colonne masquée, carte comprise
       window.addEventListener("pointermove", wakeFullscreen, true);  // capture : la visionneuse garde ses événements
       wakeFullscreen();
     } else {
       map.resize();  // masquée pendant le plein écran
+      wantSwap();
     }
     window.dispatchEvent(new Event("resize"));  // visionneuse à la nouvelle taille
   });
@@ -852,7 +855,8 @@
     const triangulating = $("#mode").value === "tri";  // pas de calcul d'inclinaison (visée en cap)
     const manual = tilt === "non" && !calibrating;
     const before = tilt === "avant" && !calibrating;  // calcul lancé au premier clic sur la photo
-    message.hidden = !measuring || triangulating || !(calibrating || tilt === "attente" || manual || before);
+    // Longueur sur la carte : la vue du dessus a sa propre inclinaison (verticales ou pente de la route, voir sa barre d'état)
+    message.hidden = !measuring || triangulating || $("#mode").value === "carte" || !(calibrating || tilt === "attente" || manual || before);
     message.classList.toggle("manuel", manual);
     message.classList.toggle("calage", calibrating);
     message.classList.toggle("attente", tilt === "attente");  // petite roue : calcul en cours
@@ -943,6 +947,7 @@
   function refresh(text) {
     if (!app) return;
     setStatus(text ?? app.status());
+    updateBirdeye();
     const rtkAlert = app.take_rtk_alert();  // séquence sans RTK : fenêtre, une fois par séquence
     if (rtkAlert && !$("#alerte-rtk").open) {
       $("#alerte-rtk p").textContent = rtkAlert;
@@ -964,7 +969,7 @@
       showInCorner(dialog);
     }
     const state = JSON.parse(app.state());
-    $("#effacer").disabled = !state.can_undo;  // grisés quand ils n'auraient pas d'effet
+    $("#effacer").disabled = !state.can_undo && !Dessus.hasStart();  // grisés quand ils n'auraient pas d'effet ; départ d'une longueur sur la carte
     $("#refaire").disabled = !state.can_redo;
     $("#tout-effacer").disabled = !state.can_clear;
     const computed = $("#fiche .precision-calculee");
@@ -1156,6 +1161,159 @@
     showOverViewer(dialog);
   }
 
+  // Vue du dessus (src/dessus.js) : photo reprojetée au sol sur la mini-carte
+  let birdeyeAsked = null, birdeyeNearAsked = null, birdeyeNear = null;  // photo dont l'inclinaison, les voisines ont été demandées ; fiches de ses voisines (null : en lecture)
+  async function birdeyeNeighbours(feature) {
+    const links = (feature.links || []).filter((l) => l.rel === "prev" || l.rel === "next");
+    const read = await Promise.all(links.map((l) => fetch(l.href).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
+    return read.filter(Boolean);
+  }
+  let birdeyeFor = null;  // photo pour laquelle Bird Eye a été allumée : une autre photo l'éteint, rien n'est calculé sans clic
+  function updateBirdeye() {
+    if ($("#dessus").checked && photo && birdeyeFor && birdeyeFor !== photo.id) $("#dessus").checked = false;
+    const pose = app && photo ? JSON.parse(app.birdeye_pose()) : null, shown = pose && pose.pic === photo.id;
+    $("#dessus").disabled = !shown;
+    const on = shown && $("#dessus").checked;
+    if (photo) Carte.showView(map, photo.geometry.coordinates, coneHeading(), viewFov());  // cône retiré ou remis
+    const inMap = (selector) => mapBox.querySelector(selector);  // réglages sur la carte, peut-être détachée
+    inMap("#dessus-fine").disabled = inMap("#dessus-voisines").disabled = inMap("#dessus-position").disabled = inMap("#dessus-sans-cache").disabled = !on;
+    if (!on) inMap("#dessus-verticales").disabled = inMap("#dessus-devers").disabled = inMap("#dessus-tangage").disabled = true;  // allumée : selon la vue (Dessus)
+    inMap("#dessus-reglages").hidden = !on;  // vue du dessus allumée seulement
+    showMapMeasureButton();
+    if (on && birdeyeAsked !== photo.id) {
+      birdeyeAsked = photo.id;
+      birdeyeNear = null;
+      app.birdeye_neighbours("[]");
+      app.birdeye_request();  // peut répondre tout de suite (déjà calée) : la pose est relue ensuite
+    }
+    // Voisines (« Véhicule masqué ») : fiches lues et inclinaison lancée seulement à la demande
+    if (on && inMap("#dessus-voisines").checked && birdeyeNearAsked !== photo.id) {
+      birdeyeNearAsked = photo.id;
+      const feature = photo;
+      birdeyeNeighbours(feature).then((near) => {
+        if (photo !== feature) return;
+        birdeyeNear = near;
+        app.birdeye_neighbours(JSON.stringify(near));
+        updateBirdeye();
+      });
+    }
+    Dessus.update(on ? photo : null, on ? JSON.parse(app.birdeye_pose()) : null, birdeyeNear);
+  }
+  // Carte et visionneuse échangées (bouton ⇄ de la carte, ou longueur sur la carte) : la carte prend la place et la taille de
+  // la visionneuse, et inversement. Deux gabarits vides gardent la mise en page, #vue et #carte se posent dessus. Carte
+  // détachée : déjà à part, rien à échanger.
+  const viewerSlot = $("#place-vue"), mapSlot = $("#place-carte");
+  function placeSwapped() {
+    const set = (name, rect) => {
+      for (const side of ["left", "top", "width", "height"]) document.body.style.setProperty(`--${name}-${side}`, `${rect[side]}px`);
+    };
+    set("place-vue", viewerSlot.getBoundingClientRect());
+    set("place-carte", mapSlot.getBoundingClientRect());
+    map.resize();
+    window.dispatchEvent(new Event("resize"));  // visionneuse à la nouvelle taille
+  }
+  const swapWatch = new ResizeObserver(placeSwapped);
+  let swapped = false, userSwap = false, measureSwap = false;  // échange en cours ; demandé par le bouton ; par la mesure
+  function setSwapped(on) {
+    if (on === swapped || (on && mapWindow)) return;
+    swapped = on;
+    swapButton.setAttribute("aria-pressed", String(on));
+    measureButton.hidden = birdeyeButton.hidden = !on && !mapWindow;  // carte en grand ou détachée : mesure et Bird Eye d'un clic
+    swapButton.title = on ? "Remettre la carte et la visionneuse à leur place" : "Échanger la carte et la visionneuse (place et taille)";
+    if (on) {
+      setColumnFolded(false);
+      setFolded(false);
+      mapSlot.style.height = `${mapBox.getBoundingClientRect().height}px`;
+    }
+    viewerSlot.hidden = mapSlot.hidden = !on;
+    fold.disabled = columnFold.disabled = on;
+    document.body.classList.toggle("carte-en-grand", on);
+    if (on) {
+      placeSwapped();
+      swapWatch.observe(viewerSlot);
+      swapWatch.observe(mapSlot);
+    } else {
+      swapWatch.disconnect();
+      map.resize();
+      window.dispatchEvent(new Event("resize"));
+    }
+  }
+  const wantSwap = () => setSwapped(!document.fullscreenElement && (userSwap || measureSwap));
+  const swapButton = Object.assign(document.createElement("button"), { type: "button", className: "echanger-vues", textContent: "⇄" });
+  swapButton.setAttribute("aria-pressed", "false");
+  swapButton.title = "Échanger la carte et la visionneuse (place et taille)";
+  swapButton.addEventListener("click", () => {
+    userSwap = !swapped;
+    if (!userSwap) measureSwap = false;  // remis en place à la main, même pendant la mesure
+    wantSwap();
+  });
+  map.addControl({
+    onAdd: () => Object.assign(document.createElement("div"), { className: "maplibregl-ctrl maplibregl-ctrl-group" }).appendChild(swapButton).parentNode,
+    onRemove: () => {},
+  }, "top-left");
+  // Carte en grand ou détachée : « Mesurer une longueur », sans passer par le mode du bandeau (même mesure que le mode « carte »)
+  const measureButton = Object.assign(document.createElement("button"), { type: "button", className: "mesurer-carte", hidden: true,
+    textContent: "📏 Mesurer une longueur" });
+  measureButton.setAttribute("aria-pressed", "false");
+  measureButton.addEventListener("click", () => {
+    const on = measuring && $("#mode").value === "carte";
+    if (on) return $("#mesure").click();  // arrêt, comme le bouton « Mesure »
+    if ($("#mode").value !== "carte") {
+      $("#mode").value = "carte";
+      $("#mode").dispatchEvent(new Event("change"));
+    }
+    if (!measuring) $("#mesure").click();
+  });
+  // Faucon : Bird Eye de la photo affichée, d'un clic (comme l'interrupteur du bandeau) ; une autre photo l'éteint (updateBirdeye)
+  const birdeyeButton = Object.assign(document.createElement("button"), { type: "button", className: "birdeye-carte", hidden: true,
+    ariaLabel: "Bird Eye" });
+  birdeyeButton.append(Object.assign(document.createElement("img"), { src: "src/faucon.svg", alt: "" }));
+  birdeyeButton.setAttribute("aria-pressed", "false");
+  birdeyeButton.addEventListener("click", () => {
+    $("#dessus").checked = !$("#dessus").checked;
+    $("#dessus").dispatchEvent(new Event("change"));
+  });
+  map.addControl({
+    onAdd: () => {
+      const place = Object.assign(document.createElement("div"), { className: "maplibregl-ctrl place-mesurer" });
+      place.append(measureButton, birdeyeButton);
+      return place;
+    },
+    onRemove: () => {},
+  }, "top-left");
+  /** Bouton de la carte en grand : enfoncé pendant la mesure, grisé sans photo 360° (pas de vue du dessus). */
+  function showMapMeasureButton() {
+    const on = measuring && $("#mode").value === "carte";
+    measureButton.setAttribute("aria-pressed", String(on));
+    measureButton.textContent = on ? "📏 Arrêter la mesure" : "📏 Mesurer une longueur";
+    measureButton.title = on ? "Arrêter la mesure de longueur sur la carte" : "Mesurer une longueur sur la vue Bird Eye : deux clics sur la carte";
+    measureButton.disabled = !on && ($("#dessus").disabled || $("#mode").disabled);
+    const bird = $("#dessus").checked;
+    birdeyeButton.setAttribute("aria-pressed", String(bird));
+    birdeyeButton.disabled = $("#dessus").disabled;
+    birdeyeButton.title = bird ? "Éteindre la vue Bird Eye" : "Vue Bird Eye de cette photo (calculée pour elle seule : une autre photo l'éteint)";
+  }
+  Dessus.setup(map, (on) => {
+    measureSwap = on;
+    wantSwap();
+  });
+
+  /** Mode « Longueur sur la carte » : vue du dessus allumée et clics sur la carte, tant que « Mesure » est enfoncé. */
+  function syncMapMeasure() {
+    const on = measuring && $("#mode").value === "carte";
+    if (on && !$("#dessus").checked && !$("#dessus").disabled) {
+      $("#dessus").checked = true;
+      $("#dessus").dispatchEvent(new Event("change"));
+    }
+    Dessus.setMeasuring(on);
+  }
+  $("#dessus").addEventListener("change", (event) => {
+    if (event.target.checked && photo) map.jumpTo({ center: photo.geometry.coordinates });  // le zoom ne bouge pas
+    birdeyeFor = event.target.checked && photo ? photo.id : null;
+    updateBirdeye();
+  });
+  mapBox.querySelector("#dessus-voisines").addEventListener("change", updateBirdeye);  // voisines à lire
+
   // Choix de la photo sur la carte ---------------------------------------------------------
 
   map.on("click", (event) => {
@@ -1168,7 +1326,17 @@
       updatePlayer();
       return;
     }
-    if (lineDraft !== null) addLinePoint(event.lngLat);
+    if (measuring && $("#mode").value === "carte") {  // longueur sur la carte : jamais d'autre photo ouverte d'un clic
+      if (!Dessus.measuring()) {
+        setStatus($("#dessus").disabled ? "Longueur sur la carte : photo 360° nécessaire (Bird Eye indisponible)."
+          : "Longueur sur la carte : Bird Eye en préparation, patientez.");
+        return;
+      }
+      const done = Dessus.addPoint(event.lngLat);
+      if (done) refresh(app.add_map_length(done.a[0], done.a[1], done.b[0], done.b[1], done.length, done.error, done.photos));
+      else refresh();  // Effacer : le départ se retire
+      applyMeasureUi();
+    } else if (lineDraft !== null) addLinePoint(event.lngLat);
     else if (placing) placeOnMap(event.lngLat);
     else if (travelPick) pickTravelPoint(event.lngLat);
     else {
@@ -1243,6 +1411,7 @@
     if (lineDraft) showDrawnLine([[lineDraft.lng, lineDraft.lat], [event.lngLat.lng, event.lngLat.lat]]);
   });
   function onLineEscape(event) {  // aussi dans la carte détachée (toggleMapWindow)
+    if (event.key === "Escape" && Dessus.cancelStart()) applyMeasureUi();  // départ d'une longueur sur la carte
     if (event.key === "Escape" && lineDraft !== null) {
       endLineDraft();
       refresh();
@@ -1493,6 +1662,7 @@
     if (!(event.ctrlKey || event.metaKey) || event.altKey || !["z", "y"].includes(key)) return;
     if (!app || !measuring || event.target.closest?.("input, select, textarea")) return;
     event.preventDefault();
+    if (key === "z" && !event.shiftKey && Dessus.cancelStart()) return applyMeasureUi();  // départ d'une longueur sur la carte
     refresh(key === "y" || event.shiftKey ? app.redo() : app.undo());
     proposeDistance();
   }
@@ -1507,6 +1677,7 @@
   const detachButton = document.createElement("button");
 
   async function toggleMapWindow() {
+    setSwapped(false);  // carte et visionneuse échangées : remises en place d'abord
     if (mapWindow) {
       mapWindow.close();  // pagehide : carte remise en place
       return;
@@ -1564,6 +1735,8 @@
   function showDetached(detached) {
     $("#carte-detachee").hidden = !detached;
     grip.hidden = detached;
+    swapButton.disabled = detached;  // carte déjà à part : rien à échanger
+    measureButton.hidden = birdeyeButton.hidden = !detached && !swapped;  // détachée : comme en grand
     detachButton.textContent = "⧉";
     detachButton.title = detached ? "Remettre la carte dans la page"
       : "Détacher la carte dans une fenêtre à part (second écran)";
@@ -1722,7 +1895,7 @@
     if (moving) detailsTimer = setTimeout(() => { if (photo === feature) photoDetails(feature); }, PLAYING_DETAILS_DELAY);
     else photoDetails(feature);
     const coords = feature.geometry.coordinates;
-    Carte.showView(map, coords, viewHeading(), viewFov());
+    Carte.showView(map, coords, coneHeading(), viewFov());
     const now = performance.now();
     if (recenter && $("#centrer").checked) {
       if (moving) {
@@ -2433,9 +2606,12 @@
     return vertical ? 60 : 90;
   }
 
+  /** Cap du cône de la vue sur la carte ; null (croix seule) avec Bird Eye, qui couvrirait la vue du dessus. */
+  function coneHeading() { return $("#dessus").checked ? null : viewHeading(); }
+
   let guideHeading = null;
   function updateCursor() {
-    if (photo) Carte.showView(map, photo.geometry.coordinates, viewHeading(), viewFov());
+    if (photo) Carte.showView(map, photo.geometry.coordinates, coneHeading(), viewFov());
     // Flèches des photos proposées : refaites quand la vue a tourné de plus de 5°
     const heading = viewHeading();
     if (guideShown && heading != null && (guideHeading == null || Math.abs(((heading - guideHeading) % 360 + 540) % 360 - 180) > 5)) {
@@ -2468,7 +2644,7 @@
   /** Croix sélectionnable (App.pick_points : celles du mode en cours) à CROSS_PX pixels au plus du point (x, y) de la
    * visionneuse : un clic là la sélectionne (App.click, on_cross). En pixels, quel que soit le zoom ; le calcul ne
    * connaît que des degrés. */
-  const CROSS_PX = 8;  // 99 % des clics à la souris tombent à moins de 4,5 px (tests/mesure-souris.html, ticket #43)
+  const CROSS_PX = 8;  // 99 % des clics à la souris tombent à moins de 4,5 px (mesure à la souris, ticket #43)
   let crossAt = [];  // croix sélectionnables (drawViewerMarks) : [[cap, élévation]]
   function nearCross(x, y) {
     const view = psv?.getPosition?.();
@@ -2787,24 +2963,7 @@
     if (psv?.isSequencePlaying?.()) psv.stopSequence();
   }
 
-  /** Adresses possibles de la séquence de la photo dans l'API de son instance, la plus sûre
-   * d'abord : son lien « collection » (sauf celui du méta-catalogue), le lien « via » vers son
-   * instance d'origine (fiche du méta-catalogue), puis l'adresse de ses images (juste pour les
-   * instances qui les servent elles-mêmes : celles de l'IGN sont sur un stockage OVH, qui
-   * refuse l'API). */
-  function sequenceApis(feature) {
-    const links = feature?.links || [];
-    const out = [];
-    const link = links.find((l) => l.rel === "collection")?.href || "";
-    if (link && !link.startsWith(Carte.PANORAMAX_API)) out.push(link.replace(/\/$/, ""));
-    const sites = [links.find((l) => l.rel === "via")?.href, feature?.assets?.sd?.href || feature?.assets?.hd?.href];
-    for (const href of sites) {
-      try {
-        out.push(`${new URL(href).origin}/api/collections/${encodeURIComponent(feature.collection)}`);
-      } catch { /* adresse absente ou illisible */ }
-    }
-    return [...new Set(out)];
-  }
+  const { sequenceApis } = Services;
 
   function play(back, k) {
     stopPlayer();
@@ -4600,12 +4759,15 @@
   function applyMeasureUi() {
     $("#mesure").setAttribute("aria-pressed", String(measuring));
     $("#mesure").classList.toggle("actif", measuring);
-    $("#mode-mesure").hidden = !measuring;
+    showMapMeasureButton();
     const mode = $("#mode").value;
+    // Longueur sur la carte : tout se fait sur la carte, pas d'aide dans la visionneuse
+    $("#mode-mesure").hidden = !measuring || mode === "carte";
+    $("#entete-etape").hidden = mode === "carte";
     // Liseré autour de la visionneuse : bleu pendant les visées de triangulation, jaune pendant la
     // prise de mesure (couleurs de leurs croix)
-    const sighting = measuring && aiming;
-    const taking = measuring && !aiming && ["road", "height"].includes(mode);
+    const sighting = measuring && aiming && mode !== "carte";  // longueur sur la carte : le cœur reste en mesure libre, sans visée
+    const taking = measuring && !aiming && ["road", "height", "carte"].includes(mode);
     const calibrating = measuring && mode === "tilt";
     $("#vue").classList.toggle("visee", sighting);
     $("#vue").classList.toggle("prise", taking);
@@ -4620,6 +4782,7 @@
       : mode === "road" ? ["Largeur", ["Premier bord", "Bord opposé"], aiming && !edgeBAiming ? 0 : newMeasure ? 2 : 1]
       : mode === "tri" ? ["Mesure libre", ["Points visés depuis plusieurs photos"], 0]
       : mode === "releve" ? ["Relevé d'objets", ["Objet visé", "Ses champs"], 0]
+      : mode === "carte" ? ["Longueur sur la carte", ["Départ", "Arrivée"], Dessus.hasStart() ? 1 : 0]
       : ["Calage de l'inclinaison", ["Deux objets verticaux"], 0];
     $("#nom-mesure").textContent = title;
     $("#etapes").replaceChildren(...steps.map((step, k) => Object.assign(document.createElement("li"), {
@@ -4638,10 +4801,11 @@
       : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), de préférence un repère net (fin de tiret, joint, regard) ; réticule calé sur le trait vert, Maj : visée libre ; puis « Valider le point triangulé »"
       : mode === "road" && newMeasure ? `Largeur faite : cliquez une de ses croix pour l'ajuster ; autre largeur : « Nouvelle mesure depuis ${newMeasure} »`
       : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé ; autre photo, prise avant ou après : par la carte"
+      : mode === "carte" ? `Longueur sur la carte : cliquez ${Dessus.hasStart() ? "l'arrivée" : "le départ"} sur la vue Bird Eye, de préférence en face de la caméra ; Échap : retirer le départ`
       : mode === "tilt" ? "Calage de l'inclinaison : pied puis sommet de deux objets verticaux, à 90° l'un de l'autre"
       : "Mode mesure en cours : désélectionner pour naviguer";
     // Nom de la mesure et étape déjà dans l'en-tête de la carte d'étape (« Hauteur, étape 1 : »…) : retirés
-    const tip = $("#mode-mesure").textContent.replace(/^(?:Hauteur|Largeur|Mesure libre|Relevé d'objets|Calage de l'inclinaison)[^:]*: /, "");
+    const tip = $("#mode-mesure").textContent.replace(/^(?:Hauteur|Largeur|Mesure libre|Relevé d'objets|Longueur sur la carte|Calage de l'inclinaison)[^:]*: /, "");
     $("#mode-mesure").textContent = tip[0].toUpperCase() + tip.slice(1);
     showModeOptions();
     const box = psv?.container;
@@ -4673,6 +4837,7 @@
   $("#mesure").addEventListener("click", () => {
     measuring = !measuring;
     if (measuring) stopPlayer();  // la mesure se fait sur une photo arrêtée
+    syncMapMeasure();
     applyMeasureUi();
     if (psv) updatePlayer();
     refresh(app.set_active(measuring));
@@ -4969,6 +5134,7 @@
   }
 
   $("#mode").addEventListener("change", (event) => {
+    syncMapMeasure();
     applyMeasureUi();  // triangulation : navigation rétablie
     refresh(app.set_mode(event.target.value));
   });
@@ -5003,6 +5169,10 @@
   $("#axe-auto").addEventListener("click", () => refresh(app.cancel_measure_line()));
   $("#nouvelle-reference").addEventListener("click", () => refresh(app.new_reference()));
   $("#effacer").addEventListener("click", () => {  // comme Ctrl+Z : le dernier geste (onUndoKey)
+    if (Dessus.cancelStart()) {
+      refresh();
+      return applyMeasureUi();
+    }
     refresh(app.undo());
     proposeDistance();
   });

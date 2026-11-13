@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- © Cédric COCHART -->
+
 # Amélioration de la détection des bords et talus (mode « Dévers »)
 
 Document de synthèse – novembre 2026  

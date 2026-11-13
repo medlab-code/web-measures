@@ -6,25 +6,24 @@
      bouton « Vider le cache ». Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
 <script>try { localStorage.clear(); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:900px;border:0"></iframe>
+<script src="commun.js"></script>
 <script>
-const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-let failures = 0, checks = 0;
-const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log("ÉCHEC " + what + " " + detail); } };
+const { log, sleep, until, soon, ready, expect, fail, fin } = Essai;
 (async () => {
   const w = document.getElementById("f").contentWindow;
   try {
-    const t0 = Date.now();
-    while (!(w.mesures?.app && w.mesures.map?.loaded?.())) { if (Date.now() - t0 > 120000) throw new Error("Pyodide"); await sleep(250); }
+    await ready(w);
     const doc = w.document;
     doc.querySelector("#reglages-defaut")?.close();
     const cache = await w.caches.open("web-measures-geo");
     const f = (await (await fetch("https://api.panoramax.xyz/api/search?ids=b40045bd-1fc5-4a7a-a5bd-7b7952902a1c")).json()).features[0];
     w.mesures.openPhoto(f);
-    const t1 = Date.now();
-    while (!doc.querySelector("#chute")?.textContent.includes("max") && Date.now() - t1 < 40000) await sleep(250);
-    await sleep(1500);
-    const keys = (await cache.keys()).map((r) => r.url);
+    await until(() => doc.querySelector("#chute")?.textContent.includes("max"), 40000, "chute");
+    let keys = [];  // réponses mises en cache après coup : attendre les deux services
+    for (const t1 = Date.now(); Date.now() - t1 < 5000; await sleep(200)) {
+      keys = (await cache.keys()).map((r) => r.url);
+      if (keys.some((k) => k.includes("/wfs/")) && keys.some((k) => k.includes("/altimetrie/"))) break;
+    }
     const hosts = {};
     for (const k of keys) { const u = new URL(k); const key = u.host + u.pathname.split("/").slice(0, 2).join("/"); hosts[key] = (hosts[key] || 0) + 1; }
     log("réponses gardées : " + keys.length + " " + JSON.stringify(hosts));
@@ -41,16 +40,15 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     expect("réponse ancienne servie quand le service refuse", old.includes("essai"));
     // Bouton : taille, puis vidage
     doc.querySelector('#outils [data-panneau="reseau"]').click();  // section Services : taille du cache
-    await sleep(1500);
+    await soon(() => /\(\d+(,\d)? Mo\)/.test(doc.querySelector("#vider-cache").textContent));
     log("bouton : " + doc.querySelector("#vider-cache").textContent);
     expect("taille affichée", /\(\d+(,\d)? Mo\)/.test(doc.querySelector("#vider-cache").textContent));
     doc.querySelector("#vider-cache").click();
-    await sleep(1500);
+    await soon(() => doc.querySelector("#vider-cache").disabled);
     log("après vidage : " + doc.querySelector("#vider-cache").textContent + " · " + (await cache.keys()).length + " réponse(s)");
     expect("cache vidé", (await cache.keys()).length === 0);
     expect("« Vider le cache » grisé, cache vide", doc.querySelector("#vider-cache").disabled);
-    log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
-  } catch (e) { log("exception " + e); }
-  log("FIN");
+  } catch (e) { fail("exception : " + (e.stack || e)); }
+  await fin();
 })();
 </script>

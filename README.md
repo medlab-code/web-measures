@@ -179,7 +179,7 @@ de 47,5 à 53 s à 90 km/h. « Titre » (cochée, thème Compteurs) : carton au 
 cadre sombre en haut au centre, un peu écarté du bord, souligné d'un trait ambre, titre en gras et sous-titre plus clair
 centrés, descendu en fondu à l'entrée (0,3 à 0,9 s), effacé en fondu de 4 à 4,6 s ; texte libre (80 caractères) et sous-titre libre, ou,
 laissés vides, la route et les PR de départ et d'arrivée, et la date des photos ; « Rappel en incrustation » (décoché) :
-le titre en petit en haut à gauche ensuite, jusqu'à la fin ; champs grisés sans titre. Aperçu : `tests/apercu-titre.html`. « Compteur PR » (cochée à l'ouverture) : en bas à gauche, la route et
+le titre en petit en haut à gauche ensuite, jusqu'à la fin ; champs grisés sans titre. « Compteur PR » (cochée à l'ouverture) : en bas à gauche, la route et
 le PR ; les mètres défilent en continu, en rouleaux comme un compteur kilométrique (interpolés image par image entre
 les photos ; au passage d'un PR, l'ancien va jusqu'à son bout, puis le nouveau). Le PR de chaque photo est cherché à
 la préparation, sur la route du parcours (autre route après une bifurcation : cherchée une fois), avec les sections
@@ -498,7 +498,8 @@ après.
   chaussée, un toit reste difficile à reconnaître (voir `docs/CALCULS.md`, 8.7) : ce chiffre n'a pas été comparé à des mesures de terrain. Le bouton est grisé tant que « Profils » n'a rien calculé pour la photo.
 
   **« Analyse fine »** (fenêtre du profil) : lit le nuage de points LiDAR HD de l'IGN (dalles COPC, à la volée,
-  1 requête par seconde au plus : une vingtaine de secondes, 1 à 2 Mo) sur ±1 m le long de la route au travers
+  1 requête par seconde au plus : une vingtaine de secondes, 1 à 2 Mo ; morceaux gardés dans le cache des informations
+  géographiques, relus sans attente) sur ±1 m le long de la route au travers
   de la photo. L'intensité du retour laser des points du sol distingue l'enrobé (sombre), les lignes blanches
   (bandes étroites très claires, 2 fois plus que leurs voisines au moins) et les surfaces non revêtues (herbe, gravillons, béton : larges et claires).
   **Bord de chaussée** (tiret court) : le bord de la bande d'enrobé, médiane de 5 travers sur ±5 m autour de la photo :
@@ -736,6 +737,27 @@ services depuis le poste (bouton « Services » en bas du panneau).
 Pour s'ouvrir en `file://`, la page n'utilise pas de modules JavaScript ni de lecture de
 fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/sources.js`.
 
+### Mesure d'une longueur sur la carte (essai, branche `birdeye`)
+
+« Bird Eye » (vue du dessus, dans le bloc du fond de carte, ou bouton faucon de la carte en grand ou détachée, à droite de « Mesurer une longueur »)
+reprojette le sol de la photo sur la mini-carte, pour la photo affichée seulement (une autre photo l'éteint : rien
+n'est calculé sans le demander) ; ses réglages
+d'essai sont dans un panneau repliable sur la carte en grand ou détachée ; « Haute résolution » double la finesse de l'image
+(0,7 cm par pixel, quelques secondes de plus). Le bouton ⇄ de la carte échange la carte et la visionneuse, chacune à la place et à la taille
+de l'autre ; la carte en grand, comme la carte détachée (⧉), propose alors « Mesurer une longueur » (aussi : mode « Longueur sur la carte » puis
+« Mesure »). Un clic pose le départ, le trait suit le pointeur avec sa longueur, un second clic la garde dans les
+résultats, comme les autres mesures (Effacer, Refaire, commentaire, export). Pour une largeur, viser de préférence en
+face de la caméra, à ±4 m (±5 % au mieux, inclinaison lue sur les façades ou, à défaut, sur la pente de la route ; une largeur porte
+en plus 3,5 % d'incertitude : la vue est un peu trop étroite en travers, d'après les passages piétons). Hors de la vue, la
+longueur est mesurée sur le fond de carte seul, sans incertitude (« hors vue »), pour un contrôle rapide. Échap retire
+le départ. Sans façade pour caler l'inclinaison, le tangage de fixation de la caméra est lu sur les raccords entre photos
+voisines (« Véhicule masqué » allumé ; celui de la photo, qui suit une bosse ou un creux, sinon la médiane des photos vues de la séquence) ; les curseurs « Roulis » et « Tangage » recalent la vue à la main (« Calage par les verticales » : coché d'office en zone d'habitation, la photo calée sur ses verticales quand elle en a ; ailleurs, inclinaison par la route),
+réglage retenu pour toute la séquence, dans ce navigateur. « Véhicule masqué » (éteint par défaut) recompose la vue avec les photos précédente et suivante pour cacher le véhicule : masque au plus près de son contour (lu une fois sur 12 photos de la séquence pour le CD21, environ 5 Mo ; cône de la vue retiré de la carte), photo affichée intacte hors du masque, voisines seulement dessous ; il recale chaque
+photo voisine sur la photo affichée, par corrélation du sol commun (marquages, passages piétons, grain), pour effacer
+les marches aux raccords, et accorde leur luminosité à celle de la photo affichée (plus de taches claires ou sombres autour des raccords) ; la barre d'état indique l'écart avant et après. « Sans cache (essais) » oublie ce que Bird Eye a retenu et recalcule tout à chaque photo, même déjà vue. « Position calée sur l'orthophoto » (essai, coché) pose la vue sur l'orthophoto
+quand ses lignes s'en écartent de plus de 30 cm en travers : le GPS est alors suspecté avant l'orthophoto. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Construction de
+la vue et recalages : `docs/BIRDEYE.md` ; chiffres des essais : `docs/CALCULS.md`.
+
 ## Précision
 
 **État de la validation (05/11/2026)** : les mesures de hauteur sont validées sur des objets connus. Les retours
@@ -836,6 +858,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 
 | Fichier | Rôle |
 |---|---|
+| `docs/analyses/` | notes d'analyse (novembre 2026) : détection des bords en « Dévers », critique de `MESURES.md`, limites structurelles ; pistes, pas des descriptions du code |
 | `docs/CALCULS.md` | calculs de chaque mode, seuils et précision |
 | `index.html`, `src/style.css` | page et mise en page |
 | `src/app.js` | relie carte, visionneuse et calcul : clics, clavier, repères, liseré, filtre |
@@ -858,14 +881,14 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 | `tests/essai-profil-pdf.html` | profil en travers en PDF : la feuille tient sur une page (sa page HTML dans le journal) |
 | `tests/test_calculs.py` | essais rapides des calculs, sans navigateur ni réseau (`python3 -m unittest discover -s tests`, quelques secondes avec `tests/coeur/`) |
 | `tests/navigateur.html` | essai de bout en bout dans un vrai navigateur |
+| `tests/commun.js` | code commun des pages d'essai : journal, attentes de condition, contrôles et bilan (« contrôles : n réussis ») |
 | `tests/essai-rtk.html`, `essai-largeur.html`, `essai-libre.html` | hauteur, largeur, mesure libre sur photos RTK, avec recalages |
-| `tests/inclinaison.html` | inclinaison automatique |
 | `tests/essai-calage.html` | calage de l'inclinaison : croix sélectionnée à 8 px près, au zoom fort |
 | `tests/essai-profil.html` | fond du graphique du profil en travers, sur des profils synthétiques (sans réseau) : 1 m ou 0,3 m sous le point le plus bas |
-| `tests/mesure-souris.html` | essai manuel : dispersion de la souris sur des cibles (ticket #43) |
 | `tests/inclinaison-terrain.html` | inclinaison par le terrain hors agglomération (option) |
 | `py/web_terrain.py` | inclinaison par le terrain hors agglomération : grille LiDAR HD, modèle de séquence |
 | `tools/serveur-essai.py` | serveur des essais : sert le site et affiche leur journal |
+| `tools/essais.sh` | lanceur des essais (`rapide`, `birdeye`, `complet`, `video` ou pages) : durée et bilan par page |
 
 Après toute modification d'un fichier Python sous `py/` : `tools/sources.sh` (régénère
 `py/sources.js`). Tests sans navigateur : `python3 -m unittest discover -s tests`.
