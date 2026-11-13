@@ -117,6 +117,20 @@ async function open(id, enough = () => false) {
       const o = now.outline, notches = o.filter((v, k) => v < Math.min(o[(k + 127) % 128], o[(k + 1) % 128]) - 1).length;
       await expect(`${name} : contour symétrique et sans encoche`, o.every((v, k) => Math.abs(v - o[(128 - k) % 128]) <= 1.5) && notches === 0, `${notches} encoche(s) ${o.map((v, k) => (v < Math.min(o[(k + 127) % 128], o[(k + 1) % 128]) - 1 ? `${k}:${o[(k + 127) % 128]}/${v}/${o[(k + 1) % 128]}` : "")).filter(Boolean).join(" ")}, écart gauche-droite ${Math.max(...o.map((v, k) => Math.abs(v - o[(128 - k) % 128]))).toFixed(1)}°`);
     }
+    // Vue longue (±25 m, photos à deux pas dessinées) : sur l'A38, route droite, 5 photos, image déposée pour la regarder
+    if (name === "A38") {
+      const box = w.document.querySelector("#dessus-longue"), etat = () => w.document.querySelector("#dessus-etat").textContent;
+      await expect(`${name} : vue longue proposée avec les voisines`, !box.disabled);
+      box.click();
+      const long = await soon(() => /vue longue ±25 m/.test(etat()) && !/en cours|en calcul/.test(etat()), 60000);
+      const count = Number(/vue longue ±25 m \((\d) photos\)/.exec(etat())?.[1] || 0);
+      await expect(`${name} : vue longue dessinée, photos à deux pas comprises`, long && count === 5, etat());
+      await sleep(500);
+      const longBlob = shown.blob();
+      if (longBlob) await fetch(`/capture/dessus-${name}-longue.png`, { method: "POST", body: longBlob });
+      box.click();
+      await soon(() => !/vue longue/.test(etat()) && !/en cours|en calcul/.test(etat()), 30000);
+    }
     // « Véhicule masqué » éteint : rien de ce qui a été lu avec les voisines n'est appliqué (tangage, hauteur, contour, position)
     w.document.querySelector("#dessus-voisines").click();
     for (let t = 0; t < 60 && !/ 1 photo,.*position/.test(w.document.querySelector("#dessus-etat").textContent) || /en cours/.test(w.document.querySelector("#dessus-etat").textContent); t++) await sleep(250);  // position refaite

@@ -34,7 +34,14 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
   (§ 4.3), le tangage lu sur les raccords (§ 4.1) et la hauteur lue entre photos (§ 4.2). Éteint, la photo affichée
   seule : véhicule visible, rien à lire de plus, et rien de ce qui a été lu avec les voisines n'est appliqué (tangage,
   hauteur entre photos, contour lu : gardés pour la rallumer sans tout refaire) ; la position calée sur l'orthophoto est
-  faite pour chaque état de l'interrupteur, chacune gardée.
+  faite pour chaque état de l'interrupteur, chacune gardée ;
+- avec **« Vue longue »** (éteinte par défaut, grisée sans « Véhicule masqué », depuis le 13/11/2026), la vue couvre ±25 m
+  (`LONG`) au lieu de ±15 : les photos à deux pas (environ 10 m, § 4.1) sont dessinées aussi, recalées sur la photo
+  affichée par leur raccord ; la photo affichée garde le sol à moins de 10 m d'elle (`SURE`), au-delà chaque point vient
+  de la photo qui le voit le plus précisément (`tiltError`, même choix dans `sourceOf` pour l'incertitude des longueurs).
+  Terrain LiDAR HD lu à part sur ±25 m (2 601 points, quelques secondes), plat sur un pont ; image de 4 096 px (1,2 cm par
+  pixel). shortcut: sans fondu des luminosités aux raccords (`renderBlended` prend 3 photos au plus) : plaques plus
+  claires ou plus sombres autour de chaque photo. A38 (66d45404) : lignes de rive continues sur les 50 m.
 
 **Calcul (`render`, WebGL) :**
 
