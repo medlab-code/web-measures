@@ -59,9 +59,6 @@ const Dessus = (() => {
   const NEAR_LIMIT = 6144;  // px : largeur des photos voisines, qui ne servent que près de leur caméra (mémoire graphique)
   const BEST = { along: 4, wide: 8 };  // m : zone idéale d'une largeur, en face de la caméra (essai du 08/11 : écart à l'orthophoto ≤ 1,5 % jusqu'à 4 m en long, 2 % au-delà)
   const MEASURED = 0.05;  // part de la longueur : incertitude affichée au moins égale à l'écart à l'orthophoto (voir docs/CALCULS.md)
-  // Vue trop étroite en travers d'environ 3,5 % (bandes de passages piétons du CD21 : 0,483 m pour 0,50 m, 10 sites, 07/11/2026) :
-  // compté dans l'incertitude, en proportion de la part de la mesure en travers de la route, pas corrigé
-  const ACROSS_BIAS = 0.035;
   const HEIGHT_SIGMA = 0.05;  // m : hauteur de caméra lue sur le décalage entre photos voisines (essai de 28 paires)
   // m : hauteur par l'altitude RTK moins le sol, au moins : 12 cm d'écart avec le décalage entre photos sur le giratoire
   // b47b4351 (2,06 contre 1,94 m, stable sur 15 photos), alors que l'écart entre photos de la séquence n'est que de 2 cm
@@ -171,13 +168,10 @@ const Dessus = (() => {
     return Math.hypot(single(local(a, la), la), single(local(b, lb), lb), Math.max(la.pose.relative_sigma, Math.hypot(seam(la), seam(lb))));
   }
 
-  /** Incertitude affichée pour une longueur entre a et b : measureError et le biais en travers (ACROSS_BIAS, selon le cap de
-   * la photo affichée), sans descendre sous l'écart mesuré (MEASURED). */
-  const shownError = (a, b, layers, sigmaGround) => {
-    const h = layers[0].pose.heading * toRad, de = b[0] - a[0], dn = b[1] - a[1];
-    const across = Math.abs(de * Math.cos(h) - dn * Math.sin(h));  // composante perpendiculaire au cap
-    return Math.max(Math.hypot(measureError(a, b, layers, sigmaGround), ACROSS_BIAS * across), MEASURED * Math.hypot(de, dn));
-  };
+  /** Incertitude affichée pour une longueur entre a et b : measureError, sans descendre sous l'écart mesuré (MEASURED).
+   * (Les 3,5 % comptés en travers jusqu'au 13/11/2026 venaient du roulis de la caméra, désormais corrigé : ROLL_DEFECTS.) */
+  const shownError = (a, b, layers, sigmaGround) =>
+    Math.max(measureError(a, b, layers, sigmaGround), MEASURED * Math.hypot(b[0] - a[0], b[1] - a[1]));
 
   const toLocal = (lon, lat, pose) => [EARTH_RADIUS * (lon - pose.lon) * toRad * Math.cos(pose.lat * toRad),
     EARTH_RADIUS * (lat - pose.lat) * toRad];
@@ -195,8 +189,10 @@ const Dessus = (() => {
    * (voir rotation), la route sous le véhicule étant un plan ajusté sur ±2,5 m en long et ±1,5 m en travers. La route monte devant :
    * la caméra regarde vers le haut et voit la verticale penchée vers l'avant. at : position de la caméra (est, nord, m),
    * heading : cap (degrés), rollShare : part du dévers prise en roulis (le tangage suit la pente entière, voir docs/CALCULS.md),
-   * pitch : tangage ajouté (degrés, positif : caméra relevée vers l'avant), défaut de fixation de la caméra. */
-  function groundUp(terrain, at, heading, rollShare = 1, pitch = 0) {
+   * pitch : tangage ajouté (degrés, positif : caméra relevée vers l'avant), défaut de fixation de la caméra ; roll : roulis
+   * ajouté (degrés), défaut de la caméra par rapport à la route, propre au producteur et à la campagne (pose.roll_defect,
+   * App.ROLL_DEFECTS dans py/web_app.py). */
+  function groundUp(terrain, at, heading, rollShare = 1, pitch = 0, roll = 0) {
     const h = heading * toRad, hu = [Math.sin(h), Math.cos(h)];
     let along = 0, side = 0, aa = 0, ss = 0;
     for (let a = -2.5; a <= 2.5; a += 0.5) {
@@ -205,7 +201,7 @@ const Dessus = (() => {
         along += a * z; side += s * z; aa += a * a; ss += s * s;
       }
     }
-    const ga = along / aa + Math.tan(pitch * toRad), gs = rollShare * side / ss, east = ga * hu[0] + gs * hu[1], north = ga * hu[1] - gs * hu[0], length = Math.hypot(east, north, 1);
+    const ga = along / aa + Math.tan(pitch * toRad), gs = rollShare * side / ss + Math.tan(roll * toRad), east = ga * hu[0] + gs * hu[1], north = ga * hu[1] - gs * hu[0], length = Math.hypot(east, north, 1);
     return [east / length, north / length, 1 / length];
   }
 
@@ -1374,7 +1370,7 @@ const Dessus = (() => {
     .filter((pose) => shown.panos.has(pose.pic))
     .map((pose) => {
       const at = toLocal(pose.lon, pose.lat, shown.pose);
-      const leveled = (pose.up && verticalsOn) || !shown.terrain ? pose : { ...pose, up: groundUp(shown.terrain, at, pose.heading, rollShare, pitchFor(pose.pic)),
+      const leveled = (pose.up && verticalsOn) || !shown.terrain ? pose : { ...pose, up: groundUp(shown.terrain, at, pose.heading, rollShare, pitchFor(pose.pic), pose.roll_defect || 0),
         sigma: Math.hypot(pose.up ? GROUND_SIGMA : Math.min(pose.sigma, GROUND_SIGMA), LEAN * (shown.lateral || 0)), groundTilt: true };  // virage : véhicule penché ; verticales écartées : incertitude de la route
       const seam = shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.seams?.get(pose.pic) : undefined;  // raccord de la voisine
       const fix = neighboursOn && shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.map.get(pose.pic) : undefined;
@@ -1607,7 +1603,7 @@ const Dessus = (() => {
     const parallax = neighboursOn ? shown.height : null;
     const own = !pitchManual && pitchOffset && neighboursOn ? photoPitch(shown.sequence, shown.pic) : undefined;
     const auto = !pitchManual && pitchOffset && neighboursOn && own === undefined ? sequencePitch(shown.sequence) : null;
-    const tilt = pose.pending ? "inclinaison en calcul" : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${LEAN * (shown.lateral || 0) >= 0.5 ? `, virage : véhicule penché jusqu'à ${number(LEAN * shown.lateral, 1)}°` : ""}${pitchOffset || pitchManual ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? " réglé à la main" : own !== undefined ? " lu sur les raccords de la photo" : auto ? ` de la séquence, lu sur les raccords (${auto.count} photo${auto.count > 1 ? "s" : ""})` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
+    const tilt = pose.pending ? "inclinaison en calcul" : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${layers[0].pose.roll_defect ? `, ${number(layers[0].pose.roll_defect, 1)}° de défaut de la caméra (campagne)` : ""}${LEAN * (shown.lateral || 0) >= 0.5 ? `, virage : véhicule penché jusqu'à ${number(LEAN * shown.lateral, 1)}°` : ""}${pitchOffset || pitchManual ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? " réglé à la main" : own !== undefined ? " lu sur les raccords de la photo" : auto ? ` de la séquence, lu sur les raccords (${auto.count} photo${auto.count > 1 ? "s" : ""})` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain || !neighboursOn ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
     say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${parallax && shown.pose.fleet ? ` (monture ${mountOf(parallax) === MOUNTS[0] ? "basse" : "haute"}, lue entre photos : ${number(parallax, 2)} m)` : parallax ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : neighboursOn && outlines.get(shown.sequence) === "reading" ? " ; contour du véhicule en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
     if (positionOn && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit

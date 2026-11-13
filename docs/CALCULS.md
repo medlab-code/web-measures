@@ -608,9 +608,9 @@ Zone idéale d'une largeur : ±4 m en face de la caméra (axe :
 trajectoire entre les photos voisines, à défaut cap de la photo), sur ±8 m en travers, là où le tangage
 pèse le moins (essai du 08/11 sur les lignes peintes, vue lissée contre orthophoto : écart de largeur 1,2 à
 1,5 % jusqu'à 4 m en long, 2 % au-delà ; pas de dégradation en travers jusqu'à 9 m). L'incertitude affichée
-compte 3,5 % de la part de la mesure en travers de la route (bandes de passages piétons du CD21 : 0,483 m pour
-0,50 m, vue trop étroite en travers, comptée plutôt que corrigée) et vaut au moins 5 % de la longueur (écart à
-l'orthophoto, plus bas).
+vaut au moins 5 % de la longueur (écart à l'orthophoto, plus bas). Les 3,5 % qu'elle comptait en plus en travers
+(bandes de passages piétons à 0,483 m pour 0,50 m) venaient du roulis de la caméra, corrigé depuis le 13/11/2026
+(défaut de roulis de la campagne, ci-dessous).
 
 Les photos précédente et suivante complètent l'image sous le véhicule seulement : hors du masque du véhicule de la
 photo affichée, celle-ci n'est pas retouchée. Masque au plus près (09/11/2026) : contour du véhicule dans le panorama,
@@ -672,6 +672,13 @@ Le roulis ne suit qu'une part du dévers (option d'essai « Roulis », 70 % par 
 avec tout le dévers, pour 6,58 m sur l'orthophoto (environ 40 % du dévers) ; sur l'A38, environ 75 %. Le roulis
 déplace surtout la ligne la plus éloignée de la caméra, d'où l'impression d'un milieu étiré. Le tangage suit la
 pente entière (tirets de 3 m retrouvés devant et derrière).
+Défaut de roulis de la campagne (`App.ROLL_DEFECTS`, `py/web_app.py` : producteur, période, degrés), ajouté au roulis
+tiré du dévers (`groundUp`) : CD21, campagne 2025, −1°. Une erreur de roulis δ fait varier la largeur d'une bande de
+passage piéton (0,50 m) comme 1 + 2 s δ / H (s : écart en travers à la caméra, H : hauteur de caméra) : la pente des
+largeurs en travers donne δ, indépendamment de l'échelle. Sur 25 passages piétons (13/11/2026), roulis restant
++0,98° en médiane par la route (23 vues), −0,08° par les verticales (15 vues), sans lien avec le dévers ; −1° le
+ramène près de 0 (+1,08 → +0,12° et +0,26 → −0,27° sur deux sites). La triangulation des coins des bandes redonne
+0,499 m (25 largeurs, ±5 cm par coin). À mesurer pour chaque campagne ou producteur.
 Option d'essai « Tangage » : tangage ajouté à la pente (défaut de fixation de la caméra, ±2°). Sur la D33
 (`dbdaa47b`, 20/06/2025), la chaussée se resserre vers l'avant sans réglage (environ 5 % sur 12 m) ; à l'œil, le
 meilleur roulis vaut 45 % du dévers sur la RD 1074 et 100 % sur l'A38, pour des dévers voisins (2,5 et 3 %).

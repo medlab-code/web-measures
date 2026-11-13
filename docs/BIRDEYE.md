@@ -118,7 +118,15 @@ fixation peut être un peu de travers.
 2. **Sinon, la route** : le véhicule est supposé posé sur le plan ajusté au MNT sous lui (`groundUp`). Le tangage suit
    la pente entière ; le roulis ne suit qu'une part du dévers, réglable (« Roulis », 70 % par défaut : environ 40 %
    sur la RD 1074, 75 à 100 % sur l'A38). Le tangage ajoute le défaut de fixation de la caméra (−0,4 à +0,6° selon
-   les séquences).
+   les séquences). Le roulis ajoute le **défaut de roulis de la campagne** (`App.ROLL_DEFECTS`, `py/web_app.py`, par
+   producteur et période de prise de vue) : CD21, campagne 2025, −1°. Mesuré le 13/11/2026 sur 25 passages piétons
+   (`tests/passages-pietons.js`) : bandes de 0,50 m dans la vue calée par la route puis par les verticales ; une erreur
+   de roulis δ y rend la largeur d'une bande proportionnelle à 1 + 2 s δ / H (s : écart en travers à la caméra), d'où
+   δ par site. Roulis restant par la route +0,98° en médiane (23 vues ; +0,8° et +1,1° sur les deux montures), sans
+   lien avec le dévers (+1,2° − 0,14 × dévers) ; par les verticales −0,08° (15 vues). Les bandes à gauche de la caméra
+   (le véhicule roule à droite) en paraissaient étroites : 0,458 m, 0,483 m sur tout le passage (les 3,5 % comptés
+   jusque-là « en travers »). Triangulation des coins des bandes (25 largeurs) : 0,499 m. À mesurer de nouveau pour
+   chaque campagne ou producteur.
 3. **Tangage lu sur les raccords** (`learnPitch`) : une erreur de tangage de la photo affichée paraît, dans le
    recalage des raccords (§ 4.3), comme une échelle de signe opposé sur la voisine avant et sur l'arrière (environ
    ±4,8 % pour 1°). Leur différence donne le tangage de la vue (deux recalages appliqués seulement, § 4.3 : dans une
@@ -139,7 +147,9 @@ fixation peut être un peu de travers.
 5. Le curseur « Tangage », réglé à la main, prime ; avec le roulis, il est **retenu par séquence** dans le navigateur. Le calage du tangage sur l'orthophoto (lignes de peinture,
    20 cm) a été retiré : trop peu précis (0,1° trouvé là où l'œil voyait 0,5° sur la D33).
 
-**Limites :** le roulis ne se cale pas sur l'orthophoto (il absorberait tout écart de largeur). En agglomération,
+**Limites :** le roulis ne se cale pas sur l'orthophoto (trop peu précise : 10 à 30 cm d'écart sur la position des
+lignes, essai du 13/11/2026) ; son défaut par campagne se mesure sur les passages piétons. Par la route, le roulis
+reste à ±1° d'une photo à l'autre (quartiles du roulis restant : +0,4 à +2,2° avant la correction). En agglomération,
 l'inclinaison lue sur les façades peut différer de 1,6° entre deux photos voisines alors que chacune annonce ±0,2° :
 c'est ce que corrigent les raccords (§ 4.3).
 
@@ -263,9 +273,7 @@ seuls), le calage est moins sûr.
 
 L'outil « Longueur sur la carte » trace un segment en deux clics. Il donne sa longueur et une incertitude qui combine
 l'inclinaison sur ses deux axes, la hauteur, l'écart du sol et, entre deux photos, leur position relative (5 cm en RTK
-vérifié, sinon 30 cm), plus 3,5 % de sa part en travers de la route (vue trop étroite en travers : bandes de passages
-piétons du CD21, 0,483 m pour 0,50 m sur 10 sites, compté dans l'incertitude plutôt que corrigé, `ACROSS_BIAS`), sans
-descendre sous 5 % de la longueur (écart constaté à l'orthophoto). Le mieux est de mesurer
+vérifié, sinon 30 cm), sans descendre sous 5 % de la longueur (écart constaté à l'orthophoto). Le mieux est de mesurer
 en face de la caméra (±4 m). Un bout hors de la vue se mesure sur le fond de carte seul, sans incertitude.
 
 **Incertitude selon la situation** (`measureError`) : inclinaison tirée de la route dans un virage, incertitude majorée du

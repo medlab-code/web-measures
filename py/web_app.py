@@ -706,7 +706,8 @@ class App(session.Session):
                 "pending": pending(pic), "height": self._camera_height(),
                 "height_sigma": max(q.get("spread") or 0, 0.05) if verified else cam["sigma"] if cam else 0.3,
                 "relative_sigma": 0.05 if verified else 0.3,  # position d'une photo à sa voisine (trajectoire)
-                "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or [])}
+                "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []),
+                "roll_defect": self._roll_defect(item)}
 
     def birdeye_pose(self):
         """Pose de la photo affichée pour la vue du dessus (src/dessus.js), en JSON : position
@@ -731,6 +732,18 @@ class App(session.Session):
 
     BIRDEYE_BRIDGE = 20.0  # m : portée de la vue (15 m) et un peu plus
     FLEET_PRODUCER = "8f943f10-a781-4e03-a18c-de035be6f6f8"  # CD21 : imajbox sur Clio 5, deux montures (voir src/dessus.js, MOUNTS)
+    # Défaut de roulis de la caméra par rapport à la route, par producteur et campagne de prise de vue : (producteur, premier
+    # jour, jour de fin exclu, degrés ajoutés au roulis tiré du dévers, signe de groundUp dans src/dessus.js). Seulement pour
+    # l'inclinaison par la route de la vue du dessus ; à mesurer pour chaque campagne ou producteur, sur des passages piétons
+    # (docs/BIRDEYE.md § 4.1). CD21, campagne 2025 (tests/passages-pietons.js, 13/11/2026) : roulis restant de +0,98° en
+    # médiane sur 23 vues, sans lien avec le dévers ni avec la monture, nul avec les verticales ; -1° le ramène près de 0.
+    ROLL_DEFECTS = ((FLEET_PRODUCER, "2025-01-01", "2026-01-01", -1.0),)
+
+    def _roll_defect(self, item):
+        """Défaut de roulis (degrés, ROLL_DEFECTS) du producteur de la photo à sa date de prise de vue, ou 0."""
+        date = str((item.get("properties") or {}).get("datetime") or "")[:10]
+        producers = {p.get("id") for p in item.get("providers") or []}
+        return next((roll for who, first, end, roll in self.ROLL_DEFECTS if who in producers and first <= date < end), 0.0)
 
     def _near_bridge(self, lon, lat):
         """Tronçon BD TOPO en pont à moins de BIRDEYE_BRIDGE m de la photo, dessus ou dessous : le MNT LiDAR

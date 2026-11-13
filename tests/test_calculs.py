@@ -90,6 +90,16 @@ class VueDessus(unittest.TestCase):
         a.birdeye_loose = {}
         return a
 
+    def test_defaut_de_roulis(self):
+        """Défaut de roulis de la caméra (ROLL_DEFECTS) : CD21, campagne 2025 seulement ; ni avant, ni après, ni ailleurs."""
+        a = App.__new__(App)
+        photo = lambda producer, date: {"providers": [{"id": producer}], "properties": {"datetime": date}}
+        self.assertEqual(a._roll_defect(photo(App.FLEET_PRODUCER, "2025-07-03T10:53:25Z")), -1.0)
+        for producer, date in ((App.FLEET_PRODUCER, "2024-12-31T23:00:00Z"), (App.FLEET_PRODUCER, "2026-01-02T09:00:00Z"),
+                               ("autre", "2025-07-03T10:53:25Z")):
+            self.assertEqual(a._roll_defect(photo(producer, date)), 0.0)
+        self.assertEqual(a._roll_defect({}), 0.0)  # sans producteur ni date
+
     def test_pose(self):
         pose = json.loads(self.app_on(360).birdeye_pose())
         self.assertEqual((pose["lon"], pose["heading"], pose["offset"], pose["height"]), (5.0, 40.0, 1.5, 2.4))
