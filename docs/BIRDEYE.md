@@ -40,8 +40,9 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
   affichée par leur raccord ; la photo affichée garde le sol à moins de 10 m d'elle (`SURE`), au-delà chaque point vient
   de la photo qui le voit le plus précisément (`tiltError`, même choix dans `sourceOf` pour l'incertitude des longueurs).
   Terrain LiDAR HD lu à part sur ±25 m (2 601 points, quelques secondes), plat sur un pont ; image de 4 096 px (1,2 cm par
-  pixel). shortcut: sans fondu des luminosités aux raccords (`renderBlended` prend 3 photos au plus) : plaques plus
-  claires ou plus sombres autour de chaque photo. A38 (66d45404) : lignes de rive continues sur les 50 m.
+  pixel), raccords fondus comme la vue courte (`renderBlended`, quatre voisines au plus). shortcut: l'écart de teinte d'une
+  photo à deux pas n'est lu que là où elle recouvre la photo affichée (à moins de 15 m d'elle) : une limite plus claire
+  peut rester au-delà. A38 (66d45404) : lignes de rive continues sur les 50 m.
 
 **Calcul (`render`, WebGL) :**
 

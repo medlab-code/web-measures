@@ -615,7 +615,7 @@ const Dessus = (() => {
   const BLEND = `#version 300 es
     precision highp float;
     out vec4 color;
-    uniform sampler2D shown, winner, shift1, shift2;  // shift : écart de teinte de chaque voisine (LOW x LOW, 0-255)
+    uniform sampler2D shown, winner, shift1, shift2, shift3, shift4;  // shift : écart de teinte de chaque voisine (LOW x LOW, 0-255)
     uniform float scale;  // px de l'image par case basse
     vec3 at(sampler2D grid, vec2 p) {  // bilinéaire entre les centres des cases basses
       vec2 f = clamp(p / scale - 0.5, 0.0, ${LOW - 1}.0), t = f - floor(f);
@@ -627,7 +627,8 @@ const Dessus = (() => {
       ivec2 p = ivec2(gl_FragCoord.xy);
       vec4 c = texelFetch(shown, p, 0);
       int l = int(texelFetch(winner, p, 0).r * 255.0 + 0.5);
-      vec3 s = l == 2 ? at(shift1, gl_FragCoord.xy) : l == 3 ? at(shift2, gl_FragCoord.xy) : vec3(0.0);
+      vec3 s = l == 2 ? at(shift1, gl_FragCoord.xy) : l == 3 ? at(shift2, gl_FragCoord.xy) : l == 4 ? at(shift3, gl_FragCoord.xy)
+        : l == 5 ? at(shift4, gl_FragCoord.xy) : vec3(0.0);
       color = vec4(c.rgb + s / 255.0, c.a);
     }`;
   let blend = null;
@@ -648,17 +649,17 @@ const Dessus = (() => {
   }
 
   /** Comme render, raccords fondus : tout par la carte graphique, sauf les bandes basses (LOW x LOW), lues et floutées ici.
-   * shortcut: deux voisines au plus (précédente et suivante), à étendre si la vue en prend davantage */
-  function renderBlended(layers, terrain, frame = layers[0].pose, band = null, size = SIZE) {
-    if (layers.length < 2 || layers.length > 3 || !readsBack()) return render(layers, terrain, frame, band, size);
+   * Quatre voisines au plus (vue longue : voisines et photos à deux pas). */
+  function renderBlended(layers, terrain, frame = layers[0].pose, band = null, size = SIZE, reach = REACH) {
+    if (layers.length < 2 || layers.length > 5 || !readsBack()) return render(layers, terrain, frame, band, size, 0, null, reach);
     const g = context(), level = Math.log2(size / LOW), k = size / LOW;
-    const radius = (sigma) => Math.max(1, Math.round(sigma * LOW / (2 * REACH) / 1.7));  // 3 boîtes : σ ≈ 1,7 r
+    const radius = (sigma) => Math.max(1, Math.round(sigma * LOW / (2 * reach) / 1.7));  // 3 boîtes : σ ≈ 1,7 r
     const blur = (a, r) => { let b = a; for (let pass = 0; pass < 3; pass++) b = boxBlur(b, r, LOW); return b; };
     // Bande basse de chaque photo seule (hors de son véhicule) : moyenne des pixels vus, par les niveaux réduits de sa texture
     const read = g.createFramebuffer(), px = new Uint8Array(4 * LOW * LOW);
     const low = layers.map((layer) => {
       const alone = target(size, level + 1);
-      render([layer], terrain, frame, band, size, 2, alone);
+      render([layer], terrain, frame, band, size, 2, alone, reach);
       g.bindTexture(g.TEXTURE_2D, alone.texture);
       g.generateMipmap(g.TEXTURE_2D);
       g.bindFramebuffer(g.FRAMEBUFFER, read);
@@ -692,8 +693,8 @@ const Dessus = (() => {
       return texture;
     });
     const winner = target(size), shown = target(size);
-    render(layers, terrain, frame, band, size, 3, winner);
-    render(layers, terrain, frame, band, size, 0, shown);
+    render(layers, terrain, frame, band, size, 3, winner, reach);
+    render(layers, terrain, frame, band, size, 0, shown, reach);
     // Mélange sur le canevas
     if (g.canvas.width !== size) g.canvas.width = g.canvas.height = size;
     const program = blendProgram(), corners = g.createBuffer(), place = g.getAttribLocation(program, "corner");
@@ -704,11 +705,11 @@ const Dessus = (() => {
     g.bufferData(g.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), g.STATIC_DRAW);
     g.enableVertexAttribArray(place);
     g.vertexAttribPointer(place, 2, g.FLOAT, false, 0, 0);
-    [shown.texture, winner.texture, ...shifts, shifts[0]].slice(0, 4).forEach((texture, unit) => {
+    [shown.texture, winner.texture, ...[0, 1, 2, 3].map((i) => shifts[i] ?? shifts[0])].forEach((texture, unit) => {
       g.activeTexture(g.TEXTURE0 + unit);
       g.bindTexture(g.TEXTURE_2D, texture);
     });
-    ["shown", "winner", "shift1", "shift2"].forEach((name, unit) => g.uniform1i(g.getUniformLocation(program, name), unit));
+    ["shown", "winner", "shift1", "shift2", "shift3", "shift4"].forEach((name, unit) => g.uniform1i(g.getUniformLocation(program, name), unit));
     g.uniform1f(g.getUniformLocation(program, "scale"), k);
     g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
     g.activeTexture(g.TEXTURE0);
@@ -1816,9 +1817,9 @@ const Dessus = (() => {
     // découpée à ±8 m de l'axe de la route (BEST.wide), bords parallèles à la route : rien de plus loin de la route ; fondue
     // aux raccords avec les voisines (« Véhicule masqué »)
     if (longOn && neighboursOn && shown.longTerrain === undefined) readLongTerrain(shown, abort.signal);
-    // vue longue : 5 photos sans fondu des raccords (renderBlended en prend 3 au plus), image de LONG_SIZE px (1,2 cm par pixel)
+    // vue longue : image de LONG_SIZE px (1,2 cm par pixel), raccords fondus comme la vue courte
     const long = longReady(), reach = drawnReach();
-    const canvas = long ? render(drawnLayers(), shown.longTerrain, layers[0].pose, [...axis, 1e6, BEST.wide], LONG_SIZE, 0, null, LONG)
+    const canvas = long ? renderBlended(drawnLayers(), shown.longTerrain, layers[0].pose, [...axis, 1e6, BEST.wide], LONG_SIZE, LONG)
       : (neighboursOn ? renderBlended : render)(layers, shown.terrain, layers[0].pose, [...axis, 1e6, BEST.wide], fine ? FINE_SIZE : SHOWN_SIZE);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
     if (mine !== drawing || !shown) return;
