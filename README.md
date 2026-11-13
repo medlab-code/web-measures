@@ -597,9 +597,10 @@ sans répéter ce qui est déjà dit, ni le nom de la mesure) ; la mini-carte ce
 son attribution et son lien Panoramax, aussi en QR code. La mini-carte manque si elle est repliée.
 
 **Cadastre** (réglage « Cadastre sur la carte », Réglages › Affichage, décoché par défaut ; ticket #36) : parcelles
-du Parcellaire Express (IGN) sur la mini-carte dès le zoom 15, bornes de limite de propriété et étiquette de chaque parcelle (section au-dessus du numéro, « B » pour la
+du Parcellaire Express (IGN) sur la mini-carte dès le zoom 15, chaque parcelle numérotée teintée d'orange clair (le domaine public,
+voirie et cours d'eau, n'a pas de parcelle : il reste sans teinte), bornes de limite de propriété et étiquette de chaque parcelle (section au-dessus du numéro, « B » pour la
 section 0B) dès le zoom 17, en tuiles vectorielles de l'IGN (nettes à tout zoom), feuilles
-cadastrales mal raccordées à leurs voisines teintées d'orange (écart moyen aux raccords de plus de 2 m : limites
+cadastrales mal raccordées à leurs voisines cernées de tirets rouges (écart moyen aux raccords de plus de 2 m : limites
 peut-être décalées, le cadastre étant un plan numérisé). Limites indicatives. Pas de projection dans la photo : un
 essai l'a montrée trop imprécise au pied des façades (plan, sol interpolé sous les bâtiments, inclinaison de la photo).
 
@@ -747,12 +748,15 @@ d'essai sont dans un panneau repliable sur la carte en grand ou détachée ; « 
 de l'autre ; la carte en grand, comme la carte détachée (⧉), propose alors « Mesurer une longueur » (aussi : mode « Longueur sur la carte » puis
 « Mesure »). Un clic pose le départ, le trait suit le pointeur avec sa longueur, un second clic la garde dans les
 résultats, comme les autres mesures (Effacer, Refaire, commentaire, export). Pour une largeur, viser de préférence en
-face de la caméra, à ±4 m (±5 % au mieux, inclinaison lue sur les façades ou, à défaut, sur la pente de la route ; une largeur porte
-en plus 3,5 % d'incertitude : la vue est un peu trop étroite en travers, d'après les passages piétons). Hors de la vue, la
+face de la caméra, à ±4 m (±5 % au mieux, inclinaison lue sur les façades ou, à défaut, sur la pente de la route, avec le défaut de roulis de la
+caméra mesuré pour la campagne : CD21 2025, −1°, d'après les passages piétons). Près d'un pont, le LiDAR HD (sol sous le
+tablier) est écarté : tablier supposé plan et horizontal (±1,5° d'inclinaison par la route). Photos du CD21 : hauteur de
+caméra de sa monture d'après la date de prise de vue (1,93 m avant juillet 2025, 2,07 m ensuite) ; autres photos : lue entre
+photos sur les façades, sinon altitude RTK moins sol. Hors de la vue, la
 longueur est mesurée sur le fond de carte seul, sans incertitude (« hors vue »), pour un contrôle rapide. Échap retire
 le départ. Sans façade pour caler l'inclinaison, le tangage de fixation de la caméra est lu sur les raccords entre photos
-voisines (« Véhicule masqué » allumé ; celui de la photo, qui suit une bosse ou un creux, sinon la médiane des photos vues de la séquence) ; les curseurs « Roulis » et « Tangage » recalent la vue à la main (« Calage par les verticales » : coché d'office en zone d'habitation, la photo calée sur ses verticales quand elle en a ; ailleurs, inclinaison par la route),
-réglage retenu pour toute la séquence, dans ce navigateur. « Véhicule masqué » (éteint par défaut) recompose la vue avec les photos précédente et suivante pour cacher le véhicule : masque au plus près de son contour (lu une fois sur 12 photos de la séquence pour le CD21, environ 5 Mo ; cône de la vue retiré de la carte), photo affichée intacte hors du masque, voisines seulement dessous ; il recale chaque
+voisines (« Véhicule masqué » allumé ; celui de la photo, qui suit une bosse ou un creux), sinon, en cas d'échec des raccords ou sans eux, sur les lignes et les bords de la route jusqu'à 25 m, qui s'écartent devant et se resserrent derrière quand le tangage est faux (terrain LiDAR HD lu sur 25 m ; médiane des photos vues de la séquence dès 3, sinon la photo seule), sinon médiane des raccords de la séquence ; le curseur « Tangage » ne sert qu'en dernier, faute de tangage lu (grisé sinon), ou avec « Forcer le réglage à la main » ; les curseurs « Roulis » et « Tangage » recalent la vue à la main (« Calage par les verticales » : coché d'office en zone d'habitation, la photo calée sur ses verticales quand elle en a ; ailleurs, inclinaison par la route),
+réglage retenu pour toute la séquence, dans ce navigateur. Le bouton 📷, à droite du faucon (carte en grand ou détachée, grisé Bird Eye éteinte), télécharge une image PNG de la carte telle qu'affichée : vue Bird Eye, traits et étiquettes des mesures, échelle et sources. Les messages de Bird Eye, en bas de la carte en grand ou détachée, se replient par le bouton ▾ à leur droite (ⓘ pour les rouvrir ; choix retenu dans le navigateur) : ils cachent le bas de la vue. « Bords gardés » (éteint par défaut) garde toute la vue sur 15 m autour de la caméra au lieu de la couper à 8 m de part et d'autre de l'axe de la route (bas-côtés, trottoirs et façades, déformés et grisés au-delà de 10 m). « Véhicule masqué » (éteint par défaut) recompose la vue avec les photos précédente et suivante pour cacher le véhicule : masque au plus près de son contour (lu une fois sur 12 photos de la séquence pour le CD21, environ 5 Mo ; cône de la vue retiré de la carte), photo affichée intacte hors du masque, voisines seulement dessous ; il recale chaque
 photo voisine sur la photo affichée, par corrélation du sol commun (marquages, passages piétons, grain), pour effacer
 les marches aux raccords, et accorde leur luminosité à celle de la photo affichée (plus de taches claires ou sombres autour des raccords) ; la barre d'état indique l'écart avant et après. « Sans cache (essais) » oublie ce que Bird Eye a retenu et recalcule tout à chaque photo, même déjà vue. « Position calée sur l'orthophoto » (essai, coché) pose la vue sur l'orthophoto
 quand ses lignes s'en écartent de plus de 30 cm en travers : le GPS est alors suspecté avant l'orthophoto. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Construction de

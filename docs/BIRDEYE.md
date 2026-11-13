@@ -26,8 +26,9 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
   inclinaison (voir § 4.1) et hauteur de caméra (voir § 4.2) ;
 - le terrain : MNT LiDAR HD de l'IGN, lu sur une grille de 1 m sur ±15 m (`readTerrain`), sinon un plan horizontal.
   **Près d'un pont** (tronçon BD TOPO en pont à moins de 20 m, photo dessus ou dessous, `App._near_bridge`), le MNT
-  est écarté : il donne le sol sous le tablier, ou la brèche sous la photo. Sol plat, pas d'inclinaison tirée de la
-  route ni de tangage lu sur les raccords, hauteur de caméra de la séquence ou réglée (pas RTK moins sol LiDAR) ;
+  est écarté : il donne le sol sous le tablier, ou la brèche sous la photo. Tablier plan et horizontal (`deck`) :
+  inclinaison par la route (±1,5°), hauteur lue entre photos sur les verticales, sinon celle de la séquence, puis pour le
+  CD21 sa monture d'après la date (`App.FLEET_MOUNTS`), puis le réglage (pas RTK moins sol LiDAR) ;
 - avec l'interrupteur **« Véhicule masqué »** (éteint par défaut), les photos précédente et suivante de la séquence,
   chacune avec sa propre pose : elles comblent le sol sous le véhicule (masque au plus près, § 2), et entraînent les raccords
   (§ 4.3), le tangage lu sur les raccords (§ 4.1) et la hauteur lue entre photos (§ 4.2). Éteint, la photo affichée
@@ -47,7 +48,8 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
 3. Pour chaque pixel de l'image, le shader calcule le rayon de la caméra au point du sol, le tourne dans le repère de
    la photo (cap et inclinaison, même rotation que `Calibration.uncorrect`), en déduit les coordonnées dans la photo
    équirectangulaire et y lit la couleur.
-4. L'image affichée est **découpée à ±8 m de l'axe de la route**, bords droits, parallèles à la route : rien de plus loin de la route.
+4. L'image affichée est **découpée à ±8 m de l'axe de la route**, bords droits, parallèles à la route : rien de plus loin de la route. Interrupteur
+   **« Bords gardés »** (éteint par défaut, 13/11/2026) : vue entière sur ±15 m, sans cette découpe.
 5. Au-delà de 10 m, l'image est grisée : 0,6° d'inclinaison y déplacent déjà un point d'environ 50 cm (§ 3).
 
 **Résolution :** l'image affichée fait 2 048 px pour 30 m, soit 1,5 cm par pixel ; l'interrupteur « Haute résolution »
@@ -118,7 +120,15 @@ fixation peut être un peu de travers.
 2. **Sinon, la route** : le véhicule est supposé posé sur le plan ajusté au MNT sous lui (`groundUp`). Le tangage suit
    la pente entière ; le roulis ne suit qu'une part du dévers, réglable (« Roulis », 70 % par défaut : environ 40 %
    sur la RD 1074, 75 à 100 % sur l'A38). Le tangage ajoute le défaut de fixation de la caméra (−0,4 à +0,6° selon
-   les séquences).
+   les séquences). Le roulis ajoute le **défaut de roulis de la campagne** (`App.ROLL_DEFECTS`, `py/web_app.py`, par
+   producteur et période de prise de vue) : CD21, campagne 2025, −1°. Mesuré le 13/11/2026 sur 25 passages piétons
+   (`tests/passages-pietons.js`) : bandes de 0,50 m dans la vue calée par la route puis par les verticales ; une erreur
+   de roulis δ y rend la largeur d'une bande proportionnelle à 1 + 2 s δ / H (s : écart en travers à la caméra), d'où
+   δ par site. Roulis restant par la route +0,98° en médiane (23 vues ; +0,8° et +1,1° sur les deux montures), sans
+   lien avec le dévers (+1,2° − 0,14 × dévers) ; par les verticales −0,08° (15 vues). Les bandes à gauche de la caméra
+   (le véhicule roule à droite) en paraissaient étroites : 0,458 m, 0,483 m sur tout le passage (les 3,5 % comptés
+   jusque-là « en travers »). Triangulation des coins des bandes (25 largeurs) : 0,499 m. À mesurer de nouveau pour
+   chaque campagne ou producteur.
 3. **Tangage lu sur les raccords** (`learnPitch`) : une erreur de tangage de la photo affichée paraît, dans le
    recalage des raccords (§ 4.3), comme une échelle de signe opposé sur la voisine avant et sur l'arrière (environ
    ±4,8 % pour 1°). Leur différence donne le tangage de la vue (deux recalages appliqués seulement, § 4.3 : dans une
@@ -130,16 +140,46 @@ fixation peut être un peu de travers.
    photo affichée (avec la médiane, qui compte la photo affichée, les raccords repartaient sans fin). Essai du
    08/11/2026 sur 30 vues : stable par séquence (+0,45 à +0,57°, +0,27 à +0,49°, −0,13 à −0,38° sur trois
    séquences), proche de 0 sur les vues calées par leurs verticales ; à +0,4° sur une vue, les écarts bruts aux
-   raccords passent de 14,9 et 11,4 cm à 9,5 et 2,7 cm.
-4. Interrupteur « Calage par les verticales » (depuis le 10/11/2026, coché d'office pour une photo en zone d'habitation de la
+   raccords passent de 14,9 et 11,4 cm à 9,5 et 2,7 cm. Depuis le 13/11/2026, les **photos à deux pas** (avant la
+   précédente, après la suivante, environ 10 m ; `birdeye_far`, `readyFar`) sont aussi recalées sur la photo affichée, pour
+   le tangage seulement (pas dessinées) : l'échelle de chaque raccord vaut e + 0,9 δ a / H, droite ajustée sur tous les
+   raccords appliqués, une photo devant et une derrière au moins. Sur 24 photos (A38, RD 1074, D33) : tangage lu sur 20
+   au lieu de 15 (un seul raccord voisin réussi suffit avec une photo à deux pas de l'autre côté), même dispersion (0,13°
+   sur l'A38).
+4. **Tangage lu sur les lignes et les bords de la route** (`linesPitch`, `learnLines`, depuis le 13/11/2026), sur la photo
+   seule, sans voisine : une erreur de tangage δ change l'échelle en travers selon la distance le long, 1 + a δ / H ; deux
+   lignes parallèles s'écartent devant et se resserrent derrière (environ 7 % à 8 m pour 1° et 2 m de hauteur, contre
+   ±4,8 % par degré sur les raccords). Par tranches de 1 m de 4 à 10 m devant et derrière le véhicule : lignes peintes
+   (pics clairs de 6 à 45 cm) et bords de l'enrobé (marche de teinte du profil brut, accotement, herbe), suivis d'une
+   tranche à l'autre ; ajustement commun s_i(a) = p_i (1 + κ a) + q a + c a² (q : cap, c : courbe, κ balayé), les pistes
+   qui ne s'y accordent pas écartées. Lecture gardée par photo si ses lignes extrêmes sont à 6 m au moins l'une de
+   l'autre ; médiane de la séquence dès 3 photos. Synthèse : ±1° retrouvés à 0,02° près (`tests/essai-dessus.html`).
+   Séquences de campagne (13/11/2026, 8 photos chacune) : A38 −0,38° en médiane, RD 1074 +0,18°, à 0,2° près des
+   raccords ; petite RD sans peinture, par ses bords : +0,19° (−0,46 à +0,87° d'une photo à l'autre) ; D33, lignes à
+   moins de 5 m, lectures de −1 à +2° (écartées par le filtre). Carrefours en ville (passages piétons) : lignes non
+   parallèles, rien de retenu. Ordre (`autoPitch`) : raccords de la photo, lignes de la séquence (pas d'une photo seule : +1,3° et +1,6°
+   sur deux photos là où leur séquence lisait 0 à +0,5°),
+   raccords de la séquence.
+   **Seulement faute de tangage lu sur les raccords** de la photo (raccords en échec, ou sans « Véhicule masqué » ; demande
+   de l'auteur, 13/11/2026), une fois les raccords faits. Lu sur **±25 m** (`LINES_WIDE`, l'équivalent d'un point de fuite)
+   avec le terrain LiDAR HD lu sur cette portée (2 601 points, une fois par photo), sinon sur 10 m : 1,5 à 2 fois plus
+   stable (A38 −0,36 ± 0,09° contre −0,50 ± 0,16°, raccords −0,3 à −0,4° ; RD 1074 +0,15 ± 0,09° contre +0,17 ± 0,14° ;
+   petite RD +0,5 ± 0,37°, raccords +0,5°) ; sur sol plat au-delà de 15 m, décalé de +0,3 à +0,4° (pente lointaine). Sur
+   25 m, jusqu'à 20 pistes discordantes écartées (4 sur 10 m). D33 (route de vallée sinueuse, 33 à 55 pistes) : rien de lu
+   sur 25 m. Lecture d'une photo seule admise si elle est faite sur 25 m (A38 sans raccords : −0,3°, comme les raccords).
+5. Interrupteur « Calage par les verticales » (depuis le 10/11/2026, coché d'office pour une photo en zone d'habitation de la
    BD TOPO, décoché ailleurs : sur 3 essais de l'auteur hors agglomération, la vue était meilleure inclinée par la route, cause à
    chercher ; en ville, à Pouilly-en-Auxois, raccords recalés avec les verticales seulement ; modifiable pour la photo affichée ;
    grisé sans verticales lues ou sans terrain LiDAR HD) : décoché, la photo
    est inclinée par la route, comme sans verticales, roulis et tangage réglables à la main ; coché, par ses verticales.
-5. Le curseur « Tangage », réglé à la main, prime ; avec le roulis, il est **retenu par séquence** dans le navigateur. Le calage du tangage sur l'orthophoto (lignes de peinture,
+6. Le curseur « Tangage », réglé à la main, ne sert **qu'en dernier**, faute de tangage lu (curseur grisé tant qu'un tangage
+   lu prime, demande de l'auteur, 13/11/2026), sauf « Forcer le réglage à la main » cochée ; avec le roulis et le forçage, il
+   est **retenu par séquence** dans le navigateur. Le calage du tangage sur l'orthophoto (lignes de peinture,
    20 cm) a été retiré : trop peu précis (0,1° trouvé là où l'œil voyait 0,5° sur la D33).
 
-**Limites :** le roulis ne se cale pas sur l'orthophoto (il absorberait tout écart de largeur). En agglomération,
+**Limites :** le roulis ne se cale pas sur l'orthophoto (trop peu précise : 10 à 30 cm d'écart sur la position des
+lignes, essai du 13/11/2026) ; son défaut par campagne se mesure sur les passages piétons. Par la route, le roulis
+reste à ±1° d'une photo à l'autre (quartiles du roulis restant : +0,4 à +2,2° avant la correction). En agglomération,
 l'inclinaison lue sur les façades peut différer de 1,6° entre deux photos voisines alors que chacune annonce ±0,2° :
 c'est ce que corrigent les raccords (§ 4.3).
 
@@ -156,9 +196,13 @@ c'est ce que corrigent les raccords (§ 4.3).
    caméras distantes de `b` se décale de `b (1 − k)`. Ce décalage, cherché par corrélation dans le grain de la
    chaussée entre la photo et ses voisines, donne la hauteur sans orthophoto ni peinture. Gardée si la mesure se
    stabilise (corrélation d'au moins 0,2, hauteur entre 1,5 et 2,6 m) ; médiane de la séquence dans la session.
-   **Photos du CD21** (imajbox sur Clio 5, deux montures ; la caméra ne bouge plus une fois montée) : la séquence prend la
-   **monture** la plus proche de sa hauteur lue, 1,93 ou 2,07 m (±4 cm), même lue avec l'inclinaison de la route quand les
-   photos n'ont pas de verticales (les deux concordent au cm près là où elles existent). Relevé du 08/11/2026 sur 36 vues :
+   **Photos du CD21** (imajbox sur Clio 5, deux montures ; la caméra ne bouge plus une fois montée) : la **monture**
+   d'après la date de prise de vue (`App.FLEET_MOUNTS`, 1,93 m avant le 01/07/2025, 2,07 m ensuite, ±4 cm) ; hors de ces
+   dates, la plus proche de la hauteur lue, même avec l'inclinaison de la route quand les photos n'ont pas de verticales
+   (les deux concordent au cm près là où elles existent). La date d'abord depuis le 13/11/2026 : la hauteur lue se joue à
+   quelques cm du seuil de 2,00 m (f2a245d0, 07/07/2025 : 2,03 ou 1,98 m selon le terrain ; cefbd9bd à 2,007 m, 09c2e813
+   à 1,968 m). Sur les 17 passages piétons : bandes par les verticales à 2,6 % de 0,50 m en médiane (3,2 % avant), 13,2 %
+   à 95 % (16,2 %) ; par la route, 5,0 % (4,8 %), deux vues de plus, mesurées sur le tablier plat d'un pont. Relevé du 08/11/2026 sur 36 vues :
    1,90 à 1,95 m du 28/05 au 23/06/2025, 2,05 à 2,07 m le 03/07 (2,15 le 07/07, dispersé en octobre) ; l'altitude RTK moins
    le sol reste vers 2,05-2,10 m tout du long (antenne fixe, caméra plus basse sur la première monture).
    Retenue par photo dans le navigateur (`web-measures/dessus-parallaxes`) : la médiane sert à toute la séquence, même
@@ -262,10 +306,9 @@ seuls), le calage est moins sûr.
 ## 5. Mesurer sur la vue
 
 L'outil « Longueur sur la carte » trace un segment en deux clics. Il donne sa longueur et une incertitude qui combine
-l'inclinaison sur ses deux axes, la hauteur, l'écart du sol et, entre deux photos, leur position relative (5 cm en RTK
-vérifié, sinon 30 cm), plus 3,5 % de sa part en travers de la route (vue trop étroite en travers : bandes de passages
-piétons du CD21, 0,483 m pour 0,50 m sur 10 sites, compté dans l'incertitude plutôt que corrigé, `ACROSS_BIAS`), sans
-descendre sous 5 % de la longueur (écart constaté à l'orthophoto). Le mieux est de mesurer
+l'inclinaison sur ses deux axes, la hauteur, l'écart du sol (corrélé entre deux points proches : sur une courte distance,
+une erreur d'échelle) et, entre deux photos, leur position relative (5 cm en RTK
+vérifié, sinon 30 cm), sans descendre sous 5 % de la longueur (écart constaté à l'orthophoto). Le mieux est de mesurer
 en face de la caméra (±4 m). Un bout hors de la vue se mesure sur le fond de carte seul, sans incertitude.
 
 **Incertitude selon la situation** (`measureError`) : inclinaison tirée de la route dans un virage, incertitude majorée du
@@ -290,4 +333,11 @@ mesure à cheval sur deux photos, au moins l'écart mesuré à leurs raccords (a
   position, et dépose les vues dans `tests/captures/`.
   `#rapide` : 3 photos seulement (A38, ville, D33 du 04/07 : chacune porte un contrôle propre), pendant la mise au
   point ; les 7 avant une fusion. Durée de chaque étape dans le journal (page, vue).
-- `tools/essais.sh birdeye` : les deux, environ 1 min (processeur graphique, cache HTTP gardé) ; avant : 5 min.
+- `tests/essai-passages.html` : passages piétons de l'auteur (`tests/passages-pietons.js`, bandes de 0,50 m), avec le
+  réseau : vue calée par la route puis par les verticales, largeur des bandes et roulis restant (§ 4.1) ; contrôle la
+  largeur médiane (0,50 m ± 2 %) et le roulis restant médian (sous 0,5°), qui protègent le défaut de roulis de la
+  campagne ; journalise l'écart de chaque bande à l'incertitude affichée. Orientation des bandes cherchée à ±4° de l'axe
+  de la route (sur ±45°, des rangées en biais faussaient la largeur de 6 à 15 %). 17 photos mesurables sur 25, environ
+  6 min (`tools/essais.sh passages`) ; `#rapide` : 6 photos, ±4 % et 0,6°, environ 2 min.
+- `tools/essais.sh birdeye` : synthèse, références `#rapide` et passages `#rapide`, environ 3 min 30 (processeur
+  graphique, cache HTTP gardé).

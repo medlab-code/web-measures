@@ -44,9 +44,10 @@ attentes de condition (essai complet : environ 7 → 5 min), parcours de mesure 
 - Pages d'essai : code commun dans `tests/commun.js` (`Essai` : journal, `until`, `soon`, `expect`, `expectSoon`,
   bilan par `fin()` ou `await verdict()` avant « FIN »). Attendre une condition, pas une durée ; une attente fixe
   seulement pour un contrôle « rien ne change » (sa condition est déjà vraie avant l'action).
-- Lanceur des essais : `tools/essais.sh rapide|birdeye|complet|video|<page>[#…]` (durée et bilan par page, cache
+- Lanceur des essais : `tools/essais.sh rapide|birdeye|passages|complet|video|<page>[#…]` (durée et bilan par page, cache
   HTTP gardé entre essais, processeur graphique, Chrome arrêté seul). Vue du dessus pendant la mise au point :
-  `tools/essais.sh birdeye` (environ 1 min) ; les 7 photos de référence seulement avant une fusion.
+  `tools/essais.sh birdeye` (environ 3 min 30, dont 6 passages piétons) ; les 7 photos de référence et
+  `tools/essais.sh passages` (17 passages piétons, environ 6 min) seulement avant une fusion qui touche la vue du dessus.
 - Essai de bout en bout à la main : `tools/serveur-essai.py 8766` (s'arrête quand la page écrit « FIN »
   ou « ERREUR »), puis `google-chrome --headless=new --user-data-dir=/tmp/... --no-first-run
   --remote-debugging-port=0 --window-size=1400,1000 http://127.0.0.1:8766/tests/<page>` ;

@@ -1163,10 +1163,16 @@
 
   // Vue du dessus (src/dessus.js) : photo reprojetée au sol sur la mini-carte
   let birdeyeAsked = null, birdeyeNearAsked = null, birdeyeNear = null;  // photo dont l'inclinaison, les voisines ont été demandées ; fiches de ses voisines (null : en lecture)
+  /** Fiches des photos voisines : { near (précédente, suivante), far (avant la précédente, après la suivante : raccords pour
+   * le tangage seulement, voir Dessus.learnPitch) }. */
   async function birdeyeNeighbours(feature) {
-    const links = (feature.links || []).filter((l) => l.rel === "prev" || l.rel === "next");
-    const read = await Promise.all(links.map((l) => fetch(l.href).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
-    return read.filter(Boolean);
+    const read = (item, rel) => {
+      const link = (item.links || []).find((l) => l.rel === rel);
+      return link ? fetch(link.href).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null);
+    };
+    const [prev, next] = await Promise.all([read(feature, "prev"), read(feature, "next")]);
+    const far = await Promise.all([prev && read(prev, "prev"), next && read(next, "next")]);
+    return { near: [prev, next].filter(Boolean), far: far.filter(Boolean) };
   }
   let birdeyeFor = null;  // photo pour laquelle Bird Eye a été allumée : une autre photo l'éteint, rien n'est calculé sans clic
   function updateBirdeye() {
@@ -1176,23 +1182,25 @@
     const on = shown && $("#dessus").checked;
     if (photo) Carte.showView(map, photo.geometry.coordinates, coneHeading(), viewFov());  // cône retiré ou remis
     const inMap = (selector) => mapBox.querySelector(selector);  // réglages sur la carte, peut-être détachée
-    inMap("#dessus-fine").disabled = inMap("#dessus-voisines").disabled = inMap("#dessus-position").disabled = inMap("#dessus-sans-cache").disabled = !on;
-    if (!on) inMap("#dessus-verticales").disabled = inMap("#dessus-devers").disabled = inMap("#dessus-tangage").disabled = true;  // allumée : selon la vue (Dessus)
+    inMap("#dessus-fine").disabled = inMap("#dessus-voisines").disabled = inMap("#dessus-position").disabled = inMap("#dessus-bords").disabled = inMap("#dessus-sans-cache").disabled = !on;
+    if (!on) inMap("#dessus-verticales").disabled = inMap("#dessus-devers").disabled = inMap("#dessus-tangage").disabled = inMap("#dessus-tangage-force").disabled = true;  // allumée : selon la vue (Dessus)
     inMap("#dessus-reglages").hidden = !on;  // vue du dessus allumée seulement
     showMapMeasureButton();
     if (on && birdeyeAsked !== photo.id) {
       birdeyeAsked = photo.id;
       birdeyeNear = null;
       app.birdeye_neighbours("[]");
+      app.birdeye_far("[]");
       app.birdeye_request();  // peut répondre tout de suite (déjà calée) : la pose est relue ensuite
     }
     // Voisines (« Véhicule masqué ») : fiches lues et inclinaison lancée seulement à la demande
     if (on && inMap("#dessus-voisines").checked && birdeyeNearAsked !== photo.id) {
       birdeyeNearAsked = photo.id;
       const feature = photo;
-      birdeyeNeighbours(feature).then((near) => {
+      birdeyeNeighbours(feature).then(({ near, far }) => {
         if (photo !== feature) return;
-        birdeyeNear = near;
+        birdeyeNear = [...near, ...far];
+        app.birdeye_far(JSON.stringify(far));
         app.birdeye_neighbours(JSON.stringify(near));
         updateBirdeye();
       });
@@ -1218,7 +1226,7 @@
     if (on === swapped || (on && mapWindow)) return;
     swapped = on;
     swapButton.setAttribute("aria-pressed", String(on));
-    measureButton.hidden = birdeyeButton.hidden = !on && !mapWindow;  // carte en grand ou détachée : mesure et Bird Eye d'un clic
+    measureButton.hidden = birdeyeButton.hidden = captureButton.hidden = !on && !mapWindow;  // carte en grand ou détachée : mesure et Bird Eye d'un clic
     swapButton.title = on ? "Remettre la carte et la visionneuse à leur place" : "Échanger la carte et la visionneuse (place et taille)";
     if (on) {
       setColumnFolded(false);
@@ -1273,10 +1281,25 @@
     $("#dessus").checked = !$("#dessus").checked;
     $("#dessus").dispatchEvent(new Event("change"));
   });
+  // Capture de la carte (vue Bird Eye et mesures, étiquettes comprises), téléchargée en PNG ; grisé Bird Eye éteinte
+  const captureButton = Object.assign(document.createElement("button"), { type: "button", className: "capture-carte", hidden: true,
+    textContent: "📷", title: "Capture de la carte : vue Bird Eye et mesures, en image PNG", ariaLabel: "Capture de la carte" });
+  captureButton.addEventListener("click", async () => {
+    captureButton.disabled = true;
+    try {
+      const blob = await Carte.capture(map), url = URL.createObjectURL(blob), stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+      Object.assign(document.createElement("a"), { href: url, download: `bird-eye-${(photo?.id || "carte").slice(0, 8)}-${stamp}.png` }).click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (error) {
+      console.warn("Capture de la carte :", error);
+    } finally {
+      showMapMeasureButton();
+    }
+  });
   map.addControl({
     onAdd: () => {
       const place = Object.assign(document.createElement("div"), { className: "maplibregl-ctrl place-mesurer" });
-      place.append(measureButton, birdeyeButton);
+      place.append(measureButton, birdeyeButton, captureButton);
       return place;
     },
     onRemove: () => {},
@@ -1291,6 +1314,7 @@
     const bird = $("#dessus").checked;
     birdeyeButton.setAttribute("aria-pressed", String(bird));
     birdeyeButton.disabled = $("#dessus").disabled;
+    captureButton.disabled = !bird || $("#dessus").disabled;  // rien de Bird Eye à capturer
     birdeyeButton.title = bird ? "Éteindre la vue Bird Eye" : "Vue Bird Eye de cette photo (calculée pour elle seule : une autre photo l'éteint)";
   }
   Dessus.setup(map, (on) => {
@@ -1736,7 +1760,7 @@
     $("#carte-detachee").hidden = !detached;
     grip.hidden = detached;
     swapButton.disabled = detached;  // carte déjà à part : rien à échanger
-    measureButton.hidden = birdeyeButton.hidden = !detached && !swapped;  // détachée : comme en grand
+    measureButton.hidden = birdeyeButton.hidden = captureButton.hidden = !detached && !swapped;  // détachée : comme en grand
     detachButton.textContent = "⧉";
     detachButton.title = detached ? "Remettre la carte dans la page"
       : "Détacher la carte dans une fenêtre à part (second écran)";

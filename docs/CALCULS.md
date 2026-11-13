@@ -608,9 +608,9 @@ Zone idéale d'une largeur : ±4 m en face de la caméra (axe :
 trajectoire entre les photos voisines, à défaut cap de la photo), sur ±8 m en travers, là où le tangage
 pèse le moins (essai du 08/11 sur les lignes peintes, vue lissée contre orthophoto : écart de largeur 1,2 à
 1,5 % jusqu'à 4 m en long, 2 % au-delà ; pas de dégradation en travers jusqu'à 9 m). L'incertitude affichée
-compte 3,5 % de la part de la mesure en travers de la route (bandes de passages piétons du CD21 : 0,483 m pour
-0,50 m, vue trop étroite en travers, comptée plutôt que corrigée) et vaut au moins 5 % de la longueur (écart à
-l'orthophoto, plus bas).
+vaut au moins 5 % de la longueur (écart à l'orthophoto, plus bas). Les 3,5 % qu'elle comptait en plus en travers
+(bandes de passages piétons à 0,483 m pour 0,50 m) venaient du roulis de la caméra, corrigé depuis le 13/11/2026
+(défaut de roulis de la campagne, ci-dessous).
 
 Les photos précédente et suivante complètent l'image sous le véhicule seulement : hors du masque du véhicule de la
 photo affichée, celle-ci n'est pas retouchée. Masque au plus près (09/11/2026) : contour du véhicule dans le panorama,
@@ -658,7 +658,10 @@ l'orthophoto, en travers, sans explication à ce jour.
 L'erreur sur un point au sol à la distance `d` vaut environ `(H² + d²) / H × δ` pour une erreur
 d'inclinaison `δ` (radians), et `d × Δz / H` pour un écart de sol `Δz`. L'image est donc grisée
 au-delà de 10 m. L'incertitude affichée (un écart-type) combine l'inclinaison sur ses deux axes, la
-hauteur de caméra et l'écart du sol (2 cm sur LiDAR, 10 cm sur sol plat). Les objets en relief
+hauteur de caméra et l'écart du sol (2 cm sur LiDAR, 10 cm sur sol plat). Cet écart est corrélé entre deux points proches
+(gaussienne de portée 2 m, `GROUND_CORRELATION` : le terrain est lissé sur 2 m) : sur une courte distance, il agit comme une
+échelle (`L × Δz / H`) ; compté indépendamment à chaque bout jusqu'au 13/11/2026, il donnait 7 à 13 cm pour une bande de
+passage piéton de 0,50 m vue à 5 m (2,5 à 5 cm depuis, plancher de 5 % compris). Les objets en relief
 s'étalent : seuls les points réellement au sol sont à leur place.
 
 Scène de synthèse (`tests/essai-dessus.html`, sol en dévers de 3 %, caméra penchée) : traits de
@@ -672,6 +675,13 @@ Le roulis ne suit qu'une part du dévers (option d'essai « Roulis », 70 % par 
 avec tout le dévers, pour 6,58 m sur l'orthophoto (environ 40 % du dévers) ; sur l'A38, environ 75 %. Le roulis
 déplace surtout la ligne la plus éloignée de la caméra, d'où l'impression d'un milieu étiré. Le tangage suit la
 pente entière (tirets de 3 m retrouvés devant et derrière).
+Défaut de roulis de la campagne (`App.ROLL_DEFECTS`, `py/web_app.py` : producteur, période, degrés), ajouté au roulis
+tiré du dévers (`groundUp`) : CD21, campagne 2025, −1°. Une erreur de roulis δ fait varier la largeur d'une bande de
+passage piéton (0,50 m) comme 1 + 2 s δ / H (s : écart en travers à la caméra, H : hauteur de caméra) : la pente des
+largeurs en travers donne δ, indépendamment de l'échelle. Sur 25 passages piétons (13/11/2026), roulis restant
++0,98° en médiane par la route (23 vues), −0,08° par les verticales (15 vues), sans lien avec le dévers ; −1° le
+ramène près de 0 (+1,08 → +0,12° et +0,26 → −0,27° sur deux sites). La triangulation des coins des bandes redonne
+0,499 m (25 largeurs, ±5 cm par coin). À mesurer pour chaque campagne ou producteur.
 Option d'essai « Tangage » : tangage ajouté à la pente (défaut de fixation de la caméra, ±2°). Sur la D33
 (`dbdaa47b`, 20/06/2025), la chaussée se resserre vers l'avant sans réglage (environ 5 % sur 12 m) ; à l'œil, le
 meilleur roulis vaut 45 % du dévers sur la RD 1074 et 100 % sur l'A38, pour des dévers voisins (2,5 et 3 %).
@@ -684,11 +694,19 @@ l'arrière, environ 9,6 % pour 1° de tangage ; retenu et appliqué par photo (`
 sur une bosse ou un creux, que le plan de la route ne suit pas ; médiane de la séquence pour une photo sans le sien.
 
 Près d'un pont (tronçon BD TOPO en pont à moins de 20 m de la photo, dessus ou dessous), la vue se passe du terrain
-LiDAR HD : le MNT n'a pas le tablier (sol sous le pont, ou brèche sous la photo). Sol plat, sans inclinaison tirée de
-la route, hauteur de caméra calée ou réglée. Pont de France à Auxonne (bbf7a0be) : tangage lu sur les raccords à
+LiDAR HD : le MNT n'a pas le tablier (sol sous le pont, ou brèche sous la photo). Tablier supposé plan et horizontal
+(maillage à plat, `deck`) : inclinaison par la route (tangage de la séquence et défaut de roulis de la campagne seulement,
+±1,5° pour la pente du tablier, jusqu'à 3 %). Hauteur de caméra : pour le CD21, sa monture d'après la date
+(`App.FLEET_MOUNTS` : 1,93 m avant le 01/07/2025, 2,07 m ensuite, ±0,04 m) ; autres photos, lue entre photos sur les
+verticales, sinon calée pour la séquence, sinon le réglage. Avant le 13/11/2026 : sol plat sans inclinaison et 1,90 m par défaut, bandes
+de passage piéton à 0,44 m au lieu de 0,50 (f2a245d0, Pont de France ; 7dcdccf9, D977 bis). Pont de France à Auxonne (bbf7a0be) : tangage lu sur les raccords à
 -1,2° avec le MNT, raccords 33,5 → 1,3 cm sur sol plat.
 Le calage du tangage sur l'orthophoto (lignes de peinture repérées sur elle et sur chaque photo, essai du 07/11/2026)
-a été retiré le 08/11/2026 au profit du tangage lu sur les raccords. Option « Position calée sur l'orthophoto » (cochée par défaut, `locate` et `orthoShift`) :
+a été retiré le 08/11/2026 au profit du tangage lu sur les raccords. Tangage lu aussi sur les lignes et les bords de la route
+d'une photo seule (`linesPitch`, 13/11/2026) : une erreur δ change l'échelle en travers de 1 + a δ / H à la distance a le
+long ; ajustement commun des lignes s_i(a) = p_i (1 + κ a) + q a + c a², δ = atan(κ H), sur ±25 m avec le terrain LiDAR HD de
+cette portée, seulement faute de tangage lu sur les raccords ; voir docs/BIRDEYE.md § 4.1
+(ordre : raccords de la photo, lignes de la séquence, raccords de la séquence, réglage à la main). Option « Position calée sur l'orthophoto » (cochée par défaut, `locate` et `orthoShift`) :
 dès la photo principale prête, son profil en travers de la chaussée (6 m de part et d'autre, 9e décile le long, hors
 véhicule) est corrélé à celui de l'orthophoto, sur ±1,2 m ; au-delà de 30 cm d'écart, la vue s'y pose (décalée en
 travers), sinon la position GPS est gardée. Un appariement ligne à ligne ne convient pas ici :
@@ -700,7 +718,8 @@ A38 0,11 m, RD 1074 0,19 m, D33 0,02 m, petite RD sans peinture 0,31 m (calée, 
 village sans accord (position gardée). Limite : un décalage de plus de 1,2 m serait pris pour celui d'une autre ligne. Le calage du tangage sur l'orthophoto trouvait, sur 6 photos réglées à l'œil par l'auteur (07/11/2026), 0 / +0,1 / +0,4
 / +0,2 / -0,2 / +0,2° pour +0,5 / +0,5 / +0,2 / +0,2 / -0,2 / 0°.
 
-Hauteur de caméra par séquence : médiane des hauteurs vérifiées (GPS RTK moins sol) des photos vues de la séquence, dès
+Photos du CD21 : hauteur de la monture d'après la date de prise de vue (`App.FLEET_MOUNTS`, 1,93 ou 2,07 m), avant toute
+autre (voir docs/BIRDEYE.md § 4.2). Autres photos, hauteur de caméra par séquence : médiane des hauteurs vérifiées (GPS RTK moins sol) des photos vues de la séquence, dès
 3 photos, gardée dans le navigateur (`web-measures/dessus-hauteurs`) ; une même séquence de l'A38 allait de 1,83 à
 2,36 m d'une photo à l'autre. Chaque caméra est posée à cette hauteur au-dessus du plan de la route sous le véhicule
 (moyenne du terrain sur ±2,5 m x ±1,5 m), plutôt que sur un seul point du maillage.
