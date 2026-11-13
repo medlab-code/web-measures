@@ -1163,10 +1163,16 @@
 
   // Vue du dessus (src/dessus.js) : photo reprojetée au sol sur la mini-carte
   let birdeyeAsked = null, birdeyeNearAsked = null, birdeyeNear = null;  // photo dont l'inclinaison, les voisines ont été demandées ; fiches de ses voisines (null : en lecture)
+  /** Fiches des photos voisines : { near (précédente, suivante), far (avant la précédente, après la suivante : raccords pour
+   * le tangage seulement, voir Dessus.learnPitch) }. */
   async function birdeyeNeighbours(feature) {
-    const links = (feature.links || []).filter((l) => l.rel === "prev" || l.rel === "next");
-    const read = await Promise.all(links.map((l) => fetch(l.href).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
-    return read.filter(Boolean);
+    const read = (item, rel) => {
+      const link = (item.links || []).find((l) => l.rel === rel);
+      return link ? fetch(link.href).then((r) => (r.ok ? r.json() : null)).catch(() => null) : Promise.resolve(null);
+    };
+    const [prev, next] = await Promise.all([read(feature, "prev"), read(feature, "next")]);
+    const far = await Promise.all([prev && read(prev, "prev"), next && read(next, "next")]);
+    return { near: [prev, next].filter(Boolean), far: far.filter(Boolean) };
   }
   let birdeyeFor = null;  // photo pour laquelle Bird Eye a été allumée : une autre photo l'éteint, rien n'est calculé sans clic
   function updateBirdeye() {
@@ -1184,15 +1190,17 @@
       birdeyeAsked = photo.id;
       birdeyeNear = null;
       app.birdeye_neighbours("[]");
+      app.birdeye_far("[]");
       app.birdeye_request();  // peut répondre tout de suite (déjà calée) : la pose est relue ensuite
     }
     // Voisines (« Véhicule masqué ») : fiches lues et inclinaison lancée seulement à la demande
     if (on && inMap("#dessus-voisines").checked && birdeyeNearAsked !== photo.id) {
       birdeyeNearAsked = photo.id;
       const feature = photo;
-      birdeyeNeighbours(feature).then((near) => {
+      birdeyeNeighbours(feature).then(({ near, far }) => {
         if (photo !== feature) return;
-        birdeyeNear = near;
+        birdeyeNear = [...near, ...far];
+        app.birdeye_far(JSON.stringify(far));
         app.birdeye_neighbours(JSON.stringify(near));
         updateBirdeye();
       });

@@ -1334,7 +1334,7 @@ const Dessus = (() => {
     mine.joining = true;
     say("Raccords en cours…");
     await new Promise((resolve) => setTimeout(resolve));  // l'image déjà faite s'affiche d'abord
-    const joins = new Map(), results = [];
+    const joins = new Map(), results = [], farResults = [];
     try {
       if (shown === mine && others.length) {
         const ax = roadAxis([main, ...others]), raster = readRaster(main, mine.terrain, main.pose);
@@ -1348,6 +1348,11 @@ const Dessus = (() => {
           if (found?.fix) joins.set(other.pose.pic, found.fix);
           results.push(found);
         }
+        for (const other of readyFar()) {  // à deux pas : raccord lu pour le tangage seulement
+          await new Promise((resolve) => setTimeout(resolve));
+          if (shown !== mine) return;
+          farResults.push({ other, r: alignJoin(main, other, [raster, readRaster(other, mine.terrain, main.pose)], ax) });
+        }
       }
     } catch (error) {
       console.warn("Raccords de la vue du dessus :", error);  // l'image reste sans recalage
@@ -1355,12 +1360,14 @@ const Dessus = (() => {
       mine.joining = false;
     }
     if (shown !== mine) return;
-    if (learnPitch(main, others, results)) return showImage();  // tangage de la photo changé : raccords refaits avec lui
+    if (learnPitch(main, [...others.map((other, k) => ({ other, r: results[k] })), ...farResults])) return showImage();  // tangage de la photo changé : raccords refaits avec lui
     const done = results.filter((r) => r?.fix), cm = (v) => number(100 * v, 1);
     mine.joins = { key, map: joins, results, seams: new Map(others.map((o, k) => [o.pose.pic, results[k]])), ms: performance.now() - begun };
     mine.joinText = !others.length ? "" : done.length
       ? `raccords recalés ${done.length}/${others.length} (écart ${done.map((r) => `${cm(r.before)} → ${cm(r.after)}`).join(", ")} cm)`
       : `raccords non recalés (${results.some(Boolean) ? "sans gain sûr" : "pas assez de sol net en commun"})`;
+    const farDone = farResults.filter(({ r }) => r?.fix).length;
+    if (farResults.length) mine.joinText += `, ${farDone}/${farResults.length} à deux pas (tangage)`;
     await showImage();
   }
   // Réglages dont dépend le recalage : à refaire s'ils changent
@@ -1420,13 +1427,12 @@ const Dessus = (() => {
   }
   /** Tangage lu pour la photo, du plus sûr au moins sûr : { pitch (degrés), text (barre d'état) } ou null. Avec « Véhicule
    * masqué », celui de la photo lu sur ses raccords ; puis la médiane de la séquence lue sur les lignes (LINES_SEQUENCE photos
-   * au moins), celui de la photo lu sur ses lignes ; enfin, avec « Véhicule masqué », la médiane des raccords de la séquence. */
+   * au moins) ; enfin, avec « Véhicule masqué », la médiane des raccords de la séquence. */
   function autoPitch(sequence, pic) {
     const own = neighboursOn ? photoPitch(sequence, pic) : undefined, lines = readLines()[sequence] || {}, values = Object.values(lines);
     const joined = neighboursOn && sequencePitch(sequence), round = (v) => Math.round(v * 20) / 20;
     if (own !== undefined) return { pitch: round(own), text: "lu sur les raccords de la photo" };
     if (values.length >= LINES_SEQUENCE) return { pitch: round(median(values)), text: `de la séquence, lu sur ses lignes (${values.length} photos)` };
-    if (lines[pic] !== undefined) return { pitch: round(lines[pic]), text: "lu sur les lignes de la photo" };
     if (joined) return { pitch: joined.pitch, text: `de la séquence, lu sur les raccords (${joined.count} photo${joined.count > 1 ? "s" : ""})` };
     return null;
   }
@@ -1460,9 +1466,11 @@ const Dessus = (() => {
     try { return JSON.parse(localStorage.getItem(PITCHES_KEY)) || {}; } catch { return {}; }
   };
   // Tangage lu sur les lignes et les bords de la route (linesPitch), absolu, par photo, gardé dans le navigateur ; lecture gardée
-  // si ses lignes extrêmes sont à LINES_SPREAD m au moins l'une de l'autre (D33 : lignes à moins de 5 m, lectures de -1 à
-  // +2° d'une photo à l'autre ; A38, RD 1074 : à 0,2° près des raccords). Médiane de la séquence dès LINES_SEQUENCE photos.
-  const LINES_KEY = "web-measures/dessus-tangages-lignes", LINES_SPREAD = 5, LINES_SEQUENCE = 3;
+  // si ses lignes extrêmes sont à LINES_SPREAD m au moins l'une de l'autre (D33 : lignes à 4,9 à 5,6 m, lectures de -0,7 à
+  // +2,2° d'une photo à l'autre ; A38, RD 1074 à 6,5 m et plus : à 0,2° près des raccords). Seule la médiane de la séquence
+  // sert, dès LINES_SEQUENCE photos : une photo seule s'est trompée de plus de 1° (RD 1074, 81049c82 : +1,3° pour +0,15° dans
+  // la séquence ; D33, 7969fd3b : +1,6°, lignes à 7,9 m).
+  const LINES_KEY = "web-measures/dessus-tangages-lignes", LINES_SPREAD = 6, LINES_SEQUENCE = 3;
   const readLines = () => {
     try { return JSON.parse(localStorage.getItem(LINES_KEY)) || {}; } catch { return {}; }
   };
@@ -1502,15 +1510,18 @@ const Dessus = (() => {
     const values = Object.values(readPitches()[sequence] || {});
     return values.length ? { pitch: Math.round(median(values) * 20) / 20, count: values.length } : null;
   }
-  /** Tangage de la photo affichée lu sur ses deux raccords (results d'alignJoin, others : voisines), retenu pour elle ; vrai si
-   * son tangage change assez pour refaire la vue (au plus PITCH_PASSES fois). */
-  function learnPitch(main, others, results) {
-    const both = others.map((other, k) => ({ other, r: results[k] })).filter(({ r }) => r?.fix);  // recalages appliqués seulement
-    if (both.length !== 2 || !main.pose.groundTilt || !others.every((o) => o.pose.groundTilt)) return false;
+  /** Tangage de la photo affichée lu sur ses raccords (pairs : { other, r : résultat d'alignJoin }, voisines et photos à deux
+   * pas), retenu pour elle ; vrai si son tangage change assez pour refaire la vue (au plus PITCH_PASSES fois). L'échelle de
+   * chaque raccord vaut e + 0,9 δ a / H (a : position de la voisine le long, devant positif ; e commun) : droite ajustée, une
+   * voisine devant et une derrière au moins. Photos à deux pas (10 m) : signal double, lecture moins souvent manquée. */
+  function learnPitch(main, pairs) {
+    const both = pairs.filter(({ r }) => r?.fix);  // recalages appliqués seulement
+    if (both.length < 2 || !main.pose.groundTilt || !pairs.every(({ other }) => other.pose.groundTilt)) return false;
     const h = main.pose.heading * toRad, along = both.map(({ other }) => other.at[0] * Math.sin(h) + other.at[1] * Math.cos(h));
-    if (along[0] * along[1] >= 0) return false;  // une voisine devant, une derrière
-    const [front, back] = along[0] > 0 ? both : [both[1], both[0]], L = (Math.abs(along[0]) + Math.abs(along[1])) / 2;
-    const residual = (front.r.w[4] - back.r.w[4]) / (1.8 * L / main.pose.height) / toRad;
+    if (!along.some((a) => a > 0) || !along.some((a) => a < 0)) return false;  // devant et derrière
+    const ma = along.reduce((t, a) => t + a, 0) / along.length, mw = both.reduce((t, { r }) => t + r.w[4], 0) / both.length;
+    const slope = both.reduce((t, { r }, k) => t + (along[k] - ma) * (r.w[4] - mw), 0) / along.reduce((t, a) => t + (a - ma) ** 2, 0);
+    const residual = slope * main.pose.height / 0.9 / toRad;
     const own = Math.round((pitchOffset + residual) * 100) / 100;
     if (Math.abs(own) > PITCH_MAX) return false;  // lecture aberrante (raccord mal conditionné) : ni gardée ni appliquée
     const all = readPitches(), kept = all[shown.sequence] || {};
@@ -1536,24 +1547,29 @@ const Dessus = (() => {
   /** Photos prêtes à dessiner, la principale d'abord (seule sans « Véhicule masqué »). */
   const readyLayers = () => [shown.pose, ...(neighboursOn ? shown.pose.neighbours.filter((p) => !p.pending) : [])]
     .filter((pose) => shown.panos.has(pose.pic))
-    .map((pose) => {
-      const at = toLocal(pose.lon, pose.lat, shown.pose), ground = onLidar(shown) ? GROUND_SIGMA : DECK_SIGMA;
-      const leveled = (pose.up && verticalsOn) || !shown.terrain ? pose : { ...pose, up: groundUp(shown.terrain, at, pose.heading, rollShare, pitchFor(pose.pic), pose.roll_defect || 0),
-        sigma: Math.hypot(pose.up ? ground : Math.min(pose.sigma, ground), LEAN * (shown.lateral || 0)), groundTilt: true };  // virage : véhicule penché ; verticales écartées : incertitude de la route
-      const seam = shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.seams?.get(pose.pic) : undefined;  // raccord de la voisine
-      const fix = neighboursOn && shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.map.get(pose.pic) : undefined;
-      const parallax = neighboursOn ? shown.height : null;  // lue avec les voisines : sans « Véhicule masqué », ignorée
-      // hauteur : décalage entre photos, sinon RTK moins le sol (de la séquence, ou de la photo)
-      const mount = shown.pose.fleet ? shown.pose.mount : null;  // CD21 : monture d'après la date (App.FLEET_MOUNTS)
-      const height = mount ? { height: mount, height_sigma: MOUNT_SIGMA }
-        : parallax && shown.pose.fleet ? { height: mountOf(parallax), height_sigma: MOUNT_SIGMA }  // CD21 hors campagne connue
-        : parallax ? { height: parallax, height_sigma: HEIGHT_SIGMA }
-        : { height: shown.sequenceHeight?.height ?? leveled.height, height_sigma: Math.max(leveled.height_sigma, RTK_SIGMA) };
-      const read = neighboursOn ? outlines.get(shown.sequence) : null;  // CD21 : contour lu sur la séquence, sinon celui de sa monture
-      const outline = !shown.pose.fleet ? null : Array.isArray(read) ? read : mount ? OUTLINES[mount] : parallax ? OUTLINES[mountOf(parallax)] : EITHER;
-      const bend = neighboursOn ? seam?.bend ?? undefined : undefined;  // lignes calées (lineField) ou écarts restants (bendField)
-      return { pose: { ...leveled, ...height, outline }, pano: shown.panos.get(pose.pic), at, fix, seam, bend };
-    });
+    .map(layerOf);
+  /** Photos à deux pas prêtes (avec « Véhicule masqué », inclinées par la route : terrain LiDAR HD) : raccords pour le tangage
+   * seulement (learnPitch), pas dessinées. */
+  const readyFar = () => (neighboursOn && onLidar(shown) ? (shown.pose.far || []).filter((pose) => shown.panos.has(pose.pic)).map(layerOf) : []);
+  /** Couche d'une photo (pose) dans la vue affichée : position, inclinaison (verticales, sinon route), hauteur, contour. */
+  function layerOf(pose) {
+    const at = toLocal(pose.lon, pose.lat, shown.pose), ground = onLidar(shown) ? GROUND_SIGMA : DECK_SIGMA;
+    const leveled = (pose.up && verticalsOn) || !shown.terrain ? pose : { ...pose, up: groundUp(shown.terrain, at, pose.heading, rollShare, pitchFor(pose.pic), pose.roll_defect || 0),
+      sigma: Math.hypot(pose.up ? ground : Math.min(pose.sigma, ground), LEAN * (shown.lateral || 0)), groundTilt: true };  // virage : véhicule penché ; verticales écartées : incertitude de la route
+    const seam = shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.seams?.get(pose.pic) : undefined;  // raccord de la voisine
+    const fix = neighboursOn && shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.map.get(pose.pic) : undefined;
+    const parallax = neighboursOn ? shown.height : null;  // lue avec les voisines : sans « Véhicule masqué », ignorée
+    // hauteur : décalage entre photos, sinon RTK moins le sol (de la séquence, ou de la photo)
+    const mount = shown.pose.fleet ? shown.pose.mount : null;  // CD21 : monture d'après la date (App.FLEET_MOUNTS)
+    const height = mount ? { height: mount, height_sigma: MOUNT_SIGMA }
+      : parallax && shown.pose.fleet ? { height: mountOf(parallax), height_sigma: MOUNT_SIGMA }  // CD21 hors campagne connue
+      : parallax ? { height: parallax, height_sigma: HEIGHT_SIGMA }
+      : { height: shown.sequenceHeight?.height ?? leveled.height, height_sigma: Math.max(leveled.height_sigma, RTK_SIGMA) };
+    const read = neighboursOn ? outlines.get(shown.sequence) : null;  // CD21 : contour lu sur la séquence, sinon celui de sa monture
+    const outline = !shown.pose.fleet ? null : Array.isArray(read) ? read : mount ? OUTLINES[mount] : parallax ? OUTLINES[mountOf(parallax)] : EITHER;
+    const bend = neighboursOn ? seam?.bend ?? undefined : undefined;  // lignes calées (lineField) ou écarts restants (bendField)
+    return { pose: { ...leveled, ...height, outline }, pano: shown.panos.get(pose.pic), at, fix, seam, bend };
+  }
 
   /** Mode « Longueur sur la carte » (app.js) : curseur, carte et visionneuse échangées, sans toucher au zoom. */
   function setMeasuring(on) {
@@ -1850,7 +1866,7 @@ const Dessus = (() => {
     const mine = shown;
     if (!neighboursOn) return;
     readSequenceOutline(mine, signal);
-    for (const pose of mine.pose.neighbours) {
+    for (const pose of [...mine.pose.neighbours, ...(mine.pose.far || [])]) {
       const feature = (mine.features || []).find((f) => f.id === pose.pic);
       if (!feature || pose.pending || mine.panos.has(pose.pic) || mine.loading.has(pose.pic)
           || Math.hypot(...toLocal(pose.lon, pose.lat, mine.pose)) > REACH) continue;

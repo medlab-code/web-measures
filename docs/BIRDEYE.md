@@ -139,19 +139,25 @@ fixation peut être un peu de travers.
    photo affichée (avec la médiane, qui compte la photo affichée, les raccords repartaient sans fin). Essai du
    08/11/2026 sur 30 vues : stable par séquence (+0,45 à +0,57°, +0,27 à +0,49°, −0,13 à −0,38° sur trois
    séquences), proche de 0 sur les vues calées par leurs verticales ; à +0,4° sur une vue, les écarts bruts aux
-   raccords passent de 14,9 et 11,4 cm à 9,5 et 2,7 cm.
+   raccords passent de 14,9 et 11,4 cm à 9,5 et 2,7 cm. Depuis le 13/11/2026, les **photos à deux pas** (avant la
+   précédente, après la suivante, environ 10 m ; `birdeye_far`, `readyFar`) sont aussi recalées sur la photo affichée, pour
+   le tangage seulement (pas dessinées) : l'échelle de chaque raccord vaut e + 0,9 δ a / H, droite ajustée sur tous les
+   raccords appliqués, une photo devant et une derrière au moins. Sur 24 photos (A38, RD 1074, D33) : tangage lu sur 20
+   au lieu de 15 (un seul raccord voisin réussi suffit avec une photo à deux pas de l'autre côté), même dispersion (0,13°
+   sur l'A38).
 4. **Tangage lu sur les lignes et les bords de la route** (`linesPitch`, `learnLines`, depuis le 13/11/2026), sur la photo
    seule, sans voisine : une erreur de tangage δ change l'échelle en travers selon la distance le long, 1 + a δ / H ; deux
    lignes parallèles s'écartent devant et se resserrent derrière (environ 7 % à 8 m pour 1° et 2 m de hauteur, contre
    ±4,8 % par degré sur les raccords). Par tranches de 1 m de 4 à 10 m devant et derrière le véhicule : lignes peintes
    (pics clairs de 6 à 45 cm) et bords de l'enrobé (marche de teinte du profil brut, accotement, herbe), suivis d'une
    tranche à l'autre ; ajustement commun s_i(a) = p_i (1 + κ a) + q a + c a² (q : cap, c : courbe, κ balayé), les pistes
-   qui ne s'y accordent pas écartées. Lecture gardée par photo si ses lignes extrêmes sont à 5 m au moins l'une de
+   qui ne s'y accordent pas écartées. Lecture gardée par photo si ses lignes extrêmes sont à 6 m au moins l'une de
    l'autre ; médiane de la séquence dès 3 photos. Synthèse : ±1° retrouvés à 0,02° près (`tests/essai-dessus.html`).
    Séquences de campagne (13/11/2026, 8 photos chacune) : A38 −0,38° en médiane, RD 1074 +0,18°, à 0,2° près des
    raccords ; petite RD sans peinture, par ses bords : +0,19° (−0,46 à +0,87° d'une photo à l'autre) ; D33, lignes à
    moins de 5 m, lectures de −1 à +2° (écartées par le filtre). Carrefours en ville (passages piétons) : lignes non
-   parallèles, rien de retenu. Ordre (`autoPitch`) : raccords de la photo, lignes de la séquence, lignes de la photo,
+   parallèles, rien de retenu. Ordre (`autoPitch`) : raccords de la photo, lignes de la séquence (pas d'une photo seule : +1,3° et +1,6°
+   sur deux photos là où leur séquence lisait 0 à +0,5°),
    raccords de la séquence.
 5. Interrupteur « Calage par les verticales » (depuis le 10/11/2026, coché d'office pour une photo en zone d'habitation de la
    BD TOPO, décoché ailleurs : sur 3 essais de l'auteur hors agglomération, la vue était meilleure inclinée par la route, cause à

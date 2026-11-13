@@ -439,6 +439,7 @@ class App(session.Session):
         self.terrain_relay = False
         self.relay_tilts = {}  # photo -> inclinaison par le terrain (dict comme Calibration.auto_tilt)
         self.birdeye_items, self.birdeye_checks = [], (autotilt.TiltChecker(), autotilt.TiltChecker())  # voir birdeye_neighbours
+        self.birdeye_far_items = []  # voir birdeye_far
         self.relay_pending = {}  # photo -> étape du calcul en cours
         self.relay_failed = {}  # photo -> raison de l'échec
         self.relay_models = {}  # séquence -> références, modèle (web_terrain.model), raison d'un échec
@@ -683,6 +684,12 @@ class App(session.Session):
             checker.check(item, self.calibration, lambda pic=pic, before=before: self._birdeye_tilt_done(pic, before))
             self._birdeye_relook(item)
 
+    def birdeye_far(self, items_json):
+        """Photos à deux pas de la vue du dessus (fiches STAC, avant la précédente et après la suivante) : leur raccord à
+        la photo affichée sert seulement à lire le tangage (src/dessus.js, learnPitch), inclinées par la route, sans
+        inclinaison lancée pour elles."""
+        self.birdeye_far_items = json.loads(items_json)
+
     def _birdeye_of(self, item, pending):
         """Pose d'une photo pour la vue du dessus (voir birdeye_pose), ou None sans position, sans
         cap ou hors 360°."""
@@ -714,7 +721,7 @@ class App(session.Session):
         (recalée si la séquence l'est), cap du centre de l'image, correction de cap de la séquence
         (degrés), verticale vraie vue de la caméra (None sans calage) et son incertitude (degrés),
         hauteur de caméra, son incertitude et celle de la position relative entre photos voisines (m) ;
-        neighbours : les poses des photos voisines ; bridge : pont à portée de la vue (None en lecture),
+        neighbours : les poses des photos voisines ; far : celles à deux pas (birdeye_far) ; bridge : pont à portée de la vue (None en lecture),
         la vue se passe alors du terrain LiDAR et la hauteur de caméra ne vient pas du sol LiDAR. null si la
         photo ne convient pas."""
         pose = self._birdeye_of(self.item, self.tilts.pending) if self.item else None
@@ -730,7 +737,10 @@ class App(session.Session):
                       else {"height": self.tool.camera_height, "height_sigma": 0.3})
             pose.update(height)
             near = [dict(p, **height) for p in near]
-        return json.dumps(dict(pose, neighbours=near, bridge=bridge))
+        far = [p for p in (self._birdeye_of(item, lambda pic: False) for item in self.birdeye_far_items) if p]
+        if bridge:
+            far = [dict(p, **height) for p in far]
+        return json.dumps(dict(pose, neighbours=near, far=far, bridge=bridge))
 
     BIRDEYE_BRIDGE = 20.0  # m : portée de la vue (15 m) et un peu plus
     FLEET_PRODUCER = "8f943f10-a781-4e03-a18c-de035be6f6f8"  # CD21 : imajbox sur Clio 5, deux montures (voir src/dessus.js, MOUNTS)

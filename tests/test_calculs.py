@@ -87,7 +87,7 @@ class VueDessus(unittest.TestCase):
                   "properties": {"view:azimuth": 40, "pers:interior_orientation": {"field_of_view": field_of_view}}}
         a.birdeye_items, a.birdeye_checks = [dict(a.item, id="v", geometry={"coordinates": [5.0, 47.00005]})], (Tilts,)
         a.fall_cells, a.tool = {web_app.roads._cell(5.0, 47.0): []}, types.SimpleNamespace(camera_height=2.1)
-        a.birdeye_loose = {}
+        a.birdeye_loose, a.birdeye_far_items = {}, []
         return a
 
     def test_defaut_de_roulis(self):
@@ -105,6 +105,14 @@ class VueDessus(unittest.TestCase):
         self.assertEqual((pose["lon"], pose["heading"], pose["offset"], pose["height"]), (5.0, 40.0, 1.5, 2.4))
         self.assertEqual((pose["up"], pose["sigma"], pose["height_sigma"]), ([0.0, 0.1, 0.99], 0.2, 0.05))
         self.assertEqual([(n["pic"], n["lat"], n["relative_sigma"]) for n in pose["neighbours"]], [("v", 47.00005, 0.05)])
+
+    def test_voisines_a_deux_pas(self):
+        """Photos à deux pas (birdeye_far) : leur pose à part (far), sans inclinaison attendue ; aucune par défaut."""
+        a = self.app_on(360)
+        self.assertEqual(json.loads(a.birdeye_pose())["far"], [])
+        a.birdeye_far(json.dumps([dict(a.item, id="w", geometry={"coordinates": [5.0, 47.0001]})]))
+        far = json.loads(a.birdeye_pose())["far"]
+        self.assertEqual([(p["pic"], p["lat"], p["pending"]) for p in far], [("w", 47.0001, False)])
 
     def test_flotte_cd21(self):
         """Photo du CD21 (producteur) signalée à la vue du dessus (hauteur par monture) ; autre producteur : non."""
