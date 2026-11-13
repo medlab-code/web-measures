@@ -452,7 +452,7 @@ class CameraPont(unittest.TestCase):
 
 class Parcours(unittest.TestCase):
     """Mesures de bout en bout dans App, comme les pages d'essai du navigateur (essai-libre, essai-rtk, essai-largeur,
-    essai-releve) mais sans réseau : deux photos 360° à 6 m l'une de l'autre sur une route nord-sud, sol plat, caméra
+    essai-releve, navigateur) mais sans réseau : deux photos 360° à 6 m l'une de l'autre sur une route nord-sud, sol plat, caméra
     à 1,9 m ; les clics visent des points connus (cap et élévation en radians, repère de la photo)."""
 
     CAMERA = 1.9
@@ -558,6 +558,68 @@ class Parcours(unittest.TestCase):
         a.set_mode("tri")
         a.clear_all()  # « Tout effacer » hors relevé : objets relevés gardés
         self.assertEqual(len(json.loads(a.export_geojson(True))["features"]), 2)
+
+    def test_couche(self):
+        """Couche importée : point et ligne proches projetés dans la photo (à plat, sans LiDAR HD), point lointain écarté."""
+        a = self.app
+        self.show("p1")
+        here = lambda east, north: list(triangulation._geographic(east, north, 5.0415, 47.3220))
+        self.assertEqual(a.set_overlay(json.dumps([
+            {"id": 0, "geometry": {"type": "Point", "coordinates": here(5.0, 3.0)}},
+            {"id": 1, "geometry": {"type": "LineString", "coordinates": [here(5.0, 3.0), here(0.0, 3.0)]}},
+            {"id": 2, "geometry": {"type": "Point", "coordinates": here(500.0, 0.0)}}])), 3)
+        marks = json.loads(a.overlay_marks())
+        self.assertEqual([(m["id"], m["kind"]) for m in marks], [(1, "ligne"), (0, "point")])  # du plus proche au plus loin
+        yaw, pitch = marks[1]["points"][0]
+        self.assertAlmostEqual(yaw, math.atan2(5.0, 3.0), places=6)
+        self.assertAlmostEqual(pitch, -math.atan2(self.CAMERA, math.hypot(5.0, 3.0)), places=6)
+        a.set_overlay("[]")
+        self.assertEqual(a.overlay_marks(), "[]")
+
+    def test_calage_objet_vertical(self):
+        """Calage : pied, sommet, sommet sélectionné sur sa croix puis déplacé, validation (navigateur.html)."""
+        a = self.app
+        a.set_mode("tilt")
+        self.show("p1")
+        a.click(0.62, -0.12)
+        a.click(0.64, 0.35)
+        marks = lambda: [m["points"] for m in json.loads(a.viewer_marks()) if m.get("calage")]
+        self.assertEqual(marks(), [[[0.62, -0.12, False], [0.64, 0.35, False]]])
+        a.click(0.64 + 0.0029, 0.35, False)  # la page n'a pas vu de croix (à 10 px au zoom fort) : pas de sélection
+        self.assertFalse(marks()[0][1][2])
+        a.click(0.64, 0.35, True)  # sur la croix : sélectionné
+        self.assertTrue(marks()[0][1][2])
+        a.click(0.625, 0.35)  # nouvelle position
+        self.assertEqual(marks()[0][1], [0.625, 0.35, False])
+        self.assertIn("1 objet calé", a.validate_tilt())
+        self.assertEqual(marks(), [])  # croix effacées après validation
+        self.assertEqual(len(json.loads(a.calibration_json())["verticals"]["p1"]), 1)
+        other = App(lambda *args: None)  # calage gardé dans le navigateur, relu au chargement
+        host.install(**HOST)
+        self.assertTrue(other.load_calibration(a.calibration_json()))
+        self.assertEqual(json.loads(other.calibration_json())["verticals"], json.loads(a.calibration_json())["verticals"])
+
+    def test_effacer_retablir(self):
+        a = self.app
+        a.set_mode("tri")
+        self.sighted(self.A)
+        self.sighted(self.B)
+        distances = lambda: [f for f in json.loads(a.export_geojson())["features"] if f["properties"]["type"].startswith("distance")]
+        self.assertEqual(len(distances()), 1)
+        self.assertEqual(a.undo(), "Point B effacé.")
+        self.assertEqual(distances(), [])
+        self.assertEqual(a.redo(), "Rétabli.")
+        self.assertEqual(len(distances()), 1)
+
+    def test_releve_recharge(self):
+        """Relevé gardé dans le navigateur (releve_json), remis au rechargement (load_releve)."""
+        self.app.set_mode("releve")
+        self.sighted(self.A)
+        self.app.set_releve(0, json.dumps({"essence": "tilleul"}))
+        other = App(lambda *args: None)
+        host.install(**HOST)
+        other.load_releve(self.app.releve_json())
+        self.assertEqual([f["properties"]["essence"] for f in json.loads(other.export_geojson(True))["features"]], ["tilleul"])
 
 
 if __name__ == "__main__":
