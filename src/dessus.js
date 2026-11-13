@@ -1695,6 +1695,20 @@ const Dessus = (() => {
       cancelStart();  // le départ a été pris dans l'autre position
       if (shown?.url) showImage();
     });
+    // Messages repliés ou non (bouton à droite de l'étiquette), retenu dans le navigateur
+    const STATE_FOLDED_KEY = "web-measures/etat-replie", stateButton = $("#dessus-etat-replier");
+    const foldState = (folded) => {
+      $("#dessus-etat").classList.toggle("replie", folded);
+      stateButton.textContent = folded ? "ⓘ" : "▾";
+      stateButton.title = folded ? "Afficher les messages de Bird Eye" : "Replier les messages de Bird Eye (ils cachent le bas de la vue)";
+      stateButton.setAttribute("aria-expanded", String(!folded));
+    };
+    try { foldState(localStorage.getItem(STATE_FOLDED_KEY) === "1"); } catch { /* sans stockage : déplié */ }
+    stateButton.addEventListener("click", () => {
+      const folded = !$("#dessus-etat").classList.contains("replie");
+      foldState(folded);
+      try { localStorage.setItem(STATE_FOLDED_KEY, folded ? "1" : "0"); } catch { /* pour cette page seulement */ }
+    });
     $("#dessus-replier").addEventListener("click", (event) => {
       const folded = $("#dessus-reglages").classList.toggle("replie");
       event.currentTarget.setAttribute("aria-expanded", String(!folded));

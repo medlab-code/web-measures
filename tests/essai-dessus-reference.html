@@ -117,6 +117,14 @@ async function open(id, enough = () => false) {
       const o = now.outline, notches = o.filter((v, k) => v < Math.min(o[(k + 127) % 128], o[(k + 1) % 128]) - 1).length;
       await expect(`${name} : contour symétrique et sans encoche`, o.every((v, k) => Math.abs(v - o[(128 - k) % 128]) <= 1.5) && notches === 0, `${notches} encoche(s) ${o.map((v, k) => (v < Math.min(o[(k + 127) % 128], o[(k + 1) % 128]) - 1 ? `${k}:${o[(k + 127) % 128]}/${v}/${o[(k + 1) % 128]}` : "")).filter(Boolean).join(" ")}, écart gauche-droite ${Math.max(...o.map((v, k) => Math.abs(v - o[(128 - k) % 128]))).toFixed(1)}°`);
     }
+    // Messages repliés par leur bouton, puis rouverts (le choix est retenu dans le navigateur)
+    if (name === "A38") {
+      const label = w.document.querySelector("#dessus-etat"), button = w.document.querySelector("#dessus-etat-replier");
+      button.click();
+      const folded = label.classList.contains("replie") && button.getAttribute("aria-expanded") === "false" && w.getComputedStyle(label).display === "none";
+      button.click();
+      await expect(`${name} : messages repliés puis rouverts par leur bouton`, folded && !label.classList.contains("replie") && label.textContent.length > 0);
+    }
     // « Bords gardés » : vue entière sur ±15 m, sans la découpe à ±8 m de l'axe de la route ; image déposée pour la regarder
     {
       const box = w.document.querySelector("#dessus-bords"), etat = () => w.document.querySelector("#dessus-etat").textContent, before = shown.blob();
