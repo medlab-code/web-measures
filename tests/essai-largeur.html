@@ -7,34 +7,19 @@
      précis. Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
 <script>try { localStorage.clear(); localStorage.setItem("web-measures/droite-carte", "1"); } catch {}</script>  <!-- #28 : case expérimentale cochée -->
 <iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
+<script src="commun.js"></script>
 <script>
-const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});
+const { log, sleep, until, soon, ready, expect, expectSoon, near, metresIn, verdict } = Essai;
 // Surcouche des mesures dessinée en WebGL (src/traits.js) : repères demandés, à l'écran ou non
 const traitsIn = () => document.getElementById("f").contentWindow.eval("Traits").items();
 const labelsIn = () => traitsIn().labels.map((l) => ({ textContent: l.text }));
 const crossesIn = (visee) => traitsIn().crosses.filter((c) => visee === undefined || c.visee === visee).length;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-// Contrôles : valeur comparée à l'attendu, avec une tolérance ; échecs journalisés (« ÉCHEC ») et
-// comptés, bilan avant « FIN » (« ERREUR » s'il y en a : le serveur d'essai s'arrête)
-let failures = 0, checks = 0;
-const expect = (what, ok, detail = "") => {
-  checks++;
-  if (!ok) {
-    failures++;
-    log("ÉCHEC " + what + (detail ? " : " + detail : ""));
-  }
-};
-const near = (what, value, expected, tol) =>
-  expect(what, Math.abs(value - expected) <= tol, `${value} au lieu de ${expected.toFixed(3)} (±${tol})`);
-const metresIn = (text) => Number(((text || "").match(/(\d+,\d+) m\b/) || [])[1]?.replace(",", "."));
-const verdict = () => log(failures ? `ERREUR ${failures} contrôle(s) sur ${checks} en échec` : `contrôles : ${checks} réussis`);
-async function until(test, ms, what) { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("délai dépassé : " + what); await sleep(250); } }
 const feature = async (id) => (await (await fetch("https://api.panoramax.xyz/api/search?ids=" + id)).json()).features[0];
 const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-955becc79e81"];
 (async () => {
   const w = document.getElementById("f").contentWindow;
   try {
-    await until(() => w.mesures?.app && w.mesures.map?.loaded?.(), 120000, "Pyodide");
+    await ready(w);
     const app = w.mesures.app, doc = w.document;
     // Incertitude annoncée sur le bouton d'une photo proposée, puis obtenue après la visée réelle
     const predicted = (id) => (JSON.parse(app.state()).guide?.choices || []).find((c) => c.id === id)?.expect;
@@ -78,7 +63,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("photos à " + Math.hypot(...metres(p1, p0)).toFixed(2) + " m l'une de l'autre");
     // Visée suivante : vue tournée vers le point placé par la première visée, zoom gardé
     const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-    const aimedAt = (what, f, pt, zoom0) => {
+    const aimedAt = async (what, f, pt, zoom0) => {  // après l'animation du cadrage
+      await soon(() => Math.abs(wrap(w.mesures.psv.getPosition().yaw - yawTo(f, pt))) < 0.1);
       const pos = w.mesures.psv.getPosition(), zoom = w.mesures.psv.getZoomLevel();
       expect("vue tournée vers " + what, Math.abs(wrap(pos.yaw - yawTo(f, pt))) < 0.1, `cap ${pos.yaw.toFixed(3)} au lieu de ${yawTo(f, pt).toFixed(3)}`);
       expect("zoom gardé pour viser " + what, Math.abs(zoom - zoom0) < 1, `zoom ${zoom} au lieu de ${zoom0}`);
@@ -99,11 +85,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "photo");
       const zoom0 = w.mesures.psv.getZoomLevel();
       await until(() => JSON.parse(app.state()).quality.includes("vérifiée"), 60000, "position vérifiée");
-      await sleep(1000);
-      if (f === photos[1]) {
-        await sleep(1500);
-        aimedAt("le point de référence", f, target, zoom0);
-      }
+      if (f === photos[1]) await aimedAt("le point de référence", f, target, zoom0);
       if (f === photos[0]) {  // Droite de mesure tracée sur la mini-carte avant la 1re visée (#28) : tracée, puis annulée
         const axeCarte = doc.querySelector("#axe-carte"), axeAuto = doc.querySelector("#axe-auto");
         expect("« Tracer la droite sur la carte » avant la 1re visée", !axeCarte.hidden && axeAuto.hidden);
@@ -143,8 +125,9 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     doc.querySelector("#garder").click();
     log("validé : " + doc.querySelector("#statut").textContent);
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "retour sur la photo de référence (A)");
-    await sleep(2500);  // animation du cadrage
-    { const markA = JSON.parse(app.viewer_marks()).find((m) => m.points.length === 1 && !m.guide && !m.sighting && !m.vertical && !m.name);
+    const findA = () => JSON.parse(app.viewer_marks()).find((m) => m.points.length === 1 && !m.guide && !m.sighting && !m.vertical && !m.name);
+    await soon(() => findA() && inView(findA().points));  // animation du cadrage
+    { const markA = findA();
       expect("vue cadrée sur A au retour", markA && inView(markA.points)); }
     log("liseré après validation : " + doc.querySelector("#vue").className + " · " + getComputedStyle(doc.querySelector("#vue"), "::after").borderTopColor
       + " · état : " + doc.querySelector("#etat-mesure").textContent + " " + getComputedStyle(doc.querySelector("#etat-mesure")).color
@@ -179,12 +162,12 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     expect("Entrée : A désélectionné", !JSON.parse(app.state()).point_sel);
     psvClick(yawTo(photos[0], b), -0.3);
-    await sleep(500);
+    const widthsCount = () => JSON.parse(app.viewer_marks()).filter((m) => m.label.startsWith("↔")).length;
+    await soon(() => widthsCount() === 1);
     log("largeur : " + doc.querySelector("#statut").textContent);
     near("largeur", metresIn(doc.querySelector("#statut").textContent), 8, 0.02);
     // Largeur faite : un autre clic n'en mesure pas une autre, jusqu'à « Nouvelle mesure depuis A »
     const again = doc.querySelector("#nouvelle-mesure");
-    const widthsCount = () => JSON.parse(app.viewer_marks()).filter((m) => m.label.startsWith("↔")).length;
     expect("bouton « Nouvelle mesure depuis A » affiché", !again.hidden && again.textContent.includes("depuis A"));
     expect("pas de « Nouveau point de référence » en largeur", doc.querySelector("#nouvelle-reference").hidden);
     psvClick(yawTo(photos[0], toLonLat([side * 12 * ux, side * 12 * uy])), -0.3);
@@ -249,8 +232,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     again.click();
     expect("« Nouvelle mesure » : bouton masqué", again.hidden);
     psvClick(yawTo(photos[0], toLonLat([side * 12 * ux, side * 12 * uy])), -0.3);
-    await sleep(300);
-    expect("seconde largeur depuis A", widthsCount() === 2 && !again.hidden);
+    await expectSoon("seconde largeur depuis A", () => widthsCount() === 2 && !again.hidden);
     {  // Bord posé sur la droite de mesure dans la direction du clic, pas là où l'on a cliqué (#18)
       const marks = JSON.parse(app.viewer_marks()), wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
       const line = marks.find((m) => m.guide && !m.vertical && !m.epipolar).points;
@@ -325,10 +307,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       w.mesures.openPhoto(f);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000, "photo du bord B");
       const zoom0 = w.mesures.psv.getZoomLevel();
-      await sleep(800);
       if (f === photos[1]) {  // autre photo que celle de la mesure : ni droite ni largeur
-        await sleep(1500);  // animation du cadrage
-        aimedAt("le bord B", f, b12, zoom0);
+        await aimedAt("le bord B", f, b12, zoom0);
         expect("droite de mesure masquée hors de la photo de la mesure", JSON.parse(app.viewer_marks()).filter((m) => m.guide && !m.epipolar && !m.vertical).length === 0);
       }
       const announcedB = f === photos[1] ? predicted(f.id) : null;
@@ -376,10 +356,10 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("bord B triangulé : " + doc.querySelector("#statut").textContent);
     expect("largeur entre les points triangulés A et B", doc.querySelector("#statut").textContent.includes("entre les points triangulés"));
     expect("droite de mesure de retour sur la photo de la mesure", JSON.parse(app.viewer_marks()).filter((m) => m.guide && !m.epipolar && !m.vertical).length > 0);
-    await sleep(2500);  // animation du cadrage
     { const last = JSON.parse(app.viewer_marks()).filter((m) => m.label.startsWith("↔")).pop();
-      const pos = w.mesures.psv.getPosition(), wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
       const mid = Math.atan2(last.points.reduce((t, p) => t + Math.sin(p[0]), 0), last.points.reduce((t, p) => t + Math.cos(p[0]), 0));
+      await soon(() => Math.abs(wrap(w.mesures.psv.getPosition().yaw - mid)) < 0.05);  // animation du cadrage
+      const pos = w.mesures.psv.getPosition();
       expect("vue centrée sur la largeur au retour", Math.abs(wrap(pos.yaw - mid)) < 0.05);
       log("largeur entière dans la vue : " + inView(last.points));
       log("cadrage : " + JSON.stringify(w.mesures.psv.getPosition()) + " · champ " + w.mesures.psv.state.vFov.toFixed(0) + "°"); }
@@ -412,7 +392,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       const far = [offset(target, bearing, 8), offset(target, bearing, -8)]
         .sort((p, q) => Math.hypot(...metres(p, mid)) - Math.hypot(...metres(q, mid)))[0];
       psvClick(yawTo(photos[0], far), -0.3);
-      await sleep(300);
+      await soon(() => Math.abs(metresIn(doc.querySelector("#statut").textContent) - 8) <= 0.05);
       log("largeur sur la droite tracée : " + doc.querySelector("#statut").textContent.slice(0, 140));
       near("largeur le long de la droite tracée", metresIn(doc.querySelector("#statut").textContent), 8, 0.05);
       expect("texte de la largeur sur la droite tracée", /^Largeur le long de la droite tracée sur la carte .* depuis le point [A-Z] · droite à \d+° \(tracée sur la carte/.test(doc.querySelector("#statut").textContent));
@@ -431,16 +411,18 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       const text = JSON.stringify({ type: "FeatureCollection", features: exported });
       await w.mesures.importOverlay([new File([text], "mesures.geojson", { type: "application/geo+json" })]);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === first.photo_ref, 30000, "photo de la mesure");
-      await sleep(4000);  // ouverte, puis cadrée
-      const view = JSON.parse(first.vue_ref), pos = w.mesures.psv.getPosition();
+      const view = JSON.parse(first.vue_ref);
       const yaw = Math.atan2(Math.sin(view[0][0]) + Math.sin(view[1][0]), Math.cos(view[0][0]) + Math.cos(view[1][0]));
+      const turned = () => Math.abs(wrap(w.mesures.psv.getPosition().yaw - yaw)) < 0.02;
+      await soon(() => turned() && [...w.mesures.psv.container.querySelectorAll(".etiquette.couche")].some((e) => e.textContent === first.etiquette), 10000);  // ouverte, puis cadrée
+      const pos = w.mesures.psv.getPosition();
       const labels = [...w.mesures.psv.container.querySelectorAll(".etiquette.couche")].map((e) => e.textContent);
       log(`mesure revue : vue ${JSON.stringify(pos)} · repères ${first.vue_ref} · étiquettes ${JSON.stringify(labels)}`);
       expect("mesure revue : vue tournée vers elle", Math.abs(Math.atan2(Math.sin(pos.yaw - yaw), Math.cos(pos.yaw - yaw))) < 0.02);
       expect("mesure revue : étiquette de sa valeur", labels.includes(first.etiquette), JSON.stringify(labels));
     }
-    verdict();
+    await verdict();
   } catch (e) { log("ERREUR " + e); }
-  log("FIN");
+  await log("FIN");
 })();
 </script>

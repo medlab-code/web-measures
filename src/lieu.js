@@ -347,6 +347,11 @@ const Lieu = (() => {
     return found[0]?.z.properties.toponyme || "";
   }
 
+  /** Le point est-il dans une zone d'habitation de la BD TOPO (bourg, village, hameau) ? Zones lues comme pour describe. */
+  async function inTown(lon, lat) {
+    return (await zone("zone_d_habitation", HABITATION_PROPERTIES, lon, lat, HAMLET_REACH)).some((z) => inside(z.geometry, lon, lat));
+  }
+
   /** feature (facultative) : fiche STAC de la photo, dont la séquence départage les routes d'un croisement (followedRoad). */
   async function describe(lon, lat, feature = null) {
     const key = `${lon.toFixed(5)},${lat.toFixed(5)},${feature?.collection || ""}`;
@@ -442,5 +447,5 @@ const Lieu = (() => {
     return out;
   }
 
-  return { describe, features, junctions, milestone, project, segmentLength, structures };
+  return { describe, inTown, features, junctions, milestone, project, segmentLength, structures };
 })();

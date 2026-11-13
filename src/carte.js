@@ -114,6 +114,7 @@ const Carte = (() => {
       attributionControl: false,  // ajouté replié ci-dessous
       center: [5.04, 47.32],  // Côte-d'Or
       zoom: 9,
+      maxZoom: 24,  // 0,6 cm par pixel : la Bird Eye (1,5 cm par pixel) se vise de près ; les fonds de carte sont agrandis
       maxPitch: 0,  // carte toujours vue d'aplomb : le clic droit glissé ne l'incline plus
       pitchWithRotate: false,
       style: {

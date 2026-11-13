@@ -106,6 +106,13 @@ const Video = (() => {
   const SPEED_SMOOTH = 4;  // images : vitesse affichée lissée sur ± SPEED_SMOOTH images (un quart de seconde)
   const TOUR_TIME = 8;  // s : tour d'horizon par défaut (réglette de 2 à 20 s)
   const SEAM_BLUR = 4;  // vues moyennées au raccord de deux séquences (léger : moitié du flou cinétique)
+  // Raccord de deux séquences : la vue avance dans la photo quittée par le zoom jusqu'à la suivante (objets à SEAM_DEPTH m
+  // vus du point courant, sans maquette), puis fondu court sur les SEAM_FADE derniers mètres ; la suivante n'est jamais
+  // élargie (le toit du véhicule entrerait dans l'image). Essai D906, carrefour du PR 76 + 500 : 15,5 m d'écart, fondu de
+  // 1,1 s sur tout l'écart, image double figée
+  const SEAM_DEPTH = 40, SEAM_FADE = 4;  // (fondu sur 30 % de l'écart au moins : écart long traversé vite, SEAM_TIME)
+  const SEAM_TIME = 0.8;  // s : écart entre les photos d'un raccord traversé en SEAM_TIME s au plus (section sans photos : D17E
+  // / D17, 51 m, 3,6 s à 50 km/h zoomés dans une seule photo)
   const BLUR = 8;  // vues moyennées par image pour le flou cinétique (obturateur ouvert toute l'image : 360°)
   const STALL = 15;  // s : requête d'image sans réponse abandonnée, puis reprise (serveur d'images bloqué)
 
@@ -164,6 +171,10 @@ const Video = (() => {
   function timeline(path, v, ramp, looks = [], lookSpeed = null, poiSlow = null, pres = null) {
     const hold = pres ? PRES_HOLD : HOLD;
     const xs = Array(hold * FPS + 1).fill(0);
+    const crossing = (x) => {  // vitesse (m/s) au moins, entre les photos d'un raccord (SEAM_TIME)
+      const [i] = path.segment(x), j = Math.min(i + 1, path.list.length - 1);
+      return path.list[i].collection !== path.list[j].collection ? (path.s[j] - path.s[i]) / SEAM_TIME : 0;
+    };
     if (pres) {
       const speeds = presentationSpeeds(path, pres);
       const stops = placesOn(path, pres.stops || [], "arrêt");
@@ -171,7 +182,7 @@ const Video = (() => {
       const factor = (looks.length && lookSpeed) || poiSlow ? curve(path, pres.vmax, false, looks, lookSpeed, poiSlow) : () => 1;
       for (let x = 0, k = 0; x < path.length;) {
         const speed = Math.min(speeds[Math.min(speeds.length - 1, Math.round(x))], pres.vmax * factor(x));
-        x = Math.min(path.length, x + Math.max(CREEP, speed) / FPS);
+        x = Math.min(path.length, x + Math.max(CREEP, speed, crossing(x)) / FPS);
         while (k < stops.length && stops[k] <= x) {  // arrêt : position tenue pres.stop s
           xs.push(x = Math.max(xs[xs.length - 1], stops[k++]));
           for (let h = 1; h < pres.stop * FPS; h++) xs.push(x);
@@ -185,7 +196,7 @@ const Video = (() => {
     if (ramp || (looks.length && lookSpeed) || poiSlow) {
       factor = curve(path, v, ramp, looks, lookSpeed, poiSlow);
     }
-    for (let x = 0; x < path.length;) xs.push(x = Math.min(path.length, x + v * factor(x) / FPS));
+    for (let x = 0; x < path.length;) xs.push(x = Math.min(path.length, x + Math.max(v * factor(x), crossing(x)) / FPS));
     for (let k = 0; k < HOLD * FPS; k++) xs.push(path.length);
     return xs;
   }
@@ -699,9 +710,15 @@ const Video = (() => {
   }
 
   /** Vitesse affichée par image de xs (km/h) : avancée d'une image à l'autre, lissée sur ± SPEED_SMOOTH images comme
-   * une aiguille (départ, arrêts), au centième. */
-  function speeds(xs) {
+   * une aiguille (départ, arrêts), au centième. Avec path : vitesse d'avant gardée entre les photos d'un raccord (traversé
+   * plus vite, SEAM_TIME). */
+  function speeds(xs, path = null) {
     const raw = xs.map((x, n) => (n ? (x - xs[n - 1]) * FPS * 3.6 : 0));
+    const across = (x) => {
+      const [i] = path.segment(x);
+      return path.list[i].collection !== path.list[Math.min(i + 1, path.list.length - 1)].collection;
+    };
+    if (path) for (let n = 1; n < raw.length; n++) if (across(xs[n])) raw[n] = raw[n - 1];
     return raw.map((_, n) => {
       const part = raw.slice(Math.max(0, n - SPEED_SMOOTH), n + SPEED_SMOOTH + 1);
       return Math.round(100 * part.reduce((a, b) => a + b, 0) / part.length) / 100;
@@ -958,7 +975,16 @@ const Video = (() => {
   /** Trajectoire : abscisses curvilignes des photos (doublons de position écartés), position et altitude à
    * l'abscisse s, cap lissé, pente de chaque photo. */
   function trajectory(photos) {
-    const list = photos.filter((p, i) => p.coords && (i === 0 || metres(photos[i - 1].coords || p.coords, p.coords) > 0.5));
+    const kept = photos.filter((p, i) => p.coords && (i === 0 || metres(photos[i - 1].coords || p.coords, p.coords) > 0.5));
+    // Raccord de deux séquences : dernière photo de la séquence quittée écartée (souvent déjà engagée là où cette séquence
+    // quitte le parcours : la vue semblait la suivre) si la suivante reste devant l'avant-dernière
+    const list = kept.filter((p, i) => {
+      const a = kept[i - 1], b = kept[i + 1];
+      if (!a || !b || a.collection !== p.collection || b.collection === p.collection) return true;
+      const k = Math.cos(a.coords[1] * toRad), ahead = (p.coords[0] - a.coords[0]) * k * (b.coords[0] - a.coords[0]) * k
+        + (p.coords[1] - a.coords[1]) * (b.coords[1] - a.coords[1]) > 0;
+      return !ahead;
+    });
     const s = [0];
     for (let i = 1; i < list.length; i++) s.push(s[i - 1] + metres(list[i - 1].coords, list[i].coords));
     const length = s[s.length - 1];
@@ -1513,7 +1539,7 @@ const Video = (() => {
     const turns = tours(path, timelineOf(path), tourPlaces, tourTime, tourStop);
     const xs = turns.xs;
     const pan = pans(path, xs, { junctions });
-    const kmhs = speedometer || lateral ? speeds(xs) : null;
+    const kmhs = speedometer || lateral ? speeds(xs, path) : null;
     // Accélération ressentie (|a / g - dévers|) et sa couleur, lissées sur ± STEADY images ; chiffres sans battement mais
     // extrêmes gardés : pic de l'accélération, creux de la vitesse max ARP (la plus basse sur 20 m)
     const devs = lateral ? smoothed(insideDevers(path, xs), STEADY) : null;
@@ -1625,10 +1651,16 @@ const Video = (() => {
           // Avancée : u·écart après la photo quittée, (1 - u)·écart avant la suivante ; vue k : 1 / (k + 1) de la
           // moyenne courante
           const gap = 0;  // fondu enchaîné, chaque photo vue de sa propre caméra (l'avancée dans une maquette faisait sauter le ciel et les côtés)
+          const joint = j !== i && path.list[i].collection !== path.list[j].collection;
+          const apart = joint ? Math.min(path.s[j] - path.s[i], SEAM_DEPTH / 2) : 0;  // (zoom borné : 2 au plus)
+          const zoomA = SEAM_DEPTH / (SEAM_DEPTH - u * apart);
+          // Zoom centré sur la direction de la photo suivante (point vers lequel on avance), pas sur le cap de la vue :
+          // sinon la vue semble prendre la route que suit la séquence quittée
+          const toward = joint ? wrap(bearing(path.list[i].coords, path.list[j].coords) - path.axis(xs)) * (1 - 1 / zoomA) : 0;
           gl.draw([
-            { ...a, yaw: yawAt(i, xs) * toRad, pitch: path.list[i].pitch, tilt: tilts[i], tan: view, move: u * gap, gain: gains[i] },
+            { ...a, yaw: (yawAt(i, xs) + toward) * toRad, pitch: path.list[i].pitch, tilt: tilts[i], tan: view / zoomA, move: u * gap, gain: gains[i] },
             { ...b, yaw: yawAt(j, xs) * toRad, pitch: path.list[j].pitch, tilt: tilts[j], tan: view, move: -(1 - u) * gap, gain: gains[j] },
-          ], j === i ? 0 : smooth(Math.min(1, Math.max(0, path.list[i].collection !== path.list[j].collection ? u  // raccord : fondu sur tout l'écart
+          ], j === i ? 0 : smooth(Math.min(1, Math.max(0, joint ? 1 - (1 - u) / Math.max(0.3, SEAM_FADE / (path.s[j] - path.s[i]))
             : (u - 0.25) / 0.5))), 1 / (k + 1), look, tilted,
           (aim.lift[n] - 90 * globe.mix[n]) * toRad, Math.min(1, 2 * globe.mix[n]));
         }
