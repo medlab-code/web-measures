@@ -1432,7 +1432,7 @@
 
   /** Photo la plus proche du point (lng, lat), qui passe le filtre ; avec un cap `heading`
    * (degrés), celle d'un véhicule roulant dans ce sens à 90° près, à défaut la plus proche. */
-  async function openNearest(lng, lat, heading = null) {
+  async function openNearest(lng, lat, heading = null, radius = null) {  // radius : voir Carte.photosNear
     showPhotoInfo(null, "Recherche de la photo la plus proche…");
     const sameWay = (feature) => {
       const azimuth = Number(feature.properties?.["view:azimuth"]);
@@ -1440,8 +1440,8 @@
     };
     try {
       const feature = (heading != null
-        ? await Carte.nearestPhoto(map, lng, lat, (f) => passesFilter(f) && sameWay(f)) : null)
-        || await Carte.nearestPhoto(map, lng, lat, passesFilter);
+        ? await Carte.nearestPhoto(map, lng, lat, (f) => passesFilter(f) && sameWay(f), radius) : null)
+        || await Carte.nearestPhoto(map, lng, lat, passesFilter, radius);
       if (!feature) {
         showPhotoInfo(null, !filterActive() ? "Aucune photo près de ce point : cliquez sur le filaire orange."
           : app ? `Aucune photo près de ce point avec le filtre (${app.filter_text()}).`
