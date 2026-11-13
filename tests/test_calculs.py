@@ -639,7 +639,7 @@ class Parcours(unittest.TestCase):
 
     def test_bandes_triangulees(self):
         """Passage piéton : coins des bandes (0,50 m, de 8 à 11 m devant la première, à 1,5 m au moins de l'axe des photos : dans l'axe, visées parallèles) triangulés depuis les deux
-        photos ; largeur de chaque bande au millimètre (diag-triangulation : même calcul sur de vraies photos)."""
+        photos ; largeur de chaque bande au millimètre."""
         self.app.set_mode("tri")
         corners = lambda: [f["geometry"]["coordinates"] for f in json.loads(self.app.map_geojson())["features"]
                            if f["properties"]["kind"] == "triangule"]
