@@ -745,8 +745,8 @@ class App(session.Session):
     # de la vue du dessus (pose « mount »), avant la hauteur lue entre photos, qui se joue à quelques cm du seuil entre les deux
     # montures, et sur un pont, où ni le sol LiDAR ni la lecture sans verticales ne la donnent (sinon 1,90 m par défaut : bandes
     # de passage piéton à 0,44 m au lieu de 0,50, f2a245d0 et 7dcdccf9, 13/11/2026). Hauteurs de src/dessus.js (MOUNTS) :
-    # basse lue du 28/05 au 23/06/2025, haute dès le 03/07. shortcut: limite du 01/07 prise entre les deux, à remplacer par les
-    # hauteurs mesurées sur les véhicules
+    # basse lue du 28/05 au 23/06/2025, haute dès le 03/07. shortcut: limite du 01/07 prise entre les deux (hauteurs
+    # et dates de montage non disponibles : prises de vue d'un prestataire)
     FLEET_MOUNTS = (("2025-01-01", "2025-07-01", 1.93), ("2025-07-01", "2026-01-01", 2.07))
     MOUNT_SIGMA = 0.04  # m : comme src/dessus.js (MOUNT_SIGMA)
 

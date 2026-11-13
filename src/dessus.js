@@ -865,7 +865,7 @@ const Dessus = (() => {
 
   /** Image dans le repère de la route (cap theta, rad) : rangées le long (a), colonnes en travers (s, vers la droite), sans le
    * fond (moyenne glissante sur 0,6 m en travers). */
-  function roadFrame(sample, theta) {
+  function roadFrame(sample, theta, raw = false) {  // raw : sans retirer le fond (bords de chaussée)
     const ua = [Math.sin(theta), Math.cos(theta)], us = [ua[1], -ua[0]], cols = Math.round(2 * SIDE / 0.02), rows = Math.round(2 * ALONG / GRID);
     const out = [];
     for (let r = 0; r < rows; r++) {
@@ -874,6 +874,7 @@ const Dessus = (() => {
         const s = -SIDE + (c + 0.5) * 0.02;
         row[c] = sample(a * ua[0] + s * us[0], a * ua[1] + s * us[1]);
       }
+      if (raw) { out.push(row); continue; }
       const base = smooth([...row], 15);
       out.push(row.map((v, c) => v - base[c]));
     }
@@ -923,6 +924,116 @@ const Dessus = (() => {
     const [a, b, c] = [scores[best - 1], scores[best], scores[best + 1]], dk = (a - c) / (2 * (a - 2 * b + c)) || 0;
     const ua = [Math.sin(theta), Math.cos(theta)];
     return { shift: (best - MAX + dk) * 0.02, us: [ua[1], -ua[0]], score: scores[best] };
+  }
+
+  // Tangage lu sur les lignes en long d'une photo seule ------------------------------------
+  // Une erreur de tangage δ change l'échelle de la vue en travers selon la distance le long : 1 + a δ / H (a : le long, devant
+  // positif). Deux lignes parallèles (rives, axe) s'y écartent devant et se resserrent derrière : la pente m de chaque ligne
+  // (s = p + m a + c a², s en travers) vaut q + κ p, q commun (cap, courbe), κ = δ / H. Environ 7 % d'écartement à 8 m pour
+  // 1° et 2 m de hauteur, contre 4,8 % par degré sur les raccords (learnPitch), et sans voisine. Le roulis change l'échelle
+  // en travers sans la faire varier le long : il ne se confond pas avec le tangage.
+  const LINE_BIN = 1, LINE_FAR = 10, LINE_GAP = 0.25, LINE_MIN = 3, LINE_FIT = 0.04;  // m : tranche, portée, écart de suivi ; tranches par ligne au moins ; écart admis à l'ajustement (m)
+  /** Positions en travers (m) des lignes claires d'un profil en travers (passe-haut, pas de 2 cm), au centre de gravité du pic. */
+  function linePeaks(profile) {
+    const top = percentile(profile, 0.98), out = [];
+    if (!(top > 60)) return out;  // pas de marquage net
+    const floor = Math.max(60, 0.4 * top);
+    for (let c = 2; c < profile.length - 2; c++) {
+      const v = profile[c];
+      if (!(v > floor) || !(v >= profile[c - 1]) || !(v > profile[c + 1])) continue;
+      let i = c, j = c;
+      while (i > 0 && profile[i - 1] > v / 2) i--;
+      while (j < profile.length - 1 && profile[j + 1] > v / 2) j++;
+      const width = (j - i + 1) * 0.02;
+      if (width < 0.06 || width > 0.45) continue;  // ni grain ni zone claire (bande de passage, tache)
+      let sum = 0, weight = 0;
+      for (let k = i; k <= j; k++) { sum += profile[k] * k; weight += profile[k]; }
+      out.push(sideOf(sum / weight));
+      c = j;
+    }
+    return out;
+  }
+  // Bords de chaussée (enrobé contre accotement, herbe, gravillons), sans peinture : marche de teinte du profil brut, médiane
+  // de la tranche, pente sur ±EDGE_HALF ; flous, mais nombreux le long d'une route (demande de l'auteur, 13/11/2026)
+  const EDGE_HALF = 5, EDGE_MIN = 40, EDGE_FIT = 0.06;  // colonnes de 2 cm ; marche minimale (somme RVB) ; écart admis (m)
+  /** Bords (m en travers, signe de la marche) d'un profil brut, loin des lignes peintes (paint : leurs positions). */
+  function lineEdges(profile, paint) {
+    const n = profile.length, p = smooth(profile, 3), g = p.map((_, c) => (c >= EDGE_HALF && c < n - EDGE_HALF ? p[c + EDGE_HALF] - p[c - EDGE_HALF] : NaN));
+    const strength = g.map(Math.abs), top = percentile(strength, 0.99), floor = Math.max(EDGE_MIN, 0.5 * top), out = [];
+    for (let c = EDGE_HALF + 1; c < n - EDGE_HALF - 1; c++) {
+      const v = strength[c];
+      if (!(v > floor) || !(v >= strength[c - 1]) || !(v > strength[c + 1])) continue;
+      const d = (strength[c - 1] - strength[c + 1]) / (2 * (strength[c - 1] - 2 * v + strength[c + 1])) || 0, s = sideOf(c + d);
+      if (!paint.some((x) => Math.abs(x - s) < 0.3)) out.push({ s, kind: Math.sign(g[c]) });
+      c += EDGE_HALF;
+    }
+    return out.sort((x, y) => strength[Math.round((y.s + SIDE) / 0.02)] - strength[Math.round((x.s + SIDE) / 0.02)]).slice(0, 4);
+  }
+  /** Tangage à ajouter à celui de la vue (degrés), lu sur ses lignes en long (sample : readView, theta : cap de la route en
+   * rad, height : hauteur de caméra) : { pitch, lines, spread (m entre les lignes extrêmes), rms (m) } ou null (moins de
+   * deux lignes vues devant et derrière). */
+  function linesPitch(sample, theta, height) {
+    const frame = roadFrame(sample, theta), rawFrame = roadFrame(sample, theta, true), per = Math.round(LINE_BIN / GRID), bins = [];
+    for (let r0 = 0; r0 + per <= frame.length; r0 += per) {
+      const a = alongOf(r0 + (per - 1) / 2);
+      if (Math.abs(a) - LINE_BIN / 2 < CAR_GAP || Math.abs(a) > LINE_FAR) continue;
+      const rows = frame.slice(r0, r0 + per), cols = rows[0].length;
+      const profile = smooth(Array.from({ length: cols }, (_, c) => percentile(rows.map((row) => row[c]), 0.75)), 1);
+      const paint = linePeaks(profile), raws = rawFrame.slice(r0, r0 + per);
+      const edges = lineEdges(Array.from({ length: cols }, (_, c) => percentile(raws.map((row) => row[c]), 0.5)), paint);
+      bins.push({ a, peaks: [...paint.map((s) => ({ s, kind: 0 })), ...edges] });
+    }
+    // suivi de chaque côté du véhicule, du plus près au plus loin (une ligne peut n'être vue que d'un côté)
+    const follow = (side) => {
+      const tracks = [];
+      for (const { a, peaks } of side) {
+        for (const { s, kind } of peaks) {  // kind : 0 ligne peinte, ±1 bord (sens de la marche) ; suivis chacun avec les siens
+          const guess = (t) => { const [p0, p1] = t.slice(-2); return p1 ? p1.s + (p1.s - p0.s) / (p1.a - p0.a) * (a - p1.a) : p0.s; };
+          const best = tracks.map((t) => ({ t, d: Math.abs(guess(t) - s) })).filter(({ t, d }) => t.kind === kind && d < LINE_GAP && t.at(-1).a !== a)
+            .sort((x, y) => x.d - y.d)[0];
+          if (best) best.t.push({ a, s }); else tracks.push(Object.assign([{ a, s }], { kind }));
+        }
+      }
+      return tracks.filter((t) => t.length >= LINE_MIN);
+    };
+    let lines = [...follow(bins.filter((b) => b.a > 0)), ...follow(bins.filter((b) => b.a < 0).reverse())];
+    // s_i(a) = p_i (1 + κ a) + q a + c a² : à κ donné, linéaire en p_i, q, c ; κ balayé (±3° pour 2 m), puis affiné
+    const fit = (set, kappa) => {
+      const n = set.length, X = [], y = [];
+      set.forEach((t, i) => t.forEach(({ a, s }) => {
+        const row = new Array(n + 2).fill(0);
+        row[i] = 1 + kappa * a; row[n] = a; row[n + 1] = a * a;
+        X.push(row); y.push(s);
+      }));
+      const x = leastSquares(X, y), res = X.map((row, k) => row.reduce((t, v, j) => t + v * x[j], 0) - y[k]);
+      return { p: x.slice(0, n), sse: res.reduce((t, v) => t + v * v, 0), res, count: X.length };
+    };
+    const search = (set) => {
+      let best = null;
+      for (let kappa = -0.026; kappa <= 0.026; kappa += 0.0005) {
+        const f = fit(set, kappa);
+        if (!best || f.sse < best.sse) best = { ...f, kappa };
+      }
+      for (let kappa = best.kappa - 0.0005; kappa <= best.kappa + 0.0005; kappa += 0.00005) {
+        const f = fit(set, kappa);
+        if (f.sse < best.sse) best = { ...f, kappa };
+      }
+      return best;
+    };
+    let best = null;
+    for (let pass = 0; pass < 4 && lines.length >= 2; pass++) {  // lignes qui ne s'accordent pas (bord flou, ombre) écartées
+      best = search(lines);
+      let k = 0;
+      const rms = lines.map((t) => Math.sqrt(t.reduce((sum) => sum + best.res[k++] ** 2, 0) / t.length));
+      const ratio = rms.map((v, i) => v / (lines[i].kind ? EDGE_FIT : LINE_FIT)), worst = ratio.indexOf(Math.max(...ratio));
+      if (ratio[worst] < 1) break;
+      lines = lines.filter((_, i) => i !== worst);
+      best = null;
+    }
+    if (!best || lines.length < 2) return null;
+    const spread = Math.max(...best.p) - Math.min(...best.p);
+    if (spread < 1.5) return null;  // lignes trop proches (ligne double) : κ mal déterminé
+    return { pitch: -Math.atan(best.kappa * height) / toRad, lines: lines.length, edges: lines.filter((t) => t.kind).length, spread, rms: Math.sqrt(best.sse / best.count) };
   }
 
   // Raccords entre photos, recalés par corrélation --------------------------------------------
@@ -1272,7 +1383,9 @@ const Dessus = (() => {
   // Roulis (part du dévers) et tangage ajouté (degrés), réglés à la main (options d'essai) et retenus par séquence dans le
   // navigateur : la fixation de la caméra ne change pas au cours d'une séquence (A38 du 09/10/2025 : même tangage à deux endroits)
   const DEFAULT_ROLL = 0.7, DEFAULT_PITCH = 0, SETTINGS_KEY = "web-measures/dessus-reglages";
-  let rollShare = DEFAULT_ROLL, pitchOffset = DEFAULT_PITCH, pitchManual = false;  // pitchManual : tangage réglé à la main
+  // pitchManual : tangage réglé à la main en usage (manualPitch : sa valeur, retenue par séquence) ; il ne sert qu'en dernier,
+  // faute de tangage lu (autoPitch), sauf « Forcer le réglage à la main » (pitchForced, demande de l'auteur, 13/11/2026)
+  let rollShare = DEFAULT_ROLL, pitchOffset = DEFAULT_PITCH, pitchManual = false, manualPitch, pitchForced = false;
   const readSettings = () => {
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch { return {}; }  // stockage absent ou illisible
   };
@@ -1301,22 +1414,37 @@ const Dessus = (() => {
   function keepSettings() {
     if (!shown) return;
     const all = readSettings();
-    if (rollShare === DEFAULT_ROLL && !pitchManual) delete all[shown.sequence];
-    else all[shown.sequence] = { roll: rollShare, ...(pitchManual ? { pitch: pitchOffset } : {}) };
+    if (rollShare === DEFAULT_ROLL && manualPitch === undefined && !pitchForced) delete all[shown.sequence];
+    else all[shown.sequence] = { roll: rollShare, ...(manualPitch !== undefined ? { pitch: manualPitch } : {}), ...(pitchForced ? { forced: true } : {}) };
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(all)); } catch { /* sans stockage : pour cette page seulement */ }
   }
-  /** Réglage retenu pour la séquence (ou par défaut ; tangage : à la main, sinon, avec « Véhicule masqué », celui de la photo
-   * lu sur ses raccords, sinon la médiane de la séquence), curseurs compris. */
+  /** Tangage lu pour la photo, du plus sûr au moins sûr : { pitch (degrés), text (barre d'état) } ou null. Avec « Véhicule
+   * masqué », celui de la photo lu sur ses raccords ; puis la médiane de la séquence lue sur les lignes (LINES_SEQUENCE photos
+   * au moins), celui de la photo lu sur ses lignes ; enfin, avec « Véhicule masqué », la médiane des raccords de la séquence. */
+  function autoPitch(sequence, pic) {
+    const own = neighboursOn ? photoPitch(sequence, pic) : undefined, lines = readLines()[sequence] || {}, values = Object.values(lines);
+    const joined = neighboursOn && sequencePitch(sequence), round = (v) => Math.round(v * 20) / 20;
+    if (own !== undefined) return { pitch: round(own), text: "lu sur les raccords de la photo" };
+    if (values.length >= LINES_SEQUENCE) return { pitch: round(median(values)), text: `de la séquence, lu sur ses lignes (${values.length} photos)` };
+    if (lines[pic] !== undefined) return { pitch: round(lines[pic]), text: "lu sur les lignes de la photo" };
+    if (joined) return { pitch: joined.pitch, text: `de la séquence, lu sur les raccords (${joined.count} photo${joined.count > 1 ? "s" : ""})` };
+    return null;
+  }
+  /** Réglage retenu pour la séquence (ou par défaut ; tangage : forcé à la main, sinon lu (autoPitch), sinon réglé à la main,
+   * sinon 0), curseurs compris. */
   function applySettings(sequence, pic) {
-    const kept = readSettings()[sequence], own = neighboursOn ? photoPitch(sequence, pic) : undefined, auto = neighboursOn && sequencePitch(sequence);
+    const kept = readSettings()[sequence], auto = autoPitch(sequence, pic);
     rollShare = kept?.roll ?? DEFAULT_ROLL;
-    pitchManual = kept?.pitch !== undefined;
-    pitchOffset = pitchManual ? kept.pitch : own !== undefined ? Math.round(own * 20) / 20 : auto ? auto.pitch : DEFAULT_PITCH;
+    manualPitch = kept?.pitch;
+    pitchForced = Boolean(kept?.forced);
+    pitchManual = manualPitch !== undefined && (pitchForced || !auto);
+    pitchOffset = pitchManual ? manualPitch : auto ? auto.pitch : DEFAULT_PITCH;
     $("#dessus-devers").value = Math.round(rollShare * 100);
     $("#dessus-devers-valeur").textContent = `${Math.round(rollShare * 100)} %`;
     showPitch();
   }
   const showPitch = () => {
+    $("#dessus-tangage-force").checked = pitchForced;
     $("#dessus-tangage").value = pitchOffset;
     $("#dessus-tangage-valeur").textContent = `${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°`;
   };
@@ -1331,6 +1459,37 @@ const Dessus = (() => {
   const readPitches = () => {
     try { return JSON.parse(localStorage.getItem(PITCHES_KEY)) || {}; } catch { return {}; }
   };
+  // Tangage lu sur les lignes et les bords de la route (linesPitch), absolu, par photo, gardé dans le navigateur ; lecture gardée
+  // si ses lignes extrêmes sont à LINES_SPREAD m au moins l'une de l'autre (D33 : lignes à moins de 5 m, lectures de -1 à
+  // +2° d'une photo à l'autre ; A38, RD 1074 : à 0,2° près des raccords). Médiane de la séquence dès LINES_SEQUENCE photos.
+  const LINES_KEY = "web-measures/dessus-tangages-lignes", LINES_SPREAD = 5, LINES_SEQUENCE = 3;
+  const readLines = () => {
+    try { return JSON.parse(localStorage.getItem(LINES_KEY)) || {}; } catch { return {}; }
+  };
+  /** Tangage de la photo affichée lu sur ses lignes (vue par la route seulement), retenu ; tangage lu refait (autoPitch) et
+   * vue refaite s'il change d'au moins PITCH_STEP (au plus PITCH_PASSES fois par photo). */
+  function learnLines() {
+    const mine = shown, [main] = readyLayers();
+    mine.linesAt = pitchOffset;  // lecture faite avec ce tangage
+    const view = readView({ ...main, fix: null, bend: null }, mine.terrain, main.pose);
+    const found = linesPitch(view, roadHeading(view, main.pose.heading), main.pose.height);
+    if (found && found.spread >= LINES_SPREAD && Math.abs(pitchOffset + found.pitch) <= PITCH_MAX) {
+      const all = readLines(), kept = all[mine.sequence] || {};
+      kept[mine.pic] = Math.round((pitchOffset + found.pitch) * 100) / 100;
+      const pics = Object.keys(kept);
+      if (pics.length > 60) delete kept[pics[0]];  // les plus anciennes d'abord
+      all[mine.sequence] = kept;
+      try { localStorage.setItem(LINES_KEY, JSON.stringify(all)); } catch { /* sans stockage : pour cette page seulement */ }
+    }
+    mine.linesFound = found;
+    const auto = pitchManual ? null : autoPitch(mine.sequence, mine.pic);
+    mine.linePasses = (mine.linePasses || 0) + 1;
+    if (auto && Math.abs(auto.pitch - pitchOffset) >= PITCH_STEP && mine.linePasses <= PITCH_PASSES) {
+      pitchOffset = auto.pitch;
+      showPitch();
+    }
+    return showImage();
+  }
   /** Tangage d'une photo lu sur ses propres raccords (degrés), ou undefined. */
   const photoPitch = (sequence, pic) => readPitches()[sequence]?.[pic];
   /** Tangage appliqué à une photo : réglé à la main, sinon celui de la photo affichée, sinon le sien (raccords), sinon celui
@@ -1457,10 +1616,17 @@ const Dessus = (() => {
     });
     const pitch = $("#dessus-tangage"), degrees = (v) => `${v > 0 ? "+" : ""}${number(Number(v), 1)}°`;
     pitch.addEventListener("input", () => { $("#dessus-tangage-valeur").textContent = degrees(pitch.value); });
-    pitch.addEventListener("change", () => {
-      pitchOffset = Number(pitch.value);
-      pitchManual = true;
+    pitch.addEventListener("change", () => {  // grisé tant qu'un tangage lu prime (voir showImage)
+      manualPitch = Number(pitch.value);
       keepSettings();
+      if (shown) applySettings(shown.sequence, shown.pic);
+      if (shown?.url) showImage();
+    });
+    $("#dessus-tangage-force").addEventListener("change", (event) => {
+      pitchForced = event.target.checked;
+      if (pitchForced && manualPitch === undefined) manualPitch = pitchOffset;  // part du tangage lu
+      keepSettings();
+      if (shown) applySettings(shown.sequence, shown.pic);
       if (shown?.url) showImage();
     });
     const share = $("#dessus-devers");
@@ -1584,7 +1750,7 @@ const Dessus = (() => {
   // la route (verticales et route concordent au cm près là où les deux existent). Depuis le 13/11/2026, la monture vient
   // d'abord de la date de prise de vue (pose.mount, App.FLEET_MOUNTS) : la hauteur lue se joue à quelques cm du seuil de
   // 2,00 m (f2a245d0, 07/07/2025 : 2,03 ou 1,98 m selon le terrain) ; lue entre photos seulement hors campagne connue.
-  // shortcut: hauteurs à remplacer par celles mesurées sur les véhicules (campagne suivante)
+  // Hauteurs mesurées sur les véhicules : non disponibles (prises de vue faites par un prestataire), piste abandonnée le 13/11/2026
   const MOUNTS = [1.93, 2.07], MOUNT_SIGMA = 0.04;  // mêmes hauteurs par date : App.FLEET_MOUNTS (py/web_app.py)
   const mountOf = (h) => MOUNTS.reduce((a, b) => (Math.abs(b - h) < Math.abs(a - h) ? b : a));
   let drawing = 0;  // dernier dessin demandé : l'image d'un dessin dépassé est jetée
@@ -1593,7 +1759,8 @@ const Dessus = (() => {
     shown.joinKeyNow = joinKey();  // recalage des raccords valable pour ces réglages seulement
     const layers = readyLayers(), pose = shown.pose, mine = ++drawing, axis = roadAxis(layers);
     // roulis et tangage : seulement pour l'inclinaison tirée de la route (pas de verticales lues, terrain LiDAR)
-    $("#dessus-devers").disabled = $("#dessus-tangage").disabled = !layers[0].pose.groundTilt;
+    $("#dessus-devers").disabled = $("#dessus-tangage-force").disabled = !layers[0].pose.groundTilt;
+    $("#dessus-tangage").disabled = !layers[0].pose.groundTilt || (!pitchForced && Boolean(autoPitch(shown.sequence, shown.pic)));  // tangage lu : il prime
     $("#dessus-verticales").disabled = !(pose.up && shown.terrain);  // verticales lues, route pour les remplacer
     // découpée à ±8 m de l'axe de la route (BEST.wide), bords parallèles à la route : rien de plus loin de la route ; fondue
     // aux raccords avec les voisines (« Véhicule masqué »)
@@ -1614,12 +1781,13 @@ const Dessus = (() => {
     if (old) setTimeout(() => URL.revokeObjectURL(old), 5000);
     const place = onLidar(shown) ? "Terrain LiDAR HD" : `Sol supposé plat (${pose.bridge ? "pont à proximité, tablier horizontal" : shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
     const parallax = neighboursOn ? shown.height : null;
-    const own = !pitchManual && pitchOffset && neighboursOn ? photoPitch(shown.sequence, shown.pic) : undefined;
-    const auto = !pitchManual && pitchOffset && neighboursOn && own === undefined ? sequencePitch(shown.sequence) : null;
-    const tilt = pose.pending ? "inclinaison en calcul" : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${layers[0].pose.roll_defect ? `, ${number(layers[0].pose.roll_defect, 1)}° de défaut de la caméra (campagne)` : ""}${LEAN * (shown.lateral || 0) >= 0.5 ? `, virage : véhicule penché jusqu'à ${number(LEAN * shown.lateral, 1)}°` : ""}${pitchOffset || pitchManual ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? " réglé à la main" : own !== undefined ? " lu sur les raccords de la photo" : auto ? ` de la séquence, lu sur les raccords (${auto.count} photo${auto.count > 1 ? "s" : ""})` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
+    const auto = pitchManual ? null : autoPitch(shown.sequence, shown.pic);
+    const linesPending = !pitchManual && !pose.pending && layers[0].pose.groundTilt && shown.linesAt !== pitchOffset && (shown.linePasses || 0) <= PITCH_PASSES;
+    const tilt = pose.pending ? "inclinaison en calcul" : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${layers[0].pose.roll_defect ? `, ${number(layers[0].pose.roll_defect, 1)}° de défaut de la caméra (campagne)` : ""}${LEAN * (shown.lateral || 0) >= 0.5 ? `, virage : véhicule penché jusqu'à ${number(LEAN * shown.lateral, 1)}°` : ""}${pitchOffset || pitchManual || auto ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? ` réglé à la main${pitchForced ? " (forcé)" : ""}` : auto ? ` ${auto.text}` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain || !neighboursOn ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
-    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.pose.fleet && shown.pose.mount ? ` (monture ${shown.pose.mount === MOUNTS[0] ? "basse" : "haute"} d'après la date${parallax ? `, lue entre photos : ${number(parallax, 2)} m` : ""})` : parallax && shown.pose.fleet ? ` (monture ${mountOf(parallax) === MOUNTS[0] ? "basse" : "haute"}, lue entre photos : ${number(parallax, 2)} m)` : parallax ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : neighboursOn && outlines.get(shown.sequence) === "reading" ? " ; contour du véhicule en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
-    if (positionOn && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
+    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.pose.fleet && shown.pose.mount ? ` (monture ${shown.pose.mount === MOUNTS[0] ? "basse" : "haute"} d'après la date${parallax ? `, lue entre photos : ${number(parallax, 2)} m` : ""})` : parallax && shown.pose.fleet ? ` (monture ${mountOf(parallax) === MOUNTS[0] ? "basse" : "haute"}, lue entre photos : ${number(parallax, 2)} m)` : parallax ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${linesPending ? " ; tangage en cours…" : shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : neighboursOn && outlines.get(shown.sequence) === "reading" ? " ; contour du véhicule en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
+    if (linesPending) learnLines();
+    else if (positionOn && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
     else if (!busy() && neighboursOn && !shown.estimated) measureHeight();
     else if (!busy() && neighboursOn && layers.length > 1 && shown.joins?.key !== shown.joinKeyNow) alignJoins();
   }
@@ -1829,5 +1997,5 @@ const Dessus = (() => {
     }
   }
 
-  return { setup, update, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins, outline: outlines.get(shown.sequence), locatedWith: shown.locatedWith }, view, hidden, uncertainty, measureError, shownError, groundUp, roadAxis, sourceOf, toLonLat, estimateHeight, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, REACH, SIZE };
+  return { setup, update, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins, outline: outlines.get(shown.sequence), locatedWith: shown.locatedWith }, view, hidden, uncertainty, measureError, shownError, groundUp, roadAxis, sourceOf, toLonLat, estimateHeight, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, linesPitch, REACH, SIZE };
 })();

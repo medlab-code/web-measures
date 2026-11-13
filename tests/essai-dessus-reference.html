@@ -87,17 +87,18 @@ async function open(id, enough = () => false) {
     await expect(`${name} : prête dans le délai`, !shown.late);
     await expect(`${name} : terrain LiDAR HD`, Boolean(now.terrain));
     await expect(`${name} : inclinaison connue`, Boolean(pose.up));
-    await expect(`${name} : roulis et tangage grisés sauf inclinaison par la route`, w.document.querySelector("#dessus-tangage").disabled === !pose.groundTilt
+    await expect(`${name} : roulis et forçage du tangage grisés sauf inclinaison par la route`, w.document.querySelector("#dessus-tangage-force").disabled === !pose.groundTilt
       && w.document.querySelector("#dessus-devers").disabled === !pose.groundTilt, pose.groundTilt ? "route" : "verticales");
+    if (pose.groundTilt && / lu (sur|de)/.test(state)) await expect(`${name} : tangage lu, curseur grisé (réglage à la main en dernier)`, w.document.querySelector("#dessus-tangage").disabled);
     // Calage par les verticales coché d'office en zone d'habitation seulement (ville : Pouilly-en-Auxois ; village ; A38 : rase campagne)
     const town = name === "ville" || name === "village", box = w.document.querySelector("#dessus-verticales");
     await expect(`${name} : ${town ? "en ville, calage par les verticales" : "hors agglomération, inclinaison par la route"}`, box.checked === town && !pose.groundTilt === town);
     if (!box.disabled) {  // verticales lues : l'autre calage à la main, puis retour
       box.click();
-      for (let t = 0; t < 20 && w.document.querySelector("#dessus-tangage").disabled === town; t++) await sleep(250);
-      await expect(`${name} : interrupteur changé à la main`, Boolean(Dessus.layersNow().layers[0].pose.groundTilt) === town && w.document.querySelector("#dessus-tangage").disabled === !town);
+      for (let t = 0; t < 20 && w.document.querySelector("#dessus-tangage-force").disabled === town; t++) await sleep(250);
+      await expect(`${name} : interrupteur changé à la main`, Boolean(Dessus.layersNow().layers[0].pose.groundTilt) === town && w.document.querySelector("#dessus-tangage-force").disabled === !town);
       box.click();
-      for (let t = 0; t < 20 && w.document.querySelector("#dessus-tangage").disabled !== town; t++) await sleep(250);
+      for (let t = 0; t < 20 && w.document.querySelector("#dessus-tangage-force").disabled !== town; t++) await sleep(250);
     }
     // Hauteur retenue = monture CD21 (1,93 / 2,07 m) depuis 8d4c497. Écart connu sur la RD 1074 (séquence du 07/07/2025) : lecture
     // entre photos à 2,15-2,19 m alors que le véhicule est vu comme sur la monture haute du 03/07 (analyse du 12/11/2026, tangage

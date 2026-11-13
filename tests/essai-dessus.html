@@ -185,6 +185,16 @@ function centre(pixels, line, around) {
     Dessus.sourceOf([0, 0], ringLayers).pose !== ring[0].pose && Dessus.sourceOf([0, 3], ringLayers).pose === ring[0].pose);
   await expect("sans terrain : pas de mesure", Dessus.estimateHeight({ pano: pano0, pose: p0 }, [{ pano: pano1, pose: p1 }], null) === null);
   await expect("sans inclinaison : pas de mesure", Dessus.estimateHeight({ pano: pano0, pose: { ...p0, up: null } }, [{ pano: pano1, pose: p1 }], terrain) === null);
+  // Tangage lu sur les lignes en long (linesPitch) : route au cap 0, traits en long à -3, 0,8 et 2,5 m ; vue dessinée avec un
+  // tangage faussé de δ (verticale penchée vers l'avant, comme groundUp) : la correction trouvée doit valoir -δ
+  const north = { ...pose, heading: 0, offset: 0 }, panoN = Dessus.panoTexture(await Dessus.loadPano({ image: URL.createObjectURL(await panorama(north, 4096)), cols: 1, rows: 1 }, 8192));
+  for (const delta of [0, 1, -1]) {
+    const [ux, uy, uz] = north.up, tilted = unit(ux / uz, uy / uz + Math.tan(delta * toRad));
+    const view = Dessus.readView({ pano: panoN, pose: { ...north, up: tilted } }, terrain, north);
+    const found = Dessus.linesPitch(view, 0, north.height);
+    await expect(`tangage faussé de ${delta}° : correction ${-delta}° lue sur les lignes (±0,15°)`, found && Math.abs(found.pitch + delta) < 0.15,
+      found ? `${found.pitch.toFixed(2)}°, ${found.lines} lignes sur ${found.spread.toFixed(1)} m` : "aucune");
+  }
   await fin();
 })().catch(async (error) => { await log("ERREUR " + error); });
 </script>

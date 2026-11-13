@@ -211,7 +211,7 @@ function measure(Dessus, site) {
     tag = id.slice(0, 8);
     if (!w) { log(`${tag} : vue indisponible`); continue; }
     try {
-      if (CHOSEN) log(`${tag} état : ${w.document.querySelector("#dessus-etat").textContent.replace(/\s+/g, " ")}`);
+      log(`${tag} état : ${w.document.querySelector("#dessus-etat").textContent.replace(/\s+/g, " ")}`);
       const Dessus = w.eval("Dessus"), box = w.document.querySelector("#dessus-verticales");
       const modes = [Dessus.layersNow().layers[0].pose.groundTilt ? "route" : "verticales"];
       if (box && !box.disabled) modes.push(modes[0] === "route" ? "verticales" : "route");
@@ -223,6 +223,7 @@ function measure(Dessus, site) {
           times["bascule"] = Date.now() - t1;
           if (!done) { log(`${tag} : calage par ${mode === "route" ? "la route" : "les verticales"} non obtenu`); continue; }
         }
+        if (mode === "route" && mode !== modes[0]) log(`${tag} état route : ${w.document.querySelector("#dessus-etat").textContent.replace(/\s+/g, " ")}`);
         const t1 = Date.now(), m = measure(Dessus, site);
         times[mode] = Date.now() - t1;
         if (/captures/.test(location.hash) && lastImage) await capture(lastImage.img, mode + "-" + lastImage.name).catch((e) => log("capture : " + e));
