@@ -6,9 +6,11 @@
 # chacune sa durée et son bilan.
 #
 #   tools/essais.sh rapide        # sans réseau, quelques secondes : pendant la mise au point
-#   tools/essais.sh birdeye       # vue du dessus : synthèse et 3 photos de référence (environ 1 min 30)
+#   tools/essais.sh birdeye       # vue du dessus : synthèse, 3 photos de référence, 6 passages piétons (environ 3 min 30)
 #   tools/essais.sh complet       # toutes les pages automatiques hors vidéo : avant une fusion ou une publication
 #                                 (vue du dessus : 3 photos de référence ; les 7 : tools/essais.sh essai-dessus-reference)
+#   tools/essais.sh passages      # vue du dessus sur 17 passages piétons de l'auteur (environ 6 min) : avant une
+#                                 fusion qui touche l'inclinaison, la hauteur ou l'incertitude de la vue du dessus
 #   tools/essais.sh video         # pages de la vidéo (longues) : seulement si l'auteur le demande
 #   tools/essais.sh essai-ponts essai-dessus-reference#rapide   # pages choisies (#… : passé à la page)
 #
@@ -22,9 +24,10 @@
 # serveur est attendu par son numéro de processus (chercher son nom trouverait aussi la commande qui l'attend).
 
 RAPIDE="essai-dessus essai-profil"
-BIRDEYE="essai-dessus essai-dessus-reference#rapide"
+BIRDEYE="essai-dessus essai-dessus-reference#rapide essai-passages#rapide"
 COMPLET="$RAPIDE navigateur essai-rtk essai-largeur essai-libre essai-releve inclinaison-terrain
   essai-calage essai-profil-pdf essai-cadastre essai-cache essai-ponts essai-bords essai-nuage essai-dessus-reference#rapide"
+PASSAGES="essai-passages"
 VIDEO="essai-avancement-video essai-video essai-boucle essai-chassagne essai-format-video"
 PORT=8766 DELAI=900  # secondes au plus par page
 # Vrai processeur graphique (Vulkan) : WebGL environ 1,5 fois plus rapide qu'en logiciel (SwiftShader), mêmes résultats
@@ -37,6 +40,7 @@ case "${1:-rapide}" in
   complet) pages=$COMPLET ;;
   video) pages=$VIDEO ;;
   birdeye) pages=$BIRDEYE ;;
+  passages) pages=$PASSAGES ;;
   *) pages="$*" ;;
 esac
 cache=${XDG_CACHE_HOME:-$HOME/.cache}/web-measures-essais

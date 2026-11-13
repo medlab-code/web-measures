@@ -439,6 +439,7 @@ class App(session.Session):
         self.terrain_relay = False
         self.relay_tilts = {}  # photo -> inclinaison par le terrain (dict comme Calibration.auto_tilt)
         self.birdeye_items, self.birdeye_checks = [], (autotilt.TiltChecker(), autotilt.TiltChecker())  # voir birdeye_neighbours
+        self.birdeye_far_items = []  # voir birdeye_far
         self.relay_pending = {}  # photo -> étape du calcul en cours
         self.relay_failed = {}  # photo -> raison de l'échec
         self.relay_models = {}  # séquence -> références, modèle (web_terrain.model), raison d'un échec
@@ -683,6 +684,12 @@ class App(session.Session):
             checker.check(item, self.calibration, lambda pic=pic, before=before: self._birdeye_tilt_done(pic, before))
             self._birdeye_relook(item)
 
+    def birdeye_far(self, items_json):
+        """Photos à deux pas de la vue du dessus (fiches STAC, avant la précédente et après la suivante) : leur raccord à
+        la photo affichée sert seulement à lire le tangage (src/dessus.js, learnPitch), inclinées par la route, sans
+        inclinaison lancée pour elles."""
+        self.birdeye_far_items = json.loads(items_json)
+
     def _birdeye_of(self, item, pending):
         """Pose d'une photo pour la vue du dessus (voir birdeye_pose), ou None sans position, sans
         cap ou hors 360°."""
@@ -706,14 +713,15 @@ class App(session.Session):
                 "pending": pending(pic), "height": self._camera_height(),
                 "height_sigma": max(q.get("spread") or 0, 0.05) if verified else cam["sigma"] if cam else 0.3,
                 "relative_sigma": 0.05 if verified else 0.3,  # position d'une photo à sa voisine (trajectoire)
-                "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or [])}
+                "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []),
+                "roll_defect": self._roll_defect(item), "mount": self._fleet_mount(item)}
 
     def birdeye_pose(self):
         """Pose de la photo affichée pour la vue du dessus (src/dessus.js), en JSON : position
         (recalée si la séquence l'est), cap du centre de l'image, correction de cap de la séquence
         (degrés), verticale vraie vue de la caméra (None sans calage) et son incertitude (degrés),
         hauteur de caméra, son incertitude et celle de la position relative entre photos voisines (m) ;
-        neighbours : les poses des photos voisines ; bridge : pont à portée de la vue (None en lecture),
+        neighbours : les poses des photos voisines ; far : celles à deux pas (birdeye_far) ; bridge : pont à portée de la vue (None en lecture),
         la vue se passe alors du terrain LiDAR et la hauteur de caméra ne vient pas du sol LiDAR. null si la
         photo ne convient pas."""
         pose = self._birdeye_of(self.item, self.tilts.pending) if self.item else None
@@ -723,14 +731,47 @@ class App(session.Session):
                             for item, checker in zip(self.birdeye_items, self.birdeye_checks)) if p]
         bridge = self._near_bridge(pose["lon"], pose["lat"])
         if bridge:  # altitude RTK moins sol LiDAR : le sol sous le pont, ou la brèche sous la photo
-            cam = self.calibration.camera(self.item.get("collection"))
-            height = {"height": cam["height"] if cam else self.tool.camera_height, "height_sigma": cam["sigma"] if cam else 0.3}
+            cam, mount = self.calibration.camera(self.item.get("collection")), self._fleet_mount(self.item)
+            height = ({"height": cam["height"], "height_sigma": cam["sigma"]} if cam
+                      else {"height": mount, "height_sigma": self.MOUNT_SIGMA} if mount
+                      else {"height": self.tool.camera_height, "height_sigma": 0.3})
             pose.update(height)
             near = [dict(p, **height) for p in near]
-        return json.dumps(dict(pose, neighbours=near, bridge=bridge))
+        far = [p for p in (self._birdeye_of(item, lambda pic: False) for item in self.birdeye_far_items) if p]
+        if bridge:
+            far = [dict(p, **height) for p in far]
+        return json.dumps(dict(pose, neighbours=near, far=far, bridge=bridge))
 
     BIRDEYE_BRIDGE = 20.0  # m : portée de la vue (15 m) et un peu plus
     FLEET_PRODUCER = "8f943f10-a781-4e03-a18c-de035be6f6f8"  # CD21 : imajbox sur Clio 5, deux montures (voir src/dessus.js, MOUNTS)
+    # Défaut de roulis de la caméra par rapport à la route, par producteur et campagne de prise de vue : (producteur, premier
+    # jour, jour de fin exclu, degrés ajoutés au roulis tiré du dévers, signe de groundUp dans src/dessus.js). Seulement pour
+    # l'inclinaison par la route de la vue du dessus ; à mesurer pour chaque campagne ou producteur, sur des passages piétons
+    # (docs/BIRDEYE.md § 4.1). CD21, campagne 2025 (tests/passages-pietons.js, 13/11/2026) : roulis restant de +0,98° en
+    # médiane sur 23 vues, sans lien avec le dévers ni avec la monture, nul avec les verticales ; -1° le ramène près de 0.
+    ROLL_DEFECTS = ((FLEET_PRODUCER, "2025-01-01", "2026-01-01", -1.0),)
+
+    # Monture de la caméra du CD21 par date de prise de vue (premier jour, jour de fin exclu, hauteur en m) : hauteur de caméra
+    # de la vue du dessus (pose « mount »), avant la hauteur lue entre photos, qui se joue à quelques cm du seuil entre les deux
+    # montures, et sur un pont, où ni le sol LiDAR ni la lecture sans verticales ne la donnent (sinon 1,90 m par défaut : bandes
+    # de passage piéton à 0,44 m au lieu de 0,50, f2a245d0 et 7dcdccf9, 13/11/2026). Hauteurs de src/dessus.js (MOUNTS) :
+    # basse lue du 28/05 au 23/06/2025, haute dès le 03/07. shortcut: limite du 01/07 prise entre les deux (hauteurs
+    # et dates de montage non disponibles : prises de vue d'un prestataire)
+    FLEET_MOUNTS = (("2025-01-01", "2025-07-01", 1.93), ("2025-07-01", "2026-01-01", 2.07))
+    MOUNT_SIGMA = 0.04  # m : comme src/dessus.js (MOUNT_SIGMA)
+
+    def _fleet_mount(self, item):
+        """Hauteur de la monture du CD21 (FLEET_MOUNTS) à la date de prise de vue de la photo, ou None."""
+        date = str((item.get("properties") or {}).get("datetime") or "")[:10]
+        if not any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []):
+            return None
+        return next((h for first, end, h in self.FLEET_MOUNTS if first <= date < end), None)
+
+    def _roll_defect(self, item):
+        """Défaut de roulis (degrés, ROLL_DEFECTS) du producteur de la photo à sa date de prise de vue, ou 0."""
+        date = str((item.get("properties") or {}).get("datetime") or "")[:10]
+        producers = {p.get("id") for p in item.get("providers") or []}
+        return next((roll for who, first, end, roll in self.ROLL_DEFECTS if who in producers and first <= date < end), 0.0)
 
     def _near_bridge(self, lon, lat):
         """Tronçon BD TOPO en pont à moins de BIRDEYE_BRIDGE m de la photo, dessus ou dessous : le MNT LiDAR

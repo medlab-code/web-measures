@@ -165,8 +165,13 @@ const Carte = (() => {
           { id: "pcrs", type: "raster", source: "pcrs", minzoom: 15, layout: { visibility: "none" } },
           { id: "mnh", type: "raster", source: "mnh", layout: { visibility: "none" } },
           { id: "osm", type: "raster", source: "osm", layout: { visibility: "none" } },
-          // Cadastre, sur le fond et sous le filaire (couleurs du Parcellaire Express de l'IGN) : bâtiments, limites des
-          // parcelles et des feuilles, feuilles mal raccordées (limites peut-être décalées) teintées
+          // Cadastre, sur le fond et sous le filaire (couleurs du Parcellaire Express de l'IGN) : parcelles numérotées teintées (le
+          // domaine public, voirie et cours d'eau, n'en a pas : sans teinte), bâtiments, limites des parcelles et des feuilles,
+          // feuilles mal raccordées (limites peut-être décalées) cernées de tirets
+          {
+            id: "cadastre-parcelles", type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
+            paint: { "fill-color": "#ff8000", "fill-opacity": 0.12 },
+          },
           {
             id: "cadastre-batiments", type: "fill", source: "cadastre", "source-layer": "batiment", layout: { visibility: "none" },
             paint: { "fill-color": "#c17d73", "fill-opacity": 0.45, "fill-outline-color": "#b580ff" },
@@ -180,8 +185,8 @@ const Carte = (() => {
             paint: { "line-color": "#808080", "line-width": ["interpolate", ["linear"], ["zoom"], 15, 1, 18, 2.5] },
           },
           {
-            id: "cadastre-decale", type: "fill", source: "cadastre-decale", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
-            paint: { "fill-color": "#ffa000", "fill-opacity": 0.15, "fill-outline-color": "#ffa000" },
+            id: "cadastre-decale", type: "line", source: "cadastre-decale", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
+            paint: { "line-color": "#c62828", "line-width": 2, "line-dasharray": [3, 2] },
           },
           // Filaire des voies, sous les limites administratives : voies sans numéro de la BD TOPO
           // (sentiers, escaliers et bacs exclus), puis routes numérotées du Plan IGN
@@ -747,7 +752,7 @@ const Carte = (() => {
     cadastreOn = on;
     // pas whenLoaded (voir setMilestones) : « load » peut être passé alors que le style se dit « pas chargé »
     const apply = () => {
-      for (const id of ["cadastre", "cadastre-batiments", "cadastre-feuilles", "cadastre-decale", "cadastre-bornes", "cadastre-sections"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+      for (const id of ["cadastre-parcelles", "cadastre", "cadastre-batiments", "cadastre-feuilles", "cadastre-decale", "cadastre-bornes", "cadastre-sections"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
       if (!cadastreFollow) {
         cadastreFollow = true;
         map.on("moveend", () => {
@@ -1134,6 +1139,81 @@ const Carte = (() => {
     }
   }
 
+  /** Image de la carte telle qu'affichée (vue Bird Eye, traits des mesures, tracé en cours), avec par-dessus ce que la carte
+   * pose en HTML : étiquettes des mesures et longueur en cours (à leur place, couleur, police et inclinaison), échelle et
+   * attribution des sources. Promesse d'un PNG (Blob). */
+  async function capture(map) {
+    const canvas = map.getCanvas(), container = map.getContainer(), box = container.getBoundingClientRect();
+    // tampon WebGL lu pendant un rendu (sinon vide)
+    const out = await new Promise((resolve) => {
+      map.once("render", () => {
+        const copy = Object.assign(document.createElement("canvas"), { width: canvas.width, height: canvas.height });
+        copy.getContext("2d").drawImage(canvas, 0, 0);
+        resolve(copy);
+      });
+      map.triggerRepaint();
+    });
+    const g = out.getContext("2d"), k = canvas.width / container.clientWidth;
+    const angleOf = (el) => {  // inclinaison cumulée (setRotation des marqueurs, transform CSS)
+      let angle = 0;
+      for (let e = el; e && e !== container; e = e.parentElement) {
+        const t = getComputedStyle(e).transform;
+        if (t && t !== "none") { const m = new DOMMatrix(t); angle += Math.atan2(m.b, m.a); }
+      }
+      return angle;
+    };
+    const draw = (el, text = el.textContent) => {
+      const st = getComputedStyle(el), r = el.getBoundingClientRect();
+      if (!text || st.display === "none" || st.visibility === "hidden" || !r.width) return;
+      if (r.right < box.left || r.left > box.right || r.bottom < box.top || r.top > box.bottom) return;
+      const w = el.offsetWidth * k, h = el.offsetHeight * k;
+      g.save();
+      g.translate(((r.left + r.right) / 2 - box.left) * k, ((r.top + r.bottom) / 2 - box.top) * k);
+      g.rotate(angleOf(el));
+      g.fillStyle = st.backgroundColor;
+      g.beginPath();
+      g.roundRect(-w / 2, -h / 2, w, h, (parseFloat(st.borderTopLeftRadius) || 0) * k);
+      g.fill();
+      g.fillStyle = st.color;
+      g.font = `${st.fontStyle} ${st.fontWeight} ${parseFloat(st.fontSize) * k}px ${st.fontFamily}`;
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.fillText(text, 0, 0);
+      g.restore();
+    };
+    container.querySelectorAll(".maplibregl-marker .etiquette, .maplibregl-marker.etiquette, .dessus-etiquette").forEach((el) => draw(el));
+    // échelle : trait encadré et sa longueur, comme MapLibre
+    const scale = container.querySelector(".maplibregl-ctrl-scale");
+    if (scale) {
+      const r = scale.getBoundingClientRect(), x = (r.left - box.left) * k, y = (r.top - box.top) * k, w = r.width * k, h = r.height * k;
+      g.fillStyle = "rgba(255, 255, 255, 0.75)";
+      g.fillRect(x, y, w, h);
+      g.strokeStyle = "#333";
+      g.lineWidth = 2 * k;
+      g.beginPath();
+      g.moveTo(x, y); g.lineTo(x, y + h); g.lineTo(x + w, y + h); g.lineTo(x + w, y);
+      g.stroke();
+      g.fillStyle = "#333";
+      g.font = `${10 * k}px sans-serif`;
+      g.textAlign = "left";
+      g.textBaseline = "middle";
+      g.fillText(scale.textContent, x + 4 * k, y + h / 2);
+    }
+    // sources (licences) : en bas à droite
+    const credit = (container.querySelector(".maplibregl-ctrl-attrib-inner")?.textContent || "").trim();
+    if (credit) {
+      g.font = `${11 * k}px sans-serif`;
+      const pad = 4 * k, tw = g.measureText(credit).width;
+      g.fillStyle = "rgba(255, 255, 255, 0.8)";
+      g.fillRect(out.width - tw - 2 * pad, out.height - 16 * k, tw + 2 * pad, 16 * k);
+      g.fillStyle = "#333";
+      g.textAlign = "right";
+      g.textBaseline = "middle";
+      g.fillText(credit, out.width - pad, out.height - 8 * k);
+    }
+    return new Promise((resolve) => out.toBlob(resolve, "image/png"));
+  }
+
   // Poignées : points des mesures à glisser pour les recaler.
   // Recréées seulement quand elles changent, et jamais pendant un glisser (le marqueur saisi
   // disparaîtrait avec le recalage en cours).
@@ -1301,6 +1381,6 @@ const Carte = (() => {
 
   return {
     PANORAMAX_API: META_API, GEOPF, OSM_TILES, createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, pcrsAt, instances, setInstance, setFilter,
-    showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre, nearestPhoto, photosNear, photoById, metresBetween, apiUrl: () => apiUrl,
+    showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre, capture, nearestPhoto, photosNear, photoById, metresBetween, apiUrl: () => apiUrl,
   };
 })();

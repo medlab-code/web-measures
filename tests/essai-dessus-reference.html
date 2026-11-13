@@ -87,23 +87,25 @@ async function open(id, enough = () => false) {
     await expect(`${name} : prête dans le délai`, !shown.late);
     await expect(`${name} : terrain LiDAR HD`, Boolean(now.terrain));
     await expect(`${name} : inclinaison connue`, Boolean(pose.up));
-    await expect(`${name} : roulis et tangage grisés sauf inclinaison par la route`, w.document.querySelector("#dessus-tangage").disabled === !pose.groundTilt
+    await expect(`${name} : roulis et forçage du tangage grisés sauf inclinaison par la route`, w.document.querySelector("#dessus-tangage-force").disabled === !pose.groundTilt
       && w.document.querySelector("#dessus-devers").disabled === !pose.groundTilt, pose.groundTilt ? "route" : "verticales");
+    if (pose.groundTilt && / lu (sur|de)/.test(state)) await expect(`${name} : tangage lu, curseur grisé (réglage à la main en dernier)`, w.document.querySelector("#dessus-tangage").disabled);
     // Calage par les verticales coché d'office en zone d'habitation seulement (ville : Pouilly-en-Auxois ; village ; A38 : rase campagne)
     const town = name === "ville" || name === "village", box = w.document.querySelector("#dessus-verticales");
     await expect(`${name} : ${town ? "en ville, calage par les verticales" : "hors agglomération, inclinaison par la route"}`, box.checked === town && !pose.groundTilt === town);
     if (!box.disabled) {  // verticales lues : l'autre calage à la main, puis retour
       box.click();
-      for (let t = 0; t < 20 && w.document.querySelector("#dessus-tangage").disabled === town; t++) await sleep(250);
-      await expect(`${name} : interrupteur changé à la main`, Boolean(Dessus.layersNow().layers[0].pose.groundTilt) === town && w.document.querySelector("#dessus-tangage").disabled === !town);
+      for (let t = 0; t < 20 && w.document.querySelector("#dessus-tangage-force").disabled === town; t++) await sleep(250);
+      await expect(`${name} : interrupteur changé à la main`, Boolean(Dessus.layersNow().layers[0].pose.groundTilt) === town && w.document.querySelector("#dessus-tangage-force").disabled === !town);
       box.click();
-      for (let t = 0; t < 20 && w.document.querySelector("#dessus-tangage").disabled !== town; t++) await sleep(250);
+      for (let t = 0; t < 20 && w.document.querySelector("#dessus-tangage-force").disabled !== town; t++) await sleep(250);
     }
     // Hauteur retenue = monture CD21 (1,93 / 2,07 m) depuis 8d4c497. Écart connu sur la RD 1074 (séquence du 07/07/2025) : lecture
     // entre photos à 2,15-2,19 m alors que le véhicule est vu comme sur la monture haute du 03/07 (analyse du 12/11/2026, tangage
-    // probable) : journalisé, pas compté
+    // probable) : journalisé, pas compté. Même chose sur l'A38 (03/07/2025) depuis la monture d'après la date (13/11/2026) :
+    // lecture vers 1,96 m pour 2,07 m, -4,9 à -5,6 % selon le tangage lu (0,1° d'écart), à revoir par un relevé neuf
     const gap = read && read / pose.height - 1, detail = read && `${number(100 * gap, 1)} %`;
-    if (read && name === "RD 1074") await log(`${name} : monture et hauteur lue entre photos, écart connu (${detail})`);
+    if (read && (name === "RD 1074" || name === "A38")) await log(`${name} : monture et hauteur lue entre photos, écart connu (${detail})`);
     else if (read) await expect(`${name} : monture et hauteur lue entre photos d'accord à 5 %`, Math.abs(gap) < 0.05, detail);
     const joins = now.joins?.results || [], fixed = joins.filter((r) => r?.fix);
     await log(`  raccords (${number((now.joins?.ms || 0) / 1000, 1)} s) : ${joins.map((r) => (r ? `${number(100 * r.before, 1)} → ${number(100 * r.after, 1)} cm${r.fix ? "" : " (non gardé)"}, ${r.n} mesures` : "pas assez de sol commun")).join(" ; ") || "-"}`);
@@ -115,12 +117,47 @@ async function open(id, enough = () => false) {
       const o = now.outline, notches = o.filter((v, k) => v < Math.min(o[(k + 127) % 128], o[(k + 1) % 128]) - 1).length;
       await expect(`${name} : contour symétrique et sans encoche`, o.every((v, k) => Math.abs(v - o[(128 - k) % 128]) <= 1.5) && notches === 0, `${notches} encoche(s) ${o.map((v, k) => (v < Math.min(o[(k + 127) % 128], o[(k + 1) % 128]) - 1 ? `${k}:${o[(k + 127) % 128]}/${v}/${o[(k + 1) % 128]}` : "")).filter(Boolean).join(" ")}, écart gauche-droite ${Math.max(...o.map((v, k) => Math.abs(v - o[(128 - k) % 128]))).toFixed(1)}°`);
     }
+    // Messages repliés par leur bouton, puis rouverts (le choix est retenu dans le navigateur)
+    if (name === "A38") {
+      const label = w.document.querySelector("#dessus-etat"), button = w.document.querySelector("#dessus-etat-replier");
+      button.click();
+      const folded = label.classList.contains("replie") && button.getAttribute("aria-expanded") === "false" && w.getComputedStyle(label).display === "none";
+      button.click();
+      await expect(`${name} : messages repliés puis rouverts par leur bouton`, folded && !label.classList.contains("replie") && label.textContent.length > 0);
+    }
+    // Capture de la carte (bouton 📷) : vue Bird Eye et départ de mesure ; image déposée pour la regarder
+    if (name === "ville") {
+      const map = w.mesures.map, at = (e, n) => { const [lng, lat] = Dessus.toLonLat(e, n, pose); return { lng, lat }; };
+      Dessus.addPoint(at(-3, 2));  // départ d'une longueur (point rouge, dessiné par la carte)
+      const blob = await w.eval("Carte").capture(map);
+      await expect(`${name} : capture de la carte (vue, départ de mesure, échelle, sources)`, blob && blob.size > 10000, blob ? `${blob.size} octets` : "aucune");
+      if (blob) await fetch(`/capture/carte-${name}.png`, { method: "POST", body: blob });
+      Dessus.cancelStart();
+    }
+    // « Bords gardés » : vue entière sur ±15 m, sans la découpe à ±8 m de l'axe de la route ; image déposée pour la regarder
+    {
+      const box = w.document.querySelector("#dessus-bords"), etat = () => w.document.querySelector("#dessus-etat").textContent, before = shown.blob();
+      await expect(`${name} : bords gardés proposés`, !box.disabled);
+      box.click();
+      const redrawn = await soon(() => shown.blob() !== before && !/en cours|en calcul/.test(etat()), 30000);
+      await expect(`${name} : bords gardés, vue refaite`, redrawn);
+      if (redrawn) await fetch(`/capture/dessus-${name.replace(/\W+/g, "-")}-bords.png`, { method: "POST", body: shown.blob() });
+      const kept = shown.blob();
+      box.click();
+      await soon(() => shown.blob() !== kept && !/en cours|en calcul/.test(etat()), 30000);
+    }
     // « Véhicule masqué » éteint : rien de ce qui a été lu avec les voisines n'est appliqué (tangage, hauteur, contour, position)
     w.document.querySelector("#dessus-voisines").click();
     for (let t = 0; t < 60 && !/ 1 photo,.*position/.test(w.document.querySelector("#dessus-etat").textContent) || /en cours/.test(w.document.querySelector("#dessus-etat").textContent); t++) await sleep(250);  // position refaite
     const alone = Dessus.layersNow().layers, off = w.document.querySelector("#dessus-etat").textContent;
     await expect(`${name} : éteint, photo seule sans tangage, hauteur ni contour lus, position refaite`, alone.length === 1 && (!Array.isArray(now.outline) || alone[0].pose.outline !== now.outline)
       && !/lu sur les raccords|lue entre photos|décalage entre photos/.test(off) && !alone[0].fix && !alone[0].bend && Dessus.layersNow().locatedWith === false, off);
+    // Sans raccords (photo seule), sur route : tangage lu sur les lignes et les bords, proche de celui des raccords
+    if (name === "A38") {
+      const joined = /tangage ([+-]?[\d,]+)° lu sur les raccords de la photo/.exec(state)?.[1], lined = /tangage ([+-]?[\d,]+)° lu sur (?:ses|les) lignes/.exec(off)?.[1];
+      const value = (text) => Number(text.replace(",", "."));
+      await expect(`${name} : photo seule, tangage lu sur les lignes, à 0,3° de celui des raccords`, joined && lined && Math.abs(value(joined) - value(lined)) <= 0.3, `raccords ${joined}°, lignes ${lined}°`);
+    }
     w.document.querySelector("#dessus-voisines").click();
     // Sol caché par le véhicule de la photo affichée : part vue par une voisine (le reste : véhicule en dernier recours)
     if (others.length) {

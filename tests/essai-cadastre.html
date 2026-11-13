@@ -38,6 +38,8 @@ const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-
     const map = w.mesures.map;
     log(`carte : ${map.querySourceFeatures("cadastre", { sourceLayer: "localisant" }).length} sections, ${map.querySourceFeatures("cadastre", { sourceLayer: "borne_limite_propriete" }).length} bornes, ${map.querySourceFeatures("cadastre-decale").length} parties de feuilles décalées`);
     expect("carte : couches du cadastre affichées", map.getLayoutProperty("cadastre", "visibility") === "visible");
+    expect("carte : parcelles numérotées teintées (domaine public sans teinte)", map.getLayoutProperty("cadastre-parcelles", "visibility") === "visible"
+      && map.getLayer("cadastre-parcelles").sourceLayer === "parcelle");
     expect("carte : sections des parcelles lues au zoom 18", map.querySourceFeatures("cadastre", { sourceLayer: "localisant" }).length > 0);
     await fin();
   } catch (error) {

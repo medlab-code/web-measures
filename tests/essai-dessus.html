@@ -124,6 +124,10 @@ function centre(pixels, line, around) {
   await expect("voisine sans inclinaison : seulement pour combler", Dessus.sourceOf([0, 7], rough).pose.pic === "p" && Dessus.sourceOf([0, 0], rough).pose.pic !== "p");
   const single = Dessus.measureError([3, 0], [5, 0], layers, 0.02), crossing = Dessus.measureError([0, 0], [4, 0], layers, 0.02);
   await expect("distance entre deux photos : position relative comptée", crossing >= 0.05, `${single.toFixed(3)} / ${crossing.toFixed(3)} m`);
+  const flatPose = { ...pose, sigma: 0, height_sigma: 0 }, shortGround = Dessus.uncertainty([3, 4], [3.5, 4], flatPose, 0.02);
+  await expect("écart du sol : corrélé entre deux points proches", shortGround >= 0.5 * 0.02 / pose.height && shortGround < 0.25 * Math.hypot(5, Math.hypot(3.5, 4)) * 0.02 / pose.height, `${(1000 * shortGround).toFixed(1)} mm`);
+  const farGround = Dessus.uncertainty([-8, 0], [8, 0], flatPose, 0.02);
+  await expect("écart du sol : indépendant entre deux points éloignés", Math.abs(farGround - Math.hypot(8, 8) * 0.02 / pose.height) < 1e-3, `${(1000 * farGround).toFixed(1)} mm`);
   await expect("hauteur de caméra : erreur proportionnelle", Math.abs(Dessus.uncertainty([0, 0], [6, 0], { ...pose, sigma: 0 }, 0) - 6 * 0.05 / 2.4) < 1e-9);
   // Axe de la route : orientation des bandes de la zone idéale
   const road = Dessus.roadAxis([{ pose, at: [0, 0] }, { pose, at: [1, -5] }, { pose, at: [-1, 5] }]);
@@ -181,6 +185,16 @@ function centre(pixels, line, around) {
     Dessus.sourceOf([0, 0], ringLayers).pose !== ring[0].pose && Dessus.sourceOf([0, 3], ringLayers).pose === ring[0].pose);
   await expect("sans terrain : pas de mesure", Dessus.estimateHeight({ pano: pano0, pose: p0 }, [{ pano: pano1, pose: p1 }], null) === null);
   await expect("sans inclinaison : pas de mesure", Dessus.estimateHeight({ pano: pano0, pose: { ...p0, up: null } }, [{ pano: pano1, pose: p1 }], terrain) === null);
+  // Tangage lu sur les lignes en long (linesPitch) : route au cap 0, traits en long à -3, 0,8 et 2,5 m ; vue dessinée avec un
+  // tangage faussé de δ (verticale penchée vers l'avant, comme groundUp) : la correction trouvée doit valoir -δ
+  const north = { ...pose, heading: 0, offset: 0 }, panoN = Dessus.panoTexture(await Dessus.loadPano({ image: URL.createObjectURL(await panorama(north, 4096)), cols: 1, rows: 1 }, 8192));
+  for (const delta of [0, 1, -1]) {
+    const [ux, uy, uz] = north.up, tilted = unit(ux / uz, uy / uz + Math.tan(delta * toRad));
+    const view = Dessus.readView({ pano: panoN, pose: { ...north, up: tilted } }, terrain, north);
+    const found = Dessus.linesPitch(view, 0, north.height);
+    await expect(`tangage faussé de ${delta}° : correction ${-delta}° lue sur les lignes (±0,15°)`, found && Math.abs(found.pitch + delta) < 0.15,
+      found ? `${found.pitch.toFixed(2)}°, ${found.lines} lignes sur ${found.spread.toFixed(1)} m` : "aucune");
+  }
   await fin();
 })().catch(async (error) => { await log("ERREUR " + error); });
 </script>

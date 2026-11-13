@@ -87,8 +87,18 @@ class VueDessus(unittest.TestCase):
                   "properties": {"view:azimuth": 40, "pers:interior_orientation": {"field_of_view": field_of_view}}}
         a.birdeye_items, a.birdeye_checks = [dict(a.item, id="v", geometry={"coordinates": [5.0, 47.00005]})], (Tilts,)
         a.fall_cells, a.tool = {web_app.roads._cell(5.0, 47.0): []}, types.SimpleNamespace(camera_height=2.1)
-        a.birdeye_loose = {}
+        a.birdeye_loose, a.birdeye_far_items = {}, []
         return a
+
+    def test_defaut_de_roulis(self):
+        """Défaut de roulis de la caméra (ROLL_DEFECTS) : CD21, campagne 2025 seulement ; ni avant, ni après, ni ailleurs."""
+        a = App.__new__(App)
+        photo = lambda producer, date: {"providers": [{"id": producer}], "properties": {"datetime": date}}
+        self.assertEqual(a._roll_defect(photo(App.FLEET_PRODUCER, "2025-07-03T10:53:25Z")), -1.0)
+        for producer, date in ((App.FLEET_PRODUCER, "2024-12-31T23:00:00Z"), (App.FLEET_PRODUCER, "2026-01-02T09:00:00Z"),
+                               ("autre", "2025-07-03T10:53:25Z")):
+            self.assertEqual(a._roll_defect(photo(producer, date)), 0.0)
+        self.assertEqual(a._roll_defect({}), 0.0)  # sans producteur ni date
 
     def test_pose(self):
         pose = json.loads(self.app_on(360).birdeye_pose())
@@ -96,12 +106,23 @@ class VueDessus(unittest.TestCase):
         self.assertEqual((pose["up"], pose["sigma"], pose["height_sigma"]), ([0.0, 0.1, 0.99], 0.2, 0.05))
         self.assertEqual([(n["pic"], n["lat"], n["relative_sigma"]) for n in pose["neighbours"]], [("v", 47.00005, 0.05)])
 
+    def test_voisines_a_deux_pas(self):
+        """Photos à deux pas (birdeye_far) : leur pose à part (far), sans inclinaison attendue ; aucune par défaut."""
+        a = self.app_on(360)
+        self.assertEqual(json.loads(a.birdeye_pose())["far"], [])
+        a.birdeye_far(json.dumps([dict(a.item, id="w", geometry={"coordinates": [5.0, 47.0001]})]))
+        far = json.loads(a.birdeye_pose())["far"]
+        self.assertEqual([(p["pic"], p["lat"], p["pending"]) for p in far], [("w", 47.0001, False)])
+
     def test_flotte_cd21(self):
         """Photo du CD21 (producteur) signalée à la vue du dessus (hauteur par monture) ; autre producteur : non."""
         a = self.app_on(360)
         self.assertFalse(json.loads(a.birdeye_pose())["fleet"])
         a.item["providers"] = [{"id": App.FLEET_PRODUCER, "roles": ["producer"]}]
         self.assertTrue(json.loads(a.birdeye_pose())["fleet"])
+        self.assertIsNone(json.loads(a.birdeye_pose())["mount"])  # sans date : pas de monture
+        a.item.setdefault("properties", {})["datetime"] = "2025-07-07T05:56:32Z"
+        self.assertEqual(json.loads(a.birdeye_pose())["mount"], 2.07)  # monture d'après la date, hors pont aussi
 
     def test_hors_360(self):
         self.assertEqual(self.app_on(90).birdeye_pose(), "null")
@@ -117,6 +138,19 @@ class VueDessus(unittest.TestCase):
         near, far = pose_with(10), pose_with(40)
         self.assertEqual((near["bridge"], near["height"], near["neighbours"][0]["height"]), (True, 2.1, 2.1))
         self.assertEqual((far["bridge"], far["height"]), (False, 2.4))
+
+    def test_pont_monture_cd21(self):
+        """CD21 sur un pont, hauteur de séquence inconnue : monture d'après la date de prise de vue, pas le réglage
+        (1,90 m par défaut : bandes de passage piéton à 0,44 m, f2a245d0 et 7dcdccf9) ; date hors campagne : le réglage."""
+        def pose_on(date):
+            a = self.app_on(360)
+            a.item["providers"] = [{"id": App.FLEET_PRODUCER}]
+            a.item.setdefault("properties", {})["datetime"] = date
+            a.fall_cells[web_app.roads._cell(5.0, 47.0)] = [{"level": 1, "line": [[5.0, 46.999], [5.0, 47.001]]}]
+            return json.loads(a.birdeye_pose())
+        self.assertEqual([(p["height"], p["height_sigma"]) for p in (pose_on("2025-05-28T05:40:22Z"), pose_on("2025-07-07T05:56:32Z"))],
+                         [(1.93, App.MOUNT_SIGMA), (2.07, App.MOUNT_SIGMA)])
+        self.assertEqual(pose_on("2024-05-28T05:40:22Z")["height"], 2.1)
 
     def test_verticales_moins_sures(self):
         """Verticales refusées pour les mesures (±0,42° > autotilt.MAX_SIGMA) : renvoyées à part par
@@ -610,6 +644,25 @@ class Parcours(unittest.TestCase):
         self.assertEqual(distances(), [])
         self.assertEqual(a.redo(), "Rétabli.")
         self.assertEqual(len(distances()), 1)
+
+    def test_bandes_triangulees(self):
+        """Passage piéton : coins des bandes (0,50 m, de 8 à 11 m devant la première, à 1,5 m au moins de l'axe des photos : dans l'axe, visées parallèles) triangulés depuis les deux
+        photos ; largeur de chaque bande au millimètre."""
+        self.app.set_mode("tri")
+        corners = lambda: [f["geometry"]["coordinates"] for f in json.loads(self.app.map_geojson())["features"]
+                           if f["properties"]["kind"] == "triangule"]
+        origin = (5.0415, 47.3220)
+        for k, left in enumerate((-4.0, -3.0, -2.0, 1.5, 2.5, 3.5)):  # hors de l'axe des photos : visées presque parallèles
+            for north in (8.0, 11.0):
+                self.sighted((left, north, 0.0))
+                a = corners()[-1]
+                self.sighted((left + 0.5, north, 0.0))
+                b = corners()[-1]
+                ea, na = triangulation._local(*a[:2], *origin)
+                eb, nb = triangulation._local(*b[:2], *origin)
+                self.assertAlmostEqual(eb - ea, 0.5, delta=0.001, msg=f"bande {k}, à {north} m")
+                self.assertAlmostEqual(nb - na, 0.0, delta=0.001)
+                self.assertAlmostEqual(ea, left, delta=0.002)
 
     def test_releve_recharge(self):
         """Relevé gardé dans le navigateur (releve_json), remis au rechargement (load_releve)."""
