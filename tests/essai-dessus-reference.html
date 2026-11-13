@@ -135,6 +135,12 @@ async function open(id, enough = () => false) {
     const alone = Dessus.layersNow().layers, off = w.document.querySelector("#dessus-etat").textContent;
     await expect(`${name} : éteint, photo seule sans tangage, hauteur ni contour lus, position refaite`, alone.length === 1 && (!Array.isArray(now.outline) || alone[0].pose.outline !== now.outline)
       && !/lu sur les raccords|lue entre photos|décalage entre photos/.test(off) && !alone[0].fix && !alone[0].bend && Dessus.layersNow().locatedWith === false, off);
+    // Sans raccords (photo seule), sur route : tangage lu sur les lignes et les bords, proche de celui des raccords
+    if (name === "A38") {
+      const joined = /tangage ([+-]?[\d,]+)° lu sur les raccords de la photo/.exec(state)?.[1], lined = /tangage ([+-]?[\d,]+)° lu sur (?:ses|les) lignes/.exec(off)?.[1];
+      const value = (text) => Number(text.replace(",", "."));
+      await expect(`${name} : photo seule, tangage lu sur les lignes, à 0,3° de celui des raccords`, joined && lined && Math.abs(value(joined) - value(lined)) <= 0.3, `raccords ${joined}°, lignes ${lined}°`);
+    }
     w.document.querySelector("#dessus-voisines").click();
     // Sol caché par le véhicule de la photo affichée : part vue par une voisine (le reste : véhicule en dernier recours)
     if (others.length) {

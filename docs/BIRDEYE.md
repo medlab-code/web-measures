@@ -160,6 +160,13 @@ fixation peut être un peu de travers.
    parallèles, rien de retenu. Ordre (`autoPitch`) : raccords de la photo, lignes de la séquence (pas d'une photo seule : +1,3° et +1,6°
    sur deux photos là où leur séquence lisait 0 à +0,5°),
    raccords de la séquence.
+   **Seulement faute de tangage lu sur les raccords** de la photo (raccords en échec, ou sans « Véhicule masqué » ; demande
+   de l'auteur, 13/11/2026), une fois les raccords faits. Lu sur **±25 m** (`LINES_WIDE`, l'équivalent d'un point de fuite)
+   avec le terrain LiDAR HD lu sur cette portée (2 601 points, une fois par photo), sinon sur 10 m : 1,5 à 2 fois plus
+   stable (A38 −0,36 ± 0,09° contre −0,50 ± 0,16°, raccords −0,3 à −0,4° ; RD 1074 +0,15 ± 0,09° contre +0,17 ± 0,14° ;
+   petite RD +0,5 ± 0,37°, raccords +0,5°) ; sur sol plat au-delà de 15 m, décalé de +0,3 à +0,4° (pente lointaine). Sur
+   25 m, jusqu'à 20 pistes discordantes écartées (4 sur 10 m). D33 (route de vallée sinueuse, 33 à 55 pistes) : rien de lu
+   sur 25 m. Lecture d'une photo seule admise si elle est faite sur 25 m (A38 sans raccords : −0,3°, comme les raccords).
 5. Interrupteur « Calage par les verticales » (depuis le 10/11/2026, coché d'office pour une photo en zone d'habitation de la
    BD TOPO, décoché ailleurs : sur 3 essais de l'auteur hors agglomération, la vue était meilleure inclinée par la route, cause à
    chercher ; en ville, à Pouilly-en-Auxois, raccords recalés avec les verticales seulement ; modifiable pour la photo affichée ;

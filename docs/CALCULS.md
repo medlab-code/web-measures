@@ -704,7 +704,8 @@ de passage piéton à 0,44 m au lieu de 0,50 (f2a245d0, Pont de France ; 7dcdccf
 Le calage du tangage sur l'orthophoto (lignes de peinture repérées sur elle et sur chaque photo, essai du 07/11/2026)
 a été retiré le 08/11/2026 au profit du tangage lu sur les raccords. Tangage lu aussi sur les lignes et les bords de la route
 d'une photo seule (`linesPitch`, 13/11/2026) : une erreur δ change l'échelle en travers de 1 + a δ / H à la distance a le
-long ; ajustement commun des lignes s_i(a) = p_i (1 + κ a) + q a + c a², δ = atan(κ H) ; voir docs/BIRDEYE.md § 4.1
+long ; ajustement commun des lignes s_i(a) = p_i (1 + κ a) + q a + c a², δ = atan(κ H), sur ±25 m avec le terrain LiDAR HD de
+cette portée, seulement faute de tangage lu sur les raccords ; voir docs/BIRDEYE.md § 4.1
 (ordre : raccords de la photo, lignes de la séquence, raccords de la séquence, réglage à la main). Option « Position calée sur l'orthophoto » (cochée par défaut, `locate` et `orthoShift`) :
 dès la photo principale prête, son profil en travers de la chaussée (6 m de part et d'autre, 9e décile le long, hors
 véhicule) est corrélé à celui de l'orthophoto, sur ±1,2 m ; au-delà de 30 cm d'écart, la vue s'y pose (décalée en
