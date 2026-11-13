@@ -1226,7 +1226,7 @@
     if (on === swapped || (on && mapWindow)) return;
     swapped = on;
     swapButton.setAttribute("aria-pressed", String(on));
-    measureButton.hidden = birdeyeButton.hidden = !on && !mapWindow;  // carte en grand ou détachée : mesure et Bird Eye d'un clic
+    measureButton.hidden = birdeyeButton.hidden = captureButton.hidden = !on && !mapWindow;  // carte en grand ou détachée : mesure et Bird Eye d'un clic
     swapButton.title = on ? "Remettre la carte et la visionneuse à leur place" : "Échanger la carte et la visionneuse (place et taille)";
     if (on) {
       setColumnFolded(false);
@@ -1281,10 +1281,25 @@
     $("#dessus").checked = !$("#dessus").checked;
     $("#dessus").dispatchEvent(new Event("change"));
   });
+  // Capture de la carte (vue Bird Eye et mesures, étiquettes comprises), téléchargée en PNG ; grisé Bird Eye éteinte
+  const captureButton = Object.assign(document.createElement("button"), { type: "button", className: "capture-carte", hidden: true,
+    textContent: "📷", title: "Capture de la carte : vue Bird Eye et mesures, en image PNG", ariaLabel: "Capture de la carte" });
+  captureButton.addEventListener("click", async () => {
+    captureButton.disabled = true;
+    try {
+      const blob = await Carte.capture(map), url = URL.createObjectURL(blob), stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+      Object.assign(document.createElement("a"), { href: url, download: `bird-eye-${(photo?.id || "carte").slice(0, 8)}-${stamp}.png` }).click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (error) {
+      console.warn("Capture de la carte :", error);
+    } finally {
+      showMapMeasureButton();
+    }
+  });
   map.addControl({
     onAdd: () => {
       const place = Object.assign(document.createElement("div"), { className: "maplibregl-ctrl place-mesurer" });
-      place.append(measureButton, birdeyeButton);
+      place.append(measureButton, birdeyeButton, captureButton);
       return place;
     },
     onRemove: () => {},
@@ -1299,6 +1314,7 @@
     const bird = $("#dessus").checked;
     birdeyeButton.setAttribute("aria-pressed", String(bird));
     birdeyeButton.disabled = $("#dessus").disabled;
+    captureButton.disabled = !bird || $("#dessus").disabled;  // rien de Bird Eye à capturer
     birdeyeButton.title = bird ? "Éteindre la vue Bird Eye" : "Vue Bird Eye de cette photo (calculée pour elle seule : une autre photo l'éteint)";
   }
   Dessus.setup(map, (on) => {
@@ -1744,7 +1760,7 @@
     $("#carte-detachee").hidden = !detached;
     grip.hidden = detached;
     swapButton.disabled = detached;  // carte déjà à part : rien à échanger
-    measureButton.hidden = birdeyeButton.hidden = !detached && !swapped;  // détachée : comme en grand
+    measureButton.hidden = birdeyeButton.hidden = captureButton.hidden = !detached && !swapped;  // détachée : comme en grand
     detachButton.textContent = "⧉";
     detachButton.title = detached ? "Remettre la carte dans la page"
       : "Détacher la carte dans une fenêtre à part (second écran)";

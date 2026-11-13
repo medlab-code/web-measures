@@ -290,6 +290,12 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .maplibregl-ctrl button.birdeye-carte:disabled { opacity: 0.5; cursor: default; }
 .maplibregl-ctrl button.birdeye-carte:not(:disabled):hover { background: #eee; }
 .maplibregl-ctrl button.birdeye-carte[aria-pressed="true"]:not(:disabled):hover { background: var(--panoramax); filter: brightness(1.1); }
+/* Capture de la carte, à droite du faucon, même hauteur */
+.maplibregl-ctrl button.capture-carte { width: 43px; height: 43px; margin-left: 6px; padding: 0; border: 0; border-radius: 4px; background: #fff;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); font-size: 22px; cursor: pointer; vertical-align: top; }
+.maplibregl-ctrl button.capture-carte[hidden] { display: none; }
+.maplibregl-ctrl button.capture-carte:disabled { opacity: 0.5; cursor: default; }
+.maplibregl-ctrl button.capture-carte:not(:disabled):hover { background: #eee; }
 /* en haut, à droite des boutons de zoom plutôt que sous la pile de gauche */
 .maplibregl-ctrl-top-left .place-mesurer { position: absolute; top: 0; left: 40px; white-space: nowrap; }
 
