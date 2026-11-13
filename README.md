@@ -745,7 +745,10 @@ de l'autre ; la carte en grand, comme la carte détachée (⧉), propose alors �
 « Mesure »). Un clic pose le départ, le trait suit le pointeur avec sa longueur, un second clic la garde dans les
 résultats, comme les autres mesures (Effacer, Refaire, commentaire, export). Pour une largeur, viser de préférence en
 face de la caméra, à ±4 m (±5 % au mieux, inclinaison lue sur les façades ou, à défaut, sur la pente de la route, avec le défaut de roulis de la
-caméra mesuré pour la campagne : CD21 2025, −1°, d'après les passages piétons). Hors de la vue, la
+caméra mesuré pour la campagne : CD21 2025, −1°, d'après les passages piétons). Près d'un pont, le LiDAR HD (sol sous le
+tablier) est écarté : tablier supposé plan et horizontal (±1,5° d'inclinaison par la route). Photos du CD21 : hauteur de
+caméra de sa monture d'après la date de prise de vue (1,93 m avant juillet 2025, 2,07 m ensuite) ; autres photos : lue entre
+photos sur les façades, sinon altitude RTK moins sol. Hors de la vue, la
 longueur est mesurée sur le fond de carte seul, sans incertitude (« hors vue »), pour un contrôle rapide. Échap retire
 le départ. Sans façade pour caler l'inclinaison, le tangage de fixation de la caméra est lu sur les raccords entre photos
 voisines (« Véhicule masqué » allumé ; celui de la photo, qui suit une bosse ou un creux, sinon la médiane des photos vues de la séquence) ; les curseurs « Roulis » et « Tangage » recalent la vue à la main (« Calage par les verticales » : coché d'office en zone d'habitation, la photo calée sur ses verticales quand elle en a ; ailleurs, inclinaison par la route),

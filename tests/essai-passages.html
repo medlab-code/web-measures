@@ -211,6 +211,7 @@ function measure(Dessus, site) {
     tag = id.slice(0, 8);
     if (!w) { log(`${tag} : vue indisponible`); continue; }
     try {
+      if (CHOSEN) log(`${tag} état : ${w.document.querySelector("#dessus-etat").textContent.replace(/\s+/g, " ")}`);
       const Dessus = w.eval("Dessus"), box = w.document.querySelector("#dessus-verticales");
       const modes = [Dessus.layersNow().layers[0].pose.groundTilt ? "route" : "verticales"];
       if (box && !box.disabled) modes.push(modes[0] === "route" ? "verticales" : "route");

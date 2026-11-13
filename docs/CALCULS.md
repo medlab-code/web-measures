@@ -694,8 +694,12 @@ l'arrière, environ 9,6 % pour 1° de tangage ; retenu et appliqué par photo (`
 sur une bosse ou un creux, que le plan de la route ne suit pas ; médiane de la séquence pour une photo sans le sien.
 
 Près d'un pont (tronçon BD TOPO en pont à moins de 20 m de la photo, dessus ou dessous), la vue se passe du terrain
-LiDAR HD : le MNT n'a pas le tablier (sol sous le pont, ou brèche sous la photo). Sol plat, sans inclinaison tirée de
-la route, hauteur de caméra calée ou réglée. Pont de France à Auxonne (bbf7a0be) : tangage lu sur les raccords à
+LiDAR HD : le MNT n'a pas le tablier (sol sous le pont, ou brèche sous la photo). Tablier supposé plan et horizontal
+(maillage à plat, `deck`) : inclinaison par la route (tangage de la séquence et défaut de roulis de la campagne seulement,
+±1,5° pour la pente du tablier, jusqu'à 3 %). Hauteur de caméra : pour le CD21, sa monture d'après la date
+(`App.FLEET_MOUNTS` : 1,93 m avant le 01/07/2025, 2,07 m ensuite, ±0,04 m) ; autres photos, lue entre photos sur les
+verticales, sinon calée pour la séquence, sinon le réglage. Avant le 13/11/2026 : sol plat sans inclinaison et 1,90 m par défaut, bandes
+de passage piéton à 0,44 m au lieu de 0,50 (f2a245d0, Pont de France ; 7dcdccf9, D977 bis). Pont de France à Auxonne (bbf7a0be) : tangage lu sur les raccords à
 -1,2° avec le MNT, raccords 33,5 → 1,3 cm sur sol plat.
 Le calage du tangage sur l'orthophoto (lignes de peinture repérées sur elle et sur chaque photo, essai du 07/11/2026)
 a été retiré le 08/11/2026 au profit du tangage lu sur les raccords. Option « Position calée sur l'orthophoto » (cochée par défaut, `locate` et `orthoShift`) :
@@ -710,7 +714,8 @@ A38 0,11 m, RD 1074 0,19 m, D33 0,02 m, petite RD sans peinture 0,31 m (calée, 
 village sans accord (position gardée). Limite : un décalage de plus de 1,2 m serait pris pour celui d'une autre ligne. Le calage du tangage sur l'orthophoto trouvait, sur 6 photos réglées à l'œil par l'auteur (07/11/2026), 0 / +0,1 / +0,4
 / +0,2 / -0,2 / +0,2° pour +0,5 / +0,5 / +0,2 / +0,2 / -0,2 / 0°.
 
-Hauteur de caméra par séquence : médiane des hauteurs vérifiées (GPS RTK moins sol) des photos vues de la séquence, dès
+Photos du CD21 : hauteur de la monture d'après la date de prise de vue (`App.FLEET_MOUNTS`, 1,93 ou 2,07 m), avant toute
+autre (voir docs/BIRDEYE.md § 4.2). Autres photos, hauteur de caméra par séquence : médiane des hauteurs vérifiées (GPS RTK moins sol) des photos vues de la séquence, dès
 3 photos, gardée dans le navigateur (`web-measures/dessus-hauteurs`) ; une même séquence de l'A38 allait de 1,83 à
 2,36 m d'une photo à l'autre. Chaque caméra est posée à cette hauteur au-dessus du plan de la route sous le véhicule
 (moyenne du terrain sur ±2,5 m x ±1,5 m), plutôt que sur un seul point du maillage.

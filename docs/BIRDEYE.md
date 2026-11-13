@@ -26,8 +26,9 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
   inclinaison (voir § 4.1) et hauteur de caméra (voir § 4.2) ;
 - le terrain : MNT LiDAR HD de l'IGN, lu sur une grille de 1 m sur ±15 m (`readTerrain`), sinon un plan horizontal.
   **Près d'un pont** (tronçon BD TOPO en pont à moins de 20 m, photo dessus ou dessous, `App._near_bridge`), le MNT
-  est écarté : il donne le sol sous le tablier, ou la brèche sous la photo. Sol plat, pas d'inclinaison tirée de la
-  route ni de tangage lu sur les raccords, hauteur de caméra de la séquence ou réglée (pas RTK moins sol LiDAR) ;
+  est écarté : il donne le sol sous le tablier, ou la brèche sous la photo. Tablier plan et horizontal (`deck`) :
+  inclinaison par la route (±1,5°), hauteur lue entre photos sur les verticales, sinon celle de la séquence, puis pour le
+  CD21 sa monture d'après la date (`App.FLEET_MOUNTS`), puis le réglage (pas RTK moins sol LiDAR) ;
 - avec l'interrupteur **« Véhicule masqué »** (éteint par défaut), les photos précédente et suivante de la séquence,
   chacune avec sa propre pose : elles comblent le sol sous le véhicule (masque au plus près, § 2), et entraînent les raccords
   (§ 4.3), le tangage lu sur les raccords (§ 4.1) et la hauteur lue entre photos (§ 4.2). Éteint, la photo affichée
@@ -166,9 +167,13 @@ c'est ce que corrigent les raccords (§ 4.3).
    caméras distantes de `b` se décale de `b (1 − k)`. Ce décalage, cherché par corrélation dans le grain de la
    chaussée entre la photo et ses voisines, donne la hauteur sans orthophoto ni peinture. Gardée si la mesure se
    stabilise (corrélation d'au moins 0,2, hauteur entre 1,5 et 2,6 m) ; médiane de la séquence dans la session.
-   **Photos du CD21** (imajbox sur Clio 5, deux montures ; la caméra ne bouge plus une fois montée) : la séquence prend la
-   **monture** la plus proche de sa hauteur lue, 1,93 ou 2,07 m (±4 cm), même lue avec l'inclinaison de la route quand les
-   photos n'ont pas de verticales (les deux concordent au cm près là où elles existent). Relevé du 08/11/2026 sur 36 vues :
+   **Photos du CD21** (imajbox sur Clio 5, deux montures ; la caméra ne bouge plus une fois montée) : la **monture**
+   d'après la date de prise de vue (`App.FLEET_MOUNTS`, 1,93 m avant le 01/07/2025, 2,07 m ensuite, ±4 cm) ; hors de ces
+   dates, la plus proche de la hauteur lue, même avec l'inclinaison de la route quand les photos n'ont pas de verticales
+   (les deux concordent au cm près là où elles existent). La date d'abord depuis le 13/11/2026 : la hauteur lue se joue à
+   quelques cm du seuil de 2,00 m (f2a245d0, 07/07/2025 : 2,03 ou 1,98 m selon le terrain ; cefbd9bd à 2,007 m, 09c2e813
+   à 1,968 m). Sur les 17 passages piétons : bandes par les verticales à 2,6 % de 0,50 m en médiane (3,2 % avant), 13,2 %
+   à 95 % (16,2 %) ; par la route, 5,0 % (4,8 %), deux vues de plus, mesurées sur le tablier plat d'un pont. Relevé du 08/11/2026 sur 36 vues :
    1,90 à 1,95 m du 28/05 au 23/06/2025, 2,05 à 2,07 m le 03/07 (2,15 le 07/07, dispersé en octobre) ; l'altitude RTK moins
    le sol reste vers 2,05-2,10 m tout du long (antenne fixe, caméra plus basse sur la première monture).
    Retenue par photo dans le navigateur (`web-measures/dessus-parallaxes`) : la médiane sert à toute la séquence, même

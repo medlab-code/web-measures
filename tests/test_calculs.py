@@ -112,6 +112,9 @@ class VueDessus(unittest.TestCase):
         self.assertFalse(json.loads(a.birdeye_pose())["fleet"])
         a.item["providers"] = [{"id": App.FLEET_PRODUCER, "roles": ["producer"]}]
         self.assertTrue(json.loads(a.birdeye_pose())["fleet"])
+        self.assertIsNone(json.loads(a.birdeye_pose())["mount"])  # sans date : pas de monture
+        a.item.setdefault("properties", {})["datetime"] = "2025-07-07T05:56:32Z"
+        self.assertEqual(json.loads(a.birdeye_pose())["mount"], 2.07)  # monture d'après la date, hors pont aussi
 
     def test_hors_360(self):
         self.assertEqual(self.app_on(90).birdeye_pose(), "null")
@@ -127,6 +130,19 @@ class VueDessus(unittest.TestCase):
         near, far = pose_with(10), pose_with(40)
         self.assertEqual((near["bridge"], near["height"], near["neighbours"][0]["height"]), (True, 2.1, 2.1))
         self.assertEqual((far["bridge"], far["height"]), (False, 2.4))
+
+    def test_pont_monture_cd21(self):
+        """CD21 sur un pont, hauteur de séquence inconnue : monture d'après la date de prise de vue, pas le réglage
+        (1,90 m par défaut : bandes de passage piéton à 0,44 m, f2a245d0 et 7dcdccf9) ; date hors campagne : le réglage."""
+        def pose_on(date):
+            a = self.app_on(360)
+            a.item["providers"] = [{"id": App.FLEET_PRODUCER}]
+            a.item.setdefault("properties", {})["datetime"] = date
+            a.fall_cells[web_app.roads._cell(5.0, 47.0)] = [{"level": 1, "line": [[5.0, 46.999], [5.0, 47.001]]}]
+            return json.loads(a.birdeye_pose())
+        self.assertEqual([(p["height"], p["height_sigma"]) for p in (pose_on("2025-05-28T05:40:22Z"), pose_on("2025-07-07T05:56:32Z"))],
+                         [(1.93, App.MOUNT_SIGMA), (2.07, App.MOUNT_SIGMA)])
+        self.assertEqual(pose_on("2024-05-28T05:40:22Z")["height"], 2.1)
 
     def test_verticales_moins_sures(self):
         """Verticales refusées pour les mesures (±0,42° > autotilt.MAX_SIGMA) : renvoyées à part par

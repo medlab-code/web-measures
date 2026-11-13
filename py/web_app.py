@@ -707,7 +707,7 @@ class App(session.Session):
                 "height_sigma": max(q.get("spread") or 0, 0.05) if verified else cam["sigma"] if cam else 0.3,
                 "relative_sigma": 0.05 if verified else 0.3,  # position d'une photo à sa voisine (trajectoire)
                 "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []),
-                "roll_defect": self._roll_defect(item)}
+                "roll_defect": self._roll_defect(item), "mount": self._fleet_mount(item)}
 
     def birdeye_pose(self):
         """Pose de la photo affichée pour la vue du dessus (src/dessus.js), en JSON : position
@@ -724,8 +724,10 @@ class App(session.Session):
                             for item, checker in zip(self.birdeye_items, self.birdeye_checks)) if p]
         bridge = self._near_bridge(pose["lon"], pose["lat"])
         if bridge:  # altitude RTK moins sol LiDAR : le sol sous le pont, ou la brèche sous la photo
-            cam = self.calibration.camera(self.item.get("collection"))
-            height = {"height": cam["height"] if cam else self.tool.camera_height, "height_sigma": cam["sigma"] if cam else 0.3}
+            cam, mount = self.calibration.camera(self.item.get("collection")), self._fleet_mount(self.item)
+            height = ({"height": cam["height"], "height_sigma": cam["sigma"]} if cam
+                      else {"height": mount, "height_sigma": self.MOUNT_SIGMA} if mount
+                      else {"height": self.tool.camera_height, "height_sigma": 0.3})
             pose.update(height)
             near = [dict(p, **height) for p in near]
         return json.dumps(dict(pose, neighbours=near, bridge=bridge))
@@ -738,6 +740,22 @@ class App(session.Session):
     # (docs/BIRDEYE.md § 4.1). CD21, campagne 2025 (tests/passages-pietons.js, 13/11/2026) : roulis restant de +0,98° en
     # médiane sur 23 vues, sans lien avec le dévers ni avec la monture, nul avec les verticales ; -1° le ramène près de 0.
     ROLL_DEFECTS = ((FLEET_PRODUCER, "2025-01-01", "2026-01-01", -1.0),)
+
+    # Monture de la caméra du CD21 par date de prise de vue (premier jour, jour de fin exclu, hauteur en m) : hauteur de caméra
+    # de la vue du dessus (pose « mount »), avant la hauteur lue entre photos, qui se joue à quelques cm du seuil entre les deux
+    # montures, et sur un pont, où ni le sol LiDAR ni la lecture sans verticales ne la donnent (sinon 1,90 m par défaut : bandes
+    # de passage piéton à 0,44 m au lieu de 0,50, f2a245d0 et 7dcdccf9, 13/11/2026). Hauteurs de src/dessus.js (MOUNTS) :
+    # basse lue du 28/05 au 23/06/2025, haute dès le 03/07. shortcut: limite du 01/07 prise entre les deux, à remplacer par les
+    # hauteurs mesurées sur les véhicules
+    FLEET_MOUNTS = (("2025-01-01", "2025-07-01", 1.93), ("2025-07-01", "2026-01-01", 2.07))
+    MOUNT_SIGMA = 0.04  # m : comme src/dessus.js (MOUNT_SIGMA)
+
+    def _fleet_mount(self, item):
+        """Hauteur de la monture du CD21 (FLEET_MOUNTS) à la date de prise de vue de la photo, ou None."""
+        date = str((item.get("properties") or {}).get("datetime") or "")[:10]
+        if not any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []):
+            return None
+        return next((h for first, end, h in self.FLEET_MOUNTS if first <= date < end), None)
 
     def _roll_defect(self, item):
         """Défaut de roulis (degrés, ROLL_DEFECTS) du producteur de la photo à sa date de prise de vue, ou 0."""

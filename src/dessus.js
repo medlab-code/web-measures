@@ -64,6 +64,9 @@ const Dessus = (() => {
   // b47b4351 (2,06 contre 1,94 m, stable sur 15 photos), alors que l'écart entre photos de la séquence n'est que de 2 cm
   const RTK_SIGMA = 0.1;
   const GROUND_SIGMA = 1;  // degrés : inclinaison déduite de la route, sans verticales à lire (voir docs/CALCULS.md)
+  // Sur un pont (pose.bridge), tablier supposé plan et horizontal à la place du terrain LiDAR (voir dropTerrain) : la pente du
+  // tablier (jusqu'à 3 %, 1,7°) échappe à l'inclinaison par la route
+  const DECK_SIGMA = 1.5;  // degrés
   const LIDAR_SIGMA = 0.02, FLAT_SIGMA = 0.1;  // m : écart du sol au terrain utilisé (résidu LiDAR ; sol supposé plat)
   const GROUND_CORRELATION = 2;  // m : portée de la corrélation de cet écart entre deux points (gaussienne : terrain lissé sur 2 m)
   const ELEVATION_URL = "https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json";
@@ -1375,18 +1378,20 @@ const Dessus = (() => {
   const readyLayers = () => [shown.pose, ...(neighboursOn ? shown.pose.neighbours.filter((p) => !p.pending) : [])]
     .filter((pose) => shown.panos.has(pose.pic))
     .map((pose) => {
-      const at = toLocal(pose.lon, pose.lat, shown.pose);
+      const at = toLocal(pose.lon, pose.lat, shown.pose), ground = onLidar(shown) ? GROUND_SIGMA : DECK_SIGMA;
       const leveled = (pose.up && verticalsOn) || !shown.terrain ? pose : { ...pose, up: groundUp(shown.terrain, at, pose.heading, rollShare, pitchFor(pose.pic), pose.roll_defect || 0),
-        sigma: Math.hypot(pose.up ? GROUND_SIGMA : Math.min(pose.sigma, GROUND_SIGMA), LEAN * (shown.lateral || 0)), groundTilt: true };  // virage : véhicule penché ; verticales écartées : incertitude de la route
+        sigma: Math.hypot(pose.up ? ground : Math.min(pose.sigma, ground), LEAN * (shown.lateral || 0)), groundTilt: true };  // virage : véhicule penché ; verticales écartées : incertitude de la route
       const seam = shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.seams?.get(pose.pic) : undefined;  // raccord de la voisine
       const fix = neighboursOn && shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.map.get(pose.pic) : undefined;
       const parallax = neighboursOn ? shown.height : null;  // lue avec les voisines : sans « Véhicule masqué », ignorée
       // hauteur : décalage entre photos, sinon RTK moins le sol (de la séquence, ou de la photo)
-      const height = parallax && shown.pose.fleet ? { height: mountOf(parallax), height_sigma: MOUNT_SIGMA }  // CD21 : la monture
+      const mount = shown.pose.fleet ? shown.pose.mount : null;  // CD21 : monture d'après la date (App.FLEET_MOUNTS)
+      const height = mount ? { height: mount, height_sigma: MOUNT_SIGMA }
+        : parallax && shown.pose.fleet ? { height: mountOf(parallax), height_sigma: MOUNT_SIGMA }  // CD21 hors campagne connue
         : parallax ? { height: parallax, height_sigma: HEIGHT_SIGMA }
         : { height: shown.sequenceHeight?.height ?? leveled.height, height_sigma: Math.max(leveled.height_sigma, RTK_SIGMA) };
       const read = neighboursOn ? outlines.get(shown.sequence) : null;  // CD21 : contour lu sur la séquence, sinon celui de sa monture
-      const outline = !shown.pose.fleet ? null : Array.isArray(read) ? read : parallax ? OUTLINES[mountOf(parallax)] : EITHER;
+      const outline = !shown.pose.fleet ? null : Array.isArray(read) ? read : mount ? OUTLINES[mount] : parallax ? OUTLINES[mountOf(parallax)] : EITHER;
       const bend = neighboursOn ? seam?.bend ?? undefined : undefined;  // lignes calées (lineField) ou écarts restants (bendField)
       return { pose: { ...leveled, ...height, outline }, pano: shown.panos.get(pose.pic), at, fix, seam, bend };
     });
@@ -1576,9 +1581,11 @@ const Dessus = (() => {
   // photos sur 36 vues (08/11/2026) : 1,90 à 1,95 m du 28/05 au 23/06/2025, 2,05 à 2,07 m le 03/07 (2,15 le 07/07 ; dispersé en
   // octobre, 2,04 à 2,34 m) ; l'altitude RTK moins le sol reste vers 2,05-2,10 m tout du long (antenne fixe, caméra plus basse
   // sur la première monture). La séquence prend la monture la plus proche de sa hauteur lue, même par la seule inclinaison de
-  // la route (verticales et route concordent au cm près là où les deux existent). shortcut: hauteurs à remplacer par celles
-  // mesurées sur les véhicules (campagne suivante)
-  const MOUNTS = [1.93, 2.07], MOUNT_SIGMA = 0.04;
+  // la route (verticales et route concordent au cm près là où les deux existent). Depuis le 13/11/2026, la monture vient
+  // d'abord de la date de prise de vue (pose.mount, App.FLEET_MOUNTS) : la hauteur lue se joue à quelques cm du seuil de
+  // 2,00 m (f2a245d0, 07/07/2025 : 2,03 ou 1,98 m selon le terrain) ; lue entre photos seulement hors campagne connue.
+  // shortcut: hauteurs à remplacer par celles mesurées sur les véhicules (campagne suivante)
+  const MOUNTS = [1.93, 2.07], MOUNT_SIGMA = 0.04;  // mêmes hauteurs par date : App.FLEET_MOUNTS (py/web_app.py)
   const mountOf = (h) => MOUNTS.reduce((a, b) => (Math.abs(b - h) < Math.abs(a - h) ? b : a));
   let drawing = 0;  // dernier dessin demandé : l'image d'un dessin dépassé est jetée
   async function showImage() {
@@ -1605,13 +1612,13 @@ const Dessus = (() => {
       map.addLayer({ id: IMAGE_ID, type: "raster", source: IMAGE_ID, paint: { "raster-fade-duration": 0 } }, below);
     }
     if (old) setTimeout(() => URL.revokeObjectURL(old), 5000);
-    const place = shown.terrain ? "Terrain LiDAR HD" : `Sol supposé plat (${pose.bridge ? "pont à proximité, LiDAR HD écarté" : shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
+    const place = onLidar(shown) ? "Terrain LiDAR HD" : `Sol supposé plat (${pose.bridge ? "pont à proximité, tablier horizontal" : shown.terrainFailed ? "service d'altitude injoignable" : "pas de LiDAR HD ici"})`;
     const parallax = neighboursOn ? shown.height : null;
     const own = !pitchManual && pitchOffset && neighboursOn ? photoPitch(shown.sequence, shown.pic) : undefined;
     const auto = !pitchManual && pitchOffset && neighboursOn && own === undefined ? sequencePitch(shown.sequence) : null;
     const tilt = pose.pending ? "inclinaison en calcul" : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${layers[0].pose.roll_defect ? `, ${number(layers[0].pose.roll_defect, 1)}° de défaut de la caméra (campagne)` : ""}${LEAN * (shown.lateral || 0) >= 0.5 ? `, virage : véhicule penché jusqu'à ${number(LEAN * shown.lateral, 1)}°` : ""}${pitchOffset || pitchManual ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? " réglé à la main" : own !== undefined ? " lu sur les raccords de la photo" : auto ? ` de la séquence, lu sur les raccords (${auto.count} photo${auto.count > 1 ? "s" : ""})` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain || !neighboursOn ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
-    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${parallax && shown.pose.fleet ? ` (monture ${mountOf(parallax) === MOUNTS[0] ? "basse" : "haute"}, lue entre photos : ${number(parallax, 2)} m)` : parallax ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : neighboursOn && outlines.get(shown.sequence) === "reading" ? " ; contour du véhicule en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
+    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.pose.fleet && shown.pose.mount ? ` (monture ${shown.pose.mount === MOUNTS[0] ? "basse" : "haute"} d'après la date${parallax ? `, lue entre photos : ${number(parallax, 2)} m` : ""})` : parallax && shown.pose.fleet ? ` (monture ${mountOf(parallax) === MOUNTS[0] ? "basse" : "haute"}, lue entre photos : ${number(parallax, 2)} m)` : parallax ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : neighboursOn && outlines.get(shown.sequence) === "reading" ? " ; contour du véhicule en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
     if (positionOn && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
     else if (!busy() && neighboursOn && !shown.estimated) measureHeight();
     else if (!busy() && neighboursOn && layers.length > 1 && shown.joins?.key !== shown.joinKeyNow) alignJoins();
@@ -1737,9 +1744,15 @@ const Dessus = (() => {
   /** Photo à montrer (fiche STAC, pose avec ses voisines et fiches des voisines, null s'il faut encore les lire ; photo null
    * pour tout retirer), à chaque changement : ne refait que ce qui a changé. */
   /** Pont à portée (photo dessus ou dessous) : le MNT LiDAR HD n'y donne pas le sol vu (tablier retiré, ou brèche sous la
-   * photo). Sol plat ; inclinaison par la route, hauteur entre photos, raccords et position refaits sans lui. */
+   * photo). Tablier plan et horizontal (deck) : inclinaison par la route (tangage de la séquence et défaut de roulis de la
+   * campagne seulement), hauteur entre photos, raccords et position refaits sur lui. Essai du 13/11/2026 : brèche du LiDAR
+   * comblée au niveau de la route plutôt que tablier plat, sans gain (f2a245d0 : 0,487 m contre 0,477 ; 7dcdccf9, petit pont
+   * en maçonnerie : passage coupé contre 0,455 m), retiré. */
+  let flatDeck = null;
+  const deck = () => (flatDeck ??= new Array((2 * REACH / STEP + 1) ** 2).fill(0));  // maillage de readTerrain, à plat
+  const onLidar = (view) => Boolean(view.terrain) && view.terrain !== flatDeck;
   function dropTerrain(view) {
-    Object.assign(view, { terrain: null, sigmaGround: FLAT_SIGMA, estimated: false, joins: null, joinText: "", located: undefined, placed: undefined });
+    Object.assign(view, { terrain: deck(), sigmaGround: FLAT_SIGMA, estimated: false, joins: null, joinText: "", located: undefined, placed: undefined });
   }
 
   async function update(photo, pose, features) {
@@ -1766,7 +1779,7 @@ const Dessus = (() => {
       const vertical = (p) => [p, ...p.neighbours].filter((q) => q.up && !q.pending).length;
       if (vertical(pose) > vertical(shown.pose) && !shown.estimating) shown.estimated = false;  // verticales arrivées : hauteur entre photos refaite
       Object.assign(shown, { key, pose, features });
-      if (pose.bridge && shown.terrain) dropTerrain(shown);  // pont connu après le terrain
+      if (pose.bridge && shown.terrain !== flatDeck) dropTerrain(shown);  // pont connu après le terrain
       if (!pose.pending) shown.sequenceHeight = sequenceHeight(photo.collection, pose);  // hauteur vérifiée arrivée après
       loadNeighbours(abort.signal);
       if (shown.panos.has(shown.pic)) await showImage();
@@ -1783,7 +1796,7 @@ const Dessus = (() => {
     shown = { photo, pic: photo.id, sequence: photo.collection, height: sequenceParallax(photo.collection), estimated: false, estimating: false, key, pose, features, panos: new Map(), loading: new Set(), terrain: null, sigmaGround: FLAT_SIGMA, terrainFailed: false, url: null };
     const known = computed.get(photo.id);
     if (known) Object.assign(shown, known);  // déjà vue : terrain, raccords et position repris
-    if (pose.bridge && shown.terrain) dropTerrain(shown);
+    if (pose.bridge && shown.terrain !== flatDeck) dropTerrain(shown);
     applySettings(photo.collection, photo.id);
     shown.sequenceHeight = pose.pending ? null : sequenceHeight(photo.collection, pose);
     const mine = shown;
@@ -1803,11 +1816,11 @@ const Dessus = (() => {
     try {
       const tiles = Video.record(photo, { coords: photo.geometry.coordinates }).tiles;
       const [terrain, part] = await Promise.all([
-        known || pose.bridge ? Promise.resolve(shown.terrain) : readTerrain(pose, signal).catch((error) => { console.warn("Terrain de la vue du dessus :", error); mine.terrainFailed = true; return null; }),
+        known || pose.bridge ? Promise.resolve(pose.bridge ? deck() : shown.terrain) : readTerrain(pose, signal).catch((error) => { console.warn("Terrain de la vue du dessus :", error); mine.terrainFailed = true; return null; }),
         loadPano(tiles, context().getParameter(gl.MAX_TEXTURE_SIZE), signal)]);
       if (shown !== mine) { part.canvas.width = 0; return; }
-      mine.terrain = mine.pose.bridge ? null : terrain;  // pont signalé pendant la lecture
-      mine.sigmaGround = mine.terrain ? LIDAR_SIGMA : FLAT_SIGMA;
+      mine.terrain = mine.pose.bridge ? deck() : terrain;  // pont signalé pendant la lecture
+      mine.sigmaGround = onLidar(mine) ? LIDAR_SIGMA : FLAT_SIGMA;
       mine.panos.set(mine.pic, panoTexture(part));
       loadNeighbours(signal);
       await showImage();
