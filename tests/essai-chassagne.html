@@ -12,7 +12,7 @@
 <iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
 <script src="commun.js"></script>
 <script>
-const { log, sleep, until, ready, expect, fail, fin } = Essai;
+const { log, sleep, until, soon, ready, expect, fail, fin } = Essai;
 (async () => {
   const w = document.getElementById("f").contentWindow;
   try {
@@ -35,8 +35,9 @@ const { log, sleep, until, ready, expect, fail, fin } = Essai;
     // #utilisateur : départ sur la photo d8125260 (4,74355 ; 46,92570), arrivée D906 PR 75 + 645 (saisie), comme l'utilisateur
     const user = location.hash === "#utilisateur";
     pane.querySelector('.sur-carte[data-cote="start"]').click();
+    const marks = () => [...doc.querySelectorAll(".repere-requete")].map((e) => e.className.replace("repere-requete ", "")).join(" ");
     click(user ? [4.743552498, 46.925697821] : start);
-    await sleep(4000);
+    await soon(() => /depart/.test(marks()) && pane.querySelector(".champ input").value, 10000);  // départ posé, route lue
     if (user) {
       doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));  // arrivée saisie, pas cliquée
       const [, , endPr] = pane.querySelectorAll(".champ input"), [, endDistance] = pane.querySelectorAll(".distance");
@@ -49,9 +50,8 @@ const { log, sleep, until, ready, expect, fail, fin } = Essai;
       if (!pane.querySelector('.sur-carte[data-cote="end"]').getAttribute("aria-pressed").includes("true")) pane.querySelector('.sur-carte[data-cote="end"]').click();
       click(end);
     }
-    await sleep(4000);
+    await soon(() => /arrivee/.test(marks()), 10000);
     log(`route « ${pane.querySelector(".champ input").value} »`);
-    const marks = () => [...doc.querySelectorAll(".repere-requete")].map((e) => e.className.replace("repere-requete ", "")).join(" ");
     log(`départ et arrivée posés : ${marks()} ; ${status()}`);
     const t0 = Date.now();
     button.click();

@@ -14,12 +14,14 @@ const { log, sleep, until, ready, expect, fail, fin } = Essai;
   const w = document.getElementById("f").contentWindow;
   try {
     await ready(w);
+    log("application prête");
     const doc = w.document;
     doc.querySelector("#reglages-defaut")?.close();
     // Écart à la D906 : sections de PR de la BD TOPO en Côte-d'Or, projection (Lieu.project)
     const Lieu = w.eval("Lieu");
     const sections = (await Lieu.features("section_de_points_de_repere", { count: 500, properties: "numero_de_route,geometrie",
       filter: "numero_de_route='D906' AND BBOX(geometrie,46.80,4.00,47.50,4.90)" })).map((f) => f.geometry.coordinates);
+    log(`sections de la D906 : ${sections.length}`);
     const toD906 = (p) => Math.min(...sections.map((line) => Lieu.project(line, ...p).d));
     w.mesures.map.jumpTo({ center: [4.3, 47.2], zoom: 13 });
     await sleep(1500);
