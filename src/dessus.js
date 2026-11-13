@@ -1382,6 +1382,8 @@ const Dessus = (() => {
   // Photos voisines (interrupteur « Véhicule masqué », éteint par défaut) : lues, analysées, dessinées sous le véhicule et
   // recalées sur la principale (alignJoin), tangage de la séquence lu sur les raccords ; sinon la photo affichée seule
   let neighboursOn = false;
+  // « Bords gardés » (éteint par défaut) : vue entière sur ±REACH m, sans la découpe à ±BEST.wide m de l'axe de la route
+  let edgesOn = false;
   // « Calage par les verticales » : coché d'office pour une photo en zone d'habitation (Lieu.inTown), décoché ailleurs (sur 3
   // essais de l'auteur, 10/11/2026, la vue était meilleure inclinée par la route hors agglomération ; en ville, photo de
   // référence de Pouilly-en-Auxois : raccords recalés avec les verticales, pas avec la route) ; changé à la main pour la photo
@@ -1652,6 +1654,10 @@ const Dessus = (() => {
       keepSettings();
       if (shown?.url) showImage();
     });
+    $("#dessus-bords").addEventListener("change", (event) => {
+      edgesOn = event.target.checked;
+      if (shown?.url) showImage();
+    });
     $("#dessus-position").addEventListener("change", (event) => {
       positionOn = event.target.checked;
       cancelStart();  // le départ a été pris dans l'autre position
@@ -1778,9 +1784,9 @@ const Dessus = (() => {
     $("#dessus-devers").disabled = $("#dessus-tangage-force").disabled = !layers[0].pose.groundTilt;
     $("#dessus-tangage").disabled = !layers[0].pose.groundTilt || (!pitchForced && Boolean(autoPitch(shown.sequence, shown.pic)));  // tangage lu : il prime
     $("#dessus-verticales").disabled = !(pose.up && shown.terrain);  // verticales lues, route pour les remplacer
-    // découpée à ±8 m de l'axe de la route (BEST.wide), bords parallèles à la route : rien de plus loin de la route ; fondue
+    // découpée à ±8 m de l'axe de la route (BEST.wide, sauf « Bords gardés »), bords parallèles à la route ; fondue
     // aux raccords avec les voisines (« Véhicule masqué »)
-    const canvas = (neighboursOn ? renderBlended : render)(layers, shown.terrain, layers[0].pose, [...axis, 1e6, BEST.wide], fine ? FINE_SIZE : SHOWN_SIZE);
+    const canvas = (neighboursOn ? renderBlended : render)(layers, shown.terrain, layers[0].pose, edgesOn ? null : [...axis, 1e6, BEST.wide], fine ? FINE_SIZE : SHOWN_SIZE);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
     if (mine !== drawing || !shown) return;
     const old = shown.url, url = shown.url = URL.createObjectURL(blob);

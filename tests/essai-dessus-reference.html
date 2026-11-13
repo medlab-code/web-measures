@@ -117,6 +117,18 @@ async function open(id, enough = () => false) {
       const o = now.outline, notches = o.filter((v, k) => v < Math.min(o[(k + 127) % 128], o[(k + 1) % 128]) - 1).length;
       await expect(`${name} : contour symétrique et sans encoche`, o.every((v, k) => Math.abs(v - o[(128 - k) % 128]) <= 1.5) && notches === 0, `${notches} encoche(s) ${o.map((v, k) => (v < Math.min(o[(k + 127) % 128], o[(k + 1) % 128]) - 1 ? `${k}:${o[(k + 127) % 128]}/${v}/${o[(k + 1) % 128]}` : "")).filter(Boolean).join(" ")}, écart gauche-droite ${Math.max(...o.map((v, k) => Math.abs(v - o[(128 - k) % 128]))).toFixed(1)}°`);
     }
+    // « Bords gardés » : vue entière sur ±15 m, sans la découpe à ±8 m de l'axe de la route ; image déposée pour la regarder
+    {
+      const box = w.document.querySelector("#dessus-bords"), etat = () => w.document.querySelector("#dessus-etat").textContent, before = shown.blob();
+      await expect(`${name} : bords gardés proposés`, !box.disabled);
+      box.click();
+      const redrawn = await soon(() => shown.blob() !== before && !/en cours|en calcul/.test(etat()), 30000);
+      await expect(`${name} : bords gardés, vue refaite`, redrawn);
+      if (redrawn) await fetch(`/capture/dessus-${name.replace(/\W+/g, "-")}-bords.png`, { method: "POST", body: shown.blob() });
+      const kept = shown.blob();
+      box.click();
+      await soon(() => shown.blob() !== kept && !/en cours|en calcul/.test(etat()), 30000);
+    }
     // « Véhicule masqué » éteint : rien de ce qui a été lu avec les voisines n'est appliqué (tangage, hauteur, contour, position)
     w.document.querySelector("#dessus-voisines").click();
     for (let t = 0; t < 60 && !/ 1 photo,.*position/.test(w.document.querySelector("#dessus-etat").textContent) || /en cours/.test(w.document.querySelector("#dessus-etat").textContent); t++) await sleep(250);  // position refaite
