@@ -1259,11 +1259,11 @@ const Carte = (() => {
   }
 
   /**
-   * Photo (fiche STAC) la plus proche du point, dans un rayon adapté à l'échelle (10 à 150 m),
+   * Photo (fiche STAC) la plus proche du point, dans un rayon de radius m, sinon adapté à l'échelle (10 à 150 m),
    * parmi celles qui passent le filtre `accept` (fiche -> booléen).
    */
-  async function nearestPhoto(map, lng, lat, accept = () => true) {
-    return (await photosNear(map, lng, lat, accept))[0] || null;
+  async function nearestPhoto(map, lng, lat, accept = () => true, radius = null) {
+    return (await photosNear(map, lng, lat, accept, radius))[0] || null;
   }
 
   /** Photos qui passent le filtre `accept` autour du point, de la plus proche à la plus lointaine,

@@ -217,8 +217,12 @@ const Requeteur = (() => {
     });
   }
 
-  /** Requêteur sous la recherche de lieux ; `found(lon, lat, cap)` est appelé une fois la carte
-   * arrivée au point demandé, avec le cap des PR croissants (ou null). */
+  /** Requêteur sous la recherche de lieux ; `found(lon, lat, cap, rayon)` est appelé dès le point connu, pendant le vol
+   * de la carte (photo cherchée sans l'attendre), avec le cap des PR croissants (ou null) et le rayon de recherche (m)
+   * de la carte arrivée au zoom 18. */
+  // Vol de la carte jusqu'au PR (ms) : court, la visionneuse n'attend pas son arrivée ; rayon de la photo cherchée (m,
+  // celui de Carte.photosNear au zoom 18, plutôt que celui du zoom pendant le vol)
+  const FLIGHT = 700, NEAR_PR = 10;
   function attach(map, found) {
     const box = document.createElement("div");
     box.className = "requeteur";
@@ -315,6 +319,7 @@ const Requeteur = (() => {
       const offset = Math.max(0, Math.round(Number(distanceInput.value) || 0));
       const ticket = ++going;
       let lonlat = pr.coords, heading = null;
+      map.flyTo({ center: lonlat, zoom: Math.max(map.getZoom(), 18), duration: FLIGHT });  // vers le PR, sans attendre la distance
       try {
         ({ lonlat, heading } = await locate(pr, offset));
       } catch (error) {
@@ -327,8 +332,9 @@ const Requeteur = (() => {
       element.className = "repere-requete";
       element.title = label;
       marker = new maplibregl.Marker({ element }).setLngLat(lonlat).addTo(map);
-      map.flyTo({ center: lonlat, zoom: Math.max(map.getZoom(), 18), speed: 1.6 });
-      map.once("moveend", () => { if (ticket === going) found(lonlat[0], lonlat[1], heading); });
+      const apart = 111320 * Math.hypot((lonlat[0] - pr.coords[0]) * Math.cos(lonlat[1] * Math.PI / 180), lonlat[1] - pr.coords[1]);
+      if (apart > 5) map.easeTo({ center: lonlat, zoom: Math.max(map.getZoom(), 18), duration: FLIGHT });  // point à la distance
+      found(lonlat[0], lonlat[1], heading, NEAR_PR);
     }
 
     // Les touches du requêteur ne doivent pas déplacer la carte
