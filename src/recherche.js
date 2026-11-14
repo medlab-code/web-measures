@@ -80,6 +80,9 @@ const Recherche = (() => {
       list.hidden = !results.length;
     }
 
+    // Vol de la carte (ms) : durée fixe, comme pour le requêteur route + PR ; à vitesse fixe (speed 1,6), un long vol durait
+    // plusieurs secondes, et le cadrage sur le contour d'une commune en ajoutait autant
+    const FLIGHT = 700;
     function choose(i) {
       const r = results[i];
       if (!r) return;
@@ -92,14 +95,14 @@ const Recherche = (() => {
       const ticket = ++chosen;
       // Commune de la base des adresses, ou toponyme administratif de nature « commune »
       const commune = r.kind === "municipality" || (r.poiType || []).includes("commune");
-      map.flyTo({ center: [r.x, r.y], zoom, speed: 1.6 });  // tout de suite, sans attendre le contour
+      map.flyTo({ center: [r.x, r.y], zoom, duration: FLIGHT });  // tout de suite, sans attendre le contour
       if (!commune) return;
       // Commune : son contour tracé, puis la carte cadrée dessus quand il arrive
       communeOutline(r.x, r.y).then((feature) => {
         if (ticket !== chosen) return;  // autre lieu choisi entre-temps
         if (!feature) throw new Error("contour introuvable");
         outline?.setData({ type: "FeatureCollection", features: [feature] });
-        map.fitBounds(bounds(feature.geometry), { padding: 30, speed: 1.6 });
+        map.fitBounds(bounds(feature.geometry), { padding: 30, duration: FLIGHT });
       }).catch((error) => console.warn("Contour de la commune :", error));
     }
 
