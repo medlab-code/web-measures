@@ -1955,7 +1955,7 @@
     }
     lastPhotoAt = now;
     showPhotoInfo(feature);
-    $("#capture-hd").disabled = !Calcul.hasWorker();  // « Avec les mesures » : selon les mesures (drawViewerMarks)
+    $("#capture-hd").disabled = !Calcul.hasWorker();  // « Avec annotations » : selon les annotations (updateAnnotationsButton)
     $("#plein-ecran").disabled = !document.fullscreenEnabled;
     if (app) refresh(app.set_picture(JSON.stringify(feature)));
     proposeRecaledPhoto();
@@ -4920,6 +4920,7 @@
     try { shown = markers.getMarker(id); } catch { /* pas encore posée */ }
     if (!at) {
       if (shown) markers.removeMarker(id);
+      updateAnnotationsButton();
       return;
     }
     const text = `${parcel.section}|${parcel.numero}`;
@@ -4929,15 +4930,23 @@
     if (!shown) markers.addMarker(config);
     else markers.updateMarker(text === parcelText ? { id, position: at } : config);  // même parcelle : position seule
     parcelText = text;
+    updateAnnotationsButton();
   }
   let markIds = [];
   let currentMarks = [];
+  let measureShown = false;  // mesure (valeur en mètres) sur la photo affichée (drawViewerMarks)
+  /** « Avec annotations » : actif dès qu'une annotation est dans la visionneuse (mesure, étiquette de la parcelle visée,
+   * objet de la couche affichée). */
+  function updateAnnotationsButton() {
+    const parcel = (() => { try { return Boolean(psv?.getPlugin?.("markers")?.getMarker(`${MARK}parcelle`)); } catch { return false; } })();
+    $("#vignette").disabled = !photo || !(measureShown || parcel || markIds.some((id) => id.startsWith(`${MARK}couche-`)));
+  }
 
   function drawViewerMarks(marks) {
     currentMarks = marks;
     crossAt = app ? JSON.parse(app.pick_points()) : [];
-    // « Avec les mesures » : seulement s'il y a une mesure (valeur en mètres) sur la photo affichée
-    $("#vignette").disabled = !photo || !marks.some((m) => !m.guide && /\d m\b/.test(m.label || ""));
+    // « Avec annotations » : mesure (valeur en mètres) sur la photo affichée, parcelle visée, couche
+    measureShown = marks.some((m) => !m.guide && /\d m\b/.test(m.label || ""));
     const markers = psv?.getPlugin?.("markers");
     if (!markers) return;
     for (const id of markIds) {
@@ -5013,6 +5022,7 @@
       }
     }
     showParcelMark();
+    updateAnnotationsButton();
     Traits.attach(psv);
     Traits.set(lines, { crosses, labels });
     markers.renderMarkers?.();
@@ -5877,7 +5887,7 @@
         noticeInFullscreen("Vignette enregistrée (copie dans le presse-papiers refusée par le navigateur).");
       }
     } catch (error) {
-      setStatus(`Capture « Avec les mesures » impossible : ${error.message}`, "echec");
+      setStatus(`Capture « Avec annotations » impossible : ${error.message}`, "echec");
     }
   });
 
@@ -6501,7 +6511,7 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
     }
   }
 
-  /** La visionneuse telle qu'affichée, avec les repères des mesures et l'attribution. */
+  /** La visionneuse telle qu'affichée, avec ses annotations (mesures, couche, parcelle visée) et l'attribution. */
   function thumbnail() {
     const r = psv.renderer;
     r.renderer.render(r.scene, r.camera);  // image WebGL lue juste après son rendu
@@ -6555,6 +6565,21 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
         ctx.restore();
       }
       drawScreenLabels(ctx, psv.container, gl.getBoundingClientRect(), scale);
+    }
+    // Étiquette de la parcelle cadastrale visée (repère HTML), telle qu'affichée : section au-dessus du numéro
+    for (const el of psv.container.querySelectorAll(".parcelle-visee")) {
+      const r = el.getBoundingClientRect(), origin = gl.getBoundingClientRect(), css = getComputedStyle(el);
+      if (!r.width) continue;
+      ctx.save();
+      ctx.font = `${css.fontWeight} ${parseFloat(css.fontSize) * scale}px ${css.fontFamily}`;
+      Object.assign(ctx, { textAlign: "center", textBaseline: "middle", strokeStyle: "#fff", lineWidth: 3 * scale, lineJoin: "round", fillStyle: css.color });
+      const lines = [...el.children].map((span) => span.textContent), x = (r.left + r.width / 2 - origin.left) * scale;
+      lines.forEach((text, i) => {
+        const y = (r.top - origin.top + r.height * (i + 0.5) / lines.length) * scale;
+        ctx.strokeText(text, x, y);
+        ctx.fillText(text, x, y);
+      });
+      ctx.restore();
     }
     // Mesures : la surcouche WebGL de la visionneuse (traits, croix, étiquettes), telle qu'affichée
     const layer = Traits.snapshot();

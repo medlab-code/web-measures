@@ -91,7 +91,7 @@ async function feature(id) {
   log("bouton Mesure désactivé : " + app.status());
   doc.querySelector("#mesure").click();
   log("bouton Mesure activé : " + app.status());
-  expect("« Avec les mesures » grisé sans mesure", doc.querySelector("#vignette").disabled);
+  expect("« Avec annotations » grisé sans annotation", doc.querySelector("#vignette").disabled);
 
   // Pouilly (imajbox) ------------------------------------------------------------------------
   await open(POUILLY);
@@ -408,8 +408,8 @@ async function feature(id) {
   log("attendu sans inclinaison : " + (d * (Math.tan(0.25) + Math.tan(0.3))).toFixed(2) + " m · ensuite : " + app.status().slice(0, 60)
     + " · flèches masquées : " + [...box.querySelectorAll(".psv-virtual-tour-arrows")].every((a) => a.style.visibility === "hidden"));
 
-  // Capture « Avec les mesures » : active avec la hauteur sur la photo (grisée sans mesure, voir plus haut)
-  expect("« Avec les mesures » actif avec la hauteur", !doc.querySelector("#vignette").disabled);
+  // Capture « Avec annotations » : active avec la hauteur sur la photo (grisée sans annotation, voir plus haut)
+  expect("« Avec annotations » actif avec la hauteur", !doc.querySelector("#vignette").disabled);
   let png = 0;  // boîte « Enregistrer sous » remplacée : sans fenêtre, elle ne répondrait pas
   w.showSaveFilePicker = async () => ({ createWritable: async () => ({ write: async (blob) => { png = blob.size; }, close: async () => {} }) });
   doc.querySelector("#vignette").click();

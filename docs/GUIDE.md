@@ -707,8 +707,9 @@ pas utilisé (talus et murs pris pour la route).
   « Remettre la carte ici » dans la colonne, la remet en place ;
 - **filtre des photos** (date, type, précision GPS, producteur) et choix de l'**instance**
   Panoramax : les photos écartées ne s'ouvrent pas, ni par la carte ni par les flèches ;
-- captures : vue recalculée en Full HD depuis la photo originale, ou visionneuse avec les
-  mesures (PNG, copiée dans le presse-papiers) ;
+- captures : vue recalculée en Full HD depuis la photo originale, ou visionneuse avec ses
+  annotations (« Avec annotations » : mesures, étiquette de la parcelle visée, objets de la couche ; PNG, copiée
+  dans le presse-papiers), active dès qu'une annotation est affichée ;
 - liste des résultats avec commentaire et effacement de chacun ; **export CSV**
   (point-virgule, virgule décimale) et **GeoJSON** : valeur, incertitude, composantes,
   distance à la photo, hauteur de caméra, axe de la route, photos, date, commentaire, photo

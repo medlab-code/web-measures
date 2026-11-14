@@ -85,6 +85,7 @@ const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-
           if (expected) {
             expect(`étiquette de la parcelle au cap +${turn}° : ${expected.slice(-6)}`, el && el.textContent.includes(numero.replace(/^0+/, "")) || el?.textContent.includes(numero));
             expect(`étiquette au cap +${turn}° : vers le milieu de la partie vue de la parcelle (1°)`, yaw < Math.PI / 180);
+            expect(`« Avec annotations » actif avec l'étiquette seule, au cap +${turn}°`, !w.document.querySelector("#vignette").disabled);
           } else expect(`pas d'étiquette au cap +${turn}°`, !mark);
         }
         if (expected && lit === 1) {  // première parcelle allumée : carte dans le journal
