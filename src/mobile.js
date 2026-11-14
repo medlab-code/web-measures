@@ -29,7 +29,7 @@
   Carte.showAdmin(map);
   map.on("load", () => {
     Carte.setBackground(map, $("#fond").value);
-    Carte.setNetworkVisible(map, true);
+    Carte.setNetworkVisible(map, $("#filaire").checked);
   });
   map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }), "bottom-right");
 
@@ -136,6 +136,11 @@
   $("#fond").addEventListener("change", (event) => {
     Carte.setBackground(map, event.target.value);
     store.set("fond", event.target.value);
+  });
+  $("#filaire").checked = store.get("filaire", "1") === "1";  // comme la page principale
+  $("#filaire").addEventListener("change", (event) => {
+    Carte.setNetworkVisible(map, event.target.checked);
+    store.set("filaire", event.target.checked ? "1" : "0");
   });
   $("#bornes").checked = store.get("bornes") !== "0";
   Carte.setMilestones(map, $("#bornes").checked);

@@ -34,6 +34,9 @@ const ID = "1108ca14-6669-49e8-a26a-955becc79e81";  // Pouilly-en-Auxois (comme 
     expect("filtre enregistré comme la page principale", JSON.parse(w.localStorage.getItem("web-measures/filtre")).since === "2099-01-01");
     doc.querySelector("#depuis").value = "";
     doc.querySelector("#depuis").dispatchEvent(new Event("change"));
+    doc.querySelector("#filaire").click();
+    expect("filaire masquable, choix gardé", !doc.querySelector("#filaire").checked && w.localStorage.getItem("web-measures/filaire") === "0");
+    doc.querySelector("#filaire").click();
     doc.querySelector("#lien-complet").click();
     expect("bouton « Version complète » masquable, choix gardé", doc.querySelector("#version-complete").hidden
       && w.localStorage.getItem("web-measures/mobile-lien-complet") === "0");

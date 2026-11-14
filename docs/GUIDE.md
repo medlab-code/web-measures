@@ -14,7 +14,7 @@ courte : [README](../README.md) ; calculs : [CALCULS.md](CALCULS.md) ; vue Bird 
 
 **Sur téléphone** : `mobile.html`, version de consultation (sans le calcul ni les mesures) : photo en
 haut, carte en bas, partage réglé par la poignée entre les deux ; recherche de lieux et requêteur route +
-PR au-dessus ; bouton ⚙ des réglages : fond de carte, bornes des PR, cadastre (parcelle visée en vert, son
+PR au-dessus ; bouton ⚙ des réglages : fond de carte, filaire Panoramax, bornes des PR, cadastre (parcelle visée en vert, son
 étiquette dans la photo, caméra supposée à 1,90 m au-dessus d'un sol de niveau), filtre des photos (instance,
 producteur, date de début ; mêmes réglages que la page principale), bouton « Version complète » masquable ; bouton 📷 : capture de la vue avec l'étiquette et les
 cartouches, partagée par le téléphone (sinon téléchargée).
