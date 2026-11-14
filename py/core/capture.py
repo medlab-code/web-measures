@@ -144,7 +144,7 @@ def caption_for(item, heading):
 
 
 def french_date(stamp):
-    """Date de prise de vue à l'heure de Paris (UTC+1, UTC+2 l'été), au format jj/mm/aaaa ; date lue telle
+    """Date de prise de vue à l'heure de Paris (UTC+1, UTC+2 l'été), en toutes lettres (23 mai 2025) ; date lue telle
     quelle si l'heure manque ou ne se lit pas, "" sans date. Règle européenne d'heure d'été écrite ici :
     zoneinfo n'a pas toujours ses données dans le navigateur."""
     stamp = stamp or ""
@@ -153,14 +153,26 @@ def french_date(stamp):
     except ValueError:
         when = None
     if when is None or when.tzinfo is None:
-        return "/".join(reversed(stamp[:10].split("-"))) if stamp else ""
+        try:
+            return long_date(_dt.date.fromisoformat(stamp[:10]))
+        except ValueError:
+            return stamp[:10]
     when = when.astimezone(_dt.timezone.utc).replace(tzinfo=None)
 
     def last_sunday(month):  # dernier dimanche du mois, 1 h UTC : changement d'heure
         day = _dt.datetime(when.year, month, 31, 1)
         return day - _dt.timedelta(days=(day.weekday() + 1) % 7)
     summer = last_sunday(3) <= when < last_sunday(10)
-    return (when + _dt.timedelta(hours=2 if summer else 1)).strftime("%d/%m/%Y")
+    return long_date(when + _dt.timedelta(hours=2 if summer else 1))
+
+
+MONTHS = ("janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre",
+          "novembre", "décembre")
+
+
+def long_date(day):
+    """23 mai 2025, 1er juin 2025."""
+    return "{} {} {}".format("1er" if day.day == 1 else day.day, MONTHS[day.month - 1], day.year)
 
 
 def license_name(item):
