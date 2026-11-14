@@ -110,7 +110,9 @@ const Carte = (() => {
   const EMPTY = { type: "FeatureCollection", features: [] };
   const kind = (...kinds) => ["in", ["get", "kind"], ["literal", kinds]];
 
-  function createMap(container) {
+  /** textScale (page mobile : 2) : tuiles du Plan IGN et d'OpenStreetMap, au texte dessiné dedans, affichées
+   * textScale fois plus grandes (tuile du zoom inférieur agrandie), lisibles sur un téléphone. */
+  function createMap(container, { textScale = 1 } = {}) {
     const map = new maplibregl.Map({
       container,
       attributionControl: false,  // ajouté replié ci-dessous
@@ -124,7 +126,7 @@ const Carte = (() => {
         sources: {
           plan: {
             type: "raster", tiles: [wmts("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png")],
-            tileSize: 256, maxzoom: 19, attribution: ATTRIBUTION_IGN,
+            tileSize: 256 * textScale, maxzoom: 19, attribution: ATTRIBUTION_IGN,
           },
           ortho: {
             type: "raster", tiles: [wmts("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg")],
@@ -140,7 +142,7 @@ const Carte = (() => {
             type: "raster", tiles: [wmts("IGNF_LIDAR-HD_MNH_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW", "image/png")],
             tileSize: 256, maxzoom: 18, attribution: ATTRIBUTION_IGN,
           },
-          osm: { type: "raster", tiles: osmTiles, tileSize: 256, maxzoom: 19, attribution: ATTRIBUTION_OSM },
+          osm: { type: "raster", tiles: osmTiles, tileSize: 256 * textScale, maxzoom: 19, attribution: ATTRIBUTION_OSM },
           panoramax: {
             type: "vector", tiles: [tilesUrl()], minzoom: 0, maxzoom: 15, attribution: ATTRIBUTION_PANORAMAX,
           },

@@ -21,7 +21,7 @@
   }
 
   const viewer = $("#visionneuse");
-  const map = Carte.createMap("carte");
+  const map = Carte.createMap("carte", { textScale: 2 });  // texte du Plan IGN et d'OSM lisible au doigt
   Recherche.attach(map);
   Requeteur.attach(map, (lng, lat, heading, radius) => openNearest(lng, lat, heading, radius));
   $("#barre").append(map.getContainer().querySelector(".recherche"), map.getContainer().querySelector(".requeteur"));
