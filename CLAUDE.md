@@ -25,7 +25,12 @@ attentes de condition (essai complet : environ 7 → 5 min), parcours de mesure 
 - Cœur de calcul (`py/core/`, repris du plugin) : ses tests sont dans `tests/coeur/` (scènes
   synthétiques à réponse connue) ; tout correctif du cœur s'accompagne d'un test qui échoue sur
   l'ancien code.
-- Contrôle de syntaxe JavaScript : `gjs` (pas de Node sur le poste).
+- Contrôle de syntaxe JavaScript : `gjs` ou `node --check` (Node 22 sur le poste, pour les outils
+  seulement : la page n'en dépend pas).
+- Outils installés : GDAL (`ogr2ogr`, `gdalinfo`), `pdal` (LiDAR `.laz`), `sqlite3`, Python
+  `pyproj`, `shapely`, `rasterio` et `websockets` (pilotage de Chrome par son port de débogage),
+  `shellcheck` (scripts de `tools/`), `ruff` (Python), `tidy` (HTML), `entr`, `fd`, `hyperfine`,
+  `pdftotext`, `biome` (JavaScript ; dans `~/.local`, installé par `npm i -g --prefix ~/.local`).
 - Essai dans un vrai navigateur sans fenêtre : Google Chrome du paquet Fedora
   (`google-chrome`, plus de Flatpak), profil temporaire, lancé par `setsid` : à la fin,
   n'arrêter que ce Chrome-là (son groupe de processus, ou les processus portant son profil),
