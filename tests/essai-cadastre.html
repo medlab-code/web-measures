@@ -102,8 +102,15 @@ const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-
         await log("IMAGE parcelle-camera " + shot);
         Carte.showView(map, cam, azimuth, 90);
       } else expect("point d'essai dans une parcelle trouvé", false);
+      {  // croix discrète au centre de la vue, cadastre coché
+        const croix = doc.querySelector("#croix-cadastre"), r = croix.getBoundingClientRect();
+        const v = w.mesures.psv.container.getBoundingClientRect();
+        expect("croix au centre de la vue (cadastre coché)", !croix.hidden
+          && Math.abs((r.left + r.right) / 2 - (v.left + v.right) / 2) <= 1 && Math.abs((r.top + r.bottom) / 2 - (v.top + v.bottom) / 2) <= 1);
+      }
       doc.querySelector("#cadastre").click();  // réglage décoché : plus rien d'allumé
       await soon(() => shown() === "" && under() === "", 3000);
+      expect("cadastre éteint : plus de croix au centre de la vue", doc.querySelector("#croix-cadastre").hidden);
       expect("cadastre éteint : parcelles visée et de la caméra éteintes", shown() === "" && under() === ""
         && map.getLayoutProperty("cadastre-vise", "visibility") === "none" && map.getLayoutProperty("cadastre-camera", "visibility") === "none");
     }

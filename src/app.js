@@ -464,6 +464,7 @@
   $("#cadastre").addEventListener("change", (event) => {
     store.set("cadastre", event.target.checked ? "1" : "0");
     Carte.setCadastre(map, event.target.checked);
+    applyMeasureUi();  // croix du centre de la vue
   });
   $("#anisotrope").checked = store.get("anisotrope") === "1";
   $("#anisotrope").addEventListener("change", (event) => {
@@ -4824,6 +4825,7 @@
     // Largeur, hauteur, mesure libre : trait vertical au centre de la vue, le cap tracé sur la
     // carte ; la vue tournée vers le point à viser (take_aim_frame), il le désigne (ticket #26)
     $("#axe-vue").hidden = !measuring || !["road", "height", "tri", "releve"].includes(mode) || viewer.hidden;
+    $("#croix-cadastre").hidden = !$("#cadastre").checked || viewer.hidden;
     // Même état en toutes lettres, sous le rappel du mode (comme les voyants)
     // Carte d'étape (en bas, en mesure) : nom de la mesure et ses étapes, la courante en couleur
     $("#vue").classList.toggle("en-mesure", measuring);

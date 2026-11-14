@@ -723,6 +723,12 @@ button.principal { font-weight: 600; }
   z-index: 4;
 }
 #axe-vue[hidden] { display: none; }
+/* Cadastre sur la carte : croix fine et transparente au centre de la vue (ligne de cap, parcelle visée en vert) */
+#croix-cadastre { position: absolute; top: 50%; left: 50%; width: 56px; height: 56px; transform: translate(-50%, -50%);
+  pointer-events: none; z-index: 2; opacity: 0.2;
+  background: linear-gradient(#fff, #fff) center / 2px 100% no-repeat, linear-gradient(#fff, #fff) center / 100% 2px no-repeat;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.8)); }
+#croix-cadastre[hidden] { display: none; }
 
 /* Largeur faite : proposer de trianguler le bord opposé (bleu des visées) */
 #trianguler-b, #garder-seul {

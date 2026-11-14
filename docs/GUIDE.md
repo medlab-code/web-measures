@@ -589,7 +589,8 @@ visionneuse, la section et le numéro de la parcelle verte s'affichent comme sur
 où la ligne de cap entre dans la parcelle, à sa limite avec le domaine public : sol lu sur le LiDAR HD (MNT à 50 cm du
 service d'altimétrie de l'IGN, RGE ALTI s'il manque ; pas le nuage de points) sous ce point et sous la caméra, calage de
 la photo compris ; de niveau avec celui de la caméra le temps de la lecture. L'étiquette reste à ce point tant que la
-vue balaie la même parcelle. Limites indicatives. Pas de projection dans la photo : un
+vue balaie la même parcelle. Une croix fine et transparente marque le centre de la vue (la ligne de cap) tant que le
+cadastre est coché, pour viser les parcelles. Limites indicatives. Pas de projection dans la photo : un
 essai l'a montrée trop imprécise au pied des façades (plan, sol interpolé sous les bâtiments, inclinaison de la photo).
 
 **Couche importée** (onglet « Couche » du panneau : bouton « Importer un fichier… », ou fichier glissé sur

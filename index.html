@@ -104,6 +104,8 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
       <p id="invite">Cliquez sur le filaire orange de la carte pour choisir une photo.</p>
       <!-- Largeur, hauteur, mesure libre : centre de la vue, même cap que le trait de la mini-carte -->
       <div id="axe-vue" hidden></div>
+      <!-- Cadastre sur la carte : croix discrète au centre de la vue, sur la ligne de cap (parcelle visée) -->
+      <div id="croix-cadastre" hidden aria-hidden="true"></div>
       <pnx-photo-viewer id="visionneuse" endpoint="https://api.panoramax.xyz/api" widgets="false"
                         url-parameters="false" keyboard-shortcuts="false" hidden></pnx-photo-viewer>
       <button id="plein-ecran" type="button" disabled aria-pressed="false" title="Afficher la visionneuse en plein écran">
