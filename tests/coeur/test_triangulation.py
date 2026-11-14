@@ -279,3 +279,20 @@ class CommonErrors(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Ellipsoid(unittest.TestCase):
+    """Plan local (_local, _geographic) sur l'ellipsoïde WGS 84, comme les positions GPS : longueur
+    d'un degré à 45° N d'après les tables géodésiques (78 847 m en longitude, 111 132 m en latitude)."""
+
+    def test_degree_lengths_at_45(self):
+        x, _ = triangulation._local(1.001, 45.0, 1.0, 45.0)
+        _, y = triangulation._local(1.0, 45.0005, 1.0, 44.9995)
+        self.assertAlmostEqual(x * 1000, 78847, delta=2)  # sphère de 6 371 km : 78 626 m
+        self.assertAlmostEqual(y * 1000, 111132, delta=2)  # sphère : 111 195 m
+
+    def test_round_trip(self):
+        lon, lat = triangulation._geographic(123.4, -56.7, 5.0, 47.3)
+        x, y = triangulation._local(lon, lat, 5.0, 47.3)
+        self.assertAlmostEqual(x, 123.4, places=9)
+        self.assertAlmostEqual(y, -56.7, places=9)

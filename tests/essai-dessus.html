@@ -21,8 +21,10 @@ const LONG = [-3, 0.8, 2.5], ACROSS = [0.5, 4, 7], HALF = 0.06;  // traits (m) :
 const at = (east, north) => Dessus.toLonLat(east, north, pose);
 const before = () => { const [lon, lat] = at(0.3, -5); return { ...pose, pic: "a", lon, lat, heading: 30, up: unit(-0.02, 0.025), height: 2.35 }; };
 const after = () => { const [lon, lat] = at(-0.2, 5); return { ...pose, pic: "b", lon, lat, heading: 44, up: unit(0.01, 0.03), height: 2.45 }; };
-const EARTH = 6371008.8;
-const offsetOf = (p) => [EARTH * (p.lon - pose.lon) * toRad * Math.cos(pose.lat * toRad), EARTH * (p.lat - pose.lat) * toRad];
+// Mètres par radian sur l'ellipsoïde WGS 84 à la latitude de la caméra : rayon du parallèle, rayon de courbure du méridien
+const W84 = 1 - 0.00669437999014 * Math.sin(pose.lat * toRad) ** 2;
+const EAST = 6378137 / Math.sqrt(W84) * Math.cos(pose.lat * toRad), NORTH = 6378137 * (1 - 0.00669437999014) / W84 ** 1.5;
+const offsetOf = (p) => [EAST * (p.lon - pose.lon) * toRad, NORTH * (p.lat - pose.lat) * toRad];
 
 // Inverse indépendant de Dessus : direction vue → direction vraie, comme calibration.untilt (correction directe)
 function truth(yaw, elev, p) {
@@ -195,6 +197,11 @@ function centre(pixels, line, around) {
     const found = Dessus.linesPitch(view, 0, north.height);
     await expect(`tangage faussé de ${delta}° : correction ${-delta}° lue sur les lignes (±0,15°)`, found && Math.abs(found.pitch + delta) < 0.15,
       found ? `${found.pitch.toFixed(2)}°, ${found.lines} lignes sur ${found.spread.toFixed(1)} m` : "aucune");
+  }
+  {  // Plan local sur l'ellipsoïde WGS 84 (tables géodésiques : un degré vaut 78 847 m en longitude, 111 132 m en latitude à 45° N)
+    const [x] = Dessus.toLocal(1.001, 45, { lon: 1, lat: 45 }), [, y] = Dessus.toLocal(1, 45.001, { lon: 1, lat: 45 });
+    await expect("plan local sur l'ellipsoïde (degré à 45° N à 2 m près)", Math.abs(x * 1000 - 78847) < 2 && Math.abs(y * 1000 - 111132) < 2,
+      `${(x * 1000).toFixed(0)} / ${(y * 1000).toFixed(0)} m`);
   }
   {  // Export géoréférencé (geotiff) : image de 5 × 3 px relue (en-tête, pixels, passage pixel -> Lambert 93)
     const w = 5, h = 3, image = new ImageData(w, h);

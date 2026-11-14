@@ -30,7 +30,9 @@ Module sans dépendance à QGIS, pour pouvoir être testé seul.
 
 import math
 
-EARTH_RADIUS = 6371008.8
+# Ellipsoïde WGS 84 (celui des positions GPS) : demi-grand axe (m), carré de l'excentricité
+WGS84_A = 6378137.0
+WGS84_E2 = 0.00669437999014
 HEADING_ERROR = 1.0  # erreur de visée supposée (degrés) pour l'incertitude affichée
 # Matériel de relevé (GPS corrigé à SURVEY_ACCURACY m ou mieux, cap EXIF au centième) :
 # sur les photos imajbox à position RTK, le cap suit la trajectoire à 0,33° près (écart-type).
@@ -65,15 +67,26 @@ class TriangulationError(ValueError):
     """Visées inexploitables (message destiné à l'utilisateur)."""
 
 
+def _radii(lat0):
+    """Mètres par radian vers l'est (rayon du parallèle) et vers le nord (rayon de courbure du
+    méridien) à la latitude lat0, sur l'ellipsoïde WGS 84. Une sphère de rayon moyen (6 371 km)
+    faussait les longueurs de 0,3 % en est-ouest et de 0,05 % en nord-sud vers 47° N."""
+    s2 = math.sin(math.radians(lat0)) ** 2
+    w = 1.0 - WGS84_E2 * s2
+    return (WGS84_A / math.sqrt(w) * math.cos(math.radians(lat0)),
+            WGS84_A * (1.0 - WGS84_E2) / (w * math.sqrt(w)))
+
+
 def _local(lon, lat, lon0, lat0):
-    """Coordonnées métriques (est, nord) autour de (lon0, lat0)."""
-    return (EARTH_RADIUS * math.radians(lon - lon0) * math.cos(math.radians(lat0)),
-            EARTH_RADIUS * math.radians(lat - lat0))
+    """Coordonnées métriques (est, nord) autour de (lon0, lat0), dans le plan tangent à l'ellipsoïde."""
+    east, north = _radii(lat0)
+    return (east * math.radians(lon - lon0), north * math.radians(lat - lat0))
 
 
 def _geographic(x, y, lon0, lat0):
-    return (lon0 + math.degrees(x / (EARTH_RADIUS * math.cos(math.radians(lat0)))),
-            lat0 + math.degrees(y / EARTH_RADIUS))
+    """Inverse de _local."""
+    east, north = _radii(lat0)
+    return (lon0 + math.degrees(x / east), lat0 + math.degrees(y / north))
 
 
 def offset(lon, lat, heading, distance):

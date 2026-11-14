@@ -8,7 +8,7 @@
 // sont à leur place : poteaux et autres objets s'étalent.
 
 const Dessus = (() => {
-  const EARTH_RADIUS = 6371008.8;  // comme py/core/triangulation.py
+  const WGS84_A = 6378137, WGS84_E2 = 0.00669437999014;  // ellipsoïde des positions GPS, comme py/core/triangulation.py
   const REACH = 15;  // m : portée de la vue
   const SURE = 10;  // m : grisé au-delà (0,6° d'inclinaison y déplacent déjà un point de 45 cm)
   const STEP = 1;  // m : maille du terrain (LiDAR HD à 50 cm, toit de la chaussée compris)
@@ -182,10 +182,14 @@ const Dessus = (() => {
   const shownError = (a, b, layers, sigmaGround) =>
     Math.max(measureError(a, b, layers, sigmaGround), MEASURED * Math.hypot(b[0] - a[0], b[1] - a[1]));
 
-  const toLocal = (lon, lat, pose) => [EARTH_RADIUS * (lon - pose.lon) * toRad * Math.cos(pose.lat * toRad),
-    EARTH_RADIUS * (lat - pose.lat) * toRad];
-  const toLonLat = (east, north, pose) => [pose.lon + east / (EARTH_RADIUS * toRad * Math.cos(pose.lat * toRad)),
-    pose.lat + north / (EARTH_RADIUS * toRad)];
+  /** Mètres par degré vers l'est et vers le nord à la latitude lat, sur l'ellipsoïde WGS 84 (rayon du parallèle, rayon de
+   * courbure du méridien ; voir triangulation._radii). Une sphère de 6 371 km étirait la vue de 0,3 % en est-ouest sur la carte. */
+  function radii(lat) {
+    const w = 1 - WGS84_E2 * Math.sin(lat * toRad) ** 2;
+    return [WGS84_A / Math.sqrt(w) * Math.cos(lat * toRad) * toRad, WGS84_A * (1 - WGS84_E2) / (w * Math.sqrt(w)) * toRad];
+  }
+  const toLocal = (lon, lat, pose) => { const [e, n] = radii(pose.lat); return [e * (lon - pose.lon), n * (lat - pose.lat)]; };
+  const toLonLat = (east, north, pose) => { const [e, n] = radii(pose.lat); return [pose.lon + east / e, pose.lat + north / n]; };
 
   /** Côté (points) d'un maillage de terrain carré (readTerrain : ±REACH m, ou davantage). */
   const meshSide = (terrain) => Math.round(Math.sqrt(terrain.length));
@@ -2135,5 +2139,5 @@ const Dessus = (() => {
     }
   }
 
-  return { setup, update, exportView, geotiff, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins, outline: outlines.get(shown.sequence), locatedWith: shown.locatedWith }, view, hidden, uncertainty, measureError, shownError, groundUp, roadAxis, sourceOf, toLonLat, estimateHeight, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, linesPitch, REACH, SIZE };
+  return { setup, update, exportView, geotiff, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins, outline: outlines.get(shown.sequence), locatedWith: shown.locatedWith }, view, hidden, uncertainty, measureError, shownError, groundUp, roadAxis, sourceOf, toLocal, toLonLat, estimateHeight, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, linesPitch, REACH, SIZE };
 })();

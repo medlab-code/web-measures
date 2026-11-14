@@ -18,6 +18,14 @@ dans `src/profil.js`, vidéo du parcours dans `src/video.js` (dévers de la vid�
 
 ## 1. Ce qui sert à tous les modes
 
+Les calculs se font en mètres dans un **plan tangent local** (est, nord) autour d'une photo ou
+d'un point. Le passage des degrés GPS aux mètres suit l'**ellipsoïde WGS 84** : rayon du
+parallèle vers l'est, rayon de courbure du méridien vers le nord, à la latitude du point
+(`_local`, `_geographic` de `core/triangulation.py`, `toLocal`, `toLonLat` de `src/dessus.js`).
+Jusqu'au 14/11/2026, une sphère de 6 371 km faussait les longueurs de 0,3 % en est-ouest et de
+0,05 % en nord-sud vers 47° N (3 cm sur une largeur de 10 m) ; la vue du dessus était étirée
+d'autant en est-ouest sur la carte.
+
 ### 1.1 D'un clic à une visée
 
 Un clic dans la photo 360° donne une direction depuis la caméra. Elle est tirée du **cap EXIF**
