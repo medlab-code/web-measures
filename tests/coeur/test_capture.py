@@ -59,3 +59,14 @@ class Caption(unittest.TestCase):
                          "Panoramax  ·  © Producteur A  ·  10/06/2025  ·  etalab-2.0")
         self.assertIn("cap 276°", self.capture.caption_for(item, 276.2))
         self.assertNotIn("License for this object", self.capture.caption_for(item, None))
+
+    def test_french_date(self):  # heure de Paris : UTC+1 l'hiver, UTC+2 l'été (changements le 30/03 et le 26/10/2025)
+        d = self.capture.french_date
+        self.assertEqual(d("2025-01-15T23:30:00Z"), "16/01/2025")
+        self.assertEqual(d("2025-01-15T22:30:00Z"), "15/01/2025")
+        self.assertEqual(d("2025-06-10T22:30:00+00:00"), "11/06/2025")
+        self.assertEqual(d("2025-03-30T00:59:00Z"), "30/03/2025")  # 01:59 heure d'hiver
+        self.assertEqual(d("2025-10-25T22:30:00Z"), "26/10/2025")  # encore l'heure d'été : 00:30
+        self.assertEqual(d("2025-10-26T22:30:00Z"), "26/10/2025")  # heure d'hiver : 23:30
+        self.assertEqual(d("2025-06-10"), "10/06/2025")
+        self.assertEqual(d(None), "")

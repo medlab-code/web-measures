@@ -14,6 +14,7 @@ Tableaux numpy RGB (numpy importé à l'usage : le cœur s'importe sans lui). D�
 cartouche et enregistrement : hôte (capture.py du plugin, page web).
 """
 
+import datetime as _dt
 import math
 import re
 
@@ -128,7 +129,7 @@ def caption_for(item, heading):
     providers = props.get("providers") or item.get("providers") or []
     names = [p.get("name") for p in providers if isinstance(p, dict) and p.get("name")]
     author = names[0] if names else None
-    date = "/".join(reversed((props.get("datetime") or "")[:10].split("-")))  # 2025-06-10 → 10/06/2025
+    date = french_date(props.get("datetime"))
     lic = license_name(item)
     parts = ["Panoramax"]
     if author:
@@ -140,6 +141,26 @@ def caption_for(item, heading):
     if lic:
         parts.append(str(lic))
     return "  ·  ".join(parts)
+
+
+def french_date(stamp):
+    """Date de prise de vue à l'heure de Paris (UTC+1, UTC+2 l'été), au format jj/mm/aaaa ; date lue telle
+    quelle si l'heure manque ou ne se lit pas, "" sans date. Règle européenne d'heure d'été écrite ici :
+    zoneinfo n'a pas toujours ses données dans le navigateur."""
+    stamp = stamp or ""
+    try:
+        when = _dt.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError:
+        when = None
+    if when is None or when.tzinfo is None:
+        return "/".join(reversed(stamp[:10].split("-"))) if stamp else ""
+    when = when.astimezone(_dt.timezone.utc).replace(tzinfo=None)
+
+    def last_sunday(month):  # dernier dimanche du mois, 1 h UTC : changement d'heure
+        day = _dt.datetime(when.year, month, 31, 1)
+        return day - _dt.timedelta(days=(day.weekday() + 1) % 7)
+    summer = last_sunday(3) <= when < last_sunday(10)
+    return (when + _dt.timedelta(hours=2 if summer else 1)).strftime("%d/%m/%Y")
 
 
 def license_name(item):
