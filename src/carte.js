@@ -795,22 +795,22 @@ const Carte = (() => {
   // (limites du plan à 1,5 m près en Côte-d'Or, voir CADASTRE_DECALAGE). Recherchée sur les tuiles chargées, à chaque
   // rotation de la vue (une fois par image au plus).
   const CADASTRE_VISEE = 50;
-  // aimListener : averti de la parcelle visée ({ idu, section, numero, at : [lon, lat] du point où la ligne de cap y
-  // entre }, ou null) ; ce point reste le même tant que la parcelle et la caméra ne changent pas (l'étiquette de la
-  // visionneuse ne suit pas la vue à l'intérieur d'une même parcelle)
+  // aimListener : averti de la parcelle visée ({ idu, section, numero, at : [lon, lat] du milieu de sa partie vue
+  // directement, entre ses limites gauche et droite (parcelMiddle) }, ou null), à chaque changement de parcelle visée ou de caméra : ce point ne bouge pas
+  // quand la vue tourne dans la même parcelle
   let aimFrame = 0, aimedKey = "", aimedNow = null, aimListener = null;
   function aimCadastre(map) {
     if (aimFrame) return;
     aimFrame = requestAnimationFrame(() => {
       aimFrame = 0;
-      const { aimed, own } = cadastreOn && map.getZoom() >= CADASTRE_MINZOOM ? aimedParcel(map) : { aimed: null, own: "" };
-      const camera = lastView?.[0]?.join(",") || "";
-      if (aimed && aimedNow?.idu === aimed.idu && aimedNow.camera === camera) aimed.at = aimedNow.at;  // point d'entrée gardé
-      if (`${aimed?.idu}|${own}|${camera}` === aimedKey || !map.getLayer("cadastre-vise")) return;
-      aimedKey = `${aimed?.idu}|${own}|${camera}`;
+      const { aimed, own, scene } = cadastreOn && map.getZoom() >= CADASTRE_MINZOOM ? aimedParcel(map) : { aimed: null, own: "" };
+      const key = `${aimed?.idu}|${own}|${lastView?.[0]?.join(",") || ""}`;
+      if (key === aimedKey || !map.getLayer("cadastre-vise")) return;
+      aimedKey = key;
       for (const id of ["cadastre-vise-fond", "cadastre-vise"]) map.setFilter(id, ["==", ["get", "idu"], aimed?.idu || ""]);
       for (const id of ["cadastre-camera-fond", "cadastre-camera"]) map.setFilter(id, ["==", ["get", "idu"], own]);
-      aimedNow = aimed && { ...aimed, camera };
+      if (aimed) aimed.at = parcelMiddle(scene, lastView[1], aimed.idu);  // une fois par parcelle et position de caméra
+      aimedNow = aimed;
       aimListener?.(aimed);
     });
   }
@@ -821,38 +821,76 @@ const Carte = (() => {
   function aimedParcel(map) {
     const [lonlat, heading] = lastView || [];
     if (!lonlat) return { aimed: null, own: "" };
+    const scene = parcelScene(map, lonlat), own = [...scene.around][0] || "";
+    const hit = heading == null ? null : firstParcel(scene, heading);
+    if (!hit) return { aimed: null, own };
+    const { idu, t, props } = hit;
+    return { own, scene, aimed: { idu, section: String(props.section ?? "").replace(/^0+(?=.)/, ""),
+      numero: String(props.numero ?? ""), at: scene.lonlatAt(heading, t) } };
+  }
+  /** Côtés des parcelles chargées proches de la caméra (lonlat), en m depuis elle (est, nord), et parcelles où elle se tient
+   * (around) ; lonlatAt(cap, t) : point à t m dans ce cap. */
+  function parcelScene(map, lonlat) {
     const kx = 111320 * Math.cos(lonlat[1] * Math.PI / 180), ky = 111320;  // m par degré (à 0,3 % près : sans effet ici)
-    const dx = Math.sin((heading ?? 0) * Math.PI / 180), dy = Math.cos((heading ?? 0) * Math.PI / 180);
-    const around = new Set(), hits = new Map();  // parcelles où se tient la caméra ; idu -> { t : distance d'entrée (m), props }
+    const around = new Set(), segments = [];
     for (const f of map.querySourceFeatures("cadastre", { sourceLayer: "parcelle" })) {
       const idu = f.properties?.idu, g = f.geometry;
       if (!idu || !g) continue;
       const polygons = g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
       for (const rings of polygons) {
-        let inside = false, best = Infinity;
-        for (const ring of rings) {
+        const local = rings.map((ring) => ring.map(([lon, lat]) => [(lon - lonlat[0]) * kx, (lat - lonlat[1]) * ky]));
+        const xs = local[0].map((p) => p[0]), ys = local[0].map((p) => p[1]);
+        const gap = Math.hypot(Math.max(0, Math.min(...xs), -Math.max(...xs)), Math.max(0, Math.min(...ys), -Math.max(...ys)));
+        if (gap > CADASTRE_VISEE) continue;  // tout entière au-delà de la portée
+        let inside = false;
+        for (const ring of local) {
           for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-            const ax = (ring[j][0] - lonlat[0]) * kx, ay = (ring[j][1] - lonlat[1]) * ky;
-            const bx = (ring[i][0] - lonlat[0]) * kx, by = (ring[i][1] - lonlat[1]) * ky;
+            const [ax, ay] = ring[j], [bx, by] = ring[i];
             if ((ay > 0) !== (by > 0) && 0 < ax + (bx - ax) * (0 - ay) / (by - ay)) inside = !inside;  // caméra dedans ?
-            // croisement du rayon (t dx, t dy), t ≥ 0, avec le côté a + u (b - a), 0 ≤ u ≤ 1
-            const ex = bx - ax, ey = by - ay, den = dx * ey - dy * ex;
-            if (!den || heading == null) continue;
-            const t = (ax * ey - ay * ex) / den, u = (ax * dy - ay * dx) / den;
-            if (t >= 0 && t <= CADASTRE_VISEE && u >= 0 && u <= 1 && t < best) best = t;
+            segments.push({ idu, props: f.properties, ax, ay, ex: bx - ax, ey: by - ay });
           }
         }
         if (inside) around.add(idu);
-        else if (best < (hits.get(idu)?.t ?? Infinity)) hits.set(idu, { t: best, props: f.properties });
       }
     }
-    let aimed = null;
-    for (const [idu, { t, props }] of hits) {
-      if (around.has(idu) || t >= (aimed?.t ?? Infinity)) continue;
-      aimed = { idu, t, section: String(props.section ?? "").replace(/^0+(?=.)/, ""), numero: String(props.numero ?? ""),
-        at: [lonlat[0] + t * dx / kx, lonlat[1] + t * dy / ky] };
+    const lonlatAt = (heading, t) => [lonlat[0] + t * Math.sin(heading * Math.PI / 180) / kx,
+      lonlat[1] + t * Math.cos(heading * Math.PI / 180) / ky];
+    return { around, segments, lonlatAt, kx, ky };
+  }
+  /** Première parcelle que coupe la visée au cap heading, à CADASTRE_VISEE m au plus, hors celles de la caméra :
+   * { idu, t (m), props }, ou null. */
+  function firstParcel(scene, heading) {
+    const dx = Math.sin(heading * Math.PI / 180), dy = Math.cos(heading * Math.PI / 180);
+    let best = null;
+    for (const { idu, props, ax, ay, ex, ey } of scene.segments) {
+      // croisement du rayon (t dx, t dy), t ≥ 0, avec le côté a + u e, 0 ≤ u ≤ 1
+      const den = dx * ey - dy * ex;
+      if (!den || scene.around.has(idu)) continue;
+      const t = (ax * ey - ay * ex) / den, u = (ax * dy - ay * dx) / den;
+      if (t >= 0 && t <= CADASTRE_VISEE && u >= 0 && u <= 1 && t < (best?.t ?? Infinity)) best = { idu, t, props };
     }
-    return { aimed, own: [...around][0] || "" };
+    return best;
+  }
+  /** Milieu de la partie de la parcelle idu vue directement de la caméra, vue au cap heading : [lon, lat] du milieu du
+   * segment qui joint ses deux limites latérales, là où la visée cesse de la rencontrer en première (parcelle voisine,
+   * domaine public, ou rien à portée), cherchées à 0,01° près ; chaque limite prise sur le bord de la parcelle. */
+  function parcelMiddle(scene, heading, idu) {
+    const sees = (cap) => firstParcel(scene, cap)?.idu === idu;
+    const [a, b] = [-1, 1].map((side) => {
+      let good = heading, bad = null;
+      for (let turn = 1; turn <= 180; turn++) {
+        if (!sees(heading + side * turn)) { bad = heading + side * turn; break; }
+        good = heading + side * turn;
+      }
+      while (bad != null && Math.abs(bad - good) > 0.01) {  // limite entre le dernier cap qui la voit et le premier qui ne la voit plus
+        const mid = (good + bad) / 2;
+        if (sees(mid)) good = mid; else bad = mid;
+      }
+      const t = firstParcel(scene, good).t;
+      return [t * Math.sin(good * Math.PI / 180), t * Math.cos(good * Math.PI / 180)];
+    });
+    const [x, y] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    return scene.lonlatAt(Math.atan2(x, y) * 180 / Math.PI, Math.hypot(x, y));
   }
 
   function loadCadastre(map) {

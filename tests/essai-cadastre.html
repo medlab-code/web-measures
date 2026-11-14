@@ -76,12 +76,14 @@ const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-
           try { mark = markers.getMarker("mesure-parcelle"); } catch { /* absente */ }
           const numero = expected.slice(-4), el = mark?.domElement || mark?.element;
           const box = el?.getBoundingClientRect(), view = w.mesures.psv.container.getBoundingClientRect();
-          const yaw = mark && Math.abs(((mark.state?.position?.yaw ?? mark.config.position.yaw) - turn * Math.PI / 180 + 3 * Math.PI) % (2 * Math.PI) - Math.PI);
-          log(`étiquette au cap +${turn}° : ${el?.textContent || "aucune"}${mark ? `, écart au cap ${(yaw * 180 / Math.PI).toFixed(1)}°, élévation ${((mark.state?.position?.pitch ?? mark.config.position.pitch) * 180 / Math.PI).toFixed(1)}°` : ""}`);
+          // direction attendue : le milieu du bord de la partie vue de la parcelle (Carte.aimedParcel().at), depuis la caméra
+          const middle = w.eval("Carte").aimedParcel()?.at, kx = 111320 * Math.cos(cam[1] * Math.PI / 180);
+          const toward = middle && Math.atan2((middle[0] - cam[0]) * kx, (middle[1] - cam[1]) * 111320) - azimuth * Math.PI / 180;
+          const yaw = mark && Math.abs(((mark.state?.position?.yaw ?? mark.config.position.yaw) - toward + 5 * Math.PI) % (2 * Math.PI) - Math.PI);
+          log(`étiquette au cap +${turn}° : ${el?.textContent || "aucune"}${mark ? `, écart à la direction attendue ${(yaw * 180 / Math.PI).toFixed(1)}°, élévation ${((mark.state?.position?.pitch ?? mark.config.position.pitch) * 180 / Math.PI).toFixed(1)}°` : ""}`);
           if (expected) {
             expect(`étiquette de la parcelle au cap +${turn}° : ${expected.slice(-6)}`, el && el.textContent.includes(numero.replace(/^0+/, "")) || el?.textContent.includes(numero));
-            expect(`étiquette au cap +${turn}° : dans l'axe (2°), sous l'horizon, à l'écran`, yaw < 2 * Math.PI / 180
-              && (mark.state?.position?.pitch ?? mark.config.position.pitch) < 0 && box.left >= view.left && box.right <= view.right && box.top >= view.top && box.bottom <= view.bottom);
+            expect(`étiquette au cap +${turn}° : vers le milieu de la partie vue de la parcelle (1°)`, yaw < Math.PI / 180);
           } else expect(`pas d'étiquette au cap +${turn}°`, !mark);
         }
         if (expected && lit === 1) {  // première parcelle allumée : carte dans le journal

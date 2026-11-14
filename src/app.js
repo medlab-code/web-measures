@@ -4896,7 +4896,30 @@
 
   const MARK = "mesure-";  // préfixe de nos repères, pour ne pas toucher à ceux de la visionneuse
   const PARCEL_LABEL_UP = 1.5;  // m au-dessus du sol : étiquette de la parcelle cadastrale visée
-  Carte.onAim(() => drawViewerMarks(currentMarks));  // autre parcelle visée : étiquette refaite
+  Carte.onAim(() => showParcelMark());  // autre parcelle visée, ou autre caméra : étiquette replacée
+  /** Parcelle cadastrale visée (en vert sur la carte) : section au-dessus du numéro, comme sur la mini-carte (parcelImage),
+   * centrés à PARCEL_LABEL_UP m du sol au milieu de sa partie vue directement, entre ses limites gauche et droite
+   * (Carte.aimedParcel). Repère à part (pas dans markIds) : replacé seul quand la parcelle visée change. */
+  let parcelText = "";
+  function showParcelMark() {
+    const markers = psv?.getPlugin?.("markers");
+    if (!markers) return;
+    const id = `${MARK}parcelle`, parcel = Carte.aimedParcel();
+    const at = parcel && app ? JSON.parse(app.view_point(parcel.at[0], parcel.at[1], PARCEL_LABEL_UP)) : null;
+    let shown = null;
+    try { shown = markers.getMarker(id); } catch { /* pas encore posée */ }
+    if (!at) {
+      if (shown) markers.removeMarker(id);
+      return;
+    }
+    const text = `${parcel.section}|${parcel.numero}`;
+    const config = { id, position: at, anchor: "center center", zIndex: OVERLAY_LABEL_Z,
+      tooltip: { content: `Parcelle cadastrale ${escapeHtml(parcel.section)} ${escapeHtml(parcel.numero)}, à 1,50 m du sol`, position: "top center" },
+      html: `<div class="parcelle-visee"><span>${escapeHtml(parcel.section)}</span><span>${escapeHtml(parcel.numero)}</span></div>` };
+    if (!shown) markers.addMarker(config);
+    else markers.updateMarker(text === parcelText ? { id, position: at } : config);  // même parcelle : position seule
+    parcelText = text;
+  }
   let markIds = [];
   let currentMarks = [];
 
@@ -4979,15 +5002,7 @@
         }
       }
     }
-    // Parcelle cadastrale visée (en vert sur la carte) : section au-dessus du numéro, comme sur la mini-carte (parcelImage),
-    // centrés à PARCEL_LABEL_UP m du sol, au point où la ligne de cap y entre (Carte.aimedParcel)
-    const parcel = Carte.aimedParcel();
-    const parcelAt = parcel && app ? JSON.parse(app.view_point(parcel.at[0], parcel.at[1], PARCEL_LABEL_UP)) : null;
-    if (parcelAt) {
-      add({ id: `${MARK}parcelle`, position: parcelAt, anchor: "center center", zIndex: OVERLAY_LABEL_Z,
-        tooltip: { content: `Parcelle cadastrale ${escapeHtml(parcel.section)} ${escapeHtml(parcel.numero)}, à 1,50 m du sol`, position: "top center" },
-        html: `<div class="parcelle-visee"><span>${escapeHtml(parcel.section)}</span><span>${escapeHtml(parcel.numero)}</span></div>` });
-    }
+    showParcelMark();
     Traits.attach(psv);
     Traits.set(lines, { crosses, labels });
     markers.renderMarkers?.();
