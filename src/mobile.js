@@ -28,7 +28,7 @@
   Carte.showMilestones(map);
   Carte.showAdmin(map);
   map.on("load", () => {
-    Carte.setBackground(map, store.get("fond", "plan"));
+    Carte.setBackground(map, $("#fond").value);
     Carte.setNetworkVisible(map, true);
   });
   map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }), "bottom-right");
@@ -44,10 +44,10 @@
       return Number.isFinite(azimuth) && Math.abs(((azimuth - heading) % 360 + 540) % 360 - 180) < 90;
     };
     try {
-      const feature = (heading != null ? await Carte.nearestPhoto(map, lng, lat, sameWay, radius) : null)
-        || await Carte.nearestPhoto(map, lng, lat, () => true, radius);
+      const feature = (heading != null ? await Carte.nearestPhoto(map, lng, lat, (f) => passesFilter(f) && sameWay(f), radius) : null)
+        || await Carte.nearestPhoto(map, lng, lat, passesFilter, radius);
       if (feature) openPhoto(feature);
-      else say("Aucune photo près de ce point : touchez le filaire orange.");
+      else say(filterActive() ? "Aucune photo près de ce point avec le filtre (Réglages ⚙)." : "Aucune photo près de ce point : touchez le filaire orange.");
     } catch (error) {
       say(`Recherche impossible : ${error.message}`);
     }
@@ -67,10 +67,27 @@
   function setPhoto(feature) {
     photo = feature;
     store.set("photo", feature.id);
+    const producer = itemProducer(feature);
+    if (producer) addProducer(producer);
     $("#capture").disabled = false;
     showCone();
     map.easeTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 17), duration: 400 });
     showPlace(feature);
+    backgroundsAt(feature);
+  }
+
+  /** PCRS proposé là où il est publié ; ortho-express de l'année de la photo (comme app.js, photoDetails). */
+  function backgroundsAt(feature) {
+    const [lon, lat] = feature.geometry.coordinates;
+    Carte.pcrsAt(map, lon, lat).then((zone) => {
+      if (photo === feature) $("#fond option[value=pcrs]").disabled = !zone;
+    }).catch(() => {});
+    const year = Number((feature.properties?.datetime || "").slice(0, 4));
+    if (year) {
+      Carte.setExpressYear(map, year, lon, lat).then((used) => {
+        if (photo === feature) $("#fond option[value=express]").textContent = used == null ? "Ortho-express (aucune ici)" : `Ortho-express ${used}`;
+      }).catch(() => {});
+    }
   }
 
   async function showPlace(feature) {
@@ -103,23 +120,94 @@
         const id = event.detail?.picId;
         if (!id || id === photo?.id) return;
         const feature = await Carte.photoById(id).catch(() => null);
-        if (feature) setPhoto(feature);
+        if (feature) setPhoto(feature);  // flèches de la visionneuse : la photo voisine, même hors du filtre
       });
     }, 100);
   }
 
   map.on("click", (event) => openNearest(event.lngLat.lng, event.lngLat.lat));
 
-  // Cadastre : parcelles sur la carte, étiquette de la parcelle visée dans la photo --------------
+  // Réglages de la carte : fond, PR, cadastre (parcelles sur la carte, étiquette de la parcelle visée dans la photo) ---
 
-  function setCadastre(on) {
-    $("#cadastre").setAttribute("aria-pressed", String(on));
-    Carte.setCadastre(map, on);
-    store.set("cadastre", on ? "1" : "0");
-    if (!on) showParcelMark();
+  $("#ouvrir-reglages").addEventListener("click", () => $("#reglages").showModal());
+  $("#reglages").addEventListener("click", (event) => { if (event.target === $("#reglages")) $("#reglages").close(); });  // appui hors du panneau
+  $("#fond").value = store.get("fond", "plan");
+  if (!$("#fond").value) $("#fond").value = "plan";  // fond gardé qui n'existe plus
+  $("#fond").addEventListener("change", (event) => {
+    Carte.setBackground(map, event.target.value);
+    store.set("fond", event.target.value);
+  });
+  $("#bornes").checked = store.get("bornes") !== "0";
+  Carte.setMilestones(map, $("#bornes").checked);
+  $("#bornes").addEventListener("change", (event) => {
+    Carte.setMilestones(map, event.target.checked);
+    store.set("bornes", event.target.checked ? "1" : "0");
+  });
+  $("#lien-complet").checked = store.get("mobile-lien-complet") !== "0";
+  $("#version-complete").hidden = !$("#lien-complet").checked;
+  $("#lien-complet").addEventListener("change", (event) => {
+    $("#version-complete").hidden = !event.target.checked;
+    store.set("mobile-lien-complet", event.target.checked ? "1" : "0");
+  });
+  $("#cadastre").checked = store.get("cadastre") === "1";
+  Carte.setCadastre(map, $("#cadastre").checked);
+  $("#cadastre").addEventListener("change", (event) => {
+    Carte.setCadastre(map, event.target.checked);
+    store.set("cadastre", event.target.checked ? "1" : "0");
+    if (!event.target.checked) showParcelMark();
+  });
+
+  // Filtre des photos : instance, producteur, date ; même enregistrement que la page principale (app.js, currentFilter),
+  // précision GPS et type gardés tels quels (réglés sur la page principale)
+  const DEFAULT_INSTANCE = "https://panoramax.ign.fr";
+  const DEFAULT_PRODUCER = ["8f943f10-a781-4e03-a18c-de035be6f6f8", "conseil départemental de la côte-d'or"];
+  let filter = { since: null, kind: null, max_gps: null, producer: DEFAULT_PRODUCER };
+  try { filter = { ...filter, ...JSON.parse(store.get("filtre", "{}")) }; } catch { /* illisible : par défaut */ }
+  const filterActive = () => Object.values(filter).some((v) => v != null);
+  /** Comme py/core/filters.py (PhotoFilter.matches) : critère absent de la fiche, photo refusée. */
+  function passesFilter(item) {
+    const props = item.properties || {};
+    if (filter.since && String(props.datetime || "").slice(0, 10) < filter.since) return false;
+    if (filter.kind && (Number(props["pers:interior_orientation"]?.field_of_view || 0) >= 360) !== (filter.kind === "360")) return false;
+    if (filter.max_gps != null && !(Number(props["quality:horizontal_accuracy"]) <= filter.max_gps)) return false;
+    if (filter.producer && !(item.providers || props.providers || []).some((p) => p.id === filter.producer[0])) return false;
+    return true;
   }
-  $("#cadastre").addEventListener("click", () => setCadastre($("#cadastre").getAttribute("aria-pressed") !== "true"));
-  setCadastre(store.get("cadastre", "0") === "1");
+  /** Comme py/core/filters.py (item_producer) : [identifiant, nom] du producteur, ou null. */
+  function itemProducer(item) {
+    const p = (item.providers || item.properties?.providers || []).find((q) => q.roles?.includes("producer") && q.id);
+    return p ? [p.id, p.name || p.id] : null;
+  }
+  function addProducer(producer) {
+    const value = JSON.stringify(producer);
+    if (![...$("#producteur").options].some((o) => o.value === value)) $("#producteur").append(new Option(producer[1], value));
+  }
+  addProducer(DEFAULT_PRODUCER);
+  if (filter.producer) addProducer(filter.producer);
+  $("#producteur").value = filter.producer ? JSON.stringify(filter.producer) : "";
+  $("#depuis").value = filter.since || "";
+  function applyFilter() {
+    filter = { ...filter, producer: $("#producteur").value ? JSON.parse($("#producteur").value) : null, since: $("#depuis").value || null };
+    store.set("filtre", JSON.stringify(filter));
+    Carte.setFilter(map, filter);
+  }
+  map.on("load", () => Carte.setFilter(map, filter));
+  for (const id of ["#producteur", "#depuis"]) $(id).addEventListener("change", applyFilter);
+
+  const savedInstance = store.get("instance", DEFAULT_INSTANCE);
+  if (savedInstance) $("#instance").append(new Option(savedInstance, savedInstance));
+  $("#instance").value = savedInstance;
+  viewer.setAttribute("endpoint", Carte.setInstance(map, savedInstance));
+  Carte.instances().then((list) => {
+    for (const [name, url] of list) {
+      if (url !== savedInstance) $("#instance").append(new Option(name, url));
+      else $("#instance").options[1].text = name;
+    }
+  }).catch(() => {});
+  $("#instance").addEventListener("change", (event) => {
+    store.set("instance", event.target.value);
+    viewer.setAttribute("endpoint", Carte.setInstance(map, event.target.value));
+  });
 
   // Comme app.js (showParcelMark), sans le calcul : sol supposé de niveau, caméra à CAMERA_UP m
   const PARCEL_ID = "mesure-parcelle", PARCEL_UP = 1.5, CAMERA_UP = 1.9, PARCEL_DELAY = 2000;

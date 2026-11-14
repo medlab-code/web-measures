@@ -23,7 +23,22 @@ const ID = "1108ca14-6669-49e8-a26a-955becc79e81";  // Pouilly-en-Auxois (comme 
     w.mobile.openPhoto(f);
     await until(() => w.mobile.psv?.getPictureMetadata?.()?.id === ID, 30000, "photo");
     expect("capture active avec une photo", !doc.querySelector("#capture").disabled);
-    expect("cadastre allumé (réglage gardé)", doc.querySelector("#cadastre").getAttribute("aria-pressed") === "true");
+    expect("cadastre allumé (réglage gardé)", doc.querySelector("#cadastre").checked);
+    doc.querySelector("#ouvrir-reglages").click();
+    expect("réglages ouverts : fond, PR, cadastre", doc.querySelector("#reglages").open && doc.querySelector("#fond").value === "plan"
+      && doc.querySelector("#bornes").checked);
+    expect("filtre par défaut : producteur CD21, instance IGN", JSON.parse(doc.querySelector("#producteur").value || "[]")[1] === "conseil départemental de la côte-d'or"
+      && doc.querySelector("#instance").value === "https://panoramax.ign.fr");
+    doc.querySelector("#depuis").value = "2099-01-01";  // date à venir : plus aucune photo
+    doc.querySelector("#depuis").dispatchEvent(new Event("change"));
+    expect("filtre enregistré comme la page principale", JSON.parse(w.localStorage.getItem("web-measures/filtre")).since === "2099-01-01");
+    doc.querySelector("#depuis").value = "";
+    doc.querySelector("#depuis").dispatchEvent(new Event("change"));
+    doc.querySelector("#lien-complet").click();
+    expect("bouton « Version complète » masquable, choix gardé", doc.querySelector("#version-complete").hidden
+      && w.localStorage.getItem("web-measures/mobile-lien-complet") === "0");
+    doc.querySelector("#reglages button[type=submit]").click();
+    expect("réglages fermés", await soon(() => !doc.querySelector("#reglages").open, 2000));
     const marker = () => { try { return w.mobile.psv.getPlugin("markers").getMarker("mesure-parcelle"); } catch { return null; } };
     // vue tournée jusqu'à trouver une parcelle visée (comme essai-cadastre, à 50 m au plus)
     let found = false;

@@ -49,7 +49,6 @@ body.mobile {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 #capture:disabled { opacity: 0.45; }
-.bouton-carte[aria-pressed="true"] { background: #6a00ff; color: #fff; border-color: #6a00ff; }
 
 /* Poignée : glisser pour partager l'écran entre la photo et la carte */
 #poignee {
@@ -72,7 +71,7 @@ body.mobile {
 }
 
 #carte { position: relative; height: auto; min-height: 0; }
-#cadastre { position: absolute; right: 10px; bottom: calc(30px + env(safe-area-inset-bottom)); z-index: 3; }
+#ouvrir-reglages { position: absolute; right: 10px; bottom: calc(30px + env(safe-area-inset-bottom)); z-index: 3; }
 #carte .maplibregl-ctrl-bottom-right { bottom: calc(80px + env(safe-area-inset-bottom)); }
 
 /* Lien vers la page principale, en haut à droite de la carte */
@@ -88,6 +87,28 @@ body.mobile {
   font-size: 14px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
+
+#version-complete[hidden] { display: none; }
+
+/* Réglages : panneau en bas de l'écran */
+#reglages {
+  margin: auto 0 0;
+  width: 100%;
+  max-width: 100%;
+  border: none;
+  border-radius: 14px 14px 0 0;
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  background: var(--fond);
+  color: var(--texte);
+}
+#reglages::backdrop { background: rgba(0, 0, 0, 0.35); }
+#reglages form { flex-direction: column; align-items: stretch; gap: 0.9rem; margin: 0; }  /* sur « dialog form » de style.css */
+#reglages h2 { margin: 0; font-size: 17px; }
+#reglages label { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 44px; }
+#reglages :is(select, input[type=date]) { flex: 1; max-width: 60%; min-height: 40px; font-size: 16px; }
+#reglages .aide { margin: 0; color: var(--discret); font-size: 13px; }
+#reglages { max-height: 85dvh; overflow-y: auto; }
+#reglages button[type="submit"] { min-height: 44px; font-size: 16px; }
 
 #message {
   position: fixed;
