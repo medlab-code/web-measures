@@ -128,7 +128,7 @@ def caption_for(item, heading):
     providers = props.get("providers") or item.get("providers") or []
     names = [p.get("name") for p in providers if isinstance(p, dict) and p.get("name")]
     author = names[0] if names else None
-    date = (props.get("datetime") or "")[:10]
+    date = "/".join(reversed((props.get("datetime") or "")[:10].split("-")))  # 2025-06-10 → 10/06/2025
     lic = license_name(item)
     parts = ["Panoramax"]
     if author:

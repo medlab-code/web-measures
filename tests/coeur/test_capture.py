@@ -56,6 +56,6 @@ class Caption(unittest.TestCase):
     def test_caption(self):
         item = self.item(license="etalab-2.0")
         self.assertEqual(self.capture.caption_for(item, None),
-                         "Panoramax  ·  © Producteur A  ·  2025-06-10  ·  etalab-2.0")
+                         "Panoramax  ·  © Producteur A  ·  10/06/2025  ·  etalab-2.0")
         self.assertIn("cap 276°", self.capture.caption_for(item, 276.2))
         self.assertNotIn("License for this object", self.capture.caption_for(item, None))
