@@ -681,7 +681,6 @@ button.principal { font-weight: 600; }
   text-align: center;
 }
 #avis[hidden] { display: none; }
-  text-align: center; pointer-events: auto; }
 
 /* « Valider le point » sous les messages du haut de la visionneuse : bleu des visées */
 #garder, #valider-objet {
