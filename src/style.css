@@ -1411,11 +1411,11 @@ dd { margin: 0; overflow-wrap: anywhere; }
   font-style: italic;
 }
 /* Visionneuse : étiquette à distance fixe du milieu du trait de mesure (repère de taille nulle) */
-/* Parcelle cadastrale visée (vert de la carte), à 1,50 m du sol : pastille et pointe vers ce point */
-.parcelle-visee { position: relative; margin-bottom: 7px; padding: 2px 8px; border-radius: 4px; background: #1b9e3e; color: #fff;
-  font: 600 14px/1.3 sans-serif; white-space: nowrap; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45); }
-.parcelle-visee::after { content: ""; position: absolute; left: 50%; bottom: -6px; margin-left: -6px;
-  border: 6px solid transparent; border-bottom: 0; border-top-color: #1b9e3e; }
+/* Parcelle cadastrale visée, à 1,50 m du sol : comme les numéros de la mini-carte (src/carte.js, parcelImage), section
+   au-dessus du numéro, violet du Parcellaire Express, liseré blanc de 1,5 px */
+.parcelle-visee { display: flex; flex-direction: column; align-items: center; color: #6a00ff; font: 600 13.75px/16px sans-serif;
+  white-space: nowrap; text-shadow: -1.5px 0 #fff, 1.5px 0 #fff, 0 -1.5px #fff, 0 1.5px #fff,
+    -1px -1px #fff, 1px -1px #fff, -1px 1px #fff, 1px 1px #fff; }
 .ancre { position: relative; width: 0; height: 0; }
 .ancre .etiquette { position: absolute; font-size: 15px; }  /* 25 % plus grandes que sur la carte */
 .etiquette.dessus { bottom: 7px; left: 0; transform: translateX(-50%); }

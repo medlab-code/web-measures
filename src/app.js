@@ -4977,14 +4977,14 @@
         }
       }
     }
-    // Parcelle cadastrale visée (en vert sur la carte) : section et numéro à PARCEL_LABEL_UP m du sol, au point où la ligne
-    // de cap y entre (Carte.aimedParcel)
+    // Parcelle cadastrale visée (en vert sur la carte) : section au-dessus du numéro, comme sur la mini-carte (parcelImage),
+    // centrés à PARCEL_LABEL_UP m du sol, au point où la ligne de cap y entre (Carte.aimedParcel)
     const parcel = Carte.aimedParcel();
     const parcelAt = parcel && app ? JSON.parse(app.view_point(parcel.at[0], parcel.at[1], PARCEL_LABEL_UP)) : null;
     if (parcelAt) {
-      add({ id: `${MARK}parcelle`, position: parcelAt, anchor: "bottom center", zIndex: OVERLAY_LABEL_Z,
+      add({ id: `${MARK}parcelle`, position: parcelAt, anchor: "center center", zIndex: OVERLAY_LABEL_Z,
         tooltip: { content: `Parcelle cadastrale ${escapeHtml(parcel.section)} ${escapeHtml(parcel.numero)}, à 1,50 m du sol`, position: "top center" },
-        html: `<div class="parcelle-visee">${escapeHtml(parcel.section)} ${escapeHtml(parcel.numero)}</div>` });
+        html: `<div class="parcelle-visee"><span>${escapeHtml(parcel.section)}</span><span>${escapeHtml(parcel.numero)}</span></div>` });
     }
     Traits.attach(psv);
     Traits.set(lines, { crosses, labels });
