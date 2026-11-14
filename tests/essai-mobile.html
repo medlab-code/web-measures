@@ -1,0 +1,52 @@
+<!doctype html><meta charset="utf-8"><title>Essai de la version mobile</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Version mobile (mobile.html) dans un cadre de téléphone (390 × 844) : photo ouverte, cadastre et étiquette de la parcelle
+     visée, capture avec ses cartouches, partage de l'écran gardé. Lancer comme tests/navigateur.html. -->
+<script>try {
+  localStorage.clear();
+  localStorage.setItem("web-measures/cadastre", "1");
+} catch {}</script>
+<iframe id="f" src="../mobile.html" style="width:390px;height:844px"></iframe>
+<script src="commun.js"></script>
+<script>
+const { log, until, soon, expect, fin } = Essai;
+const ID = "1108ca14-6669-49e8-a26a-955becc79e81";  // Pouilly-en-Auxois (comme essai-cadastre)
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  try {
+    await until(() => w.mobile?.map?.loaded?.(), 60000, "carte");
+    const doc = w.document;
+    expect("recherche et requêteur dans la barre du haut", doc.querySelector("#barre .recherche") && doc.querySelector("#barre .requeteur"));
+    expect("capture grisée sans photo", doc.querySelector("#capture").disabled);
+    const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + ID)).json()).features[0];
+    w.mobile.openPhoto(f);
+    await until(() => w.mobile.psv?.getPictureMetadata?.()?.id === ID, 30000, "photo");
+    expect("capture active avec une photo", !doc.querySelector("#capture").disabled);
+    expect("cadastre allumé (réglage gardé)", doc.querySelector("#cadastre").getAttribute("aria-pressed") === "true");
+    const marker = () => { try { return w.mobile.psv.getPlugin("markers").getMarker("mesure-parcelle"); } catch { return null; } };
+    // vue tournée jusqu'à trouver une parcelle visée (comme essai-cadastre, à 50 m au plus)
+    let found = false;
+    for (const turn of [0, 90, 180, 270]) {
+      w.mobile.psv.rotate({ yaw: turn * Math.PI / 180, pitch: 0 });
+      if ((found = await soon(() => marker(), 4000))) break;
+    }
+    expect("étiquette de la parcelle visée dans la photo", found, marker()?.domElement?.textContent || "aucune");
+    await soon(() => !doc.querySelector("#lieu").hidden, 15000);
+    const caption = w.mobile.caption(f);
+    log(`cartouche : ${caption} ; lieu : ${doc.querySelector("#lieu").textContent}`);
+    expect("cartouche : date en toutes lettres", /\d{1,2}(er)? [a-zéû]+ \d{4}/.test(caption), caption);
+    // l'étiquette est au milieu du bord vu de la parcelle, parfois hors du champ : vue tournée vers elle
+    if (found) {
+      w.mobile.psv.rotate({ yaw: marker().config.position.yaw, pitch: 0 });
+      expect("étiquette dans le champ, vue tournée vers elle", await soon(() => marker()?.domElement?.getBoundingClientRect().width > 0, 3000));
+    }
+    const canvas = w.mobile.thumbnail();
+    expect("capture à la taille de la vue", canvas.width > 0 && canvas.width === w.mobile.psv.renderer.renderer.domElement.width);
+    await log("IMAGE capture-mobile " + canvas.toDataURL("image/png"));
+    await fin();
+  } catch (error) {
+    log("ERREUR " + (error.stack || error));
+  }
+})();
+</script>

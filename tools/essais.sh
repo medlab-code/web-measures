@@ -26,7 +26,7 @@
 RAPIDE="essai-dessus essai-profil"
 BIRDEYE="essai-dessus essai-dessus-reference#rapide essai-passages#rapide"
 COMPLET="$RAPIDE navigateur essai-rtk essai-largeur essai-libre essai-releve inclinaison-terrain
-  essai-calage essai-profil-pdf essai-cadastre essai-cache essai-ponts essai-bords essai-nuage essai-dessus-reference#rapide"
+  essai-calage essai-profil-pdf essai-cadastre essai-mobile essai-cache essai-ponts essai-bords essai-nuage essai-dessus-reference#rapide"
 PASSAGES="essai-passages"
 VIDEO="essai-avancement-video essai-video essai-boucle essai-chassagne essai-format-video"
 PORT=8766 DELAI=900  # secondes au plus par page

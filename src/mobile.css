@@ -1,0 +1,105 @@
+/* SPDX-FileCopyrightText: 2026 Cédric COCHART */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/* Version mobile (mobile.html) : par-dessus style.css (couleurs, recherche, requêteur, étiquettes) */
+body.mobile {
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto var(--haut-photo, 55fr) 14px 45fr;
+  overflow: hidden;
+  font-size: 16px;
+}
+/* Recherche et requêteur dans la barre du haut, plus sur la carte ; 16 px : pas de zoom d'iOS à la saisie */
+#barre {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: max(6px, env(safe-area-inset-top)) 8px 6px;
+  background: var(--fond);
+  border-bottom: 1px solid var(--bord);
+  z-index: 10;
+}
+#barre :is(.recherche, .requeteur) { position: relative; inset: auto; width: 100%; }
+#barre :is(.recherche input, .requeteur input) { font-size: 16px; padding-block: 0.45rem; }
+#barre .requeteur .prefixe { top: 50%; transform: translateY(-50%); line-height: normal; }
+#barre .requeteur .pr input { padding-left: 2.2rem; }
+#barre .requeteur { font-size: 16px; }
+#barre .recherche ul { position: absolute; left: 0; right: 0; max-height: 50dvh; z-index: 11; font-size: 15px; }
+#barre .recherche li { padding: 0.6rem 0.6rem; }
+#barre .requeteur ul { font-size: 15px; }
+#barre .requeteur li { padding: 0.5rem 0.5rem; }
+
+#vue { position: relative; min-height: 0; background: #202124; }
+#invite { margin: 0; padding: 1rem; color: #fff; text-align: center; }
+#vue #lieu { position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 70px); white-space: normal; }
+#capture {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 6;
+}
+/* Boutons au doigt : 44 px au moins */
+#capture, .bouton-carte {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--bord);
+  border-radius: 8px;
+  background: var(--fond);
+  color: var(--texte);
+  font-size: 22px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+#capture:disabled { opacity: 0.45; }
+.bouton-carte[aria-pressed="true"] { background: #6a00ff; color: #fff; border-color: #6a00ff; }
+
+/* Poignée : glisser pour partager l'écran entre la photo et la carte */
+#poignee {
+  background: var(--encart);
+  border-block: 1px solid var(--bord);
+  touch-action: none;
+  cursor: row-resize;
+  position: relative;
+}
+#poignee::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--discret);
+  transform: translate(-50%, -50%);
+}
+
+#carte { position: relative; height: auto; min-height: 0; }
+#cadastre { position: absolute; right: 10px; bottom: calc(30px + env(safe-area-inset-bottom)); z-index: 3; }
+#carte .maplibregl-ctrl-bottom-right { bottom: calc(80px + env(safe-area-inset-bottom)); }
+
+/* Lien vers la page principale, en haut à droite de la carte */
+#version-complete {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  background: var(--fond);
+  color: var(--texte);
+  font-size: 14px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+#message {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  margin: 0;
+  padding: 0.5rem 0.8rem;
+  border-radius: 6px;
+  background: rgba(32, 33, 36, 0.9);
+  color: #fff;
+  z-index: 20;
+}
+#message[hidden] { display: none; }

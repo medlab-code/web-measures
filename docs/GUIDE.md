@@ -12,6 +12,12 @@ courte : [README](../README.md) ; calculs : [CALCULS.md](CALCULS.md) ; vue Bird 
 *Releases* du dépôt) et la décompresser ; seuls `index.html`, `src/` et `py/` servent à la page
 (`tests/`, `tools/` et `docs/` peuvent être ignorés).
 
+**Sur téléphone** : `mobile.html`, version de consultation (sans le calcul ni les mesures) : photo en
+haut, carte en bas, partage réglé par la poignée entre les deux ; recherche de lieux et requêteur route +
+PR au-dessus ; bouton ▦ du cadastre (parcelle visée en vert, son étiquette dans la photo, caméra
+supposée à 1,90 m au-dessus d'un sol de niveau) ; bouton 📷 : capture de la vue avec l'étiquette et les
+cartouches, partagée par le téléphone (sinon téléchargée).
+
 **Ouvrir la page** : double-cliquer sur `index.html` suffit (Edge, Chrome, Firefox), sans
 installation ni serveur ; une connexion à internet est nécessaire (bibliothèques, Pyodide et
 services). Elle peut aussi être publiée sur n'importe quel serveur web statique, ou servie

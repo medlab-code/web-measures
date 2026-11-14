@@ -1,0 +1,50 @@
+<!doctype html>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Version mobile (consultation) : photo en haut, carte en bas, recherche au-dessus ; sans le calcul (Pyodide).
+     Reprend les scripts de la page principale (carte, lieux, recherche, requêteur, cartouches des captures). -->
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Mesures Panoramax</title>
+  <link rel="icon" type="image/svg+xml" href="src/favicon.svg">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/latin-400.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/latin-500.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/latin-600.css">
+  <link rel="stylesheet" href="src/style.css">
+  <link rel="stylesheet" href="src/mobile.css">
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+  <!-- Visionneuse officielle Panoramax : paquet CommonJS, dont la dernière ligne écrit dans `exports` -->
+  <script>window.exports = {};</script>
+  <script>  /* thème choisi sur la page principale (Réglages) */
+    try { const t = localStorage.getItem("web-measures/theme"); if (t) document.documentElement.dataset.theme = t; } catch { /* sans stockage */ }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@panoramax/web-viewer@5.3.1/build/cjs/index_photoviewer.js"></script>
+</head>
+<body class="mobile">
+  <div id="barre"></div>  <!-- recherche de lieux et requêteur route + PR (déplacés depuis la carte) -->
+  <section id="vue">
+    <p id="invite">Touchez le filaire orange de la carte pour choisir une photo.</p>
+    <pnx-photo-viewer id="visionneuse" endpoint="https://api.panoramax.xyz/api" widgets="false"
+                      url-parameters="false" keyboard-shortcuts="false" hidden></pnx-photo-viewer>
+    <button id="capture" type="button" disabled title="Capture de la vue, avec l'étiquette de la parcelle visée"
+            aria-label="Capture de la vue">📷</button>
+    <p id="lieu" hidden></p>
+  </section>
+  <div id="poignee" role="separator" aria-orientation="horizontal" aria-label="Partage entre la photo et la carte"></div>
+  <section id="carte">
+    <a id="version-complete" href="index.html" onclick="try { localStorage.setItem('web-measures/version', 'complete'); } catch {}"
+       title="Page principale : mesures, profils, vidéo ; choix gardé sur ce téléphone">Version complète</a>
+    <button id="cadastre" class="bouton-carte" type="button" aria-pressed="false" title="Cadastre sur la carte et parcelle visée">▦</button>
+  </section>
+  <p id="message" role="status" hidden></p>
+  <script src="src/carte.js"></script>
+  <script src="src/lieu.js"></script>
+  <script src="src/recherche.js"></script>
+  <script src="src/requeteur.js"></script>
+  <script src="src/vignette.js"></script>
+  <script src="src/mobile.js"></script>
+</body>
+</html>
