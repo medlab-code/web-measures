@@ -133,6 +133,11 @@ async function open(id, enough = () => false) {
       await expect(`${name} : capture de la carte (vue, départ de mesure, échelle, sources)`, blob && blob.size > 10000, blob ? `${blob.size} octets` : "aucune");
       if (blob) await fetch(`/capture/carte-${name}.png`, { method: "POST", body: blob });
       Dessus.cancelStart();
+      // Export géoréférencé (bouton 🗺️) : GeoTIFF de la vue seule, déposé pour l'ouvrir dans un SIG
+      const tif = await Dessus.exportView();
+      await expect(`${name} : export géoréférencé (GeoTIFF)`, tif?.blob.size > 100000 && /^bird-eye-.{8}\.tif$/.test(tif.name),
+        tif ? `${tif.name}, ${tif.blob.size} octets` : "aucun");
+      if (tif) await fetch(`/capture/bird-eye-${name}.tif`, { method: "POST", body: tif.blob });
     }
     // « Bords gardés » : vue entière sur ±15 m, sans la découpe à ±8 m de l'axe de la route ; image déposée pour la regarder
     {

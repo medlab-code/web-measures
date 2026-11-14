@@ -6,6 +6,7 @@
      doivent se retrouver à leur place, aussi sous le véhicule et d'une photo à l'autre. -->
 <div id="dessus-etat"></div>
 <script src="../src/video.js"></script>
+<script src="../src/nuage.js"></script>
 <script src="../src/dessus.js"></script>
 <script src="commun.js"></script>
 <script>
@@ -194,6 +195,33 @@ function centre(pixels, line, around) {
     const found = Dessus.linesPitch(view, 0, north.height);
     await expect(`tangage faussé de ${delta}° : correction ${-delta}° lue sur les lignes (±0,15°)`, found && Math.abs(found.pitch + delta) < 0.15,
       found ? `${found.pitch.toFixed(2)}°, ${found.lines} lignes sur ${found.spread.toFixed(1)} m` : "aucune");
+  }
+  {  // Export géoréférencé (geotiff) : image de 5 × 3 px relue (en-tête, pixels, passage pixel -> Lambert 93)
+    const w = 5, h = 3, image = new ImageData(w, h);
+    for (let k = 0; k < image.data.length; k++) image.data[k] = (k * 37 + 11) % 256;
+    const corners = [[-15, 15], [15, 15], [15, -15], [-15, -15]].map(([e, n]) => at(e, n));
+    const bytes = new Uint8Array(await (await Dessus.geotiff(image, corners, "essai é")).arrayBuffer()), v = new DataView(bytes.buffer);
+    const tags = new Map();
+    for (let i = 0, n = v.getUint16(8, true); i < n; i++) {
+      const e = 10 + 12 * i, type = v.getUint16(e + 2, true), count = v.getUint32(e + 4, true), size = { 2: 1, 3: 2, 4: 4, 12: 8 }[type];
+      const at = size * count <= 4 ? e + 8 : v.getUint32(e + 8, true);
+      tags.set(v.getUint16(e, true), Array.from({ length: count }, (_, k) => (type === 3 ? v.getUint16(at + 2 * k, true)
+        : type === 4 ? v.getUint32(at + 4 * k, true) : type === 12 ? v.getFloat64(at + 8 * k, true) : bytes[at + k])));
+    }
+    const strip = bytes.slice(tags.get(273)[0], tags.get(273)[0] + tags.get(279)[0]);
+    const raw = new Uint8Array(await new Response(new Blob([strip]).stream().pipeThrough(new DecompressionStream("deflate"))).arrayBuffer());
+    for (let k = 4; k < raw.length; k++) if (k % (4 * w) >= 4) raw[k] += raw[k - 4];  // prédicteur défait
+    await expect("GeoTIFF : en-tête, taille, 4 canaux, Lambert 93", bytes[0] === 73 && v.getUint16(2, true) === 42
+      && tags.get(256)[0] === w && tags.get(257)[0] === h && tags.get(277)[0] === 4 && tags.get(34735).slice(-1)[0] === 2154);
+    await expect("GeoTIFF : pixels relus à l'identique", raw.length === image.data.length && raw.every((x, k) => x === image.data[k]));
+    const m = tags.get(34264), l93 = (i, j) => [m[0] * i + m[1] * j + m[3], m[4] * i + m[5] * j + m[7]];
+    const gap = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+    // Coins de l'image à leur place (ceux de la vue posée sur la carte) : les trois premiers par construction, le quatrième
+    // vérifie que le passage affine suffit
+    const placed = [[0, 0], [w, 0], [w, h], [0, h]].map(([i, j], k) => gap(l93(i, j), Nuage.toL93(...corners[k])));
+    const centre = gap(l93(w / 2, h / 2), Nuage.toL93(pose.lon, pose.lat));
+    await expect("GeoTIFF : coins et centre (caméra) à leur place, à 1 mm", Math.max(...placed, centre) < 1e-3,
+      [...placed, centre].map((d) => (1000 * d).toFixed(2)).join(" / ") + " mm");
   }
   await fin();
 })().catch(async (error) => { await log("ERREUR " + error); });

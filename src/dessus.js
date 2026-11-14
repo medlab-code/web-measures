@@ -1840,6 +1840,7 @@ const Dessus = (() => {
     const below = map.getStyle().layers.find((l) => l.source === "mesures" || l.id === LINE_ID)?.id;
     const [de, dn] = shiftOf(), placed = (e, n) => toLonLat(e + de, n + dn, pose);
     const coordinates = [[-REACH, REACH], [REACH, REACH], [REACH, -REACH], [-REACH, -REACH]].map(([e, n]) => placed(e, n));
+    Object.assign(shown, { blob, corners: coordinates });  // pour l'export géoréférencé (exportView)
     if (map.getSource(IMAGE_ID)) {
       map.getSource(IMAGE_ID).updateImage({ url, coordinates });
     } else {
@@ -1995,6 +1996,71 @@ const Dessus = (() => {
     Object.assign(view, { terrain: deck(), sigmaGround: FLAT_SIGMA, estimated: false, joins: null, joinText: "", located: undefined, placed: undefined });
   }
 
+  /**
+   * GeoTIFF d'une image pour un SIG : Lambert 93 (EPSG:2154), RVB et transparence, compression deflate (prédicteur
+   * horizontal), un seul bloc. image : ImageData ; corners : [lon, lat] des coins haut gauche, haut droit, bas droit, bas
+   * gauche (comme une source image de MapLibre). Passage pixel -> Lambert 93 affine, exact aux trois premiers coins (sur
+   * 30 m, l'écart de la projection à une transformation affine reste sous le millimètre). Promesse d'un Blob.
+   */
+  async function geotiff(image, corners, description = "") {
+    const { width: w, height: h } = image, data = new Uint8Array(image.data);
+    for (let row = 0; row < h; row++) {  // prédicteur 2 : chaque octet moins celui du pixel à sa gauche
+      for (let k = (row + 1) * w * 4 - 1; k >= row * w * 4 + 4; k--) data[k] -= data[k - 4];
+    }
+    const strip = new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new CompressionStream("deflate"))).arrayBuffer());
+    const [tl, tr, , bl] = corners.map(([lon, lat]) => Nuage.toL93(lon, lat));
+    const transform = [(tr[0] - tl[0]) / w, (bl[0] - tl[0]) / h, 0, tl[0], (tr[1] - tl[1]) / w, (bl[1] - tl[1]) / h, 0, tl[1],
+      0, 0, 0, 0, 0, 0, 0, 1];
+    const text = [...`${description}\0`].map((c) => (c.charCodeAt(0) < 128 ? c.charCodeAt(0) : 63));  // ASCII seul (« ? » sinon)
+    // [étiquette, type (2 ASCII, 3 SHORT, 4 LONG, 12 DOUBLE), valeurs], par étiquette croissante
+    const tags = [[256, 4, [w]], [257, 4, [h]], [258, 3, [8, 8, 8, 8]], [259, 3, [8]], [262, 3, [2]], [270, 2, text],
+      [273, 4, [0]], [277, 3, [4]], [278, 4, [h]], [279, 4, [strip.length]], [284, 3, [1]], [317, 3, [2]], [338, 3, [2]],
+      [34264, 12, transform],
+      // GeoKeys : modèle projeté, pixel = surface (le coin haut gauche du premier pixel en (0, 0)), Lambert 93
+      [34735, 3, [1, 1, 0, 3, 1024, 0, 1, 1, 1025, 0, 1, 1, 3072, 0, 1, 2154]]];
+    const bytes = { 2: 1, 3: 2, 4: 4, 12: 8 }, put = { 2: "setUint8", 3: "setUint16", 4: "setUint32", 12: "setFloat64" };
+    let end = 8 + 2 + 12 * tags.length + 4;
+    const places = tags.map(([, type, values]) => {
+      const size = bytes[type] * values.length;
+      if (size <= 4) return null;
+      const at = end = Math.ceil(end / 8) * 8;
+      end += size;
+      return at;
+    });
+    const stripAt = Math.ceil(end / 8) * 8;
+    tags.find(([tag]) => tag === 273)[2][0] = stripAt;
+    const out = new Uint8Array(stripAt + strip.length), v = new DataView(out.buffer);
+    out.set([73, 73, 42, 0, 8, 0, 0, 0]);  // « II », petit-boutiste, premier répertoire à l'octet 8
+    v.setUint16(8, tags.length, true);
+    tags.forEach(([tag, type, values], i) => {
+      const entry = 10 + 12 * i, at = places[i] ?? entry + 8;
+      v.setUint16(entry, tag, true);
+      v.setUint16(entry + 2, type, true);
+      v.setUint32(entry + 4, values.length, true);
+      if (places[i] != null) v.setUint32(entry + 8, at, true);
+      values.forEach((x, k) => v[put[type]](at + k * bytes[type], x, true));
+    });
+    out.set(strip, stripAt);  // répertoire suivant : 0 (déjà)
+    return new Blob([out], { type: "image/tiff" });
+  }
+
+  /** Vue Bird Eye affichée en GeoTIFF (geotiff) : { blob, name }, ou null sans vue prête. Vue seule, telle que posée sur la
+   * carte (position calée comprise), sans fond de carte ni mesures. */
+  async function exportView() {
+    const view = shown;
+    if (!view?.blob) return null;
+    const bitmap = await createImageBitmap(view.blob);
+    const canvas = Object.assign(document.createElement("canvas"), { width: bitmap.width, height: bitmap.height });
+    const g = canvas.getContext("2d");
+    g.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const date = view.photo.properties?.datetime?.slice(0, 10) || "";
+    const blob = await geotiff(g.getImageData(0, 0, canvas.width, canvas.height), view.corners,
+      `Bird Eye, photo Panoramax ${view.pic}${date ? ` du ${date}` : ""}, ${2 * REACH} m de cote`);
+    canvas.width = 0;
+    return { blob, name: `bird-eye-${view.pic.slice(0, 8)}.tif` };
+  }
+
   async function update(photo, pose, features) {
     const key = pose && JSON.stringify([pose, (features || []).map((f) => f.id), features === null]);
     if (key === (shown?.key ?? null)) return;
@@ -2069,5 +2135,5 @@ const Dessus = (() => {
     }
   }
 
-  return { setup, update, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins, outline: outlines.get(shown.sequence), locatedWith: shown.locatedWith }, view, hidden, uncertainty, measureError, shownError, groundUp, roadAxis, sourceOf, toLonLat, estimateHeight, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, linesPitch, REACH, SIZE };
+  return { setup, update, exportView, geotiff, addPoint, cancelStart, setMeasuring, hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url), layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins, outline: outlines.get(shown.sequence), locatedWith: shown.locatedWith }, view, hidden, uncertainty, measureError, shownError, groundUp, roadAxis, sourceOf, toLonLat, estimateHeight, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, linesPitch, REACH, SIZE };
 })();
