@@ -81,9 +81,9 @@ rubrique « Précision ».
 
 ## Version
 
-**0.7.7** (13/11/2026) : Bird Eye (vue du dessus, mesures, véhicule masqué, capture PNG), hauteur
-d'un objet en mode de départ, requêteur plus rapide, raccords de séquences en vidéo, cadastre
-teinté. Détail et versions précédentes : [docs/VERSIONS.md](docs/VERSIONS.md).
+**0.7.8** (14/11/2026) : capture « Avec annotations » (mesures, étiquette de la parcelle visée,
+couche), date de la capture en toutes lettres, étiquette de parcelle stable, recherche de lieux plus
+rapide. Détail et versions précédentes : [docs/VERSIONS.md](docs/VERSIONS.md).
 
 ## Licence
 
