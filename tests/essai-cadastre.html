@@ -70,6 +70,20 @@ const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-
         await sleep(300);  // dessin du filtre
         log(`cap +${turn}° (${Math.round((azimuth + turn) % 360)}°) : attendue ${expected || "aucune"}, allumée ${shown() || "aucune"}, caméra sur ${own || "le domaine public"}`);
         expect(`parcelle visée au cap +${turn}° : ${expected || "aucune à moins de 50 m"}`, shown() === expected, `allumée : ${shown() || "aucune"}`);
+        {  // étiquette dans la visionneuse : section et numéro, dans l'axe de la vue, entre l'horizon et le sol (1,50 m du sol)
+          const markers = w.mesures.psv.getPlugin("markers");
+          let mark = null;
+          try { mark = markers.getMarker("mesure-parcelle"); } catch { /* absente */ }
+          const numero = expected.slice(-4), el = mark?.domElement || mark?.element;
+          const box = el?.getBoundingClientRect(), view = w.mesures.psv.container.getBoundingClientRect();
+          const yaw = mark && Math.abs(((mark.state?.position?.yaw ?? mark.config.position.yaw) - turn * Math.PI / 180 + 3 * Math.PI) % (2 * Math.PI) - Math.PI);
+          log(`étiquette au cap +${turn}° : ${el?.textContent || "aucune"}${mark ? `, écart au cap ${(yaw * 180 / Math.PI).toFixed(1)}°, élévation ${((mark.state?.position?.pitch ?? mark.config.position.pitch) * 180 / Math.PI).toFixed(1)}°` : ""}`);
+          if (expected) {
+            expect(`étiquette de la parcelle au cap +${turn}° : ${expected.slice(-6)}`, el && el.textContent.includes(numero.replace(/^0+/, "")) || el?.textContent.includes(numero));
+            expect(`étiquette au cap +${turn}° : dans l'axe (2°), sous l'horizon, à l'écran`, yaw < 2 * Math.PI / 180
+              && (mark.state?.position?.pitch ?? mark.config.position.pitch) < 0 && box.left >= view.left && box.right <= view.right && box.top >= view.top && box.bottom <= view.bottom);
+          } else expect(`pas d'étiquette au cap +${turn}°`, !mark);
+        }
         if (expected && lit === 1) {  // première parcelle allumée : carte dans le journal
           const shot = await new Promise((r) => { map.once("render", () => r(map.getCanvas().toDataURL("image/png"))); map.triggerRepaint(); });
           await log("IMAGE parcelle-visee " + shot);

@@ -4893,6 +4893,8 @@
   });
 
   const MARK = "mesure-";  // préfixe de nos repères, pour ne pas toucher à ceux de la visionneuse
+  const PARCEL_LABEL_UP = 1.5;  // m au-dessus du sol : étiquette de la parcelle cadastrale visée
+  Carte.onAim(() => drawViewerMarks(currentMarks));  // autre parcelle visée : étiquette refaite
   let markIds = [];
   let currentMarks = [];
 
@@ -4974,6 +4976,15 @@
             html: `<div class="ancre"><div class="etiquette couche dessus${chosen}" data-objet="${o.id}" data-rang="${rank++}" style="color:${Couche.clair(color)}">${escapeHtml(p._etiquette)}</div></div>` });
         }
       }
+    }
+    // Parcelle cadastrale visée (en vert sur la carte) : section et numéro à PARCEL_LABEL_UP m du sol, au point où la ligne
+    // de cap y entre (Carte.aimedParcel)
+    const parcel = Carte.aimedParcel();
+    const parcelAt = parcel && app ? JSON.parse(app.view_point(parcel.at[0], parcel.at[1], PARCEL_LABEL_UP)) : null;
+    if (parcelAt) {
+      add({ id: `${MARK}parcelle`, position: parcelAt, anchor: "bottom center", zIndex: OVERLAY_LABEL_Z,
+        tooltip: { content: `Parcelle cadastrale ${escapeHtml(parcel.section)} ${escapeHtml(parcel.numero)}, à 1,50 m du sol`, position: "top center" },
+        html: `<div class="parcelle-visee">${escapeHtml(parcel.section)} ${escapeHtml(parcel.numero)}</div>` });
     }
     Traits.attach(psv);
     Traits.set(lines, { crosses, labels });

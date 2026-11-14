@@ -584,7 +584,12 @@ cadastrales mal raccordées à leurs voisines cernées de tirets rouges (écart 
 peut-être décalées, le cadastre étant un plan numérisé). La parcelle que regarde la photo est allumée en vert (contour et
 fond) : la première que coupe la ligne de cap en partant de la caméra, à 50 m au plus ; elle suit la vue quand on la
 tourne, rien n'est allumé en vert dans l'axe d'une rue (domaine public) ni avec Bird Eye (pas de ligne de cap). La
-parcelle où se tient la caméra (cour, chemin privé), s'il y en a une, est allumée en jaune, et jamais en vert. Limites indicatives. Pas de projection dans la photo : un
+parcelle où se tient la caméra (cour, chemin privé), s'il y en a une, est allumée en jaune, et jamais en vert. Dans la
+visionneuse, la section et le numéro de la parcelle verte s'affichent sur une pastille verte, à 1,50 m du sol au point
+où la ligne de cap entre dans la parcelle, à sa limite avec le domaine public : sol lu sur le LiDAR HD (MNT à 50 cm du
+service d'altimétrie de l'IGN, RGE ALTI s'il manque ; pas le nuage de points) sous ce point et sous la caméra, calage de
+la photo compris ; de niveau avec celui de la caméra le temps de la lecture. L'étiquette reste à ce point tant que la
+vue balaie la même parcelle. Limites indicatives. Pas de projection dans la photo : un
 essai l'a montrée trop imprécise au pied des façades (plan, sol interpolé sous les bâtiments, inclinaison de la photo).
 
 **Couche importée** (onglet « Couche » du panneau : bouton « Importer un fichier… », ou fichier glissé sur

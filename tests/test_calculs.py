@@ -18,7 +18,7 @@ sys.modules["pyodide.http"].pyfetch = None
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "py"))
 
 import web_app  # noqa: E402
-from core import host, triangulation  # noqa: E402
+from core import host, precision, triangulation  # noqa: E402
 
 HOST = {name: getattr(host, name) for name in host.SERVICES}  # cœur sans hôte : pas de réseau, calcul immédiat
 
@@ -609,6 +609,28 @@ class Parcours(unittest.TestCase):
         self.assertAlmostEqual(pitch, -math.atan2(self.CAMERA, math.hypot(5.0, 3.0)), places=6)
         a.set_overlay("[]")
         self.assertEqual(a.overlay_marks(), "[]")
+
+    def test_point_au_dessus_du_sol(self):
+        """Étiquette de la parcelle visée : point de la carte à 1,50 m du sol (sol de niveau), dans la photo ; à la
+        hauteur de la caméra, il est à l'horizon."""
+        a = self.app
+        self.show("p1")
+        at = triangulation._geographic(5.0, 3.0, 5.0415, 47.3220)
+        p = json.loads(a.view_point(*at, 1.5))
+        self.assertAlmostEqual(p["yaw"], math.atan2(5.0, 3.0), places=6)
+        self.assertAlmostEqual(p["pitch"], -math.atan2(self.CAMERA - 1.5, math.hypot(5.0, 3.0)), places=6)
+        self.assertAlmostEqual(json.loads(a.view_point(*at, self.CAMERA))["pitch"], 0.0, places=9)
+        # Sol lu sous la caméra et sous le point (LiDAR HD) : point 1 m plus bas, étiquette d'autant plus basse
+        old, redrawn = precision.fetch_terrain, []
+        precision.fetch_terrain = lambda points, done, timeout_ms=None: done([300.0, 299.0], "LiDAR HD", None)
+        a.notify = lambda: redrawn.append(1)
+        try:
+            far = triangulation._geographic(5.0, 3.5, 5.0415, 47.3220)  # autre point : pas encore lu
+            p = json.loads(a.view_point(*far, 1.5))
+        finally:
+            precision.fetch_terrain = old
+        self.assertEqual(redrawn, [1])
+        self.assertAlmostEqual(p["pitch"], -math.atan2(self.CAMERA - 1.5 + 1.0, math.hypot(5.0, 3.5)), places=6)
 
     def test_calage_objet_vertical(self):
         """Calage : pied, sommet, sommet sélectionné sur sa croix puis déplacé, validation (navigateur.html)."""

@@ -432,6 +432,7 @@ class App(session.Session):
         self.redo_stack, self.redo_key = [], None  # états d'avant chaque « Effacer » (Ctrl+Y, voir redo)
         self.overlay = []  # couche importée : (n° de l'objet, "point" ou "ligne", [(lon, lat, z)]), voir set_overlay
         self.overlay_ground = {}  # photo -> {(lon, lat): altitude LiDAR HD} sous la couche (_overlay_ground)
+        self.point_ground = {}  # (lon, lat caméra, lon, lat point) -> (z caméra, z point) ou None (_point_ground)
         self.tilt_reasons = {}  # photo -> raison de l'échec de l'inclinaison automatique (ticket #29)
         self.birdeye_loose = {}  # photo -> verticales refusées pour les mesures, gardées pour la vue du dessus (web_tilt.LOOSE_SIGMA)
         self.tilts.run = self._run_tilt
@@ -1415,6 +1416,7 @@ class App(session.Session):
     OVERLAY_REACH = 100.0  # m : objets dessinés dans la photo s'ils ont un sommet à cette distance
     OVERLAY_STEP = 5.0  # m : pas des lignes, pour suivre le terrain entre leurs sommets
     OVERLAY_CHUNK = 150  # points par requête d'altitude (longueur de l'adresse)
+    POINT_GROUND_MAX = 200  # couples (caméra, point) dont l'altitude est gardée (view_point)
     OVERLAY_MAX = 900  # points d'altitude au plus par photo
 
     def set_overlay(self, text):
@@ -1444,6 +1446,40 @@ class App(session.Session):
                     line = not kind.endswith("Point")
                     self.overlay.append((i, "ligne" if line else "point", _densified(pts, self.OVERLAY_STEP) if line else pts))
         return len(self.overlay)
+
+    def view_point(self, lon, lat, up):
+        """JSON {yaw, pitch} (radians, repère de la photo affichée, calage compris) du point de la carte (lon, lat) à up m
+        au-dessus du sol ; null sans photo. Sol lu sur le LiDAR HD (RGE ALTI s'il manque) sous la caméra et sous le point :
+        la caméra est à _camera_height au-dessus du sien. En attendant la lecture (redessin à son arrivée), ou sans
+        altitude, sol supposé de niveau avec celui de la caméra. Sert à l'étiquette de la parcelle cadastrale visée,
+        à 1,50 m du sol à la limite de la parcelle et du domaine public."""
+        if not self.item:
+            return "null"
+        here_lon, here_lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
+        lon, lat = float(lon), float(lat)
+        x, y = triangulation._local(lon, lat, here_lon, here_lat)
+        ground = self._point_ground(here_lon, here_lat, lon, lat)  # (sol caméra, sol du point) ou None
+        drop = self._camera_height() - float(up) + (ground[0] - ground[1] if ground else 0.0)
+        v = self._view_of(math.degrees(math.atan2(x, y)), -math.degrees(math.atan2(drop, max(math.hypot(x, y), 0.5))))
+        return json.dumps({"yaw": v["yaw"], "pitch": v["pitch"]})
+
+    def _point_ground(self, here_lon, here_lat, lon, lat):
+        """Altitudes du sol (LiDAR HD, sinon RGE ALTI) sous la caméra et sous le point : (z caméra, z point), ou None
+        (lecture en cours, ou altitude manquante). Une lecture par couple de points, gardée ; redessin à l'arrivée."""
+        key = tuple(round(v, 7) for v in (here_lon, here_lat, lon, lat))
+        if key in self.point_ground:
+            return self.point_ground[key]
+        self.point_ground[key] = None
+        if len(self.point_ground) > self.POINT_GROUND_MAX:  # les plus anciennes oubliées
+            del self.point_ground[next(iter(self.point_ground))]
+
+        def done(zs, source, error):
+            if not error and zs and len(zs) == 2 and None not in zs:
+                self.point_ground[key] = (zs[0], zs[1])
+                self.notify()
+
+        precision.fetch_terrain([(here_lon, here_lat), (lon, lat)], done)
+        return self.point_ground.get(key)  # réponse déjà là (lecture en cache) : prise tout de suite
 
     def overlay_marks(self):
         """JSON [{id, kind, points: [[cap, élévation]], dist}] (radians, repère de la photo affichée ;

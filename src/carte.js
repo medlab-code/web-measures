@@ -795,26 +795,35 @@ const Carte = (() => {
   // (limites du plan à 1,5 m près en Côte-d'Or, voir CADASTRE_DECALAGE). Recherchée sur les tuiles chargées, à chaque
   // rotation de la vue (une fois par image au plus).
   const CADASTRE_VISEE = 50;
-  let aimFrame = 0, aimedKey = "";
+  // aimListener : averti de la parcelle visée ({ idu, section, numero, at : [lon, lat] du point où la ligne de cap y
+  // entre }, ou null) ; ce point reste le même tant que la parcelle et la caméra ne changent pas (l'étiquette de la
+  // visionneuse ne suit pas la vue à l'intérieur d'une même parcelle)
+  let aimFrame = 0, aimedKey = "", aimedNow = null, aimListener = null;
   function aimCadastre(map) {
     if (aimFrame) return;
     aimFrame = requestAnimationFrame(() => {
       aimFrame = 0;
-      const { aimed, own } = cadastreOn && map.getZoom() >= CADASTRE_MINZOOM ? aimedParcel(map) : { aimed: "", own: "" };
-      if (`${aimed}|${own}` === aimedKey || !map.getLayer("cadastre-vise")) return;
-      aimedKey = `${aimed}|${own}`;
-      for (const id of ["cadastre-vise-fond", "cadastre-vise"]) map.setFilter(id, ["==", ["get", "idu"], aimed]);
+      const { aimed, own } = cadastreOn && map.getZoom() >= CADASTRE_MINZOOM ? aimedParcel(map) : { aimed: null, own: "" };
+      const camera = lastView?.[0]?.join(",") || "";
+      if (aimed && aimedNow?.idu === aimed.idu && aimedNow.camera === camera) aimed.at = aimedNow.at;  // point d'entrée gardé
+      if (`${aimed?.idu}|${own}|${camera}` === aimedKey || !map.getLayer("cadastre-vise")) return;
+      aimedKey = `${aimed?.idu}|${own}|${camera}`;
+      for (const id of ["cadastre-vise-fond", "cadastre-vise"]) map.setFilter(id, ["==", ["get", "idu"], aimed?.idu || ""]);
       for (const id of ["cadastre-camera-fond", "cadastre-camera"]) map.setFilter(id, ["==", ["get", "idu"], own]);
+      aimedNow = aimed && { ...aimed, camera };
+      aimListener?.(aimed);
     });
   }
-  /** Parcelles de la vue (lastView), par leur identifiant (idu) : { aimed : visée, à moins de CADASTRE_VISEE m, own : celle où
-   * se tient la caméra } ; "" pour celle qui manque. La parcelle de la caméra se lit aussi sans cap (Bird Eye). */
+  /** Parcelle visée (voir aimCadastre), ou null. */
+  const aimedParcelNow = () => aimedNow;
+  /** Parcelles de la vue (lastView) : { aimed : visée, à moins de CADASTRE_VISEE m ({ idu, section, numero, at }, ou null),
+   * own : idu de celle où se tient la caméra, ou "" }. La parcelle de la caméra se lit aussi sans cap (Bird Eye). */
   function aimedParcel(map) {
     const [lonlat, heading] = lastView || [];
-    if (!lonlat) return { aimed: "", own: "" };
+    if (!lonlat) return { aimed: null, own: "" };
     const kx = 111320 * Math.cos(lonlat[1] * Math.PI / 180), ky = 111320;  // m par degré (à 0,3 % près : sans effet ici)
     const dx = Math.sin((heading ?? 0) * Math.PI / 180), dy = Math.cos((heading ?? 0) * Math.PI / 180);
-    const around = new Set(), hits = new Map();  // parcelles où se tient la caméra ; idu -> distance d'entrée (m)
+    const around = new Set(), hits = new Map();  // parcelles où se tient la caméra ; idu -> { t : distance d'entrée (m), props }
     for (const f of map.querySourceFeatures("cadastre", { sourceLayer: "parcelle" })) {
       const idu = f.properties?.idu, g = f.geometry;
       if (!idu || !g) continue;
@@ -834,11 +843,15 @@ const Carte = (() => {
           }
         }
         if (inside) around.add(idu);
-        else if (best < (hits.get(idu) ?? Infinity)) hits.set(idu, best);
+        else if (best < (hits.get(idu)?.t ?? Infinity)) hits.set(idu, { t: best, props: f.properties });
       }
     }
-    let aimed = "", nearest = Infinity;
-    for (const [idu, t] of hits) if (!around.has(idu) && t < nearest) [aimed, nearest] = [idu, t];
+    let aimed = null;
+    for (const [idu, { t, props }] of hits) {
+      if (around.has(idu) || t >= (aimed?.t ?? Infinity)) continue;
+      aimed = { idu, t, section: String(props.section ?? "").replace(/^0+(?=.)/, ""), numero: String(props.numero ?? ""),
+        at: [lonlat[0] + t * dx / kx, lonlat[1] + t * dy / ky] };
+    }
     return { aimed, own: [...around][0] || "" };
   }
 
@@ -1461,6 +1474,6 @@ const Carte = (() => {
 
   return {
     PANORAMAX_API: META_API, GEOPF, OSM_TILES, createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, pcrsAt, instances, setInstance, setFilter,
-    showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre, capture, nearestPhoto, photosNear, photoById, metresBetween, apiUrl: () => apiUrl,
+    showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre, onAim: (fn) => { aimListener = fn; }, aimedParcel: aimedParcelNow, capture, nearestPhoto, photosNear, photoById, metresBetween, apiUrl: () => apiUrl,
   };
 })();
