@@ -30,7 +30,10 @@ attentes de condition (essai complet : environ 7 → 5 min), parcours de mesure 
 - Outils installés : GDAL (`ogr2ogr`, `gdalinfo`), `pdal` (LiDAR `.laz`), `sqlite3`, Python
   `pyproj`, `shapely`, `rasterio` et `websockets` (pilotage de Chrome par son port de débogage),
   `shellcheck` (scripts de `tools/`), `ruff` (Python), `tidy` (HTML), `entr`, `fd`, `hyperfine`,
-  `pdftotext`, `biome` (dans `~/.local`, installé par `npm i -g --prefix ~/.local`).
+  `pdftotext`, `biome` (dans `~/.local`, installé par `npm i -g --prefix ~/.local`), `grammalecte`
+  (`~/.local/bin`, archive de grammalecte.net) : `grammalecte -f <fichier> -owe -off apos nbsp unit typo
+  esp maj num` (apostrophe droite et espace ordinaire avant `:` du dépôt ; lignes coupées du Markdown
+  lues comme des phrases : beaucoup de faux accords, seulement pour relire un texte suspect).
 - `biome lint` à la racine : erreurs JavaScript, CSS et HTML de `src/`, `tests/` et `index.html`
   (`biome.json` : règles « correctness » et « suspicious » seulement, sans style ni mise en forme).
   Un objet partagé entre scripts (`Carte`…) s'ajoute à la liste `ignore` de `noUnusedVariables`.
