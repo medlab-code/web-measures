@@ -783,7 +783,7 @@ const Carte = (() => {
           cadastreTimer = setTimeout(() => loadCadastre(map), 300);
         });
         // tuiles du cadastre arrivées (zoom, déplacement) : parcelle visée recherchée de nouveau
-        map.on("sourcedata", (e) => { if (e.sourceId === "cadastre" && e.isSourceLoaded) aimCadastre(map); });
+        map.on("sourcedata", (e) => { if (e.sourceId === "cadastre" && e.isSourceLoaded) { sceneCache = null; aimCadastre(map); } });
       }
       loadCadastre(map);
       aimCadastre(map);
@@ -819,10 +819,15 @@ const Carte = (() => {
   const aimedParcelNow = () => aimedNow;
   /** Parcelles de la vue (lastView) : { aimed : visée, à moins de CADASTRE_VISEE m ({ idu, section, numero, at }, ou null),
    * own : idu de celle où se tient la caméra, ou "" }. La parcelle de la caméra se lit aussi sans cap (Bird Eye). */
+  // Scène des parcelles gardée tant que la caméra ne bouge pas et qu'aucune tuile du cadastre n'arrive (sourcedata) : une
+  // rotation de la vue ne refait que la visée (firstParcel), pas la lecture de toutes les parcelles chargées à chaque image
+  let sceneCache = null;
   function aimedParcel(map) {
     const [lonlat, heading] = lastView || [];
     if (!lonlat) return { aimed: null, own: "" };
-    const scene = parcelScene(map, lonlat), own = [...scene.around][0] || "";
+    const key = lonlat.join(",");
+    if (sceneCache?.key !== key) sceneCache = { key, scene: parcelScene(map, lonlat) };
+    const scene = sceneCache.scene, own = [...scene.around][0] || "";
     const hit = heading == null ? null : firstParcel(scene, heading);
     if (!hit) return { aimed: null, own };
     const { idu, t, props } = hit;
