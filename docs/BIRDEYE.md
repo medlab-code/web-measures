@@ -38,11 +38,15 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
 
 **Calcul (`render`, WebGL) :**
 
-1. Un maillage de 31 × 31 points (pas de 1 m) suit le terrain sur ±15 m autour de la caméra, **lissé sur 2 m**
-   (`smoothTerrain` : écarts au plan moyen lissés par une gaussienne). Le MNT s'écarte d'une surface lisse de 1 à 3 cm
-   d'un mètre à l'autre ; une bosse `Δz` sous un point à `d` de la caméra le déplace de `d × Δz / H`, soit 8 cm à 5 m :
-   sans lissage, les lignes droites ondulent. La pente, le dévers et le bombement restent ; un dos-d'âne ou un caniveau
-   est adouci.
+1. Un maillage de 31 × 31 points (pas de 1 m) suit le terrain sur ±15 m autour de la caméra, **lissé sur 2 m le long de
+   la route et 0,5 m en travers** (`smoothTerrain` : écarts au plan moyen lissés par une gaussienne allongée dans le sens
+   du cap). Le MNT s'écarte d'une surface lisse de 1 à 3 cm d'un mètre à l'autre ; une bosse `Δz` sous un point à `d` de
+   la caméra le déplace de `d × Δz / H`, soit 8 cm à 5 m : sans lissage, les lignes droites ondulent. La pente, le dévers,
+   le bombement et les caniveaux restent ; un dos-d'âne est adouci. Lissés aussi en travers (jusqu'au 14/11/2026), le
+   bombement et les caniveaux d'une rue disparaissaient : milieu 3 à 5 cm trop bas, caniveaux 7 à 9 cm trop haut, bouts
+   des bandes d'un passage piéton à 5 m décalés de 30 cm (`57c93b75`). L'inclinaison et la hauteur de la route sous le véhicule (point 2)
+   gardent le terrain lissé sur 2 m dans les deux sens, comme le tangage lu sur les lignes : le bombement y penchait le
+   plan sous le véhicule (roulis restant de −1,4 à 0,05°, bandes à 0,513 m au lieu de 0,508 m, calage par la route).
 2. La caméra est posée à sa hauteur au-dessus du plan de la route sous le véhicule (moyenne du terrain sur
    ±2,5 m en long et ±1,5 m en travers, `groundLevel`), plutôt que sur un seul point du maillage.
 3. Pour chaque pixel de l'image, le shader calcule le rayon de la caméra au point du sol, le tourne dans le repère de

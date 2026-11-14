@@ -253,8 +253,8 @@ const Dessus = (() => {
   }
 
   /** Altitudes LiDAR HD du maillage (lignes du sud au nord, colonnes d'ouest en est), ou null s'il en manque une ;
-   * exception si le service ne répond pas. */
-  async function readTerrain(pose, signal, reach = REACH) {
+   * exception si le service ne répond pas. across : portée du lissage en travers (voir smoothTerrain). */
+  async function readTerrain(pose, signal, reach = REACH, across = TERRAIN_SMOOTH_ACROSS) {
     const n = 2 * reach / STEP + 1, points = [];
     for (let j = 0; j < n; j++) {
       for (let i = 0; i < n; i++) points.push(toLonLat(-reach + i * STEP, -reach + j * STEP, pose));
@@ -274,30 +274,50 @@ const Dessus = (() => {
         await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** (attempt - 1)));
       }
     }
-    return z.length === points.length && z.every((v) => v > -1000) ? smoothTerrain(z) : null;
+    if (z.length !== points.length || !z.every((v) => v > -1000)) return null;
+    const mesh = smoothTerrain(z, pose.heading, across);
+    mesh.level = smoothTerrain(z, pose.heading, TERRAIN_SMOOTH);  // pour la route sous le véhicule (voir levelOf)
+    return mesh;
   }
+  /** Terrain de l'inclinaison et de la hauteur de la route sous une caméra (groundUp, groundLevel) : lissé aussi en travers.
+   * Le bombement gardé y penchait le plan sous le véhicule (une moitié de chaussée) : roulis restant de -1,4 à 0,05° au lieu
+   * de 0,08 à 0,9°, bandes de passage piéton à 0,513 m (essai-passages, calage par la route, 14/11/2026). */
+  const levelOf = (terrain) => terrain.level || terrain;
 
   // Le MNT s'écarte d'une surface lisse de 1 à 3 cm d'un mètre à l'autre (5 cm au plus sous la chaussée de l'A38) : une bosse
   // Δz sous un point à d de la caméra le déplace de d Δz / H, soit 8 cm à 5 m, et les lignes ondulent. Lissé sur
-  // TERRAIN_SMOOTH (gaussienne), la pente, le dévers et le bombement restent. Essai du 07/11/2026 (A38, f9f83571) : écart
-  // de la rive à une courbe douce de 3,5 cm (13,7 au plus) à 0,4 cm (0,8 au plus).
-  const TERRAIN_SMOOTH = 2;  // m
-  /** Maillage lissé : plan moyen gardé tel quel, écarts au plan lissés (pas de biais au bord du maillage). */
-  function smoothTerrain(z) {
-    const n = meshSide(z), xs = [], ys = [];
+  // TERRAIN_SMOOTH (gaussienne) le long de la route, la pente reste. Essai du 07/11/2026 (A38, f9f83571) : écart de la rive
+  // à une courbe douce de 3,5 cm (13,7 au plus) à 0,4 cm (0,8 au plus). En travers, TERRAIN_SMOOTH_ACROSS seulement : le
+  // bombement et les caniveaux (1 m de large, 15 à 19 cm de creux) se répètent d'un mètre à l'autre ; lissés sur 2 m, ils
+  // laissaient le milieu de la chaussée 3 à 5 cm trop bas et les caniveaux 7 à 9 cm trop haut, et les bouts des bandes d'un
+  // passage piéton à 5 m dérivaient de 30 cm (57c93b75, ville, 14/11/2026 : écart au LiDAR brut 4,5 → 2,6 cm, écart
+  // milieu-caniveau 11 → 2,5 cm). Tangage lu sur les lignes (learnLines, ±25 m) : lissage isotrope gardé, à 20 m le bruit du
+  // MNT laissé en travers déplace les lignes de 10 cm par cm et la lecture échoue (A38, essai du 14/11/2026)
+  const TERRAIN_SMOOTH = 2, TERRAIN_SMOOTH_ACROSS = 0.5;  // m
+  /** Maillage lissé : plan moyen gardé tel quel, écarts au plan lissés (pas de biais au bord du maillage), gaussienne allongée
+   * dans le sens du cap (degrés) : TERRAIN_SMOOTH le long, acrossSmooth en travers. */
+  function smoothTerrain(z, heading, acrossSmooth = TERRAIN_SMOOTH_ACROSS) {
+    const n = meshSide(z), xs = [], ys = [], h = heading * toRad, f = [Math.sin(h), Math.cos(h)];
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { xs.push(i - (n - 1) / 2); ys.push(j - (n - 1) / 2); }
     const plane = leastSquares(xs.map((x, k) => [1, x, ys[k]]), z), at = (k) => plane[0] + plane[1] * xs[k] + plane[2] * ys[k];
-    const r = Math.ceil(2.5 * TERRAIN_SMOOTH / STEP), w = Array.from({ length: 2 * r + 1 }, (_, k) => Math.exp(-(((k - r) * STEP / TERRAIN_SMOOTH) ** 2) / 2));
-    const pass = (from, dx, dy) => from.map((_, q) => {
+    const r = Math.ceil(2.5 * TERRAIN_SMOOTH / STEP), kernel = [];
+    for (let dj = -r; dj <= r; dj++) {
+      for (let di = -r; di <= r; di++) {
+        const along = (di * f[0] + dj * f[1]) * STEP, across = (di * f[1] - dj * f[0]) * STEP;
+        const w = Math.exp(-0.5 * ((along / TERRAIN_SMOOTH) ** 2 + (across / acrossSmooth) ** 2));
+        if (w > 1e-4) kernel.push([di, dj, w]);
+      }
+    }
+    const d = z.map((v, k) => v - at(k));
+    return d.map((_, q) => {
       const i = q % n, j = Math.floor(q / n);
       let sum = 0, weight = 0;
-      for (let k = -r; k <= r; k++) {
-        const ii = i + k * dx, jj = j + k * dy;
-        if (ii >= 0 && jj >= 0 && ii < n && jj < n) { sum += from[jj * n + ii] * w[k + r]; weight += w[k + r]; }
+      for (const [di, dj, w] of kernel) {
+        const ii = i + di, jj = j + dj;
+        if (ii >= 0 && jj >= 0 && ii < n && jj < n) { sum += d[jj * n + ii] * w; weight += w; }
       }
-      return sum / weight;
+      return sum / weight + at(q);
     });
-    return pass(pass(z.map((v, k) => v - at(k)), 1, 0), 0, 1).map((v, k) => v + at(k));
   }
 
   /** Moitié basse du panorama sur un canevas : { canvas, top (part du panorama au-dessus) }. tiles : voir Video.record. */
@@ -540,7 +560,7 @@ const Dessus = (() => {
       g.uniform2f(uniform("fixMore"), scale, roll);
       const m = rotation(pose), [east, north] = toLocal(pose.lon, pose.lat, main), h = pose.heading * toRad;
       g.uniformMatrix3fv(uniform("turn"), false, [0, 1, 2].flatMap((c) => m.map((row) => row[c])));
-      g.uniform3f(uniform("camera"), east, north, (terrain ? groundLevel(terrain, [east, north], pose.heading) : 0) + pose.height);
+      g.uniform3f(uniform("camera"), east, north, (terrain ? groundLevel(levelOf(terrain), [east, north], pose.heading) : 0) + pose.height);
       g.uniform4f(uniform("car"), Math.sin(h), Math.cos(h), CAR.ahead, CAR.long);
       g.uniform1i(uniform("hasOutline"), pose.outline ? 1 : 0);
       if (pose.outline) g.uniform1fv(uniform("outline"), pose.outline);
@@ -1500,7 +1520,7 @@ const Dessus = (() => {
     const mine = shown, [main] = readyLayers(), alone = { ...main, fix: null, bend: null };
     if (onLidar(mine) && mine.wideTerrain === undefined) {  // terrain sur ±LINES_WIDE m lu d'abord (une fois par photo)
       mine.wideTerrain = "reading";
-      readTerrain(mine.pose, abort.signal, LINES_WIDE).then((z) => z && smoothTerrain(z)).catch(() => null).then((terrain) => {
+      readTerrain(mine.pose, abort.signal, LINES_WIDE, TERRAIN_SMOOTH).then((z) => z && smoothTerrain(z, mine.pose.heading, TERRAIN_SMOOTH)).catch(() => null).then((terrain) => {
         if (shown !== mine) return;
         mine.wideTerrain = terrain;
         showImage();
@@ -1592,7 +1612,7 @@ const Dessus = (() => {
   /** Couche d'une photo (pose) dans la vue affichée : position, inclinaison (verticales, sinon route), hauteur, contour. */
   function layerOf(pose) {
     const at = toLocal(pose.lon, pose.lat, shown.pose), ground = onLidar(shown) ? GROUND_SIGMA : DECK_SIGMA;
-    const leveled = (pose.up && verticalsOn) || !shown.terrain ? pose : { ...pose, up: groundUp(shown.terrain, at, pose.heading, rollShare, pitchFor(pose.pic), pose.roll_defect || 0),
+    const leveled = (pose.up && verticalsOn) || !shown.terrain ? pose : { ...pose, up: groundUp(levelOf(shown.terrain), at, pose.heading, rollShare, pitchFor(pose.pic), pose.roll_defect || 0),
       sigma: Math.hypot(pose.up ? ground : Math.min(pose.sigma, ground), LEAN * (shown.lateral || 0)), groundTilt: true };  // virage : véhicule penché ; verticales écartées : incertitude de la route
     const seam = shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.seams?.get(pose.pic) : undefined;  // raccord de la voisine
     const fix = neighboursOn && shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.map.get(pose.pic) : undefined;
