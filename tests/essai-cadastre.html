@@ -72,6 +72,8 @@ const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-
         expect(`parcelle visée au cap +${turn}° : ${expected || "aucune à moins de 50 m"}`, shown() === expected, `allumée : ${shown() || "aucune"}`);
         {  // étiquette dans la visionneuse : section et numéro, dans l'axe de la vue, entre l'horizon et le sol (1,50 m du sol)
           const markers = w.mesures.psv.getPlugin("markers");
+          // posée 2 s après le début du chargement de la photo (app.js, PARCEL_DELAY)
+          if (expected) await soon(() => { try { return Boolean(markers.getMarker("mesure-parcelle")); } catch { return false; } }, 4000);
           let mark = null;
           try { mark = markers.getMarker("mesure-parcelle"); } catch { /* absente */ }
           const numero = expected.slice(-4), el = mark?.domElement || mark?.element;

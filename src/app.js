@@ -2846,6 +2846,7 @@
         declutterTimer = setTimeout(scheduleDeclutter, 150);
       });
       psv.addEventListener("zoom-updated", scheduleDeclutter);
+      psv.addEventListener("picture-loading", waitParcelTiles);  // étiquette de parcelle : après la HD
       // Déplacement dans la séquence (flèches de la visionneuse) : nouvelle fiche de photo
       psv.addEventListener("picture-loaded", async (event) => {
         applyMeasureUi();  // flèches de la nouvelle photo
@@ -4900,10 +4901,20 @@
    * centrés à PARCEL_LABEL_UP m du sol au milieu de sa partie vue directement, entre ses limites gauche et droite
    * (Carte.aimedParcel). Repère à part (pas dans markIds) : replacé seul quand la parcelle visée change. */
   let parcelText = "";
+  // Étiquette posée PARCEL_DELAY ms après le début du chargement d'une photo, le temps de sa HD : posée tout de suite,
+  // elle sautait à l'arrivée de la HD
+  const PARCEL_DELAY = 2000;
+  let parcelReady = true, parcelTimer = null;
+  function waitParcelTiles() {  // nouvelle photo : étiquette de la précédente retirée
+    clearTimeout(parcelTimer);
+    parcelReady = false;
+    showParcelMark();
+    parcelTimer = setTimeout(() => { parcelReady = true; showParcelMark(); }, PARCEL_DELAY);
+  }
   function showParcelMark() {
     const markers = psv?.getPlugin?.("markers");
     if (!markers) return;
-    const id = `${MARK}parcelle`, parcel = Carte.aimedParcel();
+    const id = `${MARK}parcelle`, parcel = parcelReady ? Carte.aimedParcel() : null;
     const at = parcel && app ? JSON.parse(app.view_point(parcel.at[0], parcel.at[1], PARCEL_LABEL_UP)) : null;
     let shown = null;
     try { shown = markers.getMarker(id); } catch { /* pas encore posée */ }
