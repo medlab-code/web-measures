@@ -581,7 +581,10 @@ du Parcellaire Express (IGN) sur la mini-carte dès le zoom 15, chaque parcelle 
 voirie et cours d'eau, n'a pas de parcelle : il reste sans teinte), bornes de limite de propriété et étiquette de chaque parcelle (section au-dessus du numéro, « B » pour la
 section 0B) dès le zoom 17, en tuiles vectorielles de l'IGN (nettes à tout zoom), feuilles
 cadastrales mal raccordées à leurs voisines cernées de tirets rouges (écart moyen aux raccords de plus de 2 m : limites
-peut-être décalées, le cadastre étant un plan numérisé). Limites indicatives. Pas de projection dans la photo : un
+peut-être décalées, le cadastre étant un plan numérisé). La parcelle que regarde la photo est allumée en vert (contour et
+fond) : la première que coupe la ligne de cap en partant de la caméra, à 50 m au plus ; elle suit la vue quand on la
+tourne, rien n'est allumé en vert dans l'axe d'une rue (domaine public) ni avec Bird Eye (pas de ligne de cap). La
+parcelle où se tient la caméra (cour, chemin privé), s'il y en a une, est allumée en jaune, et jamais en vert. Limites indicatives. Pas de projection dans la photo : un
 essai l'a montrée trop imprécise au pied des façades (plan, sol interpolé sous les bâtiments, inclinaison de la photo).
 
 **Couche importée** (onglet « Couche » du panneau : bouton « Importer un fichier… », ou fichier glissé sur

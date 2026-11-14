@@ -12,6 +12,8 @@ const Carte = (() => {
   const JAUNE = "#ffeb00";  // points cliqués
   const BLEU = "#00bce6";  // largeur perpendiculaire : trait tracé perpendiculairement à la route
   const CURSEUR = "#0078ff";  // curseur de vue
+  const VISEE = "#1b9e3e";  // parcelle cadastrale visée par la ligne de cap
+  const SOUS_CAMERA = "#f2c200";  // parcelle cadastrale où se tient la caméra
   const VERT_PR = "#2e7d32";  // points de repère (PR) des routes
 
   let apiUrl = META_API;  // instance courante (voir setInstance)
@@ -179,6 +181,26 @@ const Carte = (() => {
           {
             id: "cadastre", type: "line", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
             paint: { "line-color": "#ff8000", "line-width": ["interpolate", ["linear"], ["zoom"], 15, 0.6, 18, 1.6, 21, 2.5] },
+          },
+          // Parcelle où se tient la caméra, en jaune, et parcelle visée : la première que coupe la ligne de cap, à moins de
+          // CADASTRE_VISEE m, en vert (aimCadastre)
+          {
+            id: "cadastre-camera-fond", type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
+            layout: { visibility: "none" }, filter: ["==", ["get", "idu"], ""], paint: { "fill-color": SOUS_CAMERA, "fill-opacity": 0.3 },
+          },
+          {
+            id: "cadastre-camera", type: "line", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
+            layout: { visibility: "none", "line-join": "round" }, filter: ["==", ["get", "idu"], ""],
+            paint: { "line-color": SOUS_CAMERA, "line-width": ["interpolate", ["linear"], ["zoom"], 15, 2, 18, 3.5, 21, 5] },
+          },
+          {
+            id: "cadastre-vise-fond", type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
+            layout: { visibility: "none" }, filter: ["==", ["get", "idu"], ""], paint: { "fill-color": VISEE, "fill-opacity": 0.3 },
+          },
+          {
+            id: "cadastre-vise", type: "line", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
+            layout: { visibility: "none", "line-join": "round" }, filter: ["==", ["get", "idu"], ""],
+            paint: { "line-color": VISEE, "line-width": ["interpolate", ["linear"], ["zoom"], 15, 2, 18, 3.5, 21, 5] },
           },
           {
             id: "cadastre-feuilles", type: "line", source: "cadastre", "source-layer": "feuille", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
@@ -752,17 +774,72 @@ const Carte = (() => {
     cadastreOn = on;
     // pas whenLoaded (voir setMilestones) : « load » peut être passé alors que le style se dit « pas chargé »
     const apply = () => {
-      for (const id of ["cadastre-parcelles", "cadastre", "cadastre-batiments", "cadastre-feuilles", "cadastre-decale", "cadastre-bornes", "cadastre-sections"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+      for (const id of ["cadastre-parcelles", "cadastre", "cadastre-camera-fond", "cadastre-camera", "cadastre-vise-fond", "cadastre-vise", "cadastre-batiments", "cadastre-feuilles", "cadastre-decale", "cadastre-bornes", "cadastre-sections"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
       if (!cadastreFollow) {
         cadastreFollow = true;
         map.on("moveend", () => {
           clearTimeout(cadastreTimer);
           cadastreTimer = setTimeout(() => loadCadastre(map), 300);
         });
+        // tuiles du cadastre arrivées (zoom, déplacement) : parcelle visée recherchée de nouveau
+        map.on("sourcedata", (e) => { if (e.sourceId === "cadastre" && e.isSourceLoaded) aimCadastre(map); });
       }
       loadCadastre(map);
+      aimCadastre(map);
     };
     try { apply(); } catch { map.once("load", apply); }
+  }
+
+  // Parcelle visée : la première que coupe la ligne de cap en partant de la caméra (celle où se tient la caméra, cour ou
+  // chemin privé, écartée : elle est allumée à part, en jaune), jusqu'à CADASTRE_VISEE m : au-delà, la photo ne montre plus assez la parcelle pour s'en servir
+  // (limites du plan à 1,5 m près en Côte-d'Or, voir CADASTRE_DECALAGE). Recherchée sur les tuiles chargées, à chaque
+  // rotation de la vue (une fois par image au plus).
+  const CADASTRE_VISEE = 50;
+  let aimFrame = 0, aimedKey = "";
+  function aimCadastre(map) {
+    if (aimFrame) return;
+    aimFrame = requestAnimationFrame(() => {
+      aimFrame = 0;
+      const { aimed, own } = cadastreOn && map.getZoom() >= CADASTRE_MINZOOM ? aimedParcel(map) : { aimed: "", own: "" };
+      if (`${aimed}|${own}` === aimedKey || !map.getLayer("cadastre-vise")) return;
+      aimedKey = `${aimed}|${own}`;
+      for (const id of ["cadastre-vise-fond", "cadastre-vise"]) map.setFilter(id, ["==", ["get", "idu"], aimed]);
+      for (const id of ["cadastre-camera-fond", "cadastre-camera"]) map.setFilter(id, ["==", ["get", "idu"], own]);
+    });
+  }
+  /** Parcelles de la vue (lastView), par leur identifiant (idu) : { aimed : visée, à moins de CADASTRE_VISEE m, own : celle où
+   * se tient la caméra } ; "" pour celle qui manque. La parcelle de la caméra se lit aussi sans cap (Bird Eye). */
+  function aimedParcel(map) {
+    const [lonlat, heading] = lastView || [];
+    if (!lonlat) return { aimed: "", own: "" };
+    const kx = 111320 * Math.cos(lonlat[1] * Math.PI / 180), ky = 111320;  // m par degré (à 0,3 % près : sans effet ici)
+    const dx = Math.sin((heading ?? 0) * Math.PI / 180), dy = Math.cos((heading ?? 0) * Math.PI / 180);
+    const around = new Set(), hits = new Map();  // parcelles où se tient la caméra ; idu -> distance d'entrée (m)
+    for (const f of map.querySourceFeatures("cadastre", { sourceLayer: "parcelle" })) {
+      const idu = f.properties?.idu, g = f.geometry;
+      if (!idu || !g) continue;
+      const polygons = g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
+      for (const rings of polygons) {
+        let inside = false, best = Infinity;
+        for (const ring of rings) {
+          for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            const ax = (ring[j][0] - lonlat[0]) * kx, ay = (ring[j][1] - lonlat[1]) * ky;
+            const bx = (ring[i][0] - lonlat[0]) * kx, by = (ring[i][1] - lonlat[1]) * ky;
+            if ((ay > 0) !== (by > 0) && 0 < ax + (bx - ax) * (0 - ay) / (by - ay)) inside = !inside;  // caméra dedans ?
+            // croisement du rayon (t dx, t dy), t ≥ 0, avec le côté a + u (b - a), 0 ≤ u ≤ 1
+            const ex = bx - ax, ey = by - ay, den = dx * ey - dy * ex;
+            if (!den || heading == null) continue;
+            const t = (ax * ey - ay * ex) / den, u = (ax * dy - ay * dx) / den;
+            if (t >= 0 && t <= CADASTRE_VISEE && u >= 0 && u <= 1 && t < best) best = t;
+          }
+        }
+        if (inside) around.add(idu);
+        else if (best < (hits.get(idu) ?? Infinity)) hits.set(idu, best);
+      }
+    }
+    let aimed = "", nearest = Infinity;
+    for (const [idu, t] of hits) if (!around.has(idu) && t < nearest) [aimed, nearest] = [idu, t];
+    return { aimed, own: [...around][0] || "" };
   }
 
   function loadCadastre(map) {
@@ -1284,6 +1361,8 @@ const Carte = (() => {
     if (!lonlat) {
       viewMarker?.remove();
       viewMarker = null;
+      lastView = null;
+      if (cadastreOn) aimCadastre(map);  // plus de vue : plus de parcelle visée
       return;
     }
     if (!viewMarker) {
@@ -1315,6 +1394,7 @@ const Carte = (() => {
     }
     viewMarker.setLngLat(lonlat).setRotation(heading ?? 0);
     if (!viewMarker._map) viewMarker.addTo(map);
+    if (cadastreOn) aimCadastre(map);
   }
   let lastView = null;
 

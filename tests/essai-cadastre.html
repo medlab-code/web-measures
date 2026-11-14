@@ -41,6 +41,58 @@ const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-
     expect("carte : parcelles numérotées teintées (domaine public sans teinte)", map.getLayoutProperty("cadastre-parcelles", "visibility") === "visible"
       && map.getLayer("cadastre-parcelles").sourceLayer === "parcelle");
     expect("carte : sections des parcelles lues au zoom 18", map.querySourceFeatures("cadastre", { sourceLayer: "localisant" }).length > 0);
+    {  // Parcelle visée en vert : la première que coupe la ligne de cap (hors celle de la caméra), à 50 m au plus. Attendue
+      // lue autrement : points pris tous les 20 cm le long du cap, parcelle qui contient chacun
+      const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + IDS.at(-1))).json()).features[0];
+      const cam = f.geometry.coordinates, azimuth = Number(f.properties["view:azimuth"]);
+      const parcels = map.querySourceFeatures("cadastre", { sourceLayer: "parcelle" });
+      const inRing = (p, ring) => { let c = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i], [xj, yj] = ring[j];
+        if ((yi > p[1]) !== (yj > p[1]) && p[0] < xj + (xi - xj) * (p[1] - yj) / (yi - yj)) c = !c; } return c; };
+      const holder = (p) => parcels.find((q) => (q.geometry.type === "Polygon" ? [q.geometry.coordinates] : q.geometry.coordinates)
+        .some((rings) => inRing(p, rings[0]) && !rings.slice(1).some((h) => inRing(p, h))))?.properties.idu || "";
+      const own = holder(cam), shown = () => map.getFilter("cadastre-vise")?.[2] ?? "";
+      const under = () => map.getFilter("cadastre-camera")?.[2] ?? "";
+      let lit = 0, inside = null;  // inside : point à 2 m dans la première parcelle visée, et son cap
+      for (const turn of [0, 90, 180, 270]) {
+        w.mesures.psv.rotate({ yaw: turn * Math.PI / 180, pitch: 0 });
+        const heading = (azimuth + turn) * Math.PI / 180, k = 111320 * Math.cos(cam[1] * Math.PI / 180);
+        let expected = "";
+        for (let d = 0.2; d <= 49.8 && !expected; d += 0.2) {
+          const idu = holder([cam[0] + d * Math.sin(heading) / k, cam[1] + d * Math.cos(heading) / 111320]);
+          if (idu && idu !== own) {
+            expected = idu;
+            inside ??= { idu, heading, at: [cam[0] + (d + 2) * Math.sin(heading) / k, cam[1] + (d + 2) * Math.cos(heading) / 111320] };
+          }
+        }
+        await soon(() => shown() === expected, 3000);
+        if (expected) lit++;
+        await sleep(300);  // dessin du filtre
+        log(`cap +${turn}° (${Math.round((azimuth + turn) % 360)}°) : attendue ${expected || "aucune"}, allumée ${shown() || "aucune"}, caméra sur ${own || "le domaine public"}`);
+        expect(`parcelle visée au cap +${turn}° : ${expected || "aucune à moins de 50 m"}`, shown() === expected, `allumée : ${shown() || "aucune"}`);
+        if (expected && lit === 1) {  // première parcelle allumée : carte dans le journal
+          const shot = await new Promise((r) => { map.once("render", () => r(map.getCanvas().toDataURL("image/png"))); map.triggerRepaint(); });
+          await log("IMAGE parcelle-visee " + shot);
+        }
+      }
+      expect("au moins une parcelle visée allumée", lit > 0);
+      expect(`caméra sur la voirie : rien en jaune (${own || "domaine public"})`, under() === own);
+      if (inside && holder(inside.at) === inside.idu) {  // caméra posée dans cette parcelle : elle passe en jaune, pas en vert
+        const Carte = w.eval("Carte");
+        Carte.showView(map, inside.at, inside.heading * 180 / Math.PI, 90);
+        await soon(() => under() === inside.idu, 3000);
+        log(`caméra dans ${inside.idu} : jaune ${under() || "aucune"}, vert ${shown() || "aucune"}`);
+        expect("caméra dans une parcelle : celle-ci en jaune, une autre (ou aucune) en vert", under() === inside.idu && shown() !== inside.idu);
+        await sleep(300);
+        const shot = await new Promise((r) => { map.once("render", () => r(map.getCanvas().toDataURL("image/png"))); map.triggerRepaint(); });
+        await log("IMAGE parcelle-camera " + shot);
+        Carte.showView(map, cam, azimuth, 90);
+      } else expect("point d'essai dans une parcelle trouvé", false);
+      doc.querySelector("#cadastre").click();  // réglage décoché : plus rien d'allumé
+      await soon(() => shown() === "" && under() === "", 3000);
+      expect("cadastre éteint : parcelles visée et de la caméra éteintes", shown() === "" && under() === ""
+        && map.getLayoutProperty("cadastre-vise", "visibility") === "none" && map.getLayoutProperty("cadastre-camera", "visibility") === "none");
+    }
     await fin();
   } catch (error) {
     log("ERREUR " + (error.stack || error));
