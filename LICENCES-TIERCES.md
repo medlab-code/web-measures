@@ -43,8 +43,8 @@ Licences mentionnées (textes de référence) : [MIT](https://opensource.org/lic
 | IGN, Géoplateforme (`data.geopf.fr`) | BD TOPO (tronçons, PR, ponts, zones d'habitation, communes), ADMIN EXPRESS, LiDAR HD (MNT, MNH, nuages COPC), RGE ALTI, Parcellaire Express (cadastre), orthophotographies, Plan IGN | [Licence Ouverte Etalab 2.0](https://www.etalab.gouv.fr/licence-ouverte-open-licence/) : réutilisation libre, y compris commerciale, en citant « IGN » et la date de mise à jour |
 | PROJ (`cdn.proj.org`) | grille du géoïde RAF20 de l'IGN (altitudes NGF) | Licence Ouverte Etalab 2.0 |
 | Panoramax (`api.panoramax.xyz`, `panoramax.ign.fr`…) | photos, séquences | celle de chaque photo, donnée par son instance (Licence Ouverte pour l'IGN et le CD21 ; d'autres instances : CC BY-SA 4.0…) ; citer l'auteur |
-| OpenStreetMap France (`tile.openstreetmap.fr`) | fond de carte OSM | données [ODbL](https://www.openstreetmap.org/copyright) « © les contributeurs d'OpenStreetMap » ; tuiles soumises aux conditions d'usage d'OpenStreetMap France |
+| OpenFreeMap (`tiles.openfreemap.org`) | fond de carte OpenStreetMap (tuiles vectorielles OpenMapTiles) | données [ODbL](https://www.openstreetmap.org/copyright) « © les contributeurs d'OpenStreetMap » ; schéma OpenMapTiles (BSD, CC-BY) ; service gratuit, sans clé ni garantie |
 
 Conditions d'usage des services, à respecter en plus des licences : la Géoplateforme limite les requêtes (5 par
-seconde et par adresse IP pour l'altimétrie) ; les serveurs de tuiles d'OpenStreetMap France sont gérés par une
-association, sans garantie, et ne sont pas prévus pour un trafic commercial important.
+seconde et par adresse IP pour l'altimétrie) ; OpenFreeMap est un service gratuit, financé par des dons,
+sans garantie de disponibilité.

@@ -21,7 +21,7 @@
   }
 
   const viewer = $("#visionneuse");
-  const map = Carte.createMap("carte", { textScale: 2 });  // texte du Plan IGN et d'OSM lisible au doigt
+  const map = Carte.createMap("carte", { vectorPlan: true, textScale: 1.3 });  // Plan IGN vectoriel, texte net et lisible au doigt
   Recherche.attach(map);
   Requeteur.attach(map, (lng, lat, heading, radius) => openNearest(lng, lat, heading, radius));
   $("#barre").append(map.getContainer().querySelector(".recherche"), map.getContainer().querySelector(".requeteur"));
@@ -131,7 +131,7 @@
 
   $("#ouvrir-reglages").addEventListener("click", () => $("#reglages").showModal());
   $("#reglages").addEventListener("click", (event) => { if (event.target === $("#reglages")) $("#reglages").close(); });  // appui hors du panneau
-  $("#fond").value = store.get("fond", "plan");
+  $("#fond").value = store.get("fond", "plan").replace(/^osm$/, "ofm");  // OpenStreetMap France remplacé par OpenFreeMap
   if (!$("#fond").value) $("#fond").value = "plan";  // fond gardé qui n'existe plus
   $("#fond").addEventListener("change", (event) => {
     Carte.setBackground(map, event.target.value);

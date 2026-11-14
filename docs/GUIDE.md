@@ -14,7 +14,7 @@ courte : [README](../README.md) ; calculs : [CALCULS.md](CALCULS.md) ; vue Bird 
 
 **Sur téléphone** : `mobile.html`, version de consultation (sans le calcul ni les mesures) : photo en
 haut, carte en bas, partage réglé par la poignée entre les deux ; recherche de lieux et requêteur route +
-PR au-dessus ; bouton ⚙ des réglages : fond de carte, filaire Panoramax, bornes des PR, cadastre (parcelle visée en vert, son
+PR au-dessus ; Plan IGN et OpenStreetMap en tuiles vectorielles (texte net, agrandi de 30 %) ; bouton ⚙ des réglages : fond de carte, filaire Panoramax, bornes des PR, cadastre (parcelle visée en vert, son
 étiquette dans la photo, caméra supposée à 1,90 m au-dessus d'un sol de niveau), filtre des photos (instance,
 producteur, date de début ; mêmes réglages que la page principale), bouton « Version complète » masquable ; bouton 📷 : capture de la vue avec l'étiquette et les
 cartouches, partagée par le téléphone (sinon téléchargée).
@@ -48,7 +48,7 @@ dans Réglages. Une section
 s'affiche à la fois ; la dernière choisie est rouverte à la visite suivante.
 
 **La carte** : fonds Plan IGN, orthophoto, ortho-express, PCRS, Modèle Numérique de Hauteur (LiDAR HD : estompage de la hauteur du
-sursol : bâtiments, arbres, haies, talus), OpenStreetMap, et
+sursol : bâtiments, arbres, haies, talus), OpenStreetMap (tuiles vectorielles d'OpenFreeMap, texte net), et
 **orthophoto avec noms** : noms des lieux et des rues, voies, avec les numéros de route dans
 des cartouches dessinés comme ceux de l'IISR (rouge pour les autoroutes et nationales, jaune
 pour les départementales, cyan pour les métropolitaines, vert pour les européennes), limites
@@ -698,7 +698,7 @@ pas utilisé (talus et murs pris pour la route).
 
 - voyants **RTK**, **LiDAR HD** (ou **RGE ALTI** en secours) et **inclinaison** de la photo ;
 - fonds de carte : Plan IGN, orthophoto, Ortho-express de l'année de la photo, PCRS de la
-  Géoplateforme là où il est publié, Modèle Numérique de Hauteur (LiDAR HD), OpenStreetMap ; recherche de lieux ; points de repère
+  Géoplateforme là où il est publié, Modèle Numérique de Hauteur (LiDAR HD), OpenStreetMap (OpenFreeMap) ; recherche de lieux ; points de repère
   (PR) des routes ; requêteur route + PR (+ distance), à listes qui se réduisent à la frappe ;
 - lieu de la photo incrusté en bas à gauche de la visionneuse : route, PR et distance mesurée
   le long du filaire IGN depuis le dernier PR passé, nom de la voie, hameau ou quartier (zone

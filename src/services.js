@@ -5,7 +5,7 @@
 // pare-feu ou un en-tête CORS manquant sur le poste. Adresses de l'API d'une séquence (app.js, dessus.js).
 
 const Services = (() => {
-  const { GEOPF, OSM_TILES, PANORAMAX_API } = Carte;
+  const { GEOPF, OFM_STYLE, PANORAMAX_API } = Carte;
 
   const SERVICES = [
     ["Panoramax : recherche de photos", `${PANORAMAX_API}/search?limit=1`],
@@ -16,7 +16,7 @@ const Services = (() => {
     ["Panoramax : fichiers des photos (stockage)",
       "https://panoramax.ign.fr/api/pictures/cd8cf3a0-6567-40f0-8805-94172a5dfc3c/thumb.jpg"],
     ["IGN : fonds de carte (WMTS)", `${GEOPF}/wmts?SERVICE=WMTS&REQUEST=GetCapabilities`],
-    ["OpenStreetMap France : fond de carte", OSM_TILES.replace("{s}", "a").replace("{z}/{x}/{y}", "15/16846/11558")],
+    ["OpenFreeMap : fond OpenStreetMap", OFM_STYLE],
     // Sol sous les photos (LiDAR HD, sinon RGE ALTI) : vérification de la position RTK, sol au
     // point visé, inclinaison automatique
     ["IGN : altitudes du LiDAR HD",

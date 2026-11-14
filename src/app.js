@@ -228,7 +228,7 @@
 
   // Fond, instance, centrage ----------------------------------------------------------------
 
-  $("#fond").value = store.get("fond", "plan");
+  $("#fond").value = store.get("fond", "plan").replace(/^osm$/, "ofm");  // OpenStreetMap France remplacé par OpenFreeMap
   if (!$("#fond").value) $("#fond").value = "plan";  // fond mémorisé qui n'existe plus
   map.on("load", () => Carte.setBackground(map, $("#fond").value));
   // Police des cartouches prête avant qu'ils ne soient dessinés
@@ -6374,7 +6374,7 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
    * couche affichée pour l'ortho-express et le PCRS) et producteur. */
   function backgroundName() {
     const value = $("#fond").value;
-    if (value === "osm") return "OpenStreetMap France (contributeurs d'OpenStreetMap)";
+    if (value === "ofm") return "OpenFreeMap (contributeurs d'OpenStreetMap)";
     const layer = (/LAYER=([^&]+)/.exec(map.getStyle()?.sources?.[value]?.tiles?.[0] || "") || [])[1] || "";
     const year = (/EXPRESS\.(\d{4})/.exec(layer) || [])[1];
     const name = value === "plan" ? "Plan IGN"

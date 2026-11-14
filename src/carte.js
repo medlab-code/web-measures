@@ -25,13 +25,20 @@ const Carte = (() => {
   }
 
   const ATTRIBUTION_IGN = '<a href="https://www.ign.fr">IGN</a>';
-  const ATTRIBUTION_OSM = '© <a href="https://www.openstreetmap.org/copyright">les contributeurs d\'OpenStreetMap</a>, '
-    + 'fond <a href="https://www.openstreetmap.fr">OpenStreetMap France</a>';
-  // Tuiles d'OpenStreetMap France : le serveur officiel (tile.openstreetmap.org) refuse les
-  // demandes sans page d'origine, celles de la page ouverte par double-clic (file://)
-  const OSM_TILES = "https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png";
-  const osmTiles = ["a", "b", "c"].map((sub) => OSM_TILES.replace("{s}", sub));
-  const BACKGROUNDS = ["plan", "ortho", "noms", "express", "pcrs", "mnh", "osm"];
+  const ATTRIBUTION_OFM = '<a href="https://openfreemap.org">OpenFreeMap</a> © <a href="https://www.openmaptiles.org">OpenMapTiles</a>, '
+    + 'données © <a href="https://www.openstreetmap.org/copyright">les contributeurs d\'OpenStreetMap</a>';
+  const BACKGROUNDS = ["plan", "ortho", "noms", "express", "pcrs", "mnh", "ofm"];
+  // Fonds vectoriels (styles MapLibre publiés) : texte dessiné par le navigateur, net à toute résolution et agrandi
+  // à volonté (textScale de createMap). Textes dans les polices de l'IGN, seul serveur de polices de la carte
+  // (OpenFreeMap : Noto Sans remplacée par Source Sans Pro) ; pictogrammes de chaque style préfixés de sa clé.
+  const GLYPHS = "https://data.geopf.fr/annexes/ressources/vectorTiles/fonts/{fontstack}/{range}.pbf";
+  const VECTOR_BASES = {
+    // Plan IGN vectoriel (page mobile, à la place des images du Plan IGN)
+    planv: { style: "https://data.geopf.fr/annexes/ressources/vectorTiles/styles/PLAN.IGN/standard.json", maxzoom: 18, attribution: ATTRIBUTION_IGN },
+    // OpenStreetMap par OpenFreeMap (gratuit, sans clé, en-têtes CORS)
+    ofm: { style: "https://tiles.openfreemap.org/styles/liberty", attribution: ATTRIBUTION_OFM,
+      font: (f) => f.replace("Noto Sans", "Source Sans Pro") },
+  };
   // Limites administratives (ADMIN EXPRESS de l'IGN, par le WFS) : chaque niveau à partir d'un
   // zoom ; géométries de petite échelle vues de loin, plus précises de près (communes : celles de
   // la BD TOPO, pour savoir de quel côté d'une limite tombe une mesure)
@@ -89,8 +96,17 @@ const Carte = (() => {
   const NAMES_LAYERS = ["toponyme_localite_ponc", "toponyme_routier_odonyme_lin"];
   const NAMES_SCALE = 1.3;  // texte agrandi : lisible sur l'orthophoto dans la petite carte
   /** Taille de texte du style IGN (nombre ou paliers { stops }) multipliée par NAMES_SCALE. */
-  const scaledSize = (size) => (typeof size === "number" ? size * NAMES_SCALE
-    : size?.stops ? { ...size, stops: size.stops.map(([z, v]) => [z, v * NAMES_SCALE]) } : size);
+  /** Taille de texte d'un style multipliée par k : nombre, fonction à paliers (stops) ou expression (sorties d'un
+   * interpolate ou d'un step sur le zoom, qui doit rester au sommet de l'expression). */
+  const scaledSize = (size, k = NAMES_SCALE) => {
+    const times = (v) => (typeof v === "number" ? v * k : ["*", v, k]);
+    if (typeof size === "number") return size * k;
+    if (size?.stops) return { ...size, stops: size.stops.map(([z, v]) => [z, v * k]) };
+    if (!Array.isArray(size)) return size;
+    if (size[0] === "interpolate") return [...size.slice(0, 3), ...size.slice(3).map((v, i) => (i % 2 ? times(v) : v))];
+    if (size[0] === "step") return [...size.slice(0, 2), times(size[2]), ...size.slice(3).map((v, i) => (i % 2 ? times(v) : v))];
+    return times(size);
+  };
   // PCRS (plan de corps de rue simplifié, image à 5 cm) : publié par zones, selon les
   // producteurs ; la couche de la zone est donnée par le graphe de mosaïquage de l'ANCT
   const pcrsTiles = (layer) => `${GEOPF}/wms-r/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=${layer}`
@@ -110,9 +126,11 @@ const Carte = (() => {
   const EMPTY = { type: "FeatureCollection", features: [] };
   const kind = (...kinds) => ["in", ["get", "kind"], ["literal", kinds]];
 
-  /** textScale (page mobile : 2) : tuiles du Plan IGN et d'OpenStreetMap, au texte dessiné dedans, affichées
-   * textScale fois plus grandes (tuile du zoom inférieur agrandie), lisibles sur un téléphone. */
-  function createMap(container, { textScale = 1 } = {}) {
+  /** Options de la page mobile : vectorPlan, Plan IGN vectoriel au lieu de ses images ; textScale, texte des fonds
+   * vectoriels agrandi (lisible au doigt). */
+  let mapOptions = { vectorPlan: false, textScale: 1 };
+  function createMap(container, { vectorPlan = false, textScale = 1 } = {}) {
+    mapOptions = { vectorPlan, textScale };
     const map = new maplibregl.Map({
       container,
       attributionControl: false,  // ajouté replié ci-dessous
@@ -123,10 +141,11 @@ const Carte = (() => {
       pitchWithRotate: false,
       style: {
         version: 8,
+        glyphs: GLYPHS,
         sources: {
           plan: {
             type: "raster", tiles: [wmts("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png")],
-            tileSize: 256 * textScale, maxzoom: 19, attribution: ATTRIBUTION_IGN,
+            tileSize: 256, maxzoom: 19, attribution: ATTRIBUTION_IGN,
           },
           ortho: {
             type: "raster", tiles: [wmts("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg")],
@@ -142,7 +161,6 @@ const Carte = (() => {
             type: "raster", tiles: [wmts("IGNF_LIDAR-HD_MNH_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW", "image/png")],
             tileSize: 256, maxzoom: 18, attribution: ATTRIBUTION_IGN,
           },
-          osm: { type: "raster", tiles: osmTiles, tileSize: 256 * textScale, maxzoom: 19, attribution: ATTRIBUTION_OSM },
           panoramax: {
             type: "vector", tiles: [tilesUrl()], minzoom: 0, maxzoom: 15, attribution: ATTRIBUTION_PANORAMAX,
           },
@@ -168,7 +186,6 @@ const Carte = (() => {
           { id: "express", type: "raster", source: "express", layout: { visibility: "none" } },
           { id: "pcrs", type: "raster", source: "pcrs", minzoom: 15, layout: { visibility: "none" } },
           { id: "mnh", type: "raster", source: "mnh", layout: { visibility: "none" } },
-          { id: "osm", type: "raster", source: "osm", layout: { visibility: "none" } },
           // Cadastre, sur le fond et sous le filaire (couleurs du Parcellaire Express de l'IGN) : parcelles numérotées teintées (le
           // domaine public, voirie et cours d'eau, n'en a pas : sans teinte), bâtiments, limites des parcelles et des feuilles,
           // feuilles mal raccordées (limites peut-être décalées) cernées de tirets
@@ -495,9 +512,19 @@ const Carte = (() => {
   }
 
   function setBackground(map, name) {
+    if (name === "osm") name = "ofm";  // OpenStreetMap France (images), remplacé par OpenFreeMap le 14/11/2026
     if (!BACKGROUNDS.includes(name)) name = "plan";  // fond mémorisé inconnu
+    const vector = name === "ofm" ? "ofm" : name === "plan" && mapOptions.vectorPlan ? "planv" : null;
+    for (const [key, base] of Object.entries(vectorBases)) {
+      for (const id of base.ids) map.setLayoutProperty(id, "visibility", key === vector ? "visible" : "none");
+    }
+    if (vector) loadVector(map, vector, () => vectorShown === vector);
+    vectorShown = vector;
     for (const id of BACKGROUNDS) {
-      if (id === "noms") continue;  // pas une couche : l'orthophoto et les noms par-dessus
+      if (id === "noms" || id === "ofm" || (id === "plan" && vector)) {  // pas une couche d'images : l'orthophoto et les noms par-dessus
+        if (id === "plan") map.setLayoutProperty(id, "visibility", "none");
+        continue;
+      }
       // Ortho-express : orthophoto standard dessous, là où l'année choisie n'a pas été survolée
       const shown = id === name || (["noms", "express", "pcrs"].includes(name) && id === "ortho");
       map.setLayoutProperty(id, "visibility", shown ? "visible" : "none");
@@ -509,6 +536,60 @@ const Carte = (() => {
     setAdminVisible(map, namesShown);
     for (const id of namesIds) map.setLayoutProperty(id, "visibility", namesShown ? "visible" : "none");
     loadMilestones(map);
+  }
+
+  let vectorShown = null;  // fond vectoriel affiché (clé de VECTOR_BASES), ou null
+  const vectorBases = {};  // clé -> { ids : couches ajoutées, loading }
+  /** Ajoute (une fois) les couches d'un fond vectoriel, au-dessus des fonds en images et sous tout le reste ; shown() :
+   * encore choisi à leur arrivée. */
+  function loadVector(map, key, shown) {
+    const base = vectorBases[key] ??= { ids: [], loading: null };
+    base.loading ??= (async () => {
+      try {
+        const def = VECTOR_BASES[key], style = await (await fetch(def.style)).json();
+        map.addSprite(key, typeof style.sprite === "string" ? style.sprite : style.sprite[0].url);
+        // Pictogrammes nommés par le style mais absents de ses images (OpenFreeMap : bicycle_parking, gate…) : image vide
+        map.on("styleimagemissing", ({ id }) => {
+          if (id.startsWith(`${key}:`) && !map.hasImage(id)) map.addImage(id, { width: 1, height: 1, data: new Uint8Array(4) });
+        });
+        const sources = {};
+        for (const [name, source] of Object.entries(style.sources)) {
+          if (source.type !== "vector") continue;  // relief ombré des petites échelles (OpenFreeMap) : sans
+          const id = `${key}-${name}`;
+          map.addSource(id, source.tiles ? { type: "vector", tiles: source.tiles, scheme: source.scheme, maxzoom: def.maxzoom ?? 14, attribution: def.attribution }
+            : { type: "vector", url: source.url, attribution: def.attribution });
+          sources[name] = id;
+        }
+        /** Nom d'image du style préfixé de la clé : nom, nom à jetons ("{class}_11") ou expression (sorties d'un step
+         * ou d'un interpolate sur le zoom traitées une à une : le zoom n'est permis qu'au sommet). */
+        const prefixed = (image) => {
+          if (typeof image === "string") {
+            const parts = image.split(/\{([^}]+)\}/).map((part, i) => (i % 2 ? ["to-string", ["get", part]] : part)).filter((part) => part !== "");
+            if (!parts.length) return "";
+            if (parts.length === 1 && typeof parts[0] === "string") return `${key}:${image}`;
+            image = parts.length === 1 ? parts[0] : ["concat", ...parts];
+          } else if (Array.isArray(image) && image[0] === "step") {
+            return [...image.slice(0, 2), prefixed(image[2]), ...image.slice(3).map((v, i) => (i % 2 ? prefixed(v) : v))];
+          } else if (image?.stops) return { ...image, stops: image.stops.map(([z, v]) => [z, prefixed(v)]) };
+          return ["let", "i", image, ["case", ["==", ["to-string", ["var", "i"]], ""], "", ["concat", `${key}:`, ["to-string", ["var", "i"]]]]];
+        };
+        for (const layer of style.layers) {
+          if (layer.type !== "background" && !sources[layer.source]) continue;
+          const layout = { ...layer.layout, visibility: shown() ? "visible" : "none" };
+          if (layout["text-size"] != null || layer.type === "symbol") layout["text-size"] = scaledSize(layout["text-size"] ?? 16, mapOptions.textScale);
+          if (Array.isArray(layout["text-font"]) && def.font) layout["text-font"] = layout["text-font"].map((f) => (typeof f === "string" ? def.font(f) : f));
+          if (layout["icon-image"] != null) layout["icon-image"] = prefixed(layout["icon-image"]);
+          const paint = { ...layer.paint };  // motifs (cimetières, marais du Plan IGN) : images du même style
+          for (const name of ["fill-pattern", "line-pattern"]) if (paint[name] != null) paint[name] = prefixed(paint[name]);
+          const id = `${key}-${layer.id}`;
+          map.addLayer({ ...layer, id, ...(layer.source && { source: sources[layer.source] }), layout, paint }, "cadastre-parcelles");
+          base.ids.push(id);
+        }
+      } catch (error) {
+        console.warn(`Fond vectoriel ${key} indisponible :`, error);
+        base.loading = null;  // nouvel essai au prochain choix du fond
+      }
+    })();
   }
 
   /** Affiche ou masque le filaire Panoramax (séquences et photos). */
@@ -1512,7 +1593,7 @@ const Carte = (() => {
   }
 
   return {
-    PANORAMAX_API: META_API, GEOPF, OSM_TILES, createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, pcrsAt, instances, setInstance, setFilter,
+    PANORAMAX_API: META_API, GEOPF, OFM_STYLE: VECTOR_BASES.ofm.style, createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, pcrsAt, instances, setInstance, setFilter,
     showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre, onAim: (fn) => { aimListener = fn; }, aimedParcel: aimedParcelNow, capture, nearestPhoto, photosNear, photoById, metresBetween, apiUrl: () => apiUrl,
   };
 })();
