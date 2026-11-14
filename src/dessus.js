@@ -1882,7 +1882,7 @@ const Dessus = (() => {
       const found = orthoShift(readView(main, mine.terrain, mine.pose), ortho, roadHeading(ortho, mine.pose.heading));
       if (found) mine.shift = [-found.shift * found.us[0], -found.shift * found.us[1]];
       mine.located = found ? Math.abs(found.shift) : null;
-    } catch (error) {
+    } catch {
       if (abort.signal.aborted) return;
       mine.located = null;  // orthophoto injoignable : position GPS gardée
     } finally {

@@ -75,7 +75,6 @@ const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-
           let mark = null;
           try { mark = markers.getMarker("mesure-parcelle"); } catch { /* absente */ }
           const numero = expected.slice(-4), el = mark?.domElement || mark?.element;
-          const box = el?.getBoundingClientRect(), view = w.mesures.psv.container.getBoundingClientRect();
           // direction attendue : le milieu du bord de la partie vue de la parcelle (Carte.aimedParcel().at), depuis la caméra
           const middle = w.eval("Carte").aimedParcel()?.at, kx = 111320 * Math.cos(cam[1] * Math.PI / 180);
           const toward = middle && Math.atan2((middle[0] - cam[0]) * kx, (middle[1] - cam[1]) * 111320) - azimuth * Math.PI / 180;

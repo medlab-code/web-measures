@@ -1,0 +1,31 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.7/schema.json",
+  "files": { "includes": ["src/**", "tests/**", "index.html"] },
+  "formatter": { "enabled": false },
+  "assist": { "enabled": false },
+  "linter": {
+    "rules": {
+      "preset": "none",
+      "correctness": {
+        "preset": "recommended",
+        "noUnusedFunctionParameters": "off",
+        "noUnusedVariables": {
+          "level": "warn",
+          "options": {
+            "ignore": {
+              "variable": ["Calcul", "Carte", "Couche", "Dessus", "Essai", "Lieu", "Nuage", "PassagesPietons",
+                "Profil", "Recherche", "Requeteur", "Services", "Traits", "Video"]
+            }
+          }
+        }
+      },
+      "suspicious": {
+        "preset": "recommended",
+        "noAssignInExpressions": "off",
+        "noCatchAssign": "off",
+        "noGlobalIsNan": "off",
+        "useIterableCallbackReturn": "off"
+      }
+    }
+  }
+}

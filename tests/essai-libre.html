@@ -22,7 +22,6 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     const app = w.mesures.app, doc = w.document;
     doc.querySelector("#reglages-defaut")?.close();  // réglages par défaut (CD21, instance IGN) : fenêtre fermée
     const psvClick = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: false }; w.mesures.psv.dispatchEvent(e); };
-    const psvRight = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: true }; w.mesures.psv.dispatchEvent(e); };
     doc.querySelector("#mesure").click();
     doc.querySelector("#mode").value = "tri"; doc.querySelector("#mode").dispatchEvent(new Event("change"));
     const photos = await Promise.all(IDS.map(feature));
@@ -71,11 +70,10 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("distance attendue : " + truth.toFixed(3) + " m");
     near("distance entre les deux points", Number(JSON.parse(app.export_geojson()).features.find((f) => f.properties.type.startsWith("distance"))?.properties.valeur_m), truth, 0.02);  // hors de la liste (#30)
     await soon(() => !w.mesures.map.isMoving());  // carte cadrée sur la mesure
-    { const map = w.mesures.map, b = map.getBounds(), c = map.getContainer();
+    { const map = w.mesures.map, c = map.getContainer();
       const pa = map.project(target), pb = map.project(target2);
       log("carte : zoom " + map.getZoom().toFixed(1) + " · A (" + Math.round(pa.x) + "," + Math.round(pa.y) + ") B (" + Math.round(pb.x) + ","
         + Math.round(pb.y) + ") dans " + c.clientWidth + "×" + c.clientHeight); }
-    const box = w.mesures.psv.container;
     log("visionneuse : " + labelsIn().map((e) => e.textContent).join(" | ")
       + " · croix " + crossesIn(false) + " · liseré " + doc.querySelector("#vue").className
       + " · état " + doc.querySelector("#etat-mesure").textContent + " · rappel : " + doc.querySelector("#mode-mesure").textContent);

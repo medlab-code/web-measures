@@ -45,7 +45,6 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     // clic simulé avec sa position à l'écran, comme la visionneuse la donne (croix sous le clic : en pixels)
     const at = (yaw, pitch) => { const p = w.mesures.psv.dataHelper.sphericalCoordsToViewerCoords({ yaw, pitch }); return { viewerX: p.x, viewerY: p.y }; };
     const psvClick = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: false, ...at(yaw, pitch) }; w.mesures.psv.dispatchEvent(e); };
-    const psvRight = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: true, ...at(yaw, pitch) }; w.mesures.psv.dispatchEvent(e); };
     doc.querySelector("#mesure").click();
     doc.querySelector("#mode").value = "height"; doc.querySelector("#mode").dispatchEvent(new Event("change"));
     const photos = await Promise.all(IDS.map(feature));

@@ -2984,7 +2984,6 @@
       updatePlayer();
     });
   }).observe($("#parcours"));
-  const TILES_WAIT = 4000;  // ms : attente au plus des tuiles HD d'une vue du parcours (réseau lent)
   const TOUR_REACH = 40;  // m : photos du départ et de l'arrivée cherchées à cette distance (même séquence)
   const TOUR_END = 30;  // m : hors de la séquence de l'arrivée, arrivée passée quand la distance remonte sous ce seuil
   const TOUR_AWAY = 40;  // m : séquence qui s'écarte d'autant de son point le plus proche de l'arrivée : rebranchement

@@ -20,7 +20,6 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
     doc.querySelector("#reglages-defaut")?.close();
     // fin du calcul des bords : la durée suit celle des services (une attente fixe échouait quand ils étaient lents)
     const computed = async () => {
-      const t0 = Date.now();
       const busy = () => /Calcul en cours|calcul en cours|lecture du nuage/.test(doc.querySelector("#chute").textContent);
       await soon(() => busy() || !doc.querySelector("#chute").hidden, 3000);  // calcul lancé
       await soon(() => !busy(), 60000);

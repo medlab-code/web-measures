@@ -11,7 +11,6 @@
 const { log, sleep, until, soon, ready, expect, expectSoon, near, verdict } = Essai;
 // Surcouche des mesures dessinée en WebGL (src/traits.js) : repères demandés, à l'écran ou non
 const traitsIn = () => document.getElementById("f").contentWindow.eval("Traits").items();
-const labelsIn = () => traitsIn().labels.map((l) => ({ textContent: l.text }));
 const crossesIn = (visee) => traitsIn().crosses.filter((c) => visee === undefined || c.visee === visee).length;
 const feature = async (id) => (await (await fetch("https://api.panoramax.xyz/api/search?ids=" + id)).json()).features[0];
 const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-955becc79e81"];

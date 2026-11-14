@@ -516,6 +516,7 @@ const Carte = (() => {
 
   let namesShown = false;
   let namesIds = [];  // couches des noms, une fois chargées
+  // biome-ignore lint/correctness/noUnusedVariables: lue par ??= (chargement une seule fois)
   let namesLoading = null;
 
   /** Ajoute (une fois) les couches de noms du Plan IGN vectoriel, sous le filaire et les mesures. */
@@ -1448,13 +1449,6 @@ const Carte = (() => {
     if (cadastreOn) aimCadastre(map);
   }
   let lastView = null;
-
-  function offset([lon, lat], heading, distance) {
-    const h = heading * Math.PI / 180;
-    const dlat = distance * Math.cos(h) / 111320;
-    const dlon = distance * Math.sin(h) / (111320 * Math.cos(lat * Math.PI / 180));
-    return [lon + dlon, lat + dlat];
-  }
 
   // Photo la plus proche d'un clic --------------------------------------------------------
 
