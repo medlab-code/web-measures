@@ -978,7 +978,15 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 ### Pour plus tard
 
 - **Export pour un inventaire** : tableur, une ligne par mesure (route, PR + abscisse, type,
-  valeur ± incertitude, lien vers la photo Panoramax, date).
+  valeur ± incertitude, lien vers la photo Panoramax, date), à partager avec des collègues sans QGIS ni
+  l'application. Second bouton CSV, l'export complet (`export_csv`, `py/web_app.py`) restant pour QGIS et les
+  réimports. Revu le 15/11/2026, ce qui manque à l'export actuel :
+  - route et PR + abscisse : absents. La page les lit à l'ouverture d'une photo (`Lieu.describe`) ; pour une
+    mesure prise plus tôt, à garder au moment de la mesure ou à relire à l'export ;
+  - lien vers la photo : seuls ses identifiants sont écrits (`photos`, `photo_ref`), pas d'adresse cliquable ;
+  - date : `date_mesure` est le jour de la mesure, pas la date de prise de la photo ;
+  - lisibilité : une vingtaine de colonnes aujourd'hui, dont beaucoup de techniques (`horiz_m`, `camera_calee`,
+    `vue_ref`, `recales`, `lon1`…`lat2`).
 - **Contrôle d'une largeur sur l'image vue du ciel**, quand le PCRS (image à 5 cm) sera publié
   en Côte-d'Or (absent le 22/10/2026, vérifié à Pouilly-en-Auxois) : cliquer les deux bords sur
   la mini-carte, puis comparer avec la largeur mesurée sur la photo ; un écart supérieur aux
