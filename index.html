@@ -31,7 +31,10 @@
     } catch { /* sans stockage : page principale */ }
   </script>
   <script>  /* thème choisi (Réglages), posé avant l'affichage : pas d'éclair clair en mode nuit */
-    try { const t = localStorage.getItem("web-measures/theme"); if (t) document.documentElement.dataset.theme = t; } catch { /* sans stockage */ }
+    try {
+      const t = localStorage.getItem("web-measures/theme");
+      if (t) document.documentElement.dataset.theme = t;
+    } catch { /* sans stockage */ }
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@panoramax/web-viewer@5.3.1/build/cjs/index_photoviewer.js"></script>
   <script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
@@ -40,12 +43,15 @@
   <header>
     <div class="marque">
       <h1>Mesures Panoramax</h1>
-      <span class="essai" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.7.9 – projet personnel – POC</span>
+      <span class="essai"
+            title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.7.9 – projet personnel – POC</span>
     </div>
     <!-- Mesure : gros bouton sur les deux rangées ; réglages, puis effacement en dessous -->
     <div class="bloc mesure carte-barre">
       <button id="mesure" type="button" aria-pressed="false" disabled
-              title="Mesurer : un clic dans la photo prend un point au lieu de changer de photo"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 2.5v19h19z M7.5 12.2v4.8h4.8z"/></svg> Mesure</button>
+              title="Mesurer : un clic dans la photo prend un point au lieu de changer de photo"><svg width="20" height="20"
+                  viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd"
+                      d="M3 2.5v19h19z M7.5 12.2v4.8h4.8z"/></svg> Mesure</button>
       <div class="bloc reglages">
         <div class="rang">
           <label>Mode
@@ -54,7 +60,8 @@
                 <option value="height">Hauteur d'un objet</option>
                 <option value="road">Largeur perpendiculaire à la chaussée</option>
                 <option value="tri">Mesure libre (points triangulés)</option>
-                <option value="carte" title="Segment tracé en deux clics sur la vue Bird Eye (carte en grand, à la place de la visionneuse)">Longueur sur la carte (Bird Eye)</option>
+                <option value="carte"
+                        title="Segment tracé en deux clics sur la vue Bird Eye (carte en grand, à la place de la visionneuse)">Longueur sur la carte (Bird Eye)</option>
               </optgroup>
               <optgroup label="Relevé">
                 <option value="releve">Relevé d'objets (couche SIG)</option>
@@ -64,22 +71,30 @@
               </optgroup>
             </select>
           </label>
-          <label title="Sur un pont, le modèle de terrain de l'IGN (LiDAR HD, ou RGE ALTI là où le LiDAR HD n'est pas publié) donne le terrain sous l'ouvrage (la voie franchie), pas le tablier : les points au sol se calent alors sur le sol tiré des photos et l'inclinaison automatique se passe de la pente du terrain"><input id="pont" type="checkbox" class="interrupteur" disabled> Sur un pont</label>
+          <label title="Sur un pont, le modèle de terrain de l'IGN (LiDAR HD, ou RGE ALTI là où le LiDAR HD n'est pas publié) donne le terrain sous l'ouvrage (la voie franchie), pas le tablier : les points au sol se calent alors sur le sol tiré des photos et l'inclinaison automatique se passe de la pente du terrain">
+            <input id="pont" type="checkbox" class="interrupteur" disabled> Sur un pont</label>
         </div>
         <div class="rang">
-          <button id="effacer" type="button" disabled title="Annule le dernier geste : dernière visée, dernier clic, puis la mesure en cours et le dernier point posé (raccourci Ctrl+Z ; « Refaire » ou Ctrl+Y rétablit)">Effacer</button>
-          <button id="refaire" type="button" disabled title="Rétablit ce que le dernier « Effacer » a retiré, si rien n'a été fait depuis (raccourci Ctrl+Y)">Refaire</button>
+          <button id="effacer" type="button" disabled
+                  title="Annule le dernier geste : dernière visée, dernier clic, puis la mesure en cours et le dernier point posé (raccourci Ctrl+Z ; « Refaire » ou Ctrl+Y rétablit)">Effacer</button>
+          <button id="refaire" type="button" disabled
+                  title="Rétablit ce que le dernier « Effacer » a retiré, si rien n'a été fait depuis (raccourci Ctrl+Y)">Refaire</button>
           <button id="tout-effacer" type="button" disabled>Tout effacer</button>
         </div>
       </div>
     </div>
-    <!-- Bouton « Profils » : chute et dévers des bords de route calculés à l'appui (App.request_edges), jusqu'à la largeur de la réglette -->
+    <!-- Bouton « Profils » : chute et dévers des bords de route calculés à l'appui (App.request_edges), jusqu'à la largeur
+         de la réglette -->
     <div class="bloc bords carte-barre">
       <button id="bords" type="button" disabled
-              title="Chute et dévers des deux bords de la route, pour la photo affichée (hors pont) : terrain LiDAR HD lu en travers de la route, du bord de la chaussée jusqu'à la distance de la réglette"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M2 7h8l6 10h6"/></svg> Profils</button>
+              title="Chute et dévers des deux bords de la route, pour la photo affichée (hors pont) : terrain LiDAR HD lu en travers de la route, du bord de la chaussée jusqu'à la distance de la réglette">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"
+             aria-hidden="true"><path d="M2 7h8l6 10h6"/></svg> Profils</button>
       <!-- Coupe du terrain lue par le calcul de « Profils » (src/profil.js) : grisé tant qu'il n'y en a pas pour la photo -->
       <button id="profil" type="button" disabled
-              title="Coupe du terrain en travers de la route, telle que « Profils » l'a lue : plateforme, bords, chute et dévers"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M2 20V4M2 20h20M5 9l4 0 3 6 4-2 5 0"/></svg> Graphiques</button>
+              title="Coupe du terrain en travers de la route, telle que « Profils » l'a lue : plateforme, bords, chute et dévers">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"
+             aria-hidden="true"><path d="M2 20V4M2 20h20M5 9l4 0 3 6 4-2 5 0"/></svg> Graphiques</button>
       <label class="reglette" title="Distance examinée au-delà du bord de la chaussée, au prochain appui sur « Profils »">
         <span>Jusqu'à <output id="bords-valeur" for="bords-largeur">10 m</output></span>
         <input id="bords-largeur" type="range" min="2" max="30" step="1" value="10">
@@ -88,20 +103,29 @@
     <!-- Captures, puis fond de carte -->
     <div class="bloc captures carte-barre">
       <button id="capture-hd" type="button" disabled title="Vue affichée recalculée en Full HD
-(1920 × 1080) à partir de la photo originale, redressée si l'inclinaison est calée"><span class="icone" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l2-3h6l2 3h3v11H4z" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="libelle">Image seule</span></button>
-      <button id="vignette" type="button" disabled title="La visionneuse telle qu'affichée, annotations comprises (mesures, étiquette de la parcelle visée, objets de la couche),
-enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l2-3h6l2 3h3v11H4z" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="libelle">Avec annotations</span></button>
+(1920 × 1080) à partir de la photo originale, redressée si l'inclinaison est calée"><span class="icone" aria-hidden="true"><svg width="17"
+    height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l2-3h6l2 3h3v11H4z"
+        stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="libelle">Image seule</span></button>
+      <button id="vignette" type="button" disabled
+              title="La visionneuse telle qu'affichée, annotations comprises (mesures, étiquette de la parcelle visée, objets de la couche),
+enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l2-3h6l2 3h3v11H4z" stroke-linejoin="round"/><circle cx="12" cy="13"
+        r="3.5"/></svg></span><span class="libelle">Avec annotations</span></button>
     </div>
     <div class="bloc fond carte-barre">
       <label for="fond">Fond de carte</label>
       <select id="fond"><option value="plan">Plan IGN</option><option value="ortho">Orthophoto</option>
-        <option value="noms" title="Orthophoto, noms des lieux et des rues, voies et numéros de route, limites des départements et des communes">Orthophoto avec noms</option>
+        <option value="noms"
+                title="Orthophoto, noms des lieux et des rues, voies et numéros de route, limites des départements et des communes">Orthophoto avec noms</option>
         <option value="express">Ortho-express (année de la photo)</option>
         <option value="pcrs" disabled title="Aucun PCRS publié sur la Géoplateforme à cet endroit">PCRS Géoplateforme</option>
-        <option value="mnh" title="Estompage du modèle numérique de hauteur (IGN) : hauteur du sursol (bâtiments, arbres, haies, talus) au-dessus du sol, là où le LiDAR HD est publié">Modèle Numérique de Hauteur</option>
+        <option value="mnh"
+                title="Estompage du modèle numérique de hauteur (IGN) : hauteur du sursol (bâtiments, arbres, haies, talus) au-dessus du sol, là où le LiDAR HD est publié">Modèle Numérique de Hauteur</option>
         <option value="ofm" title="Données OpenStreetMap, tuiles vectorielles d'OpenFreeMap">OpenFreeMap</option></select>
-      <label title="Reprojette le sol de la photo sur la mini-carte, jusqu'à 15 m de la caméra (grisé au-delà de 10 m : peu précis). Seul ce qui est au sol est à sa place. Pour la photo affichée seulement : une autre photo l'éteint (aussi : bouton faucon de la carte en grand ou détachée)."><input type="checkbox" id="dessus" class="interrupteur" disabled> Bird Eye</label>
-      <label title="Séquences et photos Panoramax sur la carte"><input type="checkbox" id="filaire" class="interrupteur" checked> Filaire Panoramax</label>
+      <label title="Reprojette le sol de la photo sur la mini-carte, jusqu'à 15 m de la caméra (grisé au-delà de 10 m : peu précis). Seul ce qui est au sol est à sa place. Pour la photo affichée seulement : une autre photo l'éteint (aussi : bouton faucon de la carte en grand ou détachée).">
+        <input type="checkbox" id="dessus" class="interrupteur" disabled> Bird Eye</label>
+      <label title="Séquences et photos Panoramax sur la carte"><input type="checkbox" id="filaire" class="interrupteur"
+          checked> Filaire Panoramax</label>
     </div>
   </header>
   <main>
@@ -115,22 +139,28 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
       <pnx-photo-viewer id="visionneuse" endpoint="https://api.panoramax.xyz/api" widgets="false"
                         url-parameters="false" keyboard-shortcuts="false" hidden></pnx-photo-viewer>
       <button id="plein-ecran" type="button" disabled aria-pressed="false" title="Afficher la visionneuse en plein écran">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="entrer" d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><path class="sortir" d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg></button>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true"><path class="entrer" d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><path class="sortir"
+                 d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg></button>
       <ul id="voyants" hidden></ul>
       <div class="bas-vue">  <!-- localisation à gauche, lecture de la séquence au centre, producteur à droite -->
         <div class="lieu-favori">  <!-- étoile des favoris, comme dans la barre d'adresse d'un navigateur -->
           <button id="etoile-favori" type="button" hidden aria-pressed="false" title="Ajouter cette photo aux favoris">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg></button>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg></button>
           <p id="lieu" hidden></p>
         </div>
         <!-- Lecture de la séquence, comme le lecteur de la visionneuse officielle (voir app.js) -->
         <div id="lecteur" role="group" aria-label="Lecture de la séquence" hidden>
           <span id="vitesse-arriere" class="vitesse" hidden></span>
-          <button id="lecture-arriere" type="button" title="Lecture rapide en arrière (appuis suivants : 2x, 4x, 8x, 16x, 1x)" aria-pressed="false">
+          <button id="lecture-arriere" type="button" title="Lecture rapide en arrière (appuis suivants : 2x, 4x, 8x, 16x, 1x)"
+                  aria-pressed="false">
             <svg viewBox="0 0 24 16" aria-hidden="true"><path d="M11 1v14L1 8zM22 1v14L12 8z"/></svg></button>
           <button id="lecture-pause" type="button" title="Reprendre la lecture">
-            <svg viewBox="0 0 24 16" aria-hidden="true"><path class="lire" d="M7 1v14l11-7z"/><path class="pause" d="M7 1h3.5v14H7zM13.5 1H17v14h-3.5z"/></svg></button>
-          <button id="lecture-avant" type="button" title="Lecture rapide en avant (appuis suivants : 2x, 4x, 8x, 16x, 1x)" aria-pressed="false">
+            <svg viewBox="0 0 24 16" aria-hidden="true"><path class="lire" d="M7 1v14l11-7z"/><path class="pause"
+                d="M7 1h3.5v14H7zM13.5 1H17v14h-3.5z"/></svg></button>
+          <button id="lecture-avant" type="button" title="Lecture rapide en avant (appuis suivants : 2x, 4x, 8x, 16x, 1x)"
+                  aria-pressed="false">
             <svg viewBox="0 0 24 16" aria-hidden="true"><path d="M2 1v14l10-7zM13 1v14l10-7z"/></svg></button>
           <span id="vitesse-avant" class="vitesse" hidden></span>
         </div>
@@ -151,9 +181,11 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         <!-- Pendant les visées, dès qu'elles donnent un point : le garder -->
         <button id="garder" type="button" hidden title="Garder le point triangulé par ces visées">✔ Valider le point triangulé</button>
         <!-- Relevé, une seule visée : garder l'objet sur cette photo, précision affichée (App.releve_single) -->
-        <button id="garder-seul" type="button" hidden title="Garder l'objet là où la visée touche le sol, sans le trianguler : moins précis">✔ Garder sur cette seule photo</button>
+        <button id="garder-seul" type="button" hidden
+                title="Garder l'objet là où la visée touche le sol, sans le trianguler : moins précis">✔ Garder sur cette seule photo</button>
         <!-- Calage de l'inclinaison : pied et sommet placés, ajustables jusqu'à la validation -->
-        <button id="valider-objet" type="button" hidden title="Caler l'inclinaison de la photo sur cet objet vertical">✔ Valider l'objet vertical</button>
+        <button id="valider-objet" type="button" hidden
+                title="Caler l'inclinaison de la photo sur cet objet vertical">✔ Valider l'objet vertical</button>
         <!-- Largeur faite d'un clic : proposer de trianguler aussi le bord opposé (Session.start_edge_b) -->
         <button id="trianguler-b" type="button" hidden
                 title="Viser le bord opposé depuis plusieurs photos, comme le point de référence : largeur plus précise">🎯 Trianguler le point (plus précis)</button>
@@ -162,13 +194,18 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         <!-- Largeur ou hauteur faite : seuls ses points s'ajustent, jusqu'à une nouvelle mesure -->
         <!-- Point de référence validé : autre mesure depuis A, ou autre point de référence -->
         <div id="suite-mesure">
-          <button id="nouvelle-mesure" type="button" hidden title="Mesurer une autre largeur ou hauteur depuis le même point de référence (la mesure faite reste)">↺ Nouvelle mesure depuis A</button>
+          <button id="nouvelle-mesure" type="button" hidden
+                  title="Mesurer une autre largeur ou hauteur depuis le même point de référence (la mesure faite reste)">↺ Nouvelle mesure depuis A</button>
           <!-- Largeur, avant la première visée de A : droite de mesure tracée sur la mini-carte (ticket #28) -->
-          <button id="axe-carte" type="button" hidden title="Giratoire, carrefour, place : avant le premier bord, tracer la droite de mesure sur la mini-carte (deux clics, en travers de la voie) ; les deux bords seront posés dessus">📏 Tracer la droite sur la carte</button>
-          <button id="axe-auto" type="button" hidden title="Annuler la droite tracée : droite perpendiculaire à l'axe calculé (BD TOPO ou trajectoire de la séquence)">Annuler la droite</button>
+          <button id="axe-carte" type="button" hidden
+                  title="Giratoire, carrefour, place : avant le premier bord, tracer la droite de mesure sur la mini-carte (deux clics, en travers de la voie) ; les deux bords seront posés dessus">📏 Tracer la droite sur la carte</button>
+          <button id="axe-auto" type="button" hidden
+                  title="Annuler la droite tracée : droite perpendiculaire à l'axe calculé (BD TOPO ou trajectoire de la séquence)">Annuler la droite</button>
           <!-- Relevé : objet posé d'un clic sur la mini-carte, sans visée (projeté au sol dans les photos) -->
-          <button id="placer-carte" type="button" hidden title="Poser l'objet d'un clic sur la mini-carte, sans le viser : projeté au sol dans les photos, précision celle de la carte">📍 Placer sur la carte</button>
-          <button id="nouvelle-reference" type="button" hidden title="Trianguler un autre point de référence : les mesures déjà faites restent">Nouveau point de référence</button>
+          <button id="placer-carte" type="button" hidden
+                  title="Poser l'objet d'un clic sur la mini-carte, sans le viser : projeté au sol dans les photos, précision celle de la carte">📍 Placer sur la carte</button>
+          <button id="nouvelle-reference" type="button" hidden
+                  title="Trianguler un autre point de référence : les mesures déjà faites restent">Nouveau point de référence</button>
         </div>
       </div>
       <div class="haut-gauche">
@@ -182,20 +219,35 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               title="Masquer la carte et le panneau">▸</button>
     </div>
     <aside id="colonne">
-      <div id="carte"><div id="dessus-etat" role="status"></div><button id="dessus-etat-replier" type="button" aria-controls="dessus-etat" aria-expanded="true" title="Replier les messages de Bird Eye (ils cachent le bas de la vue)">▾</button>
+      <div id="carte"><div id="dessus-etat" role="status"></div><button id="dessus-etat-replier" type="button" aria-controls="dessus-etat"
+          aria-expanded="true" title="Replier les messages de Bird Eye (ils cachent le bas de la vue)">▾</button>
         <!-- Réglages d'essai de la vue du dessus (src/dessus.js), sur la carte en grand ou détachée -->
         <section id="dessus-reglages" hidden aria-label="Réglages de la vue Bird Eye">
-          <div class="titre"><span>Bird Eye · essai</span><button id="dessus-replier" type="button" aria-expanded="true" title="Replier les réglages">▴</button></div>
+          <div class="titre"><span>Bird Eye · essai</span><button id="dessus-replier" type="button" aria-expanded="true"
+              title="Replier les réglages">▴</button></div>
           <div class="corps">
-            <label title="Image de 4 096 px pour 30 m (0,7 cm par pixel) au lieu de 2 048 (1,5 cm) : plus de détail en zoomant, image plus longue à faire (quelques secondes de plus)"><input type="checkbox" id="dessus-fine" class="interrupteur" disabled> Haute résolution</label>
-            <label title="Inclinaison de la photo calée sur ses verticales (façades, poteaux), quand elle en a. Coché d'office en zone d'habitation (bourg, village, hameau), décoché ailleurs (vue meilleure ainsi dans les essais), modifiable pour la photo. Décoché : inclinaison tirée de la route (terrain LiDAR HD), comme sans verticales, et réglable à la main par « Roulis » et « Tangage ». Grisé sans verticales lues ou sans terrain LiDAR HD."><input type="checkbox" id="dessus-verticales" class="interrupteur" disabled> Calage par les verticales</label>
-            <label class="devers" title="Sans verticale à lire (ou « Calage par les verticales » décoché) : part du dévers de la route prise comme roulis de la caméra (essai : à caler sur l'orthophoto, retenu pour la séquence dans ce navigateur). Le tangage suit toujours la pente entière.">Roulis <input type="range" id="dessus-devers" min="0" max="100" step="5" value="70" disabled> <output id="dessus-devers-valeur">70 %</output></label>
-            <label class="devers" title="Sans verticale à lire (ou « Calage par les verticales » décoché) : tangage ajouté à la pente de la route, défaut de fixation de la caméra. Lu sur les raccords entre photos voisines (avec « Véhicule masqué », pour chaque photo : il suit une bosse ou un creux), sinon sur les lignes et les bords de la route (médiane de la séquence) ; réglé à la main seulement faute de lecture, ou avec « Forcer le réglage à la main », et retenu pour la séquence dans ce navigateur. Positif : caméra relevée vers l'avant">Tangage <input type="range" id="dessus-tangage" min="-2" max="2" step="0.1" value="0" disabled> <output id="dessus-tangage-valeur">0,0°</output></label>
-            <label title="Tangage lu (raccords entre photos, lignes et bords de la route) prioritaire sur le réglage à la main, qui ne sert que faute de lecture ; coché : le curseur « Tangage » prime, retenu pour la séquence dans ce navigateur. Grisé sans inclinaison par la route."><input type="checkbox" id="dessus-tangage-force" disabled> Forcer le réglage à la main</label>
-            <label title="Recompose la vue avec les photos précédente et suivante pour cacher le véhicule : masque au plus près de son contour, photo affichée intacte autour ; dessous, les voisines, recalées sur la photo affichée (raccords) et accordées à sa luminosité (plus de taches en ellipse autour des raccords) ; le tangage de la photo se lit alors sur les raccords. Plus long : deux photos de plus. Éteint : la photo affichée seule, véhicule visible, sans rien de ce qui a été lu avec les voisines (tangage, hauteur de caméra, contour du véhicule, position calée sur l'orthophoto), gardé pour la rallumer."><input type="checkbox" id="dessus-voisines" class="interrupteur" disabled> Véhicule masqué</label>
-            <label title="Garde toute la vue sur 15 m autour de la caméra, au lieu de la couper à 8 m de part et d'autre de l'axe de la route : bas-côtés, trottoirs et façades plus loin, déformés et grisés au-delà de 10 m."><input type="checkbox" id="dessus-bords" class="interrupteur" disabled> Bords gardés</label>
-            <label title="Essai : décale la vue en travers pour poser ses lignes de peinture sur celles de l'orthophoto, si l'écart dépasse 30 cm. En cas d'écart, le GPS est à suspecter avant l'orthophoto (D33, 07/2025 : séquence décalée de 0,75 m, l'orthophoto juste à quelques cm près d'après une autre séquence)."><input type="checkbox" id="dessus-position" class="interrupteur" checked disabled> Position calée sur l'orthophoto</label>
-            <label title="Essais : oublie tout ce que Bird Eye a retenu dans ce navigateur (contours du véhicule, tangages et hauteurs de caméra lus, raccords, terrain, vues déjà faites) et recommence à chaque photo montrée, même déjà vue. Les réglages faits à la main sont gardés. Pas retenu d'une session à l'autre."><input type="checkbox" id="dessus-sans-cache" class="interrupteur" disabled> Sans cache (essais)</label>
+            <label title="Image de 4 096 px pour 30 m (0,7 cm par pixel) au lieu de 2 048 (1,5 cm) : plus de détail en zoomant, image plus longue à faire (quelques secondes de plus)">
+              <input type="checkbox" id="dessus-fine" class="interrupteur" disabled> Haute résolution</label>
+            <label title="Inclinaison de la photo calée sur ses verticales (façades, poteaux), quand elle en a. Coché d'office en zone d'habitation (bourg, village, hameau), décoché ailleurs (vue meilleure ainsi dans les essais), modifiable pour la photo. Décoché : inclinaison tirée de la route (terrain LiDAR HD), comme sans verticales, et réglable à la main par « Roulis » et « Tangage ». Grisé sans verticales lues ou sans terrain LiDAR HD.">
+              <input type="checkbox" id="dessus-verticales" class="interrupteur" disabled> Calage par les verticales</label>
+            <label class="devers"
+                   title="Sans verticale à lire (ou « Calage par les verticales » décoché) : part du dévers de la route prise comme roulis de la caméra (essai : à caler sur l'orthophoto, retenu pour la séquence dans ce navigateur). Le tangage suit toujours la pente entière.">Roulis <input type="range"
+                       id="dessus-devers" min="0" max="100" step="5" value="70"
+                       disabled> <output id="dessus-devers-valeur">70 %</output></label>
+            <label class="devers"
+                   title="Sans verticale à lire (ou « Calage par les verticales » décoché) : tangage ajouté à la pente de la route, défaut de fixation de la caméra. Lu sur les raccords entre photos voisines (avec « Véhicule masqué », pour chaque photo : il suit une bosse ou un creux), sinon sur les lignes et les bords de la route (médiane de la séquence) ; réglé à la main seulement faute de lecture, ou avec « Forcer le réglage à la main », et retenu pour la séquence dans ce navigateur. Positif : caméra relevée vers l'avant">Tangage <input type="range"
+                       id="dessus-tangage" min="-2" max="2" step="0.1" value="0"
+                       disabled> <output id="dessus-tangage-valeur">0,0°</output></label>
+            <label title="Tangage lu (raccords entre photos, lignes et bords de la route) prioritaire sur le réglage à la main, qui ne sert que faute de lecture ; coché : le curseur « Tangage » prime, retenu pour la séquence dans ce navigateur. Grisé sans inclinaison par la route.">
+              <input type="checkbox" id="dessus-tangage-force" disabled> Forcer le réglage à la main</label>
+            <label title="Recompose la vue avec les photos précédente et suivante pour cacher le véhicule : masque au plus près de son contour, photo affichée intacte autour ; dessous, les voisines, recalées sur la photo affichée (raccords) et accordées à sa luminosité (plus de taches en ellipse autour des raccords) ; le tangage de la photo se lit alors sur les raccords. Plus long : deux photos de plus. Éteint : la photo affichée seule, véhicule visible, sans rien de ce qui a été lu avec les voisines (tangage, hauteur de caméra, contour du véhicule, position calée sur l'orthophoto), gardé pour la rallumer.">
+              <input type="checkbox" id="dessus-voisines" class="interrupteur" disabled> Véhicule masqué</label>
+            <label title="Garde toute la vue sur 15 m autour de la caméra, au lieu de la couper à 8 m de part et d'autre de l'axe de la route : bas-côtés, trottoirs et façades plus loin, déformés et grisés au-delà de 10 m.">
+              <input type="checkbox" id="dessus-bords" class="interrupteur" disabled> Bords gardés</label>
+            <label title="Essai : décale la vue en travers pour poser ses lignes de peinture sur celles de l'orthophoto, si l'écart dépasse 30 cm. En cas d'écart, le GPS est à suspecter avant l'orthophoto (D33, 07/2025 : séquence décalée de 0,75 m, l'orthophoto juste à quelques cm près d'après une autre séquence).">
+              <input type="checkbox" id="dessus-position" class="interrupteur" checked disabled> Position calée sur l'orthophoto</label>
+            <label title="Essais : oublie tout ce que Bird Eye a retenu dans ce navigateur (contours du véhicule, tangages et hauteurs de caméra lus, raccords, terrain, vues déjà faites) et recommence à chaque photo montrée, même déjà vue. Les réglages faits à la main sont gardés. Pas retenu d'une session à l'autre.">
+              <input type="checkbox" id="dessus-sans-cache" class="interrupteur" disabled> Sans cache (essais)</label>
           </div>
         </section>
       </div>
@@ -209,17 +261,21 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
            title="Glisser pour changer la hauteur de la carte (double-clic : taille par défaut)">
         <button id="replier-carte" type="button" aria-expanded="true" title="Masquer la carte">▴</button>
       </div>
-      <!-- Panneau : ligne d'état, onglets, outils en pied (Filtre, Réglages, Services), une section affichée à la fois (app.js showPane) -->
+      <!-- Panneau : ligne d'état, onglets, outils en pied (Filtre, Réglages, Services), une section affichée à la fois
+           (app.js showPane) -->
       <div id="panneau">
         <!-- Ligne d'état : une ligne, dépliée d'un clic (calcul, chargement, échec, export) -->
         <p id="statut" class="statut" role="status" title="Cliquer pour tout lire">Chargement du calcul (Pyodide)…</p>
         <nav id="onglets" role="tablist" aria-label="Sections du panneau">
-          <button id="onglet-resultats" type="button" role="tab" data-panneau="resultats" aria-controls="resultats">Résultats <span id="compte-resultats" class="compte"></span></button>
+          <button id="onglet-resultats" type="button" role="tab" data-panneau="resultats"
+                  aria-controls="resultats">Résultats <span id="compte-resultats" class="compte"></span></button>
           <button id="onglet-photo" type="button" role="tab" data-panneau="photo" aria-controls="photo">Photo</button>
-          <button id="onglet-favoris" type="button" role="tab" data-panneau="favoris" aria-controls="favoris">Favoris <span id="compte-favoris" class="compte"></span></button>
+          <button id="onglet-favoris" type="button" role="tab" data-panneau="favoris"
+                  aria-controls="favoris">Favoris <span id="compte-favoris" class="compte"></span></button>
           <button id="onglet-couche" type="button" role="tab" data-panneau="couche" aria-controls="couche">Couche</button>
           <button id="onglet-parcours" type="button" role="tab" data-panneau="parcours" aria-controls="parcours">Vidéo</button>
-          <button id="onglet-mes-parcours" type="button" role="tab" data-panneau="mes-parcours" aria-controls="mes-parcours">Parcours <span id="compte-mes-parcours" class="compte"></span></button>
+          <button id="onglet-mes-parcours" type="button" role="tab" data-panneau="mes-parcours"
+                  aria-controls="mes-parcours">Parcours <span id="compte-mes-parcours" class="compte"></span></button>
         </nav>
         <div id="contenu-panneau">
         <section id="resultats" role="tabpanel" aria-labelledby="onglet-resultats">
@@ -229,10 +285,18 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <p id="resultats-titre">Mesures de la séance</p>
               <p id="resultats-infos">Aucune mesure</p>
             </div>
-            <button id="csv" type="button" class="export" disabled title="Exporter en CSV (tableur), point-virgule et virgule décimale"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg> CSV</button>
-            <button id="geojson" type="button" class="export" disabled title="Exporter en GeoJSON (SIG)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg> GeoJSON</button>
+            <button id="csv" type="button" class="export" disabled title="Exporter en CSV (tableur), point-virgule et virgule décimale">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg> CSV</button>
+            <button id="geojson" type="button" class="export" disabled title="Exporter en GeoJSON (SIG)"><svg width="16" height="16"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round"
+                    stroke-linejoin="round"/></svg> GeoJSON</button>
             <!-- Mesures exportées revues sur leur photo : importées comme couche (src/app.js, reviewMeasure) -->
-            <button id="mesures-importer" type="button" class="export" aria-label="Importer des mesures" title="Importer des mesures exportées en GeoJSON : chacune revue sur sa photo, telle qu'elle était à l'écran (en lecture seule, dans l'onglet Couche)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button id="mesures-importer" type="button" class="export" aria-label="Importer des mesures"
+                    title="Importer des mesures exportées en GeoJSON : chacune revue sur sa photo, telle qu'elle était à l'écran (en lecture seule, dans l'onglet Couche)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M12 15V4M7 9l5-5 5 5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
           </div>
           <!-- Relevé d'objets : exporté à part, gardé dans le navigateur d'une séance à l'autre -->
           <div class="fiche-couche fiche-resultats">
@@ -240,12 +304,15 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <p id="releve-titre">Relevé d'objets</p>
               <p id="releve-infos">Aucun objet</p>
             </div>
-            <button id="releve-couche" type="button" class="export" disabled title="Afficher le relevé dans l'onglet Couche : couleurs, étiquettes, recalage, export GeoJSON ou CSV (le relevé reste ici jusqu'à « Vider »)">Envoyer dans Couche</button>
-            <button id="releve-vider" type="button" class="export" disabled title="Retirer tous les objets du relevé (le suivant commencera un nouveau relevé, avec ses champs)">Vider</button>
+            <button id="releve-couche" type="button" class="export" disabled
+                    title="Afficher le relevé dans l'onglet Couche : couleurs, étiquettes, recalage, export GeoJSON ou CSV (le relevé reste ici jusqu'à « Vider »)">Envoyer dans Couche</button>
+            <button id="releve-vider" type="button" class="export" disabled
+                    title="Retirer tous les objets du relevé (le suivant commencera un nouveau relevé, avec ses champs)">Vider</button>
           </div>
           <!-- Sans résultat : à quoi sert l'onglet -->
           <div id="resultats-vide" class="accueil">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 2.5v19h19z M7.5 12.2v4.8h4.8z"/></svg>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd"
+                d="M3 2.5v19h19z M7.5 12.2v4.8h4.8z"/></svg>
             <p class="titre-accueil">Aucune mesure pour l'instant</p>
             <p class="aide">Les mesures terminées s'ajoutent ici, rangées sous leur point de référence. Gardées dans
               ce navigateur, elles sont proposées à l'export à l'ouverture suivante si elles ne l'ont pas été :
@@ -266,15 +333,22 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         <section id="photo" role="tabpanel" aria-labelledby="onglet-photo" hidden>
           <!-- Fiche de la photo affichée : date, producteur et caméra ; favori, identifiant à copier -->
           <div class="fiche-couche fiche-photo">
-            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l2-3h6l2 3h3v11H4z" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="1.8"><path d="M4 8h3l2-3h6l2 3h3v11H4z" stroke-linejoin="round"/><circle cx="12" cy="13"
+                    r="3.5"/></svg></span>
             <div class="nom-couche">
               <p id="photo-titre">Aucune photo</p>
               <p id="photo-infos"></p>
             </div>
             <button id="ajouter-favori" type="button" class="icone" disabled aria-label="Ajouter aux favoris"
-                    title="Ajouter cette photo aux favoris"><svg class="etoile" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" stroke-linejoin="round"/></svg></button>
+                    title="Ajouter cette photo aux favoris"><svg class="etoile" width="18" height="18" viewBox="0 0 24 24"
+                        fill="currentColor" stroke="currentColor" stroke-width="1.5"
+                        aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"
+                            stroke-linejoin="round"/></svg></button>
             <button id="photo-copier" type="button" class="icone" disabled aria-label="Copier l'identifiant de la photo"
-                    title="Copier l'identifiant de la photo dans le presse-papiers"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3"/></svg></button>
+                    title="Copier l'identifiant de la photo dans le presse-papiers"><svg width="18" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12"
+                            rx="2"/><path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3"/></svg></button>
           </div>
           <!-- Propre à la photo affichée : précision GPS, terrain, inclinaison, calage (app.js refresh) -->
           <h3>Position</h3>
@@ -306,21 +380,28 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         <section id="favoris" role="tabpanel" aria-labelledby="onglet-favoris" hidden>
           <!-- Photos favorites, gardées dans ce navigateur, nommées d'après leur lieu ; export pour un autre poste -->
           <div class="fiche-couche fiche-favoris">
-            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" stroke-linejoin="round"/></svg></span>
+            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="1.8"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"
+                    stroke-linejoin="round"/></svg></span>
             <div class="nom-couche">
               <p id="favoris-titre">Favoris</p>
               <p id="favoris-infos">Aucune photo</p>
             </div>
             <button id="favoris-exporter" type="button" class="icone" disabled aria-label="Exporter les favoris"
-                    title="Exporter : fichier à importer sur un autre poste ou navigateur"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                    title="Exporter : fichier à importer sur un autre poste ou navigateur"><svg width="18" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"
+                            stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             <button id="favoris-importer" type="button" class="icone" aria-label="Importer des favoris"
-                    title="Importer : favoris d'un fichier exporté, ajoutés à ceux-ci"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                    title="Importer : favoris d'un fichier exporté, ajoutés à ceux-ci"><svg width="18" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"
+                            stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             <input id="favoris-fichier" type="file" accept=".json,application/json" hidden>
           </div>
           <ol></ol>
           <!-- Sans favori : comment en ajouter (masqué dès qu'il y en a un) -->
           <div class="accueil aide">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" stroke-linejoin="round"/></svg>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" stroke-linejoin="round"/></svg>
             <p class="titre-accueil">Aucun favori</p>
             <p class="aide">L'étoile de la photo, ou celle de l'onglet Photo, la garde ici pour la retrouver d'un clic.</p>
           </div>
@@ -328,21 +409,31 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         <!-- Parcours gardés : départ, arrivée et réglages de la vidéo, rouverts d'un clic ; export de la liste ou d'un seul -->
         <section id="mes-parcours" role="tabpanel" aria-labelledby="onglet-mes-parcours" hidden>
           <div class="fiche-couche fiche-favoris">
-            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 000-6H9a3 3 0 010-6h6.5" stroke-linecap="round"/></svg></span>
+            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="1.8"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6"
+                    r="2.5"/><path d="M8.5 18H15a3 3 0 000-6H9a3 3 0 010-6h6.5" stroke-linecap="round"/></svg></span>
             <div class="nom-couche">
               <p id="mes-parcours-titre">Parcours</p>
               <p id="mes-parcours-infos">Aucun parcours</p>
             </div>
             <button id="mes-parcours-exporter" type="button" class="icone" disabled aria-label="Exporter les parcours"
-                    title="Exporter tous les parcours : fichier à importer sur un autre poste ou navigateur"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                    title="Exporter tous les parcours : fichier à importer sur un autre poste ou navigateur"><svg width="18" height="18"
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                        aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round"
+                            stroke-linejoin="round"/></svg></button>
             <button id="mes-parcours-importer" type="button" class="icone" aria-label="Importer des parcours"
-                    title="Importer : parcours d'un fichier exporté (la liste ou un seul), ajoutés à ceux-ci"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                    title="Importer : parcours d'un fichier exporté (la liste ou un seul), ajoutés à ceux-ci"><svg width="18" height="18"
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                        aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14" stroke-linecap="round"
+                            stroke-linejoin="round"/></svg></button>
             <input id="mes-parcours-fichier" type="file" accept=".json,application/json" hidden>
           </div>
           <ol></ol>
           <!-- Sans parcours : comment en garder un (masqué dès qu'il y en a un) -->
           <div class="accueil aide">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 000-6H9a3 3 0 010-6h6.5" stroke-linecap="round"/></svg>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 000-6H9a3 3 0 010-6h6.5"
+                  stroke-linecap="round"/></svg>
             <p class="titre-accueil">Aucun parcours</p>
             <p class="aide">« ☆ Garder » dans l'onglet Vidéo le garde ici avec tous ses réglages, pour le rouvrir d'un clic ;
               ⤓ sur une ligne l'exporte seul, pour l'envoyer à un collègue.</p>
@@ -352,7 +443,8 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         <section id="couche" role="tabpanel" aria-labelledby="onglet-couche" hidden>
           <!-- Sans couche : accueil ; fichier choisi, ou glissé sur l'onglet (app.js importOverlay) -->
           <div id="couche-accueil">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z M3 13l9 5 9-5" stroke-linejoin="round"/></svg>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path d="M12 3l9 5-9 5-9-5z M3 13l9 5 9-5" stroke-linejoin="round"/></svg>
             <p class="titre-accueil">Afficher vos objets sur les photos</p>
             <p class="aide">Bornes, panneaux, réseaux… dessinés sur la carte et posés au sol dans la photo, à moins
               de 100 m.</p>
@@ -372,25 +464,44 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             <div class="fiche-couche">
               <label class="oeil" title="Afficher ou masquer la couche (carte et photo)">
                 <input id="couche-visible" type="checkbox" checked aria-label="Afficher la couche">
-                <svg class="ouvert" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
-                <svg class="ferme" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 3l18 18M10.6 6.1A9.7 9.7 0 0112 6c6.5 0 10 6 10 6a17 17 0 01-3.2 3.9M6.6 6.6C3.8 8.4 2 12 2 12s3.5 6 10 6a9.6 9.6 0 004.4-1" stroke-linecap="round"/></svg>
+                <svg class="ouvert" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="ferme" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     aria-hidden="true">
+                  <path
+                        d="M3 3l18 18M10.6 6.1A9.7 9.7 0 0112 6c6.5 0 10 6 10 6a17 17 0 01-3.2 3.9
+                           M6.6 6.6C3.8 8.4 2 12 2 12s3.5 6 10 6a9.6 9.6 0 004.4-1"
+                        stroke-linecap="round"/></svg>
               </label>
               <div class="nom-couche">
                 <p id="couche-nom"></p>
                 <p id="couche-infos"></p>
               </div>
               <button id="couche-enregistrer" type="button" class="icone" disabled aria-label="Enregistrer la couche"
-                      title="Enregistrer les recalages dans le fichier importé (GeoJSON, Chrome et Edge) ; sinon, choisir où l'enregistrer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 4h11l3 3v13H5z M8 4v5h7V4 M8 20v-6h8v6" stroke-linejoin="round"/></svg></button>
+                      title="Enregistrer les recalages dans le fichier importé (GeoJSON, Chrome et Edge) ; sinon, choisir où l'enregistrer">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                  <path d="M5 4h11l3 3v13H5z M8 4v5h7V4 M8 20v-6h8v6" stroke-linejoin="round"/></svg></button>
               <button id="couche-exporter" type="button" class="icone" disabled aria-label="Exporter la couche"
-                      title="Exporter : GeoJSON avec les objets recalés dans les photos, à importer sur un autre poste"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                      title="Exporter : GeoJSON avec les objets recalés dans les photos, à importer sur un autre poste"><svg width="18"
+                          height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                          aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round"
+                              stroke-linejoin="round"/></svg></button>
               <button id="couche-csv" type="button" class="icone" disabled aria-label="Exporter la couche en CSV"
-                      title="Exporter en CSV (tableur) : attributs, puis position (lon, lat pour un point, WKT sinon)"><span class="csv" aria-hidden="true">CSV</span></button>
+                      title="Exporter en CSV (tableur) : attributs, puis position (lon, lat pour un point, WKT sinon)"><span class="csv"
+                          aria-hidden="true">CSV</span></button>
               <button id="couche-modele" type="button" class="icone" disabled aria-label="Enregistrer les colonnes comme modèle de champs"
-                      title="Enregistrer ses colonnes comme modèle de champs, à choisir au premier objet d'un relevé"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5" stroke-linecap="round"/></svg></button>
+                      title="Enregistrer ses colonnes comme modèle de champs, à choisir au premier objet d'un relevé"><svg width="18"
+                          height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                          aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"
+                              stroke-linecap="round"/></svg></button>
               <button id="couche-remplacer" type="button" class="icone" aria-label="Importer un autre fichier"
-                      title="Importer un autre fichier (remplace celui-ci)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                      title="Importer un autre fichier (remplace celui-ci)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"
+                              stroke-linecap="round" stroke-linejoin="round"/></svg></button>
               <button id="couche-retirer" type="button" class="icone danger" disabled aria-label="Retirer la couche"
-                      title="Retirer la couche"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                      title="Retirer la couche"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round"
+                              stroke-linejoin="round"/></svg></button>
             </div>
             <!-- Fiches de tous les objets, en un seul PDF (app.js askFiche, { tous }) ; nombre d'objets : showOverlayInfo -->
             <button id="couche-fiches" type="button" disabled
@@ -446,13 +557,21 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             </div>
             <ul id="couche-legende"></ul>
             <div class="reglage-couche"><label for="couche-etiquette">Étiquette</label><select id="couche-etiquette"></select></div>
-            <label class="intitule-couche" title="Étiquette précédée du nom de la colonne : « essence : tilleul »"><input id="couche-intitule" type="checkbox" disabled> Avec l'intitulé du champ</label>
-            <label class="intitule-couche" title="Texte ajouté après la valeur, par exemple une unité absente de la colonne : « 12 » devient « 12 cm »">Texte après la valeur <input id="couche-suffixe" type="text" maxlength="20" size="6" disabled placeholder="ex. cm"></label>
+            <label class="intitule-couche" title="Étiquette précédée du nom de la colonne : « essence : tilleul »">
+              <input id="couche-intitule" type="checkbox" disabled> Avec l'intitulé du champ</label>
+            <label class="intitule-couche"
+                   title="Texte ajouté après la valeur, par exemple une unité absente de la colonne : « 12 » devient « 12 cm »">Texte après la valeur <input id="couche-suffixe"
+                       type="text" maxlength="20" size="6" disabled placeholder="ex. cm"></label>
             <!-- 2e étiquette : sous la première dans la photo, mêmes réglages -->
             <div class="reglage-couche"><label for="couche-etiquette2">Étiquette 2</label><select id="couche-etiquette2"></select></div>
-            <label class="intitule-couche" title="Étiquette précédée du nom de la colonne : « essence : tilleul »"><input id="couche-intitule2" type="checkbox" disabled> Avec l'intitulé du champ</label>
-            <label class="intitule-couche" title="Texte ajouté après la valeur, par exemple une unité absente de la colonne : « 12 » devient « 12 cm »">Texte après la valeur <input id="couche-suffixe2" type="text" maxlength="20" size="6" disabled placeholder="ex. cm"></label>
-            <div class="reglage-couche" title="Colonne affichée près de chaque objet sur la mini-carte (à partir du zoom 16) ; par défaut, la colonne « id »"><label for="couche-etiquette-carte">Carte</label><select id="couche-etiquette-carte"></select></div>
+            <label class="intitule-couche" title="Étiquette précédée du nom de la colonne : « essence : tilleul »">
+              <input id="couche-intitule2" type="checkbox" disabled> Avec l'intitulé du champ</label>
+            <label class="intitule-couche"
+                   title="Texte ajouté après la valeur, par exemple une unité absente de la colonne : « 12 » devient « 12 cm »">Texte après la valeur <input id="couche-suffixe2"
+                       type="text" maxlength="20" size="6" disabled placeholder="ex. cm"></label>
+            <div class="reglage-couche"
+                 title="Colonne affichée près de chaque objet sur la mini-carte (à partir du zoom 16) ; par défaut, la colonne « id »">
+              <label for="couche-etiquette-carte">Carte</label><select id="couche-etiquette-carte"></select></div>
             <p class="encart-recalage"><strong>Recaler un objet</strong> : hors mesure, cliquez-le dans la photo, puis sa
               vraie place : il y reste. Pour l'ajuster, recliquez-le, flèches, puis Entrée ;
               un second clic dessus le désélectionne. La carte ne bouge pas.</p>
@@ -463,7 +582,8 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         <section id="parcours" role="tabpanel" aria-labelledby="onglet-parcours" hidden>
           <!-- Sans tracé : accueil, comme l'onglet Couche -->
           <div id="video-accueil" class="accueil">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg>
             <p class="titre-accueil">Filmer un itinéraire</p>
             <p class="aide">Tracez le parcours : les photos sont recherchées d'elles-mêmes. Ou indiquez une route et ses PR.</p>
           </div>
@@ -472,13 +592,16 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <div class="champs-route">
             <div class="ligne"><span>Route</span><div class="champ route"><input placeholder="D115D" aria-label="Numéro de route"
               autocomplete="off" spellcheck="false"><ul role="listbox" hidden></ul></div></div>
-            <div class="ligne"><span><span class="pastille depart" aria-hidden="true"></span>Départ</span><div class="champ pr"><span class="prefixe" aria-hidden="true">PR</span><input
+            <div class="ligne"><span><span class="pastille depart"
+                aria-hidden="true"></span>Départ</span><div class="champ pr"><span class="prefixe" aria-hidden="true">PR</span><input
               placeholder="n°" aria-label="PR de départ" inputmode="numeric" autocomplete="off"><ul role="listbox" hidden></ul></div>
               + <input class="distance" type="text" maxlength="4" value="0" inputmode="numeric" autocomplete="off"
               aria-label="Distance depuis le PR de départ (m)"> m
               <button type="button" class="sur-carte" data-cote="start" aria-pressed="false"
                 title="Choisir le départ d'un clic sur la mini-carte (Échap : annuler)">📍</button></div>
-            <div class="ligne"><span><span class="pastille arrivee" aria-hidden="true"></span>Arrivée</span><div class="champ pr"><span class="prefixe" aria-hidden="true">PR</span><input placeholder="n°"
+            <div class="ligne"><span><span class="pastille arrivee"
+                aria-hidden="true"></span>Arrivée</span><div class="champ pr"><span class="prefixe"
+                    aria-hidden="true">PR</span><input placeholder="n°"
               aria-label="PR d'arrivée" inputmode="numeric" autocomplete="off"><ul role="listbox" hidden></ul></div>
               + <input class="distance" type="text" maxlength="4" value="0" inputmode="numeric" autocomplete="off"
               aria-label="Distance depuis le PR d'arrivée (m)"> m
@@ -494,14 +617,18 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <!-- Parcours trouvé : séquences, dates et raccords (app.js showVideoPlan) -->
           <div id="video-bandeau" class="bandeau-video" role="status" hidden></div>
           <!-- Mode : réglages de départ des options (app.js VIDEO_MODES), retouchables ensuite ; liste cachée gardée avec le parcours -->
-          <select id="video-mode" hidden aria-label="Mode de la vidéo" title="Présentation de l'itinéraire : vue rapide, compteurs PR et vitesse, sans option coûteuse ; Revue détaillée : vitesse fixe, tous les compteurs">
+          <select id="video-mode" hidden aria-label="Mode de la vidéo"
+                  title="Présentation de l'itinéraire : vue rapide, compteurs PR et vitesse, sans option coûteuse ; Revue détaillée : vitesse fixe, tous les compteurs">
               <option value="brouillon">Brouillon</option>
               <option value="presentation" selected>Présentation de l'itinéraire</option>
               <option value="revue">Revue détaillée</option></select>
           <div class="modes-video" role="group" aria-label="Mode de la vidéo">
-            <button type="button" data-mode="brouillon" aria-pressed="false" title="Vérifier vite le trajet : allure de la présentation, image 960 × 540, titre et compteur de vitesse">Brouillon</button>
-            <button type="button" data-mode="presentation" aria-pressed="true" title="Montrer l'itinéraire : vitesse selon les virages, compteurs PR et vitesse">Présentation</button>
-            <button type="button" data-mode="revue" aria-pressed="false" title="Étudier la route : vitesse fixe, compteurs PR et vitesse, accélération latérale, V max ARP">Revue détaillée</button>
+            <button type="button" data-mode="brouillon" aria-pressed="false"
+                    title="Vérifier vite le trajet : allure de la présentation, image 960 × 540, titre et compteur de vitesse">Brouillon</button>
+            <button type="button" data-mode="presentation" aria-pressed="true"
+                    title="Montrer l'itinéraire : vitesse selon les virages, compteurs PR et vitesse">Présentation</button>
+            <button type="button" data-mode="revue" aria-pressed="false"
+                    title="Étudier la route : vitesse fixe, compteurs PR et vitesse, accélération latérale, V max ARP">Revue détaillée</button>
           </div>
           <p id="video-mode-aide" class="aide"></p>
           <div class="action-video"><button id="parcours-video" type="button" class="principal" disabled
@@ -518,27 +645,40 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <details id="video-avancees"><summary>Options</summary>
           <details class="theme-video" open><summary>Compteurs</summary>
           <div class="options">
-            <label class="option" title="Compteur PR en bas à gauche : route et PR, les mètres défilent en continu comme un compteur kilométrique">
+            <label class="option"
+                   title="Compteur PR en bas à gauche : route et PR, les mètres défilent en continu comme un compteur kilométrique">
               <span class="texte-option">Compteur PR<span class="aide">En bas à gauche, mètres qui défilent.</span></span>
               <input id="video-compteur" type="checkbox" class="interrupteur" checked>
             </label>
-            <label class="option" title="Compteur de vitesse en bas à droite : vitesse de la vidéo à chaque instant (rampe, ralentissements, arrêts du tour d'horizon), lissée comme une aiguille, les chiffres défilent en continu comme le compteur PR ">
+            <label class="option"
+                   title="Compteur de vitesse en bas à droite : vitesse de la vidéo à chaque instant (rampe, ralentissements, arrêts du tour d'horizon), lissée comme une aiguille, les chiffres défilent en continu comme le compteur PR ">
               <span class="texte-option">Compteur de vitesse<span class="aide">En bas à droite, km/h qui défilent.</span></span>
               <input id="video-compteur-vitesse" type="checkbox" class="interrupteur" checked>
             </label>
-            <label class="option" title="Accélération latérale ressentie à la vitesse de la vidéo, en millièmes de g : v² / rayon du virage (trajectoire lissée) moins le dévers (lu sur le LiDAR HD, compté nul s'il manque), en bas à droite (à gauche du compteur de vitesse s'il est affiché) ; chiffre vert, jaune ou rouge selon le frottement transversal mobilisé (accélération moins dévers), comparé aux rayons de l'ARP (SETRA, 1994) : rayon non déversé, rayon minimal ; dévers lu sur le LiDAR HD">
-              <span class="texte-option">Accélération latérale<span class="aide">Ressentie (moins le dévers), en millièmes de g, couleur selon l'ARP. Lent : dévers lu sur le LiDAR HD (1 min environ pour 5 km).</span></span>
+            <label class="option"
+                   title="Accélération latérale ressentie à la vitesse de la vidéo, en millièmes de g : v² / rayon du virage (trajectoire lissée) moins le dévers (lu sur le LiDAR HD, compté nul s'il manque), en bas à droite (à gauche du compteur de vitesse s'il est affiché) ; chiffre vert, jaune ou rouge selon le frottement transversal mobilisé (accélération moins dévers), comparé aux rayons de l'ARP (SETRA, 1994) : rayon non déversé, rayon minimal ; dévers lu sur le LiDAR HD">
+              <span class="texte-option">Accélération latérale
+                <span class="aide">Ressentie (moins le dévers), en millièmes de g, couleur selon l'ARP. Lent : dévers lu sur le LiDAR HD
+                  (1 min environ pour 5 km).</span></span>
               <input id="video-acceleration" type="checkbox" class="interrupteur">
             </label>
-            <label class="option" title="Vitesse max ARP, en bas à droite, au-dessus du compteur de vitesse, la plus basse sur 30 m (point critique du virage) : la plus haute vitesse à laquelle le virage resterait vert pour l'ARP (SETRA, 1994), c'est-à-dire dont le frottement transversal mobilisé (accélération latérale moins dévers) ne dépasse pas celui du rayon non déversé de l'ARP à cette vitesse ; dévers lu sur le LiDAR HD ; « — » en ligne droite et dans les grandes courbes (150 km/h ou plus)">
-              <span class="texte-option">Vitesse max ARP<span class="aide">Plus haute vitesse où le virage reste vert. Lent : dévers lu sur le LiDAR HD (1 min environ pour 5 km).</span></span>
+            <label class="option"
+                   title="Vitesse max ARP, en bas à droite, au-dessus du compteur de vitesse, la plus basse sur 30 m (point critique du virage) : la plus haute vitesse à laquelle le virage resterait vert pour l'ARP (SETRA, 1994), c'est-à-dire dont le frottement transversal mobilisé (accélération latérale moins dévers) ne dépasse pas celui du rayon non déversé de l'ARP à cette vitesse ; dévers lu sur le LiDAR HD ; « — » en ligne droite et dans les grandes courbes (150 km/h ou plus)">
+              <span class="texte-option">Vitesse max ARP
+                <span class="aide">Plus haute vitesse où le virage reste vert. Lent : dévers lu sur le LiDAR HD
+                  (1 min environ pour 5 km).</span></span>
               <input id="video-vmax-arp" type="checkbox" class="interrupteur">
             </label>
-            <div class="option" title="Titre : carton au début de la vidéo (bandeau sombre au tiers inférieur, trait de couleur, glissé à l'entrée, fondu à la sortie vers 4 s), texte libre ou, laissé vide, route et PR de départ et d'arrivée, date des photos ; rappel : le titre en petit en haut à gauche pendant toute la vidéo">
+            <div class="option"
+                 title="Titre : carton au début de la vidéo (bandeau sombre au tiers inférieur, trait de couleur, glissé à l'entrée, fondu à la sortie vers 4 s), texte libre ou, laissé vide, route et PR de départ et d'arrivée, date des photos ; rappel : le titre en petit en haut à gauche pendant toute la vidéo">
               <span class="texte-option">Titre<span class="aide">Carton au début ; vide : route, PR et date.</span>
-                <span class="reglette-option champ-titre"><input id="video-titre-texte" type="text" maxlength="80" placeholder="Titre (route et PR)" aria-label="Titre de la vidéo (vide : route et PR)"></span>
-                <span class="reglette-option champ-titre"><input id="video-titre-sous" type="text" maxlength="120" placeholder="Sous-titre (date des photos)" aria-label="Sous-titre de la vidéo (vide : date des photos)"></span>
-                <label class="reglette-option champ-titre" title="Le titre en petit en haut à gauche pendant toute la vidéo, après le carton"><input id="video-titre-rappel" type="checkbox" class="interrupteur"> Rappel en incrustation</label>
+                <span class="reglette-option champ-titre"><input id="video-titre-texte" type="text" maxlength="80"
+                    placeholder="Titre (route et PR)" aria-label="Titre de la vidéo (vide : route et PR)"></span>
+                <span class="reglette-option champ-titre"><input id="video-titre-sous" type="text" maxlength="120"
+                    placeholder="Sous-titre (date des photos)" aria-label="Sous-titre de la vidéo (vide : date des photos)"></span>
+                <label class="reglette-option champ-titre"
+                       title="Le titre en petit en haut à gauche pendant toute la vidéo, après le carton"><input id="video-titre-rappel"
+                           type="checkbox" class="interrupteur"> Rappel en incrustation</label>
               </span>
               <input id="video-titre" type="checkbox" class="interrupteur" checked aria-label="Titre">
             </div>
@@ -546,19 +686,25 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           </details>
           <details class="theme-video" open><summary>Allure</summary>
           <div class="options">
-            <div class="option" title="Allure de la présentation : très vite dans les lignes droites, ralentie dans les virages selon leur rayon, 2 s avant leur entrée (grande courbe : presque pas ; virage serré : beaucoup), jamais sous la vitesse au plus bas ; départ, arrivée, arrêts et changements d'allure rapides (réglette Transitions). Réglages provisoires, à affiner.">
+            <div class="option"
+                 title="Allure de la présentation : très vite dans les lignes droites, ralentie dans les virages selon leur rayon, 2 s avant leur entrée (grande courbe : presque pas ; virage serré : beaucoup), jamais sous la vitesse au plus bas ; départ, arrivée, arrêts et changements d'allure rapides (réglette Transitions). Réglages provisoires, à affiner.">
               <span class="texte-option">Allure<span class="aide">Réglages provisoires, à affiner ensemble.</span>
                 <span class="reglette-option">Lignes droites <output id="pres-vmax-valeur" for="pres-vmax">400 km/h</output>
-                  <input id="pres-vmax" type="range" min="50" max="600" step="10" value="400" aria-label="Vitesse dans les lignes droites (km/h)"></span>
+                  <input id="pres-vmax" type="range" min="50" max="600" step="10" value="400"
+                         aria-label="Vitesse dans les lignes droites (km/h)"></span>
                 <span class="reglette-option">Virages, rotation <output id="pres-virage-valeur" for="pres-virage">12 °/s</output>
-                  <input id="pres-virage" type="range" min="4" max="40" step="2" value="12" aria-label="Rotation de la vue au plus dans les virages (°/s ; moins : plus lent)"></span>
+                  <input id="pres-virage" type="range" min="4" max="40" step="2" value="12"
+                         aria-label="Rotation de la vue au plus dans les virages (°/s ; moins : plus lent)"></span>
                 <span class="reglette-option">Au plus bas <output id="pres-vmin-valeur" for="pres-vmin">15 km/h</output>
-                  <input id="pres-vmin" type="range" min="10" max="70" step="5" value="15" aria-label="Vitesse au plus bas, hors arrêts (km/h)"></span>
+                  <input id="pres-vmin" type="range" min="10" max="70" step="5" value="15"
+                         aria-label="Vitesse au plus bas, hors arrêts (km/h)"></span>
                 <span class="reglette-option">Transitions <output id="pres-transition-valeur" for="pres-transition">0,5 s</output>
-                  <input id="pres-transition" type="range" min="0.25" max="3" step="0.25" value="0.5" aria-label="Durée des changements d'allure (s ; la vitesse varie d'un facteur 2,7 dans ce temps)"></span>
+                  <input id="pres-transition" type="range" min="0.25" max="3" step="0.25" value="0.5"
+                         aria-label="Durée des changements d'allure (s ; la vitesse varie d'un facteur 2,7 dans ce temps)"></span>
               </span>
             </div>
-            <div class="option" title="Arrêts : aux endroits choisis sur la mini-carte (📍, à moins de 30 m du parcours), la vidéo ralentit progressivement, s'arrête le temps choisi, puis repart progressivement (même accélération que l'allure)">
+            <div class="option"
+                 title="Arrêts : aux endroits choisis sur la mini-carte (📍, à moins de 30 m du parcours), la vidéo ralentit progressivement, s'arrête le temps choisi, puis repart progressivement (même accélération que l'allure)">
               <span class="texte-option">Arrêts<span class="aide">Ralentir, s'arrêter, repartir, aux endroits choisis.</span>
                 <span class="reglette-option">Durée <output id="arret-valeur" for="arret-duree">3 s</output>
                   <input id="arret-duree" type="range" min="1" max="10" step="1" value="3" aria-label="Durée de chaque arrêt (s)"></span>
@@ -567,10 +713,14 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
                 title="Choisir l'endroit d'un arrêt d'un clic sur la mini-carte (Échap : annuler)">📍</button>
               <input id="video-arret" type="checkbox" class="interrupteur" aria-label="Arrêts">
             </div>
-            <div class="option" title="Ralentir aux croisements et aux ouvrages d'art : croisements de routes revêtues de la BD TOPO (départementales, voies communales, giratoires ; pas les chemins ni les routes empierrées) et tronçons hors du sol (ponts, passages supérieurs, tunnels), à moins de 15 m du parcours, posés d'eux-mêmes à la préparation (repères orange : clic pour en retirer un, 📍 pour en ajouter) ; vitesse tenue à ± 15 m, freinage et reprise progressifs">
-              <span class="texte-option">Croisements et ouvrages d'art<span class="aide">Ralentir aux croisements et aux ponts. Repères orange : clic pour en retirer un, 📍 pour en ajouter.</span>
+            <div class="option"
+                 title="Ralentir aux croisements et aux ouvrages d'art : croisements de routes revêtues de la BD TOPO (départementales, voies communales, giratoires ; pas les chemins ni les routes empierrées) et tronçons hors du sol (ponts, passages supérieurs, tunnels), à moins de 15 m du parcours, posés d'eux-mêmes à la préparation (repères orange : clic pour en retirer un, 📍 pour en ajouter) ; vitesse tenue à ± 15 m, freinage et reprise progressifs">
+              <span class="texte-option">Croisements et ouvrages d'art
+                <span class="aide">Ralentir aux croisements et aux ponts. Repères orange : clic pour en retirer un, 📍 pour en
+                  ajouter.</span>
                 <span class="reglette-option">Vitesse <output id="ralenti-vitesse-valeur" for="ralenti-vitesse">50 km/h</output>
-                  <input id="ralenti-vitesse" type="range" min="20" max="90" step="5" value="50" aria-label="Vitesse aux croisements et aux ouvrages d'art (km/h)"></span>
+                  <input id="ralenti-vitesse" type="range" min="20" max="90" step="5" value="50"
+                         aria-label="Vitesse aux croisements et aux ouvrages d'art (km/h)"></span>
               </span>
               <button type="button" class="sur-carte" data-cote="slow" aria-pressed="false"
                 title="Ajouter un point de ralentissement d'un clic sur la mini-carte (Échap : annuler)">📍</button>
@@ -579,9 +729,17 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             <div class="option" title="Vitesse simulée de la vidéo, en mode Revue détaillée">
               <span class="texte-option">Vitesse fixe<span class="aide">Mode Revue détaillée.</span></span>
               <select id="video-vitesse" aria-label="Vitesse simulée" title="Vitesse simulée de la vidéo">
-              <option value="30">30 km/h</option><option value="50">50 km/h</option><option value="70">70 km/h</option><option value="90" selected>90 km/h</option><option value="130">130 km/h</option><option value="180">180 km/h</option><option value="360">360 km/h</option><option value="720">720 km/h</option><option value="1235">Mach 1 (1 235 km/h)</option><option value="2470">Mach 2 (2 470 km/h)</option></select>
+              <option value="30">30 km/h</option><option value="50">50 km/h</option><option value="70">70 km/h</option><option value="90"
+                  selected>90 km/h</option>
+                  <option value="130">130 km/h</option>
+                  <option value="180">180 km/h</option>
+                  <option value="360">360 km/h</option>
+                  <option value="720">720 km/h</option>
+                  <option value="1235">Mach 1 (1 235 km/h)</option>
+                  <option value="2470">Mach 2 (2 470 km/h)</option></select>
             </div>
-            <label class="option" title="Rampe de vitesse : la vitesse choisie dans les lignes droites, ralentie dans les virages et aux carrefours (jusqu'à 35 %), départ et arrivée en douceur sur 50 m">
+            <label class="option"
+                   title="Rampe de vitesse : la vitesse choisie dans les lignes droites, ralentie dans les virages et aux carrefours (jusqu'à 35 %), départ et arrivée en douceur sur 50 m">
               <span class="texte-option">Rampe de vitesse<span class="aide">Ralentit dans les virages et aux carrefours.</span></span>
               <input id="video-rampe" type="checkbox" class="interrupteur">
             </label>
@@ -589,27 +747,43 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           </details>
           <details class="theme-video" open><summary>Réglages qualité</summary>
           <div class="options">
-            <div class="option" title="Format du fichier MP4. Définition plus basse : calcul plus rapide, fichier plus léger. H.265 : fichier plus léger, pas lu par tous les lecteurs. VP9 : calcul plus long, peut-être pas lu par PowerPoint. Brouillon : toujours 960 × 540">
-              <span class="texte-option">Format<span class="aide">Vert : encodeur matériel. Jaune : encodeur logiciel, plus lent. Grisé : pas disponible sur ce poste.</span></span>
-              <select id="video-codec" hidden><option value="h264" selected>H.264</option><option value="h265">H.265</option><option value="vp9">VP9</option></select>
-              <select id="video-definition" hidden><option value="1080" selected>1080p</option><option value="720">720p</option><option value="480">480p</option></select>
+            <div class="option"
+                 title="Format du fichier MP4. Définition plus basse : calcul plus rapide, fichier plus léger. H.265 : fichier plus léger, pas lu par tous les lecteurs. VP9 : calcul plus long, peut-être pas lu par PowerPoint. Brouillon : toujours 960 × 540">
+              <span class="texte-option">Format
+                <span class="aide">Vert : encodeur matériel. Jaune : encodeur logiciel, plus lent. Grisé : pas disponible sur ce
+                  poste.</span></span>
+              <select id="video-codec" hidden><option value="h264"
+                  selected>H.264</option><option value="h265">H.265</option><option value="vp9">VP9</option></select>
+              <select id="video-definition" hidden><option value="1080"
+                  selected>1080p</option><option value="720">720p</option><option value="480">480p</option></select>
               <div id="video-formats" role="group" aria-label="Codec et définition de la vidéo"></div>
             </div>
-            <div class="option" title="Photos de la séquence prises pour la vidéo : toutes, une sur 2, 4 ou 8 (plus d'écart, moins de téléchargement)">
+            <div class="option"
+                 title="Photos de la séquence prises pour la vidéo : toutes, une sur 2, 4 ou 8 (plus d'écart, moins de téléchargement)">
               <span class="texte-option">Part des photos<span class="aide">Moins de photos : moins de téléchargement.</span></span>
-              <select id="video-photos" aria-label="Photos de la séquence" title="Photos de la séquence prises pour la vidéo : toutes (une tous les 5 m pour le CD21), une sur 2, 4 ou 8 (plus d'écart, moins de téléchargement)">
-              <option value="1" selected>Photos 1/1</option><option value="2">Photos 1/2</option><option value="4">Photos 1/4</option><option value="8">Photos 1/8</option></select>
+              <select id="video-photos" aria-label="Photos de la séquence"
+                      title="Photos de la séquence prises pour la vidéo : toutes (une tous les 5 m pour le CD21), une sur 2, 4 ou 8 (plus d'écart, moins de téléchargement)">
+              <option value="1"
+                      selected>Photos 1/1</option>
+                      <option value="2">Photos 1/2</option>
+                      <option value="4">Photos 1/4</option>
+                      <option value="8">Photos 1/8</option></select>
             </div>
-            <label class="option" title="Stabilisation : les photos ne donnent ni tangage ni roulis, et la caméra bouge d'une prise à l'autre. Le décalage entre deux photos voisines est mesuré sur leur image SD, et les petits sauts retirés du tangage et du roulis ; une photo mal mesurée reste non corrigée. Le cap n'est pas corrigé">
-              <span class="texte-option">Stabilisation<span class="aide">Moins de sauts d'une photo à l'autre ; une image SD de plus à télécharger par photo.</span></span>
+            <label class="option"
+                   title="Stabilisation : les photos ne donnent ni tangage ni roulis, et la caméra bouge d'une prise à l'autre. Le décalage entre deux photos voisines est mesuré sur leur image SD, et les petits sauts retirés du tangage et du roulis ; une photo mal mesurée reste non corrigée. Le cap n'est pas corrigé">
+              <span class="texte-option">Stabilisation
+                <span class="aide">Moins de sauts d'une photo à l'autre ; une image SD de plus à télécharger par photo.</span></span>
               <input id="video-stabilisation" type="checkbox" class="interrupteur" checked>
             </label>
-            <label class="option" title="Flou cinétique : chaque image est la moyenne de 8 vues réparties depuis l'image précédente ; ce qui défile vite près de la caméra (chaussée, poteaux) s'étale dans le sens du mouvement, le lointain reste net">
+            <label class="option"
+                   title="Flou cinétique : chaque image est la moyenne de 8 vues réparties depuis l'image précédente ; ce qui défile vite près de la caméra (chaussée, poteaux) s'étale dans le sens du mouvement, le lointain reste net">
               <span class="texte-option">Flou cinétique<span class="aide">Le proche s'étire dans le sens du mouvement.</span></span>
               <input id="video-flou" type="checkbox" class="interrupteur">
             </label>
-            <label class="option" title="Corrections de luminosité : une photo isolée nettement plus claire ou plus sombre que ses voisines (± 0,6 s) y est ramenée (pas de clignotement). Une vignette mesurée par photo à la préparation, gardée dans le navigateur. Les changements de séquence sont accordés dans tous les cas">
-              <span class="texte-option">Corrections de luminosité<span class="aide">Photos isolées (raccords de séquence : toujours accordés).</span></span>
+            <label class="option"
+                   title="Corrections de luminosité : une photo isolée nettement plus claire ou plus sombre que ses voisines (± 0,6 s) y est ramenée (pas de clignotement). Une vignette mesurée par photo à la préparation, gardée dans le navigateur. Les changements de séquence sont accordés dans tous les cas">
+              <span class="texte-option">Corrections de luminosité
+                <span class="aide">Photos isolées (raccords de séquence : toujours accordés).</span></span>
               <input id="video-expo" type="checkbox" class="interrupteur">
             </label>
             <!-- Tenue par le mode Brouillon (VIDEO_MODES) -->
@@ -618,53 +792,76 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           </details>
           <details class="theme-video" open><summary>Effets spéciaux</summary>
           <div class="options">
-            <label class="option" title="Regard aux croisements : à l'approche d'un carrefour avec une route revêtue (BD TOPO), la vue se tourne vers la voie croisée, regarde dans son axe dès 0,9 s avant le carrefour et au passage (gauche puis droite s'il y en a des deux côtés), puis revient dans l'axe du parcours deux fois plus vite ; la vidéo ralentit autour du regard jusqu'à la vitesse de regard (presque rien en dessous, plafond progressif au-dessus : à 70 km/h, 90 → 62, 360 → 70 km/h)">
+            <label class="option"
+                   title="Regard aux croisements : à l'approche d'un carrefour avec une route revêtue (BD TOPO), la vue se tourne vers la voie croisée, regarde dans son axe dès 0,9 s avant le carrefour et au passage (gauche puis droite s'il y en a des deux côtés), puis revient dans l'axe du parcours deux fois plus vite ; la vidéo ralentit autour du regard jusqu'à la vitesse de regard (presque rien en dessous, plafond progressif au-dessus : à 70 km/h, 90 → 62, 360 → 70 km/h)">
               <span class="texte-option">Regard aux croisements<span class="aide">Dans l'axe de la voie croisée, en ralentissant.</span>
                 <span class="reglette-option">Vitesse de regard <output id="regard-valeur" for="regard-vitesse">70 km/h</output>
-                  <input id="regard-vitesse" type="range" min="30" max="130" step="10" value="70" aria-label="Vitesse de regard aux croisements (km/h)"></span></span>
+                  <input id="regard-vitesse" type="range" min="30" max="130" step="10" value="70"
+                         aria-label="Vitesse de regard aux croisements (km/h)"></span></span>
               <input id="video-regard" type="checkbox" class="interrupteur">
             </label>
-            <div class="option" title="Point d'intérêt : la cible est un objet du relevé (onglet Résultats), triangulé dans Mesure → Relevé d'objets : sa position et son altitude font viser juste, jusqu'en hauteur. Zone de l'effet : ✏ Zone puis deux clics sur la mini-carte le long de la route (extrémités ramenées sur le parcours, à 30 m au plus ; portion en violet une fois la vidéo préparée ; clic sur le trait : le retirer) ; sans trait, 150 m avant et après le passage au plus près. Dans la zone, la vue se tourne vers la cible en 1 s et la suit, puis revient dans l'axe deux fois plus vite.">
+            <div class="option"
+                 title="Point d'intérêt : la cible est un objet du relevé (onglet Résultats), triangulé dans Mesure → Relevé d'objets : sa position et son altitude font viser juste, jusqu'en hauteur. Zone de l'effet : ✏ Zone puis deux clics sur la mini-carte le long de la route (extrémités ramenées sur le parcours, à 30 m au plus ; portion en violet une fois la vidéo préparée ; clic sur le trait : le retirer) ; sans trait, 150 m avant et après le passage au plus près. Dans la zone, la vue se tourne vers la cible en 1 s et la suit, puis revient dans l'axe deux fois plus vite.">
               <span class="texte-option">Point d'intérêt<span class="aide">La vue suit la cible dans la zone tracée.</span>
-                <span class="reglette-option">Cible <select id="interet-cible" aria-label="Cible : objet du relevé" disabled></select></span>
-                <span id="interet-aucun" class="aide avertissement-option">Aucun objet relevé : créez la cible dans Mesure → Relevé d'objets, visez-la depuis au moins deux photos, puis « Valider le point triangulé ».</span>
+                <span class="reglette-option">Cible <select id="interet-cible" aria-label="Cible : objet du relevé"
+                    disabled></select></span>
+                <span id="interet-aucun"
+                      class="aide avertissement-option">Aucun objet relevé : créez la cible dans Mesure → Relevé d'objets, visez-la depuis
+                        au moins deux photos, puis « Valider le point triangulé ».</span>
                 <span class="reglette-option">Vitesse <output id="interet-vitesse-valeur" for="interet-vitesse">sans ralentir</output>
-                  <input id="interet-vitesse" type="range" min="30" max="140" step="10" value="140" aria-label="Vitesse pendant l'effet (km/h ; au bout : sans ralentir)"></span>
+                  <input id="interet-vitesse" type="range" min="30" max="140" step="10" value="140"
+                         aria-label="Vitesse pendant l'effet (km/h ; au bout : sans ralentir)"></span>
                 <span class="reglette-option">Zoom max <output id="interet-zoom-valeur" for="interet-zoom">× 1</output>
-                  <input id="interet-zoom" type="range" min="1" max="3" step="0.1" value="1" aria-label="Zoom au plus fort (net jusqu'à × 1,4 environ)"></span>
-                <label class="reglette-option" title="Zoom lié à la distance : la cible garde à peu près sa taille à l'écran (zoom plus fort de loin, × 1 au plus près), dans la limite du zoom max ; sinon le zoom monte jusqu'au passage au plus près puis redescend"><input id="interet-zoom-distance" type="checkbox" class="interrupteur petit"> Zoom lié à la distance</label>
-                <label class="reglette-option" title="Tonneau au passage au plus près de la cible (durée et alternance des sens : ceux des tonneaux)"><input id="interet-tonneau" type="checkbox" class="interrupteur petit"> Tonneau au plus près</label>
+                  <input id="interet-zoom" type="range" min="1" max="3" step="0.1" value="1"
+                         aria-label="Zoom au plus fort (net jusqu'à × 1,4 environ)"></span>
+                <label class="reglette-option"
+                       title="Zoom lié à la distance : la cible garde à peu près sa taille à l'écran (zoom plus fort de loin, × 1 au plus près), dans la limite du zoom max ; sinon le zoom monte jusqu'au passage au plus près puis redescend">
+                  <input id="interet-zoom-distance" type="checkbox" class="interrupteur petit"> Zoom lié à la distance</label>
+                <label class="reglette-option"
+                       title="Tonneau au passage au plus près de la cible (durée et alternance des sens : ceux des tonneaux)">
+                  <input id="interet-tonneau" type="checkbox" class="interrupteur petit"> Tonneau au plus près</label>
               </span>
               <button type="button" class="sur-carte" data-cote="poiZone" aria-pressed="false"
                 title="Tracer la zone de l'effet : deux clics sur la mini-carte le long de la route (Échap : annuler)">✏ Zone</button>
               <input id="video-interet" type="checkbox" class="interrupteur" aria-label="Point d'intérêt">
             </div>
-            <label class="option" title="Tonneau (barrel roll) : à l'endroit choisi sur la mini-carte (📍, à moins de 30 m du parcours), l'image fait un tour complet de roulis (durée réglable, 3 s par défaut), lent au départ et à l'arrivée, pendant que la caméra continue d'avancer">
+            <label class="option"
+                   title="Tonneau (barrel roll) : à l'endroit choisi sur la mini-carte (📍, à moins de 30 m du parcours), l'image fait un tour complet de roulis (durée réglable, 3 s par défaut), lent au départ et à l'arrivée, pendant que la caméra continue d'avancer">
               <span class="texte-option">Tonneau<span class="aide">Tour complet de roulis, à l'endroit choisi.</span>
                 <span class="reglette-option">Durée <output id="tonneau-valeur" for="tonneau-duree">3 s</output>
-                  <input id="tonneau-duree" type="range" min="1" max="10" step="0.5" value="3" aria-label="Durée du tonneau (s)"></span></span>
+                  <input id="tonneau-duree" type="range" min="1" max="10" step="0.5" value="3"
+                         aria-label="Durée du tonneau (s)"></span></span>
               <button type="button" class="sur-carte" data-cote="roll" aria-pressed="false"
                 title="Choisir l'endroit du tonneau d'un clic sur la mini-carte (Échap : annuler)">📍</button>
               <input id="video-tonneau" type="checkbox" class="interrupteur">
             </label>
-            <div class="option" title="Tour d'horizon : à l'endroit choisi sur la mini-carte (📍, à moins de 30 m du parcours), la vue fait un tour complet dans le plan de l'horizon, lent au départ et à l'arrivée, pour montrer les espaces plats ; sens alterné d'un tour au suivant">
+            <div class="option"
+                 title="Tour d'horizon : à l'endroit choisi sur la mini-carte (📍, à moins de 30 m du parcours), la vue fait un tour complet dans le plan de l'horizon, lent au départ et à l'arrivée, pour montrer les espaces plats ; sens alterné d'un tour au suivant">
               <span class="texte-option">Tour d'horizon<span class="aide">Tour complet à l'horizontale, à l'endroit choisi.</span>
                 <span class="reglette-option">Durée <output id="tour-valeur" for="tour-duree">8 s</output>
                   <input id="tour-duree" type="range" min="2" max="20" step="1" value="8" aria-label="Durée du tour d'horizon (s)"></span>
-                <label class="reglette-option" title="Arrêt pendant le tour : la caméra s'arrête sur la photo la plus proche le temps du tour (image nette, la vidéo s'allonge d'autant) ; sinon elle continue d'avancer"><input id="tour-arret" type="checkbox" class="interrupteur petit" checked> Arrêt pendant le tour</label>
+                <label class="reglette-option"
+                       title="Arrêt pendant le tour : la caméra s'arrête sur la photo la plus proche le temps du tour (image nette, la vidéo s'allonge d'autant) ; sinon elle continue d'avancer">
+                  <input id="tour-arret" type="checkbox" class="interrupteur petit" checked> Arrêt pendant le tour</label>
               </span>
               <button type="button" class="sur-carte" data-cote="tour" aria-pressed="false"
                 title="Choisir l'endroit du tour d'horizon d'un clic sur la mini-carte (Échap : annuler)">📍</button>
               <input id="video-tour" type="checkbox" class="interrupteur" aria-label="Tour d'horizon">
             </div>
-            <div class="option" title="Petite planète : sur le tronçon tracé sur la mini-carte (📍 : début puis fin, à moins de 30 m du parcours ; 50 m au moins), la vue descend vers le sol en s'élargissant jusqu'à enrouler le paysage en boule (projection stéréographique, route vers le haut, la planète tourne avec la route), tient, puis se déroule à la fin du tronçon (réglette « Transition » : 0 à 3 s, 1 s par défaut ; 0 : planète d'emblée), la caméra continue d'avancer">
+            <div class="option"
+                 title="Petite planète : sur le tronçon tracé sur la mini-carte (📍 : début puis fin, à moins de 30 m du parcours ; 50 m au moins), la vue descend vers le sol en s'élargissant jusqu'à enrouler le paysage en boule (projection stéréographique, route vers le haut, la planète tourne avec la route), tient, puis se déroule à la fin du tronçon (réglette « Transition » : 0 à 3 s, 1 s par défaut ; 0 : planète d'emblée), la caméra continue d'avancer">
               <span class="texte-option">Petite planète<span class="aide">Le paysage s'enroule en boule, sur le tronçon tracé.</span>
-                <label class="reglette-option" title="Petite planète sur tout le parcours, du départ à l'arrivée (tronçons tracés ignorés)"><input id="planete-tout" type="checkbox" class="interrupteur petit"> Tout le parcours</label>
+                <label class="reglette-option" title="Petite planète sur tout le parcours, du départ à l'arrivée (tronçons tracés ignorés)">
+                  <input id="planete-tout" type="checkbox" class="interrupteur petit"> Tout le parcours</label>
                 <span class="reglette-option">Transition <output id="planete-transition-valeur" for="planete-transition">1 s</output>
-                  <input id="planete-transition" type="range" min="0" max="3" step="1" value="1" aria-label="Durée de l'enroulement et du déroulement de la petite planète (s ; 0 : planète d'emblée)"></span>
-                <label class="reglette-option" title="Tonneau (tour complet de roulis) pendant l'enroulement, puis en sens inverse pendant le déroulement ; grisé sans transition"><input id="planete-tonneau" type="checkbox" class="interrupteur petit"> Tonneau pendant la transition</label>
+                  <input id="planete-transition" type="range" min="0" max="3" step="1" value="1"
+                         aria-label="Durée de l'enroulement et du déroulement de la petite planète (s ; 0 : planète d'emblée)"></span>
+                <label class="reglette-option"
+                       title="Tonneau (tour complet de roulis) pendant l'enroulement, puis en sens inverse pendant le déroulement ; grisé sans transition">
+                  <input id="planete-tonneau" type="checkbox" class="interrupteur petit"> Tonneau pendant la transition</label>
                 <span class="reglette-option">Rotation <output id="planete-rotation-valeur" for="planete-rotation">20 °/s</output>
-                  <input id="planete-rotation" type="range" min="0" max="90" step="5" value="20" aria-label="Vitesse de rotation de la planète sur elle-même (°/s ; 0 : sans)"></span>
+                  <input id="planete-rotation" type="range" min="0" max="90" step="5" value="20"
+                         aria-label="Vitesse de rotation de la planète sur elle-même (°/s ; 0 : sans)"></span>
               </span>
               <button type="button" class="sur-carte" data-cote="planet" aria-pressed="false"
                 title="Tracer le tronçon de la petite planète sur la mini-carte : un clic au début, un à la fin (Échap : annuler)">📍</button>
@@ -677,7 +874,8 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         <section id="filtre" hidden>
           <!-- Résumé du filtre actif (app.js applyFilter) -->
           <div class="fiche-couche fiche-filtre">
-            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16l-6 7v6l-4 2v-8z" stroke-linejoin="round"/></svg></span>
+            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="1.8"><path d="M4 5h16l-6 7v6l-4 2v-8z" stroke-linejoin="round"/></svg></span>
             <div class="nom-couche">
               <p id="filtre-titre">Filtres appliqués</p>
               <p id="filtre-infos">aucun</p>
@@ -708,7 +906,10 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         </section>
         <section id="reglages" hidden>
           <div class="fiche-couche fiche-reglages">
-            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke-linecap="round"/></svg></span>
+            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="1.8"><circle cx="12" cy="12"
+                    r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"
+                        stroke-linecap="round"/></svg></span>
             <div class="nom-couche">
               <p id="reglages-titre">Réglages</p>
               <p id="reglages-infos">Gardés dans ce navigateur</p>
@@ -743,43 +944,59 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <span class="texte-option">Centrer la carte sur la photo<span class="aide">La carte suit la photo ouverte.</span></span>
               <input id="centrer" type="checkbox" class="interrupteur" checked>
             </label>
-            <label class="option" title="Points de repère (PR) de la BD TOPO et leurs bornes sur la mini-carte, quel que soit le fond (dès le zoom 13).">
+            <label class="option"
+                   title="Points de repère (PR) de la BD TOPO et leurs bornes sur la mini-carte, quel que soit le fond (dès le zoom 13).">
               <span class="texte-option">Bornes des PR sur la carte<span class="aide">Sur tous les fonds de carte.</span></span>
               <input id="bornes" type="checkbox" class="interrupteur" checked>
             </label>
-            <label class="option" title="Parcelles et bornes de limite de propriété du Parcellaire Express (IGN) sur la mini-carte, quel que soit le fond (dès le zoom 15 ; bornes, et section au-dessus du numéro de parcelle, dès le zoom 17). Plan numérisé : limites indicatives. Parcelle regardée par la photo en vert : la première que coupe la ligne de cap, à 50 m au plus, son numéro dans la photo à 1,50 m du sol ; parcelle où se tient la caméra en jaune.">
+            <label class="option"
+                   title="Parcelles et bornes de limite de propriété du Parcellaire Express (IGN) sur la mini-carte, quel que soit le fond (dès le zoom 15 ; bornes, et section au-dessus du numéro de parcelle, dès le zoom 17). Plan numérisé : limites indicatives. Parcelle regardée par la photo en vert : la première que coupe la ligne de cap, à 50 m au plus, son numéro dans la photo à 1,50 m du sol ; parcelle où se tient la caméra en jaune.">
               <span class="texte-option">Cadastre sur la carte<span class="aide">Parcelles et bornes ; limites indicatives.</span></span>
               <input id="cadastre" type="checkbox" class="interrupteur">
             </label>
-            <label class="option" title="Numéro de la parcelle regardée par la photo (en vert sur la carte), dans la visionneuse à 1,50 m du sol, et croix au centre de la vue. Décoché : le cadastre reste sur la carte seulement. Grisé sans le cadastre sur la carte.">
-              <span class="texte-option">Parcelle visée dans la visionneuse<span class="aide">Son numéro dans la photo et la croix du centre de la vue.</span></span>
+            <label class="option"
+                   title="Numéro de la parcelle regardée par la photo (en vert sur la carte), dans la visionneuse à 1,50 m du sol, et croix au centre de la vue. Décoché : le cadastre reste sur la carte seulement. Grisé sans le cadastre sur la carte.">
+              <span class="texte-option">Parcelle visée dans la visionneuse
+                <span class="aide">Son numéro dans la photo et la croix du centre de la vue.</span></span>
               <input id="cadastre-visionneuse" type="checkbox" class="interrupteur" checked>
             </label>
-            <label class="option" title="Filtrage anisotrope 16x des textures : atténue le crénelage et le scintillement des détails fins vus de loin, en gardant l'image nette, au prix d'une navigation un peu moins fluide.">
-              <span class="texte-option">Filtrage anisotrope<span class="aide">Détails lointains plus nets, navigation un peu moins fluide.</span></span>
+            <label class="option"
+                   title="Filtrage anisotrope 16x des textures : atténue le crénelage et le scintillement des détails fins vus de loin, en gardant l'image nette, au prix d'une navigation un peu moins fluide.">
+              <span class="texte-option">Filtrage anisotrope
+                <span class="aide">Détails lointains plus nets, navigation un peu moins fluide.</span></span>
               <input id="anisotrope" type="checkbox" class="interrupteur">
             </label>
           </div>
           <div class="encart-calage encart-experimental">
             <h3>Expérimental</h3>
             <div class="options">
-            <label class="option" title="Expérimental (ticket #28). En largeur, avant le premier bord : bouton « Tracer la droite sur la carte » (giratoire, carrefour, place) ; les deux bords sont posés sur la droite tracée sur la mini-carte au lieu de la perpendiculaire à l'axe calculé. Décochée : le bouton n'est pas proposé.">
-              <span class="texte-option">Droite de mesure tracée sur la carte<span class="aide">Largeur dans un giratoire, un carrefour ou sur une place : les bords posés sur une droite tracée sur la mini-carte.</span></span>
+            <label class="option"
+                   title="Expérimental (ticket #28). En largeur, avant le premier bord : bouton « Tracer la droite sur la carte » (giratoire, carrefour, place) ; les deux bords sont posés sur la droite tracée sur la mini-carte au lieu de la perpendiculaire à l'axe calculé. Décochée : le bouton n'est pas proposé.">
+              <span class="texte-option">Droite de mesure tracée sur la carte
+                <span class="aide">Largeur dans un giratoire, un carrefour ou sur une place : les bords posés sur une droite tracée sur la
+                  mini-carte.</span></span>
               <input id="droite-carte" type="checkbox" class="interrupteur">
             </label>
-            <label class="option" title="Expérimental (ticket #29). Quand les verticales de la photo manquent (rase campagne), l'inclinaison est tirée de la pente et du dévers du terrain LiDAR HD sous la caméra et du décalage de la fixation de la caméra, appris sur des photos de village de la même séquence (téléchargées en arrière-plan, environ 45 Mo par séquence). Incertitude d'environ ±0,6° au lieu de ±2°.">
-              <span class="texte-option">Inclinaison par le terrain hors agglomération<span class="aide">Sans verticales dans la photo : inclinaison tirée du terrain LiDAR HD (±0,6° au lieu de ±2°) ; environ 45 Mo téléchargés par séquence.</span></span>
+            <label class="option"
+                   title="Expérimental (ticket #29). Quand les verticales de la photo manquent (rase campagne), l'inclinaison est tirée de la pente et du dévers du terrain LiDAR HD sous la caméra et du décalage de la fixation de la caméra, appris sur des photos de village de la même séquence (téléchargées en arrière-plan, environ 45 Mo par séquence). Incertitude d'environ ±0,6° au lieu de ±2°.">
+              <span class="texte-option">Inclinaison par le terrain hors agglomération
+                <span class="aide">Sans verticales dans la photo : inclinaison tirée du terrain LiDAR HD (±0,6° au lieu de ±2°) ; environ 45
+                  Mo téléchargés par séquence.</span></span>
               <input id="inclinaison-terrain" type="checkbox" class="interrupteur">
             </label>
             </div>
           </div>
           <!-- Retour vers mobile.html : choix « Version complète » oublié -->
-          <p><a href="mobile.html" onclick="try { localStorage.removeItem('web-measures/version'); } catch {}">Version mobile (consultation sur téléphone)</a></p>
+          <p><a href="mobile.html"
+              onclick="try { localStorage.removeItem('web-measures/version'); }
+                catch {}">Version mobile (consultation sur téléphone)</a></p>
         </section>
         <section id="reseau" hidden>
           <!-- Bilan des services vérifiés depuis ce navigateur (proxy et pare-feu du poste compris) -->
           <div class="fiche-couche fiche-services">
-            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12a7 7 0 0114 0M8.5 12a3.5 3.5 0 017 0" stroke-linecap="round"/><circle cx="12" cy="16" r="1.5"/></svg></span>
+            <span class="icone-fiche" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="1.8"><path d="M5 12a7 7 0 0114 0M8.5 12a3.5 3.5 0 017 0" stroke-linecap="round"/><circle cx="12" cy="16"
+                    r="1.5"/></svg></span>
             <div class="nom-couche">
               <p id="reseau-titre">Accès aux services</p>
               <p id="reseau-infos">Vérification en cours…</p>
@@ -797,15 +1014,20 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         </div>
         <nav id="outils" aria-label="Outils">
           <button type="button" data-panneau="filtre" aria-controls="filtre">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5h16l-6 7v6l-4 2v-8z" stroke-linejoin="round"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M4 5h16l-6 7v6l-4 2v-8z" stroke-linejoin="round"/></svg>
             Filtre <span id="filtre-actif"></span>
           </button>
           <button type="button" data-panneau="reglages" aria-controls="reglages">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke-linecap="round"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <circle cx="12" cy="12"
+                      r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"
+                          stroke-linecap="round"/></svg>
             Réglages
           </button>
           <button type="button" data-panneau="reseau" aria-controls="reseau">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12a7 7 0 0114 0M8.5 12a3.5 3.5 0 017 0" stroke-linecap="round"/><circle cx="12" cy="16" r="1.5"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M5 12a7 7 0 0114 0M8.5 12a3.5 3.5 0 017 0" stroke-linecap="round"/><circle cx="12" cy="16" r="1.5"/></svg>
             Services <span id="services-alerte" title="Un service ne répond pas"></span>
           </button>
         </nav>
@@ -852,7 +1074,8 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
       <!-- Rangs dans la liste (1 = premier), bornes comprises : seuls ceux-là sont retenus -->
       <p class="fiche-plage">Du <input id="fiche-objets-de" type="number" min="1" step="1" aria-label="Premier rang retenu">
         au <input id="fiche-objets-a" type="number" min="1" step="1" aria-label="Dernier rang retenu">
-        <button id="fiche-objets-plage" type="button" title="Ne retenir que les objets de ces rangs de la liste, bornes comprises">Retenir</button></p>
+        <button id="fiche-objets-plage" type="button"
+                title="Ne retenir que les objets de ces rangs de la liste, bornes comprises">Retenir</button></p>
       <ol id="fiche-objets"></ol>
     </div>
     <form method="dialog">
@@ -873,9 +1096,18 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         <!-- Modèles de champs gardés dans le navigateur, échangés par fichier (premier objet seulement) -->
         <div id="releve-modeles">
           <label>Modèle <select id="releve-modele" title="Champs d'un modèle enregistré, modifiables ensuite"></select></label>
-          <button id="releve-modele-retirer" type="button" class="icone" title="Retirer ce modèle du navigateur" aria-label="Retirer ce modèle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <button id="releve-modeles-exporter" type="button" class="icone" title="Exporter les modèles dans un fichier, pour un autre poste ou un collègue" aria-label="Exporter les modèles"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <button id="releve-modeles-importer" type="button" class="icone" title="Importer les modèles d'un fichier exporté (un modèle de même nom est remplacé)" aria-label="Importer des modèles"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button id="releve-modele-retirer" type="button" class="icone" title="Retirer ce modèle du navigateur"
+                  aria-label="Retirer ce modèle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round"
+                          stroke-linejoin="round"/></svg></button>
+          <button id="releve-modeles-exporter" type="button" class="icone"
+                  title="Exporter les modèles dans un fichier, pour un autre poste ou un collègue" aria-label="Exporter les modèles">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button id="releve-modeles-importer" type="button" class="icone"
+                  title="Importer les modèles d'un fichier exporté (un modèle de même nom est remplacé)" aria-label="Importer des modèles">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M12 15V4M7 9l5-5 5 5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
           <input id="releve-modeles-fichier" type="file" accept=".json" hidden>
         </div>
         <ol id="releve-champs"></ol>
@@ -884,7 +1116,8 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <input type="text" maxlength="60" aria-label="Nom du modèle" title="Un modèle de même nom est remplacé"></label>
       </fieldset>
       <div id="releve-valeurs"></div>
-      <label id="releve-commentaire">Commentaire <input type="text" maxlength="500" title="Texte libre, exporté dans la colonne « commentaire »"></label>
+      <label id="releve-commentaire">Commentaire <input type="text" maxlength="500"
+          title="Texte libre, exporté dans la colonne « commentaire »"></label>
       <p id="releve-erreur" class="erreur" hidden></p>
       <div class="actions">
         <button value="" class="non">Plus tard</button>
@@ -1000,16 +1233,24 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
     <p class="nuage-etat"><progress id="profil-nuage-barre" max="1" hidden aria-label="Avancement de la lecture du nuage LiDAR"></progress>
       <span id="profil-nuage-etat" class="aide" aria-live="polite"></span></p>
     <form method="dialog">
-      <label title="Hauteurs à la même échelle que les distances, sans exagération : le relief tel qu'il est, caméra à sa hauteur (cochée à chaque ouverture)"><input id="profil-echelle" type="checkbox" checked class="interrupteur"> Hauteurs à l'échelle</label>
-      <label title="Végétation lue par l'analyse fine : ligne verte (hauteur maximale) et herbe au sol (choix retenu pour les profils suivants)"><input id="profil-vegetation" type="checkbox" class="interrupteur" checked disabled> Végétation</label>
-      <button id="profil-nuage" type="button" title="Lire le nuage de points LiDAR HD de l'IGN sur ce travers (une vingtaine de secondes) : lignes blanches et nature du sol (enrobé, herbe, gravillons), pour placer le bord de chaussée et le séparateur de chaussée">Analyse fine</button>
+      <label title="Hauteurs à la même échelle que les distances, sans exagération : le relief tel qu'il est, caméra à sa hauteur (cochée à chaque ouverture)">
+        <input id="profil-echelle" type="checkbox" checked class="interrupteur"> Hauteurs à l'échelle</label>
+      <label title="Végétation lue par l'analyse fine : ligne verte (hauteur maximale) et herbe au sol (choix retenu pour les profils suivants)">
+        <input id="profil-vegetation" type="checkbox" class="interrupteur" checked disabled> Végétation</label>
+      <button id="profil-nuage" type="button"
+              title="Lire le nuage de points LiDAR HD de l'IGN sur ce travers (une vingtaine de secondes) : lignes blanches et nature du sol (enrobé, herbe, gravillons), pour placer le bord de chaussée et le séparateur de chaussée">Analyse fine</button>
       <button id="profil-legende" type="button" aria-pressed="true"
               title="Déplier ou replier la légende sous le graphique (repliée à chaque ouverture) ; l'image PNG et le PDF la gardent">Déplier la légende</button>
       <button id="profil-loupe" type="button" aria-pressed="false" aria-label="Agrandir le graphique"
-              title="Agrandir le graphique au mieux dans la visionneuse, sans la légende ; à nouveau : taille normale"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M10.5 7.5v6M7.5 10.5h6"/></svg></button>
-      <button id="profil-png" type="button" title="Enregistrer le graphique, avec son titre et sa légende, en image PNG">Enregistrer en PNG</button>
-      <button id="profil-pdf" type="button" title="Graphique et légende sur une page A4 paysage, à enregistrer en PDF dans la boîte d'impression">Enregistrer en PDF</button>
-      <label title="Ajouter au PDF une 2e page avec le profil en long (choix retenu pour les profils suivants)"><input id="profil-pdf-long" type="checkbox" class="interrupteur"> Profil en long (2e page)</label>
+              title="Agrandir le graphique au mieux dans la visionneuse, sans la légende ; à nouveau : taille normale"><svg width="18"
+                  height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M10.5 7.5v6M7.5 10.5h6"/></svg></button>
+      <button id="profil-png" type="button"
+              title="Enregistrer le graphique, avec son titre et sa légende, en image PNG">Enregistrer en PNG</button>
+      <button id="profil-pdf" type="button"
+              title="Graphique et légende sur une page A4 paysage, à enregistrer en PDF dans la boîte d'impression">Enregistrer en PDF</button>
+      <label title="Ajouter au PDF une 2e page avec le profil en long (choix retenu pour les profils suivants)"><input id="profil-pdf-long"
+          type="checkbox" class="interrupteur"> Profil en long (2e page)</label>
       <button value="ok">Fermer</button>
     </form>
   </dialog>
