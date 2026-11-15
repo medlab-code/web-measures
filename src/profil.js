@@ -146,7 +146,8 @@ const Profil = (() => {
     for (const w of (profile.eau || []).filter((v) => v.x !== undefined && v.x >= xmin && v.x <= xmax)) {
       const gy = Z(zAt(main.points, w.x) ?? ref);
       svg.append(el("path", { d: `M${X(w.x) - 6},${gy - 14}L${X(w.x) + 6},${gy - 14}L${X(w.x)},${gy - 4}Z`, class: "eau" }),
-        el("text", { x: X(w.x), y: gy - 18, class: "graduation place eau-texte", "data-haut": "", "text-anchor": "middle" }, w.nom || "cours d'eau"));
+        el("text", { x: X(w.x), y: gy - 18, class: "graduation place eau-texte", "data-haut": "", "text-anchor": "middle" },
+          w.nom || "cours d'eau"));
     }
     if (fine?.eau?.length) {
       let d = "", prev = null;
@@ -167,7 +168,8 @@ const Profil = (() => {
     const peaks = new Map();  // plus haut point de la ligne de chaque côté
     // plus haut point des cases voisines (±0,25 m) : une case où le laser n'a touché que des branches basses ne creuse pas ;
     // puis moyenne sur ±1 m : le feuillage des arbres sans dents de scie
-    const top = new Map(fine.vegetation.map(([x]) => [x, Math.max(...fine.vegetation.filter(([v]) => Math.abs(v - x) <= 0.25 + 1e-6).map(([, z]) => z))]));
+    const top = new Map(fine.vegetation.map(([x]) => [x,
+      Math.max(...fine.vegetation.filter(([v]) => Math.abs(v - x) <= 0.25 + 1e-6).map(([, z]) => z))]));
     const near = (x) => {  // moyenne des sommets à 1 m près
       const v = [...top].filter(([u]) => Math.abs(u - x) <= 1 + 1e-6).map(([, z]) => z);
       return v.reduce((a, b) => a + b, 0) / v.length;
@@ -199,9 +201,12 @@ const Profil = (() => {
         profile.origine === "caméra" ? "la caméra" : "l'axe"}.`,
       "Trait brun\u00a0: travers de la photo · pointillés\u00a0: travers à 5 et 10 m devant et derrière · "
         + "trait gris\u00a0: travers où la chute ou le dévers ont été mesurés.",
-      ...(profile.origine === "caméra" && factor === 1 ? [`Point bleu\u00a0: la caméra, à ${num(camera, 2)} m au-dessus de la plateforme.`] : []),
-      ...(main.separateur ? [`Petite barre verticale\u00a0: milieu du séparateur de chaussée (terre-plein central), ${main.separateurRelief
-        ? main.separateurRelief === "nuage" ? "trouvé dans le nuage LiDAR\u00a0: bande non revêtue (herbe, gravillons, glissières) entre les deux chaussées"
+      ...(profile.origine === "caméra" && factor === 1
+        ? [`Point bleu\u00a0: la caméra, à ${num(camera, 2)} m au-dessus de la plateforme.`] : []),
+      ...(main.separateur ? ["Petite barre verticale\u00a0: milieu du séparateur de chaussée (terre-plein central), "
+        + `${main.separateurRelief
+        ? main.separateurRelief === "nuage"
+          ? "trouvé dans le nuage LiDAR\u00a0: bande non revêtue (herbe, gravillons, glissières) entre les deux chaussées"
           : main.separateurRelief === "bosse" ? "trouvé dans le relief\u00a0: bosse étroite (assise de glissières ou de muret)"
           : `trouvé dans le relief entre deux marches du terrain (${num(Math.abs(main.separateur[1] - main.separateur[0]))} m de large)`
         : `placé d'après les largeurs BD TOPO (pas de marche du terrain trouvée${
@@ -213,17 +218,22 @@ const Profil = (() => {
           + `${fine.bords[side].comment})` : "").join("")}.`
         + (fine.largeur ? ` Largeur d'enrobé\u00a0: ${num(fine.largeur.m)}\u00a0m ±\u00a0${num(fine.largeur.plus)}.` : "")] : []),
       ...((profile.eau || []).length || fine?.eau?.length ? [`Bleu\u00a0: eau${(profile.eau || []).length ? ` de la BD TOPO (${profile.eau
-        .map((w) => (w.x !== undefined ? `${w.nom || (w.nature || "cours d'eau").toLowerCase()} à ${num(Math.abs(w.x))} m ${w.x < 0 ? "à gauche" : "à droite"}`
+        .map((w) => (w.x !== undefined
+          ? `${w.nom || (w.nature || "cours d'eau").toLowerCase()} à ${num(Math.abs(w.x))} m ${w.x < 0 ? "à gauche" : "à droite"}`
           : `${(w.nature || "plan d'eau").toLowerCase()} de ${num(Math.min(Math.abs(w.de), Math.abs(w.a)))} `
             + `à ${num(Math.max(Math.abs(w.de), Math.abs(w.a)))} m `
-            + `${w.de + w.a < 0 ? "à gauche" : "à droite"} (bande bleue sur le terrain, au niveau de l'eau)`)).join(", ")})` : ""}${fine?.eau?.length
-        ? `${(profile.eau || []).length ? "\u00a0; " : " "}surface de l'eau lue dans le nuage LiDAR (ligne bleue), au niveau du jour du relevé` : ""}.`] : []),
+            + `${w.de + w.a < 0 ? "à gauche" : "à droite"} (bande bleue sur le terrain, `
+            + "au niveau de l'eau)")).join(", ")})` : ""}${fine?.eau?.length
+        ? `${(profile.eau || []).length ? "\u00a0; " : " "}surface de l'eau lue dans le nuage LiDAR (ligne bleue), `
+          + "au niveau du jour du relevé" : ""}.`] : []),
       ...(plants && fine?.herbe?.length ? ["Bande vert clair sur le terrain\u00a0: herbe au sol (surface non revêtue très claire au laser "
         + "infrarouge\u00a0; gravillons et béton, moins clairs, n'y sont pas)" + ["gauche", "droit"].map((side) => {
           const sign = side === "gauche" ? -1 : 1, mine = fine.herbe.filter(([a, b]) => sign * (a + b) > 0);
-          return mine.length ? `\u00a0; ${side}\u00a0: dès ${num(Math.min(...mine.map(([a, b]) => Math.min(Math.abs(a), Math.abs(b)))))} m` : "";
+          return mine.length
+            ? `\u00a0; ${side}\u00a0: dès ${num(Math.min(...mine.map(([a, b]) => Math.min(Math.abs(a), Math.abs(b)))))} m` : "";
         }).join("") + "."] : []),
-      ...(plants && fine?.vegetation?.length ? ["Ligne verte\u00a0: hauteur maximale de la végétation (herbe haute, arbustes, arbres, classés par "
+      ...(plants && fine?.vegetation?.length
+        ? ["Ligne verte\u00a0: hauteur maximale de la végétation (herbe haute, arbustes, arbres, classés par "
         + "l'IGN) sur ±1 m le long de la route, coupée en haut du graphique"
         + (canopy ? " (« canopée +… m »\u00a0: sa hauteur au-dessus de la plateforme)" : "") + ["gauche", "droit"].map((side) => {
           const sign = side === "gauche" ? -1 : 1, seen = fine.vegetation.filter(([x]) => sign * x > 0);
@@ -272,7 +282,8 @@ const Profil = (() => {
         const end = sign < 0 ? tr.points[0] : tr.points.at(-1);
         // sous le terrain de la photo (dessiné avant lui), transparent : il ne le masque pas
         svg.insertBefore(el("path", { d: path(tr.points), class: "travers-mesure" }), svg.querySelector(".terre"));
-        svg.append(el("text", { x: X(end[0]) - sign * 2, y: Z(end[1]) - 6, class: "graduation place", "text-anchor": sign < 0 ? "start" : "end" },
+        svg.append(el("text",
+          { x: X(end[0]) - sign * 2, y: Z(end[1]) - 6, class: "graduation place", "text-anchor": sign < 0 ? "start" : "end" },
             `travers à ${tr.along > 0 ? "+" : "−"}${Math.abs(tr.along)} m`));
       }
       const top = zAt(t.points, b), xLow = b + sign * r.chute[1], low = top - r.chute[0];
@@ -328,7 +339,8 @@ const Profil = (() => {
     const zStep = [0.25, 0.5, 1, 2, 5].find((s) => (zmax - zmin) / s <= 7) || 10;
     for (let z = Math.ceil(zmin / zStep) * zStep; z <= zmax; z += zStep) {
       svg.append(el("line", { x1: LEFT, x2: LEFT + plotW, y1: Z(z + ref), y2: Z(z + ref), class: z ? "grille" : "grille zero" }),
-        el("text", { x: LEFT - 6, y: Z(z + ref) + 4, class: "graduation", "text-anchor": "end" }, `${z > 0 ? "+" : ""}${num(z, zStep < 1 ? 2 : 0)}`));
+        el("text", { x: LEFT - 6, y: Z(z + ref) + 4, class: "graduation", "text-anchor": "end" },
+          `${z > 0 ? "+" : ""}${num(z, zStep < 1 ? 2 : 0)}`));
     }
     // Source des altitudes, en haut à gauche : l'image enregistrée la garde
     svg.append(el("text", { x: 4, y: 16, class: "etiquette-profil" }, `Mesure ${profile.source}`),
@@ -341,7 +353,8 @@ const Profil = (() => {
     // Terrain : les autres travers en pointillés, celui de la photo plein, la terre sous lui
     for (const t of all.values()) if (t !== main) svg.append(el("path", { d: path(t.points), class: "autre-travers" }));
     const bottom = TOP + plotH;
-    svg.append(el("path", { d: `${path(main.points)}L${X(main.points.at(-1)[0])},${bottom}L${X(main.points[0][0])},${bottom}Z`, class: "terre" }),
+    svg.append(el("path",
+      { d: `${path(main.points)}L${X(main.points.at(-1)[0])},${bottom}L${X(main.points[0][0])},${bottom}Z`, class: "terre" }),
       el("path", { d: path(main.points), class: "sol" }));
 
     // Plateforme entre les deux bords du travers de la photo
@@ -383,7 +396,8 @@ const Profil = (() => {
       const [lo, hi] = [Math.max(a, xmin, g0), Math.min(b, xmax, g1)];
       const inside = main.points.map(([x]) => x).filter((x) => x > lo && x < hi);
       const at = [lo, ...inside, hi].filter((x, k, all) => k === 0 || x > all[k - 1]);
-      return at.length < 2 ? null : at.map((x, k) => `${k ? "L" : "M"}${X(x).toFixed(1)},${(Z(zAt(main.points, x) ?? ref) - 3).toFixed(1)}`).join("");
+      return at.length < 2 ? null
+        : at.map((x, k) => `${k ? "L" : "M"}${X(x).toFixed(1)},${(Z(zAt(main.points, x) ?? ref) - 3).toFixed(1)}`).join("");
     };
     drawWater(svg, profile, fine, f, main, onGround);
     const canopy = plants && fine?.vegetation?.length ? drawVegetation(svg, fine, f, trueScale) : false;
@@ -539,20 +553,24 @@ const Profil = (() => {
     const zmid = (Math.min(...all) + Math.max(...all)) / 2;
     const span = Math.max(2, (Math.max(...all) - Math.min(...all)) * 1.25);  // 2 m au moins : une route plate reste plate
     const Z = (z) => T + (zmid + span / 2 - z) / span * ph;
-    const svg = el("svg", { viewBox: `0 0 ${LW} ${LH}`, class: "profil-svg profil-long", role: "img", "aria-label": "Profil en long de la route" });
+    const svg = el("svg",
+      { viewBox: `0 0 ${LW} ${LH}`, class: "profil-svg profil-long", role: "img", "aria-label": "Profil en long de la route" });
     // graduations des hauteurs par rapport au sol sous la caméra (0), sinon au milieu
     const zStep = [0.25, 0.5, 1, 2, 5, 10].find((s) => span / s <= 5) || 20, base = zs[ds.indexOf(0)] ?? zmid;
     for (let r = Math.ceil((zmid - span / 2 - base) / zStep) * zStep; base + r <= zmid + span / 2; r += zStep) {
       svg.append(el("line", { x1: L, x2: L + pw, y1: Z(base + r), y2: Z(base + r), class: r ? "grille" : "grille zero" }),
-        el("text", { x: L - 6, y: Z(base + r) + 4, class: "graduation", "text-anchor": "end" }, `${r > 0 ? "+" : ""}${num(r, zStep < 1 ? 2 : 0)}`));
+        el("text", { x: L - 6, y: Z(base + r) + 4, class: "graduation", "text-anchor": "end" },
+          `${r > 0 ? "+" : ""}${num(r, zStep < 1 ? 2 : 0)}`));
     }
     for (let d = Math.ceil(d0 / 10) * 10; d <= d1; d += 10) {
       svg.append(el("line", { x1: X(d), x2: X(d), y1: T, y2: T + ph, class: d ? "grille" : "grille zero" }),
-        el("text", { x: X(d), y: T + ph + 14, class: "graduation", "text-anchor": "middle" }, `${d > 0 ? "+" : d < 0 ? "−" : ""}${Math.abs(d)} m`));
+        el("text", { x: X(d), y: T + ph + 14, class: "graduation", "text-anchor": "middle" },
+          `${d > 0 ? "+" : d < 0 ? "−" : ""}${Math.abs(d)} m`));
     }
     const path = long.points.map(([d, z], k) => `${k ? "L" : "M"}${X(d).toFixed(1)},${Z(z).toFixed(1)}`).join("");
     const [first, last] = [Math.min(...ds), Math.max(...ds)];
-    svg.append(el("path", { d: `${path}L${X(last)},${T + ph}L${X(first)},${T + ph}Z`, class: "terre" }), el("path", { d: path, class: "sol" }));
+    svg.append(el("path", { d: `${path}L${X(last)},${T + ph}L${X(first)},${T + ph}Z`, class: "terre" }),
+      el("path", { d: path, class: "sol" }));
     if (long.max) {  // pente la plus forte sur 10 m
       const [, a, b] = long.max, za = zs[ds.indexOf(a)], zb = zs[ds.indexOf(b)];
       svg.append(el("line", { x1: X(a), y1: Z(za), x2: X(b), y2: Z(zb), class: "devers" }));
@@ -589,7 +607,8 @@ const Profil = (() => {
       svg.append(label);
     }
     const g = long.pente;
-    svg.append(el("text", { x: L, y: 18, class: "etiquette-profil" }, `Profil en long\u00a0: ${g >= 0 ? "montée" : "descente"} de ${num(Math.abs(g))} %`
+    svg.append(el("text", { x: L, y: 18, class: "etiquette-profil" },
+      `Profil en long\u00a0: ${g >= 0 ? "montée" : "descente"} de ${num(Math.abs(g))} %`
         + (long.max ? `, jusqu'à ${num(Math.abs(long.max[0]))} % sur 10 m` : "")),
       el("text", { x: L + pw, y: LH - 4, class: "graduation", "text-anchor": "end" }, "sens de la photo →"),
       el("text", { x: L, y: LH - 4, class: "graduation" },
@@ -616,10 +635,12 @@ ${fonts}<link rel="stylesheet" href="${esc(stylesheet)}"><style>
 @page { size: A4 landscape; margin: 0; }
 html, body { background: #fff; height: auto; overflow: visible; }
 body { margin: 0; display: block; font-family: Inter, Arial, sans-serif; color: #1c1c1c; }
-.page { box-sizing: border-box; flex: none; width: 297mm; height: 210mm; padding: 9mm 11mm 7mm; display: flex; flex-direction: column; overflow: hidden;
+.page { box-sizing: border-box; flex: none; width: 297mm; height: 210mm; padding: 9mm 11mm 7mm;
+  display: flex; flex-direction: column; overflow: hidden;
   break-after: page; }
 .page:last-child { break-after: auto; }
-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 8mm; border-bottom: 2.5px solid #e65100; padding-bottom: 2.5mm; }
+header { display: flex; justify-content: space-between; align-items: flex-end; gap: 8mm;
+  border-bottom: 2.5px solid #e65100; padding-bottom: 2.5mm; }
 h1 { margin: 0; font-size: 20px; letter-spacing: -0.2px; }
 .lieu { font-size: 14px; color: #444; margin-top: 3px; } .lieu b { color: #1c1c1c; font-weight: 600; }
 .date { font-size: 11px; color: #555; text-align: right; white-space: nowrap; }
@@ -633,7 +654,8 @@ dialog.profil .legende { font-size: var(--legende, 8.5px); line-height: 1.35; co
 dialog.profil .legende ul { margin: 0 0 1mm; padding-left: 1.1em; }
 dialog.profil .legende li { margin: 0.4mm 0; break-inside: avoid; }
 dialog.profil .legende p.aide { font-size: 1em; margin: 0 0 0.8mm; break-inside: avoid; }
-footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #ddd; font-size: 8px; color: #666; display: flex; justify-content: space-between; }
+footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #ddd; font-size: 8px; color: #666;
+  display: flex; justify-content: space-between; }
 </style></head><body><div class="page">${head("Profil en travers")}
 <dialog class="profil" open><div class="graphique">${svg.outerHTML}</div>
 <div class="legende">${first.innerHTML}</div></dialog>${foot}</div>${long ? `

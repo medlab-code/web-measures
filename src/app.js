@@ -365,7 +365,8 @@
       });
       nuage.set(nuageKey(profile), found);
       // Bords d'enrobé trouvés : plateforme, chute et dévers du profil relus depuis eux
-      const paved = Object.fromEntries(Object.entries(found.bords).filter(([, b]) => b?.comment === "enrobé").map(([side, b]) => [side, Math.abs(b.x)]));
+      const paved = Object.fromEntries(Object.entries(found.bords).filter(([, b]) => b?.comment === "enrobé")
+        .map(([side, b]) => [side, Math.abs(b.x)]));
       if (Object.keys(paved).length) {
         app.use_paved_edges(JSON.stringify(profile.repere), JSON.stringify(paved));
         refresh();
@@ -384,7 +385,8 @@
     const id = psv?.getPictureMetadata?.()?.id || "photo";
     const save = await saveAs(`profil-${edgeProfile?.road || "route"}-${id.slice(0, 8)}.png`, "image/png");  // au clic
     if (!save) return;
-    await save(await Profil.png(dialog.querySelector("svg"), title, dialog.querySelector(".legende"), dialog.querySelector("svg.profil-long")));
+    await save(await Profil.png(dialog.querySelector("svg"), title, dialog.querySelector(".legende"),
+      dialog.querySelector("svg.profil-long")));
     setStatus("Profil enregistré en PNG.");
   });
   $("#profil-pdf-long").checked = store.get("profil-pdf-long") === "1";
@@ -868,7 +870,8 @@
     const manual = tilt === "non" && !calibrating;
     const before = tilt === "avant" && !calibrating;  // calcul lancé au premier clic sur la photo
     // Longueur sur la carte : la vue du dessus a sa propre inclinaison (verticales ou pente de la route, voir sa barre d'état)
-    message.hidden = !measuring || triangulating || $("#mode").value === "carte" || !(calibrating || tilt === "attente" || manual || before);
+    message.hidden = !measuring || triangulating || $("#mode").value === "carte"
+      || !(calibrating || tilt === "attente" || manual || before);
     message.classList.toggle("manuel", manual);
     message.classList.toggle("calage", calibrating);
     message.classList.toggle("attente", tilt === "attente");  // petite roue : calcul en cours
@@ -1106,8 +1109,8 @@
       if (r.kind === "point" && !r.releve) {  // point de référence : sa fiche PDF, avec ses mesures
         const sheet = Object.assign(document.createElement("button"), {
           type: "button", className: "fiche", title: "Fiche PDF de ce point et de ses mesures (impression du navigateur)",
-          innerHTML: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
-            + '<path d="M7 3h7l5 5v13H7z M14 3v5h5" stroke-linejoin="round"/></svg>',
+          innerHTML: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+            + 'aria-hidden="true"><path d="M7 3h7l5 5v13H7z M14 3v5h5" stroke-linejoin="round"/></svg>',
         });
         sheet.setAttribute("aria-label", `Fiche PDF : ${r.text}`);
         sheet.addEventListener("click", () => askFiche(r.id, r.text));
@@ -1196,7 +1199,8 @@
     const on = shown && $("#dessus").checked;
     if (photo) Carte.showView(map, photo.geometry.coordinates, coneHeading(), viewFov());  // cône retiré ou remis
     const inMap = (selector) => mapBox.querySelector(selector);  // réglages sur la carte, peut-être détachée
-    for (const id of ["#dessus-fine", "#dessus-voisines", "#dessus-position", "#dessus-bords", "#dessus-sans-cache"]) inMap(id).disabled = !on;
+    for (const id of ["#dessus-fine", "#dessus-voisines", "#dessus-position", "#dessus-bords", "#dessus-sans-cache"])
+      inMap(id).disabled = !on;
     if (!on) {  // allumée : selon la vue (Dessus)
       for (const id of ["#dessus-verticales", "#dessus-devers", "#dessus-tangage", "#dessus-tangage-force"]) inMap(id).disabled = true;
     }
@@ -1273,7 +1277,8 @@
     wantSwap();
   });
   map.addControl({
-    onAdd: () => Object.assign(document.createElement("div"), { className: "maplibregl-ctrl maplibregl-ctrl-group" }).appendChild(swapButton).parentNode,
+    onAdd: () => Object.assign(document.createElement("div"),
+      { className: "maplibregl-ctrl maplibregl-ctrl-group" }).appendChild(swapButton).parentNode,
     onRemove: () => {},
   }, "top-left");
   // Carte en grand ou détachée : « Mesurer une longueur », sans passer par le mode du bandeau (même mesure que le mode « carte »)
@@ -1300,14 +1305,16 @@
   });
   // Capture de la carte (vue Bird Eye et mesures, étiquettes comprises), téléchargée en PNG ; grisé Bird Eye éteinte
   const captureButton = Object.assign(document.createElement("button"), { type: "button", className: "capture-carte", hidden: true,
-    innerHTML: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">'
-      + '<path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    innerHTML: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+      + 'stroke-linejoin="round" aria-hidden="true"><path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>',
     title: "Capture de la carte : vue Bird Eye et mesures, en image PNG", ariaLabel: "Capture de la carte" });
   captureButton.addEventListener("click", async () => {
     captureButton.disabled = true;
     try {
-      const blob = await Carte.capture(map), url = URL.createObjectURL(blob), stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
-      Object.assign(document.createElement("a"), { href: url, download: `bird-eye-${(photo?.id || "carte").slice(0, 8)}-${stamp}.png` }).click();
+      const blob = await Carte.capture(map), url = URL.createObjectURL(blob);
+      const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+      Object.assign(document.createElement("a"),
+        { href: url, download: `bird-eye-${(photo?.id || "carte").slice(0, 8)}-${stamp}.png` }).click();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
     } catch (error) {
       console.warn("Capture de la carte :", error);
@@ -1318,8 +1325,8 @@
   // Export géoréférencé de la vue Bird Eye pour un SIG (GeoTIFF en Lambert 93) ; grisé Bird Eye éteinte
   const exportButton = Object.assign(document.createElement("button"), { type: "button", className: "capture-carte", hidden: true,
     // carte pliée et repère (géoréférencée)
-    innerHTML: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">'
-      + '<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>',
+    innerHTML: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+      + 'stroke-linejoin="round" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>',
     title: "Vue Bird Eye géoréférencée pour un SIG (QGIS…) : GeoTIFF en Lambert 93, la vue seule, sans fond de carte ni mesures",
     ariaLabel: "Export géoréférencé de la vue Bird Eye" });
   exportButton.addEventListener("click", async () => {
@@ -1353,13 +1360,15 @@
     const on = measuring && $("#mode").value === "carte";
     measureButton.setAttribute("aria-pressed", String(on));
     measureButton.textContent = on ? "📏 Arrêter la mesure" : "📏 Mesurer une longueur";
-    measureButton.title = on ? "Arrêter la mesure de longueur sur la carte" : "Mesurer une longueur sur la vue Bird Eye : deux clics sur la carte";
+    measureButton.title = on ? "Arrêter la mesure de longueur sur la carte"
+      : "Mesurer une longueur sur la vue Bird Eye : deux clics sur la carte";
     measureButton.disabled = !on && ($("#dessus").disabled || $("#mode").disabled);
     const bird = $("#dessus").checked;
     birdeyeButton.setAttribute("aria-pressed", String(bird));
     birdeyeButton.disabled = $("#dessus").disabled;
     captureButton.disabled = exportButton.disabled = !bird || $("#dessus").disabled;  // rien de Bird Eye à capturer
-    birdeyeButton.title = bird ? "Éteindre la vue Bird Eye" : "Vue Bird Eye de cette photo (calculée pour elle seule : une autre photo l'éteint)";
+    birdeyeButton.title = bird ? "Éteindre la vue Bird Eye"
+      : "Vue Bird Eye de cette photo (calculée pour elle seule : une autre photo l'éteint)";
   }
   Dessus.setup(map, (on) => {
     measureSwap = on;
@@ -1671,7 +1680,8 @@
       || (photo && near.some((r) => r.id === photo.id || r.sequence === photo.collection))) return;
     const dialog = $("#alerte-recalage");
     dialog.querySelector("p").textContent = photo
-      ? `Des objets de la couche ont été recalés sur une autre séquence de cette voie, à ${Math.round(near[0].d)} m. Aller sur cette photo ?`
+      ? "Des objets de la couche ont été recalés sur une autre séquence de cette voie, "
+        + `à ${Math.round(near[0].d)} m. Aller sur cette photo ?`
       : "Des objets de la couche ont été recalés dans des photos. Ouvrir la plus proche ?";
     dialog.returnValue = "";
     dialog.addEventListener("close", async () => {
@@ -2251,15 +2261,17 @@
     showOverlayStyle();
     saveOverlay();
   }
-  const readFilter = () => ({ colonne: $("#couche-filtre").value, op: $("#couche-filtre-op").value, valeur: $("#couche-filtre-valeur").value });
+  const readFilter = () => ({ colonne: $("#couche-filtre").value, op: $("#couche-filtre-op").value,
+    valeur: $("#couche-filtre-valeur").value });
   for (const id of ["#couche-filtre", "#couche-filtre-op"]) $(id).addEventListener("change", () => setOverlayFilter(readFilter()));
   $("#couche-filtre-valeur").addEventListener("input", () => setOverlayFilter(readFilter()));  // à chaque lettre
   $("#couche-filtre-effacer").addEventListener("click", () => setOverlayFilter({}));
 
-  const EYE_OPEN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
-    + '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
-  const EYE_SHUT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
-    + '<path d="M3 3l18 18M10.6 6.1A9.7 9.7 0 0112 6c6.5 0 10 6 10 6a17 17 0 01-3.2 3.9M6.6 6.6C3.8 8.4 2 12 2 12s3.5 6 10 6a9.6 9.6 0 004.4-1" stroke-linecap="round"/></svg>';
+  const EYE_OPEN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+    + 'aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const EYE_SHUT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+    + 'aria-hidden="true"><path d="M3 3l18 18M10.6 6.1A9.7 9.7 0 0112 6c6.5 0 10 6 10 6a17 17 0 01-3.2 3.9'
+    + 'M6.6 6.6C3.8 8.4 2 12 2 12s3.5 6 10 6a9.6 9.6 0 004.4-1" stroke-linecap="round"/></svg>';
 
   /** Réglages des deux étiquettes de la photo : [{ column, titled, suffix }]. */
   const overlayLabels = () => ["", "2"].map((n) => ({ column: $(`#couche-etiquette${n}`).value,
@@ -2379,7 +2391,8 @@
     const value = (i, key) => (key ? Couche.format(overlay.features[i].properties[key]) : overlayObjectName(i));
     const query = $("#objets-recherche").value.trim().toLowerCase();
     const hidden = overlayHiddenTest();
-    objectOrder = overlay.features.map((_, i) => i).filter((i) => !hidden(overlay.features[i])).filter((i) => !query || [overlayObjectName(i),
+    objectOrder = overlay.features.map((_, i) => i).filter((i) => !hidden(overlay.features[i]))
+      .filter((i) => !query || [overlayObjectName(i),
       ...Object.values(overlayProperties(overlay.features[i])).map(Couche.format)].some((v) => v.toLowerCase().includes(query)));
     const { key, up } = objectSort;
     if (key || !up) {
@@ -2417,7 +2430,8 @@
       : "Cliquez un objet du tableau, ou ▶";
     $("#objet-statut").value = p.verif || "";
     if (document.activeElement !== $("#objet-note")) $("#objet-note").value = p.verif_note || "";
-    for (const tr of $("#objets-lignes").children) tr.setAttribute("aria-selected", String(objectOrder[tr.sectionRowIndex] === objectCurrent));
+    for (const tr of $("#objets-lignes").children)
+      tr.setAttribute("aria-selected", String(objectOrder[tr.sectionRowIndex] === objectCurrent));
   }
 
   /** Attributs de l'objet du parcours, modifiables (sans les colonnes techniques d'un relevé, ni statut et
@@ -2427,7 +2441,8 @@
   let attributesKey = "";
   function showObjectAttributes() {
     const on = overlay && objectCurrent != null;
-    const columns = on ? overlay.columns.filter((c) => !(overlay.techniques || []).includes(c) && !["verif", "verif_note"].includes(c)) : [];
+    const columns = on
+      ? overlay.columns.filter((c) => !(overlay.techniques || []).includes(c) && !["verif", "verif_note"].includes(c)) : [];
     const key = on ? `${objectCurrent}|${columns.join("|")}` : "";
     if (key === attributesKey) return;
     attributesKey = key;
@@ -2514,7 +2529,8 @@
       const next = Number(top) + 1;
       properties[idColumn] = typeof top === "number" ? next : String(next).padStart(String(top).trim().length, "0");
     }
-    overlay.features.push({ type: "Feature", id: overlay.features.length, geometry: { type: "Point", coordinates: [lng, lat] }, properties });
+    overlay.features.push({ type: "Feature", id: overlay.features.length,
+      geometry: { type: "Point", coordinates: [lng, lat] }, properties });
     objectEdited(true);
     setStatus("Objet ajouté à la couche : saisissez ses attributs sous le statut.");
     goToObject(overlay.features.length - 1);
@@ -2566,7 +2582,8 @@
 
   /** Couche en place (lue d'un fichier, ou gardée) : calcul, réglages, carte ; cadrée dessus si fit. */
   // mapLabel : colonne de l'étiquette de la mini-carte ; null : « id » (sans tenir compte de la casse), sinon la première
-  function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}, masks = {}, mapLabel = null, label2 = "") {
+  function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}, masks = {},
+    mapLabel = null, label2 = "") {
     overlay = { name, ...read, couleurs: colors, masques: masks };  // masques : { colonne: [clés de légende masquées] }
     if (!overlay.filtre?.colonne || !read.columns.includes(overlay.filtre.colonne)) overlay.filtre = null;  // gardé (restoreOverlay)
     moving = null;  // couleurs choisies : { colonne: { clé de légende: couleur } }
@@ -2624,7 +2641,8 @@
   /** Couche et ses réglages tels que gardés dans le navigateur (restoreOverlay, dossier de travail). */
   function overlaySaved() {
     const { name, features, columns, crs, couleurs, masques, fiche, filtre } = overlay;
-    return { name, columns, crs, couleurs, masques, fiche, filtre, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
+    return { name, columns, crs, couleurs, masques, fiche, filtre, couleur: $("#couche-couleur").value,
+      etiquette: $("#couche-etiquette").value,
       intitule: $("#couche-intitule").checked, suffixe: $("#couche-suffixe").value, etiquetteCarte: $("#couche-etiquette-carte").value,
       etiquette2: $("#couche-etiquette2").value, intitule2: $("#couche-intitule2").checked, suffixe2: $("#couche-suffixe2").value,
       modifie: Boolean(overlay.modifie), dateFichier: overlay.dateFichier ?? null,
@@ -2666,7 +2684,8 @@
     let handles;
     try {
       handles = await window.showOpenFilePicker({ multiple: true, types: [{ description: "Couches (GeoJSON, Shapefile, GeoPackage, CSV)",
-        accept: { "application/octet-stream": [".geojson", ".json", ".zip", ".shp", ".dbf", ".prj", ".cpg", ".shx", ".gpkg", ".csv", ".txt"] } }] });
+        accept: { "application/octet-stream": [".geojson", ".json", ".zip", ".shp", ".dbf", ".prj", ".cpg", ".shx",
+          ".gpkg", ".csv", ".txt"] } }] });
     } catch (error) {
       if (error.name !== "AbortError") $("#couche-fichier").click();  // sélecteur refusé : champ de fichier
       return;
@@ -2715,7 +2734,8 @@
     }
   }
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  /** Sorte d'un fichier JSON lu, d'après son contenu : « couche », « dossier », « parcours », « modeles », « calage », « favoris » ou "". */
+  /** Sorte d'un fichier JSON lu, d'après son contenu : « couche », « dossier », « parcours », « modeles », « calage », « favoris »
+   * ou "". */
   function jsonKind(d) {
     if (d?.type === "FeatureCollection" || d?.type === "Feature") return "couche";
     if (d?.format === DOSSIER_FORMAT) return "dossier";
@@ -2755,7 +2775,8 @@
       setStatus("Lecture de la couche…");
       // GeoPackage de plusieurs tables : celle à afficher, par son numéro
       const choose = (names) => (names.length < 2 ? names[0]
-        : names[Number(prompt(`Tables du GeoPackage :\n${names.map((n, i) => `${i + 1}. ${n}`).join("\n")}\n\nNuméro de la table à afficher :`, "1")) - 1]);
+        : names[Number(prompt(`Tables du GeoPackage :\n${names.map((n, i) => `${i + 1}. ${n}`).join("\n")}\n\n`
+          + "Numéro de la table à afficher :", "1")) - 1]);
       const { name, ...read } = await Couche.readFiles(files, choose);
       // Mesures exportées (App._records) : leur valeur en étiquette, la première revue sur sa photo
       const review = read.columns.includes("vue_ref") ? read.features.findIndex((f) => f.properties.photo_ref) : -1;
@@ -2793,7 +2814,8 @@
   const overlayBaseName = () => overlay.name.replace(/\.(geojson|json|zip|shp|gpkg|csv|txt)\b.*$/i, "").replace(/[\\/:*?"<>|]/g, "-");
   /** La couche en GeoJSON (WGS 84), recalages dans les photos compris. */
   const overlayGeojson = () => JSON.stringify({ type: "FeatureCollection",
-    features: overlay.features.map((f) => ({ type: "Feature", geometry: f.geometry, recalages: f.recalages, properties: overlayProperties(f) })) });
+    features: overlay.features.map((f) => ({ type: "Feature", geometry: f.geometry, recalages: f.recalages,
+      properties: overlayProperties(f) })) });
   /** Export GeoJSON avec les recalages, à importer sur un autre poste ; vrai si enregistré. */
   async function exportOverlay() {
     const content = overlayGeojson();
@@ -2845,7 +2867,8 @@
         // Fichier inchangé depuis l'import ou le dernier enregistrement : écrit sans rien demander ; changé
         // entre-temps (QGIS…) : écraser, l'enregistrer ailleurs, ou rien ; effacé ou déplacé : ailleurs
         const file = allowed ? await handle.getFile().catch((e) => (e.name === "NotFoundError" ? null : Promise.reject(e))) : null;
-        if (allowed && !file) setStatus(`Fichier « ${handle.name} » introuvable (effacé ou déplacé) : choisissez où enregistrer la couche.`);
+        if (allowed && !file)
+          setStatus(`Fichier « ${handle.name} » introuvable (effacé ou déplacé) : choisissez où enregistrer la couche.`);
         const date = file?.lastModified;
         const choice = !file ? "sous" : overlay.dateFichier == null || date === overlay.dateFichier ? "ecraser"
           : await ask($("#fichier-change"), `Le fichier « ${handle.name} » a été modifié le ${new Date(date).toLocaleString("fr-FR")}, `
@@ -3184,7 +3207,8 @@
       // au point sélectionné, changeraient le mode ou relanceraient le bouton : onNudgeKey les lui laisse)
       psv.container.addEventListener("pointerdown", (event) => {
         const active = document.activeElement;
-        if (event.target.closest?.(".psv-canvas-container, .psv-markers") && active?.matches?.("input, select, textarea, button")) active.blur();
+        if (event.target.closest?.(".psv-canvas-container, .psv-markers") && active?.matches?.("input, select, textarea, button"))
+          active.blur();
       });
       psv.container.addEventListener("pointerleave", () => slideOnGuide(null));
       attachPlayer();
@@ -3400,7 +3424,8 @@
         if (!response.ok) {
           const detail = await response.json().then((d) => d.message).catch(() => "");
           if (response.status === 404 && /last available rank/.test(detail)) return;  // au-delà de la fin de la séquence
-          throw new Error(`Panoramax, photos de la séquence ${(run.collection || "").slice(0, 8)} : HTTP ${response.status}${detail ? ` (${detail})` : ""}`);
+          throw new Error(`Panoramax, photos de la séquence ${(run.collection || "").slice(0, 8)} : `
+            + `HTTP ${response.status}${detail ? ` (${detail})` : ""}`);
         }
         for (const f of (await response.json()).features || []) {
           const rank = Number(f.properties?.["geovisio:rank_in_collection"]);
@@ -3599,7 +3624,8 @@
         const sign = Math.sign(endRank - rank);
         const go = Requeteur.bearing(from, p.coords);
         const after = sign ? path.points.get(rank + sign)?.coords : null;
-        const turn = (Number.isFinite(heading) ? angleBetween(heading, go) : 0) + (after ? angleBetween(go, Requeteur.bearing(p.coords, after)) : 0);
+        const turn = (Number.isFinite(heading) ? angleBetween(heading, go) : 0)
+          + (after ? angleBetween(go, Requeteur.bearing(p.coords, after)) : 0);
         const score = turn + Math.max(0, d - 5);
         if (score < best.score) best = { collection, rank, score, sign };
       }
@@ -3794,7 +3820,8 @@
     }
     if (out.length < 2) return null;
     return { photos: out, switches, reversed, dates: [...dates].filter(Boolean).sort(),
-      warning: switches ? "Le parcours passe d'une séquence à l'autre : les photos peuvent différer (date, lumière, sens de prise de vue)." : "" };
+      warning: switches
+        ? "Le parcours passe d'une séquence à l'autre : les photos peuvent différer (date, lumière, sens de prise de vue)." : "" };
   }
   /** Points du tracé line ([lon, lat]) tous les ALONG_STEP m, avec le cap de la route : [{ at, heading }]. */
   function stationsAlong(line) {
@@ -3831,7 +3858,8 @@
         const d = metresBetween(at, f.geometry.coordinates);
         const azimuth = Number(f.properties?.["view:azimuth"]);
         if (d > ALONG_NEAR || !Number.isFinite(azimuth)) continue;
-        const back = angleBetween(azimuth, heading) < ALONG_ANGLE ? false : angleBetween(azimuth + 180, heading) < ALONG_ANGLE ? true : null;
+        const back = angleBetween(azimuth, heading) < ALONG_ANGLE ? false
+          : angleBetween(azimuth + 180, heading) < ALONG_ANGLE ? true : null;
         if (back == null) continue;
         const key = `${f.collection}|${back}`;
         if (!best.has(key) || d < best.get(key).d) best.set(key, { f, d, back });
@@ -3982,7 +4010,8 @@
   function traceNext(which) {
     setTravelPick(which);
     tracing = true;
-    setStatus(`Tracé : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", waypoint: "une étape, si besoin" }[which]} ; Échap pour terminer.`);
+    setStatus(`Tracé : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", waypoint: "une étape, si besoin" }[which]} ; `
+      + "Échap pour terminer.");
     updatePlayer();
   }
   async function pickTravelPoint(lngLat) {
@@ -4105,7 +4134,8 @@
     poiTargets = new Map(objects.map((o) => [String(o.values.id), { lonlat: [o.lon, o.lat], z: o.values.z_ngf ?? null }]));
     // Cible d'un parcours gardé qui n'est pas dans ce relevé (parcours importé) : proposée aussi
     if (poiKept) {
-      select.append(Object.assign(document.createElement("option"), { value: "parcours", textContent: `${poiKept.label} (parcours gardé)` }));
+      select.append(Object.assign(document.createElement("option"),
+        { value: "parcours", textContent: `${poiKept.label} (parcours gardé)` }));
       poiTargets.set("parcours", poiKept);
     }
     poiJson = json;
@@ -4164,7 +4194,8 @@
     if (map.getSource(PLANETS_ID)) map.getSource(PLANETS_ID).setData(data);
     else if (lines.length) {
       map.addSource(PLANETS_ID, { type: "geojson", data });
-      map.addLayer({ id: PLANETS_ID, type: "line", source: PLANETS_ID, paint: { "line-color": "#283593", "line-width": 6, "line-opacity": 0.8 } });
+      map.addLayer({ id: PLANETS_ID, type: "line", source: PLANETS_ID,
+        paint: { "line-color": "#283593", "line-width": 6, "line-opacity": 0.8 } });
     }
   }
   // Réglettes du point d'intérêt : valeur affichée ; la vitesse change la durée de la vidéo
@@ -4264,7 +4295,8 @@
       since: /^\d{4}-\d{2}-\d{2}$/.test(r.since) ? r.since : null,
       // Absents d'un parcours gardé avant le ticket #40 : à l'ouverture, ceux en cours ne changent pas
       ...(typeof r.instance === "string" ? { instance: text(r.instance, 200) } : {}),
-      ...("producer" in r ? { producer: Array.isArray(r.producer) && r.producer.length === 2 && r.producer.every((v) => typeof v === "string")
+      ...("producer" in r
+        ? { producer: Array.isArray(r.producer) && r.producer.length === 2 && r.producer.every((v) => typeof v === "string")
         ? r.producer.map((v) => v.slice(0, 200)) : null } : {}),
     };
   }
@@ -4272,10 +4304,12 @@
    * en cours) : filtre producteur retiré, le parcours se fait avec les photos qui restent. Réseau en échec : filtre gardé. */
   async function dropMissingProducer(r) {
     if (!r.producer) return;
-    const fromProducer = (f) => (f.providers || f.properties?.providers || []).some((p) => p.id === r.producer[0] && p.roles?.includes("producer"));
+    const fromProducer = (f) => (f.providers || f.properties?.providers || []).some((p) => p.id === r.producer[0]
+      && p.roles?.includes("producer"));
     const near = await Promise.all([r.travel.start.point, r.travel.end.point].filter(Boolean)
       .map((p) => Carte.photosNear(map, ...p, fromProducer, TOUR_REACH))).catch(() => null);
-    if (!near || near.some((found) => found.length) || openedRoute !== r.id || $("#producteur").value !== JSON.stringify(r.producer)) return;
+    if (!near || near.some((found) => found.length) || openedRoute !== r.id || $("#producteur").value !== JSON.stringify(r.producer))
+      return;
     $("#producteur").value = "";
     applyFilter();
     markOpened(r.id);  // pas une modification du parcours : il garde son producteur
@@ -4333,7 +4367,8 @@
     }
     markOpened(r.id);
     dropMissingProducer(r);
-    setStatus(`Parcours « ${r.name} » rouvert : « 🎬 Préparer la vidéo » pour la calculer ; modifié, « ☆ Enregistrer les modifications » le remplace.`);
+    setStatus(`Parcours « ${r.name} » rouvert : « 🎬 Préparer la vidéo » pour la calculer ; `
+      + "modifié, « ☆ Enregistrer les modifications » le remplace.");
   }
   // Effets « communication » : pastille jaune sur le parcours gardé si l'un d'eux est activé, verte sinon
   // Modes de la vidéo : réglages de départ des options (avancées), appliqués au choix du mode et retouchables ensuite ;
@@ -4342,10 +4377,12 @@
     brouillon: { help: "Vérifier vite le trajet : allure de la présentation, image 960 × 540, titre et compteur de vitesse.",
       on: ["video-brouillon", "video-compteur", "video-compteur-vitesse", "video-titre"],
       off: ["video-acceleration", "video-vmax-arp", "video-flou", "video-expo", "video-rampe"] },
-    presentation: { help: "Vue rapide de l'itinéraire : vitesse selon les virages, compteurs PR et vitesse, sans option coûteuse en calcul.",
+    presentation: { help: "Vue rapide de l'itinéraire : vitesse selon les virages, compteurs PR et vitesse, "
+      + "sans option coûteuse en calcul.",
       on: ["video-compteur", "video-compteur-vitesse", "video-titre"],
       off: ["video-brouillon", "video-acceleration", "video-vmax-arp", "video-flou", "video-expo", "video-rampe"] },
-    revue: { help: "Vitesse fixe : compteurs PR et vitesse, accélération latérale et V max ARP. Dévers lu sur le LiDAR HD, environ 1 min de plus.",
+    revue: { help: "Vitesse fixe : compteurs PR et vitesse, accélération latérale et V max ARP. "
+      + "Dévers lu sur le LiDAR HD, environ 1 min de plus.",
       on: ["video-compteur", "video-compteur-vitesse", "video-acceleration", "video-vmax-arp", "video-titre"],
       off: ["video-brouillon", "video-rampe"] },
   };
@@ -4455,7 +4492,8 @@
     return !t.route && [t.start, t.end].every((s) => !s.pr && !s.point && !Number(s.distance))
       && Object.values(placed).every((kind) => !kind.points.length) && !poi.zone && !poi.draft && !planetDraft && !poiKept
       && routeSettings().every((e) => (e.type === "checkbox" ? e.checked === e.defaultChecked
-        : e.tagName === "SELECT" ? e.selectedOptions[0]?.defaultSelected || (!e.selectedIndex && ![...e.options].some((o) => o.defaultSelected))
+        : e.tagName === "SELECT" ? e.selectedOptions[0]?.defaultSelected
+          || (!e.selectedIndex && ![...e.options].some((o) => o.defaultSelected))
           : e.value === e.defaultValue));
   }
   // Remise à zéro du parcours et de ses réglages (le filtre des photos et les parcours gardés ne changent pas)
@@ -4646,7 +4684,8 @@
 
   // Photos du parcours cherchées d'elles-mêmes dès que départ et arrivée sont connus (planPhotos), de nouveau s'ils changent ;
   // une réponse pour un parcours changé entre-temps est jetée
-  const planKey = () => JSON.stringify([travelFields.state(), placed.waypoint.points.map(placeOf), $("#depuis").value, instance.value, $("#producteur").value]);
+  const planKey = () => JSON.stringify([travelFields.state(), placed.waypoint.points.map(placeOf), $("#depuis").value,
+    instance.value, $("#producteur").value]);
   function scheduleVideoPlan() {
     if (videoPlan || !videoReady || !videoOk || videoPreparing || videoRun || planTimer) return;
     const key = planKey();
@@ -4710,7 +4749,8 @@
     const box = $("#video-bandeau"), plan = videoPlan;
     const failed = planError && videoReady && planError.key === planKey() ? planError.text : null;
     const searching = !plan && videoReady && !failed;
-    const key = JSON.stringify([videoReady, searching, failed, plan && plan.photos.length, plan?.title, plan && plan.photos[0]?.id, plan?.switches]);
+    const key = JSON.stringify([videoReady, searching, failed, plan && plan.photos.length, plan?.title,
+      plan && plan.photos[0]?.id, plan?.switches]);
     if (key === bandeauKey) return;
     bandeauKey = key;
     for (const marker of seamMarkers) marker.remove();
@@ -4720,7 +4760,8 @@
     const strong = (text) => Object.assign(document.createElement("strong"), { textContent: text });
     if (searching) {
       box.replaceChildren(strong("Recherche des photos le long du tracé…"),
-        Object.assign(document.createElement("progress"), { id: "video-recherche", max: 1, ariaLabel: "Avancement de la recherche des photos" }),
+        Object.assign(document.createElement("progress"),
+          { id: "video-recherche", max: 1, ariaLabel: "Avancement de la recherche des photos" }),
         Object.assign(document.createElement("p"), { className: "aide", textContent: "Relancée si le tracé change." }));
     } else if (failed) {
       box.classList.add("alerte");
@@ -4752,7 +4793,8 @@
           seamMarkers.push(new maplibregl.Marker({ element, anchor: "bottom" }).setLngLat(seam.at).addTo(map));
         }
         box.replaceChildren(strong(`${sequences} séquences : ${seams.length} changement${seams.length > 1 ? "s" : ""}`), facts, list,
-          Object.assign(document.createElement("p"), { className: "aide", textContent: "Les photos peuvent différer (date, lumière, sens de prise de vue)." }));
+          Object.assign(document.createElement("p"),
+            { className: "aide", textContent: "Les photos peuvent différer (date, lumière, sens de prise de vue)." }));
       }
     }
   }
@@ -4760,7 +4802,8 @@
   const videoSeconds = () => {
     const v = presOptions()?.vmax ?? Number($("#video-vitesse").value) / 3.6;  // Présentation : celle des lignes droites
     return Video.duration(videoPhotos(), v * 3.6, $("#video-rampe").checked,
-      videoOption("#video-regard") ? videoPlan.junctions || [] : [], Number($("#regard-vitesse").value), poiOptions(), presOptions()) + tourStops();
+      videoOption("#video-regard") ? videoPlan.junctions || [] : [], Number($("#regard-vitesse").value), poiOptions(),
+      presOptions()) + tourStops();
   };
   const secondsText = (s) => (s < 60 ? `${Math.round(s)} s` : `${Math.floor(s / 60)} min ${String(Math.round(s % 60)).padStart(2, "0")} s`);
 
@@ -4847,7 +4890,8 @@
       const size = stream ? (await save.handle.getFile()).size : blob.size;
       const away = Video.ignoredPlaces();  // repères d'effets à plus de 30 m du parcours : ignorés, signalés
       const made = Video.times, format = { avc: "H.264", hevc: "H.265", vp9: "VP9" }[made.codec];
-      const text = `Vidéo enregistrée dans « ${save.fileName} » : ${made.width} × ${made.height}, ${format}, ${(size / 1e6).toFixed(1)} Mo, `
+      const text = `Vidéo enregistrée dans « ${save.fileName} » : `
+        + `${made.width} × ${made.height}, ${format}, ${(size / 1e6).toFixed(1)} Mo, `
         + `${Math.round((Date.now() - t0) / 1000)} s de calcul.`
         + (!$("#video-brouillon").checked && format !== FORMAT_NAMES[$("#video-codec").value]
           ? ` ${FORMAT_NAMES[$("#video-codec").value]} refusé par l'encodeur du poste.` : "")
@@ -4999,7 +5043,8 @@
       const at = path.at(xs[n]);
       marker.setLngLat(at);
       const seconds = Math.floor(n / Video.FPS);
-      label.textContent = `${Math.round(frameKmh(xs, n))} km/h · ${Math.floor(seconds / 60)} min ${String(seconds % 60).padStart(2, "0")} s`;
+      label.textContent = `${Math.round(frameKmh(xs, n))} km/h · `
+        + `${Math.floor(seconds / 60)} min ${String(seconds % 60).padStart(2, "0")} s`;
       if (!map.getBounds().contains(at)) map.panTo(at);
       preview.raf = requestAnimationFrame(step);
     };
@@ -5047,7 +5092,8 @@
       || Boolean(videoPlan && plan.length < 2);
     const seconds = plan.length >= 2 && !videoRun ? videoSeconds() : 0;
     $("#parcours-video").textContent = plan.length >= 2 ? `🎬 Enregistrer la vidéo · ${secondsText(seconds)}`
-      : videoPlan ? "🎬 Pas assez de photos" : planError ? "🎬 Vidéo impossible" : videoReady ? "🎬 Recherche des photos…" : "🎬 Tracez le parcours";
+      : videoPlan ? "🎬 Pas assez de photos" : planError ? "🎬 Vidéo impossible"
+      : videoReady ? "🎬 Recherche des photos…" : "🎬 Tracez le parcours";
     $("#parcours-video").hidden = Boolean(videoRun);
     $("#parcours-video-arret").hidden = !videoRun;
     $("#video-barre").hidden = !videoRun;
@@ -5083,10 +5129,12 @@
     $("#video-mode").disabled = Boolean(videoRun);
     // Présentation et Brouillon : vitesse et rampe remplacées par l'allure ; Revue : l'inverse ; tout figé pendant le calcul
     if (presOptions()) $("#video-vitesse").disabled = $("#video-rampe").disabled = true;
-    for (const id of ["#pres-vmax", "#pres-virage", "#pres-vmin", "#pres-transition", "#arret-duree", "#video-arret", "#ralenti-vitesse", "#video-ralenti"]) {
+    for (const id of ["#pres-vmax", "#pres-virage", "#pres-vmin", "#pres-transition", "#arret-duree", "#video-arret",
+      "#ralenti-vitesse", "#video-ralenti"]) {
       $(id).disabled = Boolean(videoRun) || !presOptions();
     }
-    for (const which of ["stop", "slow"]) travelPane.querySelector(`.sur-carte[data-cote="${which}"]`).disabled = Boolean(videoRun) || !presOptions();
+    for (const which of ["stop", "slow"])
+      travelPane.querySelector(`.sur-carte[data-cote="${which}"]`).disabled = Boolean(videoRun) || !presOptions();
     if ($("#video-brouillon").checked) {
       for (const id of DRAFT_OFF) $(id).disabled = true;
       for (const which of ["stop", "roll", "tour", "planet"]) travelPane.querySelector(`.sur-carte[data-cote="${which}"]`).disabled = true;
@@ -5244,15 +5292,20 @@
     state.textContent = sighting ? "Triangulation en cours" : taking ? "Mesure en cours" : "";
     $("#mode-mesure").textContent = mode === "tri"
       ? "Mesure libre : visez chaque point depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
-      : mode === "releve" ? "Relevé d'objets : visez l'objet depuis plusieurs photos puis « Valider le point triangulé », ou gardez-le sur une seule photo"
-      : mode === "height" && aiming ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
-      : mode === "height" && newMeasure ? `Hauteur faite : cliquez une de ses croix pour l'ajuster ; autre hauteur : « Nouvelle mesure depuis ${newMeasure} »`
+      : mode === "releve"
+        ? "Relevé d'objets : visez l'objet depuis plusieurs photos puis « Valider le point triangulé », ou gardez-le sur une seule photo"
+      : mode === "height" && aiming
+        ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
+      : mode === "height" && newMeasure
+        ? `Hauteur faite : cliquez une de ses croix pour l'ajuster ; autre hauteur : « Nouvelle mesure depuis ${newMeasure} »`
       : mode === "height" ? "Hauteur, étape 2 : cliquez le sommet (le pied est le point visé) ; autre photo : par la carte"
       : mode === "road" && edgeBAiming ? "Largeur, bord opposé : le clic de la mesure est la 1re visée ; photo suivante, même bord "
         + "(réticule calé sur le trait vert, Maj : visée libre), puis « Valider le point triangulé »"
       : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), de préférence un "
-        + "repère net (fin de tiret, joint, regard) ; réticule calé sur le trait vert, Maj : visée libre ; puis « Valider le point triangulé »"
-      : mode === "road" && newMeasure ? `Largeur faite : cliquez une de ses croix pour l'ajuster ; autre largeur : « Nouvelle mesure depuis ${newMeasure} »`
+        + "repère net (fin de tiret, joint, regard) ; réticule calé sur le trait vert, Maj : visée libre ; "
+        + "puis « Valider le point triangulé »"
+      : mode === "road" && newMeasure
+        ? `Largeur faite : cliquez une de ses croix pour l'ajuster ; autre largeur : « Nouvelle mesure depuis ${newMeasure} »`
       : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé ; autre photo, prise avant ou après : par la carte"
       : mode === "carte" ? `Longueur sur la carte : cliquez ${Dessus.hasStart() ? "l'arrivée" : "le départ"} sur la vue Bird Eye, `
         + "de préférence en face de la caméra ; Échap : retirer le départ"
@@ -5329,7 +5382,8 @@
     }
     const text = `${parcel.section}|${parcel.numero}`;
     const config = { id, position: at, anchor: "center center", zIndex: OVERLAY_LABEL_Z,
-      tooltip: { content: `Parcelle cadastrale ${escapeHtml(parcel.section)} ${escapeHtml(parcel.numero)}, à 1,50 m du sol`, position: "top center" },
+      tooltip: { content: `Parcelle cadastrale ${escapeHtml(parcel.section)} ${escapeHtml(parcel.numero)}, à 1,50 m du sol`,
+        position: "top center" },
       html: `<div class="parcelle-visee"><span>${escapeHtml(parcel.section)}</span><span>${escapeHtml(parcel.numero)}</span></div>` };
     if (!shown) markers.addMarker(config);
     else markers.updateMarker(text === parcelText ? { id, position: at } : config);  // même parcelle : position seule
@@ -5552,7 +5606,8 @@
       // Incertitude attendue du point avec cette visée en plus (voir App.guide)
       const m = (v) => v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const label = choice.expect == null ? choice.label : `${choice.label} · ±${m(choice.expect)} m${choice.across ? " en travers" : ""}`;
-      const title = choice.expect == null ? choice.title : `${choice.title}. Incertitude attendue ${choice.across ? "en travers de la route" : "du point"} : `
+      const title = choice.expect == null ? choice.title
+        : `${choice.title}. Incertitude attendue ${choice.across ? "en travers de la route" : "du point"} : `
         + (choice.now == null ? `±${m(choice.expect)} m` : `±${m(choice.now)} m → ±${m(choice.expect)} m`);
       const button = Object.assign(document.createElement("button"), { type: "button",
         textContent: arrow === "◀" ? `◀ ${label}` : arrow ? `${label} ${arrow}` : label, title });
@@ -5896,7 +5951,8 @@
       Object.assign(input, { id });
       input.dataset.champ = f.nom;
       input.dataset.type = f.type;
-      const value = f.nom in values ? values[f.nom] : old && old.dataset.type === f.type ? (old.type === "checkbox" ? old.checked : old.value) : null;
+      const value = f.nom in values ? values[f.nom] : old && old.dataset.type === f.type
+        ? (old.type === "checkbox" ? old.checked : old.value) : null;
       if (f.type === "oui_non") input.checked = value === true;
       else if (value != null) input.value = String(value);
       const used = f.type === "texte" ? [...new Set(others.map((v) => v[f.nom]).filter((v) => typeof v === "string" && v.trim()))]
@@ -5982,7 +6038,8 @@
       const distinct = [...new Set(values.map(String))];
       const type = all((v) => typeof v === "number") ? "nombre" : all((v) => typeof v === "boolean") ? "oui_non"
         : all((v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? "date"
-        : all((v) => typeof v === "string" && v.length <= 40) && distinct.length <= 12 && distinct.length * 2 <= values.length ? "liste" : "texte";
+        : all((v) => typeof v === "string" && v.length <= 40) && distinct.length <= 12
+          && distinct.length * 2 <= values.length ? "liste" : "texte";
       return { nom, type, valeurs: type === "liste" ? distinct.sort((a, b) => a.localeCompare(b, "fr")) : [] };
     });
   }
@@ -6019,7 +6076,8 @@
     dialog.showModal();
   });
   $("#releve-modeles-exporter").addEventListener("click", async () => download(
-    JSON.stringify({ format: MODELES_FORMAT, modeles: releveModels() }, null, 2), await exportName("modeles-releve", "json"), "application/json"));
+    JSON.stringify({ format: MODELES_FORMAT, modeles: releveModels() }, null, 2),
+    await exportName("modeles-releve", "json"), "application/json"));
   $("#releve-modeles-importer").addEventListener("click", () => $("#releve-modeles-fichier").click());
   fileInput("#releve-modeles-fichier", importModels);
   /** Modèles de champs lus d'un fichier (name : son nom), remplaçant ceux de même nom. */
@@ -6147,7 +6205,8 @@
     $("#precedents summary").textContent = `${previous.n} résultat${previous.n > 1 ? "s" : ""} ${origin(new Date(previous.when))}`;
     $("#precedents").hidden = false;
     // onclick : un seul gestionnaire, remplacé quand d'autres résultats viennent (dossier de travail)
-    $("#precedents-csv").onclick = async () => download("\ufeff" + previous.csv, await exportName("mesures-precedentes", "csv"), "text/csv");
+    $("#precedents-csv").onclick = async () => download("\ufeff" + previous.csv,
+      await exportName("mesures-precedentes", "csv"), "text/csv");
     $("#precedents-geojson").onclick = async () => download(previous.geojson, await exportName("mesures-precedentes", "geojson"),
       "application/geo+json");
     $("#precedents-oublier").onclick = () => {
@@ -6193,7 +6252,8 @@
     const n = (k, one, many = `${one}s`) => `${k} ${k > 1 ? many : one}`;
     const releveNow = releveCount();
     const parts = [
-      d.couche?.features?.length && { key: "couche", checked: !overlay, text: `Couche « ${d.couche.name} » (${n(d.couche.features.length, "objet")})`,
+      d.couche?.features?.length
+        && { key: "couche", checked: !overlay, text: `Couche « ${d.couche.name} » (${n(d.couche.features.length, "objet")})`,
         help: overlay ? `remplacera votre couche « ${overlay.name} »` : "deviendra votre couche",
         apply: () => {
           applySavedOverlay(d.couche, true);
@@ -6201,7 +6261,8 @@
           setOverlayChanged(true);  // dans aucun fichier de ce poste
           saveOverlay();
         } },
-      d.releve?.objets?.points?.length && { key: "releve", checked: !releveNow, text: `Relevé (${n(d.releve.objets.points.length, "objet")})`,
+      d.releve?.objets?.points?.length
+        && { key: "releve", checked: !releveNow, text: `Relevé (${n(d.releve.objets.points.length, "objet")})`,
         help: releveNow ? `remplacera votre relevé (${n(releveNow, "objet")})` : "deviendra votre relevé",
         apply: () => {
           refresh(app.clear_releve());
@@ -6465,7 +6526,8 @@
       const [[w, south], [e, north]] = bounds;
       if (!asShown) map.jumpTo({ center: [(w + e) / 2, (south + north) / 2], zoom: before.zoom, bearing: 0 });
       // carte déjà immobile (vue actuelle, sans jumpTo) : « idle » ne viendrait plus, 8 s d'attente pour rien
-      if (!asShown || !map.loaded()) await Promise.race([new Promise((resolve) => map.once("idle", resolve)), new Promise((r) => setTimeout(r, 8000))]);
+      if (!asShown || !map.loaded())
+        await Promise.race([new Promise((resolve) => map.once("idle", resolve)), new Promise((r) => setTimeout(r, 8000))]);
       return await new Promise((resolve) => {  // image WebGL lue juste après son rendu
         map.once("render", () => {
           try {
@@ -6535,7 +6597,8 @@
     if (first.photo && photo?.id !== first.photo) await openPhotoReady(first.photo);
     frameView(overlayEnds(ids[0]));
     reframeFiche(showFicheFrame(), () => {  // photo choisie lue dans la visionneuse (flèches comprises)
-      makeFiches(ids, champs, title, { pitch: psv.getPosition().pitch, zoom: psv.getZoomLevel(), chosen: psv.getPictureMetadata?.()?.id || photo?.id });
+      makeFiches(ids, champs, title,
+        { pitch: psv.getPosition().pitch, zoom: psv.getZoomLevel(), chosen: psv.getPictureMetadata?.()?.id || photo?.id });
     });
     setStatus(`Cadrage type sur l'objet ${overlayObjectName(ids[0])} : réglez le zoom et la hauteur de vue (molette, glisser), `
       + "changez de photo dans la séquence si besoin ; repris pour tous les objets, le cap tourné vers chacun. "
@@ -6717,14 +6780,17 @@
 body { margin: 0; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
   font-family: Inter, Arial, sans-serif; color: #1c1c1c; background: #f5f5f3; }
 .cercle { position: relative; width: 78px; height: 78px; }
-.roue { position: absolute; inset: 0; border: 7px solid #ffd8bf; border-top-color: #e65100; border-radius: 50%; animation: tour 0.9s linear infinite; }
-#pourcent { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; color: #e65100; }
+.roue { position: absolute; inset: 0; border: 7px solid #ffd8bf; border-top-color: #e65100; border-radius: 50%;
+  animation: tour 0.9s linear infinite; }
+#pourcent { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 17px; font-weight: 700; color: #e65100; }
 @keyframes tour { to { transform: rotate(360deg); } }
 h1 { margin: 0; font-size: 28px; } #etape { font-size: 17px; color: #444; min-height: 1.4em; }
 p.aide { margin: 0; font-size: 14px; color: #555; }
 @media (prefers-reduced-motion: reduce) { .roue { animation-duration: 3s; } }
 </style></head><body><div class="cercle"><div class="roue"></div>
-<div id="pourcent" role="progressbar" aria-label="Préparation en cours" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">0 %</div></div>
+<div id="pourcent" role="progressbar" aria-label="Préparation en cours"
+  aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">0 %</div></div>
 <h1>Préparation de la fiche…</h1><div id="etape" aria-live="polite">Ouverture de la photo de la mesure</div>
 <p class="aide">Quelques secondes : la photo est cadrée et capturée, puis la boîte d'impression s'ouvre.</p></body></html>`);
     win.document.close();
@@ -6849,7 +6915,8 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     if (auto?.zoom !== undefined && ends.length) {
       psv.rotate({ yaw: ends[0][0], pitch: auto.pitch });
       psv.zoom(auto.zoom);
-    } else frameView(ends, false, layered ? null : { aspect: FICHE_PHOTO.width / FICHE_PHOTO.height, margin: data.kind === "height" ? 1 / 0.75 : 1.25 });
+    } else frameView(ends, false,
+    layered ? null : { aspect: FICHE_PHOTO.width / FICHE_PHOTO.height, margin: data.kind === "height" ? 1 / 0.75 : 1.25 });
     await viewSettled();
     if (auto && !layered && data.kind !== "height") {  // largeur : un peu de recul autour de la ligne ; hauteur : cadrage seul
       psv.zoom(Math.max(0, psv.getZoomLevel() - FICHE_UNZOOM));
@@ -6860,7 +6927,8 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     // Recadrée autour de la mesure : au bord de la photo, la vue ne peut pas se centrer dessus
     const view = thumbnail(), scale = view.width / psv.container.clientWidth;
     const xy = ends.map(([yaw, pitch]) => psv.dataHelper.sphericalCoordsToViewerCoords({ yaw, pitch }));
-    const center = xy.length ? [xy.reduce((t, p) => t + p.x, 0) / xy.length * scale, xy.reduce((t, p) => t + p.y, 0) / xy.length * scale] : null;
+    const center = xy.length
+      ? [xy.reduce((t, p) => t + p.x, 0) / xy.length * scale, xy.reduce((t, p) => t + p.y, 0) / xy.length * scale] : null;
     const picture = cropCenter(view, FICHE_PHOTO.width / FICHE_PHOTO.height, Infinity, center);
     step("Capture de la mini-carte", 75);
     if (layered && photo) {  // l'objet et la photo de la fiche
@@ -6918,12 +6986,14 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
         `<tr><td class='pt'>${e(k)}</td><td>${e(Couche.format(v))}</td></tr>`).join("")}</tbody>`
       : null;
     const rows = data.rows.map((r) => `<tr class='${r.kind}'><td class='pt'>${e(r.point)}</td><td>${e(r.mesure)}</td>`
-      + `<td class='num'>${e(r.valeur || "—")}</td><td class='num'>${e(r.incert || "—")}</td><td class='com'>${e(r.commentaire || "")}</td></tr>`).join("");
+      + `<td class='num'>${e(r.valeur || "—")}</td><td class='num'>${e(r.incert || "—")}</td>`
+      + `<td class='com'>${e(r.commentaire || "")}</td></tr>`).join("");
     // Position de la photo, puis une ligne courte par mesure
     // (sans l'état de l'inclinaison ni son alerte : position seulement)
     const position = (state.quality || "").replace(/^⚠\s*/, "").split(" · ").filter((t) => !t.startsWith("inclinaison")).join(" · ");
     const lines = [position, ...data.texts].filter(Boolean).map((t) => `<li>${e(t)}</li>`).join("");
-    return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Fiche ${e(data.name)} — Mesures Panoramax</title>${FICHE_FONTS}
+    return `<!doctype html><html lang="fr"><head><meta charset="utf-8">`
+      + `<title>Fiche ${e(data.name)} — Mesures Panoramax</title>${FICHE_FONTS}
 <style>
 @page { size: A4 portrait; margin: 0; }
 * { box-sizing: border-box; }
@@ -6948,14 +7018,18 @@ td.pt { font-weight: 700; white-space: nowrap; } .num { text-align: right; white
 ul { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.5; }
 .carte-vide { height: ${FICHE_MAP.height}px; border: 1.5px dashed #888; border-radius: 4px; display: flex; align-items: center;
   justify-content: center; font-size: 12px; color: #555; text-align: center; padding: 8px; }
-footer { margin-top: auto; border-top: 1px solid #c8c8c8; padding-top: 10px; font-size: 11.5px; color: #444; display: flex; align-items: center; gap: 16px; }
-.pied { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; } .qr { flex: none; } .qr svg { display: block; width: 72px; height: 72px; }
+footer { margin-top: auto; border-top: 1px solid #c8c8c8; padding-top: 10px; font-size: 11.5px; color: #444;
+  display: flex; align-items: center; gap: 16px; }
+.pied { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.qr { flex: none; } .qr svg { display: block; width: 72px; height: 72px; }
 footer a { color: #1a56c4; word-break: break-all; } .mono { font-family: "JetBrains Mono", monospace; color: #1c1c1c; }
 @media screen { body { background: #888; } .page { margin: 16px auto; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.4); } }
 </style></head><body><div class="page">
-<header><div><h1>Mesures Panoramax</h1><div class="sous-titre">${data.attributes ? "Fiche d'objet" : "Fiche de mesure"} — ${e(data.title)}</div></div>
+<header><div><h1>Mesures Panoramax</h1>
+<div class="sous-titre">${data.attributes ? "Fiche d'objet" : "Fiche de mesure"} — ${e(data.title)}</div></div>
 <div class="date">${e(date)}</div></header>
-<section class="lieu"><div class="ou">${placeHtml}</div><span>${data.attributes ? "Objet" : "Point"} ${e(data.name)} : ${e(coords)}</span></section>
+<section class="lieu"><div class="ou">${placeHtml}</div>
+<span>${data.attributes ? "Objet" : "Point"} ${e(data.name)} : ${e(coords)}</span></section>
 <figure><img src="${picture}" alt="Photo de la mesure, annotée"></figure>
 <section class="bas"><div class="textes">
 <div><h2>${data.attributes ? "Attributs" : "Résultats"}</h2><table>${table || `<thead><tr><th>Point</th><th>Mesure</th>
@@ -7084,7 +7158,9 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
       if (!r.width) continue;
       ctx.save();
       ctx.font = `${css.fontWeight} ${parseFloat(css.fontSize) * scale}px ${css.fontFamily}`;
-      Object.assign(ctx, { textAlign: "center", textBaseline: "middle", strokeStyle: "#fff", lineWidth: 3 * scale, lineJoin: "round", fillStyle: css.color });
+      Object.assign(ctx,
+        { textAlign: "center", textBaseline: "middle", strokeStyle: "#fff", lineWidth: 3 * scale,
+        lineJoin: "round", fillStyle: css.color });
       const lines = [...el.children].map((span) => span.textContent), x = (r.left + r.width / 2 - origin.left) * scale;
       lines.forEach((text, i) => {
         const y = (r.top - origin.top + r.height * (i + 0.5) / lines.length) * scale;
@@ -7119,5 +7195,8 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
     get app() { return app; }, get psv() { return psv; }, get videoPlan() { return videoPlan; }, get touring() { return Boolean(tour); },
     overlayFile: (handle) => { overlay.fichier = handle; },  // fichier de la couche remplacé (essais)
     // couche gardée (essais)
-    savedOverlay: async () => { await overlaySaving; return JSON.parse(await fileStore("readonly", (s) => s.get("couche-texte")) ?? "null"); } };
+    savedOverlay: async () => {
+      await overlaySaving;
+      return JSON.parse(await fileStore("readonly", (s) => s.get("couche-texte")) ?? "null");
+    } };
 })();

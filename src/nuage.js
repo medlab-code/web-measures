@@ -153,7 +153,8 @@ const Nuage = (() => {
         const v = new DataView(lib.HEAPU8.buffer, output, tile.length);  // HEAPU8 peut changer en grandissant
         const cls = tile.format >= 6 ? v.getUint8(16) : v.getUint8(15) & 31;
         if (keep(cls)) {
-          out.push([v.getInt32(0, true) * sx + ox, v.getInt32(4, true) * sy + oy, v.getInt32(8, true) * sz + oz, v.getUint16(12, true), cls]);
+          out.push([v.getInt32(0, true) * sx + ox, v.getInt32(4, true) * sy + oy, v.getInt32(8, true) * sz + oz,
+            v.getUint16(12, true), cls]);
         }
       }
     } finally {
@@ -324,7 +325,8 @@ const Nuage = (() => {
     // Séparateur : bande continue non revêtue (peinture comprise) autour du milieu de celui du calcul
     const main = profile.profils.filter((e) => e.le_long === 0);
     const sepEntry = main.find((e) => e.separateur), out = { points, ref, requetes: count.requests - r0,
-      octets: count.bytes - b0, secondes: Math.round((Date.now() - t0) / 1000), cases: cells.map((c) => [c.x, Math.round(10 * c.i / ref) / 10]),
+      octets: count.bytes - b0, secondes: Math.round((Date.now() - t0) / 1000),
+      cases: cells.map((c) => [c.x, Math.round(10 * c.i / ref) / 10]),
       lignes: lines, herbe: grass, separateur: null, bords: {},
       vegetation: [...plants].sort((a, b) => a[0] - b[0]).map(([k, z]) => [k * BIN, Math.round(z * 100) / 100]),
       // surface de l'eau : altitude médiane des points classés eau par l'IGN, case par case
@@ -359,7 +361,8 @@ const Nuage = (() => {
         near.get(k).push(i);
       }
       const rows = new Map([...near].map(([k, v]) => [k, median(v)]));
-      return { at, rows, ref: median([...rows].filter(([k]) => Math.abs(k * BIN) <= (profile.origine === "caméra" ? 1.5 : 3)).map(([, i]) => i)) };
+      return { at, rows,
+        ref: median([...rows].filter(([k]) => Math.abs(k * BIN) <= (profile.origine === "caméra" ? 1.5 : 3)).map(([, i]) => i)) };
     }).filter((s) => s.ref);
     // Bords de chaussée : jusqu'au bord du calcul (plateforme) + 1 m ; du côté du séparateur, au-delà de lui. Bord de
     // l'enrobé si au moins 3 travers le trouvent, sinon ligne de rive (tirets vus sur les travers voisins compris) ou fin de l'enrobé
@@ -389,7 +392,8 @@ const Nuage = (() => {
     // Largeur d'enrobé de la chaussée de l'origine, travers par travers : du séparateur, s'il est de ce côté, au bord opposé
     const inner = out.separateur ? Math.min(Math.abs(out.separateur[0]), Math.abs(out.separateur[1])) : null;
     if (!out.separateur || out.separateur[0] > 0 || out.separateur[1] < 0) {
-      const [left, right] = ["gauche", "droit"].map((name) => (out.separateur && name === (sepSign < 0 ? "gauche" : "droit") ? null : found[name]));
+      const [left, right] = ["gauche", "droit"]
+        .map((name) => (out.separateur && name === (sepSign < 0 ? "gauche" : "droit") ? null : found[name]));
       const widths = sections.map((_, k) => (left ? left[k] : -inner) === null || (right ? right[k] : inner) === null ? null
         : (right ? right[k] : inner) - (left ? left[k] : -inner)).filter((w) => w !== null && !Number.isNaN(w));
       if (widths.length >= 3) {

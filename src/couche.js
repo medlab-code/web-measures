@@ -170,7 +170,8 @@ const Couche = (() => {
         return isEmpty(v) ? "vide" : shown.has(String(v)) ? `= ${v}` : "autres";
       };
       [...shown].forEach((v, k) => legend.push({ cle: `= ${v}`, couleur: PALETTE[k], texte: format(v) }));
-      if (ranked.length > PALETTE.length) legend.push({ cle: "autres", couleur: EMPTY, texte: `${ranked.length - PALETTE.length} autres valeurs` });
+      if (ranked.length > PALETTE.length)
+        legend.push({ cle: "autres", couleur: EMPTY, texte: `${ranked.length - PALETTE.length} autres valeurs` });
     }
     if (values.length < features.length && column) legend.push({ cle: "vide", couleur: EMPTY, texte: "vide" });
     for (const e of legend) e.couleur = custom[e.cle] || e.couleur;
@@ -341,7 +342,8 @@ const Couche = (() => {
         const { [table.column_name]: blob, ...rest } = row;
         const properties = Object.fromEntries(Object.entries(rest).filter(([, v]) => !(v instanceof Uint8Array)));  // sans les blobs
         let geometry = null;
-        try { geometry = blob ? gpkgGeometry(blob) : null; } catch { /* type non pris en charge (collection, courbe) : objet sans géométrie */ }
+        try { geometry = blob ? gpkgGeometry(blob) : null; }
+        catch { /* type non pris en charge (collection, courbe) : objet sans géométrie */ }
         return { type: "Feature", properties, geometry };
       });
       const crs = { type: "name", properties: { name: `urn:ogc:def:crs:EPSG::${epsg}` } };

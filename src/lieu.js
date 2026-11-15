@@ -211,7 +211,8 @@ const Lieu = (() => {
     if (!near.length) return null;
     const level = (t) => String(t.props.position_par_rapport_au_sol ?? "0");
     const best = near.find((t) => followed !== null && identity(t.props) === followed)
-      || (near.every((t) => level(t) === level(near[0])) ? [...near].sort((a, b) => rank(a.props) - rank(b.props) || a.d - b.d)[0] : near[0]);
+      || (near.every((t) => level(t) === level(near[0]))
+        ? [...near].sort((a, b) => rank(a.props) - rank(b.props) || a.d - b.d)[0] : near[0]);
     const p = best.props;
     return { numero: p.cpx_numero || "", nom: p.nom_voie_ban_gauche || p.nom_voie_ban_droite || "" };
   }
@@ -228,7 +229,8 @@ const Lieu = (() => {
     const r0 = Number(feature?.properties?.["geovisio:rank_in_collection"]);
     if (!feature?.collection || !Number.isFinite(r0)) return null;
     const dlat = FOLLOW_TO / 111320, dlon = FOLLOW_TO / (111320 * Math.cos(lat * Math.PI / 180));
-    const params = new URLSearchParams({ bbox: [lon - dlon, lat - dlat, lon + dlon, lat + dlat].join(","), collections: feature.collection, limit: "500" });
+    const params = new URLSearchParams({ bbox: [lon - dlon, lat - dlat, lon + dlon, lat + dlat].join(","),
+      collections: feature.collection, limit: "500" });
     const response = await fetch(`${PANORAMAX}/search?${params}`, { signal: AbortSignal.timeout(TIMEOUT) });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const sides = [new Map(), new Map()];  // avant, après : identité -> photos

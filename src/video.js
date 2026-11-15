@@ -232,7 +232,8 @@ const Video = (() => {
       if (u < vmax) for (let i = Math.max(0, x - Math.round(PRES_SIGHT * u + PRES_REACH + SMOOTH)); i < x; i++) v[i] = Math.min(v[i], u);
     });
     for (const x of placesOn(path, slows, "ralentissement")) {
-      for (let i = Math.max(0, Math.round(x - PRES_SLOW_REACH)); i <= Math.min(n - 1, x + PRES_SLOW_REACH); i++) v[i] = Math.min(v[i], slow);
+      for (let i = Math.max(0, Math.round(x - PRES_SLOW_REACH)); i <= Math.min(n - 1, x + PRES_SLOW_REACH); i++)
+        v[i] = Math.min(v[i], slow);
     }
     v[0] = v[n - 1] = 0;
     for (const x of placesOn(path, stops, "arrêt")) v[Math.min(n - 1, Math.round(x))] = 0;
@@ -352,7 +353,8 @@ const Video = (() => {
     if (show > 0) {
       const big = h * 0.062, small = h * 0.034, pad = h * 0.035, bar = h * 0.008;
       ctx.font = font(big, 700);
-      const textWidth = Math.max(ctx.measureText(title.text).width, (ctx.font = font(small, 400), title.sub ? ctx.measureText(title.sub).width : 0));
+      const textWidth = Math.max(ctx.measureText(title.text).width,
+        (ctx.font = font(small, 400), title.sub ? ctx.measureText(title.sub).width : 0));
       const boxW = Math.min(w - 2 * h * 0.06, textWidth + 2 * pad), boxH = big * 1.25 + (title.sub ? small * 1.6 : 0) + 1.2 * pad + bar;
       const x = (w - boxW) / 2, y0 = h * 0.06 - (t < b ? (1 - show) * h * 0.04 : 0);  // descendu d'en haut à l'entrée
       ctx.globalAlpha = show;
@@ -580,7 +582,8 @@ const Video = (() => {
     const bound = (lonlat, name, fallback) => {
       if (!lonlat) return fallback;
       const b = nearest(lonlat);
-      if (b.d > ROLL_REACH) throw new Error(`${name} de la zone du point d'intérêt à ${Math.round(b.d)} m du parcours (${ROLL_REACH} m au plus)`);
+      if (b.d > ROLL_REACH)
+        throw new Error(`${name} de la zone du point d'intérêt à ${Math.round(b.d)} m du parcours (${ROLL_REACH} m au plus)`);
       return b.x;
     };
     let x0 = bound(poi.start, "début", Math.max(0, c.x - POI_SPAN)), x1 = bound(poi.end, "fin", Math.min(path.length, c.x + POI_SPAN));
@@ -811,7 +814,8 @@ const Video = (() => {
     };
     return xs.map((x) => {
       let v = ARP_TOP;
-      for (let m = Math.round(x) - ARP_SMOOTH; m <= Math.round(x) + ARP_SMOOTH; m++) v = Math.min(v, at(Math.min(Math.round(path.length), Math.max(0, m))));
+      for (let m = Math.round(x) - ARP_SMOOTH; m <= Math.round(x) + ARP_SMOOTH; m++)
+        v = Math.min(v, at(Math.min(Math.round(path.length), Math.max(0, m))));
       return v < ARP_TOP ? v : null;
     });
   }
@@ -933,8 +937,9 @@ const Video = (() => {
     const gains = list.map(() => [1, 1, 1]);
     const values = list.map(() => null);
     // Photos mesurées : toutes pour les photos isolées, sinon celles de part et d'autre des changements de séquence
-    const wanted = isolatedToo ? list.map((_, i) => i) : list.map((_, i) => i).filter((i) => list.some((p, k) => k
-      && p.collection !== list[k - 1].collection && i >= k - EXPO_SIDE && i < k + EXPO_SIDE));
+    const wanted = isolatedToo ? list.map((_, i) => i)
+      : list.map((_, i) => i).filter((i) => list.some((p, k) => k && p.collection !== list[k - 1].collection
+        && i >= k - EXPO_SIDE && i < k + EXPO_SIDE));
     let next = 0, measured = 0;
     await Promise.all(Array.from({ length: EXPO_PARALLEL }, async () => {
       while (next < wanted.length) {
@@ -956,8 +961,10 @@ const Video = (() => {
         continue;
       }
       const before = [], after = [];
-      for (let i = k - 1; i >= Math.max(0, k - EXPO_SIDE) && list[i].collection === list[k - 1].collection; i--) if (values[i]) before.push(values[i]);
-      for (let i = k; i < Math.min(list.length, k + EXPO_SIDE) && list[i].collection === list[k].collection; i++) if (values[i]) after.push(values[i]);
+      for (let i = k - 1; i >= Math.max(0, k - EXPO_SIDE) && list[i].collection === list[k - 1].collection; i--)
+        if (values[i]) before.push(values[i]);
+      for (let i = k; i < Math.min(list.length, k + EXPO_SIDE) && list[i].collection === list[k].collection; i++)
+        if (values[i]) after.push(values[i]);
       let shift = [0, 0, 0];
       if (before.length && after.length) {
         const [ma, mb] = [median(before), median(after)];
@@ -1030,7 +1037,8 @@ const Video = (() => {
     // lieu de 2,9°, 0,23 °/m au lieu de 0,56)
     const seamsAt = list.map((p, i) => (i && p.collection !== list[i - 1].collection ? (s[i - 1] + s[i]) / 2 : null))
       .filter((v) => v != null);
-    const reach = (x) => SMOOTH + (SEAM - SMOOTH) * Math.max(0, ...seamsAt.map((c) => smooth(Math.min(1, Math.max(0, 2 - Math.abs(x - c) / SEAM)))));
+    const reach = (x) => SMOOTH
+      + (SEAM - SMOOTH) * Math.max(0, ...seamsAt.map((c) => smooth(Math.min(1, Math.max(0, 2 - Math.abs(x - c) / SEAM)))));
     const course = (x) => {
       const h = reach(x);
       return bearing(at(x - h), at(x + h));
@@ -1648,7 +1656,8 @@ const Video = (() => {
         const sweep = wrap(turn - turns.look[n] + turns.look[Math.max(0, n - 1)]);
         const spin = Math.max(Math.abs(sweep), Math.abs(rollTurn));
         // Raccord de deux séquences : léger flou (SEAM_BLUR vues), pour masquer un peu le passage sans qu'il se voie
-        const [seamI] = path.segment(x), seam = path.list[seamI].collection !== path.list[Math.min(seamI + 1, path.list.length - 1)].collection;
+        const [seamI] = path.segment(x);
+        const seam = path.list[seamI].collection !== path.list[Math.min(seamI + 1, path.list.length - 1)].collection;
         const subs = spin > 1 ? Math.min(48, Math.max(BLUR, Math.ceil(spin / 1.5)))
           : at(n - 1) < x ? (blur ? BLUR : seam ? SEAM_BLUR : 1) : 1;
         const first = path.segment(x - (x - at(n - 1)) * (subs - 1) / subs)[0];
@@ -1679,7 +1688,8 @@ const Video = (() => {
           // sinon la vue semble prendre la route que suit la séquence quittée
           const toward = joint ? wrap(bearing(path.list[i].coords, path.list[j].coords) - path.axis(xs)) * (1 - 1 / zoomA) : 0;
           gl.draw([
-            { ...a, yaw: (yawAt(i, xs) + toward) * toRad, pitch: path.list[i].pitch, tilt: tilts[i], tan: view / zoomA, move: u * gap, gain: gains[i] },
+            { ...a, yaw: (yawAt(i, xs) + toward) * toRad, pitch: path.list[i].pitch, tilt: tilts[i], tan: view / zoomA,
+            move: u * gap, gain: gains[i] },
             { ...b, yaw: yawAt(j, xs) * toRad, pitch: path.list[j].pitch, tilt: tilts[j], tan: view, move: -(1 - u) * gap, gain: gains[j] },
           ], j === i ? 0 : smooth(Math.min(1, Math.max(0, joint ? 1 - (1 - u) / Math.max(0.3, SEAM_FADE / (path.s[j] - path.s[i]))
             : (u - 0.25) / 0.5))), 1 / (k + 1), look, tilted,
@@ -1688,7 +1698,8 @@ const Video = (() => {
         // Titre et compteurs : dessinés dans un calque transparent posé par la carte graphique sur la vue (l'image ne fait
         // pas l'aller-retour vers le processeur : un tiers du calcul)
         const marks = { title, pr: counter ? prAt(path, x) : null, speed: speedometer ? { kmh: kmhs[n], digits: kmhDigits } : null,
-          lateral: lateral ? { felt: felt[n], color: lateralColor(lats[n], kmhs[n], devs[n]) } : null, arp: arpSpeed ? { kmh: vmax[n] } : null,
+          lateral: lateral ? { felt: felt[n], color: lateralColor(lats[n], kmhs[n], devs[n]) } : null,
+          arp: arpSpeed ? { kmh: vmax[n] } : null,
           t: n / FPS };
         if (title || counter || speedometer || lateral || arpSpeed) {
           overlay ??= new OffscreenCanvas(width, height);

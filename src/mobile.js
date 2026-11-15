@@ -48,7 +48,8 @@
       const feature = (heading != null ? await Carte.nearestPhoto(map, lng, lat, (f) => passesFilter(f) && sameWay(f), radius) : null)
         || await Carte.nearestPhoto(map, lng, lat, passesFilter, radius);
       if (feature) openPhoto(feature);
-      else say(filterActive() ? "Aucune photo près de ce point avec le filtre (Réglages ⚙)." : "Aucune photo près de ce point : touchez le filaire orange.");
+      else say(filterActive() ? "Aucune photo près de ce point avec le filtre (Réglages ⚙)."
+        : "Aucune photo près de ce point : touchez le filaire orange.");
     } catch (error) {
       say(`Recherche impossible : ${error.message}`);
     }
@@ -86,7 +87,8 @@
     const year = Number((feature.properties?.datetime || "").slice(0, 4));
     if (year) {
       Carte.setExpressYear(map, year, lon, lat).then((used) => {
-        if (photo === feature) $("#fond option[value=express]").textContent = used == null ? "Ortho-express (aucune ici)" : `Ortho-express ${used}`;
+        if (photo === feature)
+          $("#fond option[value=express]").textContent = used == null ? "Ortho-express (aucune ici)" : `Ortho-express ${used}`;
       }).catch(() => {});
     }
   }
@@ -255,7 +257,8 @@
     const author = (props.providers || feature.providers || []).find((p) => p?.name)?.name;
     const when = props.datetime ? new Date(props.datetime) : null;
     const date = when && !Number.isNaN(when.getTime())
-      ? when.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" }).replace(/^1 /, "1er ") : "";
+      ? when.toLocaleDateString("fr-FR",
+        { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" }).replace(/^1 /, "1er ") : "";
     const link = (feature.links || []).find((l) => l.rel === "license");
     const license = props.license && props.license !== "proprietary" ? props.license
       : /\(([^()]+)\)\s*$/.exec(link?.title || "")?.[1] || link?.title || "";
@@ -274,7 +277,9 @@
       if (!box.width) continue;
       ctx.save();
       ctx.font = `${css.fontWeight} ${parseFloat(css.fontSize) * scale}px ${css.fontFamily}`;
-      Object.assign(ctx, { textAlign: "center", textBaseline: "middle", strokeStyle: "#fff", lineWidth: 3 * scale, lineJoin: "round", fillStyle: css.color });
+      Object.assign(ctx,
+        { textAlign: "center", textBaseline: "middle", strokeStyle: "#fff", lineWidth: 3 * scale,
+        lineJoin: "round", fillStyle: css.color });
       const lines = [...el.children].map((span) => span.textContent), x = (box.left + box.width / 2 - origin.left) * scale;
       lines.forEach((text, i) => {
         const y = (box.top - origin.top + box.height * (i + 0.5) / lines.length) * scale;

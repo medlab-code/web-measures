@@ -34,7 +34,8 @@ const Carte = (() => {
   const GLYPHS = "https://data.geopf.fr/annexes/ressources/vectorTiles/fonts/{fontstack}/{range}.pbf";
   const VECTOR_BASES = {
     // Plan IGN vectoriel (page mobile, à la place des images du Plan IGN)
-    planv: { style: "https://data.geopf.fr/annexes/ressources/vectorTiles/styles/PLAN.IGN/standard.json", maxzoom: 18, attribution: ATTRIBUTION_IGN },
+    planv: { style: "https://data.geopf.fr/annexes/ressources/vectorTiles/styles/PLAN.IGN/standard.json", maxzoom: 18,
+      attribution: ATTRIBUTION_IGN },
     // OpenStreetMap par OpenFreeMap (gratuit, sans clé, en-têtes CORS)
     ofm: { style: "https://tiles.openfreemap.org/styles/liberty", attribution: ATTRIBUTION_OFM,
       font: (f) => f.replace("Noto Sans", "Source Sans Pro") },
@@ -174,7 +175,8 @@ const Carte = (() => {
           pr: { type: "geojson", data: EMPTY },
           // Cadastre (#36, réglage « Cadastre sur la carte », voir setCadastre) : Parcellaire Express en tuiles vectorielles
           // (parcelles dès le zoom 15 ; bâtiments, bornes et points d'étiquette dès le zoom 17), nettes à tout zoom
-          cadastre: { type: "vector", tiles: [`${GEOPF}/tms/1.0.0/PCI/{z}/{x}/{y}.pbf`], minzoom: 5, maxzoom: 19, attribution: ATTRIBUTION_IGN },
+          cadastre: { type: "vector", tiles: [`${GEOPF}/tms/1.0.0/PCI/{z}/{x}/{y}.pbf`], minzoom: 5, maxzoom: 19,
+            attribution: ATTRIBUTION_IGN },
           contour: { type: "geojson", data: EMPTY },  // commune choisie dans la recherche (recherche.js)
           voies: { type: "vector", tiles: [ROADS_TILES], minzoom: ROADS_MINZOOM, maxzoom: 19, attribution: ATTRIBUTION_IGN },
           // tuiles jusqu'au zoom 13 seulement, agrandies au-delà : à partir du zoom 14, le Plan IGN
@@ -191,7 +193,8 @@ const Carte = (() => {
           // Cadastre, sur le fond et sous le filaire (couleurs du Parcellaire Express de l'IGN) : parcelles numérotées teintées (le
           // domaine public, voirie et cours d'eau, n'en a pas : sans teinte), bâtiments, limites des parcelles (pas celles des feuilles)
           {
-            id: "cadastre-parcelles", type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
+            id: "cadastre-parcelles", type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
+            layout: { visibility: "none" },
             paint: { "fill-color": "#ff8000", "fill-opacity": PARCEL_TINT },
           },
           {
@@ -199,7 +202,8 @@ const Carte = (() => {
             paint: { "fill-color": "#c17d73", "fill-opacity": 0.45, "fill-outline-color": "#b580ff" },
           },
           {
-            id: "cadastre", type: "line", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
+            id: "cadastre", type: "line", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
+            layout: { visibility: "none" },
             paint: { "line-color": "#ff8000", "line-width": ["interpolate", ["linear"], ["zoom"], 15, 0.6, 18, 1.6, 21, 2.5] },
           },
           // Parcelle où se tient la caméra, en jaune, et parcelle visée : la première que coupe la ligne de cap, à moins de
@@ -319,7 +323,8 @@ const Carte = (() => {
             },
           },
           {
-            id: "cadastre-bornes", type: "circle", source: "cadastre", "source-layer": "borne_limite_propriete", minzoom: CADASTRE_BORNES_ZOOM,
+            id: "cadastre-bornes", type: "circle", source: "cadastre", "source-layer": "borne_limite_propriete",
+            minzoom: CADASTRE_BORNES_ZOOM,
             layout: { visibility: "none" },
             paint: { "circle-color": "#ffffff", "circle-radius": 3, "circle-stroke-color": "#ff4fd8", "circle-stroke-width": 1.5 },
           },
@@ -327,7 +332,8 @@ const Carte = (() => {
           // (parcelImage), de taille fixe à l'écran ; celles qui se chevauchent sont masquées
           {
             id: "cadastre-sections", type: "symbol", source: "cadastre", "source-layer": "localisant", minzoom: CADASTRE_SECTIONS_ZOOM,
-            layout: { visibility: "none", "icon-image": ["concat", "parcelle:", ["get", "section"], "|", ["get", "numero"]], "icon-padding": 1 },
+            layout: { visibility: "none",
+              "icon-image": ["concat", "parcelle:", ["get", "section"], "|", ["get", "numero"]], "icon-padding": 1 },
           },
           // Couche importée (GeoJSON) : couleur de chaque objet (Couche.style), sous les mesures
           {
@@ -336,7 +342,8 @@ const Carte = (() => {
           },
           {
             id: "couche-points", type: "circle", source: "couche", filter: ["==", ["geometry-type"], "Point"],
-            paint: { "circle-color": ["get", "_couleur"], "circle-radius": 5, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 },
+            paint: { "circle-color": ["get", "_couleur"], "circle-radius": 5, "circle-stroke-color": "#ffffff",
+              "circle-stroke-width": 1.5 },
           },
           // Résultats de la session précédente, en lecture seule : gris, sous ceux de la session
           {
@@ -390,7 +397,8 @@ const Carte = (() => {
       if (e.id.startsWith("cartouche:") && !map.hasImage(e.id)) {
         map.addImage(e.id, cartoucheImage(e.id.slice("cartouche:".length)), { pixelRatio: 2 });
       }
-      if (e.id.startsWith("parcelle:") && !map.hasImage(e.id)) map.addImage(e.id, parcelImage(e.id.slice("parcelle:".length)), { pixelRatio: 2 });
+      if (e.id.startsWith("parcelle:") && !map.hasImage(e.id))
+        map.addImage(e.id, parcelImage(e.id.slice("parcelle:".length)), { pixelRatio: 2 });
     });
     map.addControl(new maplibregl.NavigationControl(), "top-left");
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
@@ -559,14 +567,16 @@ const Carte = (() => {
          * ou d'un interpolate sur le zoom traitées une à une : le zoom n'est permis qu'au sommet). */
         const prefixed = (image) => {
           if (typeof image === "string") {
-            const parts = image.split(/\{([^}]+)\}/).map((part, i) => (i % 2 ? ["to-string", ["get", part]] : part)).filter((part) => part !== "");
+            const parts = image.split(/\{([^}]+)\}/).map((part, i) => (i % 2 ? ["to-string", ["get", part]] : part))
+              .filter((part) => part !== "");
             if (!parts.length) return "";
             if (parts.length === 1 && typeof parts[0] === "string") return `${key}:${image}`;
             image = parts.length === 1 ? parts[0] : ["concat", ...parts];
           } else if (Array.isArray(image) && image[0] === "step") {
             return [...image.slice(0, 2), prefixed(image[2]), ...image.slice(3).map((v, i) => (i % 2 ? prefixed(v) : v))];
           } else if (image?.stops) return { ...image, stops: image.stops.map(([z, v]) => [z, prefixed(v)]) };
-          return ["let", "i", image, ["case", ["==", ["to-string", ["var", "i"]], ""], "", ["concat", `${key}:`, ["to-string", ["var", "i"]]]]];
+          return ["let", "i", image,
+            ["case", ["==", ["to-string", ["var", "i"]], ""], "", ["concat", `${key}:`, ["to-string", ["var", "i"]]]]];
         };
         for (const layer of style.layers) {
           if (layer.type !== "background" && !sources[layer.source]) continue;
@@ -576,12 +586,15 @@ const Carte = (() => {
           const { maxzoom: styleMax, ...kept } = layer;
           const maxzoom = def.maxzoom && styleMax >= def.maxzoom ? undefined : styleMax;
           const layout = { ...layer.layout, visibility: shown() ? "visible" : "none" };
-          if (layout["text-size"] != null || layer.type === "symbol") layout["text-size"] = scaledSize(layout["text-size"] ?? 16, mapOptions.textScale);
-          if (Array.isArray(layout["text-font"]) && def.font) layout["text-font"] = layout["text-font"].map((f) => (typeof f === "string" ? def.font(f) : f));
+          if (layout["text-size"] != null || layer.type === "symbol")
+            layout["text-size"] = scaledSize(layout["text-size"] ?? 16, mapOptions.textScale);
+          if (Array.isArray(layout["text-font"]) && def.font)
+            layout["text-font"] = layout["text-font"].map((f) => (typeof f === "string" ? def.font(f) : f));
           if (layout["icon-image"] != null) layout["icon-image"] = prefixed(layout["icon-image"]);
           const paint = { ...layer.paint };  // motifs (cimetières, marais du Plan IGN) : images du même style
           for (const name of ["fill-pattern", "line-pattern"]) if (paint[name] != null) paint[name] = prefixed(paint[name]);
-          const placed = { ...kept, ...(maxzoom != null && { maxzoom }), id, ...(layer.source && { source: sources[layer.source] }), layout, paint };
+          const placed = { ...kept, ...(maxzoom != null && { maxzoom }), id,
+            ...(layer.source && { source: sources[layer.source] }), layout, paint };
           map.addLayer(placed, "cadastre-parcelles");
           base.ids.push(id);
           if (key === "planv" && layer.id === "bckgrd") {  // fond blanc du Plan IGN : parcelles en jaune léger juste dessus
@@ -797,7 +810,8 @@ const Carte = (() => {
   function setAdminVisible(map, shown) {
     adminShown = shown;
     for (const level of ADMIN_LEVELS) {
-      for (const id of ["admin-" + level.id, `admin-${level.id}-lisere`]) map.setLayoutProperty(id, "visibility", shown ? "visible" : "none");
+      for (const id of ["admin-" + level.id, `admin-${level.id}-lisere`])
+        map.setLayoutProperty(id, "visibility", shown ? "visible" : "none");
     }
     if (shown) loadAdmin(map);
   }
@@ -860,7 +874,8 @@ const Carte = (() => {
   // léger que le jaune du Plan IGN en images à fort zoom, #FFFFDF), sous l'eau, la végétation et les bâtiments ; hors
   // parcelles (rues, chemins du domaine public), le blanc du fond
   const PARCEL_TINT = 0.12, PARCEL_TINT_ON_PLAN = 0.05;  // opacité de la teinte orange des parcelles (cadastre allumé)
-  const PARCEL_GROUND = { type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM, paint: { "fill-color": "#ffffef" } };
+  const PARCEL_GROUND = { type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
+    paint: { "fill-color": "#ffffef" } };
   const CADASTRE_BATIMENTS_ZOOM = 17;  // bâtiments dans les tuiles du PCI à partir de ce zoom
   let cadastreOn = false, cadastreFollow = false;
 
@@ -1206,7 +1221,8 @@ const Carte = (() => {
     }
     for (const { f, at } of found.slice(0, OVERLAY_LABEL_MAX)) {
       const element = document.createElement("div");  // ancre : MapLibre place l'élément, l'étiquette s'y décale
-      const label = Object.assign(document.createElement("div"), { className: "etiquette couche", textContent: f.properties._etiquette_carte });
+      const label = Object.assign(document.createElement("div"),
+        { className: "etiquette couche", textContent: f.properties._etiquette_carte });
       label.style.color = Couche.clair(f.properties._couleur);
       element.append(label);
       overlayLabels.push(new maplibregl.Marker({ element, ...awayFromRoad(map.project(at), axes) }).setLngLat(at).addTo(map));
@@ -1560,10 +1576,11 @@ const Carte = (() => {
       const cone = heading == null ? "" : `<path d="M0 0L${point(-half, r)}A${r} ${r} 0 0 1 ${point(half, r)}Z"
           fill="${CURSEUR}" fill-opacity="0.25" stroke="${CURSEUR}" stroke-width="1.5"/>
         <line x1="0" y1="0" x2="0" y2="${-reach}" stroke="${CURSEUR}" stroke-width="2" stroke-opacity="0.6"/>`;
+      // croix : pas une pastille de la couche
       viewMarker.getElement().innerHTML = `<svg width="${2 * reach}" height="${2 * reach}"
         viewBox="${-reach} ${-reach} ${2 * reach} ${2 * reach}">${cone}
         <path d="M-8 0H8M0 -8V8" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
-        <path d="M-8 0H8M0 -8V8" stroke="${CURSEUR}" stroke-width="3" stroke-linecap="round"/></svg>`;  // croix : pas une pastille de la couche
+        <path d="M-8 0H8M0 -8V8" stroke="${CURSEUR}" stroke-width="3" stroke-linecap="round"/></svg>`;
     }
     viewMarker.setLngLat(lonlat).setRotation(heading ?? 0);
     if (!viewMarker._map) viewMarker.addTo(map);

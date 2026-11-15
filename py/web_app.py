@@ -720,9 +720,9 @@ class App(session.Session):
         (recalée si la séquence l'est), cap du centre de l'image, correction de cap de la séquence
         (degrés), verticale vraie vue de la caméra (None sans calage) et son incertitude (degrés),
         hauteur de caméra, son incertitude et celle de la position relative entre photos voisines (m) ;
-        neighbours : les poses des photos voisines ; far : celles à deux pas (birdeye_far) ; bridge : pont à portée de la vue (None en lecture),
-        la vue se passe alors du terrain LiDAR et la hauteur de caméra ne vient pas du sol LiDAR. null si la
-        photo ne convient pas."""
+        neighbours : les poses des photos voisines ; far : celles à deux pas (birdeye_far) ; bridge : pont à portée
+        de la vue (None en lecture), la vue se passe alors du terrain LiDAR et la hauteur de caméra ne vient pas du
+        sol LiDAR. null si la photo ne convient pas."""
         pose = self._birdeye_of(self.item, self.tilts.pending) if self.item else None
         if pose is None:
             return "null"
@@ -2304,7 +2304,8 @@ class App(session.Session):
         dlat, dlon = reach / 111320.0, reach / (111320.0 * math.cos(math.radians(lat)))
         merged, seen = [], set()
         for cell in {roads._cell(lon + i * dlon, lat + j * dlat) for i in (-1, 0, 1) for j in (-1, 0, 1)}:
-            more = sections if cell == roads._cell(lon, lat) else self._fall_sections(cell[0] * roads.CELL + 1e-9, cell[1] * roads.CELL + 1e-9)
+            corner = (cell[0] * roads.CELL + 1e-9, cell[1] * roads.CELL + 1e-9)
+            more = sections if cell == roads._cell(lon, lat) else self._fall_sections(*corner)
             if more is roads.PENDING:
                 return told("Calcul en cours…")
             for sec in more or []:
@@ -2455,9 +2456,9 @@ class App(session.Session):
         au bout du tronçon. Un seul voisin pris par bout (le premier trouvé) ; sans nom ou sans voisin, la ligne telle quelle.
         Rend aussi les points remarquables de cette route : [(point, "fin" ou "carrefour", voies nommées qui s'y raccordent)],
         « fin » au bout de la ligne prolongée (la route s'arrête, ou continue sous un autre nom), « carrefour » là où une
-        voie carrossable nommée (numéro ou nom, pas une simple nature ; roads.parse_sections) s'y raccorde sans l'interrompre. Les tronçons en pont ou en tunnel
-        de la route en font partie : leurs bouts sont rendus à part, [(niveau, bout, bout)] (le MNT y est le fond franchi
-        ou le dessus du tunnel, pas la chaussée)."""
+        voie carrossable nommée (numéro ou nom, pas une simple nature ; roads.parse_sections) s'y raccorde sans
+        l'interrompre. Les tronçons en pont ou en tunnel de la route en font partie : leurs bouts sont rendus à part,
+        [(niveau, bout, bout)] (le MNT y est le fond franchi ou le dessus du tunnel, pas la chaussée)."""
         touch = lambda a, b: math.hypot(a[0] - b[0], a[1] - b[1]) <= self.CHAIN_TOUCH
         if not sec.get("name"):
             return line, [], []
@@ -2667,7 +2668,8 @@ class App(session.Session):
             for d in lengthwise:
                 j = max(1, next((j for j in range(1, len(cum)) if cum[j] >= d), len(cum) - 1))
                 t = (d - cum[j - 1]) / ((cum[j] - cum[j - 1]) or 1.0)
-                samples.append((track[j - 1][0] + t * (track[j][0] - track[j - 1][0]), track[j - 1][1] + t * (track[j][1] - track[j - 1][1])))
+                (x0, y0), (x1, y1) = track[j - 1][:2], track[j][:2]
+                samples.append((x0 + t * (x1 - x0), y0 + t * (y1 - y0)))
             followed = "trajectoire de la caméra"
         else:
             ahead = 1 if forward else -1
