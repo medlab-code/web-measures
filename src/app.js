@@ -2204,6 +2204,46 @@
   function overlayMasked() {
     return new Set(overlay?.masques?.[$("#couche-couleur").value] || []);
   }
+  /** Test des objets cachés : valeur masquée dans la légende, ou hors du filtre par attribut (overlay.filtre :
+   * { colonne, op, valeur }) ; (feature) → vrai si caché. */
+  // Nombres comparés en nombres (virgule acceptée), sinon textes sans majuscules ; « ≠ » garde les objets sans valeur
+  // (« verif ≠ vérifié » : ceux pas encore vus) ; =, ≠, <, > sans valeur saisie : filtre sans effet
+  function overlayHiddenTest() {
+    const masked = overlayMasked(), { colonne, op, valeur = "" } = overlay?.filtre || {};
+    const num = (v) => (typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v.replace(",", ".")) : NaN);
+    const want = valeur.trim(), wantN = num(want), test = op === "vide" || op === "rempli" || want;
+    const keep = (v) => {
+      const empty = v == null || String(v).trim() === "";
+      if (op === "vide" || op === "rempli") return empty === (op === "vide");
+      if (empty) return op === "≠";
+      const n = num(v);
+      const cmp = Number.isFinite(n) && Number.isFinite(wantN) ? n - wantN
+        : String(v).trim().localeCompare(want, "fr", { sensitivity: "base", numeric: true });
+      return op === "=" ? cmp === 0 : op === "≠" ? cmp !== 0 : op === "<" ? cmp < 0 : cmp > 0;
+    };
+    return (f) => masked.has(f?.properties._cle) || Boolean(colonne && test && !keep(f?.properties[colonne]));
+  }
+
+  /** Réglages du filtre affichés (overlay.filtre) ; conditions grisées sans colonne, valeur sans objet pour vide / non vide. */
+  function showOverlayFilter() {
+    const { colonne = "", op = "=", valeur = "" } = overlay?.filtre || {};
+    $("#couche-filtre").value = colonne;
+    $("#couche-filtre-op").value = op;
+    $("#couche-filtre-valeur").value = valeur;
+    $("#couche-filtre-op").disabled = $("#couche-filtre-effacer").disabled = !colonne;
+    $("#couche-filtre-valeur").disabled = !colonne || op === "vide" || op === "rempli";
+  }
+  function setOverlayFilter(filter) {
+    overlay.filtre = filter.colonne ? filter : null;
+    showOverlayFilter();
+    showOverlayStyle();
+    saveOverlay();
+  }
+  const readFilter = () => ({ colonne: $("#couche-filtre").value, op: $("#couche-filtre-op").value, valeur: $("#couche-filtre-valeur").value });
+  for (const id of ["#couche-filtre", "#couche-filtre-op"]) $(id).addEventListener("change", () => setOverlayFilter(readFilter()));
+  $("#couche-filtre-valeur").addEventListener("input", () => setOverlayFilter(readFilter()));  // à chaque lettre
+  $("#couche-filtre-effacer").addEventListener("click", () => setOverlayFilter({}));
+
   const EYE_OPEN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
     + '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
   const EYE_SHUT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
@@ -2295,8 +2335,10 @@
     $("#couche-legende").classList.toggle("degrade", Boolean(legend.degrade));
     $("#couche-legende").replaceChildren(...items);
     // Œil de la couche fermé : ni sur la carte ni dans la photo, réglages gardés ; valeurs masquées retirées
-    Carte.showOverlay(map, $("#couche-visible").checked ? { type: "FeatureCollection",
-      features: overlay.features.filter((f) => !masked.has(f.properties._cle)) } : null);
+    const hidden = overlayHiddenTest(), shown = overlay.features.filter((f) => !hidden(f));
+    Carte.showOverlay(map, $("#couche-visible").checked ? { type: "FeatureCollection", features: shown } : null);
+    $("#couche-filtre-bilan").hidden = !overlay.filtre;
+    $("#couche-filtre-bilan").textContent = `${shown.length} objet${shown.length > 1 ? "s" : ""} sur ${overlay.features.length}`;
     refresh();
     showObjectTable();
   }
@@ -2324,7 +2366,8 @@
     const columns = [["", "Objet"], ...(label ? [[label, label]] : []), ["verif", "Statut"]];
     const value = (i, key) => (key ? Couche.format(overlay.features[i].properties[key]) : overlayObjectName(i));
     const query = $("#objets-recherche").value.trim().toLowerCase();
-    objectOrder = overlay.features.map((_, i) => i).filter((i) => !query || [overlayObjectName(i),
+    const hidden = overlayHiddenTest();
+    objectOrder = overlay.features.map((_, i) => i).filter((i) => !hidden(overlay.features[i])).filter((i) => !query || [overlayObjectName(i),
       ...Object.values(overlayProperties(overlay.features[i])).map(Couche.format)].some((v) => v.toLowerCase().includes(query)));
     const { key, up } = objectSort;
     if (key || !up) {
@@ -2463,7 +2506,7 @@
     overlay.features[objectCurrent].properties[column] = text;
     if (text && !overlay.columns.includes(column)) {
       overlay.columns.push(column);
-      for (const id of ["#couche-couleur", "#couche-etiquette", "#couche-etiquette2", "#couche-etiquette-carte"]) {
+      for (const id of ["#couche-couleur", "#couche-etiquette", "#couche-etiquette2", "#couche-etiquette-carte", "#couche-filtre"]) {
         $(id).append(new Option(column, column));
       }
     }
@@ -2481,7 +2524,8 @@
   /** Couche en place (lue d'un fichier, ou gardée) : calcul, réglages, carte ; cadrée dessus si fit. */
   // mapLabel : colonne de l'étiquette de la mini-carte ; null : « id » (sans tenir compte de la casse), sinon la première
   function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}, masks = {}, mapLabel = null, label2 = "") {
-    overlay = { name, ...read, couleurs: colors, masques: masks };  // masques : { colonne: [clés de légende masquées] }
+    overlay = { name, ...read, couleurs: colors, masques: masks };
+    if (!overlay.filtre?.colonne || !read.columns.includes(overlay.filtre.colonne)) overlay.filtre = null;  // gardé (restoreOverlay)  // masques : { colonne: [clés de légende masquées] }
     moving = null;  // couleurs choisies : { colonne: { clé de légende: couleur } }
     objectCurrent = null;
     $("#couche-visible").checked = visible;
@@ -2492,13 +2536,14 @@
     overlay.techniques = technical;
     mapLabel ??= choices.find((c) => c.toLowerCase() === "id") ?? choices[0] ?? "";
     for (const [id, value] of [["#couche-couleur", color], ["#couche-etiquette", label], ["#couche-etiquette2", label2],
-      ["#couche-etiquette-carte", mapLabel]]) {
-      $(id).replaceChildren(new Option(id === "#couche-couleur" ? "couleur unique" : "aucune", ""),
+      ["#couche-etiquette-carte", mapLabel], ["#couche-filtre", ""]]) {
+      $(id).replaceChildren(new Option(id === "#couche-couleur" ? "couleur unique" : id === "#couche-filtre" ? "aucun" : "aucune", ""),
         ...choices.map((c) => new Option(c, c)));
       $(id).value = choices.includes(value) ? value : "";
     }
     $("#couche-nom").textContent = name;
     showOverlayInfo();
+    showOverlayFilter();
     for (const id of ["#couche-accueil", "#couche-formats", "#couche-crs"]) $(id).hidden = true;
     $("#couche-reglages").hidden = false;
     $("#couche-retirer").disabled = false;
@@ -2530,8 +2575,8 @@
   };
   function saveOverlay() {
     if (!overlay) return Promise.resolve(true);
-    const { name, features, columns, crs, couleurs, masques, fiche } = overlay;
-    const text = JSON.stringify({ name, columns, crs, couleurs, masques, fiche, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
+    const { name, features, columns, crs, couleurs, masques, fiche, filtre } = overlay;
+    const text = JSON.stringify({ name, columns, crs, couleurs, masques, fiche, filtre, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
       intitule: $("#couche-intitule").checked, suffixe: $("#couche-suffixe").value, etiquetteCarte: $("#couche-etiquette-carte").value,
       etiquette2: $("#couche-etiquette2").value, intitule2: $("#couche-intitule2").checked, suffixe2: $("#couche-suffixe2").value,
       modifie: Boolean(overlay.modifie), dateFichier: overlay.dateFichier ?? null,
@@ -5202,10 +5247,10 @@
     if (overlay && app && $("#couche-visible").checked) {
       let points = 0, n = 0, rank = 0;
       overlayAt.clear();
-      const masked = overlayMasked();
+      const hidden = overlayHiddenTest();
       for (const o of JSON.parse(app.overlay_marks())) {
         const p = overlay.features[o.id]?.properties || {};
-        if (masked.has(p._cle)) continue;  // valeur masquée dans la légende
+        if (hidden(overlay.features[o.id])) continue;  // valeur masquée dans la légende, ou hors du filtre
         const color = p._couleur || "#66cc66";
         const chosen = o.id === movingId() ? " choisie" : "";
         const anchorOf = (pts) => (o.kind === "point" ? { yaw: pts[0][0], pitch: pts[0][1] }
@@ -6363,7 +6408,7 @@
   /** Objets retenus pour les fiches de tous les objets : cochés sauf ceux masqués dans la légende ; boutons de la
    * fenêtre grisés sans objet retenu. */
   function showFicheObjects() {
-    const ol = $("#fiche-objets"), masked = overlayMasked();
+    const ol = $("#fiche-objets"), hidden = overlayHiddenTest();
     const buttons = $("#choix-fiche").querySelectorAll(".vue-actuelle, .cadrage-auto");
     const count = () => {
       const on = ol.querySelectorAll("input:checked").length;
@@ -6374,7 +6419,7 @@
     };
     ol.replaceChildren(...overlay.features.map((f, id) => {
       const li = document.createElement("li"), label = document.createElement("label");
-      const box = Object.assign(document.createElement("input"), { type: "checkbox", value: id, checked: !masked.has(f.properties._cle) });
+      const box = Object.assign(document.createElement("input"), { type: "checkbox", value: id, checked: !hidden(f) });
       box.addEventListener("change", count);
       const name = overlayObjectName(id);  // rang affiché quand le nom ne le donne pas (plage « Du … au … »)
       label.append(box, name === String(id + 1) ? `Objet ${name}` : `${id + 1}. Objet ${name}`);
@@ -6739,10 +6784,10 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
     // Couche importée affichée, sous tout le reste : traits et pastilles de sa couleur, puis ses
     // étiquettes visibles, prises à l'écran (écartées, masquées : comme dans la visionneuse)
     if (overlay && app && $("#couche-visible").checked) {
-      const masked = overlayMasked();
+      const hidden = overlayHiddenTest();
       for (const o of JSON.parse(app.overlay_marks())) {
         const f = overlay.features[o.id];
-        if (masked.has(f?.properties._cle)) continue;  // valeur masquée dans la légende
+        if (hidden(f)) continue;  // valeur masquée dans la légende, ou hors du filtre
         const { kind, pts: views } = overlayPoints(o);  // comme dans la visionneuse (drawViewerMarks)
         const color = f?.properties._couleur || "#66cc66", pts = views.map(screen);
         ctx.save();

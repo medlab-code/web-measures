@@ -394,6 +394,19 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             <!-- Fiches de tous les objets, en un seul PDF (app.js askFiche, { tous }) ; nombre d'objets : showOverlayInfo -->
             <button id="couche-fiches" type="button" disabled
                     title="Un seul PDF, une page par objet, photo cadrée automatiquement sur l'objet">Fiches PDF des objets</button>
+            <!-- Filtre par attribut (app.js overlayHiddenTest) : objets hors filtre ni sur la carte, ni dans la photo, ni dans
+                 le tableau du parcours, ni cochés pour les fiches ; gardé avec la couche -->
+            <div class="reglage-couche"><label for="couche-filtre">Filtre</label><select id="couche-filtre"></select></div>
+            <div class="condition-filtre">
+              <select id="couche-filtre-op" disabled aria-label="Condition du filtre">
+                <option value="=">=</option><option value="≠">≠</option><option value="&lt;">&lt;</option><option value="&gt;">&gt;</option>
+                <option value="vide">vide</option><option value="rempli">non vide</option>
+              </select>
+              <input id="couche-filtre-valeur" type="text" disabled placeholder="valeur" aria-label="Valeur du filtre"
+                     title="Nombres comparés en nombres (virgule acceptée), textes sans tenir compte des majuscules ; « ≠ » garde aussi les objets sans valeur">
+              <button id="couche-filtre-effacer" type="button" class="lien" disabled>Effacer</button>
+            </div>
+            <p id="couche-filtre-bilan" class="aide" hidden></p>
             <!-- Parcours des objets (app.js showObjectTable) : tableau trié et filtré ; ◀ ▶ dans son ordre, photo la plus
                  proche tournée vers l'objet ; statut dans les colonnes verif et verif_note, gardées et exportées ;
                  attributs modifiables, objet supprimé ou ajouté (point posé sur la carte) -->

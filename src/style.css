@@ -1548,6 +1548,9 @@ button.lien:disabled { color: var(--discret); opacity: 0.6; cursor: default; }
 #couche-legende .bornes-degrade { justify-content: space-between; min-height: 1.4rem; font-weight: 500; }
 .encart-recalage { margin: 1rem 0 0; padding: 0.55rem 0.7rem; border-radius: 8px; background: var(--encart);
   border-left: 3px solid var(--panoramax); font-size: 0.9em; }
+.condition-filtre { display: flex; align-items: center; gap: 0.4rem; margin: 0.4rem 0 0 5.1rem; }  /* sous la liste Filtre */
+#couche-filtre-valeur { flex: 1; min-width: 0; }
+#couche-filtre-bilan { margin: 0.3rem 0 0 5.1rem; }
 /* Parcours des objets : ◀ objet ▶, statut et commentaire, recherche, tableau triable (clic sur un intitulé) */
 #couche-parcours { margin-top: 1rem; }
 #couche-parcours summary { font-weight: 600; cursor: pointer; }

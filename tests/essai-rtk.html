@@ -485,6 +485,28 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         expect("modification : suppression gardée, numéros refaits", (await w.mesures.savedOverlay()).features.length === 4
           && doc.querySelector("#objet-supprimer").disabled);
       }
+      // Filtre par attribut : h > 2 (ligne à 2,5 depuis sa modification, p2, p3), puis « verif ≠ vérifié », puis effacé
+      {
+        const set = (id, v, type = "change") => {
+          doc.querySelector(id).value = v;
+          doc.querySelector(id).dispatchEvent(new Event(type));
+        };
+        const onMap = () => w.mesures.map.getSource("couche").serialize().data.features.length;
+        const rows = () => doc.querySelectorAll("#objets-lignes tr").length;
+        set("#couche-filtre", "h");
+        set("#couche-filtre-op", ">");
+        set("#couche-filtre-valeur", "2", "input");
+        await expectSoon("filtre : h > 2 sur la carte, dans le tableau et au bilan", () => onMap() === 3 && rows() === 3
+          && doc.querySelector("#couche-filtre-bilan").textContent === "3 objets sur 4", () => `carte ${onMap()}, tableau ${rows()}`);
+        expect("filtre : gardé avec la couche", JSON.stringify((await w.mesures.savedOverlay()).filtre) === '{"colonne":"h","op":">","valeur":"2"}');
+        set("#couche-filtre", "verif");
+        set("#couche-filtre-op", "≠");
+        set("#couche-filtre-valeur", "Vérifié", "input");
+        await expectSoon("filtre : « ≠ » garde les objets sans valeur, sans tenir compte des majuscules", () => onMap() === 3 && rows() === 3);
+        doc.querySelector("#couche-filtre-effacer").click();
+        await expectSoon("filtre effacé : tous les objets", () => onMap() === 4 && rows() === 4 && doc.querySelector("#couche-filtre-bilan").hidden
+          && doc.querySelector("#couche-filtre-op").disabled);
+      }
       // Case « Afficher la couche » : masquée sur la carte et dans la photo, puis réaffichée
       const visible = doc.querySelector("#couche-visible");
       visible.checked = false;

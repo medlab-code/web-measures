@@ -641,6 +641,13 @@ ou en ouvrant une photo à moins de 30 m d'une photo recalée d'une autre séque
 sens ou autre passage) sans recalage sur la sienne, une fenêtre propose d'aller sur la photo recalée
 (une fois par séquence refusée).
 
+**Filtre par attribut** (onglet Couche, sous « Fiches PDF ») : une colonne, une condition (=, ≠, <, >, vide, non
+vide) et une valeur ; les objets hors filtre ne sont plus ni sur la carte, ni dans la photo, ni dans le tableau du
+parcours (◀ / ▶ compris), ni cochés pour les fiches PDF de tous les objets. Nombres comparés en nombres (virgule
+acceptée), textes sans tenir compte des majuscules ; « ≠ » garde les objets sans valeur (« verif ≠ vérifié » : ceux
+pas encore vus). Nombre d'objets gardés affiché dessous ; filtre gardé avec la couche, « Effacer » le retire.
+L'export garde tous les objets.
+
 **Parcours des objets** (rubrique repliable de l'onglet Couche) : tableau des objets (nom, colonne de l'étiquette,
 statut), trié par un clic sur un intitulé et filtré par la recherche (identifiant ou n'importe quel attribut). Un clic
 sur une ligne, ou ◀ / ▶ dans l'ordre du tableau, ouvre la photo de l'objet (celle de son recalage, sinon la plus
