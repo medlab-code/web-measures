@@ -1,0 +1,1767 @@
+{
+ "type": "FeatureCollection",
+ "name": "couche-synthetique",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 1,
+    "type": "avaloir"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6371484,
+     47.2372278
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 2,
+    "type": "avaloir"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6468027,
+     47.2481345
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 3,
+    "type": "avaloir"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6498393,
+     47.253379
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 4,
+    "type": "avaloir"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6492206,
+     47.2525206
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 5,
+    "type": "avaloir"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6444354,
+     47.2449978
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 6,
+    "type": "avaloir"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6489772,
+     47.2520197
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 7,
+    "type": "avaloir"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6417394,
+     47.2418652
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 8,
+    "type": "avaloir"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.634971,
+     47.2350959
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 9,
+    "type": "avaloir"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6512233,
+     47.255256
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 10,
+    "type": "avaloir"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6431995,
+     47.2433486
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 11,
+    "type": "avaloir"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6463926,
+     47.2476937
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 12,
+    "type": "panneau",
+    "categorie": "police",
+    "code": "AB4",
+    "support_fusible": "oui",
+    "distance_bord_cm": 79
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6506747,
+     47.2560292
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 13,
+    "type": "panneau",
+    "categorie": "police",
+    "code": "B14",
+    "support_fusible": "non",
+    "distance_bord_cm": 55
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6494234,
+     47.2527512
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 14,
+    "type": "panneau",
+    "categorie": "police",
+    "code": "B3",
+    "support_fusible": "non",
+    "distance_bord_cm": 97
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.641033,
+     47.241269
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 15,
+    "type": "panneau",
+    "categorie": "directionnelle",
+    "code": "D21a",
+    "support_fusible": "non",
+    "distance_bord_cm": 103
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6386322,
+     47.2388339
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 16,
+    "type": "panneau",
+    "categorie": "police",
+    "code": "B0",
+    "support_fusible": "non",
+    "distance_bord_cm": 137
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6453694,
+     47.2463145
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 17,
+    "type": "panneau",
+    "categorie": "police",
+    "code": "B3",
+    "support_fusible": "oui",
+    "distance_bord_cm": 148
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6416264,
+     47.2417264
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 18,
+    "type": "panneau",
+    "categorie": "police",
+    "code": "B3",
+    "support_fusible": "oui",
+    "distance_bord_cm": 176
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6338173,
+     47.2344859
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 19,
+    "type": "panneau",
+    "categorie": "police",
+    "code": "B0",
+    "support_fusible": "non",
+    "distance_bord_cm": 196
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6461947,
+     47.2472607
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 20,
+    "type": "panneau",
+    "categorie": "directionnelle",
+    "code": "D42",
+    "support_fusible": "non",
+    "distance_bord_cm": 139
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6360145,
+     47.2360391
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 21,
+    "type": "panneau",
+    "categorie": "police",
+    "code": "B14",
+    "support_fusible": "non",
+    "distance_bord_cm": 93
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.651272,
+     47.2554622
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 22,
+    "type": "panneau",
+    "categorie": "directionnelle",
+    "code": "D43",
+    "support_fusible": "non",
+    "distance_bord_cm": 183
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6417371,
+     47.2419911
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 23,
+    "type": "panneau",
+    "categorie": "directionnelle",
+    "code": "D43",
+    "support_fusible": "non",
+    "distance_bord_cm": 53
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.637113,
+     47.2371832
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 24,
+    "type": "panneau",
+    "categorie": "directionnelle",
+    "code": "EB12",
+    "support_fusible": "oui",
+    "distance_bord_cm": 112
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6472605,
+     47.2489458
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 25,
+    "type": "panneau",
+    "categorie": "directionnelle",
+    "code": "D61",
+    "support_fusible": "oui",
+    "distance_bord_cm": 173
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.649167,
+     47.2524591
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 26,
+    "type": "panneau",
+    "categorie": "directionnelle",
+    "code": "D29",
+    "support_fusible": "oui",
+    "distance_bord_cm": 58
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6500536,
+     47.2536089
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 27,
+    "type": "panneau",
+    "categorie": "police",
+    "code": "C3",
+    "support_fusible": "non",
+    "distance_bord_cm": 87
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6349654,
+     47.2351044
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 28,
+    "type": "panneau",
+    "categorie": "police",
+    "code": "AB4",
+    "support_fusible": "non",
+    "distance_bord_cm": 184
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6346287,
+     47.2345988
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 29,
+    "type": "panneau",
+    "categorie": "police",
+    "code": "EB10",
+    "support_fusible": "non",
+    "distance_bord_cm": 89
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6510597,
+     47.254659
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 30,
+    "type": "panneau",
+    "categorie": "directionnelle",
+    "code": "D29",
+    "support_fusible": "non",
+    "distance_bord_cm": 172
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6441655,
+     47.2444642
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 31,
+    "type": "panneau",
+    "categorie": "directionnelle",
+    "code": "Dc29",
+    "support_fusible": "oui",
+    "distance_bord_cm": 52
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6396342,
+     47.2397209
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 32,
+    "type": "panneau",
+    "categorie": "police",
+    "code": "EB10",
+    "support_fusible": "non",
+    "distance_bord_cm": 133
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.648032,
+     47.250155
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 33,
+    "type": "panneau",
+    "categorie": "directionnelle",
+    "code": "D29",
+    "support_fusible": "oui",
+    "distance_bord_cm": 85
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6475411,
+     47.2493419
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 34,
+    "type": "poteau",
+    "reseau": "électricité"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.63548,
+     47.2356685
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 35,
+    "type": "poteau",
+    "reseau": "télécom"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6349893,
+     47.2351727
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 36,
+    "type": "poteau",
+    "reseau": "électricité"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6451303,
+     47.24578
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 37,
+    "type": "poteau",
+    "reseau": "télécom"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6464654,
+     47.24783
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 38,
+    "type": "poteau",
+    "reseau": "électricité"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6479305,
+     47.2500151
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 39,
+    "type": "poteau",
+    "reseau": "télécom"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.648386,
+     47.2509289
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 40,
+    "type": "poteau",
+    "reseau": "électricité"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6436688,
+     47.2440107
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 41,
+    "type": "poteau",
+    "reseau": "électricité"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6499804,
+     47.2536772
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 42,
+    "type": "poteau",
+    "reseau": "télécom"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6403685,
+     47.2406154
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 43,
+    "type": "poteau",
+    "reseau": "électricité"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6483117,
+     47.2503891
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 44,
+    "type": "poteau",
+    "reseau": "télécom"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6441352,
+     47.2446442
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 45,
+    "type": "poteau",
+    "reseau": "télécom"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6461456,
+     47.2471377
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 46,
+    "type": "poteau",
+    "reseau": "électricité"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6478,
+     47.2497458
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 47,
+    "type": "poteau",
+    "reseau": "électricité"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6500582,
+     47.2563771
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 48,
+    "type": "poteau",
+    "reseau": "électricité"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6427249,
+     47.2430238
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 49,
+    "type": "poteau",
+    "reseau": "autre"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6493323,
+     47.2524907
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 50,
+    "type": "poteau",
+    "reseau": "électricité"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6476027,
+     47.2492245
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 51,
+    "type": "poteau",
+    "reseau": "télécom"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6504483,
+     47.2541574
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 52,
+    "type": "poteau",
+    "reseau": "électricité"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6430434,
+     47.2433241
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 53,
+    "type": "poteau",
+    "reseau": "télécom"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6425149,
+     47.2426075
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 54,
+    "type": "poteau",
+    "reseau": "autre"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6420788,
+     47.2421796
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 55,
+    "type": "poteau",
+    "reseau": "télécom"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6470252,
+     47.2486433
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 56,
+    "type": "arbre",
+    "essence": "noyer",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 321
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6481807,
+     47.2501615
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 57,
+    "type": "arbre",
+    "essence": "noyer",
+    "etat_phyto": "moyen",
+    "distance_bord_cm": 610
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6441558,
+     47.2443687
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 58,
+    "type": "arbre",
+    "essence": "érable champêtre",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 636
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6418445,
+     47.2421698
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 59,
+    "type": "arbre",
+    "essence": "frêne commun",
+    "etat_phyto": "moyen",
+    "distance_bord_cm": 500
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6378657,
+     47.2381131
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 60,
+    "type": "arbre",
+    "essence": "merisier",
+    "etat_phyto": "mauvais",
+    "distance_bord_cm": 634
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6374449,
+     47.2374295
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 61,
+    "type": "arbre",
+    "essence": "merisier",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 210
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6483796,
+     47.2508561
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 62,
+    "type": "arbre",
+    "essence": "noyer",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 480
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6474212,
+     47.2492466
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 63,
+    "type": "arbre",
+    "essence": "érable champêtre",
+    "etat_phyto": "mauvais",
+    "distance_bord_cm": 429
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6508731,
+     47.2559593
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 64,
+    "type": "arbre",
+    "essence": "merisier",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 344
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6445795,
+     47.2450093
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 65,
+    "type": "arbre",
+    "essence": "merisier",
+    "etat_phyto": "moyen",
+    "distance_bord_cm": 578
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6512203,
+     47.2557852
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 66,
+    "type": "arbre",
+    "essence": "merisier",
+    "etat_phyto": "moyen",
+    "distance_bord_cm": 387
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6463718,
+     47.2477372
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 67,
+    "type": "arbre",
+    "essence": "chêne pédonculé",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 292
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6394541,
+     47.2396844
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 68,
+    "type": "arbre",
+    "essence": "frêne commun",
+    "etat_phyto": "moyen",
+    "distance_bord_cm": 476
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6491963,
+     47.2525996
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 69,
+    "type": "arbre",
+    "essence": "peuplier",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 507
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6458837,
+     47.246778
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 70,
+    "type": "arbre",
+    "essence": "frêne commun",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 657
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6494997,
+     47.2565
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 71,
+    "type": "arbre",
+    "essence": "charme",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 479
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6376032,
+     47.2378492
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 72,
+    "type": "arbre",
+    "essence": "noyer",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 542
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6363681,
+     47.2366069
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 73,
+    "type": "arbre",
+    "essence": "tilleul",
+    "etat_phyto": "moyen",
+    "distance_bord_cm": 665
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6426236,
+     47.2429677
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 74,
+    "type": "arbre",
+    "essence": "chêne pédonculé",
+    "etat_phyto": "mauvais",
+    "distance_bord_cm": 698
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6493135,
+     47.2523436
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 75,
+    "type": "arbre",
+    "essence": "tilleul",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 182
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6458825,
+     47.2468409
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 76,
+    "type": "arbre",
+    "essence": "peuplier",
+    "etat_phyto": "mauvais",
+    "distance_bord_cm": 639
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6349017,
+     47.2348167
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 77,
+    "type": "arbre",
+    "essence": "noyer",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 446
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6490726,
+     47.252333
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 78,
+    "type": "arbre",
+    "essence": "frêne commun",
+    "etat_phyto": "mauvais",
+    "distance_bord_cm": 405
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6412313,
+     47.2415122
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 79,
+    "type": "arbre",
+    "essence": "tilleul",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 624
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6348697,
+     47.2350879
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 80,
+    "type": "arbre",
+    "essence": "chêne pédonculé",
+    "etat_phyto": "moyen",
+    "distance_bord_cm": 160
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6394138,
+     47.2396216
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 81,
+    "type": "arbre",
+    "essence": "érable champêtre",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 797
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6444239,
+     47.2446989
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 82,
+    "type": "arbre",
+    "essence": "merisier",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 467
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6358559,
+     47.2358304
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 83,
+    "type": "arbre",
+    "essence": "frêne commun",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 637
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6478271,
+     47.2494831
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 84,
+    "type": "arbre",
+    "essence": "charme",
+    "etat_phyto": "moyen",
+    "distance_bord_cm": 318
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6494301,
+     47.2530324
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 85,
+    "type": "arbre",
+    "essence": "chêne pédonculé",
+    "etat_phyto": "mauvais",
+    "distance_bord_cm": 743
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.644834,
+     47.2456961
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 86,
+    "type": "arbre",
+    "essence": "peuplier",
+    "etat_phyto": "mort",
+    "distance_bord_cm": 589
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6415544,
+     47.2418662
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 87,
+    "type": "arbre",
+    "essence": "tilleul",
+    "etat_phyto": "mauvais",
+    "distance_bord_cm": 386
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6335222,
+     47.2345573
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 88,
+    "type": "arbre",
+    "essence": "noyer",
+    "etat_phyto": "moyen",
+    "distance_bord_cm": 730
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6487542,
+     47.2517634
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 89,
+    "type": "arbre",
+    "essence": "chêne pédonculé",
+    "etat_phyto": "bon",
+    "distance_bord_cm": 575
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.6382262,
+     47.2382111
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 90,
+    "type": "glissière",
+    "materiau": "mixte"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      4.6370604,
+      47.2372418
+     ],
+     [
+      4.6371311,
+      47.2373138
+     ],
+     [
+      4.6372017,
+      47.2373857
+     ],
+     [
+      4.6372734,
+      47.2374578
+     ],
+     [
+      4.637346,
+      47.2375288
+     ],
+     [
+      4.6374186,
+      47.2375999
+     ],
+     [
+      4.6374912,
+      47.2376709
+     ],
+     [
+      4.6375628,
+      47.2377421
+     ],
+     [
+      4.6376345,
+      47.2378135
+     ],
+     [
+      4.6377062,
+      47.237885
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 91,
+    "type": "glissière",
+    "materiau": "métal"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      4.6464083,
+      47.2475863
+     ],
+     [
+      4.6464646,
+      47.2476629
+     ],
+     [
+      4.6465208,
+      47.2477396
+     ],
+     [
+      4.6465771,
+      47.2478163
+     ],
+     [
+      4.6466333,
+      47.2478929
+     ],
+     [
+      4.6466896,
+      47.2479696
+     ],
+     [
+      4.6467461,
+      47.2480468
+     ],
+     [
+      4.6468,
+      47.2481243
+     ],
+     [
+      4.6468539,
+      47.2482017
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 92,
+    "type": "glissière",
+    "materiau": "mixte"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      4.6382641,
+      47.2383312
+     ],
+     [
+      4.6383319,
+      47.2384009
+     ],
+     [
+      4.6383997,
+      47.2384706
+     ],
+     [
+      4.6384675,
+      47.2385404
+     ],
+     [
+      4.6385353,
+      47.2386101
+     ],
+     [
+      4.6386028,
+      47.2386803
+     ],
+     [
+      4.6386697,
+      47.2387504
+     ],
+     [
+      4.6387365,
+      47.2388205
+     ],
+     [
+      4.6388034,
+      47.2388907
+     ],
+     [
+      4.6388703,
+      47.2389608
+     ],
+     [
+      4.6389381,
+      47.2390295
+     ],
+     [
+      4.6390078,
+      47.2390983
+     ],
+     [
+      4.6390775,
+      47.2391672
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 93,
+    "type": "passage piéton"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       4.6496824,
+       47.2564842
+      ],
+      [
+       4.6497245,
+       47.2565246
+      ],
+      [
+       4.6496814,
+       47.2565454
+      ],
+      [
+       4.6496393,
+       47.256505
+      ],
+      [
+       4.6496824,
+       47.2564842
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 94,
+    "type": "passage piéton"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       4.6511268,
+       47.2557047
+      ],
+      [
+       4.6511799,
+       47.2557385
+      ],
+      [
+       4.6511376,
+       47.2557653
+      ],
+      [
+       4.6510919,
+       47.2557268
+      ],
+      [
+       4.6511268,
+       47.2557047
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 95,
+    "type": "îlot"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       4.6495666,
+       47.2566064
+      ],
+      [
+       4.6495311,
+       47.2566346
+      ],
+      [
+       4.6494395,
+       47.2566711
+      ],
+      [
+       4.6495011,
+       47.2566369
+      ],
+      [
+       4.6495666,
+       47.2566064
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 96,
+    "type": "îlot"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       4.6331448,
+       47.2345433
+      ],
+      [
+       4.6331921,
+       47.2345249
+      ],
+      [
+       4.6332964,
+       47.2345115
+      ],
+      [
+       4.6332215,
+       47.2345295
+      ],
+      [
+       4.6331448,
+       47.2345433
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}
