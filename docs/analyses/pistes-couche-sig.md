@@ -3,13 +3,12 @@
 
 # Couche SIG : pistes d'améliorations et d'optimisations
 
-Liste du 15/11/2026, mise à jour le même jour : O0, O1, O2, A et B faits, le reste à faire. Elle couvre l'onglet « Couche » (`src/couche.js`, `src/app.js`), le dessin des
+Liste du 15/11/2026, mise à jour le même jour : O0, O1, O2, A et B faits, C écartée, le reste à faire. Elle couvre l'onglet « Couche » (`src/couche.js`, `src/app.js`), le dessin des
 objets dans la photo (`overlay_marks`, `py/web_app.py`) et sur la mini-carte (`Carte.showOverlay`, `src/carte.js`).
 Les gains de vitesse de O3 à O5 sont déduits de la lecture du code et des mesures de O0.
 
 Ordre proposé :
-1. C (A et B faits).
-2. O3, puis O4 si la carte gêne en pratique ; O5 pas justifié (voir O0).
+1. O3 (A et B faits, C écartée), puis O4 si la carte gêne en pratique ; O5 pas justifié (voir O0).
 
 ## Optimisations
 
@@ -115,7 +114,8 @@ Ordre proposé :
   « Envoyer dans Couche ».
 - **Enregistrement** : les modifications sont gardées comme les recalages et partent dans l'export.
 
-**C. Projections coniques conformes et autres systèmes.**
+**C. Projections coniques conformes et autres systèmes.** *Écartée (15/11/2026) : l'auteur ne se sert que du Lambert 93 et
+du WGS 84, déjà lus.*
 - **Aujourd'hui** : `crsOf` (`src/couche.js`) ne lit que le WGS 84 et le Lambert 93 (2154). Or les collectivités
   exportent souvent en projection conique conforme : CC46 à CC48 pour la Bourgogne (EPSG 3946 à 3948), CC47 pour la
   Côte-d'Or.
@@ -124,7 +124,7 @@ Ordre proposé :
   Lambert II étendu).
 
 **D. Import CSV et KML.**
-- **CSV** : colonnes X/Y, ou longitude/latitude, reconnues par leur nom, avec le système de C.
+- **CSV** : colonnes X/Y, ou longitude/latitude, reconnues par leur nom, en Lambert 93 ou WGS 84 (C écartée).
 - **KML** : export courant de Google Earth et des téléphones.
 
 **E. Filtre par attribut**, au-delà des yeux de la légende.
