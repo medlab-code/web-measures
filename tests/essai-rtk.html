@@ -595,7 +595,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         const folder = typeof file === "string" ? file : await file.text();
         const parsed = JSON.parse(folder);
         expect("dossier : fichier nommé et rempli", /^dossier .*\d{4}-\d{2}-\d{2}\.json$/.test(fileName) && parsed.format === "web-measures/dossier"
-          && parsed.couche?.name === "e.csv" && parsed.favoris?.some((f) => f.id === fav) && parsed.modeles?.length > 0, `${fileName} ${Object.keys(parsed)}`);
+          && parsed.couche?.name === "e.csv" && parsed.favoris?.some((f) => f.id === fav) && parsed.modeles?.length > 0
+          && !("mesures" in parsed) && JSON.parse(app.export_geojson()).features.length > 0, `${fileName} ${Object.keys(parsed)}`);  // mesures faites, pas dans le dossier
         doc.querySelector("#couche-retirer").click();
         w.localStorage.setItem("web-measures/favoris", "[]");
         const dialog = doc.querySelector("#importer-dossier");

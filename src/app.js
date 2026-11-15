@@ -6089,20 +6089,20 @@
     };
   }
   // Dossier de travail : tout ce qui est gardé dans ce navigateur en un fichier (couche et réglages, relevé, calage,
-  // parcours, favoris, modèles de champs, mesures, photo ouverte), pour passer la main ou sauvegarder la séance. Les
-  // mesures n'y sont qu'en export (GeoJSON, CSV) : reprises en lecture seule, comme les résultats d'une séance
-  // précédente (reprise modifiable : pour plus tard, docs/analyses/pistes-partage.md). Réglages personnels non repris.
+  // parcours, favoris, modèles de champs, photo ouverte), pour passer la main ou sauvegarder la séance. Sans les mesures :
+  // reprises en lecture seule, elles n'avaient pas de sens (second bord d'une largeur affiché seul, 15/11/2026) ; à y
+  // mettre avec leur reprise modifiable (pour plus tard, docs/analyses/pistes-partage.md). Réglages personnels non repris.
   const DOSSIER_FORMAT = "web-measures/dossier";
   const releveCount = () => JSON.parse(app.releve_json()).points.length;
   const calibrationCount = (c) => ["verticals", "landmarks", "heights", "auto"].reduce((t, k) => t + Object.keys(c?.[k] || {}).length, 0);
   /** « Exporter le dossier » grisé tant qu'il n'y a rien à y mettre (à l'ouverture des réglages, et après un import). */
   function showFolderExport() {
-    $("#dossier-exporter").disabled = !app || !(overlay || app.has_results() || releveCount()
+    $("#dossier-exporter").disabled = !app || !(overlay || releveCount()
       || calibrationCount(JSON.parse(app.calibration_json())) || savedRoutes().length || favorites().length || releveModels().length);
   }
   /** Dossier de travail (objet du fichier) : seules les parties non vides. */
   function workFolder() {
-    const results = JSON.parse(app.export_geojson()).features.length, calibration = JSON.parse(app.calibration_json());
+    const calibration = JSON.parse(app.calibration_json());
     return { format: DOSSIER_FORMAT, version: 1, date: new Date().toISOString(),
       ...(overlay && { couche: overlaySaved() }),
       ...(releveCount() && { releve: { objets: JSON.parse(app.releve_json()), champs: releveFields() } }),
@@ -6110,7 +6110,6 @@
       ...(savedRoutes().length && { parcours: savedRoutes() }),
       ...(favorites().length && { favoris: favorites() }),
       ...(releveModels().length && { modeles: releveModels() }),
-      ...(results && { mesures: { n: results, geojson: app.export_geojson(), csv: app.export_csv() } }),
       ...(photo && { photo: photo.id }) };
   }
   $("#dossier-exporter").addEventListener("click", async () => {
@@ -6150,9 +6149,7 @@
         help: "ajoutés aux vôtres", apply: () => importFavorites(d.favoris) },
       d.modeles?.length && { key: "modeles", checked: true, text: n(d.modeles.length, "modèle de champs", "modèles de champs"),
         help: "ajoutés aux vôtres (même nom : remplacé)", apply: () => importModels({ format: MODELES_FORMAT, modeles: d.modeles }, name) },
-      d.mesures?.n && { key: "mesures", checked: true, text: n(d.mesures.n, "mesure"),
-        help: "en lecture seule dans Résultats (revues sur la carte, exportables), les vôtres restent",
-        apply: () => showPrevious({ ...d.mesures, when: Date.parse(d.date) || Date.now() }, (when) => `du dossier « ${name} » (${when.toLocaleDateString("fr-FR")})`) },
+      // mesures d'un dossier exporté avant le 15/11/2026 au soir : ignorées (voir plus haut)
       d.photo && UUID.test(d.photo) && { key: "photo", checked: true, text: "Photo ouverte dans le dossier", help: "rouverte",
         apply: () => goToPhoto(d.photo) },
     ].filter(Boolean);

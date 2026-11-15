@@ -64,11 +64,12 @@ sans la mesure), indépendant de l'adresse du site, que « Aller à la photo » 
   modifié des deux côtés) signalés.
 - **Coût** : suite naturelle des pistes A et B de la couche (`pistes-couche-sig.md`), plus lourde.
 
-**P5. Dossier de travail en un seul fichier.** *Fait (15/11/2026), version complète ; mesures en lecture seule.*
+**P5. Dossier de travail en un seul fichier.** *Fait (15/11/2026), version complète, sans les mesures.*
 - **Fait** : Réglages › Dossier de travail (`workFolder`, `importFolder`, `src/app.js`) : format
   `web-measures/dossier`, version 1, parties non vides seulement ; reconnu par l'import commun. Fenêtre à l'import comme
-  détaillé ci-dessous ; couche remise par `applySavedOverlay` (comme à l'ouverture), mesures par `showPrevious` (comme
-  les résultats d'une séance précédente). Essai : `essai-rtk` (export, reprise de la couche et des favoris, couche
+  détaillé ci-dessous ; couche remise par `applySavedOverlay` (comme à l'ouverture). Mesures retirées du dossier le
+  15/11/2026 (demande de l'auteur) : reprises en lecture seule, le second bord d'une largeur s'affichait seul, sans
+  sens ; à y remettre avec leur reprise modifiable (ci-dessous). Essai : `essai-rtk` (export, reprise de la couche et des favoris, couche
   décochée quand une couche est en place). Relevé repris non essayé dans le navigateur.
 - **Principe** : « Exporter la séance » réunit la couche et ses réglages, les mesures, le relevé, le calage, les
   parcours et les favoris ; importé par le collègue, il retrouve tout tel quel.
