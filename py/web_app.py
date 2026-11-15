@@ -1150,7 +1150,7 @@ class App(session.Session):
                     "comment": v["commentaire"]} for k, v in enumerate(self.map_lengths)]
         return json.dumps(out + orphans + lengths)
 
-    # Fiche PDF d'un point de référence (src/app.js, makeFiche) ------------------------------------
+    # Fiche PDF d'un point de référence (src/fiche.js, makeFiche) ------------------------------------
     def _fiche_measures(self, name):
         """Hauteurs et largeurs faites depuis le point de référence nommé name."""
         return [m for m in self.tool.measures() if m.result

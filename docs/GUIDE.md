@@ -914,6 +914,9 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 | `docs/CALCULS.md` | calculs de chaque mode, seuils et précision |
 | `index.html`, `src/style.css` | page et mise en page |
 | `src/app.js` | relie carte, visionneuse et calcul : clics, clavier, repères, liseré, filtre |
+| `src/disposition.js` | disposition de la page : hauteur de la carte, largeur de la colonne (poignées, repli), plein écran de la visionneuse |
+| `src/parcours.js` | lecture de la séquence (1x à 16x) et onglet « Vidéo » : parcours, effets posés sur la carte, point d'intérêt, parcours gardés, calcul de la vidéo |
+| `src/fiche.js` | captures de la visionneuse (« Image seule », « Avec annotations ») et fiches PDF des points et des objets de la couche |
 | `src/carte.js` | carte MapLibre : fonds, filaire, points de repère (PR), mesures, étiquettes, poignées, photo la plus proche |
 | `src/traits.js` | surcouche des mesures dans la visionneuse, en WebGL : traits, croix, réticule glissant, étiquettes des mesures et noms des points (la couche importée reste en repères HTML) |
 | `src/calcul.js` | chargement de Pyodide (page et arrière-plan) et des fichiers Python (`py/sources.js`) |

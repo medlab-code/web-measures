@@ -1594,7 +1594,7 @@ button.lien:disabled { color: var(--discret); opacity: 0.6; cursor: default; }
 #choix-fiche .titre-fiche input { flex: 1; min-width: 0; }
 #choix-fiche form button { white-space: nowrap; }
 #nom-fichier form { flex-wrap: wrap; }
-/* Fiche : cadre de la photo retenue par « Vue actuelle », sur la visionneuse (app.js showFicheFrame) */
+/* Fiche : cadre de la photo retenue par « Vue actuelle », sur la visionneuse (fiche.js showFicheFrame) */
 .cadre-fiche { position: fixed; overflow: hidden; pointer-events: none; z-index: 50; }
 .cadre-fiche > div:first-child { position: absolute; box-sizing: border-box; border: 2px dashed #ffeb00;
   box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.55); }  /* hors du cadre : assombri */

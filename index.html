@@ -150,7 +150,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg></button>
           <p id="lieu" hidden></p>
         </div>
-        <!-- Lecture de la séquence, comme le lecteur de la visionneuse officielle (voir app.js) -->
+        <!-- Lecture de la séquence, comme le lecteur de la visionneuse officielle (voir parcours.js) -->
         <div id="lecteur" role="group" aria-label="Lecture de la séquence" hidden>
           <span id="vitesse-arriere" class="vitesse" hidden></span>
           <button id="lecture-arriere" type="button" title="Lecture rapide en arrière (appuis suivants : 2x, 4x, 8x, 16x, 1x)"
@@ -607,16 +607,16 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               aria-label="Distance depuis le PR d'arrivée (m)"> m
               <button type="button" class="sur-carte" data-cote="end" aria-pressed="false"
                 title="Choisir l'arrivée d'un clic sur la mini-carte (Échap : annuler)">📍</button></div>
-            <!-- Étapes de la vidéo (app.js planLegs) : repères bleus, dans l'ordre de pose ; case cachée tenue par placePoint -->
+            <!-- Étapes de la vidéo (parcours.js planLegs) : repères bleus, dans l'ordre de pose ; case cachée tenue par placePoint -->
             <div id="parcours-ligne-etapes" class="ligne"><span><span class="pastille etape" aria-hidden="true"></span>Étapes</span>
               <span id="parcours-etapes-infos" class="aide">aucune</span>
               <button type="button" class="sur-carte" data-cote="waypoint" aria-pressed="false"
                 title="Ajouter une étape d'un clic sur la mini-carte, sur une route photographiée : la vidéo y passe, dans l'ordre de pose des étapes ; clic sur son repère : la retirer (Échap : annuler)">📍</button>
               <input id="parcours-etapes" type="checkbox" hidden></div>
           </div>
-          <!-- Parcours trouvé : séquences, dates et raccords (app.js showVideoPlan) -->
+          <!-- Parcours trouvé : séquences, dates et raccords (parcours.js showVideoPlan) -->
           <div id="video-bandeau" class="bandeau-video" role="status" hidden></div>
-          <!-- Mode : réglages de départ des options (app.js VIDEO_MODES), retouchables ensuite ; liste cachée gardée avec le parcours -->
+          <!-- Mode : réglages de départ des options (parcours.js VIDEO_MODES), retouchables ensuite ; liste cachée gardée avec le parcours -->
           <select id="video-mode" hidden aria-label="Mode de la vidéo"
                   title="Présentation de l'itinéraire : vue rapide, compteurs PR et vitesse, sans option coûteuse ; Revue détaillée : vitesse fixe, tous les compteurs">
               <option value="brouillon">Brouillon</option>
@@ -1255,7 +1255,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
     </form>
   </dialog>
   <!-- Photo sur un pont d'après la BD TOPO : proposer « Sur un pont », une fois par pont -->
-  <!-- Vidéo : serveur d'images bloqué (app.js, VIDEO_STALL) -->
+  <!-- Vidéo : serveur d'images bloqué (parcours.js, VIDEO_STALL) -->
   <dialog id="video-attente" class="avertissement">
     <h2>⚠ Serveur d'images sans réponse</h2>
     <p></p>

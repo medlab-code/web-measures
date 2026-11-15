@@ -272,7 +272,7 @@
     const canvas = Object.assign(document.createElement("canvas"), { width: gl.width, height: gl.height });
     const ctx = canvas.getContext("2d");
     ctx.drawImage(gl, 0, 0);
-    for (const el of psv.container.querySelectorAll(".parcelle-visee")) {  // comme app.js (thumbnail)
+    for (const el of psv.container.querySelectorAll(".parcelle-visee")) {  // comme fiche.js (thumbnail)
       const box = el.getBoundingClientRect(), css = getComputedStyle(el);
       if (!box.width) continue;
       ctx.save();

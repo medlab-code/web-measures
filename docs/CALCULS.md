@@ -14,7 +14,7 @@ analyse fine, relevé, compteurs de la vidéo) sont décrits en entier.
 Code : cœur de calcul dans `py/core/` (tests : `tests/coeur/`), calculs propres à
 l'application dans `py/web_app.py`, analyse fine du nuage dans `src/nuage.js`, dessin du profil
 dans `src/profil.js`, vidéo du parcours dans `src/video.js` (dévers de la vidéo : `readDevers` dans
-`src/app.js`).
+`src/parcours.js`).
 
 ## 1. Ce qui sert à tous les modes
 
