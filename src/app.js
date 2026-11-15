@@ -161,7 +161,7 @@
   };
 
   const viewer = $("#visionneuse");
-  const map = Carte.createMap("carte");
+  const map = Carte.createMap("carte", { vectorPlan: true });  // Plan IGN vectoriel : texte net à tout zoom
   Recherche.attach(map);
   Requeteur.attach(map, openNearest);
   Carte.showMilestones(map);

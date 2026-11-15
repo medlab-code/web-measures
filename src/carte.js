@@ -126,9 +126,12 @@ const Carte = (() => {
   const EMPTY = { type: "FeatureCollection", features: [] };
   const kind = (...kinds) => ["in", ["get", "kind"], ["literal", kinds]];
 
-  /** Options de la page mobile : vectorPlan, Plan IGN vectoriel au lieu de ses images ; textScale, texte des fonds
-   * vectoriels agrandi (lisible au doigt). */
+  /** Options : vectorPlan, Plan IGN vectoriel au lieu de ses images (les deux pages) ; textScale, texte des fonds
+   * vectoriels agrandi (page mobile, lisible au doigt). */
   let mapOptions = { vectorPlan: false, textScale: 1 };
+  // cadastre du Plan IGN vectoriel, jamais dessiné (celui du réglage « Cadastre » suffit) : parcelles, sections et leurs
+  // numéros ; numéros d'adresse gardés
+  const PLAN_PARCELS = ["parcellaire_parcelle", "parcellaire_section", "toponyme_parcellaire_parcelle", "toponyme_parcellaire_section"];
   function createMap(container, { vectorPlan = false, textScale = 1 } = {}) {
     mapOptions = { vectorPlan, textScale };
     const map = new maplibregl.Map({
@@ -564,6 +567,7 @@ const Carte = (() => {
         };
         for (const layer of style.layers) {
           if (layer.type !== "background" && !sources[layer.source]) continue;
+          if (PLAN_PARCELS.includes(layer["source-layer"])) continue;
           const layout = { ...layer.layout, visibility: shown() ? "visible" : "none" };
           if (layout["text-size"] != null || layer.type === "symbol") layout["text-size"] = scaledSize(layout["text-size"] ?? 16, mapOptions.textScale);
           if (Array.isArray(layout["text-font"]) && def.font) layout["text-font"] = layout["text-font"].map((f) => (typeof f === "string" ? def.font(f) : f));
