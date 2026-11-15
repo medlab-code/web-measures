@@ -508,7 +508,7 @@ const Carte = (() => {
     if (!BACKGROUNDS.includes(name)) name = "plan";  // fond mémorisé inconnu
     const vector = name === "ofm" ? "ofm" : name === "plan" && mapOptions.vectorPlan ? "planv" : null;
     for (const [key, base] of Object.entries(vectorBases)) {
-      for (const id of base.ids) map.setLayoutProperty(id, "visibility", vectorVisibility(id, key === vector));
+      for (const id of base.ids) map.setLayoutProperty(id, "visibility", key === vector ? "visible" : "none");
     }
     if (vector) loadVector(map, vector, () => vectorShown === vector);
     vectorShown = vector;
@@ -532,10 +532,11 @@ const Carte = (() => {
 
   let vectorShown = null;  // fond vectoriel affiché (clé de VECTOR_BASES), ou null
   const vectorBases = {};  // clé -> { ids : couches ajoutées, loading }
-  // Bâtiments des fonds vectoriels (Plan IGN, OpenFreeMap), masqués avec le cadastre : ceux du cadastre, un peu décalés, les
-  // doubleraient
-  const BUILDING_LAYERS = ["bati_surf", "building"], buildingIds = new Set();
-  const vectorVisibility = (id, shown) => (shown && !(cadastreOn && buildingIds.has(id)) ? "visible" : "none");
+  // Bâtiments des fonds vectoriels (Plan IGN, OpenFreeMap), masqués avec le cadastre dès CADASTRE_BATIMENTS_ZOOM : ceux du
+  // cadastre, un peu décalés, les doubleraient ; dessinés en dessous (le cadastre n'en a pas)
+  const BUILDING_LAYERS = ["bati_surf", "building"], buildingMax = new Map();  // couche -> zoom maximal de son style
+  const buildingZoom = (map, id) => map.setLayerZoomRange(id, map.getLayer(id).minzoom ?? 0,
+    cadastreOn ? Math.min(buildingMax.get(id), CADASTRE_BATIMENTS_ZOOM) : buildingMax.get(id));
   /** Ajoute (une fois) les couches d'un fond vectoriel, au-dessus des fonds en images et sous tout le reste ; shown() :
    * encore choisi à leur arrivée. */
   function loadVector(map, key, shown) {
@@ -573,8 +574,7 @@ const Carte = (() => {
           if (layer.type !== "background" && !sources[layer.source]) continue;
           if (PLAN_PARCELS.includes(layer["source-layer"])) continue;
           const id = `${key}-${layer.id}`;
-          if (BUILDING_LAYERS.includes(layer["source-layer"])) buildingIds.add(id);
-          const layout = { ...layer.layout, visibility: vectorVisibility(id, shown()) };
+          const layout = { ...layer.layout, visibility: shown() ? "visible" : "none" };
           if (layout["text-size"] != null || layer.type === "symbol") layout["text-size"] = scaledSize(layout["text-size"] ?? 16, mapOptions.textScale);
           if (Array.isArray(layout["text-font"]) && def.font) layout["text-font"] = layout["text-font"].map((f) => (typeof f === "string" ? def.font(f) : f));
           if (layout["icon-image"] != null) layout["icon-image"] = prefixed(layout["icon-image"]);
@@ -582,6 +582,10 @@ const Carte = (() => {
           for (const name of ["fill-pattern", "line-pattern"]) if (paint[name] != null) paint[name] = prefixed(paint[name]);
           map.addLayer({ ...layer, id, ...(layer.source && { source: sources[layer.source] }), layout, paint }, "cadastre-parcelles");
           base.ids.push(id);
+          if (BUILDING_LAYERS.includes(layer["source-layer"])) {
+            buildingMax.set(id, layer.maxzoom ?? 24);
+            buildingZoom(map, id);
+          }
         }
       } catch (error) {
         console.warn(`Fond vectoriel ${key} indisponible :`, error);
@@ -846,6 +850,7 @@ const Carte = (() => {
   // Cadastre : parcelles dès CADASTRE_MINZOOM, bornes de limite de propriété et étiquettes dès CADASTRE_BORNES_ZOOM (nombreuses ;
   // tuiles vectorielles du PCI : ni bornes ni étiquettes avant le zoom 17)
   const CADASTRE_MINZOOM = 15, CADASTRE_BORNES_ZOOM = 17, CADASTRE_SECTIONS_ZOOM = 17;
+  const CADASTRE_BATIMENTS_ZOOM = 17;  // bâtiments dans les tuiles du PCI à partir de ce zoom
   let cadastreOn = false, cadastreFollow = false;
 
   /** Cadastre affiché ou non sur la carte (réglage « Cadastre »). */
@@ -854,7 +859,7 @@ const Carte = (() => {
     // pas whenLoaded (voir setMilestones) : « load » peut être passé alors que le style se dit « pas chargé »
     const apply = () => {
       for (const id of ["cadastre-parcelles", "cadastre", "cadastre-camera-fond", "cadastre-camera", "cadastre-vise-fond", "cadastre-vise", "cadastre-batiments", "cadastre-bornes", "cadastre-sections"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
-      for (const id of buildingIds) map.setLayoutProperty(id, "visibility", vectorVisibility(id, id.startsWith(`${vectorShown}-`)));
+      for (const id of buildingMax.keys()) buildingZoom(map, id);
       if (!cadastreFollow) {
         cadastreFollow = true;
         // tuiles du cadastre arrivées (zoom, déplacement) : parcelle visée recherchée de nouveau
