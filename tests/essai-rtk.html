@@ -441,6 +441,31 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         expect("couche : objet remis à sa place par Suppr, recalage oublié", Math.abs(back.yaw - start.yaw) < 1e-6
           && Math.abs(back.pitch - start.pitch) < 1e-6 && !(await stored()));
       }
+      // Parcours des objets : tableau, recherche, clic sur « cible » (vue tournée vers elle), statut gardé, ▶
+      {
+        doc.querySelector("#couche-parcours").open = true;
+        const rows = () => [...doc.querySelectorAll("#objets-lignes tr")];
+        await expectSoon("parcours : une ligne par objet", () => rows().length === 4, () => `${rows().length}`);
+        const search = doc.querySelector("#objets-recherche");
+        search.value = "p";
+        search.dispatchEvent(new Event("input"));
+        expect("parcours : recherche par attribut", rows().length === 2, rows().map((r) => r.textContent).join(", "));
+        search.value = "";
+        search.dispatchEvent(new Event("input"));
+        rows().find((r) => r.textContent.includes("cible")).click();
+        const aim = () => JSON.parse(app.overlay_marks()).find((m) => m.id === 0)?.points[0][0];
+        const off = () => Math.abs(Math.atan2(Math.sin(w.mesures.psv.getPosition().yaw - aim()), Math.cos(w.mesures.psv.getPosition().yaw - aim())));
+        await expectSoon("parcours : photo tournée vers l'objet choisi", () => aim() != null && off() < 0.02, () => `écart ${off()} rad`, 40000);
+        const statut = doc.querySelector("#objet-statut");
+        statut.value = "vérifié";
+        statut.dispatchEvent(new Event("change"));
+        const saved = await w.mesures.savedOverlay();
+        expect("parcours : statut gardé dans la colonne verif", saved.features[0].properties.verif === "vérifié" && saved.columns.includes("verif")
+          && [...doc.querySelector("#couche-couleur").options].some((o) => o.value === "verif"));
+        doc.querySelector("#objet-suivant").click();
+        expect("parcours : ▶ passe à l'objet suivant", doc.querySelector("#objet-courant").textContent === "Objet ligne (2/4)"
+          && !doc.querySelector("#objet-precedent").disabled && statut.value === "");
+      }
       // Case « Afficher la couche » : masquée sur la carte et dans la photo, puis réaffichée
       const visible = doc.querySelector("#couche-visible");
       visible.checked = false;

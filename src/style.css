@@ -1548,6 +1548,20 @@ button.lien:disabled { color: var(--discret); opacity: 0.6; cursor: default; }
 #couche-legende .bornes-degrade { justify-content: space-between; min-height: 1.4rem; font-weight: 500; }
 .encart-recalage { margin: 1rem 0 0; padding: 0.55rem 0.7rem; border-radius: 8px; background: var(--encart);
   border-left: 3px solid var(--panoramax); font-size: 0.9em; }
+/* Parcours des objets : ◀ objet ▶, statut et commentaire, recherche, tableau triable (clic sur un intitulé) */
+#couche-parcours { margin-top: 1rem; }
+#couche-parcours summary { font-weight: 600; cursor: pointer; }
+.parcours-objets, .statut-objet { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.5rem; }
+#objet-courant { flex: 1; min-width: 0; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#objet-note { flex: 1; min-width: 0; }
+#objets-recherche { width: 100%; margin-top: 0.5rem; box-sizing: border-box; }
+.tableau-objets { max-height: 18rem; overflow: auto; margin-top: 0.4rem; border: 1px solid var(--bord); border-radius: 8px; }
+.tableau-objets table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+.tableau-objets th { position: sticky; top: 0; background: var(--encart); text-align: left; cursor: pointer; }
+.tableau-objets th, .tableau-objets td { padding: 0.25rem 0.5rem; white-space: nowrap; }
+.tableau-objets tbody tr { cursor: pointer; }
+.tableau-objets tbody tr:hover { background: var(--encart); }
+.tableau-objets tbody tr[aria-selected="true"] { outline: 2px solid var(--panoramax); outline-offset: -2px; }
 .palette-couche { position: fixed; inset: auto; margin: 0; width: 17rem; padding: 0.6rem; gap: 0.5rem;
                   flex-wrap: wrap; background: var(--fond); border: 1px solid var(--bord); border-radius: 6px;
                   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }

@@ -2294,6 +2294,7 @@
     Carte.showOverlay(map, $("#couche-visible").checked ? { type: "FeatureCollection",
       features: overlay.features.filter((f) => !masked.has(f.properties._cle)) } : null);
     refresh();
+    showObjectTable();
   }
 
   /** Fiche de la couche : nombre d'objets, système de coordonnées, objets recalés dans des photos. */
@@ -2306,11 +2307,109 @@
     $("#couche-fiches").disabled = !n;
   }
 
+  // Parcours des objets de la couche : tableau trié (clic sur un intitulé) et filtré par la recherche ; ◀ ▶ dans son
+  // ordre. Statut de vérification dans les colonnes « verif » et « verif_note » (10 lettres au plus : Shapefile), ajoutées
+  // à la couche au premier statut, gardées et exportées comme ses autres colonnes.
+  let objectSort = { key: "", up: true };  // "" : ordre du fichier
+  let objectCurrent = null;  // n° de l'objet du parcours
+  let objectOrder = [];  // n° des objets du tableau, dans son ordre
+
+  function showObjectTable() {
+    if (!overlay || !$("#couche-parcours").open) return showObjectState();
+    const label = $("#couche-etiquette").value;
+    const columns = [["", "Objet"], ...(label ? [[label, label]] : []), ["verif", "Statut"]];
+    const value = (i, key) => (key ? Couche.format(overlay.features[i].properties[key]) : overlayObjectName(i));
+    const query = $("#objets-recherche").value.trim().toLowerCase();
+    objectOrder = overlay.features.map((_, i) => i).filter((i) => !query || [overlayObjectName(i),
+      ...Object.values(overlayProperties(overlay.features[i])).map(Couche.format)].some((v) => v.toLowerCase().includes(query)));
+    const { key, up } = objectSort;
+    if (key || !up) {
+      objectOrder.sort((a, b) => (up ? 1 : -1) * (value(a, key).localeCompare(value(b, key), "fr", { numeric: true }) || a - b));
+    }
+    $("#objets-entete").replaceChildren(...columns.map(([k, title]) => {
+      const th = Object.assign(document.createElement("th"), { scope: "col", textContent: title, title: "Trier" });
+      if (k === key) th.setAttribute("aria-sort", up ? "ascending" : "descending");
+      th.addEventListener("click", () => {
+        objectSort = { key: k, up: k !== key || !up };
+        showObjectTable();
+      });
+      return th;
+    }));
+    $("#objets-lignes").replaceChildren(...objectOrder.map((i) => {
+      const tr = document.createElement("tr");
+      tr.append(...columns.map(([k]) => Object.assign(document.createElement("td"), { textContent: value(i, k) })));
+      tr.setAttribute("aria-selected", String(i === objectCurrent));
+      tr.addEventListener("click", () => goToObject(i));
+      return tr;
+    }));
+    showObjectState();
+  }
+
+  /** Objet du parcours, ◀ ▶, statut et commentaire : grisés tant qu'ils ne peuvent servir. */
+  function showObjectState() {
+    const k = objectOrder.indexOf(objectCurrent), on = overlay && objectCurrent != null;
+    $("#objet-precedent").disabled = !overlay || k <= 0;
+    $("#objet-suivant").disabled = !overlay || !objectOrder.length || k === objectOrder.length - 1;
+    $("#objet-statut").disabled = $("#objet-note").disabled = !on;
+    const p = on ? overlay.features[objectCurrent].properties : {};
+    $("#objet-courant").textContent = on ? `Objet ${overlayObjectName(objectCurrent)}${k >= 0 ? ` (${k + 1}/${objectOrder.length})` : ""}`
+      : "Cliquez un objet du tableau, ou ▶";
+    $("#objet-statut").value = p.verif || "";
+    if (document.activeElement !== $("#objet-note")) $("#objet-note").value = p.verif_note || "";
+    for (const tr of $("#objets-lignes").children) tr.setAttribute("aria-selected", String(objectOrder[tr.sectionRowIndex] === objectCurrent));
+  }
+
+  /** Objet n° i de la couche : photo la plus proche (ou celle de son recalage) ouverte, tournée vers lui. */
+  async function goToObject(i) {
+    objectCurrent = i;
+    showObjectState();
+    try {
+      const data = await overlayFicheData(i, [], true);
+      if (!data.photo) return setStatus("Aucune photo trouvée près de cet objet (filtre, instance ?).", "echec");
+      if (photo?.id !== data.photo) await openPhotoReady(data.photo);
+      if (objectCurrent !== i) return;  // un autre objet choisi entre-temps
+      // Dessiné dans la photo une fois le sol lu (5 s au plus, puis à plat) ; masqué ou trop loin : tourné vers sa position
+      await (async () => { for (let t = 0; t < 24 && !overlayEnds(i).length; t++) await new Promise((r) => setTimeout(r, 250)); })();
+      const ends = overlayEnds(i), azimuth = Number(photo.properties?.["view:azimuth"]);
+      if (ends.length) frameView(ends);
+      else if (Number.isFinite(azimuth)) {
+        const [lon0, lat0] = photo.geometry.coordinates;
+        const bearing = Math.atan2((data.lon - lon0) * Math.cos(lat0 * Math.PI / 180), data.lat - lat0);
+        psv.animate({ yaw: bearing - azimuth * Math.PI / 180, pitch: 0, speed: 1200 });
+      }
+    } catch (error) {
+      notice(`Objet ${overlayObjectName(i)} : ${error.message}`);
+    }
+  }
+
+  /** Statut ou commentaire de l'objet du parcours ; la colonne est ajoutée à la couche à sa première valeur. */
+  function setObjectCheck(column, text) {
+    overlay.features[objectCurrent].properties[column] = text;
+    if (text && !overlay.columns.includes(column)) {
+      overlay.columns.push(column);
+      for (const id of ["#couche-couleur", "#couche-etiquette", "#couche-etiquette2", "#couche-etiquette-carte"]) {
+        $(id).append(new Option(column, column));
+      }
+    }
+    setOverlayChanged(true);  // à réenregistrer dans le fichier
+    saveOverlay();
+    showOverlayStyle();  // couleur ou étiquette selon le statut, tableau
+  }
+  $("#couche-parcours").addEventListener("toggle", showObjectTable);
+  $("#objets-recherche").addEventListener("input", showObjectTable);
+  $("#objet-statut").addEventListener("change", (event) => setObjectCheck("verif", event.target.value));
+  $("#objet-note").addEventListener("change", (event) => setObjectCheck("verif_note", event.target.value.trim()));
+  for (const [id, step] of [["#objet-precedent", -1], ["#objet-suivant", 1]]) $(id).addEventListener("click", () => {
+    const k = objectOrder.indexOf(objectCurrent);
+    goToObject(objectOrder[k < 0 ? 0 : k + step]);
+  });
+
   /** Couche en place (lue d'un fichier, ou gardée) : calcul, réglages, carte ; cadrée dessus si fit. */
   // mapLabel : colonne de l'étiquette de la mini-carte ; null : « id » (sans tenir compte de la casse), sinon la première
   function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}, masks = {}, mapLabel = null, label2 = "") {
     overlay = { name, ...read, couleurs: colors, masques: masks };  // masques : { colonne: [clés de légende masquées] }
     moving = null;  // couleurs choisies : { colonne: { clé de légende: couleur } }
+    objectCurrent = null;
     $("#couche-visible").checked = visible;
     const n = app.set_overlay(JSON.stringify(read.features.map(({ id, geometry }) => ({ id, geometry }))));
     // Relevé (envoyé, ou réimporté) : colonnes techniques hors des listes, gardées dans les exports
@@ -2591,6 +2690,9 @@
   $("#couche-retirer").addEventListener("click", () => {
     overlay = null;
     moving = null;
+    objectCurrent = null;
+    objectOrder = [];
+    showObjectState();
     overlayWrite((s) => s.delete("couche-texte"), () => store.set("couche", ""));
     app?.set_overlay("[]");
     Carte.showOverlay(map, null);

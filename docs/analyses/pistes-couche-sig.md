@@ -3,12 +3,12 @@
 
 # Couche SIG : pistes d'améliorations et d'optimisations
 
-Liste du 15/11/2026, mise à jour le même jour : O0, O1 et O2 faits, le reste à faire. Elle couvre l'onglet « Couche » (`src/couche.js`, `src/app.js`), le dessin des
+Liste du 15/11/2026, mise à jour le même jour : O0, O1, O2 et A faits, le reste à faire. Elle couvre l'onglet « Couche » (`src/couche.js`, `src/app.js`), le dessin des
 objets dans la photo (`overlay_marks`, `py/web_app.py`) et sur la mini-carte (`Carte.showOverlay`, `src/carte.js`).
 Les gains de vitesse de O3 à O5 sont déduits de la lecture du code et des mesures de O0.
 
 Ordre proposé :
-1. A et B : ils changent l'usage.
+1. B : il change l'usage (A fait).
 2. C.
 3. O3, puis O4 si la carte gêne en pratique ; O5 pas justifié (voir O0).
 
@@ -83,7 +83,15 @@ Ordre proposé :
 
 ## Améliorations
 
-**A. Parcours de vérification des objets.** *Le plus utile.*
+**A. Parcours de vérification des objets.** *Fait.*
+- **Fait** : rubrique repliable « Parcours des objets » de l'onglet Couche (`showObjectTable`, `goToObject`,
+  `src/app.js`) : tableau (nom, colonne de l'étiquette, statut) trié par un clic sur un intitulé, recherche dans tous
+  les attributs ; ◀ / ▶ dans l'ordre du tableau. La photo est celle de la fiche automatique (recalage, sinon la plus
+  proche), tournée vers l'objet dessiné, ou vers sa position s'il est masqué ou à plus de 100 m. Statut et commentaire
+  dans les colonnes `verif` et `verif_note` (10 lettres au plus : Shapefile), ajoutées au premier statut : gardées,
+  enregistrées, exportées, proposées pour la couleur. Essai : `essai-rtk` (tableau, recherche, vue tournée, statut, ▶).
+- **Écart avec la piste** : statut dans les attributs plutôt qu'à côté comme les recalages, pour qu'il arrive dans QGIS
+  et le CSV.
 - **Tableau des objets** dans l'onglet Couche : triable, avec une recherche par identifiant ou par attribut.
 - **Boutons ◀ / ▶ « objet précédent / suivant »** : chacun ouvre la photo la plus proche, tournée vers l'objet. Les
   fonctions existent déjà : `Carte.nearestPhoto`, et la vue tournée comme pour les étiquettes.

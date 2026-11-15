@@ -641,6 +641,13 @@ ou en ouvrant une photo à moins de 30 m d'une photo recalée d'une autre séque
 sens ou autre passage) sans recalage sur la sienne, une fenêtre propose d'aller sur la photo recalée
 (une fois par séquence refusée).
 
+**Parcours des objets** (rubrique repliable de l'onglet Couche) : tableau des objets (nom, colonne de l'étiquette,
+statut), trié par un clic sur un intitulé et filtré par la recherche (identifiant ou n'importe quel attribut). Un clic
+sur une ligne, ou ◀ / ▶ dans l'ordre du tableau, ouvre la photo de l'objet (celle de son recalage, sinon la plus
+proche) tournée vers lui. Son statut (« vérifié », « à revoir ») et un commentaire s'écrivent dans les colonnes `verif`
+et `verif_note`, ajoutées à la couche au premier statut : gardées avec elle, enregistrées et exportées comme ses autres
+colonnes, et proposées pour la couleur ou l'étiquette.
+
 **Résultats gardés** : ils sont enregistrés dans le navigateur à chaque changement ; à
 l'ouverture suivante, ceux de la session précédente qui n'ont pas été exportés sont proposés à
 l'export (CSV, GeoJSON) ou à l'oubli, et affichés en lecture seule : liste sous les résultats,

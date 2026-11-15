@@ -394,6 +394,28 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             <!-- Fiches de tous les objets, en un seul PDF (app.js askFiche, { tous }) ; nombre d'objets : showOverlayInfo -->
             <button id="couche-fiches" type="button" disabled
                     title="Un seul PDF, une page par objet, photo cadrée automatiquement sur l'objet">Fiches PDF des objets</button>
+            <!-- Parcours des objets (app.js showObjectTable) : tableau trié et filtré ; ◀ ▶ dans son ordre, photo la plus
+                 proche tournée vers l'objet ; statut dans les colonnes verif et verif_note, gardées et exportées -->
+            <details id="couche-parcours">
+              <summary>Parcours des objets</summary>
+              <div class="parcours-objets">
+                <button id="objet-precedent" type="button" disabled aria-label="Objet précédent"
+                        title="Objet précédent du tableau : photo la plus proche, tournée vers lui">◀</button>
+                <span id="objet-courant">Cliquez un objet du tableau, ou ▶</span>
+                <button id="objet-suivant" type="button" disabled aria-label="Objet suivant"
+                        title="Objet suivant du tableau : photo la plus proche, tournée vers lui">▶</button>
+              </div>
+              <div class="statut-objet">
+                <select id="objet-statut" disabled aria-label="Statut de l'objet" title="Colonne « verif » de la couche">
+                  <option value="">non vérifié</option><option>vérifié</option><option>à revoir</option>
+                </select>
+                <input id="objet-note" type="text" disabled maxlength="254" placeholder="Commentaire"
+                       aria-label="Commentaire sur l'objet" title="Colonne « verif_note » de la couche">
+              </div>
+              <input id="objets-recherche" type="search" placeholder="Rechercher (identifiant, attribut)"
+                     aria-label="Rechercher un objet par identifiant ou attribut">
+              <div class="tableau-objets"><table><thead><tr id="objets-entete"></tr></thead><tbody id="objets-lignes"></tbody></table></div>
+            </details>
             <div class="reglage-couche"><label for="couche-couleur">Couleur</label><select id="couche-couleur"></select></div>
             <div class="titre-legende">
               <h3 id="titre-legende">Légende</h3>
