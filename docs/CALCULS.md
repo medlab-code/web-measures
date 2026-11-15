@@ -165,7 +165,8 @@ Chaque objet est placé d'une de ces trois façons :
 
 - **triangulé** (§ 2) : la façon normale ;
 - **sur une seule photo** (« Garder sur cette seule photo ») : là où la visée touche le sol,
-  supposé plat à la hauteur de caméra sous la photo. La visée doit descendre d'au moins 2° sous
+  supposé plat à la hauteur de caméra sous la photo (altitude RTK moins sol LiDAR, sinon calée, sinon
+  monture du CD21 d'après la date, sinon le réglage : `App._camera_of`). La visée doit descendre d'au moins 2° sous
   l'horizon, soit 70 m au plus pour une caméra à 2,5 m. L'incertitude vient surtout de
   l'inclinaison : ±0,2 à 0,8 m pour un objet à 6 m selon son calage ;
 - **sur la carte** (« Placer sur la carte ») : le clic sur la mini-carte, à ±1 m (précision des
@@ -220,7 +221,9 @@ qui se touchent à 1 m près forment un seul ouvrage.
   consécutives (rangs dans la séquence) dont le segment passe au plus près (pont long et pentu ; une
   seule photo : son altitude ; `web_app._deck_at`). La hauteur de
   caméra est celle **mesurée sur la séquence** vérifiée (médiane de l'altitude RTK moins le sol
-  LiDAR, photos du pont écartées), sinon celle **calée** pour la séquence. Une photo de précision
+  LiDAR, photos du pont écartées), sinon celle **calée** pour la séquence, sinon pour une photo du CD21
+  la **monture d'après la date** (1,93 m jusqu'au 30/06/2025, 2,07 m ensuite, ±4 cm, `App.FLEET_MOUNTS`,
+  comme la vue du dessus). Une photo de précision
   déclarée n'a que sa propre hauteur, prise au-dessus du sol sous elle : sur un pont, le fond
   franchi. Le réglage « Caméra à » ne sert alors que si l'utilisateur l'accepte (bouton de
   l'encadré du pont).

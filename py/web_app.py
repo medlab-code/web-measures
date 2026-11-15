@@ -712,7 +712,7 @@ class App(session.Session):
                 "heading": float(heading), "offset": pose["offset"] if pose else 0.0,
                 "up": list(tilt["up"]) if tilt else None,
                 "sigma": tilt["sigma"] if tilt else calibration.UNCALIBRATED,
-                "pending": pending(pic), "height": self._camera_height(),
+                "pending": pending(pic), "height": self._camera_height(mount=False),
                 "height_sigma": max(q.get("spread") or 0, 0.05) if verified else cam["sigma"] if cam else 0.3,
                 "relative_sigma": 0.05 if verified else 0.3,  # position d'une photo à sa voisine (trajectoire)
                 "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []),
@@ -761,6 +761,8 @@ class App(session.Session):
     # et dates de montage non disponibles : prises de vue d'un prestataire)
     FLEET_MOUNTS = (("2025-01-01", "2025-07-01", 1.93), ("2025-07-01", "2026-01-01", 2.07))
     MOUNT_SIGMA = 0.04  # m : comme src/dessus.js (MOUNT_SIGMA)
+    # Colonne camera_calee de l'export des mesures : 0 réglage, 1 calée, 2 altitude GPS (measures.CAMERA_SOURCES), 3 monture
+    CAMERA_CODES = {**measures.CAMERA_SOURCES, "monture": 3}
 
     def _fleet_mount(self, item):
         """Hauteur de la monture du CD21 (FLEET_MOUNTS) à la date de prise de vue de la photo, ou None."""
@@ -768,6 +770,33 @@ class App(session.Session):
         if not any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []):
             return None
         return next((h for first, end, h in self.FLEET_MOUNTS if first <= date < end), None)
+
+    def _camera_of(self, item, quality, sequence_only=False):
+        """(hauteur de caméra en m, source, incertitude en m) de la photo item (quality : sa vérification de position), dans
+        l'ordre : mesurée, altitude RTK moins sol LiDAR HD (sequence_only : sur la séquence seulement, pas la photo seule de
+        précision déclarée, dont la hauteur est prise au-dessus du sol sous elle) ; calée pour la séquence ; monture du CD21
+        d'après la date (FLEET_MOUNTS, ±MOUNT_SIGMA) ; le réglage « Caméra à » (source None). Les mesures (hauteur, largeur,
+        points triangulés) n'en dépendent pas ; elle sert au tablier d'un pont, aux objets posés au sol et à l'export."""
+        q = quality or {}
+        h = q.get("height")
+        if (q.get("count") if sequence_only else q.get("precise")) and q.get("lidar") is True and h is not None \
+                and measures.CAMERA_RANGE[0] <= h <= measures.CAMERA_RANGE[1]:
+            return h, "altitude GPS", q.get("spread") or measures.CAMERA_ERRORS["altitude GPS"]
+        cam = self.calibration.camera((item or {}).get("collection"))
+        if cam:
+            return cam["height"], "calée", cam["sigma"]
+        mount = self._fleet_mount(item or {})
+        if mount:
+            return mount, "monture", self.MOUNT_SIGMA
+        return self.tool.camera_height, None, measures.CAMERA_ERRORS[None]
+
+    def _camera_height(self, mount=True):
+        """Hauteur de caméra de la photo affichée (objets posés au sol, relevé sur une seule photo) : comme
+        Session._camera_height, avec la monture du CD21 d'après la date avant le réglage ; mount=False : sans elle (vue du
+        dessus, qui choisit la monture elle-même, src/dessus.js)."""
+        if not mount or not self.item:
+            return super()._camera_height()
+        return self._camera_of(self.item, self.quality)[0]
 
     def _roll_defect(self, item):
         """Défaut de roulis (degrés, ROLL_DEFECTS) du producteur de la photo à sa date de prise de vue, ou 0."""
@@ -2009,18 +2038,12 @@ class App(session.Session):
     fall_setting = False  # l'utilisateur accepte le réglage « Caméra à » pour la hauteur de chute
 
     def _fall_camera(self):
-        """(hauteur de caméra en m, sa source, son incertitude en m) pour le tablier, ou None (à demander)."""
-        q = self.quality or {}
-        h = q.get("height")
-        if q.get("count") and q.get("lidar") is True and h is not None \
-                and measures.CAMERA_RANGE[0] <= h <= measures.CAMERA_RANGE[1]:
-            return round(h, 3), "séquence", q.get("spread") or measures.CAMERA_ERRORS["altitude GPS"]
-        cam = self.calibration.camera((self.item or {}).get("collection"))
-        if cam:
-            return round(cam["height"], 3), "calée", cam["sigma"]
-        if self.fall_setting:
-            return round(self.tool.camera_height, 3), "réglage", measures.CAMERA_ERRORS[None]
-        return None
+        """(hauteur de caméra en m, sa source, son incertitude en m) pour le tablier, ou None (à demander) : mesurée sur la
+        séquence, calée, monture du CD21 d'après la date, sinon le réglage si l'utilisateur l'accepte (_camera_of)."""
+        h, source, sigma = self._camera_of(self.item, self.quality, sequence_only=True)
+        if source is None and not self.fall_setting:
+            return None
+        return round(h, 3), {"altitude GPS": "séquence", None: "réglage"}.get(source, source), sigma
 
     def use_fall_setting(self):
         """Bouton de l'encadré du pont : la hauteur de chute utilise le réglage « Caméra à » (pour la session)."""
@@ -2219,7 +2242,7 @@ class App(session.Session):
                           "l'eau : niveau au relevé, pas le fond. Hauteur de caméra : {} m ({}).").format(
                     source, measures._num(self.FALL_SIDES[-1], 0), measures._num(best[1], 0), measures._num(camera, 2),
                     {"séquence": "mesurée sur la séquence", "calée": "calée pour la séquence",
-                     "réglage": "réglage « Caméra à »"}[camera_source])}
+                     "monture": "monture du CD21 d'après la date", "réglage": "réglage « Caméra à »"}[camera_source])}
             self.notify()
 
         host.fetch_json(metadata.search_url(lon, lat, reach, 100, item.get("collection"), host.api_url), got_photos)
@@ -3237,7 +3260,10 @@ class App(session.Session):
                 continue
             d = r["decomposition"]
             ends = r["points"] if len(r["points"]) >= 2 else r["picks"]
-            height, source = self.tool.camera_info(m.clicks[0], measures._ground_z(m.clicks)[m.clicks[0].get("pic")])
+            # Hauteur de caméra de la photo du premier clic, pour information (la mesure n'en dépend pas) ; photo oubliée
+            # (plus de 500 vues depuis) : le réglage
+            item = self.photo_items.get(m.clicks[0].get("pic"))
+            height, source, _ = self._camera_of(item, self.precision.known(item)) if item else (self.tool.camera_height, None, 0)
 
             def num(value, digits=3):
                 return None if value is None else round(value, digits)
@@ -3249,7 +3275,7 @@ class App(session.Session):
                 "horiz_m": num(d["horizontal"]), "vert_m": num(d["vertical"]),
                 "long_route_m": num(d["along"]), "travers_m": num(d["across"]),
                 "dist_photo_m": num(max(r["ranges"]), 1), "camera_m": num(height, 2),
-                "camera_calee": measures.CAMERA_SOURCES.get(source, 0),
+                "camera_calee": self.CAMERA_CODES.get(source, 0),
                 "axe_route": m.axis_source if m.kind == "road" else None,
                 "recales": len(m.overrides),
                 "photos": ",".join(dict.fromkeys(c.get("pic") or "" for c in m.clicks)),

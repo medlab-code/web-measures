@@ -383,9 +383,10 @@ après.
   niveau au relevé, seulement là où le laser a renvoyé des points d'eau, sinon la berge). Sans points classés pont, ou nuage illisible,
   en secours :
   - **tablier** : altitude GPS des photos de la séquence prises sur le pont, convertie en
-    altitude NGF, moins la hauteur de caméra (mesurée sur la séquence vérifiée, sinon calée ; à
-    défaut, le réglage « Caméra à », seulement après un appui sur le bouton de l'encadré : une photo
-    de précision déclarée n'a que sa hauteur au-dessus du fond franchi) ; pour chaque point,
+    altitude NGF, moins la hauteur de caméra (mesurée sur la séquence vérifiée, sinon calée, sinon
+    pour une photo du CD21 la monture d'après la date, 1,93 ou 2,07 m à ±4 cm ; à défaut, le réglage
+    « Caméra à », seulement après un appui sur le bouton de l'encadré : une photo de précision
+    déclarée n'a que sa hauteur au-dessus du fond franchi) ; pour chaque point,
     interpolée entre les deux photos consécutives les plus proches (pont long et pentu) ;
   - **dessous** : modèle de terrain LiDAR HD (RGE ALTI en secours) lu en travers du pont, à 1,
     3, 6 et 10 m au-delà du bord de la chaussée (largeur BD TOPO, sinon 6 m), des deux côtés,
@@ -842,7 +843,15 @@ Beaune ; 4,2 m pour la D977 bis au-dessus du canal de Bourgogne (tablier à 361,
 357,4 m) ; tablier interpolé entre les photos du pont depuis le 02/11/2026 (avant : photo la plus proche, 6,3 et
 4,3 m) ; 1,7 m pour la D114 au-dessus du ruisseau de la Gironde à Barbirey-sur-Ouche (lit
 vers 314 m, route à 315,8 m). Le terrain lu à 1 m du bord seulement donnait 2 m et 0 m : il
-tombait sur le talus de la culée.
+tombait sur le talus de la culée. En secours par l'altitude GPS, l'erreur de la hauteur de caméra passe
+telle quelle dans la chute : la monture du CD21 d'après la date (±4 cm, 15/11/2026) remplace le réglage
+de 1,90 m (±15 cm), soit jusqu'à 17 cm de mieux sur les photos de la monture haute (2,07 m).
+
+Hauteur de caméra : les mesures (hauteur, largeur, mesure libre) n'en dépendent pas (essai du 15/11/2026 :
+mêmes valeurs et incertitudes avec 1,90, 2,07 et 2,50 m) ; elle sert au tablier d'un pont (secours GPS),
+au relevé sur une seule photo et aux objets posés au sol. Dans l'ordre : altitude RTK moins sol LiDAR HD,
+calée pour la séquence, monture du CD21 d'après la date, réglage. Colonne `camera_m` de l'export : celle
+de la photo du premier clic ; `camera_calee` : 0 réglage, 1 calée, 2 altitude GPS, 3 monture.
 
 Chute et dévers des bords de route : la chute est une différence de deux altitudes du même
 modèle de terrain (±0,1 m en LiDAR HD, ±0,4 m en RGE ALTI). Le dévers est une pente moyenne,

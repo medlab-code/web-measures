@@ -463,11 +463,12 @@ class ChuteLidar(unittest.TestCase):
 
 
 class CameraPont(unittest.TestCase):
-    """Hauteur de caméra du tablier (App._fall_camera) : séquence, sinon calée, sinon le réglage accepté."""
+    """Hauteur de caméra du tablier (App._fall_camera) : séquence, sinon calée, sinon la monture du CD21 d'après la date,
+    sinon le réglage accepté."""
 
-    def app(self, quality, calibrated=None):
+    def app(self, quality, calibrated=None, item=None):
         a = App.__new__(App)
-        a.quality, a.item = quality, {"collection": "s"}
+        a.quality, a.item = quality, item or {"collection": "s"}
         a.calibration = types.SimpleNamespace(camera=lambda seq: calibrated)
         a.tool = types.SimpleNamespace(camera_height=1.9)
         return a
@@ -482,6 +483,20 @@ class CameraPont(unittest.TestCase):
         a.use_fall_setting = App.use_fall_setting.__get__(a)
         a.fall_setting = True
         self.assertEqual(a._fall_camera()[:2], (1.9, "réglage"))
+
+    def test_monture(self):
+        """Photo du CD21 sans hauteur mesurée ni calée (sur un pont, 13/11/2026) : la monture de sa date, sans rien demander ;
+        aussi pour les objets posés au sol, et dans l'export ; pas pour la vue du dessus (mount=False)."""
+        declared = {"count": 0, "precise": True, "lidar": False, "height": None}
+        item = {"collection": "s", "providers": [{"id": App.FLEET_PRODUCER}], "properties": {"datetime": "2025-08-01T10:00:00Z"}}
+        a = self.app(declared, item=item)
+        self.assertEqual(a._fall_camera(), (2.07, "monture", App.MOUNT_SIGMA))
+        self.assertEqual(a._camera_height(), 2.07)
+        self.assertEqual(a._camera_height(mount=False), 1.9)
+        item["properties"]["datetime"] = "2025-06-01T10:00:00Z"
+        self.assertEqual(a._camera_of(item, declared)[:2], (1.93, "monture"))
+        other = dict(item, providers=[{"id": "autre"}])
+        self.assertIsNone(self.app(declared, item=other)._fall_camera())  # autre producteur : à demander, comme avant
 
 
 class Parcours(unittest.TestCase):
