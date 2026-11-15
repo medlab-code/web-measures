@@ -191,7 +191,7 @@ const Carte = (() => {
           // domaine public, voirie et cours d'eau, n'en a pas : sans teinte), bâtiments, limites des parcelles (pas celles des feuilles)
           {
             id: "cadastre-parcelles", type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
-            paint: { "fill-color": "#ff8000", "fill-opacity": 0.12 },
+            paint: { "fill-color": "#ff8000", "fill-opacity": PARCEL_TINT },
           },
           {
             id: "cadastre-batiments", type: "fill", source: "cadastre", "source-layer": "batiment", layout: { visibility: "none" },
@@ -512,6 +512,8 @@ const Carte = (() => {
     }
     if (vector) loadVector(map, vector, () => vectorShown === vector);
     vectorShown = vector;
+    // Teinte orange des parcelles allégée sur le jaune des parcelles du Plan IGN vectoriel (PARCEL_GROUND)
+    map.setPaintProperty("cadastre-parcelles", "fill-opacity", vector === "planv" ? PARCEL_TINT_ON_PLAN : PARCEL_TINT);
     for (const id of BACKGROUNDS) {
       if (id === "noms" || id === "ofm" || (id === "plan" && vector)) {  // pas une couche d'images : l'orthophoto et les noms par-dessus
         if (id === "plan") map.setLayoutProperty(id, "visibility", "none");
@@ -860,6 +862,7 @@ const Carte = (() => {
   // Plan IGN vectoriel, cadastre allumé ou non : parcelles remplies de jaune léger dès CADASTRE_MINZOOM (deux fois plus
   // léger que le jaune du Plan IGN en images à fort zoom, #FFFFDF), sous l'eau, la végétation et les bâtiments ; hors
   // parcelles (rues, chemins du domaine public), le blanc du fond
+  const PARCEL_TINT = 0.12, PARCEL_TINT_ON_PLAN = 0.05;  // opacité de la teinte orange des parcelles (cadastre allumé)
   const PARCEL_GROUND = { type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM, paint: { "fill-color": "#ffffef" } };
   const CADASTRE_BATIMENTS_ZOOM = 17;  // bâtiments dans les tuiles du PCI à partir de ce zoom
   let cadastreOn = false, cadastreFollow = false;
