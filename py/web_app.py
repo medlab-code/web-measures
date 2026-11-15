@@ -3236,7 +3236,7 @@ class App(session.Session):
             add("trace", "LineString", [list(p) for p in widths.guide(self.ref_point, road["axis"])])
         for lon, lat, values in self.points:
             add("triangule", "Point", [lon, lat], values["nom"])  # nom seul : pas d'incertitude sur la carte
-        for i, j, values in self.links:  # distance entre deux points gardés : trait rouge, sans longueur
+        for i, j, _values in self.links:  # distance entre deux points gardés : trait rouge, sans longueur
             add("distance", "LineString", [list(self.points[i][:2]), list(self.points[j][:2])])
         for v in self.map_lengths:  # longueur sur la vue du dessus : trait et valeur, comme une mesure
             add("mesure", "LineString", v["ends"], "{} m".format(measures._num(v["valeur_m"], 2)))
@@ -3247,7 +3247,7 @@ class App(session.Session):
     # Export ------------------------------------------------------------------------------
     def _records(self, releve=False):
         """Mesures terminées et points triangulés : (géométrie [(lon, lat)], attributs), comme
-        les couches du plugin ; releve : les objets relevés seuls, leurs champs en colonnes."""
+        pour l'export ; releve : les objets relevés seuls, leurs champs en colonnes."""
         if releve:
             kept = [(lon, lat, values) for lon, lat, values in self.points if "releve" in values]
             # Champs ajoutés en cours de relevé : à leur place, vides pour les objets d'avant
@@ -3351,9 +3351,9 @@ class App(session.Session):
                            "caption": capture.caption_for(item, None),  # sans le cap
                            "name": "panoramax_{}_cap{:03.0f}_{}".format(date, heading, (item.get("id") or "")[:8])})
 
-    def caption(self, yaw):
+    def caption(self):
         """Cartouche d'attribution de la vue (obligation des licences Panoramax) : auteur, date,
-        catégorie de la licence ; sans le cap (yaw, gardé pour la page, ne sert plus)."""
+        catégorie de la licence."""
         if not self.item:
             return "Panoramax"
         return capture.caption_for(self.item, None)

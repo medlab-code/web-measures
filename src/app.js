@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Cédric COCHART
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// Page de mesure : la carte choisit la photo, la visionneuse Panoramax reçoit les clics,
-// le cœur de calcul du plugin (Pyodide, voir calcul.js) fait les mesures et les calages.
-// Mêmes fonctions que le plugin QGIS Visionneuse Panoramax.
+// Page de mesure : la carte choisit la photo, la visionneuse Panoramax reçoit les clics, le cœur
+// de calcul Python (py/, exécuté par Pyodide, voir calcul.js) fait les mesures et les calages.
 
 (() => {
   const $ = (selector) => document.querySelector(selector);
@@ -6888,7 +6887,7 @@ footer a { color: #1a56c4; word-break: break-all; } .mono { font-family: "JetBra
 <div><h2>Méthode et précision</h2><ul>${lines}</ul></div></div>
 <figure>${mapImage ? `<img src="${mapImage}" alt="Mini-carte : ${data.attributes ? "objet" : "point"} ${e(data.name)}${data.attributes ? "" : " et ses mesures"}">` : "<div class='carte-vide'>Mini-carte indisponible (carte repliée, ou fond illisible)</div>"}
 <figcaption>Fond de carte ${e(background)}</figcaption></figure></section>
-<footer><div class="pied"><div>Photo <span class="mono">${e(data.photo || "")}</span> · ${e(app.caption(0))} · instance ${e(api)}</div>
+<footer><div class="pied"><div>Photo <span class="mono">${e(data.photo || "")}</span> · ${e(app.caption())} · instance ${e(api)}</div>
 <a href="${e(link)}">${e(link)}</a></div>
 ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</footer>
 </div></body></html>`;
@@ -7020,7 +7019,7 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
     // Mesures : la surcouche WebGL de la visionneuse (traits, croix, étiquettes), telle qu'affichée
     const layer = Traits.snapshot();
     if (layer?.width) ctx.drawImage(layer, 0, 0, canvas.width, canvas.height);
-    const caption = app ? app.caption(psv.getPosition().yaw) : "Panoramax";
+    const caption = app ? app.caption() : "Panoramax";
     drawCartouches(ctx, canvas, 13 * scale, caption, placeText());  // taille de l'étiquette de la visionneuse
     return canvas;
   }

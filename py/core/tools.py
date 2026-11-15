@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # SPDX-FileCopyrightText: 2026 Cédric COCHART
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Outils de mesure communs aux hôtes (plugin QGIS, application web), hors MeasureTool
+"""Outils de mesure, hors MeasureTool
 (voir measures.py) :
 
 - photo_click : clic dans la photo affichée, converti en direction corrigée du calage,
@@ -185,8 +185,7 @@ class Triangulator:
     """Visées en cours et point d'intersection. Le dessin des visées sur la carte vient de
     l'hôte (new_item), l'enregistrement aussi (attributes donne les valeurs)."""
 
-    # Consignes de visée : réticule au centre de la vue et bouton dans le plugin, clic sur
-    # l'objet dans l'application web
+    # Consignes de visée (reprises du plugin, réticule et bouton « Viser ») ; dans la page, un clic sur l'objet
     AIM = "Placez le réticule sur l'objet puis « Viser »"
     AIM_AGAIN = "visez le même objet puis « Viser » à nouveau"
 
@@ -319,8 +318,7 @@ class Triangulator:
         return text
 
     def attributes(self):
-        """Attributs du point triangulé (couche « points triangulés » du plugin, export de
-        l'application web), ou None sans résultat."""
+        """Attributs du point triangulé (export des mesures), ou None sans résultat."""
         r = self.result
         if r is None:
             return None
@@ -341,14 +339,14 @@ class CalibrationTool:
     (inclinaison de la photo), ou repère cliqué dans la photo puis sur la carte
     (cap de la séquence)."""
 
-    MAP_NAME = "la carte"  # dans les consignes : « la carte QGIS » dans le plugin
+    MAP_NAME = "la carte"  # nom de la carte dans les consignes
 
     def __init__(self, calibration, current, reference=None):
         self.calibration = calibration
         self.current = current  # () -> (photo, séquence) affichées
         self.reference = reference  # () -> ("ground" | "height", longueur connue en m)
         self.mode = "tilt"
-        self.clicks = []  # clics en attente (dicts de PanoramaxDock.photoClicked)
+        self.clicks = []  # clics en attente (dicts de tools.photo_click)
         self.error = None
         self.last = None  # résultat du dernier calage (texte)
         self.new_camera = None  # hauteur de caméra de la séquence, juste calée (à reporter dans le panneau)

@@ -16,8 +16,7 @@ hauteur de la caméra au-dessus de A, sans que l'incertitude le compte. Le bord 
 (set_edge_b) n'a pas ce biais. L'incertitude n'est prise qu'en travers de la route : l'erreur
 des points, surtout le long de la route, n'y pèse presque pas (triangulation.projected).
 
-Calcul dans un plan tangent local centré sur A (voir triangulation._local). Module sans
-dépendance à QGIS.
+Calcul dans un plan tangent local centré sur A (voir triangulation._local).
 """
 
 import math

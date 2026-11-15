@@ -542,7 +542,7 @@ class Height(Base):
 
     def test_manual_calibration_after_measure(self):
         # Inclinaison calée à la main après la hauteur : clics et A recalculés, comme pour
-        # l'inclinaison automatique (calibration_updated pour un calage chargé ou importé)
+        # l'inclinaison automatique (comme App.merge_calibration pour un calage importé)
         self.reference_and_height()
         self.s.click(*direction(6.0, (5.0, 3.0, 4.0)))
         height, ref = self.s._heights()[0], self.s.ref_point
@@ -553,7 +553,7 @@ class Height(Base):
             bottom = calibration.untilt(up, yaw, -10.0, inverse=True)
             top = calibration.untilt(up, yaw, 15.0, inverse=True)
             self.s.calibration.add_vertical("p2", bottom, top)
-        self.s.calibration_updated()
+        self.s._calibration_changed()
         self.assertGreater(distance(start, (ref["lon"], ref["lat"])), 0.01)
         self.assertNotAlmostEqual(height.result["value"], value, places=3)
 

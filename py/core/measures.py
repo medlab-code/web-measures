@@ -76,7 +76,7 @@ class Measure:
     def __init__(self, tool, kind, surface):
         self.tool = tool
         self.kind, self.surface = kind, surface
-        self.clicks = []  # dicts de PanoramaxDock.photoClicked, avec profil de terrain
+        self.clicks = []  # dicts de tools.photo_click
         # n° de point -> (lon, lat, orientation en degrés) : point recalé sur la carte, qui fixe
         # son plan vertical (passant par lui, de normale horizontale orientée vers la caméra
         # qui l'a visé au moment du recalage)
@@ -92,7 +92,6 @@ class Measure:
         self.item = None
         self.fid = None  # entité de la couche des mesures, une fois enregistrée
         self.layer_id = None  # couche de cette entité : un fid ne vaut que dans sa couche
-        self.saved = None  # résultat au moment de l'enregistrement (voir _snapshot)
         self.road = None  # axe de la route au point mesuré (largeur perpendiculaire, voir roads.py)
         self.road_pending = False  # lecture de cet axe en cours
 
@@ -443,16 +442,6 @@ class Measure:
             pts = [(k,) + geometry.to_geographic(p, origin)[:2] for k, p in enumerate(raw)]
         return pts[:1] if self.surface == "vertical" else pts
 
-    # Enregistrement -----------------------------------------------------------
-    def _snapshot(self):
-        """Ce qui doit être réécrit dans la couche s'il change : valeur, incertitude, points."""
-        r = self.result
-        return round(r["value"], 4), round(r["uncertainty"], 4), tuple(map(tuple, r["picks"]))
-
-    def unsaved(self):
-        """Mesure terminée, pas encore enregistrée, ou modifiée depuis (recalage, visée)."""
-        return bool(self.result) and self.saved != self._snapshot()
-
     # Affichage ----------------------------------------------------------------
     def label(self):
         if not self.result:
@@ -486,7 +475,7 @@ class Measure:
         return i
 
     def viewer_marks(self, selected=None):
-        """Repères dans la visionneuse (voir PanoramaxDock.set_measure_marks) : là où la
+        """Repères dans la visionneuse (dessinés par src/traits.js) : là où la
         photo voit chaque point 3D, c'est-à-dire à l'endroit cliqué, décalé d'autant que le
         point a été recalé de côté sur la carte. selected : n° du point sélectionné."""
         shifts = (self.result or {}).get("shifts") or [(0.0, 0.0)] * len(self.clicks)
@@ -558,7 +547,8 @@ class MeasureTool:
         self.selected = None  # (mesure, n° de point) à viser à nouveau dans la visionneuse
 
     def new_item(self):
-        """Dessin d'une mesure sur la carte : set_data(points, libellé, extras) et remove(). Rien ici ; l'hôte le fournit (plugin QGIS : measure.MeasureItem)."""
+        """Dessin d'une mesure sur la carte : set_data(points, libellé, extras) et remove(). Rien ici : la page dessine la
+        carte d'après App.map_geojson."""
         return NullItem()
 
     # Réglages ---------------------------------------------------------------
@@ -654,21 +644,6 @@ class MeasureTool:
             m.compute()
         return len(roads)
 
-    def recorrect(self, pic, correct):
-        """Calage de la photo `pic` changé (inclinaison automatique arrivée après les clics) :
-        directions de ses clics recalculées depuis leur direction brute par correct(clic) →
-        (cap, élévation), puis mesures recalculées. Retourne le nombre de mesures concernées."""
-        count = 0
-        for m in self.measures():
-            clicks = [c for c in m.clicks if c.get("pic") == pic and c.get("raw")]
-            for c in clicks:
-                c["yaw"], c["elev"] = correct(c)
-            if clicks:
-                m.compute()
-                count += 1
-        return count
-
-    # Enregistrement -----------------------------------------------------------
     # Recalage sur la carte ----------------------------------------------------
     def handles(self):
         """Poignées déplaçables sur la carte : [(clé, lon, lat)], clé ("point", mesure,
@@ -686,9 +661,6 @@ class MeasureTool:
     # Visionneuse ----------------------------------------------------------------
     def _marks(self, m):
         return m.viewer_marks(self.selected[1] if self.selected and self.selected[0] is m else None)
-
-    def done_marks(self):
-        return [self._marks(m) for m in self.done]
 
     def viewer_marks(self):
         if self.current is None:

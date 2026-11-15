@@ -487,5 +487,5 @@ const Nuage = (() => {
     return { height: found.height, below: found.below };
   }
 
-  return { analyse, toL93, pavedEdge, brightRuns, dashedLines, bridgeHeight, bridgeFall };
+  return { analyse, toL93, pavedEdge, brightRuns, dashedLines, bridgeFall };
 })();

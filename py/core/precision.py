@@ -20,7 +20,7 @@ Une photo précise donne la hauteur de caméra par son altitude (voir
 measures.MeasureTool.camera_info). Les mesures ne sont pleinement fiables qu'avec à la
 fois une position vérifiée précise et le LiDAR HD sous la photo ; sinon l'outil est en
 mode dégradé (hauteur de caméra et inclinaison à caler, sol approximatif sans LiDAR) :
-une fenêtre l'annonce à l'activation de la mesure (voir viewer_dock).
+une fenêtre l'annonce à l'activation de la mesure (src/app.js, « alerte-rtk »).
 
 Une vérification par séquence (deux requêtes : fiches des photos voisines, altitudes
 LiDAR), en arrière-plan ; le résultat est gardé pour la session.
@@ -58,9 +58,6 @@ RGE_RESOURCE = "ign_rge_alti_wld"  # RGE ALTI 1 m, tout le territoire : en secou
 TERRAINS = (("LiDAR HD", LIDAR_RESOURCE), ("RGE ALTI", RGE_RESOURCE))  # sources du sol, dans l'ordre
 NODATA_BELOW = -9999.0  # le service IGN renvoie -99999 hors de sa couverture
 TIMEOUT_MS = 5000  # délai de réponse du service d'altimétrie
-DEGRADED_ADVICE = ("Les mesures dépendent alors de la hauteur de caméra, de l'inclinaison de la caméra et, sans "
-                   "LiDAR HD, d'un sol approximatif : calez la hauteur de caméra sur une longueur connue et "
-                   "l'inclinaison sur deux objets verticaux, puis contrôlez les résultats.")
 
 
 def lidar_url(points, resource=LIDAR_RESOURCE):

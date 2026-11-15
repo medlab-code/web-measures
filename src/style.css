@@ -592,8 +592,8 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 #resultats .effacer-resultat:hover, :is(#favoris, #mes-parcours) .effacer-resultat:hover { opacity: 1; background: var(--bord); }
 #resultats li input { width: 100%; margin-top: 0.3rem; }
 .fiche-resultats .nom-couche { padding-left: 0.5rem; }
-#favoris-titre, #filtre-titre, #reglages-titre, #reseau-titre { margin: 0; font-weight: 600; }
-#favoris-infos, #filtre-infos, #reglages-infos, #reseau-infos { margin: 0; color: var(--discret); font-size: 0.85em; }
+#favoris-titre, #mes-parcours-titre, #filtre-titre, #reglages-titre, #reseau-titre { margin: 0; font-weight: 600; }
+#favoris-infos, #mes-parcours-infos, #filtre-infos, #reglages-infos, #reseau-infos { margin: 0; color: var(--discret); font-size: 0.85em; }
 /* Réglages : une option par ligne (texte et explication à gauche, interrupteur à droite) */
 .reglage-couche input[type="number"] { width: 4.5rem; flex: none; }
 .reglage-couche .unite { color: var(--discret); }

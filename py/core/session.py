@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # SPDX-FileCopyrightText: 2026 Cédric COCHART
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Session de mesure, indépendante de l'affichage : ce que l'application hôte (plugin QGIS,
-application web) relie à sa visionneuse, à sa carte et à son panneau.
+"""Session de mesure, indépendante de l'affichage : ce que la page (py/web_app.App, qui en hérite)
+relie à sa visionneuse, à sa carte et à son panneau.
 
 - points de référence et mesure libre : visées cliquées dans les photos, triangulées
   (tools.Triangulator) ;
@@ -21,7 +21,7 @@ les donnent les visionneuses) ; elles renvoient le texte à afficher, ou des don
 simples (listes, dictionnaires). Quand une lecture réseau ou un calcul aboutit après coup,
 Session appelle notify() pour que l'hôte se redessine. Le dessin sur la carte passe par les
 new_item des outils, que l'hôte remplace (ou par ses propres sous-classes des outils, passées
-au constructeur). Module sans dépendance à QGIS.
+au constructeur).
 """
 
 import math
@@ -156,10 +156,6 @@ class Session:
         dépend recalculé."""
         self.calibration_version += 1
         self._recompute(pics)
-
-    def calibration_updated(self):
-        """Calage changé hors de la session (chargé, fusionné, importé) : tout est recalculé."""
-        self._calibration_changed()
 
     def _ground_lookup(self, lon, lat, done):
         """Altitude du sol au point (lon, lat) : MNT LiDAR HD, sinon RGE ALTI (voir
@@ -1136,18 +1132,6 @@ class Session:
     def waiting_map(self):
         """Calage du cap : le repère cliqué dans la photo attend son clic sur la carte."""
         return self.mode == "heading" and self.calibrator.waiting_map()
-
-    def map_click(self, lon, lat):
-        """Clic sur la carte pendant le calage du cap : le repère. Retourne True s'il a servi."""
-        if not self.waiting_map():
-            return False
-        self.calibrator.add_map_point(float(lon), float(lat))
-        self._calibration_changed()
-        return True
-
-    def cancel_landmark(self):
-        self.calibrator.reset()
-        return self.status()
 
     def aim(self, yaw, pitch):
         """Triangulation : visée de la direction cliquée (radians, dans le repère de la photo)."""

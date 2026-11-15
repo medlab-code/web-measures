@@ -387,5 +387,5 @@ const Couche = (() => {
     return { geometry: { type, coordinates }, end: pos };
   }
 
-  return { read, readFiles, style, format, lambert93, clair, CHOICES, csvLayer };
+  return { read, readFiles, style, format, clair, CHOICES };
 })();

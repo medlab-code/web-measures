@@ -25,7 +25,7 @@ latérale (cap, GPS) et verticale (inclinaison, altitude).
 
 Calcul dans un plan tangent local (quelques centaines de mètres au plus) :
 l'erreur due à la projection est négligeable devant la précision du GPS.
-Module sans dépendance à QGIS, pour pouvoir être testé seul.
+Module sans dépendance, testé seul (tests/coeur/).
 """
 
 import math

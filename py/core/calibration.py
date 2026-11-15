@@ -24,8 +24,8 @@
 
 Directions : (cap absolu en degrés, 0 = nord, sens horaire ; élévation en
 degrés). Les corrections s'appliquent dans cet ordre : inclinaison, puis cap.
-Calage conservé dans le profil QGIS de l'utilisateur, d'une session et d'un projet à
-l'autre, jusqu'à ce qu'il soit refait ou effacé (voir plugin.py). Module sans dépendance à QGIS.
+Calage gardé dans le navigateur (clé « calage », src/app.js) d'une séance à l'autre, jusqu'à
+ce qu'il soit refait ou effacé ; exportable et importable (fichier JSON, dossier de travail).
 """
 
 import math
@@ -317,8 +317,8 @@ class Calibration:
     """Calages : inclinaison par photo ; cap, position et hauteur de caméra par séquence.
 
     Seules les observations sont conservées (clics et repères) : les corrections en sont
-    recalculées. to_dict / load permettent de les enregistrer (dans le profil QGIS), merge
-    d'y ajouter un calage enregistré ailleurs (projet d'une version précédente) ;
+    recalculées. to_dict / load permettent de les enregistrer (dans le navigateur), merge
+    d'y ajouter un calage enregistré ailleurs (fichier importé) ;
     `changed`, s'il est défini, est appelé après chaque modification.
     """
 

@@ -13,7 +13,7 @@ de caméra, avec le même modèle que les mesures).
 
 La précision chute vite avec la distance (une erreur d'inclinaison de 0,5°
 déplace un point situé à 15 m de plus d'un mètre) : réservé aux objets proches.
-Module sans dépendance à QGIS, pour pouvoir être testé seul.
+Module sans dépendance, testé seul (tests/coeur/).
 """
 
 import math

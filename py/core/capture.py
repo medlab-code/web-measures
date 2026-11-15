@@ -11,7 +11,7 @@ que la visionneuse : cap, inclinaison et champ de vision.
 - Photo classique : reprojection de l'image plane selon la vue demandée.
 
 Tableaux numpy RGB (numpy importé à l'usage : le cœur s'importe sans lui). Décodage,
-cartouche et enregistrement : hôte (capture.py du plugin, page web).
+cartouche et enregistrement : la page (src/app.js, capture HD).
 """
 
 import datetime as _dt
