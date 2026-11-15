@@ -47,6 +47,10 @@ body.mobile {
   color: var(--texte);
   font-size: 22px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  display: grid;  /* pictogramme centré : sans la marge intérieure ni la hauteur de ligne des boutons */
+  place-items: center;
+  padding: 0;
+  line-height: 1;
 }
 #capture:disabled { opacity: 0.45; }
 
