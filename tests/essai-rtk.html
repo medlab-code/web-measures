@@ -564,6 +564,27 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         expect("CSV : géométrie en WKT", kept.features[0]?.geometry.type === "LineString" && kept.crs === "wgs84");
         doc.querySelector("#couche-retirer").click();
       }
+      // Import commun : fichiers glissés n'importe où sur la page, reconnus par leur contenu et rangés à leur place
+      {
+        const drop = (name, content) => {
+          const dt = new w.DataTransfer();
+          dt.items.add(new w.File([typeof content === "string" ? content : JSON.stringify(content)], name));
+          doc.body.dispatchEvent(new w.DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
+        };
+        const kept = (key) => w.localStorage.getItem(`web-measures/${key}`) || "";
+        const fav = "0b1c2d3e-4f50-4617-8899-aabbccddeeff";
+        drop("a.json", [{ id: fav, name: "favori glissé" }]);
+        await expectSoon("import commun : favoris reconnus", () => kept("favoris").includes(fav));
+        drop("b.json", { format: "web-measures/modeles-releve", modeles: [{ nom: "Glissé", champs: [{ nom: "etat", type: "texte", valeurs: [] }] }] });
+        await expectSoon("import commun : modèles de champs reconnus", () => kept("releve-modeles").includes("Glissé"));
+        drop("c.json", app.calibration_json());
+        await expectSoon("import commun : calage reconnu", () => doc.querySelector("#statut").textContent.startsWith("Calage importé"));
+        drop("d.json", { autre: 1 });
+        await expectSoon("import commun : fichier inconnu signalé", () => doc.querySelector("#avis").textContent.includes("non reconnu"));
+        drop("e.csv", "nom;lon;lat\nglissé;5.01;47.3\n");
+        await expectSoon("import commun : CSV dans Couche", () => doc.querySelector("#couche-nom").textContent === "e.csv");
+        doc.querySelector("#couche-retirer").click();
+      }
     }
     await verdict();
   } catch (e) { log("ERREUR " + e); }

@@ -749,7 +749,15 @@ pas utilisé (talus et murs pris pour la route).
 Fichiers exportés (mesures, captures, favoris, calage, couche) : boîte d'enregistrement du système sous
 Chrome et Edge (emplacement et nom au choix, demandés dès le clic pour une capture). Firefox n'en donne
 pas l'accès aux pages : le fichier est téléchargé, avec sa boîte si « Toujours vous demander où
-enregistrer les fichiers » est coché (Paramètres › Général › Fichiers et applications).
+enregistrer les fichiers » est coché (Paramètres › Général › Fichiers et applications). Noms proposés : la sorte,
+la route et le PR de la photo affichée pour les mesures, et la date du jour (« mesures D974 PR12 2026-11-15.csv »,
+« calage 2026-11-15.json », « favoris … », « parcours … », « modeles-releve … ») ; la couche garde le nom de son fichier.
+
+**Import commun** : un fichier glissé n'importe où sur la page, ou choisi par n'importe quel bouton d'import, est
+reconnu par son contenu et rangé à sa place : couche (GeoJSON, mesures exportées comprises, Shapefile, GeoPackage,
+CSV), parcours, modèles de champs, calage ou favoris, avec le message habituel de chacun. Plusieurs fichiers de
+sortes différentes peuvent être glissés ensemble. Un fichier JSON non reconnu est signalé (par le bouton d'une sorte :
+son message d'erreur habituel).
 
 Les calculs (cœur Python repris du plugin Visionneuse Panoramax) sont exécutés dans le navigateur par Pyodide (environ 10 Mo au
 premier chargement, puis en cache) ; les calculs lourds (inclinaison automatique, capture

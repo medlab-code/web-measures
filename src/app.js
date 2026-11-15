@@ -2190,8 +2190,8 @@
   });
   $("#ajouter-favori").addEventListener("click", () => addFavorite());
   // Export et import des favoris (autre poste, autre navigateur) : fichier JSON [{ id, name }]
-  $("#favoris-exporter").addEventListener("click", () => download(JSON.stringify(favorites(), null, 1),
-    "favoris-panoramax.json", "application/json"));
+  $("#favoris-exporter").addEventListener("click", async () => download(JSON.stringify(favorites(), null, 1),
+    await exportName("favoris", "json"), "application/json"));
   // Couche importée (GeoJSON) : une à la fois, couleur et étiquette selon une colonne ; gardée avec
   // ses réglages dans le navigateur d'une session à l'autre, jusqu'à « Retirer »
   let overlay = null;  // { name, features (WGS 84, Couche.read), columns, crs }
@@ -2653,15 +2653,16 @@
       if (error.name !== "AbortError") $("#couche-fichier").click();  // sélecteur refusé : champ de fichier
       return;
     }
-    importOverlay(await Promise.all(handles.map((h) => h.getFile())), handles);
+    importFiles(await Promise.all(handles.map((h) => h.getFile())), handles, importOverlay);
   });
   $("#mesures-importer").addEventListener("click", () => $("#couche-importer").click());  // même sélecteur de fichier
   $("#couche-fichier").addEventListener("change", (event) => {
     const files = [...event.target.files];
     event.target.value = "";
-    importOverlay(files);
+    importFiles(files, [], importOverlay);
   });
-  // Fichier glissé sur l'onglet Couche (avec son .dbf et son .prj pour un Shapefile)
+  // Fichier glissé sur l'onglet Couche (avec son .dbf et son .prj pour un Shapefile) : survol marqué ; le dépôt, lui,
+  // est reçu par la page entière (importFiles)
   const layerTab = $("#couche");
   layerTab.addEventListener("dragover", (event) => {
     if (!event.dataTransfer?.types.includes("Files")) return;
@@ -2671,13 +2672,59 @@
   layerTab.addEventListener("dragleave", (event) => {
     if (!layerTab.contains(event.relatedTarget)) layerTab.classList.remove("survol");
   });
-  layerTab.addEventListener("drop", async (event) => {
+
+  // Import commun : fichier choisi par n'importe quel bouton d'import, ou glissé n'importe où sur la page (sans quoi
+  // le navigateur l'ouvrirait à la place de la page), reconnu par son contenu et rangé à sa place : couche (GeoJSON,
+  // mesures exportées comprises ; Shapefile, GeoPackage, CSV), parcours, modèles de champs, calage, favoris.
+  // own(fichier, texte, données) : import du bouton utilisé, pour un fichier JSON non reconnu (son message d'erreur).
+  async function importFiles(files, handles = [], own = null) {
+    const json = files.filter((f) => /\.(geo)?json$/i.test(f.name)), layer = files.filter((f) => !json.includes(f));
+    if (layer.length) await importOverlay(layer, handles);
+    for (const file of json) {
+      const text = await file.text();
+      let data = null;
+      try { data = JSON.parse(text); } catch { /* illisible : non reconnu */ }
+      const kind = jsonKind(data);
+      if (kind === "couche") await importOverlay([file], handles.filter((h) => h.name === file.name));
+      else if (kind === "parcours") importRoutes(data);
+      else if (kind === "modeles") importModels(data, file.name);
+      else if (kind === "calage") importCalibration(text);
+      else if (kind === "favoris") importFavorites(data);
+      else if (own && own !== importOverlay) own(data, file.name, text);
+      else if (own) await importOverlay([file]);  // couche : l'erreur de lecture du GeoJSON
+      else notice(`« ${file.name} » : fichier non reconnu (ni couche ni mesures, ni favoris, parcours, calage ou modèles de champs).`);
+    }
+  }
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  /** Sorte d'un fichier JSON lu, d'après son contenu : « couche », « parcours », « modeles », « calage », « favoris » ou "". */
+  function jsonKind(d) {
+    if (d?.type === "FeatureCollection" || d?.type === "Feature") return "couche";
+    if (d?.format === "parcours-panoramax" || (d && !Array.isArray(d) && d.travel)
+      || (Array.isArray(d) && d.length && d.every((r) => r?.travel))) return "parcours";
+    if (d?.format === MODELES_FORMAT) return "modeles";
+    if (d?.format === 1 && d.verticals) return "calage";  // App.calibration_json (Calibration.FORMAT)
+    if (Array.isArray(d) && d.length && d.every((f) => UUID.test(f?.id))) return "favoris";
+    return "";
+  }
+  /** Champ de fichier d'un bouton d'import : fichiers choisis vers l'import commun, own pour un JSON non reconnu. */
+  function fileInput(id, own) {
+    $(id).addEventListener("change", (event) => {
+      const files = [...event.target.files];
+      event.target.value = "";
+      if (files.length) importFiles(files, [], own);
+    });
+  }
+  document.addEventListener("dragover", (event) => {
+    if (event.dataTransfer?.types.includes("Files")) event.preventDefault();
+  });
+  document.addEventListener("drop", async (event) => {
+    if (!event.dataTransfer?.files.length) return;
     event.preventDefault();
     layerTab.classList.remove("survol");
     const files = [...event.dataTransfer.files];
     // Poignées demandées pendant l'événement (Chrome, Edge), lues ensuite
     const asked = [...event.dataTransfer.items].map((item) => item.getAsFileSystemHandle?.());
-    importOverlay(files, (await Promise.all(asked.map((p) => p?.catch(() => null)))).filter(Boolean));
+    importFiles(files, (await Promise.all(asked.map((p) => p?.catch(() => null)))).filter(Boolean));
   });
 
   /** Couche lue des fichiers choisis ou glissés, remplaçant celle en place ; handles : leurs poignées (Chrome,
@@ -2864,12 +2911,9 @@
   });
 
   $("#favoris-importer").addEventListener("click", () => $("#favoris-fichier").click());
-  $("#favoris-fichier").addEventListener("change", async (event) => {
-    const file = event.target.files[0];
-    event.target.value = "";
-    if (!file) return;
-    let read;
-    try { read = JSON.parse(await file.text()); } catch { read = null; }
+  fileInput("#favoris-fichier", importFavorites);
+  /** Favoris lus d'un fichier (JSON [{ id, name }]), ajoutés à ceux gardés. */
+  function importFavorites(read) {
     if (!Array.isArray(read)) return notice("Fichier de favoris illisible.");
     const known = new Set(favorites().map((f) => f.id));
     const added = read  // fichier venu d'ailleurs : seulement des identifiants de photo et des noms courts
@@ -2880,7 +2924,7 @@
     showFavorites();
     notice(added.length ? `${added.length} favori${added.length > 1 ? "s" : ""} importé${added.length > 1 ? "s" : ""}.`
       : "Favoris importés : rien de nouveau.");
-  });
+  }
 
   async function addFavorite() {
     const feature = photo;
@@ -4435,20 +4479,17 @@
     setStatus(k >= 0 ? `Parcours « ${route.name} » mis à jour avec ses réglages (onglet Parcours).`
       : `Parcours « ${route.name} » gardé avec ses réglages (onglet Parcours).`);
   }
-  $("#mes-parcours-exporter").addEventListener("click", () => download(routeFile(savedRoutes()), "parcours-panoramax.json",
-    "application/json"));
+  $("#mes-parcours-exporter").addEventListener("click", async () => download(routeFile(savedRoutes()),
+    await exportName("parcours", "json"), "application/json"));
   $("#mes-parcours-importer").addEventListener("click", () => $("#mes-parcours-fichier").click());
-  $("#mes-parcours-fichier").addEventListener("change", async (event) => {
-    const file = event.target.files[0];
-    event.target.value = "";
-    if (!file) return;
-    let read;
-    try { read = JSON.parse(await file.text()); } catch { read = null; }
+  fileInput("#mes-parcours-fichier", importRoutes);
+  /** Parcours lus d'un fichier (un seul, ou { parcours: [...] }), ajoutés à ceux gardés. */
+  function importRoutes(read) {
     const list = (Array.isArray(read) ? read : Array.isArray(read?.parcours) ? read.parcours : [read]).map(cleanRoute).filter(Boolean);
     if (!list.length) return notice("Fichier de parcours illisible.");
     setSavedRoutes([...savedRoutes(), ...list]);
     notice(`${list.length} parcours importé${list.length > 1 ? "s" : ""}.`);
-  });
+  }
   showSavedRoutes();
   /** Altitudes du sol (LiDAR HD, sinon RGE ALTI ; null si inconnue) aux points [lon, lat], par lots de 150. */
   async function groundAltitudes(points, fallback = true, progress = () => {}) {
@@ -5654,13 +5695,13 @@
 
   $("#csv").addEventListener("click", async () => {
     const geojson = app.export_geojson();
-    if (await download("\ufeff" + app.export_csv(), "mesures.csv", "text/csv")) exported = geojson;
+    if (await download("\ufeff" + app.export_csv(), await exportName("mesures", "csv", true), "text/csv")) exported = geojson;
     saveResults();
     showResultsInfo();
   });
   $("#geojson").addEventListener("click", async () => {
     const geojson = app.export_geojson();
-    if (await download(geojson, "mesures.geojson", "application/geo+json")) exported = geojson;
+    if (await download(geojson, await exportName("mesures", "geojson", true), "application/geo+json")) exported = geojson;
     saveResults();
     showResultsInfo();
   });
@@ -5898,23 +5939,21 @@
     }, { once: true });
     dialog.showModal();
   });
-  $("#releve-modeles-exporter").addEventListener("click", () => download(
-    JSON.stringify({ format: MODELES_FORMAT, modeles: releveModels() }, null, 2), "modeles-releve.json", "application/json"));
+  $("#releve-modeles-exporter").addEventListener("click", async () => download(
+    JSON.stringify({ format: MODELES_FORMAT, modeles: releveModels() }, null, 2), await exportName("modeles-releve", "json"), "application/json"));
   $("#releve-modeles-importer").addEventListener("click", () => $("#releve-modeles-fichier").click());
-  $("#releve-modeles-fichier").addEventListener("change", async (event) => {
-    const [file] = event.target.files;
-    event.target.value = "";
-    if (!file) return;
-    let found = [];
-    try { found = readModels(JSON.parse(await file.text())); } catch { /* pas du JSON */ }
+  fileInput("#releve-modeles-fichier", importModels);
+  /** Modèles de champs lus d'un fichier (name : son nom), remplaçant ceux de même nom. */
+  function importModels(data, name) {
+    const found = readModels(data);
     const error = $("#releve-erreur");
-    error.textContent = found.length ? "" : `« ${file.name} » ne contient aucun modèle de champs lisible.`;
+    error.textContent = found.length ? "" : `« ${name} » ne contient aucun modèle de champs lisible.`;
     error.hidden = Boolean(found.length);
     if (!found.length) return;
     const names = new Set(found.map((m) => m.nom));
     setReleveModels([...releveModels().filter((m) => !names.has(m.nom)), ...found]);
-    setStatus(`${found.length} modèle${found.length > 1 ? "s" : ""} importé${found.length > 1 ? "s" : ""} de « ${file.name} ».`);
-  });
+    setStatus(`${found.length} modèle${found.length > 1 ? "s" : ""} importé${found.length > 1 ? "s" : ""} de « ${name} ».`);
+  }
 
   /** Champs de l'objet relevé n° k (null : le dernier gardé) ; fresh : objet tout juste gardé, le
    * lieu (voie, PR, commune) lu en même temps. Au premier objet du relevé, définition des champs. */
@@ -6027,27 +6066,27 @@
         when.toLocaleDateString("fr-FR")} à ${when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
       }, non exporté${previous.n > 1 ? "s" : ""}`;
       $("#precedents").hidden = false;
-      $("#precedents-csv").addEventListener("click", () => download("\ufeff" + previous.csv, "mesures-precedentes.csv", "text/csv"));
-      $("#precedents-geojson").addEventListener("click", () => download(previous.geojson, "mesures-precedentes.geojson",
-        "application/geo+json"));
+      $("#precedents-csv").addEventListener("click", async () => download("\ufeff" + previous.csv,
+        await exportName("mesures-precedentes", "csv"), "text/csv"));
+      $("#precedents-geojson").addEventListener("click", async () => download(previous.geojson,
+        await exportName("mesures-precedentes", "geojson"), "application/geo+json"));
       $("#precedents-oublier").addEventListener("click", () => {
         $("#precedents").hidden = true;
         Carte.showPrevious(map, null);
       });
     }
   }
-  $("#calage-exporter").addEventListener("click", () => download(app.calibration_json(), "calage-panoramax.json",
+  $("#calage-exporter").addEventListener("click", async () => download(app.calibration_json(), await exportName("calage", "json"),
     "application/json"));
   $("#calage-importer").addEventListener("click", () => $("#calage-fichier").click());
-  $("#calage-fichier").addEventListener("change", async (event) => {
-    const file = event.target.files[0];
-    event.target.value = "";
-    if (!file) return;
-    const added = app.merge_calibration(await file.text());
+  fileInput("#calage-fichier", (data, name, text) => importCalibration(text));
+  /** Calage lu d'un fichier (texte JSON), complétant celui en mémoire. */
+  function importCalibration(text) {
+    const added = app.merge_calibration(text);
     refresh(added < 0 ? "Fichier de calage illisible." : added === 0
       ? "Calage importé : rien de nouveau (photos et séquences déjà calées)."
       : `Calage importé pour ${added} photo${added > 1 ? "s" : ""} ou séquence${added > 1 ? "s" : ""}.`);
-  });
+  }
 
   /**
    * Fichier name à enregistrer : boîte d'enregistrement du système (Chrome, Edge), à demander dès le
@@ -6105,6 +6144,15 @@
   }
 
   /** Contenu enregistré dans le fichier name (saveAs) ; faux si l'utilisateur a renoncé. */
+  /** Nom d'un fichier exporté : sorte, route et PR de la photo affichée (place, s'ils sont lus en 0,5 s), date du jour ;
+   * « mesures D974 PR12 2026-11-15.csv ». */
+  async function exportName(kind, ext, place = false) {
+    const timeout = new Promise((resolve) => setTimeout(resolve, 500));  // le geste qui autorise l'enregistrement dure 5 s
+    const parts = place && photo ? (await Promise.race([Lieu.describe(...photo.geometry.coordinates.slice(0, 2), photo), timeout])
+      .catch(() => null))?.parts : null;
+    const date = new Date().toLocaleDateString("sv-SE");  // AAAA-MM-JJ, à l'heure locale
+    return `${[kind, parts?.voie, parts?.pr, date].filter(Boolean).join(" ").replace(/[\\/:*?"<>|]/g, "-")}.${ext}`;
+  }
   async function download(content, name, type) {
     const save = await saveAs(name, type);
     if (save) await save(content);
