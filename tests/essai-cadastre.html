@@ -122,9 +122,21 @@ const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-
         expect("croix au centre de la vue (cadastre coché)", !croix.hidden
           && Math.abs((r.left + r.right) / 2 - (v.left + v.right) / 2) <= 1 && Math.abs((r.top + r.bottom) / 2 - (v.top + v.bottom) / 2) <= 1);
       }
+      {  // « Parcelle visée dans la visionneuse » décochée : ni étiquette ni croix, la carte garde la parcelle en vert
+        const option = doc.querySelector("#cadastre-visionneuse");
+        const label = () => { try { return Boolean(w.mesures.psv.getPlugin("markers").getMarker("mesure-parcelle")); } catch { return false; } };
+        const lit = shown();
+        expect("parcelle visée dans la visionneuse : cochée et active avec le cadastre", option.checked && !option.disabled && label());
+        option.click();
+        expect("visionneuse sans parcelle : ni étiquette ni croix, toujours en vert sur la carte",
+          !label() && doc.querySelector("#croix-cadastre").hidden && shown() === lit && lit !== "");
+        option.click();
+        expect("parcelle visée de retour dans la visionneuse", label() && !doc.querySelector("#croix-cadastre").hidden);
+      }
       doc.querySelector("#cadastre").click();  // réglage décoché : plus rien d'allumé
       await soon(() => shown() === "" && under() === "", 3000);
       expect("cadastre éteint : plus de croix au centre de la vue", doc.querySelector("#croix-cadastre").hidden);
+      expect("cadastre éteint : « Parcelle visée dans la visionneuse » grisée", doc.querySelector("#cadastre-visionneuse").disabled);
       expect("cadastre éteint : parcelles visée et de la caméra éteintes", shown() === "" && under() === ""
         && map.getLayoutProperty("cadastre-vise", "visibility") === "none" && map.getLayoutProperty("cadastre-camera", "visibility") === "none");
     }

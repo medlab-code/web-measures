@@ -461,10 +461,19 @@
   // Cadastre (#36) sur la mini-carte, décoché par défaut
   $("#cadastre").checked = store.get("cadastre") === "1";
   Carte.setCadastre(map, $("#cadastre").checked);
+  // Parcelle visée dans la visionneuse (étiquette et croix), cochée par défaut ; grisée sans le cadastre
+  $("#cadastre-visionneuse").checked = store.get("cadastre-visionneuse") !== "0";
+  $("#cadastre-visionneuse").disabled = !$("#cadastre").checked;
   $("#cadastre").addEventListener("change", (event) => {
     store.set("cadastre", event.target.checked ? "1" : "0");
     Carte.setCadastre(map, event.target.checked);
+    $("#cadastre-visionneuse").disabled = !event.target.checked;
     applyMeasureUi();  // croix du centre de la vue
+  });
+  $("#cadastre-visionneuse").addEventListener("change", (event) => {
+    store.set("cadastre-visionneuse", event.target.checked ? "1" : "0");
+    applyMeasureUi();
+    showParcelMark();
   });
   $("#anisotrope").checked = store.get("anisotrope") === "1";
   $("#anisotrope").addEventListener("change", (event) => {
@@ -4843,7 +4852,7 @@
     // Largeur, hauteur, mesure libre : trait vertical au centre de la vue, le cap tracé sur la
     // carte ; la vue tournée vers le point à viser (take_aim_frame), il le désigne (ticket #26)
     $("#axe-vue").hidden = !measuring || !["road", "height", "tri", "releve"].includes(mode) || viewer.hidden;
-    $("#croix-cadastre").hidden = !$("#cadastre").checked || viewer.hidden;
+    $("#croix-cadastre").hidden = !$("#cadastre").checked || !$("#cadastre-visionneuse").checked || viewer.hidden;
     // Même état en toutes lettres, sous le rappel du mode (comme les voyants)
     // Carte d'étape (en bas, en mesure) : nom de la mesure et ses étapes, la courante en couleur
     $("#vue").classList.toggle("en-mesure", measuring);
@@ -4932,7 +4941,7 @@
   function showParcelMark() {
     const markers = psv?.getPlugin?.("markers");
     if (!markers) return;
-    const id = `${MARK}parcelle`, parcel = parcelReady ? Carte.aimedParcel() : null;
+    const id = `${MARK}parcelle`, parcel = parcelReady && $("#cadastre-visionneuse").checked ? Carte.aimedParcel() : null;
     const at = parcel && app ? JSON.parse(app.view_point(parcel.at[0], parcel.at[1], PARCEL_LABEL_UP)) : null;
     let shown = null;
     try { shown = markers.getMarker(id); } catch { /* pas encore posée */ }

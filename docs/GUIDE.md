@@ -597,7 +597,8 @@ cesse de la rencontrer en premier (parcelle voisine, domaine public, ou rien à 
 service d'altimétrie de l'IGN, RGE ALTI s'il manque ; pas le nuage de points) sous ce point et sous la caméra, calage de
 la photo compris ; de niveau avec celui de la caméra le temps de la lecture. L'étiquette reste à ce point tant que la
 vue balaie la même parcelle. Une croix fine et transparente marque le centre de la vue (la ligne de cap) tant que le
-cadastre est coché, pour viser les parcelles. Limites indicatives. Pas de projection dans la photo : un
+cadastre est coché, pour viser les parcelles. Réglage « Parcelle visée dans la visionneuse » (coché par défaut, grisé sans
+le cadastre) : décoché, ni étiquette ni croix dans la visionneuse, le cadastre reste sur la carte. Limites indicatives. Pas de projection dans la photo : un
 essai l'a montrée trop imprécise au pied des façades (plan, sol interpolé sous les bâtiments, inclinaison de la photo).
 
 **Couche importée** (onglet « Couche » du panneau : bouton « Importer un fichier… », ou fichier glissé sur
