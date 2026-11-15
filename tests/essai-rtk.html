@@ -423,6 +423,9 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         const [ty, tp] = [start.yaw + 0.05, start.pitch + 0.02];
         psvClick(ty, tp);  // posé : recalage fini, l'objet n'est plus choisi
         expect("couche : le clic qui pose l'objet finit le recalage", !box.querySelector(".pastille-couche.choisie"));
+        select();
+        select();  // second clic sur l'objet choisi : désélectionné
+        expect("couche : second clic sur l'objet choisi, désélectionné", !box.querySelector(".pastille-couche.choisie"));
         select();  // ajusté : choisi à nouveau, ↑, Entrée
         key("ArrowUp");
         key("Enter");

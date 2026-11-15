@@ -3087,6 +3087,7 @@
           const id = event.data?.target?.closest?.("[data-objet]")?.dataset.objet;
           if (id !== undefined) {  // clic droit : sa fiche PDF ; clic : à recaler
             if (event.data.rightclick) askFiche({ objet: Number(id) });
+            else if (movingId() === Number(id)) endMoving();  // déjà choisi : second clic, désélectionné
             else moveOverlayObject(Number(id));
             return true;
           }
