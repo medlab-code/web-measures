@@ -30,7 +30,7 @@ import traceback
 from . import autotilt, calibration, geometry, host, measures, metadata, precision, roads, tools, triangulation, widths
 
 GROUND_MODES = ("road", "height")  # mesures appuyées sur un point de référence
-CALIBRATION_MODES = ("tilt", "heading")
+CALIBRATION_MODES = ("tilt",)  # calage du cap (« heading ») : plus d'entrée dans la page depuis le 16/10/2026
 MODES = GROUND_MODES + ("tri",) + CALIBRATION_MODES
 REF_MODES = ("height", "road")  # mesures appuyées sur un point de référence triangulé
 NUDGE = 0.01  # pas (m) d'un point de largeur déplacé aux flèches du clavier
@@ -253,7 +253,7 @@ class Session:
             s["view"] = view
         return True
 
-    CLICK_KEYS = ("yaw", "elev", "lon", "lat", "camera_alt", "gps", "gps_accuracy", "accuracy")
+    CLICK_KEYS = ("yaw", "elev", "lon", "lat", "gps", "gps_accuracy", "accuracy")
 
     def _reclick(self, touched):
         """Clics des mesures sur les photos touchées recalculés depuis leur direction brute.
@@ -380,7 +380,6 @@ class Session:
         self.quality = self.precision.known(item)
         before = self.quality
         self.precision.check(item, lambda res: self._on_precision(pic, res, before))
-        self.calibrator.refresh()  # carte : visées des repères de calage pris depuis cette photo
         for rel in ("prev", "next"):  # voisines : axe de la séquence
             nid = metadata.id_from_href(metadata.item_link(item, rel))
             if nid and nid not in self.neighbours:
@@ -592,7 +591,7 @@ class Session:
     def _camera_height(self):
         """Hauteur de la caméra de la photo affichée au-dessus du sol, pour les repères : celle
         de sa position vérifiée (altitude RTK moins sol LiDAR HD), sinon calée pour la séquence,
-        sinon le réglage (comme measures.MeasureTool.camera_info)."""
+        sinon le réglage (la page y ajoute la monture du CD21 : web_app.App._camera_of)."""
         q = self.quality or {}
         h = q.get("height")
         if q.get("precise") and q.get("lidar") is True and h is not None \
@@ -709,7 +708,7 @@ class Session:
         pts, _, origin, _ = m.points()
         c0 = m.clicks[0]
         z0 = measures._ground_z(m.clicks)[c0.get("pic")]
-        cam_z = geometry.camera(c0, self.tool.camera_for(c0, z0), origin, z0)[0][2]
+        cam_z = geometry.camera(c0, self.tool.camera_for(c0), origin, z0)[0][2]
         lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
         cx, cy = triangulation._local(lon, lat, *origin)
         heading, out = self._heading(), []
@@ -1129,10 +1128,6 @@ class Session:
             return
         self._calibration_changed()
 
-    def waiting_map(self):
-        """Calage du cap : le repère cliqué dans la photo attend son clic sur la carte."""
-        return self.mode == "heading" and self.calibrator.waiting_map()
-
     def aim(self, yaw, pitch):
         """Triangulation : visée de la direction cliquée (radians, dans le repère de la photo)."""
         if not self.active:
@@ -1351,7 +1346,7 @@ class Session:
             return ("{} de la hauteur sélectionné : cliquez sa position exacte sur la photo de la mesure, ou "
                     "flèches du clavier ↑ ↓ : 1 cm ; Entrée pour terminer.").format(
                 "Pied" if self.tool.selected[1] == 0 else "Sommet")
-        if self.mode in ("tilt", "heading"):
+        if self.mode == "tilt":
             return self._calibration_text()
         text = self._active().status()
         sequences = []
@@ -1470,41 +1465,25 @@ class Session:
         return m.provisional_name
 
     def _calibration_text(self):
-        """Consigne des modes de calage, étape par étape, avec ce qui est déjà fait."""
+        """Consigne du calage de l'inclinaison, étape par étape, avec ce qui est déjà fait."""
         tool, pic = self.calibrator, (self.item or {}).get("id")
         prefix = (tool.error + " ") if tool.error else ""
         waiting = len(tool.clicks)
-        if self.mode == "tilt":
-            done = len(self.calibration.verticals.get(pic, []))
-            if waiting:
-                return prefix + ("Calage de l'inclinaison, objet {} : cliquez maintenant son sommet, le plus haut "
-                                 "possible sur la même verticale (zoomez pour être précis).").format(done + 1)
-            if done == 0:
-                return prefix + ("Calage de l'inclinaison, objet 1 sur 2 : cliquez le pied d'un objet bien vertical "
-                                 "(poteau, angle de façade, montant de panneau), au ras du sol, puis son sommet.")
-            if done == 1:
-                return prefix + ("1 objet calé : l'inclinaison n'est corrigée qu'en partie. Objet 2 sur 2 : cliquez le "
-                                 "pied puis le sommet d'un autre objet vertical, à environ 90° du premier dans la "
-                                 "photo (sur le côté si le premier est devant).")
-            tilt = self.calibration.tilt(pic) or {}
-            sigma = " (±{}°)".format(measures._num(tilt["sigma"], 2)) if tilt.get("sigma") is not None else ""
-            return prefix + ("Inclinaison calée sur {} objets{} : c'est fait pour cette photo. Un objet de plus "
-                             "l'affine ; sinon, passez à un mode de mesure.").format(done, sigma)
-        sequence = (self.item or {}).get("collection")
-        done = len(self.calibration.landmarks.get(sequence, [])) if sequence else 0
+        done = len(self.calibration.verticals.get(pic, []))
         if waiting:
-            return prefix + ("Repère {} : cliquez maintenant ce même repère sur la carte (glisser pour la déplacer, "
-                             "molette pour zoomer, Échap pour annuler).").format(done + 1)
+            return prefix + ("Calage de l'inclinaison, objet {} : cliquez maintenant son sommet, le plus haut "
+                             "possible sur la même verticale (zoomez pour être précis).").format(done + 1)
         if done == 0:
-            return prefix + ("Calage du cap, repère 1 : cliquez dans la photo un repère net, visible aussi sur la "
-                             "carte (angle de bâtiment, poteau, borne), plutôt lointain ; puis cliquez-le sur la carte.")
-        if done < 3:
-            return prefix + ("{} repère{} : le cap est corrigé. Pour recaler aussi la position de la photo, il en faut "
-                             "au moins 3, répartis autour d'elle (devant, derrière, sur les côtés) : cliquez le repère "
-                             "suivant dans la photo, puis sur la carte.").format(done, "s" if done > 1 else "")
-        return prefix + ("{} repères : cap et position recalés pour les photos de la séquence à moins de {} m. Un "
-                         "repère de plus affine le calage ; sinon, passez à un mode de mesure.").format(
-            done, measures._num(calibration.REACH, 0))
+            return prefix + ("Calage de l'inclinaison, objet 1 sur 2 : cliquez le pied d'un objet bien vertical "
+                             "(poteau, angle de façade, montant de panneau), au ras du sol, puis son sommet.")
+        if done == 1:
+            return prefix + ("1 objet calé : l'inclinaison n'est corrigée qu'en partie. Objet 2 sur 2 : cliquez le "
+                             "pied puis le sommet d'un autre objet vertical, à environ 90° du premier dans la "
+                             "photo (sur le côté si le premier est devant).")
+        tilt = self.calibration.tilt(pic) or {}
+        sigma = " (±{}°)".format(measures._num(tilt["sigma"], 2)) if tilt.get("sigma") is not None else ""
+        return prefix + ("Inclinaison calée sur {} objets{} : c'est fait pour cette photo. Un objet de plus "
+                         "l'affine ; sinon, passez à un mode de mesure.").format(done, sigma)
 
     def _rtk_warning(self, sequences):
         """RTK_WARNING si l'une des séquences n'a pas de position RTK vérifiée (vérification
@@ -1533,7 +1512,6 @@ class Session:
             "computed": precision.computed_text(self.quality) if item else "",  # précision GPS calculée
             "calibration": tools.calibration_text(self.calibration, pic, sequence, lon, lat) if item else "",
             "camera": [round(suggestion[0], 2), suggestion[1]] if suggestion else None,
-            "waiting_map": self.waiting_map(),
             "point": self.triangulator.result is not None,
             "aiming": self._aiming(),
             "point_sel": self.width_sel is not None or self.ref_sel or (

@@ -480,7 +480,8 @@ class Calibration:
     def add_camera_height(self, sequence, kind, clicks, known):
         """Calage de la hauteur de caméra sur une longueur connue (clics corrigés du calage
         actuel). Les clics bruts sont conservés : la hauteur est recalculée si l'inclinaison ou
-        le cap de la photo changent ensuite (voir camera)."""
+        le cap de la photo changent ensuite (voir camera). Plus appelé par la page depuis le 16/10/2026 (calage de la
+        hauteur retiré) : décrit la forme des hauteurs gardées, et sert aux essais."""
         h, sigma = camera_height(kind, clicks, known, self._tilt_sigma(clicks[0].get("pic")))
         keep = ("pic", "sequence", "lon", "lat", "gps", "raw", "yaw", "elev", "profile")
         obs = {"kind": kind, "known": float(known),
@@ -532,13 +533,10 @@ class Calibration:
         self._cameras[sequence] = (key, res)
         return res
 
-    def clear_camera(self, sequence):
-        self.heights.pop(sequence, None)
-        self._notify()
-
     # Cap -------------------------------------------------------------------
     def add_landmark(self, sequence, pic, lon, lat, yaw, elev, mlon, mlat, accuracy, survey):
-        """Repère : clic (cap, élév. bruts) depuis la photo en (lon, lat), repère en (mlon, mlat)."""
+        """Repère : clic (cap, élév. bruts) depuis la photo en (lon, lat), repère en (mlon, mlat). Plus appelé par la
+        page depuis le 16/10/2026 (calage du cap retiré) : décrit la forme des repères gardés, et sert aux essais."""
         obs = {"pic": pic, "lon": lon, "lat": lat, "yaw": yaw, "elev": elev, "mlon": mlon, "mlat": mlat,
                "accuracy": DEFAULT_ACCURACY if accuracy is None else float(accuracy),
                "prior": SURVEY_PRIOR if survey else PRIOR}
@@ -648,10 +646,6 @@ class Calibration:
             if min(math.hypot(*_local(lon, lat, plon, plat)) for plon, plat in result["photos"]) > REACH:
                 return None
         return result
-
-    def clear_heading(self, sequence):
-        self.landmarks.pop(sequence, None)
-        self._notify()
 
     # Application -----------------------------------------------------------
     def correct(self, pic, sequence, yaw, elev, lon=None, lat=None):

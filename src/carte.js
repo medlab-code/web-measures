@@ -348,16 +348,12 @@ const Carte = (() => {
           },
           // Mesures, visées et points (voir web_app.App.map_geojson)
           {
-            id: "visees-halo", type: "line", source: "mesures", filter: kind("visee", "calage"),
+            id: "visees-halo", type: "line", source: "mesures", filter: kind("visee"),
             paint: { "line-color": "#ffffff", "line-opacity": 0.8, "line-width": 4 },
           },
           {
             id: "visees", type: "line", source: "mesures", filter: kind("visee"),
             paint: { "line-color": ROUGE, "line-width": 2, "line-dasharray": [3, 2] },
-          },
-          {  // calage du cap : visées vers les repères en tirets noirs, à ne pas prendre pour une triangulation
-            id: "calages", type: "line", source: "mesures", filter: kind("calage"),
-            paint: { "line-color": "#000000", "line-width": 2, "line-dasharray": [3, 2] },
           },
           {  // plan perpendiculaire : bande bleue sous le trait rouge, visible quand ils se confondent
             id: "plans", type: "line", source: "mesures", filter: kind("trace"),
@@ -381,11 +377,8 @@ const Carte = (() => {
             layout: { "icon-image": "croix", "icon-allow-overlap": true, "icon-ignore-placement": true },
           },
           {
-            id: "cibles", type: "circle", source: "mesures", filter: kind("cible", "repere"),
-            paint: {
-              "circle-color": "rgba(0, 0, 0, 0)", "circle-radius": 7, "circle-stroke-width": 2.5,
-              "circle-stroke-color": ["match", ["get", "kind"], "repere", "#000000", ROUGE],  // repère du calage : noir
-            },
+            id: "cibles", type: "circle", source: "mesures", filter: kind("cible"),
+            paint: { "circle-color": "rgba(0, 0, 0, 0)", "circle-radius": 7, "circle-stroke-width": 2.5, "circle-stroke-color": ROUGE },
           },
         ],
       },

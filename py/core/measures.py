@@ -197,7 +197,7 @@ class Measure:
             return ground_z[click.get("pic")]
 
         def h(click):
-            return self.tool.camera_for(click, zof(click)) + (camera_delta or {}).get(click.get("pic"), 0.0)
+            return self.tool.camera_for(click) + (camera_delta or {}).get(click.get("pic"), 0.0)
 
         # Plan calé de la mesure, défini par les points glissés sur la carte : vertical, passant
         # par les deux premiers (le mur tracé sur la carte), ou par le seul glissé, face à la
@@ -360,7 +360,7 @@ class Measure:
     def _camera_sigma(self, pic):
         """Incertitude (m) de la hauteur de caméra de la photo, selon sa source."""
         c = next(x for x in self.clicks if x.get("pic") == pic)
-        _, source = self.tool.camera_info(c, _ground_z(self.clicks)[pic])
+        _, source = self.tool.camera_info(c)
         if source == "calée":
             return self.tool.calibration.camera(c.get("sequence"))["sigma"]
         return CAMERA_ERRORS.get(source, CAMERA_ERRORS[None])
@@ -422,7 +422,7 @@ class Measure:
         for i, c in enumerate(self.clicks):
             p = pts[i]
             z = ground_z[c.get("pic")]
-            cam, _ = geometry.camera(c, self.tool.camera_for(c, z), origin, z)
+            cam, _ = geometry.camera(c, self.tool.camera_for(c), origin, z)
             vx, vy, vz = p[0] - cam[0], p[1] - cam[1], p[2] - cam[2]
             yaw = math.degrees(math.atan2(vx, vy))
             elev = math.degrees(math.atan2(vz, math.hypot(vx, vy)))
@@ -524,7 +524,7 @@ class Measure:
                 _num(self.incidence, 0))
         if self.reference is not None and not self.aimed and len(self.overrides) == len(self.clicks):
             return text + ". Profondeur du point triangulé : terrain et hauteur de caméra sans effet."
-        height, source = self.tool.camera_info(self.clicks[0], _ground_z(self.clicks)[self.clicks[0].get("pic")])
+        height, source = self.tool.camera_info(self.clicks[0])
         text += ". Terrain : {}, caméra à {} m{}.".format(ground.FLAT, _num(height, 2),
                                                         " ({})".format(source) if source else "")
         if self.notice:
@@ -562,23 +562,17 @@ class MeasureTool:
         if self.current is not None:
             self.current.compute()
 
-    def camera_info(self, click, ground_z=None):
-        """(hauteur de caméra du clic, source) ; source "altitude GPS", "calée" ou None.
-
-        Dans l'ordre : altitude NGF de la caméra (position vérifiée précise, voir precision.py)
-        moins l'altitude du sol sous la photo (ground_z, si elle vient du LiDAR HD), la plus
-        précise et propre à chaque photo ; hauteur calée pour la séquence ; réglage du panneau."""
-        camera_alt = click.get("camera_alt")
-        if camera_alt is not None and ground_z is not None and click.get("precise_ground"):
-            height = camera_alt - ground_z
-            if CAMERA_RANGE[0] <= height <= CAMERA_RANGE[1]:
-                return height, "altitude GPS"
+    def camera_info(self, click):
+        """(hauteur de caméra du clic, source) ; source "calée" ou None : hauteur calée pour la séquence,
+        sinon le réglage du panneau. Les mesures n'en dépendent pas (point triangulé, direction des clics) ;
+        la hauteur mesurée (altitude RTK moins sol LiDAR) et la monture du CD21 sont prises par la page
+        (web_app.App._camera_of) pour le tablier d'un pont, les objets au sol et l'export."""
         sequence = click.get("sequence")
         cam = self.calibration.camera(sequence) if self.calibration and sequence else None
         return (cam["height"], "calée") if cam else (self.camera_height, None)
 
-    def camera_for(self, click, ground_z=None):
-        return self.camera_info(click, ground_z)[0]
+    def camera_for(self, click):
+        return self.camera_info(click)[0]
 
     # Clics --------------------------------------------------------------------
 

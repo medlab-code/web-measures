@@ -37,7 +37,6 @@ class PhotoClick(unittest.TestCase):
         self.assertEqual(c["axis"], 30.0)
         self.assertEqual(c["axis_source"], "orientation de la photo")
         self.assertEqual(c["pos"], [0.1, -0.08])
-        self.assertIsNone(c["camera_alt"])
 
     def test_sequence_axis_and_verified_accuracy(self):
         quality = {"precise": True, "accuracy": 0.1}
@@ -47,14 +46,15 @@ class PhotoClick(unittest.TestCase):
         self.assertEqual(c["accuracy"], 0.1)
         self.assertEqual(c["gps_accuracy"], 0.1)
 
-    def test_camera_altitude_only_when_precise(self):
+    def test_no_ngf_altitude_per_click(self):
+        """Altitude NGF de la caméra plus lue à chaque clic (elle ne servait qu'à une branche morte de
+        MeasureTool.camera_info, retirée le 15/11/2026)."""
         ngf = mock.Mock(return_value=250.0)
         with mock.patch.object(tools.host, "ngf_altitude", ngf):
-            self.assertIsNone(tools.photo_click(item(altitude=300.0), 0.0, -5.0, calibration.Calibration(),
-                                                {"precise": False, "accuracy": None})["camera_alt"])
             c = tools.photo_click(item(altitude=300.0), 0.0, -5.0, calibration.Calibration(),
                                   {"precise": True, "accuracy": 0.1})
-        self.assertEqual(c["camera_alt"], 250.0)
+        ngf.assert_not_called()
+        self.assertNotIn("camera_alt", c)
 
     def test_no_position(self):
         self.assertIsNone(tools.photo_click({"id": "p"}, 0.0, 0.0, calibration.Calibration()))

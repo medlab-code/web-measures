@@ -16,8 +16,8 @@ photo est jugée précise (au décimètre) :
   C'est le cas des photos imajbox 360 HD (RTK et centrale inertielle : 4,7 cm sur 100
   photos à Pouilly-en-Auxois).
 
-Une photo précise donne la hauteur de caméra par son altitude (voir
-measures.MeasureTool.camera_info). Les mesures ne sont pleinement fiables qu'avec à la
+Une photo précise donne la hauteur de caméra par son altitude moins le sol LiDAR (voir
+Session._camera_height). Les mesures ne sont pleinement fiables qu'avec à la
 fois une position vérifiée précise et le LiDAR HD sous la photo ; sinon l'outil est en
 mode dégradé (hauteur de caméra et inclinaison à caler, sol approximatif sans LiDAR) :
 une fenêtre l'annonce à l'activation de la mesure (src/app.js, « alerte-rtk »).

@@ -315,12 +315,10 @@ class WebItem:
 
 
 class RaysItem:
-    """Visées sur la carte (triangulation, repères du calage du cap) : voir
-    tools.Triangulator.new_item."""
+    """Visées de la triangulation sur la carte : voir tools.Triangulator.new_item."""
 
-    def __init__(self, calibration=False):
+    def __init__(self):
         self.rays, self.point = [], None
-        self.calibration = calibration  # repères du calage du cap : dessinés à part (noir)
         self.removed = False
 
     def set_data(self, rays, point):
@@ -407,7 +405,6 @@ class App(session.Session):
         self.items, self.rays = [], []
         self.tool.new_item = self._new_item
         self.triangulator.new_item = self._new_rays
-        self.calibrator.new_item = lambda: self._new_rays(calibration=True)
         self.photo_filter = filters.PhotoFilter()
         self.aim_frame = False  # photo affichée pas encore tournée vers le point à viser (take_aim_frame)
         # Calage de l'inclinaison : pied et sommet de l'objet vertical cliqués, gardés ici jusqu'à
@@ -1234,7 +1231,8 @@ class App(session.Session):
         qui n'est pas dans le tableau. Hauteur : distance de l'objet, hauteur de caméra ; largeur : axe,
         angle de visée."""
         if m.kind == "height":
-            height, source = self.tool.camera_info(m.clicks[0], measures._ground_z(m.clicks)[m.clicks[0].get("pic")])
+            item = self.photo_items.get(m.clicks[0].get("pic"))
+            height, source, _ = self._camera_of(item, self.precision.known(item)) if item else (self.tool.camera_height, None, 0)
             parts = ["objet à {} m de la photo".format(measures._num(m.result["ranges"][0], 1)),
                      "caméra à {} m{}".format(measures._num(height, 2), " ({})".format(source) if source else "")]
         else:
@@ -3158,8 +3156,8 @@ class App(session.Session):
         self.items.append(item)
         return item
 
-    def _new_rays(self, calibration=False):
-        item = RaysItem(calibration)
+    def _new_rays(self):
+        item = RaysItem()
         self.rays.append(item)
         return item
 
@@ -3228,9 +3226,9 @@ class App(session.Session):
         self.rays = [r for r in self.rays if not r.removed]
         for item in self.rays:
             for lon, lat, elon, elat in item.rays:
-                add("calage" if item.calibration else "visee", "LineString", [[lon, lat], [elon, elat]])
+                add("visee", "LineString", [[lon, lat], [elon, elat]])
             if item.point:
-                add("repere" if item.calibration else "cible", "Point", list(item.point))
+                add("cible", "Point", list(item.point))
         road = (self.ref_point or {}).get("road") if self.active and self.mode == "road" else None
         if road:  # largeur : droite de mesure passant par le point de référence
             add("trace", "LineString", [list(p) for p in widths.guide(self.ref_point, road["axis"])])
