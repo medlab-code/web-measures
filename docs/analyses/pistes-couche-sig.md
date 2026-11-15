@@ -3,27 +3,35 @@
 
 # Couche SIG : pistes d'améliorations et d'optimisations
 
-Liste du 15/11/2026, mise à jour le même jour : O1 et O2 faits, O0 commencé (couche d'essai), le reste à faire. Elle couvre l'onglet « Couche » (`src/couche.js`, `src/app.js`), le dessin des
+Liste du 15/11/2026, mise à jour le même jour : O0, O1 et O2 faits, le reste à faire. Elle couvre l'onglet « Couche » (`src/couche.js`, `src/app.js`), le dessin des
 objets dans la photo (`overlay_marks`, `py/web_app.py`) et sur la mini-carte (`Carte.showOverlay`, `src/carte.js`).
-Les gains de vitesse sont déduits de la lecture du code. Ils n'ont pas été mesurés.
+Les gains de vitesse de O3 à O5 sont déduits de la lecture du code et des mesures de O0.
 
 Ordre proposé :
 1. A et B : ils changent l'usage.
 2. C.
-3. L'essai de charge (O0), avant O3, O4 et O5.
+3. O3, puis O4 si la carte gêne en pratique ; O5 pas justifié (voir O0).
 
 ## Optimisations
 
-**O0. Essai de charge (à faire avant O3, O4 et O5).** *Commencé.*
-- **Fait** (58f51ee) : couche synthétique d'objets de la route (`tests/donnees/couche-synthetique.geojson`, 96 objets,
-  D977bis), générée par `tools/couche-synthetique.py` (graine fixe, nombre d'objets réglable). Reste la page d'essai
-  et les mesures ci-dessous, avec 5 000 objets.
-- **Essai** : une couche synthétique de 5 000 objets (points et longues lignes) dans une page d'essai.
-- **À mesurer** :
-  - durée de `set_overlay` et de `overlay_marks` ;
-  - images par seconde de la photo en tournant la vue ;
-  - durée d'un déplacement de la carte.
-- **But** : mesurer au lieu de supposer, et ne faire O3 à O5 que si le chiffre le justifie.
+**O0. Essai de charge.** *Fait.*
+- **Essai** : `tests/essai-charge.html` (`tools/essais.sh essai-charge`, environ 25 s, hors de l'essai complet : il
+  donne des chiffres, pas un verdict de vitesse). 5 088 objets (1 Mo) fabriqués en recopiant la couche synthétique
+  (`tests/donnees/couche-synthetique.geojson`, 58f51ee) avec un décalage de ±40 m ; 346 parties à moins de 100 m de
+  la photo.
+- **Mesures du 15/11/2026** (Chrome sans fenêtre, processeur graphique) :
+  - `set_overlay` 25 ms ; import complet 0,26 s, gardé dans IndexedDB aussitôt après ;
+  - sol LiDAR HD de la première photo : 3 à 6,6 s pour 1 390 altitudes (réseau) ;
+  - `overlay_marks` 15 ms par appel ;
+  - redessin de la photo (`refresh`) : 52 ms avec la couche, 0,9 ms sans (environ 290 pastilles HTML) ;
+  - vue tournée : 60 images/s avec ou sans la couche (plafond de l'écran) ;
+  - carte déplacée à chaque image (`jumpTo`, donc étiquettes recalculées à chaque image : pire cas, plus dur qu'un
+    glissé à la souris) : 37 images/s avec la couche, 60 sans.
+- **Conclusions** :
+  - O3 : le redessin de 52 ms se sent à chaque clic (environ trois images à 60 images/s). `overlay_marks` en prend 15 ms (une
+    fois par redessin, plus la vignette), le reste vient des pastilles HTML. O3 ne gagne que sur la part Python.
+  - O4 : seul ralentissement visible de la carte, mais mesuré dans le pire cas. À refaire à la main avant de s'y mettre.
+  - O5 : la rotation reste à 60 images/s ; pas justifié.
 
 **O1. Sol LiDAR gardé par sommet, et non par photo.** *Fait (a0b6887).*
 - **Fait** : un seul cache `{(lon, lat): altitude}` pour toute la couche (`overlay_ground`, sommets en cours dans
@@ -50,7 +58,7 @@ Ordre proposé :
   de la couche, ce qui porte la limite à des centaines de Mo.
 - **Attention** : reprendre une fois l'ancienne clé `localStorage`, puis la retirer.
 
-**O3. Index spatial des objets** (si O0 le justifie).
+**O3. Index spatial des objets** (O0 : `overlay_marks` 15 ms pour 5 000 objets, gain modeste).
 - **Aujourd'hui** : à chaque redessin de la photo (`overlay_marks`, et aussi pour la vignette), on parcourt tous les
   sommets de toute la couche pour garder ceux à moins de 100 m.
 - **Piste** : un découpage en cases de 100 m, construit dans `set_overlay`. On ne parcourt que les 9 cases autour de la
@@ -58,7 +66,7 @@ Ordre proposé :
 - **Gain** : il ne compte qu'avec une grosse couche, de plusieurs milliers d'objets, ou de longues lignes découpées tous
   les `OVERLAY_STEP` (5 m).
 
-**O4. Étiquettes de la mini-carte dessinées par la carte elle-même** (si O0 le justifie).
+**O4. Étiquettes de la mini-carte dessinées par la carte elle-même** (O0 : 37 images/s au lieu de 60, pire cas).
 - **Aujourd'hui** : jusqu'à `OVERLAY_LABEL_MAX` (200) étiquettes, à partir du zoom 16, sont des repères HTML. Elles sont
   recréées après chaque déplacement de la carte, avec `querySourceFeatures` sur les voies et le calcul d'écart aux
   voies (`awayFromRoad`).
@@ -67,7 +75,7 @@ Ordre proposé :
 - **Gain** : les étiquettes suivent le déplacement sans recalcul.
 - **À perdre** : l'écart aux voies sur mesure. L'anti-chevauchement le remplace en partie.
 
-**O5. Objets dans la photo dessinés par la carte graphique** (si O0 le justifie).
+**O5. Objets dans la photo dessinés par la carte graphique** (O0 : pas justifié, rotation à 60 images/s).
 - **Aujourd'hui** : les pastilles et les traits de la couche sont des repères HTML. Les mesures, elles, passent par la
   carte graphique depuis la 0.6.15.
 - **Gain** : un affichage plus léger quand beaucoup d'objets sont à moins de 100 m.
