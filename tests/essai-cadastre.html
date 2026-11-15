@@ -97,14 +97,24 @@ const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-
       expect(`caméra sur la voirie : rien en jaune (${own || "domaine public"})`, under() === own);
       if (inside && holder(inside.at) === inside.idu) {  // caméra posée dans cette parcelle : elle passe en jaune, pas en vert
         const Carte = w.eval("Carte");
-        Carte.showView(map, inside.at, inside.heading * 180 / Math.PI, 90);
-        await soon(() => under() === inside.idu, 3000);
+        // posée de nouveau tant que la visionneuse peut la remettre sur la photo (fin de chargement) avant la réponse du WFS
+        const move = () => Carte.showView(map, inside.at, inside.heading * 180 / Math.PI, 90);
+        move();
+        await soon(() => under() === inside.idu || void move(), 5000);  // même position : pas de nouvelle requête
         log(`caméra dans ${inside.idu} : jaune ${under() || "aucune"}, vert ${shown() || "aucune"}`);
         expect("caméra dans une parcelle : celle-ci en jaune, une autre (ou aucune) en vert", under() === inside.idu && shown() !== inside.idu);
         await sleep(300);
         const shot = await new Promise((r) => { map.once("render", () => r(map.getCanvas().toDataURL("image/png"))); map.triggerRepaint(); });
         await log("IMAGE parcelle-camera " + shot);
         Carte.showView(map, cam, azimuth, 90);
+        // carte dézoomée (parcelles masquées sur la carte) : l'étiquette de la parcelle visée reste dans la visionneuse
+        w.mesures.psv.rotate({ yaw: inside.heading - azimuth * Math.PI / 180, pitch: 0 });
+        const label = () => { try { return w.mesures.psv.getPlugin("markers").getMarker("mesure-parcelle"); } catch { return null; } };
+        await soon(() => Carte.aimedParcel()?.idu === inside.idu && label(), 5000);
+        map.jumpTo({ zoom: 12 });
+        await sleep(1500);  // contrôle « rien ne change »
+        expect(`carte au zoom 12 : étiquette de ${inside.idu} gardée dans la visionneuse`, Carte.aimedParcel()?.idu === inside.idu && Boolean(label()));
+        map.jumpTo({ zoom: 18 });
       } else expect("point d'essai dans une parcelle trouvé", false);
       {  // croix discrète au centre de la vue, cadastre coché
         const croix = doc.querySelector("#croix-cadastre"), r = croix.getBoundingClientRect();

@@ -862,8 +862,10 @@ const Carte = (() => {
       for (const id of buildingMax.keys()) buildingZoom(map, id);
       if (!cadastreFollow) {
         cadastreFollow = true;
-        // tuiles du cadastre arrivées (zoom, déplacement) : parcelle visée recherchée de nouveau
-        map.on("sourcedata", (e) => { if (e.sourceId === "cadastre" && e.isSourceLoaded) { sceneCache = null; aimCadastre(map); } });
+        // WFS du cadastre injoignable : parcelle visée lue sur les tuiles de la carte, recherchée de nouveau à leur arrivée
+        map.on("sourcedata", (e) => {
+          if (e.sourceId === "cadastre" && e.isSourceLoaded && parcelsNear.features === "carte") { sceneCache = null; aimCadastre(map); }
+        });
       }
       aimCadastre(map);
     };
@@ -872,7 +874,7 @@ const Carte = (() => {
 
   // Parcelle visée : la première que coupe la ligne de cap en partant de la caméra (celle où se tient la caméra, cour ou
   // chemin privé, écartée : elle est allumée à part, en jaune), jusqu'à CADASTRE_VISEE m : au-delà, la photo ne montre plus assez la parcelle pour s'en servir
-  // (limites du plan à 1,5 m près en Côte-d'Or, voir CADASTRE_DECALAGE). Recherchée sur les tuiles chargées, à chaque
+  // (limites du plan à 1,5 m près en Côte-d'Or). Recherchée sur les parcelles lues autour de la caméra (loadParcels), à chaque
   // rotation de la vue (une fois par image au plus).
   const CADASTRE_VISEE = 50;
   // aimListener : averti de la parcelle visée ({ idu, section, numero, at : [lon, lat] du milieu de sa partie vue
@@ -883,7 +885,7 @@ const Carte = (() => {
     if (aimFrame) return;
     aimFrame = requestAnimationFrame(() => {
       aimFrame = 0;
-      const { aimed, own, scene } = cadastreOn && map.getZoom() >= CADASTRE_MINZOOM ? aimedParcel(map) : { aimed: null, own: "" };
+      const { aimed, own, scene } = cadastreOn ? aimedParcel(map) : { aimed: null, own: "" };
       const key = `${aimed?.idu}|${own}|${lastView?.[0]?.join(",") || ""}`;
       if (key === aimedKey || !map.getLayer("cadastre-vise")) return;
       aimedKey = key;
@@ -905,7 +907,11 @@ const Carte = (() => {
     const [lonlat, heading] = lastView || [];
     if (!lonlat) return { aimed: null, own: "" };
     const key = lonlat.join(",");
-    if (sceneCache?.key !== key) sceneCache = { key, scene: parcelScene(map, lonlat) };
+    if (parcelsNear.key !== key) loadParcels(map, lonlat, key);
+    const features = parcelsNear.features !== "carte" ? parcelsNear.features
+      : map.getZoom() >= CADASTRE_MINZOOM ? map.querySourceFeatures("cadastre", { sourceLayer: "parcelle" }) : [];
+    if (!features) return { aimed: null, own: "" };  // parcelles en cours de lecture
+    if (sceneCache?.key !== key) sceneCache = { key, scene: parcelScene(features, lonlat) };
     const scene = sceneCache.scene, own = [...scene.around][0] || "";
     const hit = heading == null ? null : firstParcel(scene, heading);
     if (!hit) return { aimed: null, own };
@@ -913,12 +919,37 @@ const Carte = (() => {
     return { own, scene, aimed: { idu, section: String(props.section ?? "").replace(/^0+(?=.)/, ""),
       numero: String(props.numero ?? ""), at: scene.lonlatAt(heading, t) } };
   }
-  /** Côtés des parcelles chargées proches de la caméra (lonlat), en m depuis elle (est, nord), et parcelles où elle se tient
+  // Parcelles autour de la caméra, lues au WFS du cadastre (Parcellaire Express : mêmes idu que les tuiles du PCI), une fois
+  // par position : étiquette de la parcelle visée quel que soit le zoom de la carte (pas de tuiles du cadastre sous
+  // CADASTRE_MINZOOM, ni hors de la vue). features : null pendant la lecture, "carte" si le WFS ne répond pas (tuiles de la carte)
+  let parcelsNear = { key: "", features: null };
+  async function loadParcels(map, lonlat, key) {
+    parcelsNear = { key, features: null };
+    const d = (CADASTRE_VISEE + 10) / 111320, dx = d / Math.cos(lonlat[1] * Math.PI / 180), [lon, lat] = lonlat;
+    const params = new URLSearchParams({
+      SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetFeature", TYPENAMES: "CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle",
+      OUTPUTFORMAT: "application/json", SRSNAME: "EPSG:4326", COUNT: "1000",
+      BBOX: `${lat - d},${lon - dx},${lat + d},${lon + dx},urn:ogc:def:crs:EPSG::4326`,
+    });
+    let features;
+    try {
+      const response = await fetch(`${GEOPF}/wfs/ows?${params}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      features = (await response.json()).features || [];
+    } catch {
+      features = "carte";
+    }
+    if (parcelsNear.key !== key) return;  // caméra déjà ailleurs
+    parcelsNear.features = features;
+    sceneCache = null;
+    aimCadastre(map);
+  }
+  /** Côtés des parcelles (features GeoJSON) proches de la caméra (lonlat), en m depuis elle (est, nord), et parcelles où elle se tient
    * (around) ; lonlatAt(cap, t) : point à t m dans ce cap. */
-  function parcelScene(map, lonlat) {
+  function parcelScene(features, lonlat) {
     const kx = 111320 * Math.cos(lonlat[1] * Math.PI / 180), ky = 111320;  // m par degré (à 0,3 % près : sans effet ici)
     const around = new Set(), segments = [];
-    for (const f of map.querySourceFeatures("cadastre", { sourceLayer: "parcelle" })) {
+    for (const f of features) {
       const idu = f.properties?.idu, g = f.geometry;
       if (!idu || !g) continue;
       const polygons = g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
