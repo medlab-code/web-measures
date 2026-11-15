@@ -1399,6 +1399,7 @@
       applyMeasureUi();
     } else if (lineDraft !== null) addLinePoint(event.lngLat);
     else if (placing) placeOnMap(event.lngLat);
+    else if (addingObject) addObjectAt(event.lngLat);
     else if (travelPick) pickTravelPoint(event.lngLat);
     else {
       // Mesure exportée de la couche sous le clic : revue sur sa photo ; sinon la photo la plus proche
@@ -1481,6 +1482,7 @@
       setPlacing(false);
       refresh();
     }
+    if (event.key === "Escape" && addingObject) setAddingObject(false);
     if (event.key === "Escape" && travelPick) {
       poi.draft = null;  // tracé de la zone ou de la planète interrompu
       planetDraft = null;
@@ -1630,6 +1632,8 @@
   /** Objet id de la couche choisi pour être recalé dans la photo affichée. */
   function moveOverlayObject(id) {
     moving = { id, photo: photo.id };
+    objectCurrent = id;  // ses attributs et son statut dans le parcours
+    showObjectState();
     document.activeElement?.blur?.();  // un bouton cliqué avant (« Exporter »…) ne reçoit pas l'Entrée
     setStatus("Objet de la couche : cliquez sa place dans la photo, flèches pour l'ajuster, Entrée pour finir, "
       + "Suppr pour le remettre à sa place calculée. La carte n'est pas modifiée.");
@@ -2350,7 +2354,9 @@
     const k = objectOrder.indexOf(objectCurrent), on = overlay && objectCurrent != null;
     $("#objet-precedent").disabled = !overlay || k <= 0;
     $("#objet-suivant").disabled = !overlay || !objectOrder.length || k === objectOrder.length - 1;
-    $("#objet-statut").disabled = $("#objet-note").disabled = !on;
+    $("#objet-statut").disabled = $("#objet-note").disabled = $("#objet-supprimer").disabled = !on;
+    $("#objet-ajouter").disabled = !overlay;
+    showObjectAttributes();
     const p = on ? overlay.features[objectCurrent].properties : {};
     $("#objet-courant").textContent = on ? `Objet ${overlayObjectName(objectCurrent)}${k >= 0 ? ` (${k + 1}/${objectOrder.length})` : ""}`
       : "Cliquez un objet du tableau, ou ▶";
@@ -2358,6 +2364,76 @@
     if (document.activeElement !== $("#objet-note")) $("#objet-note").value = p.verif_note || "";
     for (const tr of $("#objets-lignes").children) tr.setAttribute("aria-selected", String(objectOrder[tr.sectionRowIndex] === objectCurrent));
   }
+
+  /** Attributs de l'objet du parcours, modifiables (sans les colonnes techniques d'un relevé, ni statut et
+   * commentaire) ; refaits seulement quand l'objet ou les colonnes changent (un champ en cours garde la main). */
+  let attributesKey = "";
+  function showObjectAttributes() {
+    const on = overlay && objectCurrent != null;
+    const columns = on ? overlay.columns.filter((c) => !(overlay.techniques || []).includes(c) && !["verif", "verif_note"].includes(c)) : [];
+    const key = on ? `${objectCurrent}|${columns.join("|")}` : "";
+    if (key === attributesKey) return;
+    attributesKey = key;
+    const p = on ? overlay.features[objectCurrent].properties : {};
+    $("#objet-attributs").replaceChildren(...columns.map((c) => {
+      const label = Object.assign(document.createElement("label"), { textContent: c });
+      const input = Object.assign(document.createElement("input"), { type: "text", value: p[c] == null ? "" : String(p[c]) });
+      input.addEventListener("change", () => setObjectAttribute(c, input.value));
+      label.append(input);
+      return label;
+    }));
+  }
+
+  /** Attribut de l'objet du parcours : vide → null ; nombre si la colonne en a ailleurs (virgule acceptée). */
+  function setObjectAttribute(column, text) {
+    const t = text.trim(), n = Number(t.replace(",", "."));
+    const numeric = overlay.features.some((f) => typeof f.properties[column] === "number");
+    overlay.features[objectCurrent].properties[column] = !t ? null : numeric && Number.isFinite(n) ? n : t;
+    objectEdited();
+  }
+
+  /** Couche modifiée (attribut, statut ; geometry : objet ajouté ou supprimé, numéros refaits) : à réenregistrer. */
+  function objectEdited(geometry = false) {
+    if (geometry) {
+      overlay.features.forEach((f, i) => { f.id = i; });
+      overlayAt.clear();
+      attributesKey = "";
+      app.set_overlay(JSON.stringify(overlay.features.map(({ id, geometry }) => ({ id, geometry }))));
+      showOverlayInfo();
+    }
+    setOverlayChanged(true);  // à réenregistrer dans le fichier
+    saveOverlay();
+    showOverlayStyle();  // carte, photo, légende, tableau
+  }
+
+  $("#objet-supprimer").addEventListener("click", async () => {
+    const i = objectCurrent;
+    if (await ask($("#supprimer-objet"), `L'objet ${overlayObjectName(i)} sera retiré de la couche. Le fichier ne change `
+      + "qu'à l'enregistrement.") !== "supprimer" || objectCurrent !== i) return;
+    overlay.features.splice(i, 1);
+    moving = null;
+    objectCurrent = null;
+    objectEdited(true);
+  });
+
+  // Objet ajouté : un point posé d'un clic sur la mini-carte, attributs vides à saisir ; Échap annule
+  let addingObject = false;
+  function setAddingObject(on) {
+    addingObject = on;
+    map.getCanvas().style.cursor = on ? "crosshair" : "";
+    $("#objet-ajouter").textContent = on ? "Annuler (Échap)" : "＋ Ajouter un objet";
+    $("#objet-ajouter").setAttribute("aria-pressed", String(on));
+    if (on) setStatus("Couche : cliquez sur la mini-carte la place du nouvel objet (zoomez pour être précis) ; Échap pour annuler.");
+  }
+  function addObjectAt({ lng, lat }) {
+    setAddingObject(false);
+    overlay.features.push({ type: "Feature", id: overlay.features.length, geometry: { type: "Point", coordinates: [lng, lat] },
+      properties: Object.fromEntries(overlay.columns.map((c) => [c, null])) });
+    objectEdited(true);
+    setStatus("Objet ajouté à la couche : saisissez ses attributs sous le statut.");
+    goToObject(overlay.features.length - 1);
+  }
+  $("#objet-ajouter").addEventListener("click", () => setAddingObject(!addingObject));
 
   /** Objet n° i de la couche : photo la plus proche (ou celle de son recalage) ouverte, tournée vers lui. */
   async function goToObject(i) {
@@ -2391,9 +2467,7 @@
         $(id).append(new Option(column, column));
       }
     }
-    setOverlayChanged(true);  // à réenregistrer dans le fichier
-    saveOverlay();
-    showOverlayStyle();  // couleur ou étiquette selon le statut, tableau
+    objectEdited();  // couleur ou étiquette selon le statut, tableau
   }
   $("#couche-parcours").addEventListener("toggle", showObjectTable);
   $("#objets-recherche").addEventListener("input", showObjectTable);
@@ -2692,6 +2766,7 @@
     moving = null;
     objectCurrent = null;
     objectOrder = [];
+    setAddingObject(false);
     showObjectState();
     overlayWrite((s) => s.delete("couche-texte"), () => store.set("couche", ""));
     app?.set_overlay("[]");

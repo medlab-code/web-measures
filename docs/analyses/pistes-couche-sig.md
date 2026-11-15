@@ -3,14 +3,13 @@
 
 # Couche SIG : pistes d'améliorations et d'optimisations
 
-Liste du 15/11/2026, mise à jour le même jour : O0, O1, O2 et A faits, le reste à faire. Elle couvre l'onglet « Couche » (`src/couche.js`, `src/app.js`), le dessin des
+Liste du 15/11/2026, mise à jour le même jour : O0, O1, O2, A et B faits, le reste à faire. Elle couvre l'onglet « Couche » (`src/couche.js`, `src/app.js`), le dessin des
 objets dans la photo (`overlay_marks`, `py/web_app.py`) et sur la mini-carte (`Carte.showOverlay`, `src/carte.js`).
 Les gains de vitesse de O3 à O5 sont déduits de la lecture du code et des mesures de O0.
 
 Ordre proposé :
-1. B : il change l'usage (A fait).
-2. C.
-3. O3, puis O4 si la carte gêne en pratique ; O5 pas justifié (voir O0).
+1. C (A et B faits).
+2. O3, puis O4 si la carte gêne en pratique ; O5 pas justifié (voir O0).
 
 ## Optimisations
 
@@ -102,7 +101,15 @@ Ordre proposé :
 - **Usage** : passer en revue un inventaire, panneaux ou arbres par exemple, objet par objet, sans le chercher sur la
   carte.
 
-**B. Modifier la couche importée.**
+**B. Modifier la couche importée.** *Fait.*
+- **Fait** : dans la rubrique « Parcours et modification des objets » (`showObjectAttributes`, `objectEdited`,
+  `src/app.js`), un champ par colonne pour l'objet choisi (ligne du tableau, ou clic sur l'objet dans la photo) ; vide :
+  null, nombre si la colonne en a déjà. « Supprimer l'objet » après confirmation (numéros refaits, couche renvoyée au
+  calcul) ; « ＋ Ajouter un objet » : un point posé d'un clic sur la mini-carte. Gardé avec la couche, « Enregistrer »
+  actif, exporté. Essai : `essai-rtk` (attribut, ajout, suppression).
+- **Pas fait** : ajout d'une ligne ou d'un polygone, ajout d'une colonne, déplacement d'un objet sur la carte (le
+  recalage reste propre à une photo). Un point visé dans les photos passe toujours par le relevé.
+- **Attention** : la suppression vide le cache du sol LiDAR (`set_overlay`) ; les altitudes se relisent.
 - **Attributs** : les modifier dans la fiche de l'objet.
 - **Objets** : en supprimer, ou en ajouter directement dans la couche. Aujourd'hui, il faut un relevé séparé, puis
   « Envoyer dans Couche ».

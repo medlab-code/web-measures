@@ -646,7 +646,11 @@ statut), trié par un clic sur un intitulé et filtré par la recherche (identif
 sur une ligne, ou ◀ / ▶ dans l'ordre du tableau, ouvre la photo de l'objet (celle de son recalage, sinon la plus
 proche) tournée vers lui. Son statut (« vérifié », « à revoir », « absent » : arbre abattu, panneau déposé…) et un commentaire s'écrivent dans les colonnes `verif`
 et `verif_note`, ajoutées à la couche au premier statut : gardées avec elle, enregistrées et exportées comme ses autres
-colonnes, et proposées pour la couleur ou l'étiquette.
+colonnes, et proposées pour la couleur ou l'étiquette. **Modification de la couche**, dans la même rubrique : les attributs de l'objet
+choisi (ligne du tableau, ou clic sur l'objet dans la photo) se modifient sous son statut (vide : sans valeur ; nombre
+si la colonne en a déjà, virgule acceptée). « Supprimer l'objet » le retire après confirmation ; « ＋ Ajouter un objet »
+pose un point d'un clic sur la mini-carte (Échap annule), puis ses attributs se saisissent. Gardé avec la couche ; le
+fichier ne change qu'à « Enregistrer ».
 
 **Résultats gardés** : ils sont enregistrés dans le navigateur à chaque changement ; à
 l'ouverture suivante, ceux de la session précédente qui n'ont pas été exportés sont proposés à

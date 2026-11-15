@@ -1554,6 +1554,12 @@ button.lien:disabled { color: var(--discret); opacity: 0.6; cursor: default; }
 .parcours-objets, .statut-objet { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.5rem; }
 #objet-courant { flex: 1; min-width: 0; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #objet-note { flex: 1; min-width: 0; }
+.attributs-objet { display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 0.5rem; margin-top: 0.5rem; font-size: 0.9em; }
+.attributs-objet label { display: contents; color: var(--discret); }
+.attributs-objet input { min-width: 0; }
+.actions-objet { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
+.actions-objet button { flex: 1; }
+.actions-objet .danger:not(:disabled) { color: var(--echec); }
 #objets-recherche { width: 100%; margin-top: 0.5rem; box-sizing: border-box; }
 .tableau-objets { max-height: 18rem; overflow: auto; margin-top: 0.4rem; border: 1px solid var(--bord); border-radius: 8px; }
 .tableau-objets table { width: 100%; border-collapse: collapse; font-size: 0.9em; }

@@ -395,9 +395,10 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             <button id="couche-fiches" type="button" disabled
                     title="Un seul PDF, une page par objet, photo cadrée automatiquement sur l'objet">Fiches PDF des objets</button>
             <!-- Parcours des objets (app.js showObjectTable) : tableau trié et filtré ; ◀ ▶ dans son ordre, photo la plus
-                 proche tournée vers l'objet ; statut dans les colonnes verif et verif_note, gardées et exportées -->
+                 proche tournée vers l'objet ; statut dans les colonnes verif et verif_note, gardées et exportées ;
+                 attributs modifiables, objet supprimé ou ajouté (point posé sur la carte) -->
             <details id="couche-parcours">
-              <summary>Parcours des objets</summary>
+              <summary>Parcours et modification des objets</summary>
               <div class="parcours-objets">
                 <button id="objet-precedent" type="button" disabled aria-label="Objet précédent"
                         title="Objet précédent du tableau : photo la plus proche, tournée vers lui">◀</button>
@@ -411,6 +412,13 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
                 </select>
                 <input id="objet-note" type="text" disabled maxlength="254" placeholder="Commentaire"
                        aria-label="Commentaire sur l'objet" title="Colonne « verif_note » de la couche">
+              </div>
+              <div id="objet-attributs" class="attributs-objet"></div>
+              <div class="actions-objet">
+                <button id="objet-ajouter" type="button" disabled aria-pressed="false"
+                        title="Ajouter un point à la couche : clic sur la mini-carte à sa place, puis ses attributs">＋ Ajouter un objet</button>
+                <button id="objet-supprimer" type="button" class="danger" disabled
+                        title="Retirer l'objet choisi de la couche (le fichier ne change qu'à l'enregistrement)">Supprimer l'objet</button>
               </div>
               <input id="objets-recherche" type="search" placeholder="Rechercher (identifiant, attribut)"
                      aria-label="Rechercher un objet par identifiant ou attribut">
@@ -871,6 +879,14 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
     </form>
   </dialog>
   <!-- « Enregistrer » : le fichier de la couche a changé sur le disque depuis son import (ou le dernier enregistrement) -->
+  <dialog id="supprimer-objet" class="avertissement">
+    <h2>Supprimer l'objet ?</h2>
+    <p></p>
+    <form method="dialog">
+      <button value="" class="oui">Garder</button>
+      <button value="supprimer" class="non">Supprimer</button>
+    </form>
+  </dialog>
   <dialog id="fichier-change" class="avertissement">
     <h2>Fichier modifié entre-temps</h2>
     <p></p>

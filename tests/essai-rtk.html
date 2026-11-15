@@ -465,6 +465,25 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         doc.querySelector("#objet-suivant").click();
         expect("parcours : ▶ passe à l'objet suivant", doc.querySelector("#objet-courant").textContent === "Objet ligne (2/4)"
           && !doc.querySelector("#objet-precedent").disabled && statut.value === "");
+        // Modification : attribut h de « ligne » (nombre, virgule acceptée) ; objet ajouté sur la carte, puis supprimé
+        const field = [...doc.querySelectorAll("#objet-attributs label")].find((l) => l.firstChild.textContent === "h")?.querySelector("input");
+        field.value = "2,5";
+        field.dispatchEvent(new Event("change"));
+        expect("modification : attribut gardé, en nombre", (await w.mesures.savedOverlay()).features[1].properties.h === 2.5
+          && rows().some((r) => r.textContent.includes("ligne")));
+        doc.querySelector("#objet-ajouter").click();
+        const at = w.mesures.map.project(mid);
+        w.mesures.map.fire("click", { lngLat: new w.maplibregl.LngLat(...mid), point: at, originalEvent: new MouseEvent("click") });
+        const added = await w.mesures.savedOverlay();
+        expect("modification : point ajouté, gardé, choisi", added.features.length === 5 && added.features[4].geometry.type === "Point"
+          && rows().length === 5 && doc.querySelector("#objet-courant").textContent.startsWith("Objet 5"));
+        const dialog = doc.querySelector("#supprimer-objet");
+        doc.querySelector("#objet-supprimer").click();
+        await until(() => dialog.open, 5000, "confirmation de la suppression");
+        dialog.querySelector('button[value="supprimer"]').click();
+        await expectSoon("modification : objet supprimé", () => rows().length === 4);
+        expect("modification : suppression gardée, numéros refaits", (await w.mesures.savedOverlay()).features.length === 4
+          && doc.querySelector("#objet-supprimer").disabled);
       }
       // Case « Afficher la couche » : masquée sur la carte et dans la photo, puis réaffichée
       const visible = doc.querySelector("#couche-visible");
