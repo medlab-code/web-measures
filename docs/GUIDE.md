@@ -660,7 +660,8 @@ colonnes, et proposées pour la couleur ou l'étiquette. **Modification de la co
 choisi (ligne du tableau, ou clic sur l'objet dans la photo) se modifient sous son statut (vide : sans valeur ; nombre
 si la colonne en a déjà, virgule acceptée ; texte : les valeurs des autres objets sont proposées en liste, une valeur
 nouvelle peut être tapée ; nombre : rien de proposé ; colonne oui / non : case à cocher). « Supprimer l'objet » le retire après confirmation ; « ＋ Ajouter un objet »
-pose un point d'un clic sur la mini-carte (Échap annule), puis ses attributs se saisissent. Gardé avec la couche ; le
+pose un point d'un clic sur la mini-carte (Échap annule), puis ses attributs se saisissent ; une colonne « id » reçoit
+d'elle-même le plus grand numéro existant + 1 (« 012 » → « 013 » ; vide si aucun id n'est un nombre). Gardé avec la couche ; le
 fichier ne change qu'à « Enregistrer ».
 
 **Résultats gardés** : ils sont enregistrés dans le navigateur à chaque changement ; à

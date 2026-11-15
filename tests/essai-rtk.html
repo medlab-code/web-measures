@@ -544,11 +544,17 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
           return w.mesures.savedOverlay();
         };
         const [l93x, l93y] = [842000.5, 6683000];
-        let kept = await importCsv(`﻿num;X;Y;haut;insee\n1;${String(l93x).replace(".", ",")};${l93y};2,5;021231\n2;842010;6683010;;21\n3;;;1;\n`, "essai.csv");
+        let kept = await importCsv(`﻿ID;X;Y;haut;insee\n007;${String(l93x).replace(".", ",")};${l93y};2,5;021231\n012;842010;6683010;;21\n3;;;1;\n`, "essai.csv");
         expect("CSV : points en Lambert 93, attributs typés, ligne sans position écartée", kept.features.length === 2 && kept.crs === "lambert93"
-          && JSON.stringify(kept.columns) === '["num","haut","insee"]' && kept.features[0].properties.haut === 2.5
+          && JSON.stringify(kept.columns) === '["ID","haut","insee"]' && kept.features[0].properties.haut === 2.5
           && kept.features[0].properties.insee === "021231" && Math.abs(kept.features[0].geometry.coordinates[0] - 4.877) < 1e-3,
           JSON.stringify(kept.features[0]));
+        // Objet ajouté : colonne « ID » en texte, le plus grand + 1 à la même largeur
+        doc.querySelector("#objet-ajouter").click();
+        w.mesures.map.fire("click", { lngLat: new w.maplibregl.LngLat(...mid), point: w.mesures.map.project(mid), originalEvent: new MouseEvent("click") });
+        await until(() => doc.querySelectorAll("#objets-lignes tr").length === 3, 5000, "objet ajouté au CSV");
+        const ids = (await w.mesures.savedOverlay()).features.map((f) => f.properties.ID);
+        expect("objet ajouté : id suivant le plus grand", ids.join() === "007,012,013", ids.join());
         kept = await importCsv('nom,wkt\nl,"LINESTRING (5.01 47.3, 5.02 47.31)"\n', "ligne.csv");
         expect("CSV : géométrie en WKT", kept.features[0]?.geometry.type === "LineString" && kept.crs === "wgs84");
         doc.querySelector("#couche-retirer").click();

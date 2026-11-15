@@ -2492,8 +2492,17 @@
   }
   function addObjectAt({ lng, lat }) {
     setAddingObject(false);
-    overlay.features.push({ type: "Feature", id: overlay.features.length, geometry: { type: "Point", coordinates: [lng, lat] },
-      properties: Object.fromEntries(overlay.columns.map((c) => [c, null])) });
+    const properties = Object.fromEntries(overlay.columns.map((c) => [c, null]));
+    // Colonne « id » (sans tenir compte de la casse) : le plus grand numéro existant + 1, dans la forme de la colonne
+    // (nombre, ou texte de même largeur : « 007 » → « 008 ») ; aucun id numérique : laissée vide
+    const idColumn = overlay.columns.find((c) => c.toLowerCase() === "id");
+    const ids = idColumn ? overlay.features.map((f) => f.properties[idColumn]).filter((v) => /^\d+$/.test(String(v ?? "").trim())) : [];
+    if (ids.length) {
+      const top = ids.reduce((a, b) => (Number(b) > Number(a) ? b : a));
+      const next = Number(top) + 1;
+      properties[idColumn] = typeof top === "number" ? next : String(next).padStart(String(top).trim().length, "0");
+    }
+    overlay.features.push({ type: "Feature", id: overlay.features.length, geometry: { type: "Point", coordinates: [lng, lat] }, properties });
     objectEdited(true);
     setStatus("Objet ajouté à la couche : saisissez ses attributs sous le statut.");
     goToObject(overlay.features.length - 1);
