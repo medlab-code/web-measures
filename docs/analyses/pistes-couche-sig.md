@@ -1,0 +1,109 @@
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- © Cédric COCHART -->
+
+# Couche SIG : pistes d'améliorations et d'optimisations
+
+Liste du 15/11/2026, rien n'est encore fait. Elle couvre l'onglet « Couche » (`src/couche.js`, `src/app.js`), le dessin des
+objets dans la photo (`overlay_marks`, `py/web_app.py`) et sur la mini-carte (`Carte.showOverlay`, `src/carte.js`).
+Les gains de vitesse sont déduits de la lecture du code. Ils n'ont pas été mesurés.
+
+Ordre proposé :
+1. O1 et O2 : gains rapides et sûrs.
+2. A et B : ils changent l'usage.
+3. C.
+4. L'essai de charge (O0), avant O3, O4 et O5.
+
+## Optimisations
+
+**O0. Essai de charge (à faire avant O3, O4 et O5).**
+- **Essai** : une couche synthétique de 5 000 objets (points et longues lignes) dans une page d'essai.
+- **À mesurer** :
+  - durée de `set_overlay` et de `overlay_marks` ;
+  - images par seconde de la photo en tournant la vue ;
+  - durée d'un déplacement de la carte.
+- **But** : mesurer au lieu de supposer, et ne faire O3 à O5 que si le chiffre le justifie.
+
+**O1. Sol LiDAR gardé par sommet, et non par photo.** *Gros gain, petit travail.*
+- **Aujourd'hui** : `overlay_ground` est indexé par photo (`photo -> {(lon, lat): altitude}`). À chaque nouvelle photo, on
+  relit l'altitude de tous les sommets à moins de `OVERLAY_REACH` (100 m) : jusqu'à `OVERLAY_MAX` points (900), soit
+  6 requêtes de `OVERLAY_CHUNK` (150).
+- **Problème** : les objets ne bougent pas, et deux photos voisines d'une séquence ont presque les mêmes objets autour
+  d'elles. En attendant les altitudes, les objets sont dessinés à plat, à la hauteur de caméra, puis ils sautent.
+- **Piste** : un seul cache `{(lon, lat): altitude}` pour toute la couche, vidé quand la couche change. On ne demande que
+  les sommets absents.
+- **Gain** : en avançant dans une séquence, il ne reste presque plus de requêtes, et les objets ne sautent plus.
+- **Attention** : garder la limite de 900 points par photo, pour les nouveaux sommets seulement.
+
+**O2. Couche gardée dans IndexedDB plutôt que dans `localStorage`.** *Petit travail.*
+- **Aujourd'hui** : `saveOverlay` écrit tout le GeoJSON dans `localStorage` (clé « couche », `src/app.js`). Au-delà
+  d'environ 5 Mo, l'écriture échoue : la couche n'est pas retrouvée à la séance suivante (« trop grosse »).
+- **Piste** : la page se sert déjà d'IndexedDB (`fileStore`) pour retrouver le fichier importé. On y range aussi le texte
+  de la couche, ce qui porte la limite à des centaines de Mo.
+- **Attention** : reprendre une fois l'ancienne clé `localStorage`, puis la retirer.
+
+**O3. Index spatial des objets** (si O0 le justifie).
+- **Aujourd'hui** : à chaque redessin de la photo (`overlay_marks`, et aussi pour la vignette), on parcourt tous les
+  sommets de toute la couche pour garder ceux à moins de 100 m.
+- **Piste** : un découpage en cases de 100 m, construit dans `set_overlay`. On ne parcourt que les 9 cases autour de la
+  caméra.
+- **Gain** : il ne compte qu'avec une grosse couche, de plusieurs milliers d'objets, ou de longues lignes découpées tous
+  les `OVERLAY_STEP` (5 m).
+
+**O4. Étiquettes de la mini-carte dessinées par la carte elle-même** (si O0 le justifie).
+- **Aujourd'hui** : jusqu'à `OVERLAY_LABEL_MAX` (200) étiquettes, à partir du zoom 16, sont des repères HTML. Elles sont
+  recréées après chaque déplacement de la carte, avec `querySourceFeatures` sur les voies et le calcul d'écart aux
+  voies (`awayFromRoad`).
+- **Piste** : une couche de texte de la carte (`symbol`), tracée par la carte graphique, avec l'anti-chevauchement
+  intégré. Les polices de l'IGN sont déjà branchées depuis les fonds vectoriels (0.7.9).
+- **Gain** : les étiquettes suivent le déplacement sans recalcul.
+- **À perdre** : l'écart aux voies sur mesure. L'anti-chevauchement le remplace en partie.
+
+**O5. Objets dans la photo dessinés par la carte graphique** (si O0 le justifie).
+- **Aujourd'hui** : les pastilles et les traits de la couche sont des repères HTML. Les mesures, elles, passent par la
+  carte graphique depuis la 0.6.15.
+- **Gain** : un affichage plus léger quand beaucoup d'objets sont à moins de 100 m.
+- **Coût** : le plus gros travail des optimisations, à ne faire que si O0 montre un ralentissement.
+
+## Améliorations
+
+**A. Parcours de vérification des objets.** *Le plus utile.*
+- **Tableau des objets** dans l'onglet Couche : triable, avec une recherche par identifiant ou par attribut.
+- **Boutons ◀ / ▶ « objet précédent / suivant »** : chacun ouvre la photo la plus proche, tournée vers l'objet. Les
+  fonctions existent déjà : `Carte.nearestPhoto`, et la vue tournée comme pour les étiquettes.
+- **Colonne de statut** (« vérifié », « à revoir », avec un commentaire), gardée comme les recalages et écrite dans
+  l'export.
+- **Usage** : passer en revue un inventaire, panneaux ou arbres par exemple, objet par objet, sans le chercher sur la
+  carte.
+
+**B. Modifier la couche importée.**
+- **Attributs** : les modifier dans la fiche de l'objet.
+- **Objets** : en supprimer, ou en ajouter directement dans la couche. Aujourd'hui, il faut un relevé séparé, puis
+  « Envoyer dans Couche ».
+- **Enregistrement** : les modifications sont gardées comme les recalages et partent dans l'export.
+
+**C. Projections coniques conformes et autres systèmes.**
+- **Aujourd'hui** : `crsOf` (`src/couche.js`) ne lit que le WGS 84 et le Lambert 93 (2154). Or les collectivités
+  exportent souvent en projection conique conforme : CC46 à CC48 pour la Bourgogne (EPSG 3946 à 3948), CC47 pour la
+  Côte-d'Or.
+- **Piste** : proj4js par jsDelivr, version épinglée. Il lit le système du `.prj`, du GeoPackage
+  (`gpkg_spatial_ref_sys`) ou du GeoJSON (`crs`). Il faut d'abord connaître les définitions courantes (RGF93 CC, NTF
+  Lambert II étendu).
+
+**D. Import CSV et KML.**
+- **CSV** : colonnes X/Y, ou longitude/latitude, reconnues par leur nom, avec le système de C.
+- **KML** : export courant de Google Earth et des téléphones.
+
+**E. Filtre par attribut**, au-delà des yeux de la légende.
+- **Exemples** : « hauteur > 3 », « état = mauvais ».
+- **Effet** : il s'applique à la carte, à la photo, au tableau de A et aux fiches.
+
+**F. Couche de la Géoplateforme sans fichier.**
+- **Principe** : charger par son service WFS une couche de la BD TOPO autour de la photo, par exemple les bâtiments, les
+  murs ou les ponts. `wfs_url` existe déjà dans `py/core`.
+- **Attention** : la BD TOPO est trop grossière pour caler la vue du dessus, mais elle suffit pour la consulter.
+
+## Plus lourd, moins prioritaire
+
+- **Plusieurs couches à la fois** : il faudrait une légende, un ordre d'affichage et un relevé par couche.
+- **Export en GeoPackage** : il faut écrire du SQLite dans le navigateur. Le GeoJSON et le Shapefile couvrent
+  aujourd'hui l'essentiel.
