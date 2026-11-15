@@ -5,7 +5,7 @@
      triangulé sur une cible fictive à 5 m sur le côté, puis bord opposé cliqué à 8 m sur la
      droite de mesure, depuis une photo prise avant. Directions calculées depuis le cap EXIF
      précis. Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
-<script>try { localStorage.clear(); localStorage.setItem("web-measures/droite-carte", "1"); } catch {}</script>  <!-- #28 : case expérimentale cochée -->
+<script>try { localStorage.clear(); indexedDB.deleteDatabase("web-measures"); localStorage.setItem("web-measures/droite-carte", "1"); } catch {}</script>  <!-- #28 : case expérimentale cochée -->
 <iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
 <script src="commun.js"></script>
 <script>

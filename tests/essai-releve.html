@@ -4,7 +4,7 @@
 <!-- Relevé d'objets sur deux photos imajbox à position RTK (Pouilly-en-Auxois) : un objet
      triangulé depuis les deux photos, un autre gardé sur une seule photo ; champs définis au
      premier objet, exports, relevé remis au rechargement. Lancer comme tests/navigateur.html. -->
-<script>try { localStorage.clear(); } catch {}</script>
+<script>try { localStorage.clear(); indexedDB.deleteDatabase("web-measures"); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
 <script src="commun.js"></script>
 <script>
@@ -235,7 +235,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     log("enregistré : " + savedName + " · couche " + doc.querySelector("#couche-nom").textContent);
     expect("« Enregistrer » : GeoJSON écrit, la couche prend son nom, bouton grisé", savedName && !savedName.includes("/")
       && JSON.parse(saved[savedName]).features.length === 2 && doc.querySelector("#couche-nom").textContent === savedName
-      && doc.querySelector("#couche-enregistrer").disabled && JSON.parse(w.localStorage.getItem("web-measures/couche")).modifie === false);
+      && doc.querySelector("#couche-enregistrer").disabled && (await w.mesures.savedOverlay()).modifie === false);
     const options = (id) => [...doc.querySelectorAll(`${id} option`)].map((o) => o.value);
     log("couleur selon : " + options("#couche-couleur").join(", "));
     expect("couleur et étiquette selon les champs, nb_visees compris, sans les colonnes techniques",
@@ -262,7 +262,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     await soon(() => labels().includes("essence : tilleul"));
     log("étiquettes : " + labels());
     expect("étiquettes avec l'intitulé du champ", labels().includes("essence : tilleul") && !doc.querySelector("#couche-intitule").disabled, labels());
-    expect("case de l'intitulé gardée avec la couche", JSON.parse(w.localStorage.getItem("web-measures/couche")).intitule === true);
+    expect("case de l'intitulé gardée avec la couche", (await w.mesures.savedOverlay()).intitule === true);
     {  // 2e étiquette : sur une 2e ligne, gardée avec la couche, puis retirée
       doc.querySelector("#couche-etiquette2").value = "nb_visees";
       doc.querySelector("#couche-etiquette2").dispatchEvent(new Event("change"));
@@ -271,7 +271,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       await soon(() => /essence : tilleul\n\d+ visées/.test(labels()));
       log("deux étiquettes : " + labels().replace(/\n/g, " ⏎ "));
       expect("2e étiquette sur une 2e ligne", /essence : tilleul\n\d+ visées/.test(labels()) && !doc.querySelector("#couche-intitule2").disabled, labels());
-      expect("2e étiquette gardée avec la couche", JSON.parse(w.localStorage.getItem("web-measures/couche")).suffixe2 === "visées");
+      expect("2e étiquette gardée avec la couche", (await w.mesures.savedOverlay()).suffixe2 === "visées");
       doc.querySelector("#couche-etiquette2").value = "";
       doc.querySelector("#couche-etiquette2").dispatchEvent(new Event("change"));
       await expectSoon("sans 2e étiquette : une ligne", () => !labels().includes("\n") && doc.querySelector("#couche-suffixe2").disabled, () => labels());
@@ -293,8 +293,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       const size = w.getComputedStyle(m.getContainer().querySelector(".maplibregl-marker .etiquette.couche")).fontSize;
       expect("étiquettes de la couche sur la mini-carte : 15 px", size === "15px", size); }
     expect("mini-carte : autre colonne choisie, gardée avec la couche", w.mesures.map.getSource("couche").serialize().data.features
-      .map((f) => f.properties._etiquette_carte).join() === "panneau,borne" && JSON.parse(w.localStorage.getItem("web-measures/couche")).etiquetteCarte === "classe");
-    expect("texte après la valeur gardé avec la couche", JSON.parse(w.localStorage.getItem("web-measures/couche")).suffixe === "m");
+      .map((f) => f.properties._etiquette_carte).join() === "panneau,borne" && (await w.mesures.savedOverlay()).etiquetteCarte === "classe");
+    expect("texte après la valeur gardé avec la couche", (await w.mesures.savedOverlay()).suffixe === "m");
     doc.querySelector("#couche-csv").click();
     await soon(() => Object.keys(saved).some((k) => k.endsWith(".csv")));
     const layerCsv = Object.entries(saved).find(([k]) => k.endsWith(".csv"))?.[1] || "";
@@ -351,7 +351,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       w.open = opened;
       expect("cadre retiré à la validation, fiche lancée", !doc.querySelector(".cadre-fiche")
         && doc.querySelector("#statut").textContent.includes("fenêtre bloquée"), doc.querySelector("#statut").textContent);
-      const memo = JSON.parse(w.localStorage.getItem("web-measures/couche")).fiche || [];
+      const memo = (await w.mesures.savedOverlay()).fiche || [];
       log("gardées : " + memo.map(([c, on]) => c + (on ? "" : " (non)")).join(", "));
       expect("ordre et cases gardés avec la couche", memo[0]?.[0] === "classe" && memo.find(([c]) => c === "essence")?.[1] === false);
       e.data.target = pastille; w.mesures.psv.dispatchEvent(e);  // objet suivant : mêmes choix proposés

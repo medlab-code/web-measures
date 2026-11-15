@@ -11,7 +11,7 @@
      complet à l'horizontale, sens alterné. Stabilisation (#stabilisation) : décalages connus entre deux images. Serveur d'images bloqué (#attente) :
      avertissement au bout de 30 s, reprise, annulation. Lancer comme tests/navigateur.html. -->
 <script>try {
-  localStorage.clear();
+  localStorage.clear(); indexedDB.deleteDatabase("web-measures");
   localStorage.setItem("web-measures/filtre", JSON.stringify({ since: "2025-07-05" }));
 } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>

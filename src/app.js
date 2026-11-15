@@ -2335,8 +2335,19 @@
   }
 
   /** Couche et réglages gardés dans le navigateur ; faux si elle est trop grosse pour y tenir. */
+  // Couche gardée dans IndexedDB (clé « couche-texte » : centaines de Mo, localStorage plafonne vers 5 Mo) ; sans IndexedDB
+  // (navigation privée de certains navigateurs), dans localStorage. Écritures enchaînées : la dernière gagne.
+  // Promesse : vrai si la couche est gardée.
+  let overlaySaving = Promise.resolve(true);
+  const overlayWrite = (write, fallback) => {
+    overlaySaving = overlaySaving.then(() => fileStore("readwrite", write)).then(() => {
+      store.set("couche", "");  // ancienne place (versions d'avant IndexedDB) vidée
+      return true;
+    }, fallback);
+    return overlaySaving;
+  };
   function saveOverlay() {
-    if (!overlay) return true;
+    if (!overlay) return Promise.resolve(true);
     const { name, features, columns, crs, couleurs, masques, fiche } = overlay;
     const text = JSON.stringify({ name, columns, crs, couleurs, masques, fiche, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
       intitule: $("#couche-intitule").checked, suffixe: $("#couche-suffixe").value, etiquetteCarte: $("#couche-etiquette-carte").value,
@@ -2345,14 +2356,15 @@
       visible: $("#couche-visible").checked,
       features: features.map(({ type, id, geometry, properties, recalages }) => ({ type, id, geometry, recalages,
         properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) });
-    store.set("couche", text);
-    return store.get("couche") === text;
+    return overlayWrite((s) => s.put(text, "couche-texte"), () => store.set("couche", text));
   }
 
   /** Couche gardée de la session précédente, remise une fois le calcul prêt (voir le démarrage). */
-  function restoreOverlay() {
-    let saved = null;
-    try { saved = JSON.parse(store.get("couche") || "null"); } catch { /* illisible : aucune */ }
+  async function restoreOverlay() {
+    const kept = await fileStore("readonly", (s) => s.get("couche-texte")).catch(() => null);
+    if (overlay) return;  // couche importée pendant la lecture : elle l'emporte
+    let saved = null;  // sinon, ancienne place (localStorage), reprise une fois dans IndexedDB
+    try { saved = JSON.parse(kept ?? (store.get("couche") || "null")); } catch { /* illisible : aucune */ }
     $("#couche-intitule").checked = Boolean(saved?.intitule);
     $("#couche-suffixe").value = saved?.suffixe || "";
     $("#couche-intitule2").checked = Boolean(saved?.intitule2);
@@ -2361,9 +2373,10 @@
     loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, false, saved.visible !== false,
       saved.couleurs || {}, saved.masques || {}, saved.etiquetteCarte ?? null, saved.etiquette2 || "");
     setOverlayChanged(Boolean(saved.modifie));
-    const kept = overlay;  // fichier de la couche (Chrome, Edge), relu de façon asynchrone
+    if (kept == null) saveOverlay();
+    const restored = overlay;  // fichier de la couche (Chrome, Edge), relu de façon asynchrone
     fileStore("readonly", (s) => s.get("couche")).then((handle) => {
-      if (overlay === kept && handle?.name === kept.name) kept.fichier = handle;
+      if (overlay === restored && handle?.name === restored.name) restored.fichier = handle;
     }).catch(() => null);
   }
 
@@ -2421,7 +2434,7 @@
       const n = loadOverlay(name, read, "", label, true, true, {}, {}, label || null);
       setOverlayFile(handles.length === 1 && /\.(geo)?json$/i.test(handles[0].name) ? handles[0] : null, files[0].lastModified);
       setOverlayChanged(false);
-      const kept = saveOverlay();
+      const kept = await saveOverlay();
       setStatus(`Couche « ${name} » importée : ${n} partie${n > 1 ? "s" : ""} d'objets.`
         + (kept ? "" : " Trop grosse pour être gardée dans le navigateur : à réimporter à la prochaine ouverture.")
         + (review >= 0 ? " Cliquez une mesure sur la carte pour la revoir sur sa photo." : ""));
@@ -2569,7 +2582,7 @@
   $("#couche-retirer").addEventListener("click", () => {
     overlay = null;
     moving = null;
-    store.set("couche", "");
+    overlayWrite((s) => s.delete("couche-texte"), () => store.set("couche", ""));
     app?.set_overlay("[]");
     Carte.showOverlay(map, null);
     $("#couche-reglages").hidden = true;
@@ -5423,7 +5436,7 @@
     }, { once: true });
     showOverViewer(dialog);
   });
-  function sendReleve() {
+  async function sendReleve() {
     const data = JSON.parse(app.export_geojson(true));
     for (const f of data.features) {  // altitude du point visé : l'objet y est dessiné dans la photo
       if (typeof f.properties.z_ngf === "number") f.geometry.coordinates.push(f.properties.z_ngf);
@@ -5432,7 +5445,7 @@
     const n = loadOverlay(name, Couche.read(JSON.stringify(data)), "", "", true);
     setOverlayFile(null);
     setOverlayChanged(true);  // dans aucun fichier encore
-    const kept = saveOverlay();
+    const kept = await saveOverlay();
     showPane("couche");
     refresh();
     setStatus(`${name} envoyé dans Couche : ${n} objet${n > 1 ? "s" : ""}.`
@@ -6608,5 +6621,6 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
 
   // Pour les essais depuis la console : window.mesures.app.click(yaw, pitch)
   window.mesures = { refresh, get app() { return app; }, get psv() { return psv; }, get videoPlan() { return videoPlan; }, get touring() { return Boolean(tour); }, map, openPhoto, buildFiche, paginateFiche, photoAtOffset, importOverlay, thumbnail,
-    overlayFile: (handle) => { overlay.fichier = handle; } };  // fichier de la couche remplacé (essais)
+    overlayFile: (handle) => { overlay.fichier = handle; },  // fichier de la couche remplacé (essais)
+    savedOverlay: async () => { await overlaySaving; return JSON.parse(await fileStore("readonly", (s) => s.get("couche-texte")) ?? "null"); } };  // couche gardée (essais)
 })();

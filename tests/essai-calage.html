@@ -3,7 +3,7 @@
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
 <!-- Calage de l'inclinaison, clics à l'écran (viewerX, viewerY) au zoom fort : une croix se sélectionne à 8 px près
      (App.pick_points, on_cross), pas à 10 px, quel que soit l'angle que fait un pixel. Lancer comme tests/navigateur.html. -->
-<script>try { localStorage.clear(); } catch {}</script>
+<script>try { localStorage.clear(); indexedDB.deleteDatabase("web-measures"); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
 <script src="commun.js"></script>
 <script>

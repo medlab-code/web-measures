@@ -4,7 +4,7 @@
 <!-- Hauteur sur deux photos imajbox à position RTK (Pouilly-en-Auxois) : point de référence
      triangulé sur une cible fictive à 5 m sur le côté, puis pied et sommet. Directions calculées
      depuis le cap EXIF précis. Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
-<script>try { localStorage.clear(); } catch {}</script>
+<script>try { localStorage.clear(); indexedDB.deleteDatabase("web-measures"); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
 <script src="commun.js"></script>
 <script>
@@ -304,11 +304,9 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       doc.querySelector("#couche-etiquette").dispatchEvent(new Event("change"));
       doc.querySelector("#couche-couleur").value = "nom";
       doc.querySelector("#couche-couleur").dispatchEvent(new Event("change"));
-      const flat = JSON.parse(app.overlay_marks()).find((m) => m.kind === "point")?.points[0][1];  // en attendant le LiDAR : à plat
-      await soon(() => {  // altitudes du sol lues sous la caméra et la couche
-        const m = JSON.parse(app.overlay_marks()), p = m.find((x) => x.kind === "point");
-        return m.length === 4 && p && Math.abs(p.points[0][1] - flat) > 1e-4;
-      }, 15000);
+      // Altitudes du sol LiDAR HD sous la caméra et la couche (rien n'est dessiné avant celle de la caméra : pas de saut)
+      const grounds = () => [...app.overlay_ground.values()];
+      await soon(() => JSON.parse(app.overlay_marks()).length === 4, 15000);
       const marks = JSON.parse(app.overlay_marks());
       const point = marks.find((m) => m.kind === "point");
       const gap = point ? Math.abs(Math.atan2(Math.sin(point.points[0][0] - yawTo(f3, target)), Math.cos(point.points[0][0] - yawTo(f3, target)))) : 9;
@@ -349,8 +347,9 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       // (sans cadre, les 4 étiquettes serrées tiennent souvent sans se chevaucher : aucune à masquer)
       expect("couche : étiquettes sans chevauchement, texte seul", rects.length >= 2 && overlaps === 0
         && opacity === "1" && backgroundColor === "rgba(0, 0, 0, 0)" && shown.some((e) => e.textContent === "cible"));
-      log(`couche : élévation du point ${flat?.toFixed(4)} à plat, ${point?.points[0][1].toFixed(4)} sur le sol LiDAR HD`);
-      expect("couche : posée sur le sol LiDAR HD", point && Math.abs(point.points[0][1] - flat) > 1e-4);
+      log(`couche : altitudes du sol LiDAR HD ${grounds().map((z) => z?.toFixed(2)).join(", ")}`);
+      expect("couche : posée sur le sol LiDAR HD (altitudes de la caméra et des sommets lues)", point && grounds().length >= 2
+        && grounds().every(Number.isFinite));
       expect("couche : étiquettes dans la visionneuse et légende par valeur",
         [...box.querySelectorAll(".etiquette.couche")].some((e) => e.textContent === "cible")
         && doc.querySelectorAll("#couche-legende li").length === 4);
@@ -395,7 +394,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         eyeOf("p3").click();
         await soon(() => onMap() === map0 - 1 && inPhoto() === photo0 - 1);
         const [map1, photo1] = [onMap(), inPhoto()];
-        const kept = JSON.parse(w.localStorage.getItem("web-measures/couche")).masques?.nom;
+        const kept = (await w.mesures.savedOverlay()).masques?.nom;
         log(`couche, valeur p3 masquée : carte ${map0} → ${map1}, photo ${photo0} → ${photo1}, gardé ${JSON.stringify(kept)}`);
         expect("couche : valeur masquée par son œil (carte, photo, gardé)", map1 === map0 - 1 && photo1 === photo0 - 1
           && kept?.length === 1 && doc.querySelector("#couche-legende li.masquee")?.textContent === "p3");
@@ -432,30 +431,30 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
           && !box.querySelector(".pastille-couche.choisie"));
         psvClick(start.yaw, start.pitch);  // fini : le clic suivant ne le déplace plus
         expect("couche : recalage fini par Entrée", Math.abs(posOf(point.id).yaw - ty) < 1e-6);
-        const stored = () => JSON.parse(w.localStorage.getItem("web-measures/couche")).features[point.id].recalages;
+        const stored = async () => (await w.mesures.savedOverlay()).features[point.id].recalages;
         const picId = w.mesures.psv.getPictureMetadata().id;
-        expect("couche : recalage gardé avec la couche", Math.abs(stored()?.[picId]?.decalage[0] - (ty - start.yaw)) < 1e-6
-          && stored()[picId].position?.length === 2 && !!stored()[picId].sequence);
+        expect("couche : recalage gardé avec la couche", Math.abs((await stored())?.[picId]?.decalage[0] - (ty - start.yaw)) < 1e-6
+          && (await stored())[picId].position?.length === 2 && !!(await stored())[picId].sequence);
         select();
         key("Delete");
         const back = posOf(point.id);
         expect("couche : objet remis à sa place par Suppr, recalage oublié", Math.abs(back.yaw - start.yaw) < 1e-6
-          && Math.abs(back.pitch - start.pitch) < 1e-6 && !stored());
+          && Math.abs(back.pitch - start.pitch) < 1e-6 && !(await stored()));
       }
       // Case « Afficher la couche » : masquée sur la carte et dans la photo, puis réaffichée
       const visible = doc.querySelector("#couche-visible");
       visible.checked = false;
       visible.dispatchEvent(new Event("change"));
       await expectSoon("couche masquée par la case", () => !box.querySelector(".etiquette.couche") && !box.querySelector(".pastille-couche")
-        && !w.mesures.map.getSource("couche").serialize().data.features.length
-        && JSON.parse(w.localStorage.getItem("web-measures/couche")).visible === false);
+        && !w.mesures.map.getSource("couche").serialize().data.features.length);
+      expect("case « Afficher la couche » gardée avec la couche", (await w.mesures.savedOverlay()).visible === false);
       visible.checked = true;
       visible.dispatchEvent(new Event("change"));
       await expectSoon("couche réaffichée par la case", () => !!box.querySelector(".pastille-couche"));
-      const kept = JSON.parse(w.localStorage.getItem("web-measures/couche") || "null");
+      const kept = await w.mesures.savedOverlay();
       expect("couche gardée dans le navigateur avec ses réglages", kept?.features?.length === 4 && kept.couleur === "nom" && kept.etiquette === "nom");
       doc.querySelector("#couche-retirer").click();
-      expect("couche retirée du navigateur", !w.localStorage.getItem("web-measures/couche"));
+      expect("couche retirée du navigateur", !(await w.mesures.savedOverlay()) && !w.localStorage.getItem("web-measures/couche"));
       expect("couche retirée", JSON.parse(app.overlay_marks()).length === 0 && !box.querySelector(".etiquette.couche"));
     }
     await verdict();

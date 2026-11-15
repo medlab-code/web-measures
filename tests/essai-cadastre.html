@@ -5,7 +5,7 @@
      autour de la photo, au zoom 18. Photo de Pouilly-en-Auxois (#photos=id,… : d'autres) ;
      chaque carte part dans le journal en PNG ; #fond=mnh (ou autre) : sur ce fond. Lancer comme tests/navigateur.html. -->
 <script>try {
-  localStorage.clear();
+  localStorage.clear(); indexedDB.deleteDatabase("web-measures");
   localStorage.setItem("web-measures/cadastre", "1");
   const fond = /[#&]fond=([a-z]+)/.exec(location.hash)?.[1];  // #fond=mnh : sur un autre fond de carte
   if (fond) localStorage.setItem("web-measures/fond", fond);

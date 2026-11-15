@@ -4,7 +4,7 @@
 <!-- Version mobile (mobile.html) dans un cadre de téléphone (390 × 844) : photo ouverte, cadastre et étiquette de la parcelle
      visée, capture avec ses cartouches, partage de l'écran gardé. Lancer comme tests/navigateur.html. -->
 <script>try {
-  localStorage.clear();
+  localStorage.clear(); indexedDB.deleteDatabase("web-measures");
   localStorage.setItem("web-measures/cadastre", "1");
 } catch {}</script>
 <iframe id="f" src="../mobile.html" style="width:390px;height:844px"></iframe>

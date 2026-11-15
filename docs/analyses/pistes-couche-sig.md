@@ -3,19 +3,21 @@
 
 # Couche SIG : pistes d'améliorations et d'optimisations
 
-Liste du 15/11/2026, rien n'est encore fait. Elle couvre l'onglet « Couche » (`src/couche.js`, `src/app.js`), le dessin des
+Liste du 15/11/2026, mise à jour le même jour : O1 et O2 faits, O0 commencé (couche d'essai), le reste à faire. Elle couvre l'onglet « Couche » (`src/couche.js`, `src/app.js`), le dessin des
 objets dans la photo (`overlay_marks`, `py/web_app.py`) et sur la mini-carte (`Carte.showOverlay`, `src/carte.js`).
 Les gains de vitesse sont déduits de la lecture du code. Ils n'ont pas été mesurés.
 
 Ordre proposé :
-1. O1 et O2 : gains rapides et sûrs.
-2. A et B : ils changent l'usage.
-3. C.
-4. L'essai de charge (O0), avant O3, O4 et O5.
+1. A et B : ils changent l'usage.
+2. C.
+3. L'essai de charge (O0), avant O3, O4 et O5.
 
 ## Optimisations
 
-**O0. Essai de charge (à faire avant O3, O4 et O5).**
+**O0. Essai de charge (à faire avant O3, O4 et O5).** *Commencé.*
+- **Fait** (58f51ee) : couche synthétique d'objets de la route (`tests/donnees/couche-synthetique.geojson`, 96 objets,
+  D977bis), générée par `tools/couche-synthetique.py` (graine fixe, nombre d'objets réglable). Reste la page d'essai
+  et les mesures ci-dessous, avec 5 000 objets.
 - **Essai** : une couche synthétique de 5 000 objets (points et longues lignes) dans une page d'essai.
 - **À mesurer** :
   - durée de `set_overlay` et de `overlay_marks` ;
@@ -23,8 +25,12 @@ Ordre proposé :
   - durée d'un déplacement de la carte.
 - **But** : mesurer au lieu de supposer, et ne faire O3 à O5 que si le chiffre le justifie.
 
-**O1. Sol LiDAR gardé par sommet, et non par photo.** *Gros gain, petit travail.*
-- **Aujourd'hui** : `overlay_ground` est indexé par photo (`photo -> {(lon, lat): altitude}`). À chaque nouvelle photo, on
+**O1. Sol LiDAR gardé par sommet, et non par photo.** *Fait (a0b6887).*
+- **Fait** : un seul cache `{(lon, lat): altitude}` pour toute la couche (`overlay_ground`, sommets en cours dans
+  `overlay_asked`), seuls les points absents sont demandés (900 au plus par photo). Rien n'est dessiné tant que le sol
+  de la caméra se lit, chaque objet une fois ses sommets lus ; sans réponse en 5 s (`OVERLAY_TIMEOUT_MS`), objets à
+  plat. Essais dans `tests/test_calculs.py`.
+- **Avant** : `overlay_ground` est indexé par photo (`photo -> {(lon, lat): altitude}`). À chaque nouvelle photo, on
   relit l'altitude de tous les sommets à moins de `OVERLAY_REACH` (100 m) : jusqu'à `OVERLAY_MAX` points (900), soit
   6 requêtes de `OVERLAY_CHUNK` (150).
 - **Problème** : les objets ne bougent pas, et deux photos voisines d'une séquence ont presque les mêmes objets autour
@@ -34,8 +40,11 @@ Ordre proposé :
 - **Gain** : en avançant dans une séquence, il ne reste presque plus de requêtes, et les objets ne sautent plus.
 - **Attention** : garder la limite de 900 points par photo, pour les nouveaux sommets seulement.
 
-**O2. Couche gardée dans IndexedDB plutôt que dans `localStorage`.** *Petit travail.*
-- **Aujourd'hui** : `saveOverlay` écrit tout le GeoJSON dans `localStorage` (clé « couche », `src/app.js`). Au-delà
+**O2. Couche gardée dans IndexedDB plutôt que dans `localStorage`.** *Fait.*
+- **Fait** : texte de la couche sous la clé « couche-texte » de la base `web-measures` (celle de `fileStore`), écritures
+  enchaînées (`overlayWrite`) ; ancienne clé `localStorage` reprise une fois puis vidée ; `localStorage` en repli sans
+  IndexedDB. Essais : `essai-libre` (reprise), `essai-rtk` et `essai-releve` (réglages gardés).
+- **Avant** : `saveOverlay` écrit tout le GeoJSON dans `localStorage` (clé « couche », `src/app.js`). Au-delà
   d'environ 5 Mo, l'écriture échoue : la couche n'est pas retrouvée à la séance suivante (« trop grosse »).
 - **Piste** : la page se sert déjà d'IndexedDB (`fileStore`) pour retrouver le fichier importé. On y range aussi le texte
   de la couche, ce qui porte la limite à des centaines de Mo.

@@ -5,7 +5,7 @@
      01/11/2026 : la séquence quittait la D906 pour une boucle sur la RD 33 à deux croisements) : aucune photo à plus de
      25 m du tracé de la D906 ; de même avec une étape posée au milieu. Lancer comme
      tests/navigateur.html. -->
-<script>try { localStorage.clear(); } catch {}</script>
+<script>try { localStorage.clear(); indexedDB.deleteDatabase("web-measures"); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
 <script src="commun.js"></script>
 <script>

@@ -617,7 +617,7 @@ coordonnées et le nombre d'objets recalés ; son œil masque la couche sans la 
 la remplacent par un autre fichier ou la retirent. Le dégradé se règle par les pastilles aux deux bouts de sa
 barre. Un œil sur chaque valeur de la légende masque ses objets sur la carte et dans la photo (gardé avec
 la couche, par colonne ; l'export garde tous les objets). Une couche à la fois, gardée avec ses réglages dans le
-navigateur d'une session à l'autre (sauf si elle est trop grosse : un message le dit) ; « Retirer »
+navigateur d'une session à l'autre (IndexedDB, jusqu'à des centaines de Mo ; sans place, un message le dit) ; « Retirer »
 l'efface. **Enregistrer** (disquette, grisée tant que rien n'a changé) : les recalages sont réécrits dans le
 fichier GeoJSON importé (Chrome, Edge : fichier choisi par « Importer » ou glissé, retrouvé à l'ouverture suivante, en
 WGS 84), sans rien demander s'il n'a pas changé depuis l'import ou le dernier enregistrement (sinon : écraser,
