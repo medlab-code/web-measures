@@ -53,6 +53,7 @@ body.mobile {
   line-height: 1;
 }
 #capture:disabled { opacity: 0.45; }
+#capture svg { display: block; }  /* icône dessinée : centrée quelle que soit la police d'emoji du téléphone */
 
 /* Poignée : glisser pour partager l'écran entre la photo et la carte */
 #poignee {
