@@ -585,6 +585,10 @@ const Carte = (() => {
           for (const name of ["fill-pattern", "line-pattern"]) if (paint[name] != null) paint[name] = prefixed(paint[name]);
           map.addLayer({ ...kept, ...(maxzoom != null && { maxzoom }), id, ...(layer.source && { source: sources[layer.source] }), layout, paint }, "cadastre-parcelles");
           base.ids.push(id);
+          if (key === "planv" && layer.id === "bckgrd") {  // fond blanc du Plan IGN : parcelles en jaune léger juste dessus
+            map.addLayer({ ...PARCEL_GROUND, id: "planv-parcelles-fond", layout: { visibility: layout.visibility } }, "cadastre-parcelles");
+            base.ids.push("planv-parcelles-fond");
+          }
           if (BUILDING_LAYERS.includes(layer["source-layer"])) {
             buildingMax.set(id, maxzoom ?? 24);
             buildingZoom(map, id);
@@ -853,6 +857,10 @@ const Carte = (() => {
   // Cadastre : parcelles dès CADASTRE_MINZOOM, bornes de limite de propriété et étiquettes dès CADASTRE_BORNES_ZOOM (nombreuses ;
   // tuiles vectorielles du PCI : ni bornes ni étiquettes avant le zoom 17)
   const CADASTRE_MINZOOM = 15, CADASTRE_BORNES_ZOOM = 17, CADASTRE_SECTIONS_ZOOM = 17;
+  // Plan IGN vectoriel, cadastre allumé ou non : parcelles remplies de jaune léger dès CADASTRE_MINZOOM (deux fois plus
+  // léger que le jaune du Plan IGN en images à fort zoom, #FFFFDF), sous l'eau, la végétation et les bâtiments ; hors
+  // parcelles (rues, chemins du domaine public), le blanc du fond
+  const PARCEL_GROUND = { type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM, paint: { "fill-color": "#ffffef" } };
   const CADASTRE_BATIMENTS_ZOOM = 17;  // bâtiments dans les tuiles du PCI à partir de ce zoom
   let cadastreOn = false, cadastreFollow = false;
 
