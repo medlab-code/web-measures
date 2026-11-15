@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Cédric COCHART
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// Couche importée (GeoJSON, Shapefile, GeoPackage) : lecture, coordonnées en WGS 84 (Lambert 93
+// Couche importée (GeoJSON, Shapefile, GeoPackage, CSV) : lecture, coordonnées en WGS 84 (Lambert 93
 // converti, Shapefile reprojeté d'après son .prj), couleur selon une colonne (une couleur par valeur, ou dégradé pour une colonne numérique) et étiquette d'une
 // colonne. Dessinée sur la mini-carte (Carte.showOverlay) et dans la visionneuse, à son altitude ou
 // posée sur le sol LiDAR HD (web_app.App.overlay_marks).
@@ -222,8 +222,100 @@ const Couche = (() => {
       const main = byExt.get("zip") || byExt.get("shp");
       return { name: main.name, ...read(JSON.stringify(data)) };
     }
+    if (byExt.has("csv") || byExt.has("txt")) {
+      const file = byExt.get("csv") || byExt.get("txt");
+      return { name: file.name, ...read(JSON.stringify(csvLayer(textOf(await file.arrayBuffer())))) };
+    }
     const file = byExt.get("geojson") || byExt.get("json") || files[0];
     return { name: file.name, ...read(await file.text()) };
+  }
+
+  /** Texte d'un fichier en UTF-8, sinon en Windows-1252 (CSV enregistré par Excel en français). */
+  function textOf(buffer) {
+    try {
+      return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+    } catch {
+      return new TextDecoder("windows-1252").decode(buffer);
+    }
+  }
+
+  /** Lignes d'un CSV : tableaux de cellules ; séparateur « ; », tabulation ou « , » (le plus fréquent de la 1re ligne),
+   * cellules entre guillemets (« "" » : un guillemet, séparateurs et retours à la ligne gardés). */
+  function csvRows(text) {
+    text = text.replace(/^\ufeff/, "");
+    const head = text.slice(0, text.search(/\r?\n|$/));
+    const sep = [";", "\t", ","].map((c) => [c, head.split(c).length]).sort((a, b) => b[1] - a[1])[0][0];
+    const rows = [[]];
+    let cell = "", quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (quoted) {
+        if (c === '"' && text[i + 1] === '"') cell += text[++i];
+        else if (c === '"') quoted = false;
+        else cell += c;
+      } else if (c === '"') quoted = true;
+      else if (c === sep) {
+        rows.at(-1).push(cell);
+        cell = "";
+      } else if (c === "\n" || c === "\r") {
+        if (c === "\r" && text[i + 1] === "\n") i++;
+        rows.at(-1).push(cell);
+        cell = "";
+        rows.push([]);
+      } else cell += c;
+    }
+    rows.at(-1).push(cell);
+    return rows.filter((r) => r.some((v) => v.trim()));
+  }
+
+  /** Géométrie GeoJSON d'un texte WKT (POINT, LINESTRING, POLYGON et leurs MULTI, Z accepté), ou null. */
+  function fromWkt(text) {
+    const m = /^\s*(MULTI)?(POINT|LINESTRING|POLYGON)\s*(?:ZM|Z|M)?\s*(\(.*\))\s*$/is.exec(text || "");
+    if (!m) return null;
+    try {
+      const json = m[3].replace(/[-+\d.eE]+(?:\s+[-+\d.eE]+)+/g, (p) => `[${p.trim().split(/\s+/).join(",")}]`)
+        .replace(/\(/g, "[").replace(/\)/g, "]");
+      let coords = JSON.parse(json);
+      const type = (m[1] ? "Multi" : "") + { POINT: "Point", LINESTRING: "LineString", POLYGON: "Polygon" }[m[2].toUpperCase()];
+      if (type === "Point") coords = coords[0];
+      if (type === "MultiPoint") coords = coords.map((p) => (Array.isArray(p[0]) ? p[0] : p));  // ((x y), (x y)) ou (x y, x y)
+      return { type, coordinates: coords };
+    } catch {
+      return null;
+    }
+  }
+
+  // Colonnes de position d'un CSV, reconnues par leur nom (sans majuscules ni accents) : WKT, sinon X et Y
+  const WKT_NAMES = ["wkt", "geometry", "geometrie", "geom", "the_geom"];
+  const X_NAMES = ["x", "lon", "lng", "long", "longitude", "x_l93", "xl93", "coord_x", "easting"];
+  const Y_NAMES = ["y", "lat", "latitude", "y_l93", "yl93", "coord_y", "northing"];
+  /**
+   * CSV (texte) en GeoJSON : une ligne par objet, position en WKT ou en X et Y (WGS 84 ou Lambert 93, reconnu par
+   * Couche.read d'après les valeurs) ; les autres colonnes en attributs. Lignes sans position lisible écartées.
+   */
+  function csvLayer(text) {
+    const [header, ...lines] = csvRows(text);
+    if (!header || !lines.length) throw new Error("CSV vide");
+    const names = header.map((h) => h.trim());
+    const key = (h) => h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const find = (list) => names.findIndex((h) => list.includes(key(h)));
+    const w = find(WKT_NAMES), x = find(X_NAMES), y = find(Y_NAMES);
+    if (w < 0 && (x < 0 || y < 0)) throw new Error("colonnes de position introuvables : X et Y, lon et lat, ou wkt");
+    const number = (v) => (/^\s*[-+]?\d+([.,]\d+)?\s*$/.test(v) ? Number(v.replace(",", ".")) : NaN);
+    // Attribut : nombre s'il en a la forme, sauf un code commençant par 0 (INSEE, PR « 012 ») ; vide : null
+    const value = (v) => {
+      const t = v.trim();
+      return !t ? null : /^-?(0|[1-9]\d*)([.,]\d+)?$/.test(t) ? Number(t.replace(",", ".")) : t;
+    };
+    const skip = w >= 0 ? [w] : [x, y];
+    const features = lines.map((cells) => {
+      const geometry = w >= 0 ? fromWkt(cells[w])
+        : Number.isFinite(number(cells[x])) && Number.isFinite(number(cells[y]))
+          ? { type: "Point", coordinates: [number(cells[x]), number(cells[y])] } : null;
+      const properties = Object.fromEntries(names.map((n, k) => [n, value(cells[k] ?? "")]).filter((_, k) => !skip.includes(k)));
+      return { type: "Feature", properties, geometry };
+    });
+    return { type: "FeatureCollection", features };
   }
 
   /** GeoPackage : table de géométries choisie, en WGS 84 ou Lambert 93 (code EPSG de la table). */
@@ -295,5 +387,5 @@ const Couche = (() => {
     return { geometry: { type, coordinates }, end: pos };
   }
 
-  return { read, readFiles, style, format, lambert93, clair, CHOICES };
+  return { read, readFiles, style, format, lambert93, clair, CHOICES, csvLayer };
 })();

@@ -2612,8 +2612,8 @@
     if (!window.showOpenFilePicker) return $("#couche-fichier").click();
     let handles;
     try {
-      handles = await window.showOpenFilePicker({ multiple: true, types: [{ description: "Couches (GeoJSON, Shapefile, GeoPackage)",
-        accept: { "application/octet-stream": [".geojson", ".json", ".zip", ".shp", ".dbf", ".prj", ".cpg", ".shx", ".gpkg"] } }] });
+      handles = await window.showOpenFilePicker({ multiple: true, types: [{ description: "Couches (GeoJSON, Shapefile, GeoPackage, CSV)",
+        accept: { "application/octet-stream": [".geojson", ".json", ".zip", ".shp", ".dbf", ".prj", ".cpg", ".shx", ".gpkg", ".csv", ".txt"] } }] });
     } catch (error) {
       if (error.name !== "AbortError") $("#couche-fichier").click();  // sélecteur refusé : champ de fichier
       return;
@@ -2687,7 +2687,7 @@
     saveOverlay();
   });
   const overlayProperties = (f) => Object.fromEntries(Object.entries(f.properties).filter(([k]) => !k.startsWith("_")));
-  const overlayBaseName = () => overlay.name.replace(/\.(geojson|json|zip|shp|gpkg)\b.*$/i, "").replace(/[\\/:*?"<>|]/g, "-");
+  const overlayBaseName = () => overlay.name.replace(/\.(geojson|json|zip|shp|gpkg|csv|txt)\b.*$/i, "").replace(/[\\/:*?"<>|]/g, "-");
   /** La couche en GeoJSON (WGS 84), recalages dans les photos compris. */
   const overlayGeojson = () => JSON.stringify({ type: "FeatureCollection",
     features: overlay.features.map((f) => ({ type: "Feature", geometry: f.geometry, recalages: f.recalages, properties: overlayProperties(f) })) });

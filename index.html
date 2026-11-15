@@ -363,6 +363,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             <dt>GeoJSON</dt><dd>.geojson, .json</dd>
             <dt>Shapefile</dt><dd>.zip, ou .shp avec .dbf et .prj choisis ensemble</dd>
             <dt>GeoPackage</dt><dd>.gpkg, table au choix</dd>
+            <dt>CSV</dt><dd>.csv : colonnes X et Y (ou lon et lat), ou wkt</dd>
           </dl>
           <p id="couche-crs" class="aide">En WGS 84 ou Lambert 93. Altitude du fichier si elle existe, sinon le sol
             LiDAR HD.</p>
@@ -455,7 +456,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             <p class="encart-recalage"><strong>Recaler un objet</strong> : hors mesure, cliquez-le dans la photo, puis sa
               vraie place ; flèches pour ajuster, Entrée pour finir. La carte ne bouge pas.</p>
           </div>
-          <input id="couche-fichier" type="file" multiple accept=".geojson,.json,.zip,.shp,.dbf,.prj,.cpg,.shx,.gpkg" hidden>
+          <input id="couche-fichier" type="file" multiple accept=".geojson,.json,.zip,.shp,.dbf,.prj,.cpg,.shx,.gpkg,.csv,.txt" hidden>
         </section>
         <!-- Parcours : route, PR de départ et d'arrivée (Requeteur.travelForm), lecture accélérée, export du dernier parcours -->
         <section id="parcours" role="tabpanel" aria-labelledby="onglet-parcours" hidden>

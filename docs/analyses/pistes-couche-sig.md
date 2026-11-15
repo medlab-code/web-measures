@@ -3,12 +3,12 @@
 
 # Couche SIG : pistes d'améliorations et d'optimisations
 
-Liste du 15/11/2026, mise à jour le même jour : O0, O1, O2, A, B et E faits, C écartée, le reste à faire. Elle couvre l'onglet « Couche » (`src/couche.js`, `src/app.js`), le dessin des
+Liste du 15/11/2026, mise à jour le même jour : O0, O1, O2, A, B, D (CSV) et E faits, C écartée, le reste à faire. Elle couvre l'onglet « Couche » (`src/couche.js`, `src/app.js`), le dessin des
 objets dans la photo (`overlay_marks`, `py/web_app.py`) et sur la mini-carte (`Carte.showOverlay`, `src/carte.js`).
 Les gains de vitesse de O3 à O5 sont déduits de la lecture du code et des mesures de O0.
 
 Ordre proposé :
-1. O3 (A, B et E faits, C écartée), puis O4 si la carte gêne en pratique ; O5 pas justifié (voir O0).
+1. O3 (A, B, D et E faits, C écartée), puis O4 si la carte gêne en pratique ; O5 pas justifié (voir O0).
 
 ## Optimisations
 
@@ -123,7 +123,12 @@ du WGS 84, déjà lus.*
   (`gpkg_spatial_ref_sys`) ou du GeoJSON (`crs`). Il faut d'abord connaître les définitions courantes (RGF93 CC, NTF
   Lambert II étendu).
 
-**D. Import CSV et KML.**
+**D. Import CSV et KML.** *CSV fait ; KML écarté (15/11/2026, à la demande de l'auteur : CSV seulement).*
+- **Fait** : `csvLayer` (`src/couche.js`) : séparateur « ; », tabulation ou « , » (le plus fréquent de l'en-tête),
+  guillemets, UTF-8 sinon Windows-1252 (Excel) ; position en WKT (colonne `wkt`, `geometry`…, relit l'export CSV des
+  lignes et polygones) ou en X et Y (`x`, `lon`, `longitude`, `x_l93`…) ; WGS 84 ou Lambert 93 reconnu d'après les
+  valeurs par `Couche.read` ; nombres reconnus (virgule acceptée), sauf les codes commençant par 0 (INSEE, PR) ; lignes
+  sans position écartées. Essai : `essai-rtk` (Lambert 93 en X et Y, WKT).
 - **CSV** : colonnes X/Y, ou longitude/latitude, reconnues par leur nom, en Lambert 93 ou WGS 84 (C écartée).
 - **KML** : export courant de Google Earth et des téléphones.
 

@@ -522,6 +522,28 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       doc.querySelector("#couche-retirer").click();
       expect("couche retirée du navigateur", !(await w.mesures.savedOverlay()) && !w.localStorage.getItem("web-measures/couche"));
       expect("couche retirée", JSON.parse(app.overlay_marks()).length === 0 && !box.querySelector(".etiquette.couche"));
+      // Import CSV (tableur français) : Lambert 93 en colonnes X et Y, « ; », virgule décimale, code à zéro initial,
+      // une ligne sans position écartée ; puis une ligne en WKT (WGS 84, « , »)
+      {
+        const importCsv = async (text, name) => {
+          const dt = new w.DataTransfer();
+          dt.items.add(new w.File([text], name, { type: "text/csv" }));
+          const input = doc.querySelector("#couche-fichier");
+          input.files = dt.files;
+          input.dispatchEvent(new Event("change"));
+          await until(() => doc.querySelector("#couche-nom").textContent === name, 10000, `couche ${name}`);
+          return w.mesures.savedOverlay();
+        };
+        const [l93x, l93y] = [842000.5, 6683000];
+        let kept = await importCsv(`﻿num;X;Y;haut;insee\n1;${String(l93x).replace(".", ",")};${l93y};2,5;021231\n2;842010;6683010;;21\n3;;;1;\n`, "essai.csv");
+        expect("CSV : points en Lambert 93, attributs typés, ligne sans position écartée", kept.features.length === 2 && kept.crs === "lambert93"
+          && JSON.stringify(kept.columns) === '["num","haut","insee"]' && kept.features[0].properties.haut === 2.5
+          && kept.features[0].properties.insee === "021231" && Math.abs(kept.features[0].geometry.coordinates[0] - 4.877) < 1e-3,
+          JSON.stringify(kept.features[0]));
+        kept = await importCsv('nom,wkt\nl,"LINESTRING (5.01 47.3, 5.02 47.31)"\n', "ligne.csv");
+        expect("CSV : géométrie en WKT", kept.features[0]?.geometry.type === "LineString" && kept.crs === "wgs84");
+        doc.querySelector("#couche-retirer").click();
+      }
     }
     await verdict();
   } catch (e) { log("ERREUR " + e); }

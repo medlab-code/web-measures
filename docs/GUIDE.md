@@ -604,7 +604,10 @@ essai l'a montrée trop imprécise au pied des façades (plan, sol interpolé so
 **Couche importée** (onglet « Couche » du panneau : bouton « Importer un fichier… », ou fichier glissé sur
 l'onglet) : un fichier GeoJSON, Shapefile (en .zip, ou le
 .shp choisi avec son .dbf et son .prj ; reprojeté d'après le .prj) ou GeoPackage (table au choix s'il
-en a plusieurs), en WGS 84 ou en Lambert 93 (converti), dessiné sur la mini-carte et dans la photo, à l'altitude du fichier (z, en NGF) ou posé
+en a plusieurs) ou CSV (tableur : séparateur « ; », tabulation ou « , », virgule décimale acceptée, UTF-8 ou Windows-1252
+d'Excel ; position en colonnes X et Y, lon et lat, longitude et latitude…, reconnues par leur nom, ou en WKT dans une
+colonne `wkt` comme dans l'export CSV ; nombres reconnus sauf les codes commençant par 0 ; lignes sans position
+écartées), en WGS 84 ou en Lambert 93 (converti, reconnu d'après les valeurs pour un CSV), dessiné sur la mini-carte et dans la photo, à l'altitude du fichier (z, en NGF) ou posé
 sur le sol LiDAR HD, lu sous la caméra et sous les objets (lignes redécoupées tous les 5 m pour
 suivre le terrain ; à plat à la hauteur de caméra en attendant, ou sans LiDAR) : points en pastilles, lignes et contours des polygones en traits, pour les objets à moins
 de 100 m de la photo. Couleur selon une colonne : une couleur par valeur (palette Set1 de ColorBrewer
@@ -888,7 +891,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 | `src/services.js` | vérification de l'accès aux services |
 | `src/recherche.js` | recherche de lieux sur la carte (commune, lieu-dit, voie, adresse) |
 | `src/requeteur.js` | requêteur route + PR (+ distance) : routes du département affiché, côté droit par défaut |
-| `src/couche.js` | couche importée (GeoJSON, Shapefile par shpjs, GeoPackage par sql.js) : lecture, Lambert 93 en WGS 84, couleur et étiquette selon une colonne |
+| `src/couche.js` | couche importée (GeoJSON, Shapefile par shpjs, GeoPackage par sql.js, CSV) : lecture, Lambert 93 en WGS 84, couleur et étiquette selon une colonne |
 | `src/lieu.js` | route, point de repère (PR), véloroute, écluse, hameau et commune de la photo, incrustés dans la visionneuse |
 | `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page (points de référence, hauteurs, largeurs, mesure libre, recalages) |
 | `py/web_host.py` | accès réseau du cœur par le `fetch` du navigateur |
