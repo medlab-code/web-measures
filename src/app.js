@@ -3757,16 +3757,7 @@
    * sautés. Même forme de résultat que planPhotos, plus reversed (photos lues à rebours) ; null sans photo le long.
    */
   async function planAlongLine(line, label) {
-    // Points du tracé tous les ALONG_STEP m, avec le cap de la route
-    const stations = [];
-    for (let k = 1, carry = 0; k < line.length; k++) {
-      const a = line[k - 1], b = line[k], d = metresBetween(a, b);
-      if (d < 0.01) continue;
-      const heading = Requeteur.bearing(a, b);
-      let s = carry;
-      for (; s < d; s += ALONG_STEP) stations.push({ at: [a[0] + (b[0] - a[0]) * s / d, a[1] + (b[1] - a[1]) * s / d], heading });
-      carry = s - d;  // reste jusqu'au pas suivant, sur le segment d'après
-    }
+    const stations = stationsAlong(line);
     // Photos le long du tracé : recherches de ALONG_CHUNK m de demi-côté, tous les ALONG_CHUNK m (4 à la fois)
     const photosById = new Map(), centres = stations.filter((_, i) => i % Math.round(ALONG_CHUNK / ALONG_STEP) === 0);
     for (let i = 0; i < centres.length; i += 4) {
@@ -3776,7 +3767,53 @@
         (f) => passesFilter(f) && Number.isInteger(rankOf(f)), ALONG_CHUNK + ALONG_NEAR, 1000).catch(() => [])));
       for (const f of found.flat()) photosById.set(f.id, f);
     }
-    // Photos rangées par cases de CELL degrés (une vingtaine de mètres) : chaque pas ne regarde que les cases voisines
+    const options = candidates(stations, photosById);
+    const chosen = chooseSequences(options);
+    if (!chosen) return null;
+    const { pointAt, projectNear } = alongLine(line);
+    // Photos retenues, dans l'ordre ; dans une même séquence, rangs croissants (décroissants à rebours) ; photos à plus de
+    // ALONG_OFFSET m du tracé retirées (autre voie, mal placées)
+    const out = [], dates = new Set();
+    let switches = 0, last = null, reversed = 0, lastS = -Infinity;
+    for (const [i, k] of chosen.entries()) {
+      if (!k) continue;
+      const { f, back } = options[i].get(k);
+      if (last && last.key === k && (rankOf(f) - last.rank) * (back ? -1 : 1) <= 0) continue;  // déjà passée
+      const on = projectNear(f.geometry.coordinates, i * ALONG_STEP);
+      if (on.d > ALONG_OFFSET || on.s < lastS + 0.5) continue;  // trop loin du tracé, ou pas plus loin que la précédente
+      if (last && last.key !== k) switches++;
+      lastS = on.s;
+      const exif = f.properties?.exif || {};
+      const point = { coords: pointAt(on.s), alt: exifNumber(exif["Exif.GPSInfo.GPSAltitude"]),
+        heading: exifNumber(exif["Exif.GPSInfo.GPSImgDirection"]) ?? Number(f.properties?.["view:azimuth"]) };
+      const record = Video.record(f, point);
+      if (back) reversed++;
+      out.push(record);
+      dates.add(record.date);
+      last = { key: k, rank: rankOf(f) };
+    }
+    if (out.length < 2) return null;
+    return { photos: out, switches, reversed, dates: [...dates].filter(Boolean).sort(),
+      warning: switches ? "Le parcours passe d'une séquence à l'autre : les photos peuvent différer (date, lumière, sens de prise de vue)." : "" };
+  }
+  /** Points du tracé line ([lon, lat]) tous les ALONG_STEP m, avec le cap de la route : [{ at, heading }]. */
+  function stationsAlong(line) {
+    const stations = [];
+    for (let k = 1, carry = 0; k < line.length; k++) {
+      const a = line[k - 1], b = line[k], d = metresBetween(a, b);
+      if (d < 0.01) continue;
+      const heading = Requeteur.bearing(a, b);
+      let s = carry;
+      for (; s < d; s += ALONG_STEP) stations.push({ at: [a[0] + (b[0] - a[0]) * s / d, a[1] + (b[1] - a[1]) * s / d], heading });
+      carry = s - d;  // reste jusqu'au pas suivant, sur le segment d'après
+    }
+    return stations;
+  }
+
+  /** Candidats de chaque pas : Map (« séquence|à rebours » -> { f, d, back }) de la photo la plus proche de chaque
+   * séquence et sens, à ALONG_NEAR m et ALONG_ANGLE° près. Photos rangées par cases de CELL degrés (une vingtaine de
+   * mètres) : chaque pas ne regarde que les cases voisines. */
+  function candidates(stations, photosById) {
     const CELL = 0.0002, cells = new Map(), cellOf = ([lon, lat]) => [Math.floor(lon / CELL), Math.floor(lat / CELL)];
     for (const f of photosById.values()) {
       const key = cellOf(f.geometry.coordinates).join(" ");
@@ -3788,8 +3825,7 @@
       for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) out.push(...(cells.get(`${i + di} ${j + dj}`) || []));
       return out;
     };
-    // Candidats de chaque pas : séquence et sens -> photo la plus proche
-    const options = stations.map(({ at, heading }) => {
+    return stations.map(({ at, heading }) => {
       const best = new Map();
       for (const f of around(at)) {
         const d = metresBetween(at, f.geometry.coordinates);
@@ -3802,6 +3838,12 @@
       }
       return best;
     });
+  }
+
+  /** Séquence et sens retenus à chaque pas (clé de options[i], ou null pour un pas sans photo), par programmation
+   * dynamique : coût le plus bas pour arriver à chaque pas sur chaque séquence et sens (voir planAlongLine), puis
+   * remontée ; null si aucun pas n'a de photo. */
+  function chooseSequences(options) {
     // Programmation dynamique : coût le plus bas pour arriver à chaque pas sur chaque séquence et sens
     let cost = new Map();
     const from = [], days = new Map();  // séquence et sens -> jour de prise de vue
@@ -3830,7 +3872,7 @@
       cost = next;
       from.push(back);
     }
-    if (!cost.size) return null;
+    if (!cost.size) return null;  // aucun pas avec photo
     // Remontée : séquence et sens retenus à chaque pas
     let key = [...cost].sort((x, y) => x[1] - y[1])[0][0];
     const chosen = Array(options.length).fill(null);
@@ -3839,9 +3881,14 @@
       chosen[i] = key;
       key = from[i].get(key);
     }
-    // Trajectoire virtuelle : le tracé lui-même (abscisse curviligne de ses sommets) ; chaque photo y est ramenée au
-    // point le plus proche, près du pas où elle a été choisie : la vidéo avance et prend son cap le long de la route, sans
-    // recul, arrêt ni balayage aux changements de séquence (photos de voies voisines, décalées de quelques mètres)
+    return chosen;
+  }
+
+  /** Trajectoire virtuelle : le tracé lui-même (abscisse curviligne de ses sommets) ; pointAt(s) : point à l'abscisse s ;
+   * projectNear(point, s0) : { d, s }, point le plus proche sur les segments à ± 50 m de s0. Chaque photo y est ramenée :
+   * la vidéo avance et prend son cap le long de la route, sans recul, arrêt ni balayage aux changements de séquence
+   * (photos de voies voisines, décalées de quelques mètres). */
+  function alongLine(line) {
     const cum = [0];
     for (let k = 1; k < line.length; k++) cum.push(cum[k - 1] + metresBetween(line[k - 1], line[k]));
     const pointAt = (s) => {
@@ -3863,31 +3910,9 @@
       }
       return best;
     };
-    // Photos retenues, dans l'ordre ; dans une même séquence, rangs croissants (décroissants à rebours) ; photos à plus de
-    // ALONG_OFFSET m du tracé retirées (autre voie, mal placées)
-    const out = [], dates = new Set();
-    let switches = 0, last = null, reversed = 0, lastS = -Infinity;
-    for (const [i, k] of chosen.entries()) {
-      if (!k) continue;
-      const { f, back } = options[i].get(k);
-      if (last && last.key === k && (rankOf(f) - last.rank) * (back ? -1 : 1) <= 0) continue;  // déjà passée
-      const on = projectNear(f.geometry.coordinates, i * ALONG_STEP);
-      if (on.d > ALONG_OFFSET || on.s < lastS + 0.5) continue;  // trop loin du tracé, ou pas plus loin que la précédente
-      if (last && last.key !== k) switches++;
-      lastS = on.s;
-      const exif = f.properties?.exif || {};
-      const point = { coords: pointAt(on.s), alt: exifNumber(exif["Exif.GPSInfo.GPSAltitude"]),
-        heading: exifNumber(exif["Exif.GPSInfo.GPSImgDirection"]) ?? Number(f.properties?.["view:azimuth"]) };
-      const record = Video.record(f, point);
-      if (back) reversed++;
-      out.push(record);
-      dates.add(record.date);
-      last = { key: k, rank: rankOf(f) };
-    }
-    if (out.length < 2) return null;
-    return { photos: out, switches, reversed, dates: [...dates].filter(Boolean).sort(),
-      warning: switches ? "Le parcours passe d'une séquence à l'autre : les photos peuvent différer (date, lumière, sens de prise de vue)." : "" };
+    return { pointAt, projectNear };
   }
+
   const ALONG_STEP = 5, ALONG_NEAR = 12, ALONG_ANGLE = 50, ALONG_CHUNK = 150;  // m, m, degrés, m
   const ALONG_BACK = 25;  // pas lu à rebours (5 m) : plus qu'un changement entre séquences à cinq ans d'écart (le sens d'abord)
   const ALONG_OFFSET = 6;  // m : photo plus loin du tracé (autre voie, mal placée) retirée

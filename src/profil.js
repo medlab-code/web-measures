@@ -94,15 +94,9 @@ const Profil = (() => {
     }
   }
 
-  /** Graphique SVG et sa légende en clair (texte) pour profile (voir App._compute_edges) ; trueScale : hauteurs
-   * à la même échelle que les distances. */
-  // fine : analyse fine (Nuage.analyse) : séparateur et bords de chaussée tirés du nuage LiDAR, lignes blanches
-  // plants : végétation de l'analyse fine (ligne verte, herbe) dessinée et légendée
-  // camera : hauteur de la caméra au-dessus du sol (réglage « Hauteur de caméra »), pour le profil en long
-  function draw(profile, trueScale = false, fine = null, plants = true, camera = 1.9) {
-    const all = crossings(profile);
-    const main = all.get(0) || [...all.values()][0];
-    if (fine?.separateur) [main.separateur, main.separateurRelief] = [[...fine.separateur].sort((a, b) => a - b), "nuage"];
+  /** Cadre du graphique : altitude de référence (plateforme sous l'origine), plateforme du travers de la photo, bornes
+   * en distance et en hauteur, échelle et exagération des hauteurs, et les fonctions de position X, Z et path. */
+  function frame(profile, all, main, trueScale, camera) {
     const ref = zAt(main.points, 0) ?? main.points[0][1];  // 0 : plateforme sous l'origine
     const [bl, br] = [main.bords.gauche?.x ?? 0, main.bords.droit?.x ?? 0];
     const road = main.points.filter(([x]) => x >= bl && x <= br);
@@ -117,7 +111,7 @@ const Profil = (() => {
     // exagération entière, la plus forte qui fait tenir les hauteurs (au moins ×1), ×1 à l'échelle
     const scale = (bottom) => {
       const sx = Math.min(plotW / (xmax - xmin), plotH / (zmax - bottom));
-      return { sx, factor: trueScale ? 1 : Math.max(1, Math.floor(plotH / (zmax - bottom) / sx)) };
+    return { sx, factor: trueScale ? 1 : Math.max(1, Math.floor(plotH / (zmax - bottom) / sx)) };
     };
     // Fond : GROUND_BELOW sous le point le plus bas du terrain si son haut (ni caméra ni végétation) reste dans la
     // moitié basse du cadre, sinon GROUND_MIN ; la place libre va en haut, pour la végétation
@@ -139,6 +133,189 @@ const Profil = (() => {
     zmax = zmin + plotH / (sx * factor);
     const X = (x) => LEFT + (x - xmin) * sx, Z = (z) => TOP + (zmax - (z - ref)) / (zmax - zmin) * plotH;
     const path = (points) => points.map(([x, z], k) => `${k ? "L" : "M"}${X(x).toFixed(1)},${Z(z).toFixed(1)}`).join("");
+    return { ref, bl, br, road, xs, xmin, xmax, zmin, zmax, sx, factor, plotW, plotH, X, Z, path };
+  }
+
+  /** Eau : surfaces de la BD TOPO (bande bleue posée sur le terrain), cours d'eau (repère bleu nommé), surface lue
+   * dans le nuage (analyse fine). onGround(a, b) : tracé du terrain de la photo entre a et b. */
+  function drawWater(svg, profile, fine, { xmin, xmax, ref, X, Z }, main, onGround) {
+    for (const w of (profile.eau || []).filter((v) => v.de !== undefined)) {
+      const d = onGround(Math.min(w.de, w.a), Math.max(w.de, w.a));
+      if (d) svg.append(el("path", { d, class: "eau-surface" }));
+    }
+    for (const w of (profile.eau || []).filter((v) => v.x !== undefined && v.x >= xmin && v.x <= xmax)) {
+      const gy = Z(zAt(main.points, w.x) ?? ref);
+      svg.append(el("path", { d: `M${X(w.x) - 6},${gy - 14}L${X(w.x) + 6},${gy - 14}L${X(w.x)},${gy - 4}Z`, class: "eau" }),
+        el("text", { x: X(w.x), y: gy - 18, class: "graduation place eau-texte", "data-haut": "", "text-anchor": "middle" }, w.nom || "cours d'eau"));
+    }
+    if (fine?.eau?.length) {
+      let d = "", prev = null;
+      for (const [x, z] of fine.eau) {
+        if (x < xmin || x > xmax) { prev = null; continue; }
+        d += `${prev !== null && x - prev <= 0.5 + 1e-6 ? "L" : "M"}${X(x).toFixed(1)},${Math.max(TOP, Z(z)).toFixed(1)}`;
+        prev = x;
+      }
+      svg.append(el("path", { d, class: "eau-nuage" }));
+    }
+  }
+
+  /** Végétation de l'analyse fine : hauteur maximale (ligne verte, coupée en haut du graphique) ; à l'échelle, canopée
+   * hors du cadre nommée. Vrai si une canopée est nommée (légende). */
+  function drawVegetation(svg, fine, { xmin, xmax, zmax, ref, X, Z }, trueScale) {
+    let canopy = false;
+    let d = "", prev = null;
+    const peaks = new Map();  // plus haut point de la ligne de chaque côté
+    // plus haut point des cases voisines (±0,25 m) : une case où le laser n'a touché que des branches basses ne creuse pas ;
+    // puis moyenne sur ±1 m : le feuillage des arbres sans dents de scie
+    const top = new Map(fine.vegetation.map(([x]) => [x, Math.max(...fine.vegetation.filter(([v]) => Math.abs(v - x) <= 0.25 + 1e-6).map(([, z]) => z))]));
+    const near = (x) => {  // moyenne des sommets à 1 m près
+      const v = [...top].filter(([u]) => Math.abs(u - x) <= 1 + 1e-6).map(([, z]) => z);
+      return v.reduce((a, b) => a + b, 0) / v.length;
+    };
+    for (const [x] of fine.vegetation) {
+      const z = near(x);
+      if (x < xmin || x > xmax) { prev = null; continue; }
+      if (!(z <= peaks.get(x < 0)?.[1])) peaks.set(x < 0, [x, z]);
+      d += `${prev !== null && x - prev <= 0.5 + 1e-6 ? "L" : "M"}${X(x).toFixed(1)},${Math.max(TOP, Z(z)).toFixed(1)}`;
+      prev = x;
+    }
+    svg.append(el("path", { d, class: "vegetation" }));
+    // À l'échelle seulement : canopée hors du cadre, sa hauteur au-dessus de la plateforme, comme les graduations
+    for (const [x, z] of trueScale ? peaks.values() : []) {
+      if (z - ref <= zmax) continue;
+      canopy = true;
+      svg.append(el("text", { x: Math.max(LEFT + 50, Math.min(W - RIGHT - 50, X(x))), y: TOP + 14,
+        class: "etiquette-profil place canopee", "text-anchor": "middle" },
+        `canopée +${num(z - ref, 0)} m`));
+    }
+    return canopy;
+  }
+
+  /** Lecture du graphique, en clair, sous les résultats : une ligne par élément dessiné (canopy : canopée nommée). */
+  function legendLines(profile, main, fine, plants, camera, factor, canopy) {
+    const from = profile.origine === "caméra" ? "la caméra" : "l'axe de la route (position GPS non vérifiée RTK)";
+    return [
+      `Coupe du terrain vue dans le sens de la photo, depuis ${from}\u00a0; 0 = la plateforme sous ${
+        profile.origine === "caméra" ? "la caméra" : "l'axe"}.`,
+      "Trait brun\u00a0: travers de la photo · pointillés\u00a0: travers à 5 et 10 m devant et derrière · "
+        + "trait gris\u00a0: travers où la chute ou le dévers ont été mesurés.",
+      ...(profile.origine === "caméra" && factor === 1 ? [`Point bleu\u00a0: la caméra, à ${num(camera, 2)} m au-dessus de la plateforme.`] : []),
+      ...(main.separateur ? [`Petite barre verticale\u00a0: milieu du séparateur de chaussée (terre-plein central), ${main.separateurRelief
+        ? main.separateurRelief === "nuage" ? "trouvé dans le nuage LiDAR\u00a0: bande non revêtue (herbe, gravillons, glissières) entre les deux chaussées"
+          : main.separateurRelief === "bosse" ? "trouvé dans le relief\u00a0: bosse étroite (assise de glissières ou de muret)"
+          : `trouvé dans le relief entre deux marches du terrain (${num(Math.abs(main.separateur[1] - main.separateur[0]))} m de large)`
+        : `placé d'après les largeurs BD TOPO (pas de marche du terrain trouvée${
+          fine ? ", ni de bande non revêtue dans le nuage LiDAR" : ""})`}\u00a0; la plateforme va jusqu'au bord `
+        + "extérieur de l'autre chaussée."] : []),
+      ...(fine ? [`Analyse fine (nuage LiDAR HD, ${fine.points} points du sol)\u00a0: carrés blancs, lignes blanches lues à `
+        + "l'intensité du retour laser\u00a0; tirets courts, bords de chaussée"
+        + `${["gauche", "droit"].map((side) => fine.bords[side] ? ` (${side}\u00a0: ${num(Math.abs(fine.bords[side].x))} m, `
+          + `${fine.bords[side].comment})` : "").join("")}.`
+        + (fine.largeur ? ` Largeur d'enrobé\u00a0: ${num(fine.largeur.m)}\u00a0m ±\u00a0${num(fine.largeur.plus)}.` : "")] : []),
+      ...((profile.eau || []).length || fine?.eau?.length ? [`Bleu\u00a0: eau${(profile.eau || []).length ? ` de la BD TOPO (${profile.eau
+        .map((w) => (w.x !== undefined ? `${w.nom || (w.nature || "cours d'eau").toLowerCase()} à ${num(Math.abs(w.x))} m ${w.x < 0 ? "à gauche" : "à droite"}`
+          : `${(w.nature || "plan d'eau").toLowerCase()} de ${num(Math.min(Math.abs(w.de), Math.abs(w.a)))} `
+            + `à ${num(Math.max(Math.abs(w.de), Math.abs(w.a)))} m `
+            + `${w.de + w.a < 0 ? "à gauche" : "à droite"} (bande bleue sur le terrain, au niveau de l'eau)`)).join(", ")})` : ""}${fine?.eau?.length
+        ? `${(profile.eau || []).length ? "\u00a0; " : " "}surface de l'eau lue dans le nuage LiDAR (ligne bleue), au niveau du jour du relevé` : ""}.`] : []),
+      ...(plants && fine?.herbe?.length ? ["Bande vert clair sur le terrain\u00a0: herbe au sol (surface non revêtue très claire au laser "
+        + "infrarouge\u00a0; gravillons et béton, moins clairs, n'y sont pas)" + ["gauche", "droit"].map((side) => {
+          const sign = side === "gauche" ? -1 : 1, mine = fine.herbe.filter(([a, b]) => sign * (a + b) > 0);
+          return mine.length ? `\u00a0; ${side}\u00a0: dès ${num(Math.min(...mine.map(([a, b]) => Math.min(Math.abs(a), Math.abs(b)))))} m` : "";
+        }).join("") + "."] : []),
+      ...(plants && fine?.vegetation?.length ? ["Ligne verte\u00a0: hauteur maximale de la végétation (herbe haute, arbustes, arbres, classés par "
+        + "l'IGN) sur ±1 m le long de la route, coupée en haut du graphique"
+        + (canopy ? " (« canopée +… m »\u00a0: sa hauteur au-dessus de la plateforme)" : "") + ["gauche", "droit"].map((side) => {
+          const sign = side === "gauche" ? -1 : 1, seen = fine.vegetation.filter(([x]) => sign * x > 0);
+          if (!seen.length) return "";
+          const above = ([x, z]) => z - (zAt(main.points, x) ?? z);
+          const top = seen.reduce((a, b) => (above(b) > above(a) ? b : a));
+          const first = seen.reduce((a, b) => (Math.abs(b[0]) < Math.abs(a[0]) ? b : a));
+          return `\u00a0; ${side}\u00a0: dès ${num(Math.abs(first[0]))} m, jusqu'à ${num(above(top))} m au-dessus du sol`;
+        }).join("") + "."] : []),
+      `Chute et dévers lus du bord jusqu'à ce que le terrain remonte de ${num(profile.remontee, 0)} m au-dessus du bord `
+        + "(talus, butte)\u00a0: derrière, ce n'est pas une chute.",
+      `${factor > 1 ? `Hauteurs exagérées ×${factor} pour la lisibilité` : "Hauteurs à l'échelle des distances"}. `
+        + `Terrain ${profile.source} (IGN), altitudes à ±${num(profile.erreur)} m près.`,
+      ...(profile.en_long?.points?.length && longLegend(profile.en_long) ? [longLegend(profile.en_long)] : []),
+    ];
+  }
+
+  /** Chute et dévers de chaque côté, dessinés sur le travers où ils ont été mesurés (svg) ; rend leur liste pour la
+   * légende (une puce par côté, et la plateforme). */
+  function drawResults(svg, profile, all, main, { X, Z, path }) {
+    const results = document.createElement("ul");
+    if (profile.plateforme) {
+      const item = document.createElement("li");
+      item.append(html("b", "", "Plateforme\u00a0: "), platformText(profile.plateforme));
+      results.append(item);
+    }
+    for (const side of ["gauche", "droit"]) {
+      const r = profile.resultats[side], sign = side === "gauche" ? -1 : 1;
+      const item = document.createElement("li");
+      item.append(html("b", "", `Côté ${side}\u00a0: `));
+      results.append(item);
+      if (!r) {
+        const stop = profile.arrets[side];
+        item.append(stop === undefined ? `pas de chute de 0,5 m ou plus jusqu'à ${num(profile.zone, 0)} m du bord`
+          : `pas de chute avant le terrain qui remonte de ${num(profile.remontee, 0)} m (talus, butte), à ${num(stop, 0)} m du bord`);
+        continue;
+      }
+      const t = all.get(r.chute[3]) || main, b = t.bords[side].x;
+      const where = t === main ? "" : ` (travers à ${t.along > 0 ? "+" : "−"}${Math.abs(t.along)} m)`;
+      // travers de la chute et du dévers, s'ils ne sont pas celui de la photo : en trait plein, nommés à leur bout
+      const shown = new Set();
+      for (const along of [r.chute[3], r.devers?.[2]]) {
+        const tr = all.get(along);
+        if (!tr || tr === main || shown.has(tr)) continue;
+        shown.add(tr);
+        const end = sign < 0 ? tr.points[0] : tr.points.at(-1);
+        // sous le terrain de la photo (dessiné avant lui), transparent : il ne le masque pas
+        svg.insertBefore(el("path", { d: path(tr.points), class: "travers-mesure" }), svg.querySelector(".terre"));
+        svg.append(el("text", { x: X(end[0]) - sign * 2, y: Z(end[1]) - 6, class: "graduation place", "text-anchor": sign < 0 ? "start" : "end" },
+            `travers à ${tr.along > 0 ? "+" : "−"}${Math.abs(tr.along)} m`));
+      }
+      const top = zAt(t.points, b), xLow = b + sign * r.chute[1], low = top - r.chute[0];
+      // étiquette à l'extérieur de la flèche, sauf si elle sortirait du cadre
+      const out = sign < 0 ? X(xLow) - 100 > 0 : X(xLow) + 100 < W, toward = out ? sign : -sign;
+      svg.append(el("line", { x1: X(b), x2: X(xLow), y1: Z(top), y2: Z(top), class: "repere-chute" }),
+        el("line", { x1: X(xLow), x2: X(xLow), y1: Z(top), y2: Z(low), class: "chute", "marker-end": "url(#fleche)" }),
+        el("text", { x: X(xLow) + toward * 6, y: (Z(top) + Z(low)) / 2, class: "etiquette-profil chute-texte place",
+          "text-anchor": toward < 0 ? "end" : "start" }, `chute ${r.chute[2] ? "≥ " : ""}${num(r.chute[0])} m`));
+      item.append(html("span", "chute", `chute ${r.chute[2] ? "d'au moins " : "de "}${num(r.chute[0])} m`),
+        ` ${r.chute[2] ? "au-delà de" : "à"} ${num(r.chute[1], 0)} m du bord${where}`);
+      if (r.devers) {
+        // talus : droite de son haut à son pied (pente moyenne), sur le travers où il a été mesuré
+        const td = all.get(r.devers[2]) || main, bd = td.bords[side].x;
+        const x0 = bd + sign * r.devers[1], x1 = bd + sign * r.devers[3];
+        const [z0, z1] = [zAt(td.points, x0), zAt(td.points, x1)];
+        // étiquette contre la droite ; sous elle si le talus est presque à plat (hauteurs à l'échelle)
+        const flat = Math.abs(Z(z0) - Z(z1)) < 60;
+        svg.append(el("line", { x1: X(x0), y1: Z(z0), x2: X(x1), y2: Z(z1), class: "devers" }),
+          el("text", { x: X((x0 + x1) / 2) - (flat ? 0 : sign * 12), y: flat ? Math.max(Z(z0), Z(z1)) + 18 : Z((z0 + z1) / 2) + 4,
+            class: "etiquette-profil devers-texte place", "text-anchor": flat ? "middle" : sign < 0 ? "start" : "end" },
+          `dévers ${num(100 * r.devers[0], 0)} %`));
+        item.append(" · ", html("span", "devers", `dévers du talus ${num(100 * r.devers[0], 0)}\u00a0%`),
+          ` (pente moyenne\u00a0: ${num(r.devers[4])} m de haut sur ${num(Math.abs(x1 - x0))} m${
+            td === main ? "" : `, travers à ${td.along > 0 ? "+" : "−"}${Math.abs(td.along)} m`})`);
+      }
+    }
+    return results;
+  }
+
+  const html = (tag, className, text) => Object.assign(document.createElement(tag), { className, textContent: text });
+
+  /** Graphique SVG et sa légende en clair (texte) pour profile (voir App._compute_edges) ; trueScale : hauteurs
+   * à la même échelle que les distances. */
+  // fine : analyse fine (Nuage.analyse) : séparateur et bords de chaussée tirés du nuage LiDAR, lignes blanches
+  // plants : végétation de l'analyse fine (ligne verte, herbe) dessinée et légendée
+  // camera : hauteur de la caméra au-dessus du sol (réglage « Hauteur de caméra »), pour le profil en long
+  function draw(profile, trueScale = false, fine = null, plants = true, camera = 1.9) {
+    const all = crossings(profile);
+    const main = all.get(0) || [...all.values()][0];
+    if (fine?.separateur) [main.separateur, main.separateurRelief] = [[...fine.separateur].sort((a, b) => a - b), "nuage"];
+    const f = frame(profile, all, main, trueScale, camera);
+    const { ref, bl, br, road, xs, xmin, xmax, zmin, zmax, factor, plotW, plotH, X, Z, path } = f;
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, class: "profil-svg", role: "img",
       "aria-label": "Coupe du terrain en travers de la route" });
 
@@ -208,52 +385,8 @@ const Profil = (() => {
       const at = [lo, ...inside, hi].filter((x, k, all) => k === 0 || x > all[k - 1]);
       return at.length < 2 ? null : at.map((x, k) => `${k ? "L" : "M"}${X(x).toFixed(1)},${(Z(zAt(main.points, x) ?? ref) - 3).toFixed(1)}`).join("");
     };
-    for (const w of (profile.eau || []).filter((v) => v.de !== undefined)) {
-      const d = onGround(Math.min(w.de, w.a), Math.max(w.de, w.a));
-      if (d) svg.append(el("path", { d, class: "eau-surface" }));
-    }
-    for (const w of (profile.eau || []).filter((v) => v.x !== undefined && v.x >= xmin && v.x <= xmax)) {
-      const gy = Z(zAt(main.points, w.x) ?? ref);
-      svg.append(el("path", { d: `M${X(w.x) - 6},${gy - 14}L${X(w.x) + 6},${gy - 14}L${X(w.x)},${gy - 4}Z`, class: "eau" }),
-        el("text", { x: X(w.x), y: gy - 18, class: "graduation place eau-texte", "data-haut": "", "text-anchor": "middle" }, w.nom || "cours d'eau"));
-    }
-    if (fine?.eau?.length) {
-      let d = "", prev = null;
-      for (const [x, z] of fine.eau) {
-        if (x < xmin || x > xmax) { prev = null; continue; }
-        d += `${prev !== null && x - prev <= 0.5 + 1e-6 ? "L" : "M"}${X(x).toFixed(1)},${Math.max(TOP, Z(z)).toFixed(1)}`;
-        prev = x;
-      }
-      svg.append(el("path", { d, class: "eau-nuage" }));
-    }
-    let canopy = false;
-    if (plants && fine?.vegetation?.length) {
-      let d = "", prev = null;
-      const peaks = new Map();  // plus haut point de la ligne de chaque côté
-      // plus haut point des cases voisines (±0,25 m) : une case où le laser n'a touché que des branches basses ne creuse pas ;
-      // puis moyenne sur ±1 m : le feuillage des arbres sans dents de scie
-      const top = new Map(fine.vegetation.map(([x]) => [x, Math.max(...fine.vegetation.filter(([v]) => Math.abs(v - x) <= 0.25 + 1e-6).map(([, z]) => z))]));
-      const near = (x) => {  // moyenne des sommets à 1 m près
-        const v = [...top].filter(([u]) => Math.abs(u - x) <= 1 + 1e-6).map(([, z]) => z);
-        return v.reduce((a, b) => a + b, 0) / v.length;
-      };
-      for (const [x] of fine.vegetation) {
-        const z = near(x);
-        if (x < xmin || x > xmax) { prev = null; continue; }
-        if (!(z <= peaks.get(x < 0)?.[1])) peaks.set(x < 0, [x, z]);
-        d += `${prev !== null && x - prev <= 0.5 + 1e-6 ? "L" : "M"}${X(x).toFixed(1)},${Math.max(TOP, Z(z)).toFixed(1)}`;
-        prev = x;
-      }
-      svg.append(el("path", { d, class: "vegetation" }));
-      // À l'échelle seulement : canopée hors du cadre, sa hauteur au-dessus de la plateforme, comme les graduations
-      for (const [x, z] of trueScale ? peaks.values() : []) {
-        if (z - ref <= zmax) continue;
-        canopy = true;
-        svg.append(el("text", { x: Math.max(LEFT + 50, Math.min(W - RIGHT - 50, X(x))), y: TOP + 14,
-          class: "etiquette-profil place canopee", "text-anchor": "middle" },
-          `canopée +${num(z - ref, 0)} m`));
-      }
-    }
+    drawWater(svg, profile, fine, f, main, onGround);
+    const canopy = plants && fine?.vegetation?.length ? drawVegetation(svg, fine, f, trueScale) : false;
     if (fine) {
       for (const [a, b] of plants ? fine.herbe || [] : []) {  // herbe au sol : bande vert clair posée sur le terrain
         const d = onGround(a, b);
@@ -282,64 +415,7 @@ const Profil = (() => {
         el("text", { x: X(0) + 9, y: Z(ref + camera) + 4, class: "graduation place", "data-haut": "" }, "caméra"));  // à droite du point
     }
 
-    // Chute et dévers, sur le travers où ils ont été mesurés ; une puce par côté dans la légende
-    const html = (tag, className, text) => Object.assign(document.createElement(tag), { className, textContent: text });
-    const results = document.createElement("ul");
-    if (profile.plateforme) {
-      const item = document.createElement("li");
-      item.append(html("b", "", "Plateforme\u00a0: "), platformText(profile.plateforme));
-      results.append(item);
-    }
-    for (const side of ["gauche", "droit"]) {
-      const r = profile.resultats[side], sign = side === "gauche" ? -1 : 1;
-      const item = document.createElement("li");
-      item.append(html("b", "", `Côté ${side}\u00a0: `));
-      results.append(item);
-      if (!r) {
-        const stop = profile.arrets[side];
-        item.append(stop === undefined ? `pas de chute de 0,5 m ou plus jusqu'à ${num(profile.zone, 0)} m du bord`
-          : `pas de chute avant le terrain qui remonte de ${num(profile.remontee, 0)} m (talus, butte), à ${num(stop, 0)} m du bord`);
-        continue;
-      }
-      const t = all.get(r.chute[3]) || main, b = t.bords[side].x;
-      const where = t === main ? "" : ` (travers à ${t.along > 0 ? "+" : "−"}${Math.abs(t.along)} m)`;
-      // travers de la chute et du dévers, s'ils ne sont pas celui de la photo : en trait plein, nommés à leur bout
-      const shown = new Set();
-      for (const along of [r.chute[3], r.devers?.[2]]) {
-        const tr = all.get(along);
-        if (!tr || tr === main || shown.has(tr)) continue;
-        shown.add(tr);
-        const end = sign < 0 ? tr.points[0] : tr.points.at(-1);
-        // sous le terrain de la photo (dessiné avant lui), transparent : il ne le masque pas
-        svg.insertBefore(el("path", { d: path(tr.points), class: "travers-mesure" }), svg.querySelector(".terre"));
-        svg.append(el("text", { x: X(end[0]) - sign * 2, y: Z(end[1]) - 6, class: "graduation place", "text-anchor": sign < 0 ? "start" : "end" },
-            `travers à ${tr.along > 0 ? "+" : "−"}${Math.abs(tr.along)} m`));
-      }
-      const top = zAt(t.points, b), xLow = b + sign * r.chute[1], low = top - r.chute[0];
-      // étiquette à l'extérieur de la flèche, sauf si elle sortirait du cadre
-      const out = sign < 0 ? X(xLow) - 100 > 0 : X(xLow) + 100 < W, toward = out ? sign : -sign;
-      svg.append(el("line", { x1: X(b), x2: X(xLow), y1: Z(top), y2: Z(top), class: "repere-chute" }),
-        el("line", { x1: X(xLow), x2: X(xLow), y1: Z(top), y2: Z(low), class: "chute", "marker-end": "url(#fleche)" }),
-        el("text", { x: X(xLow) + toward * 6, y: (Z(top) + Z(low)) / 2, class: "etiquette-profil chute-texte place",
-          "text-anchor": toward < 0 ? "end" : "start" }, `chute ${r.chute[2] ? "≥ " : ""}${num(r.chute[0])} m`));
-      item.append(html("span", "chute", `chute ${r.chute[2] ? "d'au moins " : "de "}${num(r.chute[0])} m`),
-        ` ${r.chute[2] ? "au-delà de" : "à"} ${num(r.chute[1], 0)} m du bord${where}`);
-      if (r.devers) {
-        // talus : droite de son haut à son pied (pente moyenne), sur le travers où il a été mesuré
-        const td = all.get(r.devers[2]) || main, bd = td.bords[side].x;
-        const x0 = bd + sign * r.devers[1], x1 = bd + sign * r.devers[3];
-        const [z0, z1] = [zAt(td.points, x0), zAt(td.points, x1)];
-        // étiquette contre la droite ; sous elle si le talus est presque à plat (hauteurs à l'échelle)
-        const flat = Math.abs(Z(z0) - Z(z1)) < 60;
-        svg.append(el("line", { x1: X(x0), y1: Z(z0), x2: X(x1), y2: Z(z1), class: "devers" }),
-          el("text", { x: X((x0 + x1) / 2) - (flat ? 0 : sign * 12), y: flat ? Math.max(Z(z0), Z(z1)) + 18 : Z((z0 + z1) / 2) + 4,
-            class: "etiquette-profil devers-texte place", "text-anchor": flat ? "middle" : sign < 0 ? "start" : "end" },
-          `dévers ${num(100 * r.devers[0], 0)} %`));
-        item.append(" · ", html("span", "devers", `dévers du talus ${num(100 * r.devers[0], 0)}\u00a0%`),
-          ` (pente moyenne\u00a0: ${num(r.devers[4])} m de haut sur ${num(Math.abs(x1 - x0))} m${
-            td === main ? "" : `, travers à ${td.along > 0 ? "+" : "−"}${Math.abs(td.along)} m`})`);
-      }
-    }
+    const results = drawResults(svg, profile, all, main, f);  // chute et dévers, et leur liste pour la légende
     // droites du dévers juste au-dessus du terrain : sous la végétation, l'eau, les flèches et les textes
     const ground = svg.querySelector("path.sol");
     for (const line of [...svg.querySelectorAll("line.devers")].reverse()) ground.after(line);
@@ -350,53 +426,8 @@ const Profil = (() => {
     svg.firstChild.append(marker);
 
     // Lecture du graphique, sous les résultats, en discret
-    const from = profile.origine === "caméra" ? "la caméra" : "l'axe de la route (position GPS non vérifiée RTK)";
     const legend = document.createElement("div");
-    legend.append(results, ...[
-      `Coupe du terrain vue dans le sens de la photo, depuis ${from}\u00a0; 0 = la plateforme sous ${
-        profile.origine === "caméra" ? "la caméra" : "l'axe"}.`,
-      "Trait brun\u00a0: travers de la photo · pointillés\u00a0: travers à 5 et 10 m devant et derrière · "
-        + "trait gris\u00a0: travers où la chute ou le dévers ont été mesurés.",
-      ...(profile.origine === "caméra" && factor === 1 ? [`Point bleu\u00a0: la caméra, à ${num(camera, 2)} m au-dessus de la plateforme.`] : []),
-      ...(main.separateur ? [`Petite barre verticale\u00a0: milieu du séparateur de chaussée (terre-plein central), ${main.separateurRelief
-        ? main.separateurRelief === "nuage" ? "trouvé dans le nuage LiDAR\u00a0: bande non revêtue (herbe, gravillons, glissières) entre les deux chaussées"
-          : main.separateurRelief === "bosse" ? "trouvé dans le relief\u00a0: bosse étroite (assise de glissières ou de muret)"
-          : `trouvé dans le relief entre deux marches du terrain (${num(Math.abs(main.separateur[1] - main.separateur[0]))} m de large)`
-        : `placé d'après les largeurs BD TOPO (pas de marche du terrain trouvée${
-          fine ? ", ni de bande non revêtue dans le nuage LiDAR" : ""})`}\u00a0; la plateforme va jusqu'au bord `
-        + "extérieur de l'autre chaussée."] : []),
-      ...(fine ? [`Analyse fine (nuage LiDAR HD, ${fine.points} points du sol)\u00a0: carrés blancs, lignes blanches lues à `
-        + "l'intensité du retour laser\u00a0; tirets courts, bords de chaussée"
-        + `${["gauche", "droit"].map((side) => fine.bords[side] ? ` (${side}\u00a0: ${num(Math.abs(fine.bords[side].x))} m, `
-          + `${fine.bords[side].comment})` : "").join("")}.`
-        + (fine.largeur ? ` Largeur d'enrobé\u00a0: ${num(fine.largeur.m)}\u00a0m ±\u00a0${num(fine.largeur.plus)}.` : "")] : []),
-      ...((profile.eau || []).length || fine?.eau?.length ? [`Bleu\u00a0: eau${(profile.eau || []).length ? ` de la BD TOPO (${profile.eau
-        .map((w) => (w.x !== undefined ? `${w.nom || (w.nature || "cours d'eau").toLowerCase()} à ${num(Math.abs(w.x))} m ${w.x < 0 ? "à gauche" : "à droite"}`
-          : `${(w.nature || "plan d'eau").toLowerCase()} de ${num(Math.min(Math.abs(w.de), Math.abs(w.a)))} `
-            + `à ${num(Math.max(Math.abs(w.de), Math.abs(w.a)))} m `
-            + `${w.de + w.a < 0 ? "à gauche" : "à droite"} (bande bleue sur le terrain, au niveau de l'eau)`)).join(", ")})` : ""}${fine?.eau?.length
-        ? `${(profile.eau || []).length ? "\u00a0; " : " "}surface de l'eau lue dans le nuage LiDAR (ligne bleue), au niveau du jour du relevé` : ""}.`] : []),
-      ...(plants && fine?.herbe?.length ? ["Bande vert clair sur le terrain\u00a0: herbe au sol (surface non revêtue très claire au laser "
-        + "infrarouge\u00a0; gravillons et béton, moins clairs, n'y sont pas)" + ["gauche", "droit"].map((side) => {
-          const sign = side === "gauche" ? -1 : 1, mine = fine.herbe.filter(([a, b]) => sign * (a + b) > 0);
-          return mine.length ? `\u00a0; ${side}\u00a0: dès ${num(Math.min(...mine.map(([a, b]) => Math.min(Math.abs(a), Math.abs(b)))))} m` : "";
-        }).join("") + "."] : []),
-      ...(plants && fine?.vegetation?.length ? ["Ligne verte\u00a0: hauteur maximale de la végétation (herbe haute, arbustes, arbres, classés par "
-        + "l'IGN) sur ±1 m le long de la route, coupée en haut du graphique"
-        + (canopy ? " (« canopée +… m »\u00a0: sa hauteur au-dessus de la plateforme)" : "") + ["gauche", "droit"].map((side) => {
-          const sign = side === "gauche" ? -1 : 1, seen = fine.vegetation.filter(([x]) => sign * x > 0);
-          if (!seen.length) return "";
-          const above = ([x, z]) => z - (zAt(main.points, x) ?? z);
-          const top = seen.reduce((a, b) => (above(b) > above(a) ? b : a));
-          const first = seen.reduce((a, b) => (Math.abs(b[0]) < Math.abs(a[0]) ? b : a));
-          return `\u00a0; ${side}\u00a0: dès ${num(Math.abs(first[0]))} m, jusqu'à ${num(above(top))} m au-dessus du sol`;
-        }).join("") + "."] : []),
-      `Chute et dévers lus du bord jusqu'à ce que le terrain remonte de ${num(profile.remontee, 0)} m au-dessus du bord `
-        + "(talus, butte)\u00a0: derrière, ce n'est pas une chute.",
-      `${factor > 1 ? `Hauteurs exagérées ×${factor} pour la lisibilité` : "Hauteurs à l'échelle des distances"}. `
-        + `Terrain ${profile.source} (IGN), altitudes à ±${num(profile.erreur)} m près.`,
-      ...(profile.en_long?.points?.length && longLegend(profile.en_long) ? [longLegend(profile.en_long)] : []),
-    ].map((t) => html("p", "aide", t)));
+    legend.append(results, ...legendLines(profile, main, fine, plants, camera, factor, canopy).map((t) => html("p", "aide", t)));
     // PDF : avec la 2e page
     if (profile.en_long?.points?.length && longLegend(profile.en_long)) legend.lastElementChild.classList.add("legende-long");
     return { svg, legend, long: drawLong(profile.en_long, camera) };

@@ -197,6 +197,61 @@ const Traits = (() => {
     return found;
   }
 
+  /** Trait d'écran (px), plein : deux triangles (6 sommets x, y, couleur, 0, 0, 0) ajoutés à into. */
+  function segment(into, ax, ay, bx, by, width_, color) {
+    const length = Math.hypot(bx - ax, by - ay);
+    if (length < 1e-6) return;
+    const half = width_ / 2, ux = (bx - ax) / length * half, uy = (by - ay) / length * half, nx = -uy, ny = ux;
+    const corner = (x, y) => into.push(x, y, ...color, 0, 0, 0);
+    corner(ax - ux + nx, ay - uy + ny); corner(ax - ux - nx, ay - uy - ny); corner(bx + ux + nx, by + uy + ny);
+    corner(bx + ux + nx, by + uy + ny); corner(ax - ux - nx, ay - uy - ny); corner(bx + ux - nx, by + uy - ny);
+  }
+
+  /** Cercle d'écran de rayon r (px), en 32 traits ajoutés à into. */
+  function circle(into, x, y, r, width_, color) {
+    for (let k = 0; k < 32; k++) {
+      const a = k / 32 * 2 * Math.PI, b = (k + 1) / 32 * 2 * Math.PI;
+      segment(into, x + r * Math.cos(a), y + r * Math.sin(a), x + r * Math.cos(b), y + r * Math.sin(b), width_, color);
+    }
+  }
+
+  /** Étiquettes placées à l'écran (at : position d'écran d'un point, ou null) : les autres d'abord, puis celles des
+   * points d'arrivée écartées vers le bas, de la plus haute à la plus basse, avec un trait de renvoi blanc vers leur
+   * croix (ajouté à out). Rectangles gardés dans rects (labelRects) ; rend [[étiquette, rectangle, texture]]. */
+  function placeLabels(at, out) {
+    const placed = [], quads = [];
+    const put = (label, r) => {
+      quads.push([label, r, image(label).texture]);
+      placed.push(r);
+      rects.push(r);
+    };
+    const ends = [];
+    for (const label of labels) {
+      const s = at(label.vector);
+      if (!s) continue;
+      const { w, h } = image(label), r = box(label, s[0], s[1], w, h);
+      if (label.type === "fin") ends.push({ label, s, r });
+      else put(label, r);
+    }
+    const hit = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom + GAP && a.bottom + GAP > b.top;
+    ends.sort((a, b) => a.r.top - b.r.top);
+    for (const { label, s, r: start } of ends) {
+      let r = start, shift = 0;
+      for (let k = 0; k < 20; k++) {
+        const other = placed.find((q) => hit(r, q));
+        if (!other) break;
+        shift += other.bottom + GAP - r.top;
+        r = { ...start, top: start.top + shift, bottom: start.bottom + shift };
+      }
+      if (shift > 0) {  // renvoi : trait blanc de la croix à l'étiquette écartée
+        const x = label.place === "cote" ? s[0] + 6 : s[0], y0 = label.place === "cote" ? s[1] : s[1] + 10;
+        segment(out, x, y0, x, y0 + shift, 1.5, WHITE);
+      }
+      put(label, r);
+    }
+    return quads;
+  }
+
   /** Rectangle {left, top, right, bottom} (px) de l'étiquette de taille w × h placée à (x, y) selon sa place. */
   function box(label, x, y, w, h) {
     const d = label.type === "mesure" ? (label.place === "cote" ? 9 : 7) : 10;
@@ -233,21 +288,6 @@ const Traits = (() => {
       return s[0] < -MARGIN * 5 || s[0] > width + MARGIN * 5 || s[1] < -MARGIN * 5 || s[1] > height + MARGIN * 5 ? null : s;
     };
     const out = [], top = [];
-    // trait d'écran (px), plein
-    const segment = (into, ax, ay, bx, by, width_, color) => {
-      const length = Math.hypot(bx - ax, by - ay);
-      if (length < 1e-6) return;
-      const half = width_ / 2, ux = (bx - ax) / length * half, uy = (by - ay) / length * half, nx = -uy, ny = ux;
-      const corner = (x, y) => into.push(x, y, ...color, 0, 0, 0);
-      corner(ax - ux + nx, ay - uy + ny); corner(ax - ux - nx, ay - uy - ny); corner(bx + ux + nx, by + uy + ny);
-      corner(bx + ux + nx, by + uy + ny); corner(ax - ux - nx, ay - uy - ny); corner(bx + ux - nx, by + uy - ny);
-    };
-    const circle = (into, x, y, r, width_, color) => {
-      for (let k = 0; k < 32; k++) {
-        const a = k / 32 * 2 * Math.PI, b = (k + 1) / 32 * 2 * Math.PI;
-        segment(into, x + r * Math.cos(a), y + r * Math.sin(a), x + r * Math.cos(b), y + r * Math.sin(b), width_, color);
-      }
-    };
 
     for (const line of drawnLines) {
       const half = line.width / 2, [on, off] = line.dash || [0, 0];
@@ -290,38 +330,7 @@ const Traits = (() => {
       if (c.ring) circle(out, x, y, 10, 2, rgba(c.ring));
     }
 
-    // Étiquettes : les autres d'abord, puis celles des points d'arrivée écartées vers le bas, de la plus haute à la
-    // plus basse, avec un trait de renvoi vers leur croix
-    const placed = [], quads = [];
-    const put = (label, r) => {
-      quads.push([label, r, image(label).texture]);
-      placed.push(r);
-      rects.push(r);
-    };
-    const ends = [];
-    for (const label of labels) {
-      const s = at(label.vector);
-      if (!s) continue;
-      const { w, h } = image(label), r = box(label, s[0], s[1], w, h);
-      if (label.type === "fin") ends.push({ label, s, r });
-      else put(label, r);
-    }
-    const hit = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom + GAP && a.bottom + GAP > b.top;
-    ends.sort((a, b) => a.r.top - b.r.top);
-    for (const { label, s, r: start } of ends) {
-      let r = start, shift = 0;
-      for (let k = 0; k < 20; k++) {
-        const other = placed.find((q) => hit(r, q));
-        if (!other) break;
-        shift += other.bottom + GAP - r.top;
-        r = { ...start, top: start.top + shift, bottom: start.bottom + shift };
-      }
-      if (shift > 0) {  // renvoi : trait blanc de la croix à l'étiquette écartée
-        const x = label.place === "cote" ? s[0] + 6 : s[0], y0 = label.place === "cote" ? s[1] : s[1] + 10;
-        segment(out, x, y0, x, y0 + shift, 1.5, WHITE);
-      }
-      put(label, r);
-    }
+    const quads = placeLabels(at, out);  // étiquettes : [étiquette, rectangle, texture]
 
     // Réticule glissant, au-dessus de tout
     if (reticle) {
