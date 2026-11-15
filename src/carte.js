@@ -508,7 +508,7 @@ const Carte = (() => {
     if (!BACKGROUNDS.includes(name)) name = "plan";  // fond mémorisé inconnu
     const vector = name === "ofm" ? "ofm" : name === "plan" && mapOptions.vectorPlan ? "planv" : null;
     for (const [key, base] of Object.entries(vectorBases)) {
-      for (const id of base.ids) map.setLayoutProperty(id, "visibility", key === vector ? "visible" : "none");
+      for (const id of base.ids) map.setLayoutProperty(id, "visibility", vectorVisibility(id, key === vector));
     }
     if (vector) loadVector(map, vector, () => vectorShown === vector);
     vectorShown = vector;
@@ -532,6 +532,10 @@ const Carte = (() => {
 
   let vectorShown = null;  // fond vectoriel affiché (clé de VECTOR_BASES), ou null
   const vectorBases = {};  // clé -> { ids : couches ajoutées, loading }
+  // Bâtiments des fonds vectoriels (Plan IGN, OpenFreeMap), masqués avec le cadastre : ceux du cadastre, un peu décalés, les
+  // doubleraient
+  const BUILDING_LAYERS = ["bati_surf", "building"], buildingIds = new Set();
+  const vectorVisibility = (id, shown) => (shown && !(cadastreOn && buildingIds.has(id)) ? "visible" : "none");
   /** Ajoute (une fois) les couches d'un fond vectoriel, au-dessus des fonds en images et sous tout le reste ; shown() :
    * encore choisi à leur arrivée. */
   function loadVector(map, key, shown) {
@@ -568,13 +572,14 @@ const Carte = (() => {
         for (const layer of style.layers) {
           if (layer.type !== "background" && !sources[layer.source]) continue;
           if (PLAN_PARCELS.includes(layer["source-layer"])) continue;
-          const layout = { ...layer.layout, visibility: shown() ? "visible" : "none" };
+          const id = `${key}-${layer.id}`;
+          if (BUILDING_LAYERS.includes(layer["source-layer"])) buildingIds.add(id);
+          const layout = { ...layer.layout, visibility: vectorVisibility(id, shown()) };
           if (layout["text-size"] != null || layer.type === "symbol") layout["text-size"] = scaledSize(layout["text-size"] ?? 16, mapOptions.textScale);
           if (Array.isArray(layout["text-font"]) && def.font) layout["text-font"] = layout["text-font"].map((f) => (typeof f === "string" ? def.font(f) : f));
           if (layout["icon-image"] != null) layout["icon-image"] = prefixed(layout["icon-image"]);
           const paint = { ...layer.paint };  // motifs (cimetières, marais du Plan IGN) : images du même style
           for (const name of ["fill-pattern", "line-pattern"]) if (paint[name] != null) paint[name] = prefixed(paint[name]);
-          const id = `${key}-${layer.id}`;
           map.addLayer({ ...layer, id, ...(layer.source && { source: sources[layer.source] }), layout, paint }, "cadastre-parcelles");
           base.ids.push(id);
         }
@@ -849,6 +854,7 @@ const Carte = (() => {
     // pas whenLoaded (voir setMilestones) : « load » peut être passé alors que le style se dit « pas chargé »
     const apply = () => {
       for (const id of ["cadastre-parcelles", "cadastre", "cadastre-camera-fond", "cadastre-camera", "cadastre-vise-fond", "cadastre-vise", "cadastre-batiments", "cadastre-bornes", "cadastre-sections"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+      for (const id of buildingIds) map.setLayoutProperty(id, "visibility", vectorVisibility(id, id.startsWith(`${vectorShown}-`)));
       if (!cadastreFollow) {
         cadastreFollow = true;
         // tuiles du cadastre arrivées (zoom, déplacement) : parcelle visée recherchée de nouveau
