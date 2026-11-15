@@ -10,9 +10,8 @@ soit 8 m de largeur. Les clics sont calculés depuis des positions connues de la
 
 import math
 import unittest
-from unittest import mock
 
-from support import Stub, bearing, distance, module, point
+from support import bearing, distance, module, point
 
 measures = module("core.measures")
 widths = module("core.widths")
