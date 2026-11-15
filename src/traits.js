@@ -108,11 +108,11 @@ const Traits = (() => {
 
   /**
    * Surcouche à dessiner. list : traits [{points: [[yaw, pitch]] (radians, repère de la photo), color: "#rrggbb",
-   * width: px, dash: [trait, blanc] en px ou null, couche : ligne de la couche importée}]. marks.crosses : croix [{at: [yaw, pitch], color, ring (cercle
-   * de la croix choisie, couleur ou null), visee, calage}] ; marks.labels : étiquettes [{at, type ("mesure", "fin" :
-   * au point d'arrivée, ouverte par le nom du point, ou "nom"), place ("dessus", "cote", "dessous", "left",
-   * "right", "above", "below"), text, chip (nom du point, étiquette « fin »), provisional}]. Redessinés à l'image
-   * suivante.
+   * width: px, dash: [trait, blanc] en px ou null, couche : ligne de la couche importée}]. marks.crosses : croix [{at:
+   * [yaw, pitch], color, ring (cercle de la croix choisie, couleur ou null), visee, calage}] ; marks.labels :
+   * étiquettes [{at, type ("mesure", "fin" : au point d'arrivée, ouverte par le nom du point, ou "nom"), place
+   * ("dessus", "cote", "dessous", "left", "right", "above", "below"), text, chip (nom du point, étiquette « fin »),
+   * provisional}]. Redessinés à l'image suivante.
    */
   function set(list, marks = {}) {
     if (!psv) return;

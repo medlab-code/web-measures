@@ -87,8 +87,8 @@ const Profil = (() => {
       const y0 = Number(t.getAttribute("y"));
       // 0, puis 16 px dessous, dessus, 32 px dessous… sans sortir du graphique ; vers le haut seulement pour une étiquette
       // au-dessus de ce qu'elle nomme (data-haut : caméra, séparateur de chaussée), qui ne doit pas le masquer
-      const y = (t.hasAttribute("data-haut") ? [0, -16, -32, -48, -64] : [0, 16, -16, 32, -32, 48, -48, 64, -64]).map((d) => y0 + d).find((v) => v - 13 >= top && v <= bottom
-        && !placed.some((p) => hit(p, box(t, v)))) ?? y0;
+      const steps = t.hasAttribute("data-haut") ? [0, -16, -32, -48, -64] : [0, 16, -16, 32, -32, 48, -48, 64, -64];
+      const y = steps.map((d) => y0 + d).find((v) => v - 13 >= top && v <= bottom && !placed.some((p) => hit(p, box(t, v)))) ?? y0;
       t.setAttribute("y", y);
       placed.push(box(t, y));
     }
@@ -233,7 +233,10 @@ const Profil = (() => {
       // plus haut point des cases voisines (±0,25 m) : une case où le laser n'a touché que des branches basses ne creuse pas ;
       // puis moyenne sur ±1 m : le feuillage des arbres sans dents de scie
       const top = new Map(fine.vegetation.map(([x]) => [x, Math.max(...fine.vegetation.filter(([v]) => Math.abs(v - x) <= 0.25 + 1e-6).map(([, z]) => z))]));
-      const near = (x) => { const v = [...top].filter(([u]) => Math.abs(u - x) <= 1 + 1e-6).map(([, z]) => z); return v.reduce((a, b) => a + b, 0) / v.length; };
+      const near = (x) => {  // moyenne des sommets à 1 m près
+        const v = [...top].filter(([u]) => Math.abs(u - x) <= 1 + 1e-6).map(([, z]) => z);
+        return v.reduce((a, b) => a + b, 0) / v.length;
+      };
       for (const [x] of fine.vegetation) {
         const z = near(x);
         if (x < xmin || x > xmax) { prev = null; continue; }
@@ -246,7 +249,8 @@ const Profil = (() => {
       for (const [x, z] of trueScale ? peaks.values() : []) {
         if (z - ref <= zmax) continue;
         canopy = true;
-        svg.append(el("text", { x: Math.max(LEFT + 50, Math.min(W - RIGHT - 50, X(x))), y: TOP + 14, class: "etiquette-profil place canopee", "text-anchor": "middle" },
+        svg.append(el("text", { x: Math.max(LEFT + 50, Math.min(W - RIGHT - 50, X(x))), y: TOP + 14,
+          class: "etiquette-profil place canopee", "text-anchor": "middle" },
           `canopée +${num(z - ref, 0)} m`));
       }
     }
@@ -358,7 +362,8 @@ const Profil = (() => {
         ? main.separateurRelief === "nuage" ? "trouvé dans le nuage LiDAR\u00a0: bande non revêtue (herbe, gravillons, glissières) entre les deux chaussées"
           : main.separateurRelief === "bosse" ? "trouvé dans le relief\u00a0: bosse étroite (assise de glissières ou de muret)"
           : `trouvé dans le relief entre deux marches du terrain (${num(Math.abs(main.separateur[1] - main.separateur[0]))} m de large)`
-        : `placé d'après les largeurs BD TOPO (pas de marche du terrain trouvée${fine ? ", ni de bande non revêtue dans le nuage LiDAR" : ""})`}\u00a0; la plateforme va jusqu'au bord `
+        : `placé d'après les largeurs BD TOPO (pas de marche du terrain trouvée${
+          fine ? ", ni de bande non revêtue dans le nuage LiDAR" : ""})`}\u00a0; la plateforme va jusqu'au bord `
         + "extérieur de l'autre chaussée."] : []),
       ...(fine ? [`Analyse fine (nuage LiDAR HD, ${fine.points} points du sol)\u00a0: carrés blancs, lignes blanches lues à `
         + "l'intensité du retour laser\u00a0; tirets courts, bords de chaussée"
@@ -367,7 +372,8 @@ const Profil = (() => {
         + (fine.largeur ? ` Largeur d'enrobé\u00a0: ${num(fine.largeur.m)}\u00a0m ±\u00a0${num(fine.largeur.plus)}.` : "")] : []),
       ...((profile.eau || []).length || fine?.eau?.length ? [`Bleu\u00a0: eau${(profile.eau || []).length ? ` de la BD TOPO (${profile.eau
         .map((w) => (w.x !== undefined ? `${w.nom || (w.nature || "cours d'eau").toLowerCase()} à ${num(Math.abs(w.x))} m ${w.x < 0 ? "à gauche" : "à droite"}`
-          : `${(w.nature || "plan d'eau").toLowerCase()} de ${num(Math.min(Math.abs(w.de), Math.abs(w.a)))} à ${num(Math.max(Math.abs(w.de), Math.abs(w.a)))} m `
+          : `${(w.nature || "plan d'eau").toLowerCase()} de ${num(Math.min(Math.abs(w.de), Math.abs(w.a)))} `
+            + `à ${num(Math.max(Math.abs(w.de), Math.abs(w.a)))} m `
             + `${w.de + w.a < 0 ? "à gauche" : "à droite"} (bande bleue sur le terrain, au niveau de l'eau)`)).join(", ")})` : ""}${fine?.eau?.length
         ? `${(profile.eau || []).length ? "\u00a0; " : " "}surface de l'eau lue dans le nuage LiDAR (ligne bleue), au niveau du jour du relevé` : ""}.`] : []),
       ...(plants && fine?.herbe?.length ? ["Bande vert clair sur le terrain\u00a0: herbe au sol (surface non revêtue très claire au laser "
@@ -391,7 +397,8 @@ const Profil = (() => {
         + `Terrain ${profile.source} (IGN), altitudes à ±${num(profile.erreur)} m près.`,
       ...(profile.en_long?.points?.length && longLegend(profile.en_long) ? [longLegend(profile.en_long)] : []),
     ].map((t) => html("p", "aide", t)));
-    if (profile.en_long?.points?.length && longLegend(profile.en_long)) legend.lastElementChild.classList.add("legende-long");  // PDF : avec la 2e page
+    // PDF : avec la 2e page
+    if (profile.en_long?.points?.length && longLegend(profile.en_long)) legend.lastElementChild.classList.add("legende-long");
     return { svg, legend, long: drawLong(profile.en_long, camera) };
   }
 
@@ -529,7 +536,10 @@ const Profil = (() => {
     const decks = [];  // tabliers dessinés : les étiquettes s'en écartent
     for (const o of long.ouvrages || []) {
       const [a, b] = [Math.max(o.de, d0, Math.min(...ds)), Math.min(o.a, d1, Math.max(...ds))];
-      const at = (d) => { const k = ds.findIndex((v) => v >= d); return k <= 0 ? zs[0] : zs[k - 1] + (zs[k] - zs[k - 1]) * (d - ds[k - 1]) / (ds[k] - ds[k - 1]); };
+      const at = (d) => {  // altitude interpolée à la distance d
+        const k = ds.findIndex((v) => v >= d);
+        return k <= 0 ? zs[0] : zs[k - 1] + (zs[k] - zs[k - 1]) * (d - ds[k - 1]) / (ds[k] - ds[k - 1]);
+      };
       if (b <= a) continue;
       decks.push([X(a), Math.min(Z(at(a)), Z(at(b))) - 7, X(b), Math.max(Z(at(a)), Z(at(b))) - 1]);
       svg.append(el("line", { x1: X(a), y1: Z(at(a)) - 4, x2: X(b), y2: Z(at(b)) - 4, class: "ouvrage" }),
@@ -542,7 +552,8 @@ const Profil = (() => {
     for (const m of marks) svg.append(el("line", { x1: X(m.d), x2: X(m.d), y1: baseline(m) - 10, y2: T + ph, class: "bord" }));
     for (const m of marks) {
       // comme « bord » du profil en travers : la 1re ligne en étiquette, la suite en graduation
-      const x = X(m.d) + (m.right ? 4 : -4), label = el("text", { x, y: baseline(m), class: "etiquette-profil place", "text-anchor": m.right ? "start" : "end" });
+      const x = X(m.d) + (m.right ? 4 : -4);
+      const label = el("text", { x, y: baseline(m), class: "etiquette-profil place", "text-anchor": m.right ? "start" : "end" });
       m.lines.forEach((t, i) => label.append(el("tspan", { x, ...(i ? { dy: LINE, class: "graduation" } : {}) }, t)));
       svg.append(label);
     }
@@ -551,7 +562,8 @@ const Profil = (() => {
         + (long.max ? `, jusqu'à ${num(Math.abs(long.max[0]))} % sur 10 m` : "")),
       el("text", { x: L + pw, y: LH - 4, class: "graduation", "text-anchor": "end" }, "sens de la photo →"),
       el("text", { x: L, y: LH - 4, class: "graduation" },
-        `hauteurs exagérées, 0 = le sol sous la caméra${long.suivi ? ` · le long de ${long.suivi === "axe BD TOPO" ? "l'axe BD TOPO de la route" : `la ${long.suivi}`}` : ""}`));
+        `hauteurs exagérées, 0 = le sol sous la caméra${long.suivi
+          ? ` · le long de ${long.suivi === "axe BD TOPO" ? "l'axe BD TOPO de la route" : `la ${long.suivi}`}` : ""}`));
     return svg;
   }
 

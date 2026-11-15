@@ -20,11 +20,16 @@ const Nuage = (() => {
   const VERGE = 1.0;  // m : surface non revêtue (herbe, gravillons) d'au moins cette largeur : l'enrobé s'arrête là
   const GRASS = 3.5;  // herbe : bande non revêtue (VERGE m au moins) en moyenne GRASS fois plus claire que l'enrobé (le laser,
   // en proche infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois)
-  const LINE_CONTRAST = 2;  // ligne blanche : au moins LINE_CONTRAST fois ses cases voisines (D903bis 1640bc3f : surface du séparateur à 3,0 et 2,9 fois l'enrobé, pas une ligne)
-  const LINE_SECTIONS = 2, LINE_MATCH = 0.5;  // ligne à tirets vue ailleurs qu'au travers de la photo : sur 2 travers au moins, à 0,5 m près
+  // Ligne blanche : au moins LINE_CONTRAST fois ses cases voisines (D903bis 1640bc3f : surface du séparateur à 3,0 et
+  // 2,9 fois l'enrobé, pas une ligne)
+  const LINE_CONTRAST = 2;
+  // ligne à tirets vue ailleurs qu'au travers de la photo : sur 2 travers au moins, à 0,5 m près
+  const LINE_SECTIONS = 2, LINE_MATCH = 0.5;
   const AXIS = 1.2;  // m : ligne blanche aussi près de l'axe d'une chaussée : ligne entre voies, pas de rive
-  const PAVED_RISE = 2.2;  // abords de l'enrobé : VERGE m au moins, chaque case à PAVED_RISE fois l'enrobé ou plus (essai du 05/11/2026, 13 photos)
-  // m : l'enrobé peut finir loin du bord du calcul (bande d'arrêt d'urgence, rupture de pente sur la chaussée : D70 9b97c187, bord à 2 m, enrobé à 5,2 m)
+  // abords de l'enrobé : VERGE m au moins, chaque case à PAVED_RISE fois l'enrobé ou plus (essai du 05/11/2026, 13 photos)
+  const PAVED_RISE = 2.2;
+  // m : l'enrobé peut finir loin du bord du calcul (bande d'arrêt d'urgence, rupture de pente sur la chaussée : D70
+  // 9b97c187, bord à 2 m, enrobé à 5,2 m)
   const PAVED_REACH = 12, PAVED_BEYOND = 3;
   const PAVED_STEPS = [-4, -2, 0, 2, 4];  // m le long de la route : travers de ±STRIP dont le bord d'enrobé est la médiane
   const SEPARATOR = [0.5, 12];  // m : largeurs possibles du séparateur, et son milieu à 2 m au plus de celui du calcul
@@ -247,7 +252,8 @@ const Nuage = (() => {
   }
 
   /** Analyse fine du profil (voir App._compute_edges : profile.repere, profils, bords, séparateur) ; progress(texte,
-   * part lue de 0 à 1, ou absente tant que le nombre de blocs n'est pas connu) pendant la lecture. Résultat en m signés comme le graphique (négatif à gauche). */
+   * part lue de 0 à 1, ou absente tant que le nombre de blocs n'est pas connu) pendant la lecture. Résultat en m signés
+   * comme le graphique (négatif à gauche). */
   async function analyse(profile, progress = () => {}) {
     const t0 = Date.now(), r0 = count.requests, b0 = count.bytes;
     const [[lon, lat], right] = profile.repere;
@@ -395,10 +401,10 @@ const Nuage = (() => {
   }
 
   /** Tablier le plus proche de o [x, y] et sa hauteur de chute, d'après points [x, y, z, intensité, classe] (Lambert 93) :
-   * cases du tablier reliées à DECK_JOIN m près (altitude : médiane des points classés pont), sans leur rangée de bord (parapets, flancs) ; dessous :
-   * sol (deuxième point le plus bas de la case : pas un point aberrant) ou eau (médiane) à DECK_REACH m au plus du tablier ;
-   * hauteur : la plus grande différence sur tout le tablier, qui suit ainsi un pont bombé. { height, below, keys }, sans height
-   * si rien n'est lu dessous ; null sans tablier près de o. */
+   * cases du tablier reliées à DECK_JOIN m près (altitude : médiane des points classés pont), sans leur rangée de bord
+   * (parapets, flancs) ; dessous : sol (deuxième point le plus bas de la case : pas un point aberrant) ou eau (médiane)
+   * à DECK_REACH m au plus du tablier ; hauteur : la plus grande différence sur tout le tablier, qui suit ainsi un pont
+   * bombé. { height, below, keys }, sans height si rien n'est lu dessous ; null sans tablier près de o. */
   function bridgeHeight(points, o) {
     const key = (i, j) => `${i},${j}`, cell = (v) => Math.floor(v / DECK_CELL);
     const decks = new Map(), soils = new Map(), waters = new Map();

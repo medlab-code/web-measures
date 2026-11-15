@@ -68,7 +68,8 @@
     const name = serviceName(input?.url ?? String(input));
     if (!name) return nativeFetch(input, init);
     const timer = setTimeout(() => markService(name, true), SILENT_AFTER);
-    const patient = typeof input === "string" && (init?.method || "GET") === "GET" && init?.cache !== "no-store"  // no-store : vérification d'accès, réponse immédiate
+    // no-store : vérification d'accès, réponse immédiate
+    const patient = typeof input === "string" && (init?.method || "GET") === "GET" && init?.cache !== "no-store"
       && (name.startsWith("Panoramax") || /^(IGN|Géoplateforme)/.test(name));
     return (patient ? patientFetch(input, init) : nativeFetch(input, init)).then((response) => {
       clearTimeout(timer);
@@ -278,8 +279,9 @@
   });
   trueScale.checked = true;
   const drawProfile = () => {
-    const dialog = $("#fenetre-profil"), { svg, legend, long } = Profil.draw(edgeProfile.profile, trueScale.checked, nuage.get(nuageKey(edgeProfile.profile)), plants.checked,
-      Number($("#camera").value) || 1.9);  // hauteur de caméra des réglages
+    const dialog = $("#fenetre-profil");
+    const { svg, legend, long } = Profil.draw(edgeProfile.profile, trueScale.checked, nuage.get(nuageKey(edgeProfile.profile)),
+      plants.checked, Number($("#camera").value) || 1.9);  // hauteur de caméra des réglages
     dialog.querySelector(".graphique").replaceChildren(svg, ...(long ? [long] : []));  // profil en long dessous
     $("#profil-pdf-long").disabled = !long;  // pas de 2e page sans profil en long
     dialog.querySelector(".legende").replaceChildren(legend);
@@ -979,7 +981,8 @@
       showInCorner(dialog);
     }
     const state = JSON.parse(app.state());
-    $("#effacer").disabled = !state.can_undo && !Dessus.hasStart();  // grisés quand ils n'auraient pas d'effet ; départ d'une longueur sur la carte
+    // grisés quand ils n'auraient pas d'effet ; départ d'une longueur sur la carte
+    $("#effacer").disabled = !state.can_undo && !Dessus.hasStart();
     $("#refaire").disabled = !state.can_redo;
     $("#tout-effacer").disabled = !state.can_clear;
     const computed = $("#fiche .precision-calculee");
@@ -1172,7 +1175,8 @@
   }
 
   // Vue du dessus (src/dessus.js) : photo reprojetée au sol sur la mini-carte
-  let birdeyeAsked = null, birdeyeNearAsked = null, birdeyeNear = null;  // photo dont l'inclinaison, les voisines ont été demandées ; fiches de ses voisines (null : en lecture)
+  // photo dont l'inclinaison, les voisines ont été demandées ; fiches de ses voisines (null : en lecture)
+  let birdeyeAsked = null, birdeyeNearAsked = null, birdeyeNear = null;
   /** Fiches des photos voisines : { near (précédente, suivante), far (avant la précédente, après la suivante : raccords pour
    * le tangage seulement, voir Dessus.learnPitch) }. */
   async function birdeyeNeighbours(feature) {
@@ -1192,8 +1196,10 @@
     const on = shown && $("#dessus").checked;
     if (photo) Carte.showView(map, photo.geometry.coordinates, coneHeading(), viewFov());  // cône retiré ou remis
     const inMap = (selector) => mapBox.querySelector(selector);  // réglages sur la carte, peut-être détachée
-    inMap("#dessus-fine").disabled = inMap("#dessus-voisines").disabled = inMap("#dessus-position").disabled = inMap("#dessus-bords").disabled = inMap("#dessus-sans-cache").disabled = !on;
-    if (!on) inMap("#dessus-verticales").disabled = inMap("#dessus-devers").disabled = inMap("#dessus-tangage").disabled = inMap("#dessus-tangage-force").disabled = true;  // allumée : selon la vue (Dessus)
+    for (const id of ["#dessus-fine", "#dessus-voisines", "#dessus-position", "#dessus-bords", "#dessus-sans-cache"]) inMap(id).disabled = !on;
+    if (!on) {  // allumée : selon la vue (Dessus)
+      for (const id of ["#dessus-verticales", "#dessus-devers", "#dessus-tangage", "#dessus-tangage-force"]) inMap(id).disabled = true;
+    }
     inMap("#dessus-reglages").hidden = !on;  // vue du dessus allumée seulement
     showMapMeasureButton();
     if (on && birdeyeAsked !== photo.id) {
@@ -1236,7 +1242,8 @@
     if (on === swapped || (on && mapWindow)) return;
     swapped = on;
     swapButton.setAttribute("aria-pressed", String(on));
-    measureButton.hidden = birdeyeButton.hidden = captureButton.hidden = exportButton.hidden = !on && !mapWindow;  // carte en grand ou détachée : mesure et Bird Eye d'un clic
+    // carte en grand ou détachée : mesure et Bird Eye d'un clic
+    measureButton.hidden = birdeyeButton.hidden = captureButton.hidden = exportButton.hidden = !on && !mapWindow;
     swapButton.title = on ? "Remettre la carte et la visionneuse à leur place" : "Échanger la carte et la visionneuse (place et taille)";
     if (on) {
       setColumnFolded(false);
@@ -1805,7 +1812,8 @@
     $("#carte-detachee").hidden = !detached;
     grip.hidden = detached;
     swapButton.disabled = detached;  // carte déjà à part : rien à échanger
-    measureButton.hidden = birdeyeButton.hidden = captureButton.hidden = exportButton.hidden = !detached && !swapped;  // détachée : comme en grand
+    // détachée : comme en grand
+    measureButton.hidden = birdeyeButton.hidden = captureButton.hidden = exportButton.hidden = !detached && !swapped;
     detachButton.textContent = "⧉";
     detachButton.title = detached ? "Remettre la carte dans la page"
       : "Détacher la carte dans une fenêtre à part (second écran)";
@@ -2559,8 +2567,8 @@
   /** Couche en place (lue d'un fichier, ou gardée) : calcul, réglages, carte ; cadrée dessus si fit. */
   // mapLabel : colonne de l'étiquette de la mini-carte ; null : « id » (sans tenir compte de la casse), sinon la première
   function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}, masks = {}, mapLabel = null, label2 = "") {
-    overlay = { name, ...read, couleurs: colors, masques: masks };
-    if (!overlay.filtre?.colonne || !read.columns.includes(overlay.filtre.colonne)) overlay.filtre = null;  // gardé (restoreOverlay)  // masques : { colonne: [clés de légende masquées] }
+    overlay = { name, ...read, couleurs: colors, masques: masks };  // masques : { colonne: [clés de légende masquées] }
+    if (!overlay.filtre?.colonne || !read.columns.includes(overlay.filtre.colonne)) overlay.filtre = null;  // gardé (restoreOverlay)
     moving = null;  // couleurs choisies : { colonne: { clé de légende: couleur } }
     objectCurrent = null;
     $("#couche-visible").checked = visible;
@@ -2764,7 +2772,8 @@
       setStatus(`Couche non importée : ${error.message}`, "echec");
     }
   }
-  for (const id of ["#couche-suffixe", "#couche-suffixe2"]) $(id).addEventListener("input", () => {  // à chaque lettre : étiquettes à jour en tapant
+  // à chaque lettre : étiquettes à jour en tapant
+  for (const id of ["#couche-suffixe", "#couche-suffixe2"]) $(id).addEventListener("input", () => {
     showOverlayStyle();
     saveOverlay();
   });
@@ -3237,10 +3246,11 @@
   // planète, « poiZone » : zone de
   // l'effet du point d'intérêt ; petite planète et zone : en deux clics)
   let travelPick = null;
-  let planetDraft = null;
-  let chainedPick = false;  // arrivée demandée d'elle-même après le départ : son 📍 la garde au lieu de l'annuler  // premier clic du tronçon de petite planète en cours de tracé (LngLat ou null)
+  let planetDraft = null;  // premier clic du tronçon de petite planète en cours de tracé (LngLat ou null)
+  let chainedPick = false;  // arrivée demandée d'elle-même après le départ : son 📍 la garde au lieu de l'annuler
   // Endroits posés pour la vidéo, par sorte (« roll ») : [{ lonlat, marker, end }] (repère sur la carte ; un clic dessus
-  // le retire ; end : fin du tronçon de la petite planète, lonlat en étant le début) ; css : classe du repère, label : nom, check : interrupteur de l'option, note : rappel à la pose
+  // le retire ; end : fin du tronçon de la petite planète, lonlat en étant le début) ; css : classe du repère,
+  // label : nom, check : interrupteur de l'option, note : rappel à la pose
   const placed = {
     roll: { points: [], css: "tonneau", label: ["tonneau", "tonneaux"], check: "#video-tonneau",
       note: "sens alterné dans l'ordre du parcours, à moins de 30 m de lui" },
@@ -3262,7 +3272,8 @@
   // cours ; videoReady : départ et arrivée connus (onglet « Vidéo »)
   let videoPlan = null, videoPreparing = false, videoRun = null, videoReady = false;
   let tracing = false;  // « Tracer sur la carte » : clics enchaînés (départ, arrivée, étapes) jusqu'à Échap
-  let planTimer = null, planTimerKey = "", planError = null;  // recherche des photos à venir ; planError : { key, text } de la dernière en échec
+  // recherche des photos à venir ; planError : { key, text } de la dernière en échec
+  let planTimer = null, planTimerKey = "", planError = null;
   let bandeauKey = "", seamMarkers = [];  // bandeau du parcours (showVideoPlan) : son état, repères des raccords
   const VIDEO_PLAN_DELAY = 800;  // ms : recherche des photos après le dernier changement du parcours
   const VIDEO_STALL = 30, VIDEO_GIVE_UP = 300;  // s sans image calculée : avertissement, puis arrêt de la vidéo
@@ -3307,8 +3318,9 @@
       button.dataset.encodeur = encoder || "";
       button.disabled = Boolean(videoRun) || draft || !encoder;
       button.setAttribute("aria-pressed", String($("#video-codec").value === format && $("#video-definition").value === height));
-      button.title = `${FORMAT_NAMES[format]}, ${height}p : ${!videoFormats ? "test de l'encodeur en cours"
-        : !encoder ? "pas disponible sur ce poste" : encoder === "materiel" ? "encodeur matériel" : "encodeur logiciel, plus lent"}${draft ? " (brouillon : toujours 960 × 540)" : ""}`;
+      const state = !videoFormats ? "test de l'encodeur en cours" : !encoder ? "pas disponible sur ce poste"
+        : encoder === "materiel" ? "encodeur matériel" : "encodeur logiciel, plus lent";
+      button.title = `${FORMAT_NAMES[format]}, ${height}p : ${state}${draft ? " (brouillon : toujours 960 × 540)" : ""}`;
     }
   }
   new IntersectionObserver(([entry], observer) => {
@@ -4151,7 +4163,8 @@
   // Parcours gardés (onglet « Parcours ») : départ, arrivée et réglages de la vidéo (options, endroits des tonneaux et
   // des planètes, zone et cible du point d'intérêt, filtre de date), rouverts d'un clic ; export de la liste ou d'un
   // seul (pour un collègue), import ajouté à la liste
-  const routeSettings = () => [$("#video-mode"), $("#video-vitesse"), $("#video-photos"), $("#video-codec"), $("#video-definition"), ...travelPane.querySelectorAll(".options input")];
+  const routeSettings = () => [$("#video-mode"), $("#video-vitesse"), $("#video-photos"), $("#video-codec"), $("#video-definition"),
+    ...travelPane.querySelectorAll(".options input")];
   // Parcours gardé rouvert (ou venant d'être gardé) : son identifiant, et l'état de ses réglages à l'ouverture (routeSnapshot) ;
   // modifié : « ☆ Enregistrer… » propose de le remplacer dans la liste ou d'en créer un nouveau
   let openedRoute = null, openedSnapshot = "";
@@ -4318,14 +4331,19 @@
       button.setAttribute("aria-pressed", String(button.dataset.mode === name));
       button.disabled = Boolean(videoRun) || !videoPlan;
     }
-    $("#video-mode-aide").textContent = `${VIDEO_MODES[name]?.help || ""}${modeTouched(name) ? " Réglages modifiés : cliquer sur le mode rétablit les siens." : ""}`;
+    const touched = modeTouched(name) ? " Réglages modifiés : cliquer sur le mode rétablit les siens." : "";
+    $("#video-mode-aide").textContent = `${VIDEO_MODES[name]?.help || ""}${touched}`;
   };
   /** Option de la vidéo active ? Brouillon : seuls le titre, le compteur de vitesse et les variations de vitesse automatiques
    * restent (DRAFT_OFF). */
   const videoOption = (id) => $(id).checked && !$("#video-brouillon").checked;
-  const DRAFT_OFF = ["#video-compteur", "#video-acceleration", "#video-vmax-arp", "#video-stabilisation", "#video-flou", "#video-expo", "#video-regard", "#regard-vitesse",
-    "#video-interet", "#interet-cible", "#interet-vitesse", "#interet-zoom", "#interet-zoom-distance", "#interet-tonneau", "#video-tonneau", "#tonneau-duree",
-    "#video-tour", "#tour-duree", "#tour-arret", "#video-planete", "#planete-tout", "#planete-transition", "#planete-tonneau", "#planete-rotation", "#arret-duree", "#video-arret"];
+  const DRAFT_OFF = [
+    "#video-compteur", "#video-acceleration", "#video-vmax-arp", "#video-stabilisation", "#video-flou", "#video-expo",
+    "#video-regard", "#regard-vitesse", "#video-interet", "#interet-cible", "#interet-vitesse", "#interet-zoom",
+    "#interet-zoom-distance", "#interet-tonneau", "#video-tonneau", "#tonneau-duree", "#video-tour", "#tour-duree",
+    "#tour-arret", "#video-planete", "#planete-tout", "#planete-transition", "#planete-tonneau", "#planete-rotation",
+    "#arret-duree", "#video-arret"
+  ];
   /** Réglages du mode Présentation pour Video (vitesses en m/s), ou null dans un autre mode. */
   function presOptions() {
     if ($("#video-mode").value === "revue") return null;
@@ -4358,7 +4376,9 @@
       + "(repères orange) : clic sur un repère pour le retirer, 📍 pour en ajouter.");
   }
   // Réglettes du mode Présentation : valeur affichée à côté ; elles changent la durée de la vidéo
-  for (const [id, unit] of [["pres-vmax", "km/h"], ["pres-virage", "°/s"], ["pres-vmin", "km/h"], ["pres-transition", "s"], ["arret-duree", "s"], ["ralenti-vitesse", "km/h"]]) {
+  const SLIDER_UNITS = [["pres-vmax", "km/h"], ["pres-virage", "°/s"], ["pres-vmin", "km/h"], ["pres-transition", "s"],
+    ["arret-duree", "s"], ["ralenti-vitesse", "km/h"]];
+  for (const [id, unit] of SLIDER_UNITS) {
     $(`#${id}`).addEventListener("input", () => {
       $(`#${id.replace("-duree", "")}-valeur`).textContent = `${String($(`#${id}`).value).replace(".", ",")} ${unit}`;
       updatePlayer();
@@ -4695,7 +4715,8 @@
         box.classList.add("alerte");
         const list = document.createElement("ul");
         for (const seam of seams) {
-          const see = Object.assign(document.createElement("button"), { type: "button", textContent: "Voir", title: "Centrer la carte sur ce changement de séquence" });
+          const see = Object.assign(document.createElement("button"), { type: "button", textContent: "Voir",
+            title: "Centrer la carte sur ce changement de séquence" });
           see.addEventListener("click", () => map.easeTo({ center: seam.at, zoom: Math.max(map.getZoom(), 15) }));
           const where = seam.pr ? `PR ${seam.pr.n} ${seam.pr.m < 0 ? "-" : "+"} ${Math.abs(seam.pr.m)}` : "Hors PR";
           const li = document.createElement("li");
@@ -4781,7 +4802,8 @@
         blur: videoOption("#video-flou"), draft: $("#video-brouillon").checked, stabilize: videoOption("#video-stabilisation"),
         format: $("#video-codec").value, height: Number($("#video-definition").value), exposure: videoOption("#video-expo"),
         ramp: !presOptions() && $("#video-rampe").checked, presentation: presOptions(),
-        counter: videoOption("#video-compteur"), speedometer: $("#video-compteur-vitesse").checked, lateral: videoOption("#video-acceleration"), arpSpeed: videoOption("#video-vmax-arp"),
+        counter: videoOption("#video-compteur"), speedometer: $("#video-compteur-vitesse").checked,
+        lateral: videoOption("#video-acceleration"), arpSpeed: videoOption("#video-vmax-arp"),
         junctions: videoOption("#video-regard") ? videoPlan.junctions || [] : [],
         rolls: videoOption("#video-tonneau") ? placed.roll.points.map((p) => p.lonlat) : [], rollTime: Number($("#tonneau-duree").value),
         planets: videoOption("#video-planete") ? placed.planet.points.map(placeOf) : [],
@@ -4802,7 +4824,8 @@
       const made = Video.times, format = { avc: "H.264", hevc: "H.265", vp9: "VP9" }[made.codec];
       const text = `Vidéo enregistrée dans « ${save.fileName} » : ${made.width} × ${made.height}, ${format}, ${(size / 1e6).toFixed(1)} Mo, `
         + `${Math.round((Date.now() - t0) / 1000)} s de calcul.`
-        + (!$("#video-brouillon").checked && format !== FORMAT_NAMES[$("#video-codec").value] ? ` ${FORMAT_NAMES[$("#video-codec").value]} refusé par l'encodeur du poste.` : "")
+        + (!$("#video-brouillon").checked && format !== FORMAT_NAMES[$("#video-codec").value]
+          ? ` ${FORMAT_NAMES[$("#video-codec").value]} refusé par l'encodeur du poste.` : "")
         + (away.length ? ` Repères ignorés, à plus de 30 m du parcours : ${away.join(", ")}.` : "");
       setStatus(text);
       notice(text);
@@ -4950,7 +4973,8 @@
       if (n >= xs.length || !videoPlan) return stopPreview();
       const at = path.at(xs[n]);
       marker.setLngLat(at);
-      label.textContent = `${Math.round(frameKmh(xs, n))} km/h · ${Math.floor(n / Video.FPS / 60)} min ${String(Math.floor(n / Video.FPS) % 60).padStart(2, "0")} s`;
+      const seconds = Math.floor(n / Video.FPS);
+      label.textContent = `${Math.round(frameKmh(xs, n))} km/h · ${Math.floor(seconds / 60)} min ${String(seconds % 60).padStart(2, "0")} s`;
       if (!map.getBounds().contains(at)) map.panTo(at);
       preview.raf = requestAnimationFrame(step);
     };
@@ -5019,10 +5043,13 @@
     $("#parcours-garder").textContent = !openedRoute ? "☆ Garder" : changed ? "☆ Enregistrer…" : "☆ Gardé";
     $("#parcours-raz").disabled = Boolean(videoRun) || routeIsBlank();
     showPoiZone();  // portion du parcours concernée : suit la préparation, la cible et la zone
-    for (const id of ["#video-vitesse", "#video-photos", "#video-flou", "#video-brouillon", "#video-stabilisation", "#video-expo", "#video-rampe", "#video-titre",
-      "#video-compteur", "#video-compteur-vitesse", "#video-acceleration", "#video-vmax-arp", "#video-regard", "#video-tonneau", "#tonneau-duree", "#regard-vitesse",
-      "#video-interet", "#interet-vitesse", "#interet-zoom", "#interet-zoom-distance", "#interet-tonneau",
-      "#video-planete", "#planete-tout", "#planete-transition", "#planete-rotation", "#video-tour", "#tour-duree", "#tour-arret"]) {
+    for (const id of [
+      "#video-vitesse", "#video-photos", "#video-flou", "#video-brouillon", "#video-stabilisation", "#video-expo",
+      "#video-rampe", "#video-titre", "#video-compteur", "#video-compteur-vitesse", "#video-acceleration",
+      "#video-vmax-arp", "#video-regard", "#video-tonneau", "#tonneau-duree", "#regard-vitesse", "#video-interet",
+      "#interet-vitesse", "#interet-zoom", "#interet-zoom-distance", "#interet-tonneau", "#video-planete",
+      "#planete-tout", "#planete-transition", "#planete-rotation", "#video-tour", "#tour-duree", "#tour-arret"
+    ]) {
       $(id).disabled = Boolean(videoRun);
     }
     updateFormats();
@@ -5196,15 +5223,19 @@
       : mode === "height" && aiming ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
       : mode === "height" && newMeasure ? `Hauteur faite : cliquez une de ses croix pour l'ajuster ; autre hauteur : « Nouvelle mesure depuis ${newMeasure} »`
       : mode === "height" ? "Hauteur, étape 2 : cliquez le sommet (le pied est le point visé) ; autre photo : par la carte"
-      : mode === "road" && edgeBAiming ? "Largeur, bord opposé : le clic de la mesure est la 1re visée ; photo suivante, même bord (réticule calé sur le trait vert, Maj : visée libre), puis « Valider le point triangulé »"
-      : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), de préférence un repère net (fin de tiret, joint, regard) ; réticule calé sur le trait vert, Maj : visée libre ; puis « Valider le point triangulé »"
+      : mode === "road" && edgeBAiming ? "Largeur, bord opposé : le clic de la mesure est la 1re visée ; photo suivante, même bord "
+        + "(réticule calé sur le trait vert, Maj : visée libre), puis « Valider le point triangulé »"
+      : mode === "road" && aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), de préférence un "
+        + "repère net (fin de tiret, joint, regard) ; réticule calé sur le trait vert, Maj : visée libre ; puis « Valider le point triangulé »"
       : mode === "road" && newMeasure ? `Largeur faite : cliquez une de ses croix pour l'ajuster ; autre largeur : « Nouvelle mesure depuis ${newMeasure} »`
       : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé ; autre photo, prise avant ou après : par la carte"
-      : mode === "carte" ? `Longueur sur la carte : cliquez ${Dessus.hasStart() ? "l'arrivée" : "le départ"} sur la vue Bird Eye, de préférence en face de la caméra ; Échap : retirer le départ`
+      : mode === "carte" ? `Longueur sur la carte : cliquez ${Dessus.hasStart() ? "l'arrivée" : "le départ"} sur la vue Bird Eye, `
+        + "de préférence en face de la caméra ; Échap : retirer le départ"
       : mode === "tilt" ? "Calage de l'inclinaison : pied puis sommet de deux objets verticaux, à 90° l'un de l'autre"
       : "Mode mesure en cours : désélectionner pour naviguer";
     // Nom de la mesure et étape déjà dans l'en-tête de la carte d'étape (« Hauteur, étape 1 : »…) : retirés
-    const tip = $("#mode-mesure").textContent.replace(/^(?:Hauteur|Largeur|Mesure libre|Relevé d'objets|Longueur sur la carte|Calage de l'inclinaison)[^:]*: /, "");
+    const MODE_NAMES = /^(?:Hauteur|Largeur|Mesure libre|Relevé d'objets|Longueur sur la carte|Calage de l'inclinaison)[^:]*: /;
+    const tip = $("#mode-mesure").textContent.replace(MODE_NAMES, "");
     $("#mode-mesure").textContent = tip[0].toUpperCase() + tip.slice(1);
     showModeOptions();
     const box = psv?.container;
@@ -5365,7 +5396,8 @@
         }
         if (p._etiquette) {  // rang : 0 pour la plus proche de la caméra (marques triées par distance)
           add({ id: `${MARK}couche-${n++}`, position: at, anchor: "center center", zIndex: OVERLAY_LABEL_Z,  // au-dessus des pastilles
-            html: `<div class="ancre"><div class="etiquette couche dessus${chosen}" data-objet="${o.id}" data-rang="${rank++}" style="color:${Couche.clair(color)}">${escapeHtml(p._etiquette)}</div></div>` });
+            html: `<div class="ancre"><div class="etiquette couche dessus${chosen}" data-objet="${o.id}" data-rang="${rank++}" `
+              + `style="color:${Couche.clair(color)}">${escapeHtml(p._etiquette)}</div></div>` });
         }
       }
     }
@@ -5795,7 +5827,8 @@
    * tel quel et masqué (seuls les nouveaux champs se définissent). */
   function fieldRow(field = { nom: "", type: "texte", valeurs: [] }, fixed = false) {
     const li = Object.assign(document.createElement("li"), { hidden: fixed }), row = document.createElement("div");
-    const name = Object.assign(document.createElement("input"), { type: "text", value: field.nom, placeholder: "Nom du champ (ex. distance_bord_m)", className: "nom" });
+    const name = Object.assign(document.createElement("input"), { type: "text", value: field.nom, className: "nom",
+      placeholder: "Nom du champ (ex. distance_bord_m)" });
     const type = Object.assign(document.createElement("select"), { className: "type" });
     type.append(...Object.entries(RELEVE_TYPES).map(([value, text]) => new Option(text, value, false, value === field.type)));
     const values = Object.assign(document.createElement("input"), { type: "text", value: (field.valeurs || []).join(" ; "),
@@ -6070,8 +6103,9 @@
     try { previous = JSON.parse(store.get("resultats") || "null"); } catch { /* illisible : aucun */ }
     store.set("resultats", "");
     store.set("resultats-precedents", "");  // ancienne clé (versions du 24/10/2026)
-    if (previous && previous.n && !previous.exported) showPrevious(previous, (when) => `de la session du ${
-      when.toLocaleDateString("fr-FR")} à ${when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}, non exporté${previous.n > 1 ? "s" : ""}`);
+    const session = (when) => `de la session du ${when.toLocaleDateString("fr-FR")} à `
+      + `${when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}, non exporté${previous.n > 1 ? "s" : ""}`;
+    if (previous && previous.n && !previous.exported) showPrevious(previous, session);
   }
   /** Résultats en lecture seule ({ when, n, csv, geojson }) : liste (tirée de l'export GeoJSON, comme en mesure libre
    * où les points et distances sont hors de la liste), dessin gris sur la carte, exports ; origin(date) : leur origine. */
@@ -6149,7 +6183,8 @@
           store.set("releve-champs", JSON.stringify(d.releve.champs || []));
           refresh(app.load_releve(JSON.stringify(d.releve.objets)));
         } },
-      calibrationCount(d.calage) && { key: "calage", checked: true, text: `Calage (${n(calibrationCount(d.calage), "photo ou séquence", "photos ou séquences")})`,
+      calibrationCount(d.calage) && { key: "calage", checked: true,
+        text: `Calage (${n(calibrationCount(d.calage), "photo ou séquence", "photos ou séquences")})`,
         help: "complétera le vôtre", apply: () => importCalibration(JSON.stringify(d.calage)) },
       d.parcours?.length && { key: "parcours", checked: true, text: n(d.parcours.length, "parcours", "parcours"),
         help: "ajoutés aux vôtres", apply: () => importRoutes({ parcours: d.parcours }) },
@@ -6164,7 +6199,8 @@
     if (!parts.length) return notice(`Dossier « ${name} » vide : rien à reprendre.`);
     const dialog = $("#importer-dossier");
     const when = new Date(d.date);
-    dialog.querySelector("p").textContent = `« ${name} »${Number.isNaN(when.getTime()) ? "" : `, du ${when.toLocaleDateString("fr-FR")}`}. Parties à reprendre :`;
+    const dated = Number.isNaN(when.getTime()) ? "" : `, du ${when.toLocaleDateString("fr-FR")}`;
+    dialog.querySelector("p").textContent = `« ${name} »${dated}. Parties à reprendre :`;
     dialog.querySelector("ul").replaceChildren(...parts.map((part) => {
       const li = document.createElement("li"), label = document.createElement("label");
       const box = Object.assign(document.createElement("input"), { type: "checkbox", checked: part.checked, value: part.key });
@@ -6662,7 +6698,8 @@ body { margin: 0; height: 100vh; display: flex; flex-direction: column; align-it
 h1 { margin: 0; font-size: 28px; } #etape { font-size: 17px; color: #444; min-height: 1.4em; }
 p.aide { margin: 0; font-size: 14px; color: #555; }
 @media (prefers-reduced-motion: reduce) { .roue { animation-duration: 3s; } }
-</style></head><body><div class="cercle"><div class="roue"></div><div id="pourcent" role="progressbar" aria-label="Préparation en cours" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">0 %</div></div>
+</style></head><body><div class="cercle"><div class="roue"></div>
+<div id="pourcent" role="progressbar" aria-label="Préparation en cours" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">0 %</div></div>
 <h1>Préparation de la fiche…</h1><div id="etape" aria-live="polite">Ouverture de la photo de la mesure</div>
 <p class="aide">Quelques secondes : la photo est cadrée et capturée, puis la boîte d'impression s'ouvre.</p></body></html>`);
     win.document.close();
@@ -6807,7 +6844,8 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     }
     const mapImage = await mapSnapshot(data.bounds, !auto);  // vue actuelle : la carte telle que recadrée
     step("Mise en page", 95);
-    if (photo) data.place = (await Lieu.describe(...photo.geometry.coordinates.slice(0, 2), photo).catch(() => ({}))).parts;  // déjà lu : sans requête
+    // déjà lu : sans requête
+    if (photo) data.place = (await Lieu.describe(...photo.geometry.coordinates.slice(0, 2), photo).catch(() => ({}))).parts;
     // Sur un pont : son nom (sans la route, déjà écrite) et ce qu'il franchit, sans la hauteur de chute
     const onBridge = JSON.parse(app.fall_json());
     const [bridge, ...more] = (onBridge?.edges ? "" : onBridge?.text || "").split("\n");
@@ -6873,7 +6911,8 @@ h1 { margin: 0; font-size: 26px; letter-spacing: -0.3px; } .sous-titre { font-si
 .lieu { font-size: 13px; } .lieu .ou { font-size: 16px; margin-bottom: 3px; } .lieu span { color: #444; }
 figure { margin: 0; display: flex; flex-direction: column; gap: 5px; }
 figure img { display: block; width: 100%; border-radius: 4px; } figcaption { font-size: 12px; color: #555; text-align: center; }
-.bas { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) ${FICHE_MAP.width}px; gap: 24px; align-items: center; }  /* jusqu'au pied : mini-carte centrée dans cette hauteur */
+/* jusqu'au pied : mini-carte centrée dans cette hauteur */
+.bas { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) ${FICHE_MAP.width}px; gap: 24px; align-items: center; }
 .textes { align-self: start; display: flex; flex-direction: column; gap: 16px; min-width: 0; }  /* tableau sous la photo */
 h2 { margin: 0 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.6px; color: #e65100; }
 table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
@@ -6882,7 +6921,8 @@ td { padding: 6px; border-bottom: 1px solid #c8c8c8; vertical-align: top; } tr.p
 tr.mesure td { font-weight: 700; }
 td.pt { font-weight: 700; white-space: nowrap; } .num { text-align: right; white-space: nowrap; } td.com { color: #444; }
 ul { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.5; }
-.carte-vide { height: ${FICHE_MAP.height}px; border: 1.5px dashed #888; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #555; text-align: center; padding: 8px; }
+.carte-vide { height: ${FICHE_MAP.height}px; border: 1.5px dashed #888; border-radius: 4px; display: flex; align-items: center;
+  justify-content: center; font-size: 12px; color: #555; text-align: center; padding: 8px; }
 footer { margin-top: auto; border-top: 1px solid #c8c8c8; padding-top: 10px; font-size: 11.5px; color: #444; display: flex; align-items: center; gap: 16px; }
 .pied { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; } .qr { flex: none; } .qr svg { display: block; width: 72px; height: 72px; }
 footer a { color: #1a56c4; word-break: break-all; } .mono { font-family: "JetBrains Mono", monospace; color: #1c1c1c; }
@@ -6893,9 +6933,11 @@ footer a { color: #1a56c4; word-break: break-all; } .mono { font-family: "JetBra
 <section class="lieu"><div class="ou">${placeHtml}</div><span>${data.attributes ? "Objet" : "Point"} ${e(data.name)} : ${e(coords)}</span></section>
 <figure><img src="${picture}" alt="Photo de la mesure, annotée"></figure>
 <section class="bas"><div class="textes">
-<div><h2>${data.attributes ? "Attributs" : "Résultats"}</h2><table>${table || `<thead><tr><th>Point</th><th>Mesure</th><th class="num">Valeur</th><th class="num">Incertitude</th><th>Commentaire</th></tr></thead><tbody>${rows}</tbody>`}</table></div>
+<div><h2>${data.attributes ? "Attributs" : "Résultats"}</h2><table>${table || `<thead><tr><th>Point</th><th>Mesure</th>
+<th class="num">Valeur</th><th class="num">Incertitude</th><th>Commentaire</th></tr></thead><tbody>${rows}</tbody>`}</table></div>
 <div><h2>Méthode et précision</h2><ul>${lines}</ul></div></div>
-<figure>${mapImage ? `<img src="${mapImage}" alt="Mini-carte : ${data.attributes ? "objet" : "point"} ${e(data.name)}${data.attributes ? "" : " et ses mesures"}">` : "<div class='carte-vide'>Mini-carte indisponible (carte repliée, ou fond illisible)</div>"}
+<figure>${mapImage ? `<img src="${mapImage}" alt="Mini-carte : ${data.attributes ? "objet" : "point"} ${e(data.name)}${
+  data.attributes ? "" : " et ses mesures"}">` : "<div class='carte-vide'>Mini-carte indisponible (carte repliée, ou fond illisible)</div>"}
 <figcaption>Fond de carte ${e(background)}</figcaption></figure></section>
 <footer><div class="pied"><div>Photo <span class="mono">${e(data.photo || "")}</span> · ${e(app.caption())} · instance ${e(api)}</div>
 <a href="${e(link)}">${e(link)}</a></div>
@@ -7047,7 +7089,10 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
   }
 
   // Pour les essais depuis la console : window.mesures.app.click(yaw, pitch)
-  window.mesures = { refresh, get app() { return app; }, get psv() { return psv; }, get videoPlan() { return videoPlan; }, get touring() { return Boolean(tour); }, map, openPhoto, buildFiche, paginateFiche, photoAtOffset, importOverlay, thumbnail,
+  window.mesures = {
+    refresh, map, openPhoto, buildFiche, paginateFiche, photoAtOffset, importOverlay, thumbnail,
+    get app() { return app; }, get psv() { return psv; }, get videoPlan() { return videoPlan; }, get touring() { return Boolean(tour); },
     overlayFile: (handle) => { overlay.fichier = handle; },  // fichier de la couche remplacé (essais)
-    savedOverlay: async () => { await overlaySaving; return JSON.parse(await fileStore("readonly", (s) => s.get("couche-texte")) ?? "null"); } };  // couche gardée (essais)
+    // couche gardée (essais)
+    savedOverlay: async () => { await overlaySaving; return JSON.parse(await fileStore("readonly", (s) => s.get("couche-texte")) ?? "null"); } };
 })();

@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Cédric COCHART
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// Couche importée (GeoJSON, Shapefile, GeoPackage, CSV) : lecture, coordonnées en WGS 84 (Lambert 93
-// converti, Shapefile reprojeté d'après son .prj), couleur selon une colonne (une couleur par valeur, ou dégradé pour une colonne numérique) et étiquette d'une
-// colonne. Dessinée sur la mini-carte (Carte.showOverlay) et dans la visionneuse, à son altitude ou
-// posée sur le sol LiDAR HD (web_app.App.overlay_marks).
+// Couche importée (GeoJSON, Shapefile, GeoPackage, CSV) : lecture, coordonnées en WGS 84 (Lambert 93 converti,
+// Shapefile reprojeté d'après son .prj), couleur selon une colonne (une couleur par valeur, ou dégradé pour une colonne
+// numérique) et étiquette d'une colonne. Dessinée sur la mini-carte (Carte.showOverlay) et dans la visionneuse, à son
+// altitude ou posée sur le sol LiDAR HD (web_app.App.overlay_marks).
 
 const Couche = (() => {
   const SINGLE = "#66cc66";  // couleur unique : vert clair
@@ -121,7 +121,8 @@ const Couche = (() => {
   /**
    * Couleurs selon la colonne column ("" : couleur unique) : chaque objet reçoit properties._couleur
    * (et _etiquette : une ligne par étiquette de labels [{ column, titled, suffix }], valeur de column précédée
-   * de son intitulé si titled : « essence : tilleul », suivie du texte suffix : « 12 cm »), et _etiquette_carte, valeur de mapColumn (étiquette de la mini-carte). custom :
+   * de son intitulé si titled : « essence : tilleul », suivie du texte suffix : « 12 cm »), et _etiquette_carte, valeur
+   * de mapColumn (étiquette de la mini-carte). custom :
    * couleurs choisies, par clé d'entrée de légende.
    * Chaque objet reçoit aussi properties._cle, la clé de son entrée de légende (« degrade » pour un
    * objet coloré par le dégradé).
@@ -368,7 +369,10 @@ const Couche = (() => {
     if (code & 0x80000000) z = true;  // EWKB
     if (code & 0x40000000) m = true;
     code &= 0x0fffffff;
-    if (code >= 3000) { z = true; m = true; code -= 3000; } else if (code >= 2000) { m = true; code -= 2000; } else if (code >= 1000) { z = true; code -= 1000; }
+    // WKB ISO : 1000 + type avec z, 2000 + type avec m, 3000 + type avec les deux
+    if (code >= 3000) { z = true; m = true; code -= 3000; }
+    else if (code >= 2000) { m = true; code -= 2000; }
+    else if (code >= 1000) { z = true; code -= 1000; }
     const dims = 2 + z + m;
     const point = () => {
       const p = [view.getFloat64(pos, little), view.getFloat64(pos + 8, little)];

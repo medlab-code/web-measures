@@ -2815,7 +2815,8 @@ class App(session.Session):
                 if not relief:
                     i = min(range(len(offsets)), key=lambda k: abs(offsets[k] - guess))
                 borders[name].append((offsets[i], relief))
-                entry = {"le_long": along, "cote": name, "bord": round(paved.get(name, offsets[i]), 2), "relief": relief, "enrobe": name in paved, "arret": None,
+                entry = {"le_long": along, "cote": name, "bord": round(paved.get(name, offsets[i]), 2), "relief": relief,
+                         "enrobe": name in paved, "arret": None,
                          "separateur": [round(v, 2) for v in between] if between else None,
                          "autre_axe": round(beyond, 2) if beyond else None,  # axe de l'autre chaussée, m depuis l'origine
                          "separateur_relief": sep_relief if between else None,  # "marches", "bosse" ou None (BD TOPO)

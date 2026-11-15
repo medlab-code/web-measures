@@ -31,7 +31,8 @@
     Carte.setBackground(map, $("#fond").value);
     Carte.setNetworkVisible(map, $("#filaire").checked);
   });
-  map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }), "top-right");  // à 10 px du haut et du bord
+  // à 10 px du haut et du bord
+  map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }), "top-right");
 
   let photo = null;  // fiche STAC de la photo affichée
   let psv = null;  // visionneuse sphérique (Photo Sphere Viewer)
@@ -130,7 +131,8 @@
   // Réglages de la carte : fond, PR, cadastre (parcelles sur la carte, étiquette de la parcelle visée dans la photo) ---
 
   $("#ouvrir-reglages").addEventListener("click", () => $("#reglages").showModal());
-  $("#reglages").addEventListener("click", (event) => { if (event.target === $("#reglages")) $("#reglages").close(); });  // appui hors du panneau
+  // appui hors du panneau
+  $("#reglages").addEventListener("click", (event) => { if (event.target === $("#reglages")) $("#reglages").close(); });
   $("#fond").value = store.get("fond", "plan").replace(/^osm$/, "ofm");  // OpenStreetMap France remplacé par OpenFreeMap
   if (!$("#fond").value) $("#fond").value = "plan";  // fond gardé qui n'existe plus
   $("#fond").addEventListener("change", (event) => {

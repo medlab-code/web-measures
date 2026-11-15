@@ -57,10 +57,10 @@ COMMON_TILT = 0.1
 # Le calcul 3D ne sert que pour des visées qui se croisent sous STRONG_ANGLE (degrés) : au-delà,
 # les caps suffisent, et une inclinaison un peu fausse ne ferait que déplacer le point
 STRONG_ANGLE = 20.0
-WEAK_ANGLE = 15.0
+WEAK_ANGLE = 15.0  # croisement en dessous duquel, en plan, la profondeur devient imprécise (degrés)
 SIGHT_WARNING = 0.6  # m : désaccord des visées d'un bord en travers de la route au-delà duquel les réviser (voir sight_spread)
 LIDAR_NAME = "LiDAR HD"
-SPREAD_WARNING = 3.0  # visée écartée du point de plus de 3 fois son erreur attendue : autre objet visé ?  # croisement en dessous duquel, en plan, la profondeur devient imprécise (degrés)
+SPREAD_WARNING = 3.0  # visée écartée du point de plus de 3 fois son erreur attendue : autre objet visé ?
 
 
 class TriangulationError(ValueError):

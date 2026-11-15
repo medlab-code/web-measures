@@ -159,7 +159,8 @@ const Carte = (() => {
             tileSize: 256, maxzoom: 20, attribution: ATTRIBUTION_IGN,
           },
           pcrs: { type: "raster", tiles: [pcrsTiles(pcrsLayer)], tileSize: 256, maxzoom: 22, attribution: ATTRIBUTION_IGN },
-          // Modèle Numérique de Hauteur, issu du LiDAR HD (IGN) : estompage de la hauteur du sursol (bâtiments, arbres, talus) au-dessus du sol
+          // Modèle Numérique de Hauteur, issu du LiDAR HD (IGN) : estompage de la hauteur du sursol (bâtiments, arbres,
+          // talus) au-dessus du sol
           mnh: {
             type: "raster", tiles: [wmts("IGNF_LIDAR-HD_MNH_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW", "image/png")],
             tileSize: 256, maxzoom: 18, attribution: ATTRIBUTION_IGN,
@@ -269,7 +270,8 @@ const Carte = (() => {
           {
             id: "photos", type: "circle", source: "panoramax", "source-layer": "pictures", minzoom: 15,
             paint: {
-              "circle-color": ORANGE, "circle-radius": 2.5, "circle-opacity": NETWORK_OPACITY,  // plus petits que le filaire d'origine (3,5)
+              // plus petits que le filaire d'origine (3,5)
+              "circle-color": ORANGE, "circle-radius": 2.5, "circle-opacity": NETWORK_OPACITY,
               "circle-stroke-color": "#ffffff", "circle-stroke-width": 0.7, "circle-stroke-opacity": NETWORK_OPACITY,
             },
           },
@@ -548,7 +550,8 @@ const Carte = (() => {
         for (const [name, source] of Object.entries(style.sources)) {
           if (source.type !== "vector") continue;  // relief ombré des petites échelles (OpenFreeMap) : sans
           const id = `${key}-${name}`;
-          map.addSource(id, source.tiles ? { type: "vector", tiles: source.tiles, scheme: source.scheme, maxzoom: def.maxzoom ?? 14, attribution: def.attribution }
+          map.addSource(id, source.tiles
+            ? { type: "vector", tiles: source.tiles, scheme: source.scheme, maxzoom: def.maxzoom ?? 14, attribution: def.attribution }
             : { type: "vector", url: source.url, attribution: def.attribution });
           sources[name] = id;
         }
@@ -578,7 +581,8 @@ const Carte = (() => {
           if (layout["icon-image"] != null) layout["icon-image"] = prefixed(layout["icon-image"]);
           const paint = { ...layer.paint };  // motifs (cimetières, marais du Plan IGN) : images du même style
           for (const name of ["fill-pattern", "line-pattern"]) if (paint[name] != null) paint[name] = prefixed(paint[name]);
-          map.addLayer({ ...kept, ...(maxzoom != null && { maxzoom }), id, ...(layer.source && { source: sources[layer.source] }), layout, paint }, "cadastre-parcelles");
+          const placed = { ...kept, ...(maxzoom != null && { maxzoom }), id, ...(layer.source && { source: sources[layer.source] }), layout, paint };
+          map.addLayer(placed, "cadastre-parcelles");
           base.ids.push(id);
           if (key === "planv" && layer.id === "bckgrd") {  // fond blanc du Plan IGN : parcelles en jaune léger juste dessus
             map.addLayer({ ...PARCEL_GROUND, id: "planv-parcelles-fond", layout: { visibility: layout.visibility } }, "cadastre-parcelles");
@@ -882,14 +886,14 @@ const Carte = (() => {
     try { apply(); } catch { map.once("load", apply); }
   }
 
-  // Parcelle visée : la première que coupe la ligne de cap en partant de la caméra (celle où se tient la caméra, cour ou
-  // chemin privé, écartée : elle est allumée à part, en jaune), jusqu'à CADASTRE_VISEE m : au-delà, la photo ne montre plus assez la parcelle pour s'en servir
-  // (limites du plan à 1,5 m près en Côte-d'Or). Recherchée sur les parcelles lues autour de la caméra (loadParcels), à chaque
-  // rotation de la vue (une fois par image au plus).
+  // Parcelle visée : la première que coupe la ligne de cap en partant de la caméra (celle où se tient la caméra, cour
+  // ou chemin privé, écartée : elle est allumée à part, en jaune), jusqu'à CADASTRE_VISEE m : au-delà, la photo ne
+  // montre plus assez la parcelle pour s'en servir (limites du plan à 1,5 m près en Côte-d'Or). Recherchée sur les
+  // parcelles lues autour de la caméra (loadParcels), à chaque rotation de la vue (une fois par image au plus).
   const CADASTRE_VISEE = 50;
   // aimListener : averti de la parcelle visée ({ idu, section, numero, at : [lon, lat] du milieu de sa partie vue
-  // directement, entre ses limites gauche et droite (parcelMiddle) }, ou null), à chaque changement de parcelle visée ou de caméra : ce point ne bouge pas
-  // quand la vue tourne dans la même parcelle
+  // directement, entre ses limites gauche et droite (parcelMiddle) }, ou null), à chaque changement de parcelle visée
+  // ou de caméra : ce point ne bouge pas quand la vue tourne dans la même parcelle
   let aimFrame = 0, aimedKey = "", aimedNow = null, aimListener = null;
   function aimCadastre(map) {
     if (aimFrame) return;
