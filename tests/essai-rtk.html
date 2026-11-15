@@ -583,6 +583,34 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         await expectSoon("import commun : fichier inconnu signalé", () => doc.querySelector("#avis").textContent.includes("non reconnu"));
         drop("e.csv", "nom;lon;lat\nglissé;5.01;47.3\n");
         await expectSoon("import commun : CSV dans Couche", () => doc.querySelector("#couche-nom").textContent === "e.csv");
+        // Dossier de travail : exporté (couche e.csv, favori, modèles…), couche retirée et favoris vidés, puis glissé : fenêtre
+        // de choix, couche cochée (aucune en place), reprise ; glissé à nouveau, couche en place : décochée par défaut
+        let file = null, fileName = "";
+        w.showSaveFilePicker = async (o) => { fileName = o.suggestedName; return { name: o.suggestedName,
+          createWritable: async () => ({ write: async (b) => { file = b; }, close: async () => {} }) }; };
+        doc.querySelector('[data-panneau="reglages"]').click();
+        expect("dossier : export actif avec du travail gardé", !doc.querySelector("#dossier-exporter").disabled);
+        doc.querySelector("#dossier-exporter").click();
+        await until(() => file, 10000, "dossier exporté");
+        const folder = typeof file === "string" ? file : await file.text();
+        const parsed = JSON.parse(folder);
+        expect("dossier : fichier nommé et rempli", /^dossier .*\d{4}-\d{2}-\d{2}\.json$/.test(fileName) && parsed.format === "web-measures/dossier"
+          && parsed.couche?.name === "e.csv" && parsed.favoris?.some((f) => f.id === fav) && parsed.modeles?.length > 0, `${fileName} ${Object.keys(parsed)}`);
+        doc.querySelector("#couche-retirer").click();
+        w.localStorage.setItem("web-measures/favoris", "[]");
+        const dialog = doc.querySelector("#importer-dossier");
+        const box = (key) => dialog.querySelector(`input[value="${key}"]`);
+        drop("dossier.json", folder);
+        await until(() => dialog.open, 5000, "fenêtre du dossier");
+        expect("dossier : une case par partie, couche cochée sans couche en place", box("couche")?.checked && box("favoris")?.checked
+          && box("calage")?.checked, [...dialog.querySelectorAll("li")].map((li) => li.textContent).join(" | "));
+        dialog.querySelector('button[value="importer"]').click();
+        await expectSoon("dossier : couche et favoris repris", () => doc.querySelector("#couche-nom").textContent === "e.csv"
+          && kept("favoris").includes(fav));
+        drop("dossier.json", folder);
+        await until(() => dialog.open, 5000, "fenêtre du dossier, couche en place");
+        expect("dossier : couche décochée quand une couche est en place", !box("couche").checked && /remplacera/.test(box("couche").closest("li").textContent));
+        dialog.querySelector('button[value=""]').click();
         doc.querySelector("#couche-retirer").click();
       }
     }

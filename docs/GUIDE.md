@@ -759,6 +759,15 @@ CSV), parcours, modèles de champs, calage ou favoris, avec le message habituel 
 sortes différentes peuvent être glissés ensemble. Un fichier JSON non reconnu est signalé (par le bouton d'une sorte :
 son message d'erreur habituel).
 
+**Dossier de travail** (Réglages › Dossier de travail) : « Exporter le dossier… » écrit en un seul fichier tout le
+travail gardé dans ce navigateur : couche et ses réglages (recalages, statuts, couleurs, étiquettes, filtre), relevé et
+ses champs, calage, parcours gardés, favoris, modèles de champs, mesures et photo ouverte (« dossier D905 PR12
+2026-11-15.json ») ; grisé tant qu'il n'y a rien à y mettre. Importé (bouton, ou fichier glissé sur la page), une
+fenêtre liste ses parties, chacune avec une case et ce qu'elle fera : la couche et le relevé remplacent les vôtres
+(décochés par défaut si vous en avez déjà), le calage complète le vôtre, parcours, favoris et modèles s'ajoutent, la
+photo se rouvre. Les mesures reviennent en lecture seule dans Résultats (comme celles d'une séance précédente : revues
+sur la carte, exportables), les vôtres restent. Les réglages personnels (thème, fond de carte…) ne sont pas repris.
+
 Les calculs (cœur Python repris du plugin Visionneuse Panoramax) sont exécutés dans le navigateur par Pyodide (environ 10 Mo au
 premier chargement, puis en cache) ; les calculs lourds (inclinaison automatique, capture
 Full HD) tournent dans un second Pyodide en arrière-plan. La page vérifie aussi l'accès aux

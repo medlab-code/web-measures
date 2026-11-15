@@ -3,7 +3,7 @@
 
 # Partage du travail entre collègues : pistes
 
-Liste du 15/11/2026 : P2 faite, P1 écartée, P3 pour la phase de déploiement, le reste à faire. Point de départ : ce que la page exporte et importe ce jour-là.
+Liste du 15/11/2026 : P2 et P5 faites, P1 écartée, P3 pour la phase de déploiement, le reste à faire. Point de départ : ce que la page exporte et importe ce jour-là.
 
 Ordre proposé :
 1. P2 faite (P1 écartée, P3 au déploiement).
@@ -64,7 +64,12 @@ sans la mesure), indépendant de l'adresse du site, que « Aller à la photo » 
   modifié des deux côtés) signalés.
 - **Coût** : suite naturelle des pistes A et B de la couche (`pistes-couche-sig.md`), plus lourde.
 
-**P5. Dossier de travail en un seul fichier.**
+**P5. Dossier de travail en un seul fichier.** *Fait (15/11/2026), version complète ; mesures en lecture seule.*
+- **Fait** : Réglages › Dossier de travail (`workFolder`, `importFolder`, `src/app.js`) : format
+  `web-measures/dossier`, version 1, parties non vides seulement ; reconnu par l'import commun. Fenêtre à l'import comme
+  détaillé ci-dessous ; couche remise par `applySavedOverlay` (comme à l'ouverture), mesures par `showPrevious` (comme
+  les résultats d'une séance précédente). Essai : `essai-rtk` (export, reprise de la couche et des favoris, couche
+  décochée quand une couche est en place). Relevé repris non essayé dans le navigateur.
 - **Principe** : « Exporter la séance » réunit la couche et ses réglages, les mesures, le relevé, le calage, les
   parcours et les favoris ; importé par le collègue, il retrouve tout tel quel.
 - **Gain** : passer la main sur un chantier ; réponse directe aux exports séparés.

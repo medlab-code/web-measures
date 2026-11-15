@@ -1551,6 +1551,10 @@ button.lien:disabled { color: var(--discret); opacity: 0.6; cursor: default; }
 .condition-filtre { display: flex; align-items: center; gap: 0.4rem; margin: 0.4rem 0 0 5.1rem; }  /* sous la liste Filtre */
 #couche-filtre-valeur { flex: 1; min-width: 0; }
 #couche-filtre-bilan { margin: 0.3rem 0 0 5.1rem; }
+.boutons.dossier { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+.parties-dossier { list-style: none; margin: 0.5rem 0; padding: 0; }
+.parties-dossier label { display: flex; align-items: baseline; gap: 0.5rem; padding: 0.2rem 0; }
+.parties-dossier .aide { display: block; }
 /* Parcours des objets : ◀ objet ▶, statut et commentaire, recherche, tableau triable (clic sur un intitulé) */
 #couche-parcours { margin-top: 1rem; }
 #couche-parcours summary { font-weight: 600; cursor: pointer; }

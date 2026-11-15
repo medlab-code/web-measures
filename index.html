@@ -714,6 +714,17 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <p id="reglages-infos">Gardés dans ce navigateur</p>
             </div>
           </div>
+          <!-- Dossier de travail (app.js workFolder, importFolder) : tout le travail gardé ici en un fichier -->
+          <h3>Dossier de travail</h3>
+          <p class="aide">Couche, relevé, calage, parcours, favoris, modèles de champs et mesures en un seul fichier,
+            pour passer la main à un collègue ou sauvegarder la séance. Les mesures reviennent en lecture seule.</p>
+          <div class="boutons dossier">
+            <button id="dossier-exporter" type="button" disabled
+                    title="Un seul fichier avec tout le travail gardé dans ce navigateur">Exporter le dossier…</button>
+            <button id="dossier-importer" type="button"
+                    title="Dossier d'un collègue, ou sauvegarde : vous choisissez ce qui est repris (un dossier peut aussi être glissé sur la page)">Importer un dossier…</button>
+          </div>
+          <input id="dossier-fichier" type="file" accept=".json" hidden>
           <h3>Mesure</h3>
           <div class="reglage-couche reglage-instance">
             <label for="camera">Hauteur de caméra</label>
@@ -894,6 +905,16 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
     </form>
   </dialog>
   <!-- « Enregistrer » : le fichier de la couche a changé sur le disque depuis son import (ou le dernier enregistrement) -->
+  <!-- Import d'un dossier de travail : une case par partie, avec ce qu'elle fera (app.js importFolder) -->
+  <dialog id="importer-dossier" class="avertissement">
+    <h2>Dossier de travail</h2>
+    <p></p>
+    <ul class="parties-dossier"></ul>
+    <form method="dialog">
+      <button value="" class="non">Annuler</button>
+      <button value="importer" class="oui">Importer</button>
+    </form>
+  </dialog>
   <dialog id="supprimer-objet" class="avertissement">
     <h2>Supprimer l'objet ?</h2>
     <p></p>

@@ -218,6 +218,7 @@
     $("#contenu-panneau").scrollTop = 0;
     store.set("panneau", id);
     if (id === "reseau") showGeoCache();
+    if (id === "reglages") showFolderExport();
   }
   for (const button of paneButtons) button.addEventListener("click", () => showPane(button.dataset.panneau));
   showPane(store.get("panneau", "resultats"));
@@ -2610,15 +2611,32 @@
   };
   function saveOverlay() {
     if (!overlay) return Promise.resolve(true);
+    const text = JSON.stringify(overlaySaved());
+    return overlayWrite((s) => s.put(text, "couche-texte"), () => store.set("couche", text));
+  }
+  /** Couche et ses réglages tels que gardés dans le navigateur (restoreOverlay, dossier de travail). */
+  function overlaySaved() {
     const { name, features, columns, crs, couleurs, masques, fiche, filtre } = overlay;
-    const text = JSON.stringify({ name, columns, crs, couleurs, masques, fiche, filtre, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
+    return { name, columns, crs, couleurs, masques, fiche, filtre, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
       intitule: $("#couche-intitule").checked, suffixe: $("#couche-suffixe").value, etiquetteCarte: $("#couche-etiquette-carte").value,
       etiquette2: $("#couche-etiquette2").value, intitule2: $("#couche-intitule2").checked, suffixe2: $("#couche-suffixe2").value,
       modifie: Boolean(overlay.modifie), dateFichier: overlay.dateFichier ?? null,
       visible: $("#couche-visible").checked,
       features: features.map(({ type, id, geometry, properties, recalages }) => ({ type, id, geometry, recalages,
-        properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) });
-    return overlayWrite((s) => s.put(text, "couche-texte"), () => store.set("couche", text));
+        properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) };
+  }
+
+  /** Couche gardée (overlaySaved) remise en place avec ses réglages ; fit : carte cadrée dessus. Faux sans objet. */
+  function applySavedOverlay(saved, fit = false) {
+    $("#couche-intitule").checked = Boolean(saved?.intitule);
+    $("#couche-suffixe").value = saved?.suffixe || "";
+    $("#couche-intitule2").checked = Boolean(saved?.intitule2);
+    $("#couche-suffixe2").value = saved?.suffixe2 || "";
+    if (!saved?.features?.length) return false;
+    loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, fit, saved.visible !== false,
+      saved.couleurs || {}, saved.masques || {}, saved.etiquetteCarte ?? null, saved.etiquette2 || "");
+    setOverlayChanged(Boolean(saved.modifie));
+    return true;
   }
 
   /** Couche gardée de la session précédente, remise une fois le calcul prêt (voir le démarrage). */
@@ -2627,14 +2645,7 @@
     if (overlay) return;  // couche importée pendant la lecture : elle l'emporte
     let saved = null;  // sinon, ancienne place (localStorage), reprise une fois dans IndexedDB
     try { saved = JSON.parse(kept ?? (store.get("couche") || "null")); } catch { /* illisible : aucune */ }
-    $("#couche-intitule").checked = Boolean(saved?.intitule);
-    $("#couche-suffixe").value = saved?.suffixe || "";
-    $("#couche-intitule2").checked = Boolean(saved?.intitule2);
-    $("#couche-suffixe2").value = saved?.suffixe2 || "";
-    if (!saved?.features?.length) return;
-    loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, false, saved.visible !== false,
-      saved.couleurs || {}, saved.masques || {}, saved.etiquetteCarte ?? null, saved.etiquette2 || "");
-    setOverlayChanged(Boolean(saved.modifie));
+    if (!applySavedOverlay(saved)) return;
     if (kept == null) saveOverlay();
     const restored = overlay;  // fichier de la couche (Chrome, Edge), relu de façon asynchrone
     fileStore("readonly", (s) => s.get("couche")).then((handle) => {
@@ -2690,15 +2701,17 @@
       else if (kind === "modeles") importModels(data, file.name);
       else if (kind === "calage") importCalibration(text);
       else if (kind === "favoris") importFavorites(data);
+      else if (kind === "dossier") await importFolder(data, file.name);
       else if (own && own !== importOverlay) own(data, file.name, text);
       else if (own) await importOverlay([file]);  // couche : l'erreur de lecture du GeoJSON
       else notice(`« ${file.name} » : fichier non reconnu (ni couche ni mesures, ni favoris, parcours, calage ou modèles de champs).`);
     }
   }
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  /** Sorte d'un fichier JSON lu, d'après son contenu : « couche », « parcours », « modeles », « calage », « favoris » ou "". */
+  /** Sorte d'un fichier JSON lu, d'après son contenu : « couche », « dossier », « parcours », « modeles », « calage », « favoris » ou "". */
   function jsonKind(d) {
     if (d?.type === "FeatureCollection" || d?.type === "Feature") return "couche";
+    if (d?.format === DOSSIER_FORMAT) return "dossier";
     if (d?.format === "parcours-panoramax" || (d && !Array.isArray(d) && d.travel)
       || (Array.isArray(d) && d.length && d.every((r) => r?.travel))) return "parcours";
     if (d?.format === MODELES_FORMAT) return "modeles";
@@ -6049,33 +6062,125 @@
     try { previous = JSON.parse(store.get("resultats") || "null"); } catch { /* illisible : aucun */ }
     store.set("resultats", "");
     store.set("resultats-precedents", "");  // ancienne clé (versions du 24/10/2026)
-    if (previous && previous.n && !previous.exported) {
-      // En lecture seule : liste (tirée de l'export GeoJSON, comme en mesure libre où les points et
-      // distances sont hors de la liste) et dessin gris sur la carte
-      const num = (v) => (v == null ? "?" : Number(v).toLocaleString("fr-FR", { maximumFractionDigits: 2 }));
-      const geojson = JSON.parse(previous.geojson);
-      $("#precedents ol").replaceChildren(...geojson.features.map(({ properties: p }) => {
-        const text = p.type === "point triangulé" ? `Point ${p.nom} ±${num(p.incert_m)} m`
-          : p.type.startsWith("distance") ? `${p.points} ${num(p.valeur_m)} m ± ${num(p.incert_m)} m`
-          : `${p.type[0].toUpperCase()}${p.type.slice(1)} : ${num(p.valeur_m)} m ± ${num(p.incert_m)} m`;
-        return Object.assign(document.createElement("li"), { textContent: text + (p.commentaire ? ` — ${p.commentaire}` : "") });
-      }));
-      Carte.showPrevious(map, geojson);
-      const when = new Date(previous.when);
-      $("#precedents summary").textContent = `${previous.n} résultat${previous.n > 1 ? "s" : ""} de la session du ${
-        when.toLocaleDateString("fr-FR")} à ${when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-      }, non exporté${previous.n > 1 ? "s" : ""}`;
-      $("#precedents").hidden = false;
-      $("#precedents-csv").addEventListener("click", async () => download("\ufeff" + previous.csv,
-        await exportName("mesures-precedentes", "csv"), "text/csv"));
-      $("#precedents-geojson").addEventListener("click", async () => download(previous.geojson,
-        await exportName("mesures-precedentes", "geojson"), "application/geo+json"));
-      $("#precedents-oublier").addEventListener("click", () => {
-        $("#precedents").hidden = true;
-        Carte.showPrevious(map, null);
-      });
-    }
+    if (previous && previous.n && !previous.exported) showPrevious(previous, (when) => `de la session du ${
+      when.toLocaleDateString("fr-FR")} à ${when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}, non exporté${previous.n > 1 ? "s" : ""}`);
   }
+  /** Résultats en lecture seule ({ when, n, csv, geojson }) : liste (tirée de l'export GeoJSON, comme en mesure libre
+   * où les points et distances sont hors de la liste), dessin gris sur la carte, exports ; origin(date) : leur origine. */
+  function showPrevious(previous, origin) {
+    const num = (v) => (v == null ? "?" : Number(v).toLocaleString("fr-FR", { maximumFractionDigits: 2 }));
+    const geojson = JSON.parse(previous.geojson);
+    $("#precedents ol").replaceChildren(...geojson.features.map(({ properties: p }) => {
+      const text = p.type === "point triangulé" ? `Point ${p.nom} ±${num(p.incert_m)} m`
+        : p.type.startsWith("distance") ? `${p.points} ${num(p.valeur_m)} m ± ${num(p.incert_m)} m`
+        : `${p.type[0].toUpperCase()}${p.type.slice(1)} : ${num(p.valeur_m)} m ± ${num(p.incert_m)} m`;
+      return Object.assign(document.createElement("li"), { textContent: text + (p.commentaire ? ` — ${p.commentaire}` : "") });
+    }));
+    Carte.showPrevious(map, geojson);
+    $("#precedents summary").textContent = `${previous.n} résultat${previous.n > 1 ? "s" : ""} ${origin(new Date(previous.when))}`;
+    $("#precedents").hidden = false;
+    // onclick : un seul gestionnaire, remplacé quand d'autres résultats viennent (dossier de travail)
+    $("#precedents-csv").onclick = async () => download("\ufeff" + previous.csv, await exportName("mesures-precedentes", "csv"), "text/csv");
+    $("#precedents-geojson").onclick = async () => download(previous.geojson, await exportName("mesures-precedentes", "geojson"),
+      "application/geo+json");
+    $("#precedents-oublier").onclick = () => {
+      $("#precedents").hidden = true;
+      Carte.showPrevious(map, null);
+    };
+  }
+  // Dossier de travail : tout ce qui est gardé dans ce navigateur en un fichier (couche et réglages, relevé, calage,
+  // parcours, favoris, modèles de champs, mesures, photo ouverte), pour passer la main ou sauvegarder la séance. Les
+  // mesures n'y sont qu'en export (GeoJSON, CSV) : reprises en lecture seule, comme les résultats d'une séance
+  // précédente (reprise modifiable : pour plus tard, docs/analyses/pistes-partage.md). Réglages personnels non repris.
+  const DOSSIER_FORMAT = "web-measures/dossier";
+  const releveCount = () => JSON.parse(app.releve_json()).points.length;
+  const calibrationCount = (c) => ["verticals", "landmarks", "heights", "auto"].reduce((t, k) => t + Object.keys(c?.[k] || {}).length, 0);
+  /** « Exporter le dossier » grisé tant qu'il n'y a rien à y mettre (à l'ouverture des réglages, et après un import). */
+  function showFolderExport() {
+    $("#dossier-exporter").disabled = !app || !(overlay || app.has_results() || releveCount()
+      || calibrationCount(JSON.parse(app.calibration_json())) || savedRoutes().length || favorites().length || releveModels().length);
+  }
+  /** Dossier de travail (objet du fichier) : seules les parties non vides. */
+  function workFolder() {
+    const results = JSON.parse(app.export_geojson()).features.length, calibration = JSON.parse(app.calibration_json());
+    return { format: DOSSIER_FORMAT, version: 1, date: new Date().toISOString(),
+      ...(overlay && { couche: overlaySaved() }),
+      ...(releveCount() && { releve: { objets: JSON.parse(app.releve_json()), champs: releveFields() } }),
+      ...(calibrationCount(calibration) && { calage: calibration }),
+      ...(savedRoutes().length && { parcours: savedRoutes() }),
+      ...(favorites().length && { favoris: favorites() }),
+      ...(releveModels().length && { modeles: releveModels() }),
+      ...(results && { mesures: { n: results, geojson: app.export_geojson(), csv: app.export_csv() } }),
+      ...(photo && { photo: photo.id }) };
+  }
+  $("#dossier-exporter").addEventListener("click", async () => {
+    if (await download(JSON.stringify(workFolder()), await exportName("dossier", "json", true), "application/json")) {
+      setStatus("Dossier de travail exporté : à importer sur un autre poste (Réglages, ou glissé sur la page).");
+    }
+  });
+  $("#dossier-importer").addEventListener("click", () => $("#dossier-fichier").click());
+  fileInput("#dossier-fichier", (data, name) => notice(`« ${name} » n'est pas un dossier de travail.`));
+
+  /** Dossier de travail lu (name : nom du fichier) : une case par partie, avec ce qu'elle fera ; ce qui remplacerait
+   * du travail en cours (couche, relevé) décoché par défaut ; parties cochées reprises. */
+  async function importFolder(d, name) {
+    const n = (k, one, many = `${one}s`) => `${k} ${k > 1 ? many : one}`;
+    const releveNow = releveCount();
+    const parts = [
+      d.couche?.features?.length && { key: "couche", checked: !overlay, text: `Couche « ${d.couche.name} » (${n(d.couche.features.length, "objet")})`,
+        help: overlay ? `remplacera votre couche « ${overlay.name} »` : "deviendra votre couche",
+        apply: () => {
+          applySavedOverlay(d.couche, true);
+          setOverlayFile(null);
+          setOverlayChanged(true);  // dans aucun fichier de ce poste
+          saveOverlay();
+        } },
+      d.releve?.objets?.points?.length && { key: "releve", checked: !releveNow, text: `Relevé (${n(d.releve.objets.points.length, "objet")})`,
+        help: releveNow ? `remplacera votre relevé (${n(releveNow, "objet")})` : "deviendra votre relevé",
+        apply: () => {
+          refresh(app.clear_releve());
+          store.set("releve-champs", JSON.stringify(d.releve.champs || []));
+          refresh(app.load_releve(JSON.stringify(d.releve.objets)));
+        } },
+      calibrationCount(d.calage) && { key: "calage", checked: true, text: `Calage (${n(calibrationCount(d.calage), "photo ou séquence", "photos ou séquences")})`,
+        help: "complétera le vôtre", apply: () => importCalibration(JSON.stringify(d.calage)) },
+      d.parcours?.length && { key: "parcours", checked: true, text: n(d.parcours.length, "parcours", "parcours"),
+        help: "ajoutés aux vôtres", apply: () => importRoutes({ parcours: d.parcours }) },
+      d.favoris?.length && { key: "favoris", checked: true, text: n(d.favoris.length, "favori"),
+        help: "ajoutés aux vôtres", apply: () => importFavorites(d.favoris) },
+      d.modeles?.length && { key: "modeles", checked: true, text: n(d.modeles.length, "modèle de champs", "modèles de champs"),
+        help: "ajoutés aux vôtres (même nom : remplacé)", apply: () => importModels({ format: MODELES_FORMAT, modeles: d.modeles }, name) },
+      d.mesures?.n && { key: "mesures", checked: true, text: n(d.mesures.n, "mesure"),
+        help: "en lecture seule dans Résultats (revues sur la carte, exportables), les vôtres restent",
+        apply: () => showPrevious({ ...d.mesures, when: Date.parse(d.date) || Date.now() }, (when) => `du dossier « ${name} » (${when.toLocaleDateString("fr-FR")})`) },
+      d.photo && UUID.test(d.photo) && { key: "photo", checked: true, text: "Photo ouverte dans le dossier", help: "rouverte",
+        apply: () => goToPhoto(d.photo) },
+    ].filter(Boolean);
+    if (!parts.length) return notice(`Dossier « ${name} » vide : rien à reprendre.`);
+    const dialog = $("#importer-dossier");
+    const when = new Date(d.date);
+    dialog.querySelector("p").textContent = `« ${name} »${Number.isNaN(when.getTime()) ? "" : `, du ${when.toLocaleDateString("fr-FR")}`}. Parties à reprendre :`;
+    dialog.querySelector("ul").replaceChildren(...parts.map((part) => {
+      const li = document.createElement("li"), label = document.createElement("label");
+      const box = Object.assign(document.createElement("input"), { type: "checkbox", checked: part.checked, value: part.key });
+      const text = Object.assign(document.createElement("span"), { textContent: part.text });
+      text.append(Object.assign(document.createElement("span"), { className: "aide", textContent: part.help }));
+      label.append(box, text);
+      li.append(label);
+      return li;
+    }));
+    dialog.returnValue = "";
+    const chosen = await new Promise((resolve) => {
+      dialog.addEventListener("close", () => resolve(dialog.returnValue === "importer"
+        ? [...dialog.querySelectorAll("input:checked")].map((b) => b.value) : []), { once: true });
+      showOverViewer(dialog);
+    });
+    const done = parts.filter((p) => chosen.includes(p.key));
+    for (const part of done) part.apply();
+    showFolderExport();
+    if (done.length) setStatus(`Dossier « ${name} » repris : ${done.map((p) => p.text.replace(/ \(.*\)$/, "")).join(", ")}.`);
+  }
+
   $("#calage-exporter").addEventListener("click", async () => download(app.calibration_json(), await exportName("calage", "json"),
     "application/json"));
   $("#calage-importer").addEventListener("click", () => $("#calage-fichier").click());
