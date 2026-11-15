@@ -4343,7 +4343,6 @@
   window.mesures = {
     refresh, map, openPhoto, buildFiche, paginateFiche, photoAtOffset, importOverlay, thumbnail,
     get app() { return app; }, get psv() { return psv; }, get videoPlan() { return parcours.videoPlan; },
-    get touring() { return Boolean(tour); },
     overlayFile: (handle) => { overlay.fichier = handle; },  // fichier de la couche remplacé (essais)
     // couche gardée (essais)
     savedOverlay: async () => {
