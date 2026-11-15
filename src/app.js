@@ -1635,8 +1635,8 @@
     objectCurrent = id;  // ses attributs et son statut dans le parcours
     showObjectState();
     document.activeElement?.blur?.();  // un bouton cliqué avant (« Exporter »…) ne reçoit pas l'Entrée
-    setStatus("Objet de la couche : cliquez sa place dans la photo, flèches pour l'ajuster, Entrée pour finir, "
-      + "Suppr pour le remettre à sa place calculée. La carte n'est pas modifiée.");
+    setStatus("Objet de la couche : cliquez sa place dans la photo (le clic le pose et finit), ou flèches pour l'ajuster "
+      + "puis Entrée ; Suppr le remet à sa place calculée. La carte n'est pas modifiée.");
     drawViewerMarks(currentMarks);
   }
 
@@ -1713,6 +1713,10 @@
       return setShift([dyaw + step[0], dpitch + step[1]]);
     }
     if (event.key === "Delete") setShift(null);
+    endMoving();
+  }
+  /** Recalage fini (Entrée, Échap, Suppr, ou clic qui pose l'objet) : objet désélectionné. */
+  function endMoving() {
     moving = null;
     setStatus("");
     drawViewerMarks(currentMarks);
@@ -3086,8 +3090,9 @@
             else moveOverlayObject(Number(id));
             return true;
           }
-          if (movingId() !== null && !event.data?.rightclick) {
+          if (movingId() !== null && !event.data?.rightclick) {  // posé : recalage fini, le clic suivant ne le bouge plus
             placeOverlayObject(event.data.yaw, event.data.pitch);
+            endMoving();
             return true;
           }
         }

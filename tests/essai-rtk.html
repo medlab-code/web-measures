@@ -421,7 +421,9 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         select();
         const chosen = !!box.querySelector(`.pastille-couche.choisie[data-objet="${point.id}"]`);
         const [ty, tp] = [start.yaw + 0.05, start.pitch + 0.02];
-        psvClick(ty, tp);
+        psvClick(ty, tp);  // posé : recalage fini, l'objet n'est plus choisi
+        expect("couche : le clic qui pose l'objet finit le recalage", !box.querySelector(".pastille-couche.choisie"));
+        select();  // ajusté : choisi à nouveau, ↑, Entrée
         key("ArrowUp");
         key("Enter");
         const moved = posOf(point.id), step = 0.05 * Math.PI / 180;
@@ -430,7 +432,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
           && Math.abs(moved.yaw - ty) < 1e-6 && Math.abs(moved.pitch - (tp + step)) < 1e-6 && onMap() === mapBefore
           && !box.querySelector(".pastille-couche.choisie"));
         psvClick(start.yaw, start.pitch);  // fini : le clic suivant ne le déplace plus
-        expect("couche : recalage fini par Entrée", Math.abs(posOf(point.id).yaw - ty) < 1e-6);
+        expect("couche : recalage fini par Entrée, objet non déplacé par le clic suivant", Math.abs(posOf(point.id).yaw - ty) < 1e-6);
         const stored = async () => (await w.mesures.savedOverlay()).features[point.id].recalages;
         const picId = w.mesures.psv.getPictureMetadata().id;
         expect("couche : recalage gardé avec la couche", Math.abs((await stored())?.[picId]?.decalage[0] - (ty - start.yaw)) < 1e-6

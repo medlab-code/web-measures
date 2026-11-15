@@ -635,8 +635,8 @@ séquence Panoramax, chaque objet sur la plus proche de cette séquence. « Cadr
 1er objet. « Cadrage type… » : la photo du 1er objet s'ouvre ; zoom, hauteur de vue et photo (tant de photos avant ou
 après dans la séquence, par les flèches de la visionneuse) s'y règlent, puis sont repris pour chaque objet, le cap
 tourné vers lui. Un objet sans photo trouvée est sauté et signalé. **Recalage dans la photo** (hors mesure) : clic sur la pastille ou l'étiquette d'un objet,
-puis clic à sa place vue dans la photo, flèches pour l'ajuster (0,05°), Entrée pour finir, Suppr pour
-le remettre à sa place calculée ; décalage propre à cette photo, la carte n'est pas modifiée. Gardé
+puis clic à sa place vue dans la photo, qui le pose et finit le recalage (le clic suivant ne le bouge plus) ; pour
+l'ajuster, clic sur l'objet, flèches (0,05°), Entrée pour finir ; Suppr pour le remettre à sa place calculée ; décalage propre à cette photo, la carte n'est pas modifiée. Gardé
 avec la couche ; « Exporter » écrit un GeoJSON (WGS 84) où chaque objet porte ses
 recalages (membre `recalages` du Feature, hors attributs, ignoré par QGIS : décalage, position et
 séquence de la photo) : importé sur un autre poste, les objets y reviennent à leur place. À l'import,
