@@ -288,8 +288,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       w.mesures.openPhoto(f3);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f3.id, 30000, "photo de la couche");
       const geojson = { type: "FeatureCollection", features: [
-        { type: "Feature", properties: { nom: "cible", h: 1.5 }, geometry: { type: "Point", coordinates: target } },
-        { type: "Feature", properties: { nom: "ligne", h: 2 }, geometry: { type: "LineString", coordinates: [target, mid] } },
+        { type: "Feature", properties: { nom: "cible", h: 1.5, ok: true }, geometry: { type: "Point", coordinates: target } },
+        { type: "Feature", properties: { nom: "ligne", h: 2, ok: false }, geometry: { type: "LineString", coordinates: [target, mid] } },
         // deux bornes serrées contre la cible : étiquettes à écarter
         { type: "Feature", properties: { nom: "p2", h: 3 }, geometry: { type: "Point", coordinates: [target[0] + 0.000004, target[1]] } },
         { type: "Feature", properties: { nom: "p3", h: 4 }, geometry: { type: "Point", coordinates: [target[0] + 0.000008, target[1]] } },
@@ -477,6 +477,15 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         const added = await w.mesures.savedOverlay();
         expect("modification : point ajouté, gardé, choisi", added.features.length === 5 && added.features[4].geometry.type === "Point"
           && rows().length === 5 && doc.querySelector("#objet-courant").textContent.startsWith("Objet 5"));
+        // Saisie : texte avec les valeurs des autres objets proposées, nombre sans liste, oui / non en case à cocher
+        const input = (c) => [...doc.querySelectorAll("#objet-attributs label")].find((l) => l.firstChild.textContent === c)?.querySelector("input");
+        input("nom").dispatchEvent(new Event("focus"));
+        const offered = [...(input("nom").list?.options || [])].map((o) => o.value);
+        const ok = input("ok");
+        ok.click();
+        expect("saisie : valeurs existantes proposées pour un texte, rien pour un nombre, case pour oui / non",
+          offered.join() === "cible,ligne,p2,p3" && !input("h").list && ok.type === "checkbox"
+          && (await w.mesures.savedOverlay()).features[4].properties.ok === true, offered.join());
         const dialog = doc.querySelector("#supprimer-objet");
         doc.querySelector("#objet-supprimer").click();
         await until(() => dialog.open, 5000, "confirmation de la suppression");

@@ -1560,6 +1560,7 @@ button.lien:disabled { color: var(--discret); opacity: 0.6; cursor: default; }
 .attributs-objet { display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 0.5rem; margin-top: 0.5rem; font-size: 0.9em; }
 .attributs-objet label { display: contents; color: var(--discret); }
 .attributs-objet input { min-width: 0; }
+.attributs-objet input[type="checkbox"] { justify-self: start; }
 .actions-objet { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
 .actions-objet button { flex: 1; }
 .actions-objet .danger:not(:disabled) { color: var(--echec); }

@@ -658,7 +658,8 @@ proche) tournée vers lui. Son statut (« vérifié », « à revoir », « abse
 et `verif_note`, ajoutées à la couche au premier statut : gardées avec elle, enregistrées et exportées comme ses autres
 colonnes, et proposées pour la couleur ou l'étiquette. **Modification de la couche**, dans la même rubrique : les attributs de l'objet
 choisi (ligne du tableau, ou clic sur l'objet dans la photo) se modifient sous son statut (vide : sans valeur ; nombre
-si la colonne en a déjà, virgule acceptée). « Supprimer l'objet » le retire après confirmation ; « ＋ Ajouter un objet »
+si la colonne en a déjà, virgule acceptée ; texte : les valeurs des autres objets sont proposées en liste, une valeur
+nouvelle peut être tapée ; nombre : rien de proposé ; colonne oui / non : case à cocher). « Supprimer l'objet » le retire après confirmation ; « ＋ Ajouter un objet »
 pose un point d'un clic sur la mini-carte (Échap annule), puis ses attributs se saisissent. Gardé avec la couche ; le
 fichier ne change qu'à « Enregistrer ».
 

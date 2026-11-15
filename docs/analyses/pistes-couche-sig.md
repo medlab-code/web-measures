@@ -103,7 +103,8 @@ Ordre proposé :
 **B. Modifier la couche importée.** *Fait.*
 - **Fait** : dans la rubrique « Parcours et modification des objets » (`showObjectAttributes`, `objectEdited`,
   `src/app.js`), un champ par colonne pour l'objet choisi (ligne du tableau, ou clic sur l'objet dans la photo) ; vide :
-  null, nombre si la colonne en a déjà. « Supprimer l'objet » après confirmation (numéros refaits, couche renvoyée au
+  null, nombre si la colonne en a déjà ; texte : valeurs des autres objets proposées (`datalist`, valeur nouvelle possible,
+  demande de l'auteur du 15/11/2026), nombre : rien, colonne oui / non (booléens ou « oui » / « non ») : case à cocher. « Supprimer l'objet » après confirmation (numéros refaits, couche renvoyée au
   calcul) ; « ＋ Ajouter un objet » : un point posé d'un clic sur la mini-carte. Gardé avec la couche, « Enregistrer »
   actif, exporté. Essai : `essai-rtk` (attribut, ajout, suppression).
 - **Pas fait** : ajout d'une ligne ou d'un polygone, ajout d'une colonne, déplacement d'un objet sur la carte (le

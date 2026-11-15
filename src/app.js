@@ -2409,7 +2409,9 @@
   }
 
   /** Attributs de l'objet du parcours, modifiables (sans les colonnes techniques d'un relevé, ni statut et
-   * commentaire) ; refaits seulement quand l'objet ou les colonnes changent (un champ en cours garde la main). */
+   * commentaire) ; refaits seulement quand l'objet ou les colonnes changent (un champ en cours garde la main).
+   * Colonne oui / non : case à cocher ; texte : valeurs des autres objets proposées (liste du navigateur, valeur
+   * nouvelle possible) ; nombres : rien de proposé. */
   let attributesKey = "";
   function showObjectAttributes() {
     const on = overlay && objectCurrent != null;
@@ -2418,11 +2420,28 @@
     if (key === attributesKey) return;
     attributesKey = key;
     const p = on ? overlay.features[objectCurrent].properties : {};
-    $("#objet-attributs").replaceChildren(...columns.map((c) => {
+    $("#objet-attributs").replaceChildren(...columns.map((c, k) => {
       const label = Object.assign(document.createElement("label"), { textContent: c });
+      const values = overlay.features.map((f) => f.properties[c]).filter((v) => v != null && v !== "");
+      const yesNo = values.length && values.every((v) => typeof v === "boolean" || /^(oui|non)$/i.test(v));
+      if (yesNo) {  // oui / non : case à cocher, valeur écrite dans la forme de la colonne (booléen, ou « oui » / « non »)
+        const box = Object.assign(document.createElement("input"), { type: "checkbox", checked: p[c] === true || /^oui$/i.test(p[c]) });
+        const asText = values.some((v) => typeof v === "string");
+        box.addEventListener("change", () => setObjectValue(c, asText ? (box.checked ? "oui" : "non") : box.checked));
+        label.append(box);
+        return label;
+      }
       const input = Object.assign(document.createElement("input"), { type: "text", value: p[c] == null ? "" : String(p[c]) });
       input.addEventListener("change", () => setObjectAttribute(c, input.value));
       label.append(input);
+      if (values.some((v) => typeof v !== "number")) {  // texte : valeurs des autres objets proposées, à jour à chaque saisie
+        const list = Object.assign(document.createElement("datalist"), { id: `objet-valeurs-${k}` });
+        input.setAttribute("list", list.id);
+        input.addEventListener("focus", () => list.replaceChildren(...[...new Set(overlay.features.map((f) => f.properties[c])
+          .filter((v) => v != null && v !== "").map(String))].sort((x, y) => x.localeCompare(y, "fr", { numeric: true }))
+          .map((v) => new Option(v))));
+        label.append(list);
+      }
       return label;
     }));
   }
@@ -2431,7 +2450,10 @@
   function setObjectAttribute(column, text) {
     const t = text.trim(), n = Number(t.replace(",", "."));
     const numeric = overlay.features.some((f) => typeof f.properties[column] === "number");
-    overlay.features[objectCurrent].properties[column] = !t ? null : numeric && Number.isFinite(n) ? n : t;
+    setObjectValue(column, !t ? null : numeric && Number.isFinite(n) ? n : t);
+  }
+  function setObjectValue(column, value) {
+    overlay.features[objectCurrent].properties[column] = value;
     objectEdited();
   }
 
