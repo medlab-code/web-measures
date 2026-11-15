@@ -3,10 +3,10 @@
 
 # Partage du travail entre collègues : pistes
 
-Liste du 15/11/2026, tout à faire. Point de départ : ce que la page exporte et importe ce jour-là.
+Liste du 15/11/2026 : P1 écartée, le reste à faire. Point de départ : ce que la page exporte et importe ce jour-là.
 
 Ordre proposé :
-1. P1 (lien), puis P2 (import unique, noms explicites), puis P3 (auteur) : courts, ils changent l'usage au quotidien.
+1. P3 (auteur), puis P2 (import unique, noms explicites) : courts, ils changent l'usage au quotidien (P1 écartée).
 2. P4 si des couches à vérifier se partagent entre collègues, P5 si l'on se passe la main sur des chantiers.
 3. P6 (déjà noté dans `docs/GUIDE.md`, « Pour plus tard ») ; P7 en dernier.
 À revoir selon la façon de travailler à plusieurs (dossier réseau commun ? collègues sous QGIS ? partage surtout de
@@ -26,13 +26,15 @@ mesures ou de couches ?).
 
 ## Pistes
 
-**P1. Lien de partage.** *Le plus rentable.*
+**P1. Lien de partage.** *Écartée (15/11/2026, demande de l'auteur) : l'adresse du site est amenée à changer, les
+liens envoyés ne marcheraient plus. Variante possible : un lien vers la visionneuse officielle Panoramax (photo et vue,
+sans la mesure), indépendant de l'adresse du site, que « Aller à la photo » sait déjà rouvrir.*
 - **Principe** : « 🔗 Copier le lien » donne une adresse du site qui rouvre la même photo, tournée et zoomée pareil
   (`…/#photo=…&cap=…&inclin=…&zoom=…`) ; la page lit cette adresse à l'ouverture.
 - **Avec une mesure** : le lien porte aussi ses repères (comme `vue_ref` à l'import d'un export de mesures), dessinés
   chez le collègue.
-- **Gain** : aucun fichier, se colle dans un courriel ou une messagerie ; le site est déjà en ligne. Sert aussi
-  l'export inventaire (P6 : lien vers la photo).
+- **Gain** : aucun fichier, se colle dans un courriel ou une messagerie ; le site est déjà en ligne. Aurait servi aussi
+  l'export inventaire (P6 : lien vers la photo, à faire vers Panoramax).
 - **Attention** : adresse du site `main` ou `dev` selon celui ouvert ; une photo d'une autre instance que celle par
   défaut doit la nommer dans le lien.
 
