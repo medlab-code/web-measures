@@ -431,7 +431,8 @@ class App(session.Session):
         self.map_mode = False
         self.redo_stack, self.redo_key = [], None  # états d'avant chaque « Effacer » (Ctrl+Y, voir redo)
         self.overlay = []  # couche importée : (n° de l'objet, "point" ou "ligne", [(lon, lat, z)]), voir set_overlay
-        self.overlay_ground = {}  # photo -> {(lon, lat): altitude LiDAR HD} sous la couche (_overlay_ground)
+        self.overlay_ground = {}  # (lon, lat) -> altitude LiDAR HD ou None (absente), sommets et caméras (_overlay_ground)
+        self.overlay_asked = set()  # (lon, lat) dont l'altitude est en cours de lecture
         self.point_ground = {}  # (lon, lat caméra, lon, lat point) -> (z caméra, z point) ou None (_point_ground)
         self.tilt_reasons = {}  # photo -> raison de l'échec de l'inclinaison automatique (ticket #29)
         self.birdeye_loose = {}  # photo -> verticales refusées pour les mesures, gardées pour la vue du dessus (web_tilt.LOOSE_SIGMA)
@@ -1411,18 +1412,19 @@ class App(session.Session):
 
     # Couche importée (GeoJSON, src/couche.js) : objets dans la photo, à leur altitude (z du fichier,
     # NGF) ou posés sur le sol LiDAR HD, lu sous la caméra et sous leurs sommets (lignes redécoupées
-    # tous les OVERLAY_STEP m pour suivre le terrain) ; à plat à la hauteur de caméra en attendant ou
-    # sans LiDAR ----------------------------------------------------------------------------------
+    # tous les OVERLAY_STEP m pour suivre le terrain) ; dessinés une fois le sol de la caméra lu (pas de saut), chaque
+    # objet une fois ses sommets lus ; à plat à la hauteur de caméra sans LiDAR ou sans réponse en OVERLAY_TIMEOUT_MS ----------
     OVERLAY_REACH = 100.0  # m : objets dessinés dans la photo s'ils ont un sommet à cette distance
     OVERLAY_STEP = 5.0  # m : pas des lignes, pour suivre le terrain entre leurs sommets
     OVERLAY_CHUNK = 150  # points par requête d'altitude (longueur de l'adresse)
     POINT_GROUND_MAX = 200  # couples (caméra, point) dont l'altitude est gardée (view_point)
-    OVERLAY_MAX = 900  # points d'altitude au plus par photo
+    OVERLAY_TIMEOUT_MS = 5000  # ms : sans réponse, sol supposé de niveau avec la caméra (objets à plat)
+    OVERLAY_MAX = 900  # points d'altitude au plus demandés par photo (sommets pas encore lus)
 
     def set_overlay(self, text):
         """Couche importée, JSON [{id, geometry}] en WGS 84, z éventuel en NGF (vide : retirée) : points,
         et lignes (contours des polygones compris), multi-géométries éclatées en parties."""
-        self.overlay, self.overlay_ground = [], {}
+        self.overlay, self.overlay_ground, self.overlay_asked = [], {}, set()
         for f in json.loads(text or "[]"):
             g, i = f.get("geometry") or {}, f.get("id")
             kind, coords = g.get("type", ""), g.get("coordinates") or []
@@ -1493,9 +1495,13 @@ class App(session.Session):
         near = [(i, kind, pts) for i, kind, pts in self.overlay
                 if any(abs(p[1] - lat) < reach and abs(p[0] - lon) * k < reach for p in pts)]
         ground = self._overlay_ground(lon, lat, near)  # {(lon, lat): z}, sol sous la caméra en (lon, lat)
-        height, base = self._camera_height(), ground.get((lon, lat))
+        if (lon, lat) not in ground:  # sol de la caméra en cours de lecture : rien, plutôt qu'à plat puis un saut
+            return "[]"
+        height, base = self._camera_height(), ground[(lon, lat)]
         out = []
         for i, kind, pts in near:
+            if any((p[0], p[1]) in self.overlay_asked for p in pts):  # sommet en cours de lecture : dessiné à son arrivée
+                continue
             views, dist = [], None
             for plon, plat, z in pts:
                 z = z if z is not None else ground.get((plon, plat))
@@ -1509,34 +1515,34 @@ class App(session.Session):
         return json.dumps(out)
 
     def _overlay_ground(self, lon, lat, near):
-        """Altitudes LiDAR HD sous la caméra et sous les sommets proches sans z (OVERLAY_MAX au plus, à
-        une fois et demie OVERLAY_REACH) : {(lon, lat): z}, lues une fois par photo ({} en attendant)."""
-        pic = self.item.get("id")
-        if pic in self.overlay_ground:
-            return self.overlay_ground[pic]
-        self.overlay_ground[pic] = {}
+        """Altitudes LiDAR HD sous la caméra et sous les sommets proches sans z (à une fois et demie OVERLAY_REACH) :
+        {(lon, lat): z}, gardées pour toute la couche (les objets ne bougent pas : photo suivante de la séquence sans
+        relecture) ; seuls les points pas encore lus sont demandés, OVERLAY_MAX au plus par photo. Absente : None."""
         k, reach = math.cos(math.radians(lat)), 1.5 * self.OVERLAY_REACH / 111320.0
-        points = [(lon, lat)] + list(dict.fromkeys(
+        known, asked = self.overlay_ground, self.overlay_asked
+        points = [p for p in dict.fromkeys([(lon, lat)] + [
             (p[0], p[1]) for _, _, pts in near for p in pts
-            if p[2] is None and abs(p[1] - lat) < reach and abs(p[0] - lon) * k < reach))[:self.OVERLAY_MAX]
-        found, overlay = {}, self.overlay
+            if p[2] is None and abs(p[1] - lat) < reach and abs(p[0] - lon) * k < reach])
+            if p not in known and p not in asked][:self.OVERLAY_MAX]
+        if not points:
+            return known
+        asked.update(points)
         chunks = [points[n:n + self.OVERLAY_CHUNK] for n in range(0, len(points), self.OVERLAY_CHUNK)]
-        left = [len(chunks)]
 
         def got(chunk):
             def done(data, error):
+                if known is not self.overlay_ground:  # couche changée entre-temps : réponse jetée
+                    return
                 z = None if error else precision._ground(data)
-                if z and len(z) == len(chunk):
-                    found.update((p, h) for p, h in zip(chunk, z) if h is not None)
-                left[0] -= 1
-                if not left[0] and self.overlay is overlay:  # toutes lues : couche redessinée
-                    self.overlay_ground[pic] = found
-                    self.notify()
+                # sans réponse (OVERLAY_TIMEOUT_MS) ou en erreur : à plat ; shortcut: pas relu avant le prochain import
+                known.update(zip(chunk, z if z and len(z) == len(chunk) else [None] * len(chunk)))
+                asked.difference_update(chunk)
+                self.notify()  # objets de ce paquet dessinés
             return done
 
         for chunk in chunks:
-            host.fetch_json(precision.lidar_url(chunk, precision.LIDAR_RESOURCE), got(chunk), timeout_ms=15000)
-        return self.overlay_ground[pic]
+            host.fetch_json(precision.lidar_url(chunk, precision.LIDAR_RESOURCE), got(chunk), timeout_ms=self.OVERLAY_TIMEOUT_MS)
+        return known
 
     # Hauteurs suivantes depuis le point de référence, sur l'axe de la première -------------------
     # Une fois une hauteur faite depuis A sur la photo affichée (ligne A–C), le sommet des suivantes
