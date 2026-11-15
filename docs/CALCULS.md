@@ -166,7 +166,7 @@ Chaque objet est placé d'une de ces trois façons :
 - **triangulé** (§ 2) : la façon normale ;
 - **sur une seule photo** (« Garder sur cette seule photo ») : là où la visée touche le sol,
   supposé plat à la hauteur de caméra sous la photo (altitude RTK moins sol LiDAR, sinon calée, sinon
-  monture du CD21 d'après la date, sinon le réglage : `App._camera_of`). La visée doit descendre d'au moins 2° sous
+  monture du CD21 d'après la date, sinon le réglage : `Session.camera_of`). La visée doit descendre d'au moins 2° sous
   l'horizon, soit 70 m au plus pour une caméra à 2,5 m. L'incertitude vient surtout de
   l'inclinaison : ±0,2 à 0,8 m pour un objet à 6 m selon son calage ;
 - **sur la carte** (« Placer sur la carte ») : le clic sur la mini-carte, à ±1 m (précision des

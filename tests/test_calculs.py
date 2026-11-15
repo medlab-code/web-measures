@@ -494,7 +494,7 @@ class CameraPont(unittest.TestCase):
         self.assertEqual(a._camera_height(), 2.07)
         self.assertEqual(a._camera_height(mount=False), 1.9)
         item["properties"]["datetime"] = "2025-06-01T10:00:00Z"
-        self.assertEqual(a._camera_of(item, declared)[:2], (1.93, "monture"))
+        self.assertEqual(a.camera_of(item, declared)[:2], (1.93, "monture"))
         other = dict(item, providers=[{"id": "autre"}])
         self.assertIsNone(self.app(declared, item=other)._fall_camera())  # autre producteur : à demander, comme avant
 
