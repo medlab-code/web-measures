@@ -68,6 +68,20 @@ sans la mesure), indépendant de l'adresse du site, que « Aller à la photo » 
 - **Principe** : « Exporter la séance » réunit la couche et ses réglages, les mesures, le relevé, le calage, les
   parcours et les favoris ; importé par le collègue, il retrouve tout tel quel.
 - **Gain** : passer la main sur un chantier ; réponse directe aux exports séparés.
+- **Détail (15/11/2026)** : couche (texte gardé dans IndexedDB, réglages, recalages, statuts, filtre) et relevé :
+  remplacent ceux du collègue, après confirmation, décochés par défaut s'il en a déjà ; calage : complète le sien
+  (`merge_calibration`) ; parcours, favoris, modèles de champs : ajoutés ; photo ouverte, filtre et instance : proposés ;
+  réglages personnels (thème, panneau, fond…) non repris. Fenêtre à l'import : une case par partie, avec ce qu'elle
+  fera. Numéro de version du format dans le fichier. Reconnu par l'import commun (P2). Version légère possible : sans
+  fenêtre, ajout de ce qui s'ajoute, confirmation simple pour la couche et le relevé. Coût moyen.
+- **Mesures** : la page ne les garde que sous forme d'export (`resultats`, GeoJSON) ; dans le dossier, elles
+  reviendraient en lecture seule (revues sur leur photo), comme les « résultats précédents ».
+- **Pour plus tard (demande de l'auteur, 15/11/2026) : reprise des mesures modifiables**, à intégrer à ce dossier.
+  Le calcul (`App`, `py/web_app.py`) devrait enregistrer et recharger ses mesures : clics (photo, cap, élévation),
+  sorte de mesure et surface, réglages (droite, axe, recalages, hauteur de caméra), commentaires, points gardés,
+  relevé, longueurs sur la carte et distances entre points. Servirait aussi à rouvrir la séance précédente en mesures
+  modifiables, et non plus en lecture seule. Coût élevé : tout le cœur des mesures est concerné, avec ses essais
+  (`tests/test_calculs.py`, classe `Parcours`).
 
 **P6. Export inventaire en CSV.** Noté le 15/11/2026 dans `docs/GUIDE.md` (« Pour plus tard ») : une ligne par
 mesure, route, PR + abscisse, type, valeur ± incertitude, date de la photo, lien vers la photo. Profiterait de P1
