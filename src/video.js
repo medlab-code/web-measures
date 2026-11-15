@@ -1488,17 +1488,25 @@ const Video = (() => {
    * options.poi : point d'intérêt { target, z (altitude NGF de l'objet relevé ou null), start, end (extrémités de la
    * zone tracée, [lon, lat] ou null), speed (km/h ou null), zoom, zoomByDistance, roll, ground: { target, photos }
    * (altitudes du sol, par photo de photos) } (poiViews) ; options.planets : tronçons des petites planètes ([[début, fin]…],
-   * planets), options.planetFade : enroulement et déroulement (s), options.planetAll : sur tout le parcours, options.planetRoll : tonneau pendant les transitions, options.presentation : mode
+   * planets), options.planetFade : enroulement et déroulement (s), options.planetAll : sur tout le parcours,
+   * options.planetRoll : tonneau pendant les transitions, options.presentation : mode
    * Présentation (timeline, presentationSpeeds ; vitesses en m/s) à la place de kmh et de la rampe, options.planetSpin : vitesse de rotation (°/s) ;
    * options.tours : endroits des tours d'horizon ([[lon, lat]…], tours), options.tourTime : durée de chacun (s),
-   * options.tourStop : caméra arrêtée pendant le tour ; options.draft : brouillon (image SD des photos, DRAFT_SIZE) ; options.format : « h264 », « h265 » ou « vp9 » ; options.height : 1080, 720 ou 480 (encoderConfig) ; options.stabilize : tangage et roulis de chaque photo corrigés (stabilization) ; options.stream : fichier ouvert
+   * options.tourStop : caméra arrêtée pendant le tour ; options.draft : brouillon (image SD des photos, DRAFT_SIZE) ;
+   * options.format : « h264 », « h265 » ou « vp9 » ; options.height : 1080, 720 ou 480 (encoderConfig) ;
+   * options.stabilize : tangage et roulis de chaque photo corrigés (stabilization) ; options.stream : fichier ouvert
    * (FileSystemWritableFileStream) où écrire la vidéo au fur et à mesure, refermé à la fin (rend null ; sans lui, la
-   * vidéo est assemblée en mémoire et rendue en Blob : un long parcours peut alors dépasser la mémoire de l'onglet). progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
+   * vidéo est assemblée en mémoire et rendue en Blob : un long parcours peut alors dépasser la mémoire de l'onglet).
+   * progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
    */
   async function mp4(photos, kmh, progress = () => {}, signal = null,
-    { blur = false, exposure = true, ramp = false, title = null, counter = false, speedometer = false, lateral = false, arpSpeed = false, junctions = [], rolls: rollPlaces = [],
-    rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null, draft = false, format = "h264", height: wantedHeight = 1080, stabilize = false, planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false, planetRoll = false, presentation = null,
-    planetSpin = PLANET_SPIN, tours: tourPlaces = [], tourTime = TOUR_TIME, tourStop = true, stream = null } = {}) {
+    {
+      blur = false, exposure = true, ramp = false, title = null, counter = false, speedometer = false, lateral = false,
+      arpSpeed = false, junctions = [], rolls: rollPlaces = [], rollTime = ROLL_TIME, lookSpeed = LOOK_SPEED, poi = null,
+      draft = false, format = "h264", height: wantedHeight = 1080, stabilize = false, presentation = null,
+      planets: planetPlaces = [], planetFade = PLANET_FADE, planetAll = false, planetRoll = false, planetSpin = PLANET_SPIN,
+      tours: tourPlaces = [], tourTime = TOUR_TIME, tourStop = true, stream = null,
+    } = {}) {
     const timelineOf = (p) => timeline(p, kmh / 3.6, ramp, lookedJunctions(p, junctions), lookSpeed / 3.6,
       poi?.speed ? { ...poiSpan(p, poi), speed: poi.speed / 3.6 } : null, presentation);
     if (draft) photos = photos.map((p) => (p.sd ? { ...p, tiles: { image: p.sd, cols: 1, rows: 1, size: 2048 } } : p));
@@ -1708,6 +1716,11 @@ const Video = (() => {
     }
   }
 
-  return { get times() { return lastTimes; }, supported, encoderChoices, encoderConfig, stabilization, imageOffset, record, mp4, trajectory, timeline, ignoredPlaces, presentationSpeeds, steadyHeadings, PRES, PRES_HOLD, PRES_START, PRES_SIGHT, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
-    poiSpan, poiViews, planets, tours, speeds, laterals, insideDevers, lateralColor, arpSpeeds, steady, drawOverlay, fetchImage, FPS, HOLD };
+  return {
+    get times() { return lastTimes; },
+    supported, encoderChoices, encoderConfig, stabilization, imageOffset, record, mp4, trajectory, timeline,
+    ignoredPlaces, presentationSpeeds, steadyHeadings, duration, exposures, isolated, prAt, pans, rolls, lookedJunctions,
+    poiSpan, poiViews, planets, tours, speeds, laterals, insideDevers, lateralColor, arpSpeeds, steady, drawOverlay,
+    fetchImage, PRES, PRES_HOLD, PRES_START, PRES_SIGHT, FPS, HOLD,
+  };
 })();

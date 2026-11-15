@@ -3905,9 +3905,14 @@
       button.setAttribute("aria-pressed", String(button.dataset.cote === which));
     }
     if (which) {
-      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau", stop: "l'endroit de l'arrêt", slow: "un point de ralentissement", waypoint: "une étape (sur une route photographiée)", planet: planetDraft ? "la fin de la petite planète" : "le début de la petite planète (le long de la route)", tour: "l'endroit du tour d'horizon",
-        poiZone: poi.draft ? "la fin de la zone de l'effet" : "le début de la zone de l'effet (le long de la route)" }[which]} ; `
-        + "Échap pour annuler.");
+      const target = {
+        start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau", stop: "l'endroit de l'arrêt",
+        slow: "un point de ralentissement", waypoint: "une étape (sur une route photographiée)",
+        planet: planetDraft ? "la fin de la petite planète" : "le début de la petite planète (le long de la route)",
+        tour: "l'endroit du tour d'horizon",
+        poiZone: poi.draft ? "la fin de la zone de l'effet" : "le début de la zone de l'effet (le long de la route)",
+      }[which];
+      setStatus(`Parcours : cliquez sur la mini-carte ${target} ; Échap pour annuler.`);
     }
   }
   const placedCount = (kind) => `${kind.points.length || "aucun"} ${kind.label[kind.points.length > 1 ? 1 : 0]}`;
@@ -4696,7 +4701,9 @@
           const li = document.createElement("li");
           li.append(see, ` ${where} : ${seam.before} puis ${seam.after}`);
           list.append(li);
-          seamMarkers.push(new maplibregl.Marker({ element: Object.assign(document.createElement("div"), { className: "repere-requete raccord", title: `Changement de séquence : ${seam.before} puis ${seam.after}` }), anchor: "bottom" }).setLngLat(seam.at).addTo(map));
+          const element = Object.assign(document.createElement("div"), { className: "repere-requete raccord",
+            title: `Changement de séquence : ${seam.before} puis ${seam.after}` });
+          seamMarkers.push(new maplibregl.Marker({ element, anchor: "bottom" }).setLngLat(seam.at).addTo(map));
         }
         box.replaceChildren(strong(`${sequences} séquences : ${seams.length} changement${seams.length > 1 ? "s" : ""}`), facts, list,
           Object.assign(document.createElement("p"), { className: "aide", textContent: "Les photos peuvent différer (date, lumière, sens de prise de vue)." }));
@@ -4770,7 +4777,9 @@
         $("#video-barre").value = done / total;
         setStatus(text, "avancement");
         $("#statut").style.setProperty("--avancement", `${(100 * done / total).toFixed(1)}%`);
-      }, videoRun.signal, { blur: videoOption("#video-flou"), draft: $("#video-brouillon").checked, stabilize: videoOption("#video-stabilisation"), format: $("#video-codec").value, height: Number($("#video-definition").value), exposure: videoOption("#video-expo"),
+      }, videoRun.signal, {
+        blur: videoOption("#video-flou"), draft: $("#video-brouillon").checked, stabilize: videoOption("#video-stabilisation"),
+        format: $("#video-codec").value, height: Number($("#video-definition").value), exposure: videoOption("#video-expo"),
         ramp: !presOptions() && $("#video-rampe").checked, presentation: presOptions(),
         counter: videoOption("#video-compteur"), speedometer: $("#video-compteur-vitesse").checked, lateral: videoOption("#video-acceleration"), arpSpeed: videoOption("#video-vmax-arp"),
         junctions: videoOption("#video-regard") ? videoPlan.junctions || [] : [],
@@ -6332,7 +6341,8 @@
   // part, imprimée par le navigateur (« Enregistrer au format PDF »).
   const FICHE_PHOTO = { width: 698, height: 356 }, FICHE_MAP = { width: 230, height: 300 };
   // Polices de la page (Inter, JetBrains Mono), pour la fenêtre de la fiche, document à part
-  const FICHE_FONTS = '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/latin-400.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/latin-500.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/latin-700.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.3.0/latin-400.css">';
+  const FICHE_FONTS = ["inter@5.3.0/latin-400", "inter@5.3.0/latin-500", "inter@5.3.0/latin-700", "jetbrains-mono@5.3.0/latin-400"]
+    .map((font) => `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/${font}.css">`).join("");
   const FICHE_UNZOOM = 10;  // largeur : niveaux de zoom ôtés après le cadrage, 2 crans de molette (5 chacun)
 
   /** Image (data: JPEG) d'une zone du canevas source au rapport largeur / hauteur aspect, de size px de

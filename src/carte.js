@@ -865,7 +865,10 @@ const Carte = (() => {
     cadastreOn = on;
     // pas whenLoaded (voir setMilestones) : « load » peut être passé alors que le style se dit « pas chargé »
     const apply = () => {
-      for (const id of ["cadastre-parcelles", "cadastre", "cadastre-camera-fond", "cadastre-camera", "cadastre-vise-fond", "cadastre-vise", "cadastre-batiments", "cadastre-bornes", "cadastre-sections"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+      for (const id of ["cadastre-parcelles", "cadastre", "cadastre-camera-fond", "cadastre-camera", "cadastre-vise-fond",
+        "cadastre-vise", "cadastre-batiments", "cadastre-bornes", "cadastre-sections"]) {
+        map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+      }
       for (const id of buildingMax.keys()) buildingZoom(map, id);
       if (!cadastreFollow) {
         cadastreFollow = true;
@@ -1619,7 +1622,10 @@ const Carte = (() => {
   }
 
   return {
-    PANORAMAX_API: META_API, GEOPF, OFM_STYLE: VECTOR_BASES.ofm.style, createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, pcrsAt, instances, setInstance, setFilter,
-    showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre, onAim: (fn) => { aimListener = fn; }, aimedParcel: aimedParcelNow, capture, nearestPhoto, photosNear, photoById, metresBetween, apiUrl: () => apiUrl,
+    PANORAMAX_API: META_API, GEOPF, OFM_STYLE: VECTOR_BASES.ofm.style,
+    createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, pcrsAt, instances, setInstance, setFilter,
+    showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre,
+    onAim: (fn) => { aimListener = fn; }, aimedParcel: aimedParcelNow, apiUrl: () => apiUrl,
+    capture, nearestPhoto, photosNear, photoById, metresBetween,
   };
 })();

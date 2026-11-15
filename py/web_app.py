@@ -2864,117 +2864,16 @@ class App(session.Session):
                 # 2 m (un détail). Talus : pentes sur EDGE_WINDOW m d'au moins EDGE_TALUS, resserrées autour de la plus
                 # forte sur celles d'au moins EDGE_CORE fois elle (sans l'accotement en pente douce ni la queue du pied)
                 slopes = [slope(zz, oo, j, self.EDGE_WINDOW) or 0 for j in range(len(oo))]
-                k = 0
-                while k < len(oo):
-                    if slopes[k] < self.EDGE_TALUS:
-                        k += 1
-                        continue
-                    first = k
-                    while k < len(oo) and slopes[k] >= self.EDGE_TALUS:
-                        k += 1
-                    steep = max(range(first, k), key=lambda j: slopes[j])
-                    floor = max(self.EDGE_TALUS, self.EDGE_CORE * slopes[steep])
-                    top, end = steep, steep + 1
-                    while top > first and slopes[top - 1] >= floor:
-                        top -= 1
-                    while end < k and slopes[end] >= floor:
-                        end += 1
-                    # pied : bout de la dernière fenêtre en pente, le point le plus bas jusque-là
-                    last = next((j for j in range(end - 1, len(oo)) if oo[j] - oo[end - 1] >= self.EDGE_WINDOW - 1e-6),
-                                len(oo) - 1)
-                    foot = min((j for j in range(top, last + 1) if zz[j] is not None), key=lambda j: zz[j])
-                    height = zz[top] - zz[foot]
-                    mean = height / (oo[foot] - oo[top]) if foot > top else 0
+                for mean, top, foot, height in self._taluses(zz, oo, slopes):
                     if height >= self.FALL_MIN and (found[name][1] is None or mean > found[name][1][0]):
-                        found[name][1] = (mean, oo[top], along, oo[foot], height)
+                        found[name][1] = (mean, top, along, foot, height)
             # Profil en long (derniers points lus) : pente moyenne, montée > 0 dans le sens de la photo, et la plus forte
             pts = [(d, v) for d, v in zip(lengthwise, ground[len(ground) - len(lengthwise):]) if v is not None] if lengthwise else []
-            # Fin de la route de la photo et carrefours avec une voie nommée, le long d'elle ; au-delà d'une fin, pas de profil
-            # (la caméra a pu continuer sur une autre route)
-            cuts = []
-            for p, kind, names in ends[0]:
-                d = round(along_of(p), 1)
-                if -self.LONG_REACH - 1 <= d <= self.LONG_REACH + 1 and all(abs(d - e["d"]) > 1 for e in cuts):
-                    cuts.append({"d": d, "type": kind, "voie": ends[1], "avec": names})
-            # Carrefour à îlot séparateur : la voie qui arrive y est faite d'un tronçon par sens, qui touchent la route en deux
-            # points proches ; un seul repère au milieu (LONG_JUNCTION m au plus entre eux, même voie)
-            cuts.sort(key=lambda e: e["d"])
-            merged = []
-            for e in cuts:
-                last = merged[-1] if merged else None
-                if (last and e["type"] == last["type"] == "carrefour" and set(e["avec"]) & set(last["avec"])
-                        and e["d"] - last["d0"] <= self.LONG_JUNCTION):
-                    last["d"] = round((last["d0"] + e["d"]) / 2, 1)
-                    last["avec"] = sorted(set(last["avec"]) | set(e["avec"]))
-                else:
-                    merged.append(dict(e, d0=e["d"]))
-            cuts = [{k: v for k, v in e.items() if k != "d0"} for e in merged]
-            for e in cuts:
-                if e["type"] == "fin":
-                    pts = [(d, v) for d, v in pts if (d <= e["d"] + 1e-6 if e["d"] > 0 else d >= e["d"] - 1e-6)]
-            cuts = [e for e in cuts if pts and pts[0][0] - 1 <= e["d"] <= pts[-1][0] + 1]
-            # Creux (ponts, même absents de la BD TOPO) : terrain remplacé par la droite d'un bord à l'autre (le tablier, à peu
-            # près), pente comprise ; nommés « pont » s'ils recouvrent un pont de la route
-            bridges = [sorted((along_of(a), along_of(b))) for level, a, b in ends[2] if level > 0]
-            pts, dips = self._bridged(pts, bridges)
-            spans = [{"de": round(lo, 1), "a": round(hi, 1),
-                      "type": "pont" if any(b0 <= hi and b1 >= lo for b0, b1 in bridges) else "creux"} for lo, hi in dips]
-            # Tunnels de la route : le MNT y donne le dessus, remplacé par la droite d'une tête à l'autre
-            for level, a, b in ends[2]:
-                lo, hi = sorted((along_of(a), along_of(b)))
-                before = [(d, v) for d, v in pts if d <= lo + 1e-6]
-                after = [(d, v) for d, v in pts if d >= hi - 1e-6]
-                if level > 0 or not pts or hi < pts[0][0] or lo > pts[-1][0]:
-                    continue
-                if before and after:
-                    (d0, z0), (d1, z1) = before[-1], after[0]
-                    pts = [(d, z0 + (z1 - z0) * (d - d0) / ((d1 - d0) or 1.0)) if d0 < d < d1 else (d, v) for d, v in pts]
-                else:  # tunnel au bout du profil, une seule tête : pas de terrain dessus
-                    pts = [(d, v) for d, v in pts if not lo < d < hi]
-                spans.append({"de": round(lo, 1), "a": round(hi, 1), "type": "tunnel"})
-            grade = None
-            if len(pts) >= 5:
-                md, mz = sum(d for d, _ in pts) / len(pts), sum(v for _, v in pts) / len(pts)
-                mean = sum((d - md) * (v - mz) for d, v in pts) / (sum((d - md) ** 2 for d, _ in pts) or 1.0)
-                windows = [((b[1] - a[1]) / (b[0] - a[0]), a[0], b[0]) for k, a in enumerate(pts) for b in pts[k + 1:]
-                           if abs(b[0] - a[0] - self.LONG_WINDOW) < 1e-6]  # (pente, de, à) sur LONG_WINDOW m
-                steep = max(windows, key=lambda c: abs(c[0]), default=None)
-                grade = {"points": [[d, round(v, 2)] for d, v in pts], "pente": round(100 * mean, 1), "suivi": followed,
-                         "fins": sorted(cuts, key=lambda e: e["d"]), "ouvrages": spans,
-                         "max": [round(100 * steep[0], 1), steep[1], steep[2]] if steep else None}
+            grade = self._long_profile(pts, ends, along_of, followed)
             terrain = triangulation.RGE_ALTI_ERROR if source == "RGE ALTI" else triangulation.LIDAR_ERROR
             sigma = math.hypot(terrain, terrain)  # deux altitudes du même MNT
             origin = "la caméra" if camera else "l'axe BD TOPO"
-            lines, seen, shown = [], [], {}
-            for name, _ in sides:
-                if borders[name]:
-                    by_relief = sum(r for _, r in borders[name])
-                    seen.append("côté {} à {} m de {} ({}{})".format(
-                        name, measures._num(sorted(o for o, _ in borders[name])[len(borders[name]) // 2], 1), origin,
-                        "relief sur {} travers sur {}".format(by_relief, len(borders[name])) if by_relief
-                        else "largeur BD TOPO", ", au-delà du séparateur de chaussée ({}) et de l'autre chaussée".format(
-                            "trouvé dans le relief" if any(e.get("separateur_relief") for e in drawn if e["cote"] == name)
-                            else "d'après la BD TOPO") if twins[name] else ""))
-                fall, slope_max = found[name]
-                stop = sorted(stops[name])[len(stops[name]) // 2] if stops[name] else None
-                if fall is None or fall[0] < self.FALL_MIN:
-                    if stop is not None:
-                        lines.append("Côté {} : pas de chute avant le terrain qui remonte de {} m, à {} m du bord".format(
-                            name, measures._num(self.EDGE_RISE, 0), measures._num(stop, 0)))
-                    continue
-                beyond = fall[1] >= fall[2] - 1e-6  # le plus bas au bout du profil : le terrain descend encore
-                text = "Côté {} : chute {}{} m (±{} m) {} {} m du bord".format(
-                    name, "≥ " if beyond else "", measures._num(fall[0], 1), measures._num(sigma, 1),
-                    "au-delà de" if beyond else "à", measures._num(fall[1], 0))
-                if slope_max and slope_max[0] > 0:
-                    text += ", dévers du talus {} % ({}°) sur {} m de haut".format(
-                        measures._num(100 * slope_max[0], 0), measures._num(math.degrees(math.atan(slope_max[0])), 0),
-                        measures._num(slope_max[4], 1))
-                lines.append(text)
-                shown[name] = {"chute": [round(fall[0], 2), round(fall[1], 2), beyond, fall[3]],
-                               "devers": [round(slope_max[0], 3), round(slope_max[1], 2), slope_max[2],
-                                          round(slope_max[3], 2), round(slope_max[4], 2)]
-                               if slope_max and slope_max[0] > 0 else None}
+            lines, seen, shown = self._edges_sides(sides, borders, found, stops, drawn, twins, sigma, origin)
             self.edges[key] = {
                 "frame": across0,
                 "profile": {"origine": "caméra" if camera else "axe", "source": source, "erreur": round(sigma, 2),
@@ -2990,20 +2889,144 @@ class App(session.Session):
                         measures._num(grade["points"][-1][0] - grade["points"][0][0], 0),
                         ", jusqu'à {} % sur {} m".format(measures._num(abs(grade["max"][0]), 1), self.LONG_WINDOW)
                         if grade["max"] else "") if grade else ""),
-                "title": ("Terrain ({}) en travers de la route, depuis {} jusqu'à {} m au-delà du bord de la chaussée, "
-                          "sur ±{} m le long de la route ; côtés vus dans le sens de la photo. Bord : rupture de pente "
-                          "ou marche du terrain (bordure), sinon largeur BD TOPO (ou {} m supposés) ; chaussées séparées : "
-                          "bord extérieur de l'autre chaussée, séparateur de chaussée compris (entre deux marches du "
-                          "terrain, sinon d'après la BD TOPO). Chute : plus grande descente sous le "
-                          "terrain du bord, lue jusqu'à ce que le terrain remonte de {} m au-dessus du bord (talus, "
-                          "butte). Dévers : pente moyenne du talus le plus raide, de son haut à son pied (pente sur {} m "
-                          "repassée sous {} %). Bords trouvés : {}.").format(
-                    source, origin, measures._num(zone, 0), measures._num(self.EDGE_ALONG[-1], 0),
-                    measures._num(self.FALL_WIDTH, 0), measures._num(self.EDGE_RISE, 0), measures._num(self.EDGE_WINDOW, 0),
-                    measures._num(100 * self.EDGE_TALUS, 0), " ; ".join(seen) or "aucun")}
+                "title": self._edges_title(source, origin, zone, seen)}
             self.notify()
 
         self._terrain([triangulation._geographic(x, y, lon, lat) for x, y in samples], got_ground)
+
+    def _edges_sides(self, sides, borders, found, stops, drawn, twins, sigma, origin):
+        """Bords, chutes et dévers de chaque côté (voir _compute_edges) : (lignes du texte, bords trouvés pour l'infobulle,
+        résultats par côté pour le graphique de la page)."""
+        lines, seen, shown = [], [], {}
+        for name, _ in sides:
+            if borders[name]:
+                by_relief = sum(r for _, r in borders[name])
+                seen.append("côté {} à {} m de {} ({}{})".format(
+                    name, measures._num(sorted(o for o, _ in borders[name])[len(borders[name]) // 2], 1), origin,
+                    "relief sur {} travers sur {}".format(by_relief, len(borders[name])) if by_relief
+                    else "largeur BD TOPO", ", au-delà du séparateur de chaussée ({}) et de l'autre chaussée".format(
+                        "trouvé dans le relief" if any(e.get("separateur_relief") for e in drawn if e["cote"] == name)
+                        else "d'après la BD TOPO") if twins[name] else ""))
+            fall, slope_max = found[name]
+            stop = sorted(stops[name])[len(stops[name]) // 2] if stops[name] else None
+            if fall is None or fall[0] < self.FALL_MIN:
+                if stop is not None:
+                    lines.append("Côté {} : pas de chute avant le terrain qui remonte de {} m, à {} m du bord".format(
+                        name, measures._num(self.EDGE_RISE, 0), measures._num(stop, 0)))
+                continue
+            beyond = fall[1] >= fall[2] - 1e-6  # le plus bas au bout du profil : le terrain descend encore
+            text = "Côté {} : chute {}{} m (±{} m) {} {} m du bord".format(
+                name, "≥ " if beyond else "", measures._num(fall[0], 1), measures._num(sigma, 1),
+                "au-delà de" if beyond else "à", measures._num(fall[1], 0))
+            if slope_max and slope_max[0] > 0:
+                text += ", dévers du talus {} % ({}°) sur {} m de haut".format(
+                    measures._num(100 * slope_max[0], 0), measures._num(math.degrees(math.atan(slope_max[0])), 0),
+                    measures._num(slope_max[4], 1))
+            lines.append(text)
+            shown[name] = {"chute": [round(fall[0], 2), round(fall[1], 2), beyond, fall[3]],
+                           "devers": [round(slope_max[0], 3), round(slope_max[1], 2), slope_max[2],
+                                      round(slope_max[3], 2), round(slope_max[4], 2)]
+                           if slope_max and slope_max[0] > 0 else None}
+        return lines, seen, shown
+
+    def _edges_title(self, source, origin, zone, seen):
+        """Infobulle des bords : méthode, puis les bords trouvés (seen)."""
+        return ("Terrain ({}) en travers de la route, depuis {} jusqu'à {} m au-delà du bord de la chaussée, "
+                "sur ±{} m le long de la route ; côtés vus dans le sens de la photo. Bord : rupture de pente "
+                "ou marche du terrain (bordure), sinon largeur BD TOPO (ou {} m supposés) ; chaussées séparées : "
+                "bord extérieur de l'autre chaussée, séparateur de chaussée compris (entre deux marches du "
+                "terrain, sinon d'après la BD TOPO). Chute : plus grande descente sous le "
+                "terrain du bord, lue jusqu'à ce que le terrain remonte de {} m au-dessus du bord (talus, "
+                "butte). Dévers : pente moyenne du talus le plus raide, de son haut à son pied (pente sur {} m "
+                "repassée sous {} %). Bords trouvés : {}.").format(
+            source, origin, measures._num(zone, 0), measures._num(self.EDGE_ALONG[-1], 0),
+            measures._num(self.FALL_WIDTH, 0), measures._num(self.EDGE_RISE, 0), measures._num(self.EDGE_WINDOW, 0),
+            measures._num(100 * self.EDGE_TALUS, 0), " ; ".join(seen) or "aucun")
+
+    def _long_profile(self, pts, ends, along_of, followed):
+        """Profil en long de la route sous la photo (pts : [(d en m dans le sens de la photo, altitude)]) : fins de la route
+        et carrefours avec une voie nommée (ends, voir _chained), creux et ponts comblés (_bridged), tunnels ; pente moyenne
+        et la plus forte sur LONG_WINDOW m. None avec moins de 5 points. along_of(p) : position d'un point le long de la route."""
+        # Fin de la route de la photo et carrefours avec une voie nommée, le long d'elle ; au-delà d'une fin, pas de profil
+        # (la caméra a pu continuer sur une autre route)
+        cuts = []
+        for p, kind, names in ends[0]:
+            d = round(along_of(p), 1)
+            if -self.LONG_REACH - 1 <= d <= self.LONG_REACH + 1 and all(abs(d - e["d"]) > 1 for e in cuts):
+                cuts.append({"d": d, "type": kind, "voie": ends[1], "avec": names})
+        # Carrefour à îlot séparateur : la voie qui arrive y est faite d'un tronçon par sens, qui touchent la route en deux
+        # points proches ; un seul repère au milieu (LONG_JUNCTION m au plus entre eux, même voie)
+        cuts.sort(key=lambda e: e["d"])
+        merged = []
+        for e in cuts:
+            last = merged[-1] if merged else None
+            if (last and e["type"] == last["type"] == "carrefour" and set(e["avec"]) & set(last["avec"])
+                    and e["d"] - last["d0"] <= self.LONG_JUNCTION):
+                last["d"] = round((last["d0"] + e["d"]) / 2, 1)
+                last["avec"] = sorted(set(last["avec"]) | set(e["avec"]))
+            else:
+                merged.append(dict(e, d0=e["d"]))
+        cuts = [{k: v for k, v in e.items() if k != "d0"} for e in merged]
+        for e in cuts:
+            if e["type"] == "fin":
+                pts = [(d, v) for d, v in pts if (d <= e["d"] + 1e-6 if e["d"] > 0 else d >= e["d"] - 1e-6)]
+        cuts = [e for e in cuts if pts and pts[0][0] - 1 <= e["d"] <= pts[-1][0] + 1]
+        # Creux (ponts, même absents de la BD TOPO) : terrain remplacé par la droite d'un bord à l'autre (le tablier, à peu
+        # près), pente comprise ; nommés « pont » s'ils recouvrent un pont de la route
+        bridges = [sorted((along_of(a), along_of(b))) for level, a, b in ends[2] if level > 0]
+        pts, dips = self._bridged(pts, bridges)
+        spans = [{"de": round(lo, 1), "a": round(hi, 1),
+                  "type": "pont" if any(b0 <= hi and b1 >= lo for b0, b1 in bridges) else "creux"} for lo, hi in dips]
+        # Tunnels de la route : le MNT y donne le dessus, remplacé par la droite d'une tête à l'autre
+        for level, a, b in ends[2]:
+            lo, hi = sorted((along_of(a), along_of(b)))
+            before = [(d, v) for d, v in pts if d <= lo + 1e-6]
+            after = [(d, v) for d, v in pts if d >= hi - 1e-6]
+            if level > 0 or not pts or hi < pts[0][0] or lo > pts[-1][0]:
+                continue
+            if before and after:
+                (d0, z0), (d1, z1) = before[-1], after[0]
+                pts = [(d, z0 + (z1 - z0) * (d - d0) / ((d1 - d0) or 1.0)) if d0 < d < d1 else (d, v) for d, v in pts]
+            else:  # tunnel au bout du profil, une seule tête : pas de terrain dessus
+                pts = [(d, v) for d, v in pts if not lo < d < hi]
+            spans.append({"de": round(lo, 1), "a": round(hi, 1), "type": "tunnel"})
+        grade = None
+        if len(pts) >= 5:
+            md, mz = sum(d for d, _ in pts) / len(pts), sum(v for _, v in pts) / len(pts)
+            mean = sum((d - md) * (v - mz) for d, v in pts) / (sum((d - md) ** 2 for d, _ in pts) or 1.0)
+            windows = [((b[1] - a[1]) / (b[0] - a[0]), a[0], b[0]) for k, a in enumerate(pts) for b in pts[k + 1:]
+                       if abs(b[0] - a[0] - self.LONG_WINDOW) < 1e-6]  # (pente, de, à) sur LONG_WINDOW m
+            steep = max(windows, key=lambda c: abs(c[0]), default=None)
+            grade = {"points": [[d, round(v, 2)] for d, v in pts], "pente": round(100 * mean, 1), "suivi": followed,
+                     "fins": sorted(cuts, key=lambda e: e["d"]), "ouvrages": spans,
+                     "max": [round(100 * steep[0], 1), steep[1], steep[2]] if steep else None}
+        return grade
+
+    def _taluses(self, zz, oo, slopes):
+        """Talus d'un travers, depuis le bord : [(pente moyenne, haut et pied en m du bord, hauteur)]. Talus : pentes sur
+        EDGE_WINDOW m (slopes, une par point) d'au moins EDGE_TALUS, resserrées autour de la plus forte sur celles d'au moins
+        EDGE_CORE fois elle (sans l'accotement en pente douce ni la queue du pied) ; pied : point le plus bas jusqu'au bout
+        de la dernière fenêtre en pente."""
+        out, k = [], 0
+        while k < len(oo):
+            if slopes[k] < self.EDGE_TALUS:
+                k += 1
+                continue
+            first = k
+            while k < len(oo) and slopes[k] >= self.EDGE_TALUS:
+                k += 1
+            steep = max(range(first, k), key=lambda j: slopes[j])
+            floor = max(self.EDGE_TALUS, self.EDGE_CORE * slopes[steep])
+            top, end = steep, steep + 1
+            while top > first and slopes[top - 1] >= floor:
+                top -= 1
+            while end < k and slopes[end] >= floor:
+                end += 1
+            last = next((j for j in range(end - 1, len(oo)) if oo[j] - oo[end - 1] >= self.EDGE_WINDOW - 1e-6), len(oo) - 1)
+            foot = min((j for j in range(top, last + 1) if zz[j] is not None), key=lambda j: zz[j])
+            height = zz[top] - zz[foot]
+            out.append((height / (oo[foot] - oo[top]) if foot > top else 0, oo[top], oo[foot], height))
+        return out
 
     def _terrain(self, points, done):
         """precision.fetch_terrain par paquets de FALL_POINTS points (une requête chacun), l'un après l'autre ;
