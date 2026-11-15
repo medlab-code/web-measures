@@ -183,10 +183,10 @@ n'est qu'un affichage. Le **recalage dans la photo** est un décalage angulaire 
 ### 6.1 Cadastre (mini-carte)
 
 Le **Parcellaire Express** (IGN) est un plan numérisé : ses limites peuvent être à plusieurs mètres
-du terrain. Une feuille cadastrale est teintée d'orange quand son écart moyen aux raccords avec ses
-voisines (`dst_raccor`, qualité du géoréférencement de la BD Parcellaire) dépasse **2 m**. En
-Côte-d'Or, cet écart vaut 1,5 m en médiane, et plus de 5,8 m pour un quart des feuilles. C'est un
-indice, pas un écart mesuré au terrain.
+du terrain. L'écart moyen d'une feuille aux raccords avec ses voisines (`dst_raccor`, qualité du
+géoréférencement de la BD Parcellaire) vaut 1,5 m en médiane en Côte-d'Or, et plus de 5,8 m pour un
+quart des feuilles. Les feuilles au-delà de 2 m étaient cernées de tirets sur la carte jusqu'au
+15/11/2026 : retirées, à la demande de l'auteur.
 
 La projection dans la photo a été essayée puis abandonnée (30/10/2026). À Pouilly-en-Auxois, la
 limite apparaissait au-dessus du sol au pied des façades. Trois causes y concourent : le plan du

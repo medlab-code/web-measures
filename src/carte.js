@@ -169,10 +169,8 @@ const Carte = (() => {
           couche: { type: "geojson", data: EMPTY },  // couche importée (showOverlay)
           pr: { type: "geojson", data: EMPTY },
           // Cadastre (#36, réglage « Cadastre sur la carte », voir setCadastre) : Parcellaire Express en tuiles vectorielles
-          // (parcelles et feuilles dès le zoom 15 ; bâtiments, bornes et points d'étiquette dès le zoom 17), nettes à tout zoom ;
-          // feuilles mal raccordées lues au WFS
+          // (parcelles et feuilles dès le zoom 15 ; bâtiments, bornes et points d'étiquette dès le zoom 17), nettes à tout zoom
           cadastre: { type: "vector", tiles: [`${GEOPF}/tms/1.0.0/PCI/{z}/{x}/{y}.pbf`], minzoom: 5, maxzoom: 19, attribution: ATTRIBUTION_IGN },
-          "cadastre-decale": { type: "geojson", data: EMPTY },
           contour: { type: "geojson", data: EMPTY },  // commune choisie dans la recherche (recherche.js)
           voies: { type: "vector", tiles: [ROADS_TILES], minzoom: ROADS_MINZOOM, maxzoom: 19, attribution: ATTRIBUTION_IGN },
           // tuiles jusqu'au zoom 13 seulement, agrandies au-delà : à partir du zoom 14, le Plan IGN
@@ -187,8 +185,7 @@ const Carte = (() => {
           { id: "pcrs", type: "raster", source: "pcrs", minzoom: 15, layout: { visibility: "none" } },
           { id: "mnh", type: "raster", source: "mnh", layout: { visibility: "none" } },
           // Cadastre, sur le fond et sous le filaire (couleurs du Parcellaire Express de l'IGN) : parcelles numérotées teintées (le
-          // domaine public, voirie et cours d'eau, n'en a pas : sans teinte), bâtiments, limites des parcelles et des feuilles,
-          // feuilles mal raccordées (limites peut-être décalées) cernées de tirets
+          // domaine public, voirie et cours d'eau, n'en a pas : sans teinte), bâtiments, limites des parcelles et des feuilles
           {
             id: "cadastre-parcelles", type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
             paint: { "fill-color": "#ff8000", "fill-opacity": 0.12 },
@@ -224,10 +221,6 @@ const Carte = (() => {
           {
             id: "cadastre-feuilles", type: "line", source: "cadastre", "source-layer": "feuille", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
             paint: { "line-color": "#808080", "line-width": ["interpolate", ["linear"], ["zoom"], 15, 1, 18, 2.5] },
-          },
-          {
-            id: "cadastre-decale", type: "line", source: "cadastre-decale", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
-            paint: { "line-color": "#c62828", "line-width": 2, "line-dasharray": [3, 2] },
           },
           // Filaire des voies, sous les limites administratives : voies sans numéro de la BD TOPO
           // (sentiers, escaliers et bacs exclus), puis routes numérotées du Plan IGN
@@ -848,27 +841,19 @@ const Carte = (() => {
   // Cadastre : parcelles dès CADASTRE_MINZOOM, bornes de limite de propriété et étiquettes dès CADASTRE_BORNES_ZOOM (nombreuses ;
   // tuiles vectorielles du PCI : ni bornes ni étiquettes avant le zoom 17)
   const CADASTRE_MINZOOM = 15, CADASTRE_BORNES_ZOOM = 17, CADASTRE_SECTIONS_ZOOM = 17;
-  // feuille teintée : écart moyen aux raccords avec ses voisines (dst_raccor, qualité du géoréférencement de la BD Parcellaire)
-  // au-delà de CADASTRE_DECALAGE m (médiane en Côte-d'Or : 1,5 m ; un quart au-delà de 5,8 m) : limites peut-être décalées
-  const CADASTRE_DECALAGE = 2;
-  let cadastreOn = false, cadastreFollow = false, cadastreTimer = null;
+  let cadastreOn = false, cadastreFollow = false;
 
   /** Cadastre affiché ou non sur la carte (réglage « Cadastre »). */
   function setCadastre(map, on) {
     cadastreOn = on;
     // pas whenLoaded (voir setMilestones) : « load » peut être passé alors que le style se dit « pas chargé »
     const apply = () => {
-      for (const id of ["cadastre-parcelles", "cadastre", "cadastre-camera-fond", "cadastre-camera", "cadastre-vise-fond", "cadastre-vise", "cadastre-batiments", "cadastre-feuilles", "cadastre-decale", "cadastre-bornes", "cadastre-sections"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+      for (const id of ["cadastre-parcelles", "cadastre", "cadastre-camera-fond", "cadastre-camera", "cadastre-vise-fond", "cadastre-vise", "cadastre-batiments", "cadastre-feuilles", "cadastre-bornes", "cadastre-sections"]) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
       if (!cadastreFollow) {
         cadastreFollow = true;
-        map.on("moveend", () => {
-          clearTimeout(cadastreTimer);
-          cadastreTimer = setTimeout(() => loadCadastre(map), 300);
-        });
         // tuiles du cadastre arrivées (zoom, déplacement) : parcelle visée recherchée de nouveau
         map.on("sourcedata", (e) => { if (e.sourceId === "cadastre" && e.isSourceLoaded) { sceneCache = null; aimCadastre(map); } });
       }
-      loadCadastre(map);
       aimCadastre(map);
     };
     try { apply(); } catch { map.once("load", apply); }
@@ -980,14 +965,6 @@ const Carte = (() => {
     });
     const [x, y] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
     return scene.lonlatAt(Math.atan2(x, y) * 180 / Math.PI, Math.hypot(x, y));
-  }
-
-  function loadCadastre(map) {
-    const zoom = map.getZoom(), b = map.getBounds();
-    if (!cadastreOn || zoom < CADASTRE_MINZOOM) return;
-    const view = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
-    adminFetch("CADASTRALPARCELS.QUALREFBDP:divcadmtd", view, "dst_raccor,geom", (features) => map.getSource("cadastre-decale")
-      ?.setData({ type: "FeatureCollection", features: features.filter((f) => (f.properties.dst_raccor ?? 0) > CADASTRE_DECALAGE) }));
   }
 
   function showMilestones(map) {

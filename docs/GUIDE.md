@@ -586,9 +586,7 @@ son attribution et son lien Panoramax, aussi en QR code. La mini-carte manque si
 **Cadastre** (réglage « Cadastre sur la carte », Réglages › Affichage, décoché par défaut ; ticket #36) : parcelles
 du Parcellaire Express (IGN) sur la mini-carte dès le zoom 15, chaque parcelle numérotée teintée d'orange clair (le domaine public,
 voirie et cours d'eau, n'a pas de parcelle : il reste sans teinte), bornes de limite de propriété et étiquette de chaque parcelle (section au-dessus du numéro, « B » pour la
-section 0B) dès le zoom 17, en tuiles vectorielles de l'IGN (nettes à tout zoom), feuilles
-cadastrales mal raccordées à leurs voisines cernées de tirets rouges (écart moyen aux raccords de plus de 2 m : limites
-peut-être décalées, le cadastre étant un plan numérisé). La parcelle que regarde la photo est allumée en vert (contour et
+section 0B) dès le zoom 17, en tuiles vectorielles de l'IGN (nettes à tout zoom) ; plan numérisé : limites indicatives. La parcelle que regarde la photo est allumée en vert (contour et
 fond) : la première que coupe la ligne de cap en partant de la caméra, à 50 m au plus ; elle suit la vue quand on la
 tourne, rien n'est allumé en vert dans l'axe d'une rue (domaine public) ni avec Bird Eye (pas de ligne de cap). La
 parcelle où se tient la caméra (cour, chemin privé), s'il y en a une, est allumée en jaune, et jamais en vert. Dans la
