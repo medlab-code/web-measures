@@ -90,6 +90,8 @@ Ordre proposé :
   proche), tournée vers l'objet dessiné, ou vers sa position s'il est masqué ou à plus de 100 m. Statut et commentaire
   dans les colonnes `verif` et `verif_note` (10 lettres au plus : Shapefile), ajoutées au premier statut : gardées,
   enregistrées, exportées, proposées pour la couleur. Essai : `essai-rtk` (tableau, recherche, vue tournée, statut, ▶).
+- **Statuts** : « vérifié », « à revoir », « absent » (arbre abattu, panneau déposé : à retirer dans QGIS par
+  `verif = 'absent'`), ou vide (non vérifié).
 - **Écart avec la piste** : statut dans les attributs plutôt qu'à côté comme les recalages, pour qu'il arrive dans QGIS
   et le CSV.
 - **Tableau des objets** dans l'onglet Couche : triable, avec une recherche par identifiant ou par attribut.

@@ -644,7 +644,7 @@ sens ou autre passage) sans recalage sur la sienne, une fenêtre propose d'aller
 **Parcours des objets** (rubrique repliable de l'onglet Couche) : tableau des objets (nom, colonne de l'étiquette,
 statut), trié par un clic sur un intitulé et filtré par la recherche (identifiant ou n'importe quel attribut). Un clic
 sur une ligne, ou ◀ / ▶ dans l'ordre du tableau, ouvre la photo de l'objet (celle de son recalage, sinon la plus
-proche) tournée vers lui. Son statut (« vérifié », « à revoir ») et un commentaire s'écrivent dans les colonnes `verif`
+proche) tournée vers lui. Son statut (« vérifié », « à revoir », « absent » : arbre abattu, panneau déposé…) et un commentaire s'écrivent dans les colonnes `verif`
 et `verif_note`, ajoutées à la couche au premier statut : gardées avec elle, enregistrées et exportées comme ses autres
 colonnes, et proposées pour la couleur ou l'étiquette.
 
