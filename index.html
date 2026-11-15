@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.3.0/latin-400.css">
   <link rel="stylesheet" href="src/style.css">
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
-  <!-- QR code du lien vers la photo, en pied de la fiche PDF (src/app.js, ficheHtml) -->
+  <!-- QR code du lien vers la photo, en pied de la fiche PDF (src/fiche.js, ficheHtml) -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   <!-- Visionneuse officielle Panoramax : paquet autonome au format CommonJS, dont la dernière
        ligne écrit dans `exports` -->
@@ -503,7 +503,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
                           stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round"
                               stroke-linejoin="round"/></svg></button>
             </div>
-            <!-- Fiches de tous les objets, en un seul PDF (app.js askFiche, { tous }) ; nombre d'objets : showOverlayInfo -->
+            <!-- Fiches de tous les objets, en un seul PDF (fiche.js askFiche, { tous }) ; nombre d'objets : showOverlayInfo -->
             <button id="couche-fiches" type="button" disabled
                     title="Un seul PDF, une page par objet, photo cadrée automatiquement sur l'objet">Fiches PDF des objets</button>
             <!-- Filtre par attribut (app.js overlayHiddenTest) : objets hors filtre ni sur la carte, ni dans la photo, ni dans
@@ -1319,6 +1319,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
   <script src="src/nuage.js"></script>
   <script src="src/dessus.js"></script>
   <script src="src/vignette.js"></script>
+  <script src="src/disposition.js"></script>
   <script src="src/fiche.js"></script>
   <script src="src/app.js"></script>
 </body>
