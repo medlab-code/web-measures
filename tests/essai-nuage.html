@@ -4,7 +4,7 @@
 <!-- « Analyse fine » de la fenêtre du profil (src/nuage.js) : nuage LiDAR HD lu sur le travers de la photo, bord de
      chaussée et séparateur de chaussée. Photos des routes à chaussées séparées de essai-bords.html : A38, RD903bis,
      RD700 (glissières dos à dos). Lancer comme tests/navigateur.html ; chaque profil part dans le journal en PNG. -->
-<script>try { localStorage.clear(); } catch {}</script>
+<script>try { localStorage.clear(); indexedDB.deleteDatabase("web-measures"); } catch {}</script>
 <!-- assez haute pour que la fenêtre du profil tienne dans la visionneuse (sinon elle défile : ses boutons bougent) -->
 <iframe id="f" src="../index.html" style="width:1400px;height:1300px"></iframe>
 <script src="commun.js"></script>

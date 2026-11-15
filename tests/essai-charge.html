@@ -1,0 +1,119 @@
+<!doctype html><meta charset="utf-8"><title>Essai de charge de la couche</title>
+<!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- Essai de charge de l'onglet Couche (piste O0, docs/analyses/pistes-couche-sig.md) : 5 000 objets fabriqués en
+     recopiant la couche synthétique de la D977bis (tests/donnees/couche-synthetique.geojson) avec un décalage tiré
+     au hasard (graine fixe, ±40 m). Mesure : import, set_overlay, lecture du sol, overlay_marks, redessin de la
+     photo, images par seconde en tournant la vue et en déplaçant la carte, couche affichée puis masquée.
+     Des chiffres, pas d'attente de vitesse : seuls quelques contrôles de bon sens. Lancer comme tests/navigateur.html. -->
+<script>try { localStorage.clear(); indexedDB.deleteDatabase("web-measures"); } catch {}</script>
+<iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
+<script src="commun.js"></script>
+<script>
+const { log, sleep, until, ready, expect, verdict } = Essai;
+const TOTAL = 5000, SPREAD = 40;  // objets voulus ; m : décalage de chaque copie
+(async () => {
+  const w = document.getElementById("f").contentWindow;
+  try {
+    await ready(w);
+    const app = w.mesures.app, doc = w.document, map = w.mesures.map;
+    doc.querySelector("#reglages-defaut")?.close();
+    // Couche de charge : copies décalées de la couche synthétique
+    const base = await (await fetch("donnees/couche-synthetique.geojson")).json();
+    let seed = 21;
+    const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const lat0 = base.features[0].geometry.coordinates[1], kx = 111320 * Math.cos(lat0 * Math.PI / 180);
+    const shift = (c, dx, dy) => (typeof c[0] === "number" ? [c[0] + dx / kx, c[1] + dy / 111320] : c.map((v) => shift(v, dx, dy)));
+    const features = [];
+    for (let k = 0; features.length < TOTAL; k++) {
+      const [dx, dy] = k ? [(random() * 2 - 1) * SPREAD, (random() * 2 - 1) * SPREAD] : [0, 0];
+      for (const f of base.features) features.push({ ...f, properties: { ...f.properties, id: features.length + 1 },
+        geometry: { ...f.geometry, coordinates: shift(f.geometry.coordinates, dx, dy) } });
+    }
+    const text = JSON.stringify({ type: "FeatureCollection", name: "couche-charge", features });
+    const count = (t) => features.filter((f) => f.geometry.type === t).length;
+    log(`couche de charge : ${features.length} objets (${count("Point")} points, ${count("LineString")} lignes, `
+      + `${count("Polygon")} polygones), ${(text.length / 1e6).toFixed(1)} Mo`);
+    // Photo du milieu de la couche
+    const [lon, lat] = base.features.find((f) => f.geometry.type === "Point").geometry.coordinates;
+    const d = 0.0005, url = `https://api.panoramax.xyz/api/search?bbox=${lon - d},${lat - d},${lon + d},${lat + d}&limit=1`;
+    const photo = (await (await fetch(url)).json()).features[0];
+    w.mesures.openPhoto(photo);
+    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photo.id, 30000, "photo");
+    const psv = w.mesures.psv;
+    // set_overlay seul (même texte que l'import, objets en WGS 84)
+    const forApp = JSON.stringify(features.map(({ geometry }, id) => ({ id, geometry })));
+    let t0 = performance.now();
+    app.set_overlay(forApp);
+    const tSet = performance.now() - t0;
+    app.set_overlay("[]");
+    // Import par le champ de fichier (lecture, set_overlay, carte, légende, enregistrement dans IndexedDB)
+    const dt = new w.DataTransfer();
+    dt.items.add(new w.File([text], "couche-charge.geojson"));
+    const input = doc.querySelector("#couche-fichier");
+    input.files = dt.files;
+    t0 = performance.now();
+    input.dispatchEvent(new Event("change"));
+    await until(() => doc.querySelector("#couche-nom").textContent.startsWith("couche-charge"), 60000, "couche importée");
+    const tImport = performance.now() - t0;
+    const tSaved = (await w.mesures.savedOverlay(), performance.now() - t0);
+    // Sol LiDAR HD de la caméra et des sommets proches (overlay_marks lance la lecture)
+    t0 = performance.now();
+    await until(() => JSON.parse(app.overlay_marks()).length && !app.overlay_asked.length, 60000, "sol lu");
+    const tGround = performance.now() - t0, grounds = app.overlay_ground.length;
+    log(`set_overlay ${tSet.toFixed(0)} ms · import ${tImport.toFixed(0)} ms (gardée dans IndexedDB à ${tSaved.toFixed(0)} ms)`
+      + ` · sol lu en ${tGround.toFixed(0)} ms (${grounds} altitudes)`);
+    // Durées moyennes d'un appel (n fois)
+    const mean = (f, n = 20) => { const t = performance.now(); for (let i = 0; i < n; i++) f(); return (performance.now() - t) / n; };
+    const marks = JSON.parse(app.overlay_marks());
+    const tMarks = mean(() => app.overlay_marks());
+    const visible = (on) => { const c = doc.querySelector("#couche-visible"); c.checked = on; c.dispatchEvent(new Event("change")); };
+    // Images par seconde pendant ms : vue tournée (psv) ou carte déplacée à chaque image
+    const fps = (step, ms = 3000) => new Promise((resolve) => {
+      let n = 0;
+      const t = performance.now();
+      const frame = () => {
+        step(n++);
+        if (performance.now() - t < ms) w.requestAnimationFrame(frame);
+        else resolve(n * 1000 / (performance.now() - t));
+      };
+      w.requestAnimationFrame(frame);
+    });
+    const yaw0 = psv.getPosition().yaw;
+    const turn = (n) => psv.rotate({ yaw: yaw0 + 0.02 * n, pitch: -0.1 });
+    map.jumpTo({ center: [lon, lat], zoom: 17 });
+    await new Promise((r) => map.once("idle", r));
+    const center = map.getCenter();
+    const pan = (n) => map.jumpTo({ center: [center.lng + 0.00002 * (n % 100), center.lat] });
+    const idle = async () => {  // carte décalée de 300 px, durée jusqu'à son repos (tuiles, étiquettes)
+      const t = performance.now();
+      map.panBy([300, 0], { duration: 0 });
+      await new Promise((r) => map.once("idle", r));
+      return performance.now() - t;
+    };
+    const measure = async () => {
+      const tDraw = mean(() => w.mesures.refresh(), 10);
+      const turnFps = await fps(turn);
+      const panFps = await fps(pan);
+      const tIdle = await idle();
+      return { tDraw, turnFps, panFps, tIdle, inPhoto: doc.querySelectorAll(".pastille-couche[data-objet]").length,
+        onMap: map.getContainer().querySelectorAll(".etiquette.couche").length };
+    };
+    const shown = await measure();
+    visible(false);
+    await sleep(500);
+    const hidden = await measure();
+    visible(true);
+    const row = (name, r) => `${name} : redessin ${r.tDraw.toFixed(1)} ms · vue tournée ${r.turnFps.toFixed(0)} im/s · carte déplacée `
+      + `${r.panFps.toFixed(0)} im/s · carte au repos en ${r.tIdle.toFixed(0)} ms · ${r.inPhoto} pastilles, ${r.onMap} étiquettes sur la carte`;
+    log(`overlay_marks ${tMarks.toFixed(1)} ms (${marks.length} parties à moins de 100 m)`);
+    log(row("couche affichée", shown));
+    log(row("couche masquée", hidden));
+    expect("couche de charge importée et gardée", features.length >= TOTAL && (await w.mesures.savedOverlay())?.features?.length === features.length);
+    expect("objets proches dessinés dans la photo", marks.length > 0 && shown.inPhoto > 0 && !hidden.inPhoto, `${marks.length} parties`);
+    expect("mesures obtenues", [tSet, tImport, tMarks, shown.turnFps, shown.panFps, hidden.turnFps].every(Number.isFinite));
+    await verdict();
+  } catch (e) { log("ERREUR " + e + " " + (e.stack || "").split("\n")[1]); }
+  await log("FIN");
+})();
+</script>

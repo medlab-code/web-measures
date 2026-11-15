@@ -4,7 +4,7 @@
 <!-- Hauteur sur deux photos imajbox à position RTK (Pouilly-en-Auxois) : point de référence
      triangulé sur une cible fictive à 5 m sur le côté, puis pied et sommet. Directions calculées
      depuis le cap EXIF précis. Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
-<script>try { localStorage.clear(); } catch {}</script>
+<script>try { localStorage.clear(); indexedDB.deleteDatabase("web-measures"); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
 <script src="commun.js"></script>
 <script>
@@ -288,8 +288,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       w.mesures.openPhoto(f3);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === f3.id, 30000, "photo de la couche");
       const geojson = { type: "FeatureCollection", features: [
-        { type: "Feature", properties: { nom: "cible", h: 1.5 }, geometry: { type: "Point", coordinates: target } },
-        { type: "Feature", properties: { nom: "ligne", h: 2 }, geometry: { type: "LineString", coordinates: [target, mid] } },
+        { type: "Feature", properties: { nom: "cible", h: 1.5, ok: true }, geometry: { type: "Point", coordinates: target } },
+        { type: "Feature", properties: { nom: "ligne", h: 2, ok: false }, geometry: { type: "LineString", coordinates: [target, mid] } },
         // deux bornes serrées contre la cible : étiquettes à écarter
         { type: "Feature", properties: { nom: "p2", h: 3 }, geometry: { type: "Point", coordinates: [target[0] + 0.000004, target[1]] } },
         { type: "Feature", properties: { nom: "p3", h: 4 }, geometry: { type: "Point", coordinates: [target[0] + 0.000008, target[1]] } },
@@ -304,11 +304,9 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       doc.querySelector("#couche-etiquette").dispatchEvent(new Event("change"));
       doc.querySelector("#couche-couleur").value = "nom";
       doc.querySelector("#couche-couleur").dispatchEvent(new Event("change"));
-      const flat = JSON.parse(app.overlay_marks()).find((m) => m.kind === "point")?.points[0][1];  // en attendant le LiDAR : à plat
-      await soon(() => {  // altitudes du sol lues sous la caméra et la couche
-        const m = JSON.parse(app.overlay_marks()), p = m.find((x) => x.kind === "point");
-        return m.length === 4 && p && Math.abs(p.points[0][1] - flat) > 1e-4;
-      }, 15000);
+      // Altitudes du sol LiDAR HD sous la caméra et la couche (rien n'est dessiné avant celle de la caméra : pas de saut)
+      const grounds = () => [...app.overlay_ground.values()];
+      await soon(() => JSON.parse(app.overlay_marks()).length === 4, 15000);
       const marks = JSON.parse(app.overlay_marks());
       const point = marks.find((m) => m.kind === "point");
       const gap = point ? Math.abs(Math.atan2(Math.sin(point.points[0][0] - yawTo(f3, target)), Math.cos(point.points[0][0] - yawTo(f3, target)))) : 9;
@@ -349,8 +347,9 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       // (sans cadre, les 4 étiquettes serrées tiennent souvent sans se chevaucher : aucune à masquer)
       expect("couche : étiquettes sans chevauchement, texte seul", rects.length >= 2 && overlaps === 0
         && opacity === "1" && backgroundColor === "rgba(0, 0, 0, 0)" && shown.some((e) => e.textContent === "cible"));
-      log(`couche : élévation du point ${flat?.toFixed(4)} à plat, ${point?.points[0][1].toFixed(4)} sur le sol LiDAR HD`);
-      expect("couche : posée sur le sol LiDAR HD", point && Math.abs(point.points[0][1] - flat) > 1e-4);
+      log(`couche : altitudes du sol LiDAR HD ${grounds().map((z) => z?.toFixed(2)).join(", ")}`);
+      expect("couche : posée sur le sol LiDAR HD (altitudes de la caméra et des sommets lues)", point && grounds().length >= 2
+        && grounds().every(Number.isFinite));
       expect("couche : étiquettes dans la visionneuse et légende par valeur",
         [...box.querySelectorAll(".etiquette.couche")].some((e) => e.textContent === "cible")
         && doc.querySelectorAll("#couche-legende li").length === 4);
@@ -395,7 +394,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         eyeOf("p3").click();
         await soon(() => onMap() === map0 - 1 && inPhoto() === photo0 - 1);
         const [map1, photo1] = [onMap(), inPhoto()];
-        const kept = JSON.parse(w.localStorage.getItem("web-measures/couche")).masques?.nom;
+        const kept = (await w.mesures.savedOverlay()).masques?.nom;
         log(`couche, valeur p3 masquée : carte ${map0} → ${map1}, photo ${photo0} → ${photo1}, gardé ${JSON.stringify(kept)}`);
         expect("couche : valeur masquée par son œil (carte, photo, gardé)", map1 === map0 - 1 && photo1 === photo0 - 1
           && kept?.length === 1 && doc.querySelector("#couche-legende li.masquee")?.textContent === "p3");
@@ -422,7 +421,12 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         select();
         const chosen = !!box.querySelector(`.pastille-couche.choisie[data-objet="${point.id}"]`);
         const [ty, tp] = [start.yaw + 0.05, start.pitch + 0.02];
-        psvClick(ty, tp);
+        psvClick(ty, tp);  // posé : recalage fini, l'objet n'est plus choisi
+        expect("couche : le clic qui pose l'objet finit le recalage", !box.querySelector(".pastille-couche.choisie"));
+        select();
+        select();  // second clic sur l'objet choisi : désélectionné
+        expect("couche : second clic sur l'objet choisi, désélectionné", !box.querySelector(".pastille-couche.choisie"));
+        select();  // ajusté : choisi à nouveau, ↑, Entrée
         key("ArrowUp");
         key("Enter");
         const moved = posOf(point.id), step = 0.05 * Math.PI / 180;
@@ -431,32 +435,185 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
           && Math.abs(moved.yaw - ty) < 1e-6 && Math.abs(moved.pitch - (tp + step)) < 1e-6 && onMap() === mapBefore
           && !box.querySelector(".pastille-couche.choisie"));
         psvClick(start.yaw, start.pitch);  // fini : le clic suivant ne le déplace plus
-        expect("couche : recalage fini par Entrée", Math.abs(posOf(point.id).yaw - ty) < 1e-6);
-        const stored = () => JSON.parse(w.localStorage.getItem("web-measures/couche")).features[point.id].recalages;
+        expect("couche : recalage fini par Entrée, objet non déplacé par le clic suivant", Math.abs(posOf(point.id).yaw - ty) < 1e-6);
+        const stored = async () => (await w.mesures.savedOverlay()).features[point.id].recalages;
         const picId = w.mesures.psv.getPictureMetadata().id;
-        expect("couche : recalage gardé avec la couche", Math.abs(stored()?.[picId]?.decalage[0] - (ty - start.yaw)) < 1e-6
-          && stored()[picId].position?.length === 2 && !!stored()[picId].sequence);
+        expect("couche : recalage gardé avec la couche", Math.abs((await stored())?.[picId]?.decalage[0] - (ty - start.yaw)) < 1e-6
+          && (await stored())[picId].position?.length === 2 && !!(await stored())[picId].sequence);
         select();
         key("Delete");
         const back = posOf(point.id);
         expect("couche : objet remis à sa place par Suppr, recalage oublié", Math.abs(back.yaw - start.yaw) < 1e-6
-          && Math.abs(back.pitch - start.pitch) < 1e-6 && !stored());
+          && Math.abs(back.pitch - start.pitch) < 1e-6 && !(await stored()));
+      }
+      // Parcours des objets : tableau, recherche, clic sur « cible » (vue tournée vers elle), statut gardé, ▶
+      {
+        doc.querySelector("#couche-parcours").open = true;
+        const rows = () => [...doc.querySelectorAll("#objets-lignes tr")];
+        await expectSoon("parcours : une ligne par objet", () => rows().length === 4, () => `${rows().length}`);
+        const search = doc.querySelector("#objets-recherche");
+        search.value = "p";
+        search.dispatchEvent(new Event("input"));
+        expect("parcours : recherche par attribut", rows().length === 2, rows().map((r) => r.textContent).join(", "));
+        search.value = "";
+        search.dispatchEvent(new Event("input"));
+        rows().find((r) => r.textContent.includes("cible")).click();
+        const aim = () => JSON.parse(app.overlay_marks()).find((m) => m.id === 0)?.points[0][0];
+        const off = () => Math.abs(Math.atan2(Math.sin(w.mesures.psv.getPosition().yaw - aim()), Math.cos(w.mesures.psv.getPosition().yaw - aim())));
+        await expectSoon("parcours : photo tournée vers l'objet choisi", () => aim() != null && off() < 0.02, () => `écart ${off()} rad`, 40000);
+        const statut = doc.querySelector("#objet-statut");
+        statut.value = "vérifié";
+        statut.dispatchEvent(new Event("change"));
+        const saved = await w.mesures.savedOverlay();
+        expect("parcours : statut gardé dans la colonne verif", saved.features[0].properties.verif === "vérifié" && saved.columns.includes("verif")
+          && [...doc.querySelector("#couche-couleur").options].some((o) => o.value === "verif"));
+        doc.querySelector("#objet-suivant").click();
+        expect("parcours : ▶ passe à l'objet suivant", doc.querySelector("#objet-courant").textContent === "Objet ligne (2/4)"
+          && !doc.querySelector("#objet-precedent").disabled && statut.value === "");
+        // Modification : attribut h de « ligne » (nombre, virgule acceptée) ; objet ajouté sur la carte, puis supprimé
+        const field = [...doc.querySelectorAll("#objet-attributs label")].find((l) => l.firstChild.textContent === "h")?.querySelector("input");
+        field.value = "2,5";
+        field.dispatchEvent(new Event("change"));
+        expect("modification : attribut gardé, en nombre", (await w.mesures.savedOverlay()).features[1].properties.h === 2.5
+          && rows().some((r) => r.textContent.includes("ligne")));
+        doc.querySelector("#objet-ajouter").click();
+        const at = w.mesures.map.project(mid);
+        w.mesures.map.fire("click", { lngLat: new w.maplibregl.LngLat(...mid), point: at, originalEvent: new MouseEvent("click") });
+        const added = await w.mesures.savedOverlay();
+        expect("modification : point ajouté, gardé, choisi", added.features.length === 5 && added.features[4].geometry.type === "Point"
+          && rows().length === 5 && doc.querySelector("#objet-courant").textContent.startsWith("Objet 5"));
+        // Saisie : texte avec les valeurs des autres objets proposées, nombre sans liste, oui / non en case à cocher
+        const input = (c) => [...doc.querySelectorAll("#objet-attributs label")].find((l) => l.firstChild.textContent === c)?.querySelector("input");
+        input("nom").dispatchEvent(new Event("focus"));
+        const offered = [...(input("nom").list?.options || [])].map((o) => o.value);
+        const ok = input("ok");
+        ok.click();
+        expect("saisie : valeurs existantes proposées pour un texte, rien pour un nombre, case pour oui / non",
+          offered.join() === "cible,ligne,p2,p3" && !input("h").list && ok.type === "checkbox"
+          && (await w.mesures.savedOverlay()).features[4].properties.ok === true, offered.join());
+        const dialog = doc.querySelector("#supprimer-objet");
+        doc.querySelector("#objet-supprimer").click();
+        await until(() => dialog.open, 5000, "confirmation de la suppression");
+        dialog.querySelector('button[value="supprimer"]').click();
+        await expectSoon("modification : objet supprimé", () => rows().length === 4);
+        expect("modification : suppression gardée, numéros refaits", (await w.mesures.savedOverlay()).features.length === 4
+          && doc.querySelector("#objet-supprimer").disabled);
+      }
+      // Filtre par attribut : h > 2 (ligne à 2,5 depuis sa modification, p2, p3), puis « verif ≠ vérifié », puis effacé
+      {
+        const set = (id, v, type = "change") => {
+          doc.querySelector(id).value = v;
+          doc.querySelector(id).dispatchEvent(new Event(type));
+        };
+        const onMap = () => w.mesures.map.getSource("couche").serialize().data.features.length;
+        const rows = () => doc.querySelectorAll("#objets-lignes tr").length;
+        set("#couche-filtre", "h");
+        set("#couche-filtre-op", ">");
+        set("#couche-filtre-valeur", "2", "input");
+        await expectSoon("filtre : h > 2 sur la carte, dans le tableau et au bilan", () => onMap() === 3 && rows() === 3
+          && doc.querySelector("#couche-filtre-bilan").textContent === "3 objets sur 4", () => `carte ${onMap()}, tableau ${rows()}`);
+        expect("filtre : gardé avec la couche", JSON.stringify((await w.mesures.savedOverlay()).filtre) === '{"colonne":"h","op":">","valeur":"2"}');
+        set("#couche-filtre", "verif");
+        set("#couche-filtre-op", "≠");
+        set("#couche-filtre-valeur", "Vérifié", "input");
+        await expectSoon("filtre : « ≠ » garde les objets sans valeur, sans tenir compte des majuscules", () => onMap() === 3 && rows() === 3);
+        doc.querySelector("#couche-filtre-effacer").click();
+        await expectSoon("filtre effacé : tous les objets", () => onMap() === 4 && rows() === 4 && doc.querySelector("#couche-filtre-bilan").hidden
+          && doc.querySelector("#couche-filtre-op").disabled);
       }
       // Case « Afficher la couche » : masquée sur la carte et dans la photo, puis réaffichée
       const visible = doc.querySelector("#couche-visible");
       visible.checked = false;
       visible.dispatchEvent(new Event("change"));
       await expectSoon("couche masquée par la case", () => !box.querySelector(".etiquette.couche") && !box.querySelector(".pastille-couche")
-        && !w.mesures.map.getSource("couche").serialize().data.features.length
-        && JSON.parse(w.localStorage.getItem("web-measures/couche")).visible === false);
+        && !w.mesures.map.getSource("couche").serialize().data.features.length);
+      expect("case « Afficher la couche » gardée avec la couche", (await w.mesures.savedOverlay()).visible === false);
       visible.checked = true;
       visible.dispatchEvent(new Event("change"));
       await expectSoon("couche réaffichée par la case", () => !!box.querySelector(".pastille-couche"));
-      const kept = JSON.parse(w.localStorage.getItem("web-measures/couche") || "null");
+      const kept = await w.mesures.savedOverlay();
       expect("couche gardée dans le navigateur avec ses réglages", kept?.features?.length === 4 && kept.couleur === "nom" && kept.etiquette === "nom");
       doc.querySelector("#couche-retirer").click();
-      expect("couche retirée du navigateur", !w.localStorage.getItem("web-measures/couche"));
+      expect("couche retirée du navigateur", !(await w.mesures.savedOverlay()) && !w.localStorage.getItem("web-measures/couche"));
       expect("couche retirée", JSON.parse(app.overlay_marks()).length === 0 && !box.querySelector(".etiquette.couche"));
+      // Import CSV (tableur français) : Lambert 93 en colonnes X et Y, « ; », virgule décimale, code à zéro initial,
+      // une ligne sans position écartée ; puis une ligne en WKT (WGS 84, « , »)
+      {
+        const importCsv = async (text, name) => {
+          const dt = new w.DataTransfer();
+          dt.items.add(new w.File([text], name, { type: "text/csv" }));
+          const input = doc.querySelector("#couche-fichier");
+          input.files = dt.files;
+          input.dispatchEvent(new Event("change"));
+          await until(() => doc.querySelector("#couche-nom").textContent === name, 10000, `couche ${name}`);
+          return w.mesures.savedOverlay();
+        };
+        const [l93x, l93y] = [842000.5, 6683000];
+        let kept = await importCsv(`﻿ID;X;Y;haut;insee\n007;${String(l93x).replace(".", ",")};${l93y};2,5;021231\n012;842010;6683010;;21\n3;;;1;\n`, "essai.csv");
+        expect("CSV : points en Lambert 93, attributs typés, ligne sans position écartée", kept.features.length === 2 && kept.crs === "lambert93"
+          && JSON.stringify(kept.columns) === '["ID","haut","insee"]' && kept.features[0].properties.haut === 2.5
+          && kept.features[0].properties.insee === "021231" && Math.abs(kept.features[0].geometry.coordinates[0] - 4.877) < 1e-3,
+          JSON.stringify(kept.features[0]));
+        // Objet ajouté : colonne « ID » en texte, le plus grand + 1 à la même largeur
+        doc.querySelector("#objet-ajouter").click();
+        w.mesures.map.fire("click", { lngLat: new w.maplibregl.LngLat(...mid), point: w.mesures.map.project(mid), originalEvent: new MouseEvent("click") });
+        await until(() => doc.querySelectorAll("#objets-lignes tr").length === 3, 5000, "objet ajouté au CSV");
+        const ids = (await w.mesures.savedOverlay()).features.map((f) => f.properties.ID);
+        expect("objet ajouté : id suivant le plus grand", ids.join() === "007,012,013", ids.join());
+        kept = await importCsv('nom,wkt\nl,"LINESTRING (5.01 47.3, 5.02 47.31)"\n', "ligne.csv");
+        expect("CSV : géométrie en WKT", kept.features[0]?.geometry.type === "LineString" && kept.crs === "wgs84");
+        doc.querySelector("#couche-retirer").click();
+      }
+      // Import commun : fichiers glissés n'importe où sur la page, reconnus par leur contenu et rangés à leur place
+      {
+        const drop = (name, content) => {
+          const dt = new w.DataTransfer();
+          dt.items.add(new w.File([typeof content === "string" ? content : JSON.stringify(content)], name));
+          doc.body.dispatchEvent(new w.DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
+        };
+        const kept = (key) => w.localStorage.getItem(`web-measures/${key}`) || "";
+        const fav = "0b1c2d3e-4f50-4617-8899-aabbccddeeff";
+        drop("a.json", [{ id: fav, name: "favori glissé" }]);
+        await expectSoon("import commun : favoris reconnus", () => kept("favoris").includes(fav));
+        drop("b.json", { format: "web-measures/modeles-releve", modeles: [{ nom: "Glissé", champs: [{ nom: "etat", type: "texte", valeurs: [] }] }] });
+        await expectSoon("import commun : modèles de champs reconnus", () => kept("releve-modeles").includes("Glissé"));
+        drop("c.json", app.calibration_json());
+        await expectSoon("import commun : calage reconnu", () => doc.querySelector("#statut").textContent.startsWith("Calage importé"));
+        drop("d.json", { autre: 1 });
+        await expectSoon("import commun : fichier inconnu signalé", () => doc.querySelector("#avis").textContent.includes("non reconnu"));
+        drop("e.csv", "nom;lon;lat\nglissé;5.01;47.3\n");
+        await expectSoon("import commun : CSV dans Couche", () => doc.querySelector("#couche-nom").textContent === "e.csv");
+        // Dossier de travail : exporté (couche e.csv, favori, modèles…), couche retirée et favoris vidés, puis glissé : fenêtre
+        // de choix, couche cochée (aucune en place), reprise ; glissé à nouveau, couche en place : décochée par défaut
+        let file = null, fileName = "";
+        w.showSaveFilePicker = async (o) => { fileName = o.suggestedName; return { name: o.suggestedName,
+          createWritable: async () => ({ write: async (b) => { file = b; }, close: async () => {} }) }; };
+        doc.querySelector('[data-panneau="reglages"]').click();
+        expect("dossier : export actif avec du travail gardé", !doc.querySelector("#dossier-exporter").disabled);
+        doc.querySelector("#dossier-exporter").click();
+        await until(() => file, 10000, "dossier exporté");
+        const folder = typeof file === "string" ? file : await file.text();
+        const parsed = JSON.parse(folder);
+        expect("dossier : fichier nommé et rempli", /^dossier .*\d{4}-\d{2}-\d{2}\.json$/.test(fileName) && parsed.format === "web-measures/dossier"
+          && parsed.couche?.name === "e.csv" && parsed.favoris?.some((f) => f.id === fav) && parsed.modeles?.length > 0
+          && !("mesures" in parsed) && JSON.parse(app.export_geojson()).features.length > 0, `${fileName} ${Object.keys(parsed)}`);  // mesures faites, pas dans le dossier
+        doc.querySelector("#couche-retirer").click();
+        w.localStorage.setItem("web-measures/favoris", "[]");
+        const dialog = doc.querySelector("#importer-dossier");
+        const box = (key) => dialog.querySelector(`input[value="${key}"]`);
+        drop("dossier.json", folder);
+        await until(() => dialog.open, 5000, "fenêtre du dossier");
+        expect("dossier : une case par partie, couche cochée sans couche en place", box("couche")?.checked && box("favoris")?.checked
+          && box("calage")?.checked, [...dialog.querySelectorAll("li")].map((li) => li.textContent).join(" | "));
+        dialog.querySelector('button[value="importer"]').click();
+        await expectSoon("dossier : couche et favoris repris", () => doc.querySelector("#couche-nom").textContent === "e.csv"
+          && kept("favoris").includes(fav));
+        drop("dossier.json", folder);
+        await until(() => dialog.open, 5000, "fenêtre du dossier, couche en place");
+        expect("dossier : couche décochée quand une couche est en place", !box("couche").checked && /remplacera/.test(box("couche").closest("li").textContent));
+        dialog.querySelector('button[value=""]').click();
+        doc.querySelector("#couche-retirer").click();
+      }
     }
     await verdict();
   } catch (e) { log("ERREUR " + e); }

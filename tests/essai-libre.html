@@ -4,7 +4,7 @@
 <!-- Mesure libre sur deux photos imajbox à position RTK (Pouilly-en-Auxois) : deux cibles
      fictives sur le côté, triangulées depuis les deux photos, puis leur distance. Directions
      calculées depuis le cap EXIF précis. Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
-<script>try { localStorage.clear(); } catch {}</script>
+<script>try { localStorage.clear(); indexedDB.deleteDatabase("web-measures"); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe>
 <script src="commun.js"></script>
 <script>
@@ -106,6 +106,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
         && Math.abs(borne[0] - 5.019448) < 2e-6 && Math.abs(borne[1] - 47.3577) < 2e-6);
     }
     doc.querySelector("#couche-retirer").click();
+    expect("couche retirée du navigateur", !(await w.mesures.savedOverlay()));  // effacement fini avant le rechargement
     // Stockage plein : ancienne copie effacée (pas proposée comme si c'était tout), message affiché
     const setItem = w.Storage.prototype.setItem;
     w.Storage.prototype.setItem = function (key, value) {
@@ -138,6 +139,8 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     expect("couche gardée remise avec ses réglages", !d2.querySelector("#couche-reglages").hidden
       && d2.querySelector("#couche-nom").textContent.startsWith("gardée.geojson") && d2.querySelector("#couche-etiquette").value === "nom"
       && d2.querySelector("#couche-couleur").value === "nom", d2.querySelector("#couche-nom").textContent);
+    expect("couche de l'ancienne place (localStorage) reprise dans IndexedDB", (await w.mesures.savedOverlay())?.name === "gardée.geojson"
+      && !w.localStorage.getItem("web-measures/couche"));
     expect("liste des précédents intacte après un rafraîchissement", shown.querySelectorAll("li").length === saved.n
       && !shown.querySelector("input"));
     const m2 = w.mesures.map;

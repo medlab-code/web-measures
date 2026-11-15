@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Cédric COCHART
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Altitude NGF-IGN69 dans le navigateur : grille RAF20 de l'IGN (ondulation du géoïde),
-comme PROJ dans le plugin (voir altitude.py du plugin).
+comme le fait PROJ.
 
 La grille est celle que PROJ télécharge (cdn.proj.org, GeoTIFF de 340 Ko, licence
 ouverte Etalab) : 421 × 381 nœuds, 1/30° × 0,025°, France métropolitaine. Lue ici sans

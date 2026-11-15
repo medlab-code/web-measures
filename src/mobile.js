@@ -31,7 +31,7 @@
     Carte.setBackground(map, $("#fond").value);
     Carte.setNetworkVisible(map, $("#filaire").checked);
   });
-  map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }), "bottom-right");
+  map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }), "top-right");  // à 10 px du haut et du bord
 
   let photo = null;  // fiche STAC de la photo affichée
   let psv = null;  // visionneuse sphérique (Photo Sphere Viewer)

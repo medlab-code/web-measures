@@ -14,7 +14,7 @@
 - run_task(fonction, arguments, done) : calcul en arrière-plan, puis done(résultat ou None) ;
 - api_url : API Panoramax de l'instance choisie.
 
-Plugin QGIS : qgis_host.py ; application web : réseau du navigateur, décodage par canvas.
+Rempli par py/web_host.py : réseau du navigateur, décodage par canvas, calcul dans le worker.
 Les valeurs par défaut rendent le cœur utilisable sans hôte (tests) : pas de réseau, pas
 d'altitude NGF, calcul immédiat.
 """

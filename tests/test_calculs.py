@@ -463,11 +463,12 @@ class ChuteLidar(unittest.TestCase):
 
 
 class CameraPont(unittest.TestCase):
-    """Hauteur de caméra du tablier (App._fall_camera) : séquence, sinon calée, sinon le réglage accepté."""
+    """Hauteur de caméra du tablier (App._fall_camera) : séquence, sinon calée, sinon la monture du CD21 d'après la date,
+    sinon le réglage accepté."""
 
-    def app(self, quality, calibrated=None):
+    def app(self, quality, calibrated=None, item=None):
         a = App.__new__(App)
-        a.quality, a.item = quality, {"collection": "s"}
+        a.quality, a.item = quality, item or {"collection": "s"}
         a.calibration = types.SimpleNamespace(camera=lambda seq: calibrated)
         a.tool = types.SimpleNamespace(camera_height=1.9)
         return a
@@ -482,6 +483,20 @@ class CameraPont(unittest.TestCase):
         a.use_fall_setting = App.use_fall_setting.__get__(a)
         a.fall_setting = True
         self.assertEqual(a._fall_camera()[:2], (1.9, "réglage"))
+
+    def test_monture(self):
+        """Photo du CD21 sans hauteur mesurée ni calée (sur un pont, 13/11/2026) : la monture de sa date, sans rien demander ;
+        aussi pour les objets posés au sol, et dans l'export ; pas pour la vue du dessus (mount=False)."""
+        declared = {"count": 0, "precise": True, "lidar": False, "height": None}
+        item = {"collection": "s", "providers": [{"id": App.FLEET_PRODUCER}], "properties": {"datetime": "2025-08-01T10:00:00Z"}}
+        a = self.app(declared, item=item)
+        self.assertEqual(a._fall_camera(), (2.07, "monture", App.MOUNT_SIGMA))
+        self.assertEqual(a._camera_height(), 2.07)
+        self.assertEqual(a._camera_height(mount=False), 1.9)
+        item["properties"]["datetime"] = "2025-06-01T10:00:00Z"
+        self.assertEqual(a._camera_of(item, declared)[:2], (1.93, "monture"))
+        other = dict(item, providers=[{"id": "autre"}])
+        self.assertIsNone(self.app(declared, item=other)._fall_camera())  # autre producteur : à demander, comme avant
 
 
 class Parcours(unittest.TestCase):
@@ -609,6 +624,50 @@ class Parcours(unittest.TestCase):
         self.assertAlmostEqual(pitch, -math.atan2(self.CAMERA, math.hypot(5.0, 3.0)), places=6)
         a.set_overlay("[]")
         self.assertEqual(a.overlay_marks(), "[]")
+
+    def test_couche_attend_le_sol_de_la_camera(self):
+        """Couche : rien de dessiné tant que le sol de la caméra se lit (pas de saut) ; sans réponse, objets à plat."""
+        a, host = self.app, web_app.host
+        waiting, old = [], host.fetch_json
+        host.fetch_json = lambda url, done, timeout_ms=None: waiting.append((done, timeout_ms))
+        try:
+            self.show("p1")
+            here = lambda east, north: list(triangulation._geographic(east, north, 5.0415, 47.3220))
+            a.set_overlay(json.dumps([{"id": 0, "geometry": {"type": "Point", "coordinates": here(5.0, 3.0)}}]))
+            self.assertEqual(a.overlay_marks(), "[]")
+            done, timeout_ms = waiting[-1]
+            self.assertEqual(timeout_ms, a.OVERLAY_TIMEOUT_MS)
+            done(None, "pas de réponse en 5 s")  # délai dépassé : à plat
+            yaw, pitch = json.loads(a.overlay_marks())[0]["points"][0]
+            self.assertAlmostEqual(pitch, -math.atan2(self.CAMERA, math.hypot(5.0, 3.0)), places=6)
+        finally:
+            host.fetch_json = old
+
+    def test_couche_sol_garde_entre_photos(self):
+        """Sol LiDAR HD de la couche gardé par sommet : la photo voisine ne relit que sa caméra ; objet sur le sol."""
+        a, host = self.app, web_app.host
+        asked = []
+        old = host.fetch_json
+        host.fetch_json = lambda url, done, timeout_ms=None: (asked.append(url), done(
+            {"elevations": [{"z": 200.0}] * (url.split("lon=")[1].split("&")[0].count("|") + 1)}, None))
+        try:
+            self.show("p1")
+            here = lambda east, north: list(triangulation._geographic(east, north, 5.0415, 47.3220))
+            a.set_overlay(json.dumps([{"id": 0, "geometry": {"type": "LineString", "coordinates": [here(5.0, 3.0), here(5.0, 30.0)]}}]))
+            a.overlay_marks()
+            first = asked[-1].split("lon=")[1].split("&")[0].count("|") + 1
+            self.assertGreater(first, 2)  # caméra et sommets (ligne redécoupée)
+            self.show("p2")
+            before = len(asked)
+            marks = json.loads(a.overlay_marks())
+            self.assertEqual(len(asked), before + 1)
+            self.assertEqual(asked[-1].split("lon=")[1].split("&")[0].count("|") + 1, 1)  # caméra de p2 seulement
+            a.overlay_marks()
+            self.assertEqual(len(asked), before + 1)  # tout est connu : plus de lecture
+            yaw, pitch = marks[0]["points"][0]  # sol de niveau avec la caméra : comme à plat
+            self.assertAlmostEqual(pitch, -math.atan2(self.CAMERA, math.hypot(5.0, 3.0 - 6.0)), places=6)
+        finally:
+            host.fetch_json = old
 
     def test_point_au_dessus_du_sol(self):
         """Étiquette de la parcelle visée : point de la carte à 1,50 m du sol (sol de niveau), dans la photo ; à la

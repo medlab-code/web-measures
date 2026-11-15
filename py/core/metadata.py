@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Cédric COCHART
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Fiches des photos Panoramax (STAC) : cap, précision et altitude GPS, liens, recherche.
-Sans réseau ni QGIS (voir api.py pour l'accès à l'API dans le plugin)."""
+Sans réseau : les fiches sont lues par la page (host.fetch_json)."""
 
 import math
 from urllib.parse import urlencode, urlsplit
@@ -18,21 +18,6 @@ def search_url(lon, lat, radius_m=25, limit=20, collection=None, api_url="https:
     if collection:
         params["collections"] = collection
     return "{}/search?{}".format(api_url, urlencode(params))
-
-
-def nearest_feature(features, lon, lat):
-    """Renvoie la photo (feature STAC) la plus proche du point."""
-    best, best_d = None, None
-    coslat = math.cos(math.radians(lat))
-    for feat in features:
-        try:
-            flon, flat = feat["geometry"]["coordinates"][:2]
-        except (KeyError, TypeError, ValueError):
-            continue
-        d = ((flon - lon) * coslat) ** 2 + (flat - lat) ** 2
-        if best_d is None or d < best_d:
-            best, best_d = feat, d
-    return best
 
 
 def item_heading(item):
@@ -109,15 +94,6 @@ def item_altitude(item):
     if altitude is None:
         return None
     return -altitude if _exif_number(item, "Exif.GPSInfo.GPSAltitudeRef") == 1 else altitude
-
-
-def item_image_url(item):
-    assets = item.get("assets", {}) or {}
-    for key in ("sd", "thumb", "hd"):
-        href = (assets.get(key) or {}).get("href")
-        if href:
-            return href
-    return None
 
 
 def item_link(item, rel):

@@ -315,12 +315,10 @@ class WebItem:
 
 
 class RaysItem:
-    """Visées sur la carte (triangulation, repères du calage du cap) : voir
-    tools.Triangulator.new_item."""
+    """Visées de la triangulation sur la carte : voir tools.Triangulator.new_item."""
 
-    def __init__(self, calibration=False):
+    def __init__(self):
         self.rays, self.point = [], None
-        self.calibration = calibration  # repères du calage du cap : dessinés à part (noir)
         self.removed = False
 
     def set_data(self, rays, point):
@@ -407,7 +405,6 @@ class App(session.Session):
         self.items, self.rays = [], []
         self.tool.new_item = self._new_item
         self.triangulator.new_item = self._new_rays
-        self.calibrator.new_item = lambda: self._new_rays(calibration=True)
         self.photo_filter = filters.PhotoFilter()
         self.aim_frame = False  # photo affichée pas encore tournée vers le point à viser (take_aim_frame)
         # Calage de l'inclinaison : pied et sommet de l'objet vertical cliqués, gardés ici jusqu'à
@@ -431,7 +428,8 @@ class App(session.Session):
         self.map_mode = False
         self.redo_stack, self.redo_key = [], None  # états d'avant chaque « Effacer » (Ctrl+Y, voir redo)
         self.overlay = []  # couche importée : (n° de l'objet, "point" ou "ligne", [(lon, lat, z)]), voir set_overlay
-        self.overlay_ground = {}  # photo -> {(lon, lat): altitude LiDAR HD} sous la couche (_overlay_ground)
+        self.overlay_ground = {}  # (lon, lat) -> altitude LiDAR HD ou None (absente), sommets et caméras (_overlay_ground)
+        self.overlay_asked = set()  # (lon, lat) dont l'altitude est en cours de lecture
         self.point_ground = {}  # (lon, lat caméra, lon, lat point) -> (z caméra, z point) ou None (_point_ground)
         self.tilt_reasons = {}  # photo -> raison de l'échec de l'inclinaison automatique (ticket #29)
         self.birdeye_loose = {}  # photo -> verticales refusées pour les mesures, gardées pour la vue du dessus (web_tilt.LOOSE_SIGMA)
@@ -711,7 +709,7 @@ class App(session.Session):
                 "heading": float(heading), "offset": pose["offset"] if pose else 0.0,
                 "up": list(tilt["up"]) if tilt else None,
                 "sigma": tilt["sigma"] if tilt else calibration.UNCALIBRATED,
-                "pending": pending(pic), "height": self._camera_height(),
+                "pending": pending(pic), "height": self._camera_height(mount=False),
                 "height_sigma": max(q.get("spread") or 0, 0.05) if verified else cam["sigma"] if cam else 0.3,
                 "relative_sigma": 0.05 if verified else 0.3,  # position d'une photo à sa voisine (trajectoire)
                 "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []),
@@ -760,6 +758,8 @@ class App(session.Session):
     # et dates de montage non disponibles : prises de vue d'un prestataire)
     FLEET_MOUNTS = (("2025-01-01", "2025-07-01", 1.93), ("2025-07-01", "2026-01-01", 2.07))
     MOUNT_SIGMA = 0.04  # m : comme src/dessus.js (MOUNT_SIGMA)
+    # Colonne camera_calee de l'export des mesures : 0 réglage, 1 calée, 2 altitude GPS (measures.CAMERA_SOURCES), 3 monture
+    CAMERA_CODES = {**measures.CAMERA_SOURCES, "monture": 3}
 
     def _fleet_mount(self, item):
         """Hauteur de la monture du CD21 (FLEET_MOUNTS) à la date de prise de vue de la photo, ou None."""
@@ -767,6 +767,33 @@ class App(session.Session):
         if not any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []):
             return None
         return next((h for first, end, h in self.FLEET_MOUNTS if first <= date < end), None)
+
+    def _camera_of(self, item, quality, sequence_only=False):
+        """(hauteur de caméra en m, source, incertitude en m) de la photo item (quality : sa vérification de position), dans
+        l'ordre : mesurée, altitude RTK moins sol LiDAR HD (sequence_only : sur la séquence seulement, pas la photo seule de
+        précision déclarée, dont la hauteur est prise au-dessus du sol sous elle) ; calée pour la séquence ; monture du CD21
+        d'après la date (FLEET_MOUNTS, ±MOUNT_SIGMA) ; le réglage « Caméra à » (source None). Les mesures (hauteur, largeur,
+        points triangulés) n'en dépendent pas ; elle sert au tablier d'un pont, aux objets posés au sol et à l'export."""
+        q = quality or {}
+        h = q.get("height")
+        if (q.get("count") if sequence_only else q.get("precise")) and q.get("lidar") is True and h is not None \
+                and measures.CAMERA_RANGE[0] <= h <= measures.CAMERA_RANGE[1]:
+            return h, "altitude GPS", q.get("spread") or measures.CAMERA_ERRORS["altitude GPS"]
+        cam = self.calibration.camera((item or {}).get("collection"))
+        if cam:
+            return cam["height"], "calée", cam["sigma"]
+        mount = self._fleet_mount(item or {})
+        if mount:
+            return mount, "monture", self.MOUNT_SIGMA
+        return self.tool.camera_height, None, measures.CAMERA_ERRORS[None]
+
+    def _camera_height(self, mount=True):
+        """Hauteur de caméra de la photo affichée (objets posés au sol, relevé sur une seule photo) : comme
+        Session._camera_height, avec la monture du CD21 d'après la date avant le réglage ; mount=False : sans elle (vue du
+        dessus, qui choisit la monture elle-même, src/dessus.js)."""
+        if not mount or not self.item:
+            return super()._camera_height()
+        return self._camera_of(self.item, self.quality)[0]
 
     def _roll_defect(self, item):
         """Défaut de roulis (degrés, ROLL_DEFECTS) du producteur de la photo à sa date de prise de vue, ou 0."""
@@ -1204,7 +1231,8 @@ class App(session.Session):
         qui n'est pas dans le tableau. Hauteur : distance de l'objet, hauteur de caméra ; largeur : axe,
         angle de visée."""
         if m.kind == "height":
-            height, source = self.tool.camera_info(m.clicks[0], measures._ground_z(m.clicks)[m.clicks[0].get("pic")])
+            item = self.photo_items.get(m.clicks[0].get("pic"))
+            height, source, _ = self._camera_of(item, self.precision.known(item)) if item else (self.tool.camera_height, None, 0)
             parts = ["objet à {} m de la photo".format(measures._num(m.result["ranges"][0], 1)),
                      "caméra à {} m{}".format(measures._num(height, 2), " ({})".format(source) if source else "")]
         else:
@@ -1411,18 +1439,19 @@ class App(session.Session):
 
     # Couche importée (GeoJSON, src/couche.js) : objets dans la photo, à leur altitude (z du fichier,
     # NGF) ou posés sur le sol LiDAR HD, lu sous la caméra et sous leurs sommets (lignes redécoupées
-    # tous les OVERLAY_STEP m pour suivre le terrain) ; à plat à la hauteur de caméra en attendant ou
-    # sans LiDAR ----------------------------------------------------------------------------------
+    # tous les OVERLAY_STEP m pour suivre le terrain) ; dessinés une fois le sol de la caméra lu (pas de saut), chaque
+    # objet une fois ses sommets lus ; à plat à la hauteur de caméra sans LiDAR ou sans réponse en OVERLAY_TIMEOUT_MS ----------
     OVERLAY_REACH = 100.0  # m : objets dessinés dans la photo s'ils ont un sommet à cette distance
     OVERLAY_STEP = 5.0  # m : pas des lignes, pour suivre le terrain entre leurs sommets
     OVERLAY_CHUNK = 150  # points par requête d'altitude (longueur de l'adresse)
     POINT_GROUND_MAX = 200  # couples (caméra, point) dont l'altitude est gardée (view_point)
-    OVERLAY_MAX = 900  # points d'altitude au plus par photo
+    OVERLAY_TIMEOUT_MS = 5000  # ms : sans réponse, sol supposé de niveau avec la caméra (objets à plat)
+    OVERLAY_MAX = 900  # points d'altitude au plus demandés par photo (sommets pas encore lus)
 
     def set_overlay(self, text):
         """Couche importée, JSON [{id, geometry}] en WGS 84, z éventuel en NGF (vide : retirée) : points,
         et lignes (contours des polygones compris), multi-géométries éclatées en parties."""
-        self.overlay, self.overlay_ground = [], {}
+        self.overlay, self.overlay_ground, self.overlay_asked = [], {}, set()
         for f in json.loads(text or "[]"):
             g, i = f.get("geometry") or {}, f.get("id")
             kind, coords = g.get("type", ""), g.get("coordinates") or []
@@ -1493,9 +1522,13 @@ class App(session.Session):
         near = [(i, kind, pts) for i, kind, pts in self.overlay
                 if any(abs(p[1] - lat) < reach and abs(p[0] - lon) * k < reach for p in pts)]
         ground = self._overlay_ground(lon, lat, near)  # {(lon, lat): z}, sol sous la caméra en (lon, lat)
-        height, base = self._camera_height(), ground.get((lon, lat))
+        if (lon, lat) not in ground:  # sol de la caméra en cours de lecture : rien, plutôt qu'à plat puis un saut
+            return "[]"
+        height, base = self._camera_height(), ground[(lon, lat)]
         out = []
         for i, kind, pts in near:
+            if any((p[0], p[1]) in self.overlay_asked for p in pts):  # sommet en cours de lecture : dessiné à son arrivée
+                continue
             views, dist = [], None
             for plon, plat, z in pts:
                 z = z if z is not None else ground.get((plon, plat))
@@ -1509,34 +1542,34 @@ class App(session.Session):
         return json.dumps(out)
 
     def _overlay_ground(self, lon, lat, near):
-        """Altitudes LiDAR HD sous la caméra et sous les sommets proches sans z (OVERLAY_MAX au plus, à
-        une fois et demie OVERLAY_REACH) : {(lon, lat): z}, lues une fois par photo ({} en attendant)."""
-        pic = self.item.get("id")
-        if pic in self.overlay_ground:
-            return self.overlay_ground[pic]
-        self.overlay_ground[pic] = {}
+        """Altitudes LiDAR HD sous la caméra et sous les sommets proches sans z (à une fois et demie OVERLAY_REACH) :
+        {(lon, lat): z}, gardées pour toute la couche (les objets ne bougent pas : photo suivante de la séquence sans
+        relecture) ; seuls les points pas encore lus sont demandés, OVERLAY_MAX au plus par photo. Absente : None."""
         k, reach = math.cos(math.radians(lat)), 1.5 * self.OVERLAY_REACH / 111320.0
-        points = [(lon, lat)] + list(dict.fromkeys(
+        known, asked = self.overlay_ground, self.overlay_asked
+        points = [p for p in dict.fromkeys([(lon, lat)] + [
             (p[0], p[1]) for _, _, pts in near for p in pts
-            if p[2] is None and abs(p[1] - lat) < reach and abs(p[0] - lon) * k < reach))[:self.OVERLAY_MAX]
-        found, overlay = {}, self.overlay
+            if p[2] is None and abs(p[1] - lat) < reach and abs(p[0] - lon) * k < reach])
+            if p not in known and p not in asked][:self.OVERLAY_MAX]
+        if not points:
+            return known
+        asked.update(points)
         chunks = [points[n:n + self.OVERLAY_CHUNK] for n in range(0, len(points), self.OVERLAY_CHUNK)]
-        left = [len(chunks)]
 
         def got(chunk):
             def done(data, error):
+                if known is not self.overlay_ground:  # couche changée entre-temps : réponse jetée
+                    return
                 z = None if error else precision._ground(data)
-                if z and len(z) == len(chunk):
-                    found.update((p, h) for p, h in zip(chunk, z) if h is not None)
-                left[0] -= 1
-                if not left[0] and self.overlay is overlay:  # toutes lues : couche redessinée
-                    self.overlay_ground[pic] = found
-                    self.notify()
+                # sans réponse (OVERLAY_TIMEOUT_MS) ou en erreur : à plat ; shortcut: pas relu avant le prochain import
+                known.update(zip(chunk, z if z and len(z) == len(chunk) else [None] * len(chunk)))
+                asked.difference_update(chunk)
+                self.notify()  # objets de ce paquet dessinés
             return done
 
         for chunk in chunks:
-            host.fetch_json(precision.lidar_url(chunk, precision.LIDAR_RESOURCE), got(chunk), timeout_ms=15000)
-        return self.overlay_ground[pic]
+            host.fetch_json(precision.lidar_url(chunk, precision.LIDAR_RESOURCE), got(chunk), timeout_ms=self.OVERLAY_TIMEOUT_MS)
+        return known
 
     # Hauteurs suivantes depuis le point de référence, sur l'axe de la première -------------------
     # Une fois une hauteur faite depuis A sur la photo affichée (ligne A–C), le sommet des suivantes
@@ -2003,18 +2036,12 @@ class App(session.Session):
     fall_setting = False  # l'utilisateur accepte le réglage « Caméra à » pour la hauteur de chute
 
     def _fall_camera(self):
-        """(hauteur de caméra en m, sa source, son incertitude en m) pour le tablier, ou None (à demander)."""
-        q = self.quality or {}
-        h = q.get("height")
-        if q.get("count") and q.get("lidar") is True and h is not None \
-                and measures.CAMERA_RANGE[0] <= h <= measures.CAMERA_RANGE[1]:
-            return round(h, 3), "séquence", q.get("spread") or measures.CAMERA_ERRORS["altitude GPS"]
-        cam = self.calibration.camera((self.item or {}).get("collection"))
-        if cam:
-            return round(cam["height"], 3), "calée", cam["sigma"]
-        if self.fall_setting:
-            return round(self.tool.camera_height, 3), "réglage", measures.CAMERA_ERRORS[None]
-        return None
+        """(hauteur de caméra en m, sa source, son incertitude en m) pour le tablier, ou None (à demander) : mesurée sur la
+        séquence, calée, monture du CD21 d'après la date, sinon le réglage si l'utilisateur l'accepte (_camera_of)."""
+        h, source, sigma = self._camera_of(self.item, self.quality, sequence_only=True)
+        if source is None and not self.fall_setting:
+            return None
+        return round(h, 3), {"altitude GPS": "séquence", None: "réglage"}.get(source, source), sigma
 
     def use_fall_setting(self):
         """Bouton de l'encadré du pont : la hauteur de chute utilise le réglage « Caméra à » (pour la session)."""
@@ -2213,7 +2240,7 @@ class App(session.Session):
                           "l'eau : niveau au relevé, pas le fond. Hauteur de caméra : {} m ({}).").format(
                     source, measures._num(self.FALL_SIDES[-1], 0), measures._num(best[1], 0), measures._num(camera, 2),
                     {"séquence": "mesurée sur la séquence", "calée": "calée pour la séquence",
-                     "réglage": "réglage « Caméra à »"}[camera_source])}
+                     "monture": "monture du CD21 d'après la date", "réglage": "réglage « Caméra à »"}[camera_source])}
             self.notify()
 
         host.fetch_json(metadata.search_url(lon, lat, reach, 100, item.get("collection"), host.api_url), got_photos)
@@ -2837,117 +2864,16 @@ class App(session.Session):
                 # 2 m (un détail). Talus : pentes sur EDGE_WINDOW m d'au moins EDGE_TALUS, resserrées autour de la plus
                 # forte sur celles d'au moins EDGE_CORE fois elle (sans l'accotement en pente douce ni la queue du pied)
                 slopes = [slope(zz, oo, j, self.EDGE_WINDOW) or 0 for j in range(len(oo))]
-                k = 0
-                while k < len(oo):
-                    if slopes[k] < self.EDGE_TALUS:
-                        k += 1
-                        continue
-                    first = k
-                    while k < len(oo) and slopes[k] >= self.EDGE_TALUS:
-                        k += 1
-                    steep = max(range(first, k), key=lambda j: slopes[j])
-                    floor = max(self.EDGE_TALUS, self.EDGE_CORE * slopes[steep])
-                    top, end = steep, steep + 1
-                    while top > first and slopes[top - 1] >= floor:
-                        top -= 1
-                    while end < k and slopes[end] >= floor:
-                        end += 1
-                    # pied : bout de la dernière fenêtre en pente, le point le plus bas jusque-là
-                    last = next((j for j in range(end - 1, len(oo)) if oo[j] - oo[end - 1] >= self.EDGE_WINDOW - 1e-6),
-                                len(oo) - 1)
-                    foot = min((j for j in range(top, last + 1) if zz[j] is not None), key=lambda j: zz[j])
-                    height = zz[top] - zz[foot]
-                    mean = height / (oo[foot] - oo[top]) if foot > top else 0
+                for mean, top, foot, height in self._taluses(zz, oo, slopes):
                     if height >= self.FALL_MIN and (found[name][1] is None or mean > found[name][1][0]):
-                        found[name][1] = (mean, oo[top], along, oo[foot], height)
+                        found[name][1] = (mean, top, along, foot, height)
             # Profil en long (derniers points lus) : pente moyenne, montée > 0 dans le sens de la photo, et la plus forte
             pts = [(d, v) for d, v in zip(lengthwise, ground[len(ground) - len(lengthwise):]) if v is not None] if lengthwise else []
-            # Fin de la route de la photo et carrefours avec une voie nommée, le long d'elle ; au-delà d'une fin, pas de profil
-            # (la caméra a pu continuer sur une autre route)
-            cuts = []
-            for p, kind, names in ends[0]:
-                d = round(along_of(p), 1)
-                if -self.LONG_REACH - 1 <= d <= self.LONG_REACH + 1 and all(abs(d - e["d"]) > 1 for e in cuts):
-                    cuts.append({"d": d, "type": kind, "voie": ends[1], "avec": names})
-            # Carrefour à îlot séparateur : la voie qui arrive y est faite d'un tronçon par sens, qui touchent la route en deux
-            # points proches ; un seul repère au milieu (LONG_JUNCTION m au plus entre eux, même voie)
-            cuts.sort(key=lambda e: e["d"])
-            merged = []
-            for e in cuts:
-                last = merged[-1] if merged else None
-                if (last and e["type"] == last["type"] == "carrefour" and set(e["avec"]) & set(last["avec"])
-                        and e["d"] - last["d0"] <= self.LONG_JUNCTION):
-                    last["d"] = round((last["d0"] + e["d"]) / 2, 1)
-                    last["avec"] = sorted(set(last["avec"]) | set(e["avec"]))
-                else:
-                    merged.append(dict(e, d0=e["d"]))
-            cuts = [{k: v for k, v in e.items() if k != "d0"} for e in merged]
-            for e in cuts:
-                if e["type"] == "fin":
-                    pts = [(d, v) for d, v in pts if (d <= e["d"] + 1e-6 if e["d"] > 0 else d >= e["d"] - 1e-6)]
-            cuts = [e for e in cuts if pts and pts[0][0] - 1 <= e["d"] <= pts[-1][0] + 1]
-            # Creux (ponts, même absents de la BD TOPO) : terrain remplacé par la droite d'un bord à l'autre (le tablier, à peu
-            # près), pente comprise ; nommés « pont » s'ils recouvrent un pont de la route
-            bridges = [sorted((along_of(a), along_of(b))) for level, a, b in ends[2] if level > 0]
-            pts, dips = self._bridged(pts, bridges)
-            spans = [{"de": round(lo, 1), "a": round(hi, 1),
-                      "type": "pont" if any(b0 <= hi and b1 >= lo for b0, b1 in bridges) else "creux"} for lo, hi in dips]
-            # Tunnels de la route : le MNT y donne le dessus, remplacé par la droite d'une tête à l'autre
-            for level, a, b in ends[2]:
-                lo, hi = sorted((along_of(a), along_of(b)))
-                before = [(d, v) for d, v in pts if d <= lo + 1e-6]
-                after = [(d, v) for d, v in pts if d >= hi - 1e-6]
-                if level > 0 or not pts or hi < pts[0][0] or lo > pts[-1][0]:
-                    continue
-                if before and after:
-                    (d0, z0), (d1, z1) = before[-1], after[0]
-                    pts = [(d, z0 + (z1 - z0) * (d - d0) / ((d1 - d0) or 1.0)) if d0 < d < d1 else (d, v) for d, v in pts]
-                else:  # tunnel au bout du profil, une seule tête : pas de terrain dessus
-                    pts = [(d, v) for d, v in pts if not lo < d < hi]
-                spans.append({"de": round(lo, 1), "a": round(hi, 1), "type": "tunnel"})
-            grade = None
-            if len(pts) >= 5:
-                md, mz = sum(d for d, _ in pts) / len(pts), sum(v for _, v in pts) / len(pts)
-                mean = sum((d - md) * (v - mz) for d, v in pts) / (sum((d - md) ** 2 for d, _ in pts) or 1.0)
-                windows = [((b[1] - a[1]) / (b[0] - a[0]), a[0], b[0]) for k, a in enumerate(pts) for b in pts[k + 1:]
-                           if abs(b[0] - a[0] - self.LONG_WINDOW) < 1e-6]  # (pente, de, à) sur LONG_WINDOW m
-                steep = max(windows, key=lambda c: abs(c[0]), default=None)
-                grade = {"points": [[d, round(v, 2)] for d, v in pts], "pente": round(100 * mean, 1), "suivi": followed,
-                         "fins": sorted(cuts, key=lambda e: e["d"]), "ouvrages": spans,
-                         "max": [round(100 * steep[0], 1), steep[1], steep[2]] if steep else None}
+            grade = self._long_profile(pts, ends, along_of, followed)
             terrain = triangulation.RGE_ALTI_ERROR if source == "RGE ALTI" else triangulation.LIDAR_ERROR
             sigma = math.hypot(terrain, terrain)  # deux altitudes du même MNT
             origin = "la caméra" if camera else "l'axe BD TOPO"
-            lines, seen, shown = [], [], {}
-            for name, _ in sides:
-                if borders[name]:
-                    by_relief = sum(r for _, r in borders[name])
-                    seen.append("côté {} à {} m de {} ({}{})".format(
-                        name, measures._num(sorted(o for o, _ in borders[name])[len(borders[name]) // 2], 1), origin,
-                        "relief sur {} travers sur {}".format(by_relief, len(borders[name])) if by_relief
-                        else "largeur BD TOPO", ", au-delà du séparateur de chaussée ({}) et de l'autre chaussée".format(
-                            "trouvé dans le relief" if any(e.get("separateur_relief") for e in drawn if e["cote"] == name)
-                            else "d'après la BD TOPO") if twins[name] else ""))
-                fall, slope_max = found[name]
-                stop = sorted(stops[name])[len(stops[name]) // 2] if stops[name] else None
-                if fall is None or fall[0] < self.FALL_MIN:
-                    if stop is not None:
-                        lines.append("Côté {} : pas de chute avant le terrain qui remonte de {} m, à {} m du bord".format(
-                            name, measures._num(self.EDGE_RISE, 0), measures._num(stop, 0)))
-                    continue
-                beyond = fall[1] >= fall[2] - 1e-6  # le plus bas au bout du profil : le terrain descend encore
-                text = "Côté {} : chute {}{} m (±{} m) {} {} m du bord".format(
-                    name, "≥ " if beyond else "", measures._num(fall[0], 1), measures._num(sigma, 1),
-                    "au-delà de" if beyond else "à", measures._num(fall[1], 0))
-                if slope_max and slope_max[0] > 0:
-                    text += ", dévers du talus {} % ({}°) sur {} m de haut".format(
-                        measures._num(100 * slope_max[0], 0), measures._num(math.degrees(math.atan(slope_max[0])), 0),
-                        measures._num(slope_max[4], 1))
-                lines.append(text)
-                shown[name] = {"chute": [round(fall[0], 2), round(fall[1], 2), beyond, fall[3]],
-                               "devers": [round(slope_max[0], 3), round(slope_max[1], 2), slope_max[2],
-                                          round(slope_max[3], 2), round(slope_max[4], 2)]
-                               if slope_max and slope_max[0] > 0 else None}
+            lines, seen, shown = self._edges_sides(sides, borders, found, stops, drawn, twins, sigma, origin)
             self.edges[key] = {
                 "frame": across0,
                 "profile": {"origine": "caméra" if camera else "axe", "source": source, "erreur": round(sigma, 2),
@@ -2963,20 +2889,144 @@ class App(session.Session):
                         measures._num(grade["points"][-1][0] - grade["points"][0][0], 0),
                         ", jusqu'à {} % sur {} m".format(measures._num(abs(grade["max"][0]), 1), self.LONG_WINDOW)
                         if grade["max"] else "") if grade else ""),
-                "title": ("Terrain ({}) en travers de la route, depuis {} jusqu'à {} m au-delà du bord de la chaussée, "
-                          "sur ±{} m le long de la route ; côtés vus dans le sens de la photo. Bord : rupture de pente "
-                          "ou marche du terrain (bordure), sinon largeur BD TOPO (ou {} m supposés) ; chaussées séparées : "
-                          "bord extérieur de l'autre chaussée, séparateur de chaussée compris (entre deux marches du "
-                          "terrain, sinon d'après la BD TOPO). Chute : plus grande descente sous le "
-                          "terrain du bord, lue jusqu'à ce que le terrain remonte de {} m au-dessus du bord (talus, "
-                          "butte). Dévers : pente moyenne du talus le plus raide, de son haut à son pied (pente sur {} m "
-                          "repassée sous {} %). Bords trouvés : {}.").format(
-                    source, origin, measures._num(zone, 0), measures._num(self.EDGE_ALONG[-1], 0),
-                    measures._num(self.FALL_WIDTH, 0), measures._num(self.EDGE_RISE, 0), measures._num(self.EDGE_WINDOW, 0),
-                    measures._num(100 * self.EDGE_TALUS, 0), " ; ".join(seen) or "aucun")}
+                "title": self._edges_title(source, origin, zone, seen)}
             self.notify()
 
         self._terrain([triangulation._geographic(x, y, lon, lat) for x, y in samples], got_ground)
+
+    def _edges_sides(self, sides, borders, found, stops, drawn, twins, sigma, origin):
+        """Bords, chutes et dévers de chaque côté (voir _compute_edges) : (lignes du texte, bords trouvés pour l'infobulle,
+        résultats par côté pour le graphique de la page)."""
+        lines, seen, shown = [], [], {}
+        for name, _ in sides:
+            if borders[name]:
+                by_relief = sum(r for _, r in borders[name])
+                seen.append("côté {} à {} m de {} ({}{})".format(
+                    name, measures._num(sorted(o for o, _ in borders[name])[len(borders[name]) // 2], 1), origin,
+                    "relief sur {} travers sur {}".format(by_relief, len(borders[name])) if by_relief
+                    else "largeur BD TOPO", ", au-delà du séparateur de chaussée ({}) et de l'autre chaussée".format(
+                        "trouvé dans le relief" if any(e.get("separateur_relief") for e in drawn if e["cote"] == name)
+                        else "d'après la BD TOPO") if twins[name] else ""))
+            fall, slope_max = found[name]
+            stop = sorted(stops[name])[len(stops[name]) // 2] if stops[name] else None
+            if fall is None or fall[0] < self.FALL_MIN:
+                if stop is not None:
+                    lines.append("Côté {} : pas de chute avant le terrain qui remonte de {} m, à {} m du bord".format(
+                        name, measures._num(self.EDGE_RISE, 0), measures._num(stop, 0)))
+                continue
+            beyond = fall[1] >= fall[2] - 1e-6  # le plus bas au bout du profil : le terrain descend encore
+            text = "Côté {} : chute {}{} m (±{} m) {} {} m du bord".format(
+                name, "≥ " if beyond else "", measures._num(fall[0], 1), measures._num(sigma, 1),
+                "au-delà de" if beyond else "à", measures._num(fall[1], 0))
+            if slope_max and slope_max[0] > 0:
+                text += ", dévers du talus {} % ({}°) sur {} m de haut".format(
+                    measures._num(100 * slope_max[0], 0), measures._num(math.degrees(math.atan(slope_max[0])), 0),
+                    measures._num(slope_max[4], 1))
+            lines.append(text)
+            shown[name] = {"chute": [round(fall[0], 2), round(fall[1], 2), beyond, fall[3]],
+                           "devers": [round(slope_max[0], 3), round(slope_max[1], 2), slope_max[2],
+                                      round(slope_max[3], 2), round(slope_max[4], 2)]
+                           if slope_max and slope_max[0] > 0 else None}
+        return lines, seen, shown
+
+    def _edges_title(self, source, origin, zone, seen):
+        """Infobulle des bords : méthode, puis les bords trouvés (seen)."""
+        return ("Terrain ({}) en travers de la route, depuis {} jusqu'à {} m au-delà du bord de la chaussée, "
+                "sur ±{} m le long de la route ; côtés vus dans le sens de la photo. Bord : rupture de pente "
+                "ou marche du terrain (bordure), sinon largeur BD TOPO (ou {} m supposés) ; chaussées séparées : "
+                "bord extérieur de l'autre chaussée, séparateur de chaussée compris (entre deux marches du "
+                "terrain, sinon d'après la BD TOPO). Chute : plus grande descente sous le "
+                "terrain du bord, lue jusqu'à ce que le terrain remonte de {} m au-dessus du bord (talus, "
+                "butte). Dévers : pente moyenne du talus le plus raide, de son haut à son pied (pente sur {} m "
+                "repassée sous {} %). Bords trouvés : {}.").format(
+            source, origin, measures._num(zone, 0), measures._num(self.EDGE_ALONG[-1], 0),
+            measures._num(self.FALL_WIDTH, 0), measures._num(self.EDGE_RISE, 0), measures._num(self.EDGE_WINDOW, 0),
+            measures._num(100 * self.EDGE_TALUS, 0), " ; ".join(seen) or "aucun")
+
+    def _long_profile(self, pts, ends, along_of, followed):
+        """Profil en long de la route sous la photo (pts : [(d en m dans le sens de la photo, altitude)]) : fins de la route
+        et carrefours avec une voie nommée (ends, voir _chained), creux et ponts comblés (_bridged), tunnels ; pente moyenne
+        et la plus forte sur LONG_WINDOW m. None avec moins de 5 points. along_of(p) : position d'un point le long de la route."""
+        # Fin de la route de la photo et carrefours avec une voie nommée, le long d'elle ; au-delà d'une fin, pas de profil
+        # (la caméra a pu continuer sur une autre route)
+        cuts = []
+        for p, kind, names in ends[0]:
+            d = round(along_of(p), 1)
+            if -self.LONG_REACH - 1 <= d <= self.LONG_REACH + 1 and all(abs(d - e["d"]) > 1 for e in cuts):
+                cuts.append({"d": d, "type": kind, "voie": ends[1], "avec": names})
+        # Carrefour à îlot séparateur : la voie qui arrive y est faite d'un tronçon par sens, qui touchent la route en deux
+        # points proches ; un seul repère au milieu (LONG_JUNCTION m au plus entre eux, même voie)
+        cuts.sort(key=lambda e: e["d"])
+        merged = []
+        for e in cuts:
+            last = merged[-1] if merged else None
+            if (last and e["type"] == last["type"] == "carrefour" and set(e["avec"]) & set(last["avec"])
+                    and e["d"] - last["d0"] <= self.LONG_JUNCTION):
+                last["d"] = round((last["d0"] + e["d"]) / 2, 1)
+                last["avec"] = sorted(set(last["avec"]) | set(e["avec"]))
+            else:
+                merged.append(dict(e, d0=e["d"]))
+        cuts = [{k: v for k, v in e.items() if k != "d0"} for e in merged]
+        for e in cuts:
+            if e["type"] == "fin":
+                pts = [(d, v) for d, v in pts if (d <= e["d"] + 1e-6 if e["d"] > 0 else d >= e["d"] - 1e-6)]
+        cuts = [e for e in cuts if pts and pts[0][0] - 1 <= e["d"] <= pts[-1][0] + 1]
+        # Creux (ponts, même absents de la BD TOPO) : terrain remplacé par la droite d'un bord à l'autre (le tablier, à peu
+        # près), pente comprise ; nommés « pont » s'ils recouvrent un pont de la route
+        bridges = [sorted((along_of(a), along_of(b))) for level, a, b in ends[2] if level > 0]
+        pts, dips = self._bridged(pts, bridges)
+        spans = [{"de": round(lo, 1), "a": round(hi, 1),
+                  "type": "pont" if any(b0 <= hi and b1 >= lo for b0, b1 in bridges) else "creux"} for lo, hi in dips]
+        # Tunnels de la route : le MNT y donne le dessus, remplacé par la droite d'une tête à l'autre
+        for level, a, b in ends[2]:
+            lo, hi = sorted((along_of(a), along_of(b)))
+            before = [(d, v) for d, v in pts if d <= lo + 1e-6]
+            after = [(d, v) for d, v in pts if d >= hi - 1e-6]
+            if level > 0 or not pts or hi < pts[0][0] or lo > pts[-1][0]:
+                continue
+            if before and after:
+                (d0, z0), (d1, z1) = before[-1], after[0]
+                pts = [(d, z0 + (z1 - z0) * (d - d0) / ((d1 - d0) or 1.0)) if d0 < d < d1 else (d, v) for d, v in pts]
+            else:  # tunnel au bout du profil, une seule tête : pas de terrain dessus
+                pts = [(d, v) for d, v in pts if not lo < d < hi]
+            spans.append({"de": round(lo, 1), "a": round(hi, 1), "type": "tunnel"})
+        grade = None
+        if len(pts) >= 5:
+            md, mz = sum(d for d, _ in pts) / len(pts), sum(v for _, v in pts) / len(pts)
+            mean = sum((d - md) * (v - mz) for d, v in pts) / (sum((d - md) ** 2 for d, _ in pts) or 1.0)
+            windows = [((b[1] - a[1]) / (b[0] - a[0]), a[0], b[0]) for k, a in enumerate(pts) for b in pts[k + 1:]
+                       if abs(b[0] - a[0] - self.LONG_WINDOW) < 1e-6]  # (pente, de, à) sur LONG_WINDOW m
+            steep = max(windows, key=lambda c: abs(c[0]), default=None)
+            grade = {"points": [[d, round(v, 2)] for d, v in pts], "pente": round(100 * mean, 1), "suivi": followed,
+                     "fins": sorted(cuts, key=lambda e: e["d"]), "ouvrages": spans,
+                     "max": [round(100 * steep[0], 1), steep[1], steep[2]] if steep else None}
+        return grade
+
+    def _taluses(self, zz, oo, slopes):
+        """Talus d'un travers, depuis le bord : [(pente moyenne, haut et pied en m du bord, hauteur)]. Talus : pentes sur
+        EDGE_WINDOW m (slopes, une par point) d'au moins EDGE_TALUS, resserrées autour de la plus forte sur celles d'au moins
+        EDGE_CORE fois elle (sans l'accotement en pente douce ni la queue du pied) ; pied : point le plus bas jusqu'au bout
+        de la dernière fenêtre en pente."""
+        out, k = [], 0
+        while k < len(oo):
+            if slopes[k] < self.EDGE_TALUS:
+                k += 1
+                continue
+            first = k
+            while k < len(oo) and slopes[k] >= self.EDGE_TALUS:
+                k += 1
+            steep = max(range(first, k), key=lambda j: slopes[j])
+            floor = max(self.EDGE_TALUS, self.EDGE_CORE * slopes[steep])
+            top, end = steep, steep + 1
+            while top > first and slopes[top - 1] >= floor:
+                top -= 1
+            while end < k and slopes[end] >= floor:
+                end += 1
+            last = next((j for j in range(end - 1, len(oo)) if oo[j] - oo[end - 1] >= self.EDGE_WINDOW - 1e-6), len(oo) - 1)
+            foot = min((j for j in range(top, last + 1) if zz[j] is not None), key=lambda j: zz[j])
+            height = zz[top] - zz[foot]
+            out.append((height / (oo[foot] - oo[top]) if foot > top else 0, oo[top], oo[foot], height))
+        return out
 
     def _terrain(self, points, done):
         """precision.fetch_terrain par paquets de FALL_POINTS points (une requête chacun), l'un après l'autre ;
@@ -3129,8 +3179,8 @@ class App(session.Session):
         self.items.append(item)
         return item
 
-    def _new_rays(self, calibration=False):
-        item = RaysItem(calibration)
+    def _new_rays(self):
+        item = RaysItem()
         self.rays.append(item)
         return item
 
@@ -3199,15 +3249,15 @@ class App(session.Session):
         self.rays = [r for r in self.rays if not r.removed]
         for item in self.rays:
             for lon, lat, elon, elat in item.rays:
-                add("calage" if item.calibration else "visee", "LineString", [[lon, lat], [elon, elat]])
+                add("visee", "LineString", [[lon, lat], [elon, elat]])
             if item.point:
-                add("repere" if item.calibration else "cible", "Point", list(item.point))
+                add("cible", "Point", list(item.point))
         road = (self.ref_point or {}).get("road") if self.active and self.mode == "road" else None
         if road:  # largeur : droite de mesure passant par le point de référence
             add("trace", "LineString", [list(p) for p in widths.guide(self.ref_point, road["axis"])])
         for lon, lat, values in self.points:
             add("triangule", "Point", [lon, lat], values["nom"])  # nom seul : pas d'incertitude sur la carte
-        for i, j, values in self.links:  # distance entre deux points gardés : trait rouge, sans longueur
+        for i, j, _values in self.links:  # distance entre deux points gardés : trait rouge, sans longueur
             add("distance", "LineString", [list(self.points[i][:2]), list(self.points[j][:2])])
         for v in self.map_lengths:  # longueur sur la vue du dessus : trait et valeur, comme une mesure
             add("mesure", "LineString", v["ends"], "{} m".format(measures._num(v["valeur_m"], 2)))
@@ -3218,7 +3268,7 @@ class App(session.Session):
     # Export ------------------------------------------------------------------------------
     def _records(self, releve=False):
         """Mesures terminées et points triangulés : (géométrie [(lon, lat)], attributs), comme
-        les couches du plugin ; releve : les objets relevés seuls, leurs champs en colonnes."""
+        pour l'export ; releve : les objets relevés seuls, leurs champs en colonnes."""
         if releve:
             kept = [(lon, lat, values) for lon, lat, values in self.points if "releve" in values]
             # Champs ajoutés en cours de relevé : à leur place, vides pour les objets d'avant
@@ -3231,7 +3281,10 @@ class App(session.Session):
                 continue
             d = r["decomposition"]
             ends = r["points"] if len(r["points"]) >= 2 else r["picks"]
-            height, source = self.tool.camera_info(m.clicks[0], measures._ground_z(m.clicks)[m.clicks[0].get("pic")])
+            # Hauteur de caméra de la photo du premier clic, pour information (la mesure n'en dépend pas) ; photo oubliée
+            # (plus de 500 vues depuis) : le réglage
+            item = self.photo_items.get(m.clicks[0].get("pic"))
+            height, source, _ = self._camera_of(item, self.precision.known(item)) if item else (self.tool.camera_height, None, 0)
 
             def num(value, digits=3):
                 return None if value is None else round(value, digits)
@@ -3243,7 +3296,7 @@ class App(session.Session):
                 "horiz_m": num(d["horizontal"]), "vert_m": num(d["vertical"]),
                 "long_route_m": num(d["along"]), "travers_m": num(d["across"]),
                 "dist_photo_m": num(max(r["ranges"]), 1), "camera_m": num(height, 2),
-                "camera_calee": measures.CAMERA_SOURCES.get(source, 0),
+                "camera_calee": self.CAMERA_CODES.get(source, 0),
                 "axe_route": m.axis_source if m.kind == "road" else None,
                 "recales": len(m.overrides),
                 "photos": ",".join(dict.fromkeys(c.get("pic") or "" for c in m.clicks)),
@@ -3319,9 +3372,9 @@ class App(session.Session):
                            "caption": capture.caption_for(item, None),  # sans le cap
                            "name": "panoramax_{}_cap{:03.0f}_{}".format(date, heading, (item.get("id") or "")[:8])})
 
-    def caption(self, yaw):
+    def caption(self):
         """Cartouche d'attribution de la vue (obligation des licences Panoramax) : auteur, date,
-        catégorie de la licence ; sans le cap (yaw, gardé pour la page, ne sert plus)."""
+        catégorie de la licence."""
         if not self.item:
             return "Panoramax"
         return capture.caption_for(self.item, None)

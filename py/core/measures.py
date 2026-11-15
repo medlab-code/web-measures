@@ -76,7 +76,7 @@ class Measure:
     def __init__(self, tool, kind, surface):
         self.tool = tool
         self.kind, self.surface = kind, surface
-        self.clicks = []  # dicts de PanoramaxDock.photoClicked, avec profil de terrain
+        self.clicks = []  # dicts de tools.photo_click
         # n° de point -> (lon, lat, orientation en degrés) : point recalé sur la carte, qui fixe
         # son plan vertical (passant par lui, de normale horizontale orientée vers la caméra
         # qui l'a visé au moment du recalage)
@@ -92,7 +92,6 @@ class Measure:
         self.item = None
         self.fid = None  # entité de la couche des mesures, une fois enregistrée
         self.layer_id = None  # couche de cette entité : un fid ne vaut que dans sa couche
-        self.saved = None  # résultat au moment de l'enregistrement (voir _snapshot)
         self.road = None  # axe de la route au point mesuré (largeur perpendiculaire, voir roads.py)
         self.road_pending = False  # lecture de cet axe en cours
 
@@ -198,7 +197,7 @@ class Measure:
             return ground_z[click.get("pic")]
 
         def h(click):
-            return self.tool.camera_for(click, zof(click)) + (camera_delta or {}).get(click.get("pic"), 0.0)
+            return self.tool.camera_for(click) + (camera_delta or {}).get(click.get("pic"), 0.0)
 
         # Plan calé de la mesure, défini par les points glissés sur la carte : vertical, passant
         # par les deux premiers (le mur tracé sur la carte), ou par le seul glissé, face à la
@@ -361,7 +360,7 @@ class Measure:
     def _camera_sigma(self, pic):
         """Incertitude (m) de la hauteur de caméra de la photo, selon sa source."""
         c = next(x for x in self.clicks if x.get("pic") == pic)
-        _, source = self.tool.camera_info(c, _ground_z(self.clicks)[pic])
+        _, source = self.tool.camera_info(c)
         if source == "calée":
             return self.tool.calibration.camera(c.get("sequence"))["sigma"]
         return CAMERA_ERRORS.get(source, CAMERA_ERRORS[None])
@@ -423,7 +422,7 @@ class Measure:
         for i, c in enumerate(self.clicks):
             p = pts[i]
             z = ground_z[c.get("pic")]
-            cam, _ = geometry.camera(c, self.tool.camera_for(c, z), origin, z)
+            cam, _ = geometry.camera(c, self.tool.camera_for(c), origin, z)
             vx, vy, vz = p[0] - cam[0], p[1] - cam[1], p[2] - cam[2]
             yaw = math.degrees(math.atan2(vx, vy))
             elev = math.degrees(math.atan2(vz, math.hypot(vx, vy)))
@@ -442,16 +441,6 @@ class Measure:
                 return []
             pts = [(k,) + geometry.to_geographic(p, origin)[:2] for k, p in enumerate(raw)]
         return pts[:1] if self.surface == "vertical" else pts
-
-    # Enregistrement -----------------------------------------------------------
-    def _snapshot(self):
-        """Ce qui doit être réécrit dans la couche s'il change : valeur, incertitude, points."""
-        r = self.result
-        return round(r["value"], 4), round(r["uncertainty"], 4), tuple(map(tuple, r["picks"]))
-
-    def unsaved(self):
-        """Mesure terminée, pas encore enregistrée, ou modifiée depuis (recalage, visée)."""
-        return bool(self.result) and self.saved != self._snapshot()
 
     # Affichage ----------------------------------------------------------------
     def label(self):
@@ -486,7 +475,7 @@ class Measure:
         return i
 
     def viewer_marks(self, selected=None):
-        """Repères dans la visionneuse (voir PanoramaxDock.set_measure_marks) : là où la
+        """Repères dans la visionneuse (dessinés par src/traits.js) : là où la
         photo voit chaque point 3D, c'est-à-dire à l'endroit cliqué, décalé d'autant que le
         point a été recalé de côté sur la carte. selected : n° du point sélectionné."""
         shifts = (self.result or {}).get("shifts") or [(0.0, 0.0)] * len(self.clicks)
@@ -535,7 +524,7 @@ class Measure:
                 _num(self.incidence, 0))
         if self.reference is not None and not self.aimed and len(self.overrides) == len(self.clicks):
             return text + ". Profondeur du point triangulé : terrain et hauteur de caméra sans effet."
-        height, source = self.tool.camera_info(self.clicks[0], _ground_z(self.clicks)[self.clicks[0].get("pic")])
+        height, source = self.tool.camera_info(self.clicks[0])
         text += ". Terrain : {}, caméra à {} m{}.".format(ground.FLAT, _num(height, 2),
                                                         " ({})".format(source) if source else "")
         if self.notice:
@@ -558,7 +547,8 @@ class MeasureTool:
         self.selected = None  # (mesure, n° de point) à viser à nouveau dans la visionneuse
 
     def new_item(self):
-        """Dessin d'une mesure sur la carte : set_data(points, libellé, extras) et remove(). Rien ici ; l'hôte le fournit (plugin QGIS : measure.MeasureItem)."""
+        """Dessin d'une mesure sur la carte : set_data(points, libellé, extras) et remove(). Rien ici : la page dessine la
+        carte d'après App.map_geojson."""
         return NullItem()
 
     # Réglages ---------------------------------------------------------------
@@ -572,23 +562,17 @@ class MeasureTool:
         if self.current is not None:
             self.current.compute()
 
-    def camera_info(self, click, ground_z=None):
-        """(hauteur de caméra du clic, source) ; source "altitude GPS", "calée" ou None.
-
-        Dans l'ordre : altitude NGF de la caméra (position vérifiée précise, voir precision.py)
-        moins l'altitude du sol sous la photo (ground_z, si elle vient du LiDAR HD), la plus
-        précise et propre à chaque photo ; hauteur calée pour la séquence ; réglage du panneau."""
-        camera_alt = click.get("camera_alt")
-        if camera_alt is not None and ground_z is not None and click.get("precise_ground"):
-            height = camera_alt - ground_z
-            if CAMERA_RANGE[0] <= height <= CAMERA_RANGE[1]:
-                return height, "altitude GPS"
+    def camera_info(self, click):
+        """(hauteur de caméra du clic, source) ; source "calée" ou None : hauteur calée pour la séquence,
+        sinon le réglage du panneau. Les mesures n'en dépendent pas (point triangulé, direction des clics) ;
+        la hauteur mesurée (altitude RTK moins sol LiDAR) et la monture du CD21 sont prises par la page
+        (web_app.App._camera_of) pour le tablier d'un pont, les objets au sol et l'export."""
         sequence = click.get("sequence")
         cam = self.calibration.camera(sequence) if self.calibration and sequence else None
         return (cam["height"], "calée") if cam else (self.camera_height, None)
 
-    def camera_for(self, click, ground_z=None):
-        return self.camera_info(click, ground_z)[0]
+    def camera_for(self, click):
+        return self.camera_info(click)[0]
 
     # Clics --------------------------------------------------------------------
 
@@ -654,21 +638,6 @@ class MeasureTool:
             m.compute()
         return len(roads)
 
-    def recorrect(self, pic, correct):
-        """Calage de la photo `pic` changé (inclinaison automatique arrivée après les clics) :
-        directions de ses clics recalculées depuis leur direction brute par correct(clic) →
-        (cap, élévation), puis mesures recalculées. Retourne le nombre de mesures concernées."""
-        count = 0
-        for m in self.measures():
-            clicks = [c for c in m.clicks if c.get("pic") == pic and c.get("raw")]
-            for c in clicks:
-                c["yaw"], c["elev"] = correct(c)
-            if clicks:
-                m.compute()
-                count += 1
-        return count
-
-    # Enregistrement -----------------------------------------------------------
     # Recalage sur la carte ----------------------------------------------------
     def handles(self):
         """Poignées déplaçables sur la carte : [(clé, lon, lat)], clé ("point", mesure,
@@ -686,9 +655,6 @@ class MeasureTool:
     # Visionneuse ----------------------------------------------------------------
     def _marks(self, m):
         return m.viewer_marks(self.selected[1] if self.selected and self.selected[0] is m else None)
-
-    def done_marks(self):
-        return [self._marks(m) for m in self.done]
 
     def viewer_marks(self):
         if self.current is None:

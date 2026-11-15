@@ -5,7 +5,7 @@
      #44 ; autre parcours : #route,PR,distance,route,PR,distance ou #lon,lat,lon,lat) : parcours saisi par ses PR, photos et raccords dans le journal, un extrait vidéo par raccord (24 photos,
      50 km/h, stabilisation et exposition) dans le stockage de la page (OPFS, raccord-n.mp4 : une centaine de Mo, trop lourd
      pour l'envoi au serveur d'essai ; le copier depuis le profil de Chrome). Lancer comme tests/navigateur.html. -->
-<script>try { localStorage.clear(); } catch {}</script>
+<script>try { localStorage.clear(); indexedDB.deleteDatabase("web-measures"); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
 <script>
 const log = (t) => fetch("/journal", { method: "POST", body: String(t) }).catch(() => {});

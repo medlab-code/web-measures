@@ -363,6 +363,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             <dt>GeoJSON</dt><dd>.geojson, .json</dd>
             <dt>Shapefile</dt><dd>.zip, ou .shp avec .dbf et .prj choisis ensemble</dd>
             <dt>GeoPackage</dt><dd>.gpkg, table au choix</dd>
+            <dt>CSV</dt><dd>.csv : colonnes X et Y (ou lon et lat), ou wkt</dd>
           </dl>
           <p id="couche-crs" class="aide">En WGS 84 ou Lambert 93. Altitude du fichier si elle existe, sinon le sol
             LiDAR HD.</p>
@@ -394,6 +395,49 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             <!-- Fiches de tous les objets, en un seul PDF (app.js askFiche, { tous }) ; nombre d'objets : showOverlayInfo -->
             <button id="couche-fiches" type="button" disabled
                     title="Un seul PDF, une page par objet, photo cadrée automatiquement sur l'objet">Fiches PDF des objets</button>
+            <!-- Filtre par attribut (app.js overlayHiddenTest) : objets hors filtre ni sur la carte, ni dans la photo, ni dans
+                 le tableau du parcours, ni cochés pour les fiches ; gardé avec la couche -->
+            <div class="reglage-couche"><label for="couche-filtre">Filtre</label><select id="couche-filtre"></select></div>
+            <div class="condition-filtre">
+              <select id="couche-filtre-op" disabled aria-label="Condition du filtre">
+                <option value="=">=</option><option value="≠">≠</option><option value="&lt;">&lt;</option><option value="&gt;">&gt;</option>
+                <option value="vide">vide</option><option value="rempli">non vide</option>
+              </select>
+              <input id="couche-filtre-valeur" type="text" disabled placeholder="valeur" aria-label="Valeur du filtre"
+                     title="Nombres comparés en nombres (virgule acceptée), textes sans tenir compte des majuscules ; « ≠ » garde aussi les objets sans valeur">
+              <button id="couche-filtre-effacer" type="button" class="lien" disabled>Effacer</button>
+            </div>
+            <p id="couche-filtre-bilan" class="aide" hidden></p>
+            <!-- Parcours des objets (app.js showObjectTable) : tableau trié et filtré ; ◀ ▶ dans son ordre, photo la plus
+                 proche tournée vers l'objet ; statut dans les colonnes verif et verif_note, gardées et exportées ;
+                 attributs modifiables, objet supprimé ou ajouté (point posé sur la carte) -->
+            <details id="couche-parcours">
+              <summary>Parcours et modification des objets</summary>
+              <div class="parcours-objets">
+                <button id="objet-precedent" type="button" disabled aria-label="Objet précédent"
+                        title="Objet précédent du tableau : photo la plus proche, tournée vers lui">◀</button>
+                <span id="objet-courant">Cliquez un objet du tableau, ou ▶</span>
+                <button id="objet-suivant" type="button" disabled aria-label="Objet suivant"
+                        title="Objet suivant du tableau : photo la plus proche, tournée vers lui">▶</button>
+              </div>
+              <div class="statut-objet">
+                <select id="objet-statut" disabled aria-label="Statut de l'objet" title="Colonne « verif » de la couche">
+                  <option value="">non vérifié</option><option>vérifié</option><option>à revoir</option><option>absent</option>
+                </select>
+                <input id="objet-note" type="text" disabled maxlength="254" placeholder="Commentaire"
+                       aria-label="Commentaire sur l'objet" title="Colonne « verif_note » de la couche">
+              </div>
+              <div id="objet-attributs" class="attributs-objet"></div>
+              <div class="actions-objet">
+                <button id="objet-ajouter" type="button" disabled aria-pressed="false"
+                        title="Ajouter un point à la couche : clic sur la mini-carte à sa place, puis ses attributs">＋ Ajouter un objet</button>
+                <button id="objet-supprimer" type="button" class="danger" disabled
+                        title="Retirer l'objet choisi de la couche (le fichier ne change qu'à l'enregistrement)">Supprimer l'objet</button>
+              </div>
+              <input id="objets-recherche" type="search" placeholder="Rechercher (identifiant, attribut)"
+                     aria-label="Rechercher un objet par identifiant ou attribut">
+              <div class="tableau-objets"><table><thead><tr id="objets-entete"></tr></thead><tbody id="objets-lignes"></tbody></table></div>
+            </details>
             <div class="reglage-couche"><label for="couche-couleur">Couleur</label><select id="couche-couleur"></select></div>
             <div class="titre-legende">
               <h3 id="titre-legende">Légende</h3>
@@ -410,9 +454,10 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             <label class="intitule-couche" title="Texte ajouté après la valeur, par exemple une unité absente de la colonne : « 12 » devient « 12 cm »">Texte après la valeur <input id="couche-suffixe2" type="text" maxlength="20" size="6" disabled placeholder="ex. cm"></label>
             <div class="reglage-couche" title="Colonne affichée près de chaque objet sur la mini-carte (à partir du zoom 16) ; par défaut, la colonne « id »"><label for="couche-etiquette-carte">Carte</label><select id="couche-etiquette-carte"></select></div>
             <p class="encart-recalage"><strong>Recaler un objet</strong> : hors mesure, cliquez-le dans la photo, puis sa
-              vraie place ; flèches pour ajuster, Entrée pour finir. La carte ne bouge pas.</p>
+              vraie place : il y reste. Pour l'ajuster, recliquez-le, flèches, puis Entrée ;
+              un second clic dessus le désélectionne. La carte ne bouge pas.</p>
           </div>
-          <input id="couche-fichier" type="file" multiple accept=".geojson,.json,.zip,.shp,.dbf,.prj,.cpg,.shx,.gpkg" hidden>
+          <input id="couche-fichier" type="file" multiple accept=".geojson,.json,.zip,.shp,.dbf,.prj,.cpg,.shx,.gpkg,.csv,.txt" hidden>
         </section>
         <!-- Parcours : route, PR de départ et d'arrivée (Requeteur.travelForm), lecture accélérée, export du dernier parcours -->
         <section id="parcours" role="tabpanel" aria-labelledby="onglet-parcours" hidden>
@@ -669,6 +714,17 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <p id="reglages-infos">Gardés dans ce navigateur</p>
             </div>
           </div>
+          <!-- Dossier de travail (app.js workFolder, importFolder) : tout le travail gardé ici en un fichier -->
+          <h3>Dossier de travail</h3>
+          <p class="aide">Couche, relevé, calage, parcours, favoris et modèles de champs en un seul fichier, pour
+            passer la main à un collègue ou sauvegarder la séance. Sans les mesures : exportez-les à part (Résultats).</p>
+          <div class="boutons dossier">
+            <button id="dossier-exporter" type="button" disabled
+                    title="Un seul fichier avec tout le travail gardé dans ce navigateur">Exporter le dossier…</button>
+            <button id="dossier-importer" type="button"
+                    title="Dossier d'un collègue, ou sauvegarde : vous choisissez ce qui est repris (un dossier peut aussi être glissé sur la page)">Importer un dossier…</button>
+          </div>
+          <input id="dossier-fichier" type="file" accept=".json" hidden>
           <h3>Mesure</h3>
           <div class="reglage-couche reglage-instance">
             <label for="camera">Hauteur de caméra</label>
@@ -691,9 +747,13 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <span class="texte-option">Bornes des PR sur la carte<span class="aide">Sur tous les fonds de carte.</span></span>
               <input id="bornes" type="checkbox" class="interrupteur" checked>
             </label>
-            <label class="option" title="Parcelles et bornes de limite de propriété du Parcellaire Express (IGN) sur la mini-carte, quel que soit le fond (dès le zoom 15 ; bornes, et section au-dessus du numéro de parcelle, dès le zoom 17). Plan numérisé : limites indicatives ; feuilles cadastrales mal raccordées à leurs voisines (écart moyen de plus de 2 m) en orange. Parcelle regardée par la photo en vert : la première que coupe la ligne de cap, à 50 m au plus, son numéro dans la photo à 1,50 m du sol ; parcelle où se tient la caméra en jaune.">
+            <label class="option" title="Parcelles et bornes de limite de propriété du Parcellaire Express (IGN) sur la mini-carte, quel que soit le fond (dès le zoom 15 ; bornes, et section au-dessus du numéro de parcelle, dès le zoom 17). Plan numérisé : limites indicatives. Parcelle regardée par la photo en vert : la première que coupe la ligne de cap, à 50 m au plus, son numéro dans la photo à 1,50 m du sol ; parcelle où se tient la caméra en jaune.">
               <span class="texte-option">Cadastre sur la carte<span class="aide">Parcelles et bornes ; limites indicatives.</span></span>
               <input id="cadastre" type="checkbox" class="interrupteur">
+            </label>
+            <label class="option" title="Numéro de la parcelle regardée par la photo (en vert sur la carte), dans la visionneuse à 1,50 m du sol, et croix au centre de la vue. Décoché : le cadastre reste sur la carte seulement. Grisé sans le cadastre sur la carte.">
+              <span class="texte-option">Parcelle visée dans la visionneuse<span class="aide">Son numéro dans la photo et la croix du centre de la vue.</span></span>
+              <input id="cadastre-visionneuse" type="checkbox" class="interrupteur" checked>
             </label>
             <label class="option" title="Filtrage anisotrope 16x des textures : atténue le crénelage et le scintillement des détails fins vus de loin, en gardant l'image nette, au prix d'une navigation un peu moins fluide.">
               <span class="texte-option">Filtrage anisotrope<span class="aide">Détails lointains plus nets, navigation un peu moins fluide.</span></span>
@@ -845,6 +905,24 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
     </form>
   </dialog>
   <!-- « Enregistrer » : le fichier de la couche a changé sur le disque depuis son import (ou le dernier enregistrement) -->
+  <!-- Import d'un dossier de travail : une case par partie, avec ce qu'elle fera (app.js importFolder) -->
+  <dialog id="importer-dossier" class="avertissement">
+    <h2>Dossier de travail</h2>
+    <p></p>
+    <ul class="parties-dossier"></ul>
+    <form method="dialog">
+      <button value="" class="non">Annuler</button>
+      <button value="importer" class="oui">Importer</button>
+    </form>
+  </dialog>
+  <dialog id="supprimer-objet" class="avertissement">
+    <h2>Supprimer l'objet ?</h2>
+    <p></p>
+    <form method="dialog">
+      <button value="" class="oui">Garder</button>
+      <button value="supprimer" class="non">Supprimer</button>
+    </form>
+  </dialog>
   <dialog id="fichier-change" class="avertissement">
     <h2>Fichier modifié entre-temps</h2>
     <p></p>

@@ -46,7 +46,7 @@ const Traits = (() => {
 
   const BLACK = [0, 0, 0, 0.7], WHITE = [1, 1, 1, 0.85];
   let psv = null, canvas = null, gl = null, flat = null, textured = null;
-  let lines = [], crosses = [], labels = [], slide = null, shown = [], rects = [];
+  let lines = [], crosses = [], labels = [], slide = null, rects = [];
   const images = new Map();  // texte et style d'une étiquette -> { texture, w, h } (px)
 
   const rgba = (color, alpha = 1) => [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16) / 255).concat(alpha);
@@ -217,7 +217,6 @@ const Traits = (() => {
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    shown = [];
     rects = [];
     const drawnLines = capture ? lines.filter((l) => !l.couche) : lines, reticle = capture ? null : slide;
     if (!width || !(drawnLines.length || crosses.length || labels.length || reticle)) return;
@@ -289,30 +288,27 @@ const Traits = (() => {
         segment(out, x, y - 9, x, y + 9, w, color);
       }
       if (c.ring) circle(out, x, y, 10, 2, rgba(c.ring));
-      shown.push({ kind: "croix", x, y, visee: !!c.visee, calage: !!c.calage, choisie: !!c.ring });
     }
 
     // Étiquettes : les autres d'abord, puis celles des points d'arrivée écartées vers le bas, de la plus haute à la
     // plus basse, avec un trait de renvoi vers leur croix
     const placed = [], quads = [];
-    const put = (label, s, w, h, r, shift = 0) => {
+    const put = (label, r) => {
       quads.push([label, r, image(label).texture]);
       placed.push(r);
       rects.push(r);
-      shown.push({ kind: "etiquette", type: label.type, text: label.chip ? `${label.chip}${label.text}` : label.text,
-        x: s[0], y: s[1], shift });
     };
     const ends = [];
     for (const label of labels) {
       const s = at(label.vector);
       if (!s) continue;
       const { w, h } = image(label), r = box(label, s[0], s[1], w, h);
-      if (label.type === "fin") ends.push({ label, s, w, h, r });
-      else put(label, s, w, h, r);
+      if (label.type === "fin") ends.push({ label, s, r });
+      else put(label, r);
     }
     const hit = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom + GAP && a.bottom + GAP > b.top;
     ends.sort((a, b) => a.r.top - b.r.top);
-    for (const { label, s, w, h, r: start } of ends) {
+    for (const { label, s, r: start } of ends) {
       let r = start, shift = 0;
       for (let k = 0; k < 20; k++) {
         const other = placed.find((q) => hit(r, q));
@@ -324,7 +320,7 @@ const Traits = (() => {
         const x = label.place === "cote" ? s[0] + 6 : s[0], y0 = label.place === "cote" ? s[1] : s[1] + 10;
         segment(out, x, y0, x, y0 + shift, 1.5, WHITE);
       }
-      put(label, s, w, h, r, shift);
+      put(label, r);
     }
 
     // Réticule glissant, au-dessus de tout
@@ -342,7 +338,6 @@ const Traits = (() => {
         segment(top, x, y - 14.5, x, y - 3.5, 1.5, arm); segment(top, x, y + 3.5, x, y + 14.5, 1.5, arm);
         segment(top, x - 14.5, y, x - 3.5, y, 1.5, arm); segment(top, x + 3.5, y, x + 14.5, y, 1.5, arm);
         circle(top, x, y, 0.5, 1, [1, 1, 1, 1]);
-        shown.push({ kind: "glisse", x, y, at: slide.at, travers: slide.angle != null });
       }
     }
 
@@ -374,9 +369,6 @@ const Traits = (() => {
     return canvas;
   }
 
-  /** Ce que la dernière image a dessiné (essais) : croix, étiquettes (texte) et réticule, à leur place (px). */
-  const drawn = () => shown;
-
   /** Repères demandés, à l'écran ou non (essais) : { crosses, labels (texte, nom du point compris), slide }. */
   const items = () => ({ crosses, labels: labels.map((l) => ({ ...l, text: `${l.chip || ""}${l.text}` })), slide });
 
@@ -387,5 +379,5 @@ const Traits = (() => {
     return rects.map((r) => ({ left: r.left + b.left, right: r.right + b.left, top: r.top + b.top, bottom: r.bottom + b.top }));
   }
 
-  return { attach, set, setSlide, snapshot, drawn, items, labelRects };
+  return { attach, set, setSlide, snapshot, items, labelRects };
 })();

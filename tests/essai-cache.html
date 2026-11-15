@@ -4,7 +4,7 @@
 <!-- Cache des informations géographiques (ticket #23) : réponses BD TOPO et altitudes gardées, pas
      Panoramax ; réponse redemandée servie par le cache ; réponse périmée servie quand le service refuse ;
      bouton « Vider le cache ». Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
-<script>try { localStorage.clear(); } catch {}</script>
+<script>try { localStorage.clear(); indexedDB.deleteDatabase("web-measures"); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:900px;border:0"></iframe>
 <script src="commun.js"></script>
 <script>

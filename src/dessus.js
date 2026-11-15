@@ -1821,7 +1821,12 @@ const Dessus = (() => {
   function remember(view) {
     if (!view?.panos.has(view.pic)) return;  // photo et terrain pas encore lus
     computed.delete(view.pic);
-    computed.set(view.pic, { terrain: view.terrain, wideTerrain: view.wideTerrain === "reading" ? undefined : view.wideTerrain, terrainFailed: view.terrainFailed, estimated: view.estimated && !view.estimating, joins: view.joins, joinText: view.joinText, shift: view.shift, located: view.located, locatedWith: view.locatedWith, placed: view.placed, lateral: view.lateral });
+    computed.set(view.pic, {
+      terrain: view.terrain, wideTerrain: view.wideTerrain === "reading" ? undefined : view.wideTerrain,
+      terrainFailed: view.terrainFailed, estimated: view.estimated && !view.estimating,
+      joins: view.joins, joinText: view.joinText, shift: view.shift,
+      located: view.located, locatedWith: view.locatedWith, placed: view.placed, lateral: view.lateral,
+    });
     if (computed.size > COMPUTED_MAX) computed.delete(computed.keys().next().value);  // la plus ancienne
   }
 
@@ -1846,6 +1851,34 @@ const Dessus = (() => {
   const MOUNTS = [1.93, 2.07], MOUNT_SIGMA = 0.04;  // mêmes hauteurs par date : App.FLEET_MOUNTS (py/web_app.py)
   const mountOf = (h) => MOUNTS.reduce((a, b) => (Math.abs(b - h) < Math.abs(a - h) ? b : a));
   let drawing = 0;  // dernier dessin demandé : l'image d'un dessin dépassé est jetée
+
+  /** Inclinaison par la route, pour le message d'état : part du dévers prise en roulis, défaut de la caméra, virage,
+   * tangage (réglé à la main, ou lu : auto), roulis propre à la séquence, puis l'incertitude. */
+  function roadTiltText(main, auto) {
+    const notes = [`roulis à ${Math.round(rollShare * 100)} % du dévers`];
+    if (main.roll_defect) notes.push(`${number(main.roll_defect, 1)}° de défaut de la caméra (campagne)`);
+    if (LEAN * (shown.lateral || 0) >= 0.5) notes.push(`virage : véhicule penché jusqu'à ${number(LEAN * shown.lateral, 1)}°`);
+    if (pitchOffset || pitchManual || auto) {
+      const how = pitchManual ? ` réglé à la main${pitchForced ? " (forcé)" : ""}` : auto ? ` ${auto.text}` : "";
+      notes.push(`tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°${how}`);
+    }
+    if (readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL) notes.push("roulis de la séquence");
+    return `inclinaison de la route (${notes.join(", ")}), ±${number(main.sigma, 1)}°`;
+  }
+
+  /** D'où vient la hauteur de caméra, pour le message d'état : monture du CD21 (d'après la date, ou lue entre photos),
+   * décalage entre photos, ou hauteur de la séquence ; parallax : hauteur lue entre photos, ou null. */
+  function cameraOrigin(parallax) {
+    const mount = (h) => (h === MOUNTS[0] ? "basse" : "haute");
+    const read = parallax ? `, lue entre photos : ${number(parallax, 2)} m` : "";
+    if (shown.pose.fleet && shown.pose.mount) return ` (monture ${mount(shown.pose.mount)} d'après la date${read})`;
+    if (parallax && shown.pose.fleet) return ` (monture ${mount(mountOf(parallax))}${read})`;
+    if (parallax) {
+      const n = parallaxCount(shown.sequence);
+      return ` (décalage entre photos${n > 1 ? `, ${n} photos de la séquence` : ""})`;
+    }
+    return shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : "";
+  }
   async function showImage() {
     placeFor(shown);
     shown.joinKeyNow = joinKey();  // recalage des raccords valable pour ces réglages seulement
@@ -1880,9 +1913,19 @@ const Dessus = (() => {
     const linesPending = !pitchManual && !pose.pending && layers[0].pose.groundTilt && joinsDone
       && (neighboursOn ? photoPitch(shown.sequence, shown.pic) : undefined) === undefined
       && shown.linesAt !== pitchOffset && (shown.linePasses || 0) <= PITCH_PASSES;
-    const tilt = pose.pending ? "inclinaison en calcul" : layers[0].pose.groundTilt ? `inclinaison de la route (roulis à ${Math.round(rollShare * 100)} % du dévers${layers[0].pose.roll_defect ? `, ${number(layers[0].pose.roll_defect, 1)}° de défaut de la caméra (campagne)` : ""}${LEAN * (shown.lateral || 0) >= 0.5 ? `, virage : véhicule penché jusqu'à ${number(LEAN * shown.lateral, 1)}°` : ""}${pitchOffset || pitchManual || auto ? `, tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°` : ""}${pitchManual ? ` réglé à la main${pitchForced ? " (forcé)" : ""}` : auto ? ` ${auto.text}` : ""}${readSettings()[shown.sequence]?.roll !== undefined && rollShare !== DEFAULT_ROLL ? ", roulis de la séquence" : ""}), ±${number(layers[0].pose.sigma, 1)}°` : pose.up ? `inclinaison ±${number(pose.sigma, 1)}°` : `sans inclinaison, ±${number(pose.sigma, 1)}°`;
+    // Message d'état : terrain, photos, inclinaison, hauteur de caméra, puis ce qui est encore en cours
+    const tilt = pose.pending ? "inclinaison en calcul" : layers[0].pose.groundTilt ? roadTiltText(layers[0].pose, auto)
+      : `${pose.up ? "inclinaison" : "sans inclinaison,"} ±${number(pose.sigma, 1)}°`;
     const others = shown.terrain || !neighboursOn ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
-    say(`${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}, caméra à ${number(layers[0].pose.height, 2)} m${shown.pose.fleet && shown.pose.mount ? ` (monture ${shown.pose.mount === MOUNTS[0] ? "basse" : "haute"} d'après la date${parallax ? `, lue entre photos : ${number(parallax, 2)} m` : ""})` : parallax && shown.pose.fleet ? ` (monture ${mountOf(parallax) === MOUNTS[0] ? "basse" : "haute"}, lue entre photos : ${number(parallax, 2)} m)` : parallax ? ` (décalage entre photos${parallaxCount(shown.sequence) > 1 ? `, ${parallaxCount(shown.sequence)} photos de la séquence` : ""})` : shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : ""}${neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? ` ; ${shown.joinText}` : ""}${locatedText() ? ` ; ${locatedText()}` : ""}${linesPending ? " ; tangage en cours…" : shown.estimating ? " ; hauteur de caméra en calcul…" : shown.joining ? " ; raccords en cours…" : shown.locating ? " ; position en cours…" : neighboursOn && outlines.get(shown.sequence) === "reading" ? " ; contour du véhicule en cours…" : busy() ? " ; photos voisines en cours…" : ""}`);
+    const progress = linesPending ? "tangage en cours…" : shown.estimating ? "hauteur de caméra en calcul…"
+      : shown.joining ? "raccords en cours…" : shown.locating ? "position en cours…"
+      : neighboursOn && outlines.get(shown.sequence) === "reading" ? "contour du véhicule en cours…"
+      : busy() ? "photos voisines en cours…" : "";
+    const head = `${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}`
+      + `${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}`
+      + `, caméra à ${number(layers[0].pose.height, 2)} m${cameraOrigin(parallax)}`;
+    const joins = neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? shown.joinText : "";
+    say([head, joins, locatedText(), progress].filter(Boolean).join(" ; "));
     if (linesPending) learnLines();
     else if (positionOn && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
     else if (!busy() && neighboursOn && !shown.estimated) measureHeight();
@@ -2123,7 +2166,11 @@ const Dessus = (() => {
     }
     parked = null;
     const controller = abort = new AbortController(), { signal } = controller;
-    shown = { photo, pic: photo.id, sequence: photo.collection, height: sequenceParallax(photo.collection), estimated: false, estimating: false, key, pose, features, panos: new Map(), loading: new Set(), terrain: null, sigmaGround: FLAT_SIGMA, terrainFailed: false, url: null };
+    shown = {
+      photo, pic: photo.id, sequence: photo.collection, key, pose, features,
+      height: sequenceParallax(photo.collection), estimated: false, estimating: false,
+      panos: new Map(), loading: new Set(), terrain: null, sigmaGround: FLAT_SIGMA, terrainFailed: false, url: null,
+    };
     const known = computed.get(photo.id);
     if (known) Object.assign(shown, known);  // déjà vue : terrain, raccords et position repris
     if (pose.bridge && shown.terrain !== flatDeck) dropTerrain(shown);

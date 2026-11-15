@@ -5,7 +5,7 @@
      ponts de tests/essai-ponts.html (remblais d'approche, ruisseau). Journal seulement : pas encore de
      talus de hauteur connue ; Pouilly-en-Auxois (photos RTK de essai-largeur.html, largeur réelle non relevée) pour les bords
      trouvés. Lancer comme tests/navigateur.html. -->
-<script>try { localStorage.clear(); } catch {}</script>
+<script>try { localStorage.clear(); indexedDB.deleteDatabase("web-measures"); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:900px;border:0"></iframe>
 <script src="commun.js"></script>
 <script>

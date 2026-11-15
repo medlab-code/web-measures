@@ -4,7 +4,7 @@
 <!-- Profil en travers enregistré en PDF (bouton « Enregistrer en PDF ») : la 1re feuille A4 paysage tient sur une page
      (Profil.fit), le profil en long sur la 2e (case cochée), lieu de la photo en tête ; sa page HTML part dans le journal (ligne « PAGE », base64) pour en tirer le PDF. Photo D1074 Pommard
      (#photo=id : une autre). Lancer comme tests/navigateur.html. -->
-<script>try { localStorage.clear(); } catch {}</script>
+<script>try { localStorage.clear(); indexedDB.deleteDatabase("web-measures"); } catch {}</script>
 <iframe id="f" src="../index.html" style="width:1400px;height:900px;border:0"></iframe>
 <script src="commun.js"></script>
 <script>

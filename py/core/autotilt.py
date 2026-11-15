@@ -21,7 +21,7 @@ Validé à Pouilly-en-Auxois (photos imajbox) : une inclinaison imposée de 1° 
 0,05° près ; il faut des bâtiments ou des poteaux tout autour (en campagne : pas assez de
 verticales, voir terrain_tilt pour l'estimation par le LiDAR HD).
 
-Calculs numpy seuls (pas d'OpenCV dans QGIS) ; la photo est décodée réduite et rognée à la
+Calculs numpy seuls (sans OpenCV) ; la photo est décodée réduite et rognée à la
 bande utile (host.decode_band), en arrière-plan (host.run_task).
 """
 
@@ -329,7 +329,3 @@ class TiltChecker:
                     reply.abort()
             except (AttributeError, RuntimeError):  # déjà terminé ou détruit
                 pass
-
-
-def _elevations(data):
-    return precision._ground(data)

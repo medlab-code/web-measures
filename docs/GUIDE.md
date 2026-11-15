@@ -16,7 +16,7 @@ courte : [README](../README.md) ; calculs : [CALCULS.md](CALCULS.md) ; vue Bird 
 haut, carte en bas, partage réglé par la poignée entre les deux ; recherche de lieux et requêteur route +
 PR au-dessus ; Plan IGN et OpenStreetMap en tuiles vectorielles (texte net, agrandi de 30 %) ; bouton ⚙ des réglages : fond de carte, filaire Panoramax, bornes des PR, cadastre (parcelle visée en vert, son
 étiquette dans la photo, caméra supposée à 1,90 m au-dessus d'un sol de niveau), filtre des photos (instance,
-producteur, date de début ; mêmes réglages que la page principale), bouton « Version complète » masquable ; bouton 📷 : capture de la vue avec l'étiquette et les
+producteur, date de début ; mêmes réglages que la page principale), bouton « Version complète » masquable ; bouton appareil photo : capture de la vue avec l'étiquette et les
 cartouches, partagée par le téléphone (sinon téléchargée).
 
 **Ouvrir la page** : double-cliquer sur `index.html` suffit (Edge, Chrome, Firefox), sans
@@ -47,7 +47,7 @@ mesure est dans la carte d'étape de la visionneuse. Thème jour ou nuit : comme
 dans Réglages. Une section
 s'affiche à la fois ; la dernière choisie est rouverte à la visite suivante.
 
-**La carte** : fonds Plan IGN, orthophoto, ortho-express, PCRS, Modèle Numérique de Hauteur (LiDAR HD : estompage de la hauteur du
+**La carte** : fonds Plan IGN (tuiles vectorielles, texte net ; dès le zoom 15, parcelles cadastrales en jaune léger, rues et chemins du domaine public en blanc, cadastre allumé ou non), orthophoto, ortho-express, PCRS, Modèle Numérique de Hauteur (LiDAR HD : estompage de la hauteur du
 sursol : bâtiments, arbres, haies, talus), OpenStreetMap (tuiles vectorielles d'OpenFreeMap, texte net), et
 **orthophoto avec noms** : noms des lieux et des rues, voies, avec les numéros de route dans
 des cartouches dessinés comme ceux de l'IISR (rouge pour les autoroutes et nationales, jaune
@@ -383,9 +383,10 @@ après.
   niveau au relevé, seulement là où le laser a renvoyé des points d'eau, sinon la berge). Sans points classés pont, ou nuage illisible,
   en secours :
   - **tablier** : altitude GPS des photos de la séquence prises sur le pont, convertie en
-    altitude NGF, moins la hauteur de caméra (mesurée sur la séquence vérifiée, sinon calée ; à
-    défaut, le réglage « Caméra à », seulement après un appui sur le bouton de l'encadré : une photo
-    de précision déclarée n'a que sa hauteur au-dessus du fond franchi) ; pour chaque point,
+    altitude NGF, moins la hauteur de caméra (mesurée sur la séquence vérifiée, sinon calée, sinon
+    pour une photo du CD21 la monture d'après la date, 1,93 ou 2,07 m à ±4 cm ; à défaut, le réglage
+    « Caméra à », seulement après un appui sur le bouton de l'encadré : une photo de précision
+    déclarée n'a que sa hauteur au-dessus du fond franchi) ; pour chaque point,
     interpolée entre les deux photos consécutives les plus proches (pont long et pentu) ;
   - **dessous** : modèle de terrain LiDAR HD (RGE ALTI en secours) lu en travers du pont, à 1,
     3, 6 et 10 m au-delà du bord de la chaussée (largeur BD TOPO, sinon 6 m), des deux côtés,
@@ -586,10 +587,9 @@ son attribution et son lien Panoramax, aussi en QR code. La mini-carte manque si
 **Cadastre** (réglage « Cadastre sur la carte », Réglages › Affichage, décoché par défaut ; ticket #36) : parcelles
 du Parcellaire Express (IGN) sur la mini-carte dès le zoom 15, chaque parcelle numérotée teintée d'orange clair (le domaine public,
 voirie et cours d'eau, n'a pas de parcelle : il reste sans teinte), bornes de limite de propriété et étiquette de chaque parcelle (section au-dessus du numéro, « B » pour la
-section 0B) dès le zoom 17, en tuiles vectorielles de l'IGN (nettes à tout zoom), feuilles
-cadastrales mal raccordées à leurs voisines cernées de tirets rouges (écart moyen aux raccords de plus de 2 m : limites
-peut-être décalées, le cadastre étant un plan numérisé). La parcelle que regarde la photo est allumée en vert (contour et
-fond) : la première que coupe la ligne de cap en partant de la caméra, à 50 m au plus ; elle suit la vue quand on la
+section 0B) dès le zoom 17, en tuiles vectorielles de l'IGN (nettes à tout zoom) ; plan numérisé : limites indicatives. La parcelle que regarde la photo est allumée en vert (contour et
+fond) : la première que coupe la ligne de cap en partant de la caméra, à 50 m au plus (parcelles lues autour de la caméra au
+WFS du cadastre : son étiquette reste dans la visionneuse quel que soit le zoom de la mini-carte) ; elle suit la vue quand on la
 tourne, rien n'est allumé en vert dans l'axe d'une rue (domaine public) ni avec Bird Eye (pas de ligne de cap). La
 parcelle où se tient la caméra (cour, chemin privé), s'il y en a une, est allumée en jaune, et jamais en vert. Dans la
 visionneuse, la section et le numéro de la parcelle verte s'affichent comme sur la mini-carte (section au-dessus du numéro, en violet), centrés à 1,50 m du sol au milieu
@@ -598,13 +598,17 @@ cesse de la rencontrer en premier (parcelle voisine, domaine public, ou rien à 
 service d'altimétrie de l'IGN, RGE ALTI s'il manque ; pas le nuage de points) sous ce point et sous la caméra, calage de
 la photo compris ; de niveau avec celui de la caméra le temps de la lecture. L'étiquette reste à ce point tant que la
 vue balaie la même parcelle. Une croix fine et transparente marque le centre de la vue (la ligne de cap) tant que le
-cadastre est coché, pour viser les parcelles. Limites indicatives. Pas de projection dans la photo : un
+cadastre est coché, pour viser les parcelles. Réglage « Parcelle visée dans la visionneuse » (coché par défaut, grisé sans
+le cadastre) : décoché, ni étiquette ni croix dans la visionneuse, le cadastre reste sur la carte. Limites indicatives. Pas de projection dans la photo : un
 essai l'a montrée trop imprécise au pied des façades (plan, sol interpolé sous les bâtiments, inclinaison de la photo).
 
 **Couche importée** (onglet « Couche » du panneau : bouton « Importer un fichier… », ou fichier glissé sur
 l'onglet) : un fichier GeoJSON, Shapefile (en .zip, ou le
 .shp choisi avec son .dbf et son .prj ; reprojeté d'après le .prj) ou GeoPackage (table au choix s'il
-en a plusieurs), en WGS 84 ou en Lambert 93 (converti), dessiné sur la mini-carte et dans la photo, à l'altitude du fichier (z, en NGF) ou posé
+en a plusieurs) ou CSV (tableur : séparateur « ; », tabulation ou « , », virgule décimale acceptée, UTF-8 ou Windows-1252
+d'Excel ; position en colonnes X et Y, lon et lat, longitude et latitude…, reconnues par leur nom, ou en WKT dans une
+colonne `wkt` comme dans l'export CSV ; nombres reconnus sauf les codes commençant par 0 ; lignes sans position
+écartées), en WGS 84 ou en Lambert 93 (converti, reconnu d'après les valeurs pour un CSV), dessiné sur la mini-carte et dans la photo, à l'altitude du fichier (z, en NGF) ou posé
 sur le sol LiDAR HD, lu sous la caméra et sous les objets (lignes redécoupées tous les 5 m pour
 suivre le terrain ; à plat à la hauteur de caméra en attendant, ou sans LiDAR) : points en pastilles, lignes et contours des polygones en traits, pour les objets à moins
 de 100 m de la photo. Couleur selon une colonne : une couleur par valeur (palette Set1 de ColorBrewer
@@ -618,7 +622,7 @@ coordonnées et le nombre d'objets recalés ; son œil masque la couche sans la 
 la remplacent par un autre fichier ou la retirent. Le dégradé se règle par les pastilles aux deux bouts de sa
 barre. Un œil sur chaque valeur de la légende masque ses objets sur la carte et dans la photo (gardé avec
 la couche, par colonne ; l'export garde tous les objets). Une couche à la fois, gardée avec ses réglages dans le
-navigateur d'une session à l'autre (sauf si elle est trop grosse : un message le dit) ; « Retirer »
+navigateur d'une session à l'autre (IndexedDB, jusqu'à des centaines de Mo ; sans place, un message le dit) ; « Retirer »
 l'efface. **Enregistrer** (disquette, grisée tant que rien n'a changé) : les recalages sont réécrits dans le
 fichier GeoJSON importé (Chrome, Edge : fichier choisi par « Importer » ou glissé, retrouvé à l'ouverture suivante, en
 WGS 84), sans rien demander s'il n'a pas changé depuis l'import ou le dernier enregistrement (sinon : écraser,
@@ -632,14 +636,34 @@ séquence Panoramax, chaque objet sur la plus proche de cette séquence. « Cadr
 1er objet. « Cadrage type… » : la photo du 1er objet s'ouvre ; zoom, hauteur de vue et photo (tant de photos avant ou
 après dans la séquence, par les flèches de la visionneuse) s'y règlent, puis sont repris pour chaque objet, le cap
 tourné vers lui. Un objet sans photo trouvée est sauté et signalé. **Recalage dans la photo** (hors mesure) : clic sur la pastille ou l'étiquette d'un objet,
-puis clic à sa place vue dans la photo, flèches pour l'ajuster (0,05°), Entrée pour finir, Suppr pour
-le remettre à sa place calculée ; décalage propre à cette photo, la carte n'est pas modifiée. Gardé
+puis clic à sa place vue dans la photo, qui le pose et finit le recalage (le clic suivant ne le bouge plus) ; pour
+l'ajuster, clic sur l'objet, flèches (0,05°), Entrée pour finir ; un second clic sur l'objet choisi le désélectionne ; Suppr pour le remettre à sa place calculée ; décalage propre à cette photo, la carte n'est pas modifiée. Gardé
 avec la couche ; « Exporter » écrit un GeoJSON (WGS 84) où chaque objet porte ses
 recalages (membre `recalages` du Feature, hors attributs, ignoré par QGIS : décalage, position et
 séquence de la photo) : importé sur un autre poste, les objets y reviennent à leur place. À l'import,
 ou en ouvrant une photo à moins de 30 m d'une photo recalée d'une autre séquence (même voie, autre
 sens ou autre passage) sans recalage sur la sienne, une fenêtre propose d'aller sur la photo recalée
 (une fois par séquence refusée).
+
+**Filtre par attribut** (onglet Couche, sous « Fiches PDF ») : une colonne, une condition (=, ≠, <, >, vide, non
+vide) et une valeur ; les objets hors filtre ne sont plus ni sur la carte, ni dans la photo, ni dans le tableau du
+parcours (◀ / ▶ compris), ni cochés pour les fiches PDF de tous les objets. Nombres comparés en nombres (virgule
+acceptée), textes sans tenir compte des majuscules ; « ≠ » garde les objets sans valeur (« verif ≠ vérifié » : ceux
+pas encore vus). Nombre d'objets gardés affiché dessous ; filtre gardé avec la couche, « Effacer » le retire.
+L'export garde tous les objets.
+
+**Parcours des objets** (rubrique repliable de l'onglet Couche) : tableau des objets (nom, colonne de l'étiquette,
+statut), trié par un clic sur un intitulé et filtré par la recherche (identifiant ou n'importe quel attribut). Un clic
+sur une ligne, ou ◀ / ▶ dans l'ordre du tableau, ouvre la photo de l'objet (celle de son recalage, sinon la plus
+proche) tournée vers lui. Son statut (« vérifié », « à revoir », « absent » : arbre abattu, panneau déposé…) et un commentaire s'écrivent dans les colonnes `verif`
+et `verif_note`, ajoutées à la couche au premier statut : gardées avec elle, enregistrées et exportées comme ses autres
+colonnes, et proposées pour la couleur ou l'étiquette. **Modification de la couche**, dans la même rubrique : les attributs de l'objet
+choisi (ligne du tableau, ou clic sur l'objet dans la photo) se modifient sous son statut (vide : sans valeur ; nombre
+si la colonne en a déjà, virgule acceptée ; texte : les valeurs des autres objets sont proposées en liste, une valeur
+nouvelle peut être tapée ; nombre : rien de proposé ; colonne oui / non : case à cocher). « Supprimer l'objet » le retire après confirmation ; « ＋ Ajouter un objet »
+pose un point d'un clic sur la mini-carte (Échap annule), puis ses attributs se saisissent ; une colonne « id » reçoit
+d'elle-même le plus grand numéro existant + 1 (« 012 » → « 013 » ; vide si aucun id n'est un nombre). Gardé avec la couche ; le
+fichier ne change qu'à « Enregistrer ».
 
 **Résultats gardés** : ils sont enregistrés dans le navigateur à chaque changement ; à
 l'ouverture suivante, ceux de la session précédente qui n'ont pas été exportés sont proposés à
@@ -726,7 +750,25 @@ pas utilisé (talus et murs pris pour la route).
 Fichiers exportés (mesures, captures, favoris, calage, couche) : boîte d'enregistrement du système sous
 Chrome et Edge (emplacement et nom au choix, demandés dès le clic pour une capture). Firefox n'en donne
 pas l'accès aux pages : le fichier est téléchargé, avec sa boîte si « Toujours vous demander où
-enregistrer les fichiers » est coché (Paramètres › Général › Fichiers et applications).
+enregistrer les fichiers » est coché (Paramètres › Général › Fichiers et applications). Noms proposés : la sorte,
+la route et le PR de la photo affichée pour les mesures, et la date du jour (« mesures D974 PR12 2026-11-15.csv »,
+« calage 2026-11-15.json », « favoris … », « parcours … », « modeles-releve … ») ; la couche garde le nom de son fichier.
+
+**Import commun** : un fichier glissé n'importe où sur la page, ou choisi par n'importe quel bouton d'import, est
+reconnu par son contenu et rangé à sa place : couche (GeoJSON, mesures exportées comprises, Shapefile, GeoPackage,
+CSV), parcours, modèles de champs, calage ou favoris, avec le message habituel de chacun. Plusieurs fichiers de
+sortes différentes peuvent être glissés ensemble. Un fichier JSON non reconnu est signalé (par le bouton d'une sorte :
+son message d'erreur habituel).
+
+**Dossier de travail** (Réglages › Dossier de travail) : « Exporter le dossier… » écrit en un seul fichier tout le
+travail gardé dans ce navigateur : couche et ses réglages (recalages, statuts, couleurs, étiquettes, filtre), relevé et
+ses champs, calage, parcours gardés, favoris, modèles de champs et photo ouverte (« dossier D905 PR12
+2026-11-15.json ») ; grisé tant qu'il n'y a rien à y mettre. Importé (bouton, ou fichier glissé sur la page), une
+fenêtre liste ses parties, chacune avec une case et ce qu'elle fera : la couche et le relevé remplacent les vôtres
+(décochés par défaut si vous en avez déjà), le calage complète le vôtre, parcours, favoris et modèles s'ajoutent, la
+photo se rouvre. Les mesures n'y sont pas : elles ne pourraient revenir qu'en lecture seule, sans intérêt (le second
+bord d'une largeur s'affichait seul) ; elles s'exportent à part (Résultats), et viendront dans le dossier quand elles
+pourront être reprises modifiables. Les réglages personnels (thème, fond de carte…) ne sont pas repris.
 
 Les calculs (cœur Python repris du plugin Visionneuse Panoramax) sont exécutés dans le navigateur par Pyodide (environ 10 Mo au
 premier chargement, puis en cache) ; les calculs lourds (inclinaison automatique, capture
@@ -754,7 +796,7 @@ photos sur les façades, sinon altitude RTK moins sol. Hors de la vue, la
 longueur est mesurée sur le fond de carte seul, sans incertitude (« hors vue »), pour un contrôle rapide. Échap retire
 le départ. Sans façade pour caler l'inclinaison, le tangage de fixation de la caméra est lu sur les raccords entre photos
 voisines (« Véhicule masqué » allumé ; celui de la photo, qui suit une bosse ou un creux), sinon, en cas d'échec des raccords ou sans eux, sur les lignes et les bords de la route jusqu'à 25 m, qui s'écartent devant et se resserrent derrière quand le tangage est faux (terrain LiDAR HD lu sur 25 m ; médiane des photos vues de la séquence dès 3, sinon la photo seule), sinon médiane des raccords de la séquence ; le curseur « Tangage » ne sert qu'en dernier, faute de tangage lu (grisé sinon), ou avec « Forcer le réglage à la main » ; les curseurs « Roulis » et « Tangage » recalent la vue à la main (« Calage par les verticales » : coché d'office en zone d'habitation, la photo calée sur ses verticales quand elle en a ; ailleurs, inclinaison par la route),
-réglage retenu pour toute la séquence, dans ce navigateur. Le bouton 📷, à droite du faucon (carte en grand ou détachée, grisé Bird Eye éteinte), télécharge une image PNG de la carte telle qu'affichée : vue Bird Eye, traits et étiquettes des mesures, échelle et sources. Le bouton 🗺️, à sa droite (grisé de même), télécharge la vue Bird Eye seule, géoréférencée pour un SIG (QGIS…) : GeoTIFF en Lambert 93 (EPSG:2154), 30 m de côté, transparent hors de la vue, sans fond de carte ni mesures, posé exactement comme sur la carte (position calée sur l'orthophoto comprise) ; il s'ouvre en le glissant dans QGIS. Les messages de Bird Eye, en bas de la carte en grand ou détachée, se replient par le bouton ▾ à leur droite (ⓘ pour les rouvrir ; choix retenu dans le navigateur) : ils cachent le bas de la vue. « Bords gardés » (éteint par défaut) garde toute la vue sur 15 m autour de la caméra au lieu de la couper à 8 m de part et d'autre de l'axe de la route (bas-côtés, trottoirs et façades, déformés et grisés au-delà de 10 m). « Véhicule masqué » (éteint par défaut) recompose la vue avec les photos précédente et suivante pour cacher le véhicule : masque au plus près de son contour (lu une fois sur 12 photos de la séquence pour le CD21, environ 5 Mo ; cône de la vue retiré de la carte), photo affichée intacte hors du masque, voisines seulement dessous ; il recale chaque
+réglage retenu pour toute la séquence, dans ce navigateur. Le bouton appareil photo, à droite du faucon (carte en grand ou détachée, grisé Bird Eye éteinte), télécharge une image PNG de la carte telle qu'affichée : vue Bird Eye, traits et étiquettes des mesures, échelle et sources. Le bouton carte pliée, à sa droite (grisé de même), télécharge la vue Bird Eye seule, géoréférencée pour un SIG (QGIS…) : GeoTIFF en Lambert 93 (EPSG:2154), 30 m de côté, transparent hors de la vue, sans fond de carte ni mesures, posé exactement comme sur la carte (position calée sur l'orthophoto comprise) ; il s'ouvre en le glissant dans QGIS. Les messages de Bird Eye, en bas de la carte en grand ou détachée, se replient par le bouton ▾ à leur droite (ⓘ pour les rouvrir ; choix retenu dans le navigateur) : ils cachent le bas de la vue. « Bords gardés » (éteint par défaut) garde toute la vue sur 15 m autour de la caméra au lieu de la couper à 8 m de part et d'autre de l'axe de la route (bas-côtés, trottoirs et façades, déformés et grisés au-delà de 10 m). « Véhicule masqué » (éteint par défaut) recompose la vue avec les photos précédente et suivante pour cacher le véhicule : masque au plus près de son contour (lu une fois sur 12 photos de la séquence pour le CD21, environ 5 Mo ; cône de la vue retiré de la carte), photo affichée intacte hors du masque, voisines seulement dessous ; il recale chaque
 photo voisine sur la photo affichée, par corrélation du sol commun (marquages, passages piétons, grain), pour effacer
 les marches aux raccords, et accorde leur luminosité à celle de la photo affichée (plus de taches claires ou sombres autour des raccords) ; la barre d'état indique l'écart avant et après. « Sans cache (essais) » oublie ce que Bird Eye a retenu et recalcule tout à chaque photo, même déjà vue. « Position calée sur l'orthophoto » (essai, coché) pose la vue sur l'orthophoto
 quand ses lignes s'en écartent de plus de 30 cm en travers : le GPS est alors suspecté avant l'orthophoto. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Construction de
@@ -802,7 +844,15 @@ Beaune ; 4,2 m pour la D977 bis au-dessus du canal de Bourgogne (tablier à 361,
 357,4 m) ; tablier interpolé entre les photos du pont depuis le 02/11/2026 (avant : photo la plus proche, 6,3 et
 4,3 m) ; 1,7 m pour la D114 au-dessus du ruisseau de la Gironde à Barbirey-sur-Ouche (lit
 vers 314 m, route à 315,8 m). Le terrain lu à 1 m du bord seulement donnait 2 m et 0 m : il
-tombait sur le talus de la culée.
+tombait sur le talus de la culée. En secours par l'altitude GPS, l'erreur de la hauteur de caméra passe
+telle quelle dans la chute : la monture du CD21 d'après la date (±4 cm, 15/11/2026) remplace le réglage
+de 1,90 m (±15 cm), soit jusqu'à 17 cm de mieux sur les photos de la monture haute (2,07 m).
+
+Hauteur de caméra : les mesures (hauteur, largeur, mesure libre) n'en dépendent pas (essai du 15/11/2026 :
+mêmes valeurs et incertitudes avec 1,90, 2,07 et 2,50 m) ; elle sert au tablier d'un pont (secours GPS),
+au relevé sur une seule photo et aux objets posés au sol. Dans l'ordre : altitude RTK moins sol LiDAR HD,
+calée pour la séquence, monture du CD21 d'après la date, réglage. Colonne `camera_m` de l'export : celle
+de la photo du premier clic ; `camera_calee` : 0 réglage, 1 calée, 2 altitude GPS, 3 monture.
 
 Chute et dévers des bords de route : la chute est une différence de deux altitudes du même
 modèle de terrain (±0,1 m en LiDAR HD, ±0,4 m en RGE ALTI). Le dévers est une pente moyenne,
@@ -870,7 +920,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 | `src/services.js` | vérification de l'accès aux services |
 | `src/recherche.js` | recherche de lieux sur la carte (commune, lieu-dit, voie, adresse) |
 | `src/requeteur.js` | requêteur route + PR (+ distance) : routes du département affiché, côté droit par défaut |
-| `src/couche.js` | couche importée (GeoJSON, Shapefile par shpjs, GeoPackage par sql.js) : lecture, Lambert 93 en WGS 84, couleur et étiquette selon une colonne |
+| `src/couche.js` | couche importée (GeoJSON, Shapefile par shpjs, GeoPackage par sql.js, CSV) : lecture, Lambert 93 en WGS 84, couleur et étiquette selon une colonne |
 | `src/lieu.js` | route, point de repère (PR), véloroute, écluse, hameau et commune de la photo, incrustés dans la visionneuse |
 | `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page (points de référence, hauteurs, largeurs, mesure libre, recalages) |
 | `py/web_host.py` | accès réseau du cœur par le `fetch` du navigateur |
@@ -923,11 +973,11 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 | Service | Usage | Depuis un navigateur |
 |---|---|---|
 | Panoramax : recherche, tuiles, photos (`api.panoramax.xyz`, `panoramax.ign.fr`) | filaire, photos, métadonnées | accessible |
-| Géoplateforme IGN : WMTS | Plan IGN, orthophoto | accessible |
+| Géoplateforme IGN : WMTS | orthophoto | accessible |
 | Géoplateforme IGN : altimétrie | LiDAR HD, ou RGE ALTI en secours, sous les photos et au point visé (vérification de la position RTK, sol au point, inclinaison automatique) | accessible |
 | Géoplateforme IGN : WMS (`wms-r`) | PCRS | accessible |
 | Géoplateforme IGN : WFS | BD TOPO (axe de la route, route, PR, hameau et commune de la photo, PR sur la carte, département du requêteur), ADMIN EXPRESS (limites administratives, contour de la commune cherchée) | accessible |
-| Géoplateforme IGN : tuiles vectorielles (TMS) | Plan IGN (routes numérotées, noms), BD TOPO (voies) | accessible |
+| Géoplateforme IGN : tuiles vectorielles (TMS) | Plan IGN (fond, routes numérotées, noms), BD TOPO (voies) | accessible |
 | Géoplateforme IGN : géocodage | recherche de lieux (autocomplétion) | accessible |
 | Stockage des photos Panoramax (S3 OVH, derrière `panoramax.ign.fr`) | photos HD : capture Full HD, inclinaison automatique | accessible |
 | PROJ (`cdn.proj.org`) | grille du géoïde : altitude NGF, hauteur de caméra d'après le GPS | accessible |
@@ -955,7 +1005,15 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 ### Pour plus tard
 
 - **Export pour un inventaire** : tableur, une ligne par mesure (route, PR + abscisse, type,
-  valeur ± incertitude, lien vers la photo Panoramax, date).
+  valeur ± incertitude, lien vers la photo Panoramax, date), à partager avec des collègues sans QGIS ni
+  l'application. Second bouton CSV, l'export complet (`export_csv`, `py/web_app.py`) restant pour QGIS et les
+  réimports. Revu le 15/11/2026, ce qui manque à l'export actuel :
+  - route et PR + abscisse : absents. La page les lit à l'ouverture d'une photo (`Lieu.describe`) ; pour une
+    mesure prise plus tôt, à garder au moment de la mesure ou à relire à l'export ;
+  - lien vers la photo : seuls ses identifiants sont écrits (`photos`, `photo_ref`), pas d'adresse cliquable ;
+  - date : `date_mesure` est le jour de la mesure, pas la date de prise de la photo ;
+  - lisibilité : une vingtaine de colonnes aujourd'hui, dont beaucoup de techniques (`horiz_m`, `camera_calee`,
+    `vue_ref`, `recales`, `lon1`…`lat2`).
 - **Contrôle d'une largeur sur l'image vue du ciel**, quand le PCRS (image à 5 cm) sera publié
   en Côte-d'Or (absent le 22/10/2026, vérifié à Pouilly-en-Auxois) : cliquer les deux bords sur
   la mini-carte, puis comparer avec la largeur mesurée sur la photo ; un écart supérieur aux

@@ -1,11 +1,11 @@
 <!doctype html><meta charset="utf-8"><title>Essai du cadastre</title>
 <!-- SPDX-FileCopyrightText: 2026 Cédric COCHART -->
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
-<!-- Cadastre sur la mini-carte (#36, Carte.setCadastre) : réglage coché, parcelles en tuiles, bornes de propriété et
-     feuilles mal raccordées autour de la photo, au zoom 18. Photo de Pouilly-en-Auxois (#photos=id,… : d'autres) ;
+<!-- Cadastre sur la mini-carte (#36, Carte.setCadastre) : réglage coché, parcelles en tuiles, bornes de propriété
+     autour de la photo, au zoom 18. Photo de Pouilly-en-Auxois (#photos=id,… : d'autres) ;
      chaque carte part dans le journal en PNG ; #fond=mnh (ou autre) : sur ce fond. Lancer comme tests/navigateur.html. -->
 <script>try {
-  localStorage.clear();
+  localStorage.clear(); indexedDB.deleteDatabase("web-measures");
   localStorage.setItem("web-measures/cadastre", "1");
   const fond = /[#&]fond=([a-z]+)/.exec(location.hash)?.[1];  // #fond=mnh : sur un autre fond de carte
   if (fond) localStorage.setItem("web-measures/fond", fond);
@@ -36,7 +36,7 @@ const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-
       await log(`IMAGE carte-${id.slice(0, 8)} ` + shot);
     }
     const map = w.mesures.map;
-    log(`carte : ${map.querySourceFeatures("cadastre", { sourceLayer: "localisant" }).length} sections, ${map.querySourceFeatures("cadastre", { sourceLayer: "borne_limite_propriete" }).length} bornes, ${map.querySourceFeatures("cadastre-decale").length} parties de feuilles décalées`);
+    log(`carte : ${map.querySourceFeatures("cadastre", { sourceLayer: "localisant" }).length} sections, ${map.querySourceFeatures("cadastre", { sourceLayer: "borne_limite_propriete" }).length} bornes`);
     expect("carte : couches du cadastre affichées", map.getLayoutProperty("cadastre", "visibility") === "visible");
     expect("carte : parcelles numérotées teintées (domaine public sans teinte)", map.getLayoutProperty("cadastre-parcelles", "visibility") === "visible"
       && map.getLayer("cadastre-parcelles").sourceLayer === "parcelle");
@@ -97,14 +97,24 @@ const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-
       expect(`caméra sur la voirie : rien en jaune (${own || "domaine public"})`, under() === own);
       if (inside && holder(inside.at) === inside.idu) {  // caméra posée dans cette parcelle : elle passe en jaune, pas en vert
         const Carte = w.eval("Carte");
-        Carte.showView(map, inside.at, inside.heading * 180 / Math.PI, 90);
-        await soon(() => under() === inside.idu, 3000);
+        // posée de nouveau tant que la visionneuse peut la remettre sur la photo (fin de chargement) avant la réponse du WFS
+        const move = () => Carte.showView(map, inside.at, inside.heading * 180 / Math.PI, 90);
+        move();
+        await soon(() => under() === inside.idu || void move(), 5000);  // même position : pas de nouvelle requête
         log(`caméra dans ${inside.idu} : jaune ${under() || "aucune"}, vert ${shown() || "aucune"}`);
         expect("caméra dans une parcelle : celle-ci en jaune, une autre (ou aucune) en vert", under() === inside.idu && shown() !== inside.idu);
         await sleep(300);
         const shot = await new Promise((r) => { map.once("render", () => r(map.getCanvas().toDataURL("image/png"))); map.triggerRepaint(); });
         await log("IMAGE parcelle-camera " + shot);
         Carte.showView(map, cam, azimuth, 90);
+        // carte dézoomée (parcelles masquées sur la carte) : l'étiquette de la parcelle visée reste dans la visionneuse
+        w.mesures.psv.rotate({ yaw: inside.heading - azimuth * Math.PI / 180, pitch: 0 });
+        const label = () => { try { return w.mesures.psv.getPlugin("markers").getMarker("mesure-parcelle"); } catch { return null; } };
+        await soon(() => Carte.aimedParcel()?.idu === inside.idu && label(), 5000);
+        map.jumpTo({ zoom: 12 });
+        await sleep(1500);  // contrôle « rien ne change »
+        expect(`carte au zoom 12 : étiquette de ${inside.idu} gardée dans la visionneuse`, Carte.aimedParcel()?.idu === inside.idu && Boolean(label()));
+        map.jumpTo({ zoom: 18 });
       } else expect("point d'essai dans une parcelle trouvé", false);
       {  // croix discrète au centre de la vue, cadastre coché
         const croix = doc.querySelector("#croix-cadastre"), r = croix.getBoundingClientRect();
@@ -112,9 +122,21 @@ const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-
         expect("croix au centre de la vue (cadastre coché)", !croix.hidden
           && Math.abs((r.left + r.right) / 2 - (v.left + v.right) / 2) <= 1 && Math.abs((r.top + r.bottom) / 2 - (v.top + v.bottom) / 2) <= 1);
       }
+      {  // « Parcelle visée dans la visionneuse » décochée : ni étiquette ni croix, la carte garde la parcelle en vert
+        const option = doc.querySelector("#cadastre-visionneuse");
+        const label = () => { try { return Boolean(w.mesures.psv.getPlugin("markers").getMarker("mesure-parcelle")); } catch { return false; } };
+        const lit = shown();
+        expect("parcelle visée dans la visionneuse : cochée et active avec le cadastre", option.checked && !option.disabled && label());
+        option.click();
+        expect("visionneuse sans parcelle : ni étiquette ni croix, toujours en vert sur la carte",
+          !label() && doc.querySelector("#croix-cadastre").hidden && shown() === lit && lit !== "");
+        option.click();
+        expect("parcelle visée de retour dans la visionneuse", label() && !doc.querySelector("#croix-cadastre").hidden);
+      }
       doc.querySelector("#cadastre").click();  // réglage décoché : plus rien d'allumé
       await soon(() => shown() === "" && under() === "", 3000);
       expect("cadastre éteint : plus de croix au centre de la vue", doc.querySelector("#croix-cadastre").hidden);
+      expect("cadastre éteint : « Parcelle visée dans la visionneuse » grisée", doc.querySelector("#cadastre-visionneuse").disabled);
       expect("cadastre éteint : parcelles visée et de la caméra éteintes", shown() === "" && under() === ""
         && map.getLayoutProperty("cadastre-vise", "visibility") === "none" && map.getLayoutProperty("cadastre-camera", "visibility") === "none");
     }

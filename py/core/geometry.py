@@ -13,7 +13,7 @@ Repère local (est, nord, altitude) en mètres, centré sur un point de référe
 caméra au-dessus du sol sous la photo, donné par le profil de terrain du clic.
 Les mesures sont ensuite des calculs sur ces points : distance 3D et sa
 décomposition (horizontale, verticale, le long de la route et en travers).
-Module sans dépendance à QGIS, pour pouvoir être testé seul.
+Module sans dépendance, testé seul (tests/coeur/).
 """
 
 import math

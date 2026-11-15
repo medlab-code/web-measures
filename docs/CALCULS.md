@@ -165,7 +165,8 @@ Chaque objet est placé d'une de ces trois façons :
 
 - **triangulé** (§ 2) : la façon normale ;
 - **sur une seule photo** (« Garder sur cette seule photo ») : là où la visée touche le sol,
-  supposé plat à la hauteur de caméra sous la photo. La visée doit descendre d'au moins 2° sous
+  supposé plat à la hauteur de caméra sous la photo (altitude RTK moins sol LiDAR, sinon calée, sinon
+  monture du CD21 d'après la date, sinon le réglage : `App._camera_of`). La visée doit descendre d'au moins 2° sous
   l'horizon, soit 70 m au plus pour une caméra à 2,5 m. L'incertitude vient surtout de
   l'inclinaison : ±0,2 à 0,8 m pour un objet à 6 m selon son calage ;
 - **sur la carte** (« Placer sur la carte ») : le clic sur la mini-carte, à ±1 m (précision des
@@ -183,10 +184,10 @@ n'est qu'un affichage. Le **recalage dans la photo** est un décalage angulaire 
 ### 6.1 Cadastre (mini-carte)
 
 Le **Parcellaire Express** (IGN) est un plan numérisé : ses limites peuvent être à plusieurs mètres
-du terrain. Une feuille cadastrale est teintée d'orange quand son écart moyen aux raccords avec ses
-voisines (`dst_raccor`, qualité du géoréférencement de la BD Parcellaire) dépasse **2 m**. En
-Côte-d'Or, cet écart vaut 1,5 m en médiane, et plus de 5,8 m pour un quart des feuilles. C'est un
-indice, pas un écart mesuré au terrain.
+du terrain. L'écart moyen d'une feuille aux raccords avec ses voisines (`dst_raccor`, qualité du
+géoréférencement de la BD Parcellaire) vaut 1,5 m en médiane en Côte-d'Or, et plus de 5,8 m pour un
+quart des feuilles. Les feuilles au-delà de 2 m étaient cernées de tirets sur la carte jusqu'au
+15/11/2026 : retirées, à la demande de l'auteur.
 
 La projection dans la photo a été essayée puis abandonnée (30/10/2026). À Pouilly-en-Auxois, la
 limite apparaissait au-dessus du sol au pied des façades. Trois causes y concourent : le plan du
@@ -220,7 +221,9 @@ qui se touchent à 1 m près forment un seul ouvrage.
   consécutives (rangs dans la séquence) dont le segment passe au plus près (pont long et pentu ; une
   seule photo : son altitude ; `web_app._deck_at`). La hauteur de
   caméra est celle **mesurée sur la séquence** vérifiée (médiane de l'altitude RTK moins le sol
-  LiDAR, photos du pont écartées), sinon celle **calée** pour la séquence. Une photo de précision
+  LiDAR, photos du pont écartées), sinon celle **calée** pour la séquence, sinon pour une photo du CD21
+  la **monture d'après la date** (1,93 m jusqu'au 30/06/2025, 2,07 m ensuite, ±4 cm, `App.FLEET_MOUNTS`,
+  comme la vue du dessus). Une photo de précision
   déclarée n'a que sa propre hauteur, prise au-dessus du sol sous elle : sur un pont, le fond
   franchi. Le réglage « Caméra à » ne sert alors que si l'utilisateur l'accepte (bouton de
   l'encadré du pont).

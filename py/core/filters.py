@@ -3,25 +3,12 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Filtre des photos : date, type de caméra, précision GPS, producteur.
 
-Le même filtre s'applique au filaire (expressions sur les attributs des tuiles
-vectorielles, voir layers.apply_filter) et aux photos ouvertes par un clic sur la
-carte (propriétés des fiches STAC, voir PhotoFilter.matches). Mémorisation : hôte (filters.py
-du plugin, page web).
-
-Attributs des tuiles Panoramax utilisés :
-- séquences : date (AAAA-MM-JJ), type, gps_accuracy, account_id ;
-- photos : ts (AAAA-MM-JJ hh:mm:ss…), type, gps_accuracy, account_id ;
-- grille de densité (petites échelles) : nb_360_pictures, nb_flat_pictures, seul le
-  type de caméra y est filtrable.
+Appliqué aux photos ouvertes par un clic sur la carte (propriétés des fiches STAC, voir
+PhotoFilter.matches). Le filaire de la carte est filtré par la page elle-même, sur les
+attributs des tuiles vectorielles (src/carte.js, mêmes critères). Mémorisation : la page.
 """
 
 KINDS = (("Tous types", None), ("360°", "360"), ("Classiques", "flat"))
-GPS_LIMITS = (("Toute précision GPS", None), ("GPS ≤ 2 m (relevé)", 2.0), ("GPS ≤ 4 m", 4.0))
-TILE_TYPES = {"360": "equirectangular", "flat": "flat"}
-
-
-def _quote(text):
-    return "'{}'".format(str(text).replace("'", "''"))
 
 
 class PhotoFilter:
@@ -38,27 +25,6 @@ class PhotoFilter:
 
     def active(self):
         return any(v is not None for v in vars(self).values())
-
-    # Filaire ------------------------------------------------------------------
-    def tile_expression(self, layer):
-        """Expression QGIS du filtre pour une couche des tuiles ("sequences", "pictures",
-        "grid"), ou "" si rien n'y est à filtrer."""
-        parts = []
-        if layer == "grid":
-            if self.kind == "360":
-                parts.append('"nb_360_pictures" > 0')
-            elif self.kind == "flat":
-                parts.append('"nb_flat_pictures" > 0')
-            return " AND ".join(parts)
-        if self.since:
-            parts.append('"{}" >= {}'.format("date" if layer == "sequences" else "ts", _quote(self.since)))
-        if self.kind:
-            parts.append('"type" = {}'.format(_quote(TILE_TYPES[self.kind])))
-        if self.max_gps is not None:
-            parts.append('to_real("gps_accuracy") <= {}'.format(self.max_gps))
-        if self.producer:
-            parts.append('"account_id" = {}'.format(_quote(self.producer[0])))
-        return " AND ".join(parts)
 
     # Fiches STAC --------------------------------------------------------------
     def matches(self, item):

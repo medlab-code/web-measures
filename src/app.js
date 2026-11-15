@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Cédric COCHART
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// Page de mesure : la carte choisit la photo, la visionneuse Panoramax reçoit les clics,
-// le cœur de calcul du plugin (Pyodide, voir calcul.js) fait les mesures et les calages.
-// Mêmes fonctions que le plugin QGIS Visionneuse Panoramax.
+// Page de mesure : la carte choisit la photo, la visionneuse Panoramax reçoit les clics, le cœur
+// de calcul Python (py/, exécuté par Pyodide, voir calcul.js) fait les mesures et les calages.
 
 (() => {
   const $ = (selector) => document.querySelector(selector);
@@ -161,7 +160,7 @@
   };
 
   const viewer = $("#visionneuse");
-  const map = Carte.createMap("carte");
+  const map = Carte.createMap("carte", { vectorPlan: true });  // Plan IGN vectoriel : texte net à tout zoom
   Recherche.attach(map);
   Requeteur.attach(map, openNearest);
   Carte.showMilestones(map);
@@ -218,6 +217,7 @@
     $("#contenu-panneau").scrollTop = 0;
     store.set("panneau", id);
     if (id === "reseau") showGeoCache();
+    if (id === "reglages") showFolderExport();
   }
   for (const button of paneButtons) button.addEventListener("click", () => showPane(button.dataset.panneau));
   showPane(store.get("panneau", "resultats"));
@@ -461,10 +461,19 @@
   // Cadastre (#36) sur la mini-carte, décoché par défaut
   $("#cadastre").checked = store.get("cadastre") === "1";
   Carte.setCadastre(map, $("#cadastre").checked);
+  // Parcelle visée dans la visionneuse (étiquette et croix), cochée par défaut ; grisée sans le cadastre
+  $("#cadastre-visionneuse").checked = store.get("cadastre-visionneuse") !== "0";
+  $("#cadastre-visionneuse").disabled = !$("#cadastre").checked;
   $("#cadastre").addEventListener("change", (event) => {
     store.set("cadastre", event.target.checked ? "1" : "0");
     Carte.setCadastre(map, event.target.checked);
+    $("#cadastre-visionneuse").disabled = !event.target.checked;
     applyMeasureUi();  // croix du centre de la vue
+  });
+  $("#cadastre-visionneuse").addEventListener("change", (event) => {
+    store.set("cadastre-visionneuse", event.target.checked ? "1" : "0");
+    applyMeasureUi();
+    showParcelMark();
   });
   $("#anisotrope").checked = store.get("anisotrope") === "1";
   $("#anisotrope").addEventListener("change", (event) => {
@@ -1284,7 +1293,9 @@
   });
   // Capture de la carte (vue Bird Eye et mesures, étiquettes comprises), téléchargée en PNG ; grisé Bird Eye éteinte
   const captureButton = Object.assign(document.createElement("button"), { type: "button", className: "capture-carte", hidden: true,
-    textContent: "📷", title: "Capture de la carte : vue Bird Eye et mesures, en image PNG", ariaLabel: "Capture de la carte" });
+    innerHTML: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">'
+      + '<path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    title: "Capture de la carte : vue Bird Eye et mesures, en image PNG", ariaLabel: "Capture de la carte" });
   captureButton.addEventListener("click", async () => {
     captureButton.disabled = true;
     try {
@@ -1299,7 +1310,10 @@
   });
   // Export géoréférencé de la vue Bird Eye pour un SIG (GeoTIFF en Lambert 93) ; grisé Bird Eye éteinte
   const exportButton = Object.assign(document.createElement("button"), { type: "button", className: "capture-carte", hidden: true,
-    textContent: "🗺️", title: "Vue Bird Eye géoréférencée pour un SIG (QGIS…) : GeoTIFF en Lambert 93, la vue seule, sans fond de carte ni mesures",
+    // carte pliée et repère (géoréférencée)
+    innerHTML: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">'
+      + '<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>',
+    title: "Vue Bird Eye géoréférencée pour un SIG (QGIS…) : GeoTIFF en Lambert 93, la vue seule, sans fond de carte ni mesures",
     ariaLabel: "Export géoréférencé de la vue Bird Eye" });
   exportButton.addEventListener("click", async () => {
     exportButton.disabled = true;
@@ -1385,6 +1399,7 @@
       applyMeasureUi();
     } else if (lineDraft !== null) addLinePoint(event.lngLat);
     else if (placing) placeOnMap(event.lngLat);
+    else if (addingObject) addObjectAt(event.lngLat);
     else if (travelPick) pickTravelPoint(event.lngLat);
     else {
       // Mesure exportée de la couche sous le clic : revue sur sa photo ; sinon la photo la plus proche
@@ -1467,6 +1482,7 @@
       setPlacing(false);
       refresh();
     }
+    if (event.key === "Escape" && addingObject) setAddingObject(false);
     if (event.key === "Escape" && travelPick) {
       poi.draft = null;  // tracé de la zone ou de la planète interrompu
       planetDraft = null;
@@ -1616,9 +1632,11 @@
   /** Objet id de la couche choisi pour être recalé dans la photo affichée. */
   function moveOverlayObject(id) {
     moving = { id, photo: photo.id };
+    objectCurrent = id;  // ses attributs et son statut dans le parcours
+    showObjectState();
     document.activeElement?.blur?.();  // un bouton cliqué avant (« Exporter »…) ne reçoit pas l'Entrée
-    setStatus("Objet de la couche : cliquez sa place dans la photo, flèches pour l'ajuster, Entrée pour finir, "
-      + "Suppr pour le remettre à sa place calculée. La carte n'est pas modifiée.");
+    setStatus("Objet de la couche : cliquez sa place dans la photo (le clic le pose et finit), ou flèches pour l'ajuster "
+      + "puis Entrée ; Suppr le remet à sa place calculée. La carte n'est pas modifiée.");
     drawViewerMarks(currentMarks);
   }
 
@@ -1695,6 +1713,10 @@
       return setShift([dyaw + step[0], dpitch + step[1]]);
     }
     if (event.key === "Delete") setShift(null);
+    endMoving();
+  }
+  /** Recalage fini (Entrée, Échap, Suppr, ou clic qui pose l'objet) : objet désélectionné. */
+  function endMoving() {
     moving = null;
     setStatus("");
     drawViewerMarks(currentMarks);
@@ -2168,8 +2190,8 @@
   });
   $("#ajouter-favori").addEventListener("click", () => addFavorite());
   // Export et import des favoris (autre poste, autre navigateur) : fichier JSON [{ id, name }]
-  $("#favoris-exporter").addEventListener("click", () => download(JSON.stringify(favorites(), null, 1),
-    "favoris-panoramax.json", "application/json"));
+  $("#favoris-exporter").addEventListener("click", async () => download(JSON.stringify(favorites(), null, 1),
+    await exportName("favoris", "json"), "application/json"));
   // Couche importée (GeoJSON) : une à la fois, couleur et étiquette selon une colonne ; gardée avec
   // ses réglages dans le navigateur d'une session à l'autre, jusqu'à « Retirer »
   let overlay = null;  // { name, features (WGS 84, Couche.read), columns, crs }
@@ -2186,6 +2208,46 @@
   function overlayMasked() {
     return new Set(overlay?.masques?.[$("#couche-couleur").value] || []);
   }
+  /** Test des objets cachés : valeur masquée dans la légende, ou hors du filtre par attribut (overlay.filtre :
+   * { colonne, op, valeur }) ; (feature) → vrai si caché. */
+  // Nombres comparés en nombres (virgule acceptée), sinon textes sans majuscules ; « ≠ » garde les objets sans valeur
+  // (« verif ≠ vérifié » : ceux pas encore vus) ; =, ≠, <, > sans valeur saisie : filtre sans effet
+  function overlayHiddenTest() {
+    const masked = overlayMasked(), { colonne, op, valeur = "" } = overlay?.filtre || {};
+    const num = (v) => (typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v.replace(",", ".")) : NaN);
+    const want = valeur.trim(), wantN = num(want), test = op === "vide" || op === "rempli" || want;
+    const keep = (v) => {
+      const empty = v == null || String(v).trim() === "";
+      if (op === "vide" || op === "rempli") return empty === (op === "vide");
+      if (empty) return op === "≠";
+      const n = num(v);
+      const cmp = Number.isFinite(n) && Number.isFinite(wantN) ? n - wantN
+        : String(v).trim().localeCompare(want, "fr", { sensitivity: "base", numeric: true });
+      return op === "=" ? cmp === 0 : op === "≠" ? cmp !== 0 : op === "<" ? cmp < 0 : cmp > 0;
+    };
+    return (f) => masked.has(f?.properties._cle) || Boolean(colonne && test && !keep(f?.properties[colonne]));
+  }
+
+  /** Réglages du filtre affichés (overlay.filtre) ; conditions grisées sans colonne, valeur sans objet pour vide / non vide. */
+  function showOverlayFilter() {
+    const { colonne = "", op = "=", valeur = "" } = overlay?.filtre || {};
+    $("#couche-filtre").value = colonne;
+    $("#couche-filtre-op").value = op;
+    $("#couche-filtre-valeur").value = valeur;
+    $("#couche-filtre-op").disabled = $("#couche-filtre-effacer").disabled = !colonne;
+    $("#couche-filtre-valeur").disabled = !colonne || op === "vide" || op === "rempli";
+  }
+  function setOverlayFilter(filter) {
+    overlay.filtre = filter.colonne ? filter : null;
+    showOverlayFilter();
+    showOverlayStyle();
+    saveOverlay();
+  }
+  const readFilter = () => ({ colonne: $("#couche-filtre").value, op: $("#couche-filtre-op").value, valeur: $("#couche-filtre-valeur").value });
+  for (const id of ["#couche-filtre", "#couche-filtre-op"]) $(id).addEventListener("change", () => setOverlayFilter(readFilter()));
+  $("#couche-filtre-valeur").addEventListener("input", () => setOverlayFilter(readFilter()));  // à chaque lettre
+  $("#couche-filtre-effacer").addEventListener("click", () => setOverlayFilter({}));
+
   const EYE_OPEN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
     + '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
   const EYE_SHUT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
@@ -2277,9 +2339,12 @@
     $("#couche-legende").classList.toggle("degrade", Boolean(legend.degrade));
     $("#couche-legende").replaceChildren(...items);
     // Œil de la couche fermé : ni sur la carte ni dans la photo, réglages gardés ; valeurs masquées retirées
-    Carte.showOverlay(map, $("#couche-visible").checked ? { type: "FeatureCollection",
-      features: overlay.features.filter((f) => !masked.has(f.properties._cle)) } : null);
+    const hidden = overlayHiddenTest(), shown = overlay.features.filter((f) => !hidden(f));
+    Carte.showOverlay(map, $("#couche-visible").checked ? { type: "FeatureCollection", features: shown } : null);
+    $("#couche-filtre-bilan").hidden = !overlay.filtre;
+    $("#couche-filtre-bilan").textContent = `${shown.length} objet${shown.length > 1 ? "s" : ""} sur ${overlay.features.length}`;
     refresh();
+    showObjectTable();
   }
 
   /** Fiche de la couche : nombre d'objets, système de coordonnées, objets recalés dans des photos. */
@@ -2292,11 +2357,212 @@
     $("#couche-fiches").disabled = !n;
   }
 
+  // Parcours des objets de la couche : tableau trié (clic sur un intitulé) et filtré par la recherche ; ◀ ▶ dans son
+  // ordre. Statut de vérification dans les colonnes « verif » et « verif_note » (10 lettres au plus : Shapefile), ajoutées
+  // à la couche au premier statut, gardées et exportées comme ses autres colonnes.
+  let objectSort = { key: "", up: true };  // "" : ordre du fichier
+  let objectCurrent = null;  // n° de l'objet du parcours
+  let objectOrder = [];  // n° des objets du tableau, dans son ordre
+
+  function showObjectTable() {
+    if (!overlay || !$("#couche-parcours").open) return showObjectState();
+    const label = $("#couche-etiquette").value;
+    const columns = [["", "Objet"], ...(label ? [[label, label]] : []), ["verif", "Statut"]];
+    const value = (i, key) => (key ? Couche.format(overlay.features[i].properties[key]) : overlayObjectName(i));
+    const query = $("#objets-recherche").value.trim().toLowerCase();
+    const hidden = overlayHiddenTest();
+    objectOrder = overlay.features.map((_, i) => i).filter((i) => !hidden(overlay.features[i])).filter((i) => !query || [overlayObjectName(i),
+      ...Object.values(overlayProperties(overlay.features[i])).map(Couche.format)].some((v) => v.toLowerCase().includes(query)));
+    const { key, up } = objectSort;
+    if (key || !up) {
+      objectOrder.sort((a, b) => (up ? 1 : -1) * (value(a, key).localeCompare(value(b, key), "fr", { numeric: true }) || a - b));
+    }
+    $("#objets-entete").replaceChildren(...columns.map(([k, title]) => {
+      const th = Object.assign(document.createElement("th"), { scope: "col", textContent: title, title: "Trier" });
+      if (k === key) th.setAttribute("aria-sort", up ? "ascending" : "descending");
+      th.addEventListener("click", () => {
+        objectSort = { key: k, up: k !== key || !up };
+        showObjectTable();
+      });
+      return th;
+    }));
+    $("#objets-lignes").replaceChildren(...objectOrder.map((i) => {
+      const tr = document.createElement("tr");
+      tr.append(...columns.map(([k]) => Object.assign(document.createElement("td"), { textContent: value(i, k) })));
+      tr.setAttribute("aria-selected", String(i === objectCurrent));
+      tr.addEventListener("click", () => goToObject(i));
+      return tr;
+    }));
+    showObjectState();
+  }
+
+  /** Objet du parcours, ◀ ▶, statut et commentaire : grisés tant qu'ils ne peuvent servir. */
+  function showObjectState() {
+    const k = objectOrder.indexOf(objectCurrent), on = overlay && objectCurrent != null;
+    $("#objet-precedent").disabled = !overlay || k <= 0;
+    $("#objet-suivant").disabled = !overlay || !objectOrder.length || k === objectOrder.length - 1;
+    $("#objet-statut").disabled = $("#objet-note").disabled = $("#objet-supprimer").disabled = !on;
+    $("#objet-ajouter").disabled = !overlay;
+    showObjectAttributes();
+    const p = on ? overlay.features[objectCurrent].properties : {};
+    $("#objet-courant").textContent = on ? `Objet ${overlayObjectName(objectCurrent)}${k >= 0 ? ` (${k + 1}/${objectOrder.length})` : ""}`
+      : "Cliquez un objet du tableau, ou ▶";
+    $("#objet-statut").value = p.verif || "";
+    if (document.activeElement !== $("#objet-note")) $("#objet-note").value = p.verif_note || "";
+    for (const tr of $("#objets-lignes").children) tr.setAttribute("aria-selected", String(objectOrder[tr.sectionRowIndex] === objectCurrent));
+  }
+
+  /** Attributs de l'objet du parcours, modifiables (sans les colonnes techniques d'un relevé, ni statut et
+   * commentaire) ; refaits seulement quand l'objet ou les colonnes changent (un champ en cours garde la main).
+   * Colonne oui / non : case à cocher ; texte : valeurs des autres objets proposées (liste du navigateur, valeur
+   * nouvelle possible) ; nombres : rien de proposé. */
+  let attributesKey = "";
+  function showObjectAttributes() {
+    const on = overlay && objectCurrent != null;
+    const columns = on ? overlay.columns.filter((c) => !(overlay.techniques || []).includes(c) && !["verif", "verif_note"].includes(c)) : [];
+    const key = on ? `${objectCurrent}|${columns.join("|")}` : "";
+    if (key === attributesKey) return;
+    attributesKey = key;
+    const p = on ? overlay.features[objectCurrent].properties : {};
+    $("#objet-attributs").replaceChildren(...columns.map((c, k) => {
+      const label = Object.assign(document.createElement("label"), { textContent: c });
+      const values = overlay.features.map((f) => f.properties[c]).filter((v) => v != null && v !== "");
+      const yesNo = values.length && values.every((v) => typeof v === "boolean" || /^(oui|non)$/i.test(v));
+      if (yesNo) {  // oui / non : case à cocher, valeur écrite dans la forme de la colonne (booléen, ou « oui » / « non »)
+        const box = Object.assign(document.createElement("input"), { type: "checkbox", checked: p[c] === true || /^oui$/i.test(p[c]) });
+        const asText = values.some((v) => typeof v === "string");
+        box.addEventListener("change", () => setObjectValue(c, asText ? (box.checked ? "oui" : "non") : box.checked));
+        label.append(box);
+        return label;
+      }
+      const input = Object.assign(document.createElement("input"), { type: "text", value: p[c] == null ? "" : String(p[c]) });
+      input.addEventListener("change", () => setObjectAttribute(c, input.value));
+      label.append(input);
+      if (values.some((v) => typeof v !== "number")) {  // texte : valeurs des autres objets proposées, à jour à chaque saisie
+        const list = Object.assign(document.createElement("datalist"), { id: `objet-valeurs-${k}` });
+        input.setAttribute("list", list.id);
+        input.addEventListener("focus", () => list.replaceChildren(...[...new Set(overlay.features.map((f) => f.properties[c])
+          .filter((v) => v != null && v !== "").map(String))].sort((x, y) => x.localeCompare(y, "fr", { numeric: true }))
+          .map((v) => new Option(v))));
+        label.append(list);
+      }
+      return label;
+    }));
+  }
+
+  /** Attribut de l'objet du parcours : vide → null ; nombre si la colonne en a ailleurs (virgule acceptée). */
+  function setObjectAttribute(column, text) {
+    const t = text.trim(), n = Number(t.replace(",", "."));
+    const numeric = overlay.features.some((f) => typeof f.properties[column] === "number");
+    setObjectValue(column, !t ? null : numeric && Number.isFinite(n) ? n : t);
+  }
+  function setObjectValue(column, value) {
+    overlay.features[objectCurrent].properties[column] = value;
+    objectEdited();
+  }
+
+  /** Couche modifiée (attribut, statut ; geometry : objet ajouté ou supprimé, numéros refaits) : à réenregistrer. */
+  function objectEdited(geometry = false) {
+    if (geometry) {
+      overlay.features.forEach((f, i) => { f.id = i; });
+      overlayAt.clear();
+      attributesKey = "";
+      app.set_overlay(JSON.stringify(overlay.features.map(({ id, geometry }) => ({ id, geometry }))));
+      showOverlayInfo();
+    }
+    setOverlayChanged(true);  // à réenregistrer dans le fichier
+    saveOverlay();
+    showOverlayStyle();  // carte, photo, légende, tableau
+  }
+
+  $("#objet-supprimer").addEventListener("click", async () => {
+    const i = objectCurrent;
+    if (await ask($("#supprimer-objet"), `L'objet ${overlayObjectName(i)} sera retiré de la couche. Le fichier ne change `
+      + "qu'à l'enregistrement.") !== "supprimer" || objectCurrent !== i) return;
+    overlay.features.splice(i, 1);
+    moving = null;
+    objectCurrent = null;
+    objectEdited(true);
+  });
+
+  // Objet ajouté : un point posé d'un clic sur la mini-carte, attributs vides à saisir ; Échap annule
+  let addingObject = false;
+  function setAddingObject(on) {
+    addingObject = on;
+    map.getCanvas().style.cursor = on ? "crosshair" : "";
+    $("#objet-ajouter").textContent = on ? "Annuler (Échap)" : "＋ Ajouter un objet";
+    $("#objet-ajouter").setAttribute("aria-pressed", String(on));
+    if (on) setStatus("Couche : cliquez sur la mini-carte la place du nouvel objet (zoomez pour être précis) ; Échap pour annuler.");
+  }
+  function addObjectAt({ lng, lat }) {
+    setAddingObject(false);
+    const properties = Object.fromEntries(overlay.columns.map((c) => [c, null]));
+    // Colonne « id » (sans tenir compte de la casse) : le plus grand numéro existant + 1, dans la forme de la colonne
+    // (nombre, ou texte de même largeur : « 007 » → « 008 ») ; aucun id numérique : laissée vide
+    const idColumn = overlay.columns.find((c) => c.toLowerCase() === "id");
+    const ids = idColumn ? overlay.features.map((f) => f.properties[idColumn]).filter((v) => /^\d+$/.test(String(v ?? "").trim())) : [];
+    if (ids.length) {
+      const top = ids.reduce((a, b) => (Number(b) > Number(a) ? b : a));
+      const next = Number(top) + 1;
+      properties[idColumn] = typeof top === "number" ? next : String(next).padStart(String(top).trim().length, "0");
+    }
+    overlay.features.push({ type: "Feature", id: overlay.features.length, geometry: { type: "Point", coordinates: [lng, lat] }, properties });
+    objectEdited(true);
+    setStatus("Objet ajouté à la couche : saisissez ses attributs sous le statut.");
+    goToObject(overlay.features.length - 1);
+  }
+  $("#objet-ajouter").addEventListener("click", () => setAddingObject(!addingObject));
+
+  /** Objet n° i de la couche : photo la plus proche (ou celle de son recalage) ouverte, tournée vers lui. */
+  async function goToObject(i) {
+    objectCurrent = i;
+    showObjectState();
+    try {
+      const data = await overlayFicheData(i, [], true);
+      if (!data.photo) return setStatus("Aucune photo trouvée près de cet objet (filtre, instance ?).", "echec");
+      if (photo?.id !== data.photo) await openPhotoReady(data.photo);
+      if (objectCurrent !== i) return;  // un autre objet choisi entre-temps
+      // Dessiné dans la photo une fois le sol lu (5 s au plus, puis à plat) ; masqué ou trop loin : tourné vers sa position
+      await (async () => { for (let t = 0; t < 24 && !overlayEnds(i).length; t++) await new Promise((r) => setTimeout(r, 250)); })();
+      const ends = overlayEnds(i), azimuth = Number(photo.properties?.["view:azimuth"]);
+      if (ends.length) frameView(ends);
+      else if (Number.isFinite(azimuth)) {
+        const [lon0, lat0] = photo.geometry.coordinates;
+        const bearing = Math.atan2((data.lon - lon0) * Math.cos(lat0 * Math.PI / 180), data.lat - lat0);
+        psv.animate({ yaw: bearing - azimuth * Math.PI / 180, pitch: 0, speed: 1200 });
+      }
+    } catch (error) {
+      notice(`Objet ${overlayObjectName(i)} : ${error.message}`);
+    }
+  }
+
+  /** Statut ou commentaire de l'objet du parcours ; la colonne est ajoutée à la couche à sa première valeur. */
+  function setObjectCheck(column, text) {
+    overlay.features[objectCurrent].properties[column] = text;
+    if (text && !overlay.columns.includes(column)) {
+      overlay.columns.push(column);
+      for (const id of ["#couche-couleur", "#couche-etiquette", "#couche-etiquette2", "#couche-etiquette-carte", "#couche-filtre"]) {
+        $(id).append(new Option(column, column));
+      }
+    }
+    objectEdited();  // couleur ou étiquette selon le statut, tableau
+  }
+  $("#couche-parcours").addEventListener("toggle", showObjectTable);
+  $("#objets-recherche").addEventListener("input", showObjectTable);
+  $("#objet-statut").addEventListener("change", (event) => setObjectCheck("verif", event.target.value));
+  $("#objet-note").addEventListener("change", (event) => setObjectCheck("verif_note", event.target.value.trim()));
+  for (const [id, step] of [["#objet-precedent", -1], ["#objet-suivant", 1]]) $(id).addEventListener("click", () => {
+    const k = objectOrder.indexOf(objectCurrent);
+    goToObject(objectOrder[k < 0 ? 0 : k + step]);
+  });
+
   /** Couche en place (lue d'un fichier, ou gardée) : calcul, réglages, carte ; cadrée dessus si fit. */
   // mapLabel : colonne de l'étiquette de la mini-carte ; null : « id » (sans tenir compte de la casse), sinon la première
   function loadOverlay(name, read, color = "", label = "", fit = false, visible = true, colors = {}, masks = {}, mapLabel = null, label2 = "") {
-    overlay = { name, ...read, couleurs: colors, masques: masks };  // masques : { colonne: [clés de légende masquées] }
+    overlay = { name, ...read, couleurs: colors, masques: masks };
+    if (!overlay.filtre?.colonne || !read.columns.includes(overlay.filtre.colonne)) overlay.filtre = null;  // gardé (restoreOverlay)  // masques : { colonne: [clés de légende masquées] }
     moving = null;  // couleurs choisies : { colonne: { clé de légende: couleur } }
+    objectCurrent = null;
     $("#couche-visible").checked = visible;
     const n = app.set_overlay(JSON.stringify(read.features.map(({ id, geometry }) => ({ id, geometry }))));
     // Relevé (envoyé, ou réimporté) : colonnes techniques hors des listes, gardées dans les exports
@@ -2305,13 +2571,14 @@
     overlay.techniques = technical;
     mapLabel ??= choices.find((c) => c.toLowerCase() === "id") ?? choices[0] ?? "";
     for (const [id, value] of [["#couche-couleur", color], ["#couche-etiquette", label], ["#couche-etiquette2", label2],
-      ["#couche-etiquette-carte", mapLabel]]) {
-      $(id).replaceChildren(new Option(id === "#couche-couleur" ? "couleur unique" : "aucune", ""),
+      ["#couche-etiquette-carte", mapLabel], ["#couche-filtre", ""]]) {
+      $(id).replaceChildren(new Option(id === "#couche-couleur" ? "couleur unique" : id === "#couche-filtre" ? "aucun" : "aucune", ""),
         ...choices.map((c) => new Option(c, c)));
       $(id).value = choices.includes(value) ? value : "";
     }
     $("#couche-nom").textContent = name;
     showOverlayInfo();
+    showOverlayFilter();
     for (const id of ["#couche-accueil", "#couche-formats", "#couche-crs"]) $(id).hidden = true;
     $("#couche-reglages").hidden = false;
     $("#couche-retirer").disabled = false;
@@ -2330,35 +2597,58 @@
   }
 
   /** Couche et réglages gardés dans le navigateur ; faux si elle est trop grosse pour y tenir. */
+  // Couche gardée dans IndexedDB (clé « couche-texte » : centaines de Mo, localStorage plafonne vers 5 Mo) ; sans IndexedDB
+  // (navigation privée de certains navigateurs), dans localStorage. Écritures enchaînées : la dernière gagne.
+  // Promesse : vrai si la couche est gardée.
+  let overlaySaving = Promise.resolve(true);
+  const overlayWrite = (write, fallback) => {
+    overlaySaving = overlaySaving.then(() => fileStore("readwrite", write)).then(() => {
+      store.set("couche", "");  // ancienne place (versions d'avant IndexedDB) vidée
+      return true;
+    }, fallback);
+    return overlaySaving;
+  };
   function saveOverlay() {
-    if (!overlay) return true;
-    const { name, features, columns, crs, couleurs, masques, fiche } = overlay;
-    const text = JSON.stringify({ name, columns, crs, couleurs, masques, fiche, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
+    if (!overlay) return Promise.resolve(true);
+    const text = JSON.stringify(overlaySaved());
+    return overlayWrite((s) => s.put(text, "couche-texte"), () => store.set("couche", text));
+  }
+  /** Couche et ses réglages tels que gardés dans le navigateur (restoreOverlay, dossier de travail). */
+  function overlaySaved() {
+    const { name, features, columns, crs, couleurs, masques, fiche, filtre } = overlay;
+    return { name, columns, crs, couleurs, masques, fiche, filtre, couleur: $("#couche-couleur").value, etiquette: $("#couche-etiquette").value,
       intitule: $("#couche-intitule").checked, suffixe: $("#couche-suffixe").value, etiquetteCarte: $("#couche-etiquette-carte").value,
       etiquette2: $("#couche-etiquette2").value, intitule2: $("#couche-intitule2").checked, suffixe2: $("#couche-suffixe2").value,
       modifie: Boolean(overlay.modifie), dateFichier: overlay.dateFichier ?? null,
       visible: $("#couche-visible").checked,
       features: features.map(({ type, id, geometry, properties, recalages }) => ({ type, id, geometry, recalages,
-        properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) });
-    store.set("couche", text);
-    return store.get("couche") === text;
+        properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !k.startsWith("_"))) })) };
   }
 
-  /** Couche gardée de la session précédente, remise une fois le calcul prêt (voir le démarrage). */
-  function restoreOverlay() {
-    let saved = null;
-    try { saved = JSON.parse(store.get("couche") || "null"); } catch { /* illisible : aucune */ }
+  /** Couche gardée (overlaySaved) remise en place avec ses réglages ; fit : carte cadrée dessus. Faux sans objet. */
+  function applySavedOverlay(saved, fit = false) {
     $("#couche-intitule").checked = Boolean(saved?.intitule);
     $("#couche-suffixe").value = saved?.suffixe || "";
     $("#couche-intitule2").checked = Boolean(saved?.intitule2);
     $("#couche-suffixe2").value = saved?.suffixe2 || "";
-    if (!saved?.features?.length) return;
-    loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, false, saved.visible !== false,
+    if (!saved?.features?.length) return false;
+    loadOverlay(saved.name, saved, saved.couleur, saved.etiquette, fit, saved.visible !== false,
       saved.couleurs || {}, saved.masques || {}, saved.etiquetteCarte ?? null, saved.etiquette2 || "");
     setOverlayChanged(Boolean(saved.modifie));
-    const kept = overlay;  // fichier de la couche (Chrome, Edge), relu de façon asynchrone
+    return true;
+  }
+
+  /** Couche gardée de la session précédente, remise une fois le calcul prêt (voir le démarrage). */
+  async function restoreOverlay() {
+    const kept = await fileStore("readonly", (s) => s.get("couche-texte")).catch(() => null);
+    if (overlay) return;  // couche importée pendant la lecture : elle l'emporte
+    let saved = null;  // sinon, ancienne place (localStorage), reprise une fois dans IndexedDB
+    try { saved = JSON.parse(kept ?? (store.get("couche") || "null")); } catch { /* illisible : aucune */ }
+    if (!applySavedOverlay(saved)) return;
+    if (kept == null) saveOverlay();
+    const restored = overlay;  // fichier de la couche (Chrome, Edge), relu de façon asynchrone
     fileStore("readonly", (s) => s.get("couche")).then((handle) => {
-      if (overlay === kept && handle?.name === kept.name) kept.fichier = handle;
+      if (overlay === restored && handle?.name === restored.name) restored.fichier = handle;
     }).catch(() => null);
   }
 
@@ -2367,21 +2657,22 @@
     if (!window.showOpenFilePicker) return $("#couche-fichier").click();
     let handles;
     try {
-      handles = await window.showOpenFilePicker({ multiple: true, types: [{ description: "Couches (GeoJSON, Shapefile, GeoPackage)",
-        accept: { "application/octet-stream": [".geojson", ".json", ".zip", ".shp", ".dbf", ".prj", ".cpg", ".shx", ".gpkg"] } }] });
+      handles = await window.showOpenFilePicker({ multiple: true, types: [{ description: "Couches (GeoJSON, Shapefile, GeoPackage, CSV)",
+        accept: { "application/octet-stream": [".geojson", ".json", ".zip", ".shp", ".dbf", ".prj", ".cpg", ".shx", ".gpkg", ".csv", ".txt"] } }] });
     } catch (error) {
       if (error.name !== "AbortError") $("#couche-fichier").click();  // sélecteur refusé : champ de fichier
       return;
     }
-    importOverlay(await Promise.all(handles.map((h) => h.getFile())), handles);
+    importFiles(await Promise.all(handles.map((h) => h.getFile())), handles, importOverlay);
   });
   $("#mesures-importer").addEventListener("click", () => $("#couche-importer").click());  // même sélecteur de fichier
   $("#couche-fichier").addEventListener("change", (event) => {
     const files = [...event.target.files];
     event.target.value = "";
-    importOverlay(files);
+    importFiles(files, [], importOverlay);
   });
-  // Fichier glissé sur l'onglet Couche (avec son .dbf et son .prj pour un Shapefile)
+  // Fichier glissé sur l'onglet Couche (avec son .dbf et son .prj pour un Shapefile) : survol marqué ; le dépôt, lui,
+  // est reçu par la page entière (importFiles)
   const layerTab = $("#couche");
   layerTab.addEventListener("dragover", (event) => {
     if (!event.dataTransfer?.types.includes("Files")) return;
@@ -2391,13 +2682,61 @@
   layerTab.addEventListener("dragleave", (event) => {
     if (!layerTab.contains(event.relatedTarget)) layerTab.classList.remove("survol");
   });
-  layerTab.addEventListener("drop", async (event) => {
+
+  // Import commun : fichier choisi par n'importe quel bouton d'import, ou glissé n'importe où sur la page (sans quoi
+  // le navigateur l'ouvrirait à la place de la page), reconnu par son contenu et rangé à sa place : couche (GeoJSON,
+  // mesures exportées comprises ; Shapefile, GeoPackage, CSV), parcours, modèles de champs, calage, favoris.
+  // own(fichier, texte, données) : import du bouton utilisé, pour un fichier JSON non reconnu (son message d'erreur).
+  async function importFiles(files, handles = [], own = null) {
+    const json = files.filter((f) => /\.(geo)?json$/i.test(f.name)), layer = files.filter((f) => !json.includes(f));
+    if (layer.length) await importOverlay(layer, handles);
+    for (const file of json) {
+      const text = await file.text();
+      let data = null;
+      try { data = JSON.parse(text); } catch { /* illisible : non reconnu */ }
+      const kind = jsonKind(data);
+      if (kind === "couche") await importOverlay([file], handles.filter((h) => h.name === file.name));
+      else if (kind === "parcours") importRoutes(data);
+      else if (kind === "modeles") importModels(data, file.name);
+      else if (kind === "calage") importCalibration(text);
+      else if (kind === "favoris") importFavorites(data);
+      else if (kind === "dossier") await importFolder(data, file.name);
+      else if (own && own !== importOverlay) own(data, file.name, text);
+      else if (own) await importOverlay([file]);  // couche : l'erreur de lecture du GeoJSON
+      else notice(`« ${file.name} » : fichier non reconnu (ni couche ni mesures, ni favoris, parcours, calage ou modèles de champs).`);
+    }
+  }
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  /** Sorte d'un fichier JSON lu, d'après son contenu : « couche », « dossier », « parcours », « modeles », « calage », « favoris » ou "". */
+  function jsonKind(d) {
+    if (d?.type === "FeatureCollection" || d?.type === "Feature") return "couche";
+    if (d?.format === DOSSIER_FORMAT) return "dossier";
+    if (d?.format === "parcours-panoramax" || (d && !Array.isArray(d) && d.travel)
+      || (Array.isArray(d) && d.length && d.every((r) => r?.travel))) return "parcours";
+    if (d?.format === MODELES_FORMAT) return "modeles";
+    if (d?.format === 1 && d.verticals) return "calage";  // App.calibration_json (Calibration.FORMAT)
+    if (Array.isArray(d) && d.length && d.every((f) => UUID.test(f?.id))) return "favoris";
+    return "";
+  }
+  /** Champ de fichier d'un bouton d'import : fichiers choisis vers l'import commun, own pour un JSON non reconnu. */
+  function fileInput(id, own) {
+    $(id).addEventListener("change", (event) => {
+      const files = [...event.target.files];
+      event.target.value = "";
+      if (files.length) importFiles(files, [], own);
+    });
+  }
+  document.addEventListener("dragover", (event) => {
+    if (event.dataTransfer?.types.includes("Files")) event.preventDefault();
+  });
+  document.addEventListener("drop", async (event) => {
+    if (!event.dataTransfer?.files.length) return;
     event.preventDefault();
     layerTab.classList.remove("survol");
     const files = [...event.dataTransfer.files];
     // Poignées demandées pendant l'événement (Chrome, Edge), lues ensuite
     const asked = [...event.dataTransfer.items].map((item) => item.getAsFileSystemHandle?.());
-    importOverlay(files, (await Promise.all(asked.map((p) => p?.catch(() => null)))).filter(Boolean));
+    importFiles(files, (await Promise.all(asked.map((p) => p?.catch(() => null)))).filter(Boolean));
   });
 
   /** Couche lue des fichiers choisis ou glissés, remplaçant celle en place ; handles : leurs poignées (Chrome,
@@ -2416,7 +2755,7 @@
       const n = loadOverlay(name, read, "", label, true, true, {}, {}, label || null);
       setOverlayFile(handles.length === 1 && /\.(geo)?json$/i.test(handles[0].name) ? handles[0] : null, files[0].lastModified);
       setOverlayChanged(false);
-      const kept = saveOverlay();
+      const kept = await saveOverlay();
       setStatus(`Couche « ${name} » importée : ${n} partie${n > 1 ? "s" : ""} d'objets.`
         + (kept ? "" : " Trop grosse pour être gardée dans le navigateur : à réimporter à la prochaine ouverture.")
         + (review >= 0 ? " Cliquez une mesure sur la carte pour la revoir sur sa photo." : ""));
@@ -2442,7 +2781,7 @@
     saveOverlay();
   });
   const overlayProperties = (f) => Object.fromEntries(Object.entries(f.properties).filter(([k]) => !k.startsWith("_")));
-  const overlayBaseName = () => overlay.name.replace(/\.(geojson|json|zip|shp|gpkg)\b.*$/i, "").replace(/[\\/:*?"<>|]/g, "-");
+  const overlayBaseName = () => overlay.name.replace(/\.(geojson|json|zip|shp|gpkg|csv|txt)\b.*$/i, "").replace(/[\\/:*?"<>|]/g, "-");
   /** La couche en GeoJSON (WGS 84), recalages dans les photos compris. */
   const overlayGeojson = () => JSON.stringify({ type: "FeatureCollection",
     features: overlay.features.map((f) => ({ type: "Feature", geometry: f.geometry, recalages: f.recalages, properties: overlayProperties(f) })) });
@@ -2564,7 +2903,11 @@
   $("#couche-retirer").addEventListener("click", () => {
     overlay = null;
     moving = null;
-    store.set("couche", "");
+    objectCurrent = null;
+    objectOrder = [];
+    setAddingObject(false);
+    showObjectState();
+    overlayWrite((s) => s.delete("couche-texte"), () => store.set("couche", ""));
     app?.set_overlay("[]");
     Carte.showOverlay(map, null);
     $("#couche-reglages").hidden = true;
@@ -2580,12 +2923,9 @@
   });
 
   $("#favoris-importer").addEventListener("click", () => $("#favoris-fichier").click());
-  $("#favoris-fichier").addEventListener("change", async (event) => {
-    const file = event.target.files[0];
-    event.target.value = "";
-    if (!file) return;
-    let read;
-    try { read = JSON.parse(await file.text()); } catch { read = null; }
+  fileInput("#favoris-fichier", importFavorites);
+  /** Favoris lus d'un fichier (JSON [{ id, name }]), ajoutés à ceux gardés. */
+  function importFavorites(read) {
     if (!Array.isArray(read)) return notice("Fichier de favoris illisible.");
     const known = new Set(favorites().map((f) => f.id));
     const added = read  // fichier venu d'ailleurs : seulement des identifiants de photo et des noms courts
@@ -2596,7 +2936,7 @@
     showFavorites();
     notice(added.length ? `${added.length} favori${added.length > 1 ? "s" : ""} importé${added.length > 1 ? "s" : ""}.`
       : "Favoris importés : rien de nouveau.");
-  });
+  }
 
   async function addFavorite() {
     const feature = photo;
@@ -2803,11 +3143,13 @@
           const id = event.data?.target?.closest?.("[data-objet]")?.dataset.objet;
           if (id !== undefined) {  // clic droit : sa fiche PDF ; clic : à recaler
             if (event.data.rightclick) askFiche({ objet: Number(id) });
+            else if (movingId() === Number(id)) endMoving();  // déjà choisi : second clic, désélectionné
             else moveOverlayObject(Number(id));
             return true;
           }
-          if (movingId() !== null && !event.data?.rightclick) {
+          if (movingId() !== null && !event.data?.rightclick) {  // posé : recalage fini, le clic suivant ne le bouge plus
             placeOverlayObject(event.data.yaw, event.data.pitch);
+            endMoving();
             return true;
           }
         }
@@ -3563,9 +3905,14 @@
       button.setAttribute("aria-pressed", String(button.dataset.cote === which));
     }
     if (which) {
-      setStatus(`Parcours : cliquez sur la mini-carte ${{ start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau", stop: "l'endroit de l'arrêt", slow: "un point de ralentissement", waypoint: "une étape (sur une route photographiée)", planet: planetDraft ? "la fin de la petite planète" : "le début de la petite planète (le long de la route)", tour: "l'endroit du tour d'horizon",
-        poiZone: poi.draft ? "la fin de la zone de l'effet" : "le début de la zone de l'effet (le long de la route)" }[which]} ; `
-        + "Échap pour annuler.");
+      const target = {
+        start: "le départ", end: "l'arrivée", roll: "l'endroit du tonneau", stop: "l'endroit de l'arrêt",
+        slow: "un point de ralentissement", waypoint: "une étape (sur une route photographiée)",
+        planet: planetDraft ? "la fin de la petite planète" : "le début de la petite planète (le long de la route)",
+        tour: "l'endroit du tour d'horizon",
+        poiZone: poi.draft ? "la fin de la zone de l'effet" : "le début de la zone de l'effet (le long de la route)",
+      }[which];
+      setStatus(`Parcours : cliquez sur la mini-carte ${target} ; Échap pour annuler.`);
     }
   }
   const placedCount = (kind) => `${kind.points.length || "aucun"} ${kind.label[kind.points.length > 1 ? 1 : 0]}`;
@@ -4149,20 +4496,17 @@
     setStatus(k >= 0 ? `Parcours « ${route.name} » mis à jour avec ses réglages (onglet Parcours).`
       : `Parcours « ${route.name} » gardé avec ses réglages (onglet Parcours).`);
   }
-  $("#mes-parcours-exporter").addEventListener("click", () => download(routeFile(savedRoutes()), "parcours-panoramax.json",
-    "application/json"));
+  $("#mes-parcours-exporter").addEventListener("click", async () => download(routeFile(savedRoutes()),
+    await exportName("parcours", "json"), "application/json"));
   $("#mes-parcours-importer").addEventListener("click", () => $("#mes-parcours-fichier").click());
-  $("#mes-parcours-fichier").addEventListener("change", async (event) => {
-    const file = event.target.files[0];
-    event.target.value = "";
-    if (!file) return;
-    let read;
-    try { read = JSON.parse(await file.text()); } catch { read = null; }
+  fileInput("#mes-parcours-fichier", importRoutes);
+  /** Parcours lus d'un fichier (un seul, ou { parcours: [...] }), ajoutés à ceux gardés. */
+  function importRoutes(read) {
     const list = (Array.isArray(read) ? read : Array.isArray(read?.parcours) ? read.parcours : [read]).map(cleanRoute).filter(Boolean);
     if (!list.length) return notice("Fichier de parcours illisible.");
     setSavedRoutes([...savedRoutes(), ...list]);
     notice(`${list.length} parcours importé${list.length > 1 ? "s" : ""}.`);
-  });
+  }
   showSavedRoutes();
   /** Altitudes du sol (LiDAR HD, sinon RGE ALTI ; null si inconnue) aux points [lon, lat], par lots de 150. */
   async function groundAltitudes(points, fallback = true, progress = () => {}) {
@@ -4357,7 +4701,9 @@
           const li = document.createElement("li");
           li.append(see, ` ${where} : ${seam.before} puis ${seam.after}`);
           list.append(li);
-          seamMarkers.push(new maplibregl.Marker({ element: Object.assign(document.createElement("div"), { className: "repere-requete raccord", title: `Changement de séquence : ${seam.before} puis ${seam.after}` }), anchor: "bottom" }).setLngLat(seam.at).addTo(map));
+          const element = Object.assign(document.createElement("div"), { className: "repere-requete raccord",
+            title: `Changement de séquence : ${seam.before} puis ${seam.after}` });
+          seamMarkers.push(new maplibregl.Marker({ element, anchor: "bottom" }).setLngLat(seam.at).addTo(map));
         }
         box.replaceChildren(strong(`${sequences} séquences : ${seams.length} changement${seams.length > 1 ? "s" : ""}`), facts, list,
           Object.assign(document.createElement("p"), { className: "aide", textContent: "Les photos peuvent différer (date, lumière, sens de prise de vue)." }));
@@ -4431,7 +4777,9 @@
         $("#video-barre").value = done / total;
         setStatus(text, "avancement");
         $("#statut").style.setProperty("--avancement", `${(100 * done / total).toFixed(1)}%`);
-      }, videoRun.signal, { blur: videoOption("#video-flou"), draft: $("#video-brouillon").checked, stabilize: videoOption("#video-stabilisation"), format: $("#video-codec").value, height: Number($("#video-definition").value), exposure: videoOption("#video-expo"),
+      }, videoRun.signal, {
+        blur: videoOption("#video-flou"), draft: $("#video-brouillon").checked, stabilize: videoOption("#video-stabilisation"),
+        format: $("#video-codec").value, height: Number($("#video-definition").value), exposure: videoOption("#video-expo"),
         ramp: !presOptions() && $("#video-rampe").checked, presentation: presOptions(),
         counter: videoOption("#video-compteur"), speedometer: $("#video-compteur-vitesse").checked, lateral: videoOption("#video-acceleration"), arpSpeed: videoOption("#video-vmax-arp"),
         junctions: videoOption("#video-regard") ? videoPlan.junctions || [] : [],
@@ -4825,7 +5173,7 @@
     // Largeur, hauteur, mesure libre : trait vertical au centre de la vue, le cap tracé sur la
     // carte ; la vue tournée vers le point à viser (take_aim_frame), il le désigne (ticket #26)
     $("#axe-vue").hidden = !measuring || !["road", "height", "tri", "releve"].includes(mode) || viewer.hidden;
-    $("#croix-cadastre").hidden = !$("#cadastre").checked || viewer.hidden;
+    $("#croix-cadastre").hidden = !$("#cadastre").checked || !$("#cadastre-visionneuse").checked || viewer.hidden;
     // Même état en toutes lettres, sous le rappel du mode (comme les voyants)
     // Carte d'étape (en bas, en mesure) : nom de la mesure et ses étapes, la courante en couleur
     $("#vue").classList.toggle("en-mesure", measuring);
@@ -4914,7 +5262,7 @@
   function showParcelMark() {
     const markers = psv?.getPlugin?.("markers");
     if (!markers) return;
-    const id = `${MARK}parcelle`, parcel = parcelReady ? Carte.aimedParcel() : null;
+    const id = `${MARK}parcelle`, parcel = parcelReady && $("#cadastre-visionneuse").checked ? Carte.aimedParcel() : null;
     const at = parcel && app ? JSON.parse(app.view_point(parcel.at[0], parcel.at[1], PARCEL_LABEL_UP)) : null;
     let shown = null;
     try { shown = markers.getMarker(id); } catch { /* pas encore posée */ }
@@ -4998,10 +5346,10 @@
     if (overlay && app && $("#couche-visible").checked) {
       let points = 0, n = 0, rank = 0;
       overlayAt.clear();
-      const masked = overlayMasked();
+      const hidden = overlayHiddenTest();
       for (const o of JSON.parse(app.overlay_marks())) {
         const p = overlay.features[o.id]?.properties || {};
-        if (masked.has(p._cle)) continue;  // valeur masquée dans la légende
+        if (hidden(overlay.features[o.id])) continue;  // valeur masquée dans la légende, ou hors du filtre
         const color = p._couleur || "#66cc66";
         const chosen = o.id === movingId() ? " choisie" : "";
         const anchorOf = (pts) => (o.kind === "point" ? { yaw: pts[0][0], pitch: pts[0][1] }
@@ -5368,13 +5716,13 @@
 
   $("#csv").addEventListener("click", async () => {
     const geojson = app.export_geojson();
-    if (await download("\ufeff" + app.export_csv(), "mesures.csv", "text/csv")) exported = geojson;
+    if (await download("\ufeff" + app.export_csv(), await exportName("mesures", "csv", true), "text/csv")) exported = geojson;
     saveResults();
     showResultsInfo();
   });
   $("#geojson").addEventListener("click", async () => {
     const geojson = app.export_geojson();
-    if (await download(geojson, "mesures.geojson", "application/geo+json")) exported = geojson;
+    if (await download(geojson, await exportName("mesures", "geojson", true), "application/geo+json")) exported = geojson;
     saveResults();
     showResultsInfo();
   });
@@ -5418,7 +5766,7 @@
     }, { once: true });
     showOverViewer(dialog);
   });
-  function sendReleve() {
+  async function sendReleve() {
     const data = JSON.parse(app.export_geojson(true));
     for (const f of data.features) {  // altitude du point visé : l'objet y est dessiné dans la photo
       if (typeof f.properties.z_ngf === "number") f.geometry.coordinates.push(f.properties.z_ngf);
@@ -5427,7 +5775,7 @@
     const n = loadOverlay(name, Couche.read(JSON.stringify(data)), "", "", true);
     setOverlayFile(null);
     setOverlayChanged(true);  // dans aucun fichier encore
-    const kept = saveOverlay();
+    const kept = await saveOverlay();
     showPane("couche");
     refresh();
     setStatus(`${name} envoyé dans Couche : ${n} objet${n > 1 ? "s" : ""}.`
@@ -5612,23 +5960,21 @@
     }, { once: true });
     dialog.showModal();
   });
-  $("#releve-modeles-exporter").addEventListener("click", () => download(
-    JSON.stringify({ format: MODELES_FORMAT, modeles: releveModels() }, null, 2), "modeles-releve.json", "application/json"));
+  $("#releve-modeles-exporter").addEventListener("click", async () => download(
+    JSON.stringify({ format: MODELES_FORMAT, modeles: releveModels() }, null, 2), await exportName("modeles-releve", "json"), "application/json"));
   $("#releve-modeles-importer").addEventListener("click", () => $("#releve-modeles-fichier").click());
-  $("#releve-modeles-fichier").addEventListener("change", async (event) => {
-    const [file] = event.target.files;
-    event.target.value = "";
-    if (!file) return;
-    let found = [];
-    try { found = readModels(JSON.parse(await file.text())); } catch { /* pas du JSON */ }
+  fileInput("#releve-modeles-fichier", importModels);
+  /** Modèles de champs lus d'un fichier (name : son nom), remplaçant ceux de même nom. */
+  function importModels(data, name) {
+    const found = readModels(data);
     const error = $("#releve-erreur");
-    error.textContent = found.length ? "" : `« ${file.name} » ne contient aucun modèle de champs lisible.`;
+    error.textContent = found.length ? "" : `« ${name} » ne contient aucun modèle de champs lisible.`;
     error.hidden = Boolean(found.length);
     if (!found.length) return;
     const names = new Set(found.map((m) => m.nom));
     setReleveModels([...releveModels().filter((m) => !names.has(m.nom)), ...found]);
-    setStatus(`${found.length} modèle${found.length > 1 ? "s" : ""} importé${found.length > 1 ? "s" : ""} de « ${file.name} ».`);
-  });
+    setStatus(`${found.length} modèle${found.length > 1 ? "s" : ""} importé${found.length > 1 ? "s" : ""} de « ${name} ».`);
+  }
 
   /** Champs de l'objet relevé n° k (null : le dernier gardé) ; fresh : objet tout juste gardé, le
    * lieu (voie, PR, commune) lu en même temps. Au premier objet du relevé, définition des champs. */
@@ -5724,44 +6070,133 @@
     try { previous = JSON.parse(store.get("resultats") || "null"); } catch { /* illisible : aucun */ }
     store.set("resultats", "");
     store.set("resultats-precedents", "");  // ancienne clé (versions du 24/10/2026)
-    if (previous && previous.n && !previous.exported) {
-      // En lecture seule : liste (tirée de l'export GeoJSON, comme en mesure libre où les points et
-      // distances sont hors de la liste) et dessin gris sur la carte
-      const num = (v) => (v == null ? "?" : Number(v).toLocaleString("fr-FR", { maximumFractionDigits: 2 }));
-      const geojson = JSON.parse(previous.geojson);
-      $("#precedents ol").replaceChildren(...geojson.features.map(({ properties: p }) => {
-        const text = p.type === "point triangulé" ? `Point ${p.nom} ±${num(p.incert_m)} m`
-          : p.type.startsWith("distance") ? `${p.points} ${num(p.valeur_m)} m ± ${num(p.incert_m)} m`
-          : `${p.type[0].toUpperCase()}${p.type.slice(1)} : ${num(p.valeur_m)} m ± ${num(p.incert_m)} m`;
-        return Object.assign(document.createElement("li"), { textContent: text + (p.commentaire ? ` — ${p.commentaire}` : "") });
-      }));
-      Carte.showPrevious(map, geojson);
-      const when = new Date(previous.when);
-      $("#precedents summary").textContent = `${previous.n} résultat${previous.n > 1 ? "s" : ""} de la session du ${
-        when.toLocaleDateString("fr-FR")} à ${when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-      }, non exporté${previous.n > 1 ? "s" : ""}`;
-      $("#precedents").hidden = false;
-      $("#precedents-csv").addEventListener("click", () => download("\ufeff" + previous.csv, "mesures-precedentes.csv", "text/csv"));
-      $("#precedents-geojson").addEventListener("click", () => download(previous.geojson, "mesures-precedentes.geojson",
-        "application/geo+json"));
-      $("#precedents-oublier").addEventListener("click", () => {
-        $("#precedents").hidden = true;
-        Carte.showPrevious(map, null);
-      });
-    }
+    if (previous && previous.n && !previous.exported) showPrevious(previous, (when) => `de la session du ${
+      when.toLocaleDateString("fr-FR")} à ${when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}, non exporté${previous.n > 1 ? "s" : ""}`);
   }
-  $("#calage-exporter").addEventListener("click", () => download(app.calibration_json(), "calage-panoramax.json",
+  /** Résultats en lecture seule ({ when, n, csv, geojson }) : liste (tirée de l'export GeoJSON, comme en mesure libre
+   * où les points et distances sont hors de la liste), dessin gris sur la carte, exports ; origin(date) : leur origine. */
+  function showPrevious(previous, origin) {
+    const num = (v) => (v == null ? "?" : Number(v).toLocaleString("fr-FR", { maximumFractionDigits: 2 }));
+    const geojson = JSON.parse(previous.geojson);
+    $("#precedents ol").replaceChildren(...geojson.features.map(({ properties: p }) => {
+      const text = p.type === "point triangulé" ? `Point ${p.nom} ±${num(p.incert_m)} m`
+        : p.type.startsWith("distance") ? `${p.points} ${num(p.valeur_m)} m ± ${num(p.incert_m)} m`
+        : `${p.type[0].toUpperCase()}${p.type.slice(1)} : ${num(p.valeur_m)} m ± ${num(p.incert_m)} m`;
+      return Object.assign(document.createElement("li"), { textContent: text + (p.commentaire ? ` — ${p.commentaire}` : "") });
+    }));
+    Carte.showPrevious(map, geojson);
+    $("#precedents summary").textContent = `${previous.n} résultat${previous.n > 1 ? "s" : ""} ${origin(new Date(previous.when))}`;
+    $("#precedents").hidden = false;
+    // onclick : un seul gestionnaire, remplacé quand d'autres résultats viennent (dossier de travail)
+    $("#precedents-csv").onclick = async () => download("\ufeff" + previous.csv, await exportName("mesures-precedentes", "csv"), "text/csv");
+    $("#precedents-geojson").onclick = async () => download(previous.geojson, await exportName("mesures-precedentes", "geojson"),
+      "application/geo+json");
+    $("#precedents-oublier").onclick = () => {
+      $("#precedents").hidden = true;
+      Carte.showPrevious(map, null);
+    };
+  }
+  // Dossier de travail : tout ce qui est gardé dans ce navigateur en un fichier (couche et réglages, relevé, calage,
+  // parcours, favoris, modèles de champs, photo ouverte), pour passer la main ou sauvegarder la séance. Sans les mesures :
+  // reprises en lecture seule, elles n'avaient pas de sens (second bord d'une largeur affiché seul, 15/11/2026) ; à y
+  // mettre avec leur reprise modifiable (pour plus tard, docs/analyses/pistes-partage.md). Réglages personnels non repris.
+  const DOSSIER_FORMAT = "web-measures/dossier";
+  const releveCount = () => JSON.parse(app.releve_json()).points.length;
+  const calibrationCount = (c) => ["verticals", "landmarks", "heights", "auto"].reduce((t, k) => t + Object.keys(c?.[k] || {}).length, 0);
+  /** « Exporter le dossier » grisé tant qu'il n'y a rien à y mettre (à l'ouverture des réglages, et après un import). */
+  function showFolderExport() {
+    $("#dossier-exporter").disabled = !app || !(overlay || releveCount()
+      || calibrationCount(JSON.parse(app.calibration_json())) || savedRoutes().length || favorites().length || releveModels().length);
+  }
+  /** Dossier de travail (objet du fichier) : seules les parties non vides. */
+  function workFolder() {
+    const calibration = JSON.parse(app.calibration_json());
+    return { format: DOSSIER_FORMAT, version: 1, date: new Date().toISOString(),
+      ...(overlay && { couche: overlaySaved() }),
+      ...(releveCount() && { releve: { objets: JSON.parse(app.releve_json()), champs: releveFields() } }),
+      ...(calibrationCount(calibration) && { calage: calibration }),
+      ...(savedRoutes().length && { parcours: savedRoutes() }),
+      ...(favorites().length && { favoris: favorites() }),
+      ...(releveModels().length && { modeles: releveModels() }),
+      ...(photo && { photo: photo.id }) };
+  }
+  $("#dossier-exporter").addEventListener("click", async () => {
+    if (await download(JSON.stringify(workFolder()), await exportName("dossier", "json", true), "application/json")) {
+      setStatus("Dossier de travail exporté : à importer sur un autre poste (Réglages, ou glissé sur la page).");
+    }
+  });
+  $("#dossier-importer").addEventListener("click", () => $("#dossier-fichier").click());
+  fileInput("#dossier-fichier", (data, name) => notice(`« ${name} » n'est pas un dossier de travail.`));
+
+  /** Dossier de travail lu (name : nom du fichier) : une case par partie, avec ce qu'elle fera ; ce qui remplacerait
+   * du travail en cours (couche, relevé) décoché par défaut ; parties cochées reprises. */
+  async function importFolder(d, name) {
+    const n = (k, one, many = `${one}s`) => `${k} ${k > 1 ? many : one}`;
+    const releveNow = releveCount();
+    const parts = [
+      d.couche?.features?.length && { key: "couche", checked: !overlay, text: `Couche « ${d.couche.name} » (${n(d.couche.features.length, "objet")})`,
+        help: overlay ? `remplacera votre couche « ${overlay.name} »` : "deviendra votre couche",
+        apply: () => {
+          applySavedOverlay(d.couche, true);
+          setOverlayFile(null);
+          setOverlayChanged(true);  // dans aucun fichier de ce poste
+          saveOverlay();
+        } },
+      d.releve?.objets?.points?.length && { key: "releve", checked: !releveNow, text: `Relevé (${n(d.releve.objets.points.length, "objet")})`,
+        help: releveNow ? `remplacera votre relevé (${n(releveNow, "objet")})` : "deviendra votre relevé",
+        apply: () => {
+          refresh(app.clear_releve());
+          store.set("releve-champs", JSON.stringify(d.releve.champs || []));
+          refresh(app.load_releve(JSON.stringify(d.releve.objets)));
+        } },
+      calibrationCount(d.calage) && { key: "calage", checked: true, text: `Calage (${n(calibrationCount(d.calage), "photo ou séquence", "photos ou séquences")})`,
+        help: "complétera le vôtre", apply: () => importCalibration(JSON.stringify(d.calage)) },
+      d.parcours?.length && { key: "parcours", checked: true, text: n(d.parcours.length, "parcours", "parcours"),
+        help: "ajoutés aux vôtres", apply: () => importRoutes({ parcours: d.parcours }) },
+      d.favoris?.length && { key: "favoris", checked: true, text: n(d.favoris.length, "favori"),
+        help: "ajoutés aux vôtres", apply: () => importFavorites(d.favoris) },
+      d.modeles?.length && { key: "modeles", checked: true, text: n(d.modeles.length, "modèle de champs", "modèles de champs"),
+        help: "ajoutés aux vôtres (même nom : remplacé)", apply: () => importModels({ format: MODELES_FORMAT, modeles: d.modeles }, name) },
+      // mesures d'un dossier exporté avant le 15/11/2026 au soir : ignorées (voir plus haut)
+      d.photo && UUID.test(d.photo) && { key: "photo", checked: true, text: "Photo ouverte dans le dossier", help: "rouverte",
+        apply: () => goToPhoto(d.photo) },
+    ].filter(Boolean);
+    if (!parts.length) return notice(`Dossier « ${name} » vide : rien à reprendre.`);
+    const dialog = $("#importer-dossier");
+    const when = new Date(d.date);
+    dialog.querySelector("p").textContent = `« ${name} »${Number.isNaN(when.getTime()) ? "" : `, du ${when.toLocaleDateString("fr-FR")}`}. Parties à reprendre :`;
+    dialog.querySelector("ul").replaceChildren(...parts.map((part) => {
+      const li = document.createElement("li"), label = document.createElement("label");
+      const box = Object.assign(document.createElement("input"), { type: "checkbox", checked: part.checked, value: part.key });
+      const text = Object.assign(document.createElement("span"), { textContent: part.text });
+      text.append(Object.assign(document.createElement("span"), { className: "aide", textContent: part.help }));
+      label.append(box, text);
+      li.append(label);
+      return li;
+    }));
+    dialog.returnValue = "";
+    const chosen = await new Promise((resolve) => {
+      dialog.addEventListener("close", () => resolve(dialog.returnValue === "importer"
+        ? [...dialog.querySelectorAll("input:checked")].map((b) => b.value) : []), { once: true });
+      showOverViewer(dialog);
+    });
+    const done = parts.filter((p) => chosen.includes(p.key));
+    for (const part of done) part.apply();
+    showFolderExport();
+    if (done.length) setStatus(`Dossier « ${name} » repris : ${done.map((p) => p.text.replace(/ \(.*\)$/, "")).join(", ")}.`);
+  }
+
+  $("#calage-exporter").addEventListener("click", async () => download(app.calibration_json(), await exportName("calage", "json"),
     "application/json"));
   $("#calage-importer").addEventListener("click", () => $("#calage-fichier").click());
-  $("#calage-fichier").addEventListener("change", async (event) => {
-    const file = event.target.files[0];
-    event.target.value = "";
-    if (!file) return;
-    const added = app.merge_calibration(await file.text());
+  fileInput("#calage-fichier", (data, name, text) => importCalibration(text));
+  /** Calage lu d'un fichier (texte JSON), complétant celui en mémoire. */
+  function importCalibration(text) {
+    const added = app.merge_calibration(text);
     refresh(added < 0 ? "Fichier de calage illisible." : added === 0
       ? "Calage importé : rien de nouveau (photos et séquences déjà calées)."
       : `Calage importé pour ${added} photo${added > 1 ? "s" : ""} ou séquence${added > 1 ? "s" : ""}.`);
-  });
+  }
 
   /**
    * Fichier name à enregistrer : boîte d'enregistrement du système (Chrome, Edge), à demander dès le
@@ -5819,6 +6254,15 @@
   }
 
   /** Contenu enregistré dans le fichier name (saveAs) ; faux si l'utilisateur a renoncé. */
+  /** Nom d'un fichier exporté : sorte, route et PR de la photo affichée (place, s'ils sont lus en 0,5 s), date du jour ;
+   * « mesures D974 PR12 2026-11-15.csv ». */
+  async function exportName(kind, ext, place = false) {
+    const timeout = new Promise((resolve) => setTimeout(resolve, 500));  // le geste qui autorise l'enregistrement dure 5 s
+    const parts = place && photo ? (await Promise.race([Lieu.describe(...photo.geometry.coordinates.slice(0, 2), photo), timeout])
+      .catch(() => null))?.parts : null;
+    const date = new Date().toLocaleDateString("sv-SE");  // AAAA-MM-JJ, à l'heure locale
+    return `${[kind, parts?.voie, parts?.pr, date].filter(Boolean).join(" ").replace(/[\\/:*?"<>|]/g, "-")}.${ext}`;
+  }
   async function download(content, name, type) {
     const save = await saveAs(name, type);
     if (save) await save(content);
@@ -5897,7 +6341,8 @@
   // part, imprimée par le navigateur (« Enregistrer au format PDF »).
   const FICHE_PHOTO = { width: 698, height: 356 }, FICHE_MAP = { width: 230, height: 300 };
   // Polices de la page (Inter, JetBrains Mono), pour la fenêtre de la fiche, document à part
-  const FICHE_FONTS = '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/latin-400.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/latin-500.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.3.0/latin-700.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.3.0/latin-400.css">';
+  const FICHE_FONTS = ["inter@5.3.0/latin-400", "inter@5.3.0/latin-500", "inter@5.3.0/latin-700", "jetbrains-mono@5.3.0/latin-400"]
+    .map((font) => `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/${font}.css">`).join("");
   const FICHE_UNZOOM = 10;  // largeur : niveaux de zoom ôtés après le cadrage, 2 crans de molette (5 chacun)
 
   /** Image (data: JPEG) d'une zone du canevas source au rapport largeur / hauteur aspect, de size px de
@@ -6159,7 +6604,7 @@
   /** Objets retenus pour les fiches de tous les objets : cochés sauf ceux masqués dans la légende ; boutons de la
    * fenêtre grisés sans objet retenu. */
   function showFicheObjects() {
-    const ol = $("#fiche-objets"), masked = overlayMasked();
+    const ol = $("#fiche-objets"), hidden = overlayHiddenTest();
     const buttons = $("#choix-fiche").querySelectorAll(".vue-actuelle, .cadrage-auto");
     const count = () => {
       const on = ol.querySelectorAll("input:checked").length;
@@ -6170,7 +6615,7 @@
     };
     ol.replaceChildren(...overlay.features.map((f, id) => {
       const li = document.createElement("li"), label = document.createElement("label");
-      const box = Object.assign(document.createElement("input"), { type: "checkbox", value: id, checked: !masked.has(f.properties._cle) });
+      const box = Object.assign(document.createElement("input"), { type: "checkbox", value: id, checked: !hidden(f) });
       box.addEventListener("change", count);
       const name = overlayObjectName(id);  // rang affiché quand le nom ne le donne pas (plage « Du … au … »)
       label.append(box, name === String(id + 1) ? `Objet ${name}` : `${id + 1}. Objet ${name}`);
@@ -6452,7 +6897,7 @@ footer a { color: #1a56c4; word-break: break-all; } .mono { font-family: "JetBra
 <div><h2>Méthode et précision</h2><ul>${lines}</ul></div></div>
 <figure>${mapImage ? `<img src="${mapImage}" alt="Mini-carte : ${data.attributes ? "objet" : "point"} ${e(data.name)}${data.attributes ? "" : " et ses mesures"}">` : "<div class='carte-vide'>Mini-carte indisponible (carte repliée, ou fond illisible)</div>"}
 <figcaption>Fond de carte ${e(background)}</figcaption></figure></section>
-<footer><div class="pied"><div>Photo <span class="mono">${e(data.photo || "")}</span> · ${e(app.caption(0))} · instance ${e(api)}</div>
+<footer><div class="pied"><div>Photo <span class="mono">${e(data.photo || "")}</span> · ${e(app.caption())} · instance ${e(api)}</div>
 <a href="${e(link)}">${e(link)}</a></div>
 ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</footer>
 </div></body></html>`;
@@ -6535,10 +6980,10 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
     // Couche importée affichée, sous tout le reste : traits et pastilles de sa couleur, puis ses
     // étiquettes visibles, prises à l'écran (écartées, masquées : comme dans la visionneuse)
     if (overlay && app && $("#couche-visible").checked) {
-      const masked = overlayMasked();
+      const hidden = overlayHiddenTest();
       for (const o of JSON.parse(app.overlay_marks())) {
         const f = overlay.features[o.id];
-        if (masked.has(f?.properties._cle)) continue;  // valeur masquée dans la légende
+        if (hidden(f)) continue;  // valeur masquée dans la légende, ou hors du filtre
         const { kind, pts: views } = overlayPoints(o);  // comme dans la visionneuse (drawViewerMarks)
         const color = f?.properties._couleur || "#66cc66", pts = views.map(screen);
         ctx.save();
@@ -6584,7 +7029,7 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
     // Mesures : la surcouche WebGL de la visionneuse (traits, croix, étiquettes), telle qu'affichée
     const layer = Traits.snapshot();
     if (layer?.width) ctx.drawImage(layer, 0, 0, canvas.width, canvas.height);
-    const caption = app ? app.caption(psv.getPosition().yaw) : "Panoramax";
+    const caption = app ? app.caption() : "Panoramax";
     drawCartouches(ctx, canvas, 13 * scale, caption, placeText());  // taille de l'étiquette de la visionneuse
     return canvas;
   }
@@ -6603,5 +7048,6 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
 
   // Pour les essais depuis la console : window.mesures.app.click(yaw, pitch)
   window.mesures = { refresh, get app() { return app; }, get psv() { return psv; }, get videoPlan() { return videoPlan; }, get touring() { return Boolean(tour); }, map, openPhoto, buildFiche, paginateFiche, photoAtOffset, importOverlay, thumbnail,
-    overlayFile: (handle) => { overlay.fichier = handle; } };  // fichier de la couche remplacé (essais)
+    overlayFile: (handle) => { overlay.fichier = handle; },  // fichier de la couche remplacé (essais)
+    savedOverlay: async () => { await overlaySaving; return JSON.parse(await fileStore("readonly", (s) => s.get("couche-texte")) ?? "null"); } };  // couche gardée (essais)
 })();
