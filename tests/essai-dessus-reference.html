@@ -125,7 +125,7 @@ async function open(id, enough = () => false) {
       button.click();
       await expect(`${name} : messages repliés puis rouverts par leur bouton`, folded && !label.classList.contains("replie") && label.textContent.length > 0);
     }
-    // Capture de la carte (bouton 📷) : vue Bird Eye et départ de mesure ; image déposée pour la regarder
+    // Capture de la carte (bouton appareil photo) : vue Bird Eye et départ de mesure ; image déposée pour la regarder
     if (name === "ville") {
       const map = w.mesures.map, at = (e, n) => { const [lng, lat] = Dessus.toLonLat(e, n, pose); return { lng, lat }; };
       Dessus.addPoint(at(-3, 2));  // départ d'une longueur (point rouge, dessiné par la carte)
@@ -133,7 +133,7 @@ async function open(id, enough = () => false) {
       await expect(`${name} : capture de la carte (vue, départ de mesure, échelle, sources)`, blob && blob.size > 10000, blob ? `${blob.size} octets` : "aucune");
       if (blob) await fetch(`/capture/carte-${name}.png`, { method: "POST", body: blob });
       Dessus.cancelStart();
-      // Export géoréférencé (bouton 🗺️) : GeoTIFF de la vue seule, déposé pour l'ouvrir dans un SIG
+      // Export géoréférencé (bouton carte pliée) : GeoTIFF de la vue seule, déposé pour l'ouvrir dans un SIG
       const tif = await Dessus.exportView();
       await expect(`${name} : export géoréférencé (GeoTIFF)`, tif?.blob.size > 100000 && /^bird-eye-.{8}\.tif$/.test(tif.name),
         tif ? `${tif.name}, ${tif.blob.size} octets` : "aucun");
