@@ -574,16 +574,19 @@ const Carte = (() => {
           if (layer.type !== "background" && !sources[layer.source]) continue;
           if (PLAN_PARCELS.includes(layer["source-layer"])) continue;
           const id = `${key}-${layer.id}`;
+          // Couches arrêtées au dernier zoom des tuiles (Plan IGN : 18, routes comprises) : gardées au-delà, tuiles agrandies
+          const { maxzoom: styleMax, ...kept } = layer;
+          const maxzoom = def.maxzoom && styleMax >= def.maxzoom ? undefined : styleMax;
           const layout = { ...layer.layout, visibility: shown() ? "visible" : "none" };
           if (layout["text-size"] != null || layer.type === "symbol") layout["text-size"] = scaledSize(layout["text-size"] ?? 16, mapOptions.textScale);
           if (Array.isArray(layout["text-font"]) && def.font) layout["text-font"] = layout["text-font"].map((f) => (typeof f === "string" ? def.font(f) : f));
           if (layout["icon-image"] != null) layout["icon-image"] = prefixed(layout["icon-image"]);
           const paint = { ...layer.paint };  // motifs (cimetières, marais du Plan IGN) : images du même style
           for (const name of ["fill-pattern", "line-pattern"]) if (paint[name] != null) paint[name] = prefixed(paint[name]);
-          map.addLayer({ ...layer, id, ...(layer.source && { source: sources[layer.source] }), layout, paint }, "cadastre-parcelles");
+          map.addLayer({ ...kept, ...(maxzoom != null && { maxzoom }), id, ...(layer.source && { source: sources[layer.source] }), layout, paint }, "cadastre-parcelles");
           base.ids.push(id);
           if (BUILDING_LAYERS.includes(layer["source-layer"])) {
-            buildingMax.set(id, layer.maxzoom ?? 24);
+            buildingMax.set(id, maxzoom ?? 24);
             buildingZoom(map, id);
           }
         }
