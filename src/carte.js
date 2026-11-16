@@ -136,6 +136,260 @@ const Carte = (() => {
   // cadastre du Plan IGN vectoriel, jamais dessiné (celui du réglage « Cadastre » suffit) : parcelles, sections et leurs
   // numéros ; numéros d'adresse gardés
   const PLAN_PARCELS = ["parcellaire_parcelle", "parcellaire_section", "toponyme_parcellaire_parcelle", "toponyme_parcellaire_section"];
+  /** Style de départ de la carte (MapLibre) : sources (fonds en images, filaire Panoramax, cadastre, limites,
+   * couche, mesures) et couches dans l'ordre d'affichage ; les fonds vectoriels s'ajoutent ensuite. Une fonction :
+   * il lit des constantes déclarées plus bas (CADASTRE_MINZOOM…). */
+  function baseStyle() {
+    return {
+      version: 8,
+      glyphs: GLYPHS,
+      sources: {
+        plan: {
+          type: "raster", tiles: [wmts("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png")],
+          tileSize: 256, maxzoom: 19, attribution: ATTRIBUTION_IGN,
+        },
+        ortho: {
+          type: "raster", tiles: [wmts("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg")],
+          tileSize: 256, maxzoom: 20, attribution: ATTRIBUTION_IGN,
+        },
+        express: {
+          type: "raster", tiles: [wmts(EXPRESS_LAYERS[expressYear], "image/jpeg")],
+          tileSize: 256, maxzoom: 20, attribution: ATTRIBUTION_IGN,
+        },
+        pcrs: { type: "raster", tiles: [pcrsTiles(pcrsLayer)], tileSize: 256, maxzoom: 22, attribution: ATTRIBUTION_IGN },
+        // Modèle Numérique de Hauteur, issu du LiDAR HD (IGN) : estompage de la hauteur du sursol (bâtiments, arbres,
+        // talus) au-dessus du sol
+        mnh: {
+          type: "raster", tiles: [wmts("IGNF_LIDAR-HD_MNH_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW", "image/png")],
+          tileSize: 256, maxzoom: 18, attribution: ATTRIBUTION_IGN,
+        },
+        panoramax: {
+          type: "vector", tiles: [tilesUrl()], minzoom: 0, maxzoom: 15, attribution: ATTRIBUTION_PANORAMAX,
+        },
+        mesures: { type: "geojson", data: EMPTY },
+        precedents: { type: "geojson", data: EMPTY },  // résultats de la session précédente (showPrevious)
+        couche: { type: "geojson", data: EMPTY },  // couche importée (showOverlay)
+        pr: { type: "geojson", data: EMPTY },
+        // Cadastre (#36, réglage « Cadastre sur la carte », voir setCadastre) : Parcellaire Express en tuiles vectorielles
+        // (parcelles dès le zoom 15 ; bâtiments, bornes et points d'étiquette dès le zoom 17), nettes à tout zoom
+        cadastre: { type: "vector", tiles: [`${GEOPF}/tms/1.0.0/PCI/{z}/{x}/{y}.pbf`], minzoom: 5, maxzoom: 19,
+          attribution: ATTRIBUTION_IGN },
+        contour: { type: "geojson", data: EMPTY },  // commune choisie dans la recherche (recherche.js)
+        voies: { type: "vector", tiles: [ROADS_TILES], minzoom: ROADS_MINZOOM, maxzoom: 19, attribution: ATTRIBUTION_IGN },
+        // tuiles jusqu'au zoom 13 seulement, agrandies au-delà : à partir du zoom 14, le Plan IGN
+        // dédouble les routes à chaussées séparées
+        numerotees: { type: "vector", tiles: [NUMBERED_TILES], maxzoom: 13, attribution: ATTRIBUTION_IGN },
+        ...Object.fromEntries(ADMIN_LEVELS.map((level) => ["admin-" + level.id, { type: "geojson", data: EMPTY }])),
+      },
+      layers: [
+        { id: "plan", type: "raster", source: "plan" },
+        { id: "ortho", type: "raster", source: "ortho", layout: { visibility: "none" } },
+        { id: "express", type: "raster", source: "express", layout: { visibility: "none" } },
+        { id: "pcrs", type: "raster", source: "pcrs", minzoom: 15, layout: { visibility: "none" } },
+        { id: "mnh", type: "raster", source: "mnh", layout: { visibility: "none" } },
+        // Cadastre, sur le fond et sous le filaire (couleurs du Parcellaire Express de l'IGN) : parcelles numérotées teintées (le
+        // domaine public, voirie et cours d'eau, n'en a pas : sans teinte), bâtiments, limites des parcelles (pas celles des feuilles)
+        {
+          id: "cadastre-parcelles", type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
+          layout: { visibility: "none" },
+          paint: { "fill-color": "#ff8000", "fill-opacity": PARCEL_TINT },
+        },
+        {
+          id: "cadastre-batiments", type: "fill", source: "cadastre", "source-layer": "batiment", layout: { visibility: "none" },
+          paint: { "fill-color": "#c17d73", "fill-opacity": 0.45, "fill-outline-color": "#b580ff" },
+        },
+        {
+          id: "cadastre", type: "line", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
+          layout: { visibility: "none" },
+          paint: { "line-color": "#ff8000", "line-width": ["interpolate", ["linear"], ["zoom"], 15, 0.6, 18, 1.6, 21, 2.5] },
+        },
+        // Parcelle où se tient la caméra, en jaune, et parcelle visée : la première que coupe la ligne de cap, à moins de
+        // CADASTRE_VISEE m, en vert (aimCadastre)
+        {
+          id: "cadastre-camera-fond", type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
+          layout: { visibility: "none" }, filter: ["==", ["get", "idu"], ""], paint: { "fill-color": SOUS_CAMERA, "fill-opacity": 0.3 },
+        },
+        {
+          id: "cadastre-camera", type: "line", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
+          layout: { visibility: "none", "line-join": "round" }, filter: ["==", ["get", "idu"], ""],
+          paint: { "line-color": SOUS_CAMERA, "line-width": ["interpolate", ["linear"], ["zoom"], 15, 2, 18, 3.5, 21, 5] },
+        },
+        {
+          id: "cadastre-vise-fond", type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
+          layout: { visibility: "none" }, filter: ["==", ["get", "idu"], ""], paint: { "fill-color": VISEE, "fill-opacity": 0.3 },
+        },
+        {
+          id: "cadastre-vise", type: "line", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
+          layout: { visibility: "none", "line-join": "round" }, filter: ["==", ["get", "idu"], ""],
+          paint: { "line-color": VISEE, "line-width": ["interpolate", ["linear"], ["zoom"], 15, 2, 18, 3.5, 21, 5] },
+        },
+        // Filaire des voies, sous les limites administratives : voies sans numéro de la BD TOPO
+        // (sentiers, escaliers et bacs exclus), puis routes numérotées du Plan IGN
+        ...[["voies-lisere", true], ["voies", false]].map(([id, casing]) => ({
+          id, type: "line", source: "voies", "source-layer": "troncon_de_route", minzoom: ROADS_MINZOOM,
+          filter: ["all", ["!", ["has", "cpx_numero"]],
+            ["!", ["in", ["get", "nature"], ["literal", ["Sentier", "Escalier", "Bac ou liaison maritime"]]]]],
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: casing ? { "line-color": "#333333", "line-opacity": 0.5, "line-width": roadWidth(1.5) }
+            : { "line-color": roadColor("cpx_numero"), "line-opacity": 0.8, "line-width": roadWidth(0) },
+        })),
+        ...[["numerotees-lisere", true], ["numerotees", false]].map(([id, casing]) => ({
+          id, type: "line", source: "numerotees", "source-layer": "toponyme_routier_numero_lin",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: casing ? { "line-color": "#333333", "line-opacity": 0.5, "line-width": roadWidth(1.5) }
+            : { "line-color": roadColor("texte"), "line-opacity": 0.8, "line-width": roadWidth(0) },
+        })),
+        // Limites administratives : contours des polygones, sous le filaire et les mesures
+        // (liseré blanc dessous : lisibles sur l'orthophoto)
+        ...ADMIN_LEVELS.flatMap((level) => [
+          {
+            id: `admin-${level.id}-lisere`, type: "line", source: "admin-" + level.id, minzoom: level.minzoom,
+            ...(level.filter && { filter: level.filter }),
+            layout: { "line-join": "round" },
+            paint: { "line-color": "#ffffff", "line-opacity": 0.6, "line-width": adminWidth(level, 2) },
+          },
+          {
+            id: "admin-" + level.id, type: "line", source: "admin-" + level.id, minzoom: level.minzoom,
+            ...(level.filter && { filter: level.filter }),
+            layout: { "line-join": "round" },
+            paint: { "line-opacity": 0.85, ...level.paint, "line-width": adminWidth(level, 0) },
+          },
+        ]),
+        // Filaire : densité à petite échelle, séquences, puis photos
+        {
+          id: "grille", type: "circle", source: "panoramax", "source-layer": "grid", maxzoom: 7,
+          paint: { "circle-color": ORANGE, "circle-opacity": NETWORK_OPACITY, "circle-radius": 2 },
+        },
+        {
+          id: "sequences", type: "line", source: "panoramax", "source-layer": "sequences", minzoom: 6,
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: {
+            "line-color": ORANGE, "line-opacity": NETWORK_OPACITY,
+            "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.6, 12, 1.5, 17, 3],
+          },
+        },
+        {
+          id: "photos", type: "circle", source: "panoramax", "source-layer": "pictures", minzoom: 15,
+          paint: {
+            // plus petits que le filaire d'origine (3,5)
+            "circle-color": ORANGE, "circle-radius": 2.5, "circle-opacity": NETWORK_OPACITY,
+            "circle-stroke-color": "#ffffff", "circle-stroke-width": 0.7, "circle-stroke-opacity": NETWORK_OPACITY,
+          },
+        },
+        // Cartouches des routes numérotées sous le zoom 15 (Plan IGN), puis de la BD TOPO, qui
+        // porte aussi les numéros européens
+        {
+          id: "numerotees-cartouches", type: "symbol", source: "numerotees", "source-layer": "toponyme_routier_numero_lin",
+          maxzoom: ROADS_MINZOOM,
+          layout: {
+            "symbol-placement": "line", "symbol-spacing": 400, "icon-rotation-alignment": "viewport",
+            "icon-padding": 60, "icon-image": ["concat", "cartouche:|", ["get", "texte"]],
+          },
+        },
+        // Cartouches des numéros de route (images dessinées à la demande, voir cartoucheImage),
+        // droits quel que soit le sens de la route, au-dessus du filaire Panoramax
+        {
+          id: "voies-cartouches", type: "symbol", source: "voies", "source-layer": "troncon_de_route", minzoom: ROADS_MINZOOM,
+          // ni bretelles ni giratoires (un échangeur en serait couvert) ; marge autour de chaque
+          // cartouche : deux cartouches proches (chaussées séparées, tronçons voisins) ne
+          // s'affichent pas ensemble
+          filter: ["all", ["any", ["has", "cpx_numero"], ["has", "cpx_numero_route_europeenne"]],
+            ["!", ["in", ["get", "nature"], ["literal", ["Bretelle", "Rond-point"]]]]],
+          layout: {
+            "symbol-placement": "line", "symbol-spacing": 400, "icon-rotation-alignment": "viewport",
+            "icon-padding": 60,
+            "icon-image": ["concat", "cartouche:", ["coalesce", ["get", "cpx_numero_route_europeenne"], ""], "|",
+              ["coalesce", ["get", "cpx_numero"], ""]],
+          },
+        },
+        // Contour de la commune choisie dans la recherche de lieux : liseré blanc, tirets
+        {
+          id: "contour-halo", type: "line", source: "contour",
+          paint: { "line-color": "#ffffff", "line-width": 4, "line-opacity": 0.8 },
+        },
+        {
+          id: "contour", type: "line", source: "contour",
+          paint: { "line-color": "#3949ab", "line-width": 2, "line-dasharray": [3, 2] },
+        },
+        // Points de repère des routes (voir showMilestones), sous le curseur et les mesures
+        {
+          id: "pr", type: "circle", source: "pr", minzoom: PR_MINZOOM,
+          paint: {
+            "circle-color": VERT_PR, "circle-radius": ["interpolate", ["linear"], ["zoom"], 13, 2.5, 17, 4.5],
+            "circle-stroke-color": "#ffffff", "circle-stroke-width": 1,
+          },
+        },
+        {
+          id: "cadastre-bornes", type: "circle", source: "cadastre", "source-layer": "borne_limite_propriete",
+          minzoom: CADASTRE_BORNES_ZOOM,
+          layout: { visibility: "none" },
+          paint: { "circle-color": "#ffffff", "circle-radius": 3, "circle-stroke-color": "#ff4fd8", "circle-stroke-width": 1.5 },
+        },
+        // Section et numéro de chaque parcelle, à son point d'étiquette (localisant) : image dessinée à la demande
+        // (parcelImage), de taille fixe à l'écran ; celles qui se chevauchent sont masquées
+        {
+          id: "cadastre-sections", type: "symbol", source: "cadastre", "source-layer": "localisant", minzoom: CADASTRE_SECTIONS_ZOOM,
+          layout: { visibility: "none",
+            "icon-image": ["concat", "parcelle:", ["get", "section"], "|", ["get", "numero"]], "icon-padding": 1 },
+        },
+        // Couche importée (GeoJSON) : couleur de chaque objet (Couche.style), sous les mesures
+        {
+          id: "couche-traits", type: "line", source: "couche", filter: ["!=", ["geometry-type"], "Point"],
+          paint: { "line-color": ["get", "_couleur"], "line-width": 2.5 },
+        },
+        {
+          id: "couche-points", type: "circle", source: "couche", filter: ["==", ["geometry-type"], "Point"],
+          paint: { "circle-color": ["get", "_couleur"], "circle-radius": 5, "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 1.5 },
+        },
+        // Résultats de la session précédente, en lecture seule : gris, sous ceux de la session
+        {
+          id: "precedents-traits", type: "line", source: "precedents", filter: ["==", ["geometry-type"], "LineString"],
+          paint: { "line-color": "#757575", "line-width": 3, "line-dasharray": [2, 1] },
+        },
+        {
+          id: "precedents-points", type: "circle", source: "precedents", filter: ["==", ["geometry-type"], "Point"],
+          paint: { "circle-color": "#757575", "circle-opacity": 0.6, "circle-radius": 5,
+            "circle-stroke-color": "#ffffff", "circle-stroke-width": 1 },
+        },
+        // Mesures, visées et points (voir web_app.App.map_geojson)
+        {
+          id: "visees-halo", type: "line", source: "mesures", filter: kind("visee"),
+          paint: { "line-color": "#ffffff", "line-opacity": 0.8, "line-width": 4 },
+        },
+        {
+          id: "visees", type: "line", source: "mesures", filter: kind("visee"),
+          paint: { "line-color": ROUGE, "line-width": 2, "line-dasharray": [3, 2] },
+        },
+        {  // plan perpendiculaire : bande bleue sous le trait rouge, visible quand ils se confondent
+          id: "plans", type: "line", source: "mesures", filter: kind("trace"),
+          layout: { "line-cap": "round" },
+          paint: { "line-color": BLEU, "line-opacity": 0.8, "line-width": 7 },
+        },
+        {
+          id: "traits", type: "line", source: "mesures", filter: kind("mesure", "distance"),
+          paint: { "line-color": ROUGE, "line-width": 3 },
+        },
+        {  // point triangulé gardé (point de référence d'une hauteur) : disque plus large que la
+          // croix de mesure, dessiné dessous, pour rester visible autour d'elle
+          id: "triangules", type: "circle", source: "mesures", filter: kind("triangule"),
+          paint: {
+            "circle-color": ROUGE, "circle-opacity": 0.6, "circle-radius": 6.5,
+            "circle-stroke-color": ROUGE, "circle-stroke-width": 1.5,
+          },
+        },
+        {  // croix jaunes, comme dans la visionneuse (image fournie à la demande, voir crossImage)
+          id: "points", type: "symbol", source: "mesures", filter: kind("point"),
+          layout: { "icon-image": "croix", "icon-allow-overlap": true, "icon-ignore-placement": true },
+        },
+        {
+          id: "cibles", type: "circle", source: "mesures", filter: kind("cible"),
+          paint: { "circle-color": "rgba(0, 0, 0, 0)", "circle-radius": 7, "circle-stroke-width": 2.5, "circle-stroke-color": ROUGE },
+        },
+      ],
+    };
+  }
+
   function createMap(container, { vectorPlan = false, textScale = 1 } = {}) {
     mapOptions = { vectorPlan, textScale };
     const map = new maplibregl.Map({
@@ -146,254 +400,7 @@ const Carte = (() => {
       maxZoom: 24,  // 0,6 cm par pixel : la Bird Eye (1,5 cm par pixel) se vise de près ; les fonds de carte sont agrandis
       maxPitch: 0,  // carte toujours vue d'aplomb : le clic droit glissé ne l'incline plus
       pitchWithRotate: false,
-      style: {
-        version: 8,
-        glyphs: GLYPHS,
-        sources: {
-          plan: {
-            type: "raster", tiles: [wmts("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png")],
-            tileSize: 256, maxzoom: 19, attribution: ATTRIBUTION_IGN,
-          },
-          ortho: {
-            type: "raster", tiles: [wmts("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg")],
-            tileSize: 256, maxzoom: 20, attribution: ATTRIBUTION_IGN,
-          },
-          express: {
-            type: "raster", tiles: [wmts(EXPRESS_LAYERS[expressYear], "image/jpeg")],
-            tileSize: 256, maxzoom: 20, attribution: ATTRIBUTION_IGN,
-          },
-          pcrs: { type: "raster", tiles: [pcrsTiles(pcrsLayer)], tileSize: 256, maxzoom: 22, attribution: ATTRIBUTION_IGN },
-          // Modèle Numérique de Hauteur, issu du LiDAR HD (IGN) : estompage de la hauteur du sursol (bâtiments, arbres,
-          // talus) au-dessus du sol
-          mnh: {
-            type: "raster", tiles: [wmts("IGNF_LIDAR-HD_MNH_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW", "image/png")],
-            tileSize: 256, maxzoom: 18, attribution: ATTRIBUTION_IGN,
-          },
-          panoramax: {
-            type: "vector", tiles: [tilesUrl()], minzoom: 0, maxzoom: 15, attribution: ATTRIBUTION_PANORAMAX,
-          },
-          mesures: { type: "geojson", data: EMPTY },
-          precedents: { type: "geojson", data: EMPTY },  // résultats de la session précédente (showPrevious)
-          couche: { type: "geojson", data: EMPTY },  // couche importée (showOverlay)
-          pr: { type: "geojson", data: EMPTY },
-          // Cadastre (#36, réglage « Cadastre sur la carte », voir setCadastre) : Parcellaire Express en tuiles vectorielles
-          // (parcelles dès le zoom 15 ; bâtiments, bornes et points d'étiquette dès le zoom 17), nettes à tout zoom
-          cadastre: { type: "vector", tiles: [`${GEOPF}/tms/1.0.0/PCI/{z}/{x}/{y}.pbf`], minzoom: 5, maxzoom: 19,
-            attribution: ATTRIBUTION_IGN },
-          contour: { type: "geojson", data: EMPTY },  // commune choisie dans la recherche (recherche.js)
-          voies: { type: "vector", tiles: [ROADS_TILES], minzoom: ROADS_MINZOOM, maxzoom: 19, attribution: ATTRIBUTION_IGN },
-          // tuiles jusqu'au zoom 13 seulement, agrandies au-delà : à partir du zoom 14, le Plan IGN
-          // dédouble les routes à chaussées séparées
-          numerotees: { type: "vector", tiles: [NUMBERED_TILES], maxzoom: 13, attribution: ATTRIBUTION_IGN },
-          ...Object.fromEntries(ADMIN_LEVELS.map((level) => ["admin-" + level.id, { type: "geojson", data: EMPTY }])),
-        },
-        layers: [
-          { id: "plan", type: "raster", source: "plan" },
-          { id: "ortho", type: "raster", source: "ortho", layout: { visibility: "none" } },
-          { id: "express", type: "raster", source: "express", layout: { visibility: "none" } },
-          { id: "pcrs", type: "raster", source: "pcrs", minzoom: 15, layout: { visibility: "none" } },
-          { id: "mnh", type: "raster", source: "mnh", layout: { visibility: "none" } },
-          // Cadastre, sur le fond et sous le filaire (couleurs du Parcellaire Express de l'IGN) : parcelles numérotées teintées (le
-          // domaine public, voirie et cours d'eau, n'en a pas : sans teinte), bâtiments, limites des parcelles (pas celles des feuilles)
-          {
-            id: "cadastre-parcelles", type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
-            layout: { visibility: "none" },
-            paint: { "fill-color": "#ff8000", "fill-opacity": PARCEL_TINT },
-          },
-          {
-            id: "cadastre-batiments", type: "fill", source: "cadastre", "source-layer": "batiment", layout: { visibility: "none" },
-            paint: { "fill-color": "#c17d73", "fill-opacity": 0.45, "fill-outline-color": "#b580ff" },
-          },
-          {
-            id: "cadastre", type: "line", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
-            layout: { visibility: "none" },
-            paint: { "line-color": "#ff8000", "line-width": ["interpolate", ["linear"], ["zoom"], 15, 0.6, 18, 1.6, 21, 2.5] },
-          },
-          // Parcelle où se tient la caméra, en jaune, et parcelle visée : la première que coupe la ligne de cap, à moins de
-          // CADASTRE_VISEE m, en vert (aimCadastre)
-          {
-            id: "cadastre-camera-fond", type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
-            layout: { visibility: "none" }, filter: ["==", ["get", "idu"], ""], paint: { "fill-color": SOUS_CAMERA, "fill-opacity": 0.3 },
-          },
-          {
-            id: "cadastre-camera", type: "line", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
-            layout: { visibility: "none", "line-join": "round" }, filter: ["==", ["get", "idu"], ""],
-            paint: { "line-color": SOUS_CAMERA, "line-width": ["interpolate", ["linear"], ["zoom"], 15, 2, 18, 3.5, 21, 5] },
-          },
-          {
-            id: "cadastre-vise-fond", type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
-            layout: { visibility: "none" }, filter: ["==", ["get", "idu"], ""], paint: { "fill-color": VISEE, "fill-opacity": 0.3 },
-          },
-          {
-            id: "cadastre-vise", type: "line", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
-            layout: { visibility: "none", "line-join": "round" }, filter: ["==", ["get", "idu"], ""],
-            paint: { "line-color": VISEE, "line-width": ["interpolate", ["linear"], ["zoom"], 15, 2, 18, 3.5, 21, 5] },
-          },
-          // Filaire des voies, sous les limites administratives : voies sans numéro de la BD TOPO
-          // (sentiers, escaliers et bacs exclus), puis routes numérotées du Plan IGN
-          ...[["voies-lisere", true], ["voies", false]].map(([id, casing]) => ({
-            id, type: "line", source: "voies", "source-layer": "troncon_de_route", minzoom: ROADS_MINZOOM,
-            filter: ["all", ["!", ["has", "cpx_numero"]],
-              ["!", ["in", ["get", "nature"], ["literal", ["Sentier", "Escalier", "Bac ou liaison maritime"]]]]],
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: casing ? { "line-color": "#333333", "line-opacity": 0.5, "line-width": roadWidth(1.5) }
-              : { "line-color": roadColor("cpx_numero"), "line-opacity": 0.8, "line-width": roadWidth(0) },
-          })),
-          ...[["numerotees-lisere", true], ["numerotees", false]].map(([id, casing]) => ({
-            id, type: "line", source: "numerotees", "source-layer": "toponyme_routier_numero_lin",
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: casing ? { "line-color": "#333333", "line-opacity": 0.5, "line-width": roadWidth(1.5) }
-              : { "line-color": roadColor("texte"), "line-opacity": 0.8, "line-width": roadWidth(0) },
-          })),
-          // Limites administratives : contours des polygones, sous le filaire et les mesures
-          // (liseré blanc dessous : lisibles sur l'orthophoto)
-          ...ADMIN_LEVELS.flatMap((level) => [
-            {
-              id: `admin-${level.id}-lisere`, type: "line", source: "admin-" + level.id, minzoom: level.minzoom,
-              ...(level.filter && { filter: level.filter }),
-              layout: { "line-join": "round" },
-              paint: { "line-color": "#ffffff", "line-opacity": 0.6, "line-width": adminWidth(level, 2) },
-            },
-            {
-              id: "admin-" + level.id, type: "line", source: "admin-" + level.id, minzoom: level.minzoom,
-              ...(level.filter && { filter: level.filter }),
-              layout: { "line-join": "round" },
-              paint: { "line-opacity": 0.85, ...level.paint, "line-width": adminWidth(level, 0) },
-            },
-          ]),
-          // Filaire : densité à petite échelle, séquences, puis photos
-          {
-            id: "grille", type: "circle", source: "panoramax", "source-layer": "grid", maxzoom: 7,
-            paint: { "circle-color": ORANGE, "circle-opacity": NETWORK_OPACITY, "circle-radius": 2 },
-          },
-          {
-            id: "sequences", type: "line", source: "panoramax", "source-layer": "sequences", minzoom: 6,
-            layout: { "line-cap": "round", "line-join": "round" },
-            paint: {
-              "line-color": ORANGE, "line-opacity": NETWORK_OPACITY,
-              "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.6, 12, 1.5, 17, 3],
-            },
-          },
-          {
-            id: "photos", type: "circle", source: "panoramax", "source-layer": "pictures", minzoom: 15,
-            paint: {
-              // plus petits que le filaire d'origine (3,5)
-              "circle-color": ORANGE, "circle-radius": 2.5, "circle-opacity": NETWORK_OPACITY,
-              "circle-stroke-color": "#ffffff", "circle-stroke-width": 0.7, "circle-stroke-opacity": NETWORK_OPACITY,
-            },
-          },
-          // Cartouches des routes numérotées sous le zoom 15 (Plan IGN), puis de la BD TOPO, qui
-          // porte aussi les numéros européens
-          {
-            id: "numerotees-cartouches", type: "symbol", source: "numerotees", "source-layer": "toponyme_routier_numero_lin",
-            maxzoom: ROADS_MINZOOM,
-            layout: {
-              "symbol-placement": "line", "symbol-spacing": 400, "icon-rotation-alignment": "viewport",
-              "icon-padding": 60, "icon-image": ["concat", "cartouche:|", ["get", "texte"]],
-            },
-          },
-          // Cartouches des numéros de route (images dessinées à la demande, voir cartoucheImage),
-          // droits quel que soit le sens de la route, au-dessus du filaire Panoramax
-          {
-            id: "voies-cartouches", type: "symbol", source: "voies", "source-layer": "troncon_de_route", minzoom: ROADS_MINZOOM,
-            // ni bretelles ni giratoires (un échangeur en serait couvert) ; marge autour de chaque
-            // cartouche : deux cartouches proches (chaussées séparées, tronçons voisins) ne
-            // s'affichent pas ensemble
-            filter: ["all", ["any", ["has", "cpx_numero"], ["has", "cpx_numero_route_europeenne"]],
-              ["!", ["in", ["get", "nature"], ["literal", ["Bretelle", "Rond-point"]]]]],
-            layout: {
-              "symbol-placement": "line", "symbol-spacing": 400, "icon-rotation-alignment": "viewport",
-              "icon-padding": 60,
-              "icon-image": ["concat", "cartouche:", ["coalesce", ["get", "cpx_numero_route_europeenne"], ""], "|",
-                ["coalesce", ["get", "cpx_numero"], ""]],
-            },
-          },
-          // Contour de la commune choisie dans la recherche de lieux : liseré blanc, tirets
-          {
-            id: "contour-halo", type: "line", source: "contour",
-            paint: { "line-color": "#ffffff", "line-width": 4, "line-opacity": 0.8 },
-          },
-          {
-            id: "contour", type: "line", source: "contour",
-            paint: { "line-color": "#3949ab", "line-width": 2, "line-dasharray": [3, 2] },
-          },
-          // Points de repère des routes (voir showMilestones), sous le curseur et les mesures
-          {
-            id: "pr", type: "circle", source: "pr", minzoom: PR_MINZOOM,
-            paint: {
-              "circle-color": VERT_PR, "circle-radius": ["interpolate", ["linear"], ["zoom"], 13, 2.5, 17, 4.5],
-              "circle-stroke-color": "#ffffff", "circle-stroke-width": 1,
-            },
-          },
-          {
-            id: "cadastre-bornes", type: "circle", source: "cadastre", "source-layer": "borne_limite_propriete",
-            minzoom: CADASTRE_BORNES_ZOOM,
-            layout: { visibility: "none" },
-            paint: { "circle-color": "#ffffff", "circle-radius": 3, "circle-stroke-color": "#ff4fd8", "circle-stroke-width": 1.5 },
-          },
-          // Section et numéro de chaque parcelle, à son point d'étiquette (localisant) : image dessinée à la demande
-          // (parcelImage), de taille fixe à l'écran ; celles qui se chevauchent sont masquées
-          {
-            id: "cadastre-sections", type: "symbol", source: "cadastre", "source-layer": "localisant", minzoom: CADASTRE_SECTIONS_ZOOM,
-            layout: { visibility: "none",
-              "icon-image": ["concat", "parcelle:", ["get", "section"], "|", ["get", "numero"]], "icon-padding": 1 },
-          },
-          // Couche importée (GeoJSON) : couleur de chaque objet (Couche.style), sous les mesures
-          {
-            id: "couche-traits", type: "line", source: "couche", filter: ["!=", ["geometry-type"], "Point"],
-            paint: { "line-color": ["get", "_couleur"], "line-width": 2.5 },
-          },
-          {
-            id: "couche-points", type: "circle", source: "couche", filter: ["==", ["geometry-type"], "Point"],
-            paint: { "circle-color": ["get", "_couleur"], "circle-radius": 5, "circle-stroke-color": "#ffffff",
-              "circle-stroke-width": 1.5 },
-          },
-          // Résultats de la session précédente, en lecture seule : gris, sous ceux de la session
-          {
-            id: "precedents-traits", type: "line", source: "precedents", filter: ["==", ["geometry-type"], "LineString"],
-            paint: { "line-color": "#757575", "line-width": 3, "line-dasharray": [2, 1] },
-          },
-          {
-            id: "precedents-points", type: "circle", source: "precedents", filter: ["==", ["geometry-type"], "Point"],
-            paint: { "circle-color": "#757575", "circle-opacity": 0.6, "circle-radius": 5,
-              "circle-stroke-color": "#ffffff", "circle-stroke-width": 1 },
-          },
-          // Mesures, visées et points (voir web_app.App.map_geojson)
-          {
-            id: "visees-halo", type: "line", source: "mesures", filter: kind("visee"),
-            paint: { "line-color": "#ffffff", "line-opacity": 0.8, "line-width": 4 },
-          },
-          {
-            id: "visees", type: "line", source: "mesures", filter: kind("visee"),
-            paint: { "line-color": ROUGE, "line-width": 2, "line-dasharray": [3, 2] },
-          },
-          {  // plan perpendiculaire : bande bleue sous le trait rouge, visible quand ils se confondent
-            id: "plans", type: "line", source: "mesures", filter: kind("trace"),
-            layout: { "line-cap": "round" },
-            paint: { "line-color": BLEU, "line-opacity": 0.8, "line-width": 7 },
-          },
-          {
-            id: "traits", type: "line", source: "mesures", filter: kind("mesure", "distance"),
-            paint: { "line-color": ROUGE, "line-width": 3 },
-          },
-          {  // point triangulé gardé (point de référence d'une hauteur) : disque plus large que la
-            // croix de mesure, dessiné dessous, pour rester visible autour d'elle
-            id: "triangules", type: "circle", source: "mesures", filter: kind("triangule"),
-            paint: {
-              "circle-color": ROUGE, "circle-opacity": 0.6, "circle-radius": 6.5,
-              "circle-stroke-color": ROUGE, "circle-stroke-width": 1.5,
-            },
-          },
-          {  // croix jaunes, comme dans la visionneuse (image fournie à la demande, voir crossImage)
-            id: "points", type: "symbol", source: "mesures", filter: kind("point"),
-            layout: { "icon-image": "croix", "icon-allow-overlap": true, "icon-ignore-placement": true },
-          },
-          {
-            id: "cibles", type: "circle", source: "mesures", filter: kind("cible"),
-            paint: { "circle-color": "rgba(0, 0, 0, 0)", "circle-radius": 7, "circle-stroke-width": 2.5, "circle-stroke-color": ROUGE },
-          },
-        ],
-      },
+      style: baseStyle(),
     });
     map.on("styleimagemissing", (e) => {
       if (e.id === "croix" && !map.hasImage("croix")) map.addImage("croix", crossImage(), { pixelRatio: 2 });
