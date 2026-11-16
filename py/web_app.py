@@ -2629,7 +2629,7 @@ class App(session.Session):
             self.paved_redo[frame_key] = (key, lambda: got_ground(ground, source, None))
             paved = self.paved.get(frame_key, {})
             read, twins = self._edge_reads(profiles, ground, sides, paved)
-            found, borders, stops, drawn = self._edge_falls(read, sides, paved, zone, profiles[-1][4])
+            found, borders, stops, drawn = self._edge_falls(read, sides, paved, zone)
             # Profil en long (derniers points lus) : pente moyenne, montée > 0 dans le sens de la photo, et la plus forte
             pts = [(d, v) for d, v in zip(lengthwise, ground[len(ground) - len(lengthwise):]) if v is not None] if lengthwise else []
             grade = self._long_profile(pts, ends, along_of, followed)
@@ -2854,7 +2854,7 @@ class App(session.Session):
                     r[5] = min(range(len(r[3])), key=lambda k: abs(r[3][k] - paved[name]))
         return read, twins
 
-    def _edge_falls(self, read, sides, paved, zone, last_beyond):
+    def _edge_falls(self, read, sides, paved, zone):
         """Chute et dévers de chaque côté depuis les bords lus (_edge_reads), jusqu'à zone m du bord. Rend (côté ->
         [(chute, à m du bord, bout du profil, travers), (dévers, haut du talus à m du bord, travers, pied du talus à m du
         bord, hauteur du talus)], bords [(m depuis l'origine, relief)], côté -> distances au bord où le terrain remonte
@@ -2863,8 +2863,7 @@ class App(session.Session):
         borders = {name: [] for name, _ in sides}
         stops = {name: [] for name, _ in sides}
         drawn = []
-        for along, name, guess, offsets, z, i, between, sep_relief, _, _beyond in read:
-            beyond = last_beyond
+        for along, name, guess, offsets, z, i, between, sep_relief, _, beyond in read:
             relief = i is not None
             if not relief:
                 i = min(range(len(offsets)), key=lambda k: abs(offsets[k] - guess))

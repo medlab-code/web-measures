@@ -264,6 +264,32 @@ class Carrefours(unittest.TestCase):
         self.assertEqual(self.cites(self.voie("D70", nom_collaboratif_gauche="CHE DE DIJON")), ["D70"])  # numérotée : gardée
 
 
+class BordsChausseesSeparees(unittest.TestCase):
+    """Route à chaussées séparées : chaque profil porte l'axe de l'autre chaussée de son côté (autre_axe), lu par
+    l'analyse fine (src/nuage.js) pour borner le bord ; il valait celui du dernier travers lu, pour tous."""
+
+    def test_autre_axe_par_travers(self):
+        lon, lat = 5.0, 47.0
+        calc = App.__new__(App)
+        calc.edges, calc.paved, calc.paved_redo = {}, {}, {}
+        calc.notify = lambda: None
+
+        def terrain(points, done):  # plat, séparateur surélevé de 4 à 7 m, talus au-delà de l'autre chaussée
+            local = [web_app.triangulation._local(p[0], p[1], lon, lat) for p in points]
+            done([(0.2 if 4.0 < x < 7.0 else 0.0) - 0.5 * max(0.0, abs(x - 5.5) - 12.0) for x, _ in local],
+                 web_app.triangulation.LIDAR_NAME, None)
+        calc._terrain = terrain
+        key = ("photo", 10, True)
+        calc._compute_edges(key, [(0.0, -200.0), (0.0, 200.0)], 200.0, 6.0, 0.0, lon, lat,
+                            twin=[([(11.0, -200.0), (11.0, 200.0)], 7.0)])
+        profils = calc.edges[key]["profile"]["profils"]
+        twin_side = [e for e in profils if e["separateur"]]
+        other_side = [e for e in profils if not e["separateur"]]
+        self.assertTrue(twin_side and other_side)
+        self.assertTrue(all(e["autre_axe"] == 11.0 for e in twin_side), sorted({e["autre_axe"] for e in twin_side}))
+        self.assertTrue(all(e["autre_axe"] is None for e in other_side))
+
+
 class BordsEnrobe(unittest.TestCase):
     """Chute et dévers relus depuis les bords d'enrobé de l'analyse fine (App.use_paved_edges, ticket #38)."""
 
