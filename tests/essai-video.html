@@ -17,7 +17,7 @@
 <iframe id="f" src="../index.html" style="width:1400px;height:1000px"></iframe>
 <script src="commun.js"></script>
 <script>
-const { log, sleep, until, ready, expect, fin } = Essai;
+const { log, sleep, until, ready, expect, expectSoon, fin } = Essai;
 const chronos = () => { const c = document.getElementById("f").contentWindow.eval("Video").times; return c ? `chronos (s) : tuiles ${(c.tuiles / 1000).toFixed(1)}, dessin ${(c.dessin / 1000).toFixed(1)}, encodeur ${(c.encodeur / 1000).toFixed(1)}, total ${(c.total / 1000).toFixed(1)} pour ${c.images} images` : ""; };
 // Boîte d'enregistrement simulée : vrai fichier du stockage privé de la page (mp4-muxer refuse un faux flux d'écriture),
 // done(fichier) appelé à sa fermeture
@@ -772,9 +772,10 @@ const savePicker = (w, done) => async (o) => {
       expect("RAZ : réglages par défaut", JSON.stringify(blank) === JSON.stringify(["90", "1", false, false, false, "20", "8"]), JSON.stringify(blank));
       expect("RAZ : départ et arrivée effacés, sans repère", !route.value && !pr.value && !end.value
         && !doc.querySelector(".repere-requete.depart, .repere-requete.arrivee"));
-      expect("RAZ : endroits, zone et option du point d'intérêt retirés", !doc.querySelector(".repere-requete.tonneau, .repere-requete.planete, .repere-requete.tour")
+      // zone effacée une fois la carte au repos (showPoiZone attend ses tuiles) : attendue, pas lue tout de suite
+      await expectSoon("RAZ : endroits, zone et option du point d'intérêt retirés", () => !doc.querySelector(".repere-requete.tonneau, .repere-requete.planete, .repere-requete.tour")
         && !doc.querySelector("#video-interet").checked && !w.mesures.map.getSource("zone-interet")?.serialize().data?.features?.length,
-        `${[...doc.querySelectorAll(".repere-requete")].map((e) => e.className.split(" ")[1]).join(",")} intérêt ${doc.querySelector("#video-interet").checked} zone ${w.mesures.map.getSource("zone-interet")?.serialize().data?.features?.length}`);
+        () => `${[...doc.querySelectorAll(".repere-requete")].map((e) => e.className.split(" ")[1]).join(",")} intérêt ${doc.querySelector("#video-interet").checked} zone ${w.mesures.map.getSource("zone-interet")?.serialize().data?.features?.length}`, 15000);
       expect("RAZ : bouton grisé une fois tout à zéro, « Enregistrer » et « Garder » aussi", raz.disabled && button.disabled
         && doc.querySelector("#parcours-garder").disabled);
       expect("RAZ : parcours gardés intacts", doc.querySelectorAll("#mes-parcours li").length === before + 1);
