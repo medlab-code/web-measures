@@ -566,7 +566,7 @@ class MeasureTool:
         """(hauteur de caméra du clic, source) ; source "calée" ou None : hauteur calée pour la séquence,
         sinon le réglage du panneau. Les mesures n'en dépendent pas (point triangulé, direction des clics) ;
         la hauteur mesurée (altitude RTK moins sol LiDAR) et la monture du CD21 sont prises par la page
-        (web_app.App._camera_of) pour le tablier d'un pont, les objets au sol et l'export."""
+        (Session.camera_of) pour le tablier d'un pont, les objets au sol et l'export."""
         sequence = click.get("sequence")
         cam = self.calibration.camera(sequence) if self.calibration and sequence else None
         return (cam["height"], "calée") if cam else (self.camera_height, None)

@@ -20,11 +20,16 @@ const Nuage = (() => {
   const VERGE = 1.0;  // m : surface non revêtue (herbe, gravillons) d'au moins cette largeur : l'enrobé s'arrête là
   const GRASS = 3.5;  // herbe : bande non revêtue (VERGE m au moins) en moyenne GRASS fois plus claire que l'enrobé (le laser,
   // en proche infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois)
-  const LINE_CONTRAST = 2;  // ligne blanche : au moins LINE_CONTRAST fois ses cases voisines (D903bis 1640bc3f : surface du séparateur à 3,0 et 2,9 fois l'enrobé, pas une ligne)
-  const LINE_SECTIONS = 2, LINE_MATCH = 0.5;  // ligne à tirets vue ailleurs qu'au travers de la photo : sur 2 travers au moins, à 0,5 m près
+  // Ligne blanche : au moins LINE_CONTRAST fois ses cases voisines (D903bis 1640bc3f : surface du séparateur à 3,0 et
+  // 2,9 fois l'enrobé, pas une ligne)
+  const LINE_CONTRAST = 2;
+  // ligne à tirets vue ailleurs qu'au travers de la photo : sur 2 travers au moins, à 0,5 m près
+  const LINE_SECTIONS = 2, LINE_MATCH = 0.5;
   const AXIS = 1.2;  // m : ligne blanche aussi près de l'axe d'une chaussée : ligne entre voies, pas de rive
-  const PAVED_RISE = 2.2;  // abords de l'enrobé : VERGE m au moins, chaque case à PAVED_RISE fois l'enrobé ou plus (essai du 05/11/2026, 13 photos)
-  // m : l'enrobé peut finir loin du bord du calcul (bande d'arrêt d'urgence, rupture de pente sur la chaussée : D70 9b97c187, bord à 2 m, enrobé à 5,2 m)
+  // abords de l'enrobé : VERGE m au moins, chaque case à PAVED_RISE fois l'enrobé ou plus (essai du 05/11/2026, 13 photos)
+  const PAVED_RISE = 2.2;
+  // m : l'enrobé peut finir loin du bord du calcul (bande d'arrêt d'urgence, rupture de pente sur la chaussée : D70
+  // 9b97c187, bord à 2 m, enrobé à 5,2 m)
   const PAVED_REACH = 12, PAVED_BEYOND = 3;
   const PAVED_STEPS = [-4, -2, 0, 2, 4];  // m le long de la route : travers de ±STRIP dont le bord d'enrobé est la médiane
   const SEPARATOR = [0.5, 12];  // m : largeurs possibles du séparateur, et son milieu à 2 m au plus de celui du calcul
@@ -54,10 +59,17 @@ const Nuage = (() => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const count = { requests: 0, bytes: 0 };
   let last = 0, store = null;
-  const openStore = () => (store ??= window.caches ? caches.open("web-measures-geo").catch(() => null) : Promise.resolve(null));
+  // Accès au cache de la page (src/app.js, useGeoCache) : délai borné, abandon partagé ; seul (essais), sans délai
+  let openStore = () => (store ??= window.caches ? caches.open("web-measures-geo").catch(() => null) : Promise.resolve(null));
+  let cacheStep = (promise) => promise;
+  /** Cache des services géographiques ouvert et lu par open() et step(promesse, valeur si elle tarde) de la page. */
+  function useGeoCache(open, step) {
+    openStore = open;
+    cacheStep = step;
+  }
   async function range(url, start, length) {
     const key = `${url}?octets=${start}-${start + length - 1}`, cache = await openStore();
-    const hit = await cache?.match(key).catch(() => undefined);
+    const hit = cache && await cacheStep(cache.match(key).catch(() => undefined), undefined);
     if (hit) return new DataView(await hit.arrayBuffer());
     const view = await download(url, start, length);
     cache?.put(key, new Response(view.buffer.slice(0), { headers: {
@@ -148,7 +160,8 @@ const Nuage = (() => {
         const v = new DataView(lib.HEAPU8.buffer, output, tile.length);  // HEAPU8 peut changer en grandissant
         const cls = tile.format >= 6 ? v.getUint8(16) : v.getUint8(15) & 31;
         if (keep(cls)) {
-          out.push([v.getInt32(0, true) * sx + ox, v.getInt32(4, true) * sy + oy, v.getInt32(8, true) * sz + oz, v.getUint16(12, true), cls]);
+          out.push([v.getInt32(0, true) * sx + ox, v.getInt32(4, true) * sy + oy, v.getInt32(8, true) * sz + oz,
+            v.getUint16(12, true), cls]);
         }
       }
     } finally {
@@ -247,7 +260,8 @@ const Nuage = (() => {
   }
 
   /** Analyse fine du profil (voir App._compute_edges : profile.repere, profils, bords, séparateur) ; progress(texte,
-   * part lue de 0 à 1, ou absente tant que le nombre de blocs n'est pas connu) pendant la lecture. Résultat en m signés comme le graphique (négatif à gauche). */
+   * part lue de 0 à 1, ou absente tant que le nombre de blocs n'est pas connu) pendant la lecture. Résultat en m signés
+   * comme le graphique (négatif à gauche). */
   async function analyse(profile, progress = () => {}) {
     const t0 = Date.now(), r0 = count.requests, b0 = count.bytes;
     const [[lon, lat], right] = profile.repere;
@@ -318,7 +332,8 @@ const Nuage = (() => {
     // Séparateur : bande continue non revêtue (peinture comprise) autour du milieu de celui du calcul
     const main = profile.profils.filter((e) => e.le_long === 0);
     const sepEntry = main.find((e) => e.separateur), out = { points, ref, requetes: count.requests - r0,
-      octets: count.bytes - b0, secondes: Math.round((Date.now() - t0) / 1000), cases: cells.map((c) => [c.x, Math.round(10 * c.i / ref) / 10]),
+      octets: count.bytes - b0, secondes: Math.round((Date.now() - t0) / 1000),
+      cases: cells.map((c) => [c.x, Math.round(10 * c.i / ref) / 10]),
       lignes: lines, herbe: grass, separateur: null, bords: {},
       vegetation: [...plants].sort((a, b) => a[0] - b[0]).map(([k, z]) => [k * BIN, Math.round(z * 100) / 100]),
       // surface de l'eau : altitude médiane des points classés eau par l'IGN, case par case
@@ -353,7 +368,8 @@ const Nuage = (() => {
         near.get(k).push(i);
       }
       const rows = new Map([...near].map(([k, v]) => [k, median(v)]));
-      return { at, rows, ref: median([...rows].filter(([k]) => Math.abs(k * BIN) <= (profile.origine === "caméra" ? 1.5 : 3)).map(([, i]) => i)) };
+      return { at, rows,
+        ref: median([...rows].filter(([k]) => Math.abs(k * BIN) <= (profile.origine === "caméra" ? 1.5 : 3)).map(([, i]) => i)) };
     }).filter((s) => s.ref);
     // Bords de chaussée : jusqu'au bord du calcul (plateforme) + 1 m ; du côté du séparateur, au-delà de lui. Bord de
     // l'enrobé si au moins 3 travers le trouvent, sinon ligne de rive (tirets vus sur les travers voisins compris) ou fin de l'enrobé
@@ -383,7 +399,8 @@ const Nuage = (() => {
     // Largeur d'enrobé de la chaussée de l'origine, travers par travers : du séparateur, s'il est de ce côté, au bord opposé
     const inner = out.separateur ? Math.min(Math.abs(out.separateur[0]), Math.abs(out.separateur[1])) : null;
     if (!out.separateur || out.separateur[0] > 0 || out.separateur[1] < 0) {
-      const [left, right] = ["gauche", "droit"].map((name) => (out.separateur && name === (sepSign < 0 ? "gauche" : "droit") ? null : found[name]));
+      const [left, right] = ["gauche", "droit"]
+        .map((name) => (out.separateur && name === (sepSign < 0 ? "gauche" : "droit") ? null : found[name]));
       const widths = sections.map((_, k) => (left ? left[k] : -inner) === null || (right ? right[k] : inner) === null ? null
         : (right ? right[k] : inner) - (left ? left[k] : -inner)).filter((w) => w !== null && !Number.isNaN(w));
       if (widths.length >= 3) {
@@ -395,10 +412,10 @@ const Nuage = (() => {
   }
 
   /** Tablier le plus proche de o [x, y] et sa hauteur de chute, d'après points [x, y, z, intensité, classe] (Lambert 93) :
-   * cases du tablier reliées à DECK_JOIN m près (altitude : médiane des points classés pont), sans leur rangée de bord (parapets, flancs) ; dessous :
-   * sol (deuxième point le plus bas de la case : pas un point aberrant) ou eau (médiane) à DECK_REACH m au plus du tablier ;
-   * hauteur : la plus grande différence sur tout le tablier, qui suit ainsi un pont bombé. { height, below, keys }, sans height
-   * si rien n'est lu dessous ; null sans tablier près de o. */
+   * cases du tablier reliées à DECK_JOIN m près (altitude : médiane des points classés pont), sans leur rangée de bord
+   * (parapets, flancs) ; dessous : sol (deuxième point le plus bas de la case : pas un point aberrant) ou eau (médiane)
+   * à DECK_REACH m au plus du tablier ; hauteur : la plus grande différence sur tout le tablier, qui suit ainsi un pont
+   * bombé. { height, below, keys }, sans height si rien n'est lu dessous ; null sans tablier près de o. */
   function bridgeHeight(points, o) {
     const key = (i, j) => `${i},${j}`, cell = (v) => Math.floor(v / DECK_CELL);
     const decks = new Map(), soils = new Map(), waters = new Map();
@@ -487,5 +504,5 @@ const Nuage = (() => {
     return { height: found.height, below: found.below };
   }
 
-  return { analyse, toL93, pavedEdge, brightRuns, dashedLines, bridgeFall };
+  return { analyse, toL93, pavedEdge, brightRuns, dashedLines, bridgeFall, useGeoCache };
 })();

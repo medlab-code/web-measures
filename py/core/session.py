@@ -588,17 +588,37 @@ class Session:
             points[1] = {"yaw": p["yaw"], "pitch": p["pitch"], "abs_yaw": p["abs_yaw"], "elev": p["elev"]}
         return points
 
-    def _camera_height(self):
-        """Hauteur de la caméra de la photo affichée au-dessus du sol, pour les repères : celle
-        de sa position vérifiée (altitude RTK moins sol LiDAR HD), sinon calée pour la séquence,
-        sinon le réglage (la page y ajoute la monture du CD21 : web_app.App._camera_of)."""
-        q = self.quality or {}
+    def camera_of(self, item, quality, sequence_only=False, mount=True):
+        """Hauteur de caméra de la photo item au-dessus du sol : (m, source, incertitude en m), dans l'ordre :
+        - mesurée, altitude RTK moins sol LiDAR HD (quality : vérification de la position ; sequence_only : sur la
+          séquence seulement, pas la photo seule de précision déclarée, prise au-dessus du sol sous elle) ;
+        - calée pour la séquence ;
+        - monture connue du véhicule (_mount_height, mount=False : sans elle) ;
+        - le réglage « Caméra à » (source None).
+        Les mesures (hauteur, largeur, points triangulés) n'en dépendent pas : elle sert aux repères et objets posés
+        au sol, au relevé sur une seule photo, au tablier d'un pont et à l'export. MeasureTool.camera_info, côté
+        mesures, ne connaît que les deux dernières sources (calée, réglage)."""
+        q = quality or {}
         h = q.get("height")
-        if q.get("precise") and q.get("lidar") is True and h is not None \
+        if (q.get("count") if sequence_only else q.get("precise")) and q.get("lidar") is True and h is not None \
                 and measures.CAMERA_RANGE[0] <= h <= measures.CAMERA_RANGE[1]:
-            return h
-        cam = self.calibration.camera(self.item.get("collection"))
-        return cam["height"] if cam else self.tool.camera_height
+            return h, "altitude GPS", q.get("spread") or measures.CAMERA_ERRORS["altitude GPS"]
+        cam = self.calibration.camera((item or {}).get("collection"))
+        if cam:
+            return cam["height"], "calée", cam["sigma"]
+        known = self._mount_height(item or {}) if mount else None
+        if known:
+            return known[0], "monture", known[1]
+        return self.tool.camera_height, None, measures.CAMERA_ERRORS[None]
+
+    def _mount_height(self, item):
+        """Monture connue du véhicule de la photo : (hauteur en m, incertitude en m), ou None (la page la connaît
+        pour le CD21 : web_app.App._mount_height)."""
+        return None
+
+    def _camera_height(self, mount=True):
+        """Hauteur de caméra de la photo affichée (camera_of)."""
+        return self.camera_of(self.item, self.quality, mount=mount)[0]
 
     def _view_of(self, bearing, elev):
         """Direction vraie (cap, élévation en degrés) vue dans la photo affichée, calage compris

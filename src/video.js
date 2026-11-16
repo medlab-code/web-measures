@@ -35,17 +35,24 @@ const Video = (() => {
   // l'utilisateur, 05/11/2026) ; encodage direct non essayé (pas d'encodeur sur le poste de développement)
   const HEVC_CODECS = [["hvc1.1.6.L153.B0", "hevc", 30e6]];
   // Formats proposés (liste « Format » de l'onglet Vidéo) ; pas de VP8 : mp4-muxer ne l'accepte pas, et le MP4 non plus
-  const FORMATS = { vp9: CODECS.filter(([, codec]) => codec === "vp9"), h264: [...HIGH_CODECS, ...CODECS.filter(([, codec]) => codec === "avc")], h265: HEVC_CODECS };
+  const FORMATS = {
+    vp9: CODECS.filter(([, codec]) => codec === "vp9"),
+    h264: [...HIGH_CODECS, ...CODECS.filter(([, codec]) => codec === "avc")],
+    h265: HEVC_CODECS,
+  };
   const ENCODERS = { materiel: "prefer-hardware", logiciel: "prefer-software" };
-  const encoderSettings = ([width, height, share], [name, codec, rate], acceleration = "no-preference") => ({ codec: name, width, height, bitrate: rate * share, framerate: FPS,
-    hardwareAcceleration: acceleration, ...(codec === "avc" ? { avc: { format: "avc" } } : codec === "hevc" ? { hevc: { format: "hevc" } } : {}) });
+  const encoderSettings = ([width, height, share], [name, codec, rate], acceleration = "no-preference") => ({
+    codec: name, width, height, bitrate: rate * share, framerate: FPS, hardwareAcceleration: acceleration,
+    ...(codec === "avc" ? { avc: { format: "avc" } } : codec === "hevc" ? { hevc: { format: "hevc" } } : {}),
+  });
   const MUXER = "https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.1/build/mp4-muxer.min.js";
   const HFOV = 80;  // degrés : champ horizontal de la vue (vertical : ± 24° en 16/9, au-dessus du toit du véhicule)
   const SMOOTH = 15;  // m : cap de la vue = direction de la trajectoire de s - SMOOTH à s + SMOOTH (stabilisation)
   // Cap de la vue (path.axis) : direction du tracé sur la plus longue de ces portions (m de part et d'autre) qui s'écarte de
   // moins de AXIS_TOL m de sa corde, en moyenne sur ± AXIS_SMOOTH m. Fixe en ligne droite, où le tracé de la BD TOPO fait de petits
-  // coudes ; revient à ± SMOOTH m dans les virages (écart à la corde : L² / 2R ; ± 150 m au-delà de 11 km de rayon, ± 60 m
-  // de 1 800 m, ± 30 m de 450 m). Seuil choisi sur deux itinéraires réels (86 km) : à 0,5 m la vue tourne encore nettement plus, à 1,5 m elle s'écarte de 13° du virage
+  // coudes ; revient à ± SMOOTH m dans les virages (écart à la corde : L² / 2R ; ± 150 m au-delà de 11 km de rayon,
+  // ± 60 m de 1 800 m, ± 30 m de 450 m). Seuil choisi sur deux itinéraires réels (86 km) : à 0,5 m la vue tourne encore
+  // nettement plus, à 1,5 m elle s'écarte de 13° du virage
   const AXIS_REACHES = [15, 30, 60, 100, 150], AXIS_TOL = 1, AXIS_STEP = 5, AXIS_SMOOTH = 30;
   const SEAM = 40;  // m : autour du raccord de deux séquences, cap lissé sur ± SEAM m (décalage des trajectoires)
   const SLOPE = 20;  // m : pente de la route mesurée de part et d'autre de la photo (altitudes GPS)
@@ -161,12 +168,13 @@ const Video = (() => {
   }
 
   /**
-   * Position (m le long du parcours path) de chaque image : HOLD s d'arrêt au début et à la fin (PRES_HOLD en Présentation), et entre les deux la
-   * vitesse v (m/s), constante, ou avec ramp (rampe de vitesse) réduite dans les virages (facteur 1 / (1 + rotation du
-   * cap lissé / RAMP_TURN), la rotation au-delà de RAMP_MARKED °/m comptant double ; au plus bas RAMP_MIN·v) et en douceur sur RAMP_EDGE m au départ et à l'arrivée,
-   * lissée sur ± RAMP_SMOOTH m : v devient la vitesse des lignes droites. pres : mode Présentation ({ vmax, vmin (m/s),
-   * turn (°/s), fade (s), stops ([lon, lat] des arrêts), stop (s) }, presentationSpeeds) à la place de v et ramp :
-   * arrêt de pres.stop s (images ajoutées) à chaque arrêt.
+   * Position (m le long du parcours path) de chaque image : HOLD s d'arrêt au début et à la fin (PRES_HOLD en
+   * Présentation), et entre les deux la vitesse v (m/s), constante, ou avec ramp (rampe de vitesse) réduite dans les
+   * virages (facteur 1 / (1 + rotation du cap lissé / RAMP_TURN), la rotation au-delà de RAMP_MARKED °/m comptant
+   * double ; au plus bas RAMP_MIN·v) et en douceur sur RAMP_EDGE m au départ et à l'arrivée, lissée sur ± RAMP_SMOOTH m :
+   * v devient la vitesse des lignes droites. pres : mode Présentation ({ vmax, vmin (m/s), turn (°/s), fade (s),
+   * stops ([lon, lat] des arrêts), stop (s) }, presentationSpeeds) à la place de v et ramp : arrêt de pres.stop s
+   * (images ajoutées) à chaque arrêt.
    */
   function timeline(path, v, ramp, looks = [], lookSpeed = null, poiSlow = null, pres = null) {
     const hold = pres ? PRES_HOLD : HOLD;
@@ -224,7 +232,8 @@ const Video = (() => {
       if (u < vmax) for (let i = Math.max(0, x - Math.round(PRES_SIGHT * u + PRES_REACH + SMOOTH)); i < x; i++) v[i] = Math.min(v[i], u);
     });
     for (const x of placesOn(path, slows, "ralentissement")) {
-      for (let i = Math.max(0, Math.round(x - PRES_SLOW_REACH)); i <= Math.min(n - 1, x + PRES_SLOW_REACH); i++) v[i] = Math.min(v[i], slow);
+      for (let i = Math.max(0, Math.round(x - PRES_SLOW_REACH)); i <= Math.min(n - 1, x + PRES_SLOW_REACH); i++)
+        v[i] = Math.min(v[i], slow);
     }
     v[0] = v[n - 1] = 0;
     for (const x of placesOn(path, stops, "arrêt")) v[Math.min(n - 1, Math.round(x))] = 0;
@@ -344,7 +353,8 @@ const Video = (() => {
     if (show > 0) {
       const big = h * 0.062, small = h * 0.034, pad = h * 0.035, bar = h * 0.008;
       ctx.font = font(big, 700);
-      const textWidth = Math.max(ctx.measureText(title.text).width, (ctx.font = font(small, 400), title.sub ? ctx.measureText(title.sub).width : 0));
+      const textWidth = Math.max(ctx.measureText(title.text).width,
+        (ctx.font = font(small, 400), title.sub ? ctx.measureText(title.sub).width : 0));
       const boxW = Math.min(w - 2 * h * 0.06, textWidth + 2 * pad), boxH = big * 1.25 + (title.sub ? small * 1.6 : 0) + 1.2 * pad + bar;
       const x = (w - boxW) / 2, y0 = h * 0.06 - (t < b ? (1 - show) * h * 0.04 : 0);  // descendu d'en haut à l'entrée
       ctx.globalAlpha = show;
@@ -490,10 +500,11 @@ const Video = (() => {
   }
 
   /**
-   * Décalage du regard (degrés, positif à droite) à chaque image de la chronologie xs : regard aux croisements (junctions, Lieu.junctions : au niveau du
-   * carrefour, dans l'axe de la voie croisée, cap de la voie à 10 m du carrefour, LOOK_MAX° au plus ; voies des deux
-   * côtés : gauche jusqu'au passage, puis droite 0,3 s après ; retour dans l'axe deux fois plus rapide que l'aller ; voie dans l'axe ou en arrière ignorée, carrefour à
-   * moins de LOOK_GAP m du précédent ignoré).
+   * Décalage du regard (degrés, positif à droite) à chaque image de la chronologie xs : regard aux croisements
+   * (junctions, Lieu.junctions : au niveau du carrefour, dans l'axe de la voie croisée, cap de la voie à 10 m du
+   * carrefour, LOOK_MAX° au plus ; voies des deux côtés : gauche jusqu'au passage, puis droite 0,3 s après ; retour
+   * dans l'axe deux fois plus rapide que l'aller ; voie dans l'axe ou en arrière ignorée, carrefour à moins de LOOK_GAP
+   * m du précédent ignoré).
    */
   function pans(path, xs, { junctions = [] } = {}) {
     const out = xs.map(() => 0);
@@ -571,7 +582,8 @@ const Video = (() => {
     const bound = (lonlat, name, fallback) => {
       if (!lonlat) return fallback;
       const b = nearest(lonlat);
-      if (b.d > ROLL_REACH) throw new Error(`${name} de la zone du point d'intérêt à ${Math.round(b.d)} m du parcours (${ROLL_REACH} m au plus)`);
+      if (b.d > ROLL_REACH)
+        throw new Error(`${name} de la zone du point d'intérêt à ${Math.round(b.d)} m du parcours (${ROLL_REACH} m au plus)`);
       return b.x;
     };
     let x0 = bound(poi.start, "début", Math.max(0, c.x - POI_SPAN)), x1 = bound(poi.end, "fin", Math.min(path.length, c.x + POI_SPAN));
@@ -802,7 +814,8 @@ const Video = (() => {
     };
     return xs.map((x) => {
       let v = ARP_TOP;
-      for (let m = Math.round(x) - ARP_SMOOTH; m <= Math.round(x) + ARP_SMOOTH; m++) v = Math.min(v, at(Math.min(Math.round(path.length), Math.max(0, m))));
+      for (let m = Math.round(x) - ARP_SMOOTH; m <= Math.round(x) + ARP_SMOOTH; m++)
+        v = Math.min(v, at(Math.min(Math.round(path.length), Math.max(0, m))));
       return v < ARP_TOP ? v : null;
     });
   }
@@ -924,8 +937,9 @@ const Video = (() => {
     const gains = list.map(() => [1, 1, 1]);
     const values = list.map(() => null);
     // Photos mesurées : toutes pour les photos isolées, sinon celles de part et d'autre des changements de séquence
-    const wanted = isolatedToo ? list.map((_, i) => i) : list.map((_, i) => i).filter((i) => list.some((p, k) => k
-      && p.collection !== list[k - 1].collection && i >= k - EXPO_SIDE && i < k + EXPO_SIDE));
+    const wanted = isolatedToo ? list.map((_, i) => i)
+      : list.map((_, i) => i).filter((i) => list.some((p, k) => k && p.collection !== list[k - 1].collection
+        && i >= k - EXPO_SIDE && i < k + EXPO_SIDE));
     let next = 0, measured = 0;
     await Promise.all(Array.from({ length: EXPO_PARALLEL }, async () => {
       while (next < wanted.length) {
@@ -947,8 +961,10 @@ const Video = (() => {
         continue;
       }
       const before = [], after = [];
-      for (let i = k - 1; i >= Math.max(0, k - EXPO_SIDE) && list[i].collection === list[k - 1].collection; i--) if (values[i]) before.push(values[i]);
-      for (let i = k; i < Math.min(list.length, k + EXPO_SIDE) && list[i].collection === list[k].collection; i++) if (values[i]) after.push(values[i]);
+      for (let i = k - 1; i >= Math.max(0, k - EXPO_SIDE) && list[i].collection === list[k - 1].collection; i--)
+        if (values[i]) before.push(values[i]);
+      for (let i = k; i < Math.min(list.length, k + EXPO_SIDE) && list[i].collection === list[k].collection; i++)
+        if (values[i]) after.push(values[i]);
       let shift = [0, 0, 0];
       if (before.length && after.length) {
         const [ma, mb] = [median(before), median(after)];
@@ -1021,7 +1037,8 @@ const Video = (() => {
     // lieu de 2,9°, 0,23 °/m au lieu de 0,56)
     const seamsAt = list.map((p, i) => (i && p.collection !== list[i - 1].collection ? (s[i - 1] + s[i]) / 2 : null))
       .filter((v) => v != null);
-    const reach = (x) => SMOOTH + (SEAM - SMOOTH) * Math.max(0, ...seamsAt.map((c) => smooth(Math.min(1, Math.max(0, 2 - Math.abs(x - c) / SEAM)))));
+    const reach = (x) => SMOOTH
+      + (SEAM - SMOOTH) * Math.max(0, ...seamsAt.map((c) => smooth(Math.min(1, Math.max(0, 2 - Math.abs(x - c) / SEAM)))));
     const course = (x) => {
       const h = reach(x);
       return bearing(at(x - h), at(x + h));
@@ -1368,8 +1385,10 @@ const Video = (() => {
         gl.disable(gl.BLEND);
         gl.useProgram(program);
       },
-      /** Vue : views = [{ tex, crop, grid, yaw, pitch, tan, move, gain }] (yaw : cap de la route), look : regard décalé ; (photo quittée, photo suivante), blend : part de la
-       * suivante ; planet : projection (0 perspective, 1 stéréographique) ; weight < 1 : vue mêlée à l'image déjà dessinée dans cette proportion (moyenne du flou cinétique). */
+      /** Vue : views = [{ tex, crop, grid, yaw, pitch, tan, move, gain }] (yaw : cap de la route), look : regard
+       * décalé ; (photo quittée, photo suivante), blend : part de la suivante ; planet : projection (0 perspective,
+       * 1 stéréographique) ; weight < 1 : vue mêlée à l'image déjà dessinée dans cette proportion (moyenne du flou
+       * cinétique). */
       draw(views, blend, weight = 1, look = 0, roll = 0, lift = 0, planet = 0) {
         gl.uniform1f(u("planet"), planet);
         gl.uniform1f(u("look"), look);
@@ -1480,24 +1499,25 @@ const Video = (() => {
    * Vidéo MP4 (Blob) des photos du parcours [record], à la vitesse simulée kmh, corrections de luminosité (exposures).
    * options.blur : flou cinétique (moyenne de BLUR vues réparties entre la position de l'image
    * précédente et celle-ci : le proche défilant vite s'étale) ; options.exposure : false pour ne pas corriger la
-   * luminosité ; options.ramp : rampe de vitesse (timeline) ; options.title :
-   * { text, sub, keep } en titre au début (drawTitle ; keep : rappel en incrustation) ; options.counter : compteur PR (photo.pr, prAt) ; options.speedometer : compteur de
-   * vitesse (speeds) ; options.lateral : accélération latérale (laterals, insideDevers) ; options.arpSpeed : vitesse
-   * max ARP (arpSpeeds) ; options.junctions : carrefours où regarder (pans) ; options.rolls : endroits des tonneaux
-   * ([[lon, lat]…], rolls), options.rollTime : durée de chacun (s) ; options.lookSpeed : vitesse de regard aux carrefours (km/h) ;
-   * options.poi : point d'intérêt { target, z (altitude NGF de l'objet relevé ou null), start, end (extrémités de la
-   * zone tracée, [lon, lat] ou null), speed (km/h ou null), zoom, zoomByDistance, roll, ground: { target, photos }
-   * (altitudes du sol, par photo de photos) } (poiViews) ; options.planets : tronçons des petites planètes ([[début, fin]…],
-   * planets), options.planetFade : enroulement et déroulement (s), options.planetAll : sur tout le parcours,
-   * options.planetRoll : tonneau pendant les transitions, options.presentation : mode
-   * Présentation (timeline, presentationSpeeds ; vitesses en m/s) à la place de kmh et de la rampe, options.planetSpin : vitesse de rotation (°/s) ;
-   * options.tours : endroits des tours d'horizon ([[lon, lat]…], tours), options.tourTime : durée de chacun (s),
-   * options.tourStop : caméra arrêtée pendant le tour ; options.draft : brouillon (image SD des photos, DRAFT_SIZE) ;
-   * options.format : « h264 », « h265 » ou « vp9 » ; options.height : 1080, 720 ou 480 (encoderConfig) ;
-   * options.stabilize : tangage et roulis de chaque photo corrigés (stabilization) ; options.stream : fichier ouvert
-   * (FileSystemWritableFileStream) où écrire la vidéo au fur et à mesure, refermé à la fin (rend null ; sans lui, la
-   * vidéo est assemblée en mémoire et rendue en Blob : un long parcours peut alors dépasser la mémoire de l'onglet).
-   * progress(fait, total) à chaque image ; signal : AbortSignal pour arrêter.
+   * luminosité ; options.ramp : rampe de vitesse (timeline) ; options.title : { text, sub, keep } en titre au début
+   * (drawTitle ; keep : rappel en incrustation) ; options.counter : compteur PR (photo.pr, prAt) ; options.speedometer :
+   * compteur de vitesse (speeds) ; options.lateral : accélération latérale (laterals, insideDevers) ;
+   * options.arpSpeed : vitesse max ARP (arpSpeeds) ; options.junctions : carrefours où regarder (pans) ; options.rolls :
+   * endroits des tonneaux ([[lon, lat]…], rolls), options.rollTime : durée de chacun (s) ; options.lookSpeed :
+   * vitesse de regard aux carrefours (km/h) ; options.poi : point d'intérêt { target, z (altitude NGF de l'objet relevé
+   * ou null), start, end (extrémités de la zone tracée, [lon, lat] ou null), speed (km/h ou null), zoom,
+   * zoomByDistance, roll, ground: { target, photos } (altitudes du sol, par photo de photos) } (poiViews) ;
+   * options.planets : tronçons des petites planètes ([[début, fin]…], planets), options.planetFade : enroulement et
+   * déroulement (s), options.planetAll : sur tout le parcours, options.planetRoll : tonneau pendant les transitions,
+   * options.presentation : mode Présentation (timeline, presentationSpeeds ; vitesses en m/s) à la place de kmh et de
+   * la rampe, options.planetSpin : vitesse de rotation (°/s) ; options.tours : endroits des tours d'horizon ([[lon,
+   * lat]…], tours), options.tourTime : durée de chacun (s), options.tourStop : caméra arrêtée pendant le tour ;
+   * options.draft : brouillon (image SD des photos, DRAFT_SIZE) ; options.format : « h264 », « h265 » ou « vp9 » ;
+   * options.height : 1080, 720 ou 480 (encoderConfig) ; options.stabilize : tangage et roulis de chaque photo corrigés
+   * (stabilization) ; options.stream : fichier ouvert (FileSystemWritableFileStream) où écrire la vidéo au fur et à
+   * mesure, refermé à la fin (rend null ; sans lui, la vidéo est assemblée en mémoire et rendue en Blob : un long
+   * parcours peut alors dépasser la mémoire de l'onglet). progress(fait, total) à chaque image ; signal : AbortSignal
+   * pour arrêter.
    */
   async function mp4(photos, kmh, progress = () => {}, signal = null,
     {
@@ -1636,7 +1656,8 @@ const Video = (() => {
         const sweep = wrap(turn - turns.look[n] + turns.look[Math.max(0, n - 1)]);
         const spin = Math.max(Math.abs(sweep), Math.abs(rollTurn));
         // Raccord de deux séquences : léger flou (SEAM_BLUR vues), pour masquer un peu le passage sans qu'il se voie
-        const [seamI] = path.segment(x), seam = path.list[seamI].collection !== path.list[Math.min(seamI + 1, path.list.length - 1)].collection;
+        const [seamI] = path.segment(x);
+        const seam = path.list[seamI].collection !== path.list[Math.min(seamI + 1, path.list.length - 1)].collection;
         const subs = spin > 1 ? Math.min(48, Math.max(BLUR, Math.ceil(spin / 1.5)))
           : at(n - 1) < x ? (blur ? BLUR : seam ? SEAM_BLUR : 1) : 1;
         const first = path.segment(x - (x - at(n - 1)) * (subs - 1) / subs)[0];
@@ -1658,7 +1679,8 @@ const Video = (() => {
           lap("tuiles");
           // Avancée : u·écart après la photo quittée, (1 - u)·écart avant la suivante ; vue k : 1 / (k + 1) de la
           // moyenne courante
-          const gap = 0;  // fondu enchaîné, chaque photo vue de sa propre caméra (l'avancée dans une maquette faisait sauter le ciel et les côtés)
+          // fondu enchaîné, chaque photo vue de sa propre caméra (l'avancée dans une maquette faisait sauter le ciel et les côtés)
+          const gap = 0;
           const joint = j !== i && path.list[i].collection !== path.list[j].collection;
           const apart = joint ? Math.min(path.s[j] - path.s[i], SEAM_DEPTH / 2) : 0;  // (zoom borné : 2 au plus)
           const zoomA = SEAM_DEPTH / (SEAM_DEPTH - u * apart);
@@ -1666,7 +1688,8 @@ const Video = (() => {
           // sinon la vue semble prendre la route que suit la séquence quittée
           const toward = joint ? wrap(bearing(path.list[i].coords, path.list[j].coords) - path.axis(xs)) * (1 - 1 / zoomA) : 0;
           gl.draw([
-            { ...a, yaw: (yawAt(i, xs) + toward) * toRad, pitch: path.list[i].pitch, tilt: tilts[i], tan: view / zoomA, move: u * gap, gain: gains[i] },
+            { ...a, yaw: (yawAt(i, xs) + toward) * toRad, pitch: path.list[i].pitch, tilt: tilts[i], tan: view / zoomA,
+            move: u * gap, gain: gains[i] },
             { ...b, yaw: yawAt(j, xs) * toRad, pitch: path.list[j].pitch, tilt: tilts[j], tan: view, move: -(1 - u) * gap, gain: gains[j] },
           ], j === i ? 0 : smooth(Math.min(1, Math.max(0, joint ? 1 - (1 - u) / Math.max(0.3, SEAM_FADE / (path.s[j] - path.s[i]))
             : (u - 0.25) / 0.5))), 1 / (k + 1), look, tilted,
@@ -1675,7 +1698,8 @@ const Video = (() => {
         // Titre et compteurs : dessinés dans un calque transparent posé par la carte graphique sur la vue (l'image ne fait
         // pas l'aller-retour vers le processeur : un tiers du calcul)
         const marks = { title, pr: counter ? prAt(path, x) : null, speed: speedometer ? { kmh: kmhs[n], digits: kmhDigits } : null,
-          lateral: lateral ? { felt: felt[n], color: lateralColor(lats[n], kmhs[n], devs[n]) } : null, arp: arpSpeed ? { kmh: vmax[n] } : null,
+          lateral: lateral ? { felt: felt[n], color: lateralColor(lats[n], kmhs[n], devs[n]) } : null,
+          arp: arpSpeed ? { kmh: vmax[n] } : null,
           t: n / FPS };
         if (title || counter || speedometer || lateral || arpSpeed) {
           overlay ??= new OffscreenCanvas(width, height);

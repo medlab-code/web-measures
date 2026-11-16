@@ -34,7 +34,8 @@ const Carte = (() => {
   const GLYPHS = "https://data.geopf.fr/annexes/ressources/vectorTiles/fonts/{fontstack}/{range}.pbf";
   const VECTOR_BASES = {
     // Plan IGN vectoriel (page mobile, à la place des images du Plan IGN)
-    planv: { style: "https://data.geopf.fr/annexes/ressources/vectorTiles/styles/PLAN.IGN/standard.json", maxzoom: 18, attribution: ATTRIBUTION_IGN },
+    planv: { style: "https://data.geopf.fr/annexes/ressources/vectorTiles/styles/PLAN.IGN/standard.json", maxzoom: 18,
+      attribution: ATTRIBUTION_IGN },
     // OpenStreetMap par OpenFreeMap (gratuit, sans clé, en-têtes CORS)
     ofm: { style: "https://tiles.openfreemap.org/styles/liberty", attribution: ATTRIBUTION_OFM,
       font: (f) => f.replace("Noto Sans", "Source Sans Pro") },
@@ -48,10 +49,13 @@ const Carte = (() => {
     { id: "communes", layer: "commune", minzoom: 11, paint: { "line-color": "#000000", "line-width": 1.2, "line-dasharray": [4, 2.5] } },
     // métropoles (EPCI de nature « Métropole ») : vert, un peu plus fin que les départements,
     // dès l'échelle du département
-    { id: "metropoles", layer: "epci", minzoom: 7, properties: "cleabs,nom_officiel,nature,geometrie",
+    { id: "metropoles", layer: "epci", minzoom: 7, properties: "cleabs,nom_officiel,nature,geometrie", everywhere: true,
       filter: ["==", ["get", "nature"], "Métropole"], paint: { "line-color": "#16a34a", "line-width": 4 } },
-    { id: "departements", layer: "departement", minzoom: 0, paint: { "line-color": "#0082c5", "line-width": 5 } },
+    { id: "departements", layer: "departement", minzoom: 0, everywhere: true,
+      paint: { "line-color": "#0082c5", "line-width": 5 } },
   ];
+  // everywhere : sur tous les fonds ; sinon (communes) avec le fond « orthophoto avec noms » seulement
+  const adminOn = (level) => level.everywhere || adminNames;
   /** Épaisseur d'un contour (plus `extra` pour le liseré) : 40 % au zoom 5, entière dès le 10. */
   const adminWidth = (level, extra) => {
     const w = level.paint["line-width"];
@@ -159,7 +163,8 @@ const Carte = (() => {
             tileSize: 256, maxzoom: 20, attribution: ATTRIBUTION_IGN,
           },
           pcrs: { type: "raster", tiles: [pcrsTiles(pcrsLayer)], tileSize: 256, maxzoom: 22, attribution: ATTRIBUTION_IGN },
-          // Modèle Numérique de Hauteur, issu du LiDAR HD (IGN) : estompage de la hauteur du sursol (bâtiments, arbres, talus) au-dessus du sol
+          // Modèle Numérique de Hauteur, issu du LiDAR HD (IGN) : estompage de la hauteur du sursol (bâtiments, arbres,
+          // talus) au-dessus du sol
           mnh: {
             type: "raster", tiles: [wmts("IGNF_LIDAR-HD_MNH_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW", "image/png")],
             tileSize: 256, maxzoom: 18, attribution: ATTRIBUTION_IGN,
@@ -173,7 +178,8 @@ const Carte = (() => {
           pr: { type: "geojson", data: EMPTY },
           // Cadastre (#36, réglage « Cadastre sur la carte », voir setCadastre) : Parcellaire Express en tuiles vectorielles
           // (parcelles dès le zoom 15 ; bâtiments, bornes et points d'étiquette dès le zoom 17), nettes à tout zoom
-          cadastre: { type: "vector", tiles: [`${GEOPF}/tms/1.0.0/PCI/{z}/{x}/{y}.pbf`], minzoom: 5, maxzoom: 19, attribution: ATTRIBUTION_IGN },
+          cadastre: { type: "vector", tiles: [`${GEOPF}/tms/1.0.0/PCI/{z}/{x}/{y}.pbf`], minzoom: 5, maxzoom: 19,
+            attribution: ATTRIBUTION_IGN },
           contour: { type: "geojson", data: EMPTY },  // commune choisie dans la recherche (recherche.js)
           voies: { type: "vector", tiles: [ROADS_TILES], minzoom: ROADS_MINZOOM, maxzoom: 19, attribution: ATTRIBUTION_IGN },
           // tuiles jusqu'au zoom 13 seulement, agrandies au-delà : à partir du zoom 14, le Plan IGN
@@ -190,7 +196,8 @@ const Carte = (() => {
           // Cadastre, sur le fond et sous le filaire (couleurs du Parcellaire Express de l'IGN) : parcelles numérotées teintées (le
           // domaine public, voirie et cours d'eau, n'en a pas : sans teinte), bâtiments, limites des parcelles (pas celles des feuilles)
           {
-            id: "cadastre-parcelles", type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
+            id: "cadastre-parcelles", type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
+            layout: { visibility: "none" },
             paint: { "fill-color": "#ff8000", "fill-opacity": PARCEL_TINT },
           },
           {
@@ -198,7 +205,8 @@ const Carte = (() => {
             paint: { "fill-color": "#c17d73", "fill-opacity": 0.45, "fill-outline-color": "#b580ff" },
           },
           {
-            id: "cadastre", type: "line", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM, layout: { visibility: "none" },
+            id: "cadastre", type: "line", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
+            layout: { visibility: "none" },
             paint: { "line-color": "#ff8000", "line-width": ["interpolate", ["linear"], ["zoom"], 15, 0.6, 18, 1.6, 21, 2.5] },
           },
           // Parcelle où se tient la caméra, en jaune, et parcelle visée : la première que coupe la ligne de cap, à moins de
@@ -269,7 +277,8 @@ const Carte = (() => {
           {
             id: "photos", type: "circle", source: "panoramax", "source-layer": "pictures", minzoom: 15,
             paint: {
-              "circle-color": ORANGE, "circle-radius": 2.5, "circle-opacity": NETWORK_OPACITY,  // plus petits que le filaire d'origine (3,5)
+              // plus petits que le filaire d'origine (3,5)
+              "circle-color": ORANGE, "circle-radius": 2.5, "circle-opacity": NETWORK_OPACITY,
               "circle-stroke-color": "#ffffff", "circle-stroke-width": 0.7, "circle-stroke-opacity": NETWORK_OPACITY,
             },
           },
@@ -317,7 +326,8 @@ const Carte = (() => {
             },
           },
           {
-            id: "cadastre-bornes", type: "circle", source: "cadastre", "source-layer": "borne_limite_propriete", minzoom: CADASTRE_BORNES_ZOOM,
+            id: "cadastre-bornes", type: "circle", source: "cadastre", "source-layer": "borne_limite_propriete",
+            minzoom: CADASTRE_BORNES_ZOOM,
             layout: { visibility: "none" },
             paint: { "circle-color": "#ffffff", "circle-radius": 3, "circle-stroke-color": "#ff4fd8", "circle-stroke-width": 1.5 },
           },
@@ -325,7 +335,8 @@ const Carte = (() => {
           // (parcelImage), de taille fixe à l'écran ; celles qui se chevauchent sont masquées
           {
             id: "cadastre-sections", type: "symbol", source: "cadastre", "source-layer": "localisant", minzoom: CADASTRE_SECTIONS_ZOOM,
-            layout: { visibility: "none", "icon-image": ["concat", "parcelle:", ["get", "section"], "|", ["get", "numero"]], "icon-padding": 1 },
+            layout: { visibility: "none",
+              "icon-image": ["concat", "parcelle:", ["get", "section"], "|", ["get", "numero"]], "icon-padding": 1 },
           },
           // Couche importée (GeoJSON) : couleur de chaque objet (Couche.style), sous les mesures
           {
@@ -334,7 +345,8 @@ const Carte = (() => {
           },
           {
             id: "couche-points", type: "circle", source: "couche", filter: ["==", ["geometry-type"], "Point"],
-            paint: { "circle-color": ["get", "_couleur"], "circle-radius": 5, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 },
+            paint: { "circle-color": ["get", "_couleur"], "circle-radius": 5, "circle-stroke-color": "#ffffff",
+              "circle-stroke-width": 1.5 },
           },
           // Résultats de la session précédente, en lecture seule : gris, sous ceux de la session
           {
@@ -388,7 +400,8 @@ const Carte = (() => {
       if (e.id.startsWith("cartouche:") && !map.hasImage(e.id)) {
         map.addImage(e.id, cartoucheImage(e.id.slice("cartouche:".length)), { pixelRatio: 2 });
       }
-      if (e.id.startsWith("parcelle:") && !map.hasImage(e.id)) map.addImage(e.id, parcelImage(e.id.slice("parcelle:".length)), { pixelRatio: 2 });
+      if (e.id.startsWith("parcelle:") && !map.hasImage(e.id))
+        map.addImage(e.id, parcelImage(e.id.slice("parcelle:".length)), { pixelRatio: 2 });
     });
     map.addControl(new maplibregl.NavigationControl(), "top-left");
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
@@ -398,6 +411,7 @@ const Carte = (() => {
     map.once("idle", () => {
       map.getContainer().querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show");
     });
+    map.once("load", () => loadedMaps.add(map));  // voir whenLoaded
     return map;
   }
 
@@ -518,7 +532,7 @@ const Carte = (() => {
     }
     namesShown = name === "noms";
     if (namesShown) loadNames(map);
-    // Orthophoto avec noms : avec les voies et les limites administratives
+    // Orthophoto avec noms : avec les voies et les limites des communes (départements et métropoles : tous les fonds)
     setRoadsVisible(map, namesShown);
     setAdminVisible(map, namesShown);
     for (const id of namesIds) map.setLayoutProperty(id, "visibility", namesShown ? "visible" : "none");
@@ -548,7 +562,8 @@ const Carte = (() => {
         for (const [name, source] of Object.entries(style.sources)) {
           if (source.type !== "vector") continue;  // relief ombré des petites échelles (OpenFreeMap) : sans
           const id = `${key}-${name}`;
-          map.addSource(id, source.tiles ? { type: "vector", tiles: source.tiles, scheme: source.scheme, maxzoom: def.maxzoom ?? 14, attribution: def.attribution }
+          map.addSource(id, source.tiles
+            ? { type: "vector", tiles: source.tiles, scheme: source.scheme, maxzoom: def.maxzoom ?? 14, attribution: def.attribution }
             : { type: "vector", url: source.url, attribution: def.attribution });
           sources[name] = id;
         }
@@ -556,14 +571,16 @@ const Carte = (() => {
          * ou d'un interpolate sur le zoom traitées une à une : le zoom n'est permis qu'au sommet). */
         const prefixed = (image) => {
           if (typeof image === "string") {
-            const parts = image.split(/\{([^}]+)\}/).map((part, i) => (i % 2 ? ["to-string", ["get", part]] : part)).filter((part) => part !== "");
+            const parts = image.split(/\{([^}]+)\}/).map((part, i) => (i % 2 ? ["to-string", ["get", part]] : part))
+              .filter((part) => part !== "");
             if (!parts.length) return "";
             if (parts.length === 1 && typeof parts[0] === "string") return `${key}:${image}`;
             image = parts.length === 1 ? parts[0] : ["concat", ...parts];
           } else if (Array.isArray(image) && image[0] === "step") {
             return [...image.slice(0, 2), prefixed(image[2]), ...image.slice(3).map((v, i) => (i % 2 ? prefixed(v) : v))];
           } else if (image?.stops) return { ...image, stops: image.stops.map(([z, v]) => [z, prefixed(v)]) };
-          return ["let", "i", image, ["case", ["==", ["to-string", ["var", "i"]], ""], "", ["concat", `${key}:`, ["to-string", ["var", "i"]]]]];
+          return ["let", "i", image,
+            ["case", ["==", ["to-string", ["var", "i"]], ""], "", ["concat", `${key}:`, ["to-string", ["var", "i"]]]]];
         };
         for (const layer of style.layers) {
           if (layer.type !== "background" && !sources[layer.source]) continue;
@@ -573,12 +590,16 @@ const Carte = (() => {
           const { maxzoom: styleMax, ...kept } = layer;
           const maxzoom = def.maxzoom && styleMax >= def.maxzoom ? undefined : styleMax;
           const layout = { ...layer.layout, visibility: shown() ? "visible" : "none" };
-          if (layout["text-size"] != null || layer.type === "symbol") layout["text-size"] = scaledSize(layout["text-size"] ?? 16, mapOptions.textScale);
-          if (Array.isArray(layout["text-font"]) && def.font) layout["text-font"] = layout["text-font"].map((f) => (typeof f === "string" ? def.font(f) : f));
+          if (layout["text-size"] != null || layer.type === "symbol")
+            layout["text-size"] = scaledSize(layout["text-size"] ?? 16, mapOptions.textScale);
+          if (Array.isArray(layout["text-font"]) && def.font)
+            layout["text-font"] = layout["text-font"].map((f) => (typeof f === "string" ? def.font(f) : f));
           if (layout["icon-image"] != null) layout["icon-image"] = prefixed(layout["icon-image"]);
           const paint = { ...layer.paint };  // motifs (cimetières, marais du Plan IGN) : images du même style
           for (const name of ["fill-pattern", "line-pattern"]) if (paint[name] != null) paint[name] = prefixed(paint[name]);
-          map.addLayer({ ...kept, ...(maxzoom != null && { maxzoom }), id, ...(layer.source && { source: sources[layer.source] }), layout, paint }, "cadastre-parcelles");
+          const placed = { ...kept, ...(maxzoom != null && { maxzoom }), id,
+            ...(layer.source && { source: sources[layer.source] }), layout, paint };
+          map.addLayer(placed, "cadastre-parcelles");
           base.ids.push(id);
           if (key === "planv" && layer.id === "bckgrd") {  // fond blanc du Plan IGN : parcelles en jaune léger juste dessus
             map.addLayer({ ...PARCEL_GROUND, id: "planv-parcelles-fond", layout: { visibility: layout.visibility } }, "cadastre-parcelles");
@@ -730,8 +751,11 @@ const Carte = (() => {
   }
 
   /** Carte prête (style chargé) : fn tout de suite, sinon à son chargement. */
+  // Cartes dont le style a fini son premier chargement : isStyleLoaded() redevient faux pendant le chargement des tuiles
+  // ou un ajout de couches (fond vectoriel), alors que « load » ne revient plus (le filtre attendait sans fin)
+  const loadedMaps = new WeakSet();
   function whenLoaded(map, fn) {
-    if (map.isStyleLoaded()) fn();
+    if (loadedMaps.has(map) || map.isStyleLoaded()) fn();
     else map.once("load", fn);
   }
 
@@ -748,7 +772,7 @@ const Carte = (() => {
   // Filtre des photos (même critères que le plugin, voir core/filters.py) ------------------
 
   function setFilter(map, f) {
-    if (!map.isStyleLoaded()) {  // MapLibre refuse un filtre avant le chargement du style
+    if (!loadedMaps.has(map) && !map.isStyleLoaded()) {  // MapLibre refuse un filtre avant le chargement du style
       map.once("load", () => setFilter(map, f));
       return;
     }
@@ -763,8 +787,10 @@ const Carte = (() => {
       if (f.producer) parts.push(["==", ["get", "account_id"], f.producer[0]]);
       map.setFilter(layer, parts.length > 1 ? parts : null);
     }
-    const grid = f.kind ? [">", ["to-number", ["get", f.kind === "360" ? "nb_360_pictures" : "nb_flat_pictures"], 0], 0]
-      : null;
+    // Grille (vue de loin) : comptes de photos par type seulement ; producteur, date ou précision GPS demandés, elle
+    // compterait aussi les photos filtrées : masquée (comme les séquences de loin, sans ces propriétés dans leurs tuiles)
+    const grid = f.producer || f.since || f.max_gps != null ? ["boolean", false]
+      : f.kind ? [">", ["to-number", ["get", f.kind === "360" ? "nb_360_pictures" : "nb_flat_pictures"], 0], 0] : null;
     map.setFilter("grille", grid);
   }
 
@@ -781,7 +807,7 @@ const Carte = (() => {
    * la zone vue (élargie) est demandée au WFS si aucune zone déjà chargée ne la contient ;
    * entités gardées par jeu de données (petite échelle ou précis) et par identifiant. */
   const adminCache = new Map();  // "jeu:couche" -> { boxes: [[o, s, e, n]], features: Map }
-  let adminShown = false, adminTimer = null;
+  let adminNames = false, adminTimer = null;  // adminNames : fond « orthophoto avec noms » (limites des communes)
 
   function showAdmin(map) {
     map.on("moveend", () => {
@@ -790,21 +816,21 @@ const Carte = (() => {
     });
   }
 
-  function setAdminVisible(map, shown) {
-    adminShown = shown;
+  function setAdminVisible(map, names) {
+    adminNames = names;
     for (const level of ADMIN_LEVELS) {
-      for (const id of ["admin-" + level.id, `admin-${level.id}-lisere`]) map.setLayoutProperty(id, "visibility", shown ? "visible" : "none");
+      for (const id of ["admin-" + level.id, `admin-${level.id}-lisere`])
+        map.setLayoutProperty(id, "visibility", adminOn(level) ? "visible" : "none");
     }
-    if (shown) loadAdmin(map);
+    loadAdmin(map);
   }
 
   function loadAdmin(map) {
-    if (!adminShown) return;
     const zoom = map.getZoom();
     const b = map.getBounds();
     const view = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
     for (const level of ADMIN_LEVELS) {
-      if (zoom < level.minzoom) continue;
+      if (zoom < level.minzoom || !adminOn(level)) continue;
       const dataset = adminDataset(level, zoom);
       adminFetch(`${dataset}:${level.layer}`, view, level.properties || "cleabs,nom_officiel,geometrie", (features) => {
         // jeu de données encore celui du zoom courant
@@ -851,12 +877,14 @@ const Carte = (() => {
 
   // Cadastre : parcelles dès CADASTRE_MINZOOM, bornes de limite de propriété et étiquettes dès CADASTRE_BORNES_ZOOM (nombreuses ;
   // tuiles vectorielles du PCI : ni bornes ni étiquettes avant le zoom 17)
-  const CADASTRE_MINZOOM = 15, CADASTRE_BORNES_ZOOM = 17, CADASTRE_SECTIONS_ZOOM = 17;
+  // parcelles un niveau avant leurs numéros (demande de l'auteur, 16/11/2026 ; zoom 15 avant)
+  const CADASTRE_MINZOOM = 16, CADASTRE_BORNES_ZOOM = 17, CADASTRE_SECTIONS_ZOOM = 17;
   // Plan IGN vectoriel, cadastre allumé ou non : parcelles remplies de jaune léger dès CADASTRE_MINZOOM (deux fois plus
   // léger que le jaune du Plan IGN en images à fort zoom, #FFFFDF), sous l'eau, la végétation et les bâtiments ; hors
   // parcelles (rues, chemins du domaine public), le blanc du fond
   const PARCEL_TINT = 0.12, PARCEL_TINT_ON_PLAN = 0.05;  // opacité de la teinte orange des parcelles (cadastre allumé)
-  const PARCEL_GROUND = { type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM, paint: { "fill-color": "#ffffef" } };
+  const PARCEL_GROUND = { type: "fill", source: "cadastre", "source-layer": "parcelle", minzoom: CADASTRE_MINZOOM,
+    paint: { "fill-color": "#ffffef" } };
   const CADASTRE_BATIMENTS_ZOOM = 17;  // bâtiments dans les tuiles du PCI à partir de ce zoom
   let cadastreOn = false, cadastreFollow = false;
 
@@ -882,14 +910,14 @@ const Carte = (() => {
     try { apply(); } catch { map.once("load", apply); }
   }
 
-  // Parcelle visée : la première que coupe la ligne de cap en partant de la caméra (celle où se tient la caméra, cour ou
-  // chemin privé, écartée : elle est allumée à part, en jaune), jusqu'à CADASTRE_VISEE m : au-delà, la photo ne montre plus assez la parcelle pour s'en servir
-  // (limites du plan à 1,5 m près en Côte-d'Or). Recherchée sur les parcelles lues autour de la caméra (loadParcels), à chaque
-  // rotation de la vue (une fois par image au plus).
+  // Parcelle visée : la première que coupe la ligne de cap en partant de la caméra (celle où se tient la caméra, cour
+  // ou chemin privé, écartée : elle est allumée à part, en jaune), jusqu'à CADASTRE_VISEE m : au-delà, la photo ne
+  // montre plus assez la parcelle pour s'en servir (limites du plan à 1,5 m près en Côte-d'Or). Recherchée sur les
+  // parcelles lues autour de la caméra (loadParcels), à chaque rotation de la vue (une fois par image au plus).
   const CADASTRE_VISEE = 50;
   // aimListener : averti de la parcelle visée ({ idu, section, numero, at : [lon, lat] du milieu de sa partie vue
-  // directement, entre ses limites gauche et droite (parcelMiddle) }, ou null), à chaque changement de parcelle visée ou de caméra : ce point ne bouge pas
-  // quand la vue tourne dans la même parcelle
+  // directement, entre ses limites gauche et droite (parcelMiddle) }, ou null), à chaque changement de parcelle visée
+  // ou de caméra : ce point ne bouge pas quand la vue tourne dans la même parcelle
   let aimFrame = 0, aimedKey = "", aimedNow = null, aimListener = null;
   function aimCadastre(map) {
     if (aimFrame) return;
@@ -1202,7 +1230,8 @@ const Carte = (() => {
     }
     for (const { f, at } of found.slice(0, OVERLAY_LABEL_MAX)) {
       const element = document.createElement("div");  // ancre : MapLibre place l'élément, l'étiquette s'y décale
-      const label = Object.assign(document.createElement("div"), { className: "etiquette couche", textContent: f.properties._etiquette_carte });
+      const label = Object.assign(document.createElement("div"),
+        { className: "etiquette couche", textContent: f.properties._etiquette_carte });
       label.style.color = Couche.clair(f.properties._couleur);
       element.append(label);
       overlayLabels.push(new maplibregl.Marker({ element, ...awayFromRoad(map.project(at), axes) }).setLngLat(at).addTo(map));
@@ -1235,7 +1264,7 @@ const Carte = (() => {
 
   /** Étiquettes de la couche sur la carte, dans l'ordre de proximité : chacune remontée au-dessus des
    * étiquettes déjà placées (mesures comprises), masquée s'il faudrait la remonter de plus de
-   * OVERLAY_MAX_LIFT fois sa hauteur (comme dans la visionneuse, voir app.js declutterLabels). */
+   * OVERLAY_MAX_LIFT fois sa hauteur (comme dans la visionneuse, voir mesure.js declutterLabels). */
   function declutterOverlayLabels(map) {
     const hit = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom + 2 && a.bottom + 2 > b.top;
     const placed = labels.map((m) => m.getElement().getBoundingClientRect()).filter((r) => r.width);
@@ -1556,10 +1585,11 @@ const Carte = (() => {
       const cone = heading == null ? "" : `<path d="M0 0L${point(-half, r)}A${r} ${r} 0 0 1 ${point(half, r)}Z"
           fill="${CURSEUR}" fill-opacity="0.25" stroke="${CURSEUR}" stroke-width="1.5"/>
         <line x1="0" y1="0" x2="0" y2="${-reach}" stroke="${CURSEUR}" stroke-width="2" stroke-opacity="0.6"/>`;
+      // croix : pas une pastille de la couche
       viewMarker.getElement().innerHTML = `<svg width="${2 * reach}" height="${2 * reach}"
         viewBox="${-reach} ${-reach} ${2 * reach} ${2 * reach}">${cone}
         <path d="M-8 0H8M0 -8V8" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
-        <path d="M-8 0H8M0 -8V8" stroke="${CURSEUR}" stroke-width="3" stroke-linecap="round"/></svg>`;  // croix : pas une pastille de la couche
+        <path d="M-8 0H8M0 -8V8" stroke="${CURSEUR}" stroke-width="3" stroke-linecap="round"/></svg>`;
     }
     viewMarker.setLngLat(lonlat).setRotation(heading ?? 0);
     if (!viewMarker._map) viewMarker.addTo(map);

@@ -31,7 +31,8 @@
     Carte.setBackground(map, $("#fond").value);
     Carte.setNetworkVisible(map, $("#filaire").checked);
   });
-  map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }), "top-right");  // à 10 px du haut et du bord
+  // à 10 px du haut et du bord
+  map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }), "top-right");
 
   let photo = null;  // fiche STAC de la photo affichée
   let psv = null;  // visionneuse sphérique (Photo Sphere Viewer)
@@ -47,7 +48,8 @@
       const feature = (heading != null ? await Carte.nearestPhoto(map, lng, lat, (f) => passesFilter(f) && sameWay(f), radius) : null)
         || await Carte.nearestPhoto(map, lng, lat, passesFilter, radius);
       if (feature) openPhoto(feature);
-      else say(filterActive() ? "Aucune photo près de ce point avec le filtre (Réglages ⚙)." : "Aucune photo près de ce point : touchez le filaire orange.");
+      else say(filterActive() ? "Aucune photo près de ce point avec le filtre (Réglages ⚙)."
+        : "Aucune photo près de ce point : touchez le filaire orange.");
     } catch (error) {
       say(`Recherche impossible : ${error.message}`);
     }
@@ -57,7 +59,7 @@
     setPhoto(feature);
     $("#invite").hidden = true;
     viewer.hidden = false;
-    if (viewer.getAttribute("picture") !== feature.id) {  // séquence et photo ensemble (voir app.js, openPhoto)
+    if (viewer.getAttribute("picture") !== feature.id) {  // séquence et photo ensemble (voir choix.js, openPhoto)
       if (viewer.select) viewer.select(feature.collection || null, feature.id, true);
       else viewer.setAttribute("picture", feature.id);
     }
@@ -76,7 +78,7 @@
     backgroundsAt(feature);
   }
 
-  /** PCRS proposé là où il est publié ; ortho-express de l'année de la photo (comme app.js, photoDetails). */
+  /** PCRS proposé là où il est publié ; ortho-express de l'année de la photo (comme choix.js, photoDetails). */
   function backgroundsAt(feature) {
     const [lon, lat] = feature.geometry.coordinates;
     Carte.pcrsAt(map, lon, lat).then((zone) => {
@@ -85,7 +87,8 @@
     const year = Number((feature.properties?.datetime || "").slice(0, 4));
     if (year) {
       Carte.setExpressYear(map, year, lon, lat).then((used) => {
-        if (photo === feature) $("#fond option[value=express]").textContent = used == null ? "Ortho-express (aucune ici)" : `Ortho-express ${used}`;
+        if (photo === feature)
+          $("#fond option[value=express]").textContent = used == null ? "Ortho-express (aucune ici)" : `Ortho-express ${used}`;
       }).catch(() => {});
     }
   }
@@ -130,7 +133,8 @@
   // Réglages de la carte : fond, PR, cadastre (parcelles sur la carte, étiquette de la parcelle visée dans la photo) ---
 
   $("#ouvrir-reglages").addEventListener("click", () => $("#reglages").showModal());
-  $("#reglages").addEventListener("click", (event) => { if (event.target === $("#reglages")) $("#reglages").close(); });  // appui hors du panneau
+  // appui hors du panneau
+  $("#reglages").addEventListener("click", (event) => { if (event.target === $("#reglages")) $("#reglages").close(); });
   $("#fond").value = store.get("fond", "plan").replace(/^osm$/, "ofm");  // OpenStreetMap France remplacé par OpenFreeMap
   if (!$("#fond").value) $("#fond").value = "plan";  // fond gardé qui n'existe plus
   $("#fond").addEventListener("change", (event) => {
@@ -214,7 +218,7 @@
     viewer.setAttribute("endpoint", Carte.setInstance(map, event.target.value));
   });
 
-  // Comme app.js (showParcelMark), sans le calcul : sol supposé de niveau, caméra à CAMERA_UP m
+  // Comme mesure.js (showParcelMark), sans le calcul : sol supposé de niveau, caméra à CAMERA_UP m
   const PARCEL_ID = "mesure-parcelle", PARCEL_UP = 1.5, CAMERA_UP = 1.9, PARCEL_DELAY = 2000;
   let parcelReady = true, parcelTimer = null;
   Carte.onAim(() => showParcelMark());
@@ -253,7 +257,8 @@
     const author = (props.providers || feature.providers || []).find((p) => p?.name)?.name;
     const when = props.datetime ? new Date(props.datetime) : null;
     const date = when && !Number.isNaN(when.getTime())
-      ? when.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" }).replace(/^1 /, "1er ") : "";
+      ? when.toLocaleDateString("fr-FR",
+        { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" }).replace(/^1 /, "1er ") : "";
     const link = (feature.links || []).find((l) => l.rel === "license");
     const license = props.license && props.license !== "proprietary" ? props.license
       : /\(([^()]+)\)\s*$/.exec(link?.title || "")?.[1] || link?.title || "";
@@ -267,12 +272,14 @@
     const canvas = Object.assign(document.createElement("canvas"), { width: gl.width, height: gl.height });
     const ctx = canvas.getContext("2d");
     ctx.drawImage(gl, 0, 0);
-    for (const el of psv.container.querySelectorAll(".parcelle-visee")) {  // comme app.js (thumbnail)
+    for (const el of psv.container.querySelectorAll(".parcelle-visee")) {  // comme fiche.js (thumbnail)
       const box = el.getBoundingClientRect(), css = getComputedStyle(el);
       if (!box.width) continue;
       ctx.save();
       ctx.font = `${css.fontWeight} ${parseFloat(css.fontSize) * scale}px ${css.fontFamily}`;
-      Object.assign(ctx, { textAlign: "center", textBaseline: "middle", strokeStyle: "#fff", lineWidth: 3 * scale, lineJoin: "round", fillStyle: css.color });
+      Object.assign(ctx,
+        { textAlign: "center", textBaseline: "middle", strokeStyle: "#fff", lineWidth: 3 * scale,
+        lineJoin: "round", fillStyle: css.color });
       const lines = [...el.children].map((span) => span.textContent), x = (box.left + box.width / 2 - origin.left) * scale;
       lines.forEach((text, i) => {
         const y = (box.top - origin.top + box.height * (i + 0.5) / lines.length) * scale;

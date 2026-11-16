@@ -105,7 +105,8 @@ def main():
     for s in (village + inward * 40, village + inward * 180):  # passages piétons dans Commarin : 4 m de large, d'un bord à l'autre
         ring = [at(line, s, -HALF), at(line, s, HALF), at(line, s + 4, HALF), at(line, s + 4, -HALF)]
         add("passage piéton", {"type": "Polygon", "coordinates": [wgs([*ring, ring[0]])]})
-    for s in (village + inward * 25, village + inward * (last - first - 30)):  # îlots, aux deux bouts en goutte d'eau, 12 m, sur le bord droit élargi
+    # îlots, aux deux bouts en goutte d'eau, 12 m, sur le bord droit élargi
+    for s in (village + inward * 25, village + inward * (last - first - 30)):
         ring = [at(line, s, HALF + 0.5), at(line, s + 4, HALF + 1.5), at(line, s + 12, HALF + 0.8), at(line, s + 6, HALF + 0.4)]
         add("îlot", {"type": "Polygon", "coordinates": [wgs([*ring, ring[0]])]})
     json.dump({"type": "FeatureCollection", "name": "couche-synthetique", "features": out}, sys.stdout, ensure_ascii=False, indent=1)

@@ -55,6 +55,30 @@ if [ "${1:-rapide}" = rapide ] || [ "${1:-rapide}" = complet ]; then
 fi
 
 echots() { printf '%-28s %5s s  %s\n' "$1" "$2" "$3"; }
+# Chrome fermé proprement (Browser.close par son port de débogage), puis son scope arrêté : tué d'un coup (tous ses
+# processus à la fois) juste après une page qui écrit beaucoup dans le cache (essai-video), il laissait le stockage
+# du profil gardé bloqué au lancement suivant (Cache API, IndexedDB, quotas sans réponse : essai-boucle arrêté après
+# « application prête », 16/11/2026).
+fermer() {
+  local port
+  port=$(head -1 "$1/DevToolsActivePort" 2> /dev/null)
+  if [ -n "$port" ]; then
+    python3 - "$port" << 'EOF' 2> /dev/null
+import asyncio, json, sys, urllib.request, websockets
+async def close(port):
+    url = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=5))["webSocketDebuggerUrl"]
+    async with websockets.connect(url) as ws:
+        await ws.send(json.dumps({"id": 1, "method": "Browser.close"}))
+        await asyncio.wait_for(ws.recv(), 5)
+asyncio.run(close(sys.argv[1]))
+EOF
+    for _ in $(seq 20); do  # 10 s au plus pour finir d'écrire
+      systemctl --user is-active --quiet "$2" || break
+      sleep 0.5
+    done
+  fi
+  systemctl --user stop "$2" 2> /dev/null
+}
 for page in $pages; do
   debut=$(date +%s)
   # comme un premier passage : tout le profil retiré sauf le cache de l'application (Cache API, sous « Service Worker ») et
@@ -73,7 +97,7 @@ for page in $pages; do
     --remote-debugging-port=0 --window-size=1400,1000 "http://127.0.0.1:$PORT/tests/$fichier.html$suite" > /dev/null 2>&1 & )
   wait "$serveur"
   fin=$?
-  systemctl --user stop "essai-$nom-$$.scope" 2> /dev/null
+  fermer "$dossier" "essai-$nom-$$.scope"
   [ "$dossier" = "$profil" ] || rm -rf "$dossier"
   duree=$(( $(date +%s) - debut )); total=$(( total + duree ))
   bilan=$(grep -E "^(contrôles|ERREUR)" "$journaux/$nom.log" | tail -1)

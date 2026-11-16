@@ -917,3 +917,20 @@ class FreeMeasure(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CameraOf(Base):
+    """Hauteur de caméra d'une photo (Session.camera_of) : mesurée, calée, monture du véhicule, puis le réglage."""
+
+    def test_ordre(self):
+        s, item = self.s, {"collection": "s1"}
+        measured = {"precise": True, "count": 0, "lidar": True, "height": 2.4, "spread": 0.02}
+        self.assertEqual(s.camera_of(item, measured), (2.4, "altitude GPS", 0.02))
+        self.assertEqual(s.camera_of(item, measured, sequence_only=True)[1], None)  # photo seule : pas sur la séquence
+        self.assertEqual(s.camera_of(item, {"precise": True, "lidar": False, "height": 2.4})[:2], (CAMERA, None))
+        s._mount_height = lambda it: (2.07, 0.04)  # véhicule connu (la page : monture du CD21 d'après la date)
+        self.assertEqual(s.camera_of(item, None), (2.07, "monture", 0.04))
+        self.assertEqual(s.camera_of(item, None, mount=False)[:2], (CAMERA, None))
+        s.calibration.camera = lambda seq: {"height": 1.95, "sigma": 0.1} if seq == "s1" else None
+        self.assertEqual(s.camera_of(item, None), (1.95, "calée", 0.1))  # calée : avant la monture
+        self.assertEqual(s.camera_of(item, measured)[1], "altitude GPS")  # mesurée : avant tout

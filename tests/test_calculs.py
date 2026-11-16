@@ -59,7 +59,8 @@ class LongueurCarte(unittest.TestCase):
         self.assertEqual(len(a.map_lengths), 2)
         a.add_map_length(5.0, 47.0, 5.001, 47.0, 75.8, None, "")  # bout hors de la vue : fond de carte seul
         self.assertEqual(json.loads(a.results())[-1]["text"], "↔ 75,80 m hors vue (carte)")
-        self.assertEqual([(attrs["type"], attrs["incert_m"]) for _, attrs in a._records()][-1], ("longueur sur la carte (hors vue du dessus)", None))
+        self.assertEqual([(attrs["type"], attrs["incert_m"]) for _, attrs in a._records()][-1],
+                         ("longueur sur la carte (hors vue du dessus)", None))
         a.undo()
         a.delete_result("longueur", 0)
         self.assertEqual([v["valeur_m"] for v in a.map_lengths], [11.1])
@@ -290,7 +291,8 @@ class BordsEnrobe(unittest.TestCase):
         # chute comptée depuis le nouveau bord, à son niveau (le talus y a déjà descendu de 1 m)
         chute = after["resultats"]["droit"]["chute"]
         entry = next(e for e in droit if e["le_long"] == chute[3])
-        start = min(o for o, _ in entry["points"] if abs(o - 8.0) == min(abs(q - 8.0) for q, _ in entry["points"]))  # point du terrain le plus proche du bord
+        # point du terrain le plus proche du bord
+        start = min(o for o, _ in entry["points"] if abs(o - 8.0) == min(abs(q - 8.0) for q, _ in entry["points"]))
         kept = [z for o, z in entry["points"] if start <= o <= start + 10]
         self.assertLess(chute[0], fall)
         self.assertAlmostEqual(chute[0], kept[0] - min(kept), delta=0.01)
@@ -494,7 +496,7 @@ class CameraPont(unittest.TestCase):
         self.assertEqual(a._camera_height(), 2.07)
         self.assertEqual(a._camera_height(mount=False), 1.9)
         item["properties"]["datetime"] = "2025-06-01T10:00:00Z"
-        self.assertEqual(a._camera_of(item, declared)[:2], (1.93, "monture"))
+        self.assertEqual(a.camera_of(item, declared)[:2], (1.93, "monture"))
         other = dict(item, providers=[{"id": "autre"}])
         self.assertIsNone(self.app(declared, item=other)._fall_camera())  # autre producteur : à demander, comme avant
 
@@ -727,8 +729,8 @@ class Parcours(unittest.TestCase):
         self.assertEqual(len(distances()), 1)
 
     def test_bandes_triangulees(self):
-        """Passage piéton : coins des bandes (0,50 m, de 8 à 11 m devant la première, à 1,5 m au moins de l'axe des photos : dans l'axe, visées parallèles) triangulés depuis les deux
-        photos ; largeur de chaque bande au millimètre."""
+        """Passage piéton : coins des bandes (0,50 m, de 8 à 11 m devant la première, à 1,5 m au moins de l'axe des
+        photos : dans l'axe, visées parallèles) triangulés depuis les deux photos ; largeur de chaque bande au millimètre."""
         self.app.set_mode("tri")
         corners = lambda: [f["geometry"]["coordinates"] for f in json.loads(self.app.map_geojson())["features"]
                            if f["properties"]["kind"] == "triangule"]
