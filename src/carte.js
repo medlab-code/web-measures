@@ -1173,7 +1173,6 @@ const Carte = (() => {
   /** Décale chaque borne perpendiculairement à la route, hors de la voie, selon le zoom et
    * l'orientation de la carte. */
   function placeBornes(map) {
-    const metersPerPixel = (lat) => (40075016.7 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** map.getZoom());
     for (const marker of prLabels) {
       if (!marker.borne) continue;
       const at = marker.getLngLat();
@@ -1182,7 +1181,7 @@ const Carte = (() => {
       const len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
       const ux = (q.x - p.x) / len, uy = (q.y - p.y) / len;  // sens de la route à l'écran (y vers le bas)
       const [nx, ny] = marker.borne.left ? [uy, -ux] : [-uy, ux];  // côté gauche ou droit
-      const distance = BORNE_ROAD_HALF_WIDTH / metersPerPixel(at.lat) + BORNE_GAP;
+      const distance = BORNE_ROAD_HALF_WIDTH / metresPerPixel(map, at.lat) + BORNE_GAP;
       marker.setOffset([nx * distance, ny * distance]);
     }
   }
