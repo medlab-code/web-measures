@@ -131,18 +131,6 @@ def degraded(res):
     return bool(res) and not (res["precise"] and res["lidar"] is True)
 
 
-def degraded_reasons(res):
-    """Ce qui manque pour des mesures pleinement fiables (liste de textes)."""
-    out = []
-    if not res["precise"]:
-        out.append("position GPS non vérifiée au décimètre ({})".format(res["reason"]))
-    if res["lidar"] is False:
-        out.append("pas de modèle de terrain (LiDAR HD, RGE ALTI) à cet endroit")
-    elif res["lidar"] is None:
-        out.append("modèle de terrain non vérifié (service d'altimétrie indisponible)")
-    return out
-
-
 def camera_suggestion(res):
     """Hauteur de caméra calculée à proposer dans le panneau : (hauteur, explication), ou None."""
     if not res or not res["precise"] or res["lidar"] is not True or res.get("height") is None:

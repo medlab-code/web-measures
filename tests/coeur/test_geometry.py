@@ -37,7 +37,8 @@ class Basics(unittest.TestCase):
 
     def test_round_trip(self):
         p = (12.5, -40.25, 231.0)
-        self.assertPoint(geometry.to_local(*geometry.to_geographic(p, ORIGIN), ORIGIN), p)
+        lon, lat, z = geometry.to_geographic(p, ORIGIN)
+        self.assertPoint((*geometry._local(lon, lat, ORIGIN[0], ORIGIN[1]), z), p)
 
     def test_decompose(self):
         d = geometry.decompose((0, 0, 0), (3, 4, 12))

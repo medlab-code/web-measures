@@ -17,22 +17,6 @@ def elev_to(drop, dist):
     return math.degrees(math.atan2(drop, dist))
 
 
-class ViewDirection(unittest.TestCase):
-    def test_center(self):
-        yaw, elev = ground.view_direction(37, -12, 60, 0, 0, 800)
-        self.assertAlmostEqual(yaw, 37)
-        self.assertAlmostEqual(elev, -12)
-
-    def test_edges(self):
-        yaw, elev = ground.view_direction(90, 0, 60, 0, -400, 800)  # bord haut
-        self.assertAlmostEqual(yaw, 90)
-        self.assertAlmostEqual(elev, 30)
-        f = 400 / math.tan(math.radians(30))
-        yaw, elev = ground.view_direction(350, 0, 60, 200, 0, 800)  # à droite : cap croissant
-        self.assertAlmostEqual(yaw, (350 + math.degrees(math.atan(200 / f))) % 360)
-        self.assertAlmostEqual(elev, 0)
-
-
 class Intersect(unittest.TestCase):
     def test_flat(self):
         for dist in (2.0, 10.0, 35.0):

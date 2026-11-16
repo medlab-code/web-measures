@@ -207,7 +207,6 @@ class Check(unittest.TestCase):
         self.assertFalse(res["precise"])
         self.assertIsNone(res["lidar"])  # inconnu
         self.assertTrue(precision.degraded(res))  # position non vérifiée
-        self.assertIn("non vérifié (service d'altimétrie indisponible)", precision.degraded_reasons(res)[-1])
 
 
     def test_camera_suggestion(self):
@@ -283,14 +282,10 @@ class Texts(unittest.TestCase):
     def test_full_mode(self):
         res = precision.result(True, 0.1, True, "vérifiée")
         self.assertFalse(precision.degraded(res))
-        self.assertEqual(precision.degraded_reasons(res), [])
         self.assertEqual(precision.state_text(res), "Position GPS vérifiée (±0,10 m) · LiDAR HD")
 
     def test_degraded(self):
         res = precision.result(False, lidar=False, reason="pas de correction différentielle déclarée")
-        self.assertEqual(precision.degraded_reasons(res), [
-            "position GPS non vérifiée au décimètre (pas de correction différentielle déclarée)",
-            "pas de modèle de terrain (LiDAR HD, RGE ALTI) à cet endroit"])
         self.assertEqual(precision.state_text(res, 4.0),
                          "⚠ Position GPS non vérifiée (±4 m annoncés) · pas de modèle de terrain : mode de mesure dégradé")
         self.assertFalse(precision.degraded(None))  # vérification en cours

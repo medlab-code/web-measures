@@ -35,11 +35,6 @@ def direction(yaw, elev):
     return (math.sin(y) * math.cos(e), math.cos(y) * math.cos(e), math.sin(e))
 
 
-def to_local(lon, lat, z, origin):
-    x, y = _local(lon, lat, origin[0], origin[1])
-    return (x, y, z)
-
-
 def to_geographic(p, origin):
     lon, lat = _geographic(p[0], p[1], origin[0], origin[1])
     return lon, lat, p[2]

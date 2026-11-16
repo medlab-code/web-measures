@@ -29,24 +29,6 @@ class GroundError(ValueError):
     """Clic inexploitable (message destiné à l'utilisateur)."""
 
 
-def view_direction(heading, pitch, vfov, dx, dy, height_px):
-    """Direction (cap, élévation en degrés) d'un pixel de la vue.
-
-    heading/pitch : orientation du centre de la vue ; vfov : champ vertical ;
-    dx, dy : décalage du pixel par rapport au centre (dy vers le bas) ;
-    height_px : hauteur de la vue en pixels. Même modèle que capture._view_rays.
-    """
-    f = (height_px / 2.0) / math.tan(math.radians(vfov) / 2.0)
-    u, v = dx / f, -dy / f
-    p = math.radians(pitch)
-    y = v * math.cos(p) + math.sin(p)
-    z = -v * math.sin(p) + math.cos(p)
-    h = math.radians(heading)
-    x2 = u * math.cos(h) + z * math.sin(h)
-    z2 = -u * math.sin(h) + z * math.cos(h)
-    return math.degrees(math.atan2(x2, z2)) % 360, math.degrees(math.atan2(y, math.hypot(x2, z2)))
-
-
 def flat_profile():
     """Profil d'un sol plat et horizontal (altitude relative 0)."""
     return [(0.0, 0.0), (MAX_DISTANCE, 0.0)]
