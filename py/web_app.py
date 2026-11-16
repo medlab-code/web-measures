@@ -2596,33 +2596,10 @@ class App(session.Session):
 
     def _compute_edges(self, key, line, s, width, heading, lon, lat, twin=None, track=None, ends=([], None, [])):
         """Calcul des bords (voir _edges), rangé dans self.edges[key], puis notify() ; twin : autre chaussée
-        (tronçon, largeur) d'une route à chaussées séparées, ou None."""
+        (tronçon, largeur) d'une route à chaussées séparées, ou None. Étapes : travers à lire (_edge_profiles), profil en
+        long (_long_samples), puis, le terrain lu, bords et séparateurs (_edge_reads) et chutes et dévers (_edge_falls)."""
         _, zone, camera = key
-        half = (width or self.FALL_WIDTH) / 2
-
-        def across(x, y, nx, ny, along_x, along_y):
-            """Axe de l'autre chaussée sur le travers du point (x, y) de l'axe : (décalage en m le long de la normale,
-            demi-largeur) de la plus proche, ou None (pas d'autre chaussée, pas parallèle, pas en travers, trop près ou
-            trop loin)."""
-            best = None
-            for other, other_width in twin or []:
-                _, s2 = roads._project(other, x, y)
-                (qx, qy), p, q = roads._at(other, s2), roads._at(other, s2 - 1.0), roads._at(other, s2 + 1.0)
-                t = math.hypot(q[0] - p[0], q[1] - p[1]) or 1.0
-                cos = abs(((q[0] - p[0]) * along_x + (q[1] - p[1]) * along_y) / t)
-                offset = (qx - x) * nx + (qy - y) * ny
-                lengthwise = abs((qx - x) * along_x + (qy - y) * along_y)  # bout d'un tronçon dans le prolongement
-                if (cos >= math.cos(math.radians(self.TWIN_ANGLE)) and lengthwise <= self.TWIN_LENGTHWISE
-                        and self.TWIN_MIN <= abs(offset) <= self.TWIN_REACH and (best is None or abs(offset) < abs(best[0]))):
-                    best = (offset, (other_width or self.FALL_WIDTH) / 2)
-            return best
-
-        def frame(at):  # point de l'axe et normale à gauche du sens du tronçon, à l'abscisse at
-            (x, y), p, q = roads._at(line, at), roads._at(line, at - 1.0), roads._at(line, at + 1.0)
-            t = math.hypot(q[0] - p[0], q[1] - p[1]) or 1.0
-            return x, y, -(q[1] - p[1]) / t, (q[0] - p[0]) / t
-
-        x, y, nx, ny = frame(s)
+        x, y, nx, ny = self._line_frame(line, s)
         shift = -(x * nx + y * ny) if camera else 0.0  # origine à gauche de l'axe (m) : la caméra est en (0, 0)
         a, b = roads._at(line, s - roads.TANGENT), roads._at(line, s + roads.TANGENT)
         course = math.degrees(math.atan2(b[0] - a[0], b[1] - a[1]))  # sens du tronçon
@@ -2634,128 +2611,12 @@ class App(session.Session):
         frame0 = [triangulation._geographic(x + shift * nx + k * right * nx, y + shift * ny + k * right * ny, lon, lat)
                   for k in (0, 1)]
         frame_key = tuple(tuple(round(v, 8) for v in p) for p in frame0)
-        profiles = []  # (travers, côté, bord BD TOPO depuis l'origine, distances depuis l'origine), travers après travers
-        samples = []
-        for along in self.EDGE_ALONG:
-            # shortcut: _at borne aux bouts de la ligne prolongée (_chained) : au-delà, les travers s'y superposent
-            x, y, nx, ny = frame(s + along)
-            other = across(x, y, nx, ny, ny, -nx)  # sens du tronçon : normale tournée d'un quart de tour à droite
-            for name, sign in sides:
-                guess = max(self.EDGE_NEAR, half - sign * shift)
-                beyond, between = 0.0, None  # autre chaussée de ce côté : bord cherché au-delà de son axe (m depuis
-                # l'origine) ; séparateur de chaussée d'après la BD TOPO, du bord de la chaussée de la photo à celui de l'autre
-                if other and other[0] * sign > 0:
-                    beyond = sign * other[0] - sign * shift
-                    if beyond - other[1] > guess:
-                        between = (guess, beyond - other[1])
-                    guess = beyond + other[1]
-                reach = guess + self.EDGE_SEARCH + (self.TWIN_SEARCH if beyond else 0)  # bord cherché jusque-là
-                near = [k * self.EDGE_STEP for k in range(int(reach / self.EDGE_STEP) + 1)]
-                offsets = near + [near[-1] + zone * k / self.EDGE_FAR for k in range(1, self.EDGE_FAR + 1)]
-                profiles.append((along, name, guess, offsets, beyond, between, reach))
-                samples += [(x + (shift + sign * o) * nx, y + (shift + sign * o) * ny) for o in offsets]
-
-        # Profil en long, d > 0 dans le sens de la photo : le long de la trajectoire de la caméra (track, _track_line : là où
-        # elle a roulé, sol sous elle) ; sans elle, sur l'axe BD TOPO prolongé par les tronçons voisins (_chained), à la même
-        # distance de l'axe que l'origine (l'axe peut s'écarter de la voie de quelques mètres) ; borné aux bouts
-        if track and len(track) >= 3:
-            k0 = track.index((0.0, 0.0))
-            cum = [0.0]
-            for p, q in zip(track, track[1:]):
-                cum.append(cum[-1] + math.hypot(q[0] - p[0], q[1] - p[1]))
-            cum = [c - cum[k0] for c in cum]
-            lengthwise = [d for d in range(-self.LONG_REACH, self.LONG_REACH + 1, self.LONG_STEP) if cum[0] <= d <= cum[-1]]
-            for d in lengthwise:
-                j = max(1, next((j for j in range(1, len(cum)) if cum[j] >= d), len(cum) - 1))
-                t = (d - cum[j - 1]) / ((cum[j] - cum[j - 1]) or 1.0)
-                (x0, y0), (x1, y1) = track[j - 1][:2], track[j][:2]
-                samples.append((x0 + t * (x1 - x0), y0 + t * (y1 - y0)))
-            followed = "trajectoire de la caméra"
-        else:
-            ahead = 1 if forward else -1
-            length = sum(math.hypot(q[0] - p[0], q[1] - p[1]) for p, q in zip(line, line[1:]))
-            lengthwise = [d for d in range(-self.LONG_REACH, self.LONG_REACH + 1, self.LONG_STEP) if 0 <= s + ahead * d <= length]
-            for d in lengthwise:
-                px, py, qx, qy = frame(s + ahead * d)
-                samples.append((px + shift * qx, py + shift * qy))
-            followed = "axe BD TOPO"
+        profiles, samples = self._edge_profiles(line, s, (width or self.FALL_WIDTH) / 2, zone, shift, sides, twin)
+        lengthwise, long_samples, followed = self._long_samples(line, s, shift, forward, track)
+        samples += long_samples
 
         def along_of(p):  # distance d'une fin de tronçon le long de la route BD TOPO (la caméra a pu couper le carrefour)
             return (1 if forward else -1) * (roads._project(line, p[0], p[1])[1] - s)
-
-        def slope(z, offsets, i, span):  # pente vers le bas en s'éloignant, de i au premier point à span m au moins
-            j = next((j for j in range(i + 1, len(offsets)) if offsets[j] - offsets[i] >= span - 1e-6), None)
-            return None if j is None or z[i] is None or z[j] is None else (z[i] - z[j]) / (offsets[j] - offsets[i])
-
-        def step(z, offsets, i):
-            """Marche du terrain juste après le point i (voir STEP_Z) : +1 en montant, -1 en descendant, 0 sinon."""
-            if i < 1 or i + 2 >= len(offsets) or offsets[i + 1] - offsets[i] > self.EDGE_STEP + 1e-6:
-                return 0
-            if None in (z[i - 1], z[i], z[i + 1], z[i + 2]):
-                return 0
-            jump, held = z[i + 1] - z[i], z[i + 2] - z[i - 1]
-            if abs(jump) >= self.STEP_Z and abs(held) >= self.STEP_HOLD and jump * held > 0:
-                return 1 if jump > 0 else -1
-            return 0
-
-        def border(z, offsets, reach, beyond=0.0):
-            """Indice du bord : premier point, à EDGE_NEAR m au moins de l'origine (chaussées séparées : au-delà de
-            l'axe de l'autre chaussée, à beyond m), d'où la pente sur 1 m s'écarte de plus de EDGE_BREAK de celle de
-            la chaussée sous l'origine (ou sous l'axe de l'autre), dans le même sens sur EDGE_HOLD pas, ou d'où le
-            terrain marque une marche (bordure, accotement plus bas : STEP_Z), jusqu'à reach m ; sinon None (le bord BD
-            TOPO)."""
-            start = min(range(len(offsets)), key=lambda k: abs(offsets[k] - beyond))
-            road = slope(z, offsets, start, 1.0)
-            for i in range(start + 1, len(offsets)):
-                if road is None or offsets[i] > reach:
-                    break
-                if offsets[i] < max(self.EDGE_NEAR, beyond) - 1e-6:
-                    continue
-                if step(z, offsets, i):
-                    return i
-                d = [slope(z, offsets, k, 1.0) for k in range(i, i + self.EDGE_HOLD)]
-                if None not in d and (all(v - road > self.EDGE_BREAK for v in d) or all(road - v > self.EDGE_BREAK for v in d)):
-                    return i
-            return None
-
-        def peaks(z, offsets, between, beyond):
-            """Pics étroits (voir PEAK_Z) avant l'axe de l'autre chaussée, à SEPARATOR_NEAR m au plus du milieu BD TOPO
-            du séparateur : leurs positions en m depuis l'origine."""
-            mid, out = (between[0] + between[1]) / 2, []
-            for k in range(1, len(offsets) - 2):
-                if offsets[k] >= beyond or abs(offsets[k] - mid) > self.SEPARATOR_NEAR:
-                    continue
-                if offsets[k + 1] - offsets[k] > self.EDGE_STEP + 1e-6 or None in z[k - 1:k + 3]:
-                    continue
-                if z[k] - z[k - 1] >= self.PEAK_Z and z[k] - z[k + 1] >= self.PEAK_Z:
-                    out.append(offsets[k])
-                elif (abs(z[k + 1] - z[k]) < self.PEAK_Z and z[k] - z[k - 1] >= self.PEAK_Z
-                      and z[k + 1] - z[k + 2] >= self.PEAK_Z):  # deux points de large
-                    out.append((offsets[k] + offsets[k + 1]) / 2)
-            return out
-
-        def separator(z, offsets, between, beyond):
-            """Séparateur de chaussée trouvé dans le relief : (début, fin) en m depuis l'origine, entre deux marches de
-            sens contraires (surélevé : montée puis descente ; en creux : l'inverse), avant l'axe de l'autre chaussée,
-            large de SEPARATOR_WIDTH, au milieu le plus proche de celui de la BD TOPO (between, SEPARATOR_NEAR m au
-            plus) ; None sinon."""
-            steps = []  # (m depuis l'origine, sens), une seule par suite de marches de même sens
-            for i in range(len(offsets)):
-                if offsets[i] >= beyond:
-                    break
-                k = step(z, offsets, i)
-                if k and not (steps and steps[-1][1] == k and offsets[i] - steps[-1][2] <= self.EDGE_STEP + 1e-6):
-                    steps.append((offsets[i] + self.EDGE_STEP / 2, k, offsets[i]))
-                elif k:
-                    steps[-1] = steps[-1][:2] + (offsets[i],)
-            mid, best = (between[0] + between[1]) / 2, None
-            for (a, ka, _), (b, kb, _) in zip(steps, steps[1:]):
-                if ka == kb or not self.SEPARATOR_WIDTH[0] <= b - a <= self.SEPARATOR_WIDTH[1]:
-                    continue
-                gap = abs((a + b) / 2 - mid)
-                if gap <= self.SEPARATOR_NEAR and (best is None or gap < best[0]):
-                    best = (gap, a, b)
-            return best and best[1:]
 
         def got_ground(ground, source, error):
             if error or not source:
@@ -2767,87 +2628,8 @@ class App(session.Session):
                 self.paved_redo.clear()
             self.paved_redo[frame_key] = (key, lambda: got_ground(ground, source, None))
             paved = self.paved.get(frame_key, {})
-            # côté -> [(chute, à m du bord, bout du profil, travers),
-            #          (dévers, haut du talus à m du bord, travers, pied du talus à m du bord, hauteur du talus)],
-            # bords [(m depuis l'origine, relief)] ; drawn : profils pour le graphique de la page (bouton « Graphiques »)
-            found = {name: [None, None] for name, _ in sides}
-            borders = {name: [] for name, _ in sides}
-            stops = {name: [] for name, _ in sides}  # côté -> distances au bord où le terrain remonte de EDGE_RISE
-            drawn = []
-            start = 0
-            twins = {name: 0 for name, _ in sides}  # côté -> travers où l'autre chaussée est comprise
-            # 1er passage : bord et séparateur de chaque travers ; puis, côté par côté, ceux qui s'écartent de la médiane
-            # des travers trouvés dans le relief (une marche dans l'autre chaussée, un bord flou) y sont ramenés
-            read = []
-            for along, name, guess, offsets, beyond, between, reach in profiles:
-                z = ground[start:start + len(offsets)]
-                start += len(offsets)
-                if z[0] is None:
-                    continue
-                twins[name] += beyond > 0
-                found_sep = between and separator(z, offsets, between, beyond)
-                i = border(z, offsets, reach, beyond)
-                read.append([along, name, guess, offsets, z, i, found_sep or between, "marches" if found_sep else None,
-                             peaks(z, offsets, between, beyond) if between else []])
-            for name, _ in sides:
-                mine = [r for r in read if r[1] == name]
-                edges = sorted(r[3][r[5]] for r in mine if r[5] is not None)
-                seps = [r[6] for r in mine if r[7]]
-                if not seps:  # pas de séparateur à deux marches : un pic étroit qui revient d'un travers à l'autre
-                    tops = sorted(p for r in mine for p in r[8])
-                    groups = [[q for q in tops if abs(q - p) <= self.PEAK_SPREAD] for p in tops]
-                    group = max(groups, key=len, default=[])
-                    if len({r[0] for r in mine if any(abs(q - p) <= self.PEAK_SPREAD for q in group for p in r[8])}) >= self.PEAK_TRAVERS:
-                        top = group[len(group) // 2]
-                        seps = [(top - self.PEAK_HALF, top + self.PEAK_HALF)]
-                        for r in mine:
-                            if r[6]:
-                                r[6], r[7] = seps[0], "bosse"
-                med = edges[(len(edges) - 1) // 2] if len(edges) >= 3 else None  # médiane basse : le bord le plus proche
-                sep_med = [sorted(v[k] for v in seps)[len(seps) // 2] for k in (0, 1)] if seps else None
-                for r in mine:
-                    if med is not None and (r[5] is None or abs(r[3][r[5]] - med) > self.EDGE_CONSENSUS):
-                        r[5] = min(range(len(r[3])), key=lambda k: abs(r[3][k] - med))
-                    if sep_med and r[6] and (not r[7] or max(abs(r[6][k] - sep_med[k]) for k in (0, 1)) > self.EDGE_CONSENSUS):
-                        r[6], r[7] = sep_med, "marches"
-                    if name in paved:  # analyse fine : le bord de l'enrobé remplace celui du relief
-                        r[5] = min(range(len(r[3])), key=lambda k: abs(r[3][k] - paved[name]))
-            for along, name, guess, offsets, z, i, between, sep_relief, _ in read:
-                relief = i is not None
-                if not relief:
-                    i = min(range(len(offsets)), key=lambda k: abs(offsets[k] - guess))
-                borders[name].append((offsets[i], relief))
-                entry = {"le_long": along, "cote": name, "bord": round(paved.get(name, offsets[i]), 2), "relief": relief,
-                         "enrobe": name in paved, "arret": None,
-                         "separateur": [round(v, 2) for v in between] if between else None,
-                         "autre_axe": round(beyond, 2) if beyond else None,  # axe de l'autre chaussée, m depuis l'origine
-                         "separateur_relief": sep_relief if between else None,  # "marches", "bosse" ou None (BD TOPO)
-                         "points": [[round(o, 2), round(v, 2)] for o, v in zip(offsets, z) if v is not None]}
-                drawn.append(entry)
-                kept = [k for k in range(i, len(offsets)) if offsets[k] - offsets[i] <= zone + 1e-6]
-                zz, oo = [z[k] for k in kept], [offsets[k] - offsets[i] for k in kept]
-                if zz[0] is None:
-                    continue
-                # Terrain qui remonte de EDGE_RISE au-dessus du bord : lecture arrêtée (on ne passe pas la butte)
-                cut = next((k for k, v in enumerate(zz) if v is not None and v - zz[0] >= self.EDGE_RISE), None)
-                end = oo[-1]  # bout du profil : le terrain y descend peut-être encore
-                if cut is not None:
-                    stops[name].append(oo[cut])
-                    entry["arret"] = round(offsets[i] + oo[cut], 2)
-                    zz, oo, end = zz[:cut], oo[:cut], float("inf")
-                # point le plus bas le plus proche du bord (à 5 cm près) : le pied du talus
-                low = max(((zz[0] - v, o) for v, o in zip(zz, oo) if v is not None),
-                          key=lambda c: (round(c[0] / 0.05), -c[1]))
-                if found[name][0] is None or low[0] > found[name][0][0]:
-                    found[name][0] = low + (end, along)
-                # Dévers : pente moyenne du talus le plus raide (FALL_MIN m de haut au moins), du haut au pied,
-                # tous travers confondus (le cas le plus défavorable), et non la pente la plus forte sur
-                # 2 m (un détail). Talus : pentes sur EDGE_WINDOW m d'au moins EDGE_TALUS, resserrées autour de la plus
-                # forte sur celles d'au moins EDGE_CORE fois elle (sans l'accotement en pente douce ni la queue du pied)
-                slopes = [slope(zz, oo, j, self.EDGE_WINDOW) or 0 for j in range(len(oo))]
-                for mean, top, foot, height in self._taluses(zz, oo, slopes):
-                    if height >= self.FALL_MIN and (found[name][1] is None or mean > found[name][1][0]):
-                        found[name][1] = (mean, top, along, foot, height)
+            read, twins = self._edge_reads(profiles, ground, sides, paved)
+            found, borders, stops, drawn = self._edge_falls(read, sides, paved, zone, profiles[-1][4])
             # Profil en long (derniers points lus) : pente moyenne, montée > 0 dans le sens de la photo, et la plus forte
             pts = [(d, v) for d, v in zip(lengthwise, ground[len(ground) - len(lengthwise):]) if v is not None] if lengthwise else []
             grade = self._long_profile(pts, ends, along_of, followed)
@@ -2874,6 +2656,251 @@ class App(session.Session):
             self.notify()
 
         self._terrain([triangulation._geographic(x, y, lon, lat) for x, y in samples], got_ground)
+
+    @staticmethod
+    def _line_frame(line, at):
+        """Point de l'axe et normale à gauche du sens du tronçon, à l'abscisse at : (x, y, nx, ny)."""
+        (x, y), p, q = roads._at(line, at), roads._at(line, at - 1.0), roads._at(line, at + 1.0)
+        t = math.hypot(q[0] - p[0], q[1] - p[1]) or 1.0
+        return x, y, -(q[1] - p[1]) / t, (q[0] - p[0]) / t
+
+    def _twin_across(self, twin, x, y, nx, ny, along_x, along_y):
+        """Axe de l'autre chaussée (twin, voir _compute_edges) sur le travers du point (x, y) de l'axe : (décalage en m le
+        long de la normale, demi-largeur) de la plus proche, ou None (pas d'autre chaussée, pas parallèle, pas en travers,
+        trop près ou trop loin)."""
+        best = None
+        for other, other_width in twin or []:
+            _, s2 = roads._project(other, x, y)
+            (qx, qy), p, q = roads._at(other, s2), roads._at(other, s2 - 1.0), roads._at(other, s2 + 1.0)
+            t = math.hypot(q[0] - p[0], q[1] - p[1]) or 1.0
+            cos = abs(((q[0] - p[0]) * along_x + (q[1] - p[1]) * along_y) / t)
+            offset = (qx - x) * nx + (qy - y) * ny
+            lengthwise = abs((qx - x) * along_x + (qy - y) * along_y)  # bout d'un tronçon dans le prolongement
+            if (cos >= math.cos(math.radians(self.TWIN_ANGLE)) and lengthwise <= self.TWIN_LENGTHWISE
+                    and self.TWIN_MIN <= abs(offset) <= self.TWIN_REACH and (best is None or abs(offset) < abs(best[0]))):
+                best = (offset, (other_width or self.FALL_WIDTH) / 2)
+        return best
+
+    def _edge_profiles(self, line, s, half, zone, shift, sides, twin):
+        """Travers à lire (EDGE_ALONG), de chaque côté : (profils [(le long, côté, bord BD TOPO depuis l'origine, distances
+        depuis l'origine, axe de l'autre chaussée, séparateur BD TOPO, portée)], points à lire (m, repère de la photo))."""
+        profiles = []
+        samples = []
+        for along in self.EDGE_ALONG:
+            # shortcut: _at borne aux bouts de la ligne prolongée (_chained) : au-delà, les travers s'y superposent
+            x, y, nx, ny = self._line_frame(line, s + along)
+            other = self._twin_across(twin, x, y, nx, ny, ny, -nx)  # sens du tronçon : normale tournée d'un quart de tour à droite
+            for name, sign in sides:
+                guess = max(self.EDGE_NEAR, half - sign * shift)
+                beyond, between = 0.0, None  # autre chaussée de ce côté : bord cherché au-delà de son axe (m depuis
+                # l'origine) ; séparateur de chaussée d'après la BD TOPO, du bord de la chaussée de la photo à celui de l'autre
+                if other and other[0] * sign > 0:
+                    beyond = sign * other[0] - sign * shift
+                    if beyond - other[1] > guess:
+                        between = (guess, beyond - other[1])
+                    guess = beyond + other[1]
+                reach = guess + self.EDGE_SEARCH + (self.TWIN_SEARCH if beyond else 0)  # bord cherché jusque-là
+                near = [k * self.EDGE_STEP for k in range(int(reach / self.EDGE_STEP) + 1)]
+                offsets = near + [near[-1] + zone * k / self.EDGE_FAR for k in range(1, self.EDGE_FAR + 1)]
+                profiles.append((along, name, guess, offsets, beyond, between, reach))
+                samples += [(x + (shift + sign * o) * nx, y + (shift + sign * o) * ny) for o in offsets]
+        return profiles, samples
+
+    def _long_samples(self, line, s, shift, forward, track):
+        """Profil en long, d > 0 dans le sens de la photo : le long de la trajectoire de la caméra (track, _track_line : là
+        où elle a roulé, sol sous elle) ; sans elle, sur l'axe BD TOPO prolongé par les tronçons voisins (_chained), à la
+        même distance de l'axe que l'origine (l'axe peut s'écarter de la voie de quelques mètres) ; borné aux bouts.
+        Rend (distances d, points à lire, ce qui a été suivi)."""
+        samples = []
+        if track and len(track) >= 3:
+            k0 = track.index((0.0, 0.0))
+            cum = [0.0]
+            for p, q in zip(track, track[1:]):
+                cum.append(cum[-1] + math.hypot(q[0] - p[0], q[1] - p[1]))
+            cum = [c - cum[k0] for c in cum]
+            lengthwise = [d for d in range(-self.LONG_REACH, self.LONG_REACH + 1, self.LONG_STEP) if cum[0] <= d <= cum[-1]]
+            for d in lengthwise:
+                j = max(1, next((j for j in range(1, len(cum)) if cum[j] >= d), len(cum) - 1))
+                t = (d - cum[j - 1]) / ((cum[j] - cum[j - 1]) or 1.0)
+                (x0, y0), (x1, y1) = track[j - 1][:2], track[j][:2]
+                samples.append((x0 + t * (x1 - x0), y0 + t * (y1 - y0)))
+            return lengthwise, samples, "trajectoire de la caméra"
+        ahead = 1 if forward else -1
+        length = sum(math.hypot(q[0] - p[0], q[1] - p[1]) for p, q in zip(line, line[1:]))
+        lengthwise = [d for d in range(-self.LONG_REACH, self.LONG_REACH + 1, self.LONG_STEP) if 0 <= s + ahead * d <= length]
+        for d in lengthwise:
+            px, py, qx, qy = self._line_frame(line, s + ahead * d)
+            samples.append((px + shift * qx, py + shift * qy))
+        return lengthwise, samples, "axe BD TOPO"
+
+    @staticmethod
+    def _edge_slope(z, offsets, i, span):
+        """Pente vers le bas en s'éloignant, de i au premier point à span m au moins (None sans altitude)."""
+        j = next((j for j in range(i + 1, len(offsets)) if offsets[j] - offsets[i] >= span - 1e-6), None)
+        return None if j is None or z[i] is None or z[j] is None else (z[i] - z[j]) / (offsets[j] - offsets[i])
+
+    def _edge_step(self, z, offsets, i):
+        """Marche du terrain juste après le point i (voir STEP_Z) : +1 en montant, -1 en descendant, 0 sinon."""
+        if i < 1 or i + 2 >= len(offsets) or offsets[i + 1] - offsets[i] > self.EDGE_STEP + 1e-6:
+            return 0
+        if None in (z[i - 1], z[i], z[i + 1], z[i + 2]):
+            return 0
+        jump, held = z[i + 1] - z[i], z[i + 2] - z[i - 1]
+        if abs(jump) >= self.STEP_Z and abs(held) >= self.STEP_HOLD and jump * held > 0:
+            return 1 if jump > 0 else -1
+        return 0
+
+    def _edge_border(self, z, offsets, reach, beyond=0.0):
+        """Indice du bord : premier point, à EDGE_NEAR m au moins de l'origine (chaussées séparées : au-delà de
+        l'axe de l'autre chaussée, à beyond m), d'où la pente sur 1 m s'écarte de plus de EDGE_BREAK de celle de
+        la chaussée sous l'origine (ou sous l'axe de l'autre), dans le même sens sur EDGE_HOLD pas, ou d'où le
+        terrain marque une marche (bordure, accotement plus bas : STEP_Z), jusqu'à reach m ; sinon None (le bord BD
+        TOPO)."""
+        slope = self._edge_slope
+        start = min(range(len(offsets)), key=lambda k: abs(offsets[k] - beyond))
+        road = slope(z, offsets, start, 1.0)
+        for i in range(start + 1, len(offsets)):
+            if road is None or offsets[i] > reach:
+                break
+            if offsets[i] < max(self.EDGE_NEAR, beyond) - 1e-6:
+                continue
+            if self._edge_step(z, offsets, i):
+                return i
+            d = [slope(z, offsets, k, 1.0) for k in range(i, i + self.EDGE_HOLD)]
+            if None not in d and (all(v - road > self.EDGE_BREAK for v in d) or all(road - v > self.EDGE_BREAK for v in d)):
+                return i
+        return None
+
+    def _edge_peaks(self, z, offsets, between, beyond):
+        """Pics étroits (voir PEAK_Z) avant l'axe de l'autre chaussée, à SEPARATOR_NEAR m au plus du milieu BD TOPO
+        du séparateur : leurs positions en m depuis l'origine."""
+        mid, out = (between[0] + between[1]) / 2, []
+        for k in range(1, len(offsets) - 2):
+            if offsets[k] >= beyond or abs(offsets[k] - mid) > self.SEPARATOR_NEAR:
+                continue
+            if offsets[k + 1] - offsets[k] > self.EDGE_STEP + 1e-6 or None in z[k - 1:k + 3]:
+                continue
+            if z[k] - z[k - 1] >= self.PEAK_Z and z[k] - z[k + 1] >= self.PEAK_Z:
+                out.append(offsets[k])
+            elif (abs(z[k + 1] - z[k]) < self.PEAK_Z and z[k] - z[k - 1] >= self.PEAK_Z
+                  and z[k + 1] - z[k + 2] >= self.PEAK_Z):  # deux points de large
+                out.append((offsets[k] + offsets[k + 1]) / 2)
+        return out
+
+    def _edge_separator(self, z, offsets, between, beyond):
+        """Séparateur de chaussée trouvé dans le relief : (début, fin) en m depuis l'origine, entre deux marches de
+        sens contraires (surélevé : montée puis descente ; en creux : l'inverse), avant l'axe de l'autre chaussée,
+        large de SEPARATOR_WIDTH, au milieu le plus proche de celui de la BD TOPO (between, SEPARATOR_NEAR m au
+        plus) ; None sinon."""
+        steps = []  # (m depuis l'origine, sens), une seule par suite de marches de même sens
+        for i in range(len(offsets)):
+            if offsets[i] >= beyond:
+                break
+            k = self._edge_step(z, offsets, i)
+            if k and not (steps and steps[-1][1] == k and offsets[i] - steps[-1][2] <= self.EDGE_STEP + 1e-6):
+                steps.append((offsets[i] + self.EDGE_STEP / 2, k, offsets[i]))
+            elif k:
+                steps[-1] = steps[-1][:2] + (offsets[i],)
+        mid, best = (between[0] + between[1]) / 2, None
+        for (a, ka, _), (b, kb, _) in zip(steps, steps[1:]):
+            if ka == kb or not self.SEPARATOR_WIDTH[0] <= b - a <= self.SEPARATOR_WIDTH[1]:
+                continue
+            gap = abs((a + b) / 2 - mid)
+            if gap <= self.SEPARATOR_NEAR and (best is None or gap < best[0]):
+                best = (gap, a, b)
+        return best and best[1:]
+
+    def _edge_reads(self, profiles, ground, sides, paved):
+        """Bord et séparateur de chaque travers lus sur le terrain (ground, dans l'ordre des profils) : 1er passage travers par
+        travers, puis, côté par côté, ceux qui s'écartent de la médiane des travers trouvés dans le relief (une marche dans
+        l'autre chaussée, un bord flou) y sont ramenés ; analyse fine (paved) : le bord de l'enrobé l'emporte. Rend
+        (lectures [le long, côté, bord BD TOPO, distances, altitudes, indice du bord, séparateur, son origine, pics],
+        nombre de travers par côté où l'autre chaussée est comprise)."""
+        twins = {name: 0 for name, _ in sides}  # côté -> travers où l'autre chaussée est comprise
+        read = []
+        start = 0
+        for along, name, guess, offsets, beyond, between, reach in profiles:
+            z = ground[start:start + len(offsets)]
+            start += len(offsets)
+            if z[0] is None:
+                continue
+            twins[name] += beyond > 0
+            found_sep = between and self._edge_separator(z, offsets, between, beyond)
+            i = self._edge_border(z, offsets, reach, beyond)
+            read.append([along, name, guess, offsets, z, i, found_sep or between, "marches" if found_sep else None,
+                         self._edge_peaks(z, offsets, between, beyond) if between else [], beyond])
+        for name, _ in sides:
+            mine = [r for r in read if r[1] == name]
+            edges = sorted(r[3][r[5]] for r in mine if r[5] is not None)
+            seps = [r[6] for r in mine if r[7]]
+            if not seps:  # pas de séparateur à deux marches : un pic étroit qui revient d'un travers à l'autre
+                tops = sorted(p for r in mine for p in r[8])
+                groups = [[q for q in tops if abs(q - p) <= self.PEAK_SPREAD] for p in tops]
+                group = max(groups, key=len, default=[])
+                if len({r[0] for r in mine if any(abs(q - p) <= self.PEAK_SPREAD for q in group for p in r[8])}) >= self.PEAK_TRAVERS:
+                    top = group[len(group) // 2]
+                    seps = [(top - self.PEAK_HALF, top + self.PEAK_HALF)]
+                    for r in mine:
+                        if r[6]:
+                            r[6], r[7] = seps[0], "bosse"
+            med = edges[(len(edges) - 1) // 2] if len(edges) >= 3 else None  # médiane basse : le bord le plus proche
+            sep_med = [sorted(v[k] for v in seps)[len(seps) // 2] for k in (0, 1)] if seps else None
+            for r in mine:
+                if med is not None and (r[5] is None or abs(r[3][r[5]] - med) > self.EDGE_CONSENSUS):
+                    r[5] = min(range(len(r[3])), key=lambda k: abs(r[3][k] - med))
+                if sep_med and r[6] and (not r[7] or max(abs(r[6][k] - sep_med[k]) for k in (0, 1)) > self.EDGE_CONSENSUS):
+                    r[6], r[7] = sep_med, "marches"
+                if name in paved:  # analyse fine : le bord de l'enrobé remplace celui du relief
+                    r[5] = min(range(len(r[3])), key=lambda k: abs(r[3][k] - paved[name]))
+        return read, twins
+
+    def _edge_falls(self, read, sides, paved, zone, last_beyond):
+        """Chute et dévers de chaque côté depuis les bords lus (_edge_reads), jusqu'à zone m du bord. Rend (côté ->
+        [(chute, à m du bord, bout du profil, travers), (dévers, haut du talus à m du bord, travers, pied du talus à m du
+        bord, hauteur du talus)], bords [(m depuis l'origine, relief)], côté -> distances au bord où le terrain remonte
+        de EDGE_RISE, profils pour le graphique de la page (bouton « Graphiques »))."""
+        found = {name: [None, None] for name, _ in sides}
+        borders = {name: [] for name, _ in sides}
+        stops = {name: [] for name, _ in sides}
+        drawn = []
+        for along, name, guess, offsets, z, i, between, sep_relief, _, _beyond in read:
+            beyond = last_beyond
+            relief = i is not None
+            if not relief:
+                i = min(range(len(offsets)), key=lambda k: abs(offsets[k] - guess))
+            borders[name].append((offsets[i], relief))
+            entry = {"le_long": along, "cote": name, "bord": round(paved.get(name, offsets[i]), 2), "relief": relief,
+                     "enrobe": name in paved, "arret": None,
+                     "separateur": [round(v, 2) for v in between] if between else None,
+                     "autre_axe": round(beyond, 2) if beyond else None,  # axe de l'autre chaussée, m depuis l'origine
+                     "separateur_relief": sep_relief if between else None,  # "marches", "bosse" ou None (BD TOPO)
+                     "points": [[round(o, 2), round(v, 2)] for o, v in zip(offsets, z) if v is not None]}
+            drawn.append(entry)
+            kept = [k for k in range(i, len(offsets)) if offsets[k] - offsets[i] <= zone + 1e-6]
+            zz, oo = [z[k] for k in kept], [offsets[k] - offsets[i] for k in kept]
+            if zz[0] is None:
+                continue
+            # Terrain qui remonte de EDGE_RISE au-dessus du bord : lecture arrêtée (on ne passe pas la butte)
+            cut = next((k for k, v in enumerate(zz) if v is not None and v - zz[0] >= self.EDGE_RISE), None)
+            end = oo[-1]  # bout du profil : le terrain y descend peut-être encore
+            if cut is not None:
+                stops[name].append(oo[cut])
+                entry["arret"] = round(offsets[i] + oo[cut], 2)
+                zz, oo, end = zz[:cut], oo[:cut], float("inf")
+            # point le plus bas le plus proche du bord (à 5 cm près) : le pied du talus
+            low = max(((zz[0] - v, o) for v, o in zip(zz, oo) if v is not None),
+                      key=lambda c: (round(c[0] / 0.05), -c[1]))
+            if found[name][0] is None or low[0] > found[name][0][0]:
+                found[name][0] = low + (end, along)
+            # Dévers : pente moyenne du talus le plus raide (FALL_MIN m de haut au moins), du haut au pied,
+            # tous travers confondus (le cas le plus défavorable), et non la pente la plus forte sur
+            # 2 m (un détail). Talus : pentes sur EDGE_WINDOW m d'au moins EDGE_TALUS, resserrées autour de la plus
+            # forte sur celles d'au moins EDGE_CORE fois elle (sans l'accotement en pente douce ni la queue du pied)
+            slopes = [self._edge_slope(zz, oo, j, self.EDGE_WINDOW) or 0 for j in range(len(oo))]
+            for mean, top, foot, height in self._taluses(zz, oo, slopes):
+                if height >= self.FALL_MIN and (found[name][1] is None or mean > found[name][1][0]):
+                    found[name][1] = (mean, top, along, foot, height)
+        return found, borders, stops, drawn
 
     def _edges_sides(self, sides, borders, found, stops, drawn, twins, sigma, origin):
         """Bords, chutes et dévers de chaque côté (voir _compute_edges) : (lignes du texte, bords trouvés pour l'infobulle,
