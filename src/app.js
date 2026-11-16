@@ -225,12 +225,6 @@
     }
   };
 
-  const viewer = $("#visionneuse");
-  const map = Carte.createMap("carte", { vectorPlan: true });  // Plan IGN vectoriel : texte net à tout zoom
-  Recherche.attach(map);
-  Requeteur.attach(map, (...args) => openNearest(...args));  // choix de la photo : déclaré plus bas
-  Carte.showMilestones(map);
-
   // Réglages gardés dans le navigateur (facultatif : navigation privée, stockage bloqué…)
   const store = {
     get(key, fallback = null) {
@@ -250,6 +244,25 @@
       }
     },
   };
+
+  const viewer = $("#visionneuse");
+  // Carte ouverte d'emblée sur la photo que rouvre reopenPhoto : sans détour par la Côte-d'Or au zoom 9, dont fond,
+  // filaire et limites se chargeaient pour rien ; position gardée de la dernière photo, ou celle de la photo par
+  // défaut (DEFAULT_PHOTO, première visite) ; sinon la Côte-d'Or
+  const DEFAULT_PLACE = [4.469816, 47.53666];  // DEFAULT_PHOTO, Venarey-les-Laumes
+  const lastPlace = (() => {
+    if (store.get("defauts") !== "1" || !store.get("photo")) return { center: DEFAULT_PLACE, zoom: 17 };
+    try {
+      const at = JSON.parse(store.get("photo-lieu") || "null");
+      return Array.isArray(at) && at.length === 2 && at.every(Number.isFinite) ? { center: at, zoom: 17 } : {};
+    } catch {
+      return {};
+    }
+  })();
+  const map = Carte.createMap("carte", { vectorPlan: true, ...lastPlace });  // Plan IGN vectoriel : texte net à tout zoom
+  Recherche.attach(map);
+  Requeteur.attach(map, (...args) => openNearest(...args));  // choix de la photo : déclaré plus bas
+  Carte.showMilestones(map);
 
   // Services : bilan dans la section, point rouge sur son bouton du pied s'il en manque ; vérifiés une fois le calcul
   // prêt (ou en échec) : leurs requêtes ne retardent pas Pyodide
@@ -307,7 +320,7 @@
   // Photo ouverte à la première utilisation (et sans dernière photo gardée) : Venarey-les-Laumes (D103T), route plate et droite,
   // vue tournée vers le bâtiment rond sur la gauche (cap en degrés). L'ancienne (Semur-en-Auxois, 7752eb30) était sur un
   // pont pavé : vue Bird Eye sans LiDAR, voie rétrécie
-  const DEFAULT_PHOTO = "8625c7ff-90c1-4865-b936-fd8952ac908f";
+  const DEFAULT_PHOTO = "8625c7ff-90c1-4865-b936-fd8952ac908f";  // position : DEFAULT_PLACE
   const DEFAULT_HEADING = 210;
   const firstUse = store.get("defauts") !== "1";
   if (firstUse) {

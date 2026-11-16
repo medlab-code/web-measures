@@ -487,6 +487,7 @@ const Choix = {
       if (etat.measuring) $("#mesure").click();
       etat.photo = null;
       store.set("photo", "");
+      store.set("photo-lieu", "");
       viewer.hidden = true;
       $("#invite").hidden = false;
       $("#producteur-photo").hidden = true;
@@ -594,6 +595,7 @@ const Choix = {
     function setPhoto(feature, recenter) {
       etat.photo = feature;
       store.set("photo", feature.id);  // rouverte à la prochaine visite (voir reopenPhoto)
+      store.set("photo-lieu", JSON.stringify(feature.geometry.coordinates.slice(0, 2)));  // carte ouverte là (app.js)
       showFavorites();  // étoile de la nouvelle photo
       // En bas à droite de la visionneuse : « 2025 – producteur » (année de la prise de vue)
       const producer = photoProducer(feature);

@@ -390,13 +390,14 @@ const Carte = (() => {
     };
   }
 
-  function createMap(container, { vectorPlan = false, textScale = 1 } = {}) {
+  /** Carte MapLibre dans container ; center, zoom : vue de départ (par défaut la Côte-d'Or). */
+  function createMap(container, { vectorPlan = false, textScale = 1, center = [5.04, 47.32], zoom = 9 } = {}) {
     mapOptions = { vectorPlan, textScale };
     const map = new maplibregl.Map({
       container,
       attributionControl: false,  // ajouté replié ci-dessous
-      center: [5.04, 47.32],  // Côte-d'Or
-      zoom: 9,
+      center,
+      zoom,
       maxZoom: 24,  // 0,6 cm par pixel : la Bird Eye (1,5 cm par pixel) se vise de près ; les fonds de carte sont agrandis
       maxPitch: 0,  // carte toujours vue d'aplomb : le clic droit glissé ne l'incline plus
       pitchWithRotate: false,
