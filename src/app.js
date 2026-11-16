@@ -251,8 +251,9 @@
     },
   };
 
-  // Services : bilan dans la section, point rouge sur son bouton du pied s'il en manque
-  Services.checkServices($("#reseau ul"), (ok, failed, total) => {
+  // Services : bilan dans la section, point rouge sur son bouton du pied s'il en manque ; vérifiés une fois le calcul
+  // prêt (ou en échec) : leurs requêtes ne retardent pas Pyodide
+  const checkServices = () => Services.checkServices($("#reseau ul"), (ok, failed, total) => {
     const waiting = total - ok - failed;
     $("#reseau-infos").textContent = failed ? `${failed} sans réponse ou bloqué${failed > 1 ? "s" : ""} sur ${total}`
       : `${ok} services sur ${total} accessibles${waiting ? ` · ${waiting} en cours` : ""}`;
@@ -519,7 +520,7 @@
   }).catch((error) => {
     console.error(error);
     setStatus(`Calcul indisponible : ${error.message}`, "echec");
-  });
+  }).finally(checkServices);
 
   /** Voyants de la visionneuse : RTK et sol (LiDAR HD ou RGE ALTI) toujours ; inclinaison calée en
    * mode mesure seulement (elle n'est calculée qu'au premier clic de mesure). */

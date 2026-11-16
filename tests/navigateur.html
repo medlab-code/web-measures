@@ -52,6 +52,14 @@ async function feature(id) {
       && shown("communes") === (doc.querySelector("#fond").value === "noms" ? "visible" : "none"),
       ["departements", "metropoles", "communes"].map(shown).join(","));
   }
+  {  // Services vérifiés une fois le calcul prêt, par de petites requêtes (tuile, objet, image d'un pixel, 16 octets du
+    // géoïde : plage demandée) ; tous accessibles
+    const infos = () => doc.querySelector("#reseau-infos").textContent;
+    await soon(() => /^\d+ services sur \d+ accessibles$/.test(infos()) || /sans réponse|bloqué/.test(infos()), 30000);
+    const failed = [...doc.querySelectorAll("#reseau li.echec")].map((li) => li.textContent);
+    expect("services vérifiés après le calcul, tous accessibles", /^(\d+) services sur \1 accessibles$/.test(infos()),
+      `${infos()} ${failed.join(" ; ")}`);
+  }
   // Réglages par défaut (CD21, instance IGN) : fenêtre fermée ; l'essai ouvre aussi des photos
   // grand public (Dijon, alerte RTK) : méta-catalogue et tous producteurs
   doc.querySelector("#reglages-defaut")?.close();

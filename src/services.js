@@ -15,7 +15,9 @@ const Services = (() => {
     // d'une photo de l'IGN, sur le même stockage que sa version HD (plus légère à vérifier)
     ["Panoramax : fichiers des photos (stockage)",
       "https://panoramax.ign.fr/api/pictures/cd8cf3a0-6567-40f0-8805-94172a5dfc3c/thumb.jpg"],
-    ["IGN : fonds de carte (WMTS)", `${GEOPF}/wmts?SERVICE=WMTS&REQUEST=GetCapabilities`],
+    // Une petite réponse par service : leurs GetCapabilities pesaient près de 10 Mo, à chaque ouverture (16/11/2026)
+    ["IGN : fonds de carte (WMTS)", `${GEOPF}/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2`
+      + "&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX=0&TILEROW=0&TILECOL=0&FORMAT=image/png"],
     ["OpenFreeMap : fond OpenStreetMap", OFM_STYLE],
     // Sol sous les photos (LiDAR HD, sinon RGE ALTI) : vérification de la position RTK, sol au
     // point visé, inclinaison automatique
@@ -23,16 +25,18 @@ const Services = (() => {
       `${GEOPF}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=4.55&lat=47.26&resource=ign_lidar_hd_mnt_mono_wld&zonly=true`],
     ["IGN : altitudes du RGE ALTI (secours du LiDAR HD)",
       `${GEOPF}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=4.55&lat=47.26&resource=ign_rge_alti_wld&zonly=true`],
-    ["IGN : PCRS (WMS)", `${GEOPF}/wms-r/wms?SERVICE=WMS&REQUEST=GetCapabilities`],
-    ["IGN : BD TOPO (WFS)", `${GEOPF}/wfs/ows?SERVICE=WFS&REQUEST=GetCapabilities`],
+    ["IGN : PCRS (WMS)", `${GEOPF}/wms-r/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=PCRS.LAMB93&STYLES=`
+      + "&CRS=EPSG:3857&BBOX=0,0,1,1&WIDTH=1&HEIGHT=1&FORMAT=image/png&TRANSPARENT=true"],
+    ["IGN : BD TOPO (WFS)", `${GEOPF}/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:commune&COUNT=1`
+      + "&PROPERTYNAME=nom_officiel&OUTPUTFORMAT=application/json"],
     ["IGN : recherche de lieux (géocodage)", `${GEOPF}/geocodage/completion?text=pouilly&maximumResponses=1`],
-    // Grille du géoïde (altitude NGF : hauteur de caméra d'après le GPS), voir py/geoid.py ;
-    // 340 Ko, gardés ensuite en cache par le navigateur
-    ["PROJ : grille du géoïde (altitude NGF)", "https://cdn.proj.org/fr_ign_RAF20.tif"],
+    // Grille du géoïde (altitude NGF : hauteur de caméra d'après le GPS), voir py/geoid.py ; ses 16 premiers octets
+    // seulement (340 Ko en tout)
+    ["PROJ : grille du géoïde (altitude NGF)", "https://cdn.proj.org/fr_ign_RAF20.tif", { headers: { Range: "bytes=0-15" } }],
   ];
 
   /** Vérifie un service ; voyant de la ligne (classe ok, echec, attente) et texte de son état. */
-  async function checkService(list, name, url) {
+  async function checkService(list, name, url, init = {}) {
     const item = Object.assign(document.createElement("li"), { className: "attente" });
     const label = document.createElement("span");
     label.textContent = name;
@@ -42,7 +46,7 @@ const Services = (() => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(url, { signal: controller.signal, cache: "no-store" });  // pas le cache (#23)
+      const response = await fetch(url, { ...init, signal: controller.signal, cache: "no-store" });  // pas le cache (#23)
       item.className = response.ok ? "ok" : "echec";
       state.textContent = response.ok ? "accessible" : `HTTP ${response.status}`;
     } catch (error) {
@@ -57,7 +61,7 @@ const Services = (() => {
   /** Vérifie tous les services dans list ; done(accessibles, bloqués, total) à chaque réponse. */
   function checkServices(list, done = () => {}) {
     const count = () => done(list.querySelectorAll("li.ok").length, list.querySelectorAll("li.echec").length, SERVICES.length);
-    for (const [name, url] of SERVICES) checkService(list, name, url).then(count);
+    for (const [name, url, init] of SERVICES) checkService(list, name, url, init).then(count);
   }
 
   /** Adresses possibles de la séquence de la photo dans l'API de son instance, la plus sûre
