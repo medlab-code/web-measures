@@ -47,7 +47,7 @@ mesure est dans la carte d'étape de la visionneuse. Thème jour ou nuit : comme
 dans Réglages. Une section
 s'affiche à la fois ; la dernière choisie est rouverte à la visite suivante.
 
-**La carte** : fonds Plan IGN (tuiles vectorielles, texte net ; dès le zoom 15, parcelles cadastrales en jaune léger, rues et chemins du domaine public en blanc, cadastre allumé ou non), orthophoto, ortho-express, PCRS, Modèle Numérique de Hauteur (LiDAR HD : estompage de la hauteur du
+**La carte** : fonds Plan IGN (tuiles vectorielles, texte net ; dès le zoom 16, parcelles cadastrales en jaune léger, rues et chemins du domaine public en blanc, cadastre allumé ou non), orthophoto, ortho-express, PCRS, Modèle Numérique de Hauteur (LiDAR HD : estompage de la hauteur du
 sursol : bâtiments, arbres, haies, talus), OpenStreetMap (tuiles vectorielles d'OpenFreeMap, texte net), et
 **orthophoto avec noms** : noms des lieux et des rues, voies, avec les numéros de route dans
 des cartouches dessinés comme ceux de l'IISR (rouge pour les autoroutes et nationales, jaune
@@ -585,7 +585,7 @@ sans répéter ce qui est déjà dit, ni le nom de la mesure) ; la mini-carte ce
 son attribution et son lien Panoramax, aussi en QR code. La mini-carte manque si elle est repliée.
 
 **Cadastre** (réglage « Cadastre sur la carte », Réglages › Affichage, décoché par défaut ; ticket #36) : parcelles
-du Parcellaire Express (IGN) sur la mini-carte dès le zoom 15, chaque parcelle numérotée teintée d'orange clair (le domaine public,
+du Parcellaire Express (IGN) sur la mini-carte dès le zoom 16, chaque parcelle numérotée teintée d'orange clair (le domaine public,
 voirie et cours d'eau, n'a pas de parcelle : il reste sans teinte), bornes de limite de propriété et étiquette de chaque parcelle (section au-dessus du numéro, « B » pour la
 section 0B) dès le zoom 17, en tuiles vectorielles de l'IGN (nettes à tout zoom) ; plan numérisé : limites indicatives. La parcelle que regarde la photo est allumée en vert (contour et
 fond) : la première que coupe la ligne de cap en partant de la caméra, à 50 m au plus (parcelles lues autour de la caméra au

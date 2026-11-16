@@ -877,7 +877,8 @@ const Carte = (() => {
 
   // Cadastre : parcelles dès CADASTRE_MINZOOM, bornes de limite de propriété et étiquettes dès CADASTRE_BORNES_ZOOM (nombreuses ;
   // tuiles vectorielles du PCI : ni bornes ni étiquettes avant le zoom 17)
-  const CADASTRE_MINZOOM = 15, CADASTRE_BORNES_ZOOM = 17, CADASTRE_SECTIONS_ZOOM = 17;
+  // parcelles un niveau avant leurs numéros (demande de l'auteur, 16/11/2026 ; zoom 15 avant)
+  const CADASTRE_MINZOOM = 16, CADASTRE_BORNES_ZOOM = 17, CADASTRE_SECTIONS_ZOOM = 17;
   // Plan IGN vectoriel, cadastre allumé ou non : parcelles remplies de jaune léger dès CADASTRE_MINZOOM (deux fois plus
   // léger que le jaune du Plan IGN en images à fort zoom, #FFFFDF), sous l'eau, la végétation et les bâtiments ; hors
   // parcelles (rues, chemins du domaine public), le blanc du fond
