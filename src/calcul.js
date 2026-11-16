@@ -133,13 +133,15 @@ const Calcul = (() => {
    * avancer une mesure (redessiner).
    */
   async function startCalcul(notify, apiUrl) {
+    const pyodide = await loadPyodide({ indexURL: PYODIDE });
+    // Arrière-plan lancé seulement maintenant : son Pyodide (et numpy, Pillow) ne dispute plus au premier le
+    // processeur et le réseau ; il existe avant l'application (runRemote), ses demandes attendent qu'il soit prêt
     try {
       startWorker();
     } catch (error) {  // Web Worker interdit : pas d'inclinaison automatique ni de capture HD
       console.error(error);
       worker = null;
     }
-    const pyodide = await loadPyodide({ indexURL: PYODIDE });
     install(pyodide, PY_SOURCES);
     await pyodide.pyimport("web_host").load_geoid();
     const webApp = pyodide.pyimport("web_app");
