@@ -13,9 +13,9 @@
           "level": "warn",
           "options": {
             "ignore": {
-              "variable": ["Calcul", "Carte", "Couche", "Dessus", "Disposition", "Essai", "Fiche", "Lieu", "Mesure", "Nuage",
-                "Objets", "Parcours", "PassagesPietons", "Profil", "Recherche", "Releve", "Requeteur", "Services",
-                "Traits", "Video", "Vignette", "Visionneuse"]
+              "variable": ["Calcul", "Carte", "Choix", "Couche", "Dessus", "Disposition", "Essai", "Fiche", "Lieu", "Mesure",
+                "Nuage", "Objets", "Parcours", "PassagesPietons", "Profil", "Recherche", "Releve", "Requeteur",
+                "Resultats", "Services", "Traits", "Video", "Vignette", "Visionneuse"]
             }
           }
         }
