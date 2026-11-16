@@ -1495,6 +1495,46 @@ const Video = (() => {
     return null;
   }
 
+  /** Tuiles à charger pour chaque photo du parcours, d'après les effets de chaque image (pan : regard décalé, tilt :
+   * tonneau, aim : visée en hauteur et zoom, globe : petite planète) : rolled (vue tournée par le tonneau), extra (regard
+   * décalé, degrés), raise (visée en hauteur), sharp (zoom), round (tout le panorama, tuiles réduites), narrow (vue encore
+   * trop peu ouverte pour l'image SD). */
+  function photoNeeds(path, xs, pan, tilt, aim, globe) {
+    const rolled = path.list.map(() => false);
+    xs.forEach((x, n) => {
+      if (!(Math.abs(tilt[n]) % 360)) return;
+      const i = path.segment(x)[0];
+      rolled[i] = rolled[Math.min(i + 1, path.list.length - 1)] = true;
+    });
+    // Regard décalé (croisements, point d'intérêt, tour d'horizon) : tuiles chargées d'autant plus larges pour les photos concernées
+    const extra = path.list.map(() => 0);
+    const raise = path.list.map(() => 0), sharp = path.list.map(() => 1);  // visée en hauteur, zoom : par photo
+    const round = path.list.map(() => false);  // petite planète : tout le panorama, tuiles réduites
+    const narrow = path.list.map(() => false);  // vue encore trop peu ouverte pour l'image SD à un moment de la photo
+    xs.forEach((x, n) => {
+      const i = path.segment(x)[0], off = Math.min(180, Math.abs(pan[n]));  // tour complet : tout le panorama
+      for (const k of [i, Math.min(i + 1, path.list.length - 1)]) {
+        if (globe.mix[n]) round[k] = true;
+        if (globe.mix[n] <= PLANET_SD) narrow[k] = true;
+        extra[k] = Math.max(extra[k], off);
+        raise[k] = Math.max(raise[k], Math.abs(aim.lift[n]));
+        sharp[k] = Math.max(sharp[k], aim.zoom[n]);
+      }
+    });
+    return { rolled, extra, raise, sharp, round, narrow };
+  }
+
+  /** File de l'encodeur à 4 images au plus : réveil par son événement dequeue (les minuteries d'un onglet caché sont
+   * ralenties à 1 s au moins) ; minuterie en secours (encodeur en erreur : 1 s ; navigateur sans cet événement : 5 ms). */
+  async function drained(encoder) {
+    while (encoder.encodeQueueSize > 4) {
+      await new Promise((resolve) => {
+        encoder.addEventListener("dequeue", resolve, { once: true });
+        setTimeout(resolve, "ondequeue" in encoder ? 1000 : 5);
+      });
+    }
+  }
+
   /**
    * Vidéo MP4 (Blob) des photos du parcours [record], à la vitesse simulée kmh, corrections de luminosité (exposures).
    * options.blur : flou cinétique (moyenne de BLUR vues réparties entre la position de l'image
@@ -1585,27 +1625,7 @@ const Video = (() => {
     globe.spin.forEach((v, n) => { tilt[n] += v; });
     // Image tournée par le tonneau : le coin de la vue passe en haut et en bas (demi-diagonale du champ)
     const diagonal = 2 * Math.atan(Math.hypot(tan, tan * height / width)) / toRad;
-    const rolled = path.list.map(() => false);
-    xs.forEach((x, n) => {
-      if (!(Math.abs(tilt[n]) % 360)) return;
-      const i = path.segment(x)[0];
-      rolled[i] = rolled[Math.min(i + 1, path.list.length - 1)] = true;
-    });
-    // Regard décalé (croisements, point d'intérêt, tour d'horizon) : tuiles chargées d'autant plus larges pour les photos concernées
-    const extra = path.list.map(() => 0);
-    const raise = path.list.map(() => 0), sharp = path.list.map(() => 1);  // visée en hauteur, zoom : par photo
-    const round = path.list.map(() => false);  // petite planète : tout le panorama, tuiles réduites
-    const narrow = path.list.map(() => false);  // vue encore trop peu ouverte pour l'image SD à un moment de la photo
-    xs.forEach((x, n) => {
-      const i = path.segment(x)[0], off = Math.min(180, Math.abs(pan[n]));  // tour complet : tout le panorama
-      for (const k of [i, Math.min(i + 1, path.list.length - 1)]) {
-        if (globe.mix[n]) round[k] = true;
-        if (globe.mix[n] <= PLANET_SD) narrow[k] = true;
-        extra[k] = Math.max(extra[k], off);
-        raise[k] = Math.max(raise[k], Math.abs(aim.lift[n]));
-        sharp[k] = Math.max(sharp[k], aim.zoom[n]);
-      }
-    });
+    const { rolled, extra, raise, sharp, round, narrow } = photoNeeds(path, xs, pan, tilt, aim, globe);
     const loads = new Map();  // rang de la photo -> Promise de { tex, crop, grid }
     const load = (i) => {
       if (!loads.has(i)) {
@@ -1712,14 +1732,7 @@ const Video = (() => {
         encoder.encode(frame, { keyFrame: n % (2 * FPS) === 0 });
         frame.close();
         lap("dessin");
-        // File de l'encodeur pleine : réveil par son événement dequeue (les minuteries d'un onglet caché sont ralenties
-        // à 1 s au moins) ; minuterie en secours (encodeur en erreur : 1 s ; navigateur sans cet événement : 5 ms)
-        while (encoder.encodeQueueSize > 4) {
-          await new Promise((resolve) => {
-            encoder.addEventListener("dequeue", resolve, { once: true });
-            setTimeout(resolve, "ondequeue" in encoder ? 1000 : 5);
-          });
-        }
+        await drained(encoder);
         lap("encodeur");
         progress(n + 1, total);
       }
