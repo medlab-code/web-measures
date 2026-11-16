@@ -3283,7 +3283,7 @@ class App(session.Session):
                 "photos": ",".join(dict.fromkeys(c.get("pic") or "" for c in m.clicks)),
                 "date_mesure": datetime.now().isoformat(timespec="seconds"),
                 "commentaire": getattr(m, "comment", ""),
-                # Pour la revoir à l'import (src/app.js, reviewMeasure) : photo d'où elle a été prise (celle
+                # Pour la revoir à l'import (src/choix.js, reviewMeasure) : photo d'où elle a été prise (celle
                 # de la fiche) et repères tels que dessinés dessus ([[cap, élévation]] en radians, texte JSON)
                 "photo_ref": m.clicks[0 if m.kind == "height" else 1].get("pic"),
                 "vue_ref": json.dumps(m.view_ref) if getattr(m, "view_ref", None) else None,

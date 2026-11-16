@@ -1255,7 +1255,7 @@ const Carte = (() => {
 
   /** Étiquettes de la couche sur la carte, dans l'ordre de proximité : chacune remontée au-dessus des
    * étiquettes déjà placées (mesures comprises), masquée s'il faudrait la remonter de plus de
-   * OVERLAY_MAX_LIFT fois sa hauteur (comme dans la visionneuse, voir app.js declutterLabels). */
+   * OVERLAY_MAX_LIFT fois sa hauteur (comme dans la visionneuse, voir mesure.js declutterLabels). */
   function declutterOverlayLabels(map) {
     const hit = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom + 2 && a.bottom + 2 > b.top;
     const placed = labels.map((m) => m.getElement().getBoundingClientRect()).filter((r) => r.width);

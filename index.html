@@ -292,7 +292,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
                 aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" stroke-linecap="round"
                     stroke-linejoin="round"/></svg> GeoJSON</button>
-            <!-- Mesures exportées revues sur leur photo : importées comme couche (src/app.js, reviewMeasure) -->
+            <!-- Mesures exportées revues sur leur photo : importées comme couche (src/choix.js, reviewMeasure) -->
             <button id="mesures-importer" type="button" class="export" aria-label="Importer des mesures"
                     title="Importer des mesures exportées en GeoJSON : chacune revue sur sa photo, telle qu'elle était à l'écran (en lecture seule, dans l'onglet Couche)">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -318,7 +318,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               ce navigateur, elles sont proposées à l'export à l'ouverture suivante si elles ne l'ont pas été :
               exportez-les.</p>
           </div>
-          <!-- Résultats non exportés de la session précédente (src/app.js, saveResults) -->
+          <!-- Résultats non exportés de la session précédente (src/releve.js, saveResults) -->
           <details id="precedents" hidden>
             <summary></summary>
             <ol></ol>  <!-- en lecture seule, gris aussi sur la carte -->
@@ -441,7 +441,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
         </section>
         <!-- Couche importée (src/couche.js) : sur la carte et, au sol, dans la photo -->
         <section id="couche" role="tabpanel" aria-labelledby="onglet-couche" hidden>
-          <!-- Sans couche : accueil ; fichier choisi, ou glissé sur l'onglet (app.js importOverlay) -->
+          <!-- Sans couche : accueil ; fichier choisi, ou glissé sur l'onglet (objets.js importOverlay) -->
           <div id="couche-accueil">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
               <path d="M12 3l9 5-9 5-9-5z M3 13l9 5 9-5" stroke-linejoin="round"/></svg>
@@ -506,7 +506,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             <!-- Fiches de tous les objets, en un seul PDF (fiche.js askFiche, { tous }) ; nombre d'objets : showOverlayInfo -->
             <button id="couche-fiches" type="button" disabled
                     title="Un seul PDF, une page par objet, photo cadrée automatiquement sur l'objet">Fiches PDF des objets</button>
-            <!-- Filtre par attribut (app.js overlayHiddenTest) : objets hors filtre ni sur la carte, ni dans la photo, ni dans
+            <!-- Filtre par attribut (objets.js overlayHiddenTest) : objets hors filtre ni sur la carte, ni dans la photo, ni dans
                  le tableau du parcours, ni cochés pour les fiches ; gardé avec la couche -->
             <div class="reglage-couche"><label for="couche-filtre">Filtre</label><select id="couche-filtre"></select></div>
             <div class="condition-filtre">
@@ -519,7 +519,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <button id="couche-filtre-effacer" type="button" class="lien" disabled>Effacer</button>
             </div>
             <p id="couche-filtre-bilan" class="aide" hidden></p>
-            <!-- Parcours des objets (app.js showObjectTable) : tableau trié et filtré ; ◀ ▶ dans son ordre, photo la plus
+            <!-- Parcours des objets (objets.js showObjectTable) : tableau trié et filtré ; ◀ ▶ dans son ordre, photo la plus
                  proche tournée vers l'objet ; statut dans les colonnes verif et verif_note, gardées et exportées ;
                  attributs modifiables, objet supprimé ou ajouté (point posé sur la carte) -->
             <details id="couche-parcours">
@@ -915,7 +915,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
               <p id="reglages-infos">Gardés dans ce navigateur</p>
             </div>
           </div>
-          <!-- Dossier de travail (app.js workFolder, importFolder) : tout le travail gardé ici en un fichier -->
+          <!-- Dossier de travail (releve.js workFolder, importFolder) : tout le travail gardé ici en un fichier -->
           <h3>Dossier de travail</h3>
           <p class="aide">Couche, relevé, calage, parcours, favoris et modèles de champs en un seul fichier, pour
             passer la main à un collègue ou sauvegarder la séance. Sans les mesures : exportez-les à part (Résultats).</p>
@@ -1138,7 +1138,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
     </form>
   </dialog>
   <!-- « Enregistrer » : le fichier de la couche a changé sur le disque depuis son import (ou le dernier enregistrement) -->
-  <!-- Import d'un dossier de travail : une case par partie, avec ce qu'elle fera (app.js importFolder) -->
+  <!-- Import d'un dossier de travail : une case par partie, avec ce qu'elle fera (releve.js importFolder) -->
   <dialog id="importer-dossier" class="avertissement">
     <h2>Dossier de travail</h2>
     <p></p>
@@ -1272,7 +1272,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
       <button value="oui" class="oui">Oui</button>
     </form>
   </dialog>
-  <!-- Objets de la couche recalés sur une autre séquence de la voie : y aller ? (app.js proposeRecaledPhoto) -->
+  <!-- Objets de la couche recalés sur une autre séquence de la voie : y aller ? (choix.js proposeRecaledPhoto) -->
   <dialog id="alerte-recalage" class="avertissement">
     <h2>Objets recalés sur une autre séquence</h2>
     <p></p>
@@ -1328,6 +1328,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
   <script src="src/resultats.js"></script>
   <script src="src/choix.js"></script>
   <script src="src/reglages.js"></script>
+  <script src="src/favoris.js"></script>
   <script src="src/fiche.js"></script>
   <script src="src/app.js"></script>
 </body>

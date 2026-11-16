@@ -1069,7 +1069,7 @@ html.souris-immobile:fullscreen :is(#plein-ecran, header .captures, #voyants, .b
 }
 #producteur-photo { text-align: right; }
 #lieu[hidden], #producteur-photo[hidden] { display: none; }
-/* Bulles d'un objet de la couche sous le pointeur (src/app.js, objectTip) : repère de taille nulle au
+/* Bulles d'un objet de la couche sous le pointeur (src/choix.js, objectTip) : repère de taille nulle au
    pointeur, clic gauche à sa gauche, clic droit à sa droite, au style de #lieu */
 #bulle-objet { position: fixed; width: 0; height: 0; pointer-events: none; z-index: 1000; }
 #bulle-objet p {

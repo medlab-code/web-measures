@@ -913,7 +913,15 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 | `docs/analyses/` | notes d'analyse (novembre 2026) : détection des bords en « Dévers », critique de `MESURES.md`, limites structurelles ; pistes, pas des descriptions du code |
 | `docs/CALCULS.md` | calculs de chaque mode, seuils et précision |
 | `index.html`, `src/style.css` | page et mise en page |
-| `src/app.js` | relie carte, visionneuse et calcul : clics, clavier, repères, liseré, filtre |
+| `src/app.js` | socle de la page : services, état partagé (`etat`), calcul, filtre des photos, enregistrement des fichiers ; branche les fichiers ci-dessous (`X.init`) |
+| `src/reglages.js` | réglages de l'affichage gardés dans le navigateur (fond, filaire, PR, cadastre…) et fenêtre du profil en travers |
+| `src/resultats.js` | résultats des mesures, carte et visionneuse échangées, boutons de la carte (longueur, Bird Eye, capture, export) |
+| `src/choix.js` | choix de la photo sur la carte, photo affichée, carte détachée, droite et longueur tracées, objets recalés ou posés |
+| `src/favoris.js` | photo loin des mesures, aller à une photo, favoris |
+| `src/objets.js` | couche importée dans la page : réglages, filtre, tableau des objets, recalages, export ; import commun des fichiers |
+| `src/visionneuse.js` | visionneuse : cap et champ de la vue, chargement des photos, flèches, clics |
+| `src/mesure.js` | prise de mesure : bouton « Mesure », visées et réticule, visées guidées, mode et réglages |
+| `src/releve.js` | relevé d'objets, dossier de travail, modèles de champs, import des calages |
 | `src/disposition.js` | disposition de la page : hauteur de la carte, largeur de la colonne (poignées, repli), plein écran de la visionneuse |
 | `src/parcours.js` | lecture de la séquence (1x à 16x) et onglet « Vidéo » : parcours, effets posés sur la carte, point d'intérêt, parcours gardés, calcul de la vidéo |
 | `src/fiche.js` | captures de la visionneuse (« Image seule », « Avec annotations ») et fiches PDF des points et des objets de la couche |

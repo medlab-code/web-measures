@@ -59,7 +59,7 @@
     setPhoto(feature);
     $("#invite").hidden = true;
     viewer.hidden = false;
-    if (viewer.getAttribute("picture") !== feature.id) {  // séquence et photo ensemble (voir app.js, openPhoto)
+    if (viewer.getAttribute("picture") !== feature.id) {  // séquence et photo ensemble (voir choix.js, openPhoto)
       if (viewer.select) viewer.select(feature.collection || null, feature.id, true);
       else viewer.setAttribute("picture", feature.id);
     }
@@ -78,7 +78,7 @@
     backgroundsAt(feature);
   }
 
-  /** PCRS proposé là où il est publié ; ortho-express de l'année de la photo (comme app.js, photoDetails). */
+  /** PCRS proposé là où il est publié ; ortho-express de l'année de la photo (comme choix.js, photoDetails). */
   function backgroundsAt(feature) {
     const [lon, lat] = feature.geometry.coordinates;
     Carte.pcrsAt(map, lon, lat).then((zone) => {
@@ -218,7 +218,7 @@
     viewer.setAttribute("endpoint", Carte.setInstance(map, event.target.value));
   });
 
-  // Comme app.js (showParcelMark), sans le calcul : sol supposé de niveau, caméra à CAMERA_UP m
+  // Comme mesure.js (showParcelMark), sans le calcul : sol supposé de niveau, caméra à CAMERA_UP m
   const PARCEL_ID = "mesure-parcelle", PARCEL_UP = 1.5, CAMERA_UP = 1.9, PARCEL_DELAY = 2000;
   let parcelReady = true, parcelTimer = null;
   Carte.onAim(() => showParcelMark());
