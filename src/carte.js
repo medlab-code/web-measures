@@ -49,10 +49,13 @@ const Carte = (() => {
     { id: "communes", layer: "commune", minzoom: 11, paint: { "line-color": "#000000", "line-width": 1.2, "line-dasharray": [4, 2.5] } },
     // métropoles (EPCI de nature « Métropole ») : vert, un peu plus fin que les départements,
     // dès l'échelle du département
-    { id: "metropoles", layer: "epci", minzoom: 7, properties: "cleabs,nom_officiel,nature,geometrie",
+    { id: "metropoles", layer: "epci", minzoom: 7, properties: "cleabs,nom_officiel,nature,geometrie", everywhere: true,
       filter: ["==", ["get", "nature"], "Métropole"], paint: { "line-color": "#16a34a", "line-width": 4 } },
-    { id: "departements", layer: "departement", minzoom: 0, paint: { "line-color": "#0082c5", "line-width": 5 } },
+    { id: "departements", layer: "departement", minzoom: 0, everywhere: true,
+      paint: { "line-color": "#0082c5", "line-width": 5 } },
   ];
+  // everywhere : sur tous les fonds ; sinon (communes) avec le fond « orthophoto avec noms » seulement
+  const adminOn = (level) => level.everywhere || adminNames;
   /** Épaisseur d'un contour (plus `extra` pour le liseré) : 40 % au zoom 5, entière dès le 10. */
   const adminWidth = (level, extra) => {
     const w = level.paint["line-width"];
@@ -408,6 +411,7 @@ const Carte = (() => {
     map.once("idle", () => {
       map.getContainer().querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show");
     });
+    map.once("load", () => loadedMaps.add(map));  // voir whenLoaded
     return map;
   }
 
@@ -528,7 +532,7 @@ const Carte = (() => {
     }
     namesShown = name === "noms";
     if (namesShown) loadNames(map);
-    // Orthophoto avec noms : avec les voies et les limites administratives
+    // Orthophoto avec noms : avec les voies et les limites des communes (départements et métropoles : tous les fonds)
     setRoadsVisible(map, namesShown);
     setAdminVisible(map, namesShown);
     for (const id of namesIds) map.setLayoutProperty(id, "visibility", namesShown ? "visible" : "none");
@@ -747,8 +751,11 @@ const Carte = (() => {
   }
 
   /** Carte prête (style chargé) : fn tout de suite, sinon à son chargement. */
+  // Cartes dont le style a fini son premier chargement : isStyleLoaded() redevient faux pendant le chargement des tuiles
+  // ou un ajout de couches (fond vectoriel), alors que « load » ne revient plus (le filtre attendait sans fin)
+  const loadedMaps = new WeakSet();
   function whenLoaded(map, fn) {
-    if (map.isStyleLoaded()) fn();
+    if (loadedMaps.has(map) || map.isStyleLoaded()) fn();
     else map.once("load", fn);
   }
 
@@ -765,7 +772,7 @@ const Carte = (() => {
   // Filtre des photos (même critères que le plugin, voir core/filters.py) ------------------
 
   function setFilter(map, f) {
-    if (!map.isStyleLoaded()) {  // MapLibre refuse un filtre avant le chargement du style
+    if (!loadedMaps.has(map) && !map.isStyleLoaded()) {  // MapLibre refuse un filtre avant le chargement du style
       map.once("load", () => setFilter(map, f));
       return;
     }
@@ -780,8 +787,10 @@ const Carte = (() => {
       if (f.producer) parts.push(["==", ["get", "account_id"], f.producer[0]]);
       map.setFilter(layer, parts.length > 1 ? parts : null);
     }
-    const grid = f.kind ? [">", ["to-number", ["get", f.kind === "360" ? "nb_360_pictures" : "nb_flat_pictures"], 0], 0]
-      : null;
+    // Grille (vue de loin) : comptes de photos par type seulement ; producteur, date ou précision GPS demandés, elle
+    // compterait aussi les photos filtrées : masquée (comme les séquences de loin, sans ces propriétés dans leurs tuiles)
+    const grid = f.producer || f.since || f.max_gps != null ? ["boolean", false]
+      : f.kind ? [">", ["to-number", ["get", f.kind === "360" ? "nb_360_pictures" : "nb_flat_pictures"], 0], 0] : null;
     map.setFilter("grille", grid);
   }
 
@@ -798,7 +807,7 @@ const Carte = (() => {
    * la zone vue (élargie) est demandée au WFS si aucune zone déjà chargée ne la contient ;
    * entités gardées par jeu de données (petite échelle ou précis) et par identifiant. */
   const adminCache = new Map();  // "jeu:couche" -> { boxes: [[o, s, e, n]], features: Map }
-  let adminShown = false, adminTimer = null;
+  let adminNames = false, adminTimer = null;  // adminNames : fond « orthophoto avec noms » (limites des communes)
 
   function showAdmin(map) {
     map.on("moveend", () => {
@@ -807,22 +816,21 @@ const Carte = (() => {
     });
   }
 
-  function setAdminVisible(map, shown) {
-    adminShown = shown;
+  function setAdminVisible(map, names) {
+    adminNames = names;
     for (const level of ADMIN_LEVELS) {
       for (const id of ["admin-" + level.id, `admin-${level.id}-lisere`])
-        map.setLayoutProperty(id, "visibility", shown ? "visible" : "none");
+        map.setLayoutProperty(id, "visibility", adminOn(level) ? "visible" : "none");
     }
-    if (shown) loadAdmin(map);
+    loadAdmin(map);
   }
 
   function loadAdmin(map) {
-    if (!adminShown) return;
     const zoom = map.getZoom();
     const b = map.getBounds();
     const view = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
     for (const level of ADMIN_LEVELS) {
-      if (zoom < level.minzoom) continue;
+      if (zoom < level.minzoom || !adminOn(level)) continue;
       const dataset = adminDataset(level, zoom);
       adminFetch(`${dataset}:${level.layer}`, view, level.properties || "cleabs,nom_officiel,geometrie", (features) => {
         // jeu de données encore celui du zoom courant

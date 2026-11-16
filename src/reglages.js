@@ -19,7 +19,7 @@ const Reglages = {
     map.on("load", () => Carte.setBackground(map, $("#fond").value));
     // Police des cartouches prête avant qu'ils ne soient dessinés
     document.fonts?.load("700 24px Inter").catch(() => {});
-    Carte.showAdmin(map);  // limites administratives (fond « orthophoto avec noms »)
+    Carte.showAdmin(map);  // limites des départements et des métropoles ; des communes avec « orthophoto avec noms »
     // Filaire Panoramax affiché ou non (choix mémorisé)
     $("#filaire").checked = store.get("filaire", "1") === "1";
     map.on("load", () => Carte.setNetworkVisible(map, $("#filaire").checked));

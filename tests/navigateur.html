@@ -39,6 +39,19 @@ async function feature(id) {
   const state = () => JSON.parse(app.state());
   const doc = w.document;
   expect("page rouverte sur Réglages : chargée, onglet affiché", !doc.querySelector("#reglages").hidden);
+  {  // Filtre par défaut (producteur CD21) posé sur le filaire dès l'ouverture (il attendait un « load » déjà passé) ;
+    // grille de loin (sans producteur dans ses tuiles) masquée ; départements et métropoles sur tous les fonds
+    const m = w.mesures.map, filter = (id) => JSON.stringify(m.getFilter(id) ?? null);
+    await soon(() => filter("sequences").includes("account_id"), 10000);
+    expect("filtre du producteur posé sur le filaire à l'ouverture, grille masquée",
+      filter("sequences").includes("account_id") && filter("photos").includes("account_id") && filter("grille") === '["boolean",false]',
+      `${filter("sequences")} ${filter("grille")}`);
+    const shown = (id) => m.getLayoutProperty(`admin-${id}`, "visibility");
+    expect(`limites sur le fond « ${doc.querySelector("#fond").value} » : départements et métropoles, communes seulement avec les noms`,
+      shown("departements") === "visible" && shown("metropoles") === "visible"
+      && shown("communes") === (doc.querySelector("#fond").value === "noms" ? "visible" : "none"),
+      ["departements", "metropoles", "communes"].map(shown).join(","));
+  }
   // Réglages par défaut (CD21, instance IGN) : fenêtre fermée ; l'essai ouvre aussi des photos
   // grand public (Dijon, alerte RTK) : méta-catalogue et tous producteurs
   doc.querySelector("#reglages-defaut")?.close();

@@ -52,7 +52,7 @@ sursol : bâtiments, arbres, haies, talus), OpenStreetMap (tuiles vectorielles d
 **orthophoto avec noms** : noms des lieux et des rues, voies, avec les numéros de route dans
 des cartouches dessinés comme ceux de l'IISR (rouge pour les autoroutes et nationales, jaune
 pour les départementales, cyan pour les métropolitaines, vert pour les européennes), limites
-des départements (bleu), de la métropole (vert) et des communes (tirets noirs). Les
+des communes (tirets noirs). Les limites des départements (bleu) et des métropoles (vert) sont sur tous les fonds. Les
 autoroutes et nationales paraissent dès le zoom 7, les départementales dès le zoom 10, les
 autres voies dès le zoom 15. Les points de repère sont dessinés en bornes (tête à la couleur
 du réseau, numéro du PR), à côté de la voie, sur tous les fonds, ou sur aucun selon « Bornes des PR sur la carte »
