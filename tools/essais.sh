@@ -2,8 +2,8 @@
 # SPDX-FileCopyrightText: 2026 Cédric COCHART
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# Lance des pages d'essai (tests/*.html) dans Google Chrome sans fenêtre, l'une après l'autre, et donne pour
-# chacune sa durée et son bilan.
+# Lance des pages d'essai (tests/*.html) dans Google Chrome sans fenêtre, sur VOIES Chrome à la fois (2 par défaut,
+# 1 pour la vidéo : calcul lourd ; ESSAIS_VOIES=n pour en choisir), et donne pour chacune sa durée et son bilan.
 #
 #   tools/essais.sh rapide        # sans réseau, quelques secondes : pendant la mise au point
 #   tools/essais.sh birdeye       # vue du dessus : synthèse, 3 photos de référence, 6 passages piétons (environ 3 min 30)
@@ -14,6 +14,8 @@
 #   tools/essais.sh video         # pages de la vidéo (longues) : seulement si l'auteur le demande
 #   tools/essais.sh essai-ponts essai-dessus-reference#rapide   # pages choisies (#… : passé à la page)
 #
+# Chaque voie a son port (PORT, PORT + 1…), son profil et son cache HTTP (deux Chrome sur le même cache HTTP risquent
+# de l'abîmer) : voie 1 dans les dossiers ci-dessous, voie n dans …-n.
 # Cache HTTP de Chrome gardé entre les essais (~/.cache/web-measures-essais) : photos et tuiles ne
 # viennent du réseau qu'une fois. Profil gardé lui aussi (~/.cache/web-measures-essais-profil) pour le cache de
 # l'application (BD TOPO, altitudes, morceaux de nuage LiDAR : sans lui, l'attente d'1 s par requête LiDAR à chaque
@@ -25,8 +27,10 @@
 
 RAPIDE="essai-dessus essai-profil"
 BIRDEYE="essai-dessus essai-dessus-reference#rapide essai-passages#rapide"
-COMPLET="$RAPIDE navigateur essai-rtk essai-largeur essai-libre essai-releve inclinaison-terrain
-  essai-calage essai-profil-pdf essai-cadastre essai-mobile essai-cache essai-ponts essai-bords essai-nuage essai-dessus-reference#rapide"
+# pages longues d'abord : la file des voies finit sur les courtes
+COMPLET="essai-dessus-reference#rapide essai-releve navigateur essai-cache essai-largeur essai-rtk essai-bords
+  inclinaison-terrain essai-nuage essai-libre essai-cadastre essai-ponts essai-dessus essai-mobile essai-calage essai-profil-pdf
+  essai-profil"
 PASSAGES="essai-passages"
 VIDEO="essai-avancement-video essai-video essai-boucle essai-chassagne essai-format-video"
 PORT=8766 DELAI=900  # secondes au plus par page
@@ -35,18 +39,19 @@ PORT=8766 DELAI=900  # secondes au plus par page
 CHROME_OPTIONS=${CHROME_OPTIONS-"--use-angle=vulkan --enable-features=Vulkan --ignore-gpu-blocklist"}
 
 cd "$(dirname "$0")/.." || exit 1
+voies=2
 case "${1:-rapide}" in
   rapide) pages=$RAPIDE ;;
   complet) pages=$COMPLET ;;
-  video) pages=$VIDEO ;;
+  video) pages=$VIDEO voies=1 ;;
   birdeye) pages=$BIRDEYE ;;
   passages) pages=$PASSAGES ;;
   *) pages="$*" ;;
 esac
-cache=${XDG_CACHE_HOME:-$HOME/.cache}/web-measures-essais
-profil=$cache-profil  # gardé entre les pages et les essais : cache de l'application (Cache API) ; le reste vidé à chaque page
+voies=${ESSAIS_VOIES:-$voies}
+base=${XDG_CACHE_HOME:-$HOME/.cache}/web-measures-essais
 journaux=${TMPDIR:-/tmp}/web-measures-essais
-mkdir -p "$cache" "$journaux"
+mkdir -p "$journaux"
 total=0 echecs=0
 if [ "${1:-rapide}" = rapide ] || [ "${1:-rapide}" = complet ]; then
   # Statut gardé à part : derrière « | tail -1 », un échec des tests Python passait inaperçu.
@@ -79,7 +84,13 @@ EOF
   fi
   systemctl --user stop "$2" 2> /dev/null
 }
-for page in $pages; do
+# Une page dans la voie $2 (0, 1…) : écrit « durée|bilan » dans $journaux/<page>.bilan
+essai() {
+  local page=$1 voie=$2 debut fichier suite nom dossier serveur fin duree bilan
+  local port=$(( PORT + voie )) cache=$base profil
+  [ "$voie" = 0 ] || cache=$base-$(( voie + 1 ))
+  profil=$cache-profil  # gardé entre les pages et les essais : cache de l'application (Cache API) ; le reste vidé
+  mkdir -p "$cache"
   debut=$(date +%s)
   # comme un premier passage : tout le profil retiré sauf le cache de l'application (Cache API, sous « Service Worker ») et
   # le registre des quotas, sans lequel Chrome l'abandonne ; en retirer seulement le stockage local laissait des parcours
@@ -89,22 +100,44 @@ for page in $pages; do
   fichier=${page%%#*}; suite=${page#"$fichier"}; nom=${fichier}${suite:+-${suite#\#}}
   dossier=$profil
   [ "$fichier" = essai-cache ] && dossier=$(mktemp -d "$journaux/profil-XXXX")  # il vide le cache : profil jetable
-  timeout "$DELAI" python3 tools/serveur-essai.py "$PORT" > "$journaux/$nom.log" 2>&1 &
+  timeout "$DELAI" python3 tools/serveur-essai.py "$port" > "$journaux/$nom.log" 2>&1 &
   serveur=$!
   sleep 0.5
   ( systemd-run --user --scope --quiet --unit="essai-$nom-$$" -p MemoryMax=6G -p MemorySwapMax=1G \
     setsid google-chrome --headless=new $CHROME_OPTIONS --user-data-dir="$dossier" --disk-cache-dir="$cache" --no-first-run \
-    --remote-debugging-port=0 --window-size=1400,1000 "http://127.0.0.1:$PORT/tests/$fichier.html$suite" > /dev/null 2>&1 & )
+    --remote-debugging-port=0 --window-size=1400,1000 "http://127.0.0.1:$port/tests/$fichier.html$suite" > /dev/null 2>&1 & )
   wait "$serveur"
   fin=$?
   fermer "$dossier" "essai-$nom-$$.scope"
   [ "$dossier" = "$profil" ] || rm -rf "$dossier"
-  duree=$(( $(date +%s) - debut )); total=$(( total + duree ))
+  duree=$(( $(date +%s) - debut ))
   bilan=$(grep -E "^(contrôles|ERREUR)" "$journaux/$nom.log" | tail -1)
-  [ $fin = 124 ] && bilan="délai dépassé ($DELAI s)"
+  [ "$fin" = 124 ] && bilan="délai dépassé ($DELAI s)"
   [ -z "$bilan" ] && bilan="sans bilan (voir $journaux/$nom.log)"
-  case "$bilan" in contrôles*) ;; *) echecs=$(( echecs + 1 )) ;; esac
   echots "$page" "$duree" "$bilan"
+  echo "$duree|$bilan" > "$journaux/$nom.bilan"
+}
+# File des pages : chaque voie libre prend la suivante (rang tenu dans un fichier, sous verrou)
+# shellcheck disable=SC2206  # découpage voulu : une page par mot de la liste
+liste=($pages)
+rang=$journaux/.rang
+echo 0 > "$rang"
+suivante() { ( flock 9; local k; k=$(< "$rang"); echo $(( k + 1 )) > "$rang"; echo "$k" ) 9> "$rang.verrou"; }
+depart=$(date +%s)
+for (( v = 0; v < voies; v++ )); do
+  (
+    while k=$(suivante) && [ "$k" -lt ${#liste[@]} ]; do essai "${liste[k]}" "$v"; done
+  ) &
 done
-echo "total : $total s ; échecs (pages, tests Python) : $echecs (journaux : $journaux)"
+wait
+rm -f "$rang" "$rang.verrou"
+for page in "${liste[@]}"; do
+  fichier=${page%%#*}; suite=${page#"$fichier"}; nom=${fichier}${suite:+-${suite#\#}}
+  IFS='|' read -r duree bilan < "$journaux/$nom.bilan" 2> /dev/null || bilan="sans bilan"
+  total=$(( total + ${duree:-0} ))
+  case "$bilan" in contrôles*) ;; *) echecs=$(( echecs + 1 )) ;; esac
+  rm -f "$journaux/$nom.bilan"
+done
+echo "total : $(( $(date +%s) - depart )) s ($total s de pages, $voies voie(s)) ; échecs (pages, tests Python) : $echecs" \
+  "(journaux : $journaux)"
 [ $echecs = 0 ]

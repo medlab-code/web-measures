@@ -56,7 +56,9 @@ attentes de condition (essai complet : environ 7 → 5 min), parcours de mesure 
   bilan par `fin()` ou `await verdict()` avant « FIN »). Attendre une condition, pas une durée ; une attente fixe
   seulement pour un contrôle « rien ne change » (sa condition est déjà vraie avant l'action).
 - Lanceur des essais : `tools/essais.sh rapide|birdeye|passages|complet|video|<page>[#…]` (durée et bilan par page, cache
-  HTTP gardé entre essais, processeur graphique, Chrome arrêté seul). Vue du dessus pendant la mise au point :
+  HTTP gardé entre essais, processeur graphique, Chrome fermé proprement puis arrêté seul). Deux Chrome à la fois (voies :
+  port, profil et cache HTTP chacun ; `ESSAIS_VOIES=n`, vidéo sur une seule) : essai complet environ 3 min 15 au lieu de 6
+  (16/11/2026 ; plus lent au premier passage d'une voie, caches froids). Vue du dessus pendant la mise au point :
   `tools/essais.sh birdeye` (environ 3 min 30, dont 6 passages piétons) ; les 7 photos de référence et
   `tools/essais.sh passages` (17 passages piétons, environ 6 min) seulement avant une fusion qui touche la vue du dessus.
 - Essai de bout en bout à la main : `tools/serveur-essai.py 8766` (s'arrête quand la page écrit « FIN »
