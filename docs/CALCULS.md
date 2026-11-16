@@ -686,7 +686,7 @@ Le roulis ne suit qu'une part du dévers (option d'essai « Roulis », 70 % par 
 avec tout le dévers, pour 6,58 m sur l'orthophoto (environ 40 % du dévers) ; sur l'A38, environ 75 %. Le roulis
 déplace surtout la ligne la plus éloignée de la caméra, d'où l'impression d'un milieu étiré. Le tangage suit la
 pente entière (tirets de 3 m retrouvés devant et derrière).
-Défaut de roulis de la campagne (`App.ROLL_DEFECTS`, `py/web_app.py` : producteur, période, degrés), ajouté au roulis
+Défaut de roulis de la campagne (`App.ROLL_DEFECTS`, `py/web_pose.py` : producteur, période, degrés), ajouté au roulis
 tiré du dévers (`groundUp`) : CD21, campagne 2025, −1°. Une erreur de roulis δ fait varier la largeur d'une bande de
 passage piéton (0,50 m) comme 1 + 2 s δ / H (s : écart en travers à la caméra, H : hauteur de caméra) : la pente des
 largeurs en travers donne δ, indépendamment de l'échelle. Sur 25 passages piétons (13/11/2026), roulis restant

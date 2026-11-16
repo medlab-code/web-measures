@@ -1375,3 +1375,22 @@ class Chutes:
             host.fetch_json(precision.lidar_url(chunks[k], precision.RGE_RESOURCE), got, timeout_ms=precision.TIMEOUT_MS)
 
         step(0)
+
+    def use_paved_edges(self, frame, edges):
+        """Bords d'enrobé de l'analyse fine (src/nuage.js) pour le profil de repère frame (JSON de profile.repere) : edges,
+        en JSON, m depuis l'origine par côté (« gauche », « droit »). Plateforme, dévers, chute et dévers du talus de ce
+        profil se relisent depuis eux, sur tous les travers, sans nouvelle lecture du terrain s'il vient d'être calculé."""
+        frame = tuple(tuple(p) for p in json.loads(frame))
+        self.paved[frame] = json.loads(edges)
+        redo = self.paved_redo.get(frame)
+        for key, res in list(self.edges.items()):  # autre largeur examinée : recalculée à la demande
+            profile = res.get("profile")
+            if profile and tuple(tuple(p) for p in profile["repere"]) == frame and (not redo or key != redo[0]):
+                del self.edges[key]
+        if redo:
+            redo[1]()
+
+    def fall_json(self):
+        """Hauteur de chute (voir fall), en JSON : demandée par la page hors lecture de la séquence
+        (sinon une lecture BD TOPO par maille de 100 m traversée)."""
+        return json.dumps(self.fall())

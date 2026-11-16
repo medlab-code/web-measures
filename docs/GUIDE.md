@@ -935,6 +935,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 | `src/lieu.js` | route, point de repère (PR), véloroute, écluse, hameau et commune de la photo, incrustés dans la visionneuse |
 | `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page (points de référence, hauteurs, largeurs, mesure libre, recalages) |
 | `py/web_chutes.py` | hauteurs de chute et dévers : sur un pont, et sur les bords de route (profils, séparateur, analyse fine) ; base de `App` |
+| `py/web_pose.py` | pose de la caméra : inclinaison automatique (raison d'un échec), inclinaison par le terrain, monture et défaut de roulis, pose de la vue du dessus ; base de `App` |
 | `py/web_host.py` | accès réseau du cœur par le `fetch` du navigateur |
 | `py/web_worker.py` | calculs lourds dans le Pyodide d'arrière-plan |
 | `py/geoid.py` | altitude NGF (grille RAF20 de l'IGN) |
