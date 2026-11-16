@@ -14,8 +14,8 @@
           "options": {
             "ignore": {
               "variable": ["Calcul", "Carte", "Choix", "Couche", "Dessus", "Disposition", "Essai", "Fiche", "Lieu", "Mesure",
-                "Nuage", "Objets", "Parcours", "PassagesPietons", "Profil", "Recherche", "Releve", "Requeteur",
-                "Resultats", "Services", "Traits", "Video", "Vignette", "Visionneuse"]
+                "Nuage", "Objets", "Parcours", "PassagesPietons", "Profil", "Recherche", "Reglages", "Releve",
+                "Requeteur", "Resultats", "Services", "Traits", "Video", "Vignette", "Visionneuse"]
             }
           }
         }
