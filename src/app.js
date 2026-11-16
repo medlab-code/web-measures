@@ -162,7 +162,13 @@
     headers.set("x-vide", emptyAnswer(text) ? "1" : "0");
     headers.set("x-taille", String(new Blob([text]).size));
     await cache.put(url, new Response(text, { status: response.status, statusText: response.statusText, headers }));
-    if (geoStored++ % 50 === 0) pruneGeoCache();  // taille contrôlée de temps en temps
+    if (geoStored++ % 50 === 0) pruneIfFull();  // taille contrôlée de temps en temps
+  }
+  /** Nettoyage (pruneGeoCache, qui relit tout le cache) seulement si le stockage de la page dépasse CACHE_MAX :
+   * l'occupation totale (navigator.storage.estimate, sans relire le cache) en est une borne haute. */
+  async function pruneIfFull() {
+    const usage = (await navigator.storage?.estimate?.().catch(() => null))?.usage;
+    if (usage == null || usage > CACHE_MAX) await pruneGeoCache();
   }
   /** Réponses du cache supprimées, les plus anciennes d'abord, jusqu'à CACHE_MAX (limit : 0 vide tout) ;
    * rend la taille restante (octets), ou null sans cache. */
