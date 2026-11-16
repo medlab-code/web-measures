@@ -182,11 +182,19 @@
     }
     return total;
   }
+  // Stockage du navigateur sans réponse (Cache API bloquée : vu dans Chrome tué en pleine écriture, 16/11/2026) :
+  // après CACHE_WAIT ms, cache abandonné pour la session, requêtes directes (la page attendait sans fin)
+  const CACHE_WAIT = 3000, STUCK = Symbol("cache sans réponse");
+  const cacheStep = (promise) => Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(STUCK), CACHE_WAIT))]);
   window.fetch = async (input, init) => {
     const url = input?.url ?? String(input);
-    const cache = geoCacheable(url, init) ? await openGeoCache() : null;
-    if (!cache) return trackedFetch(input, init);
-    const hit = await cache.match(url).catch(() => undefined);
+    const cache = geoCacheable(url, init) ? await cacheStep(openGeoCache()) : null;
+    const hit = cache && cache !== STUCK ? await cacheStep(cache.match(url).catch(() => undefined)) : undefined;
+    if (cache === STUCK || hit === STUCK) {
+      geoCache = Promise.resolve(null);
+      console.warn("Cache des données géographiques sans réponse : abandonné pour cette session.");
+    }
+    if (!cache || cache === STUCK || hit === STUCK) return trackedFetch(input, init);
     const age = hit ? Date.now() - Number(hit.headers.get("x-mis-en-cache")) : Infinity;
     if (hit && age < (hit.headers.get("x-vide") === "1" ? CACHE_EMPTY_LIFE : CACHE_LIFE)) return hit;
     try {

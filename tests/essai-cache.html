@@ -48,6 +48,15 @@ const { log, sleep, until, soon, ready, expect, fail, fin } = Essai;
     log("après vidage : " + doc.querySelector("#vider-cache").textContent + " · " + (await cache.keys()).length + " réponse(s)");
     expect("cache vidé", (await cache.keys()).length === 0);
     expect("« Vider le cache » grisé, cache vide", doc.querySelector("#vider-cache").disabled);
+    // Cache sans réponse (stockage du navigateur bloqué) : la requête part au service après 3 s, sans attendre sans fin
+    const match = w.Cache.prototype.match;
+    w.Cache.prototype.match = () => new Promise(() => {});
+    const t0 = Date.now();
+    const direct = await Promise.race([w.fetch(keys.find((k) => k.includes("/wfs/"))).then((r) => r.status),
+      new Promise((resolve) => setTimeout(() => resolve("sans réponse"), 40000))]);
+    w.Cache.prototype.match = match;
+    log(`cache sans réponse : ${direct} en ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+    expect("cache sans réponse : requête directe au service", direct === 200 && Date.now() - t0 >= 3000, direct);
   } catch (e) { fail("exception : " + (e.stack || e)); }
   await fin();
 })();
