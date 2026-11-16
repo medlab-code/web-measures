@@ -182,19 +182,31 @@
     }
     return total;
   }
-  // Stockage du navigateur sans réponse (Cache API bloquée : vu dans Chrome tué en pleine écriture, 16/11/2026) :
-  // après CACHE_WAIT ms, cache abandonné pour la session, requêtes directes (la page attendait sans fin)
-  const CACHE_WAIT = 3000, STUCK = Symbol("cache sans réponse");
-  const cacheStep = (promise) => Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(STUCK), CACHE_WAIT))]);
-  window.fetch = async (input, init) => {
-    const url = input?.url ?? String(input);
-    const cache = geoCacheable(url, init) ? await cacheStep(openGeoCache()) : null;
-    const hit = cache && cache !== STUCK ? await cacheStep(cache.match(url).catch(() => undefined)) : undefined;
-    if (cache === STUCK || hit === STUCK) {
+  // Stockage du navigateur sans réponse (Cache API bloquée : vu dans Chrome tué en pleine écriture, 16/11/2026 ; la page
+  // attendait sans fin) : chaque ouverture ou lecture du cache a CACHE_WAIT ms, sinon la requête part au service ;
+  // CACHE_GIVE_UP délais dépassés d'affilée : cache abandonné pour la session (page et nuage LiDAR, src/nuage.js)
+  const CACHE_WAIT = 3000, CACHE_GIVE_UP = 3;
+  let cacheLate = 0, cacheAbandoned = false;
+  /** promise (étape du cache), ou fallback si elle tarde plus de CACHE_WAIT ms ; une lecture à temps (reset) remet le
+   * compte des retards à zéro, pas l'ouverture (promesse déjà résolue, sans rien dire du stockage). */
+  async function cacheStep(promise, fallback = null, reset = true) {
+    let late = false;
+    const value = await Promise.race([promise, new Promise((resolve) => setTimeout(() => { late = true; resolve(fallback); },
+      CACHE_WAIT))]);
+    if (!late) cacheLate = reset ? 0 : cacheLate;
+    else if (++cacheLate >= CACHE_GIVE_UP && !cacheAbandoned) {
+      cacheAbandoned = true;
       geoCache = Promise.resolve(null);
       console.warn("Cache des données géographiques sans réponse : abandonné pour cette session.");
     }
-    if (!cache || cache === STUCK || hit === STUCK) return trackedFetch(input, init);
+    return value;
+  }
+  Nuage.useGeoCache(() => cacheStep(openGeoCache(), null, false), cacheStep);
+  window.fetch = async (input, init) => {
+    const url = input?.url ?? String(input);
+    const cache = geoCacheable(url, init) ? await cacheStep(openGeoCache(), null, false) : null;
+    if (!cache) return trackedFetch(input, init);
+    const hit = await cacheStep(cache.match(url).catch(() => undefined), undefined);
     const age = hit ? Date.now() - Number(hit.headers.get("x-mis-en-cache")) : Infinity;
     if (hit && age < (hit.headers.get("x-vide") === "1" ? CACHE_EMPTY_LIFE : CACHE_LIFE)) return hit;
     try {
@@ -244,7 +256,8 @@
   async function showGeoCache() {
     const size = await pruneGeoCache();
     $("#vider-cache").disabled = !size;  // indisponible (null) ou déjà vide
-    $("#vider-cache").textContent = size === null ? "Cache indisponible (page ouverte en fichier local)"
+    $("#vider-cache").textContent = cacheAbandoned ? "Cache sans réponse : abandonné pour cette session"
+      : size === null ? "Cache indisponible (page ouverte en fichier local)"
       : `Vider le cache (${(size / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mo)`;
   }
   // Panneau : une section affichée à la fois, choisie par les onglets (Résultats, Photo, Favoris,
@@ -260,7 +273,8 @@
     $("#contenu-panneau").scrollTop = 0;
     store.set("panneau", id);
     if (id === "reseau") showGeoCache();
-    if (id === "reglages") showFolderExport();
+    // sans calcul (ouverture de la page) : bouton déjà grisé (index.html), et showFolderExport pas encore prêt (Releve.init)
+    if (id === "reglages" && etat.app) showFolderExport();
   }
   for (const button of paneButtons) button.addEventListener("click", () => showPane(button.dataset.panneau));
   showPane(store.get("panneau", "resultats"));
@@ -273,9 +287,9 @@
 
   // Réglages de l'affichage (filaire, inclinaison, bords, PR, cadastre…) et fenêtre du profil : src/reglages.js
   Reglages.init({
-    store, map, etat, refresh, showOverViewer, saveAs, setStatus, FICHE_FONTS, placeMarkup,
+    store, map, etat, refresh, showOverViewer, saveAs, setStatus, FICHE_FONTS, placeMarkup, escapeHtml,
     get applyMeasureUi() { return applyMeasureUi; }, get endLineDraft() { return endLineDraft; },
-    get escapeHtml() { return escapeHtml; }, get showParcelMark() { return showParcelMark; },
+    get showParcelMark() { return showParcelMark; },
   });
 
   // Réglages par défaut : l'instance de l'IGN et les photos du conseil départemental de la
@@ -385,6 +399,11 @@
    * refusant des requêtes en rafale) : redemandée après PLACE_RETRY ms, plusieurs fois, tant que
    * la photo est affichée ; le texte partiel s'affiche en attendant. */
   const PLACE_RETRY = [1500, 4000, 10000];
+
+  /** Texte sûr dans du HTML (étiquettes, infobulles, fiches). */
+  function escapeHtml(text) {
+    return text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  }
 
   /** Lieu (texte « D104 – PR 16 +0880 – … – Aubaine ») en HTML : la route et la commune (parts de
    * Lieu.describe) en gras, le reste (PR, nom de la voie, hameau) en texte normal. */
@@ -767,22 +786,21 @@
 
   // Photo loin des mesures, aller à une photo, favoris : src/favoris.js
   const {
-    showPhotoInfo, showFavorites, checkFarFromMeasures, favorites,
+    showPhotoInfo, showFavorites, checkFarFromMeasures, favorites, importFavorites,
   } = Favoris.init({
     etat, refresh, showOverViewer, photoProducer, openPhoto, map, store, notice, download, exportName,
-    get addFavorite() { return addFavorite; }, get copyText() { return copyText; },
     get stopPlayer() { return stopPlayer; },
   });
 
   // Couche importée dans la page (filtre, tableau des objets, recalages, ajout) et import commun : src/objets.js
   const {
     restoreOverlay, addObjectAt, setAddingObject, overlayAt, overlayProperties, overlayLabels, showObjectState,
-    setOverlayChanged, saveOverlay, showOverlayInfo, movingId, copyText, addFavorite, fileInput, ask, overlayHiddenTest,
-    exportOverlay, loadOverlay, setOverlayFile, overlaySaved, applySavedOverlay, importFavorites, UUID, importOverlay,
+    setOverlayChanged, saveOverlay, showOverlayInfo, movingId, fileInput, ask, overlayHiddenTest,
+    exportOverlay, loadOverlay, setOverlayFile, overlaySaved, applySavedOverlay, UUID, importOverlay,
     fileStore,
   } = Objets.init({
     etat, setStatus, map, refresh, overlayObjectName, overlayFicheData, overlayEnds, notice, proposeRecaledPhoto, store,
-    reviewMeasure, download, showOverViewer, askFiche, favorites, showFavorites,
+    reviewMeasure, download, showOverViewer, askFiche, importFavorites,
     get DOSSIER_FORMAT() { return DOSSIER_FORMAT; }, get MODELES_FORMAT() { return MODELES_FORMAT; },
     get fieldsError() { return fieldsError; }, get frameView() { return frameView; },
     get importCalibration() { return importCalibration; }, get importFolder() { return importFolder; },
@@ -816,12 +834,12 @@
 
   // Bouton « Mesure », visées guidées, mode et réglages de la mesure : src/mesure.js
   const {
-    escapeHtml, applyMeasureUi, showParcelMark, showModeOptions, showGuide, photoReady, frameView, drawViewerMarks,
+    applyMeasureUi, showParcelMark, showModeOptions, showGuide, photoReady, frameView, drawViewerMarks,
     openPhotoReady, reticleColor, onArrow, LOADING, scheduleDeclutter, waitParcelTiles, goToPhoto,
   } = Mesure.init({
     etat, showMapMeasureButton, viewer, stopPlayer, syncMapMeasure, updatePlayer, refresh, overlayAt, overlayHiddenTest,
     movingId, overlayPoints, viewHeading, openPhoto, notice, setPlacing, showDrawnLine, store, startLineDraft,
-    proposeDistance,
+    proposeDistance, escapeHtml,
     editReleve: (k, fresh) => editReleve(k, fresh),  // relevé : déclaré plus bas (Releve.init)
   });
 

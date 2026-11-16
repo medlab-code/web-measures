@@ -13,6 +13,8 @@
 <style>body{margin:0}iframe{border:0;display:block}</style>
 <script>  // calage enregistré par un essai précédent : effacé, l'inclinaison automatique est recalculée
 try { localStorage.removeItem("web-measures/calage"); } catch { /* sans stockage */ }
+// page rouverte sur l'onglet Réglages (showPane au chargement : la page plantait avant que showFolderExport soit prêt)
+try { localStorage.setItem("web-measures/panneau", "reglages"); } catch { /* sans stockage */ }
 </script>
 <iframe id="f" src="../index.html" style="width:1400px;height:900px"></iframe><pre id="log"></pre>
 <script src="commun.js"></script>
@@ -36,6 +38,7 @@ async function feature(id) {
   const app = w.mesures.app;
   const state = () => JSON.parse(app.state());
   const doc = w.document;
+  expect("page rouverte sur Réglages : chargée, onglet affiché", !doc.querySelector("#reglages").hidden);
   // Réglages par défaut (CD21, instance IGN) : fenêtre fermée ; l'essai ouvre aussi des photos
   // grand public (Dijon, alerte RTK) : méta-catalogue et tous producteurs
   doc.querySelector("#reglages-defaut")?.close();

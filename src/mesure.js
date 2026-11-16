@@ -13,7 +13,7 @@ const Mesure = {
     const {
       etat, showMapMeasureButton, viewer, stopPlayer, syncMapMeasure, updatePlayer, refresh, overlayAt, overlayHiddenTest,
       movingId, overlayPoints, viewHeading, openPhoto, notice, setPlacing, showDrawnLine, store, editReleve, startLineDraft,
-      proposeDistance,
+      proposeDistance, escapeHtml,
     } = host;
 
     // Bouton « Mesure » ------------------------------------------------------------------------
@@ -391,10 +391,6 @@ const Mesure = {
       return { yaw: Math.atan2(x, z), pitch: Math.atan2(y, Math.hypot(x, z)) };
     }
 
-    function escapeHtml(text) {
-      return text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-    }
-
     // Visées guidées (hauteur, largeur) : photos proposées par le calcul ----------------------
 
 
@@ -562,7 +558,7 @@ const Mesure = {
     new MutationObserver(showModeOptions).observe(viewer, { attributes: true, attributeFilter: ["hidden"] });
 
     return {
-      escapeHtml, applyMeasureUi, showParcelMark, showModeOptions, showGuide, photoReady, frameView, drawViewerMarks,
+      applyMeasureUi, showParcelMark, showModeOptions, showGuide, photoReady, frameView, drawViewerMarks,
       openPhotoReady, reticleColor, onArrow, LOADING, scheduleDeclutter, waitParcelTiles, goToPhoto,
     };
   },

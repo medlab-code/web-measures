@@ -57,6 +57,20 @@ const { log, sleep, until, soon, ready, expect, fail, fin } = Essai;
     w.Cache.prototype.match = match;
     log(`cache sans réponse : ${direct} en ${((Date.now() - t0) / 1000).toFixed(1)} s`);
     expect("cache sans réponse : requête directe au service", direct === 200 && Date.now() - t0 >= 3000, direct);
+    // Un seul retard : le cache reste (réponse directe gardée, resservie ensuite)
+    const url = keys.find((k) => k.includes("/wfs/"));
+    let served = false;  // réponse directe gardée en arrière-plan : quelques essais
+    for (let i = 0; i < 20 && !served; i++, await sleep(250)) served = (await w.fetch(url)).headers.get("x-mis-en-cache") !== null;
+    expect("un seul retard : cache gardé (réponse resservie par le cache)", served);
+    // Trois retards d'affilée : cache abandonné pour la session, dit dans Services
+    w.Cache.prototype.match = () => new Promise(() => {});
+    for (let i = 0; i < 3; i++) await w.fetch(url);
+    w.Cache.prototype.match = match;
+    doc.querySelector('#outils [data-panneau="reseau"]').click();
+    await soon(() => /sans réponse/.test(doc.querySelector("#vider-cache").textContent));
+    log("après trois retards : " + doc.querySelector("#vider-cache").textContent);
+    expect("trois retards : cache abandonné, dit dans Services", /sans réponse/.test(doc.querySelector("#vider-cache").textContent)
+      && doc.querySelector("#vider-cache").disabled);
   } catch (e) { fail("exception : " + (e.stack || e)); }
   await fin();
 })();

@@ -74,7 +74,7 @@ const Favoris = {
         ? when.toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" }) : "Date inconnue";
       $("#photo-infos").textContent = [photoProducer(feature), (p["pers:interior_orientation"] || {}).camera_model]
         .filter(Boolean).join(" · ");
-      $("#photo-copier").onclick = () => host.copyText(feature.id, $("#photo-copier"));
+      $("#photo-copier").onclick = () => copyText(feature.id, $("#photo-copier"));
       const accuracy = p["quality:horizontal_accuracy"];
       const rows = [
         ["Précision GPS annoncée", accuracy != null ? `${String(accuracy).replace(".", ",")} m` : "—"],
@@ -193,15 +193,66 @@ const Favoris = {
 
     $("#etoile-favori").addEventListener("click", () => {
       if (etat.photo && favorites().some((f) => f.id === etat.photo.id)) removeFavorite(etat.photo.id);
-      else host.addFavorite();
+      else addFavorite();
     });
-    $("#ajouter-favori").addEventListener("click", () => host.addFavorite());
+    $("#ajouter-favori").addEventListener("click", () => addFavorite());
     // Export et import des favoris (autre poste, autre navigateur) : fichier JSON [{ id, name }]
     $("#favoris-exporter").addEventListener("click", async () => download(JSON.stringify(favorites(), null, 1),
       await exportName("favoris", "json"), "application/json"));
 
+    $("#favoris-importer").addEventListener("click", () => $("#favoris-fichier").click());
+    /** Favoris lus d'un fichier (JSON [{ id, name }]), ajoutés à ceux gardés. */
+    function importFavorites(read) {
+      if (!Array.isArray(read)) return notice("Fichier de favoris illisible.");
+      const known = new Set(favorites().map((f) => f.id));
+      const added = read  // fichier venu d'ailleurs : seulement des identifiants de photo et des noms courts
+        .filter((f) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(f?.id) && !known.has(f.id) && known.add(f.id))
+        .map((f) => ({ id: f.id.toLowerCase(), name: String(f.name || f.id).slice(0, 200),
+          commune: String(f.commune || "").slice(0, 100), voie: String(f.voie || "").slice(0, 100) }));
+      store.set("favoris", JSON.stringify([...favorites(), ...added]));
+      showFavorites();
+      notice(added.length ? `${added.length} favori${added.length > 1 ? "s" : ""} importé${added.length > 1 ? "s" : ""}.`
+        : "Favoris importés : rien de nouveau.");
+    }
+
+    async function addFavorite() {
+      const feature = etat.photo;
+      if (!feature || favorites().some((f) => f.id === feature.id)) return;
+      const [lon, lat] = feature.geometry.coordinates;
+      const { parts } = await Lieu.describe(lon, lat, feature);
+      // Pont : son nom affiché en haut à gauche de la visionneuse, sans la route déjà nommée
+      const bridge = $("#chute").hidden ? "" : ($("#chute .pont")?.textContent || "").replace(/\s*\([^)]*\)$/, "");
+      const name = [parts?.lieudit, parts?.commune, parts?.voie, parts?.pr, bridge].filter(Boolean).join(" – ")
+        || `Photo du ${(feature.properties?.datetime || "").slice(0, 10)}`;
+      store.set("favoris", JSON.stringify([...favorites().filter((f) => f.id !== feature.id),
+        { id: feature.id, name, commune: parts?.commune || "", voie: parts?.voie || "" }]));  // commune et voie : en gras
+      showFavorites();
+    }
+    showFavorites();
+
+    /** Copie text dans le presse-papiers ; le bouton affiche « ✔ Copié » un instant. Repli sur
+     * une sélection copiée quand le navigateur refuse l'accès au presse-papiers (page en file://). */
+    async function copyText(text, button) {
+      let done = false;
+      try {
+        await navigator.clipboard.writeText(text);
+        done = true;
+      } catch {
+        const area = Object.assign(document.createElement("textarea"), { value: text });
+        area.style.position = "fixed";
+        area.style.opacity = "0";
+        document.body.append(area);
+        area.select();
+        try { done = document.execCommand("copy"); } catch { done = false; }
+        area.remove();
+      }
+      const label = button.innerHTML, icon = Boolean(button.querySelector("svg"));  // bouton à icône : ✔ ou ✖ seul
+      button.textContent = done ? (icon ? "✔" : "✔ Copié") : (icon ? "✖" : "Copie refusée");
+      setTimeout(() => { button.innerHTML = label; }, 1500);
+    }
+
     return {
-      showPhotoInfo, showFavorites, checkFarFromMeasures, favorites,
+      showPhotoInfo, showFavorites, checkFarFromMeasures, favorites, importFavorites,
     };
   },
 };

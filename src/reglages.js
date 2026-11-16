@@ -11,7 +11,7 @@ const Reglages = {
   init(host) {
     const $ = (selector) => document.querySelector(selector);
     const {
-      store, map, etat, refresh, showOverViewer, saveAs, setStatus, FICHE_FONTS, placeMarkup,
+      store, map, etat, refresh, showOverViewer, saveAs, setStatus, FICHE_FONTS, placeMarkup, escapeHtml,
     } = host;
 
     $("#fond").value = store.get("fond", "plan").replace(/^osm$/, "ofm");  // OpenStreetMap France remplacé par OpenFreeMap
@@ -190,7 +190,7 @@ const Reglages = {
       win.document.open();
       win.document.write(Profil.pdfPage(dialog.querySelector("svg"), dialog.querySelector(".legende"), long, {
         stylesheet: new URL("src/style.css", location.href).href, fonts: FICHE_FONTS, photo: meta?.id || "",
-        place: text ? placeMarkup(text, parts) : host.escapeHtml(etat.edgeProfile?.road || ""),
+        place: text ? placeMarkup(text, parts) : escapeHtml(etat.edgeProfile?.road || ""),
         edited: `Édité le ${new Date().toLocaleDateString("fr-FR")}`,
       }));
       win.document.close();

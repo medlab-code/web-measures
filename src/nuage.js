@@ -59,10 +59,17 @@ const Nuage = (() => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const count = { requests: 0, bytes: 0 };
   let last = 0, store = null;
-  const openStore = () => (store ??= window.caches ? caches.open("web-measures-geo").catch(() => null) : Promise.resolve(null));
+  // Accès au cache de la page (src/app.js, useGeoCache) : délai borné, abandon partagé ; seul (essais), sans délai
+  let openStore = () => (store ??= window.caches ? caches.open("web-measures-geo").catch(() => null) : Promise.resolve(null));
+  let cacheStep = (promise) => promise;
+  /** Cache des services géographiques ouvert et lu par open() et step(promesse, valeur si elle tarde) de la page. */
+  function useGeoCache(open, step) {
+    openStore = open;
+    cacheStep = step;
+  }
   async function range(url, start, length) {
     const key = `${url}?octets=${start}-${start + length - 1}`, cache = await openStore();
-    const hit = await cache?.match(key).catch(() => undefined);
+    const hit = cache && await cacheStep(cache.match(key).catch(() => undefined), undefined);
     if (hit) return new DataView(await hit.arrayBuffer());
     const view = await download(url, start, length);
     cache?.put(key, new Response(view.buffer.slice(0), { headers: {
@@ -497,5 +504,5 @@ const Nuage = (() => {
     return { height: found.height, below: found.below };
   }
 
-  return { analyse, toL93, pavedEdge, brightRuns, dashedLines, bridgeFall };
+  return { analyse, toL93, pavedEdge, brightRuns, dashedLines, bridgeFall, useGeoCache };
 })();
