@@ -27,7 +27,7 @@ const Carte = (() => {
   const ATTRIBUTION_IGN = '<a href="https://www.ign.fr">IGN</a>';
   const ATTRIBUTION_OFM = '<a href="https://openfreemap.org">OpenFreeMap</a> © <a href="https://www.openmaptiles.org">OpenMapTiles</a>, '
     + 'données © <a href="https://www.openstreetmap.org/copyright">les contributeurs d\'OpenStreetMap</a>';
-  const BACKGROUNDS = ["plan", "ortho", "noms", "express", "pcrs", "mnh", "ofm"];
+  const BACKGROUNDS = ["plan", "ortho", "noms", "express", "mnh", "ofm"];
   // Fonds vectoriels (styles MapLibre publiés) : texte dessiné par le navigateur, net à toute résolution et agrandi
   // à volonté (textScale de createMap). Textes dans les polices de l'IGN, seul serveur de polices de la carte
   // (OpenFreeMap : Noto Sans remplacée par Source Sans Pro) ; pictogrammes de chaque style préfixés de sa clé.
@@ -111,11 +111,6 @@ const Carte = (() => {
     if (size[0] === "step") return [...size.slice(0, 2), times(size[2]), ...size.slice(3).map((v, i) => (i % 2 ? times(v) : v))];
     return times(size);
   };
-  // PCRS (plan de corps de rue simplifié, image à 5 cm) : publié par zones, selon les
-  // producteurs ; la couche de la zone est donnée par le graphe de mosaïquage de l'ANCT
-  const pcrsTiles = (layer) => `${GEOPF}/wms-r/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=${layer}`
-    + "&STYLES=&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/jpeg";
-  let pcrsLayer = "PCRS.LAMB93";
   // Ortho-express : une couche par année de vol, produite vite après la prise de vue, qui ne
   // couvre que les zones photographiées cette année-là (orthophoto standard dessous)
   const EXPRESS_LAYERS = {
@@ -156,7 +151,6 @@ const Carte = (() => {
           type: "raster", tiles: [wmts(EXPRESS_LAYERS[expressYear], "image/jpeg")],
           tileSize: 256, maxzoom: 20, attribution: ATTRIBUTION_IGN,
         },
-        pcrs: { type: "raster", tiles: [pcrsTiles(pcrsLayer)], tileSize: 256, maxzoom: 22, attribution: ATTRIBUTION_IGN },
         // Modèle Numérique de Hauteur, issu du LiDAR HD (IGN) : estompage de la hauteur du sursol (bâtiments, arbres,
         // talus) au-dessus du sol
         mnh: {
@@ -185,7 +179,6 @@ const Carte = (() => {
         { id: "plan", type: "raster", source: "plan" },
         { id: "ortho", type: "raster", source: "ortho", layout: { visibility: "none" } },
         { id: "express", type: "raster", source: "express", layout: { visibility: "none" } },
-        { id: "pcrs", type: "raster", source: "pcrs", minzoom: 15, layout: { visibility: "none" } },
         { id: "mnh", type: "raster", source: "mnh", layout: { visibility: "none" } },
         // Cadastre, sur le fond et sous le filaire (couleurs du Parcellaire Express de l'IGN) : parcelles numérotées teintées (le
         // domaine public, voirie et cours d'eau, n'en a pas : sans teinte), bâtiments, limites des parcelles (pas celles des feuilles)
@@ -535,7 +528,7 @@ const Carte = (() => {
         continue;
       }
       // Ortho-express : orthophoto standard dessous, là où l'année choisie n'a pas été survolée
-      const shown = id === name || (["noms", "express", "pcrs"].includes(name) && id === "ortho");
+      const shown = id === name || (["noms", "express"].includes(name) && id === "ortho");
       map.setLayoutProperty(id, "visibility", shown ? "visible" : "none");
     }
     namesShown = name === "noms";
@@ -708,43 +701,6 @@ const Carte = (() => {
       }
     }
     return expressCover.get(key);
-  }
-
-  /** PCRS publié sur la Géoplateforme à l'endroit (lon, lat) : { layer, producteur, date } ou
-   * null (graphe de mosaïquage du PCRS, ANCT ; réponses gardées au centième de degré). La
-   * couche du fond PCRS devient celle de cette zone. */
-  const pcrsCache = new Map();
-  let pcrsRequest = 0;  // n° de la dernière demande : une réponse plus ancienne ne change plus la couche
-
-  async function pcrsAt(map, lon, lat) {
-    const request = ++pcrsRequest;
-    const key = `${lon.toFixed(2)},${lat.toFixed(2)}`;
-    if (!pcrsCache.has(key)) {
-      const d = 0.0005;
-      const params = new URLSearchParams({
-        SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetFeature", TYPENAMES: "GRAPHE.PCRS.ANCT:graphe_pcrs_anct",
-        OUTPUTFORMAT: "application/json", SRSNAME: "EPSG:4326", COUNT: "5",
-        BBOX: `${lat - d},${lon - d},${lat + d},${lon + d},urn:ogc:def:crs:EPSG::4326`,
-      });
-      try {
-        const response = await fetch(`${GEOPF}/wfs/ows?${params}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        // Seules les zones diffusées par le service d'images de la Géoplateforme sont utilisables ici
-        const zone = ((await response.json()).features || []).map((f) => f.properties || {})
-          .find((p) => p.diffusion_layer && (p.diffusion_url || "").includes("data.geopf.fr/wms-r"));
-        pcrsCache.set(key, zone ? { layer: zone.diffusion_layer, producteur: zone.nom_acteur || "",
-          date: (zone.date_livraison || "").slice(0, 10) } : null);
-      } catch (error) {
-        console.warn("PCRS :", error);
-        return null;  // service injoignable : pas gardé, redemandé plus tard
-      }
-    }
-    const zone = pcrsCache.get(key);
-    if (request === pcrsRequest && zone && zone.layer !== pcrsLayer) {
-      pcrsLayer = zone.layer;
-      whenLoaded(map, () => map.getSource("pcrs").setTiles([pcrsTiles(pcrsLayer)]));
-    }
-    return zone;
   }
 
   // Instance Panoramax -------------------------------------------------------------------
@@ -1660,7 +1616,7 @@ const Carte = (() => {
 
   return {
     PANORAMAX_API: META_API, GEOPF, OFM_STYLE: VECTOR_BASES.ofm.style,
-    createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, pcrsAt, instances, setInstance, setFilter,
+    createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, instances, setInstance, setFilter,
     showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre,
     onAim: (fn) => { aimListener = fn; }, aimedParcel: aimedParcelNow, apiUrl: () => apiUrl,
     capture, nearestPhoto, photosNear, photoById, metresBetween,

@@ -78,12 +78,9 @@
     backgroundsAt(feature);
   }
 
-  /** PCRS proposé là où il est publié ; ortho-express de l'année de la photo (comme choix.js, photoDetails). */
+  /** Ortho-express de l'année de la photo (comme choix.js, photoDetails). */
   function backgroundsAt(feature) {
     const [lon, lat] = feature.geometry.coordinates;
-    Carte.pcrsAt(map, lon, lat).then((zone) => {
-      if (photo === feature) $("#fond option[value=pcrs]").disabled = !zone;
-    }).catch(() => {});
     const year = Number((feature.properties?.datetime || "").slice(0, 4));
     if (year) {
       Carte.setExpressYear(map, year, lon, lat).then((used) => {

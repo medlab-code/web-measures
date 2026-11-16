@@ -30,7 +30,7 @@ possibles, mais la page prévient qu'elles seront probablement incohérentes.
 - **Bird Eye** (essai) : la photo 360° reprojetée au sol sur la carte, pour mesurer des longueurs
   vues du dessus. Le véhicule peut être masqué par les photos voisines, l'inclinaison est calée
   automatiquement, et la carte se capture en PNG.
-- **Carte** : fonds IGN (plan, orthophotos, PCRS, modèle de hauteur…), filaire des photos, points de
+- **Carte** : fonds IGN (plan, orthophotos, modèle de hauteur…), filaire des photos, points de
   repère des routes, cadastre, couche importée (GeoJSON, Shapefile, GeoPackage, CSV), recherche de lieux et requêteur
   route + PR. Elle peut être agrandie ou détachée dans une autre fenêtre.
 - **Vidéo d'un itinéraire** : tracé sur la carte, photos choisies le long de la route, modes

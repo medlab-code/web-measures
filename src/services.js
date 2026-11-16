@@ -25,9 +25,6 @@ const Services = (() => {
       `${GEOPF}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=4.55&lat=47.26&resource=ign_lidar_hd_mnt_mono_wld&zonly=true`],
     ["IGN : altitudes du RGE ALTI (secours du LiDAR HD)",
       `${GEOPF}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=4.55&lat=47.26&resource=ign_rge_alti_wld&zonly=true`],
-    // comme les tuiles de la carte (carte.js, pcrsTiles), en 16 px sur Dijon (hors de la zone publiée : HTTP 400 parfois)
-    ["IGN : PCRS (WMS)", `${GEOPF}/wms-r/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=PCRS.LAMB93&STYLES=`
-      + "&CRS=EPSG:3857&BBOX=561000,5993000,561016,5993016&WIDTH=16&HEIGHT=16&FORMAT=image/jpeg"],
     ["IGN : BD TOPO (WFS)", `${GEOPF}/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:commune&COUNT=1`
       + "&PROPERTYNAME=nom_officiel&OUTPUTFORMAT=application/json"],
     ["IGN : recherche de lieux (géocodage)", `${GEOPF}/geocodage/completion?text=pouilly&maximumResponses=1`],

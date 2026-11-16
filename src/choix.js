@@ -518,7 +518,7 @@ const Choix = {
     // Lecture de la séquence : la carte suit le tracé des photos image par image, environ une photo
     // en retard, à une vitesse qui ne change que progressivement (une animation par photo, coupée
     // par la suivante, la faisait avancer par à-coups). Saisie à la main pendant la lecture : elle
-    // n'est plus suivie jusqu'à la lecture suivante. Lieu, PCRS et ortho-express attendent l'arrêt.
+    // n'est plus suivie jusqu'à la lecture suivante. Lieu et ortho-express attendent l'arrêt.
     const PLAYING_INTERVAL_MAX = 1500;  // ms : intervalle plus long (pause, photo lente) non compté
     const PLAYING_DETAILS_DELAY = 700;  // ms sans nouvelle photo avant de compléter ses détails
     const FOLLOW_SMOOTH = 600;  // ms : temps de réponse de la vitesse de la carte
@@ -628,16 +628,8 @@ const Choix = {
       checkFarFromMeasures(coords);
     }
 
-    /** Détails de la photo tirés des services : lieu, PCRS, ortho-express de son année. */
+    /** Détails de la photo tirés des services : lieu, ortho-express de son année. */
     function photoDetails(feature) {
-      // PCRS : option active seulement là où un PCRS est publié sur la Géoplateforme
-      Carte.pcrsAt(map, ...feature.geometry.coordinates).then((zone) => {
-        if (etat.photo !== feature) return;
-        const option = $("#fond option[value=pcrs]");
-        option.disabled = !zone;
-        option.title = zone ? `PCRS ${zone.producteur}${zone.date ? `, ${zone.date}` : ""} (zoom 15 et plus)`
-          : "Aucun PCRS publié sur la Géoplateforme à cet endroit";
-      });
       // Ortho-express de l'année de la photo (ou la plus proche disponible), annoncée dans la liste
       const year = Number((feature.properties?.datetime || "").slice(0, 4));
       if (year) {

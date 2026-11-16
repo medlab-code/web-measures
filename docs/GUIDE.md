@@ -47,7 +47,7 @@ mesure est dans la carte d'étape de la visionneuse. Thème jour ou nuit : comme
 dans Réglages. Une section
 s'affiche à la fois ; la dernière choisie est rouverte à la visite suivante.
 
-**La carte** : fonds Plan IGN (tuiles vectorielles, texte net ; dès le zoom 16, parcelles cadastrales en jaune léger, rues et chemins du domaine public en blanc, cadastre allumé ou non), orthophoto, ortho-express, PCRS, Modèle Numérique de Hauteur (LiDAR HD : estompage de la hauteur du
+**La carte** : fonds Plan IGN (tuiles vectorielles, texte net ; dès le zoom 16, parcelles cadastrales en jaune léger, rues et chemins du domaine public en blanc, cadastre allumé ou non), orthophoto, ortho-express, Modèle Numérique de Hauteur (LiDAR HD : estompage de la hauteur du
 sursol : bâtiments, arbres, haies, talus), OpenStreetMap (tuiles vectorielles d'OpenFreeMap, texte net), et
 **orthophoto avec noms** : noms des lieux et des rues, voies, avec les numéros de route dans
 des cartouches dessinés comme ceux de l'IISR (rouge pour les autoroutes et nationales, jaune
@@ -721,8 +721,7 @@ pas utilisé (talus et murs pris pour la route).
 **Autour de la mesure** :
 
 - voyants **RTK**, **LiDAR HD** (ou **RGE ALTI** en secours) et **inclinaison** de la photo ;
-- fonds de carte : Plan IGN, orthophoto, Ortho-express de l'année de la photo, PCRS de la
-  Géoplateforme là où il est publié, Modèle Numérique de Hauteur (LiDAR HD), OpenStreetMap (OpenFreeMap) ; recherche de lieux ; points de repère
+- fonds de carte : Plan IGN, orthophoto, Ortho-express de l'année de la photo, Modèle Numérique de Hauteur (LiDAR HD), OpenStreetMap (OpenFreeMap) ; recherche de lieux ; points de repère
   (PR) des routes ; requêteur route + PR (+ distance), à listes qui se réduisent à la frappe ;
 - lieu de la photo incrusté en bas à gauche de la visionneuse : route, PR et distance mesurée
   le long du filaire IGN depuis le dernier PR passé, nom de la voie, hameau ou quartier (zone
@@ -988,7 +987,6 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 | Panoramax : recherche, tuiles, photos (`api.panoramax.xyz`, `panoramax.ign.fr`) | filaire, photos, métadonnées | accessible |
 | Géoplateforme IGN : WMTS | orthophoto | accessible |
 | Géoplateforme IGN : altimétrie | LiDAR HD, ou RGE ALTI en secours, sous les photos et au point visé (vérification de la position RTK, sol au point, inclinaison automatique) | accessible |
-| Géoplateforme IGN : WMS (`wms-r`) | PCRS | accessible |
 | Géoplateforme IGN : WFS | BD TOPO (axe de la route, route, PR, hameau et commune de la photo, PR sur la carte, département du requêteur), ADMIN EXPRESS (limites administratives, contour de la commune cherchée) | accessible |
 | Géoplateforme IGN : tuiles vectorielles (TMS) | Plan IGN (fond, routes numérotées, noms), BD TOPO (voies) | accessible |
 | Géoplateforme IGN : géocodage | recherche de lieux (autocomplétion) | accessible |
@@ -1032,7 +1030,8 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
   la mini-carte, puis comparer avec la largeur mesurée sur la photo ; un écart supérieur aux
   incertitudes signale un mauvais bord visé ou un axe faux. Environ ±0,1 m avec le PCRS
   (±0,3 m avec l'orthophoto à 20 cm). L'axe de la route n'en vaut pas la peine : la trajectoire
-  RTK le donne déjà à ±0,5°.
+  RTK le donne déjà à ±0,5°. Le fond PCRS de la carte a été retiré le 16/11/2026 (pas encore publié ici) : à remettre
+  avec cette piste (commit « Fond PCRS retiré », couche choisie par le graphe de mosaïquage de l'ANCT).
 - **Inclinaison par le terrain en rase campagne** (ticket #29) : option expérimentale en place
   (voir « Utilisation » et « Précision »). Reste à la valider sur des longueurs connues en rase
   campagne, à plus de 70 km/h, où aucune photo n'a d'arêtes verticales, et à revoir le roulis en
