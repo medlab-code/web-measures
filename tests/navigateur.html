@@ -55,7 +55,7 @@ async function feature(id) {
   {  // Services vérifiés une fois le calcul prêt, par de petites requêtes (tuile, objet, image d'un pixel, 16 octets du
     // géoïde : plage demandée) ; tous accessibles
     const infos = () => doc.querySelector("#reseau-infos").textContent;
-    await soon(() => /^\d+ services sur \d+ accessibles$/.test(infos()) || /sans réponse|bloqué/.test(infos()), 30000);
+    await soon(() => /^\d+ services sur \d+ accessibles$/.test(infos()) || /sans réponse|bloqué/.test(infos()), 45000);  // un échec est réessayé (15 s au plus, 2 s, 15 s)
     const failed = [...doc.querySelectorAll("#reseau li.echec")].map((li) => li.textContent);
     expect("services vérifiés après le calcul, tous accessibles", /^(\d+) services sur \1 accessibles$/.test(infos()),
       `${infos()} ${failed.join(" ; ")}`);

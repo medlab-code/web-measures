@@ -171,8 +171,10 @@ const Parcours = {
       fast = { collection: host.photo.collection, apis, rank, step: back ? -k : k, id: host.photo.id, ids: new Map(), points: new Map(),
         timer: null };
       // Comme en 1x : la visionneuse se croit en lecture (shouldGoFast) et charge l'image SD sans transition, la HD
-      // seulement à l'arrêt (stopSequence, appelé par stopPlayer : forceRefresh)
-      host.psv._sequencePlaying = back ? -1 : 1;
+      // seulement à l'arrêt (stopSequence, appelé par stopPlayer : forceRefresh). ±2 et non ±1 : sa boucle 1x, arrêtée
+      // pendant le chargement d'une photo, reste abonnée à « picture-loaded » et repartait avec ±1, en même temps que la
+      // lecture rapide (pas de 1, ou lecture bloquée : essai navigateur, 16/11/2026) ; elle n'avance qu'à 1 ou -1
+      host.psv._sequencePlaying = back ? -2 : 2;
       updatePlayer();
       fastStep(fast);
     }

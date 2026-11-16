@@ -25,8 +25,9 @@ const Services = (() => {
       `${GEOPF}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=4.55&lat=47.26&resource=ign_lidar_hd_mnt_mono_wld&zonly=true`],
     ["IGN : altitudes du RGE ALTI (secours du LiDAR HD)",
       `${GEOPF}/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=4.55&lat=47.26&resource=ign_rge_alti_wld&zonly=true`],
+    // comme les tuiles de la carte (carte.js, pcrsTiles), en 16 px sur Dijon (hors de la zone publiée : HTTP 400 parfois)
     ["IGN : PCRS (WMS)", `${GEOPF}/wms-r/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=PCRS.LAMB93&STYLES=`
-      + "&CRS=EPSG:3857&BBOX=0,0,1,1&WIDTH=1&HEIGHT=1&FORMAT=image/png&TRANSPARENT=true"],
+      + "&CRS=EPSG:3857&BBOX=561000,5993000,561016,5993016&WIDTH=16&HEIGHT=16&FORMAT=image/jpeg"],
     ["IGN : BD TOPO (WFS)", `${GEOPF}/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:commune&COUNT=1`
       + "&PROPERTYNAME=nom_officiel&OUTPUTFORMAT=application/json"],
     ["IGN : recherche de lieux (géocodage)", `${GEOPF}/geocodage/completion?text=pouilly&maximumResponses=1`],
@@ -43,18 +44,29 @@ const Services = (() => {
     const state = Object.assign(document.createElement("span"), { className: "etat-service", textContent: "…" });
     item.append(label, state);
     list.append(item);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
-    try {
-      const response = await fetch(url, { ...init, signal: controller.signal, cache: "no-store" });  // pas le cache (#23)
-      item.className = response.ok ? "ok" : "echec";
-      state.textContent = response.ok ? "accessible" : `HTTP ${response.status}`;
-    } catch (error) {
-      item.className = "echec";
-      state.textContent = error.name === "AbortError" ? "pas de réponse" : "bloqué";
-      state.title = error.message;
-    } finally {
-      clearTimeout(timer);
+    // Un échec est réessayé une fois, 2 s plus tard : une réponse manquée en passant ne vaut pas un service bloqué
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt) await new Promise((resolve) => setTimeout(resolve, 2000));
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      let ok = false, text, title = "";
+      try {
+        const response = await fetch(url, { ...init, signal: controller.signal, cache: "no-store" });  // pas le cache (#23)
+        ok = response.ok;
+        text = ok ? "accessible" : `HTTP ${response.status}`;
+      } catch (error) {
+        text = error.name === "AbortError" ? "pas de réponse" : "bloqué";
+        title = error.message;
+      } finally {
+        clearTimeout(timer);
+      }
+      if (ok || attempt === 1) {  // « attente » jusque-là : le bilan ne compte pas l'échec avant le nouvel essai
+        item.className = ok ? "ok" : "echec";
+        state.textContent = text;
+        state.title = title;
+        return;
+      }
+      state.textContent = `${text}, nouvel essai…`;
     }
   }
 
