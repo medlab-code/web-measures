@@ -47,10 +47,16 @@ Ordre proposé : P1, P2, P3, P4, P5 (faite), P6.
 - **Problème** : seule une bande sert (±34 m en travers, ±5 m le long de la route : travers voisins `PAVED_STEPS` et `STRIP`).
 - **Piste** : ne garder que les blocs qui touchent cette bande, tournée dans le sens de la route (`Nuage.stripTest`).
 - **Gain** : moins de requêtes, donc moins de secondes.
-- **Fait** (17/11/2026, `Nuage.stripTest`, `nodesIn(tile, box, strip)`) : mesuré sur A38, RD903bis et RD700 avec un cache vide,
-  requêtes 18 → 11, 26 → 11, 15 → 9 et durée 19 → 11 s, 28 → 11 s, 16 → 9 s. Points du sol (1 959, 2 709, 2 485) et largeurs d'enrobé
-  (9,4 ; 5,2 ; 6,5 m) inchangés. Attention : les valeurs « avant » viennent d'un essai antérieur du même jour dont le cache n'était
-  pas contrôlé (il ne peut que les sous-estimer). Contrôle de la bande dans `tests/essai-nuage.html`.
+- **Fait** (17/11/2026, `Nuage.stripTest`, `nodesIn(tile, box, strip)`). **Vérifié** le même jour, ancien et nouveau code chacun sur un
+  cache vide, l'objet complet rendu par `Nuage.analyse` comparé (cases, lignes, herbe, séparateur, bords, largeur, végétation, eau) :
+  identique sur 5 photos. Requêtes 26 → 11, 15 → 11, 15 → 10, 24 → 16, 12 → 12 ; durée 28 → 11 s, 16 → 11 s, 16 → 10 s, 26 → 18 s,
+  12 → 12 s ; octets lus −56 %, −29 %, −32 %, −26 %, 0 (RD903bis, A38 66d45404, RD 1074, D33, petite RD). Pas de gain quand la route
+  traverse peu de blocs hors de la bande. Deux photos non comparées d'un code à l'autre (échec réseau ponctuel d'un côté, délai de
+  l'autre) : A38 61dd94c4 et RD700, où seuls les points du sol et la largeur d'enrobé l'ont été (essai-nuage, mêmes valeurs).
+  Contrôle de la bande dans `tests/essai-nuage.html`.
+- **Point à surveiller** : le niveau de blocs lus dépend du plus profond trouvé (`deepest`), maintenant calculé dans la bande et non
+  dans le carré ; si le carré avait un bloc plus profond hors de la bande, l'ancien code lisait des blocs plus profonds, le nouveau des
+  blocs un niveau plus haut. Aucun écart vu sur ces 5 photos.
 
 **P6. Analyse fine automatique à l'ouverture des graphiques.**
 - **Avant** : un clic sur « Analyse fine » à chaque profil.
