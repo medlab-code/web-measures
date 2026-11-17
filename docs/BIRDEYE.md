@@ -309,7 +309,7 @@ seuls), le calage est moins sûr.
 
 ## 5. Mesurer sur la vue
 
-L'outil « Longueur sur la carte » trace un segment en deux clics. Il donne sa longueur et une incertitude qui combine
+L'outil « Longueur » de la mesure sur la carte trace un segment en deux clics (l'outil « Surface » trace un contour, sans incertitude : aire et périmètre sur le plan local du premier sommet, `App.add_map_area`). Bird Eye n'est pas nécessaire : sans elle, mesure sur le fond de carte seul. Il donne sa longueur et une incertitude qui combine
 l'inclinaison sur ses deux axes, la hauteur, l'écart du sol (corrélé entre deux points proches : sur une courte distance,
 une erreur d'échelle) et, entre deux photos, leur position relative (5 cm en RTK
 vérifié, sinon 30 cm), sans descendre sous 5 % de la longueur (écart constaté à l'orthophoto). Le mieux est de mesurer

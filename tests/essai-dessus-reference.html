@@ -133,6 +133,12 @@ async function open(id, enough = () => false) {
       await expect(`${name} : capture de la carte (vue, départ de mesure, échelle, sources)`, blob && blob.size > 10000, blob ? `${blob.size} octets` : "aucune");
       if (blob) await fetch(`/capture/carte-${name}.png`, { method: "POST", body: blob });
       Dessus.cancelStart();
+      // Mesure d'une surface : trois sommets, refermée en recliquant le dernier
+      Dessus.setTool("surface");
+      for (const sommet of [[-3, 2], [3, 2], [3, 8]]) Dessus.addPoint(at(...sommet));
+      const surface = Dessus.addPoint(at(3, 8));
+      await expect(`${name} : surface refermée au clic sur le dernier sommet`, surface?.kind === "surface" && surface.ring.length === 3 && !Dessus.hasStart());
+      Dessus.setTool("longueur");
       // Export géoréférencé (bouton carte pliée) : GeoTIFF de la vue seule, déposé pour l'ouvrir dans un SIG
       const tif = await Dessus.exportView();
       await expect(`${name} : export géoréférencé (GeoTIFF)`, tif?.blob.size > 100000 && /^bird-eye-.{8}\.tif$/.test(tif.name),

@@ -68,6 +68,25 @@ class LongueurCarte(unittest.TestCase):
         self.assertEqual((a.map_lengths, a.has_results()), ([], False))
 
 
+class SurfaceCarte(unittest.TestCase):
+    """Surface tracée sur la carte (App.add_map_area) : un carré de 10 m de côté."""
+
+    def test_carre(self):
+        a = App(lambda *args: None)
+        a.set_mode("carte")
+        lon, lat = 5.0, 47.0
+        x, y = triangulation._geographic(10.0, 0.0, lon, lat), triangulation._geographic(10.0, 10.0, lon, lat)
+        z = triangulation._geographic(0.0, 10.0, lon, lat)
+        a.add_map_area(json.dumps([[lon, lat], list(x), list(y), list(z)]))
+        row = [r for r in json.loads(a.results()) if r["kind"] == "longueur"][0]
+        self.assertEqual(row["text"], "▱ 100,0 m² (carte)")
+        (ends, attrs), = [rec for rec in a._records() if rec[1]["type"] == "surface sur la carte"]
+        self.assertEqual((attrs["surface_m2"], attrs["valeur_m"], ends[0], ends[-1]), (100.0, 40.0, ends[0], ends[0]))
+        self.assertIn("100,0 m²", [f["properties"]["label"] for f in json.loads(a.map_geojson())["features"]])
+        a.undo()
+        self.assertEqual(a.map_lengths, [])
+
+
 class VueDessus(unittest.TestCase):
     """Pose de la photo pour la vue du dessus (App.birdeye_pose)."""
 

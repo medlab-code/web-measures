@@ -278,6 +278,9 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .maplibregl-ctrl button.mesurer-carte[hidden] { display: none; }
 .maplibregl-ctrl button.mesurer-carte[aria-pressed="true"] { background: var(--panoramax); color: #fff; }
 .maplibregl-ctrl button.mesurer-carte:disabled { opacity: 0.5; cursor: default; }
+.maplibregl-ctrl select.outil-carte { height: 43px; margin-left: 6px; padding: 0 0.5em; border: 0; border-radius: 4px; background: #fff;
+  color: #333; font: inherit; font-weight: 600; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); cursor: pointer; }
+.maplibregl-ctrl select.outil-carte[hidden] { display: none; }
 /* fond de survol de MapLibre (presque transparent) remplacé : le bouton reste lisible sur l'image */
 .maplibregl-ctrl button.mesurer-carte:not(:disabled):hover { background: #eee; }
 .maplibregl-ctrl button.mesurer-carte[aria-pressed="true"]:not(:disabled):hover { background: var(--panoramax); filter: brightness(1.1); }

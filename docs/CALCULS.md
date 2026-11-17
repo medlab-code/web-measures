@@ -609,7 +609,7 @@ sans lissage, 1,85 % avec ; variation d'une même largeur le long de la route 0,
 (rotation identique à `Calibration.uncorrect`). Image affichée de 2 048 px (1,5 cm par pixel, carte zoomable
 jusqu'à 0,6 cm par pixel) ; les calculs (hauteur, raccords, position) gardent 1 024 px. La photo (12 288 px de large)
 est plus fine jusqu'à 10 m : un pixel couvre au sol 0,2 cm en travers et 0,5 cm le long à 4 m, 0,5 et 2,6 cm à 10 m
-(caméra à 2,05 m) ; les voisines, chargées à 6 144 px, deux fois plus. Cette vue sert à la « longueur sur la carte » : un segment de droite tracé en deux clics sur la
+(caméra à 2,05 m) ; les voisines, chargées à 6 144 px, deux fois plus. Cette vue sert à la mesure sur la carte (« longueur ») : un segment de droite tracé en deux clics sur la
 carte, mise pour cela à la place et à la taille de la visionneuse (et inversement). Aucun point n'est ramené
 sur une perpendiculaire à la route. La longueur rejoint les résultats de la séance (`App.add_map_length`,
 `py/web_app.py`), avec son incertitude (`shownError`) et les photos qui ont fourni ses deux bouts. Un bout hors

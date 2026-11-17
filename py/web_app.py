@@ -99,6 +99,11 @@ def _length_text(value, sigma):
     return "{} m {}".format(measures._num(value, 2), "hors vue" if sigma is None else "± {} m".format(measures._num(sigma, 2)))
 
 
+def _area_text(area):
+    """« 123,4 m² » (surface sur la carte, voir App.add_map_area)."""
+    return "{} m²".format(measures._num(area, 1))
+
+
 class WebItem:
     """Dessin d'une mesure sur la carte (voir measures.MeasureTool.new_item) : gardé ici, rendu
     en GeoJSON par App.map_geojson."""
@@ -224,7 +229,9 @@ class App(Pose, Chutes, session.Session):
         self.bdtopo_retry = {}  # (couche BD TOPO, maille) -> instant du nouvel essai après un échec
         self.map_line = None  # droite de mesure tracée sur la carte, pour le prochain point A (ticket #28)
         # Longueurs mesurées sur la vue du dessus (src/dessus.js), mode « carte » : rien à viser dans la photo
-        self.map_lengths = []  # {"ends": [[lon, lat], [lon, lat]], "valeur_m", "incert_m", "photos", "commentaire"}
+        # Longueurs et surfaces de la carte : {"ends": [[lon, lat], …] (2 points ; une surface : son contour ouvert),
+        # "valeur_m" (une surface : son périmètre), "incert_m", "photos", "commentaire", "surface_m2" (surfaces seules)}
+        self.map_lengths = []
         self.map_mode = False
         self.redo_stack, self.redo_key = [], None  # états d'avant chaque « Effacer » (Ctrl+Y, voir redo)
         self.overlay = []  # couche importée : (n° de l'objet, "point" ou "ligne", [(lon, lat, z)]), voir set_overlay
@@ -483,7 +490,9 @@ class App(Pose, Chutes, session.Session):
                 out += [r] + under.pop(name, [])
         for subs in under.values():
             orphans += [dict(r, sous=False) for r in subs]
-        lengths = [{"id": k, "kind": "longueur", "text": "↔ {} (carte)".format(_length_text(v["valeur_m"], v["incert_m"])),
+        lengths = [{"id": k, "kind": "longueur",
+                    "text": ("▱ {} (carte)".format(_area_text(v["surface_m2"])) if "surface_m2" in v
+                             else "↔ {} (carte)".format(_length_text(v["valeur_m"], v["incert_m"]))),
                     "comment": v["commentaire"]} for k, v in enumerate(self.map_lengths)]
         return json.dumps(out + orphans + lengths)
 
@@ -1058,7 +1067,7 @@ class App(Pose, Chutes, session.Session):
         if self.map_mode:
             if self.map_lengths:
                 self.map_lengths.pop()
-                self.message = "Dernière longueur sur la carte effacée."
+                self.message = "Dernière mesure sur la carte effacée."
             return self.status()
         if self._tilt_pending() and self.tilt_clicks:
             self.tilt_clicks.pop()
@@ -1136,6 +1145,18 @@ class App(Pose, Chutes, session.Session):
         self.map_lengths.append({"ends": [[lon1, lat1], [lon2, lat2]], "valeur_m": float(value), "incert_m": sigma,
                                  "photos": photos, "commentaire": ""})
         self.message = "Longueur sur la carte : {}.".format(_length_text(value, sigma))
+        return self.status()
+
+    def add_map_area(self, ring):
+        """Surface tracée sur la carte (≥ 3 sommets, texte JSON [[lon, lat], …], contour ouvert) : aire (m²) et périmètre (m)
+        sur le plan local du premier sommet. Pas d'incertitude (fond de carte ou image du dessus, sans calcul d'erreur)."""
+        pts = json.loads(ring)
+        local = [triangulation._local(lon, lat, *pts[0]) for lon, lat in pts]
+        pairs = list(zip(local, local[1:] + local[:1]))
+        area = abs(sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in pairs)) / 2
+        self.map_lengths.append({"ends": pts, "valeur_m": sum(math.hypot(x2 - x1, y2 - y1) for (x1, y1), (x2, y2) in pairs),
+                                 "incert_m": None, "photos": "", "commentaire": "", "surface_m2": area})
+        self.message = "Surface sur la carte : {}.".format(_area_text(area))
         return self.status()
 
     def delete_result(self, kind, ident):
@@ -1449,8 +1470,12 @@ class App(Pose, Chutes, session.Session):
             add("triangule", "Point", [lon, lat], values["nom"])  # nom seul : pas d'incertitude sur la carte
         for i, j, _values in self.links:  # distance entre deux points gardés : trait rouge, sans longueur
             add("distance", "LineString", [list(self.points[i][:2]), list(self.points[j][:2])])
-        for v in self.map_lengths:  # longueur sur la vue du dessus : trait et valeur, comme une mesure
-            add("mesure", "LineString", v["ends"], "{} m".format(measures._num(v["valeur_m"], 2)))
+        for v in self.map_lengths:  # longueur sur la carte : trait et valeur, comme une mesure
+            if "surface_m2" in v:  # surface : contour fermé, valeur au centre (genre « surface » : étiquette seule)
+                add("mesure", "LineString", v["ends"] + v["ends"][:1])
+                add("surface", "Point", [sum(p[i] for p in v["ends"]) / len(v["ends"]) for i in (0, 1)], _area_text(v["surface_m2"]))
+            else:
+                add("mesure", "LineString", v["ends"], "{} m".format(measures._num(v["valeur_m"], 2)))
             for p in v["ends"]:
                 add("point", "Point", p)
         return json.dumps({"type": "FeatureCollection", "features": features})
@@ -1502,6 +1527,11 @@ class App(Pose, Chutes, session.Session):
             if "releve" not in values:  # objets relevés : export à part, gardés à part dans le navigateur
                 out.append(([(lon, lat)], dict({"type": "point triangulé"}, **values)))
         for v in self.map_lengths:
+            if "surface_m2" in v:  # contour fermé ; périmètre en valeur_m
+                out.append(([tuple(p) for p in v["ends"] + v["ends"][:1]], {
+                    "type": "surface sur la carte", "surface_m2": round(v["surface_m2"], 2), "valeur_m": round(v["valeur_m"], 3),
+                    "date_mesure": datetime.now().isoformat(timespec="seconds"), "commentaire": v["commentaire"]}))
+                continue
             out.append(([tuple(p) for p in v["ends"]], {
                 "type": "longueur sur la carte ({})".format("vue du dessus" if v["incert_m"] is not None else "hors vue du dessus"),
                 "valeur_m": round(v["valeur_m"], 3), "incert_m": None if v["incert_m"] is None else round(v["incert_m"], 3),

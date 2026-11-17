@@ -1458,6 +1458,7 @@ const Dessus = (() => {
   // Image décalée en travers pour se poser sur l'orthophoto (option d'essai, voir locate) : le GPS est à suspecter avant elle
   // (D33 : séquence du 04/07/2025 décalée de 0,75 m, celle du 20/06/2025 sur l'orthophoto à 2 cm près)
   let positionOn = true;
+  const CLOSE_PX = 10;  // px : clic à cette distance d'un sommet de la surface en cours = surface refermée
   const SHIFT_MIN = 0.3;  // m : écart en deçà duquel la position GPS est gardée (lignes repérées à quelques cm, orthophoto à 20 cm)
   // Photos voisines (interrupteur « Véhicule masqué », éteint par défaut) : lues, analysées, dessinées sous le véhicule et
   // recalées sur la principale (alignJoin), tangage de la séquence lu sur les raccords ; sinon la photo affichée seule
@@ -1468,7 +1469,7 @@ const Dessus = (() => {
   // essais de l'auteur, 10/11/2026, la vue était meilleure inclinée par la route hors agglomération ; en ville, photo de
   // référence de Pouilly-en-Auxois : raccords recalés avec les verticales, pas avec la route) ; changé à la main pour la photo
   let verticalsOn = false;
-  let abort = null, measuringOn = false, fine = false, start = null, hover = null, live = null;  // live : longueur affichée au pointeur
+  let abort = null, measuringOn = false, fine = false, trace = [], tool = "longueur", hover = null, live = null;  // trace : points posés ; live : valeur affichée au pointeur
   // Roulis (part du dévers) et tangage ajouté (degrés), réglés à la main (options d'essai) et retenus par séquence dans le
   // navigateur : la fixation de la caméra ne change pas au cours d'une séquence (A38 du 09/10/2025 : même tangage à deux endroits)
   const DEFAULT_ROLL = 0.7, DEFAULT_PITCH = 0, SETTINGS_KEY = "web-measures/dessus-reglages";
@@ -1691,11 +1692,11 @@ const Dessus = (() => {
     return { pose: { ...leveled, ...height, outline }, pano: shown.panos.get(pose.pic), at, fix, seam, bend };
   }
 
-  /** Mode « Longueur sur la carte » (app.js) : curseur, carte et visionneuse échangées, sans toucher au zoom. */
+  /** Mode « Mesure sur la carte » (app.js) : curseur, carte et visionneuse échangées, sans toucher au zoom. */
   function setMeasuring(on) {
     if (on === measuringOn) return;
     measuringOn = on;
-    start = null;
+    trace = [];
     map.getCanvas().style.cursor = on ? "crosshair" : "";
     swapViews(on);  // carte en grand ; son cadrage et son zoom ne bougent pas
     drawTrace();
@@ -1707,8 +1708,17 @@ const Dessus = (() => {
   const shiftOf = () => (positionOn && shown?.shift && Math.hypot(...shown.shift) > SHIFT_MIN ? shown.shift : [0, 0]);
   /** Point de la carte dans le repère de la photo (est, nord, m), image décalée comprise. */
   const localOf = (point) => { const [e, n] = toLocal(...point, shown.pose), [de, dn] = shiftOf(); return [e - de, n - dn]; };
+  /** Surface (m²) du polygone de points [lon, lat] : plan local du premier sommet, comme App.add_map_area. */
+  function areaOf(ring) {
+    const local = ring.map((p) => toLocal(...p, { lon: ring[0][0], lat: ring[0][1] }));
+    return Math.abs(local.reduce((sum, [x1, y1], k) => { const [x2, y2] = local[(k + 1) % local.length]; return sum + x1 * y2 - x2 * y1; }, 0)) / 2;
+  }
   function lengthTo(point) {
-    const layers = readyLayers(), a = localOf(start), b = localOf(point);
+    if (!shown) {  // pas de vue du dessus : longueur sur le fond de carte seul
+      const [e, n] = toLocal(...point, { lon: trace[0][0], lat: trace[0][1] });
+      return { length: Math.hypot(e, n), error: null, photos: "" };
+    }
+    const layers = readyLayers(), a = localOf(trace[0]), b = localOf(point);
     const la = sourceOf(a, layers), lb = sourceOf(b, layers), length = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (!la || !lb) return { length, error: null, photos: "" };
     return { length, error: shownError(a, b, layers, shown.sigmaGround), photos: [...new Set([la.pose.pic, lb.pose.pic])].join(",") };
@@ -1718,9 +1728,10 @@ const Dessus = (() => {
   /** Segment en cours de tracé : départ, trait jusqu'au pointeur et sa longueur. Les longueurs faites sont dessinées
    * avec les autres mesures (App.map_geojson). */
   function drawTrace() {
-    const data = { type: "FeatureCollection", features: start ? [
-      { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: start } },
-      { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [start, hover || start] } }] : [] };
+    const area = tool === "surface", next = hover || trace[trace.length - 1];  // surface : contour refermé sur le premier point
+    const data = { type: "FeatureCollection", features: trace.length ? [
+      ...trace.map((p) => ({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: p } })),
+      { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [...trace, next, ...(area ? [trace[0]] : [])] } }] : [] };
     if (!map.getSource(LINE_ID)) {
       map.addSource(LINE_ID, { type: "geojson", data });
       map.addLayer({ id: LINE_ID, type: "line", source: LINE_ID, filter: ["==", "$type", "LineString"],
@@ -1730,7 +1741,9 @@ const Dessus = (() => {
     } else {
       map.getSource(LINE_ID).setData(data);
     }
-    const found = start && hover && shown ? lengthTo(hover) : null;
+    const found = !trace.length || !hover ? null
+      : area ? (trace.length > 1 ? { text: `${number(areaOf([...trace, hover]), 1)} m²` } : null)
+        : { text: lengthText(lengthTo(hover)) };
     if (!found) {
       live?.remove();
       live = null;
@@ -1740,7 +1753,7 @@ const Dessus = (() => {
       const element = Object.assign(document.createElement("div"), { className: "dessus-etiquette" });
       live = new maplibregl.Marker({ element, offset: [0, -14] });
     }
-    live.getElement().textContent = lengthText(found);
+    live.getElement().textContent = found.text;
     live.setLngLat(hover).addTo(map);
   }
 
@@ -1749,7 +1762,7 @@ const Dessus = (() => {
     swapViews = swap;
     map.on("mousemove", (event) => {
       hover = [event.lngLat.lng, event.lngLat.lat];
-      if (measuringOn && start) drawTrace();
+      if (measuringOn && trace.length) drawTrace();
     });
     const pitch = $("#dessus-tangage"), degrees = (v) => `${v > 0 ? "+" : ""}${number(Number(v), 1)}°`;
     pitch.addEventListener("input", () => { $("#dessus-tangage-valeur").textContent = degrees(pitch.value); });
@@ -1831,26 +1844,49 @@ const Dessus = (() => {
     });
   }
 
-  /** Clic sur la carte en mesure : départ, puis arrivée. Renvoie la longueur faite { a, b ([lon, lat]), length, error (m, null
-   * hors de la vue), photos }, sinon null (départ posé, ou arrivée sur le départ refusée). */
+  /** Outil de la mesure sur la carte : « longueur » (deux clics) ou « surface » (contour, refermé en recliquant le dernier
+   * point ou le premier). Le tracé en cours est abandonné. */
+  function setTool(name) {
+    tool = name;
+    trace = [];
+    drawTrace();
+  }
+
+  /** Clic sur la carte en mesure. Longueur : départ, puis arrivée, rend { kind, a, b ([lon, lat]), length, error (m, null
+   * hors de la vue), photos }. Surface : sommets, rend { kind, ring } au clic sur le dernier ou le premier sommet (≥ 3 posés).
+   * Sinon null (point posé, ou refusé : arrivée sur le départ, sommet sur le précédent). */
   function addPoint(lngLat) {
-    const point = [lngLat.lng, lngLat.lat];
-    if (!start) {
-      start = point;
+    const point = [lngLat.lng, lngLat.lat], here = map.project(point);
+    const near = (q) => Math.hypot(here.x - map.project(q).x, here.y - map.project(q).y) < CLOSE_PX;
+    if (tool === "surface") {
+      if (trace.length >= 3 && (near(trace[0]) || near(trace[trace.length - 1]))) {
+        const done = { kind: "surface", ring: trace };
+        trace = [];
+        drawTrace();
+        return done;
+      }
+      if (trace.length && near(trace[trace.length - 1])) return null;
+      trace.push(point);
       drawTrace();
       return null;
     }
-    const done = { a: start, b: point, ...lengthTo(point) };
+    if (!trace.length) {
+      trace = [point];
+      drawTrace();
+      return null;
+    }
+    const done = { kind: "longueur", a: trace[0], b: point, ...lengthTo(point) };
     if (done.length < 0.05) return null;  // second clic au même endroit : départ gardé
-    start = null;
+    trace = [];
     drawTrace();
     return done;
   }
 
-  /** Départ posé, pas encore d'arrivée : retiré (Échap, Effacer). Faux s'il n'y en avait pas. */
-  function cancelStart() {
-    if (!start) return false;
-    start = null;
+  /** Tracé en cours retiré : en entier (Échap, image changée), ou son dernier point seul (all faux : Effacer, Ctrl+Z). Faux s'il
+   * n'y en avait pas. */
+  function cancelStart(all = true) {
+    if (!trace.length) return false;
+    trace = all ? [] : trace.slice(0, -1);
     drawTrace();
     return true;
   }
@@ -2283,7 +2319,7 @@ const Dessus = (() => {
 
   return {
     setup, update, exportView, geotiff, addPoint, cancelStart, setMeasuring,
-    hasStart: () => Boolean(start), measuring: () => measuringOn && Boolean(shown?.url),
+    hasStart: () => trace.length > 0, measuring: () => measuringOn, setTool, tool: () => tool,
     layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins,
       outline: outlines.get(shown.sequence), locatedWith: shown.locatedWith },
     view, hidden, uncertainty, measureError, shownError, groundUp, roadAxis, sourceOf, toLocal, toLonLat, estimateHeight,

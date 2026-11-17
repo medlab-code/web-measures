@@ -96,7 +96,8 @@ const Mesure = {
         : mode === "road" ? ["Largeur", ["Premier bord", "Bord opposé"], etat.aiming && !etat.edgeBAiming ? 0 : etat.newMeasure ? 2 : 1]
         : mode === "tri" ? ["Mesure libre", ["Points visés depuis plusieurs photos"], 0]
         : mode === "releve" ? ["Relevé d'objets", ["Objet visé", "Ses champs"], 0]
-        : mode === "carte" ? ["Longueur sur la carte", ["Départ", "Arrivée"], Dessus.hasStart() ? 1 : 0]
+        : mode === "carte" ? Dessus.tool() === "surface" ? ["Surface sur la carte", ["Sommets", "Fermeture"], Dessus.hasStart() ? 1 : 0]
+          : ["Longueur sur la carte", ["Départ", "Arrivée"], Dessus.hasStart() ? 1 : 0]
         : ["Calage de l'inclinaison", ["Deux objets verticaux"], 0];
       $("#nom-mesure").textContent = title;
       $("#etapes").replaceChildren(...steps.map((step, k) => Object.assign(document.createElement("li"), {
@@ -122,12 +123,14 @@ const Mesure = {
         : mode === "road" && etat.newMeasure
           ? `Largeur faite : cliquez une de ses croix pour l'ajuster ; autre largeur : « Nouvelle mesure depuis ${etat.newMeasure} »`
         : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé ; autre photo, prise avant ou après : par la carte"
-        : mode === "carte" ? `Longueur sur la carte : cliquez ${Dessus.hasStart() ? "l'arrivée" : "le départ"} sur la vue Bird Eye, `
-          + "de préférence en face de la caméra ; Échap : retirer le départ"
+        : mode === "carte" && Dessus.tool() === "surface"
+          ? "Surface sur la carte : cliquez les sommets, puis le dernier (ou le premier) pour fermer ; Échap : tout retirer, Effacer : le dernier"
+        : mode === "carte" ? `Longueur sur la carte : cliquez ${Dessus.hasStart() ? "l'arrivée" : "le départ"}, `
+          + "de préférence sur la vue Bird Eye (allumée : avec incertitude), en face de la caméra ; Échap : retirer le départ"
         : mode === "tilt" ? "Calage de l'inclinaison : pied puis sommet de deux objets verticaux, à 90° l'un de l'autre"
         : "Mode mesure en cours : désélectionner pour naviguer";
       // Nom de la mesure et étape déjà dans l'en-tête de la carte d'étape (« Hauteur, étape 1 : »…) : retirés
-      const MODE_NAMES = /^(?:Hauteur|Largeur|Mesure libre|Relevé d'objets|Longueur sur la carte|Calage de l'inclinaison)[^:]*: /;
+      const MODE_NAMES = /^(?:Hauteur|Largeur|Mesure libre|Relevé d'objets|Longueur sur la carte|Surface sur la carte|Calage de l'inclinaison)[^:]*: /;
       const tip = $("#mode-mesure").textContent.replace(MODE_NAMES, "");
       $("#mode-mesure").textContent = tip[0].toUpperCase() + tip.slice(1);
       showModeOptions();
@@ -543,7 +546,7 @@ const Mesure = {
     $("#axe-auto").addEventListener("click", () => refresh(etat.app.cancel_measure_line()));
     $("#nouvelle-reference").addEventListener("click", () => refresh(etat.app.new_reference()));
     $("#effacer").addEventListener("click", () => {  // comme Ctrl+Z : le dernier geste (onUndoKey)
-      if (Dessus.cancelStart()) {
+      if (Dessus.cancelStart(false)) {
         refresh();
         return applyMeasureUi();
       }

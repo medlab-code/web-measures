@@ -777,15 +777,18 @@ services depuis le poste (bouton « Services » en bas du panneau).
 Pour s'ouvrir en `file://`, la page n'utilise pas de modules JavaScript ni de lecture de
 fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/sources.js`.
 
-### Mesure d'une longueur sur la carte (essai, branche `birdeye`)
+### Mesure sur la carte : longueur et surface (essai, branche `birdeye`)
 
-« Bird Eye » (vue du dessus, dans le bloc du fond de carte, ou bouton faucon de la carte en grand ou détachée, à droite de « Mesurer une longueur »)
+« Bird Eye » (vue du dessus, dans le bloc du fond de carte, ou bouton faucon de la carte en grand ou détachée, à droite de « Mesurer sur la carte »)
 reprojette le sol de la photo sur la mini-carte, pour la photo affichée seulement (une autre photo l'éteint : rien
 n'est calculé sans le demander) ; ses réglages
 d'essai sont dans un panneau repliable sur la carte en grand ou détachée ; « Haute résolution » double la finesse de l'image
 (0,7 cm par pixel, quelques secondes de plus). Le bouton ⇄ de la carte échange la carte et la visionneuse, chacune à la place et à la taille
-de l'autre ; la carte en grand, comme la carte détachée (⧉), propose alors « Mesurer une longueur » (aussi : mode « Longueur sur la carte » puis
-« Mesure »). Un clic pose le départ, le trait suit le pointeur avec sa longueur, un second clic la garde dans les
+de l'autre ; la carte en grand, comme la carte détachée (⧉), propose alors « Mesurer sur la carte » (aussi : mode « Mesure sur la carte » puis
+« Mesure »), avec une liste d'outil : longueur ou surface. La mesure se fait sur la vue Bird Eye si elle est allumée, sinon sur le fond de carte
+seul (« hors vue », sans incertitude) : Bird Eye n'est pas nécessaire. **Surface** : un clic par sommet, le contour se referme en recliquant le dernier
+sommet (ou le premier, après trois sommets) ; surface (m²) et périmètre, sans incertitude, rangés avec les autres résultats ; Effacer retire le
+dernier sommet, Échap tout le tracé. **Longueur** : un clic pose le départ, le trait suit le pointeur avec sa longueur, un second clic la garde dans les
 résultats, comme les autres mesures (Effacer, Refaire, commentaire, export). Pour une largeur, viser de préférence en
 face de la caméra, à ±4 m (±5 % au mieux, inclinaison lue sur les façades ou, à défaut, sur la pente de la route, avec le défaut de roulis de la
 caméra mesuré pour la campagne : CD21 2025, −1°, d'après les passages piétons). Près d'un pont, le LiDAR HD (sol sous le

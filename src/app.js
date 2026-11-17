@@ -774,7 +774,7 @@
   } = Resultats.init({
     etat, refresh, askFiche, showOverViewer, map, mapBox, setColumnFolded, setFolded, fold, columnFold, notice,
     get coneHeading() { return coneHeading; }, get editReleve() { return editReleve; },
-    get saveResults() { return saveResults; }, get viewFov() { return viewFov; },
+    get saveResults() { return saveResults; }, get viewFov() { return viewFov; }, get applyMeasureUi() { return applyMeasureUi; },
   });
 
   // Choix de la photo sur la carte, carte détachée, tracés et recalages au clavier : src/choix.js

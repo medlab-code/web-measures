@@ -191,6 +191,7 @@ const Resultats = {
       swapButton.setAttribute("aria-pressed", String(on));
       // carte en grand ou détachée : mesure et Bird Eye d'un clic
       measureButton.hidden = birdeyeButton.hidden = captureButton.hidden = exportButton.hidden = !on && !etat.mapWindow;
+      showMapMeasureButton();  // outil de la mesure : avec le bouton
       swapButton.title = on ? "Remettre la carte et la visionneuse à leur place" : "Échanger la carte et la visionneuse (place et taille)";
       if (on) {
         setColumnFolded(false);
@@ -226,7 +227,15 @@ const Resultats = {
     }, "top-left");
     // Carte en grand ou détachée : « Mesurer une longueur », sans passer par le mode du bandeau (même mesure que le mode « carte »)
     const measureButton = Object.assign(document.createElement("button"), { type: "button", className: "mesurer-carte", hidden: true,
-      textContent: "📏 Mesurer une longueur" });
+      textContent: "📏 Mesurer sur la carte" });
+    // Outil du bouton : longueur ou surface (Dessus.setTool)
+    const toolSelect = Object.assign(document.createElement("select"), { className: "outil-carte", hidden: true,
+      title: "Outil de mesure sur la carte : longueur (deux clics) ou surface (contour, refermé en recliquant le dernier sommet)" });
+    toolSelect.append(new Option("Longueur", "longueur"), new Option("Surface", "surface"));
+    toolSelect.addEventListener("change", () => {
+      Dessus.setTool(toolSelect.value);
+      host.applyMeasureUi();
+    });
     measureButton.setAttribute("aria-pressed", "false");
     measureButton.addEventListener("click", () => {
       const on = etat.measuring && $("#mode").value === "carte";
@@ -293,7 +302,7 @@ const Resultats = {
     map.addControl({
       onAdd: () => {
         const place = Object.assign(document.createElement("div"), { className: "maplibregl-ctrl place-mesurer" });
-        place.append(measureButton, birdeyeButton, captureButton, exportButton);
+        place.append(measureButton, toolSelect, birdeyeButton, captureButton, exportButton);
         return place;
       },
       onRemove: () => {},
@@ -302,10 +311,11 @@ const Resultats = {
     function showMapMeasureButton() {
       const on = etat.measuring && $("#mode").value === "carte";
       measureButton.setAttribute("aria-pressed", String(on));
-      measureButton.textContent = on ? "📏 Arrêter la mesure" : "📏 Mesurer une longueur";
-      measureButton.title = on ? "Arrêter la mesure de longueur sur la carte"
-        : "Mesurer une longueur sur la vue Bird Eye : deux clics sur la carte";
-      measureButton.disabled = !on && ($("#dessus").disabled || $("#mode").disabled);
+      measureButton.textContent = on ? "📏 Arrêter la mesure" : "📏 Mesurer sur la carte";
+      measureButton.title = on ? "Arrêter la mesure sur la carte"
+        : "Mesurer sur la carte (longueur ou surface), sur la vue Bird Eye si elle est allumée, sinon sur le fond de carte";
+      measureButton.disabled = !on && $("#mode").disabled;
+      toolSelect.hidden = !on || measureButton.hidden;
       const bird = $("#dessus").checked;
       birdeyeButton.setAttribute("aria-pressed", String(bird));
       birdeyeButton.disabled = $("#dessus").disabled;
@@ -318,14 +328,9 @@ const Resultats = {
       wantSwap();
     });
 
-    /** Mode « Longueur sur la carte » : vue du dessus allumée et clics sur la carte, tant que « Mesure » est enfoncé. */
+    /** Mode « Mesure sur la carte » : clics sur la carte en grand, tant que « Mesure » est enfoncé (Bird Eye s'allume à part). */
     function syncMapMeasure() {
-      const on = etat.measuring && $("#mode").value === "carte";
-      if (on && !$("#dessus").checked && !$("#dessus").disabled) {
-        $("#dessus").checked = true;
-        $("#dessus").dispatchEvent(new Event("change"));
-      }
-      Dessus.setMeasuring(on);
+      Dessus.setMeasuring(etat.measuring && $("#mode").value === "carte");
     }
     $("#dessus").addEventListener("change", (event) => {
       if (event.target.checked && etat.photo) map.jumpTo({ center: etat.photo.geometry.coordinates });  // le zoom ne bouge pas

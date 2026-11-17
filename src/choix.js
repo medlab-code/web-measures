@@ -28,14 +28,10 @@ const Choix = {
         host.updatePlayer();
         return;
       }
-      if (etat.measuring && $("#mode").value === "carte") {  // longueur sur la carte : jamais d'autre photo ouverte d'un clic
-        if (!Dessus.measuring()) {
-          setStatus($("#dessus").disabled ? "Longueur sur la carte : photo 360° nécessaire (Bird Eye indisponible)."
-            : "Longueur sur la carte : Bird Eye en préparation, patientez.");
-          return;
-        }
+      if (etat.measuring && $("#mode").value === "carte") {  // mesure sur la carte : jamais d'autre photo ouverte d'un clic
         const done = Dessus.addPoint(event.lngLat);
-        if (done) refresh(etat.app.add_map_length(done.a[0], done.a[1], done.b[0], done.b[1], done.length, done.error, done.photos));
+        if (done?.kind === "surface") refresh(etat.app.add_map_area(JSON.stringify(done.ring)));
+        else if (done) refresh(etat.app.add_map_length(done.a[0], done.a[1], done.b[0], done.b[1], done.length, done.error, done.photos));
         else refresh();  // Effacer : le départ se retire
         host.applyMeasureUi();
       } else if (etat.lineDraft !== null) addLinePoint(event.lngLat);
@@ -113,7 +109,7 @@ const Choix = {
       if (etat.lineDraft) showDrawnLine([[etat.lineDraft.lng, etat.lineDraft.lat], [event.lngLat.lng, event.lngLat.lat]]);
     });
     function onLineEscape(event) {  // aussi dans la carte détachée (toggleMapWindow)
-      if (event.key === "Escape" && Dessus.cancelStart()) host.applyMeasureUi();  // départ d'une longueur sur la carte
+      if (event.key === "Escape" && Dessus.cancelStart()) host.applyMeasureUi();  // tracé d'une mesure sur la carte
       if (event.key === "Escape" && etat.lineDraft !== null) {
         endLineDraft();
         refresh();
@@ -372,7 +368,7 @@ const Choix = {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || !["z", "y"].includes(key)) return;
       if (!etat.app || !etat.measuring || event.target.closest?.("input, select, textarea")) return;
       event.preventDefault();
-      if (key === "z" && !event.shiftKey && Dessus.cancelStart()) return host.applyMeasureUi();  // départ d'une longueur sur la carte
+      if (key === "z" && !event.shiftKey && Dessus.cancelStart(false)) return host.applyMeasureUi();  // départ d'une longueur sur la carte
       refresh(key === "y" || event.shiftKey ? etat.app.redo() : etat.app.undo());
       proposeDistance();
     }
