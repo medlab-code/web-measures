@@ -16,6 +16,7 @@
 const Defauts = (() => {
   const GRID = 8, ROWS = 6, TILE_W = 20, TILE_H = 16;  // cases du CLAHE et leur taille dans l'image réduite
   const BINS = 64, CLIP = 2;  // classes de luminosité par table ; limite de l'histogramme (× la moyenne)
+  const CRACK = "vec2(0.20, 0.40)", HOLE = "vec2(0.14, 0.30)";  // seuils (part de luminosité perdue) des fissures et des nids de poule
   const STEP = 3;  // px entre deux lectures de Sobel : à 1 px, il suit le grain de l'enrobé, qui s'allume partout
 
   const VERTEX = `#version 300 es
@@ -31,7 +32,9 @@ const Defauts = (() => {
     void main() { color = vec4(texture(photo, uv).rgb, 1.0); }`;  // mipmap automatique : moyenne des pixels voisins
   const MAIN = `#version 300 es
     precision highp float;
-    uniform sampler2D photo, lut; uniform vec2 texel, grid; uniform float bins, edge;
+    #define CRACK ${CRACK}
+    #define HOLE ${HOLE}
+    uniform sampler2D photo, lut; uniform vec2 texel, grid, unit; uniform float bins, lodBias, horizon;
     in vec2 uv; out vec4 color;
     float eq(vec2 at) {  // luminosité égalisée : tables des quatre cases voisines, mélangées
       float l = dot(textureLod(photo, at, 0.0).rgb, vec3(0.299, 0.587, 0.114));
@@ -44,13 +47,31 @@ const Defauts = (() => {
       }
       return v;
     }
+    float lum(vec2 at, float lod) { return dot(textureLod(photo, at, lod + lodBias).rgb, vec3(0.299, 0.587, 0.114)); }
+    // Vallée de luminosité : part perdue au centre (échelle lod) par rapport aux DEUX côtés opposés, à d px ; le meilleur
+    // des quatre sens. Un bord entre une zone sombre et une zone claire (horizon, haie) n'en est pas une : un côté
+    // seulement est plus clair. Fissure : trait fin (d petit) ; nid de poule : plage large (d grand).
+    float vallee(float d, float lod) {
+      float c = lum(uv, lod), best = 0.0;
+      vec2 u = unit * d;
+      for (int k = 0; k < 4; k++) {
+        vec2 s = k == 0 ? vec2(1.0, 0.0) : k == 1 ? vec2(0.0, 1.0) : k == 2 ? vec2(0.7071, 0.7071) : vec2(0.7071, -0.7071);
+        float m = min(lum(uv + s * u, lod), lum(uv - s * u, lod));
+        best = max(best, (m - c) / max(m, 0.05));
+      }
+      return best;
+    }
     void main() {
       float a = eq(uv + texel * vec2(-1.0, -1.0)), b = eq(uv + texel * vec2(0.0, -1.0)), c = eq(uv + texel * vec2(1.0, -1.0));
       float d = eq(uv + texel * vec2(-1.0, 0.0)),  e = eq(uv),                             f = eq(uv + texel * vec2(1.0, 0.0));
       float g = eq(uv + texel * vec2(-1.0, 1.0)),  h = eq(uv + texel * vec2(0.0, 1.0)),   i = eq(uv + texel * vec2(1.0, 1.0));
       float m = length(vec2((c + 2.0 * f + i) - (a + 2.0 * d + g), (g + 2.0 * h + i) - (a + 2.0 * b + c)));
-      float k = smoothstep(0.9, 2.2, m) * edge;
-      color = vec4(mix(vec3(e), vec3(1.0, 0.85, 0.1), k), 1.0);
+      float contour = smoothstep(0.9, 2.2, m) * 0.5;
+      // Fissures : traits fins plus sombres que leur voisinage proche ; nids de poule : plages plus sombres que leur voisinage large
+      float defaut = max(smoothstep(CRACK.x, CRACK.y, vallee(3.0, 1.0)), smoothstep(HOLE.x, HOLE.y, vallee(12.0, 2.5)));
+      defaut *= smoothstep(horizon - 0.10, horizon - 0.16, uv.y);  // ni au-dessus de l'horizon ni au loin (quelques px par défaut : trop fin)
+      vec3 rgb = mix(vec3(e), vec3(1.0, 0.85, 0.1), contour);
+      color = vec4(mix(rgb, vec3(1.0, 0.1, 0.05), defaut), 1.0);
     }`;
 
   let psv = null, photo = null, canvas = null, gl = null, on = false;
@@ -173,8 +194,11 @@ const Defauts = (() => {
     gl.uniform1i(gl.getUniformLocation(big, "lut"), 1);
     gl.uniform2f(gl.getUniformLocation(big, "texel"), STEP / canvas.width, STEP / canvas.height);
     gl.uniform2f(gl.getUniformLocation(big, "grid"), GRID, ROWS);
+    gl.uniform2f(gl.getUniformLocation(big, "unit"), 1 / canvas.width * (canvas.width / 1000), 1 / canvas.height * (canvas.width / 1000));  // 1 px pour une photo de 1000 px de large
     gl.uniform1f(gl.getUniformLocation(big, "bins"), BINS);
-    gl.uniform1f(gl.getUniformLocation(big, "edge"), 1);
+    const view = psv.getPosition(), at = psv.dataHelper.sphericalCoordsToViewerCoords({ yaw: view.yaw, pitch: 0 });
+    gl.uniform1f(gl.getUniformLocation(big, "horizon"), 1 - at.y / psv.container.clientHeight);  // ligne d'horizon (pitch 0) en bas = 0
+    gl.uniform1f(gl.getUniformLocation(big, "lodBias"), Math.log2(canvas.width / 1000));  // mêmes tailles en px pour toute résolution d'écran
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
