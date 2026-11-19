@@ -56,6 +56,13 @@ REFERENCES = {
     ("20a5b40f-ab06-40ab-97e1-b3f74032bec7", "gauche"): (
         2.1, "M70 : bordure fine (bosse de 3 cm vers 2,5 m) contre la voie de tramway enherbée ; analyse fine à 2,1 m, juste "
         "(auteur, 19/11/2026)"),
+    ("c6c065fa-90ad-40bd-a5f1-513c72e7400b", "droit"): (
+        1.5, "D70, sortie d'agglomération : 2 voies, puis larges accotements en gravier jusqu'aux murs et haies ; bord à la "
+        "rupture de pente (descente vers l'accotement plus bas, 2,5-4,5 m) ; analyse fine à 4,5 m, gravier compté en enrobé "
+        "(auteur, 19/11/2026 ; position lue sur le relief)"),
+    ("c6c065fa-90ad-40bd-a5f1-513c72e7400b", "gauche"): (
+        4.5, "D70 : fin du dévers de la chaussée vers 4,5-5 m, puis accotement en gravier au même niveau jusqu'à 11 m ; "
+        "analyse fine à 7,2 m (auteur, 19/11/2026 ; position lue sur le relief)"),
 }
 
 
