@@ -1043,7 +1043,7 @@ html.souris-immobile:fullscreen :is(#plein-ecran, header .captures, #voyants, .b
   width: 1.2rem;
   height: 6rem;
   margin: 0;
-  accent-color: var(--panoramax);
+  accent-color: #c8c8c8;  /* gris clair, discret : pas la couleur Panoramax */
 }
 #reglage-image button {
   display: flex;
