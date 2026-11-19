@@ -19,6 +19,7 @@ import itertools
 import json
 import math
 import os
+import re
 import statistics
 import sys
 import time
@@ -44,7 +45,7 @@ def _get(url):
         try:
             with urllib.request.urlopen(urllib.request.Request(url, headers=HEADERS), timeout=30) as r:
                 return json.load(r)
-        except OSError:
+        except (OSError, ValueError):  # ValueError : réponse vide ou illisible (service surchargé), passagère
             if attempt == 2:
                 raise
             time.sleep(2)
@@ -142,5 +143,7 @@ def run(paths, settings, verbose=False):
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    run([a for a in args if "=" not in a and a != "-v"],
-        {k: float(v) for k, v in (a.split("=", 1) for a in args if "=" in a)}, "-v" in args)
+    # réglage : NOM=valeur (majuscules) ; les journaux portent aussi un « = » (essai-bords-nuage-lot=….log)
+    settings = [a for a in args if re.fullmatch(r"[A-Z_]+=.*", a)]
+    run([a for a in args if a not in settings and a != "-v"],
+        {k: float(v) for k, v in (a.split("=", 1) for a in settings)}, "-v" in args)

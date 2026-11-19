@@ -339,7 +339,10 @@ Le profil dit d'où il vient : « (relief) », « (BD TOPO) » ou « (nuage LiDA
   queue du pied. Les pentes sur 2 m débordent sur le plat du haut et du fond : le haut avance tant
   que le pas suivant descend de moins de 5 %, le pied est le premier point à **5 cm** du plus bas.
   Sans cela, un talus de 1 m à 50 % se lisait 33 % (terrain synthétique, `BordsTalus` dans
-  `tests/test_calculs.py`).
+  `tests/test_calculs.py`). Au-delà de **150 %** (56°), le dévers s'écrit « paroi quasi verticale
+  (mur, enrochement) », avec sa hauteur et sans pourcentage : le MNT adoucit les parois (un mur de
+  2 m y fait 100 à 200 %) et le pas de 0,5 m plafonne la pente lue à 400 % (76°) ; le chiffre serait
+  une fausse précision. La chute, elle, reste juste.
 
 ### 8.5 Eau
 

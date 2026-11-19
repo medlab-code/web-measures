@@ -388,6 +388,12 @@ class BordsTalus(unittest.TestCase):
             self.assertAlmostEqual(r["chute"][0], depth, delta=0.01)
             self.assertAlmostEqual(r["devers"][0], slope, delta=0.02, msg=(slope, depth))
             self.assertAlmostEqual(r["devers"][4], depth, delta=0.05)  # hauteur du talus (pied à EDGE_FLAT près)
+            self.assertFalse(r["devers"][5])
+
+    def test_mur(self):  # mur de 2 m (P18) : paroi quasi verticale, pas de pourcentage
+        _, r = self.profile(4.0, 20.0, 2.0)
+        self.assertAlmostEqual(r["chute"][0], 2.0, delta=0.01)
+        self.assertTrue(r["devers"][5])
 
 
 def edges_on(z, width=8.0, twin=None, zone=10, axis_x=None):
@@ -430,6 +436,12 @@ class BordsCas(unittest.TestCase):
         self.assertIsNotNone(e["arret"])
         self.assertNotIn("droit", res["profile"]["resultats"])
         self.assertIn("pas de chute avant le terrain qui remonte de 1 m", res["text"])
+
+    def test_mur_sous_la_route(self):  # P18 : mur de 2 m, écrit sans pourcentage
+        res = edges_on(lambda x, y: -2.0 if x > 4.1 else 0.0)
+        self.assertIn("Côté droit : chute 2,0 m", res["text"])
+        self.assertIn("paroi quasi verticale (mur, enrochement) sur 2,0 m de haut", res["text"])
+        self.assertNotIn("dévers du talus", res["text"])
 
     def test_descente_jusqu_au_bout(self):  # plus bas au bout du profil : « chute ≥ »
         res = edges_on(lambda x, y: -(x - 4.0) * 0.3 if x > 4.0 else 0.0)

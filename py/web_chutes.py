@@ -587,6 +587,9 @@ class Chutes:
     EDGE_FAR = 16  # points au-delà, jusqu'à edge_zone m
     PAVED_REDO_MAX = 50  # profils gardés avec leur terrain, pour use_paved_edges sans relecture
     EDGE_RISE = 1.0  # m : terrain remonté d'autant au-dessus du bord (talus, butte) : lecture arrêtée, derrière n'est pas une chute
+    # Dévers du talus au-delà (56°) : paroi quasi verticale (mur, enrochement), écrite sans pourcentage. Le MNT adoucit les
+    # parois (un mur de 2 m y fait 100 à 200 %) et le pas de 0,5 m plafonne à 400 % : le chiffre serait une fausse précision
+    WALL_SLOPE = 1.5
     # Chaussées séparées (autoroute, voie express : un tronçon BD TOPO par sens, ticket #34) : tronçon de même nom, au sol,
     # parallèle (TWIN_ANGLE° près), son axe à TWIN_MIN à TWIN_REACH m de celui de la photo en travers ; de son côté, la
     # plateforme va jusqu'au bord extérieur de l'autre chaussée (séparateur de chaussée, ou terre-plein central, compris)
@@ -1335,14 +1338,18 @@ class Chutes:
             text = "Côté {} : chute {}{} m (±{} m) {} {} m du bord".format(
                 name, "≥ " if beyond else "", measures._num(fall[0], 1), measures._num(sigma, 1),
                 "au-delà de" if beyond else "à", _distance(fall[1], whole=beyond))  # au-delà : le bout du profil, au mètre
-            if slope_max and slope_max[0] > 0:
+            wall = bool(slope_max) and slope_max[0] >= self.WALL_SLOPE
+            if wall:
+                text += ", paroi quasi verticale (mur, enrochement) sur {} m de haut".format(measures._num(slope_max[4], 1))
+            elif slope_max and slope_max[0] > 0:
                 text += ", dévers du talus {} % ({}°) sur {} m de haut".format(
                     measures._num(100 * slope_max[0], 0), measures._num(math.degrees(math.atan(slope_max[0])), 0),
                     measures._num(slope_max[4], 1))
             lines.append(text)
+            # devers : [pente, haut, travers, pied, hauteur, paroi quasi verticale]
             shown[name] = {"chute": [round(fall[0], 2), round(fall[1], 2), beyond, fall[3]],
                            "devers": [round(slope_max[0], 3), round(slope_max[1], 2), slope_max[2],
-                                      round(slope_max[3], 2), round(slope_max[4], 2)]
+                                      round(slope_max[3], 2), round(slope_max[4], 2), wall]
                            if slope_max and slope_max[0] > 0 else None}
         return lines, seen, shown
 

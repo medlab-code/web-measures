@@ -314,10 +314,16 @@ const Profil = (() => {
         svg.append(el("line", { x1: X(x0), y1: Z(z0), x2: X(x1), y2: Z(z1), class: "devers" }),
           el("text", { x: X((x0 + x1) / 2) - (flat ? 0 : sign * 12), y: flat ? Math.max(Z(z0), Z(z1)) + 18 : Z((z0 + z1) / 2) + 4,
             class: "etiquette-profil devers-texte place", "text-anchor": flat ? "middle" : sign < 0 ? "start" : "end" },
-          `dévers ${num(100 * r.devers[0], 0)} %`));
-        item.append(" · ", html("span", "devers", `dévers du talus ${num(100 * r.devers[0], 0)}\u00a0%`),
-          ` (pente moyenne\u00a0: ${num(r.devers[4])} m de haut sur ${num(Math.abs(x1 - x0))} m${
-            td === main ? "" : `, travers à ${td.along > 0 ? "+" : "−"}${Math.abs(td.along)} m`})`);
+          r.devers[5] ? "paroi" : `dévers ${num(100 * r.devers[0], 0)} %`));
+        // paroi quasi verticale (App.WALL_SLOPE) : sans pourcentage, le MNT adoucit les murs
+        const where2 = td === main ? "" : `, travers à ${td.along > 0 ? "+" : "−"}${Math.abs(td.along)} m`;
+        if (r.devers[5]) {
+          item.append(" · ", html("span", "devers", "paroi quasi verticale"),
+            ` (mur, enrochement\u00a0: ${num(r.devers[4])} m de haut${where2})`);
+        } else {
+          item.append(" · ", html("span", "devers", `dévers du talus ${num(100 * r.devers[0], 0)}\u00a0%`),
+            ` (pente moyenne\u00a0: ${num(r.devers[4])} m de haut sur ${num(Math.abs(x1 - x0))} m${where2})`);
+        }
       }
     }
     return results;
