@@ -63,6 +63,12 @@ REFERENCES = {
     ("c6c065fa-90ad-40bd-a5f1-513c72e7400b", "gauche"): (
         5.0, "D70 : fin de la pente de la chaussée vers 5 m sur les 5 travers (7 m avec le côté droit), puis accotement en "
         "gravier presque plat jusqu'à 11 m ; analyse fine à 7,2 m (auteur, 19/11/2026)"),
+    ("f533e240-7d37-40ef-babc-1d37140dc5d2", "droit"): (
+        1.75, "D119M, rue bordurée de 5,80 m (vue du dessus) : caniveau à 1-1,5 m, marche de 4 à 7 cm, trottoir d'environ "
+        "2,5 m puis mur de clôture (terrain 1,7 m plus bas derrière) ; analyse fine à 1,95 m, juste (auteur, 19/11/2026)"),
+    ("f533e240-7d37-40ef-babc-1d37140dc5d2", "gauche"): (
+        4.0, "D119M : bordure de 8 à 10 cm à 4,0 m sur 4 travers sur 5, trottoir d'environ 1,7 m, talus enherbé d'environ "
+        "3,5 m, clôture, voies SNCF ; analyse fine à 8,1 m, trottoir compté en enrobé (auteur, 19/11/2026)"),
 }
 
 
