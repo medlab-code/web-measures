@@ -5,7 +5,8 @@
 // l'IGN, lu à la volée (dalles COPC, lecture partielle par Range) sur une bande de ±STRIP m le long de la route au
 // travers de la photo. Le terrain (MNT) du calcul « Profils » ne voit ni la peinture ni la nature du sol ; l'intensité
 // du retour laser des points du sol, si : enrobé sombre, lignes blanches très claires, herbe, gravillons et béton
-// clairs. D'où le bord de chaussée (ligne de rive, sinon fin de l'enrobé) et le séparateur de chaussée (bande non
+// clairs. L'altitude des points du sol montre en plus la bordure d'un trottoir en enrobé, de même intensité que la
+// chaussée (kerbEdge). D'où le bord de chaussée (ligne de rive, sinon fin de l'enrobé) et le séparateur de chaussée (bande non
 // revêtue entre les deux chaussées, glissières comprises). Lecteur repris de l'essai de faisabilité du
 // 2026-10-27 (tests/essai-lidar.html, retiré) ; décompression par laz-perf, chargé au premier usage. Le même lecteur
 // donne la hauteur de chute d'un pont (bridgeFall) : points classés pont (17), sol (2) et eau (9).
@@ -31,6 +32,14 @@ const Nuage = (() => {
   // m : l'enrobé peut finir loin du bord du calcul (bande d'arrêt d'urgence, rupture de pente sur la chaussée : D70
   // 9b97c187, bord à 2 m, enrobé à 5,2 m)
   const PAVED_REACH = 12, PAVED_BEYOND = 3;
+  // Bordure (trottoir en enrobé, que l'intensité ne distingue pas de la chaussée : D119M f533e240, M996 6eea86cc) : depuis un
+  // point bas (caniveau : pas plus haut, à KERB_NOISE m près, que le mètre qui le précède, KERB_BEFORE), le sol remonte de
+  // KERB_Z m au moins en KERB_SPAN m au plus, et ne redescend pas sur les KERB_HOLD m suivants (bosse, rebord d'ornière) ; le
+  // niveau moyen de ces KERB_HOLD m dépasse aussi de KERB_Z celui du mètre avant le point bas, pente de la chaussée déduite
+  // (chaussée qui monte doucement, bruit de cases de 3 points : D8 082893e5). Altitude médiane des points du sol par case.
+  // Relevés du 19/11/2026 : 9 à 13 cm en 0,25 à 0,5 m, bordures fines 5,5 cm en 0,75 m (M70 20a5b40f)
+  const KERB_Z = 0.04, KERB_SPAN = 0.75, KERB_HOLD = 1.0, KERB_BEFORE = 1.0, KERB_NOISE = 0.02;
+  const KERB_AXIS = 2.0;  // m : profil depuis l'axe BD TOPO, pas de bordure plus près (demi-voie ; creux de 4 cm à 1,6 m de l'axe, M70 f85566ac)
   const PAVED_STEPS = [-4, -2, 0, 2, 4];  // m le long de la route : travers de ±STRIP dont le bord d'enrobé est la médiane
   const SOIL_ALONG = Math.max(...PAVED_STEPS.map(Math.abs)) + STRIP;  // m le long de la route : sol gardé pour ces travers
   const SEPARATOR = [0.5, 12];  // m : largeurs possibles du séparateur, et son milieu à 2 m au plus de celui du calcul
@@ -269,6 +278,37 @@ const Nuage = (() => {
     return x <= limit ? sign * x : null;
   }
 
+  /** Bordure d'un côté d'un travers (heights : case -> altitude médiane du sol, sign : -1 à gauche, 1 à droite), de from à
+   * limit m de l'origine (voir KERB_Z) : milieu du plus grand saut d'une case à la suivante dans la remontée ; m signés,
+   * ou null. */
+  function kerbEdge(heights, sign, from, limit) {
+    const z = (k) => heights.get(sign * k), span = Math.round(KERB_SPAN / BIN), hold = Math.round(KERB_HOLD / BIN);
+    const before = Math.round(KERB_BEFORE / BIN), first = Math.ceil(from / BIN);
+    const mean = (v) => v.reduce((a, b) => a + b, 0) / v.length;
+    const near = z(Math.round(1 / BIN)) ?? z(first);  // chaussée à 1 m de l'origine : pente vers le point bas
+    for (let k = first + 1; k * BIN <= limit + 1e-6; k++) {
+      if (z(k) === undefined) continue;
+      // point bas de la remontée : le plus bas des span cases d'avant (pas avant from)
+      let low = null;
+      for (let j = Math.max(first, k - span); j < k; j++) if (z(j) !== undefined && (low === null || z(j) < z(low))) low = j;
+      if (low === null || z(k) - z(low) < KERB_Z) continue;
+      const earlier = [...Array(before).keys()].map((d) => z(low - 1 - d)).filter((v) => v !== undefined);
+      if (!earlier.length || Math.min(...earlier) < z(low) - KERB_NOISE) continue;  // pas un point bas : dévers, talus
+      const after = [...Array(hold).keys()].map((d) => z(k + 1 + d)).filter((v) => v !== undefined);
+      if (after.length < hold - 1 || Math.min(...after) < z(low) + 0.75 * KERB_Z) continue;  // redescend : bosse, rebord
+      // niveaux moyens avant le point bas et après la remontée, pente de la chaussée (si elle monte) déduite
+      const gap = (k + 1 + hold / 2 - (low - before / 2)) * BIN;
+      const trend = near === undefined || low * BIN <= 1 ? 0 : Math.max(0, (z(low) - near) / (low * BIN - 1));
+      if (mean(after) - mean(earlier) - trend * gap < KERB_Z) continue;
+      let step = low, jump = -Infinity;
+      for (let j = low; j < k; j++) {
+        if (z(j) !== undefined && z(j + 1) !== undefined && z(j + 1) - z(j) > jump) [step, jump] = [j, z(j + 1) - z(j)];
+      }
+      return sign * (step + 0.5) * BIN;
+    }
+    return null;
+  }
+
   /** Analyse fine du profil (voir App._compute_edges : profile.repere, profils, bords, séparateur) ; progress(texte,
    * part lue de 0 à 1, ou absente tant que le nombre de blocs n'est pas connu) pendant la lecture. Résultat en m signés
    * comme le graphique (négatif à gauche). */
@@ -303,7 +343,7 @@ const Nuage = (() => {
       for (const [x, y, z, intensity, cls] of await ground(tile, n)) {
         const ex = x - o[0], ey = y - o[1], across = ex * ux + ey * uy, along = ey * ux - ex * uy;
         // sol des travers voisins seulement (PAVED_STEPS, ±STRIP chacun) : le reste des blocs lus n'y sert pas
-        if (cls === 2 && Math.abs(across) <= HALF && Math.abs(along) <= SOIL_ALONG) soil.push([along, across, intensity]);
+        if (cls === 2 && Math.abs(across) <= HALF && Math.abs(along) <= SOIL_ALONG) soil.push([along, across, intensity, z]);
         if (Math.abs(along) > STRIP || Math.abs(across) > HALF) continue;
         const k = Math.round(across / BIN);
         if (cls === 9) {
@@ -375,14 +415,15 @@ const Nuage = (() => {
     // Travers voisins pour le bord d'enrobé : chacun sa case et son enrobé (la route peut tourner sous ±STRIP)
     const sections = PAVED_STEPS.map((at) => {
       const near = new Map();
-      for (const [along, across, i] of soil) {
+      for (const [along, across, i, z] of soil) {
         if (Math.abs(along - at) > STRIP) continue;
         const k = Math.round(across / BIN);
         if (!near.has(k)) near.set(k, []);
-        near.get(k).push(i);
+        near.get(k).push([i, z]);
       }
-      const rows = new Map([...near].map(([k, v]) => [k, median(v)]));
-      return { at, rows,
+      const rows = new Map([...near].map(([k, v]) => [k, median(v.map((p) => p[0]))]));
+      const heights = new Map([...near].map(([k, v]) => [k, median(v.map((p) => p[1]))]));
+      return { at, rows, heights,
         ref: median([...rows].filter(([k]) => Math.abs(k * BIN) <= (profile.origine === "caméra" ? 1.5 : 3)).map(([, i]) => i)) };
     }).filter((s) => s.ref);
     // Bords de chaussée : jusqu'au bord du calcul (plateforme) + 1 m ; du côté du séparateur, au-delà de lui. Bord de
@@ -395,8 +436,15 @@ const Nuage = (() => {
     for (const [name, sign] of [["gauche", -1], ["droit", 1]]) {
       const e = main.find((m) => m.cote === name);
       if (!e) continue;
-      const from = sign === sepSign && out.separateur ? sepEnd : 1.0;
-      found[name] = sections.map((s) => pavedEdge(s.rows, sign, from, Math.max(PAVED_REACH, e.bord + PAVED_BEYOND), s.ref));
+      const from = sign === sepSign && out.separateur ? sepEnd : 1.0, limit = Math.max(PAVED_REACH, e.bord + PAVED_BEYOND);
+      // Bord de chaque travers : le plus proche de la fin de l'enrobé (intensité) et de la bordure (altitude). Pas de bordure
+      // du côté d'une autre chaussée sans séparateur trouvé : celle du séparateur n'est pas le bord cherché (au-delà)
+      const kerbs = e.autre_axe && !(sign === sepSign && out.separateur) ? sections.map(() => null)
+        : sections.map((s) => kerbEdge(s.heights, sign, Math.max(from, profile.origine === "caméra" ? 1.0 : KERB_AXIS), limit));
+      const paved = sections.map((s) => pavedEdge(s.rows, sign, from, limit, s.ref));
+      found[name] = sections.map((_, k) => [paved[k], kerbs[k]].filter((x) => x !== null)
+        .sort((a, b) => Math.abs(a) - Math.abs(b))[0] ?? null);
+      const byKerb = found[name].filter((x, k) => x !== null && x === kerbs[k]).length;
       const xs = found[name].filter((x) => x !== null);
       // Tirets de ce côté, sur la chaussée seulement (hors séparateur) : l'herbe est mouchetée de cases claires
       const reach = xs.length >= 3 ? Math.abs(median(xs)) : e.bord + 1;
@@ -407,7 +455,8 @@ const Nuage = (() => {
         const cell = cells.find((c) => Math.abs(c.x - x) <= BIN / 2);
         if (cell?.kind === "enrobé") cell.kind = "peinture";
       }
-      out.bords[name] = xs.length >= 3 ? { x: median(xs), comment: "enrobé" }
+      // bordure : trouvée par l'altitude sur la plupart des travers (le commentaire reste « enrobé » : bord repris par la page)
+      out.bords[name] = xs.length >= 3 ? { x: median(xs), comment: "enrobé", bordure: 2 * byKerb > xs.length }
         : edge(cells, sign, from, e.bord + 1, [profile.axe ?? null, e.autre_axe ? sign * e.autre_axe : null]);
     }
     // Largeur d'enrobé de la chaussée de l'origine, travers par travers : du séparateur, s'il est de ce côté, au bord opposé
@@ -518,5 +567,5 @@ const Nuage = (() => {
     return { height: found.height, below: found.below };
   }
 
-  return { analyse, toL93, pavedEdge, brightRuns, dashedLines, stripTest, bridgeFall, useGeoCache };
+  return { analyse, toL93, pavedEdge, kerbEdge, brightRuns, dashedLines, stripTest, bridgeFall, useGeoCache };
 })();

@@ -259,6 +259,25 @@ largeur BD TOPO (hors du mode profil).*
   passe toujours avant et lit le tablier lui-même. Test `ChuteTablier` (chenal étroit au pied du tablier : 4,0 m, 1,0 m avant) ;
   `essai-ponts` : D114, bords trouvés dans le relief sur 14 coupes sur 16, chute 1,8 m (1,7 m avant).
 
+**P21. Analyse fine : trottoir et gravier comptés en enrobé.** *Bordures faites le 19/11/2026 (`Nuage.kerbEdge`, essais dans
+`tests/essai-profil.html`) ; gravier à faire.*
+- **Avant** : le bord d'enrobé de l'analyse fine ne lit que l'intensité du retour laser (première bande 2,2 fois plus claire).
+  Vérifié à la main sur 5 photos (9 côtés, vue du dessus) : il déborde dans les 5 cas, de 2 à 9 m (D8
+  082893e5-f336-441b-8d28-0eecdbae1dde, M996 6eea86cc-4c40-4395-9686-2418892bfa82, M70 20a5b40f-ab06-40ab-97e1-b3f74032bec7,
+  D119M f533e240-7d37-40ef-babc-1d37140dc5d2 : trottoir en enrobé ; D70 c6c065fa-90ad-40bd-a5f1-513c72e7400b : gravier).
+- **Problème** : c'est la référence du banc des bords (tools/banc-bords.py) et des largeurs types de P17 (médianes de cet
+  enrobé, sans doute trop fortes) ; la page reprend aussi ces bords pour la plateforme, la chute et le dévers.
+- **Piste** : l'altitude des points du sol (6 à 18 par case de 0,25 m) montre la bordure que l'intensité ne voit pas : point
+  bas (caniveau) puis remontée d'au moins 4 cm qui tient (9 à 13 cm en 0,25 à 0,5 m ; bordures fines 5,5 cm en 0,75 m).
+- **Fait** : bord de chaque travers, le plus proche de la fin de l'enrobé et de la bordure ; écart total au vrai bord sur les
+  9 côtés vérifiés 30 → 7 m ; séparateurs de `essai-nuage` inchangés (A38, RD903bis, RD700). 17 autres côtés bougent de 0,1 à
+  1,8 m vers la route : D111 2f6bf2e3-4818-4659-8b9a-84190cc5af18 et D977BIS 1108ca14-6669-49e8-a26a-955becc79e81 à gauche
+  plausibles (marche de 10 et 15 cm, comme le relief) ; M70 f85566ac-8b7a-46a2-a9c2-4df0a3fa6e20 à gauche faux (creux à 1,6 m
+  de l'axe) : pas de bordure à moins de 2 m de l'axe quand le profil part de l'axe.
+- **Reste** : le gravier sombre (D70 : 2,4 m de trop à droite, 2,2 m à gauche) ; revoir les largeurs types de P17 sur
+  l'enrobé corrigé.
+- **Gain** : bord d'enrobé juste en ville (trottoirs) ; banc et largeurs types sur une référence fiable.
+
 ### Graphique et fenêtre : pistes
 
 **G1. Exagération visible.**
