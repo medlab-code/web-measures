@@ -817,21 +817,6 @@ les marches aux raccords, et accorde leur luminosité à celle de la photo affic
 quand ses lignes s'en écartent de plus de 30 cm en travers : le GPS est alors suspecté avant l'orthophoto. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Construction de
 la vue et recalages : `docs/BIRDEYE.md` ; chiffres des essais : `docs/CALCULS.md`.
 
-### Rayon des courbes (carte)
-
-Bouton « rayon » de la carte (cercle en tirets avec son rayon, sous le bouton ⇄) : une fois enfoncé (orange), le survol du
-filaire orange (zoom 15 ou plus) lit les photos de la séquence à 500 m autour du pointeur, calcule en arrière-plan le tracé en
-plan de la route (`py/core/trace.py`, § 13 de `docs/CALCULS.md`) et dessine ses **courbes** (rayon sous 500 m) en couleur selon
-le rayon au plus serré : rouge sous 150 m (virage serré, à traiter s'il est isolé), jaune de 150 à 250 m (à surveiller), vert
-au-delà (seuils du Cerema, présentation « virages » et ARP). Une fiche s'ouvre au survol d'une courbe : sens, rayon minimal,
-classe, angle, longueur, rayon typique, et, sur la carte en grand, le tableau des courbes voisines (sens, distance depuis la
-précédente, longueur, angle, rayon minimal). « Aller à la photo » ouvre la photo la plus proche, « Exporter le tracé » enregistre
-les courbes en GeoJSON. La zone lue se déplace avec le pointeur. Nécessite le calcul d'arrière-plan (Web Worker).
-
-Précision : le rayon minimal est celui de la courbure maximale du tracé ajusté, un peu sous le vrai rayon (3 à 10 % sur des
-routes synthétiques), à ± 30 % près sur une route de village réelle où la courbure change sans cesse ; c'est la trajectoire du
-véhicule, pas l'axe (R ± 2 m). Une courbe qui touche le bord de la zone lue est signalée « coupée » : son rayon est partiel.
-
 ## Précision
 
 **État de la validation (05/11/2026)** : les mesures de hauteur sont validées sur des objets connus. Les retours
