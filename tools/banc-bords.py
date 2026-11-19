@@ -12,7 +12,7 @@ un bord du relief à plus de 0,25 m en deçà de l'enrobé tombe sur la chaussé
 NOM : une constante de la classe (STEP_Z=0.08, CROWN_NEAR=1.5…). -v : liste les côtés en erreur. La catégorie de la route
 (importance et nature BD TOPO, pour la largeur type, voir App._road_width) est lue à la Géoplateforme une fois par photo
 et gardée dans ~/.cache/web-measures-banc-bords.json. Les chaussées séparées (bord au-delà de l'autre chaussée) sont
-écartées du décompte.
+écartées du décompte, et le bord d'enrobé remplacé par la valeur vérifiée à la main sur les côtés de REFERENCES.
 """
 
 import itertools
@@ -38,6 +38,18 @@ import web_app
 
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "web-measures-banc-bords.json"
 HEADERS = {"User-Agent": "web-measures-essai"}
+# Côtés où le bord d'enrobé de l'analyse fine est faux, vérifiés à la main (photo, vue du dessus) : (identifiant complet,
+# côté) → (bord vrai en m depuis l'origine, à la lecture du relief près, raison) ; il remplace le bord d'enrobé
+REFERENCES = {
+    ("082893e5-f336-441b-8d28-0eecdbae1dde", "droit"): (
+        1.0, "D8, 3 voies (tourne-à-gauche central) : trottoir tout près du véhicule, caniveau à +1 m ; l'analyse fine "
+        "compte le trottoir en enrobé et ce qui suit, jusqu'à 8,8 m (auteur, 19/11/2026)"),
+    ("6eea86cc-4c40-4395-9686-2418892bfa82", "droit"): (
+        1.25, "M996, chaussée bordurée des deux côtés, îlot peint, environ 7 m (vue du dessus) : bordure de 5 cm à 1-1,5 m "
+        "sur 2 travers sur 5, puis trottoir jusqu'à 5 m ; analyse fine à 10,5 m, en contrebas (auteur, 19/11/2026)"),
+    ("6eea86cc-4c40-4395-9686-2418892bfa82", "gauche"): (
+        5.5, "M996 : caniveau à 5-5,5 m puis bordure de 6 à 8 cm sur les 5 travers ; analyse fine à 6,75 m (auteur, 19/11/2026)"),
+}
 
 
 def _get(url):
@@ -124,20 +136,24 @@ def run(paths, settings, verbose=False):
             paved = (d["nuage"].get("bords") or {}).get(r[1])
             if r[0] != 0 or not paved or paved["quoi"] != "enrobé":
                 continue
+            fixed = REFERENCES.get((d["id"], r[1]))
             rows.append({"id": d["id"], "route": d.get("route"), "cote": r[1], "bord": r[3][r[5]] if r[5] is not None else r[2],
-                         "relief": r[5] is not None, "enrobe": paved["x"], "twin": bool(r[9]),
+                         "relief": r[5] is not None, "enrobe": fixed[0] if fixed else paved["x"], "twin": bool(r[9]),
+                         "verifie": bool(fixed),
                          "oppose": d["origine"] == "caméra" and (r[1] == "gauche") == (d["axe"] < 0)})
     every = [r for r in rows if not r["twin"]]
+    far = [r for r in every if r["verifie"] and r["bord"] - r["enrobe"] > 1.0]  # seulement sur référence vérifiée
     inside = [r for r in every if r["bord"] - r["enrobe"] < -0.25]
     relief = [r for r in every if r["relief"]]
     print(f"{settings or 'réglages actuels'} : {len(data)} photos, {len(every)} côtés (hors chaussées séparées) ; "
           f"bord sur l'enrobé : {len(inside)} ({100 * len(inside) // max(1, len(every))} %), dont "
           f"{sum(r['oppose'] for r in inside)} du côté opposé à la caméra ; repli sur la largeur type : {len(every) - len(relief)} ; "
-          f"écart médian au bord d'enrobé (relief) : {statistics.median([r['bord'] - r['enrobe'] for r in relief] or [0]):+.2f} m")
+          f"écart médian au bord d'enrobé (relief) : {statistics.median([r['bord'] - r['enrobe'] for r in relief] or [0]):+.2f} m ; "
+          f"références vérifiées : {sum(r['verifie'] for r in every)}, bord à plus de 1 m au-delà : {len(far)}")
     if verbose:
-        for r in sorted(inside, key=lambda r: r["bord"] - r["enrobe"]):
+        for r in sorted(inside, key=lambda r: r["bord"] - r["enrobe"]) + far:
             print(f"   {r['id']} {r['route'] or '?':8} {r['cote']:6} {'opposé' if r['oppose'] else 'caméra':7} "
-                  f"{'relief' if r['relief'] else 'type':6} bord {r['bord']:.2f} / enrobé {r['enrobe']:.2f}")
+                  f"{'relief' if r['relief'] else 'type':6} bord {r['bord']:.2f} / {'vérifié' if r['verifie'] else 'enrobé'} {r['enrobe']:.2f}")
     return rows
 
 
