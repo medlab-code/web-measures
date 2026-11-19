@@ -20,6 +20,12 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
   try {
     await ready(w);
     const doc = w.document, app = w.mesures.app;
+    // Bande lue du nuage (Nuage.stripTest) : un carré sur la bande est gardé, un carré loin le long de la route ou en travers écarté
+    {
+      const keep = w.eval("Nuage").stripTest([0, 0], [0.6, 0.8], 34, 6);  // bande tournée de 53°
+      expect("bande du nuage : carré sur la bande gardé", keep(-1, -1, 2) && keep(20, 15, 2));
+      expect("bande du nuage : carrés loin de la bande écartés", !keep(-30, 20, 2) && !keep(40, 30, 2) && !keep(25, -20, 2));
+    }
     doc.querySelector("#reglages-defaut")?.close();
     for (const [id, where, sepMid, rightEdge] of CASES) {
       const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];

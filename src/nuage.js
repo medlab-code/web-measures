@@ -32,6 +32,7 @@ const Nuage = (() => {
   // 9b97c187, bord à 2 m, enrobé à 5,2 m)
   const PAVED_REACH = 12, PAVED_BEYOND = 3;
   const PAVED_STEPS = [-4, -2, 0, 2, 4];  // m le long de la route : travers de ±STRIP dont le bord d'enrobé est la médiane
+  const SOIL_ALONG = Math.max(...PAVED_STEPS.map(Math.abs)) + STRIP;  // m le long de la route : sol gardé pour ces travers
   const SEPARATOR = [0.5, 12];  // m : largeurs possibles du séparateur, et son milieu à 2 m au plus de celui du calcul
   // Hauteur de chute d'un pont (bridgeHeight, bridgeFall)
   const DECK_CELL = 2;  // m : côté des cases du tablier et du dessous
@@ -109,12 +110,13 @@ const Nuage = (() => {
     return tile;
   }
 
-  /** Nœuds non vides (d, x, y, z, offset, taille, points) qui touchent le rectangle box [xmin, ymin, xmax, ymax]. */
-  async function nodesIn(tile, box) {
+  /** Nœuds non vides (d, x, y, z, offset, taille, points) qui touchent le rectangle box [xmin, ymin, xmax, ymax] et, s'il est
+   * donné, strip(x0, y0, côté) : test d'un rectangle tourné (voir stripTest). */
+  async function nodesIn(tile, box, strip = null) {
     const out = [];
     const touches = (d, x, y) => {
       const size = 2 * tile.half / 2 ** d, x0 = tile.center[0] - tile.half + x * size, y0 = tile.center[1] - tile.half + y * size;
-      return x0 <= box[2] && x0 + size >= box[0] && y0 <= box[3] && y0 + size >= box[1];
+      return x0 <= box[2] && x0 + size >= box[0] && y0 <= box[3] && y0 + size >= box[1] && (!strip || strip(x0, y0, size));
     };
     async function page(offset, size) {
       const key = offset + ":" + size;
@@ -131,6 +133,14 @@ const Nuage = (() => {
     await page(...tile.root);
     return out;
   }
+
+  /** Test « le carré (x0, y0, côté) touche la bande » : centre o, demi-longueur `across` le long de (ux, uy), demi-largeur
+   * `along` le long de la perpendiculaire (séparation par les axes de la bande ; ceux du carré sont ceux de la boîte). */
+  const stripTest = (o, [ux, uy], across, along) => (x0, y0, size) => {
+    const cx = x0 + size / 2 - o[0], cy = y0 + size / 2 - o[1], half = size / 2;
+    return Math.abs(cx * ux + cy * uy) <= across + half * (Math.abs(ux) + Math.abs(uy))
+      && Math.abs(cy * ux - cx * uy) <= along + half * (Math.abs(ux) + Math.abs(uy));
+  };
 
   let lazPerf = null;
   async function laz() {
@@ -267,7 +277,10 @@ const Nuage = (() => {
     const [[lon, lat], right] = profile.repere;
     const o = toL93(lon, lat), p = toL93(...right);
     const t = Math.hypot(p[0] - o[0], p[1] - o[1]), [ux, uy] = [(p[0] - o[0]) / t, (p[1] - o[1]) / t];
+    // Seule une bande sert : ±HALF en travers, le long de la route STRIP et les travers voisins (PAVED_STEPS) ; le reste du carré
+    // de 68 m de côté n'était lu que pour rien (une requête de plus par bloc, une seconde chacune : voir download)
     const box = [o[0] - HALF - 2, o[1] - HALF - 2, o[0] + HALF + 2, o[1] + HALF + 2];
+    const strip = stripTest(o, [ux, uy], HALF + 2, STRIP + Math.max(...PAVED_STEPS) + 1);
     progress("Recherche des dalles du nuage LiDAR HD…");
     const d = 0.0005, response = await fetch(`${WFS}&BBOX=${lat - d},${lon - d},${lat + d},${lon + d},urn:ogc:def:crs:EPSG::4326`);
     if (!response.ok) throw new Error(`nuage LiDAR : métadonnées IGN, HTTP ${response.status}`);
@@ -281,7 +294,7 @@ const Nuage = (() => {
     const todo = [];
     for (const m of meta) {
       const tile = await openTile(m.properties.url_npl);
-      const nodes = await nodesIn(tile, box), deepest = Math.max(...nodes.map((n) => n.d));
+      const nodes = await nodesIn(tile, box, strip), deepest = Math.max(...nodes.map((n) => n.d));
       todo.push(...nodes.filter((n) => n.d >= deepest - 1).map((n) => [tile, n]));
     }
     for (const [done, [tile, n]] of todo.entries()) {
@@ -289,7 +302,8 @@ const Nuage = (() => {
         done / todo.length);
       for (const [x, y, z, intensity, cls] of await ground(tile, n)) {
         const ex = x - o[0], ey = y - o[1], across = ex * ux + ey * uy, along = ey * ux - ex * uy;
-        if (cls === 2 && Math.abs(across) <= HALF) soil.push([along, across, intensity]);
+        // sol des travers voisins seulement (PAVED_STEPS, ±STRIP chacun) : le reste des blocs lus n'y sert pas
+        if (cls === 2 && Math.abs(across) <= HALF && Math.abs(along) <= SOIL_ALONG) soil.push([along, across, intensity]);
         if (Math.abs(along) > STRIP || Math.abs(across) > HALF) continue;
         const k = Math.round(across / BIN);
         if (cls === 9) {
@@ -504,5 +518,5 @@ const Nuage = (() => {
     return { height: found.height, below: found.below };
   }
 
-  return { analyse, toL93, pavedEdge, brightRuns, dashedLines, bridgeFall, useGeoCache };
+  return { analyse, toL93, pavedEdge, brightRuns, dashedLines, stripTest, bridgeFall, useGeoCache };
 })();

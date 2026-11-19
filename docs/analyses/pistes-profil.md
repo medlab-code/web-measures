@@ -42,7 +42,7 @@ Ordre proposé le 17/11 : P1, P2, P3, P4, P5, P6. P5 a été faite puis retirée
 - **Piste** : une marque visible sur le graphique, avec l'invitation à lancer l'analyse fine seulement dans ce cas.
 - **Gain** : on voit quand le chiffre est une hypothèse.
 
-**P5. Analyse fine : lire moins de blocs.** *Faite puis retirée le 17/11/2026 à la demande de l'auteur (à reprendre après la réanalyse avec Opus du 19/11/2026).*
+**P5. Analyse fine : lire moins de blocs.** *Faite puis retirée le 17/11/2026 à la demande de l'auteur ; remise le 19/11/2026 après la réanalyse (voir « Ce que deviennent P1 à P6 »). Même résultat sur les 3 photos de `essai-nuage` (points du sol, bords et largeur d'enrobé, séparateur, eau, plateforme) ; requêtes 18 → 11, 26 → 11, 15 → 9, durée 19 → 11 s, 28 → 11 s, 15 → 9 s (A38 61dd94c4, RD903bis 1640bc3f, RD700 067e83ca).*
 - **Avant** : elle lit les blocs qui touchent un carré de 68 m de côté. `download` attend 1,1 s entre deux requêtes : 12 à 28 s
   pour 12 à 26 requêtes (journaux de `tests/essai-nuage.html`).
 - **Problème** : seule une bande sert (±34 m en travers, ±5 m le long de la route : travers voisins `PAVED_STEPS` et `STRIP`).
@@ -140,7 +140,7 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
 - **Piste** : mesurer d'abord (durée de `fall_json` dans la page) ; si elle compte, garder la route choisie et l'eau par photo.
 - **Gain** : à chiffrer.
 
-**P12. Analyse fine : points du sol gardés pour rien.**
+**P12. Analyse fine : points du sol gardés pour rien.** *Faite le 19/11/2026 (`SOIL_ALONG`, `nuage.js`) : résultat identique sur les 3 photos de `essai-nuage`.*
 - **Avant** : `soil` (`nuage.js:292`) garde tous les points du sol des blocs lus (carré de 68 m), puis les parcourt 5 fois
   (`PAVED_STEPS`, ligne 364) pour n'en garder que ceux à ±5 m le long de la route.
 - **Problème** : mémoire et 5 parcours d'environ 7 fois trop de points (68 m lus contre 10 m utiles).
@@ -237,5 +237,5 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
 2. ~~P7 et P8~~ (faits le 19/11/2026 ; reste la vérification sur routes réelles, P2).
 3. ~~P9~~ (mesurée le 19/11/2026 : biais de 3 à 6 cm, pas de correction).
 4. G1, G2, G3.
-5. P5 (annuler 306eae1), P12.
+5. ~~P5, P12~~ (faites le 19/11/2026).
 6. G4, G5, G6, puis P3, G7, G8, G9, P6, P11 et P13 selon les mesures.
