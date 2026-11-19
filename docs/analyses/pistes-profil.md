@@ -230,7 +230,7 @@ largeur BD TOPO (hors du mode profil).*
 - **Piste** : à mesurer sur plus de cas avant de choisir (marge fixe, ou inviter à l'analyse fine, déjà proposée par G3).
 - **Gain** : bord de repli moins souvent sur la chaussée.
 
-**P18. Mur de soutènement lu comme un talus.**
+**P18. Mur de soutènement lu comme un talus.** *Faite le 19/11/2026 : au-delà de 150 % (`WALL_SLOPE`), « paroi quasi verticale (mur, enrochement) » avec sa hauteur, sans pourcentage ; « paroi » sur le graphique (tests `BordsTalus.test_mur`, `BordsCas.test_mur_sous_la_route`). Reconnaître un mur d'un enrochement demanderait le nuage de l'analyse fine (largeur de la transition, classe des points) : à essayer sur des murs connus.*
 - **Avant** : sous la route, un mur est un talus très raide : « dévers du talus 400 % (76°) » sur terrain synthétique (mur vertical
   de 2 m), au plus 76° au pas de 0,5 m ; le MNT, qui adoucit les parois, en ferait 100 à 200 %.
 - **Problème** : le chiffre laisse croire à une pente mesurée ; on ne distingue pas un mur d'un enrochement raide. La chute (hauteur)
