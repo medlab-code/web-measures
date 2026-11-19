@@ -419,8 +419,9 @@ après.
     le même sens, sur trois pas de suite (fossé, talus), ou d'où le terrain fait une marche de 5 cm
     ou plus sur 0,5 m qui tient sur 1,5 m (bordure, accotement plus bas) ; sans rupture de pente
     (accotement de plain-pied), la demi-largeur BD TOPO (sinon 3 m) ; l'infobulle dit où le bord
-    a été trouvé, et comment ; un bord d'un travers à plus de 3 m de la médiane des bords trouvés
-    de ce côté (une marche dans la chaussée, un bord flou) y est ramené ; **chaussées séparées**
+    a été trouvé, et comment ; dès 3 travers trouvés dans le relief d'un côté, un travers sans
+    rupture de pente, ou au bord à plus de 3 m de leur médiane (une marche dans la chaussée, un bord
+    flou), y est ramené : bord « d'après les travers voisins » ; **chaussées séparées**
     (autoroute, voie express : un tronçon BD TOPO par sens, de même nom, parallèle, son axe à 4 à
     40 m en travers, ticket #34) : du côté de l'autre chaussée, le bord est cherché au-delà de son
     axe et jusqu'à 9 m après son bord BD TOPO (largeurs souvent trop faibles), pente de référence
@@ -468,7 +469,7 @@ après.
 
   Le bouton **« Graphiques »**, à côté, montre la coupe du terrain que ce calcul a lue (mesure LiDAR
   HD, ou RGE ALTI en secours) : travers de la photo en brun, les quatre autres en pointillés,
-  plateforme entre les deux bords trouvés (et comment : rupture de pente ou largeur BD TOPO), milieu du
+  plateforme entre les deux bords trouvés (et comment : rupture de pente, travers voisins ou largeur BD TOPO), milieu du
   séparateur de chaussée sur une route à chaussées séparées (petite barre verticale ; la légende dit s'il a
   été trouvé dans le relief ou placé d'après la BD TOPO), flèche
   de la chute et droite rouge du talus (haut → pied) sur le travers où ils ont été mesurés,
@@ -861,7 +862,8 @@ modèle de terrain (±0,1 m en LiDAR HD, ±0,4 m en RGE ALTI). Le dévers est un
 du haut au pied du talus : le haut et le pied sont placés au pas des points près (0,5 m près
 du bord, 0,6 m au-delà pour 10 m examinés, 1,9 m pour 30 m), ce qui pèse sur un talus court.
 Sous des arbres ou un mur, le modèle de terrain est interpolé et adoucit la pente. Le bord de
-la chaussée vient d'une rupture de pente du terrain, sinon de la largeur BD TOPO. Pas encore
+la chaussée vient d'une rupture de pente du terrain, sinon des travers voisins ou de la largeur
+BD TOPO. Pas encore
 comparé à des talus de hauteur connue.
 
 Pente en long (`tests/essai-bords.html`, photos 732c2c09, cd5e947c, d148d430 et 70b78dc8) : profils

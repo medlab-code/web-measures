@@ -346,6 +346,33 @@ class BordsEnrobe(unittest.TestCase):
         self.assertEqual(len(reads), 1)  # sans relire le terrain
 
 
+class BordsVoisins(unittest.TestCase):
+    """Travers sans rupture de pente ramené au bord médian des autres (App._edge_reads) : d'après les travers voisins, pas
+    « rupture de pente » (il était compté comme trouvé dans le relief)."""
+
+    def test_travers_plat_parmi_des_marches(self):
+        lon, lat = 5.0, 47.0
+        calc = App.__new__(App)
+        calc.edges, calc.paved, calc.paved_redo = {}, {}, {}
+        calc.notify = lambda: None
+
+        def terrain(points, done):  # à droite, marche de 30 cm à 4 m de l'axe, sauf sur le travers à +5 m (plat)
+            local = [web_app.triangulation._local(p[0], p[1], lon, lat) for p in points]
+            done([-0.3 if x > 4.0 and not 2.5 < y < 7.5 else 0.0 for x, y in local], web_app.triangulation.LIDAR_NAME, None)
+        calc._terrain = terrain
+        key = ("photo", 10, False)
+        calc._compute_edges(key, [(0.0, -200.0), (0.0, 200.0)], 200.0, 8.0, 0.0, lon, lat)
+        res = calc.edges[key]
+        droit = {e["le_long"]: e for e in res["profile"]["profils"] if e["cote"] == "droit"}
+        plat = droit[5.0]
+        self.assertEqual((plat["relief"], plat.get("voisins")), (False, True))
+        self.assertEqual(plat["bord"], droit[0.0]["bord"])  # position : la médiane des autres (voulue)
+        self.assertTrue(all(e["relief"] and not e.get("voisins") for a, e in droit.items() if a != 5.0))
+        self.assertIn("relief sur 4 travers sur 5, 1 d'après les travers voisins", res["title"])
+        gauche = [e for e in res["profile"]["profils"] if e["cote"] == "gauche"]  # plat partout : largeur BD TOPO
+        self.assertTrue(gauche and not any(e["relief"] or e.get("voisins") for e in gauche))
+
+
 class Creux(unittest.TestCase):
     """Profil en long : tablier des ponts (App._bridged)."""
 

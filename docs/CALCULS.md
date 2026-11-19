@@ -270,8 +270,10 @@ Sur chaque travers, à 1,5 m au moins de l'origine, le bord est le premier point
   bas).
 
 Sans rupture de pente (accotement de plain-pied), le bord est à la demi-largeur BD TOPO
-(sinon 3 m). Un bord d'un travers à plus de **3 m de la médiane** des bords trouvés de ce côté
-est ramené à elle.
+(sinon 3 m). Dès que 3 travers au moins d'un côté trouvent leur bord dans le relief, leur
+**médiane** (basse : le bord le plus proche) sert aux autres : un travers sans rupture de pente, ou
+dont le bord est à plus de **3 m** d'elle, y est ramené. Ce bord est dit « d'après les travers
+voisins » (graphique, infobulle) : il n'a pas été trouvé dans le relief de ce travers.
 
 ### 8.3 Chaussées séparées et séparateur
 

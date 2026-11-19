@@ -29,7 +29,8 @@ const Profil = (() => {
       const t = out.get(p.le_long) || { along: p.le_long, points: [], bords: {} };
       const sign = p.cote === "gauche" ? -1 : 1;
       t.points.push(...p.points.map(([o, z]) => [sign * o, z]));
-      t.bords[p.cote] = { x: sign * p.bord, relief: p.relief, enrobe: p.enrobe, arret: p.arret === null ? null : sign * p.arret };
+      t.bords[p.cote] = { x: sign * p.bord, relief: p.relief, voisins: p.voisins, enrobe: p.enrobe,
+        arret: p.arret === null ? null : sign * p.arret };
       if (p.separateur) {  // chaussées séparées : trouvé dans le relief ou d'après la BD TOPO
         t.separateur = p.separateur.map((o) => sign * o).sort((a, b) => a - b);
         t.separateurRelief = p.separateur_relief;
@@ -243,6 +244,9 @@ const Profil = (() => {
           const first = seen.reduce((a, b) => (Math.abs(b[0]) < Math.abs(a[0]) ? b : a));
           return `\u00a0; ${side}\u00a0: dès ${num(Math.abs(first[0]))} m, jusqu'à ${num(above(top))} m au-dessus du sol`;
         }).join("") + "."] : []),
+      ...(["gauche", "droit"].some((side) => main.bords[side]?.voisins && !main.bords[side].enrobe)
+        ? ["« Travers voisins » sous un bord : pas de rupture de pente sur ce travers (ou une trop loin des "
+          + "autres) ; bord placé à la médiane des travers voisins où elle a été trouvée."] : []),
       `Chute et dévers lus du bord jusqu'à ce que le terrain remonte de ${num(profile.remontee, 0)} m au-dessus du bord `
         + "(talus, butte)\u00a0: derrière, ce n'est pas une chute.",
       `${factor > 1 ? `Hauteurs exagérées ×${factor} pour la lisibilité` : "Hauteurs à l'échelle des distances"}. `
@@ -375,7 +379,7 @@ const Profil = (() => {
       svg.append(el("line", { x1: X(b.x), x2: X(b.x), y1: TOP - 4, y2: Z(zAt(main.points, b.x)), class: "bord" }),
         el("text", { x: X(b.x) + dx, y: TOP - 26, class: "etiquette-profil", "text-anchor": anchor }, "bord"),
         el("text", { x: X(b.x) + dx, y: TOP - 12, class: "graduation", "text-anchor": anchor },
-          b.enrobe ? "fin de l'enrobé" : b.relief ? "rupture de pente" : "largeur BD TOPO"));
+          b.enrobe ? "fin de l'enrobé" : b.relief ? "rupture de pente" : b.voisins ? "travers voisins" : "largeur BD TOPO"));
     }
     // Séparateur de chaussée (chaussées séparées, ticket #34) : petite barre verticale posée sur le terrain en son milieu
     // (d'après la BD TOPO), nommée au-dessus ; autrement que les bords, qui seuls limitent la plateforme

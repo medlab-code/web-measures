@@ -534,8 +534,8 @@ class Chutes:
     # affichée. Travers de part et d'autre de la route, à EDGE_ALONG m de la photo le long du tronçon,
     # depuis la caméra (séquence vérifiée RTK ; sinon l'axe BD TOPO) jusqu'à edge_zone m au-delà du bord
     # de la chaussée (réglette de la page) ; terrain MNT LiDAR HD (RGE ALTI en secours). Bord : rupture de
-    # pente du terrain (EDGE_BREAK), sinon la demi-largeur BD TOPO. Référence : le terrain au bord, pas
-    # l'altitude GPS.
+    # pente du terrain (EDGE_BREAK), sinon la médiane des travers voisins (EDGE_CONSENSUS), sinon la demi-largeur
+    # BD TOPO. Référence : le terrain au bord, pas l'altitude GPS.
     EDGE_ZONE = 10.0  # m au-delà du bord de la chaussée examinés par défaut
     EDGE_ALONG = (-10.0, -5.0, 0.0, 5.0, 10.0)  # m le long de la route, depuis la photo
     EDGE_WINDOW = 2.0  # m en travers : pente lue entre deux points au moins aussi écartés (bruit du MNT ±5 cm)
@@ -1119,9 +1119,10 @@ class Chutes:
     def _edge_reads(self, profiles, ground, sides, paved):
         """Bord et séparateur de chaque travers lus sur le terrain (ground, dans l'ordre des profils) : 1er passage travers par
         travers, puis, côté par côté, ceux qui s'écartent de la médiane des travers trouvés dans le relief (une marche dans
-        l'autre chaussée, un bord flou) y sont ramenés ; analyse fine (paved) : le bord de l'enrobé l'emporte. Rend
-        (lectures [le long, côté, bord BD TOPO, distances, altitudes, indice du bord, séparateur, son origine, pics],
-        nombre de travers par côté où l'autre chaussée est comprise)."""
+        l'autre chaussée, un bord flou) y sont ramenés, comme ceux sans rupture de pente (bord d'après les travers
+        voisins, pas trouvé dans leur relief) ; analyse fine (paved) : le bord de l'enrobé l'emporte. Rend (lectures [le
+        long, côté, bord BD TOPO, distances, altitudes, indice du bord, séparateur, son origine, pics, axe de l'autre
+        chaussée, bord ramené à la médiane], nombre de travers par côté où l'autre chaussée est comprise)."""
         twins = {name: 0 for name, _ in sides}  # côté -> travers où l'autre chaussée est comprise
         read = []
         start = 0
@@ -1134,7 +1135,7 @@ class Chutes:
             found_sep = between and self._edge_separator(z, offsets, between, beyond)
             i = self._edge_border(z, offsets, reach, beyond)
             read.append([along, name, guess, offsets, z, i, found_sep or between, "marches" if found_sep else None,
-                         self._edge_peaks(z, offsets, between, beyond) if between else [], beyond])
+                         self._edge_peaks(z, offsets, between, beyond) if between else [], beyond, False])
         for name, _ in sides:
             mine = [r for r in read if r[1] == name]
             edges = sorted(r[3][r[5]] for r in mine if r[5] is not None)
@@ -1153,7 +1154,7 @@ class Chutes:
             sep_med = [sorted(v[k] for v in seps)[len(seps) // 2] for k in (0, 1)] if seps else None
             for r in mine:
                 if med is not None and (r[5] is None or abs(r[3][r[5]] - med) > self.EDGE_CONSENSUS):
-                    r[5] = min(range(len(r[3])), key=lambda k: abs(r[3][k] - med))
+                    r[5], r[10] = min(range(len(r[3])), key=lambda k: abs(r[3][k] - med)), True
                 if sep_med and r[6] and (not r[7] or max(abs(r[6][k] - sep_med[k]) for k in (0, 1)) > self.EDGE_CONSENSUS):
                     r[6], r[7] = sep_med, "marches"
                 if name in paved:  # analyse fine : le bord de l'enrobé remplace celui du relief
@@ -1163,19 +1164,19 @@ class Chutes:
     def _edge_falls(self, read, sides, paved, zone):
         """Chute et dévers de chaque côté depuis les bords lus (_edge_reads), jusqu'à zone m du bord. Rend (côté ->
         [(chute, à m du bord, bout du profil, travers), (dévers, haut du talus à m du bord, travers, pied du talus à m du
-        bord, hauteur du talus)], bords [(m depuis l'origine, relief)], côté -> distances au bord où le terrain remonte
-        de EDGE_RISE, profils pour le graphique de la page (bouton « Graphiques »))."""
+        bord, hauteur du talus)], bords [(m depuis l'origine, relief, d'après les travers voisins)], côté -> distances au
+        bord où le terrain remonte de EDGE_RISE, profils pour le graphique de la page (bouton « Graphiques »))."""
         found = {name: [None, None] for name, _ in sides}
         borders = {name: [] for name, _ in sides}
         stops = {name: [] for name, _ in sides}
         drawn = []
-        for along, name, guess, offsets, z, i, between, sep_relief, _, beyond in read:
-            relief = i is not None
-            if not relief:
+        for along, name, guess, offsets, z, i, between, sep_relief, _, beyond, moved in read:
+            relief = i is not None and not moved  # trouvé dans le relief de ce travers, pas ramené à la médiane des autres
+            if i is None:
                 i = min(range(len(offsets)), key=lambda k: abs(offsets[k] - guess))
-            borders[name].append((offsets[i], relief))
+            borders[name].append((offsets[i], relief, moved))
             entry = {"le_long": along, "cote": name, "bord": round(paved.get(name, offsets[i]), 2), "relief": relief,
-                     "enrobe": name in paved, "arret": None,
+                     "voisins": moved, "enrobe": name in paved, "arret": None,
                      "separateur": [round(v, 2) for v in between] if between else None,
                      "autre_axe": round(beyond, 2) if beyond else None,  # axe de l'autre chaussée, m depuis l'origine
                      "separateur_relief": sep_relief if between else None,  # "marches", "bosse" ou None (BD TOPO)
@@ -1213,11 +1214,13 @@ class Chutes:
         lines, seen, shown = [], [], {}
         for name, _ in sides:
             if borders[name]:
-                by_relief = sum(r for _, r in borders[name])
-                seen.append("côté {} à {} m de {} ({}{})".format(
-                    name, measures._num(sorted(o for o, _ in borders[name])[len(borders[name]) // 2], 1), origin,
+                by_relief = sum(r for _, r, _ in borders[name])
+                by_others = sum(m for _, _, m in borders[name])  # ramenés à la médiane des autres travers
+                seen.append("côté {} à {} m de {} ({}{}{})".format(
+                    name, measures._num(sorted(o for o, _, _ in borders[name])[len(borders[name]) // 2], 1), origin,
                     "relief sur {} travers sur {}".format(by_relief, len(borders[name])) if by_relief
-                    else "largeur BD TOPO", ", au-delà du séparateur de chaussée ({}) et de l'autre chaussée".format(
+                    else "largeur BD TOPO", f", {by_others} d'après les travers voisins" if by_others else "",
+                    ", au-delà du séparateur de chaussée ({}) et de l'autre chaussée".format(
                         "trouvé dans le relief" if any(e.get("separateur_relief") for e in drawn if e["cote"] == name)
                         else "d'après la BD TOPO") if twins[name] else ""))
             fall, slope_max = found[name]
@@ -1246,14 +1249,17 @@ class Chutes:
         """Infobulle des bords : méthode, puis les bords trouvés (seen)."""
         return ("Terrain ({}) en travers de la route, depuis {} jusqu'à {} m au-delà du bord de la chaussée, "
                 "sur ±{} m le long de la route ; côtés vus dans le sens de la photo. Bord : rupture de pente "
-                "ou marche du terrain (bordure), sinon largeur BD TOPO (ou {} m supposés) ; chaussées séparées : "
+                "ou marche du terrain (bordure), sinon largeur BD TOPO (ou {} m supposés) ; dès 3 travers trouvés "
+                "dans le relief, un travers sans rupture ou au bord à plus de {} m de leur médiane prend cette "
+                "médiane (d'après les travers voisins) ; chaussées séparées : "
                 "bord extérieur de l'autre chaussée, séparateur de chaussée compris (entre deux marches du "
                 "terrain, sinon d'après la BD TOPO). Chute : plus grande descente sous le "
                 "terrain du bord, lue jusqu'à ce que le terrain remonte de {} m au-dessus du bord (talus, "
                 "butte). Dévers : pente moyenne du talus le plus raide, de son haut à son pied (pente sur {} m "
                 "repassée sous {} %). Bords trouvés : {}.").format(
             source, origin, measures._num(zone, 0), measures._num(self.EDGE_ALONG[-1], 0),
-            measures._num(self.FALL_WIDTH, 0), measures._num(self.EDGE_RISE, 0), measures._num(self.EDGE_WINDOW, 0),
+            measures._num(self.FALL_WIDTH, 0), measures._num(self.EDGE_CONSENSUS, 0), measures._num(self.EDGE_RISE, 0),
+            measures._num(self.EDGE_WINDOW, 0),
             measures._num(100 * self.EDGE_TALUS, 0), " ; ".join(seen) or "aucun")
 
     def _long_profile(self, pts, ends, along_of, followed):
