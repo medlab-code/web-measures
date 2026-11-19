@@ -25,6 +25,9 @@ const ALL_REFERENCES = [
 const QUICK = new Set(["A38", "ville", "D33 du 04/07"]);
 // #photo=<id> : une autre photo seule (cas signalé), avec la carte des photos qui fournissent chaque point
 const ONE = location.hash.match(/^#photo=([\w-]+)/)?.[1];
+// #photo=<id>&seule : photo seule (« Véhicule masqué » éteint, sans voisines ni raccords), vue déposée aussitôt, sans les autres contrôles : coup d'œil
+// rapide sur les bords (tools/dessus-bords.py), la photo vue seule suffit entre ±5 m
+const ALONE = Boolean(ONE) && location.hash.includes("&seule");
 const REFERENCES = ONE ? [["photo", ONE]] : location.hash === "#rapide" ? ALL_REFERENCES.filter(([name]) => QUICK.has(name)) : ALL_REFERENCES;
 // Écart à l'orthophoto attendu (m) : position calée au-delà de 30 cm, GPS gardé en deçà
 const SHIFTS = { "D33": [0, 0.3], "D33 du 04/07": [0.5, 1.0] };
@@ -50,7 +53,7 @@ async function open(id, enough = () => false) {
   if ($("#dessus").disabled) return null;
   const loaded = (Date.now() - start) / 1000;  // page et photo chargées
   $("#dessus").click();
-  $("#dessus-voisines").click();  // « Véhicule masqué » : voisines, raccords, tangage lu sur les raccords
+  if (!ALONE) $("#dessus-voisines").click();  // « Véhicule masqué » : voisines, raccords, tangage lu sur les raccords
   while (Date.now() - start < WAIT) {
     const state = $("#dessus-etat").textContent;
     const times = () => `page ${number(loaded, 0)} s, vue ${number((Date.now() - start) / 1000 - loaded, 0)} s`;
@@ -68,6 +71,12 @@ async function open(id, enough = () => false) {
     // Contrôle de position seul : les voisines peuvent attendre longtemps le calage de leur inclinaison
     const shown = await open(id, (state) => ONLY_SHIFT.has(name) && /position (calée|GPS gardée)/.test(state));
     if (!shown) { await expect(`${name} : vue du dessus disponible`, false); continue; }
+    if (ALONE) {
+      await log(`${name} (${id.slice(0, 8)}, ${shown.times || "délai dépassé"}) : ${shown.state}`);
+      if (shown.blob()) await fetch(`/capture/dessus-seule-${id}.png`, { method: "POST", body: shown.blob() });
+      await expect(`${name} : vue de la photo seule déposée`, Boolean(shown.blob()));
+      continue;
+    }
     const { w, state } = shown, Dessus = w.eval("Dessus"), now = Dessus.layersNow(), [main, ...others] = now.layers, pose = main.pose;
     const h = pose.heading * Math.PI / 180, u = pose.up || [0, 0, 1];
     const forward = Math.atan2(u[0] * Math.sin(h) + u[1] * Math.cos(h), u[2]) * 180 / Math.PI;
