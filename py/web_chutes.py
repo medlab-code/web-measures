@@ -84,6 +84,13 @@ def _of(label):
     return "de " + label
 
 
+def _distance(metres, whole=False):
+    """Distance au bord écrite : au décimètre sous 10 m, au mètre au-delà (ou si whole), arrondie au plus proche comme dans
+    la page (profil.js, dist) : « 0,5 m » et non « 0 m », « 11 m » pour 10,5 et non « 10 m » (format arrondit au pair)."""
+    digits = 0 if whole or metres >= 9.95 else 1
+    return measures._num(math.floor(metres * 10 ** digits + 0.5) / 10 ** digits, digits)
+
+
 def _line_slope(points):
     """Pente (%, positive si le terrain descend vers les x croissants) de la droite des moindres carrés, ou None sous 3 points."""
     if len(points) < 3:
@@ -1237,12 +1244,12 @@ class Chutes:
             if fall is None or fall[0] < self.FALL_MIN:
                 if stop is not None:
                     lines.append("Côté {} : pas de chute avant le terrain qui remonte de {} m, à {} m du bord".format(
-                        name, measures._num(self.EDGE_RISE, 0), measures._num(stop, 0)))
+                        name, measures._num(self.EDGE_RISE, 0), _distance(stop)))
                 continue
             beyond = fall[1] >= fall[2] - 1e-6  # le plus bas au bout du profil : le terrain descend encore
             text = "Côté {} : chute {}{} m (±{} m) {} {} m du bord".format(
                 name, "≥ " if beyond else "", measures._num(fall[0], 1), measures._num(sigma, 1),
-                "au-delà de" if beyond else "à", measures._num(fall[1], 0))
+                "au-delà de" if beyond else "à", _distance(fall[1], whole=beyond))  # au-delà : le bout du profil, au mètre
             if slope_max and slope_max[0] > 0:
                 text += ", dévers du talus {} % ({}°) sur {} m de haut".format(
                     measures._num(100 * slope_max[0], 0), measures._num(math.degrees(math.atan(slope_max[0])), 0),

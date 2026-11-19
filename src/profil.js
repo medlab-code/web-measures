@@ -14,6 +14,11 @@ const Profil = (() => {
   const LINE = 14;  // px entre deux lignes d'une étiquette
   const ROAD_ROOM = 58;  // px sous la chaussée : ses deux étiquettes (largeur, dévers) et une marge au-dessus du bas du cadre
   const num = (v, digits = 1) => v.toFixed(digits).replace(".", ",").replace(/^-/, "−");
+  /** Distance au bord : au décimètre sous 10 m, au mètre au-delà (ou whole), comme le texte du calcul (web_chutes._distance). */
+  const dist = (v, whole = false) => {
+    const digits = whole || v >= 9.95 ? 0 : 1;
+    return num(Math.floor(v * 10 ** digits + 0.5) / 10 ** digits, digits);
+  };
 
   function el(name, attrs, text) {
     const node = document.createElementNS(NS, name);
@@ -272,7 +277,7 @@ const Profil = (() => {
       if (!r) {
         const stop = profile.arrets[side];
         item.append(stop === undefined ? `pas de chute de 0,5 m ou plus jusqu'à ${num(profile.zone, 0)} m du bord`
-          : `pas de chute avant le terrain qui remonte de ${num(profile.remontee, 0)} m (talus, butte), à ${num(stop, 0)} m du bord`);
+          : `pas de chute avant le terrain qui remonte de ${num(profile.remontee, 0)} m (talus, butte), à ${dist(stop)} m du bord`);
         continue;
       }
       const t = all.get(r.chute[3]) || main, b = t.bords[side].x;
@@ -298,7 +303,7 @@ const Profil = (() => {
         el("text", { x: X(xLow) + toward * 6, y: (Z(top) + Z(low)) / 2, class: "etiquette-profil chute-texte place",
           "text-anchor": toward < 0 ? "end" : "start" }, `chute ${r.chute[2] ? "≥ " : ""}${num(r.chute[0])} m`));
       item.append(html("span", "chute", `chute ${r.chute[2] ? "d'au moins " : "de "}${num(r.chute[0])} m`),
-        ` ${r.chute[2] ? "au-delà de" : "à"} ${num(r.chute[1], 0)} m du bord${where}`);
+        ` ${r.chute[2] ? "au-delà de" : "à"} ${dist(r.chute[1], r.chute[2])} m du bord${where}`);
       if (r.devers) {
         // talus : droite de son haut à son pied (pente moyenne), sur le travers où il a été mesuré
         const td = all.get(r.devers[2]) || main, bd = td.bords[side].x;

@@ -11,7 +11,7 @@ pistes P7 à P13 et G1 à G9, nouvel ordre).
 
 Ordre proposé le 17/11 : P1, P2, P3, P4, P5, P6. P5 a été faite puis retirée le 17/11/2026 (voir ci-dessous).
 
-**P1. Tests rapides sur des profils synthétiques.**
+**P1. Tests rapides sur des profils synthétiques.** *Avancée le 19/11/2026 : banc `edges_on` dans `tests/test_calculs.py`, classes `BordsTalus` (P7, P8), `BordsVoisins` (P10) et `BordsCas` (plain-pied, butte, descente jusqu'au bout, fossé de 30 cm, bord loin des autres, séparateur à marches surélevé et en creux, glissières dos à dos, distance écrite). Les 7 cas types passaient déjà : le calcul s'y comporte comme voulu. Reste : les cas réels difficiles (bombement fort, fossé en V, accotement en pente douce) quand P14 touchera aux seuils.*
 - **Avant** : seuls `platform_slope` et un cas de pont sont testés en Python (`tests/test_calculs.py`). Les fonctions qui décident
   des bords (`_edge_border`, `_edge_separator`, `_taluses`, `_long_profile`) ne sont vérifiées que par les essais du navigateur
   (réseau, plusieurs minutes).
@@ -162,6 +162,13 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
 - **Piste** : mesurer aussi le bruit hors chaussée (herbe, fossés), puis essayer des seuils plus fins sur `essai-bords` et
   `essai-passages`, avec P2 comme référence.
 - **Gain** : bordures et séparateurs plus fins trouvés, à vérifier.
+
+**P15. Distance au bord mal arrondie.** *Faite le 19/11/2026 (test `BordsCas.test_distance_au_bord_ecrite`).*
+- **Avant** : la distance de la chute (ou de l'arrêt) au bord était écrite au mètre, arrondie au pair par Python (0,5 → « 0 »,
+  10,5 → « 10 ») dans l'encadré, et au-dessus par la page (10,5 → « 11 ») dans la légende du graphique.
+- **Problème** : « chute de 0,6 m à 0 m du bord » ; encadré et légende en désaccord. Fréquent : les points sont tous les 0,5 m.
+- **Piste** : au décimètre sous 10 m, au mètre au-delà, arrondi au plus proche des deux côtés (`_distance`, `dist`).
+- **Gain** : distances justes et identiques partout.
 
 ### Graphique et fenêtre : pistes
 

@@ -390,6 +390,84 @@ class BordsTalus(unittest.TestCase):
             self.assertAlmostEqual(r["devers"][4], depth, delta=0.05)  # hauteur du talus (pied à EDGE_FLAT près)
 
 
+def edges_on(z, width=8.0, twin=None, zone=10):
+    """Bords (App._compute_edges) sur un terrain synthétique z(x, y), en m : x vers la droite de la photo, y le long de la
+    route (axe x = 0, photo en y = 0) ; twin : autre chaussée [(ligne, largeur)]. Rend self.edges[clé]."""
+    lon, lat = 5.0, 47.0
+    calc = App.__new__(App)
+    calc.edges, calc.paved, calc.paved_redo = {}, {}, {}
+    calc.notify = lambda: None
+    calc._terrain = lambda points, done: done(
+        [z(*web_app.triangulation._local(p[0], p[1], lon, lat)) for p in points], web_app.triangulation.LIDAR_NAME, None)
+    key = ("photo", zone, False)
+    calc._compute_edges(key, [(0.0, -200.0), (0.0, 200.0)], 200.0, width, 0.0, lon, lat, twin=twin)
+    return calc.edges[key]
+
+
+class BordsCas(unittest.TestCase):
+    """Cas types des bords de route sur terrain synthétique (piste P1 de docs/analyses/pistes-profil.md)."""
+
+    TWIN = (([(11.0, -200.0), (11.0, 200.0)], 7.0),)  # autre chaussée à droite, axe à 11 m
+
+    @staticmethod
+    def entry(res, side, along=0.0):
+        return next(e for e in res["profile"]["profils"] if e["cote"] == side and e["le_long"] == along)
+
+    def test_plain_pied(self):  # pas de rupture : demi-largeur BD TOPO, aucune chute
+        res = edges_on(lambda x, y: 0.0)
+        for side in ("gauche", "droit"):
+            e = self.entry(res, side)
+            self.assertEqual((e["bord"], e["relief"], e["voisins"]), (4.0, False, False))
+        self.assertEqual(res["profile"]["resultats"], {})
+        self.assertIn("largeur BD TOPO", res["title"])
+
+    def test_butte(self):  # le terrain remonte de 1 m : lecture arrêtée, pas de chute
+        res = edges_on(lambda x, y: min(1.5, (x - 5.0) * 0.5) if x > 5.0 else 0.0)
+        e = self.entry(res, "droit")
+        self.assertAlmostEqual(e["bord"], 5.0, delta=0.01)
+        self.assertIsNotNone(e["arret"])
+        self.assertNotIn("droit", res["profile"]["resultats"])
+        self.assertIn("pas de chute avant le terrain qui remonte de 1 m", res["text"])
+
+    def test_descente_jusqu_au_bout(self):  # plus bas au bout du profil : « chute ≥ »
+        res = edges_on(lambda x, y: -(x - 4.0) * 0.3 if x > 4.0 else 0.0)
+        chute, devers = res["profile"]["resultats"]["droit"]["chute"], res["profile"]["resultats"]["droit"]["devers"]
+        self.assertTrue(chute[2])
+        self.assertAlmostEqual(devers[0], 0.3, delta=0.01)
+        self.assertIn("Côté droit : chute ≥ 3,0 m", res["text"])
+
+    def test_fosse_peu_profond(self):  # 30 cm : sous FALL_MIN, pas de chute
+        res = edges_on(lambda x, y: -0.3 if 4.0 < x < 7.0 else 0.0)
+        self.assertTrue(self.entry(res, "droit")["relief"])
+        self.assertEqual(res["profile"]["resultats"], {})
+
+    def test_bord_loin_des_autres(self):  # rupture à 8 m sur un seul travers, à 4 m ailleurs : ramené à la médiane
+        res = edges_on(lambda x, y: -0.5 if x > (8.0 if 2.5 < y < 7.5 else 4.0) else 0.0)
+        e = self.entry(res, "droit", 5.0)
+        self.assertEqual((e["bord"], e["relief"], e["voisins"]), (4.0, False, True))
+
+    def test_separateur_a_marches(self):  # surélevé ou en creux, de 4 à 7 m : entre les deux marches
+        for h in (0.2, -0.2):
+            res = edges_on(lambda x, y, h=h: (h if 4.0 < x < 7.0 else 0.0) - 0.5 * max(0.0, abs(x - 5.5) - 12.0), twin=self.TWIN)
+            e = self.entry(res, "droit")
+            self.assertEqual(e["separateur_relief"], "marches", h)
+            self.assertEqual(e["separateur"], [4.25, 6.75], h)  # milieu des pas de 0,5 m où le terrain saute
+            self.assertAlmostEqual(e["bord"], 17.5, delta=0.01)  # bord extérieur de l'autre chaussée
+
+    def test_glissieres_dos_a_dos(self):  # pic d'un point (assise des glissières) : séparateur en bosse
+        res = edges_on(lambda x, y: (0.1 if 5.4 < x < 5.6 else 0.0) - 0.5 * max(0.0, abs(x - 5.5) - 12.0), twin=self.TWIN)
+        e = self.entry(res, "droit")
+        self.assertEqual((e["separateur_relief"], e["separateur"]), ("bosse", [5.1, 5.9]))
+
+    def test_distance_au_bord_ecrite(self):  # P15 : 0,5 m s'écrivait « 0 m » (arrondi au pair de Python)
+        res = edges_on(lambda x, y: -0.6 if x > 4.0 else 0.0)
+        self.assertEqual(res["profile"]["resultats"]["droit"]["chute"][1], 0.5)
+        self.assertIn("chute 0,6 m (±0,1 m) à 0,5 m du bord", res["text"])
+        res = edges_on(lambda x, y: -0.6 if x > 14.0 else 0.0, zone=20)  # 10 m et plus : au mètre, arrondi comme la page
+        self.assertEqual(res["profile"]["resultats"]["droit"]["chute"][1], 10.5)
+        self.assertIn("à 11 m du bord", res["text"])  # 10,5 : « 10 » au pair, « 11 » dans la légende du graphique
+
+
 class BordsVoisins(unittest.TestCase):
     """Travers sans rupture de pente ramené au bord médian des autres (App._edge_reads) : d'après les travers voisins, pas
     « rupture de pente » (il était compté comme trouvé dans le relief)."""

@@ -434,7 +434,8 @@ après.
     à dos ou de muret, que le terrain LiDAR ne garde pas) au même endroit sur deux travers au moins ;
     sinon d'après la BD TOPO ;
   - **chute** : la plus grande descente entre le terrain au bord de la chaussée et le point le
-    plus bas du profil, avec la distance de ce point (le plus proche du bord, à 5 cm près) ;
+    plus bas du profil, avec la distance de ce point (le plus proche du bord, à 5 cm près), écrite
+    au décimètre sous 10 m, au mètre au-delà ;
     « chute ≥ … au-delà de 10 m du bord » quand le point le plus bas est au bout du profil (le
     terrain descend encore : pousser la réglette) ;
     la lecture s'arrête là où le terrain remonte de 1 m au-dessus du bord (talus, butte) : ce
