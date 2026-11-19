@@ -91,7 +91,7 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
 
 ### Calcul : nouvelles pistes
 
-**P7. Bord placé trop près de l'axe.**
+**P7. Bord placé trop près de l'axe.** *Faite le 19/11/2026 : le bord avance d'un pas si ce pas suit encore la pente de la chaussée (`_edge_border`), test `BordsTalus`. Terrain synthétique : bord exact (avant −0,5 m). Photos de `essai-bords` : 2 côtés sur 14 avancent de 0,5 m, les autres ne bougent pas (le MNT réel arrondit les ruptures). Reste : avec un bruit indépendant de 5 cm d'un point à l'autre, le bord part encore 1,2 m trop tôt en moyenne, déclenché par le bruit, hors de cette correction ; les bords réels de `essai-bords` ne le montrent pas, à vérifier avec P2.*
 - **Avant** : `_edge_border` prend le premier point d'où la pente sur 1 m s'écarte de celle de la chaussée. Cette fenêtre de 1 m
   « voit » la rupture avant d'y arriver.
 - **Problème** : mesuré sur terrain exact (rupture à 4,0 / 4,1 / 4,25 / 4,4 m, talus de 20 à 100 %) : bord trouvé de 0,25 à
@@ -103,7 +103,7 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
   routes réelles avec P2 (le MNT lisse les ruptures : l'écart réel peut différer).
 - **Gain** : largeur de plateforme juste à ±0,25 m près au lieu d'un biais de −1 m.
 
-**P8. Dévers du talus sous-estimé.**
+**P8. Dévers du talus sous-estimé.** *Faite le 19/11/2026 : haut avancé tant que le pas descend de moins de 5 %, pied au premier point à 5 cm du plus bas (`_taluses`, `EDGE_FLAT`), test `BordsTalus`. Terrain synthétique : dévers exact (50, 20, 100 %) ; avec 3 à 5 cm de bruit, 52 % pour 50 %, 22 % pour 20 %, 101 % pour 100 % (avant 39 %, 20 %, 75 %). Photos de `essai-bords` : chutes inchangées, dévers de 3 à 26 points plus forts (RD903bis 1640bc3f : 25 → 51 % sans analyse fine, 34 → 47 % avec ; la droite du talus va maintenant de la cassure au pied, vérifié sur l'image du profil).*
 - **Avant** : `_taluses` prend la pente moyenne du haut au pied ; le haut est au plus tôt le bord (P7), le pied est le point le plus
   bas jusqu'au bout de la dernière fenêtre de 2 m en pente.
 - **Problème** : sur terrain exact, un talus de 1 m à 50 % sort à 33 %, à 20 % sort à 17 %, à 100 % (2 m) sort à 67 %, et un
@@ -225,7 +225,7 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
 ### Ordre proposé
 
 1. ~~P10~~ (fait le 19/11/2026, avec le premier test du banc synthétique : début de P1).
-2. P7 et P8 ensemble (ils se tiennent), cas tests du banc, puis vérification sur routes réelles avec l'analyse fine (P2).
+2. ~~P7 et P8~~ (faits le 19/11/2026 ; reste la vérification sur routes réelles, P2).
 3. P9.
 4. G1, G2, G3.
 5. P5 (annuler 306eae1), P12.

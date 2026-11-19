@@ -346,6 +346,50 @@ class BordsEnrobe(unittest.TestCase):
         self.assertEqual(len(reads), 1)  # sans relire le terrain
 
 
+class BordsTalus(unittest.TestCase):
+    """Bord, chute et dévers sur des talus de géométrie connue (App._compute_edges, terrain synthétique sans bruit) : le bord
+    tombait 0,5 m avant la rupture (fenêtre de 1 m qui la voit avant d'y arriver), le dévers comptait le plat du haut et du
+    fond (talus à 50 % lu à 33 %)."""
+
+    def profile(self, start, slope, depth, kerb=0.0):
+        """Plat jusqu'à start m de l'axe, marche de kerb m, talus de pente slope sur depth m de haut, puis fond plat."""
+        lon, lat = 5.0, 47.0
+        calc = App.__new__(App)
+        calc.edges, calc.paved, calc.paved_redo = {}, {}, {}
+        calc.notify = lambda: None
+
+        def z(x):
+            a = abs(x)
+            return 0.0 if a <= start else -kerb - min(depth, (a - start) * slope)
+        calc._terrain = lambda points, done: done(
+            [z(web_app.triangulation._local(p[0], p[1], lon, lat)[0]) for p in points], web_app.triangulation.LIDAR_NAME, None)
+        key = ("photo", 10, False)
+        calc._compute_edges(key, [(0.0, -200.0), (0.0, 200.0)], 200.0, 8.0, 0.0, lon, lat)
+        profile = calc.edges[key]["profile"]
+        bord = next(e for e in profile["profils"] if e["cote"] == "droit" and e["le_long"] == 0)["bord"]
+        return bord, profile["resultats"]["droit"]
+
+    def test_bord_a_la_rupture(self):
+        for start, slope, depth in ((4.0, 0.5, 1.0), (4.0, 0.2, 1.0), (4.0, 1.0, 2.0), (4.5, 0.5, 3.0)):
+            bord, _ = self.profile(start, slope, depth)
+            self.assertAlmostEqual(bord, start, delta=0.01, msg=(start, slope, depth))
+        for start in (4.1, 4.25, 4.4):  # entre deux points (pas de 0,5 m) : le dernier point de la chaussée
+            bord, _ = self.profile(start, 0.5, 1.0)
+            self.assertAlmostEqual(bord, 4.0, delta=0.01, msg=start)
+
+    def test_bordure(self):
+        bord, r = self.profile(4.0, 0.5, 1.0, kerb=0.15)
+        self.assertAlmostEqual(bord, 4.0, delta=0.01)
+        self.assertAlmostEqual(r["chute"][0], 1.15, delta=0.01)
+
+    def test_devers_du_talus(self):
+        for slope, depth in ((0.5, 1.0), (0.2, 1.0), (1.0, 2.0), (0.5, 3.0)):
+            _, r = self.profile(4.0, slope, depth)
+            self.assertAlmostEqual(r["chute"][0], depth, delta=0.01)
+            self.assertAlmostEqual(r["devers"][0], slope, delta=0.02, msg=(slope, depth))
+            self.assertAlmostEqual(r["devers"][4], depth, delta=0.05)  # hauteur du talus (pied à EDGE_FLAT près)
+
+
 class BordsVoisins(unittest.TestCase):
     """Travers sans rupture de pente ramené au bord médian des autres (App._edge_reads) : d'après les travers voisins, pas
     « rupture de pente » (il était compté comme trouvé dans le relief)."""

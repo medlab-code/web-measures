@@ -417,7 +417,8 @@ après.
   - **bord de la chaussée** : premier point, à 1,5 m au moins de l'origine, d'où la pente du
     terrain sur 1 m s'écarte de plus de 8 points de celle de la chaussée sous l'origine, dans
     le même sens, sur trois pas de suite (fossé, talus), ou d'où le terrain fait une marche de 5 cm
-    ou plus sur 0,5 m qui tient sur 1,5 m (bordure, accotement plus bas) ; sans rupture de pente
+    ou plus sur 0,5 m qui tient sur 1,5 m (bordure, accotement plus bas), avancé d'un pas si ce
+    pas suit encore la pente de la chaussée (le dernier point de la chaussée) ; sans rupture de pente
     (accotement de plain-pied), la demi-largeur BD TOPO (sinon 3 m) ; l'infobulle dit où le bord
     a été trouvé, et comment ; dès 3 travers trouvés dans le relief d'un côté, un travers sans
     rupture de pente, ou au bord à plus de 3 m de leur médiane (une marche dans la chaussée, un bord
@@ -443,7 +444,8 @@ après.
     sur les cinq travers, de son haut à son pied (hauteur divisée par largeur), en % et en degrés,
     avec sa hauteur ; le talus est la partie d'une descente (pente lue sur 2 m d'au moins 10 %)
     dont la pente vaut au moins le tiers de la plus forte : ni l'accotement en pente douce
-    au-dessus, ni la queue du pied.
+    au-dessus, ni la queue du pied ; son haut est le dernier point avant la descente, son pied
+    le premier point à 5 cm du plus bas.
 
   Sinon s'affichent « Calcul en cours… », « Aucun bord ne descend de 0,5 m ou plus », « Pas de
   route de la BD TOPO à moins de 15 m » ou « Calcul impossible » avec sa cause.
@@ -861,6 +863,8 @@ Chute et dévers des bords de route : la chute est une différence de deux altit
 modèle de terrain (±0,1 m en LiDAR HD, ±0,4 m en RGE ALTI). Le dévers est une pente moyenne,
 du haut au pied du talus : le haut et le pied sont placés au pas des points près (0,5 m près
 du bord, 0,6 m au-delà pour 10 m examinés, 1,9 m pour 30 m), ce qui pèse sur un talus court.
+Sur des talus synthétiques sans bruit (20 à 100 %), bord et dévers tombent juste ; avec un bruit
+de 3 à 5 cm d'un point à l'autre, le dévers reste à 2 points près en moyenne.
 Sous des arbres ou un mur, le modèle de terrain est interpolé et adoucit la pente. Le bord de
 la chaussée vient d'une rupture de pente du terrain, sinon des travers voisins ou de la largeur
 BD TOPO. Pas encore

@@ -541,6 +541,7 @@ class Chutes:
     EDGE_WINDOW = 2.0  # m en travers : pente lue entre deux points au moins aussi écartés (bruit du MNT ±5 cm)
     EDGE_TALUS = 0.10  # pente vers le bas (sur EDGE_WINDOW m) d'une descente : en dessous, plat
     EDGE_CORE = 1 / 3  # talus : partie de la descente dont la pente vaut au moins ce rapport de sa pente la plus forte
+    EDGE_FLAT = 0.05  # m : pied du talus, et point le plus bas de la chute, le plus proche du bord à cela près du plus bas
     EDGE_STEP = 0.5  # m entre deux points du profil, de l'origine jusqu'à EDGE_SEARCH m après le bord BD TOPO
     EDGE_SEARCH = 3.0  # m au-delà du bord BD TOPO où la rupture de pente est encore cherchée
     EDGE_BREAK = 0.08  # écart de pente sur 1 m à celle de la chaussée sous l'origine : bord (bombement : ~0,05)
@@ -1061,7 +1062,9 @@ class Chutes:
         l'axe de l'autre chaussée, à beyond m), d'où la pente sur 1 m s'écarte de plus de EDGE_BREAK de celle de
         la chaussée sous l'origine (ou sous l'axe de l'autre), dans le même sens sur EDGE_HOLD pas, ou d'où le
         terrain marque une marche (bordure, accotement plus bas : STEP_Z), jusqu'à reach m ; sinon None (le bord BD
-        TOPO)."""
+        TOPO). La pente sur 1 m voit la rupture jusqu'à 1 m avant elle : le bord avance d'un pas tant que la pente de
+        ce pas reste celle de la chaussée (à EDGE_BREAK près), soit le dernier point de la chaussée (0,5 m plus tôt
+        sinon : piste P7 de docs/analyses/pistes-profil.md)."""
         slope = self._edge_slope
         start = min(range(len(offsets)), key=lambda k: abs(offsets[k] - beyond))
         road = slope(z, offsets, start, 1.0)
@@ -1074,6 +1077,12 @@ class Chutes:
                 return i
             d = [slope(z, offsets, k, 1.0) for k in range(i, i + self.EDGE_HOLD)]
             if None not in d and (all(v - road > self.EDGE_BREAK for v in d) or all(road - v > self.EDGE_BREAK for v in d)):
+                # dans la fenêtre de 1 m, un point au plus encore sur la chaussée (pas de EDGE_STEP m)
+                j = i + 1
+                if (j < len(offsets) and offsets[j] - offsets[i] <= self.EDGE_STEP + 1e-6 and offsets[j] <= reach
+                        and z[i] is not None and z[j] is not None
+                        and abs((z[i] - z[j]) / (offsets[j] - offsets[i]) - road) <= self.EDGE_BREAK):
+                    return j
                 return i
         return None
 
@@ -1195,7 +1204,7 @@ class Chutes:
                 zz, oo, end = zz[:cut], oo[:cut], float("inf")
             # point le plus bas le plus proche du bord (à 5 cm près) : le pied du talus
             low = max(((zz[0] - v, o) for v, o in zip(zz, oo) if v is not None),
-                      key=lambda c: (round(c[0] / 0.05), -c[1]))
+                      key=lambda c: (round(c[0] / self.EDGE_FLAT), -c[1]))
             if found[name][0] is None or low[0] > found[name][0][0]:
                 found[name][0] = low + (end, along)
             # Dévers : pente moyenne du talus le plus raide (FALL_MIN m de haut au moins), du haut au pied,
@@ -1324,8 +1333,10 @@ class Chutes:
     def _taluses(self, zz, oo, slopes):
         """Talus d'un travers, depuis le bord : [(pente moyenne, haut et pied en m du bord, hauteur)]. Talus : pentes sur
         EDGE_WINDOW m (slopes, une par point) d'au moins EDGE_TALUS, resserrées autour de la plus forte sur celles d'au moins
-        EDGE_CORE fois elle (sans l'accotement en pente douce ni la queue du pied) ; pied : point le plus bas jusqu'au bout
-        de la dernière fenêtre en pente."""
+        EDGE_CORE fois elle (sans l'accotement en pente douce ni la queue du pied). Les fenêtres de EDGE_WINDOW m débordent
+        sur le plat du haut et du fond : le haut avance tant que le pas suivant descend de moins de EDGE_TALUS / 2, le pied
+        est le premier point à EDGE_FLAT m du plus bas (jusqu'au bout de la dernière fenêtre en pente) ; sinon le talus
+        compte ces plats et sa pente est minorée (50 % lu à 33 % : piste P8 de docs/analyses/pistes-profil.md)."""
         out, k = [], 0
         while k < len(oo):
             if slopes[k] < self.EDGE_TALUS:
@@ -1343,6 +1354,10 @@ class Chutes:
                 end += 1
             last = next((j for j in range(end - 1, len(oo)) if oo[j] - oo[end - 1] >= self.EDGE_WINDOW - 1e-6), len(oo) - 1)
             foot = min((j for j in range(top, last + 1) if zz[j] is not None), key=lambda j: zz[j])
+            foot = next(j for j in range(top, foot + 1) if zz[j] is not None and zz[j] <= zz[foot] + self.EDGE_FLAT)
+            while (top + 1 < foot and zz[top] is not None and zz[top + 1] is not None
+                   and zz[top] - zz[top + 1] < self.EDGE_TALUS / 2 * (oo[top + 1] - oo[top])):
+                top += 1
             height = zz[top] - zz[foot]
             out.append((height / (oo[foot] - oo[top]) if foot > top else 0, oo[top], oo[foot], height))
         return out

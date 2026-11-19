@@ -269,6 +269,11 @@ Sur chaque travers, à 1,5 m au moins de l'origine, le bord est le premier point
 - ou à une **marche** de 5 cm ou plus sur 0,5 m qui tient sur 1,5 m (bordure, accotement plus
   bas).
 
+La pente sur 1 m voit la rupture jusqu'à 1 m avant elle : le bord avance d'un pas (0,5 m) si la
+pente de ce pas est encore celle de la chaussée (8 points près). C'est le dernier point de la
+chaussée ; avant, le bord tombait 0,5 m trop tôt (jusqu'à 0,9 m), la plateforme était donc trop
+étroite d'environ 1 m (terrain synthétique, `BordsTalus`).
+
 Sans rupture de pente (accotement de plain-pied), le bord est à la demi-largeur BD TOPO
 (sinon 3 m). Dès que 3 travers au moins d'un côté trouvent leur bord dans le relief, leur
 **médiane** (basse : le bord le plus proche) sert aux autres : un travers sans rupture de pente, ou
@@ -307,7 +312,10 @@ Le profil dit d'où il vient : « (relief) », « (BD TOPO) » ou « (nuage LiDA
   sur les cinq travers, de son haut à son pied (hauteur divisée par largeur), en % et en degrés.
   Le talus est la partie d'une descente (pente lue sur 2 m d'au moins 10 %) dont la pente vaut au
   moins le **tiers** de la plus forte. Cela écarte l'accotement en pente douce au-dessus et la
-  queue du pied.
+  queue du pied. Les pentes sur 2 m débordent sur le plat du haut et du fond : le haut avance tant
+  que le pas suivant descend de moins de 5 %, le pied est le premier point à **5 cm** du plus bas.
+  Sans cela, un talus de 1 m à 50 % se lisait 33 % (terrain synthétique, `BordsTalus` dans
+  `tests/test_calculs.py`).
 
 ### 8.5 Eau
 
