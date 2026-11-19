@@ -1056,8 +1056,8 @@ html.souris-immobile:fullscreen :is(#plein-ecran, header .captures, #voyants, .b
   color: inherit;
 }
 #reglage-image button:not(:disabled) { cursor: pointer; }
-#reglage-image #defauts { align-self: center; margin-top: 0.2rem; }
-#reglage-image #defauts[aria-pressed="true"] { background: #ffd900; color: #18191c; }
+#reglage-image :is(#defauts, #rugosite) { align-self: center; margin-top: 0.2rem; }
+#reglage-image :is(#defauts, #rugosite)[aria-pressed="true"] { background: #ffd900; color: #18191c; }
 #reglage-image button:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }
 #reglage-image button:disabled { opacity: 0.6; }
 canvas.defauts[hidden] { display: none; }

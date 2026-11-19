@@ -28,12 +28,15 @@ const Disposition = {
       applique();
     }
 
-    const defauts = $("#defauts");  // CLAHE + Sobel : défauts de la route (affichage seulement, non mémorisé)
-    defauts.addEventListener("click", () => {
-      const allume = defauts.getAttribute("aria-pressed") !== "true";
-      if (!Defauts.set(allume)) { setStatus("Filtre des défauts de la route impossible : WebGL 2 absent ou visionneuse pas prête.", "echec"); return; }
-      defauts.setAttribute("aria-pressed", String(allume));
-    });
+    // Fissures et nids de poule (CLAHE + Sobel), rugosité : l'un ou l'autre, affichage seulement (non mémorisé)
+    const filtres = [[$("#defauts"), 1], [$("#rugosite"), 2]];
+    for (const [bouton, mode] of filtres) {
+      bouton.addEventListener("click", () => {
+        const allume = bouton.getAttribute("aria-pressed") !== "true";
+        if (!Defauts.set(allume ? mode : 0)) { setStatus("Filtre de la chaussée impossible : WebGL 2 absent ou visionneuse pas prête.", "echec"); return; }
+        for (const [autre, m] of filtres) autre.setAttribute("aria-pressed", String(allume && m === mode));
+      });
+    }
 
     // Hauteur de la carte : poignée à glisser (mémorisée), bouton pour la replier --------------
 

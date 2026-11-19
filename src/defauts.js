@@ -17,6 +17,7 @@ const Defauts = (() => {
   const GRID = 8, ROWS = 6, TILE_W = 20, TILE_H = 16;  // cases du CLAHE et leur taille dans l'image réduite
   const BINS = 64, CLIP = 2;  // classes de luminosité par table ; limite de l'histogramme (× la moyenne)
   const CRACK = "vec2(0.20, 0.40)", HOLE = "vec2(0.14, 0.30)";  // seuils (part de luminosité perdue) des fissures et des nids de poule
+  const VEHICLE_PITCH = -0.44;  // rad (-25°) : sous cet angle, le véhicule cache le sol (contour CD21 : -25° devant et derrière, -45° sur les côtés) ; ignoré
   const STEP = 3;  // px entre deux lectures de Sobel : à 1 px, il suit le grain de l'enrobé, qui s'allume partout
 
   const VERTEX = `#version 300 es
@@ -34,7 +35,7 @@ const Defauts = (() => {
     precision highp float;
     #define CRACK ${CRACK}
     #define HOLE ${HOLE}
-    uniform sampler2D photo, lut; uniform vec2 texel, grid, unit; uniform float bins, lodBias, horizon;
+    uniform sampler2D photo, lut; uniform vec2 texel, grid, unit; uniform float bins, lodBias, horizon, vehicule, mode;
     in vec2 uv; out vec4 color;
     float eq(vec2 at) {  // luminosité égalisée : tables des quatre cases voisines, mélangées
       float l = dot(textureLod(photo, at, 0.0).rgb, vec3(0.299, 0.587, 0.114));
@@ -61,7 +62,26 @@ const Defauts = (() => {
       }
       return best;
     }
+    // Rugosité : écart moyen de luminosité des pixels voisins (2 px) à la moyenne locale, relatif à celle-ci ; lisse (enrobé
+    // sain) sous 0,03, gravillons déchaussés ou enrobé écaillé au-delà de 0,09 ; la végétation est écartée (couleur)
+    float rugosite() {
+      float mean = lum(uv, 2.5), sum = 0.0;
+      for (int k = 0; k < 8; k++) {
+        float t = float(k) * 0.7853982;
+        sum += abs(lum(uv + vec2(cos(t), sin(t)) * unit * 2.0, 0.0) - mean);
+      }
+      return sum / 8.0 / max(mean, 0.05);
+    }
     void main() {
+      float zone = smoothstep(horizon - 0.10, horizon - 0.16, uv.y) * smoothstep(vehicule, vehicule + 0.03, uv.y);  // chaussée proche, hors véhicule
+      if (mode > 1.5) {
+        vec3 rgbLocal = textureLod(photo, uv, 1.5 + lodBias).rgb;
+        float vegetation = smoothstep(0.0, 0.05, rgbLocal.g - max(rgbLocal.r, rgbLocal.b * 1.05));  // herbe et feuillage : toujours rugueux, écartés
+        float r = smoothstep(0.025, 0.09, rugosite()) * zone * (1.0 - vegetation);
+        vec3 chaud = mix(vec3(1.0, 0.85, 0.1), vec3(1.0, 0.1, 0.05), smoothstep(0.5, 1.0, r));
+        color = vec4(mix(vec3(eq(uv)), chaud, r * 0.85), 1.0);
+        return;
+      }
       float a = eq(uv + texel * vec2(-1.0, -1.0)), b = eq(uv + texel * vec2(0.0, -1.0)), c = eq(uv + texel * vec2(1.0, -1.0));
       float d = eq(uv + texel * vec2(-1.0, 0.0)),  e = eq(uv),                             f = eq(uv + texel * vec2(1.0, 0.0));
       float g = eq(uv + texel * vec2(-1.0, 1.0)),  h = eq(uv + texel * vec2(0.0, 1.0)),   i = eq(uv + texel * vec2(1.0, 1.0));
@@ -69,12 +89,12 @@ const Defauts = (() => {
       float contour = smoothstep(0.9, 2.2, m) * 0.5;
       // Fissures : traits fins plus sombres que leur voisinage proche ; nids de poule : plages plus sombres que leur voisinage large
       float defaut = max(smoothstep(CRACK.x, CRACK.y, vallee(3.0, 1.0)), smoothstep(HOLE.x, HOLE.y, vallee(12.0, 2.5)));
-      defaut *= smoothstep(horizon - 0.10, horizon - 0.16, uv.y);  // ni au-dessus de l'horizon ni au loin (quelques px par défaut : trop fin)
+      defaut *= zone;  // ni au-dessus de l'horizon, ni au loin (quelques px par défaut : trop fin), ni sur le véhicule
       vec3 rgb = mix(vec3(e), vec3(1.0, 0.85, 0.1), contour);
       color = vec4(mix(rgb, vec3(1.0, 0.1, 0.05), defaut), 1.0);
     }`;
 
-  let psv = null, photo = null, canvas = null, gl = null, on = false;
+  let psv = null, photo = null, canvas = null, gl = null, mode = 0;  // 0 éteint, 1 fissures et nids de poule, 2 rugosité
   let big = null, small = null, smallBuffer = null, lutTexture = null, bigTexture = null, smallTexture = null;
   const pixels = new Uint8Array(GRID * TILE_W * ROWS * TILE_H * 4);
   const lut = new Uint8Array(GRID * BINS * ROWS);
@@ -159,7 +179,7 @@ const Defauts = (() => {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     photo.after(canvas);
     psv = viewer;
-    psv.addEventListener("render", () => { if (on) draw(); });
+    psv.addEventListener("render", () => { if (mode) draw(); });
     return true;
   }
 
@@ -198,18 +218,22 @@ const Defauts = (() => {
     gl.uniform1f(gl.getUniformLocation(big, "bins"), BINS);
     const view = psv.getPosition(), at = psv.dataHelper.sphericalCoordsToViewerCoords({ yaw: view.yaw, pitch: 0 });
     gl.uniform1f(gl.getUniformLocation(big, "horizon"), 1 - at.y / psv.container.clientHeight);  // ligne d'horizon (pitch 0) en bas = 0
+    const bas = psv.dataHelper.sphericalCoordsToViewerCoords({ yaw: view.yaw, pitch: VEHICLE_PITCH });
+    gl.uniform1f(gl.getUniformLocation(big, "vehicule"), 1 - bas.y / psv.container.clientHeight);  // sous cette hauteur : le véhicule
+    gl.uniform1f(gl.getUniformLocation(big, "mode"), mode);
     gl.uniform1f(gl.getUniformLocation(big, "lodBias"), Math.log2(canvas.width / 1000));  // mêmes tailles en px pour toute résolution d'écran
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
-  /** Allume ou éteint le filtre ; false : impossible (visionneuse pas prête ou WebGL 2 absent). */
+  /** Choisit le filtre : 0 éteint, 1 fissures et nids de poule, 2 rugosité de la chaussée ; false : impossible
+   * (visionneuse pas prête ou WebGL 2 absent). */
   function set(value) {
     if (value && !psv) return false;
-    on = Boolean(value);
-    if (canvas) canvas.hidden = !on;
+    mode = Number(value) || 0;
+    if (canvas) canvas.hidden = !mode;
     psv?.needsUpdate();
     return true;
   }
 
-  return { attach, set, get on() { return on; } };
+  return { attach, set, get mode() { return mode; } };
 })();
