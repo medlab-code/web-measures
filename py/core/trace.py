@@ -32,15 +32,18 @@ Calculs numpy seuls. Coordonnées métriques locales (est, nord) : voir triangul
 import math
 from itertools import pairwise
 
-KNOT = 15.0  # m : écart des nœuds de courbure
+KNOT = 8.0  # m : écart des nœuds de courbure (à 15 m, l'écart au modèle restait à 0,9 m sur une route de village aux virages de 30 à 100 m de rayon)
 FINE = 1.0  # m : pas d'intégration du modèle
-REG = 300.0  # poids final de la pénalité sur la dérivée seconde de κ (m, car κ en 1/m)
+REG = 30.0  # poids final de la pénalité sur la dérivée seconde de κ (m, car κ en 1/m)
 REG_PER_M2 = 3.0e6  # pénalité par m² de variance du bruit des positions : plus elles sont bruitées, plus κ est lissé
-SMOOTH = 40.0  # m : longueur d'onde du lissage de départ (voir _start)
+SMOOTH = 20.0  # m : longueur d'onde du lissage de départ (voir _start)
 GRID = 2.5  # m : pas du lissage de départ
 KAPPA_TOL = 2.5e-4  # 1/m : tolérance du découpage (R = 4 000 m)
 STRAIGHT_R = 4000.0  # m : plus grand que cela, droite
 FLAT = 0.2  # un morceau est un arc si sa courbure varie de moins de 20 % de sa valeur moyenne (l'ajustement la laisse dériver de 10 % sur un arc)
+CURVE_R = 500.0  # m : sous ce rayon (|κ| > 1/CURVE_R), la route est en courbe
+CURVE_MIN = 12.0  # m : longueur minimale d'une courbe
+CURVE_GAP = 10.0  # m : deux portions de même sens plus proches que cela ne font qu'une courbe
 MIN_LENGTH = 6.0  # m : un morceau plus court est absorbé par son voisin
 PLATEAU = 0.25  # des morceaux voisins forment un arc si les courbures à leurs extrémités restent à ± 25 % de leur moyenne (à 40 %, les bouts des clothoïdes sont pris dans l'arc : rayon + 4 %)
 PLATEAU_LENGTH = 25.0  # m : longueur minimale d'un arc regroupé
@@ -247,6 +250,42 @@ def _plateaus(np, pieces, s, k):
     return out
 
 
+def _curves(np, s, k):
+    """Courbes de κ(s) : portions où |κ| dépasse 1/CURVE_R, de sens constant, d'au moins CURVE_MIN m. Chacune :
+    s0, s1, length, sense, r_min (rayon au plus serré, m), r_typ (rayon à la courbure médiane), angle (degrés,
+    rotation totale du cap), cut (coupée par le bord de la suite : le début ou la fin est en dehors). Sur une
+    route de village, la courbure change sans cesse : le découpage en arcs et clothoïdes idéaux (_elements)
+    varie d'un réglage à l'autre, la courbure elle-même non (corrélation de 0,99 entre KNOT = 6 et 12 m)."""
+    runs, i, n = [], 0, len(s)
+    while i < n:
+        if abs(k[i]) > 1 / CURVE_R:
+            sign = k[i] > 0
+            j = i
+            while j < n and abs(k[j]) > 1 / CURVE_R and (k[j] > 0) == sign:
+                j += 1
+            runs.append([i, j - 1, sign])
+            i = j
+        else:
+            i += 1
+    merged = []
+    for run in runs:
+        if merged and merged[-1][2] == run[2] and s[run[0]] - s[merged[-1][1]] < CURVE_GAP:
+            merged[-1][1] = run[1]
+        else:
+            merged.append(run)
+    out = []
+    for a, b, sign in merged:
+        length = float(s[b] - s[a])
+        if length < CURVE_MIN:
+            continue
+        seg = abs(k[a:b + 1])
+        angle = abs(float(np.sum((k[a:b] + k[a + 1:b + 1]) / 2 * np.diff(s[a:b + 1]))))
+        out.append({"s0": float(s[a]), "s1": float(s[b]), "length": length, "sense": "gauche" if sign else "droite",
+                    "r_min": 1 / float(seg.max()), "r_typ": 1 / float(np.median(seg)), "angle": math.degrees(angle),
+                    "cut": bool(a == 0 or b == n - 1)})
+    return out
+
+
 def _elements(np, s, k):
     """Découpe κ(s) en éléments (voir le haut du fichier)."""
     cuts = _douglas_peucker(s, k, KAPPA_TOL)
@@ -300,7 +339,8 @@ def _elements(np, s, k):
 def fit(points):
     """Tracé en plan des positions `points` [(x, y)] en m (une suite ordonnée, dans le sens de la marche).
 
-    Retourne {"elements": [...], "s": abscisses des nœuds, "kappa": courbure aux nœuds, "rms": distance
+    Retourne {"curves": [...] (voir _curves), "elements": [...], "curve": (abscisses, x, y de la courbe ajustée, pas de
+    1 m), "s": abscisses des nœuds, "kappa": courbure aux nœuds, "rms": distance
     quadratique moyenne (m) des positions au modèle, "length": longueur (m)}. Chaque élément : type
     ("droite", "arc", "clothoide"), s0, s1, length (m), k0, k1 (1/m, positive vers la gauche), sense
     ("gauche"/"droite"), radius (arc, m) ou parameter (clothoïde, A en m). None si moins de 3 positions
@@ -325,5 +365,29 @@ def fit(points):
     model = _Model(np, knots, s)
     r = model.residuals(params, pts)[:2 * len(pts)]
     fine_k = np.interp(model.fine, knots, params[3:])
-    return {"elements": _elements(np, model.fine, fine_k), "s": knots, "kappa": params[3:],
+    x, y, _ = model.curve(params)
+    return {"elements": _elements(np, model.fine, fine_k), "curves": _curves(np, model.fine, fine_k),
+            "curve": (model.fine, x, y), "s": knots, "kappa": params[3:],
             "rms": float(math.sqrt(float(r @ r) / len(pts))), "length": float(knots[-1])}
+
+
+def plan(coords):
+    """Tracé en plan des positions `coords` [[lon, lat]] (une suite ordonnée), pour la carte : courbes et éléments,
+    chacun avec sa géométrie [[lon, lat]] (un point tous les 2 m) ; None si la suite est trop courte. Résultat
+    en types JSON (appelé en arrière-plan : web_worker.call)."""
+    from .triangulation import _geographic, _local
+
+    lon0, lat0 = coords[0]
+    result = fit([_local(lon, lat, lon0, lat0) for lon, lat in coords])
+    if not result:
+        return None
+    fine_s, xs, ys = result["curve"]
+
+    def geometry(s0, s1):
+        picks = [i for i in range(len(fine_s)) if s0 - 1e-6 <= fine_s[i] <= s1 + 1e-6][::2]
+        return [list(_geographic(float(xs[i]), float(ys[i]), lon0, lat0)) for i in picks]
+
+    for item in result["curves"] + result["elements"]:
+        item["coords"] = geometry(item["s0"], item["s1"])
+    return {"curves": result["curves"], "elements": result["elements"], "length": result["length"], "rms": result["rms"],
+            "photos": len(coords)}

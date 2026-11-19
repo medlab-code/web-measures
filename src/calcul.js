@@ -148,5 +148,5 @@ const Calcul = (() => {
     return webApp.App(notify, worker ? runRemote : null, apiUrl);
   }
 
-  return { startCalcul, capture, hasWorker: () => worker !== null };
+  return { startCalcul, capture, call: runRemote, hasWorker: () => worker !== null };
 })();

@@ -1606,6 +1606,27 @@ const Carte = (() => {
   }
   const SEARCH_LIMIT = 50, SEARCH_LIMIT_FILTERED = 1000;
 
+  /** Photos de la séquence `collection` dans un carré de `radius` m de demi-côté autour du point, dans l'ordre de la
+   * séquence : [{ id, rank, coords }]. Seule la suite continue (rangs consécutifs) qui contient la photo la plus proche
+   * du point est gardée : une route qui se recoupe, ou revient sur ses pas, ne mêle pas ses passages. */
+  async function sequencePhotos(collection, lng, lat, radius = 500) {
+    const dlat = radius / 111320;
+    const dlon = radius / (111320 * Math.cos(lat * Math.PI / 180));
+    const bbox = [lng - dlon, lat - dlat, lng + dlon, lat + dlat].map((v) => v.toFixed(7)).join(",");
+    const response = await fetch(`${apiUrl}/search?collections=${encodeURIComponent(collection)}&bbox=${bbox}&limit=1000`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const photos = ((await response.json()).features || [])
+      .map((f) => ({ id: f.id, rank: Number(f.properties?.["geovisio:rank_in_collection"]), coords: f.geometry?.coordinates }))
+      .filter((p) => Number.isInteger(p.rank) && p.coords).sort((a, b) => a.rank - b.rank);
+    if (!photos.length) return [];
+    let near = 0;
+    photos.forEach((p, i) => { if (metresBetween([lng, lat], p.coords) < metresBetween([lng, lat], photos[near].coords)) near = i; });
+    let a = near, b = near;
+    while (a > 0 && photos[a].rank - photos[a - 1].rank <= 1) a--;
+    while (b < photos.length - 1 && photos[b + 1].rank - photos[b].rank <= 1) b++;
+    return photos.slice(a, b + 1);
+  }
+
   /** Fiche STAC d'une photo, par son identifiant. */
   async function photoById(id) {
     const response = await fetch(`${apiUrl}/search?ids=${encodeURIComponent(id)}`);
@@ -1619,6 +1640,6 @@ const Carte = (() => {
     createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, instances, setInstance, setFilter,
     showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre,
     onAim: (fn) => { aimListener = fn; }, aimedParcel: aimedParcelNow, apiUrl: () => apiUrl,
-    capture, nearestPhoto, photosNear, photoById, metresBetween,
+    capture, nearestPhoto, photosNear, sequencePhotos, photoById, metresBetween,
   };
 })();

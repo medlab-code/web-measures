@@ -293,6 +293,23 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .maplibregl-ctrl button.birdeye-carte:disabled { opacity: 0.5; cursor: default; }
 .maplibregl-ctrl button.birdeye-carte:not(:disabled):hover { background: #eee; }
 .maplibregl-ctrl button.birdeye-carte[aria-pressed="true"]:not(:disabled):hover { background: var(--panoramax); filter: brightness(1.1); }
+/* Rayon des courbes (src/courbes.js) : bouton de la carte, enfoncé en orange comme les autres */
+.maplibregl-ctrl button.courbes-carte { color: #333; }
+.maplibregl-ctrl button.courbes-carte[aria-pressed="true"] { background: var(--panoramax); color: #fff; }
+.maplibregl-ctrl button.courbes-carte svg { display: block; margin: auto; }
+/* Fiche de la courbe survolée (maquette D) */
+.popup-courbe .maplibregl-popup-content { padding: 12px 14px; border-radius: 8px; font: 12px/16px system-ui, sans-serif; color: #1f2328; }
+.fiche-courbe .titre { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.fiche-courbe .pastille { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.fiche-courbe p { margin: 4px 0 8px; color: #57606a; font-size: 11px; line-height: 15px; }
+.fiche-courbe p.note { margin: 8px 0 0; }
+.fiche-courbe table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.fiche-courbe th { padding: 3px 8px 3px 0; text-align: left; font-weight: 500; color: #57606a; font-size: 11px; }
+.fiche-courbe td { padding: 3px 8px 3px 0; }
+.fiche-courbe tr.courante { background: #fff3d6; font-weight: 600; }
+.fiche-courbe .boutons { display: flex; gap: 8px; margin-top: 10px; }
+.fiche-courbe .boutons button { height: 30px; padding: 0 12px; border: 1px solid #d0d7de; border-radius: 6px; background: #f6f8fa;
+  font: 500 12px system-ui, sans-serif; color: #1f2328; cursor: pointer; }
 /* Capture de la carte, à droite du faucon, même hauteur */
 .maplibregl-ctrl button.capture-carte { width: 43px; height: 43px; margin-left: 6px; padding: 0; border: 0; border-radius: 4px; background: #fff;
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); color: #333; cursor: pointer; vertical-align: top; display: inline-grid; place-items: center; }

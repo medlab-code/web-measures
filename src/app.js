@@ -812,6 +812,9 @@
     get stopPlayer() { return stopPlayer; },
   });
 
+  // Rayon des courbes au survol du filaire (tracé en plan, py/core/trace.py) : src/courbes.js
+  Courbes.init({ map, setStatus, notice, download, exportName, openPhoto });
+
   // Couche importée dans la page (filtre, tableau des objets, recalages, ajout) et import commun : src/objets.js
   const {
     restoreOverlay, addObjectAt, setAddingObject, overlayAt, overlayProperties, overlayLabels, showObjectState,

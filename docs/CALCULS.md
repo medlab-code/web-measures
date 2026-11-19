@@ -651,45 +651,49 @@ hauteur à ±2 à 3 m. Les essais et leurs valeurs attendues sont dans le guide 
 
 ## 13. Tracé en plan : rayon des courbes (`py/core/trace.py`)
 
-Pas encore relié à la page : cœur de calcul et tests seulement (`tests/coeur/test_trace.py`).
+Affiché sur la carte au survol du filaire (bouton « rayon » ; `src/courbes.js`, voir `docs/GUIDE.md`). Cœur de calcul :
+`tests/coeur/test_trace.py`.
 
-Les positions des photos d'une séquence (mètres, plan tangent) donnent le tracé en plan de la route
-comme le restitue un logiciel de tracé routier : suite d'**alignements** (droites), de **clothoïdes**
-(raccordements progressifs, courbure qui varie linéairement) et d'**arcs** de cercle, à courbure
-continue. Le rayon de chaque arc, le paramètre A (A² = R·L) de chaque clothoïde, le sens des virages
-et leurs abscisses en sortent.
+Les positions des photos d'une séquence (mètres, plan tangent) donnent le tracé en plan de la route : la courbure
+κ(s) = 1/R (positive vers la gauche) le long de la route, d'où l'on tire des **courbes** (ce que la carte affiche) et,
+à titre indicatif, des **éléments** de tracé (alignements, clothoïdes, arcs, comme un logiciel de tracé routier).
 
-1. **Modèle.** La courbure κ(s) = 1/R (positive vers la gauche) est linéaire par morceaux entre des
-   nœuds tous les 15 m. Le cap en est l'intégrale, la position l'intégrale du cap : la trajectoire
-   se décrit par κ aux nœuds et la pose de départ. Une clothoïde est une rampe de κ, un arc un
-   palier, une droite un palier à zéro.
-2. **Départ.** Lissage linéaire des positions (spline de Whittaker, longueur d'onde 40 m), dont on
-   tire le cap, la courbure et l'abscisse curviligne. Sans lui, l'ajustement s'enlise dans un minimum
-   local : la position est l'intégrale double de κ, le problème n'est pas convexe.
-   L'abscisse de chaque photo est son pied sur la courbe lissée (puis sur la courbe ajustée, trois
-   fois), **pas la somme des cordes** : avec 1 m de bruit tous les 5 m, les cordes allongent le trajet
-   de 4 % et le modèle compense par des oscillations de courbure.
-3. **Ajustement.** Moindres carrés non linéaires (Levenberg-Marquardt, jacobien numérique) de la
-   distance au modèle, avec une pénalité sur la dérivée seconde de κ (300, ou 3·10⁶ × σ² si les
-   positions sont bruitées) et sur l'écart de κ entre les deux premiers et derniers nœuds (κ y est
-   mal observé). σ, l'écart type du bruit, vient des dérivées troisièmes de la suite (presque nulles
-   sur un arc : la courbure n'y compte pas).
-4. **Découpage.** Douglas-Peucker sur (s, κ) à 2,5·10⁻⁴ m⁻¹, puis classement : droite (R > 2 700 m),
-   arc (courbure variant de moins de 20 %), clothoïde. Raccords de moins de 15 m absorbés, morceaux
-   voisins regroupés en un arc quand leurs courbures restent à ± 25 % de leur moyenne.
+1. **Modèle.** κ(s) est linéaire par morceaux entre des nœuds tous les 8 m. Le cap en est l'intégrale, la position
+   l'intégrale du cap : la trajectoire se décrit par κ aux nœuds et la pose de départ.
+2. **Départ.** Lissage linéaire des positions (spline de Whittaker, longueur d'onde 20 m), dont on tire le cap, la
+   courbure et l'abscisse curviligne. Sans lui, l'ajustement s'enlise dans un minimum local : la position est
+   l'intégrale double de κ, le problème n'est pas convexe. L'abscisse de chaque photo est son pied sur la courbe lissée
+   (puis sur la courbe ajustée, trois fois), **pas la somme des cordes** : avec 1 m de bruit tous les 5 m, les cordes
+   allongent le trajet de 4 % et le modèle compense par des oscillations de courbure.
+3. **Ajustement.** Moindres carrés non linéaires (Levenberg-Marquardt, jacobien numérique) de la distance au modèle,
+   avec une pénalité sur la dérivée seconde de κ (30, ou 3·10⁶ × σ² si les positions sont bruitées) et sur l'écart de κ
+   entre les deux premiers et derniers nœuds (κ y est mal observé). σ, l'écart type du bruit, vient des dérivées
+   troisièmes de la suite (presque nulles sur un arc : la courbure n'y compte pas ; la dérivée seconde la mêlerait au
+   bruit).
+4. **Courbes** (`_curves`) : portions de sens constant où |κ| > 1/500 m⁻¹, d'au moins 12 m, fondues si moins de 10 m les
+   séparent. Pour chacune : rayon minimal (1/|κ| maximal), rayon typique (à la courbure médiane), angle (rotation du cap),
+   longueur, et si elle touche le bord de la suite (« coupée »).
+5. **Éléments** (`_elements`) : Douglas-Peucker sur (s, κ), classement droite / arc / clothoïde, regroupement des paliers.
+   **Indicatif** : sur une route réelle le découpage change avec les réglages, la courbure non.
 
-Validé sur des routes synthétiques (alignements, clothoïdes, arcs de 150 m à gauche et de 400 m à
-droite, photos tous les 5 m) : positions à 3 cm (RTK) : rayons à 1 % (150 m) et 3 % (400 m), paramètre
-de clothoïde à 15 %, l'écart restant dû aux bouts de clothoïde ; positions à 1 m (sans RTK) : rayons
-de 150 m entre 148 et 188 m (un virage sur cinq est coupé en deux arcs), de 400 m entre 404 et 426 m.
-Arcs purs de 60 à 800 m de rayon à 6 % ; 2 km en 0,9 s ; marche en sens inverse ou en miroir
-symétrique.
+**Pourquoi des courbes et pas des éléments.** Sur une vraie séquence RTK (303 photos, 1,5 km, route de village à Dracy, CD21,
+`tests/donnees/sequence-cd21-dracy.json`), la courbure ajustée est la même (corrélation de 0,99, écart de 0,5 à 1,2 km⁻¹ pour
+des valeurs de 15 km⁻¹ au 90ᵉ centile) avec des nœuds de 6, 8, 10 ou 12 m, alors que le découpage en arcs et clothoïdes
+idéaux varie de 49 à 55 éléments et change de rayons : une route de village n'est pas faite d'arcs idéaux. Des nœuds de 15 m
+laissaient 0,9 m d'écart au modèle sur cette route (virages de 27 à 100 m de rayon) ; à 8 m, 0,17 m, à 6 m, 0,09 m. Elle donne
+douze courbes (R minimal de 27 m dans un virage en S à 259 m dans un coude), à ± 30 % près d'un réglage à l'autre pour les
+rayons sous 120 m.
 
-Limites : la trajectoire est celle du véhicule, pas l'axe (décalage d'une voie : R ± 1,5 à 2 m) ;
-les deux premiers et derniers nœuds (30 m) sont mal déterminés ; un raccord brusque (arc sans
-clothoïde) est lissé sur 15 m (écart au modèle jusqu'à 0,25 m pour R = 60 m) ; au plus quelques
-kilomètres par appel (le lissage de départ résout un système plein) ; hors RTK (±4 m), le calcul n'a
-pas été essayé sur une vraie séquence.
+Validé sur des routes synthétiques (alignements, clothoïdes, arcs de 150 m à gauche et de 400 m à droite, photos tous les
+5 m). Positions à 3 cm (RTK) : rayon minimal de 146 m (−3 %) et de 357 à 376 m (−6 à −11 %) : le maximum de κ est un peu
+au-dessus de sa valeur sur l'arc. Positions à 1 m (sans RTK) : 131 à 146 m pour l'arc de 150 m ; l'arc de 400 m est coupé en
+petites courbes de 250 à 450 m. Arcs purs de 60, 100 et 250 m : 56, 94 et 234 m ; 800 m : pas de courbe (κ = 1,25 km⁻¹ sous le
+seuil de 2 km⁻¹ après lissage) ; 2 km en 1 s ; marche en sens inverse ou en miroir symétrique.
+
+Limites : la trajectoire est celle du véhicule, pas l'axe (décalage d'une voie : R ± 1,5 à 2 m) ; les deux premiers et
+derniers nœuds (16 m) sont mal déterminés ; un raccord brusque (arc sans clothoïde) est lissé sur 8 m ; au plus quelques
+kilomètres par appel (le lissage de départ résout un système plein) ; la carte lit 500 m autour du pointeur et signale les
+courbes coupées ; sans RTK (±4 m), le calcul n'a pas été essayé sur une vraie séquence.
 
 ## Vue du dessus (essai, branche `birdeye`)
 
