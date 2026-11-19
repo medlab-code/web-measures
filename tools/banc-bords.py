@@ -1,0 +1,146 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Cédric COCHART
+# SPDX-License-Identifier: GPL-2.0-or-later
+"""Banc hors ligne des bords de route (pistes P2 et P16 de docs/analyses/pistes-profil.md).
+
+Rejoue le calcul des bords (App._edge_reads de py/web_chutes.py) sur les profils relevés par tests/essai-bords-nuage.html,
+avec les réglages actuels ou des variantes, et compare le bord du travers de la photo au bord d'enrobé de l'analyse fine :
+un bord du relief à plus de 0,25 m en deçà de l'enrobé tombe sur la chaussée (une erreur) ; au-delà, l'accotement.
+
+    tools/banc-bords.py /tmp/web-measures-essais/essai-bords-nuage-lot=*.log [-v] [NOM=valeur…]
+
+NOM : une constante de la classe (STEP_Z=0.08, CROWN_NEAR=1.5…). -v : liste les côtés en erreur. La catégorie de la route
+(importance et nature BD TOPO, pour la largeur type, voir App._road_width) est lue à la Géoplateforme une fois par photo
+et gardée dans ~/.cache/web-measures-banc-bords.json. Les chaussées séparées (bord au-delà de l'autre chaussée) sont
+écartées du décompte.
+"""
+
+import itertools
+import json
+import math
+import os
+import statistics
+import sys
+import time
+import types
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+for _name in ("pyodide", "pyodide.ffi", "pyodide.http"):
+    sys.modules.setdefault(_name, types.ModuleType(_name))
+sys.modules["pyodide.ffi"].to_js = lambda *a, **k: None
+sys.modules["pyodide.http"].pyfetch = None
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "py"))
+
+import web_app
+
+CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "web-measures-banc-bords.json"
+HEADERS = {"User-Agent": "web-measures-essai"}
+
+
+def _get(url):
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=HEADERS), timeout=30) as r:
+                return json.load(r)
+        except OSError:
+            if attempt == 2:
+                raise
+            time.sleep(2)
+    return None
+
+
+def _category(lon, lat):
+    """Importance et nature du tronçon BD TOPO le plus proche de (lon, lat), à 6 m au plus, ou {}."""
+    d = 0.0002
+    query = urllib.parse.urlencode({
+        "SERVICE": "WFS", "VERSION": "2.0.0", "REQUEST": "GetFeature", "TYPENAMES": "BDTOPO_V3:troncon_de_route",
+        "OUTPUTFORMAT": "application/json", "SRSNAME": "EPSG:4326",
+        "BBOX": f"{lat - d},{lon - d},{lat + d},{lon + d},urn:ogc:def:crs:EPSG::4326"})
+    kx, ky, best = 111320 * math.cos(math.radians(lat)), 111320, None
+    for feat in _get("https://data.geopf.fr/wfs/ows?" + query).get("features") or []:
+        geom = feat["geometry"]
+        for line in geom["coordinates"] if geom["type"] == "MultiLineString" else [geom["coordinates"]]:
+            for (x0, y0, *_), (x1, y1, *_) in itertools.pairwise(line):
+                ax, ay, bx, by = (x0 - lon) * kx, (y0 - lat) * ky, (x1 - lon) * kx, (y1 - lat) * ky
+                vx, vy = bx - ax, by - ay
+                t = max(0.0, min(1.0, -(ax * vx + ay * vy) / ((vx * vx + vy * vy) or 1.0)))
+                dist = math.hypot(ax + t * vx, ay + t * vy)
+                if best is None or dist < best[0]:
+                    best = (dist, feat["properties"])
+    if not best or best[0] > 6:
+        return {}
+    return {"importance": str(best[1].get("importance") or ""), "nature": best[1].get("nature")}
+
+
+def categories(ids):
+    """Catégorie de la route sous chaque photo (8 premiers caractères de l'identifiant), lue une fois puis gardée."""
+    known = json.loads(CACHE.read_text()) if CACHE.exists() else {}
+    for pid in ids:
+        if pid in known or len(pid) < 36:  # identifiant complet seulement (anciens relevés : 8 caractères)
+            continue
+        feats = _get("https://panoramax.ign.fr/api/search?" + urllib.parse.urlencode({"ids": pid})).get("features") or []
+        known[pid] = _category(*feats[0]["geometry"]["coordinates"][:2]) if feats else {}
+        CACHE.write_text(json.dumps(known, ensure_ascii=False))
+    return known
+
+
+def photos(paths):
+    """Lignes « BORDS » complètes (profils et analyse fine) des journaux paths."""
+    for path in paths:
+        with open(path, encoding="utf-8", errors="ignore") as lines:
+            for line in lines:
+                if line.startswith("BORDS "):
+                    d = json.loads(line[6:])
+                    if d.get("profils") and d.get("nuage"):
+                        yield d
+
+
+def run(paths, settings, verbose=False):
+    """Côtés comparés au bord d'enrobé : [{id, côté, bord, relief, enrobé, opposé (à la caméra), chaussées séparées}]."""
+    app = web_app.App.__new__(web_app.App)
+    for name, value in settings.items():
+        setattr(app, name, value)
+    data = list(photos(paths))
+    cats = categories([d["id"] for d in data])
+    sides, rows = (("droit", -1), ("gauche", 1)), []
+    for d in data:
+        half = app._road_width(cats.get(d["id"]) or {}) / 2
+        profiles, ground = [], []
+        for e in d["profils"]:
+            # axe BD TOPO de ce côté (m depuis l'origine) ; profil depuis l'axe : 0
+            axis_off = (d["axe"] if e["cote"] == "droit" else -d["axe"]) if d["origine"] == "caméra" else 0.0
+            beyond = e["autre_axe"] or 0.0
+            guess = max(app.EDGE_NEAR, half + axis_off) if not beyond else beyond + app.ROAD_TWIN / 2
+            reach = guess + app.EDGE_SEARCH + (app.TWIN_SEARCH if beyond else 0)
+            between = tuple(e["separateur"]) if e["separateur"] else None
+            axis = axis_off if 2 * half >= app.CROWN_WIDTH else None
+            profiles.append((e["le_long"], e["cote"], guess, [p[0] for p in e["points"]], beyond, between, reach, axis))
+            ground += [p[1] for p in e["points"]]
+        read, _ = app._edge_reads(profiles, ground, sides, {})
+        for r in read:
+            paved = (d["nuage"].get("bords") or {}).get(r[1])
+            if r[0] != 0 or not paved or paved["quoi"] != "enrobé":
+                continue
+            rows.append({"id": d["id"], "route": d.get("route"), "cote": r[1], "bord": r[3][r[5]] if r[5] is not None else r[2],
+                         "relief": r[5] is not None, "enrobe": paved["x"], "twin": bool(r[9]),
+                         "oppose": d["origine"] == "caméra" and (r[1] == "gauche") == (d["axe"] < 0)})
+    every = [r for r in rows if not r["twin"]]
+    inside = [r for r in every if r["bord"] - r["enrobe"] < -0.25]
+    relief = [r for r in every if r["relief"]]
+    print(f"{settings or 'réglages actuels'} : {len(data)} photos, {len(every)} côtés (hors chaussées séparées) ; "
+          f"bord sur l'enrobé : {len(inside)} ({100 * len(inside) // max(1, len(every))} %), dont "
+          f"{sum(r['oppose'] for r in inside)} du côté opposé à la caméra ; repli sur la largeur type : {len(every) - len(relief)} ; "
+          f"écart médian au bord d'enrobé (relief) : {statistics.median([r['bord'] - r['enrobe'] for r in relief] or [0]):+.2f} m")
+    if verbose:
+        for r in sorted(inside, key=lambda r: r["bord"] - r["enrobe"]):
+            print(f"   {r['id']} {r['route'] or '?':8} {r['cote']:6} {'opposé' if r['oppose'] else 'caméra':7} "
+                  f"{'relief' if r['relief'] else 'type':6} bord {r['bord']:.2f} / enrobé {r['enrobe']:.2f}")
+    return rows
+
+
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    run([a for a in args if "=" not in a and a != "-v"],
+        {k: float(v) for k, v in (a.split("=", 1) for a in args if "=" in a)}, "-v" in args)
