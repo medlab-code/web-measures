@@ -308,6 +308,9 @@ Le profil dit d'où il vient : « (relief) », « (BD TOPO) » ou « (nuage LiDA
   butte) : ce qu'il y a derrière n'est pas une chute. Si le point le plus bas est au bout du
   profil, la valeur est « chute ≥ … » : pousser la réglette. Un côté est affiché s'il descend de
   0,5 m au moins.
+  Prise au plus bas, elle est majorée par le bruit du MNT : 3 à 4 cm au bruit mesuré sur chaussée
+  (moins de 1 cm d'un point au suivant), 6 cm à 2 cm de bruit (fossé synthétique de 1 m, 200 tirages),
+  sous l'incertitude affichée. Le plus bas est gardé : c'est le cas le plus défavorable.
 - **Dévers** : pente moyenne du talus le plus raide (0,5 m de haut au moins) avant cet arrêt,
   sur les cinq travers, de son haut à son pied (hauteur divisée par largeur), en % et en degrés.
   Le talus est la partie d'une descente (pente lue sur 2 m d'au moins 10 %) dont la pente vaut au

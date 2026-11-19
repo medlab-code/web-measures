@@ -91,7 +91,7 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
 
 ### Calcul : nouvelles pistes
 
-**P7. Bord placé trop près de l'axe.** *Faite le 19/11/2026 : le bord avance d'un pas si ce pas suit encore la pente de la chaussée (`_edge_border`), test `BordsTalus`. Terrain synthétique : bord exact (avant −0,5 m). Photos de `essai-bords` : 2 côtés sur 14 avancent de 0,5 m, les autres ne bougent pas (le MNT réel arrondit les ruptures). Reste : avec un bruit indépendant de 5 cm d'un point à l'autre, le bord part encore 1,2 m trop tôt en moyenne, déclenché par le bruit, hors de cette correction ; les bords réels de `essai-bords` ne le montrent pas, à vérifier avec P2.*
+**P7. Bord placé trop près de l'axe.** *Faite le 19/11/2026 : le bord avance d'un pas si ce pas suit encore la pente de la chaussée (`_edge_border`), test `BordsTalus`. Terrain synthétique : bord exact (avant −0,5 m). Photos de `essai-bords` : 2 côtés sur 14 avancent de 0,5 m, les autres ne bougent pas (le MNT réel arrondit les ruptures). Avec un bruit de 5 cm d'un point à l'autre, le bord partirait encore 1,2 m trop tôt (déclenché par le bruit) ; mais le bruit réel du MNT LiDAR HD est bien plus faible (voir P9) et, à 1 à 1,5 cm, le bord tombe à 5 cm près.*
 - **Avant** : `_edge_border` prend le premier point d'où la pente sur 1 m s'écarte de celle de la chaussée. Cette fenêtre de 1 m
   « voit » la rupture avant d'y arriver.
 - **Problème** : mesuré sur terrain exact (rupture à 4,0 / 4,1 / 4,25 / 4,4 m, talus de 20 à 100 %) : bord trouvé de 0,25 à
@@ -113,7 +113,7 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
   chute), ou droite ajustée sur le cœur du talus (pentes ≥ `EDGE_CORE` de la plus forte). Cas tests : les quatre talus ci-dessus.
 - **Gain** : dévers juste à quelques points près sur talus net.
 
-**P9. Chute surestimée par le bruit du terrain.**
+**P9. Chute surestimée par le bruit du terrain.** *Mesurée le 19/11/2026, pas de correction. Bruit réel du MNT LiDAR HD sur chaussée (grille de 12 × 12 points tous les 0,5 m sous 3 photos d'essai, 1640bc3f, 61dd94c4, 067e83ca) : 0,7 à 1,0 cm d'un point au suivant, 1,0 à 1,5 cm d'écart à un plan. À ce bruit, la chute d'un fossé de 1 m sort à 1,03-1,04 m (au plus 1,09 m), 1,06 m à 2 cm : sous l'incertitude affichée (±0,1 m) et l'arrondi au décimètre. Le maximum (« cas le plus défavorable ») est gardé. À revoir seulement si le bruit hors chaussée (herbe, sous les arbres) se révélait bien plus fort.*
 - **Avant** : la chute est le plus grand écart entre le bord et le point le plus bas, sur tous les points et les 5 travers (« le
   cas le plus défavorable »).
 - **Problème** : fossé de 1 m à fond plat, 100 tirages par niveau de bruit : chute moyenne 1,09 m (bruit de 3 cm), 1,15 m
@@ -153,6 +153,15 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
   Fréquence inconnue (bords de la couverture LiDAR HD).
 - **Piste** : compter ces cas dans les essais avant de décider ; écarter les points manquants s'ils sont loin du bord.
 - **Gain** : précision gardée près des limites de couverture.
+
+**P14. Seuils pensés pour un bruit de ±5 cm.**
+- **Avant** : `EDGE_HOLD` (trois pas), `STEP_Z` (5 cm), `PEAK_Z` (4 cm) et les commentaires de `docs/CALCULS.md` (« bruit du
+  MNT ±5 cm ») supposent un bruit de 5 cm.
+- **Problème** : mesuré à 0,7-1 cm sur chaussée (P9). Les seuils sont donc prudents : une bordure basse ou un séparateur
+  étroit peuvent passer inaperçus.
+- **Piste** : mesurer aussi le bruit hors chaussée (herbe, fossés), puis essayer des seuils plus fins sur `essai-bords` et
+  `essai-passages`, avec P2 comme référence.
+- **Gain** : bordures et séparateurs plus fins trouvés, à vérifier.
 
 ### Graphique et fenêtre : pistes
 
@@ -226,7 +235,7 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
 
 1. ~~P10~~ (fait le 19/11/2026, avec le premier test du banc synthétique : début de P1).
 2. ~~P7 et P8~~ (faits le 19/11/2026 ; reste la vérification sur routes réelles, P2).
-3. P9.
+3. ~~P9~~ (mesurée le 19/11/2026 : biais de 3 à 6 cm, pas de correction).
 4. G1, G2, G3.
 5. P5 (annuler 306eae1), P12.
 6. G4, G5, G6, puis P3, G7, G8, G9, P6, P11 et P13 selon les mesures.

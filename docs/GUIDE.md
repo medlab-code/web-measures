@@ -863,8 +863,10 @@ Chute et dévers des bords de route : la chute est une différence de deux altit
 modèle de terrain (±0,1 m en LiDAR HD, ±0,4 m en RGE ALTI). Le dévers est une pente moyenne,
 du haut au pied du talus : le haut et le pied sont placés au pas des points près (0,5 m près
 du bord, 0,6 m au-delà pour 10 m examinés, 1,9 m pour 30 m), ce qui pèse sur un talus court.
-Sur des talus synthétiques sans bruit (20 à 100 %), bord et dévers tombent juste ; avec un bruit
-de 3 à 5 cm d'un point à l'autre, le dévers reste à 2 points près en moyenne.
+Le MNT LiDAR HD varie de moins de 1 cm d'un point au suivant sur une chaussée (mesuré sous trois
+photos d'essai) : à ce bruit, sur des talus synthétiques de 20 à 100 %, le bord tombe à 5 cm près,
+le dévers à 1 point près, et la chute est majorée de 3 à 4 cm (le point le plus bas est pris
+au plus bas du bruit), sous l'incertitude affichée.
 Sous des arbres ou un mur, le modèle de terrain est interpolé et adoucit la pente. Le bord de
 la chaussée vient d'une rupture de pente du terrain, sinon des travers voisins ou de la largeur
 BD TOPO. Pas encore
