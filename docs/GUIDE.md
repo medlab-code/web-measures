@@ -389,9 +389,12 @@ après.
     déclarée n'a que sa hauteur au-dessus du fond franchi) ; pour chaque point,
     interpolée entre les deux photos consécutives les plus proches (pont long et pentu) ;
   - **dessous** : modèle de terrain LiDAR HD (RGE ALTI en secours) lu en travers du pont, à 1,
-    3, 6 et 10 m au-delà du bord de la chaussée (largeur BD TOPO, sinon 6 m), des deux côtés,
-    tous les 2 m (plus espacé sur un long pont) ; sous le tablier, le modèle de terrain est
-    interpolé à sa hauteur : le fond se lit à l'écart ;
+    3, 6 et 10 m au-delà du bord du tablier, des deux côtés, tous les 2 m (plus espacé sur un
+    long pont) ; le bord du tablier est lu dans le relief quand le modèle de terrain contient le
+    tablier (petits ponts, tablier classé sol dans le nuage LiDAR), sinon à la demi-largeur type
+    de la route (pas la largeur BD TOPO, qui n'est pas fiable) ; l'infobulle dit lequel ; sous un
+    tablier absent du modèle de terrain, celui-ci est interpolé à sa hauteur : le fond se lit à
+    l'écart ;
   - **hauteur** : la plus grande différence entre les deux, avec son incertitude (altitude RTK,
     tablier tiré des photos : dévers, bordure ; terrain) ; l'infobulle dit où elle est. Au-dessus de l'eau, c'est le
     niveau de l'eau le jour du relevé LiDAR, pas le fond.
@@ -418,18 +421,22 @@ après.
     terrain sur 1 m s'écarte de plus de 8 points de celle de la chaussée sous l'origine, dans
     le même sens, sur trois pas de suite (fossé, talus), ou d'où le terrain fait une marche de 5 cm
     ou plus sur 0,5 m qui tient sur 1,5 m (bordure, accotement plus bas), avancé d'un pas si ce
-    pas suit encore la pente de la chaussée (le dernier point de la chaussée) ; sans rupture de pente
-    (accotement de plain-pied), la demi-largeur BD TOPO (sinon 3 m) ; l'infobulle dit où le bord
+    pas suit encore la pente de la chaussée (le dernier point de la chaussée) ; depuis la caméra, le
+    sommet du bombement (ou le changement de dévers d'une voie à l'autre), à 1,25 m de l'axe au plus,
+    n'est pas pris pour le bord ; sans rupture de pente
+    (accotement de plain-pied), la demi-largeur type de la catégorie de la route (importance BD TOPO :
+    9 m en importance 1 et 2, 6,5 m en 3, 6 m en 4, 3,5 m en 5 ; la largeur BD TOPO elle-même n'est pas
+    fiable) ; l'infobulle dit où le bord
     a été trouvé, et comment ; dès 3 travers trouvés dans le relief d'un côté, un travers sans
     rupture de pente, ou au bord à plus de 3 m de leur médiane (une marche dans la chaussée, un bord
     flou), y est ramené : bord « d'après les travers voisins » ; **chaussées séparées**
     (autoroute, voie express : un tronçon BD TOPO par sens, de même nom, parallèle, son axe à 4 à
     40 m en travers, ticket #34) : du côté de l'autre chaussée, le bord est cherché au-delà de son
-    axe et jusqu'à 9 m après son bord BD TOPO (largeurs souvent trop faibles), pente de référence
-    sous cet axe, sinon son bord extérieur BD TOPO ; la plateforme comprend le séparateur de
+    axe et jusqu'à 9 m après son bord type (7 m par chaussée), pente de référence sous cet axe, sinon
+    son bord extérieur type ; la plateforme comprend le séparateur de
     chaussée et l'autre chaussée ; **séparateur de chaussée** : entre deux marches de sens
     contraires (surélevé : montée puis descente ; en creux : l'inverse), large de 0,5 à 10 m, au
-    milieu à 4 m au plus de celui que donnent les largeurs BD TOPO, recoupé d'un travers à l'autre ;
+    milieu à 4 m au plus de celui que donnent les largeurs types, recoupé d'un travers à l'autre ;
     à défaut, une bosse étroite (1 ou 2 points, 4 cm au-dessus des voisins : assise de glissières dos
     à dos ou de muret, que le terrain LiDAR ne garde pas) au même endroit sur deux travers au moins ;
     sinon d'après la BD TOPO ;
@@ -472,7 +479,7 @@ après.
 
   Le bouton **« Graphiques »**, à côté, montre la coupe du terrain que ce calcul a lue (mesure LiDAR
   HD, ou RGE ALTI en secours) : travers de la photo en brun, les quatre autres en pointillés,
-  plateforme entre les deux bords trouvés (et comment : rupture de pente, travers voisins ou largeur BD TOPO), milieu du
+  plateforme entre les deux bords trouvés (et comment : rupture de pente, travers voisins ou largeur type), milieu du
   séparateur de chaussée sur une route à chaussées séparées (petite barre verticale ; la légende dit s'il a
   été trouvé dans le relief ou placé d'après la BD TOPO), flèche
   de la chute et droite rouge du talus (haut → pied) sur le travers où ils ont été mesurés,

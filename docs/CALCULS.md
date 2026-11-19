@@ -227,11 +227,16 @@ qui se touchent à 1 m près forment un seul ouvrage.
   déclarée n'a que sa propre hauteur, prise au-dessus du sol sous elle : sur un pont, le fond
   franchi. Le réglage « Caméra à » ne sert alors que si l'utilisateur l'accepte (bouton de
   l'encadré du pont).
-- **Dessous** : MNT lu en travers du pont, à 1, 3, 6 et 10 m au-delà du bord de la chaussée
-  (largeur BD TOPO, sinon 6 m), des deux côtés. Un travers tous les 2 m le long du pont (plus
-  espacé sur un long pont), 160 points au plus : une seule requête. Sous le tablier, le MNT
-  est interpolé à sa hauteur : le fond se lit à l'écart. Le terrain lu à 1 m seulement tombait
-  sur le talus de la culée.
+- **Dessous** : MNT lu en travers du pont, un point tous les 0,5 m depuis l'axe BD TOPO, et pris à
+  1, 3, 6 et 10 m au-delà du **bord du tablier**, des deux côtés. Ce bord se lit dans la couche
+  LiDAR : quand le MNT contient le tablier (classé sol dans le nuage : petits ponts, comme la D114
+  sur le ruisseau de la Gironde, photo e375c98e-31c5-426a-ba93-c63ac344d675), le terrain sous
+  l'axe est au niveau du tablier (0,5 m près) et le bord se trouve comme celui d'une route (§ 8.2) ;
+  sinon (MNT au fond franchi), demi-largeur type de la route (§ 8.2), jamais la largeur BD TOPO,
+  qui n'est pas fiable. Un travers tous les 2 m le long du pont (plus espacé sur un long pont),
+  6 requêtes au plus. Sous un tablier absent du MNT, celui-ci est interpolé à sa hauteur : le
+  fond se lit à l'écart. Le terrain lu à 1 m seulement tombait sur le talus de la culée. Avec des
+  points classés pont, le calcul par le nuage (ci-dessus) passe avant et lit le tablier lui-même.
 - **Hauteur** : la plus grande différence entre les deux. Incertitude : hauteur mesurée sur la
   séquence, le biais vertical du GPS s'annule (tablier = altitude moins (altitude moins sol)) et
   restent la dispersion de cette hauteur, le sol sous les photos et le terrain sous le pont ;
@@ -256,7 +261,7 @@ parcourue, à 45° près (sens de la trajectoire de la caméra au droit de la ph
 nom (lus jusqu'à 60 m autour de la photo, mailles voisines comprises). Le MNT est lu en travers à
 **−10, −5, 0, +5 et +10 m** de la photo le long de la route, des deux côtés. Les travers partent
 de la caméra (séquence vérifiée RTK), sinon de l'axe BD TOPO. Un point est lu tous les **0,5 m**
-jusqu'à 3 m au-delà du bord BD TOPO, puis 16 points jusqu'à la distance de la réglette au-delà
+jusqu'à 3 m au-delà du bord type (§ ci-dessous), puis 16 points jusqu'à la distance de la réglette au-delà
 du bord (2 à 30 m, 10 m par défaut).
 
 ### 8.2 Bord de la chaussée
@@ -274,8 +279,25 @@ pente de ce pas est encore celle de la chaussée (8 points près). C'est le dern
 chaussée ; avant, le bord tombait 0,5 m trop tôt (jusqu'à 0,9 m), la plateforme était donc trop
 étroite d'environ 1 m (terrain synthétique, `BordsTalus`).
 
-Sans rupture de pente (accotement de plain-pied), le bord est à la demi-largeur BD TOPO
-(sinon 3 m). Dès que 3 travers au moins d'un côté trouvent leur bord dans le relief, leur
+Depuis la caméra (séquence RTK), la recherche du bord du côté opposé à sa voie franchit l'axe : le
+sommet du bombement, ou le changement de dévers d'une voie à l'autre, y fait une rupture de pente.
+Une rupture ou une marche à **1,25 m** au plus de l'axe BD TOPO, suivie d'une pente de chaussée
+(10 % au plus, qui tient à 8 points près sur **1,5 m**), est prise pour lui : la pente qui suit
+devient la référence et la recherche continue, 3 m plus loin que d'ordinaire (chaussées souvent
+plus larges que leur type), au pas de 0,5 m ; une marche n'y compte que si elle est plus nette que les
+pas voisins (moins de la moitié de son saut : une pente soutenue de plus de 10 % ou un défaut de
+la chaussée font aussi 5 cm par pas). Sans autre rupture ensuite, le bord est cette première
+rupture. Seulement sur une chaussée de 4 m au moins de largeur type (deux voies possibles). Sur 61 côtés
+de 42 photos réparties en Côte-d'Or, comparés au bord d'enrobé de l'analyse fine, 28 bords
+tombaient sur l'enrobé, 25 depuis, sans aucun côté dégradé (`BordsBombement`).
+
+Sans rupture de pente (accotement de plain-pied), le bord est à la demi-**largeur type** de la
+catégorie de la route (importance BD TOPO) : 9 m (importance 1 et 2), 6,5 m (3), 6 m (4), 3,5 m
+(5), 7 m par chaussée d'une route à chaussées séparées, 6 m sinon. La largeur de chaussée de la
+BD TOPO n'est pas fiable : une valeur par catégorie, trop faible (7 m en importance 2 pour 7,6 à
+17,3 m d'enrobé mesurés par l'analyse fine, 5,5 m en 3 pour 5,4 à 9,7 m, 4 m en 4 pour 3,7 à
+11 m ; 42 photos de Côte-d'Or) ; les largeurs types sont les médianes mesurées, arrondies. Ce bord
+reste une hypothèse : « largeur type » sur le graphique. Dès que 3 travers au moins d'un côté trouvent leur bord dans le relief, leur
 **médiane** (basse : le bord le plus proche) sert aux autres : un travers sans rupture de pente, ou
 dont le bord est à plus de **3 m** d'elle, y est ramené. Ce bord est dit « d'après les travers
 voisins » (graphique, infobulle) : il n'a pas été trouvé dans le relief de ce travers.
@@ -284,19 +306,18 @@ voisins » (graphique, infobulle) : il n'a pas été trouvé dans le relief de c
 
 L'autre chaussée est reconnue à son tronçon BD TOPO : même nom, au sol, parallèle (à 30° près), son axe
 à 4 à 40 m en travers et en face du point, pas au bout d'un tronçon décalé. De ce côté, le bord
-est cherché au-delà de son axe et jusqu'à 9 m au-delà de son bord BD TOPO, car les largeurs BD
-TOPO sont souvent trop faibles. La pente de référence est prise sous cet axe. La plateforme
+est cherché au-delà de son axe et jusqu'à 9 m au-delà de son bord type (7 m par chaussée). La pente de référence est prise sous cet axe. La plateforme
 comprend le séparateur et l'autre chaussée.
 
 Le **séparateur de chaussée** est cherché :
 
 1. entre deux **marches** de sens contraires (surélevé : montée puis descente ; en creux :
    l'inverse), large de 0,5 à 10 m, son milieu à 4 m au plus de celui que donnent les largeurs
-   BD TOPO, et recoupé d'un travers à l'autre (médiane, 3 m) ;
+   types, et recoupé d'un travers à l'autre (médiane, 3 m) ;
 2. à défaut, à une **bosse étroite** (1 ou 2 points, 4 cm au-dessus des voisins) au même endroit
    sur deux travers au moins : l'assise de glissières dos à dos ou d'un muret, que le MNT ne garde
    pas ;
-3. sinon d'après la **BD TOPO** (milieu entre les deux chaussées).
+3. sinon d'après la **BD TOPO** (milieu entre les deux chaussées, de largeur type).
 
 Le profil dit d'où il vient : « (relief) », « (BD TOPO) » ou « (nuage LiDAR) » (§ 10).
 

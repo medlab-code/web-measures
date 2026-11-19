@@ -233,9 +233,16 @@ class Chutes:
     # l'écart du tablier (le MNT, interpolé sous lui, y descend en pente douce : ticket #27)
     FALL_SIDES = (1.0, 3.0, 6.0, 10.0)
     FALL_STEP = 2.0  # m entre deux travers le long du pont (plus si le pont est long)
+    FALL_REQUESTS = 6  # requêtes au plus au service d'altimétrie pour les coupes du pont (FALL_POINTS points chacune)
+    FALL_DECK_TOL = 0.5  # m : terrain sous l'axe à cela près du tablier (GPS) : tablier classé sol, compris dans le MNT
     FALL_POINTS = 160  # points par requête au service d'altimétrie (longueur de l'adresse ; voir _terrain)
     FALL_MIN = 0.5  # m : en dessous, terrain non distingué du tablier (végétation, buse)
-    FALL_WIDTH = 6.0  # m : largeur de chaussée supposée quand la BD TOPO ne la donne pas
+    FALL_WIDTH = 6.0  # m : largeur type d'une route d'importance inconnue (_road_width)
+    # Largeur type de la chaussée (m) par importance BD TOPO, pour les bords de route (_road_width) : la largeur BD TOPO n'est
+    # qu'une valeur par catégorie, trop faible (7 m en importance 2 pour 7,6 à 17,3 m d'enrobé, médiane 9,3 ; 5,5 m en 3 pour
+    # 6,35 ; 4 m en 4 pour 5,9 : analyse fine, 42 photos de Côte-d'Or, piste P17) ; ROAD_TWIN par chaussée d'une route à chaussées
+    # séparées ; 3,5 m : voie unique
+    ROAD_WIDTHS, ROAD_TWIN = {"1": 9.0, "2": 9.0, "3": 6.5, "4": 6.0, "5": 3.5}, 7.0
     FALL_TOUCH = 1.0  # m : tronçons en pont bout à bout (un pont coupé en plusieurs tronçons)
     FALL_RETRY = 60.0  # s avant de refaire un calcul qui a échoué (service injoignable)
     FALL_LIDAR_REACH = 10.0  # m : dessous cherché à cette distance du tablier (DECK_REACH de src/nuage.js)
@@ -249,8 +256,9 @@ class Chutes:
         page : champ « lidar » ; use_bridge_lidar), même valeur sur tout le pont, sans GPS. Sans points classés pont, ou nuage
         illisible : tablier = altitude GPS RTK (NGF) moins hauteur de caméra, aux photos de la séquence
         prises sur le pont (la plus proche de chaque point) ; dessous : MNT LiDAR HD (RGE ALTI en
-        secours), le point le plus bas en travers du pont, de 1 à 10 m au-delà du bord de la chaussée
-        des deux côtés (FALL_SIDES : sous le tablier, le MNT est interpolé à sa hauteur)."""
+        secours), le point le plus bas en travers du pont, de 1 à 10 m au-delà du bord du tablier, des deux côtés (FALL_SIDES ;
+        bord lu dans le relief si le MNT contient le tablier, sinon la demi-largeur type ; sous un tablier absent du MNT,
+        celui-ci est interpolé à sa hauteur)."""
         item = self.item or {}
         try:
             lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
@@ -340,7 +348,8 @@ class Chutes:
         return self.status()
 
     def _fall_sections(self, lon, lat):
-        """Tronçons BD TOPO de la maille du point, avec leur largeur de chaussée (« width », m ou None),
+        """Tronçons BD TOPO de la maille du point, avec leur largeur de chaussée (« width », m ou None : pour les ponts
+        seulement, voir _road_width), leur importance et leur nature,
         lus ici : ceux du cœur (roads) ne la gardent pas. roads.PENDING pendant la lecture, None si la BD
         TOPO n'a pas répondu (shortcut: pas de nouvel essai avant le rechargement de la page ;
         réessayer après roads.RETRY s si des pannes de la Géoplateforme privent de hauteur de chute)."""
@@ -360,6 +369,7 @@ class Chutes:
                     except (TypeError, ValueError):
                         width = None
                     out += [dict(sec, width=width if width and width > 0 else None,
+                                 importance=str(props.get("importance") or ""), nature=props.get("nature"),
                                  bridge_name=_bridge_name(props.get("nom_collaboratif_gauche")))
                             for sec in roads.parse_sections({"features": [feat]})]
             self.fall_cells[cell] = out
@@ -460,19 +470,23 @@ class Chutes:
         camera, camera_source, camera_error = key[2]
         lines = [[triangulation._local(p[0], p[1], lon, lat) for p in c["line"]] for c in chain]
         total = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for line in lines for a, b in zip(line, line[1:]))
-        step = max(self.FALL_STEP, 2 * len(self.FALL_SIDES) * total / self.FALL_POINTS)
-        samples = []  # (x, y) en travers du pont, des deux côtés, en m depuis la photo
-        for c, line in zip(chain, lines):
+        # Coupes en travers du pont, de l'axe BD TOPO vers chaque côté, un point tous les EDGE_STEP m : bord du tablier cherché
+        # dans le relief jusqu'à la demi-largeur type + EDGE_SEARCH m, dessous lu jusqu'à FALL_SIDES[-1] m au-delà
+        cuts = []  # (largeur type / 2, distances, points (x, y) en m depuis la photo), une coupe par côté et par station
+        widths = [self._road_width(c) / 2 for c in chain]
+        far = max(widths) + self.EDGE_SEARCH + self.FALL_SIDES[-1]
+        offsets = [k * self.EDGE_STEP for k in range(int(far / self.EDGE_STEP) + 1)]
+        step = max(self.FALL_STEP, 2 * len(offsets) * total / (self.FALL_REQUESTS * self.FALL_POINTS))
+        for half, line in zip(widths, lines):
             length = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(line, line[1:]))
-            edge = (c["width"] or self.FALL_WIDTH) / 2
             n = max(1, round(length / step))
             for k in range(n + 1):
                 s = k * length / n
                 (x, y), a, b = roads._at(line, s), roads._at(line, s - 1.0), roads._at(line, s + 1.0)
                 t = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
                 nx, ny = -(b[1] - a[1]) / t, (b[0] - a[0]) / t
-                samples += [(x + side * (edge + d) * nx, y + side * (edge + d) * ny)
-                            for side in (-1, 1) for d in self.FALL_SIDES]
+                cuts += [(half, offsets, [(x + side * o * nx, y + side * o * ny) for o in offsets]) for side in (-1, 1)]
+        samples = [p for _, _, pts in cuts for p in pts]
         reach = max(math.hypot(x, y) for x, y in samples) + 10.0
 
         def failed(reason="service injoignable", retry=True):
@@ -503,13 +517,26 @@ class Chutes:
         def got_ground(decks, ground, source, error):
             if error:
                 return failed()
-            best = None
-            for (x, y), z in zip(samples, ground or []):
-                if z is None:
+            best, relief, start = None, 0, 0
+            for half, offs, pts in cuts:
+                zs = (ground or [])[start:start + len(offs)]
+                start += len(offs)
+                if len(zs) < len(offs):
                     continue
-                deck = _deck_at(decks, x, y)
-                if best is None or deck - z > best[0]:
-                    best = (deck - z, math.hypot(x, y))
+                # Bord du tablier : dans le relief si le MNT le contient (tablier classé sol, petits ponts : terrain sous l'axe
+                # au niveau du tablier), comme le bord d'une route ; sinon (MNT au fond franchi) la demi-largeur type
+                i = None
+                if zs[0] is not None and abs(zs[0] - _deck_at(decks, *pts[0])) <= self.FALL_DECK_TOL:
+                    i = self._edge_border(zs, offs, half + self.EDGE_SEARCH)
+                relief += i is not None
+                edge = offs[i] if i is not None else half
+                for d in self.FALL_SIDES:
+                    k = min(range(len(offs)), key=lambda j: abs(offs[j] - (edge + d)))
+                    if zs[k] is None:
+                        continue
+                    deck = _deck_at(decks, *pts[k])
+                    if best is None or deck - zs[k] > best[0]:
+                        best = (deck - zs[k], math.hypot(*pts[k]))
             if best is None:
                 return failed("pas de modèle de terrain sous le pont", retry=False)
             if best[0] < self.FALL_MIN:
@@ -527,9 +554,12 @@ class Chutes:
             self.falls[key] = {
                 "text": "Hauteur de chute max : {} m (±{} m), RTK".format(measures._num(best[0], 1), measures._num(sigma, 1)),
                 "title": ("Plus grande hauteur entre le tablier (altitude GPS RTK moins hauteur de caméra) et le "
-                          "terrain sous le pont ({}), le long des deux bords jusqu'à {} m de la chaussée, à {} m de la photo. Au-dessus de "
-                          "l'eau : niveau au relevé, pas le fond. Hauteur de caméra : {} m ({}).").format(
-                    source, measures._num(self.FALL_SIDES[-1], 0), measures._num(best[1], 0), measures._num(camera, 2),
+                          "terrain sous le pont ({}), le long des deux bords jusqu'à {} m de la chaussée, à {} m de la photo. Bords "
+                          "du tablier : {}. Au-dessus de l'eau : niveau au relevé, pas le fond. Hauteur de caméra : {} m ({}).").format(
+                    source, measures._num(self.FALL_SIDES[-1], 0), measures._num(best[1], 0),
+                    f"trouvés dans le relief (tablier compris dans le modèle de terrain) sur {relief} coupes sur {len(cuts)}"
+                    if relief else "demi-largeur type de la route de part et d'autre de l'axe BD TOPO (tablier absent du modèle "
+                    "de terrain)", measures._num(camera, 2),
                     {"séquence": "mesurée sur la séquence", "calée": "calée pour la séquence",
                      "monture": "monture du CD21 d'après la date", "réglage": "réglage « Caméra à »"}[camera_source])}
             self.notify()
@@ -542,7 +572,7 @@ class Chutes:
     # depuis la caméra (séquence vérifiée RTK ; sinon l'axe BD TOPO) jusqu'à edge_zone m au-delà du bord
     # de la chaussée (réglette de la page) ; terrain MNT LiDAR HD (RGE ALTI en secours). Bord : rupture de
     # pente du terrain (EDGE_BREAK), sinon la médiane des travers voisins (EDGE_CONSENSUS), sinon la demi-largeur
-    # BD TOPO. Référence : le terrain au bord, pas l'altitude GPS.
+    # type (_road_width). Référence : le terrain au bord, pas l'altitude GPS.
     EDGE_ZONE = 10.0  # m au-delà du bord de la chaussée examinés par défaut
     EDGE_ALONG = (-10.0, -5.0, 0.0, 5.0, 10.0)  # m le long de la route, depuis la photo
     EDGE_WINDOW = 2.0  # m en travers : pente lue entre deux points au moins aussi écartés (bruit du MNT ±5 cm)
@@ -567,6 +597,7 @@ class Chutes:
     # Marche du terrain (bordure, séparateur surélevé ou en creux) : au moins STEP_Z m sur un pas de EDGE_STEP m, et encore
     # STEP_HOLD m sur trois pas (pas un seul point du MNT qui saute, ±5 cm)
     STEP_Z, STEP_HOLD = 0.05, 0.04
+    STEP_SHARP = 0.5  # après un bombement, pas voisins d'une marche : moins de la moitié de son saut (_edge_step)
     SEPARATOR_WIDTH = (0.5, 10.0)  # m : largeurs possibles d'un séparateur de chaussée trouvé dans le relief
     SEPARATOR_NEAR = 4.0  # m au plus entre son milieu et celui que donne la BD TOPO
     # Profil en long : terrain sur ±LONG_REACH m le long du tronçon, tous les LONG_STEP m ; pente moyenne (moindres carrés)
@@ -581,6 +612,11 @@ class Chutes:
     # gardée là où elle passe à plus de DIP_TOL m du terrain et recouvre un pont de la route ou une plongée de DIP_SLOPE
     DIP_SPAN, DIP_TOL = 40.0, 0.1
     EDGE_CONSENSUS = 3.0  # m : bord (ou séparateur) d'un travers plus loin de la médiane des autres : ramené à elle
+    # Bombement (piste P16) : rupture à CROWN_NEAR m au plus de l'axe BD TOPO, suivie d'une pente de CROWN_SLOPE au plus qui
+    # tient sur CROWN_HOLD m : sommet du bombement ou changement de dévers d'une voie à l'autre, pas le bord (_edge_border) ;
+    # chaussée de CROWN_WIDTH m au moins (largeur type : deux voies possibles ; sur une voie unique, le bord peut être près de
+    # l'axe) ; le bord est alors cherché CROWN_SEARCH m plus loin (chaussées plus larges que leur type : D70 229abfcd, 9,3 m)
+    CROWN_NEAR, CROWN_SLOPE, CROWN_HOLD, CROWN_WIDTH, CROWN_SEARCH = 1.25, 0.10, 1.5, 4.0, 3.0
     # Séparateur étroit sans marches (glissières dos à dos, muret : le MNT n'en garde que l'assise) : pic de 1 ou 2 points au
     # moins PEAK_Z m au-dessus des points voisins, au même endroit (PEAK_SPREAD m près) sur PEAK_TRAVERS travers au moins
     PEAK_Z, PEAK_SPREAD, PEAK_TRAVERS, PEAK_HALF = 0.04, 1.0, 2, 0.4
@@ -667,7 +703,7 @@ class Chutes:
                 continue
             other_line = [triangulation._local(p[0], p[1], lon, lat) for p in other["line"]]
             if roads._project(other_line, 0.0, 0.0)[0] <= self.TWIN_REACH:
-                twin.append((other_line, other["width"]))
+                twin.append((other_line, self._road_width(other)))
         camera = bool(self.quality and self.quality.get("precise"))  # position RTK : profils depuis la caméra
         key = (item.get("id"), zone, camera)
         res = self.edges.get(key)
@@ -680,7 +716,7 @@ class Chutes:
                                          "retry_at": time.monotonic() + self.FALL_RETRY}
             else:
                 res = self.edges[key] = {"text": "Calcul en cours…", "title": ""}
-                self._compute_edges(key, line, s, sec["width"], metadata.item_heading(item), lon, lat, twin, track,
+                self._compute_edges(key, line, s, self._road_width(sec), metadata.item_heading(item), lon, lat, twin, track,
                                     (ends, sec.get("name"), works))
         road = sec.get("name") if re.match(r"[A-Z]+\d", sec.get("name") or "") else None
         profile = res.get("profile")
@@ -688,6 +724,13 @@ class Chutes:
             profile = dict(profile, eau=self._water_across(res["frame"], lon, lat))
         return {"text": "Bords de route" + (" ({})".format(road) if road else "") + "\n" + res["text"],
                 "title": res["title"], "edges": True, "profile": profile, "road": road}
+
+    def _road_width(self, sec):
+        """Largeur type de la chaussée du tronçon sec (m) d'après sa catégorie BD TOPO (ROAD_WIDTHS, ROAD_TWIN), pas d'après sa
+        largeur BD TOPO (piste P17)."""
+        if sec.get("nature") in ("Route à 2 chaussées", "Type autoroutier"):
+            return self.ROAD_TWIN
+        return self.ROAD_WIDTHS.get(sec.get("importance") or "", self.FALL_WIDTH)
 
     ROAD_TURN = 45.0  # degrés au plus entre le tronçon de la photo et la route parcourue (_edges)
     CHAIN_TURN = 60.0  # degrés de déviation au plus d'un tronçon à l'autre en prolongeant la route
@@ -997,7 +1040,8 @@ class Chutes:
 
     def _edge_profiles(self, line, s, half, zone, shift, sides, twin):
         """Travers à lire (EDGE_ALONG), de chaque côté : (profils [(le long, côté, bord BD TOPO depuis l'origine, distances
-        depuis l'origine, axe de l'autre chaussée, séparateur BD TOPO, portée)], points à lire (m, repère de la photo))."""
+        depuis l'origine, axe de l'autre chaussée, séparateur BD TOPO, portée, axe de la chaussée ou None)], points à lire
+        (m, repère de la photo))."""
         profiles = []
         samples = []
         for along in self.EDGE_ALONG:
@@ -1014,9 +1058,13 @@ class Chutes:
                         between = (guess, beyond - other[1])
                     guess = beyond + other[1]
                 reach = guess + self.EDGE_SEARCH + (self.TWIN_SEARCH if beyond else 0)  # bord cherché jusque-là
-                near = [k * self.EDGE_STEP for k in range(int(reach / self.EDGE_STEP) + 1)]
+                # axe BD TOPO de la chaussée de la photo, en m depuis l'origine de ce côté (négatif : de l'autre côté) ; s'il est
+                # de ce côté, un bombement peut prolonger la recherche de CROWN_SEARCH m : pas de EDGE_STEP m jusque-là aussi
+                axis = -sign * shift if 2 * half >= self.CROWN_WIDTH else None
+                fine = reach + (self.CROWN_SEARCH if axis is not None and axis > 0 else 0)
+                near = [k * self.EDGE_STEP for k in range(int(fine / self.EDGE_STEP) + 1)]
                 offsets = near + [near[-1] + zone * k / self.EDGE_FAR for k in range(1, self.EDGE_FAR + 1)]
-                profiles.append((along, name, guess, offsets, beyond, between, reach))
+                profiles.append((along, name, guess, offsets, beyond, between, reach, axis))
                 samples += [(x + (shift + sign * o) * nx, y + (shift + sign * o) * ny) for o in offsets]
         return profiles, samples
 
@@ -1053,45 +1101,82 @@ class Chutes:
         j = next((j for j in range(i + 1, len(offsets)) if offsets[j] - offsets[i] >= span - 1e-6), None)
         return None if j is None or z[i] is None or z[j] is None else (z[i] - z[j]) / (offsets[j] - offsets[i])
 
-    def _edge_step(self, z, offsets, i):
-        """Marche du terrain juste après le point i (voir STEP_Z) : +1 en montant, -1 en descendant, 0 sinon."""
+    def _edge_step(self, z, offsets, i, sharp=False):
+        """Marche du terrain juste après le point i (voir STEP_Z) : +1 en montant, -1 en descendant, 0 sinon. sharp : plus
+        abrupte que les pas voisins (STEP_SHARP), pour la recherche dans l'autre voie après un bombement (_edge_border) : une
+        pente soutenue de plus de 10 % (dévers en courbe) ou un défaut de la chaussée y fait aussi 5 cm par pas sans être le
+        bord. Pas ailleurs : bordures et séparateurs, adoucis par le MNT, ne sont pas nets (piste P16)."""
         if i < 1 or i + 2 >= len(offsets) or offsets[i + 1] - offsets[i] > self.EDGE_STEP + 1e-6:
             return 0
         if None in (z[i - 1], z[i], z[i + 1], z[i + 2]):
             return 0
         jump, held = z[i + 1] - z[i], z[i + 2] - z[i - 1]
+        if sharp and max(abs(z[i] - z[i - 1]), abs(z[i + 2] - z[i + 1])) >= self.STEP_SHARP * abs(jump):
+            return 0
         if abs(jump) >= self.STEP_Z and abs(held) >= self.STEP_HOLD and jump * held > 0:
             return 1 if jump > 0 else -1
         return 0
 
-    def _edge_border(self, z, offsets, reach, beyond=0.0):
+    def _edge_border(self, z, offsets, reach, beyond=0.0, axis=None):
         """Indice du bord : premier point, à EDGE_NEAR m au moins de l'origine (chaussées séparées : au-delà de
         l'axe de l'autre chaussée, à beyond m), d'où la pente sur 1 m s'écarte de plus de EDGE_BREAK de celle de
         la chaussée sous l'origine (ou sous l'axe de l'autre), dans le même sens sur EDGE_HOLD pas, ou d'où le
         terrain marque une marche (bordure, accotement plus bas : STEP_Z), jusqu'à reach m ; sinon None (le bord BD
         TOPO). La pente sur 1 m voit la rupture jusqu'à 1 m avant elle : le bord avance d'un pas tant que la pente de
         ce pas reste celle de la chaussée (à EDGE_BREAK près), soit le dernier point de la chaussée (0,5 m plus tôt
-        sinon : piste P7 de docs/analyses/pistes-profil.md)."""
+        sinon : piste P7 de docs/analyses/pistes-profil.md).
+        Bombement (piste P16) : une rupture à CROWN_NEAR m au plus de l'axe BD TOPO (axis, m depuis l'origine de ce côté),
+        suivie d'une pente de chaussée (voir _crown_slope), est le sommet du bombement ou le changement de dévers d'une
+        voie à l'autre, que la recherche franchit depuis la caméra : la pente qui suit devient la référence, une seule
+        fois, et le bord est cherché CROWN_SEARCH m plus loin ; sans autre rupture ensuite, le bord est cette première rupture."""
         slope = self._edge_slope
         start = min(range(len(offsets)), key=lambda k: abs(offsets[k] - beyond))
         road = slope(z, offsets, start, 1.0)
-        for i in range(start + 1, len(offsets)):
+        crown = None  # rupture prise pour un bombement : le bord si aucune autre ne suit
+        i = start
+        while i + 1 < len(offsets):
+            i += 1
             if road is None or offsets[i] > reach:
                 break
             if offsets[i] < max(self.EDGE_NEAR, beyond) - 1e-6:
                 continue
-            if self._edge_step(z, offsets, i):
-                return i
             d = [slope(z, offsets, k, 1.0) for k in range(i, i + self.EDGE_HOLD)]
-            if None not in d and (all(v - road > self.EDGE_BREAK for v in d) or all(road - v > self.EDGE_BREAK for v in d)):
+            if self._edge_step(z, offsets, i, sharp=crown is not None):
+                j = i  # marche : une pente de plus de 10 % sur un pas en fait une aussi (bombement prononcé, D70 229abfcd)
+            elif None not in d and (all(v - road > self.EDGE_BREAK for v in d) or all(road - v > self.EDGE_BREAK for v in d)):
                 # dans la fenêtre de 1 m, un point au plus encore sur la chaussée (pas de EDGE_STEP m)
                 j = i + 1
-                if (j < len(offsets) and offsets[j] - offsets[i] <= self.EDGE_STEP + 1e-6 and offsets[j] <= reach
+                if not (j < len(offsets) and offsets[j] - offsets[i] <= self.EDGE_STEP + 1e-6 and offsets[j] <= reach
                         and z[i] is not None and z[j] is not None
                         and abs((z[i] - z[j]) / (offsets[j] - offsets[i]) - road) <= self.EDGE_BREAK):
-                    return j
-                return i
-        return None
+                    j = i
+            else:
+                continue
+            after = (self._crown_slope(z, offsets, j, reach)
+                     if crown is None and axis is not None and abs(offsets[j] - axis) <= self.CROWN_NEAR + 1e-6 else None)
+            if after is None:
+                return j
+            crown, (i, road) = j, after
+            reach += self.CROWN_SEARCH
+            i -= 1  # reprise au premier point après le bombement
+        return crown
+
+    def _crown_slope(self, z, offsets, j, reach):
+        """Après une rupture au point j : (indice du point à EDGE_STEP m au-delà, sa pente sur 1 m) si la pente y est une
+        pente de chaussée (CROWN_SLOPE au plus) qui tient à EDGE_BREAK près sur CROWN_HOLD m, avant reach ; sinon None."""
+        k0 = next((k for k in range(j + 1, len(offsets)) if offsets[k] - offsets[j] >= self.EDGE_STEP - 1e-6), None)
+        if k0 is None or offsets[k0] + self.CROWN_HOLD > reach + 1e-6:
+            return None
+        s0 = self._edge_slope(z, offsets, k0, 1.0)
+        if s0 is None or abs(s0) > self.CROWN_SLOPE:
+            return None
+        for k in range(k0 + 1, len(offsets)):
+            if offsets[k] + 1.0 > offsets[k0] + self.CROWN_HOLD + 1e-6:
+                break
+            s = self._edge_slope(z, offsets, k, 1.0)
+            if s is None or abs(s - s0) > self.EDGE_BREAK:
+                return None
+        return k0, s0
 
     def _edge_peaks(self, z, offsets, between, beyond):
         """Pics étroits (voir PEAK_Z) avant l'axe de l'autre chaussée, à SEPARATOR_NEAR m au plus du milieu BD TOPO
@@ -1142,14 +1227,14 @@ class Chutes:
         twins = {name: 0 for name, _ in sides}  # côté -> travers où l'autre chaussée est comprise
         read = []
         start = 0
-        for along, name, guess, offsets, beyond, between, reach in profiles:
+        for along, name, guess, offsets, beyond, between, reach, axis in profiles:
             z = ground[start:start + len(offsets)]
             start += len(offsets)
             if z[0] is None:
                 continue
             twins[name] += beyond > 0
             found_sep = between and self._edge_separator(z, offsets, between, beyond)
-            i = self._edge_border(z, offsets, reach, beyond)
+            i = self._edge_border(z, offsets, reach, beyond, axis)
             read.append([along, name, guess, offsets, z, i, found_sep or between, "marches" if found_sep else None,
                          self._edge_peaks(z, offsets, between, beyond) if between else [], beyond, False])
         for name, _ in sides:
@@ -1235,7 +1320,7 @@ class Chutes:
                 seen.append("côté {} à {} m de {} ({}{}{})".format(
                     name, measures._num(sorted(o for o, _, _ in borders[name])[len(borders[name]) // 2], 1), origin,
                     "relief sur {} travers sur {}".format(by_relief, len(borders[name])) if by_relief
-                    else "largeur BD TOPO", f", {by_others} d'après les travers voisins" if by_others else "",
+                    else "largeur type", f", {by_others} d'après les travers voisins" if by_others else "",
                     ", au-delà du séparateur de chaussée ({}) et de l'autre chaussée".format(
                         "trouvé dans le relief" if any(e.get("separateur_relief") for e in drawn if e["cote"] == name)
                         else "d'après la BD TOPO") if twins[name] else ""))
@@ -1265,7 +1350,7 @@ class Chutes:
         """Infobulle des bords : méthode, puis les bords trouvés (seen)."""
         return ("Terrain ({}) en travers de la route, depuis {} jusqu'à {} m au-delà du bord de la chaussée, "
                 "sur ±{} m le long de la route ; côtés vus dans le sens de la photo. Bord : rupture de pente "
-                "ou marche du terrain (bordure), sinon largeur BD TOPO (ou {} m supposés) ; dès 3 travers trouvés "
+                "ou marche du terrain (bordure), sinon demi-largeur type de la catégorie de la route (importance BD TOPO) ; dès 3 travers trouvés "
                 "dans le relief, un travers sans rupture ou au bord à plus de {} m de leur médiane prend cette "
                 "médiane (d'après les travers voisins) ; chaussées séparées : "
                 "bord extérieur de l'autre chaussée, séparateur de chaussée compris (entre deux marches du "
@@ -1274,7 +1359,7 @@ class Chutes:
                 "butte). Dévers : pente moyenne du talus le plus raide, de son haut à son pied (pente sur {} m "
                 "repassée sous {} %). Bords trouvés : {}.").format(
             source, origin, measures._num(zone, 0), measures._num(self.EDGE_ALONG[-1], 0),
-            measures._num(self.FALL_WIDTH, 0), measures._num(self.EDGE_CONSENSUS, 0), measures._num(self.EDGE_RISE, 0),
+            measures._num(self.EDGE_CONSENSUS, 0), measures._num(self.EDGE_RISE, 0),
             measures._num(self.EDGE_WINDOW, 0),
             measures._num(100 * self.EDGE_TALUS, 0), " ; ".join(seen) or "aucun")
 

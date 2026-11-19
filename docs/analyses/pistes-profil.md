@@ -196,7 +196,17 @@ cas réel d'une bordure manquée.*
 - **Piste** : au décimètre sous 10 m, au mètre au-delà, arrondi au plus proche des deux côtés (`_distance`, `dist`).
 - **Gain** : distances justes et identiques partout.
 
-**P16. Bord pris au sommet du bombement, de l'autre côté de l'axe.**
+**P16. Bord pris au sommet du bombement, de l'autre côté de l'axe.** *Faite le 19/11/2026 (`_edge_border`, `_crown_slope`,
+`_edge_step(sharp)`, tests `BordsBombement`, dont deux travers relevés). Mise au point sur un banc hors ligne : profils complets
+(5 travers, 2 côtés) et bord d'enrobé de l'analyse fine relevés pour 66 photos (33 des pages d'essai, 33 tirées au hasard sur toute
+la Côte-d'Or par type de voie : chaussées séparées A6, A31, A36, A39, D8 ; réseau principal ; secondaire ; local ; petites voies),
+rejoués avec des variantes de réglages. 42 photos complètes (6 sur une autre instance Panoramax, 10 sur un pont, réponses de l'IGN
+manquantes), 61 côtés hors chaussées séparées. Bords sur l'enrobé (à plus de 0,25 m en deçà) : 28 (45 %) avant, 25 (40 %) après,
+aucun côté dégradé. Écartés : la marche « nette » partout (séparateur de la D1074 perdu, bords côté caméra de la RD903bis et de la
+RD700 reculés à 2 m : bordures et séparateurs sont adoucis par le MNT) ; une marche de 8 cm au lieu de 5 (34 % sur le banc, mais
+mêmes pertes sur `essai-bords`). Restent sur l'enrobé : des marches de 6-7 cm dans l'autre voie (D70 229abfcd, D965 67e087a0 :
+ornières, joints ou reprises, nettes et réelles), des bombements à plus de 1,25 m de l'axe BD TOPO (D115, D70 8d02bc6c : axe mal
+placé), et 10 replis BD TOPO (P17).*
 - **Avant** : profil depuis la caméra (séquence RTK) : du côté opposé à sa voie, la recherche du bord part de la caméra, avec la
   pente de sa voie comme référence, et traverse l'axe.
 - **Problème** : au sommet du bombement, ou là où le dévers change d'une voie à l'autre, la pente s'écarte de plus de 8 points de
@@ -207,11 +217,47 @@ cas réel d'une bordure manquée.*
   Cas tests : toit à 2,5 et 4 %, dévers différents par voie ; vérification sur les 24 côtés de P2.
 - **Gain** : bord juste du côté opposé, le plus souvent faux aujourd'hui quand le bombement est marqué.
 
-**P17. Largeur BD TOPO trop faible quand le relief ne dit rien.**
+**P17. Largeur BD TOPO trop faible quand le relief ne dit rien.** *Mesurée sur le banc de P16 : 7 replis sur 61 côtés, de 2 m en deçà de l'enrobé en
+médiane (jusqu'à 9 m : M996 6eea86cc, 10,5 m d'enrobé). Faite le 19/11/2026 selon la règle de l'auteur (« la BD TOPO n'est pas
+fiable pour les largeurs, elle sert juste à qualifier en grandes catégories ») : la largeur BD TOPO n'est qu'une valeur par
+importance (7, 5,5, 4 m), trop faible ; remplacée dans les bords de route par une largeur type par importance, médiane de l'enrobé
+mesuré (9 m en 1-2, 6,5 m en 3, 6 m en 4, 3,5 m en 5, 7 m par chaussée séparée ; `_road_width`), pour la portée de la recherche,
+le repli et l'autre chaussée. Banc : replis 7 → 4, bords sur l'enrobé 25 → 23 sur 61 (valeurs tirées des mêmes photos : un peu
+flatteur). Le repli s'appelle « largeur type ». Reste à montrer qu'il est une hypothèse (G3). La chute sur les ponts garde la
+largeur BD TOPO (hors du mode profil).*
 - **Avant** : sans rupture de pente, le bord est à la demi-largeur BD TOPO.
 - **Problème** : P2 : 3 côtés sur 3 dans l'enrobé, de 0,3 à 2 m (largeurs BD TOPO souvent celles de la seule chaussée).
 - **Piste** : à mesurer sur plus de cas avant de choisir (marge fixe, ou inviter à l'analyse fine, déjà proposée par G3).
 - **Gain** : bord de repli moins souvent sur la chaussée.
+
+**P18. Mur de soutènement lu comme un talus.**
+- **Avant** : sous la route, un mur est un talus très raide : « dévers du talus 400 % (76°) » sur terrain synthétique (mur vertical
+  de 2 m), au plus 76° au pas de 0,5 m ; le MNT, qui adoucit les parois, en ferait 100 à 200 %.
+- **Problème** : le chiffre laisse croire à une pente mesurée ; on ne distingue pas un mur d'un enrochement raide. La chute (hauteur)
+  reste juste. Au-dessus de la route (déblai), le mur arrête la lecture : « pas de chute », juste.
+- **Piste** : au-delà d'environ 150 % (56°), écrire « paroi quasi verticale (mur, enrochement) » sans pourcentage ; repère sur le
+  graphique.
+- **Gain** : pas de fausse précision sur les murs.
+
+**P19. Glissière ignorée.**
+- **Avant** : le MNT n'a que le sol ; une glissière au bord ne change rien au calcul : la chute derrière elle est annoncée comme sans
+  protection. Son assise (bosse de quelques centimètres) déplace au plus le bord de 0,5 m (terrain synthétique).
+- **Problème** : pour un audit de sécurité, une chute derrière une glissière n'est pas une chute libre.
+- **Piste** : dans l'analyse fine, points hors sol (classe à vérifier : non classés ou « sursol pérenne ») alignés le long du bord à
+  0,5-1 m de haut : « glissière probable » près de la chute. D'abord vérifier leur classe sur des glissières connues (A38, RD700
+  067e83ca).
+- **Gain** : la chute dit si elle est protégée.
+
+**P20. Bord du tablier d'après la BD TOPO (chute sur un pont, voie de secours).** *Faite le 19/11/2026, à la demande de l'auteur
+(« la largeur du tablier doit être calculée dans la couche LiDAR »).*
+- **Avant** : sans points classés pont dans le nuage, le dessous était lu à 1, 3, 6 et 10 m au-delà de la demi-largeur BD TOPO.
+- **Problème** : largeur BD TOPO non fiable. Sur le pont de la D114 (ruisseau de la Gironde, photo
+  e375c98e-31c5-426a-ba93-c63ac344d675), le nuage n'a aucun point classé pont : le tablier y est classé sol (surface plate au
+  niveau de la route, parapet en points non classés), donc compris dans le MNT.
+- **Fait** : coupes en travers tous les 0,5 m ; si le terrain sous l'axe est au niveau du tablier (GPS, 0,5 m près), bord du
+  tablier trouvé dans le relief comme un bord de route, sinon demi-largeur type. Le calcul par le nuage (points classés pont)
+  passe toujours avant et lit le tablier lui-même. Test `ChuteTablier` (chenal étroit au pied du tablier : 4,0 m, 1,0 m avant) ;
+  `essai-ponts` : D114, bords trouvés dans le relief sur 14 coupes sur 16, chute 1,8 m (1,7 m avant).
 
 ### Graphique et fenêtre : pistes
 

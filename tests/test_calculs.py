@@ -390,17 +390,19 @@ class BordsTalus(unittest.TestCase):
             self.assertAlmostEqual(r["devers"][4], depth, delta=0.05)  # hauteur du talus (pied à EDGE_FLAT près)
 
 
-def edges_on(z, width=8.0, twin=None, zone=10):
+def edges_on(z, width=8.0, twin=None, zone=10, axis_x=None):
     """Bords (App._compute_edges) sur un terrain synthétique z(x, y), en m : x vers la droite de la photo, y le long de la
-    route (axe x = 0, photo en y = 0) ; twin : autre chaussée [(ligne, largeur)]. Rend self.edges[clé]."""
+    route (photo en y = 0) ; axe BD TOPO en x = 0, profil depuis l'axe ; axis_x : axe en x = axis_x, profil depuis la
+    caméra (séquence RTK), en x = 0 ; twin : autre chaussée [(ligne, largeur)]. Rend self.edges[clé]."""
     lon, lat = 5.0, 47.0
     calc = App.__new__(App)
     calc.edges, calc.paved, calc.paved_redo = {}, {}, {}
     calc.notify = lambda: None
     calc._terrain = lambda points, done: done(
         [z(*web_app.triangulation._local(p[0], p[1], lon, lat)) for p in points], web_app.triangulation.LIDAR_NAME, None)
-    key = ("photo", zone, False)
-    calc._compute_edges(key, [(0.0, -200.0), (0.0, 200.0)], 200.0, width, 0.0, lon, lat, twin=twin)
+    key = ("photo", zone, axis_x is not None)
+    ax = axis_x or 0.0
+    calc._compute_edges(key, [(ax, -200.0), (ax, 200.0)], 200.0, width, 0.0, lon, lat, twin=twin)
     return calc.edges[key]
 
 
@@ -413,13 +415,13 @@ class BordsCas(unittest.TestCase):
     def entry(res, side, along=0.0):
         return next(e for e in res["profile"]["profils"] if e["cote"] == side and e["le_long"] == along)
 
-    def test_plain_pied(self):  # pas de rupture : demi-largeur BD TOPO, aucune chute
+    def test_plain_pied(self):  # pas de rupture : demi-largeur type, aucune chute
         res = edges_on(lambda x, y: 0.0)
         for side in ("gauche", "droit"):
             e = self.entry(res, side)
             self.assertEqual((e["bord"], e["relief"], e["voisins"]), (4.0, False, False))
         self.assertEqual(res["profile"]["resultats"], {})
-        self.assertIn("largeur BD TOPO", res["title"])
+        self.assertIn("largeur type", res["title"])
 
     def test_butte(self):  # le terrain remonte de 1 m : lecture arrêtée, pas de chute
         res = edges_on(lambda x, y: min(1.5, (x - 5.0) * 0.5) if x > 5.0 else 0.0)
@@ -468,6 +470,79 @@ class BordsCas(unittest.TestCase):
         self.assertIn("à 11 m du bord", res["text"])  # 10,5 : « 10 » au pair, « 11 » dans la légende du graphique
 
 
+class BordsBombement(unittest.TestCase):
+    """Profil depuis la caméra, dans sa voie à 1,75 m à droite de l'axe : de l'autre côté, la recherche du bord franchit le
+    sommet du bombement ou le changement de dévers d'une voie à l'autre, qu'elle prenait pour le bord (piste P16 ; D104
+    a04557c8, D70 229abfcd)."""
+
+    @staticmethod
+    def left(res):
+        return next(e for e in res["profile"]["profils"] if e["cote"] == "gauche" and e["le_long"] == 0)
+
+    @staticmethod
+    def ditch(z_road, edge, axis=-1.75):
+        """Terrain : chaussée z_road(x) jusqu'à edge m de l'axe (en x = axis) des deux côtés, puis fossé de 1 m à 50 %."""
+        def z(x, y):
+            a = abs(x - axis)
+            if a <= edge:
+                return z_road(x)
+            top = z_road(axis + edge if x > axis else axis - edge)
+            return top - min(1.0, (a - edge) * 0.5)
+        return z
+
+    def test_toit(self):  # 4,5 % de chaque côté du sommet : bord gauche au vrai bord, à 5,5 m de la caméra (2 m avant)
+        res = edges_on(self.ditch(lambda x: -0.045 * abs(x + 1.75), 3.75), width=7.5, axis_x=-1.75)
+        self.assertEqual((self.left(res)["bord"], self.left(res)["relief"]), (5.5, True))
+        self.assertIn("gauche", res["profile"]["resultats"])
+        self.assertAlmostEqual(res["profile"]["resultats"]["gauche"]["chute"][0], 1.0, delta=0.05)
+
+    def test_devers_par_voie(self):  # même sens, 1 % sous la caméra, 9,5 % sur l'autre voie (D70 : 3 et 8 à 11 %)
+        res = edges_on(self.ditch(lambda x: 0.01 * x if x > -1.75 else -0.0175 + 0.095 * (x + 1.75), 3.75), width=7.5, axis_x=-1.75)
+        self.assertEqual(self.left(res)["bord"], 5.5)
+
+    def test_route_etroite(self):  # 5 m, voies de 2,5 m, caméra à 1,5 m de l'axe : bombement franchi, bord à 4 m
+        res = edges_on(self.ditch(lambda x: -0.045 * abs(x + 1.5), 2.5, axis=-1.5), width=5.0, axis_x=-1.5)
+        self.assertEqual(self.left(res)["bord"], 4.0)
+
+    def test_plus_large_que_la_bd_topo(self):  # D70 229abfcd : 5 m BD TOPO, 12 m réels, fossé en V court : bord à 7,5 m
+        def z(x, y):
+            a = abs(x + 1.5)
+            if a <= 6.0:
+                return -0.045 * a
+            return -0.27 - (0.6 * (a - 6.0) / 0.75 if a <= 6.75 else max(0.0, 0.6 - (a - 6.75) * 0.5))
+        res = edges_on(z, width=5.0, axis_x=-1.5)
+        self.assertEqual(self.left(res)["bord"], 7.5)
+
+    # Travers relevés (MNT LiDAR HD, côté opposé à la caméra), bord d'enrobé de l'analyse fine : D24 556607c2 (4,11 m), D17
+    # ab10b6f3 (3,49 m) ; le bord du relief tombait sur la chaussée (1,5 et 2 m)
+    D24 = ((0, 197.95), (0.5, 197.96), (1, 198.02), (1.5, 198.02), (2, 198.1), (2.5, 198.1), (3, 198.12), (3.5, 198.09), (4, 198.13),
+           (4.5, 198.11), (5, 198.03), (5.5, 197.86), (6, 197.36), (6.5, 197.36), (7, 197.5), (7.5, 197.53), (8, 197.53), (8.5, 197.54),
+           (9, 197.54), (9.5, 197.51), (10, 197.5), (10.5, 197.52), (11, 197.52), (11.62, 197.51))
+    D17 = ((0, 504.82), (0.5, 504.84), (1, 504.81), (1.5, 504.81), (2, 504.81), (2.5, 504.76), (3, 504.76), (3.5, 504.72), (4, 504.72),
+           (4.5, 504.59), (5, 504.43), (5.5, 504.24), (6, 503.89), (6.5, 503.89), (7, 503.86), (7.5, 503.89), (8, 503.85), (8.5, 503.82),
+           (9.12, 503.83), (9.75, 503.82), (10.38, 503.78), (11, 503.79), (11.62, 503.72))
+
+    def test_travers_releves(self):
+        for points, axis, half, paved in ((self.D24, 2.32, 2.75, 4.11), (self.D17, 0.78, 2.0, 3.49)):
+            offsets, z = [p[0] for p in points], [p[1] for p in points]
+            reach = half + axis + app.EDGE_SEARCH
+            before = app._edge_border(z, offsets, reach)  # sans l'axe : bombement pris pour le bord
+            after = app._edge_border(z, offsets, reach, 0.0, axis)
+            self.assertLess(offsets[before], paved - 1.0)
+            self.assertGreaterEqual(offsets[after], paved - 0.25, (points[0], offsets[after]))
+
+    def test_voie_unique(self):  # 3 m, caméra sur l'axe, accotement à 10 % sur 1,5 m puis fossé : le bord reste au bord
+        def z(x, y):  # (près de l'axe, sur une seule voie, la rupture n'est pas prise pour un bombement)
+            a = abs(x)
+            return 0.0 if a <= 1.5 else -0.1 * (a - 1.5) if a <= 3.0 else -0.15 - min(1.0, (a - 3.0) * 0.5)
+        res = edges_on(z, width=3.0, axis_x=0.0)
+        self.assertEqual(self.left(res)["bord"], 1.5)
+
+    def test_sans_bombement(self):  # chaussée plate : rien ne change, bord à 5,5 m
+        res = edges_on(self.ditch(lambda x: 0.0, 3.75), width=7.5, axis_x=-1.75)
+        self.assertEqual(self.left(res)["bord"], 5.5)
+
+
 class BordsVoisins(unittest.TestCase):
     """Travers sans rupture de pente ramené au bord médian des autres (App._edge_reads) : d'après les travers voisins, pas
     « rupture de pente » (il était compté comme trouvé dans le relief)."""
@@ -491,7 +566,7 @@ class BordsVoisins(unittest.TestCase):
         self.assertEqual(plat["bord"], droit[0.0]["bord"])  # position : la médiane des autres (voulue)
         self.assertTrue(all(e["relief"] and not e.get("voisins") for a, e in droit.items() if a != 5.0))
         self.assertIn("relief sur 4 travers sur 5, 1 d'après les travers voisins", res["title"])
-        gauche = [e for e in res["profile"]["profils"] if e["cote"] == "gauche"]  # plat partout : largeur BD TOPO
+        gauche = [e for e in res["profile"]["profils"] if e["cote"] == "gauche"]  # plat partout : largeur type
         self.assertTrue(gauche and not any(e["relief"] or e.get("voisins") for e in gauche))
 
 
@@ -628,6 +703,46 @@ class Tablier(unittest.TestCase):
 
     def test_une_seule_photo(self):
         self.assertEqual(web_app._deck_at([(0, 0, 250.0, 7)], 12, 3), 250.0)
+
+
+class ChuteTablier(unittest.TestCase):
+    """Hauteur de chute sans points classés pont dans le nuage (App._compute_fall) : bord du tablier dans le relief quand le
+    MNT LiDAR HD le contient (tablier classé sol : D114 sur le ruisseau de la Gironde, photo
+    e375c98e-31c5-426a-ba93-c63ac344d675), sinon la demi-largeur type ; plus la largeur BD TOPO."""
+
+    def fall(self, z):
+        lon, lat = 5.0, 47.0
+        geo = lambda x, y: web_app.triangulation._geographic(x, y, lon, lat)
+        chain = [{"line": [geo(0.0, -15.0), geo(0.0, 15.0)], "level": 1, "width": 7.0, "importance": "3",
+                  "nature": "Route à 1 chaussée", "name": "D1"}]
+        photos = {"features": [{"collection": "c", "geometry": {"coordinates": list(geo(0.0, y))},
+                                "properties": {"geovisio:rank_in_collection": k, "exif": {"Exif.GPSInfo.GPSAltitude": "101.9"}}}
+                               for k, y in enumerate((-10.0, 0.0, 10.0))]}
+        saved = host.fetch_json, host.ngf_altitude
+        host.fetch_json = lambda url, done, *a, **k: done(photos, None)
+        host.ngf_altitude = lambda lon, lat, altitude: altitude  # tablier : 101,9 − 1,9 = 100 m
+        self.addCleanup(lambda: (setattr(host, "fetch_json", saved[0]), setattr(host, "ngf_altitude", saved[1])))
+        calc = App.__new__(App)
+        calc.falls = {}
+        calc.notify = lambda: None
+        calc._terrain = lambda points, done: done(
+            [z(web_app.triangulation._local(p[0], p[1], lon, lat)[0]) for p in points], web_app.triangulation.LIDAR_NAME, None)
+        key = ("c", (0.0, 0.0), (1.9, "séquence", 0.05))
+        calc._compute_fall(key, chain, {"collection": "c"}, lon, lat)
+        return calc.falls[key]
+
+    def test_tablier_dans_le_mnt(self):  # tablier à 4 m de l'axe, rive à 0,5 m sous lui, chenal de 4 m étroit juste au-delà
+        def z(x):
+            a = abs(x)
+            return 100.0 if a <= 4.0 else 96.0 if 4.75 < a < 5.25 else 99.5 if a <= 4.75 else 99.0
+        res = self.fall(z)
+        self.assertIn("max : 4,0 m", res["text"])  # au bord + 1 m (5 m) ; demi-largeur BD TOPO + 1 m (4,5 m) : 1 m seulement
+        self.assertIn("trouvés dans le relief", res["title"])
+
+    def test_tablier_absent_du_mnt(self):  # MNT au fond franchi : demi-largeur type (6,5 m en importance 3), 2 m de chute
+        res = self.fall(lambda x: 98.0)
+        self.assertIn("max : 2,0 m", res["text"])
+        self.assertIn("demi-largeur type", res["title"])
 
 
 class ChuteLidar(unittest.TestCase):
