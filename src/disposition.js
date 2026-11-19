@@ -11,7 +11,7 @@ const Disposition = {
     const $ = (selector) => document.querySelector(selector);
     const { map, store, setStatus, setSwapped, wantSwap } = host;
 
-    // Luminosité et contraste de l'affichage de la photo : curseurs verticaux (mémorisés), filtre CSS ----
+    // Luminosité et contraste de l'affichage de la photo : curseurs horizontaux (mémorisés), filtre CSS ----
 
     for (const [nom, variable] of [["luminosite", "--luminosite"], ["contraste", "--contraste"]]) {
       const curseur = $(`#${nom}`), raz = $(`#${nom}-raz`);
