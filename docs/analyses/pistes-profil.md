@@ -81,8 +81,22 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
   bord du relief). *Début le 19/11/2026 sur les 3 photos communes à `essai-bords` et `essai-nuage` : le bord du relief est au-delà
   de l'enrobé (accotement compris) de 0,2 à 7 m, sauf à droite de l'A38 61dd94c4 (relief 3,0 m, enrobé 4,8 m : rupture de dévers
   sur la bande d'arrêt d'urgence, cas noté dans `nuage.js`). Le bord du relief n'est donc pas le bord d'enrobé : P2 vérifie qu'il
-  n'est pas dedans (une erreur) ; elle ne valide pas le dévers, qu'il faudrait comparer à des talus mesurés. À faire sur 20 à 30
-  photos (essai-nuage#photos=…) un jour où les services de l'IGN répondent bien.*
+  n'est pas dedans (une erreur) ; elle ne valide pas le dévers, qu'il faudrait comparer à des talus mesurés.*
+  *Faite le 19/11/2026 sur les 33 photos des pages d'essai (page temporaire, bords du calcul puis analyse fine sans les
+  réinjecter) : 10 sur un pont, 4 sans BD TOPO (service injoignable), 2 identifiants inconnus ; 17 photos, 24 côtés où les deux
+  bords existent (relief et enrobé).*
+  - *14 côtés sur 24 : bord du relief au bord de l'enrobé ou au-delà (accotement), jusqu'à 7 m sur les chaussées séparées (herbe
+    plate jusqu'au talus, comptée dans la plateforme).*
+  - *4 côtés à 0,8-1 m en deçà de l'enrobé (D977BIS 1108ca14 et cd8cf3a0 à gauche, D1074 6d99cba2 et D700 d63ace61 à droite) :
+    le terrain y fait une marche ou un caniveau, le bord du relief est à son pied ; l'enrobé du nuage compte sa partie en pente.
+    Plausible des deux côtés.*
+  - *2 côtés A38 (61dd94c4 à droite, 66d45404 à gauche, 0,8-0,9 m) : rupture de dévers sur la bande d'arrêt d'urgence.*
+  - *3 côtés de l'autre côté de l'axe que la caméra : D70 229abfcd à gauche (bord à 2 m, enrobé à 6,5 m : 3 % sous la caméra,
+    8 % sur l'autre voie), D104 a04557c8 à gauche (2 m contre 3 m : sommet du bombement), D119M f533e240 à gauche (4 m contre
+    8,1 m, points non relus). La recherche du bord franchit l'axe et prend le changement de dévers d'une voie à l'autre pour le
+    bord : voir P16.*
+  - *1 côté à 0,45 m en deçà (D119M f533e240 à droite).*
+  - *Bord BD TOPO (rien dans le relief) : 3 côtés, tous dans l'enrobé, de 0,3 à 2 m (largeurs BD TOPO trop faibles) : voir P17.*
 - **P3** : confirmé (largeur d'enrobé seulement dans la légende, exports PNG et PDF seulement).
 - **P4** : l'« Avant » est inexact : l'origine du bord est aussi écrite sur le graphique, sous « bord » (`profil.js:378`). Reste vrai
   qu'une hypothèse a la même allure qu'une mesure ; repris dans G3. Et l'étiquette peut être fausse (P10).
@@ -181,6 +195,23 @@ cas réel d'une bordure manquée.*
 - **Problème** : « chute de 0,6 m à 0 m du bord » ; encadré et légende en désaccord. Fréquent : les points sont tous les 0,5 m.
 - **Piste** : au décimètre sous 10 m, au mètre au-delà, arrondi au plus proche des deux côtés (`_distance`, `dist`).
 - **Gain** : distances justes et identiques partout.
+
+**P16. Bord pris au sommet du bombement, de l'autre côté de l'axe.**
+- **Avant** : profil depuis la caméra (séquence RTK) : du côté opposé à sa voie, la recherche du bord part de la caméra, avec la
+  pente de sa voie comme référence, et traverse l'axe.
+- **Problème** : au sommet du bombement, ou là où le dévers change d'une voie à l'autre, la pente s'écarte de plus de 8 points de
+  la référence : bord trouvé sur la chaussée (P2 : 3 côtés sur 24, jusqu'à 4,5 m en deçà de l'enrobé). La plateforme est trop
+  étroite, chute et dévers partent du milieu de la route.
+- **Piste** : quand une rupture est suivie d'une pente de chaussée (moins de 8-10 %, régulière sur 2 m) et qu'une autre rupture
+  vient avant la fin de la recherche, la première est un bombement : reprendre la référence après elle et chercher la suivante.
+  Cas tests : toit à 2,5 et 4 %, dévers différents par voie ; vérification sur les 24 côtés de P2.
+- **Gain** : bord juste du côté opposé, le plus souvent faux aujourd'hui quand le bombement est marqué.
+
+**P17. Largeur BD TOPO trop faible quand le relief ne dit rien.**
+- **Avant** : sans rupture de pente, le bord est à la demi-largeur BD TOPO.
+- **Problème** : P2 : 3 côtés sur 3 dans l'enrobé, de 0,3 à 2 m (largeurs BD TOPO souvent celles de la seule chaussée).
+- **Piste** : à mesurer sur plus de cas avant de choisir (marge fixe, ou inviter à l'analyse fine, déjà proposée par G3).
+- **Gain** : bord de repli moins souvent sur la chaussée.
 
 ### Graphique et fenêtre : pistes
 
