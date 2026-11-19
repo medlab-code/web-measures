@@ -173,7 +173,6 @@ const Visionneuse = {
         if (!viewer.psv) return;
         clearInterval(timer);
         etat.psv = viewer.psv;
-        Defauts.attach(etat.psv);  // filtre « défauts de la route » (éteint tant que le bouton ne l'allume pas)
         // Pendant une mesure, le clic ne va pas à la visionneuse (elle irait à la photo voisine
         // dans la direction cliquée, ou suivrait une flèche) : il devient un point de mesure.
         const dispatch = etat.psv.dispatchEvent;

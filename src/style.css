@@ -1020,7 +1020,7 @@ html.souris-immobile:fullscreen :is(#plein-ecran, header .captures, #voyants, .b
 /* Luminosité et contraste de la photo : curseurs verticaux en haut à gauche, filtre sur la toile de la photo seule
    (repères, traits et boutons intacts) ; variables posées par disposition.js */
 #vue { --luminosite: 1; --contraste: 1; }
-#vue .psv-canvas-container canvas:not(.traits) { filter: brightness(var(--luminosite)) contrast(var(--contraste)); }  /* photo et filtre des défauts, pas les traits de mesure */
+#vue .psv-canvas-container canvas:not(.traits) { filter: brightness(var(--luminosite)) contrast(var(--contraste)); }  /* la photo, pas les traits de mesure */
 #reglage-image {
   position: absolute;
   left: 0.8rem;
@@ -1056,11 +1056,8 @@ html.souris-immobile:fullscreen :is(#plein-ecran, header .captures, #voyants, .b
   color: inherit;
 }
 #reglage-image button:not(:disabled) { cursor: pointer; }
-#reglage-image :is(#defauts, #rugosite) { align-self: center; margin-top: 0.2rem; }
-#reglage-image :is(#defauts, #rugosite)[aria-pressed="true"] { background: #ffd900; color: #18191c; }
 #reglage-image button:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }
 #reglage-image button:disabled { opacity: 0.6; }
-canvas.defauts[hidden] { display: none; }
 pnx-photo-viewer[hidden] ~ #reglage-image { display: none; }
 html:fullscreen #reglage-image { transition: opacity 0.2s; }
 html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
@@ -1510,8 +1507,8 @@ dd { margin: 0; overflow-wrap: anywhere; }
 /* Carte : curseur de vue (cône, axe, position de la photo), image tournée au cap de la vue */
 .curseur-vue { pointer-events: none; line-height: 0; }
 
-/* Traits de la visionneuse (src/traits.js) et filtre des défauts de la route (src/defauts.js) : toiles WebGL sur la photo, sous les repères */
-canvas.traits, canvas.defauts {
+/* Traits de la visionneuse (src/traits.js) : toile WebGL sur la photo, sous les repères */
+canvas.traits {
   position: absolute;
   inset: 0;
   width: 100%;

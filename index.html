@@ -158,15 +158,6 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg></button>
         </div>
-        <button type="button" id="defauts" aria-pressed="false"
-                title="Fissures et nids de poule : contraste égalisé localement (CLAHE), zones plus sombres que leur voisinage en rouge, contours de Sobel en jaune. Au-dessus de l'horizon, au loin et sur le véhicule : ignoré. Affichage seulement : mesures et exports inchangés">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-               aria-hidden="true"><path d="M3 20l5-16M21 20L16 4"/><path d="M12 3v3M12 10v3M12 17v3" stroke-dasharray="0"/>
-            <path d="M8 12l3 1.5-2 2.5 4 1" stroke="#ffd900"/></svg></button>
-        <button type="button" id="rugosite" aria-pressed="false"
-                title="Rugosité de la chaussée (expérimental : marque aussi l'herbe sèche et peu les gravillons proches) : écart de luminosité entre pixels voisins, en jaune puis rouge là où la surface est écaillée ou déchaussée (gravillons) ; l'enrobé sain reste gris. Au-dessus de l'horizon, au loin et sur le véhicule : ignoré. Affichage seulement">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-               aria-hidden="true"><path d="M2 14l3-3 2 4 3-6 2 8 3-7 2 5 2-3 3 2"/></svg></button>
       </div>
       <ul id="voyants" hidden></ul>
       <div class="bas-vue">  <!-- localisation à gauche, lecture de la séquence au centre, producteur à droite -->
@@ -1340,7 +1331,6 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
   <script src="src/video.js"></script>
   <script src="src/calcul.js"></script>
   <script src="src/traits.js"></script>
-  <script src="src/defauts.js"></script>
   <script src="src/couche.js"></script>
   <script src="src/profil.js"></script>
   <script src="src/nuage.js"></script>

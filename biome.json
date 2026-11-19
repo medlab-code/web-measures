@@ -13,7 +13,7 @@
           "level": "warn",
           "options": {
             "ignore": {
-              "variable": ["Calcul", "Carte", "Choix", "Couche", "Defauts", "Dessus", "Disposition", "Essai", "Favoris", "Fiche", "Lieu",
+              "variable": ["Calcul", "Carte", "Choix", "Couche", "Dessus", "Disposition", "Essai", "Favoris", "Fiche", "Lieu",
                 "Mesure", "Nuage", "Objets", "Parcours", "PassagesPietons", "Profil", "Recherche", "Reglages",
                 "Releve", "Requeteur", "Resultats", "Services", "Traits", "Video", "Vignette", "Visionneuse"]
             }
