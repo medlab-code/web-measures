@@ -11,6 +11,23 @@ const Disposition = {
     const $ = (selector) => document.querySelector(selector);
     const { map, store, setStatus, setSwapped, wantSwap } = host;
 
+    // Luminosité et contraste de l'affichage de la photo : curseurs verticaux (mémorisés), filtre CSS ----
+
+    for (const [nom, variable] of [["luminosite", "--luminosite"], ["contraste", "--contraste"]]) {
+      const curseur = $(`#${nom}`), raz = $(`#${nom}-raz`);
+      const applique = () => {
+        const valeur = Number(curseur.value);
+        $("#vue").style.setProperty(variable, String(valeur / 100));
+        raz.disabled = valeur === 100;  // grisé tant que rien n'est changé
+        store.set(`photo-${nom}`, valeur === 100 ? "" : String(valeur));
+      };
+      const gardee = Number(store.get(`photo-${nom}`));
+      if (gardee >= 50 && gardee <= 150) curseur.value = String(gardee);
+      curseur.addEventListener("input", applique);
+      raz.addEventListener("click", () => { curseur.value = "100"; applique(); });
+      applique();
+    }
+
     // Hauteur de la carte : poignée à glisser (mémorisée), bouton pour la replier --------------
 
     const mapBox = $("#carte");

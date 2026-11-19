@@ -1017,6 +1017,52 @@ html:fullscreen :is(#plein-ecran, header .captures):hover { opacity: 1; }
 html:fullscreen :is(#plein-ecran, header .captures, #voyants, .bas-vue) { transition: opacity 0.2s; }
 html.souris-immobile:fullscreen :is(#plein-ecran, header .captures, #voyants, .bas-vue):not(:hover) { opacity: 0; }
 
+/* Luminosité et contraste de la photo : curseurs verticaux au bord gauche, filtre sur la toile de la photo seule
+   (repères, traits et boutons intacts) ; variables posées par disposition.js */
+#vue { --luminosite: 1; --contraste: 1; }
+#vue .psv-canvas-container { filter: brightness(var(--luminosite)) contrast(var(--contraste)); }
+#reglage-image {
+  position: absolute;
+  left: 0.8rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.4rem 0.2rem;
+  border-radius: 999px;
+  background: rgba(24, 25, 28, 0.55);
+  color: #fff;
+  transition: background 0.2s;
+}
+#reglage-image:hover { background: rgba(24, 25, 28, 0.82); }
+#reglage-image > div { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; }
+#reglage-image input[type="range"] {
+  writing-mode: vertical-lr;
+  direction: rtl;  /* le haut augmente */
+  width: 1.2rem;
+  height: 6rem;
+  margin: 0;
+  accent-color: var(--panoramax);
+}
+#reglage-image button {
+  display: flex;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0.15rem;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+}
+#reglage-image button:not(:disabled) { cursor: pointer; }
+#reglage-image button:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }
+#reglage-image button:disabled { opacity: 0.6; }
+pnx-photo-viewer[hidden] ~ #reglage-image { display: none; }
+html:fullscreen #reglage-image { transition: opacity 0.2s; }
+html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
+
 /* Visionneuse : route et commune de la photo, en bas à gauche */
 /* Bandeau du bas de la visionneuse : localisation à gauche, producteur de la photo à droite,
    même étiquette ; place partagée selon leur longueur, l'un au-dessus de l'autre si besoin */
