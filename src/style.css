@@ -1017,15 +1017,14 @@ html:fullscreen :is(#plein-ecran, header .captures):hover { opacity: 1; }
 html:fullscreen :is(#plein-ecran, header .captures, #voyants, .bas-vue) { transition: opacity 0.2s; }
 html.souris-immobile:fullscreen :is(#plein-ecran, header .captures, #voyants, .bas-vue):not(:hover) { opacity: 0; }
 
-/* Luminosité et contraste de la photo : curseurs verticaux au bord gauche, filtre sur la toile de la photo seule
+/* Luminosité et contraste de la photo : curseurs verticaux en haut à gauche, filtre sur la toile de la photo seule
    (repères, traits et boutons intacts) ; variables posées par disposition.js */
 #vue { --luminosite: 1; --contraste: 1; }
 #vue .psv-canvas-container { filter: brightness(var(--luminosite)) contrast(var(--contraste)); }
 #reglage-image {
   position: absolute;
   left: 0.8rem;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 0.6rem;
   z-index: 5;
   display: flex;
   flex-direction: column;
