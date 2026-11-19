@@ -49,6 +49,13 @@ REFERENCES = {
         "sur 2 travers sur 5, puis trottoir jusqu'à 5 m ; analyse fine à 10,5 m, en contrebas (auteur, 19/11/2026)"),
     ("6eea86cc-4c40-4395-9686-2418892bfa82", "gauche"): (
         5.5, "M996 : caniveau à 5-5,5 m puis bordure de 6 à 8 cm sur les 5 travers ; analyse fine à 6,75 m (auteur, 19/11/2026)"),
+    ("20a5b40f-ab06-40ab-97e1-b3f74032bec7", "droit"): (
+        4.5, "M70, ville, 2 voies à bordures fines (profil depuis l'axe, caméra à ~2,3 m à droite au GPS) : bordure proche "
+        "du flanc droit du véhicule, caniveau à 4,5 m puis marche de 4 cm et large trottoir ; analyse fine à 7,6 m "
+        "(auteur, 19/11/2026)"),
+    ("20a5b40f-ab06-40ab-97e1-b3f74032bec7", "gauche"): (
+        2.1, "M70 : bordure fine (bosse de 3 cm vers 2,5 m) contre la voie de tramway enherbée ; analyse fine à 2,1 m, juste "
+        "(auteur, 19/11/2026)"),
 }
 
 
@@ -140,7 +147,8 @@ def run(paths, settings, verbose=False):
             rows.append({"id": d["id"], "route": d.get("route"), "cote": r[1], "bord": r[3][r[5]] if r[5] is not None else r[2],
                          "relief": r[5] is not None, "enrobe": fixed[0] if fixed else paved["x"], "twin": bool(r[9]),
                          "verifie": bool(fixed),
-                         "oppose": d["origine"] == "caméra" and (r[1] == "gauche") == (d["axe"] < 0)})
+                         "oppose": d["origine"] == "caméra" and (r[1] == "gauche") == (d["axe"] < 0),
+                         "axe": d["origine"] != "caméra"})
     every = [r for r in rows if not r["twin"]]
     far = [r for r in every if r["verifie"] and r["bord"] - r["enrobe"] > 1.0]  # seulement sur référence vérifiée
     inside = [r for r in every if r["bord"] - r["enrobe"] < -0.25]
@@ -152,7 +160,7 @@ def run(paths, settings, verbose=False):
           f"références vérifiées : {sum(r['verifie'] for r in every)}, bord à plus de 1 m au-delà : {len(far)}")
     if verbose:
         for r in sorted(inside, key=lambda r: r["bord"] - r["enrobe"]) + far:
-            print(f"   {r['id']} {r['route'] or '?':8} {r['cote']:6} {'opposé' if r['oppose'] else 'caméra':7} "
+            print(f"   {r['id']} {r['route'] or '?':8} {r['cote']:6} {'axe' if r['axe'] else 'opposé' if r['oppose'] else 'caméra':7} "
                   f"{'relief' if r['relief'] else 'type':6} bord {r['bord']:.2f} / {'vérifié' if r['verifie'] else 'enrobé'} {r['enrobe']:.2f}")
     return rows
 
