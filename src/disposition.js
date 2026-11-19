@@ -28,6 +28,13 @@ const Disposition = {
       applique();
     }
 
+    const defauts = $("#defauts");  // CLAHE + Sobel : défauts de la route (affichage seulement, non mémorisé)
+    defauts.addEventListener("click", () => {
+      const allume = defauts.getAttribute("aria-pressed") !== "true";
+      if (!Defauts.set(allume)) { setStatus("Filtre des défauts de la route impossible : WebGL 2 absent ou visionneuse pas prête.", "echec"); return; }
+      defauts.setAttribute("aria-pressed", String(allume));
+    });
+
     // Hauteur de la carte : poignée à glisser (mémorisée), bouton pour la replier --------------
 
     const mapBox = $("#carte");

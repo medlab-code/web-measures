@@ -158,6 +158,11 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg></button>
         </div>
+        <button type="button" id="defauts" aria-pressed="false"
+                title="Défauts de la route : contraste égalisé localement (CLAHE) et contours de Sobel en jaune, pour faire ressortir fissures, rapiéçages et déformations. Affichage seulement : mesures et exports inchangés">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+               aria-hidden="true"><path d="M3 20l5-16M21 20L16 4"/><path d="M12 3v3M12 10v3M12 17v3" stroke-dasharray="0"/>
+            <path d="M8 12l3 1.5-2 2.5 4 1" stroke="#ffd900"/></svg></button>
       </div>
       <ul id="voyants" hidden></ul>
       <div class="bas-vue">  <!-- localisation à gauche, lecture de la séquence au centre, producteur à droite -->
@@ -1331,6 +1336,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
   <script src="src/video.js"></script>
   <script src="src/calcul.js"></script>
   <script src="src/traits.js"></script>
+  <script src="src/defauts.js"></script>
   <script src="src/couche.js"></script>
   <script src="src/profil.js"></script>
   <script src="src/nuage.js"></script>
