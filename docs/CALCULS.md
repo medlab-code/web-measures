@@ -649,6 +649,48 @@ moins de 10 %, vers l'intérieur dans les virages marqués).
 Avec un GPS grand public (±4 m), le point de référence est à plusieurs mètres près, et une
 hauteur à ±2 à 3 m. Les essais et leurs valeurs attendues sont dans le guide (docs/GUIDE.md, « Précision »).
 
+## 13. Tracé en plan : rayon des courbes (`py/core/trace.py`)
+
+Pas encore relié à la page : cœur de calcul et tests seulement (`tests/coeur/test_trace.py`).
+
+Les positions des photos d'une séquence (mètres, plan tangent) donnent le tracé en plan de la route
+comme le restitue un logiciel de tracé routier : suite d'**alignements** (droites), de **clothoïdes**
+(raccordements progressifs, courbure qui varie linéairement) et d'**arcs** de cercle, à courbure
+continue. Le rayon de chaque arc, le paramètre A (A² = R·L) de chaque clothoïde, le sens des virages
+et leurs abscisses en sortent.
+
+1. **Modèle.** La courbure κ(s) = 1/R (positive vers la gauche) est linéaire par morceaux entre des
+   nœuds tous les 15 m. Le cap en est l'intégrale, la position l'intégrale du cap : la trajectoire
+   se décrit par κ aux nœuds et la pose de départ. Une clothoïde est une rampe de κ, un arc un
+   palier, une droite un palier à zéro.
+2. **Départ.** Lissage linéaire des positions (spline de Whittaker, longueur d'onde 40 m), dont on
+   tire le cap, la courbure et l'abscisse curviligne. Sans lui, l'ajustement s'enlise dans un minimum
+   local : la position est l'intégrale double de κ, le problème n'est pas convexe.
+   L'abscisse de chaque photo est son pied sur la courbe lissée (puis sur la courbe ajustée, trois
+   fois), **pas la somme des cordes** : avec 1 m de bruit tous les 5 m, les cordes allongent le trajet
+   de 4 % et le modèle compense par des oscillations de courbure.
+3. **Ajustement.** Moindres carrés non linéaires (Levenberg-Marquardt, jacobien numérique) de la
+   distance au modèle, avec une pénalité sur la dérivée seconde de κ (300, ou 3·10⁶ × σ² si les
+   positions sont bruitées) et sur l'écart de κ entre les deux premiers et derniers nœuds (κ y est
+   mal observé). σ, l'écart type du bruit, vient des dérivées troisièmes de la suite (presque nulles
+   sur un arc : la courbure n'y compte pas).
+4. **Découpage.** Douglas-Peucker sur (s, κ) à 2,5·10⁻⁴ m⁻¹, puis classement : droite (R > 2 700 m),
+   arc (courbure variant de moins de 20 %), clothoïde. Raccords de moins de 15 m absorbés, morceaux
+   voisins regroupés en un arc quand leurs courbures restent à ± 25 % de leur moyenne.
+
+Validé sur des routes synthétiques (alignements, clothoïdes, arcs de 150 m à gauche et de 400 m à
+droite, photos tous les 5 m) : positions à 3 cm (RTK) : rayons à 1 % (150 m) et 3 % (400 m), paramètre
+de clothoïde à 15 %, l'écart restant dû aux bouts de clothoïde ; positions à 1 m (sans RTK) : rayons
+de 150 m entre 148 et 188 m (un virage sur cinq est coupé en deux arcs), de 400 m entre 404 et 426 m.
+Arcs purs de 60 à 800 m de rayon à 6 % ; 2 km en 0,9 s ; marche en sens inverse ou en miroir
+symétrique.
+
+Limites : la trajectoire est celle du véhicule, pas l'axe (décalage d'une voie : R ± 1,5 à 2 m) ;
+les deux premiers et derniers nœuds (30 m) sont mal déterminés ; un raccord brusque (arc sans
+clothoïde) est lissé sur 15 m (écart au modèle jusqu'à 0,25 m pour R = 60 m) ; au plus quelques
+kilomètres par appel (le lissage de départ résout un système plein) ; hors RTK (±4 m), le calcul n'a
+pas été essayé sur une vraie séquence.
+
 ## Vue du dessus (essai, branche `birdeye`)
 
 Explication d'ensemble (construction de l'image, recalages, pourquoi et comment) : `docs/BIRDEYE.md`. Ici, le
