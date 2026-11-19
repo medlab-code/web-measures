@@ -98,6 +98,8 @@ try {
   paved("ligne blanche étroite", (x) => (Math.abs(x - 2) < 0.1 ? 900 : asphalt(x)), 4.9);
   paved("reprise claire à 1,6 fois", (x) => (x >= 1.5 && x < 3 ? 480 : asphalt(x)), 4.9);
   paved("gravillons à 3 fois puis herbe", (x) => (x < 5 ? 300 : x < 8 ? 900 : 2000), 4.9);
+  paved("gravier à 1,5 fois jusqu'à l'herbe (D70 c6c065fa)", (x) => (x < 2 ? 300 : x < 5 ? 450 : 1400), 1.9);
+  paved("surlargeur claire après la ligne de rive (RD903bis 1640bc3f)", (x) => (Math.abs(x - 1.4) < 0.13 ? 3000 : x < 1.5 ? 300 : x < 3.2 ? 480 : 1400), 3.1);
   paved("pas d'abords clairs", () => 320, null);
   paved("bord au-delà de la limite", (x) => (x < 14 ? 300 : 1400), null);
   // Bordure (altitude médiane du sol par case, m) : trottoir en enrobé (D119M f533e240, M996 6eea86cc) ; ni dévers, ni

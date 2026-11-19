@@ -442,7 +442,13 @@ Ce que l'analyse en tire :
   du côté d'une autre chaussée sans séparateur trouvé. Chaque travers garde le plus proche des deux
   bords (intensité, bordure). Relevé du 19/11/2026 sur 9 côtés vérifiés à la main (photo, vue du
   dessus) : écart total au vrai bord 30 → 7 m (D8, M996, D119M : trottoir compté en enrobé jusqu'à
-  9 m de trop) ; les accotements en gravier sombre (D70) restent comptés en enrobé.
+  9 m de trop). **Gravier** sombre (accotement, D70 c6c065fa : 1,3 à 1,6 fois l'enrobé, sous le seuil
+  de 2,2) : bande d'au moins 1 m qui reste à **1,25 fois** l'enrobé ou plus (médiane de 3 cases) sans
+  interruption jusqu'aux abords clairs ; le bord est son début. Pas de gravier si une ligne blanche
+  est dans la bande ou à son bord (surlargeur revêtue au-delà de la ligne de rive, RD903bis : même
+  intensité), sans 0,75 m d'enrobé avant elle (voie plus claire), ni s'il commence plus de 0,5 m
+  avant le bord du relief (voie qui s'éclaircit vers le bord, D1074 6d99cba2). D70 : 4,4 → 2,1 m
+  à droite (vrai bord 2,0), 7,2 → 6,0 m à gauche (5,0).
   Le bord est la médiane des travers, si au moins 3 le trouvent. La **largeur
   d'enrobé** (légende) est la médiane des largeurs des travers, ± 1,48 fois leur écart médian (0,1 m
   au moins) ; du côté du séparateur, elle s'arrête à lui. Les surlargeurs revêtues et bandes

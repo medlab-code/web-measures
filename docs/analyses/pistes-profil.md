@@ -260,7 +260,7 @@ largeur BD TOPO (hors du mode profil).*
   `essai-ponts` : D114, bords trouvés dans le relief sur 14 coupes sur 16, chute 1,8 m (1,7 m avant).
 
 **P21. Analyse fine : trottoir et gravier comptés en enrobé.** *Bordures faites le 19/11/2026 (`Nuage.kerbEdge`, essais dans
-`tests/essai-profil.html`) ; gravier à faire.*
+`tests/essai-profil.html`) ; gravier fait le 19/11/2026 (`pavedEdge`, GRAVEL), à vérifier sur plus de photos.*
 - **Avant** : le bord d'enrobé de l'analyse fine ne lit que l'intensité du retour laser (première bande 2,2 fois plus claire).
   Vérifié à la main sur 5 photos (9 côtés, vue du dessus) : il déborde dans les 5 cas, de 2 à 9 m (D8
   082893e5-f336-441b-8d28-0eecdbae1dde, M996 6eea86cc-4c40-4395-9686-2418892bfa82, M70 20a5b40f-ab06-40ab-97e1-b3f74032bec7,
@@ -274,8 +274,15 @@ largeur BD TOPO (hors du mode profil).*
   1,8 m vers la route : D111 2f6bf2e3-4818-4659-8b9a-84190cc5af18 et D977BIS 1108ca14-6669-49e8-a26a-955becc79e81 à gauche
   plausibles (marche de 10 et 15 cm, comme le relief) ; M70 f85566ac-8b7a-46a2-a9c2-4df0a3fa6e20 à gauche faux (creux à 1,6 m
   de l'axe) : pas de bordure à moins de 2 m de l'axe quand le profil part de l'axe.
-- **Reste** : le gravier sombre (D70 : 2,4 m de trop à droite, 2,2 m à gauche) ; revoir les largeurs types de P17 sur
-  l'enrobé corrigé.
+- **Gravier (fait)** : bande à 1,25 fois l'enrobé ou plus, sans interruption jusqu'aux abords, sans ligne blanche, après
+  0,75 m d'enrobé, au plus 0,5 m avant le bord du relief. D70 c6c065fa : 4,4 → 2,1 m à droite (vrai 2,0), 7,2 → 6,0 m à
+  gauche (vrai 5,0) ; écart total sur les côtés vérifiés présents 7,0 → 2,5 m (M70 20a5b40f absente du relevé : « BD TOPO
+  injoignable »). Écartés en route : RD903bis 1640bc3f (surlargeur après la ligne de rive, même intensité : 3,3 → 1,1 m),
+  D18 et D1074 6d99cba2 (voie plus claire vers le bord : 3,8 → 1,6 m). Changent encore, sans vérification : D115
+  8377ed2a-5acc-42c3-a9f0-7a5d4bdb335b (5,10 → 4,38 et 4,73 → 3,62), D977BIS cd8cf3a0-6567-40f0-8805-94172a5dfc3c gauche
+  (4,86 → 3,88), D1074 6f585daf-8e96-448d-9efb-2523927bc8c9 gauche (7,88 → 5,88), D70 229abfcd-868c-4eca-bfc1-3979ca94d28f
+  gauche (6,52 → 5,62).
+- **Reste** : vérifier ces côtés ; revoir les largeurs types de P17 sur l'enrobé corrigé.
 - **Gain** : bord d'enrobé juste en ville (trottoirs) ; banc et largeurs types sur une référence fiable.
 
 ### Graphique et fenêtre : pistes
