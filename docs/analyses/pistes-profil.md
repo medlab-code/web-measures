@@ -28,7 +28,7 @@ Ordre proposé le 17/11 : P1, P2, P3, P4, P5, P6. P5 a été faite puis retirée
   taux de réussite chiffré et les cas qui échouent.
 - **Gain** : des chiffres au lieu d'estimations ; filet pour P1.
 
-**P3. Faire de la largeur d'enrobé un vrai résultat.**
+**P3. Faire de la largeur d'enrobé un vrai résultat.** *Écartée par l'auteur le 19/11/2026.*
 - **Avant** : elle n'apparaît que dans le texte de la légende (« Largeur d'enrobé : X m ± Y »). Exports du profil : PNG et PDF
   seulement (d'après la lecture de `src/profil.js` et `src/reglages.js`).
 - **Problème** : pas réutilisable dans QGIS ni un tableur.
@@ -59,7 +59,7 @@ Ordre proposé le 17/11 : P1, P2, P3, P4, P5, P6. P5 a été faite puis retirée
   dans le carré ; si le carré avait un bloc plus profond hors de la bande, l'ancien code lisait des blocs plus profonds, le nouveau des
   blocs un niveau plus haut. Aucun écart vu sur ces 5 photos.
 
-**P6. Analyse fine automatique à l'ouverture des graphiques.**
+**P6. Analyse fine automatique à l'ouverture des graphiques.** *Écartée par l'auteur le 19/11/2026.*
 - **Avant** : un clic sur « Analyse fine » à chaque profil.
 - **Problème** : un clic de plus, mais lancée sans demande elle consommerait du réseau.
 - **Piste** : une case « Analyse fine automatique », décochée par défaut.
@@ -78,7 +78,11 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
   synthétique (`BordsChausseesSeparees`, `BordsEnrobe`), mais rien ne vérifie la position du bord, la chute, le dévers ni le
   consensus. La piste reste la première à faire : ce banc vient de montrer P7, P8, P9 et P10.
 - **P2** : toujours valable, et devient la référence pour valider P7 et P8 sur des routes réelles (bord d'enrobé du nuage contre
-  bord du relief).
+  bord du relief). *Début le 19/11/2026 sur les 3 photos communes à `essai-bords` et `essai-nuage` : le bord du relief est au-delà
+  de l'enrobé (accotement compris) de 0,2 à 7 m, sauf à droite de l'A38 61dd94c4 (relief 3,0 m, enrobé 4,8 m : rupture de dévers
+  sur la bande d'arrêt d'urgence, cas noté dans `nuage.js`). Le bord du relief n'est donc pas le bord d'enrobé : P2 vérifie qu'il
+  n'est pas dedans (une erreur) ; elle ne valide pas le dévers, qu'il faudrait comparer à des talus mesurés. À faire sur 20 à 30
+  photos (essai-nuage#photos=…) un jour où les services de l'IGN répondent bien.*
 - **P3** : confirmé (largeur d'enrobé seulement dans la légende, exports PNG et PDF seulement).
 - **P4** : l'« Avant » est inexact : l'origine du bord est aussi écrite sur le graphique, sous « bord » (`profil.js:378`). Reste vrai
   qu'une hypothèse a la même allure qu'une mesure ; repris dans G3. Et l'étiquette peut être fausse (P10).
@@ -113,7 +117,9 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
   chute), ou droite ajustée sur le cœur du talus (pentes ≥ `EDGE_CORE` de la plus forte). Cas tests : les quatre talus ci-dessus.
 - **Gain** : dévers juste à quelques points près sur talus net.
 
-**P9. Chute surestimée par le bruit du terrain.** *Mesurée le 19/11/2026, pas de correction. Bruit réel du MNT LiDAR HD sur chaussée (grille de 12 × 12 points tous les 0,5 m sous 3 photos d'essai, 1640bc3f, 61dd94c4, 067e83ca) : 0,7 à 1,0 cm d'un point au suivant, 1,0 à 1,5 cm d'écart à un plan. À ce bruit, la chute d'un fossé de 1 m sort à 1,03-1,04 m (au plus 1,09 m), 1,06 m à 2 cm : sous l'incertitude affichée (±0,1 m) et l'arrondi au décimètre. Le maximum (« cas le plus défavorable ») est gardé. À revoir seulement si le bruit hors chaussée (herbe, sous les arbres) se révélait bien plus fort.*
+**P9. Chute surestimée par le bruit du terrain.** *Mesurée le 19/11/2026, pas de correction. Bruit réel du MNT LiDAR HD sur chaussée (grille de 12 × 12 points tous les 0,5 m sous 3 photos d'essai, 1640bc3f, 61dd94c4, 067e83ca) : 0,7 à 1,0 cm d'un point au suivant, 1,0 à 1,5 cm d'écart à un plan. À ce bruit, la chute d'un fossé de 1 m sort à 1,03-1,04 m (au plus 1,09 m), 1,06 m à 2 cm : sous l'incertitude affichée (±0,1 m) et l'arrondi au décimètre. Le maximum (« cas le plus défavorable ») est gardé. Hors chaussée, le terrain varie de 3 à 5 cm d'un point au suivant (médiane, voir P14) : en partie du relief réel (sillons,
+mottes), qui compte dans une chute ; si c'était du bruit, la chute serait majorée de 10 à 15 cm. À trancher seulement avec des
+fossés mesurés sur le terrain.*
 - **Avant** : la chute est le plus grand écart entre le bord et le point le plus bas, sur tous les points et les 5 travers (« le
   cas le plus défavorable »).
 - **Problème** : fossé de 1 m à fond plat, 100 tirages par niveau de bruit : chute moyenne 1,09 m (bruit de 3 cm), 1,15 m
@@ -132,7 +138,7 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
   sur le code actuel.
 - **Gain** : on sait d'où vient chaque bord.
 
-**P11. Calcul des bords refait à chaque rafraîchissement.**
+**P11. Calcul des bords refait à chaque rafraîchissement.** *Mesurée le 19/11/2026, pas de changement : dans la page (Chrome, Pyodide), `fall_json` prend 1 ms une fois le profil calculé (Pouilly cd8cf3a0, RD903bis 1640bc3f), 13 ms sur l'A38 61dd94c4 (chaussées séparées, beaucoup de tronçons) ; 9 à 13 000 caractères relus en moins de 0,1 ms. Moins d'une image d'écran, à chaque clic seulement.*
 - **Avant** : `refresh` appelle `fall_json` à chaque fois (`app.js:701`). Sur une photo dont le profil est calculé, `_edges` refait
   la fusion des 9 mailles, la projection de tous les tronçons, `_chained`, la liste des autres chaussées et `_water_across`, puis
   le profil (environ 350 points) passe en JSON et est relu par la page.
@@ -147,14 +153,20 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
 - **Piste** : filtrer à l'ajout (`|le long| ≤ max(PAVED_STEPS) + STRIP`). Résultat identique par construction.
 - **Gain** : à mesurer ; moins utile si P5 revient.
 
-**P13. Un seul point hors LiDAR HD et tout passe en RGE ALTI.**
+**P13. Un seul point hors LiDAR HD et tout passe en RGE ALTI.** *Comptée le 19/11/2026 : aucun profil en RGE ALTI dans les journaux de `essai-bords` (12 chutes, toutes à ±0,1 m : LiDAR HD) ; la Côte-d'Or est couverte. Rien à faire tant qu'aucun cas n'est vu.*
 - **Avant** : `fetch_terrain` passe un paquet en RGE ALTI s'il manque un point LiDAR ; `_terrain` relit alors tout en RGE ALTI.
 - **Problème** : altitudes à ±0,30 m au lieu de ±0,08 m, pas de dévers de plateforme, pour un point au bout d'un travers.
   Fréquence inconnue (bords de la couverture LiDAR HD).
 - **Piste** : compter ces cas dans les essais avant de décider ; écarter les points manquants s'ils sont loin du bord.
 - **Gain** : précision gardée près des limites de couverture.
 
-**P14. Seuils pensés pour un bruit de ±5 cm.**
+**P14. Seuils pensés pour un bruit de ±5 cm.** *Mesurée le 19/11/2026, seuils gardés. Terrain le long de lignes parallèles à
+la route (20 points tous les 0,5 m), sous les 10 photos de `essai-bords`, écart d'un point au suivant (médiane des photos) :
+1,1 et 0,9 cm à 2 m de part et d'autre (chaussée), 3,0 et 4,7 cm à 6 m, 0,8 à 5,2 cm à 10 et 14 m, avec des pointes de 10 à
+28 cm (fossés, talus, sillons : ce n'est pas que du bruit). Les seuils (marche de 5 cm, pic de 4 cm, écart de pente de 8 points
+sur trois pas) agissent au bord, là où la chaussée cède la place à l'accotement : sur la chaussée ils ont de la marge (6 fois le
+bruit), juste au-delà ils sont au niveau du terrain. Plus fins, ils trouveraient des marches dans l'accotement. Rien à gagner sans
+cas réel d'une bordure manquée.*
 - **Avant** : `EDGE_HOLD` (trois pas), `STEP_Z` (5 cm), `PEAK_Z` (4 cm) et les commentaires de `docs/CALCULS.md` (« bruit du
   MNT ±5 cm ») supposent un bruit de 5 cm.
 - **Problème** : mesuré à 0,7-1 cm sur chaussée (P9). Les seuils sont donc prudents : une bordure basse ou un séparateur
@@ -245,4 +257,4 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
 3. ~~P9~~ (mesurée le 19/11/2026 : biais de 3 à 6 cm, pas de correction).
 4. G1, G2, G3.
 5. ~~P5, P12~~ (faites le 19/11/2026).
-6. G4, G5, G6, puis P3, G7, G8, G9, P6, P11 et P13 selon les mesures.
+6. G4, G5, G6, puis G7, G8, G9 (P3 et P6 écartées par l'auteur ; P11, P13 et P14 mesurées le 19/11/2026 : rien à faire).
