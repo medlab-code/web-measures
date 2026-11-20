@@ -293,7 +293,9 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 /* Gabarit commun des étiquettes de la carte : colonne de boutons, recherche de lieux et requêteur de route (variables --etiquette-*,
    pour qu'ils ne divergent plus) */
 :root { --etiquette-fond: rgba(24, 25, 28, 0.55); --etiquette-fond-survol: rgba(24, 25, 28, 0.82); --etiquette-liste: rgba(24, 25, 28, 0.94);
-  --etiquette-rayon: 0.8rem; --etiquette-marge: 4px; --etiquette-element: 1.6rem; }
+  --etiquette-rayon: 0.8rem; --etiquette-marge: 4px; --etiquette-element: 1.6rem;
+  --etiquette-ligne: 26px; /* épaisseur d'une étiquette en ligne (requêteurs), comme les pastilles du bas de la vue (#lieu, lecteur) */
+  --etiquette-icone: calc(var(--etiquette-element) - 0.3rem); /* icône d'un bouton de la colonne */ }
 .etiquette-carte, .maplibregl-ctrl-top-left .maplibregl-ctrl-group, .recherche, .requeteur {
   background: var(--etiquette-fond); border-radius: var(--etiquette-rayon); box-shadow: none; transition: background 0.2s; }
 .maplibregl-ctrl-top-left .maplibregl-ctrl-group { overflow: hidden; padding: var(--etiquette-marge) 0; }
@@ -341,8 +343,10 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   --etiquette-bout: calc(0.4rem + var(--pastille-marge));
   box-sizing: border-box;
   padding: var(--etiquette-marge) var(--etiquette-bout);
+  height: var(--etiquette-ligne);
   zoom: var(--echelle-ui, 1);
   font: 13px Inter, system-ui, sans-serif;  /* et non la police de MapLibre, propre à la carte */
+  line-height: calc(var(--etiquette-ligne) - 2 * var(--etiquette-marge));
   color: #fff;
 }
 .champs-route {
@@ -352,20 +356,20 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 }
 .recherche, .requeteur { position: absolute; right: 10px; width: min(18rem, calc(100% - 70px)); }
 .recherche { top: 10px; z-index: 3; }
-.requeteur { top: calc(10px + var(--etiquette-element) + 2 * var(--etiquette-marge) + 4px); z-index: 2;  /* sous les suggestions de la recherche */
+.requeteur { top: calc(10px + var(--etiquette-ligne) + 4px); z-index: 2;  /* sous les suggestions de la recherche */
   display: flex; align-items: center; gap: 4px; }
 .recherche { display: flex; align-items: center; }
 /* Une seule étiquette : les champs sont dans son flux, la liste de suggestions s'ouvre sous l'étiquette entière */
 .requeteur .champ { overflow: hidden; display: flex; align-items: center; flex: 1 1 0; min-width: 0; position: static; }
 .requeteur .route { flex-grow: 1.4; }  /* numéros longs : D974BIS, N274A… */
-.recherche .icone, .requeteur .route .icone { flex: none; width: 16px; height: 16px; color: #fff; opacity: 0.8; pointer-events: none; margin-left: 2px; }
-.requeteur .prefixe { flex: none; opacity: 0.7; pointer-events: none; margin-left: 2px; }
+.recherche .icone, .requeteur .route .icone { flex: none; width: var(--etiquette-icone); height: var(--etiquette-icone); color: #fff; opacity: 0.8; pointer-events: none; margin-left: 2px; }
+.requeteur .prefixe { flex: none; line-height: inherit; opacity: 0.7; pointer-events: none; margin-left: 2px; }
 .requeteur .route .icone + input, .recherche .icone + input { padding-left: 0.3rem; }
 .requeteur .prefixe + input { padding-left: 0.25rem; }
 /* Champs de la carte : sans fond ni bordure, focus par un léger fond et un soulignement */
 :is(.recherche, .requeteur) input {
-  width: 100%; min-width: 0; box-sizing: border-box; height: var(--etiquette-element); padding: 0 0.3rem;
-  border: 0; border-radius: 0.4rem; background: transparent; color: #fff; font: inherit; font-size: 13px;
+  width: 100%; min-width: 0; box-sizing: border-box; height: calc(var(--etiquette-ligne) - 2 * var(--etiquette-marge)); padding-block: 0; padding-inline: 0.3rem;
+  border: 0; border-radius: 0.4rem; background: transparent; color: #fff; font: inherit; font-size: 13px; line-height: calc(var(--etiquette-ligne) - 2 * var(--etiquette-marge));
   appearance: none; -webkit-appearance: none;
 }
 :is(.recherche, .requeteur) input:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
