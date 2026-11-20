@@ -47,7 +47,7 @@ const Traits = (() => {
   const BLACK = [0, 0, 0, 0.7], WHITE = [1, 1, 1, 0.85];
   let psv = null, canvas = null, gl = null, flat = null, textured = null;
   let lines = [], crosses = [], labels = [], slide = null, rects = [];
-  let extra = { lines: [], crosses: [], discs: [], labels: [] };  // seconde couche (setExtra), indépendante des mesures
+  let extra = { lines: [], crosses: [], ticks: [], labels: [] };  // seconde couche (setExtra), indépendante des mesures
   const images = new Map();  // texte et style d'une étiquette -> { texture, w, h } (px)
 
   const rgba = (color, alpha = 1) => [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16) / 255).concat(alpha);
@@ -125,15 +125,16 @@ const Traits = (() => {
 
   /**
    * Seconde couche, que les mesures (set) n'écrasent pas : « Bords sur la photo » (src/nez.js). Mêmes formes que set :
-   * lines [{points, color, width}], crosses [{at, color}], labels [{at, type, place, text}] ; discs : disques d'écran
-   * [{at, color, r (px), edge (couleur du liseré)}]. Pas dans les captures. Sans argument : couche vidée.
+   * lines [{points, color, width}], crosses [{at, color}], labels [{at, type, place, text, lift (px : étiquette
+   * remontée)}] ; ticks : petits traits verticaux d'écran, de longueur constante en px, centrés sur le point
+   * [{at, color, width (px), length (px), edge (couleur du liseré)}]. Pas dans les captures. Sans argument : couche vidée.
    */
   function setExtra(layer = {}) {
     if (!psv) return;
     extra = {
       lines: (layer.lines || []).map((line) => ({ ...line, extra: true, rgba: rgba(line.color), vectors: line.points.map(vector) })),
       crosses: (layer.crosses || []).map((c) => ({ ...c, vector: vector(c.at) })),
-      discs: (layer.discs || []).map((c) => ({ ...c, vector: vector(c.at) })),
+      ticks: (layer.ticks || []).map((c) => ({ ...c, vector: vector(c.at) })),
       labels: (layer.labels || []).map((l) => ({ ...l, vector: vector(l.at) })),
     };
     psv.needsUpdate();
@@ -246,7 +247,7 @@ const Traits = (() => {
     for (const label of labels) {
       const s = at(label.vector);
       if (!s) continue;
-      const { w, h } = image(label), r = box(label, s[0], s[1], w, h);
+      const { w, h } = image(label), r = box(label, s[0], s[1] - (label.lift || 0), w, h);
       if (label.type === "fin") ends.push({ label, s, r });
       else put(label, r);
     }
@@ -291,9 +292,9 @@ const Traits = (() => {
     gl.clear(gl.COLOR_BUFFER_BIT);
     rects = [];
     const drawnLines = capture ? lines.filter((l) => !l.couche) : lines.concat(extra.lines), reticle = capture ? null : slide;
-    const drawnCrosses = capture ? crosses : crosses.concat(extra.crosses), discs = capture ? [] : extra.discs;
+    const drawnCrosses = capture ? crosses : crosses.concat(extra.crosses), ticks = capture ? [] : extra.ticks;
     const drawnLabels = capture ? labels : labels.concat(extra.labels);
-    if (!width || !(drawnLines.length || drawnCrosses.length || discs.length || drawnLabels.length || reticle)) return;
+    if (!width || !(drawnLines.length || drawnCrosses.length || ticks.length || drawnLabels.length || reticle)) return;
     const camera = psv.renderer.camera;
     const m = camera.matrixWorldInverse.elements, p = camera.projectionMatrix.elements;
     const view = (v) => [m[0] * v.x + m[4] * v.y + m[8] * v.z + m[12],
@@ -349,11 +350,12 @@ const Traits = (() => {
       if (c.ring) circle(out, x, y, 10, 2, rgba(c.ring));
     }
 
-    for (const c of discs) {  // poignées : disque plein (cercle épais) dans un liseré
+    for (const c of ticks) {  // poignées : trait vertical d'écran dans un liseré
       const s = at(c.vector);
       if (!s) continue;
-      circle(out, s[0], s[1], c.r / 2 + 1.5, c.r + 3, rgba(c.edge || "#202020"));
-      circle(out, s[0], s[1], c.r / 2, c.r, rgba(c.color));
+      const half = c.length / 2;
+      segment(out, s[0], s[1] - half, s[0], s[1] + half, c.width + 3, rgba(c.edge || "#202020"));
+      segment(out, s[0], s[1] - half, s[0], s[1] + half, c.width, rgba(c.color));
     }
 
     const quads = placeLabels(at, out, drawnLabels);  // étiquettes : [étiquette, rectangle, texture]

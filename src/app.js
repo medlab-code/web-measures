@@ -436,7 +436,7 @@
   });
 
   // « Bords sur la photo » (expérimental) : droite au sol devant le véhicule, poignées à glisser : src/nez.js
-  const nez = Nez.init({ etat, get notice() { return notice; } });
+  const nez = Nez.init({ etat, map, get notice() { return notice; } });
 
   /** Producteur de la photo (fiche STAC), ou "". */
   function photoProducer(feature) {

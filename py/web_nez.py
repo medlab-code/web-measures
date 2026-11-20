@@ -7,7 +7,7 @@ web_app.App : ses méthodes lisent l'état de l'application (self)."""
 import json
 import math
 
-from core import autotilt, calibration
+from core import autotilt, calibration, triangulation
 
 NOSE_STEP = 0.05  # m : pas des points de la droite
 NOSE_REACH = 12.0  # m : de part et d'autre du droit de la caméra
@@ -45,7 +45,7 @@ class Nez:
 
     def nose_line(self, distance=None):
         """JSON de la droite au sol à `distance` m devant la caméra (None : au-delà du capot, NOSE_DISTANCE), perpendiculaire
-        à l'axe de la séquence : {d, hauteur, hauteur_source, sigma_h, roulis_campagne, points: [[décalage en m (positif à
+        à l'axe de la séquence : {d, lonlat: [[lon, lat] à -NOSE_REACH, [lon, lat] à +NOSE_REACH] (position recalée de la photo), hauteur, hauteur_source, sigma_h, roulis_campagne, points: [[décalage en m (positif à
         droite de l'axe), yaw, pitch]]} (radians, repère de la photo affichée), de -NOSE_REACH à +NOSE_REACH tous les
         NOSE_STEP m. Sol plat au niveau du sol sous la caméra (pas de lecture du terrain : la droite est à quelques mètres, et
         la caméra n'est à _camera_height qu'au-dessus de son propre sol). {"error": …} sans photo 360°."""
@@ -65,5 +65,14 @@ class Nez:
             v = self._nose_view(axis + math.degrees(math.atan2(x, d)),
                                 -math.degrees(math.atan2(height, math.hypot(x, d))), roll)
             points.append([round(x, 2), round(v["yaw"], 6), round(v["pitch"], 6)])
+        lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
+        fixed = self.calibration.position(item.get("collection"), lon, lat)  # position recalée de la séquence, si elle l'est
+        if fixed:
+            lon, lat = fixed[0], fixed[1]
+        a = math.radians(axis)
+        ends = []  # extrémités (-NOSE_REACH, +NOSE_REACH) de la droite sur la carte : une droite, le reste s'interpole
+        for x in (-NOSE_REACH, NOSE_REACH):
+            east, north = d * math.sin(a) + x * math.cos(a), d * math.cos(a) - x * math.sin(a)
+            ends.append([round(v, 7) for v in triangulation._geographic(east, north, lon, lat)])
         return json.dumps({"d": d, "hauteur": height, "hauteur_source": source, "sigma_h": sigma,
-                           "roulis_campagne": roll, "points": points})
+                           "roulis_campagne": roll, "points": points, "lonlat": ends, "reach": NOSE_REACH})

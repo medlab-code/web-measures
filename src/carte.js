@@ -162,6 +162,7 @@ const Carte = (() => {
         },
         mesures: { type: "geojson", data: EMPTY },
         precedents: { type: "geojson", data: EMPTY },  // résultats de la session précédente (showPrevious)
+        nez: { type: "geojson", data: EMPTY },  // droite des bords sur la photo et ses deux bords (showNez)
         couche: { type: "geojson", data: EMPTY },  // couche importée (showOverlay)
         pr: { type: "geojson", data: EMPTY },
         // Cadastre (#36, réglage « Cadastre sur la carte », voir setCadastre) : Parcellaire Express en tuiles vectorielles
@@ -378,6 +379,18 @@ const Carte = (() => {
         {
           id: "cibles", type: "circle", source: "mesures", filter: kind("cible"),
           paint: { "circle-color": "rgba(0, 0, 0, 0)", "circle-radius": 7, "circle-stroke-width": 2.5, "circle-stroke-color": ROUGE },
+        },
+        {  // bords sur la photo (src/nez.js) : droite jaune liserée de sombre, bords en points rouges ; pas interactifs
+          id: "nez-halo", type: "line", source: "nez", filter: ["==", ["geometry-type"], "LineString"],
+          paint: { "line-color": "#202020", "line-width": 5 },
+        },
+        {
+          id: "nez-droite", type: "line", source: "nez", filter: ["==", ["geometry-type"], "LineString"],
+          paint: { "line-color": "#ffd600", "line-width": 2.5 },
+        },
+        {
+          id: "nez-bords", type: "circle", source: "nez", filter: ["==", ["geometry-type"], "Point"],
+          paint: { "circle-color": "#d93025", "circle-radius": 5, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 },
         },
       ],
     };
@@ -1259,6 +1272,13 @@ const Carte = (() => {
     if (!map.loaded()) map.once("load", set);  // avant le chargement, la source peut être refaite vide
   }
 
+  /** Droite des bords sur la photo (src/nez.js) : geojson (LineString et deux Point), ou null pour la retirer. */
+  function showNez(map, geojson) {
+    const set = () => map.getSource("nez")?.setData(geojson || EMPTY);
+    set();
+    if (geojson && !map.loaded()) map.once("load", set);
+  }
+
   function showMeasures(map, geojson) {
     shownMeasures = geojson;
     map.getSource("mesures")?.setData(geojson);
@@ -1617,7 +1637,7 @@ const Carte = (() => {
   return {
     PANORAMAX_API: META_API, GEOPF, OFM_STYLE: VECTOR_BASES.ofm.style,
     createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, instances, setInstance, setFilter,
-    showMeasures, showPrevious, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre,
+    showMeasures, showPrevious, showNez, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre,
     onAim: (fn) => { aimListener = fn; }, aimedParcel: aimedParcelNow, apiUrl: () => apiUrl,
     capture, nearestPhoto, photosNear, photoById, metresBetween,
   };

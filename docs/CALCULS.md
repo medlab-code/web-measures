@@ -384,6 +384,9 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   l'élévation `-atan(H / hypot(x, d))` ; `d` = 4,4 m (monture 1,93 m), 4,8 m (2,07 m), 4,5 m sinon, soit le capot de
   `src/dessus.js` (OUTLINES) plus 0,3 m. Direction rendue dans le repère de la photo par `Session._view_of` : calage compris
   (cap de la séquence, inclinaison calée ou lue).
+- **Carte** : `lonlat` rend les extrémités (-12 et +12 m) de la droite à partir de la position recalée de la photo si la séquence l'est ;
+  la droite étant droite, tout décalage s'en déduit par interpolation linéaire. Les décalages des poignées sont continus : interpolation
+  linéaire entre points consécutifs de la table, au point le plus proche du pointeur à l'écran.
 - **Hauteur** `H` : `Session.camera_of` (altitude GPS moins sol LiDAR, calée, monture CD21 1,93 ou 2,07 m, sinon réglage, 1,90 m
   par défaut) et son incertitude `σH`.
 - **Sol** : plat, au niveau du sol sous la caméra, sans lecture du terrain.

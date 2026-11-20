@@ -1129,6 +1129,14 @@ class Parcours(unittest.TestCase):
         for x, yaw, pitch in line["points"]:
             self.assertAlmostEqual(yaw, math.atan2(x, 5.0), delta=1e-5)
             self.assertAlmostEqual(pitch, -math.atan(self.CAMERA / math.hypot(x, 5.0)), delta=1e-5)
+        here = self.app.item["geometry"]["coordinates"][:2]
+        a = triangulation._local(*line["lonlat"][0], *here)
+        b = triangulation._local(*line["lonlat"][1], *here)
+        self.assertAlmostEqual(math.hypot(*a), math.hypot(12.0, 5.0), delta=0.02)
+        self.assertAlmostEqual(math.hypot(*b), math.hypot(12.0, 5.0), delta=0.02)
+        axis = math.radians(self.app._nose_axis())
+        along = (b[0] - a[0]) * math.sin(axis) + (b[1] - a[1]) * math.cos(axis)  # droite perpendiculaire à l'axe
+        self.assertLess(abs(math.degrees(math.asin(along / math.hypot(b[0] - a[0], b[1] - a[1])))), 1.0)
         self.assertGreater(next(p[1] for p in line["points"] if p[0] == 3.0), 0)  # à droite : cap relatif positif
         self.assertEqual(json.loads(self.app.nose_line())["d"], 4.5)  # défaut hors CD21
         self.assertIn("error", json.loads(App(lambda *args: None).nose_line()))  # sans photo

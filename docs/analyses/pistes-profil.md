@@ -359,6 +359,9 @@ laissé de côté.*
   1. ~~Droite et poignées~~ **faite le 20/11/2026** (bouton « Bords sur la photo » à côté de la luminosité et du contraste, expérimental) :
      droite au sol à 4,4 / 4,8 / 4,5 m devant la caméra, poignées à glisser, lecture en direct (distances, largeur, ±), sol plat ;
      rien n'est retenu (`src/nez.js`, `py/web_nez.py`, `docs/CALCULS.md` § 8.8) ;
+     retouches du 20/11/2026 après essai de l'auteur (glisser, perpendicularité et position devant le capot validés) : poignées en traits
+     verticaux rouges de 28 px, glissement continu (interpolation entre points de la table) et distances au centimètre, droite et bords
+     aussi tracés sur la carte pour contrôler la perpendiculaire à la route ;
   2. mode « Caler » sur objets connus ou mesures de terrain, calage gardé par séquence ;
   3. fiche de terrain imprimable ;
   4. report dans le graphique et « Retenir », une fois la mesure fiabilisée (décision de l'auteur) ;

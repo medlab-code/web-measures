@@ -5,18 +5,20 @@
 // perpendiculaire à la trajectoire de la séquence (calcul : App.nose_line, py/web_nez.py), et deux poignées, gauche et
 // droite, que l'on fait glisser le long d'elle jusqu'aux bords de la route. Lecture en direct de la distance de chaque
 // bord à la caméra et de la largeur, avec leur incertitude. Rien n'est retenu ni reporté dans le graphique du profil :
-// les poignées ne servent qu'à lire. Tracé dans la seconde couche de Traits (setExtra), que les mesures n'écrasent pas.
+// les poignées ne servent qu'à lire. Tracé dans la seconde couche de Traits (setExtra), que les mesures n'écrasent pas ;
+// la droite et ses deux bords sont aussi tracés sur la carte (Carte.showNez) pour juger qu'elle est perpendiculaire à la route.
 
 const Nez = {
-  /** Branche le bouton de la visionneuse ; host : etat (état partagé), notice. Rend update (photo affichée changée ou
+  /** Branche le bouton de la visionneuse ; host : etat (état partagé), map (carte MapLibre), notice. Rend update (photo affichée changée ou
    * visionneuse prête) et changed (calcul Python modifié : inclinaison, hauteur de caméra arrivées). */
   init(host) {
     const $ = (selector) => document.querySelector(selector);
-    const { etat } = host;
+    const { etat, map } = host;
     const button = $("#nez-bords");
 
-    const YELLOW = "#ffd600", DARK = "#202020";
-    const HANDLE_PX = 12;  // px : portée d'une poignée
+    const YELLOW = "#ffd600", DARK = "#202020", RED = "#d93025";
+    const TICK_PX = 28;  // px : longueur à l'écran d'une poignée (trait vertical, quel que soit le zoom)
+    const HANDLE_PX = 10;  // px : portée d'une poignée (distance du pointeur au trait)
     const MIN_OFFSET = 0.2;  // m : une poignée reste de son côté du droit de la caméra
     const FALLBACK = 3;  // m : bords de départ sans profil en travers
     const INCLINATION = 0.5, ROLL = 0.5;  // degrés : incertitude de l'inclinaison de la photo et du roulis restant (docs/CALCULS.md)
@@ -35,7 +37,7 @@ const Nez = {
     }
 
     const available = () => Boolean(etat.psv && etat.photo && is360(etat.photo));
-    const metres = (value, decimals = 1) => `${value.toFixed(decimals).replace(".", ",")} m`;
+    const metres = (value, decimals = 2) => `${value.toFixed(decimals).replace(".", ",")} m`;
 
     // Calcul ------------------------------------------------------------------------------------
 
@@ -63,10 +65,29 @@ const Nez = {
       for (const side of ["gauche", "droit"]) if (!moved[side]) handles[side] = edges[side];
     }
 
-    /** Point du tableau (décalage, yaw, pitch) le plus proche du décalage o (m). */
-    function pointAt(o) {
-      const pts = line.points;
-      return pts[Math.max(0, Math.min(pts.length - 1, Math.round((o - pts[0][0]) / (pts[1][0] - pts[0][0]))))];
+    /** [yaw, pitch] au décalage o (m), interpolé linéairement entre les deux points voisins du tableau : le décalage est
+     * continu (pas de saut de 5 cm, visible en zoom). */
+    function locate(o) {
+      const pts = line.points, step = pts[1][0] - pts[0][0];
+      const f = Math.max(0, Math.min(pts.length - 1, (o - pts[0][0]) / step));
+      const i = Math.min(Math.floor(f), pts.length - 2), t = f - i, a = pts[i], b = pts[i + 1];
+      return [a[1] + t * (b[1] - a[1]), a[2] + t * (b[2] - a[2])];
+    }
+
+    /** [lon, lat] au décalage o sur la carte : la droite est droite, interpolation linéaire entre ses deux extrémités. */
+    function lonlatAt(o) {
+      const [a, b] = line.lonlat, t = (o + line.reach) / (2 * line.reach);
+      return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+    }
+
+    /** Droite et bords sur la carte (null : retirés). */
+    function drawMap() {
+      if (!map) return;
+      if (!active || !line || line.error || !line.lonlat) return Carte.showNez(map, null);
+      const point = (o) => ({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: lonlatAt(o) } });
+      Carte.showNez(map, { type: "FeatureCollection", features: [
+        { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: line.lonlat } },
+        point(handles.gauche), point(handles.droit)] });
     }
 
     // Lecture -----------------------------------------------------------------------------------
@@ -94,25 +115,26 @@ const Nez = {
       const left = -handles.gauche, right = handles.droit;
       const uncertainty = roundUp05(Math.hypot(sigma(left), sigma(right)));
       text.textContent = `Gauche ${metres(left)} · Droite ${metres(right)} · Largeur ${metres(left + right)}`
-        + ` · ±${metres(uncertainty, 2)}`;
-      readout.title = `Distance latérale de chaque bord à la caméra, lue sur la droite au sol à ${metres(line.d)} devant elle `
-        + `(sol plat). Hauteur de la caméra ${metres(line.hauteur, 2)}${line.hauteur_source ? ` (${line.hauteur_source})` : ""}`
+        + ` · ±${metres(uncertainty)}`;
+      readout.title = `Distance latérale de chaque bord à la caméra, lue sur la droite au sol à ${metres(line.d, 1)} devant elle `
+        + `(sol plat). Hauteur de la caméra ${metres(line.hauteur)}${line.hauteur_source ? ` (${line.hauteur_source})` : ""}`
         + `${line.roulis_campagne ? `, roulis de la campagne ${line.roulis_campagne}°` : ""}. Expérimental : rien n'est retenu.`;
     }
 
     /** Droite, repère, poignées et étiquettes dans la seconde couche de Traits. */
     function draw() {
       showReadout();
+      drawMap();
       if (!line || line.error) return Traits.setExtra();
       Traits.attach(etat.psv);
       const points = line.points.map(([, yaw, pitch]) => [yaw, pitch]);
-      const at = (o) => pointAt(o).slice(1);
+      const at = locate;
       const sides = [["gauche", handles.gauche], ["droit", handles.droit]];
       Traits.setExtra({
         lines: [{ points, color: DARK, width: 5 }, { points, color: YELLOW, width: 2.5 }],
         crosses: [{ at: at(0), color: YELLOW }],  // droit de la caméra
-        discs: sides.map(([, o]) => ({ at: at(o), color: YELLOW, r: 8, edge: DARK })),
-        labels: sides.map(([, o]) => ({ at: at(o), type: "mesure", place: "dessus", text: metres(Math.abs(o)) })),
+        ticks: sides.map(([, o]) => ({ at: at(o), color: RED, edge: "#ffffff", length: TICK_PX, width: 3 })),
+        labels: sides.map(([, o]) => ({ at: at(o), type: "mesure", place: "dessus", lift: TICK_PX / 2, text: metres(Math.abs(o)) })),
       });
     }
 
@@ -126,27 +148,43 @@ const Nez = {
       return etat.psv.dataHelper.sphericalCoordsToViewerCoords({ yaw, pitch });
     }
 
+    /** Distance (px) du point (x, y) au segment (ax, ay)-(bx, by). */
+    function segmentDistance(x, y, ax, ay, bx, by) {
+      const dx = bx - ax, dy = by - ay, t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+      return Math.hypot(x - ax - t * dx, y - ay - t * dy);
+    }
+
     /** Poignée à HANDLE_PX px au plus du point (x, y) de la visionneuse (la plus proche), ou null. */
     function handleAt(x, y) {
       if (!line || line.error) return null;
       let best = null, bestD = HANDLE_PX;
       for (const side of ["gauche", "droit"]) {
-        const p = pointAt(handles[side]), s = screenOf(p[1], p[2]);
-        const d = s ? Math.hypot(s.x - x, s.y - y) : Infinity;
+        const s = screenOf(...locate(handles[side]));
+        const d = s ? segmentDistance(x, y, s.x, s.y - TICK_PX / 2, s.x, s.y + TICK_PX / 2) : Infinity;
         if (d <= bestD) [best, bestD] = [side, d];
       }
       return best;
     }
 
-    /** Décalage du point de la droite le plus proche de (x, y) à l'écran, du côté de la poignée, ou null. */
+    /** Décalage (m, continu) du point de la droite le plus proche de (x, y) à l'écran, du côté de la poignée : le pointeur est
+     * projeté sur les segments entre points consécutifs du tableau (ceux devant la caméra), le décalage interpolé au point
+     * projeté. null si aucun segment n'est visible. */
     function nearestOffset(side, x, y) {
-      let best = null, bestD = Infinity;
+      let best = null, bestD = Infinity, previous = null;
       for (const [o, yaw, pitch] of line.points) {
-        if (side === "gauche" ? o > -MIN_OFFSET : o < MIN_OFFSET) continue;
+        if (side === "gauche" ? o > -MIN_OFFSET : o < MIN_OFFSET) {
+          previous = null;
+          continue;
+        }
         const s = screenOf(yaw, pitch);
-        if (!s) continue;
-        const d = Math.hypot(s.x - x, s.y - y);
-        if (d < bestD) [best, bestD] = [o, d];
+        const current = s ? [o, s.x, s.y] : null;
+        if (previous && current) {
+          const [o0, x0, y0] = previous, dx = current[1] - x0, dy = current[2] - y0;
+          const t = Math.max(0, Math.min(1, ((x - x0) * dx + (y - y0) * dy) / (dx * dx + dy * dy || 1)));
+          const d = Math.hypot(x - x0 - t * dx, y - y0 - t * dy);
+          if (d < bestD) [best, bestD] = [o0 + t * (current[0] - o0), d];
+        }
+        previous = current;
       }
       return best;
     }
@@ -261,6 +299,7 @@ const Nez = {
       raw = line = null;
       photoId = null;
       Traits.setExtra();
+      drawMap();
       readout?.remove();
       readout = null;
       button.setAttribute("aria-pressed", "false");
