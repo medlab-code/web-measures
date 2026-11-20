@@ -380,13 +380,13 @@ const Carte = (() => {
           id: "cibles", type: "circle", source: "mesures", filter: kind("cible"),
           paint: { "circle-color": "rgba(0, 0, 0, 0)", "circle-radius": 7, "circle-stroke-width": 2.5, "circle-stroke-color": ROUGE },
         },
-        {  // bords sur la photo (src/nez.js) : droite jaune liserée de sombre, bords en points rouges ; pas interactifs
+        {  // bords sur la photo (src/nez.js) : droite verte liserée de sombre, bords en points rouges ; pas interactifs
           id: "nez-halo", type: "line", source: "nez", filter: ["==", ["geometry-type"], "LineString"],
           paint: { "line-color": "#202020", "line-width": 5 },
         },
         {
           id: "nez-droite", type: "line", source: "nez", filter: ["==", ["geometry-type"], "LineString"],
-          paint: { "line-color": "#ffd600", "line-width": 2.5 },
+          paint: { "line-color": "#00c853", "line-width": 2.5 },
         },
         {
           id: "nez-bords", type: "circle", source: "nez", filter: ["==", ["geometry-type"], "Point"],
