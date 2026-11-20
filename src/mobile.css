@@ -41,12 +41,11 @@ body.mobile {
 #capture, .bouton-carte {
   width: 44px;
   height: 44px;
-  border: 1px solid var(--bord);
-  border-radius: 8px;
-  background: var(--fond);
-  color: var(--texte);
+  border: 0;
+  border-radius: 50%;  /* style unifié (voir style.css, #reglage-image) : fond sombre translucide, icône blanche, coins arrondis ; 44 px au doigt */
+  background: rgba(24, 25, 28, 0.55);
+  color: #fff;
   font-size: 22px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
   display: grid;  /* pictogramme centré : sans la marge intérieure ni la hauteur de ligne des boutons */
   place-items: center;
   padding: 0;
@@ -85,12 +84,13 @@ body.mobile {
   top: 10px;
   right: 49px;
   z-index: 3;
-  padding: 0.35rem 0.6rem;
-  border-radius: 6px;
-  background: var(--fond);
-  color: var(--texte);
+  padding: 0.35rem calc(0.6rem + var(--pastille-marge));  /* marge de plus aux bouts arrondis (style unifié, style.css) */
+  border-radius: 999px;
+  background: rgba(24, 25, 28, 0.55);
+  color: #fff;
   font-size: 14px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  font-weight: 500;
+  text-decoration: none;
 }
 
 #version-complete[hidden] { display: none; }
