@@ -59,11 +59,14 @@ const Reglages = {
     plants.checked = store.get("profil-vegetation") !== "0";
     plants.addEventListener("change", () => {
       store.set("profil-vegetation", plants.checked ? "1" : "0");
-      if (etat.edgeProfile) drawProfile();
+      if (etat.edgeProfile) drawProfile(true);
     });
     trueScale.checked = true;
-    const drawProfile = () => {
-      const dialog = $("#fenetre-profil");
+    // still : redessin par une case (échelle, végétation) : la légende, au-dessus des cases et boutons, ne raccourcit pas
+    // (lignes de l'herbe et de la végétation retirées) pour qu'ils ne bougent pas ; un nouveau profil la remet à sa taille
+    const drawProfile = (still = false) => {
+      const dialog = $("#fenetre-profil"), box = dialog.querySelector(".legende");
+      box.style.minHeight = still && box.offsetHeight ? `${box.offsetHeight}px` : "";
       const { svg, legend, long } = Profil.draw(etat.edgeProfile.profile, trueScale.checked, nuage.get(nuageKey(etat.edgeProfile.profile)),
         plants.checked, Number($("#camera").value) || 1.9);  // hauteur de caméra des réglages
       dialog.querySelector(".graphique").replaceChildren(svg, ...(long ? [long] : []));  // profil en long dessous
@@ -71,7 +74,7 @@ const Reglages = {
       dialog.querySelector(".legende").replaceChildren(legend);
     };
     trueScale.addEventListener("change", () => {
-      if (etat.edgeProfile) drawProfile();
+      if (etat.edgeProfile) drawProfile(true);
     });
     // Loupe : graphique le plus grand possible (sans la légende) sans que la fenêtre dépasse de la visionneuse ;
     // l'image PNG n'en dépend pas

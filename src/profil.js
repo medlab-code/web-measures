@@ -141,8 +141,10 @@ const Profil = (() => {
   }
 
   /** Clé de lecture sous le graphique (dans le SVG : aussi dans le PNG et le PDF) : un échantillon et un mot pour chaque
-   * élément réellement dessiné dans svg, sur une ou deux lignes. Rend la hauteur ajoutée au viewBox. */
-  function drawKey(svg) {
+   * élément réellement dessiné dans svg, sur une ou deux lignes. hidden : herbe et végétation lues mais masquées (case
+   * « Végétation ») ; leur place est gardée, en fin de clé, pour que la hauteur du graphique, donc les cases et boutons
+   * sous lui, ne bougent pas quand on la décoche. Rend la hauteur ajoutée au viewBox. */
+  function drawKey(svg, hidden = { herbe: false, vegetation: false }) {
     const has = (sel) => Boolean(svg.querySelector(sel));
     // [présent, classe de l'échantillon, mot, attributs] : l'échantillon reprend la classe de l'élément dessiné
     const items = [
@@ -157,16 +159,17 @@ const Profil = (() => {
       [has(".chute"), "chute", "chute"],
       [has(".devers"), "devers", "dévers"],
       [has(".eau, .eau-surface, .eau-nuage"), "eau-surface", "eau"],
-      [has(".herbe"), "herbe", "herbe"],
-      [has(".vegetation"), "vegetation", "végétation"],
+      [has(".herbe") || hidden.herbe, "herbe", "herbe", {}, !has(".herbe")],
+      [has(".vegetation") || hidden.vegetation, "vegetation", "végétation", {}, !has(".vegetation")],
     ].filter(([present]) => present);
     const SAMPLE = 22, GAP = 14, ROW = 18, y0 = H + 6;
     let x = LEFT, row = 0;
     const nodes = [];
-    for (const [, cls, word, attrs = {}] of items) {
+    for (const [, cls, word, attrs = {}, ghost = false] of items) {
       const w = SAMPLE + 5 + textWidth(word, 12);
       if (x > LEFT && x + w > W - RIGHT) { x = LEFT; row++; }
       const cy = y0 + row * ROW + 9;
+      if (ghost) continue;  // place gardée seulement (masqué)
       nodes.push(cls === "ligne-blanche"
         ? el("rect", { x: x + SAMPLE / 2 - 3, y: cy - 3, width: 6, height: 6, class: cls })
         : el("line", { x1: x, x2: x + SAMPLE, y1: cy, y2: cy, class: cls, ...attrs }),
@@ -544,7 +547,7 @@ const Profil = (() => {
       svg.append(el("rect", { x: mentionBox[0], y: mentionBox[1], width: mentionBox[2] - mentionBox[0], height: 22, rx: 3, class: "mention-echelle" }),
         el("text", { x: LEFT + 7, y: TOP + 18, class: "etiquette-profil mention-echelle-texte" }, mention));
     }
-    drawKey(svg);  // clé de lecture sous le cadre : agrandit le viewBox, le graphique garde sa taille
+    drawKey(svg, { herbe: !plants && Boolean(fine?.herbe?.length), vegetation: !plants && Boolean(fine?.vegetation?.length) });  // clé de lecture sous le cadre : agrandit le viewBox, le graphique garde sa taille
     const marker = el("marker", { id: "fleche", viewBox: "0 0 10 10", refX: 10, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" });
     marker.append(el("path", { d: "M0,0L10,5L0,10Z", class: "fleche" }));
     svg.prepend(el("defs", {}));
