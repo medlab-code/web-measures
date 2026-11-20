@@ -73,7 +73,8 @@ REFERENCES = {
         2.0, "D16, profil depuis la caméra : bord du relief à 2,0 m juste ; analyse fine à 3,4 m par la bordure de P21, "
         "retirée (auteur, 20/11/2026)"),
     ("5331221f-7a1f-4ace-b4de-9cf94a57e4d2", "droit"): (
-        0.8, "D28E, profil depuis la caméra : bord légèrement sous le véhicule ; relief à 3,5 m (pas de bord avant EDGE_NEAR, "
+        0.7, "D28E, profil depuis la caméra : bord sous le flanc droit du véhicule (Clio d'environ 1,70 m, caméra au milieu : "
+        "flanc à 0,85 m, qui déborde du bord) ; relief à 3,5 m (pas de bord avant EDGE_NEAR, "
         "1,5 m), bordure de P21 à 2,9 m (auteur, 20/11/2026)"),
 }
 

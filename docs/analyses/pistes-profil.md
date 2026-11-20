@@ -192,7 +192,9 @@ cas réel d'une bordure manquée.*
   082893e5-f336-441b-8d28-0eecdbae1dde droit 1,0 m, M996 6eea86cc-4c40-4395-9686-2418892bfa82 droit 1,25 m, D28E
   5331221f-7a1f-4ace-b4de-9cf94a57e4d2 droit sous le véhicule) : sur une route étroite, le véhicule roule au bord. Ni le relief
   (EDGE_NEAR, 1,5 m) ni la bordure de P21 (1 m) ne cherchent si près : le bord est pris plus loin, dans l'accotement (2 à 3,5 m
-  de trop). Le MNT et le nuage, pris d'avion, voient le sol sous le véhicule. Piste : chercher plus près de la caméra du côté
+  de trop). Véhicule (Clio) d'environ 1,70 m de large, caméra au milieu : flanc à 0,85 m ; sur une route étroite, le véhicule
+  dans sa voie, le bord droit peut être sous ce flanc (D28E : environ 0,7 m, auteur). Le MNT et le nuage, pris d'avion, voient
+  le sol sous le véhicule. Piste : chercher jusqu'à environ 0,5 m de la caméra du côté
   où elle est loin de l'axe BD TOPO, sans prendre sa propre voie pour un bord ; à juger sur des côtés vérifiés hors réglage.
 
 **P15. Distance au bord mal arrondie.** *Faite le 19/11/2026 (test `BordsCas.test_distance_au_bord_ecrite`).*
