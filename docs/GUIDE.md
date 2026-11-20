@@ -487,7 +487,7 @@ après.
   séparateur de chaussée sur une route à chaussées séparées (petite barre verticale ; la légende dit s'il a
   été trouvé dans le relief ou placé d'après la BD TOPO), flèche
   de la chute et droite rouge du talus (haut → pied) sur le travers où ils ont été mesurés,
-  hauteurs exagérées (facteur écrit sous le graphique) ; la case « Hauteurs à l'échelle » (cochée à chaque
+  hauteurs exagérées (facteur écrit sous le graphique et, en haut à gauche, « Hauteurs ×N » sur le graphique, donc aussi dans le PNG et le PDF) ; la case « Hauteurs à l'échelle » (cochée à chaque
   ouverture) les remet à l'échelle des distances, caméra dessinée à sa hauteur (réglage « Hauteur de caméra »), masquée quand
   les hauteurs sont exagérées. « Enregistrer en PNG » en fait une image
   avec son titre et sa légende ; « Enregistrer en PDF » met le graphique et la légende (en petits caractères, sur deux

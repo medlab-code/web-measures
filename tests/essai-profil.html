@@ -44,6 +44,12 @@ try {
   expect("terrain lu au-delà de la réglette non dessiné", sol(25, 8) === sol(8, 8));
   expect("terrain dessiné 1 m au moins au-delà des bords", sol(25, 2) === sol(4, 2));
   check("terrain plat, hauteurs exagérées", Profil.draw(profile(flat), false), 0.3);
+  // Mention « Hauteurs ×N » sur le graphique : présente avec le facteur de la légende en mode exagéré, absente à l'échelle
+  const mention = (trueScale) => { const d = Profil.draw(profile(flat), trueScale);
+    return { text: d.svg.querySelector("text.mention-echelle-texte")?.textContent, legend: d.legend.textContent }; };
+  const [exag, echelle] = [mention(false), mention(true)], facteur = /Hauteurs exagérées ×(\d+)/.exec(exag.legend)?.[1];
+  expect(`mention « Hauteurs ×N » en mode exagéré (légende ×${facteur})`, facteur && exag.text === `Hauteurs ×${facteur}`);
+  expect("pas de mention à l'échelle", echelle.text === undefined);
   check("point le plus bas sur un autre travers", Profil.draw(profile([...flat, crossing(5, (x) => -Math.min(2, x), 17)]), true), 1);
   // Étiquettes sous la chaussée : ni sur la chaussée, ni l'une sur l'autre, ni collées au bas du cadre
   const roomy = (what, crossings, trueScale) => {

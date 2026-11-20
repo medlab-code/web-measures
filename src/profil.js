@@ -456,7 +456,16 @@ const Profil = (() => {
     // droites du dévers juste au-dessus du terrain : sous la végétation, l'eau, les flèches et les textes
     const ground = svg.querySelector("path.sol");
     for (const line of [...svg.querySelectorAll("line.devers")].reverse()) ground.after(line);
-    declutter(svg, TOP, TOP + plotH);
+    // Mention « Hauteurs ×N » (hauteurs exagérées seulement), en haut à gauche du cadre : coin libre (les étiquettes du
+    // dessin suivent le terrain, les bords sont nommés au-dessus du cadre). Sa place est réservée à declutter (obstacle),
+    // qui écarte les étiquettes « place » ; posée en dernier, sur un fond opaque, elle reste lisible et entre dans le PNG et le PDF.
+    const mention = factor > 1 ? `Hauteurs ×${num(factor, 0)}` : "";
+    const mentionBox = [LEFT + 2, TOP + 2, LEFT + 12 + mention.length * 13 * 0.6, TOP + 24];
+    declutter(svg, TOP, TOP + plotH, mention ? [mentionBox] : []);
+    if (mention) {
+      svg.append(el("rect", { x: mentionBox[0], y: mentionBox[1], width: mentionBox[2] - mentionBox[0], height: 22, rx: 3, class: "mention-echelle" }),
+        el("text", { x: LEFT + 7, y: TOP + 18, class: "etiquette-profil mention-echelle-texte" }, mention));
+    }
     const marker = el("marker", { id: "fleche", viewBox: "0 0 10 10", refX: 10, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" });
     marker.append(el("path", { d: "M0,0L10,5L0,10Z", class: "fleche" }));
     svg.prepend(el("defs", {}));

@@ -336,7 +336,7 @@ laissé de côté.*
 
 ### Graphique et fenêtre : pistes
 
-**G1. Exagération visible.**
+**G1. Exagération visible.** *Faite le 20/11/2026 : mention « Hauteurs ×N » sur le graphique quand les hauteurs sont exagérées (aussi dans le PNG et le PDF).*
 - **Avant** : « Hauteurs à l'échelle » cochée à chaque ouverture (voulu) ; le facteur (×3…) n'est écrit que dans la légende.
 - **Problème** : à l'échelle, environ 23 px par mètre : une bordure de 15 cm fait 3,5 px. Exagéré, rien sur le graphique ne le dit.
 - **Piste** : « ×3 » écrit sur le graphique, près de l'axe des hauteurs ; dernier choix retenu.
