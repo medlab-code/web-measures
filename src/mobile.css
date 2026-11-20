@@ -29,20 +29,12 @@ body.mobile {
   z-index: 10;
 }
 #barre :is(.recherche, .requeteur) { position: relative; inset: auto; width: 100%; }
-/* Champs et pastilles du requêteur à la hauteur des étiquettes (30 px sur la page principale) ; icônes, « PR » et distance recentrés */
-#barre :is(.recherche, .requeteur) input { font-size: 16px; height: var(--mobile-etiquette); line-height: calc(var(--mobile-etiquette) - 2px);
-  padding-inline: var(--mobile-bout); }
-#barre .recherche input { padding-left: calc(1.9rem + var(--pastille-marge)); }
-#barre :is(.recherche, .requeteur .route) .icone { top: calc((var(--mobile-etiquette) - 16px) / 2); }
-#barre .requeteur .route input { padding-left: calc(1.7rem + var(--pastille-marge)); }
-#barre .requeteur .prefixe { top: 1px; line-height: calc(var(--mobile-etiquette) - 2px); }
-#barre .requeteur .pr input { padding-left: calc(2.2rem + var(--pastille-marge)); }
-#barre .requeteur label { line-height: calc(var(--mobile-etiquette) - 2px); padding-inline: var(--mobile-bout); }
-#barre .requeteur label .distance { height: calc(var(--mobile-etiquette) - 8px); font-size: 16px; }
-#barre .requeteur { font-size: 16px; }
-#barre .recherche ul { position: absolute; left: 0; right: 0; max-height: 50dvh; z-index: 11; font-size: 15px; }
+/* Étiquettes de recherche et de requêteur (gabarit commun, style.css) à 36 px de haut, texte de 16 px ; la liste s'ouvre sous l'étiquette entière */
+#barre :is(.recherche, .requeteur) { height: var(--mobile-etiquette); padding: 0 var(--mobile-bout); font-size: 16px; }
+#barre :is(.recherche, .requeteur) input { font-size: 16px; height: calc(var(--mobile-etiquette) - 6px); }
+#barre .recherche ul { max-height: 50dvh; z-index: 11; font-size: 15px; }
 #barre .recherche li { padding: 0.6rem 0.6rem; }
-#barre .requeteur ul { font-size: 15px; }
+#barre .requeteur ul { font-size: 15px; z-index: 11; }
 #barre .requeteur li { padding: 0.5rem 0.5rem; }
 
 #vue { position: relative; min-height: 0; background: #202124; }
