@@ -2,14 +2,19 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
 // Lieu de la photo affichée, incrusté dans la visionneuse : route (numéro et nom de la voie,
-// tronçon de la BD TOPO le plus proche), point de repère (PR + distance, BD TOPO), hors route
-// départementale la véloroute suivie (itinéraires cyclables de la BD TOPO) et l'écluse la plus
+// tronçon de la BD TOPO le plus proche ; devant le nom, le numéro de l'adresse la plus proche
+// dans la même rue, base adresse nationale par le géocodeur de la Géoplateforme), point de repère (PR + distance,
+// BD TOPO), hors route départementale la véloroute suivie (itinéraires cyclables de la BD TOPO) et l'écluse la plus
 // proche (repère des chemins de halage), hameau ou quartier (zone d'habitation de la BD TOPO
 // contenant la photo) et commune (BD TOPO).
 
 const Lieu = (() => {
   const WFS = "https://data.geopf.fr/wfs/ows";
   const REACH = 25;  // m : tronçons cherchés autour de la photo
+  const GEOCODER = "https://data.geopf.fr/geocodage/reverse";
+  // m : adresses cherchées autour de la photo ; un point d'adresse est à l'entrée du bâtiment, en
+  // retrait de la chaussée
+  const ADDRESS_REACH = 40;
   const SECTION_REACH = 40;  // m : section de PR de la route cherchée autour de la photo
   const cache = new Map();  // lieu déjà lu, au mètre près : { text, parts }
   // Tronçons et sections de PR lus par zone (maille de CELL degrés élargie de CELL_MARGIN m) et
@@ -295,6 +300,22 @@ const Lieu = (() => {
     return `${name} à ${best.d < 1000 ? `${Math.round(best.d / 10) * 10} m` : `${(best.d / 1000).toFixed(1).replace(".", ",")} km`}`;
   }
 
+  // Nom de voie comparable : minuscules, sans accents ni ponctuation ni espaces multiples (la BD TOPO et la
+  // base adresse écrivent le nom en toutes lettres : « Avenue Raymond Poincaré »)
+  const plain = (name) => name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+  /** Numéro de l'adresse la plus proche (à ADDRESS_REACH m au plus) dans la voie `street` : "54", "12 bis"… ;
+   * "" sans adresse dans cette voie (le numéro d'une autre rue n'est jamais donné). Approximatif : le côté
+   * pair ou impair peut être celui d'en face. Lève une erreur si le service échoue. */
+  async function houseNumber(street, lon, lat) {
+    const response = await fetch(`${GEOCODER}?lon=${lon}&lat=${lat}&index=address&limit=5`, { signal: AbortSignal.timeout(TIMEOUT) });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const wanted = plain(street);
+    const addresses = (await response.json()).features.map((f) => f.properties)
+      .filter((p) => p.type === "housenumber" && p.housenumber && plain(p.street || "") === wanted && p.distance <= ADDRESS_REACH);
+    return addresses.sort((a, b) => a.distance - b.distance)[0]?.housenumber || "";
+  }
+
   /** Commune qui contient le point, ou "" : contours de la BD TOPO lus par maille, comme les routes
    * (une requête rapide pour toutes les photos voisines). */
   async function commune(lon, lat) {
@@ -306,7 +327,8 @@ const Lieu = (() => {
    * route départementale, la véloroute suivie et l'écluse la plus proche avant la commune.
    * Retourne { text, complete, parts } : complete faux si un service a échoué (la Géoplateforme
    * refuse des requêtes en rafale, HTTP 429) ; le texte, partiel, n'est alors pas gardé, à
-   * redemander. parts : { commune, voie (numéro, sinon nom), pr } (nom des favoris). */
+   * redemander. parts : { commune, voie (numéro, sinon nom), voieAffichee (la voie telle qu'écrite dans le texte : numéro de route, sinon nom précédé du numéro d'adresse), pr }
+   * (nom des favoris). */
   // Hameau ou quartier (zone d'habitation de la BD TOPO contenant la photo, ou la plus proche à
   // HAMLET_REACH m : ces zones suivent les bâtiments au plus près, l'entrée du hameau par la route
   // en reste souvent dehors), écrit avant la commune
@@ -372,8 +394,10 @@ const Lieu = (() => {
     // Hors route départementale : la véloroute suivie, s'il y en a une (chemin de halage, voie verte…)
     const bike = troncons && !/^D\d/.test(r?.numero || "") ? cycleRoutes(troncons, lon, lat) : "";
     const lock = bike ? await nearestLock(lon, lat).catch(fail("")) : "";  // repère des chemins de halage
-    const text = [r?.numero, pr, r?.nom, bike, lock, place, c].filter(Boolean).join(" – ");  // comme l'étiquette de droite
-    const parts = { lieudit: place, commune: c, voie: r?.numero || r?.nom || "", pr };
+    const house = r?.nom ? await houseNumber(r.nom, lon, lat).catch(fail("")) : "";
+    const street = house ? `${house} ${r.nom}` : r?.nom;  // « 54 Avenue Raymond Poincaré »
+    const text = [r?.numero, pr, street, bike, lock, place, c].filter(Boolean).join(" – ");  // comme l'étiquette de droite
+    const parts = { lieudit: place, commune: c, voie: r?.numero || r?.nom || "", voieAffichee: r?.numero || street || "", pr };
     if (!failed && text) {
       cache.set(key, { text, parts });
       if (cache.size > 500) cache.delete(cache.keys().next().value);

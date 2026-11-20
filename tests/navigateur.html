@@ -269,6 +269,10 @@ async function feature(id) {
     const solle = await Lieu.describe(4.643432729, 47.247959385);
     log(`lieu dans un hameau : « ${solle.text} »`);
     expect("lieu : hameau avant la commune", solle.text.endsWith("Solle – Commarin") && solle.parts.lieudit === "Solle");
+    // Ville : numéro de l'adresse la plus proche, dans la même rue, devant le nom de la voie (BD TOPO + géocodeur)
+    const dijon = await Lieu.describe(...(await feature(DIJON[0])).geometry.coordinates.slice(0, 2));
+    log(`lieu en ville : « ${dijon.text} »`);
+    expect("lieu : numéro devant le nom de la voie", /(^| – )\d+( \w+)? Avenue Raymond Poincaré( – |$)/.test(dijon.text), dijon.text);
     // Département (requêteur route + PR) et contour de commune (recherche) : Géoplateforme
     const dept = await w.eval("Requeteur").department(4.643432729, 47.247959385);
     const outline = await w.eval("Recherche").communeOutline(4.643432729, 47.247959385);
@@ -284,6 +288,7 @@ async function feature(id) {
     const fixin = await Lieu.describe(5.015017598, 47.244862773);
     log(`lieu près d'une section sans PR : « ${fixin.text} »`);
     expect("lieu : PR de la section voisine si la plus proche n'en a pas", /^D931 – PR 2 /.test(fixin.text));
+    expect("lieu : pas de numéro d'adresse sans nom de voie", !/\d+ [A-Za-zÀ-ÿ]+ [A-Za-zÀ-ÿ]/.test(fixin.text.replace(/PR \d+/, "")), fixin.text);
     // Même route, PR 2 +050 : croisement d'un chemin d'importance 5 (0,2 m) et de la D931, d'importance 3 (0,5 m) : la D931
     const crossing = await Lieu.describe(5.014174, 47.244521);
     log(`lieu à un croisement : « ${crossing.text} »`);

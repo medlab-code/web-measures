@@ -457,7 +457,7 @@
   /** Lieu (texte « D104 – PR 16 +0880 – … – Aubaine ») en HTML : la route et la commune (parts de
    * Lieu.describe) en gras, le reste (PR, nom de la voie, hameau) en texte normal. */
   function placeMarkup(text, parts) {
-    const strong = [parts?.voie, parts?.commune].filter(Boolean);
+    const strong = [parts?.voieAffichee || parts?.voie, parts?.commune].filter(Boolean);
     return text.split(" – ").map((part) => (strong.includes(part) ? `<b>${escapeHtml(part)}</b>` : escapeHtml(part))).join(" – ");
   }
   async function showPlace(feature, attempt = 0) {

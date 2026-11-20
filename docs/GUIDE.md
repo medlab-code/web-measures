@@ -739,7 +739,9 @@ pas utilisé (talus et murs pris pour la route).
 - fonds de carte : Plan IGN, orthophoto, Ortho-express de l'année de la photo, Modèle Numérique de Hauteur (LiDAR HD), OpenStreetMap (OpenFreeMap) ; recherche de lieux ; points de repère
   (PR) des routes ; requêteur route + PR (+ distance), à listes qui se réduisent à la frappe ;
 - lieu de la photo incrusté en bas à gauche de la visionneuse : route, PR et distance mesurée
-  le long du filaire IGN depuis le dernier PR passé, nom de la voie, hameau ou quartier (zone
+  le long du filaire IGN depuis le dernier PR passé, nom de la voie précédé du numéro de l'adresse
+  la plus proche dans la même rue (à 40 m au plus, base adresse nationale ; approximatif : le côté
+  pair ou impair peut être celui d'en face ; sans numéro si aucune adresse de cette rue), hameau ou quartier (zone
   d'habitation de la BD TOPO qui contient la photo, sinon la plus proche à moins de 100 m, sauf
   le bourg), commune ; hors route
   départementale, la véloroute suivie et l'écluse la plus proche (chemins de halage) ;
