@@ -397,7 +397,7 @@ class BordsTalus(unittest.TestCase):
         self.assertTrue(r["devers"][5])
 
 
-def edges_on(z, width=8.0, twin=None, zone=14, axis_x=None):  # zone depuis le milieu : 10 m au-delà de bords à ±4 m
+def edges_on(z, width=8.0, twin=None, zone=14, axis_x=None, ends=([], None, [])):  # zone depuis le milieu : 10 m au-delà de bords à ±4 m
     """Bords (App._compute_edges) sur un terrain synthétique z(x, y), en m : x vers la droite de la photo, y le long de la
     route (photo en y = 0) ; axe BD TOPO en x = 0, profil depuis l'axe ; axis_x : axe en x = axis_x, profil depuis la
     caméra (séquence RTK), en x = 0 ; twin : autre chaussée [(ligne, largeur)]. Rend self.edges[clé]."""
@@ -409,8 +409,23 @@ def edges_on(z, width=8.0, twin=None, zone=14, axis_x=None):  # zone depuis le m
         [z(*web_app.triangulation._local(p[0], p[1], lon, lat)) for p in points], web_app.triangulation.LIDAR_NAME, None)
     key = ("photo", zone, axis_x is not None)
     ax = axis_x or 0.0
-    calc._compute_edges(key, [(ax, -200.0), (ax, 200.0)], 200.0, width, 0.0, lon, lat, twin=twin)
+    calc._compute_edges(key, [(ax, -200.0), (ax, 200.0)], 200.0, width, 0.0, lon, lat, twin=twin, ends=ends)
     return calc.edges[key]
+
+
+class BordsCarrefour(unittest.TestCase):
+    """Carrefour avec une voie nommée près de la photo : bords signalés peu sûrs (D16 d946f2cf-cddc-4476-a414-35aee429c05a)."""
+
+    def test_carrefour_proche(self):
+        res = edges_on(lambda x, y: 0.0, ends=([((0.0, 6.0), "carrefour", ["D18"])], "D16", []))
+        self.assertEqual(res["profile"]["carrefour"], {"d": 6.0, "avec": ["D18"]})
+        self.assertTrue(res["text"].startswith("Carrefour avec la D18 6 m devant : bords peu sûrs"), res["text"])
+
+    def test_carrefour_loin_ou_fin(self):
+        for ends in ([((0.0, -20.0), "carrefour", ["D18"])], [((0.0, 3.0), "fin", ["D18"])]):
+            res = edges_on(lambda x, y: 0.0, ends=(ends, "D16", []))
+            self.assertIsNone(res["profile"]["carrefour"], ends)
+            self.assertNotIn("Carrefour", res["text"])
 
 
 class BordsCas(unittest.TestCase):

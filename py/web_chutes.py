@@ -607,6 +607,10 @@ class Chutes:
     # et la plus forte sur LONG_WINDOW m
     LONG_REACH, LONG_STEP, LONG_WINDOW = 50, 2, 10
     LONG_JUNCTION = 30.0  # m : repères de carrefour avec la même voie plus proches : un seul carrefour (îlot séparateur)
+    # m le long de la route : carrefour avec une voie nommée aussi près de la photo, bords signalés peu sûrs (la chaussée
+    # s'y élargit, le bord n'y est pas continu : pas de bonne réponse, D16 d946f2cf-cddc-4476-a414-35aee429c05a, auteur,
+    # 20/11/2026) ; les travers vont jusqu'à 10 m (EDGE_ALONG), la voie qui arrive a quelques mètres de large
+    JUNCTION_NEAR = 12.0
     # Creux du profil en long : le MNT n'a pas les ponts (fond franchi), et le tronçon BD TOPO en pont est souvent plus court
     # que la brèche, ou absent ; une route ne plonge pas de plus de DIP_SLOPE (15 % au plus), le terrain qui le fait est sous
     # un ouvrage, comblé d'un bord à l'autre (_bridged)
@@ -998,6 +1002,7 @@ class Chutes:
             sigma = math.hypot(terrain, terrain)  # deux altitudes du même MNT
             origin = "la caméra" if camera else "l'axe BD TOPO"
             lines, seen, shown = self._edges_sides(sides, borders, found, stops, drawn, twins, sigma, origin)
+            junction = self._junction_near(ends, along_of)
             self.edges[key] = {
                 "frame": across0,
                 "profile": {"origine": "caméra" if camera else "axe", "source": source, "erreur": round(sigma, 2),
@@ -1006,8 +1011,8 @@ class Chutes:
                             "zone": zone, "fenetre": self.EDGE_WINDOW, "remontee": self.EDGE_RISE, "profils": drawn,
                             "plateforme": platform_slope(drawn) if source == triangulation.LIDAR_NAME else None,  # RGE ALTI trop imprécis
                             "resultats": shown, "arrets": {name: sorted(v)[len(v) // 2] for name, v in stops.items() if v},
-                            "en_long": grade},
-                "text": ("\n".join(lines) or "Aucun bord ne descend de {} m ou plus jusqu'à {} m du milieu de la chaussée".format(
+                            "en_long": grade, "carrefour": junction},
+                "text": (self._junction_text(junction) + "\n" if junction else "") + ("\n".join(lines) or "Aucun bord ne descend de {} m ou plus jusqu'à {} m du milieu de la chaussée".format(
                     measures._num(self.FALL_MIN, 1), measures._num(zone, 0))) + ("\nPente en long : {} de {} % sur {} m{}".format(
                         "montée" if grade["pente"] >= 0 else "descente", measures._num(abs(grade["pente"]), 1),
                         measures._num(grade["points"][-1][0] - grade["points"][0][0], 0),
@@ -1384,6 +1389,24 @@ class Chutes:
             measures._num(self.EDGE_CONSENSUS, 0), measures._num(self.EDGE_RISE, 0),
             measures._num(self.EDGE_WINDOW, 0),
             measures._num(100 * self.EDGE_TALUS, 0), " ; ".join(seen) or "aucun")
+
+    def _junction_near(self, ends, along_of):
+        """Carrefour avec une voie nommée (ends, voir _chained) à JUNCTION_NEAR m au plus de la photo le long de la route, le
+        plus proche : {"d" : m dans le sens de la photo, "avec" : voies}, ou None."""
+        near = [(along_of(p), names) for p, kind, names in ends[0] if kind == "carrefour"]
+        near = [(d, names) for d, names in near if abs(d) <= self.JUNCTION_NEAR]
+        if not near:
+            return None
+        d, names = min(near, key=lambda e: abs(e[0]))
+        return {"d": round(d, 1), "avec": names}
+
+    @staticmethod
+    def _junction_text(junction):
+        """Ligne de l'encadré pour un carrefour proche (_junction_near)."""
+        where = ("au droit de la photo" if abs(junction["d"]) < 1 else "{} m {}".format(
+            measures._num(abs(junction["d"]), 0), "devant" if junction["d"] > 0 else "derrière"))
+        names = " et ".join(_road_label(n) for n in junction["avec"]) or "une autre voie"
+        return "Carrefour avec {} {} : bords peu sûrs (la chaussée s'y élargit, pas de bord continu)".format(names, where)
 
     def _long_profile(self, pts, ends, along_of, followed):
         """Profil en long de la route sous la photo (pts : [(d en m dans le sens de la photo, altitude)]) : fins de la route

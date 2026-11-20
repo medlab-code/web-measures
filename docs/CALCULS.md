@@ -394,6 +394,10 @@ de la détection (§ 8.2), accotement parfois compris, sans l'analyse fine.
   escaliers, les voies privées ou réservées aux ayants droit. La BD TOPO ne distingue pas les voies
   communales : le tri se fait sur la nature et l'accès, et sur le nom pour les chemins classés « Route à 1 chaussée »
   (« CHE DE L ARGENTALET ») : un nom en « CHE » sans numéro n'est pas mentionné, même s'il est revêtu.
+- **Carrefour près de la photo** : un carrefour (même définition) à **12 m** au plus de la photo le long de la route
+  est aussi signalé en tête des résultats des bords (« Carrefour avec … : bords peu sûrs ») : les travers vont jusqu'à
+  ±10 m et la voie qui arrive a quelques mètres de large ; la chaussée s'y élargit, le bord n'y est pas continu, et ni
+  le relief ni l'analyse fine n'y ont de bonne réponse (D16 d946f2cf-cddc-4476-a414-35aee429c05a, 20/11/2026).
 - **Creux et ponts** : le MNT n'a pas les ponts, il donne le fond franchi. Le tronçon BD TOPO en
   pont est souvent plus court que la brèche, ou absent. Au-dessus de chaque point, on cherche la
   **corde** la plus haute tendue entre deux points du terrain distants de **40 m** au plus. Là où

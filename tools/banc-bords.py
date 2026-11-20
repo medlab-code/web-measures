@@ -81,6 +81,11 @@ REFERENCES = {
         "(caméra au milieu, flanc à 0,85 m) ; chemin d'exploitation en terre claire raccordé à droite, à plat jusqu'au talus, "
         "plus sombre que l'enrobé dans le nuage (0,5 à 0,8 fois) ; relief à 3,5 m (pied du talus), analyse fine à 1,38 m "
         "(bande sombre, cherchée à 1 m au moins) (auteur, 20/11/2026)"),
+    ("6c6e4972-f565-4198-84fe-24ab72d95398", "gauche"): (
+        2.2, "D33 : analyse fine à 2,18 m depuis la bande sombre à plat (c5bd153), juste ; 4,89 m avant (auteur, 20/11/2026)"),
+    ("8377ed2a-5acc-42c3-a9f0-7a5d4bdb335b", "droit"): (
+        0.85, "D115 : bord sur le flanc droit du véhicule (caméra au milieu, flanc à 0,85 m) ; analyse fine à 3,16 m depuis "
+        "la bande sombre (5,10 avant), mieux mais trop loin (auteur, 20/11/2026)"),
     ("1d23f3f9-f4b7-4d2e-8658-500a748ccecc", "gauche"): (
         2.9, "D119E : enrobé jusqu'à 2,9 m (photo ; herbe 1,4 à 1,6 fois l'enrobé au-delà), puis bourrelet enherbé de 0,4 m "
         "et fossé d'environ 0,8 m vers 7-8,5 m ; relief à 1,5 m, analyse fine à 4,1 m (bordure au pied du bourrelet) "
