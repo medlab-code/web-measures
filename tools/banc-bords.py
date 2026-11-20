@@ -77,19 +77,21 @@ REFERENCES = {
         "flanc à 0,85 m, qui déborde du bord) ; relief à 3,5 m (pas de bord avant EDGE_NEAR, "
         "1,5 m), bordure de P21 à 2,9 m (auteur, 20/11/2026)"),
     ("1d23f3f9-f4b7-4d2e-8658-500a748ccecc", "droit"): (
-        0.8, "D119E, chaussée d'environ 4 m, véhicule sur sa moitié droite : bord légèrement sous le flanc droit du véhicule "
-        "(caméra au milieu, flanc à 0,85 m) ; chemin d'exploitation en terre claire raccordé à droite, à plat jusqu'au talus, "
-        "plus sombre que l'enrobé dans le nuage (0,5 à 0,8 fois) ; relief à 3,5 m (pied du talus), analyse fine à 1,38 m "
-        "(bande sombre, cherchée à 1 m au moins) (auteur, 20/11/2026)"),
+        1.6, "D119E : bord droit à environ 1,60 m, mesuré en vue du dessus (caméra sur la croix bleue) ; chemin "
+        "d'exploitation en terre claire raccordé à droite ; relief à 3,5 m (pied du talus), analyse fine à 1,38 m, "
+        "bord par la couleur à 1,48 m (auteur, 20/11/2026 ; 0,8 m auparavant, estimé à l'œil)"),
     ("6c6e4972-f565-4198-84fe-24ab72d95398", "gauche"): (
-        2.2, "D33 : analyse fine à 2,18 m depuis la bande sombre à plat (c5bd153), juste ; 4,89 m avant (auteur, 20/11/2026)"),
+        3.9, "D33 : bord gauche à environ 3,9 m, mesuré en vue du dessus (caméra sur la croix bleue) ; analyse fine à "
+        "2,18 m (bande sombre), 4,89 m avant ; bord par la couleur de la photo à 3,92 m (auteur, 20/11/2026 ; 2,2 m "
+        "auparavant, vérification moins précise)"),
+    ("6c6e4972-f565-4198-84fe-24ab72d95398", "droit"): (
+        1.6, "D33 : bord droit à environ 1,60 m, vue du dessus (auteur, 20/11/2026)"),
     ("8377ed2a-5acc-42c3-a9f0-7a5d4bdb335b", "droit"): (
         0.85, "D115 : bord sur le flanc droit du véhicule (caméra au milieu, flanc à 0,85 m) ; analyse fine à 3,16 m depuis "
         "la bande sombre (5,10 avant), mieux mais trop loin (auteur, 20/11/2026)"),
     ("1d23f3f9-f4b7-4d2e-8658-500a748ccecc", "gauche"): (
-        2.9, "D119E : enrobé jusqu'à 2,9 m (photo ; herbe 1,4 à 1,6 fois l'enrobé au-delà), puis bourrelet enherbé de 0,4 m "
-        "et fossé d'environ 0,8 m vers 7-8,5 m ; relief à 1,5 m, analyse fine à 4,1 m (bordure au pied du bourrelet) "
-        "(auteur, 20/11/2026)"),
+        2.6, "D119E : bord gauche à environ 2,60 m, vue du dessus ; puis bourrelet enherbé et fossé vers 7-8,5 m ; "
+        "relief à 1,5 m, analyse fine à 4,1 m, bord par la couleur à 2,09 m (auteur, 20/11/2026 ; 2,9 m auparavant)"),
     ("2666168c-c349-4508-8043-b5c8d7ae7464", "droit"): (
         1.7, "D16, enrobé et plateforme de 5 m, bords mesurés en vue du dessus (caméra sur la croix bleue) : bord droit à "
         "environ 1,70 m de la caméra ; relief à 2,5 m, analyse fine à 2,11 m (auteur, 20/11/2026)"),
