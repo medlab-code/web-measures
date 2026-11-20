@@ -495,7 +495,7 @@ après.
   ouverture) les remet à l'échelle des distances, caméra dessinée à sa hauteur (réglage « Hauteur de caméra »), masquée quand
   les hauteurs sont exagérées. Les commandes sous le graphique sont en trois groupes : « Affichage » (« Hauteurs à
   l'échelle », « Végétation », légende, loupe), « Nuage LiDAR » (« Analyse fine ») et « Enregistrer » (PNG, PDF, 2e page),
-  puis « Fermer ». « PNG » en fait une image
+  puis « ✕ Fermer » (discret, aligné sur les boutons). « PNG » en fait une image
   avec son titre et sa légende ; « PDF » met le graphique et la légende (en petits caractères, sur deux
   colonnes) sur une page A4 paysage, en vectoriel, sous le lieu de la photo (route, PR, commune), à enregistrer en PDF
   dans la boîte d'impression ; « Profil en long (2e page) » (choix retenu) y ajoute une page pour le profil en long ; la loupe agrandit le graphique (sans la légende) au mieux dans la

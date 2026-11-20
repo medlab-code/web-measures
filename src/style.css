@@ -1372,6 +1372,11 @@ dialog.profil form label { white-space: nowrap; }
 dialog.profil form .groupe { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.8rem; margin: 0;
   padding: 0.15rem 0.6rem 0.45rem; border: 1px solid var(--bord); border-radius: 6px; }
 dialog.profil form .groupe legend { padding: 0 0.3rem; font-size: 0.75rem; color: var(--discret); }
+/* « Fermer » : aligné sur le bas des boutons des groupes (sous leur titre), discret et marqué d'une croix ; pas de rouge,
+   réservé à « Non » et aux actions qui effacent */
+dialog.profil form > button.fermer { align-self: flex-end; margin-bottom: calc(0.45rem + 1px); background: transparent;
+  border: 1px solid var(--bord); color: var(--discret); }
+dialog.profil form > button.fermer:hover { color: var(--texte); }
 #profil-nuage-barre { width: 8rem; height: 0.6rem; accent-color: var(--panoramax); vertical-align: middle; }
 .profil-svg .herbe { fill: none; stroke: #9ccc65; stroke-width: 5; stroke-linejoin: round; opacity: 0.9; }  /* analyse fine */
 .profil-svg .ouvrage { stroke: var(--texte); stroke-width: 2; stroke-dasharray: 6 3; }  /* pont ou tunnel du profil en long */
