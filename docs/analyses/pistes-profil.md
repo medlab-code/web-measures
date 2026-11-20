@@ -403,7 +403,7 @@ laissé de côté.*
 - **Piste** : hauteur adaptée, marques des 5 travers sur l'axe des distances, sa ligne de légende dans la fenêtre aussi.
 - **Gain** : les deux graphiques se lisent ensemble.
 
-**G8. Contraste et couleurs.**
+**G8. Contraste et couleurs.** *Faite le 20/11/2026 d'après maquette validée ; daltonisme laissé de côté à la demande de l'auteur. Couleurs du graphique en variables de thème (`--chute`, `--chute-texte`, `--devers`, `--devers-texte`, `--herbe`, `--vegetation`, `--eau`, `--eau-texte`, `--chaussee`, `--raide`, `--carrefour`, `--carrefour-fond`), valeurs sombres aux deux endroits du thème ; opacités retirées (travers voisins en tirets fins, travers mesurés en trait continu 1,5, bord supposé en tirets) ; herbe en pointillé « touffes » (vert plus franc), végétation en trait vert foncé ; mention carrefour sur fond jaune pâle, cadre et texte `--carrefour`, préfixe « ⚠ » ; petits symboles tracés devant les lignes de la légende (mêmes classes CSS que les tracés). PNG et PDF : styles calculés (PNG) et feuille de la page en thème clair (PDF), donc couleurs résolues ; le PNG ne reprend pas les symboles de légende.*
 - **Avant** : travers voisins à 45 % d'opacité, travers mesurés à 55 % ; herbe et végétation en deux verts proches ; chute orange
   et dévers rouge.
 - **Problème** : traits pâles, couleurs proches pour un œil daltonien.

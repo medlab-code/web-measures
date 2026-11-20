@@ -302,8 +302,8 @@ const Profil = (() => {
     return [
       `Coupe du terrain vue dans le sens de la photo, depuis ${from}\u00a0; 0 = la plateforme sous ${
         profile.origine === "caméra" ? "la caméra" : "l'axe"}.`,
-      "Trait brun\u00a0: travers de la photo · pointillés\u00a0: travers à 5 et 10 m devant et derrière · "
-        + "trait gris\u00a0: travers où la chute ou le dévers ont été mesurés.",
+      ["Trait brun\u00a0: travers de la photo · pointillés\u00a0: travers à 5 et 10 m devant et derrière · "
+        + "trait gris\u00a0: travers où la chute ou le dévers ont été mesurés.", ["voisin", "mesure"]],
       ...(profile.origine === "caméra" && factor === 1
         ? [`Point bleu\u00a0: la caméra, à ${num(camera, 2)} m au-dessus de la plateforme.`] : []),
       ...(main.separateur ? ["Petite barre verticale\u00a0: milieu du séparateur de chaussée (terre-plein central), "
@@ -320,7 +320,7 @@ const Profil = (() => {
         + `${["gauche", "droit"].map((side) => fine.bords[side] ? ` (${side}\u00a0: ${num(Math.abs(fine.bords[side].x))} m, `
           + `${fine.bords[side].bordure ? "bordure, trouvée à l'altitude du sol" : fine.bords[side].comment})` : "").join("")}.`
         + (fine.largeur ? ` Largeur d'enrobé\u00a0: ${num(fine.largeur.m)}\u00a0m ±\u00a0${num(fine.largeur.plus)}.` : "")] : []),
-      ...((profile.eau || []).length || fine?.eau?.length ? [`Bleu\u00a0: eau${(profile.eau || []).length ? ` de la BD TOPO (${profile.eau
+      ...((profile.eau || []).length || fine?.eau?.length ? [[`Bleu\u00a0: eau${(profile.eau || []).length ? ` de la BD TOPO (${profile.eau
         .map((w) => (w.x !== undefined
           ? `${w.nom || (w.nature || "cours d'eau").toLowerCase()} à ${num(Math.abs(w.x))} m ${w.x < 0 ? "à gauche" : "à droite"}`
           : `${(w.nature || "plan d'eau").toLowerCase()} de ${num(Math.min(Math.abs(w.de), Math.abs(w.a)))} `
@@ -328,15 +328,15 @@ const Profil = (() => {
             + `${w.de + w.a < 0 ? "à gauche" : "à droite"} (bande bleue sur le terrain, `
             + "au niveau de l'eau)")).join(", ")})` : ""}${fine?.eau?.length
         ? `${(profile.eau || []).length ? "\u00a0; " : " "}surface de l'eau lue dans le nuage LiDAR (ligne bleue), `
-          + "au niveau du jour du relevé" : ""}.`] : []),
-      ...(plants && fine?.herbe?.length ? ["Bande vert clair sur le terrain\u00a0: herbe au sol (surface non revêtue très claire au laser "
+          + "au niveau du jour du relevé" : ""}.`, ["eau"]]] : []),
+      ...(plants && fine?.herbe?.length ? [["Pointillé vert clair sur le terrain\u00a0: herbe au sol (surface non revêtue très claire au laser "
         + "infrarouge\u00a0; gravillons et béton, moins clairs, n'y sont pas)" + ["gauche", "droit"].map((side) => {
           const sign = side === "gauche" ? -1 : 1, mine = fine.herbe.filter(([a, b]) => sign * (a + b) > 0);
           return mine.length
             ? `\u00a0; ${side}\u00a0: dès ${num(Math.min(...mine.map(([a, b]) => Math.min(Math.abs(a), Math.abs(b)))))} m` : "";
-        }).join("") + "."] : []),
+        }).join("") + ".", ["herbe"]]] : []),
       ...(plants && fine?.vegetation?.length
-        ? ["Ligne verte\u00a0: hauteur maximale de la végétation (herbe haute, arbustes, arbres, classés par "
+        ? [["Ligne verte\u00a0: hauteur maximale de la végétation (herbe haute, arbustes, arbres, classés par "
         + "l'IGN) sur ±1 m le long de la route, coupée en haut du graphique"
         + (canopy ? " (« canopée +… m »\u00a0: sa hauteur au-dessus de la plateforme)" : "") + ["gauche", "droit"].map((side) => {
           const sign = side === "gauche" ? -1 : 1, seen = fine.vegetation.filter(([x]) => sign * x > 0);
@@ -345,9 +345,9 @@ const Profil = (() => {
           const top = seen.reduce((a, b) => (above(b) > above(a) ? b : a));
           const first = seen.reduce((a, b) => (Math.abs(b[0]) < Math.abs(a[0]) ? b : a));
           return `\u00a0; ${side}\u00a0: dès ${num(Math.abs(first[0]))} m, jusqu'à ${num(above(top))} m au-dessus du sol`;
-        }).join("") + "."] : []),
-      "Traits verticaux de bord\u00a0: trait plein, bord mesuré (rupture de pente de ce travers, enrobé ou bordure de l'analyse "
-        + "fine)\u00a0; tirets longs et pâles, « bord supposé », hypothèse et non mesure.",
+        }).join("") + ".", ["vegetation"]]] : []),
+      ["Traits verticaux de bord\u00a0: trait plein, bord mesuré (rupture de pente de ce travers, enrobé ou bordure de l'analyse "
+        + "fine)\u00a0; tirets longs, « bord supposé », hypothèse et non mesure.", ["bord-mesure", "bord-suppose"]],
       ...(["gauche", "droit"].some((side) => main.bords[side]?.voisins && !main.bords[side].enrobe)
         ? ["« Travers voisins » sous un bord : pas de rupture de pente sur ce travers (ou une trop loin des "
           + "autres) ; bord supposé, placé à la médiane des travers voisins où elle a été trouvée."] : []),
@@ -365,7 +365,7 @@ const Profil = (() => {
     const results = document.createElement("ul");
     if (profile.carrefour?.texte) {  // carrefour près de la photo : en tête, les bords qui suivent sont peu sûrs
       const item = document.createElement("li");
-      item.append(html("b", "carrefour", profile.carrefour.texte));
+      item.append(symbol("carrefour"), html("b", "carrefour", `\u26a0\u00a0${profile.carrefour.texte}`));
       results.append(item);
     }
     if (profile.plateforme) {
@@ -407,7 +407,7 @@ const Profil = (() => {
         el("line", { x1: X(xLow), x2: X(xLow), y1: Z(top), y2: Z(low), class: "chute", "data-cote": side, "marker-end": "url(#fleche)" }),
         el("text", { x: X(xLow) + toward * 6, y: (Z(top) + Z(low)) / 2, class: "etiquette-profil chute-texte place",
           "text-anchor": toward < 0 ? "end" : "start" }, `chute ${r.chute[2] ? "≥ " : ""}${num(r.chute[0])} m`));
-      item.append(html("span", "chute", `chute ${r.chute[2] ? "d'au moins " : "de "}${num(r.chute[0])} m`),
+      item.append(symbol("chute"), html("span", "chute", `chute ${r.chute[2] ? "d'au moins " : "de "}${num(r.chute[0])} m`),
         ` ${r.chute[2] ? "au-delà de" : "à"} ${dist(r.chute[1], r.chute[2])} m du bord${where}`);
       if (r.devers) {
         // talus : droite de son haut à son pied (pente moyenne), sur le travers où il a été mesuré
@@ -423,10 +423,10 @@ const Profil = (() => {
         // paroi quasi verticale (App.WALL_SLOPE) : sans pourcentage, le MNT adoucit les murs
         const where2 = td === main ? "" : `, travers à ${td.along > 0 ? "+" : "−"}${Math.abs(td.along)} m`;
         if (r.devers[5]) {
-          item.append(" · ", html("span", "devers", "paroi quasi verticale"),
+          item.append(" · ", symbol("devers"), html("span", "devers", "paroi quasi verticale"),
             ` (mur, enrochement\u00a0: ${num(r.devers[4])} m de haut${where2})`);
         } else {
-          item.append(" · ", html("span", "devers", `dévers du talus ${num(100 * r.devers[0], 0)}\u00a0%`),
+          item.append(" · ", symbol("devers"), html("span", "devers", `dévers du talus ${num(100 * r.devers[0], 0)}\u00a0%`),
             ` (pente moyenne\u00a0: ${num(r.devers[4])} m de haut sur ${num(Math.abs(x1 - x0))} m${where2})`);
         }
       }
@@ -435,6 +435,36 @@ const Profil = (() => {
   }
 
   const html = (tag, className, text) => Object.assign(document.createElement(tag), { className, textContent: text });
+
+  /** Petit symbole (svg 22 × 10) devant une ligne de la légende : le tracé du graphique, avec les mêmes classes CSS (donc
+   * les mêmes couleurs, claires ou sombres). kind : voisin, mesure, herbe, vegetation, chute, devers, eau, carrefour,
+   * bord-mesure ou bord-suppose. */
+  function symbol(kind) {
+    const svg = el("svg", { viewBox: "0 0 22 10", class: "profil-svg symbole", "aria-hidden": "true" });
+    const line = (cls, attrs = {}) => svg.append(el("line", { x1: 1, x2: 21, y1: 5, y2: 5, class: cls, ...attrs }));
+    if (kind === "voisin") line("autre-travers");
+    else if (kind === "mesure") line("travers-mesure");
+    else if (kind === "herbe") line("herbe");
+    else if (kind === "vegetation") line("vegetation");
+    else if (kind === "eau") line("eau-surface");
+    else if (kind === "bord-mesure") line("bord", { "data-bord": "mesure" });
+    else if (kind === "bord-suppose") line("bord bord-suppose", { "data-bord": "suppose" });
+    else if (kind === "devers") line("devers", { x1: 3, x2: 19 });
+    else if (kind === "carrefour") svg.append(el("rect", { x: 1, y: 1, width: 20, height: 8, rx: 2, class: "mention-carrefour" }));
+    else if (kind === "chute") {  // flèche : son propre marqueur (l'identifiant du graphique n'est pas dans cette légende)
+      const marker = el("marker", { id: "fleche-legende", viewBox: "0 0 10 10", refX: 10, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto" });
+      marker.append(el("path", { d: "M0,0L10,5L0,10Z", class: "fleche" }));
+      svg.append(el("defs", {}), el("line", { x1: 2, x2: 19, y1: 5, y2: 5, class: "chute", "marker-end": "url(#fleche-legende)" }));
+      svg.firstChild.append(marker);
+    }
+    return svg;
+  }
+  /** Ligne de légende (p) : text, précédé des symboles kinds (liste de symbol) s'il y en a. */
+  const legendRow = (text, kinds = []) => {
+    const p = html("p", "aide", text);
+    p.prepend(...kinds.map(symbol));
+    return p;
+  };
 
   /** Graphique SVG et sa légende en clair (texte) pour profile (voir App._compute_edges) ; trueScale : hauteurs
    * à la même échelle que les distances.
@@ -570,8 +600,8 @@ const Profil = (() => {
     const mentionBox = [LEFT + 2, TOP + 2, LEFT + 12 + textWidth(mention, 13, 500, 0.6), TOP + 24];
     // Carrefour près de la photo (App._junction_near) : « Carrefour : bords peu sûrs » dans le coin haut droit, aussi dans
     // le PNG et le PDF ; la phrase entière en tête de la légende
-    const junction = profile.carrefour ? "Carrefour\u00a0: bords peu sûrs" : "";
-    const junctionW = textWidth(junction, 13, 500, 0.6) + 10;
+    const junction = profile.carrefour ? "⚠ Carrefour\u00a0: bords peu sûrs" : "";
+    const junctionW = textWidth(junction, 13, 500, 0.6) + 18;
     const junctionBox = [W - RIGHT - 2 - junctionW, TOP + 2, W - RIGHT - 2, TOP + 24];
     declutter(svg, TOP, TOP + plotH, [...(mention ? [mentionBox] : []), ...(junction ? [junctionBox] : [])]);
     if (junction) {
@@ -590,7 +620,7 @@ const Profil = (() => {
 
     // Lecture du graphique, sous les résultats, en discret
     const legend = document.createElement("div");
-    legend.append(results, ...legendLines(profile, main, fine, plants, camera, factor, canopy).map((t) => html("p", "aide", t)));
+    legend.append(results, ...legendLines(profile, main, fine, plants, camera, factor, canopy).map((t) => (Array.isArray(t) ? legendRow(...t) : html("p", "aide", t))));
     // PDF : avec la 2e page
     if (profile.en_long?.points?.length && longLegend(profile.en_long)) legend.lastElementChild.classList.add("legende-long");
     survol(svg, f, main, profile, legend);

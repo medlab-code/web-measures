@@ -491,7 +491,7 @@ après.
   HD, ou RGE ALTI en secours), sur la distance de la réglette de part et d'autre du milieu de la chaussée (1 m au moins
   au-delà de chaque bord), là même où chute et dévers sont lus : travers de la photo en brun, les quatre autres en pointillés,
   plateforme entre les deux bords trouvés (et comment : rupture de pente, travers voisins ou largeur type ; un bord mesuré a un
-  trait plein, un bord supposé, de largeur type ou d'après les travers voisins, des tirets longs et pâles et l'étiquette « bord supposé »), milieu du
+  trait plein, un bord supposé, de largeur type ou d'après les travers voisins, des tirets longs et l'étiquette « bord supposé »), milieu du
   séparateur de chaussée sur une route à chaussées séparées (petite barre verticale ; la légende dit s'il a
   été trouvé dans le relief ou placé d'après la BD TOPO), flèche
   de la chute et droite rouge du talus (haut → pied) sur le travers où ils ont été mesurés,
@@ -522,10 +522,10 @@ après.
   chaussée), sinon la fin de l'enrobé du seul travers de la photo. **Séparateur de chaussée** : la bande non revêtue entre les deux
   chaussées (glissières comprises, que le terrain seul ne voit pas), à 2 m au plus de celui du calcul, qu'elle
   remplace (« nuage LiDAR »). Les lignes blanches sont dessinées en petits carrés blancs ; une ligne à tirets absente du travers de la photo (vide entre deux tirets) est reprise si au moins 2 des 5 travers la voient. Le bouton est grisé
-  pendant la lecture et une fois l'analyse faite pour ce profil. **Bande vert clair** : herbe au sol (classée « sol »
+  pendant la lecture et une fois l'analyse faite pour ce profil. **Pointillé vert clair** : herbe au sol (classée « sol »
   par l'IGN) : bande non revêtue d'1 m au moins, en moyenne 3,5 fois plus claire que l'enrobé (le laser, en proche
   infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois), ou dont au moins 25 % des points (médiane des cases de 0,25 m) sont de la végétation (retours multiples, ou classe végétation près du sol : herbe haute). L'herbe rase d'un relevé d'hiver reste invisible au nuage : le LiDAR HD n'a pas de couleur. La case « Végétation » (cochée par défaut, choix retenu, grisée tant que l'analyse fine
-  n'a pas été faite) montre ou masque la bande
+  n'a pas été faite) montre ou masque le pointillé
   vert clair et la ligne verte. **Ligne verte** : hauteur maximale de la
   végétation (points classés herbe haute, arbustes et arbres par l'IGN), plus haut point à ±0,25 m près, coupée en
   haut du graphique (hauteurs à l'échelle : « canopée +18 m » si elle en sort, sa hauteur au-dessus de la plateforme) ; la légende dit, de chaque côté, où elle commence et sa hauteur au-dessus du sol (relevé LiDAR

@@ -11,6 +11,19 @@
   --panoramax: #ff6f00;
   --encart: #f1f3f4;
   --visee: #0b6fb6;  /* bleu des visées, en texte sur fond clair */
+  /* Graphique du profil en travers : traits, textes et fonds (les textes sont plus foncés que les traits en clair) */
+  --chute: #e8710a;
+  --chute-texte: #b35400;
+  --devers: #d93025;
+  --devers-texte: #d93025;
+  --herbe: #689f38;
+  --vegetation: #1e7e34;
+  --eau: #1a73e8;
+  --eau-texte: #1a73e8;
+  --chaussee: #5f6368;
+  --raide: #8e24aa;
+  --carrefour: var(--attente);
+  --carrefour-fond: #fef7e0;
 }
 
 /* Nuit : comme le système, sauf thème forcé dans les Réglages (data-theme sur <html>) */
@@ -25,6 +38,14 @@
     --attente: #fdd663;
     --encart: #2a2b2e;
     --visee: #7cc4f5;
+    --chute-texte: #e8710a;
+    --devers-texte: #f28b82;
+    --herbe: #aed581;
+    --vegetation: #81c995;
+    --eau-texte: #7cc4f5;
+    --chaussee: #80868b;
+    --raide: #ce93d8;
+    --carrefour-fond: #3a3000;
     color-scheme: dark;
   }
 }
@@ -38,6 +59,14 @@
   --attente: #fdd663;
   --encart: #2a2b2e;
   --visee: #7cc4f5;
+  --chute-texte: #e8710a;
+  --devers-texte: #f28b82;
+  --herbe: #aed581;
+  --vegetation: #81c995;
+  --eau-texte: #7cc4f5;
+  --chaussee: #80868b;
+  --raide: #ce93d8;
+  --carrefour-fond: #3a3000;
   color-scheme: dark;
 }
 :root[data-theme="light"] { color-scheme: light; }
@@ -1336,15 +1365,19 @@ dialog.profil .graphique { margin: 0 auto; }
 dialog.profil .legende ul { margin: 0.6rem 0; padding-left: 1.2rem; }
 dialog.profil .legende li { margin: 0.2rem 0; }
 dialog.profil .legende p.aide { font-size: 0.85rem; color: var(--discret); margin: 0.15rem 0; }
-dialog.profil .legende .chute { color: #e8710a; font-weight: 500; }
-dialog.profil .legende .devers { color: #d93025; font-weight: 500; }
+dialog.profil .legende .chute { color: var(--chute-texte); font-weight: 500; }
+dialog.profil .legende .devers { color: var(--devers-texte); font-weight: 500; }
 .profil-svg text { font: 12px Roboto, sans-serif; fill: var(--texte); }
 /* étiquettes posées sur le terrain : liseré du fond, lisibles par-dessus les traits */
 .profil-svg text.place { paint-order: stroke; stroke: var(--fond); stroke-width: 3px; stroke-linejoin: round; }
 .profil-svg rect.mention-echelle { fill: var(--fond); opacity: 0.85; }  /* « Hauteurs ×N » : fond du coin */
-.profil-svg rect.mention-carrefour { stroke: #ff6f00; stroke-width: 1.5; }  /* carrefour près de la photo : bords peu sûrs */
-.profil-svg text.mention-carrefour-texte { fill: #ff6f00; }
-dialog.profil .legende b.carrefour { color: #ff6f00; }
+.profil-svg rect.mention-carrefour { fill: var(--carrefour-fond); opacity: 1; stroke: var(--carrefour); stroke-width: 1.5; }  /* carrefour près de la photo : bords peu sûrs */
+.profil-svg text.mention-carrefour-texte { fill: var(--carrefour); }
+dialog.profil .legende b.carrefour { color: var(--carrefour); }
+/* symboles de la légende (profil.js, symbol) : mêmes classes que les tracés, donc mêmes couleurs */
+dialog.profil .legende svg.symbole { width: 22px; height: 10px; vertical-align: middle; margin-right: 0.4em; overflow: visible; }
+dialog.profil .legende svg.symbole .devers { stroke-width: 4; }
+dialog.profil .legende svg.symbole rect.mention-carrefour { fill: var(--carrefour-fond); }
 .profil-svg .graduation { fill: var(--discret); }
 .profil-svg .etiquette-profil { font-weight: 500; font-size: 13px; }
 .profil-svg tspan.graduation { font-weight: 400; font-size: 12px; }  /* 2e ligne d'une étiquette */
@@ -1353,16 +1386,16 @@ dialog.profil .legende b.carrefour { color: #ff6f00; }
 .profil-svg .terre { fill: #a1887f; opacity: 0.35; }
 .profil-svg .sol { fill: none; stroke: #8d6e63; stroke-width: 2.5; stroke-linejoin: round; }
 /* autres travers : transparents, sous le terrain de la photo */
-.profil-svg .autre-travers { fill: none; stroke: var(--discret); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.45; }
-.profil-svg .travers-mesure { fill: none; stroke: var(--discret); stroke-width: 1.5; opacity: 0.55; }
-.profil-svg .chaussee { fill: none; stroke: #5f6368; stroke-width: 7; stroke-linecap: butt; }
+.profil-svg .autre-travers { fill: none; stroke: var(--discret); stroke-width: 1; stroke-dasharray: 3 3; }
+.profil-svg .travers-mesure { fill: none; stroke: var(--discret); stroke-width: 1.5; }
+.profil-svg .chaussee { fill: none; stroke: var(--chaussee); stroke-width: 7; stroke-linecap: butt; }
 .profil-svg .bord { stroke: var(--texte); stroke-width: 1.2; stroke-dasharray: 2 3; }
 .profil-svg .bord[data-bord="mesure"] { stroke-dasharray: none; }  /* bord mesuré : trait plein (G3) */
-.profil-svg .bord.bord-suppose { stroke-dasharray: 9 5; opacity: 0.6; }  /* bord supposé (largeur type, travers voisins) */
-.profil-svg .eau { fill: #1a73e8; stroke: var(--fond); stroke-width: 1; }  /* cours d'eau de la BD TOPO */
-.profil-svg .eau-texte { fill: #1a73e8; }
-.profil-svg .eau-surface { fill: none; stroke: #1a73e8; stroke-width: 5; stroke-linejoin: round; opacity: 0.7; }  /* plan d'eau de la BD TOPO */
-.profil-svg .eau-nuage { fill: none; stroke: #1a73e8; stroke-width: 3; }  /* surface de l'eau, analyse fine */
+.profil-svg .bord.bord-suppose { stroke-dasharray: 9 5; }  /* bord supposé (largeur type, travers voisins) */
+.profil-svg .eau { fill: var(--eau); stroke: var(--fond); stroke-width: 1; }  /* cours d'eau de la BD TOPO */
+.profil-svg .eau-texte { fill: var(--eau-texte); }
+.profil-svg .eau-surface { fill: none; stroke: var(--eau); stroke-width: 5; stroke-linejoin: round; opacity: 0.7; }  /* plan d'eau de la BD TOPO */
+.profil-svg .eau-nuage { fill: none; stroke: var(--eau); stroke-width: 3; }  /* surface de l'eau, analyse fine */
 /* « Analyse fine » : avancement et bilan sur leur ligne, au-dessus des boutons ; boutons et cases sans libellé coupé */
 dialog.profil .nuage-etat { display: flex; align-items: center; gap: 0.6rem; margin: 0.8rem 0 0; }
 dialog.profil .nuage-etat:has(progress[hidden]):has(#profil-nuage-etat:empty) { display: none; }
@@ -1382,33 +1415,27 @@ dialog.profil form.fermer-coin button { width: 2.4rem; height: 2.4rem; padding: 
   background: transparent; color: var(--discret); font-size: 1.5rem; line-height: 1; }
 dialog.profil form.fermer-coin button:hover { border-color: var(--bord); color: var(--texte); }
 #profil-nuage-barre { width: 8rem; height: 0.6rem; accent-color: var(--panoramax); vertical-align: middle; }
-.profil-svg .herbe { fill: none; stroke: #9ccc65; stroke-width: 5; stroke-linejoin: round; opacity: 0.9; }  /* analyse fine */
+.profil-svg .herbe { fill: none; stroke: var(--herbe); stroke-width: 6; stroke-dasharray: 2 3; stroke-linecap: butt; stroke-linejoin: round; }  /* analyse fine : pointillé « touffes » */
 .profil-svg .ouvrage { stroke: var(--texte); stroke-width: 2; stroke-dasharray: 6 3; }  /* pont ou tunnel du profil en long */
-.profil-svg text.canopee { fill: #188038; }
-.profil-svg .vegetation { fill: none; stroke: #34a853; stroke-width: 2; stroke-linejoin: round; }  /* analyse fine */
+.profil-svg text.canopee { fill: var(--vegetation); }
+.profil-svg .vegetation { fill: none; stroke: var(--vegetation); stroke-width: 2; stroke-linejoin: round; }  /* analyse fine */
 .profil-svg .ligne-blanche { fill: #fff; stroke: #5f6368; stroke-width: 1; }  /* analyse fine : peinture au sol */
 .profil-svg .bord-chaussee { stroke: var(--texte); stroke-width: 1.5; stroke-dasharray: 3 2; }  /* analyse fine */
 .profil-svg .separateur { stroke: var(--texte); stroke-width: 3; stroke-linecap: round; }  /* séparateur de chaussée */
 .profil-svg .origine { fill: #0b6fb6; stroke: var(--fond); stroke-width: 1.5; }
-.profil-svg .repere-chute { stroke: #e8710a; stroke-width: 1.2; stroke-dasharray: 4 3; }
-.profil-svg .chute { stroke: #e8710a; stroke-width: 2; }
-.profil-svg .fleche { fill: #e8710a; }
-.profil-svg .chute-texte { fill: #e8710a; }
-.profil-svg .devers { fill: none; stroke: #d93025; stroke-width: 5; stroke-linecap: round; }
-.profil-svg .devers-texte { fill: #d93025; }
+.profil-svg .repere-chute { stroke: var(--chute); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.profil-svg .chute { stroke: var(--chute); stroke-width: 2; }
+.profil-svg .fleche { fill: var(--chute); }
+.profil-svg .chute-texte { fill: var(--chute-texte); }
+.profil-svg .devers { fill: none; stroke: var(--devers); stroke-width: 5; stroke-linecap: round; }
+.profil-svg .devers-texte { fill: var(--devers-texte); }
 .profil-svg .bande-travers { fill: var(--texte); opacity: 0.07; }  /* profil en long : les 5 travers, de −10 à +10 m */
 .profil-svg .graduation-travers { stroke: var(--discret); stroke-width: 1.2; }
 .profil-svg .graduation-travers.photo { stroke: var(--texte); stroke-width: 2.2; }  /* la photo, à 0 */
 .profil-svg .axe-travers { stroke: var(--discret); stroke-width: 2; opacity: 0.6; }
 .profil-svg .travers-mot { font-size: 11px; font-style: italic; }
-.profil-svg .raide { stroke: #8e24aa; stroke-width: 6; stroke-linecap: round; fill: none; }  /* 10 m les plus raides du profil en long */
-.profil-svg .etiquette-raide { fill: #8e24aa; font-weight: 500; font-size: 13px; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .profil-svg .raide { stroke: #ce93d8; }
-  :root:not([data-theme="light"]) .profil-svg .etiquette-raide { fill: #ce93d8; }
-}
-:root[data-theme="dark"] .profil-svg .raide { stroke: #ce93d8; }
-:root[data-theme="dark"] .profil-svg .etiquette-raide { fill: #ce93d8; }
+.profil-svg .raide { stroke: var(--raide); stroke-width: 6; stroke-linecap: round; fill: none; }  /* 10 m les plus raides du profil en long */
+.profil-svg .etiquette-raide { fill: var(--raide); font-weight: 500; font-size: 13px; }
 .profil-svg .repere { stroke: var(--discret); stroke-width: 1; stroke-dasharray: 2 3; }  /* repère du profil en long : nom, puis terrain */
 .profil-svg .repere-point { fill: var(--texte); stroke: var(--fond); stroke-width: 1; }
 /* Survol (piste G4) : réticule et étiquette des valeurs ; flèche de chute ou droite de dévers proche du pointeur en évidence */
