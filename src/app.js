@@ -568,13 +568,14 @@
     setStatus(`Calcul indisponible : ${error.message}`, "echec");
   }).finally(checkServices);
 
-  /** Voyants de la visionneuse : RTK et sol (LiDAR HD ou RGE ALTI) toujours ; inclinaison calée en
-   * mode mesure seulement (elle n'est calculée qu'au premier clic de mesure). */
+  /** Voyants de la visionneuse : inclinaison calée, en mode mesure seulement (elle n'est calculée qu'au premier clic de mesure).
+   * Les voyants RTK et sol (LiDAR HD ou RGE ALTI) ne sont plus affichés (retirés le 20/11/2026) : leur état reste dans la liste
+   * « Position » du panneau (showPosition, #qualite) ; le calcul les produit toujours (state.lights). */
   function showLights(lights = etat.lastLights) {
     etat.lastLights = lights;
     const list = $("#voyants");
     // Inclinaison : en mesure seulement
-    const shown = etat.measuring ? lights : lights.filter(([name]) => name !== "Inclinaison");
+    const shown = etat.measuring ? lights.filter(([name]) => name === "Inclinaison") : [];
     list.hidden = !shown.length && !silent.size;
     list.replaceChildren(...shown.map(([name, light]) => {
       const item = document.createElement("li");

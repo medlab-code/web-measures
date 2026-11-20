@@ -442,7 +442,8 @@ const Choix = {
       swapButton.disabled = detached;  // carte déjà à part : rien à échanger
       // détachée : comme en grand
       measureButton.hidden = birdeyeButton.hidden = captureButton.hidden = exportButton.hidden = !detached && !etat.swapped;
-      detachButton.textContent = "⧉";
+      detachButton.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';  // fenêtre à part (dessin des boutons de la visionneuse)
+      detachButton.setAttribute("aria-label", "Carte dans une fenêtre à part");
       detachButton.title = detached ? "Remettre la carte dans la page"
         : "Détacher la carte dans une fenêtre à part (second écran)";
       detachButton.classList.toggle("actif", detached);

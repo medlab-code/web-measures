@@ -180,15 +180,16 @@ async function feature(id) {
     doc.querySelector("#favoris .aller-favori").click();
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === "7752eb30-a733-4213-b57a-5d5086e261a4", 30000, "photo du favori");
     expect("favori : photo rouverte", true);
-    const star = doc.querySelector("#etoile-favori");  // étoile dessinée (SVG) : état par aria-pressed
-    expect("étoile pleine sur la photo en favori", !star.hidden && star.getAttribute("aria-pressed") === "true");
+    const add = doc.querySelector("#ajouter-favori");  // l'étoile de la visionneuse a été retirée : bouton du panneau (étoile pleine si en favori)
+    expect("plus d'étoile sur la visionneuse", !doc.querySelector("#etoile-favori"));
+    expect("photo en favori : « Ajouter » grisé, étoile pleine", add.disabled && add.classList.contains("en-favori"));
     await open(MONTBARD);
-    expect("étoile vide sur une autre photo", star.getAttribute("aria-pressed") === "false");
-    star.click();
-    await until(() => doc.querySelectorAll("#favoris li").length === 2, 15000, "favori par l'étoile");
-    expect("étoile : favori ajouté, étoile pleine", star.getAttribute("aria-pressed") === "true");
-    star.click();
-    expect("étoile : favori retiré, étoile vide", doc.querySelectorAll("#favoris li").length === 1 && star.getAttribute("aria-pressed") === "false");
+    expect("autre photo : « Ajouter » actif, étoile vide", !add.disabled && !add.classList.contains("en-favori"));
+    add.click();
+    await until(() => doc.querySelectorAll("#favoris li").length === 2, 15000, "favori ajouté");
+    expect("favori ajouté, « Ajouter » grisé", add.disabled && add.classList.contains("en-favori"));
+    doc.querySelectorAll("#favoris .effacer-resultat")[1].click();
+    expect("favori retiré par sa croix, « Ajouter » de nouveau actif", doc.querySelectorAll("#favoris li").length === 1 && !add.disabled);
     {  // export puis import : fichier JSON, doublons et entrées invalides ignorés
       const exported = w.localStorage.getItem("web-measures/favoris");
       const input = doc.querySelector("#favoris-fichier");
@@ -512,12 +513,12 @@ async function feature(id) {
   const ign = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + PONT)).json()).features[0];
   w.mesures.openPhoto(ign);
   await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === PONT, 30000, "photo IGN affichée");
-  {  // hors mesure : voyants RTK et sol visibles, pas celui de l'inclinaison
+  {  // hors mesure : plus de voyants RTK et sol (retirés), ni celui de l'inclinaison ; leur état reste dans la liste « Position »
     const lights = () => [...doc.querySelectorAll("#voyants li")].map((li) => li.textContent);
-    try { await until(() => lights().includes("RTK"), 30000, "voyants hors mesure"); } catch (e) { log(String(e)); }
-    log("voyants hors mesure : " + lights().join(", "));
-    expect("voyants hors mesure : RTK et sol, sans l'inclinaison", !doc.querySelector("#voyants").hidden
-      && lights().includes("RTK") && lights().includes("LiDAR HD") && !lights().includes("Inclinaison"));
+    try { await until(() => /vérifiée|LiDAR/.test(doc.querySelector("#qualite").textContent), 30000, "position vérifiée"); } catch (e) { log(String(e)); }
+    log("voyants hors mesure : " + lights().join(", ") + " · position : " + doc.querySelector("#qualite").textContent);
+    expect("voyants hors mesure : ni RTK, ni sol, ni inclinaison ; la liste « Position » les dit", !lights().some((t) => /RTK|LiDAR HD|RGE ALTI|Inclinaison/.test(t))
+      && /vérifiée|LiDAR/.test(doc.querySelector("#qualite").textContent));
   }
   const shown = [];
   const seen = () => { const id = w.mesures.psv.getPictureMetadata?.()?.id; if (id && shown.at(-1) !== id) shown.push(id); };

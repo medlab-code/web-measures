@@ -37,7 +37,7 @@ première photo s'ouvre (Clos de Vougeot, D974), tournée vers l'ouest.
 **Le panneau** (sous la mini-carte) : une ligne d'état (calcul, chargement, échecs ; le texte entier
 d'un clic), puis les onglets **Résultats** (en tête, le nombre de points et de mesures, exportés ou non, et les exports CSV et
 GeoJSON ; chaque point de référence avec ses mesures dessous, fiche PDF, commentaire par ✎), **Photo** (en tête, date,
-producteur et caméra, étoile des favoris, identifiant à copier ; position : précision GPS, sol, inclinaison
+producteur et caméra, bouton « Ajouter » aux favoris, identifiant à copier ; position : précision GPS, sol, inclinaison
 et calage, chacun avec son voyant ; détails ; « Aller à une photo » par son identifiant ou un lien ; export et
 import du calage), **Favoris**
 (photos favorites, export et import), **Couche**, **Vidéo** et **Parcours** (parcours gardés), avec le nombre de
@@ -68,8 +68,9 @@ par le **requêteur route + PR**, ou coller l'**identifiant** d'une photo (ou un
 Panoramax) dans « Aller à la photo » ; « 📋 Copier » sous l'identifiant de la photo affichée
 le copie, pour la passer à un collègue.
 
-**Plein écran** : le bouton en haut à droite de la visionneuse (grisé sans photo) affiche la photo sur tout l'écran, sans
-la barre du haut, la carte ni le panneau ; à nouveau, ou `Échap`, pour revenir. Les boutons de capture y restent, presque
+**Plein écran** : le bouton en haut à droite de la visionneuse (quatre coins vers l'extérieur, vers l'intérieur en plein écran, à la suite des deux
+boutons de capture ; grisé sans photo) affiche la photo sur tout l'écran, sans
+la barre du haut, la carte ni le panneau ; à nouveau, ou `Échap`, pour revenir. Les boutons de capture et de plein écran y restent, presque
 transparents, et les boutons, voyants, lieu et lecteur s'effacent après 3 s de souris immobile : une capture d'écran
 reste propre. Une mesure en cours s'y poursuit, avec sa carte d'étape ; pour en lancer une autre, quitter le plein écran.
 `Échap` y quitte d'abord le plein écran : un second appui annule le trait en cours.
@@ -371,7 +372,7 @@ après.
 
   **Droite tracée sur la carte** (expérimental, case « Droite de mesure tracée sur la carte » des
   réglages, décochée par défaut ; giratoire, carrefour, place, où l'axe automatique se trompe) :
-  avant la première visée du premier bord, « 📏 Tracer la droite sur la carte » dans la
+  avant la première visée du premier bord, « Tracer la droite sur la carte » dans la
   visionneuse, puis, sur la mini-carte, un clic d'un côté de la voie (point de départ, pas un
   point de mesure) : un trait suit la souris, une croix au bout ; un second clic de l'autre côté
   fixe l'orientation (4 m au moins ; Échap annule). La droite est tracée en bleu dans la photo.
@@ -770,7 +771,8 @@ pas utilisé (talus et murs pris pour la route).
 
 **Autour de la mesure** :
 
-- voyants **RTK**, **LiDAR HD** (ou **RGE ALTI** en secours) et **inclinaison** de la photo ;
+- voyant d'**inclinaison** de la photo, en haut à droite de la visionneuse pendant la mesure (les voyants RTK et LiDAR HD ne sont plus
+  affichés : précision RTK et modèle de terrain restent dans la liste « Position » du panneau) ;
 - fonds de carte : Plan IGN, orthophoto, Ortho-express de l'année de la photo, Modèle Numérique de Hauteur (LiDAR HD), OpenStreetMap (OpenFreeMap) ; recherche de lieux ; points de repère
   (PR) des routes ; requêteur route + PR (+ distance), à listes qui se réduisent à la frappe ;
 - lieu de la photo incrusté en bas à gauche de la visionneuse : route, PR et distance mesurée
@@ -780,15 +782,17 @@ pas utilisé (talus et murs pris pour la route).
   d'habitation de la BD TOPO qui contient la photo, sinon la plus proche à moins de 100 m, sauf
   le bourg), commune ; hors route
   départementale, la véloroute suivie et l'écluse la plus proche (chemins de halage) ;
-- lecteur de séquence (1x à 16x), date et producteur en bas à droite ;
+- bas de la visionneuse, trois pastilles de même style que les boutons du haut : lieu à gauche, lecteur de séquence (1x à 16x) au centre,
+  attribution (date et producteur) à droite ;
 - carte cadrée automatiquement sur la mesure en cours ;
-- carte **détachable** dans une fenêtre à part, à placer sur un second écran (bouton « ⧉ » sous
-  le zoom, Edge, Chrome et Firefox récents) : elle reste reliée à la page et se déplace à la
+- carte **détachable** dans une fenêtre à part, à placer sur un second écran (bouton de la fenêtre à part, sous
+  l'échange des vues, Edge, Chrome et Firefox récents) : elle reste reliée à la page et se déplace à la
   souris ; fermer la fenêtre, ou
   « Remettre la carte ici » dans la colonne, la remet en place ;
 - **filtre des photos** (date, type, précision GPS, producteur) et choix de l'**instance**
   Panoramax : les photos écartées ne s'ouvrent pas, ni par la carte ni par les flèches ;
-- captures : vue recalculée en Full HD depuis la photo originale, ou visionneuse avec ses
+- captures, deux boutons en forme d'appareil photo en haut à droite de la visionneuse, à gauche du plein écran (« Image seule » : appareil photo ;
+  « Avec annotations » : appareil photo marqué d'une mesure) : vue recalculée en Full HD depuis la photo originale, ou visionneuse avec ses
   annotations (« Avec annotations » : mesures, étiquette de la parcelle visée, objets de la couche ; PNG, copiée
   dans le presse-papiers), active dès qu'une annotation est affichée ;
 - liste des résultats avec commentaire et effacement de chacun ; **export CSV**
@@ -834,8 +838,8 @@ fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/so
 reprojette le sol de la photo sur la mini-carte, pour la photo affichée seulement (une autre photo l'éteint : rien
 n'est calculé sans le demander) ; ses réglages
 d'essai sont dans un panneau repliable sur la carte en grand ou détachée ; « Haute résolution » double la finesse de l'image
-(0,7 cm par pixel, quelques secondes de plus). Le bouton ⇄ de la carte échange la carte et la visionneuse, chacune à la place et à la taille
-de l'autre ; la carte en grand, comme la carte détachée (⧉), propose alors « Mesurer sur la carte » (aussi : mode « Mesure sur la carte » puis
+(0,7 cm par pixel, quelques secondes de plus). Le bouton d'échange (deux flèches) de la carte échange la carte et la visionneuse, chacune à la place et à la taille
+de l'autre ; la carte en grand, comme la carte détachée, propose alors « Mesurer sur la carte » (aussi : mode « Mesure sur la carte » puis
 « Mesure »), avec une liste d'outil : longueur ou surface. La mesure se fait sur la vue Bird Eye si elle est allumée, sinon sur le fond de carte
 seul (« hors vue », sans incertitude) : Bird Eye n'est pas nécessaire. **Surface** : un clic par sommet, le contour se referme en recliquant le dernier
 sommet (ou le premier, après trois sommets) ; surface (m²) et périmètre, sans incertitude, rangés avec les autres résultats ; Effacer retire le

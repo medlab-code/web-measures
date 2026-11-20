@@ -24,7 +24,8 @@ const Fiche = (() => {
     if (!save) return;
     const button = $("#capture-hd");
     button.disabled = true;
-    button.querySelector(".libelle").textContent = "Capture en cours…";
+    const title = button.title;
+    button.title = "Capture en cours…";
     try {
       const response = await fetch(params.href);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -44,7 +45,7 @@ const Fiche = (() => {
       host.setStatus(`Capture « Image seule » impossible : ${error.message}`, "echec");
     } finally {
       button.disabled = !host.photo || !Calcul.hasWorker();  // photo fermée pendant la capture : reste inactif
-      button.querySelector(".libelle").textContent = "Image seule";
+      button.title = title;
     }
   });
 

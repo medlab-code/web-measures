@@ -176,14 +176,11 @@ const Favoris = {
       $("#compte-favoris").textContent = favorites().length || "";
       const n = favorites().length;
       $("#favoris-infos").textContent = n ? `${n} photo${n > 1 ? "s" : ""} · gardée${n > 1 ? "s" : ""} dans ce navigateur` : "Aucune photo";
-      // Étoile de la visionneuse : pleine si la photo affichée est en favori
+      // Bouton « Ajouter » du panneau : sans effet si la photo affichée est déjà en favori (l'étoile de la visionneuse a été retirée)
       const on = Boolean(etat.photo) && favorites().some((f) => f.id === etat.photo.id);
       $("#ajouter-favori").disabled = !etat.photo || on;  // déjà en favori : sans effet
       $("#ajouter-favori").classList.toggle("en-favori", on);  // étoile pleine
-      $("#ajouter-favori").title = on ? "Photo déjà en favori (son étoile sur la photo la retire)" : "Ajouter cette photo aux favoris";
-      Object.assign($("#etoile-favori"), { hidden: !etat.photo,
-        title: on ? "Retirer cette photo des favoris" : "Ajouter cette photo aux favoris" });
-      $("#etoile-favori").setAttribute("aria-pressed", String(on));
+      $("#ajouter-favori").title = on ? "Photo déjà en favori (la croix de sa ligne, dans la liste, la retire)" : "Ajouter cette photo aux favoris";
     }
 
     function removeFavorite(id) {
@@ -191,10 +188,6 @@ const Favoris = {
       showFavorites();
     }
 
-    $("#etoile-favori").addEventListener("click", () => {
-      if (etat.photo && favorites().some((f) => f.id === etat.photo.id)) removeFavorite(etat.photo.id);
-      else addFavorite();
-    });
     $("#ajouter-favori").addEventListener("click", () => addFavorite());
     // Export et import des favoris (autre poste, autre navigateur) : fichier JSON [{ id, name }]
     $("#favoris-exporter").addEventListener("click", async () => download(JSON.stringify(favorites(), null, 1),

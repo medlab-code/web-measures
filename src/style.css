@@ -117,16 +117,11 @@ header label { display: flex; align-items: center; gap: 0.45em; min-height: 1.8e
 header input[type="number"] { width: 4.5em; }
 header input[type="checkbox"]:not(.interrupteur) { width: 0.95em; height: 0.95em; margin: 0; }
 .espace { flex: 1; }
-/* Blocs de la barre sur deux lignes, centrés : mesure (réglages, puis effacement), captures
-   l'une au-dessus de l'autre, fond de carte au-dessus du filaire */
+/* Blocs de la barre sur deux lignes, centrés : mesure (réglages, puis effacement), fond de carte au-dessus du filaire */
 header .bloc { display: flex; flex-direction: column; align-items: center; gap: 0.5em; }
 header .rang { display: flex; align-items: center; gap: 0.55em; }
-header .mesure { margin-left: auto; }  /* Mesure et Dévers centrés dans la place entre le titre et les captures */
-/* Captures et fond de carte à droite, à la suite */
-header .captures { align-items: stretch; }  /* deux boutons de même largeur */
-/* Icône au bord gauche, dans une case de même largeur pour les deux boutons : libellés alignés */
-header .captures button { display: flex; align-items: center; gap: 0.45em; text-align: left; }
-header .captures .icone { display: inline-flex; width: 1.3em; justify-content: center; }
+header .mesure { margin-left: auto; }  /* Mesure et Dévers centrés dans la place entre le titre et le fond de carte */
+/* Fond de carte à droite, à la suite */
 /* Fond de carte : libellé et liste, filaire centré sous la liste */
 header .fond { display: grid; grid-template-columns: auto auto; align-items: center; gap: 0.5em 0.35em; }
 header .fond > label:last-child { grid-column: 2; justify-self: center; }
@@ -289,40 +284,47 @@ aside[hidden] { display: none; }
 #carte-detachee p { margin: 0; }
 body.fenetre-carte { height: 100vh; margin: 0; }
 body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
-.maplibregl-ctrl button.detacher-carte { font-size: 17px; line-height: 1; color: #333; }  /* bouton blanc, même la nuit */
-.maplibregl-ctrl button.detacher-carte.actif { background: var(--panoramax); color: #fff; }
-.maplibregl-ctrl button.echanger-vues { font-size: 17px; line-height: 1; color: #333; }
-.maplibregl-ctrl button.echanger-vues[aria-pressed="true"] { background: var(--panoramax); color: #fff; }
-/* Carte en grand : bouton de mesure explicite, orange comme « Mesure » une fois enfoncé */
-.maplibregl-ctrl button.mesurer-carte { height: 43px; padding: 0 0.9em;  /* 50 % plus haut que les boutons de la carte : moins de clics à côté */
-  border: 0; border-radius: 4px; background: #fff; color: #333; font: inherit; font-weight: 600;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); cursor: pointer; }
-.maplibregl-ctrl button.mesurer-carte[hidden] { display: none; }
-.maplibregl-ctrl button.mesurer-carte[aria-pressed="true"] { background: var(--panoramax); color: #fff; }
-.maplibregl-ctrl button.mesurer-carte:disabled { opacity: 0.5; cursor: default; }
-.maplibregl-ctrl select.outil-carte { height: 43px; margin-left: 6px; padding: 0 0.5em; border: 0; border-radius: 4px; background: #fff;
-  color: #333; font: inherit; font-weight: 600; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); cursor: pointer; }
-.maplibregl-ctrl select.outil-carte[hidden] { display: none; }
-/* fond de survol de MapLibre (presque transparent) remplacé : le bouton reste lisible sur l'image */
-.maplibregl-ctrl button.mesurer-carte:not(:disabled):hover { background: #eee; }
-.maplibregl-ctrl button.mesurer-carte[aria-pressed="true"]:not(:disabled):hover { background: var(--panoramax); filter: brightness(1.1); }
-/* Faucon : Bird Eye de la photo affichée, même hauteur que « Mesurer une longueur » */
-.maplibregl-ctrl button.birdeye-carte { width: 43px; height: 43px; margin-left: 6px; padding: 5px; border: 0; border-radius: 4px;
-  background: #fff; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); cursor: pointer; vertical-align: top; }
-.maplibregl-ctrl button.birdeye-carte img { display: block; width: 100%; height: 100%; }
-.maplibregl-ctrl button.birdeye-carte[hidden] { display: none; }
-.maplibregl-ctrl button.birdeye-carte[aria-pressed="true"] { background: var(--panoramax); }
-.maplibregl-ctrl button.birdeye-carte:disabled { opacity: 0.5; cursor: default; }
-.maplibregl-ctrl button.birdeye-carte:not(:disabled):hover { background: #eee; }
-.maplibregl-ctrl button.birdeye-carte[aria-pressed="true"]:not(:disabled):hover { background: var(--panoramax); filter: brightness(1.1); }
-/* Capture de la carte, à droite du faucon, même hauteur */
-.maplibregl-ctrl button.capture-carte { width: 43px; height: 43px; margin-left: 6px; padding: 0; border: 0; border-radius: 4px; background: #fff;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); color: #333; cursor: pointer; vertical-align: top; display: inline-grid; place-items: center; }
-.maplibregl-ctrl button.capture-carte[hidden] { display: none; }
-.maplibregl-ctrl button.capture-carte:disabled { opacity: 0.5; cursor: default; }
-.maplibregl-ctrl button.capture-carte:not(:disabled):hover { background: #eee; }
+/* Boutons de la carte (zoom, boussole, échange des vues, fenêtre à part, mesure, faucon, capture, export) redessinés comme ceux de la
+   visionneuse (#reglage-image) : fond sombre translucide, coins arrondis, icônes SVG blanches (viewBox 24, trait 2, extrémités rondes),
+   survol clair, jaune une fois enfoncés. Contrôles natifs de MapLibre (zoom, boussole) : seules leurs images et leurs couleurs sont
+   remplacées ici, par CSS ; fonctions, places et infobulles inchangées. */
+.maplibregl-ctrl-top-left .maplibregl-ctrl-group, .maplibregl-ctrl.place-mesurer { background: none; box-shadow: none; }
+.maplibregl-ctrl-top-left .maplibregl-ctrl-group { background: rgba(24, 25, 28, 0.55); border-radius: 999px; overflow: hidden;
+  transition: background 0.2s; }
+.maplibregl-ctrl-top-left .maplibregl-ctrl-group:hover { background: rgba(24, 25, 28, 0.82); }
+.maplibregl-ctrl-top-left .maplibregl-ctrl-group button + button { border-top: 0; }
+.maplibregl-ctrl-top-left button, .maplibregl-ctrl-top-left select.outil-carte {
+  box-sizing: border-box; width: 1.6rem; height: 1.6rem; padding: 0.15rem; border: 0; border-radius: 50%; background: none; color: #fff;
+  box-shadow: none; display: flex; align-items: center; justify-content: center; cursor: pointer; vertical-align: top; }
+.maplibregl-ctrl-top-left button svg { width: 100%; height: 100%; }
+.maplibregl-ctrl-top-left button:disabled { opacity: 0.6; cursor: default; }
+.maplibregl-ctrl-top-left button:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }
+.maplibregl-ctrl-top-left button[aria-pressed="true"], .maplibregl-ctrl button.detacher-carte.actif {
+  background: rgba(255, 214, 0, 0.3); color: #ffd600; }
+.maplibregl-ctrl-top-left button[hidden], .maplibregl-ctrl-top-left select[hidden] { display: none; }
+/* Zoom et boussole de MapLibre : images blanches à la place des siennes (le « moins » grisé garde l'opacité du bouton) */
+.maplibregl-ctrl-group button.maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 5v14M5 12h14'/></svg>"); }
+.maplibregl-ctrl-group button.maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 12h14'/></svg>"); }
+.maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3l-4 9h8zM12 21l4-9H8z'/></svg>"); }
+/* Bouton de mesure sur la carte : icône et libellé, en pastille ; liste d'outil de même hauteur */
+.maplibregl-ctrl-top-left button.mesurer-carte { width: auto; padding: 0.15rem 0.7rem 0.15rem 0.45rem; gap: 0.35rem; border-radius: 999px;
+  background: rgba(24, 25, 28, 0.55); font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.maplibregl-ctrl-top-left button.mesurer-carte:not(:disabled):hover { background: rgba(24, 25, 28, 0.82); }
+.maplibregl-ctrl-top-left button.mesurer-carte[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); }
+.maplibregl-ctrl-top-left button.mesurer-carte svg { width: 1.3rem; height: 1.3rem; flex: none; }
+.maplibregl-ctrl-top-left select.outil-carte { width: auto; padding: 0 0.6rem; border-radius: 999px; background: rgba(24, 25, 28, 0.55);
+  font: inherit; font-size: 13px; font-weight: 500; }
+.maplibregl-ctrl-top-left select.outil-carte option { color: #222; background: #fff; }
+/* Faucon (Bird Eye), capture et export de la carte : fond de pastille de la visionneuse, faucon en blanc */
+.maplibregl-ctrl-top-left button.birdeye-carte, .maplibregl-ctrl-top-left button.capture-carte, .maplibregl-ctrl-top-left button.echanger-vues,
+.maplibregl-ctrl-top-left button.detacher-carte { background: rgba(24, 25, 28, 0.55); }
+.maplibregl-ctrl-top-left button.birdeye-carte:not(:disabled):hover, .maplibregl-ctrl-top-left button.capture-carte:not(:disabled):hover,
+.maplibregl-ctrl-top-left button.echanger-vues:not(:disabled):hover, .maplibregl-ctrl-top-left button.detacher-carte:not(:disabled):hover {
+  background: rgba(24, 25, 28, 0.82); }
+.maplibregl-ctrl-top-left button.birdeye-carte img { display: block; width: 100%; height: 100%; filter: brightness(0) invert(1); }
+.maplibregl-ctrl-top-left button.birdeye-carte[aria-pressed="true"] img { filter: brightness(0) invert(1) sepia(1) saturate(8) hue-rotate(5deg); }
 /* en haut, à droite des boutons de zoom plutôt que sous la pile de gauche */
-.maplibregl-ctrl-top-left .place-mesurer { position: absolute; top: 0; left: 40px; white-space: nowrap; }
+.maplibregl-ctrl-top-left .place-mesurer { position: absolute; top: 0; left: 40px; white-space: nowrap; display: flex; align-items: center; gap: 0.3rem; }
 
 /* Recherche de lieux, en haut à droite de la carte (voir recherche.js) */
 .recherche {
@@ -1009,35 +1011,15 @@ button.principal { font-weight: 600; }
 }
 #voyants[hidden] { display: none; }
 
-/* Plein écran (app.js) : seule la visionneuse, et les boutons de capture de la barre du haut, à leur place dans
-   le document ; boutons presque transparents, tout s'efface souris immobile pour une capture d'écran propre.
+/* Plein écran (app.js) : seule la visionneuse, et ses boutons (plein écran, captures, réglages de l'image) ; boutons presque transparents, tout s'efface souris immobile pour une capture d'écran propre.
    La carte d'étape et les messages restent. */
-#plein-ecran {
-  position: absolute;
-  top: 0.6rem;
-  right: 0.8rem;
-  z-index: 5;
-  display: flex;
-  width: 2rem;
-  height: 2rem;
-  padding: 0.3rem;
-  border: 0;
-  border-radius: 6px;
-  background: rgba(24, 25, 28, 0.82);
-  color: #fff;
-}
-#plein-ecran:not(:disabled) { cursor: pointer; }
-#plein-ecran:disabled { opacity: 0.35; }
 #plein-ecran .sortir, #plein-ecran[aria-pressed="true"] .entrer { display: none; }
 #plein-ecran[aria-pressed="true"] .sortir { display: inline; }
-html:fullscreen header { display: contents; }
-html:fullscreen header > :not(.captures), html:fullscreen aside, html:fullscreen #poignee-colonne { display: none; }
-html:fullscreen header .captures { position: fixed; top: 0.6rem; left: 50%; transform: translateX(-50%); z-index: 5; flex-direction: row; background: var(--fond); }
-html:fullscreen .haut-centre { top: 3.6rem; }  /* avis passagers sous les captures */
-html:fullscreen :is(#plein-ecran, header .captures) { opacity: 0.35; }
-html:fullscreen :is(#plein-ecran, header .captures):hover { opacity: 1; }
-html:fullscreen :is(#plein-ecran, header .captures, #voyants, .bas-vue) { transition: opacity 0.2s; }
-html.souris-immobile:fullscreen :is(#plein-ecran, header .captures, #voyants, .bas-vue):not(:hover) { opacity: 0; }
+html:fullscreen header, html:fullscreen aside, html:fullscreen #poignee-colonne { display: none; }
+html:fullscreen :is(#captures-visionneuse) { opacity: 0.35; }
+html:fullscreen :is(#captures-visionneuse):hover { opacity: 1; }
+html:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue) { transition: opacity 0.2s; }
+html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):not(:hover) { opacity: 0; }
 
 /* Luminosité et contraste de la photo : curseurs horizontaux en haut à gauche, filtre sur la toile de la photo seule
    (repères, traits et boutons intacts) ; variables posées par disposition.js */
@@ -1067,7 +1049,7 @@ html.souris-immobile:fullscreen :is(#plein-ecran, header .captures, #voyants, .b
   margin: 0;
   accent-color: #c8c8c8;  /* gris clair, discret : pas la couleur Panoramax */
 }
-#reglage-image button {
+#reglage-image button, #captures-visionneuse button {
   display: flex;
   width: 1.6rem;
   height: 1.6rem;
@@ -1077,11 +1059,17 @@ html.souris-immobile:fullscreen :is(#plein-ecran, header .captures, #voyants, .b
   background: none;
   color: inherit;
 }
-#reglage-image button:not(:disabled) { cursor: pointer; }
-#reglage-image button:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }
-#reglage-image button:disabled { opacity: 0.6; }
-#reglage-image button[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); color: #ffd600; }  /* hauteur, profil ou largeur dans la visionneuse active */
-pnx-photo-viewer[hidden] ~ #reglage-image { display: none; }
+#reglage-image button:not(:disabled), #captures-visionneuse button:not(:disabled) { cursor: pointer; }
+#reglage-image button:not(:disabled):hover, #captures-visionneuse button:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }
+#reglage-image button:disabled, #captures-visionneuse button:disabled { opacity: 0.6; }
+#captures-visionneuse #plein-ecran[aria-pressed="true"], #reglage-image button[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); color: #ffd600; }  /* hauteur, profil ou largeur dans la visionneuse active */
+/* Captures et plein écran de la visionneuse : en haut à droite (#voyants est dessous), même fond que les réglages de l'image */
+#captures-visionneuse {
+  position: absolute; right: 0.8rem; top: 0.6rem; z-index: 5; display: flex; align-items: center; gap: 0.3rem;
+  padding: 0.2rem 0.3rem; border-radius: 999px; background: rgba(24, 25, 28, 0.55); color: #fff; transition: background 0.2s;
+}
+#captures-visionneuse:hover { background: rgba(24, 25, 28, 0.82); }
+pnx-photo-viewer[hidden] ~ #reglage-image, pnx-photo-viewer[hidden] ~ #captures-visionneuse { display: none; }
 html:fullscreen #reglage-image { transition: opacity 0.2s; }
 html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
 
@@ -1125,37 +1113,15 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
   pointer-events: none;
   z-index: 5;
 }
-.lieu-favori { grid-column: 1; justify-self: start; display: flex; align-items: center; gap: 4px; min-width: 0; }
-#etoile-favori {
-  flex: none;
-  display: flex;  /* étoile dessinée, centrée quelle que soit la police */
-  align-items: center;
-  height: 22px;
-  padding: 0 5px;
-  border: 0;
-  border-radius: 4px;
-  background: var(--etiquette-vue);
-  color: #fff;
-  font-size: 15px;
-  line-height: 1;
-  text-shadow: var(--detoure-vue);
-  pointer-events: auto;
-  cursor: pointer;
-}
-#etoile-favori svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round;
-  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6)); }
-#etoile-favori[aria-pressed="true"] { color: #ffd600; }
-#etoile-favori[aria-pressed="true"] svg { fill: currentColor; }  /* photo en favori : étoile pleine, jaune */
-#etoile-favori:hover { background: rgba(32, 33, 36, 0.8); }
-#etoile-favori[hidden] { display: none; }
 #lecteur { grid-column: 2; }
 #producteur-photo { grid-column: 3; justify-self: end; }
+#lieu { grid-column: 1; justify-self: start; min-width: 0; }
 #lieu, #producteur-photo {
   margin: 0;
-  padding: 2px 0.5rem;
-  line-height: 18px;  /* 22 px de haut, comme l'étoile et le lecteur */
-  border-radius: 4px;
-  background: var(--etiquette-vue);
+  padding: 4px 0.8rem;
+  line-height: 18px;  /* 26 px de haut, comme le lecteur */
+  border-radius: 14px;  /* pastille, sans devenir une ellipse quand le texte passe sur deux lignes */
+  background: rgba(24, 25, 28, 0.55);  /* fond et coins des boutons en haut de la visionneuse (#reglage-image) */
   color: #fff;
   font-size: 13px;
   font-weight: 500;
@@ -1191,9 +1157,9 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
 #lecteur {
   display: flex;
   gap: 2px;
-  padding: 2px 4px;
-  border-radius: 4px;
-  background: var(--etiquette-vue);
+  padding: 2px 0.5rem;
+  border-radius: 999px;
+  background: rgba(24, 25, 28, 0.55);  /* fond et coins des boutons en haut de la visionneuse (#reglage-image) */
   pointer-events: auto;
 }
 #lecteur[hidden] { display: none; }

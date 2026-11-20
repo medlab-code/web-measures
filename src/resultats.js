@@ -197,7 +197,8 @@ const Resultats = {
       }
     }
     const wantSwap = () => setSwapped(!document.fullscreenElement && (userSwap || measureSwap));
-    const swapButton = Object.assign(document.createElement("button"), { type: "button", className: "echanger-vues", textContent: "⇄" });
+    const swapButton = Object.assign(document.createElement("button"), { type: "button", className: "echanger-vues",
+      innerHTML: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4"/></svg>', ariaLabel: "Échanger la carte et la visionneuse" });
     swapButton.setAttribute("aria-pressed", "false");
     swapButton.title = "Échanger la carte et la visionneuse (place et taille)";
     swapButton.addEventListener("click", () => {
@@ -210,9 +211,11 @@ const Resultats = {
         { className: "maplibregl-ctrl maplibregl-ctrl-group" }).appendChild(swapButton).parentNode,
       onRemove: () => {},
     }, "top-left");
+    // Règle du bouton de mesure : même dessin que les boutons de la visionneuse (viewBox 24, trait 2, extrémités rondes)
+    const RULER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2"/></svg>';
     // Carte en grand ou détachée : « Mesurer une longueur », sans passer par le mode du bandeau (même mesure que le mode « carte »)
     const measureButton = Object.assign(document.createElement("button"), { type: "button", className: "mesurer-carte", hidden: true,
-      textContent: "📏 Mesurer sur la carte" });
+      innerHTML: RULER + "<span>Mesurer sur la carte</span>" });
     // Outil du bouton : longueur ou surface (Dessus.setTool)
     const toolSelect = Object.assign(document.createElement("select"), { className: "outil-carte", hidden: true,
       title: "Outil de mesure sur la carte : longueur (deux clics) ou surface (contour, refermé en recliquant le dernier sommet)" });
@@ -242,8 +245,8 @@ const Resultats = {
     });
     // Capture de la carte (vue Bird Eye et mesures, étiquettes comprises), téléchargée en PNG ; grisé Bird Eye éteinte
     const captureButton = Object.assign(document.createElement("button"), { type: "button", className: "capture-carte", hidden: true,
-      innerHTML: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
-        + 'stroke-linejoin="round" aria-hidden="true"><path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+      innerHTML: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+        + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>',
       title: "Capture de la carte : vue Bird Eye et mesures, en image PNG", ariaLabel: "Capture de la carte" });
     captureButton.addEventListener("click", async () => {
       captureButton.disabled = true;
@@ -262,8 +265,8 @@ const Resultats = {
     // Export géoréférencé de la vue Bird Eye pour un SIG (GeoTIFF en Lambert 93) ; grisé Bird Eye éteinte
     const exportButton = Object.assign(document.createElement("button"), { type: "button", className: "capture-carte", hidden: true,
       // carte pliée et repère (géoréférencée)
-      innerHTML: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
-        + 'stroke-linejoin="round" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>',
+      innerHTML: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+        + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>',
       title: "Vue Bird Eye géoréférencée pour un SIG (QGIS…) : GeoTIFF en Lambert 93, la vue seule, sans fond de carte ni mesures",
       ariaLabel: "Export géoréférencé de la vue Bird Eye" });
     exportButton.addEventListener("click", async () => {
@@ -296,7 +299,7 @@ const Resultats = {
     function showMapMeasureButton() {
       const on = etat.measuring && $("#mode").value === "carte";
       measureButton.setAttribute("aria-pressed", String(on));
-      measureButton.textContent = on ? "📏 Arrêter la mesure" : "📏 Mesurer sur la carte";
+      measureButton.innerHTML = `${RULER}<span>${on ? "Arrêter la mesure" : "Mesurer sur la carte"}</span>`;
       measureButton.title = on ? "Arrêter la mesure sur la carte"
         : "Mesurer sur la carte (longueur ou surface), sur la vue Bird Eye si elle est allumée, sinon sur le fond de carte";
       measureButton.disabled = !on && $("#mode").disabled;
