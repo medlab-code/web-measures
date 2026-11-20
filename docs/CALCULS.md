@@ -435,7 +435,10 @@ Ce que l'analyse en tire :
 - **Bord de chaussée** : le bord de la bande d'enrobé. Sur 5 travers de ±1 m à −4, −2, 0, +2 et +4 m
   le long de la route, chacun avec sa propre intensité d'enrobé : début de la première bande
   d'au moins 1 m dont chaque case est au moins **2,2 fois** plus claire que l'enrobé (ni une ligne
-  blanche, ni une reprise d'enrobé), placé à mi-hauteur entre l'enrobé et ces abords et interpolé
+  blanche, ni une reprise d'enrobé), ou au plus **0,8 fois** aussi claire (terre ou sable d'un chemin
+  raccordé, plus sombre qu'un enduit clair : D119E 1d23f3f9-f4b7-4d2e-8658-500a748ccecc, 0,5 à 0,8 fois
+  sur 2 m) et restée à **15 cm** près au niveau de la case qui la précède (un fond de fossé humide est
+  sombre aussi, mais plus bas), placé à mi-hauteur entre l'enrobé et ces abords et interpolé
   entre deux cases. **Bordure** : un trottoir en enrobé renvoie comme la chaussée (même intensité) ;
   l'altitude médiane des points du sol, case par case, montre alors sa bordure. Depuis un point bas
   (caniveau, pas plus haut à 2 cm près que le mètre qui le précède), le sol remonte d'au moins

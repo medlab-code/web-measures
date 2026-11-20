@@ -49,6 +49,11 @@ const Nuage = (() => {
   const AXIS = 1.2;  // m : ligne blanche aussi près de l'axe d'une chaussée : ligne entre voies, pas de rive
   // abords de l'enrobé : VERGE m au moins, chaque case à PAVED_RISE fois l'enrobé ou plus (essai du 05/11/2026, 13 photos)
   const PAVED_RISE = 2.2;
+  // ou bande sombre : chaque case à PAVED_DARK fois l'enrobé au plus (terre ou sable d'un chemin raccordé, plus sombre que
+  // l'enduit clair : D119E 1d23f3f9-f4b7-4d2e-8658-500a748ccecc, 0,5 à 0,8 fois sur 2 m, 20/11/2026)
+  // ; la bande sombre reste au niveau de la chaussée, à PAVED_FLAT m près de la case qui la précède (un fond de fossé humide
+  // est sombre aussi, mais plus bas)
+  const PAVED_DARK = 0.8, PAVED_FLAT = 0.15;
   // m : l'enrobé peut finir loin du bord du calcul (bande d'arrêt d'urgence, rupture de pente sur la chaussée : D70
   // 9b97c187, bord à 2 m, enrobé à 5,2 m)
   const PAVED_REACH = 12, PAVED_BEYOND = 3;
@@ -278,26 +283,42 @@ const Nuage = (() => {
   }
 
   /** Bord de l'enrobé d'un côté d'un travers (rows : case -> intensité, sign : -1 à gauche, 1 à droite), de from à limit m
-   * de l'origine, ref : intensité de l'enrobé : début de la première bande claire d'au moins VERGE m (ni une ligne blanche
-   * ni une reprise d'enrobé), à mi-hauteur entre l'enrobé et ces abords, interpolé ; m signés, ou null. */
-  function pavedEdge(rows, sign, from, limit, ref) {
+   * de l'origine, ref : intensité de l'enrobé : début de la première bande d'au moins VERGE m, toute claire (PAVED_RISE : ni
+   * une ligne blanche ni une reprise d'enrobé) ou toute sombre (PAVED_DARK : terre d'un chemin), à mi-hauteur entre l'enrobé
+   * et ces abords, interpolé ; m signés, ou null. heights (case -> altitude), facultatif : bande sombre à plat seulement
+   * (PAVED_FLAT). */
+  function pavedEdge(rows, sign, from, limit, ref, heights = null) {
     const first = Math.ceil(from / BIN);
-    let start = null, found = false;
+    const kind = (v) => (v >= PAVED_RISE * ref ? 1 : v <= PAVED_DARK * ref ? -1 : 0);  // 1 clair, -1 sombre, 0 enrobé
+    const flat = (a, b) => {  // cases a à b au niveau de la dernière case avant a (à PAVED_FLAT m près)
+      let base = a - 1;
+      while (base >= first && heights.get(sign * base) === undefined) base--;
+      const z0 = heights.get(sign * base);
+      if (z0 === undefined) return false;
+      for (let j = a; j <= b; j++) {
+        const z = heights.get(sign * j);
+        if (z !== undefined && Math.abs(z - z0) > PAVED_FLAT) return false;
+      }
+      return true;
+    };
+    let start = null, dir = 0, found = false, ditch = false;  // ditch : bande sombre en cours écartée (pas à plat)
     for (let k = first; !found && k * BIN <= limit + VERGE; k++) {
       const v = rows.get(sign * k);
       if (v === undefined) continue;
-      if (v < PAVED_RISE * ref) start = null;
-      else {
-        start ??= k;
-        found = (k - start + 1) * BIN >= VERGE;
-      }
+      const d = kind(v);
+      if (d !== -1) ditch = false;
+      if (d === 0 || d !== dir) start = null;
+      if (d === 0 || ditch) continue;
+      if (start === null) [start, dir] = [k, d];
+      found = (k - start + 1) * BIN >= VERGE;
+      if (found && dir < 0 && heights && !flat(start, k)) [found, start, dir, ditch] = [false, null, 0, true];  // fossé
     }
     if (!found) return null;
     const verge = median([...Array(Math.round(1.5 / BIN)).keys()].map((j) => rows.get(sign * (start + j))).filter((v) => v !== undefined));
-    const level = (ref + verge) / 2;
+    const level = (ref + verge) / 2, past = (v) => v !== undefined && dir * (v - level) >= 0;  // au-delà de la mi-hauteur
     let j = start;
-    while ((rows.get(sign * j) ?? -Infinity) < level) j++;
-    while (j > first && (rows.get(sign * (j - 1)) ?? -Infinity) >= level) j--;
+    while (!past(rows.get(sign * j))) j++;
+    while (j > first && past(rows.get(sign * (j - 1)))) j--;
     const [a, b] = [rows.get(sign * (j - 1)) ?? ref, rows.get(sign * j)];
     const x = (j - 1 + (level - a) / ((b - a) || 1)) * BIN;
     return x <= limit ? sign * x : null;
@@ -466,7 +487,7 @@ const Nuage = (() => {
       // du côté d'une autre chaussée sans séparateur trouvé : celle du séparateur n'est pas le bord cherché (au-delà)
       const kerbs = e.autre_axe && !(sign === sepSign && out.separateur) ? sections.map(() => null)
         : sections.map((s) => kerbEdge(s.heights, sign, Math.max(from, profile.origine === "caméra" ? 1.0 : KERB_AXIS), limit));
-      const paved = sections.map((s) => pavedEdge(s.rows, sign, from, limit, s.ref));
+      const paved = sections.map((s) => pavedEdge(s.rows, sign, from, limit, s.ref, s.heights));
       found[name] = sections.map((_, k) => [paved[k], kerbs[k]].filter((x) => x !== null)
         .sort((a, b) => Math.abs(a) - Math.abs(b))[0] ?? null);
       const byKerb = found[name].filter((x, k) => x !== null && x === kerbs[k]).length;
