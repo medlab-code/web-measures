@@ -289,12 +289,12 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
    survol clair, jaune une fois enfoncés. Contrôles natifs de MapLibre (zoom, boussole) : seules leurs images et leurs couleurs sont
    remplacées ici, par CSS ; fonctions, places et infobulles inchangées. */
 .maplibregl-ctrl-top-left .maplibregl-ctrl-group, .maplibregl-ctrl.place-mesurer { background: none; box-shadow: none; }
-/* Colonne de gauche en une seule étiquette : zoom, boussole, échange des vues et fenêtre à part dans le même groupe, séparés d'un fin trait */
+/* Colonne de gauche en une seule étiquette : zoom, boussole, échange des vues et fenêtre à part dans le même groupe, sans trait entre les boutons */
 .maplibregl-ctrl-top-left .maplibregl-ctrl-group { background: rgba(24, 25, 28, 0.55); border-radius: 0.8rem; overflow: hidden;
   transition: background 0.2s; }
 .maplibregl-ctrl-top-left .maplibregl-ctrl-group button { border-radius: 0; }
 .maplibregl-ctrl-top-left .maplibregl-ctrl-group:hover { background: rgba(24, 25, 28, 0.82); }
-.maplibregl-ctrl-top-left .maplibregl-ctrl-group button + button { border-top: 1px solid rgba(255, 255, 255, 0.25); }
+.maplibregl-ctrl-top-left .maplibregl-ctrl-group button + button { border-top: none; }
 .maplibregl-ctrl-top-left button, .maplibregl-ctrl-top-left select.outil-carte {
   box-sizing: border-box; width: 1.6rem; height: 1.6rem; padding: 0.15rem; border: 0; border-radius: 50%; background: none; color: #fff;
   box-shadow: none; display: flex; align-items: center; justify-content: center; cursor: pointer; vertical-align: top; }
