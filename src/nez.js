@@ -122,7 +122,10 @@ const Nez = {
     function drawMap() {
       if (!map) return;
       if (!active || !shown() || !line.lonlat) return Carte.showNez(map, null);
-      const point = (o) => ({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: lonlatAt(o) } });
+      // trait du bord perpendiculaire à la droite : angle (° dans le sens horaire depuis le nord) de la droite + 90°
+      const [a, b] = line.lonlat, lat = (a[1] + b[1]) / 2 * Math.PI / 180;
+      const angle = Math.atan2((b[0] - a[0]) * Math.cos(lat), b[1] - a[1]) * 180 / Math.PI + 90;
+      const point = (o) => ({ type: "Feature", properties: { angle }, geometry: { type: "Point", coordinates: lonlatAt(o) } });
       Carte.showNez(map, { type: "FeatureCollection", features: [
         { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: line.lonlat } },
         point(handles.gauche), point(handles.droit)] });

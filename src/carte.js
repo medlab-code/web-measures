@@ -380,7 +380,7 @@ const Carte = (() => {
           id: "cibles", type: "circle", source: "mesures", filter: kind("cible"),
           paint: { "circle-color": "rgba(0, 0, 0, 0)", "circle-radius": 7, "circle-stroke-width": 2.5, "circle-stroke-color": ROUGE },
         },
-        {  // largeur dans la visionneuse (src/nez.js) : droite verte liserée de sombre, bords en points rouges ; pas interactifs
+        {  // largeur dans la visionneuse (src/nez.js) : droite verte liserée de sombre, bords en petits traits rouges perpendiculaires (taille écran) ; pas interactifs
           id: "nez-halo", type: "line", source: "nez", filter: ["==", ["geometry-type"], "LineString"],
           paint: { "line-color": "#202020", "line-width": 5 },
         },
@@ -389,8 +389,11 @@ const Carte = (() => {
           paint: { "line-color": "#00c853", "line-width": 2.5 },
         },
         {
-          id: "nez-bords", type: "circle", source: "nez", filter: ["==", ["geometry-type"], "Point"],
-          paint: { "circle-color": "#d93025", "circle-radius": 5, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 },
+          id: "nez-bords", type: "symbol", source: "nez", filter: ["==", ["geometry-type"], "Point"],
+          layout: {
+            "icon-image": "nez-bord", "icon-rotate": ["get", "angle"], "icon-rotation-alignment": "map",
+            "icon-allow-overlap": true, "icon-ignore-placement": true,
+          },
         },
       ],
     };
@@ -410,6 +413,7 @@ const Carte = (() => {
       style: baseStyle(),
     });
     map.on("styleimagemissing", (e) => {
+      if (e.id === "nez-bord" && !map.hasImage("nez-bord")) map.addImage("nez-bord", edgeTickImage(), { pixelRatio: 2 });
       if (e.id === "croix" && !map.hasImage("croix")) map.addImage("croix", crossImage(), { pixelRatio: 2 });
       if (e.id.startsWith("cartouche:") && !map.hasImage(e.id)) {
         map.addImage(e.id, cartoucheImage(e.id.slice("cartouche:".length)), { pixelRatio: 2 });
@@ -522,6 +526,23 @@ const Carte = (() => {
       ctx.stroke();
     }
     return ctx.getImageData(0, 0, size, size);
+  }
+
+  /** Petit trait vertical rouge (rouge des poignées de la photo, src/nez.js) liseré de sombre : bord de la largeur dans la visionneuse,
+   * tourné perpendiculairement à la droite par icon-rotate ; 18 px à l'écran quel que soit le zoom. */
+  function edgeTickImage() {
+    const w = 8, h = 36, canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.lineCap = "butt";
+    for (const [color, width] of [["#202020", 4], ["#d93025", 2]]) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(w / 2, 4 + (width === 4 ? 0 : 1)); ctx.lineTo(w / 2, h - 4 - (width === 4 ? 0 : 1));
+      ctx.stroke();
+    }
+    return ctx.getImageData(0, 0, w, h);
   }
 
   function setBackground(map, name) {
