@@ -206,7 +206,13 @@ aucun côté dégradé. Écartés : la marche « nette » partout (séparateur d
 RD700 reculés à 2 m : bordures et séparateurs sont adoucis par le MNT) ; une marche de 8 cm au lieu de 5 (34 % sur le banc, mais
 mêmes pertes sur `essai-bords`). Restent sur l'enrobé : des marches de 6-7 cm dans l'autre voie (D70 229abfcd-868c-4eca-bfc1-3979ca94d28f, D965 67e087a0-ba74-42a4-b71f-2d063492b72e :
 ornières, joints ou reprises, nettes et réelles), des bombements à plus de 1,25 m de l'axe BD TOPO (D115, D70 8d02bc6c-a3a9-444e-b005-e24f8a52177f : axe mal
-placé), et 10 replis BD TOPO (P17).*
+placé), et 10 replis BD TOPO (P17). Vérifiée le 20/11/2026 : sans autre rupture après le bombement, le bord retombe
+sur lui, près de l'axe. Essai « pas de bord, largeur type à la place » sur le banc (68 côtés, largeurs types prudentes de P17) :
+2 côtés seulement bougent, les autres sont déjà ramenés à la médiane des travers voisins ; D16
+b3978b33-2ceb-4ef3-bd51-09d25e505015 droit 2,00 → 2,50 m (enrobé 3,38 : mieux), D114 dc5520e1-ba0d-4690-97ec-b19282935ff9
+gauche 2,00 → 4,63 m (enrobé 2,35 : moins bien ; axe BD TOPO décalé, la « rupture près de l'axe » était le vrai bord).
+Gardé tel quel. Références du banc : enrobé de l'analyse fine relevé le 19/11 avec la bordure et le gravier (P21), sauf les
+côtés vérifiés.*
 - **Avant** : profil depuis la caméra (séquence RTK) : du côté opposé à sa voie, la recherche du bord part de la caméra, avec la
   pente de sa voie comme référence, et traverse l'axe.
 - **Problème** : au sommet du bombement, ou là où le dévers change d'une voie à l'autre, la pente s'écarte de plus de 8 points de
