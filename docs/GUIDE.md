@@ -524,7 +524,7 @@ après.
   remplace (« nuage LiDAR »). Les lignes blanches sont dessinées en petits carrés blancs ; une ligne à tirets absente du travers de la photo (vide entre deux tirets) est reprise si au moins 2 des 5 travers la voient. Le bouton est grisé
   pendant la lecture et une fois l'analyse faite pour ce profil. **Bande vert clair** : herbe au sol (classée « sol »
   par l'IGN) : bande non revêtue d'1 m au moins, en moyenne 3,5 fois plus claire que l'enrobé (le laser, en proche
-  infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois). La case « Végétation » (cochée par défaut, choix retenu, grisée tant que l'analyse fine
+  infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois), ou dont au moins 25 % des points (médiane des cases de 0,25 m) sont de la végétation (retours multiples, ou classe végétation près du sol : herbe haute). L'herbe rase d'un relevé d'hiver reste invisible au nuage : le LiDAR HD n'a pas de couleur. La case « Végétation » (cochée par défaut, choix retenu, grisée tant que l'analyse fine
   n'a pas été faite) montre ou masque la bande
   vert clair et la ligne verte. **Ligne verte** : hauteur maximale de la
   végétation (points classés herbe haute, arbustes et arbres par l'IGN), plus haut point à ±0,25 m près, coupée en

@@ -432,7 +432,14 @@ laser est en proche infrarouge :
 - **surface non revêtue** (herbe, gravillons, béton) : bande d'au moins 1 m plus claire que
   l'enrobé ;
 - **herbe au sol** : bande non revêtue en moyenne **3,5 fois** plus claire que l'enrobé. La
-  végétation renvoie beaucoup l'infrarouge, les gravillons et le béton 2 à 3 fois seulement.
+  végétation renvoie beaucoup l'infrarouge, les gravillons et le béton 2 à 3 fois seulement ;
+  second critère, pour l'herbe qui a de la hauteur : bande non revêtue d'au moins 1 m dont la part
+  médiane de points de végétation par case de 0,25 m atteint **25 %** (cases d'au moins 8 points). Un
+  point est « de végétation » s'il a plusieurs retours (NumberOfReturns > 1) ou s'il est classé 3, 4 ou 5
+  à 0,5 m au plus au-dessus du sol de la case. Relevés du 20/11/2026 : 0 % sur l'enrobé, 29 à 78 % sur
+  l'herbe de D119E (droit dès +2,75 m) et de D33 (dès +4,25 m). Les deux règles donnent la même bande.
+  L'herbe rase d'un relevé d'hiver (0,6 à 1,9 fois l'enrobé, sans retours multiples) reste invisible au
+  nuage : le LiDAR HD n'a pas de couleur.
 
 Ce que l'analyse en tire :
 

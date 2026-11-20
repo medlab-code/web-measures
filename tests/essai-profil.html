@@ -142,6 +142,14 @@ try {
   narrow("sur deux cases", [[-0.25, 110], [0, 900], [0.25, 1600], [0.5, 370]], [true]);
   narrow("surface du séparateur", [[-3.75, 290], [-3.5, 300], [-3, 200]], [false]);
   narrow("large : pas de la peinture", [0, 1, 2, 3, 4].map((k) => [k * 0.25, 900]), [false]);
+  // Herbe au sol : bande « autre » de 1 m, soit claire (3,5 fois l'enrobé), soit riche en végétation (25 % des points) ; rase : rien
+  const grassy = (what, fn, expected) => { const cells = [0, 1, 2, 3].map((k) => ({ x: 2 + k * 0.25, kind: "autre", ...fn() })),
+      got = JSON.stringify(Nuage.grassRuns(cells, 100)), want = JSON.stringify(expected);
+    expect(`herbe, ${what} : ${got} (attendu ${want})`, got === want); };
+  grassy("claire", () => ({ i: 400, tot: 10, veg: 0 }), [[1.875, 2.875]]);
+  grassy("riche en végétation", () => ({ i: 150, tot: 10, veg: 4 }), [[1.875, 2.875]]);
+  grassy("rase d'hiver", () => ({ i: 150, tot: 10, veg: 0 }), []);
+  grassy("végétation sur trop peu de points", () => ({ i: 150, tot: 4, veg: 4 }), []);
   // Lignes à tirets (f478a847) : vue sur 2 travers, gardée au plus près de la photo ; vue sur 1 seul, écartée ; deux lignes distinctes
   const dashes = (what, sections, expected) => { const got = Nuage.dashedLines(sections), ok = JSON.stringify(got) === JSON.stringify(expected);
     expect(`lignes à tirets, ${what} : ${JSON.stringify(got)} (attendu ${JSON.stringify(expected)})`, ok); };

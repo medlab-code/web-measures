@@ -40,6 +40,12 @@ const Nuage = (() => {
   const VERGE = 1.0;  // m : surface non revêtue (herbe, gravillons) d'au moins cette largeur : l'enrobé s'arrête là
   const GRASS = 3.5;  // herbe : bande non revêtue (VERGE m au moins) en moyenne GRASS fois plus claire que l'enrobé (le laser,
   // en proche infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois)
+  // Herbe par la végétation (second critère, relevés du 20/11/2026 : D119E 1d23f3f9-f4b7-4d2e-8658-500a748ccecc droit dès +2,75 m,
+  // D33 6c6e4972-f565-4198-84fe-24ab72d95398 droit dès +4,25 m) : part des points d'une case (sol et végétation basse, classes 2 à 5)
+  // à retours multiples (NumberOfReturns > 1) ou classés végétation à GRASS_NEAR m au plus du sol de la case : 0 % sur l'enrobé,
+  // 29 à 78 % sur l'herbe haute, rien sur l'herbe rase (D16, D70, D115 : relevé d'hiver, 0,6 à 1,9 fois l'enrobé, sans couleur dans
+  // le LiDAR HD). Case jugée à partir de GRASS_POINTS points (6 à 18 points du sol par case de 0,25 m sur ±1 m d'habitude).
+  const GRASS_SHARE = 0.25, GRASS_POINTS = 8, GRASS_NEAR = 0.5;
   // Ligne blanche : au moins LINE_CONTRAST fois ses cases voisines (D903bis 1640bc3f-e948-4239-a4c1-548dd748a16d :
   // surface du séparateur à 3,0 et
   // 2,9 fois l'enrobé, pas une ligne)
@@ -192,7 +198,7 @@ const Nuage = (() => {
     return lazPerf;
   }
 
-  /** Points du sol (classe 2), de la végétation (3 basse, 4 moyenne, 5 haute) et de l'eau (9) d'un nœud : [x, y, z, intensité, classe]
+  /** Points du sol (classe 2), de la végétation (3 basse, 4 moyenne, 5 haute) et de l'eau (9) d'un nœud : [x, y, z, intensité, classe, nombre de retours]
    * (Lambert 93, altitude IGN69 comme le terrain du calcul) ; keep : autres classes à garder. */
   async function ground(tile, node, keep = (cls) => (cls >= 2 && cls <= 5) || cls === 9) {
     const lib = await laz();
@@ -208,15 +214,43 @@ const Nuage = (() => {
         decoder.getPoint(output);
         const v = new DataView(lib.HEAPU8.buffer, output, tile.length);  // HEAPU8 peut changer en grandissant
         const cls = tile.format >= 6 ? v.getUint8(16) : v.getUint8(15) & 31;
+        // nombre de retours du pulse : octet 14, bits 4-7 (formats 6 et plus) ou 3-5 (formats 0 à 5)
+        const returns = tile.format >= 6 ? v.getUint8(14) >> 4 : (v.getUint8(14) >> 3) & 7;
         if (keep(cls)) {
           out.push([v.getInt32(0, true) * sx + ox, v.getInt32(4, true) * sy + oy, v.getInt32(8, true) * sz + oz,
-            v.getUint16(12, true), cls]);
+            v.getUint16(12, true), cls, returns]);
         }
       }
     } finally {
       decoder.delete();
       lib._free(input);
       lib._free(output);
+    }
+    return out;
+  }
+
+  /** Herbe au sol : intervalles [début, fin] (m) des bandes « autre » (cases kind, i, tot : points, veg : points de végétation) d'au
+   * moins VERGE m, dont l'intensité médiane atteint GRASS fois ref (ref : intensité de l'enrobé), ou dont la part médiane de
+   * points de végétation (cases de GRASS_POINTS points au moins, la moitié des cases de la bande au moins) atteint GRASS_SHARE.
+   * Les intervalles qui se touchent sont fusionnés. */
+  function grassRuns(cells, ref) {
+    const out = [];
+    for (let k = 0; k < cells.length; k++) {
+      if (cells[k].kind !== "autre") continue;
+      let w = k;
+      while (w + 1 < cells.length && cells[w + 1].kind === "autre" && cells[w + 1].x - cells[w].x <= BIN + 1e-6) w++;
+      const run = cells.slice(k, w + 1);
+      if (cells[w].x - cells[k].x + BIN >= VERGE) {
+        const rich = run.filter((c) => (c.tot ?? 0) >= GRASS_POINTS);
+        const bright = median(run.map((c) => c.i)) >= GRASS * ref;
+        const leafy = rich.length * 2 >= run.length && median(rich.map((c) => c.veg / c.tot)) >= GRASS_SHARE;
+        if (bright || leafy) {
+          const a = cells[k].x - BIN / 2, b = cells[w].x + BIN / 2;
+          if (out.length && a <= out[out.length - 1][1] + 1e-6) out[out.length - 1][1] = b;
+          else out.push([a, b]);
+        }
+      }
+      k = w;
     }
     return out;
   }
@@ -373,7 +407,7 @@ const Nuage = (() => {
     const meta = await tilesAround(lon, lat, 0.0005);
     if (!meta.length) throw new Error("pas de nuage LiDAR HD ici");
     // case -> intensités du sol ; altitude la plus haute de la végétation ; altitudes des points d'eau
-    const bins = new Map(), plants = new Map(), water = new Map(), soil = [];
+    const bins = new Map(), mix = new Map(), plants = new Map(), water = new Map(), soil = [];
     let points = 0;
     // Blocs à lire, dalle par dalle (hiérarchie d'abord : leur nombre fait l'avancement de la barre)
     // shortcut: les deux niveaux les plus fins (9/10 des points, 1/4 des octets : essai du 2026-10-27)
@@ -386,7 +420,7 @@ const Nuage = (() => {
     for (const [done, [tile, n]] of todo.entries()) {
       progress(`Lecture du nuage LiDAR HD… ${Math.round(100 * done / todo.length)} % (${((count.bytes - b0) / 1e6).toFixed(1)} Mo)`,
         done / todo.length);
-      for (const [x, y, z, intensity, cls] of await ground(tile, n)) {
+      for (const [x, y, z, intensity, cls, returns] of await ground(tile, n)) {
         const ex = x - o[0], ey = y - o[1], across = ex * ux + ey * uy, along = ey * ux - ex * uy;
         // sol des travers voisins seulement (PAVED_STEPS, ±STRIP chacun) : le reste des blocs lus n'y sert pas
         if (cls === 2 && Math.abs(across) <= HALF && Math.abs(along) <= SOIL_ALONG) soil.push([along, across, intensity, z]);
@@ -396,6 +430,10 @@ const Nuage = (() => {
           if (!water.has(k)) water.set(k, []);
           water.get(k).push(z);
           continue;
+        }
+        if (cls <= 5) {
+          if (!mix.has(k)) mix.set(k, []);
+          mix.get(k).push([z, cls, returns]);  // sol et végétation basse : part de végétation de la case (GRASS_SHARE)
         }
         if (cls !== 2) {
           plants.set(k, Math.max(plants.get(k) ?? -Infinity, z));
@@ -407,6 +445,11 @@ const Nuage = (() => {
       }
     }
     const cells = [...bins].sort((a, b) => a[0] - b[0]).map(([k, v]) => ({ x: k * BIN, i: median(v), n: v.length }));
+    for (const c of cells) {  // points de végétation de la case : retours multiples, ou classe 3 à 5 près du sol de la case
+      const pts = mix.get(Math.round(c.x / BIN)), soil2 = median(pts.filter((q) => q[1] === 2).map((q) => q[0]));
+      c.tot = pts.length;
+      c.veg = pts.filter((q) => q[2] > 1 || (q[1] >= 3 && q[1] <= 5 && q[0] - soil2 <= GRASS_NEAR)).length;
+    }
     const ref = median(cells.filter((c) => Math.abs(c.x) <= (profile.origine === "caméra" ? 1.5 : 3)).map((c) => c.i));
     if (!ref) throw new Error("nuage LiDAR : pas de points du sol sous l'origine");
     // Nature du sol : enrobé, peinture (bande claire étroite), autre (herbe, gravillons, béton)
@@ -417,18 +460,8 @@ const Nuage = (() => {
       for (let j = k; j <= w; j++) cells[j].kind = "peinture";
       lines.push((cells[k].x + cells[w].x) / 2);
     }
-    // Herbe au sol (l'IGN la classe « sol ») : bandes « autre » larges et très claires
-    const grass = [];
-    for (let k = 0; k < cells.length; k++) {
-      if (cells[k].kind !== "autre") continue;
-      let w = k;
-      while (w + 1 < cells.length && cells[w + 1].kind === "autre" && cells[w + 1].x - cells[w].x <= BIN + 1e-6) w++;
-      const run = cells.slice(k, w + 1);
-      if (cells[w].x - cells[k].x + BIN >= VERGE && median(run.map((c) => c.i)) >= GRASS * ref) {
-        grass.push([cells[k].x - BIN / 2, cells[w].x + BIN / 2]);
-      }
-      k = w;
-    }
+    // Herbe au sol (l'IGN la classe « sol ») : bandes « autre » larges, très claires ou riches en végétation (grassRuns)
+    const grass = grassRuns(cells, ref);
     // Séparateur : bande continue non revêtue (peinture comprise) autour du milieu de celui du calcul
     const main = profile.profils.filter((e) => e.le_long === 0);
     const sepEntry = main.find((e) => e.separateur), out = { points, ref, requetes: count.requests - r0,
@@ -611,5 +644,5 @@ const Nuage = (() => {
     return { height: found.height, below: found.below };
   }
 
-  return { analyse, toL93, tilesAround, pavedEdge, kerbEdge, brightRuns, dashedLines, stripTest, bridgeFall, useGeoCache };
+  return { analyse, toL93, tilesAround, pavedEdge, kerbEdge, brightRuns, grassRuns, dashedLines, stripTest, bridgeFall, useGeoCache };
 })();
