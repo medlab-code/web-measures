@@ -92,10 +92,30 @@ const Nez = {
 
     // Lecture -----------------------------------------------------------------------------------
 
-    /** Incertitude (m) du bord à s m de l'axe : inclinaison, roulis restant et hauteur de caméra (docs/CALCULS.md). */
+    /** Incertitude (m) du bord à s m de l'axe : inclinaison, roulis restant, hauteur de caméra et altitude du MNT, lue en différence
+     * avec le sol sous la caméra, donc √2 fois sa précision ; rien de plus à plat (docs/CALCULS.md). */
     function sigma(s) {
-      const { hauteur: h, d, sigma_h: sh } = line;
-      return Math.hypot((h * h + d * d) / h * INCLINATION * toRad, s * s * ROLL * toRad / h, s * sh / h);
+      const { hauteur: h, d, sigma_h: sh, sol_sigma: sg } = line;
+      return Math.hypot((h * h + d * d) / h * INCLINATION * toRad, s * s * ROLL * toRad / h, s * sh / h,
+        sg ? s * Math.SQRT2 * sg / h : 0);
+    }
+
+    /** Écart de sol (m) au décalage o : altitude du MNT en ce point moins celle sous la caméra (interpolé ; 0 à plat). */
+    function groundAt(o) {
+      const pts = line.sol_dz;
+      if (!pts) return 0;
+      const f = Math.max(0, Math.min(pts.length - 1, (o - pts[0][0]) / (pts[1][0] - pts[0][0])));
+      const i = Math.min(Math.floor(f), pts.length - 2);
+      return pts[i][1] + (f - i) * (pts[i + 1][1] - pts[i][1]);
+    }
+
+    const signed = (cm) => `${cm < 0 ? "−" : "+"}${Math.abs(Math.round(cm))} cm`;
+
+    /** Source du sol et écart de sol aux deux poignées (« sol LiDAR HD : −8 cm à gauche, +3 cm à droite »). */
+    function groundText() {
+      if (line.sol_en_lecture) return "relief en lecture…";
+      if (!line.sol_dz) return `sol ${line.sol}`;
+      return `sol ${line.sol} : ${signed(groundAt(handles.gauche) * 100)} à gauche, ${signed(groundAt(handles.droit) * 100)} à droite`;
     }
 
     const roundUp05 = (value) => Math.max(0.05, Math.ceil(value / 0.05 - 1e-9) * 0.05);
@@ -126,8 +146,9 @@ const Nez = {
         + ` · ±${metres(uncertainty)}`;
       const tilt = tiltText();
       if (tilt) text.textContent += ` · ${tilt}`;
+      text.textContent += ` · ${groundText()}`;
       readout.title = `Distance latérale de chaque bord à la caméra, lue sur la droite au sol à ${metres(line.d, 1)} devant elle `
-        + `(sol plat). Hauteur de la caméra ${metres(line.hauteur)}${line.hauteur_source ? ` (${line.hauteur_source})` : ""}`
+        + `(${line.sol_dz ? `relief du MNT ${line.sol}` : "sol plat"}). Hauteur de la caméra ${metres(line.hauteur)}${line.hauteur_source ? ` (${line.hauteur_source})` : ""}`
         + `${line.inclinaison_source === "roulis de campagne" ? `, roulis de la campagne ${line.roulis_campagne}°` : ""}. Expérimental : rien n'est retenu.`;
     }
 
@@ -303,11 +324,11 @@ const Nez = {
       waitNeighbours(photoId);
     }
 
-    /** Voisines de la photo (précédente, suivante) pas encore arrivées : la droite en dépend (axe de la séquence). Nouvel essai toutes
-     * les 0,3 s, au plus 5 s, tant que la photo est la même ; droite et tracés refaits si elle a changé, bords gardés. */
-    function waitNeighbours(id, left = 17) {
+    /** Voisines de la photo (précédente, suivante) ou relief du MNT pas encore arrivés : la droite en dépend (axe de la séquence, sol). Nouvel essai toutes
+     * les 0,3 s, au plus 12 s (deux lectures du MNT de 5 s au plus), tant que la photo est la même ; droite et tracés refaits si elle a changé, bords gardés. */
+    function waitNeighbours(id, left = 40) {
       clearTimeout(waiting);
-      if (!active || left <= 0 || !line || line.error || line.voisines !== false) return;
+      if (!active || left <= 0 || !line || line.error || (line.voisines !== false && !line.sol_en_lecture)) return;
       waiting = setTimeout(() => {
         if (!active || !available() || etat.photo.id !== id) return;
         if (load()) draw();

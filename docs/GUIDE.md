@@ -84,7 +84,7 @@ caméra et la largeur, au centimètre, avec leur incertitude (arrondie à 0,05 m
 tracés sur la carte, pour vérifier qu'elle est perpendiculaire à la route. Rien n'est
 retenu ni reporté dans le graphique ou les résultats ; un second appui sur le bouton retire tout. Photo suivante : la droite est
 refaite, les poignées déjà déplacées restent où elles sont. L'encart rappelle, discrètement, l'inclinaison utilisée : celle calée à la main, sinon les verticales de la photo (calculées à l'ouverture, comme pour la vue du dessus ; la droite est refaite à leur arrivée), sinon celle lue ou le roulis de la campagne. Précision : voir `docs/CALCULS.md` § 8.8 ; l'incertitude affichée
-suppose le sol plat entre la caméra et la droite.
+compte le relief : la droite est posée sur le MNT LiDAR HD (RGE ALTI à défaut) lu sous la caméra et le long de la droite (pente en long, dévers) ; si le relief est indisponible, le sol est supposé plat (l'encart l'indique). L'encart donne la source du sol et son écart aux deux poignées (par exemple « sol LiDAR HD : −8 cm à gauche, +3 cm à droite »).
 
 **Vidéo d'un itinéraire** : onglet **« Vidéo »** du panneau, en trois temps.
 

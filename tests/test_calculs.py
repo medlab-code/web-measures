@@ -1142,6 +1142,44 @@ class Parcours(unittest.TestCase):
         self.assertIn("error", json.loads(App(lambda *args: None).nose_line()))  # sans photo
         host.install(**HOST)
 
+    def test_droite_nez_relief(self):
+        """Droite au nez sur le relief LiDAR HD : pente en long de 5 % (vers l'avant, cap 0) et dévers de 2 % (vers l'est) ; un point
+        à x m à droite, d m devant, a un sol à dz = 0,05 d + 0,02 x au-dessus de celui de la caméra : élévation -atan2(H - dz, distance
+        horizontale), cap inchangé. Relief en lecture : sol plat jusqu'à son arrivée, droite alors refaite ; relief indisponible :
+        sol plat (ancien résultat)."""
+        self.show("p1")
+        flat = json.loads(self.app.nose_line(5.0))
+        self.assertEqual((flat["sol"], flat["sol_sigma"], flat["sol_en_lecture"]), ("plat (relief indisponible)", None, False))
+        self.assertNotIn("sol_dz", flat)
+        here = self.app.item["geometry"]["coordinates"][:2]
+        waiting, old = [], web_app.precision.fetch_terrain
+
+        def terrain(points, done):  # MNT synthétique : 100 m + 5 % vers le nord + 2 % vers l'est ; la réponse arrive plus tard
+            def east_north(p):
+                return triangulation._local(p[0], p[1], *here)
+            waiting.append(lambda: done([100.0 + 0.05 * east_north(p)[1] + 0.02 * east_north(p)[0] for p in points], "LiDAR HD", None))
+
+        web_app.precision.fetch_terrain = terrain
+        try:
+            self.app.nose_ground.clear()
+            first = json.loads(self.app.nose_line(5.0))
+            self.assertTrue(first["sol_en_lecture"])
+            self.assertEqual(first["points"], flat["points"])  # en attendant : sol plat
+            waiting.pop()()
+            line = json.loads(self.app.nose_line(5.0))
+        finally:
+            web_app.precision.fetch_terrain = old
+        self.assertEqual((line["sol"], line["sol_sigma"], line["sol_en_lecture"]), ("LiDAR HD", 0.08, False))
+        for x, yaw, pitch in line["points"]:
+            dz = 0.05 * 5.0 + 0.02 * x
+            self.assertAlmostEqual(yaw, math.atan2(x, 5.0), delta=1e-5)
+            self.assertAlmostEqual(pitch, -math.atan2(self.CAMERA - dz, math.hypot(x, 5.0)), delta=2e-4)
+        self.assertGreater(max(abs(a[2] - b[2]) for a, b in zip(flat["points"], line["points"])), 0.03)  # 25 cm sur 1,9 m
+        dz = dict(line["sol_dz"])
+        self.assertAlmostEqual(dz[-3.0], 0.25 - 0.06, delta=0.01)
+        self.assertAlmostEqual(dz[4.0], 0.25 + 0.08, delta=0.01)
+        host.install(**HOST)
+
     def test_droite_nez_verticales(self):
         """Droite au nez : la verticale lue dans la photo (verticales à seuil élargi de la vue du dessus, birdeye_loose) change la
         projection de la droite ; sans elle, rien de changé (source « aucune »)."""

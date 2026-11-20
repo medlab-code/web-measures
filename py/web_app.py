@@ -241,6 +241,7 @@ class App(Pose, Chutes, Nez, session.Session):
         self.overlay_ground = {}  # (lon, lat) -> altitude LiDAR HD ou None (absente), sommets et caméras (_overlay_ground)
         self.overlay_asked = set()  # (lon, lat) dont l'altitude est en cours de lecture
         self.point_ground = {}  # (lon, lat caméra, lon, lat point) -> (z caméra, z point) ou None (_point_ground)
+        self.nose_ground = {}  # (lon, lat, axe, direction, d) -> (source, sigma, [(décalage, dz)]), {} en lecture, None indisponible (_nose_ground)
         self.tilt_reasons = {}  # photo -> raison de l'échec de l'inclinaison automatique (ticket #29)
         self.birdeye_loose = {}  # photo -> verticales refusées pour les mesures, gardées pour la vue du dessus (web_tilt.LOOSE_SIGMA)
         self.tilts.run = self._run_tilt

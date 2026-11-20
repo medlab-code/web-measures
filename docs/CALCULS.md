@@ -387,7 +387,7 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   ou à plus de 20 m. Dans un giratoire de 20 m de rayon, la
   route a tourné de 13° entre la photo et la droite : sans cela elle serait oblique d'autant par rapport au rayon de l'anneau. Un
   écart de plus de 3° est rendu dans `virage` (degrés, pas encore affiché). Points de -12 à +12 m tous les 0,05 m, positifs à droite. En ligne droite (θ = θ0), un point de décalage `x` est au cap `atan2(x, d)` de l'axe et à
-  l'élévation `-atan(H / hypot(x, d))` (sinon, avec δ = θ − θ0 : à `x·cos δ` à droite et `d − x·sin δ` devant la caméra) ; `d` = 4,4 m (monture 1,93 m), 4,8 m (2,07 m), 4,5 m sinon, soit le capot de
+  l'élévation `-atan2(H − dz, hypot(x, d))` à sol plat (`dz` = 0 ; relief : voir **Sol**) (sinon, avec δ = θ − θ0 : à `x·cos δ` à droite et `d − x·sin δ` devant la caméra) ; `d` = 4,4 m (monture 1,93 m), 4,8 m (2,07 m), 4,5 m sinon, soit le capot de
   `src/dessus.js` (OUTLINES) plus 0,3 m. Direction rendue dans le repère de la photo par `Session._view_of` : calage compris
   (cap de la séquence, inclinaison calée ou lue).
 - **Carte** : `lonlat` rend les extrémités (-12 et +12 m) de la droite à partir de la position recalée de la photo si la séquence l'est ;
@@ -395,7 +395,17 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   linéaire entre points consécutifs de la table, au point le plus proche du pointeur à l'écran.
 - **Hauteur** `H` : `Session.camera_of` (altitude GPS moins sol LiDAR, calée, monture CD21 1,93 ou 2,07 m, sinon réglage, 1,90 m
   par défaut) et son incertitude `σH`.
-- **Sol** : plat, au niveau du sol sous la caméra, sans lecture du terrain.
+- **Sol** : le relief du **MNT LiDAR HD** (pas de 0,5 m, repli RGE ALTI : `precision.fetch_terrain`, comme le profil et la vue du
+  dessus), lu en une requête à la caméra et tous les 0,5 m le long de la droite (49 points, `Nez._nose_ground`), gardé par droite. La
+  droite reste définie en positions horizontales `(d, y)` ; chaque point a un écart de sol `dz(y)` = altitude du MNT au point moins
+  altitude du MNT sous la caméra (relatif : pas de souci de géoïde), interpolé linéairement entre les points lus, et il est vu à
+  l'élévation `−atan2(H − dz, distance horizontale)` au lieu de `−atan2(H, …)`. Les distances des bords restent les positions
+  horizontales lues sur les poignées. La lecture est asynchrone (hôte JS) : en attendant (`sol_en_lecture`) la droite est posée sur
+  un sol plat, puis refaite à l'arrivée du relief, poignées gardées (même attente que pour les voisines, `waitNeighbours`, 12 s au
+  plus). MNT absent ou en erreur : sol plat, source « plat (relief indisponible) », sans erreur. Source rendue dans `sol`, écarts dans
+  `sol_dz`, incertitude du MNT dans `sol_sigma` (0,08 m LiDAR HD, 0,30 m RGE ALTI ; absente à plat). L'encart donne la source et l'écart
+  de sol aux deux poignées. Effet : une pente en long de 5 % met le point à 4,4 m à 22 cm au-dessus du sol de la caméra, soit 11 cm de
+  hauteur apparente en moins sur 1,93 m.
 - **Inclinaison de la photo** (`Nez._nose_tilt`, même ordre que la vue du dessus, `_birdeye_of`) : calée à la main (« clics »), puis
   celle de la photo (`Calibration.tilt` : verticales calculées sur la photo HD, sinon pente et dévers du LiDAR), les verticales à seuil
   élargi (`birdeye_loose`, incertitude jusqu'à 0,5°, `web_tilt.LOOSE_SIGMA`) quand elles sont plus sûres que celle-ci sans être calées à
@@ -408,8 +418,9 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   +0,5°, `d` = 4,4 m, `H` = 1,93 m) pour deux bandes à -2,5 m et +5,5 m (largeur 8,00 m) : roulis supposé -1° → bords lus à -2,24 et +6,26 m
   (8,50 m) ; verticale 0° (route plate) → -2,16 et +6,68 m (8,85 m) ; verticales → 8,00 m. L'erreur croît avec la distance (côté le
   plus loin) et le tangage joue aussi (±3° : de 6,9 à 8,9 m).
-- **Incertitude d'un bord** à `s` m de l'axe : `σ = √( ((H² + d²)/H · δi)² + (s² · δr / H)² + (s · σH / H)² )`, `δi` = 0,5° (inclinaison
-  de la photo), `δr` = 0,5° (roulis restant), en radians. Largeur : somme quadratique des deux côtés, arrondie au-dessus à 0,05 m.
+- **Incertitude d'un bord** à `s` m de l'axe : `σ = √( ((H² + d²)/H · δi)² + (s² · δr / H)² + (s · σH / H)² + (s · √2 · σz / H)² )`,
+  `δi` = 0,5° (inclinaison de la photo), `δr` = 0,5° (roulis restant), en radians, `σz` = précision du MNT (`sol_sigma`, 0,08 m LiDAR HD,
+  0,30 m RGE ALTI ; le sol de la caméra et celui du point sont lus ensemble, d'où √2) ; dernier terme absent à sol plat. Largeur : somme quadratique des deux côtés, arrondie au-dessus à 0,05 m.
   Estimation de départ, pas encore comparée à des bords relevés sur place.
 
 ## 9. « Profils » : pente en long
