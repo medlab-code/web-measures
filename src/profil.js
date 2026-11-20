@@ -149,7 +149,7 @@ const Profil = (() => {
     // [présent, classe de l'échantillon, mot, attributs] : l'échantillon reprend la classe de l'élément dessiné
     const items = [
       [true, "sol", "terrain de la photo"],
-      [has(".autre-travers"), "autre-travers", "autres travers"],
+      [has(".autre-travers"), "autre-travers", "travers à ±5 et 10 m"],
       [has(".chaussee"), "chaussee", "plateforme"],
       [has('.bord[data-bord="mesure"]'), "bord", "bord mesuré", { "data-bord": "mesure" }],
       [has(".bord-suppose"), "bord bord-suppose", "bord supposé", { "data-bord": "suppose" }],

@@ -160,7 +160,7 @@ try {
   const keyWords = (svg) => [...svg.querySelectorAll("g.cle-lecture text")].map((t) => t.textContent);
   const k1 = keyWords(guess), k0 = keyWords(Profil.draw(profile(flat), true).svg);
   expect(`clé : ${k1.join(", ")}`, k1.includes("terrain de la photo") && k1.includes("bord mesuré") && k1.includes("bord supposé") && k1.includes("plateforme"));
-  expect(`clé sans élément absent : ${k0.join(", ")}`, ["bord supposé", "chute", "dévers", "eau", "herbe", "végétation", "séparateur", "autres travers"].every((w) => !k0.includes(w)));
+  expect(`clé sans élément absent : ${k0.join(", ")}`, ["bord supposé", "chute", "dévers", "eau", "herbe", "végétation", "séparateur", "travers à ±5 et 10 m"].every((w) => !k0.includes(w)));
   const withKey = Profil.draw(profile(flat), true).svg, vb = withKey.viewBox.baseVal;
   expect(`viewBox agrandi pour la clé : ${vb.height} > 380`, vb.height > 380 && [...withKey.querySelectorAll("g.cle-lecture text")].every((t) => Number(t.getAttribute("y")) > 380 && Number(t.getAttribute("y")) < vb.height));
   const m = Profil.draw(profile(flat), false).svg;
