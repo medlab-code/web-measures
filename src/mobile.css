@@ -1,6 +1,16 @@
 /* SPDX-FileCopyrightText: 2026 Cédric COCHART */
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Version mobile (mobile.html) : par-dessus style.css (couleurs, recherche, requêteur, étiquettes) */
+/* Échelle unique des tailles (mobile) : boutons 44 px (cible tactile recommandée) ; étiquettes, pastilles et champs 36 px (44 serait trop
+   haut pour une ligne de texte, 36 tient une ligne de 14 px avec 8 px de marge et reste agréable au doigt) ; texte des étiquettes 14 px
+   (champs de saisie : 16 px, sinon iOS zoome à la saisie) ; 10 px entre les éléments et jusqu'aux bords ; bouts arrondis : marge de plus. */
+:root {
+  --mobile-bouton: 44px;
+  --mobile-etiquette: 36px;
+  --mobile-bord: 10px;
+  --mobile-police: 14px;
+  --mobile-bout: calc(0.75rem + var(--pastille-marge));
+}
 body.mobile {
   height: 100dvh;
   display: grid;
@@ -13,15 +23,22 @@ body.mobile {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: max(6px, env(safe-area-inset-top)) 8px 6px;
+  padding: max(6px, env(safe-area-inset-top)) var(--mobile-bord) 6px;
   background: var(--fond);
   border-bottom: 1px solid var(--bord);
   z-index: 10;
 }
 #barre :is(.recherche, .requeteur) { position: relative; inset: auto; width: 100%; }
-#barre :is(.recherche input, .requeteur input) { font-size: 16px; padding-block: 0.45rem; }
-#barre .requeteur .prefixe { top: 50%; transform: translateY(-50%); line-height: normal; }
-#barre .requeteur .pr input { padding-left: 2.2rem; }
+/* Champs et pastilles du requêteur à la hauteur des étiquettes (30 px sur la page principale) ; icônes, « PR » et distance recentrés */
+#barre :is(.recherche, .requeteur) input { font-size: 16px; height: var(--mobile-etiquette); line-height: calc(var(--mobile-etiquette) - 2px);
+  padding-inline: var(--mobile-bout); }
+#barre .recherche input { padding-left: calc(1.9rem + var(--pastille-marge)); }
+#barre :is(.recherche, .requeteur .route) .icone { top: calc((var(--mobile-etiquette) - 16px) / 2); }
+#barre .requeteur .route input { padding-left: calc(1.7rem + var(--pastille-marge)); }
+#barre .requeteur .prefixe { top: 1px; line-height: calc(var(--mobile-etiquette) - 2px); }
+#barre .requeteur .pr input { padding-left: calc(2.2rem + var(--pastille-marge)); }
+#barre .requeteur label { line-height: calc(var(--mobile-etiquette) - 2px); padding-inline: var(--mobile-bout); }
+#barre .requeteur label .distance { height: calc(var(--mobile-etiquette) - 8px); font-size: 16px; }
 #barre .requeteur { font-size: 16px; }
 #barre .recherche ul { position: absolute; left: 0; right: 0; max-height: 50dvh; z-index: 11; font-size: 15px; }
 #barre .recherche li { padding: 0.6rem 0.6rem; }
@@ -30,17 +47,30 @@ body.mobile {
 
 #vue { position: relative; min-height: 0; background: #202124; }
 #invite { margin: 0; padding: 1rem; color: #fff; text-align: center; }
-#vue #lieu { position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 70px); white-space: normal; }
+/* Étiquette du lieu : centrée en hauteur sur le bouton de capture, à 10 px de lui */
+#vue #lieu {
+  position: absolute;
+  left: var(--mobile-bord);
+  bottom: calc(var(--mobile-bord) + (var(--mobile-bouton) - var(--mobile-etiquette)) / 2);
+  max-width: calc(100% - 3 * var(--mobile-bord) - var(--mobile-bouton));
+  min-height: var(--mobile-etiquette);
+  box-sizing: border-box;
+  padding: 8px var(--mobile-bout);
+  border-radius: calc(var(--mobile-etiquette) / 2);
+  line-height: 20px;
+  font-size: var(--mobile-police);
+  white-space: normal;
+}
 #capture {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
+  right: var(--mobile-bord);
+  bottom: var(--mobile-bord);
   z-index: 6;
 }
 /* Boutons au doigt : 44 px au moins */
 #capture, .bouton-carte {
-  width: 44px;
-  height: 44px;
+  width: var(--mobile-bouton);
+  height: var(--mobile-bouton);
   border: 0;
   border-radius: 50%;  /* style unifié (voir style.css, #reglage-image) : fond sombre translucide, icône blanche, coins arrondis ; 44 px au doigt */
   background: rgba(24, 25, 28, 0.55);
@@ -75,16 +105,40 @@ body.mobile {
 }
 
 #carte { position: relative; height: auto; min-height: 0; }
-#ouvrir-reglages { position: absolute; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 3; }  /* même marge en bas et sur le côté */
-#carte .maplibregl-ctrl-bottom-right { bottom: calc(60px + env(safe-area-inset-bottom)); }
+#ouvrir-reglages { position: absolute; right: var(--mobile-bord); bottom: calc(var(--mobile-bord) + env(safe-area-inset-bottom)); z-index: 3; }  /* même marge en bas et sur le côté */
+
+/* Contrôles natifs de MapLibre : marges de 10 px partout (celles de MapLibre y sont déjà) */
+/* Colonne de gauche (zoom, boussole) : boutons de 44 px dans leur étiquette */
+#carte .maplibregl-ctrl-top-left .maplibregl-ctrl-group { border-radius: calc(var(--mobile-bouton) / 2); }
+#carte .maplibregl-ctrl-top-left .maplibregl-ctrl-group button { width: var(--mobile-bouton); height: var(--mobile-bouton); padding: 0; }
+#carte .maplibregl-ctrl-top-left .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  width: 100%; height: 100%; background-size: 24px 24px; background-position: center; background-repeat: no-repeat; }
+/* Attribution (ⓘ) : étiquette de 36 px au-dessus du bouton de réglages, texte blanc de 14 px sur fond sombre */
+#carte .maplibregl-ctrl-bottom-right { bottom: calc(var(--mobile-bord) + var(--mobile-bouton) + env(safe-area-inset-bottom)); }
+#carte .maplibregl-ctrl-attrib.maplibregl-compact {
+  box-sizing: border-box;
+  margin: var(--mobile-bord);
+  min-height: var(--mobile-etiquette);
+  padding: 8px var(--mobile-etiquette) 8px 0;
+  border-radius: calc(var(--mobile-etiquette) / 2);
+  background: rgba(24, 25, 28, 0.55);
+  color: #fff;
+  font-size: var(--mobile-police);
+  line-height: 20px;
+}
+#carte .maplibregl-ctrl-attrib.maplibregl-compact-show { padding: 8px var(--mobile-etiquette) 8px var(--mobile-bout); }
+#carte .maplibregl-ctrl-attrib a { color: #fff; }
+#carte .maplibregl-ctrl-attrib-button {
+  width: var(--mobile-etiquette); height: var(--mobile-etiquette); border-radius: 50%; background-color: transparent; filter: invert(1); }
+#carte .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button { background-color: transparent; }
 
 /* Bouton de localisation (contrôle natif MapLibre, GeolocateControl) au style unifié : même fond, même rond de 44 px et même icône (réticule,
    trait blanc de 2) que les autres boutons ; l'icône de fond de MapLibre est remplacée par le réticule. États par MapLibre : -waiting (recherche :
    clignote), -active (suivi : jaune), -active-error et -background-error (position introuvable ou refusée : rouge), disabled (refus : grisé) */
 #carte .maplibregl-ctrl-top-right .maplibregl-ctrl-group { background: none; box-shadow: none; border-radius: 50%; }
 #carte .maplibregl-ctrl-geolocate {
-  width: 44px;
-  height: 44px;
+  width: var(--mobile-bouton);
+  height: var(--mobile-bouton);
   border-radius: 50%;
   background: rgba(24, 25, 28, 0.55);
   color: #fff;
@@ -104,17 +158,22 @@ body.mobile {
 #carte .maplibregl-ctrl-geolocate-active-error, #carte .maplibregl-ctrl-geolocate-background-error { background: rgba(220, 53, 69, 0.4); }
 @keyframes mobile-localisation { 50% { opacity: 0.35; } }
 
-/* Lien vers la page principale, en haut de la carte, à gauche du bouton de géolocalisation (44 px, à 10 px du bord), 10 px entre les deux */
+/* Lien vers la page principale, en haut de la carte, à gauche du bouton de géolocalisation (44 px, à 10 px du bord), 10 px entre les deux ;
+   étiquette de 36 px centrée en hauteur sur ce bouton */
 #version-complete {
   position: absolute;
-  top: 10px;
-  right: 64px;
+  top: calc(var(--mobile-bord) + (var(--mobile-bouton) - var(--mobile-etiquette)) / 2);
+  right: calc(2 * var(--mobile-bord) + var(--mobile-bouton));
   z-index: 3;
-  padding: 0.35rem calc(0.6rem + var(--pastille-marge));  /* marge de plus aux bouts arrondis (style unifié, style.css) */
-  border-radius: 999px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: var(--mobile-etiquette);
+  padding: 0 var(--mobile-bout);  /* marge de plus aux bouts arrondis (style unifié, style.css) */
+  border-radius: calc(var(--mobile-etiquette) / 2);
   background: rgba(24, 25, 28, 0.55);
   color: #fff;
-  font-size: 14px;
+  font-size: var(--mobile-police);
   font-weight: 500;
   text-decoration: none;
 }
@@ -135,21 +194,25 @@ body.mobile {
 #reglages::backdrop { background: rgba(0, 0, 0, 0.35); }
 #reglages form { flex-direction: column; align-items: stretch; gap: 0.9rem; margin: 0; }  /* sur « dialog form » de style.css */
 #reglages h2 { margin: 0; font-size: 17px; }
-#reglages label { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 44px; }
-#reglages :is(select, input[type=date]) { flex: 1; max-width: 60%; min-height: 40px; font-size: 16px; }
+#reglages label { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: var(--mobile-bouton); }
+#reglages :is(select, input[type=date]) { flex: 1; max-width: 60%; min-height: var(--mobile-bouton); font-size: 16px; }
 #reglages .aide { margin: 0; color: var(--discret); font-size: 13px; }
 #reglages { max-height: 85dvh; overflow-y: auto; }
-#reglages button[type="submit"] { min-height: 44px; font-size: 16px; }
+#reglages button[type="submit"] { min-height: var(--mobile-bouton); font-size: 16px; }
 
 #message {
   position: fixed;
   left: 50%;
-  bottom: calc(16px + env(safe-area-inset-bottom));
+  bottom: calc(2 * var(--mobile-bord) + var(--mobile-bouton) + env(safe-area-inset-bottom));  /* au-dessus des boutons du bas */
   transform: translateX(-50%);
-  max-width: calc(100% - 32px);
+  max-width: calc(100% - 2 * var(--mobile-bord));
+  box-sizing: border-box;
+  min-height: var(--mobile-etiquette);
   margin: 0;
-  padding: 0.5rem 0.8rem;
-  border-radius: 6px;
+  padding: 8px var(--mobile-bout);
+  border-radius: calc(var(--mobile-etiquette) / 2);
+  font-size: var(--mobile-police);
+  line-height: 20px;
   background: rgba(32, 33, 36, 0.9);
   color: #fff;
   z-index: 20;
