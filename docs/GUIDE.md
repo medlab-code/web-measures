@@ -74,16 +74,16 @@ reste propre. Une mesure en cours s'y poursuit, avec sa carte d'étape ; pour en
 `Échap` y quitte d'abord le plein écran : un second appui annule le trait en cours.
 
 **Bords sur la photo** (expérimental, piste P22 étape 1) : le bouton à droite des curseurs de luminosité et de contraste, en haut à
-gauche de la visionneuse (grisé sans photo 360°), trace en vert (liseré sombre) une droite au sol, entre les deux poignées seulement (elle s'allonge et se raccourcit en direct avec elles ; les poignées glissent sur toute la portée de la droite), juste devant le nez du véhicule, perpendiculaire à
+gauche de la visionneuse (grisé sans photo 360°), trace en vert (liseré sombre) une droite au sol (elle n'apparaît qu'une fois sa position définitive : photos voisines, verticales et relief arrivés, au plus 12 s ; l'encart affiche « Calcul de la droite… » en attendant), entre les deux poignées seulement (elle s'allonge et se raccourcit en direct avec elles ; les poignées glissent sur toute la portée de la droite), juste devant le nez du véhicule, perpendiculaire à
 la trajectoire de la séquence à l'endroit de la droite (dans un virage ou un giratoire, la direction de la photo suivante est prise en compte) (à 4,4 m de la caméra pour la monture basse du CD21, 4,8 m pour la haute, 4,5 m ailleurs : le sol y
 est visible, hors capot), avec une croix jaune au droit de la caméra et deux poignées, à gauche et à droite : de courts traits verticaux rouges (28 px à l'écran quel que soit le zoom, liseré blanc), et, au milieu de la droite, au-dessus d'elle, la largeur entre les deux poignées (« ↔ 7,40 m », même étiquette que les largeurs mesurées, mise à jour en direct) ; les distances de chaque bord à la caméra ne sont que dans l'encart. Elles partent des bords du
 profil en travers de la photo s'il y en a un, sinon de 3 m de part et d'autre. Faire glisser une poignée le long de la droite
-jusqu'au bord de la route (la visionneuse ne tourne pas tant qu'on tient une poignée, à 10 px du trait ; le curseur devient une main ;
+jusqu'au bord de la route (les deux poignées ne se croisent pas : 0,10 m d'écart au moins ; la visionneuse ne tourne pas tant qu'on tient une poignée, à 10 px du trait ; le curseur devient une main ;
 le glissement est continu, sans saut, précis au fort zoom) : un encart au bas de la photo lit en direct la distance de chaque bord à la
 caméra et la largeur, au centimètre, avec leur incertitude (arrondie à 0,05 m). La droite et ses deux bords (points rouges) sont aussi
 tracés sur la carte, pour vérifier qu'elle est perpendiculaire à la route. Rien n'est
 retenu ni reporté dans le graphique ou les résultats ; un second appui sur le bouton retire tout. Photo suivante : la droite est
-refaite, les poignées déjà déplacées restent où elles sont. L'encart rappelle, discrètement, l'inclinaison utilisée : celle calée à la main, sinon les verticales de la photo (calculées à l'ouverture, comme pour la vue du dessus ; la droite est refaite à leur arrivée), sinon celle lue ou le roulis de la campagne. Précision : voir `docs/CALCULS.md` § 8.8 ; l'incertitude affichée
+refaite (masquée le temps du calcul), les poignées déjà déplacées restent où elles sont. L'encart rappelle, discrètement, l'inclinaison utilisée : celle calée à la main, sinon les verticales de la photo (calculées à l'ouverture, comme pour la vue du dessus ; la droite n'est affichée qu'à leur arrivée), sinon celle lue ou le roulis de la campagne. Précision : voir `docs/CALCULS.md` § 8.8 ; l'incertitude affichée
 compte le relief : la droite est posée sur le MNT LiDAR HD (RGE ALTI à défaut) lu sous la caméra et le long de la droite (pente en long, dévers) ; si le relief est indisponible, le sol est supposé plat (l'encart l'indique). L'encart donne la source du sol et son écart aux deux poignées (par exemple « sol LiDAR HD : −8 cm à gauche, +3 cm à droite »).
 
 **Vidéo d'un itinéraire** : onglet **« Vidéo »** du panneau, en trois temps.

@@ -400,9 +400,8 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   droite reste définie en positions horizontales `(d, y)` ; chaque point a un écart de sol `dz(y)` = altitude du MNT au point moins
   altitude du MNT sous la caméra (relatif : pas de souci de géoïde), interpolé linéairement entre les points lus, et il est vu à
   l'élévation `−atan2(H − dz, distance horizontale)` au lieu de `−atan2(H, …)`. Les distances des bords restent les positions
-  horizontales lues sur les poignées. La lecture est asynchrone (hôte JS) : en attendant (`sol_en_lecture`) la droite est posée sur
-  un sol plat, puis refaite à l'arrivée du relief, poignées gardées (même attente que pour les voisines, `waitNeighbours`, 12 s au
-  plus). MNT absent ou en erreur : sol plat, source « plat (relief indisponible) », sans erreur. Source rendue dans `sol`, écarts dans
+  horizontales lues sur les poignées. La lecture est asynchrone (hôte JS) : tant que le relief n'est pas arrivé (`sol_en_lecture`), la droite
+  n'est pas tracée (voir plus bas, position définitive) ; passé le délai, elle est posée sur un sol plat. MNT absent ou en erreur : sol plat, source « plat (relief indisponible) », sans erreur. Source rendue dans `sol`, écarts dans
   `sol_dz`, incertitude du MNT dans `sol_sigma` (0,08 m LiDAR HD, 0,30 m RGE ALTI ; absente à plat). L'encart donne la source et l'écart
   de sol aux deux poignées. Effet : une pente en long de 5 % met le point à 4,4 m à 22 cm au-dessus du sol de la caméra, soit 11 cm de
   hauteur apparente en moins sur 1,93 m.
@@ -412,7 +411,11 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   la main, enfin le **roulis de campagne** (`ROLL_DEFECTS` : -1° pour le CD21 en 2025, comme verticale penchée, même signe que
   `groundUp` de `src/dessus.js`), sinon rien. Les verticales sont demandées par `birdeye_request` à l'affichage de la droite : même
   calcul, mêmes résultats gardés par photo que la vue du dessus avec « Calage par les verticales » (aucun calcul en double) ; elles
-  arrivent après la droite, qui est alors refaite (`inclinaison_en_calcul`), poignées gardées. Source rendue dans `inclinaison_source`.
+  arrivent après la première réponse (`inclinaison_en_calcul`) : la droite n'est tracée qu'à leur arrivée, poignées gardées. Source rendue dans `inclinaison_source`.
+  Position définitive (`src/nez.js`, `shown`) : la droite, les poignées, la croix, l'étiquette et le tracé de la carte ne sont affichés
+  que lorsque plus rien n'est attendu (`voisines` vrai, `sol_en_lecture` faux, `inclinaison_en_calcul` faux), ou après 12 s d'attente au
+  plus (repli : meilleure droite disponible, l'encart dit ce qui manque). Une nouvelle attente (photo changée, clics de verticales) masque
+  de nouveau la droite jusqu'à sa position définitive, poignées gardées. Les poignées ne se croisent pas : écart minimal de 0,10 m.
   Pourquoi : la droite est lue en distance latérale du bord ; une bande parallèle à l'axe, vue à travers un roulis ou un tangage faux,
   est lue à une autre place de la droite. Giratoire d'efbcbcd8-2ecb-4ea8-a731-a7ab55960e63 (RTK, verticales à ±0,30° : roulis -3,5°, tangage
   +0,5°, `d` = 4,4 m, `H` = 1,93 m) pour deux bandes à -2,5 m et +5,5 m (largeur 8,00 m) : roulis supposé -1° → bords lus à -2,24 et +6,26 m

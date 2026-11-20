@@ -20,6 +20,8 @@ const Nez = {
     const TICK_PX = 28;  // px : longueur à l'écran d'une poignée (trait vertical, quel que soit le zoom)
     const HANDLE_PX = 10;  // px : portée d'une poignée (distance du pointeur au trait)
     const MIN_OFFSET = 0.2;  // m : une poignée reste de son côté du droit de la caméra
+    const MIN_GAP = 0.1;  // m : écart minimal entre les deux poignées (l'une ne dépasse pas l'autre pendant le glissement)
+    const WAIT_MAX = 12000;  // ms : attente au plus de la position définitive de la droite (deux lectures du MNT de 5 s au plus), puis meilleure droite disponible
     const FALLBACK = 3;  // m : bords de départ sans profil en travers
     const INCLINATION = 0.5, ROLL = 0.5;  // degrés : incertitude de l'inclinaison de la photo et du roulis restant (docs/CALCULS.md)
     const toRad = Math.PI / 180;
@@ -28,6 +30,36 @@ const Nez = {
     let photoId = null;
     let handles = { gauche: -FALLBACK, droit: FALLBACK }, moved = { gauche: false, droit: false };
     let drag = null, bound = null, readout = null, retry = null, waiting = null;
+    let deadline = null, expired = false;  // deadline : minuterie du délai d'attente, expired : délai écoulé (repli sur la meilleure droite)
+
+    /** Attentes en cours dont dépend la position de la droite : photos voisines (axe), relief du MNT (sol), verticales (inclinaison). */
+    const pending = () => Boolean(line && !line.error && (line.voisines === false || line.sol_en_lecture || line.inclinaison_en_calcul));
+
+    /** Droite définitive, donc tracée : une droite calculée dont toutes les attentes sont terminées, ou le délai écoulé. */
+    const shown = () => Boolean(line && !line.error && (!pending() || expired));
+
+    /** Délai d'attente armé tant qu'une attente est en cours (à chaque nouveau calcul : photo changée, verticales relancées), désarmé
+     * quand toutes sont terminées. Rend vrai si l'état affiché a changé (droite devenue définitive par le délai écoulé). */
+    function settle() {
+      if (!pending()) {
+        clearTimeout(deadline);
+        deadline = null;
+        expired = false;
+      } else if (!deadline && !expired) {
+        deadline = setTimeout(() => {
+          deadline = null;
+          expired = true;
+          if (active) draw();
+        }, WAIT_MAX);
+      }
+    }
+
+    /** Nouveau calcul (autre photo) : délai et attentes repartent de zéro. */
+    function restartWait() {
+      clearTimeout(deadline);
+      deadline = null;
+      expired = false;
+    }
 
     /** Photo 360° (comme autotilt.is_360 en Python) : la droite au sol n'a de sens que sur une photo sphérique. */
     function is360(photo) {
@@ -83,7 +115,7 @@ const Nez = {
     /** Droite et bords sur la carte (null : retirés). */
     function drawMap() {
       if (!map) return;
-      if (!active || !line || line.error || !line.lonlat) return Carte.showNez(map, null);
+      if (!active || !shown() || !line.lonlat) return Carte.showNez(map, null);
       const point = (o) => ({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: lonlatAt(o) } });
       Carte.showNez(map, { type: "FeatureCollection", features: [
         { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: line.lonlat } },
@@ -113,16 +145,16 @@ const Nez = {
 
     /** Source du sol et écart de sol aux deux poignées (« sol LiDAR HD : −8 cm à gauche, +3 cm à droite »). */
     function groundText() {
-      if (line.sol_en_lecture) return "relief en lecture…";
+      if (line.sol_en_lecture) return "sol plat (relief non arrivé)";
       if (!line.sol_dz) return `sol ${line.sol}`;
       return `sol ${line.sol} : ${signed(groundAt(handles.gauche) * 100)} à gauche, ${signed(groundAt(handles.droit) * 100)} à droite`;
     }
 
     const roundUp05 = (value) => Math.max(0.05, Math.ceil(value / 0.05 - 1e-9) * 0.05);
 
-    /** Source de l'inclinaison de la photo, discrète : rien tant que les verticales sont en calcul (la droite est refaite à leur arrivée). */
+    /** Source de l'inclinaison de la photo, discrète ; provisoire seulement si le délai d'attente a écoulé avant l'arrivée des verticales. */
     function tiltText() {
-      if (line.inclinaison_en_calcul) return "inclinaison en calcul…";
+      if (line.inclinaison_en_calcul) return "inclinaison provisoire (verticales non arrivées)";
       const source = line.inclinaison_source;
       if (!source || source === "aucune") return "";
       return `inclinaison : ${source}${line.inclinaison_sigma ? ` ±${line.inclinaison_sigma.toFixed(1).replace(".", ",")}°` : ""}`;
@@ -140,6 +172,11 @@ const Nez = {
         text.textContent = line?.error || "Droite indisponible.";
         return;
       }
+      if (!shown()) {
+        text.textContent = "Calcul de la droite…";  // position pas encore définitive : rien n'est tracé
+        readout.title = "";
+        return;
+      }
       const left = -handles.gauche, right = handles.droit;
       const uncertainty = roundUp05(Math.hypot(sigma(left), sigma(right)));
       text.textContent = `Gauche ${metres(left)} · Droite ${metres(right)} · Largeur ${metres(left + right)}`
@@ -147,6 +184,7 @@ const Nez = {
       const tilt = tiltText();
       if (tilt) text.textContent += ` · ${tilt}`;
       text.textContent += ` · ${groundText()}`;
+      if (line.voisines === false) text.textContent += " · axe de la photo seule (voisines non arrivées)";
       readout.title = `Distance latérale de chaque bord à la caméra, lue sur la droite au sol à ${metres(line.d, 1)} devant elle `
         + `(${line.sol_dz ? `relief du MNT ${line.sol}` : "sol plat"}). Hauteur de la caméra ${metres(line.hauteur)}${line.hauteur_source ? ` (${line.hauteur_source})` : ""}`
         + `${line.inclinaison_source === "roulis de campagne" ? `, roulis de la campagne ${line.roulis_campagne}°` : ""}. Expérimental : rien n'est retenu.`;
@@ -156,7 +194,7 @@ const Nez = {
     function draw() {
       showReadout();
       drawMap();
-      if (!line || line.error) return Traits.setExtra();
+      if (!shown()) return Traits.setExtra();
       Traits.attach(etat.psv);
       const at = locate;
       // droite tracée seulement entre les poignées : points du tableau strictement entre elles, bouts interpolés par locate
@@ -193,7 +231,7 @@ const Nez = {
 
     /** Poignée à HANDLE_PX px au plus du point (x, y) de la visionneuse (la plus proche), ou null. */
     function handleAt(x, y) {
-      if (!line || line.error) return null;
+      if (!shown()) return null;
       let best = null, bestD = HANDLE_PX;
       for (const side of ["gauche", "droit"]) {
         const s = screenOf(...locate(handles[side]));
@@ -207,6 +245,9 @@ const Nez = {
      * projeté sur les segments entre points consécutifs du tableau (ceux devant la caméra), le décalage interpolé au point
      * projeté. null si aucun segment n'est visible. */
     function nearestOffset(side, x, y) {
+      // bornes : de son côté du droit de la caméra, jamais au-delà de la portée de la droite ni à moins de MIN_GAP de l'autre poignée
+      const low = side === "gauche" ? -line.reach : handles.gauche + MIN_GAP;
+      const high = side === "gauche" ? handles.droit - MIN_GAP : line.reach;
       let best = null, bestD = Infinity, previous = null;
       for (const [o, yaw, pitch] of line.points) {
         if (side === "gauche" ? o > -MIN_OFFSET : o < MIN_OFFSET) {
@@ -223,7 +264,7 @@ const Nez = {
         }
         previous = current;
       }
-      return best;
+      return best === null ? null : Math.max(low, Math.min(high, best));
     }
 
     const local = (event) => {
@@ -238,7 +279,7 @@ const Nez = {
     }
 
     function onDown(event) {
-      if (!line || line.error || (event.pointerType === "mouse" && event.button !== 0)) return;
+      if (!shown() || (event.pointerType === "mouse" && event.button !== 0)) return;
       const side = handleAt(...local(event));
       if (!side) return;
       event.stopImmediatePropagation();  // la visionneuse ne tourne pas, ne mesure pas
@@ -251,7 +292,7 @@ const Nez = {
     }
 
     function onMove(event) {
-      if (!line || line.error) return;
+      if (!shown()) return;
       if (!drag) {
         setCursor(Boolean(handleAt(...local(event))));
         return;
@@ -282,7 +323,7 @@ const Nez = {
     /** mousedown et touchstart sur une poignée : la visionneuse ne les voit pas (elle y verrait le début d'une rotation). */
     function onLegacyDown(event) {
       const t = event.touches ? event.touches[0] : event;
-      if (t && line && !line.error && handleAt(...local(t))) event.stopImmediatePropagation();
+      if (t && shown() && handleAt(...local(t))) event.stopImmediatePropagation();
     }
 
     function bind() {
@@ -322,23 +363,29 @@ const Nez = {
       raw = null;
       photoId = etat.photo.id;
       etat.app.birdeye_request();  // verticales de la photo (même calcul que la vue du dessus) ; la droite est refaite à leur arrivée
+      restartWait();
       load();
       reset();
       bind();
       button.setAttribute("aria-pressed", "true");
+      settle();
       draw();
       waitNeighbours(photoId);
     }
 
     /** Voisines de la photo (précédente, suivante) ou relief du MNT pas encore arrivés : la droite en dépend (axe de la séquence, sol). Nouvel essai toutes
-     * les 0,3 s, au plus 12 s (deux lectures du MNT de 5 s au plus), tant que la photo est la même ; droite et tracés refaits si elle a changé, bords gardés. */
-    function waitNeighbours(id, left = 40) {
+     * les 0,3 s tant qu'une attente est en cours et que le délai (WAIT_MAX) n'est pas écoulé, et que la photo est la même ; la droite n'est tracée
+     * qu'une fois définitive (shown), bords gardés. */
+    function waitNeighbours(id) {
       clearTimeout(waiting);
-      if (!active || left <= 0 || !line || line.error || (line.voisines !== false && !line.sol_en_lecture)) return;
+      if (!active || expired || !pending()) return;
       waiting = setTimeout(() => {
         if (!active || !available() || etat.photo.id !== id) return;
-        if (load()) draw();
-        waitNeighbours(id, left - 1);
+        if (load()) {
+          settle();
+          draw();
+        }
+        waitNeighbours(id);
       }, 300);
     }
 
@@ -346,6 +393,7 @@ const Nez = {
       active = false;
       clearTimeout(retry);
       clearTimeout(waiting);
+      restartWait();
       drag = null;
       unbind();
       raw = line = null;
@@ -368,8 +416,11 @@ const Nez = {
       if (etat.photo.id !== photoId) {
         photoId = etat.photo.id;
         etat.app?.birdeye_request();
+        drag = null;
+        restartWait();
         load();
         reset();
+        settle();
         draw();
         waitNeighbours(photoId);
       }
@@ -384,7 +435,9 @@ const Nez = {
         const hadError = !line || line.error;
         if (!load()) return;
         if (hadError) reset();  // droite arrivée après une erreur (calcul en chargement) : bords de départ
+        settle();  // nouvelle attente (verticales relancées par des clics) : droite masquée jusqu'à sa position définitive
         draw();
+        waitNeighbours(photoId);
       }, 300);
     }
 
