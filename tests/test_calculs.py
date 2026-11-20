@@ -161,7 +161,8 @@ class VueDessus(unittest.TestCase):
 
     def test_pont_monture_cd21(self):
         """CD21 sur un pont, hauteur de séquence inconnue : monture d'après la date de prise de vue, pas le réglage
-        (1,90 m par défaut : bandes de passage piéton à 0,44 m, f2a245d0 et 7dcdccf9) ; date hors campagne : le réglage."""
+        (1,90 m par défaut : bandes de passage piéton à 0,44 m, f2a245d0-aeea-4249-ba9c-fad83b442a23 et
+        7dcdccf9-3c52-4c54-bc5b-de72740a7967) ; date hors campagne : le réglage."""
         def pose_on(date):
             a = self.app_on(360)
             a.item["providers"] = [{"id": App.FLEET_PRODUCER}]
@@ -485,7 +486,7 @@ class BordsCas(unittest.TestCase):
 class BordsBombement(unittest.TestCase):
     """Profil depuis la caméra, dans sa voie à 1,75 m à droite de l'axe : de l'autre côté, la recherche du bord franchit le
     sommet du bombement ou le changement de dévers d'une voie à l'autre, qu'elle prenait pour le bord (piste P16 ; D104
-    a04557c8, D70 229abfcd)."""
+    a04557c8-3b4d-4184-8b3e-ff7ed9fa4197, D70 229abfcd-868c-4eca-bfc1-3979ca94d28f)."""
 
     @staticmethod
     def left(res):
@@ -516,7 +517,8 @@ class BordsBombement(unittest.TestCase):
         res = edges_on(self.ditch(lambda x: -0.045 * abs(x + 1.5), 2.5, axis=-1.5), width=5.0, axis_x=-1.5)
         self.assertEqual(self.left(res)["bord"], 4.0)
 
-    def test_plus_large_que_la_bd_topo(self):  # D70 229abfcd : 5 m BD TOPO, 12 m réels, fossé en V court : bord à 7,5 m
+    # D70 229abfcd-868c-4eca-bfc1-3979ca94d28f : 5 m BD TOPO, 12 m réels, fossé en V court : bord à 7,5 m
+    def test_plus_large_que_la_bd_topo(self):
         def z(x, y):
             a = abs(x + 1.5)
             if a <= 6.0:
@@ -525,8 +527,9 @@ class BordsBombement(unittest.TestCase):
         res = edges_on(z, width=5.0, axis_x=-1.5)
         self.assertEqual(self.left(res)["bord"], 7.5)
 
-    # Travers relevés (MNT LiDAR HD, côté opposé à la caméra), bord d'enrobé de l'analyse fine : D24 556607c2 (4,11 m), D17
-    # ab10b6f3 (3,49 m) ; le bord du relief tombait sur la chaussée (1,5 et 2 m)
+    # Travers relevés (MNT LiDAR HD, côté opposé à la caméra), bord d'enrobé de l'analyse fine : D24
+    # 556607c2-418b-4878-848b-c9eaa438f820 (4,11 m), D17
+    # ab10b6f3-30af-4a2f-a950-1e6930dd4555 (3,49 m) ; le bord du relief tombait sur la chaussée (1,5 et 2 m)
     D24 = ((0, 197.95), (0.5, 197.96), (1, 198.02), (1.5, 198.02), (2, 198.1), (2.5, 198.1), (3, 198.12), (3.5, 198.09), (4, 198.13),
            (4.5, 198.11), (5, 198.03), (5.5, 197.86), (6, 197.36), (6.5, 197.36), (7, 197.5), (7.5, 197.53), (8, 197.53), (8.5, 197.54),
            (9, 197.54), (9.5, 197.51), (10, 197.5), (10.5, 197.52), (11, 197.52), (11.62, 197.51))

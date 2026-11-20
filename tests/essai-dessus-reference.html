@@ -26,7 +26,7 @@ const QUICK = new Set(["A38", "ville", "D33 du 04/07"]);
 // #photo=<id> : une autre photo seule (cas signalé), avec la carte des photos qui fournissent chaque point
 const ONE = location.hash.match(/^#photo=([\w-]+)/)?.[1];
 // #photo=<id>&seule : photo seule (« Véhicule masqué » éteint, sans voisines ni raccords), vue déposée aussitôt, sans les autres contrôles : coup d'œil
-// rapide sur les bords (tools/dessus-bords.py), la photo vue seule suffit entre ±5 m
+// rapide sur les bords (capture déposée sous /capture/dessus-seule-<id>.png), la photo vue seule suffit entre ±5 m
 const ALONE = Boolean(ONE) && location.hash.includes("&seule");
 const REFERENCES = ONE ? [["photo", ONE]] : location.hash === "#rapide" ? ALL_REFERENCES.filter(([name]) => QUICK.has(name)) : ALL_REFERENCES;
 // Écart à l'orthophoto attendu (m) : position calée au-delà de 30 cm, GPS gardé en deçà
@@ -72,7 +72,7 @@ async function open(id, enough = () => false) {
     const shown = await open(id, (state) => ONLY_SHIFT.has(name) && /position (calée|GPS gardée)/.test(state));
     if (!shown) { await expect(`${name} : vue du dessus disponible`, false); continue; }
     if (ALONE) {
-      await log(`${name} (${id.slice(0, 8)}, ${shown.times || "délai dépassé"}) : ${shown.state}`);
+      await log(`${name} (${id}, ${shown.times || "délai dépassé"}) : ${shown.state}`);
       if (shown.blob()) await fetch(`/capture/dessus-seule-${id}.png`, { method: "POST", body: shown.blob() });
       await expect(`${name} : vue de la photo seule déposée`, Boolean(shown.blob()));
       continue;
@@ -85,7 +85,7 @@ async function open(id, enough = () => false) {
     const level = (l) => ({ ...l, pose: { ...l.pose, groundTilt: false } });
     const parallax = now.terrain ? Dessus.estimateHeight(level(main), others.map(level), now.terrain) : null;
     const read = parallax && parallax.reduce((a, b) => a + b, 0) / parallax.length;
-    await log(`${name} (${id.slice(0, 8)}, ${shown.times || "délai dépassé"}) : ${state}`);
+    await log(`${name} (${id}, ${shown.times || "délai dépassé"}) : ${state}`);
     await log(`  ${now.layers.length} photo(s), caméra ${number(pose.height)} m, décalage ${parallax ? parallax.map((v) => number(v)).join(" / ") : "-"} m, `
       + `inclinaison ${pose.groundTilt ? "de la route" : pose.up ? "des verticales" : "aucune"} (avant ${number(forward)}°, droite ${number(right)}°, ±${number(pose.sigma, 1)}°)`);
     if (shown.partial) {

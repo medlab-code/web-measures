@@ -108,7 +108,7 @@ def _category(lon, lat):
 
 
 def categories(ids):
-    """Catégorie de la route sous chaque photo (8 premiers caractères de l'identifiant), lue une fois puis gardée."""
+    """Catégorie de la route sous chaque photo (identifiant complet), lue une fois puis gardée."""
     known = json.loads(CACHE.read_text()) if CACHE.exists() else {}
     for pid in ids:
         if pid in known or len(pid) < 36:  # identifiant complet seulement (anciens relevés : 8 caractères)

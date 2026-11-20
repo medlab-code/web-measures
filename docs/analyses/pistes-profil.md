@@ -42,7 +42,7 @@ Ordre proposé le 17/11 : P1, P2, P3, P4, P5, P6. P5 a été faite puis retirée
 - **Piste** : une marque visible sur le graphique, avec l'invitation à lancer l'analyse fine seulement dans ce cas.
 - **Gain** : on voit quand le chiffre est une hypothèse.
 
-**P5. Analyse fine : lire moins de blocs.** *Faite puis retirée le 17/11/2026 à la demande de l'auteur ; remise le 19/11/2026 après la réanalyse (voir « Ce que deviennent P1 à P6 »). Même résultat sur les 3 photos de `essai-nuage` (points du sol, bords et largeur d'enrobé, séparateur, eau, plateforme) ; requêtes 18 → 11, 26 → 11, 15 → 9, durée 19 → 11 s, 28 → 11 s, 15 → 9 s (A38 61dd94c4, RD903bis 1640bc3f, RD700 067e83ca).*
+**P5. Analyse fine : lire moins de blocs.** *Faite puis retirée le 17/11/2026 à la demande de l'auteur ; remise le 19/11/2026 après la réanalyse (voir « Ce que deviennent P1 à P6 »). Même résultat sur les 3 photos de `essai-nuage` (points du sol, bords et largeur d'enrobé, séparateur, eau, plateforme) ; requêtes 18 → 11, 26 → 11, 15 → 9, durée 19 → 11 s, 28 → 11 s, 15 → 9 s (A38 61dd94c4-e5d1-4eb0-9762-73a72f18b5cb, RD903bis 1640bc3f-e948-4239-a4c1-548dd748a16d, RD700 067e83ca-a3d8-4f2a-bbe6-0c10df70fc96).*
 - **Avant** : elle lit les blocs qui touchent un carré de 68 m de côté. `download` attend 1,1 s entre deux requêtes : 12 à 28 s
   pour 12 à 26 requêtes (journaux de `tests/essai-nuage.html`).
 - **Problème** : seule une bande sert (±34 m en travers, ±5 m le long de la route : travers voisins `PAVED_STEPS` et `STRIP`).
@@ -51,9 +51,9 @@ Ordre proposé le 17/11 : P1, P2, P3, P4, P5, P6. P5 a été faite puis retirée
 - **Fait puis retiré** (17/11/2026, commits 1ea0270 et 7910c5b ; code : `Nuage.stripTest`, `nodesIn(tile, box, strip)`). **Vérifié** le même jour, ancien et nouveau code chacun sur un
   cache vide, l'objet complet rendu par `Nuage.analyse` comparé (cases, lignes, herbe, séparateur, bords, largeur, végétation, eau) :
   identique sur 5 photos. Requêtes 26 → 11, 15 → 11, 15 → 10, 24 → 16, 12 → 12 ; durée 28 → 11 s, 16 → 11 s, 16 → 10 s, 26 → 18 s,
-  12 → 12 s ; octets lus −56 %, −29 %, −32 %, −26 %, 0 (RD903bis, A38 66d45404, RD 1074, D33, petite RD). Pas de gain quand la route
+  12 → 12 s ; octets lus −56 %, −29 %, −32 %, −26 %, 0 (RD903bis, A38 66d45404-a22d-4b07-8bc8-1f3edcdf1b8a, RD 1074, D33, petite RD). Pas de gain quand la route
   traverse peu de blocs hors de la bande. Deux photos non comparées d'un code à l'autre (échec réseau ponctuel d'un côté, délai de
-  l'autre) : A38 61dd94c4 et RD700, où seuls les points du sol et la largeur d'enrobé l'ont été (essai-nuage, mêmes valeurs).
+  l'autre) : A38 61dd94c4-e5d1-4eb0-9762-73a72f18b5cb et RD700, où seuls les points du sol et la largeur d'enrobé l'ont été (essai-nuage, mêmes valeurs).
   Contrôle de la bande dans `tests/essai-nuage.html` (retiré avec le code ; à retrouver dans 1ea0270).
 - **Point à surveiller** : le niveau de blocs lus dépend du plus profond trouvé (`deepest`), maintenant calculé dans la bande et non
   dans le carré ; si le carré avait un bloc plus profond hors de la bande, l'ancien code lisait des blocs plus profonds, le nouveau des
@@ -79,7 +79,7 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
   consensus. La piste reste la première à faire : ce banc vient de montrer P7, P8, P9 et P10.
 - **P2** : toujours valable, et devient la référence pour valider P7 et P8 sur des routes réelles (bord d'enrobé du nuage contre
   bord du relief). *Début le 19/11/2026 sur les 3 photos communes à `essai-bords` et `essai-nuage` : le bord du relief est au-delà
-  de l'enrobé (accotement compris) de 0,2 à 7 m, sauf à droite de l'A38 61dd94c4 (relief 3,0 m, enrobé 4,8 m : rupture de dévers
+  de l'enrobé (accotement compris) de 0,2 à 7 m, sauf à droite de l'A38 61dd94c4-e5d1-4eb0-9762-73a72f18b5cb (relief 3,0 m, enrobé 4,8 m : rupture de dévers
   sur la bande d'arrêt d'urgence, cas noté dans `nuage.js`). Le bord du relief n'est donc pas le bord d'enrobé : P2 vérifie qu'il
   n'est pas dedans (une erreur) ; elle ne valide pas le dévers, qu'il faudrait comparer à des talus mesurés.*
   *Faite le 19/11/2026 sur les 33 photos des pages d'essai (page temporaire, bords du calcul puis analyse fine sans les
@@ -87,15 +87,15 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
   bords existent (relief et enrobé).*
   - *14 côtés sur 24 : bord du relief au bord de l'enrobé ou au-delà (accotement), jusqu'à 7 m sur les chaussées séparées (herbe
     plate jusqu'au talus, comptée dans la plateforme).*
-  - *4 côtés à 0,8-1 m en deçà de l'enrobé (D977BIS 1108ca14 et cd8cf3a0 à gauche, D1074 6d99cba2 et D700 d63ace61 à droite) :
+  - *4 côtés à 0,8-1 m en deçà de l'enrobé (D977BIS 1108ca14-6669-49e8-a26a-955becc79e81 et cd8cf3a0-6567-40f0-8805-94172a5dfc3c à gauche, D1074 6d99cba2-2284-4215-a3fb-1fd390353005 et D700 d63ace61-7261-4acb-93f9-788aed29cb23 à droite) :
     le terrain y fait une marche ou un caniveau, le bord du relief est à son pied ; l'enrobé du nuage compte sa partie en pente.
     Plausible des deux côtés.*
-  - *2 côtés A38 (61dd94c4 à droite, 66d45404 à gauche, 0,8-0,9 m) : rupture de dévers sur la bande d'arrêt d'urgence.*
-  - *3 côtés de l'autre côté de l'axe que la caméra : D70 229abfcd à gauche (bord à 2 m, enrobé à 6,5 m : 3 % sous la caméra,
-    8 % sur l'autre voie), D104 a04557c8 à gauche (2 m contre 3 m : sommet du bombement), D119M f533e240 à gauche (4 m contre
+  - *2 côtés A38 (61dd94c4-e5d1-4eb0-9762-73a72f18b5cb à droite, 66d45404-a22d-4b07-8bc8-1f3edcdf1b8a à gauche, 0,8-0,9 m) : rupture de dévers sur la bande d'arrêt d'urgence.*
+  - *3 côtés de l'autre côté de l'axe que la caméra : D70 229abfcd-868c-4eca-bfc1-3979ca94d28f à gauche (bord à 2 m, enrobé à 6,5 m : 3 % sous la caméra,
+    8 % sur l'autre voie), D104 a04557c8-3b4d-4184-8b3e-ff7ed9fa4197 à gauche (2 m contre 3 m : sommet du bombement), D119M f533e240-7d37-40ef-babc-1d37140dc5d2 à gauche (4 m contre
     8,1 m, points non relus). La recherche du bord franchit l'axe et prend le changement de dévers d'une voie à l'autre pour le
     bord : voir P16.*
-  - *1 côté à 0,45 m en deçà (D119M f533e240 à droite).*
+  - *1 côté à 0,45 m en deçà (D119M f533e240-7d37-40ef-babc-1d37140dc5d2 à droite).*
   - *Bord BD TOPO (rien dans le relief) : 3 côtés, tous dans l'enrobé, de 0,3 à 2 m (largeurs BD TOPO trop faibles) : voir P17.*
 - **P3** : confirmé (largeur d'enrobé seulement dans la légende, exports PNG et PDF seulement).
 - **P4** : l'« Avant » est inexact : l'origine du bord est aussi écrite sur le graphique, sous « bord » (`profil.js:378`). Reste vrai
@@ -121,7 +121,7 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
   routes réelles avec P2 (le MNT lisse les ruptures : l'écart réel peut différer).
 - **Gain** : largeur de plateforme juste à ±0,25 m près au lieu d'un biais de −1 m.
 
-**P8. Dévers du talus sous-estimé.** *Faite le 19/11/2026 : haut avancé tant que le pas descend de moins de 5 %, pied au premier point à 5 cm du plus bas (`_taluses`, `EDGE_FLAT`), test `BordsTalus`. Terrain synthétique : dévers exact (50, 20, 100 %) ; avec 3 à 5 cm de bruit, 52 % pour 50 %, 22 % pour 20 %, 101 % pour 100 % (avant 39 %, 20 %, 75 %). Photos de `essai-bords` : chutes inchangées, dévers de 3 à 26 points plus forts (RD903bis 1640bc3f : 25 → 51 % sans analyse fine, 34 → 47 % avec ; la droite du talus va maintenant de la cassure au pied, vérifié sur l'image du profil).*
+**P8. Dévers du talus sous-estimé.** *Faite le 19/11/2026 : haut avancé tant que le pas descend de moins de 5 %, pied au premier point à 5 cm du plus bas (`_taluses`, `EDGE_FLAT`), test `BordsTalus`. Terrain synthétique : dévers exact (50, 20, 100 %) ; avec 3 à 5 cm de bruit, 52 % pour 50 %, 22 % pour 20 %, 101 % pour 100 % (avant 39 %, 20 %, 75 %). Photos de `essai-bords` : chutes inchangées, dévers de 3 à 26 points plus forts (RD903bis 1640bc3f-e948-4239-a4c1-548dd748a16d : 25 → 51 % sans analyse fine, 34 → 47 % avec ; la droite du talus va maintenant de la cassure au pied, vérifié sur l'image du profil).*
 - **Avant** : `_taluses` prend la pente moyenne du haut au pied ; le haut est au plus tôt le bord (P7), le pied est le point le plus
   bas jusqu'au bout de la dernière fenêtre de 2 m en pente.
 - **Problème** : sur terrain exact, un talus de 1 m à 50 % sort à 33 %, à 20 % sort à 17 %, à 100 % (2 m) sort à 67 %, et un
@@ -131,7 +131,7 @@ du banc de terrain synthétique des tests (`_compute_edges` avec `_terrain` remp
   chute), ou droite ajustée sur le cœur du talus (pentes ≥ `EDGE_CORE` de la plus forte). Cas tests : les quatre talus ci-dessus.
 - **Gain** : dévers juste à quelques points près sur talus net.
 
-**P9. Chute surestimée par le bruit du terrain.** *Mesurée le 19/11/2026, pas de correction. Bruit réel du MNT LiDAR HD sur chaussée (grille de 12 × 12 points tous les 0,5 m sous 3 photos d'essai, 1640bc3f, 61dd94c4, 067e83ca) : 0,7 à 1,0 cm d'un point au suivant, 1,0 à 1,5 cm d'écart à un plan. À ce bruit, la chute d'un fossé de 1 m sort à 1,03-1,04 m (au plus 1,09 m), 1,06 m à 2 cm : sous l'incertitude affichée (±0,1 m) et l'arrondi au décimètre. Le maximum (« cas le plus défavorable ») est gardé. Hors chaussée, le terrain varie de 3 à 5 cm d'un point au suivant (médiane, voir P14) : en partie du relief réel (sillons,
+**P9. Chute surestimée par le bruit du terrain.** *Mesurée le 19/11/2026, pas de correction. Bruit réel du MNT LiDAR HD sur chaussée (grille de 12 × 12 points tous les 0,5 m sous 3 photos d'essai, 1640bc3f-e948-4239-a4c1-548dd748a16d, 61dd94c4-e5d1-4eb0-9762-73a72f18b5cb, 067e83ca-a3d8-4f2a-bbe6-0c10df70fc96) : 0,7 à 1,0 cm d'un point au suivant, 1,0 à 1,5 cm d'écart à un plan. À ce bruit, la chute d'un fossé de 1 m sort à 1,03-1,04 m (au plus 1,09 m), 1,06 m à 2 cm : sous l'incertitude affichée (±0,1 m) et l'arrondi au décimètre. Le maximum (« cas le plus défavorable ») est gardé. Hors chaussée, le terrain varie de 3 à 5 cm d'un point au suivant (médiane, voir P14) : en partie du relief réel (sillons,
 mottes), qui compte dans une chute ; si c'était du bruit, la chute serait majorée de 10 à 15 cm. À trancher seulement avec des
 fossés mesurés sur le terrain.*
 - **Avant** : la chute est le plus grand écart entre le bord et le point le plus bas, sur tous les points et les 5 travers (« le
@@ -152,7 +152,7 @@ fossés mesurés sur le terrain.*
   sur le code actuel.
 - **Gain** : on sait d'où vient chaque bord.
 
-**P11. Calcul des bords refait à chaque rafraîchissement.** *Mesurée le 19/11/2026, pas de changement : dans la page (Chrome, Pyodide), `fall_json` prend 1 ms une fois le profil calculé (Pouilly cd8cf3a0, RD903bis 1640bc3f), 13 ms sur l'A38 61dd94c4 (chaussées séparées, beaucoup de tronçons) ; 9 à 13 000 caractères relus en moins de 0,1 ms. Moins d'une image d'écran, à chaque clic seulement.*
+**P11. Calcul des bords refait à chaque rafraîchissement.** *Mesurée le 19/11/2026, pas de changement : dans la page (Chrome, Pyodide), `fall_json` prend 1 ms une fois le profil calculé (Pouilly cd8cf3a0-6567-40f0-8805-94172a5dfc3c, RD903bis 1640bc3f-e948-4239-a4c1-548dd748a16d), 13 ms sur l'A38 61dd94c4-e5d1-4eb0-9762-73a72f18b5cb (chaussées séparées, beaucoup de tronçons) ; 9 à 13 000 caractères relus en moins de 0,1 ms. Moins d'une image d'écran, à chaque clic seulement.*
 - **Avant** : `refresh` appelle `fall_json` à chaque fois (`app.js:701`). Sur une photo dont le profil est calculé, `_edges` refait
   la fusion des 9 mailles, la projection de tous les tronçons, `_chained`, la liste des autres chaussées et `_water_across`, puis
   le profil (environ 350 points) passe en JSON et est relu par la page.
@@ -204,8 +204,8 @@ rejoués avec des variantes de réglages. 42 photos complètes (6 sur une autre 
 manquantes), 61 côtés hors chaussées séparées. Bords sur l'enrobé (à plus de 0,25 m en deçà) : 28 (45 %) avant, 25 (40 %) après,
 aucun côté dégradé. Écartés : la marche « nette » partout (séparateur de la D1074 perdu, bords côté caméra de la RD903bis et de la
 RD700 reculés à 2 m : bordures et séparateurs sont adoucis par le MNT) ; une marche de 8 cm au lieu de 5 (34 % sur le banc, mais
-mêmes pertes sur `essai-bords`). Restent sur l'enrobé : des marches de 6-7 cm dans l'autre voie (D70 229abfcd, D965 67e087a0 :
-ornières, joints ou reprises, nettes et réelles), des bombements à plus de 1,25 m de l'axe BD TOPO (D115, D70 8d02bc6c : axe mal
+mêmes pertes sur `essai-bords`). Restent sur l'enrobé : des marches de 6-7 cm dans l'autre voie (D70 229abfcd-868c-4eca-bfc1-3979ca94d28f, D965 67e087a0-ba74-42a4-b71f-2d063492b72e :
+ornières, joints ou reprises, nettes et réelles), des bombements à plus de 1,25 m de l'axe BD TOPO (D115, D70 8d02bc6c-a3a9-444e-b005-e24f8a52177f : axe mal
 placé), et 10 replis BD TOPO (P17).*
 - **Avant** : profil depuis la caméra (séquence RTK) : du côté opposé à sa voie, la recherche du bord part de la caméra, avec la
   pente de sa voie comme référence, et traverse l'axe.
@@ -218,7 +218,7 @@ placé), et 10 replis BD TOPO (P17).*
 - **Gain** : bord juste du côté opposé, le plus souvent faux aujourd'hui quand le bombement est marqué.
 
 **P17. Largeur BD TOPO trop faible quand le relief ne dit rien.** *Mesurée sur le banc de P16 : 7 replis sur 61 côtés, de 2 m en deçà de l'enrobé en
-médiane (jusqu'à 9 m : M996 6eea86cc, 10,5 m d'enrobé). Faite le 19/11/2026 selon la règle de l'auteur (« la BD TOPO n'est pas
+médiane (jusqu'à 9 m : M996 6eea86cc-4c40-4395-9686-2418892bfa82, 10,5 m d'enrobé). Faite le 19/11/2026 selon la règle de l'auteur (« la BD TOPO n'est pas
 fiable pour les largeurs, elle sert juste à qualifier en grandes catégories ») : la largeur BD TOPO n'est qu'une valeur par
 importance (7, 5,5, 4 m), trop faible ; remplacée dans les bords de route par une largeur type par importance, médiane de l'enrobé
 mesuré (9 m en 1-2, 6,5 m en 3, 6 m en 4, 3,5 m en 5, 7 m par chaussée séparée ; `_road_width`), pour la portée de la recherche,
@@ -245,7 +245,7 @@ largeur BD TOPO (hors du mode profil).*
 - **Problème** : pour un audit de sécurité, une chute derrière une glissière n'est pas une chute libre.
 - **Piste** : dans l'analyse fine, points hors sol (classe à vérifier : non classés ou « sursol pérenne ») alignés le long du bord à
   0,5-1 m de haut : « glissière probable » près de la chute. D'abord vérifier leur classe sur des glissières connues (A38, RD700
-  067e83ca).
+  067e83ca-a3d8-4f2a-bbe6-0c10df70fc96).
 - **Gain** : la chute dit si elle est protégée.
 
 **P20. Bord du tablier d'après la BD TOPO (chute sur un pont, voie de secours).** *Faite le 19/11/2026, à la demande de l'auteur

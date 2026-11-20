@@ -44,7 +44,7 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
    la caméra le déplace de `d × Δz / H`, soit 8 cm à 5 m : sans lissage, les lignes droites ondulent. La pente, le dévers,
    le bombement et les caniveaux restent ; un dos-d'âne est adouci. Lissés aussi en travers (jusqu'au 14/11/2026), le
    bombement et les caniveaux d'une rue disparaissaient : milieu 3 à 5 cm trop bas, caniveaux 7 à 9 cm trop haut, bouts
-   des bandes d'un passage piéton à 5 m décalés de 30 cm (`57c93b75`). L'inclinaison et la hauteur de la route sous le véhicule (point 2)
+   des bandes d'un passage piéton à 5 m décalés de 30 cm (`57c93b75-964f-4645-9a9f-5a9000d549ca`). L'inclinaison et la hauteur de la route sous le véhicule (point 2)
    gardent le terrain lissé sur 2 m dans les deux sens, comme le tangage lu sur les lignes : le bombement y penchait le
    plan sous le véhicule (roulis restant de −1,4 à 0,05°, bandes à 0,513 m au lieu de 0,508 m, calage par la route).
 2. La caméra est posée à sa hauteur au-dessus du plan de la route sous le véhicule (moyenne du terrain sur
@@ -86,7 +86,7 @@ suffisante et quatre fois moins coûteuse.
 **Pourquoi :** l'ellipse au sol d'avant (corps ±4,5 × ±2,5 m, reflets jusqu'à ±5,8 × ±2,9 m) laissait passer des
 morceaux de carrosserie (rétroviseurs, A38) et remplaçait du sol bien vu par la photo affichée ; un contour fixe par
 monture en laissait passer sur un autre montage (15/07/2025). Sans la pénalité près
-du véhicule des voisines, leur ombre portée faisait des taches sombres (ville d946f2cf). Reste visible : objets en
+du véhicule des voisines, leur ombre portée faisait des taches sombres (ville d946f2cf-cddc-4476-a414-35aee429c05a). Reste visible : objets en
 relief (bordures) coupés au bord du masque, légère différence de teinte dessous.
 
 ## 3. D'où viennent les erreurs
@@ -204,7 +204,7 @@ c'est ce que corrigent les raccords (§ 4.3).
    d'après la date de prise de vue (`App.FLEET_MOUNTS`, 1,93 m avant le 01/07/2025, 2,07 m ensuite, ±4 cm) ; hors de ces
    dates, la plus proche de la hauteur lue, même avec l'inclinaison de la route quand les photos n'ont pas de verticales
    (les deux concordent au cm près là où elles existent). La date d'abord depuis le 13/11/2026 : la hauteur lue se joue à
-   quelques cm du seuil de 2,00 m (f2a245d0, 07/07/2025 : 2,03 ou 1,98 m selon le terrain ; cefbd9bd à 2,007 m, 09c2e813
+   quelques cm du seuil de 2,00 m (f2a245d0-aeea-4249-ba9c-fad83b442a23, 07/07/2025 : 2,03 ou 1,98 m selon le terrain ; cefbd9bd-419b-4093-ab61-374b9b794c50 à 2,007 m, 09c2e813-8426-49cf-8029-bc2f3d511f40
    à 1,968 m). Sur les 17 passages piétons : bandes par les verticales à 2,6 % de 0,50 m en médiane (3,2 % avant), 13,2 %
    à 95 % (16,2 %) ; par la route, 5,0 % (4,8 %), deux vues de plus, mesurées sur le tablier plat d'un pont. Relevé du 08/11/2026 sur 36 vues :
    1,90 à 1,95 m du 28/05 au 23/06/2025, 2,05 à 2,07 m le 03/07 (2,15 le 07/07, dispersé en octobre) ; l'altitude RTK moins

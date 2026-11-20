@@ -642,7 +642,7 @@ maillage de 1 m suit le MNT LiDAR HD lissé sur 2 m le long de la route et 0,5 m
 photo. Lissage (`smoothTerrain`, 08/11/2026) : sur l'A38 (`f9f83571`), le MNT s'écarte d'une surface lisse de 1,7 cm
 (écart type, 5 cm au plus) sous la chaussée, et la rive, à 5 m de la caméra, ondulait de 3,5 cm (13,7 au plus) ; lissé,
 0,4 cm (0,8 au plus). Largeurs entre lignes comparées à l'orthophoto (22 vues, 2 500 largeurs) : écart médian 1,93 %
-sans lissage, 1,85 % avec ; variation d'une même largeur le long de la route 0,49 puis 0,29 %. Lissage seulement le long de la route depuis le 14/11/2026 : lissés aussi en travers, le bombement et les caniveaux d'une rue (1 m de large, 15 à 19 cm de creux) disparaissaient, et les bouts des bandes d'un passage piéton à 5 m dérivaient de 30 cm (`57c93b75`, ville : écart au LiDAR brut de 4,5 à 2,6 cm, écart milieu-caniveau de 11 à 2,5 cm). L'inclinaison et la hauteur de la route sous le véhicule, et le tangage lu sur les lignes, gardent le lissage sur 2 m dans les deux sens. Chaque point y reçoit le pixel qui le voit, inclinaison et cap de la séquence compris
+sans lissage, 1,85 % avec ; variation d'une même largeur le long de la route 0,49 puis 0,29 %. Lissage seulement le long de la route depuis le 14/11/2026 : lissés aussi en travers, le bombement et les caniveaux d'une rue (1 m de large, 15 à 19 cm de creux) disparaissaient, et les bouts des bandes d'un passage piéton à 5 m dérivaient de 30 cm (`57c93b75-964f-4645-9a9f-5a9000d549ca`, ville : écart au LiDAR brut de 4,5 à 2,6 cm, écart milieu-caniveau de 11 à 2,5 cm). L'inclinaison et la hauteur de la route sous le véhicule, et le tangage lu sur les lignes, gardent le lissage sur 2 m dans les deux sens. Chaque point y reçoit le pixel qui le voit, inclinaison et cap de la séquence compris
 (rotation identique à `Calibration.uncorrect`). Image affichée de 2 048 px (1,5 cm par pixel, carte zoomable
 jusqu'à 0,6 cm par pixel) ; les calculs (hauteur, raccords, position) gardent 1 024 px. La photo (12 288 px de large)
 est plus fine jusqu'à 10 m : un pixel couvre au sol 0,2 cm en travers et 0,5 cm le long à 4 m, 0,5 et 2,6 cm à 10 m
@@ -691,7 +691,7 @@ Essai hors application du 07/11/2026 : écart médian au raccord de 10,8 à 2,9 
 RD 1074, D33), de 17,6 à 3,9 cm sur 14 en agglomération (passage piéton, village), tous améliorés ; 6 paires de
 village sur 20 sans assez de sol commun. Il remplace un recalage par les seules lignes en long (8,3 à 3,6 cm sur la
 route, rien en ville). Sur les photos de référence (`tests/essai-dessus-reference.html`) : A38 5,3 → 1,6 et
-7,3 → 3,2 cm, passage piéton (d946f2cf) 5,0 → 2,9 et 16,5 → 2,8 cm.
+7,3 → 3,2 cm, passage piéton (d946f2cf-cddc-4476-a414-35aee429c05a) 5,0 → 2,9 et 16,5 → 2,8 cm.
 
 La hauteur de caméra est lue sur les photos elles-mêmes. Avec une hauteur fausse dans un rapport `k`, le
 sol projeté depuis deux caméras distantes de `b` se décale de `b (1 - k)` : ce décalage, cherché par
@@ -719,7 +719,7 @@ Sans verticale à lire (rase campagne), l'inclinaison vient de la route : le vé
 plan ajusté au MNT sur ±2,5 m en long et ±1,5 m en travers. L'A38 penche d'environ 2,5 % en travers et 1,2 %
 en long, ce qui expliquait l'écart entre tirets devant et derrière. Les verticales gardent la priorité.
 Le roulis ne suit qu'une part du dévers (option d'essai « Roulis », 70 % par défaut) : sur la RD 1074
-(`81049c82`, véhicule dans la voie de droite), l'écart entre lignes de rive vaut 6,37 m sans roulis et 6,90 m
+(`81049c82-2ea6-481f-b0d0-a6a1864e5ea0`, véhicule dans la voie de droite), l'écart entre lignes de rive vaut 6,37 m sans roulis et 6,90 m
 avec tout le dévers, pour 6,58 m sur l'orthophoto (environ 40 % du dévers) ; sur l'A38, environ 75 %. Le roulis
 déplace surtout la ligne la plus éloignée de la caméra, d'où l'impression d'un milieu étiré. Le tangage suit la
 pente entière (tirets de 3 m retrouvés devant et derrière).
@@ -731,7 +731,7 @@ largeurs en travers donne δ, indépendamment de l'échelle. Sur 25 passages pi�
 ramène près de 0 (+1,08 → +0,12° et +0,26 → −0,27° sur deux sites). La triangulation des coins des bandes redonne
 0,499 m (25 largeurs, ±5 cm par coin). À mesurer pour chaque campagne ou producteur.
 Option d'essai « Tangage » : tangage ajouté à la pente (défaut de fixation de la caméra, ±2°). Sur la D33
-(`dbdaa47b`, 20/06/2025), la chaussée se resserre vers l'avant sans réglage (environ 5 % sur 12 m) ; à l'œil, le
+(`dbdaa47b-6e4d-4416-b352-ab324cb14735`, 20/06/2025), la chaussée se resserre vers l'avant sans réglage (environ 5 % sur 12 m) ; à l'œil, le
 meilleur roulis vaut 45 % du dévers sur la RD 1074 et 100 % sur l'A38, pour des dévers voisins (2,5 et 3 %).
 Tangage réglé à l'œil par l'auteur : de -0,2 à +0,5° selon la séquence, sans règle par période, mais identique
 (+0,2°) sur deux portions de l'A38 d'une même séquence. Roulis et tangage sont donc retenus par séquence, dans le
@@ -747,7 +747,7 @@ LiDAR HD : le MNT n'a pas le tablier (sol sous le pont, ou brèche sous la photo
 ±1,5° pour la pente du tablier, jusqu'à 3 %). Hauteur de caméra : pour le CD21, sa monture d'après la date
 (`App.FLEET_MOUNTS` : 1,93 m avant le 01/07/2025, 2,07 m ensuite, ±0,04 m) ; autres photos, lue entre photos sur les
 verticales, sinon calée pour la séquence, sinon le réglage. Avant le 13/11/2026 : sol plat sans inclinaison et 1,90 m par défaut, bandes
-de passage piéton à 0,44 m au lieu de 0,50 (f2a245d0, Pont de France ; 7dcdccf9, D977 bis). Pont de France à Auxonne (bbf7a0be) : tangage lu sur les raccords à
+de passage piéton à 0,44 m au lieu de 0,50 (f2a245d0-aeea-4249-ba9c-fad83b442a23, Pont de France ; 7dcdccf9-3c52-4c54-bc5b-de72740a7967, D977 bis). Pont de France à Auxonne (bbf7a0be-f532-4362-afb4-114268317258) : tangage lu sur les raccords à
 -1,2° avec le MNT, raccords 33,5 → 1,3 cm sur sol plat.
 Le calage du tangage sur l'orthophoto (lignes de peinture repérées sur elle et sur chaque photo, essai du 07/11/2026)
 a été retiré le 08/11/2026 au profit du tangage lu sur les raccords. Tangage lu aussi sur les lignes et les bords de la route
@@ -760,7 +760,7 @@ véhicule) est corrélé à celui de l'orthophoto, sur ±1,2 m ; au-delà de 30 
 travers), sinon la position GPS est gardée. Un appariement ligne à ligne ne convient pas ici :
 herbe et bordures donnent des pics sur l'orthophoto (14 « lignes » sur la D33), la médiane des écarts tombait à
 0,17 m pour 0,71 m. En cas d'écart, le GPS est à suspecter avant l'orthophoto : au même endroit de la D33, la
-séquence du 04/07/2025 (photo 6c6e4972, « RTK vérifié ») est décalée de 0,71 à 0,75 m en travers, translation pure,
+séquence du 04/07/2025 (photo 6c6e4972-f565-4198-84fe-24ab72d95398, « RTK vérifié ») est décalée de 0,71 à 0,75 m en travers, translation pure,
 alors que celle du 20/06/2025 tombe sur l'orthophoto à 5 cm près. Écart trouvé sur les autres photos de référence :
 A38 0,11 m, RD 1074 0,19 m, D33 0,02 m, petite RD sans peinture 0,31 m (calée, de justesse : bords d'enrobé seuls),
 village sans accord (position gardée). Limite : un décalage de plus de 1,2 m serait pris pour celui d'une autre ligne. Le calage du tangage sur l'orthophoto trouvait, sur 6 photos réglées à l'œil par l'auteur (07/11/2026), 0 / +0,1 / +0,4
@@ -772,7 +772,7 @@ autre (voir docs/BIRDEYE.md § 4.2). Autres photos, hauteur de caméra par séqu
 2,36 m d'une photo à l'autre. Chaque caméra est posée à cette hauteur au-dessus du plan de la route sous le véhicule
 (moyenne du terrain sur ±2,5 m x ±1,5 m), plutôt que sur un seul point du maillage.
 
-Raccords entre photos (D33, `fb158480`) : des marches de 10 cm sur la rive (4,2 m de la caméra) et 3 à 5 cm sur l'axe
+Raccords entre photos (D33, `fb158480-3fc0-4382-ba1d-d5c962f81c71`) : des marches de 10 cm sur la rive (4,2 m de la caméra) et 3 à 5 cm sur l'axe
 (1,6 m) viennent du tangage. Au raccord, la principale voit le point devant elle et la voisine derrière la sienne :
 une erreur de tangage δ change leurs échelles en travers en sens opposés, d'environ 2 x 2,6 m x δ / H x s. Elles
 disparaissent entre +0,3 et +0,5° (réglage à l'œil de l'auteur : +0,5° ; calage sur l'orthophoto : +0,1°).

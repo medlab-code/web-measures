@@ -54,7 +54,8 @@ const Dessus = (() => {
   const OUTLINES_KEY = "web-measures/dessus-contours-2";  // -2 : contours lus avant la fermeture finale abandonnés
   const CAR = { ahead: 0, long: 5.8, wide: 2.9 };  // m : ellipse au sol, hors CD21 (véhicule inconnu) : toit, capot et leurs reflets
   // Ombre et reflets du véhicule sur le sol, autour de lui (ellipse CAR) : une voisine y compte son erreur attendue SHADE fois,
-  // pour combler le sol caché par le véhicule de la photo affichée (ville d946f2cf, 09/11/2026 : taches sombres sinon)
+  // pour combler le sol caché par le véhicule de la photo affichée (ville d946f2cf-cddc-4476-a414-35aee429c05a,
+  // 09/11/2026 : taches sombres sinon)
   const SHADE = 3;
   const NEAR_LIMIT = 6144;  // px : largeur des photos voisines, qui ne servent que près de leur caméra (mémoire graphique)
   // m : zone idéale d'une largeur, en face de la caméra (essai du 08/11 : écart à l'orthophoto ≤ 1,5 % jusqu'à 4 m en long, 2 % au-delà)
@@ -297,7 +298,8 @@ const Dessus = (() => {
   // à une courbe douce de 3,5 cm (13,7 au plus) à 0,4 cm (0,8 au plus). En travers, TERRAIN_SMOOTH_ACROSS seulement : le
   // bombement et les caniveaux (1 m de large, 15 à 19 cm de creux) se répètent d'un mètre à l'autre ; lissés sur 2 m, ils
   // laissaient le milieu de la chaussée 3 à 5 cm trop bas et les caniveaux 7 à 9 cm trop haut, et les bouts des bandes d'un
-  // passage piéton à 5 m dérivaient de 30 cm (57c93b75, ville, 14/11/2026 : écart au LiDAR brut 4,5 → 2,6 cm, écart
+  // passage piéton à 5 m dérivaient de 30 cm (57c93b75-964f-4645-9a9f-5a9000d549ca, ville, 14/11/2026 : écart au LiDAR
+  // brut 4,5 → 2,6 cm, écart
   // milieu-caniveau 11 → 2,5 cm). Tangage lu sur les lignes (learnLines, ±25 m) : lissage isotrope gardé, à 20 m le bruit du
   // MNT laissé en travers déplace les lignes de 10 cm par cm et la lecture échoue (A38, essai du 14/11/2026)
   const TERRAIN_SMOOTH = 2, TERRAIN_SMOOTH_ACROSS = 0.5;  // m
@@ -1558,8 +1560,9 @@ const Dessus = (() => {
   // Tangage lu sur les lignes et les bords de la route (linesPitch), absolu, par photo, gardé dans le navigateur ; lecture gardée
   // si ses lignes extrêmes sont à LINES_SPREAD m au moins l'une de l'autre (D33 : lignes à 4,9 à 5,6 m, lectures de -0,7 à
   // +2,2° d'une photo à l'autre ; A38, RD 1074 à 6,5 m et plus : à 0,2° près des raccords). Seule la médiane de la séquence
-  // sert, dès LINES_SEQUENCE photos : une photo seule s'est trompée de plus de 1° (RD 1074, 81049c82 : +1,3° pour +0,15° dans
-  // la séquence ; D33, 7969fd3b : +1,6°, lignes à 7,9 m).
+  // sert, dès LINES_SEQUENCE photos : une photo seule s'est trompée de plus de 1° (RD 1074,
+  // 81049c82-2ea6-481f-b0d0-a6a1864e5ea0 : +1,3° pour +0,15° dans
+  // la séquence ; D33, 7969fd3b-8c81-4f88-880b-c333b76e3586 : +1,6°, lignes à 7,9 m).
   const LINES_KEY = "web-measures/dessus-tangages-lignes", LINES_SPREAD = 6, LINES_SEQUENCE = 3, LINES_WIDE = 25;
   const readLines = () => {
     try { return JSON.parse(localStorage.getItem(LINES_KEY)) || {}; } catch { return {}; }
@@ -1946,7 +1949,8 @@ const Dessus = (() => {
   // sur la première monture). La séquence prend la monture la plus proche de sa hauteur lue, même par la seule inclinaison de
   // la route (verticales et route concordent au cm près là où les deux existent). Depuis le 13/11/2026, la monture vient
   // d'abord de la date de prise de vue (pose.mount, App.FLEET_MOUNTS) : la hauteur lue se joue à quelques cm du seuil de
-  // 2,00 m (f2a245d0, 07/07/2025 : 2,03 ou 1,98 m selon le terrain) ; lue entre photos seulement hors campagne connue.
+  // 2,00 m (f2a245d0-aeea-4249-ba9c-fad83b442a23, 07/07/2025 : 2,03 ou 1,98 m selon le terrain) ; lue entre photos
+  // seulement hors campagne connue.
   // Hauteurs mesurées sur les véhicules : non disponibles (prises de vue faites par un prestataire), piste abandonnée le 13/11/2026
   const MOUNTS = [1.93, 2.07], MOUNT_SIGMA = 0.04;  // mêmes hauteurs par date : App.FLEET_MOUNTS (py/web_app.py)
   const mountOf = (h) => MOUNTS.reduce((a, b) => (Math.abs(b - h) < Math.abs(a - h) ? b : a));
@@ -2159,7 +2163,8 @@ const Dessus = (() => {
   /** Pont à portée (photo dessus ou dessous) : le MNT LiDAR HD n'y donne pas le sol vu (tablier retiré, ou brèche sous la
    * photo). Tablier plan et horizontal (deck) : inclinaison par la route (tangage de la séquence et défaut de roulis de la
    * campagne seulement), hauteur entre photos, raccords et position refaits sur lui. Essai du 13/11/2026 : brèche du LiDAR
-   * comblée au niveau de la route plutôt que tablier plat, sans gain (f2a245d0 : 0,487 m contre 0,477 ; 7dcdccf9, petit pont
+   * comblée au niveau de la route plutôt que tablier plat, sans gain (f2a245d0-aeea-4249-ba9c-fad83b442a23 : 0,487 m
+   * contre 0,477 ; 7dcdccf9-3c52-4c54-bc5b-de72740a7967, petit pont
    * en maçonnerie : passage coupé contre 0,455 m), retiré. */
   let flatDeck = null;
   const deck = () => (flatDeck ??= new Array((2 * REACH / STEP + 1) ** 2).fill(0));  // maillage de readTerrain, à plat

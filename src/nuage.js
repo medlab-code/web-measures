@@ -20,7 +20,8 @@ const Nuage = (() => {
   const VERGE = 1.0;  // m : surface non revêtue (herbe, gravillons) d'au moins cette largeur : l'enrobé s'arrête là
   const GRASS = 3.5;  // herbe : bande non revêtue (VERGE m au moins) en moyenne GRASS fois plus claire que l'enrobé (le laser,
   // en proche infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois)
-  // Ligne blanche : au moins LINE_CONTRAST fois ses cases voisines (D903bis 1640bc3f : surface du séparateur à 3,0 et
+  // Ligne blanche : au moins LINE_CONTRAST fois ses cases voisines (D903bis 1640bc3f-e948-4239-a4c1-548dd748a16d :
+  // surface du séparateur à 3,0 et
   // 2,9 fois l'enrobé, pas une ligne)
   const LINE_CONTRAST = 2;
   // ligne à tirets vue ailleurs qu'au travers de la photo : sur 2 travers au moins, à 0,5 m près

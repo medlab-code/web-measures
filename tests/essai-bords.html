@@ -138,7 +138,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       doc.querySelector("#bords").click();
       await computed();
       const c = doc.querySelector("#chute"), found = (c.title.match(/Bords trouvés : (.*)\.$/) || [])[1] || "?";
-      log(`A38 61dd94c4 (30 m) : ${c.textContent.replace(/\n/g, " · ")} · bords trouvés : ${found}`);
+      log(`A38 61dd94c4-e5d1-4eb0-9762-73a72f18b5cb (30 m) : ${c.textContent.replace(/\n/g, " · ")} · bords trouvés : ${found}`);
       const far = /séparateur de chaussée \(trouvé dans le relief\) et de l'autre chaussée/.exec(found);
       const widths = [...found.matchAll(/à (\d+(?:,\d+)?) m de/g)].map((m) => Number(m[1].replace(",", ".")));
       twin = far && widths.some((d) => d > 15) ? 1 : 0;
@@ -150,7 +150,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
           || !dialog.querySelector(".legende").textContent.includes("trouvé dans le relief")  // d'où il vient : en légende
           || !dialog.querySelector("svg .separateur")) twin = 0;
         const blob = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
-        await log("IMAGE 61dd94c4 " + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));
+        await log("IMAGE 61dd94c4-e5d1-4eb0-9762-73a72f18b5cb " + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));
         // Hauteurs à l'échelle : profil presque plat, étiquettes écartées l'une de l'autre
         const scale = doc.querySelector("#profil-echelle");
         scale.checked = true; scale.dispatchEvent(new w.Event("change"));

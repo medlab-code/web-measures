@@ -100,7 +100,8 @@ try {
   paved("gravillons à 3 fois puis herbe", (x) => (x < 5 ? 300 : x < 8 ? 900 : 2000), 4.9);
   paved("pas d'abords clairs", () => 320, null);
   paved("bord au-delà de la limite", (x) => (x < 14 ? 300 : 1400), null);
-  // Ligne blanche : nettement plus claire que ses voisines ; surface du séparateur au seuil (1640bc3f, −3,5 m) écartée, malgré la case vide à côté
+  // Ligne blanche : nettement plus claire que ses voisines ; surface du séparateur au seuil
+  // (1640bc3f-e948-4239-a4c1-548dd748a16d, −3,5 m) écartée, malgré la case vide à côté
   const narrow = (what, cases, expected) => { const got = Nuage.brightRuns(cases.map(([x, i]) => ({ x, i })), 100).map((r) => r[2]), ok = JSON.stringify(got) === JSON.stringify(expected);
     expect(`ligne blanche, ${what} : ${JSON.stringify(got)} (attendu ${JSON.stringify(expected)})`, ok); };
   narrow("sur l'enrobé", [[-0.25, 110], [0, 1000], [0.25, 120]], [true]);

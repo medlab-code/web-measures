@@ -318,7 +318,8 @@
   const DEFAULT_INSTANCE = "https://panoramax.ign.fr";
   const DEFAULT_PRODUCER = ["8f943f10-a781-4e03-a18c-de035be6f6f8", "conseil départemental de la côte-d'or"];
   // Photo ouverte à la première utilisation (et sans dernière photo gardée) : Venarey-les-Laumes (D103T), route plate et droite,
-  // vue tournée vers le bâtiment rond sur la gauche (cap en degrés). L'ancienne (Semur-en-Auxois, 7752eb30) était sur un
+  // vue tournée vers le bâtiment rond sur la gauche (cap en degrés). L'ancienne (Semur-en-Auxois,
+  // 7752eb30-a733-4213-b57a-5d5086e261a4) était sur un
   // pont pavé : vue Bird Eye sans LiDAR, voie rétrécie
   const DEFAULT_PHOTO = "8625c7ff-90c1-4865-b936-fd8952ac908f";  // position : DEFAULT_PLACE
   const DEFAULT_HEADING = 210;

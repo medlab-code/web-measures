@@ -618,7 +618,8 @@ class Chutes:
     # Bombement (piste P16) : rupture à CROWN_NEAR m au plus de l'axe BD TOPO, suivie d'une pente de CROWN_SLOPE au plus qui
     # tient sur CROWN_HOLD m : sommet du bombement ou changement de dévers d'une voie à l'autre, pas le bord (_edge_border) ;
     # chaussée de CROWN_WIDTH m au moins (largeur type : deux voies possibles ; sur une voie unique, le bord peut être près de
-    # l'axe) ; le bord est alors cherché CROWN_SEARCH m plus loin (chaussées plus larges que leur type : D70 229abfcd, 9,3 m)
+    # l'axe) ; le bord est alors cherché CROWN_SEARCH m plus loin (chaussées plus larges que leur type : D70
+    # 229abfcd-868c-4eca-bfc1-3979ca94d28f, 9,3 m)
     CROWN_NEAR, CROWN_SLOPE, CROWN_HOLD, CROWN_WIDTH, CROWN_SEARCH = 1.25, 0.10, 1.5, 4.0, 3.0
     # Séparateur étroit sans marches (glissières dos à dos, muret : le MNT n'en garde que l'assise) : pic de 1 ou 2 points au
     # moins PEAK_Z m au-dessus des points voisins, au même endroit (PEAK_SPREAD m près) sur PEAK_TRAVERS travers au moins
@@ -1145,7 +1146,9 @@ class Chutes:
                 continue
             d = [slope(z, offsets, k, 1.0) for k in range(i, i + self.EDGE_HOLD)]
             if self._edge_step(z, offsets, i, sharp=crown is not None):
-                j = i  # marche : une pente de plus de 10 % sur un pas en fait une aussi (bombement prononcé, D70 229abfcd)
+                # marche : une pente de plus de 10 % sur un pas en fait une aussi (bombement prononcé, D70
+                # 229abfcd-868c-4eca-bfc1-3979ca94d28f)
+                j = i
             elif None not in d and (all(v - road > self.EDGE_BREAK for v in d) or all(road - v > self.EDGE_BREAK for v in d)):
                 # dans la fenêtre de 1 m, un point au plus encore sur la chaussée (pas de EDGE_STEP m)
                 j = i + 1
