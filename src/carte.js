@@ -528,14 +528,14 @@ const Carte = (() => {
     return ctx.getImageData(0, 0, size, size);
   }
 
-  /** Petit trait vertical rouge (rouge des poignées de la photo, src/nez.js) liseré de sombre : bord de la largeur dans la visionneuse,
+  /** Petit trait vertical rouge (rouge des poignées de la photo, src/nez.js) à léger liseré blanc : bord de la largeur dans la visionneuse,
    * tourné perpendiculairement à la droite par icon-rotate ; 18 px à l'écran quel que soit le zoom. */
   function edgeTickImage() {
     const w = 8, h = 36, canvas = document.createElement("canvas");
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext("2d");
     ctx.lineCap = "butt";
-    for (const [color, width] of [["#202020", 4], ["#d93025", 2]]) {
+    for (const [color, width] of [["rgba(255, 255, 255, 0.85)", 4], ["#d93025", 2]]) {
       ctx.strokeStyle = color;
       ctx.lineWidth = width;
       ctx.beginPath();
