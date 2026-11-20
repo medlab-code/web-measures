@@ -1142,6 +1142,29 @@ class Parcours(unittest.TestCase):
         self.assertIn("error", json.loads(App(lambda *args: None).nose_line()))  # sans photo
         host.install(**HOST)
 
+    def test_droite_nez_rotation(self):
+        """Rotation à la main de la droite : 0° identique à l'ancien résultat ; 30° (sens trigonométrique vu du dessus) autour du
+        point au droit de la caméra : ce point ne bouge pas, le côté droit avance de x·sin 30°, la droite a la direction tournée."""
+        self.show("p1")
+        base = json.loads(self.app.nose_line(5.0))
+        self.assertEqual(json.loads(self.app.nose_line(5.0, 0.0)), base)
+        turned = json.loads(self.app.nose_line(5.0, 30.0))
+        self.assertEqual(turned["points"][240], base["points"][240])  # x = 0
+        c, s = math.cos(math.radians(30)), math.sin(math.radians(30))
+        for x in (4.0, -4.0):
+            k = 240 + round(x / 0.05)
+            _, yaw, pitch = turned["points"][k]
+            right, forward = x * c, 5.0 + x * s
+            self.assertAlmostEqual(yaw, math.atan2(right, forward), delta=1e-5)
+            self.assertAlmostEqual(pitch, -math.atan(self.CAMERA / math.hypot(right, forward)), delta=1e-5)
+        here = self.app.item["geometry"]["coordinates"][:2]
+        a = triangulation._local(*turned["lonlat"][0], *here)
+        b = triangulation._local(*turned["lonlat"][1], *here)
+        axis = math.radians(self.app._nose_axis())
+        along = (b[0] - a[0]) * math.sin(axis) + (b[1] - a[1]) * math.cos(axis)  # avancée du côté droit, vers l'avant
+        self.assertAlmostEqual(math.degrees(math.asin(along / math.hypot(b[0] - a[0], b[1] - a[1]))), 30.0, delta=1.0)
+        self.assertEqual(json.loads(self.app.nose_line(5.0, 90.0))["points"], json.loads(self.app.nose_line(5.0, 45.0))["points"])
+
     def test_droite_nez_relief(self):
         """Droite au nez sur le relief LiDAR HD : pente en long de 5 % (vers l'avant, cap 0) et dévers de 2 % (vers l'est) ; un point
         à x m à droite, d m devant, a un sol à dz = 0,05 d + 0,02 x au-dessus de celui de la caméra : élévation -atan2(H - dz, distance

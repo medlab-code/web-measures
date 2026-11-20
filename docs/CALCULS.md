@@ -390,6 +390,15 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   l'élévation `-atan2(H − dz, hypot(x, d))` à sol plat (`dz` = 0 ; relief : voir **Sol**) (sinon, avec δ = θ − θ0 : à `x·cos δ` à droite et `d − x·sin δ` devant la caméra) ; `d` = 4,4 m (monture 1,93 m), 4,8 m (2,07 m), 4,5 m sinon, soit le capot de
   `src/dessus.js` (OUTLINES) plus 0,3 m. Direction rendue dans le repère de la photo par `Session._view_of` : calage compris
   (cap de la séquence, inclinaison calée ou lue).
+- **Rotation à la main** (`rotation` de `App.nose_line`, degrés, ±45°, 0° par défaut, remise à 0° au changement de photo) : la droite
+  tourne autour de son point au droit de la caméra (x = 0, à `d` devant), dans le plan du sol ; rotation positive = sens trigonométrique vu du
+  dessus (le côté droit avance vers l'avant). Direction de la droite = perpendiculaire au trajet tournée de la rotation : écart au cap de la
+  caméra δ = (θ − θ0) − rotation, mêmes formules qu'en virage (`x·cos δ` à droite, `d − x·sin δ` devant), positions au sol, élévations (avec
+  `dz` du MNT), extrémités géographiques et tracé de la carte suivent. Le relief est lu le long de la droite tournée, à l'angle arrondi
+  à 0,5° (cache par angle) ; pendant le glissement (`relief` faux) aucune lecture : le relief déjà lu à l'angle précédent sert, puis il est
+  relu au relâchement, la droite restant affichée. **Incertitude** : inchangée, l'angle est choisi par l'utilisateur ; la largeur est
+  mesurée le long de la droite tournée, et une erreur d'angle α sur sa perpendicularité aux bords donne une largeur × (1/cos α − 1) en trop
+  (1° : 0,015 %, 5° : 0,4 %, 10° : 1,5 %).
 - **Carte** : `lonlat` rend les extrémités (-12 et +12 m) de la droite à partir de la position recalée de la photo si la séquence l'est ;
   la droite étant droite, tout décalage s'en déduit par interpolation linéaire. Les décalages des poignées sont continus : interpolation
   linéaire entre points consécutifs de la table, au point le plus proche du pointeur à l'écran.

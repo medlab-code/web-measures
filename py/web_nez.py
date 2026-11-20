@@ -15,6 +15,7 @@ NOSE_DISTANCE = {1.93: 4.4, 2.07: 4.8}  # m : capot du CD21 (visible à 4,1 m et
 NOSE_DISTANCE_DEFAULT = 4.5  # m : autres véhicules
 NOSE_GROUND_STEP = 0.5  # m : pas des points où le relief est lu (pas du MNT LiDAR HD), interpolé linéairement entre eux
 NOSE_GROUND_MAX = 50  # lectures du relief gardées (une par photo et par droite)
+NOSE_ROTATION_MAX = 45.0  # degrés : rotation à la main de la droite, de part et d'autre de la perpendiculaire au trajet
 NOSE_FLAT = "plat (relief indisponible)"  # source du sol quand le MNT manque ou échoue
 
 
@@ -92,16 +93,26 @@ class Nez:
         t = min(max(d / gap, 0.0), 1.0)
         return (axis + t * turn) % 360, t * turn
 
-    def _nose_ground(self, lon, lat, axis, along, d):
+    def _nose_ground(self, lon, lat, axis, along, d, read=True):
         """(relief, en lecture) sous la droite. relief : (source, sigma en m, [(décalage x en m, écart de sol dz en m)]) ou None
         (relief indisponible : la droite est alors posée sur un sol plat). Lu une fois par droite (MNT LiDAR HD au pas de 0,5 m,
         sinon RGE ALTI : precision.fetch_terrain, une requête pour la caméra et les points tous les NOSE_GROUND_STEP m), gardé ;
         `dz` = z du MNT au point moins z du MNT sous la caméra (relatif : aucun souci de géoïde). La lecture est asynchrone
         (hôte JS) : tant qu'elle n'est pas arrivée, en lecture est vrai (sol plat en attendant) et src/nez.js redemande la droite."""
         key = tuple(round(v, 6) for v in (lon, lat, axis, along, d))
+        base = key[:3] + key[4:]
         if key in self.nose_ground:
             ground = self.nose_ground[key]
+            if ground:
+                self.nose_ground_last = (base, ground)
             return (ground or None), ground == {}
+        if not read:
+            # glissement de la rotation : pas de nouvelle lecture, relief déjà lu pour cette caméra à l'angle précédent
+            last = getattr(self, "nose_ground_last", None)
+            if last and last[0] == base:
+                return last[1], False
+            ground = self.nose_ground.get(key)
+            return (ground or None), False
         self.nose_ground[key] = {}  # {} : en lecture
         if len(self.nose_ground) > NOSE_GROUND_MAX:
             del self.nose_ground[next(iter(self.nose_ground))]
@@ -120,6 +131,8 @@ class Nez:
 
         precision.fetch_terrain(points, done)  # synchrone dans les essais, asynchrone dans la page
         ground = self.nose_ground.get(key)
+        if ground:
+            self.nose_ground_last = (base, ground)
         return (ground or None), ground == {}
 
     def _neighbours_here(self):
@@ -130,7 +143,7 @@ class Nez:
                 return False
         return True
 
-    def nose_line(self, distance=None):
+    def nose_line(self, distance=None, rotation=0.0, relief=True):
         """JSON de la droite au sol à `distance` m devant la caméra (None : au-delà du capot, NOSE_DISTANCE), perpendiculaire
         à l'axe de la séquence à l'endroit de la droite (_nose_axis_at) : {d, virage (écart en degrés entre l'axe à la photo et à la droite, si > 3°, pas affiché), lonlat: [[lon, lat] à -NOSE_REACH, [lon, lat] à +NOSE_REACH] (position recalée de la photo), hauteur, hauteur_source, sigma_h, roulis_campagne, inclinaison_source (_nose_tilt : clics, verticales, verticales (seuil élargi), lidar, roulis de campagne, aucune), inclinaison_sigma (degrés ou None), inclinaison_en_calcul (verticales pas encore arrivées : droite refaite à leur arrivée), points: [[décalage en m (positif à
         droite de l'axe de la droite), yaw, pitch]]} (radians, repère de la photo affichée), de -NOSE_REACH à +NOSE_REACH tous les
@@ -138,7 +151,11 @@ class Nez:
         la droite dont le sol est à dz au-dessus du sol sous la caméra est vu à l'élévation -atan2(H - dz, distance horizontale).
         Champs du relief : sol (source : « LiDAR HD », « RGE ALTI » ou « plat (relief indisponible) »), sol_sigma (m, None à plat),
         sol_dz ([[décalage, dz]] tous les 0,5 m, absent à plat), sol_en_lecture (MNT pas encore arrivé : sol plat en attendant, droite
-        refaite à son arrivée). {"error": …} sans photo 360°."""
+        refaite à son arrivée). {"error": …} sans photo 360°.
+        `rotation` (degrés, borné à ±NOSE_ROTATION_MAX ; positif = sens trigonométrique vu du dessus, donc le côté droit de la droite
+        avance vers l'avant) tourne la droite autour de son point au droit de la caméra (x = 0), dans le plan du sol : direction
+        = direction perpendiculaire à l'axe du trajet tournée de `rotation`. Le relief est lu pour l'angle arrondi à 0,5° ; avec
+        `relief` faux (glissement), aucune lecture n'est lancée : le relief déjà lu à l'angle précédent sert en attendant."""
         item = self.item
         if not item:
             return json.dumps({"error": "Aucune photo affichée."})
@@ -151,12 +168,14 @@ class Nez:
         up, tilt_source, tilt_sigma = self._nose_tilt(roll)
         axis = self._nose_axis()  # cap de la caméra : le centre de la droite est à d devant
         along, turn = self._nose_axis_at(d)  # direction de la droite : perpendiculaire à celle-ci
-        gap = math.radians(turn)
+        rot = max(-NOSE_ROTATION_MAX, min(NOSE_ROTATION_MAX, float(rotation or 0.0)))
+        along -= rot  # direction de la droite tournée (cap de sa perpendiculaire, rotation positive = sens trigonométrique)
+        gap = math.radians(turn - rot)
         lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
         fixed = self.calibration.position(item.get("collection"), lon, lat)  # position recalée de la séquence, si elle l'est
         if fixed:
             lon, lat = fixed[0], fixed[1]
-        ground, reading = self._nose_ground(lon, lat, axis, along, d)
+        ground, reading = self._nose_ground(lon, lat, axis, along + rot - round(rot * 2) / 2, d, relief)
         dzs = ground[2] if ground else None
         points = []
         for k in range(-int(NOSE_REACH / NOSE_STEP), int(NOSE_REACH / NOSE_STEP) + 1):

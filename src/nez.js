@@ -24,11 +24,15 @@ const Nez = {
     const WAIT_MAX = 12000;  // ms : attente au plus de la position définitive de la droite (deux lectures du MNT de 5 s au plus), puis meilleure droite disponible
     const FALLBACK = 3;  // m : bords de départ sans profil en travers
     const INCLINATION = 0.5, ROLL = 0.5;  // degrés : incertitude de l'inclinaison de la photo et du roulis restant (docs/CALCULS.md)
+    const ROTATION_MAX = 45;  // degrés : rotation de la droite autour de la croix jaune, de part et d'autre de la perpendiculaire au trajet (comme NOSE_ROTATION_MAX en Python)
+    const ROTATION_RATE = 0.1;  // degrés par px de glissement horizontal de la croix (Maj : 10 fois moins), précision de 0,1°
     const toRad = Math.PI / 180;
 
     let active = false, raw = null, line = null;  // raw : dernière réponse de nose_line (texte), line : son contenu
     let photoId = null;
     let handles = { gauche: -FALLBACK, droit: FALLBACK }, moved = { gauche: false, droit: false };
+    let rotation = 0, keep = false;  // rotation (degrés, positif = sens trigonométrique vu du dessus), keep : droite gardée affichée pendant la relecture du relief
+    let frame = null;  // image d'animation en attente (recalcul de la droite pendant la rotation)
     let drag = null, bound = null, readout = null, retry = null, waiting = null;
     let deadline = null, expired = false;  // deadline : minuterie du délai d'attente, expired : délai écoulé (repli sur la meilleure droite)
 
@@ -36,7 +40,7 @@ const Nez = {
     const pending = () => Boolean(line && !line.error && (line.voisines === false || line.sol_en_lecture || line.inclinaison_en_calcul));
 
     /** Droite définitive, donc tracée : une droite calculée dont toutes les attentes sont terminées, ou le délai écoulé. */
-    const shown = () => Boolean(line && !line.error && (!pending() || expired));
+    const shown = () => Boolean(line && !line.error && (!pending() || expired || keep));
 
     /** Délai d'attente armé tant qu'une attente est en cours (à chaque nouveau calcul : photo changée, verticales relancées), désarmé
      * quand toutes sont terminées. Rend vrai si l'état affiché a changé (droite devenue définitive par le délai écoulé). */
@@ -74,8 +78,8 @@ const Nez = {
     // Calcul ------------------------------------------------------------------------------------
 
     /** Droite de la photo affichée (nose_line) : garde la réponse ; null et message d'erreur sans photo 360°. */
-    function load() {
-      const text = etat.app ? etat.app.nose_line() : JSON.stringify({ error: "Calcul en chargement…" });
+    function load(relief = true) {
+      const text = etat.app ? etat.app.nose_line(0, rotation, relief) : JSON.stringify({ error: "Calcul en chargement…" });
       if (text === raw) return false;
       raw = text;
       line = JSON.parse(text);
@@ -93,6 +97,8 @@ const Nez = {
 
     /** Photo changée : droite recalculée ; les poignées déjà déplacées à la main restent où elles sont. */
     function reset() {
+      rotation = 0;
+      keep = false;
       const edges = initialEdges();
       for (const side of ["gauche", "droit"]) if (!moved[side]) handles[side] = edges[side];
     }
@@ -156,11 +162,15 @@ const Nez = {
       return pts[i][1] + (f - i) * (pts[i + 1][1] - pts[i][1]);
     }
 
+    /** Rotation en clair (« tournée de 3,2° vers la gauche »), vide à 0°. */
+    const rotationText = () => rotation === 0 ? ""
+      : `tournée de ${Math.abs(rotation).toFixed(1).replace(".", ",")}° vers la ${rotation > 0 ? "gauche" : "droite"}`;
+
     const signed = (cm) => `${cm < 0 ? "−" : "+"}${Math.abs(Math.round(cm))} cm`;
 
     /** Source du sol et écart de sol aux deux poignées (« sol LiDAR HD : −8 cm à gauche, +3 cm à droite »). */
     function groundText() {
-      if (line.sol_en_lecture) return "sol plat (relief non arrivé)";
+      if (line.sol_en_lecture) return rotation === 0 ? "sol plat (relief non arrivé)" : "relief en lecture…";
       if (!line.sol_dz) return `sol ${line.sol}`;
       return `sol ${line.sol} : ${signed(groundAt(handles.gauche) * 100)} à gauche, ${signed(groundAt(handles.droit) * 100)} à droite`;
     }
@@ -179,9 +189,15 @@ const Nez = {
       if (!readout) {
         readout = document.createElement("div");
         readout.id = "nez-lecture";
-        readout.innerHTML = "<small>Bords sur la photo · expérimental</small><span></span>";
+        readout.innerHTML = "<small>Bords sur la photo · expérimental</small><span></span>"
+          + "<button type=\"button\" id=\"nez-remise\" title=\"Remettre la droite perpendiculaire au trajet (rotation de 0°)\">"
+          + "Remettre perpendiculaire au trajet</button>";
+        const reset = readout.querySelector("button");
+        for (const type of ["pointerdown", "mousedown", "touchstart", "click"]) reset.addEventListener(type, (e) => e.stopPropagation());
+        reset.addEventListener("click", resetRotation);
         $("#vue").append(readout);
       }
+      readout.querySelector("button").disabled = rotation === 0;
       const text = readout.querySelector("span");
       if (!line || line.error) {
         text.textContent = line?.error || "Droite indisponible.";
@@ -199,6 +215,7 @@ const Nez = {
       const tilt = tiltText();
       if (tilt) text.textContent += ` · ${tilt}`;
       text.textContent += ` · ${groundText()}`;
+      if (rotation !== 0) text.textContent += ` · ${rotationText()}`;
       if (line.voisines === false) text.textContent += " · axe de la photo seule (voisines non arrivées)";
       readout.title = `Distance latérale de chaque bord à la caméra, lue sur la droite au sol à ${metres(line.d, 1)} devant elle `
         + `(${line.sol_dz ? `relief du MNT ${line.sol}` : "sol plat"}). Hauteur de la caméra ${metres(line.hauteur)}${line.hauteur_source ? ` (${line.hauteur_source})` : ""}`
@@ -207,6 +224,16 @@ const Nez = {
 
     /** Position d'un bord par rapport à la caméra, avec son côté (« 1,20 m à droite »). */
     const offsetText = (o) => Math.abs(o) < 0.005 ? "au droit" : `${metres(Math.abs(o))} à ${o < 0 ? "gauche" : "droite"}`;
+
+    /** Rotation remise à 0 (bouton de l'encart) : droite perpendiculaire au trajet, relief relu à 0° (déjà gardé en général). */
+    function resetRotation() {
+      if (rotation === 0) return;
+      rotation = 0;
+      load();
+      settle();
+      draw();
+      waitNeighbours(photoId);
+    }
 
     /** Droite, repère, poignées et étiquettes dans la seconde couche de Traits. */
     function draw() {
@@ -251,6 +278,8 @@ const Nez = {
     function handleAt(x, y) {
       if (!shown()) return null;
       let best = null, bestD = HANDLE_PX;
+      const c = screenOf(...locate(0));  // croix jaune : pivot de la rotation, prise si aucune poignée n'est plus près
+      if (c && Math.hypot(x - c.x, y - c.y) <= HANDLE_PX) [best, bestD] = ["pivot", Math.hypot(x - c.x, y - c.y)];
       for (const side of ["gauche", "droit"]) {
         const s = screenOf(...locate(handles[side]));
         const d = s ? segmentDistance(x, y, s.x, s.y - TICK_PX / 2, s.x, s.y + TICK_PX / 2) : Infinity;
@@ -298,7 +327,7 @@ const Nez = {
       if (!side) return;
       event.stopImmediatePropagation();  // la visionneuse ne tourne pas, ne mesure pas
       event.preventDefault();
-      drag = { side, id: event.pointerId };
+      drag = { side, id: event.pointerId, x: local(event)[0], rotation };
       try {
         etat.psv.container.setPointerCapture(event.pointerId);
       } catch { /* pointeur déjà relâché : le glisser s'arrêtera au pointerup */ }
@@ -313,6 +342,7 @@ const Nez = {
       }
       if (event.pointerId !== drag.id) return;
       event.stopImmediatePropagation();
+      if (drag.side === "pivot") return rotate(event);
       const o = nearestOffset(drag.side, ...local(event));
       if (o === null || o === handles[drag.side]) return;
       handles[drag.side] = o;
@@ -320,9 +350,36 @@ const Nez = {
       draw();
     }
 
+    /** Rotation par glissement horizontal de la croix : proportionnelle au déplacement (ROTATION_RATE °/px, Maj : 10 fois plus fin),
+     * vers la droite = sens horaire (négatif). Droite recalculée au plus une fois par image, sans lecture du relief (celui déjà lu
+     * sert) : la lecture au nouvel angle est lancée au relâchement. */
+    function rotate(event) {
+      const rate = event.shiftKey ? ROTATION_RATE / 10 : ROTATION_RATE;
+      drag.rotation += -(local(event)[0] - drag.x) * rate;  // cumulé : Maj en cours de route n'a pas d'effet rétroactif
+      drag.x = local(event)[0];
+      const value = Math.round(Math.max(-ROTATION_MAX, Math.min(ROTATION_MAX, drag.rotation)) * 10) / 10;
+      if (value === rotation) return;
+      rotation = value;
+      keep = true;
+      frame ??= requestAnimationFrame(() => {
+        frame = null;
+        if (!active || !drag) return;
+        load(false);
+        draw();
+      });
+    }
+
     function onUp(event) {
       if (!drag || event.pointerId !== drag.id) return;
       event.stopImmediatePropagation();
+      if (drag.side === "pivot") {
+        cancelAnimationFrame(frame);
+        frame = null;
+        load();  // relief relu à l'angle choisi ; la droite reste affichée (keep) pendant la lecture
+        settle();
+        draw();
+        waitNeighbours(photoId);
+      }
       try {
         etat.psv.container.releasePointerCapture(event.pointerId);
       } catch { /* déjà relâché */ }
@@ -405,6 +462,10 @@ const Nez = {
 
     function deactivate() {
       active = false;
+      cancelAnimationFrame(frame);
+      frame = null;
+      rotation = 0;
+      keep = false;
       clearTimeout(retry);
       clearTimeout(waiting);
       restartWait();
@@ -431,6 +492,8 @@ const Nez = {
         photoId = etat.photo.id;
         etat.app?.birdeye_request();
         drag = null;
+        rotation = 0;
+        keep = false;
         restartWait();
         load();
         reset();

@@ -242,6 +242,7 @@ class App(Pose, Chutes, Nez, session.Session):
         self.overlay_asked = set()  # (lon, lat) dont l'altitude est en cours de lecture
         self.point_ground = {}  # (lon, lat caméra, lon, lat point) -> (z caméra, z point) ou None (_point_ground)
         self.nose_ground = {}  # (lon, lat, axe, direction, d) -> (source, sigma, [(décalage, dz)]), {} en lecture, None indisponible (_nose_ground)
+        self.nose_ground_last = None  # (caméra et distance, relief) du dernier relief lu : sert pendant le glissement de la rotation
         self.tilt_reasons = {}  # photo -> raison de l'échec de l'inclinaison automatique (ticket #29)
         self.birdeye_loose = {}  # photo -> verticales refusées pour les mesures, gardées pour la vue du dessus (web_tilt.LOOSE_SIGMA)
         self.tilts.run = self._run_tilt
