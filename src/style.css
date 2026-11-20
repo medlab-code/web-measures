@@ -293,9 +293,9 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 /* Gabarit commun des étiquettes de la carte : colonne de boutons, recherche de lieux et requêteur de route (variables --etiquette-*,
    pour qu'ils ne divergent plus) */
 :root { --etiquette-fond: rgba(24, 25, 28, 0.55); --etiquette-fond-survol: rgba(24, 25, 28, 0.82); --etiquette-liste: rgba(24, 25, 28, 0.94);
-  --etiquette-rayon: 0.8rem; --etiquette-marge: 4px; --etiquette-element: 1.6rem;
-  --etiquette-ligne: 26px; /* épaisseur d'une étiquette en ligne (requêteurs), comme les pastilles du bas de la vue (#lieu, lecteur) */
-  --etiquette-icone: calc(var(--etiquette-element) - 0.3rem); /* icône d'un bouton de la colonne */ }
+  --etiquette-rayon: 0.8rem; --etiquette-marge: 4px; --etiquette-element: 23px;
+  --etiquette-ligne: 23px; /* épaisseur d'une étiquette en ligne (requêteurs, pastilles du bas), égale à la largeur de la colonne de boutons */
+  --etiquette-icone: 16px; /* icône des étiquettes en ligne (recherche, route) */ }
 .etiquette-carte, .maplibregl-ctrl-top-left .maplibregl-ctrl-group, .recherche, .requeteur {
   background: var(--etiquette-fond); border-radius: var(--etiquette-rayon); box-shadow: none; transition: background 0.2s; }
 .maplibregl-ctrl-top-left .maplibregl-ctrl-group { overflow: hidden; padding: var(--etiquette-marge) 0; }
@@ -303,7 +303,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .maplibregl-ctrl-top-left .maplibregl-ctrl-group button { border-radius: 0; }
 .maplibregl-ctrl-top-left .maplibregl-ctrl-group button + button { border-top: none; }
 .maplibregl-ctrl-top-left button, .maplibregl-ctrl-top-left select.outil-carte {
-  box-sizing: border-box; width: 1.6rem; height: 1.6rem; padding: 0.15rem; border: 0; border-radius: 50%; background: none; color: #fff;
+  box-sizing: border-box; width: var(--etiquette-element); height: var(--etiquette-element); padding: 0.15rem; border: 0; border-radius: 50%; background: none; color: #fff;
   box-shadow: none; display: flex; align-items: center; justify-content: center; cursor: pointer; vertical-align: top; }
 .maplibregl-ctrl-top-left button svg { width: 100%; height: 100%; }
 .maplibregl-ctrl-top-left button:disabled { opacity: 0.6; cursor: default; }
@@ -332,6 +332,22 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .maplibregl-ctrl-top-left button.birdeye-carte[aria-pressed="true"] img { filter: brightness(0) invert(1) sepia(1) saturate(8) hue-rotate(5deg); }
 /* en haut, à droite des boutons de zoom plutôt que sous la pile de gauche */
 .maplibregl-ctrl-top-left .place-mesurer { position: absolute; top: 0; left: 40px; white-space: nowrap; display: flex; align-items: center; gap: 0.3rem; }
+
+/* Attribution (« i », en bas à droite de la carte) au style unifié : pastille ronde de --etiquette-element, fond --etiquette-fond, « i » vectoriel
+   (masque SVG, trait blanc de 2, bouts arrondis comme les autres icônes) à la place de l'image de fond de MapLibre ; ouverte, le texte reste lisible */
+.maplibregl-ctrl-attrib.maplibregl-compact, .maplibregl-ctrl-attrib.maplibregl-compact-show {
+  box-sizing: border-box; min-height: var(--etiquette-element); padding: 0 var(--etiquette-element) 0 0; border-radius: calc(var(--etiquette-element) / 2); background: var(--etiquette-fond);
+  color: #fff; font: 12px/15px Inter, system-ui, sans-serif; zoom: var(--echelle-ui, 1); transition: background 0.2s; }
+.maplibregl-ctrl-attrib.maplibregl-compact:hover { background: var(--etiquette-fond-survol); }
+.maplibregl-ctrl-attrib.maplibregl-compact-show { padding: 4px calc(var(--etiquette-element) + 2px) 4px 10px; }
+.maplibregl-ctrl-attrib a { color: #fff; }
+.maplibregl-ctrl-attrib.maplibregl-compact .maplibregl-ctrl-attrib-button, .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
+  width: var(--etiquette-element); height: var(--etiquette-element); border-radius: 50%; background: none; background-image: none; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center; padding: 0; margin: 0; line-height: 0; }
+.maplibregl-ctrl-attrib .maplibregl-ctrl-attrib-button::before { content: ""; display: block; flex: none; width: calc(var(--etiquette-element) - 6px); height: calc(var(--etiquette-element) - 6px); margin: 0; background: #fff;
+  -webkit-mask: center / 100% 100% no-repeat url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 11v6M12 7h.01'/></svg>");
+  mask: center / 100% 100% no-repeat url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 11v6M12 7h.01'/></svg>"); }
+.maplibregl-ctrl-attrib .maplibregl-ctrl-attrib-button:hover { background: rgba(255, 255, 255, 0.2); }
 
 /* Recherche de lieux et requêteur de route (route, PR, distance dans une seule étiquette), en haut à droite de la carte (voir
    recherche.js, requeteur.js) : étiquettes au gabarit commun ci-dessus, champs sans fond ni bordure, grossis avec --echelle-ui.
@@ -1084,8 +1100,8 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
 #lieu { grid-column: 1; justify-self: start; min-width: 0; }
 #lieu, #producteur-photo {
   margin: 0;
-  padding: 4px calc(0.8rem + var(--pastille-marge));  /* marge de plus aux bouts arrondis : le texte ne colle pas à l'arrondi */
-  line-height: 18px;  /* 26 px de haut, comme le lecteur */
+  padding: 2px calc(0.8rem + var(--pastille-marge));  /* marge de plus aux bouts arrondis : le texte ne colle pas à l'arrondi */
+  line-height: calc(var(--etiquette-ligne) - 4px);  /* --etiquette-ligne de haut (23 px), comme le lecteur */
   border-radius: 14px;  /* pastille, sans devenir une ellipse quand le texte passe sur deux lignes */
   background: rgba(24, 25, 28, 0.55);  /* fond et coins des boutons en haut de la visionneuse (#reglage-image) */
   color: #fff;
@@ -1136,7 +1152,7 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
   align-items: center;
   justify-content: center;
   width: 30px;
-  height: 18px;  /* étiquette de la hauteur des deux textes */
+  height: calc(var(--etiquette-ligne) - 4px);  /* étiquette de la hauteur des deux textes */
   padding: 0;
   border: 0;
   border-radius: 3px;
@@ -1159,7 +1175,7 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
   color: #ffeb00;
   font-size: 12px;
   font-weight: 700;
-  line-height: 18px;
+  line-height: calc(var(--etiquette-ligne) - 4px);
   text-align: center;
   text-shadow: var(--detoure-vue);
   font-variant-numeric: tabular-nums;
