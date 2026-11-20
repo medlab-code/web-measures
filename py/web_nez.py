@@ -46,9 +46,11 @@ class Nez:
     def _nose_axis_at(self, d):
         """(cap en degrés, écart au cap de la photo) de la trajectoire à `d` m devant la caméra, là où est tracée la droite :
         la route a tourné entre la photo et la droite (giratoire de 15 à 20 m de rayon : 15 à 20° pour 4,4 m). Interpolation
-        angulaire entre l'axe à la photo (_nose_axis) et l'axe à la photo suivante dans le sens de marche (même calcul, voisines
-        de celle-ci), pondérée par d / distance entre les deux photos (bornée à [0, 1]). Axe de la photo si la suivante manque
-        ou est à moins de 1 m ou à plus de 20 m."""
+        angulaire entre l'axe à la photo (θ0, _nose_axis) et l'axe à la photo suivante dans le sens de marche (θ1), θ = θ0 +
+        t (θ1 - θ0), t = d / distance entre les deux photos (bornée à [0, 1]). θ1 se déduit de la seule photo suivante : sur un
+        arc de cercle, l'axe à la suivante est le symétrique de θ0 par rapport à la corde photo → suivante, θ1 = θ0 + 2 (c -
+        θ0), c = cap de la corde (écarts ramenés à ±180°), |θ1 - θ0| borné à 45°. Pas besoin de la suivante de la suivante.
+        Axe de la photo si la suivante manque ou est à moins de 1 m ou à plus de 20 m."""
         axis = self._nose_axis()
         item = self.item
         following = self.neighbours.get(metadata.id_from_href(metadata.item_link(item, "next")))
@@ -59,16 +61,23 @@ class Nez:
             there = [float(v) for v in following["geometry"]["coordinates"][:2]]
         except (KeyError, TypeError, ValueError):
             return axis, 0.0
-        gap = math.hypot((there[0] - here[0]) * math.cos(math.radians(here[1])), there[1] - here[1]) * 111320.0
+        east = (there[0] - here[0]) * math.cos(math.radians(here[1])) * 111320.0
+        north = (there[1] - here[1]) * 111320.0
+        gap = math.hypot(east, north)
         if not 1.0 <= gap <= 20.0:
             return axis, 0.0
-        after = self.neighbours.get(metadata.id_from_href(metadata.item_link(following, "next")))
-        ahead = metadata.sequence_axis(following, item, after)  # la photo affichée est la précédente de la suivante
-        if ahead is None:
-            return axis, 0.0
-        turn = (ahead - axis + 540) % 360 - 180
+        chord = math.degrees(math.atan2(east, north))
+        turn = max(-45.0, min(45.0, 2.0 * ((chord - axis + 540) % 360 - 180)))
         t = min(max(d / gap, 0.0), 1.0)
         return (axis + t * turn) % 360, t * turn
+
+    def _neighbours_here(self):
+        """Vrai si la précédente et la suivante de la photo affichée (celles qui existent) sont chargées : l'axe est alors définitif."""
+        for rel in ("prev", "next"):
+            nid = metadata.id_from_href(metadata.item_link(self.item, rel))
+            if nid and nid not in self.neighbours:
+                return False
+        return True
 
     def nose_line(self, distance=None):
         """JSON de la droite au sol à `distance` m devant la caméra (None : au-delà du capot, NOSE_DISTANCE), perpendiculaire
@@ -105,7 +114,8 @@ class Nez:
             east, north = d * math.sin(a) + x * math.cos(b), d * math.cos(a) - x * math.sin(b)
             ends.append([round(v, 7) for v in triangulation._geographic(east, north, lon, lat)])
         out = {"d": d, "hauteur": height, "hauteur_source": source, "sigma_h": sigma,
-               "roulis_campagne": roll, "points": points, "lonlat": ends, "reach": NOSE_REACH}
+               "roulis_campagne": roll, "points": points, "lonlat": ends, "reach": NOSE_REACH,
+               "voisines": self._neighbours_here()}
         if abs(turn) > 3.0:
             out["virage"] = round(turn)  # écart (degrés) entre l'axe à la photo et l'axe à la droite (pas encore affiché)
         return json.dumps(out)

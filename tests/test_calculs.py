@@ -1155,7 +1155,7 @@ class Parcours(unittest.TestCase):
             return {"id": "c%d" % k, "collection": "s1", "type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]},
                     "properties": {"view:azimuth": math.degrees(a) % 360, "datetime": "2026-01-01T00:00:00Z",
                                    "pers:interior_orientation": {"field_of_view": 360}}, "links": links}
-        for k in range(-1, 4):
+        for k in range(-1, 2):  # précédente et suivante seulement : θ1 se déduit de la corde
             self.app.neighbours["c%d" % k] = feature(k)
         self.app.set_picture(json.dumps(feature(0)))
         self.app.set_active(True)

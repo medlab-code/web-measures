@@ -27,7 +27,7 @@ const Nez = {
     let active = false, raw = null, line = null;  // raw : dernière réponse de nose_line (texte), line : son contenu
     let photoId = null;
     let handles = { gauche: -FALLBACK, droit: FALLBACK }, moved = { gauche: false, droit: false };
-    let drag = null, bound = null, readout = null, retry = null;
+    let drag = null, bound = null, readout = null, retry = null, waiting = null;
 
     /** Photo 360° (comme autotilt.is_360 en Python) : la droite au sol n'a de sens que sur une photo sphérique. */
     function is360(photo) {
@@ -289,11 +289,25 @@ const Nez = {
       bind();
       button.setAttribute("aria-pressed", "true");
       draw();
+      waitNeighbours(photoId);
+    }
+
+    /** Voisines de la photo (précédente, suivante) pas encore arrivées : la droite en dépend (axe de la séquence). Nouvel essai toutes
+     * les 0,3 s, au plus 5 s, tant que la photo est la même ; droite et tracés refaits si elle a changé, bords gardés. */
+    function waitNeighbours(id, left = 17) {
+      clearTimeout(waiting);
+      if (!active || left <= 0 || !line || line.error || line.voisines !== false) return;
+      waiting = setTimeout(() => {
+        if (!active || !available() || etat.photo.id !== id) return;
+        if (load()) draw();
+        waitNeighbours(id, left - 1);
+      }, 300);
     }
 
     function deactivate() {
       active = false;
       clearTimeout(retry);
+      clearTimeout(waiting);
       drag = null;
       unbind();
       raw = line = null;
@@ -318,6 +332,7 @@ const Nez = {
         load();
         reset();
         draw();
+        waitNeighbours(photoId);
       }
     }
 

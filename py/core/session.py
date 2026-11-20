@@ -393,11 +393,6 @@ class Session:
             self.neighbours[nid] = features[0]
             if len(self.neighbours) > 200:
                 self.neighbours.pop(next(iter(self.neighbours)))
-            if self.item and nid == metadata.id_from_href(metadata.item_link(self.item, "next")):
-                after = metadata.id_from_href(metadata.item_link(features[0], "next"))  # son axe (droite au nez : virage)
-                if after and after not in self.neighbours:
-                    host.fetch_json("{}/search?ids={}".format(host.api_url, after),
-                                    lambda data, error, after=after: self._on_neighbour(after, data))
 
     def _axis(self, item):
         def neighbour(rel):
