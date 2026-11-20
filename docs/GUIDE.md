@@ -855,7 +855,7 @@ largeurs de chaussée LiDAR (analyse fine) : ces valeurs n'ont pas encore été 
 vue du dessus pour la photo, calage à la main, verticales de la photo, LiDAR sous le véhicule, verticales à seuil élargi, roulis de
 la campagne seul (tangage inconnu, ±2°), rien (±2°). Elle est calculée à l'activation de « Mesure » pour la photo affichée,
 puis au premier clic sur une autre photo ; la ligne d'état en donne la source et l'incertitude (par exemple « inclinaison calée
-dans la vue du dessus (±0,8°) », « inclinaison non calée : roulis de la campagne seul, tangage inconnu (±2,0°) »). Voir
+dans la vue du dessus (±0,8°) », « inclinaison non calée : roulis de la campagne seul, tangage inconnu (±2,0°) », affichée seulement quand le calcul a été fait sans résultat ; avant, « inclinaison calculée à l'activation de la mesure ; roulis de la campagne en attendant »). Voir
 `docs/CALCULS.md` § 1.3. Les mesures déjà faites sur une photo se recalculent quand son inclinaison change (arrivée des
 verticales, réglage de la vue du dessus).
 

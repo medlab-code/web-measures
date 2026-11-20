@@ -1286,7 +1286,15 @@ class Parcours(unittest.TestCase):
         a, pic = self.app, "p1"
         self.show(pic, "2025-07-03T10:53:25Z", App.FLEET_PRODUCER)
         a.tilts.pending = lambda p: False
+        a.set_active(False)
+        text, alert = a._tilt_line()  # verticales pas encore cherchées : pas « non calée »
+        self.assertIn("calculée à l'activation de la mesure", text)
+        self.assertNotIn("non calée", text)
+        self.assertFalse(alert)
+        self.assertNotIn("ok", [v for n, v in a._lights(pic) if n == "Inclinaison"])
+        a.tilt_reasons[pic] = "pas assez de bords"  # calcul fait, sans résultat
         text, alert = a._tilt_line()
+        self.assertIn("non calée : roulis de la campagne seul", text)
         self.assertIn("roulis de la campagne seul", text)
         self.assertIn("±2,0°", text)
         self.assertTrue(alert)

@@ -115,7 +115,9 @@ class Pose:
             return "inclinaison : calcul en cours…", False
         if pic in self.relay_pending:
             return "inclinaison : calcul par le terrain en cours ({})…".format(self.relay_pending[pic]), False
-        if fallback:  # ni verticales ni calage : le roulis de la campagne seul, tangage inconnu
+        if fallback and not self._tilt_final():  # verticales pas encore cherchées : pas « non calée »
+            return "inclinaison " + self._tilt_reason() + " ; roulis de la campagne en attendant", False
+        if fallback:  # calcul fait sans résultat : le roulis de la campagne seul, tangage inconnu
             return f"inclinaison non calée : roulis de la campagne seul, tangage inconnu (±{measures._num(fallback['sigma'], 1)}°)", True
         reason = self._tilt_reason()
         if not self._tilt_final():
