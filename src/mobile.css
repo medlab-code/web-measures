@@ -78,11 +78,37 @@ body.mobile {
 #ouvrir-reglages { position: absolute; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 3; }  /* même marge en bas et sur le côté */
 #carte .maplibregl-ctrl-bottom-right { bottom: calc(60px + env(safe-area-inset-bottom)); }
 
-/* Lien vers la page principale, en haut de la carte, à gauche du bouton de géolocalisation (29 px, à 10 px du bord), 10 px entre les deux */
+/* Bouton de localisation (contrôle natif MapLibre, GeolocateControl) au style unifié : même fond, même rond de 44 px et même icône (réticule,
+   trait blanc de 2) que les autres boutons ; l'icône de fond de MapLibre est remplacée par le réticule. États par MapLibre : -waiting (recherche :
+   clignote), -active (suivi : jaune), -active-error et -background-error (position introuvable ou refusée : rouge), disabled (refus : grisé) */
+#carte .maplibregl-ctrl-top-right .maplibregl-ctrl-group { background: none; box-shadow: none; border-radius: 50%; }
+#carte .maplibregl-ctrl-geolocate {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(24, 25, 28, 0.55);
+  color: #fff;
+}
+#carte .maplibregl-ctrl-geolocate:not(:disabled):hover { background: rgba(24, 25, 28, 0.82); }
+#carte .maplibregl-ctrl-geolocate .maplibregl-ctrl-icon {
+  width: 100%;
+  height: 100%;
+  background-size: 26px 26px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='7'/><circle cx='12' cy='12' r='2'/><path d='M12 2v3M12 19v3M2 12h3M19 12h3'/></svg>");
+}
+#carte .maplibregl-ctrl-geolocate:disabled { opacity: 0.45; }
+#carte .maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-waiting .maplibregl-ctrl-icon { animation: mobile-localisation 1s infinite; }
+#carte .maplibregl-ctrl-geolocate-active, #carte .maplibregl-ctrl-geolocate-background { background: rgba(255, 214, 0, 0.3); }
+#carte .maplibregl-ctrl-geolocate-active-error, #carte .maplibregl-ctrl-geolocate-background-error { background: rgba(220, 53, 69, 0.4); }
+@keyframes mobile-localisation { 50% { opacity: 0.35; } }
+
+/* Lien vers la page principale, en haut de la carte, à gauche du bouton de géolocalisation (44 px, à 10 px du bord), 10 px entre les deux */
 #version-complete {
   position: absolute;
   top: 10px;
-  right: 49px;
+  right: 64px;
   z-index: 3;
   padding: 0.35rem calc(0.6rem + var(--pastille-marge));  /* marge de plus aux bouts arrondis (style unifié, style.css) */
   border-radius: 999px;
