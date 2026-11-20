@@ -1457,9 +1457,9 @@ const Dessus = (() => {
   // shown : { pic, sequence, height, estimated, estimating, key, pose, features, panos (photo -> texture), loading, terrain,
   // sigmaGround, terrainFailed, url }
   let map = null, shown = null;
-  // Image décalée en travers pour se poser sur l'orthophoto (option d'essai, voir locate) : le GPS est à suspecter avant elle
+  // Image décalée en travers pour se poser sur l'orthophoto (option d'essai, décochée par défaut, voir locate) : le GPS est à suspecter avant elle
   // (D33 : séquence du 04/07/2025 décalée de 0,75 m, celle du 20/06/2025 sur l'orthophoto à 2 cm près)
-  let positionOn = true;
+  let positionOn = false;  // désactivé par défaut (décision de l'auteur, 20/11/2026) ; case « Position calée sur l'orthophoto »
   const CLOSE_PX = 10;  // px : clic à cette distance d'un sommet de la surface en cours = surface refermée
   const SHIFT_MIN = 0.3;  // m : écart en deçà duquel la position GPS est gardée (lignes repérées à quelques cm, orthophoto à 20 cm)
   // Photos voisines (interrupteur « Véhicule masqué », éteint par défaut) : lues, analysées, dessinées sous le véhicule et

@@ -38,6 +38,7 @@ async function open(id) {
   if ($("#dessus").disabled) return null;
   times.page = Date.now() - start;
   $("#dessus").click();
+  $("#dessus-position").click();  // recalage sur l'orthophoto : éteint par défaut, allumé pour garder les références
   $("#dessus-voisines").click();
   const ok = await soon(() => !busy(w), WAIT);
   times.dessus = Date.now() - start - times.page;

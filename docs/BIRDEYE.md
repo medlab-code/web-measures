@@ -302,7 +302,7 @@ bout est hors de la vue.
 **Comment (`locate`, `orthoShift`) :** dès la photo affichée prête, le profil en travers de sa chaussée (6 m de part et
 d'autre, hors véhicule) est comparé par corrélation à celui de l'orthophoto, sur ±1,2 m. Au-delà de 30 cm d'écart, la
 vue est décalée en travers pour s'y poser ; sinon la position GPS est gardée. Option « Position calée sur
-l'orthophoto », cochée par défaut.
+l'orthophoto » : décochée par défaut (décision du 20/11/2026), à cocher dans le panneau de réglages de la vue du dessus ; non retenue d'une session à l'autre.
 
 **Limites :** un décalage de plus de 1,2 m serait pris pour celui d'une autre ligne. Sans peinture (bords d'enrobé
 seuls), le calage est moins sûr.
