@@ -24,8 +24,8 @@ function ground(svg) {
   const y1 = Number(row.getAttribute("y1")), label = [...svg.querySelectorAll("text.graduation[text-anchor=end]")]
     .find((t) => Math.abs(Number(t.getAttribute("y")) - 4 - y1) < 0.6);
   const px = (y0 - y1) / Number(label.textContent.replace(",", ".").replace("−", "-"));
-  const low = Math.max(...[...svg.querySelectorAll(".sol, .autre-travers")].map((e) => { const b = e.getBBox(); return b.y + b.height; }));
-  const metres = (svg.viewBox.baseVal.height - 44 - low) / px;
+  const low = Math.max(...[...svg.querySelectorAll(".sol, .autre-travers")].filter((e) => !e.closest("g.cle-lecture")).map((e) => { const b = e.getBBox(); return b.y + b.height; }));
+  const metres = (Math.max(...[...svg.querySelectorAll("line.grille")].filter((l) => l.getAttribute("y1") !== l.getAttribute("y2")).map((l) => Number(l.getAttribute("y2")))) - low) / px;
   svg.remove();
   return metres;
 }
@@ -148,7 +148,16 @@ try {
   const [lm, ls] = [trait("gauche"), trait("droit")];
   expect(`bord mesuré en trait plein, supposé en tirets longs : ${lm?.dataset.bord}/${ls?.dataset.bord}`,
     lm?.dataset.bord === "mesure" && ls?.dataset.bord === "suppose" && ls.classList.contains("bord-suppose") && !lm.classList.contains("bord-suppose"));
-  expect("étiquette « bord supposé » du seul côté supposé", [...guess.querySelectorAll("text")].filter((t) => t.textContent === "bord supposé").length === 1);
+  expect("étiquette « bord supposé » du seul côté supposé", [...guess.querySelectorAll("text:not(.cle-profil)")].filter((t) => t.textContent === "bord supposé").length === 1);
+  // Clé de lecture (G2) sous le graphique, seulement avec ce qui est dessiné ; largeur réelle des textes (G9)
+  const keyWords = (svg) => [...svg.querySelectorAll("g.cle-lecture text")].map((t) => t.textContent);
+  const k1 = keyWords(guess), k0 = keyWords(Profil.draw(profile(flat), true).svg);
+  expect(`clé : ${k1.join(", ")}`, k1.includes("terrain de la photo") && k1.includes("bord mesuré") && k1.includes("bord supposé") && k1.includes("plateforme"));
+  expect(`clé sans élément absent : ${k0.join(", ")}`, ["bord supposé", "chute", "dévers", "eau", "herbe", "végétation", "séparateur", "autres travers"].every((w) => !k0.includes(w)));
+  const withKey = Profil.draw(profile(flat), true).svg, vb = withKey.viewBox.baseVal;
+  expect(`viewBox agrandi pour la clé : ${vb.height} > 380`, vb.height > 380 && [...withKey.querySelectorAll("g.cle-lecture text")].every((t) => Number(t.getAttribute("y")) > 380 && Number(t.getAttribute("y")) < vb.height));
+  const m = Profil.draw(profile(flat), false).svg;
+  expect("mention « Hauteurs ×N » et clé dans le viewBox", [...m.querySelectorAll("text")].some((t) => t.textContent.startsWith("Hauteurs ×")));
   // Route étroite : le graphique est à sa hauteur ; la caméra (1,9 m) ne compte pas comme haut du terrain
   check("caméra au-dessus d'un terrain plat", Profil.draw(profile([crossing(0, () => -0.1, 4)], "caméra"), true, null, true, 1.9), 1);
 } catch (error) { fail("exception : " + (error.stack || error)); }

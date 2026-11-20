@@ -83,14 +83,46 @@ const Profil = (() => {
     return null;
   }
 
+  // Largeur réelle d'un texte (canvas hors écran, police des étiquettes lue une fois dans la page), en cache par texte et
+  // taille ; repli sur l'estimation (ratio × taille par caractère) si le canvas ou la police sont indisponibles
+  const widths = new Map();
+  let measuring;  // contexte 2D, ou null s'il est indisponible
+  let family;
+  function textWidth(text, size, weight = 400, ratio = 0.56) {
+    const key = `${weight}|${size}|${text}`;
+    if (widths.has(key)) return widths.get(key);
+    let w = text.length * size * ratio;
+    try {
+      if (measuring === undefined) {
+        measuring = document.createElement("canvas").getContext("2d");
+        // police des textes du graphique : calculée sur un texte SVG temporaire de la page
+        const probe = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        probe.setAttribute("class", "profil-svg");
+        probe.append(document.createElementNS("http://www.w3.org/2000/svg", "text"));
+        probe.style.cssText = "position:absolute;visibility:hidden;width:0;height:0";
+        document.body.append(probe);
+        family = getComputedStyle(probe.firstChild).fontFamily;
+        probe.remove();
+      }
+      if (measuring && family) {
+        measuring.font = `${weight} ${size}px ${family}`;
+        const m = measuring.measureText(text).width;
+        if (Number.isFinite(m) && m > 0) w = m;
+      }
+    } catch { measuring = null; }
+    widths.set(key, w);
+    return w;
+  }
+
   /** Étiquettes du graphique (classe « place ») écartées verticalement de celles déjà posées, dans l'ordre du dessin,
    * entre top et bottom (hauteurs à l'échelle : chute, dévers, travers et plateforme presque à la même hauteur).
-   * Largeurs estimées : le SVG n'est pas encore dans la page. */
+   * Largeurs mesurées sur un canvas hors écran (textWidth) : le SVG n'est pas encore dans la page. */
   // obstacles : [gauche, haut, droite, bas] à éviter aussi (tablier d'un pont…)
   function declutter(svg, top, bottom, obstacles = []) {
     const box = (t, y) => {  // étiquette sur plusieurs lignes (tspan) : la plus longue, et LINE px par ligne de plus
       const lines = t.querySelectorAll("tspan").length ? [...t.querySelectorAll("tspan")].map((s) => s.textContent) : [t.textContent];
-      const size = t.classList.contains("graduation") ? 12 : 13, w = Math.max(...lines.map((s) => s.length)) * size * 0.56;
+      const grad = t.classList.contains("graduation"), size = grad ? 12 : 13,
+        w = Math.max(...lines.map((s) => textWidth(s, size, grad ? 400 : 500)));
       const x = Number(t.getAttribute("x")), anchor = t.getAttribute("text-anchor");
       const left = anchor === "end" ? x - w : anchor === "middle" ? x - w / 2 : x;
       return [left - 2, y - size, left + w + 2, y + 3 + (lines.length - 1) * LINE];
@@ -106,6 +138,46 @@ const Profil = (() => {
       t.setAttribute("y", y);
       placed.push(box(t, y));
     }
+  }
+
+  /** Clé de lecture sous le graphique (dans le SVG : aussi dans le PNG et le PDF) : un échantillon et un mot pour chaque
+   * élément réellement dessiné dans svg, sur une ou deux lignes. Rend la hauteur ajoutée au viewBox. */
+  function drawKey(svg) {
+    const has = (sel) => Boolean(svg.querySelector(sel));
+    // [présent, classe de l'échantillon, mot, attributs] : l'échantillon reprend la classe de l'élément dessiné
+    const items = [
+      [true, "sol", "terrain de la photo"],
+      [has(".autre-travers"), "autre-travers", "autres travers"],
+      [has(".chaussee"), "chaussee", "plateforme"],
+      [has('.bord[data-bord="mesure"]'), "bord", "bord mesuré", { "data-bord": "mesure" }],
+      [has(".bord-suppose"), "bord bord-suppose", "bord supposé", { "data-bord": "suppose" }],
+      [has(".bord-chaussee"), "bord-chaussee", "bord d'enrobé (LiDAR)"],
+      [has(".separateur"), "separateur", "séparateur"],
+      [has(".ligne-blanche"), "ligne-blanche", "ligne blanche"],
+      [has(".chute"), "chute", "chute"],
+      [has(".devers"), "devers", "dévers"],
+      [has(".eau, .eau-surface, .eau-nuage"), "eau-surface", "eau"],
+      [has(".herbe"), "herbe", "herbe"],
+      [has(".vegetation"), "vegetation", "végétation"],
+    ].filter(([present]) => present);
+    const SAMPLE = 22, GAP = 14, ROW = 18, y0 = H + 6;
+    let x = LEFT, row = 0;
+    const nodes = [];
+    for (const [, cls, word, attrs = {}] of items) {
+      const w = SAMPLE + 5 + textWidth(word, 12);
+      if (x > LEFT && x + w > W - RIGHT) { x = LEFT; row++; }
+      const cy = y0 + row * ROW + 9;
+      nodes.push(cls === "ligne-blanche"
+        ? el("rect", { x: x + SAMPLE / 2 - 3, y: cy - 3, width: 6, height: 6, class: cls })
+        : el("line", { x1: x, x2: x + SAMPLE, y1: cy, y2: cy, class: cls, ...attrs }),
+      el("text", { x: x + SAMPLE + 5, y: cy + 4, class: "graduation cle-profil" }, word));
+      x += w + GAP;
+    }
+    svg.append(el("g", { class: "cle-lecture" }));
+    svg.lastChild.append(...nodes);
+    const height = (row + 1) * ROW + 12;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H + height}`);
+    return height;
   }
 
   /** Cadre du graphique : altitude de référence (plateforme sous l'origine), plateforme du travers de la photo, bornes
@@ -466,12 +538,13 @@ const Profil = (() => {
     // dessin suivent le terrain, les bords sont nommés au-dessus du cadre). Sa place est réservée à declutter (obstacle),
     // qui écarte les étiquettes « place » ; posée en dernier, sur un fond opaque, elle reste lisible et entre dans le PNG et le PDF.
     const mention = factor > 1 ? `Hauteurs ×${num(factor, 0)}` : "";
-    const mentionBox = [LEFT + 2, TOP + 2, LEFT + 12 + mention.length * 13 * 0.6, TOP + 24];
+    const mentionBox = [LEFT + 2, TOP + 2, LEFT + 12 + textWidth(mention, 13, 500, 0.6), TOP + 24];
     declutter(svg, TOP, TOP + plotH, mention ? [mentionBox] : []);
     if (mention) {
       svg.append(el("rect", { x: mentionBox[0], y: mentionBox[1], width: mentionBox[2] - mentionBox[0], height: 22, rx: 3, class: "mention-echelle" }),
         el("text", { x: LEFT + 7, y: TOP + 18, class: "etiquette-profil mention-echelle-texte" }, mention));
     }
+    drawKey(svg);  // clé de lecture sous le cadre : agrandit le viewBox, le graphique garde sa taille
     const marker = el("marker", { id: "fleche", viewBox: "0 0 10 10", refX: 10, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" });
     marker.append(el("path", { d: "M0,0L10,5L0,10Z", class: "fleche" }));
     svg.prepend(el("defs", {}));

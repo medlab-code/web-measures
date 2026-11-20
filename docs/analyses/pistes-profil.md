@@ -342,7 +342,7 @@ laissé de côté.*
 - **Piste** : « ×3 » écrit sur le graphique, près de l'axe des hauteurs ; dernier choix retenu.
 - **Gain** : on lit les petits reliefs sans se tromper d'échelle.
 
-**G2. Clé de lecture visible.**
+**G2. Clé de lecture visible.** *Faite le 20/11/2026 : clé d'une ou deux lignes sous le graphique, dans le SVG (donc le PNG et le PDF), un échantillon et un mot pour chaque élément présent seulement ; le viewBox grandit d'autant, le cadre garde sa taille ; légende détaillée toujours repliée.*
 - **Avant** : légende repliée à chaque ouverture (voulu), une dizaine de paragraphes.
 - **Problème** : couleurs et tirets sans clé au premier regard.
 - **Piste** : une rangée de pastilles sous le graphique (sol, travers voisins, chute, dévers, bord, eau, végétation), seulement pour
@@ -388,7 +388,7 @@ laissé de côté.*
 - **Piste** : vérifier les contrastes en thème clair et sombre ; motif en plus de la couleur (pointillés pour l'herbe).
 - **Gain** : lisible pour tous, à l'écran et en PDF.
 
-**G9. Largeur des étiquettes mesurée.**
+**G9. Largeur des étiquettes mesurée.** *Faite le 20/11/2026 : largeur lue par `measureText` sur un canvas hors écran (police calculée sur un texte SVG de la page, cache par texte et taille), pour `declutter`, la clé et « Hauteurs ×N » ; estimation en repli si le canvas est indisponible.*
 - **Avant** : `declutter` estime la largeur (0,56 × taille par caractère) : le SVG n'est pas encore dans la page.
 - **Problème** : chevauchements ou écarts inutiles selon la police.
 - **Piste** : écarter les étiquettes après l'insertion (`getComputedTextLength`).
