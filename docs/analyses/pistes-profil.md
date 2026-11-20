@@ -378,7 +378,7 @@ laissé de côté.*
 - **Piste** : tracer le travers de la photo (et les bords trouvés) sur la carte pendant que la fenêtre est ouverte, puis sur la photo.
 - **Gain** : le graphique se relie au terrain.
 
-**G6. Commandes regroupées.**
+**G6. Commandes regroupées.** *Faite le 20/11/2026 : trois cadres titrés, « Affichage » (échelle, végétation, légende, loupe), « Nuage LiDAR » (analyse fine), « Enregistrer » (PNG, PDF, 2e page), puis « Fermer » ; boutons « PNG » et « PDF » (le cadre dit « Enregistrer »). Deux lignes au lieu d'une rangée sans ordre.*
 - **Avant** : neuf commandes sur une rangée (deux interrupteurs, analyse fine, légende, loupe, PNG, PDF, 2e page, fermer).
 - **Problème** : rangée qui passe sur deux lignes, sans ordre visible.
 - **Piste** : trois groupes : Affichage (échelle, végétation, légende, loupe), Analyse fine, Enregistrer (PNG, PDF, 2e page).
@@ -416,6 +416,6 @@ laissé de côté.*
 1. ~~P10~~ (fait le 19/11/2026, avec le premier test du banc synthétique : début de P1).
 2. ~~P7 et P8~~ (faits le 19/11/2026 ; reste la vérification sur routes réelles, P2).
 3. ~~P9~~ (mesurée le 19/11/2026 : biais de 3 à 6 cm, pas de correction).
-4. G1, G2, G3.
+4. G1, G2, G3 (faites).
 5. ~~P5, P12~~ (faites le 19/11/2026).
 6. G4, G5, G6, puis G7, G8, G9 (P3 et P6 écartées par l'auteur ; P11, P13 et P14 mesurées le 19/11/2026 : rien à faire).

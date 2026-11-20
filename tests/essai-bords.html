@@ -66,7 +66,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
         fold.click();
         await sleep(700);  // titre complété par le lieu (route, PR, commune)
         log(`  profil : ${dialog.querySelector("h2").textContent} · ${[...dialog.querySelectorAll(".legende li, .legende p")].map((e) => e.textContent).join(" | ")}`);
-        // Image du bouton « Enregistrer en PNG » (Profil.png), sans la boîte d'enregistrement
+        // Image du bouton « PNG » (groupe « Enregistrer ») (Profil.png), sans la boîte d'enregistrement
         if (images++ < 3) {
           const blob = await w.eval("Profil").png(svg, dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
           await log(`IMAGE ${f.id.slice(0, 8)} ` + await new Promise((r) => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(blob); }));

@@ -1365,6 +1365,10 @@ dialog.profil .nuage-etat { display: flex; align-items: center; gap: 0.6rem; mar
 dialog.profil .nuage-etat:has(progress[hidden]):has(#profil-nuage-etat:empty) { display: none; }
 dialog.profil form { flex-wrap: wrap; row-gap: 0.6rem; justify-content: center; }
 dialog.profil form label { white-space: nowrap; }
+/* Commandes du profil en trois groupes titrés (piste G6) : Affichage, Nuage LiDAR, Enregistrer ; « Fermer » seul à la fin */
+dialog.profil form .groupe { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.8rem; margin: 0;
+  padding: 0.15rem 0.6rem 0.45rem; border: 1px solid var(--bord); border-radius: 6px; }
+dialog.profil form .groupe legend { padding: 0 0.3rem; font-size: 0.75rem; color: var(--discret); }
 #profil-nuage-barre { width: 8rem; height: 0.6rem; accent-color: var(--panoramax); vertical-align: middle; }
 .profil-svg .herbe { fill: none; stroke: #9ccc65; stroke-width: 5; stroke-linejoin: round; opacity: 0.9; }  /* analyse fine */
 .profil-svg .ouvrage { stroke: var(--texte); stroke-width: 2; stroke-dasharray: 6 3; }  /* pont ou tunnel du profil en long */
