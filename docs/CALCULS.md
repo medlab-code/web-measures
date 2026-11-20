@@ -379,9 +379,13 @@ de la détection (§ 8.2), accotement parfois compris, sans l'analyse fine.
 ### 8.8 Bords sur la photo (expérimental)
 
 Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'utilisateur ajuste aux bords (`src/nez.js`).
-- **Droite** : points à `d` m devant la caméra, perpendiculaires à l'axe de la séquence (cap entre les photos voisines, sinon cap
-  de la photo), de -12 à +12 m tous les 0,05 m, positifs à droite. Un point de décalage `x` est au cap `atan2(x, d)` de l'axe et à
-  l'élévation `-atan(H / hypot(x, d))` ; `d` = 4,4 m (monture 1,93 m), 4,8 m (2,07 m), 4,5 m sinon, soit le capot de
+- **Droite** : centre à `d` m devant la caméra sur son axe (cap entre les photos voisines, sinon cap de la photo), orientée
+  perpendiculairement à la direction du trajet *à cet endroit* : interpolation angulaire (écart ramené à ±180°) entre l'axe à la photo
+  (θ0) et l'axe à la photo suivante (θ1, même calcul avec ses voisines), θ = θ0 + t·(θ1 − θ0), t = `d` / distance entre les deux
+  photos (bornée à [0, 1]) ; θ0 si la suivante manque, est à moins de 1 m ou à plus de 20 m. Dans un giratoire de 20 m de rayon, la
+  route a tourné de 13° entre la photo et la droite : sans cela elle serait oblique d'autant par rapport au rayon de l'anneau. Un
+  écart de plus de 3° est rendu dans `virage` (degrés, pas encore affiché). Points de -12 à +12 m tous les 0,05 m, positifs à droite. En ligne droite (θ = θ0), un point de décalage `x` est au cap `atan2(x, d)` de l'axe et à
+  l'élévation `-atan(H / hypot(x, d))` (sinon, avec δ = θ − θ0 : à `x·cos δ` à droite et `d − x·sin δ` devant la caméra) ; `d` = 4,4 m (monture 1,93 m), 4,8 m (2,07 m), 4,5 m sinon, soit le capot de
   `src/dessus.js` (OUTLINES) plus 0,3 m. Direction rendue dans le repère de la photo par `Session._view_of` : calage compris
   (cap de la séquence, inclinaison calée ou lue).
 - **Carte** : `lonlat` rend les extrémités (-12 et +12 m) de la droite à partir de la position recalée de la photo si la séquence l'est ;

@@ -7,7 +7,7 @@ web_app.App : ses méthodes lisent l'état de l'application (self)."""
 import json
 import math
 
-from core import autotilt, calibration, triangulation
+from core import autotilt, calibration, metadata, triangulation
 
 NOSE_STEP = 0.05  # m : pas des points de la droite
 NOSE_REACH = 12.0  # m : de part et d'autre du droit de la caméra
@@ -43,10 +43,37 @@ class Nez:
         axis = self._axis(self.item)
         return axis if axis is not None else self._heading()
 
+    def _nose_axis_at(self, d):
+        """(cap en degrés, écart au cap de la photo) de la trajectoire à `d` m devant la caméra, là où est tracée la droite :
+        la route a tourné entre la photo et la droite (giratoire de 15 à 20 m de rayon : 15 à 20° pour 4,4 m). Interpolation
+        angulaire entre l'axe à la photo (_nose_axis) et l'axe à la photo suivante dans le sens de marche (même calcul, voisines
+        de celle-ci), pondérée par d / distance entre les deux photos (bornée à [0, 1]). Axe de la photo si la suivante manque
+        ou est à moins de 1 m ou à plus de 20 m."""
+        axis = self._nose_axis()
+        item = self.item
+        following = self.neighbours.get(metadata.id_from_href(metadata.item_link(item, "next")))
+        if not following:
+            return axis, 0.0
+        try:
+            here = [float(v) for v in item["geometry"]["coordinates"][:2]]
+            there = [float(v) for v in following["geometry"]["coordinates"][:2]]
+        except (KeyError, TypeError, ValueError):
+            return axis, 0.0
+        gap = math.hypot((there[0] - here[0]) * math.cos(math.radians(here[1])), there[1] - here[1]) * 111320.0
+        if not 1.0 <= gap <= 20.0:
+            return axis, 0.0
+        after = self.neighbours.get(metadata.id_from_href(metadata.item_link(following, "next")))
+        ahead = metadata.sequence_axis(following, item, after)  # la photo affichée est la précédente de la suivante
+        if ahead is None:
+            return axis, 0.0
+        turn = (ahead - axis + 540) % 360 - 180
+        t = min(max(d / gap, 0.0), 1.0)
+        return (axis + t * turn) % 360, t * turn
+
     def nose_line(self, distance=None):
         """JSON de la droite au sol à `distance` m devant la caméra (None : au-delà du capot, NOSE_DISTANCE), perpendiculaire
-        à l'axe de la séquence : {d, lonlat: [[lon, lat] à -NOSE_REACH, [lon, lat] à +NOSE_REACH] (position recalée de la photo), hauteur, hauteur_source, sigma_h, roulis_campagne, points: [[décalage en m (positif à
-        droite de l'axe), yaw, pitch]]} (radians, repère de la photo affichée), de -NOSE_REACH à +NOSE_REACH tous les
+        à l'axe de la séquence à l'endroit de la droite (_nose_axis_at) : {d, virage (écart en degrés entre l'axe à la photo et à la droite, si > 3°, pas affiché), lonlat: [[lon, lat] à -NOSE_REACH, [lon, lat] à +NOSE_REACH] (position recalée de la photo), hauteur, hauteur_source, sigma_h, roulis_campagne, points: [[décalage en m (positif à
+        droite de l'axe de la droite), yaw, pitch]]} (radians, repère de la photo affichée), de -NOSE_REACH à +NOSE_REACH tous les
         NOSE_STEP m. Sol plat au niveau du sol sous la caméra (pas de lecture du terrain : la droite est à quelques mètres, et
         la caméra n'est à _camera_height qu'au-dessus de son propre sol). {"error": …} sans photo 360°."""
         item = self.item
@@ -58,21 +85,27 @@ class Nez:
         mount = self._fleet_mount(item)
         d = float(distance) if distance else NOSE_DISTANCE.get(mount, NOSE_DISTANCE_DEFAULT)
         roll = self._roll_defect(item)
-        axis = self._nose_axis()
+        axis = self._nose_axis()  # cap de la caméra : le centre de la droite est à d devant
+        along, turn = self._nose_axis_at(d)  # direction de la droite : perpendiculaire à celle-ci
+        gap = math.radians(turn)
         points = []
         for k in range(-int(NOSE_REACH / NOSE_STEP), int(NOSE_REACH / NOSE_STEP) + 1):
             x = k * NOSE_STEP
-            v = self._nose_view(axis + math.degrees(math.atan2(x, d)),
-                                -math.degrees(math.atan2(height, math.hypot(x, d))), roll)
+            right, forward = x * math.cos(gap), d - x * math.sin(gap)  # repère de la caméra (cap `axis`)
+            v = self._nose_view(axis + math.degrees(math.atan2(right, forward)),
+                                -math.degrees(math.atan2(height, math.hypot(right, forward))), roll)
             points.append([round(x, 2), round(v["yaw"], 6), round(v["pitch"], 6)])
         lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
         fixed = self.calibration.position(item.get("collection"), lon, lat)  # position recalée de la séquence, si elle l'est
         if fixed:
             lon, lat = fixed[0], fixed[1]
-        a = math.radians(axis)
+        a, b = math.radians(axis), math.radians(along)
         ends = []  # extrémités (-NOSE_REACH, +NOSE_REACH) de la droite sur la carte : une droite, le reste s'interpole
         for x in (-NOSE_REACH, NOSE_REACH):
-            east, north = d * math.sin(a) + x * math.cos(a), d * math.cos(a) - x * math.sin(a)
+            east, north = d * math.sin(a) + x * math.cos(b), d * math.cos(a) - x * math.sin(b)
             ends.append([round(v, 7) for v in triangulation._geographic(east, north, lon, lat)])
-        return json.dumps({"d": d, "hauteur": height, "hauteur_source": source, "sigma_h": sigma,
-                           "roulis_campagne": roll, "points": points, "lonlat": ends, "reach": NOSE_REACH})
+        out = {"d": d, "hauteur": height, "hauteur_source": source, "sigma_h": sigma,
+               "roulis_campagne": roll, "points": points, "lonlat": ends, "reach": NOSE_REACH}
+        if abs(turn) > 3.0:
+            out["virage"] = round(turn)  # écart (degrés) entre l'axe à la photo et l'axe à la droite (pas encore affiché)
+        return json.dumps(out)

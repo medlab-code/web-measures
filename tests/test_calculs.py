@@ -1142,6 +1142,40 @@ class Parcours(unittest.TestCase):
         self.assertIn("error", json.loads(App(lambda *args: None).nose_line()))  # sans photo
         host.install(**HOST)
 
+    def test_droite_nez_virage(self):
+        """Droite au nez dans un virage : séquence sur un cercle de 20 m de rayon, photos tous les 5 m ; la droite est radiale
+        (perpendiculaire à la trajectoire) là où elle est tracée, pas à la photo (écart de 13° avec l'ancien calcul)."""
+        radius, step = 20.0, 5.0
+        origin = (5.0415, 47.3220)
+
+        def feature(k):
+            a = k * step / radius  # angle parcouru (rad), sens horaire vu de dessus : cap = a
+            lon, lat = triangulation._geographic(radius * (1 - math.cos(a)), radius * math.sin(a), *origin)
+            links = [{"rel": "prev", "href": "http://x/items/c%d" % (k - 1)}, {"rel": "next", "href": "http://x/items/c%d" % (k + 1)}]
+            return {"id": "c%d" % k, "collection": "s1", "type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                    "properties": {"view:azimuth": math.degrees(a) % 360, "datetime": "2026-01-01T00:00:00Z",
+                                   "pers:interior_orientation": {"field_of_view": 360}}, "links": links}
+        for k in range(-1, 4):
+            self.app.neighbours["c%d" % k] = feature(k)
+        self.app.set_picture(json.dumps(feature(0)))
+        self.app.set_active(True)
+        line = json.loads(self.app.nose_line())
+        d = line["d"]
+        theta0 = self.app._nose_axis()
+        self.assertAlmostEqual(theta0, 0.0, delta=0.5)
+        here = self.app.item["geometry"]["coordinates"][:2]
+        a = triangulation._local(*line["lonlat"][0], *here)
+        b = triangulation._local(*line["lonlat"][1], *here)
+        direction = math.degrees(math.atan2(b[1] - a[1], b[0] - a[0]))  # direction de la droite (est = 0°, sens trigonométrique)
+        centre = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+        self.assertAlmostEqual(math.hypot(centre[0], centre[1] - d), 0.0, delta=0.05)  # centre à d devant la photo
+        radial = math.degrees(math.atan2(centre[1], centre[0] - radius))  # du centre de l'anneau (à l'est) au centre de la droite
+        diff = abs((direction - radial + 90) % 180 - 90)  # écart modulo 180° entre la droite et le rayon
+        self.assertLess(diff, 2.0)
+        self.assertAlmostEqual(abs(line["virage"]), math.degrees(d / radius), delta=2.0)  # 13° environ
+        # ancien calcul : droite perpendiculaire à l'axe de la photo (est-ouest), soit 13° du rayon
+        self.assertGreater(abs((0.0 - radial + 90) % 180 - 90), 10.0)
+
     def test_releve_recharge(self):
         """Relevé gardé dans le navigateur (releve_json), remis au rechargement (load_releve)."""
         self.app.set_mode("releve")
