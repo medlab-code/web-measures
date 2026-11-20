@@ -239,7 +239,7 @@ de la BD TOPO de niveau supérieur à 0 (franchissement) à 8 m au plus de la ph
 plus). En mesure, ce critère active le mode (`set_bridge(True)` : sol tiré des photos au lieu du modèle de terrain, inclinaison sans la pente du
 terrain), dit « sur un pont (détecté) » dans la ligne « Position ». Sortie : photo à plus de 30 m (`roads.BRIDGE_LEFT`) de tout tronçon en pont (les
 photos d'approche visent encore le tablier : pas de bascule avant). Les tronçons sont lus par le réseau (WFS) : le critère est réévalué à chaque
-rafraîchissement, donc à leur arrivée. Un pont seulement proche (la vue du dessus le signale par `_near_bridge`, à 15 m) n'active pas ce mode.
+rafraîchissement, donc à leur arrivée. Un pont seulement proche (la vue du dessus le signale par `_near_bridge`, dessus ou dessous, à `BIRDEYE_BRIDGE` m) n'active pas ce mode.
 
 Ce calcul est automatique sur une photo prise sur un pont de la BD TOPO. La méthode qui a donné la valeur est affichée à sa
 suite : « LiDAR » ou « RTK ».
