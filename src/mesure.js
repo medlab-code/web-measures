@@ -550,7 +550,6 @@ const Mesure = {
       }
     }
     $("#camera").addEventListener("change", setCamera);
-    $("#pont").addEventListener("change", (event) => refresh(etat.app.set_bridge(event.target.checked)));
     $("#camera-gps").addEventListener("click", (event) => {
       $("#camera").value = Number(event.target.dataset.value).toFixed(2);
       setCamera();

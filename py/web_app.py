@@ -290,7 +290,13 @@ class App(Pose, Chutes, Nez, session.Session):
             text, alert = self._tilt_line()
             quality = precision.state_text(self.quality, metadata.item_accuracy(self.item), (text, False))
             out["quality"] = "⚠ " + quality if alert and not quality.startswith("⚠") else quality
+            out["quality"] = self._bridge_note(out["quality"])
         return json.dumps(out)
+
+    def _bridge_note(self, quality):
+        """Ligne « Position » + « sur un pont (détecté) » quand le mode « sur un pont » est actif (activé tout seul d'après la BD TOPO,
+        take_bridge_alert) : dit à l'utilisateur pourquoi le sol vient des photos et non du modèle de terrain."""
+        return quality + " · sur un pont (détecté)" if self.bridge else quality
 
     # Mesures faites : seulement sur leur photo (ticket #24) ---------------------------------------
     # Projetées sur les autres photos, elles y paraissent décalées. Le cœur les montre partout :

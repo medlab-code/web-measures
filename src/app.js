@@ -564,7 +564,7 @@
     const saved = store.get("calage");
     if (saved && !etat.app.load_calibration(saved)) console.warn("Calage enregistré illisible : ignoré.");
     etat.savedCalibration = etat.app.calibration_version;
-    for (const id of ["#mesure", "#mode", "#camera", "#pont", "#calage-importer"]) $(id).disabled = false;
+    for (const id of ["#mesure", "#mode", "#camera", "#calage-importer"]) $(id).disabled = false;
     showCalibrationExport();
     $("#camera").value = store.get("camera", $("#camera").value);
     etat.app.set_camera_height(Number($("#camera").value));
@@ -683,15 +683,6 @@
     }));
   }
 
-  /** Fenêtre non modale en haut à gauche de la visionneuse, sous le nom du pont : la photo reste
-   * visible et utilisable (question du pont, posée à l'ouverture d'une photo). */
-  function showInCorner(dialog) {
-    dialog.show();
-    const box = $("#vue").getBoundingClientRect(), fall = $("#chute");
-    Object.assign(dialog.style, { margin: "0", inset: "auto", left: `${box.left + 12}px`,
-      top: `${box.top + 12 + (fall.hidden ? 0 : fall.offsetHeight + 8)}px` });
-  }
-
   /** Redessine tout : texte de la mesure, état de la photo, repères, carte, résultats. */
   /** Hauteur de chute d'un pont demandée par App.fall : nuage LiDAR lu une fois par demande, réponse rendue au calcul. */
   let bridgeReading = null;
@@ -719,21 +710,11 @@
       $("#alerte-rtk p").textContent = rtkAlert;
       showOverViewer($("#alerte-rtk"));
     }
-    // Photo sur un pont (BD TOPO) : « Sur un pont » proposé, une fois par pont ; sortie du pont : la
-    // décocher, une fois par sortie. Sans autre fenêtre ouverte.
-    const bridgeAlert = document.querySelector("dialog[open]") ? null : JSON.parse(etat.app.take_bridge_alert());
-    if (bridgeAlert) {
-      const dialog = $("#alerte-pont");
-      dialog.querySelector("h2").textContent = bridgeAlert.check ? "⚠ Photo sur un pont" : "Sortie du pont";
-      dialog.querySelector("p").textContent = bridgeAlert.text;
-      dialog.returnValue = "";
-      dialog.addEventListener("close", () => {
-        if (dialog.returnValue !== "oui") return;
-        $("#pont").checked = bridgeAlert.check;
-        refresh(bridgeAlert.check ? etat.app.set_bridge(true) : etat.app.leave_bridge());
-      }, { once: true });
-      showInCorner(dialog);
-    }
+    // Photo sur un pont (BD TOPO, tronçon en pont à 8 m au plus dans le sens de la séquence : roads.on_bridge) : le mode « sur un pont » (sol tiré des photos
+    // au lieu du modèle de terrain) s'active tout seul, et se désactive de même à plus de 30 m de tout pont. Plus de case ni de question : la
+    // ligne « Position » dit « sur un pont (détecté) ». Réévalué à chaque rafraîchissement, donc à l'arrivée des tronçons (lecture asynchrone).
+    const bridgeAlert = JSON.parse(etat.app.take_bridge_alert());
+    if (bridgeAlert) setTimeout(() => refresh(bridgeAlert.check ? etat.app.set_bridge(true) : etat.app.leave_bridge()), 0);
     const state = JSON.parse(etat.app.state());
     // grisés quand ils n'auraient pas d'effet ; départ d'une longueur sur la carte
     $("#effacer").disabled = !state.can_undo && !Dessus.hasStart();

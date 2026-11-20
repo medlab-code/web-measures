@@ -307,12 +307,12 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .maplibregl-ctrl-group button.maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 12h14'/></svg>"); }
 .maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3l-4 9h8zM12 21l4-9H8z'/></svg>"); }
 /* Bouton de mesure sur la carte : icône et libellé, en pastille ; liste d'outil de même hauteur */
-.maplibregl-ctrl-top-left button.mesurer-carte { width: auto; padding: 0.15rem 0.7rem 0.15rem 0.45rem; gap: 0.35rem; border-radius: 999px;
+.maplibregl-ctrl-top-left button.mesurer-carte { width: auto; padding: 0.15rem calc(0.7rem + var(--pastille-marge)) 0.15rem calc(0.45rem + var(--pastille-marge)); gap: 0.35rem; border-radius: 999px;
   background: rgba(24, 25, 28, 0.55); font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; }
 .maplibregl-ctrl-top-left button.mesurer-carte:not(:disabled):hover { background: rgba(24, 25, 28, 0.82); }
 .maplibregl-ctrl-top-left button.mesurer-carte[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); }
 .maplibregl-ctrl-top-left button.mesurer-carte svg { width: 1.3rem; height: 1.3rem; flex: none; }
-.maplibregl-ctrl-top-left select.outil-carte { width: auto; padding: 0 0.6rem; border-radius: 999px; background: rgba(24, 25, 28, 0.55);
+.maplibregl-ctrl-top-left select.outil-carte { width: auto; padding: 0 calc(0.6rem + var(--pastille-marge)); border-radius: 999px; background: rgba(24, 25, 28, 0.55);
   font: inherit; font-size: 13px; font-weight: 500; }
 .maplibregl-ctrl-top-left select.outil-carte option { color: #222; background: #fff; }
 /* Faucon (Bird Eye), capture et export de la carte : fond de pastille de la visionneuse, faucon en blanc */
@@ -1034,7 +1034,7 @@ html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):n
   flex-direction: row;
   align-items: center;
   gap: 0.8rem;
-  padding: 0.2rem 0.7rem 0.2rem 0.3rem;
+  padding: 0.2rem calc(0.7rem + var(--pastille-marge)) 0.2rem calc(0.3rem + var(--pastille-marge));
   border-radius: 999px;
   background: rgba(24, 25, 28, 0.55);
   color: #fff;
@@ -1066,7 +1066,7 @@ html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):n
 /* Captures et plein écran de la visionneuse : en haut à droite (#voyants est dessous), même fond que les réglages de l'image */
 #captures-visionneuse {
   position: absolute; right: 0.8rem; top: 0.6rem; z-index: 5; display: flex; align-items: center; gap: 0.3rem;
-  padding: 0.2rem 0.3rem; border-radius: 999px; background: rgba(24, 25, 28, 0.55); color: #fff; transition: background 0.2s;
+  padding: 0.2rem calc(0.3rem + var(--pastille-marge)); border-radius: 999px; background: rgba(24, 25, 28, 0.55); color: #fff; transition: background 0.2s;
 }
 #captures-visionneuse:hover { background: rgba(24, 25, 28, 0.82); }
 pnx-photo-viewer[hidden] ~ #reglage-image, pnx-photo-viewer[hidden] ~ #captures-visionneuse { display: none; }
@@ -1118,7 +1118,7 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
 #lieu { grid-column: 1; justify-self: start; min-width: 0; }
 #lieu, #producteur-photo {
   margin: 0;
-  padding: 4px 0.8rem;
+  padding: 4px calc(0.8rem + var(--pastille-marge));  /* marge de plus aux bouts arrondis : le texte ne colle pas à l'arrondi */
   line-height: 18px;  /* 26 px de haut, comme le lecteur */
   border-radius: 14px;  /* pastille, sans devenir une ellipse quand le texte passe sur deux lignes */
   background: rgba(24, 25, 28, 0.55);  /* fond et coins des boutons en haut de la visionneuse (#reglage-image) */
@@ -1157,7 +1157,7 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
 #lecteur {
   display: flex;
   gap: 2px;
-  padding: 2px 0.5rem;
+  padding: 2px calc(0.5rem + var(--pastille-marge));
   border-radius: 999px;
   background: rgba(24, 25, 28, 0.55);  /* fond et coins des boutons en haut de la visionneuse (#reglage-image) */
   pointer-events: auto;
@@ -1767,6 +1767,8 @@ button.lien:disabled { color: var(--discret); opacity: 0.6; cursor: default; }
   margin-bottom: -1em; padding: 0.7rem 0 1em; background: var(--fond); border-top: 1px solid var(--bord); }
 #releve-erreur[hidden] { display: none; }
 
+/* Style commun des boutons et pastilles : marge de plus aux bouts arrondis des pastilles (le texte ne colle pas à l'arrondi), grossie avec --echelle-ui */
+:root { --pastille-marge: 3px; }
 /* Taille des boutons et étiquettes (Réglages › Affichage, --echelle-ui : 1, 1,25 ou 1,5) : tout ce qui porte le style commun (boutons du haut de la
    visionneuse, pastilles du bas, boutons de la carte) est grossi d'un bloc par « zoom », taille, rayon, trait des icônes et police ensemble */
 #reglage-image, #captures-visionneuse, .bas-vue, .maplibregl-ctrl-top-left { zoom: var(--echelle-ui, 1); }

@@ -401,6 +401,12 @@ après.
 
   Pendant les mesures (visée et étape 2 comprises), les flèches au sol de la visionneuse sont masquées
   (elles gênent les clics de mesure) : on change de photo par le lecteur de séquence ou la carte ; elles reviennent hors mesure.
+- **Mode « sur un pont »** (automatique, sans case ni question depuis le 20/11/2026 : l'ancienne case « Sur un pont » et sa fenêtre sont
+  retirées) : sur une photo prise SUR un pont de la BD TOPO (tronçon en pont à 8 m au plus de la photo et orienté comme la séquence, à
+  30° près), en mesure, le mode s'active tout seul : le sol vient des photos (altitude GPS des caméras moins leur hauteur) et non du modèle de
+  terrain, qui donne le terrain sous l'ouvrage. La ligne « Position » du panneau écrit alors « sur un pont (détecté) ». Il se désactive tout seul à
+  plus de 30 m de tout pont. Une photo seulement près d'un pont (à plus de 8 m, ou sur la voie franchie, dessous, dont le sens diffère) ne
+  l'active pas. Les tronçons arrivent par le réseau : l'état suit à leur arrivée, à chaque changement de photo.
 - **Hauteur de chute sur un pont** (automatique, sans clic) : sur une photo prise sur un pont
   de la BD TOPO, le nom du pont, ce qu'il franchit et la hauteur de chute la plus grande sur
   toute sa longueur s'affichent en haut à gauche de la visionneuse (pas pendant la lecture de

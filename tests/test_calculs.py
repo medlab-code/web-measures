@@ -159,6 +159,14 @@ class VueDessus(unittest.TestCase):
         self.assertEqual((near["bridge"], near["height"], near["neighbours"][0]["height"]), (True, 2.1, 2.1))
         self.assertEqual((far["bridge"], far["height"]), (False, 2.4))
 
+    def test_pont_detecte_dans_la_ligne_d_etat(self):
+        """Mode « sur un pont » activé d'après la BD TOPO : la ligne « Position » le dit (« sur un pont (détecté) »), pas sinon."""
+        a = App.__new__(App)
+        a.bridge = False
+        self.assertEqual(a._bridge_note("Position GPS vérifiée (±0,10 m)"), "Position GPS vérifiée (±0,10 m)")
+        a.bridge = True
+        self.assertEqual(a._bridge_note("Position GPS vérifiée (±0,10 m)"), "Position GPS vérifiée (±0,10 m) · sur un pont (détecté)")
+
     def test_pont_monture_cd21(self):
         """CD21 sur un pont, hauteur de séquence inconnue : monture d'après la date de prise de vue, pas le réglage
         (1,90 m par défaut : bandes de passage piéton à 0,44 m, f2a245d0-aeea-4249-ba9c-fad83b442a23 et

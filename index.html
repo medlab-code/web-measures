@@ -71,8 +71,6 @@
               </optgroup>
             </select>
           </label>
-          <label title="Sur un pont, le modèle de terrain de l'IGN (LiDAR HD, ou RGE ALTI là où le LiDAR HD n'est pas publié) donne le terrain sous l'ouvrage (la voie franchie), pas le tablier : les points au sol se calent alors sur le sol tiré des photos et l'inclinaison automatique se passe de la pente du terrain">
-            <input id="pont" type="checkbox" class="interrupteur" disabled> Sur un pont</label>
         </div>
         <div class="rang">
           <button id="effacer" type="button" disabled
@@ -1284,7 +1282,6 @@ enregistrée en PNG et copiée dans le presse-papiers">
       <button value="ok" class="fermer" aria-label="Fermer" title="Fermer la fenêtre (les profils restent calculés)">✕</button>
     </form>
   </dialog>
-  <!-- Photo sur un pont d'après la BD TOPO : proposer « Sur un pont », une fois par pont -->
   <!-- Vidéo : serveur d'images bloqué (parcours.js, VIDEO_STALL) -->
   <dialog id="video-attente" class="avertissement">
     <h2>⚠ Serveur d'images sans réponse</h2>
@@ -1292,14 +1289,6 @@ enregistrée en PNG et copiée dans le presse-papiers">
     <form method="dialog">
       <button value="annuler" class="non">Annuler la vidéo</button>
       <button value="" class="oui">Attendre</button>
-    </form>
-  </dialog>
-  <dialog id="alerte-pont" class="avertissement">
-    <h2>⚠ Photo sur un pont</h2>
-    <p></p>
-    <form method="dialog">
-      <button value="non" class="non">Non</button>
-      <button value="oui" class="oui">Oui</button>
     </form>
   </dialog>
   <!-- Objets de la couche recalés sur une autre séquence de la voie : y aller ? (choix.js proposeRecaledPhoto) -->
