@@ -77,13 +77,14 @@ REFERENCES = {
         "flanc à 0,85 m, qui déborde du bord) ; relief à 3,5 m (pas de bord avant EDGE_NEAR, "
         "1,5 m), bordure de P21 à 2,9 m (auteur, 20/11/2026)"),
     ("1d23f3f9-f4b7-4d2e-8658-500a748ccecc", "droit"): (
-        1.3, "D119E, chaussée d'environ 4 m, véhicule sur sa moitié droite (photo ; intensité du nuage) : chemin "
-        "d'exploitation en terre claire raccordé à droite contre le flanc du véhicule, à plat jusqu'au talus, plus sombre que "
-        "l'enrobé dans le nuage (0,5 à 0,8 fois) ; relief à 3,5 m (pied du talus), analyse fine sans bord (auteur, 20/11/2026)"),
+        0.8, "D119E, chaussée d'environ 4 m, véhicule sur sa moitié droite : bord légèrement sous le flanc droit du véhicule "
+        "(caméra au milieu, flanc à 0,85 m) ; chemin d'exploitation en terre claire raccordé à droite, à plat jusqu'au talus, "
+        "plus sombre que l'enrobé dans le nuage (0,5 à 0,8 fois) ; relief à 3,5 m (pied du talus), analyse fine à 1,38 m "
+        "(bande sombre, cherchée à 1 m au moins) (auteur, 20/11/2026)"),
     ("1d23f3f9-f4b7-4d2e-8658-500a748ccecc", "gauche"): (
         2.9, "D119E : enrobé jusqu'à 2,9 m (photo ; herbe 1,4 à 1,6 fois l'enrobé au-delà), puis bourrelet enherbé de 0,4 m "
         "et fossé d'environ 0,8 m vers 7-8,5 m ; relief à 1,5 m, analyse fine à 4,1 m (bordure au pied du bourrelet) "
-        "(photo, 20/11/2026)"),
+        "(auteur, 20/11/2026)"),
 }
 
 
