@@ -12,7 +12,7 @@ const Choix = {
     const $ = (selector) => document.querySelector(selector);
     const {
       map, setStatus, etat, refresh, showPhotoInfo, passesFilter, filterActive, viewer, notice, showOverViewer,
-      proposeDistance, setSwapped, mapBox, setFolded, grip, swapButton, measureButton, birdeyeButton, captureButton,
+      setSwapped, mapBox, setFolded, grip, swapButton, measureButton, birdeyeButton, captureButton,
       exportButton, store, showFavorites, photoProducer, updateProducers, checkFarFromMeasures, showPlace, nez,
     } = host;
 
@@ -370,7 +370,6 @@ const Choix = {
       event.preventDefault();
       if (key === "z" && !event.shiftKey && Dessus.cancelStart(false)) return host.applyMeasureUi();  // départ d'une longueur sur la carte
       refresh(key === "y" || event.shiftKey ? etat.app.redo() : etat.app.undo());
-      proposeDistance();
     }
     document.addEventListener("keydown", onUndoKey);
 

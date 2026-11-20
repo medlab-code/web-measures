@@ -122,15 +122,15 @@ class UndoLastPoint(Base):
         self.s.keep_point()
         self.assertEqual(self.s.ref_point["name"], "A")  # lettre réutilisée
 
-    def test_free_measure(self):
+    def test_kept_points(self):
         self.s.set_mode("tri")
         for target in ((5.0, 3.0, 0.0), (5.0, 8.0, 0.0)):
             self.aim(self.p1, 0.0, target)
             self.aim(self.p2, 6.0, target)
             self.s.keep_point()
-        self.assertEqual((len(self.s.points), len(self.s.links)), (2, 1))
+        self.assertEqual(len(self.s.points), 2)
         self.assertIn("Point B effacé", self.s.clear())
-        self.assertEqual((len(self.s.points), len(self.s.links)), (1, 0))
+        self.assertEqual(len(self.s.points), 1)
         self.aim(self.p1, 0.0, (5.0, 3.0, 0.0))
         self.s.clear()  # visée en cours : seulement elle
         self.assertEqual(len(self.s.points), 1)
@@ -893,19 +893,20 @@ class Width(Base):
         self.assertLess(distance((ref["lon"], ref["lat"]), point(5.0, 3.0)), 0.02)
 
 
-class FreeMeasure(Base):
-    def test_distance_between_points(self):
+class KeptPoints(Base):
+    """Points gardés du mode « tri » du cœur (relevé d'objets) : nommés, sans distance entre eux."""
+
+    def test_points_without_distance(self):
         a, b = (5.0, 3.0, 0.0), (5.0, 7.0, 0.0)
         self.s.set_mode("tri")
         for target in (a, b):
             self.aim(self.p1, 0.0, target)
             self.aim(self.p2, 6.0, target)
             text = self.s.keep_point()
-        self.assertIn("Distance A–B : 4,00 m", text)
+        self.assertIn("Point B gardé", text)
+        self.assertNotIn("Distance", text)
         self.assertEqual(sorted(m["label"] for m in self.s.viewer_marks() if m["name"]), ["A", "B"])
-        self.assertEqual([r["kind"] for r in self.s.results()], ["point", "point", "distance"])
-        # Carte cadrée sur le segment qui vient d'être mesuré
-        self.assertEqual(self.s.focus()[-1], "segment")
+        self.assertEqual([r["kind"] for r in self.s.results()], ["point", "point"])
 
     def test_one_sighting_per_photo(self):
         self.s.set_mode("tri")

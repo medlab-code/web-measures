@@ -11,7 +11,7 @@ const Resultats = {
   init(host) {
     const $ = (selector) => document.querySelector(selector);
     const {
-      etat, refresh, askFiche, showOverViewer, map, mapBox, setColumnFolded, setFolded, fold, columnFold, notice, nez,
+      etat, refresh, askFiche, map, mapBox, setColumnFolded, setFolded, fold, columnFold, notice, nez,
     } = host;
 
     // Résultats ------------------------------------------------------------------------------
@@ -44,7 +44,6 @@ const Resultats = {
         remove.setAttribute("aria-label", `Effacer : ${r.text}`);
         remove.addEventListener("click", () => {
           refresh(etat.app.delete_result(r.kind, r.id));
-          proposeDistance();
         });
         const line = document.createElement("div");
         line.className = "ligne";
@@ -78,7 +77,7 @@ const Resultats = {
     }
 
     /** Libellé d'un résultat : point de référence (pastille, incertitude) ou mesure (symbole, point
-     * d'arrivée, valeur, incertitude) ; autre forme (distance…) : le texte tel quel. */
+     * d'arrivée, valeur, incertitude) ; autre forme : le texte tel quel. */
     function resultLabel(r) {
       const span = (className, textContent) => Object.assign(document.createElement("span"), { className, textContent });
       const label = span("libelle", "");
@@ -104,20 +103,6 @@ const Resultats = {
       $("#resultats-infos").textContent = parts.length ? `${parts.join(" · ")} · ${done ? "exportés" : "non exportés"}` : "Aucune mesure";
       $("#resultats-infos").classList.toggle("a-exporter", Boolean(measured.length) && !done);
       $("#resultats-vide").hidden = Boolean(list.length);
-    }
-
-    /** Point effacé au milieu d'une chaîne (A–B–C) : propose de mesurer la distance A–C. */
-    function proposeDistance() {
-      const proposal = JSON.parse(etat.app.take_proposal());
-      if (!proposal) return;
-      const [i, j, a, c] = proposal;
-      const dialog = $("#proposer-distance");
-      dialog.querySelector("h2 span").textContent = `${a}–${c}`;
-      dialog.returnValue = "";
-      dialog.addEventListener("close", () => {
-        if (dialog.returnValue === "oui") refresh(etat.app.link_points(i, j));
-      }, { once: true });
-      showOverViewer(dialog);
     }
 
     // Vue du dessus (src/dessus.js) : photo reprojetée au sol sur la mini-carte
@@ -345,7 +330,7 @@ const Resultats = {
     mapBox.querySelector("#dessus-voisines").addEventListener("change", updateBirdeye);  // voisines à lire
 
     return {
-      setSwapped, wantSwap, updateBirdeye, showResults, proposeDistance, swapButton, measureButton, birdeyeButton,
+      setSwapped, wantSwap, updateBirdeye, showResults, swapButton, measureButton, birdeyeButton,
       captureButton, exportButton, showMapMeasureButton, syncMapMeasure, showResultsInfo,
     };
   },

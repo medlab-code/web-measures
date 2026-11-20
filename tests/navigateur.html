@@ -367,9 +367,9 @@ async function feature(id) {
   log("clic ignoré par le calcul : " + app.click(-0.45, -0.3));
   doc.querySelector("#mesure").click();
 
-  doc.querySelector("#mode").value = "tri";  // par la liste : toujours en mesure, flèches masquées
+  doc.querySelector("#mode").value = "height";  // par la liste : toujours en mesure, flèches masquées
   doc.querySelector("#mode").dispatchEvent(new Event("change"));
-  log("== triangulation : " + app.status());
+  log("== visées (hauteur) : " + app.status());
   psvClick(0.9, 0.0);  // visée au clic dans la photo
   log(doc.querySelector("#statut").textContent);
   log("repère de la visée : " + JSON.parse(app.viewer_marks()).length + " · flèches masquées (visée) : "
@@ -485,7 +485,7 @@ async function feature(id) {
     doc.querySelector(id).value = value;
     doc.querySelector(id).dispatchEvent(new Event("change"));
   };
-  for (const mode of ["road", "height", "tri"]) {
+  for (const mode of ["road", "height"]) {
     select("#mode", mode);
     log("réglages " + mode + " : nouveau point de référence " + (doc.querySelector("#nouvelle-reference").hidden ? "masqué" : "affiché"));
   }

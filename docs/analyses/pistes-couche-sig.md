@@ -49,7 +49,7 @@ Ordre proposé :
 **O2. Couche gardée dans IndexedDB plutôt que dans `localStorage`.** *Fait.*
 - **Fait** : texte de la couche sous la clé « couche-texte » de la base `web-measures` (celle de `fileStore`), écritures
   enchaînées (`overlayWrite`) ; ancienne clé `localStorage` reprise une fois puis vidée ; `localStorage` en repli sans
-  IndexedDB. Essais : `essai-libre` (reprise), `essai-rtk` et `essai-releve` (réglages gardés).
+  IndexedDB. Essais : `essai-libre` (reprise, retiré le 20/11/2026), `essai-rtk` et `essai-releve` (réglages gardés).
 - **Avant** : `saveOverlay` écrit tout le GeoJSON dans `localStorage` (clé « couche », `src/app.js`). Au-delà
   d'environ 5 Mo, l'écriture échoue : la couche n'est pas retrouvée à la séance suivante (« trop grosse »).
 - **Piste** : la page se sert déjà d'IndexedDB (`fileStore`) pour retrouver le fichier importé. On y range aussi le texte

@@ -572,8 +572,8 @@
   function showLights(lights = etat.lastLights) {
     etat.lastLights = lights;
     const list = $("#voyants");
-    // Inclinaison : en mesure seulement, sauf en mesure libre (pas calculée, visées en cap)
-    const shown = etat.measuring && $("#mode").value !== "tri" ? lights : lights.filter(([name]) => name !== "Inclinaison");
+    // Inclinaison : en mesure seulement
+    const shown = etat.measuring ? lights : lights.filter(([name]) => name !== "Inclinaison");
     list.hidden = !shown.length && !silent.size;
     list.replaceChildren(...shown.map(([name, light]) => {
       const item = document.createElement("li");
@@ -594,11 +594,10 @@
     const message = $("#calcul-inclinaison");
     // En calage de l'inclinaison, rappel du mode : les clics calent la photo, ils ne mesurent pas
     const calibrating = $("#mode").value === "tilt";
-    const triangulating = $("#mode").value === "tri";  // pas de calcul d'inclinaison (visée en cap)
     const manual = tilt === "non" && !calibrating;
     const before = tilt === "avant" && !calibrating;  // calcul lancé au premier clic sur la photo
     // Longueur sur la carte : la vue du dessus a sa propre inclinaison (verticales ou pente de la route, voir sa barre d'état)
-    message.hidden = !etat.measuring || triangulating || $("#mode").value === "carte"
+    message.hidden = !etat.measuring || $("#mode").value === "carte"
       || !(calibrating || tilt === "attente" || manual || before);
     message.classList.toggle("manuel", manual);
     message.classList.toggle("calage", calibrating);
@@ -802,19 +801,17 @@
     if (focus === framed) return;
     framed = focus;
     const points = JSON.parse(focus);
-    // Segment seul (mesure libre) : marge plus large, pour le voir entier avec ses étiquettes
-    const segment = points[points.length - 1] === "segment" && points.pop();
     if (points.length < 2 || mapBox.hidden) return;
     const bounds = points.reduce((b, p) => b.extend(p), new maplibregl.LngLatBounds(points[0], points[0]));
-    map.fitBounds(bounds, { padding: segment ? 50 : 40, maxZoom: segment ? 22 : 20, duration: 400 });
+    map.fitBounds(bounds, { padding: 40, maxZoom: 20, duration: 400 });
   }
 
   // Résultats, carte et visionneuse échangées, boutons de la carte (Bird Eye, capture, export) : src/resultats.js
   const {
-    setSwapped, wantSwap, updateBirdeye, showResults, proposeDistance, swapButton, measureButton, birdeyeButton,
+    setSwapped, wantSwap, updateBirdeye, showResults, swapButton, measureButton, birdeyeButton,
     captureButton, exportButton, showMapMeasureButton, syncMapMeasure, showResultsInfo,
   } = Resultats.init({
-    etat, refresh, askFiche, showOverViewer, map, mapBox, setColumnFolded, setFolded, fold, columnFold, notice, nez,
+    etat, refresh, askFiche, map, mapBox, setColumnFolded, setFolded, fold, columnFold, notice, nez,
     get coneHeading() { return coneHeading; }, get editReleve() { return editReleve; },
     get saveResults() { return saveResults; }, get viewFov() { return viewFov; }, get applyMeasureUi() { return applyMeasureUi; },
   });
@@ -826,7 +823,7 @@
     overlayPoints, setPlacing, showDrawnLine, startLineDraft,
   } = Choix.init({
     map, setStatus, etat, refresh, passesFilter, filterActive, viewer, notice, showOverViewer,
-    proposeDistance, setSwapped, mapBox, setFolded, grip, swapButton, measureButton, birdeyeButton, captureButton,
+    setSwapped, mapBox, setFolded, grip, swapButton, measureButton, birdeyeButton, captureButton,
     exportButton, store, photoProducer, updateProducers, showPlace, nez,
     // favoris et photo éloignée : déclarés plus bas (Favoris.init)
     showPhotoInfo: (...args) => showPhotoInfo(...args), showFavorites: (...args) => showFavorites(...args),
@@ -901,7 +898,7 @@
   } = Mesure.init({
     etat, showMapMeasureButton, viewer, stopPlayer, syncMapMeasure, updatePlayer, refresh, overlayAt, overlayHiddenTest,
     movingId, overlayPoints, viewHeading, openPhoto, notice, setPlacing, showDrawnLine, store, startLineDraft,
-    proposeDistance, escapeHtml,
+    escapeHtml,
     editReleve: (k, fresh) => editReleve(k, fresh),  // relevé : déclaré plus bas (Releve.init)
   });
 

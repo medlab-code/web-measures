@@ -74,7 +74,7 @@ class Pose:
             return "photo non 360°"
         if not self._tilt_tried(pic):
             if self.mode == "tri":
-                return "pas calculée en mesure libre"
+                return "pas calculée dans ce mode"
             return "calculée au premier clic sur la photo" if self.active else "calculée à l'activation de la mesure"
         reason = self.tilt_reasons.get(pic, web_tilt.FEW_EDGES)
         if self.terrain_relay and pic in self.relay_failed:

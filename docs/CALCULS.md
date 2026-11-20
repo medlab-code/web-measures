@@ -154,10 +154,11 @@ Visées suivantes : à moins de 12 pixels du trait d'une visée déjà faite, le
 (touche Maj : visée libre), car un bord n'a pas de repère le long de son tracé. 0,5 m d'écart le
 long du bord donne environ 0,4 m d'erreur sur la largeur (simulation : photos à 10 et 5 m).
 
-## 5. Mesure libre
+## 5. Mesure libre (retirée)
 
-Distance horizontale entre deux points triangulés successifs. Les incertitudes des deux points
-se combinent.
+Distance horizontale entre deux points triangulés successifs : retirée le 20/11/2026, remplacée par
+la mesure sur la carte (longueur et surface). La triangulation (§ 2) reste celle des hauteurs,
+largeurs et du relevé d'objets.
 
 ## 6. Relevé d'objets
 
@@ -728,7 +729,6 @@ moins de 10 %, vers l'intérieur dans les virages marqués).
 | Point triangulé (RTK, croisement de 54°) | ±0,17 m | croisement, cap, GPS |
 | Hauteur | ±0,1 m | inclinaison, position du pied |
 | Largeur | ±0,3 à 0,5 m | axe de la route, position de `A` le long de la route |
-| Distance libre | ±0,25 m | les deux points |
 | Objet sur une seule photo, à 6 m | ±0,2 à 0,8 m | inclinaison, sol supposé plat |
 | Objet placé sur la carte | ±1 m | orthophoto |
 | Chute (pont, bords de route) | ±0,1 m LiDAR HD, ±0,4 m RGE ALTI | MNT ; sur un pont, nuage LiDAR HD, sinon altitude RTK |

@@ -873,7 +873,7 @@ class CameraPont(unittest.TestCase):
 
 
 class Parcours(unittest.TestCase):
-    """Mesures de bout en bout dans App, comme les pages d'essai du navigateur (essai-libre, essai-rtk, essai-largeur,
+    """Mesures de bout en bout dans App, comme les pages d'essai du navigateur (essai-rtk, essai-largeur,
     essai-releve, navigateur) mais sans réseau : deux photos 360° à 6 m l'une de l'autre sur une route nord-sud, sol plat, caméra
     à 1,9 m ; les clics visent des points connus (cap et élévation en radians, repère de la photo)."""
 
@@ -910,15 +910,6 @@ class Parcours(unittest.TestCase):
 
     def metres(self, text):
         return float(re.search(r"(\d+,\d+) m", text).group(1).replace(",", "."))
-
-    def test_distance_libre(self):
-        self.app.set_mode("tri")
-        self.sighted(self.A)
-        self.assertIn("Distance A–B : 4,00 m", self.sighted(self.B))
-        values = [f["properties"]["valeur_m"] for f in json.loads(self.app.export_geojson())["features"]
-                  if f["properties"]["type"].startswith("distance")]
-        self.assertEqual(len(values), 1)
-        self.assertAlmostEqual(values[0], 4.0, delta=0.02)
 
     def test_hauteur_depuis_A(self):
         a = self.app
@@ -1092,12 +1083,12 @@ class Parcours(unittest.TestCase):
         a.set_mode("tri")
         self.sighted(self.A)
         self.sighted(self.B)
-        distances = lambda: [f for f in json.loads(a.export_geojson())["features"] if f["properties"]["type"].startswith("distance")]
-        self.assertEqual(len(distances()), 1)
+        kept = lambda: [f for f in json.loads(a.map_geojson())["features"] if f["properties"]["kind"] == "triangule"]
+        self.assertEqual(len(kept()), 2)
         self.assertEqual(a.undo(), "Point B effacé.")
-        self.assertEqual(distances(), [])
+        self.assertEqual(len(kept()), 1)
         self.assertEqual(a.redo(), "Rétabli.")
-        self.assertEqual(len(distances()), 1)
+        self.assertEqual(len(kept()), 2)
 
     def test_bandes_triangulees(self):
         """Passage piéton : coins des bandes (0,50 m, de 8 à 11 m devant la première, à 1,5 m au moins de l'axe des

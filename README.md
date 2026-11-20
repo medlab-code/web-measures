@@ -1,7 +1,7 @@
 # Mesures Panoramax (web-measures)
 
 Application web de mesure sur les photos de rue [Panoramax](https://panoramax.fr), sans
-installer QGIS : hauteur d'un objet, largeur d'une chaussée, distance entre deux points, à
+installer QGIS : hauteur d'un objet, largeur d'une chaussée, longueur et surface sur la carte, à
 préparer ou vérifier depuis le bureau.
 
 Ses calculs viennent du plugin QGIS
@@ -23,7 +23,7 @@ possibles, mais la page prévient qu'elles seront probablement incohérentes.
 ## Grandes fonctions
 
 - **Mesures sur les photos**, guidées pas à pas : hauteur d'un objet, largeur perpendiculaire à la
-  chaussée, distance et points libres, relevé d'objets en couche SIG. Chaque résultat porte son
+  chaussée, longueur et surface sur la carte, relevé d'objets en couche SIG. Chaque résultat porte son
   incertitude.
 - **Mesures automatiques** : hauteur de chute sur un pont (nuage LiDAR HD), chute et dévers des
   bords de route (« Profils »), pente en long, analyse fine du nuage LiDAR.

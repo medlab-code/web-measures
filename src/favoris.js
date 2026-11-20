@@ -24,7 +24,7 @@ const Favoris = {
      * photos, la droite de mesure et le calage ne comptent pas. */
     function distanceToMeasures(lonlat) {
       if (!etat.app) return null;
-      const kinds = new Set(["mesure", "point", "etiquette", "triangule", "cible", "distance"]);
+      const kinds = new Set(["mesure", "point", "etiquette", "triangule", "cible"]);
       const k = Math.cos(lonlat[1] * Math.PI / 180) * 111320;
       let best = null;
       for (const f of JSON.parse(etat.app.map_geojson()).features) {

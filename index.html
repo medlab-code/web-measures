@@ -59,7 +59,6 @@
               <optgroup label="Mesures">
                 <option value="height">Hauteur d'un objet</option>
                 <option value="road">Largeur perpendiculaire à la chaussée</option>
-                <option value="tri">Mesure libre (points triangulés)</option>
                 <option value="carte"
                         title="Longueur (deux clics) ou surface (contour) tracée sur la carte en grand, à la place de la visionneuse ; sur la vue Bird Eye si elle est allumée (avec incertitude), sinon sur le fond de carte">Mesure sur la carte (longueur, surface)</option>
               </optgroup>
@@ -131,7 +130,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
     <div id="place-vue" hidden></div>
     <section id="vue">
       <p id="invite">Cliquez sur le filaire orange de la carte pour choisir une photo.</p>
-      <!-- Largeur, hauteur, mesure libre : centre de la vue, même cap que le trait de la mini-carte -->
+      <!-- Largeur, hauteur, relevé : centre de la vue, même cap que le trait de la mini-carte -->
       <div id="axe-vue" hidden></div>
       <!-- Cadastre sur la carte : croix discrète au centre de la vue, sur la ligne de cap (parcelle visée) -->
       <div id="croix-cadastre" hidden aria-hidden="true"></div>
@@ -1057,14 +1056,6 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
       </div>
     </aside>
   </main>
-  <dialog id="proposer-distance" class="avertissement">
-    <h2>Mesurer la distance <span></span> ?</h2>
-    <p>Le point effacé reliait ces deux points : leur distance peut être mesurée directement.</p>
-    <form method="dialog">
-      <button value="non" class="non">Non</button>
-      <button value="oui" class="oui">Mesurer la distance</button>
-    </form>
-  </dialog>
   <!-- Photo à plus de 100 m des mesures : proposer de repartir de zéro (une fois par éloignement) -->
   <dialog id="loin-mesures" class="avertissement">
     <h2>⚠ Mesures loin d'ici</h2>

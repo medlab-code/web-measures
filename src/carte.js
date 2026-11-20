@@ -361,7 +361,7 @@ const Carte = (() => {
           paint: { "line-color": BLEU, "line-opacity": 0.8, "line-width": 7 },
         },
         {
-          id: "traits", type: "line", source: "mesures", filter: kind("mesure", "distance"),
+          id: "traits", type: "line", source: "mesures", filter: kind("mesure"),
           paint: { "line-color": ROUGE, "line-width": 3 },
         },
         {  // point triangulé gardé (point de référence d'une hauteur) : disque plus large que la
@@ -1313,13 +1313,13 @@ const Carte = (() => {
         : middle(feature.geometry.coordinates);
       if (label) {
         const element = document.createElement("div");
-        // Triangulation : fond d'une autre couleur, pour les points gardés et pour les distances
-        element.className = "etiquette" + ({ triangule: " tri-point", distance: " tri" }[featureKind] || "");
+        // Triangulation : fond d'une autre couleur, pour les points gardés
+        element.className = "etiquette" + ({ triangule: " tri-point" }[featureKind] || "");
         element.textContent = label;
         const marker = new maplibregl.Marker({ element, offset: labelOffset(element) }).setLngLat(coords).addTo(map);
         labels.push(marker);
         stacked.push(marker);
-        if (feature.geometry.type === "LineString") {  // largeur, distance : à côté du trait (voir besideLine)
+        if (feature.geometry.type === "LineString") {  // largeur : à côté du trait (voir besideLine)
           const line = feature.geometry.coordinates;
           lineEnds.set(marker, [line[0], line[line.length - 1]]);
         }

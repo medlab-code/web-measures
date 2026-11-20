@@ -1511,7 +1511,6 @@ dd { margin: 0; overflow-wrap: anywhere; }
   pointer-events: none;
 }
 /* Carte : « plan perpendiculaire » sous le trait bleu, le long de celui-ci */
-.etiquette.tri { background: rgba(21, 76, 121, 0.92); }  /* triangulation : distance entre deux points */
 .etiquette.tri-point { background: rgba(142, 27, 27, 0.92); }  /* triangulation : point gardé (bordeaux, comme son rond rouge) */
 
 /* Carte : borne d'un point de repère (PR), d'après la borne E53 de l'IISR : tête en demi-cercle

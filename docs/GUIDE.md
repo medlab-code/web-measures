@@ -552,9 +552,8 @@ après.
   jour du relevé ; souvent absente : l'eau renvoie mal le laser). Pendant la lecture du nuage, une barre d'avancement
   (animée tant que le nombre de blocs à lire n'est pas connu, puis remplie bloc par bloc, pourcentage à côté). Essai : `tests/essai-nuage.html` (`#photos=<id>,…` : d'autres photos, sans contrôle de
   position ; canal de Bourgogne : 3b8811e4).
-- **Mesure libre (points triangulés)** : viser chaque point depuis au moins deux photos, puis
-  « Valider le point triangulé » ; à partir du deuxième, la distance horizontale au point précédent
-  s'affiche, et la carte se cadre sur le segment.
+- **Mesure libre par triangulation** : retirée le 20/11/2026 (remplacée par la mesure sur la carte :
+  longueur et surface, voir « Mesure sur la carte »).
 - **Relevé d'objets (couche SIG)** : viser chaque objet (un arbre d'un alignement, par exemple)
   depuis au moins deux photos, puis « Valider le point triangulé » ; après une seule visée,
   « Garder sur cette seule photo » propose de le poser là où la visée touche le sol, avec sa
@@ -601,7 +600,7 @@ visées de triangulation sont en tirets rouges.
 (**Refaire**, Ctrl+Y ou Ctrl+Maj+Z le rétablit, si rien n'a été fait depuis). La
 dernière visée seule (les autres restent ; le bord B garde sa première, le clic de la largeur),
 le dernier clic de l'objet vertical du calage, la sélection ou la mesure en cours ; sans rien en
-cours, le dernier point posé (sommet, bord opposé, puis le point de référence ; en mesure libre,
+cours, le dernier point posé (sommet, bord opposé, puis le point de référence ; en relevé d'objets,
 le dernier point gardé). Quand la photo affichée est à plus de 100 m des mesures, la page propose
 de tout effacer pour repartir de zéro. Échap annule le tracé d'une droite sur la carte.
 
@@ -772,8 +771,7 @@ pas utilisé (talus et murs pris pour la route).
   le bourg), commune ; hors route
   départementale, la véloroute suivie et l'écluse la plus proche (chemins de halage) ;
 - lecteur de séquence (1x à 16x), date et producteur en bas à droite ;
-- carte cadrée automatiquement sur la mesure en cours (mesure libre : sur le segment qui vient
-  d'être mesuré) ;
+- carte cadrée automatiquement sur la mesure en cours ;
 - carte **détachable** dans une fenêtre à part, à placer sur un second écran (bouton « ⧉ » sous
   le zoom, Edge, Chrome et Firefox récents) : elle reste reliée à la page et se déplace à la
   souris ; fermer la fenêtre, ou
@@ -854,15 +852,14 @@ de terrain sont encore attendus pour les mesures de largeur, les hauteurs de chu
 largeurs de chaussée LiDAR (analyse fine) : ces valeurs n'ont pas encore été comparées à des relevés sur place.
 
 Essais sur deux photos imajbox à position RTK (±0,10 m) de Pouilly-en-Auxois, distantes de
-5 m, sur des cibles connues (`tests/essai-rtk.html`, `essai-largeur.html`,
-`essai-libre.html`) :
+5 m, sur des cibles connues (`tests/essai-rtk.html`, `essai-largeur.html`) :
 
 | Mesure | Résultat | Attendu |
 |---|---|---|
 | Point de référence (visées croisées à 54°) | ±0,17 m | sur la cible |
 | Hauteur | 3,46 m ± 0,11 m | 3,464 m |
 | Largeur (clic à 40° de la droite de mesure) | 8,00 m ± 0,23 m | 8 m |
-| Distance entre deux points | 3,60 m ± 0,24 m | 3,606 m |
+| ~~Distance entre deux points~~ (mesure libre, retirée le 20/11/2026) | 3,60 m ± 0,24 m | 3,606 m |
 | Objet relevé sur une seule photo, à 6 m (`essai-releve.html`) | ±0,2 à 0,8 m selon le calage de l'inclinaison | à moins de 1 m de la cible |
 
 Inclinaison par le terrain (24/10/2026, 7 séquences CD21) : 14 photos témoins hors des villages
@@ -893,7 +890,7 @@ tombait sur le talus de la culée. En secours par l'altitude GPS, l'erreur de la
 telle quelle dans la chute : la monture du CD21 d'après la date (±4 cm, 15/11/2026) remplace le réglage
 de 1,90 m (±15 cm), soit jusqu'à 17 cm de mieux sur les photos de la monture haute (2,07 m).
 
-Hauteur de caméra : les mesures (hauteur, largeur, mesure libre) n'en dépendent pas (essai du 15/11/2026 :
+Hauteur de caméra : les mesures (hauteur, largeur) n'en dépendent pas (essai du 15/11/2026 :
 mêmes valeurs et incertitudes avec 1,90, 2,07 et 2,50 m) ; elle sert au tablier d'un pont (secours GPS),
 au relevé sur une seule photo et aux objets posés au sol. Dans l'ordre : altitude RTK moins sol LiDAR HD,
 calée pour la séquence, monture du CD21 d'après la date, réglage. Colonne `camera_m` de l'export : celle
@@ -983,7 +980,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 | `src/requeteur.js` | requêteur route + PR (+ distance) : routes du département affiché, côté droit par défaut |
 | `src/couche.js` | couche importée (GeoJSON, Shapefile par shpjs, GeoPackage par sql.js, CSV) : lecture, Lambert 93 en WGS 84, couleur et étiquette selon une colonne |
 | `src/lieu.js` | route, point de repère (PR), véloroute, écluse, hameau et commune de la photo, incrustés dans la visionneuse |
-| `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page (points de référence, hauteurs, largeurs, mesure libre, recalages) |
+| `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page (points de référence, hauteurs, largeurs, relevé d'objets, recalages) |
 | `py/web_chutes.py` | hauteurs de chute et dévers : sur un pont, et sur les bords de route (profils, séparateur, analyse fine) ; base de `App` |
 | `py/web_pose.py` | pose de la caméra : inclinaison automatique (raison d'un échec), inclinaison par le terrain, monture et défaut de roulis, pose de la vue du dessus ; base de `App` |
 | `py/web_host.py` | accès réseau du cœur par le `fetch` du navigateur |
@@ -997,7 +994,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 | `tests/test_calculs.py` | essais rapides des calculs, sans navigateur ni réseau (`python3 -m unittest discover -s tests`, quelques secondes avec `tests/coeur/`) |
 | `tests/navigateur.html` | essai de bout en bout dans un vrai navigateur |
 | `tests/commun.js` | code commun des pages d'essai : journal, attentes de condition, contrôles et bilan (« contrôles : n réussis ») |
-| `tests/essai-rtk.html`, `essai-largeur.html`, `essai-libre.html` | hauteur, largeur, mesure libre sur photos RTK, avec recalages |
+| `tests/essai-rtk.html`, `essai-largeur.html` | hauteur, largeur sur photos RTK, avec recalages |
 | `tests/essai-calage.html` | calage de l'inclinaison : croix sélectionnée à 8 px près, au zoom fort |
 | `tests/essai-profil.html` | fond du graphique du profil en travers, sur des profils synthétiques (sans réseau) : 1 m ou 0,3 m sous le point le plus bas |
 | `tests/inclinaison-terrain.html` | inclinaison par le terrain hors agglomération (option) |
@@ -1022,7 +1019,7 @@ D'après la feuille de route du plugin (`docs/feuille-de-route.md`, 12/10/2026) 
 - **Cœur de calcul en Python dans le navigateur (Pyodide)** : le même code que le plugin,
   sans portage, et ses tests restent la référence. Le téléchargement initial de Pyodide est
   acceptable au bureau.
-- Interface réduite : hauteur, largeur, distance entre points ; calage seulement si
+- Interface réduite : hauteur, largeur, distance sur la carte ; calage seulement si
   nécessaire.
 - **Indicateur de fiabilité** bien visible, d'après la vérification de la position GPS, la
   présence du LiDAR HD et le calage de l'inclinaison de la photo.
@@ -1056,7 +1053,7 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
    recalage sur la carte, export CSV et GeoJSON.
 3. ~~Indicateur de fiabilité, inclinaison automatique, triangulation~~ : voyants RTK, LiDAR
    HD et inclinaison, inclinaison automatique en arrière-plan, mesure libre entre points
-   triangulés.
+   triangulés (retirée le 20/11/2026, remplacée par la mesure sur la carte).
 4. ~~Mesures appuyées sur un point triangulé~~ (16/10/2026) : hauteur et largeur depuis un
    point de référence, recalage au clic et au clavier ; longueur sur une seule photo
    et calage de la hauteur de caméra retirés.

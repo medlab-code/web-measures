@@ -29,7 +29,7 @@ RAPIDE="essai-dessus essai-profil"
 BIRDEYE="essai-dessus essai-dessus-reference#rapide essai-passages#rapide"
 # pages longues d'abord : la file des voies finit sur les courtes
 COMPLET="essai-dessus-reference#rapide essai-releve navigateur essai-cache essai-largeur essai-rtk essai-bords
-  inclinaison-terrain essai-nuage essai-libre essai-cadastre essai-ponts essai-dessus essai-mobile essai-calage essai-profil-pdf
+  inclinaison-terrain essai-nuage essai-cadastre essai-ponts essai-dessus essai-mobile essai-calage essai-profil-pdf
   essai-profil"
 PASSAGES="essai-passages"
 VIDEO="essai-avancement-video essai-video essai-boucle essai-chassagne essai-format-video"

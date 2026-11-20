@@ -257,8 +257,7 @@ class App(Pose, Chutes, Nez, session.Session):
         self.relay_models = {}  # séquence -> références, modèle (web_terrain.model), raison d'un échec
         self._core_auto_tilt = self.calibration.auto_tilt
         self.calibration.auto_tilt = self._auto_tilt
-        # Relevé d'objets (mode "releve" de la page) : la mesure libre du cœur, sans distance entre les
-        # points, chacun gardé avec les champs saisis par l'utilisateur (values["releve"])
+        # Relevé d'objets (mode "releve" de la page) : le mode « tri » du cœur (points gardés), chacun gardé avec les champs saisis par l'utilisateur (values["releve"])
         self.releve = False
 
     # Données pour la page (JSON) -------------------------------------------------------
@@ -272,7 +271,7 @@ class App(Pose, Chutes, Nez, session.Session):
         pas au premier clic comme dans le cœur (_check_tilt), qui la lance encore au premier clic
         sur une autre photo."""
         super().set_active(on and not self.map_mode)  # mesure sur la carte : clics dans la photo sans effet
-        self._check_tilt()  # rien hors mesure, en mesure libre ou si déjà calculée
+        self._check_tilt()  # rien hors mesure, en relevé (voir _check_tilt) ou si déjà calculée
         return self.status()
 
     def state(self):
@@ -323,7 +322,7 @@ class App(Pose, Chutes, Nez, session.Session):
         return [m for m in found if m.clicks[1].get("pic") == self._here()] if self.here_only else found
 
     def _free_mark_point(self, k):
-        """Point gardé de la mesure libre : seulement là où il a été visé (sans repère ailleurs). Objet
+        """Point gardé du relevé : seulement là où il a été visé (sans repère ailleurs). Objet
         relevé : sur toutes les photos, projeté au sol, à OVERLAY_REACH m au plus (comme la couche)."""
         lon, lat, values = self.points[k]
         if "releve" in values and self.item:
@@ -445,7 +444,7 @@ class App(Pose, Chutes, Nez, session.Session):
         if self.item and json.loads(self.axis_state())["drawn"]:
             marks.insert(0, self._line_mark())  # droite tracée sur la carte, avant le point A
         if self.active and self.item and self.mode == "height" and self._aiming():
-            # Visées des autres photos tracées aussi en hauteur (le cœur : largeur, mesure libre) :
+            # Visées des autres photos tracées aussi en hauteur (le cœur : largeur) :
             # le pied visé est sur leur trait, même parmi des objets semblables (ticket #26)
             pic = self.item.get("id")
             lines = [self._epipolar_mark(s)["points"] for s in self.triangulator.sightings if s["pic"] != pic]
@@ -589,14 +588,12 @@ class App(Pose, Chutes, Nez, session.Session):
 
     # Relevé d'objets (mode "releve") ------------------------------------------------------------
     def keep_point(self):
-        """Relevé : point triangulé gardé comme objet, sans distance au précédent ; la page demande
+        """Relevé : point triangulé gardé comme objet ; la page demande
         ensuite ses champs (set_releve)."""
         if not self.releve:
             return super().keep_point()
         n, r, sightings = len(self.points), self.triangulator.result, list(self.triangulator.sightings)
-        self.last_free = None
         super().keep_point()
-        self.last_free = None
         if len(self.points) > n:
             self._releve_kept(_aimed_z(r, sightings))
         return self.status()
@@ -720,8 +717,8 @@ class App(Pose, Chutes, Nez, session.Session):
         return self.status()
 
     def has_results(self):
-        """Mesures, points triangulés ou distances à exporter (les objets relevés à part : has_releve)."""
-        return bool(self.links or self.map_lengths) or any("releve" not in v for _, _, v in self.points) or any(
+        """Mesures et points triangulés à exporter (les objets relevés à part : has_releve)."""
+        return bool(self.map_lengths) or any("releve" not in v for _, _, v in self.points) or any(
             m.result for m in self.tool.measures())
 
     def has_releve(self):
@@ -744,9 +741,6 @@ class App(Pose, Chutes, Nez, session.Session):
         self.named = max(self.named, data.get("named", 0))
         return self.status()
 
-    def take_proposal(self):
-        return json.dumps(super().take_proposal())
-
     def take_frame(self):
         return json.dumps(super().take_frame())
 
@@ -764,7 +758,7 @@ class App(Pose, Chutes, Nez, session.Session):
     def status(self):
         text = super().status()
         if self.releve:
-            text = text.replace("Mesure libre (distance au point gardé précédent)", "Relevé d'objets")
+            text = "Relevé d'objets : " + text
         return _map_line_text(text) if MAP_SOURCE in text else text
 
     # Couche importée (GeoJSON, src/couche.js) : objets dans la photo, à leur altitude (z du fichier,
@@ -994,12 +988,12 @@ class App(Pose, Chutes, Nez, session.Session):
 
     # État remis par Ctrl+Y : listes copiées (les objets gardés tels quels : « Effacer » ne fait que
     # les retirer), sauf le calage du cap et de la position (CalibrationTool), non rétabli
-    REDO_ATTRS = ("points", "links", "named", "last_free", "point_views", "ref_point", "measure_done", "width_sel",
-                  "ref_sel", "b_aiming", "proposal", "tilt_clicks", "tilt_sel", "map_line", "map_lengths")
+    REDO_ATTRS = ("points", "named", "point_views", "ref_point", "measure_done", "width_sel",
+                  "ref_sel", "b_aiming", "tilt_clicks", "tilt_sel", "map_line", "map_lengths")
 
     def _snapshot(self):
         snap = {k: getattr(self, k, None) for k in self.REDO_ATTRS}
-        for k in ("points", "links", "tilt_clicks", "map_lengths"):
+        for k in ("points", "tilt_clicks", "map_lengths"):
             snap[k] = list(snap[k])
         snap["point_views"] = dict(snap["point_views"])
         tool = self.tool
@@ -1010,7 +1004,7 @@ class App(Pose, Chutes, Nez, session.Session):
         """Empreinte de ce que les gestes changent : un geste fait depuis le dernier « Effacer »
         rend Ctrl+Y sans objet."""
         tool, current = self.tool, self.tool.current
-        return (len(self.points), len(self.links), len(tool.done), id(current), len(current.clicks) if current else 0,
+        return (len(self.points), len(tool.done), id(current), len(current.clicks) if current else 0,
                 len(self.triangulator.sightings), id(self.ref_point), len(self.tilt_clicks), self.mode,
                 id(self.b_aiming), self.measure_done, len(self.map_lengths))
 
@@ -1063,7 +1057,7 @@ class App(Pose, Chutes, Nez, session.Session):
 
     def _can_clear(self):
         """« Tout effacer » aurait-il un effet ?"""
-        return bool(self.points or self.links or self.map_lengths or self.tool.measures() or self.triangulator.sightings
+        return bool(self.points or self.map_lengths or self.tool.measures() or self.triangulator.sightings
                     or self.ref_point is not None or self.tilt_clicks or self.calibrator.clicks)
 
     def _undo(self):
@@ -1140,7 +1134,7 @@ class App(Pose, Chutes, Nez, session.Session):
         self.tilt_clicks, self.tilt_sel = [], None
         self.map_line = None
         self.releve = mode == "releve"
-        self.map_mode = mode == "carte"  # mesure sur la carte : le cœur reste en mesure libre, inactif
+        self.map_mode = mode == "carte"  # mesure sur la carte : le cœur reste en mode « tri », inactif
         return super().set_mode("tri" if self.releve or self.map_mode else mode)
 
     def add_map_length(self, lon1, lat1, lon2, lat2, value, sigma, photos):
@@ -1474,8 +1468,6 @@ class App(Pose, Chutes, Nez, session.Session):
             add("trace", "LineString", [list(p) for p in widths.guide(self.ref_point, road["axis"])])
         for lon, lat, values in self.points:
             add("triangule", "Point", [lon, lat], values["nom"])  # nom seul : pas d'incertitude sur la carte
-        for i, j, _values in self.links:  # distance entre deux points gardés : trait rouge, sans longueur
-            add("distance", "LineString", [list(self.points[i][:2]), list(self.points[j][:2])])
         for v in self.map_lengths:  # longueur sur la carte : trait et valeur, comme une mesure
             if "surface_m2" in v:  # surface : contour fermé, valeur au centre (genre « surface » : étiquette seule)
                 add("mesure", "LineString", v["ends"] + v["ends"][:1])
@@ -1544,15 +1536,6 @@ class App(Pose, Chutes, Nez, session.Session):
                 "horiz_m": round(v["valeur_m"], 3), "photos": v["photos"],
                 "photo_ref": v["photos"].split(",")[0] or None, "date_mesure": datetime.now().isoformat(timespec="seconds"),
                 "commentaire": v["commentaire"]}))
-        for i, j, values in self.links:
-            (lon1, lat1, v1), (lon2, lat2, v2) = self.points[i], self.points[j]
-            out.append(([(lon1, lat1), (lon2, lat2)], {
-                "type": "distance entre points triangulés", "valeur_m": values["valeur_m"],
-                "incert_m": values["incert_m"], "horiz_m": values["valeur_m"], "points": "{}-{}".format(v1["nom"], v2["nom"]),
-                "photos": ",".join(dict.fromkeys(p for v in (v1, v2) for p in v.get("photos", "").split(",") if p)),
-                "date_mesure": datetime.now().isoformat(timespec="seconds"),
-                "commentaire": values.get("commentaire", ""),
-            }))
         return out
 
     def export_geojson(self, releve=False):

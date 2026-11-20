@@ -13,7 +13,7 @@ const Mesure = {
     const {
       etat, showMapMeasureButton, viewer, stopPlayer, syncMapMeasure, updatePlayer, refresh, overlayAt, overlayHiddenTest,
       movingId, overlayPoints, viewHeading, openPhoto, notice, setPlacing, showDrawnLine, store, editReleve, startLineDraft,
-      proposeDistance, escapeHtml,
+      escapeHtml,
     } = host;
 
     // Bouton « Mesure » ------------------------------------------------------------------------
@@ -81,23 +81,22 @@ const Mesure = {
       $("#entete-etape").hidden = mode === "carte";
       // Liseré autour de la visionneuse : bleu pendant les visées de triangulation, jaune pendant la
       // prise de mesure (couleurs de leurs croix)
-      // longueur sur la carte : le cœur reste en mesure libre, sans visée
+      // longueur sur la carte : le cœur reste en mode « tri », sans visée
       const sighting = etat.measuring && etat.aiming && mode !== "carte";
       const taking = etat.measuring && !etat.aiming && ["road", "height", "carte"].includes(mode);
       const calibrating = etat.measuring && mode === "tilt";
       $("#vue").classList.toggle("visee", sighting);
       $("#vue").classList.toggle("prise", taking);
       $("#vue").classList.toggle("calage", calibrating);
-      // Largeur, hauteur, mesure libre : trait vertical au centre de la vue, le cap tracé sur la
+      // Largeur, hauteur, relevé : trait vertical au centre de la vue, le cap tracé sur la
       // carte ; la vue tournée vers le point à viser (take_aim_frame), il le désigne (ticket #26)
-      $("#axe-vue").hidden = !etat.measuring || !["road", "height", "tri", "releve"].includes(mode) || viewer.hidden;
+      $("#axe-vue").hidden = !etat.measuring || !["road", "height", "releve"].includes(mode) || viewer.hidden;
       $("#croix-cadastre").hidden = !$("#cadastre").checked || !$("#cadastre-visionneuse").checked || viewer.hidden;
       // Même état en toutes lettres, sous le rappel du mode (comme les voyants)
       // Carte d'étape (en bas, en mesure) : nom de la mesure et ses étapes, la courante en couleur
       $("#vue").classList.toggle("en-mesure", etat.measuring);
       const [title, steps, current] = mode === "height" ? ["Hauteur", ["Pied", "Sommet"], etat.aiming ? 0 : etat.newMeasure ? 2 : 1]
         : mode === "road" ? ["Largeur", ["Premier bord", "Bord opposé"], etat.aiming && !etat.edgeBAiming ? 0 : etat.newMeasure ? 2 : 1]
-        : mode === "tri" ? ["Mesure libre", ["Points visés depuis plusieurs photos"], 0]
         : mode === "releve" ? ["Relevé d'objets", ["Objet visé", "Ses champs"], 0]
         : mode === "carte" ? Dessus.tool() === "surface" ? ["Surface sur la carte", ["Sommets", "Fermeture"], Dessus.hasStart() ? 1 : 0]
           : ["Longueur sur la carte", ["Départ", "Arrivée"], Dessus.hasStart() ? 1 : 0]
@@ -109,9 +108,7 @@ const Mesure = {
       state.hidden = !sighting && !taking;
       state.className = sighting ? "visee" : taking ? "prise" : "";
       state.textContent = sighting ? "Triangulation en cours" : taking ? "Mesure en cours" : "";
-      $("#mode-mesure").textContent = mode === "tri"
-        ? "Mesure libre : visez chaque point depuis plusieurs photos (lecteur, carte), puis « Valider le point triangulé »"
-        : mode === "releve"
+      $("#mode-mesure").textContent = mode === "releve"
           ? "Relevé d'objets : visez l'objet depuis plusieurs photos puis « Valider le point triangulé », ou gardez-le sur une seule photo"
         : mode === "height" && etat.aiming
           ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (lecteur, carte), puis « Valider le point triangulé »"
@@ -133,7 +130,7 @@ const Mesure = {
         : mode === "tilt" ? "Calage de l'inclinaison : pied puis sommet de deux objets verticaux, à 90° l'un de l'autre"
         : "Mode mesure en cours : désélectionner pour naviguer";
       // Nom de la mesure et étape déjà dans l'en-tête de la carte d'étape (« Hauteur, étape 1 : »…) : retirés
-      const MODE_NAMES = /^(?:Hauteur|Largeur|Mesure libre|Relevé d'objets|Longueur sur la carte|Surface sur la carte|Calage de l'inclinaison)[^:]*: /;
+      const MODE_NAMES = /^(?:Hauteur|Largeur|Relevé d'objets|Longueur sur la carte|Surface sur la carte|Calage de l'inclinaison)[^:]*: /;
       const tip = $("#mode-mesure").textContent.replace(MODE_NAMES, "");
       $("#mode-mesure").textContent = tip[0].toUpperCase() + tip.slice(1);
       showModeOptions();
@@ -315,7 +312,7 @@ const Mesure = {
     /**
      * Étiquettes des points d'arrivée qui se chevauchent (sommets ou bords proches) : écartées
      * vers le bas, de la plus haute à la plus basse, l'ordre gardé ; un trait relie l'étiquette
-     * écartée à sa croix. Les autres étiquettes (noms, mesures libres) restent en place et sont
+     * écartée à sa croix. Les autres étiquettes (noms) restent en place et sont
      * évitées. Refait quand la vue tourne ou zoome.
      */
     function declutterLabels() {
@@ -361,7 +358,7 @@ const Mesure = {
     }
 
     /**
-     * Étiquette d'une mesure dans la photo, comme celle d'une mesure libre sur la carte : noms des
+     * Étiquette d'une mesure dans la photo, comme celle d'une longueur sur la carte : noms des
      * points aux extrémités du trait, dans l'ordre alphabétique, de part et d'autre du symbole
      * (« B↔C 4,84 m ± 0,33 m »). Un point est nommé quand une croix nommée est à moins de 0,1°.
      */
@@ -551,11 +548,9 @@ const Mesure = {
         return applyMeasureUi();
       }
       refresh(etat.app.undo());
-      proposeDistance();
     });
     $("#refaire").addEventListener("click", () => {  // comme Ctrl+Y : ce que le dernier « Effacer » a retiré
       refresh(etat.app.redo());
-      proposeDistance();
     });
     $("#tout-effacer").addEventListener("click", () => refresh(etat.app.clear_all()));
     new MutationObserver(showModeOptions).observe(viewer, { attributes: true, attributeFilter: ["hidden"] });

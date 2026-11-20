@@ -4,7 +4,7 @@
 """Session de mesure, indépendante de l'affichage : ce que la page (py/web_app.App, qui en hérite)
 relie à sa visionneuse, à sa carte et à son panneau.
 
-- points de référence et mesure libre : visées cliquées dans les photos, triangulées
+- points de référence et relevé d'objets : visées cliquées dans les photos, triangulées
   (tools.Triangulator) ;
 - hauteur : sommet (et pied) cliqués dans la photo → mesure (measures.MeasureTool) calée sur
   le point de référence (Measure.anchor) ; largeur : bord opposé sur la droite perpendiculaire
@@ -93,9 +93,7 @@ class Session:
         self.neighbours = {}  # fiches des photos voisines (axe de la séquence) : id -> fiche
         self.message = ""
         self.points = []  # points triangulés gardés : (lon, lat, attributs)
-        self.links = []  # distances entre deux points gardés : (n° du premier, n° du second, attributs)
         self.named = 0  # points gardés depuis le début : nom du suivant (A, B… voir _point_name)
-        self.proposal = None  # (n°, n°) : distance à proposer après l'effacement du point qui les reliait
         # Hauteur, largeur : point de référence triangulé (lon, lat, uncertainty, name, sequences ;
         # largeur : road, axe de la route en ce point, None en cours de lecture), validé : les
         # mesures suivantes s'y appuient, depuis n'importe quelle photo, jusqu'au prochain
@@ -110,7 +108,6 @@ class Session:
         # Largeur ou hauteur faite depuis le point de référence : seuls ses points s'ajustent (sur la
         # droite de mesure ou la verticale) jusqu'à « Nouvelle mesure depuis A » (new_measure)
         self.measure_done = False
-        self.last_free = None  # mesure libre : n° du dernier point gardé, relié au suivant
         self.point_views = {}  # nom d'un point gardé -> {photo : [cap, élévation] de sa visée (radians)}
         self._handles = []  # clés des poignées de la carte, dans l'ordre de handles()
         self.calibration_version = 0  # augmente à chaque changement du calage (à enregistrer)
@@ -312,8 +309,8 @@ class Session:
         au premier clic sur la photo et non à son arrivée : le calcul (photo HD, recherche des
         verticales) occupe le processeur quelques secondes et ferait saccader la vue pendant qu'on
         cherche l'objet ; les clics faits avant son résultat sont recalculés à son arrivée
-        (_recompute). La mesure libre s'en passe (calcul long évité ; sans elle, ses visées
-        comptent surtout par leur cap)."""
+        (_recompute). Le relevé d'objets et la mesure sur la carte (mode « tri » du cœur) s'en
+        passent (calcul long évité ; sans elle, les visées comptent surtout par leur cap)."""
         if self.active and self.item and self.mode != "tri":
             pic = self.item.get("id")
             before = self.calibration.auto.get(pic)
@@ -675,20 +672,15 @@ class Session:
         return dict(point, pic=self.item.get("id"))
 
     def _free_marks(self):
-        """Mesure libre : distances (trait et étiquette) et points gardés seuls, dans la photo
-        affichée. Les points de référence des hauteurs et largeurs sont montrés par elles."""
+        """Points gardés seuls (relevé d'objets), dans la photo affichée. Les points de référence des
+        hauteurs et largeurs sont montrés par elles."""
         refs = {(m.reference or {}).get("name") for m in self._heights()} | {m.edge.get("name") for m in self._widths()}
         refs |= {m.edge_b["name"] for m in self._widths() if m.edge_b}  # bord opposé triangulé : sa largeur le montre
         if self.ref_point:
             refs.add(self.ref_point["name"])
-        marks, linked = [], set()
-        for i, j, values in self.links:
-            linked |= {i, j}
-            marks.append({"points": [self._free_mark_point(i), self._free_mark_point(j)],
-                          "label": "↔ {} m ± {} m".format(measures._num(values["valeur_m"], 2),
-                                                          measures._num(values["incert_m"], 2))})
+        marks = []
         for k, (_, _, values) in enumerate(self.points):
-            if k not in linked and values["nom"] not in refs:
+            if values["nom"] not in refs:
                 marks.append({"points": [self._free_mark_point(k)], "label": ""})
         return marks
 
@@ -1218,24 +1210,8 @@ class Session:
                                 "la direction du clic compte, la largeur se prend sur la droite tracée.")
             self.message = self.message.format(name, measures._num(r["uncertainty"])) + warning
             return self.status()
-        self.message = "Point {} gardé (±{} m).".format(name, measures._num(r["uncertainty"]))
-        if self.last_free is not None:  # mesure libre : distance au point gardé précédent, aussitôt
-            self.message += " " + self._link(self.last_free, len(self.points) - 1)
-        self.last_free = len(self.points) - 1
-        self.message += (" Visez maintenant le point suivant depuis au moins deux photos : sa distance à {} sera "
-                         "calculée.").format(name) + warning
+        self.message = "Point {} gardé (±{} m).".format(name, measures._num(r["uncertainty"])) + warning
         return self.status()
-
-    def _link(self, i, j):
-        """Distance horizontale entre les points gardés n° i et j (la triangulation donne une
-        position sur la carte), incertitude des deux points combinée, gardée comme une mesure.
-        Retourne le texte à afficher."""
-        (lon1, lat1, v1), (lon2, lat2, v2) = self.points[i], self.points[j]
-        x, y = triangulation._local(lon2, lat2, lon1, lat1)
-        value, unc = math.hypot(x, y), math.hypot(v1["incert_m"], v2["incert_m"])
-        self.links.append((i, j, {"valeur_m": round(value, 3), "incert_m": round(unc, 2), "commentaire": ""}))
-        return "Distance {}–{} : {} m (±{} m).".format(
-            v1["nom"], v2["nom"], measures._num(value, 2), measures._num(unc, 2))
 
     def move_handle(self, index, lon, lat):
         """Poignée n° index (voir handles) glissée sur la carte en (lon, lat)."""
@@ -1275,8 +1251,8 @@ class Session:
     def _undo_point(self):
         """« Effacer » sans rien en cours : retire le dernier point posé. Hauteur ou largeur : la
         dernière mesure depuis le point de référence (son sommet, son bord opposé, triangulé ou
-        non), puis, sans mesure, le point de référence lui-même ; mesure libre : le dernier point
-        gardé (et sa distance au précédent)."""
+        non), puis, sans mesure, le point de référence lui-même ; relevé d'objets : le dernier point
+        gardé."""
         if self.mode == "tri":
             if self.points:
                 self._drop_kept(len(self.points) - 1)
@@ -1310,7 +1286,6 @@ class Session:
         """Retire le point gardé n° k ; si c'était le dernier nommé, sa lettre resservira."""
         name = self.points[k][2]["nom"]
         self.delete_result("point", k)
-        self.proposal = None  # pas de distance proposée : c'est une annulation
         self.point_views.pop(name, None)
         if name == _point_name(self.named - 1):
             self.named -= 1
@@ -1322,8 +1297,8 @@ class Session:
         self.triangulator.clear()
         self.tool.clear_all()
         self.calibrator.reset()
-        self.points, self.links, self.named = [], [], 0
-        self.last_free, self.point_views = None, {}
+        self.points, self.named = [], 0
+        self.point_views = {}
         self.ref_point = None
         self.width_sel = None
         self.measure_done = False
@@ -1372,8 +1347,6 @@ class Session:
         sequences = []
         if self._aiming():
             sequences = [s.get("sequence") for s in self.triangulator.sightings]
-        if self.mode == "tri":
-            text = "Mesure libre (distance au point gardé précédent) : " + text
         if self.mode == "height" and self.ref_point is None:
             text = ("Hauteur, étape 1/2 : visez le pied de l'objet depuis au moins deux photos (une visée par "
                     "photo, flèches pour changer de photo). " + text)
@@ -1421,7 +1394,7 @@ class Session:
     def _name_marks(self, marks):
         """Étiquettes des noms des points triangulés dans la photo affichée, sans croix (« name ») :
         point de référence des largeurs et des hauteurs, à sa croix (repère du point de référence
-        en cours, point 0 de ses mesures) ; points gardés de la mesure libre. side : côté de la
+        en cours, point 0 de ses mesures) ; points gardés du relevé d'objets. side : côté de la
         croix opposé à la mesure (« left », « right », « above », « below »), pour ne pas la
         masquer ; dessous par défaut (une hauteur monte, une largeur s'étend sur les côtés).
         Points d'arrivée des hauteurs et largeurs (sommet, bord) : nommés dans l'étiquette de leur
@@ -1446,14 +1419,9 @@ class Session:
                 at.setdefault(m.reference["name"], (points[0], points[1] if len(points) > 1 else None))
                 if len(points) > 1:
                     ends.add(self._end_name(m)["name"])
-        partner = {}
-        for i, j, _ in self.links:  # mesure libre : à l'opposé du point relié
-            partner.setdefault(i, j)
-            partner.setdefault(j, i)
         for k, (_, _, values) in enumerate(self.points):
             if values["nom"] not in at and values["nom"] not in ends:
-                other = self._free_mark_point(partner[k]) if k in partner else None
-                at[values["nom"]] = (self._free_mark_point(k), other)
+                at[values["nom"]] = (self._free_mark_point(k), None)
         # Traits des mesures de la photo : un nom qui tombe à l'intérieur de l'un d'eux (sommet
         # d'une hauteur plus courte sous une plus haute, bord sur une largeur plus longue) est
         # mis sur le côté du trait, pas dessus
@@ -1693,7 +1661,7 @@ class Session:
                                          for k, p in enumerate(self._width_points(m))],
                               "label": m.label(), "beside": False, "end": end,
                               "names": [n for n in [m.edge.get("name"), end and end["name"]] if n]})
-        if self.item:  # mesure libre : points gardés et distances, depuis toutes les photos
+        if self.item:  # relevé d'objets : points gardés, depuis toutes les photos
             marks += self._free_marks()
         if self.active and self._aiming():  # visées faites depuis cette photo
             marks = marks + [{"points": [{"pic": s["pic"], "yaw": s["view"][0], "pitch": s["view"][1]}
@@ -1738,9 +1706,6 @@ class Session:
         hauteur, mesure en cours ou dernière terminée (points et photos)."""
         if not self.active or self.mode in CALIBRATION_MODES:
             return []
-        if self.mode == "tri" and not self.triangulator.sightings and self.links:
-            i, j, _ = self.links[-1]  # mesure libre : distance qui vient d'être calculée, seule
-            return [list(self.points[i][:2]), list(self.points[j][:2]), "segment"]
         pts = []
         try:
             pts.append([float(v) for v in self.item["geometry"]["coordinates"][:2]])
@@ -1844,15 +1809,11 @@ class Session:
         out += [{"id": i, "kind": "point", "text": "Point {} ±{} m".format(
                     v["nom"], measures._num(v["incert_m"], 2)), "comment": v.get("commentaire", "")}
                 for i, (_, _, v) in enumerate(self.points)]
-        out += [{"id": k, "kind": "distance", "text": "↔ {}–{} : {} m ± {} m".format(
-                    self.points[i][2]["nom"], self.points[j][2]["nom"], measures._num(v["valeur_m"], 2),
-                    measures._num(v["incert_m"], 2)), "comment": v.get("commentaire", "")}
-                for k, (i, j, v) in enumerate(self.links)]
         return out
 
     def delete_result(self, kind, ident):
-        """Efface un résultat de la liste : mesure (et son dessin), point triangulé (et les
-        distances qui le relient ; les autres gardent leur nom) ou distance."""
+        """Efface un résultat de la liste : mesure (et son dessin), point triangulé (les
+        autres gardent leur nom)."""
         if kind == "mesure":
             tool = self.tool
             for m in tool.measures():
@@ -1869,20 +1830,8 @@ class Session:
                     break
         elif kind == "point" and 0 <= ident < len(self.points):
             name = self.points[ident][2]["nom"]
-            self.last_free = None if self.last_free == ident else (
-                None if self.last_free is None else self.last_free - (self.last_free > ident))
-            before = [i for i, j, _ in self.links if j == ident]
-            after = [j for i, j, _ in self.links if i == ident]
             del self.points[ident]
-            shift = lambda k: k - (k > ident)  # noqa: E731
-            self.links = [(shift(i), shift(j), v) for i, j, v in self.links if ident not in (i, j)]
             self.message = "Point {} effacé.".format(name)
-            # Point au milieu d'une chaîne (A–B–C, B effacé) : la distance A–C est proposée
-            if before and after and not any({i, j} == {shift(before[0]), shift(after[0])} for i, j, _ in self.links):
-                self.proposal = (shift(before[0]), shift(after[0]))
-        elif kind == "distance" and 0 <= ident < len(self.links):
-            del self.links[ident]
-            self.message = "Distance effacée."
         return self.status()
 
     def take_rtk_alert(self):
@@ -1937,36 +1886,18 @@ class Session:
         self.bridge_asked = []
         return self.set_bridge(False)
 
-    def take_proposal(self):
-        """Distance proposée après un effacement ([n°, n°, « A », « C »] ou None), une
-        seule fois."""
-        p, self.proposal = self.proposal, None
-        if p is None or max(p) >= len(self.points):
-            return None
-        return [p[0], p[1], self.points[p[0]][2]["nom"], self.points[p[1]][2]["nom"]]
-
-    def link_points(self, i, j):
-        """Distance entre deux points gardés, à la demande (voir take_proposal)."""
-        if 0 <= i < len(self.points) and 0 <= j < len(self.points) and i != j:
-            self.message = self._link(int(i), int(j))
-        return self.status()
-
     def set_comment(self, kind, ident, text):
         """Commentaire d'une mesure ou d'un point gardé (champ « commentaire » de l'export)."""
         if kind == "point":
             if 0 <= ident < len(self.points):
                 self.points[ident][2]["commentaire"] = text
             return
-        if kind == "distance":
-            if 0 <= ident < len(self.links):
-                self.links[ident][2]["commentaire"] = text
-            return
         for m in self.tool.measures():  # rangé sur la mesure : effacée, son commentaire disparaît avec elle
             if id(m) == ident:
                 m.comment = text
 
     def has_results(self):
-        return bool(self.points) or bool(self.links) or any(m.result for m in self.tool.measures())
+        return bool(self.points) or any(m.result for m in self.tool.measures())
 
 
 def _point_name(n):
