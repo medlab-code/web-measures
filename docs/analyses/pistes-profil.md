@@ -196,6 +196,18 @@ cas réel d'une bordure manquée.*
   dans sa voie, le bord droit peut être sous ce flanc (D28E : environ 0,7 m, auteur). Le MNT et le nuage, pris d'avion, voient
   le sol sous le véhicule. Piste : chercher jusqu'à environ 0,5 m de la caméra du côté
   où elle est loin de l'axe BD TOPO, sans prendre sa propre voie pour un bord ; à juger sur des côtés vérifiés hors réglage.
+- **Essayé le 20/11/2026, abandonné sur le MNT** (banc `tools/banc-bords.py`, 69 côtés, 16 bords sur l'enrobé au départ).
+  1) Bord cherché dès 0,5 à 1,0 m du côté où la caméra est décalée de 0,5 m ou plus, pente de la chaussée lue de l'autre côté
+  de la caméra : D8 082893e5-f336-441b-8d28-0eecdbae1dde (1,5 → 1,0, vérifié 1,0) et M996
+  6eea86cc-4c40-4395-9686-2418892bfa82 (3,0 → 1,0, vérifié 1,25) justes, mais 22 à 23 bords sur l'enrobé : faux bords à
+  1,0 m sur l'A38 61dd94c4-e5d1-4eb0-9762-73a72f18b5cb (enrobé 4,75), la D115 8377ed2a-5acc-42c3-a9f0-7a5d4bdb335b (5,10),
+  la D70 8d02bc6c-a3a9-444e-b005-e24f8a52177f (2,54)… La pente lue de l'autre côté est souvent celle de l'autre voie (route
+  bombée) : seule, sans chercher plus près, elle donne déjà 18 bords sur l'enrobé. 2) Pente d'origine gardée, seule une marche
+  vers le bas acceptée entre 0,5 et 1,5 m : aucun des trois côtés vérifiés corrigé (D8 1,5, M996 et D28E
+  5331221f-7a1f-4ace-b4de-9cf94a57e4d2 3,5), 17 à 18 bords sur l'enrobé (A38 et D70 à 1,0 m, D971
+  047b2f43-f09a-40d4-8bcd-715044b3acbd et D21 467ab33d-efe6-4210-8a1c-00e805b2afef à 0,5 m). Près de la caméra, le MNT au
+  pas de 0,5 m ne sépare pas un vrai bord d'un faux ; trois côtés vérifiés ne suffisent pas à régler un seuil entre les deux.
+  Code retiré. Reste possible : chercher ce bord dans l'analyse fine (nuage de points), plus précise.
 
 **P15. Distance au bord mal arrondie.** *Faite le 19/11/2026 (test `BordsCas.test_distance_au_bord_ecrite`).*
 - **Avant** : la distance de la chute (ou de l'arrêt) au bord était écrite au mètre, arrondie au pair par Python (0,5 → « 0 »,
