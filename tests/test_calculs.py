@@ -106,7 +106,7 @@ class VueDessus(unittest.TestCase):
         a.item = {"id": "p", "collection": "s", "geometry": {"coordinates": [5.0, 47.0, 300.0]},
                   "properties": {"view:azimuth": 40, "pers:interior_orientation": {"field_of_view": field_of_view}}}
         a.birdeye_items, a.birdeye_checks = [dict(a.item, id="v", geometry={"coordinates": [5.0, 47.00005]})], (Tilts,)
-        a.fall_cells, a.tool = {web_app.roads._cell(5.0, 47.0): []}, types.SimpleNamespace(camera_height=2.1)
+        a.fall_cells, a.fall_retry, a.fall_error, a.tool = {web_app.roads._cell(5.0, 47.0): []}, {}, {}, types.SimpleNamespace(camera_height=2.1)
         a.birdeye_loose, a.birdeye_far_items = {}, []
         return a
 
@@ -705,6 +705,22 @@ class Pannes(unittest.TestCase):
             self.assertEqual(a._bdtopo("construction_lineaire", (0, 0)), [])  # pas tout de suite
             a.bdtopo_retry[("construction_lineaire", (0, 0))] = 0.0  # délai écoulé
             a._bdtopo("construction_lineaire", (0, 0))
+        finally:
+            host.fetch_json = old
+        self.assertEqual(len(asked), 2)
+
+    def test_troncons_redemandes(self):
+        # tronçons d'une maille en échec : plus « BD TOPO injoignable » jusqu'au rechargement de la page
+        host, asked = web_app.host, []
+        old = host.fetch_json
+        host.fetch_json = lambda url, done, timeout_ms=None: (asked.append(url), done(None, "HTTP 503"))
+        try:
+            a = App.__new__(App)
+            a.fall_cells, a.fall_retry, a.fall_error, a.notify = {}, {}, {}, lambda: None
+            self.assertIsNone(a._fall_sections(5.0, 47.0))
+            self.assertIsNone(a._fall_sections(5.0, 47.0))  # pas tout de suite
+            a.fall_retry[next(iter(a.fall_retry))] = 0.0  # délai écoulé
+            a._fall_sections(5.0, 47.0)
         finally:
             host.fetch_json = old
         self.assertEqual(len(asked), 2)

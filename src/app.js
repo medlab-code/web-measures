@@ -220,10 +220,22 @@
     return value;
   }
   Nuage.useGeoCache(() => cacheStep(openGeoCache(), null, false), cacheStep);
+  /** Requête d'un service gardé, redemandée une fois en contournant le cache HTTP du navigateur si la réponse (200) est
+   * illisible : la Géoplateforme renvoie parfois sa page de statistiques « # HELP jmx… » (text/plain, cache-control
+   * max-age de 21 jours) au lieu du JSON ; le cache HTTP de Chrome la garde et la resservait à chaque requête vers la
+   * même adresse (« BD TOPO injoignable : Expecting value », 20/11/2026, 20a5b40f-ab06-40ab-97e1-b3f74032bec7).
+   * `cache: "reload"` va au service et remplace l'entrée. Seconde réponse encore illisible : rendue telle quelle
+   * (storeGeo ne la garde pas). */
+  async function geoFetch(input, init) {
+    const response = await trackedFetch(input, init);
+    if (!response.ok || readable(await response.clone().text().catch(() => ""))) return response;
+    return trackedFetch(input, { ...init, cache: "reload" });
+  }
   window.fetch = async (input, init) => {
     const url = input?.url ?? String(input);
-    const cache = geoCacheable(url, init) ? await cacheStep(openGeoCache(), null, false) : null;
-    if (!cache) return trackedFetch(input, init);
+    const gardee = geoCacheable(url, init);
+    const cache = gardee ? await cacheStep(openGeoCache(), null, false) : null;
+    if (!cache) return gardee ? geoFetch(input, init) : trackedFetch(input, init);
     let hit = await cacheStep(cache.match(url).catch(() => undefined), undefined);
     if (hit && !readable(await hit.clone().text().catch(() => ""))) {  // gardée avant le contrôle de storeGeo : jetée
       cache.delete(url).catch(() => {});
@@ -232,7 +244,7 @@
     const age = hit ? Date.now() - Number(hit.headers.get("x-mis-en-cache")) : Infinity;
     if (hit && age < (hit.headers.get("x-vide") === "1" ? CACHE_EMPTY_LIFE : CACHE_LIFE)) return hit;
     try {
-      const response = await trackedFetch(input, init);
+      const response = await geoFetch(input, init);
       if (response.ok) storeGeo(cache, url, response.clone()).catch((error) => console.warn("Cache :", error));
       return !response.ok && hit ? hit : response;  // refus ou erreur : la réponse plus ancienne
     } catch (error) {

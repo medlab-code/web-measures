@@ -266,7 +266,9 @@ class Chutes:
             return None
         sections = self._fall_sections(lon, lat)
         if sections is None and item.get("id") in self.edges_asked:
-            return {"text": "Bords de route\nCalcul impossible (BD TOPO injoignable)", "title": "", "edges": True}
+            why = self.fall_error.get(roads._cell(lon, lat))
+            return {"text": "Bords de route\nCalcul impossible (BD TOPO injoignable{})".format(" : " + why if why else ""),
+                    "title": "", "edges": True}
         if not sections or sections is roads.PENDING:
             return None
         axis = self._axis(item)
@@ -350,12 +352,13 @@ class Chutes:
     def _fall_sections(self, lon, lat):
         """Tronçons BD TOPO de la maille du point, avec leur importance et leur nature (la largeur BD TOPO n'est plus lue :
         voir _road_width), lues ici : ceux du cœur (roads) ne les gardent pas. roads.PENDING pendant la lecture, None si la BD
-        TOPO n'a pas répondu (shortcut: pas de nouvel essai avant le rechargement de la page ;
-        réessayer après roads.RETRY s si des pannes de la Géoplateforme privent de hauteur de chute)."""
+        TOPO n'a pas répondu (nouvel essai FALL_RETRY s après, comme _bdtopo : une panne passagère de la Géoplateforme ne
+        prive plus de bords de route jusqu'au rechargement de la page)."""
         cell = roads._cell(lon, lat)
-        if cell in self.fall_cells:
+        if cell in self.fall_cells and time.monotonic() < self.fall_retry.get(cell, float("inf")):
             return self.fall_cells[cell]
         self.fall_cells[cell] = roads.PENDING
+        self.fall_retry.pop(cell, None)
 
         def done(data, error):
             out = None
@@ -367,6 +370,9 @@ class Chutes:
                                  bridge_name=_bridge_name(props.get("nom_collaboratif_gauche")))
                             for sec in roads.parse_sections({"features": [feat]})]
             self.fall_cells[cell] = out
+            if error:
+                self.fall_retry[cell] = time.monotonic() + self.FALL_RETRY
+                self.fall_error[cell] = str(error)
             self.notify()
 
         host.fetch_json(roads.wfs_url(cell), done, timeout_ms=15000)

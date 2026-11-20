@@ -226,6 +226,8 @@ class App(Pose, Chutes, session.Session):
         self.long_tracks = {}  # photo -> trajectoire de la caméra autour d'elle (_track_line), None pendant la lecture
         self.edge_zone = self.EDGE_ZONE
         self.bdtopo = {}  # (couche BD TOPO, maille) -> objets lus (voir _bdtopo)
+        self.fall_error = {}  # maille -> raison du dernier échec de lecture des tronçons (dite dans le message)
+        self.fall_retry = {}  # maille -> instant du nouvel essai après un échec de lecture des tronçons
         self.bdtopo_retry = {}  # (couche BD TOPO, maille) -> instant du nouvel essai après un échec
         self.map_line = None  # droite de mesure tracée sur la carte, pour le prochain point A (ticket #28)
         # Longueurs mesurées sur la vue du dessus (src/dessus.js), mode « carte » : rien à viser dans la photo
