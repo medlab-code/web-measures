@@ -226,7 +226,8 @@ const Requeteur = (() => {
   function attach(map, found) {
     const box = document.createElement("div");
     box.className = "requeteur";
-    box.innerHTML = '<div class="champ route"><input placeholder="Route" aria-label="Numéro de route"'
+    box.innerHTML = '<div class="champ route"><svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"'
+      + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3L5 21M16 3l3 18M12 4v3M12 10.5v3M12 17v3"/></svg><input placeholder="Route" aria-label="Numéro de route"'
       + ' autocomplete="off" spellcheck="false" title="Numéro de la route : 974 pour la D974"><ul role="listbox" hidden></ul></div>'
       + '<div class="champ pr"><span class="prefixe" aria-hidden="true">PR</span><input placeholder="n°"'
       + ' aria-label="Point de repère" inputmode="numeric"'

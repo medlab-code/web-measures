@@ -47,7 +47,9 @@ const Recherche = (() => {
   function attach(map) {
     const box = document.createElement("div");
     box.className = "recherche";
-    box.innerHTML = '<input type="search" placeholder="Rechercher un lieu…" aria-label="Rechercher un lieu"'
+    box.innerHTML = '<svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"'
+      + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>'
+      + '<input type="search" placeholder="Rechercher un lieu…" aria-label="Rechercher un lieu"'
       + ' autocomplete="off" spellcheck="false"><ul role="listbox" hidden></ul>';
     map.getContainer().append(box);
     const input = box.querySelector("input");

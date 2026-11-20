@@ -326,47 +326,46 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 /* en haut, à droite des boutons de zoom plutôt que sous la pile de gauche */
 .maplibregl-ctrl-top-left .place-mesurer { position: absolute; top: 0; left: 40px; white-space: nowrap; display: flex; align-items: center; gap: 0.3rem; }
 
-/* Recherche de lieux, en haut à droite de la carte (voir recherche.js) */
+/* Recherche de lieux et requêteur route + PR, en haut à droite de la carte (voir recherche.js, requeteur.js) : champs en
+   pastilles du style commun (fond sombre translucide, texte blanc, bouts arrondis avec --pastille-marge), grossis avec
+   --echelle-ui ; dans l'onglet Parcours (.champs-route), mêmes formes aux couleurs de la page */
+.recherche, .requeteur {
+  --champ-fond: rgba(24, 25, 28, 0.72);
+  --champ-texte: #fff;
+  --champ-liste: rgba(24, 25, 28, 0.94);
+  zoom: var(--echelle-ui, 1);
+}
+.champs-route {
+  --champ-fond: var(--fond);
+  --champ-texte: inherit;
+  --champ-liste: var(--fond);
+}
 .recherche {
   position: absolute;
   top: 10px;
   right: 10px;
   z-index: 3;
   width: min(16rem, calc(100% - 70px));
+  font: 13px Inter, system-ui, sans-serif;
 }
-.recherche input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 0.3rem 0.5rem;
-  border: 1px solid var(--bord);
-  border-radius: 4px;
-  background: var(--fond);
-  color: inherit;
-  font: inherit;
-  font-size: 13px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+/* Loupe (SVG en ligne) posée à gauche du champ */
+.recherche .icone {
+  position: absolute;
+  left: calc(0.5rem + var(--pastille-marge));
+  top: 7px;
+  width: 16px;
+  height: 16px;
+  color: #fff;
+  opacity: 0.8;
+  pointer-events: none;
 }
-.recherche ul {
-  margin: 2px 0 0;
-  padding: 0;
-  list-style: none;
-  max-height: 16rem;
-  overflow-y: auto;
-  border: 1px solid var(--bord);
-  border-radius: 4px;
-  background: var(--fond);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-  font-size: 13px;
-}
-.recherche ul[hidden] { display: none; }
-.recherche li { padding: 0.3rem 0.5rem; cursor: pointer; }
-.recherche li.active, .recherche li:hover { background: color-mix(in srgb, var(--bord) 45%, var(--fond)); }
+.recherche input { padding-left: calc(1.9rem + var(--pastille-marge)); padding-right: calc(0.5rem + var(--pastille-marge)); }
+.recherche ul { margin-top: 4px; }
 .recherche li small { opacity: 0.7; }
 
-/* Requêteur route + PR, sous la recherche de lieux (voir requeteur.js) */
 .requeteur {
   position: absolute;
-  top: 44px;
+  top: 46px;
   right: 10px;
   z-index: 2;  /* sous les suggestions de la recherche de lieux */
   display: flex;
@@ -377,35 +376,42 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 }
 :is(.requeteur, .champs-route) .champ { position: relative; flex: 1 1 0; min-width: 0; }
 .requeteur .route { flex-grow: 1.22; }  /* numéros longs : D974BIS, N274A… */
-/* Champ et texte posé dessus (« PR ») : même boîte de ligne de 26 px sous une bordure de
-   1 px, d'où une même ligne de base quels que soient la police et le navigateur (le centrage
-   du texte dans un champ varie de l'un à l'autre) */
+/* Texte posé sur le champ (« PR ») : même boîte de ligne de 28 px sous une bordure de 1 px,
+   d'où une même ligne de base quels que soient la police et le navigateur */
 :is(.requeteur, .champs-route) .prefixe {
   position: absolute;
   top: 1px;
-  line-height: 26px;
+  left: calc(0.5rem + var(--pastille-marge));
+  line-height: 28px;
+  opacity: 0.7;
   pointer-events: none;
 }
-/* « PR » toujours affiché devant le numéro du point de repère */
-:is(.requeteur, .champs-route) .prefixe {
-  left: calc(0.5rem + 1px);
-  opacity: 0.7;
-}
-:is(.requeteur, .champs-route) .pr input { padding-left: 1.9rem; }
-:is(.requeteur, .champs-route) input {
+:is(.requeteur, .champs-route) .pr input { padding-left: calc(1.9rem + var(--pastille-marge)); }
+/* Icône de route (SVG en ligne) devant le numéro de route du requêteur de la carte */
+.requeteur .route .icone { position: absolute; top: 7px; left: calc(0.45rem + var(--pastille-marge)); width: 16px; height: 16px;
+  color: #fff; opacity: 0.8; pointer-events: none; }
+.requeteur .route input { padding-left: calc(1.7rem + var(--pastille-marge)); }
+/* Champs : même hauteur, police, bordure et rayon partout */
+:is(.recherche, .requeteur, .champs-route) input {
   width: 100%;
   box-sizing: border-box;
-  height: 28px;
-  padding: 0 0.5rem;
-  border: 1px solid var(--bord);
-  border-radius: 4px;
-  background: var(--fond);
-  color: inherit;
+  height: 30px;
+  padding: 0 calc(0.5rem + var(--pastille-marge));
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: var(--champ-fond);
+  color: var(--champ-texte);
   font: inherit;
-  line-height: 26px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  font-size: 13px;
+  line-height: 28px;
 }
-:is(.requeteur, .champs-route) input:disabled { opacity: 0.6; }
+.champs-route input { border-color: var(--bord); }
+.recherche input { appearance: none; -webkit-appearance: none; }
+:is(.recherche, .requeteur, .champs-route) input::placeholder { color: inherit; opacity: 0.6; }
+:is(.recherche, .requeteur) input:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.55); }
+:is(.recherche, .requeteur, .champs-route) input:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.champs-route input:focus-visible { outline-color: currentColor; }
+:is(.recherche, .requeteur, .champs-route) input:disabled { opacity: 0.6; }
 :is(.requeteur, .champs-route) input.inconnu { border-color: #d40000; box-shadow: 0 0 0 1px #d40000; }  /* numéro absent */
 .requeteur label {
   flex: 0 0 auto;  /* juste « + 1234 m » : la distance tient en quatre chiffres */
@@ -413,35 +419,38 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   align-items: center;
   align-self: stretch;
   gap: 4px;
-  line-height: 26px;
-  padding: 0 5px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--fond) 85%, transparent);
+  line-height: 28px;
+  padding: 0 calc(0.5rem + var(--pastille-marge)) 0 calc(0.4rem + var(--pastille-marge));
+  border-radius: 999px;
+  background: var(--champ-fond);
+  color: var(--champ-texte);
   white-space: nowrap;
 }
+.requeteur label .distance { height: 24px; border: 0; background: transparent; padding: 0 2px; }
 /* Distance « 0xyz » (plus de 1 000 m possible entre deux PR) : chiffres de même largeur */
 :is(.requeteur, .champs-route) .distance {
   width: calc(4ch + 1rem + 2px);
   font-variant-numeric: tabular-nums;
 }
-:is(.requeteur, .champs-route) ul {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin: 2px 0 0;
-  padding: 0;
+:is(.recherche, .requeteur, .champs-route) ul {
   list-style: none;
+  padding: 0;
   max-height: 16rem;
   overflow-y: auto;
-  border: 1px solid var(--bord);
-  border-radius: 4px;
-  background: var(--fond);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 14px;
+  background: var(--champ-liste);
+  color: var(--champ-texte);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  font-size: 13px;
 }
-:is(.requeteur, .champs-route) ul[hidden] { display: none; }
-:is(.requeteur, .champs-route) li { padding: 0.3rem 0.5rem; cursor: pointer; white-space: nowrap; }
-:is(.requeteur, .champs-route) li.active, :is(.requeteur, .champs-route) li:hover { background: color-mix(in srgb, var(--bord) 45%, var(--fond)); }
+.champs-route ul { border-color: var(--bord); }
+:is(.requeteur, .champs-route) ul { position: absolute; top: 100%; left: 0; right: 0; margin: 4px 0 0; }
+:is(.recherche, .requeteur, .champs-route) ul[hidden] { display: none; }
+:is(.recherche, .requeteur, .champs-route) li { padding: 0.3rem calc(0.6rem + var(--pastille-marge)); cursor: pointer; }
+:is(.requeteur, .champs-route) li { white-space: nowrap; }
+:is(.recherche, .requeteur) li.active, :is(.recherche, .requeteur) li:hover { background: rgba(255, 255, 255, 0.18); }
+.champs-route li.active, .champs-route li:hover { background: color-mix(in srgb, var(--bord) 45%, var(--fond)); }
 /* Point demandé : pastille rouge cerclée de blanc */
 .repere-requete {
   width: 14px;
