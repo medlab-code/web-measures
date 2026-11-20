@@ -315,6 +315,11 @@ laissé de côté.*
   sous le sol du mètre qui le précède (caniveau : quelques centimètres sous la chaussée ; fossé : bien plus). Côtés vérifiés
   hors réglage : D16 b3978b33-2ceb-4ef3-bd51-09d25e505015 droit (bordure à 3,4 m, vrai bord 2,0 : fausse bordure), D28E
   5331221f-7a1f-4ace-b4de-9cf94a57e4d2 droit (bordure à 2,9 m, vrai bord sous le véhicule, voir P14).
+- **Garde contre les fossés, côtés hors réglage vérifiés par l'auteur (20/11/2026)** : 2 fausses bordures retirées à juste
+  titre (D16 b3978b33-2ceb-4ef3-bd51-09d25e505015 droit, 3,4 m pour un bord à 2,0 m ; D114
+  894c3f0f-3d30-486b-b0f9-c7e6505d8d03 droit, 3,1 m, pas de bordure), 1 bord à peine déplacé (D700
+  d63ace61-7261-4acb-93f9-788aed29cb23 droit : pied d'une glissière en béton, 4,1 → 4,4 m, voir P19). Bonnes bordures des
+  côtés vérifiés gardées (D8, M996, D119M). Reste : la D28E (bord sous le véhicule, P14).
 - **Gain** : bord d'enrobé juste en ville (trottoirs) ; banc et largeurs types sur une référence fiable.
 
 ### Graphique et fenêtre : pistes
