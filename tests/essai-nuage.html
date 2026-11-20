@@ -29,6 +29,8 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
     doc.querySelector("#reglages-defaut")?.close();
     for (const [id, where, sepMid, rightEdge] of CASES) {
       const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
+      // « Bord d'enrobé » cochée par le cas précédent : choix retenu, remis à son défaut (décochée) pour ce cas
+      w.localStorage.removeItem("web-measures/profil-enrobe"); doc.querySelector("#profil-enrobe").checked = false;
       w.mesures.openPhoto(f);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === id, 30000, "photo");
       await until(() => !doc.querySelector("#bords").disabled, 20000, "bouton « Profils »");
@@ -65,7 +67,7 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
       // Légende repliée à l'ouverture, dépliée pour le reste des contrôles
       const unfold = doc.querySelector("#profil-legende");
       expect(`${where} : légende repliée à l'ouverture`, w.getComputedStyle(dialog.querySelector(".legende")).display === "none");
-      const placeOf = () => { const r = dialog.getBoundingClientRect(); return [r.left, r.top]; }, open0 = placeOf();  // fenêtre centrée, légende repliée
+      const placeOf = () => { const r = dialog.getBoundingClientRect(); return [r.left, r.top]; };
       unfold.click();
       // Plateforme limitée aux bords d'enrobé, dans le graphique et ses repères
       const [edgeL, edgeR] = [/gauche\s:\s([\d,]+) m, enrobé/, /droit\s:\s([\d,]+) m, enrobé/].map((re) => Number((re.exec(legend) || [])[1]?.replace(",", ".")));
@@ -78,6 +80,13 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
       const info = dialog.querySelector(".nuage-etat").getBoundingClientRect(), form = dialog.querySelector("form").getBoundingClientRect();
       log(`  rangée : ${boxes.map((b) => `${Math.round(b.left)}-${Math.round(b.right)}@${Math.round(b.top)}`).join(" ")} · bilan ${Math.round(info.top)}-${Math.round(info.bottom)}, boutons dès ${Math.round(form.top)}`);
       expect(`${where} : cases et boutons sans chevauchement, bilan au-dessus`, !overlap && info.bottom <= form.top + 1);
+      // Atteignables au pointeur : rien ne les recouvre (un clic réel arrive sur eux ou sur leur étiquette)
+      const covered = [...dialog.querySelectorAll("form input, form button")].filter((e) => e.offsetParent && !e.closest(".fermer-coin")).map((e) => {
+        e.scrollIntoView({ block: "nearest" });
+        const r = e.getBoundingClientRect(), hit = doc.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return hit && (hit === e || e.contains(hit) || hit.closest("label")?.contains(e)) ? "" : `${e.id || e.textContent} sous ${hit?.tagName}.${hit?.className}#${hit?.id}`;
+      }).filter(Boolean);
+      expect(`${where} : cases et boutons atteignables au pointeur`, covered.length === 0, covered.join(" ; "));
       // Case « Végétation » : décochée, ni ligne verte ni herbe ; recochée, de retour
       const plants = doc.querySelector("#profil-vegetation"), drawn = () => dialog.querySelectorAll("svg .vegetation, svg .herbe").length;
       const before = drawn();
@@ -103,7 +112,12 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
       // légende repliée de nouveau : la fenêtre revient où elle était à l'ouverture (centrée)
       unfold.click(); await sleep(300);
       const open1 = placeOf();
-      expect(`${where} : fenêtre à sa place après dépliage et repliage de la légende`, open0.every((v, i) => Math.abs(v - open1[i]) <= 2), `${open0} → ${open1}`);
+      // Recentrée (et non remise à sa place d'ouverture : le bilan de l'analyse fine, arrivé depuis, l'a rendue plus haute,
+      // bas gardé) : un second dépliage et repliage la ramène au même endroit
+      unfold.click(); await sleep(300);
+      unfold.click(); await sleep(300);
+      const open2 = placeOf();
+      expect(`${where} : fenêtre recentrée au même endroit après dépliage et repliage de la légende`, open2.every((v, i) => Math.abs(v - open1[i]) <= 2), `${open1} → ${open2}`);
       unfold.click(); await sleep(300);  // dépliée comme pour la suite
       log(`  en long : ${dialog.querySelector("svg.profil-long text")?.textContent || "absent"} · ${(/Pente en long[^·]*/.exec(doc.querySelector("#chute").textContent) || ["pas dans l'encadré"])[0]}`);
       if (sepMid === null) {
