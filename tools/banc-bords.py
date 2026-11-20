@@ -69,6 +69,9 @@ REFERENCES = {
     ("f533e240-7d37-40ef-babc-1d37140dc5d2", "gauche"): (
         4.0, "D119M : bordure de 8 à 10 cm à 4,0 m sur 4 travers sur 5, trottoir d'environ 1,7 m, talus enherbé d'environ "
         "3,5 m, clôture, voies SNCF ; analyse fine à 8,1 m, trottoir compté en enrobé (auteur, 19/11/2026)"),
+    ("b3978b33-2ceb-4ef3-bd51-09d25e505015", "droit"): (
+        2.0, "D16, profil depuis la caméra : bord du relief à 2,0 m juste ; analyse fine à 3,4 m par la bordure de P21, "
+        "retirée (auteur, 20/11/2026)"),
 }
 
 

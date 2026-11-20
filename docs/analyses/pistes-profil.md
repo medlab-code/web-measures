@@ -209,9 +209,10 @@ ornières, joints ou reprises, nettes et réelles), des bombements à plus de 1,
 placé), et 10 replis BD TOPO (P17). Vérifiée le 20/11/2026 : sans autre rupture après le bombement, le bord retombe
 sur lui, près de l'axe. Essai « pas de bord, largeur type à la place » sur le banc (68 côtés, largeurs types prudentes de P17) :
 2 côtés seulement bougent, les autres sont déjà ramenés à la médiane des travers voisins ; D16
-b3978b33-2ceb-4ef3-bd51-09d25e505015 droit 2,00 → 2,50 m (enrobé 3,38 : mieux), D114 dc5520e1-ba0d-4690-97ec-b19282935ff9
+b3978b33-2ceb-4ef3-bd51-09d25e505015 droit 2,00 → 2,50 m (enrobé 3,38, lu par la bordure de P21 ; 2,00 m juste, vérifié
+par l'auteur le 20/11 : moins bien), D114 dc5520e1-ba0d-4690-97ec-b19282935ff9
 gauche 2,00 → 4,63 m (enrobé 2,35 : moins bien ; axe BD TOPO décalé, la « rupture près de l'axe » était le vrai bord).
-Gardé tel quel. Références du banc : enrobé de l'analyse fine relevé le 19/11 avec la bordure et le gravier (P21), sauf les
+Les deux côtés se dégraderaient : gardé tel quel. Références du banc : enrobé de l'analyse fine relevé le 19/11 avec la bordure et le gravier (P21), sauf les
 côtés vérifiés.*
 - **Avant** : profil depuis la caméra (séquence RTK) : du côté opposé à sa voie, la recherche du bord part de la caméra, avec la
   pente de sa voie comme référence, et traverse l'axe.
