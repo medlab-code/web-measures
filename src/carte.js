@@ -528,18 +528,20 @@ const Carte = (() => {
     return ctx.getImageData(0, 0, size, size);
   }
 
-  /** Petit trait vertical rouge (rouge des poignées de la photo, src/nez.js) à léger liseré blanc : bord de la largeur dans la visionneuse,
-   * tourné perpendiculairement à la droite par icon-rotate ; 18 px à l'écran quel que soit le zoom. */
+  /** Petit trait vertical rouge (rouge des poignées de la photo, src/nez.js) entouré d'un liseré blanc : bord de la largeur dans la visionneuse,
+   * tourné perpendiculairement à la droite par icon-rotate ; 18 px à l'écran quel que soit le zoom. Canvas 10 × 36 à pixelRatio 2 :
+   * trait rouge de 3 px de canvas (1,5 px écran) centré, liseré blanc de 7 px au total (1 px écran de chaque côté du trait). */
   function edgeTickImage() {
-    const w = 8, h = 36, canvas = document.createElement("canvas");
+    const w = 10, h = 36, canvas = document.createElement("canvas");
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext("2d");
     ctx.lineCap = "butt";
-    for (const [color, width] of [["rgba(255, 255, 255, 0.85)", 4], ["#d93025", 2]]) {
+    // [couleur, épaisseur, retrait en haut et en bas] : le liseré est tracé d'abord, le rouge par-dessus
+    for (const [color, width, inset] of [["rgba(255, 255, 255, 0.85)", 7, 4], ["#d93025", 3, 5]]) {
       ctx.strokeStyle = color;
       ctx.lineWidth = width;
       ctx.beginPath();
-      ctx.moveTo(w / 2, 4 + (width === 4 ? 0 : 1)); ctx.lineTo(w / 2, h - 4 - (width === 4 ? 0 : 1));
+      ctx.moveTo(w / 2, inset); ctx.lineTo(w / 2, h - inset);
       ctx.stroke();
     }
     return ctx.getImageData(0, 0, w, h);
