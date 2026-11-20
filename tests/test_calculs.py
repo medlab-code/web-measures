@@ -418,7 +418,8 @@ class BordsCarrefour(unittest.TestCase):
 
     def test_carrefour_proche(self):
         res = edges_on(lambda x, y: 0.0, ends=([((0.0, 6.0), "carrefour", ["D18"])], "D16", []))
-        self.assertEqual(res["profile"]["carrefour"], {"d": 6.0, "avec": ["D18"]})
+        self.assertEqual({k: v for k, v in res["profile"]["carrefour"].items() if k != "texte"}, {"d": 6.0, "avec": ["D18"]})
+        self.assertTrue(res["profile"]["carrefour"]["texte"].startswith("Carrefour avec la D18 6 m devant"))
         self.assertTrue(res["text"].startswith("Carrefour avec la D18 6 m devant : bords peu sûrs"), res["text"])
 
     def test_carrefour_loin_ou_fin(self):

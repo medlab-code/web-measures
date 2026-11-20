@@ -83,7 +83,8 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
     zone.dispatchEvent(new w.Event("change"));
     // D70 (même commune) : route en haut d'un remblai d'environ 7 m des deux côtés : dévers du talus entier
     for (const [id, where] of [["2d55af6d-61f1-4ff1-a881-16bf27b2fef1", "La Roche-en-Brenil D15A"],
-      ["229abfcd-868c-4eca-bfc1-3979ca94d28f", "La Roche-en-Brenil D70"]]) {
+      ["229abfcd-868c-4eca-bfc1-3979ca94d28f", "La Roche-en-Brenil D70"],
+      ["d946f2cf-cddc-4476-a414-35aee429c05a", "carrefour D16"]]) {  // carrefour de rues : bords peu sûrs, signalés
       const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
       await show(f);
       doc.querySelector("#bords").click();
@@ -94,6 +95,10 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       profile.click();
       await soon(() => doc.querySelector("#fenetre-profil").open && doc.querySelector("#fenetre-profil svg .sol"));
       const dialog = doc.querySelector("#fenetre-profil");
+      if (where === "carrefour D16") {
+        expect("carrefour : signalé dans l'encadré, sur le graphique et dans sa légende", /^Carrefour avec .* bords peu sûrs/m.test(doc.querySelector("#chute").textContent)
+          && Boolean(dialog.querySelector("svg .mention-carrefour")) && Boolean(dialog.querySelector(".legende b.carrefour")));
+      }
       const blob = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
       await log(`IMAGE ${id.slice(0, 8)} ` + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));
       // Loupe : graphique agrandi sans la légende, la fenêtre dans la visionneuse ; à nouveau : taille normale

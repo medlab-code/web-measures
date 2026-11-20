@@ -349,6 +349,11 @@ const Profil = (() => {
    * légende (une puce par côté, et la plateforme). */
   function drawResults(svg, profile, all, main, { X, Z, path }) {
     const results = document.createElement("ul");
+    if (profile.carrefour?.texte) {  // carrefour près de la photo : en tête, les bords qui suivent sont peu sûrs
+      const item = document.createElement("li");
+      item.append(html("b", "carrefour", profile.carrefour.texte));
+      results.append(item);
+    }
     if (profile.plateforme) {
       const item = document.createElement("li");
       item.append(html("b", "", "Plateforme\u00a0: "), platformText(profile.plateforme));
@@ -542,7 +547,16 @@ const Profil = (() => {
     // qui écarte les étiquettes « place » ; posée en dernier, sur un fond opaque, elle reste lisible et entre dans le PNG et le PDF.
     const mention = factor > 1 ? `Hauteurs ×${num(factor, 0)}` : "";
     const mentionBox = [LEFT + 2, TOP + 2, LEFT + 12 + textWidth(mention, 13, 500, 0.6), TOP + 24];
-    declutter(svg, TOP, TOP + plotH, mention ? [mentionBox] : []);
+    // Carrefour près de la photo (App._junction_near) : « Carrefour : bords peu sûrs » dans le coin haut droit, aussi dans
+    // le PNG et le PDF ; la phrase entière en tête de la légende
+    const junction = profile.carrefour ? "Carrefour\u00a0: bords peu sûrs" : "";
+    const junctionW = textWidth(junction, 13, 500, 0.6) + 10;
+    const junctionBox = [W - RIGHT - 2 - junctionW, TOP + 2, W - RIGHT - 2, TOP + 24];
+    declutter(svg, TOP, TOP + plotH, [...(mention ? [mentionBox] : []), ...(junction ? [junctionBox] : [])]);
+    if (junction) {
+      svg.append(el("rect", { x: junctionBox[0], y: junctionBox[1], width: junctionW, height: 22, rx: 3, class: "mention-echelle mention-carrefour" }),
+        el("text", { x: W - RIGHT - 7, y: TOP + 18, "text-anchor": "end", class: "etiquette-profil mention-carrefour-texte" }, junction));
+    }
     if (mention) {
       svg.append(el("rect", { x: mentionBox[0], y: mentionBox[1], width: mentionBox[2] - mentionBox[0], height: 22, rx: 3, class: "mention-echelle" }),
         el("text", { x: LEFT + 7, y: TOP + 18, class: "etiquette-profil mention-echelle-texte" }, mention));

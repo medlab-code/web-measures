@@ -414,7 +414,8 @@ après.
   un nouvel appui refait le calcul. Le bouton est grisé sur un pont (hauteur de chute du pont),
   pendant la lecture et quand le calcul est déjà fait pour cette photo et cette distance. À 12 m au plus d'un carrefour
   avec une voie nommée (le long de la route), une première ligne le signale : « Carrefour avec la D18 6 m devant : bords
-  peu sûrs » ; la chaussée s'y élargit et le bord n'y est pas continu, le calcul n'a pas de bonne réponse.
+  peu sûrs » ; la chaussée s'y élargit et le bord n'y est pas continu, le calcul n'a pas de bonne réponse. Le graphique le
+  rappelle (« Carrefour : bords peu sûrs », en orange en haut à droite, aussi dans le PNG et le PDF), la phrase entière en tête de sa légende.
   Calcul :
   - **profils** : modèle de terrain LiDAR HD (RGE ALTI en secours) lu en travers de la route à
     −10, −5, 0, +5 et +10 m de la photo le long de la route, des deux côtés, depuis la caméra

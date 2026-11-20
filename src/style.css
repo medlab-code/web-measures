@@ -1342,6 +1342,9 @@ dialog.profil .legende .devers { color: #d93025; font-weight: 500; }
 /* étiquettes posées sur le terrain : liseré du fond, lisibles par-dessus les traits */
 .profil-svg text.place { paint-order: stroke; stroke: var(--fond); stroke-width: 3px; stroke-linejoin: round; }
 .profil-svg rect.mention-echelle { fill: var(--fond); opacity: 0.85; }  /* « Hauteurs ×N » : fond du coin */
+.profil-svg rect.mention-carrefour { stroke: #ff6f00; stroke-width: 1.5; }  /* carrefour près de la photo : bords peu sûrs */
+.profil-svg text.mention-carrefour-texte { fill: #ff6f00; }
+dialog.profil .legende b.carrefour { color: #ff6f00; }
 .profil-svg .graduation { fill: var(--discret); }
 .profil-svg .etiquette-profil { font-weight: 500; font-size: 13px; }
 .profil-svg tspan.graduation { font-weight: 400; font-size: 12px; }  /* 2e ligne d'une étiquette */

@@ -1392,13 +1392,15 @@ class Chutes:
 
     def _junction_near(self, ends, along_of):
         """Carrefour avec une voie nommée (ends, voir _chained) à JUNCTION_NEAR m au plus de la photo le long de la route, le
-        plus proche : {"d" : m dans le sens de la photo, "avec" : voies}, ou None."""
+        plus proche : {"d" : m dans le sens de la photo, "avec" : voies, "texte" : ligne de l'encadré}, ou None."""
         near = [(along_of(p), names) for p, kind, names in ends[0] if kind == "carrefour"]
         near = [(d, names) for d, names in near if abs(d) <= self.JUNCTION_NEAR]
         if not near:
             return None
         d, names = min(near, key=lambda e: abs(e[0]))
-        return {"d": round(d, 1), "avec": names}
+        out = {"d": round(d, 1), "avec": names}
+        out["texte"] = self._junction_text(out)  # pour le graphique et sa légende (src/profil.js)
+        return out
 
     @staticmethod
     def _junction_text(junction):
