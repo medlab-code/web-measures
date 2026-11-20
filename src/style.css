@@ -122,7 +122,6 @@ header input[type="checkbox"]:not(.interrupteur) { width: 0.95em; height: 0.95em
 header .bloc { display: flex; flex-direction: column; align-items: center; gap: 0.5em; }
 header .rang { display: flex; align-items: center; gap: 0.55em; }
 header .mesure { margin-left: auto; }  /* Mesure et Dévers centrés dans la place entre le titre et les captures */
-header .bords { margin-right: auto; }
 /* Captures et fond de carte à droite, à la suite */
 header .captures { align-items: stretch; }  /* deux boutons de même largeur */
 /* Icône au bord gauche, dans une case de même largeur pour les deux boutons : libellés alignés */
@@ -165,14 +164,8 @@ body:not(.carte-en-grand):not(.fenetre-carte) #dessus-etat-replier { display: no
 /* Bouton Mesure : à gauche des réglages, sur la hauteur des deux rangées, liseré orange comme
    les alertes */
 header .mesure { flex-direction: row; align-items: stretch; gap: 0.8em; }
-header .bords { flex-direction: row; align-items: stretch; gap: 0.6em; }  /* Dévers : comme Mesure, réglette à droite */
-header .bords .reglette { flex-direction: column; align-items: stretch; justify-content: center; gap: 0.2em; }
-header .bords .reglette input { width: 7em; margin: 0; }
-header #mesure, header #bords { display: inline-flex; align-items: center; gap: 0.4em; height: auto; padding: 0 0.9em;
+header #mesure { display: inline-flex; align-items: center; gap: 0.4em; height: auto; padding: 0 0.9em;
                  font-size: 1.15em; font-weight: 600; border: 3px solid var(--panoramax); border-radius: 10px; }
-/* Profil : même hauteur et même forme que Dévers, à côté, sans le liseré orange */
-header #profil { display: inline-flex; align-items: center; gap: 0.4em; height: auto; padding: 0 0.9em;
-                 font-size: 1.05em; font-weight: 500; border-radius: 10px; }
 /* Effacer, Refaire, Tout effacer : liseré aux couleurs des repères de la visionneuse (jaune des croix,
    vert de la verticale et des visées, rouge des traits de mesure), fond et texte des autres boutons ;
    grisés sans effet possible */
@@ -1067,6 +1060,7 @@ html.souris-immobile:fullscreen :is(#plein-ecran, header .captures, #voyants, .b
 }
 #reglage-image:hover { background: rgba(24, 25, 28, 0.82); }
 #reglage-image > div { display: flex; flex-direction: row-reverse; align-items: center; gap: 0.2rem; }  /* icône, puis curseur */
+#reglage-image > div.outils { flex-direction: row; gap: 0.3rem; }  /* largeur, hauteur, profil : côte à côte */
 #reglage-image input[type="range"] {
   width: 5.5rem;
   height: 1.2rem;
@@ -1086,7 +1080,7 @@ html.souris-immobile:fullscreen :is(#plein-ecran, header .captures, #voyants, .b
 #reglage-image button:not(:disabled) { cursor: pointer; }
 #reglage-image button:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }
 #reglage-image button:disabled { opacity: 0.6; }
-#reglage-image button[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); color: #ffd600; }  /* largeur dans la visionneuse active */
+#reglage-image button[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); color: #ffd600; }  /* hauteur, profil ou largeur dans la visionneuse active */
 pnx-photo-viewer[hidden] ~ #reglage-image { display: none; }
 html:fullscreen #reglage-image { transition: opacity 0.2s; }
 html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
@@ -1436,6 +1430,12 @@ dialog.profil form .groupe label { display: inline-flex; align-items: center; ga
 dialog.profil form .groupe label input { margin: 0; }
 /* Croix de fermeture en haut à droite de la fenêtre, discrète ; pas de rouge, réservé à « Non » et aux actions qui effacent */
 dialog.profil h2 { padding-right: 2.6rem; }  /* le titre ne passe pas sous la croix */
+/* Réglette de la distance examinée : en-tête de la fenêtre, à gauche de la croix de fermeture ; le titre lui laisse la place */
+dialog.profil > label.reglette { position: absolute; top: 0.5rem; right: 3.4rem; height: 2.4rem; display: flex; flex-direction: column;
+                                 justify-content: center; gap: 0.1rem; font-size: 0.8rem; }
+dialog.profil > label.reglette input { width: 6.5em; margin: 0; height: 1rem; }
+dialog.profil > label.reglette output { font-variant-numeric: tabular-nums; }
+dialog.profil > h2 { padding-right: 10.5rem; }
 dialog.profil form.fermer-coin { position: absolute; top: 0.5rem; right: 0.5rem; margin: 0; }
 dialog.profil form.fermer-coin button { width: 2.4rem; height: 2.4rem; padding: 0; border: 1px solid transparent; border-radius: 4px;
   background: transparent; color: var(--discret); font-size: 1.5rem; line-height: 1; }

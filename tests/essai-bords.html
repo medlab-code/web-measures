@@ -29,7 +29,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
     const show = async (f) => {
       w.mesures.openPhoto(f);
       await soon(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000);
-      await soon(() => !doc.querySelector("#bords").disabled || !doc.querySelector("#chute").hidden, 5000);
+      await soon(() => !doc.querySelector("#profil-visionneuse").disabled || !doc.querySelector("#chute").hidden, 5000);
     };
     const pouilly = (await (await fetch("https://panoramax.ign.fr/api/search?ids=cd8cf3a0-6567-40f0-8805-94172a5dfc3c")).json()).features[0];
     const places = [[pouilly, 0, "Pouilly"]];
@@ -43,19 +43,18 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
     }
     for (const [f, , where] of places) {
       await show(f);
-      const button = doc.querySelector("#bords");
+      const button = doc.querySelector("#profil-visionneuse");  // calcule, puis ouvre la fenêtre du profil à l'arrivée du résultat
       if (!button.disabled) button.click();
       await computed();
+      await soon(() => doc.querySelector("#fenetre-profil").open || button.getAttribute("aria-pressed") === "false", 10000);
       const c = doc.querySelector("#chute");
       if (!c.hidden) shown++;
       // l'encadré ne recouvre pas les curseurs de luminosité et de contraste (même coin de la visionneuse)
       const a = c.getBoundingClientRect(), b = doc.querySelector("#reglage-image").getBoundingClientRect();
       if (!c.hidden && b.height && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) covered++;
       butte ||= /pas de chute avant le terrain qui remonte/.test(c.textContent);  // lecture arrêtée au moins une fois
-      const profile = doc.querySelector("#profil");
-      if (!profile.disabled) {
-        profile.click();
-        await soon(() => doc.querySelector("#fenetre-profil").open && doc.querySelector("#fenetre-profil svg .sol"));
+      if (doc.querySelector("#fenetre-profil").open) {
+        await soon(() => doc.querySelector("#fenetre-profil svg .sol"));
         const dialog = doc.querySelector("#fenetre-profil"), svg = dialog.querySelector("svg");
         drawn += dialog.open && svg?.querySelector(".sol") ? 1 : 0;
         // Légende pliée à l'ouverture, dépliée par son bouton, repliée ensuite ; PNG et PDF la gardent (elle n'est que masquée)
@@ -70,6 +69,22 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
         if (images++ < 3) {
           const blob = await w.eval("Profil").png(svg, dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
           await log(`IMAGE ${f.id.slice(0, 8)} ` + await new Promise((r) => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(blob); }));
+        }
+        {  // réglette « Jusqu'à » dans l'en-tête de la fenêtre : à gauche de la croix de fermeture, même ligne ; la changer refait le calcul
+          const range = doc.querySelector("#bords-largeur"), r = range.getBoundingClientRect(), x = dialog.querySelector(".fermer").getBoundingClientRect();
+          expect("réglette du profil : dans la fenêtre, à gauche de la croix, même ligne", dialog.contains(range) && r.right <= x.left && r.top < x.bottom && r.bottom > x.top
+            && !range.disabled && Boolean(r.width));
+          const before = range.value;
+          range.value = String(Number(before) === 15 ? 20 : 15);
+          range.dispatchEvent(new w.Event("change"));
+          expect("réglette du profil : grisée pendant le calcul", range.disabled);
+          await computed();
+          await soon(() => !range.disabled && dialog.open, 90000);
+          expect("réglette du profil : calcul refait, fenêtre redessinée", !range.disabled && dialog.open && Boolean(dialog.querySelector("svg .sol")));
+          range.value = before;
+          range.dispatchEvent(new w.Event("change"));
+          await computed();
+          await soon(() => !range.disabled && dialog.open, 90000);
         }
         dialog.close();
       }
@@ -87,13 +102,12 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       ["d946f2cf-cddc-4476-a414-35aee429c05a", "carrefour D16"]]) {  // carrefour de rues : bords peu sûrs, signalés
       const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
       await show(f);
-      doc.querySelector("#bords").click();
+      doc.querySelector("#profil-visionneuse").click();
       await computed();
+      await soon(() => doc.querySelector("#fenetre-profil").open || doc.querySelector("#profil-visionneuse").getAttribute("aria-pressed") === "false", 10000);
       log(`${where} ${id.slice(0, 8)} (30 m) : ${doc.querySelector("#chute").textContent.replace(/\n/g, " · ")}`);
-      const profile = doc.querySelector("#profil");
-      if (profile.disabled) continue;
-      profile.click();
-      await soon(() => doc.querySelector("#fenetre-profil").open && doc.querySelector("#fenetre-profil svg .sol"));
+      if (!doc.querySelector("#fenetre-profil").open) continue;
+      await soon(() => doc.querySelector("#fenetre-profil svg .sol"));
       const dialog = doc.querySelector("#fenetre-profil");
       if (where === "carrefour D16") {
         expect("carrefour : signalé dans l'encadré, sur le graphique et dans sa légende", /^Carrefour avec .* bords peu sûrs/m.test(doc.querySelector("#chute").textContent)
@@ -131,8 +145,10 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       ["067e83ca-a3d8-4f2a-bbe6-0c10df70fc96", "RD700 Varois-et-Chaignot (glissières dos à dos)"]]) {
       const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
       await show(f);
-      doc.querySelector("#bords").click();
+      doc.querySelector("#profil-visionneuse").click();
       await computed();
+      await soon(() => doc.querySelector("#fenetre-profil").open || doc.querySelector("#profil-visionneuse").getAttribute("aria-pressed") === "false", 10000);
+      doc.querySelector("#fenetre-profil").close();
       const c = doc.querySelector("#chute"), found = (c.title.match(/Bords trouvés : (.*)\.$/) || [])[1] || "?";
       log(`${where} ${id.slice(0, 8)} : ${c.textContent.replace(/\n/g, " · ")} · bords trouvés : ${found}`);
       const left = Number(((/côté gauche à (\d+(?:,\d+)?) m/.exec(found) || [])[1] || "0").replace(",", "."));
@@ -143,16 +159,16 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
     // de l'autre chaussée (son axe à ~12 m de la photo, 10 m de large)
     { const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=61dd94c4-e5d1-4eb0-9762-73a72f18b5cb")).json()).features[0];
       await show(f);
-      doc.querySelector("#bords").click();
+      doc.querySelector("#profil-visionneuse").click();
       await computed();
+      await soon(() => doc.querySelector("#fenetre-profil").open || doc.querySelector("#profil-visionneuse").getAttribute("aria-pressed") === "false", 10000);
       const c = doc.querySelector("#chute"), found = (c.title.match(/Bords trouvés : (.*)\.$/) || [])[1] || "?";
       log(`A38 61dd94c4-e5d1-4eb0-9762-73a72f18b5cb (30 m) : ${c.textContent.replace(/\n/g, " · ")} · bords trouvés : ${found}`);
       const far = /séparateur de chaussée \(trouvé dans le relief\) et de l'autre chaussée/.exec(found);
       const widths = [...found.matchAll(/à (\d+(?:,\d+)?) m de/g)].map((m) => Number(m[1].replace(",", ".")));
       twin = far && widths.some((d) => d > 15) ? 1 : 0;
-      if (!doc.querySelector("#profil").disabled) {
-        doc.querySelector("#profil").click();
-        await soon(() => doc.querySelector("#fenetre-profil").open && doc.querySelector("#fenetre-profil svg text"));
+      if (doc.querySelector("#fenetre-profil").open) {
+        await soon(() => doc.querySelector("#fenetre-profil svg text"));
         const dialog = doc.querySelector("#fenetre-profil");
         if (![...dialog.querySelectorAll("svg text")].some((e) => e.textContent === "séparateur de chaussée")
           || !dialog.querySelector(".legende").textContent.includes("trouvé dans le relief")  // d'où il vient : en légende

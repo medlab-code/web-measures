@@ -57,7 +57,8 @@
           <label>Mode
             <select id="mode" disabled>
               <optgroup label="Mesures">
-                <option value="height">Hauteur d'un objet</option>
+                <!-- Hauteur : lancée par le bouton ↕ de la visionneuse (src/mesure.js) ; option cachée, mode de départ du calcul -->
+                <option value="height" hidden>Hauteur d'un objet</option>
                 <option value="road">Largeur perpendiculaire à la chaussée</option>
                 <option value="carte"
                         title="Longueur (deux clics) ou surface (contour) tracée sur la carte en grand, à la place de la visionneuse ; sur la vue Bird Eye si elle est allumée (avec incertitude), sinon sur le fond de carte">Mesure sur la carte (longueur, surface)</option>
@@ -81,23 +82,6 @@
           <button id="tout-effacer" type="button" disabled>Tout effacer</button>
         </div>
       </div>
-    </div>
-    <!-- Bouton « Profils » : chute et dévers des bords de route calculés à l'appui (App.request_edges), jusqu'à la largeur
-         de la réglette -->
-    <div class="bloc bords carte-barre">
-      <button id="bords" type="button" disabled
-              title="Chute et dévers des deux bords de la route, pour la photo affichée (hors pont) : terrain LiDAR HD lu en travers de la route, du bord de la chaussée jusqu'à la distance de la réglette">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"
-             aria-hidden="true"><path d="M2 7h8l6 10h6"/></svg> Profils</button>
-      <!-- Coupe du terrain lue par le calcul de « Profils » (src/profil.js) : grisé tant qu'il n'y en a pas pour la photo -->
-      <button id="profil" type="button" disabled
-              title="Coupe du terrain en travers de la route, telle que « Profils » l'a lue : plateforme, bords, chute et dévers">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"
-             aria-hidden="true"><path d="M2 20V4M2 20h20M5 9l4 0 3 6 4-2 5 0"/></svg> Graphiques</button>
-      <label class="reglette" title="Distance examinée de part et d'autre du milieu de la chaussée (1 m au moins au-delà du bord), au prochain appui sur « Profils »">
-        <span>Jusqu'à <output id="bords-valeur" for="bords-largeur">10 m</output></span>
-        <input id="bords-largeur" type="range" min="2" max="30" step="1" value="10">
-      </label>
     </div>
     <!-- Captures, puis fond de carte -->
     <div class="bloc captures carte-barre">
@@ -142,7 +126,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
                  d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg></button>
       <!-- Luminosité et contraste de l'affichage de la photo seulement (filtre CSS : mesures et exports inchangés) ;
            un clic sur l'icône remet la valeur à 100 % (disposition.js) -->
-      <div id="reglage-image" role="group" aria-label="Luminosité, contraste et largeur dans la visionneuse">
+      <div id="reglage-image" role="group" aria-label="Luminosité, contraste, hauteur, profil en travers et largeur dans la visionneuse">
         <div>
           <input type="range" id="luminosite" min="50" max="150" step="1" value="100"
                  aria-label="Luminosité" title="Luminosité de l'affichage de la photo">
@@ -157,11 +141,21 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg></button>
         </div>
-        <div>  <!-- Largeur dans la visionneuse (expérimental, src/nez.js) : bascule, grisée sans photo 360° -->
+        <!-- Trois boutons de mesure côte à côte, de gauche à droite : largeur (↔, expérimental, src/nez.js), hauteur (↕, src/mesure.js),
+             profil en travers (src/reglages.js) ; bascules, une seule active à la fois, grisées quand la fonction ne s'applique pas -->
+        <div class="outils">
           <button type="button" id="nez-bords" disabled aria-pressed="false"
                   title="Largeur dans la visionneuse (expérimental) : droite au sol devant le véhicule, faites glisser ses extrémités jusqu'aux bords de la route">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg></button>  <!-- double flèche ↔ des mesures de largeur -->
+          <button type="button" id="hauteur-visionneuse" disabled aria-pressed="false" aria-label="Hauteur dans la visionneuse"
+                  title="Hauteur d'un objet : visez son pied puis son sommet dans la photo (un second clic arrête la mesure)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v14M8 7l4-4 4 4M8 13l4 4 4-4M5 21h14"/></svg></button>  <!-- double flèche verticale ↕ sur un trait de sol -->
+          <button type="button" id="profil-visionneuse" disabled aria-pressed="false" aria-label="Profil en travers dans la visionneuse"
+                  title="Profil en travers : chute et dévers des bords de la route (hors pont), terrain LiDAR HD lu en travers de la route jusqu'à la distance de la réglette « Jusqu'à » de la fenêtre ; la coupe s'affiche dans cette fenêtre">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2 20V4M2 20h20M5 9l4 0 3 6 4-2 5 0"/></svg></button>  <!-- dessin de l'ancien bouton « Graphiques » (axes et coupe du terrain), repris tel quel -->
         </div>
       </div>
       <ul id="voyants" hidden></ul>
@@ -1238,7 +1232,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
       <button value="ok" class="oui">J'ai compris</button>
     </form>
   </dialog>
-  <!-- Bouton « Graphiques » : coupe du terrain en travers de la route (src/profil.js) -->
+  <!-- Bouton « Profil en travers » de la visionneuse : coupe du terrain en travers de la route (src/profil.js) -->
   <dialog id="fenetre-profil" class="profil">
     <h2></h2>
     <div class="graphique"></div>
@@ -1278,6 +1272,12 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             type="checkbox" class="interrupteur"> Profil en long (2e page)</label>
       </fieldset>
     </form>
+    <!-- Réglette de la distance examinée (src/reglages.js), en haut à droite, avant la croix de fermeture : chute, dévers et
+         graphique s'arrêtent là ; un changement refait le calcul de la photo ; grisée pendant le calcul -->
+    <label class="reglette" title="Distance examinée de part et d'autre du milieu de la chaussée (1 m au moins au-delà du bord) : un changement refait le calcul">
+      <span>Jusqu'à <output id="bords-valeur" for="bords-largeur">10 m</output></span>
+      <input id="bords-largeur" type="range" min="5" max="30" step="5" value="10">
+    </label>
     <!-- Croix de fermeture en haut à droite de la fenêtre (après la rangée de commandes dans la page : « form » désigne
          d'abord celle-ci pour les essais) -->
     <form method="dialog" class="fermer-coin">

@@ -26,7 +26,7 @@ possibles, mais la page prévient qu'elles seront probablement incohérentes.
   chaussée, longueur et surface sur la carte, relevé d'objets en couche SIG. Chaque résultat porte son
   incertitude.
 - **Mesures automatiques** : hauteur de chute sur un pont (nuage LiDAR HD), chute et dévers des
-  bords de route (« Profils »), pente en long, analyse fine du nuage LiDAR.
+  bords de route (bouton « Profil en travers »), pente en long, analyse fine du nuage LiDAR.
 - **Bird Eye** (essai) : la photo 360° reprojetée au sol sur la carte, pour mesurer des longueurs
   vues du dessus. Le véhicule peut être masqué par les photos voisines, l'inclinaison est calée
   automatiquement, et la carte se capture en PNG.

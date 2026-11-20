@@ -58,10 +58,11 @@ const IDS = LOTS[location.hash.replace("#lot=", "")] || [];
         const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + id)).json()).features[0];
         w.mesures.openPhoto(f);
         await soon(() => w.mesures.psv?.getPictureMetadata?.()?.id === f.id, 30000);
-        await soon(() => !doc.querySelector("#bords").disabled || !doc.querySelector("#chute").hidden, 15000);
-        if (doc.querySelector("#bords").disabled) { out.ecarte = "bouton grisé (pont ?)"; log("BORDS " + JSON.stringify(out)); continue; }
-        doc.querySelector("#bords").click();
-        await soon(() => !doc.querySelector("#profil").disabled || /impossible|Pas de route/.test(doc.querySelector("#chute").textContent), 90000);
+        await soon(() => !doc.querySelector("#profil-visionneuse").disabled || !doc.querySelector("#chute").hidden, 15000);
+        if (doc.querySelector("#profil-visionneuse").disabled) { out.ecarte = "bouton grisé (pont ?)"; log("BORDS " + JSON.stringify(out)); continue; }
+        doc.querySelector("#profil-visionneuse").click();  // calcul des bords, puis fenêtre du profil
+        await soon(() => doc.querySelector("#fenetre-profil").open || /impossible|Pas de route/.test(doc.querySelector("#chute").textContent), 90000);
+        doc.querySelector("#fenetre-profil").close();
         const fall = JSON.parse(w.mesures.app.fall_json()), profile = fall?.profile;
         if (!profile) { out.ecarte = (fall?.text || "pas de profil").replace(/\n/g, " "); log("BORDS " + JSON.stringify(out)); continue; }
         Object.assign(out, { route: fall.road, origine: profile.origine, source: profile.source, axe: profile.axe });

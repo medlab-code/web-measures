@@ -367,8 +367,22 @@ async function feature(id) {
   log("clic ignoré par le calcul : " + app.click(-0.45, -0.3));
   doc.querySelector("#mesure").click();
 
-  doc.querySelector("#mode").value = "height";  // par la liste : toujours en mesure, flèches masquées
-  doc.querySelector("#mode").dispatchEvent(new Event("change"));
+  doc.querySelector("#hauteur-visionneuse").click();  // bouton « Hauteur » de la visionneuse : mode Hauteur, toujours en mesure, flèches masquées
+  expect("bouton « Hauteur » enfoncé, mode Hauteur, en mesure", doc.querySelector("#hauteur-visionneuse").getAttribute("aria-pressed") === "true"
+    && doc.querySelector("#mode").value === "height" && doc.querySelector("#mesure").getAttribute("aria-pressed") === "true");
+  {  // une seule fonction à la fois : « Profil en travers » arrête « Hauteur » (et un second appui abandonne son calcul) ; « Hauteur » reprend
+    const hauteur = doc.querySelector("#hauteur-visionneuse"), profil = doc.querySelector("#profil-visionneuse");
+    if (!profil.disabled) {
+      profil.click();
+      expect("« Profil en travers » arrête « Hauteur »", profil.getAttribute("aria-pressed") === "true"
+        && hauteur.getAttribute("aria-pressed") === "false" && doc.querySelector("#mesure").getAttribute("aria-pressed") === "false");
+      profil.click();
+      expect("second appui : calcul du profil abandonné", profil.getAttribute("aria-pressed") === "false" || doc.querySelector("#fenetre-profil").open);
+      if (doc.querySelector("#fenetre-profil").open) doc.querySelector("#fenetre-profil").close();
+    } else log("« Profil en travers » grisé : exclusion non essayée");
+    hauteur.click();
+    expect("« Hauteur » relancé", hauteur.getAttribute("aria-pressed") === "true" && profil.getAttribute("aria-pressed") === "false");
+  }
   log("== visées (hauteur) : " + app.status());
   psvClick(0.9, 0.0);  // visée au clic dans la photo
   log(doc.querySelector("#statut").textContent);
@@ -403,8 +417,8 @@ async function feature(id) {
 
   // Hauteur : point de référence triangulé au pied de l'objet, puis pied et sommet dans la photo.
   // Cible fictive à 6 m sur le côté, entre les deux photos de Dijon : directions calculées
-  doc.querySelector("#mode").value = "height";
-  doc.querySelector("#mode").dispatchEvent(new Event("change"));
+  doc.querySelector("#mode").value = "road"; doc.querySelector("#mode").dispatchEvent(new Event("change"));  // hauteur reprise de zéro
+  doc.querySelector("#hauteur-visionneuse").click();
   log("== hauteur avec point de référence : " + app.status());
   const photos = [await feature(DIJON[0]), await feature(DIJON[1])];
   const metres = ([lon, lat], [lon0, lat0]) => [(lon - lon0) * 111320 * Math.cos(lat0 * Math.PI / 180), (lat - lat0) * 111320];
@@ -486,7 +500,8 @@ async function feature(id) {
     doc.querySelector(id).dispatchEvent(new Event("change"));
   };
   for (const mode of ["road", "height"]) {
-    select("#mode", mode);
+    if (mode === "height") doc.querySelector("#hauteur-visionneuse").click();
+    else select("#mode", mode);
     log("réglages " + mode + " : nouveau point de référence " + (doc.querySelector("#nouvelle-reference").hidden ? "masqué" : "affiché"));
   }
   // Lecture rapide 2x sur l'instance IGN (réglage par défaut) : ses images sont sur un stockage

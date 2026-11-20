@@ -74,6 +74,11 @@ transparents, et les boutons, voyants, lieu et lecteur s'effacent après 3 s de 
 reste propre. Une mesure en cours s'y poursuit, avec sa carte d'étape ; pour en lancer une autre, quitter le plein écran.
 `Échap` y quitte d'abord le plein écran : un second appui annule le trait en cours.
 
+**Hauteur, profil en travers et largeur dans la visionneuse** : trois boutons bascule, en haut à gauche de la visionneuse, sous ou à côté des curseurs de luminosité
+et de contraste (↕ « Hauteur » : mesure de hauteur d'un objet ; courbe « Profil en travers » : chute, dévers et coupe du terrain ; ↔ « Largeur »,
+ci-dessous). Un appui lance la fonction, un second l'arrête ; une seule est active à la fois (en lancer une arrête les autres) ; chacun est grisé quand
+la fonction ne peut pas s'appliquer (pas de photo, photo non 360° pour la largeur, pont ou lecture pour le profil). Détails de la hauteur et du profil : « Mesurer » et « Chute et dévers des bords de route » plus bas.
+
 **Largeur dans la visionneuse** (expérimental, piste P22 étape 1) : le bouton à droite des curseurs de luminosité et de contraste, en haut à
 gauche de la visionneuse (grisé sans photo 360°), trace en vert (liseré sombre) une droite au sol (elle n'apparaît qu'une fois sa position définitive : photos voisines, verticales et relief arrivés, au plus 12 s ; l'encart affiche « Calcul de la droite… » en attendant), entre les deux poignées seulement (elle s'allonge et se raccourcit en direct avec elles ; les poignées glissent sur toute la portée de la droite), juste devant le nez du véhicule, perpendiculaire à
 la trajectoire de la séquence à l'endroit de la droite (dans un virage ou un giratoire, la direction de la photo suivante est prise en compte) (à 4,4 m de la caméra pour la monture basse du CD21, 4,8 m pour la haute, 4,5 m ailleurs : le sol y
@@ -325,7 +330,10 @@ visées, sol LiDAR HD lu au point). Si la vérification RTK ou l'inclinaison aut
 après les clics, tout est recalculé : une mesure peut changer d'elle-même une ou deux secondes
 après.
 
-- **Hauteur d'un objet** (mode à l'ouverture de la page)
+- **Hauteur d'un objet** (bouton **↕ « Hauteur »**, en haut de la visionneuse, avec luminosité, contraste et largeur : il
+  lance la mesure en mode hauteur, mode à l'ouverture de la page, et un second appui l'arrête ; grisé sans photo. Une seule de ces
+  fonctions (hauteur, profil en travers, largeur) est active à la fois : en lancer une arrête les autres. La liste « Mode » ne
+  la propose plus)
   1. Viser le **pied** de l'objet depuis au moins deux photos (un clic par photo, lecteur
      de séquence ou carte pour changer de photo), puis « Valider le point triangulé » : c'est le point de référence,
      et le pied de la hauteur.
@@ -420,15 +428,17 @@ après.
   « calcul impossible » avec sa cause (service injoignable, pas d'altitude GPS sur le pont, pas
   de modèle de terrain). Un creux sans rapport avec ce que franchit le pont, à moins de 10 m de
   la chaussée (fossé profond), augmente la valeur.
-- **Chute et dévers des bords de route** (bouton « Profils » de la barre du haut, ticket #31) :
+- **Chute et dévers des bords de route** (bouton « Profil en travers », en haut de la visionneuse, avec luminosité, contraste,
+  hauteur et largeur ; ticket #31) :
   sur une photo hors pont, à moins de 15 m d'une route de la BD TOPO (orientée comme la route parcourue, à 45°
-  près : à un carrefour, pas la voie qui croise), un appui sur « Profils »
-  affiche en haut à gauche, pour chaque côté (vu dans le sens de la photo) qui descend d'au
-  moins 0,5 m, la hauteur de chute et le dévers du bord. La réglette à côté du bouton fixe la
-  distance examinée de part et d'autre du milieu de la chaussée (2 à 30 m, 10 m par défaut ; 1 m au moins au-delà
-  de chaque bord) : chute, dévers et graphique s'arrêtent là ; après l'avoir changée,
-  un nouvel appui refait le calcul. Le bouton est grisé sur un pont (hauteur de chute du pont),
-  pendant la lecture et quand le calcul est déjà fait pour cette photo et cette distance. À 12 m au plus d'un carrefour
+  près : à un carrefour, pas la voie qui croise), un appui sur « Profil en travers »
+  calcule puis affiche en haut à gauche, pour chaque côté (vu dans le sens de la photo) qui descend d'au
+  moins 0,5 m, la hauteur de chute et le dévers du bord. La réglette « Jusqu'à » de la fenêtre du profil (en haut à droite, avant la croix de fermeture ; grisée pendant le calcul) fixe la
+  distance examinée de part et d'autre du milieu de la chaussée (5 à 30 m par pas de 5 m, flèches du clavier comprises, 10 m par défaut ; 1 m au moins au-delà
+  de chaque bord) : chute, dévers et graphique s'arrêtent là ; la changer, fenêtre ouverte, refait aussitôt le calcul
+  de la photo ; fenêtre fermée, le prochain appui sur le bouton. Le bouton est grisé sur un pont (hauteur de chute du pont)
+  et pendant la lecture ; enfoncé pendant le calcul (un second appui l'abandonne) et tant que la fenêtre du profil est ouverte ; quand le calcul
+  est déjà fait pour cette photo et cette distance, un appui rouvre la fenêtre sans recalculer. À 12 m au plus d'un carrefour
   avec une voie nommée (le long de la route), une première ligne le signale : « Carrefour avec la D18 6 m devant : bords
   peu sûrs » ; la chaussée s'y élargit et le bord n'y est pas continu, le calcul n'a pas de bonne réponse. Le graphique le
   rappelle (« Carrefour : bords peu sûrs », en orange en haut à droite, aussi dans le PNG et le PDF), la phrase entière en tête de sa légende.
@@ -503,7 +513,7 @@ après.
     terrain (un repère hors de la bande n'a jamais son nom au-dessus d'elle) ; une ligne de légende dessous, reprise dans le PNG et sur la
     2e page du PDF.
 
-  Le bouton **« Graphiques »**, à côté, montre la coupe du terrain que ce calcul a lue (mesure LiDAR
+  La fenêtre du **profil en travers**, ouverte par le même bouton dès que le calcul est rendu, montre la coupe du terrain que ce calcul a lue (mesure LiDAR
   HD, ou RGE ALTI en secours), sur la distance de la réglette de part et d'autre du milieu de la chaussée (1 m au moins
   au-delà de chaque bord), là même où chute et dévers sont lus : travers de la photo en brun, les quatre autres en pointillés,
   plateforme entre les deux bords trouvés (et comment : rupture de pente, travers voisins ou largeur type ; un bord mesuré a un
@@ -524,7 +534,7 @@ après.
   la moitié basse du cadre, sinon à 0,3 m ; la place libre est en haut, pour la végétation. Le graphique et la
   légende donnent le **dévers de la plateforme** (LiDAR HD seulement), arrondi au point : un chiffre si elle penche d'un seul sens, sinon un
   par demi-chaussée, avec la pente moyenne pour un toit symétrique, ou « non déterminé » si les travers diffèrent trop. Sur une route à une
-  chaussée, un toit reste difficile à reconnaître (voir `docs/CALCULS.md`, 8.7) : ce chiffre n'a pas été comparé à des mesures de terrain. Le bouton est grisé tant que « Profils » n'a rien calculé pour la photo.
+  chaussée, un toit reste difficile à reconnaître (voir `docs/CALCULS.md`, 8.7) : ce chiffre n'a pas été comparé à des mesures de terrain. Le bouton « Analyse fine » de la fenêtre n'est proposé que pour un profil calculé.
 
   **« Analyse fine »** (fenêtre du profil) : lit le nuage de points LiDAR HD de l'IGN (dalles COPC, à la volée,
   1 requête par seconde au plus : une vingtaine de secondes, 1 à 2 Mo ; morceaux gardés dans le cache des informations
@@ -545,7 +555,7 @@ après.
   vert clair et la ligne verte. **Ligne verte** : hauteur maximale de la
   végétation (points classés herbe haute, arbustes et arbres par l'IGN), plus haut point à ±0,25 m près, coupée en
   haut du graphique (hauteurs à l'échelle : « canopée +18 m » si elle en sort, sa hauteur au-dessus de la plateforme) ; la légende dit, de chaque côté, où elle commence et sa hauteur au-dessus du sol (relevé LiDAR
-  de 2021 à 2024 : fauchage, élagage ou repousse depuis). **Eau** : dès le calcul « Profils », cours d'eau de la BD
+  de 2021 à 2024 : fauchage, élagage ou repousse depuis). **Eau** : dès le calcul du profil en travers, cours d'eau de la BD
   TOPO croisés par le travers de la photo (triangle bleu nommé ; tronçons fictifs et souterrains écartés) et surfaces
   d'eau traversées (canal, plan d'eau : bande bleue posée sur le terrain, qui est sur l'eau au niveau de sa surface), sur 45 m de part et d'autre ; avec l'analyse
   fine, surface de l'eau lue dans le nuage (points classés eau par l'IGN, ligne bleue à leur altitude, au niveau du

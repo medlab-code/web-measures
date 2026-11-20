@@ -19,10 +19,9 @@ const ID = location.hash.startsWith("#photo=") ? location.hash.slice(7).split("#
     doc.querySelector("#reglages-defaut")?.close();
     const f = (await (await fetch("https://panoramax.ign.fr/api/search?ids=" + ID)).json()).features[0];
     w.mesures.openPhoto(f);
-    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === ID && !doc.querySelector("#bords").disabled, 30000, "photo et bords");
-    doc.querySelector("#bords").click();
-    await until(() => !doc.querySelector("#profil").disabled, 60000, "profils des bords");
-    doc.querySelector("#profil").click();
+    await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === ID && !doc.querySelector("#profil-visionneuse").disabled, 30000, "photo et bouton « Profil en travers »");
+    doc.querySelector("#profil-visionneuse").click();  // calcul des bords, puis fenêtre du profil
+    await until(() => doc.querySelector("#fenetre-profil").open, 60000, "profil des bords");
     await until(() => doc.querySelector("#profil-pdf")?.checkVisibility?.() && !doc.querySelector("#profil-pdf").disabled, 10000, "bouton PDF");
     // Fenêtre d'impression remplacée par un cadre, sans impression : page lue après fit
     let page = null, styled = null;

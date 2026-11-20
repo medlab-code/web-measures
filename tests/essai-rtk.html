@@ -45,8 +45,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
     // clic simulé avec sa position à l'écran, comme la visionneuse la donne (croix sous le clic : en pixels)
     const at = (yaw, pitch) => { const p = w.mesures.psv.dataHelper.sphericalCoordsToViewerCoords({ yaw, pitch }); return { viewerX: p.x, viewerY: p.y }; };
     const psvClick = (yaw, pitch) => { const e = new Event("click"); e.data = { yaw, pitch, rightclick: false, ...at(yaw, pitch) }; w.mesures.psv.dispatchEvent(e); };
-    doc.querySelector("#mesure").click();
-    doc.querySelector("#mode").value = "height"; doc.querySelector("#mode").dispatchEvent(new Event("change"));
+    doc.querySelector("#hauteur-visionneuse").click();  // bouton « Hauteur » de la visionneuse : mode Hauteur et mesure
     const photos = await Promise.all(IDS.map(feature));
     const heading = (f) => { const [n, d] = f.properties.exif["Exif.GPSInfo.GPSImgDirection"].split("/"); return n / d; };
     const metres = ([lon, lat], [lon0, lat0]) => [(lon - lon0) * 111320 * Math.cos(lat0 * Math.PI / 180), (lat - lat0) * 111320];

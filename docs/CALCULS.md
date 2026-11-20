@@ -286,7 +286,7 @@ de 10 m de la chaussée peut augmenter la valeur.
 
 ## 8. « Profils » : profil en travers
 
-Ce calcul se lance d'un appui sur le bouton « Profils », sur une photo hors pont, à moins de 15 m
+Ce calcul se lance d'un appui sur le bouton « Profil en travers » de la visionneuse, sur une photo hors pont, à moins de 15 m
 d'une route de la BD TOPO. Il ne dépend pas de l'altitude GPS et n'a donc pas besoin du RTK.
 
 ### 8.1 Profils lus

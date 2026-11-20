@@ -39,7 +39,7 @@ const Reglages = {
       store.set("inclinaison-terrain", event.target.checked ? "1" : "0");
       if (etat.app) refresh(etat.app.set_terrain_relay(event.target.checked));
     });
-    // Bords de route (chute et dévers, ticket #31) : calculés à l'appui sur « Profils », jusqu'à la
+    // Bords de route (chute et dévers, ticket #31) : calculés à l'appui sur « Profil en travers » (visionneuse) ou, fenêtre du profil ouverte, aussitôt, jusqu'à la
     // distance de la réglette, gardée dans le navigateur
     const edgeZone = $("#bords-largeur");
     edgeZone.value = store.get("bords", edgeZone.value);
@@ -50,8 +50,7 @@ const Reglages = {
       store.set("bords", edgeZone.value);
       if (etat.app) { etat.app.set_edge_zone(Number(edgeZone.value)); refresh(); }
     });
-    $("#bords").addEventListener("click", () => { etat.app.request_edges(); refresh(); });
-    // « Profil » : coupe du terrain du dernier calcul de « Profils » pour la photo affichée
+    // « Profil en travers » : coupe du terrain du dernier calcul pour la photo affichée
     // Case « Hauteurs à l'échelle » : cochée à chaque ouverture du profil (caméra à sa hauteur), grisée quand les hauteurs sont déjà à l'échelle (pas d'exagération possible)
     const trueScale = $("#profil-echelle");
     // Case « Végétation » (analyse fine : ligne verte, herbe), de même retenue ; cochée par défaut, grisée sans analyse fine
@@ -138,8 +137,8 @@ const Reglages = {
     $("#profil-loupe").addEventListener("click", () => zoomProfile(!$("#fenetre-profil").classList.contains("agrandi")));
     window.addEventListener("resize", () => { if ($("#fenetre-profil").open) fitProfile(); });
     $("#fenetre-profil").addEventListener("close", () => zoomProfile(false));  // taille normale à la prochaine ouverture
-    $("#profil").addEventListener("click", () => {
-      if (!etat.edgeProfile) return;
+    function openProfile() {
+      if (!etat.edgeProfile || $("#fenetre-profil").open) return;
       const dialog = $("#fenetre-profil"), feature = etat.photo;
       const title = dialog.querySelector("h2");
       title.textContent = "Profil en travers" + (etat.edgeProfile.road ? ` · ${etat.edgeProfile.road}` : "");
@@ -156,6 +155,64 @@ const Reglages = {
         const place = [parts.voie || etat.edgeProfile.road, parts.pr, parts.commune].filter(Boolean).join(" – ");
         if (place && etat.photo === feature && dialog.open) title.textContent = `Profil en travers · ${place}`;
       }).catch(() => {});
+    }
+    // Bouton « Profil en travers » de la visionneuse (coupe du terrain, comme luminosité, contraste, hauteur et largeur) : un appui
+    // calcule les bords de la photo affichée (App.request_edges), puis ouvre la fenêtre du profil dès que le calcul est rendu (ou tout de
+    // suite s'il l'est déjà à cette largeur) ; enfoncé pendant le calcul (un second appui l'abandonne) et tant que la fenêtre est ouverte.
+    // Une seule fonction à la fois parmi hauteur, profil en travers et largeur : « outil-visionneuse » annonce celle qui démarre.
+    const profileButton = $("#profil-visionneuse"), profileDialog = $("#fenetre-profil");
+    let waiting = null, profileCan = false;  // waiting : identifiant de la photo dont le calcul est attendu
+    function showProfileButton() {
+      const on = waiting !== null || profileDialog.open;
+      profileButton.setAttribute("aria-pressed", String(on));
+      profileButton.classList.toggle("actif", on);
+      profileButton.disabled = !on && !profileCan;
+      $("#bords-largeur").disabled = waiting !== null;  // calcul en cours : la réglette attend son résultat
+    }
+    /** Appelé à chaque rafraîchissement : fall, chute et bords de la photo (null en lecture) ; grisé comme l'ancien bouton « Profils »
+     * (lecture, pont, rien à calculer ni à montrer) ; fenêtre ouverte quand le calcul attendu est rendu, attente abandonnée s'il échoue
+     * ou si la photo change. */
+    function updateProfile(fall, reading) {
+      const ready = etat.app?.edges_ready();
+      profileCan = Boolean(etat.photo) && !reading && !(fall && !fall.edges) && Boolean(ready || etat.edgeProfile);
+      if (waiting !== null) {
+        if (etat.photo?.id !== waiting || reading) waiting = null;
+        else if (etat.edgeProfile && !ready) {
+          waiting = null;
+          if (profileDialog.open) drawProfile();  // distance changée fenêtre ouverte : coupe redessinée
+          else openProfile();
+        } else if (fall?.edges && !fall.profile && !/en cours/.test(fall.text || "")) waiting = null;  // calcul sans résultat : raison dans le texte de la chute
+      }
+      showProfileButton();
+    }
+    profileButton.addEventListener("click", () => {
+      if (waiting !== null) {  // calcul en attente : abandonné
+        waiting = null;
+        return showProfileButton();
+      }
+      if (!etat.app || !etat.photo) return;
+      document.dispatchEvent(new CustomEvent("outil-visionneuse", { detail: "profil" }));
+      waiting = etat.photo.id;
+      if (etat.app.edges_ready()) {
+        etat.app.request_edges();
+        refresh();
+      }
+      updateProfile(etat.fallNow ?? null, false);
+    });
+    document.addEventListener("outil-visionneuse", (event) => {
+      if (event.detail === "profil") return;
+      waiting = null;
+      if (profileDialog.open) profileDialog.close();
+      showProfileButton();
+    });
+    profileDialog.addEventListener("close", showProfileButton);
+    // Réglette de la fenêtre : distance changée fenêtre ouverte, calcul refait pour cette photo (fermée : au prochain appui du bouton)
+    $("#bords-largeur").addEventListener("change", () => {
+      if (!profileDialog.open || !etat.app || !etat.photo || !etat.app.edges_ready()) return;
+      waiting = etat.photo.id;
+      etat.app.request_edges();
+      refresh();
+      showProfileButton();
     });
     // « Analyse fine » : nuage LiDAR HD lu pour le travers de la photo (src/nuage.js), gardé pour ce profil ; grisé pendant
     // la lecture et une fois faite
@@ -309,5 +366,6 @@ const Reglages = {
     });
     // Toutes les secondes, pour les tuiles chargées au fil de la navigation
     setInterval(() => { if ($("#anisotrope").checked) anisotropic(true); }, 1000);
+    return { updateProfile };
   },
 };

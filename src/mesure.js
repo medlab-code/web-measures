@@ -70,6 +70,35 @@ const Mesure = {
     const bords = $("#nez-bords");
     if (bords) new MutationObserver(syncArrows).observe(bords, { attributes: true, attributeFilter: ["aria-pressed"] });
 
+    // Bouton « Hauteur » de la visionneuse (↕, comme luminosité, contraste et largeur) : même mesure que le mode « Hauteur d'un objet »
+    // d'autrefois (option cachée de la liste Mode, mode de départ du calcul) ; enfoncé tant que la mesure est en cours dans ce mode.
+    // Une seule fonction à la fois parmi hauteur, profil en travers et largeur : « outil-visionneuse » annonce celle qui démarre.
+    const heightButton = $("#hauteur-visionneuse");
+    const heightOn = () => etat.measuring && $("#mode").value === "height";
+    let heightWas = false;
+    function showHeightButton() {
+      const on = heightOn();
+      heightButton.setAttribute("aria-pressed", String(on));
+      heightButton.classList.toggle("actif", on);
+      heightButton.disabled = !on && ($("#mesure").disabled || !etat.photo);  // comme « Mesure », et une photo à mesurer
+      if (on && !heightWas) document.dispatchEvent(new CustomEvent("outil-visionneuse", { detail: "hauteur" }));
+      heightWas = on;
+    }
+    heightButton.addEventListener("click", () => {
+      if (!heightOn()) {  // lance : mode Hauteur, puis la mesure (comme le bouton « Mesure »)
+        if ($("#mode").value !== "height") {
+          $("#mode").value = "height";
+          $("#mode").dispatchEvent(new Event("change"));
+        }
+        if (!etat.measuring) $("#mesure").click();
+        else showHeightButton();
+      } else {
+        $("#mesure").click();  // arrête : comme le bouton « Mesure »
+      }
+    });
+    document.addEventListener("outil-visionneuse", (event) => { if (heightOn() && event.detail !== "hauteur") $("#mesure").click(); });
+    new MutationObserver(showHeightButton).observe($("#mesure"), { attributes: true, attributeFilter: ["disabled"] });
+
     /** Navigation, flèches, curseur au sol et pointeur de la visionneuse selon le bouton « Mesure ». */
     function applyMeasureUi() {
       $("#mesure").setAttribute("aria-pressed", String(etat.measuring));
@@ -134,6 +163,7 @@ const Mesure = {
       const tip = $("#mode-mesure").textContent.replace(MODE_NAMES, "");
       $("#mode-mesure").textContent = tip[0].toUpperCase() + tip.slice(1);
       showModeOptions();
+      showHeightButton();
       const box = etat.psv?.container;
       if (!box) return;
       syncArrows();  // flèches au sol : masquées en mesure et en largeur dans la visionneuse

@@ -37,6 +37,7 @@
     savedCalibration: -1,  // version du calage déjà enregistrée dans le navigateur
     measuring: false,  // bouton « Mesure » : clics dans la photo pour mesurer, sans navigation
     edgeProfile: null,
+    fallNow: null,  // dernière chute et bords de la photo (App.fall_json), pour le bouton « Profil en travers »
     apiUrl: null,  // adresse de l'API de l'instance (Carte.setInstance)
     swapped: false,
     placing: false,
@@ -334,7 +335,7 @@
   // Fond, instance, centrage ----------------------------------------------------------------
 
   // Réglages de l'affichage (filaire, inclinaison, bords, PR, cadastre…) et fenêtre du profil : src/reglages.js
-  Reglages.init({
+  const reglages = Reglages.init({
     store, map, etat, refresh, showOverViewer, mainZone, saveAs, setStatus, FICHE_FONTS, placeMarkup, escapeHtml,
     get applyMeasureUi() { return applyMeasureUi; }, get endLineDraft() { return endLineDraft; },
     get showParcelMark() { return showParcelMark; },
@@ -738,14 +739,14 @@
     etat.tiltReason = state.tilt_reason;
     showLights(state.lights);
     // Photo sur un pont, en haut à gauche : nom et hauteur de chute ; ailleurs, chute et dévers des
-    // bords de route après un appui sur « Profils » (pas pendant la lecture)
+    // bords de route après un appui sur « Profil en travers » (pas pendant la lecture)
     const fall = playing() ? null : JSON.parse(etat.app.fall_json());
     const [bridge, ...rest] = (fall?.text || "").split("\n");
     Object.assign($("#chute"), { hidden: !fall, title: fall?.title || "" });
-    $("#bords").disabled = playing() || (fall && !fall.edges) || !etat.app.edges_ready();  // pas sur un pont
     etat.edgeProfile = fall?.profile ? fall : null;
+    etat.fallNow = fall;
     if (fall?.lidar) readBridgeFall(fall.lidar);
-    $("#profil").disabled = !etat.edgeProfile;
+    reglages.updateProfile(fall, playing());  // bouton « Profil en travers » : grisé en lecture et sur un pont ; fenêtre du profil à l'arrivée du calcul
     // Nom du pont en vert, « Au-dessus de … » en bleu, puis la hauteur
     const line = (text, className) => Object.assign(document.createElement("span"), { className, textContent: text });
     $("#chute").replaceChildren(line(bridge, "pont"),

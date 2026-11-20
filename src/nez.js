@@ -433,6 +433,7 @@ const Nez = {
         host.notice("Calcul en chargement : réessayez dans un instant.");
         return;
       }
+      document.dispatchEvent(new CustomEvent("outil-visionneuse", { detail: "largeur" }));  // une seule fonction à la fois (hauteur, profil, largeur)
       active = true;
       moved = { gauche: false, droit: false };
       raw = null;
@@ -485,6 +486,7 @@ const Nez = {
     }
 
     button.addEventListener("click", () => (active ? deactivate() : activate()));
+    document.addEventListener("outil-visionneuse", (event) => { if (active && event.detail !== "largeur") deactivate(); });
 
     /** Photo affichée changée (ou visionneuse prête) : bouton grisé sans photo 360°, droite refaite si le bouton est enfoncé. */
     function update() {

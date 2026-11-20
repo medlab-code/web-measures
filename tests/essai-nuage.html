@@ -33,10 +33,9 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
       w.localStorage.removeItem("web-measures/profil-enrobe"); doc.querySelector("#profil-enrobe").checked = false;
       w.mesures.openPhoto(f);
       await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === id, 30000, "photo");
-      await until(() => !doc.querySelector("#bords").disabled, 20000, "bouton « Profils »");
-      doc.querySelector("#bords").click();
+      await until(() => !doc.querySelector("#profil-visionneuse").disabled, 20000, "bouton « Profil en travers »");
+      doc.querySelector("#profil-visionneuse").click();  // calcul des bords, puis fenêtre du profil
       await until(() => JSON.parse(app.fall_json() || "null")?.profile, 40000, "profil");
-      doc.querySelector("#profil").click();
       await soon(() => doc.querySelector("#fenetre-profil").open && !doc.querySelector("#profil-nuage").disabled);
       const dialog = doc.querySelector("#fenetre-profil"), button = doc.querySelector("#profil-nuage");
       expect(`${where} : « Analyse fine » active, « Végétation » grisée avant elle`, !button.disabled && doc.querySelector("#profil-vegetation").disabled);
