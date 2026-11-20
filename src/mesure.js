@@ -40,10 +40,6 @@ const Mesure = {
      * Flèches masquées en mesure (elles gênent les clics de mesure), sauf pour viser, ce qui
      * demande de changer de photo. Pendant la prise de mesure, on change de photo par la carte.
      */
-    function hidesArrows() {
-      return etat.measuring && !etat.aiming;
-    }
-
     /** Clic sur une flèche de la visionneuse (photo suivante, précédente…) : il navigue. */
     function onArrow(event) {
       const target = event.data?.target;
@@ -107,17 +103,17 @@ const Mesure = {
       state.className = sighting ? "visee" : taking ? "prise" : "";
       state.textContent = sighting ? "Triangulation en cours" : taking ? "Mesure en cours" : "";
       $("#mode-mesure").textContent = mode === "tri"
-        ? "Mesure libre : visez chaque point depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
+        ? "Mesure libre : visez chaque point depuis plusieurs photos (lecteur, carte), puis « Valider le point triangulé »"
         : mode === "releve"
           ? "Relevé d'objets : visez l'objet depuis plusieurs photos puis « Valider le point triangulé », ou gardez-le sur une seule photo"
         : mode === "height" && etat.aiming
-          ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (flèches), puis « Valider le point triangulé »"
+          ? "Hauteur, étape 1 : visez le pied depuis plusieurs photos (lecteur, carte), puis « Valider le point triangulé »"
         : mode === "height" && etat.newMeasure
           ? `Hauteur faite : cliquez une de ses croix pour l'ajuster ; autre hauteur : « Nouvelle mesure depuis ${etat.newMeasure} »`
         : mode === "height" ? "Hauteur, étape 2 : cliquez le sommet (le pied est le point visé) ; autre photo : par la carte"
         : mode === "road" && etat.edgeBAiming ? "Largeur, bord opposé : le clic de la mesure est la 1re visée ; photo suivante, même bord "
           + "(réticule calé sur le trait vert, Maj : visée libre), puis « Valider le point triangulé »"
-        : mode === "road" && etat.aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (flèches), de préférence un "
+        : mode === "road" && etat.aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (lecteur, carte), de préférence un "
           + "repère net (fin de tiret, joint, regard) ; réticule calé sur le trait vert, Maj : visée libre ; "
           + "puis « Valider le point triangulé »"
         : mode === "road" && etat.newMeasure
@@ -136,10 +132,9 @@ const Mesure = {
       showModeOptions();
       const box = etat.psv?.container;
       if (!box) return;
-      for (const arrows of box.querySelectorAll(".psv-virtual-tour-arrows")) {
-        if (hidesArrows()) arrows.style.setProperty("visibility", "hidden", "important");
-        else arrows.style.removeProperty("visibility");
-      }
+      // Flèches de navigation au sol (ellipse violette et triangle blanc) : toujours masquées (règle CSS posée par
+      // attachViewer, ici en plus sur l'élément déjà créé) ; on change de photo par le lecteur, la carte ou les listes.
+      for (const arrows of box.querySelectorAll(".psv-virtual-tour-arrows")) arrows.style.setProperty("visibility", "hidden", "important");
       // Curseur « aller ici » qui suit la souris sur le sol : image du moteur 360°, sans souris
       for (const img of box.querySelectorAll(":scope > img")) {
         if (img.style.pointerEvents !== "none" || img.style.position !== "absolute") continue;

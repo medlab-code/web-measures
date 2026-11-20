@@ -173,6 +173,15 @@ const Visionneuse = {
         if (!viewer.psv) return;
         clearInterval(timer);
         etat.psv = viewer.psv;
+        // Flèches de navigation au sol de la visite virtuelle (ellipse violette, triangle blanc) : masquées en permanence.
+        // Aucune option de la bibliothèque ne les retire sans couper aussi le lecteur de séquence (« pictures-navigation »
+        // = « pic » grise suivant/précédent) : règle CSS dans la racine de la visionneuse.
+        const tourRoot = etat.psv.container.getRootNode();
+        if (!tourRoot.getElementById?.("fleches-masquees")) {
+          const hide = Object.assign(document.createElement("style"), { id: "fleches-masquees" });
+          hide.textContent = ".psv-virtual-tour-arrows { visibility: hidden !important; }";
+          (tourRoot === document ? document.head : tourRoot).append(hide);
+        }
         // Pendant une mesure, le clic ne va pas à la visionneuse (elle irait à la photo voisine
         // dans la direction cliquée, ou suivrait une flèche) : il devient un point de mesure.
         const dispatch = etat.psv.dispatchEvent;

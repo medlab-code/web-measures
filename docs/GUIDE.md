@@ -60,8 +60,8 @@ du réseau, numéro du PR), à côté de la voie, sur tous les fonds, ou sur auc
 masque par sa case à cocher.
 
 **Choisir une photo** : cliquer sur le filaire orange de la carte (photo la plus proche) ; la
-photo s'ouvre dans la visionneuse officielle Panoramax. Les flèches de la visionneuse passent
-aux photos voisines, et le **lecteur de séquence** en bas de la visionneuse la fait défiler en
+photo s'ouvre dans la visionneuse officielle Panoramax. Les flèches de navigation au sol de la visionneuse (ellipse violette) sont masquées : le
+**lecteur de séquence** en bas de la visionneuse passe aux photos voisines et fait défiler la séquence en
 avant ou en arrière (chaque appui sur un sens : 1x, 2x, 4x, 8x, 16x). On peut aussi y aller
 par le **requêteur route + PR**, ou coller l'**identifiant** d'une photo (ou un lien
 Panoramax) dans « Aller à la photo » ; « 📋 Copier » sous l'identifiant de la photo affichée
@@ -295,7 +295,7 @@ sinon celle du parcours, proposée en plus dans la liste « Cible » (« parcour
 
 **Mesurer** : bouton « Mesure », puis le mode. Pendant la mesure, une carte d'étape en bas à gauche de
 la visionneuse donne la mesure et ses étapes (pied puis sommet, premier bord puis bord opposé), l'état
-(triangulation ou mesure en cours) et la consigne ; le haut de la photo et les flèches restent libres. Le
+(triangulation ou mesure en cours) et la consigne ; le haut de la photo et le lecteur de séquence restent libres. Le
 bouton **« ✔ Valider le point triangulé »** y apparaît, avec un halo,
 dès que les visées donnent un point (deux visées qui se croisent).
 
@@ -323,8 +323,8 @@ après les clics, tout est recalculé : une mesure peut changer d'elle-même une
 après.
 
 - **Hauteur d'un objet** (mode à l'ouverture de la page)
-  1. Viser le **pied** de l'objet depuis au moins deux photos (un clic par photo, flèches
-     pour changer de photo), puis « Valider le point triangulé » : c'est le point de référence,
+  1. Viser le **pied** de l'objet depuis au moins deux photos (un clic par photo, lecteur
+     de séquence ou carte pour changer de photo), puis « Valider le point triangulé » : c'est le point de référence,
      et le pied de la hauteur.
   2. Cliquer seulement le **sommet**, depuis une photo qui a servi à la visée : le pied est la
      visée faite depuis elle, à la profondeur du point triangulé. Depuis une autre photo,
