@@ -363,6 +363,7 @@ const Profil = (() => {
       const r = profile.resultats[side], sign = side === "gauche" ? -1 : 1;
       const item = document.createElement("li");
       item.append(html("b", "", `Côté ${side}\u00a0: `));
+      item.dataset.cote = side;  // mis en évidence avec sa flèche et sa droite au survol (survol)
       results.append(item);
       if (!r) {
         const stop = profile.arrets[side];
@@ -389,7 +390,7 @@ const Profil = (() => {
       // étiquette à l'extérieur de la flèche, sauf si elle sortirait du cadre
       const out = sign < 0 ? X(xLow) - 100 > 0 : X(xLow) + 100 < W, toward = out ? sign : -sign;
       svg.append(el("line", { x1: X(b), x2: X(xLow), y1: Z(top), y2: Z(top), class: "repere-chute" }),
-        el("line", { x1: X(xLow), x2: X(xLow), y1: Z(top), y2: Z(low), class: "chute", "marker-end": "url(#fleche)" }),
+        el("line", { x1: X(xLow), x2: X(xLow), y1: Z(top), y2: Z(low), class: "chute", "data-cote": side, "marker-end": "url(#fleche)" }),
         el("text", { x: X(xLow) + toward * 6, y: (Z(top) + Z(low)) / 2, class: "etiquette-profil chute-texte place",
           "text-anchor": toward < 0 ? "end" : "start" }, `chute ${r.chute[2] ? "≥ " : ""}${num(r.chute[0])} m`));
       item.append(html("span", "chute", `chute ${r.chute[2] ? "d'au moins " : "de "}${num(r.chute[0])} m`),
@@ -401,7 +402,7 @@ const Profil = (() => {
         const [z0, z1] = [zAt(td.points, x0), zAt(td.points, x1)];
         // étiquette contre la droite ; sous elle si le talus est presque à plat (hauteurs à l'échelle)
         const flat = Math.abs(Z(z0) - Z(z1)) < 60;
-        svg.append(el("line", { x1: X(x0), y1: Z(z0), x2: X(x1), y2: Z(z1), class: "devers" }),
+        svg.append(el("line", { x1: X(x0), y1: Z(z0), x2: X(x1), y2: Z(z1), class: "devers", "data-cote": side }),
           el("text", { x: X((x0 + x1) / 2) - (flat ? 0 : sign * 12), y: flat ? Math.max(Z(z0), Z(z1)) + 18 : Z((z0 + z1) / 2) + 4,
             class: "etiquette-profil devers-texte place", "text-anchor": flat ? "middle" : sign < 0 ? "start" : "end" },
           r.devers[5] ? "paroi" : `dévers ${num(100 * r.devers[0], 0)} %`));
@@ -572,8 +573,84 @@ const Profil = (() => {
     legend.append(results, ...legendLines(profile, main, fine, plants, camera, factor, canopy).map((t) => html("p", "aide", t)));
     // PDF : avec la 2e page
     if (profile.en_long?.points?.length && longLegend(profile.en_long)) legend.lastElementChild.classList.add("legende-long");
+    survol(svg, f, main, profile, legend);
     return { svg, legend, long: drawLong(profile.en_long, camera) };
   }
+
+  /** Survol (et toucher) du graphique en travers : réticule (trait vertical, point sur le terrain de la photo) et étiquette
+   * « distance à la caméra, position par rapport au bord, hauteur par rapport à la plateforme » ; la flèche de chute ou la
+   * droite de dévers à moins de NEAR unités du pointeur est mise en évidence (classe « survol »), avec son côté dans la légende.
+   * Le groupe « reticule » n'existe que pendant le survol : il n'entre ni dans le PNG ni dans le PDF (voir sansSurvol). */
+  const NEAR = 10;
+  /** Distance d'un point (px, py) au segment [(x1, y1), (x2, y2)] (unités du viewBox). */
+  const segmentDistance = (px, py, x1, y1, x2, y2) => {
+    const dx = x2 - x1, dy = y2 - y1, len2 = dx * dx + dy * dy;
+    const t = len2 ? Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / len2)) : 0;
+    return Math.hypot(px - x1 - t * dx, py - y1 - t * dy);
+  };
+  /** Texte des trois lignes de l'étiquette pour l'abscisse x (m depuis l'origine) du terrain de la photo, ou null hors du terrain lu. */
+  function survolTexte(x, z, ref, main, origine) {
+    const away = Math.abs(x);
+    const from = origine === "caméra" ? "de la caméra" : "de l'axe";
+    const first = away < 0.05 ? `à la verticale ${origine === "caméra" ? "de la caméra" : "de l'axe"}` : `${num(away)} m à ${x < 0 ? "gauche" : "droite"} ${from}`;
+    const [left, right] = [main.bords.gauche?.x, main.bords.droit?.x];
+    let second = "";
+    if (left !== undefined && x < left) second = `${num(left - x)} m au-delà du bord gauche`;
+    else if (right !== undefined && x > right) second = `${num(x - right)} m au-delà du bord droit`;
+    else if (left !== undefined && right !== undefined) second = "sur la chaussée";
+    const dz = z - ref;
+    const third = Math.abs(dz) < 0.005 ? "au niveau de la plateforme"
+      : `${num(Math.abs(dz), 2)} m ${dz < 0 ? "sous" : "au-dessus de"} la plateforme`;
+    return [first, ...(second ? [second] : []), third];
+  }
+  function survol(svg, f, main, profile, legend) {
+    const { ref, xmin, plotW, plotH, sx, X, Z } = f;
+    const clear = () => {
+      svg.querySelector("g.reticule")?.remove();
+      svg.querySelectorAll(".survol").forEach((n) => n.classList.remove("survol"));
+      legend.querySelectorAll("li.survol").forEach((n) => n.classList.remove("survol"));
+    };
+    svg.addEventListener("pointerleave", clear);
+    svg.addEventListener("pointercancel", clear);
+    svg.addEventListener("pointermove", (event) => {
+      const matrix = svg.getScreenCTM();
+      if (!matrix) return;
+      const at = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+      clear();
+      if (at.x < LEFT || at.x > LEFT + plotW || at.y < TOP || at.y > TOP + plotH) return;  // hors du cadre : rien
+      const x = xmin + (at.x - LEFT) / sx, z = zAt(main.points, x);
+      // Mise en évidence : la flèche ou la droite la plus proche, à NEAR unités au plus
+      let best = null;
+      for (const line of svg.querySelectorAll("line.chute, line.devers")) {
+        const d = segmentDistance(at.x, at.y, ...["x1", "y1", "x2", "y2"].map((a) => Number(line.getAttribute(a))));
+        if (d <= NEAR && (!best || d < best.d)) best = { d, line };
+      }
+      if (best) {
+        best.line.classList.add("survol");
+        legend.querySelector(`li[data-cote="${best.line.dataset.cote}"]`)?.classList.add("survol");
+      }
+      if (z === null) return;  // pas de terrain lu à cette distance : pas de point
+      const lines = survolTexte(x, z, ref, main, profile.origine);
+      const width = Math.max(...lines.map((t) => textWidth(t, 12))) + 12, height = 6 + 14 * lines.length;
+      const [px, py] = [X(x), Z(z)];
+      // étiquette à droite du point, à gauche si elle sortirait du cadre ; au-dessus du point, dessous si elle sortirait en haut
+      const bx = px + 10 + width <= LEFT + plotW ? px + 10 : px - 10 - width;
+      const by = py - 10 - height >= TOP ? py - 10 - height : Math.min(py + 10, TOP + plotH - height);
+      const group = el("g", { class: "reticule" });
+      group.append(el("line", { x1: px, x2: px, y1: TOP, y2: TOP + plotH, class: "reticule-trait" }),
+        el("circle", { cx: px, cy: py, r: 4, class: "reticule-point" }),
+        el("rect", { x: bx, y: by, width, height, rx: 3, class: "reticule-fond" }));
+      lines.forEach((t, k) => group.append(el("text", { x: bx + 6, y: by + 16 + 14 * k, class: "reticule-texte" }, t)));
+      svg.append(group);
+    });
+  }
+  /** svg sans trace du survol (réticule, mise en évidence), rendu : pour le PNG et le PDF (avant la copie, pour que les styles
+   * calculés ne gardent rien du survol). */
+  const sansSurvol = (node) => {
+    node.querySelector("g.reticule")?.remove();
+    node.querySelectorAll(".survol").forEach((n) => n.classList.remove("survol"));
+    return node;
+  };
 
   /** Image PNG (Blob) du graphique svg affiché, avec son titre et sa légende legend (élément rendu par draw, dans
    * la page) : styles calculés recopiés (le CSS de la page n'entre pas dans une image SVG), couleurs et graisses
@@ -584,7 +661,7 @@ const Profil = (() => {
     const props = ["fill", "stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "stroke-linejoin", "paint-order",
       "opacity", "font-size", "font-weight", "font-family"];
     const raster = async (source) => {  // image du SVG affiché, styles calculés recopiés, à sa taille (viewBox) × scale
-      const copy = source.cloneNode(true), [, , vw, vh] = source.getAttribute("viewBox").split(" ").map(Number);
+      const copy = sansSurvol(source).cloneNode(true), [, , vw, vh] = source.getAttribute("viewBox").split(" ").map(Number);
       const nodes = [source, ...source.querySelectorAll("*")], copies = [copy, ...copy.querySelectorAll("*")];
       nodes.forEach((node, k) => {
         const style = w.getComputedStyle(node);
@@ -785,7 +862,7 @@ dialog.profil .legende p.aide { font-size: 1em; margin: 0 0 0.8mm; break-inside:
 footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #ddd; font-size: 8px; color: #666;
   display: flex; justify-content: space-between; }
 </style></head><body><div class="page">${head("Profil en travers")}
-<dialog class="profil" open><div class="graphique">${svg.outerHTML}</div>
+<dialog class="profil" open><div class="graphique">${sansSurvol(svg).outerHTML}</div>
 <div class="legende">${first.innerHTML}</div></dialog>${foot}</div>${long ? `
 <div class="page">${head("Profil en long")}<dialog class="profil long" open><div class="en-long">${long.outerHTML}</div>
 <div class="legende">${longText}</div></dialog>${foot}</div>` : ""}</body></html>`;

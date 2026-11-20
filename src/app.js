@@ -635,9 +635,12 @@
     const resized = () => { bottom = null; place(); };  // visionneuse redimensionnée : recentrée
     place();
     window.addEventListener("resize", resized);
+    dialog.addEventListener("recentrer", resized);  // contenu replié ou déplié par l'utilisateur : recentrée, comme à l'ouverture
     const grown = new ResizeObserver(place);  // contenu changé fenêtre ouverte (modèle choisi, champs ajoutés)
     grown.observe(dialog);
-    dialog.addEventListener("close", () => { window.removeEventListener("resize", resized); grown.disconnect(); }, { once: true });
+    dialog.addEventListener("close", () => {
+      window.removeEventListener("resize", resized); dialog.removeEventListener("recentrer", resized); grown.disconnect();
+    }, { once: true });
   }
 
   /** Onglet Photo, « Position » : un élément par ligne (GPS, terrain, inclinaison, calage), chacun avec

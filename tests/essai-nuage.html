@@ -54,6 +54,7 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
       // Légende repliée à l'ouverture, dépliée pour le reste des contrôles
       const unfold = doc.querySelector("#profil-legende");
       expect(`${where} : légende repliée à l'ouverture`, w.getComputedStyle(dialog.querySelector(".legende")).display === "none");
+      const placeOf = () => { const r = dialog.getBoundingClientRect(); return [r.left, r.top]; }, open0 = placeOf();  // fenêtre centrée, légende repliée
       unfold.click();
       // Plateforme limitée aux bords d'enrobé, dans le graphique et ses repères
       const [edgeL, edgeR] = [/gauche\s:\s([\d,]+) m, enrobé/, /droit\s:\s([\d,]+) m, enrobé/].map((re) => Number((re.exec(legend) || [])[1]?.replace(",", ".")));
@@ -88,6 +89,11 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
       log(`  cases actionnées : ${rest} | végétation éteinte ${off} | échelle ${scaled}`);
       const still = (a, b) => a.split(/[ ,]/).every((v, k) => Math.abs(v - b.split(/[ ,]/)[k]) <= 2);  // à 2 px près (arrondis)
       expect(`${where} : cases et boutons immobiles quand on actionne les cases`, still(rest, off) && still(rest, scaled), `${rest} / ${off} / ${scaled}`);
+      // légende repliée de nouveau : la fenêtre revient où elle était à l'ouverture (centrée)
+      unfold.click(); await sleep(300);
+      const open1 = placeOf();
+      expect(`${where} : fenêtre à sa place après dépliage et repliage de la légende`, open0.every((v, i) => Math.abs(v - open1[i]) <= 2), `${open0} → ${open1}`);
+      unfold.click(); await sleep(300);  // dépliée comme pour la suite
       log(`  en long : ${dialog.querySelector("svg.profil-long text")?.textContent || "absent"} · ${(/Pente en long[^·]*/.exec(doc.querySelector("#chute").textContent) || ["pas dans l'encadré"])[0]}`);
       if (sepMid === null) {
         log(`  ${(/Largeur d'enrobé[^.]*/.exec(legend) || ["pas de largeur d'enrobé"])[0]} · origine ${JSON.parse(app.fall_json()).profile?.origine}`);

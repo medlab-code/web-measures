@@ -165,6 +165,24 @@ try {
   expect(`viewBox agrandi pour la clé : ${vb.height} > 380`, vb.height > 380 && [...withKey.querySelectorAll("g.cle-lecture text")].every((t) => Number(t.getAttribute("y")) > 380 && Number(t.getAttribute("y")) < vb.height));
   const m = Profil.draw(profile(flat), false).svg;
   expect("mention « Hauteurs ×N » et clé dans le viewBox", [...m.querySelectorAll("text")].some((t) => t.textContent.startsWith("Hauteurs ×")));
+  // Survol (G4) : pointeur sur la graduation « 10 m » du côté droit ; étiquette lue, puis départ du pointeur
+  const hover = Profil.draw(profile(flat), true).svg;
+  document.documentElement.append(hover);
+  hover.style.width = "700px";
+  const tick = [...hover.querySelectorAll("text.graduation[text-anchor=middle]")].filter((t) => t.textContent === "10 m")
+    .sort((a, b) => Number(b.getAttribute("x")) - Number(a.getAttribute("x")))[0], ctm = hover.getScreenCTM();
+  const at = new DOMPoint(Number(tick.getAttribute("x")), 200).matrixTransform(ctm);
+  hover.dispatchEvent(new PointerEvent("pointermove", { clientX: at.x, clientY: at.y, bubbles: true }));
+  const label = [...hover.querySelectorAll("g.reticule text")].map((t) => t.textContent);
+  expect(`survol : étiquette « ${label.join(" / ")} »`, label[0] === "10,0 m à droite de l'axe" && label[1] === "7,0 m au-delà du bord droit"
+    && label[2] === "0,10 m sous la plateforme");
+  expect("survol : trait et point du réticule", hover.querySelectorAll("g.reticule line, g.reticule circle").length === 2);
+  hover.dispatchEvent(new PointerEvent("pointermove", { clientX: at.x, clientY: 2, bubbles: true }));  // au-dessus du cadre
+  expect("survol hors du cadre : rien", !hover.querySelector("g.reticule"));
+  hover.dispatchEvent(new PointerEvent("pointermove", { clientX: at.x, clientY: at.y, bubbles: true }));
+  hover.dispatchEvent(new PointerEvent("pointerleave"));
+  expect("pointeur parti : réticule retiré", !hover.querySelector("g.reticule"));
+  hover.remove();
   // Route étroite : le graphique est à sa hauteur ; la caméra (1,9 m) ne compte pas comme haut du terrain
   check("caméra au-dessus d'un terrain plat", Profil.draw(profile([crossing(0, () => -0.1, 4)], "caméra"), true, null, true, 1.9), 1);
 } catch (error) { fail("exception : " + (error.stack || error)); }

@@ -98,6 +98,8 @@ const Reglages = {
       $("#fenetre-profil").classList.toggle("legende-pliee", on);
       button.setAttribute("aria-pressed", String(on));
       button.textContent = on ? "Déplier la légende" : "Replier la légende";
+      // Le bas de la fenêtre est gardé quand son contenu change (showOverViewer) : pliée ou dépliée, elle est recentrée
+      $("#fenetre-profil").dispatchEvent(new Event("recentrer"));
     };
     $("#profil-legende").addEventListener("click", () => foldLegend(!$("#fenetre-profil").classList.contains("legende-pliee")));
     const zoomProfile = (on) => {

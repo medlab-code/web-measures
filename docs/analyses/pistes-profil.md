@@ -365,7 +365,7 @@ laissé de côté.*
   l'invitation à l'analyse fine dans ce cas seulement.
 - **Gain** : le doute se voit.
 
-**G4. Valeurs au survol.**
+**G4. Valeurs au survol.** *Faite le 20/11/2026 : au survol ou au toucher du graphique en travers, trait vertical et point sur le terrain de la photo, avec une étiquette (distance à la caméra ou à l'axe, position par rapport au bord, hauteur par rapport à la plateforme) ; une flèche de chute ou une droite de dévers à 10 unités du pointeur passe en évidence, avec son côté dans la légende ; rien de tout cela dans le PNG ni le PDF. Le profil en long n'est pas concerné.*
 - **Avant** : aucune interaction sur le graphique.
 - **Problème** : pour lire une distance ou une hauteur, il faut compter les graduations.
 - **Piste** : réticule au survol : distance au bord, hauteur par rapport à la plateforme ; mise en évidence d'une chute ou d'un
