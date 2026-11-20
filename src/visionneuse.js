@@ -174,7 +174,7 @@ const Visionneuse = {
         clearInterval(timer);
         etat.psv = viewer.psv;
         // Flèches de navigation au sol de la visite virtuelle (ellipse violette, triangle blanc) : masquées pendant les mesures et
-        // les bords sur la photo seulement (classe « sans-fleches » sur le conteneur, posée par applyMeasureUi), visibles sinon.
+        // la largeur dans la visionneuse seulement (classe « sans-fleches » sur le conteneur, posée par applyMeasureUi), visibles sinon.
         // Aucune option de la bibliothèque ne les retire sans couper aussi le lecteur de séquence (« pictures-navigation »
         // = « pic » grise suivant/précédent) : règle CSS dans la racine de la visionneuse ; le calque, recréé à chaque photo, la suit.
         const tourRoot = etat.psv.container.getRootNode();
@@ -265,7 +265,7 @@ const Visionneuse = {
         host.applyMeasureUi();
         refresh();
         updateCursor();
-        nez.update();  // visionneuse prête : bouton « Bords sur la photo »
+        nez.update();  // visionneuse prête : bouton « Largeur dans la visionneuse »
       }, 200);
     }
 

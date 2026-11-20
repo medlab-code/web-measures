@@ -143,7 +143,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
                  d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg></button>
       <!-- Luminosité et contraste de l'affichage de la photo seulement (filtre CSS : mesures et exports inchangés) ;
            un clic sur l'icône remet la valeur à 100 % (disposition.js) -->
-      <div id="reglage-image" role="group" aria-label="Luminosité, contraste et bords sur la photo">
+      <div id="reglage-image" role="group" aria-label="Luminosité, contraste et largeur dans la visionneuse">
         <div>
           <input type="range" id="luminosite" min="50" max="150" step="1" value="100"
                  aria-label="Luminosité" title="Luminosité de l'affichage de la photo">
@@ -158,9 +158,9 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg></button>
         </div>
-        <div>  <!-- Bords sur la photo (expérimental, src/nez.js) : bascule, grisée sans photo 360° -->
+        <div>  <!-- Largeur dans la visionneuse (expérimental, src/nez.js) : bascule, grisée sans photo 360° -->
           <button type="button" id="nez-bords" disabled aria-pressed="false"
-                  title="Bords sur la photo (expérimental) : droite au sol devant le véhicule, faites glisser ses extrémités jusqu'aux bords de la route">
+                  title="Largeur dans la visionneuse (expérimental) : droite au sol devant le véhicule, faites glisser ses extrémités jusqu'aux bords de la route">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg></button>  <!-- double flèche ↔ des mesures de largeur -->
         </div>

@@ -376,7 +376,7 @@ moitié, soit trop pour reconnaître sûrement un toit à 2,5 % sur 6 m (2,2 cm 
 2,1 cm de résidu médian) ; 0,1 à 0,8 point par moitié sur des chaussées séparées. Les bords sont ceux
 de la détection (§ 8.2), accotement parfois compris, sans l'analyse fine.
 
-### 8.8 Bords sur la photo (expérimental)
+### 8.8 Largeur dans la visionneuse (expérimental ; ex-« Bords sur la photo »)
 
 Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'utilisateur ajuste aux bords (`src/nez.js`).
 - **Droite** : centre à `d` m devant la caméra sur son axe (cap entre les photos voisines, sinon cap de la photo), orientée

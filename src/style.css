@@ -1086,12 +1086,12 @@ html.souris-immobile:fullscreen :is(#plein-ecran, header .captures, #voyants, .b
 #reglage-image button:not(:disabled) { cursor: pointer; }
 #reglage-image button:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }
 #reglage-image button:disabled { opacity: 0.6; }
-#reglage-image button[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); color: #ffd600; }  /* bords sur la photo actifs */
+#reglage-image button[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); color: #ffd600; }  /* largeur dans la visionneuse active */
 pnx-photo-viewer[hidden] ~ #reglage-image { display: none; }
 html:fullscreen #reglage-image { transition: opacity 0.2s; }
 html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
 
-/* Bords sur la photo (src/nez.js) : lecture en direct au bas de la vue, curseur sur les poignées de la droite */
+/* Largeur dans la visionneuse (src/nez.js) : lecture en direct au bas de la vue, curseur sur les poignées de la droite */
 #nez-lecture {
   position: absolute;
   left: 50%;

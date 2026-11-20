@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 Cédric COCHART
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""« Bords sur la photo » (expérimental, piste P22 de docs/analyses/pistes-profil.md) : droite tracée au sol juste devant le
+"""« Largeur dans la visionneuse » (expérimental, piste P22 de docs/analyses/pistes-profil.md) : droite tracée au sol juste devant le
 nez du véhicule, perpendiculaire à la trajectoire de la séquence, vue dans la photo affichée (src/nez.js). Nez est une base de
 web_app.App : ses méthodes lisent l'état de l'application (self)."""
 

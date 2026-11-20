@@ -356,7 +356,7 @@ laissé de côté.*
   photo lancée le 20/11/2026.
 - **Gain** : bords du jour de la photo, au centimètre près à 2-4 m, là où relief et nuage échouent.
 - **Découpage (20/11/2026)** :
-  1. ~~Droite et poignées~~ **faite le 20/11/2026** (bouton « Bords sur la photo » à côté de la luminosité et du contraste, expérimental) :
+  1. ~~Droite et poignées~~ **faite le 20/11/2026** (bouton « Largeur dans la visionneuse » (ex-« Bords sur la photo ») à côté de la luminosité et du contraste, expérimental) :
      droite au sol à 4,4 / 4,8 / 4,5 m devant la caméra, poignées à glisser, lecture en direct (distances, largeur, ±), sol plat ;
      rien n'est retenu (`src/nez.js`, `py/web_nez.py`, `docs/CALCULS.md` § 8.8) ;
      retouches du 20/11/2026 après essai de l'auteur (glisser, perpendicularité et position devant le capot validés) : poignées en traits

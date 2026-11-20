@@ -435,7 +435,7 @@
     wantSwap: () => wantSwap(),  // déclaré plus bas
   });
 
-  // « Bords sur la photo » (expérimental) : droite au sol devant le véhicule, poignées à glisser : src/nez.js
+  // « Largeur dans la visionneuse » (expérimental) : droite au sol devant le véhicule, poignées à glisser : src/nez.js
   const nez = Nez.init({ etat, map, get notice() { return notice; } });
 
   /** Producteur de la photo (fiche STAC), ou "". */
@@ -699,7 +699,7 @@
   function refresh(text) {
     if (!etat.app) return;
     setStatus(text ?? etat.app.status());
-    nez.changed();  // droite des bords sur la photo, si l'inclinaison ou la hauteur de caméra ont changé
+    nez.changed();  // droite de la largeur dans la visionneuse, si l'inclinaison ou la hauteur de caméra ont changé
     updateBirdeye();
     const rtkAlert = etat.app.take_rtk_alert();  // séquence sans RTK : fenêtre, une fois par séquence
     if (rtkAlert && !$("#alerte-rtk").open) {

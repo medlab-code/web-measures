@@ -61,7 +61,7 @@ masque par sa case à cocher.
 
 **Choisir une photo** : cliquer sur le filaire orange de la carte (photo la plus proche) ; la
 photo s'ouvre dans la visionneuse officielle Panoramax. Les flèches de navigation au sol de la visionneuse (ellipse violette) servent à naviguer hors mesure ; elles sont
-masquées pendant les mesures (visée comprise) et pendant les bords sur la photo, où le
+masquées pendant les mesures (visée comprise) et pendant la largeur dans la visionneuse, où le
 **lecteur de séquence** en bas de la visionneuse passe aux photos voisines et fait défiler la séquence en
 avant ou en arrière (chaque appui sur un sens : 1x, 2x, 4x, 8x, 16x). On peut aussi y aller
 par le **requêteur route + PR**, ou coller l'**identifiant** d'une photo (ou un lien
@@ -74,7 +74,7 @@ transparents, et les boutons, voyants, lieu et lecteur s'effacent après 3 s de 
 reste propre. Une mesure en cours s'y poursuit, avec sa carte d'étape ; pour en lancer une autre, quitter le plein écran.
 `Échap` y quitte d'abord le plein écran : un second appui annule le trait en cours.
 
-**Bords sur la photo** (expérimental, piste P22 étape 1) : le bouton à droite des curseurs de luminosité et de contraste, en haut à
+**Largeur dans la visionneuse** (expérimental, piste P22 étape 1) : le bouton à droite des curseurs de luminosité et de contraste, en haut à
 gauche de la visionneuse (grisé sans photo 360°), trace en vert (liseré sombre) une droite au sol (elle n'apparaît qu'une fois sa position définitive : photos voisines, verticales et relief arrivés, au plus 12 s ; l'encart affiche « Calcul de la droite… » en attendant), entre les deux poignées seulement (elle s'allonge et se raccourcit en direct avec elles ; les poignées glissent sur toute la portée de la droite), juste devant le nez du véhicule, perpendiculaire à
 la trajectoire de la séquence à l'endroit de la droite (dans un virage ou un giratoire, la direction de la photo suivante est prise en compte) (à 4,4 m de la caméra pour la monture basse du CD21, 4,8 m pour la haute, 4,5 m ailleurs : le sol y
 est visible, hors capot), avec une croix jaune au droit de la caméra et deux poignées, à gauche et à droite : de courts traits verticaux rouges (28 px à l'écran quel que soit le zoom, liseré blanc), et, au milieu de la droite, au-dessus d'elle, la largeur entre les deux poignées avec son incertitude (« ↔ 7,40 m ± 0,10 m », même étiquette que les largeurs mesurées, mise à jour en direct, même incertitude que l'encart) ; les positions des bords ne sont que dans l'encart (« Bord gauche 1,20 m à droite » : une poignée peut passer de l'autre côté de la caméra). Elles partent des bords du

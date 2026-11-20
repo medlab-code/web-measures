@@ -124,7 +124,7 @@ const Traits = (() => {
   }
 
   /**
-   * Seconde couche, que les mesures (set) n'écrasent pas : « Bords sur la photo » (src/nez.js). Mêmes formes que set :
+   * Seconde couche, que les mesures (set) n'écrasent pas : « Largeur dans la visionneuse » (src/nez.js). Mêmes formes que set :
    * lines [{points, color, width}], crosses [{at, color}], labels [{at, type, place, text, lift (px : étiquette
    * remontée)}] ; ticks : petits traits verticaux d'écran, de longueur constante en px, centrés sur le point
    * [{at, color, width (px), length (px), edge (couleur du liseré)}]. Pas dans les captures. Sans argument : couche vidée.

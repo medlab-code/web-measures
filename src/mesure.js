@@ -60,13 +60,13 @@ const Mesure = {
       .psv-container.sur-droite, .psv-container.sur-droite * { cursor: none !important; }`;
 
     /** Flèches de navigation au sol (ellipse violette, triangle blanc) : masquées pendant une mesure (visée comprise, la photo
-     * se change par le lecteur ou la carte) et pendant les bords sur la photo (bouton « Bords » enfoncé, lu sans toucher à nez.js) ;
+     * se change par le lecteur ou la carte) et pendant la largeur dans la visionneuse (bouton « Largeur dans la visionneuse » enfoncé, lu sans toucher à nez.js) ;
      * visibles hors mesure. Une seule décision : classe « sans-fleches » sur le conteneur (règle CSS posée par attachViewer). */
     function syncArrows() {
       const hidden = etat.measuring || $("#nez-bords")?.getAttribute("aria-pressed") === "true";
       etat.psv?.container.classList.toggle("sans-fleches", hidden);
     }
-    // Les bords sur la photo changent le bouton sans passer par applyMeasureUi : on suit son attribut
+    // La largeur dans la visionneuse change le bouton sans passer par applyMeasureUi : on suit son attribut
     const bords = $("#nez-bords");
     if (bords) new MutationObserver(syncArrows).observe(bords, { attributes: true, attributeFilter: ["aria-pressed"] });
 
@@ -139,7 +139,7 @@ const Mesure = {
       showModeOptions();
       const box = etat.psv?.container;
       if (!box) return;
-      syncArrows();  // flèches au sol : masquées en mesure et en bords sur la photo
+      syncArrows();  // flèches au sol : masquées en mesure et en largeur dans la visionneuse
       // Curseur « aller ici » qui suit la souris sur le sol : image du moteur 360°, sans souris
       for (const img of box.querySelectorAll(":scope > img")) {
         if (img.style.pointerEvents !== "none" || img.style.position !== "absolute") continue;

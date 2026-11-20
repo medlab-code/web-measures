@@ -162,7 +162,7 @@ const Carte = (() => {
         },
         mesures: { type: "geojson", data: EMPTY },
         precedents: { type: "geojson", data: EMPTY },  // résultats de la session précédente (showPrevious)
-        nez: { type: "geojson", data: EMPTY },  // droite des bords sur la photo et ses deux bords (showNez)
+        nez: { type: "geojson", data: EMPTY },  // droite de la largeur dans la visionneuse et ses deux bords (showNez)
         couche: { type: "geojson", data: EMPTY },  // couche importée (showOverlay)
         pr: { type: "geojson", data: EMPTY },
         // Cadastre (#36, réglage « Cadastre sur la carte », voir setCadastre) : Parcellaire Express en tuiles vectorielles
@@ -380,7 +380,7 @@ const Carte = (() => {
           id: "cibles", type: "circle", source: "mesures", filter: kind("cible"),
           paint: { "circle-color": "rgba(0, 0, 0, 0)", "circle-radius": 7, "circle-stroke-width": 2.5, "circle-stroke-color": ROUGE },
         },
-        {  // bords sur la photo (src/nez.js) : droite verte liserée de sombre, bords en points rouges ; pas interactifs
+        {  // largeur dans la visionneuse (src/nez.js) : droite verte liserée de sombre, bords en points rouges ; pas interactifs
           id: "nez-halo", type: "line", source: "nez", filter: ["==", ["geometry-type"], "LineString"],
           paint: { "line-color": "#202020", "line-width": 5 },
         },
@@ -1272,7 +1272,7 @@ const Carte = (() => {
     if (!map.loaded()) map.once("load", set);  // avant le chargement, la source peut être refaite vide
   }
 
-  /** Droite des bords sur la photo (src/nez.js) : geojson (LineString et deux Point), ou null pour la retirer. */
+  /** Droite de la largeur dans la visionneuse (src/nez.js) : geojson (LineString et deux Point), ou null pour la retirer. */
   function showNez(map, geojson) {
     const set = () => map.getSource("nez")?.setData(geojson || EMPTY);
     set();

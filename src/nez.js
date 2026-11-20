@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Cédric COCHART
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// « Bords sur la photo » (expérimental, piste P22, étape 1) : une droite tracée au sol juste devant le nez du véhicule,
+// « Largeur dans la visionneuse » (expérimental, piste P22, étape 1) : une droite tracée au sol juste devant le nez du véhicule,
 // perpendiculaire à la trajectoire de la séquence (calcul : App.nose_line, py/web_nez.py), et deux poignées, gauche et
 // droite, que l'on fait glisser le long d'elle jusqu'aux bords de la route. Lecture en direct de la distance de chaque
 // bord à la caméra et de la largeur, avec leur incertitude. Rien n'est retenu ni reporté dans le graphique du profil :
@@ -189,7 +189,7 @@ const Nez = {
       if (!readout) {
         readout = document.createElement("div");
         readout.id = "nez-lecture";
-        readout.innerHTML = "<small>Bords sur la photo · expérimental</small><span></span>"
+        readout.innerHTML = "<small>Largeur dans la visionneuse · expérimental</small><span></span>"
           + "<button type=\"button\" id=\"nez-remise\" title=\"Remettre la droite perpendiculaire au trajet (rotation de 0°)\">"
           + "Remettre perpendiculaire au trajet</button>";
         const reset = readout.querySelector("button");
