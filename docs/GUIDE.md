@@ -60,7 +60,8 @@ du réseau, numéro du PR), à côté de la voie, sur tous les fonds, ou sur auc
 masque par sa case à cocher.
 
 **Choisir une photo** : cliquer sur le filaire orange de la carte (photo la plus proche) ; la
-photo s'ouvre dans la visionneuse officielle Panoramax. Les flèches de navigation au sol de la visionneuse (ellipse violette) sont masquées : le
+photo s'ouvre dans la visionneuse officielle Panoramax. Les flèches de navigation au sol de la visionneuse (ellipse violette) servent à naviguer hors mesure ; elles sont
+masquées pendant les mesures (visée comprise) et pendant les bords sur la photo, où le
 **lecteur de séquence** en bas de la visionneuse passe aux photos voisines et fait défiler la séquence en
 avant ou en arrière (chaque appui sur un sens : 1x, 2x, 4x, 8x, 16x). On peut aussi y aller
 par le **requêteur route + PR**, ou coller l'**identifiant** d'une photo (ou un lien
@@ -385,8 +386,8 @@ après.
 
   Une fois la largeur faite, les clics ne servent plus qu'à l'ajuster (clic sur une de ses croix, puis nouveau clic ou flèches : 1 cm le long de la droite de mesure). Pour une autre largeur depuis le même point, cliquer « ↺ Nouvelle mesure depuis A » dans la visionneuse.
 
-  À l'étape 2 de la hauteur et de la largeur, les flèches de la visionneuse sont masquées
-  (elles gênent les clics de mesure) : on change de photo par la carte.
+  Pendant les mesures (visée et étape 2 comprises), les flèches au sol de la visionneuse sont masquées
+  (elles gênent les clics de mesure) : on change de photo par le lecteur de séquence ou la carte ; elles reviennent hors mesure.
 - **Hauteur de chute sur un pont** (automatique, sans clic) : sur une photo prise sur un pont
   de la BD TOPO, le nom du pont, ce qu'il franchit et la hauteur de chute la plus grande sur
   toute sa longueur s'affichent en haut à gauche de la visionneuse (pas pendant la lecture de
