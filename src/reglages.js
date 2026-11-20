@@ -75,14 +75,22 @@ const Reglages = {
     trueScale.checked = true;
     // still : redessin par une case (échelle, végétation) : la légende, au-dessus des cases et boutons, ne raccourcit pas
     // (lignes de l'herbe et de la végétation retirées) pour qu'ils ne bougent pas ; un nouveau profil la remet à sa taille
+    let frameKept = null;  // cadre du dernier dessin : { key (repère du travers), cadre, trueScale }
     const drawProfile = (still = false) => {
       const dialog = $("#fenetre-profil"), box = dialog.querySelector(".legende");
       box.style.minHeight = still && box.offsetHeight ? `${box.offsetHeight}px` : "";
       const found = nuage.get(nuageKey(etat.edgeProfile.profile));
       // option décochée : séparateur, lignes, herbe, végétation et eau restent, sans bords ni largeur d'enrobé
       const fine = found && !paving.checked ? { ...found, bords: {}, largeur: null } : found;
-      const { svg, legend, long } = Profil.draw(etat.edgeProfile.profile, trueScale.checked, fine,
-        plants.checked, Number($("#camera").value) || 1.9);  // hauteur de caméra des réglages
+      // Redessin par une case : cadre du dessin précédent du même travers gardé (bornes en distance, hauteurs et échelle),
+      // car changer les bords déplace le milieu de la chaussée, donc la zone lue, et le graphique glisserait ; « Hauteurs à
+      // l'échelle » change l'échelle des hauteurs : bornes en distance seulement. Un nouveau dessin (ouverture, analyse
+      // fine finie) recalcule le cadre
+      const key = nuageKey(etat.edgeProfile.profile), kept = still && frameKept?.key === key ? frameKept : null;
+      const imposed = kept ? { x: kept.cadre.x, z: kept.trueScale === trueScale.checked ? kept.cadre.z : null } : null;
+      const { svg, legend, long, cadre } = Profil.draw(etat.edgeProfile.profile, trueScale.checked, fine,
+        plants.checked, Number($("#camera").value) || 1.9, imposed);  // hauteur de caméra des réglages
+      frameKept = { key, cadre, trueScale: trueScale.checked };
       dialog.querySelector(".graphique").replaceChildren(svg, ...(long ? [long] : []));  // profil en long dessous
       $("#profil-pdf-long").disabled = !long;  // pas de 2e page sans profil en long
       dialog.querySelector(".legende").replaceChildren(legend);

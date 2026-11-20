@@ -28,7 +28,7 @@ const Profil = (() => {
   }
 
   /** Travers (un par position le long de la route) : points [x, z] de gauche à droite, x < 0 à gauche. */
-  function crossings(profile) {
+  function crossings(profile, limits = null) {
     const out = new Map();
     for (const p of profile.profils) {
       const t = out.get(p.le_long) || { along: p.le_long, points: [], bords: {} };
@@ -46,7 +46,13 @@ const Profil = (() => {
     // et au moins 1 m au-delà de chaque bord ; le terrain lu plus loin pour chercher le bord n'est pas dessiné
     // (83b5556f-0cb3-44d8-a41e-843ad0cddef1, réglette à 10 m : graphique à 21 m). La chute est lue, elle, jusqu'à zone m
     // au-delà du bord (App._edge_falls) : sur une route large, elle peut tomber hors du dessin
+    // limits : bornes en distance imposées (cadre d'un dessin précédent), qui remplacent cette étendue : changer les bords
+    // déplace le milieu de la chaussée, donc l'étendue, et le graphique glisserait à chaque case cochée
     for (const t of out.values()) {
+      if (limits) {
+        t.points = t.points.filter(([x]) => x >= limits[0] - 1e-6 && x <= limits[1] + 1e-6).sort((a, b) => a[0] - b[0]);
+        continue;
+      }
       const [left, right] = [t.bords.gauche?.x ?? 0, t.bords.droit?.x ?? 0], mid = (left + right) / 2;
       const reach = Math.max(profile.zone, (right - left) / 2 + 1);
       t.points = t.points.filter(([x]) => Math.abs(x - mid) <= reach + 1e-6).sort((a, b) => a[0] - b[0]);
@@ -184,14 +190,17 @@ const Profil = (() => {
   }
 
   /** Cadre du graphique : altitude de référence (plateforme sous l'origine), plateforme du travers de la photo, bornes
-   * en distance et en hauteur, échelle et exagération des hauteurs, et les fonctions de position X, Z et path. */
-  function frame(profile, all, main, trueScale, camera) {
+   * en distance et en hauteur, échelle et exagération des hauteurs, et les fonctions de position X, Z et path.
+   * imposed : cadre d'un dessin précédent ({ x: [min, max] des points, z: { zmin, sx, factor } ou null }) : il remplace
+   * l'étendue des points (x) et le calcul de l'échelle et du fond (z) ; rendu : cadre = ce qui le fixe. */
+  function frame(profile, all, main, trueScale, camera, imposed = null) {
     const ref = zAt(main.points, 0) ?? main.points[0][1];  // 0 : plateforme sous l'origine
     const [bl, br] = [main.bords.gauche?.x ?? 0, main.bords.droit?.x ?? 0];
     const road = main.points.filter(([x]) => x >= bl && x <= br);
     const xs = [...all.values()].flatMap((t) => t.points.map((p) => p[0]));
     const zs = [...all.values()].flatMap((t) => t.points.map((p) => p[1] - ref));
-    let [xmin, xmax] = [Math.min(...xs), Math.max(...xs)];
+    let [xmin, xmax] = imposed?.x ?? [Math.min(...xs), Math.max(...xs)];
+    const extent = [xmin, xmax];
     const plotW = W - LEFT - RIGHT, plotH = H - TOP - BOTTOM;
     const [lowest, terrainTop] = [Math.min(...zs), Math.max(...zs)];
     let zmax = terrainTop + 0.3;
@@ -217,12 +226,14 @@ const Profil = (() => {
         ({ sx, factor } = scale(zmin));
       }
     }
+    if (imposed?.z) ({ zmin, sx, factor } = imposed.z);
     const xmid = (xmin + xmax) / 2;
     [xmin, xmax] = [xmid - plotW / sx / 2, xmid + plotW / sx / 2];
     zmax = zmin + plotH / (sx * factor);
     const X = (x) => LEFT + (x - xmin) * sx, Z = (z) => TOP + (zmax - (z - ref)) / (zmax - zmin) * plotH;
     const path = (points) => points.map(([x, z], k) => `${k ? "L" : "M"}${X(x).toFixed(1)},${Z(z).toFixed(1)}`).join("");
-    return { ref, bl, br, road, xs, xmin, xmax, zmin, zmax, sx, factor, plotW, plotH, X, Z, path };
+    const cadre = { x: extent, z: { zmin, sx, factor } };
+    return { ref, bl, br, road, xs, xmin, xmax, zmin, zmax, sx, factor, plotW, plotH, X, Z, path, extent, cadre };
   }
 
   /** Eau : surfaces de la BD TOPO (bande bleue posée sur le terrain), cours d'eau (repère bleu nommé), surface lue
@@ -423,23 +434,28 @@ const Profil = (() => {
   const html = (tag, className, text) => Object.assign(document.createElement(tag), { className, textContent: text });
 
   /** Graphique SVG et sa légende en clair (texte) pour profile (voir App._compute_edges) ; trueScale : hauteurs
-   * à la même échelle que les distances. */
+   * à la même échelle que les distances.
+   * imposed : cadre rendu par un dessin précédent du même profil (`cadre`), pour qu'une case (bord d'enrobé, végétation)
+   * ne déplace ni ne change l'échelle du graphique : { x: [min, max], z: {...} ou null } ; sans z (hauteurs à l'échelle
+   * changées), seules les bornes en distance sont gardées. Le terrain est alors lu sur ces bornes, non sur la zone
+   * autour du milieu de la chaussée ; plus court, il laisse du blanc. Sans imposed, le cadre est recalculé.
+   * Rend aussi `cadre`, à repasser au prochain dessin. */
   // fine : analyse fine (Nuage.analyse) : séparateur et bords de chaussée tirés du nuage LiDAR, lignes blanches
   // (bords et largeur d'enrobé vides si l'option « Bord d'enrobé » est décochée : voir drawProfile de src/reglages.js)
   // plants : végétation de l'analyse fine (ligne verte, herbe) dessinée et légendée
   // camera : hauteur de la caméra au-dessus du sol (réglage « Hauteur de caméra »), pour le profil en long
-  function draw(profile, trueScale = false, fine = null, plants = true, camera = 1.9) {
-    const all = crossings(profile);
+  function draw(profile, trueScale = false, fine = null, plants = true, camera = 1.9, imposed = null) {
+    const all = crossings(profile, imposed?.x);
     const main = all.get(0) || [...all.values()][0];
     if (fine?.separateur) [main.separateur, main.separateurRelief] = [[...fine.separateur].sort((a, b) => a - b), "nuage"];
-    const f = frame(profile, all, main, trueScale, camera);
-    const { ref, bl, br, road, xs, xmin, xmax, zmin, zmax, factor, plotW, plotH, X, Z, path } = f;
+    const f = frame(profile, all, main, trueScale, camera, imposed);
+    const { ref, bl, br, road, xmin, xmax, zmin, zmax, factor, plotW, plotH, X, Z, path } = f;
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, class: "profil-svg", role: "img",
       "aria-label": "Coupe du terrain en travers de la route" });
 
     // Repères : mètres en travers, hauteurs par rapport à la plateforme
     const xStep = xmax - xmin > 30 ? 5 : 2;
-    for (let x = Math.ceil(Math.min(...xs) / xStep) * xStep; x <= Math.max(...xs); x += xStep) {
+    for (let x = Math.ceil(f.extent[0] / xStep) * xStep; x <= f.extent[1]; x += xStep) {
       svg.append(el("line", { x1: X(x), x2: X(x), y1: TOP, y2: TOP + plotH, class: "grille" }),
         el("text", { x: X(x), y: TOP + plotH + 16, class: "graduation", "text-anchor": "middle" }, `${Math.abs(x)} m`));
     }
@@ -575,7 +591,7 @@ const Profil = (() => {
     // PDF : avec la 2e page
     if (profile.en_long?.points?.length && longLegend(profile.en_long)) legend.lastElementChild.classList.add("legende-long");
     survol(svg, f, main, profile, legend);
-    return { svg, legend, long: drawLong(profile.en_long, camera) };
+    return { svg, legend, long: drawLong(profile.en_long, camera), cadre: f.cadre };
   }
 
   /** Survol (et toucher) du graphique en travers : réticule (trait vertical, point sur le terrain de la photo) et étiquette
