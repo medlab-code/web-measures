@@ -273,6 +273,9 @@ flatteur). Le repli s'appelle « largeur type ». Reste à montrer qu'il est une
 - **Avant de coder** : deux glissières et un muret ne suffisent pas pour régler des seuils (leçon de P21). Il faut un lot de
   photos vérifiées : une dizaine avec glissière ou muret, une dizaine sans (haie, herbe haute, clôture au bord), réglage sur
   une moitié et jugement sur l'autre.
+  Lot commencé le 20/11/2026 (auteur) : D700 d63ace61-7261-4acb-93f9-788aed29cb23, glissières en béton adhérentes (GBA)
+  aux deux bords et au séparateur central. Bord droit au pied de la GBA : bordure de P21 à 4,1 m (sans la garde contre les
+  fossés : le profil de la GBA monte, ce n'est pas un trottoir), fin de l'enrobé à 4,4 m (béton clair), relief à 3,5 m.
 - **Gain** : la chute dit si elle est protégée.
 
 **P20. Bord du tablier d'après la BD TOPO (chute sur un pont, voie de secours).** *Faite le 19/11/2026, à la demande de l'auteur
