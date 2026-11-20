@@ -14,6 +14,25 @@
 const Nuage = (() => {
   const WFS = "https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&OUTPUTFORMAT=application/json"
     + "&TYPENAMES=IGNF_LIDAR-HD_METADONNEE:metadata";
+
+  /** Dalles du nuage LiDAR HD autour de (lon, lat), à d degrés : métadonnées IGN (WFS). La Géoplateforme renvoie parfois, en
+   * passant, autre chose que du JSON (page de statistiques « # HELP jmx… », 20/11/2026 : 5331221f-7a1f-4ace-b4de-9cf94a57e4d2)
+   * ou une erreur HTTP : jusqu'à 3 essais, 2 s d'écart, sans le cache HTTP. */
+  async function tilesAround(lon, lat, d) {
+    let problem = "";
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt) await new Promise((resolve) => setTimeout(resolve, 2000));
+      try {
+        const response = await fetch(`${WFS}&BBOX=${lat - d},${lon - d},${lat + d},${lon + d},urn:ogc:def:crs:EPSG::4326`,
+          attempt ? { cache: "no-store" } : {});
+        if (!response.ok) { problem = `HTTP ${response.status}`; continue; }
+        const text = await response.text();
+        try { return JSON.parse(text).features || []; } catch { problem = "réponse illisible"; }
+      } catch (error) { problem = error.message; }
+    }
+    throw new Error(`nuage LiDAR : le service de l'IGN qui situe les dalles ne répond pas correctement (${problem}, 3 essais) ;`
+      + " panne passagère en général, réessayer dans un moment");
+  }
   const LAZ = "https://cdn.jsdelivr.net/npm/laz-perf@0.0.7/lib/web/laz-perf.js";
   const HALF = 32, STRIP = 1.0, BIN = 0.25;  // m : ±HALF en travers, ±STRIP le long de la route, cases de BIN m
   const ROAD = 1.6;  // intensité de l'enrobé : sous ROAD fois celle sous l'origine
@@ -330,9 +349,7 @@ const Nuage = (() => {
     const box = [o[0] - HALF - 2, o[1] - HALF - 2, o[0] + HALF + 2, o[1] + HALF + 2];
     const strip = stripTest(o, [ux, uy], HALF + 2, STRIP + Math.max(...PAVED_STEPS) + 1);
     progress("Recherche des dalles du nuage LiDAR HD…");
-    const d = 0.0005, response = await fetch(`${WFS}&BBOX=${lat - d},${lon - d},${lat + d},${lon + d},urn:ogc:def:crs:EPSG::4326`);
-    if (!response.ok) throw new Error(`nuage LiDAR : métadonnées IGN, HTTP ${response.status}`);
-    const meta = (await response.json()).features || [];
+    const meta = await tilesAround(lon, lat, 0.0005);
     if (!meta.length) throw new Error("pas de nuage LiDAR HD ici");
     // case -> intensités du sol ; altitude la plus haute de la végétation ; altitudes des points d'eau
     const bins = new Map(), plants = new Map(), water = new Map(), soil = [];
@@ -547,10 +564,8 @@ const Nuage = (() => {
       const room = DECK_REACH + 2 * DECK_CELL, xs = seeds.map((p) => p[0]), ys = seeds.map((p) => p[1]);
       const box = [Math.min(...xs) - room, Math.min(...ys) - room, Math.max(...xs) + room, Math.max(...ys) + room];
       const d = Math.max(box[2] - o[0], o[0] - box[0], box[3] - o[1], o[1] - box[1]) / 70000;  // degrés : large partout en métropole
-      const response = await fetch(`${WFS}&BBOX=${lat - d},${lon - d},${lat + d},${lon + d},urn:ogc:def:crs:EPSG::4326`);
-      if (!response.ok) throw new Error(`nuage LiDAR : métadonnées IGN, HTTP ${response.status}`);
       const points = [];
-      for (const m of (await response.json()).features || []) {
+      for (const m of await tilesAround(lon, lat, d)) {
         const tile = await openTile(m.properties.url_npl), nodes = await nodesIn(tile, box);
         const deepest = Math.max(...nodes.map((n) => n.d));
         // shortcut: les deux niveaux les plus fins, comme l'analyse fine ; tout lire si un tablier peu dense manque
@@ -575,5 +590,5 @@ const Nuage = (() => {
     return { height: found.height, below: found.below };
   }
 
-  return { analyse, toL93, pavedEdge, kerbEdge, brightRuns, dashedLines, stripTest, bridgeFall, useGeoCache };
+  return { analyse, toL93, tilesAround, pavedEdge, kerbEdge, brightRuns, dashedLines, stripTest, bridgeFall, useGeoCache };
 })();

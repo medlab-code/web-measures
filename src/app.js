@@ -155,8 +155,20 @@
     } catch { /* pas du JSON */ }
     return false;
   }
+  /** Réponse JSON lisible : les services gardés n'en rendent pas d'autre. La Géoplateforme renvoie parfois, avec un statut 200,
+   * sa page de statistiques (« # HELP jmx… », 20/11/2026) : gardée 90 jours, elle était resservie à chaque essai
+   * (« Analyse fine impossible : Unexpected token '#' », 5331221f-7a1f-4ace-b4de-9cf94a57e4d2). */
+  function readable(text) {
+    try {
+      JSON.parse(text);
+      return true;
+    } catch {
+      return false;
+    }
+  }
   async function storeGeo(cache, url, response) {
     const text = await response.text();
+    if (!readable(text)) return;  // pas gardée : le prochain appel redemande au service
     const headers = new Headers(response.headers);
     headers.set("x-mis-en-cache", String(Date.now()));
     headers.set("x-vide", emptyAnswer(text) ? "1" : "0");
@@ -212,7 +224,11 @@
     const url = input?.url ?? String(input);
     const cache = geoCacheable(url, init) ? await cacheStep(openGeoCache(), null, false) : null;
     if (!cache) return trackedFetch(input, init);
-    const hit = await cacheStep(cache.match(url).catch(() => undefined), undefined);
+    let hit = await cacheStep(cache.match(url).catch(() => undefined), undefined);
+    if (hit && !readable(await hit.clone().text().catch(() => ""))) {  // gardée avant le contrôle de storeGeo : jetée
+      cache.delete(url).catch(() => {});
+      hit = undefined;
+    }
     const age = hit ? Date.now() - Number(hit.headers.get("x-mis-en-cache")) : Infinity;
     if (hit && age < (hit.headers.get("x-vide") === "1" ? CACHE_EMPTY_LIFE : CACHE_LIFE)) return hit;
     try {

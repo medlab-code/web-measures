@@ -38,6 +38,14 @@ const { log, sleep, until, soon, ready, expect, fail, fin } = Essai;
     const old = await (await w.fetch(fake)).text();
     log("réponse périmée, service en refus : " + old);
     expect("réponse ancienne servie quand le service refuse", old.includes("essai"));
+    // Réponse illisible gardée (page de statistiques de la Géoplateforme, 20/11/2026) : jetée, redemandée au service
+    const wfs = keys.find((k) => k.includes("/wfs/"));
+    await cache.put(wfs, new Response("# HELP jmx_config_reload_success_total", { headers: { "x-mis-en-cache": String(Date.now()), "x-vide": "0", "x-taille": "38" } }));
+    const fresh = await (await w.fetch(wfs)).text();
+    let json = false;
+    try { json = Boolean(JSON.parse(fresh)); } catch { /* illisible */ }
+    expect("réponse illisible du cache jetée, redemandée au service", json, fresh.slice(0, 60));
+    expect("réponse illisible non gardée", !/^# HELP/.test(await (await cache.match(wfs))?.text() ?? ""));
     // Bouton : taille, puis vidage
     doc.querySelector('#outils [data-panneau="reseau"]').click();  // section Services : taille du cache
     await soon(() => /\(\d+(,\d)? Mo\)/.test(doc.querySelector("#vider-cache").textContent));
