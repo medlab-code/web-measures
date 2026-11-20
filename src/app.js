@@ -541,7 +541,8 @@
   // Taille des boutons et étiquettes au style commun (variable CSS --echelle-ui, lue par style.css : 1, 1,25 ou 1,5) ; gardée, effet immédiat
   {
     const scale = $("#echelle-ui");
-    scale.value = ["1", "1.25", "1.5"].includes(store.get("echelle-ui", "1")) ? store.get("echelle-ui", "1") : "1";
+    // « grande » par défaut ; un choix déjà gardé est respecté
+    scale.value = ["1", "1.25", "1.5"].includes(store.get("echelle-ui", "1.25")) ? store.get("echelle-ui", "1.25") : "1.25";
     document.documentElement.style.setProperty("--echelle-ui", scale.value);
     scale.addEventListener("change", () => {
       store.set("echelle-ui", scale.value);

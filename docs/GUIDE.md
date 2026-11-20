@@ -44,7 +44,7 @@ import du calage), **Favoris**
 résultats, de favoris et de parcours sur l'onglet ; en bas, les boutons **Filtre** (instance Panoramax, filtre des photos ; point orange quand un filtre est actif),
 **Réglages** (hauteur de caméra, thème, options) et **Services**. La consigne de
 mesure est dans la carte d'étape de la visionneuse. Thème jour ou nuit : comme le système par défaut, ou choisi
-dans Réglages. « Taille des boutons et étiquettes » (Réglages › Affichage : normale, grande ×1,25, très grande ×1,5 ; gardée dans le navigateur, effet
+dans Réglages. « Taille des boutons et étiquettes » (Réglages › Affichage : normale, grande ×1,25 par défaut, très grande ×1,5 ; gardée dans le navigateur, effet
 immédiat) grossit d'un bloc les boutons du haut de la visionneuse, les trois pastilles du bas et les boutons de la carte ; les tracés et étiquettes
 de mesure dessinés sur la photo n'en changent pas. Une section
 s'affiche à la fois ; la dernière choisie est rouverte à la visite suivante.
