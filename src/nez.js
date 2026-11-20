@@ -16,7 +16,7 @@ const Nez = {
     const { etat, map } = host;
     const button = $("#nez-bords");
 
-    const GREEN = "#00c853", DARK = "#202020", RED = "#d93025";  // droite verte liserée de sombre (lisible sur l'herbe comme sur l'enrobé), poignées rouges
+    const GREEN = "#00c853", YELLOW = "#ffd600", DARK = "#202020", RED = "#d93025";  // droite verte liserée de sombre (lisible sur l'herbe comme sur l'enrobé), croix jaune au droit de la caméra, poignées rouges
     const TICK_PX = 28;  // px : longueur à l'écran d'une poignée (trait vertical, quel que soit le zoom)
     const HANDLE_PX = 10;  // px : portée d'une poignée (distance du pointeur au trait)
     const MIN_OFFSET = 0.2;  // m : une poignée reste de son côté du droit de la caméra
@@ -163,7 +163,7 @@ const Nez = {
       const sides = [["gauche", handles.gauche], ["droit", handles.droit]];
       Traits.setExtra({
         lines: [{ points, color: DARK, width: 5 }, { points, color: GREEN, width: 2.5 }],
-        crosses: [{ at: at(0), color: GREEN }],  // droit de la caméra
+        crosses: [{ at: at(0), color: YELLOW }],  // croix au droit de la caméra
         ticks: sides.map(([, o]) => ({ at: at(o), color: RED, edge: "#ffffff", length: TICK_PX, width: 3 })),
         labels: sides.map(([, o]) => ({ at: at(o), type: "mesure", place: "dessus", lift: TICK_PX / 2, text: metres(Math.abs(o)) })),
       });

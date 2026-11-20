@@ -76,7 +76,7 @@ reste propre. Une mesure en cours s'y poursuit, avec sa carte d'étape ; pour en
 **Bords sur la photo** (expérimental, piste P22 étape 1) : le bouton à droite des curseurs de luminosité et de contraste, en haut à
 gauche de la visionneuse (grisé sans photo 360°), trace en vert (liseré sombre) une droite au sol juste devant le nez du véhicule, perpendiculaire à
 la trajectoire de la séquence à l'endroit de la droite (dans un virage ou un giratoire, la direction de la photo suivante est prise en compte) (à 4,4 m de la caméra pour la monture basse du CD21, 4,8 m pour la haute, 4,5 m ailleurs : le sol y
-est visible, hors capot), avec un repère au droit de la caméra et deux poignées, à gauche et à droite : de courts traits verticaux rouges (28 px à l'écran quel que soit le zoom, liseré blanc), avec leur distance au-dessus. Elles partent des bords du
+est visible, hors capot), avec une croix jaune au droit de la caméra et deux poignées, à gauche et à droite : de courts traits verticaux rouges (28 px à l'écran quel que soit le zoom, liseré blanc), avec leur distance au-dessus. Elles partent des bords du
 profil en travers de la photo s'il y en a un, sinon de 3 m de part et d'autre. Faire glisser une poignée le long de la droite
 jusqu'au bord de la route (la visionneuse ne tourne pas tant qu'on tient une poignée, à 10 px du trait ; le curseur devient une main ;
 le glissement est continu, sans saut, précis au fort zoom) : un encart au bas de la photo lit en direct la distance de chaque bord à la
