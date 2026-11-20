@@ -538,6 +538,18 @@
     else delete document.documentElement.dataset.theme;
   });
 
+  // Taille des boutons et étiquettes au style commun (variable CSS --echelle-ui, lue par style.css : 1, 1,25 ou 1,5) ; gardée, effet immédiat
+  {
+    const scale = $("#echelle-ui");
+    scale.value = ["1", "1.25", "1.5"].includes(store.get("echelle-ui", "1")) ? store.get("echelle-ui", "1") : "1";
+    document.documentElement.style.setProperty("--echelle-ui", scale.value);
+    scale.addEventListener("change", () => {
+      store.set("echelle-ui", scale.value);
+      document.documentElement.style.setProperty("--echelle-ui", scale.value);
+      map.resize();
+    });
+  }
+
   /** « Exporter le calage » grisé tant qu'aucune photo ni séquence n'est calée (rien à exporter). */
   function showCalibrationExport() {
     const c = JSON.parse(etat.app.calibration_json());

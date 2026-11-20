@@ -1766,3 +1766,7 @@ button.lien:disabled { color: var(--discret); opacity: 0.6; cursor: default; }
 #releve-objet .actions { flex: 1 0 100%; display: flex; justify-content: center; gap: 0.8rem; position: sticky; bottom: -1em;
   margin-bottom: -1em; padding: 0.7rem 0 1em; background: var(--fond); border-top: 1px solid var(--bord); }
 #releve-erreur[hidden] { display: none; }
+
+/* Taille des boutons et étiquettes (Réglages › Affichage, --echelle-ui : 1, 1,25 ou 1,5) : tout ce qui porte le style commun (boutons du haut de la
+   visionneuse, pastilles du bas, boutons de la carte) est grossi d'un bloc par « zoom », taille, rayon, trait des icônes et police ensemble */
+#reglage-image, #captures-visionneuse, .bas-vue, .maplibregl-ctrl-top-left { zoom: var(--echelle-ui, 1); }
