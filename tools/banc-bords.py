@@ -12,7 +12,7 @@ un bord du relief à plus de 0,25 m en deçà de l'enrobé tombe sur la chaussé
 NOM : une constante de la classe (STEP_Z=0.08, CROWN_NEAR=1.5…). -v : liste les côtés en erreur. La catégorie de la route
 (importance et nature BD TOPO, pour la largeur type, voir App._road_width) est lue à la Géoplateforme une fois par photo
 et gardée dans ~/.cache/web-measures-banc-bords.json. Les chaussées séparées (bord au-delà de l'autre chaussée) sont
-écartées du décompte, et le bord d'enrobé remplacé par la valeur vérifiée à la main sur les côtés de REFERENCES.
+écartées du décompte, et le bord d'enrobé remplacé par la valeur vérifiée à la main (estimée sur la photo ou en vue du dessus, pas mesurée sur le terrain) sur les côtés de REFERENCES.
 """
 
 import itertools
@@ -40,6 +40,8 @@ CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "web-me
 HEADERS = {"User-Agent": "web-measures-essai"}
 # Côtés où le bord d'enrobé de l'analyse fine est faux, vérifiés à la main (photo, vue du dessus) : (identifiant complet,
 # côté) → (bord vrai en m depuis l'origine, à la lecture du relief près, raison) ; il remplace le bord d'enrobé
+# Ce sont des estimations de l'auteur (photo, vue du dessus, caméra sur la croix bleue), PAS des mesures de terrain :
+# seule une mesure sur place fait foi ; marge de 0,1 à 0,4 m (cap, croix bleue, roulis) avant de juger un calcul faux.
 REFERENCES = {
     ("082893e5-f336-441b-8d28-0eecdbae1dde", "droit"): (
         1.0, "D8, 3 voies (tourne-à-gauche central) : trottoir tout près du véhicule, caniveau à +1 m ; l'analyse fine "
