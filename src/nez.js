@@ -158,8 +158,11 @@ const Nez = {
       drawMap();
       if (!line || line.error) return Traits.setExtra();
       Traits.attach(etat.psv);
-      const points = line.points.map(([, yaw, pitch]) => [yaw, pitch]);
       const at = locate;
+      // droite tracée seulement entre les poignées : points du tableau strictement entre elles, bouts interpolés par locate
+      const points = [at(handles.gauche),
+        ...line.points.filter(([o]) => o > handles.gauche && o < handles.droit).map(([, yaw, pitch]) => [yaw, pitch]),
+        at(handles.droit)];
       const sides = [["gauche", handles.gauche], ["droit", handles.droit]];
       Traits.setExtra({
         lines: [{ points, color: DARK, width: 5 }, { points, color: GREEN, width: 2.5 }],
