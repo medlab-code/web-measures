@@ -19,7 +19,7 @@ const Nez = {
     const GREEN = "#00c853", YELLOW = "#ffd600", DARK = "#202020", RED = "#d93025";  // droite verte liserée de sombre (lisible sur l'herbe comme sur l'enrobé), croix jaune au droit de la caméra, poignées rouges
     const TICK_PX = 28;  // px : longueur à l'écran d'une poignée (trait vertical, quel que soit le zoom)
     const HANDLE_PX = 10;  // px : portée d'une poignée (distance du pointeur au trait)
-    const MIN_OFFSET = 0.2;  // m : une poignée reste de son côté du droit de la caméra
+    const MIN_OFFSET = 0.2;  // m : bord minimal d'un profil en travers repris comme position de départ d'une poignée
     const MIN_GAP = 0.1;  // m : écart minimal entre les deux poignées (l'une ne dépasse pas l'autre pendant le glissement)
     const WAIT_MAX = 12000;  // ms : attente au plus de la position définitive de la droite (deux lectures du MNT de 5 s au plus), puis meilleure droite disponible
     const FALLBACK = 3;  // m : bords de départ sans profil en travers
@@ -127,9 +127,22 @@ const Nez = {
     /** Incertitude (m) du bord à s m de l'axe : inclinaison, roulis restant, hauteur de caméra et altitude du MNT, lue en différence
      * avec le sol sous la caméra, donc √2 fois sa précision ; rien de plus à plat (docs/CALCULS.md). */
     function sigma(s) {
+      return Math.hypot(...terms(Math.abs(s)));
+    }
+
+    /** Les quatre termes d'incertitude (m) d'un bord à s m de l'axe (s ≥ 0) : inclinaison, roulis, hauteur de caméra, MNT. */
+    function terms(s) {
       const { hauteur: h, d, sigma_h: sh, sol_sigma: sg } = line;
-      return Math.hypot((h * h + d * d) / h * INCLINATION * toRad, s * s * ROLL * toRad / h, s * sh / h,
-        sg ? s * Math.SQRT2 * sg / h : 0);
+      return [(h * h + d * d) / h * INCLINATION * toRad, s * s * ROLL * toRad / h, s * sh / h, sg ? s * Math.SQRT2 * sg / h : 0];
+    }
+
+    /** Incertitude (m) de la largeur entre deux bords. De part et d'autre de la caméra : somme quadratique des deux bords. Du même
+     * côté, les erreurs d'inclinaison, de roulis et de hauteur de la caméra sont communes aux deux bords (même sens) : seule leur
+     * différence compte ; l'altitude du MNT, lue en deux points, reste indépendante (docs/CALCULS.md § 8.8). */
+    function widthSigma(a, b) {
+      if (a * b < 0) return Math.hypot(sigma(a), sigma(b));
+      const [ta, tb] = [terms(Math.min(Math.abs(a), Math.abs(b))), terms(Math.max(Math.abs(a), Math.abs(b)))];
+      return Math.hypot(0, tb[1] - ta[1], tb[2] - ta[2], Math.hypot(ta[3], tb[3]));
     }
 
     /** Écart de sol (m) au décalage o : altitude du MNT en ce point moins celle sous la caméra (interpolé ; 0 à plat). */
@@ -177,9 +190,9 @@ const Nez = {
         readout.title = "";
         return;
       }
-      const left = -handles.gauche, right = handles.droit;
-      const uncertainty = roundUp05(Math.hypot(sigma(left), sigma(right)));
-      text.textContent = `Gauche ${metres(left)} · Droite ${metres(right)} · Largeur ${metres(left + right)}`
+      const width = handles.droit - handles.gauche;
+      const uncertainty = roundUp05(widthSigma(handles.gauche, handles.droit));
+      text.textContent = `Bord gauche ${offsetText(handles.gauche)} · Bord droit ${offsetText(handles.droit)} · Largeur ${metres(width)}`
         + ` · ±${metres(uncertainty)}`;
       const tilt = tiltText();
       if (tilt) text.textContent += ` · ${tilt}`;
@@ -189,6 +202,9 @@ const Nez = {
         + `(${line.sol_dz ? `relief du MNT ${line.sol}` : "sol plat"}). Hauteur de la caméra ${metres(line.hauteur)}${line.hauteur_source ? ` (${line.hauteur_source})` : ""}`
         + `${line.inclinaison_source === "roulis de campagne" ? `, roulis de la campagne ${line.roulis_campagne}°` : ""}. Expérimental : rien n'est retenu.`;
     }
+
+    /** Position d'un bord par rapport à la caméra, avec son côté (« 1,20 m à droite »). */
+    const offsetText = (o) => Math.abs(o) < 0.005 ? "au droit" : `${metres(Math.abs(o))} à ${o < 0 ? "gauche" : "droite"}`;
 
     /** Droite, repère, poignées et étiquettes dans la seconde couche de Traits. */
     function draw() {
@@ -206,10 +222,10 @@ const Nez = {
         lines: [{ points, color: DARK, width: 5 }, { points, color: GREEN, width: 2.5 }],
         crosses: [{ at: at(0), color: YELLOW }],  // croix au droit de la caméra
         ticks: sides.map(([, o]) => ({ at: at(o), color: RED, edge: "#ffffff", length: TICK_PX, width: 3 })),
-        // largeur entre les poignées : étiquette « mesure » des largeurs de Mesure (↔ valeur), au milieu de la droite ;
-        // les distances de chaque bord restent dans l'encart
+        // largeur entre les poignées : étiquette « mesure » des largeurs de Mesure (↔ valeur ± incertitude, comme l'encart),
+        // au milieu de la droite ; les distances de chaque bord restent dans l'encart
         labels: [{ at: at((handles.gauche + handles.droit) / 2), type: "mesure", place: "dessus",
-          text: `↔ ${metres(handles.droit - handles.gauche)}` }],
+          text: `↔ ${metres(handles.droit - handles.gauche)} ± ${metres(roundUp05(widthSigma(handles.gauche, handles.droit)))}` }],
       });
     }
 
@@ -245,15 +261,11 @@ const Nez = {
      * projeté sur les segments entre points consécutifs du tableau (ceux devant la caméra), le décalage interpolé au point
      * projeté. null si aucun segment n'est visible. */
     function nearestOffset(side, x, y) {
-      // bornes : de son côté du droit de la caméra, jamais au-delà de la portée de la droite ni à moins de MIN_GAP de l'autre poignée
+      // bornes : jamais au-delà de la portée de la droite ni à moins de MIN_GAP de l'autre poignée (des deux côtés de la caméra)
       const low = side === "gauche" ? -line.reach : handles.gauche + MIN_GAP;
       const high = side === "gauche" ? handles.droit - MIN_GAP : line.reach;
       let best = null, bestD = Infinity, previous = null;
       for (const [o, yaw, pitch] of line.points) {
-        if (side === "gauche" ? o > -MIN_OFFSET : o < MIN_OFFSET) {
-          previous = null;
-          continue;
-        }
         const s = screenOf(yaw, pitch);
         const current = s ? [o, s.x, s.y] : null;
         if (previous && current) {

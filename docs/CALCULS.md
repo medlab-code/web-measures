@@ -415,7 +415,8 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   Position définitive (`src/nez.js`, `shown`) : la droite, les poignées, la croix, l'étiquette et le tracé de la carte ne sont affichés
   que lorsque plus rien n'est attendu (`voisines` vrai, `sol_en_lecture` faux, `inclinaison_en_calcul` faux), ou après 12 s d'attente au
   plus (repli : meilleure droite disponible, l'encart dit ce qui manque). Une nouvelle attente (photo changée, clics de verticales) masque
-  de nouveau la droite jusqu'à sa position définitive, poignées gardées. Les poignées ne se croisent pas : écart minimal de 0,10 m.
+  de nouveau la droite jusqu'à sa position définitive, poignées gardées. Les poignées ne se croisent pas : écart minimal de 0,10 m ; elles sont libres de part et d'autre de la caméra (trottoir, voie seule).
+  **Incertitude de la largeur** : de part et d'autre de la caméra, somme quadratique des incertitudes des deux bords ; du même côté, les erreurs d'inclinaison, de roulis et de hauteur de la caméra sont communes aux deux bords et seule leur différence compte (terme d'inclinaison : nul ; roulis `s²·σroulis/H` et hauteur `s·σH/H` : écart entre le bord lointain et le proche), l'altitude du MNT, lue en deux points, restant indépendante. L'étiquette de la photo et l'encart donnent la même valeur (arrondie au 0,05 m supérieur).
   Pourquoi : la droite est lue en distance latérale du bord ; une bande parallèle à l'axe, vue à travers un roulis ou un tangage faux,
   est lue à une autre place de la droite. Giratoire d'efbcbcd8-2ecb-4ea8-a731-a7ab55960e63 (RTK, verticales à ±0,30° : roulis -3,5°, tangage
   +0,5°, `d` = 4,4 m, `H` = 1,93 m) pour deux bandes à -2,5 m et +5,5 m (largeur 8,00 m) : roulis supposé -1° → bords lus à -2,24 et +6,26 m
