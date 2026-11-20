@@ -36,10 +36,6 @@ const Mesure = {
      * photos, flèches gardées. Suit l'état du calcul (voir refresh).
      */
 
-    /**
-     * Flèches masquées en mesure (elles gênent les clics de mesure), sauf pour viser, ce qui
-     * demande de changer de photo. Pendant la prise de mesure, on change de photo par la carte.
-     */
     /** Clic sur une flèche de la visionneuse (photo suivante, précédente…) : il navigue. */
     function onArrow(event) {
       const target = event.data?.target;
@@ -62,6 +58,17 @@ const Mesure = {
       encodeURIComponent(reticle(reticleColor(tilted, calibrating, sighting)))}") 16 16, crosshair !important; }
       .psv-container .psv-virtual-tour-link, .psv-container .psv-virtual-tour-link * { cursor: pointer !important; }
       .psv-container.sur-droite, .psv-container.sur-droite * { cursor: none !important; }`;
+
+    /** Flèches de navigation au sol (ellipse violette, triangle blanc) : masquées pendant une mesure (visée comprise, la photo
+     * se change par le lecteur ou la carte) et pendant les bords sur la photo (bouton « Bords » enfoncé, lu sans toucher à nez.js) ;
+     * visibles hors mesure. Une seule décision : classe « sans-fleches » sur le conteneur (règle CSS posée par attachViewer). */
+    function syncArrows() {
+      const hidden = etat.measuring || $("#nez-bords")?.getAttribute("aria-pressed") === "true";
+      etat.psv?.container.classList.toggle("sans-fleches", hidden);
+    }
+    // Les bords sur la photo changent le bouton sans passer par applyMeasureUi : on suit son attribut
+    const bords = $("#nez-bords");
+    if (bords) new MutationObserver(syncArrows).observe(bords, { attributes: true, attributeFilter: ["aria-pressed"] });
 
     /** Navigation, flèches, curseur au sol et pointeur de la visionneuse selon le bouton « Mesure ». */
     function applyMeasureUi() {
@@ -132,9 +139,7 @@ const Mesure = {
       showModeOptions();
       const box = etat.psv?.container;
       if (!box) return;
-      // Flèches de navigation au sol (ellipse violette et triangle blanc) : toujours masquées (règle CSS posée par
-      // attachViewer, ici en plus sur l'élément déjà créé) ; on change de photo par le lecteur, la carte ou les listes.
-      for (const arrows of box.querySelectorAll(".psv-virtual-tour-arrows")) arrows.style.setProperty("visibility", "hidden", "important");
+      syncArrows();  // flèches au sol : masquées en mesure et en bords sur la photo
       // Curseur « aller ici » qui suit la souris sur le sol : image du moteur 360°, sans souris
       for (const img of box.querySelectorAll(":scope > img")) {
         if (img.style.pointerEvents !== "none" || img.style.position !== "absolute") continue;

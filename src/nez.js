@@ -124,25 +124,32 @@ const Nez = {
 
     // Lecture -----------------------------------------------------------------------------------
 
-    /** Incertitude (m) du bord à s m de l'axe : inclinaison, roulis restant, hauteur de caméra et altitude du MNT, lue en différence
-     * avec le sol sous la caméra, donc √2 fois sa précision ; rien de plus à plat (docs/CALCULS.md). */
+    /** Erreurs signées (m) de la position latérale lue d'un bord à s m de l'axe (négatif : à gauche), pour les trois sources
+     * communes aux deux bords : [inclinaison, roulis restant, hauteur de caméra]. Au premier ordre, pour un rayon (d, s, −H) (devant,
+     * à droite, vers le bas) qui coupe le sol : tangage δ → le rayon tourne autour de l'axe latéral, il touche le sol à l'échelle
+     * H/(H+δd) : −s·d·δ/H ; roulis ρ → rotation autour de l'axe avant : ρ·(H + s²/H) ; hauteur H+e → s·e/H (docs/CALCULS.md § 8.8). */
+    function commonErrors(s) {
+      const { hauteur: h, d, sigma_h: sh } = line;
+      return [-s * d * INCLINATION * toRad / h, ROLL * toRad * (h + s * s / h), s * sh / h];
+    }
+
+    /** Erreur (m) propre à un bord, indépendante de l'autre : altitude du MNT lue au point moins celle sous la caméra, donc √2 fois sa
+     * précision (échelle s·Δz/H) ; rien à plat. */
+    function ownError(s) {
+      return line.sol_sigma ? Math.abs(s) * Math.SQRT2 * line.sol_sigma / line.hauteur : 0;
+    }
+
+    /** Incertitude (m) du bord à s m de l'axe (négatif : à gauche) : erreurs communes en valeur absolue, plus l'altitude du MNT. */
     function sigma(s) {
-      return Math.hypot(...terms(Math.abs(s)));
+      return Math.hypot(...commonErrors(s), ownError(s));
     }
 
-    /** Les quatre termes d'incertitude (m) d'un bord à s m de l'axe (s ≥ 0) : inclinaison, roulis, hauteur de caméra, MNT. */
-    function terms(s) {
-      const { hauteur: h, d, sigma_h: sh, sol_sigma: sg } = line;
-      return [(h * h + d * d) / h * INCLINATION * toRad, s * s * ROLL * toRad / h, s * sh / h, sg ? s * Math.SQRT2 * sg / h : 0];
-    }
-
-    /** Incertitude (m) de la largeur entre deux bords. De part et d'autre de la caméra : somme quadratique des deux bords. Du même
-     * côté, les erreurs d'inclinaison, de roulis et de hauteur de la caméra sont communes aux deux bords (même sens) : seule leur
-     * différence compte ; l'altitude du MNT, lue en deux points, reste indépendante (docs/CALCULS.md § 8.8). */
+    /** Incertitude (m) de la largeur entre deux bords, quel que soit leur côté : les erreurs d'inclinaison, de roulis et de hauteur
+     * de la caméra sont communes aux deux bords, donc l'erreur de largeur de chacune est la différence signée de leurs effets ; les
+     * erreurs propres à chaque bord (MNT) s'ajoutent en quadrature ; somme quadratique du tout (docs/CALCULS.md § 8.8). */
     function widthSigma(a, b) {
-      if (a * b < 0) return Math.hypot(sigma(a), sigma(b));
-      const [ta, tb] = [terms(Math.min(Math.abs(a), Math.abs(b))), terms(Math.max(Math.abs(a), Math.abs(b)))];
-      return Math.hypot(0, tb[1] - ta[1], tb[2] - ta[2], Math.hypot(ta[3], tb[3]));
+      const [ea, eb] = [commonErrors(a), commonErrors(b)];
+      return Math.hypot(...ea.map((v, k) => eb[k] - v), ownError(a), ownError(b));
     }
 
     /** Écart de sol (m) au décalage o : altitude du MNT en ce point moins celle sous la caméra (interpolé ; 0 à plat). */

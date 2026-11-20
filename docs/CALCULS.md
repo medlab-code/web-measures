@@ -416,15 +416,20 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   que lorsque plus rien n'est attendu (`voisines` vrai, `sol_en_lecture` faux, `inclinaison_en_calcul` faux), ou après 12 s d'attente au
   plus (repli : meilleure droite disponible, l'encart dit ce qui manque). Une nouvelle attente (photo changée, clics de verticales) masque
   de nouveau la droite jusqu'à sa position définitive, poignées gardées. Les poignées ne se croisent pas : écart minimal de 0,10 m ; elles sont libres de part et d'autre de la caméra (trottoir, voie seule).
-  **Incertitude de la largeur** : de part et d'autre de la caméra, somme quadratique des incertitudes des deux bords ; du même côté, les erreurs d'inclinaison, de roulis et de hauteur de la caméra sont communes aux deux bords et seule leur différence compte (terme d'inclinaison : nul ; roulis `s²·σroulis/H` et hauteur `s·σH/H` : écart entre le bord lointain et le proche), l'altitude du MNT, lue en deux points, restant indépendante. L'étiquette de la photo et l'encart donnent la même valeur (arrondie au 0,05 m supérieur).
+  **Incertitude de la largeur** : une seule règle, quel que soit le côté des bords. Les erreurs d'inclinaison, de roulis et de hauteur de la caméra sont communes aux deux bords : l'erreur de largeur due à chacune est `|f(s2) − f(s1)|` (différence signée des effets sur les deux bords, `s` négatif à gauche) ; l'altitude du MNT, lue en deux points, est indépendante par bord (quadrature) ; σ largeur = racine de la somme des carrés de tout (formules de `f` ci-dessous). L'étiquette de la photo et l'encart donnent la même valeur (arrondie au 0,05 m supérieur).
   Pourquoi : la droite est lue en distance latérale du bord ; une bande parallèle à l'axe, vue à travers un roulis ou un tangage faux,
   est lue à une autre place de la droite. Giratoire d'efbcbcd8-2ecb-4ea8-a731-a7ab55960e63 (RTK, verticales à ±0,30° : roulis -3,5°, tangage
   +0,5°, `d` = 4,4 m, `H` = 1,93 m) pour deux bandes à -2,5 m et +5,5 m (largeur 8,00 m) : roulis supposé -1° → bords lus à -2,24 et +6,26 m
   (8,50 m) ; verticale 0° (route plate) → -2,16 et +6,68 m (8,85 m) ; verticales → 8,00 m. L'erreur croît avec la distance (côté le
   plus loin) et le tangage joue aussi (±3° : de 6,9 à 8,9 m).
-- **Incertitude d'un bord** à `s` m de l'axe : `σ = √( ((H² + d²)/H · δi)² + (s² · δr / H)² + (s · σH / H)² + (s · √2 · σz / H)² )`,
-  `δi` = 0,5° (inclinaison de la photo), `δr` = 0,5° (roulis restant), en radians, `σz` = précision du MNT (`sol_sigma`, 0,08 m LiDAR HD,
-  0,30 m RGE ALTI ; le sol de la caméra et celui du point sont lus ensemble, d'où √2) ; dernier terme absent à sol plat. Largeur : somme quadratique des deux côtés, arrondie au-dessus à 0,05 m.
+- **Incertitude d'un bord** à `s` m de l'axe (signé) : erreur latérale `f(s)` lue pour chaque source commune, au premier ordre. Le pixel fixe le rayon
+  `(d, s, −H)` (devant, à droite, vers le bas) ; la vraie caméra est tournée ou plus haute, le rayon coupe le sol vrai et la position latérale devient `y'` :
+  - **inclinaison** (tangage `δi` = 0,5°, rotation autour de l'axe latéral) : rayon `(d − δH, s, −H − δd)`, il touche le sol à l'échelle `H/(H + δd)` : `f = −s·d·δi/H` (le bord à `s = 0` n'est pas déplacé latéralement ; la droite, elle, avance ou recule de `(H² + d²)·δi/H`, sans effet sur une bande parallèle à l'axe) ;
+  - **roulis restant** (`δr` = 0,5°, rotation autour de l'axe avant) : `y' = (s + δr·H)·H/(H − s·δr)` : `f = δr·(H + s²/H)` ;
+  - **hauteur de caméra** (`σH`, sol vrai à `H + e`) : `f = s·σH/H` ;
+  - **MNT** (indépendant par bord) : `σz` = précision (`sol_sigma`, 0,08 m LiDAR HD, 0,30 m RGE ALTI), sol de la caméra et du point lus ensemble, d'où √2 : `s·√2·σz/H`, absent à sol plat.
+
+  Un bord seul : `σ = √( f_i² + f_r² + f_h² + (s·√2·σz/H)² )`. Largeur : `σ = √( (f_i(s2) − f_i(s1))² + (f_r(s2) − f_r(s1))² + (f_h(s2) − f_h(s1))² + (s1·√2·σz/H)² + (s2·√2·σz/H)² )`, arrondie au-dessus à 0,05 m. Vérifié par différences finies (reprojection avec l'erreur appliquée, `H` = 1,93 m, `d` = 4,4 m) : écarts de l'ordre de 1 à 2 % (termes du second ordre). Correction par rapport à la version précédente : l'inclinaison était comptée comme un décalage latéral constant `(H² + d²)·δi/H` (c'est le déplacement avant-arrière de la droite) ; le roulis n'avait pas son terme constant `δr·H` (sans effet sur la largeur).
   Estimation de départ, pas encore comparée à des bords relevés sur place.
 
 ## 9. « Profils » : pente en long
