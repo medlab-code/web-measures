@@ -532,12 +532,14 @@ const Carte = (() => {
    * tourné perpendiculairement à la droite par icon-rotate ; 18 px à l'écran quel que soit le zoom. Canvas 10 × 36 à pixelRatio 2 :
    * trait rouge de 3 px de canvas (1,5 px écran) centré, liseré blanc de 7 px au total (1 px écran de chaque côté du trait). */
   function edgeTickImage() {
-    const w = 10, h = 36, canvas = document.createElement("canvas");
+    // Trait rouge de 4 px de canvas (2 px écran), liseré blanc de 10 px au total (1,5 px écran de chaque côté) :
+    // canvas de 14 px de large, trait centré (x = 7), longueur et retraits inchangés
+    const w = 14, h = 36, canvas = document.createElement("canvas");
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext("2d");
     ctx.lineCap = "butt";
     // [couleur, épaisseur, retrait en haut et en bas] : le liseré est tracé d'abord, le rouge par-dessus
-    for (const [color, width, inset] of [["rgba(255, 255, 255, 0.85)", 7, 4], ["#d93025", 3, 5]]) {
+    for (const [color, width, inset] of [["rgba(255, 255, 255, 0.85)", 10, 4], ["#d93025", 4, 5]]) {
       ctx.strokeStyle = color;
       ctx.lineWidth = width;
       ctx.beginPath();
