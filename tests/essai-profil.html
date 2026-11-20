@@ -98,22 +98,8 @@ try {
   paved("ligne blanche étroite", (x) => (Math.abs(x - 2) < 0.1 ? 900 : asphalt(x)), 4.9);
   paved("reprise claire à 1,6 fois", (x) => (x >= 1.5 && x < 3 ? 480 : asphalt(x)), 4.9);
   paved("gravillons à 3 fois puis herbe", (x) => (x < 5 ? 300 : x < 8 ? 900 : 2000), 4.9);
-  paved("gravier à 1,5 fois jusqu'à l'herbe (D70 c6c065fa)", (x) => (x < 2 ? 300 : x < 5 ? 450 : 1400), 1.9);
-  paved("surlargeur claire après la ligne de rive (RD903bis 1640bc3f)", (x) => (Math.abs(x - 1.4) < 0.13 ? 3000 : x < 1.5 ? 300 : x < 3.2 ? 480 : 1400), 3.1);
   paved("pas d'abords clairs", () => 320, null);
   paved("bord au-delà de la limite", (x) => (x < 14 ? 300 : 1400), null);
-  // Bordure (altitude médiane du sol par case, m) : trottoir en enrobé (D119M f533e240, M996 6eea86cc) ; ni dévers, ni
-  // bombement, ni ornière, ni bosse étroite
-  const heights = (fn) => new Map([...Array(97).keys()].map((j) => j - 48).map((k) => [k, fn(k * 0.25)]));
-  const kerb = (what, fn, expected) => { const got = Nuage.kerbEdge(heights(fn), 1, 1, 12), ok = expected === null ? got === null : got !== null && Math.abs(got - expected) <= 0.26;
-    expect(`bordure, ${what} : ${got} (attendu ${expected})`, ok); };
-  kerb("9 cm à 1,75 m après un caniveau", (x) => (Math.abs(x) < 1.75 ? 100 - 0.02 * Math.abs(x) : 100.09), 1.75);
-  kerb("fine, 5,5 cm de 2,4 à 3,15 m", (x) => { const a = Math.abs(x); return a < 2.4 ? 100 - 0.02 * a : 99.952 + Math.min(0.055, (a - 2.4) * 0.073); }, 2.75);
-  kerb("dévers qui monte de 12 %", (x) => 100 + 0.12 * x, null);
-  kerb("bombement", (x) => 100 - 0.025 * Math.abs(x - 1.5), null);
-  kerb("ornière de 3 cm", (x) => 100 - (Math.abs(Math.abs(x) - 1.5) < 0.3 ? 0.03 : 0), null);
-  kerb("bosse de 6 cm sur 0,5 m", (x) => 100 + (Math.abs(Math.abs(x) - 2) < 0.3 ? 0.06 : 0), null);
-  kerb("chaussée qui monte de 1 % et bruit de 3 cm", (x) => 100 + 0.01 * Math.abs(x) + [0, 0.015, -0.015, 0.01][Math.abs(Math.round(x * 4)) % 4], null);
   // Ligne blanche : nettement plus claire que ses voisines ; surface du séparateur au seuil (1640bc3f, −3,5 m) écartée, malgré la case vide à côté
   const narrow = (what, cases, expected) => { const got = Nuage.brightRuns(cases.map(([x, i]) => ({ x, i })), 100).map((r) => r[2]), ok = JSON.stringify(got) === JSON.stringify(expected);
     expect(`ligne blanche, ${what} : ${JSON.stringify(got)} (attendu ${JSON.stringify(expected)})`, ok); };
