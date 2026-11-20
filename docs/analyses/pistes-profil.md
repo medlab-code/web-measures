@@ -188,6 +188,12 @@ cas réel d'une bordure manquée.*
 - **Piste** : mesurer aussi le bruit hors chaussée (herbe, fossés), puis essayer des seuils plus fins sur `essai-bords` et
   `essai-passages`, avec P2 comme référence.
 - **Gain** : bordures et séparateurs plus fins trouvés, à vérifier.
+- **Bord sous le véhicule (20/11/2026)** : sur 11 côtés vérifiés à la main, 3 ont leur bord à moins de 1,5 m de la caméra (D8
+  082893e5-f336-441b-8d28-0eecdbae1dde droit 1,0 m, M996 6eea86cc-4c40-4395-9686-2418892bfa82 droit 1,25 m, D28E
+  5331221f-7a1f-4ace-b4de-9cf94a57e4d2 droit sous le véhicule) : sur une route étroite, le véhicule roule au bord. Ni le relief
+  (EDGE_NEAR, 1,5 m) ni la bordure de P21 (1 m) ne cherchent si près : le bord est pris plus loin, dans l'accotement (2 à 3,5 m
+  de trop). Le MNT et le nuage, pris d'avion, voient le sol sous le véhicule. Piste : chercher plus près de la caméra du côté
+  où elle est loin de l'axe BD TOPO, sans prendre sa propre voie pour un bord ; à juger sur des côtés vérifiés hors réglage.
 
 **P15. Distance au bord mal arrondie.** *Faite le 19/11/2026 (test `BordsCas.test_distance_au_bord_ecrite`).*
 - **Avant** : la distance de la chute (ou de l'arrêt) au bord était écrite au mètre, arrondie au pair par Python (0,5 → « 0 »,
