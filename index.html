@@ -1267,7 +1267,9 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
       <fieldset class="groupe">
         <legend>Nuage LiDAR</legend>
         <button id="profil-nuage" type="button"
-                title="Lire le nuage de points LiDAR HD de l'IGN sur ce travers (une vingtaine de secondes) : lignes blanches et nature du sol (enrobé, herbe, gravillons), pour placer le bord de chaussée et le séparateur de chaussée">Analyse fine</button>
+                title="Lire le nuage de points LiDAR HD de l'IGN sur ce travers (une vingtaine de secondes) : lignes blanches et nature du sol (enrobé, herbe, gravillons), pour placer le séparateur de chaussée (et le bord de chaussée si « Bord d'enrobé » est cochée)">Analyse fine</button>
+        <label title="Bord de chaussée pris à la fin de l'enrobé lue dans le nuage (intensité du laser, terre sombre d'un chemin) ou à la bordure d'un trottoir, au lieu de la rupture de pente du relief. Expérimental : souvent trop loin (accotement, trottoir en enrobé), à vérifier sur la photo. Choix retenu pour les profils suivants.">
+          <input id="profil-enrobe" type="checkbox" class="interrupteur" disabled> Bord d'enrobé (expérimental)</label>
       </fieldset>
       <fieldset class="groupe">
         <legend>Enregistrer</legend>

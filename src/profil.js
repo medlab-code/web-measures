@@ -302,7 +302,7 @@ const Profil = (() => {
           fine ? ", ni de bande non revêtue dans le nuage LiDAR" : ""})`}\u00a0; la plateforme va jusqu'au bord `
         + "extérieur de l'autre chaussée."] : []),
       ...(fine ? [`Analyse fine (nuage LiDAR HD, ${fine.points} points du sol)\u00a0: carrés blancs, lignes blanches lues à `
-        + "l'intensité du retour laser\u00a0; tirets courts, bords de chaussée"
+        + `l'intensité du retour laser${Object.keys(fine.bords).length ? "\u00a0; tirets courts, bords de chaussée" : ""}`
         + `${["gauche", "droit"].map((side) => fine.bords[side] ? ` (${side}\u00a0: ${num(Math.abs(fine.bords[side].x))} m, `
           + `${fine.bords[side].bordure ? "bordure, trouvée à l'altitude du sol" : fine.bords[side].comment})` : "").join("")}.`
         + (fine.largeur ? ` Largeur d'enrobé\u00a0: ${num(fine.largeur.m)}\u00a0m ±\u00a0${num(fine.largeur.plus)}.` : "")] : []),
@@ -425,6 +425,7 @@ const Profil = (() => {
   /** Graphique SVG et sa légende en clair (texte) pour profile (voir App._compute_edges) ; trueScale : hauteurs
    * à la même échelle que les distances. */
   // fine : analyse fine (Nuage.analyse) : séparateur et bords de chaussée tirés du nuage LiDAR, lignes blanches
+  // (bords et largeur d'enrobé vides si l'option « Bord d'enrobé » est décochée : voir drawProfile de src/reglages.js)
   // plants : végétation de l'analyse fine (ligne verte, herbe) dessinée et légendée
   // camera : hauteur de la caméra au-dessus du sol (réglage « Hauteur de caméra »), pour le profil en long
   function draw(profile, trueScale = false, fine = null, plants = true, camera = 1.9) {

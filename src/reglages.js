@@ -61,13 +61,27 @@ const Reglages = {
       store.set("profil-vegetation", plants.checked ? "1" : "0");
       if (etat.edgeProfile) drawProfile(true);
     });
+    // Case « Bord d'enrobé (expérimental) » : bord d'enrobé et bordure de l'analyse fine déplacent les bords de chaussée ;
+    // décochée par défaut (souvent trop loin : accotements et trottoirs en enrobé), choix retenu, grisée sans analyse fine
+    const paving = $("#profil-enrobe");
+    paving.checked = store.get("profil-enrobe") === "1";
+    paving.addEventListener("change", () => {
+      store.set("profil-enrobe", paving.checked ? "1" : "0");
+      const profile = etat.edgeProfile?.profile, found = nuage.get(nuageKey(profile));
+      if (!found) return;
+      applyPaved(profile, found);  // bords relus sans relire le nuage
+      drawProfile(true);
+    });
     trueScale.checked = true;
     // still : redessin par une case (échelle, végétation) : la légende, au-dessus des cases et boutons, ne raccourcit pas
     // (lignes de l'herbe et de la végétation retirées) pour qu'ils ne bougent pas ; un nouveau profil la remet à sa taille
     const drawProfile = (still = false) => {
       const dialog = $("#fenetre-profil"), box = dialog.querySelector(".legende");
       box.style.minHeight = still && box.offsetHeight ? `${box.offsetHeight}px` : "";
-      const { svg, legend, long } = Profil.draw(etat.edgeProfile.profile, trueScale.checked, nuage.get(nuageKey(etat.edgeProfile.profile)),
+      const found = nuage.get(nuageKey(etat.edgeProfile.profile));
+      // option décochée : séparateur, lignes, herbe, végétation et eau restent, sans bords ni largeur d'enrobé
+      const fine = found && !paving.checked ? { ...found, bords: {}, largeur: null } : found;
+      const { svg, legend, long } = Profil.draw(etat.edgeProfile.profile, trueScale.checked, fine,
         plants.checked, Number($("#camera").value) || 1.9);  // hauteur de caméra des réglages
       dialog.querySelector(".graphique").replaceChildren(svg, ...(long ? [long] : []));  // profil en long dessous
       $("#profil-pdf-long").disabled = !long;  // pas de 2e page sans profil en long
@@ -120,6 +134,8 @@ const Reglages = {
       title.textContent = "Profil en travers" + (etat.edgeProfile.road ? ` · ${etat.edgeProfile.road}` : "");
       trueScale.checked = true;  // à l'échelle à chaque ouverture
       foldLegend(true);
+      const known = nuage.get(nuageKey(etat.edgeProfile.profile));
+      if (known) applyPaved(etat.edgeProfile.profile, known);  // l'état Python suit la case, même pour un profil analysé plus tôt
       drawProfile();
       $("#profil-nuage-etat").textContent = "";
       nuageReady();
@@ -139,6 +155,19 @@ const Reglages = {
       const done = nuage.has(nuageKey(etat.edgeProfile?.profile));
       $("#profil-nuage").disabled = !etat.edgeProfile?.profile?.repere || done;
       $("#profil-vegetation").disabled = !done;
+      $("#profil-enrobe").disabled = !done;
+    };
+    // Bords d'enrobé trouvés (option cochée) : plateforme, chute et dévers du profil relus depuis eux ; sinon (décochée,
+    // ou rien trouvé) le calcul reprend les bords du relief. Seuls les bords passent à Python, le séparateur reste à la page
+    const pavedSent = new Map();  // repère -> JSON des bords d'enrobé transmis à Python ("{}" ou absent : aucun)
+    const applyPaved = (profile, found) => {
+      const paved = paving.checked ? Object.fromEntries(Object.entries(found.bords).filter(([, b]) => b?.comment === "enrobé")
+        .map(([side, b]) => [side, Math.abs(b.x)])) : {};
+      const frame = JSON.stringify(profile.repere), wanted = JSON.stringify(paved);
+      if (wanted === (pavedSent.get(frame) ?? "{}")) return;  // déjà dans cet état : pas de recalcul (ni de boucle)
+      etat.app.use_paved_edges(frame, wanted);
+      pavedSent.set(frame, wanted);
+      refresh();
     };
     $("#profil-nuage").addEventListener("click", async () => {
       const profile = etat.edgeProfile?.profile, state = $("#profil-nuage-etat");
@@ -153,13 +182,7 @@ const Reglages = {
           if (part !== undefined) bar.value = part;
         });
         nuage.set(nuageKey(profile), found);
-        // Bords d'enrobé trouvés : plateforme, chute et dévers du profil relus depuis eux
-        const paved = Object.fromEntries(Object.entries(found.bords).filter(([, b]) => b?.comment === "enrobé")
-          .map(([side, b]) => [side, Math.abs(b.x)]));
-        if (Object.keys(paved).length) {
-          etat.app.use_paved_edges(JSON.stringify(profile.repere), JSON.stringify(paved));
-          refresh();
-        }
+        applyPaved(profile, found);
         state.textContent = `Nuage LiDAR HD : ${found.points} points du sol, ${found.requetes} requêtes, ${found.secondes} s.`;
         if (nuageKey(etat.edgeProfile?.profile) === nuageKey(profile)) drawProfile();
       } catch (error) {

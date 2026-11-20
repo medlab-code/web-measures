@@ -45,6 +45,17 @@ const CASES = PHOTOS || [["61dd94c4-e5d1-4eb0-9762-73a72f18b5cb", "A38", 7.2, 4.
       log(`  en cours : barre ${bar.hidden ? "masquée" : bar.hasAttribute("value") ? Math.round(100 * bar.value) + " %" : "animée"} · ${doc.querySelector("#profil-nuage-etat").textContent}`);
       await until(() => /points du sol|impossible/.test(doc.querySelector("#profil-nuage-etat").textContent), 120000, "analyse fine");
       const state = doc.querySelector("#profil-nuage-etat").textContent;
+      // « Bord d'enrobé (expérimental) » : décochée par défaut, dégrisée par l'analyse fine ; décochée, ni tiret ni largeur
+      // d'enrobé ni bord « enrobé » en légende ; cochée (event change), le bord d'enrobé revient et déplace les bords
+      const paving = doc.querySelector("#profil-enrobe");
+      expect(`${where} : « Bord d'enrobé » décochée par défaut, dégrisée par l'analyse fine`, !paving.checked && !paving.disabled);
+      expect(`${where} : option décochée : pas de bord d'enrobé dessiné ni de largeur d'enrobé`,
+        !dialog.querySelector("svg .bord-chaussee") && !/Largeur d'enrobé/.test(dialog.querySelector(".legende").textContent)
+        && !/m, enrobé/.test(dialog.querySelector(".legende").textContent));
+      paving.checked = true; paving.dispatchEvent(new w.Event("change"));
+      await soon(() => dialog.querySelector("svg .bord-chaussee"));
+      expect(`${where} : option cochée : bord d'enrobé dessiné`, dialog.querySelector("svg .bord-chaussee"));
+      await sleep(500);  // bords relus par le calcul Python
       const texts = [...dialog.querySelectorAll("svg text")].map((e) => e.textContent);
       const legend = dialog.querySelector(".legende").textContent;
       const sep = /milieu du séparateur[^.]*/.exec(legend)?.[0] || "";

@@ -436,7 +436,7 @@ laser est en proche infrarouge :
 
 Ce que l'analyse en tire :
 
-- **Bord de chaussée** : le bord de la bande d'enrobé. Sur 5 travers de ±1 m à −4, −2, 0, +2 et +4 m
+- **Bord de chaussée** : le bord de la bande d'enrobé. N'est appliqué que si l'option « Bord d'enrobé (expérimental) » est cochée (décochée par défaut) : les relevés du 19-20/11/2026 l'ont trouvé souvent trop loin (accotements, trottoirs en enrobé comptés dans la chaussée). Décochée, la page ne transmet pas les bords au calcul Python (`use_paved_edges` avec aucun bord : retour aux bords du relief, sans relire le terrain), ne dessine pas le tiret et n'affiche pas la largeur d'enrobé ; le séparateur du nuage reste appliqué. Sur 5 travers de ±1 m à −4, −2, 0, +2 et +4 m
   le long de la route, chacun avec sa propre intensité d'enrobé : début de la première bande
   d'au moins 1 m dont chaque case est au moins **2,2 fois** plus claire que l'enrobé (ni une ligne
   blanche, ni une reprise d'enrobé), ou au plus **0,8 fois** aussi claire (terre ou sable d'un chemin
