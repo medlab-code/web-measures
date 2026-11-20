@@ -371,12 +371,13 @@ laissé de côté.*
   ce qui est dessiné ; le texte reste replié.
 - **Gain** : graphique lisible seul, aussi dans le PNG.
 
-**G3. Hypothèses distinctes des mesures.** (reprend P4) *Faite le 20/11/2026 : bord supposé (largeur type, travers voisins) en tirets longs et pâles (le bord mesuré passe en trait plein, la ligne de la caméra garde son pointillé), étiquette « bord supposé » avec la raison dessous (« largeur type », « travers voisins »), une phrase dans la légende. L'invitation à l'analyse fine n'est pas faite.*
+**G3. Hypothèses distinctes des mesures.** (reprend P4) *Faite le 20/11/2026 : bord supposé (largeur type, travers voisins) en tirets longs et pâles (le bord mesuré passe en trait plein, la ligne de la caméra garde son pointillé), étiquette « bord supposé » avec la raison dessous (« largeur type », « travers voisins »), une phrase dans la légende. L'invitation à l'analyse fine est abandonnée (20/11/2026).*
 - **Avant** : un bord BD TOPO ou d'après les voisins a le même trait qu'un bord trouvé.
 - **Problème** : on prend une hypothèse pour une mesure.
 - **Piste** : trait du bord plus pâle et en tirets longs pour « largeur BD TOPO » et « d'après les travers voisins » (P10), et
   l'invitation à l'analyse fine dans ce cas seulement.
 - **Gain** : le doute se voit.
+- **Abandonné le 20/11/2026** (décision de l'auteur) : l'invitation à lancer l'analyse fine, reste de G3.
 
 **G4. Valeurs au survol.** *Faite le 20/11/2026 : au survol ou au toucher du graphique en travers, trait vertical et point sur le terrain de la photo, avec une étiquette (distance à la caméra ou à l'axe, position par rapport au bord, hauteur par rapport à la plateforme) ; une flèche de chute ou une droite de dévers à 10 unités du pointeur passe en évidence, avec son côté dans la légende ; rien de tout cela dans le PNG ni le PDF. Le profil en long n'est pas concerné.*
 - **Avant** : aucune interaction sur le graphique.
@@ -409,6 +410,7 @@ laissé de côté.*
 - **Problème** : traits pâles, couleurs proches pour un œil daltonien.
 - **Piste** : vérifier les contrastes en thème clair et sombre ; motif en plus de la couleur (pointillés pour l'herbe).
 - **Gain** : lisible pour tous, à l'écran et en PDF.
+- **Écarté le 20/11/2026** : symboles de la légende dans l'export PNG (le PNG garde le texte coloré seulement ; le PDF les imprime).
 
 **G9. Largeur des étiquettes mesurée.** *Faite le 20/11/2026 : largeur lue par `measureText` sur un canvas hors écran (police calculée sur un texte SVG de la page, cache par texte et taille), pour `declutter`, la clé et « Hauteurs ×N » ; estimation en repli si le canvas est indisponible.*
 - **Avant** : `declutter` estime la largeur (0,56 × taille par caractère) : le SVG n'est pas encore dans la page.
@@ -430,6 +432,6 @@ laissé de côté.*
 1. ~~P10~~ (fait le 19/11/2026, avec le premier test du banc synthétique : début de P1).
 2. ~~P7 et P8~~ (faits le 19/11/2026 ; reste la vérification sur routes réelles, P2).
 3. ~~P9~~ (mesurée le 19/11/2026 : biais de 3 à 6 cm, pas de correction).
-4. G1, G2, G3 (faites).
+4. G1, G2 (faites), G3 (faite ; invitation à l'analyse fine abandonnée le 20/11/2026).
 5. ~~P5, P12~~ (faites le 19/11/2026).
 6. G4, G5, G6, puis G7, G8, G9 (P3 et P6 écartées par l'auteur ; P11, P13 et P14 mesurées le 19/11/2026 : rien à faire).
