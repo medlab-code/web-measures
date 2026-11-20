@@ -139,11 +139,6 @@ const Nez = {
       return line.sol_sigma ? Math.abs(s) * Math.SQRT2 * line.sol_sigma / line.hauteur : 0;
     }
 
-    /** Incertitude (m) du bord à s m de l'axe (négatif : à gauche) : erreurs communes en valeur absolue, plus l'altitude du MNT. */
-    function sigma(s) {
-      return Math.hypot(...commonErrors(s), ownError(s));
-    }
-
     /** Incertitude (m) de la largeur entre deux bords, quel que soit leur côté : les erreurs d'inclinaison, de roulis et de hauteur
      * de la caméra sont communes aux deux bords, donc l'erreur de largeur de chacune est la différence signée de leurs effets ; les
      * erreurs propres à chaque bord (MNT) s'ajoutent en quadrature ; somme quadratique du tout (docs/CALCULS.md § 8.8). */
