@@ -13,7 +13,7 @@ const { log, sleep, soon, ready, expect, fail, fin } = Essai;
 const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba93-c63ac344d675"];
 (async () => {
   const w = document.getElementById("f").contentWindow;
-  let shown = 0, drawn = 0, folded = 0, images = 0, butte = false, zoomed = 0, twin = 0, separated = 0;
+  let shown = 0, covered = 0, drawn = 0, folded = 0, images = 0, butte = false, zoomed = 0, twin = 0, separated = 0;
   try {
     await ready(w);
     const doc = w.document;
@@ -48,6 +48,9 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
       await computed();
       const c = doc.querySelector("#chute");
       if (!c.hidden) shown++;
+      // l'encadré ne recouvre pas les curseurs de luminosité et de contraste (même coin de la visionneuse)
+      const a = c.getBoundingClientRect(), b = doc.querySelector("#reglage-image").getBoundingClientRect();
+      if (!c.hidden && b.height && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) covered++;
       butte ||= /pas de chute avant le terrain qui remonte/.test(c.textContent);  // lecture arrêtée au moins une fois
       const profile = doc.querySelector("#profil");
       if (!profile.disabled) {
@@ -162,6 +165,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
     log(`encadrés affichés : ${shown} · profils dessinés : ${drawn} · loupe : ${zoomed} · chaussées séparées : ${twin} · séparateur dans le relief : ${separated}`);
   } catch (e) { fail("exception : " + (e.stack || e)); }
   expect("encadrés affichés", shown > 0);
+  expect("encadré à côté des curseurs de luminosité et de contraste", covered === 0, `${covered} recouvrement(s)`);
   expect("un profil par encadré, sauf le pont", drawn === shown - 1, `${drawn} pour ${shown}`);
   expect("légende pliable sur chaque profil", folded === drawn, `${folded} sur ${drawn}`);
   expect("butte", butte);

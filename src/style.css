@@ -833,7 +833,7 @@ button.principal { font-weight: 600; }
 }
 .haut-gauche {
   position: absolute;
-  top: 0.6rem;
+  top: 2.9rem;  /* sous les curseurs de luminosité et de contraste (#reglage-image), comme #voyants sous le plein écran */
   left: 0.8rem;
   pointer-events: none;
   z-index: 5;
