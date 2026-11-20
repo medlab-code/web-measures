@@ -208,6 +208,15 @@ cas réel d'une bordure manquée.*
   047b2f43-f09a-40d4-8bcd-715044b3acbd et D21 467ab33d-efe6-4210-8a1c-00e805b2afef à 0,5 m). Près de la caméra, le MNT au
   pas de 0,5 m ne sépare pas un vrai bord d'un faux ; trois côtés vérifiés ne suffisent pas à régler un seuil entre les deux.
   Code retiré. Reste possible : chercher ce bord dans l'analyse fine (nuage de points), plus précise.
+- **Essayé le 20/11/2026 dans l'analyse fine, abandonné** (bord d'enrobé et bordure cherchés dès 0,5 m de la caméra au lieu
+  de 1 m ; 4 lots de `essai-bords-nuage`, 100 côtés) : aucun des 13 côtés vérifiés ne change (D8
+  082893e5-f336-441b-8d28-0eecdbae1dde 1,62 pour 1,0 ; M996 6eea86cc-4c40-4395-9686-2418892bfa82 1,62 pour 1,25 ; D28E
+  5331221f-7a1f-4ace-b4de-9cf94a57e4d2 2,88 pour 0,7 ; D119E 1d23f3f9-f4b7-4d2e-8658-500a748ccecc 1,38 pour 0,8), un seul
+  côté non vérifié change, dans le bruit d'un passage à l'autre. Le nuage n'a pas de bord à l'endroit vérifié : sur la D119E,
+  intensité de l'enrobé jusqu'à 1,25 m sur les 5 travers, terre sombre au-delà ; sur la D28E, intensité qui monte
+  lentement de 1,6 à 3,6 m (1,3 à 1,7 fois l'enrobé), sol plat. Écart possible entre la position de la photo et le nuage
+  (GPS, 0,5 m), ou sol changé depuis le relevé LiDAR (sable du chemin sur le bord de l'enrobé). Code retiré ; P14 close
+  tant qu'il n'y a pas de cas où le nuage montre le bord sous le véhicule.
 
 **P15. Distance au bord mal arrondie.** *Faite le 19/11/2026 (test `BordsCas.test_distance_au_bord_ecrite`).*
 - **Avant** : la distance de la chute (ou de l'arrêt) au bord était écrite au mètre, arrondie au pair par Python (0,5 → « 0 »,
