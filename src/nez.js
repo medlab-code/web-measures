@@ -165,7 +165,10 @@ const Nez = {
         lines: [{ points, color: DARK, width: 5 }, { points, color: GREEN, width: 2.5 }],
         crosses: [{ at: at(0), color: YELLOW }],  // croix au droit de la caméra
         ticks: sides.map(([, o]) => ({ at: at(o), color: RED, edge: "#ffffff", length: TICK_PX, width: 3 })),
-        labels: sides.map(([, o]) => ({ at: at(o), type: "mesure", place: "dessus", lift: TICK_PX / 2, text: metres(Math.abs(o)) })),
+        labels: sides.map(([, o]) => ({ at: at(o), type: "mesure", place: "dessus", lift: TICK_PX / 2, text: metres(Math.abs(o)) }))
+          // largeur entre les poignées, au milieu de la droite, au-dessus d'elle (comme l'encart)
+          .concat({ at: at((handles.gauche + handles.droit) / 2), type: "mesure", place: "dessus", lift: 4,
+            text: metres(handles.droit - handles.gauche) }),
       });
     }
 
