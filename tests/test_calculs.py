@@ -18,7 +18,7 @@ sys.modules["pyodide.http"].pyfetch = None
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "py"))
 
 import web_app  # noqa: E402
-from core import host, precision, triangulation  # noqa: E402
+from core import calibration, host, precision, triangulation  # noqa: E402
 
 HOST = {name: getattr(host, name) for name in host.SERVICES}  # cœur sans hôte : pas de réseau, calcul immédiat
 
@@ -95,11 +95,11 @@ class VueDessus(unittest.TestCase):
             auto = {}
             position = staticmethod(lambda *a: None)
             pose = staticmethod(lambda *a: {"offset": 1.5})
-            tilt = staticmethod(lambda pic: {"up": (0.0, 0.1, 0.99), "sigma": 0.2})
+            tilt = staticmethod(lambda pic, photo_only=False: {"up": (0.0, 0.1, 0.99), "sigma": 0.2})
             camera = staticmethod(lambda seq: None)
 
         class Tilts:
-            pending = staticmethod(lambda pic: False)
+            pending = staticmethod(lambda pic, photo_only=False: False)
 
         a = App.__new__(App)
         a.calibration, a.tilts, a.quality = Cal, Tilts, {"precise": True, "lidar": True, "height": 2.4, "spread": 0.02}
@@ -190,13 +190,13 @@ class VueDessus(unittest.TestCase):
             web_tilt.host.decode_band, web_tilt.autotilt.segments, web_tilt.autotilt.fit = saved
         self.assertEqual((res["reason"], res["loose"]["sigma"]), (web_tilt.FEW_EDGES, 0.42))
         a = self.app_on(360)
-        a.calibration.tilt = staticmethod(lambda pic: None)
+        a.calibration.tilt = staticmethod(lambda pic, photo_only=False: None)
         a.birdeye_loose = {"p": res["loose"]}
         pose = json.loads(a.birdeye_pose())
         self.assertEqual((pose["up"], pose["sigma"]), ([0.0, -0.052, 0.9986], 0.42))
-        a.calibration.tilt = staticmethod(lambda pic: {"up": (0.0, -0.016, 0.9999), "sigma": 0.5})  # relais par le terrain
+        a.calibration.tilt = staticmethod(lambda pic, photo_only=False: {"up": (0.0, -0.016, 0.9999), "sigma": 0.5})  # relais par le terrain
         self.assertEqual(json.loads(a.birdeye_pose())["sigma"], 0.42)
-        a.calibration.tilt = staticmethod(lambda pic: {"up": (0.0, 0.0, 1.0), "sigma": 0.2})  # calage plus sûr : gardé
+        a.calibration.tilt = staticmethod(lambda pic, photo_only=False: {"up": (0.0, 0.0, 1.0), "sigma": 0.2})  # calage plus sûr : gardé
         self.assertEqual(json.loads(a.birdeye_pose())["sigma"], 0.2)
 
     def test_voisine_sans_inclinaison(self):
@@ -888,11 +888,12 @@ class Parcours(unittest.TestCase):
     def tearDown(self):
         host.install(**HOST)
 
-    def show(self, pic):
+    def show(self, pic, date="2026-01-01T00:00:00Z", producer=None):
         lon, lat = triangulation._geographic(0.0, self.NORTH[pic], 5.0415, 47.3220)
         self.app.set_picture(json.dumps({
             "id": pic, "collection": "s1", "type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]},
-            "properties": {"view:azimuth": 0, "datetime": "2026-01-01T00:00:00Z",
+            "providers": [{"id": producer}] if producer else [],
+            "properties": {"view:azimuth": 0, "datetime": date,
                            "pers:interior_orientation": {"field_of_view": 360}}, "links": []}))
         self.app.set_active(True)
 
@@ -1233,6 +1234,97 @@ class Parcours(unittest.TestCase):
         self.app.birdeye_tilt_set("p2", tilt)  # une autre photo : sans effet sur celle-ci
         self.assertEqual(json.loads(self.app.nose_line(5.0)), loose)
         host.install(**HOST)
+
+    @staticmethod
+    def _up(roll):
+        """Verticale penchée de roll° vers la droite d'un cap nord (comme groundUp de src/dessus.js)."""
+        r = math.tan(math.radians(roll))
+        norm = math.sqrt(1 + r * r)
+        return [r / norm, 0.0, 1 / norm]
+
+    def test_ordre_inclinaison(self):
+        """Un seul ordre d'inclinaison (Calibration.tilt) pour les mesures et la droite au nez, un cas par rang : 1 réglage de la
+        vue du dessus, 2 clics, 3 verticales, 4 LiDAR, 5 verticales à seuil élargi, 6 roulis de campagne seul, 7 rien."""
+        a, cal, pic = self.app, self.app.calibration, "p1"
+        source = lambda: (cal.tilt(pic) or {}).get("source")
+        self.show(pic)
+        self.assertEqual((cal.tilt(pic), source()), (None, None))  # 7 : rien (UNCALIBRATED)
+        self.show(pic, "2025-07-03T10:53:25Z", App.FLEET_PRODUCER)
+        t = cal.tilt(pic)  # 6 : roulis de campagne seul (-1°), tangage inconnu
+        self.assertEqual((t["source"], t["sigma"], t["fallback"]), ("roulis de campagne", calibration.UNCALIBRATED, True))
+        for got, want in zip(t["up"], self._up(-1.0)):
+            self.assertAlmostEqual(got, want, places=6)
+        a._set_loose(pic, {"up": self._up(2.0), "sigma": 0.4})  # 5 : verticales à seuil élargi, avant le roulis de campagne
+        self.assertEqual((source(), cal.tilt(pic)["sigma"]), ("verticales (seuil élargi)", 0.4))
+        self.assertNotIn("fallback", cal.tilt(pic))
+        core = a._core_auto_tilt
+        a._core_auto_tilt = lambda p: calibration.tilt_entry(self._up(-0.5), 0.6, "lidar")  # 4 : LiDAR, avant le seuil élargi
+        self.assertEqual(source(), "lidar")
+        a._core_auto_tilt = core
+        cal.auto[pic] = {"sequence": "s1", "heading": 0.0, "verticals": {"up": self._up(1.0), "count": 5, "sigma": 0.2}, "lidar": None}
+        self.assertEqual((source(), cal.tilt(pic)["sigma"]), ("verticales", 0.2))  # 3
+        cal.add_vertical(pic, (10.0, -11.3), (10.0, 21.8))
+        self.assertEqual(source(), "clics + verticales")  # 2 : un objet complété par les verticales
+        cal.add_vertical(pic, (100.0, -11.3), (100.0, 21.8))
+        self.assertEqual(source(), "clics")  # 2 : deux objets
+        self.assertTrue(a.birdeye_tilt_set(pic, json.dumps({"up": self._up(3.0), "sigma": 0.8, "manual": False})))  # 1
+        self.assertEqual((source(), cal.tilt(pic)["sigma"]), ("vue du dessus", 0.8))
+        a.birdeye_tilt_set(pic, json.dumps({"up": self._up(3.0), "sigma": 0.8, "manual": True}))
+        self.assertEqual(source(), "vue du dessus (réglée à la main)")
+        self.assertEqual(cal.tilt(pic, photo_only=True)["source"], "clics")  # la vue du dessus ne relit pas son propre réglage
+        a.birdeye_tilt_set(pic, "null")
+        cal.clear_tilt(pic)
+        del cal.auto[pic]
+        a.birdeye_loose.clear()
+        self.assertEqual(cal.tilt(pic, photo_only=True), None)  # photo seule : ni roulis de campagne ni seuil élargi
+        self.assertEqual(source(), "roulis de campagne")
+        self.show(pic)  # même photo hors campagne : rien
+        self.assertIsNone(cal.tilt(pic))
+
+    def test_ordre_inclinaison_ligne_etat(self):
+        """Ligne d'état : la source (vue du dessus, seuil élargi, roulis de campagne seul) et son incertitude."""
+        a, pic = self.app, "p1"
+        self.show(pic, "2025-07-03T10:53:25Z", App.FLEET_PRODUCER)
+        a.tilts.pending = lambda p: False
+        text, alert = a._tilt_line()
+        self.assertIn("roulis de la campagne seul", text)
+        self.assertIn("±2,0°", text)
+        self.assertTrue(alert)
+        self.assertNotIn("ok", [v for n, v in a._lights(pic) if n == "Inclinaison"])  # pas une inclinaison calée
+        a._set_loose(pic, {"up": self._up(2.0), "sigma": 0.4})
+        self.assertEqual(a._tilt_line(), ("inclinaison calée par les verticales de la photo, seuil élargi (±0,4°)", False))
+        a.birdeye_tilt_set(pic, json.dumps({"up": self._up(3.0), "sigma": 0.8, "manual": False}))
+        self.assertEqual(a._tilt_line(), ("inclinaison calée dans la vue du dessus (±0,8°)", False))
+        a.birdeye_tilt_set(pic, json.dumps({"up": self._up(3.0), "sigma": 0.8, "manual": True}))
+        self.assertEqual(a._tilt_line()[0], "inclinaison calée dans la vue du dessus (à la main) (±0,8°)")
+
+    def test_mesures_suivent_la_vue_du_dessus(self):
+        """Les mesures déjà faites (ici une visée) se recalculent quand la vue du dessus change l'inclinaison de la photo (comme à
+        l'arrivée de l'inclinaison automatique), et reprennent leur valeur quand elle la retire."""
+        a = self.app
+        a.set_mode("height")
+        self.show("p1")
+        self.aim("p1", self.A)
+        sight = lambda: (a.triangulator.sightings[0]["heading"], a.triangulator.sightings[0]["elev"])
+        before = sight()
+        a.birdeye_tilt_set("p1", json.dumps({"up": self._up(4.0), "sigma": 0.8, "manual": False}))
+        self.assertNotEqual(sight(), before)
+        a.birdeye_tilt_set("p1", "null")
+        self.assertEqual(sight(), before)
+
+    def test_droite_nez_roulis_campagne(self):
+        """Droite au nez, photo du CD21 en 2025 sans autre inclinaison : roulis de campagne seul (-1°), comme avant l'ordre unique
+        (verticale penchée de -1° vers la droite du cap, untilt inverse) ; source et incertitude annoncées."""
+        self.show("p1", "2025-07-03T10:53:25Z", App.FLEET_PRODUCER)
+        line = json.loads(self.app.nose_line(5.0))
+        self.assertEqual((line["inclinaison_source"], line["inclinaison_sigma"], line["roulis_campagne"]),
+                         ("roulis de campagne", calibration.UNCALIBRATED, -1.0))
+        up = self._up(-1.0)
+        for x, yaw, pitch in line["points"][::40]:
+            bearing, elev = math.degrees(math.atan2(x, 5.0)), -math.degrees(math.atan2(line["hauteur"], math.hypot(x, 5.0)))
+            want_yaw, want_pitch = calibration.untilt(up, bearing % 360, elev, inverse=True)
+            self.assertAlmostEqual(yaw, math.radians((want_yaw + 540) % 360 - 180), delta=1e-5)
+            self.assertAlmostEqual(pitch, math.radians(want_pitch), delta=1e-5)
 
     def test_droite_nez_virage(self):
         """Droite au nez dans un virage : séquence sur un cercle de 20 m de rayon, photos tous les 5 m ; la droite est radiale

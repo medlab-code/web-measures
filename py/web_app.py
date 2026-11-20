@@ -257,6 +257,10 @@ class App(Pose, Chutes, Nez, session.Session):
         self.relay_models = {}  # séquence -> références, modèle (web_terrain.model), raison d'un échec
         self._core_auto_tilt = self.calibration.auto_tilt
         self.calibration.auto_tilt = self._auto_tilt
+        # Sources d'inclinaison de l'hôte, rangées par Calibration.tilt (ordre unique : voir sa docstring)
+        self.calibration.ground_tilt = self._ground_tilt
+        self.calibration.loose_tilt = self._loose_tilt
+        self.calibration.campaign_tilt = self._campaign_tilt
         # Relevé d'objets (mode "releve" de la page) : le mode « tri » du cœur (points gardés), chacun gardé avec les champs saisis par l'utilisateur (values["releve"])
         self.releve = False
 

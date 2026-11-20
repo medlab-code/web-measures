@@ -103,6 +103,59 @@ class Tilt(unittest.TestCase):
             calibration.tilt_from_verticals([vertical_object(far, 10, 8), vertical_object(far, 100, 8)])
 
 
+class TiltOrder(unittest.TestCase):
+    """Calibration.tilt : un seul ordre de priorité (réglage de la vue du dessus, clics, verticales, LiDAR, verticales à seuil
+    élargi, roulis de campagne seul, rien), les sources de l'hôte rangées par ses crochets ground_tilt, loose_tilt, campaign_tilt."""
+
+    def setUp(self):
+        self.cal = calibration.Calibration()
+        self.cal.auto["p"] = {"sequence": "s", "heading": 0.0, "lidar": None,
+                              "verticals": {"up": tilted_up(1.0, 90.0), "count": 5, "sigma": 0.2}}
+        self.hosts = {"ground_tilt": ("vue du dessus", 0.8), "loose_tilt": ("verticales (seuil élargi)", 0.4),
+                      "campaign_tilt": ("roulis de campagne", 2.0)}
+        for hook, (source, sigma) in self.hosts.items():
+            extra = {"fallback": True} if hook == "campaign_tilt" else {}
+            setattr(self.cal, hook, lambda pic, a=source, b=sigma, e=extra: calibration.tilt_entry(tilted_up(3.0, 90.0), b, a, **e))
+        self.two_objects = [vertical_object(tilted_up(1.0, 90.0), 10, 8), vertical_object(tilted_up(1.0, 90.0), 100, 12)]
+
+    def source(self, photo_only=False):
+        return (self.cal.tilt("p", photo_only=photo_only) or {}).get("source")
+
+    def test_each_rank(self):
+        cal = self.cal
+        self.assertEqual(self.source(), "vue du dessus")  # 1
+        cal.ground_tilt = None
+        for bottom, top in self.two_objects:
+            cal.add_vertical("p", bottom, top)
+        self.assertEqual(self.source(), "clics")  # 2
+        cal.clear_tilt("p")
+        self.assertEqual(self.source(), "verticales")  # 3
+        cal.auto_tilt = lambda pic: calibration.tilt_entry(tilted_up(2.0, 0.0), 0.5, "lidar")
+        self.assertEqual(self.source(), "lidar")  # 4
+        cal.auto_tilt = lambda pic: None
+        self.assertEqual(self.source(), "verticales (seuil élargi)")  # 5, après le LiDAR
+        cal.loose_tilt = None
+        t = cal.tilt("p")
+        self.assertEqual((t["source"], t["sigma"], t["fallback"]), ("roulis de campagne", 2.0, True))  # 6
+        cal.campaign_tilt = None
+        self.assertIsNone(cal.tilt("p"))  # 7
+
+    def test_one_object_completed_by_next_source(self):
+        cal = self.cal
+        cal.ground_tilt = None
+        cal.add_vertical("p", *self.two_objects[0])
+        self.assertEqual(self.source(), "clics + verticales")
+        cal.auto.clear()
+        self.assertEqual(self.source(), "clics + verticales (seuil élargi)")  # a priori : la suite de la liste
+        cal.loose_tilt = cal.campaign_tilt = None
+        self.assertEqual(self.source(), "clics")  # seul, comme avant
+
+    def test_photo_only_ignores_host_sources(self):
+        self.assertEqual(self.source(photo_only=True), "verticales")
+        self.cal.auto.clear()
+        self.assertIsNone(self.cal.tilt("p", photo_only=True))
+
+
 class CameraHeight(unittest.TestCase):
     def click(self, elev, yaw=0.0, pic="p1"):
         return {"lon": LON0, "lat": LAT0, "yaw": yaw, "elev": elev, "pic": pic}

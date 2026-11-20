@@ -185,7 +185,8 @@ const Nez = {
       if (line.inclinaison_en_calcul) return "inclinaison provisoire (verticales non arrivées)";
       const source = line.inclinaison_source;
       if (!source || source === "aucune") return "";
-      return `inclinaison : ${source}${line.inclinaison_sigma ? ` ±${line.inclinaison_sigma.toFixed(1).replace(".", ",")}°` : ""}`;
+      const shown = source === "roulis de campagne" ? "roulis de la campagne seul (tangage inconnu)" : source;
+      return `inclinaison : ${shown}${line.inclinaison_sigma ? ` ±${line.inclinaison_sigma.toFixed(1).replace(".", ",")}°` : ""}`;
     }
 
     function showReadout() {

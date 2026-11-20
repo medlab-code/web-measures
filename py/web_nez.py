@@ -7,7 +7,7 @@ web_app.App : ses méthodes lisent l'état de l'application (self)."""
 import json
 import math
 
-from core import autotilt, calibration, metadata, precision, triangulation
+from core import autotilt, metadata, precision, triangulation
 
 NOSE_STEP = 0.05  # m : pas des points de la droite
 NOSE_REACH = 12.0  # m : de part et d'autre du droit de la caméra
@@ -22,26 +22,14 @@ NOSE_FLAT = "plat (relief indisponible)"  # source du sol quand le MNT manque ou
 class Nez:
     """Droite au sol devant le véhicule (voir web_app.App)."""
 
-    def _nose_tilt(self, roll):
-        """(verticale vraie vue de la caméra ou None, source, incertitude en degrés ou None) de la photo affichée. D'abord
-        l'inclinaison que la vue du dessus applique à cette photo quand elle la tire de la route (birdeye_tilt_set : « vue du
-        dessus », « vue du dessus (réglée à la main) » si le tangage ou la part du dévers est réglé à la main) : c'est ce
-        qu'elle montre, tangage lu et défaut de roulis compris. Sinon, dans le même ordre que la vue du dessus
-        (_birdeye_of, qui lit alors les mêmes sources) : inclinaison calée à la main (« clics »), puis verticales de la photo
-        (Calibration.tilt : « verticales », sinon « lidar » lu sous le véhicule), les verticales plus lâches (birdeye_loose,
-        web_tilt.LOOSE_SIGMA) quand elles sont plus sûres que celle-ci sans être calées à la main, enfin le roulis de campagne
-        (`roll`, degrés ; « roulis de campagne », up None : voir _nose_view) ou rien (« aucune »). Les verticales sont lancées par
-        birdeye_request (calcul en arrière-plan, le même que pour la vue du dessus, gardé par photo dans Calibration.auto)."""
-        pic = self.item.get("id")
-        tilt, loose = self.calibration.tilt(pic), self.birdeye_loose.get(pic)
-        ground = self.birdeye_ground.get(pic)
-        if ground:
-            return tuple(ground["up"]), "vue du dessus (réglée à la main)" if ground["manual"] else "vue du dessus", ground["sigma"]
-        if loose and (not tilt or (loose["sigma"] < tilt["sigma"] and not tilt["source"].startswith("clics"))):
-            return tuple(loose["up"]), "verticales (seuil élargi)", loose["sigma"]
-        if tilt:
-            return tuple(tilt["up"]), tilt["source"], tilt["sigma"]
-        return None, "roulis de campagne" if roll else "aucune", None
+    def _nose_tilt(self):
+        """(source, incertitude en degrés ou None) de l'inclinaison de la photo affichée : celle de Calibration.tilt, l'ordre
+        unique des mesures et de la largeur dans la visionneuse (vue du dessus, clics, verticales, LiDAR, verticales à seuil
+        élargi, roulis de campagne seul) ; « aucune » sans inclinaison. La droite est projetée avec elle (_view_of), comme les
+        mesures. Les verticales sont lancées par birdeye_request (calcul en arrière-plan, le même que pour la vue du dessus,
+        gardé par photo dans Calibration.auto)."""
+        tilt = self.calibration.tilt(self.item.get("id"))
+        return (tilt["source"], tilt["sigma"]) if tilt else ("aucune", None)
 
     def birdeye_tilt_set(self, pic, tilt_json):
         """Inclinaison que la vue du dessus applique à la photo `pic` quand elle la tire de la route (src/dessus.js, layerOf :
@@ -49,41 +37,24 @@ class Nez:
         {up (même convention que Calibration.tilt : verticale vraie vue de la caméra [est, nord, haut]), sigma (degrés), manual
         (tangage ou part du dévers réglés à la main)}, ou « null » quand la vue du dessus lit les verticales de la photo (mêmes
         sources que _nose_tilt, rien à retenir) ou n'a plus d'inclinaison pour elle. Rend vrai si la valeur retenue a changé
-        (la droite est alors refaite, src/nez.js). Gardée par photo (les 20 dernières) : une autre photo ne la reçoit pas."""
+        (la droite est alors refaite, src/nez.js, et les mesures déjà faites sur la photo recalculées, comme à l'arrivée de
+        l'inclinaison automatique : _recompute). Gardée par photo (les 20 dernières) : une autre photo ne la reçoit pas."""
         tilt = json.loads(tilt_json)
         if not tilt:
-            return self.birdeye_ground.pop(pic, None) is not None
-        tilt = {"up": [round(float(v), 6) for v in tilt["up"]], "sigma": round(float(tilt["sigma"]), 2), "manual": bool(tilt.get("manual"))}
-        if self.birdeye_ground.get(pic) == tilt:
-            return False
-        self.birdeye_ground.pop(pic, None)
-        self.birdeye_ground[pic] = tilt
-        while len(self.birdeye_ground) > 20:
-            del self.birdeye_ground[next(iter(self.birdeye_ground))]
-        return True
-
-    def _nose_view(self, bearing, elev, roll, up=None):
-        """Comme Session._view_of (cap vrai, élévation en degrés → {yaw, pitch} radians du repère de la photo), mais avec la
-        verticale `up` de _nose_tilt quand elle ne vient pas du calage de la photo (verticales plus lâches), ou, sans inclinaison
-        calée ni lue pour la photo, avec le défaut de roulis de la campagne (Pose.ROLL_DEFECTS, en degrés ; 0 : rien) : la
-        caméra est supposée penchée de ce roulis, seul à connaître (sinon le véhicule serait droit). Avec une inclinaison
-        calée ou lue (up None, roll 0.0 ou calibration.tilt), c'est _view_of. Même signe que groundUp de src/dessus.js :
-        roulis positif, verticale penchée vers la droite du cap."""
-        item = self.item
-        sequence = item.get("collection")
-        if up is None and (roll == 0.0 or self.calibration.tilt(item.get("id"))):
-            return self._view_of(bearing, elev)
-        lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
-        yaw = bearing % 360
-        pose = self.calibration.pose(sequence, lon, lat)
-        if pose:
-            yaw = (yaw - pose["offset"]) % 360
-        if up is None:
-            r, h = math.tan(math.radians(roll)), math.radians(self._nose_axis())
-            norm = math.sqrt(1 + r * r)
-            up = (r * math.cos(h) / norm, -r * math.sin(h) / norm, 1 / norm)
-        yaw, pitch = calibration.untilt(up, yaw, elev, inverse=True)
-        return {"yaw": math.radians((yaw - self._heading() + 540) % 360 - 180), "pitch": math.radians(pitch)}
+            changed = self.birdeye_ground.pop(pic, None) is not None
+        else:
+            tilt = {"up": [round(float(v), 6) for v in tilt["up"]], "sigma": round(float(tilt["sigma"]), 2),
+                    "manual": bool(tilt.get("manual"))}
+            changed = self.birdeye_ground.get(pic) != tilt
+            if changed:
+                self.birdeye_ground.pop(pic, None)
+                self.birdeye_ground[pic] = tilt
+                while len(self.birdeye_ground) > 20:
+                    del self.birdeye_ground[next(iter(self.birdeye_ground))]
+        if changed:
+            self._recompute({pic})
+            self.notify()
+        return changed
 
     def _nose_axis(self):
         """Axe de la séquence (cap en degrés) à la photo affichée : entre ses voisines, sinon le cap de la photo."""
@@ -190,7 +161,7 @@ class Nez:
         mount = self._fleet_mount(item)
         d = float(distance) if distance else NOSE_DISTANCE.get(mount, NOSE_DISTANCE_DEFAULT)
         roll = self._roll_defect(item)
-        up, tilt_source, tilt_sigma = self._nose_tilt(roll)
+        tilt_source, tilt_sigma = self._nose_tilt()
         axis = self._nose_axis()  # cap de la caméra : le centre de la droite est à d devant
         along, turn = self._nose_axis_at(d)  # direction de la droite : perpendiculaire à celle-ci
         rot = max(-NOSE_ROTATION_MAX, min(NOSE_ROTATION_MAX, float(rotation or 0.0)))
@@ -211,9 +182,8 @@ class Nez:
                 f = min(max((x + NOSE_REACH) / NOSE_GROUND_STEP, 0.0), len(dzs) - 1.0)
                 i = min(int(f), len(dzs) - 2)
                 dz = dzs[i][1] + (f - i) * (dzs[i + 1][1] - dzs[i][1])
-            v = self._nose_view(axis + math.degrees(math.atan2(right, forward)),
-                                -math.degrees(math.atan2(height - dz, math.hypot(right, forward))), roll,
-                                up if tilt_source.startswith(("verticales (seuil", "vue du dessus")) else None)
+            v = self._view_of(axis + math.degrees(math.atan2(right, forward)),
+                              -math.degrees(math.atan2(height - dz, math.hypot(right, forward))))
             points.append([round(x, 2), round(v["yaw"], 6), round(v["pitch"], 6)])
         a, b = math.radians(axis), math.radians(along)
         ends = []  # extrémités (-NOSE_REACH, +NOSE_REACH) de la droite sur la carte : une droite, le reste s'interpole

@@ -1468,7 +1468,7 @@ class Session:
             return prefix + ("1 objet calé : l'inclinaison n'est corrigée qu'en partie. Objet 2 sur 2 : cliquez le "
                              "pied puis le sommet d'un autre objet vertical, à environ 90° du premier dans la "
                              "photo (sur le côté si le premier est devant).")
-        tilt = self.calibration.tilt(pic) or {}
+        tilt = self.calibration.tilt(pic, photo_only=True) or {}  # le calage fait à la main, pas la vue du dessus
         sigma = " (±{}°)".format(measures._num(tilt["sigma"], 2)) if tilt.get("sigma") is not None else ""
         return prefix + ("Inclinaison calée sur {} objets{} : c'est fait pour cette photo. Un objet de plus "
                          "l'affine ; sinon, passez à un mode de mesure.").format(done, sigma)
@@ -1631,7 +1631,8 @@ class Session:
         def light(value):
             return "attente" if value is None else ("ok" if value else "non")
 
-        if self.calibration.tilt(pic):
+        calibrated = self.calibration.tilt(pic)
+        if calibrated and not calibrated.get("fallback"):  # roulis de campagne seul : pas une inclinaison calée
             tilt = "ok"
         else:
             tilt = "attente" if self.tilts.pending(pic) else "non"

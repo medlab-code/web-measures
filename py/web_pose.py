@@ -36,7 +36,7 @@ class Pose:
 
         def got(res):
             if res and res.get("loose"):
-                self.birdeye_loose[pic] = res["loose"]
+                self._set_loose(pic, res["loose"])
             if res is None or "reason" in res:
                 self.tilt_reasons[pic] = (res or {}).get("reason", "calcul des verticales indisponible")
                 res = None
@@ -68,7 +68,8 @@ class Pose:
         """Pourquoi la photo affichée n'a pas d'inclinaison, ou None (calée, en cours) : raison de
         l'échec, ou moment du calcul s'il n'est pas encore fait (voir _tilt_final)."""
         item, pic = self.item or {}, (self.item or {}).get("id")
-        if not pic or self.calibration.tilt(pic) or self.tilts.pending(pic):
+        tilt = self.calibration.tilt(pic) if pic else None
+        if not pic or (tilt and not tilt.get("fallback")) or self.tilts.pending(pic):
             return None
         if not autotilt.is_360(item):
             return "photo non 360°"
@@ -87,11 +88,21 @@ class Pose:
         l'incertitude ; « calcul » pour ce qui est en cours ou à venir."""
         pic = (self.item or {}).get("id")
         tilt = self.calibration.tilt(pic) if pic else None
+        if tilt and tilt.get("fallback"):
+            fallback, tilt = tilt, None
+        else:
+            fallback = None
         if tilt:
             sigma = "±{}°".format(measures._num(max(tilt["sigma"], 0.1), 1))
             source = tilt["source"]
-            if source == "clics":
+            if source.startswith("vue du dessus"):
+                how = f"dans la vue du dessus{' (à la main)' if 'main' in source else ''} ({sigma})"
+            elif source.endswith("(seuil élargi)"):
+                how = f"{'à la main et ' if source.startswith('clics') else ''}par les verticales de la photo, seuil élargi ({sigma})"
+            elif source == "clics":
                 how = "à la main ({} objet{}, {})".format(tilt["count"], "s" if tilt["count"] > 1 else "", sigma)
+            elif source == "clics + roulis de campagne":
+                how = f"à la main, avec le roulis de la campagne ({sigma})"
             elif source.startswith("clics + "):
                 how = "à la main et par {} ({})".format(
                     "les verticales de la photo" if source.endswith("verticales") else "le terrain", sigma)
@@ -104,6 +115,8 @@ class Pose:
             return "inclinaison : calcul en cours…", False
         if pic in self.relay_pending:
             return "inclinaison : calcul par le terrain en cours ({})…".format(self.relay_pending[pic]), False
+        if fallback:  # ni verticales ni calage : le roulis de la campagne seul, tangage inconnu
+            return f"inclinaison non calée : roulis de la campagne seul, tangage inconnu (±{measures._num(fallback['sigma'], 1)}°)", True
         reason = self._tilt_reason()
         if not self._tilt_final():
             return "inclinaison " + reason, False
@@ -198,7 +211,7 @@ class Pose:
 
         def got_estimate(res):
             if res and res.get("loose"):
-                self.birdeye_loose[pic] = res["loose"]
+                self._set_loose(pic, res["loose"])
                 self.notify()
 
         def got_image(data, error):
@@ -224,7 +237,7 @@ class Pose:
         def runner(pic):
             def got(res, done):
                 if res and res.get("loose"):
-                    self.birdeye_loose[pic] = res["loose"]
+                    self._set_loose(pic, res["loose"])
                 done(None if res is None or "reason" in res else res)
             return lambda function, args, done: web_host.run_task(web_tilt.estimate, args, lambda res: got(res, done))
 
@@ -252,7 +265,10 @@ class Pose:
         except (KeyError, TypeError, ValueError):
             return None
         pic, sequence, cal, q = item.get("id"), item.get("collection"), self.calibration, self.quality or {}
-        fixed, pose, tilt, cam = cal.position(sequence, lon, lat), cal.pose(sequence, lon, lat), cal.tilt(pic), cal.camera(sequence)
+        # Ce que la photo donne elle-même (photo_only) : ni le réglage de la vue du dessus, ni le roulis de campagne, qu'elle ajoute
+        # elle-même (groundUp, src/dessus.js) ; les verticales à seuil élargi sont choisies ci-dessous
+        fixed, pose, cam = cal.position(sequence, lon, lat), cal.pose(sequence, lon, lat), cal.camera(sequence)
+        tilt = cal.tilt(pic, photo_only=True)
         loose = self.birdeye_loose.get(pic)  # verticales moins sûres : mieux que la pente de la route, ou que le relais par le
         if loose and (not tilt or loose["sigma"] < tilt["sigma"]):  # terrain (±0,5°, sans le véhicule penché en virage)
             tilt = loose
@@ -331,6 +347,48 @@ class Pose:
         date = str((item.get("properties") or {}).get("datetime") or "")[:10]
         producers = {p.get("id") for p in item.get("providers") or []}
         return next((roll for who, first, end, roll in self.ROLL_DEFECTS if who in producers and first <= date < end), 0.0)
+
+    ROLL_DEFECT_SIGMA = 1.0  # degrés : dispersion du roulis d'une photo à l'autre dans une campagne (docs/BIRDEYE.md : ±1°)
+
+    # Sources d'inclinaison de l'hôte, rangées par Calibration.tilt (ordre unique des mesures et de la largeur dans la visionneuse)
+    def _item_of(self, pic):
+        """Fiche de la photo pic : affichée, déjà visée ou cliquée, voisine ou de la vue du dessus ; None sinon."""
+        if (self.item or {}).get("id") == pic:
+            return self.item
+        found = self.photo_items.get(pic) or self.neighbours.get(pic)
+        return found or next((i for i in self.birdeye_items + self.birdeye_far_items if i.get("id") == pic), None)
+
+    def _ground_tilt(self, pic):
+        """Rang 1 : inclinaison que la vue du dessus applique à la photo (birdeye_tilt_set), roulis de campagne compris."""
+        ground = self.birdeye_ground.get(pic)
+        if not ground:
+            return None
+        return calibration.tilt_entry(ground["up"], ground["sigma"],
+                                      "vue du dessus (réglée à la main)" if ground["manual"] else "vue du dessus")
+
+    def _loose_tilt(self, pic):
+        """Rang 5 : verticales de la photo à l'incertitude plus grande que autotilt.MAX_SIGMA (birdeye_loose)."""
+        loose = self.birdeye_loose.get(pic)
+        return calibration.tilt_entry(loose["up"], loose["sigma"], "verticales (seuil élargi)") if loose else None
+
+    def _campaign_tilt(self, pic):
+        """Rang 6 : roulis de campagne seul (ROLL_DEFECTS ; 0 : rien), tangage inconnu (incertitude UNCALIBRATED, au moins celle
+        du roulis), la verticale penchée de ce roulis vers la droite du cap de l'axe de la séquence (ou de la photo). Même
+        signe que groundUp de src/dessus.js. Repérée par « fallback » : pas une inclinaison calée."""
+        item = self._item_of(pic)
+        roll = self._roll_defect(item) if item else 0.0
+        if not roll:
+            return None
+        axis = self._axis(item)
+        axis = self._heading_of(item) if axis is None else axis
+        return calibration.tilt_entry(calibration.up_from_components(0.0, roll, axis or 0.0),
+                                      max(calibration.UNCALIBRATED, self.ROLL_DEFECT_SIGMA), "roulis de campagne", fallback=True)
+
+    def _set_loose(self, pic, loose):
+        """Verticales à seuil élargi de la photo arrivées : mesures et visées qui en dépendent recalculées (rang 5)."""
+        if self.birdeye_loose.get(pic) != loose:
+            self.birdeye_loose[pic] = loose
+            self._recompute({pic})
 
     def _near_bridge(self, lon, lat):
         """Tronçon BD TOPO en pont à moins de BIRDEYE_BRIDGE m de la photo, dessus ou dessous : le MNT LiDAR

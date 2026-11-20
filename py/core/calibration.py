@@ -160,6 +160,15 @@ def tilt_from_verticals(verticals, prior=None):
             "residual": residual, "partial": partial, "count": len(normals), "sigma": sigma}
 
 
+def tilt_entry(up, sigma, source, **more):
+    """Inclinaison de la photo donnée par l'hôte (vue du dessus, verticales à seuil élargi, roulis de campagne), sous la forme
+    des autres sources (voir Calibration.tilt) : up (verticale vraie vue de la caméra [est, nord, haut]), sigma (degrés)."""
+    up = _unit(tuple(float(v) for v in up))
+    return dict({"up": up, "tilt": math.degrees(math.acos(min(1.0, up[2]))),
+                 "toward": math.degrees(math.atan2(up[0], up[1])) % 360, "residual": None, "partial": False,
+                 "count": None, "sigma": float(sigma), "source": source}, **more)
+
+
 def tilt_components(up, heading):
     """(avant, droite) en degrés : de combien la verticale vraie, vue de la caméra, penche
     vers l'avant (cap `heading`) et vers la droite. Une caméra qui monte une pente de p° voit
@@ -337,6 +346,11 @@ class Calibration:
         # ((pente, dévers) en degrés sous le véhicule, ou None)
         self.auto = {}
         self._tilts = {}
+        # Sources d'inclinaison de l'hôte (pic -> tilt_entry ou None), consultées par tilt dans son ordre unique : le réglage
+        # de la vue du dessus pour la photo (en premier), les verticales à seuil élargi, le roulis de campagne seul (en dernier)
+        self.ground_tilt = None
+        self.loose_tilt = None
+        self.campaign_tilt = None
         self._models = {}  # séquence -> lidar_model (cache)
         self.lidar = True  # False sur un pont : pente du terrain sous l'ouvrage, pas celle du tablier
         self.changed = None
@@ -413,16 +427,34 @@ class Calibration:
         self._notify()
         return result
 
-    def tilt(self, pic):
-        """Inclinaison de la photo (dict de tilt_from_verticals, avec sigma en degrés), ou None.
-        Dans l'ordre : calée à la main sur deux objets ou plus (source "clics") ; calée à la
-        main sur un objet et complétée par l'inclinaison automatique ("clics + verticales",
-        "clics + lidar") ; calculée d'après les verticales de la photo ("verticales") ;
-        estimée par le LiDAR HD ("lidar")."""
+    def tilt(self, pic, photo_only=False):
+        """Inclinaison de la photo (dict de tilt_from_verticals, avec sigma en degrés), ou None : l'ordre de priorité UNIQUE des
+        mesures et de la largeur dans la visionneuse. Dans l'ordre :
+        1. réglée dans la vue du dessus pour cette photo (hôte, `ground_tilt` : "vue du dessus", "vue du dessus (réglée à la
+           main)"), qui contient déjà le roulis de campagne ;
+        2. calée à la main sur deux objets ou plus (source "clics") ; sur un objet, complétée par la suite de la liste
+           ("clics + verticales", "clics + lidar"…) ;
+        3. calculée d'après les verticales de la photo ("verticales") ;
+        4. estimée par le LiDAR HD ("lidar"), ou par le terrain (option de l'hôte : "terrain web") ;
+        5. verticales à seuil élargi (hôte, `loose_tilt`, incertitude au-delà de autotilt.MAX_SIGMA : "verticales (seuil
+           élargi)") ;
+        6. roulis de campagne seul (hôte, `campaign_tilt`, "roulis de campagne") : tangage inconnu, incertitude UNCALIBRATED,
+           repérée par "fallback" (pas une inclinaison calée) ;
+        7. rien : None (UNCALIBRATED).
+        photo_only : seulement ce qui vient de la photo (rangs 2 à 4), sans les sources 1, 5 et 6 de l'hôte (la vue du dessus
+        s'appuie sur ce qu'elle ne produit pas elle-même)."""
+        if not photo_only:
+            ground = self.ground_tilt(pic) if self.ground_tilt else None
+            if ground:
+                return ground
         manual, auto = self._tilts.get(pic), self.auto_tilt(pic)
-        if manual and (not manual["partial"] or auto is None):
+        if manual and not manual["partial"]:
             return dict(manual, source="clics")
+        if auto is None and not photo_only:
+            auto = next((t for t in (hook(pic) for hook in (self.loose_tilt, self.campaign_tilt) if hook) if t), None)
         if manual:
+            if auto is None:
+                return dict(manual, source="clics")
             combined = tilt_from_verticals(self.verticals[pic], (auto["up"], auto["sigma"]))
             return dict(combined, source="clics + " + auto["source"])
         return auto
