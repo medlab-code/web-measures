@@ -239,10 +239,10 @@ class Chutes:
     FALL_MIN = 0.5  # m : en dessous, terrain non distingué du tablier (végétation, buse)
     FALL_WIDTH = 6.0  # m : largeur type d'une route d'importance inconnue (_road_width)
     # Largeur type de la chaussée (m) par importance BD TOPO, pour les bords de route (_road_width) : la largeur BD TOPO n'est
-    # qu'une valeur par catégorie, trop faible (7 m en importance 2 pour 7,6 à 17,3 m d'enrobé, médiane 9,3 ; 5,5 m en 3 pour
-    # 6,35 ; 4 m en 4 pour 5,9 : analyse fine, 42 photos de Côte-d'Or, piste P17) ; ROAD_TWIN par chaussée d'une route à chaussées
-    # séparées ; 3,5 m : voie unique
-    ROAD_WIDTHS, ROAD_TWIN = {"1": 9.0, "2": 9.0, "3": 6.5, "4": 6.0, "5": 3.5}, 7.0
+    # qu'une valeur par catégorie, pas fiable (piste P17). Valeurs prudentes choisies par l'auteur le 20/11/2026 : les médianes
+    # de l'analyse fine (9 m en 1-2, 6,5 m en 3, 6 m en 4) comptaient trottoirs et gravier (P21) ; à refaire sur des largeurs
+    # vérifiées à la main. ROAD_TWIN par chaussée d'une route à chaussées séparées ; 3,5 m : voie unique
+    ROAD_WIDTHS, ROAD_TWIN = {"1": 7.0, "2": 7.0, "3": 6.0, "4": 5.5, "5": 3.5}, 7.0
     FALL_TOUCH = 1.0  # m : tronçons en pont bout à bout (un pont coupé en plusieurs tronçons)
     FALL_RETRY = 60.0  # s avant de refaire un calcul qui a échoué (service injoignable)
     FALL_LIDAR_REACH = 10.0  # m : dessous cherché à cette distance du tablier (DECK_REACH de src/nuage.js)
@@ -348,9 +348,8 @@ class Chutes:
         return self.status()
 
     def _fall_sections(self, lon, lat):
-        """Tronçons BD TOPO de la maille du point, avec leur largeur de chaussée (« width », m ou None : pour les ponts
-        seulement, voir _road_width), leur importance et leur nature,
-        lus ici : ceux du cœur (roads) ne la gardent pas. roads.PENDING pendant la lecture, None si la BD
+        """Tronçons BD TOPO de la maille du point, avec leur importance et leur nature (la largeur BD TOPO n'est plus lue :
+        voir _road_width), lues ici : ceux du cœur (roads) ne les gardent pas. roads.PENDING pendant la lecture, None si la BD
         TOPO n'a pas répondu (shortcut: pas de nouvel essai avant le rechargement de la page ;
         réessayer après roads.RETRY s si des pannes de la Géoplateforme privent de hauteur de chute)."""
         cell = roads._cell(lon, lat)
@@ -364,12 +363,7 @@ class Chutes:
                 out = []
                 for feat in (data or {}).get("features") or []:
                     props = feat.get("properties") or {}
-                    try:
-                        width = float(props.get("largeur_de_chaussee"))
-                    except (TypeError, ValueError):
-                        width = None
-                    out += [dict(sec, width=width if width and width > 0 else None,
-                                 importance=str(props.get("importance") or ""), nature=props.get("nature"),
+                    out += [dict(sec, importance=str(props.get("importance") or ""), nature=props.get("nature"),
                                  bridge_name=_bridge_name(props.get("nom_collaboratif_gauche")))
                             for sec in roads.parse_sections({"features": [feat]})]
             self.fall_cells[cell] = out

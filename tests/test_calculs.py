@@ -723,7 +723,7 @@ class Tablier(unittest.TestCase):
 class ChuteTablier(unittest.TestCase):
     """Hauteur de chute sans points classés pont dans le nuage (App._compute_fall) : bord du tablier dans le relief quand le
     MNT LiDAR HD le contient (tablier classé sol : D114 sur le ruisseau de la Gironde, photo
-    e375c98e-31c5-426a-ba93-c63ac344d675), sinon la demi-largeur type ; plus la largeur BD TOPO."""
+    e375c98e-31c5-426a-ba93-c63ac344d675), sinon la demi-largeur type (la largeur BD TOPO n'est plus lue)."""
 
     def fall(self, z):
         lon, lat = 5.0, 47.0
@@ -754,10 +754,21 @@ class ChuteTablier(unittest.TestCase):
         self.assertIn("max : 4,0 m", res["text"])  # au bord + 1 m (5 m) ; demi-largeur BD TOPO + 1 m (4,5 m) : 1 m seulement
         self.assertIn("trouvés dans le relief", res["title"])
 
-    def test_tablier_absent_du_mnt(self):  # MNT au fond franchi : demi-largeur type (6,5 m en importance 3), 2 m de chute
+    def test_tablier_absent_du_mnt(self):  # MNT au fond franchi : demi-largeur type (6 m en importance 3), 2 m de chute
         res = self.fall(lambda x: 98.0)
         self.assertIn("max : 2,0 m", res["text"])
         self.assertIn("demi-largeur type", res["title"])
+
+
+class LargeurType(unittest.TestCase):
+    """Largeur type de chaussée par importance BD TOPO (App._road_width, piste P17)."""
+
+    def test_largeurs(self):
+        w = App.__new__(App)._road_width
+        self.assertEqual(w({"importance": "2"}), 7.0)
+        self.assertEqual(w({"importance": "4"}), 5.5)
+        self.assertEqual(w({"importance": "2", "nature": "Route à 2 chaussées"}), 7.0)
+        self.assertEqual(w({"importance": "9"}), 6.0)
 
 
 class ChuteLidar(unittest.TestCase):

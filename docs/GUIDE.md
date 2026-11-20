@@ -425,7 +425,7 @@ après.
     sommet du bombement (ou le changement de dévers d'une voie à l'autre), à 1,25 m de l'axe au plus,
     n'est pas pris pour le bord ; sans rupture de pente
     (accotement de plain-pied), la demi-largeur type de la catégorie de la route (importance BD TOPO :
-    9 m en importance 1 et 2, 6,5 m en 3, 6 m en 4, 3,5 m en 5 ; la largeur BD TOPO elle-même n'est pas
+    7 m en importance 1 et 2, 6 m en 3, 5,5 m en 4, 3,5 m en 5 (valeurs prudentes du 20/11/2026) ; la largeur BD TOPO elle-même n'est pas
     fiable) ; l'infobulle dit où le bord
     a été trouvé, et comment ; dès 3 travers trouvés dans le relief d'un côté, un travers sans
     rupture de pente, ou au bord à plus de 3 m de leur médiane (une marche dans la chaussée, un bord

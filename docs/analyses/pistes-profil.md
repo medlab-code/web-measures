@@ -223,8 +223,7 @@ fiable pour les largeurs, elle sert juste à qualifier en grandes catégories »
 importance (7, 5,5, 4 m), trop faible ; remplacée dans les bords de route par une largeur type par importance, médiane de l'enrobé
 mesuré (9 m en 1-2, 6,5 m en 3, 6 m en 4, 3,5 m en 5, 7 m par chaussée séparée ; `_road_width`), pour la portée de la recherche,
 le repli et l'autre chaussée. Banc : replis 7 → 4, bords sur l'enrobé 25 → 23 sur 61 (valeurs tirées des mêmes photos : un peu
-flatteur). Le repli s'appelle « largeur type ». Reste à montrer qu'il est une hypothèse (G3). La chute sur les ponts garde la
-largeur BD TOPO (hors du mode profil).*
+flatteur). Le repli s'appelle « largeur type ». Reste à montrer qu'il est une hypothèse (G3). La chute sur les ponts prend aussi la largeur type quand le MNT ne contient pas le tablier (P20). Valeurs ramenées le 20/11/2026 à 7 m (importance 1 et 2), 6 m (3), 5,5 m (4), 3,5 m (5) : les médianes de l'analyse fine comptaient trottoirs et gravier (P21) ; à refaire sur des largeurs vérifiées.*
 - **Avant** : sans rupture de pente, le bord est à la demi-largeur BD TOPO.
 - **Problème** : P2 : 3 côtés sur 3 dans l'enrobé, de 0,3 à 2 m (largeurs BD TOPO souvent celles de la seule chaussée).
 - **Piste** : à mesurer sur plus de cas avant de choisir (marge fixe, ou inviter à l'analyse fine, déjà proposée par G3).

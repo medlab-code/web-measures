@@ -292,11 +292,12 @@ de 42 photos réparties en Côte-d'Or, comparés au bord d'enrobé de l'analyse 
 tombaient sur l'enrobé, 25 depuis, sans aucun côté dégradé (`BordsBombement`).
 
 Sans rupture de pente (accotement de plain-pied), le bord est à la demi-**largeur type** de la
-catégorie de la route (importance BD TOPO) : 9 m (importance 1 et 2), 6,5 m (3), 6 m (4), 3,5 m
+catégorie de la route (importance BD TOPO) : 7 m (importance 1 et 2), 6 m (3), 5,5 m (4), 3,5 m
 (5), 7 m par chaussée d'une route à chaussées séparées, 6 m sinon. La largeur de chaussée de la
 BD TOPO n'est pas fiable : une valeur par catégorie, trop faible (7 m en importance 2 pour 7,6 à
 17,3 m d'enrobé mesurés par l'analyse fine, 5,5 m en 3 pour 5,4 à 9,7 m, 4 m en 4 pour 3,7 à
-11 m ; 42 photos de Côte-d'Or) ; les largeurs types sont les médianes mesurées, arrondies. Ce bord
+11 m ; 42 photos de Côte-d'Or) ; les médianes mesurées (9 m en 1-2, 6,5 m en 3, 6 m en 4) comptaient à tort trottoirs et gravier (P21) : le 20/11/2026,
+valeurs prudentes choisies par l'auteur, à refaire sur des largeurs vérifiées à la main. Ce bord
 reste une hypothèse : « largeur type » sur le graphique. Dès que 3 travers au moins d'un côté trouvent leur bord dans le relief, leur
 **médiane** (basse : le bord le plus proche) sert aux autres : un travers sans rupture de pente, ou
 dont le bord est à plus de **3 m** d'elle, y est ramené. Ce bord est dit « d'après les travers
