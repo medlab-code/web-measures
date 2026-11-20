@@ -5,7 +5,7 @@
      sans les réinjecter dans le calcul), photo par photo : une ligne « BORDS {json} » par photo, avec les profils complets
      (5 travers, 2 côtés), pour tools/banc-bords.py (rejoue le calcul des bords avec des variantes de réglages, hors ligne).
      Pas de contrôle : un relevé (pistes P2 et P16 de docs/analyses/pistes-profil.md). Lots (#lot=…) : essais-1 et essais-2,
-     photos des pages d'essai ; cote-d-or-1 et cote-d-or-2, tirées au hasard sur toute la Côte-d'Or par type de voie (chaussées
+     photos des pages d'essai ; signalees, cas signalés par l'auteur ; cote-d-or-1 et cote-d-or-2, tirées au hasard sur toute la Côte-d'Or par type de voie (chaussées
      séparées, réseau principal, secondaire, local, petites voies ; 19/11/2026). Environ 3 min par lot, réseau.
      tools/essais.sh "essai-bords-nuage#lot=essais-1" "essai-bords-nuage#lot=essais-2" "essai-bords-nuage#lot=cote-d-or-1" \
        "essai-bords-nuage#lot=cote-d-or-2", puis tools/banc-bords.py /tmp/web-measures-essais/essai-bords-nuage-lot=*.log -->
@@ -38,7 +38,9 @@ const LOTS = {
     "ab10b6f3-30af-4a2f-a950-1e6930dd4555", "1e2e6a9a-22c6-4740-87f4-d307a10eafb2", "5331221f-7a1f-4ace-b4de-9cf94a57e4d2",
     "dc5520e1-ba0d-4690-97ec-b19282935ff9", "6d5fbb1b-45c9-45b3-b575-edd775a0bffd", "8377ed2a-5acc-42c3-a9f0-7a5d4bdb335b",
     "eef705b8-13d8-4605-999d-44d191f933c1", "d2b9b434-3df4-48b9-9446-4a86df736ca1", "467ab33d-efe6-4210-8a1c-00e805b2afef",
-    "1a2d44da-9bee-4d62-827d-a6e9cd445514", "8d02bc6c-a3a9-444e-b005-e24f8a52177f", "8ade7f3f-63a6-4cda-bab1-e8065ecc8db3"]
+    "1a2d44da-9bee-4d62-827d-a6e9cd445514", "8d02bc6c-a3a9-444e-b005-e24f8a52177f", "8ade7f3f-63a6-4cda-bab1-e8065ecc8db3"],
+  // photos signalées par l'auteur (4c1c91d9 : bordure trouvée au fond du fossé, 19/11/2026)
+  "signalees": ["4c1c91d9-5c70-48d4-8962-b71c33dfe227"]
 };
 const IDS = LOTS[location.hash.replace("#lot=", "")] || [];
 (async () => {
@@ -67,7 +69,7 @@ const IDS = LOTS[location.hash.replace("#lot=", "")] || [];
         out.profils = profile.profils.map((e) => ({ le_long: e.le_long, cote: e.cote, autre_axe: e.autre_axe, separateur: e.separateur,
           points: e.points }));
         const found = await w.eval("Nuage").analyse(profile);
-        out.nuage = { bords: Object.fromEntries(Object.entries(found.bords).map(([k, b]) => [k, b && { x: Math.abs(b.x), quoi: b.comment }])),
+        out.nuage = { bords: Object.fromEntries(Object.entries(found.bords).map(([k, b]) => [k, b && { x: Math.abs(b.x), quoi: b.comment, bordure: !!b.bordure }])),
           largeur: found.largeur, separateur: found.separateur, requetes: found.requetes };
       } catch (e) { out.erreur = String(e); }
       log("BORDS " + JSON.stringify(out));

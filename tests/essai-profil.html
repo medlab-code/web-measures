@@ -100,6 +100,22 @@ try {
   paved("gravillons à 3 fois puis herbe", (x) => (x < 5 ? 300 : x < 8 ? 900 : 2000), 4.9);
   paved("pas d'abords clairs", () => 320, null);
   paved("bord au-delà de la limite", (x) => (x < 14 ? 300 : 1400), null);
+  // Bordure (altitude médiane du sol par case, m) : trottoir en enrobé (D119M f533e240-7d37-40ef-babc-1d37140dc5d2, M996
+  // 6eea86cc-4c40-4395-9686-2418892bfa82) ; ni dévers, ni bombement, ni ornière, ni bosse étroite, ni fossé
+  const heights = (fn) => new Map([...Array(97).keys()].map((j) => j - 48).map((k) => [k, fn(k * 0.25)]));
+  const kerb = (what, fn, expected) => { const got = Nuage.kerbEdge(heights(fn), 1, 1, 12), ok = expected === null ? got === null : got !== null && Math.abs(got - expected) <= 0.26;
+    expect(`bordure, ${what} : ${got} (attendu ${expected})`, ok); };
+  kerb("9 cm à 1,75 m après un caniveau", (x) => (Math.abs(x) < 1.75 ? 100 - 0.02 * Math.abs(x) : 100.09), 1.75);
+  kerb("fine, 5,5 cm de 2,4 à 3,15 m", (x) => { const a = Math.abs(x); return a < 2.4 ? 100 - 0.02 * a : 99.952 + Math.min(0.055, (a - 2.4) * 0.073); }, 2.75);
+  kerb("dévers qui monte de 12 %", (x) => 100 + 0.12 * x, null);
+  kerb("bombement", (x) => 100 - 0.025 * Math.abs(x - 1.5), null);
+  kerb("ornière de 3 cm", (x) => 100 - (Math.abs(Math.abs(x) - 1.5) < 0.3 ? 0.03 : 0), null);
+  kerb("bosse de 6 cm sur 0,5 m", (x) => 100 + (Math.abs(Math.abs(x) - 2) < 0.3 ? 0.06 : 0), null);
+  // fossés (4c1c91d9-5c70-48d4-8962-b71c33dfe227) : fond à 40 cm puis berge à 30 % ; fossé peu profond (12 cm) à berge longue
+  kerb("fossé de 40 cm dès 3 m", (x) => { const a = Math.abs(x); return a < 3 ? 100 - 0.025 * a : a < 4 ? 99.925 - 0.4 * (a - 3) : 99.525 + 0.3 * (a - 4); }, null);
+  kerb("fossé de 12 cm à berge de 20 %", (x) => { const a = Math.abs(x); return a < 3 ? 100 - 0.025 * a : a < 3.5 ? 99.925 - 0.24 * (a - 3) : 99.805 + 0.2 * (a - 3.5); }, null);
+  kerb("bordure de 12 cm après un caniveau de 8 cm", (x) => { const a = Math.abs(x); return a < 2.5 ? 100 - 0.025 * a : a < 2.75 ? 99.858 : 99.98 + 0.02 * (a - 2.75); }, 2.62);
+  kerb("chaussée qui monte de 1 % et bruit de 3 cm", (x) => 100 + 0.01 * Math.abs(x) + [0, 0.015, -0.015, 0.01][Math.abs(Math.round(x * 4)) % 4], null);
   // Ligne blanche : nettement plus claire que ses voisines ; surface du séparateur au seuil
   // (1640bc3f-e948-4239-a4c1-548dd748a16d, −3,5 m) écartée, malgré la case vide à côté
   const narrow = (what, cases, expected) => { const got = Nuage.brightRuns(cases.map(([x, i]) => ({ x, i })), 100).map((r) => r[2]), ok = JSON.stringify(got) === JSON.stringify(expected);

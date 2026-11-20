@@ -287,7 +287,8 @@ flatteur). Le repli s'appelle « largeur type ». Reste à montrer qu'il est une
   `essai-ponts` : D114, bords trouvés dans le relief sur 14 coupes sur 16, chute 1,8 m (1,7 m avant).
 
 **P21. Analyse fine : trottoir et gravier comptés en enrobé.** *Essayée le 19/11/2026 (bordure lue à l'altitude du sol,
-gravier sombre), retirée le 20/11/2026 : largeur d'enrobé moins bonne qu'avant à l'usage (auteur).*
+gravier sombre), retirée le 20/11/2026 ; bordure remise le 20/11/2026 avec une garde contre les fossés (`KERB_GUTTER`), gravier
+laissé de côté.*
 - **Avant** : le bord d'enrobé de l'analyse fine ne lit que l'intensité du retour laser (première bande 2,2 fois plus claire).
   Vérifié à la main sur 5 photos (9 côtés, vue du dessus) : il déborde dans les 5 cas, de 2 à 9 m (D8
   082893e5-f336-441b-8d28-0eecdbae1dde, M996 6eea86cc-4c40-4395-9686-2418892bfa82, M70 20a5b40f-ab06-40ab-97e1-b3f74032bec7,
@@ -304,6 +305,13 @@ gravier sombre), retirée le 20/11/2026 : largeur d'enrobé moins bonne qu'avant
   bruit d'une case).
 - **Piste, si reprise** : vérifier d'abord à la main un lot de côtés qui ne sert pas au réglage, et juger dessus ; pas de
   condition propre à une photo ; bord de l'enrobé indépendant du bord du relief.
+- **Bordure remise (20/11/2026)** : le banc refait sur le code sans bordure (relevé du 20/11) donnait sur les côtés vérifiés un
+  écart total au vrai bord d'environ 27 m, contre 4 m avec elle (largeur d'enrobé : M996 17,3 m pour 7, D119M 11,0 m pour 5,80,
+  D70 12,0 m pour environ 7). Le défaut vu par l'auteur (4c1c91d9-5c70-48d4-8962-b71c33dfe227 : bordure au fond du fossé, le
+  bord de la plateforme avec) vient d'un point bas pris pour un caniveau : la garde refuse un point bas à plus de KERB_GUTTER
+  sous le sol du mètre qui le précède (caniveau : quelques centimètres sous la chaussée ; fossé : bien plus). Côtés vérifiés
+  hors réglage : D16 b3978b33-2ceb-4ef3-bd51-09d25e505015 droit (bordure à 3,4 m, vrai bord 2,0 : fausse bordure), D28E
+  5331221f-7a1f-4ace-b4de-9cf94a57e4d2 droit (bordure à 2,9 m, vrai bord sous le véhicule, voir P14).
 - **Gain** : bord d'enrobé juste en ville (trottoirs) ; banc et largeurs types sur une référence fiable.
 
 ### Graphique et fenêtre : pistes

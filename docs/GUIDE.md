@@ -504,7 +504,7 @@ après.
   de la photo. L'intensité du retour laser des points du sol distingue l'enrobé (sombre), les lignes blanches
   (bandes étroites très claires, 2 fois plus que leurs voisines au moins) et les surfaces non revêtues (herbe, gravillons, béton : larges et claires).
   **Bord de chaussée** (tiret court) : le bord de la bande d'enrobé, médiane de 5 travers sur ±5 m autour de la photo :
-  début de la première bande d'1 m ou plus, 2,2 fois plus claire que l'enrobé au moins, à mi-hauteur entre les deux ; la légende donne la largeur
+  début de la première bande d'1 m ou plus, 2,2 fois plus claire que l'enrobé au moins, à mi-hauteur entre les deux ; ou, plus près, la bordure d'un trottoir en enrobé (même intensité que la chaussée), lue à l'altitude des points du sol : remontée d'au moins 4 cm en 0,75 m après le caniveau, qui tient sur 1 m, presque à plat (pas le fond d'un fossé ni sa berge : « bordure » dans la légende) ; la légende donne la largeur
   d'enrobé et sa dispersion entre travers ; la plateforme, son dévers, la chute et le dévers du talus se relisent alors depuis ces bords, l'encadré compris. Sans ces abords clairs (village, béton), à défaut : la ligne de rive, ligne blanche au début de la première bande non revêtue
   d'1 m ou plus, ou la dernière avant elle, hors des lignes entre voies (à moins de 1,2 m de l'axe d'une
   chaussée), sinon la fin de l'enrobé du seul travers de la photo. **Séparateur de chaussée** : la bande non revêtue entre les deux
