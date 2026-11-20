@@ -343,6 +343,19 @@ laissé de côté.*
   côtés vérifiés gardées (D8, M996, D119M). Reste : la D28E (bord sous le véhicule, P14).
 - **Gain** : bord d'enrobé juste en ville (trottoirs) ; banc et largeurs types sur une référence fiable.
 
+**P22. Mesure en direct au nez du véhicule (haute priorité).** *Idée de l'auteur du 20/11/2026, à faire en priorité.*
+- **Avant** : les bords viennent du relief (MNT au pas de 0,5 m) ou de l'analyse fine (intensité du nuage LiDAR,
+  option expérimentale) ; l'utilisateur ne peut que les vérifier à l'œil dans la vue du dessus.
+- **Problème** : sur les côtés vérifiés, le bord est souvent sans marche ni rupture de pente (D16
+  2666168c-c349-4508-8043-b5c8d7ae7464 : MNT plat aux vrais bords) ou le sol a changé depuis le relevé LiDAR
+  (D119E 1d23f3f9-f4b7-4d2e-8658-500a748ccecc : sable d'un chemin).
+- **Piste** : tracer sur la photo une droite en travers juste au bord du nez du véhicule (au-delà du capot), calibrée
+  comme la vue du dessus (hauteur de caméra, tangage, roulis) ; l'utilisateur déplace les extrémités des segments
+  gauche et droit jusqu'aux bords : bords et largeur mesurés en direct. Ensuite, détection automatique des bords en
+  direct sur cette droite (couleur, texture), que l'utilisateur corrige. Étude de faisabilité de la détection sur
+  photo lancée le 20/11/2026.
+- **Gain** : bords du jour de la photo, au centimètre près à 2-4 m, là où relief et nuage échouent.
+
 ### Graphique et fenêtre : pistes
 
 **G1. Exagération visible.** *Faite le 20/11/2026 : mention « Hauteurs ×N » sur le graphique quand les hauteurs sont exagérées (aussi dans le PNG et le PDF).*
@@ -413,6 +426,7 @@ laissé de côté.*
 
 ### Ordre proposé
 
+1. **P22, haute priorité** (mesure en direct au nez du véhicule ; à faire avant le reste).
 1. ~~P10~~ (fait le 19/11/2026, avec le premier test du banc synthétique : début de P1).
 2. ~~P7 et P8~~ (faits le 19/11/2026 ; reste la vérification sur routes réelles, P2).
 3. ~~P9~~ (mesurée le 19/11/2026 : biais de 3 à 6 cm, pas de correction).
