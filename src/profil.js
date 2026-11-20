@@ -33,9 +33,7 @@ const Profil = (() => {
     for (const p of profile.profils) {
       const t = out.get(p.le_long) || { along: p.le_long, points: [], bords: {} };
       const sign = p.cote === "gauche" ? -1 : 1;
-      // jusqu'à la distance de la réglette au-delà du bord (profile.zone), comme la chute : le terrain lu plus loin pour
-      // chercher le bord n'est pas dessiné (83b5556f-0cb3-44d8-a41e-843ad0cddef1, réglette à 10 m : graphique à 21 m)
-      t.points.push(...p.points.filter(([o]) => o <= p.bord + profile.zone + 1e-6).map(([o, z]) => [sign * o, z]));
+      t.points.push(...p.points.map(([o, z]) => [sign * o, z]));
       t.bords[p.cote] = { x: sign * p.bord, relief: p.relief, voisins: p.voisins, enrobe: p.enrobe,
         arret: p.arret === null ? null : sign * p.arret };
       if (p.separateur) {  // chaussées séparées : trouvé dans le relief ou d'après la BD TOPO
@@ -44,7 +42,15 @@ const Profil = (() => {
       }
       out.set(p.le_long, t);
     }
-    for (const t of out.values()) t.points.sort((a, b) => a[0] - b[0]);
+    // Dessin : la distance de la réglette (profile.zone) de part et d'autre du milieu de la chaussée (entre ses deux bords),
+    // et au moins 1 m au-delà de chaque bord ; le terrain lu plus loin pour chercher le bord n'est pas dessiné
+    // (83b5556f-0cb3-44d8-a41e-843ad0cddef1, réglette à 10 m : graphique à 21 m). La chute est lue, elle, jusqu'à zone m
+    // au-delà du bord (App._edge_falls) : sur une route large, elle peut tomber hors du dessin
+    for (const t of out.values()) {
+      const [left, right] = [t.bords.gauche?.x ?? 0, t.bords.droit?.x ?? 0], mid = (left + right) / 2;
+      const reach = Math.max(profile.zone, (right - left) / 2 + 1);
+      t.points = t.points.filter(([x]) => Math.abs(x - mid) <= reach + 1e-6).sort((a, b) => a[0] - b[0]);
+    }
     return out;
   }
 
@@ -278,7 +284,7 @@ const Profil = (() => {
       results.append(item);
       if (!r) {
         const stop = profile.arrets[side];
-        item.append(stop === undefined ? `pas de chute de 0,5 m ou plus jusqu'à ${num(profile.zone, 0)} m du bord`
+        item.append(stop === undefined ? `pas de chute de 0,5 m ou plus jusqu'à ${num(profile.zone, 0)} m du milieu de la chaussée`
           : `pas de chute avant le terrain qui remonte de ${num(profile.remontee, 0)} m (talus, butte), à ${dist(stop)} m du bord`);
         continue;
       }

@@ -563,22 +563,22 @@ class Chutes:
     # Hauteur de chute et dévers des bords de route, hors pont (ticket #31) -----------------------
     # Calcul lancé seulement par le bouton « Profils » de la page (request_edges), pour la photo
     # affichée. Travers de part et d'autre de la route, à EDGE_ALONG m de la photo le long du tronçon,
-    # depuis la caméra (séquence vérifiée RTK ; sinon l'axe BD TOPO) jusqu'à edge_zone m au-delà du bord
-    # de la chaussée (réglette de la page) ; terrain MNT LiDAR HD (RGE ALTI en secours). Bord : rupture de
+    # depuis la caméra (séquence vérifiée RTK ; sinon l'axe BD TOPO) ;
+    # chute et dévers jusqu'à edge_zone m du milieu de la chaussée (réglette de la page, _edge_falls) ; terrain MNT LiDAR HD (RGE ALTI en secours). Bord : rupture de
     # pente du terrain (EDGE_BREAK), sinon la médiane des travers voisins (EDGE_CONSENSUS), sinon la demi-largeur
     # type (_road_width). Référence : le terrain au bord, pas l'altitude GPS.
-    EDGE_ZONE = 10.0  # m au-delà du bord de la chaussée examinés par défaut
+    EDGE_ZONE = 10.0  # m examinés par défaut de part et d'autre du milieu de la chaussée (réglette ; 20/11/2026, auteur)
+    EDGE_ZONE_MIN = 1.0  # m au-delà du bord examinés au moins, réglette plus courte que la demi-largeur de la chaussée
     EDGE_ALONG = (-10.0, -5.0, 0.0, 5.0, 10.0)  # m le long de la route, depuis la photo
     EDGE_WINDOW = 2.0  # m en travers : pente lue entre deux points au moins aussi écartés (bruit du MNT ±5 cm)
     EDGE_TALUS = 0.10  # pente vers le bas (sur EDGE_WINDOW m) d'une descente : en dessous, plat
     EDGE_CORE = 1 / 3  # talus : partie de la descente dont la pente vaut au moins ce rapport de sa pente la plus forte
     EDGE_FLAT = 0.05  # m : pied du talus, et point le plus bas de la chute, le plus proche du bord à cela près du plus bas
-    EDGE_STEP = 0.5  # m entre deux points du profil, de l'origine jusqu'à EDGE_SEARCH m après le bord BD TOPO
+    EDGE_STEP = 0.5  # m entre deux points du profil, de l'origine jusqu'où la chute peut être lue (_edge_profiles)
     EDGE_SEARCH = 3.0  # m au-delà du bord BD TOPO où la rupture de pente est encore cherchée
     EDGE_BREAK = 0.08  # écart de pente sur 1 m à celle de la chaussée sous l'origine : bord (bombement : ~0,05)
     EDGE_HOLD = 3  # pas consécutifs où l'écart doit tenir : un seul pas de 1 m tient du bruit du MNT (±5 cm)
     EDGE_NEAR = 1.5  # m : pas de bord plus près de l'origine (le véhicule occupe sa voie ; demi-voie sur l'axe)
-    EDGE_FAR = 16  # points au-delà, jusqu'à edge_zone m
     PAVED_REDO_MAX = 50  # profils gardés avec leur terrain, pour use_paved_edges sans relecture
     EDGE_RISE = 1.0  # m : terrain remonté d'autant au-dessus du bord (talus, butte) : lecture arrêtée, derrière n'est pas une chute
     # Dévers du talus au-delà (56°) : paroi quasi verticale (mur, enrochement), écrite sans pourcentage. Le MNT adoucit les
@@ -620,7 +620,7 @@ class Chutes:
     PEAK_Z, PEAK_SPREAD, PEAK_TRAVERS, PEAK_HALF = 0.04, 1.0, 2, 0.4
 
     def set_edge_zone(self, metres):
-        """Réglette du bouton « Profils » : largeur (m) lue au-delà du bord de la chaussée au prochain appui
+        """Réglette du bouton « Profils » : distance (m) examinée de part et d'autre du milieu de la chaussée au prochain appui
         (le résultat déjà affiché reste celui de sa largeur)."""
         self.edge_zone = float(metres)
         self.notify()
@@ -1001,7 +1001,7 @@ class Chutes:
                             "plateforme": platform_slope(drawn) if source == triangulation.LIDAR_NAME else None,  # RGE ALTI trop imprécis
                             "resultats": shown, "arrets": {name: sorted(v)[len(v) // 2] for name, v in stops.items() if v},
                             "en_long": grade},
-                "text": ("\n".join(lines) or "Aucun bord ne descend de {} m ou plus jusqu'à {} m".format(
+                "text": ("\n".join(lines) or "Aucun bord ne descend de {} m ou plus jusqu'à {} m du milieu de la chaussée".format(
                     measures._num(self.FALL_MIN, 1), measures._num(zone, 0))) + ("\nPente en long : {} de {} % sur {} m{}".format(
                         "montée" if grade["pente"] >= 0 else "descente", measures._num(abs(grade["pente"]), 1),
                         measures._num(grade["points"][-1][0] - grade["points"][0][0], 0),
@@ -1060,8 +1060,12 @@ class Chutes:
                 # de ce côté, un bombement peut prolonger la recherche de CROWN_SEARCH m : pas de EDGE_STEP m jusque-là aussi
                 axis = -sign * shift if 2 * half >= self.CROWN_WIDTH else None
                 fine = reach + (self.CROWN_SEARCH if axis is not None and axis > 0 else 0)
-                near = [k * self.EDGE_STEP for k in range(int(fine / self.EDGE_STEP) + 1)]
-                offsets = near + [near[-1] + zone * k / self.EDGE_FAR for k in range(1, self.EDGE_FAR + 1)]
+                # au pas de EDGE_STEP m (résolution du MNT LiDAR HD) jusqu'où la chute peut être lue (_edge_falls : zone m du
+                # milieu de la chaussée, le bord de ce côté avant fine, l'autre à l'origine ou au-delà : zone + fine / 2 au plus),
+                # EDGE_ZONE_MIN m au moins au-delà de fine. Avant le 20/11/2026 : 16 points au-delà de fine, espacés de zone / 16
+                # (1,9 m à 30 m : dévers du talus faussé)
+                far = max(fine + self.EDGE_ZONE_MIN, zone + fine / 2)
+                offsets = [k * self.EDGE_STEP for k in range(int(far / self.EDGE_STEP + 1e-6) + 1)]
                 profiles.append((along, name, guess, offsets, beyond, between, reach, axis))
                 samples += [(x + (shift + sign * o) * nx, y + (shift + sign * o) * ny) for o in offsets]
         return profiles, samples
@@ -1263,7 +1267,8 @@ class Chutes:
         return read, twins
 
     def _edge_falls(self, read, sides, paved, zone):
-        """Chute et dévers de chaque côté depuis les bords lus (_edge_reads), jusqu'à zone m du bord. Rend (côté ->
+        """Chute et dévers de chaque côté depuis les bords lus (_edge_reads), jusqu'à zone m du milieu de la chaussée (entre
+        les deux bords du travers), soit zone moins la demi-largeur au-delà du bord, EDGE_ZONE_MIN m au moins. Rend (côté ->
         [(chute, à m du bord, bout du profil, travers), (dévers, haut du talus à m du bord, travers, pied du talus à m du
         bord, hauteur du talus)], bords [(m depuis l'origine, relief, d'après les travers voisins)], côté -> distances au
         bord où le terrain remonte de EDGE_RISE, profils pour le graphique de la page (bouton « Graphiques »))."""
@@ -1271,6 +1276,10 @@ class Chutes:
         borders = {name: [] for name, _ in sides}
         stops = {name: [] for name, _ in sides}
         drawn = []
+        def edge_of(r):  # bord du travers r, m depuis l'origine (analyse fine, sinon relief, sinon largeur type)
+            k = r[5] if r[5] is not None else min(range(len(r[3])), key=lambda j: abs(r[3][j] - r[2]))
+            return paved.get(r[1], r[3][k])
+        edges_at = {(r[0], r[1]): edge_of(r) for r in read}
         for along, name, guess, offsets, z, i, between, sep_relief, _, beyond, moved in read:
             relief = i is not None and not moved  # trouvé dans le relief de ce travers, pas ramené à la médiane des autres
             if i is None:
@@ -1283,7 +1292,10 @@ class Chutes:
                      "separateur_relief": sep_relief if between else None,  # "marches", "bosse" ou None (BD TOPO)
                      "points": [[round(o, 2), round(v, 2)] for o, v in zip(offsets, z) if v is not None]}
             drawn.append(entry)
-            kept = [k for k in range(i, len(offsets)) if offsets[k] - offsets[i] <= zone + 1e-6]
+            # jusqu'à zone m du milieu de la chaussée : au-delà du bord, zone moins sa demi-largeur (l'autre bord absent : l'origine)
+            other = next((edge for (a, n), edge in edges_at.items() if a == along and n != name), 0.0)
+            past = max(self.EDGE_ZONE_MIN, zone - (edges_at[(along, name)] + other) / 2)
+            kept = [k for k in range(i, len(offsets)) if offsets[k] - offsets[i] <= past + 1e-6]
             zz, oo = [z[k] for k in kept], [offsets[k] - offsets[i] for k in kept]
             if zz[0] is None:
                 continue
@@ -1352,7 +1364,7 @@ class Chutes:
 
     def _edges_title(self, source, origin, zone, seen):
         """Infobulle des bords : méthode, puis les bords trouvés (seen)."""
-        return ("Terrain ({}) en travers de la route, depuis {} jusqu'à {} m au-delà du bord de la chaussée, "
+        return ("Terrain ({}) en travers de la route, depuis {} jusqu'à {} m du milieu de la chaussée (1 m au moins au-delà du bord), "
                 "sur ±{} m le long de la route ; côtés vus dans le sens de la photo. Bord : rupture de pente "
                 "ou marche du terrain (bordure), sinon demi-largeur type de la catégorie de la route (importance BD TOPO) ; dès 3 travers trouvés "
                 "dans le relief, un travers sans rupture ou au bord à plus de {} m de leur médiane prend cette "

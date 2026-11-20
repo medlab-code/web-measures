@@ -409,14 +409,15 @@ après.
   près : à un carrefour, pas la voie qui croise), un appui sur « Profils »
   affiche en haut à gauche, pour chaque côté (vu dans le sens de la photo) qui descend d'au
   moins 0,5 m, la hauteur de chute et le dévers du bord. La réglette à côté du bouton fixe la
-  distance examinée au-delà de la chaussée (2 à 30 m, 10 m par défaut) ; après l'avoir changée,
+  distance examinée de part et d'autre du milieu de la chaussée (2 à 30 m, 10 m par défaut ; 1 m au moins au-delà
+  de chaque bord) : chute, dévers et graphique s'arrêtent là ; après l'avoir changée,
   un nouvel appui refait le calcul. Le bouton est grisé sur un pont (hauteur de chute du pont),
   pendant la lecture et quand le calcul est déjà fait pour cette photo et cette distance.
   Calcul :
   - **profils** : modèle de terrain LiDAR HD (RGE ALTI en secours) lu en travers de la route à
     −10, −5, 0, +5 et +10 m de la photo le long de la route, des deux côtés, depuis la caméra
-    (séquence vérifiée RTK ; sinon depuis l'axe BD TOPO) : un point tous les 0,5 m jusqu'à 3 m
-    au-delà du bord BD TOPO, puis 16 points jusqu'à la distance de la réglette au-delà du bord ;
+    (séquence vérifiée RTK ; sinon depuis l'axe BD TOPO) : un point tous les 0,5 m jusqu'où la chute
+    peut être lue ;
   - **bord de la chaussée** : premier point, à 1,5 m au moins de l'origine, d'où la pente du
     terrain sur 1 m s'écarte de plus de 8 points de celle de la chaussée sous l'origine, dans
     le même sens, sur trois pas de suite (fossé, talus), ou d'où le terrain fait une marche de 5 cm
@@ -480,7 +481,8 @@ après.
     et un petit graphique (profil en long) sous le profil en travers, repris dans l'image PNG.
 
   Le bouton **« Graphiques »**, à côté, montre la coupe du terrain que ce calcul a lue (mesure LiDAR
-  HD, ou RGE ALTI en secours) : travers de la photo en brun, les quatre autres en pointillés,
+  HD, ou RGE ALTI en secours), sur la distance de la réglette de part et d'autre du milieu de la chaussée (1 m au moins
+  au-delà de chaque bord), là même où chute et dévers sont lus : travers de la photo en brun, les quatre autres en pointillés,
   plateforme entre les deux bords trouvés (et comment : rupture de pente, travers voisins ou largeur type), milieu du
   séparateur de chaussée sur une route à chaussées séparées (petite barre verticale ; la légende dit s'il a
   été trouvé dans le relief ou placé d'après la BD TOPO), flèche

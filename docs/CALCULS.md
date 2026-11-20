@@ -261,8 +261,11 @@ parcourue, à 45° près (sens de la trajectoire de la caméra au droit de la ph
 nom (lus jusqu'à 60 m autour de la photo, mailles voisines comprises). Le MNT est lu en travers à
 **−10, −5, 0, +5 et +10 m** de la photo le long de la route, des deux côtés. Les travers partent
 de la caméra (séquence vérifiée RTK), sinon de l'axe BD TOPO. Un point est lu tous les **0,5 m**
-jusqu'à 3 m au-delà du bord type (§ ci-dessous), puis 16 points jusqu'à la distance de la réglette au-delà
-du bord (2 à 30 m, 10 m par défaut).
+jusqu'où la chute peut être lue (réglette de 2 à 30 m, 10 m par défaut, plus la moitié de la zone de recherche du
+bord, 3 m au-delà du bord type, § ci-dessous) ; avant le 20/11/2026, 16 points seulement au-delà de la zone de
+recherche, espacés de 1,9 m à 30 m. Chute, dévers et graphique s'arrêtent à la distance de la réglette du
+milieu de la chaussée (entre les deux bords du travers), 1 m au moins au-delà du bord (choix de l'auteur,
+20/11/2026 : ce qui est dessiné est ce qui est mesuré).
 
 ### 8.2 Bord de la chaussée
 

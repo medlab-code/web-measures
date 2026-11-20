@@ -325,7 +325,7 @@ class BordsEnrobe(unittest.TestCase):
             local = [web_app.triangulation._local(p[0], p[1], lon, lat) for p in points]
             done([-0.5 * max(0.0, abs(x) - 6.0) for x, _ in local], web_app.triangulation.LIDAR_NAME, None)
         calc._terrain = terrain
-        key = ("photo", 10, False)
+        key = ("photo", 17, False)  # réglette depuis le milieu : 10 m au-delà du bord une fois le droit à 8 m (gauche à 6)
         calc._compute_edges(key, [(0.0, -200.0), (0.0, 200.0)], 200.0, 6.0, 0.0, lon, lat)
         before = calc.edges[key]["profile"]
         fall = before["resultats"]["droit"]["chute"][0]
@@ -364,7 +364,7 @@ class BordsTalus(unittest.TestCase):
             return 0.0 if a <= start else -kerb - min(depth, (a - start) * slope)
         calc._terrain = lambda points, done: done(
             [z(web_app.triangulation._local(p[0], p[1], lon, lat)[0]) for p in points], web_app.triangulation.LIDAR_NAME, None)
-        key = ("photo", 10, False)
+        key = ("photo", 14, False)  # réglette depuis le milieu : 10 m au-delà des bords à ±4 m
         calc._compute_edges(key, [(0.0, -200.0), (0.0, 200.0)], 200.0, 8.0, 0.0, lon, lat)
         profile = calc.edges[key]["profile"]
         bord = next(e for e in profile["profils"] if e["cote"] == "droit" and e["le_long"] == 0)["bord"]
@@ -397,7 +397,7 @@ class BordsTalus(unittest.TestCase):
         self.assertTrue(r["devers"][5])
 
 
-def edges_on(z, width=8.0, twin=None, zone=10, axis_x=None):
+def edges_on(z, width=8.0, twin=None, zone=14, axis_x=None):  # zone depuis le milieu : 10 m au-delà de bords à ±4 m
     """Bords (App._compute_edges) sur un terrain synthétique z(x, y), en m : x vers la droite de la photo, y le long de la
     route (photo en y = 0) ; axe BD TOPO en x = 0, profil depuis l'axe ; axis_x : axe en x = axis_x, profil depuis la
     caméra (séquence RTK), en x = 0 ; twin : autre chaussée [(ligne, largeur)]. Rend self.edges[clé]."""
@@ -437,6 +437,10 @@ class BordsCas(unittest.TestCase):
         self.assertIsNotNone(e["arret"])
         self.assertNotIn("droit", res["profile"]["resultats"])
         self.assertIn("pas de chute avant le terrain qui remonte de 1 m", res["text"])
+
+    def test_reglette_depuis_le_milieu(self):  # descente de 30 % dès 4 m : réglette à 8 m du milieu, lue jusqu'à 4 m du bord
+        res = edges_on(lambda x, y: -(x - 4.0) * 0.3 if x > 4.0 else 0.0, zone=8)
+        self.assertIn("Côté droit : chute ≥ 1,2 m", res["text"])
 
     def test_mur_sous_la_route(self):  # P18 : mur de 2 m, écrit sans pourcentage
         res = edges_on(lambda x, y: -2.0 if x > 4.1 else 0.0)
