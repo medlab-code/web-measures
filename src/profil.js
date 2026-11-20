@@ -257,9 +257,11 @@ const Profil = (() => {
           const first = seen.reduce((a, b) => (Math.abs(b[0]) < Math.abs(a[0]) ? b : a));
           return `\u00a0; ${side}\u00a0: dès ${num(Math.abs(first[0]))} m, jusqu'à ${num(above(top))} m au-dessus du sol`;
         }).join("") + "."] : []),
+      "Traits verticaux de bord\u00a0: trait plein, bord mesuré (rupture de pente de ce travers, enrobé ou bordure de l'analyse "
+        + "fine)\u00a0; tirets longs et pâles, « bord supposé », hypothèse et non mesure.",
       ...(["gauche", "droit"].some((side) => main.bords[side]?.voisins && !main.bords[side].enrobe)
-        ? ["« Travers voisins » sous un bord : pas de rupture de pente sur ce travers (ou une trop loin des "
-          + "autres) ; bord placé à la médiane des travers voisins où elle a été trouvée."] : []),
+        ? ["« Travers voisins » sous un bord : pas de rupture de pente sur ce travers (ou une trop loin des "
+          + "autres) ; bord supposé, placé à la médiane des travers voisins où elle a été trouvée."] : []),
       `Chute et dévers lus du bord jusqu'à ce que le terrain remonte de ${num(profile.remontee, 0)} m au-dessus du bord `
         + "(talus, butte)\u00a0: derrière, ce n'est pas une chute.",
       `${factor > 1 ? `Hauteurs exagérées ×${factor} pour la lisibilité` : "Hauteurs à l'échelle des distances"}. `
@@ -395,8 +397,12 @@ const Profil = (() => {
       const b = main.bords[side];
       if (!b) continue;
       const anchor = side === "gauche" ? "end" : "start", dx = side === "gauche" ? -4 : 4;
-      svg.append(el("line", { x1: X(b.x), x2: X(b.x), y1: TOP - 4, y2: Z(zAt(main.points, b.x)), class: "bord" }),
-        el("text", { x: X(b.x) + dx, y: TOP - 26, class: "etiquette-profil", "text-anchor": anchor }, "bord"),
+      // Bord mesuré (rupture de pente de ce travers, analyse fine) : trait plein (style.css) ; bord supposé (largeur type, ou
+      // médiane des travers voisins) : tirets longs et pâles, et l'étiquette le dit
+      const measured = Boolean(b.enrobe || b.relief);
+      svg.append(el("line", { x1: X(b.x), x2: X(b.x), y1: TOP - 4, y2: Z(zAt(main.points, b.x)), class: measured ? "bord" : "bord bord-suppose",
+          "data-bord": measured ? "mesure" : "suppose" }),
+        el("text", { x: X(b.x) + dx, y: TOP - 26, class: "etiquette-profil", "text-anchor": anchor }, measured ? "bord" : "bord supposé"),
         el("text", { x: X(b.x) + dx, y: TOP - 12, class: "graduation", "text-anchor": anchor },
           b.enrobe ? (fine?.bords?.[side]?.bordure ? "bordure" : "fin de l'enrobé") : b.relief ? "rupture de pente" : b.voisins ? "travers voisins" : "largeur type"));
     }

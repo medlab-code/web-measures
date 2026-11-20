@@ -483,7 +483,8 @@ après.
   Le bouton **« Graphiques »**, à côté, montre la coupe du terrain que ce calcul a lue (mesure LiDAR
   HD, ou RGE ALTI en secours), sur la distance de la réglette de part et d'autre du milieu de la chaussée (1 m au moins
   au-delà de chaque bord), là même où chute et dévers sont lus : travers de la photo en brun, les quatre autres en pointillés,
-  plateforme entre les deux bords trouvés (et comment : rupture de pente, travers voisins ou largeur type), milieu du
+  plateforme entre les deux bords trouvés (et comment : rupture de pente, travers voisins ou largeur type ; un bord mesuré a un
+  trait plein, un bord supposé, de largeur type ou d'après les travers voisins, des tirets longs et pâles et l'étiquette « bord supposé »), milieu du
   séparateur de chaussée sur une route à chaussées séparées (petite barre verticale ; la légende dit s'il a
   été trouvé dans le relief ou placé d'après la BD TOPO), flèche
   de la chute et droite rouge du talus (haut → pied) sur le travers où ils ont été mesurés,

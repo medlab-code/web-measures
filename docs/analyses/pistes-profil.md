@@ -36,7 +36,7 @@ Ordre proposé le 17/11 : P1, P2, P3, P4, P5, P6. P5 a été faite puis retirée
   la chute et le dévers ; ajouter le profil en CSV (x, z par travers).
 - **Gain** : donnée exploitable hors de la page.
 
-**P4. Signaler les bords peu sûrs.**
+**P4. Signaler les bords peu sûrs.** *Faite le 20/11/2026 avec G3 : bord supposé (largeur type, travers voisins) en tirets longs, étiquette « bord supposé ».*
 - **Avant** : l'origine d'un bord (« fin de l'enrobé », « rupture de pente », « largeur BD TOPO ») n'est lue qu'en infobulle.
 - **Problème** : un bord qui retombe sur la largeur BD TOPO, donc une hypothèse, a la même allure qu'un bord mesuré.
 - **Piste** : une marque visible sur le graphique, avec l'invitation à lancer l'analyse fine seulement dans ce cas.
@@ -349,7 +349,7 @@ laissé de côté.*
   ce qui est dessiné ; le texte reste replié.
 - **Gain** : graphique lisible seul, aussi dans le PNG.
 
-**G3. Hypothèses distinctes des mesures.** (reprend P4)
+**G3. Hypothèses distinctes des mesures.** (reprend P4) *Faite le 20/11/2026 : bord supposé (largeur type, travers voisins) en tirets longs et pâles (le bord mesuré passe en trait plein, la ligne de la caméra garde son pointillé), étiquette « bord supposé » avec la raison dessous (« largeur type », « travers voisins »), une phrase dans la légende. L'invitation à l'analyse fine n'est pas faite.*
 - **Avant** : un bord BD TOPO ou d'après les voisins a le même trait qu'un bord trouvé.
 - **Problème** : on prend une hypothèse pour une mesure.
 - **Piste** : trait du bord plus pâle et en tirets longs pour « largeur BD TOPO » et « d'après les travers voisins » (P10), et

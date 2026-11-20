@@ -142,6 +142,13 @@ try {
   dashes("un seul travers : écartée", [[-4, []], [-2, [1]], [0, []], [2, []], [4, []]], []);
   dashes("deux lignes distinctes", [[-4, [-2.5, 1]], [2, [-2.25, 1.25]]], [-2.25, 1.25]);
   dashes("trop éloignées d'un travers à l'autre", [[-4, [1]], [2, [2]]], []);
+  // Bord supposé (G3) : gauche mesuré (rupture de pente), droit sans relief ni voisins (largeur type) : traits et étiquettes distincts
+  const guess = Profil.draw(profile([crossing(0, () => -0.1, 17).map((c) => (c.cote === "droit" ? { ...c, relief: null } : c))]), true).svg;
+  const trait = (side) => guess.querySelectorAll("line[data-bord]")[side === "gauche" ? 0 : 1];
+  const [lm, ls] = [trait("gauche"), trait("droit")];
+  expect(`bord mesuré en trait plein, supposé en tirets longs : ${lm?.dataset.bord}/${ls?.dataset.bord}`,
+    lm?.dataset.bord === "mesure" && ls?.dataset.bord === "suppose" && ls.classList.contains("bord-suppose") && !lm.classList.contains("bord-suppose"));
+  expect("étiquette « bord supposé » du seul côté supposé", [...guess.querySelectorAll("text")].filter((t) => t.textContent === "bord supposé").length === 1);
   // Route étroite : le graphique est à sa hauteur ; la caméra (1,9 m) ne compte pas comme haut du terrain
   check("caméra au-dessus d'un terrain plat", Profil.draw(profile([crossing(0, () => -0.1, 4)], "caméra"), true, null, true, 1.9), 1);
 } catch (error) { fail("exception : " + (error.stack || error)); }
