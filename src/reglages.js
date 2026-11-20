@@ -52,7 +52,7 @@ const Reglages = {
     });
     $("#bords").addEventListener("click", () => { etat.app.request_edges(); refresh(); });
     // « Profil » : coupe du terrain du dernier calcul de « Profils » pour la photo affichée
-    // Case « Hauteurs à l'échelle » : cochée à chaque ouverture du profil (caméra à sa hauteur), jamais grisée
+    // Case « Hauteurs à l'échelle » : cochée à chaque ouverture du profil (caméra à sa hauteur), grisée quand les hauteurs sont déjà à l'échelle (pas d'exagération possible)
     const trueScale = $("#profil-echelle");
     // Case « Végétation » (analyse fine : ligne verte, herbe), de même retenue ; cochée par défaut, grisée sans analyse fine
     const plants = $("#profil-vegetation");
@@ -75,6 +75,7 @@ const Reglages = {
     trueScale.checked = true;
     // still : redessin par une case (échelle, végétation) : la légende, au-dessus des cases et boutons, ne raccourcit pas
     // (lignes de l'herbe et de la végétation retirées) pour qu'ils ne bougent pas ; un nouveau profil la remet à sa taille
+    const echelleLabel = trueScale.closest("label"), echelleTitre = echelleLabel.title;
     let frameKept = null;  // cadre du dernier dessin : { key (repère du travers), cadre, trueScale }
     const drawProfile = (still = false) => {
       const dialog = $("#fenetre-profil"), box = dialog.querySelector(".legende");
@@ -88,9 +89,11 @@ const Reglages = {
       // fine finie) recalcule le cadre
       const key = nuageKey(etat.edgeProfile.profile), kept = still && frameKept?.key === key ? frameKept : null;
       const imposed = kept ? { x: kept.cadre.x, z: kept.trueScale === trueScale.checked ? kept.cadre.z : null } : null;
-      const { svg, legend, long, cadre } = Profil.draw(etat.edgeProfile.profile, trueScale.checked, fine,
+      const { svg, legend, long, cadre, exageration } = Profil.draw(etat.edgeProfile.profile, trueScale.checked, fine,
         plants.checked, Number($("#camera").value) || 1.9, imposed);  // hauteur de caméra des réglages
       frameKept = { key, cadre, trueScale: trueScale.checked };
+      trueScale.disabled = exageration <= 1;  // l'exagération vaudrait ×1 : la case n'aurait aucun effet
+      echelleLabel.title = trueScale.disabled ? `${echelleTitre} : hauteurs déjà à l'échelle sur ce travers, pas d'exagération possible` : echelleTitre;
       dialog.querySelector(".graphique").replaceChildren(svg, ...(long ? [long] : []));  // profil en long dessous
       $("#profil-pdf-long").disabled = !long;  // pas de 2e page sans profil en long
       dialog.querySelector(".legende").replaceChildren(legend);

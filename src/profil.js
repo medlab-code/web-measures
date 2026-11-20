@@ -233,7 +233,10 @@ const Profil = (() => {
     const X = (x) => LEFT + (x - xmin) * sx, Z = (z) => TOP + (zmax - (z - ref)) / (zmax - zmin) * plotH;
     const path = (points) => points.map(([x, z], k) => `${k ? "L" : "M"}${X(x).toFixed(1)},${Z(z).toFixed(1)}`).join("");
     const cadre = { x: extent, z: { zmin, sx, factor } };
-    return { ref, bl, br, road, xs, xmin, xmax, zmin, zmax, sx, factor, plotW, plotH, X, Z, path, extent, cadre };
+    // Exagération qu'auraient les hauteurs sans « à l'échelle » (cadre d'origine, pas un cadre figé) : 1 = la case n'a pas d'effet
+    const exageration = trueScale
+      ? frame(profile, all, main, false, camera, imposed && { x: imposed.x, z: null }).factor : factor;
+    return { exageration, ref, bl, br, road, xs, xmin, xmax, zmin, zmax, sx, factor, plotW, plotH, X, Z, path, extent, cadre };
   }
 
   /** Eau : surfaces de la BD TOPO (bande bleue posée sur le terrain), cours d'eau (repère bleu nommé), surface lue
@@ -591,7 +594,7 @@ const Profil = (() => {
     // PDF : avec la 2e page
     if (profile.en_long?.points?.length && longLegend(profile.en_long)) legend.lastElementChild.classList.add("legende-long");
     survol(svg, f, main, profile, legend);
-    return { svg, legend, long: drawLong(profile.en_long, camera), cadre: f.cadre };
+    return { svg, legend, long: drawLong(profile.en_long, camera), cadre: f.cadre, exageration: f.exageration };
   }
 
   /** Survol (et toucher) du graphique en travers : réticule (trait vertical, point sur le terrain de la photo) et étiquette

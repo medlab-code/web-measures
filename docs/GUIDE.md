@@ -496,7 +496,7 @@ après.
   été trouvé dans le relief ou placé d'après la BD TOPO), flèche
   de la chute et droite rouge du talus (haut → pied) sur le travers où ils ont été mesurés,
   une clé de lecture d'une ou deux lignes sous le graphique (échantillon et mot pour chaque élément dessiné seulement : terrain, plateforme, bord mesuré ou supposé, chute, dévers, eau, herbe, végétation…, aussi dans le PNG et le PDF), valeurs au survol ou au toucher du graphique en travers (trait vertical, point sur le terrain de la photo et étiquette : distance à la caméra ou à l'axe, position par rapport au bord, hauteur par rapport à la plateforme ; une flèche de chute ou une droite de dévers proche du pointeur est mise en évidence avec son côté dans la légende ; rien de cela dans le PNG ni le PDF), hauteurs exagérées (facteur écrit sous le graphique et, en haut à gauche, « Hauteurs ×N » sur le graphique, donc aussi dans le PNG et le PDF) ; la case « Hauteurs à l'échelle » (cochée à chaque
-  ouverture) les remet à l'échelle des distances, caméra dessinée à sa hauteur (réglage « Hauteur de caméra »), masquée quand
+  ouverture, grisée quand les hauteurs sont déjà à l'échelle sur ce travers) les remet à l'échelle des distances, caméra dessinée à sa hauteur (réglage « Hauteur de caméra »), masquée quand
   les hauteurs sont exagérées. Les commandes sous le graphique sont en trois groupes : « Affichage » (« Hauteurs à
   l'échelle », « Végétation », légende, loupe), « Nuage LiDAR » (« Analyse fine », interrupteur « Bord d'enrobé (expérimental) ») et « Enregistrer » (PNG, PDF, 2e page),
   et une croix en haut à droite ferme la fenêtre. « PNG » en fait une image
