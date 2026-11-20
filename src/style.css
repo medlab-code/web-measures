@@ -1375,11 +1375,12 @@ dialog.profil form .groupe legend { padding: 0 0.3rem; font-size: 0.75rem; color
 /* cases à interrupteur centrées sur la hauteur des boutons voisins (sinon posées sur la ligne de base du texte, plus bas) */
 dialog.profil form .groupe label { display: inline-flex; align-items: center; gap: 0.35rem; }
 dialog.profil form .groupe label input { margin: 0; }
-/* « Fermer » : aligné sur le bas des boutons des groupes (sous leur titre), discret et marqué d'une croix ; pas de rouge,
-   réservé à « Non » et aux actions qui effacent */
-dialog.profil form > button.fermer { align-self: flex-end; margin-bottom: calc(0.45rem + 2px); background: transparent;
-  border: 1px solid var(--bord); color: var(--discret); }
-dialog.profil form > button.fermer:hover { color: var(--texte); }
+/* Croix de fermeture en haut à droite de la fenêtre, discrète ; pas de rouge, réservé à « Non » et aux actions qui effacent */
+dialog.profil h2 { padding-right: 2.6rem; }  /* le titre ne passe pas sous la croix */
+dialog.profil form.fermer-coin { position: absolute; top: 0.5rem; right: 0.5rem; margin: 0; }
+dialog.profil form.fermer-coin button { width: 2.4rem; height: 2.4rem; padding: 0; border: 1px solid transparent; border-radius: 4px;
+  background: transparent; color: var(--discret); font-size: 1.5rem; line-height: 1; }
+dialog.profil form.fermer-coin button:hover { border-color: var(--bord); color: var(--texte); }
 #profil-nuage-barre { width: 8rem; height: 0.6rem; accent-color: var(--panoramax); vertical-align: middle; }
 .profil-svg .herbe { fill: none; stroke: #9ccc65; stroke-width: 5; stroke-linejoin: round; opacity: 0.9; }  /* analyse fine */
 .profil-svg .ouvrage { stroke: var(--texte); stroke-width: 2; stroke-dasharray: 6 3; }  /* pont ou tunnel du profil en long */
