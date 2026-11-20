@@ -15,7 +15,7 @@ Essai.verbose = true;  // chaque contrôle journalisé, avec sa valeur
 const crossing = (along, h, width) => ["gauche", "droit"].map((cote) => ({ le_long: along, cote, bord: 3, relief: "marche", arret: null,
   points: [...Array(width + 1).keys()].map((k) => [k, k <= 3 ? 0 : h(k - 3)]) }));
 const profile = (crossings, origine = "axe") => ({ origine, source: "essai", erreur: 0.1, resultats: { gauche: null, droit: null },
-  arrets: {}, zone: 10, remontee: 1, profils: crossings.flat() });
+  arrets: {}, zone: 14, remontee: 1, profils: crossings.flat() });  // zone : bord à 3 m + 14 = 17 m, rien de coupé
 // Mètres de sol sous le point le plus bas, lus sur le SVG (échelle verticale : ligne zéro et un autre repère)
 function ground(svg) {
   document.documentElement.append(svg);
@@ -38,6 +38,9 @@ try {
   check("terrain plat, à l'échelle", Profil.draw(profile(flat), true), 2.75);
   check("talus descendant à −3 m, à l'échelle", Profil.draw(profile([crossing(0, (x) => -Math.min(3, x), 17)]), true), 1);
   check("talus montant à +8 m, à l'échelle", Profil.draw(profile([crossing(0, (x) => Math.min(8, x * 1.5), 17)]), true), 2.85);
+  // Réglette (zone) : terrain dessiné jusqu'à zone m au-delà du bord, même lu plus loin (83b5556f-0cb3-44d8-a41e-843ad0cddef1)
+  const sol = (width, zone) => Profil.draw({ ...profile([crossing(0, (x) => -0.2 * x, width)]), zone }, true).svg.querySelector(".sol").getAttribute("d");
+  expect("terrain lu au-delà de la réglette non dessiné", sol(25, 5) === sol(8, 5));
   check("terrain plat, hauteurs exagérées", Profil.draw(profile(flat), false), 0.3);
   check("point le plus bas sur un autre travers", Profil.draw(profile([...flat, crossing(5, (x) => -Math.min(2, x), 17)]), true), 1);
   // Étiquettes sous la chaussée : ni sur la chaussée, ni l'une sur l'autre, ni collées au bas du cadre

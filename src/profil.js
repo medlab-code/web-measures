@@ -33,7 +33,9 @@ const Profil = (() => {
     for (const p of profile.profils) {
       const t = out.get(p.le_long) || { along: p.le_long, points: [], bords: {} };
       const sign = p.cote === "gauche" ? -1 : 1;
-      t.points.push(...p.points.map(([o, z]) => [sign * o, z]));
+      // jusqu'à la distance de la réglette au-delà du bord (profile.zone), comme la chute : le terrain lu plus loin pour
+      // chercher le bord n'est pas dessiné (83b5556f-0cb3-44d8-a41e-843ad0cddef1, réglette à 10 m : graphique à 21 m)
+      t.points.push(...p.points.filter(([o]) => o <= p.bord + profile.zone + 1e-6).map(([o, z]) => [sign * o, z]));
       t.bords[p.cote] = { x: sign * p.bord, relief: p.relief, voisins: p.voisins, enrobe: p.enrobe,
         arret: p.arret === null ? null : sign * p.arret };
       if (p.separateur) {  // chaussées séparées : trouvé dans le relief ou d'après la BD TOPO
