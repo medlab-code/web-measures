@@ -290,7 +290,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
    remplacées ici, par CSS ; fonctions, places et infobulles inchangées. */
 .maplibregl-ctrl-top-left .maplibregl-ctrl-group, .maplibregl-ctrl.place-mesurer { background: none; box-shadow: none; }
 /* Colonne de gauche en une seule étiquette : zoom, boussole, échange des vues et fenêtre à part dans le même groupe, sans trait entre les boutons */
-.maplibregl-ctrl-top-left .maplibregl-ctrl-group { background: rgba(24, 25, 28, 0.55); border-radius: 0.8rem; overflow: hidden;
+.maplibregl-ctrl-top-left .maplibregl-ctrl-group { background: rgba(24, 25, 28, 0.55); border-radius: 0.8rem; overflow: hidden; padding: 4px 0;
   transition: background 0.2s; }
 .maplibregl-ctrl-top-left .maplibregl-ctrl-group button { border-radius: 0; }
 .maplibregl-ctrl-top-left .maplibregl-ctrl-group:hover { background: rgba(24, 25, 28, 0.82); }
