@@ -245,6 +245,7 @@ class App(Pose, Chutes, Nez, session.Session):
         self.nose_ground_last = None  # (caméra et distance, relief) du dernier relief lu : sert pendant le glissement de la rotation
         self.tilt_reasons = {}  # photo -> raison de l'échec de l'inclinaison automatique (ticket #29)
         self.birdeye_loose = {}  # photo -> verticales refusées pour les mesures, gardées pour la vue du dessus (web_tilt.LOOSE_SIGMA)
+        self.birdeye_ground = {}  # photo -> inclinaison de la vue du dessus tirée de la route : {up, sigma, manual} (birdeye_tilt_set)
         self.tilts.run = self._run_tilt
         # Inclinaison par le terrain hors agglomération, expérimentale (option, voir web_terrain)
         self.terrain_relay = False

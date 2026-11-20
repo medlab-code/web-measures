@@ -1983,10 +1983,25 @@ const Dessus = (() => {
     }
     return shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : "";
   }
+  /** Inclinaison appliquée à la photo affichée, annoncée à la page (Dessus.onTilt) quand elle vient de la route (groundTilt) : la
+   * droite de « Largeur dans la visionneuse » la reprend (App.birdeye_tilt_set). Avec les verticales de la photo, null : la
+   * droite lit les mêmes. manual : tangage ou part du dévers réglés à la main (curseurs, « Forcer »). Annoncée seulement si elle
+   * a changé. */
+  let tiltListener = null, tiltAnnounced = new Map();
+  function announceTilt(main) {
+    if (!tiltListener) return;
+    const tilt = main.groundTilt
+      ? { up: main.up, sigma: main.sigma, manual: pitchManual || rollShare !== DEFAULT_ROLL } : null;
+    const text = JSON.stringify(tilt);
+    if (tiltAnnounced.get(main.pic) === text) return;
+    tiltAnnounced.set(main.pic, text);
+    tiltListener(main.pic, text);
+  }
   async function showImage() {
     placeFor(shown);
     shown.joinKeyNow = joinKey();  // recalage des raccords valable pour ces réglages seulement
     const layers = readyLayers(), pose = shown.pose, mine = ++drawing, axis = roadAxis(layers);
+    announceTilt(layers[0].pose);
     // roulis et tangage : seulement pour l'inclinaison tirée de la route (pas de verticales lues, terrain LiDAR)
     $("#dessus-devers").disabled = $("#dessus-tangage-force").disabled = !layers[0].pose.groundTilt;
     // tangage lu : il prime
@@ -2323,7 +2338,7 @@ const Dessus = (() => {
   }
 
   return {
-    setup, update, exportView, geotiff, addPoint, cancelStart, setMeasuring,
+    setup, update, exportView, onTilt: (listener) => { tiltListener = listener; }, geotiff, addPoint, cancelStart, setMeasuring,
     hasStart: () => trace.length > 0, measuring: () => measuringOn, setTool, tool: () => tool,
     layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins,
       outline: outlines.get(shown.sequence), locatedWith: shown.locatedWith },

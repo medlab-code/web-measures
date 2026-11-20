@@ -1218,6 +1218,31 @@ class Parcours(unittest.TestCase):
         self.assertGreater(gap, 0.02)  # pitch à 12 m de côté : environ 3,5° x sin(angle) = plusieurs centièmes de radian
         host.install(**HOST)
 
+    def test_droite_nez_vue_du_dessus(self):
+        """Droite au nez : l'inclinaison tirée de la route par la vue du dessus (birdeye_tilt_set) passe avant les verticales, pour sa
+        photo seulement ; « réglée à la main » signalé ; « null » la retire ; rien de changé (faux) si la valeur est la même."""
+        self.show("p1")
+        r = math.tan(math.radians(-3.5))
+        norm = math.sqrt(1 + r * r)
+        self.app.birdeye_loose["p1"] = {"up": [r / norm, 0.0, 1 / norm], "sigma": 0.3}
+        loose = json.loads(self.app.nose_line(5.0))
+        r = math.tan(math.radians(2.0))
+        norm = math.sqrt(1 + r * r)
+        tilt = json.dumps({"up": [r / norm, 0.0, 1 / norm], "sigma": 0.8, "manual": False})
+        self.assertTrue(self.app.birdeye_tilt_set("p1", tilt))
+        self.assertFalse(self.app.birdeye_tilt_set("p1", tilt))
+        self.assertFalse(self.app.birdeye_tilt_set("autre", "null"))
+        line = json.loads(self.app.nose_line(5.0))
+        self.assertEqual((line["inclinaison_source"], line["inclinaison_sigma"]), ("vue du dessus", 0.8))
+        self.assertGreater(max(abs(a[2] - b[2]) for a, b in zip(loose["points"], line["points"])), 0.02)
+        self.assertTrue(self.app.birdeye_tilt_set("p1", tilt.replace("false", "true")))
+        self.assertEqual(json.loads(self.app.nose_line(5.0))["inclinaison_source"], "vue du dessus (réglée à la main)")
+        self.assertTrue(self.app.birdeye_tilt_set("p1", "null"))  # vue du dessus revenue aux verticales
+        self.assertEqual(json.loads(self.app.nose_line(5.0)), loose)
+        self.app.birdeye_tilt_set("p2", tilt)  # une autre photo : sans effet sur celle-ci
+        self.assertEqual(json.loads(self.app.nose_line(5.0)), loose)
+        host.install(**HOST)
+
     def test_droite_nez_virage(self):
         """Droite au nez dans un virage : séquence sur un cercle de 20 m de rayon, photos tous les 5 m ; la droite est radiale
         (perpendiculaire à la trajectoire) là où elle est tracée, pas à la photo (écart de 13° avec l'ancien calcul)."""

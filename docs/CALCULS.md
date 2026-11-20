@@ -414,7 +414,16 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   `sol_dz`, incertitude du MNT dans `sol_sigma` (0,08 m LiDAR HD, 0,30 m RGE ALTI ; absente à plat). L'encart donne la source et l'écart
   de sol aux deux poignées. Effet : une pente en long de 5 % met le point à 4,4 m à 22 cm au-dessus du sol de la caméra, soit 11 cm de
   hauteur apparente en moins sur 1,93 m.
-- **Inclinaison de la photo** (`Nez._nose_tilt`, même ordre que la vue du dessus, `_birdeye_of`) : calée à la main (« clics »), puis
+- **Inclinaison de la photo** (`Nez._nose_tilt`) : d'abord celle que **la vue du dessus** applique à cette photo quand elle la tire de
+  la route (`groundTilt` de `src/dessus.js` : pente de la route sous le véhicule, part du dévers prise en roulis, tangage lu sur les
+  raccords ou les lignes, ou réglé à la main, défaut de roulis de la campagne ; `layerOf`, `groundUp`) : `src/dessus.js` l'annonce à
+  la page à chaque image (`Dessus.onTilt`), `App.birdeye_tilt_set` la garde par photo (les 20 dernières) et la droite est refaite
+  quand elle change (même vue du dessus ouverte après la droite). Même convention que `Calibration.tilt` (verticale vraie vue de la
+  caméra, `[est, nord, haut]`), sans conversion : mêmes signes, aucun roulis de campagne ajouté en plus (déjà dedans). Incertitude :
+  celle de la vue du dessus (route et virage, `LEAN`). Source « vue du dessus », ou « vue du dessus (réglée à la main) » si le tangage ou
+  la part du dévers l'est. Quand la vue du dessus lit les verticales de la photo, elle utilise les mêmes sources que ce qui suit
+  (au détail près : elle prend le seuil élargi dès qu'il est plus sûr, même sur un calage à la main) : rien n'est annoncé et la suite
+  s'applique. Sinon, dans l'ordre de la vue du dessus (`_birdeye_of`) : calée à la main (« clics »), puis
   celle de la photo (`Calibration.tilt` : verticales calculées sur la photo HD, sinon pente et dévers du LiDAR), les verticales à seuil
   élargi (`birdeye_loose`, incertitude jusqu'à 0,5°, `web_tilt.LOOSE_SIGMA`) quand elles sont plus sûres que celle-ci sans être calées à
   la main, enfin le **roulis de campagne** (`ROLL_DEFECTS` : -1° pour le CD21 en 2025, comme verticale penchée, même signe que

@@ -814,7 +814,7 @@
     setSwapped, wantSwap, updateBirdeye, showResults, proposeDistance, swapButton, measureButton, birdeyeButton,
     captureButton, exportButton, showMapMeasureButton, syncMapMeasure, showResultsInfo,
   } = Resultats.init({
-    etat, refresh, askFiche, showOverViewer, map, mapBox, setColumnFolded, setFolded, fold, columnFold, notice,
+    etat, refresh, askFiche, showOverViewer, map, mapBox, setColumnFolded, setFolded, fold, columnFold, notice, nez,
     get coneHeading() { return coneHeading; }, get editReleve() { return editReleve; },
     get saveResults() { return saveResults; }, get viewFov() { return viewFov; }, get applyMeasureUi() { return applyMeasureUi; },
   });

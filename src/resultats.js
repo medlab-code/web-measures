@@ -11,7 +11,7 @@ const Resultats = {
   init(host) {
     const $ = (selector) => document.querySelector(selector);
     const {
-      etat, refresh, askFiche, showOverViewer, map, mapBox, setColumnFolded, setFolded, fold, columnFold, notice,
+      etat, refresh, askFiche, showOverViewer, map, mapBox, setColumnFolded, setFolded, fold, columnFold, notice, nez,
     } = host;
 
     // Résultats ------------------------------------------------------------------------------
@@ -326,6 +326,11 @@ const Resultats = {
     Dessus.setup(map, (on) => {
       measureSwap = on;
       wantSwap();
+    });
+    // Inclinaison de la photo tirée de la route par la vue du dessus (calage, curseurs) : reprise par la droite de « Largeur dans
+    // la visionneuse », refaite si elle change (gardée par photo : une autre photo ne la reçoit pas)
+    Dessus.onTilt((pic, tilt) => {
+      if (etat.app?.birdeye_tilt_set(pic, tilt)) nez.changed();
     });
 
     /** Mode « Mesure sur la carte » : clics sur la carte en grand, tant que « Mesure » est enfoncé (Bird Eye s'allume à part). */
