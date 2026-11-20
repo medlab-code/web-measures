@@ -481,7 +481,11 @@ après.
     creux ouvert au bout du profil : coupé ; tunnels de la route (BD TOPO) : le dessus remplacé par la droite d'une tête
     à l'autre ; pente moyenne par les moindres
     carrés (montée ou descente dans le sens de la photo) et pente la plus forte sur 10 m ; une ligne de l'encadré,
-    et un petit graphique (profil en long) sous le profil en travers, repris dans l'image PNG.
+    et un graphique (profil en long, environ 160 px de haut) sous le profil en travers, repris dans l'image PNG : bande pâle de −10 à +10 m
+    autour de la photo, graduée aux 5 travers du graphique du dessus (la photo en trait plus marqué) ; les 10 m les plus raides en violet épais,
+    étiquetés (« 8,5 % sur 10 m ») ; carrefours, fins de route et ponts nommés au-dessus du cadre, reliés par un pointillé à leur point du
+    terrain (un repère hors de la bande n'a jamais son nom au-dessus d'elle) ; une ligne de légende dessous, reprise dans le PNG et sur la
+    2e page du PDF.
 
   Le bouton **« Graphiques »**, à côté, montre la coupe du terrain que ce calcul a lue (mesure LiDAR
   HD, ou RGE ALTI en secours), sur la distance de la réglette de part et d'autre du milieu de la chaussée (1 m au moins

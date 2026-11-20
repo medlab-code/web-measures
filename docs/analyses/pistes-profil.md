@@ -397,7 +397,7 @@ laissé de côté.*
 - **Piste** : trois groupes : Affichage (échelle, végétation, légende, loupe), Analyse fine, Enregistrer (PNG, PDF, 2e page).
 - **Gain** : on trouve plus vite.
 
-**G7. Profil en long plus lisible.**
+**G7. Profil en long plus lisible.** *Faite le 20/11/2026 : tracé de 160 px (au lieu de 102) ; bande pâle de −10 à +10 m, graduée aux 5 travers ; repères étagés (largeurs par `textWidth`), reliés par un pointillé à un point du terrain, zone de la hauteur des rangs utilisés, jamais de nom au-dessus de la bande pour un repère qui n'y est pas ; 10 m les plus raides en violet épais avec leur pente (aussi en descente) ; ligne de légende dans la fenêtre, le PNG et la 2e page du PDF (`longLegend`).*
 - **Avant** : 102 px de haut sous le travers ; sa légende n'est que sur la 2e page du PDF.
 - **Problème** : ponts, carrefours et pente maximale serrés ; repères sans lien avec les travers à ±5 et ±10 m.
 - **Piste** : hauteur adaptée, marques des 5 travers sur l'axe des distances, sa ligne de légende dans la fenêtre aussi.

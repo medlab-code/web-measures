@@ -719,41 +719,92 @@ const Profil = (() => {
     return new Promise((resolve) => g.canvas.toBlob(resolve, "image/png"));
   }
 
-  /** Lecture du profil en long (drawLong), pour la légende : ponts, creux comblés et tunnels, ou "" s'il n'y en a pas. */
+  /** Lecture du profil en long (drawLong), pour la légende : une ligne courte (pente moyenne, trait violet, bande des
+   * travers, repères pointillés), puis les ponts, creux comblés et tunnels s'il y en a. "" sans profil en long. */
   function longLegend(long) {
+    if (!long?.points?.length) return "";
     const kinds = new Set((long.ouvrages || []).map((o) => o.type)), parts = [
-      ...(kinds.has("pont") ? ["pont\u00a0: tablier interpolé d'un bord à l'autre (tirets)"] : []),
-      ...(kinds.has("creux") ? ["creux comblé\u00a0: creux du terrain sous la route, sans doute un pont absent de la BD TOPO"] : []),
-      ...(kinds.has("tunnel") ? ["tunnel\u00a0: route tracée de bout en bout (tirets)"] : [])];
-    return parts.length ? `Profil en long\u00a0: ${parts.join(" · ")}.` : "";
+      ...(kinds.has("pont") ? ["pont : tablier interpolé d'un bord à l'autre (tirets)"] : []),
+      ...(kinds.has("creux") ? ["creux comblé : creux du terrain sous la route, sans doute un pont absent de la BD TOPO"] : []),
+      ...(kinds.has("tunnel") ? ["tunnel : route tracée de bout en bout (tirets)"] : [])];
+    return `Profil en long : pente moyenne de ${num(Math.abs(long.pente))} % (${long.pente >= 0 ? "montée" : "descente"}). `
+      + (long.max ? "Trait violet : les 10 m les plus raides. " : "")
+      + "Bande grise : les 5 travers du graphique du dessus (−10 à +10 m, la photo à 0). "
+      + "Repères pointillés : carrefours, fins de route, ponts."
+      + (parts.length ? ` ${parts.join(" · ")}.` : "");
   }
 
-  /** Profil en long (App._compute_edges : en_long, points [d, z], d > 0 dans le sens de la photo) : petit graphique sous le
-   * profil en travers, 0 = le sol sous la caméra, la caméra flottant à camera m au-dessus, la pente la plus forte sur 10 m
-   * en rouge ; null sans données. Fin de la route et carrefours sont nommés dans une bande au-dessus du cadre, pour ne
-   * jamais couvrir le terrain : le graphique grandit d'autant. */
+  /** Profil en long (App._compute_edges : en_long, points [d, z], d > 0 dans le sens de la photo) : graphique d'environ
+   * 160 px de haut sous le profil en travers, 0 = le sol sous la caméra, la caméra flottant à camera m au-dessus ; null
+   * sans données. Pour le lire avec le profil en travers : bande pâle de −10 à +10 m autour de la photo, graduée aux 5
+   * travers (−10, −5, 0, +5, +10 m ; la photo en trait plus marqué). Les 10 m les plus raides sont en violet épais
+   * (le rouge est réservé au dévers), étiquetés avec leur pente ; l'étiquette se place sous le trait, côté bas de la
+   * pente, donc aussi en descente. Fins de route, carrefours et ponts sont nommés dans une zone au-dessus du cadre,
+   * étagés sans chevauchement (textWidth) et reliés par un pointillé à un point du terrain ; la zone n'a que la hauteur
+   * des rangs utilisés. Un repère hors de la bande des travers n'a jamais son nom au-dessus de la bande : le nom se
+   * place du côté extérieur et se coupe en lignes plus courtes si la place manque, pour ne pas sembler être à la photo. */
   function drawLong(long, camera = 1.9) {
     if (!long?.points?.length) return null;
-    const LW = 760, L = 52, R = 16, B = 34, pw = LW - L - R, ph = 102;
+    const LW = 760, L = 52, R = 16, B = 56, pw = LW - L - R, ph = 160;
     const [d0, d1] = [-50, 50];  // axe fixe (App.LONG_REACH) ; au-delà du bout du tronçon, pas de terrain : vide
+    const BAND = 10;  // demi-largeur de la bande des travers, en m
     const X = (d) => L + (d - d0) / ((d1 - d0) || 1) * pw;
-    // Fin de la route de la photo et carrefours avec une voie nommée : nom à côté du trait pointillé, à droite s'il y tient,
-    // sur la première ligne de la bande où il ne couvre aucun autre nom
+    const ds = long.points.map(([d]) => d), zs = long.points.map(([, z]) => z);
+    const at = (d) => {  // altitude interpolée à la distance d
+      const k = ds.findIndex((v) => v >= d);
+      if (k < 0) return zs[zs.length - 1];
+      return k === 0 ? zs[0] : zs[k - 1] + (zs[k] - zs[k - 1]) * (d - ds[k - 1]) / (ds[k] - ds[k - 1]);
+    };
+    // Coupe une ligne en morceaux d'au plus max px (mot à mot, un mot trop long reste entier)
+    const wrap = (text, max) => {
+      const out = [];
+      for (const word of text.split(" ")) {
+        const last = out.length - 1;
+        if (last >= 0 && textWidth(`${out[last]} ${word}`, 13, 500) <= max) out[last] += ` ${word}`;
+        else out.push(word);
+      }
+      return out;
+    };
+    // Repères (fins de route, carrefours, ponts) : un nom chacun, étagé s'il en recouvre un autre
     const marks = [];
     for (const e of long.fins || []) {
       if (e.d < d0 || e.d > d1) continue;
       // « fin de la D16 » (la route s'arrête : le profil aussi), puis le carrefour ; sinon le carrefour seul
       const road = e.voie ? (/^[A-Z]+\d/.test(e.voie) ? `la ${e.voie}` : e.voie) : "la route";
       const lines = [...(e.type === "fin" ? [`fin de ${road}`] : []), ...(e.avec?.length ? [`carrefour avec ${e.avec.join(", ")}`] : [])];
-      const width = Math.max(0, ...lines.map((t) => t.length)) * 13 * 0.56;  // comme declutter
-      const right = X(e.d) + 4 + width <= LW;
-      const [from, to] = right ? [X(e.d), X(e.d) + 4 + width] : [X(e.d) - 4 - width, X(e.d)];
-      let row = 0;
-      while (marks.some((m) => from < m.to && m.from < to && row < m.row + m.lines.length && m.row < row + lines.length)) row++;
-      marks.push({ d: e.d, lines, right, from, to, row });
+      marks.push({ d: e.d, lines, kind: e.type, target: at(e.d) });
     }
-    const T = 34 + Math.max(0, ...marks.map((m) => m.row + m.lines.length)) * LINE, LH = T + ph + B;
-    const ds = long.points.map(([d]) => d), zs = long.points.map(([, z]) => z);
+    for (const o of long.ouvrages || []) {
+      const [a, b] = [Math.max(o.de, d0), Math.min(o.a, d1)];
+      if (b <= a) continue;
+      const mid = (a + b) / 2;
+      marks.push({ d: mid, lines: [o.type === "pont" ? "pont" : o.type === "creux" ? "creux comblé" : "tunnel"], kind: o.type, target: at(mid) });
+    }
+    marks.sort((p, q) => p.d - q.d);
+    for (const m of marks) {
+      const outside = Math.abs(m.d) > BAND, wide = (lines) => Math.max(...lines.map((t) => textWidth(t, 13, 500))) + 4;
+      // places à droite et à gauche du trait ; hors de la bande, le nom ne doit pas arriver jusqu'à elle
+      const room = { right: (m.d < -BAND ? X(-BAND) - 2 : LW - 4) - X(m.d) - 4, left: m.d > BAND ? 0 : X(m.d) - 8 };
+      if (outside && wide(m.lines) > Math.max(room.right, room.left)) {  // trop long : coupé en lignes plus courtes
+        m.lines = m.lines.flatMap((t) => wrap(t, Math.max(room.right, room.left) - 4));
+      }
+      m.right = m.d > BAND || wide(m.lines) <= room.right;  // à droite s'il y tient, sinon à gauche (jamais à gauche au-delà de +10 m)
+      const width = wide(m.lines);
+      [m.from, m.to] = m.right ? [X(m.d), X(m.d) + 4 + width] : [X(m.d) - 4 - width, X(m.d)];
+    }
+    const placed = [];
+    for (const m of marks) {
+      let row = 0;
+      const clash = () => placed.some((p) =>
+        (m.from < p.to && p.from < m.to && row < p.row + p.lines.length && p.row < row + m.lines.length)  // textes
+        || (p.row < row && X(p.d) > m.from - 1 && X(p.d) < m.to + 1)  // trait d'un repère plus haut sous ce nom
+        || (row < p.row && X(m.d) > p.from - 1 && X(m.d) < p.to + 1));  // trait de ce repère sous un nom plus bas
+      while (clash() && row < 8) row++;
+      m.row = row;
+      placed.push(m);
+    }
+    // zone des repères : la hauteur des rangs réellement utilisés (rien : juste le titre)
+    const T = 30 + Math.max(0, ...marks.map((m) => m.row + m.lines.length)) * LINE + 6, LH = T + ph + B;
     const ground = zs[ds.indexOf(0)], top = ground !== undefined ? ground + camera : null;  // caméra dans le cadre aussi
     const all = top !== null ? [...zs, top] : zs;
     const zmid = (Math.min(...all) + Math.max(...all)) / 2;
@@ -761,6 +812,8 @@ const Profil = (() => {
     const Z = (z) => T + (zmid + span / 2 - z) / span * ph;
     const svg = el("svg",
       { viewBox: `0 0 ${LW} ${LH}`, class: "profil-svg profil-long", role: "img", "aria-label": "Profil en long de la route" });
+    // bande des travers, sous tout le reste
+    svg.append(el("rect", { x: X(-BAND), y: T, width: X(BAND) - X(-BAND), height: ph, class: "bande-travers" }));
     // graduations des hauteurs par rapport au sol sous la caméra (0), sinon au milieu
     const zStep = [0.25, 0.5, 1, 2, 5, 10].find((s) => span / s <= 5) || 20, base = zs[ds.indexOf(0)] ?? zmid;
     for (let r = Math.ceil((zmid - span / 2 - base) / zStep) * zStep; base + r <= zmid + span / 2; r += zStep) {
@@ -770,16 +823,30 @@ const Profil = (() => {
     }
     for (let d = Math.ceil(d0 / 10) * 10; d <= d1; d += 10) {
       svg.append(el("line", { x1: X(d), x2: X(d), y1: T, y2: T + ph, class: d ? "grille" : "grille zero" }),
-        el("text", { x: X(d), y: T + ph + 14, class: "graduation", "text-anchor": "middle" },
-          `${d > 0 ? "+" : d < 0 ? "−" : ""}${Math.abs(d)} m`));
+        el("text", { x: X(d), y: T + ph + 19, class: "graduation", "text-anchor": "middle" },
+          `${d > 0 ? "+" : d < 0 ? "−" : ""}${Math.abs(d)} m`));
     }
+    // les 5 travers : graduations sur l'axe (la photo, plus marquée), mot discret dessous
+    for (const d of [-BAND, -BAND / 2, 0, BAND / 2, BAND]) {
+      svg.append(el("line", { x1: X(d), x2: X(d), y1: T + ph, y2: T + ph + (d ? 5 : 8), class: d ? "graduation-travers" : "graduation-travers photo" }));
+    }
+    svg.append(el("line", { x1: X(-BAND), x2: X(BAND), y1: T + ph, y2: T + ph, class: "axe-travers" }),
+      el("text", { x: X(0), y: T + ph + 33, class: "graduation travers-mot", "text-anchor": "middle" }, "travers"));
     const path = long.points.map(([d, z], k) => `${k ? "L" : "M"}${X(d).toFixed(1)},${Z(z).toFixed(1)}`).join("");
     const [first, last] = [Math.min(...ds), Math.max(...ds)];
     svg.append(el("path", { d: `${path}L${X(last)},${T + ph}L${X(first)},${T + ph}Z`, class: "terre" }),
       el("path", { d: path, class: "sol" }));
-    if (long.max) {  // pente la plus forte sur 10 m
-      const [, a, b] = long.max, za = zs[ds.indexOf(a)], zb = zs[ds.indexOf(b)];
-      svg.append(el("line", { x1: X(a), y1: Z(za), x2: X(b), y2: Z(zb), class: "devers" }));
+    for (const o of long.ouvrages || []) {  // ponts, creux comblés, tunnels : le tablier (droite d'un bord à l'autre) en tirets
+      const [a, b] = [Math.max(o.de, d0, first), Math.min(o.a, d1, last)];
+      if (b > a) svg.append(el("line", { x1: X(a), y1: Z(at(a)) - 4, x2: X(b), y2: Z(at(b)) - 4, class: "ouvrage" }));
+    }
+    if (long.max) {  // les 10 m les plus raides, en violet, avec leur pente
+      const [p, a, b] = long.max, [za, zb] = [at(a), at(b)];
+      svg.append(el("line", { x1: X(a), y1: Z(za), x2: X(b), y2: Z(zb), class: "raide" }));
+      // sous le trait, côté bas de la pente : montée, finissant au bout haut ; descente, partant du bout haut
+      const rise = zb >= za, y = Math.min(Math.max(Z(za), Z(zb)) + 22, T + ph - 5);
+      svg.append(el("text", { x: rise ? X(b) - 2 : X(a) + 2, y, class: "etiquette-raide place", "text-anchor": rise ? "end" : "start" },
+        `${num(Math.abs(p))} % sur ${b - a} m`));
     }
     // caméra d'abord : son étiquette reste à sa place, les autres s'en écartent (declutter)
     if (top !== null) {  // caméra à sa hauteur au-dessus du sol, pointillé jusqu'à lui
@@ -787,24 +854,14 @@ const Profil = (() => {
         el("circle", { cx: X(0), cy: Z(top), r: 5, class: "origine" }),
         el("text", { x: X(0) + 9, y: Z(top) + 4, class: "graduation place" }, "caméra"));
     }
-    // Ponts, creux comblés et tunnels : le tablier (droite d'un bord à l'autre) en tirets, nommé au-dessus
-    const decks = [];  // tabliers dessinés : les étiquettes s'en écartent
-    for (const o of long.ouvrages || []) {
-      const [a, b] = [Math.max(o.de, d0, Math.min(...ds)), Math.min(o.a, d1, Math.max(...ds))];
-      const at = (d) => {  // altitude interpolée à la distance d
-        const k = ds.findIndex((v) => v >= d);
-        return k <= 0 ? zs[0] : zs[k - 1] + (zs[k] - zs[k - 1]) * (d - ds[k - 1]) / (ds[k] - ds[k - 1]);
-      };
-      if (b <= a) continue;
-      decks.push([X(a), Math.min(Z(at(a)), Z(at(b))) - 7, X(b), Math.max(Z(at(a)), Z(at(b))) - 1]);
-      svg.append(el("line", { x1: X(a), y1: Z(at(a)) - 4, x2: X(b), y2: Z(at(b)) - 4, class: "ouvrage" }),
-        el("text", { x: X((a + b) / 2), y: Z(at((a + b) / 2)) - 10, class: "graduation place", "data-haut": "", "text-anchor": "middle" },
-          o.type === "pont" ? "pont" : o.type === "creux" ? "creux comblé" : "tunnel"));
+    declutter(svg, T, T + ph, []);
+    // repères : pointillé de leur nom jusqu'à un point du terrain, puis les noms (liserés), par-dessus les traits
+    const baseline = (m) => 30 + m.row * LINE + 10;  // ligne de base de la 1re ligne du nom
+    for (const m of marks) {
+      const y2 = Z(m.target) - (m.kind === "pont" ? 4 : 0);
+      svg.append(el("line", { x1: X(m.d), x2: X(m.d), y1: baseline(m) + 3 + (m.lines.length - 1) * LINE, y2, class: "repere" }),
+        el("circle", { cx: X(m.d), cy: y2, r: 2.5, class: "repere-point" }));
     }
-    declutter(svg, T, T + ph, decks);
-    // Traits avant les noms : un nom liseré reste lisible si le trait d'un autre passe derrière
-    const baseline = (m) => 34 + m.row * LINE + 10;  // ligne de base de la 1re ligne du nom
-    for (const m of marks) svg.append(el("line", { x1: X(m.d), x2: X(m.d), y1: baseline(m) - 10, y2: T + ph, class: "bord" }));
     for (const m of marks) {
       // comme « bord » du profil en travers : la 1re ligne en étiquette, la suite en graduation
       const x = X(m.d) + (m.right ? 4 : -4);
@@ -814,8 +871,8 @@ const Profil = (() => {
     }
     const g = long.pente;
     svg.append(el("text", { x: L, y: 18, class: "etiquette-profil" },
-      `Profil en long\u00a0: ${g >= 0 ? "montée" : "descente"} de ${num(Math.abs(g))} %`
-        + (long.max ? `, jusqu'à ${num(Math.abs(long.max[0]))} % sur 10 m` : "")),
+      `Profil en long : ${g >= 0 ? "montée" : "descente"} de ${num(Math.abs(g))} %`
+        + (long.max ? `, jusqu'à ${num(Math.abs(long.max[0]))} % sur 10 m` : "")),
       el("text", { x: L + pw, y: LH - 4, class: "graduation", "text-anchor": "end" }, "sens de la photo →"),
       el("text", { x: L, y: LH - 4, class: "graduation" },
         `hauteurs exagérées, 0 = le sol sous la caméra${long.suivi
