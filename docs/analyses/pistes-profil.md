@@ -251,6 +251,19 @@ flatteur). Le repli s'appelle « largeur type ». Reste à montrer qu'il est une
 - **Piste** : dans l'analyse fine, points hors sol (classe à vérifier : non classés ou « sursol pérenne ») alignés le long du bord à
   0,5-1 m de haut : « glissière probable » près de la chute. D'abord vérifier leur classe sur des glissières connues (A38, RD700
   067e83ca-a3d8-4f2a-bbe6-0c10df70fc96).
+- **Mesuré le 20/11/2026** (nuage LiDAR HD, 60 × 60 m autour de l'A38 61dd94c4-e5d1-4eb0-9762-73a72f18b5cb et de la RD700
+  067e83ca-a3d8-4f2a-bbe6-0c10df70fc96 ; `pdal translate <url_npl> --readers.copc.threads=1 --readers.copc.bounds=…`) :
+  aucune classe propre aux glissières, ni « sursol pérenne » (64) : classe 1 (non classé) à gauche sur les deux routes, 3 et 4
+  (végétation basse et moyenne) pour 75 % de la glissière droite de l'A38. Hauteur lue 0,35 à 0,43 m au-dessus du sol (p10-p90
+  0,2 à 0,6 m : le laser voit la face de la lame, pas sa hauteur réelle). 0,7 à 1,8 point par mètre, discontinue sur la RD700
+  (tranches de 5 m vides) ; à l'A38 gauche, deux lignes à 1 m l'une de l'autre. Ce qui la distingue de la végétation : la forme,
+  pas la classe (95 à 100 % des points dans une bande de 0,6 m en travers, contre 17 à 39 % pour les talus et haies voisins, plus
+  hauts, 0,6 à 1 m, et plus denses, 5 à 19 points par mètre). Un muret de béton au pied d'un talus (RD700 droite) a la même
+  forme ; seule l'intensité l'en sépare (environ 1 700 contre 200 à 500 pour l'acier). Pour la chute, la distinction est
+  inutile : un muret retient aussi (« dispositif de retenue probable »).
+- **Avant de coder** : deux glissières et un muret ne suffisent pas pour régler des seuils (leçon de P21). Il faut un lot de
+  photos vérifiées : une dizaine avec glissière ou muret, une dizaine sans (haie, herbe haute, clôture au bord), réglage sur
+  une moitié et jugement sur l'autre.
 - **Gain** : la chute dit si elle est protégée.
 
 **P20. Bord du tablier d'après la BD TOPO (chute sur un pont, voie de secours).** *Faite le 19/11/2026, à la demande de l'auteur
