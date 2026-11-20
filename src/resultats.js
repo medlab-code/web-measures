@@ -206,9 +206,14 @@ const Resultats = {
       if (!userSwap) measureSwap = false;  // remis en place à la main, même pendant la mesure
       wantSwap();
     });
+    // Colonne de la carte en une seule étiquette : le bouton rejoint le groupe de zoom et de boussole de MapLibre (créé avant, par Carte.createMap) ;
+    // le contrôle ajouté ne garde qu'un conteneur vide
     map.addControl({
-      onAdd: () => Object.assign(document.createElement("div"),
-        { className: "maplibregl-ctrl maplibregl-ctrl-group" }).appendChild(swapButton).parentNode,
+      onAdd: () => {
+        (map.getContainer().querySelector(".maplibregl-ctrl-top-left .maplibregl-ctrl-group") || Object.assign(document.createElement("div"),
+          { className: "maplibregl-ctrl maplibregl-ctrl-group" })).append(swapButton);
+        return Object.assign(document.createElement("div"), { hidden: true });
+      },
       onRemove: () => {},
     }, "top-left");
     // Règle du bouton de mesure : même dessin que les boutons de la visionneuse (viewBox 24, trait 2, extrémités rondes)

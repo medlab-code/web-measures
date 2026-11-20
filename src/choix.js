@@ -454,9 +454,12 @@ const Choix = {
       detachButton.className = "detacher-carte";
       detachButton.addEventListener("click", toggleMapWindow);
       showDetached(false);
-      map.addControl({
-        onAdd: () => Object.assign(document.createElement("div"), { className: "maplibregl-ctrl maplibregl-ctrl-group" })
-          .appendChild(detachButton).parentNode,
+      map.addControl({  // même étiquette que le zoom, la boussole et l'échange des vues (voir resultats.js)
+        onAdd: () => {
+          (map.getContainer().querySelector(".maplibregl-ctrl-top-left .maplibregl-ctrl-group") || Object.assign(document.createElement("div"),
+            { className: "maplibregl-ctrl maplibregl-ctrl-group" })).append(detachButton);
+          return Object.assign(document.createElement("div"), { hidden: true });
+        },
         onRemove: () => {},
       }, "top-left");
       $("#rattacher-carte").addEventListener("click", toggleMapWindow);
