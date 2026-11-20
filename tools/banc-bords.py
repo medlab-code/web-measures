@@ -90,6 +90,12 @@ REFERENCES = {
         2.9, "D119E : enrobé jusqu'à 2,9 m (photo ; herbe 1,4 à 1,6 fois l'enrobé au-delà), puis bourrelet enherbé de 0,4 m "
         "et fossé d'environ 0,8 m vers 7-8,5 m ; relief à 1,5 m, analyse fine à 4,1 m (bordure au pied du bourrelet) "
         "(auteur, 20/11/2026)"),
+    ("2666168c-c349-4508-8043-b5c8d7ae7464", "droit"): (
+        1.7, "D16, enrobé et plateforme de 5 m, bords mesurés en vue du dessus (caméra sur la croix bleue) : bord droit à "
+        "environ 1,70 m de la caméra ; relief à 2,5 m, analyse fine à 2,11 m (auteur, 20/11/2026)"),
+    ("2666168c-c349-4508-8043-b5c8d7ae7464", "gauche"): (
+        3.15, "D16 : bord gauche à 3,15 m (vue du dessus) ; relief à 2,0 m (trop court), analyse fine à 5,61 m, largeur "
+        "médiane 8,0 ± 3,6 m (auteur, 20/11/2026)"),
 }
 
 
