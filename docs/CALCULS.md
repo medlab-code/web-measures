@@ -376,6 +376,24 @@ moitié, soit trop pour reconnaître sûrement un toit à 2,5 % sur 6 m (2,2 cm 
 2,1 cm de résidu médian) ; 0,1 à 0,8 point par moitié sur des chaussées séparées. Les bords sont ceux
 de la détection (§ 8.2), accotement parfois compris, sans l'analyse fine.
 
+### 8.8 Bords sur la photo (expérimental)
+
+Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'utilisateur ajuste aux bords (`src/nez.js`).
+- **Droite** : points à `d` m devant la caméra, perpendiculaires à l'axe de la séquence (cap entre les photos voisines, sinon cap
+  de la photo), de -12 à +12 m tous les 0,05 m, positifs à droite. Un point de décalage `x` est au cap `atan2(x, d)` de l'axe et à
+  l'élévation `-atan(H / hypot(x, d))` ; `d` = 4,4 m (monture 1,93 m), 4,8 m (2,07 m), 4,5 m sinon, soit le capot de
+  `src/dessus.js` (OUTLINES) plus 0,3 m. Direction rendue dans le repère de la photo par `Session._view_of` : calage compris
+  (cap de la séquence, inclinaison calée ou lue).
+- **Hauteur** `H` : `Session.camera_of` (altitude GPS moins sol LiDAR, calée, monture CD21 1,93 ou 2,07 m, sinon réglage, 1,90 m
+  par défaut) et son incertitude `σH`.
+- **Sol** : plat, au niveau du sol sous la caméra, sans lecture du terrain.
+- **Roulis de campagne** : sans inclinaison calée ni lue pour la photo, le défaut de roulis du producteur (`ROLL_DEFECTS` : -1° pour le
+  CD21 en 2025) est appliqué comme verticale penchée, même signe que `groundUp` de `src/dessus.js` ; avec une inclinaison (qui le
+  contient), rien de plus.
+- **Incertitude d'un bord** à `s` m de l'axe : `σ = √( ((H² + d²)/H · δi)² + (s² · δr / H)² + (s · σH / H)² )`, `δi` = 0,5° (inclinaison
+  de la photo), `δr` = 0,5° (roulis restant), en radians. Largeur : somme quadratique des deux côtés, arrondie au-dessus à 0,05 m.
+  Estimation de départ, pas encore comparée à des bords relevés sur place.
+
 ## 9. « Profils » : pente en long
 
 - **Ligne suivie** : la **trajectoire de la caméra** (photos de la même séquence, de rangs qui

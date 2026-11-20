@@ -16,6 +16,7 @@ from datetime import datetime
 
 import web_host
 from web_chutes import Chutes, _WAY_KINDS, _deck_at, platform_slope  # noqa: F401 (essais)
+from web_nez import Nez
 from web_pose import Pose
 from core import (autotilt, calibration, capture, filters, host, measures, metadata, precision, roads, session, tools,
                   triangulation, widths)
@@ -199,7 +200,7 @@ class RankPrecisionChecker(precision.PrecisionChecker):
         next_portion()
 
 
-class App(Pose, Chutes, session.Session):
+class App(Pose, Chutes, Nez, session.Session):
     def __init__(self, notify, remote=None, api_url=web_host.API_URL):
         web_host.install(remote, api_url)
         if remote is not None:

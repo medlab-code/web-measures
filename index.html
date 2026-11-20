@@ -143,7 +143,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
                  d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg></button>
       <!-- Luminosité et contraste de l'affichage de la photo seulement (filtre CSS : mesures et exports inchangés) ;
            un clic sur l'icône remet la valeur à 100 % (disposition.js) -->
-      <div id="reglage-image" role="group" aria-label="Luminosité et contraste de la photo">
+      <div id="reglage-image" role="group" aria-label="Luminosité, contraste et bords sur la photo">
         <div>
           <input type="range" id="luminosite" min="50" max="150" step="1" value="100"
                  aria-label="Luminosité" title="Luminosité de l'affichage de la photo">
@@ -157,6 +157,12 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
           <button type="button" id="contraste-raz" disabled title="Contraste : remettre à 100 %">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg></button>
+        </div>
+        <div>  <!-- Bords sur la photo (expérimental, src/nez.js) : bascule, grisée sans photo 360° -->
+          <button type="button" id="nez-bords" disabled aria-pressed="false"
+                  title="Bords sur la photo (expérimental) : droite au sol devant le véhicule, faites glisser ses extrémités jusqu'aux bords de la route">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <path d="M3 16h18M12 5v7"/><circle cx="5.5" cy="16" r="2.3" fill="currentColor"/><circle cx="18.5" cy="16" r="2.3" fill="currentColor"/></svg></button>
         </div>
       </div>
       <ul id="voyants" hidden></ul>
@@ -1353,6 +1359,7 @@ enregistrée en PNG et copiée dans le presse-papiers"><span class="icone" aria-
   <script src="src/dessus.js"></script>
   <script src="src/vignette.js"></script>
   <script src="src/disposition.js"></script>
+  <script src="src/nez.js"></script>
   <script src="src/parcours.js"></script>
   <script src="src/mesure.js"></script>
   <script src="src/visionneuse.js"></script>

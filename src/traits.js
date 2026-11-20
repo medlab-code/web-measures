@@ -47,6 +47,7 @@ const Traits = (() => {
   const BLACK = [0, 0, 0, 0.7], WHITE = [1, 1, 1, 0.85];
   let psv = null, canvas = null, gl = null, flat = null, textured = null;
   let lines = [], crosses = [], labels = [], slide = null, rects = [];
+  let extra = { lines: [], crosses: [], discs: [], labels: [] };  // seconde couche (setExtra), indépendante des mesures
   const images = new Map();  // texte et style d'une étiquette -> { texture, w, h } (px)
 
   const rgba = (color, alpha = 1) => [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16) / 255).concat(alpha);
@@ -119,6 +120,22 @@ const Traits = (() => {
     lines = list.map((line) => ({ ...line, rgba: rgba(line.color), vectors: line.points.map(vector) }));
     crosses = (marks.crosses || []).map((c) => ({ ...c, vector: vector(c.at) }));
     labels = (marks.labels || []).map((l) => ({ ...l, vector: vector(l.at) }));
+    psv.needsUpdate();
+  }
+
+  /**
+   * Seconde couche, que les mesures (set) n'écrasent pas : « Bords sur la photo » (src/nez.js). Mêmes formes que set :
+   * lines [{points, color, width}], crosses [{at, color}], labels [{at, type, place, text}] ; discs : disques d'écran
+   * [{at, color, r (px), edge (couleur du liseré)}]. Pas dans les captures. Sans argument : couche vidée.
+   */
+  function setExtra(layer = {}) {
+    if (!psv) return;
+    extra = {
+      lines: (layer.lines || []).map((line) => ({ ...line, extra: true, rgba: rgba(line.color), vectors: line.points.map(vector) })),
+      crosses: (layer.crosses || []).map((c) => ({ ...c, vector: vector(c.at) })),
+      discs: (layer.discs || []).map((c) => ({ ...c, vector: vector(c.at) })),
+      labels: (layer.labels || []).map((l) => ({ ...l, vector: vector(l.at) })),
+    };
     psv.needsUpdate();
   }
 
@@ -218,7 +235,7 @@ const Traits = (() => {
   /** Étiquettes placées à l'écran (at : position d'écran d'un point, ou null) : les autres d'abord, puis celles des
    * points d'arrivée écartées vers le bas, de la plus haute à la plus basse, avec un trait de renvoi blanc vers leur
    * croix (ajouté à out). Rectangles gardés dans rects (labelRects) ; rend [[étiquette, rectangle, texture]]. */
-  function placeLabels(at, out) {
+  function placeLabels(at, out, labels) {
     const placed = [], quads = [];
     const put = (label, r) => {
       quads.push([label, r, image(label).texture]);
@@ -273,8 +290,10 @@ const Traits = (() => {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     rects = [];
-    const drawnLines = capture ? lines.filter((l) => !l.couche) : lines, reticle = capture ? null : slide;
-    if (!width || !(drawnLines.length || crosses.length || labels.length || reticle)) return;
+    const drawnLines = capture ? lines.filter((l) => !l.couche) : lines.concat(extra.lines), reticle = capture ? null : slide;
+    const drawnCrosses = capture ? crosses : crosses.concat(extra.crosses), discs = capture ? [] : extra.discs;
+    const drawnLabels = capture ? labels : labels.concat(extra.labels);
+    if (!width || !(drawnLines.length || drawnCrosses.length || discs.length || drawnLabels.length || reticle)) return;
     const camera = psv.renderer.camera;
     const m = camera.matrixWorldInverse.elements, p = camera.projectionMatrix.elements;
     const view = (v) => [m[0] * v.x + m[4] * v.y + m[8] * v.z + m[12],
@@ -319,7 +338,7 @@ const Traits = (() => {
     }
 
     // Croix : branches de 18 px cernées de noir ; la croix choisie dans un cercle
-    for (const c of crosses) {
+    for (const c of drawnCrosses) {
       const s = at(c.vector);
       if (!s) continue;
       const [x, y] = s;
@@ -330,7 +349,14 @@ const Traits = (() => {
       if (c.ring) circle(out, x, y, 10, 2, rgba(c.ring));
     }
 
-    const quads = placeLabels(at, out);  // étiquettes : [étiquette, rectangle, texture]
+    for (const c of discs) {  // poignées : disque plein (cercle épais) dans un liseré
+      const s = at(c.vector);
+      if (!s) continue;
+      circle(out, s[0], s[1], c.r / 2 + 1.5, c.r + 3, rgba(c.edge || "#202020"));
+      circle(out, s[0], s[1], c.r / 2, c.r, rgba(c.color));
+    }
+
+    const quads = placeLabels(at, out, drawnLabels);  // étiquettes : [étiquette, rectangle, texture]
 
     // Réticule glissant, au-dessus de tout
     if (reticle) {
@@ -388,5 +414,5 @@ const Traits = (() => {
     return rects.map((r) => ({ left: r.left + b.left, right: r.right + b.left, top: r.top + b.top, bottom: r.bottom + b.top }));
   }
 
-  return { attach, set, setSlide, snapshot, items, labelRects };
+  return { attach, set, setExtra, setSlide, snapshot, items, labelRects };
 })();

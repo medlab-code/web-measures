@@ -11,7 +11,7 @@ const Visionneuse = {
   init(host) {
     const $ = (selector) => document.querySelector(selector);
     const {
-      etat, map, viewer, askFiche, movingId, endMoving, moveOverlayObject, placeOverlayObject, refresh, remindZoom,
+      etat, map, viewer, nez, askFiche, movingId, endMoving, moveOverlayObject, placeOverlayObject, refresh, remindZoom,
       passesFilter, setPhoto, notice,
     } = host;
 
@@ -255,6 +255,7 @@ const Visionneuse = {
         host.applyMeasureUi();
         refresh();
         updateCursor();
+        nez.update();  // visionneuse prête : bouton « Bords sur la photo »
       }, 200);
     }
 

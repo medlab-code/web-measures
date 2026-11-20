@@ -13,7 +13,7 @@ const Choix = {
     const {
       map, setStatus, etat, refresh, showPhotoInfo, passesFilter, filterActive, viewer, notice, showOverViewer,
       proposeDistance, setSwapped, mapBox, setFolded, grip, swapButton, measureButton, birdeyeButton, captureButton,
-      exportButton, store, showFavorites, photoProducer, updateProducers, checkFarFromMeasures, showPlace,
+      exportButton, store, showFavorites, photoProducer, updateProducers, checkFarFromMeasures, showPlace, nez,
     } = host;
 
     // Choix de la photo sur la carte ---------------------------------------------------------
@@ -490,6 +490,7 @@ const Choix = {
       $("#capture-hd").disabled = true;
       $("#vignette").disabled = true;
       $("#plein-ecran").disabled = true;
+      nez.update();
       if (document.fullscreenElement) document.exitFullscreen();  // plus de photo à montrer
       Carte.showView(map, null);
       showPhotoInfo(null, message);
@@ -619,6 +620,7 @@ const Choix = {
       $("#capture-hd").disabled = !Calcul.hasWorker();  // « Avec annotations » : selon les annotations (updateAnnotationsButton)
       $("#plein-ecran").disabled = !document.fullscreenEnabled;
       if (etat.app) refresh(etat.app.set_picture(JSON.stringify(feature)));
+      nez.update();  // bords sur la photo : bouton selon la photo 360°, droite refaite
       proposeRecaledPhoto();
       updateProducers();
       checkFarFromMeasures(coords);

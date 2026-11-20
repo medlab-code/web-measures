@@ -355,6 +355,15 @@ laissé de côté.*
   direct sur cette droite (couleur, texture), que l'utilisateur corrige. Étude de faisabilité de la détection sur
   photo lancée le 20/11/2026.
 - **Gain** : bords du jour de la photo, au centimètre près à 2-4 m, là où relief et nuage échouent.
+- **Découpage (20/11/2026)** :
+  1. ~~Droite et poignées~~ **faite le 20/11/2026** (bouton « Bords sur la photo » à côté de la luminosité et du contraste, expérimental) :
+     droite au sol à 4,4 / 4,8 / 4,5 m devant la caméra, poignées à glisser, lecture en direct (distances, largeur, ±), sol plat ;
+     rien n'est retenu (`src/nez.js`, `py/web_nez.py`, `docs/CALCULS.md` § 8.8) ;
+  2. mode « Caler » sur objets connus ou mesures de terrain, calage gardé par séquence ;
+  3. fiche de terrain imprimable ;
+  4. report dans le graphique et « Retenir », une fois la mesure fiabilisée (décision de l'auteur) ;
+  5. plus près, plus loin (distance de la droite) ;
+  6. détection en direct des bords sur la droite.
 
 ### Graphique et fenêtre : pistes
 

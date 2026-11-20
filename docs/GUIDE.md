@@ -73,6 +73,17 @@ transparents, et les boutons, voyants, lieu et lecteur s'effacent après 3 s de 
 reste propre. Une mesure en cours s'y poursuit, avec sa carte d'étape ; pour en lancer une autre, quitter le plein écran.
 `Échap` y quitte d'abord le plein écran : un second appui annule le trait en cours.
 
+**Bords sur la photo** (expérimental, piste P22 étape 1) : le bouton à droite des curseurs de luminosité et de contraste, en haut à
+gauche de la visionneuse (grisé sans photo 360°), trace en jaune une droite au sol juste devant le nez du véhicule, perpendiculaire à
+la trajectoire de la séquence (à 4,4 m de la caméra pour la monture basse du CD21, 4,8 m pour la haute, 4,5 m ailleurs : le sol y
+est visible, hors capot), avec un repère au droit de la caméra et deux poignées, à gauche et à droite. Elles partent des bords du
+profil en travers de la photo s'il y en a un, sinon de 3 m de part et d'autre. Faire glisser une poignée le long de la droite
+jusqu'au bord de la route (la visionneuse ne tourne pas tant qu'on tient une poignée ; le curseur devient une main) : un encart au
+bas de la photo lit en direct la distance de chaque bord à la caméra (au décimètre), la largeur et son incertitude. Rien n'est
+retenu ni reporté dans le graphique ou les résultats ; un second appui sur le bouton retire tout. Photo suivante : la droite est
+refaite, les poignées déjà déplacées restent où elles sont. Précision : voir `docs/CALCULS.md` § 8.8 ; l'incertitude affichée
+(arrondie à 0,05 m) suppose le sol plat entre la caméra et la droite.
+
 **Vidéo d'un itinéraire** : onglet **« Vidéo »** du panneau, en trois temps.
 
 **1. Tracer.** « 📍 Tracer sur la carte » enchaîne les clics sur la mini-carte : le départ, l'arrivée, puis les étapes

@@ -1118,6 +1118,22 @@ class Parcours(unittest.TestCase):
                 self.assertAlmostEqual(nb - na, 0.0, delta=0.001)
                 self.assertAlmostEqual(ea, left, delta=0.002)
 
+    def test_droite_nez(self):
+        """Droite au sol devant le nez (App.nose_line) : sol plat, photo non inclinée, cap 0 : un point à x m à droite de l'axe,
+        d m devant, est au cap atan2(x, d) et à l'élévation -atan(H / hypot(x, d)) ; positif = à droite."""
+        self.show("p1")
+        line = json.loads(self.app.nose_line(5.0))
+        self.assertEqual((line["d"], line["hauteur"], line["roulis_campagne"]), (5.0, self.CAMERA, 0.0))
+        offsets = [p[0] for p in line["points"]]
+        self.assertEqual((offsets[0], offsets[-1], len(offsets)), (-12.0, 12.0, 481))
+        for x, yaw, pitch in line["points"]:
+            self.assertAlmostEqual(yaw, math.atan2(x, 5.0), delta=1e-5)
+            self.assertAlmostEqual(pitch, -math.atan(self.CAMERA / math.hypot(x, 5.0)), delta=1e-5)
+        self.assertGreater(next(p[1] for p in line["points"] if p[0] == 3.0), 0)  # à droite : cap relatif positif
+        self.assertEqual(json.loads(self.app.nose_line())["d"], 4.5)  # défaut hors CD21
+        self.assertIn("error", json.loads(App(lambda *args: None).nose_line()))  # sans photo
+        host.install(**HOST)
+
     def test_releve_recharge(self):
         """Relevé gardé dans le navigateur (releve_json), remis au rechargement (load_releve)."""
         self.app.set_mode("releve")

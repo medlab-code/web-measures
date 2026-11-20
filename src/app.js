@@ -435,6 +435,9 @@
     wantSwap: () => wantSwap(),  // déclaré plus bas
   });
 
+  // « Bords sur la photo » (expérimental) : droite au sol devant le véhicule, poignées à glisser : src/nez.js
+  const nez = Nez.init({ etat, get notice() { return notice; } });
+
   /** Producteur de la photo (fiche STAC), ou "". */
   function photoProducer(feature) {
     const p = feature.properties || {};
@@ -696,6 +699,7 @@
   function refresh(text) {
     if (!etat.app) return;
     setStatus(text ?? etat.app.status());
+    nez.changed();  // droite des bords sur la photo, si l'inclinaison ou la hauteur de caméra ont changé
     updateBirdeye();
     const rtkAlert = etat.app.take_rtk_alert();  // séquence sans RTK : fenêtre, une fois par séquence
     if (rtkAlert && !$("#alerte-rtk").open) {
@@ -823,7 +827,7 @@
   } = Choix.init({
     map, setStatus, etat, refresh, passesFilter, filterActive, viewer, notice, showOverViewer,
     proposeDistance, setSwapped, mapBox, setFolded, grip, swapButton, measureButton, birdeyeButton, captureButton,
-    exportButton, store, photoProducer, updateProducers, showPlace,
+    exportButton, store, photoProducer, updateProducers, showPlace, nez,
     // favoris et photo éloignée : déclarés plus bas (Favoris.init)
     showPhotoInfo: (...args) => showPhotoInfo(...args), showFavorites: (...args) => showFavorites(...args),
     checkFarFromMeasures: (...args) => checkFarFromMeasures(...args),
@@ -870,7 +874,7 @@
   const {
     slideOnGuide, coneHeading, viewFov, attachViewer, viewHeading,
   } = Visionneuse.init({
-    etat, map, viewer, askFiche, movingId, endMoving, moveOverlayObject, placeOverlayObject, refresh, remindZoom,
+    etat, map, viewer, nez, askFiche, movingId, endMoving, moveOverlayObject, placeOverlayObject, refresh, remindZoom,
     passesFilter, setPhoto, notice, get LOADING() { return LOADING; }, get applyMeasureUi() { return applyMeasureUi; },
     get attachPlayer() { return attachPlayer; }, get onArrow() { return onArrow; },
     get photoReady() { return photoReady; }, get reticleColor() { return reticleColor; },
