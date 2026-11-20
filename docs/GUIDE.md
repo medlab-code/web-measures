@@ -498,8 +498,8 @@ après.
   et une croix en haut à droite ferme la fenêtre. « PNG » en fait une image
   avec son titre et sa légende ; « PDF » met le graphique et la légende (en petits caractères, sur deux
   colonnes) sur une page A4 paysage, en vectoriel, sous le lieu de la photo (route, PR, commune), à enregistrer en PDF
-  dans la boîte d'impression ; « Profil en long (2e page) » (choix retenu) y ajoute une page pour le profil en long ; la loupe agrandit le graphique (sans la légende) au mieux dans la
-  visionneuse ; la légende est repliée à chaque ouverture, « Déplier la légende » l'affiche (le PNG et le PDF la gardent). Le fond du
+  dans la boîte d'impression ; « Profil en long (2e page) » (choix retenu) y ajoute une page pour le profil en long ; la loupe agrandit le graphique (sans la légende) au mieux sur la
+  grande zone (que la visionneuse ou la carte y soit, la fenêtre s'y met toujours) ; la légende est repliée à chaque ouverture, « Déplier la légende » l'affiche (le PNG et le PDF la gardent). Le fond du
   graphique descend à 1 m sous le point le plus bas du terrain si le haut du terrain (sans la caméra ni la végétation) reste alors dans
   la moitié basse du cadre, sinon à 0,3 m ; la place libre est en haut, pour la végétation. Le graphique et la
   légende donnent le **dévers de la plateforme** (LiDAR HD seulement), arrondi au point : un chiffre si elle penche d'un seul sens, sinon un

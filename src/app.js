@@ -335,7 +335,7 @@
 
   // Réglages de l'affichage (filaire, inclinaison, bords, PR, cadastre…) et fenêtre du profil : src/reglages.js
   Reglages.init({
-    store, map, etat, refresh, showOverViewer, saveAs, setStatus, FICHE_FONTS, placeMarkup, escapeHtml,
+    store, map, etat, refresh, showOverViewer, mainZone, saveAs, setStatus, FICHE_FONTS, placeMarkup, escapeHtml,
     get applyMeasureUi() { return applyMeasureUi; }, get endLineDraft() { return endLineDraft; },
     get showParcelMark() { return showParcelMark; },
   });
@@ -614,14 +614,20 @@
           : "Calcul de l'inclinaison en cours : attendez avant de mesurer";
   }
 
+  /** Grande zone principale (là où est la visionneuse sans échange) : la visionneuse elle-même, ou, carte et visionneuse
+   * échangées, son gabarit (#place-vue), où la carte s'est posée. */
+  function mainZone() { return etat.swapped ? $("#place-vue") : $("#vue"); }
+
   /** Fenêtre modale centrée sur la visionneuse (et non sur la page), recentrée si la fenêtre du
-   * navigateur change de taille. */
-  function showOverViewer(dialog) {
+   * navigateur change de taille. Avec `onMainZone`, elle se centre sur la grande zone principale, que la visionneuse ou la
+   * carte y soit (carte et visionneuse échangées) : toujours au même endroit à l'écran. Seule la fenêtre du graphique du
+   * profil le demande ; les autres fenêtres suivent la visionneuse. */
+  function showOverViewer(dialog, onMainZone = false) {
     dialog.showModal();
     let bottom = null;  // bas de la fenêtre une fois placée : gardé quand son contenu change (case actionnée, légende plus
     // courte), pour que ses boutons, en bas, ne sautent pas sous le pointeur ; sans sortir de la visionneuse
     const place = () => {
-      const box = $("#vue").getBoundingClientRect();
+      const box = (onMainZone ? mainZone() : $("#vue")).getBoundingClientRect();
       dialog.style.margin = "0";
       dialog.style.inset = "auto";
       // Centrée dans la visionneuse, sans en sortir : plus haute (nombreux champs), elle défile

@@ -11,7 +11,7 @@ const Reglages = {
   init(host) {
     const $ = (selector) => document.querySelector(selector);
     const {
-      store, map, etat, refresh, showOverViewer, saveAs, setStatus, FICHE_FONTS, placeMarkup, escapeHtml,
+      store, map, etat, refresh, showOverViewer, mainZone, saveAs, setStatus, FICHE_FONTS, placeMarkup, escapeHtml,
     } = host;
 
     $("#fond").value = store.get("fond", "plan").replace(/^osm$/, "ofm");  // OpenStreetMap France remplacé par OpenFreeMap
@@ -90,14 +90,14 @@ const Reglages = {
     trueScale.addEventListener("change", () => {
       if (etat.edgeProfile) drawProfile(true);
     });
-    // Loupe : graphique le plus grand possible (sans la légende) sans que la fenêtre dépasse de la visionneuse ;
-    // l'image PNG n'en dépend pas
+    // Loupe : graphique le plus grand possible (sans la légende) sans que la fenêtre dépasse de la grande zone principale
+    // (que la visionneuse ou la carte y soit, comme la fenêtre elle-même) ; l'image PNG n'en dépend pas
     const fitProfile = () => {
       const dialog = $("#fenetre-profil"), chart = dialog.querySelector(".graphique");
       chart.style.width = "";
       dialog.style.maxWidth = "";
       if (!dialog.classList.contains("agrandi")) return;
-      const box = $("#vue").getBoundingClientRect();
+      const box = mainZone().getBoundingClientRect();
       const ratio = chart.offsetWidth / (chart.offsetHeight || 1);  // les deux graphiques (en travers, en long) ensemble
       // Marges de la fenêtre en largeur ; en hauteur, place prise par le reste (titre, boutons), mesurée graphique compris
       const css = getComputedStyle(dialog), otherW = ["paddingLeft", "paddingRight", "borderLeftWidth", "borderRightWidth"]
@@ -139,7 +139,7 @@ const Reglages = {
       drawProfile();
       $("#profil-nuage-etat").textContent = "";
       nuageReady();
-      showOverViewer(dialog);
+      showOverViewer(dialog, true);  // sur la grande zone, quel que soit l'échange carte / visionneuse
       // Route, PR et commune de la photo, comme l'étiquette du lieu (déjà lus : sans requête)
       Lieu.describe(...feature.geometry.coordinates.slice(0, 2), feature).then(({ parts }) => {
         const place = [parts.voie || etat.edgeProfile.road, parts.pr, parts.commune].filter(Boolean).join(" – ");
