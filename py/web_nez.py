@@ -18,23 +18,41 @@ NOSE_DISTANCE_DEFAULT = 4.5  # m : autres véhicules
 class Nez:
     """Droite au sol devant le véhicule (voir web_app.App)."""
 
-    def _nose_view(self, bearing, elev, roll):
-        """Comme Session._view_of (cap vrai, élévation en degrés → {yaw, pitch} radians du repère de la photo), mais, sans
-        inclinaison calée ni lue pour la photo, avec le défaut de roulis de la campagne (Pose.ROLL_DEFECTS, en degrés ;
-        0 : rien) : la caméra est supposée penchée de ce roulis, seul à connaître (sinon le véhicule serait droit).
-        Même signe que groundUp de src/dessus.js : roulis positif, verticale penchée vers la droite du cap."""
+    def _nose_tilt(self, roll):
+        """(verticale vraie vue de la caméra ou None, source, incertitude en degrés ou None) de la photo affichée, dans le même
+        ordre que la vue du dessus (_birdeye_of) : inclinaison calée à la main (« clics »), puis verticales de la photo
+        (Calibration.tilt : « verticales », sinon « lidar » lu sous le véhicule), les verticales plus lâches (birdeye_loose,
+        web_tilt.LOOSE_SIGMA) quand elles sont plus sûres que celle-ci sans être calées à la main, enfin le roulis de campagne
+        (`roll`, degrés ; « roulis de campagne », up None : voir _nose_view) ou rien (« aucune »). Les verticales sont lancées par
+        birdeye_request (calcul en arrière-plan, le même que pour la vue du dessus, gardé par photo dans Calibration.auto)."""
+        pic = self.item.get("id")
+        tilt, loose = self.calibration.tilt(pic), self.birdeye_loose.get(pic)
+        if loose and (not tilt or (loose["sigma"] < tilt["sigma"] and not tilt["source"].startswith("clics"))):
+            return tuple(loose["up"]), "verticales (seuil élargi)", loose["sigma"]
+        if tilt:
+            return tuple(tilt["up"]), tilt["source"], tilt["sigma"]
+        return None, "roulis de campagne" if roll else "aucune", None
+
+    def _nose_view(self, bearing, elev, roll, up=None):
+        """Comme Session._view_of (cap vrai, élévation en degrés → {yaw, pitch} radians du repère de la photo), mais avec la
+        verticale `up` de _nose_tilt quand elle ne vient pas du calage de la photo (verticales plus lâches), ou, sans inclinaison
+        calée ni lue pour la photo, avec le défaut de roulis de la campagne (Pose.ROLL_DEFECTS, en degrés ; 0 : rien) : la
+        caméra est supposée penchée de ce roulis, seul à connaître (sinon le véhicule serait droit). Avec une inclinaison
+        calée ou lue (up None, roll 0.0 ou calibration.tilt), c'est _view_of. Même signe que groundUp de src/dessus.js :
+        roulis positif, verticale penchée vers la droite du cap."""
         item = self.item
-        pic, sequence = item.get("id"), item.get("collection")
-        if roll == 0.0 or self.calibration.tilt(pic):
+        sequence = item.get("collection")
+        if up is None and (roll == 0.0 or self.calibration.tilt(item.get("id"))):
             return self._view_of(bearing, elev)
         lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
         yaw = bearing % 360
         pose = self.calibration.pose(sequence, lon, lat)
         if pose:
             yaw = (yaw - pose["offset"]) % 360
-        r, h = math.tan(math.radians(roll)), math.radians(self._nose_axis())
-        norm = math.sqrt(1 + r * r)
-        up = (r * math.cos(h) / norm, -r * math.sin(h) / norm, 1 / norm)
+        if up is None:
+            r, h = math.tan(math.radians(roll)), math.radians(self._nose_axis())
+            norm = math.sqrt(1 + r * r)
+            up = (r * math.cos(h) / norm, -r * math.sin(h) / norm, 1 / norm)
         yaw, pitch = calibration.untilt(up, yaw, elev, inverse=True)
         return {"yaw": math.radians((yaw - self._heading() + 540) % 360 - 180), "pitch": math.radians(pitch)}
 
@@ -81,7 +99,7 @@ class Nez:
 
     def nose_line(self, distance=None):
         """JSON de la droite au sol à `distance` m devant la caméra (None : au-delà du capot, NOSE_DISTANCE), perpendiculaire
-        à l'axe de la séquence à l'endroit de la droite (_nose_axis_at) : {d, virage (écart en degrés entre l'axe à la photo et à la droite, si > 3°, pas affiché), lonlat: [[lon, lat] à -NOSE_REACH, [lon, lat] à +NOSE_REACH] (position recalée de la photo), hauteur, hauteur_source, sigma_h, roulis_campagne, points: [[décalage en m (positif à
+        à l'axe de la séquence à l'endroit de la droite (_nose_axis_at) : {d, virage (écart en degrés entre l'axe à la photo et à la droite, si > 3°, pas affiché), lonlat: [[lon, lat] à -NOSE_REACH, [lon, lat] à +NOSE_REACH] (position recalée de la photo), hauteur, hauteur_source, sigma_h, roulis_campagne, inclinaison_source (_nose_tilt : clics, verticales, verticales (seuil élargi), lidar, roulis de campagne, aucune), inclinaison_sigma (degrés ou None), inclinaison_en_calcul (verticales pas encore arrivées : droite refaite à leur arrivée), points: [[décalage en m (positif à
         droite de l'axe de la droite), yaw, pitch]]} (radians, repère de la photo affichée), de -NOSE_REACH à +NOSE_REACH tous les
         NOSE_STEP m. Sol plat au niveau du sol sous la caméra (pas de lecture du terrain : la droite est à quelques mètres, et
         la caméra n'est à _camera_height qu'au-dessus de son propre sol). {"error": …} sans photo 360°."""
@@ -94,6 +112,7 @@ class Nez:
         mount = self._fleet_mount(item)
         d = float(distance) if distance else NOSE_DISTANCE.get(mount, NOSE_DISTANCE_DEFAULT)
         roll = self._roll_defect(item)
+        up, tilt_source, tilt_sigma = self._nose_tilt(roll)
         axis = self._nose_axis()  # cap de la caméra : le centre de la droite est à d devant
         along, turn = self._nose_axis_at(d)  # direction de la droite : perpendiculaire à celle-ci
         gap = math.radians(turn)
@@ -102,7 +121,8 @@ class Nez:
             x = k * NOSE_STEP
             right, forward = x * math.cos(gap), d - x * math.sin(gap)  # repère de la caméra (cap `axis`)
             v = self._nose_view(axis + math.degrees(math.atan2(right, forward)),
-                                -math.degrees(math.atan2(height, math.hypot(right, forward))), roll)
+                                -math.degrees(math.atan2(height, math.hypot(right, forward))), roll,
+                                up if tilt_source.startswith("verticales (seuil") else None)
             points.append([round(x, 2), round(v["yaw"], 6), round(v["pitch"], 6)])
         lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
         fixed = self.calibration.position(item.get("collection"), lon, lat)  # position recalée de la séquence, si elle l'est
@@ -114,7 +134,8 @@ class Nez:
             east, north = d * math.sin(a) + x * math.cos(b), d * math.cos(a) - x * math.sin(b)
             ends.append([round(v, 7) for v in triangulation._geographic(east, north, lon, lat)])
         out = {"d": d, "hauteur": height, "hauteur_source": source, "sigma_h": sigma,
-               "roulis_campagne": roll, "points": points, "lonlat": ends, "reach": NOSE_REACH,
+               "roulis_campagne": roll, "inclinaison_source": tilt_source, "inclinaison_sigma": tilt_sigma,
+               "inclinaison_en_calcul": self.tilts.pending(item.get("id")), "points": points, "lonlat": ends, "reach": NOSE_REACH,
                "voisines": self._neighbours_here()}
         if abs(turn) > 3.0:
             out["virage"] = round(turn)  # écart (degrés) entre l'axe à la photo et l'axe à la droite (pas encore affiché)

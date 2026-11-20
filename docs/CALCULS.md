@@ -396,9 +396,18 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
 - **Hauteur** `H` : `Session.camera_of` (altitude GPS moins sol LiDAR, calée, monture CD21 1,93 ou 2,07 m, sinon réglage, 1,90 m
   par défaut) et son incertitude `σH`.
 - **Sol** : plat, au niveau du sol sous la caméra, sans lecture du terrain.
-- **Roulis de campagne** : sans inclinaison calée ni lue pour la photo, le défaut de roulis du producteur (`ROLL_DEFECTS` : -1° pour le
-  CD21 en 2025) est appliqué comme verticale penchée, même signe que `groundUp` de `src/dessus.js` ; avec une inclinaison (qui le
-  contient), rien de plus.
+- **Inclinaison de la photo** (`Nez._nose_tilt`, même ordre que la vue du dessus, `_birdeye_of`) : calée à la main (« clics »), puis
+  celle de la photo (`Calibration.tilt` : verticales calculées sur la photo HD, sinon pente et dévers du LiDAR), les verticales à seuil
+  élargi (`birdeye_loose`, incertitude jusqu'à 0,5°, `web_tilt.LOOSE_SIGMA`) quand elles sont plus sûres que celle-ci sans être calées à
+  la main, enfin le **roulis de campagne** (`ROLL_DEFECTS` : -1° pour le CD21 en 2025, comme verticale penchée, même signe que
+  `groundUp` de `src/dessus.js`), sinon rien. Les verticales sont demandées par `birdeye_request` à l'affichage de la droite : même
+  calcul, mêmes résultats gardés par photo que la vue du dessus avec « Calage par les verticales » (aucun calcul en double) ; elles
+  arrivent après la droite, qui est alors refaite (`inclinaison_en_calcul`), poignées gardées. Source rendue dans `inclinaison_source`.
+  Pourquoi : la droite est lue en distance latérale du bord ; une bande parallèle à l'axe, vue à travers un roulis ou un tangage faux,
+  est lue à une autre place de la droite. Giratoire d'efbcbcd8-2ecb-4ea8-a731-a7ab55960e63 (RTK, verticales à ±0,30° : roulis -3,5°, tangage
+  +0,5°, `d` = 4,4 m, `H` = 1,93 m) pour deux bandes à -2,5 m et +5,5 m (largeur 8,00 m) : roulis supposé -1° → bords lus à -2,24 et +6,26 m
+  (8,50 m) ; verticale 0° (route plate) → -2,16 et +6,68 m (8,85 m) ; verticales → 8,00 m. L'erreur croît avec la distance (côté le
+  plus loin) et le tangage joue aussi (±3° : de 6,9 à 8,9 m).
 - **Incertitude d'un bord** à `s` m de l'axe : `σ = √( ((H² + d²)/H · δi)² + (s² · δr / H)² + (s · σH / H)² )`, `δi` = 0,5° (inclinaison
   de la photo), `δr` = 0,5° (roulis restant), en radians. Largeur : somme quadratique des deux côtés, arrondie au-dessus à 0,05 m.
   Estimation de départ, pas encore comparée à des bords relevés sur place.

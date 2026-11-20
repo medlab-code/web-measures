@@ -100,6 +100,14 @@ const Nez = {
 
     const roundUp05 = (value) => Math.max(0.05, Math.ceil(value / 0.05 - 1e-9) * 0.05);
 
+    /** Source de l'inclinaison de la photo, discrète : rien tant que les verticales sont en calcul (la droite est refaite à leur arrivée). */
+    function tiltText() {
+      if (line.inclinaison_en_calcul) return "inclinaison en calcul…";
+      const source = line.inclinaison_source;
+      if (!source || source === "aucune") return "";
+      return `inclinaison : ${source}${line.inclinaison_sigma ? ` ±${line.inclinaison_sigma.toFixed(1).replace(".", ",")}°` : ""}`;
+    }
+
     function showReadout() {
       if (!readout) {
         readout = document.createElement("div");
@@ -116,9 +124,11 @@ const Nez = {
       const uncertainty = roundUp05(Math.hypot(sigma(left), sigma(right)));
       text.textContent = `Gauche ${metres(left)} · Droite ${metres(right)} · Largeur ${metres(left + right)}`
         + ` · ±${metres(uncertainty)}`;
+      const tilt = tiltText();
+      if (tilt) text.textContent += ` · ${tilt}`;
       readout.title = `Distance latérale de chaque bord à la caméra, lue sur la droite au sol à ${metres(line.d, 1)} devant elle `
         + `(sol plat). Hauteur de la caméra ${metres(line.hauteur)}${line.hauteur_source ? ` (${line.hauteur_source})` : ""}`
-        + `${line.roulis_campagne ? `, roulis de la campagne ${line.roulis_campagne}°` : ""}. Expérimental : rien n'est retenu.`;
+        + `${line.inclinaison_source === "roulis de campagne" ? `, roulis de la campagne ${line.roulis_campagne}°` : ""}. Expérimental : rien n'est retenu.`;
     }
 
     /** Droite, repère, poignées et étiquettes dans la seconde couche de Traits. */
@@ -284,6 +294,7 @@ const Nez = {
       moved = { gauche: false, droit: false };
       raw = null;
       photoId = etat.photo.id;
+      etat.app.birdeye_request();  // verticales de la photo (même calcul que la vue du dessus) ; la droite est refaite à leur arrivée
       load();
       reset();
       bind();
@@ -329,6 +340,7 @@ const Nez = {
       if (!ok) return deactivate();
       if (etat.photo.id !== photoId) {
         photoId = etat.photo.id;
+        etat.app?.birdeye_request();
         load();
         reset();
         draw();

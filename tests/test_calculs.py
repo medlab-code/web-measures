@@ -1142,6 +1142,21 @@ class Parcours(unittest.TestCase):
         self.assertIn("error", json.loads(App(lambda *args: None).nose_line()))  # sans photo
         host.install(**HOST)
 
+    def test_droite_nez_verticales(self):
+        """Droite au nez : la verticale lue dans la photo (verticales à seuil élargi de la vue du dessus, birdeye_loose) change la
+        projection de la droite ; sans elle, rien de changé (source « aucune »)."""
+        self.show("p1")
+        before = json.loads(self.app.nose_line(5.0))
+        self.assertEqual(before["inclinaison_source"], "aucune")
+        r = math.tan(math.radians(-3.5))
+        norm = math.sqrt(1 + r * r)
+        self.app.birdeye_loose["p1"] = {"up": [r / norm, 0.0, 1 / norm], "sigma": 0.3}  # cap 0 : penchée de 3,5° vers l'ouest
+        after = json.loads(self.app.nose_line(5.0))
+        self.assertEqual((after["inclinaison_source"], after["inclinaison_sigma"]), ("verticales (seuil élargi)", 0.3))
+        gap = max(abs(a[2] - b[2]) for a, b in zip(before["points"], after["points"]))
+        self.assertGreater(gap, 0.02)  # pitch à 12 m de côté : environ 3,5° x sin(angle) = plusieurs centièmes de radian
+        host.install(**HOST)
+
     def test_droite_nez_virage(self):
         """Droite au nez dans un virage : séquence sur un cercle de 20 m de rayon, photos tous les 5 m ; la droite est radiale
         (perpendiculaire à la trajectoire) là où elle est tracée, pas à la photo (écart de 13° avec l'ancien calcul)."""
