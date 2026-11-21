@@ -98,23 +98,25 @@ enregistrée en PNG et copiée dans le presse-papiers">
       <!-- Luminosité et contraste de l'affichage de la photo seulement (filtre CSS : mesures et exports inchangés) ;
            un clic sur l'icône remet la valeur à 100 % (disposition.js) -->
       <div id="reglage-image" role="group" aria-label="Luminosité, contraste, outils de mesure, annuler et effacer dans la visionneuse">
-        <div>
-          <input type="range" id="luminosite" min="50" max="150" step="1" value="100"
-                 aria-label="Luminosité" title="Luminosité de l'affichage de la photo">
-          <button type="button" id="luminosite-raz" disabled title="Luminosité : remettre à 100 %">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg></button>
-        </div>
-        <div>
-          <input type="range" id="contraste" min="50" max="150" step="1" value="100"
-                 aria-label="Contraste" title="Contraste de l'affichage de la photo">
-          <button type="button" id="contraste-raz" disabled title="Contraste : remettre à 100 %">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg></button>
+        <div class="reglettes">  <!-- luminosité et contraste (avec leur séparateur) : groupe qui passe sur une seconde ligne quand la place manque (disposition.js) -->
+          <div>
+            <input type="range" id="luminosite" min="50" max="150" step="1" value="100"
+                   aria-label="Luminosité" title="Luminosité de l'affichage de la photo">
+            <button type="button" id="luminosite-raz" disabled title="Luminosité : remettre à 100 %">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg></button>
+          </div>
+          <div>
+            <input type="range" id="contraste" min="50" max="150" step="1" value="100"
+                   aria-label="Contraste" title="Contraste de l'affichage de la photo">
+            <button type="button" id="contraste-raz" disabled title="Contraste : remettre à 100 %">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg></button>
+          </div>
+          <span class="separateur" aria-hidden="true"></span>
         </div>
         <!-- Cinq boutons de mesure côte à côte, de gauche à droite : largeur (↔, expérimental, src/nez.js), hauteur (↕, src/mesure.js),
              profil en travers (src/reglages.js), relevé d'objets et calage (src/mesure.js) ; bascules, une seule active à la fois, grisées quand la fonction ne s'applique pas -->
-        <span class="separateur" aria-hidden="true"></span>
         <div class="outils">
           <button type="button" id="nez-bords" disabled aria-pressed="false"
                   title="Largeur dans la visionneuse (expérimental) : droite au sol devant le véhicule, faites glisser ses extrémités jusqu'aux bords de la route">

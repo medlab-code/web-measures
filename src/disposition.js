@@ -34,16 +34,26 @@ const Disposition = {
     {
       const haut = $("#haut-droite-vue"), barre = $("#reglage-image"), fil = $("#filigrane-vue"), pastilles = $("#captures-visionneuse");
       const place = () => {
-        const h = haut.getBoundingClientRect(), b = barre.getBoundingClientRect(), f = fil.getBoundingClientRect();
-        if (!h.width || !b.width) return;  // photo masquée ou carte en grand : rien à placer
-        const ecart = parseFloat(getComputedStyle(haut).columnGap) || 0;
-        const enLigne = pastilles.getBoundingClientRect().width + (f.width ? f.width + ecart : 0);
-        haut.classList.toggle("filigrane-dessous", h.right - enLigne < b.right + 8);
-        // Curseurs raccourcis quand la barre toucherait encore les pastilles de capture (fenêtre étroite, grandes étiquettes) :
-        // largeur naturelle mesurée sans la classe, comparée à la place restante
-        barre.classList.remove("serree");
-        const libre = h.right - pastilles.getBoundingClientRect().width - ecart - barre.getBoundingClientRect().left;
-        barre.classList.toggle("serree", barre.getBoundingClientRect().width > libre);
+        const h = haut.getBoundingClientRect();
+        if (!h.width || !barre.getBoundingClientRect().width) return;  // photo masquée ou carte en grand : rien à placer
+        const ecart = parseFloat(getComputedStyle(haut).columnGap) || 0, largeur = (e) => e.getBoundingClientRect().width;
+        // Tout est recalculé à partir des largeurs naturelles (classes retirées, puis remises dans l'ordre) : le résultat ne dépend pas de
+        // l'état précédent, donc pas d'oscillation. Trois niveaux quand la barre toucherait les pastilles de capture (fenêtre étroite,
+        // grandes étiquettes) : 1) en ligne ; 2) « serree » : curseurs raccourcis ; 3) « deux-lignes » : luminosité et contraste passent
+        // sur une seconde ligne, sous les outils, dans la même étiquette
+        haut.classList.remove("filigrane-dessous", "filigrane-masque");
+        barre.classList.remove("serree", "deux-lignes");
+        const libre = h.right - largeur(pastilles) - ecart - barre.getBoundingClientRect().left;
+        if (largeur(barre) > libre) {
+          barre.classList.add("serree");
+          if (largeur(barre) > libre) barre.classList.replace("serree", "deux-lignes");
+        }
+        // Filigrane de version : à gauche des pastilles (en ligne) tant que son bord gauche reste à droite de la barre, sinon dessous
+        const f = largeur(fil), droiteBarre = barre.getBoundingClientRect().right;
+        const dessous = h.right - (largeur(pastilles) + (f ? f + ecart : 0)) < droiteBarre + 8;
+        haut.classList.toggle("filigrane-dessous", dessous);
+        // Barre sur deux lignes, plus basse que les pastilles : elle peut encore toucher le filigrane placé dessous, qui est alors masqué
+        haut.classList.toggle("filigrane-masque", dessous && f > 0 && barre.classList.contains("deux-lignes") && droiteBarre + 8 > h.right - f);
       };
       if (window.ResizeObserver) {
         const obs = new ResizeObserver(place);

@@ -1007,7 +1007,8 @@ html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):n
   transition: background 0.2s;
 }
 #reglage-image:hover { background: var(--etiquette-fond-survol); }
-#reglage-image > div { display: flex; flex-direction: row-reverse; align-items: center; gap: 0.2rem; }  /* icône, puis curseur */
+#reglage-image .reglettes { display: contents; }  /* sans effet en ligne ; boîte propre sur la seconde ligne (.deux-lignes) */
+#reglage-image .reglettes > div, #reglage-image > div { display: flex; flex-direction: row-reverse; align-items: center; gap: 0.2rem; }  /* icône, puis curseur */
 #reglage-image > div.outils { flex-direction: row; gap: 0.3rem; }  /* outils de mesure : côte à côte */
 #reglage-image input[type="range"] {
   width: 3.6rem;  /* 5,5 rem avant les séparateurs : raccourcie pour que la barre ne soit pas plus longue ni ne touche #haut-droite-vue */
@@ -1020,6 +1021,10 @@ html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):n
 }
 /* Réglettes fines : rail de 0,15 rem et curseur rond de 0,7 rem, gris clair (Chrome puis Firefox) */
 #reglage-image.serree input[type="range"] { width: 1.6rem; }  /* place comptée : voir disposition.js */
+/* Place toujours insuffisante : luminosité et contraste (.reglettes) sur une seconde ligne, sous les outils, dans la même étiquette */
+#reglage-image.deux-lignes { display: grid; grid-template-columns: auto auto auto; justify-items: start; row-gap: 0.15rem; column-gap: 0.8rem; border-radius: 1rem; }
+#reglage-image.deux-lignes .reglettes { display: flex; align-items: center; gap: 0.8rem; grid-row: 2; grid-column: 1 / -1; }
+#reglage-image.deux-lignes .reglettes > .separateur { display: none; }
 #reglage-image input[type="range"]::-webkit-slider-runnable-track { height: 0.15rem; border-radius: 999px; background: rgba(255, 255, 255, 0.45); }
 #reglage-image input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -1054,6 +1059,8 @@ html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):n
 /* Place manquante (classe posée par src/disposition.js) : le filigrane passe sous les pastilles, aligné à droite */
 #haut-droite-vue.filigrane-dessous { flex-direction: column; align-items: flex-end; gap: 0.25rem; }
 #haut-droite-vue.filigrane-dessous #filigrane-vue { order: 2; }
+/* Barre sur deux lignes qui toucherait encore le filigrane placé sous les pastilles : le filigrane (décoratif) est masqué */
+#haut-droite-vue.filigrane-masque #filigrane-vue { visibility: hidden; }
 /* Captures et plein écran de la visionneuse : même fond que les réglages de l'image */
 #captures-visionneuse {
   display: flex; align-items: center; gap: 0.3rem;
@@ -1509,10 +1516,6 @@ dd { margin: 0; overflow-wrap: anywhere; }
   #replier-colonne { width: 3rem; height: 18px; }
   #carte { height: 40vh; }
   #poignee-carte { height: 18px; }  /* plus facile à saisir au doigt */
-  #voyants { top: 2.8rem; }  /* sous le rappel du mode mesure, qui prend toute la largeur */
-}
-@media (max-width: 480px) {
-  #voyants { top: 4.2rem; }  /* rappel sur deux lignes */
 }
 
 /* Réglages par défaut (une fois) : liste des réglages à changer */
