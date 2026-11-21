@@ -16,6 +16,7 @@ const Traits = (() => {
   const FLOATS = 9;   // par sommet : x, y (px), r, g, b, a, distance le long du trait (px), tiret, blanc
   const FONT = "Inter, system-ui, sans-serif", SIZE = 15;  // étiquettes (comme sur la carte, 25 % plus grandes)
   const GAP = 2;  // px entre deux étiquettes écartées
+  const EDGE = 4;  // px entre une étiquette rabattue et le bord de la vue
 
   const VERTEX = `
     attribute vec2 position; attribute vec4 color; attribute float dist; attribute vec2 dash;
@@ -252,6 +253,10 @@ const Traits = (() => {
       let r = box(label, s[0], s[1] - (label.lift || 0), w, h);
       if (label.flip && ((label.lift || 0) < 0 ? r.bottom > canvas.clientHeight - 2 : r.top < 2)) {  // sortirait de la vue : de l'autre côté du point
         r = box({ ...label, place: label.place === "dessous" ? "dessus" : "dessous" }, s[0], s[1] - (label.flipLift ?? -(label.lift || 0)), w, h);
+      }
+      if (!["cote", "left", "right"].includes(label.place)) {  // centrée sur le point : rabattue contre le bord gauche ou droit si elle en sortirait
+        const dx = r.left < EDGE ? EDGE - r.left : r.right > canvas.clientWidth - EDGE ? canvas.clientWidth - EDGE - r.right : 0;
+        if (dx) r = { ...r, left: r.left + dx, right: r.right + dx };
       }
       if (label.type === "fin") ends.push({ label, s, r });
       else put(label, r);
