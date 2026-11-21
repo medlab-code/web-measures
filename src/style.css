@@ -1019,6 +1019,9 @@ html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):n
 #captures-visionneuse #plein-ecran[aria-pressed="true"], #reglage-image button[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); color: #ffd600; }  /* outil de mesure de la visionneuse actif */
 /* Haut à droite de la visionneuse (#voyants est dessous) : le filigrane de version, puis les captures et le plein écran, dans un même flux */
 #haut-droite-vue { position: absolute; right: calc(0.8rem * var(--echelle-ui, 1)); top: calc(0.6rem * var(--echelle-ui, 1)); z-index: 5; display: flex; align-items: center; gap: 0.5rem; }
+/* Place manquante (classe posée par src/disposition.js) : le filigrane passe sous les pastilles, aligné à droite */
+#haut-droite-vue.filigrane-dessous { flex-direction: column; align-items: flex-end; gap: 0.25rem; }
+#haut-droite-vue.filigrane-dessous #filigrane-vue { order: 2; }
 /* Captures et plein écran de la visionneuse : même fond que les réglages de l'image */
 #captures-visionneuse {
   display: flex; align-items: center; gap: 0.3rem;

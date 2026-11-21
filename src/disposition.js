@@ -28,6 +28,26 @@ const Disposition = {
       applique();
     }
 
+    // Filigrane sous les pastilles de capture quand la place manque : le filigrane de version se met à leur gauche (en ligne) tant que le
+    // bord gauche que prendrait ce flux reste à droite de la barre d'outils ; sinon il passe dessous, aligné à droite (classe
+    // « filigrane-dessous »). Le calcul n'utilise que des largeurs mesurées (pas la position courante) : pas d'oscillation entre les deux états.
+    {
+      const haut = $("#haut-droite-vue"), barre = $("#reglage-image"), fil = $("#filigrane-vue"), pastilles = $("#captures-visionneuse");
+      const place = () => {
+        const h = haut.getBoundingClientRect(), b = barre.getBoundingClientRect(), f = fil.getBoundingClientRect();
+        if (!h.width || !b.width) return;  // photo masquée ou carte en grand : rien à placer
+        const ecart = parseFloat(getComputedStyle(haut).columnGap) || 0;
+        const enLigne = pastilles.getBoundingClientRect().width + (f.width ? f.width + ecart : 0);
+        haut.classList.toggle("filigrane-dessous", h.right - enLigne < b.right + 8);
+      };
+      if (window.ResizeObserver) {
+        const obs = new ResizeObserver(place);
+        for (const e of [$("#vue"), barre, haut, fil, pastilles]) obs.observe(e);
+      }
+      window.addEventListener("resize", place);
+      place();
+    }
+
     // Hauteur de la carte : poignée à glisser (mémorisée), bouton pour la replier --------------
 
     const mapBox = $("#carte");
