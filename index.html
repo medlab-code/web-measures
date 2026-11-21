@@ -114,6 +114,7 @@ enregistrée en PNG et copiée dans le presse-papiers">
         </div>
         <!-- Cinq boutons de mesure côte à côte, de gauche à droite : largeur (↔, expérimental, src/nez.js), hauteur (↕, src/mesure.js),
              profil en travers (src/reglages.js), relevé d'objets et calage (src/mesure.js) ; bascules, une seule active à la fois, grisées quand la fonction ne s'applique pas -->
+        <span class="separateur" aria-hidden="true"></span>
         <div class="outils">
           <button type="button" id="nez-bords" disabled aria-pressed="false"
                   title="Largeur dans la visionneuse (expérimental) : droite au sol devant le véhicule, faites glisser ses extrémités jusqu'aux bords de la route">
@@ -135,6 +136,7 @@ enregistrée en PNG et copiée dans le presse-papiers">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3v18M6 21h12"/><path d="M6 16h5v5"/></svg></button>  <!-- verticale sur un sol, équerre -->
         </div>
         <!-- Effacer (↶), refaire (↷), tout effacer (corbeille) (src/mesure.js, grisés par app.js) : toujours là, grisés quand ils n'ont pas d'effet -->
+        <span class="separateur" aria-hidden="true"></span>
         <div class="outils" role="group" aria-label="Effacer, refaire, tout effacer">
           <button type="button" id="effacer" disabled aria-label="Effacer le dernier geste"
                   title="Effacer : annule le dernier geste : dernière visée, dernier clic, puis la mesure en cours et le dernier point posé (raccourci Ctrl+Z ; « Refaire » ou Ctrl+Y rétablit)">

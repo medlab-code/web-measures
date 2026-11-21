@@ -979,11 +979,30 @@ html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):n
 #reglage-image > div { display: flex; flex-direction: row-reverse; align-items: center; gap: 0.2rem; }  /* icône, puis curseur */
 #reglage-image > div.outils { flex-direction: row; gap: 0.3rem; }  /* outils de mesure : côte à côte */
 #reglage-image input[type="range"] {
-  width: 5.5rem;
+  width: 3.6rem;  /* 5,5 rem avant les séparateurs : raccourcie pour que la barre ne soit pas plus longue ni ne touche #haut-droite-vue */
   height: 1.2rem;
   margin: 0;
   accent-color: #c8c8c8;  /* gris clair, discret : pas la couleur Panoramax */
+  -webkit-appearance: none;
+  appearance: none;
+  background: none;
 }
+/* Réglettes fines : rail de 0,15 rem et curseur rond de 0,7 rem, gris clair (Chrome puis Firefox) */
+#reglage-image input[type="range"]::-webkit-slider-runnable-track { height: 0.15rem; border-radius: 999px; background: rgba(255, 255, 255, 0.45); }
+#reglage-image input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-top: -0.275rem;  /* centré sur le rail : (0,15 - 0,7) / 2 */
+  border: 0;
+  border-radius: 50%;
+  background: #c8c8c8;
+}
+#reglage-image input[type="range"]::-moz-range-track { height: 0.15rem; border-radius: 999px; background: rgba(255, 255, 255, 0.45); }
+#reglage-image input[type="range"]::-moz-range-thumb { width: 0.7rem; height: 0.7rem; border: 0; border-radius: 50%; background: #c8c8c8; }
+#reglage-image input[type="range"]:focus-visible { outline: 2px solid #ffd600; outline-offset: 2px; border-radius: 999px; }
+/* Séparateur vertical fin entre les groupes : 60 % de la hauteur de la barre, sans toucher ses bords, blocs écartés de part et d'autre */
+#reglage-image .separateur { flex: none; align-self: center; width: 1px; height: 1.2rem; margin: 0 0.4rem; background: rgba(255, 255, 255, 0.35); }
 #reglage-image button, #captures-visionneuse button {
   display: flex;
   width: 1.6rem;
