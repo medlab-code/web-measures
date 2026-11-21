@@ -83,8 +83,8 @@
         <option value="mnh"
                 title="Estompage du modèle numérique de hauteur (IGN) : hauteur du sursol (bâtiments, arbres, haies, talus) au-dessus du sol, là où le LiDAR HD est publié">Modèle Numérique de Hauteur</option>
         <option value="ofm" title="Données OpenStreetMap, tuiles vectorielles d'OpenFreeMap">OpenFreeMap</option></select>
-      <label title="Reprojette le sol de la photo sur la mini-carte, jusqu'à 15 m de la caméra (grisé au-delà de 10 m : peu précis). Seul ce qui est au sol est à sa place. Pour la photo affichée seulement : une autre photo l'éteint (aussi : bouton faucon de la carte en grand ou détachée).">
-        <input type="checkbox" id="dessus" class="interrupteur" disabled> Bird Eye</label>
+      <!-- Bird Eye : état de la vue du dessus, sans affichage ici ; allumé par le faucon de la carte (src/resultats.js) -->
+      <input type="checkbox" id="dessus" hidden disabled aria-hidden="true">
     </div>
   </header>
   <main>

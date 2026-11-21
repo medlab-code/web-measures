@@ -12,8 +12,8 @@ const Choix = {
     const $ = (selector) => document.querySelector(selector);
     const {
       map, setStatus, etat, refresh, showPhotoInfo, passesFilter, filterActive, viewer, notice, showOverViewer,
-      setSwapped, mapBox, setFolded, grip, swapButton, measureButton, birdeyeButton, captureButton,
-      exportButton, store, showFavorites, photoProducer, updateProducers, checkFarFromMeasures, showPlace, nez,
+      setSwapped, mapBox, setFolded, grip, swapButton, measureButton, captureButton,
+      exportButton, store, showFavorites, photoProducer, updateProducers, checkFarFromMeasures, showPlace, nez, showMapMeasureButton,
     } = host;
 
     // Choix de la photo sur la carte ---------------------------------------------------------
@@ -392,7 +392,8 @@ const Choix = {
       grip.hidden = detached;
       swapButton.disabled = detached;  // carte déjà à part : rien à échanger
       // détachée : comme en grand
-      measureButton.hidden = birdeyeButton.hidden = captureButton.hidden = exportButton.hidden = !detached && !etat.swapped;
+      measureButton.hidden = captureButton.hidden = exportButton.hidden = !detached && !etat.swapped;
+      showMapMeasureButton();  // place du faucon
       detachButton.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';  // fenêtre à part (dessin des boutons de la visionneuse)
       detachButton.setAttribute("aria-label", "Carte dans une fenêtre à part");
       detachButton.title = detached ? "Remettre la carte dans la page"

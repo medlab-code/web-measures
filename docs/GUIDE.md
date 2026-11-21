@@ -805,7 +805,7 @@ fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/so
 
 ### Mesure sur la carte : longueur et surface (essai, branche `birdeye`)
 
-« Bird Eye » (vue du dessus, dans le bloc du fond de carte, ou bouton faucon de la carte en grand ou détachée, à droite de « Mesurer sur la carte »)
+« Bird Eye » (vue du dessus, allumée par le bouton faucon de la carte : dans l'étiquette verticale du zoom quand la carte est à sa place, à droite de « Mesurer sur la carte » quand elle est en grand ou détachée)
 reprojette le sol de la photo sur la mini-carte, pour la photo affichée seulement (une autre photo l'éteint : rien
 n'est calculé sans le demander) ; ses réglages
 d'essai sont dans un panneau repliable sur la carte en grand ou détachée ; « Haute résolution » double la finesse de l'image

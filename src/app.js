@@ -814,7 +814,7 @@
   } = Choix.init({
     map, setStatus, etat, refresh, passesFilter, filterActive, viewer, notice, showOverViewer,
     setSwapped, mapBox, setFolded, grip, swapButton, measureButton, birdeyeButton, captureButton,
-    exportButton, store, photoProducer, updateProducers, showPlace, nez,
+    exportButton, store, photoProducer, updateProducers, showPlace, nez, showMapMeasureButton,
     // favoris et photo éloignée : déclarés plus bas (Favoris.init)
     showPhotoInfo: (...args) => showPhotoInfo(...args), showFavorites: (...args) => showFavorites(...args),
     checkFarFromMeasures: (...args) => checkFarFromMeasures(...args),

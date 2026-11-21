@@ -315,6 +315,9 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .maplibregl-ctrl-top-left button.birdeye-carte, .maplibregl-ctrl-top-left button.capture-carte { background: rgba(24, 25, 28, 0.55); }
 .maplibregl-ctrl-top-left button.birdeye-carte:not(:disabled):hover, .maplibregl-ctrl-top-left button.capture-carte:not(:disabled):hover {
   background: rgba(24, 25, 28, 0.82); }
+/* Faucon dans l'étiquette verticale (carte à sa place) : sans fond propre, comme les autres boutons de la colonne */
+.maplibregl-ctrl-top-left .maplibregl-ctrl-group button.birdeye-carte { background: none; }
+.maplibregl-ctrl-top-left .maplibregl-ctrl-group button.birdeye-carte:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }
 .maplibregl-ctrl-top-left button.birdeye-carte img { display: block; width: 100%; height: 100%; filter: brightness(0) invert(1); }
 .maplibregl-ctrl-top-left button.birdeye-carte[aria-pressed="true"] img { filter: brightness(0) invert(1) sepia(1) saturate(8) hue-rotate(5deg); }
 /* en haut, à droite des boutons de zoom plutôt que sous la pile de gauche */

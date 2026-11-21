@@ -175,7 +175,7 @@ const Resultats = {
       etat.swapped = on;
       swapButton.setAttribute("aria-pressed", String(on));
       // carte en grand ou détachée : mesure et Bird Eye d'un clic
-      measureButton.hidden = birdeyeButton.hidden = captureButton.hidden = exportButton.hidden = !on && !etat.mapWindow;
+      measureButton.hidden = captureButton.hidden = exportButton.hidden = !on && !etat.mapWindow;  // faucon : toujours là (showMapMeasureButton)
       showMapMeasureButton();  // outil de la mesure : avec le bouton
       swapButton.title = on ? "Remettre la carte et la visionneuse à leur place" : "Échanger la carte et la visionneuse (place et taille)";
       if (on) {
@@ -239,7 +239,7 @@ const Resultats = {
       }
       if (!etat.measuring) $("#mesure").click();
     });
-    // Faucon : Bird Eye de la photo affichée, d'un clic (comme l'interrupteur du bandeau) ; une autre photo l'éteint (updateBirdeye)
+    // Faucon : Bird Eye de la photo affichée, d'un clic (le même que l'interrupteur caché « #dessus ») ; une autre photo l'éteint (updateBirdeye)
     const birdeyeButton = Object.assign(document.createElement("button"), { type: "button", className: "birdeye-carte", hidden: true,
       ariaLabel: "Bird Eye" });
     birdeyeButton.append(Object.assign(document.createElement("img"), { src: "src/faucon.svg", alt: "" }));
@@ -292,16 +292,21 @@ const Resultats = {
         showMapMeasureButton();
       }
     });
+    const placeBar = Object.assign(document.createElement("div"), { className: "maplibregl-ctrl place-mesurer" });
+    placeBar.append(measureButton, toolSelect, birdeyeButton, captureButton, exportButton);
     map.addControl({
-      onAdd: () => {
-        const place = Object.assign(document.createElement("div"), { className: "maplibregl-ctrl place-mesurer" });
-        place.append(measureButton, toolSelect, birdeyeButton, captureButton, exportButton);
-        return place;
-      },
+      onAdd: () => placeBar,
       onRemove: () => {},
     }, "top-left");
     /** Bouton de la carte en grand : enfoncé pendant la mesure, grisé sans photo 360° (pas de vue du dessus). */
     function showMapMeasureButton() {
+      // Faucon : carte à sa place (à droite), dans l'étiquette verticale avec le zoom ; carte en grand (à gauche) ou détachée, dans la
+      // rangée de la mesure, entre l'outil et la capture, comme avant. Il change de place à chaque échange des vues.
+      const column = map.getContainer().querySelector(".maplibregl-ctrl-top-left .maplibregl-ctrl-group");
+      if (etat.swapped || etat.mapWindow) {
+        if (birdeyeButton.parentNode !== placeBar) placeBar.insertBefore(birdeyeButton, captureButton);
+      } else if (column && birdeyeButton.parentNode !== column) column.append(birdeyeButton);
+      birdeyeButton.hidden = !(etat.swapped || etat.mapWindow) && !column;
       const on = etat.measuring && $("#mode").value === "carte";
       measureButton.setAttribute("aria-pressed", String(on));
       measureButton.innerHTML = `${RULER}<span>${on ? "Arrêter la mesure" : "Mesurer sur la carte"}</span>`;
@@ -337,6 +342,7 @@ const Resultats = {
     });
     mapBox.querySelector("#dessus-voisines").addEventListener("change", updateBirdeye);  // voisines à lire
 
+    showMapMeasureButton();  // faucon à sa place de départ
     return {
       setSwapped, wantSwap, updateBirdeye, showResults, swapButton, measureButton, birdeyeButton,
       captureButton, exportButton, showMapMeasureButton, syncMapMeasure, showResultsInfo,
