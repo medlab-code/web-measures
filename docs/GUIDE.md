@@ -14,7 +14,7 @@ courte : [README](../README.md) ; calculs : [CALCULS.md](CALCULS.md) ; vue Bird 
 
 **Sur téléphone** : `mobile.html`, version de consultation (sans le calcul ni les mesures) : photo en
 haut, carte en bas, partage réglé par la poignée entre les deux ; recherche de lieux et requêteur route +
-PR au-dessus ; Plan IGN et OpenStreetMap en tuiles vectorielles (texte net, agrandi de 30 %) ; bouton ⚙ des réglages : fond de carte, filaire Panoramax, bornes des PR, cadastre (parcelle visée en vert, son
+PR au-dessus ; Plan IGN et OpenStreetMap en tuiles vectorielles (texte net, agrandi de 30 %) ; bouton ⚙ des réglages : fond de carte (1. Orthophoto + (par défaut) ; 2. Plan IGN ; 3. Orthophoto ; 4. Ortho-express (année de la photo) ; 5. LiDAR MNT ; 6. LiDAR MNS ; 7. LiDAR MNH ; 8. OpenFreeMap), filaire Panoramax, bornes des PR, cadastre (parcelle visée en vert, son
 étiquette dans la photo, caméra supposée à 1,90 m au-dessus d'un sol de niveau), filtre des photos (instance,
 producteur, date de début ; mêmes réglages que la page principale), bouton « Version complète » masquable ; bouton appareil photo : capture de la vue avec l'étiquette et les
 cartouches, partagée par le téléphone (sinon téléchargée).
@@ -743,7 +743,7 @@ pas utilisé (talus et murs pris pour la route).
 
 - voyant d'**inclinaison** de la photo, en haut à droite de la visionneuse pendant la mesure (les voyants RTK et LiDAR HD ne sont plus
   affichés : précision RTK et modèle de terrain restent dans la liste « Position » du panneau) ;
-- fonds de carte : Plan IGN, orthophoto, Ortho-express de l'année de la photo, Modèle Numérique de Hauteur (LiDAR HD), OpenStreetMap (OpenFreeMap) ; recherche de lieux ; points de repère
+- fonds de carte, choisis dans le panneau du « i » de la carte : 1. Orthophoto + (par défaut) ; 2. Plan IGN ; 3. Orthophoto ; 4. Ortho-express (année de la photo) ; 5. LiDAR MNT ; 6. LiDAR MNS ; 7. LiDAR MNH ; 8. OpenFreeMap ; recherche de lieux ; points de repère
   (PR) des routes ; requêteur route + PR (+ distance), à listes qui se réduisent à la frappe ;
 - lieu de la photo incrusté en bas à gauche de la visionneuse : route, PR et distance mesurée
   le long du filaire IGN depuis le dernier PR passé, nom de la voie précédé du numéro de l'adresse
