@@ -1252,7 +1252,7 @@ class Parcours(unittest.TestCase):
         self.assertEqual((line["hauteur"], line["hauteur_source"], line["sigma_h"]), (1.93, "vue du dessus", 0.04))
         self.assertEqual(line["sol"], "LiDAR HD (vue du dessus)")
         self.assertFalse(line["sol_en_lecture"])
-        dz = dict((x, v) for x, v in line["sol_dz"])
+        dz = {x: v for x, v in line["sol_dz"]}
         self.assertAlmostEqual(dz[3.0] - dz[-3.0], 0.12 * abs(math.sin(math.radians(self.app._nose_axis() + 90))), delta=0.02)
         self.assertEqual(json.loads(self.app.nose_line(5.0))["inclinaison_source"], before["inclinaison_source"])  # up absent : pas de route
         self.assertTrue(self.app.birdeye_tilt_set("p1", "null"))

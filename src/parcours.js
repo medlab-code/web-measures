@@ -1842,7 +1842,7 @@ const Parcours = {
     function updatePlayer() {
       const seq = host.psv?.getPictureMetadata?.()?.sequence || {};
       const on = playing();
-      const blocked = host.measuring || !host.photo;
+      const blocked = host.measuring || !host.photo || $("#nez-bords")?.getAttribute("aria-pressed") === "true";  // mesure ou largeur ↔
       $("#lecture-arriere").disabled = blocked || !seq.prevPic;
       $("#lecture-avant").disabled = blocked || !seq.nextPic;
       $("#lecture-pause").disabled = blocked || !(on || (backward ? seq.prevPic : seq.nextPic));

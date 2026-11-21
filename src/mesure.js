@@ -68,7 +68,8 @@ const Mesure = {
     }
     // La largeur dans la visionneuse change le bouton sans passer par applyMeasureUi : on suit son attribut
     const bords = $("#nez-bords");
-    if (bords) new MutationObserver(syncArrows).observe(bords, { attributes: true, attributeFilter: ["aria-pressed"] });
+    // et le lecteur de séquence (◀◀ ▶ ▶▶) est grisé tant que la largeur est active : la photo ne change plus
+    if (bords) new MutationObserver(() => { syncArrows(); updatePlayer(); }).observe(bords, { attributes: true, attributeFilter: ["aria-pressed"] });
 
     // Boutons « mode + mesure » de la visionneuse : hauteur (↕), relevé d'objets et calage de l'inclinaison. Chacun met le mode voulu dans
     // la liste (cachée) Mode, puis lance la mesure (comme le bouton caché « Mesure ») ; déjà en mesure dans un autre mode, il change

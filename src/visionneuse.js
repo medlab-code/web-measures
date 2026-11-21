@@ -166,6 +166,8 @@ const Visionneuse = {
             }
             return true;
           }
+          // Largeur ↔ : la photo ne change pas (clic au sol, flèche, double clic) ; la rotation de la vue et le zoom restent permis
+          if (event?.type === "click" && $("#nez-bords")?.getAttribute("aria-pressed") === "true") return true;
           return dispatch.call(this, event);
         };
         etat.psv.container.addEventListener("pointermove", slideOnGuide);
