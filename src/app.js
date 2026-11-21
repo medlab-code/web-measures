@@ -553,6 +553,21 @@
     });
   }
 
+  // Carte d'étape de mesure juste au-dessus de la localisation (#lieu), quelle que soit sa hauteur (une ou deux lignes) et la taille des
+  // étiquettes : place prise par #lieu depuis le bas de la visionneuse, en pixels écran (--bas-reserve, lue par style.css)
+  {
+    const vue = $("#vue"), lieu = $("#lieu");
+    const measure = () => {
+      const scale = Number(getComputedStyle(document.documentElement).getPropertyValue("--echelle-ui")) || 1;
+      const box = vue.getBoundingClientRect(), top = lieu.hidden ? box.bottom - 13 * scale : lieu.getBoundingClientRect().top;
+      vue.style.setProperty("--bas-reserve", `${Math.max(0, box.bottom - top).toFixed(1)}px`);
+    };
+    const watch = new ResizeObserver(measure);
+    watch.observe(vue);
+    watch.observe(lieu);
+    new MutationObserver(measure).observe(lieu, { attributes: true, attributeFilter: ["hidden"] });
+  }
+
   /** « Exporter le calage » grisé tant qu'aucune photo ni séquence n'est calée (rien à exporter). */
   function showCalibrationExport() {
     const c = JSON.parse(etat.app.calibration_json());

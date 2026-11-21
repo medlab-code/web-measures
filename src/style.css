@@ -796,7 +796,8 @@ button.principal { font-weight: 600; }
 #entete-etape { display: none; }
 #vue.en-mesure .haut-centre {
   top: auto;
-  bottom: 3.4rem;
+  /* juste au-dessus de #lieu : sa place depuis le bas (--bas-reserve, pixels écran, posée par app.js) + 7 px, ramenés à l'échelle de la carte */
+  bottom: calc((var(--bas-reserve, 2.6rem) + 7px) / var(--echelle-ui, 1));
   left: 0.8rem;
   transform: none;
   width: min(30rem, calc(50% - 4rem));
