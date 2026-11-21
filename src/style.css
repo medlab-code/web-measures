@@ -220,6 +220,9 @@ aside[hidden] { display: none; }
 .carte-en-grand #vue { left: var(--place-carte-left); top: var(--place-carte-top); width: var(--place-carte-width); height: var(--place-carte-height); }
 .carte-en-grand #carte { left: var(--place-vue-left); top: var(--place-vue-top); width: var(--place-vue-width); height: var(--place-vue-height) !important; }
 .carte-en-grand #poignee-carte { pointer-events: none; }
+/* Visionneuse à la petite place (carte en grand) : toutes ses pastilles masquées sauf la localisation (#lieu) ; elles reviennent avec la
+   carte à sa place. Affichage seulement : l'état de la mesure ne change pas. */
+.carte-en-grand #vue :is(#reglage-image, #captures-visionneuse, #voyants, #lecteur, #producteur-photo, .haut-centre, .haut-gauche) { display: none !important; }
 #carte[hidden] { display: none; }
 
 /* Carte détachée (voir app.js) : sa place dans la colonne, et la fenêtre à part qu'elle remplit */
