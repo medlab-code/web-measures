@@ -26,7 +26,7 @@ const Carte = (() => {
   const ATTRIBUTION_IGN = '<a href="https://www.ign.fr">IGN</a>';
   const ATTRIBUTION_OFM = '<a href="https://openfreemap.org">OpenFreeMap</a> © <a href="https://www.openmaptiles.org">OpenMapTiles</a>, '
     + 'données © <a href="https://www.openstreetmap.org/copyright">les contributeurs d\'OpenStreetMap</a>';
-  const BACKGROUNDS = ["plan", "ortho", "noms", "express", "mnh", "ofm"];
+  const BACKGROUNDS = ["plan", "ortho", "noms", "express", "mnt", "mns", "mnh", "ofm"];
   // Fonds vectoriels (styles MapLibre publiés) : texte dessiné par le navigateur, net à toute résolution et agrandi
   // à volonté (textScale de createMap). Textes dans les polices de l'IGN, seul serveur de polices de la carte
   // (OpenFreeMap : Noto Sans remplacée par Source Sans Pro) ; pictogrammes de chaque style préfixés de sa clé.
@@ -150,6 +150,15 @@ const Carte = (() => {
           type: "raster", tiles: [wmts(EXPRESS_LAYERS[expressYear], "image/jpeg")],
           tileSize: 256, maxzoom: 20, attribution: ATTRIBUTION_IGN,
         },
+        // Modèles numériques du LiDAR HD (IGN), en ombrage : terrain (MNT), surface avec le sursol (MNS), hauteur du sursol (MNH)
+        mnt: {
+          type: "raster", tiles: [wmts("IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW", "image/png")],
+          tileSize: 256, maxzoom: 18, attribution: ATTRIBUTION_IGN,
+        },
+        mns: {
+          type: "raster", tiles: [wmts("IGNF_LIDAR-HD_MNS_ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW", "image/png")],
+          tileSize: 256, maxzoom: 18, attribution: ATTRIBUTION_IGN,
+        },
         // Modèle Numérique de Hauteur, issu du LiDAR HD (IGN) : estompage de la hauteur du sursol (bâtiments, arbres,
         // talus) au-dessus du sol
         mnh: {
@@ -179,6 +188,8 @@ const Carte = (() => {
         { id: "plan", type: "raster", source: "plan" },
         { id: "ortho", type: "raster", source: "ortho", layout: { visibility: "none" } },
         { id: "express", type: "raster", source: "express", layout: { visibility: "none" } },
+        { id: "mnt", type: "raster", source: "mnt", layout: { visibility: "none" } },
+        { id: "mns", type: "raster", source: "mns", layout: { visibility: "none" } },
         { id: "mnh", type: "raster", source: "mnh", layout: { visibility: "none" } },
         // Cadastre, sur le fond et sous le filaire (couleurs du Parcellaire Express de l'IGN) : parcelles numérotées teintées (le
         // domaine public, voirie et cours d'eau, n'en a pas : sans teinte), bâtiments, limites des parcelles (pas celles des feuilles)

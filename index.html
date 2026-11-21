@@ -73,19 +73,9 @@
         </div>
       </div>
     </div>
-    <!-- Fond de carte (les captures de la visionneuse sont en haut à droite de celle-ci) -->
-    <div class="bloc fond carte-barre">
-      <label for="fond">Fond de carte</label>
-      <select id="fond"><option value="plan">Plan IGN</option><option value="ortho">Orthophoto</option>
-        <option value="noms"
-                title="Orthophoto, noms des lieux et des rues, voies et numéros de route, limites des communes">Orthophoto avec noms</option>
-        <option value="express">Ortho-express (année de la photo)</option>
-        <option value="mnh"
-                title="Estompage du modèle numérique de hauteur (IGN) : hauteur du sursol (bâtiments, arbres, haies, talus) au-dessus du sol, là où le LiDAR HD est publié">Modèle Numérique de Hauteur</option>
-        <option value="ofm" title="Données OpenStreetMap, tuiles vectorielles d'OpenFreeMap">OpenFreeMap</option></select>
-      <!-- Bird Eye : état de la vue du dessus, sans affichage ici ; allumé par le faucon de la carte (src/resultats.js) -->
-      <input type="checkbox" id="dessus" hidden disabled aria-hidden="true">
-    </div>
+    <!-- Bird Eye : état de la vue du dessus, sans affichage ici ; allumé par le faucon de la carte (src/resultats.js).
+         Le choix du fond de carte est dans le panneau du « i » de la carte (src/reglages.js) -->
+    <input type="checkbox" id="dessus" hidden disabled aria-hidden="true">
   </header>
   <main>
     <div id="place-vue" hidden></div>

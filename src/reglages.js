@@ -14,8 +14,24 @@ const Reglages = {
       store, map, etat, refresh, showOverViewer, mainZone, saveAs, setStatus, FICHE_FONTS, placeMarkup, escapeHtml,
     } = host;
 
-    $("#fond").value = store.get("fond", "plan").replace(/^osm$/, "ofm");  // OpenStreetMap France remplacé par OpenFreeMap
-    if (!$("#fond").value) $("#fond").value = "plan";  // fond mémorisé qui n'existe plus
+    // Choix du fond de carte : dans le panneau du « i » (attributions), au-dessus du texte des attributions ; visible quand il est ouvert
+    const fonds = [
+      ["noms", "Orthophoto +", "Orthophoto, noms des lieux et des rues, voies et numéros de route, limites des communes"],
+      ["plan", "Plan IGN", ""], ["ortho", "Orthophoto", ""],
+      ["express", "Ortho-express", "Orthophoto de l'année de la photo choisie"],
+      ["mnt", "LiDAR MNT", "Ombrage du modèle numérique de terrain (sol nu) du LiDAR HD de l'IGN, là où il est publié"],
+      ["mns", "LiDAR MNS", "Ombrage du modèle numérique de surface (sol, bâtiments, végétation) du LiDAR HD de l'IGN, là où il est publié"],
+      ["mnh", "LiDAR MNH", "Estompage du modèle numérique de hauteur (IGN) : hauteur du sursol (bâtiments, arbres, haies, talus) au-dessus du sol, là où le LiDAR HD est publié"],
+      ["ofm", "OpenFreeMap", "Données OpenStreetMap, tuiles vectorielles d'OpenFreeMap"],
+    ];
+    const fondBloc = Object.assign(document.createElement("div"), { className: "fond-carte" });
+    fondBloc.innerHTML = '<label for="fond">Fond de carte</label><select id="fond">'
+      + fonds.map(([v, t, d]) => `<option value="${v}"${d ? ` title="${escapeHtml(d)}"` : ""}>${t}</option>`).join("") + "</select>";
+    const attribution = map.getContainer().querySelector(".maplibregl-ctrl-attrib");
+    attribution.insertBefore(fondBloc, attribution.querySelector(".maplibregl-ctrl-attrib-inner"));
+    for (const evt of ["click", "dblclick", "mousedown", "wheel"]) fondBloc.addEventListener(evt, (e) => e.stopPropagation());
+    $("#fond").value = store.get("fond", "noms").replace(/^osm$/, "ofm");  // OpenStreetMap France remplacé par OpenFreeMap
+    if (!$("#fond").value) $("#fond").value = "noms";  // fond mémorisé qui n'existe plus
     map.on("load", () => Carte.setBackground(map, $("#fond").value));
     // Police des cartouches prête avant qu'ils ne soient dessinés
     document.fonts?.load("700 24px Inter").catch(() => {});

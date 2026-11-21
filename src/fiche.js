@@ -575,6 +575,8 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
     const year = (/EXPRESS\.(\d{4})/.exec(layer) || [])[1];
     const name = value === "plan" ? "Plan IGN"
       : value === "express" && year ? `Ortho-express ${Number(year) >= 2025 ? "RVB " : ""}${year}`
+      : value === "mnt" ? "Modèle Numérique de Terrain LiDAR HD"
+      : value === "mns" ? "Modèle Numérique de Surface LiDAR HD"
       : value === "mnh" ? "Modèle Numérique de Hauteur LiDAR HD"
       : "Photographies aériennes";  // orthophoto, avec ou sans noms
     return `${name} (IGN)`;

@@ -49,9 +49,9 @@ immédiat) grossit d'un bloc les boutons du haut de la visionneuse, les trois pa
 de mesure dessinés sur la photo n'en changent pas. Une section
 s'affiche à la fois ; la dernière choisie est rouverte à la visite suivante.
 
-**La carte** : fonds Plan IGN (tuiles vectorielles, texte net ; dès le zoom 16, parcelles cadastrales en jaune léger, rues et chemins du domaine public en blanc, cadastre allumé ou non), orthophoto, ortho-express, Modèle Numérique de Hauteur (LiDAR HD : estompage de la hauteur du
-sursol : bâtiments, arbres, haies, talus), OpenStreetMap (tuiles vectorielles d'OpenFreeMap, texte net), et
-**orthophoto avec noms** : noms des lieux et des rues, voies, avec les numéros de route dans
+**La carte** : le fond se choisit dans le panneau du bouton « i » (en bas à droite de la carte), au-dessus des attributions ; fonds Plan IGN (tuiles vectorielles, texte net ; dès le zoom 16, parcelles cadastrales en jaune léger, rues et chemins du domaine public en blanc, cadastre allumé ou non), orthophoto, ortho-express, LiDAR HD de l'IGN en ombrage (MNT : le sol nu ; MNS : sol, bâtiments et végétation ; MNH : hauteur du
+sursol, bâtiments, arbres, haies, talus ; jusqu'au zoom 18, là où le LiDAR HD est publié), OpenStreetMap (tuiles vectorielles d'OpenFreeMap, texte net), et
+**orthophoto avec noms** (« Orthophoto + », le fond par défaut ; le fond choisi est gardé dans le navigateur) : noms des lieux et des rues, voies, avec les numéros de route dans
 des cartouches dessinés comme ceux de l'IISR (rouge pour les autoroutes et nationales, jaune
 pour les départementales, cyan pour les métropolitaines, vert pour les européennes), limites
 des communes (tirets noirs). Les limites des départements (bleu) et des métropoles (vert) sont sur tous les fonds. Les
