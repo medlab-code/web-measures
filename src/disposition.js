@@ -39,6 +39,11 @@ const Disposition = {
         const ecart = parseFloat(getComputedStyle(haut).columnGap) || 0;
         const enLigne = pastilles.getBoundingClientRect().width + (f.width ? f.width + ecart : 0);
         haut.classList.toggle("filigrane-dessous", h.right - enLigne < b.right + 8);
+        // Curseurs raccourcis quand la barre toucherait encore les pastilles de capture (fenêtre étroite, grandes étiquettes) :
+        // largeur naturelle mesurée sans la classe, comparée à la place restante
+        barre.classList.remove("serree");
+        const libre = h.right - pastilles.getBoundingClientRect().width - ecart - barre.getBoundingClientRect().left;
+        barre.classList.toggle("serree", barre.getBoundingClientRect().width > libre);
       };
       if (window.ResizeObserver) {
         const obs = new ResizeObserver(place);

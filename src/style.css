@@ -262,6 +262,9 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   --etiquette-icone: var(--etiquette-icone-carte-grande); }
 .etiquette-carte, .maplibregl-ctrl-top-left .maplibregl-ctrl-group, .recherche, .requeteur {
   background: var(--etiquette-fond); border-radius: var(--etiquette-rayon); box-shadow: none; transition: background 0.2s; }
+/* Échelle de la carte au style unifié (maplibre la fait blanche) */
+.maplibregl-ctrl-scale { background: var(--etiquette-fond); color: #fff; border: 1px solid #fff; border-top: 0; border-radius: 0 0 4px 4px; font-size: 11px; line-height: 1.5; transition: background 0.2s; }
+.maplibregl-ctrl-scale:hover { background: var(--etiquette-fond-survol); }
 .maplibregl-ctrl-top-left .maplibregl-ctrl-group { overflow: hidden; padding: var(--etiquette-marge) 0; }
 :is(.etiquette-carte, .maplibregl-ctrl-top-left .maplibregl-ctrl-group, .recherche, .requeteur):hover { background: var(--etiquette-fond-survol); }
 .maplibregl-ctrl-top-left .maplibregl-ctrl-group button { border-radius: 0; }
@@ -656,9 +659,9 @@ button.principal { font-weight: 600; }
 /* Avis passager (photo écartée) */
 #avis {
   margin: 0;
-  padding: 0.4rem 0.8rem;
-  border-radius: 4px;
-  background: rgba(32, 33, 36, 0.9);
+  padding: 0.3rem calc(0.8rem + var(--pastille-marge, 0px));
+  border-radius: 14px;
+  background: var(--etiquette-fond);
   color: #fff;
   text-align: center;
 }
@@ -808,6 +811,12 @@ button.principal { font-weight: 600; }
   pointer-events: none;
   z-index: 5;
 }
+/* Messages du centre hors mesure (avis, rappel du mode, calcul de l'inclinaison) : sous la barre du haut, qui occupe sinon le centre, et
+   à droite de l'étiquette du pont s'il y en a une (largeur réduite, le texte passe à la ligne) */
+#vue:not(.en-mesure) .haut-centre {
+  top: calc(var(--haut-reserve, 2.9rem) + 6px);
+  max-width: min(56%, 46rem, calc(100% - 2 * var(--chute-droite, 0px) - 16px));
+}
 .haut-gauche {
   position: absolute;
   /* sous la barre du haut (#reglage-image) : sa place depuis le haut (--haut-reserve, pixels écran, posée par app.js) + 6 px, sans
@@ -874,9 +883,9 @@ button.principal { font-weight: 600; }
 .haut-centre > #avis, .haut-centre > #calcul-inclinaison { order: 1; }
 #mode-mesure {
   margin: 0;
-  padding: 0.35rem 0.8rem;
-  border-radius: 5px;
-  background: var(--etiquette-vue);
+  padding: 0.35rem 0.9rem;
+  border-radius: 14px;
+  background: var(--etiquette-fond);
   color: #fff;
   font-size: 18px;
   font-weight: 600;
@@ -907,7 +916,7 @@ button.principal { font-weight: 600; }
   margin: 0;
   padding: 0.3rem calc(0.8rem + var(--pastille-marge, 0px));
   border-radius: 14px;
-  background: rgba(24, 25, 28, 0.55);  /* style unifié des étiquettes de la visionneuse (#lieu, #reglage-image) */
+  background: var(--etiquette-fond);  /* style unifié des étiquettes de la visionneuse (#lieu, #reglage-image) */
   color: #fff;
   font-size: 14px;
   font-weight: 500;
@@ -943,7 +952,7 @@ button.principal { font-weight: 600; }
 /* Visionneuse : voyants en haut à droite (vert : oui, rouge : non, jaune : inconnu ou en cours) */
 #voyants {
   position: absolute;
-  top: 2.9rem;  /* sous le bouton de plein écran */
+  top: calc(var(--haut-droite-reserve, 2.9rem) + 6px);  /* sous les pastilles de droite (#haut-droite-vue), d'après leur hauteur mesurée */
   right: 0.8rem;
   margin: 0;
   padding: 0;
@@ -959,12 +968,12 @@ button.principal { font-weight: 600; }
   pointer-events: none;
   z-index: 5;
 }
-#voyants li {  /* une étiquette par voyant : fond sombre opaque, lisible sur le ciel */
+#voyants li {  /* une étiquette par voyant, au style unifié */
   display: flex;
   align-items: center;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
-  background: rgba(24, 25, 28, 0.82);
+  background: var(--etiquette-fond);  /* style unifié, plus opaque au survol */
 }
 #voyants[hidden] { display: none; }
 
@@ -993,11 +1002,11 @@ html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):n
   gap: 0.8rem;
   padding: 0.2rem calc(0.7rem + var(--pastille-marge)) 0.2rem calc(0.3rem + var(--pastille-marge));
   border-radius: 999px;
-  background: rgba(24, 25, 28, 0.55);
+  background: var(--etiquette-fond);
   color: #fff;
   transition: background 0.2s;
 }
-#reglage-image:hover { background: rgba(24, 25, 28, 0.82); }
+#reglage-image:hover { background: var(--etiquette-fond-survol); }
 #reglage-image > div { display: flex; flex-direction: row-reverse; align-items: center; gap: 0.2rem; }  /* icône, puis curseur */
 #reglage-image > div.outils { flex-direction: row; gap: 0.3rem; }  /* outils de mesure : côte à côte */
 #reglage-image input[type="range"] {
@@ -1010,6 +1019,7 @@ html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):n
   background: none;
 }
 /* Réglettes fines : rail de 0,15 rem et curseur rond de 0,7 rem, gris clair (Chrome puis Firefox) */
+#reglage-image.serree input[type="range"] { width: 1.6rem; }  /* place comptée : voir disposition.js */
 #reglage-image input[type="range"]::-webkit-slider-runnable-track { height: 0.15rem; border-radius: 999px; background: rgba(255, 255, 255, 0.45); }
 #reglage-image input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -1047,9 +1057,9 @@ html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):n
 /* Captures et plein écran de la visionneuse : même fond que les réglages de l'image */
 #captures-visionneuse {
   display: flex; align-items: center; gap: 0.3rem;
-  padding: 0.2rem calc(0.3rem + var(--pastille-marge)); border-radius: 999px; background: rgba(24, 25, 28, 0.55); color: #fff; transition: background 0.2s;
+  padding: 0.2rem calc(0.3rem + var(--pastille-marge)); border-radius: 999px; background: var(--etiquette-fond); color: #fff; transition: background 0.2s;
 }
-#captures-visionneuse:hover { background: rgba(24, 25, 28, 0.82); }
+#captures-visionneuse:hover { background: var(--etiquette-fond-survol); }
 pnx-photo-viewer[hidden] ~ #reglage-image, pnx-photo-viewer[hidden] ~ #haut-droite-vue { display: none; }
 html:fullscreen #reglage-image { transition: opacity 0.2s; }
 html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
@@ -1102,7 +1112,7 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
   padding: 2px calc(0.8rem + var(--pastille-marge));  /* marge de plus aux bouts arrondis : le texte ne colle pas à l'arrondi */
   line-height: calc(var(--etiquette-ligne) - 4px);  /* --etiquette-ligne de haut (23 px), comme le lecteur */
   border-radius: 14px;  /* pastille, sans devenir une ellipse quand le texte passe sur deux lignes */
-  background: rgba(24, 25, 28, 0.55);  /* fond et coins des boutons en haut de la visionneuse (#reglage-image) */
+  background: var(--etiquette-fond);  /* fond et coins des boutons en haut de la visionneuse (#reglage-image) */
   color: #fff;
   font-size: 13px;
   font-weight: 500;
@@ -1112,6 +1122,10 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
 }
 #producteur-photo { text-align: right; }
 #lieu[hidden], #producteur-photo[hidden] { display: none; }
+/* Survol : plus opaque, comme la barre du haut (#reglage-image) ; ces étiquettes reçoivent donc le pointeur (la photo reste glissable ailleurs) */
+#lieu, #producteur-photo, #lecteur, #voyants li, #chute { transition: background 0.2s; }
+#lieu, #producteur-photo, #voyants li { pointer-events: auto; }
+#lieu:hover, #producteur-photo:hover, #lecteur:hover, #voyants li:hover, #chute:hover { background: var(--etiquette-fond-survol); }
 /* Visionneuse à la petite place (lecteur et producteur masqués) : la localisation prend toute la largeur du bandeau, mêmes marges des deux côtés */
 .carte-en-grand #lieu { grid-column: 1 / -1; justify-self: stretch; }
 /* Bulles d'un objet de la couche sous le pointeur (src/choix.js, objectTip) : repère de taille nulle au
@@ -1142,7 +1156,7 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
   gap: 2px;
   padding: 2px calc(0.5rem + var(--pastille-marge));
   border-radius: 999px;
-  background: rgba(24, 25, 28, 0.55);  /* fond et coins des boutons en haut de la visionneuse (#reglage-image) */
+  background: var(--etiquette-fond);  /* fond et coins des boutons en haut de la visionneuse (#reglage-image) */
   pointer-events: auto;
 }
 #lecteur[hidden] { display: none; }
@@ -1190,9 +1204,9 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
    dans le bloc du haut, sous le rappel du mode */
 #calcul-inclinaison {
   margin: 0;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  background: var(--etiquette-vue);
+  padding: 0.15rem 0.7rem;
+  border-radius: 14px;
+  background: var(--etiquette-fond);
   color: #ffeb00;
   opacity: 0.8;  /* un peu transparent : message secondaire */
   font-size: 13px;
@@ -1739,10 +1753,10 @@ dialog.avertissement form button.destructif { color: #ff8a80; }
 dialog.avertissement form button.destructif:hover { background: rgba(255, 138, 128, 0.25); }
 dialog.avertissement form button:focus-visible { outline: 2px solid #ffd600; outline-offset: 2px; }
 #vue.en-mesure .haut-centre {
-  border: 0; border-radius: 14px; background: rgba(24, 25, 28, 0.55); color: #fff; box-shadow: none;
+  border: 0; border-radius: 14px; background: var(--etiquette-fond); color: #fff; box-shadow: none;
   zoom: var(--echelle-ui, 1); transition: background 0.2s;
 }
-#vue.en-mesure .haut-centre:hover { background: rgba(24, 25, 28, 0.82); }
+#vue.en-mesure .haut-centre:hover { background: var(--etiquette-fond-survol); }
 #vue.en-mesure #etapes li + li::before { background: rgba(255, 255, 255, 0.35); }
 #vue.en-mesure .haut-centre button {
   border: 0; background: none; color: #fff; font-weight: 500; text-shadow: none; box-shadow: none; animation: none;

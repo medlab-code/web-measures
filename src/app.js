@@ -574,20 +574,26 @@
     new MutationObserver(measure).observe(lieu, { attributes: true, attributeFilter: ["hidden"] });
   }
 
-  // Étiquette du pont (#chute) juste sous la barre du haut (#reglage-image), quelle que soit la taille des étiquettes : place prise par
-  // la barre depuis le haut de la visionneuse, en pixels écran (--haut-reserve et --barre-gauche, lues par style.css)
+  // Étiquettes du haut de la visionneuse posées d'après la place réellement prise par les barres, quelle que soit la taille des étiquettes :
+  // l'étiquette du pont (#chute) sous la barre de gauche (#reglage-image), les voyants sous les pastilles de droite (#haut-droite-vue), les
+  // messages du centre (.haut-centre) sous la barre et à droite de l'étiquette du pont. Variables en pixels écran lues par style.css :
+  // --haut-reserve et --barre-gauche (barre de gauche), --haut-droite-reserve (pastilles de droite), --chute-droite (bord droit du pont)
   {
-    const vue = $("#vue"), barre = $("#reglage-image");
+    const vue = $("#vue"), barre = $("#reglage-image"), droite = $("#haut-droite-vue"), chute = $("#chute");
     const measure = () => {
-      const box = barre.getBoundingClientRect(), cadre = vue.getBoundingClientRect();
+      const cadre = vue.getBoundingClientRect(), box = barre.getBoundingClientRect(), pastilles = droite.getBoundingClientRect();
+      const set = (name, value) => vue.style.setProperty(name, `${value.toFixed(1)}px`);
       if (box.bottom > cadre.top) {
-        vue.style.setProperty("--haut-reserve", `${(box.bottom - cadre.top).toFixed(1)}px`);
-        vue.style.setProperty("--barre-gauche", `${(box.left - cadre.left).toFixed(1)}px`);  // même bord gauche que la barre
+        set("--haut-reserve", box.bottom - cadre.top);
+        set("--barre-gauche", box.left - cadre.left);  // même bord gauche que la barre
       }
+      if (pastilles.bottom > cadre.top) set("--haut-droite-reserve", pastilles.bottom - cadre.top);
+      const bord = chute.getBoundingClientRect();
+      set("--chute-droite", chute.hidden || !bord.width ? 0 : bord.right - cadre.left);
     };
     const watch = new ResizeObserver(measure);
-    watch.observe(vue);
-    watch.observe(barre);
+    for (const e of [vue, barre, droite, chute]) watch.observe(e);
+    new MutationObserver(measure).observe(chute, { attributes: true, attributeFilter: ["hidden"] });
   }
 
   /** « Exporter le calage » grisé tant qu'aucune photo ni séquence n'est calée (rien à exporter). */
