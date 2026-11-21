@@ -43,6 +43,7 @@ const Nez = {
     const ROTATION_RATE = 0.1;  // degrés par px de glissement horizontal de la croix (Maj : 10 fois moins), précision de 0,1°
     const CALAGE_MAX = 90000;  // ms : attente au plus du calage Bird Eye, puis largeur sans calage
     const CALAGE_WAIT = "Calage Bird Eye en cours…";
+    const CHEVRON_GAP = 1, CHEVRON_GAP_HOVER = 5, CHEVRON_MS = 120;  // px : écart des chevrons ‹ › à la croix au repos et au survol ; durée du déplacement
     const toRad = Math.PI / 180;
 
     let active = false, raw = null, line = null;  // raw : dernière réponse de nose_line (texte), line : son contenu
@@ -52,6 +53,8 @@ const Nez = {
     let depth = null;  // m : distance de la droite devant la caméra (null : au nez, d_min)
     let rotation = 0, keep = false;  // rotation (degrés, positif = sens trigonométrique vu du dessus), keep : droite gardée affichée pendant la relecture du relief
     let frame = null;  // image d'animation en attente (recalcul de la droite pendant la rotation)
+    let ghost = null;  // droite d'avant le glissement de la croix : points [yaw, pitch], gardée en pointillés pendant le glissement
+    let pivotHover = false, chevronGap = CHEVRON_GAP, chevronFrame = null;  // survol de la croix (chevrons écartés), écart animé en px
     let drag = null, bound = null, readout = null, retry = null, waiting = null;
     // Calage Bird Eye de la photo (voir en tête) : state « none » (pas demandé), « waiting » (en cours), « done », « impossible » (reason : cause)
     let calage = { pic: null, state: "none", reason: "" }, calageTimer = null, calageApi = null;
@@ -378,16 +381,19 @@ const Nez = {
         ...line.points.filter(([o]) => o > handles.gauche && o < handles.droit).map(([, yaw, pitch]) => [yaw, pitch]),
         at(handles.droit)];
       const sides = [["gauche", handles.gauche], ["droit", handles.droit]];
+      const turning = drag?.side === "pivot";  // rotation en cours : droite d'avant en pointillés fins, rotation affichée
       Traits.setExtra({
-        lines: [{ points, color: lineColor(), width: 2.5 }],
+        lines: [...(turning && ghost ? [{ points: ghost, color: lineColor(), width: 1.5, dash: [5, 5], alpha: 0.7 }] : []),
+          { points, color: lineColor(), width: 2.5 }],
         crosses: [{ at: at(0), color: YELLOW }],  // croix au droit de la caméra
-        ticks: [...sides.map(([, o]) => ({ at: at(o), color: RED, length: TICK_PX, width: 3 })),
+        ticks: [{ at: at(0), color: YELLOW, width: 2.5, chevron: -1, gap: chevronGap }, { at: at(0), color: YELLOW, width: 2.5, chevron: 1, gap: chevronGap },
+          ...sides.map(([, o]) => ({ at: at(o), color: RED, length: TICK_PX, width: 3 })),
           { at: at(depthOffset()), color: WHITE, length: ARROW_PX, width: 3, double: true, lift: -ARROW_LIFT }],  // poignée de profondeur ⇕, sous la droite
         // largeur entre les poignées : étiquette « mesure » des largeurs de Mesure (↔ valeur ± incertitude, comme l'encart),
         // au milieu de la droite ; les distances de chaque bord restent dans l'encart
         labels: [{ at: at((handles.gauche + handles.droit) / 2), type: "mesure", place: "dessus", lift: LABEL_LIFT, flip: true, flipLift: LABEL_FLIP,
           text: calageWaiting() ? CALAGE_WAIT
-            : `↔ ${metres(handles.droit - handles.gauche)} ± ${metres(roundUp05(widthSigma(handles.gauche, handles.droit)))} · ${depthText()}` }],
+            : `↔ ${metres(handles.droit - handles.gauche)} ± ${metres(roundUp05(widthSigma(handles.gauche, handles.droit)))} · ${depthText()}${turning ? ` · ${rotationText()}` : ""}` }],
       });
     }
 
@@ -457,10 +463,27 @@ const Nez = {
       return [event.clientX - box.left, event.clientY - box.top];
     };
 
-    function setCursor(hover, grabbing = false) {
+    function setCursor(hover, grabbing = false, pivot = false) {
       const classes = etat.psv.container.classList;
       classes.toggle("nez-poignee", hover || grabbing);
       classes.toggle("nez-glisse", grabbing);
+      classes.toggle("nez-pivot", pivot);  // croix : curseur ⇔ (glisser à gauche ou à droite)
+      spreadChevrons(pivot);
+    }
+
+    /** Chevrons de la croix écartés au survol (et pendant son glissement), rapprochés sinon : écart animé sur CHEVRON_MS. */
+    function spreadChevrons(on) {
+      if (on === pivotHover) return;
+      pivotHover = on;
+      cancelAnimationFrame(chevronFrame);
+      const from = chevronGap, to = on ? CHEVRON_GAP_HOVER : CHEVRON_GAP, t0 = performance.now();
+      const step = (now) => {
+        const k = Math.min(1, (now - t0) / CHEVRON_MS);
+        chevronGap = from + (to - from) * k;
+        if (active && shown()) draw();
+        chevronFrame = k < 1 ? requestAnimationFrame(step) : null;
+      };
+      chevronFrame = requestAnimationFrame(step);
     }
 
     function onDown(event) {
@@ -470,17 +493,19 @@ const Nez = {
       event.stopImmediatePropagation();  // la visionneuse ne tourne pas, ne mesure pas
       event.preventDefault();
       drag = { side, id: event.pointerId, x: local(event)[0], rotation };
+      if (side === "pivot") ghost = [locate(handles.gauche), ...line.points.filter(([o]) => o > handles.gauche && o < handles.droit).map(([, yaw, pitch]) => [yaw, pitch]), locate(handles.droit)];
       if (side === "profondeur") drag.grab = pointerPitch(...local(event)) - locate(depthOffset())[1];  // écart du pointeur à la poignée, gardé
       try {
         etat.psv.container.setPointerCapture(event.pointerId);
       } catch { /* pointeur déjà relâché : le glisser s'arrêtera au pointerup */ }
-      setCursor(true, true);
+      setCursor(true, true, side === "pivot");
     }
 
     function onMove(event) {
       if (!shown()) return;
       if (!drag) {
-        setCursor(Boolean(handleAt(...local(event))));
+        const found = handleAt(...local(event));
+        setCursor(Boolean(found), false, found === "pivot");
         return;
       }
       if (event.pointerId !== drag.id) return;
@@ -628,7 +653,10 @@ const Nez = {
         etat.psv.container.releasePointerCapture(event.pointerId);
       } catch { /* déjà relâché */ }
       drag = null;
-      setCursor(handleAt(...local(event)) !== null);
+      ghost = null;  // pointillés retirés
+      const found = handleAt(...local(event));
+      setCursor(found !== null, false, found === "pivot");
+      draw();
       // le clic qui suit le relâchement ne doit pas atteindre la visionneuse (mesure, photo voisine)
       const container = etat.psv.container, stop = (e) => e.stopImmediatePropagation();
       container.addEventListener("click", stop, { capture: true, once: true });
@@ -661,7 +689,7 @@ const Nez = {
       container.removeEventListener("pointercancel", onUp, true);
       container.removeEventListener("mousedown", onLegacyDown, true);
       container.removeEventListener("touchstart", onLegacyDown, true);
-      container.classList.remove("nez-poignee", "nez-glisse");
+      container.classList.remove("nez-poignee", "nez-glisse", "nez-pivot");
       bound = null;
     }
 
