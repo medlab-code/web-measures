@@ -46,37 +46,31 @@
       <span class="essai"
             title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.7.9 – projet personnel – POC</span>
     </div>
-    <!-- Mesure : gros bouton, puis réglages ; annuler et effacer sont dans la visionneuse (#reglage-image) -->
-    <div class="bloc mesure carte-barre">
-      <button id="mesure" type="button" aria-pressed="false" disabled
+  </header>
+  <!-- Commandes de mesure pilotées par script, jamais affichées : « Mesure » (entrée et sortie de la mesure) et la liste « Mode ». Les boutons de la
+       visionneuse (↕, relevé, calage : src/mesure.js) et celui de la carte (src/resultats.js) les utilisent. Bird Eye : état de la vue du dessus,
+       allumé par le faucon de la carte ; le fond de carte est dans le panneau du « i » de la carte (src/reglages.js) -->
+  <div id="commandes-mesure" hidden>
+    <button id="mesure" type="button" aria-pressed="false" disabled
               title="Mesurer : un clic dans la photo prend un point au lieu de changer de photo"><svg width="20" height="20"
                   viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd"
                       d="M3 2.5v19h19z M7.5 12.2v4.8h4.8z"/></svg> Mesure</button>
-      <div class="bloc reglages">
-        <div class="rang">
-          <label>Mode
-            <select id="mode" disabled>
-              <optgroup label="Mesures">
-                <!-- Hauteur : lancée par le bouton ↕ de la visionneuse (src/mesure.js) ; option cachée, mode de départ du calcul -->
-                <option value="height" hidden>Hauteur d'un objet</option>
-                <option value="carte"
-                        title="Longueur (deux clics) ou surface (contour) tracée sur la carte en grand, à la place de la visionneuse ; sur la vue Bird Eye si elle est allumée (avec incertitude), sinon sur le fond de carte">Mesure sur la carte (longueur, surface)</option>
-              </optgroup>
-              <optgroup label="Relevé">
-                <option value="releve">Relevé d'objets (couche SIG)</option>
-              </optgroup>
-              <optgroup label="Calage des photos">
-                <option value="tilt">Calage : inclinaison (objets verticaux)</option>
-              </optgroup>
-            </select>
-          </label>
-        </div>
-      </div>
-    </div>
-    <!-- Bird Eye : état de la vue du dessus, sans affichage ici ; allumé par le faucon de la carte (src/resultats.js).
-         Le choix du fond de carte est dans le panneau du « i » de la carte (src/reglages.js) -->
+    <select id="mode" disabled>
+      <optgroup label="Mesures">
+        <!-- Hauteur : lancée par le bouton ↕ de la visionneuse (src/mesure.js) ; option cachée, mode de départ du calcul -->
+        <option value="height" hidden>Hauteur d'un objet</option>
+        <option value="carte"
+                title="Longueur (deux clics) ou surface (contour) tracée sur la carte en grand, à la place de la visionneuse ; sur la vue Bird Eye si elle est allumée (avec incertitude), sinon sur le fond de carte">Mesure sur la carte (longueur, surface)</option>
+      </optgroup>
+      <optgroup label="Relevé">
+        <option value="releve">Relevé d'objets (couche SIG)</option>
+      </optgroup>
+      <optgroup label="Calage des photos">
+        <option value="tilt">Calage : inclinaison (objets verticaux)</option>
+      </optgroup>
+    </select>
     <input type="checkbox" id="dessus" hidden disabled aria-hidden="true">
-  </header>
+  </div>
   <main>
     <div id="place-vue" hidden></div>
     <section id="vue">

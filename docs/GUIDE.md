@@ -77,9 +77,8 @@ transparents, et les boutons, voyants, lieu et lecteur s'effacent après 3 s de 
 reste propre. Une mesure en cours s'y poursuit, avec sa carte d'étape ; pour en lancer une autre, quitter le plein écran.
 `Échap` y quitte d'abord le plein écran : un second appui annule le trait en cours.
 
-**Hauteur, profil en travers et largeur dans la visionneuse** : trois boutons bascule, en haut à gauche de la visionneuse, sous ou à côté des curseurs de luminosité
-et de contraste (↕ « Hauteur » : mesure de hauteur d'un objet ; courbe « Profil en travers » : chute, dévers et coupe du terrain ; ↔ « Largeur »,
-ci-dessous). Un appui lance la fonction, un second l'arrête ; une seule est active à la fois (en lancer une arrête les autres) ; chacun est grisé quand
+**Outils de mesure dans la visionneuse** (hauteur, profil en travers, largeur, relevé d'objets, calage de l'inclinaison) : cinq boutons bascule, en haut à gauche de la visionneuse, sous ou à côté des curseurs de luminosité
+et de contraste (↕ « Hauteur » : mesure de hauteur d'un objet ; courbe « Profil en travers » : chute, dévers et coupe du terrain ; ↔ « Largeur » ; puis, à droite, l'épingle « Relevé d'objets » et l'équerre « Calage de l'inclinaison »). Un appui lance la fonction, un second l'arrête ; une seule est active à la fois (en lancer une arrête les autres) ; chacun est grisé quand
 la fonction ne peut pas s'appliquer (pas de photo, photo non 360° pour la largeur, pont ou lecture pour le profil). Détails de la hauteur et du profil : « Mesurer » et « Chute et dévers des bords de route » plus bas.
 
 **Largeur dans la visionneuse** (expérimental, piste P22 étape 1) : le bouton à droite des curseurs de luminosité et de contraste, en haut à
@@ -225,7 +224,7 @@ revient dans l'axe du parcours par le même mouvement, deux fois plus vite (un s
 de 60 m, giratoire) ; pour avoir le temps de voir la voie, la vidéo ralentit pendant tout le regard (freinage et
 reprise en 1,5 s) jusqu'à la « vitesse de regard » (réglette de 30 à 130 km/h, 70 par défaut), en plafond progressif :
 v / (1 + (v / V)³)^(1/3), presque rien en dessous (30 → 29 km/h), V au plus au-dessus (90 → 62, 360 → 70 km/h) ; la maquette de la chaussée reste dans l'axe de la route. « Point d'intérêt » (décochée, un seul pour l'instant) : la cible est un objet du relevé (liste « Cible » :
-« n° 3 · premier champ »), triangulé dans Mesure → Relevé d'objets ; sans objet, la liste est grisée et invite à en
+« n° 3 · premier champ »), triangulé avec le bouton « Relevé d'objets » de la visionneuse ; sans objet, la liste est grisée et invite à en
 relever un. Sa position et son altitude NGF font viser juste, jusqu'en hauteur (le sommet d'un clocher si c'est lui
 qu'on a visé) ; la caméra : sol sous elle (LiDAR HD, sinon RGE ALTI) plus 2,4 m ; objet sans altitude : sol sous lui.
 Zone de l'effet : « ✏ Zone » puis deux clics sur la mini-carte le long de la route (seules les extrémités comptent,
@@ -304,7 +303,7 @@ d'ailleurs : seuls les réglages connus sont repris). Cible du point d'intérêt
 sinon celle du parcours, proposée en plus dans la liste « Cible » (« parcours gardé »). Les autres filtres
 (instance, producteur…) ne sont pas gardés.
 
-**Mesurer** : bouton « Mesure », puis le mode. Pendant la mesure, une carte d'étape en bas à gauche de
+**Mesurer** : un bouton de la visionneuse (↕ hauteur, épingle relevé d'objets, équerre calage) entre en mesure dans son mode ; la mesure sur la carte se lance par « Mesurer sur la carte ». Il n'y a plus de bouton « Mesure » ni de liste « Mode » à l'écran (commandes cachées, pilotées par ces boutons). Pendant la mesure, une carte d'étape en bas à gauche de
 la visionneuse donne la mesure et ses étapes (pied puis sommet), l'état
 (triangulation ou mesure en cours) et la consigne ; le haut de la photo et le lecteur de séquence restent libres. Le
 bouton **« ✔ Valider le point triangulé »** y apparaît, avec un halo,
@@ -334,8 +333,8 @@ après.
 
 - **Hauteur d'un objet** (bouton **↕ « Hauteur »**, en haut de la visionneuse, avec luminosité, contraste et largeur : il
   lance la mesure en mode hauteur, mode à l'ouverture de la page, et un second appui l'arrête ; grisé sans photo. Une seule de ces
-  fonctions (hauteur, profil en travers, largeur) est active à la fois : en lancer une arrête les autres. La liste « Mode » ne
-  la propose plus)
+  fonctions (hauteur, profil en travers, largeur, relevé, calage) est active à la fois : en lancer une arrête les autres ; un bouton de
+  mode pressé pendant une mesure dans un autre mode change de mode sans sortir de la mesure)
   1. Viser le **pied** de l'objet depuis au moins deux photos (un clic par photo, lecteur
      de séquence ou carte pour changer de photo), puis « Valider le point triangulé » : c'est le point de référence,
      et le pied de la hauteur.
@@ -540,7 +539,7 @@ après.
   position ; canal de Bourgogne : 3b8811e4).
 - **Mesure libre par triangulation** : retirée le 20/11/2026 (remplacée par la mesure sur la carte :
   longueur et surface, voir « Mesure sur la carte »).
-- **Relevé d'objets (couche SIG)** : viser chaque objet (un arbre d'un alignement, par exemple)
+- **Relevé d'objets (couche SIG)** (bouton épingle de la visionneuse, qui entre en mesure en mode relevé ; un second appui l'arrête) : viser chaque objet (un arbre d'un alignement, par exemple)
   depuis au moins deux photos, puis « Valider le point triangulé » ; après une seule visée,
   « Garder sur cette seule photo » propose de le poser là où la visée touche le sol, avec sa
   précision (sol supposé plat, plus imprécise que la triangulation : sinon, viser depuis une autre
@@ -711,7 +710,7 @@ soit le zoom ; ailleurs, le clic est un point de mesure), puis :
 - flèches du clavier, par pas de 1 cm : hauteur, ↑ ↓ montent ou descendent le point ;
 - **Entrée** pour terminer.
 
-**Caler les photos** (mode « Calage : inclinaison ») : inclinaison calculée automatiquement
+**Caler les photos** (bouton équerre « Calage de l'inclinaison » de la visionneuse, qui entre en mesure en mode calage) : inclinaison calculée automatiquement
 d'après les verticales de la photo (en arrière-plan), ou calée à la main : pied puis sommet de
 deux objets verticaux, à environ 90° l'un de l'autre. Le calage du cap et de la position
 (repères sur la carte) n'est pas proposé : le cap n'entre presque pas dans les hauteurs, et le cap EXIF des photos de relevé est déjà juste à 0,3° près. Un calage importé
@@ -810,8 +809,7 @@ reprojette le sol de la photo sur la mini-carte, pour la photo affichée seuleme
 n'est calculé sans le demander) ; ses réglages
 d'essai sont dans un panneau repliable sur la carte en grand ou détachée ; « Haute résolution » double la finesse de l'image
 (0,7 cm par pixel, quelques secondes de plus). Le bouton d'échange (deux flèches) de la carte échange la carte et la visionneuse, chacune à la place et à la taille
-de l'autre ; la carte en grand, comme la carte détachée, propose alors « Mesurer sur la carte » (aussi : mode « Mesure sur la carte » puis
-« Mesure »), avec une liste d'outil : longueur ou surface. La mesure se fait sur la vue Bird Eye si elle est allumée, sinon sur le fond de carte
+de l'autre ; la carte en grand, comme la carte détachée, propose alors « Mesurer sur la carte », avec une liste d'outil : longueur ou surface. La mesure se fait sur la vue Bird Eye si elle est allumée, sinon sur le fond de carte
 seul (« hors vue », sans incertitude) : Bird Eye n'est pas nécessaire. **Surface** : un clic par sommet, le contour se referme en recliquant le dernier
 sommet (ou le premier, après trois sommets) ; surface (m²) et périmètre, sans incertitude, rangés avec les autres résultats ; Effacer retire le
 dernier sommet, Échap tout le tracé. **Longueur** : un clic pose le départ, le trait suit le pointeur avec sa longueur, un second clic la garde dans les
@@ -838,7 +836,7 @@ largeurs de chaussée LiDAR (analyse fine) : ces valeurs n'ont pas encore été 
 
 **Inclinaison utilisée** : un seul ordre pour les mesures et la largeur dans la visionneuse (20/11/2026) : réglage de la
 vue du dessus pour la photo, calage à la main, verticales de la photo, LiDAR sous le véhicule, verticales à seuil élargi, roulis de
-la campagne seul (tangage inconnu, ±2°), rien (±2°). Elle est calculée à l'activation de « Mesure » pour la photo affichée,
+la campagne seul (tangage inconnu, ±2°), rien (±2°). Elle est calculée à l'entrée en mesure pour la photo affichée,
 puis au premier clic sur une autre photo ; la ligne d'état en donne la source et l'incertitude (par exemple « inclinaison calée
 dans la vue du dessus (±0,8°) », « inclinaison non calée : roulis de la campagne seul, tangage inconnu (±2,0°) », affichée seulement quand le calcul a été fait sans résultat ; avant, « inclinaison calculée à l'activation de la mesure ; roulis de la campagne en attendant »). Voir
 `docs/CALCULS.md` § 1.3. Les mesures déjà faites sur une photo se recalculent quand son inclinaison change (arrivée des
@@ -939,7 +937,7 @@ Avec un GPS grand public
 | `src/favoris.js` | photo loin des mesures, aller à une photo, favoris |
 | `src/objets.js` | couche importée dans la page : réglages, filtre, tableau des objets, recalages, export ; import commun des fichiers |
 | `src/visionneuse.js` | visionneuse : cap et champ de la vue, chargement des photos, flèches, clics |
-| `src/mesure.js` | prise de mesure : bouton « Mesure », visées et réticule, visées guidées, mode et réglages |
+| `src/mesure.js` | prise de mesure : boutons de mesure de la visionneuse et commandes cachées « Mesure » et « Mode », visées et réticule, visées guidées |
 | `src/releve.js` | relevé d'objets, dossier de travail, modèles de champs, import des calages |
 | `src/disposition.js` | disposition de la page : hauteur de la carte, largeur de la colonne (poignées, repli), plein écran de la visionneuse |
 | `src/parcours.js` | lecture de la séquence (1x à 16x) et onglet « Vidéo » : parcours, effets posés sur la carte, point d'intérêt, parcours gardés, calcul de la vidéo |

@@ -96,30 +96,8 @@ header {
   border-bottom: 1px solid var(--bord);
   font-size: 15px;
 }
-/* Blocs de la barre en cartes arrondies, comme les fiches du panneau */
-header .carte-barre { padding: 0.35em 0.55em; border: 1px solid var(--bord); border-radius: 10px; }
-header button, header select { border: 1px solid var(--bord); border-radius: 7px; background: var(--encart); color: var(--texte); }
-header button:not(:disabled) { cursor: pointer; }
-header button:not(:disabled):hover { filter: brightness(0.96); }
-header button:disabled { color: var(--discret); opacity: 0.6; }
-header select { background: var(--fond); }
-header input.interrupteur { width: 2.1em; height: 1.2em; }  /* plus petits que ceux du panneau */
-header input.interrupteur::before { width: 0.9em; height: 0.9em; top: 0.15em; left: 0.15em; }
-header input.interrupteur:checked::before { transform: translateX(0.9em); }
 input.interrupteur:disabled { opacity: 0.45; cursor: default; }
-/* Boutons et listes de la barre à la même hauteur (une liste est sinon plus basse), marges
-   intérieures à l'échelle de la barre */
-header button, header select { box-sizing: border-box; height: 1.8em; padding: 0 0.55em; }
-#mode { max-width: 17em; }  /* le plus long libellé (calage du cap) n'impose pas sa largeur */
-
-header label { display: flex; align-items: center; gap: 0.45em; min-height: 1.8em; }  /* cases à cocher à la hauteur des boutons */
-header input[type="number"] { width: 4.5em; }
-header input[type="checkbox"]:not(.interrupteur) { width: 0.95em; height: 0.95em; margin: 0; }
 .espace { flex: 1; }
-/* Bloc de la barre sur deux lignes, centré : mesure (réglages, puis effacement) */
-header .bloc { display: flex; flex-direction: column; align-items: center; gap: 0.5em; }
-header .rang { display: flex; align-items: center; gap: 0.55em; }
-header .mesure { margin-left: auto; }  /* Mesure et Mode à droite, à la suite du titre */
 /* Réglages d'essai de la vue du dessus : panneau sur la carte, sous la recherche et le requêteur, seulement carte en
    grand ou détachée (comme l'étiquette d'état) ; repliable sur son titre */
 #dessus-reglages { position: absolute; top: 78px; right: 10px; z-index: 1; width: min(16rem, calc(100% - 70px)); box-sizing: border-box;
@@ -151,14 +129,6 @@ body:not(.carte-en-grand):not(.fenetre-carte) #dessus-etat { display: none; }
 #dessus-etat:empty + #dessus-etat-replier,
 body:not(.carte-en-grand):not(.fenetre-carte) #dessus-etat-replier { display: none; }
 .dessus-etiquette { padding: 0 0.35em; border-radius: 4px; background: #fff; color: #111; font: 600 12px sans-serif; white-space: nowrap; }
-/* Bouton Mesure : à gauche des réglages, liseré orange comme
-   les alertes */
-header .mesure { flex-direction: row; align-items: stretch; gap: 0.8em; }
-header #mesure { display: inline-flex; align-items: center; gap: 0.4em; height: auto; padding: 0 0.9em;
-                 font-size: 1.15em; font-weight: 600; border: 3px solid var(--panoramax); border-radius: 10px; }
-/* Réglages : « Mode » et son sélecteur */
-header .reglages { display: flex; align-items: center; gap: 0.35em; }
-
 h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
 header h1 { font-size: 1.75em; line-height: 1; }  /* 28 px : titre nettement plus grand que la barre */
 /* Titre, avec la mention « version test » en dessous */
@@ -669,7 +639,6 @@ h3 { font-size: 0.9rem; margin: 0.9rem 0 0.3rem; }
 #filtre-actif { color: var(--panoramax); }
 
 button.principal { font-weight: 600; }
-#mesure.actif { background: var(--panoramax); border-color: var(--panoramax); color: #fff; font-weight: 600; }
 
 /* Avis passager (photo écartée) */
 #avis {

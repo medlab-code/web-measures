@@ -35,7 +35,7 @@
     photo: null,  // fiche STAC de la photo affichée
     psv: null,  // visionneuse sphérique (Photo Sphere Viewer) dans <pnx-photo-viewer>
     savedCalibration: -1,  // version du calage déjà enregistrée dans le navigateur
-    measuring: false,  // bouton « Mesure » : clics dans la photo pour mesurer, sans navigation
+    measuring: false,  // mesure en cours (commande cachée « Mesure », pilotée par les boutons de la visionneuse et de la carte) : clics dans la photo pour mesurer, sans navigation
     edgeProfile: null,
     fallNow: null,  // dernière chute et bords de la photo (App.fall_json), pour le bouton « Profil en travers »
     apiUrl: null,  // adresse de l'API de l'instance (Carte.setInstance)
@@ -361,15 +361,15 @@
 
   if (!firstUse) showTour();  // déjà venu avant la visite guidée : une fois aussi
 
-  /** Première visite : bulles l'une après l'autre près de la carte, du bouton Mesure et des
+  /** Première visite : bulles l'une après l'autre près de la carte, des outils de la visionneuse et des
    * résultats, une fois par navigateur (« Passer » l'arrête). */
   function showTour() {
     if (store.get("visite") === "1") return;
     store.set("visite", "1");
     const steps = [
       ["#carte", "Cliquez sur le filaire orange de la carte (ou cherchez un lieu) pour ouvrir la photo la plus proche."],
-      ["#mesure", "Activez « Mesure », choisissez largeur ou hauteur, puis cliquez dans la photo : "
-        + "la carte d'étape, en bas à gauche de la visionneuse, guide chaque étape."],
+      ["#reglage-image", "Choisissez un outil de mesure (largeur, hauteur, relevé, calage…), puis cliquez dans la photo : "
+        + "la carte d'étape, en bas à gauche de la visionneuse, guide chaque étape. Pour mesurer sur la carte : « Mesurer sur la carte »."],
       ["#resultats", "Les mesures s'affichent ici avec leur incertitude ; exportez-les en CSV ou GeoJSON "
         + "avant de fermer la page."],
     ];
@@ -510,7 +510,7 @@
 
   // Calcul ---------------------------------------------------------------------------------
 
-  // Équerre du bouton « Mesure » à la place de l'émoji « 📐 » des textes du cœur (dessin selon l'OS)
+  // Équerre de la commande cachée « Mesure » à la place de l'émoji « 📐 » des textes du cœur (dessin selon l'OS)
   const EQUERRE = $("#mesure svg");
   function setStatus(text, kind = "") {
     const status = $("#statut");
@@ -881,7 +881,7 @@
     showPlanets, setTravelPick, pickTravelPoint, refreshPoiTargets,
   } = parcours;
 
-  // Bouton « Mesure », visées guidées, mode et réglages de la mesure : src/mesure.js
+  // Commande « Mesure », visées guidées, mode et réglages de la mesure : src/mesure.js
   const {
     applyMeasureUi, showParcelMark, showModeOptions, showGuide, photoReady, frameView, drawViewerMarks,
     openPhotoReady, reticleColor, onArrow, LOADING, scheduleDeclutter, waitParcelTiles, goToPhoto,

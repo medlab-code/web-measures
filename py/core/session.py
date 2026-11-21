@@ -941,7 +941,7 @@ class Session:
     def status(self):
         """Texte de la mesure (consigne ou résultat)."""
         if not self.active:
-            return self.message or "Cliquez « 📐 Mesure » pour mesurer dans la photo ou la caler."
+            return self.message or "Choisissez un outil de mesure dans la visionneuse (hauteur, relevé, calage) ou « Mesurer sur la carte »."
         if self.message:
             return self.message
         if self.mode == "height" and self.ref_sel:
