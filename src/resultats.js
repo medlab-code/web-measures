@@ -124,6 +124,11 @@ const Resultats = {
     function updateBirdeye() {
       if ($("#dessus").checked && etat.photo && birdeyeFor && birdeyeFor !== etat.photo.id) $("#dessus").checked = false;
       if (calageFor && calageFor !== etat.photo?.id) calageFor = null;  // autre photo : calage interrompu avec la vue
+      if (calageFor && etat.app?.birdeye_impossible(calageFor)) {  // pose arrivée impossible : pas d'attente jusqu'à « trop long »
+        const pic = calageFor;
+        calageFor = null;
+        nez.calibrated(pic, false);
+      }
       const pose = etat.app && etat.photo ? JSON.parse(etat.app.birdeye_pose()) : null, shown = pose && pose.pic === etat.photo.id;
       $("#dessus").disabled = !shown;
       const on = shown && $("#dessus").checked;
@@ -164,9 +169,10 @@ const Resultats = {
       state: (pic) => Dessus.calibrated(pic),
       /** Lance le calage ; faux si la photo affichée n'est plus celle demandée. Pose Bird Eye pas encore prête (photo tout juste
        * affichée, calcul en chargement) : le calage est gardé en attente et part dès que la pose arrive (refresh, updateBirdeye),
-       * « Calage Bird Eye en cours… » restant affiché ; une photo sans pose possible finit par « trop long » (src/nez.js). */
+       * « Calage Bird Eye en cours… » restant affiché ; une photo dont la pose est impossible (pas 360°, ni cap, ni position :
+       * App.birdeye_impossible) est refusée aussitôt (« impossible »), « trop long » restant le filet de src/nez.js. */
       start(pic) {
-        if (!etat.app || etat.photo?.id !== pic) return false;
+        if (!etat.app || etat.photo?.id !== pic || etat.app.birdeye_impossible(pic)) return false;
         calageFor = pic;
         updateBirdeye();  // sans pose prête : rien de lancé, repris à son arrivée
         return true;

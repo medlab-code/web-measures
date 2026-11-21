@@ -285,6 +285,11 @@ class Pose:
                 "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []),
                 "roll_defect": self._roll_defect(item), "mount": self._fleet_mount(item)}
 
+    def birdeye_impossible(self, pic):
+        """Vrai si la photo affichée est `pic` et n'a pas de pose Bird Eye possible (pas 360°, ni cap, ni position) : le calage
+        de la largeur n'a alors rien à attendre (src/resultats.js). Faux si une autre photo est affichée (pas encore prête)."""
+        return bool(self.item and self.item.get("id") == pic and self._birdeye_of(self.item, lambda _pic: False) is None)
+
     def birdeye_pose(self):
         """Pose de la photo affichée pour la vue du dessus (src/dessus.js), en JSON : position
         (recalée si la séquence l'est), cap du centre de l'image, correction de cap de la séquence

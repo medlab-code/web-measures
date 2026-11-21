@@ -126,6 +126,14 @@ class VueDessus(unittest.TestCase):
         self.assertEqual((pose["up"], pose["sigma"], pose["height_sigma"]), ([0.0, 0.1, 0.99], 0.2, 0.05))
         self.assertEqual([(n["pic"], n["lat"], n["relative_sigma"]) for n in pose["neighbours"]], [("v", 47.00005, 0.05)])
 
+    def test_pose_impossible(self):
+        """birdeye_impossible : vrai pour la photo affichée sans pose (pas 360°), faux avec pose ou pour une autre photo."""
+        flat, ok = self.app_on(90), self.app_on(360)
+        self.assertEqual(flat.birdeye_pose(), "null")
+        self.assertTrue(flat.birdeye_impossible("p"))
+        self.assertFalse(flat.birdeye_impossible("autre"))  # autre photo affichée : pose pas encore prête
+        self.assertFalse(ok.birdeye_impossible("p"))
+
     def test_voisines_a_deux_pas(self):
         """Photos à deux pas (birdeye_far) : leur pose à part (far), sans inclinaison attendue ; aucune par défaut."""
         a = self.app_on(360)

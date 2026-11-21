@@ -470,8 +470,11 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   (`onTilt` → `nez.changed`) et la largeur est recalculée sans repasser par « en cours » (poignées replacées sur l'image, `reanchor`).
   Pose Bird Eye pas encore prête au déplacement (photo tout juste affichée) : attente de sa pose, puis calage, avec le message « en cours ».
   À l'**activation** de l'outil, le terrain (`readGrid`, en cache) et le panorama (`Dessus.prefetch`) de la photo sont lus à l'avance, sans
-  calage : celui-ci ne part qu'au déplacement d'une poignée latérale. Sans inclinaison de route ni verticales (`ok` faux) ou sans pose Bird Eye, ou au-delà de 90 s : largeur sans
-  calage, avec message. Pendant le calage aucune largeur n'est affichée. À la fin les poignées déplacées à la main sont **replacées sur
+  calage : celui-ci ne part qu'au déplacement d'une poignée latérale. Sans inclinaison de route ni verticales (`ok` faux) ou sans pose Bird Eye possible (photo hors 360°, sans cap ni position :
+  `App.birdeye_impossible`, connu dès la demande, sans attente), ou, comme filet seulement, au-delà de 90 s (« trop long ») : largeur sans
+  calage, avec message. Les grilles d'altitude lues en POST sont gardées d'une session à l'autre dans le cache géographique de `app.js`
+  (clé synthétique `adresse#post-empreinte du corps` : position, portée et pas identiques), comme les réponses GET : rechargement sans requête
+  d'altimétrie. Pendant le calage aucune largeur n'est affichée. À la fin les poignées déplacées à la main sont **replacées sur
   leur point de l'image** : le décalage en mètres d'une poignée est celui du point le plus proche, en direction (yaw, pitch) de la
   photo, de la droite recalculée avec l'inclinaison calée (`offsetOfDirection`), car l'inclinaison change la correspondance entre un pixel
   et sa position au sol ; la largeur est la différence des deux décalages. La poignée jamais déplacée garde sa distance en mètres.

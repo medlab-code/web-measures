@@ -163,14 +163,29 @@
     geoCache ??= window.caches ? caches.open(GEO_CACHE).catch(() => null) : Promise.resolve(null);
     return geoCache;
   }
-  function geoCacheable(url, init) {
-    if ((init?.method || "GET") !== "GET" || init?.cache === "no-store") return false;  // no-store : vérification d'accès
+  /** Clé de la réponse dans le cache : l'adresse pour un GET ; pour un POST (grille d'altitudes de src/dessus.js, absent du cache
+   * HTTP) une adresse synthétique « adresse#post-empreinte du corps » (corps identique : mêmes points, même ressource, donc
+   * position, portée et pas identiques). null : pas gardée. */
+  function geoKey(url, init) {
+    if (init?.cache === "no-store") return null;  // no-store : vérification d'accès
+    const method = init?.method || "GET";
+    if (method !== "GET" && !(method === "POST" && typeof init.body === "string")) return null;
     try {
       const parsed = new URL(url, location.href);
-      return CACHED_SERVICES.some((prefix) => (parsed.host + parsed.pathname).startsWith(prefix));
+      if (!CACHED_SERVICES.some((prefix) => (parsed.host + parsed.pathname).startsWith(prefix))) return null;
+      return method === "GET" ? url : `${parsed.href}#post-${bodyHash(init.body)}`;
     } catch {
-      return false;
+      return null;
     }
+  }
+  /** Empreinte (deux FNV de 32 bits, en hexadécimal) et longueur d'un texte. */
+  function bodyHash(text) {
+    let a = 0x811c9dc5, b = 0x01000193;
+    for (let i = 0; i < text.length; i++) {
+      a = Math.imul(a ^ text.charCodeAt(i), 0x01000193) >>> 0;
+      b = Math.imul(b ^ text.charCodeAt(i), 0x85ebca6b) >>> 0;
+    }
+    return `${a.toString(16)}${b.toString(16)}-${text.length}`;
   }
   function emptyAnswer(text) {  // rien à cet endroit : pas de tronçon, de commune ni d'altitude
     try {
@@ -259,19 +274,19 @@
   }
   window.fetch = async (input, init) => {
     const url = input?.url ?? String(input);
-    const gardee = geoCacheable(url, init);
+    const key = geoKey(url, init), gardee = key !== null;
     const cache = gardee ? await cacheStep(openGeoCache(), null, false) : null;
     if (!cache) return gardee ? geoFetch(input, init) : trackedFetch(input, init);
-    let hit = await cacheStep(cache.match(url).catch(() => undefined), undefined);
+    let hit = await cacheStep(cache.match(key).catch(() => undefined), undefined);
     if (hit && !readable(await hit.clone().text().catch(() => ""))) {  // gardée avant le contrôle de storeGeo : jetée
-      cache.delete(url).catch(() => {});
+      cache.delete(key).catch(() => {});
       hit = undefined;
     }
     const age = hit ? Date.now() - Number(hit.headers.get("x-mis-en-cache")) : Infinity;
     if (hit && age < (hit.headers.get("x-vide") === "1" ? CACHE_EMPTY_LIFE : CACHE_LIFE)) return hit;
     try {
       const response = await geoFetch(input, init);
-      if (response.ok) storeGeo(cache, url, response.clone()).catch((error) => console.warn("Cache :", error));
+      if (response.ok) storeGeo(cache, key, response.clone()).catch((error) => console.warn("Cache :", error));
       return !response.ok && hit ? hit : response;  // refus ou erreur : la réponse plus ancienne
     } catch (error) {
       if (hit && error?.name !== "AbortError") return hit;  // service muet ou en panne : idem
