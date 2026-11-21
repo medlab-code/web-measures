@@ -1436,8 +1436,9 @@ const Carte = (() => {
 
   /** Image de la carte telle qu'affichée (vue Bird Eye, traits des mesures, tracé en cours), avec par-dessus ce que la carte
    * pose en HTML : étiquettes des mesures et longueur en cours (à leur place, couleur, police et inclinaison), échelle et
-   * attribution des sources. Promesse d'un PNG (Blob). */
-  async function capture(map) {
+   * attribution des sources. Promesse d'un PNG (Blob). `nue` : sans l'échelle ni l'attribution (contrôles de la carte), pour le bouton
+   * de capture ; les étiquettes des mesures, posées en HTML par-dessus le canevas, y sont reportées. */
+  async function capture(map, { nue = false } = {}) {
     const canvas = map.getCanvas(), container = map.getContainer(), box = container.getBoundingClientRect();
     // tampon WebGL lu pendant un rendu (sinon vide)
     const out = await new Promise((resolve) => {
@@ -1476,9 +1477,36 @@ const Carte = (() => {
       g.fillText(text, 0, 0);
       g.restore();
     };
+    // Curseur de vue (croix, cône, ligne de cap) : marqueur SVG posé sur la carte, redessiné ici à sa position projetée
+    if (viewMarker?._map && lastView) {
+      const [lonlat, heading, fov] = lastView, at = map.project(lonlat), reach = Math.hypot(canvas.clientWidth, canvas.clientHeight);
+      g.save();
+      g.translate(at.x * k, at.y * k);
+      g.scale(k, k);
+      g.rotate(((heading ?? 0) + map.getBearing()) * Math.PI / 180);
+      if (heading != null) {
+        const half = Math.min(fov || 90, 170) / 2 * Math.PI / 180, r = 70;
+        g.beginPath();
+        g.moveTo(0, 0);
+        g.lineTo(-r * Math.sin(half), -r * Math.cos(half));
+        g.arc(0, 0, r, -Math.PI / 2 - half, -Math.PI / 2 + half);
+        g.closePath();
+        g.globalAlpha = 0.25; g.fillStyle = CURSEUR; g.fill();
+        g.globalAlpha = 1; g.strokeStyle = CURSEUR; g.lineWidth = 1.5; g.stroke();
+        g.globalAlpha = 0.6; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(0, 0); g.lineTo(0, -reach); g.stroke();
+        g.globalAlpha = 1;
+      }
+      g.lineCap = "round";
+      for (const [color, width] of [["#ffffff", 6], [CURSEUR, 3]]) {
+        g.strokeStyle = color; g.lineWidth = width;
+        g.beginPath(); g.moveTo(-8, 0); g.lineTo(8, 0); g.moveTo(0, -8); g.lineTo(0, 8); g.stroke();
+      }
+      g.restore();
+    }
     container.querySelectorAll(".maplibregl-marker .etiquette, .maplibregl-marker.etiquette, .dessus-etiquette").forEach((el) => draw(el));
     // échelle : trait encadré et sa longueur, comme MapLibre
-    const scale = container.querySelector(".maplibregl-ctrl-scale");
+    const scale = nue ? null : container.querySelector(".maplibregl-ctrl-scale");
     if (scale) {
       const r = scale.getBoundingClientRect(), x = (r.left - box.left) * k, y = (r.top - box.top) * k, w = r.width * k, h = r.height * k;
       g.fillStyle = "rgba(255, 255, 255, 0.75)";
@@ -1495,7 +1523,7 @@ const Carte = (() => {
       g.fillText(scale.textContent, x + 4 * k, y + h / 2);
     }
     // sources (licences) : en bas à droite
-    const credit = (container.querySelector(".maplibregl-ctrl-attrib-inner")?.textContent || "").trim();
+    const credit = nue ? "" : (container.querySelector(".maplibregl-ctrl-attrib-inner")?.textContent || "").trim();
     if (credit) {
       g.font = `${11 * k}px sans-serif`;
       const pad = 4 * k, tw = g.measureText(credit).width;

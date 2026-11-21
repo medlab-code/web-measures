@@ -180,7 +180,7 @@ const Resultats = {
       etat.swapped = on;
       swapButton.setAttribute("aria-pressed", String(on));
       // carte en grand ou détachée : mesure et Bird Eye d'un clic
-      measureButton.hidden = captureButton.hidden = exportButton.hidden = !on && !etat.mapWindow;  // faucon : toujours là (showMapMeasureButton)
+      measureButton.hidden = exportButton.hidden = !on && !etat.mapWindow;  // faucon et capture : toujours là (showMapMeasureButton)
       showMapMeasureButton();  // outil de la mesure : avec le bouton
       swapButton.title = on ? "Remettre la carte et la visionneuse à leur place" : "Échanger la carte et la visionneuse (place et taille)";
       if (on) {
@@ -253,22 +253,23 @@ const Resultats = {
       $("#dessus").checked = !$("#dessus").checked;
       $("#dessus").dispatchEvent(new Event("change"));
     });
-    // Capture de la carte (vue Bird Eye et mesures, étiquettes comprises), téléchargée en PNG ; grisé Bird Eye éteinte
+    // Capture de la carte entière telle qu'affichée (fond, filaire, mesures, vue Bird Eye si elle est allumée), sans les contrôles, téléchargée en PNG
     const captureButton = Object.assign(document.createElement("button"), { type: "button", className: "capture-carte", hidden: true,
       innerHTML: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
         + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>',
-      title: "Capture de la carte : vue Bird Eye et mesures, en image PNG", ariaLabel: "Capture de la carte" });
+      title: "Capture de la carte entière en image PNG : fond, tracés, mesures et vue Bird Eye si elle est allumée, sans les boutons ni l'échelle", ariaLabel: "Capture de la carte" });
     captureButton.addEventListener("click", async () => {
       captureButton.disabled = true;
       try {
-        const blob = await Carte.capture(map), url = URL.createObjectURL(blob);
+        const blob = await Carte.capture(map, { nue: true }), url = URL.createObjectURL(blob);
         const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
         Object.assign(document.createElement("a"),
-          { href: url, download: `bird-eye-${(etat.photo?.id || "carte").slice(0, 8)}-${stamp}.png` }).click();
+          { href: url, download: `carte-${etat.photo?.id || "sans-photo"}-${stamp}.png` }).click();
         setTimeout(() => URL.revokeObjectURL(url), 5000);
       } catch (error) {
         console.warn("Capture de la carte :", error);
       } finally {
+        captureButton.disabled = false;
         showMapMeasureButton();
       }
     });
@@ -309,8 +310,13 @@ const Resultats = {
       // rangée de la mesure, entre l'outil et la capture, comme avant. Il change de place à chaque échange des vues.
       const column = map.getContainer().querySelector(".maplibregl-ctrl-top-left .maplibregl-ctrl-group");
       if (etat.swapped || etat.mapWindow) {
+        if (captureButton.parentNode !== placeBar) placeBar.insertBefore(captureButton, exportButton);
         if (birdeyeButton.parentNode !== placeBar) placeBar.insertBefore(birdeyeButton, captureButton);
-      } else if (column && birdeyeButton.parentNode !== column) column.append(birdeyeButton);
+      } else if (column) {
+        if (birdeyeButton.parentNode !== column) column.append(birdeyeButton);
+        if (captureButton.parentNode !== column) column.append(captureButton);  // carte à sa place : capture dans la colonne, sous le faucon
+      }
+      captureButton.hidden = !(etat.swapped || etat.mapWindow) && !column;
       birdeyeButton.hidden = !(etat.swapped || etat.mapWindow) && !column;
       const on = etat.measuring && $("#mode").value === "carte";
       measureButton.setAttribute("aria-pressed", String(on));
@@ -322,7 +328,7 @@ const Resultats = {
       const bird = $("#dessus").checked;
       birdeyeButton.setAttribute("aria-pressed", String(bird));
       birdeyeButton.disabled = $("#dessus").disabled;
-      captureButton.disabled = exportButton.disabled = !bird || $("#dessus").disabled;  // rien de Bird Eye à capturer
+      exportButton.disabled = !bird || $("#dessus").disabled;  // rien de Bird Eye à exporter ; la capture, elle, marche toujours
       birdeyeButton.title = bird ? "Éteindre la vue Bird Eye"
         : "Vue Bird Eye de cette photo (calculée pour elle seule : une autre photo l'éteint)";
     }
