@@ -809,8 +809,10 @@ button.principal { font-weight: 600; }
 }
 .haut-gauche {
   position: absolute;
-  top: 2.9rem;  /* sous les curseurs de luminosité et de contraste (#reglage-image), comme #voyants sous le plein écran */
-  left: 0.8rem;
+  /* sous la barre du haut (#reglage-image) : sa place depuis le haut (--haut-reserve, pixels écran, posée par app.js) + 6 px, sans
+     valeur en dur : la barre grandit avec la taille des étiquettes */
+  top: calc(var(--haut-reserve, 2.9rem) + 6px);
+  left: var(--barre-gauche, 0.8rem);
   pointer-events: none;
   z-index: 5;
 }
@@ -902,9 +904,9 @@ button.principal { font-weight: 600; }
    survol : infobulle de son explication (le coin laisse sinon passer les clics) */
 #chute {
   margin: 0;
-  padding: 0.35rem 0.7rem;
-  border-radius: 10px;
-  background: rgba(24, 25, 28, 0.82);  /* sombre opaque : vert et bleu lisibles sur le ciel */
+  padding: 0.3rem calc(0.8rem + var(--pastille-marge, 0px));
+  border-radius: 14px;
+  background: rgba(24, 25, 28, 0.55);  /* style unifié des étiquettes de la visionneuse (#lieu, #reglage-image) */
   color: #fff;
   font-size: 14px;
   font-weight: 500;

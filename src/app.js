@@ -574,6 +574,22 @@
     new MutationObserver(measure).observe(lieu, { attributes: true, attributeFilter: ["hidden"] });
   }
 
+  // Étiquette du pont (#chute) juste sous la barre du haut (#reglage-image), quelle que soit la taille des étiquettes : place prise par
+  // la barre depuis le haut de la visionneuse, en pixels écran (--haut-reserve et --barre-gauche, lues par style.css)
+  {
+    const vue = $("#vue"), barre = $("#reglage-image");
+    const measure = () => {
+      const box = barre.getBoundingClientRect(), cadre = vue.getBoundingClientRect();
+      if (box.bottom > cadre.top) {
+        vue.style.setProperty("--haut-reserve", `${(box.bottom - cadre.top).toFixed(1)}px`);
+        vue.style.setProperty("--barre-gauche", `${(box.left - cadre.left).toFixed(1)}px`);  // même bord gauche que la barre
+      }
+    };
+    const watch = new ResizeObserver(measure);
+    watch.observe(vue);
+    watch.observe(barre);
+  }
+
   /** « Exporter le calage » grisé tant qu'aucune photo ni séquence n'est calée (rien à exporter). */
   function showCalibrationExport() {
     const c = JSON.parse(etat.app.calibration_json());
