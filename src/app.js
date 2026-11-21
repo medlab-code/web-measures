@@ -658,20 +658,30 @@
    * profil le demande ; les autres fenêtres suivent la visionneuse. */
   function showOverViewer(dialog, onMainZone = false) {
     dialog.showModal();
+    // Questions et alertes (dialog.avertissement) : sur la vue en grand (photo, ou carte quand les vues sont échangées), sous les
+    // étiquettes du haut de cette vue, hors de la colonne de boutons de la carte et du bouton « i » : elles n'en cachent aucune
+    const question = dialog.classList.contains("avertissement");
     let bottom = null;  // bas de la fenêtre une fois placée : gardé quand son contenu change (case actionnée, légende plus
     // courte), pour que ses boutons, en bas, ne sautent pas sous le pointeur ; sans sortir de la visionneuse
     const place = () => {
-      const box = (onMainZone || dialog.id === "reglages-defaut" ? mainZone() : $("#vue")).getBoundingClientRect();  // « Première
-      // utilisation » : sur la vue en grand (photo, ou carte quand les vues sont échangées)
+      const box = (onMainZone || question ? mainZone() : $("#vue")).getBoundingClientRect();
+      const swapped = document.body.classList.contains("carte-en-grand");
+      let top = box.top + 8, left = box.left + 8, right = box.right - 8, floor = box.bottom - 8;
+      if (question) {
+        const bars = (swapped ? [".recherche", ".requeteur", ".place-mesurer"] : ["#reglage-image", "#haut-droite-vue"])
+          .map((s) => $(s)).filter((e) => e && e.getClientRects().length);
+        top = Math.max(top, ...bars.map((e) => e.getBoundingClientRect().bottom + 8));
+        if (swapped) { left = box.left + 56 * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--echelle-ui")) || 1); floor -= 40; }
+      }
       dialog.style.margin = "0";
       dialog.style.inset = "auto";
-      // Centrée dans la visionneuse, sans en sortir : plus haute (nombreux champs), elle défile
-      dialog.style.maxHeight = `${Math.max(160, box.height - 16)}px`;
-      dialog.style.left = `${Math.max(8, box.left + (box.width - dialog.offsetWidth) / 2)}px`;
+      // Centrée dans la vue, sans en sortir : plus haute (nombreux champs), elle défile
+      dialog.style.maxHeight = `${Math.max(160, floor - top)}px`;
+      dialog.style.left = `${Math.max(question ? left : 8, Math.min(question ? right - dialog.offsetWidth : Infinity, box.left + (box.width - dialog.offsetWidth) / 2))}px`;
       const h = dialog.offsetHeight;
-      bottom ??= box.top + (box.height + h) / 2;  // centrée à l'ouverture
-      bottom = Math.min(box.bottom - 8, Math.max(bottom, box.top + 8 + h));
-      dialog.style.top = `${Math.max(8, bottom - h)}px`;
+      bottom ??= top + (floor - top + h) / 2;  // centrée à l'ouverture
+      bottom = Math.min(floor, Math.max(bottom, top + h));
+      dialog.style.top = `${Math.max(question ? top : 8, bottom - h)}px`;
     };
     const resized = () => { bottom = null; place(); };  // visionneuse redimensionnée : recentrée
     place();
@@ -896,7 +906,7 @@
     get psv() { return etat.psv; }, get photo() { return etat.photo; }, get app() { return etat.app; },
     get measuring() { return etat.measuring; },
     map, viewer, store, instance, follow, metresBetween, setStatus, refresh, showPane, fileInput, ask, passesFilter,
-    filterActive, notice, applyFilter, addProducer, saveAs, exportName, download,
+    filterActive, notice, applyFilter, addProducer, saveAs, exportName, download, showOverViewer,
   });
   const {
     updatePlayer, stopPlayer, playing, attachPlayer, loadRanks, savedRoutes, importRoutes, poi, ZONE_ID, showPoiZone,

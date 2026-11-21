@@ -12,7 +12,7 @@ const Parcours = {
     const $ = (selector) => document.querySelector(selector);
     const {
       map, viewer, store, instance, follow, metresBetween, setStatus, refresh, showPane, fileInput, ask, passesFilter,
-      filterActive, notice, applyFilter, addProducer, saveAs, exportName, download,
+      filterActive, notice, applyFilter, addProducer, saveAs, exportName, download, showOverViewer,
     } = host;
 
     // Lecture de la séquence --------------------------------------------------------------------
@@ -1334,7 +1334,7 @@ const Parcours = {
       dialog.addEventListener("close", () => {
         if (dialog.returnValue) keepRoute(dialog.returnValue === "remplacer" ? openedRoute : routeId());
       }, { once: true });
-      dialog.showModal();
+      showOverViewer(dialog);
     });
     /** Parcours en cours gardé sous l'identifiant id : remplace le parcours gardé de même identifiant, sinon ajouté. */
     async function keepRoute(id) {

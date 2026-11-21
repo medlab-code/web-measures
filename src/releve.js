@@ -250,7 +250,7 @@ const Releve = {
       dialog.addEventListener("close", () => {
         if (dialog.returnValue === "retirer") setReleveModels(releveModels().filter((m) => m.nom !== name));
       }, { once: true });
-      dialog.showModal();
+      showOverViewer(dialog);
     });
     $("#releve-modeles-exporter").addEventListener("click", async () => download(
       JSON.stringify({ format: MODELES_FORMAT, modeles: releveModels() }, null, 2),

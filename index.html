@@ -1032,7 +1032,7 @@ enregistrée en PNG et copiée dans le presse-papiers">
       zéro ? Exportez-les d'abord (CSV, GeoJSON) si vous voulez les garder.</p>
     <form method="dialog">
       <button value="non" class="oui">Garder</button>
-      <button value="oui" class="non">Tout effacer</button>
+      <button value="oui" class="non destructif">Tout effacer</button>
     </form>
   </dialog>
   <!-- Séquence sans position RTK vérifiée : une fois par séquence, en mesure -->
@@ -1116,7 +1116,7 @@ enregistrée en PNG et copiée dans le presse-papiers">
       recalages compris) ?</p>
     <form method="dialog">
       <button value="" class="non">Annuler</button>
-      <button value="remplacer" class="non">Remplacer sans enregistrer</button>
+      <button value="remplacer" class="non destructif">Remplacer sans enregistrer</button>
       <button value="enregistrer" class="oui">Enregistrer puis remplacer</button>
     </form>
   </dialog>
@@ -1136,7 +1136,7 @@ enregistrée en PNG et copiée dans le presse-papiers">
     <p></p>
     <form method="dialog">
       <button value="" class="oui">Garder</button>
-      <button value="supprimer" class="non">Supprimer</button>
+      <button value="supprimer" class="non destructif">Supprimer</button>
     </form>
   </dialog>
   <dialog id="fichier-change" class="avertissement">
@@ -1164,7 +1164,7 @@ enregistrée en PNG et copiée dans le presse-papiers">
     <p>Le modèle « <span></span> » sera retiré de ce navigateur (exporté, il reste dans son fichier).</p>
     <form method="dialog">
       <button value="" class="oui">Garder</button>
-      <button value="retirer" class="non">Retirer</button>
+      <button value="retirer" class="non destructif">Retirer</button>
     </form>
   </dialog>
   <!-- « ☆ Enregistrer… » : parcours gardé rouvert puis modifié -->
@@ -1183,7 +1183,7 @@ enregistrée en PNG et copiée dans le presse-papiers">
     <p>Les <span></span> retirés du relevé ne pourront pas être rétablis. Envoyés dans Couche, ils y restent.</p>
     <form method="dialog">
       <button value="" class="oui">Garder</button>
-      <button value="vider" class="non">Vider</button>
+      <button value="vider" class="non destructif">Vider</button>
     </form>
   </dialog>
 

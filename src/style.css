@@ -269,8 +269,8 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .maplibregl-ctrl-top-left button.birdeye-carte:not(:disabled):hover, .maplibregl-ctrl-top-left button.capture-carte:not(:disabled):hover {
   background: rgba(24, 25, 28, 0.82); }
 /* Faucon dans l'étiquette verticale (carte à sa place) : sans fond propre, comme les autres boutons de la colonne */
-.maplibregl-ctrl-top-left .maplibregl-ctrl-group button.birdeye-carte { background: none; }
-.maplibregl-ctrl-top-left .maplibregl-ctrl-group button.birdeye-carte:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }
+.maplibregl-ctrl-top-left .maplibregl-ctrl-group button.birdeye-carte, .maplibregl-ctrl-top-left .maplibregl-ctrl-group button.capture-carte { background: none; }
+.maplibregl-ctrl-top-left .maplibregl-ctrl-group button.birdeye-carte:not(:disabled):hover, .maplibregl-ctrl-top-left .maplibregl-ctrl-group button.capture-carte:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }
 .maplibregl-ctrl-top-left .maplibregl-ctrl-group button.birdeye-carte[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); }
 .maplibregl-ctrl-top-left button.birdeye-carte[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); }
 /* en haut, à droite des boutons de zoom plutôt que sous la pile de gauche */
@@ -1194,30 +1194,6 @@ dialog {
   color: var(--texte);
 }
 dialog form { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1rem; }
-dialog.avertissement { border: 2px solid #ff6f00; }  /* alertes et questions (RTK, pont, mesures loin, distance, première utilisation), centrées sur la visionneuse */
-dialog.avertissement h2 { color: #ff6f00; }
-/* Boutons groupés au centre, comme « Photo précédente / suivante » : Oui vert, Non rouge ;
-   action qui efface (« Tout effacer ») en rouge, « Garder » en vert */
-dialog.avertissement form { justify-content: center; gap: 0.8rem; }
-dialog.avertissement form button {
-  padding: 0.3rem 1.2rem;
-  border: 2px solid #00bce6;
-  border-radius: 5px;
-  background: var(--etiquette-vue);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 600;
-  text-shadow: var(--detoure-vue);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
-  cursor: pointer;
-}
-dialog.avertissement form button.oui { border-color: #2ecc40; }
-dialog.avertissement form button.oui:hover { background: rgba(46, 204, 64, 0.75); }
-dialog.avertissement form button.non { border-color: #e53935; }
-dialog.avertissement form button.non:hover { background: rgba(229, 57, 53, 0.75); }
-/* Bouton qui a le focus (le premier, à l'ouverture) : cadre à l'extérieur, la couleur reste visible */
-dialog.avertissement form button:focus-visible { outline: 2px solid var(--texte); outline-offset: 2px; }
-
 /* Bouton « Profil » : coupe du terrain en travers de la route (src/profil.js) */
 /* Onglet « Parcours » : champs du requêteur (route, PR) sur des lignes étiquetées */
 #parcours .ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0.45rem 0; }  /* boutons de la vidéo : à la ligne plutôt qu'en largeur */
@@ -1608,11 +1584,6 @@ button.lien:disabled { color: var(--discret); opacity: 0.6; cursor: default; }
 .palette-couche .pastille-couche { width: 36px; height: 36px; border-width: 3px; }
 .palette-couche .pastille-couche[aria-pressed="true"] { outline: 2px solid var(--texte); outline-offset: 1px; }
 
-/* Fiche PDF, choix de la photo : vue actuelle entourée de vert, cadrage automatique de bleu */
-#choix-fiche .vue-actuelle { border: 2px solid #2ecc40; }
-#choix-fiche .cadrage-auto { border: 2px solid #1e88e5; }
-#choix-fiche .vue-actuelle:hover { background: rgba(46, 204, 64, 0.75); }
-#choix-fiche .cadrage-auto:hover { background: rgba(30, 136, 229, 0.75); }
 /* Titre sur sa propre ligne, au-dessus des trois boutons */
 #choix-fiche form { flex-wrap: wrap; }
 #choix-fiche .titre-fiche { display: flex; align-items: center; gap: 0.5rem; flex: 1 0 100%; margin-bottom: 0.2rem; }
@@ -1681,7 +1652,7 @@ button.lien:disabled { color: var(--discret); opacity: 0.6; cursor: default; }
 #releve-erreur { flex: 1 0 100%; margin: 0; color: var(--echec); }
 /* Plus tard, Enregistrer : toujours visibles en bas de la fenêtre qui défile (1em : marge de la fenêtre) */
 #releve-objet .actions { flex: 1 0 100%; display: flex; justify-content: center; gap: 0.8rem; position: sticky; bottom: -1em;
-  margin-bottom: -1em; padding: 0.7rem 0 1em; background: var(--fond); border-top: 1px solid var(--bord); }
+  margin-bottom: -1em; padding: 0.7rem 0 1em; background: #1f2023; border-top: 1px solid var(--bord); }
 #releve-erreur[hidden] { display: none; }
 
 /* Style commun des boutons et pastilles : marge de plus aux bouts arrondis des pastilles (le texte ne colle pas à l'arrondi), grossie avec --echelle-ui */
@@ -1692,28 +1663,31 @@ button.lien:disabled { color: var(--discret); opacity: 0.6; cursor: default; }
 
 /* Étiquettes d'information au style unifié (migration du bandeau) : pastille sombre translucide, texte blanc, coins arrondis, sans bordure
    colorée, comme #reglage-image, #lieu et .recherche ; boutons transparents (survol clair), l'action principale en jaune #ffd600.
-   Concernées : boîte « Première utilisation » (#reglages-defaut), bulles de la visite guidée (#visite) et carte d'étape de mesure
-   (.haut-centre : #entete-etape, #mode-mesure, #avis, #calcul-inclinaison, #guide-photos, #suite-mesure, boutons de validation).
-   Les alertes et questions (dialog.avertissement : RTK, pont, mesures loin…) gardent leur style. */
-#vue.en-mesure .haut-centre, #reglages-defaut, #visite {
+   Concernées : questions et alertes (dialog.avertissement : « Première utilisation », bulles de la visite guidée, RTK, mesures loin,
+   suppressions…) et carte d'étape de mesure (.haut-centre : #entete-etape, #mode-mesure, #avis, #calcul-inclinaison, #guide-photos,
+   #suite-mesure, boutons de validation). Boutons : réponse principale (.oui) en jaune, les autres neutres, action qui efface
+   (.destructif) en rouge clair. Ces boîtes sont centrées sur la vue en grand, sous ses étiquettes du haut (showOverViewer, app.js). */
+#vue.en-mesure .haut-centre, dialog.avertissement {
   --texte: #fff; --discret: #c8ccd0; --bord: rgba(255, 255, 255, 0.25); --encart: rgba(255, 255, 255, 0.12);
   --ok: #81c995; --echec: #f28b82; --attente: #ffd600; --visee: #7cc4f5; --panoramax: #ffd600;
 }
-#reglages-defaut, #visite {
+dialog.avertissement {
   border: 0; border-radius: 14px; background: rgba(24, 25, 28, 0.82); color: #fff; box-shadow: none;
   font-size: calc(14px * var(--echelle-ui, 1)); transition: background 0.2s;
 }
-#reglages-defaut::backdrop { background: rgba(0, 0, 0, 0.35); }
-#reglages-defaut h2, #visite h2 { color: #ffd600; }
-#reglages-defaut form, #visite form { justify-content: center; gap: 0.6rem; }
-:is(#reglages-defaut, #visite) form button {
+dialog.avertissement::backdrop { background: rgba(0, 0, 0, 0.35); }
+dialog.avertissement h2 { color: #ffd600; }
+dialog.avertissement form { justify-content: center; flex-wrap: wrap; gap: 0.6rem; }
+dialog.avertissement form button {
   padding: 0.25em 1em; border: 0; border-radius: 999px; background: none; color: #fff;
   font-size: inherit; font-weight: 500; text-shadow: none; box-shadow: none; cursor: pointer;
 }
-:is(#reglages-defaut, #visite) form button:hover { background: rgba(255, 255, 255, 0.2); }
-:is(#reglages-defaut, #visite) form button.oui { background: rgba(255, 214, 0, 0.3); color: #ffd600; font-weight: 600; }
-:is(#reglages-defaut, #visite) form button.oui:hover { background: rgba(255, 214, 0, 0.5); }
-:is(#reglages-defaut, #visite) form button:focus-visible { outline: 2px solid #ffd600; outline-offset: 2px; }
+dialog.avertissement form button:hover { background: rgba(255, 255, 255, 0.2); }
+dialog.avertissement form button.oui { background: rgba(255, 214, 0, 0.3); color: #ffd600; font-weight: 600; }
+dialog.avertissement form button.oui:hover { background: rgba(255, 214, 0, 0.5); }
+dialog.avertissement form button.destructif { color: #ff8a80; }
+dialog.avertissement form button.destructif:hover { background: rgba(255, 138, 128, 0.25); }
+dialog.avertissement form button:focus-visible { outline: 2px solid #ffd600; outline-offset: 2px; }
 #vue.en-mesure .haut-centre {
   border: 0; border-radius: 14px; background: rgba(24, 25, 28, 0.55); color: #fff; box-shadow: none;
   zoom: var(--echelle-ui, 1); transition: background 0.2s;
