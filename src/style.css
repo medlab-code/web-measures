@@ -124,7 +124,7 @@ h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
    et requêteur de la carte en grand) ; seul son survol (infobulle POC) lui donne un effet */
 .filigrane { position: absolute; z-index: 2; display: flex; align-items: center; white-space: nowrap; font-size: 11px; color: #fff; opacity: 0.55;
   padding: 0 0.5em; border-radius: 999px; background: rgba(24, 25, 28, 0.18); text-shadow: 0 0 3px rgba(0, 0, 0, 0.8); cursor: default; user-select: none; }
-#filigrane-vue { top: 0.6rem; height: 2rem; right: calc(0.8rem + 6rem + 6px + 0.5rem); }  /* à gauche des trois pastilles (captures, plein écran) */
+#filigrane-vue { position: static; height: 2rem; }  /* dans #haut-droite-vue, à gauche des pastilles (captures, plein écran) : dans le flux, sans largeur recopiée */
 #filigrane-carte { top: 10px; height: var(--etiquette-ligne); right: calc(10px + min(18rem, 100% - 70px) + 6px); }  /* à gauche de la recherche */
 body:not(.carte-en-grand):not(.fenetre-carte) #filigrane-carte, .carte-en-grand #filigrane-vue { display: none; }
 html.souris-immobile:fullscreen #filigrane-vue:not(:hover) { opacity: 0; }
@@ -205,7 +205,7 @@ aside[hidden] { display: none; }
 .carte-en-grand #poignee-carte { pointer-events: none; }
 /* Visionneuse à la petite place (carte en grand) : toutes ses pastilles masquées sauf la localisation (#lieu) ; elles reviennent avec la
    carte à sa place. Affichage seulement : l'état de la mesure ne change pas. */
-.carte-en-grand #vue :is(#reglage-image, #captures-visionneuse, #voyants, #lecteur, #producteur-photo, .haut-centre, .haut-gauche) { display: none !important; }
+.carte-en-grand #vue :is(#reglage-image, #haut-droite-vue, #voyants, #lecteur, #producteur-photo, .haut-centre, .haut-gauche) { display: none !important; }
 #carte[hidden] { display: none; }
 
 /* Carte détachée (voir app.js) : sa place dans la colonne, et la fenêtre à part qu'elle remplit */
@@ -989,13 +989,15 @@ html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):n
 #reglage-image button:not(:disabled):hover, #captures-visionneuse button:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }
 #reglage-image button:disabled, #captures-visionneuse button:disabled { opacity: 0.6; }
 #captures-visionneuse #plein-ecran[aria-pressed="true"], #reglage-image button[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); color: #ffd600; }  /* outil de mesure de la visionneuse actif */
-/* Captures et plein écran de la visionneuse : en haut à droite (#voyants est dessous), même fond que les réglages de l'image */
+/* Haut à droite de la visionneuse (#voyants est dessous) : le filigrane de version, puis les captures et le plein écran, dans un même flux */
+#haut-droite-vue { position: absolute; right: calc(0.8rem * var(--echelle-ui, 1)); top: calc(0.6rem * var(--echelle-ui, 1)); z-index: 5; display: flex; align-items: center; gap: 0.5rem; }
+/* Captures et plein écran de la visionneuse : même fond que les réglages de l'image */
 #captures-visionneuse {
-  position: absolute; right: 0.8rem; top: 0.6rem; z-index: 5; display: flex; align-items: center; gap: 0.3rem;
+  display: flex; align-items: center; gap: 0.3rem;
   padding: 0.2rem calc(0.3rem + var(--pastille-marge)); border-radius: 999px; background: rgba(24, 25, 28, 0.55); color: #fff; transition: background 0.2s;
 }
 #captures-visionneuse:hover { background: rgba(24, 25, 28, 0.82); }
-pnx-photo-viewer[hidden] ~ #reglage-image, pnx-photo-viewer[hidden] ~ #captures-visionneuse { display: none; }
+pnx-photo-viewer[hidden] ~ #reglage-image, pnx-photo-viewer[hidden] ~ #haut-droite-vue { display: none; }
 html:fullscreen #reglage-image { transition: opacity 0.2s; }
 html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
 
