@@ -25,7 +25,7 @@ const ID = "1108ca14-6669-49e8-a26a-955becc79e81";  // Pouilly-en-Auxois (comme 
     expect("capture active avec une photo", !doc.querySelector("#capture").disabled);
     expect("cadastre allumé (réglage gardé)", doc.querySelector("#cadastre").checked);
     doc.querySelector("#ouvrir-reglages").click();
-    expect("réglages ouverts : fond, PR, cadastre", doc.querySelector("#reglages").open && doc.querySelector("#fond").value === "plan"
+    expect("réglages ouverts : fond, PR, cadastre", doc.querySelector("#reglages").open && doc.querySelector("#fond").value === "noms"
       && doc.querySelector("#bornes").checked);
     expect("filtre par défaut : producteur CD21, instance IGN", JSON.parse(doc.querySelector("#producteur").value || "[]")[1] === "conseil départemental de la côte-d'or"
       && doc.querySelector("#instance").value === "https://panoramax.ign.fr");

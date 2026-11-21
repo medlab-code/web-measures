@@ -48,10 +48,12 @@
     <form method="dialog">
       <h2>Carte</h2>
       <label>Fond de carte
-        <select id="fond"><option value="plan">Plan IGN</option><option value="ortho">Orthophoto</option>
-          <option value="noms">Orthophoto avec noms</option>
-          <option value="express">Ortho-express (année de la photo)</option>
-          <option value="mnh">Modèle Numérique de Hauteur</option>
+        <select id="fond"><option value="noms" title="Orthophoto, noms des lieux et des rues, voies et numéros de route, limites des communes">Orthophoto +</option>
+          <option value="plan">Plan IGN</option><option value="ortho">Orthophoto</option>
+          <option value="express" title="Orthophoto de l'année de la photo choisie">Ortho-express</option>
+          <option value="mnt" title="Ombrage du modèle numérique de terrain (sol nu) du LiDAR HD de l'IGN, là où il est publié">LiDAR MNT</option>
+          <option value="mns" title="Ombrage du modèle numérique de surface (sol, bâtiments, végétation) du LiDAR HD de l'IGN, là où il est publié">LiDAR MNS</option>
+          <option value="mnh" title="Estompage du modèle numérique de hauteur (IGN) : hauteur du sursol au-dessus du sol, là où le LiDAR HD est publié">LiDAR MNH</option>
           <option value="ofm" title="Données OpenStreetMap, tuiles vectorielles d'OpenFreeMap">OpenFreeMap</option></select>
       </label>
       <label class="option">Filaire Panoramax <input id="filaire" type="checkbox" class="interrupteur"></label>

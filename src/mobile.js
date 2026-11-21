@@ -132,8 +132,8 @@
   $("#ouvrir-reglages").addEventListener("click", () => $("#reglages").showModal());
   // appui hors du panneau
   $("#reglages").addEventListener("click", (event) => { if (event.target === $("#reglages")) $("#reglages").close(); });
-  $("#fond").value = store.get("fond", "plan").replace(/^osm$/, "ofm");  // OpenStreetMap France remplacé par OpenFreeMap
-  if (!$("#fond").value) $("#fond").value = "plan";  // fond gardé qui n'existe plus
+  $("#fond").value = store.get("fond", "noms").replace(/^osm$/, "ofm");  // OpenStreetMap France remplacé par OpenFreeMap
+  if (!$("#fond").value) $("#fond").value = "noms";  // fond gardé qui n'existe plus
   $("#fond").addEventListener("change", (event) => {
     Carte.setBackground(map, event.target.value);
     store.set("fond", event.target.value);
