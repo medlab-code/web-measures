@@ -983,5 +983,53 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #ddd; font-si
     for (let s = 8.5; over() && s > 6; s -= 0.5) root.setProperty("--legende", `${s - 0.5}px`);
   }
 
-  return { draw, png, pdfPage, fit };
+  /** Travers de la photo sur la carte (piste G5) : GeoJSON (voir Carte.showTravers) de la ligne du travers (de son bout gauche à son
+   * bout droit), des deux bords (mesuré : rond plein ; supposé : rond creux), du pied de la chute (rond orange) et du talus (trait rouge), avec en gris le travers voisin qui les porte s'il n'est pas celui de la photo,
+   * dans les couleurs du graphique (variables de thème du CSS). limits : bornes en distance du dessin ([min, max], `cadre.x` de draw), qui
+   * donnent au trait la même étendue que le graphique. */
+  function mapTrace(profile, limits = null) {
+    const all = crossings(profile, limits), main = all.get(0) || [...all.values()][0];
+    const [o, p] = profile.repere, css = getComputedStyle(document.documentElement);
+    const color = (name) => css.getPropertyValue(name).trim() || "#888888";
+    const at = (x) => [o[0] + x * (p[0] - o[0]), o[1] + x * (p[1] - o[1])];  // lon, lat à x m à droite de l'origine
+    const feature = (geometry, properties) => ({ type: "Feature", properties, geometry });
+    const point = (x, properties) => feature({ type: "Point", coordinates: at(x) }, properties);
+    // Sens « le long » (le_long > 0) : le quart de tour de la droite du travers, dans le sens de la photo (avant) ou le contraire
+    const k = 111320, c = Math.cos(o[1] * Math.PI / 180), [ux, uy] = [(p[0] - o[0]) * c * k, (p[1] - o[1]) * k];
+    const sens = profile.avant === false ? -1 : 1;
+    const shift = (x, along) => {  // lon, lat à x m à droite de l'origine, sur le travers à along m
+      const [lon, lat] = at(x);
+      return [lon + sens * along * -uy / (c * k * Math.hypot(ux, uy)), lat + sens * along * ux / (k * Math.hypot(ux, uy))];
+    };
+    const out = [], seen = new Set();
+    const [x0, x1] = [main.points[0][0], main.points.at(-1)[0]];
+    out.push(feature({ type: "LineString", coordinates: [at(x0), at(x1)] }, { role: "travers", couleur: color("--sol"), fond: color("--fond") }));
+    for (const side of ["gauche", "droit"]) {
+      const b = main.bords[side], sign = side === "gauche" ? -1 : 1, r = profile.resultats?.[side];
+      if (b) {
+        const measured = Boolean(b.enrobe || b.relief);
+        out.push(point(b.x, { role: "bord", mesure: measured, couleur: color("--texte"), fond: color("--fond") }));
+      }
+      if (!b || !r) continue;
+      // chute et talus : sur le travers où ils ont été mesurés (celui de la photo, ou un voisin à along m, tracé en gris comme sur le graphique)
+      const onto = (along, x) => (along === 0 ? at(x) : shift(x, along));
+      for (const along of [r.chute[3], r.devers?.[2]]) {
+        const tr = all.get(along);
+        if (!tr || tr === main || seen.has(along)) continue;
+        seen.add(along);
+        out.push(feature({ type: "LineString", coordinates: [onto(along, tr.points[0][0]), onto(along, tr.points.at(-1)[0])] },
+          { role: "voisin", couleur: color("--discret"), fond: color("--fond") }));
+      }
+      const t = all.get(r.chute[3]) || main, bc = t.bords[side].x;
+      out.push(feature({ type: "Point", coordinates: onto(t.along, bc + sign * r.chute[1]) }, { role: "chute", couleur: color("--chute"), fond: color("--fond") }));
+      if (r.devers) {
+        const td = all.get(r.devers[2]) || main, bd = td.bords[side].x;
+        out.push(feature({ type: "LineString", coordinates: [onto(td.along, bd + sign * r.devers[1]), onto(td.along, bd + sign * r.devers[3])] },
+          { role: "devers", couleur: color("--devers"), fond: color("--fond") }));
+      }
+    }
+    return { type: "FeatureCollection", features: out };
+  }
+
+  return { draw, png, pdfPage, fit, mapTrace };
 })();

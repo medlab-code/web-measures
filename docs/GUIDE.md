@@ -417,7 +417,7 @@ après.
   de chaque bord) : chute, dévers et graphique s'arrêtent là ; la changer, fenêtre ouverte, refait aussitôt le calcul
   de la photo ; fenêtre fermée, le prochain appui sur le bouton. Le bouton est grisé sur un pont (hauteur de chute du pont)
   et pendant la lecture ; enfoncé pendant le calcul (un second appui l'abandonne) et tant que la fenêtre du profil est ouverte ; quand le calcul
-  est déjà fait pour cette photo et cette distance, un appui rouvre la fenêtre sans recalculer. À 12 m au plus d'un carrefour
+  est déjà fait pour cette photo et cette distance, un appui rouvre la fenêtre sans recalculer. Tant qu'elle est ouverte, la carte trace le travers de la photo, ses deux bords, le pied de la chute et le talus (mêmes couleurs que le graphique ; le travers voisin qui porte la chute, en gris) ; tout disparaît à la fermeture. À 12 m au plus d'un carrefour
   avec une voie nommée (le long de la route), une première ligne le signale : « Carrefour avec la D18 6 m devant : bords
   peu sûrs » ; la chaussée s'y élargit et le bord n'y est pas continu, le calcul n'a pas de bonne réponse. Le graphique le
   rappelle (« Carrefour : bords peu sûrs », en orange en haut à droite, aussi dans le PNG et le PDF), la phrase entière en tête de sa légende.

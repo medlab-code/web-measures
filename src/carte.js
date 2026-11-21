@@ -171,6 +171,7 @@ const Carte = (() => {
         mesures: { type: "geojson", data: EMPTY },
         precedents: { type: "geojson", data: EMPTY },  // résultats de la session précédente (showPrevious)
         nez: { type: "geojson", data: EMPTY },  // droite de la largeur dans la visionneuse et ses deux bords (showNez)
+        travers: { type: "geojson", data: EMPTY },  // travers du profil de la photo, fenêtre du profil ouverte (showTravers)
         couche: { type: "geojson", data: EMPTY },  // couche importée (showOverlay)
         pr: { type: "geojson", data: EMPTY },
         // Cadastre (#36, réglage « Cadastre sur la carte », voir setCadastre) : Parcellaire Express en tuiles vectorielles
@@ -394,6 +395,23 @@ const Carte = (() => {
           layout: {
             "icon-image": "nez-bord", "icon-rotate": ["get", "angle"], "icon-rotation-alignment": "map",
             "icon-allow-overlap": true, "icon-ignore-placement": true,
+          },
+        },
+        {  // liseré clair sous le trait du travers : lisible sur la photo aérienne comme sur la carte
+          id: "travers-lisere", type: "line", source: "travers", filter: ["in", ["get", "role"], ["literal", ["travers", "voisin", "devers"]]],
+          paint: { "line-color": ["get", "fond"], "line-width": ["case", ["==", ["get", "role"], "devers"], 8, ["==", ["get", "role"], "voisin"], 4, 6.5], "line-opacity": 0.75 },
+        },
+        {  // travers du profil (src/profil.js, mapTrace) : couleurs du graphique portées par chaque objet ; pas interactifs
+          id: "travers-ligne", type: "line", source: "travers", filter: ["in", ["get", "role"], ["literal", ["travers", "voisin", "devers"]]],
+          paint: { "line-color": ["get", "couleur"], "line-width": ["case", ["==", ["get", "role"], "devers"], 5, ["==", ["get", "role"], "voisin"], 2, 3.5] },
+        },
+        {
+          id: "travers-points", type: "circle", source: "travers", filter: ["in", ["get", "role"], ["literal", ["bord", "chute"]]],
+          paint: {
+            "circle-radius": ["case", ["==", ["get", "role"], "chute"], 6, 5],
+            "circle-color": ["case", ["==", ["get", "role"], "chute"], ["get", "couleur"],
+              ["boolean", ["get", "mesure"], false], ["get", "couleur"], ["get", "fond"]],  // bord supposé : rond creux
+            "circle-stroke-width": 2, "circle-stroke-color": ["case", ["==", ["get", "role"], "chute"], ["get", "fond"], ["get", "couleur"]],
           },
         },
         {  // poignée de profondeur au milieu de la droite : glissée le long du cap par src/nez.js
@@ -1307,6 +1325,13 @@ const Carte = (() => {
     if (geojson && !map.loaded()) map.once("load", set);
   }
 
+  /** Travers du profil de la photo (Profil.mapTrace) tant que la fenêtre du profil est ouverte : geojson, ou null pour l'effacer. */
+  function showTravers(map, geojson) {
+    const set = () => map.getSource("travers")?.setData(geojson || EMPTY);
+    set();
+    if (geojson && !map.loaded()) map.once("load", set);
+  }
+
   function showMeasures(map, geojson) {
     shownMeasures = geojson;
     map.getSource("mesures")?.setData(geojson);
@@ -1706,7 +1731,7 @@ const Carte = (() => {
   return {
     PANORAMAX_API: META_API, GEOPF, OFM_STYLE: VECTOR_BASES.ofm.style,
     createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, instances, setInstance, setFilter,
-    showMeasures, showPrevious, showNez, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre,
+    showMeasures, showPrevious, showNez, showTravers, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre,
     onAim: (fn) => { aimListener = fn; }, aimedParcel: aimedParcelNow, apiUrl: () => apiUrl,
     capture, nearestPhoto, photosNear, photoById, metresBetween,
   };

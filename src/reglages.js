@@ -127,6 +127,7 @@ const Reglages = {
       const { svg, legend, long, cadre, exageration } = Profil.draw(etat.edgeProfile.profile, trueScale.checked, fine,
         plants.checked, Number($("#camera").value) || 1.9, imposed);  // hauteur de caméra des réglages
       frameKept = { key, cadre, trueScale: trueScale.checked };
+      Carte.showTravers(map, Profil.mapTrace(etat.edgeProfile.profile, cadre.x));  // travers et bords sur la carte (G5)
       trueScale.disabled = exageration <= 1;  // l'exagération vaudrait ×1 : la case n'aurait aucun effet
       echelleLabel.title = trueScale.disabled ? `${echelleTitre} : hauteurs déjà à l'échelle sur ce travers, pas d'exagération possible` : echelleTitre;
       dialog.querySelector(".graphique").replaceChildren(svg, ...(long ? [long] : []));  // profil en long dessous
@@ -241,7 +242,10 @@ const Reglages = {
       if (profileDialog.open) profileDialog.close();
       showProfileButton();
     });
-    profileDialog.addEventListener("close", showProfileButton);
+    profileDialog.addEventListener("close", () => {
+      Carte.showTravers(map, null);  // travers de la photo effacé de la carte
+      showProfileButton();
+    });
     // Réglette de la fenêtre : distance changée fenêtre ouverte, calcul refait pour cette photo (fermée : au prochain appui du bouton)
     $("#bords-largeur").addEventListener("change", () => {
       if (!profileDialog.open || !etat.app || !etat.photo || !etat.app.edges_ready()) return;

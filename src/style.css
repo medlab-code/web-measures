@@ -21,6 +21,7 @@
   --eau: #1a73e8;
   --eau-texte: #1a73e8;
   --chaussee: #5f6368;
+  --sol: #8d6e63;  /* terrain du travers : graphique du profil et son tracé sur la carte */
   --raide: #8e24aa;
   --carrefour: var(--attente);
   --carrefour-fond: #fef7e0;
@@ -1335,7 +1336,7 @@ dialog.profil .legende svg.symbole rect.mention-carrefour { fill: var(--carrefou
 .profil-svg .grille { stroke: var(--bord); stroke-width: 1; }
 .profil-svg .grille.zero { stroke: var(--discret); stroke-dasharray: 4 3; }
 .profil-svg .terre { fill: #a1887f; opacity: 0.35; }
-.profil-svg .sol { fill: none; stroke: #8d6e63; stroke-width: 2.5; stroke-linejoin: round; }
+.profil-svg .sol { fill: none; stroke: var(--sol); stroke-width: 2.5; stroke-linejoin: round; }
 /* autres travers : transparents, sous le terrain de la photo */
 .profil-svg .autre-travers { fill: none; stroke: var(--discret); stroke-width: 1; stroke-dasharray: 3 3; }
 .profil-svg .travers-mesure { fill: none; stroke: var(--discret); stroke-width: 1.5; }

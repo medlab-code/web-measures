@@ -1007,6 +1007,7 @@ class Chutes:
                 "frame": across0,
                 "profile": {"origine": "caméra" if camera else "axe", "source": source, "erreur": round(sigma, 2),
                             "repere": [[round(v, 8) for v in p] for p in frame0],
+                            "avant": forward,  # le_long > 0 des travers : sens de la photo (True) ou sens contraire (G5, tracé sur la carte)
                             "axe": round(-shift * right, 2),  # axe de la chaussée de la photo, en m vers la droite
                             "zone": zone, "fenetre": self.EDGE_WINDOW, "remontee": self.EDGE_RISE, "profils": drawn,
                             "plateforme": platform_slope(drawn) if source == triangulation.LIDAR_NAME else None,  # RGE ALTI trop imprécis

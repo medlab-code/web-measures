@@ -398,7 +398,7 @@ laissé de côté.*
   dévers et de sa ligne dans la légende.
 - **Gain** : lecture directe, sans légende.
 
-**G5. Où est le travers.**
+**G5. Où est le travers.** *Faite le 21/11/2026 : tant que la fenêtre du profil est ouverte, la carte montre le travers de la photo (trait brun du terrain), ses deux bords (rond plein mesuré, creux supposé), le pied de la chute (rond orange) et le talus (trait rouge), avec le travers voisin gris qui les porte s'il n'est pas celui de la photo (`Profil.mapTrace`, `Carte.showTravers`) ; mêmes couleurs que le graphique (variables de thème), effacé à la fermeture. Sur la photo : non faite, la fenêtre (modale) la couvre.*
 - **Avant** : la fenêtre est modale et couvre la photo ; le travers n'est dessiné ni sur la carte ni sur la photo.
 - **Problème** : difficile de relier « talus à droite à 3 m » à ce qu'on voit.
 - **Piste** : tracer le travers de la photo (et les bords trouvés) sur la carte pendant que la fenêtre est ouverte, puis sur la photo.
