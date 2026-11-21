@@ -122,12 +122,12 @@ body:not(.carte-en-grand):not(.fenetre-carte) #dessus-etat-replier { display: no
 h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
 /* Filigrane de version : discret, à gauche de l'étiquette du haut à droite de la vue principale (pastilles de la visionneuse, ou recherche
    et requêteur de la carte en grand) ; seul son survol (infobulle POC) lui donne un effet */
-.filigrane { position: absolute; z-index: 2; display: flex; align-items: center; white-space: nowrap; font-size: 13px; font-weight: 700; color: #ffd600; opacity: 0.85;
-  text-shadow: 0 0 3px rgba(0, 0, 0, 0.8); cursor: default; user-select: none; }
+.filigrane { position: absolute; z-index: 2; display: flex; align-items: center; white-space: nowrap; font-size: 16px; font-weight: 700; color: #ffd600; opacity: 0.85;
+  -webkit-text-stroke: 2px #000; paint-order: stroke fill;  /* liseré noir net autour des lettres */ cursor: default; user-select: none; }
 #filigrane-vue { position: static; height: 2rem; }  /* dans #haut-droite-vue, à gauche des pastilles (captures, plein écran) : dans le flux, sans largeur recopiée */
 /* Filigrane de la carte : déplacé par recherche.js dans .recherche (zoomée par --echelle-ui), collé à sa gauche, sans largeur recopiée ;
    taille de texte et marge divisées par le zoom pour rester celles du filigrane de la visionneuse */
-#filigrane-carte { right: 100%; top: 0; bottom: 0; margin-right: calc(6px / var(--echelle-ui, 1)); font-size: calc(13px / var(--echelle-ui, 1)); }
+#filigrane-carte { right: 100%; top: 0; bottom: 0; margin-right: calc(6px / var(--echelle-ui, 1)); font-size: calc(16px / var(--echelle-ui, 1)); }
 body:not(.carte-en-grand):not(.fenetre-carte) #filigrane-carte, .carte-en-grand #filigrane-vue { display: none; }
 html.souris-immobile:fullscreen #filigrane-vue:not(:hover) { opacity: 0; }
 h2 { font-size: 0.95rem; margin: 0 0 0.4rem; }
