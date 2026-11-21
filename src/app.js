@@ -160,12 +160,18 @@
   let geoCache = null;  // promesse du cache (résolue à null s'il est indisponible)
   let geoStored = 0;
   function openGeoCache() {
-    geoCache ??= window.caches ? caches.open(GEO_CACHE).catch(() => null) : Promise.resolve(null);
+    // Purge (21/11/2026) : les grilles POST gardées avant ce jour l'étaient sous l'adresse nue du service, une seule entrée pour toutes
+    // les positions (voir geoKey) ; jetée, au cas où une version intermédiaire la resservirait.
+    geoCache ??= window.caches ? caches.open(GEO_CACHE).then((cache) => {
+      cache.delete("https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json").catch(() => {});
+      return cache;
+    }).catch(() => null) : Promise.resolve(null);
     return geoCache;
   }
   /** Clé de la réponse dans le cache : l'adresse pour un GET ; pour un POST (grille d'altitudes de src/dessus.js, absent du cache
-   * HTTP) une adresse synthétique « adresse#post-empreinte du corps » (corps identique : mêmes points, même ressource, donc
-   * position, portée et pas identiques). null : pas gardée. */
+   * HTTP) une adresse synthétique « adresse?post-empreinte du corps » (corps identique : mêmes points, même ressource, donc
+   * position, portée et pas identiques). Pas un fragment (« #post-… ») : l'API Cache l'ignore, toutes les grilles se confondaient
+   * et la vue du dessus ondulait, avec le terrain d'un autre lieu (21/11/2026). null : pas gardée. */
   function geoKey(url, init) {
     if (init?.cache === "no-store") return null;  // no-store : vérification d'accès
     const method = init?.method || "GET";
@@ -173,7 +179,7 @@
     try {
       const parsed = new URL(url, location.href);
       if (!CACHED_SERVICES.some((prefix) => (parsed.host + parsed.pathname).startsWith(prefix))) return null;
-      return method === "GET" ? url : `${parsed.href}#post-${bodyHash(init.body)}`;
+      return method === "GET" ? url : `${parsed.href}${parsed.search ? "&" : "?"}post-${bodyHash(init.body)}`;
     } catch {
       return null;
     }
