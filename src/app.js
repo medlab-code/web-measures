@@ -630,7 +630,7 @@
   // messages du centre (.haut-centre) sous la barre et à droite de l'étiquette du pont. Variables en pixels écran lues par style.css :
   // --haut-reserve et --barre-gauche (barre de gauche), --haut-droite-reserve (pastilles de droite), --chute-droite (bord droit du pont)
   {
-    const vue = $("#vue"), barre = $("#reglage-image"), droite = $("#haut-droite-vue"), chute = $("#chute");
+    const vue = $("#vue"), barre = $("#reglage-image"), droite = $("#haut-droite-vue"), chute = $("#chute"), centre = $(".haut-centre");
     const measure = () => {
       const cadre = vue.getBoundingClientRect(), box = barre.getBoundingClientRect(), pastilles = droite.getBoundingClientRect();
       const set = (name, value) => vue.style.setProperty(name, `${value.toFixed(1)}px`);
@@ -641,9 +641,19 @@
       if (pastilles.bottom > cadre.top) set("--haut-droite-reserve", pastilles.bottom - cadre.top);
       const bord = chute.getBoundingClientRect();
       set("--chute-droite", chute.hidden || !bord.width ? 0 : bord.right - cadre.left);
+      // Messages du centre : centrés, ils n'ont de place que de part et d'autre de l'étiquette du pont ; si cette place est inférieure à
+      // une largeur lisible (22 caractères, mesurés par la sonde), ils passent sous l'étiquette, sur toute la largeur utile
+      const probe = centre.querySelector(".sonde-largeur") || centre.appendChild(Object.assign(document.createElement("span"),
+        { className: "sonde-largeur", ariaHidden: "true" }));
+      const place = cadre.width - 2 * (chute.hidden || !bord.width ? 0 : bord.right - cadre.left) - 16;
+      const dessous = !chute.hidden && bord.width > 0 && place < probe.getBoundingClientRect().width;
+      vue.classList.toggle("centre-sous-chute", dessous);
+      // sous l'étiquette du pont, et sous les voyants s'ils sont là (colonne de droite, que la largeur pleine recouvrirait)
+      const voyants = $("#voyants");
+      if (dessous) set("--chute-bas", Math.max(bord.bottom, voyants.hidden ? 0 : voyants.getBoundingClientRect().bottom) - cadre.top);
     };
     const watch = new ResizeObserver(measure);
-    for (const e of [vue, barre, droite, chute]) watch.observe(e);
+    for (const e of [vue, barre, droite, chute, centre, $("#voyants")]) watch.observe(e);
     new MutationObserver(measure).observe(chute, { attributes: true, attributeFilter: ["hidden"] });
   }
 

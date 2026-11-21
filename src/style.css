@@ -319,9 +319,8 @@ body:not(.carte-en-grand):not(.fenetre-carte) .maplibregl-ctrl-top-left .etiquet
 .maplibregl-ctrl-top-left button.birdeye-carte[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); }
 /* en haut, à droite des boutons de zoom plutôt que sous la pile de gauche */
 .maplibregl-ctrl-top-left .place-mesurer { position: absolute; top: 0; left: 40px; white-space: nowrap; display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; width: max-content; }
-/* Filigrane de la carte sous le requêteur (place manquante à sa gauche, posé par placeMesure) : le panneau des réglages Bird Eye descend d'autant */
+/* Filigrane de la carte sous le requêteur (place manquante à sa gauche, posé par placeMesure) ; placeMesure y descend aussi le panneau des réglages Bird Eye (--haut) */
 #carte.filigrane-dessous #filigrane-carte { right: 0; top: calc(100% + var(--etiquette-ligne) + 4px); bottom: auto; margin: 4px 0 0; height: var(--etiquette-ligne); }
-#carte.filigrane-dessous #dessus-reglages { --haut: calc((18px + 3 * var(--etiquette-ligne)) * var(--echelle-ui, 1) + 8px); }
 
 /* Attribution (« i », en bas à droite de la carte) au style unifié : pastille ronde de --etiquette-element, fond --etiquette-fond, « i » vectoriel
    (masque SVG, trait blanc de 2, bouts arrondis comme les autres icônes) à la place de l'image de fond de MapLibre ; ouverte, le texte reste lisible */
@@ -837,6 +836,13 @@ button.principal { font-weight: 600; }
   top: calc(var(--haut-reserve, 2.9rem) + 6px);
   max-width: min(56%, 46rem, calc(100% - 2 * var(--chute-droite, 0px) - 16px));
 }
+/* Place insuffisante à côté de l'étiquette du pont (classe posée par app.js d'après la largeur mesurée) : messages sous l'étiquette, sur toute
+   la largeur utile ; .sonde-largeur (22 caractères, invisible) en donne la largeur minimale lisible */
+.sonde-largeur { position: absolute; visibility: hidden; width: 22ch; height: 0; pointer-events: none; }
+#vue.centre-sous-chute:not(.en-mesure) .haut-centre {
+  top: calc(var(--chute-bas, 0px) + 6px);
+  max-width: min(46rem, calc(100% - 1.6rem));
+}
 .haut-gauche {
   position: absolute;
   /* sous la barre du haut (#reglage-image) : sa place depuis le haut (--haut-reserve, pixels écran, posée par app.js) + 6 px, sans
@@ -872,7 +878,7 @@ button.principal { font-weight: 600; }
 #vue.en-mesure #entete-etape { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
 #vue.en-mesure #entete-etape[hidden] { display: none; }  /* longueur sur la carte : aide sur la carte seulement */
 /* tout masqué (#suite-mesure : par ses boutons) : ni fond ni ombre */
-#vue.en-mesure .haut-centre:not(:has(> :not([hidden]):not(#suite-mesure), #suite-mesure > :not([hidden]))) { display: none; }
+#vue.en-mesure .haut-centre:not(:has(> :not([hidden]):not(#suite-mesure):not(.sonde-largeur), #suite-mesure > :not([hidden]))) { display: none; }
 #nom-mesure { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--panoramax); }
 #etapes { display: flex; flex: 1; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
 #etapes li { display: flex; align-items: center; gap: 0.35rem; color: var(--discret); font-size: 13px; font-weight: 600;
@@ -1549,8 +1555,6 @@ dd { margin: 0; overflow-wrap: anywhere; }
 
 /* Réglages par défaut (une fois) : liste des réglages à changer */
 #reglages-defaut { max-width: 34rem; }
-#alerte-pont:not([open]) { display: none; }
-#alerte-pont { position: fixed; max-width: 22rem; z-index: 20; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3); }  /* non modale, dans le coin */
 #reglages-defaut ul { margin: 0.4rem 0 0.6rem; padding-left: 1.2rem; }
 
 /* Carte : curseur de vue (cône, axe, position de la photo), image tournée au cap de la vue */

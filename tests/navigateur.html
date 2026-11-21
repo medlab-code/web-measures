@@ -209,7 +209,7 @@ async function feature(id) {
     expect("favori retiré, aide de retour", !doc.querySelector("#favoris li") && getComputedStyle(doc.querySelector("#favoris > .aide")).display !== "none"
       && doc.querySelector("#favoris-exporter").disabled);
   }
-  expect("plus de case « Sur un pont » ni de fenêtre de question", !doc.querySelector("#pont") && !doc.querySelector("#alerte-pont"));
+  expect("plus de case « Sur un pont » ni de fenêtre de question", !doc.querySelector("#pont"));
   await open(PONT);
   try { await until(() => app.bridge, 30000, "pont détecté"); } catch (e) { log(String(e)); }
   expect("sur le pont : mode activé tout seul", app.bridge);

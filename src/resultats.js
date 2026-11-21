@@ -389,6 +389,19 @@ const Resultats = {
         placeBar.style.top = `${(bottom + 4 * scale - placeBar.getBoundingClientRect().top) / scale}px`;
       }
       placeBar.style.maxWidth = `${Math.max(width, 0) / scale}px`;
+      placeReglages(container, request, mark, under);
+    }
+    /** Panneau des réglages Bird Eye : sous le requêteur, sous le filigrane s'il y est descendu et sous la barre de mesure quand elle est
+     * en dessous ; hauteurs mesurées (pixels écran, ramenés à la carte), sans valeur en dur. La place restante borne sa hauteur (le CSS
+     * lit --haut : défilement dans le panneau). */
+    function placeReglages(container, request, mark, under) {
+      const panel = container.querySelector("#dessus-reglages");
+      if (!panel) return;
+      const frame = container.getBoundingClientRect(), k = frame.width / (container.offsetWidth || 1) || 1;
+      let bottom = request.getBoundingClientRect().bottom;
+      if (mark && container.classList.contains("filigrane-dessous")) bottom = Math.max(bottom, mark.getBoundingClientRect().bottom);
+      if (under) bottom = Math.max(bottom, placeBar.getBoundingClientRect().bottom);
+      panel.style.setProperty("--haut", `${(bottom - frame.top + 8 * k) / k}px`);
     }
     new ResizeObserver(placeMesure).observe(map.getContainer());
     new ResizeObserver(placeMesure).observe(measureLabel);
