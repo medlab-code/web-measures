@@ -34,8 +34,7 @@ const Choix = {
         else if (done) refresh(etat.app.add_map_length(done.a[0], done.a[1], done.b[0], done.b[1], done.length, done.error, done.photos));
         else refresh();  // Effacer : le départ se retire
         host.applyMeasureUi();
-      } else if (etat.lineDraft !== null) addLinePoint(event.lngLat);
-      else if (etat.placing) placeOnMap(event.lngLat);
+      } else if (etat.placing) placeOnMap(event.lngLat);
       else if (etat.addingObject) host.addObjectAt(event.lngLat);
       else if (host.parcours.travelPick) host.pickTravelPoint(event.lngLat);
       else {
@@ -64,56 +63,8 @@ const Choix = {
     }
     $("#placer-carte").addEventListener("click", () => setPlacing(!etat.placing));
 
-    // Droite de mesure tracée sur la carte (ticket #28), avant la première visée du point A : un
-    // premier clic pose le point de départ (pas un point de mesure), un trait suit la souris avec une
-    // croix au bout, le second clic fixe l'orientation (en travers de la voie) ; Échap annule
-    const LINE_ID = "droite-tracee";
-    const lineEnd = new maplibregl.Marker({ element: Object.assign(document.createElement("div"),
-      { className: "croix-trace", textContent: "✛" }) });
-    function showDrawnLine(ends) {  // [[lon, lat], [lon, lat]] sur la carte, ou null : retirée
-      if (!map.isStyleLoaded()) return;
-      const data = { type: "FeatureCollection", features: ends ? [{ type: "Feature", properties: {},
-        geometry: { type: "LineString", coordinates: ends } }] : [] };
-      if (map.getSource(LINE_ID)) map.getSource(LINE_ID).setData(data);
-      else if (ends) {
-        map.addSource(LINE_ID, { type: "geojson", data });
-        map.addLayer({ id: LINE_ID, type: "line", source: LINE_ID, paint: { "line-color": "#0078ff", "line-width": 3 } });
-      }
-      if (ends) lineEnd.setLngLat(ends[1]).addTo(map);
-      else lineEnd.remove();
-    }
-    function startLineDraft() {
-      etat.lineDraft = false;
-      map.getCanvas().style.cursor = "crosshair";
-      setStatus("Droite de mesure : cliquez sur la carte un point d'un côté de la voie, puis un second de l'autre "
-        + "côté pour fixer son orientation. Zoomez pour être précis ; Échap pour annuler.");
-      host.showModeOptions();
-    }
-    function endLineDraft() {
-      etat.lineDraft = null;
-      map.getCanvas().style.cursor = "";
-      showDrawnLine(null);
-      host.showModeOptions();
-    }
-    function addLinePoint(lngLat) {
-      if (etat.lineDraft === false) {
-        etat.lineDraft = lngLat;
-        showDrawnLine([[lngLat.lng, lngLat.lat], [lngLat.lng, lngLat.lat]]);
-        return;
-      }
-      const start = etat.lineDraft;
-      endLineDraft();
-      refresh(etat.app.set_measure_line(start.lng, start.lat, lngLat.lng, lngLat.lat));
-    }
-    map.on("mousemove", (event) => {
-      if (etat.lineDraft) showDrawnLine([[etat.lineDraft.lng, etat.lineDraft.lat], [event.lngLat.lng, event.lngLat.lat]]);
-    });
     function onLineEscape(event) {  // aussi dans la carte détachée (toggleMapWindow)
       if (event.key === "Escape" && Dessus.cancelStart()) host.applyMeasureUi();  // tracé d'une mesure sur la carte
-      if (event.key === "Escape" && etat.lineDraft !== null) {
-        endLineDraft();
-        refresh();
-      }
       if (event.key === "Escape" && etat.placing) {
         setPlacing(false);
         refresh();
@@ -644,9 +595,9 @@ const Choix = {
     }
 
     return {
-      openNearest, endLineDraft, checkPhoto, openPhoto, overlayObjectName, overlayFicheData, overlayEnds,
+      openNearest, checkPhoto, openPhoto, overlayObjectName, overlayFicheData, overlayEnds,
       proposeRecaledPhoto, reviewMeasure, endMoving, moveOverlayObject, placeOverlayObject, setPhoto, follow, metresBetween,
-      overlayPoints, setPlacing, showDrawnLine, startLineDraft,
+      overlayPoints, setPlacing,
     };
   },
 };

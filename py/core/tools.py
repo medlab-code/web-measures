@@ -187,7 +187,7 @@ class Triangulator:
 
     def __init__(self):
         self.sightings = []  # dicts : pic, lon, lat, heading, accuracy, precise (voir photo_sighting)
-        self.ground = False  # point visé au sol (bord de chaussée, pied) : voir triangulation.solve
+        self.ground = False  # point visé au sol (pied) : voir triangulation.solve
         self.result = None
         self.error = None
         self.item = None
@@ -199,7 +199,6 @@ class Triangulator:
         self.ground_lookup = None
         self.ground_changed = lambda: None
         self._ground_ticket = None
-        self.across = lambda: None  # direction en travers de la route (est, nord) quand un bord est visé, ou None
         self.lidar = True  # False sur un pont : sol tiré des photos (voir session.Session.set_bridge)
 
     def new_item(self):
@@ -291,11 +290,6 @@ class Triangulator:
                 text += (" ⚠ Une visée s'écarte nettement des autres : elle vise peut-être un autre objet (un "
                          "poteau voisin, par exemple). Revisez-la depuis sa photo : la nouvelle visée remplace "
                          "l'ancienne")
-        across = self.across() if self.ground else None
-        spread = triangulation.sight_spread(self.sightings, r["lon"], r["lat"], self.ground_z, *across) if across else 0.0
-        if spread > triangulation.SIGHT_WARNING:
-            text += (" ⚠ Les visées ne tombent pas au même endroit du bord (±{} m en travers) : revisez-en une, "
-                     "sur le trait vert ou sur un repère net, au besoin depuis une photo plus proche").format(_num(spread, 2))
         text += " · GPS ±{} m".format(_num(r["gps"]))
         if r["gps_assumed"]:
             text += " (précision inconnue pour certaines photos : {} m supposés)".format(

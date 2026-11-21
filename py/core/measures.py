@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 # SPDX-FileCopyrightText: 2026 Cédric COCHART
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Mesures entre deux points 3D : largeurs, longueur et hauteur.
+"""Mesures entre deux points 3D : longueur et hauteur.
 
 Toutes reposent sur le même moteur (geometry.py) : chaque clic devient un point 3D
 sur une surface, puis la mesure est une grandeur calculée sur ces points.
 
-- "road" : largeur perpendiculaire à la chaussée (deux points au sol, composante
-  en travers de l'axe de la route) ;
 - "width" : longueur parallèle à la route (distance 3D entre deux points au sol) ;
 - "height" : hauteur d'un objet (pied au sol, sommet dans le plan vertical face à
   la caméra, composante verticale).
@@ -46,7 +44,7 @@ class NullItem:
 
 
 SURFACE_NAMES = {"ground": "sol", "vertical": "plan vertical face à la caméra"}
-PRESET_SURFACES = {"road": "ground", "width": "ground", "height": "vertical"}  # surface de chaque mesure
+PRESET_SURFACES = {"width": "ground", "height": "vertical"}  # surface de chaque mesure
 CAMERA_RANGE = (0.5, 4.0)  # hauteur de caméra plausible (m) déduite de l'altitude GPS
 CAMERA_SOURCES = {None: 0, "calée": 1, "altitude GPS": 2}  # champ camera_calee de la couche des mesures
 # Incertitude de la hauteur de caméra (m) selon sa source : altitude GPS d'une position vérifiée
@@ -55,7 +53,7 @@ CAMERA_SOURCES = {None: 0, "calée": 1, "altitude GPS": 2}  # champ camera_calee
 CAMERA_ERRORS = {"altitude GPS": 0.05, None: 0.15}
 SELECT_ANGLE = 1.0  # écart maximal (degrés) entre un clic et le repère d'un point pour le sélectionner (session)
 ERRORS = (geometry.GeometryError, ground.GroundError)
-KIND_NAMES = {"road": "largeur perpendiculaire à la chaussée", "width": "longueur parallèle à la route",
+KIND_NAMES = {"width": "longueur parallèle à la route",
               "height": "hauteur"}
 
 
@@ -92,8 +90,6 @@ class Measure:
         self.item = None
         self.fid = None  # entité de la couche des mesures, une fois enregistrée
         self.layer_id = None  # couche de cette entité : un fid ne vaut que dans sa couche
-        self.road = None  # axe de la route au point mesuré (largeur perpendiculaire, voir roads.py)
-        self.road_pending = False  # lecture de cet axe en cours
 
     def needed(self):
         return 2
@@ -256,39 +252,16 @@ class Measure:
 
     @property
     def axis(self):
-        """Axe de la route retenu (cap en degrés) : au point mesuré si connu (voir roads.py),
-        sinon direction du véhicule à la caméra, portée par le premier clic."""
-        return self.road["axis"] if self.road else self.clicks[0].get("axis")
+        """Axe de la route retenu (cap en degrés) : direction du véhicule à la caméra, portée par
+        le premier clic."""
+        return self.clicks[0].get("axis")
 
     @property
     def axis_source(self):
-        if self.road:
-            return self.road["source"]
-        source = self.clicks[0].get("axis_source")
-        return source + ", lecture de la BD TOPO…" if self.road_pending and source else source
-
-    def _road_axis(self, pts, origin):
-        """Axe de la route au milieu des deux bords (voir roads.py), si l'outil sait le lire."""
-        lookup = self.tool.road_lookup
-        self.road, self.road_pending = None, False
-        if lookup is None:
-            return
-        mid = ((pts[0][0] + pts[1][0]) / 2, (pts[0][1] + pts[1][1]) / 2, pts[0][2])
-        lon, lat = geometry.to_geographic(mid, origin)[:2]
-        crossing = math.degrees(math.atan2(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1])) % 360
-        res = lookup(lon, lat, crossing, self.clicks[0].get("sequence"))
-        if isinstance(res, dict):
-            self.road = res
-        else:
-            self.road_pending = res == "pending"
+        return self.clicks[0].get("axis_source")
 
     def quantity(self, d):
         """Grandeur mesurée d'après la décomposition d (voir geometry.decompose)."""
-        if self.kind == "road":
-            if d["across"] is None:
-                raise geometry.GeometryError("Axe de la route inconnu pour cette photo : largeur impossible "
-                                             "à calculer.")
-            return d["across"]
         if self.kind == "height":
             if d["vertical"] <= 0:
                 raise geometry.GeometryError("Le sommet est sous le pied : cliquez d'abord au pied, puis au "
@@ -385,8 +358,6 @@ class Measure:
                 raise geometry.GeometryError("Le pied et le sommet doivent être cliqués sur la même photo.")
             pts, self.incidence, origin, sources = self.points()
             if len(pts) == 2 and len(self.clicks) == self.needed():
-                if self.kind == "road":
-                    self._road_axis(pts, origin)
                 d = geometry.decompose(pts[0], pts[1], self.axis)
                 value = self.quantity(d)
                 lonlat = [geometry.to_geographic(p, origin)[:2] for p in pts]
@@ -397,17 +368,7 @@ class Measure:
                 self.result = {"value": value, "decomposition": d, "uncertainty": self._spread(),
                                "ranges": ranges, "points": lonlat, "extra": None, "picks": lonlat,
                                "shifts": self._shifts(pts, origin)}
-                if self.kind == "road":
-                    # Trait perpendiculaire à l'axe, à mi-chemin des deux bords cliqués le long de la
-                    # route ; chaque bout est relié en pointillés à son bord cliqué
-                    a = math.radians(self.axis)
-                    ux, uy = math.sin(a), math.cos(a)
-                    half = ((pts[1][0] - pts[0][0]) * ux + (pts[1][1] - pts[0][1]) * uy) / 2.0
-                    start = (pts[0][0] + half * ux, pts[0][1] + half * uy, pts[0][2])
-                    end = (pts[1][0] - half * ux, pts[1][1] - half * uy, pts[0][2])
-                    self.result["points"] = [geometry.to_geographic(p, origin)[:2] for p in (start, end)]
-                    self.result["extra"] = list(lonlat)
-                elif self.kind == "height":
+                if self.kind == "height":
                     self.result["points"] = [lonlat[0]]  # sommet au-dessus du pied
         except ERRORS as exc:
             self.error = str(exc)
@@ -450,7 +411,7 @@ class Measure:
         return "{}{} m ± {} m".format(symbol, _num(self.result["value"], 2), _num(self.result["uncertainty"], 2))
 
     def _vertical(self):
-        if self.kind in ("road", "width"):
+        if self.kind == "width":
             return False
         return True  # hauteur
 
@@ -495,10 +456,7 @@ class Measure:
         r = self.result
         d = r["decomposition"]
         value, unc = _num(r["value"], 2), _num(r["uncertainty"], 2)
-        if self.kind == "road":
-            text = ("Largeur perpendiculaire à la chaussée : {} m (±{} m) · en biais {} m · axe {}° ({})").format(
-                value, unc, _num(d["horizontal"], 2), _num(self.axis % 180, 0), self.axis_source or "?")
-        elif self.kind == "width":
+        if self.kind == "width":
             text = "Longueur : {} m (±{} m) entre les deux points · à {} et {} m de la photo".format(
                 value, unc, _num(r["ranges"][0]), _num(r["ranges"][1]))
             if abs(d["vertical"]) >= 0.05:
@@ -537,9 +495,8 @@ class MeasureTool:
 
     def __init__(self, canvas):
         self.canvas = canvas
-        self.mode = "road"  # "road", "width" ou "height"
+        self.mode = "height"  # "width" ou "height"
         self.camera_height = DEFAULT_CAMERA_HEIGHT  # hauteur saisie dans le panneau
-        self.road_lookup = None  # roads.RoadAxisProvider.lookup : axe de la route au point mesuré
         self.calibration = None  # calibration.Calibration : hauteur calée par séquence
         self.error = None
         self.current = None
@@ -630,14 +587,6 @@ class MeasureTool:
         """Toutes les mesures affichées (terminées, puis en cours)."""
         return self.done + ([self.current] if self.current is not None else [])
 
-    def recompute_roads(self):
-        """Axe de la route arrivé (voir roads.py) : largeurs perpendiculaires recalculées.
-        Retourne le nombre de mesures concernées."""
-        roads = [m for m in self.measures() if m.kind == "road" and len(m.clicks) == m.needed()]
-        for m in roads:
-            m.compute()
-        return len(roads)
-
     # Recalage sur la carte ----------------------------------------------------
     def handles(self):
         """Poignées déplaçables sur la carte : [(clé, lon, lat)], clé ("point", mesure,
@@ -676,9 +625,6 @@ class MeasureTool:
         if m is not None and m.error:
             prefix = m.error + " "
         hints = {
-            "road": ("Cliquez au pied du premier bord (bordure, marquage, limite de chaussée…).",
-                     "Cliquez au pied du bord opposé, pas forcément juste en face : la largeur est prise "
-                     "perpendiculairement à la route."),
             "width": ("Cliquez au sol à une extrémité de l'objet.",
                       "Cliquez au sol à l'autre extrémité : la distance directe entre les deux points est mesurée."),
             "height": ("Cliquez dans la photo au pied de l'objet, exactement au contact du sol.",

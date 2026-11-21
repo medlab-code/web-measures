@@ -10,7 +10,6 @@ const Carte = (() => {
   const ORANGE = "#ff6f00";
   const ROUGE = "#e53935";  // trait d'une mesure, visées : comme dans le plugin
   const JAUNE = "#ffeb00";  // points cliqués
-  const BLEU = "#00bce6";  // largeur perpendiculaire : trait tracé perpendiculairement à la route
   const CURSEUR = "#0078ff";  // curseur de vue
   const VISEE = "#1b9e3e";  // parcelle cadastrale visée par la ligne de cap
   const SOUS_CAMERA = "#f2c200";  // parcelle cadastrale où se tient la caméra
@@ -354,11 +353,6 @@ const Carte = (() => {
         {
           id: "visees", type: "line", source: "mesures", filter: kind("visee"),
           paint: { "line-color": ROUGE, "line-width": 2, "line-dasharray": [3, 2] },
-        },
-        {  // plan perpendiculaire : bande bleue sous le trait rouge, visible quand ils se confondent
-          id: "plans", type: "line", source: "mesures", filter: kind("trace"),
-          layout: { "line-cap": "round" },
-          paint: { "line-color": BLEU, "line-opacity": 0.8, "line-width": 7 },
         },
         {
           id: "traits", type: "line", source: "mesures", filter: kind("mesure"),

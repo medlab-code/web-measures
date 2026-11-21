@@ -56,7 +56,7 @@ autre photo (`App.set_active`, `_check_tilt`) ; la vue du dessus et la largeur d
 visionneuse la lancent à l'affichage (`birdeye_request`).
 
 **Un seul ordre de priorité**, défini à un endroit, `Calibration.tilt` (`py/core/calibration.py`),
-pour les mesures (hauteur, largeur, relevé, visées) comme pour la largeur dans la visionneuse
+pour les mesures (hauteur, relevé, visées) comme pour la largeur dans la visionneuse
 (§ 8.8). Les sources propres à la page (rangs 1, 5 et 6) sont fournies par `App`
 (`_ground_tilt`, `_loose_tilt`, `_campaign_tilt`, `py/web_pose.py`) et rangées par les crochets
 `ground_tilt`, `loose_tilt`, `campaign_tilt` de `Calibration` :
@@ -154,46 +154,17 @@ le terrain ni la hauteur de caméra n'interviennent. L'incertitude combine l'inc
 photo, la visée des clics et la position du pied, déplacé d'un bloc avec le sommet. Les flèches
 ↑ ↓ recalent le sommet par pas de 1 cm sur la verticale.
 
-## 4. Largeur perpendiculaire à la chaussée
+## 4. Largeur perpendiculaire à la chaussée (retirée)
 
-Le premier bord `A` est triangulé. La **droite de mesure** passe par `A`, perpendiculairement à
-l'axe de la route en `A`. Cet axe est pris, dans l'ordre :
-
-1. sur la **trajectoire RTK** de la séquence sur ±20 m (±0,5°), si elle est droite (photos à
-   moins de 10 cm de leur droite) et qu'elle concorde à 2° près avec la BD TOPO ;
-2. sinon sur le **tronçon BD TOPO** qui longe la trajectoire (±2° supposés) ;
-3. sinon sur la **trajectoire sans RTK** (±3°) ;
-4. ou sur la **droite tracée sur la carte** (option expérimentale : giratoire, carrefour). Chaque
-   clic est précis à 0,3 m près environ, soit ±2,4° pour une droite de 10 m et ±6° pour 4 m (4 m
-   au moins). Le premier bord se pose alors d'un clic, là où sa visée coupe la droite, qui doit
-   être vue à plus de 10°.
-
-Le **bord opposé** `B` est là où la direction horizontale du clic coupe la droite : seule la
-direction compte. Un clic à moins de 10° de la droite est refusé, de même qu'un clic à peine au-dessus (jusqu'à 11° environ) : une erreur de cap ou de position le ferait passer dessous, l'incertitude n'est pas évaluable. Il est signalé rasant sous 25°.
-La largeur vaut `|AB|`. Le clic se pose là où la droite, dessinée à plat à la hauteur de `A`,
-croise le bord vu : si le sol de `B` n'est pas à cette hauteur (dévers, bordure), la largeur est
-faussée d'environ `écart latéral caméra-B × Δh / (H + Δh)`, `H` étant la hauteur de la caméra
-au-dessus de `A`. Cette largeur est donc une estimation, notée « ≈ ». Si `B` est triangulé à son tour (« Trianguler le point B »), la largeur
-devient `|(B − A) · u|`, `u` étant perpendiculaire à l'axe : `B` peut être un peu avant ou après
-`A`, et il est dessiné ramené sur la droite. L'incertitude ne compte l'erreur des points qu'en travers de la route, d'après leur covariance
-(`triangulation.projected`). Triangulé : `√(uᵀΣ_A u + uᵀΣ_B u)`, plus l'axe. Cliqué : réponse de
-la largeur à un déplacement de `A` selon sa covariance, cap du clic, position de la photo (moitié
-de sa précision si elle est de la séquence de `A` : la part commune s'annule), inclinaison (±2°
-sans calage), plus `|t|·(1/cos δ − 1)` pour l'axe, car le clic suit la droite jusqu'au bord vu.
-S'y ajoute le désaccord des visées de chaque point (`triangulation.sight_spread`) : plus grand
-écart en travers au point de l'endroit où chaque visée touche le sol, à l'altitude LiDAR HD lue
-au point (celle du calcul absorberait le désaccord). Il n'est évalué que sur des photos calées ;
-au-delà de 0,6 m, le texte des visées propose d'en réviser une. Le dévers n'y est pas compté.
-
-Visées suivantes : à moins de 12 pixels du trait d'une visée déjà faite, le réticule s'y cale
-(touche Maj : visée libre), car un bord n'a pas de repère le long de son tracé. 0,5 m d'écart le
-long du bord donne environ 0,4 m d'erreur sur la largeur (simulation : photos à 10 et 5 m).
+Mode retiré le 21/11/2026 (droite de mesure perpendiculaire à l'axe de la route, bord opposé cliqué ou
+triangulé, option « Droite de mesure tracée sur la carte »). La largeur se mesure par le bouton ↔ de la
+visionneuse (§ 8.8). La numérotation des sections est gardée.
 
 ## 5. Mesure libre (retirée)
 
 Distance horizontale entre deux points triangulés successifs : retirée le 20/11/2026, remplacée par
-la mesure sur la carte (longueur et surface). La triangulation (§ 2) reste celle des hauteurs,
-largeurs et du relevé d'objets.
+la mesure sur la carte (longueur et surface). La triangulation (§ 2) reste celle des hauteurs
+et du relevé d'objets.
 
 ## 6. Relevé d'objets
 
@@ -772,7 +743,6 @@ moins de 10 %, vers l'intérieur dans les virages marqués).
 |---|---|---|
 | Point triangulé (RTK, croisement de 54°) | ±0,17 m | croisement, cap, GPS |
 | Hauteur | ±0,1 m | inclinaison, position du pied |
-| Largeur | ±0,3 à 0,5 m | axe de la route, position de `A` le long de la route |
 | Objet sur une seule photo, à 6 m | ±0,2 à 0,8 m | inclinaison, sol supposé plat |
 | Objet placé sur la carte | ±1 m | orthophoto |
 | Chute (pont, bords de route) | ±0,1 m LiDAR HD, ±0,4 m RGE ALTI | MNT ; sur un pont, nuage LiDAR HD, sinon altitude RTK |

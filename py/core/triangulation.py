@@ -58,7 +58,6 @@ COMMON_TILT = 0.1
 # les caps suffisent, et une inclinaison un peu fausse ne ferait que déplacer le point
 STRONG_ANGLE = 20.0
 WEAK_ANGLE = 15.0  # croisement en dessous duquel, en plan, la profondeur devient imprécise (degrés)
-SIGHT_WARNING = 0.6  # m : désaccord des visées d'un bord en travers de la route au-delà duquel les réviser (voir sight_spread)
 LIDAR_NAME = "LiDAR HD"
 SPREAD_WARNING = 3.0  # visée écartée du point de plus de 3 fois son erreur attendue : autre objet visé ?
 
@@ -110,38 +109,6 @@ def heading_error(sighting):
     if sighting.get("precise") and accuracy is not None and accuracy <= SURVEY_ACCURACY:
         return SURVEY_HEADING_ERROR
     return HEADING_ERROR
-
-
-def projected(point, gx, gy):
-    """Écart probable (m) de gx·x + gy·y pour un point triangulé (dict avec "uncertainty" et, s'il en a,
-    "cov" : covariance horizontale c11, c12, c22). Sans covariance (point posé d'un clic) : erreur de
-    même taille dans toutes les directions."""
-    cov = point.get("cov")
-    if not cov:
-        return point["uncertainty"] * math.hypot(gx, gy)
-    return math.sqrt(max(gx * gx * cov[0] + 2 * gx * gy * cov[1] + gy * gy * cov[2], 0.0))
-
-
-def sight_spread(sightings, lon, lat, ground_z, ux, uy):
-    """Désaccord des visées d'un point au sol dans la direction (ux, uy), m : plus grand écart au point
-    (lon, lat), dans cette direction, de l'endroit où chaque visée touche le sol. Sur un bord, qui n'a pas de
-    repère le long de son tracé, c'est le signe de visées tombées à des endroits différents, que leur
-    croisement ne montre pas. ground_z : altitude du sol lue au point (voir solve_on_ground), LiDAR HD
-    seulement : l'altitude tirée des visées absorberait leur désaccord, le RGE ALTI est trop imprécis. 0 si les
-    visées ne permettent pas d'en juger : moins de deux, sans cette altitude, sans inclinaison calée
-    (l'erreur d'inclinaison y dominerait), ou presque à l'horizon."""
-    if not ground_z or len(sightings) < 2 or (len(ground_z) > 4 and ground_z[4] != LIDAR_NAME):
-        return 0.0
-    z = ground_z[2]
-    worst = 0.0
-    for s in sightings:
-        elev, alt = s.get("elev"), s.get("alt")
-        if s.get("elev_error") is None or elev is None or alt is None or elev > -0.5 or alt <= z:
-            return 0.0
-        d, h = (alt - z) / math.tan(math.radians(-elev)), math.radians(s["heading"])
-        x, y = _local(s["lon"], s["lat"], lon, lat)
-        worst = max(worst, abs((x + d * math.sin(h)) * ux + (y + d * math.cos(h)) * uy))
-    return worst
 
 
 def _sigma(distance, accuracy, error=HEADING_ERROR):

@@ -41,7 +41,6 @@
     apiUrl: null,  // adresse de l'API de l'instance (Carte.setInstance)
     swapped: false,
     placing: false,
-    lineDraft: null,  // pendant le tracé : point de départ (LngLat), ou false avant le premier clic
     pointSelected: false,
     mapWindow: null,
     overlay: null,  // { name, features (WGS 84, Couche.read), columns, crs }
@@ -49,7 +48,7 @@
     objectCurrent: null,  // n° de l'objet du parcours
     addingObject: false,
     overlaySaving: Promise.resolve(true),
-    slideKind: null,  // réticule affiché : "largeur", "hauteur" (trait jaune en travers), ou null
+    slideKind: null,  // réticule affiché : "hauteur" (trait jaune en travers), ou null
     heightAxis: null,  // hauteur : [pied, sommet] de la 1re hauteur depuis A (App.height_axis), ou null
     crossAt: [],  // croix sélectionnables (drawViewerMarks) : [[cap, élévation]]
     aiming: false,
@@ -57,9 +56,6 @@
     singleM: null,  // relevé, une seule visée : précision (m) de l'objet gardé sur cette photo
     tiltReady: false,  // calage de l'inclinaison : pied et sommet placés (bouton « Valider l'objet vertical »)
     newMeasure: null,  // largeur faite : nom du point de référence (bouton « Nouvelle mesure depuis A »)
-    lineDrawn: false,  // droite de mesure tracée sur la carte, en attente du point A (#28)
-    edgeBOffered: null,  // largeur faite d'un clic : nom (provisoire) de son bord, à trianguler
-    edgeBAiming: false,  // bord opposé de la largeur en cours de triangulation
     tilted: false,  // inclinaison de la photo affichée calée
     currentMarks: [],
     declutterTimer: null,
@@ -337,7 +333,7 @@
   // Réglages de l'affichage (filaire, inclinaison, bords, PR, cadastre…) et fenêtre du profil : src/reglages.js
   const reglages = Reglages.init({
     store, map, etat, refresh, showOverViewer, mainZone, saveAs, setStatus, FICHE_FONTS, placeMarkup, escapeHtml,
-    get applyMeasureUi() { return applyMeasureUi; }, get endLineDraft() { return endLineDraft; },
+    get applyMeasureUi() { return applyMeasureUi; },
     get showParcelMark() { return showParcelMark; },
   });
 
@@ -755,13 +751,11 @@
     etat.singleM = state.single_m;
     etat.tiltReady = state.tilt_ready;
     etat.pointSelected = state.point_sel;
-    if (etat.aiming !== state.aiming || etat.newMeasure !== state.new_measure || etat.edgeBAiming !== state.edge_b_aiming) {
-      etat.aiming = state.aiming;  // point validé ou à trianguler, largeur faite, bord opposé en visée
+    if (etat.aiming !== state.aiming || etat.newMeasure !== state.new_measure) {
+      etat.aiming = state.aiming;  // point validé ou à trianguler, hauteur faite
       etat.newMeasure = state.new_measure;
-      etat.edgeBAiming = state.edge_b_aiming;
       applyMeasureUi();
     }
-    etat.edgeBOffered = state.edge_b;
     showModeOptions();  // « Valider le point triangulé » : dès que les visées donnent un point
     showGuide(state.guide);
     // Retour sur la photo de référence : vue cadrée sur A, ou sur la largeur, une fois la photo
@@ -776,7 +770,7 @@
     }
     drawViewerMarks(JSON.parse(etat.app.viewer_marks()));
     etat.heightAxis = JSON.parse(etat.app.height_axis());
-    if ((!etat.heightAxis && etat.slideKind === "hauteur") || (!etat.aiming && etat.slideKind === "visée")) slideOnGuide(null);
+    if (!etat.heightAxis && etat.slideKind === "hauteur") slideOnGuide(null);
     Carte.showMeasures(map, JSON.parse(etat.app.map_geojson()));
     Carte.showHandles(map, JSON.parse(etat.app.handles()), (index, lon, lat) => refresh(etat.app.move_handle(index, lon, lat)));
     frame(etat.app.focus());
@@ -814,9 +808,9 @@
 
   // Choix de la photo sur la carte, carte détachée, tracés et recalages au clavier : src/choix.js
   const {
-    openNearest, endLineDraft, checkPhoto, openPhoto, overlayObjectName, overlayFicheData, overlayEnds,
+    openNearest, checkPhoto, openPhoto, overlayObjectName, overlayFicheData, overlayEnds,
     proposeRecaledPhoto, reviewMeasure, endMoving, moveOverlayObject, placeOverlayObject, setPhoto, follow, metresBetween,
-    overlayPoints, setPlacing, showDrawnLine, startLineDraft,
+    overlayPoints, setPlacing,
   } = Choix.init({
     map, setStatus, etat, refresh, passesFilter, filterActive, viewer, notice, showOverViewer,
     setSwapped, mapBox, setFolded, grip, swapButton, measureButton, birdeyeButton, captureButton,
@@ -893,7 +887,7 @@
     openPhotoReady, reticleColor, onArrow, LOADING, scheduleDeclutter, waitParcelTiles, goToPhoto,
   } = Mesure.init({
     etat, showMapMeasureButton, viewer, stopPlayer, syncMapMeasure, updatePlayer, refresh, overlayAt, overlayHiddenTest,
-    movingId, overlayPoints, viewHeading, openPhoto, notice, setPlacing, showDrawnLine, store, startLineDraft,
+    movingId, overlayPoints, viewHeading, openPhoto, notice, setPlacing, store,
     escapeHtml,
     editReleve: (k, fresh) => editReleve(k, fresh),  // relevé : déclaré plus bas (Releve.init)
   });

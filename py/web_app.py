@@ -11,32 +11,17 @@ aboutit après coup, la session appelle notify() pour que la page se redessine.
 
 import json
 import math
-import re
 from datetime import datetime
 
 import web_host
 from web_chutes import Chutes, _WAY_KINDS, _deck_at, platform_slope  # noqa: F401 (essais)
 from web_nez import Nez
 from web_pose import Pose
-from core import (autotilt, calibration, capture, filters, host, measures, metadata, precision, roads, session, tools,
-                  triangulation, widths)
+from core import (autotilt, calibration, capture, filters, host, measures, metadata, precision, session, tools,
+                  triangulation)
 from core.session import GROUND_MODES, MODES  # noqa: F401 (modes de la page)
 
 
-# Axe de la route tiré de la trajectoire RTK (voir App._road_at_reference) : sur ±20 m, la position
-# RTK (quelques cm) n'y compte presque pas ; reste l'écart du véhicule à la route, au plus ~0,2 m
-AXIS_ERROR_RTK = 0.5  # degrés
-RTK_SOURCE = "trajectoire RTK"
-TRACK_STRAIGHT = 0.10  # m : écart type des photos à leur droite au plus (route droite, pas de changement de voie)
-TRACK_SPAN = 20.0  # m de trajectoire au moins
-TRACK_AGREE = 2.0  # degrés au plus entre la trajectoire et le tronçon de la BD TOPO
-# Droite de mesure tracée sur la mini-carte (ticket #28, App.set_measure_line) : son orientation est
-# connue à l'angle sous lequel MAP_CLICK m d'erreur sur chaque clic voient la longueur tracée
-MAP_SOURCE = "tracé sur la carte"
-MAP_LINE_MIN = 4.0  # m au moins entre les deux clics
-MAP_CLICK = 0.3  # m : précision d'un clic sur la mini-carte zoomée
-MAP_HEADING_ERROR = 0.3  # degrés : cap EXIF des photos de relevé (point A posé sur la droite)
-MAP_MIN_ANGLE = 10.0  # degrés au moins entre la visée de A et la droite tracée
 # Relevé : objet posé sur une seule photo (App.releve_single), si la visée descend assez sous l'horizon
 SINGLE_MIN_ELEV = 2.0  # degrés : objet à 70 m au plus pour une caméra à 2,5 m
 # Objet relevé posé d'un clic sur la mini-carte (App.keep_map) : précision des orthophotos IGN (environ 1 m)
@@ -46,55 +31,6 @@ MAP_PLACE_ERROR = 1.0  # m
 # image par la visionneuse (lenteur, surtout zoomé)
 EPIPOLAR_START = 2.0  # m depuis la caméra de la visée
 EPIPOLAR_NEAR = 3.0  # m au moins de la caméra de la photo affichée
-_core_axis_error = widths.axis_error
-
-
-def _axis_error(source):
-    """widths.axis_error, avec l'axe tiré de la trajectoire RTK ou la droite tracée sur la carte."""
-    if source and source.startswith(RTK_SOURCE):
-        return AXIS_ERROR_RTK
-    if source and source.startswith(MAP_SOURCE):  # « tracé sur la carte, ±1,7° »
-        return float(source.rsplit("±", 1)[1].rstrip("°").replace(",", "."))
-    return _core_axis_error(source)
-
-
-widths.axis_error = _axis_error  # appelée par les largeurs du cœur
-
-
-def _straight_track_axis(features, sequence, lon, lat):
-    """Direction (degrés, modulo 180) de la trajectoire de la séquence à moins de
-    roads.TRACK_RADIUS m de (lon, lat), si elle est droite (TRACK_STRAIGHT) sur TRACK_SPAN m au
-    moins ; None sinon. Passages aller et retour (sens de la photo) ajustés chacun sur sa voie,
-    avec une direction commune."""
-    passes = {}  # sens de roulage -> positions (m)
-    first = None
-    for feat in (features or {}).get("features") or []:
-        heading = metadata.item_heading(feat)
-        if feat.get("collection") != sequence or heading is None:
-            continue
-        try:
-            x, y = triangulation._local(*(float(v) for v in feat["geometry"]["coordinates"][:2]), lon, lat)
-        except (KeyError, TypeError, ValueError):
-            continue
-        if math.hypot(x, y) <= roads.TRACK_RADIUS:
-            first = heading if first is None else first
-            passes.setdefault(math.cos(math.radians(heading - first)) >= 0, []).append((x, y))
-    pts = []  # positions centrées sur leur passage
-    for group in passes.values():
-        mx, my = sum(p[0] for p in group) / len(group), sum(p[1] for p in group) / len(group)
-        pts += [(x - mx, y - my) for x, y in group]
-    if len(pts) < 5:
-        return None
-    sxx, syy, sxy = sum(x * x for x, _ in pts), sum(y * y for _, y in pts), sum(x * y for x, y in pts)
-    angle = 0.5 * math.atan2(2 * sxy, sxx - syy)  # depuis l'est, sens trigonométrique
-    ux, uy = math.cos(angle), math.sin(angle)
-    along = [x * ux + y * uy for x, y in pts]
-    across = [y * ux - x * uy for x, y in pts]
-    if max(along) - min(along) < TRACK_SPAN or math.sqrt(sum(d * d for d in across) / len(pts)) > TRACK_STRAIGHT:
-        return None
-    return (90.0 - math.degrees(angle)) % 180
-
-
 def _length_text(value, sigma):
     """« 7,60 m ± 0,38 m », ou « 7,60 m hors vue » (longueur sur le fond de carte seul, voir App.add_map_length)."""
     return "{} m {}".format(measures._num(value, 2), "hors vue" if sigma is None else "± {} m".format(measures._num(sigma, 2)))
@@ -230,7 +166,6 @@ class App(Pose, Chutes, Nez, session.Session):
         self.fall_error = {}  # maille -> raison du dernier échec de lecture des tronçons (dite dans le message)
         self.fall_retry = {}  # maille -> instant du nouvel essai après un échec de lecture des tronçons
         self.bdtopo_retry = {}  # (couche BD TOPO, maille) -> instant du nouvel essai après un échec
-        self.map_line = None  # droite de mesure tracée sur la carte, pour le prochain point A (ticket #28)
         # Longueurs mesurées sur la vue du dessus (src/dessus.js), mode « carte » : rien à viser dans la photo
         # Longueurs et surfaces de la carte : {"ends": [[lon, lat], …] (2 points ; une surface : son contour ouvert),
         # "valeur_m" (une surface : son périmètre), "incert_m", "photos", "commentaire", "surface_m2" (surfaces seules)}
@@ -327,10 +262,6 @@ class App(Pose, Chutes, Nez, session.Session):
             _keep_view(m, pts)
         return pts
 
-    def _widths(self):
-        found = super()._widths()
-        return [m for m in found if m.clicks[1].get("pic") == self._here()] if self.here_only else found
-
     def _free_mark_point(self, k):
         """Point gardé du relevé : seulement là où il a été visé (sans repère ailleurs). Objet
         relevé : sur toutes les photos, projeté au sol, à OVERLAY_REACH m au plus (comme la couche)."""
@@ -376,7 +307,7 @@ class App(Pose, Chutes, Nez, session.Session):
 
     def pick_points(self):
         """JSON [[cap, élévation]] (radians, repère de la photo) des croix qu'un clic sélectionnerait dans le mode en cours :
-        celles que cherche _nearest (hauteurs et point de référence, largeurs), ou celles du calage de l'inclinaison. La
+        celles que cherche _nearest (hauteurs et point de référence), ou celles du calage de l'inclinaison. La
         page les teste en pixels (on_cross) : une croix d'un autre mode ou de visée ne compte pas."""
         if not (self.active and self.item) or self._aiming():
             return "[]"
@@ -387,8 +318,6 @@ class App(Pose, Chutes, Nez, session.Session):
             if self.mode == "height":
                 self._height_near(probe)
                 self._ref_near(probe)
-            elif self.mode == "road":
-                self._width_near(probe)
             picks = self._picks
         finally:
             self._picks = None
@@ -425,9 +354,6 @@ class App(Pose, Chutes, Nez, session.Session):
     def select_point(self, yaw, pitch, on_cross=None):
         return self._with_cross(on_cross, super().select_point, yaw, pitch)
 
-    def _width_near(self, click):
-        return self._filtered(super()._width_near, click)
-
     def _epipolar_mark(self, s):
         """Session._epipolar_mark raccourcie : de EPIPOLAR_START m (pas 0,5 m) depuis la caméra de la visée
         jusqu'un peu au-delà du sol touché (80 m au plus), sans les points à moins de EPIPOLAR_NEAR m de
@@ -451,10 +377,8 @@ class App(Pose, Chutes, Nez, session.Session):
 
     def viewer_marks(self):
         marks = self._filtered(super().viewer_marks)
-        if self.item and json.loads(self.axis_state())["drawn"]:
-            marks.insert(0, self._line_mark())  # droite tracée sur la carte, avant le point A
         if self.active and self.item and self.mode == "height" and self._aiming():
-            # Visées des autres photos tracées aussi en hauteur (le cœur : largeur) :
+            # Visées des autres photos tracées aussi en hauteur (le cœur : relevé) :
             # le pied visé est sur leur trait, même parmi des objets semblables (ticket #26)
             pic = self.item.get("id")
             lines = [self._epipolar_mark(s)["points"] for s in self.triangulator.sightings if s["pic"] != pic]
@@ -472,8 +396,8 @@ class App(Pose, Chutes, Nez, session.Session):
         return json.dumps(super().handles())
 
     def results(self):
-        """Liste des résultats (ticket #30) : une entrée par point de référence, ses hauteurs et
-        largeurs dessous (« sous »), nommées par leur point d'arrivée : « ↕ B 3,77 m ± 0,12 m ».
+        """Liste des résultats (ticket #30) : une entrée par point de référence, ses hauteurs
+        dessous (« sous »), nommées par leur point d'arrivée : « ↕ B 3,77 m ± 0,12 m ».
         Les autres points gardés et les distances n'y figurent pas (ils restent exportés)."""
         rows = super().results()
         measures_by_id = {id(m): m for m in self.tool.measures()}
@@ -486,7 +410,7 @@ class App(Pose, Chutes, Nez, session.Session):
             end = self._end_name(m)
             if end:
                 r = dict(r, text="{}{} {}".format(r["text"][:2], end["name"], r["text"][2:]))
-            ref = (getattr(m, "edge", None) or getattr(m, "reference", None) or {}).get("name")  # largeur : bord A
+            ref = (m.reference or {}).get("name")
             under.setdefault(ref, []).append(dict(r, sous=True))
         current = (self.ref_point or {}).get("name")
         out = []
@@ -513,9 +437,8 @@ class App(Pose, Chutes, Nez, session.Session):
 
     # Fiche PDF d'un point de référence (src/fiche.js, makeFiche) ------------------------------------
     def _fiche_measures(self, name):
-        """Hauteurs et largeurs faites depuis le point de référence nommé name."""
-        return [m for m in self.tool.measures() if m.result
-                and (getattr(m, "edge", None) or getattr(m, "reference", None) or {}).get("name") == name]
+        """Hauteurs faites depuis le point de référence nommé name."""
+        return [m for m in self.tool.measures() if m.result and (m.reference or {}).get("name") == name]
 
     def fiche(self, k):
         """JSON de la fiche du point gardé n° k et de ses mesures : nom, position, lignes du tableau
@@ -525,28 +448,20 @@ class App(Pose, Chutes, Nez, session.Session):
         lon, lat, values = self.points[int(k)]
         name = values["nom"]
         found = self._fiche_measures(name)
-        kept = {v["nom"]: v for _, _, v in self.points}
 
-        def point_row(v, what):  # point gardé (A, ou le bord B triangulé) : sa ligne, comme A
-            how = "posé sur la droite tracée sur la carte" if v.get("nb_visees") == 1 else "triangulé"
-            return {"kind": "point", "point": v["nom"], "mesure": "{}, {}".format(what, how), "valeur": "",
-                    "incert": "± {} m".format(measures._num(v["incert_m"], 2)), "commentaire": v.get("commentaire", "")}
-
-        # Le point de référence, puis pour chaque mesure son point d'arrivée (comme A s'il est
-        # triangulé, sinon cliqué sur la photo) et, dessous, la mesure elle-même
-        rows = [point_row(values, "Point de référence")]
+        # Le point de référence (triangulé), puis pour chaque mesure son sommet (cliqué sur la photo)
+        # et, dessous, la mesure elle-même
+        rows = [{"kind": "point", "point": name, "mesure": "Point de référence, triangulé", "valeur": "",
+                 "incert": "± {} m".format(measures._num(values["incert_m"], 2)),
+                 "commentaire": values.get("commentaire", "")}]
         texts, lonlats = [], [(lon, lat)]
         for m in found:
             r, end = m.result, self._end_name(m)
-            height = m.kind == "height"
             end_name = end["name"] if end else "?"
-            if end_name in kept and not height:
-                rows.append(point_row(kept[end_name], "Bord opposé"))
-            else:
-                rows.append({"kind": "point", "point": end_name, "valeur": "", "incert": "", "commentaire": "",
-                             "mesure": "Sommet, cliqué sur la photo" if height else "Bord opposé, cliqué sur la photo"})
-            rows.append({"kind": "mesure", "point": "{} {} {}".format(name, "↕" if height else "↔", end_name),
-                         "mesure": "{} entre {} et {}".format("Hauteur" if height else "Largeur", name, end_name),
+            rows.append({"kind": "point", "point": end_name, "valeur": "", "incert": "", "commentaire": "",
+                         "mesure": "Sommet, cliqué sur la photo"})
+            rows.append({"kind": "mesure", "point": "{} ↕ {}".format(name, end_name),
+                         "mesure": "Hauteur entre {} et {}".format(name, end_name),
                          "valeur": "{} m".format(measures._num(r["value"], 2)),
                          "incert": "± {} m".format(measures._num(r["uncertainty"], 2)),
                          "commentaire": getattr(m, "comment", "")})
@@ -554,7 +469,7 @@ class App(Pose, Chutes, Nez, session.Session):
             lonlats += [tuple(p) for p in r["points"]]
         largest = max(found, key=lambda m: m.result["value"], default=None)
         if largest is not None:
-            pic = largest.clicks[0 if largest.kind == "height" else 1].get("pic")  # photo d'où elle a été prise
+            pic = largest.clicks[0].get("pic")  # photo d'où elle a été prise
         else:
             pic = next(iter(self.point_views.get(name, {})), None) or values.get("photos", "").split(",")[0] or None
         item = self.photo_items.get(pic) if pic else None
@@ -566,23 +481,12 @@ class App(Pose, Chutes, Nez, session.Session):
                            "bounds": [[min(xs), min(ys)], [max(xs), max(ys)]]}, ensure_ascii=False)
 
     def _fiche_note(self, m, label):
-        """(label, morceaux) de la ligne courte de « Méthode et précision » pour la mesure m (fiche) : ce
-        qui n'est pas dans le tableau. Hauteur : distance de l'objet, hauteur de caméra ; largeur : axe,
-        angle de visée."""
-        if m.kind == "height":
-            item = self.photo_items.get(m.clicks[0].get("pic"))
-            height, source, _ = self.camera_of(item, self.precision.known(item)) if item else (self.tool.camera_height, None, 0)
-            parts = ["objet à {} m de la photo".format(measures._num(m.result["ranges"][0], 1)),
-                     "caméra à {} m{}".format(measures._num(height, 2), " ({})".format(source) if source else "")]
-        else:
-            axis = (m.road or {}).get("source", "")
-            if axis.startswith(MAP_SOURCE):
-                parts = ["droite tracée sur la carte ({})".format(axis.split(", ", 1)[-1])]
-            else:
-                parts = ["axe de la route : {}".format(axis)]
-            if m.angle is not None:
-                parts.append("visée à {}° de la droite{}".format(
-                    measures._num(m.angle, 0), " (rasante)" if m.angle < widths.GRAZING_ANGLE else ""))
+        """(label, morceaux) de la ligne courte de « Méthode et précision » pour la hauteur m (fiche) : ce
+        qui n'est pas dans le tableau (distance de l'objet, hauteur de caméra)."""
+        item = self.photo_items.get(m.clicks[0].get("pic"))
+        height, source, _ = self.camera_of(item, self.precision.known(item)) if item else (self.tool.camera_height, None, 0)
+        parts = ["objet à {} m de la photo".format(measures._num(m.result["ranges"][0], 1)),
+                 "caméra à {} m{}".format(measures._num(height, 2), " ({})".format(source) if source else "")]
         return label, parts
 
     def fiche_frame(self, k):
@@ -593,7 +497,7 @@ class App(Pose, Chutes, Nez, session.Session):
         largest = max(found, key=lambda m: m.result["value"], default=None)
         if largest is None or not self.item:
             return "[]"
-        pts = (self._height_points if largest.kind == "height" else self._width_points)(largest)
+        pts = self._height_points(largest)
         return json.dumps([[p["yaw"], p["pitch"]] for p in pts if p["yaw"] is not None])
 
     # Relevé d'objets (mode "releve") ------------------------------------------------------------
@@ -769,7 +673,7 @@ class App(Pose, Chutes, Nez, session.Session):
         text = super().status()
         if self.releve:
             text = "Relevé d'objets : " + text
-        return _map_line_text(text) if MAP_SOURCE in text else text
+        return text
 
     # Couche importée (GeoJSON, src/couche.js) : objets dans la photo, à leur altitude (z du fichier,
     # NGF) ou posés sur le sol LiDAR HD, lu sous la caméra et sous leurs sommets (lignes redécoupées
@@ -998,8 +902,8 @@ class App(Pose, Chutes, Nez, session.Session):
 
     # État remis par Ctrl+Y : listes copiées (les objets gardés tels quels : « Effacer » ne fait que
     # les retirer), sauf le calage du cap et de la position (CalibrationTool), non rétabli
-    REDO_ATTRS = ("points", "named", "point_views", "ref_point", "measure_done", "width_sel",
-                  "ref_sel", "b_aiming", "tilt_clicks", "tilt_sel", "map_line", "map_lengths")
+    REDO_ATTRS = ("points", "named", "point_views", "ref_point", "measure_done",
+                  "ref_sel", "tilt_clicks", "tilt_sel", "map_lengths")
 
     def _snapshot(self):
         snap = {k: getattr(self, k, None) for k in self.REDO_ATTRS}
@@ -1016,7 +920,7 @@ class App(Pose, Chutes, Nez, session.Session):
         tool, current = self.tool, self.tool.current
         return (len(self.points), len(tool.done), id(current), len(current.clicks) if current else 0,
                 len(self.triangulator.sightings), id(self.ref_point), len(self.tilt_clicks), self.mode,
-                id(self.b_aiming), self.measure_done, len(self.map_lengths))
+                self.measure_done, len(self.map_lengths))
 
     def redo(self):
         """Ctrl+Y (ou Ctrl+Maj+Z) : rétablit ce que le dernier « Effacer » a retiré, si rien n'a été fait
@@ -1060,7 +964,7 @@ class App(Pose, Chutes, Nez, session.Session):
             pic = (self.item or {}).get("id")
             return bool(self._tilt_pending() or self.calibrator.clicks or (pic and pic in self.calibration.verticals))
         tool = self.tool
-        if self.b_aiming is not None or self.triangulator.sightings or self.width_sel is not None or self.ref_sel \
+        if self.triangulator.sightings or self.ref_sel \
                 or tool.selected is not None or (tool.current is not None and tool.current.clicks):
             return True
         return bool(self.points) if self.mode == "tri" else self.ref_point is not None
@@ -1071,8 +975,7 @@ class App(Pose, Chutes, Nez, session.Session):
                     or self.ref_point is not None or self.tilt_clicks or self.calibrator.clicks)
 
     def _undo(self):
-        """« Effacer » et Ctrl+Z : annule le dernier geste. Visées : la dernière seule (le bord B garde sa première,
-        le clic de la mesure) ; objet vertical du calage : son dernier clic ; sinon comme Session.clear
+        """« Effacer » et Ctrl+Z : annule le dernier geste. Visées : la dernière seule ; objet vertical du calage : son dernier clic ; sinon comme Session.clear
         (sélection, mesure en cours, puis dernier point posé)."""
         if self.map_mode:
             if self.map_lengths:
@@ -1085,7 +988,7 @@ class App(Pose, Chutes, Nez, session.Session):
             self.message = "Dernier clic de l'objet vertical annulé."
             return self.status()
         sightings = self.triangulator.sightings
-        if self.active and self._active() is self.triangulator and len(sightings) > (1 if self.b_aiming else 0):
+        if self.active and self._active() is self.triangulator and sightings:
             sightings.pop()
             if sightings:
                 self.triangulator.recompute()
@@ -1103,46 +1006,8 @@ class App(Pose, Chutes, Nez, session.Session):
         return super().clear()
 
 
-    # Droite de mesure tracée sur la mini-carte (ticket #28) ---------------------------------------
-    # Giratoire, carrefour, place : avant la première visée de A, la droite de mesure est tracée sur
-    # la carte (deux clics, en travers de la voie) au lieu d'être perpendiculaire à l'axe calculé. A
-    # se pose alors d'un clic, là où sa direction coupe la droite (comme le bord B), sans visées.
-
-    def axis_state(self):
-        """Droite tracée, pour la page (JSON) : tracé possible (largeur, avant la première visée de A),
-        droite tracée en attente du point A (annulable), et ses deux points [[lon, lat], [lon, lat]]."""
-        waiting = bool(self.active and self.mode == "road" and self.ref_point is None and self.b_aiming is None)
-        line = self.map_line if waiting else None
-        return json.dumps({"can": waiting and not self.triangulator.sightings and line is None,
-                           "drawn": line is not None, "line": line and line["ends"]})
-
-    def set_measure_line(self, lon1, lat1, lon2, lat2):
-        """Droite de mesure tracée par deux clics sur la mini-carte : A et B seront posés dessus."""
-        if not json.loads(self.axis_state())["can"]:
-            self.message = "La droite se trace en largeur, avant la première visée du premier bord."
-            return self.status()
-        x, y = triangulation._local(lon2, lat2, lon1, lat1)
-        span = math.hypot(x, y)
-        if span < MAP_LINE_MIN:
-            self.message = ("Droite non tracée : {} m entre les deux clics ; tracez-la sur {} m au moins, en travers "
-                            "de la voie.").format(measures._num(span, 1), measures._num(MAP_LINE_MIN, 0))
-            return self.status()
-        error = math.degrees(math.atan2(MAP_CLICK * math.sqrt(2), span))
-        self.map_line = {"ends": [[lon1, lat1], [lon2, lat2]], "bearing": math.degrees(math.atan2(x, y)) % 360,
-                         "error": error}
-        self.message = ("Droite de mesure tracée (±{}°) : cliquez le premier bord sur la droite bleue de la photo ; "
-                        "seule la direction du clic compte. « Annuler la droite » pour revenir à l'axe "
-                        "automatique.").format(measures._num(error, 1))
-        return self.status()
-
-    def cancel_measure_line(self):
-        self.map_line = None
-        self.message = "Droite tracée annulée : droite de mesure perpendiculaire à l'axe automatique."
-        return self.status()
-
     def set_mode(self, mode):
         self.tilt_clicks, self.tilt_sel = [], None
-        self.map_line = None
         self.releve = mode == "releve"
         self.map_mode = mode == "carte"  # mesure sur la carte : le cœur reste en mode « tri », inactif
         return super().set_mode("tri" if self.releve or self.map_mode else mode)
@@ -1184,138 +1049,6 @@ class App(Pose, Chutes, Nez, session.Session):
             return
         super().set_comment(kind, ident, text)
 
-    def aim(self, yaw, pitch):
-        if self.mode == "road" and self.map_line is not None and self.ref_point is None and self.b_aiming is None:
-            return self._point_on_line(yaw, pitch)
-        return super().aim(yaw, pitch)
-
-    def _line_mark(self):
-        """Droite tracée dans la photo affichée (comme Session._guide_mark : sol plat à la hauteur de
-        caméra), prolongée de 5 m de chaque côté."""
-        lon, lat = (float(v) for v in self.item["geometry"]["coordinates"][:2])
-        (lon1, lat1), (lon2, lat2) = self.map_line["ends"]
-        (x1, y1), (x2, y2) = triangulation._local(lon1, lat1, lon, lat), triangulation._local(lon2, lat2, lon, lat)
-        span = math.hypot(x2 - x1, y2 - y1)
-        ux, uy = (x2 - x1) / span, (y2 - y1) / span
-        height, points = self._camera_height(), []
-        for k in range(41):
-            t = -5.0 + k * (span + 10.0) / 40
-            x, y = x1 + t * ux, y1 + t * uy
-            d = math.hypot(x, y)
-            if d >= 1.0:
-                view = self._view_of(math.degrees(math.atan2(x, y)), -math.degrees(math.atan2(height, d)))
-                points.append([view["yaw"], view["pitch"], False])
-        return {"points": points, "label": "", "guide": True}
-
-    def _point_on_line(self, yaw, pitch):
-        """Point A posé là où la direction du clic coupe la droite tracée (sur la carte, à plat) : point
-        de référence de la largeur, comme Session.keep_point, la droite tracée pour droite de mesure."""
-        if not self.item:
-            self.message = "Aucune photo affichée."
-            return self.status()
-        s = tools.photo_sighting(self.item, (math.degrees(yaw) + self._heading()) % 360, math.degrees(pitch),
-                                 self.calibration, self.quality)
-        if s is None:
-            self.message = "Position de la photo inconnue : impossible de poser le point."
-            return self.status()
-        line = self.map_line
-        lon0, lat0 = line["ends"][0]
-        cx, cy = triangulation._local(s["lon"], s["lat"], lon0, lat0)
-        h, b = math.radians(s["heading"]), math.radians(line["bearing"])
-        dx, dy, ux, uy = math.sin(h), math.cos(h), math.sin(b), math.cos(b)
-        det = ux * dy - dx * uy  # sinus de l'angle entre la visée et la droite
-        if abs(det) < math.sin(math.radians(MAP_MIN_ANGLE)):
-            self.message = ("Visée presque parallèle à la droite tracée : cliquez depuis une photo prise quelques "
-                            "mètres avant ou après, qui la voit plus en travers.")
-            return self.status()
-        t = (cx * uy - cy * ux) / det  # distance de la caméra au point, le long de la visée
-        if t <= 0:
-            self.message = "La direction du clic ne coupe pas la droite tracée devant la caméra."
-            return self.status()
-        u = (cx + t * dx) * ux + (cy + t * dy) * uy  # abscisse du point sur la droite
-        plon, plat = triangulation._geographic(u * ux, u * uy, lon0, lat0)
-        # Le long de la droite : position de la caméra et cap, vus sous l'angle de la visée
-        sigma = math.hypot(s["accuracy"], t * math.radians(MAP_HEADING_ERROR)) / abs(det)
-        name = session._point_name(self.named)
-        self.named += 1
-        values = {"nom": name, "nb_visees": 1, "angle": round(math.degrees(math.asin(min(1.0, abs(det)))), 1),
-                  "incert_m": round(sigma, 2), "ecart_m": 0.0, "dist_max_m": round(t, 1),
-                  "gps_m": round(s["accuracy"], 1), "photos": s["pic"],
-                  "date_mesure": datetime.now().isoformat(timespec="seconds"), "commentaire": ""}
-        self.points.append((plon, plat, values))
-        s["view"] = [yaw, pitch]
-        self.point_views[name] = {s["pic"]: [yaw, pitch]}
-        self.triangulator.clear()
-        self.ref_photo = s["pic"]
-        self.ref_point = {"lon": plon, "lat": plat, "uncertainty": sigma, "name": name,
-                          "sequences": [s.get("sequence")], "sightings": [s], "ground_z": None,
-                          "road": {"axis": (line["bearing"] + 90) % 360,
-                                   "source": "{}, ±{}°".format(MAP_SOURCE, measures._num(line["error"], 1))}}
-        self.map_line = None
-        self._ref_ground()
-        self.message = ("Point {} posé sur la droite tracée (±{} m). Cliquez maintenant le bord opposé, au sol, sur "
-                        "la droite bleue : seule la direction du clic compte.").format(name, measures._num(sigma))
-        self.message += self._rtk_warning([s.get("sequence")])
-        return self.status()
-
-    def _road_at_reference(self):
-        """Axe de la route au point de référence (voir Session) ; sur une séquence RTK vérifiée, la
-        direction de la trajectoire à la place de celle du tronçon de la BD TOPO (±2°), quand elle est
-        droite et concorde avec lui.
-        shortcut: vérification RTK pas encore arrivée au point de référence : BD TOPO gardée ; reprendre
-        l'axe à son arrivée si des largeurs prises juste après l'ouverture d'une photo restent en BD TOPO."""
-        super()._road_at_reference()
-        ref = self.ref_point
-        road = ref.get("road")
-        if not road or not road["source"].startswith("BD TOPO") or not (self.quality or {}).get("precise"):
-            return
-        seq = (self.item or {}).get("collection")
-        key = (seq, roads._cell(ref["lon"], ref["lat"]))  # cache des trajectoires du cœur
-        track = self.roads._get(("track",) + key, self.roads._tracks, key, lambda: metadata.search_url(
-            ref["lon"], ref["lat"], roads.TRACK_RADIUS + 10, 20, seq, host.api_url), lambda data: data)
-        if track is roads.PENDING:
-            ref["road"] = None  # repris par _roads_ready
-            return
-        axis = _straight_track_axis(track, seq, ref["lon"], ref["lat"])
-        if axis is None or roads._axis_diff(axis, road["axis"]) > TRACK_AGREE:
-            return
-        if math.cos(math.radians(axis - road["axis"])) < 0:
-            axis += 180  # sens du tronçon gardé
-        ref["road"] = {"axis": axis % 360, "source": RTK_SOURCE + ", contrôlée par la " + road["source"]}
-
-
-    # Largeur : bord sur la droite de mesure (ticket #18) ----------------------------------------
-    def _width_points(self, m):
-        """Repères d'une largeur (voir Session._width_points), le bord cliqué (pas triangulé) posé sur la
-        droite de mesure dans la direction du clic, là où le calcul le place : seule la direction du clic
-        compte (widths.PerpendicularWidth), sa hauteur dans la photo non. Croix, trait et valeur
-        concordent ; la sélection d'une croix (Session._width_near) la cherche là aussi."""
-        points = super()._width_points(m)
-        pic = (self.item or {}).get("id")
-        if pic is not None and pic == m.clicks[1].get("pic") and m.edge_b is None:
-            anchor = self._aim_anchor() if m.edge is self.ref_point else None  # comme la droite tracée
-            points[1] = self._project(*m.result["points"][1], anchor[2] if anchor else None)
-        if pic is not None and pic == m.clicks[1].get("pic"):
-            _keep_view(m, points)
-        return points
-
-    def start_edge_b(self):
-        """Trianguler le bord B (voir Session.start_edge_b) : la première visée est le bord tel qu'il est
-        posé sur la droite de mesure (direction du clic, élévation de la droite), pas l'élévation du
-        clic, qui ne compte pas : croix bleue sur la croix B, visée 3D cohérente."""
-        m = self._edge_b_candidate()
-        out = super().start_edge_b()
-        tri = self.triangulator
-        if m is None or self.b_aiming is not m or len(tri.sightings) != 1 \
-                or (self.item or {}).get("id") != m.clicks[1].get("pic"):
-            return out
-        p = self._width_points(m)[1]
-        s = tri.sightings[0]
-        s["raw"] = [p["abs_yaw"], p["elev"]]
-        if self._resight(s):
-            s["view"] = [p["yaw"], p["pitch"]]
-        return self.status()
-
     def take_aim_frame(self):
         """Visées guidées : repère dans la photo affichée ([[cap, élévation]] en radians, JSON) du
         point à viser : triangulé par les visées déjà faites (dès la 3e visée), sinon tel qu'il est
@@ -1343,12 +1076,9 @@ class App(Pose, Chutes, Nez, session.Session):
         return json.dumps([[p["yaw"], p["pitch"]]])
 
     def _provisional_point(self):
-        """Point visé tel qu'il est placé avant d'être triangulé (lon, lat), ou None : le bord B
-        d'une largeur là où l'a mis le clic de la mesure, ou le point de référence là où la
-        première visée touche le sol plat."""
+        """Point visé tel qu'il est placé avant d'être triangulé (lon, lat), ou None : le point de
+        référence là où la première visée touche le sol plat."""
         sightings = self.triangulator.sightings
-        if self.b_aiming is not None:
-            return tuple(self.b_aiming.result["points"][1])
         if not sightings or self.mode not in session.REF_MODES or self.ref_point is not None:
             return None
         first = sightings[0]
@@ -1361,8 +1091,7 @@ class App(Pose, Chutes, Nez, session.Session):
     def guide(self):
         """Visées guidées (voir Session.guide), chaque photo proposée avec « expect » : incertitude
         du point (m) une fois visé aussi depuis elle, d'après une visée simulée vers le point triangulé
-        (ou provisoire), et « now » : celle d'aujourd'hui (None avec une seule visée). Largeur : en travers
-        de la route seulement, ce qui compte pour elle (« across »)."""
+        (ou provisoire), et « now » : celle d'aujourd'hui (None avec une seule visée)."""
         guide = super().guide()
         tri = self.triangulator
         r = tri.result
@@ -1372,11 +1101,6 @@ class App(Pose, Chutes, Nez, session.Session):
         lon, lat = target[:2]
         z = target[2] if len(target) > 2 else tri.sightings[0].get("ground")
         base = tri.sightings[-1]  # même séquence : précision GPS, cap, hauteur de caméra
-        across = self._aim_across() if self.mode == "road" else None
-
-        def sigma(result):
-            return triangulation.projected(result, *across) if across else result["uncertainty"]
-
         for choice in guide["choices"]:
             if choice["lon"] is None:
                 continue
@@ -1390,8 +1114,7 @@ class App(Pose, Chutes, Nez, session.Session):
                 res = tools.solve_on_ground(tri.sightings + [sim], tri.ground, tri.ground_z if tri.lidar else None)
             except triangulation.TriangulationError:
                 continue
-            choice["expect"], choice["now"] = sigma(res), sigma(r) if r else None
-            choice["across"] = across is not None
+            choice["expect"], choice["now"] = res["uncertainty"], r["uncertainty"] if r else None
         return guide
 
     # Dessin ------------------------------------------------------------------------------
@@ -1473,9 +1196,6 @@ class App(Pose, Chutes, Nez, session.Session):
                 add("visee", "LineString", [[lon, lat], [elon, elat]])
             if item.point:
                 add("cible", "Point", list(item.point))
-        road = (self.ref_point or {}).get("road") if self.active and self.mode == "road" else None
-        if road:  # largeur : droite de mesure passant par le point de référence
-            add("trace", "LineString", [list(p) for p in widths.guide(self.ref_point, road["axis"])])
         for lon, lat, values in self.points:
             add("triangule", "Point", [lon, lat], values["nom"])  # nom seul : pas d'incertitude sur la carte
         for v in self.map_lengths:  # longueur sur la carte : trait et valeur, comme une mesure
@@ -1520,16 +1240,15 @@ class App(Pose, Chutes, Nez, session.Session):
                 "long_route_m": num(d["along"]), "travers_m": num(d["across"]),
                 "dist_photo_m": num(max(r["ranges"]), 1), "camera_m": num(height, 2),
                 "camera_calee": self.CAMERA_CODES.get(source, 0),
-                "axe_route": m.axis_source if m.kind == "road" else None,
                 "recales": len(m.overrides),
                 "photos": ",".join(dict.fromkeys(c.get("pic") or "" for c in m.clicks)),
                 "date_mesure": datetime.now().isoformat(timespec="seconds"),
                 "commentaire": getattr(m, "comment", ""),
                 # Pour la revoir à l'import (src/choix.js, reviewMeasure) : photo d'où elle a été prise (celle
                 # de la fiche) et repères tels que dessinés dessus ([[cap, élévation]] en radians, texte JSON)
-                "photo_ref": m.clicks[0 if m.kind == "height" else 1].get("pic"),
+                "photo_ref": m.clicks[0].get("pic"),
                 "vue_ref": json.dumps(m.view_ref) if getattr(m, "view_ref", None) else None,
-                "etiquette": m.label()[2:],  # sans le symbole ; « ≈ » : bord cliqué, une estimation
+                "etiquette": m.label()[2:],  # sans le symbole
             }))
         for lon, lat, values in self.points:
             if "releve" not in values:  # objets relevés : export à part, gardés à part dans le navigateur
@@ -1683,17 +1402,6 @@ def _densified(pts, step):
                         z1 + t * (z2 - z1) if z1 is not None and z2 is not None else None))
         out.append((lon2, lat2, z2))
     return out
-
-
-def _map_line_text(text):
-    """Texte de la largeur (widths.PerpendicularWidth.status) prise sur une droite tracée sur la carte
-    (ticket #28) : ni perpendiculaire à la chaussée, ni depuis un point triangulé (A posé d'un clic)."""
-    on_line = r"(?=[^.]*" + re.escape(MAP_SOURCE) + ")"
-    text = re.sub("Largeur perpendiculaire à la chaussée" + on_line, "Largeur le long de la droite tracée sur la carte", text)
-    text = re.sub("depuis le point triangulé " + on_line, "depuis le point ", text)
-    text = re.sub("entre les points triangulés " + on_line, "entre les points ", text)
-    return re.sub(r"axe (\d+)° \(" + re.escape(MAP_SOURCE),  # axe : perpendiculaire à la droite
-                  lambda m: "droite à {}° (tracée sur la carte".format((int(m.group(1)) + 90) % 180), text)
 
 
 def _on_axis(axis, yaw, pitch):

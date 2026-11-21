@@ -4,7 +4,7 @@ Ce document explique en détail comment la Visionneuse Panoramax mesure à parti
 
 > **Refonte d'octobre 2026 : mesures appuyées sur des points triangulés.** Malgré le calage, la profondeur tirée d'une seule photo (sol, plan vertical) rendait les mesures trop sensibles au moindre décalage. Les mesures de l'interface s'appuient désormais sur des **points triangulés** (section [0](#0-mesures-appuyées-sur-des-points-triangulés)) ; la logique est commune au plugin et à l'application web (`core/session.py`). La largeur et la longueur sur une seule photo, la façade du cadastre, le calage de la hauteur de caméra et « Mesure sur un pont » sont retirés de l'interface : les sections qui les décrivent (4.1, 4.2, la façade en 4.3, 5, 6.2) restent comme référence des calculs. Le 17/10/2026, le code de la façade du cadastre (`buildings.py`) et du profil du terrain (`terrain.py` : LiDAR HD le long de la visée, RGE ALTI, service de secours Open-Meteo) a été retiré du cœur : sans eux, un clic sur une seule photo suppose un sol plat sous la caméra ; ce qui en est dit en 3.1, 4.3 et 8 est historique. Le LiDAR HD sert encore à vérifier la précision GPS (2.7) et, en secours, à l'inclinaison automatique (6.1 bis). Le 19/10/2026, l'option « Sur un pont » revient sous une autre forme (`Session.set_bridge`, ticket web-measures #16) : le MNT LiDAR HD donne le terrain sous l'ouvrage (5 à 6 m sous le tablier sur les ponts de la RD111 et de la RD18 au-dessus de l'A6 à Beaune), ce qui rejetait loin le long des visées les points au sol triangulés en 3D. Cochée, elle cale ces points sur le sol tiré des photos (altitude GPS des caméras moins leur hauteur) au lieu de l'altitude LiDAR lue au point, et l'inclinaison automatique se passe de la pente LiDAR (verticales de la photo seulement). Le 19/10/2026 aussi, le **RGE ALTI** (1 m, tout le territoire) sert de secours là où le LiDAR HD n'est pas encore publié (`precision.fetch_terrain`) : pour la vérification RTK, l'altitude au point visé (incertitude 0,30 m au lieu de 0,08 m, `triangulation.RGE_ALTI_ERROR`) et l'inclinaison automatique ; la source est affichée (« LiDAR HD » ou « RGE ALTI »). Cas réel : photo eb5ece3a-381a-47f6-963e-6f3d7ad0029b (CD21, imajbox 360 HD, pont Camille Baudry sur la D116), hors LiDAR HD, signalée « sans RTK » ; avec le RGE ALTI, la séquence est vérifiée (caméra à 2,02 m, constante à 6 cm près sur 20 photos, à 130 m de la photo ; sur le pont, 10,7 m : portion écartée). « Sur un pont » coupe aussi le RGE ALTI. Les relectures du sol au point convergent désormais (`tools.solve_on_ground` : altitude acceptée aussi quand elle a été lue près du point qu'elle donne) : un sol qui déplaçait le point de plus d'1 m le faisait aller et venir.
 
-> **Compléments du 18/10/2026 (version 1.5.0).** Triangulation **en 3D** des points au sol quand les visées sont presque alignées (section [4.4](#44-triangulation-dun-objet)), avec l'altitude du sol lue au point dans le LiDAR HD ; **recalcul** des visées, du point de référence et des mesures quand la vérification RTK, l'inclinaison ou un calage arrivent après les clics ([0.6](#06-ordre-darrivée-des-données-et-recalcul)) ; **prise de mesure guidée** (photo de référence, photos proposées, visées des autres photos tracées dans la photo, retour et cadrage, [0.5](#05-prise-de-mesure-guidée)) ; **bord opposé triangulé** pour la largeur ([0.2](#02-largeur-perpendiculaire-à-la-chaussée)) ; pied d'une hauteur sur la visée de la photo de mesure ([0.1](#01-hauteur-dun-objet)) ; « Effacer » retire le dernier point posé.
+> **Compléments du 18/10/2026 (version 1.5.0).** Triangulation **en 3D** des points au sol quand les visées sont presque alignées (section [4.4](#44-triangulation-dun-objet)), avec l'altitude du sol lue au point dans le LiDAR HD ; **recalcul** des visées, du point de référence et des mesures quand la vérification RTK, l'inclinaison ou un calage arrivent après les clics ([0.6](#06-ordre-darrivée-des-données-et-recalcul)) ; **prise de mesure guidée** (photo de référence, photos proposées, visées des autres photos tracées dans la photo, retour et cadrage, [0.5](#05-prise-de-mesure-guidée)) ; **bord opposé triangulé** pour la largeur (mode retiré le 21/11/2026, [0.2](#02-affichage-et-noms-des-points)) ; pied d'une hauteur sur la visée de la photo de mesure ([0.1](#01-hauteur-dun-objet)) ; « Effacer » retire le dernier point posé.
 
 Sommaire :
 
@@ -33,17 +33,13 @@ Le point de référence est le **pied** de l'objet, triangulé. Sur une photo qu
 
 Avec trois visées ou plus, le point triangulé est un compromis qui s'écarte un peu de chacune, y compris de celle de la photo de mesure. Le pied n'est donc pas placé sur le point lui-même, mais **sur la visée du pied de la photo de mesure, à la profondeur du point triangulé** (projection du point sur cette visée, `Session._anchor_on`) : la croix du pied reste là où on l'a visé, et la hauteur, qui ne dépend que de la distance `d`, n'en change presque pas. Un pied recalé à la main (clic, flèches) devient le pied du point de référence sur cette photo : les hauteurs suivantes depuis lui (« Nouvelle mesure depuis A ») en repartent.
 
-### 0.2 Largeur perpendiculaire à la chaussée
+### 0.2 Affichage et noms des points
 
-Le premier bord `A` est triangulé. L'axe de la route en `A` est lu dans la BD TOPO (tronçon qui longe la trajectoire de la photo), sinon pris sur la trajectoire de la séquence. La **droite de mesure** passe par `A`, perpendiculairement à cet axe. Le second bord `B` est l'intersection de cette droite et de la **direction horizontale** d'un clic (`widths.cross`) : seule la direction compte. La largeur est `|AB|`, calcul à plat (`core/widths.py`). La visée doit couper la droite franchement : le clic se fait depuis une photo prise quelques mètres avant ou après `A`, pas juste en face (refusé sous 10°, signalé rasant sous 25°). L'incertitude combine, en somme quadratique : la position de `A` (±son incertitude, en est et en nord), l'axe de la route (±2° pour la BD TOPO, ±3° pour la trajectoire, estimations à confirmer), le cap du clic (visée et cap de la photo) et la position de la photo.
+*Retrait du 21/11/2026 :* le mode « Largeur perpendiculaire à la chaussée » (droite de mesure perpendiculaire à l'axe de la route, bord opposé, trait bleu sur la carte) a été retiré du site et du code. Une largeur se mesure par le bouton ↔ « Largeur dans la visionneuse » (droite au nez du véhicule, `docs/CALCULS.md`, section 8.8).
 
-*Mise à jour de novembre 2026 :* la position de `A` n'est comptée qu'en travers de la route, d'après sa covariance ; l'axe ne compte que par son cosinus, le clic suivant la droite jusqu'au bord vu ; l'inclinaison de la photo est comptée. Cette largeur est une **estimation**, notée « ≈ » : un dévers ou une bordure entre les deux bords la fausse, sans figurer dans le « ± » (`docs/CALCULS.md`, section 4).
+**Affichage.** Sur une photo qui a servi à viser le pied `A`, sa croix est là où il a été visé (`Session._aim_anchor`) ; ailleurs, il est projeté au sol supposé plat, avec la hauteur de caméra de la photo (altitude RTK moins sol LiDAR) et son calage. Le calcul, lui, part toujours des positions triangulées.
 
-**Bord opposé triangulé.** Après la largeur prise d'un clic, le bord `B` peut être triangulé à son tour (`Session.start_edge_b`) : le clic de la mesure rapide est sa **première visée**, depuis la photo de la mesure ; une visée de plus, depuis la photo suivante, suffit. La largeur devient la distance de `A` à `B` **perpendiculaire à l'axe de la route**, `|(B − A) · u|` avec `u` perpendiculaire à l'axe : `B` peut être un peu avant ou après `A` le long de la route sans changer la largeur ; il est dessiné ramené sur la droite passant par `A`. L'incertitude combine celles de `A` et de `B` **en travers de la route**, d'après leur covariance (`triangulation.projected`), le désaccord de leurs visées (`triangulation.sight_spread`, photos calées, sol LiDAR HD) et celle de l'axe (`widths.PerpendicularWidth._compute_triangulated`). Recaler ensuite `B` d'un clic le ramène à un bord cliqué.
-
-**Affichage.** Sur une photo qui a servi à viser `A`, la croix de `A` est là où il a été visé, et la droite de mesure passe par elle, au niveau du sol visé (`Session._aim_anchor`) ; `B` triangulé est dessiné sur cette droite, même sur une photo qui l'a visé (#37). Ailleurs, ils sont projetés au sol supposé plat, avec la hauteur de caméra de la photo (altitude RTK moins sol LiDAR) et son calage. Le calcul, lui, part toujours des positions triangulées.
-
-**Noms des points.** Le bord cliqué reçoit la lettre suivante des points gardés (`Session._provisional_name`), affichée sur une étiquette **grise** tant qu'il n'est pas triangulé (de même pour le sommet d'une hauteur, en 0.1, qui reste provisoire : il n'est pas triangulé) ; le bouton propose alors « Trianguler le point `B` », et le point triangulé garde sa lettre (étiquette bordeaux). Dans la photo, l'étiquette d'une hauteur ou d'une largeur est posée au **point d'arrivée** (à droite du sommet, sous le bord), ouverte par le nom de ce point en pastille (grise s'il est provisoire), puis les noms des deux bouts dans l'ordre alphabétique (« [B] A↔B 7,50 m ± 0,20 m ») ; ce nom n'est plus affiché à part (`viewer_marks` : « end », « names »). Dans l'application web, les étiquettes qui se chevauchent sont écartées vers le bas, l'ordre gardé, avec un trait de renvoi vers leur croix. Ce nom provisoire n'est qu'affiché : il n'est pas exporté. Les autres noms (point de référence, points du relevé d'objets) sont placés du côté de leur croix opposé à l'autre bout de la mesure ; s'il tombe à l'intérieur du trait d'une autre mesure (sommet d'une hauteur plus courte, bord sur une largeur plus longue), il passe à côté du trait (`_beside_line`).
+**Noms des points.** Le sommet d'une hauteur reçoit la lettre suivante des points gardés (`Session._provisional_name`), affichée sur une étiquette **grise** tant qu'il reste provisoire (il n'est pas triangulé). Dans la photo, l'étiquette d'une hauteur est posée au **point d'arrivée** (à droite du sommet), ouverte par le nom de ce point en pastille (grise s'il est provisoire), puis les noms des deux bouts dans l'ordre alphabétique (« [B] A↔B 3,50 m ± 0,20 m ») ; ce nom n'est plus affiché à part (`viewer_marks` : « end », « names »). Dans l'application web, les étiquettes qui se chevauchent sont écartées vers le bas, l'ordre gardé, avec un trait de renvoi vers leur croix. Ce nom provisoire n'est qu'affiché : il n'est pas exporté. Les autres noms (point de référence, points du relevé d'objets) sont placés du côté de leur croix opposé à l'autre bout de la mesure ; s'il tombe à l'intérieur du trait d'une autre mesure (sommet d'une hauteur plus courte), il passe à côté du trait (`_beside_line`).
 
 ### 0.3 Mesure libre (retirée)
 
@@ -51,7 +47,7 @@ Distance horizontale entre deux points triangulés successifs, incertitudes des 
 
 ### 0.4 Validation
 
-Deux photos imajbox à position RTK (±0,10 m) de Pouilly-en-Auxois, distantes de 5 m, cibles connues (essais de l'application web `tests/essai-rtk.html`, `essai-largeur.html`) : point de référence à ±0,17 m (visées croisées à 54°) ; hauteur 3,46 m ± 0,11 m pour 3,464 m ; largeur 8,00 m ± 0,48 m pour 8 m (clic à 40° de la droite : l'axe pèse 0,36 m, la position de `A` le long de la route 0,26 m) ; distance 3,60 m ± 0,24 m pour 3,606 m. Avec un GPS grand public (±4 m), le point de référence est à ±5 m et une hauteur à ±2 à 3 m : les mesures restent possibles mais sont signalées comme probablement incohérentes.
+Deux photos imajbox à position RTK (±0,10 m) de Pouilly-en-Auxois, distantes de 5 m, cibles connues (essai de l'application web `tests/essai-rtk.html`) : point de référence à ±0,17 m (visées croisées à 54°) ; hauteur 3,46 m ± 0,11 m pour 3,464 m ; distance 3,60 m ± 0,24 m pour 3,606 m. Avec un GPS grand public (±4 m), le point de référence est à ±5 m et une hauteur à ±2 à 3 m : les mesures restent possibles mais sont signalées comme probablement incohérentes.
 
 Panneau « 30 » de Commarin (D114D, photos 507b4204-ff1f-411b-93ed-63c88df9e513 et e9933b05-b637-4629-b726-e8747317d12f, visées croisées à 32°) : 2,18 m en plan ; le calcul 3D, qui s'appliquait alors à tout croisement, donnait 2,14 m et tirait la croix du pied de côté. D'où la limite du calcul 3D aux visées croisées sous 20° (section 4.4).
 
@@ -59,17 +55,16 @@ Panneau « 30 » de Commarin (D114D, photos 507b4204-ff1f-411b-93ed-63c88df9e513
 
 Méthode conseillée, que l'application web et le plugin accompagnent (`Session.guide`, `take_goto`, `take_frame`) :
 
-1. **Photo de référence** : celle de la première visée (pied de l'objet, premier bord). La mesure se fera sur elle ; choisir celle d'où l'objet se voit le mieux.
+1. **Photo de référence** : celle de la première visée (pied de l'objet). La mesure se fera sur elle ; choisir celle d'où l'objet se voit le mieux.
 2. **Photos proposées** pour les visées suivantes, par des boutons sous la consigne :
    - **hauteur** : la photo précédente et la suivante de la référence, puis, pour une 3e visée facultative, celle de l'autre côté de la référence ;
-   - **largeur** : la photo qui se rapproche du point, puis la suivante encore. Les photos d'avant la référence verraient le bord plus loin devant, sous des visées presque parallèles.
 
    Les boutons sont nommés par rapport à la photo affichée (« photo précédente », « 2 photos en arrière »…), avec une flèche selon leur direction dans la vue (◀ ▶ sur le côté, ▲ devant, ▼ derrière). Les flèches de la visionneuse restent utilisables pour un autre choix.
-3. **Visées des autres photos tracées dans la photo** (largeur, relevé d'objets) : chaque visée déjà faite est dessinée, en pointillés, comme une demi-droite de l'espace vue de la photo affichée (ligne épipolaire, `Session._epipolar_mark`). L'objet visé est sur ce trait : on clique là où il croise la bordure, ce qui fixe la profondeur sans repère visuel. Un clic hors du trait révèle une erreur de visée (autre point de la bordure, poteau voisin).
-4. **Validation** manuelle (« ✔ Valider le point triangulé »), depuis n'importe quelle photo : l'application revient alors sur la photo de référence et cadre la vue sur `A`, puis, après le bord opposé triangulé, sur la largeur entière.
+3. **Visées des autres photos tracées dans la photo** (relevé d'objets) : chaque visée déjà faite est dessinée, en pointillés, comme une demi-droite de l'espace vue de la photo affichée (ligne épipolaire, `Session._epipolar_mark`). L'objet visé est sur ce trait : on clique là où il croise la bordure, ce qui fixe la profondeur sans repère visuel. Un clic hors du trait révèle une erreur de visée (autre point de la bordure, poteau voisin).
+4. **Validation** manuelle (« ✔ Valider le point triangulé »), depuis n'importe quelle photo : l'application revient alors sur la photo de référence et cadre la vue sur `A`.
 5. **Alerte** : avec trois visées ou plus, une visée qui s'écarte des autres de plus de 3 fois son erreur attendue (cap, GPS) est signalée : elle vise sans doute un autre objet ; la viser à nouveau depuis sa photo la remplace.
 
-« Effacer », sans rien en cours, retire le dernier point posé : le sommet de la dernière hauteur, le bord opposé de la dernière largeur (et son point triangulé), puis le point de référence lui-même (sa lettre resservira) ; en mesure libre, le dernier point gardé.
+« Effacer », sans rien en cours, retire le dernier point posé : le sommet de la dernière hauteur, puis le point de référence lui-même (sa lettre resservira) ; en mesure libre, le dernier point gardé.
 
 ### 0.6 Ordre d'arrivée des données et recalcul
 
@@ -77,10 +72,9 @@ La vérification RTK d'une séquence, l'inclinaison automatique d'une photo et l
 
 - les visées et clics des photos concernées sont recalculés depuis leur direction brute (inclinaison, cap, position recalée, altitude RTK, sol LiDAR, précision vérifiée) ;
 - le point en cours de triangulation est recalculé ;
-- le point de référence est **triangulé à nouveau, même si des mesures s'appuient sur lui**, et ses hauteurs et largeurs sont recalées dessus. Seule exception : un point de référence déplacé à la main le long de la droite de mesure garde sa place ;
-- les bords opposés triangulés sont recalculés de même.
+- le point de référence est **triangulé à nouveau, même si des mesures s'appuient sur lui**, et ses hauteurs sont recalées dessus. Seule exception : un point de référence déplacé à la main garde sa place ;
 
-Conséquence visible : une hauteur ou une largeur peut changer d'elle-même une ou deux secondes après la mesure, à l'arrivée de l'inclinaison d'une photo de visée.
+Conséquence visible : une hauteur peut changer d'elle-même une ou deux secondes après la mesure, à l'arrivée de l'inclinaison d'une photo de visée.
 
 ---
 
@@ -101,7 +95,7 @@ Toutes les mesures du plugin reposent sur ce partage : la photo donne la directi
 
 Un clic dans la photo est une demi-droite partant de la caméra (le **rayon de visée**). Le point mesuré est l'**intersection de ce rayon avec une surface** :
 
-- le **sol**, pour les largeurs ;
+- le **sol**, pour les longueurs ;
 - le **plan vertical face à la caméra** passant par le pied d'un objet, pour une hauteur ;
 - le **plan d'une façade du cadastre**, pour la hauteur d'un bâtiment au pied caché ;
 - le **plan calé sur la carte**, une fois la mesure recalée (section 5).
@@ -112,7 +106,6 @@ La mesure est ensuite un simple calcul sur deux points 3D : distance, composante
 
 | Mode | Surface des points | Grandeur affichée |
 |---|---|---|
-| Largeur perpendiculaire à la chaussée | sol | composante en travers de l'axe de la route |
 | Longueur parallèle à la route | sol | distance 3D entre les deux points |
 | Hauteur d'un objet | pied au sol, sommet dans le plan vertical face à la caméra | composante verticale |
 | Triangulation d'un objet | aucune : visées depuis plusieurs photos | position sur la carte |
@@ -250,7 +243,7 @@ Chaque source d'erreur indépendante est prise à ±1 écart-type ; l'écart de 
 - la position de chaque point recalé sur la carte de ±0,5 m (section 5) ;
 - la **façade du cadastre** d'une hauteur : ±0,5 m si le LiDAR HD la confirme, ±1 m sinon.
 
-L'inclinaison est commune aux clics d'une photo : une erreur de tangage allonge ou raccourcit tous ses points ensemble, et son effet sur une largeur prise devant la caméra est double de celui d'un seul clic. Ordres de grandeur, largeur de 7 m à 10 m devant la caméra : **±1,7 m** sur une photo non calée, ±0,55 m calée avec la hauteur de caméra saisie, moins de ±0,3 m calée avec la hauteur par l'altitude GPS.
+L'inclinaison est commune aux clics d'une photo : une erreur de tangage allonge ou raccourcit tous ses points ensemble, et son effet sur une distance prise entre deux points devant la caméra est double de celui d'un seul clic. Ordres de grandeur, pour une distance mesurée de 7 m à 10 m devant la caméra : **±1,7 m** sur une photo non calée, ±0,55 m calée avec la hauteur de caméra saisie, moins de ±0,3 m calée avec la hauteur par l'altitude GPS.
 
 Elle ne compte pas l'erreur du GPS, qui déplace la mesure entière sans changer sa longueur (section 8).
 
@@ -258,28 +251,9 @@ Elle ne compte pas l'erreur du GPS, qui déplace la mesure entière sans changer
 
 ## 4. Les modes de mesure
 
-### 4.1 Largeur perpendiculaire à la chaussée
+### 4.1 Largeur perpendiculaire à la chaussée (retirée)
 
-- **Clics.** Pied d'un bord (bordure, marquage, limite de chaussée), puis pied du bord opposé.
-- **Calcul.** Deux points au sol ; la largeur est la composante de `PQ` **en travers de l'axe de la route**. Les clics n'ont pas besoin d'être exactement en face l'un de l'autre. Sur la carte, le trait est tracé perpendiculairement à l'axe, à mi-chemin des deux bords cliqués le long de la route, et chaque bout est relié en pointillés à son bord cliqué (point déplaçable). La distance en biais est aussi indiquée.
-- **Usage.** En travers de la route uniquement. Le long de la route (deux points d'un mur sur le côté du véhicule), la composante perpendiculaire est presque nulle : utiliser la longueur parallèle à la route.
-- **Axe de la route** (`core/roads.py`), pris au **milieu des deux bords cliqués**, pas à la caméra : le point mesuré est souvent 10 à 20 m devant, où la route a déjà tourné.
-  1. **BD TOPO** de l'IGN (tronçons de route, service WFS de la Géoplateforme, sans clé) : parmi les tronçons à moins de 15 m du milieu, ceux qui coupent le segment cliqué d'au moins 45° (à un carrefour, la rue que traverse la mesure) ; le plus proche donne l'axe, direction locale du tronçon sur ±10 m. Tronçons lus par maille d'environ 100 m, une fois par session.
-  2. À défaut (hors de France, service injoignable, aucun tronçon) : **trajectoire de la séquence** au point mesuré, axe principal des positions de ses photos à moins de 20 m.
-  3. À défaut : **direction du véhicule** à la caméra (photos précédente et suivante, ou orientation de la photo).
-
-  La largeur est d'abord calculée avec la direction du véhicule (« lecture de la BD TOPO… »), puis recalculée dès que l'axe arrive. Le résultat indique la source : « axe 47° (BD TOPO, D977BIS) ».
-
-  **Validation** (séquence imajbox RTK de Pouilly-en-Auxois, 12/10/2026). Sur 419 points, BD TOPO et trajectoire du véhicule s'accordent à 0,4° en ligne droite et 0,8° en courbe (médianes) ; aux carrefours où le véhicule tourne, l'orthophoto montre que la BD TOPO suit la route et la trajectoire la coupe. Largeur simulée 15 m devant la caméra, comparée à la direction de la route à cet endroit (trajectoire lissée sur 30 m) :
-
-  | | Axe BD TOPO au point mesuré | Direction du véhicule à la caméra |
-  |---|---|---|
-  | Courbe (119 points) | 0,9° (90 % sous 2,7°) | 3,0° (6,7°) |
-  | Courbe serrée (46 points) | 2,3° (8,2°) | 10,6° (24,5°) |
-
-  Effet sur la largeur : environ `w·(1 − cos δ) + a·sin δ`, avec `a` le décalage des deux bords le long de la route ; pour 7 m et 2 m de décalage, 3° d'erreur d'axe font 11 cm, 10° en font 45.
-
-  **Limites.** Un tronçon BD TOPO est l'axe de toute la route : sur une bretelle ou un tronçon simplifié, la direction peut s'écarter de quelques degrés ; sur la carte, le trait bleu « perpendiculaire à la route » permet de le contrôler sur l'orthophoto.
+Retirée le 21/11/2026 (clics sur les deux bords, composante de la distance en travers de l'axe de la route lu dans la BD TOPO, sinon sur la trajectoire de la séquence). La largeur reste mesurable par le bouton ↔ de la visionneuse (`docs/CALCULS.md`, section 8.8).
 
 ### 4.2 Longueur parallèle à la route
 
@@ -368,7 +342,7 @@ Le recalage combine les deux en deux gestes, que l'on peut alterner librement :
 
 ### 5.3 Glisser un point sur la carte
 
-**Outil de la carte.** Pendant les largeurs, les longueurs et les hauteurs, un outil propre est actif sur la carte QGIS :
+**Outil de la carte.** Pendant les longueurs et les hauteurs, un outil propre est actif sur la carte QGIS :
 
 - **glisser un point** (croix jaune) d'une mesure (à moins de 10 pixels) le recale à l'endroit où on le lâche ;
 - **glisser ailleurs** déplace la carte, la molette zoome ;
@@ -550,7 +524,7 @@ avec un **a priori** sur chaque inconnue : cap juste à ±0,5° (matériel de re
 - **Effacer.** Supprime la mesure en cours (ou annule la sélection d'un point, ou supprime le calage du mode affiché). **Tout effacer** supprime toutes les mesures affichées, la façade et les visées de triangulation.
 - **Enregistrer les mesures.** Ajoute les mesures terminées affichées à la couche « Panoramax – mesures » (segment mesuré et attributs du résultat, dont la décomposition et l'incertitude) ; une mesure déjà enregistrée puis recalée y est mise à jour. Effacer une mesure de l'écran ne la retire pas de la couche.
 - **Visionneuse.** Croix jaune vif (`#ffeb00`) aux points cliqués, bien visibles sur la peinture routière, trait de mesure rouge (`#ff5f52`, 2,5 px) devant les croix, étiquette de la valeur (à côté du trait pour une hauteur), cercle jaune autour d'un point sélectionné.
-- **Carte.** Mêmes croix jaunes aux points cliqués, cernées de sombre pour rester lisibles sur l'orthophoto, trait rouge de la mesure et étiquette. Pour la largeur perpendiculaire, le trait tracé perpendiculairement à la route, à mi-chemin des deux bords, est bleu clair : il ne relie pas les points cliqués, contrairement au trait rouge de la visionneuse, et porte l'étiquette « perpendiculaire à la route » (masquée quand le trait est trop court à l'échelle de la carte) ; des pointillés le relient aux deux bords cliqués. Trait « façade » au pied du mur.
+- **Carte.** Mêmes croix jaunes aux points cliqués, cernées de sombre pour rester lisibles sur l'orthophoto, trait rouge de la mesure et étiquette.  Trait « façade » au pied du mur.
 - **Couches.** Mesures et points triangulés s'enregistrent dans « Panoramax – mesures » et « Panoramax – points triangulés » : au premier enregistrement, dans un fichier GeoPackage choisi (tables `mesures` et `points_triangules`, conservé à la fermeture de QGIS) ou en couche temporaire (à sauvegarder).
 
 ---
@@ -560,7 +534,7 @@ avec un **a priori** sur chaque inconnue : cap juste à ±0,5° (matériel de re
 | Source | Ordre de grandeur | Effet principal | Remède dans le plugin |
 |---|---|---|---|
 | Pied masqué ou cliqué au-dessus du sol | quelques dizaines de cm à plusieurs mètres de profondeur | point au sol derrière le mur, distance et hauteur trop grandes | glisser le point sur la carte, viser à nouveau (section 5) |
-| Hauteur de caméra | ±10 à 20 % si non calée | largeurs et hauteurs proportionnelles | calage de hauteur (6.2) ; recalage sur la carte, qui l'élimine (5.3) |
+| Hauteur de caméra | ±10 à 20 % si non calée | hauteurs proportionnelles | calage de hauteur (6.2) ; recalage sur la carte, qui l'élimine (5.3) |
 | Inclinaison de la caméra | 0,5 à 3° (1 à 3° sur l'imajbox) | mesures au sol : `δd ≈ d²/h · δe`, surtout sur le côté (roulis) | inclinaison automatique (6.1 bis : ±0,1 à 0,2°, ±0,5° par le LiDAR) ; calage d'inclinaison (6.1) ; recalage sur la carte |
 | Terrain | creux, bosses, ponts, bordures | distances au sol | pente de Theil-Sen (3.1) ; recalage sur la carte |
 | Position GPS de la photo | 2 m (relevé) à 5 m et plus | position absolue des points ; peu d'effet sur les longueurs prises sur une photo | recalage par repères (6.3), pondération (4.4) |

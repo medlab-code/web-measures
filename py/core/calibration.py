@@ -429,7 +429,7 @@ class Calibration:
 
     def tilt(self, pic, photo_only=False):
         """Inclinaison de la photo (dict de tilt_from_verticals, avec sigma en degrés), ou None : l'ordre de priorité UNIQUE des
-        mesures et de la largeur dans la visionneuse. Dans l'ordre :
+        mesures dans la visionneuse. Dans l'ordre :
         1. réglée dans la vue du dessus pour cette photo (hôte, `ground_tilt` : "vue du dessus", "vue du dessus (réglée à la
            main)"), qui contient déjà le roulis de campagne ;
         2. calée à la main sur deux objets ou plus (source "clics") ; sur un objet, complétée par la suite de la liste

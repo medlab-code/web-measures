@@ -62,7 +62,7 @@ class TiltOnClick(Base):
     def test_started_by_click(self):
         asked = []
         self.s.tilts.check = lambda item, cal, done=None: asked.append(item["id"])
-        self.s.set_mode("road")
+        self.s.set_mode("height")
         self.s.set_picture(self.p1)
         self.assertEqual(asked, [])  # arrivée sur la photo : rien
         self.s.click(*direction(0.0, (4.0, 9.0, 0.0)))
@@ -72,11 +72,11 @@ class TiltOnClick(Base):
 
 
 class Epipolar(Base):
-    """Visées des autres photos tracées dans la photo affichée (largeur, mesure libre)."""
+    """Visées des autres photos tracées dans la photo affichée (relevé de points)."""
 
     def test_target_on_the_line(self):
         edge = (4.0, 9.0, 0.0)
-        self.s.set_mode("road")
+        self.s.set_mode("tri")
         self.aim(self.p1, 0.0, edge)
         self.s.set_picture(self.p2)
         lines = [m for m in self.s.viewer_marks() if m["epipolar"]]
@@ -99,7 +99,7 @@ class Epipolar(Base):
 
 
 class UndoLastPoint(Base):
-    """« Effacer » sans rien en cours : le dernier point posé (sommet, bord, A, point gardé)."""
+    """« Effacer » sans rien en cours : le dernier point posé (sommet, A, point gardé)."""
 
     def test_height_then_reference(self):
         foot = (5.0, 3.0, 0.0)
@@ -136,33 +136,6 @@ class UndoLastPoint(Base):
         self.assertEqual(len(self.s.points), 1)
 
 
-class WidthReference(Base):
-    """Largeur : croix A et droite de mesure là où A a été visé (croix bleue de la visée)."""
-
-    def test_cross_where_aimed(self):
-        # Bord visé 15 cm sous le sol supposé (caniveau) : la projection au sol plat tomberait à
-        # côté ; la croix A reste sur la visée, et la droite de mesure passe par elle
-        edge = (4.0, 9.0, -0.15)
-        self.s.set_mode("road")
-        self.aim(self.p1, 0.0, edge)
-        self.aim(self.p2, 6.0, edge)
-        self.s.keep_point()
-        ref = self.s.ref_point
-        ref["road"] = {"axis": 0.0, "source": "BD TOPO"}  # pas de lecture réseau dans les tests
-        self.s.set_picture(self.p2)
-        aimed = direction(6.0, edge)
-        mark = self.s._reference_mark()["points"][0]
-        self.assertAlmostEqual(mark["yaw"], aimed[0], places=6)
-        self.assertAlmostEqual(mark["pitch"], aimed[1], places=6)
-        flat = self.s._project(ref["lon"], ref["lat"])
-        self.assertGreater(abs(flat["pitch"] - aimed[1]), math.radians(0.3))  # projection : à côté
-        guide = self.s._guide_mark(ref["road"])["points"]
-        near = min(guide, key=lambda p: math.hypot(p["yaw"] - aimed[0], p["pitch"] - aimed[1]))
-        self.assertLess(math.hypot(near["yaw"] - aimed[0], near["pitch"] - aimed[1]), math.radians(0.3))
-        ref["moved"] = True  # déplacé à la main le long de la droite : projection
-        self.assertAlmostEqual(self.s._reference_mark()["points"][0]["pitch"], flat["pitch"], places=6)
-
-
 class NameSide(unittest.TestCase):
     """Nom d'une croix posée sur le trait d'une autre mesure : à côté du trait."""
 
@@ -175,111 +148,6 @@ class NameSide(unittest.TestCase):
         self.assertEqual(beside({"yaw": r(10), "pitch": 0.0}, [horizontal]), "below")
         self.assertIsNone(beside({"yaw": 0.0, "pitch": r(20)}, [vertical]))  # bout du trait
         self.assertIsNone(beside({"yaw": r(3), "pitch": r(10)}, [vertical]))  # à côté
-
-
-class EdgeB(Base):
-    """Largeur : bord B triangulé à son tour, après le clic simple."""
-
-    def width(self):
-        a, b = (4.0, 9.0, 0.0), (-3.5, 9.6, 0.0)  # bords opposés, la route nord-sud (axe 0°)
-        self.s.set_mode("road")
-        self.aim(self.p1, 0.0, a)
-        self.aim(self.p2, 6.0, a)
-        self.s.keep_point()
-        self.s.ref_point["road"] = {"axis": 0.0, "source": "BD TOPO"}  # pas de lecture réseau
-        self.s.set_picture(self.p1)
-        yaw, pitch = direction(0.0, b)
-        self.s.click(yaw + math.radians(1.5), pitch)  # clic simple un peu à côté du bord
-        return a, b
-
-    def test_offer_then_triangulate(self):
-        a, b = self.width()
-        m = self.s._widths()[0]
-        clicked = m.result["value"]
-        self.assertEqual(self.s.state()["edge_b"], "B")  # bouton proposé après le clic simple, avec la lettre
-        self.s.start_edge_b()
-        state = self.s.state()
-        self.assertTrue(state["edge_b_aiming"] and state["aiming"])
-        self.assertFalse(state["edge_b"])
-        self.assertIsNone(state["new_measure"])
-        self.assertIn("passez à la photo suivante", self.s.status().lower())
-        # Le clic rapide est déjà la première visée, depuis la photo de la mesure
-        self.assertEqual([s["pic"] for s in self.s.triangulator.sightings], ["p1"])
-        self.assertEqual(self.s.state()["guide"]["reference"], "p1")
-        self.assertTrue(any(m["sighting"] for m in self.s.viewer_marks()))
-        self.aim(self.p1, 0.0, b)  # visée refaite sur le bord exact (elle remplace le clic)
-        self.s.set_picture(self.p2)
-        # Autre photo : seulement les visées (et le trait de celle de la photo de la mesure)
-        self.assertTrue(all(m["sighting"] or m["epipolar"] for m in self.s.viewer_marks()))
-        self.aim(self.p2, 6.0, b)
-        marks = self.s.viewer_marks()
-        self.assertTrue(marks and all(m["sighting"] or m["epipolar"] for m in marks))  # sans droite ni largeur
-        self.s.keep_point()
-        self.assertEqual(self.s.take_goto(), "p1")  # retour sur la photo de référence
-        self.assertIsNone(self.s.take_frame())  # pas encore sur la photo de référence
-        self.s.set_picture(self.p1)
-        frame = self.s.take_frame()  # largeur entière : A et B
-        self.assertEqual(len(frame), 2)
-        on_line = direction(0.0, (b[0], a[1], 0.0))  # B ramené sur la droite passant par A (#37)
-        self.assertAlmostEqual(frame[1][0], on_line[0], places=6)
-        self.assertIsNone(self.s.take_frame())  # une seule fois
-        marks = self.s.viewer_marks()
-        self.assertTrue(any(m["guide"] for m in marks))  # droite de mesure de retour
-        # Une seule croix pour B : celle de la largeur, sur la droite de mesure, pas là où B a été visé (#37)
-        width = next(mk for mk in marks if mk["label"].startswith("↔"))
-        self.assertAlmostEqual(width["points"][1][0], on_line[0], places=6)
-        self.assertAlmostEqual(width["points"][1][1], on_line[1], places=6)
-        self.assertGreater(abs(width["points"][1][0] - direction(0.0, b)[0]), 0.01)
-        lone = [mk for mk in marks if not mk["label"] and not mk["guide"] and not mk["name"] and not mk["sighting"]]
-        self.assertEqual(lone, [])  # pas de croix « B » à part (point gardé)
-        self.assertIsNotNone(m.edge_b)
-        self.assertEqual(m.edge_b["name"], "B")
-        self.assertAlmostEqual(m.result["value"], 7.5, places=2)  # 4 − (−3,5), perpendiculaire à l'axe
-        self.assertNotAlmostEqual(clicked, m.result["value"], places=2)
-        self.assertIn("entre les points triangulés A et B", m.status())
-        self.assertEqual([v["nom"] for _, _, v in self.s.points], ["A", "B"])
-        self.assertFalse(self.s.state()["edge_b"])  # déjà triangulé
-        triangulation = module("core.triangulation")
-        bx, by = triangulation._local(*m.result["points"][1], *point(0.0, 0.0))
-        self.assertAlmostEqual(by, 9.0, places=2)  # B ramené sur la droite passant par A
-
-    def test_provisional_name(self):
-        # Bord cliqué : nom provisoire (lettre suivante), gardé quand le bord est triangulé
-        a, b = self.width()
-        ends = lambda: [(mk["end"], mk["names"]) for mk in self.s.viewer_marks() if mk["end"]]
-        # Nom du bord dans l'étiquette de la largeur, pas à part
-        self.assertEqual(ends(), [({"name": "B", "provisional": True}, ["A", "B"])])
-        self.assertEqual([mk["label"] for mk in self.s.viewer_marks() if mk["name"]], ["A"])
-        self.s.start_edge_b()
-        self.aim(self.p2, 6.0, b)
-        self.s.keep_point()
-        self.s.set_picture(self.p1)
-        self.assertEqual(ends(), [({"name": "B", "provisional": False}, ["A", "B"])])  # même lettre, triangulé
-        self.assertEqual([mk["label"] for mk in self.s.viewer_marks() if mk["name"]], ["A"])  # B dans l'étiquette
-        self.assertEqual([v["nom"] for _, _, v in self.s.points], ["A", "B"])
-        self.assertEqual(self.s.named, 2)  # point suivant : C
-
-    def test_undo_triangulated_edge(self):
-        # « Effacer » après le bord triangulé : la largeur et son point B gardé partent ensemble
-        a, b = self.width()
-        self.s.start_edge_b()
-        self.aim(self.p2, 6.0, b)
-        self.s.keep_point()
-        self.assertEqual([v["nom"] for _, _, v in self.s.points], ["A", "B"])
-        self.assertIn("Bord opposé effacé", self.s.clear())
-        self.assertEqual(self.s._widths(), [])
-        self.assertEqual([v["nom"] for _, _, v in self.s.points], ["A"])
-
-    def test_cancel_keeps_click(self):
-        self.width()
-        m = self.s._widths()[0]
-        value = m.result["value"]
-        self.s.start_edge_b()
-        self.aim(self.p1, 0.0, (-3.5, 9.6, 0.0))
-        self.assertIn("abandonnée", self.s.clear())
-        self.assertIsNone(m.edge_b)
-        self.assertEqual(m.result["value"], value)
-        self.assertTrue(self.s.state()["edge_b"])  # de nouveau proposé
 
 
 class Guided(Base):
@@ -315,25 +183,6 @@ class Guided(Base):
         self.assertAlmostEqual(frame[0][0], direction(0.0, foot)[0], places=6)
         self.assertIsNone(self.s.take_goto())  # une seule fois
         self.assertIsNone(self.s.state()["guide"])
-
-    def test_width_goes_towards_the_point(self):
-        # Bord visé devant (vers le nord, sens de la séquence) : photos suivantes, jamais en arrière
-        p0, p1, p2, p3 = linked(("p0", 0.0), ("p1", 5.0), ("p2", 10.0), ("p3", 15.0))
-        edge = (3.0, 13.0, 0.0)
-        self.s.set_mode("road")
-        self.aim(p1, 5.0, edge)
-        self.assertEqual([c["id"] for c in self.s.state()["guide"]["choices"]], ["p2"])
-        self.assertEqual(self.s.state()["guide"]["choices"][0]["label"], "Photo suivante")
-        self.aim(p2, 10.0, edge)
-        self.assertEqual([c["id"] for c in self.s.state()["guide"]["choices"]], ["p3"])
-        self.assertEqual(self.s.state()["guide"]["choices"][0]["label"], "3e visée : photo suivante")
-        self.s.set_picture(p1)  # revenu sur la référence
-        self.assertEqual(self.s.state()["guide"]["choices"][0]["label"], "3e visée : 2 photos en avant")
-        # Visé vers l'arrière : on remonte la séquence
-        self.s.clear_all()
-        self.aim(p2, 10.0, (3.0, -2.0, 0.0))
-        self.assertEqual([c["id"] for c in self.s.state()["guide"]["choices"]], ["p1"])
-
 
 class Height(Base):
     def test_reference_then_top(self):
@@ -535,7 +384,7 @@ class Height(Base):
     def test_reference_moved_by_hand_stays(self):
         self.reference_and_height()
         ref = self.s.ref_point
-        ref["moved"] = True  # recalé à la main (largeur : le long de la droite de mesure)
+        ref["moved"] = True  # recalé à la main
         start = (ref["lon"], ref["lat"])
         self.tilt("p2", 90.0)
         self.assertEqual((ref["lon"], ref["lat"]), start)
@@ -626,7 +475,7 @@ class Height(Base):
         foot = (3.0, 20.0, 0.0)
         with mock.patch.object(tools.host, "ngf_altitude", lambda lon, lat, h: 300.0 + CAMERA), \
                 mock.patch.object(session.host, "fetch_json", fetch):
-            self.s.set_mode("road")
+            self.s.set_mode("height")
             self.aim(self.p1, 0.0, foot)
             self.aim(self.p2, 6.0, foot)
             self.s.keep_point()
@@ -676,7 +525,7 @@ class Height(Base):
         foot = (3.0, 20.0, 0.0)
         with mock.patch.object(tools.host, "ngf_altitude", lambda lon, lat, h: 300.0 + CAMERA), \
                 mock.patch.object(session.host, "fetch_json", lambda url, cb, **kw: pending.append(cb)):
-            self.s.set_mode("road")
+            self.s.set_mode("height")
             self.aim(self.p1, 0.0, foot)
             self.aim(self.p2, 6.0, foot)
             self.s.keep_point()
@@ -820,77 +669,6 @@ class BridgeAlert(Base):
             self.s.roads._sections[cell] = []  # aucun tronçon en pont
         self.s.set_picture(self.p1)
         self.assertIsNone(self.s.take_bridge_alert())
-
-
-class Width(Base):
-    def test_locked_until_new_measure(self):
-        # Bord A à 5 m à l'est, route nord-sud : droite de mesure est-ouest à 3 m au nord
-        a = (5.0, 3.0, 0.0)
-        self.s.set_mode("road")
-        self.aim(self.p1, 0.0, a)
-        self.aim(self.p2, 6.0, a)
-        self.s.keep_point()
-        self.assertIsNone(self.s.state()["new_measure"])
-        text = self.s.click(*direction(6.0, (-3.0, 3.0, 0.0)))
-        self.assertIn("Nouvelle mesure depuis A", text)
-        self.assertEqual(self.s.state()["new_measure"], "A")
-        # Vue vers le sud depuis (0, 6) : A (est) à gauche de B (ouest), son nom à sa gauche
-        # A seul à part ; le bord cliqué, nom provisoire, dans l'étiquette de la largeur
-        self.assertEqual([(m["label"], m["side"]) for m in self.s.viewer_marks() if m["name"]], [("A", "left")])
-        self.assertEqual([m["end"] for m in self.s.viewer_marks() if m["end"]], [{"name": "B", "provisional": True}])
-        # Autre clic hors des croix : pas d'autre largeur, consigne d'ajustement
-        text = self.s.click(*direction(6.0, (-6.0, 3.0, 0.0)))
-        self.assertTrue(text.startswith("Largeur mesurée depuis le point A"), text)
-        self.assertEqual(len(self.s._widths()), 1)
-        # Les points restent ajustables : croix du bord, flèche, Entrée
-        self.s.click(*direction(6.0, (-3.0, 3.0, 0.0)))
-        self.assertTrue(self.s.state()["point_sel"])
-        self.s.nudge_point("up")
-        self.s.finish_point()
-        self.assertEqual(len(self.s._widths()), 1)
-        # « Nouvelle mesure depuis A » : le clic suivant donne une seconde largeur
-        self.s.new_measure()
-        self.assertIsNone(self.s.state()["new_measure"])
-        self.s.click(*direction(6.0, (-6.0, 3.0, 0.0)))
-        self.assertEqual(len(self.s._widths()), 2)
-        self.assertEqual(self.s.state()["new_measure"], "A")
-        # Nouveau point de référence : plus de verrou
-        self.s.new_reference()
-        self.assertIsNone(self.s.state()["new_measure"])
-
-
-    def test_reference_recaled_on_the_line(self):
-        # A visé à (5, 3), route nord-sud : droite de mesure y = 3. Recalé depuis la visionneuse,
-        # A glisse sur la droite (jamais retriangulé ailleurs), avant comme après la largeur
-        a = (5.0, 3.0, 0.0)
-        self.s.set_mode("road")
-        self.aim(self.p1, 0.0, a)
-        self.aim(self.p2, 6.0, a)
-        self.s.keep_point()
-        ref = self.s.ref_point
-        self.s.set_picture(self.p1)  # photo à (0, 0) : voit la droite assez en biais
-        self.s.click(*direction(0.0, a))  # clic sur la croix de A : sélectionné
-        self.assertTrue(self.s.state()["point_sel"])
-        self.assertTrue(any(p[2] for m in self.s.viewer_marks() for p in m["points"]))
-        # Clic visant (10, 5), hors de la droite : A va où la visée la coupe, en (6, 3)
-        text = self.s.click(*direction(0.0, (10.0, 5.0, 0.0)))
-        self.assertIn("le long de la droite de mesure", text)
-        self.assertFalse(self.s.state()["point_sel"])
-        self.assertLess(distance((ref["lon"], ref["lat"]), point(6.0, 3.0)), 0.01)
-        self.assertEqual(self.s.points[0][:2], (ref["lon"], ref["lat"]))  # le point gardé suit
-        # Largeur depuis A recalé, puis A recalé : la largeur suit, le bord reste
-        self.s.click(*direction(0.0, (-3.0, 3.0, 0.0)))
-        self.assertAlmostEqual(self.s._widths()[0].result["value"], 9.0, places=2)
-        self.s.select_point(*direction(0.0, (6.0, 3.0, 0.0)))
-        self.assertEqual(self.s.width_sel[1], 0)
-        self.s.click(*direction(0.0, (5.0, 3.0, 0.0)))
-        self.assertAlmostEqual(self.s._widths()[0].result["value"], 8.0, places=2)
-        # Au clavier : 1 cm le long de la droite
-        self.s.select_point(*direction(0.0, (5.0, 3.0, 0.0)))
-        self.s.nudge_point("up")
-        self.s.finish_point()
-        self.assertAlmostEqual(abs(self.s._widths()[0].result["value"] - 8.0), 0.01, places=4)
-        self.assertLess(distance((ref["lon"], ref["lat"]), point(5.0, 3.0)), 0.02)
 
 
 class KeptPoints(Base):

@@ -18,7 +18,7 @@ sys.modules["pyodide.http"].pyfetch = None
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "py"))
 
 import web_app  # noqa: E402
-from core import calibration, host, precision, triangulation  # noqa: E402
+from core import calibration, host, precision, roads, triangulation  # noqa: E402
 
 HOST = {name: getattr(host, name) for name in host.SERVICES}  # cœur sans hôte : pas de réseau, calcul immédiat
 
@@ -106,7 +106,7 @@ class VueDessus(unittest.TestCase):
         a.item = {"id": "p", "collection": "s", "geometry": {"coordinates": [5.0, 47.0, 300.0]},
                   "properties": {"view:azimuth": 40, "pers:interior_orientation": {"field_of_view": field_of_view}}}
         a.birdeye_items, a.birdeye_checks = [dict(a.item, id="v", geometry={"coordinates": [5.0, 47.00005]})], (Tilts,)
-        a.fall_cells, a.fall_retry, a.fall_error, a.tool = {web_app.roads._cell(5.0, 47.0): []}, {}, {}, types.SimpleNamespace(camera_height=2.1)
+        a.fall_cells, a.fall_retry, a.fall_error, a.tool = {roads._cell(5.0, 47.0): []}, {}, {}, types.SimpleNamespace(camera_height=2.1)
         a.birdeye_loose, a.birdeye_far_items = {}, []
         return a
 
@@ -153,7 +153,7 @@ class VueDessus(unittest.TestCase):
         def pose_with(east):  # tronçon en pont, nord-sud, à east m à l'est de la photo
             a = self.app_on(360)
             lon = 5.0 + east / (6378137 * math.cos(math.radians(47.0))) * 180 / math.pi
-            a.fall_cells[web_app.roads._cell(5.0, 47.0)] = [{"level": 1, "line": [[lon, 46.999], [lon, 47.001]]}]
+            a.fall_cells[roads._cell(5.0, 47.0)] = [{"level": 1, "line": [[lon, 46.999], [lon, 47.001]]}]
             return json.loads(a.birdeye_pose())
         near, far = pose_with(10), pose_with(40)
         self.assertEqual((near["bridge"], near["height"], near["neighbours"][0]["height"]), (True, 2.1, 2.1))
@@ -175,7 +175,7 @@ class VueDessus(unittest.TestCase):
             a = self.app_on(360)
             a.item["providers"] = [{"id": App.FLEET_PRODUCER}]
             a.item.setdefault("properties", {})["datetime"] = date
-            a.fall_cells[web_app.roads._cell(5.0, 47.0)] = [{"level": 1, "line": [[5.0, 46.999], [5.0, 47.001]]}]
+            a.fall_cells[roads._cell(5.0, 47.0)] = [{"level": 1, "line": [[5.0, 46.999], [5.0, 47.001]]}]
             return json.loads(a.birdeye_pose())
         self.assertEqual([(p["height"], p["height_sigma"]) for p in (pose_on("2025-05-28T05:40:22Z"), pose_on("2025-07-07T05:56:32Z"))],
                          [(1.93, App.MOUNT_SIGMA), (2.07, App.MOUNT_SIGMA)])
@@ -269,7 +269,7 @@ class Carrefours(unittest.TestCase):
     def cites(self, *features):
         road = lambda a, b: {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[a, 47.0], [b, 47.0]]},
                              "properties": {"cpx_numero": "D1", "nature": "Route à 1 chaussée"}}
-        sections = web_app.roads.parse_sections({"features": [road(4.999, 5.0), road(5.0, 5.001), *features]})
+        sections = roads.parse_sections({"features": [road(4.999, 5.0), road(5.0, 5.001), *features]})
         line = [web_app.triangulation._local(p[0], p[1], 5.0, 47.0) for p in sections[0]["line"]]
         _, ends, _ = app._chained(line, sections[0], sections, 5.0, 47.0)
         return [name for _, kind, names in ends if kind == "carrefour" for name in names]
@@ -940,24 +940,6 @@ class Parcours(unittest.TestCase):
         self.assertEqual(sum(r["text"].startswith("↕") for r in json.loads(a.results())), 1)
         a.new_measure()  # « Nouvelle mesure depuis A »
         self.assertTrue(self.aim("p1", self.A, pitch=0.2).startswith("Hauteur :"))
-
-    def test_largeur_depuis_A(self):
-        a = self.app
-        a.set_mode("road")
-        self.assertIn("Cliquez maintenant le bord opposé", self.sighted(self.A))
-        self.show("p1")
-        status = self.aim("p1", (-3.0, 3.0, 0.0), pitch=-0.3)  # seule la direction du clic compte
-        self.assertTrue(status.startswith("Largeur perpendiculaire à la chaussée"), status)
-        self.assertAlmostEqual(self.metres(status), 8.0, delta=0.02)
-        widths = lambda: [m for m in json.loads(a.viewer_marks()) if m["label"].startswith("↔")]
-        self.aim("p1", (-7.0, 3.0, 0.0), pitch=-0.3)  # autre clic refusé : une seule largeur
-        self.assertEqual(len(widths()), 1)
-        a.new_measure()
-        self.assertAlmostEqual(self.metres(self.aim("p1", (-7.0, 3.0, 0.0), pitch=-0.3)), 12.0, delta=0.02)
-        listed = json.loads(a.results())  # liste : point de référence, puis ses largeurs nommées (#30)
-        self.assertEqual(listed[0]["kind"], "point")
-        self.assertTrue(all(r.get("sous") and re.match(r"^↔ [A-Z] ", r["text"]) for r in listed[1:]), listed)
-        self.assertEqual(len(listed), 3)
 
     def test_releve(self):
         a = self.app

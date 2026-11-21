@@ -305,7 +305,7 @@ sinon celle du parcours, proposée en plus dans la liste « Cible » (« parcour
 (instance, producteur…) ne sont pas gardés.
 
 **Mesurer** : bouton « Mesure », puis le mode. Pendant la mesure, une carte d'étape en bas à gauche de
-la visionneuse donne la mesure et ses étapes (pied puis sommet, premier bord puis bord opposé), l'état
+la visionneuse donne la mesure et ses étapes (pied puis sommet), l'état
 (triangulation ou mesure en cours) et la consigne ; le haut de la photo et le lecteur de séquence restent libres. Le
 bouton **« ✔ Valider le point triangulé »** y apparaît, avec un halo,
 dès que les visées donnent un point (deux visées qui se croisent).
@@ -315,8 +315,7 @@ dès que les visées donnent un point (deux visées qui se croisent).
 1. La photo de la première visée est la **photo de référence** : la mesure se fera sur elle ;
    choisir celle d'où l'objet se voit le mieux.
 2. Des boutons sous la consigne proposent les photos à viser ensuite : en hauteur, la
-   précédente et la suivante de la référence, puis celle de l'autre côté pour une 3e visée ;
-   en largeur, en avançant vers le point. Ils sont nommés par rapport à la photo affichée
+   précédente et la suivante de la référence, puis celle de l'autre côté pour une 3e visée. Ils sont nommés par rapport à la photo affichée
    (« photo précédente », « 2 photos en arrière »…), avec une flèche selon leur direction dans
    la vue (◀ ▶ ▲ ▼).
 3. Les visées déjà faites depuis les autres photos sont tracées en trait plein vert dans la
@@ -354,50 +353,18 @@ après.
   première hauteur depuis ce point, le sommet des suivantes est pris sur le prolongement de sa
   ligne (pied–sommet), au plus près du clic : le réticule y glisse, avec un trait jaune en
   travers (un clic sur une croix la sélectionne toujours).
-- **Largeur perpendiculaire à la chaussée**
-  1. Viser le **premier bord** (pied de bordure, marquage…) depuis au moins deux photos, puis
-     « Valider le point triangulé ». La page trace la **droite de mesure**, perpendiculaire à l'axe de
-     la route en ce point (BD TOPO, sinon trajectoire de la séquence), en bleu dans la photo
-     et sur la carte.
-  2. Cliquer le **bord opposé** sur la photo de référence (ou une photo prise quelques mètres
-     avant ou après le point, pas juste en face) : seule la direction du clic compte, le bord
-     est là où elle coupe la droite. Il reçoit la lettre suivante (B…), sur une étiquette
-     grise tant qu'il n'est pas triangulé ; l'étiquette de la mesure nomme ses deux points
-     (« A↔B 7,50 m ± 0,20 m »). Le sommet d'une hauteur est nommé de même (« A↕C 3,20 m »).
-  3. Conseillé, le bord cliqué n'étant qu'une estimation (« ≈ » devant la valeur) : **« 🎯
-     Trianguler le point B »**. Le clic de l'étape 2
-     compte comme première visée ; viser le même bord depuis la photo proposée, puis « Valider
-     le point triangulé ». Le point garde sa lettre (étiquette bordeaux) ; la largeur devient la
-     distance des deux bords triangulés,
-     perpendiculaire à l'axe de la route, et la vue revient sur la photo de référence, cadrée
-     sur la largeur. Pendant ces visées, les autres photos ne montrent que les visées.
-
-  **Droite tracée sur la carte** (expérimental, case « Droite de mesure tracée sur la carte » des
-  réglages, décochée par défaut ; giratoire, carrefour, place, où l'axe automatique se trompe) :
-  avant la première visée du premier bord, « Tracer la droite sur la carte » dans la
-  visionneuse, puis, sur la mini-carte, un clic d'un côté de la voie (point de départ, pas un
-  point de mesure) : un trait suit la souris, une croix au bout ; un second clic de l'autre côté
-  fixe l'orientation (4 m au moins ; Échap annule). La droite est tracée en bleu dans la photo.
-  Le premier bord se pose alors d'un clic, sans visées depuis plusieurs photos : là où la
-  direction du clic coupe la droite, comme le bord opposé ; le pointeur glisse sur la droite.
-  Une photo qui voit la droite presque en enfilade (moins de 10°) est refusée, comme une visée à peine au-dessus (jusqu'à 11° environ) dont l'incertitude ne s'évalue pas. « Annuler la
-  droite » revient à l'axe automatique jusqu'au clic du premier bord. La droite ne sert qu'une
-  fois : la largeur suivante reprend l'axe automatique, qui reste celui par défaut. Le résultat
-  se lit alors « Largeur le long de la droite tracée sur la carte … depuis le point A · droite
-  à 75° (tracée sur la carte, ±2,4°) ».
-
-  Visées suivantes d'un bord : à moins de 12 pixels du trait vert de la visée déjà faite, le
-  réticule s'y cale, pour retomber au même endroit du bord, qui n'a pas de repère le long de son
+  **Visées suivantes** : à moins de 12 pixels du trait vert de la visée déjà faite, le
+  réticule s'y cale, pour retomber au même endroit d'un bord ou d'un montant, qui n'a pas de repère le long de son
   tracé ; la touche Maj le libère. De préférence, viser un repère net (fin de tiret, joint, regard).
-  L'incertitude attendue des photos proposées est celle en travers de la route. Sur une photo
-  calée, avec le sol LiDAR HD, si les visées touchent le sol à plus de 0,6 m l'une de l'autre en
-  travers, un avertissement propose d'en réviser une, et ce désaccord s'ajoute au « ± ».
+  Sur une photo calée, avec le sol LiDAR HD, si les visées touchent le sol à plus de 0,6 m l'une de l'autre,
+  un avertissement propose d'en réviser une, et ce désaccord s'ajoute au « ± ».
 
-  Sur une photo qui a servi à viser le premier bord, sa croix est là où il a été visé, et la
-  droite de mesure passe par elle. Toutes les largeurs depuis un même point restent sur cette
-  droite : un bord opposé triangulé y est dessiné ramené, comme dans son calcul.
+  Le sommet reçoit la lettre suivante des points gardés (B…), sur une étiquette grise tant qu'il est
+  provisoire ; l'étiquette de la mesure nomme ses deux points (« A↕C 3,20 m »).
 
-  Une fois la largeur faite, les clics ne servent plus qu'à l'ajuster (clic sur une de ses croix, puis nouveau clic ou flèches : 1 cm le long de la droite de mesure). Pour une autre largeur depuis le même point, cliquer « ↺ Nouvelle mesure depuis A » dans la visionneuse.
+  *Historique (21/11/2026) :* le mode « Largeur perpendiculaire à la chaussée » (droite de mesure
+  perpendiculaire à l'axe de la route, bord opposé, droite tracée sur la carte) a été retiré. La largeur
+  d'une chaussée se mesure par le bouton ↔ « Largeur dans la visionneuse » (droite au nez du véhicule).
 
   Pendant les mesures (visée et étape 2 comprises), les flèches au sol de la visionneuse sont masquées
   (elles gênent les clics de mesure) : on change de photo par le lecteur de séquence ou la carte ; elles reviennent hors mesure.
@@ -611,15 +578,15 @@ Repères visuels :
 | Croix | bleues | jaunes | — |
 
 Points, traits et étiquettes restent visibles sur toutes les photos (là où ils ont été
-cliqués, ou projetés au sol sur les autres photos). Dans la photo, la droite de mesure d'une
-largeur est en tirets bleus, la verticale d'une hauteur en tirets verts ; sur la carte, les
+cliqués, ou projetés au sol sur les autres photos). Dans la photo, la verticale d'une hauteur
+est en tirets verts ; sur la carte, les
 visées de triangulation sont en tirets rouges.
 
 **Effacer** (ou **Ctrl+Z**, aussi dans la carte détachée) : annule le dernier geste
 (**Refaire**, Ctrl+Y ou Ctrl+Maj+Z le rétablit, si rien n'a été fait depuis). La
-dernière visée seule (les autres restent ; le bord B garde sa première, le clic de la largeur),
+dernière visée seule (les autres restent),
 le dernier clic de l'objet vertical du calage, la sélection ou la mesure en cours ; sans rien en
-cours, le dernier point posé (sommet, bord opposé, puis le point de référence ; en relevé d'objets,
+cours, le dernier point posé (sommet, puis le point de référence ; en relevé d'objets,
 le dernier point gardé). Quand la photo affichée est à plus de 100 m des mesures, la page propose
 de tout effacer pour repartir de zéro. Échap annule le tracé d'une droite sur la carte.
 
@@ -731,7 +698,7 @@ traits et points gris sur la carte. Ils ne redeviennent pas des mesures modifiab
 oubliés à la fermeture de cette session-là s'ils n'y ont pas été exportés.
 
 **Revoir une mesure exportée** : le fichier de mesures GeoJSON importé (bouton d'import, flèche vers le haut, de l'onglet
-**Résultats**, ou import de l'onglet **Couche**, où il s'affiche) s'ouvre sur la photo d'où la première hauteur ou largeur a été prise, cadrée sur elle,
+**Résultats**, ou import de l'onglet **Couche**, où il s'affiche) s'ouvre sur la photo d'où la première hauteur a été prise, cadrée sur elle,
 la mesure dessinée telle qu'elle était à l'écran (colonnes `photo_ref` et `vue_ref`), avec sa valeur
 en étiquette (colonne `etiquette`). Un clic sur une autre mesure de la mini-carte la montre de même.
 En lecture seule ; les fichiers exportés avant la version 0.6.6 n'ont pas ces colonnes.
@@ -739,19 +706,15 @@ En lecture seule ; les fichiers exportés avant la version 0.6.6 n'ont pas ces c
 **Recaler un point** : **clic** (gauche ou droit) sur sa croix pour le sélectionner (à 8 pixels près, quel que
 soit le zoom ; ailleurs, le clic est un point de mesure), puis :
 
-- clic gauche : nouvelle position (largeur : bord ou point de référence, là où la direction
-  du clic coupe la droite de mesure, dont ils ne sortent jamais ; le point de référence se
-  recale ainsi dès qu'il est validé ; hauteur : sur la photo de la mesure) ;
-- flèches du clavier, par pas de 1 cm : largeur, le long de la droite de mesure (← → dans le
-  sens vu sur la photo, ↑ ↓ en s'éloignant ou en se rapprochant de la caméra) ; hauteur,
-  ↑ ↓ montent ou descendent le point ;
+- clic gauche : nouvelle position (hauteur : sur la photo de la mesure ; le point de référence
+  se recale de même dès qu'il est validé, sur sa verticale) ;
+- flèches du clavier, par pas de 1 cm : hauteur, ↑ ↓ montent ou descendent le point ;
 - **Entrée** pour terminer.
 
 **Caler les photos** (mode « Calage : inclinaison ») : inclinaison calculée automatiquement
 d'après les verticales de la photo (en arrière-plan), ou calée à la main : pied puis sommet de
 deux objets verticaux, à environ 90° l'un de l'autre. Le calage du cap et de la position
-(repères sur la carte) n'est pas proposé : le cap n'entre presque pas dans les hauteurs et les
-largeurs, et le cap EXIF des photos de relevé est déjà juste à 0,3° près. Un calage importé
+(repères sur la carte) n'est pas proposé : le cap n'entre presque pas dans les hauteurs, et le cap EXIF des photos de relevé est déjà juste à 0,3° près. Un calage importé
 du plugin QGIS qui en contient reste appliqué.
 
 Les consignes de chaque calage disent l'étape en cours et ce qui est déjà fait.
@@ -882,13 +845,12 @@ dans la vue du dessus (±0,8°) », « inclinaison non calée : roulis de la cam
 verticales, réglage de la vue du dessus).
 
 Essais sur deux photos imajbox à position RTK (±0,10 m) de Pouilly-en-Auxois, distantes de
-5 m, sur des cibles connues (`tests/essai-rtk.html`, `essai-largeur.html`) :
+5 m, sur des cibles connues (`tests/essai-rtk.html`) :
 
 | Mesure | Résultat | Attendu |
 |---|---|---|
 | Point de référence (visées croisées à 54°) | ±0,17 m | sur la cible |
 | Hauteur | 3,46 m ± 0,11 m | 3,464 m |
-| Largeur (clic à 40° de la droite de mesure) | 8,00 m ± 0,23 m | 8 m |
 | ~~Distance entre deux points~~ (mesure libre, retirée le 20/11/2026) | 3,60 m ± 0,24 m | 3,606 m |
 | Objet relevé sur une seule photo, à 6 m (`essai-releve.html`) | ±0,2 à 0,8 m selon le calage de l'inclinaison | à moins de 1 m de la cible |
 
@@ -920,7 +882,7 @@ tombait sur le talus de la culée. En secours par l'altitude GPS, l'erreur de la
 telle quelle dans la chute : la monture du CD21 d'après la date (±4 cm, 15/11/2026) remplace le réglage
 de 1,90 m (±15 cm), soit jusqu'à 17 cm de mieux sur les photos de la monture haute (2,07 m).
 
-Hauteur de caméra : les mesures (hauteur, largeur) n'en dépendent pas (essai du 15/11/2026 :
+Hauteur de caméra : la mesure de hauteur n'en dépend pas (essai du 15/11/2026 :
 mêmes valeurs et incertitudes avec 1,90, 2,07 et 2,50 m) ; elle sert au tablier d'un pont (secours GPS),
 au relevé sur une seule photo et aux objets posés au sol. Dans l'ordre : altitude RTK moins sol LiDAR HD,
 calée pour la séquence, monture du CD21 d'après la date, réglage. Colonne `camera_m` de l'export : celle
@@ -950,24 +912,7 @@ Analyse fine (`tests/essai-nuage.html`, A38, RD903bis, D1074, RD700) : séparate
 Largeur d'enrobé : trouvée sur 7 photos sur 9, à ±0,1 ou ±0,2 m entre travers voisins (village, faible contraste : règle à défaut), jamais comparée à des mesures de terrain. L'herbe du séparateur de l'A38 n'est pas reconnue, et l'eau
 du nuage n'a été vue sur aucune photo d'essai.
 
-L'incertitude de la largeur ne compte que l'erreur en travers de la route : celle des points,
-souvent plus grande le long de la route, n'y pèse presque pas, et l'axe très peu (±2° coûtent
-environ 1 cm sur 6,5 m, car le clic suit la droite jusqu'au bord vu). Une largeur au **bord
-cliqué** (« ≈ ») est une estimation : la droite est dessinée à plat à la hauteur du point de
-référence, si bien qu'un dévers ou une bordure entre les deux bords la fausse d'environ
-`écart latéral caméra-bord × Δh / (H + Δh)`, soit jusqu'à 0,5 m pour 2,5 % de dévers sur 6,5 m (caméra à 1,9 m au bord de A ; 0,25 m depuis le milieu de la chaussée), sans
-que le « ± » le compte. Le bord triangulé n'a pas ce biais. Des visées tombées à des endroits
-différents du bord ne sont comptées que sur une photo calée, avec le sol LiDAR HD. Ces chiffres viennent d'une
-simulation avec le code de calcul ; la vérification sur des longueurs mesurées est en cours.
-Sur une séquence RTK vérifiée, l'axe est la direction de la
-trajectoire sur ±20 m (±0,5°) quand elle est droite (photos à moins de 10 cm de leur droite,
-chaque sens de passage sur sa voie) et concorde à 2° près avec la BD TOPO, sinon le tronçon de
-la BD TOPO (±2° supposés), ou la droite tracée sur la carte
-(chaque clic à ~0,3 m près : ±2,4° pour une droite de 10 m, ±6° pour 4 m ; premier bord à
-±0,17 m à 10 m de la caméra, plus quand la photo voit la droite en biais). Essai
-(`tests/essai-largeur.html`) : droite tracée à 10° de la perpendiculaire, premier bord posé
-d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,28 m. Un clic depuis une photo plus
-éloignée, qui voit la droite plus en face, réduit aussi l'incertitude. Avec un GPS grand public
+Avec un GPS grand public
 (±4 m), le point de référence est à plusieurs mètres près, et une hauteur à ±2 à 3 m.
 
 ### Limites
@@ -977,9 +922,6 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
   de caméra de la photo (affichage seulement, la mesure n'en dépend pas).
 - Triangulation 3D validée sur des cas simulés seulement : à confirmer sur des points
   relevés sur le terrain.
-- Incertitude de l'axe de la route (±0,5° pour la trajectoire RTK, ±2° pour la BD TOPO, ±3°
-  pour la trajectoire sans RTK) estimée,
-  à confirmer sur le terrain.
 - Mesures non rechargées à l'ouverture suivante : affichées en lecture seule et proposées à
   l'export pendant la session suivante seulement (dans ce navigateur), puis oubliées.
 
@@ -1010,13 +952,13 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 | `src/requeteur.js` | requêteur route + PR (+ distance) : routes du département affiché, côté droit par défaut |
 | `src/couche.js` | couche importée (GeoJSON, Shapefile par shpjs, GeoPackage par sql.js, CSV) : lecture, Lambert 93 en WGS 84, couleur et étiquette selon une colonne |
 | `src/lieu.js` | route, point de repère (PR), véloroute, écluse, hameau et commune de la photo, incrustés dans la visionneuse |
-| `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page (points de référence, hauteurs, largeurs, relevé d'objets, recalages) |
+| `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page (points de référence, hauteurs, relevé d'objets, recalages) |
 | `py/web_chutes.py` | hauteurs de chute et dévers : sur un pont, et sur les bords de route (profils, séparateur, analyse fine) ; base de `App` |
 | `py/web_pose.py` | pose de la caméra : inclinaison automatique (raison d'un échec), inclinaison par le terrain, monture et défaut de roulis, pose de la vue du dessus ; base de `App` |
 | `py/web_host.py` | accès réseau du cœur par le `fetch` du navigateur |
 | `py/web_worker.py` | calculs lourds dans le Pyodide d'arrière-plan |
 | `py/geoid.py` | altitude NGF (grille RAF20 de l'IGN) |
-| `py/core/` | cœur de calcul (repris du plugin) : triangulation, calage, précision, mesures ; dont `widths.py`, la largeur depuis un point triangulé |
+| `py/core/` | cœur de calcul (repris du plugin) : triangulation, calage, précision, mesures |
 | `py/sources.js` | fichiers Python de `py/` regroupés pour la page (généré par `tools/sources.sh`) |
 | `tests/coeur/` | tests du cœur de calcul : scènes synthétiques à réponse connue (lancés avec `tests/test_calculs.py`) |
 | `tests/essai-cadastre.html` | cadastre sur la mini-carte (PNG dans le journal) |
@@ -1024,7 +966,7 @@ d'un clic sur la cible, bord opposé à 8 m le long de la droite : 7,99 m ± 0,2
 | `tests/test_calculs.py` | essais rapides des calculs, sans navigateur ni réseau (`python3 -m unittest discover -s tests`, quelques secondes avec `tests/coeur/`) |
 | `tests/navigateur.html` | essai de bout en bout dans un vrai navigateur |
 | `tests/commun.js` | code commun des pages d'essai : journal, attentes de condition, contrôles et bilan (« contrôles : n réussis ») |
-| `tests/essai-rtk.html`, `essai-largeur.html` | hauteur, largeur sur photos RTK, avec recalages |
+| `tests/essai-rtk.html` | hauteur sur photos RTK, avec recalages |
 | `tests/essai-calage.html` | calage de l'inclinaison : croix sélectionnée à 8 px près, au zoom fort |
 | `tests/essai-profil.html` | fond du graphique du profil en travers, sur des profils synthétiques (sans réseau) : 1 m ou 0,3 m sous le point le plus bas |
 | `tests/inclinaison-terrain.html` | inclinaison par le terrain hors agglomération (option) |

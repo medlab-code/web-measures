@@ -738,8 +738,8 @@ button.principal { font-weight: 600; }
   filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.8)); }
 #croix-cadastre[hidden] { display: none; }
 
-/* Largeur faite : proposer de trianguler le bord opposé (bleu des visées) */
-#trianguler-b, #garder-seul {
+/* Relevé, une seule visée : garder l'objet sur cette photo (bleu des visées) */
+#garder-seul {
   pointer-events: auto;
   margin-top: 0.3rem;
   padding: 0.3rem 0.9rem;
@@ -753,8 +753,8 @@ button.principal { font-weight: 600; }
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   cursor: pointer;
 }
-#trianguler-b:hover, #garder-seul:hover { background: rgba(0, 152, 187, 0.85); }
-#trianguler-b[hidden], #garder-seul[hidden] { display: none; }
+#garder-seul:hover { background: rgba(0, 152, 187, 0.85); }
+#garder-seul[hidden] { display: none; }
 
 /* Photos à viser ensuite (hauteur, largeur) : bleu clair des visées, sous la validation */
 #guide-photos {
@@ -808,10 +808,8 @@ button.principal { font-weight: 600; }
 #suite-mesure button[hidden] { display: none; }
 #nouvelle-mesure:hover { background: #ffeb00; color: #202124; text-shadow: none; }
 #suite-mesure #nouvelle-reference { border-color: rgb(142, 27, 27); }
-#suite-mesure #axe-carte, #suite-mesure #axe-auto, #suite-mesure #placer-carte { border-color: #0078ff; }  /* bleu de la droite de mesure */
-#axe-carte:hover, #axe-auto:hover, #placer-carte:hover { background: rgba(0, 120, 255, 0.92); }
-/* Bout du trait de la droite de mesure en cours de tracé sur la carte (#28) */
-.croix-trace { color: #0078ff; font-size: 26px; line-height: 1; text-shadow: 0 0 3px #fff, 0 0 3px #fff; pointer-events: none; }
+#suite-mesure #placer-carte { border-color: #0078ff; }  /* bleu de la droite de mesure */
+#placer-carte:hover { background: rgba(0, 120, 255, 0.92); }
 #nouvelle-reference:hover { background: rgba(142, 27, 27, 0.92); }
 
 /* Étiquettes incrustées dans la photo : fond sombre un peu transparent, texte détouré */
@@ -888,13 +886,13 @@ button.principal { font-weight: 600; }
   text-align: left; text-shadow: none; animation: none; }
 #vue.en-mesure #avis { color: var(--texte); }
 #vue.en-mesure #calcul-inclinaison.manuel { color: var(--echec); }
-#vue.en-mesure #garder, #vue.en-mesure #valider-objet, #vue.en-mesure #trianguler-b, #vue.en-mesure #garder-seul,
+#vue.en-mesure #garder, #vue.en-mesure #valider-objet, #vue.en-mesure #garder-seul,
 #vue.en-mesure #guide-photos button, #vue.en-mesure #suite-mesure button {
   margin: 0; padding: 0.45rem 0.9rem; border-radius: 8px; font-size: 14px; text-shadow: none; box-shadow: none; }
 #vue.en-mesure #guide-photos, #vue.en-mesure #suite-mesure { justify-content: center; margin: 0; }
-#vue.en-mesure #guide-photos button, #vue.en-mesure #suite-mesure button, #vue.en-mesure #trianguler-b, #vue.en-mesure #garder-seul {
+#vue.en-mesure #guide-photos button, #vue.en-mesure #suite-mesure button, #vue.en-mesure #garder-seul {
   background: var(--encart); color: var(--texte); }
-#vue.en-mesure #garder, #vue.en-mesure #valider-objet, #vue.en-mesure #trianguler-b, #vue.en-mesure #garder-seul { align-self: center; }  /* boutons centrés */
+#vue.en-mesure #garder, #vue.en-mesure #valider-objet, #vue.en-mesure #garder-seul { align-self: center; }  /* boutons centrés */
 /* Messages variables (zoom, inclinaison) sous les boutons : ils ne les déplacent pas */
 .haut-centre > #avis, .haut-centre > #calcul-inclinaison { order: 1; }
 #mode-mesure {

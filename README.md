@@ -1,7 +1,7 @@
 # Mesures Panoramax (web-measures)
 
 Application web de mesure sur les photos de rue [Panoramax](https://panoramax.fr), sans
-installer QGIS : hauteur d'un objet, largeur d'une chaussée, longueur et surface sur la carte, à
+installer QGIS : hauteur d'un objet, longueur et surface sur la carte, à
 préparer ou vérifier depuis le bureau.
 
 Ses calculs viennent du plugin QGIS
@@ -22,8 +22,8 @@ possibles, mais la page prévient qu'elles seront probablement incohérentes.
 
 ## Grandes fonctions
 
-- **Mesures sur les photos**, guidées pas à pas : hauteur d'un objet, largeur perpendiculaire à la
-  chaussée, longueur et surface sur la carte, relevé d'objets en couche SIG. Chaque résultat porte son
+- **Mesures sur les photos**, guidées pas à pas : hauteur d'un objet, longueur et surface sur la
+  carte, relevé d'objets en couche SIG. Chaque résultat porte son
   incertitude.
 - **Mesures automatiques** : hauteur de chute sur un pont (nuage LiDAR HD), chute et dévers des
   bords de route (bouton « Profil en travers »), pente en long, analyse fine du nuage LiDAR.
@@ -61,10 +61,9 @@ Les mesures de hauteur sont validées sur des objets connus. Sur deux photos RTK
 | Mesure | Résultat | Attendu |
 |---|---|---|
 | Hauteur | 3,46 m ± 0,11 m | 3,464 m |
-| Largeur | 8,00 m ± 0,23 m | 8 m |
 | Distance entre deux points | 3,60 m ± 0,24 m | 3,606 m |
 
-Les largeurs, les chutes de pont, les dévers et l'analyse fine du LiDAR attendent encore une
+Les largeurs (bouton ↔ de la visionneuse), les chutes de pont, les dévers et l'analyse fine du LiDAR attendent encore une
 comparaison à des relevés sur place. Essais détaillés et limites : [docs/GUIDE.md](docs/GUIDE.md),
 rubrique « Précision ».
 

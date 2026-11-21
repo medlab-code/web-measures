@@ -515,7 +515,7 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       && w.mesures.map.getSource("couche").serialize().data.features.length === 2, () => Object.keys(saved).join(", "));
     expect("relevé gardé après l'envoi", JSON.parse(app.results()).filter((r) => r.releve).length === 2);
     // Tout effacer dans un autre mode : le relevé reste
-    doc.querySelector("#mode").value = "road"; doc.querySelector("#mode").dispatchEvent(new Event("change"));
+    doc.querySelector("#mode").value = "tilt"; doc.querySelector("#mode").dispatchEvent(new Event("change"));
     doc.querySelector("#tout-effacer").click();
     await sleep(300);
     expect("« Tout effacer » hors relevé : objets relevés gardés", JSON.parse(app.export_geojson(true)).features.length === 2);

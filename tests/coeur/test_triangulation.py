@@ -18,52 +18,6 @@ def sighting(photo, target, **extra):
     return s
 
 
-class Covariance(unittest.TestCase):
-    def test_across_better_than_major_axis(self):
-        """Visées le long de la route (nord), point sur le côté : mal placé le long, bien en travers."""
-        target = point(4.0, 30.0)
-        r = triangulation.solve([sighting(point(0, 0), target, accuracy=0.1), sighting(point(0, 10), target, accuracy=0.1)])
-        self.assertEqual(r["method"], "plan")
-        self.assertLess(triangulation.projected(r, 1.0, 0.0), triangulation.projected(r, 0.0, 1.0) / 2)
-        self.assertLess(triangulation.projected(r, 1.0, 0.0), r["uncertainty"] / 2)
-
-    def test_without_covariance(self):
-        self.assertAlmostEqual(triangulation.projected({"uncertainty": 0.5}, 0.6, 0.8), 0.5)
-
-
-class SightSpread(unittest.TestCase):
-    """Bord à 4 m à l'est de la trajectoire nord-sud, caméra à 2 m au-dessus du sol (altitude 0)."""
-
-    def sight(self, north, target_north, x=4.0, **extra):
-        d = math.hypot(x, target_north - north)
-        s = {"lon": point(0, north)[0], "lat": point(0, north)[1], "heading": math.degrees(math.atan2(x, target_north - north)),
-             "elev": -math.degrees(math.atan2(2.0, d)), "alt": 2.0, "elev_error": 0.3}
-        s.update(extra)
-        return s
-
-    def spread(self, sightings, target=(4.0, 10.0), ground=(0.0, 0.0, 0.0)):
-        return triangulation.sight_spread(sightings, *point(*target), ground, 1.0, 0.0)
-
-    def test_same_place_agrees(self):
-        self.assertLess(self.spread([self.sight(0, 10), self.sight(5, 10)]), 0.01)
-
-    def test_mismatch_along_the_edge(self):
-        """Visée suivante 2 m plus loin : le croisement bouge en travers, chaque visée reste sur le bord."""
-        far = [self.sight(0, 10), self.sight(5, 12)]
-        r = triangulation.solve([{k: s[k] for k in ("lon", "lat", "heading")} for s in far])
-        x, _ = triangulation._local(r["lon"], r["lat"], *point(0, 0))
-        spread = triangulation.sight_spread(far, r["lon"], r["lat"], (0.0, 0.0, 0.0), 1.0, 0.0)
-        self.assertAlmostEqual(spread, abs(x - 4.0), places=1)
-        self.assertGreater(spread, triangulation.SIGHT_WARNING)
-
-    def test_not_judged(self):
-        off = [self.sight(0, 10), self.sight(5, 12.0)]
-        self.assertEqual(self.spread(off, ground=None), 0.0)  # sans altitude lue
-        self.assertEqual(self.spread(off, ground=(0.0, 0.0, 0.0, 0.3, "RGE ALTI")), 0.0)  # trop imprécise
-        self.assertEqual(self.spread([self.sight(0, 10), self.sight(5, 12.0, elev_error=None)]), 0.0)  # non calée
-        self.assertEqual(self.spread(off[:1]), 0.0)
-
-
 class Projection(unittest.TestCase):
     def test_local_geographic_round_trip(self):
         lon, lat = point(123.4, -56.7)

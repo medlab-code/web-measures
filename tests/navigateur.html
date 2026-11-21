@@ -5,7 +5,7 @@
      - Pouilly-en-Auxois (photo imajbox, position RTK) : précision vérifiée, hauteur de caméra
        d'après l'altitude GPS, capture HD (Pyodide d'arrière-plan) ;
      - Montbard (photo imajbox) : inclinaison automatique (Pyodide d'arrière-plan) ;
-     - Dijon (photo grand public) : largeur de chaussée, recalage d'un point, longueur,
+     - Dijon (photo grand public) : recalage d'un point, longueur,
        hauteur, triangulation depuis deux photos, calage de l'inclinaison.
      Journal sous la page et sur la sortie de tools/serveur-essai.py. Voir CLAUDE.md pour le
      lancer dans Chrome sans fenêtre. -->
@@ -399,7 +399,7 @@ async function feature(id) {
 
   // Hauteur : point de référence triangulé au pied de l'objet, puis pied et sommet dans la photo.
   // Cible fictive à 6 m sur le côté, entre les deux photos de Dijon : directions calculées
-  doc.querySelector("#mode").value = "road"; doc.querySelector("#mode").dispatchEvent(new Event("change"));  // hauteur reprise de zéro
+  doc.querySelector("#mode").value = "tilt"; doc.querySelector("#mode").dispatchEvent(new Event("change"));  // hauteur reprise de zéro
   doc.querySelector("#hauteur-visionneuse").click();
   log("== hauteur avec point de référence : " + app.status());
   const photos = [await feature(DIJON[0]), await feature(DIJON[1])];
@@ -481,11 +481,10 @@ async function feature(id) {
     doc.querySelector(id).value = value;
     doc.querySelector(id).dispatchEvent(new Event("change"));
   };
-  for (const mode of ["road", "height"]) {
-    if (mode === "height") doc.querySelector("#hauteur-visionneuse").click();
-    else select("#mode", mode);
-    log("réglages " + mode + " : nouveau point de référence " + (doc.querySelector("#nouvelle-reference").hidden ? "masqué" : "affiché"));
-  }
+  select("#mode", "tilt");
+  log("réglages calage : nouveau point de référence " + (doc.querySelector("#nouvelle-reference").hidden ? "masqué" : "affiché"));
+  doc.querySelector("#hauteur-visionneuse").click();
+  log("réglages hauteur : nouveau point de référence " + (doc.querySelector("#nouvelle-reference").hidden ? "masqué" : "affiché"));
   // Lecture rapide 2x sur l'instance IGN (réglage par défaut) : ses images sont sur un stockage
   // OVH, qui refuse l'API ; la liste des photos vient du lien « collection » de la fiche
   if (doc.querySelector("#mesure").getAttribute("aria-pressed") === "true") doc.querySelector("#mesure").click();

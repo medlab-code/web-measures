@@ -83,40 +83,8 @@ const Visionneuse = {
       });
     }
 
-    /** Largeur, visée suivante : point du trait d'une visée déjà faite (vert, ligne épipolaire) le plus proche de (x, y)
-     * dans la visionneuse, à SIGHT_PX pixels au plus, ou null. Un bord n'a pas de repère le long de son tracé : sur ce
-     * trait, la visée retombe au même endroit du bord que les précédentes. */
-    const SIGHT_PX = 12;
-    function onSighting(x, y) {
-      if (!etat.measuring || $("#mode").value !== "road" || !etat.aiming) return null;
-      const view = etat.psv?.getPosition?.();
-      if (!view) return null;
-      const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-      let best = null, bestD = SIGHT_PX;
-      for (const mark of etat.currentMarks.filter((m) => m.epipolar)) {
-        for (let i = 1; i < mark.points.length; i++) {
-          const [y0, p0] = mark.points[i - 1], [y1, p1] = mark.points[i];
-          const visible = [[y0, p0], [y1, p1]].every(([yaw, pitch]) =>
-            Math.sin(pitch) * Math.sin(view.pitch) + Math.cos(pitch) * Math.cos(view.pitch) * Math.cos(yaw - view.yaw) > 0.05);
-          if (!visible) continue;
-          const a = etat.psv.dataHelper.sphericalCoordsToViewerCoords({ yaw: y0, pitch: p0 });
-          const b = etat.psv.dataHelper.sphericalCoordsToViewerCoords({ yaw: y1, pitch: p1 });
-          const dx = b.x - a.x, dy = b.y - a.y, length2 = dx * dx + dy * dy;
-          const t = length2 ? Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / length2)) : 0;
-          const d = Math.hypot(a.x + t * dx - x, a.y + t * dy - y);
-          if (d <= bestD) {
-            bestD = d;
-            best = { yaw: y0 + t * wrap(y1 - y0), pitch: p0 + t * (p1 - p0) };
-          }
-        }
-      }
-      return best;
-    }
-    let freeAim = false;  // touche Maj tenue au dernier mouvement du pointeur : visée libre, hors du trait
-
     function slideOnGuide(event) {
       if (!etat.psv) return;
-      freeAim = !!event?.shiftKey;
       // Hauteur suivante depuis A : réticule sur l'axe de la première, sauf sur une croix (sélection)
       const box = event && etat.psv.container.getBoundingClientRect();
       const onPhoto = event?.target?.closest?.(".psv-canvas-container, .psv-markers")
@@ -130,28 +98,7 @@ const Visionneuse = {
           return;
         }
       }
-      if (event && onPhoto && !freeAim) {
-        const position = onSighting(event.clientX - box.left, event.clientY - box.top);
-        if (position) return showSlide(position, "visée");
-      }
-      // Seulement quand un clic poserait le bord (largeur pas encore faite, ou bord sélectionné à
-      // recaler), et sur la photo : pas sur les boutons et flèches de la visionneuse
-      const line = event && etat.measuring && $("#mode").value === "road" && (!etat.aiming || etat.lineDrawn) && !etat.edgeBAiming
-        && (!etat.newMeasure || etat.pointSelected) && event.target?.closest?.(".psv-canvas-container, .psv-markers")
-        && !event.target.closest(".psv-virtual-tour-link")
-        && (etat.pointSelected || !nearCross(event.clientX - box.left, event.clientY - box.top))  // sur une croix : sélection
-        && etat.currentMarks.find((m) => m.guide && !m.vertical && !m.epipolar);
-      let position = null;
-      if (line) {
-        const yaw = etat.psv.dataHelper?.viewerCoordsToSphericalCoords?.({ x: event.clientX - box.left, y: event.clientY - box.top })?.yaw;
-        const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-        for (let i = 1; yaw != null && i < line.points.length && !position; i++) {  // tronçon de la droite sous ce cap
-          const [y0, p0] = line.points[i - 1], [y1, p1] = line.points[i];
-          const span = wrap(y1 - y0), t = span ? wrap(yaw - y0) / span : -1;
-          if (t >= 0 && t <= 1) position = { yaw: y0 + t * span, pitch: p0 + t * (p1 - p0) };
-        }
-      }
-      showSlide(position, position && "largeur");
+      showSlide(null);
     }
 
     /** Réticule glissant à position (ou retiré si null) ; hauteur : trait jaune en travers de l'axe
@@ -159,7 +106,7 @@ const Visionneuse = {
     function showSlide(position, kind, angle = 0) {
       if (position || etat.slideKind) {  // dessiné en WebGL (Traits), comme les mesures ; couleur hors visée et calage
         Traits.attach(etat.psv);
-        Traits.setSlide(position && { at: [position.yaw, position.pitch], color: host.reticleColor(etat.tilted, false, kind === "visée"),
+        Traits.setSlide(position && { at: [position.yaw, position.pitch], color: host.reticleColor(etat.tilted, false, false),
           angle: kind === "hauteur" ? angle : null });
       }
       etat.slideKind = position ? kind : null;
@@ -212,9 +159,7 @@ const Visionneuse = {
               refresh(host.photoReady() ? etat.app.select_point(event.data.yaw, event.data.pitch, onCross) : host.LOADING);
             } else if (etat.app) {
               if (host.photoReady()) remindZoom();
-              const held = inside && !freeAim ? onSighting(x, y) : null;  // comme le réticule (slideOnGuide)
-              refresh(host.photoReady()
-                ? etat.app.click(held?.yaw ?? event.data.yaw, held?.pitch ?? event.data.pitch, onCross) : host.LOADING);
+              refresh(host.photoReady() ? etat.app.click(event.data.yaw, event.data.pitch, onCross) : host.LOADING);
             }
             return true;
           }

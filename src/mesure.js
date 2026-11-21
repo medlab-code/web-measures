@@ -12,7 +12,7 @@ const Mesure = {
     const $ = (selector) => document.querySelector(selector);
     const {
       etat, showMapMeasureButton, viewer, stopPlayer, syncMapMeasure, updatePlayer, refresh, overlayAt, overlayHiddenTest,
-      movingId, overlayPoints, viewHeading, openPhoto, notice, setPlacing, showDrawnLine, store, editReleve, startLineDraft,
+      movingId, overlayPoints, viewHeading, openPhoto, notice, setPlacing, store, editReleve,
       escapeHtml,
     } = host;
 
@@ -53,7 +53,7 @@ const Mesure = {
       + "<path d='M16.5 2v11M16.5 20v11M2 16.5h11M20 16.5h11' stroke='#ff8a80' stroke-width='1.5'/>"
       + "<circle cx='16.5' cy='16.5' r='1' fill='white'/></svg>";
     const reticleColor = (tilted, calibrating, sighting) => calibrating ? CALAGE : sighting ? VISEE : tilted ? "#2ecc40" : "#ffeb00";
-    // .sur-droite : réticule tenu sur la droite de mesure (slideOnGuide), qui remplace le pointeur
+    // .sur-droite : réticule tenu sur l'axe de la hauteur (slideOnGuide), qui remplace le pointeur
     const cursorCss = (tilted, calibrating, sighting) => `.psv-container, .psv-container * { cursor: url("data:image/svg+xml;utf8,${
       encodeURIComponent(reticle(reticleColor(tilted, calibrating, sighting)))}") 16 16, crosshair !important; }
       .psv-container .psv-virtual-tour-link, .psv-container .psv-virtual-tour-link * { cursor: pointer !important; }
@@ -112,20 +112,19 @@ const Mesure = {
       // prise de mesure (couleurs de leurs croix)
       // longueur sur la carte : le cœur reste en mode « tri », sans visée
       const sighting = etat.measuring && etat.aiming && mode !== "carte";
-      const taking = etat.measuring && !etat.aiming && ["road", "height", "carte"].includes(mode);
+      const taking = etat.measuring && !etat.aiming && ["height", "carte"].includes(mode);
       const calibrating = etat.measuring && mode === "tilt";
       $("#vue").classList.toggle("visee", sighting);
       $("#vue").classList.toggle("prise", taking);
       $("#vue").classList.toggle("calage", calibrating);
       // Largeur, hauteur, relevé : trait vertical au centre de la vue, le cap tracé sur la
       // carte ; la vue tournée vers le point à viser (take_aim_frame), il le désigne (ticket #26)
-      $("#axe-vue").hidden = !etat.measuring || !["road", "height", "releve"].includes(mode) || viewer.hidden;
+      $("#axe-vue").hidden = !etat.measuring || !["height", "releve"].includes(mode) || viewer.hidden;
       $("#croix-cadastre").hidden = !$("#cadastre").checked || !$("#cadastre-visionneuse").checked || viewer.hidden;
       // Même état en toutes lettres, sous le rappel du mode (comme les voyants)
       // Carte d'étape (en bas, en mesure) : nom de la mesure et ses étapes, la courante en couleur
       $("#vue").classList.toggle("en-mesure", etat.measuring);
       const [title, steps, current] = mode === "height" ? ["Hauteur", ["Pied", "Sommet"], etat.aiming ? 0 : etat.newMeasure ? 2 : 1]
-        : mode === "road" ? ["Largeur", ["Premier bord", "Bord opposé"], etat.aiming && !etat.edgeBAiming ? 0 : etat.newMeasure ? 2 : 1]
         : mode === "releve" ? ["Relevé d'objets", ["Objet visé", "Ses champs"], 0]
         : mode === "carte" ? Dessus.tool() === "surface" ? ["Surface sur la carte", ["Sommets", "Fermeture"], Dessus.hasStart() ? 1 : 0]
           : ["Longueur sur la carte", ["Départ", "Arrivée"], Dessus.hasStart() ? 1 : 0]
@@ -144,14 +143,6 @@ const Mesure = {
         : mode === "height" && etat.newMeasure
           ? `Hauteur faite : cliquez une de ses croix pour l'ajuster ; autre hauteur : « Nouvelle mesure depuis ${etat.newMeasure} »`
         : mode === "height" ? "Hauteur, étape 2 : cliquez le sommet (le pied est le point visé) ; autre photo : par la carte"
-        : mode === "road" && etat.edgeBAiming ? "Largeur, bord opposé : le clic de la mesure est la 1re visée ; photo suivante, même bord "
-          + "(réticule calé sur le trait vert, Maj : visée libre), puis « Valider le point triangulé »"
-        : mode === "road" && etat.aiming ? "Largeur, étape 1 : visez le premier bord depuis plusieurs photos (lecteur, carte), de préférence un "
-          + "repère net (fin de tiret, joint, regard) ; réticule calé sur le trait vert, Maj : visée libre ; "
-          + "puis « Valider le point triangulé »"
-        : mode === "road" && etat.newMeasure
-          ? `Largeur faite : cliquez une de ses croix pour l'ajuster ; autre largeur : « Nouvelle mesure depuis ${etat.newMeasure} »`
-        : mode === "road" ? "Largeur, étape 2 : cliquez le bord opposé ; autre photo, prise avant ou après : par la carte"
         : mode === "carte" && Dessus.tool() === "surface"
           ? "Surface sur la carte : cliquez les sommets, puis le dernier (ou le premier) pour fermer ; Échap : tout retirer, Effacer : le dernier"
         : mode === "carte" ? `Longueur sur la carte : cliquez ${Dessus.hasStart() ? "l'arrivée" : "le départ"}, `
@@ -451,9 +442,9 @@ const Mesure = {
         // Incertitude attendue du point avec cette visée en plus (voir App.guide)
         const m = (v) => v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const label = choice.expect == null ? choice.label
-          : `${choice.label} · ±${m(choice.expect)} m${choice.across ? " en travers" : ""}`;
+          : `${choice.label} · ±${m(choice.expect)} m`;
         const title = choice.expect == null ? choice.title
-          : `${choice.title}. Incertitude attendue ${choice.across ? "en travers de la route" : "du point"} : `
+          : `${choice.title}. Incertitude attendue du point : `
           + (choice.now == null ? `±${m(choice.expect)} m` : `±${m(choice.now)} m → ±${m(choice.expect)} m`);
         const button = Object.assign(document.createElement("button"), { type: "button",
           textContent: arrow === "◀" ? `◀ ${label}` : arrow ? `${label} ${arrow}` : label, title });
@@ -525,15 +516,6 @@ const Mesure = {
       $("#nouvelle-mesure").hidden = !etat.measuring || !etat.newMeasure || viewer.hidden;
       $("#placer-carte").hidden = !etat.measuring || mode !== "releve" || viewer.hidden;
       if (etat.placing && $("#placer-carte").hidden) setPlacing(false);  // mesure arrêtée, autre mode
-      $("#trianguler-b").hidden = !etat.measuring || !etat.edgeBOffered || viewer.hidden;
-      // Largeur, avant la première visée du point A : droite de mesure à tracer sur la carte (#28) ;
-      // tracée, « Annuler la droite » jusqu'au point A
-      const axis = etat.app && mode === "road" ? JSON.parse(etat.app.axis_state()) : {};
-      etat.lineDrawn = Boolean(axis.drawn);
-      $("#axe-carte").hidden = !$("#droite-carte").checked || !etat.measuring || !axis.can || viewer.hidden || etat.lineDraft !== null;
-      $("#axe-auto").hidden = !etat.measuring || !axis.drawn || viewer.hidden;
-      if (etat.lineDraft === null) showDrawnLine(etat.measuring && axis.drawn ? axis.line : null);  // jusqu'au point A
-      if (etat.edgeBOffered) $("#trianguler-b").textContent = `🎯 Trianguler le point ${etat.edgeBOffered} (plus précis)`;
       $("#nouvelle-mesure").textContent = `↺ Nouvelle mesure depuis ${etat.newMeasure || "A"}`;
     }
 
@@ -567,9 +549,6 @@ const Mesure = {
       editReleve(null, true);
     });
     $("#nouvelle-mesure").addEventListener("click", () => refresh(etat.app.new_measure()));
-    $("#trianguler-b").addEventListener("click", () => refresh(etat.app.start_edge_b()));
-    $("#axe-carte").addEventListener("click", () => startLineDraft());
-    $("#axe-auto").addEventListener("click", () => refresh(etat.app.cancel_measure_line()));
     $("#nouvelle-reference").addEventListener("click", () => refresh(etat.app.new_reference()));
     $("#effacer").addEventListener("click", () => {  // comme Ctrl+Z : le dernier geste (onUndoKey)
       if (Dessus.cancelStart(false)) {

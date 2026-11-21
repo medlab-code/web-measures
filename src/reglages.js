@@ -301,14 +301,6 @@ const Reglages = {
       win.focus();
       win.print();
     });
-    // Droite de mesure tracée sur la carte (expérimental, ticket #28) : décochée, bouton non proposé
-    $("#droite-carte").checked = store.get("droite-carte") === "1";
-    $("#droite-carte").addEventListener("change", (event) => {
-      store.set("droite-carte", event.target.checked ? "1" : "0");
-      if (!etat.app) return;
-      if (!event.target.checked && etat.lineDraft !== null) host.endLineDraft();
-      refresh(!event.target.checked && JSON.parse(etat.app.axis_state()).drawn ? etat.app.cancel_measure_line() : undefined);
-    });
     // Filtrage anisotrope 16x des textures du panorama (4x dans le plugin), contre le crénelage et
     // le scintillement des détails fins vus de loin. Photo Sphere Viewer crée ses textures sans
     // mipmaps, sans lesquels l'anisotropie n'a guère d'effet : on les active (trilinéaire).

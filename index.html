@@ -59,7 +59,6 @@
               <optgroup label="Mesures">
                 <!-- Hauteur : lancée par le bouton ↕ de la visionneuse (src/mesure.js) ; option cachée, mode de départ du calcul -->
                 <option value="height" hidden>Hauteur d'un objet</option>
-                <option value="road">Largeur perpendiculaire à la chaussée</option>
                 <option value="carte"
                         title="Longueur (deux clics) ou surface (contour) tracée sur la carte en grand, à la place de la visionneuse ; sur la vue Bird Eye si elle est allumée (avec incertitude), sinon sur le fond de carte">Mesure sur la carte (longueur, surface)</option>
               </optgroup>
@@ -196,9 +195,6 @@ enregistrée en PNG et copiée dans le presse-papiers">
         <!-- Calage de l'inclinaison : pied et sommet placés, ajustables jusqu'à la validation -->
         <button id="valider-objet" type="button" hidden
                 title="Caler l'inclinaison de la photo sur cet objet vertical">✔ Valider l'objet vertical</button>
-        <!-- Largeur faite d'un clic : proposer de trianguler aussi le bord opposé (Session.start_edge_b) -->
-        <button id="trianguler-b" type="button" hidden
-                title="Viser le bord opposé depuis plusieurs photos, comme le point de référence : largeur plus précise">🎯 Trianguler le point (plus précis)</button>
         <!-- Hauteur, largeur : photos à viser ensuite (voir Session.guide), proposées par le calcul -->
         <div id="guide-photos" hidden></div>
         <!-- Largeur ou hauteur faite : seuls ses points s'ajustent, jusqu'à une nouvelle mesure -->
@@ -206,11 +202,6 @@ enregistrée en PNG et copiée dans le presse-papiers">
         <div id="suite-mesure">
           <button id="nouvelle-mesure" type="button" hidden
                   title="Mesurer une autre largeur ou hauteur depuis le même point de référence (la mesure faite reste)">↺ Nouvelle mesure depuis A</button>
-          <!-- Largeur, avant la première visée de A : droite de mesure tracée sur la mini-carte (ticket #28) -->
-          <button id="axe-carte" type="button" hidden
-                  title="Giratoire, carrefour, place : avant le premier bord, tracer la droite de mesure sur la mini-carte (deux clics, en travers de la voie) ; les deux bords seront posés dessus">📏 Tracer la droite sur la carte</button>
-          <button id="axe-auto" type="button" hidden
-                  title="Annuler la droite tracée : droite perpendiculaire à l'axe calculé (BD TOPO ou trajectoire de la séquence)">Annuler la droite</button>
           <!-- Relevé : objet posé d'un clic sur la mini-carte, sans visée (projeté au sol dans les photos) -->
           <button id="placer-carte" type="button" hidden
                   title="Poser l'objet d'un clic sur la mini-carte, sans le viser : projeté au sol dans les photos, précision celle de la carte">📍 Placer sur la carte</button>
@@ -984,13 +975,6 @@ enregistrée en PNG et copiée dans le presse-papiers">
           <div class="encart-calage encart-experimental">
             <h3>Expérimental</h3>
             <div class="options">
-            <label class="option"
-                   title="Expérimental (ticket #28). En largeur, avant le premier bord : bouton « Tracer la droite sur la carte » (giratoire, carrefour, place) ; les deux bords sont posés sur la droite tracée sur la mini-carte au lieu de la perpendiculaire à l'axe calculé. Décochée : le bouton n'est pas proposé.">
-              <span class="texte-option">Droite de mesure tracée sur la carte
-                <span class="aide">Largeur dans un giratoire, un carrefour ou sur une place : les bords posés sur une droite tracée sur la
-                  mini-carte.</span></span>
-              <input id="droite-carte" type="checkbox" class="interrupteur">
-            </label>
             <label class="option"
                    title="Expérimental (ticket #29). Quand les verticales de la photo manquent (rase campagne), l'inclinaison est tirée de la pente et du dévers du terrain LiDAR HD sous la caméra et du décalage de la fixation de la caméra, appris sur des photos de village de la même séquence (téléchargées en arrière-plan, environ 45 Mo par séquence). Incertitude d'environ ±0,6° au lieu de ±2°.">
               <span class="texte-option">Inclinaison par le terrain hors agglomération
