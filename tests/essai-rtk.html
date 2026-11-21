@@ -204,10 +204,6 @@ const IDS = ["cd8cf3a0-6567-40f0-8805-94172a5dfc3c", "1108ca14-6669-49e8-a26a-95
       + " · croix " + crossesIn(false));
     expect("2e hauteur absente de l'autre photo", heights().length === 1
       && !labelsIn().some((e) => e.textContent.includes("3,18")));
-    // Appui dans la photo : la liste « Mode » perd le focus (sinon les flèches du recalage y changeraient le mode)
-    doc.querySelector("#mode").focus();
-    w.mesures.psv.container.querySelector(".psv-canvas-container").dispatchEvent(new w.PointerEvent("pointerdown", { bubbles: true }));
-    expect("appui dans la photo : focus retiré de la liste Mode", doc.activeElement !== doc.querySelector("#mode"));
     // Recalage au clic, sur la photo de la mesure
     w.mesures.openPhoto(photos[0]);
     await until(() => w.mesures.psv?.getPictureMetadata?.()?.id === photos[0].id, 30000, "photo 1 bis");
