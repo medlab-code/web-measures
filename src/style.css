@@ -236,6 +236,11 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   --etiquette-rayon: 0.8rem; --etiquette-marge: 4px; --etiquette-element: 23px;
   --etiquette-ligne: 23px; /* épaisseur d'une étiquette en ligne (requêteurs, pastilles du bas), égale à la largeur de la colonne de boutons */
   --etiquette-icone: 16px; /* icône des étiquettes en ligne (recherche, route) */ }
+/* Carte en grand (vues échangées) ou détachée dans sa fenêtre : étiquettes de la carte de 26 px au lieu de 23 (colonne de boutons, rangée de mesure, recherche,
+   requêteur, bouton « i »). Variable propre à ce site ; la visionneuse (#lieu, lecteur…) et la carte à droite gardent 23 px. */
+:root { --etiquette-carte-grande: 26px; --etiquette-icone-carte-grande: 18px; }
+:is(.carte-en-grand, .fenetre-carte) #carte { --etiquette-element: var(--etiquette-carte-grande); --etiquette-ligne: var(--etiquette-carte-grande);
+  --etiquette-icone: var(--etiquette-icone-carte-grande); }
 .etiquette-carte, .maplibregl-ctrl-top-left .maplibregl-ctrl-group, .recherche, .requeteur {
   background: var(--etiquette-fond); border-radius: var(--etiquette-rayon); box-shadow: none; transition: background 0.2s; }
 .maplibregl-ctrl-top-left .maplibregl-ctrl-group { overflow: hidden; padding: var(--etiquette-marge) 0; }
