@@ -20,12 +20,32 @@ const Reglages = {
     // Police des cartouches prête avant qu'ils ne soient dessinés
     document.fonts?.load("700 24px Inter").catch(() => {});
     Carte.showAdmin(map);  // limites des départements et des métropoles ; des communes avec « orthophoto avec noms »
-    // Filaire Panoramax affiché ou non (choix mémorisé)
-    $("#filaire").checked = store.get("filaire", "1") === "1";
-    map.on("load", () => Carte.setNetworkVisible(map, $("#filaire").checked));
-    $("#filaire").addEventListener("change", (event) => {
-      Carte.setNetworkVisible(map, event.target.checked);
-      store.set("filaire", event.target.checked ? "1" : "0");
+    // Filaire Panoramax affiché ou non (choix mémorisé) : interrupteur dans l'étiquette verticale de la carte, avec zoom et boussole
+    // (même groupe que le bouton d'échange des vues, voir resultats.js) ; enfoncé = filaire visible
+    const wire = Object.assign(document.createElement("button"), { type: "button", id: "filaire",
+      innerHTML: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+        + 'aria-hidden="true"><path d="M3 18l6-9 5 5 7-10"/><circle cx="3" cy="18" r="1.2"/><circle cx="9" cy="9" r="1.2"/>'
+        + '<circle cx="14" cy="14" r="1.2"/><circle cx="21" cy="4" r="1.2"/></svg>' });
+    const showWire = (on) => {
+      wire.setAttribute("aria-pressed", String(on));
+      wire.title = on ? "Masquer le filaire Panoramax (séquences et photos) sur la carte" : "Afficher le filaire Panoramax (séquences et photos) sur la carte";
+      wire.ariaLabel = "Filaire Panoramax";
+    };
+    const wireOn = () => wire.getAttribute("aria-pressed") === "true";
+    showWire(store.get("filaire", "1") === "1");
+    map.addControl({
+      onAdd: () => {
+        (map.getContainer().querySelector(".maplibregl-ctrl-top-left .maplibregl-ctrl-group") || Object.assign(document.createElement("div"),
+          { className: "maplibregl-ctrl maplibregl-ctrl-group" })).append(wire);
+        return Object.assign(document.createElement("div"), { hidden: true });
+      },
+      onRemove: () => {},
+    }, "top-left");
+    map.on("load", () => Carte.setNetworkVisible(map, wireOn()));
+    wire.addEventListener("click", () => {
+      showWire(!wireOn());
+      Carte.setNetworkVisible(map, wireOn());
+      store.set("filaire", wireOn() ? "1" : "0");
     });
     $("#fond").addEventListener("change", (event) => {
       Carte.setBackground(map, event.target.value);

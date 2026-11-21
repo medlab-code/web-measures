@@ -59,7 +59,7 @@ autoroutes et nationales paraissent dès le zoom 7, les départementales dès le
 autres voies dès le zoom 15. Les points de repère sont dessinés en bornes (tête à la couleur
 du réseau, numéro du PR), à côté de la voie, sur tous les fonds, ou sur aucun selon « Bornes des PR sur la carte »
 (Réglages, Affichage). Le filaire Panoramax, semi-transparent, se
-masque par sa case à cocher.
+masque par le bouton « filaire » de l'étiquette verticale de la carte (au-dessous de la boussole ; enfoncé : visible ; choix mémorisé).
 
 **Choisir une photo** : cliquer sur le filaire orange de la carte (photo la plus proche) ; la
 photo s'ouvre dans la visionneuse officielle Panoramax. Les flèches de navigation au sol de la visionneuse (ellipse violette) servent à naviguer hors mesure ; elles sont
