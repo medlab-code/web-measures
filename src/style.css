@@ -1062,6 +1062,8 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
 }
 #producteur-photo { text-align: right; }
 #lieu[hidden], #producteur-photo[hidden] { display: none; }
+/* Visionneuse à la petite place (lecteur et producteur masqués) : la localisation prend toute la largeur du bandeau, mêmes marges des deux côtés */
+.carte-en-grand #lieu { grid-column: 1 / -1; justify-self: stretch; }
 /* Bulles d'un objet de la couche sous le pointeur (src/choix.js, objectTip) : repère de taille nulle au
    pointeur, clic gauche à sa gauche, clic droit à sa droite, au style de #lieu */
 #bulle-objet { position: fixed; width: 0; height: 0; pointer-events: none; z-index: 1000; }
