@@ -16,7 +16,7 @@ const Dessus = (() => {
   // px : côté de l'image affichée, 1,5 cm par pixel ; la photo est plus fine jusqu'à 10 m (12 288 px : 0,5 cm en travers et
   // 2,6 cm le long à 10 m, 0,2 et 0,5 cm à 4 m), les voisines (NEAR_LIMIT) deux fois moins
   const SHOWN_SIZE = 2048, FINE_SIZE = 4096;  // FINE_SIZE : « Haute résolution », 0,7 cm par pixel (zoom 24 de la carte)
-  const CHUNK = 150;  // points par requête d'altitude (longueur de l'adresse)
+  const ALTI_CHUNK = 300;  // points par requête d'altitude en GET, si le POST échoue (longueur de l'adresse : environ 6,5 Ko)
   // Contour du véhicule dans le panorama, par monture (voir MOUNTS) : élévation (degrés) sous laquelle le véhicule cache le sol,
   // tous les 2,8° depuis l'arrière (bord du panorama), avant au milieu ; marge de 1,5° comprise (environ 10 cm au sol ; à 1°, des bords de
   // carrosserie des voisines restaient visibles). Relevé le
@@ -260,29 +260,61 @@ const Dessus = (() => {
     return sum / n;
   }
 
-  /** Altitudes LiDAR HD du maillage (lignes du sud au nord, colonnes d'ouest en est), ou null s'il en manque une ;
-   * exception si le service ne répond pas. across : portée du lissage en travers (voir smoothTerrain). */
-  async function readTerrain(pose, signal, reach = REACH, across = TERRAIN_SMOOTH_ACROSS) {
+  /** Altitudes brutes LiDAR HD d'une grille carrée de ±reach m (lignes du sud au nord, colonnes d'ouest en est, maille STEP)
+   * autour de la photo : en une seule requête POST (2 601 points pour ±25 m : 1 à 2 s, contre 18 requêtes GET de 150 points,
+   * une à la fois, que le quota de 5 requêtes/s du service faisait attendre 20 à 30 s) ; si le POST échoue, en GET par blocs de
+   * ALTI_CHUNK points (la file de app.js espace les requêtes). Mêmes points, mêmes altitudes dans les deux cas. */
+  async function fetchGrid(pose, reach) {
     const n = 2 * reach / STEP + 1, points = [];
     for (let j = 0; j < n; j++) {
       for (let i = 0; i < n; i++) points.push(toLonLat(-reach + i * STEP, -reach + j * STEP, pose));
     }
-    const z = [];
-    for (let k = 0; k < points.length; k += CHUNK) {  // une requête à la fois : le service limite le débit (HTTP 429)
-      const chunk = points.slice(k, k + CHUNK);
-      const url = `${ELEVATION_URL}?lon=${chunk.map((p) => p[0].toFixed(7)).join("|")}&lat=${chunk.map((p) => p[1].toFixed(7)).join("|")}`
-        + `&resource=${LIDAR_RESOURCE}&zonly=true`;
-      for (let attempt = 1; ; attempt++) {
-        const response = await fetch(url, { signal });
-        if (response.ok) {
-          z.push(...(await response.json()).elevations.map(Number));
-          break;
-        }
-        if (attempt === 6 || (response.status !== 429 && response.status < 500)) throw new Error(`HTTP ${response.status}`);
-        await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** (attempt - 1)));
-      }
+    const lon = (list) => list.map((p) => p[0].toFixed(7)).join("|"), lat = (list) => list.map((p) => p[1].toFixed(7)).join("|");
+    try {
+      const response = await fetch(ELEVATION_URL, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lon: lon(points), lat: lat(points), resource: LIDAR_RESOURCE, zonly: "true" }),  // « true » en chaîne : un booléen donne 400
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const z = (await response.json()).elevations.map(Number);
+      if (z.length === points.length) return z;
+      throw new Error("réponse incomplète");
+    } catch (error) {
+      console.warn("Altitudes en une requête impossibles, lues par blocs :", error);
     }
-    if (z.length !== points.length || !z.every((v) => v > -1000)) return null;
+    const z = [];
+    for (let k = 0; k < points.length; k += ALTI_CHUNK) {
+      const chunk = points.slice(k, k + ALTI_CHUNK);
+      const response = await fetch(`${ELEVATION_URL}?lon=${lon(chunk)}&lat=${lat(chunk)}&resource=${LIDAR_RESOURCE}&zonly=true`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      z.push(...(await response.json()).elevations.map(Number));
+    }
+    return z;
+  }
+  // Grilles brutes déjà lues (promesses), par position et portée : la même lecture sert la vue (±REACH), le tangage sur les
+  // lignes (±LINES_WIDE, qui contient la vue : même maille, même centre) et l'activation de « Largeur dans la visionneuse »
+  // (prefetch). Indépendante de l'annulation d'une vue : une lecture lancée n'est pas perdue. Huit au plus.
+  const grids = new Map();
+  function readGrid(pose, reach) {
+    const key = `${pose.lon.toFixed(7)},${pose.lat.toFixed(7)},${reach}`;
+    if (!grids.has(key)) {
+      if (grids.size >= 8) grids.delete(grids.keys().next().value);
+      const promise = fetchGrid(pose, reach);
+      promise.catch(() => grids.delete(key));  // échec : relu au prochain appel
+      grids.set(key, promise);
+    }
+    return grids.get(key);
+  }
+
+  /** Altitudes LiDAR HD du maillage (lignes du sud au nord, colonnes d'ouest en est), lissées, ou null s'il en manque une ;
+   * exception si le service ne répond pas. across : portée du lissage en travers (voir smoothTerrain). Extraites de la grille
+   * de ±LINES_WIDE m (readGrid), une seule lecture pour toutes les portées. */
+  async function readTerrain(pose, signal, reach = REACH, across = TERRAIN_SMOOTH_ACROSS) {
+    const big = Math.max(reach, LINES_WIDE), all = await readGrid(pose, big);
+    if (signal?.aborted) throw signal.reason ?? new DOMException("Annulé", "AbortError");
+    const n = 2 * big / STEP + 1, m = 2 * reach / STEP + 1, off = (big - reach) / STEP, z = [];
+    for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) z.push(all[(j + off) * n + i + off]);
+    if (!z.every((v) => v > -1000)) return null;
     const mesh = smoothTerrain(z, pose.heading, across);
     mesh.level = smoothTerrain(z, pose.heading, TERRAIN_SMOOTH);  // pour la route sous le véhicule (voir levelOf)
     return mesh;
@@ -2003,7 +2035,7 @@ const Dessus = (() => {
   /** Calage de la photo (même chose que la vue Bird Eye, sans l'afficher : update(…, silent)) : { ok } une fois fait, undefined avant.
    * Fait aussi par la vue allumée ; gardé avec ce que la vue retient d'une photo (computed), la photo reprise sans rien refaire. */
   const calibrated = (pic) => (shown?.pic === pic ? shown : parked?.pic === pic ? parked : computed.get(pic))?.calage;
-  let calageListener = null;  // (pic, ok) à chaque fois que la photo affichée est calée (Dessus.onCalibrated)
+  let calageListener = null;  // (pic, ok, final) : photo affichée calée (Dessus.onCalibrated) ; final faux : première lecture, raffinement en cours
   async function showImage() {
     placeFor(shown);
     shown.joinKeyNow = joinKey();  // recalage des raccords valable pour ces réglages seulement
@@ -2058,13 +2090,20 @@ const Dessus = (() => {
       + `, caméra à ${number(layers[0].pose.height, 2)} m${cameraOrigin(parallax)}`;
     const joins = withNeighbours() && shown.joinText && shown.joins?.key === shown.joinKeyNow ? shown.joinText : "";
     if (!shown.silent) say([head, joins, locatedText(), progress].filter(Boolean).join(" ; "));
+    // Calage sans affichage : l'inclinaison de la première lecture des lignes suffit à « Largeur dans la visionneuse », qui affiche
+    // sa largeur sans attendre le raffinement du tangage (passes suivantes) ; la page est avertie encore à la fin (final)
+    if (linesPending && shown.silent && !shown.calage && (shown.linePasses || 0) >= 1 && !pose.pending
+      && (layers[0].pose.groundTilt || layers[0].pose.up)) {
+      shown.calage = { ok: true };
+      calageListener?.(shown.pic, true, false);
+    }
     if (linesPending) learnLines();
     else if (withPosition() && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
     else if (!busy() && withNeighbours() && !shown.estimated) measureHeight();
     else if (!busy() && withNeighbours() && layers.length > 1 && shown.joins?.key !== shown.joinKeyNow) alignJoins();
     else if (!progress && !pose.pending) {  // plus rien en cours : calage fait (ok : inclinaison de la photo connue, route ou verticales)
       shown.calage = { ok: Boolean(layers[0].pose.groundTilt || layers[0].pose.up) };
-      calageListener?.(shown.pic, shown.calage.ok);
+      calageListener?.(shown.pic, shown.calage.ok, true);
     }
   }
 
@@ -2267,6 +2306,27 @@ const Dessus = (() => {
     return { blob, name: `bird-eye-${view.pic.slice(0, 8)}.tif` };
   }
 
+  // Lecture à l'avance (activation de « Largeur dans la visionneuse ») : terrain (readGrid, gardé) et panorama de la photo,
+  // sans calcul de calage ; update() reprend le panorama s'il s'agit de la même photo, un seul gardé à la fois
+  let prefetched = null;  // { pic, part (promesse de loadPano), abort }
+  function dropPrefetch() {
+    if (!prefetched) return;
+    prefetched.abort.abort();
+    prefetched.part.then((part) => { part.canvas.width = 0; }, () => {});
+    prefetched = null;
+  }
+  function prefetch(photo, pose) {
+    if (!photo || !pose || pose.pic !== photo.id || pose.bridge || shown?.pic === photo.id || prefetched?.pic === photo.id
+      || computed.has(photo.id)) return;
+    dropPrefetch();
+    const controller = new AbortController();
+    readGrid(pose, LINES_WIDE).catch(() => {});
+    const tiles = Video.record(photo, { coords: photo.geometry.coordinates }).tiles;
+    const part = loadPano(tiles, context().getParameter(gl.MAX_TEXTURE_SIZE), controller.signal);
+    part.catch(() => {});
+    prefetched = { pic: photo.id, part, abort: controller };
+  }
+
   async function update(photo, pose, features, silent = false) {
     const key = pose && JSON.stringify([pose, (features || []).map((f) => f.id), features === null, silent]);
     if (key === (shown?.key ?? null)) return;
@@ -2335,13 +2395,16 @@ const Dessus = (() => {
     if (!silent) say("Lecture de la photo et du terrain…");
     try {
       const tiles = Video.record(photo, { coords: photo.geometry.coordinates }).tiles;
+      const pre = prefetched?.pic === photo.id ? prefetched : null;  // panorama lu à l'avance
+      if (pre) prefetched = null;
+      else dropPrefetch();  // lecture à l'avance d'une autre photo : inutile
       const [terrain, part] = await Promise.all([
         known || pose.bridge ? Promise.resolve(pose.bridge ? deck() : shown.terrain) : readTerrain(pose, signal).catch((error) => {
           console.warn("Terrain de la vue du dessus :", error);
           mine.terrainFailed = true;
           return null;
         }),
-        loadPano(tiles, context().getParameter(gl.MAX_TEXTURE_SIZE), signal)]);
+        pre ? pre.part : loadPano(tiles, context().getParameter(gl.MAX_TEXTURE_SIZE), signal)]);
       if (shown !== mine) { part.canvas.width = 0; return; }
       mine.terrain = mine.pose.bridge ? deck() : terrain;  // pont signalé pendant la lecture
       mine.sigmaGround = onLidar(mine) ? LIDAR_SIGMA : FLAT_SIGMA;
@@ -2353,13 +2416,13 @@ const Dessus = (() => {
         console.error(error);
         say(`Bird Eye impossible : ${error.message}`);
         mine.calage = { ok: false };
-        calageListener?.(mine.pic, false);
+        calageListener?.(mine.pic, false, true);
       }
     }
   }
 
   return {
-    setup, update, exportView, onTilt: (listener) => { tiltListener = listener; }, calibrated,
+    setup, update, prefetch, exportView, onTilt: (listener) => { tiltListener = listener; }, calibrated,
     onCalibrated: (listener) => { calageListener = listener; }, geotiff, addPoint, cancelStart, setMeasuring,
     hasStart: () => trace.length > 0, measuring: () => measuringOn, setTool, tool: () => tool,
     layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins,

@@ -796,6 +796,7 @@ const Nez = {
         const hadError = !line || line.error;
         if (!load()) return;
         if (hadError) reset();  // droite arrivée après une erreur (calcul en chargement) : bords de départ
+        else if (calage.pic === photoId && calage.state === "done") reanchor();  // tangage affiné après le calage : poignées sur leur point de l'image
         settle();  // nouvelle attente (verticales relancées par des clics) : droite masquée jusqu'à sa position définitive
         draw();
         waitNeighbours(photoId);

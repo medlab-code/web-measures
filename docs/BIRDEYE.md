@@ -24,7 +24,10 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
 
 - la photo et sa pose : position GPS (RTK pour le CD21), cap (EXIF au centième, plutôt que `view:azimuth` arrondi),
   inclinaison (voir § 4.1) et hauteur de caméra (voir § 4.2) ;
-- le terrain : MNT LiDAR HD de l'IGN, lu sur une grille de 1 m sur ±15 m (`readTerrain`), sinon un plan horizontal.
+- le terrain : MNT LiDAR HD de l'IGN, lu sur une grille de 1 m sur ±15 m (`readTerrain`), sinon un plan horizontal. Une seule
+  lecture sert la vue (±15 m) et le tangage sur les lignes (±25 m, 51 × 51 points, même maille et même centre : la grille de 15 m en
+  est extraite, chacune lissée à part) : une requête POST de 2 601 points (`fetchGrid`, `chaîne "true"` pour `zonly`), sinon des
+  GET de 300 points au plus, gardée en mémoire par position (`readGrid`) ; le calage de la largeur ↔ passe de 21–31 s à 4–8 s ;
   **Près d'un pont** (tronçon BD TOPO en pont à moins de 20 m, photo dessus ou dessous, `App._near_bridge`), le MNT
   est écarté : il donne le sol sous le tablier, ou la brèche sous la photo. Tablier plan et horizontal (`deck`) :
   inclinaison par la route (±1,5°), hauteur lue entre photos sur les verticales, sinon celle de la séquence, puis pour le

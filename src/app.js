@@ -80,7 +80,37 @@
     else silent.delete(name);
     showLights();
   }
-  const nativeFetch = window.fetch.bind(window);
+  const rawFetch = window.fetch.bind(window);
+  // Calcul altimétrique de la Géoplateforme : 5 requêtes/s par adresse IP au plus, puis HTTP 429 (en-tête Retry-After : 4 à 5 s).
+  // Toutes les requêtes à ce service (GET en blocs, POST de la vue du dessus, sol des mesures de py/web_host.py, parcours) passent
+  // par une seule file : au plus une requête tous les ALTI_GAP ms (4,5/s), et un refus bloque la file pour la durée de Retry-After
+  // (5 s si l'en-tête n'est pas lisible : il n'est pas exposé par CORS) avant de repartir, au lieu d'un recul aveugle qui
+  // retombait sur le même refus et laissait des sols « plats (relief indisponible) » (essais du 21/11/2026).
+  const ALTI_GAP = 220, ALTI_TRIES = 4, ALTI_RETRY_AFTER = 5000;
+  let altiNext = 0, altiQueue = Promise.resolve();  // heure de la prochaine requête permise ; file d'attente
+  const altiSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  function altiTurn() {
+    const mine = altiQueue.then(async () => {
+      const wait = altiNext - Date.now();
+      if (wait > 0) await altiSleep(wait);
+      altiNext = Date.now() + ALTI_GAP;
+    });
+    altiQueue = mine;
+    return mine;
+  }
+  async function altiFetch(input, init) {
+    for (let attempt = 1; ; attempt++) {
+      if (init?.signal?.aborted) throw init.signal.reason;
+      await altiTurn();
+      if (init?.signal?.aborted) throw init.signal.reason;
+      const response = await rawFetch(input, init);
+      if (response.status !== 429 || attempt === ALTI_TRIES) return response;
+      const after = Number(response.headers.get("retry-after"));
+      altiNext = Date.now() + (after > 0 ? after * 1000 : ALTI_RETRY_AFTER) + 200;
+    }
+  }
+  const nativeFetch = (input, init) => ((input?.url ?? String(input)).includes("data.geopf.fr/altimetrie")
+    ? altiFetch(input, init) : rawFetch(input, init));
   // Requêtes GET aux API Panoramax et à la Géoplateforme : RETRY_TIMEOUT ms au plus chacune, reprises jusqu'à RETRIES
   // fois après une panne réseau, un délai dépassé ou une erreur 5xx (pause de 1, 2, puis 4 s) : un service lent ou
   // en panne passagère ne fait plus échouer la préparation d'une vidéo. Les refus en rafale (429) restent à chaque

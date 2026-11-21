@@ -464,7 +464,13 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   inclinaison par la route ou verticales, tangage lu sur les lignes ; ni voisines, ni position sur l'orthophoto, qui sont des réglages
   d'affichage) et annonce son inclinaison comme à l'ordinaire (`Dessus.onTilt` → `birdeye_tilt_set`) ; le calage est « fait » quand plus
   rien n'est en cours (`calage: { ok }` de la vue, repris avec `computed` : une photo déjà calée, par la vue allumée ou par un déplacement
-  antérieur, n'attend pas). Sans inclinaison de route ni verticales (`ok` faux) ou sans pose Bird Eye, ou au-delà de 90 s : largeur sans
+  antérieur, n'attend pas). Dès la **première lecture des lignes** (première passe de `learnLines`) le calage est signalé « fait »
+  (`Dessus.onCalibrated(pic, ok, final = faux)`) : la largeur s'affiche aussitôt ; les passes suivantes (tangage, au plus 4 en tout)
+  se poursuivent en arrière-plan (la vue reste calculée, `calageFor` gardé jusqu'au signal final), chaque nouveau tangage est annoncé
+  (`onTilt` → `nez.changed`) et la largeur est recalculée sans repasser par « en cours » (poignées replacées sur l'image, `reanchor`).
+  Pose Bird Eye pas encore prête au déplacement (photo tout juste affichée) : attente de sa pose, puis calage, avec le message « en cours ».
+  À l'**activation** de l'outil, le terrain (`readGrid`, en cache) et le panorama (`Dessus.prefetch`) de la photo sont lus à l'avance, sans
+  calage : celui-ci ne part qu'au déplacement d'une poignée latérale. Sans inclinaison de route ni verticales (`ok` faux) ou sans pose Bird Eye, ou au-delà de 90 s : largeur sans
   calage, avec message. Pendant le calage aucune largeur n'est affichée. À la fin les poignées déplacées à la main sont **replacées sur
   leur point de l'image** : le décalage en mètres d'une poignée est celui du point le plus proche, en direction (yaw, pitch) de la
   photo, de la droite recalculée avec l'inclinaison calée (`offsetOfDirection`), car l'inclinaison change la correspondance entre un pixel
@@ -655,9 +661,12 @@ voisines), elle varie davantage d'une image à l'autre : ce n'est pas vérifié 
   sur le dévers, voir ticket #29). Une couche WMTS n'aurait servi à rien : c'est une image colorée,
   pas des altitudes.
 - **Débit** : le calcul altimétrique de la Géoplateforme accepte 5 requêtes par seconde et par
-  adresse IP ; au-delà, il répond HTTP 429 et bloque 5 s. Les altitudes sont donc demandées par
+  adresse IP ; au-delà, il répond HTTP 429 et bloque 5 s. Toutes les requêtes à ce service passent par
+  une file unique (`altiFetch`, `src/app.js` : au plus une requête toutes les 220 ms, et un refus bloque
+  la file pendant `Retry-After`, 5 s si l'en-tête n'est pas lisible : CORS ne l'expose pas). Les altitudes sont demandées par
   150 points (10 photos) à **2,5 requêtes par seconde au plus**, et après un refus on attend la fin
-  du blocage (5,5 s) avant de redemander, jusqu'à 12 fois. C'est **lent** : 1 min environ pour
+  du blocage (5,5 s) avant de redemander, jusqu'à 12 fois. (Le terrain de la vue du dessus, lui, se lit en
+  **une seule requête POST** de 2 601 points : 1 à 2 s ; voir `docs/BIRDEYE.md` § 2.) C'est **lent** : 1 min environ pour
   5 km de parcours (une photo tous les 5 m), avec l'avancement dans l'aide de l'option et dans la
   ligne d'état pendant la préparation. Sans cette limite, l'essai de la D115D perdait le dévers de
   156 photos sur 226 (refus en rafale).

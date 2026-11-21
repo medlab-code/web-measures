@@ -162,17 +162,25 @@ const Resultats = {
     nez.setCalage({
       /** { ok } si la photo est déjà calée (par la vue allumée ou par une demande précédente), undefined sinon. */
       state: (pic) => Dessus.calibrated(pic),
-      /** Lance le calage ; faux si la photo n'a pas de pose Bird Eye (pas de calage possible : le faucon est grisé). */
+      /** Lance le calage ; faux si la photo affichée n'est plus celle demandée. Pose Bird Eye pas encore prête (photo tout juste
+       * affichée, calcul en chargement) : le calage est gardé en attente et part dès que la pose arrive (refresh, updateBirdeye),
+       * « Calage Bird Eye en cours… » restant affiché ; une photo sans pose possible finit par « trop long » (src/nez.js). */
       start(pic) {
-        const pose = etat.app && etat.photo?.id === pic ? JSON.parse(etat.app.birdeye_pose()) : null;
-        if (!pose || pose.pic !== pic) return false;
+        if (!etat.app || etat.photo?.id !== pic) return false;
         calageFor = pic;
-        updateBirdeye();
+        updateBirdeye();  // sans pose prête : rien de lancé, repris à son arrivée
         return true;
       },
     });
-    Dessus.onCalibrated((pic, ok) => {
-      if (calageFor === pic) {
+    // Activation de la largeur ↔ : terrain et panorama de la photo lus à l'avance (en cache), sans lancer le calage, qui ne part
+    // qu'au déplacement d'une poignée latérale
+    document.addEventListener("outil-visionneuse", (event) => {
+      if (event.detail !== "largeur" || !etat.app || !etat.photo) return;
+      const pose = JSON.parse(etat.app.birdeye_pose());
+      if (pose && pose.pic === etat.photo.id) Dessus.prefetch(etat.photo, pose);
+    });
+    Dessus.onCalibrated((pic, ok, final) => {
+      if (final && calageFor === pic) {  // premier signal (final faux) : la largeur s'affiche, le raffinement du tangage continue
         calageFor = null;
         updateBirdeye();  // calage seul fini : la vue est mise de côté, rallumée plus tard sans rien refaire
       }
