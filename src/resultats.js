@@ -242,7 +242,7 @@ const Resultats = {
     // Faucon : Bird Eye de la photo affichée, d'un clic (le même que l'interrupteur caché « #dessus ») ; une autre photo l'éteint (updateBirdeye)
     const birdeyeButton = Object.assign(document.createElement("button"), { type: "button", className: "birdeye-carte", hidden: true,
       ariaLabel: "Bird Eye" });
-    birdeyeButton.append(Object.assign(document.createElement("img"), { src: "src/faucon.svg", alt: "" }));
+    birdeyeButton.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g transform="rotate(45 12 12) translate(12 12) scale(1.12) translate(-12 -12)"><path fill="currentColor" stroke-width="1" d="M12 4c.6.6 1.3 1.4 1.3 2.2V9c3-1 6-.5 8.7 1.5-3 .3-5.8 1.2-8.7 2.7V16l2 3.5H8.7l2-3.5v-2.8C7.8 11.7 5 10.8 2 10.5 4.7 8.5 7.7 8 10.7 9V6.2c0-.8.7-1.6 1.3-2.2z"/></g></svg>';
     birdeyeButton.setAttribute("aria-pressed", "false");
     birdeyeButton.addEventListener("click", () => {
       $("#dessus").checked = !$("#dessus").checked;
