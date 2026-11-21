@@ -106,7 +106,6 @@ La mesure est ensuite un simple calcul sur deux points 3D : distance, composante
 
 | Mode | Surface des points | Grandeur affichée |
 |---|---|---|
-| Longueur parallèle à la route | sol | distance 3D entre les deux points |
 | Hauteur d'un objet | pied au sol, sommet dans le plan vertical face à la caméra | composante verticale |
 | Triangulation d'un objet | aucune : visées depuis plusieurs photos | position sur la carte |
 | Calage : inclinaison, cap et position, hauteur de caméra | — | corrections appliquées ensuite à toutes les mesures |
@@ -255,10 +254,9 @@ Elle ne compte pas l'erreur du GPS, qui déplace la mesure entière sans changer
 
 Retirée le 21/11/2026 (clics sur les deux bords, composante de la distance en travers de l'axe de la route lu dans la BD TOPO, sinon sur la trajectoire de la séquence). La largeur reste mesurable par le bouton ↔ de la visionneuse (`docs/CALCULS.md`, section 8.8).
 
-### 4.2 Longueur parallèle à la route
+### 4.2 Longueur parallèle à la route (retirée)
 
-- **Clics.** Les deux extrémités de l'objet, au sol, typiquement le long de la route sur le côté du véhicule : façade, portail, place de stationnement.
-- **Calcul.** Distance 3D entre les deux points au sol (elle suit la pente) ; le dénivelé est indiqué à partir de 5 cm. Le calcul étant une distance directe, il reste juste dans n'importe quelle direction.
+Retirée le 21/11/2026 (distance 3D entre deux points au sol ; plus aucun mode de la page ne la proposait). Une longueur se mesure sur la carte (outil « Longueur », `docs/GUIDE.md`).
 
 ### 4.3 Hauteur d'un objet
 
@@ -410,13 +408,7 @@ Le message du panneau rappelle le nombre de points recalés et visés à nouveau
 
 Sur scène simulée (porte de 2,10 m dans un mur à 6 m, hauteur de caméra fausse de 40 cm) : 1,69 m avec les clics bruts, 1,97 m une fois le pied glissé sur la carte à 30 cm près, puis **2,11 m** après avoir visé le seuil, le pied étant placé à 3 cm de sa vraie position.
 
-**Largeur d'une fenêtre ou d'un portail le long d'un mur.**
-
-1. Mode « Longueur parallèle à la route » : cliquer les deux coins au pied.
-2. Sur la carte, glisser **les deux** points sur le bord du bâtiment : le plan calé est le mur.
-3. Viser à nouveau chaque coin dans la photo.
-
-Sur scène simulée (fenêtre de 2,00 m au pied d'un mur à 6 m, hauteur de caméra fausse de 40 cm) : 1,60 m avec les clics bruts ; après avoir glissé les deux points sur le mur à 30 cm près puis visé chaque coin, **2,00 m**, les points étant à 1 à 8 cm de leur vraie position.
+**Largeur d'une fenêtre ou d'un portail le long d'un mur** : exemple retiré avec la longueur parallèle à la route (21/11/2026).
 
 **Poteau dont le pied est cliqué trop haut.** Glisser le pied à sa place sur la carte suffit : sur scène simulée (pied cliqué 20 cm trop haut, caméra fausse de 40 cm), le pied passe de 5,3 m à 6,0 m de la photo et la hauteur entre le point cliqué et le sommet est retrouvée exactement (2,80 m). Pour la hauteur depuis le vrai pied, viser ensuite ce pied dans la photo.
 

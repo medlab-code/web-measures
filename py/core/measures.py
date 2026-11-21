@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 # SPDX-FileCopyrightText: 2026 Cédric COCHART
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Mesures entre deux points 3D : longueur et hauteur.
+"""Mesures entre deux points 3D : la hauteur.
 
 Toutes reposent sur le même moteur (geometry.py) : chaque clic devient un point 3D
 sur une surface, puis la mesure est une grandeur calculée sur ces points.
 
-- "width" : longueur parallèle à la route (distance 3D entre deux points au sol) ;
 - "height" : hauteur d'un objet (pied au sol, sommet dans le plan vertical face à
   la caméra, composante verticale).
 
-La mesure libre 3D (façade, plans, triangulation 3D entre deux photos) a été retirée le
+La longueur parallèle à la route (distance 3D entre deux points au sol) a été retirée le
+21/11/2026 (plus aucun mode ne la proposait). La mesure libre 3D (façade, plans, triangulation 3D entre deux photos) a été retirée le
 15/10/2026 : elle donnait des résultats trop incohérents.
 
 Un point peut être recalé après coup sur la carte : sa position horizontale vient
@@ -44,7 +44,7 @@ class NullItem:
 
 
 SURFACE_NAMES = {"ground": "sol", "vertical": "plan vertical face à la caméra"}
-PRESET_SURFACES = {"width": "ground", "height": "vertical"}  # surface de chaque mesure
+PRESET_SURFACES = {"height": "vertical"}  # surface de chaque mesure
 CAMERA_RANGE = (0.5, 4.0)  # hauteur de caméra plausible (m) déduite de l'altitude GPS
 CAMERA_SOURCES = {None: 0, "calée": 1, "altitude GPS": 2}  # champ camera_calee de la couche des mesures
 # Incertitude de la hauteur de caméra (m) selon sa source : altitude GPS d'une position vérifiée
@@ -53,8 +53,7 @@ CAMERA_SOURCES = {None: 0, "calée": 1, "altitude GPS": 2}  # champ camera_calee
 CAMERA_ERRORS = {"altitude GPS": 0.05, None: 0.15}
 SELECT_ANGLE = 1.0  # écart maximal (degrés) entre un clic et le repère d'un point pour le sélectionner (session)
 ERRORS = (geometry.GeometryError, ground.GroundError)
-KIND_NAMES = {"width": "longueur parallèle à la route",
-              "height": "hauteur"}
+KIND_NAMES = {"height": "hauteur"}
 
 
 
@@ -262,12 +261,10 @@ class Measure:
 
     def quantity(self, d):
         """Grandeur mesurée d'après la décomposition d (voir geometry.decompose)."""
-        if self.kind == "height":
-            if d["vertical"] <= 0:
-                raise geometry.GeometryError("Le sommet est sous le pied : cliquez d'abord au pied, puis au "
-                                             "sommet.")
-            return abs(d["vertical"])
-        return d["d3"]
+        if d["vertical"] <= 0:
+            raise geometry.GeometryError("Le sommet est sous le pied : cliquez d'abord au pied, puis au "
+                                         "sommet.")
+        return abs(d["vertical"])
 
     def _value(self, **variant):
         pts, _, _, _ = self.points(**variant)
@@ -411,8 +408,6 @@ class Measure:
         return "{}{} m ± {} m".format(symbol, _num(self.result["value"], 2), _num(self.result["uncertainty"], 2))
 
     def _vertical(self):
-        if self.kind == "width":
-            return False
         return True  # hauteur
 
     def _draw(self):
@@ -454,14 +449,8 @@ class Measure:
     def status(self):
         """Résultat (mesure complète) ; les consignes de clic sont dans MeasureTool.status."""
         r = self.result
-        d = r["decomposition"]
         value, unc = _num(r["value"], 2), _num(r["uncertainty"], 2)
-        if self.kind == "width":
-            text = "Longueur : {} m (±{} m) entre les deux points · à {} et {} m de la photo".format(
-                value, unc, _num(r["ranges"][0]), _num(r["ranges"][1]))
-            if abs(d["vertical"]) >= 0.05:
-                text += " · dénivelé {} m".format(_num(d["vertical"], 2))
-        elif self.kind == "height":
+        if self.kind == "height":
             text = "Hauteur : {} m (±{} m) · objet à {} m".format(value, unc, _num(r["ranges"][0]))
         if self.reference is not None:
             text += " · calée sur le point triangulé {}(±{} m)".format(
@@ -495,7 +484,7 @@ class MeasureTool:
 
     def __init__(self, canvas):
         self.canvas = canvas
-        self.mode = "height"  # "width" ou "height"
+        self.mode = "height"  # "height"
         self.camera_height = DEFAULT_CAMERA_HEIGHT  # hauteur saisie dans le panneau
         self.calibration = None  # calibration.Calibration : hauteur calée par séquence
         self.error = None
@@ -625,8 +614,6 @@ class MeasureTool:
         if m is not None and m.error:
             prefix = m.error + " "
         hints = {
-            "width": ("Cliquez au sol à une extrémité de l'objet.",
-                      "Cliquez au sol à l'autre extrémité : la distance directe entre les deux points est mesurée."),
             "height": ("Cliquez dans la photo au pied de l'objet, exactement au contact du sol.",
                        "Cliquez au sommet de l'objet, sur la même photo."),
         }[self.mode]
