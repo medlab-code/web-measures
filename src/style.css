@@ -1113,9 +1113,10 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
 }
 #nez-lecture button { pointer-events: auto; margin-top: 0.15rem; font-size: 12px; }
 #nez-lecture small { color: #ffd600; font-size: 11px; font-weight: 400; }
+#nez-lecture small.aide { display: block; color: inherit; opacity: 0.75; }
 #vue .nez-poignee, #vue .nez-poignee * { cursor: grab !important; }
+#vue .nez-droite, #vue .nez-droite * { cursor: ns-resize !important; }  /* droite survolée : glisser = profondeur, clic droit glissé = rotation */
 #vue .nez-glisse, #vue .nez-glisse * { cursor: grabbing !important; }
-#vue .nez-pivot, #vue .nez-pivot * { cursor: ew-resize !important; }  /* croix jaune : glisser à gauche ou à droite tourne la droite */
 
 /* Visionneuse : route et commune de la photo, en bas à gauche */
 /* Bandeau du bas de la visionneuse : localisation à gauche, producteur de la photo à droite,

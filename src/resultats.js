@@ -245,7 +245,7 @@ const Resultats = {
       if (!userSwap) measureSwap = false;  // remis en place à la main, même pendant la mesure
       wantSwap();
     });
-    // Colonne de la carte en une seule étiquette : le bouton rejoint le groupe de zoom et de boussole de MapLibre (créé avant, par Carte.createMap) ;
+    // Colonne de la carte en une seule étiquette : le bouton rejoint le groupe de zoom de MapLibre (créé avant, par Carte.createMap) ;
     // le contrôle ajouté ne garde qu'un conteneur vide
     map.addControl({
       onAdd: () => {

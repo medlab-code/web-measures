@@ -127,9 +127,9 @@ const Traits = (() => {
   /**
    * Seconde couche, que les mesures (set) n'écrasent pas : « Largeur dans la visionneuse » (src/nez.js). Mêmes formes que set :
    * lines [{points, color, width}], crosses [{at, color}], labels [{at, type, place, text, lift (px : étiquette
-   * remontée ; flip : si elle sortirait de la vue, elle passe de l'autre côté du point (place inversée), à flipLift px (signé comme lift, par défaut -lift))}] ; ticks : petits traits verticaux d'écran (double: true, lift : px au-dessus du point : double flèche verticale ; lift négatif : sous le point), de longueur constante en px, centrés sur le point
+   * remontée ; flip : si elle sortirait de la vue, elle passe de l'autre côté du point (place inversée), à flipLift px (signé comme lift, par défaut -lift))}] ; ticks : petits traits verticaux d'écran, de longueur constante en px, centrés sur le point
    * [{at, color, width (px), length (px), edge (couleur du liseré, facultatif : sans lui, pas de liseré)}] ; une ligne peut avoir alpha (0 à 1) et
-   * dash [trait, blanc] ; un tick {chevron: -1 | 1, gap (px)} est un chevron ‹ (-1) ou › (1) posé à côté d'une croix, à gap px de ses branches. Pas dans les captures. Sans argument : couche vidée.
+   * dash [trait, blanc]. Pas dans les captures. Sans argument : couche vidée.
    */
   function setExtra(layer = {}) {
     if (!psv) return;
@@ -364,23 +364,7 @@ const Traits = (() => {
     for (const c of ticks) {  // poignées : trait vertical d'écran, avec un liseré si edge est donné
       const s = at(c.vector);
       if (!s) continue;
-      if (c.chevron) {  // chevron ‹ ou › collé à la croix (branches de 9 px) : pointe vers l'extérieur, sans liseré
-        const base = s[0] + c.chevron * (11 + (c.gap || 0)), tip = base + c.chevron * 4, color = rgba(c.color);
-        segment(out, tip, s[1], base, s[1] - 5, c.width, color);
-        segment(out, tip, s[1], base, s[1] + 5, c.width, color);
-        continue;
-      }
       const half = c.length / 2;
-      if (c.double) {  // double flèche verticale ⇕ posée à c.lift px au-dessus du point : tige et deux pointes en V, sans liseré
-        const y = s[1] - (c.lift || 0), head = Math.min(7, half), color = rgba(c.color);
-        segment(out, s[0], y - half, s[0], y + half, c.width, color);
-        for (const sign of [-1, 1]) {
-          const tip = y + sign * half;
-          segment(out, s[0], tip, s[0] - head, tip - sign * head, c.width, color);
-          segment(out, s[0], tip, s[0] + head, tip - sign * head, c.width, color);
-        }
-        continue;
-      }
       if (c.edge) segment(out, s[0], s[1] - half, s[0], s[1] + half, c.width + 3, rgba(c.edge));  // liseré seulement si demandé
       segment(out, s[0], s[1] - half, s[0], s[1] + half, c.width, rgba(c.color));
     }

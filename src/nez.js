@@ -12,8 +12,8 @@
 // l'encart et l'étiquette disent « Calage Bird Eye en cours… » et aucune largeur n'est affichée ; une fois fait, la largeur est recalculée sur
 // la photo calée (les poignées gardent leur place dans l'image, pas leur distance en mètres) ; le calage est gardé par photo, partagé
 // avec la vue Bird Eye (rallumée sur la photo, elle est prête plus vite).
-// Une poignée de profondeur (double flèche blanche ⇕ posée sur la droite, sur la photo comme sur la carte (sur celle-ci le long du cap) ; elle se glisse aussi le long de la droite) la fait glisser en profondeur, toujours
-// perpendiculaire à l'axe du véhicule : butées renvoyées par nose_line (d_min : capot ; d_max : nez + écart à la photo suivante + 1 m,
+// Gestes sur la droite elle-même (aucune croix ni flèche : rien ne gêne la mesure des petits objets), dans une bande de saisie invisible de ±8 px, sur la photo comme sur la carte : clic gauche maintenu et glissé = déplacer la droite en profondeur (sur la carte, le long du cap) ; clic droit maintenu et glissé, ou Maj + clic gauche glissé (pavés tactiles, Mac), = la tourner autour du droit de la caméra (0,1° par px, Alt pendant le glissement : dix fois plus fin) ; double clic = la remettre perpendiculaire au trajet. Pendant le glissement, aperçu géométrique rapide (droite d'avant en pointillés pour la rotation) ; au relâchement la droite se fixe et le relief est relu. Près des deux poignées des bords, celles-ci sont prioritaires. La droite reste toujours
+// perpendiculaire à l'axe du véhicule (hors rotation) : butées renvoyées par nose_line (d_min : capot ; d_max : nez + écart à la photo suivante + 1 m,
 // nez + 6 m sans suivante), les extrémités gardent leur écart latéral en mètres, la largeur est recalculée aussitôt, sans relancer
 // le calage. La droite est rouge tant que la photo n'est pas calée (Bird Eye), puis verte ; sa distance est dans l'étiquette et l'encart.
 
@@ -25,12 +25,11 @@ const Nez = {
     const { etat, map } = host;
     const button = $("#nez-bords");
 
-    const GREEN = "#00c853", UNCALIBRATED = "#ff5252", YELLOW = "#ffd600", RED = "#d93025", WHITE = "#ffffff";
-    const NEZ_HANDLE = "nez-profondeur";  // couche de la carte (src/carte.js)
-    // droite verte (photo calée) ou rouge franc (pas encore calée), sans liseré ; croix jaune au droit de la caméra, poignées latérales
-    // rouges, poignée de profondeur blanche
-    const ARROW_PX = 24;  // px : longueur de la double flèche de profondeur, centrée sur la droite
-    const ARROW_CLEAR = 15 + 8 + 7 + 4;  // px : écart horizontal minimal de la flèche à la croix jaune (chevrons écartés au survol compris)
+    const GREEN = "#00c853", UNCALIBRATED = "#ff5252", RED = "#d93025";
+    // droite verte (photo calée) ou rouge franc (pas encore calée), sans liseré ; poignées latérales rouges
+    const LINE_PX = 8;  // px : demi-largeur de la bande de saisie invisible autour de la droite
+    const LINE_WIDTH = 2.5, LINE_WIDTH_HOVER = 4.5;  // px : épaisseur de la droite au repos et au survol (ou pendant son glissement)
+    const HELP = "glisser : profondeur · clic droit glissé (ou Maj) : rotation · double clic : perpendiculaire";
     const LABEL_LIFT = 26;  // px : étiquette décollée de la droite, au-dessus d'elle ; si elle sortait de la vue en haut, sous la droite
     const LABEL_FLIP = -LABEL_LIFT;  // px : lift de l'étiquette passée dessous
     const DEPTH_STEP = 0.05;  // m : pas de la distance de la droite pendant le glissement en profondeur
@@ -41,24 +40,22 @@ const Nez = {
     const WAIT_MAX = 12000;  // ms : attente au plus de la position définitive de la droite (deux lectures du MNT de 5 s au plus), puis meilleure droite disponible
     const FALLBACK = 3;  // m : bords de départ sans profil en travers
     const INCLINATION = 0.5, ROLL = 0.5;  // degrés : incertitude de l'inclinaison de la photo et du roulis restant (docs/CALCULS.md)
-    const ROTATION_MAX = 45;  // degrés : rotation de la droite autour de la croix jaune, de part et d'autre de la perpendiculaire au trajet (comme NOSE_ROTATION_MAX en Python)
-    const ROTATION_RATE = 0.1;  // degrés par px de glissement horizontal de la croix (Maj : 10 fois moins), précision de 0,1°
+    const ROTATION_MAX = 45;  // degrés : rotation de la droite autour du droit de la caméra, de part et d'autre de la perpendiculaire au trajet (comme NOSE_ROTATION_MAX en Python)
+    const ROTATION_RATE = 0.1;  // degrés par px de glissement horizontal (Alt tenu pendant le glissement : 10 fois moins), précision de 0,1°
     const CALAGE_MAX = 90000;  // ms : attente au plus du calage Bird Eye, puis largeur sans calage
     const CALAGE_WAIT = "Calage Bird Eye en cours…";
-    const DOUBLE_MS = 400, TAP_PX = 5;  // double clic sur la croix : délai entre les deux appuis, déplacement toléré (px)
-    const CHEVRON_GAP = 1, CHEVRON_GAP_HOVER = 5, CHEVRON_MS = 120;  // px : écart des chevrons ‹ › à la croix au repos et au survol ; durée du déplacement
+    const DOUBLE_MS = 400, TAP_PX = 5;  // double clic sur la droite : délai entre les deux appuis ; déplacement (px) en deçà duquel un appui reste un simple clic
     const toRad = Math.PI / 180;
 
     let active = false, raw = null, line = null;  // raw : dernière réponse de nose_line (texte), line : son contenu
     let photoId = null;
     let handles = { gauche: -FALLBACK, droit: FALLBACK }, moved = { gauche: false, droit: false };
-    let along = null;  // m : place de la double flèche de profondeur le long de la droite (null : au milieu des poignées latérales)
     let depth = null;  // m : distance de la droite devant la caméra (null : au nez, d_min)
     let rotation = 0, keep = false;  // rotation (degrés, positif = sens trigonométrique vu du dessus), keep : droite gardée affichée pendant la relecture du relief
     let frame = null;  // image d'animation en attente (recalcul de la droite pendant la rotation)
-    let ghost = null;  // droite d'avant le glissement de la croix : points [yaw, pitch], gardée en pointillés pendant le glissement
-    let lastTap = null;  // dernier appui sans glissement sur la croix : { t (ms), x (px) }
-    let pivotHover = false, chevronGap = CHEVRON_GAP, chevronFrame = null;  // survol de la croix (chevrons écartés), écart animé en px
+    let ghost = null;  // droite d'avant le glissement de rotation : points [yaw, pitch], gardée en pointillés pendant le glissement
+    let lastTap = null;  // dernier appui sans glissement sur la droite : { t (ms), x, y (px) }
+    let hoverLine = false, rotatedAt = 0;  // droite survolée (épaissie) ; instant (ms) de la fin d'une rotation (menu contextuel de la fin du clic droit)
     let drag = null, bound = null, readout = null, retry = null, waiting = null;
     // Calage Bird Eye de la photo (voir en tête) : state « none » (pas demandé), « waiting » (en cours), « done », « impossible » (reason : cause)
     let calage = { pic: null, state: "none", reason: "" }, calageTimer = null, calageApi = null;
@@ -233,30 +230,6 @@ const Nez = {
     const isCalibrated = () => (calage.pic === photoId && calage.state === "done") || Boolean(calageApi?.state(photoId)?.ok);
     const lineColor = () => (isCalibrated() ? GREEN : UNCALIBRATED);
 
-    /** Décalage (m) de la poignée de profondeur le long de la droite : celui où l'utilisateur l'a glissée horizontalement (gardé en mètres quand
-     * la droite glisse en profondeur, ramené entre les deux poignées latérales), sinon le milieu de celles-ci. */
-    /** Décalage (m) où la double flèche est dessinée et saisie : celui de la poignée, écarté le long de la droite s'il tombait sur la croix jaune
-     * et ses chevrons (du côté où il y a le plus de place entre les poignées latérales). */
-    function arrowOffset() {
-      const o = depthOffset(), c = screenOf(...locate(0)), s = screenOf(...locate(o));
-      if (!c || !s || Math.abs(s.x - c.x) >= ARROW_CLEAR) return o;
-      const sign = s.x >= c.x ? 1 : -1;
-      for (const k of [sign, -sign]) {
-        for (let i = 0, step = 0.1; i < 60; i++, step *= 1.15) {
-          const t = o + k * step;
-          if (t < handles.gauche || t > handles.droit) break;
-          const u = screenOf(...locate(t));
-          if (u && Math.abs(u.x - c.x) >= ARROW_CLEAR) return t;
-        }
-      }
-      return o;
-    }
-
-    function depthOffset() {
-      if (along !== null) return Math.max(handles.gauche, Math.min(handles.droit, along));  // placée à la main, gardée (mètres)
-      return (handles.gauche + handles.droit) / 2;
-    }
-
     /** Distance de la droite en clair (« à 12,4 m »). */
     const depthText = () => `à ${metres(line.d, 1)}`;
 
@@ -268,17 +241,13 @@ const Nez = {
       const [a, b] = line.lonlat, lat = (a[1] + b[1]) / 2 * Math.PI / 180;
       const angle = Math.atan2((b[0] - a[0]) * Math.cos(lat), b[1] - a[1]) * 180 / Math.PI + 90;
       const point = (o, role) => ({ type: "Feature", properties: { angle, role }, geometry: { type: "Point", coordinates: lonlatAt(o) } });
-      if (map.getLayer(NEZ_HANDLE)) {  // flèche de profondeur : même taille que les icônes de la carte (16 px, 18 px en carte en grand ou détachée)
-        const icon = parseFloat(getComputedStyle(map.getContainer()).getPropertyValue("--etiquette-icone")) || 16;
-        map.setLayoutProperty(NEZ_HANDLE, "icon-size", icon / 16);
-      }
       Carte.showNez(map, { type: "FeatureCollection", features: [
         { type: "Feature", properties: { couleur: lineColor() }, geometry: { type: "LineString", coordinates: line.lonlat } },
         // prolongement de la droite de la moitié de sa longueur de chaque côté, dans son axe (droite deux fois plus longue sur la carte : se
-        // tourne par la croix jaune pour viser le centre d'un giratoire) ; plus fin et atténué, les bords et la mesure ne changent pas
+        // tourne par un clic droit glissé pour viser le centre d'un giratoire) ; plus fin et atténué, les bords et la mesure ne changent pas
         ...[[b, [b[0] + (b[0] - a[0]) / 2, b[1] + (b[1] - a[1]) / 2]], [a, [a[0] - (b[0] - a[0]) / 2, a[1] - (b[1] - a[1]) / 2]]].map((coordinates) => (
           { type: "Feature", properties: { couleur: lineColor(), prolongement: true }, geometry: { type: "LineString", coordinates } })),
-        point(handles.gauche, "bord"), point(handles.droit, "bord"), point(depthOffset(), "profondeur")] });
+        point(handles.gauche, "bord"), point(handles.droit, "bord")] });
     }
 
     // Lecture -----------------------------------------------------------------------------------
@@ -343,8 +312,8 @@ const Nez = {
       if (!readout) {
         readout = document.createElement("div");
         readout.id = "nez-lecture";
-        readout.innerHTML = "<small>Largeur dans la visionneuse · expérimental</small><span></span>"
-          + "<button type=\"button\" id=\"nez-remise\" title=\"Remettre la droite perpendiculaire au trajet (rotation de 0°) ; double clic sur la croix jaune : idem\">"
+        readout.innerHTML = `<small>Largeur dans la visionneuse · expérimental</small><span></span><small class="aide">${HELP}</small>`
+          + "<button type=\"button\" id=\"nez-remise\" title=\"Remettre la droite perpendiculaire au trajet (rotation de 0°) ; double clic sur la droite : idem\">"
           + "Remettre perpendiculaire au trajet</button>";
         const reset = readout.querySelector("button");
         for (const type of ["pointerdown", "mousedown", "touchstart", "click"]) reset.addEventListener(type, (e) => e.stopPropagation());
@@ -410,14 +379,11 @@ const Nez = {
         ...line.points.filter(([o]) => o > handles.gauche && o < handles.droit).map(([, yaw, pitch]) => [yaw, pitch]),
         at(handles.droit)];
       const sides = [["gauche", handles.gauche], ["droit", handles.droit]];
-      const turning = drag?.side === "pivot";  // rotation en cours : droite d'avant en pointillés fins, rotation affichée
+      const turning = drag?.side === "rotation" && drag.started;  // rotation en cours : droite d'avant en pointillés fins, rotation affichée
       Traits.setExtra({
         lines: [...(turning && ghost ? [{ points: ghost, color: lineColor(), width: 1.5, dash: [5, 5], alpha: 0.7 }] : []),
-          { points, color: lineColor(), width: 2.5 }],
-        crosses: [{ at: at(0), color: YELLOW }],  // croix au droit de la caméra
-        ticks: [{ at: at(0), color: YELLOW, width: 2.5, chevron: -1, gap: chevronGap }, { at: at(0), color: YELLOW, width: 2.5, chevron: 1, gap: chevronGap },
-          ...sides.map(([, o]) => ({ at: at(o), color: RED, length: TICK_PX, width: 3 })),
-          { at: at(arrowOffset()), color: WHITE, length: ARROW_PX, width: 3, double: true }],  // poignée de profondeur ⇕, sur la droite
+          { points, color: lineColor(), width: hoverLine || drag?.line ? LINE_WIDTH_HOVER : LINE_WIDTH }],
+        ticks: sides.map(([, o]) => ({ at: at(o), color: RED, length: TICK_PX, width: 3 })),
         // largeur entre les poignées : étiquette « mesure » des largeurs de Mesure (↔ valeur ± incertitude, comme l'encart),
         // au milieu de la droite ; les distances de chaque bord restent dans l'encart
         labels: [{ at: at((handles.gauche + handles.droit) / 2), type: "mesure", place: "dessus", lift: LABEL_LIFT, flip: true, flipLift: LABEL_FLIP,
@@ -442,21 +408,29 @@ const Nez = {
       return Math.hypot(x - ax - t * dx, y - ay - t * dy);
     }
 
-    /** Poignée à HANDLE_PX px au plus du point (x, y) de la visionneuse (la plus proche), ou null. */
+    /** Droite à LINE_PX px au plus de (x, y) : distance au tracé affiché (entre les deux poignées latérales). */
+    function lineNear(x, y) {
+      const pts = [locate(handles.gauche), ...line.points.filter(([o]) => o > handles.gauche && o < handles.droit).map(([, yaw, pitch]) => [yaw, pitch]), locate(handles.droit)];
+      let previous = null;
+      for (const [yaw, pitch] of pts) {
+        const s = screenOf(yaw, pitch);
+        if (previous && s && segmentDistance(x, y, previous.x, previous.y, s.x, s.y) <= LINE_PX) return true;
+        previous = s;
+      }
+      return false;
+    }
+
+    /** Ce qui est saisi au point (x, y) de la visionneuse : « gauche » ou « droit » (poignée latérale à HANDLE_PX px au plus, la plus proche ;
+     * prioritaire près des extrémités), « droite » (bande de saisie de la droite), ou null. */
     function handleAt(x, y) {
       if (!shown()) return null;
       let best = null, bestD = HANDLE_PX;
-      const c = screenOf(...locate(0));  // croix jaune : pivot de la rotation, prise si aucune poignée n'est plus près
-      if (c && Math.hypot(x - c.x, y - c.y) <= HANDLE_PX) [best, bestD] = ["pivot", Math.hypot(x - c.x, y - c.y)];
       for (const side of ["gauche", "droit"]) {
         const s = screenOf(...locate(handles[side]));
         const d = s ? segmentDistance(x, y, s.x, s.y - TICK_PX / 2, s.x, s.y + TICK_PX / 2) : Infinity;
         if (d <= bestD) [best, bestD] = [side, d];
       }
-      const m = screenOf(...locate(arrowOffset()));  // double flèche de profondeur, sur la droite : prise en cas d'égalité
-      const dm = m ? segmentDistance(x, y, m.x, m.y - ARROW_PX / 2, m.x, m.y + ARROW_PX / 2) : Infinity;
-      if (dm <= bestD) best = "profondeur";
-      return best;
+      return best ?? (lineNear(x, y) ? "droite" : null);
     }
 
     /** Décalage (m, continu) du point de la droite le plus proche de (x, y) à l'écran, du côté de la poignée : le pointeur est
@@ -469,10 +443,8 @@ const Nez = {
       return projectOffset(x, y, low, high);
     }
 
-    /** Place de la double flèche : décalage du point de la droite le plus proche du pointeur, entre les deux poignées latérales. */
-    const nearestAlong = (x, y) => projectOffset(x, y, handles.gauche, handles.droit);
-
-    function projectOffset(x, y, low, high) {      let best = null, bestD = Infinity, previous = null;
+    function projectOffset(x, y, low, high) {
+      let best = null, bestD = Infinity, previous = null;
       for (const [o, yaw, pitch] of line.points) {
         const s = screenOf(yaw, pitch);
         const current = s ? [o, s.x, s.y] : null;
@@ -492,64 +464,62 @@ const Nez = {
       return [event.clientX - box.left, event.clientY - box.top];
     };
 
-    function setCursor(hover, grabbing = false, pivot = false) {
+    /** Curseur et épaisseur selon ce qui est survolé (found : handleAt) : poignée latérale « grab », droite « ns-resize », saisie « grabbing ». */
+    function setCursor(found, grabbing = false) {
       const classes = etat.psv.container.classList;
-      classes.toggle("nez-poignee", hover || grabbing);
+      classes.toggle("nez-poignee", found === "gauche" || found === "droit" || grabbing);
       classes.toggle("nez-glisse", grabbing);
-      classes.toggle("nez-pivot", pivot);  // croix : curseur ⇔ (glisser à gauche ou à droite)
-      spreadChevrons(pivot);
-    }
-
-    /** Chevrons de la croix écartés au survol (et pendant son glissement), rapprochés sinon : écart animé sur CHEVRON_MS. */
-    function spreadChevrons(on) {
-      if (on === pivotHover) return;
-      pivotHover = on;
-      cancelAnimationFrame(chevronFrame);
-      const from = chevronGap, to = on ? CHEVRON_GAP_HOVER : CHEVRON_GAP, t0 = performance.now();
-      const step = (now) => {
-        const k = Math.min(1, (now - t0) / CHEVRON_MS);
-        chevronGap = from + (to - from) * k;
+      classes.toggle("nez-droite", found === "droite" && !grabbing);
+      const on = found === "droite";
+      if (on !== hoverLine) {
+        hoverLine = on;
         if (active && shown()) draw();
-        chevronFrame = k < 1 ? requestAnimationFrame(step) : null;
-      };
-      chevronFrame = requestAnimationFrame(step);
+      }
     }
 
     function onDown(event) {
-      if (!shown() || (event.pointerType === "mouse" && event.button !== 0)) return;
-      const side = handleAt(...local(event));
-      if (!side) return;
+      const mouse = event.pointerType === "mouse";
+      if (!shown() || (mouse && event.button !== 0 && event.button !== 2)) return;
+      const [x, y] = local(event), found = handleAt(x, y), right = mouse && event.button === 2;
+      if (!found || (right && found !== "droite")) return;
       event.stopImmediatePropagation();  // la visionneuse ne tourne pas, ne mesure pas
       event.preventDefault();
-      const now = Date.now(), again = side === "pivot" && lastTap && now - lastTap.t < DOUBLE_MS && Math.abs(local(event)[0] - lastTap.x) < TAP_PX;
-      drag = { side, id: event.pointerId, x: local(event)[0], x0: local(event)[0], rotation, double: Boolean(again) };  // double : deuxième appui d'un double clic
-      if (side === "pivot") ghost = [locate(handles.gauche), ...line.points.filter(([o]) => o > handles.gauche && o < handles.droit).map(([, yaw, pitch]) => [yaw, pitch]), locate(handles.droit)];
-      if (side === "profondeur") [drag.o, drag.grab] = [arrowOffset(), pointerPitch(...local(event)) - locate(arrowOffset())[1]];  // place de la flèche et écart du pointeur à elle, gardés  // écart du pointeur à la poignée, gardé
+      const rotating = found === "droite" && (right || event.shiftKey);  // clic droit, ou Maj + clic gauche (pavés tactiles, Mac)
+      const side = found !== "droite" ? found : rotating ? "rotation" : "profondeur";
+      const now = Date.now(), again = side === "profondeur" && lastTap && now - lastTap.t < DOUBLE_MS
+        && Math.hypot(x - lastTap.x, y - lastTap.y) < TAP_PX;
+      // started : le pointeur a bougé de plus de TAP_PX (sinon un simple clic ne change rien) ; double : deuxième appui d'un double clic
+      drag = { side, id: event.pointerId, x, x0: x, y0: y, rotation, double: Boolean(again), started: side === "gauche" || side === "droit", line: found === "droite" };
+      if (side === "rotation") ghost = [locate(handles.gauche), ...line.points.filter(([o]) => o > handles.gauche && o < handles.droit).map(([, yaw, pitch]) => [yaw, pitch]), locate(handles.droit)];
+      if (side === "profondeur") {  // point de la droite saisi et écart du pointeur à lui (gardés : la droite suit le pointeur sans saut)
+        drag.o = projectOffset(x, y, handles.gauche, handles.droit) ?? (handles.gauche + handles.droit) / 2;
+        drag.grab = pointerPitch(x, y) - locate(drag.o)[1];
+      }
       try {
         etat.psv.container.setPointerCapture(event.pointerId);
       } catch { /* pointeur déjà relâché : le glisser s'arrêtera au pointerup */ }
-      setCursor(true, true, side === "pivot");
+      setCursor(found, true);
     }
 
     function onMove(event) {
       if (!shown()) return;
       if (!drag) {
-        const found = handleAt(...local(event));
-        setCursor(Boolean(found), false, found === "pivot");
+        setCursor(handleAt(...local(event)));
         return;
       }
       if (event.pointerId !== drag.id) return;
       event.stopImmediatePropagation();
-      if (drag.side === "pivot") return drag.double ? undefined : rotate(event);  // double clic : pas de rotation parasite
-      if (drag.side === "profondeur") {  // vertical : distance de la droite ; horizontal : place de la flèche le long de la droite
-        const [x, y] = local(event), o = nearestAlong(x, y);
-        if (o !== null && o !== depthOffset()) {
-          along = o;
-          draw();
-        }
-        return slideDepth(depthFromPointer(x, y));
+      if (drag.double) return;  // deuxième appui d'un double clic : pas de glissement parasite
+      const [x, y] = local(event);
+      if (!drag.started) {
+        if (Math.hypot(x - drag.x0, y - drag.y0) < TAP_PX) return;
+        drag.started = true;
+        drag.x = x;
+        draw();  // droite d'avant en pointillés (rotation)
       }
-      const o = nearestOffset(drag.side, ...local(event));
+      if (drag.side === "rotation") return rotateBy(x - drag.x, event.altKey, x);
+      if (drag.side === "profondeur") return slideDepth(depthFromPointer(x, y));
+      const o = nearestOffset(drag.side, x, y);
       if (o === null || o === handles[drag.side]) return;
       handles[drag.side] = o;
       moved[drag.side] = true;
@@ -565,7 +535,7 @@ const Nez = {
      * l'élévation actuelle de la poignée (l'inclinaison de la photo décale l'élévation de la même quantité près de ce point ; la droite
      * étant recalculée à chaque mouvement, l'écart ne s'accumule pas). Les butées sont appliquées par Python. */
     function depthFromPointer(x, y) {
-      const o = drag.o ?? depthOffset(), p0 = locate(o)[1], h = line.hauteur - groundAt(o);
+      const o = drag.o, p0 = locate(o)[1], h = line.hauteur - groundAt(o);
       const dep0 = Math.atan2(h, Math.hypot(o, line.d));
       const dep = dep0 + (p0 - (pointerPitch(x, y) - drag.grab));  // pointeur plus haut dans l'image : droite plus loin (dépression moindre)
       if (dep <= 0.01) return line.d_max;
@@ -599,42 +569,93 @@ const Nez = {
       waitNeighbours(photoId);
     }
 
-    // Poignée de profondeur sur la carte : glissée le long du cap (perpendiculaire à la droite) ---------------
+    // Droite sur la carte : mêmes gestes (profondeur le long du cap, rotation, double clic) ---------------
 
-    const mapHandleAt = (point) => Boolean(map.getLayer(NEZ_HANDLE)
-      && map.queryRenderedFeatures([[point.x - 8, point.y - 8], [point.x + 8, point.y + 8]], { layers: [NEZ_HANDLE] }).length);
+    /** Droite de la carte (prolongements compris) à LINE_PX px au plus du point (x, y) de la carte. */
+    function mapLineNear(point) {
+      if (!active || !shown() || !line.lonlat) return false;
+      const [a, b] = line.lonlat;
+      const p = map.project([a[0] - (b[0] - a[0]) / 2, a[1] - (b[1] - a[1]) / 2]), q = map.project([b[0] + (b[0] - a[0]) / 2, b[1] + (b[1] - a[1]) / 2]);
+      return segmentDistance(point.x, point.y, p.x, p.y, q.x, q.y) <= LINE_PX;
+    }
 
-    /** Écarts (m) du point lngLat à la poignée de profondeur : [le long de la droite vers la droite, le long du cap vers l'avant]. La droite va
-     * de gauche (a) à droite (b), l'avant est à sa gauche (rotation de 90° dans le sens trigonométrique de (est, nord)). */
-    function mapOffsets(lngLat) {
-      const [a, b] = line.lonlat, here = lonlatAt(depthOffset()), k = Math.cos(a[1] * toRad) * 111320;
+    /** Écart (m) du point lngLat à l'origine, le long du cap (perpendiculaire à la droite, vers l'avant). La droite va de gauche (a) à
+     * droite (b), l'avant est à sa gauche (rotation de 90° dans le sens trigonométrique de (est, nord)). */
+    function mapForward(lngLat, origin) {
+      const [a, b] = line.lonlat, k = Math.cos(a[1] * toRad) * 111320;
       const [ue, un] = [(b[0] - a[0]) * k, (b[1] - a[1]) * 111320], norm = Math.hypot(ue, un) || 1;
-      const [dx, dy] = [(lngLat.lng - here[0]) * k, (lngLat.lat - here[1]) * 111320];
-      return [(dx * ue + dy * un) / norm, (dx * -un + dy * ue) / norm];
+      const [dx, dy] = [(lngLat.lng - origin.lng) * k, (lngLat.lat - origin.lat) * 111320];
+      return (dx * -un + dy * ue) / norm;
+    }
+
+    let mapHover = false;
+
+    /** Droite de la carte épaissie au survol ou pendant son glissement ; double clic de la carte (zoom) suspendu tant qu'elle est survolée. */
+    function setMapHover(on) {
+      if (on === mapHover) return;
+      mapHover = on;
+      if (map.getLayer("nez-droite")) {
+        map.setPaintProperty("nez-droite", "line-width", ["case", ["boolean", ["get", "prolongement"], false], 1.5, on ? LINE_WIDTH_HOVER : LINE_WIDTH]);
+      }
+      if (on) map.doubleClickZoom.disable();
+      else map.doubleClickZoom.enable();
     }
 
     function mapDown(event) {
-      if (!active || !shown() || !line.lonlat || drag || !mapHandleAt(event.point)) return;
-      event.preventDefault();
+      const original = event.originalEvent, button = original.button ?? 0;
+      if (drag || (original.touches && original.touches.length > 1) || (button !== 0 && button !== 2) || !mapLineNear(event.point)) return;
+      event.preventDefault();  // la carte ne se déplace pas
       map.dragPan.disable();
-      drag = { side: "profondeur", map: true };
+      const rotating = button === 2 || original.shiftKey;  // clic droit, ou Maj + clic gauche
+      drag = { side: rotating ? "rotation" : "profondeur", map: true, line: true, x: event.point.x, x0: event.point.x, y0: event.point.y, rotation, started: false,
+        origin: event.lngLat, d0: line.d };
+      setMapHover(true);
     }
 
     function mapMove(event) {
-      if (drag?.map) {  // le long du cap : distance de la droite ; le long de la droite : place de la poignée (sans toucher à la mesure)
-        const [side, forward] = mapOffsets(event.lngLat);
-        along = Math.max(handles.gauche, Math.min(handles.droit, depthOffset() + side));
-        slideDepth(line.d + forward);
-        draw();
+      if (drag?.map) {
+        if (!drag.started) {
+          if (Math.hypot(event.point.x - drag.x0, event.point.y - drag.y0) < TAP_PX) return;
+          drag.started = true;
+          drag.x = event.point.x;
+          if (drag.side === "rotation") ghost = [locate(handles.gauche), ...line.points.filter(([o]) => o > handles.gauche && o < handles.droit).map(([, yaw, pitch]) => [yaw, pitch]), locate(handles.droit)];  // aperçu en pointillés sur la photo
+        }
+        if (drag.side === "rotation") rotateBy(event.point.x - drag.x, event.originalEvent.altKey, event.point.x);
+        else slideDepth(drag.d0 + mapForward(event.lngLat, drag.origin));  // le long du cap : distance de la droite
+      } else if (active) {
+        const on = mapLineNear(event.point);
+        map.getCanvas().style.cursor = on ? "ns-resize" : "";
+        setMapHover(on);
       }
-      else if (active) map.getCanvas().style.cursor = shown() && mapHandleAt(event.point) ? "ns-resize" : "";
     }
 
     function mapUp() {
       if (!drag?.map) return;
+      const { started, side } = drag;
       drag = null;
+      ghost = null;
       map.dragPan.enable();
-      if (active) endSlide();
+      // le clic qui suit le relâchement sur la droite ne choisit pas une autre photo
+      const container = map.getContainer(), stop = (e) => e.stopImmediatePropagation();
+      container.addEventListener("click", stop, { capture: true, once: true });
+      setTimeout(() => container.removeEventListener("click", stop, { capture: true }), 100);
+      if (!active) return;
+      if (side === "rotation") rotatedAt = Date.now();
+      if (!started) return draw();
+      if (side === "rotation") finishRotation();
+      else endSlide();
+    }
+
+    /** Double clic sur la droite de la carte : perpendiculaire au trajet (le zoom de la carte est suspendu tant que la droite est survolée). */
+    function mapDouble(event) {
+      if (!active || !mapLineNear(event.point)) return;
+      event.preventDefault();
+      resetRotation();
+    }
+
+    /** Menu contextuel du navigateur : bloqué quand le clic droit part de la droite (photo ou carte), pendant et juste après la rotation. */
+    function blockMenu(event, over) {
+      if (active && (drag?.line || Date.now() - rotatedAt < 600 || over)) event.preventDefault();
     }
 
     if (map) {
@@ -644,16 +665,21 @@ const Nez = {
       map.on("touchmove", mapMove);
       map.on("mouseup", mapUp);
       map.on("touchend", mapUp);
+      map.on("dblclick", mapDouble);
       window.addEventListener("mouseup", mapUp);
+      map.getContainer().addEventListener("contextmenu", (event) => {
+        const box = map.getContainer().getBoundingClientRect();
+        blockMenu(event, mapLineNear({ x: event.clientX - box.left, y: event.clientY - box.top }));
+      });
     }
 
-    /** Rotation par glissement horizontal de la croix : proportionnelle au déplacement (ROTATION_RATE °/px, Maj : 10 fois plus fin),
-     * vers la droite = sens horaire (négatif). Droite recalculée au plus une fois par image, sans lecture du relief (celui déjà lu
-     * sert) : la lecture au nouvel angle est lancée au relâchement. */
-    function rotate(event) {
-      const rate = event.shiftKey ? ROTATION_RATE / 10 : ROTATION_RATE;
-      drag.rotation += -(local(event)[0] - drag.x) * rate;  // cumulé : Maj en cours de route n'a pas d'effet rétroactif
-      drag.x = local(event)[0];
+    /** Rotation par glissement horizontal (dx px depuis le dernier appel, x : position du pointeur) : proportionnelle au déplacement
+     * (ROTATION_RATE °/px, fine : 10 fois plus fin, Alt tenu), vers la droite = sens horaire (négatif). Droite recalculée au plus une fois par
+     * image, sans lecture du relief (celui déjà lu sert) : la lecture au nouvel angle est lancée au relâchement (finishRotation). */
+    function rotateBy(dx, fine, x) {
+      const rate = fine ? ROTATION_RATE / 10 : ROTATION_RATE;
+      drag.rotation += -dx * rate;  // cumulé : Alt en cours de route n'a pas d'effet rétroactif
+      drag.x = x;
       const value = Math.round(Math.max(-ROTATION_MAX, Math.min(ROTATION_MAX, drag.rotation)) * 10) / 10;
       if (value === rotation) return;
       rotation = value;
@@ -666,29 +692,36 @@ const Nez = {
       });
     }
 
+    /** Fin de la rotation : relief relu à l'angle choisi, la droite reste affichée (keep) pendant la lecture. */
+    function finishRotation() {
+      cancelAnimationFrame(frame);
+      frame = null;
+      load();
+      settle();
+      draw();
+      waitNeighbours(photoId);
+    }
+
     function onUp(event) {
       if (!drag || event.pointerId !== drag.id) return;
       event.stopImmediatePropagation();
-      if (drag.side === "profondeur") endSlide();
-      if (drag.side === "pivot" && drag.double) {  // double clic sur la croix : droite perpendiculaire au trajet
-        lastTap = null;
-        resetRotation();
-      } else if (drag.side === "pivot") {
-        lastTap = Math.abs(local(event)[0] - drag.x0) < TAP_PX ? { t: Date.now(), x: local(event)[0] } : null;  // appui sans glissement : premier clic possible
-        cancelAnimationFrame(frame);
-        frame = null;
-        load();  // relief relu à l'angle choisi ; la droite reste affichée (keep) pendant la lecture
-        settle();
-        draw();
-        waitNeighbours(photoId);
-      }
+      const { side, double: second, started } = drag;
+      const [x1, y1] = local(event);
       try {
         etat.psv.container.releasePointerCapture(event.pointerId);
       } catch { /* déjà relâché */ }
       drag = null;
       ghost = null;  // pointillés retirés
-      const found = handleAt(...local(event));
-      setCursor(found !== null, false, found === "pivot");
+      if (side === "profondeur") {
+        lastTap = null;
+        if (second) resetRotation();  // double clic sur la droite : perpendiculaire au trajet
+        else if (started) endSlide();
+        else lastTap = { t: Date.now(), x: x1, y: y1 };  // appui sans glissement : premier clic possible
+      } else if (side === "rotation") {
+        rotatedAt = Date.now();
+        if (started) finishRotation();
+      }
+      setCursor(handleAt(x1, y1));
       draw();
       // le clic qui suit le relâchement ne doit pas atteindre la visionneuse (mesure, photo voisine)
       const container = etat.psv.container, stop = (e) => e.stopImmediatePropagation();
@@ -696,16 +729,18 @@ const Nez = {
       setTimeout(() => container.removeEventListener("click", stop, { capture: true }), 100);
     }
 
-    /** mousedown et touchstart sur une poignée : la visionneuse ne les voit pas (elle y verrait le début d'une rotation). */
+    /** mousedown et touchstart sur la droite ou une poignée : la visionneuse ne les voit pas (elle y verrait le début d'une rotation). */
     function onLegacyDown(event) {
       const t = event.touches ? event.touches[0] : event;
       if (t && shown() && handleAt(...local(t))) event.stopImmediatePropagation();
     }
 
-    /** Double clic sur la croix : ni zoom ni navigation de la visionneuse (le double appui est lu dans onDown / onUp). */
+    /** Double clic sur la droite : ni zoom ni navigation de la visionneuse (le double appui est lu dans onDown / onUp). */
     function onDouble(event) {
-      if (shown() && handleAt(...local(event)) === "pivot") event.stopImmediatePropagation();
+      if (shown() && handleAt(...local(event)) === "droite") event.stopImmediatePropagation();
     }
+
+    const onMenu = (event) => blockMenu(event, shown() && handleAt(...local(event)) === "droite");
 
     function bind() {
       const container = etat.psv.container;
@@ -717,6 +752,7 @@ const Nez = {
       container.addEventListener("pointercancel", onUp, true);
       container.addEventListener("mousedown", onLegacyDown, true);
       container.addEventListener("touchstart", onLegacyDown, true);
+      container.addEventListener("contextmenu", onMenu, true);
     }
 
     function unbind() {
@@ -729,7 +765,9 @@ const Nez = {
       container.removeEventListener("pointercancel", onUp, true);
       container.removeEventListener("mousedown", onLegacyDown, true);
       container.removeEventListener("touchstart", onLegacyDown, true);
-      container.classList.remove("nez-poignee", "nez-glisse", "nez-pivot");
+      container.removeEventListener("contextmenu", onMenu, true);
+      container.classList.remove("nez-poignee", "nez-glisse", "nez-droite");
+      hoverLine = false;
       bound = null;
     }
 
@@ -748,7 +786,6 @@ const Nez = {
       resetCalage();
       raw = null;
       depth = null;
-      along = null;
       photoId = etat.photo.id;
       etat.app.birdeye_request();  // verticales de la photo (même calcul que la vue du dessus) ; la droite est refaite à leur arrivée
       restartWait();
@@ -783,13 +820,18 @@ const Nez = {
       frame = null;
       rotation = 0;
       depth = null;
-      along = null;
       keep = false;
       clearTimeout(retry);
       clearTimeout(waiting);
       restartWait();
       resetCalage();
       drag = null;
+      ghost = null;
+      if (map) {
+        map.dragPan.enable();
+        map.doubleClickZoom.enable();
+        map.getCanvas().style.cursor = "";
+      }
       unbind();
       raw = line = null;
       photoId = null;
@@ -814,10 +856,11 @@ const Nez = {
         etat.app?.birdeye_request();
         resetCalage();
         drag = null;
+        ghost = null;
+        map?.dragPan.enable();
         rotation = 0;
         depth = null;
-        along = null;
-        keep = false;
+          keep = false;
         restartWait();
         load();
         reset();

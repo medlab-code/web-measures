@@ -386,7 +386,7 @@ const Carte = (() => {
           id: "cibles", type: "circle", source: "mesures", filter: kind("cible"),
           paint: { "circle-color": "rgba(0, 0, 0, 0)", "circle-radius": 7, "circle-stroke-width": 2.5, "circle-stroke-color": ROUGE },
         },
-        {  // largeur dans la visionneuse (src/nez.js) : droite verte ou rouge sans liseré, poignée de profondeur en double flèche (src/nez.js), bords en petits traits rouges perpendiculaires (taille écran) ; pas interactifs
+        {  // largeur dans la visionneuse (src/nez.js) : droite verte ou rouge sans liseré (gestes de src/nez.js : profondeur, rotation, perpendiculaire), bords en petits traits rouges perpendiculaires (taille écran) ; pas interactifs
           id: "nez-droite", type: "line", source: "nez", filter: ["==", ["geometry-type"], "LineString"],
           paint: {  // verte (photo calée) ou rouge (pas encore) ; prolongement de chaque côté (moitié de la longueur) plus fin et atténué
             "line-color": ["coalesce", ["get", "couleur"], "#00c853"], "line-width": ["case", ["boolean", ["get", "prolongement"], false], 1.5, 2.5],
@@ -417,19 +417,13 @@ const Carte = (() => {
             "circle-stroke-width": 2, "circle-stroke-color": ["case", ["==", ["get", "role"], "chute"], ["get", "fond"], ["get", "couleur"]],
           },
         },
-        {  // poignée de profondeur sur la droite : double flèche blanche glissée le long du cap par src/nez.js (taille réglée par drawMap)
-          id: "nez-profondeur", type: "symbol", source: "nez", filter: ["==", ["get", "role"], "profondeur"],
-          layout: {
-            "icon-image": "nez-fleche", "icon-rotate": ["get", "angle"], "icon-rotation-alignment": "map",
-            "icon-allow-overlap": true, "icon-ignore-placement": true,
-          },
-        },
       ],
     };
   }
 
-  /** Carte MapLibre dans container ; center, zoom : vue de départ (par défaut la Côte-d'Or). */
-  function createMap(container, { vectorPlan = false, textScale = 1, center = [5.04, 47.32], zoom = 9 } = {}) {
+  /** Carte MapLibre dans container ; center, zoom : vue de départ (par défaut la Côte-d'Or) ; rotation : faux pour une carte toujours orientée
+   * nord en haut (ni glisser du clic droit, ni deux doigts, ni clavier, ni boussole : l'application principale ; le site mobile garde la rotation). */
+  function createMap(container, { vectorPlan = false, textScale = 1, center = [5.04, 47.32], zoom = 9, rotation = true } = {}) {
     mapOptions = { vectorPlan, textScale };
     const map = new maplibregl.Map({
       container,
@@ -443,7 +437,6 @@ const Carte = (() => {
     });
     map.on("styleimagemissing", (e) => {
       if (e.id === "nez-bord" && !map.hasImage("nez-bord")) map.addImage("nez-bord", edgeTickImage(), { pixelRatio: 2 });
-      if (e.id === "nez-fleche" && !map.hasImage("nez-fleche")) map.addImage("nez-fleche", arrowImage(), { pixelRatio: 2 });
       if (e.id === "croix" && !map.hasImage("croix")) map.addImage("croix", crossImage(), { pixelRatio: 2 });
       if (e.id.startsWith("cartouche:") && !map.hasImage(e.id)) {
         map.addImage(e.id, cartoucheImage(e.id.slice("cartouche:".length)), { pixelRatio: 2 });
@@ -451,7 +444,12 @@ const Carte = (() => {
       if (e.id.startsWith("parcelle:") && !map.hasImage(e.id))
         map.addImage(e.id, parcelImage(e.id.slice("parcelle:".length)), { pixelRatio: 2 });
     });
-    map.addControl(new maplibregl.NavigationControl(), "top-left");
+    if (!rotation) {
+      map.dragRotate.disable();
+      map.touchZoomRotate.disableRotation();
+      map.keyboard.disableRotation();
+    }
+    map.addControl(new maplibregl.NavigationControl({ showCompass: rotation }), "top-left");
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
     // Attributions repliées derrière le bouton ⓘ (et le choix du fond qui s'y trouve) : MapLibre les déplie
     // d'office à la création et quand des sources arrivent (classe maplibregl-compact-show) ; repliées dès
@@ -575,26 +573,6 @@ const Carte = (() => {
     ctx.fillStyle = "#d93025";
     ctx.fillRect(0, 0, w, h);
     return ctx.getImageData(0, 0, w, h);
-  }
-
-  /** Double flèche blanche ⇕ de la poignée de profondeur de la largeur (comme sur la photo, src/traits.js : tige de 3 px, pointes en V
-   * de 7 px, sans liseré), 24 px à l'écran (canvas 48 × 48 à pixelRatio 2), verticale : icon-rotate la tourne le long du cap. */
-  function arrowImage() {
-    const size = 48, canvas = document.createElement("canvas");
-    canvas.width = canvas.height = size;
-    const ctx = canvas.getContext("2d");
-    const c = size / 2, half = 22, head = 14;
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 6;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(c, c - half); ctx.lineTo(c, c + half);
-    for (const sign of [-1, 1]) {
-      const tip = c + sign * half;
-      ctx.moveTo(c - head, tip - sign * head); ctx.lineTo(c, tip); ctx.lineTo(c + head, tip - sign * head);
-    }
-    ctx.stroke();
-    return ctx.getImageData(0, 0, size, size);
   }
 
   function setBackground(map, name) {

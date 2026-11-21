@@ -334,7 +334,7 @@
       return {};
     }
   })();
-  const map = Carte.createMap("carte", { vectorPlan: true, ...lastPlace });  // Plan IGN vectoriel : texte net à tout zoom
+  const map = Carte.createMap("carte", { vectorPlan: true, rotation: false, ...lastPlace });  // Plan IGN vectoriel : texte net à tout zoom ; carte toujours nord en haut
   Recherche.attach(map);
   Requeteur.attach(map, (...args) => openNearest(...args));  // choix de la photo : déclaré plus bas
   Carte.showMilestones(map);

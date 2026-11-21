@@ -36,7 +36,7 @@ const Reglages = {
     // Police des cartouches prête avant qu'ils ne soient dessinés
     document.fonts?.load("700 24px Inter").catch(() => {});
     Carte.showAdmin(map);  // limites des départements et des métropoles ; des communes avec « orthophoto avec noms »
-    // Filaire Panoramax affiché ou non (choix mémorisé) : interrupteur dans l'étiquette verticale de la carte, avec zoom et boussole
+    // Filaire Panoramax affiché ou non (choix mémorisé) : interrupteur dans l'étiquette verticale de la carte, avec le zoom
     // (même groupe que le bouton d'échange des vues, voir resultats.js) ; enfoncé = filaire visible
     const wire = Object.assign(document.createElement("button"), { type: "button", id: "filaire",
       innerHTML: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '

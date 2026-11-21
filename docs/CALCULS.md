@@ -492,7 +492,7 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   Les verticales sont demandées par `birdeye_request` à l'affichage de la droite : même
   calcul, mêmes résultats gardés par photo que la vue du dessus avec « Calage par les verticales » (aucun calcul en double) ; elles
   arrivent après la première réponse (`inclinaison_en_calcul`) : la droite n'est tracée qu'à leur arrivée, poignées gardées. Source rendue dans `inclinaison_source`.
-  Position définitive (`src/nez.js`, `shown`) : la droite, les poignées, la croix, l'étiquette et le tracé de la carte ne sont affichés
+  Position définitive (`src/nez.js`, `shown`) : la droite, les poignées, l'étiquette et le tracé de la carte ne sont affichés
   que lorsque plus rien n'est attendu (`voisines` vrai, `sol_en_lecture` faux, `inclinaison_en_calcul` faux), ou après 12 s d'attente au
   plus (repli : meilleure droite disponible, l'encart dit ce qui manque). Une nouvelle attente (photo changée, clics de verticales) masque
   de nouveau la droite jusqu'à sa position définitive, poignées gardées. Les poignées ne se croisent pas : écart minimal de 0,10 m ; elles sont libres de part et d'autre de la caméra (trottoir, voie seule).
