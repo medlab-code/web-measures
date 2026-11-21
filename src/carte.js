@@ -1436,8 +1436,8 @@ const Carte = (() => {
 
   /** Image de la carte telle qu'affichée (vue Bird Eye, traits des mesures, tracé en cours), avec par-dessus ce que la carte
    * pose en HTML : étiquettes des mesures et longueur en cours (à leur place, couleur, police et inclinaison), échelle et
-   * attribution des sources. Promesse d'un PNG (Blob). `nue` : sans l'échelle ni l'attribution (contrôles de la carte), pour le bouton
-   * de capture ; les étiquettes des mesures, posées en HTML par-dessus le canevas, y sont reportées. */
+   * attribution des sources. Promesse d'un PNG (Blob). `nue` : sans l'échelle ni le cadre de l'attribution (contrôles de la carte), pour le bouton
+   * de capture, mais avec la mention des sources en petit, discrète, en bas à droite ; les étiquettes des mesures, posées en HTML par-dessus le canevas, y sont reportées. */
   async function capture(map, { nue = false } = {}) {
     const canvas = map.getCanvas(), container = map.getContainer(), box = container.getBoundingClientRect();
     // tampon WebGL lu pendant un rendu (sinon vide)
@@ -1523,8 +1523,21 @@ const Carte = (() => {
       g.fillText(scale.textContent, x + 4 * k, y + h / 2);
     }
     // sources (licences) : en bas à droite
-    const credit = nue ? "" : (container.querySelector(".maplibregl-ctrl-attrib-inner")?.textContent || "").trim();
-    if (credit) {
+    const credit = (container.querySelector(".maplibregl-ctrl-attrib-inner")?.textContent || "").replace(/\s+/g, " ").trim();
+    if (credit && nue) {  // image nue : mention discrète (blanc translucide, contour sombre), sans cadre ni fond
+      const dpr = window.devicePixelRatio || 1;
+      g.save();
+      g.font = `${10 * dpr}px sans-serif`;
+      g.textAlign = "right";
+      g.textBaseline = "alphabetic";
+      g.lineJoin = "round";
+      g.lineWidth = 2 * dpr;
+      g.strokeStyle = "rgba(0, 0, 0, 0.5)";
+      g.fillStyle = "rgba(255, 255, 255, 0.7)";
+      g.strokeText(credit, out.width - 4 * dpr, out.height - 4 * dpr);
+      g.fillText(credit, out.width - 4 * dpr, out.height - 4 * dpr);
+      g.restore();
+    } else if (credit) {
       g.font = `${11 * k}px sans-serif`;
       const pad = 4 * k, tw = g.measureText(credit).width;
       g.fillStyle = "rgba(255, 255, 255, 0.8)";
