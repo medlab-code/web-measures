@@ -172,6 +172,11 @@ const Resultats = {
     let userSwap = false, measureSwap = false;  // échange en cours ; demandé par le bouton ; par la mesure
     function setSwapped(on) {
       if (on === etat.swapped || (on && etat.mapWindow)) return;
+      // Échange dans un sens ou l'autre : toute mesure en cours s'arrête (hauteur, relevé, calage, largeur ↔, profil), sauf Bird Eye
+      // (case « #dessus », réglages, pose, mesure « carte » et son tracé : Dessus.setMeasuring(false) les effacerait, on n'y touche pas).
+      // « outil-visionneuse » arrête ↔, profil et boutons de mode (qui cliquent « Mesure ») ; le reste, ci-dessous.
+      document.dispatchEvent(new CustomEvent("outil-visionneuse", { detail: "echange" }));
+      if (etat.measuring && $("#mode").value !== "carte") $("#mesure").click();
       etat.swapped = on;
       swapButton.setAttribute("aria-pressed", String(on));
       // carte en grand ou détachée : mesure et Bird Eye d'un clic
