@@ -225,9 +225,11 @@ aside[hidden] { display: none; }
 .carte-en-grand #vue { left: var(--place-carte-left); top: var(--place-carte-top); width: var(--place-carte-width); height: var(--place-carte-height); }
 .carte-en-grand #carte { left: var(--place-vue-left); top: var(--place-vue-top); width: var(--place-vue-width); height: var(--place-vue-height) !important; }
 .carte-en-grand #poignee-carte { pointer-events: none; }
-/* Visionneuse à la petite place (carte en grand) : toutes ses pastilles masquées sauf la localisation (#lieu) ; elles reviennent avec la
-   carte à sa place. Affichage seulement : l'état de la mesure ne change pas. */
-.carte-en-grand #vue :is(#reglage-image, #haut-droite-vue, #voyants, #lecteur, #producteur-photo, .haut-centre, .haut-gauche) { display: none !important; }
+/* Visionneuse à la petite place (carte en grand) : RIEN ne se superpose à la photo sauf la localisation (#lieu) ; tout revient avec la carte à sa
+   place. Règle générale : tout enfant de #vue sauf la visionneuse et le bas (#lieu), et dans le bas tout sauf #lieu ; un élément ajouté plus tard
+   (encart de la largeur ↔, par exemple) est donc masqué sans autre règle. Les tracés (droites, poignées) sont dans la toile et restent ; leurs
+   étiquettes textuelles, dans la toile aussi, sont omises par traits.js. Affichage seulement : l'état de la mesure ne change pas. */
+.carte-en-grand #vue > :not(pnx-photo-viewer, .bas-vue), .carte-en-grand #vue .bas-vue > :not(#lieu) { display: none !important; }
 #carte[hidden] { display: none; }
 
 /* Carte détachée (voir app.js) : sa place dans la colonne, et la fenêtre à part qu'elle remplit */

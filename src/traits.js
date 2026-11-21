@@ -303,7 +303,8 @@ const Traits = (() => {
     rects = [];
     const drawnLines = capture ? lines.filter((l) => !l.couche) : lines.concat(extra.lines), reticle = capture ? null : slide;
     const drawnCrosses = capture ? crosses : crosses.concat(extra.crosses), ticks = capture ? [] : extra.ticks;
-    const drawnLabels = capture ? labels : labels.concat(extra.labels);
+    // Visionneuse à la petite place (carte en grand) : seule la localisation s'affiche, donc pas d'étiquettes dans la photo (captures : toujours)
+    const drawnLabels = capture ? labels : document.body.classList.contains("carte-en-grand") ? [] : labels.concat(extra.labels);
     if (!width || !(drawnLines.length || drawnCrosses.length || ticks.length || drawnLabels.length || reticle)) return;
     const camera = psv.renderer.camera;
     const m = camera.matrixWorldInverse.elements, p = camera.projectionMatrix.elements;
