@@ -149,12 +149,6 @@
     Carte.setMilestones(map, event.target.checked);
     store.set("bornes", event.target.checked ? "1" : "0");
   });
-  $("#lien-complet").checked = store.get("mobile-lien-complet") !== "0";
-  $("#version-complete").hidden = !$("#lien-complet").checked;
-  $("#lien-complet").addEventListener("change", (event) => {
-    $("#version-complete").hidden = !event.target.checked;
-    store.set("mobile-lien-complet", event.target.checked ? "1" : "0");
-  });
   $("#cadastre").checked = store.get("cadastre") === "1";
   Carte.setCadastre(map, $("#cadastre").checked);
   $("#cadastre").addEventListener("change", (event) => {

@@ -16,7 +16,7 @@ courte : [README](../README.md) ; calculs : [CALCULS.md](CALCULS.md) ; vue Bird 
 haut, carte en bas, partage réglé par la poignée entre les deux ; recherche de lieux et requêteur route +
 PR au-dessus ; Plan IGN et OpenStreetMap en tuiles vectorielles (texte net, agrandi de 30 %) ; bouton ⚙ des réglages : fond de carte (1. Orthophoto + (par défaut) ; 2. Plan IGN ; 3. Orthophoto ; 4. Ortho-express (année de la photo) ; 5. LiDAR MNT ; 6. LiDAR MNS ; 7. LiDAR MNH ; 8. OpenFreeMap), filaire Panoramax, bornes des PR, cadastre (parcelle visée en vert, son
 étiquette dans la photo, caméra supposée à 1,90 m au-dessus d'un sol de niveau), filtre des photos (instance,
-producteur, date de début ; mêmes réglages que la page principale), bouton « Version complète » masquable ; bouton appareil photo : capture de la vue avec l'étiquette et les
+producteur, date de début ; mêmes réglages que la page principale), lien « version complète » dans les réglages ; bouton appareil photo : capture de la vue avec l'étiquette et les
 cartouches, partagée par le téléphone (sinon téléchargée).
 
 **Ouvrir la page** : double-cliquer sur `index.html` suffit (Edge, Chrome, Firefox), sans

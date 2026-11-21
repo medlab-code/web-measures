@@ -36,8 +36,6 @@
   </section>
   <div id="poignee" role="separator" aria-orientation="horizontal" aria-label="Partage entre la photo et la carte"></div>
   <section id="carte">
-    <a id="version-complete" href="index.html" onclick="try { localStorage.setItem('web-measures/version', 'complete'); } catch {}"
-       title="Page principale : mesures, profils, vidéo ; choix gardé sur ce téléphone">Version complète</a>
     <button id="ouvrir-reglages" class="bouton-carte" type="button" aria-haspopup="dialog" aria-controls="reglages"
             title="Réglages : fond de carte, PR, cadastre, filtre des photos" aria-label="Réglages"><svg width="24" height="24" viewBox="0 0 24 24"
             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -65,8 +63,7 @@
       <label>Depuis le <input id="depuis" type="date"></label>
       <p class="aide">Filaire et photos ouvertes d'un appui. Mêmes réglages que la page principale.</p>
       <h2>Page</h2>
-      <label class="option">Bouton « Version complète » sur la carte <input id="lien-complet" type="checkbox" class="interrupteur"></label>
-      <p class="aide">Masqué, la page principale reste accessible ici :
+      <p class="aide">Page principale : mesures, profils, vidéo :
         <a href="index.html" onclick="try { localStorage.setItem('web-measures/version', 'complete'); } catch {}">version complète</a>.</p>
       <button type="submit">Fermer</button>
     </form>

@@ -37,9 +37,6 @@ const ID = "1108ca14-6669-49e8-a26a-955becc79e81";  // Pouilly-en-Auxois (comme 
     doc.querySelector("#filaire").click();
     expect("filaire masquable, choix gardé", !doc.querySelector("#filaire").checked && w.localStorage.getItem("web-measures/filaire") === "0");
     doc.querySelector("#filaire").click();
-    doc.querySelector("#lien-complet").click();
-    expect("bouton « Version complète » masquable, choix gardé", doc.querySelector("#version-complete").hidden
-      && w.localStorage.getItem("web-measures/mobile-lien-complet") === "0");
     doc.querySelector("#reglages button[type=submit]").click();
     expect("réglages fermés", await soon(() => !doc.querySelector("#reglages").open, 2000));
     const marker = () => { try { return w.mobile.psv.getPlugin("markers").getMarker("mesure-parcelle"); } catch { return null; } };
