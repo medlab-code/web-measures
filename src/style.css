@@ -1337,7 +1337,14 @@ dialog.profil .legende .chute { color: var(--chute-texte); font-weight: 500; }
 dialog.profil .legende .devers { color: var(--devers-texte); font-weight: 500; }
 .profil-svg text { font: 12px Roboto, sans-serif; fill: var(--texte); }
 /* étiquettes posées sur le terrain : liseré du fond, lisibles par-dessus les traits */
-.profil-svg text.place { paint-order: stroke; stroke: var(--fond); stroke-width: 3px; stroke-linejoin: round; }
+.profil-svg text.place { paint-order: stroke; stroke: var(--fond); stroke-width: 4px; stroke-opacity: 0.85; stroke-linejoin: round; }
+/* connecteur d'une étiquette écartée de ce qu'elle nomme (profil.js, declutter) : trait fin et petit point à l'ancre */
+.profil-svg line.connecteur { stroke: var(--discret); stroke-width: 1; }
+.profil-svg circle.connecteur-point { fill: var(--discret); }
+.profil-svg line.connecteur[data-couleur="chute"] { stroke: var(--chute-texte); }
+.profil-svg circle.connecteur-point[data-couleur="chute"] { fill: var(--chute-texte); stroke: none; }
+.profil-svg line.connecteur[data-couleur="devers"] { stroke: var(--devers-texte); }
+.profil-svg circle.connecteur-point[data-couleur="devers"] { fill: var(--devers-texte); stroke: none; }
 .profil-svg rect.mention-echelle { fill: var(--fond); opacity: 0.85; }  /* « Hauteurs ×N » : fond du coin */
 .profil-svg rect.mention-carrefour { fill: var(--carrefour-fond); opacity: 1; stroke: var(--carrefour); stroke-width: 1.5; }  /* carrefour près de la photo : bords peu sûrs */
 .profil-svg text.mention-carrefour-texte { fill: var(--carrefour); }

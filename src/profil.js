@@ -120,30 +120,117 @@ const Profil = (() => {
     return w;
   }
 
-  /** Étiquettes du graphique (classe « place ») écartées verticalement de celles déjà posées, dans l'ordre du dessin,
-   * entre top et bottom (hauteurs à l'échelle : chute, dévers, travers et plateforme presque à la même hauteur).
-   * Largeurs mesurées sur un canvas hors écran (textWidth) : le SVG n'est pas encore dans la page. */
+  /** Placement des étiquettes du graphique (classe « place ») : chacune a une ancre (data-ancre = « x,y », le point qu'elle
+   * désigne ; sinon son propre point de départ), une priorité (data-prio, 5 par défaut : chute 1, dévers 2, plateforme 3) et
+   * une couleur de connecteur (data-couleur). Par priorité, glouton : positions candidates (sa place d'origine et ses
+   * décalages verticaux, puis autour de l'ancre, de plus en plus loin, au-dessus, sur les côtés, dessous), dans le cadre
+   * { top, bottom, left, right } ; la moins coûteuse l'emporte (chevauchement des étiquettes déjà posées et des obstacles
+   * fixes, tracés croisés — échantillons des polylignes du terrain, des travers, de la plateforme, des bords, de la flèche…
+   * —, distance à l'ancre). Déplacée loin de sa place d'origine, l'étiquette est reliée à son ancre par un connecteur (trait
+   * fin et petit point). data-suite = data-cle d'une étiquette posée avant : elle la suit (plateforme, puis son dévers).
+   * Largeurs mesurées sur un canvas hors écran (textWidth) : le SVG n'est pas encore dans la page.
+   * Rend { textes, lignes } : étiquettes qui se recouvrent encore, et traits croisés. */
   // obstacles : [gauche, haut, droite, bas] à éviter aussi (tablier d'un pont…)
-  function declutter(svg, top, bottom, obstacles = []) {
-    const box = (t, y) => {  // étiquette sur plusieurs lignes (tspan) : la plus longue, et LINE px par ligne de plus
+  const OBSTACLES = "path.sol, path.autre-travers, path.travers-mesure, path.chaussee, path.eau-surface, path.herbe, path.vegetation,"
+    + " line.bord, line.bord-chaussee, line.chute, line.repere-chute, line.devers, line.separateur, line.raide, line.ouvrage";
+  const SAMPLE_STEP = 4, LINE_COST = 10, TEXT_COST = 5000, FAR = 28;
+  function declutter(svg, { top, bottom, left, right }, obstacles = []) {
+    const samples = [];  // [x, y] le long des tracés
+    const along = (pts) => {
+      for (let k = 0; k < pts.length; k++) {
+        const [x0, y0] = pts[k], [x1, y1] = pts[k + 1] || pts[k], n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / SAMPLE_STEP));
+        for (let i = 0; i < n; i++) samples.push([x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n]);
+      }
+    };
+    for (const e of svg.querySelectorAll(OBSTACLES)) {
+      if (e.tagName === "line") along([[+e.getAttribute("x1"), +e.getAttribute("y1")], [+e.getAttribute("x2"), +e.getAttribute("y2")]]);
+      else along([...(e.getAttribute("d") || "").matchAll(/[ML](-?[\d.]+(?:e-?\d+)?),(-?[\d.]+(?:e-?\d+)?)/g)].map((m) => [+m[1], +m[2]]));
+    }
+    for (const c of svg.querySelectorAll("circle.origine")) samples.push([+c.getAttribute("cx"), +c.getAttribute("cy")]);
+    const read = (t) => {  // étiquette sur plusieurs lignes (tspan) : la plus longue, et LINE px par ligne de plus
       const lines = t.querySelectorAll("tspan").length ? [...t.querySelectorAll("tspan")].map((s) => s.textContent) : [t.textContent];
-      const grad = t.classList.contains("graduation"), size = grad ? 12 : 13,
-        w = Math.max(...lines.map((s) => textWidth(s, size, grad ? 400 : 500)));
-      const x = Number(t.getAttribute("x")), anchor = t.getAttribute("text-anchor");
-      const left = anchor === "end" ? x - w : anchor === "middle" ? x - w / 2 : x;
-      return [left - 2, y - size, left + w + 2, y + 3 + (lines.length - 1) * LINE];
+      const grad = t.classList.contains("graduation"), size = grad ? 12 : 13;
+      return { lines, size, w: Math.max(...lines.map((s) => textWidth(s, size, grad ? 400 : 500))) };
+    };
+    // boîte de l'étiquette (x, y : début de la 1re ligne de base, selon l'ancrage) ; liseré compris
+    const box = (m, x, y, anchor) => {
+      const l = anchor === "end" ? x - m.w : anchor === "middle" ? x - m.w / 2 : x;
+      return [l - 2, y - m.size, l + m.w + 2, y + 3 + (m.lines.length - 1) * LINE];
     };
     const hit = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+    const inside = (b, p) => p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3];
+    const crossed = (b) => samples.reduce((n, p) => n + (inside(b, p) ? 1 : 0), 0);
+    const near = (b, [ax, ay]) => Math.hypot(Math.max(b[0] - ax, 0, ax - b[2]), Math.max(b[1] - ay, 0, ay - b[3]));
     const placed = [...obstacles];
-    for (const t of svg.querySelectorAll("text.place")) {
-      const y0 = Number(t.getAttribute("y"));
-      // 0, puis 16 px dessous, dessus, 32 px dessous… sans sortir du graphique ; vers le haut seulement pour une étiquette
-      // au-dessus de ce qu'elle nomme (data-haut : caméra, séparateur de chaussée), qui ne doit pas le masquer
-      const steps = t.hasAttribute("data-haut") ? [0, -16, -32, -48, -64] : [0, 16, -16, 32, -32, 48, -48, 64, -64];
-      const y = steps.map((d) => y0 + d).find((v) => v - 13 >= top && v <= bottom && !placed.some((p) => hit(p, box(t, v)))) ?? y0;
-      t.setAttribute("y", y);
-      placed.push(box(t, y));
+    const result = { textes: 0, lignes: 0 };
+    const texts = [...svg.querySelectorAll("text.place:not([data-suite])")].map((t, k) => [t, k]);
+    texts.sort(([a, i], [b, j]) => (Number(a.dataset.prio ?? 5) - Number(b.dataset.prio ?? 5)) || i - j);
+    for (const [t] of texts) {
+      const m = read(t), x0 = Number(t.getAttribute("x")), y0 = Number(t.getAttribute("y")), anchor0 = t.getAttribute("text-anchor") || "start";
+      const [ax, ay] = t.dataset.ancre ? t.dataset.ancre.split(",").map(Number) : [x0, y0 - 4];
+      const home = box(m, x0, y0, anchor0), up = t.hasAttribute("data-haut");
+      // suites (data-suite = data-cle de celle-ci) : posées avec elle, au même décalage, et comptées dans le coût
+      const tail = t.dataset.cle ? [...svg.querySelectorAll("text.place[data-suite]")].filter((f) => f.dataset.suite === t.dataset.cle)
+        .map((f) => ({ t: f, m: read(f), x: Number(f.getAttribute("x")), y: Number(f.getAttribute("y")), anchor: f.getAttribute("text-anchor") || "start" })) : [];
+      const candidates = [];  // { x, y, anchor, extra, b, tail }
+      const add = (x, y, anchor, extra) => {
+        let b = box(m, x, y, anchor);
+        const shift = Math.max(0, left - b[0]) - Math.max(0, b[2] - right);  // rabattue dans le cadre
+        if (b[2] - b[0] > right - left) return;
+        [x, b] = [x + shift, [b[0] + shift, b[1], b[2] + shift, b[3]]];
+        if (b[1] + 1 < top || b[3] > bottom) return;
+        if (up && b[1] > ay + 8) return;  // au-dessus de ce qu'elle nomme seulement : ne le masque pas
+        const rest = tail.map((f) => box(f.m, f.x + x - x0, f.y + y - y0, f.anchor));
+        if (rest.some((r) => r[1] + 1 < top || r[3] > bottom || r[0] < left || r[2] > right)) return;
+        candidates.push({ x, y, anchor, extra, b, rest });
+      };
+      for (const d of [0, 16, -16, 32, -32, 48, -48, 64, -64]) add(x0, y0 + d, anchor0, Math.abs(d) / 16);
+      // autour de l'ancre : haut, côtés, bas, de plus en plus loin
+      const dirs = [[0, -1], [1, -1], [-1, -1], [1, 0], [-1, 0], [0, 1], [1, 1], [-1, 1]];
+      const own = [ax, ay];
+      for (const d of [0, 10, 22, 36, 54, 76, 104, 140]) {
+        for (const [ux, uy] of dirs) {
+          const px = own[0] + ux * d * (ux && uy ? 0.75 : 1), py = own[1] + uy * d * (ux && uy ? 0.75 : 1);
+          const a = ux > 0 ? "start" : ux < 0 ? "end" : "middle", gap = d ? 4 : 6;
+          const y = uy < 0 ? py - gap - 4 - (m.lines.length - 1) * LINE : uy > 0 ? py + gap + m.size : py + 4 - (m.lines.length - 1) * LINE / 2;
+          add(px + ux * gap, y, a, 2 + d / 20);
+        }
+      }
+      const free = Math.max(FAR, near(home, [ax, ay]) + 4);  // sa place d'origine n'est jamais pénalisée par la distance
+      let best = null;
+      for (const c of candidates) {
+        const all = [c.b, ...c.rest];
+        const clash = all.reduce((n, b) => n + placed.filter((p) => hit(p, b)).length, 0), lines = all.reduce((n, b) => n + crossed(b), 0);
+        c.cost = clash * TEXT_COST + lines * LINE_COST + Math.max(0, near(c.b, [ax, ay]) - free) * 0.8 + c.extra;
+        c.clash = clash; c.lines = lines;
+        if (!best || c.cost < best.cost) best = c;
+      }
+      if (!best) {  // aucune position dans le cadre : sa place, rabattue à l'horizontale seulement
+        const b = box(m, x0, y0, anchor0);
+        best = { x: x0, y: y0, anchor: anchor0, b, rest: tail.map((f) => box(f.m, f.x, f.y, f.anchor)), clash: placed.filter((p) => hit(p, b)).length, lines: crossed(b) };
+      }
+      t.setAttribute("x", best.x);
+      t.setAttribute("y", best.y);
+      t.setAttribute("text-anchor", best.anchor);
+      for (const s of t.querySelectorAll("tspan")) s.setAttribute("x", best.x);
+      result.textes += best.clash; result.lignes += best.lines > 0 ? 1 : 0;
+      tail.forEach((f) => {
+        f.t.setAttribute("x", f.x + best.x - x0);
+        f.t.setAttribute("y", f.y + best.y - y0);
+      });
+      placed.push(best.b, ...best.rest);
+      // loin de sa place : connecteur de la boîte à l'ancre, petit point à l'ancre ; ses échantillons gênent les suivantes
+      const moved = Math.hypot((best.b[0] + best.b[2] - home[0] - home[2]) / 2, (best.b[1] + best.b[3] - home[1] - home[3]) / 2);
+      const reach = near(best.b, [ax, ay]);
+      if (moved > 14 && reach > 10) {
+        const [ex, ey] = [Math.min(Math.max(ax, best.b[0] + 3), best.b[2] - 3), Math.min(Math.max(ay, best.b[1] + 3), best.b[3] - 3)];
+        const colour = t.dataset.couleur ? { "data-couleur": t.dataset.couleur } : {};
+        t.before(el("line", { x1: ex, y1: ey, x2: ax, y2: ay, class: "connecteur", ...colour }),
+          el("circle", { cx: ax, cy: ay, r: 2.5, class: "connecteur-point", ...colour }));
+        along([[ex, ey], [ax, ay]]);
+      }
     }
+    return result;
   }
 
   /** Clé de lecture sous le graphique (dans le SVG : aussi dans le PNG et le PDF) : un échantillon et un mot pour chaque
@@ -397,7 +484,8 @@ const Profil = (() => {
         // sous le terrain de la photo (dessiné avant lui), transparent : il ne le masque pas
         svg.insertBefore(el("path", { d: path(tr.points), class: "travers-mesure" }), svg.querySelector(".terre"));
         svg.append(el("text",
-          { x: X(end[0]) - sign * 2, y: Z(end[1]) - 6, class: "graduation place", "text-anchor": sign < 0 ? "start" : "end" },
+          { x: X(end[0]) - sign * 2, y: Z(end[1]) - 6, class: "graduation place", "data-prio": 4, "data-ancre": `${X(end[0])},${Z(end[1])}`,
+            "text-anchor": sign < 0 ? "start" : "end" },
             `travers à ${tr.along > 0 ? "+" : "−"}${Math.abs(tr.along)} m`));
       }
       const top = zAt(t.points, b), xLow = b + sign * r.chute[1], low = top - r.chute[0];
@@ -406,7 +494,7 @@ const Profil = (() => {
       svg.append(el("line", { x1: X(b), x2: X(xLow), y1: Z(top), y2: Z(top), class: "repere-chute" }),
         el("line", { x1: X(xLow), x2: X(xLow), y1: Z(top), y2: Z(low), class: "chute", "data-cote": side, "marker-end": "url(#fleche)" }),
         el("text", { x: X(xLow) + toward * 6, y: (Z(top) + Z(low)) / 2, class: "etiquette-profil chute-texte place",
-          "text-anchor": toward < 0 ? "end" : "start" }, `chute ${r.chute[2] ? "≥ " : ""}${num(r.chute[0])} m`));
+          "data-prio": 1, "data-couleur": "chute", "data-ancre": `${X(xLow)},${(Z(top) + Z(low)) / 2}`, "text-anchor": toward < 0 ? "end" : "start" }, `chute ${r.chute[2] ? "≥ " : ""}${num(r.chute[0])} m`));
       item.append(symbol("chute"), html("span", "chute", `chute ${r.chute[2] ? "d'au moins " : "de "}${num(r.chute[0])} m`),
         ` ${r.chute[2] ? "au-delà de" : "à"} ${dist(r.chute[1], r.chute[2])} m du bord${where}`);
       if (r.devers) {
@@ -418,7 +506,8 @@ const Profil = (() => {
         const flat = Math.abs(Z(z0) - Z(z1)) < 60;
         svg.append(el("line", { x1: X(x0), y1: Z(z0), x2: X(x1), y2: Z(z1), class: "devers", "data-cote": side }),
           el("text", { x: X((x0 + x1) / 2) - (flat ? 0 : sign * 12), y: flat ? Math.max(Z(z0), Z(z1)) + 18 : Z((z0 + z1) / 2) + 4,
-            class: "etiquette-profil devers-texte place", "text-anchor": flat ? "middle" : sign < 0 ? "start" : "end" },
+            class: "etiquette-profil devers-texte place", "data-prio": 2, "data-couleur": "devers",
+            "data-ancre": `${X((x0 + x1) / 2)},${Z((z0 + z1) / 2)}`, "text-anchor": flat ? "middle" : sign < 0 ? "start" : "end" },
           r.devers[5] ? "paroi" : `dévers ${num(100 * r.devers[0], 0)} %`));
         // paroi quasi verticale (App.WALL_SLOPE) : sans pourcentage, le MNT adoucit les murs
         const where2 = td === main ? "" : `, travers à ${td.along > 0 ? "+" : "−"}${Math.abs(td.along)} m`;
@@ -516,33 +605,39 @@ const Profil = (() => {
     // Plateforme entre les deux bords du travers de la photo
     if (road.length > 1) {
       const under = Math.max(...road.map(([, z]) => Z(z)));  // sous le point le plus bas : pas de texte sur une chaussée en dévers
+      const roadAt = `${X((bl + br) / 2)},${Z(zAt(main.points, (bl + br) / 2) ?? ref)}`;
       svg.append(el("path", { d: path(road), class: "chaussee" }),
-        el("text", { x: X((bl + br) / 2), y: under + 26, class: "etiquette-profil place", "text-anchor": "middle" },
+        el("text", { x: X((bl + br) / 2), y: under + 26, class: "etiquette-profil place", "data-prio": 3, "data-cle": "plateforme",
+          "data-ancre": roadAt, "text-anchor": "middle" },
           `plateforme ${num(br - bl)} m`));
       const slope = platformLabel(profile.plateforme);
       if (slope) {
-        svg.append(el("text", { x: X((bl + br) / 2), y: under + 42, class: "etiquette-profil place", "text-anchor": "middle" }, slope));
+        svg.append(el("text", { x: X((bl + br) / 2), y: under + 42, class: "etiquette-profil place", "data-prio": 3, "data-suite": "plateforme",
+          "text-anchor": "middle" }, slope));
       }
     }
     for (const side of ["gauche", "droit"]) {
       const b = main.bords[side];
       if (!b) continue;
-      const anchor = side === "gauche" ? "end" : "start", dx = side === "gauche" ? -4 : 4;
+      // nom vers l'extérieur ; vers l'intérieur si l'extérieur sortirait du graphique
+      const sub = b.enrobe ? (fine?.bords?.[side]?.bordure ? "bordure" : "fin de l'enrobé") : b.relief ? "rupture de pente" : b.voisins ? "travers voisins" : "largeur type";
+      const wide = Math.max(textWidth(b.enrobe || b.relief ? "bord" : "bord supposé", 13, 500), textWidth(sub, 12)) + 8;
+      const out = side === "gauche" ? X(b.x) - wide > 2 : X(b.x) + wide < W - 2, toward = (side === "gauche" ? -1 : 1) * (out ? 1 : -1);
+      const anchor = toward < 0 ? "end" : "start", dx = 4 * toward;
       // Bord mesuré (rupture de pente de ce travers, analyse fine) : trait plein (style.css) ; bord supposé (largeur type, ou
       // médiane des travers voisins) : tirets longs et pâles, et l'étiquette le dit
       const measured = Boolean(b.enrobe || b.relief);
       svg.append(el("line", { x1: X(b.x), x2: X(b.x), y1: TOP - 4, y2: Z(zAt(main.points, b.x)), class: measured ? "bord" : "bord bord-suppose",
           "data-bord": measured ? "mesure" : "suppose" }),
         el("text", { x: X(b.x) + dx, y: TOP - 26, class: "etiquette-profil", "text-anchor": anchor }, measured ? "bord" : "bord supposé"),
-        el("text", { x: X(b.x) + dx, y: TOP - 12, class: "graduation", "text-anchor": anchor },
-          b.enrobe ? (fine?.bords?.[side]?.bordure ? "bordure" : "fin de l'enrobé") : b.relief ? "rupture de pente" : b.voisins ? "travers voisins" : "largeur type"));
+        el("text", { x: X(b.x) + dx, y: TOP - 12, class: "graduation", "text-anchor": anchor }, sub));
     }
     // Séparateur de chaussée (chaussées séparées, ticket #34) : petite barre verticale posée sur le terrain en son milieu
     // (d'après la BD TOPO), nommée au-dessus ; autrement que les bords, qui seuls limitent la plateforme
     if (main.separateur) {
       const [s0, s1] = main.separateur, gx = X((s0 + s1) / 2), gy = Z(zAt(main.points, (s0 + s1) / 2));
       // d'où vient sa position : dans la légende
-      const label = el("text", { x: gx, y: gy - 24, class: "graduation place", "data-haut": "", "text-anchor": "middle" },
+      const label = el("text", { x: gx, y: gy - 24, class: "graduation place", "data-haut": "", "data-ancre": `${gx},${gy - 10}`, "text-anchor": "middle" },
         "séparateur de chaussée");
       svg.append(el("line", { x1: gx, x2: gx, y1: gy - 2, y2: gy - 18, class: "separateur" }), label);
     }
@@ -582,11 +677,13 @@ const Profil = (() => {
     // dire : masquée) ; profil depuis l'axe : son repère posé sur la plateforme
     if (profile.origine !== "caméra") {
       svg.append(el("circle", { cx: X(0), cy: Z(ref) - 8, r: 5, class: "origine" }),
-        el("text", { x: X(0), y: Z(ref) - 18, class: "graduation place", "data-haut": "", "text-anchor": "middle" }, "axe"));
+        el("text", { x: X(0), y: Z(ref) - 18, class: "graduation place", "data-haut": "",
+          "data-ancre": `${X(0)},${Z(ref) - 8}`, "text-anchor": "middle" }, "axe"));
     } else if (factor === 1) {
       svg.append(el("line", { x1: X(0), x2: X(0), y1: Z(ref), y2: Z(ref + camera), class: "bord" }),
         el("circle", { cx: X(0), cy: Z(ref + camera), r: 5, class: "origine" }),
-        el("text", { x: X(0) + 9, y: Z(ref + camera) + 4, class: "graduation place", "data-haut": "" }, "caméra"));  // à droite du point
+        el("text", { x: X(0) + 9, y: Z(ref + camera) + 4, class: "graduation place", "data-haut": "",
+          "data-ancre": `${X(0)},${Z(ref + camera)}` }, "caméra"));  // à droite du point
     }
 
     const results = drawResults(svg, profile, all, main, f);  // chute et dévers, et leur liste pour la légende
@@ -603,7 +700,7 @@ const Profil = (() => {
     const junction = profile.carrefour ? "⚠ Carrefour\u00a0: bords peu sûrs" : "";
     const junctionW = textWidth(junction, 13, 500, 0.6) + 18;
     const junctionBox = [W - RIGHT - 2 - junctionW, TOP + 2, W - RIGHT - 2, TOP + 24];
-    declutter(svg, TOP, TOP + plotH, [...(mention ? [mentionBox] : []), ...(junction ? [junctionBox] : [])]);
+    declutter(svg, { top: TOP, bottom: TOP + plotH, left: LEFT, right: LEFT + plotW }, [...(mention ? [mentionBox] : []), ...(junction ? [junctionBox] : [])]);
     if (junction) {
       svg.append(el("rect", { x: junctionBox[0], y: junctionBox[1], width: junctionW, height: 22, rx: 3, class: "mention-echelle mention-carrefour" }),
         el("text", { x: W - RIGHT - 7, y: TOP + 18, "text-anchor": "end", class: "etiquette-profil mention-carrefour-texte" }, junction));
@@ -709,7 +806,7 @@ const Profil = (() => {
   async function png(svg, title, legend, long = null) {
     const w = window, scale = 2;
     const props = ["fill", "stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "stroke-linejoin", "paint-order",
-      "opacity", "font-size", "font-weight", "font-family"];
+      "opacity", "stroke-opacity", "font-size", "font-weight", "font-family"];
     const raster = async (source) => {  // image du SVG affiché, styles calculés recopiés, à sa taille (viewBox) × scale
       const copy = sansSurvol(source).cloneNode(true), [, , vw, vh] = source.getAttribute("viewBox").split(" ").map(Number);
       const nodes = [source, ...source.querySelectorAll("*")], copies = [copy, ...copy.querySelectorAll("*")];
@@ -894,16 +991,17 @@ const Profil = (() => {
       svg.append(el("line", { x1: X(a), y1: Z(za), x2: X(b), y2: Z(zb), class: "raide" }));
       // sous le trait, côté bas de la pente : montée, finissant au bout haut ; descente, partant du bout haut
       const rise = zb >= za, y = Math.min(Math.max(Z(za), Z(zb)) + 22, T + ph - 5);
-      svg.append(el("text", { x: rise ? X(b) - 2 : X(a) + 2, y, class: "etiquette-raide place", "text-anchor": rise ? "end" : "start" },
+      svg.append(el("text", { x: rise ? X(b) - 2 : X(a) + 2, y, class: "etiquette-raide place", "data-prio": 1,
+        "data-ancre": `${(X(a) + X(b)) / 2},${(Z(za) + Z(zb)) / 2}`, "text-anchor": rise ? "end" : "start" },
         `${num(Math.abs(p))} % sur ${b - a} m`));
     }
     // caméra d'abord : son étiquette reste à sa place, les autres s'en écartent (declutter)
     if (top !== null) {  // caméra à sa hauteur au-dessus du sol, pointillé jusqu'à lui
       svg.append(el("line", { x1: X(0), x2: X(0), y1: Z(ground), y2: Z(top), class: "bord" }),
         el("circle", { cx: X(0), cy: Z(top), r: 5, class: "origine" }),
-        el("text", { x: X(0) + 9, y: Z(top) + 4, class: "graduation place" }, "caméra"));
+        el("text", { x: X(0) + 9, y: Z(top) + 4, class: "graduation place", "data-ancre": `${X(0)},${Z(top)}` }, "caméra"));
     }
-    declutter(svg, T, T + ph, []);
+    declutter(svg, { top: T, bottom: T + ph, left: L, right: L + pw }, []);
     // repères : pointillé de leur nom jusqu'à un point du terrain, puis les noms (liserés), par-dessus les traits
     const baseline = (m) => 30 + m.row * LINE + 10;  // ligne de base de la 1re ligne du nom
     for (const m of marks) {

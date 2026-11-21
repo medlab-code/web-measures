@@ -429,6 +429,12 @@ laissé de côté.*
 - **Problème** : chevauchements ou écarts inutiles selon la police.
 - **Piste** : écarter les étiquettes après l'insertion (`getComputedTextLength`).
 - **Gain** : modeste ; à faire avec G2.
+- **Étiquettes placées sans chevauchement, connecteurs (21/11/2026)** : placement commun aux deux graphiques (`declutter`) :
+  chaque étiquette a une ancre et une priorité (chute, dévers, plateforme, puis le reste) ; positions candidates (sa place,
+  décalages verticaux, puis autour de l'ancre par paliers) dans le cadre, coût = chevauchement des étiquettes posées et des
+  tracés échantillonnés (terrain, travers, plateforme, bords, flèche) + distance à l'ancre ; loin de sa place, connecteur
+  fin (couleur de la chute ou du dévers) et petit point à l'ancre ; liseré plus net ; textes rabattus dans le cadre (« 2,2 % sur 10 m »,
+  noms des bords).
 
 ### Retirés à la vérification
 
