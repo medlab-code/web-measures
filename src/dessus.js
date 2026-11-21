@@ -1736,7 +1736,9 @@ const Dessus = (() => {
     if (on === measuringOn) return;
     measuringOn = on;
     trace = [];
-    map.getCanvas().style.cursor = on ? "crosshair" : "";
+    // Croix par une classe (règle CSS « mesure-carte-active »), pas par le style en ligne : la droite ↔ (nez.js) pose puis vide ce
+    // style en ligne, qui effaçait la croix et rendait la main de MapLibre
+    map.getCanvasContainer().classList.toggle("mesure-carte-active", on);
     swapViews(on);  // carte en grand ; son cadrage et son zoom ne bougent pas
     drawTrace();
   }

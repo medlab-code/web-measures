@@ -293,6 +293,7 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
   background: none; font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; }
 .maplibregl-ctrl-top-left button.mesurer-carte[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); }
 .maplibregl-ctrl-top-left button.mesurer-carte svg { width: 1.3rem; height: 1.3rem; flex: none; }
+.maplibregl-canvas-container.mesure-carte-active .maplibregl-canvas { cursor: crosshair; }  /* mesure sur la carte : croix partout (carte en grand ou détachée) ; le style en ligne de la droite ↔ (ns-resize) garde la priorité */
 .maplibregl-ctrl-top-left select.outil-carte { width: auto; padding: 0 calc(0.6rem + var(--pastille-marge)); border-radius: 999px; background: none;
   font: inherit; font-size: 13px; font-weight: 500; }
 .maplibregl-ctrl-top-left select.outil-carte:hover { background: rgba(255, 255, 255, 0.2); }
