@@ -1233,6 +1233,32 @@ class Parcours(unittest.TestCase):
         self.assertEqual(json.loads(self.app.nose_line(5.0)), loose)
         host.install(**HOST)
 
+    def test_droite_nez_hauteur_et_sol_de_la_vue_du_dessus(self):
+        """Droite au nez : la hauteur de la couche de la vue du dessus (monture, parallaxe) passe avant l'altitude GPS, et son terrain
+        lissé remplace le MNT brut (écart de largeur de 7 % : 1,80 m au lieu de 1,93 m, creux de la chaussée) ; sans elle, rien ne change
+        pour les autres photos."""
+        self.show("p1")
+        before = json.loads(self.app.nose_line(5.0))
+        lon, lat = self.app.item["geometry"]["coordinates"][:2]
+        n = 31
+        z = [0.0] * (n * n)
+        for j in range(n):
+            for i in range(n):
+                z[j * n + i] = 0.02 * (i - 15)  # sol qui monte de 2 cm par mètre vers l'est
+        tilt = {"up": None, "sigma": 0.5, "manual": False, "height": 1.93, "height_sigma": 0.04,
+                "ground": {"lon": lon, "lat": lat, "n": n, "step": 1.0, "z": z, "ref": 0.0}}
+        self.assertTrue(self.app.birdeye_tilt_set("p1", json.dumps(tilt)))
+        line = json.loads(self.app.nose_line(5.0))
+        self.assertEqual((line["hauteur"], line["hauteur_source"], line["sigma_h"]), (1.93, "vue du dessus", 0.04))
+        self.assertEqual(line["sol"], "LiDAR HD (vue du dessus)")
+        self.assertFalse(line["sol_en_lecture"])
+        dz = dict((x, v) for x, v in line["sol_dz"])
+        self.assertAlmostEqual(dz[3.0] - dz[-3.0], 0.12 * abs(math.sin(math.radians(self.app._nose_axis() + 90))), delta=0.02)
+        self.assertEqual(json.loads(self.app.nose_line(5.0))["inclinaison_source"], before["inclinaison_source"])  # up absent : pas de route
+        self.assertTrue(self.app.birdeye_tilt_set("p1", "null"))
+        self.assertEqual(json.loads(self.app.nose_line(5.0))["hauteur"], before["hauteur"])
+        host.install(**HOST)
+
     @staticmethod
     def _up(roll):
         """Verticale penchée de roll° vers la droite d'un cap nord (comme groundUp de src/dessus.js)."""

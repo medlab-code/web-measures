@@ -368,7 +368,7 @@ class Pose:
     def _ground_tilt(self, pic):
         """Rang 1 : inclinaison que la vue du dessus applique à la photo (birdeye_tilt_set), roulis de campagne compris."""
         ground = self.birdeye_ground.get(pic)
-        if not ground:
+        if not ground or not ground.get("up"):  # sans « up » : la vue du dessus lit les verticales, seuls hauteur et sol sont gardés
             return None
         return calibration.tilt_entry(ground["up"], ground["sigma"],
                                       "vue du dessus (réglée à la main)" if ground["manual"] else "vue du dessus")

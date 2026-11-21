@@ -35,18 +35,30 @@ class Nez:
 
     def birdeye_tilt_set(self, pic, tilt_json):
         """Inclinaison que la vue du dessus applique à la photo `pic` quand elle la tire de la route (src/dessus.js, layerOf :
-        groundUp, avec le tangage lu ou réglé à la main, la part du dévers et le défaut de roulis de la campagne) : JSON
-        {up (même convention que Calibration.tilt : verticale vraie vue de la caméra [est, nord, haut]), sigma (degrés), manual
-        (tangage ou part du dévers réglés à la main)}, ou « null » quand la vue du dessus lit les verticales de la photo (mêmes
-        sources que _nose_tilt, rien à retenir) ou n'a plus d'inclinaison pour elle. Rend vrai si la valeur retenue a changé
+        groundUp, avec le tangage lu ou réglé à la main, la part du dévers et le défaut de roulis de la campagne), avec la hauteur
+        de sa couche et son terrain : JSON {up (même convention que Calibration.tilt : verticale vraie vue de la caméra [est,
+        nord, haut] ; None quand la vue du dessus lit les verticales de la photo : mêmes sources que _nose_tilt, rien à retenir),
+        sigma (degrés), manual (tangage ou part du dévers réglés à la main), height (m, hauteur de la caméra au-dessus du sol :
+        monture, parallaxe ou altitude GPS, comme src/dessus.js layerOf) et height_sigma, ground (terrain lissé de la vue :
+        {lon, lat du centre, n points de côté, step en m, z en m depuis le centre (lignes du sud au nord), ref : sol sous la
+        caméra} ou None sans LiDAR HD)}, ou « null » quand la vue du dessus n'a plus rien pour elle. Rend vrai si la valeur retenue a changé
         (la droite est alors refaite, src/nez.js, et les mesures déjà faites sur la photo recalculées, comme à l'arrivée de
         l'inclinaison automatique : _recompute). Gardée par photo (les 20 dernières) : une autre photo ne la reçoit pas."""
         tilt = json.loads(tilt_json)
         if not tilt:
             changed = self.birdeye_ground.pop(pic, None) is not None
         else:
-            tilt = {"up": [round(float(v), 6) for v in tilt["up"]], "sigma": round(float(tilt["sigma"]), 2),
-                    "manual": bool(tilt.get("manual"))}
+            ground = tilt.get("ground")
+            if ground:
+                ground = {"lon": float(ground["lon"]), "lat": float(ground["lat"]), "n": int(ground["n"]),
+                          "step": float(ground["step"]), "z": [float(v) for v in ground["z"]], "ref": float(ground["ref"])}
+                if len(ground["z"]) != ground["n"] ** 2 or ground["n"] < 2:
+                    ground = None
+            height = tilt.get("height")
+            tilt = {"up": [round(float(v), 6) for v in tilt["up"]] if tilt.get("up") else None,
+                    "sigma": round(float(tilt.get("sigma") or 0.0), 2), "manual": bool(tilt.get("manual")),
+                    "height": round(float(height), 3) if height else None,
+                    "height_sigma": round(float(tilt.get("height_sigma") or 0.0), 3), "ground": ground}
             changed = self.birdeye_ground.get(pic) != tilt
             if changed:
                 self.birdeye_ground.pop(pic, None)
@@ -57,6 +69,48 @@ class Nez:
             self._recompute({pic})
             self.notify()
         return changed
+
+    def _birdeye_ground_dz(self, pic, lon, lat, axis, along, d):
+        """Écarts de sol [(décalage x en m, dz)] sous la droite d'après le terrain lissé de la vue du dessus (birdeye_tilt_set), ou
+        None sans lui. Même maillage que celui qui projette la photo (lissé sur 2 m le long de la route, 1 m de maille, bilinéaire
+        comme terrainAt de src/dessus.js, borné au maillage) : le sol de la droite est celui de Bird Eye, pas le MNT brut au pas de
+        0,5 m (creux et bombement de la chaussée qui faisaient une largeur trop courte de 2 %). dz = sol au point moins sol sous la
+        caméra (ref)."""
+        bird = self.birdeye_ground.get(pic)
+        g = bird and bird.get("ground")
+        if not g:
+            return None
+        n, step = g["n"], g["step"]
+        radius = (n - 1) * step / 2
+        ox, oy = triangulation._local(lon, lat, g["lon"], g["lat"])  # caméra dans le repère du centre du maillage
+        a, b = math.radians(axis), math.radians(along)
+        half = int(NOSE_REACH / NOSE_GROUND_STEP)
+        out = []
+        for k in range(-half, half + 1):
+            x = k * NOSE_GROUND_STEP
+            east = ox + d * math.sin(a) + x * math.cos(b)
+            north = oy + d * math.cos(a) - x * math.sin(b)
+            fx = min(n - 1.001, max(0.0, (east + radius) / step))
+            fy = min(n - 1.001, max(0.0, (north + radius) / step))
+            i, j = int(fx), int(fy)
+            u, v = fx - i, fy - j
+            z = g["z"]
+            h = (z[j * n + i] * (1 - u) + z[j * n + i + 1] * u) * (1 - v) + (z[(j + 1) * n + i] * (1 - u) + z[(j + 1) * n + i + 1] * u) * v
+            out.append((x, h - g["ref"]))
+        return out
+
+    def _nose_height(self, item):
+        """(hauteur de la caméra, source, incertitude en m) de la droite. Annoncée par la vue du dessus quand elle a calé la photo
+        (birdeye_tilt_set : celle de sa couche, monture, parallaxe ou altitude GPS) ; sinon la monture du véhicule avant l'altitude
+        GPS (même ordre que la vue du dessus : l'altitude GPS moins le sol LiDAR faisait 1,80 m au lieu de 1,93 m sur le CD21, une
+        largeur de 7 % trop courte) ; sinon camera_of. Seule la largeur ↔ prend cet ordre : camera_of reste celui des autres mesures."""
+        bird = self.birdeye_ground.get((item or {}).get("id"))
+        if bird and bird.get("height"):
+            return bird["height"], "vue du dessus", bird["height_sigma"] or self.MOUNT_SIGMA
+        known = self._mount_height(item or {})
+        if known:
+            return known[0], "monture", known[1]
+        return self.camera_of(item, self.quality)
 
     def _nose_axis(self):
         """Axe de la séquence (cap en degrés) à la photo affichée : entre ses voisines, sinon le cap de la photo."""
@@ -184,7 +238,7 @@ class Nez:
             return json.dumps({"error": "Aucune photo affichée."})
         if not autotilt.is_360(item):
             return json.dumps({"error": "Photo non 360° : la droite au sol n'est tracée que sur les photos 360°."})
-        height, source, sigma = self.camera_of(item, self.quality)
+        height, source, sigma = self._nose_height(item)
         mount = self._fleet_mount(item)
         d_min, d_max = self._nose_range(mount)
         d = min(max(float(distance), d_min), d_max) if distance else d_min
@@ -199,7 +253,11 @@ class Nez:
         fixed = self.calibration.position(item.get("collection"), lon, lat)  # position recalée de la séquence, si elle l'est
         if fixed:
             lon, lat = fixed[0], fixed[1]
-        ground, reading = self._nose_ground(lon, lat, axis, along + rot - round(rot * 2) / 2, d, relief)
+        smooth = self._birdeye_ground_dz(item.get("id"), lon, lat, axis, along, d)
+        if smooth:  # terrain lissé de la vue du dessus : sans lecture, sans attente
+            ground, reading = ("LiDAR HD (vue du dessus)", triangulation.LIDAR_ERROR, smooth), False
+        else:
+            ground, reading = self._nose_ground(lon, lat, axis, along + rot - round(rot * 2) / 2, d, relief)
         dzs = ground[2] if ground else None
         points = []
         for k in range(-int(NOSE_REACH / NOSE_STEP), int(NOSE_REACH / NOSE_STEP) + 1):

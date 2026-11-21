@@ -2018,15 +2018,25 @@ const Dessus = (() => {
     }
     return shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : "";
   }
-  /** Inclinaison appliquée à la photo affichée, annoncée à la page (Dessus.onTilt) quand elle vient de la route (groundTilt) : la
-   * droite de « Largeur dans la visionneuse » la reprend (App.birdeye_tilt_set). Avec les verticales de la photo, null : la
-   * droite lit les mêmes. manual : tangage ou part du dévers réglés à la main (curseurs, « Forcer »). Annoncée seulement si elle
-   * a changé. */
+  /** Ce que la vue du dessus applique à la photo affichée, annoncé à la page (Dessus.onTilt, App.birdeye_tilt_set) pour que la
+   * droite de « Largeur dans la visionneuse » mesure comme elle : inclinaison tirée de la route (groundTilt ; avec les verticales
+   * de la photo, up absent : la droite lit les mêmes ; manual : tangage ou part du dévers réglés à la main), hauteur de la couche
+   * (monture, parallaxe ou RTK : layerOf) et son incertitude, terrain lissé sous la caméra (maillage du LiDAR HD, en m depuis son
+   * centre, lignes du sud au nord ; ref : sol sous la caméra, plan de la route) ; null sans rien de tout cela. Annoncé seulement si
+   * cela a changé. */
   let tiltListener = null, tiltAnnounced = new Map();
-  function announceTilt(main) {
+  function announceTilt(layer) {
     if (!tiltListener) return;
-    const tilt = main.groundTilt
-      ? { up: main.up, sigma: main.sigma, manual: pitchManual || rollShare !== DEFAULT_ROLL } : null;
+    const main = layer.pose, terrain = onLidar(shown) ? shown.terrain : null;
+    const ground = terrain ? {
+      lon: shown.pose.lon, lat: shown.pose.lat, n: meshSide(terrain), step: STEP,
+      z: Array.from(terrain, (v) => Math.round((v - terrain[(terrain.length - 1) / 2]) * 1000) / 1000),
+      ref: Math.round(groundLevel(levelOf(terrain), layer.at, main.heading) * 1000) / 1000,
+    } : null;
+    const tilt = {
+      up: main.groundTilt ? main.up : null, sigma: main.sigma, manual: Boolean(main.groundTilt) && (pitchManual || rollShare !== DEFAULT_ROLL),
+      height: main.height, height_sigma: main.height_sigma, ground,
+    };
     const text = JSON.stringify(tilt);
     if (tiltAnnounced.get(main.pic) === text) return;
     tiltAnnounced.set(main.pic, text);
@@ -2040,7 +2050,7 @@ const Dessus = (() => {
     placeFor(shown);
     shown.joinKeyNow = joinKey();  // recalage des raccords valable pour ces réglages seulement
     const layers = readyLayers(), pose = shown.pose, mine = ++drawing, axis = roadAxis(layers);
-    announceTilt(layers[0].pose);
+    announceTilt(layers[0]);
     // roulis et tangage : seulement pour l'inclinaison tirée de la route (pas de verticales lues, terrain LiDAR)
     $("#dessus-devers").disabled = $("#dessus-tangage-force").disabled = !layers[0].pose.groundTilt;
     // tangage lu : il prime

@@ -431,9 +431,20 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
 - **Carte** : `lonlat` rend les extrémités (-12 et +12 m) de la droite à partir de la position recalée de la photo si la séquence l'est ;
   la droite étant droite, tout décalage s'en déduit par interpolation linéaire. Les décalages des poignées sont continus : interpolation
   linéaire entre points consécutifs de la table, au point le plus proche du pointeur à l'écran.
-- **Hauteur** `H` : `Session.camera_of` (altitude GPS moins sol LiDAR, calée, monture CD21 1,93 ou 2,07 m, sinon réglage, 1,90 m
-  par défaut) et son incertitude `σH`.
-- **Sol** : le relief du **MNT LiDAR HD** (pas de 0,5 m, repli RGE ALTI : `precision.fetch_terrain`, comme le profil et la vue du
+- **Hauteur** `H` (`Nez._nose_height`) et son incertitude `σH`, dans l'ordre de la vue du dessus (`layerOf`) : 1) celle que la vue du
+  dessus **annonce** pour la photo (`height`, `height_sigma` de `App.birdeye_tilt_set`, avec l'inclinaison : monture CD21, parallaxe
+  entre photos ou RTK ; source « vue du dessus ») ; 2) sans calage Bird Eye, la **monture** du véhicule d'après la date (1,93 ou
+  2,07 m, ±0,04 m) ; 3) `Session.camera_of` (altitude GPS moins sol LiDAR, calée, réglage, 1,90 m par défaut). Seule la largeur ↔
+  prend cet ordre : `camera_of` garde le sien pour les autres mesures (la monture après l'altitude GPS). Sur la photo
+  8625c7ff-90c1-4865-b936-fd8952ac908f, l'altitude GPS moins le sol donnait 1,80 m contre 1,93 m (monture, parallaxe 1,92 m) : 7 % de
+  largeur en moins (48 cm sur 6 m de bords à ±3 m).
+- **Sol, quand la vue du dessus a calé la photo** : le terrain **lissé** de sa couche (maillage de 1 m, lissé sur 2 m le long de la
+  route, 31 × 31 points, `ground` de `birdeye_tilt_set` ; `Nez._birdeye_ground_dz`), interpolé bilinéairement comme `terrainAt`
+  de `src/dessus.js`, `dz` = terrain au point moins le sol sous la caméra (`ref`, plan de la route sous le véhicule : `groundLevel`),
+  sans lecture ni attente (source « LiDAR HD (vue du dessus) »). Le MNT brut au pas de 0,5 m (creux de la chaussée, caniveaux)
+  rapprochait les bords de 12 cm sur 6 m. Avec la hauteur ci-dessus, la largeur ↔ de bords à ±3 m est celle de la vue du dessus
+  (6,000 m, contre 6,564 m avant : écart de 7 %). Sans calage, ce qui suit.
+- **Sol sans calage Bird Eye** : le relief du **MNT LiDAR HD** (pas de 0,5 m, repli RGE ALTI : `precision.fetch_terrain`, comme le profil et la vue du
   dessus), lu en une requête à la caméra et tous les 0,5 m le long de la droite (49 points, `Nez._nose_ground`), gardé par droite. La
   droite reste définie en positions horizontales `(d, y)` ; chaque point a un écart de sol `dz(y)` = altitude du MNT au point moins
   altitude du MNT sous la caméra (relatif : pas de souci de géoïde), interpolé linéairement entre les points lus, et il est vu à
