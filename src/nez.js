@@ -12,7 +12,7 @@
 // l'encart et l'étiquette disent « Calage Bird Eye en cours… » et aucune largeur n'est affichée ; une fois fait, la largeur est recalculée sur
 // la photo calée (les poignées gardent leur place dans l'image, pas leur distance en mètres) ; le calage est gardé par photo, partagé
 // avec la vue Bird Eye (rallumée sur la photo, elle est prête plus vite).
-// Une poignée de profondeur (double flèche blanche sous la droite sur la photo, ronde sur la carte, le long du cap ; elle se glisse aussi le long de la droite) la fait glisser en profondeur, toujours
+// Une poignée de profondeur (double flèche blanche ⇕ posée sur la droite, sur la photo comme sur la carte (sur celle-ci le long du cap) ; elle se glisse aussi le long de la droite) la fait glisser en profondeur, toujours
 // perpendiculaire à l'axe du véhicule : butées renvoyées par nose_line (d_min : capot ; d_max : nez + écart à la photo suivante + 1 m,
 // nez + 6 m sans suivante), les extrémités gardent leur écart latéral en mètres, la largeur est recalculée aussitôt, sans relancer
 // le calage. La droite est rouge tant que la photo n'est pas calée (Bird Eye), puis verte ; sa distance est dans l'étiquette et l'encart.
@@ -26,11 +26,13 @@ const Nez = {
     const button = $("#nez-bords");
 
     const GREEN = "#00c853", UNCALIBRATED = "#ff5252", YELLOW = "#ffd600", RED = "#d93025", WHITE = "#ffffff";
+    const NEZ_HANDLE = "nez-profondeur";  // couche de la carte (src/carte.js)
     // droite verte (photo calée) ou rouge franc (pas encore calée), sans liseré ; croix jaune au droit de la caméra, poignées latérales
     // rouges, poignée de profondeur blanche
-    const ARROW_LIFT = 26, ARROW_PX = 24;  // px : centre et longueur de la double flèche de profondeur, posée sous la droite (sans la toucher)
-    const LABEL_LIFT = 26;  // px : étiquette décollée de la droite, au-dessus d'elle (la double flèche est dessous) ; si elle sortait de la vue en haut, sous la droite
-    const LABEL_FLIP = -(ARROW_LIFT + ARROW_PX / 2 + 6 - 7);  // px : lift de l'étiquette passée dessous : sous la double flèche (7 px : écart de l'étiquette à son point)
+    const ARROW_PX = 24;  // px : longueur de la double flèche de profondeur, centrée sur la droite
+    const ARROW_CLEAR = 15 + 8 + 7 + 4;  // px : écart horizontal minimal de la flèche à la croix jaune (chevrons écartés au survol compris)
+    const LABEL_LIFT = 26;  // px : étiquette décollée de la droite, au-dessus d'elle ; si elle sortait de la vue en haut, sous la droite
+    const LABEL_FLIP = -LABEL_LIFT;  // px : lift de l'étiquette passée dessous
     const DEPTH_STEP = 0.05;  // m : pas de la distance de la droite pendant le glissement en profondeur
     const TICK_PX = 28;  // px : longueur à l'écran d'une poignée (trait vertical, quel que soit le zoom)
     const HANDLE_PX = 10;  // px : portée d'une poignée (distance du pointeur au trait)
@@ -233,6 +235,23 @@ const Nez = {
 
     /** Décalage (m) de la poignée de profondeur le long de la droite : celui où l'utilisateur l'a glissée horizontalement (gardé en mètres quand
      * la droite glisse en profondeur, ramené entre les deux poignées latérales), sinon le milieu de celles-ci. */
+    /** Décalage (m) où la double flèche est dessinée et saisie : celui de la poignée, écarté le long de la droite s'il tombait sur la croix jaune
+     * et ses chevrons (du côté où il y a le plus de place entre les poignées latérales). */
+    function arrowOffset() {
+      const o = depthOffset(), c = screenOf(...locate(0)), s = screenOf(...locate(o));
+      if (!c || !s || Math.abs(s.x - c.x) >= ARROW_CLEAR) return o;
+      const sign = s.x >= c.x ? 1 : -1;
+      for (const k of [sign, -sign]) {
+        for (let i = 0, step = 0.1; i < 60; i++, step *= 1.15) {
+          const t = o + k * step;
+          if (t < handles.gauche || t > handles.droit) break;
+          const u = screenOf(...locate(t));
+          if (u && Math.abs(u.x - c.x) >= ARROW_CLEAR) return t;
+        }
+      }
+      return o;
+    }
+
     function depthOffset() {
       if (along !== null) return Math.max(handles.gauche, Math.min(handles.droit, along));  // placée à la main, gardée (mètres)
       return (handles.gauche + handles.droit) / 2;
@@ -249,8 +268,16 @@ const Nez = {
       const [a, b] = line.lonlat, lat = (a[1] + b[1]) / 2 * Math.PI / 180;
       const angle = Math.atan2((b[0] - a[0]) * Math.cos(lat), b[1] - a[1]) * 180 / Math.PI + 90;
       const point = (o, role) => ({ type: "Feature", properties: { angle, role }, geometry: { type: "Point", coordinates: lonlatAt(o) } });
+      if (map.getLayer(NEZ_HANDLE)) {  // flèche de profondeur : même taille que les icônes de la carte (16 px, 18 px en carte en grand ou détachée)
+        const icon = parseFloat(getComputedStyle(map.getContainer()).getPropertyValue("--etiquette-icone")) || 16;
+        map.setLayoutProperty(NEZ_HANDLE, "icon-size", icon / 16);
+      }
       Carte.showNez(map, { type: "FeatureCollection", features: [
         { type: "Feature", properties: { couleur: lineColor() }, geometry: { type: "LineString", coordinates: line.lonlat } },
+        // prolongement de la droite de la moitié de sa longueur de chaque côté, dans son axe (droite deux fois plus longue sur la carte : se
+        // tourne par la croix jaune pour viser le centre d'un giratoire) ; plus fin et atténué, les bords et la mesure ne changent pas
+        ...[[b, [b[0] + (b[0] - a[0]) / 2, b[1] + (b[1] - a[1]) / 2]], [a, [a[0] - (b[0] - a[0]) / 2, a[1] - (b[1] - a[1]) / 2]]].map((coordinates) => (
+          { type: "Feature", properties: { couleur: lineColor(), prolongement: true }, geometry: { type: "LineString", coordinates } })),
         point(handles.gauche, "bord"), point(handles.droit, "bord"), point(depthOffset(), "profondeur")] });
     }
 
@@ -390,7 +417,7 @@ const Nez = {
         crosses: [{ at: at(0), color: YELLOW }],  // croix au droit de la caméra
         ticks: [{ at: at(0), color: YELLOW, width: 2.5, chevron: -1, gap: chevronGap }, { at: at(0), color: YELLOW, width: 2.5, chevron: 1, gap: chevronGap },
           ...sides.map(([, o]) => ({ at: at(o), color: RED, length: TICK_PX, width: 3 })),
-          { at: at(depthOffset()), color: WHITE, length: ARROW_PX, width: 3, double: true, lift: -ARROW_LIFT }],  // poignée de profondeur ⇕, sous la droite
+          { at: at(arrowOffset()), color: WHITE, length: ARROW_PX, width: 3, double: true }],  // poignée de profondeur ⇕, sur la droite
         // largeur entre les poignées : étiquette « mesure » des largeurs de Mesure (↔ valeur ± incertitude, comme l'encart),
         // au milieu de la droite ; les distances de chaque bord restent dans l'encart
         labels: [{ at: at((handles.gauche + handles.droit) / 2), type: "mesure", place: "dessus", lift: LABEL_LIFT, flip: true, flipLift: LABEL_FLIP,
@@ -426,8 +453,8 @@ const Nez = {
         const d = s ? segmentDistance(x, y, s.x, s.y - TICK_PX / 2, s.x, s.y + TICK_PX / 2) : Infinity;
         if (d <= bestD) [best, bestD] = [side, d];
       }
-      const m = screenOf(...locate(depthOffset()));  // double flèche de profondeur, sous la droite : prise en cas d'égalité
-      const dm = m ? segmentDistance(x, y, m.x, m.y + ARROW_LIFT - ARROW_PX / 2, m.x, m.y + ARROW_LIFT + ARROW_PX / 2) : Infinity;
+      const m = screenOf(...locate(arrowOffset()));  // double flèche de profondeur, sur la droite : prise en cas d'égalité
+      const dm = m ? segmentDistance(x, y, m.x, m.y - ARROW_PX / 2, m.x, m.y + ARROW_PX / 2) : Infinity;
       if (dm <= bestD) best = "profondeur";
       return best;
     }
@@ -497,7 +524,7 @@ const Nez = {
       const now = Date.now(), again = side === "pivot" && lastTap && now - lastTap.t < DOUBLE_MS && Math.abs(local(event)[0] - lastTap.x) < TAP_PX;
       drag = { side, id: event.pointerId, x: local(event)[0], x0: local(event)[0], rotation, double: Boolean(again) };  // double : deuxième appui d'un double clic
       if (side === "pivot") ghost = [locate(handles.gauche), ...line.points.filter(([o]) => o > handles.gauche && o < handles.droit).map(([, yaw, pitch]) => [yaw, pitch]), locate(handles.droit)];
-      if (side === "profondeur") drag.grab = pointerPitch(...local(event)) - locate(depthOffset())[1];  // écart du pointeur à la poignée, gardé
+      if (side === "profondeur") [drag.o, drag.grab] = [arrowOffset(), pointerPitch(...local(event)) - locate(arrowOffset())[1]];  // place de la flèche et écart du pointeur à elle, gardés  // écart du pointeur à la poignée, gardé
       try {
         etat.psv.container.setPointerCapture(event.pointerId);
       } catch { /* pointeur déjà relâché : le glisser s'arrêtera au pointerup */ }
@@ -538,7 +565,7 @@ const Nez = {
      * l'élévation actuelle de la poignée (l'inclinaison de la photo décale l'élévation de la même quantité près de ce point ; la droite
      * étant recalculée à chaque mouvement, l'écart ne s'accumule pas). Les butées sont appliquées par Python. */
     function depthFromPointer(x, y) {
-      const o = depthOffset(), p0 = locate(o)[1], h = line.hauteur - groundAt(o);
+      const o = drag.o ?? depthOffset(), p0 = locate(o)[1], h = line.hauteur - groundAt(o);
       const dep0 = Math.atan2(h, Math.hypot(o, line.d));
       const dep = dep0 + (p0 - (pointerPitch(x, y) - drag.grab));  // pointeur plus haut dans l'image : droite plus loin (dépression moindre)
       if (dep <= 0.01) return line.d_max;
@@ -574,7 +601,6 @@ const Nez = {
 
     // Poignée de profondeur sur la carte : glissée le long du cap (perpendiculaire à la droite) ---------------
 
-    const NEZ_HANDLE = "nez-profondeur";  // couche de la carte (src/carte.js)
     const mapHandleAt = (point) => Boolean(map.getLayer(NEZ_HANDLE)
       && map.queryRenderedFeatures([[point.x - 8, point.y - 8], [point.x + 8, point.y + 8]], { layers: [NEZ_HANDLE] }).length);
 
