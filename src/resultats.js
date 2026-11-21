@@ -333,27 +333,68 @@ const Resultats = {
       }
     });
     const placeBar = Object.assign(document.createElement("div"), { className: "maplibregl-ctrl place-mesurer" });
-    placeBar.append(measureButton, toolSelect, birdeyeButton, captureButton, exportButton);
-    map.addControl({
-      onAdd: () => placeBar,
-      onRemove: () => {},
-    }, "top-left");
     // Annuler, refaire, tout effacer sur la carte en grand ou détachée (les mêmes fonctions que les boutons de la barre de la visionneuse, qui
-    // ne sont plus sous la main) : les boutons de la barre sont cliqués, leur état grisé recopié. Seconde rangée, sous les boutons de la mesure.
-    const undoBar = Object.assign(document.createElement("div"), { className: "maplibregl-ctrl place-mesurer place-annuler" });
-    undoBar.style.top = "44px";
+    // ne sont plus sous la main) : les boutons de la barre sont cliqués, leur état grisé recopié. Dans l'étiquette de la mesure.
+    const undoGroup = Object.assign(document.createElement("div"), { className: "mesure-annuler" });
     const undoButtons = [["#effacer", "Annuler le dernier geste de mesure (Ctrl+Z)"], ["#refaire", "Refaire (Ctrl+Y)"],
       ["#tout-effacer", "Tout effacer : mesures et points de la session"]].map(([id, title]) => {
       const source = $(id);
-      const button = Object.assign(document.createElement("button"), { type: "button", className: "capture-carte", hidden: true,
+      const button = Object.assign(document.createElement("button"), { type: "button", hidden: true,
         innerHTML: source.innerHTML, title, ariaLabel: source.getAttribute("aria-label") });
       button.addEventListener("click", () => source.click());
       new MutationObserver(() => { button.disabled = source.disabled; }).observe(source, { attributes: true, attributeFilter: ["disabled"] });
       button.disabled = source.disabled;
-      undoBar.append(button);
+      undoGroup.append(button);
       return button;
     });
-    map.addControl({ onAdd: () => undoBar, onRemove: () => {} }, "top-left");
+    // Étiquette unique : mesure, outil, séparateur fin, annulation
+    const measureLabel = Object.assign(document.createElement("div"), { className: "etiquette-mesure" });
+    const toolGroup = document.createElement("div");  // seconde ligne quand la place manque : outil, séparateur, annulation
+    toolGroup.append(toolSelect, Object.assign(document.createElement("span"), { className: "separateur" }), undoGroup);
+    measureLabel.append(measureButton, toolGroup);
+    placeBar.append(measureLabel, birdeyeButton, captureButton, exportButton);
+    map.addControl({
+      onAdd: () => placeBar,
+      onRemove: () => {},
+    }, "top-left");
+    /** Place de l'étiquette de la mesure (carte en grand ou détachée), d'après les largeurs mesurées, sans seuil en dur. Dans l'ordre, le
+     * premier qui tient : 1) rangée du haut, à gauche du filigrane de la carte (collé à la recherche), sur une ligne puis sur deux ;
+     * 2) idem, le filigrane passé sous le requêteur (classe « filigrane-dessous » sur la carte) ; 3) rangée sous le requêteur (et le filigrane),
+     * toute la largeur de la carte. Les boutons Bird Eye, capture et export suivent dans la même rangée, ou en dessous si la place manque
+     * (retour à la ligne, rangée plafonnée à la place libre). Tout est recalculé à partir des largeurs naturelles (classes retirées d'abord) :
+     * pas d'oscillation. */
+    function placeMesure() {
+      const container = map.getContainer(), search = container.querySelector(".recherche"), mark = $("#filigrane-carte");
+      const request = container.querySelector(".requeteur");
+      if (!search || !request || !measureLabel.getClientRects().length) return;  // carte à sa place, ou étiquette masquée : rien à placer
+      container.classList.remove("filigrane-dessous");
+      measureLabel.classList.remove("deux-lignes");
+      placeBar.style.maxWidth = placeBar.style.top = "";
+      const box = placeBar.getBoundingClientRect(), left = box.left, scale = box.width / (placeBar.offsetWidth || 1) || 1;
+      const searchLeft = search.getBoundingClientRect().left, margin = 8 * scale;
+      const markLeft = searchLeft - (mark ? mark.getBoundingClientRect().width + 6 * scale : 0);
+      const one = measureLabel.getBoundingClientRect().width;
+      measureLabel.classList.add("deux-lignes");
+      const two = measureLabel.getBoundingClientRect().width;
+      measureLabel.classList.remove("deux-lignes");
+      // [filigrane dessous, largeur libre, ligne sous le requêteur] par configuration, dans l'ordre de préférence
+      const configs = [[false, markLeft - left - margin, false], [true, searchLeft - left - margin, false],
+        [true, container.getBoundingClientRect().right - left - 10 * scale, true]];
+      let choice = configs.find(([, width]) => one <= width) || configs.find(([, width]) => two <= width) || configs[2];
+      const [below, width, under] = choice;
+      container.classList.toggle("filigrane-dessous", below);
+      measureLabel.classList.toggle("deux-lignes", one > width);
+      if (under) {
+        const bottom = Math.max(request.getBoundingClientRect().bottom, mark ? mark.getBoundingClientRect().bottom : 0);
+        placeBar.style.top = `${(bottom + 4 * scale - placeBar.getBoundingClientRect().top) / scale}px`;
+      }
+      placeBar.style.maxWidth = `${Math.max(width, 0) / scale}px`;
+    }
+    new ResizeObserver(placeMesure).observe(map.getContainer());
+    new ResizeObserver(placeMesure).observe(measureLabel);
+    new ResizeObserver(placeMesure).observe(birdeyeButton);
+    window.addEventListener("resize", placeMesure);
+
     /** Bouton de la carte en grand : enfoncé pendant la mesure, grisé sans photo 360° (pas de vue du dessus). */
     function showMapMeasureButton() {
       // Faucon : carte à sa place (à droite), dans l'étiquette verticale avec le zoom ; carte en grand (à gauche) ou détachée, dans la
@@ -376,6 +417,7 @@ const Resultats = {
         : "Mesurer sur la carte (longueur ou surface), sur la vue Bird Eye si elle est allumée, sinon sur le fond de carte";
       measureButton.disabled = !on && $("#mode").disabled;
       toolSelect.hidden = !on || measureButton.hidden;
+      placeMesure();
       const bird = $("#dessus").checked;
       birdeyeButton.setAttribute("aria-pressed", String(bird));
       birdeyeButton.disabled = $("#dessus").disabled;

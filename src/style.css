@@ -285,13 +285,24 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .maplibregl-ctrl-group button.maplibregl-ctrl-compass .maplibregl-ctrl-icon { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3l-4 9h8zM12 21l4-9H8z'/></svg>"); }
 /* Bouton de mesure sur la carte : icône et libellé, en pastille ; liste d'outil de même hauteur */
 .maplibregl-ctrl-top-left button.mesurer-carte { width: auto; padding: 0.15rem calc(0.7rem + var(--pastille-marge)) 0.15rem calc(0.45rem + var(--pastille-marge)); gap: 0.35rem; border-radius: 999px;
-  background: rgba(24, 25, 28, 0.55); font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; }
-.maplibregl-ctrl-top-left button.mesurer-carte:not(:disabled):hover { background: rgba(24, 25, 28, 0.82); }
+  background: none; font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; }
 .maplibregl-ctrl-top-left button.mesurer-carte[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); }
 .maplibregl-ctrl-top-left button.mesurer-carte svg { width: 1.3rem; height: 1.3rem; flex: none; }
-.maplibregl-ctrl-top-left select.outil-carte { width: auto; padding: 0 calc(0.6rem + var(--pastille-marge)); border-radius: 999px; background: rgba(24, 25, 28, 0.55);
+.maplibregl-ctrl-top-left select.outil-carte { width: auto; padding: 0 calc(0.6rem + var(--pastille-marge)); border-radius: 999px; background: none;
   font: inherit; font-size: 13px; font-weight: 500; }
+.maplibregl-ctrl-top-left select.outil-carte:hover { background: rgba(255, 255, 255, 0.2); }
 .maplibregl-ctrl-top-left select.outil-carte option { color: #222; background: #fff; }
+/* Étiquette de la mesure sur la carte en grand ou détachée : « Mesurer / Arrêter », outil (longueur, surface), séparateur fin, puis annuler,
+   refaire, tout effacer, dans une seule étiquette au style unifié (boutons transparents, survol clair). Sur deux lignes (classe
+   « deux-lignes ») quand la place manque : choix posé par placeMesure (resultats.js) d'après les largeurs mesurées. Carte à sa place : rien. */
+.maplibregl-ctrl-top-left .etiquette-mesure { flex: none; display: flex; align-items: center; background: var(--etiquette-fond); border-radius: var(--etiquette-rayon);
+  transition: background 0.2s; }
+.maplibregl-ctrl-top-left .etiquette-mesure:hover { background: var(--etiquette-fond-survol); }
+.maplibregl-ctrl-top-left .etiquette-mesure div { display: flex; align-items: center; }
+.maplibregl-ctrl-top-left .etiquette-mesure .separateur { flex: none; align-self: center; width: calc(1px / var(--echelle-ui, 1)); height: 1.2rem; margin: 0 0.3rem; background: rgba(255, 255, 255, 0.35); }
+.maplibregl-ctrl-top-left .etiquette-mesure.deux-lignes { flex-direction: column; align-items: flex-start; }
+.maplibregl-ctrl-top-left .etiquette-mesure.deux-lignes .outil-carte[hidden] + .separateur { display: none; }
+body:not(.carte-en-grand):not(.fenetre-carte) .maplibregl-ctrl-top-left .etiquette-mesure { display: none; }
 /* Faucon (Bird Eye), capture et export de la carte : fond de pastille de la visionneuse, icône vectorielle (blanche, jaune enfoncée) */
 .maplibregl-ctrl-top-left button.birdeye-carte, .maplibregl-ctrl-top-left button.capture-carte { background: rgba(24, 25, 28, 0.55); }
 .maplibregl-ctrl-top-left button.birdeye-carte:not(:disabled):hover, .maplibregl-ctrl-top-left button.capture-carte:not(:disabled):hover {
@@ -302,7 +313,10 @@ body.fenetre-carte #carte { height: 100vh !important; min-height: 0; }
 .maplibregl-ctrl-top-left .maplibregl-ctrl-group button.birdeye-carte[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); }
 .maplibregl-ctrl-top-left button.birdeye-carte[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); }
 /* en haut, à droite des boutons de zoom plutôt que sous la pile de gauche */
-.maplibregl-ctrl-top-left .place-mesurer { position: absolute; top: 0; left: 40px; white-space: nowrap; display: flex; align-items: center; gap: 0.3rem; }
+.maplibregl-ctrl-top-left .place-mesurer { position: absolute; top: 0; left: 40px; white-space: nowrap; display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; width: max-content; }
+/* Filigrane de la carte sous le requêteur (place manquante à sa gauche, posé par placeMesure) : le panneau des réglages Bird Eye descend d'autant */
+#carte.filigrane-dessous #filigrane-carte { right: 0; top: calc(100% + var(--etiquette-ligne) + 4px); bottom: auto; margin: 4px 0 0; height: var(--etiquette-ligne); }
+#carte.filigrane-dessous #dessus-reglages { --haut: calc((18px + 3 * var(--etiquette-ligne)) * var(--echelle-ui, 1) + 8px); }
 
 /* Attribution (« i », en bas à droite de la carte) au style unifié : pastille ronde de --etiquette-element, fond --etiquette-fond, « i » vectoriel
    (masque SVG, trait blanc de 2, bouts arrondis comme les autres icônes) à la place de l'image de fond de MapLibre ; ouverte, le texte reste lisible */
