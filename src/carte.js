@@ -385,16 +385,20 @@ const Carte = (() => {
           id: "cibles", type: "circle", source: "mesures", filter: kind("cible"),
           paint: { "circle-color": "rgba(0, 0, 0, 0)", "circle-radius": 7, "circle-stroke-width": 2.5, "circle-stroke-color": ROUGE },
         },
-        {  // largeur dans la visionneuse (src/nez.js) : droite verte sans liseré, bords en petits traits rouges perpendiculaires (taille écran) ; pas interactifs
+        {  // largeur dans la visionneuse (src/nez.js) : droite verte ou rouge sans liseré, poignée de profondeur ronde (src/nez.js), bords en petits traits rouges perpendiculaires (taille écran) ; pas interactifs
           id: "nez-droite", type: "line", source: "nez", filter: ["==", ["geometry-type"], "LineString"],
-          paint: { "line-color": "#00c853", "line-width": 2.5 },
+          paint: { "line-color": ["coalesce", ["get", "couleur"], "#00c853"], "line-width": 2.5 },  // verte (photo calée) ou rouge (pas encore)
         },
         {
-          id: "nez-bords", type: "symbol", source: "nez", filter: ["==", ["geometry-type"], "Point"],
+          id: "nez-bords", type: "symbol", source: "nez", filter: ["all", ["==", ["geometry-type"], "Point"], ["==", ["get", "role"], "bord"]],
           layout: {
             "icon-image": "nez-bord", "icon-rotate": ["get", "angle"], "icon-rotation-alignment": "map",
             "icon-allow-overlap": true, "icon-ignore-placement": true,
           },
+        },
+        {  // poignée de profondeur au milieu de la droite : glissée le long du cap par src/nez.js
+          id: "nez-profondeur", type: "circle", source: "nez", filter: ["==", ["get", "role"], "profondeur"],
+          paint: { "circle-radius": 7, "circle-color": "#ffffff", "circle-stroke-width": 1.5, "circle-stroke-color": "#555555" },
         },
       ],
     };

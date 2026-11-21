@@ -12,6 +12,10 @@
 // l'encart et l'étiquette disent « Calage Bird Eye en cours… » et aucune largeur n'est affichée ; une fois fait, la largeur est recalculée sur
 // la photo calée (les poignées gardent leur place dans l'image, pas leur distance en mètres) ; le calage est gardé par photo, partagé
 // avec la vue Bird Eye (rallumée sur la photo, elle est prête plus vite).
+// Une poignée de profondeur (double flèche blanche sous la droite sur la photo, ronde sur la carte, le long du cap ; elle se glisse aussi le long de la droite) la fait glisser en profondeur, toujours
+// perpendiculaire à l'axe du véhicule : butées renvoyées par nose_line (d_min : capot ; d_max : nez + écart à la photo suivante + 1 m,
+// nez + 6 m sans suivante), les extrémités gardent leur écart latéral en mètres, la largeur est recalculée aussitôt, sans relancer
+// le calage. La droite est rouge tant que la photo n'est pas calée (Bird Eye), puis verte ; sa distance est dans l'étiquette et l'encart.
 
 const Nez = {
   /** Branche le bouton de la visionneuse ; host : etat (état partagé), map (carte MapLibre), notice. Rend update (photo affichée changée ou
@@ -21,7 +25,13 @@ const Nez = {
     const { etat, map } = host;
     const button = $("#nez-bords");
 
-    const GREEN = "#00c853", YELLOW = "#ffd600", RED = "#d93025";  // droite verte sans liseré, croix jaune au droit de la caméra, poignées rouges
+    const GREEN = "#00c853", UNCALIBRATED = "#ff5252", YELLOW = "#ffd600", RED = "#d93025", WHITE = "#ffffff";
+    // droite verte (photo calée) ou rouge franc (pas encore calée), sans liseré ; croix jaune au droit de la caméra, poignées latérales
+    // rouges, poignée de profondeur blanche
+    const ARROW_LIFT = 26, ARROW_PX = 24;  // px : centre et longueur de la double flèche de profondeur, posée sous la droite (sans la toucher)
+    const LABEL_LIFT = 26;  // px : étiquette décollée de la droite, au-dessus d'elle (la double flèche est dessous) ; si elle sortait de la vue en haut, sous la droite
+    const LABEL_FLIP = -(ARROW_LIFT + ARROW_PX / 2 + 6 - 7);  // px : lift de l'étiquette passée dessous : sous la double flèche (7 px : écart de l'étiquette à son point)
+    const DEPTH_STEP = 0.05;  // m : pas de la distance de la droite pendant le glissement en profondeur
     const TICK_PX = 28;  // px : longueur à l'écran d'une poignée (trait vertical, quel que soit le zoom)
     const HANDLE_PX = 10;  // px : portée d'une poignée (distance du pointeur au trait)
     const MIN_OFFSET = 0.2;  // m : bord minimal d'un profil en travers repris comme position de départ d'une poignée
@@ -38,6 +48,8 @@ const Nez = {
     let active = false, raw = null, line = null;  // raw : dernière réponse de nose_line (texte), line : son contenu
     let photoId = null;
     let handles = { gauche: -FALLBACK, droit: FALLBACK }, moved = { gauche: false, droit: false };
+    let along = null;  // m : place de la double flèche de profondeur le long de la droite (null : au milieu des poignées latérales)
+    let depth = null;  // m : distance de la droite devant la caméra (null : au nez, d_min)
     let rotation = 0, keep = false;  // rotation (degrés, positif = sens trigonométrique vu du dessus), keep : droite gardée affichée pendant la relecture du relief
     let frame = null;  // image d'animation en attente (recalcul de la droite pendant la rotation)
     let drag = null, bound = null, readout = null, retry = null, waiting = null;
@@ -170,10 +182,11 @@ const Nez = {
 
     /** Droite de la photo affichée (nose_line) : garde la réponse ; null et message d'erreur sans photo 360°. */
     function load(relief = true) {
-      const text = etat.app ? etat.app.nose_line(0, rotation, relief) : JSON.stringify({ error: "Calcul en chargement…" });
+      const text = etat.app ? etat.app.nose_line(depth ?? 0, rotation, relief) : JSON.stringify({ error: "Calcul en chargement…" });
       if (text === raw) return false;
       raw = text;
       line = JSON.parse(text);
+      if (depth !== null && !line.error) depth = line.d;  // bornée par Python (butées)
       return true;
     }
 
@@ -209,6 +222,20 @@ const Nez = {
       return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
     }
 
+    /** Photo calée par Bird Eye (par ce calage-ci, ou déjà par la vue allumée ou un calage antérieur) : la droite est verte, sinon rouge. */
+    const isCalibrated = () => (calage.pic === photoId && calage.state === "done") || Boolean(calageApi?.state(photoId)?.ok);
+    const lineColor = () => (isCalibrated() ? GREEN : UNCALIBRATED);
+
+    /** Décalage (m) de la poignée de profondeur le long de la droite : celui où l'utilisateur l'a glissée horizontalement (gardé en mètres quand
+     * la droite glisse en profondeur, ramené entre les deux poignées latérales), sinon le milieu de celles-ci. */
+    function depthOffset() {
+      if (along !== null) return Math.max(handles.gauche, Math.min(handles.droit, along));  // placée à la main, gardée (mètres)
+      return (handles.gauche + handles.droit) / 2;
+    }
+
+    /** Distance de la droite en clair (« à 12,4 m »). */
+    const depthText = () => `à ${metres(line.d, 1)}`;
+
     /** Droite et bords sur la carte (null : retirés). */
     function drawMap() {
       if (!map) return;
@@ -216,10 +243,10 @@ const Nez = {
       // trait du bord perpendiculaire à la droite : angle (° dans le sens horaire depuis le nord) de la droite + 90°
       const [a, b] = line.lonlat, lat = (a[1] + b[1]) / 2 * Math.PI / 180;
       const angle = Math.atan2((b[0] - a[0]) * Math.cos(lat), b[1] - a[1]) * 180 / Math.PI + 90;
-      const point = (o) => ({ type: "Feature", properties: { angle }, geometry: { type: "Point", coordinates: lonlatAt(o) } });
+      const point = (o, role) => ({ type: "Feature", properties: { angle, role }, geometry: { type: "Point", coordinates: lonlatAt(o) } });
       Carte.showNez(map, { type: "FeatureCollection", features: [
-        { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: line.lonlat } },
-        point(handles.gauche), point(handles.droit)] });
+        { type: "Feature", properties: { couleur: lineColor() }, geometry: { type: "LineString", coordinates: line.lonlat } },
+        point(handles.gauche, "bord"), point(handles.droit, "bord"), point(depthOffset(), "profondeur")] });
     }
 
     // Lecture -----------------------------------------------------------------------------------
@@ -312,7 +339,7 @@ const Nez = {
       const width = handles.droit - handles.gauche;
       const uncertainty = roundUp05(widthSigma(handles.gauche, handles.droit));
       text.textContent = `Bord gauche ${offsetText(handles.gauche)} · Bord droit ${offsetText(handles.droit)} · Largeur ${metres(width)}`
-        + ` · ±${metres(uncertainty)}`;
+        + ` · ±${metres(uncertainty)} · droite ${depthText()} devant la caméra`;
       const tilt = tiltText();
       if (tilt) text.textContent += ` · ${tilt}`;
       text.textContent += ` · ${groundText()}`;
@@ -321,7 +348,7 @@ const Nez = {
         text.textContent += ` · Calage Bird Eye ${calage.reason || "impossible ici"} : largeur sans calage`;
       }
       if (line.voisines === false) text.textContent += " · axe de la photo seule (voisines non arrivées)";
-      readout.title = `Distance latérale de chaque bord à la caméra, lue sur la droite au sol à ${metres(line.d, 1)} devant elle `
+      readout.title = `Distance latérale de chaque bord à la caméra, lue sur la droite au sol à ${metres(line.d, 1)} devant elle (butées : ${metres(line.d_min, 1)} à ${metres(line.d_max, 1)}) `
         + `(${line.sol_dz ? `relief du MNT ${line.sol}` : "sol plat"}). Hauteur de la caméra ${metres(line.hauteur)}${line.hauteur_source ? ` (${line.hauteur_source})` : ""}`
         + `${line.inclinaison_source === "roulis de campagne" ? `, roulis de la campagne ${line.roulis_campagne}°` : ""}. Expérimental : rien n'est retenu.`;
     }
@@ -352,14 +379,15 @@ const Nez = {
         at(handles.droit)];
       const sides = [["gauche", handles.gauche], ["droit", handles.droit]];
       Traits.setExtra({
-        lines: [{ points, color: GREEN, width: 2.5 }],
+        lines: [{ points, color: lineColor(), width: 2.5 }],
         crosses: [{ at: at(0), color: YELLOW }],  // croix au droit de la caméra
-        ticks: sides.map(([, o]) => ({ at: at(o), color: RED, length: TICK_PX, width: 3 })),
+        ticks: [...sides.map(([, o]) => ({ at: at(o), color: RED, length: TICK_PX, width: 3 })),
+          { at: at(depthOffset()), color: WHITE, length: ARROW_PX, width: 3, double: true, lift: -ARROW_LIFT }],  // poignée de profondeur ⇕, sous la droite
         // largeur entre les poignées : étiquette « mesure » des largeurs de Mesure (↔ valeur ± incertitude, comme l'encart),
         // au milieu de la droite ; les distances de chaque bord restent dans l'encart
-        labels: [{ at: at((handles.gauche + handles.droit) / 2), type: "mesure", place: "dessus",
+        labels: [{ at: at((handles.gauche + handles.droit) / 2), type: "mesure", place: "dessus", lift: LABEL_LIFT, flip: true, flipLift: LABEL_FLIP,
           text: calageWaiting() ? CALAGE_WAIT
-            : `↔ ${metres(handles.droit - handles.gauche)} ± ${metres(roundUp05(widthSigma(handles.gauche, handles.droit)))}` }],
+            : `↔ ${metres(handles.droit - handles.gauche)} ± ${metres(roundUp05(widthSigma(handles.gauche, handles.droit)))} · ${depthText()}` }],
       });
     }
 
@@ -390,6 +418,9 @@ const Nez = {
         const d = s ? segmentDistance(x, y, s.x, s.y - TICK_PX / 2, s.x, s.y + TICK_PX / 2) : Infinity;
         if (d <= bestD) [best, bestD] = [side, d];
       }
+      const m = screenOf(...locate(depthOffset()));  // double flèche de profondeur, sous la droite : prise en cas d'égalité
+      const dm = m ? segmentDistance(x, y, m.x, m.y + ARROW_LIFT - ARROW_PX / 2, m.x, m.y + ARROW_LIFT + ARROW_PX / 2) : Infinity;
+      if (dm <= bestD) best = "profondeur";
       return best;
     }
 
@@ -400,7 +431,13 @@ const Nez = {
       // bornes : jamais au-delà de la portée de la droite ni à moins de MIN_GAP de l'autre poignée (des deux côtés de la caméra)
       const low = side === "gauche" ? -line.reach : handles.gauche + MIN_GAP;
       const high = side === "gauche" ? handles.droit - MIN_GAP : line.reach;
-      let best = null, bestD = Infinity, previous = null;
+      return projectOffset(x, y, low, high);
+    }
+
+    /** Place de la double flèche : décalage du point de la droite le plus proche du pointeur, entre les deux poignées latérales. */
+    const nearestAlong = (x, y) => projectOffset(x, y, handles.gauche, handles.droit);
+
+    function projectOffset(x, y, low, high) {      let best = null, bestD = Infinity, previous = null;
       for (const [o, yaw, pitch] of line.points) {
         const s = screenOf(yaw, pitch);
         const current = s ? [o, s.x, s.y] : null;
@@ -433,6 +470,7 @@ const Nez = {
       event.stopImmediatePropagation();  // la visionneuse ne tourne pas, ne mesure pas
       event.preventDefault();
       drag = { side, id: event.pointerId, x: local(event)[0], rotation };
+      if (side === "profondeur") drag.grab = pointerPitch(...local(event)) - locate(depthOffset())[1];  // écart du pointeur à la poignée, gardé
       try {
         etat.psv.container.setPointerCapture(event.pointerId);
       } catch { /* pointeur déjà relâché : le glisser s'arrêtera au pointerup */ }
@@ -448,6 +486,14 @@ const Nez = {
       if (event.pointerId !== drag.id) return;
       event.stopImmediatePropagation();
       if (drag.side === "pivot") return rotate(event);
+      if (drag.side === "profondeur") {  // vertical : distance de la droite ; horizontal : place de la flèche le long de la droite
+        const [x, y] = local(event), o = nearestAlong(x, y);
+        if (o !== null && o !== depthOffset()) {
+          along = o;
+          draw();
+        }
+        return slideDepth(depthFromPointer(x, y));
+      }
       const o = nearestOffset(drag.side, ...local(event));
       if (o === null || o === handles[drag.side]) return;
       handles[drag.side] = o;
@@ -455,6 +501,96 @@ const Nez = {
       anchors[drag.side] = locate(o);
       needCalage();  // calage Bird Eye de la photo : largeur masquée jusqu'à sa fin
       draw();
+    }
+
+    /** Élévation (rad) de la direction pointée dans la visionneuse. */
+    const pointerPitch = (x, y) => etat.psv.dataHelper.viewerCoordsToSphericalCoords({ x, y }).pitch;
+
+    /** Distance de la droite (m) qui amène la poignée de profondeur sous le pointeur (x, y) : même élévation, modèle de sol plat autour de
+     * l'élévation actuelle de la poignée (l'inclinaison de la photo décale l'élévation de la même quantité près de ce point ; la droite
+     * étant recalculée à chaque mouvement, l'écart ne s'accumule pas). Les butées sont appliquées par Python. */
+    function depthFromPointer(x, y) {
+      const o = depthOffset(), p0 = locate(o)[1], h = line.hauteur - groundAt(o);
+      const dep0 = Math.atan2(h, Math.hypot(o, line.d));
+      const dep = dep0 + (p0 - (pointerPitch(x, y) - drag.grab));  // pointeur plus haut dans l'image : droite plus loin (dépression moindre)
+      if (dep <= 0.01) return line.d_max;
+      return Math.sqrt(Math.max((h / Math.tan(dep)) ** 2 - o * o, 0));
+    }
+
+    /** Droite glissée à `value` m devant la caméra (au pas de DEPTH_STEP, butées de Python) : recalculée au plus une fois par image,
+     * sans lecture du relief (celui déjà lu sert) ni calage ; les poignées latérales gardent leur écart en mètres, donc leur largeur. */
+    function slideDepth(value) {
+      const d = Math.round(Math.max(line.d_min, Math.min(line.d_max, value)) / DEPTH_STEP) * DEPTH_STEP;
+      if (Math.abs(d - line.d) < 1e-6) return;
+      depth = d;
+      keep = true;
+      frame ??= requestAnimationFrame(() => {
+        frame = null;
+        if (!active || !drag) return;
+        load(false);
+        for (const side of ["gauche", "droit"]) if (moved[side]) anchors[side] = locate(handles[side]);  // place dans l'image à la nouvelle droite
+        draw();
+      });
+    }
+
+    /** Fin du glissement en profondeur : relief relu à la distance choisie, la droite restant affichée (keep) pendant la lecture. */
+    function endSlide() {
+      cancelAnimationFrame(frame);
+      frame = null;
+      load();
+      for (const side of ["gauche", "droit"]) if (moved[side]) anchors[side] = locate(handles[side]);
+      settle();
+      draw();
+      waitNeighbours(photoId);
+    }
+
+    // Poignée de profondeur sur la carte : glissée le long du cap (perpendiculaire à la droite) ---------------
+
+    const NEZ_HANDLE = "nez-profondeur";  // couche de la carte (src/carte.js)
+    const mapHandleAt = (point) => Boolean(map.getLayer(NEZ_HANDLE)
+      && map.queryRenderedFeatures([[point.x - 8, point.y - 8], [point.x + 8, point.y + 8]], { layers: [NEZ_HANDLE] }).length);
+
+    /** Écarts (m) du point lngLat à la poignée de profondeur : [le long de la droite vers la droite, le long du cap vers l'avant]. La droite va
+     * de gauche (a) à droite (b), l'avant est à sa gauche (rotation de 90° dans le sens trigonométrique de (est, nord)). */
+    function mapOffsets(lngLat) {
+      const [a, b] = line.lonlat, here = lonlatAt(depthOffset()), k = Math.cos(a[1] * toRad) * 111320;
+      const [ue, un] = [(b[0] - a[0]) * k, (b[1] - a[1]) * 111320], norm = Math.hypot(ue, un) || 1;
+      const [dx, dy] = [(lngLat.lng - here[0]) * k, (lngLat.lat - here[1]) * 111320];
+      return [(dx * ue + dy * un) / norm, (dx * -un + dy * ue) / norm];
+    }
+
+    function mapDown(event) {
+      if (!active || !shown() || !line.lonlat || drag || !mapHandleAt(event.point)) return;
+      event.preventDefault();
+      map.dragPan.disable();
+      drag = { side: "profondeur", map: true };
+    }
+
+    function mapMove(event) {
+      if (drag?.map) {  // le long du cap : distance de la droite ; le long de la droite : place de la poignée (sans toucher à la mesure)
+        const [side, forward] = mapOffsets(event.lngLat);
+        along = Math.max(handles.gauche, Math.min(handles.droit, depthOffset() + side));
+        slideDepth(line.d + forward);
+        draw();
+      }
+      else if (active) map.getCanvas().style.cursor = shown() && mapHandleAt(event.point) ? "ns-resize" : "";
+    }
+
+    function mapUp() {
+      if (!drag?.map) return;
+      drag = null;
+      map.dragPan.enable();
+      if (active) endSlide();
+    }
+
+    if (map) {
+      map.on("mousedown", mapDown);
+      map.on("touchstart", mapDown);
+      map.on("mousemove", mapMove);
+      map.on("touchmove", mapMove);
+      map.on("mouseup", mapUp);
+      map.on("touchend", mapUp);
+      window.addEventListener("mouseup", mapUp);
     }
 
     /** Rotation par glissement horizontal de la croix : proportionnelle au déplacement (ROTATION_RATE °/px, Maj : 10 fois plus fin),
@@ -479,6 +615,7 @@ const Nez = {
     function onUp(event) {
       if (!drag || event.pointerId !== drag.id) return;
       event.stopImmediatePropagation();
+      if (drag.side === "profondeur") endSlide();
       if (drag.side === "pivot") {
         cancelAnimationFrame(frame);
         frame = null;
@@ -542,6 +679,8 @@ const Nez = {
       anchors = { gauche: null, droit: null };
       resetCalage();
       raw = null;
+      depth = null;
+      along = null;
       photoId = etat.photo.id;
       etat.app.birdeye_request();  // verticales de la photo (même calcul que la vue du dessus) ; la droite est refaite à leur arrivée
       restartWait();
@@ -575,6 +714,8 @@ const Nez = {
       cancelAnimationFrame(frame);
       frame = null;
       rotation = 0;
+      depth = null;
+      along = null;
       keep = false;
       clearTimeout(retry);
       clearTimeout(waiting);
@@ -606,6 +747,8 @@ const Nez = {
         resetCalage();
         drag = null;
         rotation = 0;
+        depth = null;
+        along = null;
         keep = false;
         restartWait();
         load();

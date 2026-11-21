@@ -13,6 +13,8 @@ NOSE_STEP = 0.05  # m : pas des points de la droite
 NOSE_REACH = 12.0  # m : de part et d'autre du droit de la caméra
 NOSE_DISTANCE = {1.93: 4.4, 2.07: 4.8}  # m : capot du CD21 (visible à 4,1 m et 4,5 m, src/dessus.js OUTLINES) plus 0,3 m
 NOSE_DISTANCE_DEFAULT = 4.5  # m : autres véhicules
+NOSE_OVERLAP = 1.0  # m : recouvrement au-delà de la photo suivante, butée lointaine de la droite glissée en profondeur
+NOSE_FAR_DEFAULT = 6.0  # m : butée lointaine au-delà du nez quand la photo suivante n'est pas connue (écart de 5 m et recouvrement de 1 m)
 NOSE_GROUND_STEP = 0.5  # m : pas des points où le relief est lu (pas du MNT LiDAR HD), interpolé linéairement entre eux
 NOSE_GROUND_MAX = 50  # lectures du relief gardées (une par photo et par droite)
 NOSE_ROTATION_MAX = 45.0  # degrés : rotation à la main de la droite, de part et d'autre de la perpendiculaire au trajet
@@ -104,8 +106,9 @@ class Nez:
             return (ground or None), ground == {}
         if not read:
             # glissement de la rotation : pas de nouvelle lecture, relief déjà lu pour cette caméra à l'angle précédent
+            # (ou à la distance précédente : glissement de la droite en profondeur, relief approché en attendant)
             last = getattr(self, "nose_ground_last", None)
-            if last and last[0] == base:
+            if last and last[0][:3] == base[:3]:
                 return last[1], False
             ground = self.nose_ground.get(key)
             return (ground or None), False
@@ -139,8 +142,32 @@ class Nez:
                 return False
         return True
 
+    def _nose_gap(self):
+        """Écart (m) entre la photo affichée et la suivante de la séquence, d'après leurs positions ; None si la suivante n'est pas
+        connue (pas chargée, absente) ou si l'écart est hors de 1 à 20 m (même garde que _nose_axis_at)."""
+        item = self.item
+        following = self.neighbours.get(metadata.id_from_href(metadata.item_link(item, "next")))
+        if not following:
+            return None
+        try:
+            here = [float(v) for v in item["geometry"]["coordinates"][:2]]
+            there = [float(v) for v in following["geometry"]["coordinates"][:2]]
+        except (KeyError, TypeError, ValueError):
+            return None
+        gap = math.hypot((there[0] - here[0]) * math.cos(math.radians(here[1])) * 111320.0, (there[1] - here[1]) * 111320.0)
+        return gap if 1.0 <= gap <= 20.0 else None
+
+    def _nose_range(self, mount):
+        """(distance minimale, distance maximale) de la droite devant la caméra, en m : près, la distance du nez (capot) ; au loin,
+        la distance du nez plus l'écart réel jusqu'à la photo suivante plus NOSE_OVERLAP de recouvrement (nez + NOSE_FAR_DEFAULT
+        sans photo suivante connue)."""
+        near = NOSE_DISTANCE.get(mount, NOSE_DISTANCE_DEFAULT)
+        gap = self._nose_gap()
+        return near, near + (NOSE_FAR_DEFAULT if gap is None else gap + NOSE_OVERLAP)
+
     def nose_line(self, distance=None, rotation=0.0, relief=True):
-        """JSON de la droite au sol à `distance` m devant la caméra (None : au-delà du capot, NOSE_DISTANCE), perpendiculaire
+        """JSON de la droite au sol à `distance` m devant la caméra (None ou 0 : au-delà du capot, NOSE_DISTANCE ; sinon bornée par _nose_range, rendue
+        dans `d`, `d_min` et `d_max` : glissement de la droite en profondeur), perpendiculaire
         à l'axe de la séquence à l'endroit de la droite (_nose_axis_at) : {d, virage (écart en degrés entre l'axe à la photo et à la droite, si > 3°, pas affiché), lonlat: [[lon, lat] à -NOSE_REACH, [lon, lat] à +NOSE_REACH] (position recalée de la photo), hauteur, hauteur_source, sigma_h, roulis_campagne, inclinaison_source (_nose_tilt : vue du dessus, clics, verticales, verticales (seuil élargi), lidar, roulis de campagne, aucune), inclinaison_sigma (degrés ou None), inclinaison_en_calcul (verticales pas encore arrivées : droite refaite à leur arrivée), points: [[décalage en m (positif à
         droite de l'axe de la droite), yaw, pitch]]} (radians, repère de la photo affichée), de -NOSE_REACH à +NOSE_REACH tous les
         NOSE_STEP m. Les décalages sont des positions horizontales ; le relief est celui du MNT LiDAR HD (_nose_ground) : un point de
@@ -159,7 +186,8 @@ class Nez:
             return json.dumps({"error": "Photo non 360° : la droite au sol n'est tracée que sur les photos 360°."})
         height, source, sigma = self.camera_of(item, self.quality)
         mount = self._fleet_mount(item)
-        d = float(distance) if distance else NOSE_DISTANCE.get(mount, NOSE_DISTANCE_DEFAULT)
+        d_min, d_max = self._nose_range(mount)
+        d = min(max(float(distance), d_min), d_max) if distance else d_min
         roll = self._roll_defect(item)
         tilt_source, tilt_sigma = self._nose_tilt()
         axis = self._nose_axis()  # cap de la caméra : le centre de la droite est à d devant
@@ -190,7 +218,7 @@ class Nez:
         for x in (-NOSE_REACH, NOSE_REACH):
             east, north = d * math.sin(a) + x * math.cos(b), d * math.cos(a) - x * math.sin(b)
             ends.append([round(v, 7) for v in triangulation._geographic(east, north, lon, lat)])
-        out = {"d": d, "hauteur": height, "hauteur_source": source, "sigma_h": sigma,
+        out = {"d": d, "d_min": d_min, "d_max": d_max, "hauteur": height, "hauteur_source": source, "sigma_h": sigma,
                "roulis_campagne": roll, "inclinaison_source": tilt_source, "inclinaison_sigma": tilt_sigma,
                "inclinaison_en_calcul": self.tilts.pending(item.get("id")), "points": points, "lonlat": ends, "reach": NOSE_REACH,
                "voisines": self._neighbours_here(), "sol": ground[0] if ground else NOSE_FLAT,

@@ -1324,6 +1324,30 @@ class Parcours(unittest.TestCase):
             self.assertAlmostEqual(yaw, math.radians((want_yaw + 540) % 360 - 180), delta=1e-5)
             self.assertAlmostEqual(pitch, math.radians(want_pitch), delta=1e-5)
 
+    def test_droite_nez_profondeur(self):
+        """Droite glissée en profondeur : distance bornée par le nez (près) et par le nez + écart à la photo suivante + 1 m (loin),
+        nez + 6 m sans suivante connue ; le centre de la droite est à la distance demandée, perpendiculaire à l'axe ; les
+        décalages latéraux restent des mètres (la table des points ne change pas de décalages)."""
+        self.show("p1")
+        line = json.loads(self.app.nose_line(9.0))
+        self.assertEqual((line["d_min"], line["d_max"], line["d"]), (4.5, 10.5, 9.0))  # sans suivante : nez + 6 m
+        self.assertEqual(json.loads(self.app.nose_line(2.0))["d"], 4.5)  # plus près que le nez : butée
+        self.assertEqual(json.loads(self.app.nose_line(99.0))["d"], 10.5)
+        self.assertEqual(json.loads(self.app.nose_line())["d"], 4.5)
+        for x, yaw, pitch in line["points"][::60]:
+            self.assertAlmostEqual(yaw, math.atan2(x, 9.0), delta=1e-5)
+            self.assertAlmostEqual(pitch, -math.atan(self.CAMERA / math.hypot(x, 9.0)), delta=1e-5)
+        here = self.app.item["geometry"]["coordinates"][:2]
+        a = triangulation._local(*line["lonlat"][0], *here)
+        b = triangulation._local(*line["lonlat"][1], *here)
+        self.assertAlmostEqual(((a[1] + b[1]) / 2), 9.0, delta=0.05)  # centre à 9 m devant (cap 0)
+        lon, lat = triangulation._geographic(0.0, 7.0, *here)  # suivante à 7 m : butée lointaine 4,5 + 7 + 1
+        self.app.item["links"] = [{"rel": "next", "href": "http://x/items/n1"}]
+        self.app.neighbours["n1"] = {"id": "n1", "geometry": {"type": "Point", "coordinates": [lon, lat]}}
+        line = json.loads(self.app.nose_line(50.0))
+        self.assertAlmostEqual(line["d_max"], 12.5, delta=0.05)
+        self.assertAlmostEqual(line["d"], line["d_max"], delta=1e-9)
+
     def test_droite_nez_virage(self):
         """Droite au nez dans un virage : séquence sur un cercle de 20 m de rayon, photos tous les 5 m ; la droite est radiale
         (perpendiculaire à la trajectoire) là où elle est tracée, pas à la photo (écart de 13° avec l'ancien calcul)."""

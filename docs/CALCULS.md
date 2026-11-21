@@ -405,6 +405,20 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   l'élévation `-atan2(H − dz, hypot(x, d))` à sol plat (`dz` = 0 ; relief : voir **Sol**) (sinon, avec δ = θ − θ0 : à `x·cos δ` à droite et `d − x·sin δ` devant la caméra) ; `d` = 4,4 m (monture 1,93 m), 4,8 m (2,07 m), 4,5 m sinon, soit le capot de
   `src/dessus.js` (OUTLINES) plus 0,3 m. Direction rendue dans le repère de la photo par `Session._view_of` : calage compris
   (cap de la séquence, inclinaison calée ou lue).
+- **Distance de la droite (glissement en profondeur)** : `nose_line(distance, …)` reçoit la distance `d` du centre de la droite devant la
+  caméra (0 ou `None` : au nez). Butées (`Nez._nose_range`) : `d_min` = distance du nez (ci-dessus) ; `d_max` = `d_min` + écart réel entre
+  la photo et la suivante de la séquence (distance des positions, `_nose_gap`, 1 à 20 m, comme pour l'axe) + 1 m de recouvrement
+  (`NOSE_OVERLAP`), soit `d_min` + 6 m (`NOSE_FAR_DEFAULT`) si la suivante n'est pas connue ; `d` est ramenée à [`d_min`, `d_max`] et rendue
+  avec elles (`d`, `d_min`, `d_max`). Tout le reste (axe à `d`, virage, relief lu à `d`, élévations, extrémités sur la carte) se calcule comme ci-dessus
+  à cette distance ; la droite reste perpendiculaire à l'axe (la rotation est un autre réglage). Côté `src/nez.js`, les décalages
+  latéraux des poignées restent en mètres quand `d` change (la largeur est la même différence, recalculée avec les `σ` de la distance),
+  et la place des poignées dans l'image (`anchors`) est relue sur la nouvelle droite. Pendant le glissement le relief n'est pas relu
+  (le dernier lu pour cette caméra sert, `_nose_ground` avec `read` faux), il l'est au relâchement ; aucun calage Bird Eye n'est lancé :
+  l'inclinaison est celle que Python lit (calée si elle l'est). **Incertitude** : `commonErrors` utilise déjà `d` : l'erreur de tangage sur la
+  largeur `(s₂ − s₁)·d·δ/H` est proportionnelle à `d` (δ = 0,5° ; H = 1,93 m ; 8 m de largeur : 0,16 m à 4,5 m, 0,36 m à 10 m). Couleur : droite
+  rouge (`#ff5252`) tant que la photo n'est pas calée par Bird Eye (`Dessus.calibrated` ou calage de ce déplacement), verte (`#00c853`)
+  ensuite, même règle sur la carte (propriété `couleur`). Poignée de profondeur (double flèche ⇕ sous la droite, `Traits` `double`) : sa place le long de la droite (`along`, en mètres, entre les poignées latérales, par défaut leur milieu) est indépendante de la mesure et gardée quand la droite glisse ; sur la photo, la distance suit l'élévation du pointeur (modèle de sol plat autour de
+  l'élévation de la poignée, recalculé à chaque mouvement) et le mouvement horizontal déplace `along` ; sur la carte, écart du pointeur à la poignée le long du cap (distance) et le long de la droite (`along`). L'étiquette de largeur est décollée de 26 px au-dessus de la droite (la flèche est dessous) ; si elle sortait de la vue en haut, elle passe sous la flèche.
 - **Rotation à la main** (`rotation` de `App.nose_line`, degrés, ±45°, 0° par défaut, remise à 0° au changement de photo) : la droite
   tourne autour de son point au droit de la caméra (x = 0, à `d` devant), dans le plan du sol ; rotation positive = sens trigonométrique vu du
   dessus (le côté droit avance vers l'avant). Direction de la droite = perpendiculaire au trajet tournée de la rotation : écart au cap de la

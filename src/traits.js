@@ -126,7 +126,7 @@ const Traits = (() => {
   /**
    * Seconde couche, que les mesures (set) n'écrasent pas : « Largeur dans la visionneuse » (src/nez.js). Mêmes formes que set :
    * lines [{points, color, width}], crosses [{at, color}], labels [{at, type, place, text, lift (px : étiquette
-   * remontée)}] ; ticks : petits traits verticaux d'écran, de longueur constante en px, centrés sur le point
+   * remontée ; flip : si elle sortirait de la vue, elle passe de l'autre côté du point (place inversée), à flipLift px (signé comme lift, par défaut -lift))}] ; ticks : petits traits verticaux d'écran (double: true, lift : px au-dessus du point : double flèche verticale ; lift négatif : sous le point), de longueur constante en px, centrés sur le point
    * [{at, color, width (px), length (px), edge (couleur du liseré, facultatif : sans lui, pas de liseré)}]. Pas dans les captures. Sans argument : couche vidée.
    */
   function setExtra(layer = {}) {
@@ -247,7 +247,11 @@ const Traits = (() => {
     for (const label of labels) {
       const s = at(label.vector);
       if (!s) continue;
-      const { w, h } = image(label), r = box(label, s[0], s[1] - (label.lift || 0), w, h);
+      const { w, h } = image(label);
+      let r = box(label, s[0], s[1] - (label.lift || 0), w, h);
+      if (label.flip && ((label.lift || 0) < 0 ? r.bottom > canvas.clientHeight - 2 : r.top < 2)) {  // sortirait de la vue : de l'autre côté du point
+        r = box({ ...label, place: label.place === "dessous" ? "dessus" : "dessous" }, s[0], s[1] - (label.flipLift ?? -(label.lift || 0)), w, h);
+      }
       if (label.type === "fin") ends.push({ label, s, r });
       else put(label, r);
     }
@@ -354,6 +358,16 @@ const Traits = (() => {
       const s = at(c.vector);
       if (!s) continue;
       const half = c.length / 2;
+      if (c.double) {  // double flèche verticale ⇕ posée à c.lift px au-dessus du point : tige et deux pointes en V, sans liseré
+        const y = s[1] - (c.lift || 0), head = Math.min(7, half), color = rgba(c.color);
+        segment(out, s[0], y - half, s[0], y + half, c.width, color);
+        for (const sign of [-1, 1]) {
+          const tip = y + sign * half;
+          segment(out, s[0], tip, s[0] - head, tip - sign * head, c.width, color);
+          segment(out, s[0], tip, s[0] + head, tip - sign * head, c.width, color);
+        }
+        continue;
+      }
       if (c.edge) segment(out, s[0], s[1] - half, s[0], s[1] + half, c.width + 3, rgba(c.edge));  // liseré seulement si demandé
       segment(out, s[0], s[1] - half, s[0], s[1] + half, c.width, rgba(c.color));
     }
