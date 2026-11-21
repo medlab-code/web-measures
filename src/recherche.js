@@ -52,6 +52,8 @@ const Recherche = (() => {
       + '<input type="search" placeholder="Rechercher un lieu…" aria-label="Rechercher un lieu"'
       + ' autocomplete="off" spellcheck="false"><ul role="listbox" hidden></ul>';
     map.getContainer().append(box);
+    const filigrane = document.getElementById("filigrane-carte");
+    if (filigrane) box.append(filigrane);  // collé à gauche de la recherche (style.css), quelle que soit la taille des boutons
     const input = box.querySelector("input");
     const list = box.querySelector("ul");
     let results = [], active = -1, timer = null, asked = 0, chosen = 0;
