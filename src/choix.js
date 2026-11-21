@@ -44,7 +44,6 @@ const Choix = {
           ? map.queryRenderedFeatures([[x - 6, y - 6], [x + 6, y + 6]], { layers })
           .find((f) => etat.overlay.features[f.id]?.properties.photo_ref) : null;
         if (hit) reviewMeasure(hit.id);
-        else if ($("#nez-bords")?.getAttribute("aria-pressed") === "true") notice("Largeur ↔ en cours : la photo ne change pas (quittez ↔ pour en ouvrir une autre).");
         else openNearest(event.lngLat.lng, event.lngLat.lat);
       }
     });
