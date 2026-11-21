@@ -428,12 +428,19 @@ const Carte = (() => {
     });
     map.addControl(new maplibregl.NavigationControl(), "top-left");
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
-    // Attributions repliées derrière le bouton ⓘ : MapLibre les déplie d'office quand elles
-    // arrivent (classe maplibregl-compact-show) ; repliées une fois la carte prête
+    // Attributions repliées derrière le bouton ⓘ (et le choix du fond qui s'y trouve) : MapLibre les déplie
+    // d'office à la création et quand des sources arrivent (classe maplibregl-compact-show) ; repliées dès
+    // l'ajout, puis à « load » et au premier « idle ». Un clic sur ⓘ les ouvre et les referme comme avant.
+    const replierAttributions = () => {
+      const attrib = map.getContainer().querySelector(".maplibregl-ctrl-attrib");
+      if (!attrib?.classList.contains("maplibregl-compact-show")) return;
+      attrib.classList.remove("maplibregl-compact-show");
+      attrib.setAttribute("open", "");  // état « replié » de MapLibre (voir _toggleAttribution)
+    };
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
-    map.once("idle", () => {
-      map.getContainer().querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show");
-    });
+    replierAttributions();
+    map.once("load", replierAttributions);
+    map.once("idle", replierAttributions);
     map.once("load", () => loadedMaps.add(map));  // voir whenLoaded
     return map;
   }
