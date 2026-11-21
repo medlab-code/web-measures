@@ -122,7 +122,7 @@ body:not(.carte-en-grand):not(.fenetre-carte) #dessus-etat-replier { display: no
 h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
 /* Filigrane de version : discret, à gauche de l'étiquette du haut à droite de la vue principale (pastilles de la visionneuse, ou recherche
    et requêteur de la carte en grand) ; seul son survol (infobulle POC) lui donne un effet */
-.filigrane { position: absolute; z-index: 2; display: flex; align-items: center; white-space: nowrap; font-size: 11px; color: #fff; opacity: 0.55;
+.filigrane { position: absolute; z-index: 2; display: flex; align-items: center; white-space: nowrap; font-size: 11px; color: #ffd600; opacity: 0.55;
   padding: 0 0.5em; border-radius: 999px; background: rgba(24, 25, 28, 0.18); text-shadow: 0 0 3px rgba(0, 0, 0, 0.8); cursor: default; user-select: none; }
 #filigrane-vue { position: static; height: 2rem; }  /* dans #haut-droite-vue, à gauche des pastilles (captures, plein écran) : dans le flux, sans largeur recopiée */
 #filigrane-carte { top: 10px; height: var(--etiquette-ligne); right: calc(10px + min(18rem, 100% - 70px) + 6px); }  /* à gauche de la recherche */
