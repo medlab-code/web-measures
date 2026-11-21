@@ -156,26 +156,13 @@ body:not(.carte-en-grand):not(.fenetre-carte) #dessus-etat { display: none; }
 #dessus-etat:empty + #dessus-etat-replier,
 body:not(.carte-en-grand):not(.fenetre-carte) #dessus-etat-replier { display: none; }
 .dessus-etiquette { padding: 0 0.35em; border-radius: 4px; background: #fff; color: #111; font: 600 12px sans-serif; white-space: nowrap; }
-/* Bouton Mesure : à gauche des réglages, sur la hauteur des deux rangées, liseré orange comme
+/* Bouton Mesure : à gauche des réglages, liseré orange comme
    les alertes */
 header .mesure { flex-direction: row; align-items: stretch; gap: 0.8em; }
 header #mesure { display: inline-flex; align-items: center; gap: 0.4em; height: auto; padding: 0 0.9em;
                  font-size: 1.15em; font-weight: 600; border: 3px solid var(--panoramax); border-radius: 10px; }
-/* Effacer, Refaire, Tout effacer : liseré aux couleurs des repères de la visionneuse (jaune des croix,
-   vert de la verticale et des visées, rouge des traits de mesure), fond et texte des autres boutons ;
-   grisés sans effet possible */
-header #effacer, header #refaire, header #tout-effacer { border: 2px solid; border-radius: 7px; font-weight: 500; }
-header #effacer { border-color: #ffeb00; }
-header #refaire { border-color: #2ecc40; }
-header #tout-effacer { border-color: #d32f2f; }
-header #effacer:disabled, header #refaire:disabled, header #tout-effacer:disabled { color: var(--discret);
-  border-color: var(--bord); opacity: 1; }
-/* Réglages en grille : « Mode », sélecteur, « Sur un pont » ; Effacer, Refaire, Tout effacer centrés
-   sous le sélecteur */
-header .reglages { display: grid; grid-template-columns: auto auto auto; align-items: center; gap: 0.5em 0.35em; }
-header .reglages > .rang:first-child, header .reglages > .rang:first-child > label:first-child { display: contents; }
-header .reglages > .rang:first-child > label:last-child { margin-left: 0.2em; }
-header .reglages > .rang:last-child { grid-column: 2; justify-self: center; }
+/* Réglages : « Mode » et son sélecteur */
+header .reglages { display: flex; align-items: center; gap: 0.35em; }
 
 h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
 header h1 { font-size: 1.75em; line-height: 1; }  /* 28 px : titre nettement plus grand que la barre */

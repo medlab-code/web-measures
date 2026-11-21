@@ -46,7 +46,7 @@
       <span class="essai"
             title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.7.9 – projet personnel – POC</span>
     </div>
-    <!-- Mesure : gros bouton sur les deux rangées ; réglages, puis effacement en dessous -->
+    <!-- Mesure : gros bouton, puis réglages ; annuler et effacer sont dans la visionneuse (#reglage-image) -->
     <div class="bloc mesure carte-barre">
       <button id="mesure" type="button" aria-pressed="false" disabled
               title="Mesurer : un clic dans la photo prend un point au lieu de changer de photo"><svg width="20" height="20"
@@ -70,13 +70,6 @@
               </optgroup>
             </select>
           </label>
-        </div>
-        <div class="rang">
-          <button id="effacer" type="button" disabled
-                  title="Annule le dernier geste : dernière visée, dernier clic, puis la mesure en cours et le dernier point posé (raccourci Ctrl+Z ; « Refaire » ou Ctrl+Y rétablit)">Effacer</button>
-          <button id="refaire" type="button" disabled
-                  title="Rétablit ce que le dernier « Effacer » a retiré, si rien n'a été fait depuis (raccourci Ctrl+Y)">Refaire</button>
-          <button id="tout-effacer" type="button" disabled>Tout effacer</button>
         </div>
       </div>
     </div>
@@ -124,7 +117,7 @@ enregistrée en PNG et copiée dans le presse-papiers">
       </div>
       <!-- Luminosité et contraste de l'affichage de la photo seulement (filtre CSS : mesures et exports inchangés) ;
            un clic sur l'icône remet la valeur à 100 % (disposition.js) -->
-      <div id="reglage-image" role="group" aria-label="Luminosité, contraste, hauteur, profil en travers et largeur dans la visionneuse">
+      <div id="reglage-image" role="group" aria-label="Luminosité, contraste, outils de mesure, annuler et effacer dans la visionneuse">
         <div>
           <input type="range" id="luminosite" min="50" max="150" step="1" value="100"
                  aria-label="Luminosité" title="Luminosité de l'affichage de la photo">
@@ -154,6 +147,20 @@ enregistrée en PNG et copiée dans le presse-papiers">
                   title="Profil en travers : chute et dévers des bords de la route (hors pont), terrain LiDAR HD lu en travers de la route jusqu'à la distance de la réglette « Jusqu'à » de la fenêtre ; la coupe s'affiche dans cette fenêtre">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M2 20V4M2 20h20M5 9l4 0 3 6 4-2 5 0"/></svg></button>  <!-- dessin de l'ancien bouton « Graphiques » (axes et coupe du terrain), repris tel quel -->
+        </div>
+        <!-- Effacer (↶), refaire (↷), tout effacer (corbeille) (src/mesure.js, grisés par app.js) : toujours là, grisés quand ils n'ont pas d'effet -->
+        <div class="outils" role="group" aria-label="Effacer, refaire, tout effacer">
+          <button type="button" id="effacer" disabled aria-label="Effacer le dernier geste"
+                  title="Effacer : annule le dernier geste : dernière visée, dernier clic, puis la mesure en cours et le dernier point posé (raccourci Ctrl+Z ; « Refaire » ou Ctrl+Y rétablit)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+          <button type="button" id="refaire" disabled aria-label="Refaire"
+                  title="Refaire : rétablit ce que le dernier « Effacer » a retiré, si rien n'a été fait depuis (raccourci Ctrl+Y)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
+          <button type="button" id="tout-effacer" disabled aria-label="Tout effacer" title="Tout effacer : mesures et points de la session">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>
         </div>
       </div>
       <ul id="voyants" hidden></ul>

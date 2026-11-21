@@ -564,7 +564,7 @@ après.
   (couleurs et étiquettes selon ses champs, recalage, export GeoJSON ou CSV : colonnes `id`, champs,
   `voie`, `pr`, `commune`, `commentaire`, puis le reste, dont `z_ngf`) ; une couche déjà chargée
   peut être enregistrée avant d'être remplacée. Le relevé reste dans le navigateur d'une séance à
-  l'autre jusqu'à « Vider » ; « Tout effacer » ne le retire que depuis ce mode.
+  l'autre jusqu'à « Vider » ; « Tout effacer » (corbeille, en haut de la visionneuse) ne le retire que depuis ce mode.
   Chaque objet se voit sur toutes les photos à 100 m au plus : là où il a été visé, sinon à son
   altitude (photos RTK : `z_ngf`, exportée), et projeté au sol seulement sans elle.
 
@@ -582,8 +582,8 @@ cliqués, ou projetés au sol sur les autres photos). Dans la photo, la vertical
 est en tirets verts ; sur la carte, les
 visées de triangulation sont en tirets rouges.
 
-**Effacer** (ou **Ctrl+Z**, aussi dans la carte détachée) : annule le dernier geste
-(**Refaire**, Ctrl+Y ou Ctrl+Maj+Z le rétablit, si rien n'a été fait depuis). La
+**Effacer** (bouton ↶ en haut de la visionneuse, à droite des outils de mesure, ou **Ctrl+Z**, aussi dans la carte détachée) : annule le dernier geste
+(**Refaire**, bouton ↷, Ctrl+Y ou Ctrl+Maj+Z le rétablit, si rien n'a été fait depuis). La
 dernière visée seule (les autres restent),
 le dernier clic de l'objet vertical du calage, la sélection ou la mesure en cours ; sans rien en
 cours, le dernier point posé (sommet, puis le point de référence ; en relevé d'objets,
