@@ -120,8 +120,8 @@ enregistrée en PNG et copiée dans le presse-papiers">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg></button>
         </div>
-        <!-- Trois boutons de mesure côte à côte, de gauche à droite : largeur (↔, expérimental, src/nez.js), hauteur (↕, src/mesure.js),
-             profil en travers (src/reglages.js) ; bascules, une seule active à la fois, grisées quand la fonction ne s'applique pas -->
+        <!-- Cinq boutons de mesure côte à côte, de gauche à droite : largeur (↔, expérimental, src/nez.js), hauteur (↕, src/mesure.js),
+             profil en travers (src/reglages.js), relevé d'objets et calage (src/mesure.js) ; bascules, une seule active à la fois, grisées quand la fonction ne s'applique pas -->
         <div class="outils">
           <button type="button" id="nez-bords" disabled aria-pressed="false"
                   title="Largeur dans la visionneuse (expérimental) : droite au sol devant le véhicule, faites glisser ses extrémités jusqu'aux bords de la route">
@@ -135,6 +135,12 @@ enregistrée en PNG et copiée dans le presse-papiers">
                   title="Profil en travers : chute et dévers des bords de la route (hors pont), terrain LiDAR HD lu en travers de la route jusqu'à la distance de la réglette « Jusqu'à » de la fenêtre ; la coupe s'affiche dans cette fenêtre">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M2 20V4M2 20h20M5 9l4 0 3 6 4-2 5 0"/></svg></button>  <!-- dessin de l'ancien bouton « Graphiques » (axes et coupe du terrain), repris tel quel -->
+          <button type="button" id="releve-visionneuse" disabled aria-pressed="false" aria-label="Relevé d'objets dans la visionneuse"
+                  title="Relevé d'objets (couche SIG) : visez l'objet dans la photo, depuis une ou plusieurs photos, puis validez son point ; recliquer pour arrêter">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><path d="M12 7v6M9 10h6"/></svg></button>  <!-- épingle marquée d'une croix -->
+          <button type="button" id="calage-visionneuse" disabled aria-pressed="false" aria-label="Calage de l'inclinaison dans la visionneuse"
+                  title="Calage de l'inclinaison sur des objets verticaux : visez deux objets verticaux dans la photo ; recliquer pour arrêter">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3v18M6 21h12"/><path d="M6 16h5v5"/></svg></button>  <!-- verticale sur un sol, équerre -->
         </div>
         <!-- Effacer (↶), refaire (↷), tout effacer (corbeille) (src/mesure.js, grisés par app.js) : toujours là, grisés quand ils n'ont pas d'effet -->
         <div class="outils" role="group" aria-label="Effacer, refaire, tout effacer">

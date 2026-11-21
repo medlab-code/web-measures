@@ -1013,7 +1013,7 @@ html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):n
 }
 #reglage-image:hover { background: rgba(24, 25, 28, 0.82); }
 #reglage-image > div { display: flex; flex-direction: row-reverse; align-items: center; gap: 0.2rem; }  /* icône, puis curseur */
-#reglage-image > div.outils { flex-direction: row; gap: 0.3rem; }  /* largeur, hauteur, profil : côte à côte */
+#reglage-image > div.outils { flex-direction: row; gap: 0.3rem; }  /* outils de mesure : côte à côte */
 #reglage-image input[type="range"] {
   width: 5.5rem;
   height: 1.2rem;
@@ -1033,7 +1033,7 @@ html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):n
 #reglage-image button:not(:disabled), #captures-visionneuse button:not(:disabled) { cursor: pointer; }
 #reglage-image button:not(:disabled):hover, #captures-visionneuse button:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }
 #reglage-image button:disabled, #captures-visionneuse button:disabled { opacity: 0.6; }
-#captures-visionneuse #plein-ecran[aria-pressed="true"], #reglage-image button[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); color: #ffd600; }  /* hauteur, profil ou largeur dans la visionneuse active */
+#captures-visionneuse #plein-ecran[aria-pressed="true"], #reglage-image button[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); color: #ffd600; }  /* outil de mesure de la visionneuse actif */
 /* Captures et plein écran de la visionneuse : en haut à droite (#voyants est dessous), même fond que les réglages de l'image */
 #captures-visionneuse {
   position: absolute; right: 0.8rem; top: 0.6rem; z-index: 5; display: flex; align-items: center; gap: 0.3rem;
