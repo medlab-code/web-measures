@@ -385,11 +385,7 @@ const Carte = (() => {
           id: "cibles", type: "circle", source: "mesures", filter: kind("cible"),
           paint: { "circle-color": "rgba(0, 0, 0, 0)", "circle-radius": 7, "circle-stroke-width": 2.5, "circle-stroke-color": ROUGE },
         },
-        {  // largeur dans la visionneuse (src/nez.js) : droite verte liserée de sombre, bords en petits traits rouges perpendiculaires (taille écran) ; pas interactifs
-          id: "nez-halo", type: "line", source: "nez", filter: ["==", ["geometry-type"], "LineString"],
-          paint: { "line-color": "#202020", "line-width": 5 },
-        },
-        {
+        {  // largeur dans la visionneuse (src/nez.js) : droite verte sans liseré, bords en petits traits rouges perpendiculaires (taille écran) ; pas interactifs
           id: "nez-droite", type: "line", source: "nez", filter: ["==", ["geometry-type"], "LineString"],
           paint: { "line-color": "#00c853", "line-width": 2.5 },
         },
@@ -540,24 +536,15 @@ const Carte = (() => {
     return ctx.getImageData(0, 0, size, size);
   }
 
-  /** Petit trait vertical rouge (rouge des poignées de la photo, src/nez.js) entouré d'un liseré blanc : bord de la largeur dans la visionneuse,
-   * tourné perpendiculairement à la droite par icon-rotate ; 18 px à l'écran quel que soit le zoom. Canvas 10 × 36 à pixelRatio 2 :
-   * trait rouge de 3 px de canvas (1,5 px écran) centré, liseré blanc de 7 px au total (1 px écran de chaque côté du trait). */
+  /** Petit trait vertical rouge (rouge des poignées de la photo, src/nez.js), sans liseré : bord de la largeur dans la visionneuse,
+   * tourné perpendiculairement à la droite par icon-rotate ; 19,5 px à l'écran quel que soit le zoom (13 px avant le 21/11/2026,
+   * ×1,5). Canvas 4 × 39 à pixelRatio 2 : trait rouge de 4 px de canvas (2 px écran) sur toute la hauteur. */
   function edgeTickImage() {
-    // Trait rouge de 4 px de canvas (2 px écran), liseré blanc de 10 px au total (1,5 px écran de chaque côté) :
-    // canvas de 14 px de large, trait centré (x = 7), longueur et retraits inchangés
-    const w = 14, h = 36, canvas = document.createElement("canvas");
+    const w = 4, h = 39, canvas = document.createElement("canvas");
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext("2d");
-    ctx.lineCap = "butt";
-    // [couleur, épaisseur, retrait en haut et en bas] : le liseré est tracé d'abord, le rouge par-dessus
-    for (const [color, width, inset] of [["rgba(255, 255, 255, 0.85)", 10, 4], ["#d93025", 4, 5]]) {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = width;
-      ctx.beginPath();
-      ctx.moveTo(w / 2, inset); ctx.lineTo(w / 2, h - inset);
-      ctx.stroke();
-    }
+    ctx.fillStyle = "#d93025";
+    ctx.fillRect(0, 0, w, h);
     return ctx.getImageData(0, 0, w, h);
   }
 

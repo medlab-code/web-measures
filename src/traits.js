@@ -127,7 +127,7 @@ const Traits = (() => {
    * Seconde couche, que les mesures (set) n'écrasent pas : « Largeur dans la visionneuse » (src/nez.js). Mêmes formes que set :
    * lines [{points, color, width}], crosses [{at, color}], labels [{at, type, place, text, lift (px : étiquette
    * remontée)}] ; ticks : petits traits verticaux d'écran, de longueur constante en px, centrés sur le point
-   * [{at, color, width (px), length (px), edge (couleur du liseré)}]. Pas dans les captures. Sans argument : couche vidée.
+   * [{at, color, width (px), length (px), edge (couleur du liseré, facultatif : sans lui, pas de liseré)}]. Pas dans les captures. Sans argument : couche vidée.
    */
   function setExtra(layer = {}) {
     if (!psv) return;
@@ -350,11 +350,11 @@ const Traits = (() => {
       if (c.ring) circle(out, x, y, 10, 2, rgba(c.ring));
     }
 
-    for (const c of ticks) {  // poignées : trait vertical d'écran dans un liseré
+    for (const c of ticks) {  // poignées : trait vertical d'écran, avec un liseré si edge est donné
       const s = at(c.vector);
       if (!s) continue;
       const half = c.length / 2;
-      segment(out, s[0], s[1] - half, s[0], s[1] + half, c.width + 3, rgba(c.edge || "#202020"));
+      if (c.edge) segment(out, s[0], s[1] - half, s[0], s[1] + half, c.width + 3, rgba(c.edge));  // liseré seulement si demandé
       segment(out, s[0], s[1] - half, s[0], s[1] + half, c.width, rgba(c.color));
     }
 

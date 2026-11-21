@@ -16,7 +16,7 @@ const Nez = {
     const { etat, map } = host;
     const button = $("#nez-bords");
 
-    const GREEN = "#00c853", YELLOW = "#ffd600", DARK = "#202020", RED = "#d93025";  // droite verte liserée de sombre (lisible sur l'herbe comme sur l'enrobé), croix jaune au droit de la caméra, poignées rouges
+    const GREEN = "#00c853", YELLOW = "#ffd600", RED = "#d93025";  // droite verte sans liseré, croix jaune au droit de la caméra, poignées rouges
     const TICK_PX = 28;  // px : longueur à l'écran d'une poignée (trait vertical, quel que soit le zoom)
     const HANDLE_PX = 10;  // px : portée d'une poignée (distance du pointeur au trait)
     const MIN_OFFSET = 0.2;  // m : bord minimal d'un profil en travers repris comme position de départ d'une poignée
@@ -252,9 +252,9 @@ const Nez = {
         at(handles.droit)];
       const sides = [["gauche", handles.gauche], ["droit", handles.droit]];
       Traits.setExtra({
-        lines: [{ points, color: DARK, width: 5 }, { points, color: GREEN, width: 2.5 }],
+        lines: [{ points, color: GREEN, width: 2.5 }],
         crosses: [{ at: at(0), color: YELLOW }],  // croix au droit de la caméra
-        ticks: sides.map(([, o]) => ({ at: at(o), color: RED, edge: "#ffffff", length: TICK_PX, width: 3 })),
+        ticks: sides.map(([, o]) => ({ at: at(o), color: RED, length: TICK_PX, width: 3 })),
         // largeur entre les poignées : étiquette « mesure » des largeurs de Mesure (↔ valeur ± incertitude, comme l'encart),
         // au milieu de la droite ; les distances de chaque bord restent dans l'encart
         labels: [{ at: at((handles.gauche + handles.droit) / 2), type: "mesure", place: "dessus",
