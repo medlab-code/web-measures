@@ -120,14 +120,17 @@ const Visionneuse = {
         if (!viewer.psv) return;
         clearInterval(timer);
         etat.psv = viewer.psv;
-        // Flèches de navigation au sol de la visite virtuelle (ellipse violette, triangle blanc) : masquées pendant les mesures et
+        // Flèches de navigation au sol de la visite virtuelle (ellipse violette, triangle blanc) et curseur « aller ici » : masqués pendant les mesures et
         // la largeur dans la visionneuse seulement (classe « sans-fleches » sur le conteneur, posée par applyMeasureUi), visibles sinon.
         // Aucune option de la bibliothèque ne les retire sans couper aussi le lecteur de séquence (« pictures-navigation »
         // = « pic » grise suivant/précédent) : règle CSS dans la racine de la visionneuse ; le calque, recréé à chaque photo, la suit.
         const tourRoot = etat.psv.container.getRootNode();
         if (!tourRoot.getElementById?.("fleches-masquees")) {
           const hide = Object.assign(document.createElement("style"), { id: "fleches-masquees" });
-          hide.textContent = ".sans-fleches .psv-virtual-tour-arrows { visibility: hidden !important; }";
+          // Même classe pour le curseur « aller ici » (image ronde violette à triangle, enfant direct du conteneur, sans souris, recréée par
+          // le composant) : masqué par règle CSS, donc aussi s'il est créé ou réaffiché après le changement d'outil (largeur ↔ comprise).
+          hide.textContent = ".sans-fleches .psv-virtual-tour-arrows { visibility: hidden !important; }\n"
+            + ".sans-fleches > img[style*='pointer-events: none'][style*='position: absolute'] { visibility: hidden !important; }";
           (tourRoot === document ? document.head : tourRoot).append(hide);
         }
         // Pendant une mesure, le clic ne va pas à la visionneuse (elle irait à la photo voisine

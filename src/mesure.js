@@ -103,6 +103,11 @@ const Mesure = {
       document.addEventListener("outil-visionneuse", (event) => { if (isOn() && event.detail !== name) $("#mesure").click(); });
       return show;
     });
+    // Largeur ↔ ou profil lancé pendant une mesure sans bouton dans la visionneuse (longueur ou surface sur la carte, mode « tri ») : la mesure
+    // s'arrête aussi, sinon son réticule (vert une fois la photo calée) resterait sous la souris et le clic serait pris pour un point
+    document.addEventListener("outil-visionneuse", (event) => {
+      if (etat.measuring && ["largeur", "profil"].includes(event.detail) && !["height", "releve", "tilt"].includes($("#mode").value)) $("#mesure").click();
+    });
     const showModeButtons = () => modeButtons.forEach((show) => show());
     new MutationObserver(showModeButtons).observe($("#mesure"), { attributes: true, attributeFilter: ["disabled"] });
 
@@ -165,12 +170,7 @@ const Mesure = {
       const box = etat.psv?.container;
       if (!box) return;
       syncArrows();  // flèches au sol : masquées en mesure et en largeur dans la visionneuse
-      // Curseur « aller ici » qui suit la souris sur le sol : image du moteur 360°, sans souris
-      for (const img of box.querySelectorAll(":scope > img")) {
-        if (img.style.pointerEvents !== "none" || img.style.position !== "absolute") continue;
-        if (etat.measuring) img.style.setProperty("visibility", "hidden", "important");
-        else img.style.removeProperty("visibility");
-      }
+      // Curseur « aller ici » du moteur 360° : masqué par la règle CSS « sans-fleches » (syncArrows), comme les flèches au sol
       const root = box.getRootNode();
       let style = root.getElementById ? root.getElementById("mesure-pointeur") : null;
       if (etat.measuring && !style) {
