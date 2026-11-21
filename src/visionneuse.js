@@ -152,7 +152,7 @@ const Visionneuse = {
               return true;
             }
           }
-          if (event?.type === "click" && etat.measuring && !host.onArrow(event)) {
+          if (event?.type === "click" && etat.measuring && $("#mode").value !== "carte" && !host.onArrow(event)) {
             // croix sous le clic, en pixels (voir CROSS_PX) ; sans position dans la vue (clic simulé) : le calcul en juge
             const box = etat.psv.container.getBoundingClientRect(), d = event.data;
             const [x, y] = [d.viewerX ?? d.clientX - box.left, d.viewerY ?? d.clientY - box.top];

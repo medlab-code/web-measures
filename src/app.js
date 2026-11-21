@@ -977,7 +977,7 @@
   // Lecture de la séquence et onglet « Vidéo » (parcours, effets, parcours gardés, vidéo) : src/parcours.js
   const parcours = Parcours.init({
     get psv() { return etat.psv; }, get photo() { return etat.photo; }, get app() { return etat.app; },
-    get measuring() { return etat.measuring; },
+    get measuring() { return etat.measuring && $("#mode").value !== "carte"; },  // mesure de la visionneuse (la mesure sur la carte ne bloque pas le lecteur)
     map, viewer, store, instance, follow, metresBetween, setStatus, refresh, showPane, fileInput, ask, passesFilter,
     filterActive, notice, applyFilter, addProducer, saveAs, exportName, download, showOverViewer,
   });

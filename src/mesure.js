@@ -63,7 +63,7 @@ const Mesure = {
      * se change par le lecteur ou la carte) et pendant la largeur dans la visionneuse (bouton « Largeur dans la visionneuse » enfoncé, lu sans toucher à nez.js) ;
      * visibles hors mesure. Une seule décision : classe « sans-fleches » sur le conteneur (règle CSS posée par attachViewer). */
     function syncArrows() {
-      const hidden = etat.measuring || $("#nez-bords")?.getAttribute("aria-pressed") === "true";
+      const hidden = (etat.measuring && $("#mode").value !== "carte") || $("#nez-bords")?.getAttribute("aria-pressed") === "true";
       etat.psv?.container.classList.toggle("sans-fleches", hidden);
     }
     // La largeur dans la visionneuse change le bouton sans passer par applyMeasureUi : on suit son attribut
@@ -136,7 +136,7 @@ const Mesure = {
       $("#croix-cadastre").hidden = !$("#cadastre").checked || !$("#cadastre-visionneuse").checked || viewer.hidden;
       // Même état en toutes lettres, sous le rappel du mode (comme les voyants)
       // Carte d'étape (en bas, en mesure) : nom de la mesure et ses étapes, la courante en couleur
-      $("#vue").classList.toggle("en-mesure", etat.measuring);
+      $("#vue").classList.toggle("en-mesure", etat.measuring && mode !== "carte");  // mesure sur la carte : la visionneuse reste libre
       const [title, steps, current] = mode === "height" ? ["Hauteur", ["Pied", "Sommet"], etat.aiming ? 0 : etat.newMeasure ? 2 : 1]
         : mode === "releve" ? ["Relevé d'objets", ["Objet visé", "Ses champs"], 0]
         : mode === "carte" ? Dessus.tool() === "surface" ? ["Surface sur la carte", ["Sommets", "Fermeture"], Dessus.hasStart() ? 1 : 0]
@@ -174,10 +174,12 @@ const Mesure = {
       // Curseur « aller ici » du moteur 360° : masqué par la règle CSS « sans-fleches » (syncArrows), comme les flèches au sol
       const root = box.getRootNode();
       let style = root.getElementById ? root.getElementById("mesure-pointeur") : null;
-      if (etat.measuring && !style) {
+      // Mode « carte » (longueur, surface) : le réticule de mesure ne concerne que le curseur de la carte, jamais la visionneuse, où que soit la carte
+      const onPhoto = etat.measuring && $("#mode").value !== "carte";
+      if (onPhoto && !style) {
         style = Object.assign(document.createElement("style"), { id: "mesure-pointeur" });
         (root === document ? document.head : root).append(style);
-      } else if (!etat.measuring && style) {
+      } else if (!onPhoto && style) {
         style.remove();
       }
       if (style?.isConnected) {
@@ -530,6 +532,7 @@ const Mesure = {
     $("#mode").addEventListener("change", (event) => {
       syncMapMeasure();
       applyMeasureUi();  // triangulation : navigation rétablie
+      if (etat.psv) updatePlayer();  // lecteur libre en mode carte
       refresh(etat.app.set_mode(event.target.value));
     });
     function setCamera() {

@@ -209,11 +209,8 @@ const Resultats = {
     let userSwap = false, measureSwap = false;  // échange en cours ; demandé par le bouton ; par la mesure
     function setSwapped(on) {
       if (on === etat.swapped || (on && etat.mapWindow)) return;
-      // Échange dans un sens ou l'autre : toute mesure en cours s'arrête (hauteur, relevé, calage, largeur ↔, profil), sauf Bird Eye
-      // (case « #dessus », réglages, pose, mesure « carte » et son tracé : Dessus.setMeasuring(false) les effacerait, on n'y touche pas).
-      // « outil-visionneuse » arrête ↔, profil et boutons de mode (qui cliquent « Mesure ») ; le reste, ci-dessous.
-      document.dispatchEvent(new CustomEvent("outil-visionneuse", { detail: "echange" }));
-      if (etat.measuring && $("#mode").value !== "carte") $("#mesure").click();
+      // Échange dans un sens ou l'autre : rien ne s'arrête (outils, mesures, Bird Eye, tracés) ; la photo et la carte se redessinent à leur
+      // nouvelle taille (resize de la fenêtre, ResizeObserver de la carte).
       etat.swapped = on;
       swapButton.setAttribute("aria-pressed", String(on));
       // carte en grand ou détachée : mesure et Bird Eye d'un clic
@@ -341,6 +338,22 @@ const Resultats = {
       onAdd: () => placeBar,
       onRemove: () => {},
     }, "top-left");
+    // Annuler, refaire, tout effacer sur la carte en grand ou détachée (les mêmes fonctions que les boutons de la barre de la visionneuse, qui
+    // ne sont plus sous la main) : les boutons de la barre sont cliqués, leur état grisé recopié. Seconde rangée, sous les boutons de la mesure.
+    const undoBar = Object.assign(document.createElement("div"), { className: "maplibregl-ctrl place-mesurer place-annuler" });
+    undoBar.style.top = "44px";
+    const undoButtons = [["#effacer", "Annuler le dernier geste de mesure (Ctrl+Z)"], ["#refaire", "Refaire (Ctrl+Y)"],
+      ["#tout-effacer", "Tout effacer : mesures et points de la session"]].map(([id, title]) => {
+      const source = $(id);
+      const button = Object.assign(document.createElement("button"), { type: "button", className: "capture-carte", hidden: true,
+        innerHTML: source.innerHTML, title, ariaLabel: source.getAttribute("aria-label") });
+      button.addEventListener("click", () => source.click());
+      new MutationObserver(() => { button.disabled = source.disabled; }).observe(source, { attributes: true, attributeFilter: ["disabled"] });
+      button.disabled = source.disabled;
+      undoBar.append(button);
+      return button;
+    });
+    map.addControl({ onAdd: () => undoBar, onRemove: () => {} }, "top-left");
     /** Bouton de la carte en grand : enfoncé pendant la mesure, grisé sans photo 360° (pas de vue du dessus). */
     function showMapMeasureButton() {
       // Faucon : carte à sa place (à droite), dans l'étiquette verticale avec le zoom ; carte en grand (à gauche) ou détachée, dans la
@@ -354,6 +367,7 @@ const Resultats = {
         if (captureButton.parentNode !== column) column.append(captureButton);  // carte à sa place : capture dans la colonne, sous le faucon
       }
       captureButton.hidden = !(etat.swapped || etat.mapWindow) && !column;
+      for (const button of undoButtons) button.hidden = !(etat.swapped || etat.mapWindow);  // carte à sa place : la barre de la visionneuse les a
       birdeyeButton.hidden = !(etat.swapped || etat.mapWindow) && !column;
       const on = etat.measuring && $("#mode").value === "carte";
       measureButton.setAttribute("aria-pressed", String(on));
