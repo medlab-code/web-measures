@@ -120,11 +120,14 @@ const Resultats = {
       return { near: [prev, next].filter(Boolean), far: far.filter(Boolean) };
     }
     let birdeyeFor = null;  // photo pour laquelle Bird Eye a été allumée : une autre photo l'éteint, rien n'est calculé sans clic
+    let calageFor = null;  // photo dont « Largeur dans la visionneuse » demande le calage Bird Eye, sans affichage (jusqu'à ce qu'il soit fait)
     function updateBirdeye() {
       if ($("#dessus").checked && etat.photo && birdeyeFor && birdeyeFor !== etat.photo.id) $("#dessus").checked = false;
+      if (calageFor && calageFor !== etat.photo?.id) calageFor = null;  // autre photo : calage interrompu avec la vue
       const pose = etat.app && etat.photo ? JSON.parse(etat.app.birdeye_pose()) : null, shown = pose && pose.pic === etat.photo.id;
       $("#dessus").disabled = !shown;
       const on = shown && $("#dessus").checked;
+      const silent = Boolean(shown && !on && calageFor);  // calage seul : les calculs de la vue, sans elle sur la carte
       if (etat.photo) Carte.showView(map, etat.photo.geometry.coordinates, host.coneHeading(), host.viewFov());  // cône retiré ou remis
       const inMap = (selector) => mapBox.querySelector(selector);  // réglages sur la carte, peut-être détachée
       for (const id of ["#dessus-fine", "#dessus-voisines", "#dessus-position", "#dessus-bords", "#dessus-sans-cache"])
@@ -134,7 +137,7 @@ const Resultats = {
       }
       inMap("#dessus-reglages").hidden = !on;  // vue du dessus allumée seulement
       showMapMeasureButton();
-      if (on && birdeyeAsked !== etat.photo.id) {
+      if ((on || silent) && birdeyeAsked !== etat.photo.id) {
         birdeyeAsked = etat.photo.id;
         birdeyeNear = null;
         etat.app.birdeye_neighbours("[]");
@@ -153,8 +156,28 @@ const Resultats = {
           updateBirdeye();
         });
       }
-      Dessus.update(on ? etat.photo : null, on ? JSON.parse(etat.app.birdeye_pose()) : null, birdeyeNear);
+      Dessus.update(on || silent ? etat.photo : null, on || silent ? JSON.parse(etat.app.birdeye_pose()) : null, birdeyeNear, silent);
     }
+    // Calage Bird Eye demandé par « Largeur dans la visionneuse » (src/nez.js) : voir Nez.init (setCalage)
+    nez.setCalage({
+      /** { ok } si la photo est déjà calée (par la vue allumée ou par une demande précédente), undefined sinon. */
+      state: (pic) => Dessus.calibrated(pic),
+      /** Lance le calage ; faux si la photo n'a pas de pose Bird Eye (pas de calage possible : le faucon est grisé). */
+      start(pic) {
+        const pose = etat.app && etat.photo?.id === pic ? JSON.parse(etat.app.birdeye_pose()) : null;
+        if (!pose || pose.pic !== pic) return false;
+        calageFor = pic;
+        updateBirdeye();
+        return true;
+      },
+    });
+    Dessus.onCalibrated((pic, ok) => {
+      if (calageFor === pic) {
+        calageFor = null;
+        updateBirdeye();  // calage seul fini : la vue est mise de côté, rallumée plus tard sans rien refaire
+      }
+      nez.calibrated(pic, ok);
+    });
     // Carte et visionneuse échangées (bouton ⇄ de la carte, ou longueur sur la carte) : la carte prend la place et la taille de
     // la visionneuse, et inversement. Deux gabarits vides gardent la mise en page, #vue et #carte se posent dessus. Carte
     // détachée : déjà à part, rien à échanger.

@@ -443,6 +443,18 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   (`ROLL_DEFECTS` : -1° pour le CD21 en 2025, comme verticale penchée, même signe que `groundUp` de `src/dessus.js` ; source « roulis de
   campagne », tangage inconnu, incertitude 2°), sinon rien (« aucune »). Le roulis de campagne n'est ajouté que seul (rang 6) : jamais aux
   verticales, au LiDAR ni au réglage de la vue du dessus, qui le contient déjà. La droite est projetée comme les mesures (`Session._view_of`).
+  **Calage Bird Eye au déplacement d'une poignée** (`src/nez.js` : `needCalage`, `calibrated`, `reanchor` ; `Dessus.update(…, silent)` et
+  `Dessus.onCalibrated` dans `src/dessus.js` ; `updateBirdeye` dans `src/resultats.js`). Le calcul de la droite en Python n'est pas
+  modifié : il lisait déjà l'inclinaison de la vue du dessus quand elle existe (rang 1, ci-dessus), mais seulement si la vue avait été
+  allumée. Désormais, au premier déplacement d'une poignée latérale sur une photo, la vue est calculée sans être affichée (terrain LiDAR,
+  inclinaison par la route ou verticales, tangage lu sur les lignes ; ni voisines, ni position sur l'orthophoto, qui sont des réglages
+  d'affichage) et annonce son inclinaison comme à l'ordinaire (`Dessus.onTilt` → `birdeye_tilt_set`) ; le calage est « fait » quand plus
+  rien n'est en cours (`calage: { ok }` de la vue, repris avec `computed` : une photo déjà calée, par la vue allumée ou par un déplacement
+  antérieur, n'attend pas). Sans inclinaison de route ni verticales (`ok` faux) ou sans pose Bird Eye, ou au-delà de 90 s : largeur sans
+  calage, avec message. Pendant le calage aucune largeur n'est affichée. À la fin les poignées déplacées à la main sont **replacées sur
+  leur point de l'image** : le décalage en mètres d'une poignée est celui du point le plus proche, en direction (yaw, pitch) de la
+  photo, de la droite recalculée avec l'inclinaison calée (`offsetOfDirection`), car l'inclinaison change la correspondance entre un pixel
+  et sa position au sol ; la largeur est la différence des deux décalages. La poignée jamais déplacée garde sa distance en mètres.
   Les verticales sont demandées par `birdeye_request` à l'affichage de la droite : même
   calcul, mêmes résultats gardés par photo que la vue du dessus avec « Calage par les verticales » (aucun calcul en double) ; elles
   arrivent après la première réponse (`inclinaison_en_calcul`) : la droite n'est tracée qu'à leur arrivée, poignées gardées. Source rendue dans `inclinaison_source`.

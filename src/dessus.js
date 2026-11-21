@@ -1459,12 +1459,16 @@ const Dessus = (() => {
   let map = null, shown = null;
   // Image décalée en travers pour se poser sur l'orthophoto (option d'essai, décochée par défaut, voir locate) : le GPS est à suspecter avant elle
   // (D33 : séquence du 04/07/2025 décalée de 0,75 m, celle du 20/06/2025 sur l'orthophoto à 2 cm près)
+  const withPosition = () => positionOn && !shown?.silent;
   let positionOn = false;  // désactivé par défaut (décision de l'auteur, 20/11/2026) ; case « Position calée sur l'orthophoto »
   const CLOSE_PX = 10;  // px : clic à cette distance d'un sommet de la surface en cours = surface refermée
   const SHIFT_MIN = 0.3;  // m : écart en deçà duquel la position GPS est gardée (lignes repérées à quelques cm, orthophoto à 20 cm)
   // Photos voisines (interrupteur « Véhicule masqué », éteint par défaut) : lues, analysées, dessinées sous le véhicule et
   // recalées sur la principale (alignJoin), tangage de la séquence lu sur les raccords ; sinon la photo affichée seule
   let neighboursOn = false;
+  // Calage sans affichage (silent, pour « Largeur dans la visionneuse » : Dessus.update(…, silent)) : mêmes calculs que Bird Eye (terrain,
+  // verticales, tangage lu sur les lignes), sans voisines ni position sur l'orthophoto (réglages d'affichage), sans image sur la carte
+  const withNeighbours = () => neighboursOn && !shown?.silent;
   // « Bords gardés » (éteint par défaut) : vue entière sur ±REACH m, sans la découpe à ±BEST.wide m de l'axe de la route
   let edgesOn = false;
   // « Calage par les verticales » : coché d'office pour une photo en zone d'habitation (Lieu.inTown), décoché ailleurs (sur 3
@@ -1517,9 +1521,9 @@ const Dessus = (() => {
    * au moins), celui de la photo lu sur ses lignes sur 25 m (pas sur 10 m : à plus de 1° deux fois) ; enfin, avec « Véhicule
    * masqué », la médiane des raccords de la séquence. */
   function autoPitch(sequence, pic) {
-    const own = neighboursOn ? photoPitch(sequence, pic) : undefined, lines = readLines()[sequence] || {};
+    const own = withNeighbours() ? photoPitch(sequence, pic) : undefined, lines = readLines()[sequence] || {};
     const values = Object.values(lines).map((v) => v.p ?? v);
-    const joined = neighboursOn && sequencePitch(sequence), round = (v) => Math.round(v * 20) / 20;
+    const joined = withNeighbours() && sequencePitch(sequence), round = (v) => Math.round(v * 20) / 20;
     if (own !== undefined) return { pitch: round(own), text: "lu sur les raccords de la photo" };
     if (values.length >= LINES_SEQUENCE)
       return { pitch: round(median(values)), text: `de la séquence, lu sur ses lignes (${values.length} photos)` };
@@ -1659,15 +1663,15 @@ const Dessus = (() => {
   const say = (text) => { $("#dessus-etat").textContent = text; };
 
   const busy = () => shown.estimating || shown.joining || shown.locating || shown.pose.pending
-    || (neighboursOn && (outlines.get(shown.sequence) === "reading" || shown.features === null || shown.loading.size > 0
+    || (withNeighbours() && (outlines.get(shown.sequence) === "reading" || shown.features === null || shown.loading.size > 0
       || shown.pose.neighbours.some((p) => p.pending)));
   /** Photos prêtes à dessiner, la principale d'abord (seule sans « Véhicule masqué »). */
-  const readyLayers = () => [shown.pose, ...(neighboursOn ? shown.pose.neighbours.filter((p) => !p.pending) : [])]
+  const readyLayers = () => [shown.pose, ...(withNeighbours() ? shown.pose.neighbours.filter((p) => !p.pending) : [])]
     .filter((pose) => shown.panos.has(pose.pic))
     .map(layerOf);
   /** Photos à deux pas prêtes (avec « Véhicule masqué », inclinées par la route : terrain LiDAR HD) : raccords pour le tangage
    * seulement (learnPitch), pas dessinées. */
-  const readyFar = () => (neighboursOn && onLidar(shown)
+  const readyFar = () => (withNeighbours() && onLidar(shown)
     ? (shown.pose.far || []).filter((pose) => shown.panos.has(pose.pic)).map(layerOf) : []);
   /** Couche d'une photo (pose) dans la vue affichée : position, inclinaison (verticales, sinon route), hauteur, contour. */
   function layerOf(pose) {
@@ -1680,18 +1684,18 @@ const Dessus = (() => {
     };
     // raccord de la voisine
     const seam = shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.seams?.get(pose.pic) : undefined;
-    const fix = neighboursOn && shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.map.get(pose.pic) : undefined;
-    const parallax = neighboursOn ? shown.height : null;  // lue avec les voisines : sans « Véhicule masqué », ignorée
+    const fix = withNeighbours() && shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.map.get(pose.pic) : undefined;
+    const parallax = withNeighbours() ? shown.height : null;  // lue avec les voisines : sans « Véhicule masqué », ignorée
     // hauteur : décalage entre photos, sinon RTK moins le sol (de la séquence, ou de la photo)
     const mount = shown.pose.fleet ? shown.pose.mount : null;  // CD21 : monture d'après la date (App.FLEET_MOUNTS)
     const height = mount ? { height: mount, height_sigma: MOUNT_SIGMA }
       : parallax && shown.pose.fleet ? { height: mountOf(parallax), height_sigma: MOUNT_SIGMA }  // CD21 hors campagne connue
       : parallax ? { height: parallax, height_sigma: HEIGHT_SIGMA }
       : { height: shown.sequenceHeight?.height ?? leveled.height, height_sigma: Math.max(leveled.height_sigma, RTK_SIGMA) };
-    const read = neighboursOn ? outlines.get(shown.sequence) : null;  // CD21 : contour lu sur la séquence, sinon celui de sa monture
+    const read = withNeighbours() ? outlines.get(shown.sequence) : null;  // CD21 : contour lu sur la séquence, sinon celui de sa monture
     const outline = !shown.pose.fleet ? null : Array.isArray(read) ? read : mount ? OUTLINES[mount]
       : parallax ? OUTLINES[mountOf(parallax)] : EITHER;
-    const bend = neighboursOn ? seam?.bend ?? undefined : undefined;  // lignes calées (lineField) ou écarts restants (bendField)
+    const bend = withNeighbours() ? seam?.bend ?? undefined : undefined;  // lignes calées (lineField) ou écarts restants (bendField)
     return { pose: { ...leveled, ...height, outline }, pano: shown.panos.get(pose.pic), at, fix, seam, bend };
   }
 
@@ -1708,7 +1712,7 @@ const Dessus = (() => {
   /** Longueur du départ au point (lon, lat) : { length, error, photos }. Un bout hors de la vue (contrôle sur le fond de
    * carte, l'orthophoto) : longueur sur la carte seule, sans incertitude (error null) ni photo. */
   /** Décalage de l'image (est, nord, m) : celui de l'orthophoto si l'option est cochée. */
-  const shiftOf = () => (positionOn && shown?.shift && Math.hypot(...shown.shift) > SHIFT_MIN ? shown.shift : [0, 0]);
+  const shiftOf = () => (withPosition() && shown?.shift && Math.hypot(...shown.shift) > SHIFT_MIN ? shown.shift : [0, 0]);
   /** Point de la carte dans le repère de la photo (est, nord, m), image décalée comprise. */
   const localOf = (point) => { const [e, n] = toLocal(...point, shown.pose), [de, dn] = shiftOf(); return [e - de, n - dn]; };
   /** Surface (m²) du polygone de points [lon, lat] : plan local du premier sommet, comme App.add_map_area. */
@@ -1926,7 +1930,7 @@ const Dessus = (() => {
     computed.set(view.pic, {
       terrain: view.terrain, wideTerrain: view.wideTerrain === "reading" ? undefined : view.wideTerrain,
       terrainFailed: view.terrainFailed, estimated: view.estimated && !view.estimating,
-      joins: view.joins, joinText: view.joinText, shift: view.shift,
+      joins: view.joins, joinText: view.joinText, shift: view.shift, calage: view.calage,
       located: view.located, locatedWith: view.locatedWith, placed: view.placed, lateral: view.lateral,
     });
     if (computed.size > COMPUTED_MAX) computed.delete(computed.keys().next().value);  // la plus ancienne
@@ -1996,6 +2000,10 @@ const Dessus = (() => {
     tiltAnnounced.set(main.pic, text);
     tiltListener(main.pic, text);
   }
+  /** Calage de la photo (même chose que la vue Bird Eye, sans l'afficher : update(…, silent)) : { ok } une fois fait, undefined avant.
+   * Fait aussi par la vue allumée ; gardé avec ce que la vue retient d'une photo (computed), la photo reprise sans rien refaire. */
+  const calibrated = (pic) => (shown?.pic === pic ? shown : parked?.pic === pic ? parked : computed.get(pic))?.calage;
+  let calageListener = null;  // (pic, ok) à chaque fois que la photo affichée est calée (Dessus.onCalibrated)
   async function showImage() {
     placeFor(shown);
     shown.joinKeyNow = joinKey();  // recalage des raccords valable pour ces réglages seulement
@@ -2008,50 +2016,56 @@ const Dessus = (() => {
     $("#dessus-verticales").disabled = !(pose.up && shown.terrain);  // verticales lues, route pour les remplacer
     // découpée à ±8 m de l'axe de la route (BEST.wide, sauf « Bords gardés »), bords parallèles à la route ; fondue
     // aux raccords avec les voisines (« Véhicule masqué »)
-    const band = edgesOn ? null : [...axis, 1e6, BEST.wide];
-    const canvas = (neighboursOn ? renderBlended : render)(layers, shown.terrain, layers[0].pose, band, fine ? FINE_SIZE : SHOWN_SIZE);
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-    if (mine !== drawing || !shown) return;
-    const old = shown.url, url = shown.url = URL.createObjectURL(blob);
-    // Sous les mesures de la page (source « mesures », src/carte.js) et le tracé en cours ; le reste de la carte reste dessous
-    const below = map.getStyle().layers.find((l) => l.source === "mesures" || l.id === LINE_ID)?.id;
-    const [de, dn] = shiftOf(), placed = (e, n) => toLonLat(e + de, n + dn, pose);
-    const coordinates = [[-REACH, REACH], [REACH, REACH], [REACH, -REACH], [-REACH, -REACH]].map(([e, n]) => placed(e, n));
-    Object.assign(shown, { blob, corners: coordinates });  // pour l'export géoréférencé (exportView)
-    if (map.getSource(IMAGE_ID)) {
-      map.getSource(IMAGE_ID).updateImage({ url, coordinates });
-    } else {
-      map.addSource(IMAGE_ID, { type: "image", url, coordinates });
-      map.addLayer({ id: IMAGE_ID, type: "raster", source: IMAGE_ID, paint: { "raster-fade-duration": 0 } }, below);
+    if (!shown.silent) {
+      const band = edgesOn ? null : [...axis, 1e6, BEST.wide];
+      const canvas = (withNeighbours() ? renderBlended : render)(layers, shown.terrain, layers[0].pose, band, fine ? FINE_SIZE : SHOWN_SIZE);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (mine !== drawing || !shown) return;
+      const old = shown.url, url = shown.url = URL.createObjectURL(blob);
+      // Sous les mesures de la page (source « mesures », src/carte.js) et le tracé en cours ; le reste de la carte reste dessous
+      const below = map.getStyle().layers.find((l) => l.source === "mesures" || l.id === LINE_ID)?.id;
+      const [de, dn] = shiftOf(), placed = (e, n) => toLonLat(e + de, n + dn, pose);
+      const coordinates = [[-REACH, REACH], [REACH, REACH], [REACH, -REACH], [-REACH, -REACH]].map(([e, n]) => placed(e, n));
+      Object.assign(shown, { blob, corners: coordinates });  // pour l'export géoréférencé (exportView)
+      if (map.getSource(IMAGE_ID)) {
+        map.getSource(IMAGE_ID).updateImage({ url, coordinates });
+      } else {
+        map.addSource(IMAGE_ID, { type: "image", url, coordinates });
+        map.addLayer({ id: IMAGE_ID, type: "raster", source: IMAGE_ID, paint: { "raster-fade-duration": 0 } }, below);
+      }
+      if (old) setTimeout(() => URL.revokeObjectURL(old), 5000);
     }
-    if (old) setTimeout(() => URL.revokeObjectURL(old), 5000);
     const flat = pose.bridge ? "pont à proximité, tablier horizontal" : shown.terrainFailed ? "service d'altitude injoignable"
       : "pas de LiDAR HD ici";
     const place = onLidar(shown) ? "Terrain LiDAR HD" : `Sol supposé plat (${flat})`;
-    const parallax = neighboursOn ? shown.height : null;
+    const parallax = withNeighbours() ? shown.height : null;
     const auto = pitchManual ? null : autoPitch(shown.sequence, shown.pic);
     // lignes : faute de tangage lu sur les raccords de la photo, une fois les raccords faits (ou impossibles)
-    const joinsDone = !neighboursOn || (!busy() && (layers.length < 2 || shown.joins?.key === shown.joinKeyNow));
+    const joinsDone = !withNeighbours() || (!busy() && (layers.length < 2 || shown.joins?.key === shown.joinKeyNow));
     const linesPending = !pitchManual && !pose.pending && layers[0].pose.groundTilt && joinsDone
-      && (neighboursOn ? photoPitch(shown.sequence, shown.pic) : undefined) === undefined
+      && (withNeighbours() ? photoPitch(shown.sequence, shown.pic) : undefined) === undefined
       && shown.linesAt !== pitchOffset && (shown.linePasses || 0) <= PITCH_PASSES;
     // Message d'état : terrain, photos, inclinaison, hauteur de caméra, puis ce qui est encore en cours
     const tilt = pose.pending ? "inclinaison en calcul" : layers[0].pose.groundTilt ? roadTiltText(layers[0].pose, auto)
       : `${pose.up ? "inclinaison" : "sans inclinaison,"} ±${number(pose.sigma, 1)}°`;
-    const others = shown.terrain || !neighboursOn ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
+    const others = shown.terrain || !withNeighbours() ? 0 : pose.neighbours.filter((p) => !p.up && !p.pending).length;
     const progress = linesPending ? "tangage en cours…" : shown.estimating ? "hauteur de caméra en calcul…"
       : shown.joining ? "raccords en cours…" : shown.locating ? "position en cours…"
-      : neighboursOn && outlines.get(shown.sequence) === "reading" ? "contour du véhicule en cours…"
+      : withNeighbours() && outlines.get(shown.sequence) === "reading" ? "contour du véhicule en cours…"
       : busy() ? "photos voisines en cours…" : "";
     const head = `${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}`
       + `${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}`
       + `, caméra à ${number(layers[0].pose.height, 2)} m${cameraOrigin(parallax)}`;
-    const joins = neighboursOn && shown.joinText && shown.joins?.key === shown.joinKeyNow ? shown.joinText : "";
-    say([head, joins, locatedText(), progress].filter(Boolean).join(" ; "));
+    const joins = withNeighbours() && shown.joinText && shown.joins?.key === shown.joinKeyNow ? shown.joinText : "";
+    if (!shown.silent) say([head, joins, locatedText(), progress].filter(Boolean).join(" ; "));
     if (linesPending) learnLines();
-    else if (positionOn && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
-    else if (!busy() && neighboursOn && !shown.estimated) measureHeight();
-    else if (!busy() && neighboursOn && layers.length > 1 && shown.joins?.key !== shown.joinKeyNow) alignJoins();
+    else if (withPosition() && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
+    else if (!busy() && withNeighbours() && !shown.estimated) measureHeight();
+    else if (!busy() && withNeighbours() && layers.length > 1 && shown.joins?.key !== shown.joinKeyNow) alignJoins();
+    else if (!progress && !pose.pending) {  // plus rien en cours : calage fait (ok : inclinaison de la photo connue, route ou verticales)
+      shown.calage = { ok: Boolean(layers[0].pose.groundTilt || layers[0].pose.up) };
+      calageListener?.(shown.pic, shown.calage.ok);
+    }
   }
 
   /** Écart en travers de la photo principale à l'orthophoto (profils en travers, voir orthoShift), sans toucher au
@@ -2059,7 +2073,7 @@ const Dessus = (() => {
   async function locate() {
     const mine = shown, [main] = readyLayers();
     mine.locating = true;
-    mine.locatedWith = neighboursOn;
+    mine.locatedWith = withNeighbours();
     say("Position sur l'orthophoto en cours…");
     try {
       const ortho = await readOrtho(mine.pose, abort.signal);
@@ -2074,11 +2088,11 @@ const Dessus = (() => {
       mine.locating = false;
     }
     if (shown !== mine) return;
-    if (positionOn && mine.located > SHIFT_MIN) cancelStart();  // départ pris sur l'image avant décalage
+    if (withPosition() && mine.located > SHIFT_MIN) cancelStart();  // départ pris sur l'image avant décalage
     await showImage();
   }
   /** Bilan de la position pour la barre d'état. */
-  const locatedText = () => (!positionOn || shown.located === undefined ? ""
+  const locatedText = () => (!withPosition() || shown.located === undefined ? ""
     : shown.located === null ? "position GPS gardée (profil de la chaussée sans accord avec l'orthophoto)"
     : Math.hypot(...shown.shift) > SHIFT_MIN ? `position calée sur l'orthophoto (décalage ${number(Math.hypot(...shown.shift), 2)} m)`
     : `position GPS gardée (écart à l'orthophoto ${number(Math.hypot(...shown.shift), 2)} m)`);
@@ -2111,7 +2125,7 @@ const Dessus = (() => {
   /** Lance la lecture des photos voisines dont l'inclinaison est connue (inutile de les charger avant), à portée. */
   function loadNeighbours(signal) {
     const mine = shown;
-    if (!neighboursOn) return;
+    if (!withNeighbours()) return;
     readSequenceOutline(mine, signal);
     for (const pose of [...mine.pose.neighbours, ...(mine.pose.far || [])]) {
       const feature = (mine.features || []).find((f) => f.id === pose.pic);
@@ -2167,9 +2181,9 @@ const Dessus = (() => {
   /** Position calée faite avec l'autre état de « Véhicule masqué » (tangage, hauteur lus ou non avec les voisines) : mise de
    * côté, celle de cet état reprise, sinon refaite. */
   function placeFor(view) {
-    if (view.located === undefined || view.locatedWith === neighboursOn) return;
+    if (view.located === undefined || view.locatedWith === withNeighbours()) return;
     view.placed = { ...view.placed, [view.locatedWith]: { located: view.located, shift: view.shift, locatedWith: view.locatedWith } };
-    Object.assign(view, view.placed[neighboursOn] || { located: undefined, shift: undefined, locatedWith: neighboursOn });
+    Object.assign(view, view.placed[withNeighbours()] || { located: undefined, shift: undefined, locatedWith: withNeighbours() });
   }
 
   /** Photo à montrer (fiche STAC, pose avec ses voisines et fiches des voisines, null s'il faut encore les lire ; photo null
@@ -2253,8 +2267,8 @@ const Dessus = (() => {
     return { blob, name: `bird-eye-${view.pic.slice(0, 8)}.tif` };
   }
 
-  async function update(photo, pose, features) {
-    const key = pose && JSON.stringify([pose, (features || []).map((f) => f.id), features === null]);
+  async function update(photo, pose, features, silent = false) {
+    const key = pose && JSON.stringify([pose, (features || []).map((f) => f.id), features === null, silent]);
     if (key === (shown?.key ?? null)) return;
     if (noCache && photo && shown?.pic !== photo.id) clearCache();  // autre photo, ou la même remontrée : tout refait
     cancelStart();  // départ pris sur l'ancienne image
@@ -2277,7 +2291,9 @@ const Dessus = (() => {
       const vertical = (p) => [p, ...p.neighbours].filter((q) => q.up && !q.pending).length;
       // verticales arrivées : hauteur entre photos refaite
       if (vertical(pose) > vertical(shown.pose) && !shown.estimating) shown.estimated = false;
-      Object.assign(shown, { key, pose, features });
+      const unveiled = shown.silent && !silent;  // Bird Eye allumée sur une photo déjà calée sans affichage : image à poser
+      Object.assign(shown, { key, pose, features, silent });
+      if (unveiled && withNeighbours()) shown.calage = undefined;  // voisines à lire : le calage d'affichage n'est plus fait
       if (pose.bridge && shown.terrain !== flatDeck) dropTerrain(shown);  // pont connu après le terrain
       if (!pose.pending) shown.sequenceHeight = sequenceHeight(photo.collection, pose);  // hauteur vérifiée arrivée après
       loadNeighbours(abort.signal);
@@ -2293,12 +2309,13 @@ const Dessus = (() => {
     parked = null;
     const controller = abort = new AbortController(), { signal } = controller;
     shown = {
-      photo, pic: photo.id, sequence: photo.collection, key, pose, features,
+      photo, pic: photo.id, sequence: photo.collection, key, pose, features, silent,
       height: sequenceParallax(photo.collection), estimated: false, estimating: false,
       panos: new Map(), loading: new Set(), terrain: null, sigmaGround: FLAT_SIGMA, terrainFailed: false, url: null,
     };
     const known = computed.get(photo.id);
-    if (known) Object.assign(shown, known);  // déjà vue : terrain, raccords et position repris
+    if (known) Object.assign(shown, known);  // déjà vue : terrain, raccords, position et calage repris
+    tiltAnnounced.delete(photo.id);  // inclinaison annoncée de nouveau (App.birdeye_tilt_set la garde par photo, 20 au plus)
     if (pose.bridge && shown.terrain !== flatDeck) dropTerrain(shown);
     applySettings(photo.collection, photo.id);
     shown.sequenceHeight = pose.pending ? null : sequenceHeight(photo.collection, pose);
@@ -2315,7 +2332,7 @@ const Dessus = (() => {
         if (shown === mine && mine.panos.has(mine.pic) && LEAN * lateral >= 0.1) showImage();
       });
     }
-    say("Lecture de la photo et du terrain…");
+    if (!silent) say("Lecture de la photo et du terrain…");
     try {
       const tiles = Video.record(photo, { coords: photo.geometry.coordinates }).tiles;
       const [terrain, part] = await Promise.all([
@@ -2332,12 +2349,18 @@ const Dessus = (() => {
       loadNeighbours(signal);
       await showImage();
     } catch (error) {
-      if (!signal.aborted) { console.error(error); say(`Bird Eye impossible : ${error.message}`); }
+      if (!signal.aborted) {
+        console.error(error);
+        say(`Bird Eye impossible : ${error.message}`);
+        mine.calage = { ok: false };
+        calageListener?.(mine.pic, false);
+      }
     }
   }
 
   return {
-    setup, update, exportView, onTilt: (listener) => { tiltListener = listener; }, geotiff, addPoint, cancelStart, setMeasuring,
+    setup, update, exportView, onTilt: (listener) => { tiltListener = listener; }, calibrated,
+    onCalibrated: (listener) => { calageListener = listener; }, geotiff, addPoint, cancelStart, setMeasuring,
     hasStart: () => trace.length > 0, measuring: () => measuringOn, setTool, tool: () => tool,
     layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins,
       outline: outlines.get(shown.sequence), locatedWith: shown.locatedWith },

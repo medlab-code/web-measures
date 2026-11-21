@@ -7,6 +7,11 @@
 // bord à la caméra et de la largeur, avec leur incertitude. Rien n'est retenu ni reporté dans le graphique du profil :
 // les poignées ne servent qu'à lire. Tracé dans la seconde couche de Traits (setExtra), que les mesures n'écrasent pas ;
 // la droite et ses deux bords sont aussi tracés sur la carte (Carte.showNez) pour juger qu'elle est perpendiculaire à la route.
+// Dès qu'une poignée latérale est déplacée, la photo est calée comme le fait la vue Bird Eye (inclinaison tirée de la route, verticales,
+// tangage lu sur les lignes ; Dessus.update en mode silencieux, sans rien afficher sur la carte) : tant que le calage n'est pas fait,
+// l'encart et l'étiquette disent « Calage Bird Eye en cours… » et aucune largeur n'est affichée ; une fois fait, la largeur est recalculée sur
+// la photo calée (les poignées gardent leur place dans l'image, pas leur distance en mètres) ; le calage est gardé par photo, partagé
+// avec la vue Bird Eye (rallumée sur la photo, elle est prête plus vite).
 
 const Nez = {
   /** Branche le bouton de la visionneuse ; host : etat (état partagé), map (carte MapLibre), notice. Rend update (photo affichée changée ou
@@ -26,6 +31,8 @@ const Nez = {
     const INCLINATION = 0.5, ROLL = 0.5;  // degrés : incertitude de l'inclinaison de la photo et du roulis restant (docs/CALCULS.md)
     const ROTATION_MAX = 45;  // degrés : rotation de la droite autour de la croix jaune, de part et d'autre de la perpendiculaire au trajet (comme NOSE_ROTATION_MAX en Python)
     const ROTATION_RATE = 0.1;  // degrés par px de glissement horizontal de la croix (Maj : 10 fois moins), précision de 0,1°
+    const CALAGE_MAX = 90000;  // ms : attente au plus du calage Bird Eye, puis largeur sans calage
+    const CALAGE_WAIT = "Calage Bird Eye en cours…";
     const toRad = Math.PI / 180;
 
     let active = false, raw = null, line = null;  // raw : dernière réponse de nose_line (texte), line : son contenu
@@ -34,6 +41,9 @@ const Nez = {
     let rotation = 0, keep = false;  // rotation (degrés, positif = sens trigonométrique vu du dessus), keep : droite gardée affichée pendant la relecture du relief
     let frame = null;  // image d'animation en attente (recalcul de la droite pendant la rotation)
     let drag = null, bound = null, readout = null, retry = null, waiting = null;
+    // Calage Bird Eye de la photo (voir en tête) : state « none » (pas demandé), « waiting » (en cours), « done », « impossible » (reason : cause)
+    let calage = { pic: null, state: "none", reason: "" }, calageTimer = null, calageApi = null;
+    let anchors = { gauche: null, droit: null };  // [yaw, pitch] de chaque poignée déplacée à la main : sa place dans l'image
     let deadline = null, expired = false;  // deadline : minuterie du délai d'attente, expired : délai écoulé (repli sur la meilleure droite)
 
     /** Attentes en cours dont dépend la position de la droite : photos voisines (axe), relief du MNT (sol), verticales (inclinaison). */
@@ -74,6 +84,87 @@ const Nez = {
 
     const available = () => Boolean(etat.psv && etat.photo && is360(etat.photo));
     const metres = (value, decimals = 2) => `${value.toFixed(decimals).replace(".", ",")} m`;
+
+    // Calage Bird Eye ---------------------------------------------------------------------------
+
+    /** Calage à demander et à lire (resultats.js) : state(pic) rend { ok } si la photo est déjà calée, start(pic) lance le calage (faux si
+     * impossible). */
+    function setCalage(api) {
+      calageApi = api;
+    }
+
+    function resetCalage() {
+      clearTimeout(calageTimer);
+      calageTimer = null;
+      calage = { pic: null, state: "none", reason: "" };
+    }
+
+    const calageWaiting = () => calage.state === "waiting" && calage.pic === photoId;
+
+    /** Une poignée a été déplacée : calage Bird Eye de la photo demandé, une fois par photo (déjà fait, il est repris sans attente). */
+    function needCalage() {
+      if (!active || !calageApi || (calage.pic === photoId && calage.state !== "none")) return;
+      resetCalage();
+      calage.pic = photoId;
+      const known = calageApi.state(photoId);
+      if (known) {
+        calage.state = known.ok ? "done" : "impossible";
+        calage.reason = "";
+        if (known.ok) reanchor();
+      } else if (!calageApi.start(photoId)) {
+        Object.assign(calage, { state: "impossible", reason: "" });
+      } else {
+        calage.state = "waiting";
+        const pic = photoId;
+        calageTimer = setTimeout(() => {
+          if (!active || photoId !== pic || calage.state !== "waiting") return;
+          Object.assign(calage, { state: "impossible", reason: "trop long" });
+          draw();
+        }, CALAGE_MAX);
+      }
+    }
+
+    /** Calage de la photo pic fini (ok : inclinaison connue) : largeur recalculée avec elle si on l'attendait. */
+    function calibrated(pic, ok) {
+      if (!active || pic !== photoId || !calageWaiting()) return;
+      clearTimeout(calageTimer);
+      calageTimer = null;
+      Object.assign(calage, { state: ok ? "done" : "impossible", reason: "" });
+      if (load() && !line?.error) settle();
+      if (ok) reanchor();
+      draw();
+      waitNeighbours(photoId);
+    }
+
+    /** Décalage (m) du point de la droite le plus proche (à l'écart angulaire le plus petit) de la direction (yaw, pitch) de la photo. */
+    function offsetOfDirection(yaw, pitch) {
+      const unit = (y, p) => [Math.cos(p) * Math.sin(y), Math.sin(p), Math.cos(p) * Math.cos(y)];
+      const target = unit(yaw, pitch);
+      let best = null, bestD = Infinity, previous = null;
+      for (const [o, y, p] of line.points) {
+        const v = unit(y, p);
+        if (previous) {
+          const [o0, a] = previous, d = v.map((c, k) => c - a[k]), n = d[0] * d[0] + d[1] * d[1] + d[2] * d[2] || 1;
+          const t = Math.max(0, Math.min(1, target.reduce((sum, c, k) => sum + (c - a[k]) * d[k], 0) / n));
+          const dist = Math.hypot(...a.map((c, k) => c + t * d[k] - target[k]));
+          if (dist < bestD) [best, bestD] = [o0 + t * (o - o0), dist];
+        }
+        previous = [o, v];
+      }
+      return best;
+    }
+
+    /** Poignées déplacées à la main replacées sur leur point de l'image avec l'inclinaison calée : leur décalage en mètres change,
+     * pas leur place dans la photo (la largeur est recalculée avec la photo calée). */
+    function reanchor() {
+      if (!line || line.error) return;
+      const next = { ...handles };
+      for (const side of ["gauche", "droit"]) {
+        const o = moved[side] && anchors[side] ? offsetOfDirection(...anchors[side]) : null;
+        if (o !== null) next[side] = Math.max(-line.reach, Math.min(line.reach, o));
+      }
+      if (next.droit - next.gauche >= MIN_GAP) handles = next;
+    }
 
     // Calcul ------------------------------------------------------------------------------------
 
@@ -212,6 +303,12 @@ const Nez = {
         readout.title = "";
         return;
       }
+      if (calageWaiting()) {  // ni largeur provisoire ni ancienne : seulement l'attente
+        text.textContent = CALAGE_WAIT;
+        readout.title = "La photo est calée comme dans la vue Bird Eye (inclinaison tirée de la route, verticales, tangage), sans l'afficher ; "
+          + "la largeur est recalculée avec elle ensuite.";
+        return;
+      }
       const width = handles.droit - handles.gauche;
       const uncertainty = roundUp05(widthSigma(handles.gauche, handles.droit));
       text.textContent = `Bord gauche ${offsetText(handles.gauche)} · Bord droit ${offsetText(handles.droit)} · Largeur ${metres(width)}`
@@ -220,6 +317,9 @@ const Nez = {
       if (tilt) text.textContent += ` · ${tilt}`;
       text.textContent += ` · ${groundText()}`;
       if (rotation !== 0) text.textContent += ` · ${rotationText()}`;
+      if (calage.pic === photoId && calage.state === "impossible") {
+        text.textContent += ` · Calage Bird Eye ${calage.reason || "impossible ici"} : largeur sans calage`;
+      }
       if (line.voisines === false) text.textContent += " · axe de la photo seule (voisines non arrivées)";
       readout.title = `Distance latérale de chaque bord à la caméra, lue sur la droite au sol à ${metres(line.d, 1)} devant elle `
         + `(${line.sol_dz ? `relief du MNT ${line.sol}` : "sol plat"}). Hauteur de la caméra ${metres(line.hauteur)}${line.hauteur_source ? ` (${line.hauteur_source})` : ""}`
@@ -258,7 +358,8 @@ const Nez = {
         // largeur entre les poignées : étiquette « mesure » des largeurs de Mesure (↔ valeur ± incertitude, comme l'encart),
         // au milieu de la droite ; les distances de chaque bord restent dans l'encart
         labels: [{ at: at((handles.gauche + handles.droit) / 2), type: "mesure", place: "dessus",
-          text: `↔ ${metres(handles.droit - handles.gauche)} ± ${metres(roundUp05(widthSigma(handles.gauche, handles.droit)))}` }],
+          text: calageWaiting() ? CALAGE_WAIT
+            : `↔ ${metres(handles.droit - handles.gauche)} ± ${metres(roundUp05(widthSigma(handles.gauche, handles.droit)))}` }],
       });
     }
 
@@ -351,6 +452,8 @@ const Nez = {
       if (o === null || o === handles[drag.side]) return;
       handles[drag.side] = o;
       moved[drag.side] = true;
+      anchors[drag.side] = locate(o);
+      needCalage();  // calage Bird Eye de la photo : largeur masquée jusqu'à sa fin
       draw();
     }
 
@@ -436,6 +539,8 @@ const Nez = {
       document.dispatchEvent(new CustomEvent("outil-visionneuse", { detail: "largeur" }));  // une seule fonction à la fois (hauteur, profil, largeur)
       active = true;
       moved = { gauche: false, droit: false };
+      anchors = { gauche: null, droit: null };
+      resetCalage();
       raw = null;
       photoId = etat.photo.id;
       etat.app.birdeye_request();  // verticales de la photo (même calcul que la vue du dessus) ; la droite est refaite à leur arrivée
@@ -474,6 +579,7 @@ const Nez = {
       clearTimeout(retry);
       clearTimeout(waiting);
       restartWait();
+      resetCalage();
       drag = null;
       unbind();
       raw = line = null;
@@ -497,6 +603,7 @@ const Nez = {
       if (etat.photo.id !== photoId) {
         photoId = etat.photo.id;
         etat.app?.birdeye_request();
+        resetCalage();
         drag = null;
         rotation = 0;
         keep = false;
@@ -524,6 +631,6 @@ const Nez = {
       }, 300);
     }
 
-    return { update, changed };
+    return { update, changed, setCalage, calibrated };
   },
 };
