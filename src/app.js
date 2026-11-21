@@ -376,8 +376,15 @@
     let step = 0, target = null;
     const place = () => {
       const box = target.getBoundingClientRect(), w = bubble.offsetWidth, h = bubble.offsetHeight;
-      const left = box.left > innerWidth / 2 ? box.left - w - 12 : box.left;  // colonne de droite : à gauche
-      const top = box.left > innerWidth / 2 ? box.top + 12 : box.bottom + 12;  // sinon dessous
+      let left = box.left > innerWidth / 2 ? box.left - w - 12 : box.left;  // colonne de droite : à gauche
+      let top = box.left > innerWidth / 2 ? box.top + 12 : box.bottom + 12;  // sinon dessous
+      if (target.id === "carte" && !document.body.classList.contains("carte-en-grand")) {
+        // Carte à droite (vue normale) : bulle centrée dans la visionneuse, sous les barres du haut (outils, filigrane et
+        // pastilles de capture), pour n'en cacher aucune (la pose à gauche de la carte les recouvrait)
+        const vue = $("#vue").getBoundingClientRect();
+        left = vue.left + (vue.width - w) / 2;
+        top = Math.max(...["#reglage-image", "#haut-droite-vue"].map((id) => $(id).getBoundingClientRect().bottom)) + 12;
+      }
       bubble.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, left))}px`;
       bubble.style.top = `${Math.max(8, Math.min(innerHeight - h - 8, top))}px`;
     };
