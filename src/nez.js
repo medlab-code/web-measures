@@ -43,6 +43,7 @@ const Nez = {
     const ROTATION_RATE = 0.1;  // degrés par px de glissement horizontal de la croix (Maj : 10 fois moins), précision de 0,1°
     const CALAGE_MAX = 90000;  // ms : attente au plus du calage Bird Eye, puis largeur sans calage
     const CALAGE_WAIT = "Calage Bird Eye en cours…";
+    const DOUBLE_MS = 400, TAP_PX = 5;  // double clic sur la croix : délai entre les deux appuis, déplacement toléré (px)
     const CHEVRON_GAP = 1, CHEVRON_GAP_HOVER = 5, CHEVRON_MS = 120;  // px : écart des chevrons ‹ › à la croix au repos et au survol ; durée du déplacement
     const toRad = Math.PI / 180;
 
@@ -54,6 +55,7 @@ const Nez = {
     let rotation = 0, keep = false;  // rotation (degrés, positif = sens trigonométrique vu du dessus), keep : droite gardée affichée pendant la relecture du relief
     let frame = null;  // image d'animation en attente (recalcul de la droite pendant la rotation)
     let ghost = null;  // droite d'avant le glissement de la croix : points [yaw, pitch], gardée en pointillés pendant le glissement
+    let lastTap = null;  // dernier appui sans glissement sur la croix : { t (ms), x (px) }
     let pivotHover = false, chevronGap = CHEVRON_GAP, chevronFrame = null;  // survol de la croix (chevrons écartés), écart animé en px
     let drag = null, bound = null, readout = null, retry = null, waiting = null;
     // Calage Bird Eye de la photo (voir en tête) : state « none » (pas demandé), « waiting » (en cours), « done », « impossible » (reason : cause)
@@ -315,7 +317,7 @@ const Nez = {
         readout = document.createElement("div");
         readout.id = "nez-lecture";
         readout.innerHTML = "<small>Largeur dans la visionneuse · expérimental</small><span></span>"
-          + "<button type=\"button\" id=\"nez-remise\" title=\"Remettre la droite perpendiculaire au trajet (rotation de 0°)\">"
+          + "<button type=\"button\" id=\"nez-remise\" title=\"Remettre la droite perpendiculaire au trajet (rotation de 0°) ; double clic sur la croix jaune : idem\">"
           + "Remettre perpendiculaire au trajet</button>";
         const reset = readout.querySelector("button");
         for (const type of ["pointerdown", "mousedown", "touchstart", "click"]) reset.addEventListener(type, (e) => e.stopPropagation());
@@ -492,7 +494,8 @@ const Nez = {
       if (!side) return;
       event.stopImmediatePropagation();  // la visionneuse ne tourne pas, ne mesure pas
       event.preventDefault();
-      drag = { side, id: event.pointerId, x: local(event)[0], rotation };
+      const now = Date.now(), again = side === "pivot" && lastTap && now - lastTap.t < DOUBLE_MS && Math.abs(local(event)[0] - lastTap.x) < TAP_PX;
+      drag = { side, id: event.pointerId, x: local(event)[0], x0: local(event)[0], rotation, double: Boolean(again) };  // double : deuxième appui d'un double clic
       if (side === "pivot") ghost = [locate(handles.gauche), ...line.points.filter(([o]) => o > handles.gauche && o < handles.droit).map(([, yaw, pitch]) => [yaw, pitch]), locate(handles.droit)];
       if (side === "profondeur") drag.grab = pointerPitch(...local(event)) - locate(depthOffset())[1];  // écart du pointeur à la poignée, gardé
       try {
@@ -510,7 +513,7 @@ const Nez = {
       }
       if (event.pointerId !== drag.id) return;
       event.stopImmediatePropagation();
-      if (drag.side === "pivot") return rotate(event);
+      if (drag.side === "pivot") return drag.double ? undefined : rotate(event);  // double clic : pas de rotation parasite
       if (drag.side === "profondeur") {  // vertical : distance de la droite ; horizontal : place de la flèche le long de la droite
         const [x, y] = local(event), o = nearestAlong(x, y);
         if (o !== null && o !== depthOffset()) {
@@ -641,7 +644,11 @@ const Nez = {
       if (!drag || event.pointerId !== drag.id) return;
       event.stopImmediatePropagation();
       if (drag.side === "profondeur") endSlide();
-      if (drag.side === "pivot") {
+      if (drag.side === "pivot" && drag.double) {  // double clic sur la croix : droite perpendiculaire au trajet
+        lastTap = null;
+        resetRotation();
+      } else if (drag.side === "pivot") {
+        lastTap = Math.abs(local(event)[0] - drag.x0) < TAP_PX ? { t: Date.now(), x: local(event)[0] } : null;  // appui sans glissement : premier clic possible
         cancelAnimationFrame(frame);
         frame = null;
         load();  // relief relu à l'angle choisi ; la droite reste affichée (keep) pendant la lecture
@@ -669,8 +676,14 @@ const Nez = {
       if (t && shown() && handleAt(...local(t))) event.stopImmediatePropagation();
     }
 
+    /** Double clic sur la croix : ni zoom ni navigation de la visionneuse (le double appui est lu dans onDown / onUp). */
+    function onDouble(event) {
+      if (shown() && handleAt(...local(event)) === "pivot") event.stopImmediatePropagation();
+    }
+
     function bind() {
       const container = etat.psv.container;
+      container.addEventListener("dblclick", onDouble, true);
       bound = { container, down: onDown, move: onMove, up: onUp, legacy: onLegacyDown };
       container.addEventListener("pointerdown", onDown, true);
       container.addEventListener("pointermove", onMove, true);
@@ -683,6 +696,7 @@ const Nez = {
     function unbind() {
       if (!bound) return;
       const { container } = bound;
+      container.removeEventListener("dblclick", onDouble, true);
       container.removeEventListener("pointerdown", onDown, true);
       container.removeEventListener("pointermove", onMove, true);
       container.removeEventListener("pointerup", onUp, true);
