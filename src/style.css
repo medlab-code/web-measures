@@ -90,9 +90,10 @@ input.interrupteur:disabled { opacity: 0.45; cursor: default; }
 .espace { flex: 1; }
 /* Réglages d'essai de la vue du dessus : panneau sur la carte, sous la recherche et le requêteur, seulement carte en
    grand ou détachée (comme l'étiquette d'état) ; repliable sur son titre */
-#dessus-reglages { position: absolute; top: 78px; right: 10px; z-index: 1; width: min(16rem, calc(100% - 70px)); box-sizing: border-box;
-  padding: 0.4rem 0.6rem; border: 1px solid var(--bord); border-radius: 6px; background: var(--fond); color: var(--texte);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); font-size: 13px; }
+#dessus-reglages { --haut: calc((14px + 2 * var(--etiquette-ligne)) * var(--echelle-ui, 1) + 8px);  /* sous le requêteur (zoomé comme lui), 8 px d'écart */
+  position: absolute; top: var(--haut); right: 10px; z-index: 1; width: min(16rem, calc(100% - 70px)); box-sizing: border-box;
+  max-height: calc(100% - var(--haut) - 80px * var(--echelle-ui, 1)); overflow-y: auto;  /* carte basse : défilement dans le panneau, sans toucher le « i » ni le bouton des informations */
+  padding: 0.4rem 0.6rem; border-radius: var(--etiquette-rayon); background: rgba(24, 25, 28, 0.82); color: #fff; font-size: 13px; }
 #dessus-reglages[hidden], body:not(.carte-en-grand):not(.fenetre-carte) #dessus-reglages { display: none; }
 #dessus-reglages .titre { display: flex; justify-content: space-between; align-items: center; gap: 0.5em; font-weight: 700; }
 #dessus-reglages .corps { display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem; margin-top: 0.45rem; }
@@ -100,21 +101,39 @@ input.interrupteur:disabled { opacity: 0.45; cursor: default; }
 #dessus-reglages label { display: flex; align-items: center; gap: 0.45em; }
 #dessus-reglages .devers input { width: 7em; }
 #dessus-reglages .devers output { min-width: 3.2em; font-variant-numeric: tabular-nums; }
-#dessus-reglages button { border: 1px solid var(--bord); border-radius: 5px; background: var(--encart); color: var(--texte); font: inherit; padding: 0.15em 0.55em; }
+/* contrôles au style de la barre de la visionneuse : boutons transparents (survol clair), réglettes fines, accent jaune */
+#dessus-reglages button { border: 0; border-radius: 6px; background: none; color: #fff; font: inherit; padding: 0.15em 0.55em; transition: background 0.2s; }
 #dessus-reglages button:not(:disabled) { cursor: pointer; }
-#dessus-reglages button:disabled { color: var(--discret); opacity: 0.6; }
+#dessus-reglages button:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }
+#dessus-reglages button:disabled { opacity: 0.6; }
+#dessus-reglages input[type="checkbox"]:not(.interrupteur) { accent-color: #ffd600; }
+#dessus-reglages input.interrupteur { background: rgba(255, 255, 255, 0.3); }
+#dessus-reglages input.interrupteur:checked { background: #ffd600; }
+#dessus-reglages input.interrupteur:focus-visible, #dessus-reglages input[type="range"]:focus-visible { outline: 2px solid #ffd600; outline-offset: 2px; }
+#dessus-reglages input[type="range"] { height: 1.2rem; margin: 0; accent-color: #c8c8c8; -webkit-appearance: none; appearance: none; background: none; }
+#dessus-reglages input[type="range"]::-webkit-slider-runnable-track { height: 0.15rem; border-radius: 999px; background: rgba(255, 255, 255, 0.45); }
+#dessus-reglages input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 0.7rem; height: 0.7rem; margin-top: -0.275rem; border: 0; border-radius: 50%; background: #c8c8c8; }
+#dessus-reglages input[type="range"]::-moz-range-track { height: 0.15rem; border-radius: 999px; background: rgba(255, 255, 255, 0.45); }
+#dessus-reglages input[type="range"]::-moz-range-thumb { width: 0.7rem; height: 0.7rem; border: 0; border-radius: 50%; background: #c8c8c8; }
 #dessus-reglages input.interrupteur { width: 2.1em; height: 1.2em; }  /* comme ceux de la barre */
 #dessus-reglages input.interrupteur::before { width: 0.9em; height: 0.9em; top: 0.15em; left: 0.15em; }
 #dessus-reglages input.interrupteur:checked::before { transform: translateX(0.9em); }
 /* même format que les étiquettes incrustées dans la photo (--etiquette-vue, plus bas) */
-#dessus-etat { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 2; max-width: calc(100% - 6em);  /* place du bouton de repli */ padding: 0.3rem 0.8rem; border-radius: 5px;
+#dessus-etat { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 2; max-width: calc(100% - 2 * (14px + var(--etiquette-element) * var(--echelle-ui, 1)));  /* place du bouton des informations */ padding: 0.3rem 0.8rem; border-radius: 5px;
   background: var(--etiquette-vue); color: #fff; font-size: 15px; font-weight: 600; line-height: 1.3; text-align: center; text-shadow: var(--detoure-vue); pointer-events: none; }
 #dessus-etat:empty { display: none; }
 /* carte à sa place, en petit : l'étiquette cacherait la vue ; seulement carte en grand ou détachée */
 body:not(.carte-en-grand):not(.fenetre-carte) #dessus-etat { display: none; }
-/* bouton pour replier l'étiquette (elle cache le bas de la vue) : à droite, à sa hauteur ; seulement quand elle a un message */
-#dessus-etat-replier { position: absolute; right: 8px; bottom: 34px; z-index: 2; min-width: 2em; padding: 0.2rem 0.5rem; border: 0; border-radius: 5px;
-  background: var(--etiquette-vue); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+/* bouton des informations Bird Eye (afficher ou masquer l'étiquette, elle cache le bas de la vue) : pastille au style unifié des boutons de la
+   carte (fond --etiquette-fond, icône blanche d'oiseau comme le bouton Bird Eye, jaune quand les informations sont affichées), grossie avec
+   --echelle-ui comme le « i » des sources, dont elle est alignée à droite ; posée au-dessus de la place que prend ce « i » une fois ouvert
+   (66 px, puis 6 px d'écart), de sorte qu'elle ne le touche ni fermé ni ouvert ; seulement quand l'étiquette a un message */
+#dessus-etat-replier { position: absolute; right: 10px; bottom: 72px; z-index: 2; zoom: var(--echelle-ui, 1); box-sizing: border-box;
+  width: var(--etiquette-element); height: var(--etiquette-element); padding: 0.15rem; border: 0; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; background: var(--etiquette-fond); color: #fff; cursor: pointer; transition: background 0.2s; }
+#dessus-etat-replier svg { width: 100%; height: 100%; }
+#dessus-etat-replier:hover { background: linear-gradient(rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.2)), var(--etiquette-fond-survol); }
+#dessus-etat-replier[aria-expanded="true"] { background: rgba(255, 214, 0, 0.3); color: #ffd600; }
 #dessus-etat.replie { display: none; }
 #dessus-etat:empty + #dessus-etat-replier,
 body:not(.carte-en-grand):not(.fenetre-carte) #dessus-etat-replier { display: none; }

@@ -1802,8 +1802,7 @@ const Dessus = (() => {
     const STATE_FOLDED_KEY = "web-measures/etat-replie", stateButton = $("#dessus-etat-replier");
     const foldState = (folded) => {
       $("#dessus-etat").classList.toggle("replie", folded);
-      stateButton.textContent = folded ? "ⓘ" : "▾";
-      stateButton.title = folded ? "Afficher les messages de Bird Eye" : "Replier les messages de Bird Eye (ils cachent le bas de la vue)";
+      stateButton.title = folded ? "Informations Bird Eye : afficher" : "Informations Bird Eye : masquer (elles cachent le bas de la vue)";
       stateButton.setAttribute("aria-expanded", String(!folded));
     };
     try { foldState(localStorage.getItem(STATE_FOLDED_KEY) === "1"); } catch { /* sans stockage : déplié */ }
