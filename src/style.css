@@ -1002,7 +1002,7 @@ html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):n
 #reglage-image input[type="range"]::-moz-range-thumb { width: 0.7rem; height: 0.7rem; border: 0; border-radius: 50%; background: #c8c8c8; }
 #reglage-image input[type="range"]:focus-visible { outline: 2px solid #ffd600; outline-offset: 2px; border-radius: 999px; }
 /* Séparateur vertical fin entre les groupes : 60 % de la hauteur de la barre, sans toucher ses bords, blocs écartés de part et d'autre */
-#reglage-image .separateur { flex: none; align-self: center; width: 1px; height: 1.2rem; margin: 0 0.4rem; background: rgba(255, 255, 255, 0.35); }
+#reglage-image .separateur { flex: none; align-self: center; width: calc(1px / var(--echelle-ui, 1)); height: 1.2rem; margin: 0 0.4rem; background: rgba(255, 255, 255, 0.35); }
 #reglage-image button, #captures-visionneuse button {
   display: flex;
   width: 1.6rem;
