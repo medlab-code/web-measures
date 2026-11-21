@@ -598,21 +598,15 @@
     setStatus(`Calcul indisponible : ${error.message}`, "echec");
   }).finally(checkServices);
 
-  /** Voyants de la visionneuse : inclinaison calée, en mode mesure seulement (elle n'est calculée qu'au premier clic de mesure).
-   * Les voyants RTK et sol (LiDAR HD ou RGE ALTI) ne sont plus affichés (retirés le 20/11/2026) : leur état reste dans la liste
-   * « Position » du panneau (showPosition, #qualite) ; le calcul les produit toujours (state.lights). */
+  /** Services sans réponse sous les voyants, et message d'inclinaison de la carte d'étape. Les voyants RTK, sol (LiDAR HD ou RGE ALTI)
+   * et inclinaison ne sont plus affichés (retirés les 20 et 21/11/2026) : l'état RTK et sol reste dans la liste « Position » du
+   * panneau (showPosition, #qualite) ; le calcul produit toujours tous les voyants (state.lights), dont celui de l'inclinaison, que
+   * lit le message de #calcul-inclinaison. */
   function showLights(lights = etat.lastLights) {
     etat.lastLights = lights;
     const list = $("#voyants");
-    // Inclinaison : en mesure seulement
-    const shown = etat.measuring ? lights.filter(([name]) => name === "Inclinaison") : [];
-    list.hidden = !shown.length && !silent.size;
-    list.replaceChildren(...shown.map(([name, light]) => {
-      const item = document.createElement("li");
-      item.className = light === "avant" ? "attente" : light;  // avant : calcul au premier clic
-      item.textContent = name;
-      return item;
-    }));
+    list.hidden = !silent.size;
+    list.replaceChildren();
     if (silent.size) {  // services sans réponse, en petit sous les voyants
       list.append(Object.assign(document.createElement("li"), {
         className: "muet", textContent: `⚠ Sans réponse : ${[...silent].join(", ")}`,

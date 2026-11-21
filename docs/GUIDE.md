@@ -741,8 +741,8 @@ pas utilisé (talus et murs pris pour la route).
 
 **Autour de la mesure** :
 
-- voyant d'**inclinaison** de la photo, en haut à droite de la visionneuse pendant la mesure (les voyants RTK et LiDAR HD ne sont plus
-  affichés : précision RTK et modèle de terrain restent dans la liste « Position » du panneau) ;
+- plus de voyants en haut à droite de la visionneuse (RTK, LiDAR HD, inclinaison retirés) : précision RTK et modèle de terrain restent
+  dans la liste « Position » du panneau, l'inclinaison est dite par le message de la carte d'étape ;
 - fonds de carte, choisis dans le panneau du « i » de la carte : 1. Orthophoto + (par défaut) ; 2. Plan IGN ; 3. Orthophoto ; 4. Ortho-express (année de la photo) ; 5. LiDAR MNT ; 6. LiDAR MNS ; 7. LiDAR MNH ; 8. OpenFreeMap ; recherche de lieux ; points de repère
   (PR) des routes ; requêteur route + PR (+ distance), à listes qui se réduisent à la frappe ;
 - lieu de la photo incrusté en bas à gauche de la visionneuse : route, PR et distance mesurée

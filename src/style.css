@@ -1178,25 +1178,9 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
   #calcul-inclinaison::before { animation-duration: 4s; }
   #calcul-inclinaison.attente:not(.calage) { animation: none; }
 }
-#voyants li::after {  /* boule centrée sur le texte ; le fond de l'étiquette suffit au contraste */
-  content: "";
-  flex: none;
-  width: 11px;
-  height: 11px;
-  margin-left: 0.4rem;
-  border-radius: 50%;
-}
-/* Texte de la couleur de sa boule (plus vive que celle des classes ok / attente du panneau) */
-#voyants li.ok { color: #2ecc40; }
-#voyants li.non { color: #ff5f52; }
-#voyants li.attente { color: #ffeb00; }
-#voyants li.ok::after { background: #2ecc40; }
-#voyants li.non::after { background: #e53935; }
-#voyants li.attente::after { background: #ffeb00; }
-/* Services sans réponse : discret, sans boule ; survol : son explication */
+/* Services sans réponse : discret ; survol : son explication */
 #voyants li.muet { max-width: 19rem; color: #ffd0c8; font-size: 12px; font-weight: 400; text-align: right;
   pointer-events: auto; cursor: help; }
-#voyants li.muet::after { content: none; }
 
 dialog {
   max-width: 34rem;
