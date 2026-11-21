@@ -83,7 +83,7 @@ attentes de condition (essai complet : environ 7 → 5 min), parcours de mesure 
 
 - Branche `main`, dépôt privé `medlab-code/web-measures` sur GitHub (privé depuis le 13/10/2026).
 - Release : tag `vX.Y.Z` et release GitHub (`gh release create … --target main`). Mettre à jour
-  dans le même commit le numéro affiché sous le titre (`index.html`, mention « Version test
+  dans le même commit le numéro du filigrane (`index.html`, mention « Version expérimentale
   X.Y.Z »), la rubrique « Version » du `README.md` (résumé court) et `docs/VERSIONS.md`. Le site Cloudflare
   (https://mesures-panoramax-web.medlab-code.workers.dev/) se met à jour à chaque push sur `main`.
   Celui de la branche `dev` (https://web-measures-dev.medlab-code.workers.dev/, second Worker) se met à

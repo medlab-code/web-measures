@@ -86,16 +86,6 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; line
 
 body { display: flex; flex-direction: column; }
 
-/* Barre du haut à 15 px (texte de la page : 14 px) : ses dimensions en em la suivent */
-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5em 0.8em;
-  padding: calc(0.45em + 2px) 0.8em calc(0.45em + 1px);  /* bordure du bas comprise : contenu sur l'axe de la barre */
-  border-bottom: 1px solid var(--bord);
-  font-size: 15px;
-}
 input.interrupteur:disabled { opacity: 0.45; cursor: default; }
 .espace { flex: 1; }
 /* Réglages d'essai de la vue du dessus : panneau sur la carte, sous la recherche et le requêteur, seulement carte en
@@ -130,21 +120,14 @@ body:not(.carte-en-grand):not(.fenetre-carte) #dessus-etat { display: none; }
 body:not(.carte-en-grand):not(.fenetre-carte) #dessus-etat-replier { display: none; }
 .dessus-etiquette { padding: 0 0.35em; border-radius: 4px; background: #fff; color: #111; font: 600 12px sans-serif; white-space: nowrap; }
 h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
-header h1 { font-size: 1.75em; line-height: 1; }  /* 28 px : titre nettement plus grand que la barre */
-/* Titre, avec la mention « version test » en dessous */
-header .marque { display: flex; flex-direction: column; align-items: center; gap: 0.45em; }
-/* Mention « version test » : discrète, mais visible sous le titre */
-header .essai {
-  font-size: 0.8em;
-  line-height: 1.3;
-  padding: 0 0.5em;
-  border: 1px solid var(--attente);
-  border-radius: 0.8em;
-  color: var(--attente);
-  white-space: nowrap;
-}
-/* Site de la branche dev : sous la mention « version test » */
-header .branche { font-size: 0.8em; line-height: 1; font-weight: 600; color: var(--echec); white-space: nowrap; }
+/* Filigrane de version : discret, à gauche de l'étiquette du haut à droite de la vue principale (pastilles de la visionneuse, ou recherche
+   et requêteur de la carte en grand) ; seul son survol (infobulle POC) lui donne un effet */
+.filigrane { position: absolute; z-index: 2; display: flex; align-items: center; white-space: nowrap; font-size: 11px; color: #fff; opacity: 0.55;
+  padding: 0 0.5em; border-radius: 999px; background: rgba(24, 25, 28, 0.18); text-shadow: 0 0 3px rgba(0, 0, 0, 0.8); cursor: default; user-select: none; }
+#filigrane-vue { top: 0.6rem; height: 2rem; right: calc(0.8rem + 6rem + 6px + 0.5rem); }  /* à gauche des trois pastilles (captures, plein écran) */
+#filigrane-carte { top: 10px; height: var(--etiquette-ligne); right: calc(10px + min(18rem, 100% - 70px) + 6px); }  /* à gauche de la recherche */
+body:not(.carte-en-grand):not(.fenetre-carte) #filigrane-carte, .carte-en-grand #filigrane-vue { display: none; }
+html.souris-immobile:fullscreen #filigrane-vue:not(:hover) { opacity: 0; }
 h2 { font-size: 0.95rem; margin: 0 0 0.4rem; }
 
 main { flex: 1; display: flex; min-height: 0; }
@@ -958,7 +941,7 @@ button.principal { font-weight: 600; }
    La carte d'étape et les messages restent. */
 #plein-ecran .sortir, #plein-ecran[aria-pressed="true"] .entrer { display: none; }
 #plein-ecran[aria-pressed="true"] .sortir { display: inline; }
-html:fullscreen header, html:fullscreen aside, html:fullscreen #poignee-colonne { display: none; }
+html:fullscreen aside, html:fullscreen #poignee-colonne { display: none; }
 html:fullscreen :is(#captures-visionneuse) { opacity: 0.35; }
 html:fullscreen :is(#captures-visionneuse):hover { opacity: 1; }
 html:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue) { transition: opacity 0.2s; }

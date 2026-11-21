@@ -40,13 +40,6 @@
   <script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
 </head>
 <body>
-  <header>
-    <div class="marque">
-      <h1>Mesures Panoramax</h1>
-      <span class="essai"
-            title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version test 0.7.9 – projet personnel – POC</span>
-    </div>
-  </header>
   <!-- Commandes de mesure pilotées par script, jamais affichées : « Mesure » (entrée et sortie de la mesure) et la liste « Mode ». Les boutons de la
        visionneuse (↕, relevé, calage : src/mesure.js) et celui de la carte (src/resultats.js) les utilisent. Bird Eye : état de la vue du dessus,
        allumé par le faucon de la carte ; le fond de carte est dans le panneau du « i » de la carte (src/reglages.js) -->
@@ -81,6 +74,8 @@
       <div id="croix-cadastre" hidden aria-hidden="true"></div>
       <pnx-photo-viewer id="visionneuse" endpoint="https://api.panoramax.xyz/api" widgets="false"
                         url-parameters="false" keyboard-shortcuts="false" hidden></pnx-photo-viewer>
+      <!-- Filigrane de version (tools/construire.sh y ajoute branche et date) : à gauche des boutons ci-dessous, ou sur la carte quand elle est en grand -->
+      <span id="filigrane-vue" class="filigrane" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version expérimentale 0.7.9</span>
       <!-- Boutons en haut à droite de la visionneuse : captures (src/fiche.js, « Image seule » et « Avec annotations »), puis plein écran (src/disposition.js) -->
       <div id="captures-visionneuse" role="group" aria-label="Captures et plein écran de la visionneuse">
         <button id="capture-hd" type="button" disabled aria-label="Image seule" title="Image seule : vue affichée recalculée en Full HD
@@ -215,7 +210,7 @@ enregistrée en PNG et copiée dans le presse-papiers">
               title="Masquer la carte et le panneau">▸</button>
     </div>
     <aside id="colonne">
-      <div id="carte"><div id="dessus-etat" role="status"></div><button id="dessus-etat-replier" type="button" aria-controls="dessus-etat"
+      <div id="carte"><span id="filigrane-carte" class="filigrane" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version expérimentale 0.7.9</span><div id="dessus-etat" role="status"></div><button id="dessus-etat-replier" type="button" aria-controls="dessus-etat"
           aria-expanded="true" title="Replier les messages de Bird Eye (ils cachent le bas de la vue)">▾</button>
         <!-- Réglages d'essai de la vue du dessus (src/dessus.js), sur la carte en grand ou détachée -->
         <section id="dessus-reglages" hidden aria-label="Réglages de la vue Bird Eye">

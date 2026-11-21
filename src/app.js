@@ -11,7 +11,6 @@
 
   // Site de la branche dev (second Worker) : même code que main, seul le nom d'hôte les distingue
   if (location.hostname.startsWith("web-measures-dev.")) {
-    $(".essai").insertAdjacentHTML("afterend", '<span class="branche">Branche expérimentale</span>');
     $('link[rel="icon"]').href = "src/favicon-dev.svg";
   }
 
