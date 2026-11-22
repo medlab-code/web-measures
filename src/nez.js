@@ -27,8 +27,11 @@ const Nez = {
    * la loupe (pastille et légende) ; bounds {w, h} : visionneuse ; obstacles [{left, top, right, bottom}] : poignée de l'autre bord, étiquette de largeur,
    * barre d'outils, bandeaux. Candidats : au-dessus (préféré), dessous, droite, gauche, puis les quatre diagonales ; chacun décalé au besoin pour
    * rentrer dans la visionneuse. Score (le plus bas gagne) = surface recouverte d'obstacles + 30 par pixel de décalage + 50 par rang de préférence ;
-   * un candidat qui couvre le point visé (marge `margin`) est écarté. Rend { left, top, name }. */
-  placeLoupe(target, size, bounds, obstacles = [], gap = 30, margin = 14) {
+   * un candidat qui couvre le point visé (marge `margin`) est écarté. Rend { left, top, name }.
+   * keep : côté déjà retenu au début du geste (le nom rendu auparavant). Tant qu'il reste possible (la loupe, décalée pour rentrer dans la visionneuse,
+   * ne couvre pas le point visé et ne se décale pas de plus de la moitié de sa taille), il est gardé tel quel, sans regarder les obstacles : la loupe suit
+   * le point sans sauter. Sinon le choix complet est refait, sans ce côté ; le nouveau est gardé à son tour (l'appelant le repasse en keep). */
+  placeLoupe(target, size, bounds, obstacles = [], gap = 30, margin = 14, keep = null) {
     const { w, h } = size, { x, y } = target;
     const candidates = [
       ["dessus", x - w / 2, y - gap - h], ["dessous", x - w / 2, y + gap], ["droite", x + gap, y - h / 2], ["gauche", x - gap - w, y - h / 2],
@@ -37,7 +40,7 @@ const Nez = {
     ];
     const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left))
       * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
-    let best = null, fallback = null;
+    let best = null, fallback = null, kept = null;
     candidates.forEach(([name, left0, top0], rank) => {
       // rentrer dans la visionneuse : décalage horizontal et vertical minimal (la loupe plus grande que la vue reste collée en haut à gauche)
       const left = Math.max(0, Math.min(bounds.w - w, left0)), top = Math.max(0, Math.min(bounds.h - h, top0));
@@ -45,9 +48,14 @@ const Nez = {
       const score = obstacles.reduce((sum, o) => sum + overlap(rect, o), 0) + 30 * (Math.abs(left - left0) + Math.abs(top - top0)) + 50 * rank;
       const covers = x > left - margin && x < rect.right + margin && y > top - margin && y < rect.bottom + margin;
       const item = { left, top, name, score };
+      if (name === keep) {
+        if (!covers && Math.abs(left - left0) + Math.abs(top - top0) <= Math.max(w, h) / 2) kept = item;
+        return;  // le côté retenu qui n'est plus possible n'est pas rechoisi
+      }
       if (!covers && (!best || score < best.score)) best = item;
       if (!fallback || score < fallback.score) fallback = item;
     });
+    if (kept) return kept;
     return best || fallback;  // jamais sur le point visé, sauf si la visionneuse est trop petite pour l'éviter
   },
 
@@ -97,6 +105,7 @@ const Nez = {
     let lastTap = null;  // dernier appui sans glissement sur la droite : { t (ms), x, y (px) }
     let hoverLine = false, rotatedAt = 0;  // droite survolée (épaissie) ; instant (ms) de la fin d'une rotation (menu contextuel de la fin du clic droit)
     let drag = null, bound = null, readout = null, retry = null, waiting = null;
+    let loupePlace = null, loupePlaceTimer = null;  // place retenue : { name (côté), left, top } ; minuterie de la transition d'un changement de côté
     let loupe = null, loupeSide = null, loupeTimer = null, wheelSide = null;  // loupe (éléments), poignée qu'elle suit, minuterie de la molette, poignée engagée par la molette
     // Calage Bird Eye de la photo (voir en tête) : state « none » (pas demandé), « waiting » (en cours), « done », « impossible » (reason : cause)
     let calage = { pic: null, state: "none", reason: "" }, calageTimer = null, calageApi = null;
@@ -671,12 +680,14 @@ const Nez = {
         loupe = { root, photo: root.querySelector(".photo").getContext("2d"), over: root.querySelector(".calque").getContext("2d"),
           legend: root.querySelector(".legende") };
       }
-      loupe.root.hidden = true;  // montrée à l'image suivante, une fois dessinée
+      if (!loupePlace) loupe.root.hidden = true;  // à l'ouverture : montrée à l'image suivante, une fois dessinée et placée
       etat.psv.needsUpdate();
     }
 
     function hideLoupe() {
       loupeSide = null;
+      loupePlace = null;  // le prochain geste refait le choix du côté
+      clearTimeout(loupePlaceTimer);
       clearTimeout(loupeTimer);
       loupeTimer = null;
       wheelSide = null;
@@ -815,7 +826,19 @@ const Nez = {
       const wrong = side === "gauche" ? o > 0 : o < 0;  // poignée passée de l'autre côté de la caméra
       loupe.legend.textContent = calageWaiting() ? "calage en cours…"
         : `bord ${side} : ${Math.abs(o) < 0.005 ? "au droit" : `${metres(Math.abs(o))}${wrong ? ` à ${o < 0 ? "gauche" : "droite"}` : ""}`}`;
-      const at = Nez.placeLoupe(point, { w: LOUPE_W, h: LOUPE_H }, { w: box.width, h: box.height }, loupeObstacles(box, other));
+      const size = { w: LOUPE_W, h: LOUPE_H }, bounds = { w: box.width, h: box.height }, margin = 14;
+      // Molette : loupe figée à sa place tant que le point visé reste hors d'elle (marge comprise) ; glissement : même côté, qui suit le point
+      let at = null;
+      const frozen = wheelSide && loupePlace;
+      if (frozen && !(point.x > loupePlace.left - margin && point.x < loupePlace.left + size.w + margin
+        && point.y > loupePlace.top - margin && point.y < loupePlace.top + size.h + margin)) at = loupePlace;
+      at ??= Nez.placeLoupe(point, size, bounds, loupePlace ? [] : loupeObstacles(box, other), 30, margin, loupePlace?.name);
+      if (loupePlace && at.name !== loupePlace.name) {  // changement forcé de côté : la loupe glisse vers sa nouvelle place (pas de transition au simple suivi)
+        loupe.root.classList.add("saute");
+        clearTimeout(loupePlaceTimer);
+        loupePlaceTimer = setTimeout(() => loupe?.root.classList.remove("saute"), 200);
+      }
+      loupePlace = { name: at.name, left: at.left, top: at.top };
       const vue = $("#vue").getBoundingClientRect();
       loupe.root.style.left = `${box.left - vue.left + at.left}px`;
       loupe.root.style.top = `${box.top - vue.top + at.top}px`;

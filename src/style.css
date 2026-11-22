@@ -1126,6 +1126,7 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
 /* Loupe de réglage fin d'une poignée des bords (src/nez.js) : pastille ronde et légende dessous ; tailles données par nez.js (--loupe-w, --loupe-px : LOUPE_PX) */
 #nez-loupe { position: absolute; z-index: 7; width: var(--loupe-w); pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 #nez-loupe[hidden] { display: none; }
+#nez-loupe.saute { transition: left 0.15s ease-out, top 0.15s ease-out; }  /* changement forcé de côté seulement ; le suivi du pointeur n'a pas de transition (retard) */
 #nez-loupe .pastille {
   position: relative; width: var(--loupe-px); height: var(--loupe-px); border-radius: 50%; overflow: hidden; background: #222;
   border: 2px solid #fff; box-sizing: border-box; box-shadow: 0 3px 12px rgba(0, 0, 0, 0.55);
