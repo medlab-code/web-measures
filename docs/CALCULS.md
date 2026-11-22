@@ -63,7 +63,7 @@ pour les mesures (hauteur, relevé, visées) comme pour la largeur dans la visio
 
 1. **réglage de la vue du dessus pour cette photo** (`birdeye_ground`, `App.birdeye_tilt_set` :
    tangage et roulis réglés ou calés sur la route dans la vue du dessus ; elle ne l'annonce que
-   si elle ne lit pas les verticales de la photo). Il contient déjà le roulis de campagne : il
+   si elle ne lit pas les verticales de la photo). Il contient déjà le roulis par défaut de la campagne 2025 : il
    n'est pas ajouté une seconde fois. Source « vue du dessus » ou « vue du dessus (réglée à la
    main) » ;
 2. **calage à la main** : pied et sommet de deux objets verticaux à environ 90° l'un de l'autre
@@ -92,11 +92,11 @@ pour les mesures (hauteur, relevé, visées) comme pour la largeur dans la visio
    incertitude, et affichées (« seuil élargi ») : mieux que rien. Auparavant la largeur dans la
    visionneuse les préférait au LiDAR quand leur incertitude était plus faible ; elles passent
    maintenant après lui ;
-6. **roulis de campagne seul** (`ROLL_DEFECTS`, source « roulis de campagne », par exemple
+6. **roulis par défaut de la campagne 2025 seul** (`ROLL_DEFECTS`, source « roulis de campagne » en interne, affichée « roulis par défaut de la campagne 2025 », par exemple
    -1° pour le CD21 en 2025) : la verticale est penchée de ce roulis vers la droite du cap, le
    tangage est inconnu ; incertitude de tangage `UNCALIBRATED` (2°), au moins celle du roulis
    (`ROLL_DEFECT_SIGMA`, ±1° d'une photo à l'autre). Ce n'est pas une inclinaison calée : le
-   voyant « Inclinaison » reste rouge ou jaune et la ligne d'état dit « roulis de la campagne
+   voyant « Inclinaison » reste rouge ou jaune et la ligne d'état dit « roulis par défaut de la campagne 2025
    seul, tangage inconnu » ;
 7. **rien** : photo non inclinée, incertitude `UNCALIBRATED` (2°).
 
@@ -109,7 +109,7 @@ la vue du dessus modifié), tout est recalculé : une mesure peut changer d'elle
 deux secondes après.
 
 **Calcul automatique écarté** (`Calibration.auto_off`, « Réinitialiser » du panneau « Calage manuel ») : pour une photo, les rangs 3
-(verticales de la photo) et 5 (verticales à seuil élargi) sont sautés, le rang 4 (LiDAR, qui reste valable) puis le roulis de campagne
+(verticales de la photo) et 5 (verticales à seuil élargi) sont sautés, le rang 4 (LiDAR, qui reste valable) puis le roulis par défaut de la campagne 2025
 prennent le relais ; les verticales à la main (rang 2) et la vue du dessus (rang 1) ne changent pas. Gardé avec le calage (`auto_off`,
 liste de photos), repris par l'import et la fusion. Les verticales à la main complètes (au moins deux objets non alignés) passent déjà
 devant le calcul automatique ; une seule verticale le complète (« clics + verticales »).
@@ -129,7 +129,7 @@ sans elle.
 inclinaison n'est sûre que si une source indépendante la retrouve. Seules deux familles le sont : **image** (verticales à la
 main, verticales automatiques, verticales à seuil élargi) et **terrain** (LiDAR HD par le modèle de la séquence, route de la
 vue du dessus = LiDAR + 0,7 × dévers + défaut de campagne). Le LiDAR brut n'est pas un témoin (sans le décalage de monture
-appris sur la séquence) ; le roulis de campagne est une constante, pas un témoin (famille « constante » ; « mixte » : clics
+appris sur la séquence) ; le roulis par défaut de la campagne 2025 est une constante, pas un témoin (famille « constante » ; « mixte » : clics
 complétés par le terrain, aucun témoin). `tilt_sources(pic, heading)` rend toutes les sources disponibles de la photo (nom,
 famille, `up`, `sigma`, tangage et roulis), pas seulement la retenue. Le **LiDAR modèle est calculé sans la photo** (leave-one-out :
 `lidar_model` des autres photos de la séquence) : avec elle, son décalage verticales − LiDAR contiendrait ses propres verticales
@@ -502,16 +502,16 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
 - **Inclinaison de la photo** (`Nez._nose_tilt`, qui lit `Calibration.tilt` : l'ordre unique des mesures et de la droite, § 1.3) :
   d'abord celle que **la vue du dessus** applique à cette photo quand elle la tire de
   la route (`groundTilt` de `src/dessus.js` : pente de la route sous le véhicule, part du dévers prise en roulis, tangage lu sur les
-  raccords ou les lignes, ou réglé à la main, défaut de roulis de la campagne ; `layerOf`, `groundUp`) : `src/dessus.js` l'annonce à
+  raccords ou les lignes, ou réglé à la main, roulis par défaut de la campagne 2025 ; `layerOf`, `groundUp`) : `src/dessus.js` l'annonce à
   la page à chaque image (`Dessus.onTilt`), `App.birdeye_tilt_set` la garde par photo (les 20 dernières), la droite est refaite
   quand elle change (même vue du dessus ouverte après la droite) **et les mesures déjà faites sur la photo sont recalculées**. Même convention que `Calibration.tilt` (verticale vraie vue de la
-  caméra, `[est, nord, haut]`), sans conversion : mêmes signes, aucun roulis de campagne ajouté en plus (déjà dedans). Incertitude :
+  caméra, `[est, nord, haut]`), sans conversion : mêmes signes, aucun roulis par défaut de la campagne 2025 ajouté en plus (déjà dedans). Incertitude :
   celle de la vue du dessus (route et virage, `LEAN`). Source « vue du dessus », ou « vue du dessus (réglée à la main) » si le tangage ou
   la part du dévers l'est. Quand la vue du dessus lit les verticales de la photo, elle n'annonce rien et la suite
   s'applique : calée à la main (« clics »), puis verticales calculées sur la photo HD, sinon pente et dévers du LiDAR, puis les verticales à seuil
-  élargi (`birdeye_loose`, incertitude jusqu'à 0,5°, `web_tilt.LOOSE_SIGMA`, « verticales (seuil élargi) »), enfin le **roulis de campagne** seul
+  élargi (`birdeye_loose`, incertitude jusqu'à 0,5°, `web_tilt.LOOSE_SIGMA`, « verticales (seuil élargi) »), enfin le **roulis par défaut de la campagne 2025** seul
   (`ROLL_DEFECTS` : -1° pour le CD21 en 2025, comme verticale penchée, même signe que `groundUp` de `src/dessus.js` ; source « roulis de
-  campagne », tangage inconnu, incertitude 2°), sinon rien (« aucune »). Le roulis de campagne n'est ajouté que seul (rang 6) : jamais aux
+  campagne », tangage inconnu, incertitude 2°), sinon rien (« aucune »). Le roulis par défaut de la campagne 2025 n'est ajouté que seul (rang 6) : jamais aux
   verticales, au LiDAR ni au réglage de la vue du dessus, qui le contient déjà. La droite est projetée comme les mesures (`Session._view_of`).
   **Calage Bird Eye au déplacement d'une poignée** (`src/nez.js` : `needCalage`, `calibrated`, `reanchor` ; `Dessus.update(…, silent)` et
   `Dessus.onCalibrated` dans `src/dessus.js` ; `updateBirdeye` dans `src/resultats.js`). Le calcul de la droite en Python n'est pas
@@ -874,7 +874,7 @@ pèse le moins (essai du 08/11 sur les lignes peintes, vue lissée contre orthop
 1,5 % jusqu'à 4 m en long, 2 % au-delà ; pas de dégradation en travers jusqu'à 9 m). L'incertitude affichée
 vaut au moins 5 % de la longueur (écart à l'orthophoto, plus bas). Les 3,5 % qu'elle comptait en plus en travers
 (bandes de passages piétons à 0,483 m pour 0,50 m) venaient du roulis de la caméra, corrigé depuis le 13/11/2026
-(défaut de roulis de la campagne, ci-dessous).
+(roulis par défaut de la campagne 2025, ci-dessous).
 
 Les photos précédente et suivante complètent l'image sous le véhicule seulement : hors du masque du véhicule de la
 photo affichée, celle-ci n'est pas retouchée. Masque au plus près (09/11/2026) : contour du véhicule dans le panorama,
@@ -939,7 +939,7 @@ Le roulis ne suit qu'une part du dévers (option d'essai « Roulis », 70 % par 
 avec tout le dévers, pour 6,58 m sur l'orthophoto (environ 40 % du dévers) ; sur l'A38, environ 75 %. Le roulis
 déplace surtout la ligne la plus éloignée de la caméra, d'où l'impression d'un milieu étiré. Le tangage suit la
 pente entière (tirets de 3 m retrouvés devant et derrière).
-Défaut de roulis de la campagne (`App.ROLL_DEFECTS`, `py/web_pose.py` : producteur, période, degrés), ajouté au roulis
+Défaut de roulis par défaut de la campagne 2025 (`App.ROLL_DEFECTS`, `py/web_pose.py` : producteur, période, degrés), ajouté au roulis
 tiré du dévers (`groundUp`) : CD21, campagne 2025, −1°. Une erreur de roulis δ fait varier la largeur d'une bande de
 passage piéton (0,50 m) comme 1 + 2 s δ / H (s : écart en travers à la caméra, H : hauteur de caméra) : la pente des
 largeurs en travers donne δ, indépendamment de l'échelle. Sur 25 passages piétons (13/11/2026), roulis restant
@@ -959,7 +959,7 @@ sur une bosse ou un creux, que le plan de la route ne suit pas ; médiane de la 
 
 Près d'un pont (tronçon BD TOPO en pont à moins de 20 m de la photo, dessus ou dessous), la vue se passe du terrain
 LiDAR HD : le MNT n'a pas le tablier (sol sous le pont, ou brèche sous la photo). Tablier supposé plan et horizontal
-(maillage à plat, `deck`) : inclinaison par la route (tangage de la séquence et défaut de roulis de la campagne seulement,
+(maillage à plat, `deck`) : inclinaison par la route (tangage de la séquence et roulis par défaut de la campagne 2025 seulement,
 ±1,5° pour la pente du tablier, jusqu'à 3 %). Hauteur de caméra : pour le CD21, sa monture d'après la date
 (`App.FLEET_MOUNTS` : 1,93 m avant le 01/07/2025, 2,07 m ensuite, ±0,04 m) ; autres photos, lue entre photos sur les
 verticales, sinon calée pour la séquence, sinon le réglage. Avant le 13/11/2026 : sol plat sans inclinaison et 1,90 m par défaut, bandes

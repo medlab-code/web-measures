@@ -357,7 +357,7 @@ const Nez = {
       if (line.inclinaison_en_calcul) return "inclinaison provisoire (verticales non arrivées)";
       const source = line.inclinaison_source;
       if (!source || source === "aucune") return "";
-      const shown = source === "roulis de campagne" ? "roulis de la campagne seul (tangage inconnu)" : source;
+      const shown = source === "roulis de campagne" ? `${line.roulis_libelle} seul (tangage inconnu)` : source;
       const c = line.inclinaison_confiance, deg = (v) => `${Math.abs(v).toFixed(1).replace(".", ",")}°`;
       const sure = !c ? "" : c.etat === "confirmee" ? " (confirmée)" : c.etat === "desaccord" ? ` (désaccord : tangage ${deg(c.ecart_tangage)}, roulis ${deg(c.ecart_roulis)})`
         : c.etat === "pont" ? " (pont : non vérifiable)" : " (non vérifiable)";
@@ -407,7 +407,7 @@ const Nez = {
       if (line.voisines === false) text.textContent += " · axe de la photo seule (voisines non arrivées)";
       readout.title = `Distance latérale de chaque bord à la caméra, lue sur la droite au sol à ${metres(line.d, 1)} devant elle (butées : ${metres(line.d_min, 1)} à ${metres(line.d_max, 1)}) `
         + `(${line.sol_dz ? `relief du MNT ${line.sol}` : "sol plat"}). Hauteur de la caméra ${metres(line.hauteur)}${line.hauteur_source ? ` (${line.hauteur_source})` : ""}`
-        + `${line.inclinaison_source === "roulis de campagne" ? `, roulis de la campagne ${line.roulis_campagne}°` : ""}. Expérimental : rien n'est retenu.`;
+        + `${line.inclinaison_source === "roulis de campagne" ? `, ${line.roulis_libelle} ${line.roulis_campagne}°` : ""}. Expérimental : rien n'est retenu.`;
     }
 
     /** Position d'un bord par rapport à la caméra, avec son côté (« 1,20 m à droite »). */

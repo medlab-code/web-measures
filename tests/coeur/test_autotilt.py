@@ -188,7 +188,7 @@ class LidarModel(unittest.TestCase):
         model = cal.lidar_model("seq")
         self.assertEqual(model["count"], 3)  # les trois ordinaires seulement
         self.assertAlmostEqual(model["offset"][0], 0.3, places=6)
-        self.assertIsNone(cal.tilt("pont2"))  # pas de LiDAR : rien (ni seuil élargi ni roulis de campagne ici)
+        self.assertIsNone(cal.tilt("pont2"))  # pas de LiDAR : rien (ni seuil élargi ni roulis par défaut de la campagne ici)
         self.assertEqual(cal.tilt("pont")["source"], "verticales")  # verticales valables sur un pont
         # Une photo ordinaire de la même séquence garde le LiDAR
         cal.set_auto("p", self.entry(0, 0, [1.5, -0.5], verticals=False))

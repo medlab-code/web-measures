@@ -1290,17 +1290,17 @@ class Parcours(unittest.TestCase):
 
     def test_ordre_inclinaison(self):
         """Un seul ordre d'inclinaison (Calibration.tilt) pour les mesures et la droite au nez, un cas par rang : 1 réglage de la
-        vue du dessus, 2 clics, 3 verticales, 4 LiDAR, 5 verticales à seuil élargi, 6 roulis de campagne seul, 7 rien."""
+        vue du dessus, 2 clics, 3 verticales, 4 LiDAR, 5 verticales à seuil élargi, 6 roulis par défaut de la campagne seul, 7 rien."""
         a, cal, pic = self.app, self.app.calibration, "p1"
         source = lambda: (cal.tilt(pic) or {}).get("source")
         self.show(pic)
         self.assertEqual((cal.tilt(pic), source()), (None, None))  # 7 : rien (UNCALIBRATED)
         self.show(pic, "2025-07-03T10:53:25Z", App.FLEET_PRODUCER)
-        t = cal.tilt(pic)  # 6 : roulis de campagne seul (-1°), tangage inconnu
+        t = cal.tilt(pic)  # 6 : roulis par défaut de la campagne seul (-1°), tangage inconnu
         self.assertEqual((t["source"], t["sigma"], t["fallback"]), ("roulis de campagne", calibration.UNCALIBRATED, True))
         for got, want in zip(t["up"], self._up(-1.0)):
             self.assertAlmostEqual(got, want, places=6)
-        a._set_loose(pic, {"up": self._up(2.0), "sigma": 0.4})  # 5 : verticales à seuil élargi, avant le roulis de campagne
+        a._set_loose(pic, {"up": self._up(2.0), "sigma": 0.4})  # 5 : verticales à seuil élargi, avant le roulis par défaut de la campagne
         self.assertEqual((source(), cal.tilt(pic)["sigma"]), ("verticales (seuil élargi)", 0.4))
         self.assertNotIn("fallback", cal.tilt(pic))
         core = a._core_auto_tilt
@@ -1322,7 +1322,7 @@ class Parcours(unittest.TestCase):
         cal.clear_tilt(pic)
         del cal.auto[pic]
         a.birdeye_loose.clear()
-        self.assertEqual(cal.tilt(pic, photo_only=True), None)  # photo seule : ni roulis de campagne ni seuil élargi
+        self.assertEqual(cal.tilt(pic, photo_only=True), None)  # photo seule : ni roulis par défaut de la campagne ni seuil élargi
         self.assertEqual(source(), "roulis de campagne")
         self.show(pic)  # même photo hors campagne : rien
         self.assertIsNone(cal.tilt(pic))
@@ -1374,7 +1374,7 @@ class Parcours(unittest.TestCase):
         self.assertGreater(a.calibration_version, version)
         info = json.loads(a.calage_manuel())
         self.assertTrue(info["auto"]["off"])
-        self.assertIsNone(info["retained"])  # ni LiDAR ni roulis de campagne ici : rien
+        self.assertIsNone(info["retained"])  # ni LiDAR ni roulis par défaut de la campagne ici : rien
         again = calibration.Calibration()
         again.load(json.loads(a.calibration_json()))  # gardé avec le calage
         self.assertEqual(again.auto_off, {pic})
@@ -1382,7 +1382,7 @@ class Parcours(unittest.TestCase):
         self.assertEqual(json.loads(a.calage_manuel())["retained"]["source"], "verticales")
 
     def test_ordre_inclinaison_ligne_etat(self):
-        """Ligne d'état : la source (vue du dessus, seuil élargi, roulis de campagne seul) et son incertitude."""
+        """Ligne d'état : la source (vue du dessus, seuil élargi, roulis par défaut de la campagne seul) et son incertitude."""
         a, pic = self.app, "p1"
         self.show(pic, "2025-07-03T10:53:25Z", App.FLEET_PRODUCER)
         a.tilts.pending = lambda p: False
@@ -1394,8 +1394,8 @@ class Parcours(unittest.TestCase):
         self.assertNotIn("ok", [v for n, v in a._lights(pic) if n == "Inclinaison"])
         a.tilt_reasons[pic] = "pas assez de bords"  # calcul fait, sans résultat
         text, alert = a._tilt_line()
-        self.assertIn("non calée : roulis de la campagne seul", text)
-        self.assertIn("roulis de la campagne seul", text)
+        self.assertIn("non calée : roulis par défaut de la campagne 2025 seul", text)
+        self.assertIn("roulis par défaut de la campagne 2025 seul", text)
         self.assertIn("±2,0°", text)
         self.assertTrue(alert)
         self.assertNotIn("ok", [v for n, v in a._lights(pic) if n == "Inclinaison"])  # pas une inclinaison calée
@@ -1421,7 +1421,7 @@ class Parcours(unittest.TestCase):
         self.assertEqual(sight(), before)
 
     def test_droite_nez_roulis_campagne(self):
-        """Droite au nez, photo du CD21 en 2025 sans autre inclinaison : roulis de campagne seul (-1°), comme avant l'ordre unique
+        """Droite au nez, photo du CD21 en 2025 sans autre inclinaison : roulis par défaut de la campagne seul (-1°), comme avant l'ordre unique
         (verticale penchée de -1° vers la droite du cap, untilt inverse) ; source et incertitude annoncées."""
         self.show("p1", "2025-07-03T10:53:25Z", App.FLEET_PRODUCER)
         line = json.loads(self.app.nose_line(5.0))

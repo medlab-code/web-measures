@@ -726,7 +726,7 @@ class App(Pose, Chutes, Nez, session.Session):
         loose, et sa propre inclinaison : pitch, roll, sigma) et confidence (confiance de l'inclinaison retenue, voir
         tilt_confidence_of ; null sans inclinaison)."""
         pic = self._calage_pic()
-        out = {"manual": None, "retained": None, "confidence": None, "auto": {"available": False, "off": False, "count": None, "loose": False}}
+        out = {"manual": None, "retained": None, "confidence": None, "roll_label": self._roll_label(self.item), "auto": {"available": False, "off": False, "count": None, "loose": False}}
         if not pic:
             return json.dumps(out)
         report = self._calage_report()

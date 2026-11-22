@@ -102,7 +102,7 @@ class Pose:
             elif source == "clics":
                 how = "à la main ({} objet{}, {})".format(tilt["count"], "s" if tilt["count"] > 1 else "", sigma)
             elif source == "clics + roulis de campagne":
-                how = f"à la main, avec le roulis de la campagne ({sigma})"
+                how = f"à la main, avec le {self._roll_label(self.item)} ({sigma})"
             elif source.startswith("clics + "):
                 how = "à la main et par {} ({})".format(
                     "les verticales de la photo" if source.endswith("verticales") else "le terrain", sigma)
@@ -116,9 +116,9 @@ class Pose:
         if pic in self.relay_pending:
             return "inclinaison : calcul par le terrain en cours ({})…".format(self.relay_pending[pic]), False
         if fallback and not self._tilt_final():  # verticales pas encore cherchées : pas « non calée »
-            return "inclinaison " + self._tilt_reason() + " ; roulis de la campagne en attendant", False
-        if fallback:  # calcul fait sans résultat : le roulis de la campagne seul, tangage inconnu
-            return f"inclinaison non calée : roulis de la campagne seul, tangage inconnu (±{measures._num(fallback['sigma'], 1)}°)", True
+            return "inclinaison " + self._tilt_reason() + " ; " + self._roll_label(self.item) + " en attendant", False
+        if fallback:  # calcul fait sans résultat : le roulis par défaut de la campagne seul, tangage inconnu
+            return f"inclinaison non calée : {self._roll_label(self.item)} seul, tangage inconnu (±{measures._num(fallback['sigma'], 1)}°)", True
         reason = self._tilt_reason()
         if not self._tilt_final():
             return "inclinaison " + reason, False
@@ -267,7 +267,7 @@ class Pose:
         except (KeyError, TypeError, ValueError):
             return None
         pic, sequence, cal, q = item.get("id"), item.get("collection"), self.calibration, self.quality or {}
-        # Ce que la photo donne elle-même (photo_only) : ni le réglage de la vue du dessus, ni le roulis de campagne, qu'elle ajoute
+        # Ce que la photo donne elle-même (photo_only) : ni le réglage de la vue du dessus, ni le roulis par défaut de la campagne, qu'elle ajoute
         # elle-même (groundUp, src/dessus.js) ; les verticales à seuil élargi sont choisies ci-dessous
         fixed, pose, cam = cal.position(sequence, lon, lat), cal.pose(sequence, lon, lat), cal.camera(sequence)
         tilt = cal.tilt(pic, photo_only=True)
@@ -355,6 +355,14 @@ class Pose:
         producers = {p.get("id") for p in item.get("providers") or []}
         return next((roll for who, first, end, roll in self.ROLL_DEFECTS if who in producers and first <= date < end), 0.0)
 
+    def _roll_label(self, item):
+        """Nom du roulis par défaut de la photo, année de la campagne comprise (entrée de ROLL_DEFECTS qui s'applique) :
+        « roulis par défaut de la campagne 2025 » ; sans entrée, « roulis par défaut de la campagne »."""
+        date = str(((item or {}).get("properties") or {}).get("datetime") or "")[:10]
+        producers = {p.get("id") for p in (item or {}).get("providers") or []}
+        year = next((first[:4] for who, first, end, roll in self.ROLL_DEFECTS if who in producers and first <= date < end), "")
+        return ("roulis par défaut de la campagne " + year).strip()
+
     ROLL_DEFECT_SIGMA = 1.0  # degrés : dispersion du roulis d'une photo à l'autre dans une campagne (docs/BIRDEYE.md : ±1°)
 
     # Sources d'inclinaison de l'hôte, rangées par Calibration.tilt (ordre unique des mesures et de la largeur dans la visionneuse)
@@ -366,7 +374,7 @@ class Pose:
         return found or next((i for i in self.birdeye_items + self.birdeye_far_items if i.get("id") == pic), None)
 
     def _ground_tilt(self, pic):
-        """Rang 1 : inclinaison que la vue du dessus applique à la photo (birdeye_tilt_set), roulis de campagne compris."""
+        """Rang 1 : inclinaison que la vue du dessus applique à la photo (birdeye_tilt_set), roulis par défaut de la campagne compris."""
         ground = self.birdeye_ground.get(pic)
         if not ground or not ground.get("up"):  # sans « up » : la vue du dessus lit les verticales, seuls hauteur et sol sont gardés
             return None
@@ -398,7 +406,7 @@ class Pose:
         return calibration.tilt_entry(loose["up"], loose["sigma"], "verticales (seuil élargi)") if loose else None
 
     def _campaign_tilt(self, pic):
-        """Rang 6 : roulis de campagne seul (ROLL_DEFECTS ; 0 : rien), tangage inconnu (incertitude UNCALIBRATED, au moins celle
+        """Rang 6 : roulis par défaut de la campagne seul (ROLL_DEFECTS ; 0 : rien), tangage inconnu (incertitude UNCALIBRATED, au moins celle
         du roulis), la verticale penchée de ce roulis vers la droite du cap de l'axe de la séquence (ou de la photo). Même
         signe que groundUp de src/dessus.js. Repérée par « fallback » : pas une inclinaison calée."""
         item = self._item_of(pic)

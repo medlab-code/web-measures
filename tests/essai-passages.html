@@ -5,7 +5,7 @@
      réseau : pour chaque photo, vue calée par la route puis par les verticales (quand elle en a), largeur des bandes et
      roulis restant (largeur = w0 (1 + 2 v δ cos²φ / H), v : écart en travers du véhicule, φ : angle des bandes au cap, voir
      docs/BIRDEYE.md § 4.1). Contrôles sur l'ensemble : largeur médiane des vues à 0,50 m près, roulis restant médian
-     (protègent le défaut de roulis de la campagne, App.ROLL_DEFECTS) ; incertitude affichée (shownError) comparée à
+     (protègent le roulis par défaut de la campagne, App.ROLL_DEFECTS) ; incertitude affichée (shownError) comparée à
      l'écart de chaque bande à 0,50 m (journal). Environ 20 s par photo, surtout la vue du dessus elle-même (voisines,
      hauteur, raccords) : 17 photos (environ 6 min) ; #rapide : 6 (environ 2 min) ; #ids=<id>,… : photos choisies ;
      #captures : image des bandes de chaque vue dans tests/captures/. -->
@@ -18,7 +18,7 @@ const QUICK = /rapide/.test(location.hash), CHOSEN = /ids=([\w,-]+)/.exec(locati
 const SITES = CHOSEN ? CHOSEN.map((id) => PassagesPietons.find((p) => p.id.startsWith(id)) || { id })
   : PassagesPietons.filter((p) => p.essai === "rapide" || (!QUICK && p.essai === "complet"));
 // Tolérances : médianes de 6 vues plus dispersées que de 15 (largeur d'une vue à ±4 % environ, roulis à ±1°). Avant la
-// correction du roulis de la campagne (13/11/2026) : roulis restant +0,98° par la route.
+// correction du roulis par défaut de la campagne (13/11/2026) : roulis restant +0,98° par la route.
 const WIDTH_TOL = QUICK ? 0.04 : 0.02, ROLL_TOL = QUICK ? 0.6 : 0.5;
 const WAIT = 90000, PX = 4096, RAD = Math.PI / 180, STRIPE = 0.5, SIGMA_GROUND = 0.02;
 const frame = document.getElementById("f");

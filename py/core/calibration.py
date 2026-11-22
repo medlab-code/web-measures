@@ -273,7 +273,7 @@ def vertical_report(verticals, heading=None):
 
 
 def tilt_entry(up, sigma, source, **more):
-    """Inclinaison de la photo donnée par l'hôte (vue du dessus, verticales à seuil élargi, roulis de campagne), sous la forme
+    """Inclinaison de la photo donnée par l'hôte (vue du dessus, verticales à seuil élargi, roulis par défaut de la campagne), sous la forme
     des autres sources (voir Calibration.tilt) : up (verticale vraie vue de la caméra [est, nord, haut]), sigma (degrés)."""
     up = _unit(tuple(float(v) for v in up))
     return dict({"up": up, "tilt": math.degrees(math.acos(min(1.0, up[2]))),
@@ -340,7 +340,7 @@ def lidar_model(entries):
 
 def tilt_family(source):
     """Famille d'une source d'inclinaison d'après son nom (le champ « source » de Calibration.tilt) : "image" (clics à la main,
-    verticales, seuil élargi), "terrain" (LiDAR HD, route de la vue du dessus, terrain web), "constante" (roulis de campagne :
+    verticales, seuil élargi), "terrain" (LiDAR HD, route de la vue du dessus, terrain web), "constante" (roulis par défaut de la campagne :
     pas une mesure de la photo) ou "mixte" (clics complétés par le terrain : ni l'une ni l'autre). Seules deux familles sont
     indépendantes : image et terrain."""
     name = source or ""
@@ -510,7 +510,7 @@ class Calibration:
         self.auto_off = set()
         self._tilts = {}
         # Sources d'inclinaison de l'hôte (pic -> tilt_entry ou None), consultées par tilt dans son ordre unique : le réglage
-        # de la vue du dessus pour la photo (en premier), les verticales à seuil élargi, le roulis de campagne seul (en dernier)
+        # de la vue du dessus pour la photo (en premier), les verticales à seuil élargi, le roulis par défaut de la campagne seul (en dernier)
         self.ground_tilt = None
         self.loose_tilt = None
         self.campaign_tilt = None
@@ -605,7 +605,7 @@ class Calibration:
         """Inclinaison de la photo (dict de tilt_from_verticals, avec sigma en degrés), ou None : l'ordre de priorité UNIQUE des
         mesures dans la visionneuse. Dans l'ordre :
         1. réglée dans la vue du dessus pour cette photo (hôte, `ground_tilt` : "vue du dessus", "vue du dessus (réglée à la
-           main)"), qui contient déjà le roulis de campagne ;
+           main)"), qui contient déjà le roulis par défaut de la campagne ;
         2. calée à la main sur deux objets ou plus (source "clics") ; sur un objet, complétée par la suite de la liste
            ("clics + verticales", "clics + lidar"…) ;
         3. calculée d'après les verticales de la photo ("verticales"), sauf si l'utilisateur l'a écartée pour cette photo (auto_off) ;
@@ -613,7 +613,7 @@ class Calibration:
            LiDAR décrit le sol sous l'ouvrage, pas le tablier), ou par le terrain (option de l'hôte : "terrain web") ;
         5. verticales à seuil élargi (hôte, `loose_tilt`, incertitude au-delà de autotilt.MAX_SIGMA : "verticales (seuil
            élargi)"), sauf auto_off comme le rang 3 ;
-        6. roulis de campagne seul (hôte, `campaign_tilt`, "roulis de campagne") : tangage inconnu, incertitude UNCALIBRATED,
+        6. roulis par défaut de la campagne seul (hôte, `campaign_tilt`, "roulis de campagne") : tangage inconnu, incertitude UNCALIBRATED,
            repérée par "fallback" (pas une inclinaison calée) ;
         7. rien : None (UNCALIBRATED).
         photo_only : seulement ce qui vient de la photo (rangs 2 à 4), sans les sources 1, 5 et 6 de l'hôte (la vue du dessus
@@ -640,7 +640,7 @@ class Calibration:
         source (nom), family ("image", "terrain" ou "constante", voir tilt_family), up, sigma (degrés), et pitch, roll (degrés,
         si heading est donné). Sources : clics à la main (complets), verticales de la photo, verticales à seuil élargi (hôte,
         sans verticales), LiDAR HD par le modèle de la séquence, route de la vue du dessus (hôte, ground_tilt ; ou
-        route_tilt, la route annoncée même quand les verticales priment), roulis de campagne (hôte, constante). Le modèle LiDAR
+        route_tilt, la route annoncée même quand les verticales priment), roulis par défaut de la campagne (hôte, constante). Le modèle LiDAR
         est calculé SANS la photo (leave-one-out : son décalage verticales − LiDAR ne contient pas ses propres verticales, sinon
         il les redonnerait et ne les vérifierait pas) ; jamais sur un pont (bridge_pics, case « Sur un pont »). Le LiDAR brut
         n'en est pas une : sans le décalage de monture appris sur la séquence, il n'est pas comparable."""

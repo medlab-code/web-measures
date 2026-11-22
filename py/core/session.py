@@ -1196,7 +1196,7 @@ class Session:
             return "attente" if value is None else ("ok" if value else "non")
 
         calibrated = self.calibration.tilt(pic)
-        if calibrated and not calibrated.get("fallback"):  # roulis de campagne seul : pas une inclinaison calée
+        if calibrated and not calibrated.get("fallback"):  # roulis par défaut de la campagne seul : pas une inclinaison calée
             tilt = "ok"
         else:
             tilt = "attente" if self.tilts.pending(pic) else "non"

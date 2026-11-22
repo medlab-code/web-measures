@@ -105,7 +105,7 @@ class Tilt(unittest.TestCase):
 
 class TiltOrder(unittest.TestCase):
     """Calibration.tilt : un seul ordre de priorité (réglage de la vue du dessus, clics, verticales, LiDAR, verticales à seuil
-    élargi, roulis de campagne seul, rien), les sources de l'hôte rangées par ses crochets ground_tilt, loose_tilt, campaign_tilt."""
+    élargi, roulis par défaut de la campagne seul, rien), les sources de l'hôte rangées par ses crochets ground_tilt, loose_tilt, campaign_tilt."""
 
     def setUp(self):
         self.cal = calibration.Calibration()
@@ -488,7 +488,7 @@ class TiltConfidenceTest(unittest.TestCase):
         self.assertEqual(got["state"], "non_verifiable")
         self.assertIsNone(got["pair"])
         self.assertEqual(got["available"], ["verticales", "roulis de campagne"])
-        cal.auto_off.add("p0")  # seul reste le roulis de campagne, une constante
+        cal.auto_off.add("p0")  # seul reste le roulis par défaut de la campagne, une constante
         self.assertEqual(cal.confidence("p0", 0.0)["state"], "non_verifiable")
 
     def test_pont(self):

@@ -27,7 +27,7 @@ class Nez:
     def _nose_tilt(self):
         """(source, incertitude en degrés ou None) de l'inclinaison de la photo affichée : celle de Calibration.tilt, l'ordre
         unique des mesures et de la largeur dans la visionneuse (vue du dessus, clics, verticales, LiDAR, verticales à seuil
-        élargi, roulis de campagne seul) ; « aucune » sans inclinaison. La droite est projetée avec elle (_view_of), comme les
+        élargi, roulis par défaut de la campagne seul) ; « aucune » sans inclinaison. La droite est projetée avec elle (_view_of), comme les
         mesures. Les verticales sont lancées par birdeye_request (calcul en arrière-plan, le même que pour la vue du dessus,
         gardé par photo dans Calibration.auto)."""
         tilt = self.calibration.tilt(self.item.get("id"))
@@ -35,7 +35,7 @@ class Nez:
 
     def birdeye_tilt_set(self, pic, tilt_json):
         """Inclinaison que la vue du dessus applique à la photo `pic` quand elle la tire de la route (src/dessus.js, layerOf :
-        groundUp, avec le tangage lu ou réglé à la main, la part du dévers et le défaut de roulis de la campagne), avec la hauteur
+        groundUp, avec le tangage lu ou réglé à la main, la part du dévers et le roulis par défaut de la campagne), avec la hauteur
         de sa couche et son terrain : JSON {up (même convention que Calibration.tilt : verticale vraie vue de la caméra [est,
         nord, haut] ; None quand la vue du dessus lit les verticales de la photo : mêmes sources que _nose_tilt, rien à retenir),
         sigma (degrés), manual (tangage ou part du dévers réglés à la main), height (m, hauteur de la caméra au-dessus du sol :
@@ -238,7 +238,7 @@ class Nez:
     def nose_line(self, distance=None, rotation=0.0, relief=True):
         """JSON de la droite au sol à `distance` m devant la caméra (None ou 0 : au-delà du capot, NOSE_DISTANCE ; sinon bornée par _nose_range, rendue
         dans `d`, `d_min` et `d_max` : glissement de la droite en profondeur), perpendiculaire
-        à l'axe de la séquence à l'endroit de la droite (_nose_axis_at) : {d, virage (écart en degrés entre l'axe à la photo et à la droite, si > 3°, pas affiché), lonlat: [[lon, lat] à -NOSE_REACH, [lon, lat] à +NOSE_REACH] (position recalée de la photo), hauteur, hauteur_source, sigma_h, roulis_campagne, inclinaison_source (_nose_tilt : vue du dessus, clics, verticales, verticales (seuil élargi), lidar, roulis de campagne, aucune), inclinaison_sigma (degrés ou None), inclinaison_en_calcul (verticales pas encore arrivées : droite refaite à leur arrivée), points: [[décalage en m (positif à
+        à l'axe de la séquence à l'endroit de la droite (_nose_axis_at) : {d, virage (écart en degrés entre l'axe à la photo et à la droite, si > 3°, pas affiché), lonlat: [[lon, lat] à -NOSE_REACH, [lon, lat] à +NOSE_REACH] (position recalée de la photo), hauteur, hauteur_source, sigma_h, roulis_campagne, inclinaison_source (_nose_tilt : vue du dessus, clics, verticales, verticales (seuil élargi), lidar, roulis par défaut de la campagne, aucune), inclinaison_sigma (degrés ou None), inclinaison_en_calcul (verticales pas encore arrivées : droite refaite à leur arrivée), points: [[décalage en m (positif à
         droite de l'axe de la droite), yaw, pitch]]} (radians, repère de la photo affichée), de -NOSE_REACH à +NOSE_REACH tous les
         NOSE_STEP m. Les décalages sont des positions horizontales ; le relief est celui du MNT LiDAR HD (_nose_ground) : un point de
         la droite dont le sol est à dz au-dessus du sol sous la caméra est vu à l'élévation -atan2(H - dz, distance horizontale).
@@ -293,7 +293,7 @@ class Nez:
             east, north = d * math.sin(a) + x * math.cos(b), d * math.cos(a) - x * math.sin(b)
             ends.append([round(v, 7) for v in triangulation._geographic(east, north, lon, lat)])
         out = {"d": d, "d_min": d_min, "d_max": d_max, "hauteur": height, "hauteur_source": source, "sigma_h": sigma,
-               "roulis_campagne": roll, "inclinaison_source": tilt_source, "inclinaison_sigma": tilt_sigma,
+               "roulis_campagne": roll, "roulis_libelle": self._roll_label(item), "inclinaison_source": tilt_source, "inclinaison_sigma": tilt_sigma,
                "inclinaison_confiance": self._nose_confidence(item),
                "inclinaison_en_calcul": self.tilts.pending(item.get("id")), "points": points, "lonlat": ends, "reach": NOSE_REACH,
                "voisines": self._neighbours_here(), "sol": ground[0] if ground else NOSE_FLAT,
