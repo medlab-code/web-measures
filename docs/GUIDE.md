@@ -412,16 +412,18 @@ après.
   hauteur et largeur ; ticket #31) :
   sur une photo hors pont, à moins de 15 m d'une route de la BD TOPO (orientée comme la route parcourue, à 45°
   près : à un carrefour, pas la voie qui croise), un appui sur « Profil en travers »
-  calcule puis affiche en haut à gauche, pour chaque côté (vu dans le sens de la photo) qui descend d'au
-  moins 0,5 m, la hauteur de chute et le dévers du bord. La réglette « Jusqu'à » de la fenêtre du profil (en haut à droite, avant la croix de fermeture ; grisée pendant le calcul) fixe la
+  calcule (une étiquette « Bords de route : calcul en cours… » s'affiche en haut à gauche de la visionneuse pendant le calcul et
+  disparaît dès que le graphique est tracé ; elle ne reste affichée que pour dire pourquoi le calcul n'a pas abouti : service
+  injoignable, pas de route à moins de 15 m…) puis trace le profil en travers, qui donne pour chaque côté (vu dans le sens de la photo)
+  qui descend d'au moins 0,5 m la hauteur de chute et le dévers du bord. La réglette « Jusqu'à » de la fenêtre du profil (en haut à droite, avant la croix de fermeture ; grisée pendant le calcul) fixe la
   distance examinée de part et d'autre du milieu de la chaussée (5 à 30 m par pas de 5 m, flèches du clavier comprises, 10 m par défaut ; 1 m au moins au-delà
   de chaque bord) : chute, dévers et graphique s'arrêtent là ; la changer, fenêtre ouverte, refait aussitôt le calcul
   de la photo ; fenêtre fermée, le prochain appui sur le bouton. Le bouton est grisé sur un pont (hauteur de chute du pont)
   et pendant la lecture ; enfoncé pendant le calcul (un second appui l'abandonne) et tant que la fenêtre du profil est ouverte ; quand le calcul
   est déjà fait pour cette photo et cette distance, un appui rouvre la fenêtre sans recalculer. Tant qu'elle est ouverte, la carte trace le travers de la photo, ses deux bords, le pied de la chute et le talus (mêmes couleurs que le graphique ; le travers voisin qui porte la chute, en gris) ; tout disparaît à la fermeture. À 12 m au plus d'un carrefour
-  avec une voie nommée (le long de la route), une première ligne le signale : « Carrefour avec la D18 6 m devant : bords
-  peu sûrs » ; la chaussée s'y élargit et le bord n'y est pas continu, le calcul n'a pas de bonne réponse. Le graphique le
-  rappelle (« Carrefour : bords peu sûrs », en orange en haut à droite, aussi dans le PNG et le PDF), la phrase entière en tête de sa légende.
+  avec une voie nommée (le long de la route), le graphique le signale (« Carrefour : bords peu sûrs », en orange en haut à droite, aussi dans le PNG et le PDF),
+  la phrase entière (« Carrefour avec la D18 6 m devant : bords peu sûrs ») en tête de sa légende ; la chaussée s'y élargit et le bord
+  n'y est pas continu, le calcul n'a pas de bonne réponse.
   Calcul :
   - **profils** : modèle de terrain LiDAR HD (RGE ALTI en secours) lu en travers de la route à
     −10, −5, 0, +5 et +10 m de la photo le long de la route, des deux côtés, depuis la caméra
@@ -486,8 +488,8 @@ après.
     « creux du terrain (pont ?) » hors des ponts de la BD TOPO, souvent plus courts que la brèche), pentes comprises ;
     creux ouvert au bout du profil : coupé ; tunnels de la route (BD TOPO) : le dessus remplacé par la droite d'une tête
     à l'autre ; pente moyenne par les moindres
-    carrés (montée ou descente dans le sens de la photo) et pente la plus forte sur 10 m ; une ligne de l'encadré,
-    et un graphique (profil en long, environ 160 px de haut) sous le profil en travers, repris dans l'image PNG : bande pâle de −10 à +10 m
+    carrés (montée ou descente dans le sens de la photo) et pente la plus forte sur 10 m ;
+    un graphique (profil en long, environ 160 px de haut) sous le profil en travers, repris dans l'image PNG : bande pâle de −10 à +10 m
     autour de la photo, graduée aux 5 travers du graphique du dessus (la photo en trait plus marqué) ; les 10 m les plus raides en violet épais,
     étiquetés (« 8,5 % sur 10 m ») ; carrefours, fins de route et ponts nommés au-dessus du cadre, reliés par un pointillé à leur point du
     terrain (un repère hors de la bande n'a jamais son nom au-dessus d'elle) ; une ligne de légende dessous, reprise dans le PNG et sur la
@@ -523,7 +525,7 @@ après.
   (bandes étroites très claires, 2 fois plus que leurs voisines au moins) et les surfaces non revêtues (herbe, gravillons, béton : larges et claires).
   **Bord de chaussée** (tiret court ; **option « Bord d'enrobé (expérimental) »**, décochée par défaut, grisée tant que l'analyse fine n'est pas faite, choix retenu d'une session à l'autre : décochée, ni le bord d'enrobé ni la bordure ne déplacent les bords de chaussée, qui restent ceux du relief, et ni le tiret ni la largeur d'enrobé ne s'affichent, le reste de l'analyse (séparateur, lignes blanches, herbe, végétation, eau) étant gardé ; les relevés des 19 et 20/11/2026 les ont trouvés souvent trop loin, accotements et trottoirs en enrobé comptés dans la chaussée ; cochée, ce qui suit) : le bord de la bande d'enrobé, médiane de 5 travers sur ±5 m autour de la photo :
   début de la première bande d'1 m ou plus, 2,2 fois plus claire que l'enrobé au moins, ou 0,8 fois aussi claire au plus et à plat (terre d'un chemin raccordé, plus sombre qu'un enduit clair ; pas un fond de fossé, plus bas), à mi-hauteur entre les deux ; ou, plus près, la bordure d'un trottoir en enrobé (même intensité que la chaussée), lue à l'altitude des points du sol : remontée d'au moins 4 cm en 0,75 m après le caniveau, qui tient sur 1 m, presque à plat (pas le fond d'un fossé ni sa berge : « bordure » dans la légende) ; la légende donne la largeur
-  d'enrobé et sa dispersion entre travers ; la plateforme, son dévers, la chute et le dévers du talus se relisent alors depuis ces bords, l'encadré compris. Sans ces abords clairs (village, béton), à défaut : la ligne de rive, ligne blanche au début de la première bande non revêtue
+  d'enrobé et sa dispersion entre travers ; la plateforme, son dévers, la chute et le dévers du talus se relisent alors depuis ces bords. Sans ces abords clairs (village, béton), à défaut : la ligne de rive, ligne blanche au début de la première bande non revêtue
   d'1 m ou plus, ou la dernière avant elle, hors des lignes entre voies (à moins de 1,2 m de l'axe d'une
   chaussée), sinon la fin de l'enrobé du seul travers de la photo. **Séparateur de chaussée** : la bande non revêtue entre les deux
   chaussées (glissières comprises, que le terrain seul ne voit pas), à 2 m au plus de celui du calcul, qu'elle

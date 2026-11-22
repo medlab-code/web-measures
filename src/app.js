@@ -848,7 +848,8 @@
     // bords de route après un appui sur « Profil en travers » (pas pendant la lecture)
     const fall = playing() ? null : JSON.parse(etat.app.fall_json());
     const [bridge, ...rest] = (fall?.text || "").split("\n");
-    Object.assign($("#chute"), { hidden: !fall, title: fall?.title || "" });
+    // Bords de route : l'étiquette ne sert qu'à l'attente du calcul et à ses échecs ; le graphique du profil (fall.profile) porte le résultat
+    Object.assign($("#chute"), { hidden: !fall || Boolean(fall.edges && fall.profile), title: fall?.title || "" });
     etat.edgeProfile = fall?.profile ? fall : null;
     etat.fallNow = fall;
     if (fall?.lidar) readBridgeFall(fall.lidar);

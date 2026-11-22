@@ -607,7 +607,7 @@ Ce que l'analyse en tire :
   au moins) ; du côté du séparateur, elle s'arrête à lui. Les surlargeurs revêtues et bandes
   d'arrêt d'urgence en font partie. Ces bords remplacent alors celui du § 8.2, sur tous les travers et
   au même écart de l'origine : **plateforme**, son **dévers** (§ 8.7), **chute** et **dévers du talus**
-  (§ 8.4) se relisent depuis eux, dans le graphique et dans l'encadré.
+  (§ 8.4) se relisent depuis eux, dans le graphique.
 - **À défaut** (abords trop peu clairs : village, béton) : sur le seul travers de la photo, la
   ligne de rive, c'est-à-dire la ligne blanche au début de la première bande non revêtue, ou la
   dernière avant elle. Les lignes à moins de 1,2 m de l'axe d'une chaussée sont des lignes entre
