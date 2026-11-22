@@ -1123,11 +1123,11 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
 #vue .nez-poignee, #vue .nez-poignee * { cursor: ew-resize !important; }  /* poignée des bords : glisser ou molette (réglage fin) */
 #vue .nez-droite, #vue .nez-droite * { cursor: ns-resize !important; }  /* droite survolée : glisser = profondeur, clic droit glissé = rotation */
 #vue .nez-glisse, #vue .nez-glisse * { cursor: grabbing !important; }
-/* Loupe de réglage fin d'une poignée des bords (src/nez.js) : pastille ronde de 120 px et légende dessous */
-#nez-loupe { position: absolute; z-index: 7; width: 150px; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+/* Loupe de réglage fin d'une poignée des bords (src/nez.js) : pastille ronde et légende dessous ; tailles données par nez.js (--loupe-w, --loupe-px : LOUPE_PX) */
+#nez-loupe { position: absolute; z-index: 7; width: var(--loupe-w); pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 #nez-loupe[hidden] { display: none; }
 #nez-loupe .pastille {
-  position: relative; width: 120px; height: 120px; border-radius: 50%; overflow: hidden; background: #222;
+  position: relative; width: var(--loupe-px); height: var(--loupe-px); border-radius: 50%; overflow: hidden; background: #222;
   border: 2px solid #fff; box-sizing: border-box; box-shadow: 0 3px 12px rgba(0, 0, 0, 0.55);
 }
 #nez-loupe canvas { position: absolute; inset: 0; width: 100%; height: 100%; }

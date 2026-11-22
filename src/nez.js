@@ -79,13 +79,13 @@ const Nez = {
     const CALAGE_WAIT = "Calage Bird Eye en cours…";
     const DOUBLE_MS = 400, TAP_PX = 5;  // double clic sur la droite : délai entre les deux appuis ; déplacement (px) en deçà duquel un appui reste un simple clic
     const toRad = Math.PI / 180;
-    const LOUPE_PX = 120, LOUPE_ZOOM = 3;  // px : diamètre de la pastille de la loupe ; agrandissement de la photo
-    const LOUPE_W = 150, LOUPE_H = 146;  // px : encombrement de la loupe, légende comprise (largeur de la légende ; pastille + légende)
+    const LOUPE_PX = 180, LOUPE_ZOOM = 3;  // px : diamètre de la pastille de la loupe (les autres tailles en dérivent) ; agrandissement de la photo
+    const LOUPE_W = LOUPE_PX + 30, LOUPE_H = LOUPE_PX + 26;  // px : encombrement de la loupe, légende comprise (marge de 15 px de part et d'autre ; légende de 22 px sous la pastille, écart de 4 px)
     const LOUPE_HOLD = 1000;  // ms : la loupe reste ouverte après le dernier cran de molette
     const WHEEL_NOTCH = 40;  // deltaY (px) au-delà duquel un événement de molette vaut un cran entier (pas d'accélération) ; en deçà : pavé tactile, fractions
     const WHEEL_PX = 1;  // px de la photo affichée par cran de molette
     const SCALE_LENGTHS = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10];  // m : longueurs rondes possibles de la barre d'échelle de la loupe
-    const SCALE_MAX_PX = 60;  // px (dans la loupe) : longueur maximale de la barre d'échelle (visée : 30 à 60 px, selon les longueurs rondes disponibles)
+    const SCALE_MAX_PX = LOUPE_PX / 2;  // px (dans la loupe) : longueur maximale de la barre d'échelle, la moitié de la pastille (visée : 45 à 90 px, selon les longueurs rondes disponibles)
 
     let active = false, raw = null, line = null;  // raw : dernière réponse de nose_line (texte), line : son contenu
     let photoId = null;
@@ -662,6 +662,8 @@ const Nez = {
         const root = document.createElement("div");
         root.id = "nez-loupe";
         root.setAttribute("aria-hidden", "true");
+        root.style.setProperty("--loupe-w", `${LOUPE_W}px`);  // tailles lues par style.css : une seule constante, LOUPE_PX
+        root.style.setProperty("--loupe-px", `${LOUPE_PX}px`);
         root.innerHTML = "<div class=\"pastille\"><canvas class=\"photo\"></canvas><canvas class=\"calque\"></canvas></div><div class=\"legende\"></div>";
         const ratio = window.devicePixelRatio || 1;
         for (const canvas of root.querySelectorAll("canvas")) canvas.width = canvas.height = Math.round(LOUPE_PX * ratio);
