@@ -1819,6 +1819,9 @@ dialog.avertissement form button:focus-visible { outline: 2px solid #ffd600; out
   transition: background 0.2s;
 }
 #calage-panneau[hidden] { display: none; }
+/* Le panneau ne gêne pas la pose des verticales : les clics le traversent, sauf sur ses boutons, ses lignes et son en-tête */
+#calage-panneau { pointer-events: none; max-width: min(26rem, calc(100% - 1.6rem)); }
+#calage-panneau :is(.entete, button, tbody tr) { pointer-events: auto; }
 #calage-panneau .entete { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
 #calage-panneau p { margin: 0.2rem 0; }
 #calage-panneau #calage-titre { font-weight: 700; color: #ffd600; }

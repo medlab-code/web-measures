@@ -727,7 +727,7 @@ Les consignes de chaque calage disent l'étape en cours et ce qui est déjà fai
 
 Le calage est gardé d'une visite à l'autre, et peut être exporté ou importé (onglet « Photo »).
 
-**Calage manuel : voyant, panneau, retrait** : sur le bouton équerre, une pastille indique le nombre de verticales tracées à la main
+**Calage manuel : voyant, panneau, retrait** : **le panneau s'ouvre de lui-même dès que le mode calage est lancé** (bouton équerre enfoncé), même sans verticale (il dit alors quoi cliquer), se met à jour à chaque verticale validée, reste ouvert si elles sont toutes retirées, et se ferme à la sortie du mode ; ouvert par la pastille (hors mode calage, seul moyen de l'ouvrir), il reste ouvert à la sortie du mode et se ferme quand la photo n'a plus de verticale. Les clics le traversent (sauf sur ses boutons, lignes et en-tête) : il ne gêne pas la pose des verticales. Sur le bouton équerre, une pastille indique le nombre de verticales tracées à la main
 sur la photo affichée : verte quand elles s'accordent, orange quand l'une est douteuse ou aberrante ; absente sans verticale. Elle
 est recalculée à chaque changement de photo, ajout ou retrait. Un clic sur la pastille (le clic sur le bouton lui-même lance toujours
 le calage) ouvre, sous la barre, le panneau « Calage manuel : n verticales » : l'inclinaison retenue (roulis et tangage, avec leur

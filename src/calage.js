@@ -20,6 +20,10 @@ const Calage = {
     let data = null, key = null, hover = null, selected = null;
 
     const isOpen = () => !panneau.hidden;
+    // Mode calage actif (bouton équerre enfoncé) : le panneau s'ouvre de lui-même, reste ouvert même vide, et se ferme à la sortie du
+    // mode ; sauf s'il avait été ouvert par la pastille (ouvert par le mode : opened = false)
+    const calibrating = () => $("#calage-visionneuse").getAttribute("aria-pressed") === "true";
+    let byMode = false;
     const redraw = () => {  // verticales de la photo numérotées, surbrillance de la choisie ou de la survolée
       if (etat.app && etat.photo) host.drawViewerMarks(JSON.parse(etat.app.viewer_marks()));
     };
@@ -34,8 +38,11 @@ const Calage = {
       const width = panneau.getBoundingClientRect().width;
       const left = Math.max(8, Math.min(anchor.left - vue.left, vue.width - width - 8));
       panneau.style.left = `${left / zoom}px`;
-      panneau.style.top = `${(bar.bottom - vue.top + 6) / zoom}px`;
-      panneau.style.maxHeight = `${Math.max(120, vue.bottom - bar.bottom - 24) / zoom}px`;
+      // sous la barre, et sous l'étiquette du pont (#chute) quand elle est là, à gauche comme lui
+      const chute = $("#chute"), cb = chute.hidden ? null : chute.getBoundingClientRect();
+      const top = Math.max(bar.bottom, cb && cb.width ? cb.bottom : 0);
+      panneau.style.top = `${(top - vue.top + 6) / zoom}px`;
+      panneau.style.maxHeight = `${Math.max(120, vue.bottom - top - 24) / zoom}px`;
     }
 
     function showVoyant() {
@@ -75,7 +82,8 @@ const Calage = {
         return tr;
       }));
       panneau.querySelector("table").hidden = !data;
-      let line = "";
+      let line = calibrating() ? "Aucune verticale : cliquez le pied puis le sommet d'un objet vertical dans la photo, puis « Valider l'objet vertical »."
+        : "Aucune verticale sur cette photo.";
       if (data) {
         const sigma = `±${nombre(Math.max(data.sigma, 0.1))}°`;
         line = data.partial ? `inclinaison partielle : ${nombre(data.tilt, 2)}° vers le cap ${nombre(data.toward, 0)}° (un seul sens corrigé : tracez une verticale à environ 90° de la première)`
@@ -92,8 +100,9 @@ const Calage = {
       place();
     }
 
-    function open(on) {
+    function open(on, auto = false) {
       panneau.hidden = !on;
+      byMode = on && auto;
       if (!on) { selected = hover = null; }
       tell();
       render();
@@ -109,13 +118,18 @@ const Calage = {
       data = JSON.parse(etat.app.calage_manuel());
       selected = hover = null;
       showVoyant();
-      if (!data && isOpen()) { open(false); return; }  // plus de verticale : la pastille disparaît, le panneau se ferme
+      // plus de verticale hors mode calage : la pastille disparaît, le panneau se ferme (en mode calage, il reste ouvert, vide)
+      if (!data && isOpen() && !calibrating()) { open(false); return; }
       if (isOpen()) tell();
       render();
       if (isOpen()) redraw();
     });
 
-    voyant.addEventListener("click", () => open(!isOpen()));
+    voyant.addEventListener("click", () => open(!isOpen()));  // ouvert (ou fermé) à la main : ne suit plus le mode calage
+    new MutationObserver(() => {
+      if (calibrating()) { if (!isOpen()) open(true, true); }
+      else if (byMode) open(false);
+    }).observe($("#calage-visionneuse"), { attributes: true, attributeFilter: ["aria-pressed"] });
     $("#calage-fermer").addEventListener("click", () => { open(false); voyant.focus(); });
     panneau.addEventListener("keydown", (event) => { if (event.key === "Escape") { open(false); voyant.focus(); } });
     new ResizeObserver(place).observe($("#vue"));
