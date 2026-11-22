@@ -78,20 +78,37 @@ const Calage = {
       const nb = a.count ? plural(a.count, "verticale") + (a.count > 1 ? " détectées" : " détectée") : "verticales détectées";
       const off = a.off ? "Calcul automatique des verticales ignoré pour cette photo. " : "";
       if (got.source === "clics") return a.off ? "Calcul automatique des verticales ignoré pour cette photo." : a.available ? "Verticales à la main : elles remplacent le calcul automatique." : "";
-      if (got.source === "verticales") return `Inclinaison calculée automatiquement : ${nb}, ${angles}.`;
-      if (got.source === "verticales (seuil élargi)") return `Inclinaison calculée automatiquement (seuil élargi, verticales moins sûres) : ${angles}.`;
+      if (got.source === "verticales" || got.source === "verticales (seuil élargi)") return "";  // dit en tête du panneau (autoText)
       if (got.source.startsWith("clics + ")) return `Verticale à la main complétée par ${got.source.endsWith("verticales") ? `le calcul automatique (${nb})` : got.source.slice(8)}.`;
       const names = { lidar: "LiDAR HD sous la caméra", "terrain web": "pente et dévers du terrain (expérimental)", "roulis de campagne": "roulis de la campagne seul (tangage inconnu)" };
       const name = got.source.startsWith("vue du dessus") ? got.source : (names[got.source] ?? got.source);
       return `${off}Inclinaison retenue : ${name}, ${got.source === "roulis de campagne" ? `roulis ${signe(got.roll)}°` : angles}.`;
     }
 
+    /** Calcul automatique de la photo (retenu ou non, sauf écarté) : seulement le nombre de verticales, en tête du panneau. */
+    function autoText() {
+      const a = auto();
+      if (!a.available || a.off || a.roll === undefined) return "";
+      const angles = `roulis ${signe(a.roll)}° ±${nombre(Math.max(a.sigma, 0.1))}°, tangage ${signe(a.pitch)}°`;
+      const kept = info?.retained?.source;
+      const used = kept === "verticales" || kept === "verticales (seuil élargi)" || kept?.startsWith("clics + verticales");
+      const text = a.loose ? `Inclinaison calculée automatiquement (seuil élargi, verticales moins sûres) : ${angles}.`
+        : `Inclinaison calculée automatiquement : ${plural(a.count, "verticale")} ${a.count > 1 ? "détectées" : "détectée"}, ${angles}.`;
+      return used || !kept ? text : text + " Non retenue.";
+    }
+
     function render() {
       voyant.setAttribute("aria-expanded", String(isOpen()));
       if (!isOpen()) return;
-      $("#calage-titre").textContent = data ? `Calage manuel : ${plural(data.count, "verticale")}` : "Calage manuel : aucune verticale";
-      $("#calage-auto").textContent = autoLine();
-      $("#calage-auto").hidden = !$("#calage-auto").textContent;
+      // Calcul automatique fait (et pas écarté) : son information en tête, sous le titre ; écarté, le bloc (« Rétablir ») passe en bas
+      const bloc = $("#calage-auto-bloc"), head = autoText();
+      $("#calage-titre").textContent = head ? "Calage de l'inclinaison" : data ? `Calage manuel : ${plural(data.count, "verticale")}` : "Calage manuel : aucune verticale";
+      $("#calage-auto").textContent = head || (auto().off ? "Calcul automatique des verticales ignoré pour cette photo." : "");
+      bloc.hidden = !auto().available;
+      if (head) panneau.querySelector(".entete").after(bloc);
+      else panneau.querySelector(".boutons").before(bloc);
+      $("#calage-source").textContent = autoLine();
+      $("#calage-source").hidden = !$("#calage-source").textContent;
       const off = $("#calage-auto-off");
       off.textContent = auto().off ? "Rétablir le calcul automatique" : "Réinitialiser";
       off.disabled = !auto().available;
@@ -122,8 +139,9 @@ const Calage = {
         : "Aucune verticale à la main sur cette photo.";
       if (data) {
         const sigma = `±${nombre(Math.max(data.sigma, 0.1))}°`;
-        line = data.partial ? `inclinaison partielle : ${nombre(data.tilt, 2)}° vers le cap ${nombre(data.toward, 0)}° (un seul sens corrigé : tracez une verticale à environ 90° de la première)`
-          : `${info.retained?.source.startsWith("clics") ? "inclinaison retenue" : "inclinaison de ces verticales (non retenue)"} : roulis ${signe(data.roll)}° ${sigma}, tangage ${signe(data.pitch)}° ${sigma}`;
+        const lead = head ? `${plural(data.count, "verticale")} à la main : ` : "";
+        line = lead + (data.partial ? `inclinaison partielle : ${nombre(data.tilt, 2)}° vers le cap ${nombre(data.toward, 0)}° (un seul sens corrigé : tracez une verticale à environ 90° de la première)`
+          : `${info.retained?.source.startsWith("clics") ? "inclinaison retenue" : "inclinaison de ces verticales (non retenue)"} : roulis ${signe(data.roll)}° ${sigma}, tangage ${signe(data.pitch)}° ${sigma}`);
       }
       $("#calage-retenue").textContent = line;
       let note = "";

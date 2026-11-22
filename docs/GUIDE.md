@@ -742,7 +742,7 @@ et la vue du dessus sont recalculées comme après un ajout, et le calage gardé
 aberrantes » (grisé sans aberrante) les retire toutes, « Purger la photo » (grisé sans verticale) retire toutes celles de la photo.
 **Calcul automatique** : quand l'inclinaison retenue vient des verticales détectées automatiquement dans l'image (« verticales », ou
 « verticales (seuil élargi) », moins sûres), la pastille est bleue avec « A » et le panneau dit « Inclinaison calculée
-automatiquement : n verticales détectées, roulis x° ±σ, tangage y° » (seulement leur nombre, pas de tableau ; pas de nombre au seuil
+automatiquement : n verticales détectées, roulis x° ±σ, tangage y° » (seulement leur nombre, pas de tableau ; elle vient en tête du panneau, sous son titre « Calage de l'inclinaison », avec le bouton « Réinitialiser », dès qu'un calcul automatique existe pour la photo, retenu ou non ; écarté, ce bloc passe en bas du panneau avec « Rétablir le calcul automatique » ; pas de nombre au seuil
 élargi). Les verticales tracées à la main passent devant (deux verticales, ou une seule qui complète l'automatique) : le panneau dit
 « Verticales à la main : elles remplacent le calcul automatique ». Seule l'inclinaison de la vue du dessus de la photo (réglée par la vue
 du dessus elle-même) passe devant les verticales à la main. **Réinitialiser** ignore le calcul automatique pour cette photo (comme

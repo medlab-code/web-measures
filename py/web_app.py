@@ -693,7 +693,7 @@ class App(Pose, Chutes, Nez, session.Session):
         toward, sigma, partial, pitch, roll, scale, rows (angle, deviation, effect, verdict), outliers, doubtful ; null sans
         verticale), retained (inclinaison retenue par Calibration.tilt : source, sigma, pitch, roll ; null sans inclinaison) et auto
         (calcul automatique par les verticales de la photo : available, off (écarté par l'utilisateur), count (null au seuil élargi),
-        loose)."""
+        loose, et sa propre inclinaison : pitch, roll, sigma)."""
         pic = self._calage_pic()
         out = {"manual": None, "retained": None, "auto": {"available": False, "off": False, "count": None, "loose": False}}
         if not pic:
@@ -713,8 +713,13 @@ class App(Pose, Chutes, Nez, session.Session):
                                "count": got.get("count")}
         entry = self.calibration.auto.get(pic) or {}
         found = entry.get("verticals")
-        out["auto"] = {"available": bool(found or self.birdeye_loose.get(pic)), "off": pic in self.calibration.auto_off,
-                       "count": found["count"] if found else None, "loose": not found and bool(self.birdeye_loose.get(pic))}
+        loose = self.birdeye_loose.get(pic)
+        out["auto"] = {"available": bool(found or loose), "off": pic in self.calibration.auto_off,
+                       "count": found["count"] if found else None, "loose": not found and bool(loose)}
+        own = found or loose  # sa propre inclinaison, retenue ou non
+        if own:
+            pitch, roll = calibration.tilt_components(own["up"], self._heading())
+            out["auto"].update(pitch=pitch, roll=roll, sigma=own["sigma"])
         return json.dumps(out)
 
     def calage_auto_off(self, off):
