@@ -1733,11 +1733,43 @@ const Carte = (() => {
     return (data.features || [])[0] || null;
   }
 
+  /**
+   * Photo (fiche STAC) tirée au hasard sur l'instance courante, parmi celles qui passent le filtre `accept`
+   * (fiche -> booléen). Par essai (2 au plus, 2 requêtes chacun) : une séquence au hasard (date de création tirée
+   * entre `since` ou 2022 et maintenant, première séquence créée ensuite, du producteur `producer` si donné),
+   * puis un instant au hasard dans sa durée et 20 photos à partir de lui, dont une est tirée parmi celles qui
+   * passent `accept`. Séquences et instants ne sont pas équiprobables (une séquence isolée dans le temps est plus
+   * souvent tirée) ; rend null si aucun essai n'aboutit.
+   */
+  async function randomPhoto(accept, { since = null, producer = null } = {}) {
+    const get = async (path, params) => {
+      const response = await fetch(`${apiUrl}/${path}?${new URLSearchParams(params)}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    };
+    const start = since ? Date.parse(since) : Date.UTC(2022, 0, 1);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const created = new Date(start + Math.random() * Math.max(0, Date.now() - start)).toISOString();
+      const params = { limit: 1, sortby: "created", page: `created>'${created}'` };
+      if (producer) params.filter = `provider_id='${producer}'`;
+      const collection = ((await get("collections", params)).collections || [])[0];
+      const [from, to] = ((collection?.extent?.temporal?.interval || [])[0] || []).map((d) => Date.parse(d));
+      if (!collection || !(to >= from)) continue;
+      const at = new Date(from + Math.random() * (to - from)).toISOString();
+      const features = (await get("search", {
+        collections: collection.id, datetime: `${at}/..`, sortby: "+datetime", limit: 20,
+      })).features || [];
+      const accepted = features.filter((f) => accept(f));
+      if (accepted.length) return accepted[Math.floor(Math.random() * accepted.length)];
+    }
+    return null;
+  }
+
   return {
     PANORAMAX_API: META_API, GEOPF, OFM_STYLE: VECTOR_BASES.ofm.style,
     createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, instances, setInstance, setFilter,
     showMeasures, showPrevious, showNez, showTravers, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre,
     onAim: (fn) => { aimListener = fn; }, aimedParcel: aimedParcelNow, apiUrl: () => apiUrl,
-    capture, nearestPhoto, photosNear, photoById, metresBetween,
+    capture, nearestPhoto, photosNear, photoById, randomPhoto, metresBetween,
   };
 })();

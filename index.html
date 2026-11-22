@@ -385,6 +385,15 @@ enregistrée en PNG et copiée dans le presse-papiers">
           <ul id="qualite" class="etats"></ul>
           <h3>Détails</h3>
           <div id="fiche"><p class="aide">Aucune photo choisie.</p></div>
+          <!-- Photo tirée au hasard parmi celles qui passent le filtre (src/favoris.js, Carte.randomPhoto) -->
+          <div id="photo-hasard" class="encart-calage">
+            <h3>Photo au hasard</h3>
+            <div class="boutons">
+              <button id="photo-aleatoire" type="button"
+                      title="Ouvrir une photo tirée au hasard de l'instance choisie, selon le filtre (producteur, date, type, précision GPS)">Photo aléatoire</button>
+            </div>
+            <p class="aide" hidden></p>
+          </div>
           <!-- Photo retrouvée par son identifiant (collé d'un collègue, d'un lien Panoramax) -->
           <form id="aller-photo" class="encart-calage">
             <h3><label for="id-photo">Aller à une photo</label></h3>

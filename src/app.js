@@ -956,6 +956,7 @@
     showPhotoInfo, showFavorites, checkFarFromMeasures, favorites, importFavorites,
   } = Favoris.init({
     etat, refresh, showOverViewer, photoProducer, openPhoto, map, store, notice, download, exportName,
+    passesFilter, currentFilter,
     get stopPlayer() { return stopPlayer; },
   });
 

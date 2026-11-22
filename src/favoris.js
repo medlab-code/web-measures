@@ -11,7 +11,8 @@ const Favoris = {
   init(host) {
     const $ = (selector) => document.querySelector(selector);
     const {
-      etat, refresh, showOverViewer, photoProducer, openPhoto, map, store, notice, download, exportName,
+      etat, refresh, showOverViewer, photoProducer, openPhoto, map, store, notice, download, exportName, passesFilter,
+      currentFilter,
     } = host;
 
     // Photo loin des mesures : proposer de repartir de zéro ------------------------------------
@@ -121,6 +122,29 @@ const Favoris = {
         map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 17), speed: 1.6 });
       } catch (error) {
         help.textContent = `Recherche impossible : ${error.message}`;
+      }
+    });
+    // Photo aléatoire : tirée parmi celles qui passent le filtre (instance, producteur, date, type, précision GPS)
+    $("#photo-aleatoire").addEventListener("click", async () => {
+      const button = $("#photo-aleatoire");
+      const help = $("#photo-hasard .aide");
+      button.disabled = true;  // grisé pendant le tirage
+      help.hidden = false;
+      help.textContent = "Tirage d'une photo…";
+      try {
+        const { since, producer } = currentFilter();
+        const feature = await Carte.randomPhoto(passesFilter, { since, producer: producer ? producer[0] : null });
+        if (!feature) {
+          help.textContent = "Aucune photo ne correspond aux filtres (réessayez, ou élargissez le filtre).";
+          return;
+        }
+        help.hidden = true;
+        openPhoto(feature);
+        map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 17), speed: 1.6 });
+      } catch (error) {
+        help.textContent = `Tirage impossible : ${error.message}`;
+      } finally {
+        button.disabled = false;
       }
     });
     // Les touches de la boîte ne vont ni à la carte ni aux recalages au clavier
