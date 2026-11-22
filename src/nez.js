@@ -16,8 +16,41 @@
 // perpendiculaire à l'axe du véhicule (hors rotation) : butées renvoyées par nose_line (d_min : capot ; d_max : nez + écart à la photo suivante + 1 m,
 // nez + 6 m sans suivante), les extrémités gardent leur écart latéral en mètres, la largeur est recalculée aussitôt, sans relancer
 // le calage. La droite est rouge tant que la photo n'est pas calée (Bird Eye), puis verte ; sa distance est dans l'étiquette et l'encart.
+// Réglage fin d'une poignée des bords : pendant son glissement et pendant la molette (un pixel de la photo affichée par cran, vers
+// l'extérieur de la chaussée en roulant vers le haut), une loupe ronde (×3) suit la poignée et montre le point visé avec la droite, la poignée,
+// un réticule, l'échelle au sol et la distance du bord à la caméra. Image : la scène de la visionneuse (three.js) est redessinée en
+// plein format sur le seul carré de la loupe, au milieu de l'événement « render » de la visionneuse (sans cela, le tampon WebGL
+// est vidé et illisible), puis la vue normale est redessinée aussitôt.
 
 const Nez = {
+  /** Place de la loupe, fonction pure (essais : Nez.placeLoupe). target {x, y} : point visé (px de la visionneuse) ; size {w, h} : encombrement de
+   * la loupe (pastille et légende) ; bounds {w, h} : visionneuse ; obstacles [{left, top, right, bottom}] : poignée de l'autre bord, étiquette de largeur,
+   * barre d'outils, bandeaux. Candidats : au-dessus (préféré), dessous, droite, gauche, puis les quatre diagonales ; chacun décalé au besoin pour
+   * rentrer dans la visionneuse. Score (le plus bas gagne) = surface recouverte d'obstacles + 30 par pixel de décalage + 50 par rang de préférence ;
+   * un candidat qui couvre le point visé (marge `margin`) est écarté. Rend { left, top, name }. */
+  placeLoupe(target, size, bounds, obstacles = [], gap = 30, margin = 14) {
+    const { w, h } = size, { x, y } = target;
+    const candidates = [
+      ["dessus", x - w / 2, y - gap - h], ["dessous", x - w / 2, y + gap], ["droite", x + gap, y - h / 2], ["gauche", x - gap - w, y - h / 2],
+      ["dessus-droite", x + gap / 2, y - gap - h], ["dessus-gauche", x - gap / 2 - w, y - gap - h],
+      ["dessous-droite", x + gap / 2, y + gap], ["dessous-gauche", x - gap / 2 - w, y + gap],
+    ];
+    const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left))
+      * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+    let best = null, fallback = null;
+    candidates.forEach(([name, left0, top0], rank) => {
+      // rentrer dans la visionneuse : décalage horizontal et vertical minimal (la loupe plus grande que la vue reste collée en haut à gauche)
+      const left = Math.max(0, Math.min(bounds.w - w, left0)), top = Math.max(0, Math.min(bounds.h - h, top0));
+      const rect = { left, top, right: left + w, bottom: top + h };
+      const score = obstacles.reduce((sum, o) => sum + overlap(rect, o), 0) + 30 * (Math.abs(left - left0) + Math.abs(top - top0)) + 50 * rank;
+      const covers = x > left - margin && x < rect.right + margin && y > top - margin && y < rect.bottom + margin;
+      const item = { left, top, name, score };
+      if (!covers && (!best || score < best.score)) best = item;
+      if (!fallback || score < fallback.score) fallback = item;
+    });
+    return best || fallback;  // jamais sur le point visé, sauf si la visionneuse est trop petite pour l'éviter
+  },
+
   /** Branche le bouton de la visionneuse ; host : etat (état partagé), map (carte MapLibre), notice. Rend update (photo affichée changée ou
    * visionneuse prête) et changed (calcul Python modifié : inclinaison, hauteur de caméra arrivées). */
   init(host) {
@@ -46,6 +79,13 @@ const Nez = {
     const CALAGE_WAIT = "Calage Bird Eye en cours…";
     const DOUBLE_MS = 400, TAP_PX = 5;  // double clic sur la droite : délai entre les deux appuis ; déplacement (px) en deçà duquel un appui reste un simple clic
     const toRad = Math.PI / 180;
+    const LOUPE_PX = 120, LOUPE_ZOOM = 3;  // px : diamètre de la pastille de la loupe ; agrandissement de la photo
+    const LOUPE_W = 150, LOUPE_H = 146;  // px : encombrement de la loupe, légende comprise (largeur de la légende ; pastille + légende)
+    const LOUPE_HOLD = 1000;  // ms : la loupe reste ouverte après le dernier cran de molette
+    const WHEEL_NOTCH = 40;  // deltaY (px) au-delà duquel un événement de molette vaut un cran entier (pas d'accélération) ; en deçà : pavé tactile, fractions
+    const WHEEL_PX = 1;  // px de la photo affichée par cran de molette
+    const SCALE_LENGTHS = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10];  // m : longueurs rondes possibles de la barre d'échelle de la loupe
+    const SCALE_MAX_PX = 60;  // px (dans la loupe) : longueur maximale de la barre d'échelle (visée : 30 à 60 px, selon les longueurs rondes disponibles)
 
     let active = false, raw = null, line = null;  // raw : dernière réponse de nose_line (texte), line : son contenu
     let photoId = null;
@@ -57,6 +97,7 @@ const Nez = {
     let lastTap = null;  // dernier appui sans glissement sur la droite : { t (ms), x, y (px) }
     let hoverLine = false, rotatedAt = 0;  // droite survolée (épaissie) ; instant (ms) de la fin d'une rotation (menu contextuel de la fin du clic droit)
     let drag = null, bound = null, readout = null, retry = null, waiting = null;
+    let loupe = null, loupeSide = null, loupeTimer = null, wheelSide = null;  // loupe (éléments), poignée qu'elle suit, minuterie de la molette, poignée engagée par la molette
     // Calage Bird Eye de la photo (voir en tête) : state « none » (pas demandé), « waiting » (en cours), « done », « impossible » (reason : cause)
     let calage = { pic: null, state: "none", reason: "" }, calageTimer = null, calageApi = null;
     let anchors = { gauche: null, droit: null };  // [yaw, pitch] de chaque poignée déplacée à la main : sa place dans l'image
@@ -499,6 +540,7 @@ const Nez = {
         etat.psv.container.setPointerCapture(event.pointerId);
       } catch { /* pointeur déjà relâché : le glisser s'arrêtera au pointerup */ }
       setCursor(found, true);
+      if (side === "gauche" || side === "droit") showLoupe(side);
     }
 
     function onMove(event) {
@@ -521,10 +563,15 @@ const Nez = {
       if (drag.side === "profondeur") return slideDepth(depthFromPointer(x, y));
       const o = nearestOffset(drag.side, x, y);
       if (o === null || o === handles[drag.side]) return;
-      handles[drag.side] = o;
-      moved[drag.side] = true;
-      anchors[drag.side] = locate(o);
-      needCalage();  // calage Bird Eye de la photo : largeur masquée jusqu'à sa fin
+      setHandle(drag.side, o);
+    }
+
+    /** Poignée latérale amenée au décalage o (m) : déplacée à la main, calage Bird Eye de la photo demandé (largeur masquée jusqu'à sa fin). */
+    function setHandle(side, o) {
+      handles[side] = o;
+      moved[side] = true;
+      anchors[side] = locate(o);
+      needCalage();
       draw();
     }
 
@@ -567,6 +614,210 @@ const Nez = {
       settle();
       draw();
       waitNeighbours(photoId);
+    }
+
+    // Loupe et molette -----------------------------------------------------------------------------
+
+    /** Cran(s) de molette d'un événement, sans accélération : un événement de souris vaut un cran entier quel que soit son deltaY
+     * (100, 120, 53… selon le système), un pavé tactile (petits deltaY) en fractions ; positif = vers le haut. */
+    function wheelNotches(event) {
+      if (event.deltaMode !== 0) return -Math.sign(event.deltaY);  // lignes ou pages : un cran
+      return -Math.max(-1, Math.min(1, event.deltaY / WHEEL_NOTCH));
+    }
+
+    /** Poignée side déplacée de `notches` pixels de la photo affichée le long de la droite, vers l'extérieur de la chaussée si notches > 0 (molette vers
+     * le haut) : le pas est donc fixé à l'écran, plus fin quand la visionneuse est zoomée. Mêmes bornes que le glissement. */
+    function nudge(side, notches) {
+      const o = handles[side], eps = 0.05;
+      const c = screenOf(...locate(o)), a = screenOf(...locate(o - eps)), b = screenOf(...locate(o + eps));
+      if (!c || !a || !b) return;
+      const len = Math.hypot(b.x - a.x, b.y - a.y);
+      if (len < 1e-6) return;
+      const out = side === "gauche" ? -1 : 1, k = out * notches * WHEEL_PX / len;  // vers les décalages croissants (droite) ou décroissants (gauche)
+      const low = side === "gauche" ? -line.reach : handles.gauche + MIN_GAP;
+      const high = side === "gauche" ? handles.droit - MIN_GAP : line.reach;
+      const next = projectOffset(c.x + (b.x - a.x) * k, c.y + (b.y - a.y) * k, low, high);
+      if (next !== null && next !== o) setHandle(side, next);
+    }
+
+    /** Molette sur une poignée des bords : réglage fin (la visionneuse ne zoome pas) ; ailleurs, le zoom de la visionneuse. La poignée reste engagée
+     * tant que la molette tourne (elle s'éloigne un peu du pointeur à chaque cran). */
+    function onWheel(event) {
+      if (!active || !shown() || drag) return;
+      const side = wheelSide ?? handleAt(...local(event));
+      if (side !== "gauche" && side !== "droit") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      wheelSide = side;
+      showLoupe(side);
+      clearTimeout(loupeTimer);
+      loupeTimer = setTimeout(() => { wheelSide = null; hideLoupe(); }, LOUPE_HOLD);
+      const notches = wheelNotches(event);
+      if (notches) nudge(side, notches);
+    }
+
+    function showLoupe(side) {
+      loupeSide = side;
+      if (!loupe) {
+        const root = document.createElement("div");
+        root.id = "nez-loupe";
+        root.setAttribute("aria-hidden", "true");
+        root.innerHTML = "<div class=\"pastille\"><canvas class=\"photo\"></canvas><canvas class=\"calque\"></canvas></div><div class=\"legende\"></div>";
+        const ratio = window.devicePixelRatio || 1;
+        for (const canvas of root.querySelectorAll("canvas")) canvas.width = canvas.height = Math.round(LOUPE_PX * ratio);
+        $("#vue").append(root);
+        loupe = { root, photo: root.querySelector(".photo").getContext("2d"), over: root.querySelector(".calque").getContext("2d"),
+          legend: root.querySelector(".legende") };
+      }
+      loupe.root.hidden = true;  // montrée à l'image suivante, une fois dessinée
+      etat.psv.needsUpdate();
+    }
+
+    function hideLoupe() {
+      loupeSide = null;
+      clearTimeout(loupeTimer);
+      loupeTimer = null;
+      wheelSide = null;
+      loupe?.root.remove();
+      loupe = null;
+    }
+
+    /** Photo agrandie de la loupe : la scène de la visionneuse redessinée en plein format sur le seul carré (LOUPE_PX / LOUPE_ZOOM px de l'écran) autour du
+     * point, par un décalage de vue de la caméra et un cadre réduit, puis relue ; à appeler pendant l'événement « render » (le tampon WebGL est vidé ensuite).
+     * Repli (texture moins fine) : le carré de la vue déjà dessinée, agrandi. La vue normale est redessinée dans tous les cas. */
+    function paintLoupePhoto(point, box) {
+      const rend = etat.psv.renderer, renderer = rend.renderer, camera = rend.camera, element = renderer.domElement;
+      const ratio = renderer.getPixelRatio(), size = LOUPE_PX, view = element.getBoundingClientRect();
+      const cx = point.x - (view.left - box.left), cy = point.y - (view.top - box.top), half = size / LOUPE_ZOOM / 2;
+      const target = loupe.photo, pixels = target.canvas.width;
+      const saved = { copy(v) { Object.assign(this, { x: v.x, y: v.y, z: v.z, w: v.w }); return this; } };
+      target.clearRect(0, 0, pixels, pixels);
+      try {
+        if (rend.customRenderer) throw new Error("rendu personnalisé");
+        renderer.getViewport(saved);
+        camera.setViewOffset(element.clientWidth, element.clientHeight, cx - half, cy - half, 2 * half, 2 * half);
+        renderer.setViewport(0, 0, size, size);
+        renderer.render(rend.scene, camera);
+        target.drawImage(element, 0, element.height - size * ratio, size * ratio, size * ratio, 0, 0, pixels, pixels);
+      } catch {
+        const s = 2 * half * ratio;
+        target.drawImage(element, cx * ratio - s / 2, cy * ratio - s / 2, s, s, 0, 0, pixels, pixels);
+      } finally {
+        if (camera.view) camera.clearViewOffset();
+        if ("x" in saved) renderer.setViewport(saved.x, saved.y, saved.z, saved.w);
+        (rend.customRenderer || renderer).render(rend.scene, camera);
+      }
+    }
+
+    /** Longueur ronde (m) de la barre d'échelle : la plus grande de SCALE_LENGTHS qui tient dans SCALE_MAX_PX px de la loupe (la plus petite sinon) ;
+     * ppm : px de la loupe par mètre au sol. */
+    function scaleLength(ppm) {
+      let best = SCALE_LENGTHS[0];
+      for (const length of SCALE_LENGTHS) if (length * ppm <= SCALE_MAX_PX) best = length;
+      return best;
+    }
+
+    const lengthText = (m) => m < 1 ? `${Math.round(m * 100)} cm` : `${String(m).replace(".", ",")} m`;
+
+    /** Calque de la loupe : droite, poignées, réticule, barre d'échelle (px de la loupe : écran × LOUPE_ZOOM autour du point visé). */
+    function paintLoupeOverlay(point, ppm) {
+      const ctx = loupe.over, pixels = ctx.canvas.width, ratio = pixels / LOUPE_PX, c = LOUPE_PX / 2, Z = LOUPE_ZOOM;
+      const map = (s) => [c + (s.x - point.x) * Z, c + (s.y - point.y) * Z];
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      ctx.clearRect(0, 0, LOUPE_PX, LOUPE_PX);
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      const pts = [locate(handles.gauche), ...line.points.filter(([o]) => o > handles.gauche && o < handles.droit).map(([, yaw, pitch]) => [yaw, pitch]),
+        locate(handles.droit)];
+      ctx.beginPath();
+      let pen = false;
+      for (const [yaw, pitch] of pts) {
+        const s = screenOf(yaw, pitch);
+        if (!s) { pen = false; continue; }
+        const [x, y] = map(s);
+        if (pen) ctx.lineTo(x, y);
+        else ctx.moveTo(x, y);
+        pen = true;
+      }
+      ctx.strokeStyle = lineColor();
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      for (const side of ["gauche", "droit"]) {  // poignées agrandies, vide au milieu pour garder le point visé visible
+        const s = screenOf(...locate(handles[side]));
+        if (!s) continue;
+        const [x, y] = map(s), half = TICK_PX * Z / 2, gap = 9;
+        for (const [width, color] of [[5, "rgba(0,0,0,0.45)"], [3, RED]]) {
+          ctx.strokeStyle = color;
+          ctx.lineWidth = width;
+          ctx.beginPath();
+          ctx.moveTo(x, y - half); ctx.lineTo(x, y - gap);
+          ctx.moveTo(x, y + gap); ctx.lineTo(x, y + half);
+          ctx.stroke();
+        }
+      }
+      for (const [width, color] of [[3, "rgba(0,0,0,0.55)"], [1, "#fff"]]) {  // réticule fin, centre ouvert
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(c - 14, c); ctx.lineTo(c - 4, c); ctx.moveTo(c + 4, c); ctx.lineTo(c + 14, c);
+        ctx.moveTo(c, c - 14); ctx.lineTo(c, c - 4); ctx.moveTo(c, c + 4); ctx.lineTo(c, c + 14);
+        ctx.stroke();
+      }
+      if (ppm > 0) {  // barre d'échelle au bas de la pastille : longueur au sol ronde, mesurée le long de la droite
+        const length = scaleLength(ppm), half = length * ppm / 2, y = LOUPE_PX - 18;
+        for (const [width, color] of [[5, "rgba(0,0,0,0.6)"], [2, "#fff"]]) {
+          ctx.strokeStyle = color;
+          ctx.lineWidth = width;
+          ctx.beginPath();
+          ctx.moveTo(c - half, y); ctx.lineTo(c + half, y);
+          ctx.moveTo(c - half, y - 4); ctx.lineTo(c - half, y + 4);
+          ctx.moveTo(c + half, y - 4); ctx.lineTo(c + half, y + 4);
+          ctx.stroke();
+        }
+        ctx.font = "bold 11px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(0,0,0,0.7)";
+        ctx.strokeText(lengthText(length), c, y - 8);
+        ctx.fillStyle = "#fff";
+        ctx.fillText(lengthText(length), c, y - 8);
+      }
+    }
+
+    /** Pièces de la visionneuse à ne pas recouvrir (px de la visionneuse) : barre d'outils, bandeaux, étiquettes de la photo et poignée de l'autre bord. */
+    function loupeObstacles(box, other) {
+      const rel = (r) => ({ left: r.left - box.left, top: r.top - box.top, right: r.right - box.left, bottom: r.bottom - box.top });
+      const list = [];
+      for (const element of document.querySelectorAll("#nez-lecture, #reglage-image, #haut-droite-vue, .bas-vue")) {
+        const r = element.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) list.push(rel(r));
+      }
+      for (const r of Traits.labelRects()) list.push(rel(r));
+      const s = screenOf(...locate(handles[other]));
+      if (s) list.push({ left: s.x - 12, right: s.x + 12, top: s.y - TICK_PX / 2 - 6, bottom: s.y + TICK_PX / 2 + 6 });
+      return list;
+    }
+
+    /** Loupe dessinée à l'événement « render » de la visionneuse (photo, calque, légende, place). Cachée si la poignée est derrière la vue. */
+    function paintLoupe() {
+      if (!loupe) return;
+      const side = loupeSide, o = handles[side], other = side === "gauche" ? "droit" : "gauche";
+      const point = screenOf(...locate(o));
+      if (!active || !shown() || !point) { loupe.root.hidden = true; return; }
+      const box = etat.psv.container.getBoundingClientRect();
+      paintLoupePhoto(point, box);
+      // échelle locale au sol : écart à l'écran de deux points de la droite à ±5 cm du bord
+      const a = screenOf(...locate(o - 0.05)), b = screenOf(...locate(o + 0.05));
+      const ppm = a && b ? LOUPE_ZOOM * Math.hypot(b.x - a.x, b.y - a.y) / 0.1 : 0;
+      paintLoupeOverlay(point, ppm);
+      const wrong = side === "gauche" ? o > 0 : o < 0;  // poignée passée de l'autre côté de la caméra
+      loupe.legend.textContent = calageWaiting() ? "calage en cours…"
+        : `bord ${side} : ${Math.abs(o) < 0.005 ? "au droit" : `${metres(Math.abs(o))}${wrong ? ` à ${o < 0 ? "gauche" : "droite"}` : ""}`}`;
+      const at = Nez.placeLoupe(point, { w: LOUPE_W, h: LOUPE_H }, { w: box.width, h: box.height }, loupeObstacles(box, other));
+      const vue = $("#vue").getBoundingClientRect();
+      loupe.root.style.left = `${box.left - vue.left + at.left}px`;
+      loupe.root.style.top = `${box.top - vue.top + at.top}px`;
+      loupe.root.hidden = false;
     }
 
     // Droite sur la carte : mêmes gestes (profondeur le long du cap, rotation, double clic) ---------------
@@ -712,6 +963,7 @@ const Nez = {
       } catch { /* déjà relâché */ }
       drag = null;
       ghost = null;  // pointillés retirés
+      hideLoupe();
       if (side === "profondeur") {
         lastTap = null;
         if (second) resetRotation();  // double clic sur la droite : perpendiculaire au trajet
@@ -753,6 +1005,8 @@ const Nez = {
       container.addEventListener("mousedown", onLegacyDown, true);
       container.addEventListener("touchstart", onLegacyDown, true);
       container.addEventListener("contextmenu", onMenu, true);
+      container.addEventListener("wheel", onWheel, { capture: true, passive: false });
+      etat.psv.addEventListener("render", paintLoupe);
     }
 
     function unbind() {
@@ -766,6 +1020,9 @@ const Nez = {
       container.removeEventListener("mousedown", onLegacyDown, true);
       container.removeEventListener("touchstart", onLegacyDown, true);
       container.removeEventListener("contextmenu", onMenu, true);
+      container.removeEventListener("wheel", onWheel, { capture: true });
+      etat.psv.removeEventListener("render", paintLoupe);
+      hideLoupe();
       container.classList.remove("nez-poignee", "nez-glisse", "nez-droite");
       hoverLine = false;
       bound = null;
@@ -857,6 +1114,7 @@ const Nez = {
         resetCalage();
         drag = null;
         ghost = null;
+        hideLoupe();
         map?.dragPan.enable();
         rotation = 0;
         depth = null;
