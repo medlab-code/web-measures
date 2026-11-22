@@ -271,7 +271,7 @@ class Pose:
         # elle-même (groundUp, src/dessus.js) ; les verticales à seuil élargi sont choisies ci-dessous
         fixed, pose, cam = cal.position(sequence, lon, lat), cal.pose(sequence, lon, lat), cal.camera(sequence)
         tilt = cal.tilt(pic, photo_only=True)
-        loose = self.birdeye_loose.get(pic)  # verticales moins sûres : mieux que la pente de la route, ou que le relais par le
+        loose = None if pic in cal.auto_off else self.birdeye_loose.get(pic)  # (écartées par l'utilisateur : aucune) verticales moins sûres : mieux que la pente de la route, ou que le relais par le
         if loose and (not tilt or loose["sigma"] < tilt["sigma"]):  # terrain (±0,5°, sans le véhicule penché en virage)
             tilt = loose
         verified = q.get("precise") and q.get("lidar") is True

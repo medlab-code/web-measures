@@ -214,6 +214,39 @@ class VerticalReport(unittest.TestCase):
         self.assertIsNone(cal.tilt("q"))
 
 
+class AutoOff(unittest.TestCase):
+    """Calcul automatique par les verticales écarté pour une photo (set_auto_off) : la source suivante de l'ordre prend le relais."""
+    UP = tilted_up(1.5, 20.0)
+
+    def setUp(self):
+        self.cal = cal = calibration.Calibration()
+        cal.auto["p"] = {"sequence": "s", "heading": 0.0, "verticals": {"up": list(self.UP), "count": 6, "sigma": 0.2}, "lidar": None}
+        cal.loose_tilt = lambda pic: calibration.tilt_entry(tilted_up(2.0, 0.0), 0.5, "verticales (seuil élargi)")
+        cal.campaign_tilt = lambda pic: calibration.tilt_entry(tilted_up(1.0, 90.0), 2.0, "roulis de campagne", fallback=True)
+
+    def test_off_skips_verticals_and_loose(self):
+        self.assertEqual(self.cal.tilt("p")["source"], "verticales")
+        self.cal.set_auto_off("p", True)
+        self.assertEqual(self.cal.tilt("p")["source"], "roulis de campagne")  # ni verticales (3) ni seuil élargi (5)
+        self.cal.auto["p"]["verticals"] = None
+        self.assertEqual(self.cal.tilt("p")["source"], "roulis de campagne")
+        self.cal.set_auto_off("p", False)
+        self.assertEqual(self.cal.tilt("p")["source"], "verticales (seuil élargi)")
+
+    def test_manual_still_wins_and_saved(self):
+        self.cal.add_vertical("p", *vertical_object(self.UP, 0, 8))
+        self.cal.add_vertical("p", *vertical_object(self.UP, 90, 8))
+        self.assertEqual(self.cal.tilt("p")["source"], "clics")  # deux verticales à la main : devant l'automatique
+        self.cal.set_auto_off("p", True)
+        other = calibration.Calibration()
+        other.load(self.cal.to_dict())
+        self.assertEqual(other.auto_off, {"p"})
+        other.set_auto_off("p", False)
+        merged = calibration.Calibration()
+        merged.merge(self.cal.to_dict())
+        self.assertEqual(merged.auto_off, {"p"})
+
+
 class CameraHeight(unittest.TestCase):
     def click(self, elev, yaw=0.0, pic="p1"):
         return {"lon": LON0, "lat": LAT0, "yaw": yaw, "elev": elev, "pic": pic}

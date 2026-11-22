@@ -740,6 +740,16 @@ comparé à 1,4826 × la médiane des écarts, jamais moins de 0,3° ; douteuse 
 fois (0,6° et 0,9° au minimum). Le panneau le rappelle en degrés. 🗑 retire la verticale de sa ligne : l'inclinaison, la droite ↔
 et la vue du dessus sont recalculées comme après un ajout, et le calage gardé dans le navigateur est mis à jour. « Écarter les
 aberrantes » (grisé sans aberrante) les retire toutes, « Purger la photo » (grisé sans verticale) retire toutes celles de la photo.
+**Calcul automatique** : quand l'inclinaison retenue vient des verticales détectées automatiquement dans l'image (« verticales », ou
+« verticales (seuil élargi) », moins sûres), la pastille est bleue avec « A » et le panneau dit « Inclinaison calculée
+automatiquement : n verticales détectées, roulis x° ±σ, tangage y° » (seulement leur nombre, pas de tableau ; pas de nombre au seuil
+élargi). Les verticales tracées à la main passent devant (deux verticales, ou une seule qui complète l'automatique) : le panneau dit
+« Verticales à la main : elles remplacent le calcul automatique ». Seule l'inclinaison de la vue du dessus de la photo (réglée par la vue
+du dessus elle-même) passe devant les verticales à la main. **Réinitialiser** ignore le calcul automatique pour cette photo (comme
+pour les deux rangs « verticales » : la source suivante de l'ordre prend le relais, LiDAR HD, roulis de campagne ou rien) ; la pastille
+est alors grisée et barrée, le bouton devient « Rétablir le calcul automatique ». Le choix est gardé par photo avec le calage (navigateur,
+export, import) ; inclinaison, droite ↔ et vue du dessus sont recalculées. Quand l'inclinaison vient d'une autre source (vue du dessus,
+LiDAR HD, terrain, roulis de campagne seul), le panneau le dit simplement, sans réinitialisation.
 Panneau ouvert, les verticales sont tracées sur la photo, numérotées, de la couleur de leur verdict ; survoler une ligne épaissit sa
 verticale, cliquer une ligne (ou le trait d'une verticale dans la photo, hors mesure) la choisit. **Réglages › Calage manuel › Purger
 tout** retire les verticales de toutes les photos, après confirmation (grisé sans verticale gardée) ; le calage automatique, les

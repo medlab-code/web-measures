@@ -164,6 +164,7 @@ enregistrée en PNG et copiée dans le presse-papiers">
           <p id="calage-titre">Calage manuel</p>
           <button type="button" id="calage-fermer" aria-label="Fermer le panneau du calage manuel" title="Fermer">✕</button>
         </div>
+        <p id="calage-auto" hidden></p>
         <p id="calage-retenue"></p>
         <table>
           <thead><tr><th scope="col" title="Numéro de la verticale, tracé sur la photo">n°</th>
@@ -175,6 +176,7 @@ enregistrée en PNG et copiée dans le presse-papiers">
         </table>
         <p id="calage-note"></p>
         <div class="boutons">
+          <button type="button" id="calage-auto-off" disabled>Réinitialiser</button>
           <button type="button" id="calage-ecarter" disabled title="Retire les verticales jugées aberrantes de cette photo">Écarter les aberrantes</button>
           <button type="button" id="calage-purger" disabled class="destructif" title="Retire toutes les verticales de cette photo">Purger la photo</button>
         </div>

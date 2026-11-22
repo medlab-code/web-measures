@@ -101,6 +101,12 @@ Quand l'inclinaison change (automatique arrivée, verticales à seuil élargi ar
 la vue du dessus modifié), tout est recalculé : une mesure peut changer d'elle-même une ou
 deux secondes après.
 
+**Calcul automatique écarté** (`Calibration.auto_off`, « Réinitialiser » du panneau « Calage manuel ») : pour une photo, les rangs 3
+(verticales de la photo) et 5 (verticales à seuil élargi) sont sautés, le rang 4 (LiDAR, qui reste valable) puis le roulis de campagne
+prennent le relais ; les verticales à la main (rang 2) et la vue du dessus (rang 1) ne changent pas. Gardé avec le calage (`auto_off`,
+liste de photos), repris par l'import et la fusion. Les verticales à la main complètes (au moins deux objets non alignés) passent déjà
+devant le calcul automatique ; une seule verticale le complète (« clics + verticales »).
+
 **Jugement des verticales tracées à la main** (`calibration.vertical_report`, panneau « Calage manuel », docs/GUIDE.md) : un
 écart automatique ne s'applique à aucune mesure, il sert seulement à signaler (et, sur demande, à retirer) les verticales qui
 contredisent les autres. Chaque verticale définit un plan (caméra, pied, sommet) qui doit contenir la verticale vraie ; son écart

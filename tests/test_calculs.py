@@ -93,6 +93,7 @@ class VueDessus(unittest.TestCase):
     def app_on(self, field_of_view):
         class Cal:
             auto = {}
+            auto_off = set()
             position = staticmethod(lambda *a: None)
             pose = staticmethod(lambda *a: {"offset": 1.5})
             tilt = staticmethod(lambda pic, photo_only=False: {"up": (0.0, 0.1, 0.99), "sigma": 0.2})
@@ -1309,11 +1310,11 @@ class Parcours(unittest.TestCase):
         """Panneau du calage manuel : rapport, traits numérotés, retrait d'une verticale, aberrantes, purge."""
         a, cal, pic = self.app, self.app.calibration, "p1"
         self.show(pic)
-        self.assertIsNone(json.loads(a.calage_manuel()))
+        self.assertIsNone(json.loads(a.calage_manuel())["manual"])
         for yaw in (0.0, 70.0, 140.0, 210.0):
             cal.add_vertical(pic, (yaw, -11.3), (yaw, 21.8))
         cal.add_vertical(pic, (35.0, -11.3), (38.0, 21.8))  # tracée de travers
-        report = json.loads(a.calage_manuel())
+        report = json.loads(a.calage_manuel())["manual"]
         self.assertEqual(report["count"], 5)
         self.assertEqual(report["outliers"], [4])
         a.calage_panel(True, 4, -1)
@@ -1336,6 +1337,28 @@ class Parcours(unittest.TestCase):
         a.calage_purge_all()
         self.assertEqual(cal.verticals, {})
         self.assertIsNone(cal.tilt(pic))
+
+    def test_calage_auto_reinitialiser(self):
+        """Panneau : verticales automatiques comptées, « Réinitialiser » les ignore (le LiDAR prend le relais), « Rétablir »."""
+        a, cal, pic = self.app, self.app.calibration, "p1"
+        self.show(pic)
+        up = calibration.up_from_components(1.0, 0.5, 0.0)
+        cal.auto[pic] = {"sequence": "s1", "heading": 0.0, "verticals": {"up": list(up), "count": 7, "sigma": 0.2}, "lidar": None}
+        info = json.loads(a.calage_manuel())
+        self.assertEqual((info["retained"]["source"], info["auto"]["count"], info["auto"]["available"], info["auto"]["off"]),
+                         ("verticales", 7, True, False))
+        self.assertAlmostEqual(info["retained"]["pitch"], 1.0, places=2)
+        version = a.calibration_version
+        a.calage_auto_off(True)
+        self.assertGreater(a.calibration_version, version)
+        info = json.loads(a.calage_manuel())
+        self.assertTrue(info["auto"]["off"])
+        self.assertIsNone(info["retained"])  # ni LiDAR ni roulis de campagne ici : rien
+        again = calibration.Calibration()
+        again.load(json.loads(a.calibration_json()))  # gardé avec le calage
+        self.assertEqual(again.auto_off, {pic})
+        a.calage_auto_off(False)
+        self.assertEqual(json.loads(a.calage_manuel())["retained"]["source"], "verticales")
 
     def test_ordre_inclinaison_ligne_etat(self):
         """Ligne d'état : la source (vue du dessus, seuil élargi, roulis de campagne seul) et son incertitude."""

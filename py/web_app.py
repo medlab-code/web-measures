@@ -689,18 +689,44 @@ class App(Pose, Chutes, Nez, session.Session):
         return self.calibration.vertical_report(pic, self._heading()) if pic else None
 
     def calage_manuel(self):
-        """JSON du calage fait à la main sur la photo affichée, pour le voyant et le panneau (null sans verticale) : count,
-        tilt, toward, sigma, pitch, roll, partial, rows (angle, deviation, effect, verdict), outliers, doubtful, selected."""
+        """JSON du calage de la photo affichée, pour le voyant et le panneau : manual (verticales tracées à la main : count, tilt,
+        toward, sigma, partial, pitch, roll, scale, rows (angle, deviation, effect, verdict), outliers, doubtful ; null sans
+        verticale), retained (inclinaison retenue par Calibration.tilt : source, sigma, pitch, roll ; null sans inclinaison) et auto
+        (calcul automatique par les verticales de la photo : available, off (écarté par l'utilisateur), count (null au seuil élargi),
+        loose)."""
+        pic = self._calage_pic()
+        out = {"manual": None, "retained": None, "auto": {"available": False, "off": False, "count": None, "loose": False}}
+        if not pic:
+            return json.dumps(out)
         report = self._calage_report()
-        if report is None:
-            return json.dumps(None)
-        tilt = report["tilt"]
-        rows = report["rows"]
-        sel = self.calage_sel if self.calage_pic == self._calage_pic() else None
-        return json.dumps({"count": report["count"], "tilt": tilt["tilt"], "toward": tilt["toward"], "sigma": tilt["sigma"],
-                           "partial": tilt["partial"], "pitch": report["pitch"], "roll": report["roll"],
-                           "scale": report["scale"], "rows": rows, "outliers": report["outliers"],
-                           "doubtful": [i for i, r in enumerate(rows) if r["verdict"] == "douteux"], "selected": sel})
+        if report is not None:
+            tilt, rows = report["tilt"], report["rows"]
+            out["manual"] = {
+                "count": report["count"], "tilt": tilt["tilt"], "toward": tilt["toward"], "sigma": tilt["sigma"],
+                "partial": tilt["partial"], "pitch": report["pitch"], "roll": report["roll"], "scale": report["scale"],
+                "rows": rows, "outliers": report["outliers"],
+                "doubtful": [i for i, r in enumerate(rows) if r["verdict"] == "douteux"]}
+        got = self.calibration.tilt(pic)
+        if got:
+            pitch, roll = calibration.tilt_components(got["up"], self._heading())
+            out["retained"] = {"source": got["source"], "sigma": got["sigma"], "pitch": pitch, "roll": roll,
+                               "count": got.get("count")}
+        entry = self.calibration.auto.get(pic) or {}
+        found = entry.get("verticals")
+        out["auto"] = {"available": bool(found or self.birdeye_loose.get(pic)), "off": pic in self.calibration.auto_off,
+                       "count": found["count"] if found else None, "loose": not found and bool(self.birdeye_loose.get(pic))}
+        return json.dumps(out)
+
+    def calage_auto_off(self, off):
+        """« Réinitialiser » (off vrai) : le calcul automatique par les verticales est ignoré pour la photo, l'inclinaison passe à la
+        source suivante ; « Rétablir le calcul automatique » (off faux)."""
+        pic = self._calage_pic()
+        if not pic:
+            return self.status()
+        self.calibration.set_auto_off(pic, off)
+        self._calibration_changed({pic})
+        self.message = "Calcul automatique des verticales {}.".format("ignoré pour cette photo" if off else "rétabli")
+        return self.status()
 
     def calage_panel(self, opened, select=None, hover=None):
         """Panneau ouvert ou fermé ; select : verticale choisie (None : aucune), hover : verticale survolée dans la liste."""

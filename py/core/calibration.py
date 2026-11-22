@@ -448,6 +448,9 @@ class Calibration:
         # verticals (up, count, sigma : d'après les verticales de la photo, ou None), lidar
         # ((pente, dévers) en degrés sous le véhicule, ou None)
         self.auto = {}
+        # photos dont l'utilisateur a écarté le calcul automatique par les verticales (« Réinitialiser » du panneau « Calage
+        # manuel ») : tilt passe alors à la source suivante de son ordre (voir auto_tilt, tilt) ; enregistré avec le calage
+        self.auto_off = set()
         self._tilts = {}
         # Sources d'inclinaison de l'hôte (pic -> tilt_entry ou None), consultées par tilt dans son ordre unique : le réglage
         # de la vue du dessus pour la photo (en premier), les verticales à seuil élargi, le roulis de campagne seul (en dernier)
@@ -471,13 +474,14 @@ class Calibration:
             "landmarks": self.landmarks,
             "heights": {seq: [o if isinstance(o, dict) else list(o) for o in obs] for seq, obs in self.heights.items()},
             "auto": self.auto,
+            "auto_off": sorted(self.auto_off),
         }
 
     def load(self, data):
         """Remplace le calage par celui enregistré (dict de to_dict, ou None : calage vide).
         Les entrées illisibles sont ignorées. Ne déclenche pas `changed`."""
         self.verticals, self.landmarks, self.heights, self._tilts = {}, {}, {}, {}
-        self.auto, self._models, self._cameras = {}, {}, {}
+        self.auto, self._models, self._cameras, self.auto_off = {}, {}, {}, set()
         if not isinstance(data, dict) or data.get("format") != self.FORMAT:
             return
         keys = ("pic", "lon", "lat", "yaw", "elev", "mlon", "mlat", "accuracy", "prior")
@@ -501,6 +505,7 @@ class Calibration:
                 entry = _auto_entry(entry)
                 if entry:
                     self.auto[pic] = entry
+            self.auto_off = {p for p in (data.get("auto_off") or []) if isinstance(p, str)}
         except (TypeError, ValueError, KeyError, IndexError, AttributeError):
             pass  # format abîmé : on garde ce qui a pu être lu
 
@@ -519,6 +524,7 @@ class Calibration:
                     added += 1
         for pic, tilt in other._tilts.items():
             self._tilts.setdefault(pic, tilt)
+        self.auto_off |= other.auto_off
         self._models, self._cameras = {}, {}
         return added
 
@@ -537,10 +543,10 @@ class Calibration:
            main)"), qui contient déjà le roulis de campagne ;
         2. calée à la main sur deux objets ou plus (source "clics") ; sur un objet, complétée par la suite de la liste
            ("clics + verticales", "clics + lidar"…) ;
-        3. calculée d'après les verticales de la photo ("verticales") ;
+        3. calculée d'après les verticales de la photo ("verticales"), sauf si l'utilisateur l'a écartée pour cette photo (auto_off) ;
         4. estimée par le LiDAR HD ("lidar"), ou par le terrain (option de l'hôte : "terrain web") ;
         5. verticales à seuil élargi (hôte, `loose_tilt`, incertitude au-delà de autotilt.MAX_SIGMA : "verticales (seuil
-           élargi)") ;
+           élargi)"), sauf auto_off comme le rang 3 ;
         6. roulis de campagne seul (hôte, `campaign_tilt`, "roulis de campagne") : tangage inconnu, incertitude UNCALIBRATED,
            repérée par "fallback" (pas une inclinaison calée) ;
         7. rien : None (UNCALIBRATED).
@@ -554,7 +560,8 @@ class Calibration:
         if manual and not manual["partial"]:
             return dict(manual, source="clics")
         if auto is None and not photo_only:
-            auto = next((t for t in (hook(pic) for hook in (self.loose_tilt, self.campaign_tilt) if hook) if t), None)
+            hooks = [self.campaign_tilt] if pic in self.auto_off else [self.loose_tilt, self.campaign_tilt]  # seuil élargi : verticales
+            auto = next((t for t in (hook(pic) for hook in hooks if hook) if t), None)
         if manual:
             if auto is None:
                 return dict(manual, source="clics")
@@ -572,7 +579,7 @@ class Calibration:
         entry = self.auto.get(pic)
         if not entry:
             return None
-        v = entry.get("verticals")
+        v = None if pic in self.auto_off else entry.get("verticals")  # écartées par l'utilisateur : LiDAR ensuite
         if v:
             up = tuple(v["up"])
             return {"up": up, "tilt": math.degrees(math.acos(min(1.0, up[2]))),
@@ -601,6 +608,18 @@ class Calibration:
         if sequence not in self._models:
             self._models[sequence] = lidar_model([e for e in self.auto.values() if e.get("sequence") == sequence])
         return self._models[sequence]
+
+    def set_auto_off(self, pic, off):
+        """Écarte (off vrai) ou rétablit le calcul automatique de l'inclinaison par les verticales de la photo : son rang 3 et le rang 5
+        (verticales à seuil élargi) de tilt sont sautés, la source suivante prend le relais. Les verticales tracées à la main (rang 2)
+        ne sont pas touchées."""
+        if (pic in self.auto_off) != bool(off):
+            if off:
+                self.auto_off.add(pic)
+            else:
+                self.auto_off.discard(pic)
+            self._models = {}
+            self._notify()
 
     def clear_tilt(self, pic):
         self.verticals.pop(pic, None)

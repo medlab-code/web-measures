@@ -17,7 +17,7 @@ const Calage = {
     const nombre = (value, digits = 1) => value.toLocaleString("fr-FR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
     const signe = (value, digits = 1) => (value > 0 ? "+" : "") + nombre(value, digits);
     const plural = (n, word) => `${n} ${word}${n > 1 ? "s" : ""}`;
-    let data = null, key = null, hover = null, selected = null;
+    let info = null, data = null, key = null, hover = null, selected = null;  // info : calage_manuel ; data : ses verticales à la main
 
     const isOpen = () => !panneau.hidden;
     // Mode calage actif (bouton équerre enfoncé) : le panneau s'ouvre de lui-même, reste ouvert même vide, et se ferme à la sortie du
@@ -45,22 +45,58 @@ const Calage = {
       panneau.style.maxHeight = `${Math.max(120, vue.bottom - top - 24) / zoom}px`;
     }
 
+    const auto = () => info?.auto ?? { available: false, off: false, count: null, loose: false };
+    const present = () => Boolean(data || auto().available);  // la pastille existe : verticales à la main, ou calcul automatique
+
+    /** Pastille : verticales à la main (nombre, verte ou orange) ; sinon calcul automatique (« A », bleue, grisée s'il est écarté). */
     function showVoyant() {
       const bad = data && (data.outliers.length || data.doubtful.length);
-      voyant.hidden = !data;
+      voyant.hidden = !present();
       voyant.classList.toggle("douteux", Boolean(bad));
-      if (!data) return;
-      voyant.textContent = String(data.count);
-      voyant.title = `Calage manuel : ${plural(data.count, "verticale")}, `
-        + (data.outliers.length ? `dont ${plural(data.outliers.length, "aberrante")}` : data.doubtful.length ? "dont une douteuse" : "cohérentes")
-        + " (cliquer pour le détail)";
+      voyant.classList.toggle("auto", !data && present());
+      voyant.classList.toggle("coupe", !data && auto().off);
+      if (!present()) return;
+      if (data) {
+        voyant.textContent = String(data.count);
+        voyant.title = `Calage manuel : ${plural(data.count, "verticale")}, `
+          + (data.outliers.length ? `dont ${plural(data.outliers.length, "aberrante")}` : data.doubtful.length ? "dont une douteuse" : "cohérentes")
+          + " (cliquer pour le détail)";
+      } else {
+        voyant.textContent = "A";
+        voyant.title = auto().off ? "Calcul automatique des verticales ignoré pour cette photo (cliquer pour le rétablir)"
+          : `Inclinaison calculée automatiquement par les verticales de la photo${auto().count ? ` (${plural(auto().count, "verticale")} détectée${auto().count > 1 ? "s" : ""})` : ""} (cliquer pour le détail)`;
+      }
       voyant.setAttribute("aria-label", voyant.title);
+    }
+
+    /** Ligne sur l'inclinaison retenue quand elle ne vient pas des verticales à la main : calcul automatique (seulement leur nombre) ou
+     * autre source de l'ordre de Calibration.tilt, dite simplement. */
+    function autoLine() {
+      const got = info?.retained, a = auto();
+      if (!got) return a.off ? "Calcul automatique des verticales ignoré pour cette photo : aucune autre inclinaison disponible." : "";
+      const angles = `roulis ${signe(got.roll)}° ±${nombre(Math.max(got.sigma, 0.1))}°, tangage ${signe(got.pitch)}°`;
+      const nb = a.count ? plural(a.count, "verticale") + (a.count > 1 ? " détectées" : " détectée") : "verticales détectées";
+      const off = a.off ? "Calcul automatique des verticales ignoré pour cette photo. " : "";
+      if (got.source === "clics") return a.off ? "Calcul automatique des verticales ignoré pour cette photo." : a.available ? "Verticales à la main : elles remplacent le calcul automatique." : "";
+      if (got.source === "verticales") return `Inclinaison calculée automatiquement : ${nb}, ${angles}.`;
+      if (got.source === "verticales (seuil élargi)") return `Inclinaison calculée automatiquement (seuil élargi, verticales moins sûres) : ${angles}.`;
+      if (got.source.startsWith("clics + ")) return `Verticale à la main complétée par ${got.source.endsWith("verticales") ? `le calcul automatique (${nb})` : got.source.slice(8)}.`;
+      const names = { lidar: "LiDAR HD sous la caméra", "terrain web": "pente et dévers du terrain (expérimental)", "roulis de campagne": "roulis de la campagne seul (tangage inconnu)" };
+      const name = got.source.startsWith("vue du dessus") ? got.source : (names[got.source] ?? got.source);
+      return `${off}Inclinaison retenue : ${name}, ${got.source === "roulis de campagne" ? `roulis ${signe(got.roll)}°` : angles}.`;
     }
 
     function render() {
       voyant.setAttribute("aria-expanded", String(isOpen()));
       if (!isOpen()) return;
       $("#calage-titre").textContent = data ? `Calage manuel : ${plural(data.count, "verticale")}` : "Calage manuel : aucune verticale";
+      $("#calage-auto").textContent = autoLine();
+      $("#calage-auto").hidden = !$("#calage-auto").textContent;
+      const off = $("#calage-auto-off");
+      off.textContent = auto().off ? "Rétablir le calcul automatique" : "Réinitialiser";
+      off.disabled = !auto().available;
+      off.title = auto().off ? "Reprend l'inclinaison calculée automatiquement par les verticales de cette photo"
+        : "Ignore l'inclinaison calculée automatiquement pour cette photo : la source suivante prend le relais (rétablissable)";
       const rows = data?.rows ?? [];
       corps.replaceChildren(...rows.map((r, i) => {
         const tr = document.createElement("tr");
@@ -82,12 +118,12 @@ const Calage = {
         return tr;
       }));
       panneau.querySelector("table").hidden = !data;
-      let line = calibrating() ? "Aucune verticale : cliquez le pied puis le sommet d'un objet vertical dans la photo, puis « Valider l'objet vertical »."
-        : "Aucune verticale sur cette photo.";
+      let line = calibrating() ? "Aucune verticale à la main : cliquez le pied puis le sommet d'un objet vertical dans la photo, puis « Valider l'objet vertical »."
+        : "Aucune verticale à la main sur cette photo.";
       if (data) {
         const sigma = `±${nombre(Math.max(data.sigma, 0.1))}°`;
         line = data.partial ? `inclinaison partielle : ${nombre(data.tilt, 2)}° vers le cap ${nombre(data.toward, 0)}° (un seul sens corrigé : tracez une verticale à environ 90° de la première)`
-          : `inclinaison retenue : roulis ${signe(data.roll)}° ${sigma}, tangage ${signe(data.pitch)}° ${sigma}`;
+          : `${info.retained?.source.startsWith("clics") ? "inclinaison retenue" : "inclinaison de ces verticales (non retenue)"} : roulis ${signe(data.roll)}° ${sigma}, tangage ${signe(data.pitch)}° ${sigma}`;
       }
       $("#calage-retenue").textContent = line;
       let note = "";
@@ -112,14 +148,15 @@ const Calage = {
     // Recalcul à chaque rafraîchissement de la page, mais seulement si la photo ou le calage a changé
     document.addEventListener("calage-maj", () => {
       if (!etat.app) return;
-      const now = `${etat.photo?.id}|${etat.app.calibration_version}`;
-      if (now === key) return;
-      key = now;
-      data = JSON.parse(etat.app.calage_manuel());
+      const json = etat.app.calage_manuel(), text = `${etat.photo?.id}|${json}`;  // photo ou calage changé (verticales, calcul automatique, source retenue)
+      if (text === key) return;
+      key = text;
+      info = JSON.parse(json);
+      data = info.manual;
       selected = hover = null;
       showVoyant();
-      // plus de verticale hors mode calage : la pastille disparaît, le panneau se ferme (en mode calage, il reste ouvert, vide)
-      if (!data && isOpen() && !calibrating()) { open(false); return; }
+      // plus rien à montrer hors mode calage : la pastille disparaît, le panneau se ferme (en mode calage, il reste ouvert, vide)
+      if (!present() && isOpen() && !calibrating()) { open(false); return; }
       if (isOpen()) tell();
       render();
       if (isOpen()) redraw();
@@ -155,6 +192,7 @@ const Calage = {
       redraw();
     });
     $("#calage-ecarter").addEventListener("click", () => refresh(etat.app.calage_drop_outliers()));
+    $("#calage-auto-off").addEventListener("click", () => refresh(etat.app.calage_auto_off(!auto().off)));
     $("#calage-purger").addEventListener("click", () => refresh(etat.app.calage_purge_photo()));
 
     // Clic sur le trait d'une verticale dans la photo (panneau ouvert, hors mesure) : la ligne correspondante est choisie
