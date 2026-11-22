@@ -53,6 +53,28 @@ class Bridge(unittest.TestCase):
         self.assertIsNone(self.bridge((12.0, 5.0), 0.0))  # chemin parallèle, à côté
 
 
+class DeckMask(unittest.TestCase):
+    """Points du LiDAR sous l'emprise d'un pont voisin (deck_mask) : sol sous l'ouvrage, à écarter ; le remblai reste lu."""
+
+    SECTIONS = roads.parse_sections({"features": Bridge.FEATURES})  # pont nord-sud de y = -20 à 20, demi-largeur 6 m
+
+    def mask(self, photo, axis, *pts):
+        return roads.deck_mask(self.SECTIONS, *point(*photo), axis, [point(*p) for p in pts])
+
+    def test_under_deck_dropped_embankment_kept(self):
+        """Photo sur le remblai, 30 m avant la culée (hors portée du cœur) : un point sous le tablier est écarté."""
+        self.assertEqual(self.mask((0.0, -30.0), 0.0, (0.0, -25.0), (0.0, -19.0), (5.0, 0.0), (7.0, 0.0), (0.0, 25.0)),
+                         [False, True, True, False, False])  # avant la culée, sous le tablier, à 5 m de l'axe, à 7 m, après le pont
+
+    def test_crossed_road_below_kept(self):
+        """Photo sur la voie franchie (autoroute est-ouest, sous le pont) : son sol sous l'ouvrage est le vrai sol, rien d'écarté."""
+        self.assertEqual(self.mask((-10.0, 0.0), 90.0, (0.0, 0.0), (3.0, 1.0)), [False, False])
+
+    def test_no_bridge_nothing_dropped(self):
+        flat = roads.parse_sections({"features": [Bridge.FEATURES[0], Bridge.FEATURES[2]]})
+        self.assertEqual(roads.deck_mask(flat, *point(0.0, -30.0), 0.0, [point(0.0, -50.0)]), [False])
+
+
 class FakeServices:
     def __init__(self, sections=(), down=False):
         self.sections, self.down = list(sections), down
@@ -90,6 +112,18 @@ class Provider(unittest.TestCase):
         self.assertEqual(self.bridge(services, at=(3.0, 8.0))["name"], "D111")  # même maille
         self.assertFalse(self.bridge(services, at=(12.0, 5.0)))  # chemin à côté : pas de pont
         self.assertEqual(services.calls, 1)
+
+    def test_sections_and_waiters(self):
+        """sections : tronçons de la maille (PENDING pendant la lecture) ; when_ready : rappel unique à l'arrivée."""
+        services, waited = FakeServices(sections=Bridge.FEATURES), []
+        with mock.patch.object(roads.host, "fetch_json", services):
+            self.assertEqual(self.provider.sections(*point(0.0, 5.0)), roads.PENDING)
+            self.provider.when_ready(lambda: waited.append(1))
+            services.answer()
+            self.assertEqual(waited, [1])
+            self.assertEqual(len(self.provider.sections(*point(0.0, 5.0))), 3)
+            services.answer()
+        self.assertEqual(waited, [1])  # une seule fois
 
     def test_failure_retried_later(self):
         services = FakeServices(down=True)

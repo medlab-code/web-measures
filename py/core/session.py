@@ -69,6 +69,8 @@ class Session:
         self.precision = precision_checker if precision_checker is not None else precision.PrecisionChecker()
         self.tilts = tilt_checker if tilt_checker is not None else autotilt.TiltChecker()
         self.roads.ready = self._roads_ready
+        if getattr(self.tilts, "roads", None) is None:
+            self.tilts.roads = self.roads  # LiDAR sous l'emprise d'un pont voisin écarté (autotilt.TiltChecker)
         self.tool = tool if tool is not None else measures.MeasureTool(None)
         self.tool.calibration = self.calibration
         self.triangulator = triangulator if triangulator is not None else tools.Triangulator()
@@ -108,7 +110,7 @@ class Session:
         self.rtk_alerted = set()  # séquences sans RTK déjà signalées par une fenêtre (take_rtk_alert)
         self.bridge_asked = []  # (lon, lat) des photos où « Sur un pont » a été proposé (take_bridge_alert)
         self._bridge_waiting = False  # tronçons BD TOPO en lecture pour take_bridge_alert
-        self._photo_bridge_waiting = False  # tronçons BD TOPO en lecture pour _mark_bridge
+        self._bridge_waiting_items = {}  # photo -> fiche STAC dont le marquage « sur un pont » attend les tronçons BD TOPO (mark_bridge)
         self.bridge_left_asked = False  # case cochée : sortie du pont déjà proposée (take_bridge_alert)
         self.epoch = 0  # change quand les clics en cours sont abandonnés
         # Hauteur : photo de la première visée du point de référence, sur laquelle la
@@ -934,24 +936,35 @@ class Session:
         return self.status()
 
     def _mark_bridge(self):
-        """Marque la photo affichée comme sur un pont (BD TOPO, roads.on_bridge), dès son ouverture et même hors mesure :
-        Calibration.set_bridge_photo écarte alors son LiDAR (inclinaison et modèle de séquence). Pendant la lecture des
-        tronçons ou BD TOPO injoignable : marque inchangée, refaite à l'arrivée des tronçons (_roads_ready)."""
-        item = self.item or {}
+        """Marque la photo affichée comme sur un pont (voir mark_bridge)."""
+        if self.item:
+            self.mark_bridge(self.item)
+
+    def mark_bridge(self, item):
+        """Marque la photo item (fiche STAC) comme sur un pont (BD TOPO, roads.on_bridge), dès son ouverture et même hors mesure :
+        Calibration.set_bridge_photo écarte alors son LiDAR (inclinaison et modèle de séquence). Vaut pour la photo affichée comme
+        pour ses voisines (vue du dessus). Retourne vrai ou faux ; None pendant la lecture des tronçons (marque inchangée, refaite
+        à leur arrivée, _roads_ready) ; BD TOPO injoignable : marque inchangée."""
+        pic = item.get("id")
         try:
             lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
         except (KeyError, TypeError, ValueError):
-            return
+            return False
         axis = self._axis(item)
         sec = self.roads.bridge(lon, lat, metadata.item_heading(item) if axis is None else axis)
-        self._photo_bridge_waiting = sec is roads.PENDING
-        if sec is not roads.PENDING and sec is not None:
-            self.calibration.set_bridge_photo(item.get("id"), bool(sec))
+        if sec is roads.PENDING:
+            self._bridge_waiting_items[pic] = item
+            return None
+        self._bridge_waiting_items.pop(pic, None)
+        if sec is not None:
+            self.calibration.set_bridge_photo(pic, bool(sec))
+        return pic in self.calibration.bridge_pics
 
     def _roads_ready(self):
-        if self._photo_bridge_waiting:
-            self._photo_bridge_waiting = False
-            self._mark_bridge()
+        waiting, self._bridge_waiting_items = self._bridge_waiting_items, {}
+        if waiting:
+            for item in waiting.values():
+                self.mark_bridge(item)
             self.notify()
         changed = self._bridge_waiting  # pont à proposer peut-être
         self._bridge_waiting = False

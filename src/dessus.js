@@ -66,8 +66,10 @@ const Dessus = (() => {
   // b47b4351 (2,06 contre 1,94 m, stable sur 15 photos), alors que l'écart entre photos de la séquence n'est que de 2 cm
   const RTK_SIGMA = 0.1;
   const GROUND_SIGMA = 1;  // degrés : inclinaison déduite de la route, sans verticales à lire (voir docs/CALCULS.md)
-  // Sur un pont (pose.bridge), tablier supposé plan et horizontal à la place du terrain LiDAR (voir dropTerrain) : la pente du
-  // tablier (jusqu'à 3 %, 1,7°) échappe à l'inclinaison par la route
+  // Photo marquée « sur un pont » par le cœur (pose.bridge : tronçon BD TOPO en pont à 8 m au plus dans le sens de la séquence),
+  // tablier supposé plan et horizontal à la place du terrain LiDAR (voir dropTerrain) : la pente du tablier (jusqu'à 3 %, 1,7°)
+  // échappe à l'inclinaison par la route. Une photo non marquée (remblai qui mène au tablier) garde le LiDAR, sauf sous l'emprise
+  // de l'ouvrage (pose.deck, voir underDeck)
   const DECK_SIGMA = 1.5;  // degrés
   const LIDAR_SIGMA = 0.02, FLAT_SIGMA = 0.1;  // m : écart du sol au terrain utilisé (résidu LiDAR ; sol supposé plat)
   const GROUND_CORRELATION = 2;  // m : portée de la corrélation de cet écart entre deux points (gaussienne : terrain lissé sur 2 m)
@@ -306,6 +308,40 @@ const Dessus = (() => {
     return grids.get(key);
   }
 
+  // Photo non marquée « sur un pont » (remblai, approche) près d'un ouvrage : le MNT LiDAR HD sous l'emprise du tablier (pose.deck,
+  // axes du tronçon en pont en mètres autour de la photo, demi-largeur pose.deck_half, voir py/web_pose.py) décrit le sol sous
+  // l'ouvrage, pas la route : ces points sont écartés, remplacés par le plan ajusté sur les autres (le remblai garde sa pente).
+  // Si moins de DECK_KEEP des points restent, le terrain est indisponible (null) plutôt que faux.
+  const DECK_KEEP = 0.6;
+  /** Le point (x, y) est-il sous l'emprise d'un pont (axes lines, demi-largeur half) : entre les extrémités du tronçon seulement. */
+  function inDeck(lines, x, y, half) {
+    for (const line of lines) {
+      for (let k = 1; k < line.length; k++) {
+        const [ax, ay] = line[k - 1], [bx, by] = line[k], length2 = (bx - ax) ** 2 + (by - ay) ** 2;
+        if (length2 === 0) continue;
+        const t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / length2;
+        if (t >= 0 && t <= 1 && Math.hypot(x - ax - t * (bx - ax), y - ay - t * (by - ay)) <= half) return true;
+      }
+    }
+    return false;
+  }
+  /** Points du maillage de côté m (±reach m autour de la photo) sous l'emprise d'un pont (tableau de booléens), ou null s'il n'y en a pas. */
+  function underDeck(pose, m, reach) {
+    if (!pose.deck?.length) return null;
+    const out = [];
+    for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) out.push(inDeck(pose.deck, -reach + i * STEP, -reach + j * STEP, pose.deck_half));
+    return out.some(Boolean) ? out : null;
+  }
+  /** Remplace les points écartés de z par le plan ajusté sur les autres ; faux s'il en reste trop peu (DECK_KEEP). */
+  function fillUnderDeck(z, under, m, reach) {
+    const rows = [], values = [];
+    z.forEach((v, k) => { if (!under[k]) { rows.push([1, -reach + (k % m) * STEP, -reach + Math.floor(k / m) * STEP]); values.push(v); } });
+    if (rows.length < DECK_KEEP * z.length) return false;
+    const plane = leastSquares(rows, values);
+    z.forEach((_, k) => { if (under[k]) z[k] = plane[0] + plane[1] * (-reach + (k % m) * STEP) + plane[2] * (-reach + Math.floor(k / m) * STEP); });
+    return true;
+  }
+
   /** Altitudes LiDAR HD du maillage (lignes du sud au nord, colonnes d'ouest en est), lissées, ou null s'il en manque une ;
    * exception si le service ne répond pas. across : portée du lissage en travers (voir smoothTerrain). Extraites de la grille
    * de ±LINES_WIDE m (readGrid), une seule lecture pour toutes les portées. */
@@ -314,7 +350,9 @@ const Dessus = (() => {
     if (signal?.aborted) throw signal.reason ?? new DOMException("Annulé", "AbortError");
     const n = 2 * big / STEP + 1, m = 2 * reach / STEP + 1, off = (big - reach) / STEP, z = [];
     for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) z.push(all[(j + off) * n + i + off]);
-    if (!z.every((v) => v > -1000)) return null;
+    const under = underDeck(pose, m, reach);
+    if (!z.every((v, k) => v > -1000 || under?.[k])) return null;
+    if (under && !fillUnderDeck(z, under, m, reach)) return null;
     const mesh = smoothTerrain(z, pose.heading, across);
     mesh.level = smoothTerrain(z, pose.heading, TERRAIN_SMOOTH);  // pour la route sous le véhicule (voir levelOf)
     return mesh;
@@ -2086,7 +2124,7 @@ const Dessus = (() => {
       }
       if (old) setTimeout(() => URL.revokeObjectURL(old), 5000);
     }
-    const flat = pose.bridge ? "pont à proximité, tablier horizontal" : shown.terrainFailed ? "service d'altitude injoignable"
+    const flat = pose.bridge ? "photo sur un pont, tablier horizontal" : shown.terrainFailed ? "service d'altitude injoignable"
       : "pas de LiDAR HD ici";
     const place = onLidar(shown) ? "Terrain LiDAR HD" : `Sol supposé plat (${flat})`;
     const parallax = withNeighbours() ? shown.height : null;
@@ -2246,8 +2284,7 @@ const Dessus = (() => {
 
   /** Photo à montrer (fiche STAC, pose avec ses voisines et fiches des voisines, null s'il faut encore les lire ; photo null
    * pour tout retirer), à chaque changement : ne refait que ce qui a changé. */
-  /** Pont à portée (photo dessus ou dessous) : le MNT LiDAR HD n'y donne pas le sol vu (tablier retiré, ou brèche sous la
-   * photo). Tablier plan et horizontal (deck) : inclinaison par la route (tangage de la séquence et défaut de roulis de la
+  /** Photo marquée sur un pont (pose.bridge, par le cœur) : le MNT LiDAR HD n'y donne pas le sol vu (tablier retiré). Tablier plan et horizontal (deck) : inclinaison par la route (tangage de la séquence et défaut de roulis de la
    * campagne seulement), hauteur entre photos, raccords et position refaits sur lui. Essai du 13/11/2026 : brèche du LiDAR
    * comblée au niveau de la route plutôt que tablier plat, sans gain (f2a245d0-aeea-4249-ba9c-fad83b442a23 : 0,487 m
    * contre 0,477 ; 7dcdccf9-3c52-4c54-bc5b-de72740a7967, petit pont
@@ -2371,7 +2408,18 @@ const Dessus = (() => {
       // verticales arrivées : hauteur entre photos refaite
       if (vertical(pose) > vertical(shown.pose) && !shown.estimating) shown.estimated = false;
       const unveiled = shown.silent && !silent;  // Bird Eye allumée sur une photo déjà calée sans affichage : image à poser
+      const deckChanged = onLidar(shown) && JSON.stringify(pose.deck || []) !== JSON.stringify(shown.pose.deck || []);
       Object.assign(shown, { key, pose, features, silent });
+      if (deckChanged) {  // emprise d'un pont arrivée après le terrain : terrain relu (grille brute en mémoire), vue refaite dessus
+        const mine = shown;
+        readTerrain(pose, abort.signal).catch(() => null).then((terrain) => {
+          if (shown !== mine || mine.pose !== pose) return;
+          Object.assign(mine, terrain ? { terrain, estimated: false } : { terrain: deck(), sigmaGround: FLAT_SIGMA, estimated: false },
+            { joins: null, joinText: "", located: undefined, placed: undefined });
+          mine.sigmaGround = onLidar(mine) ? LIDAR_SIGMA : FLAT_SIGMA;
+          if (mine.panos.has(mine.pic)) showImage();
+        });
+      }
       if (unveiled && withNeighbours()) shown.calage = undefined;  // voisines à lire : le calage d'affichage n'est plus fait
       if (pose.bridge && shown.terrain !== flatDeck) dropTerrain(shown);  // pont connu après le terrain
       if (!pose.pending) shown.sequenceHeight = sequenceHeight(photo.collection, pose);  // hauteur vérifiée arrivée après
@@ -2426,6 +2474,10 @@ const Dessus = (() => {
         pre ? pre.part : loadPano(tiles, context().getParameter(gl.MAX_TEXTURE_SIZE), signal)]);
       if (shown !== mine) { part.canvas.width = 0; return; }
       mine.terrain = mine.pose.bridge ? deck() : terrain;  // pont signalé pendant la lecture
+      if (terrain && !known && !mine.pose.bridge && JSON.stringify(mine.pose.deck || []) !== JSON.stringify(pose.deck || [])) {
+        mine.terrain = await readTerrain(mine.pose, signal).catch(() => terrain);  // emprise d'un pont arrivée pendant la lecture
+        if (shown !== mine) { part.canvas.width = 0; return; }
+      }
       mine.sigmaGround = onLidar(mine) ? LIDAR_SIGMA : FLAT_SIGMA;
       mine.panos.set(mine.pic, panoTexture(part));
       loadNeighbours(signal);

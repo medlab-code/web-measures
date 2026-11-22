@@ -12,7 +12,7 @@ from urllib.parse import urlencode
 import web_host
 import web_terrain
 import web_tilt
-from core import autotilt, calibration, host, measures, metadata, precision, roads, triangulation
+from core import autotilt, calibration, host, measures, metadata, precision, roads
 
 
 def _inside(point, ring):
@@ -295,28 +295,45 @@ class Pose:
         (recalée si la séquence l'est), cap du centre de l'image, correction de cap de la séquence
         (degrés), verticale vraie vue de la caméra (None sans calage) et son incertitude (degrés),
         hauteur de caméra, son incertitude et celle de la position relative entre photos voisines (m) ;
-        neighbours : les poses des photos voisines ; far : celles à deux pas (birdeye_far) ; bridge : pont à portée
-        de la vue (None en lecture), la vue se passe alors du terrain LiDAR et la hauteur de caméra ne vient pas du
-        sol LiDAR. null si la photo ne convient pas."""
+        neighbours : les poses des photos voisines ; far : celles à deux pas (birdeye_far) ; bridge : la photo
+        affichée est marquée « sur un pont » par le cœur (mark_bridge, BD TOPO ; None en lecture) : la vue se passe alors du terrain
+        LiDAR (tablier supposé plat). Chaque photo marquée (voisines comprises) a une hauteur de caméra sans le sol LiDAR. Photo non
+        marquée (remblai, approche) : terrain LiDAR gardé, sauf sous l'emprise d'un pont voisin (deck : axes en mètres autour de
+        la photo, deck_half : demi-largeur, roads.DECK_HALF_WIDTH). null si la photo ne convient pas."""
         pose = self._birdeye_of(self.item, self.tilts.pending) if self.item else None
         if pose is None:
             return "null"
-        near = [p for p in (self._birdeye_of(item, checker.pending)
-                            for item, checker in zip(self.birdeye_items, self.birdeye_checks)) if p]
-        bridge = self._near_bridge(pose["lon"], pose["lat"])
-        if bridge:  # altitude RTK moins sol LiDAR : le sol sous le pont, ou la brèche sous la photo
-            cam, mount = self.calibration.camera(self.item.get("collection")), self._fleet_mount(self.item)
-            height = ({"height": cam["height"], "height_sigma": cam["sigma"]} if cam
-                      else {"height": mount, "height_sigma": self.MOUNT_SIGMA} if mount
-                      else {"height": self.tool.camera_height, "height_sigma": 0.3})
-            pose.update(height)
-            near = [dict(p, **height) for p in near]
-        far = [p for p in (self._birdeye_of(item, lambda pic: False) for item in self.birdeye_far_items) if p]
-        if bridge:
-            far = [dict(p, **height) for p in far]
-        return json.dumps(dict(pose, neighbours=near, far=far, bridge=bridge))
+        poses = [(self._birdeye_of(item, checker.pending), item) for item, checker in zip(self.birdeye_items, self.birdeye_checks)]
+        near = [self._deck_height(p, item) for p, item in poses if p]
+        bridge = self.mark_bridge(self.item)  # marquage de la photo par le cœur (BD TOPO) : seul le tablier est supposé plan
+        pose = self._deck_height(pose, self.item)
+        poses = [(self._birdeye_of(item, lambda pic: False), item) for item in self.birdeye_far_items]
+        far = [self._deck_height(p, item) for p, item in poses if p]
+        deck = [] if bridge is not False else self._deck_lines(pose)
+        return json.dumps(dict(pose, neighbours=near, far=far, bridge=bridge, deck=deck, deck_half=roads.DECK_HALF_WIDTH))
 
-    BIRDEYE_BRIDGE = 20.0  # m : portée de la vue (15 m) et un peu plus
+    def _deck_height(self, pose, item):
+        """Pose d'une photo marquée sur un pont (mark_bridge) : hauteur de caméra sans le sol LiDAR (altitude RTK moins le sol
+        sous le pont, ou la brèche sous la photo)."""
+        if not self.mark_bridge(item):
+            return pose
+        cam, mount = self.calibration.camera(item.get("collection")), self._fleet_mount(item)
+        return dict(pose, **({"height": cam["height"], "height_sigma": cam["sigma"]} if cam
+                             else {"height": mount, "height_sigma": self.MOUNT_SIGMA} if mount
+                             else {"height": self.tool.camera_height, "height_sigma": 0.3}))
+
+    BIRDEYE_DECK_SCAN = 40.0  # m : emprises de pont transmises à la vue (±25 m de terrain lu sur les lignes, soit 35 m dans les coins)
+
+    def _deck_lines(self, pose):
+        """Emprises des ponts voisins d'une photo non marquée (remblai, approche) : axes en mètres (est, nord) autour de la
+        photo, dans le sens de sa séquence (roads.deck_lines). La vue de dessus en écarte les points du terrain LiDAR (sol sous
+        l'ouvrage) ; liste vide si la BD TOPO n'a pas répondu."""
+        sections = self.roads.sections(pose["lon"], pose["lat"])
+        if not sections or sections is roads.PENDING:
+            return []
+        return [[list(p) for p in line] for line in roads.deck_lines(sections, pose["lon"], pose["lat"], pose["heading"],
+                                                                      self.BIRDEYE_DECK_SCAN)]
+
     FLEET_PRODUCER = "8f943f10-a781-4e03-a18c-de035be6f6f8"  # CD21 : imajbox sur Clio 5, deux montures (voir src/dessus.js, MOUNTS)
     # Défaut de roulis de la caméra par rapport à la route, par producteur et campagne de prise de vue : (producteur, premier
     # jour, jour de fin exclu, degrés ajoutés au roulis tiré du dévers, signe de groundUp dans src/dessus.js). Seulement pour
@@ -424,16 +441,6 @@ class Pose:
             self.birdeye_loose[pic] = loose
             self._recompute({pic})
 
-    def _near_bridge(self, lon, lat):
-        """Tronçon BD TOPO en pont à moins de BIRDEYE_BRIDGE m de la photo, dessus ou dessous : le MNT LiDAR
-        n'y donne pas le sol vu par la caméra (tablier retiré). None en lecture ; BD TOPO injoignable : False."""
-        sections = self._fall_sections(lon, lat)
-        if sections is roads.PENDING:
-            return None
-        return any(sec.get("level", 0) > 0 and roads._project(
-            [triangulation._local(q[0], q[1], lon, lat) for q in sec["line"]], 0.0, 0.0)[0] <= self.BIRDEYE_BRIDGE
-            for sec in sections or [])
-
     def _terrain_of(self, item, done):
         """Terrain sous la photo item : done({slopes, heading}, None), ou done(None, raison). Grille
         LiDAR HD (web_terrain.grid_points), une requête."""
@@ -450,7 +457,15 @@ class Pose:
             z = precision._ground(data)
             if not z or len(z) != len(points) or None in z:
                 return done(None, "pas de LiDAR HD sous la photo")
-            done({"slopes": web_terrain.slopes(z), "heading": heading}, None)
+            sections = self.roads.sections(lon, lat)
+            if sections is roads.PENDING:  # tronçons en lecture : l'emprise d'un pont voisin n'est pas encore connue
+                return self.roads.when_ready(lambda: got_ground(data, error))
+            if sections:  # points sous l'emprise d'un pont voisin écartés (le terrain y est le sol sous l'ouvrage)
+                z = [None if m else h for m, h in zip(roads.deck_mask(sections, lon, lat, heading, points), z)]
+            found = web_terrain.slopes(z)
+            if found is None:
+                return done(None, "LiDAR HD sous l'ouvrage voisin : trop peu de points gardés")
+            done({"slopes": found, "heading": heading}, None)
 
         host.fetch_json(precision.lidar_url(points, precision.LIDAR_RESOURCE), got_ground, timeout_ms=15000)
 

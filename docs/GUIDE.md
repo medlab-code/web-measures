@@ -381,7 +381,7 @@ après.
   plus de 30 m de tout pont. Une photo seulement près d'un pont (à plus de 8 m, ou sur la voie franchie, dessous, dont le sens diffère) ne
   l'active pas. **Marque par photo, dès l'ouverture** (même hors mesure, depuis le 22/11/2026) : une photo sur un pont est repérée à son
   ouverture ; son LiDAR (pente et dévers du sol sous l'ouvrage) n'est jamais retenu pour l'inclinaison (la chaîne passe aux verticales à
-  seuil élargi, puis au roulis par défaut de la campagne 2025) ni appris par le modèle LiDAR de la séquence ; ses verticales restent valables. Les tronçons arrivent par le réseau : l'état suit à leur arrivée, à chaque changement de photo.
+  seuil élargi, puis au roulis par défaut de la campagne 2025) ni appris par le modèle LiDAR de la séquence ; ses verticales restent valables. La vue du dessus (Bird Eye) suit le même marquage, photo par photo : « sol supposé plat » seulement sur le tablier, jamais sur le remblai qui y mène (7dcdccf9-3c52-4c54-bc5b-de72740a7967 : tangage du relief, +3,2°, au lieu de 0°). Les tronçons arrivent par le réseau : l'état suit à leur arrivée, à chaque changement de photo.
 - **Hauteur de chute sur un pont** (automatique, sans clic) : sur une photo prise sur un pont
   de la BD TOPO, le nom du pont, ce qu'il franchit et la hauteur de chute la plus grande sur
   toute sa longueur s'affichent en haut à gauche de la visionneuse (pas pendant la lecture de
@@ -854,8 +854,9 @@ sommet (ou le premier, après trois sommets) ; surface (m²) et périmètre, san
 dernier sommet, Échap tout le tracé. **Longueur** : un clic pose le départ, le trait suit le pointeur avec sa longueur, un second clic la garde dans les
 résultats, comme les autres mesures (Effacer, Refaire, commentaire, export). Pour une largeur, viser de préférence en
 face de la caméra, à ±4 m (±5 % au mieux, inclinaison lue sur les façades ou, à défaut, sur la pente de la route, avec le défaut de roulis de la
-caméra mesuré pour la campagne : CD21 2025, −1°, d'après les passages piétons). Près d'un pont, le LiDAR HD (sol sous le
-tablier) est écarté : tablier supposé plan et horizontal (±1,5° d'inclinaison par la route). Photos du CD21 : hauteur de
+caméra mesuré pour la campagne : CD21 2025, −1°, d'après les passages piétons). Sur une photo prise sur un pont (celle des mesures), le LiDAR HD (sol sous le
+tablier) est écarté : tablier supposé plan et horizontal (±1,5° d'inclinaison par la route). Une photo juste avant le pont, sur le remblai
+qui y mène, garde le relief LiDAR (pente comprise), sauf sous l'ouvrage lui-même. Photos du CD21 : hauteur de
 caméra de sa monture d'après la date de prise de vue (1,93 m avant juillet 2025, 2,07 m ensuite) ; autres photos : lue entre
 photos sur les façades, sinon altitude RTK moins sol. Hors de la vue, la
 longueur est mesurée sur le fond de carte seul, sans incertitude (« hors vue »), pour un contrôle rapide. Échap retire

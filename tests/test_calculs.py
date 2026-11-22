@@ -98,6 +98,11 @@ class VueDessus(unittest.TestCase):
             pose = staticmethod(lambda *a: {"offset": 1.5})
             tilt = staticmethod(lambda pic, photo_only=False: {"up": (0.0, 0.1, 0.99), "sigma": 0.2})
             camera = staticmethod(lambda seq: None)
+            @classmethod
+            def set_bridge_photo(cls, pic, on):
+                (cls.bridge_pics.add if on else cls.bridge_pics.discard)(pic)
+
+        Cal.bridge_pics = set()
 
         class Tilts:
             pending = staticmethod(lambda pic, photo_only=False: False)
@@ -108,6 +113,8 @@ class VueDessus(unittest.TestCase):
                   "properties": {"view:azimuth": 40, "pers:interior_orientation": {"field_of_view": field_of_view}}}
         a.birdeye_items, a.birdeye_checks = [dict(a.item, id="v", geometry={"coordinates": [5.0, 47.00005]})], (Tilts,)
         a.fall_cells, a.fall_retry, a.fall_error, a.tool = {roads._cell(5.0, 47.0): []}, {}, {}, types.SimpleNamespace(camera_height=2.1)
+        a.roads, a.neighbours, a._bridge_waiting_items = roads.RoadAxisProvider(), {}, {}
+        a.roads._sections[roads._cell(5.0, 47.0)] = []  # tronçons BD TOPO de la maille : aucun
         a.birdeye_loose, a.birdeye_far_items = {}, []
         return a
 
@@ -157,16 +164,28 @@ class VueDessus(unittest.TestCase):
         self.assertEqual(self.app_on(90).birdeye_pose(), "null")
 
     def test_pont(self):
-        """Pont à portée de la vue (dessus ou dessous) : signalé, hauteur de caméra hors sol LiDAR (le réglage) ;
-        plus loin, rien ne change."""
-        def pose_with(east):  # tronçon en pont, nord-sud, à east m à l'est de la photo
+        """Photo marquée sur un pont par le cœur (tronçon en pont à 8 m au plus, dans le sens de la séquence) : signalée, hauteur de
+        caméra hors sol LiDAR (le réglage), voisine marquée de même ; photo non marquée, même à 10 m d'un pont (remblai) : pas de
+        sol plat, terrain LiDAR gardé, avec l'emprise du pont à écarter (deck)."""
+        def pose_with(side, start=-20.0, end=20.0):  # tronçon en pont parallèle au cap de la photo (40°), side m à droite, de start à end m en long
             a = self.app_on(360)
-            lon = 5.0 + east / (6378137 * math.cos(math.radians(47.0))) * 180 / math.pi
-            a.fall_cells[roads._cell(5.0, 47.0)] = [{"level": 1, "line": [[lon, 46.999], [lon, 47.001]]}]
+            h = math.radians(40.0)
+            line = [list(triangulation._geographic(side * math.cos(h) + t * math.sin(h), -side * math.sin(h) + t * math.cos(h), 5.0, 47.0))
+                    for t in (start, end)]
+            a.roads._sections[roads._cell(5.0, 47.0)] = [{"level": 1, "line": line}]
             return json.loads(a.birdeye_pose())
-        near, far = pose_with(10), pose_with(40)
-        self.assertEqual((near["bridge"], near["height"], near["neighbours"][0]["height"]), (True, 2.1, 2.1))
-        self.assertEqual((far["bridge"], far["height"]), (False, 2.4))
+        near = pose_with(2)
+        self.assertEqual((near["bridge"], near["height"], near["neighbours"][0]["height"], near["deck"]), (True, 2.1, 2.1, []))
+        shoulder = pose_with(10)  # à 10 m de l'axe : remblai, hors de la portée de 8 m du cœur
+        self.assertEqual((shoulder["bridge"], shoulder["height"], shoulder["neighbours"][0]["height"]), (False, 2.4, 2.4))
+        self.assertEqual(len(shoulder["deck"]), 1)
+        self.assertEqual(shoulder["deck_half"], roads.DECK_HALF_WIDTH)
+        mixed = pose_with(5)  # photo dessus, sa voisine à 8,6 m de l'axe : hauteur seulement pour la photo marquée
+        self.assertEqual((mixed["bridge"], mixed["height"], mixed["neighbours"][0]["height"]), (True, 2.1, 2.4))
+        ahead = pose_with(0.0, 20.0, 60.0)  # pont commençant 20 m devant la photo, dans l'axe : approche, pas dessus
+        self.assertEqual((ahead["bridge"], ahead["height"], len(ahead["deck"])), (False, 2.4, 1))
+        crossing = pose_with(0.0, -20.0, 20.0)
+        self.assertEqual(crossing["bridge"], True)
 
     def test_pont_detecte_dans_la_ligne_d_etat(self):
         """Mode « sur un pont » activé d'après la BD TOPO : la ligne « Position » le dit (« sur un pont (détecté) »), pas sinon."""
@@ -184,7 +203,9 @@ class VueDessus(unittest.TestCase):
             a = self.app_on(360)
             a.item["providers"] = [{"id": App.FLEET_PRODUCER}]
             a.item.setdefault("properties", {})["datetime"] = date
-            a.fall_cells[roads._cell(5.0, 47.0)] = [{"level": 1, "line": [[5.0, 46.999], [5.0, 47.001]]}]
+            h = math.radians(40.0)
+            line = [list(triangulation._geographic(t * math.sin(h), t * math.cos(h), 5.0, 47.0)) for t in (-20.0, 20.0)]
+            a.roads._sections[roads._cell(5.0, 47.0)] = [{"level": 1, "line": line}]
             return json.loads(a.birdeye_pose())
         self.assertEqual([(p["height"], p["height_sigma"]) for p in (pose_on("2025-05-28T05:40:22Z"), pose_on("2025-07-07T05:56:32Z"))],
                          [(1.93, App.MOUNT_SIGMA), (2.07, App.MOUNT_SIGMA)])

@@ -25,6 +25,10 @@ RETRY = 30.0  # s avant de réinterroger un service en panne
 PENDING = "pending"  # résultat de lookup quand une lecture est en cours
 BRIDGE_REACH = 8.0  # m entre la photo et un tronçon en pont : demi-chaussée et précision GPS
 BRIDGE_ANGLE = 30.0  # degrés au plus entre le tronçon en pont et le sens de la séquence
+# Emprise d'un pont (deck_mask) : le LiDAR HD y décrit le sol sous l'ouvrage (tablier retiré), pas la route. Demi-largeur de
+# l'ouvrage de part et d'autre de l'axe BD TOPO (chaussée, trottoirs, garde-corps), mesurée le long du tronçon en pont seulement
+# (sans bout arrondi : le remblai, au-delà de la culée, reste lu). La largeur des tronçons de la BD TOPO n'est pas fiable.
+DECK_HALF_WIDTH = 6.0  # m
 BRIDGE_LEFT = MARGIN  # m : photo sortie du pont, aucun tronçon en pont plus près (photos d'approche)
 # Natures de la BD TOPO retenues comme voies carrossables : routes revêtues, ni route empierrée, chemin, sentier, piste cyclable ou escalier
 DRIVABLE_NATURES = {"Route à 1 chaussée", "Route à 2 chaussées", "Rond-point", "Bretelle", "Type autoroutier"}
@@ -132,6 +136,47 @@ def on_bridge(sections, lon, lat, axis=None, reach=BRIDGE_REACH):
     return None
 
 
+def deck_lines(sections, lon, lat, axis=None, scan=MARGIN):
+    """Axes (polylignes en mètres est, nord autour de (lon, lat)) des tronçons en pont à moins de scan m du point et dans le
+    sens de la séquence (même écart d'angle que on_bridge : la voie franchie, dessous, n'en fait pas partie, son sol est lu
+    tel qu'il est). Axe inconnu : tous."""
+    out = []
+    for sec in sections or []:
+        if sec.get("level", 0) <= 0:
+            continue
+        line = [triangulation._local(p[0], p[1], lon, lat) for p in sec["line"]]
+        d, s = _project(line, 0.0, 0.0)
+        if d > scan:
+            continue
+        a, b = _at(line, s - TANGENT), _at(line, s + TANGENT)
+        if axis is not None and math.hypot(b[0] - a[0], b[1] - a[1]) >= 1.0 and \
+                _axis_diff(math.degrees(math.atan2(b[0] - a[0], b[1] - a[1])), axis) > BRIDGE_ANGLE:
+            continue
+        out.append(line)
+    return out
+
+
+def in_deck(lines, x, y, half=DECK_HALF_WIDTH):
+    """Le point (x, y) est-il sous l'emprise d'un pont (lines de deck_lines) : à moins de half m de l'axe, entre les deux
+    extrémités du tronçon (au-delà, c'est le remblai)."""
+    for line in lines:
+        for (ax, ay), (bx, by) in zip(line, line[1:]):
+            length = math.hypot(bx - ax, by - ay)
+            if length == 0:
+                continue
+            t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / length ** 2
+            if 0.0 <= t <= 1.0 and math.hypot(x - ax - t * (bx - ax), y - ay - t * (by - ay)) <= half:
+                return True
+    return False
+
+
+def deck_mask(sections, lon, lat, axis, points):
+    """Pour chaque point (lon, lat) : vrai s'il est sous l'emprise d'un pont voisin de la photo prise en (lon, lat) (deck_lines,
+    in_deck) : son altitude LiDAR décrit le sol sous l'ouvrage, à écarter."""
+    lines = deck_lines(sections, lon, lat, axis, MARGIN)
+    return [in_deck(lines, *triangulation._local(p[0], p[1], lon, lat)) for p in points]
+
+
 class RoadAxisProvider:
     """Tronçons de la BD TOPO au point demandé (voir le module), avec lectures en cache : bridge est
     synchrone, il rend le résultat si les données sont là, PENDING si une lecture vient d'être
@@ -142,6 +187,17 @@ class RoadAxisProvider:
         self._pending = set()
         self._failed = {}  # clé -> heure de la panne
         self.ready = None  # appelé quand une lecture arrive
+        self._waiters = []  # rappels uniques de when_ready
+
+    def sections(self, lon, lat):
+        """Tronçons de la maille du point (et de MARGIN m autour) : liste, PENDING pendant la lecture, None si la BD TOPO est
+        injoignable."""
+        cell = _cell(lon, lat)
+        return self._get(("bdtopo", cell), self._sections, cell, lambda: wfs_url(cell), parse_sections)
+
+    def when_ready(self, callback):
+        """callback() une fois, à la prochaine lecture arrivée (ou en échec)."""
+        self._waiters.append(callback)
 
     def bridge(self, lon, lat, axis=None, reach=BRIDGE_REACH):
         """Tronçon en pont sous la photo (voir on_bridge), False s'il n'y en a pas, None si la
@@ -169,6 +225,9 @@ class RoadAxisProvider:
                 self._failed[key] = time.monotonic()
             else:
                 cache[cache_key] = parse(data)
+            waiters, self._waiters = self._waiters, []
+            for waiter in waiters:
+                waiter()
             if self.ready is not None:
                 self.ready()
 

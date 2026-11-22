@@ -40,10 +40,27 @@ def grid_points(lon, lat, heading):
     return out
 
 
+MIN_KEEP = 0.7  # part des points de la grille qui doit rester quand certains sont écartés (sous l'emprise d'un pont, voir slopes)
+
+
 def slopes(z):
     """(pente en long, dévers) en degrés du plan ajusté sur les altitudes de grid_points (grille
-    symétrique : moyennes pondérées indépendantes ; mêmes signes que calibration.lidar_slopes)."""
+    symétrique : moyennes pondérées indépendantes ; mêmes signes que calibration.lidar_slopes).
+    Une altitude None (point écarté : sous l'emprise d'un pont voisin, roads.deck_mask) est laissée de côté, le plan est alors ajusté
+    sur les autres ; None s'il en reste moins de MIN_KEEP ou trop peu de chaque côté."""
     cells = [(a, c) for a in GRID_ALONG for c in GRID_ACROSS]
+    if None in z:
+        kept = [(a, c, h) for (a, c), h in zip(cells, z) if h is not None]
+        if len(kept) < MIN_KEEP * len(cells):
+            return None
+        ma, mc, mh = (sum(k[i] for k in kept) / len(kept) for i in range(3))
+        saa, scc = sum((a - ma) ** 2 for a, _, _ in kept), sum((c - mc) ** 2 for _, c, _ in kept)
+        sac = sum((a - ma) * (c - mc) for a, c, _ in kept)
+        sah, sch = sum((a - ma) * (h - mh) for a, _, h in kept), sum((c - mc) * (h - mh) for _, c, h in kept)
+        det = saa * scc - sac ** 2
+        if saa <= 0 or scc <= 0 or det <= 1e-9 * saa * scc:
+            return None
+        return math.degrees(math.atan((sah * scc - sch * sac) / det)), math.degrees(math.atan((sch * saa - sah * sac) / det))
     sa = sum(a * h for (a, _), h in zip(cells, z)) / sum(a * a for a, _ in cells)
     sc = sum(c * h for (_, c), h in zip(cells, z)) / sum(c * c for _, c in cells)
     return math.degrees(math.atan(sa)), math.degrees(math.atan(sc))
@@ -82,6 +99,9 @@ if __name__ == "__main__":  # contrôles : plan incliné retrouvé, modèle et p
     z = [0.05 * a - 0.02 * c for a in GRID_ALONG for c in GRID_ACROSS]
     s = slopes(z)
     assert abs(s[0] - math.degrees(math.atan(0.05))) < 1e-9 and abs(s[1] - math.degrees(math.atan(-0.02))) < 1e-9
+    ok = slopes([None if a > 1.0 else 0.05 * a - 0.02 * c for a in GRID_ALONG for c in GRID_ACROSS])
+    assert abs(ok[0] - s[0]) < 1e-9 and abs(ok[1] - s[1]) < 1e-9  # points écartés : plan ajusté sur les autres
+    assert slopes([None] * (len(z) - 5) + z[-5:]) is None  # trop peu de points
     refs = [{"forward": 1.0 + k * 0.1, "right": 0.5, "slopes": (k * 0.1, 0.0)} for k in range(3)]
     m = model(refs)
     assert abs(m["offset"][0] - 1.0) < 1e-9 and abs(m["offset"][1] - 0.5) < 1e-9 and m["sigma"] == SIGMA_MIN

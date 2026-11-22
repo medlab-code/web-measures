@@ -255,7 +255,7 @@ de la BD TOPO de niveau supérieur à 0 (franchissement) à 8 m au plus de la ph
 plus). En mesure, ce critère active le mode (`set_bridge(True)` : sol tiré des photos au lieu du modèle de terrain, inclinaison sans la pente du
 terrain), dit « sur un pont (détecté) » dans la ligne « Position ». Sortie : photo à plus de 30 m (`roads.BRIDGE_LEFT`) de tout tronçon en pont (les
 photos d'approche visent encore le tablier : pas de bascule avant). Les tronçons sont lus par le réseau (WFS) : le critère est réévalué à chaque
-rafraîchissement, donc à leur arrivée. Un pont seulement proche (la vue du dessus le signale par `_near_bridge`, dessus ou dessous, à `BIRDEYE_BRIDGE` m) n'active pas ce mode.
+rafraîchissement, donc à leur arrivée. Un pont seulement proche n'active pas ce mode (la vue du dessus, depuis le 22/11/2026, se règle sur le même critère : voir § Vue du dessus).
 
 Ce calcul est automatique sur une photo prise sur un pont de la BD TOPO. La méthode qui a donné la valeur est affichée à sa
 suite : « LiDAR » ou « RTK ».
@@ -957,14 +957,22 @@ au raccord sous 5 cm, `JOIN_GOOD`) : échelle de la voisine avant moins celle de
 l'arrière, environ 9,6 % pour 1° de tangage ; retenu et appliqué par photo (`web-measures/dessus-tangages`) : il bouge
 sur une bosse ou un creux, que le plan de la route ne suit pas ; médiane de la séquence pour une photo sans le sien.
 
-Près d'un pont (tronçon BD TOPO en pont à moins de 20 m de la photo, dessus ou dessous), la vue se passe du terrain
-LiDAR HD : le MNT n'a pas le tablier (sol sous le pont, ou brèche sous la photo). Tablier supposé plan et horizontal
+Photo marquée sur un pont par le cœur (`Session.mark_bridge`, BD TOPO à 8 m au plus dans le sens de la séquence : le même critère que pour
+les mesures ; avant le 22/11/2026 la vue du dessus détectait elle-même un pont à moins de 20 m, dessus ou dessous), la vue se passe du terrain
+LiDAR HD : le MNT n'a pas le tablier (sol sous le pont). Tablier supposé plan et horizontal
 (maillage à plat, `deck`) : inclinaison par la route (tangage de la séquence et roulis par défaut de la campagne 2025 seulement,
 ±1,5° pour la pente du tablier, jusqu'à 3 %). Hauteur de caméra : pour le CD21, sa monture d'après la date
 (`App.FLEET_MOUNTS` : 1,93 m avant le 01/07/2025, 2,07 m ensuite, ±0,04 m) ; autres photos, lue entre photos sur les
 verticales, sinon calée pour la séquence, sinon le réglage. Avant le 13/11/2026 : sol plat sans inclinaison et 1,90 m par défaut, bandes
 de passage piéton à 0,44 m au lieu de 0,50 (f2a245d0-aeea-4249-ba9c-fad83b442a23, Pont de France ; 7dcdccf9-3c52-4c54-bc5b-de72740a7967, D977 bis). Pont de France à Auxonne (bbf7a0be-f532-4362-afb4-114268317258) : tangage lu sur les raccords à
 -1,2° avec le MNT, raccords 33,5 → 1,3 cm sur sol plat.
+Photo non marquée près d'un ouvrage (remblai en pente qui mène au tablier, 7dcdccf9-3c52-4c54-bc5b-de72740a7967 : LiDAR +3,2° de tangage, juste ;
+le sol plat donnait 0°) : le terrain LiDAR est gardé ; ses points sous l'emprise de l'ouvrage (tronçon BD TOPO en pont orienté comme la
+séquence, à moins de `roads.DECK_HALF_WIDTH` = 6 m de l'axe, entre ses extrémités : `roads.deck_mask`, `pose.deck`) sont écartés, car ils
+décrivent le sol sous le tablier. Vue du dessus : maillage rempli par le plan ajusté sur les points gardés, indisponible s'il en reste moins
+de 60 %. Même écart dans le cœur, pour la grille `LIDAR_GRID` de l'inclinaison (`TiltChecker`, `calibration.lidar_slopes` : plan ajusté sur
+les points gardés, aucune pente s'il en reste moins de `LIDAR_MIN_KEEP` = 10 sur 15) et pour le terrain web (`web_terrain.slopes`) : avec la portée
+de 8 m du marquage, ces grilles étroites (±1,7 m, ±2,9 m) n'atteignent l'emprise que d'une photo à la culée non encore marquée.
 Le calage du tangage sur l'orthophoto (lignes de peinture repérées sur elle et sur chaque photo, essai du 07/11/2026)
 a été retiré le 08/11/2026 au profit du tangage lu sur les raccords. Tangage lu aussi sur les lignes et les bords de la route
 d'une photo seule (`linesPitch`, 13/11/2026) : une erreur δ change l'échelle en travers de 1 + a δ / H à la distance a le

@@ -28,10 +28,17 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
   lecture sert la vue (±15 m) et le tangage sur les lignes (±25 m, 51 × 51 points, même maille et même centre : la grille de 15 m en
   est extraite, chacune lissée à part) : une requête POST de 2 601 points (`fetchGrid`, `chaîne "true"` pour `zonly`), sinon des
   GET de 300 points au plus, gardée en mémoire par position (`readGrid`) ; le calage de la largeur ↔ passe de 21–31 s à 4–8 s ;
-  **Près d'un pont** (tronçon BD TOPO en pont à moins de 20 m, photo dessus ou dessous, `App._near_bridge`), le MNT
-  est écarté : il donne le sol sous le tablier, ou la brèche sous la photo. Tablier plan et horizontal (`deck`) :
+  **Photo sur un pont** (marquée par le cœur, `Session.mark_bridge` : tronçon BD TOPO en pont à 8 m au plus dans le sens de la
+  séquence, `roads.on_bridge`, comme pour les mesures ; depuis le 22/11/2026 la vue du dessus n'a plus sa propre détection, plus large,
+  à 20 m, dessus ou dessous), le MNT est écarté : il donne le sol sous le tablier. Tablier plan et horizontal (`deck`) :
   inclinaison par la route (±1,5°), hauteur lue entre photos sur les verticales, sinon celle de la séquence, puis pour le
-  CD21 sa monture d'après la date (`App.FLEET_MOUNTS`), puis le réglage (pas RTK moins sol LiDAR) ;
+  CD21 sa monture d'après la date (`App.FLEET_MOUNTS`), puis le réglage (pas RTK moins sol LiDAR) ; ce choix de hauteur se fait
+  photo par photo (une voisine marquée sur un pont, la photo affichée non). **Photo non marquée près d'un pont** (remblai qui mène au
+  tablier, approche, ou voie franchie dessous) : le terrain LiDAR est gardé, tangage compris (7dcdccf9-3c52-4c54-bc5b-de72740a7967 :
+  « sol supposé plat » donnait 0° au lieu des +3,2° du remblai). Seuls les points sous l'emprise de l'ouvrage (`pose.deck` : axe du
+  tronçon en pont voisin et orienté comme la séquence, demi-largeur `roads.DECK_HALF_WIDTH` = 6 m, entre ses extrémités) sont écartés
+  du maillage (`underDeck`, `fillUnderDeck`) : ils décrivent le sol sous l'ouvrage ; remplacés par le plan ajusté sur les autres
+  (le remblai garde sa pente), et le terrain est indisponible (« sol supposé plat ») si moins de 60 % des points restent ;
 - avec l'interrupteur **« Véhicule masqué »** (éteint par défaut), les photos précédente et suivante de la séquence,
   chacune avec sa propre pose : elles comblent le sol sous le véhicule (masque au plus près, § 2), et entraînent les raccords
   (§ 4.3), le tangage lu sur les raccords (§ 4.1) et la hauteur lue entre photos (§ 4.2). Éteint, la photo affichée

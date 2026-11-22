@@ -28,7 +28,7 @@ bande utile (host.decode_band), en arrière-plan (host.run_task).
 import importlib.util
 import math
 
-from . import calibration, host, metadata, precision
+from . import calibration, host, metadata, precision, roads
 
 HAS_NUMPY = importlib.util.find_spec("numpy") is not None  # calcul des verticales
 
@@ -241,6 +241,7 @@ class TiltChecker:
         self._replies = {}  # photo -> téléchargement de la photo HD en cours
         self.current = None  # dernière photo demandée
         self.run = None  # calcul en arrière-plan : host.run_task, ou celui-ci (tests)
+        self.roads = None  # roads.RoadAxisProvider : les points du LiDAR sous l'emprise d'un pont voisin sont écartés (roads.deck_mask)
 
     def pending(self, pic):
         return pic in self._pending
@@ -293,7 +294,14 @@ class TiltChecker:
         def got_lidar(ground, source, error):
             z = [] if error else list(ground or [])
             ok = len(z) == len(calibration.LIDAR_GRID) and None not in z
-            state["lidar"] = list(calibration.lidar_slopes(z)) if ok else None
+            sections = self.roads.sections(lon, lat) if ok and self.roads is not None and pic not in cal.bridge_pics else None
+            if sections is roads.PENDING:  # tronçons en lecture : le sol sous un pont voisin n'est pas encore connu
+                return self.roads.when_ready(lambda: got_lidar(ground, source, error))
+            if sections:  # photo non marquée sur un pont (remblai) : points sous l'ouvrage écartés, le reste garde le LiDAR
+                mask = roads.deck_mask(sections, lon, lat, heading, calibration.lidar_points(lon, lat, heading))
+                z = [None if m else h for m, h in zip(mask, z)]
+            slopes = calibration.lidar_slopes(z) if ok else None  # None : trop peu de points gardés, source indisponible
+            state["lidar"] = list(slopes) if slopes else None
             state["lidar_error"] = bool(error)
             finish()
 

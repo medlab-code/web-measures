@@ -308,10 +308,29 @@ def lidar_points(lon, lat, heading):
     return out
 
 
+LIDAR_MIN_KEEP = 10  # points de LIDAR_GRID (sur 15) qui doivent rester quand certains sont écartés (voir lidar_slopes)
+
+
 def lidar_slopes(z):
     """(pente en long, dévers) en degrés du plan ajusté sur les altitudes des lidar_points
     (grille symétrique : les pentes sont des moyennes pondérées indépendantes). La verticale
-    penche vers l'avant en montée, vers la droite quand la droite est plus haute."""
+    penche vers l'avant en montée, vers la droite quand la droite est plus haute.
+    Une altitude None (point écarté : sous l'emprise d'un pont voisin, roads.deck_mask) est laissée de côté, le plan est alors ajusté
+    sur les autres ; None si moins de LIDAR_MIN_KEEP restent ou s'il n'y a pas assez de points de chaque côté pour une pente."""
+    if None in z:
+        kept = [(a, c, h) for (a, c), h in zip(LIDAR_GRID, z) if h is not None]
+        if len(kept) < LIDAR_MIN_KEEP:
+            return None
+        ma, mc, mh = (sum(k[i] for k in kept) / len(kept) for i in range(3))
+        saa = sum((a - ma) ** 2 for a, _, _ in kept)
+        scc = sum((c - mc) ** 2 for _, c, _ in kept)
+        sac = sum((a - ma) * (c - mc) for a, c, _ in kept)
+        sah = sum((a - ma) * (h - mh) for a, _, h in kept)
+        sch = sum((c - mc) * (h - mh) for _, c, h in kept)
+        det = saa * scc - sac ** 2
+        if saa <= 0 or scc <= 0 or det <= 1e-9 * saa * scc:
+            return None
+        return math.degrees(math.atan((sah * scc - sch * sac) / det)), math.degrees(math.atan((sch * saa - sah * sac) / det))
     sa = sum(a * h for (a, _), h in zip(LIDAR_GRID, z)) / sum(a * a for a, _ in LIDAR_GRID)
     sc = sum(c * h for (_, c), h in zip(LIDAR_GRID, z)) / sum(c * c for _, c in LIDAR_GRID)
     return math.degrees(math.atan(sa)), math.degrees(math.atan(sc))

@@ -10,6 +10,7 @@ Scène : deux photos 360° à 6 m l'une de l'autre sur une route nord-sud (cap 0
 
 import math
 import unittest
+from unittest import mock
 
 from support import distance, module, point
 
@@ -634,6 +635,18 @@ class BridgeAlert(Base):
         self.s.set_picture(self.far)
         self.assertNotIn(self.far["id"], self.s.calibration.bridge_pics)
         self.assertFalse(self.s.bridge)  # la case « Sur un pont » n'est pas cochée pour autant
+
+    def test_neighbour_marked_without_display(self):
+        """mark_bridge marque une photo voisine (vue du dessus) sans l'afficher ; marque inchangée, None, pendant la lecture."""
+        self.s.set_active(False)
+        self.assertTrue(self.s.mark_bridge(self.p2))
+        self.assertIn(self.p2["id"], self.s.calibration.bridge_pics)
+        self.assertFalse(self.s.mark_bridge(self.far))
+        self.assertNotIn(self.far["id"], self.s.calibration.bridge_pics)
+        self.s.roads._sections.clear()
+        with mock.patch.object(self.s.roads, "bridge", return_value=module("core.roads").PENDING):
+            self.assertIsNone(self.s.mark_bridge(self.far))
+        self.assertIn(self.far["id"], self.s._bridge_waiting_items)  # refait à l'arrivée des tronçons
 
     def test_not_when_checked_or_inactive(self):
         self.s.set_picture(self.p1)

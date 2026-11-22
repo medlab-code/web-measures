@@ -13,7 +13,7 @@ import math
 import unittest
 from unittest import mock
 
-from support import LAT0, LON0, module
+from support import LAT0, LON0, module, point
 from test_calibration import seen
 
 autotilt = module("core.autotilt")
@@ -128,6 +128,15 @@ class LidarModel(unittest.TestCase):
         self.assertAlmostEqual(front[1], LAT0, places=9)
         self.assertLess(right[1], LAT0)  # droite = au sud
         self.assertEqual(pts[calibration.LIDAR_GRID.index((0, 0))], (LON0, LAT0))
+
+    def test_slopes_without_dropped_points(self):
+        """Points écartés (sous l'emprise d'un pont) : plan ajusté sur les autres ; trop peu de points : aucune pente."""
+        z = [100 + 0.03 * a + 0.02 * c for a, c in calibration.LIDAR_GRID]
+        f, r = calibration.lidar_slopes([None if a == calibration.LIDAR_ALONG else h for (a, _), h in zip(calibration.LIDAR_GRID, z)])
+        self.assertAlmostEqual(f, math.degrees(math.atan(0.03)), places=9)
+        self.assertAlmostEqual(r, math.degrees(math.atan(0.02)), places=9)
+        self.assertIsNone(calibration.lidar_slopes([h if a < 0 else None for (a, _), h in zip(calibration.LIDAR_GRID, z)]))  # 6 points
+        self.assertIsNone(calibration.lidar_slopes([h if c == 0 else None for (_, c), h in zip(calibration.LIDAR_GRID, z)]))  # 5 points
 
     def entry(self, forward, right, lidar, heading=30.0, sequence="seq", verticals=True):
         v = ({"up": list(calibration.up_from_components(forward, right, heading)), "count": 120, "sigma": 0.08}
@@ -295,6 +304,46 @@ class Checker(unittest.TestCase):
         cal.set_auto("pic", {"sequence": "seq", "heading": 30.0, "verticals": None, "lidar": None})
         self.check(ITEM, cal, network)  # déjà analysée
         self.assertEqual(network.calls, [])
+
+    def test_deck_points_dropped(self):
+        """Photo non marquée au bord d'un pont (remblai, culée à 1 m devant) : les points du LiDAR sous le tablier, plus bas de 3 m,
+        sont écartés, la pente du remblai est lue sur les autres ; sans les tronçons, elle serait faussée. Photo marquée : rien lu."""
+        roads = autotilt.roads
+        h = math.radians(30.0)
+        deck = {"type": "Feature", "properties": {"cpx_numero": "D1", "position_par_rapport_au_sol": "1"},
+                "geometry": {"type": "LineString", "coordinates": [list(point(t * math.sin(h), t * math.cos(h))) for t in (1.0, 40.0)]}}
+        provider = roads.RoadAxisProvider()
+        provider._sections[roads._cell(LON0, LAT0)] = roads.parse_sections({"features": [deck]})
+
+        class Network(FakeNetwork):
+            def fetch_json(self, url, callback, **kwargs):
+                self.calls.append("lidar")
+                callback({"elevations": [{"z": 100 + a * 0.2 / 3 - (3.0 if a > 1.0 else 0.0)} for a, _ in calibration.LIDAR_GRID]}, None)
+
+        def lidar(with_roads):
+            cal, checker = calibration.Calibration(), autotilt.TiltChecker()
+            checker.roads = provider if with_roads else None
+            checker.run = lambda function, args, done: done(None)
+            with mock.patch.object(autotilt.host, "fetch_json", Network().fetch_json), \
+                    mock.patch.object(autotilt.host, "fetch", FakeNetwork().fetch), mock.patch.object(autotilt, "HAS_NUMPY", True):
+                checker.check(ITEM, cal, lambda: None)
+            return cal.auto["pic"]["lidar"]
+        self.assertAlmostEqual(lidar(True)[0], math.degrees(math.atan(0.2 / 3.0)), places=9)
+        self.assertGreater(abs(lidar(False)[0] - math.degrees(math.atan(0.2 / 3.0))), 5.0)  # sans l'exclusion : marche de 3 m prise pour une pente
+
+    def test_deck_waits_for_sections(self):
+        """Tronçons BD TOPO encore en lecture à l'arrivée du LiDAR : calcul repris à leur arrivée, pas de valeur sans l'exclusion."""
+        roads = autotilt.roads
+        provider, cal, checker = roads.RoadAxisProvider(), calibration.Calibration(), autotilt.TiltChecker()
+        checker.roads, checker.run = provider, lambda function, args, done: done(None)
+        sent, network = [], FakeNetwork()
+        fetch_json = lambda url, cb, **kw: sent.append(cb) if url.startswith(roads.WFS_URL) else network.fetch_json(url, cb, **kw)
+        with mock.patch.object(autotilt.host, "fetch_json", fetch_json), \
+                mock.patch.object(autotilt.host, "fetch", network.fetch), mock.patch.object(autotilt, "HAS_NUMPY", True):
+            checker.check(ITEM, cal, lambda: None)
+            self.assertNotIn("pic", cal.auto)
+            sent[0]({"features": []}, None)
+        self.assertIn("pic", cal.auto)
 
     def test_lidar_down_not_kept(self):
         cal = calibration.Calibration()
