@@ -25,31 +25,55 @@
 const Nez = {
   /** Place de la loupe, fonction pure (essais : Nez.placeLoupe). target {x, y} : point visé (px de la visionneuse) ; size {w, h} : encombrement de
    * la loupe (pastille et légende) ; bounds {w, h} : visionneuse ; obstacles [{left, top, right, bottom}] : poignée de l'autre bord, étiquette de largeur,
-   * barre d'outils, bandeaux. Candidats : au-dessus (préféré), dessous, droite, gauche, puis les quatre diagonales ; chacun décalé au besoin pour
-   * rentrer dans la visionneuse. Score (le plus bas gagne) = surface recouverte d'obstacles + 30 par pixel de décalage + 50 par rang de préférence ;
-   * un candidat qui couvre le point visé (marge `margin`) est écarté. Rend { left, top, name }.
-   * keep : côté déjà retenu au début du geste (le nom rendu auparavant). Tant qu'il reste possible (la loupe, décalée pour rentrer dans la visionneuse,
-   * ne couvre pas le point visé et ne se décale pas de plus de la moitié de sa taille), il est gardé tel quel, sans regarder les obstacles : la loupe suit
-   * le point sans sauter. Sinon le choix complet est refait, sans ce côté ; le nouveau est gardé à son tour (l'appelant le repasse en keep). */
-  placeLoupe(target, size, bounds, obstacles = [], gap = 30, margin = 14, keep = null) {
+   * barre d'outils, bandeaux ; line [{x, y}] : tracé de la droite à l'écran (entre les poignées, droite éventuellement inclinée).
+   * Règle : la loupe reste AU-DESSUS DE LA DROITE tant qu'elle le peut. Candidats : dessus, dessus-droite, dessus-gauche, droite, gauche (ceux-ci
+   * remontés au besoin pour que toute la loupe passe au-dessus du tracé, sur sa largeur : segment visible, pas seulement le point visé), puis dessous,
+   * dessous-droite, dessous-gauche ; chacun décalé au besoin pour rentrer dans la visionneuse (si ce décalage la ramène sur la droite, il n'est plus « au-dessus »).
+   * Deux niveaux : tout candidat au-dessus de la droite passe avant tout candidat qui la chevauche ou est dessous, même s'il recouvre des obstacles souples
+   * (étiquettes, encart, barre d'outils : on les recouvre plutôt que de passer sous la droite). Dans un niveau, score (le plus bas gagne) = surface recouverte
+   * d'obstacles + 30 par pixel de décalage pour rentrer + 5 par pixel de remontée + 50 par rang de préférence. Un candidat qui couvre le point visé (marge `margin`)
+   * est écarté. Rend { left, top, name }.
+   * keep : côté déjà retenu au début du geste (le nom rendu auparavant). Tant qu'il reste possible (au-dessus de la droite s'il l'était, sans couvrir le point
+   * visé, sans se décaler de plus de la moitié de sa taille), il est gardé tel quel, sans regarder les obstacles : la loupe suit le point sans sauter. Sinon le
+   * choix complet est refait, sans ce côté (d'abord un autre candidat au-dessus de la droite) ; le nouveau est gardé à son tour (l'appelant le repasse en keep). */
+  placeLoupe(target, size, bounds, obstacles = [], gap = 30, margin = 14, keep = null, line = []) {
     const { w, h } = size, { x, y } = target;
     const candidates = [
-      ["dessus", x - w / 2, y - gap - h], ["dessous", x - w / 2, y + gap], ["droite", x + gap, y - h / 2], ["gauche", x - gap - w, y - h / 2],
-      ["dessus-droite", x + gap / 2, y - gap - h], ["dessus-gauche", x - gap / 2 - w, y - gap - h],
-      ["dessous-droite", x + gap / 2, y + gap], ["dessous-gauche", x - gap / 2 - w, y + gap],
+      ["dessus", x - w / 2, y - gap - h, true], ["dessus-droite", x + gap / 2, y - gap - h, true], ["dessus-gauche", x - gap / 2 - w, y - gap - h, true],
+      ["droite", x + gap, y - h / 2, true], ["gauche", x - gap - w, y - h / 2, true],
+      ["dessous", x - w / 2, y + gap, false], ["dessous-droite", x + gap / 2, y + gap, false], ["dessous-gauche", x - gap / 2 - w, y + gap, false],
     ];
     const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left))
       * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+    // ordonnée la plus haute du tracé sur la largeur [left, right] (segments coupés à cette largeur) ; null si le tracé n'y passe pas
+    const lineTop = (left, right) => {
+      let top = null;
+      for (let i = 1; i < line.length; i++) {
+        const [p, q] = line[i - 1].x <= line[i].x ? [line[i - 1], line[i]] : [line[i], line[i - 1]];
+        const from = Math.max(left, p.x), to = Math.min(right, q.x);
+        if (from > to) continue;
+        const at = (px) => (q.x === p.x ? Math.min(p.y, q.y) : p.y + (q.y - p.y) * (px - p.x) / (q.x - p.x));
+        top = Math.min(top ?? Infinity, at(from), at(to));
+      }
+      return top;
+    };
+    const LIFT_COST = 5, CLEAR = 4;  // px : coût d'un pixel de remontée ; jeu entre la loupe et le tracé
     let best = null, fallback = null, kept = null;
-    candidates.forEach(([name, left0, top0], rank) => {
+    candidates.forEach(([name, left0, top0, upper], rank) => {
+      // au-dessus : remontée jusqu'à passer au-dessus du tracé sur toute la largeur de la loupe
+      const left1 = Math.max(0, Math.min(bounds.w - w, left0));  // la largeur de la loupe vue ne change pas avec la remontée : tracé lu sur [left1, left1 + w]
+      const trace = upper ? lineTop(left1, left1 + w) : null;
+      const top1 = trace === null ? top0 : Math.min(top0, trace - CLEAR - h);
       // rentrer dans la visionneuse : décalage horizontal et vertical minimal (la loupe plus grande que la vue reste collée en haut à gauche)
-      const left = Math.max(0, Math.min(bounds.w - w, left0)), top = Math.max(0, Math.min(bounds.h - h, top0));
+      const left = left1, top = Math.max(0, Math.min(bounds.h - h, top1));
       const rect = { left, top, right: left + w, bottom: top + h };
-      const score = obstacles.reduce((sum, o) => sum + overlap(rect, o), 0) + 30 * (Math.abs(left - left0) + Math.abs(top - top0)) + 50 * rank;
+      const shift = Math.abs(left - left0) + Math.abs(top - top1), lift = top0 - top1;
+      const above = upper && (trace === null || rect.bottom <= trace - CLEAR + 1e-6) || (!upper && lineTop(left, left + w) === null);
+      const score = (above ? 0 : 1e9) + obstacles.reduce((sum, o) => sum + overlap(rect, o), 0) + 30 * shift + LIFT_COST * Math.max(0, lift) + 50 * rank;
       const covers = x > left - margin && x < rect.right + margin && y > top - margin && y < rect.bottom + margin;
       const item = { left, top, name, score };
       if (name === keep) {
-        if (!covers && Math.abs(left - left0) + Math.abs(top - top0) <= Math.max(w, h) / 2) kept = item;
+        if (!covers && shift <= Math.max(w, h) / 2 && (above || !upper)) kept = item;
         return;  // le côté retenu qui n'est plus possible n'est pas rechoisi
       }
       if (!covers && (!best || score < best.score)) best = item;
@@ -913,7 +937,9 @@ const Nez = {
       const frozen = wheelSide && loupePlace;
       if (frozen && !(point.x > loupePlace.left - margin && point.x < loupePlace.left + size.w + margin
         && point.y > loupePlace.top - margin && point.y < loupePlace.top + size.h + margin)) at = loupePlace;
-      at ??= Nez.placeLoupe(point, size, bounds, loupePlace ? [] : loupeObstacles(box, other), 30, margin, loupePlace?.name);
+      const trace = [locate(handles.gauche), ...line.points.filter(([q]) => q > handles.gauche && q < handles.droit).map(([, yaw, pitch]) => [yaw, pitch]), locate(handles.droit)]
+        .map(([yaw, pitch]) => screenOf(yaw, pitch)).filter(Boolean);  // tracé de la droite à l'écran : la loupe reste au-dessus
+      at ??= Nez.placeLoupe(point, size, bounds, loupePlace ? [] : loupeObstacles(box, other), 30, margin, loupePlace?.name, trace);
       if (loupePlace && at.name !== loupePlace.name) {  // changement forcé de côté : la loupe glisse vers sa nouvelle place (pas de transition au simple suivi)
         loupe.root.classList.add("saute");
         clearTimeout(loupePlaceTimer);
