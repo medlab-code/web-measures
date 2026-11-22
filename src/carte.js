@@ -1744,20 +1744,29 @@ const Carte = (() => {
   async function randomPhoto(accept, { since = null, producer = null } = {}) {
     const get = async (path, params) => {
       const response = await fetch(`${apiUrl}/${path}?${new URLSearchParams(params)}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        // Détail donné par l'API (« message »), s'il y en a un
+        let detail = "";
+        try { detail = (await response.json()).message || ""; } catch { /* corps absent ou illisible */ }
+        throw new Error(`HTTP ${response.status}${detail ? ` : ${detail}` : ""}`);
+      }
       return response.json();
     };
     const start = since ? Date.parse(since) : Date.UTC(2022, 0, 1);
+    // Producteur : ses séquences sont les « enfants » de sa collection d'utilisateur (le méta-catalogue n'en a pas :
+    // le filtre `accept` seul s'applique alors). Sinon : toutes les séquences de l'instance.
+    const byProducer = producer && apiUrl !== META_API;
     for (let attempt = 0; attempt < 2; attempt++) {
       const created = new Date(start + Math.random() * Math.max(0, Date.now() - start)).toISOString();
-      const params = { limit: 1, sortby: "created", page: `created>'${created}'` };
-      if (producer) params.filter = `provider_id='${producer}'`;
-      const collection = ((await get("collections", params)).collections || [])[0];
+      const params = { limit: 1, sortby: "+created", filter: `created > '${created}'` };
+      const collection = byProducer
+        ? ((await get(`users/${encodeURIComponent(producer)}/collection`, params)).links || []).find((l) => l.rel === "child")
+        : ((await get("collections", params)).collections || [])[0];
       const [from, to] = ((collection?.extent?.temporal?.interval || [])[0] || []).map((d) => Date.parse(d));
       if (!collection || !(to >= from)) continue;
       const at = new Date(from + Math.random() * (to - from)).toISOString();
       const features = (await get("search", {
-        collections: collection.id, datetime: `${at}/..`, sortby: "+datetime", limit: 20,
+        collections: JSON.stringify([collection.id]), datetime: `${at}/..`, sortby: "+ts", limit: 20,
       })).features || [];
       const accepted = features.filter((f) => accept(f));
       if (accepted.length) return accepted[Math.floor(Math.random() * accepted.length)];
