@@ -210,6 +210,7 @@ class App(Pose, Chutes, Nez, session.Session):
         # Sources d'inclinaison de l'hôte, rangées par Calibration.tilt (ordre unique : voir sa docstring)
         self.calibration.ground_tilt = self._ground_tilt
         self.calibration.loose_tilt = self._loose_tilt
+        self.calibration.route_tilt = self._route_tilt
         self.calibration.campaign_tilt = self._campaign_tilt
         # Relevé d'objets (mode "releve" de la page) : le mode « tri » du cœur (points gardés), chacun gardé avec les champs saisis par l'utilisateur (values["releve"])
         self.releve = False
@@ -247,6 +248,30 @@ class App(Pose, Chutes, Nez, session.Session):
         """Ligne « Position » + « sur un pont (détecté) » quand le mode « sur un pont » est actif (activé tout seul d'après la BD TOPO,
         take_bridge_alert) : dit à l'utilisateur pourquoi le sol vient des photos et non du modèle de terrain."""
         return quality + " · sur un pont (détecté)" if self.bridge else quality
+
+    # Confiance de l'inclinaison des mesures (Calibration.confidence) : état de la photo du premier clic, gardé sur la mesure
+    CONFIDENCE_TEXT = {"confirmee": "inclinaison confirmée", "desaccord": "inclinaison en désaccord",
+                       "non_verifiable": "inclinaison non vérifiable", "pont": "pont : inclinaison non vérifiable"}
+
+    def _recompute(self, pics=None, force_reference=False):
+        super()._recompute(pics, force_reference)
+        self._stamp_confidence(pics)
+
+    def _stamp_confidence(self, pics=None):
+        """Garde sur chaque mesure terminée la confiance de l'inclinaison de sa photo (m.confiance : etat, ecart_tangage,
+        ecart_roulis) : prise quand la mesure est lue pour la première fois (faite à l'instant), refaite quand l'inclinaison de
+        sa photo change (la mesure est alors recalculée avec la nouvelle). pics : photos dont le calage a changé (None : toutes ;
+        vide : seulement les mesures encore sans état). Sans état calculable (cap ou inclinaison inconnus), l'ancien est gardé.
+        Une mesure sur la carte ne dépend pas de l'inclinaison : elle n'en a pas."""
+        for m in self.tool.measures():
+            if not m.result or not m.clicks:
+                continue
+            pic = m.clicks[0].get("pic")
+            if getattr(m, "confiance", None) and pics is not None and pic not in pics:
+                continue
+            got = self.tilt_confidence_of(pic)
+            if got:
+                m.confiance = {"etat": got["state"], "ecart_tangage": got["d_pitch"], "ecart_roulis": got["d_roll"]}
 
     # Mesures faites : seulement sur leur photo (ticket #24) ---------------------------------------
     # Projetées sur les autres photos, elles y paraissent décalées. Le cœur les montre partout :
@@ -416,7 +441,12 @@ class App(Pose, Chutes, Nez, session.Session):
         dessous (« sous »), nommées par leur point d'arrivée : « ↕ B 3,77 m ± 0,12 m ».
         Les autres points gardés et les distances n'y figurent pas (ils restent exportés)."""
         rows = super().results()
+        self._stamp_confidence(set())  # mesures faites depuis la dernière lecture : leur état de confiance, au moment où elles sont faites
         measures_by_id = {id(m): m for m in self.tool.measures()}
+        for r in rows:
+            m = measures_by_id.get(r["id"]) if r["kind"] == "mesure" else None
+            if m is not None and getattr(m, "confiance", None):
+                r["confiance"] = self.CONFIDENCE_TEXT[m.confiance["etat"]]
         under = {}  # nom du point de référence -> lignes de ses mesures
         orphans = []  # mesure sans point de référence gardé : gardée visible, à la fin
         for r in rows:
@@ -693,9 +723,10 @@ class App(Pose, Chutes, Nez, session.Session):
         toward, sigma, partial, pitch, roll, scale, rows (angle, deviation, effect, verdict), outliers, doubtful ; null sans
         verticale), retained (inclinaison retenue par Calibration.tilt : source, sigma, pitch, roll ; null sans inclinaison) et auto
         (calcul automatique par les verticales de la photo : available, off (écarté par l'utilisateur), count (null au seuil élargi),
-        loose, et sa propre inclinaison : pitch, roll, sigma)."""
+        loose, et sa propre inclinaison : pitch, roll, sigma) et confidence (confiance de l'inclinaison retenue, voir
+        tilt_confidence_of ; null sans inclinaison)."""
         pic = self._calage_pic()
-        out = {"manual": None, "retained": None, "auto": {"available": False, "off": False, "count": None, "loose": False}}
+        out = {"manual": None, "retained": None, "confidence": None, "auto": {"available": False, "off": False, "count": None, "loose": False}}
         if not pic:
             return json.dumps(out)
         report = self._calage_report()
@@ -711,6 +742,7 @@ class App(Pose, Chutes, Nez, session.Session):
             pitch, roll = calibration.tilt_components(got["up"], self._heading())
             out["retained"] = {"source": got["source"], "sigma": got["sigma"], "pitch": pitch, "roll": roll,
                                "count": got.get("count")}
+        out["confidence"] = self.tilt_confidence_of(pic, self.item)  # indicateur de confiance (Calibration.confidence)
         entry = self.calibration.auto.get(pic) or {}
         found = entry.get("verticals")
         loose = self.birdeye_loose.get(pic)
@@ -1383,6 +1415,7 @@ class App(Pose, Chutes, Nez, session.Session):
             names = list(dict.fromkeys(k for _, _, v in kept for k in v["releve"] if k not in RELEVE_PLACE))
             return [([(lon, lat)], _releve_attrs(values, names)) for lon, lat, values in kept]
         out = []
+        self._stamp_confidence(set())
         for m in self.tool.measures():
             r = m.result
             if not r:
@@ -1414,6 +1447,9 @@ class App(Pose, Chutes, Nez, session.Session):
                 "photo_ref": m.clicks[0].get("pic"),
                 "vue_ref": json.dumps(m.view_ref) if getattr(m, "view_ref", None) else None,
                 "etiquette": m.label()[2:],  # sans le symbole
+                "confiance_inclinaison": (getattr(m, "confiance", None) or {}).get("etat"),
+                "ecart_tangage": num((getattr(m, "confiance", None) or {}).get("ecart_tangage"), 2),
+                "ecart_roulis": num((getattr(m, "confiance", None) or {}).get("ecart_roulis"), 2),
             }))
         for lon, lat, values in self.points:
             if "releve" not in values:  # objets relevés : export à part, gardés à part dans le navigateur

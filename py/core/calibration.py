@@ -57,6 +57,15 @@ LIDAR_GRID = [(a * LIDAR_ALONG, c * LIDAR_ACROSS) for a in (-1, -0.5, 0, 0.5, 1)
 LIDAR_MIN_PHOTOS = 3  # photos de la séquence calées par leurs verticales pour valider le modèle
 LIDAR_MAX_SIGMA = 0.8  # au-delà, la caméra ne suit pas le véhicule (portée à pied, stabilisée)
 LIDAR_MIN_SIGMA = 0.3
+# Confiance de l'inclinaison (tilt_confidence) : la source retenue et un témoin de l'autre famille (image / terrain) s'accordent
+# quand leurs écarts de tangage et de roulis restent sous max(plancher, TILT_AGREE_K · racine(σ1² + σ2²)). Planchers : écarts
+# médians observés entre image et terrain sur 33 photos (étude du 22/11/2026) : tangage 0,2 à 0,3° (au plus 1,07°), roulis 0,33 à
+# 0,37° ; le roulis est moins bien connu côté terrain (dévers, défaut de campagne), d'où un plancher plus large.
+TILT_AGREE_PITCH = 0.5  # degrés : plancher de l'écart de tangage toléré
+TILT_AGREE_ROLL = 0.7  # degrés : plancher de l'écart de roulis toléré
+TILT_AGREE_PITCH_MAX = 1.0  # degrés : plafond du seuil de tangage (au-delà, l'accord ne garantit plus une mesure utile)
+TILT_AGREE_ROLL_MAX = 1.2  # degrés : plafond du seuil de roulis (même raison : la route seule annonce ±1° et ouvrirait le seuil à 2°)
+TILT_AGREE_K = 2.0  # le seuil suit l'incertitude annoncée des deux sources (deux écarts-types)
 # Verticales tracées à la main : jugement de chacune (vertical_report). Une verticale fausse tire vers elle l'inclinaison qui sert à la
 # juger : l'écart se mesure donc à un consensus robuste, la verticale vraie ajustée sur les verticales qui s'accordent (la meilleure
 # des verticales vraies que donne chaque PAIRE de verticales, au sens d'une somme d'écarts tronqués à OUTLIER_FACTOR × JUDGE_FLOOR,
@@ -329,6 +338,54 @@ def lidar_model(entries):
     return {"offset": (mf, mr), "sigma": max(sigma, LIDAR_MIN_SIGMA), "count": n}
 
 
+def tilt_family(source):
+    """Famille d'une source d'inclinaison d'après son nom (le champ « source » de Calibration.tilt) : "image" (clics à la main,
+    verticales, seuil élargi), "terrain" (LiDAR HD, route de la vue du dessus, terrain web), "constante" (roulis de campagne :
+    pas une mesure de la photo) ou "mixte" (clics complétés par le terrain : ni l'une ni l'autre). Seules deux familles sont
+    indépendantes : image et terrain."""
+    name = source or ""
+    if name.startswith("roulis de campagne"):
+        return "constante"
+    image, terrain = name.startswith(("clics", "verticales")), any(k in name for k in ("lidar", "vue du dessus", "terrain"))
+    if image and terrain:
+        return "mixte"
+    return "terrain" if terrain else "image"
+
+
+def tilt_confidence(sources, retained, bridge=False):
+    """Confiance de l'inclinaison retenue : fonction pure. sources : toutes les sources disponibles de la photo (voir
+    Calibration.tilt_sources : dicts source (nom), family, sigma, pitch, roll en degrés) ; retained : l'inclinaison retenue (dict
+    source, sigma, pitch, roll) ou None ; bridge : photo sur un pont. Retourne un dict :
+    - state : "pont" (photo sur un pont : le terrain décrit le sol sous l'ouvrage, état propre même avec des verticales),
+      "confirmee" (la source retenue et le meilleur témoin de l'AUTRE famille s'accordent), "desaccord", ou "non_verifiable"
+      (aucun témoin de l'autre famille : une seule famille disponible, ou seulement une constante) ;
+    - pair : (nom retenu, nom du témoin) ou None ; d_pitch, d_roll : écarts signés témoin − retenue ; limit_pitch, limit_roll :
+      seuils appliqués (min(plafond, max(plancher, TILT_AGREE_K · racine(σ1² + σ2²)))) ; available : noms des sources disponibles.
+    Le meilleur témoin est celui de plus petite incertitude parmi l'autre famille (image ou terrain seulement : le roulis de
+    campagne est une constante). Écarts et seuils sont rendus aussi en cas d'accord ou de pont quand un témoin existe."""
+    names = [s["source"] for s in sources]
+    out = {"state": "non_verifiable", "pair": None, "d_pitch": None, "d_roll": None, "limit_pitch": None, "limit_roll": None,
+           "available": names}
+    if retained is None:
+        return out
+    mine = tilt_family(retained.get("source"))
+    wanted = {"image": "terrain", "terrain": "image"}.get(mine)
+    witnesses = [s for s in sources if s["family"] == wanted and s.get("pitch") is not None and s.get("roll") is not None
+                 and s["source"] != retained.get("source")]
+    if wanted and retained.get("pitch") is not None and retained.get("roll") is not None and witnesses:
+        best = min(witnesses, key=lambda s: s["sigma"])
+        spread = TILT_AGREE_K * math.hypot(float(retained.get("sigma") or 0.0), best["sigma"])
+        out.update(pair=(retained["source"], best["source"]), d_pitch=best["pitch"] - retained["pitch"],
+                   d_roll=best["roll"] - retained["roll"], limit_pitch=min(TILT_AGREE_PITCH_MAX, max(TILT_AGREE_PITCH, spread)),
+                   limit_roll=min(TILT_AGREE_ROLL_MAX, max(TILT_AGREE_ROLL, spread)))
+        if not bridge:
+            agree = abs(out["d_pitch"]) <= out["limit_pitch"] and abs(out["d_roll"]) <= out["limit_roll"]
+            out["state"] = "confirmee" if agree else "desaccord"
+    if bridge:
+        out["state"] = "pont"
+    return out
+
+
 def untilt(up, yaw, elev, inverse=False):
     """Direction corrigée : rotation qui ramène la verticale `up` au zénith. inverse : la
     rotation contraire, d'une direction vraie à la direction vue par la caméra penchée."""
@@ -457,6 +514,7 @@ class Calibration:
         self.ground_tilt = None
         self.loose_tilt = None
         self.campaign_tilt = None
+        self.route_tilt = None  # route de la vue du dessus annoncée même quand les verticales priment (tilt_sources seulement)
         self._models = {}  # séquence -> lidar_model (cache)
         self.lidar = True  # False sur un pont (case « Sur un pont ») : pente du terrain sous l'ouvrage, pas celle du tablier
         # Photos situées sur un pont d'après la BD TOPO (set_bridge_photo, connu dès l'ouverture de la photo, même hors mesure) :
@@ -576,6 +634,56 @@ class Calibration:
             combined = tilt_from_verticals(self.verticals[pic], (auto["up"], auto["sigma"]))
             return dict(combined, source="clics + " + auto["source"])
         return auto
+
+    def tilt_sources(self, pic, heading=None):
+        """Toutes les sources d'inclinaison disponibles de la photo, pas seulement la retenue par tilt : liste de dicts
+        source (nom), family ("image", "terrain" ou "constante", voir tilt_family), up, sigma (degrés), et pitch, roll (degrés,
+        si heading est donné). Sources : clics à la main (complets), verticales de la photo, verticales à seuil élargi (hôte,
+        sans verticales), LiDAR HD par le modèle de la séquence, route de la vue du dessus (hôte, ground_tilt ; ou
+        route_tilt, la route annoncée même quand les verticales priment), roulis de campagne (hôte, constante). Le modèle LiDAR
+        est calculé SANS la photo (leave-one-out : son décalage verticales − LiDAR ne contient pas ses propres verticales, sinon
+        il les redonnerait et ne les vérifierait pas) ; jamais sur un pont (bridge_pics, case « Sur un pont »). Le LiDAR brut
+        n'en est pas une : sans le décalage de monture appris sur la séquence, il n'est pas comparable."""
+        out = []
+
+        def add(name, up, sigma):
+            entry = {"source": name, "family": tilt_family(name), "up": tuple(up), "sigma": float(sigma), "pitch": None, "roll": None}
+            if heading is not None:
+                entry["pitch"], entry["roll"] = tilt_components(entry["up"], heading)
+            out.append(entry)
+
+        manual = self._tilts.get(pic)
+        if manual and not manual["partial"]:
+            add("clics", manual["up"], manual["sigma"])
+        entry = self.auto.get(pic) or {}
+        v = None if pic in self.auto_off else entry.get("verticals")
+        if v:
+            add("verticales", v["up"], v["sigma"])
+        elif pic not in self.auto_off and self.loose_tilt and (loose := self.loose_tilt(pic)):
+            add(loose["source"], loose["up"], loose["sigma"])
+        if self.lidar and pic not in self.bridge_pics and entry.get("lidar") and entry.get("sequence") is not None:
+            model = lidar_model([e for p, e in self.auto.items()
+                                 if p != pic and e.get("sequence") == entry["sequence"] and p not in self.bridge_pics])
+            if model:
+                f, r = entry["lidar"][0] + model["offset"][0], entry["lidar"][1] + model["offset"][1]
+                add("lidar", up_from_components(f, r, entry["heading"]), model["sigma"])
+        route = (self.route_tilt(pic) if self.route_tilt else None) or (self.ground_tilt(pic) if self.ground_tilt else None)
+        if route:
+            add(route["source"], route["up"], route["sigma"])
+        campaign = self.campaign_tilt(pic) if self.campaign_tilt else None
+        if campaign:
+            add(campaign["source"], campaign["up"], campaign["sigma"])
+        return out
+
+    def confidence(self, pic, heading):
+        """Confiance de l'inclinaison retenue de la photo (voir tilt_confidence), ou None sans inclinaison retenue (dict
+        retained : source, sigma, pitch, roll de tilt)."""
+        got = self.tilt(pic)
+        if not got:
+            return None
+        pitch, roll = tilt_components(got["up"], heading)
+        retained = {"source": got["source"], "sigma": got["sigma"], "pitch": pitch, "roll": roll}
+        return dict(tilt_confidence(self.tilt_sources(pic, heading), retained, pic in self.bridge_pics), retained=retained)
 
     def manual_complete(self, pic):
         """Inclinaison calée à la main sur assez d'objets pour se passer du calcul automatique."""

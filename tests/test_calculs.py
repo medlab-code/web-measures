@@ -950,6 +950,27 @@ class Parcours(unittest.TestCase):
         a.new_measure()  # « Nouvelle mesure depuis A »
         self.assertTrue(self.aim("p1", self.A, pitch=0.2).startswith("Hauteur :"))
 
+    def test_confiance_inclinaison_des_mesures(self):
+        """Chaque mesure garde la confiance de l'inclinaison de sa photo : mention dans les résultats, colonnes des exports ;
+        la route annoncée par la vue du dessus (champ route, même quand les verticales priment) sert de témoin."""
+        a = self.app
+        a.set_mode("height")
+        self.sighted(self.A, pitch=-0.35)
+        self.aim("p2", self.A, pitch=0.3)
+        a.calibration.auto["p2"] = {"sequence": "s1", "heading": 0.0, "lidar": None, "verticals": {
+            "up": calibration.up_from_components(1.0, 0.5, 0.0), "count": 4, "sigma": 0.3}}
+        a._calibration_changed({"p2"})
+        mention = next(r["confiance"] for r in json.loads(a.results()) if r["kind"] == "mesure")
+        self.assertEqual(mention, "inclinaison non vérifiable")  # verticales seules : une seule famille
+        self.assertIn(";non_verifiable;", a.export_csv())
+        route = {"up": list(calibration.up_from_components(3.0, 0.5, 0.0)), "sigma": 0.5}
+        a.birdeye_tilt_set("p2", json.dumps({"up": None, "sigma": 0.3, "route": route, "height": None, "ground": None}))
+        feature = json.loads(a.export_geojson())["features"][0]["properties"]
+        self.assertEqual(feature["confiance_inclinaison"], "desaccord")
+        self.assertAlmostEqual(feature["ecart_tangage"], 2.0, delta=0.05)
+        self.assertEqual(next(r["confiance"] for r in json.loads(a.results()) if r["kind"] == "mesure"), "inclinaison en désaccord")
+        self.assertEqual(json.loads(a.calage_manuel())["confidence"]["state"], "desaccord")
+
     def test_releve(self):
         a = self.app
         a.set_mode("releve")

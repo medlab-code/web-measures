@@ -2035,9 +2035,16 @@ const Dessus = (() => {
       z: Array.from(terrain, (v) => Math.round((v - terrain[(terrain.length - 1) / 2]) * 1000) / 1000),
       ref: Math.round(groundLevel(levelOf(terrain), layer.at, main.heading) * 1000) / 1000,
     } : null;
+    // Route : l'inclinaison tirée de la route, annoncée AUSSI quand les verticales priment (up : null), comme témoin indépendant
+    // pour l'indicateur de confiance de l'inclinaison (Calibration.tilt_confidence) ; sans effet sur les mesures ni la droite
+    const route = main.groundTilt ? { up: main.up, sigma: main.sigma } : terrain && onLidar(shown) ? {
+      up: groundUp(levelOf(terrain), layer.at, main.heading, rollShare, pitchFor(main.pic), main.roll_defect || 0),
+      sigma: Math.hypot(GROUND_SIGMA, LEAN * (shown.lateral || 0)),
+    } : null;
     const tilt = {
       up: main.groundTilt ? main.up : null, sigma: main.sigma, manual: Boolean(main.groundTilt) && (pitchManual || rollShare !== DEFAULT_ROLL),
-      height: main.height, height_sigma: main.height_sigma, ground,
+      height: main.height, height_sigma: main.height_sigma, ground, route,
+      route_manual: pitchManual || rollShare !== DEFAULT_ROLL,
     };
     const text = JSON.stringify(tilt);
     if (tiltAnnounced.get(main.pic) === text) return;

@@ -437,3 +437,107 @@ class Storage(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TiltConfidenceTest(unittest.TestCase):
+    """Confiance de l'inclinaison : sources de familles indépendantes, modèle LiDAR sans la photo, seuil adaptatif."""
+
+    OFFSET = (0.3, -0.1)  # décalage de monture : verticales − LiDAR, pour les photos de référence
+
+    def sequence(self, own=(2.0, 1.0), own_lidar_gap=0.0, skew=0.0):
+        """Séquence s de 5 photos de cap 0 calées par leurs verticales et le LiDAR. p0 : la photo étudiée, verticales
+        (tangage, roulis) = own, LiDAR brut = verticales − OFFSET + own_lidar_gap (+ skew sur son décalage appris)."""
+        cal = calibration.Calibration()
+        for i, pic in enumerate(["p0", "p1", "p2", "p3", "p4"]):
+            f, r = own if pic == "p0" else (0.5 * i, -0.4 * i)
+            lidar = (f - self.OFFSET[0] + (own_lidar_gap if pic == "p0" else 0.0),
+                     r - self.OFFSET[1] + (skew if pic == "p0" else 0.0))
+            cal.auto[pic] = {"sequence": "s", "heading": 0.0, "lidar": lidar,
+                             "verticals": {"up": calibration.up_from_components(f, r, 0.0), "count": 4, "sigma": 0.3}}
+        return cal
+
+    def test_confirmee(self):
+        got = self.sequence().confidence("p0", 0.0)
+        self.assertEqual(got["state"], "confirmee")
+        self.assertEqual(got["pair"], ("verticales", "lidar"))
+        self.assertLess(abs(got["d_pitch"]), 0.05)
+
+    def test_desaccord(self):
+        got = self.sequence(own_lidar_gap=1.5, skew=-1.8).confidence("p0", 0.0)
+        self.assertEqual(got["state"], "desaccord")
+        self.assertGreater(abs(got["d_pitch"]), got["limit_pitch"])
+        self.assertGreater(abs(got["d_roll"]), got["limit_roll"])
+
+    def test_leave_one_out(self):
+        # p0 s'écarte du décalage des autres photos de 0,8° en tangage : le modèle avec p0 la rapproche de ses verticales
+        cal = self.sequence(own_lidar_gap=-0.8)
+        with_it = cal.lidar_model("s")["offset"][0]
+        lidar = next(s for s in cal.tilt_sources("p0", 0.0) if s["source"] == "lidar")
+        self.assertAlmostEqual(with_it, self.OFFSET[0] + 0.8 / 5, places=6)
+        # le témoin vaut le LiDAR brut de p0 plus le décalage des QUATRE autres : 2 - 0,8 - 0,3 + 0,3 = 1,2
+        self.assertAlmostEqual(lidar["pitch"], 1.2, places=3)
+        self.assertNotAlmostEqual(lidar["pitch"], 2.0 - 0.8 - self.OFFSET[0] + with_it, places=2)
+
+    def test_non_verifiable(self):
+        cal = self.sequence()
+        for pic in ("p1", "p2", "p3", "p4"):
+            cal.auto[pic]["lidar"] = None  # modèle impossible : p0 n'a que ses verticales
+        cal.campaign_tilt = lambda pic: calibration.tilt_entry(calibration.up_from_components(0.0, 1.0, 0.0), 2.0,
+                                                               "roulis de campagne", fallback=True)
+        got = cal.confidence("p0", 0.0)
+        self.assertEqual(got["state"], "non_verifiable")
+        self.assertIsNone(got["pair"])
+        self.assertEqual(got["available"], ["verticales", "roulis de campagne"])
+        cal.auto_off.add("p0")  # seul reste le roulis de campagne, une constante
+        self.assertEqual(cal.confidence("p0", 0.0)["state"], "non_verifiable")
+
+    def test_pont(self):
+        cal = self.sequence()
+        cal.route_tilt = lambda pic: calibration.tilt_entry(calibration.up_from_components(2.0, 1.0, 0.0), 0.5, "vue du dessus")
+        self.assertEqual(cal.confidence("p0", 0.0)["state"], "confirmee")
+        cal.bridge_pics.add("p0")
+        got = cal.confidence("p0", 0.0)
+        self.assertEqual(got["state"], "pont")
+        names = [s["source"] for s in cal.tilt_sources("p0", 0.0)]
+        self.assertNotIn("lidar", names)  # jamais de LiDAR sur un pont
+        self.assertIn("vue du dessus", names)
+
+    def test_route_temoin_des_verticales(self):
+        cal = self.sequence()
+        cal.route_tilt = lambda pic: calibration.tilt_entry(calibration.up_from_components(3.5, 1.0, 0.0), 0.5, "vue du dessus")
+        cal.auto["p0"]["lidar"] = None
+        cal.auto["p0"]["verticals"]["sigma"] = 0.2
+        got = cal.confidence("p0", 0.0)
+        self.assertEqual(got["state"], "desaccord")
+        self.assertEqual(got["pair"], ("verticales", "vue du dessus"))
+
+    def test_seuil_adaptatif(self):
+        def pair(sigma, d_pitch, d_roll=0.0):
+            retained = {"source": "verticales", "sigma": sigma, "pitch": 0.0, "roll": 0.0}
+            witness = {"source": "lidar", "family": "terrain", "sigma": sigma, "pitch": d_pitch, "roll": d_roll}
+            return calibration.tilt_confidence([witness], retained)
+        self.assertEqual(pair(0.1, 0.6)["state"], "desaccord")  # plancher de 0,5°
+        self.assertEqual(pair(0.1, 0.4)["state"], "confirmee")
+        self.assertEqual(pair(0.1, 0.0, 0.8)["state"], "desaccord")  # plancher de 0,7° en roulis
+        mid = pair(0.3, 0.8)  # 2·√(0,3² + 0,3²) = 0,85° : seuil adapté entre plancher et plafond
+        self.assertEqual(mid["state"], "confirmee")
+        self.assertAlmostEqual(mid["limit_pitch"], 2 * math.hypot(0.3, 0.3), places=6)
+
+    def test_plafond(self):
+        def pair(sigma, d_pitch, d_roll=0.0):
+            retained = {"source": "verticales", "sigma": sigma, "pitch": 0.0, "roll": 0.0}
+            witness = {"source": "vue du dessus", "family": "terrain", "sigma": sigma, "pitch": d_pitch, "roll": d_roll}
+            return calibration.tilt_confidence([witness], retained)
+        wide = pair(1.0, 0.65)  # incertitudes de 1° : 2·√2 = 2,83° serait indulgent, plafonné à 1,0° / 1,2°
+        self.assertEqual((wide["limit_pitch"], wide["limit_roll"]), (calibration.TILT_AGREE_PITCH_MAX, calibration.TILT_AGREE_ROLL_MAX))
+        self.assertEqual(wide["state"], "confirmee")
+        self.assertEqual(pair(1.0, 1.1)["state"], "desaccord")
+        self.assertEqual(pair(1.0, 0.0, 1.3)["state"], "desaccord")
+        self.assertEqual(pair(1.0, 0.0, 1.1)["state"], "confirmee")
+
+    def test_familles(self):
+        fam = calibration.tilt_family
+        self.assertEqual([fam(n) for n in ("clics", "clics + verticales", "verticales", "verticales (seuil élargi)")], ["image"] * 4)
+        self.assertEqual([fam(n) for n in ("lidar", "vue du dessus", "vue du dessus (réglée à la main)", "terrain web")], ["terrain"] * 4)
+        self.assertEqual(fam("roulis de campagne"), "constante")
+        self.assertEqual(fam("clics + lidar"), "mixte")

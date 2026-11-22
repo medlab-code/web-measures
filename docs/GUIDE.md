@@ -875,6 +875,22 @@ largeurs de chaussée LiDAR (analyse fine) : ces valeurs n'ont pas encore été 
 
 **Largeur dans la visionneuse : l'incertitude grandit avec la distance de la droite** (poignée de profondeur) : une erreur d'inclinaison (tangage) δ sur la photo déplace un bord latéral de s de `s·d·δ/H` (d : distance de la droite, H : hauteur de la caméra), donc la largeur de `(s₂ − s₁)·d·δ/H` ; l'incertitude de la largeur croît en gros comme distance / hauteur × erreur d'inclinaison (à ±0,5°, d = 10 m, H = 1,93 m et 8 m de largeur : environ 0,36 m contre 0,16 m à 4,5 m), et le roulis et la hauteur n'en dépendent pas. L'étiquette et l'encart donnent l'incertitude de la droite à sa distance du moment. Au-delà de 5 à 6 m du nez, la photo suivante, plus près des bords, les lit mieux. **Accord avec la vue du dessus** : une fois la photo calée par Bird Eye (vue ouverte ou calage silencieux), la droite prend la hauteur de caméra et le terrain lissé de la vue du dessus : la largeur de mêmes bords est la même dans les deux, à 1 cm près (avant : 7 % de moins sur la photo 8625c7ff-90c1-4865-b936-fd8952ac908f, 6,00 m contre 6,56 m). Sans calage, la hauteur est la monture du véhicule (CD21) avant l'altitude GPS, le sol le MNT brut ; la largeur est alors moins sûre de quelques pour cent.
 
+**Confiance de l'inclinaison** (22/11/2026) : l'inclinaison retenue pour une photo est confrontée à une source indépendante (image :
+verticales ; terrain : LiDAR HD de la séquence, route de la vue du dessus ; méthode dans `docs/CALCULS.md` § 1.3). Où on la voit :
+- **panneau « Calage manuel »**, en tête : « Confiance de l'inclinaison : confirmée » (vert : les deux sources s'accordent),
+  « désaccord : tangage 0,9° / roulis 1,6° entre verticales et LiDAR (retenue : verticales) » (orange : écart au-delà de la tolérance,
+  à prendre avec prudence ; la source dite « retenue » est celle qui sert aux mesures ; tolérance : au moins 0,5° en tangage et 0,7° en
+  roulis, qui suit l'incertitude des sources sans dépasser 1,0° et 1,2°), « non vérifiable : une seule source (LiDAR) » (gris : rien pour confirmer, pas forcément faux), « pont : inclinaison
+  non vérifiable » (gris : sur un pont le LiDAR décrit le sol sous l'ouvrage). Sans verticale ni calcul automatique, la pastille du
+  bouton de calage montre « i » (grise, orange en désaccord) pour ouvrir le panneau ; sinon la pastille garde son sens (verticales),
+  sans couleur de confiance ;
+- **onglet Résultats** : sous chaque mesure, « inclinaison confirmée / non vérifiable / en désaccord / pont : inclinaison non
+  vérifiable », telle qu'au moment de la mesure (mise à jour si l'inclinaison de sa photo change) ;
+- **exports CSV et GeoJSON** : colonnes `confiance_inclinaison` (`confirmee`, `desaccord`, `non_verifiable`, `pont`), `ecart_tangage`
+  et `ecart_roulis` (degrés, témoin moins retenue ; vides sans témoin) ; rien pour les mesures sur la carte ;
+- **largeur ↔** : l'encart de lecture ajoute « (confirmée) », « (non vérifiable) » ou « (désaccord : tangage…, roulis…) » à la source de
+  l'inclinaison. La route de la vue du dessus ne sert de témoin qu'une fois la vue calée sur la photo.
+
 **Inclinaison utilisée** : un seul ordre pour les mesures et la largeur dans la visionneuse (20/11/2026) : réglage de la
 vue du dessus pour la photo, calage à la main, verticales de la photo, LiDAR sous le véhicule, verticales à seuil élargi, roulis de
 la campagne seul (tangage inconnu, ±2°), rien (±2°). Elle est calculée à l'entrée en mesure pour la photo affichée,

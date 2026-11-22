@@ -1860,7 +1860,20 @@ dialog.avertissement form button:focus-visible { outline: 2px solid #ffd600; out
 #reglage-image .voyant-calage.auto:not(:disabled):hover { background: #7dbbff; }
 #reglage-image .voyant-calage.coupe { background: #9aa5b1; color: #1d2630; text-decoration: line-through; }  /* écarté par l'utilisateur */
 #calage-panneau #calage-auto { color: #9fd0ff; }
+/* Confiance de l'inclinaison retenue : en tête du panneau (vert : confirmée, orange : désaccord, gris : non vérifiable ou pont) */
+#calage-panneau #calage-confiance { font-weight: 600; }
+#calage-panneau #calage-confiance[hidden] { display: none; }
+#calage-panneau #calage-confiance.confirmee { color: #7be38b; }
+#calage-panneau #calage-confiance.desaccord { color: #ffb74d; }
+#calage-panneau #calage-confiance:is(.non_verifiable, .pont) { color: #c8ccd0; }
+#reglage-image .voyant-calage.info { background: #9aa5b1; color: #1d2630; }  /* ni verticales ni calcul automatique : seulement la confiance */
+#reglage-image .voyant-calage.info.desaccord { background: #ff9800; color: #3a2000; }
 #calage-panneau #calage-auto-bloc { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin: 0.2rem 0; }
 #calage-panneau #calage-auto-bloc[hidden] { display: none; }
 #calage-panneau #calage-auto-bloc p { margin: 0; }
 #calage-panneau #calage-auto-bloc button { flex: none; }
+
+/* Résultats : confiance de l'inclinaison de la photo de la mesure, mention courte sous la valeur (cœur : Calibration.confidence) */
+#resultats .libelle .confiance { display: block; font-size: 0.75em; color: var(--discret, #6b7380); }
+#resultats .libelle .confiance.desaccord { color: #e65100; font-weight: 600; }
+#resultats .libelle .confiance.confirmee { color: #2e7d32; }

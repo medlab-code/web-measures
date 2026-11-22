@@ -46,14 +46,38 @@ const Calage = {
     }
 
     const auto = () => info?.auto ?? { available: false, off: false, count: null, loose: false };
-    const present = () => Boolean(data || auto().available);  // la pastille existe : verticales à la main, ou calcul automatique
+    const confidence = () => info?.confidence ?? null;
+    // la pastille existe : verticales à la main, calcul automatique, ou seulement une inclinaison dont on dit la confiance (« i »)
+    const present = () => Boolean(data || auto().available || confidence());
+
+    const SOURCES = { clics: "verticales à la main", verticales: "verticales", "verticales (seuil élargi)": "verticales (seuil élargi)", lidar: "LiDAR",
+      "vue du dessus": "route (vue du dessus)", "vue du dessus (réglée à la main)": "route (vue du dessus)", "roulis de campagne": "roulis de campagne" };
+    const nom = (source) => SOURCES[source] ?? source;
+    /** Confiance de l'inclinaison retenue : { classe, texte, titre } (états du cœur : confirmee, desaccord, non_verifiable, pont). */
+    function confidenceText() {
+      const c = confidence();
+      if (!c) return null;
+      const degres = (v) => `${nombre(Math.abs(v))}°`;
+      const pair = c.pair ? `${nom(c.pair[0])} et ${nom(c.pair[1])}` : "";
+      const gap = c.d_pitch === null ? "" : `écart de tangage ${degres(c.d_pitch)} (tolérance ${degres(c.limit_pitch)}), de roulis ${degres(c.d_roll)} (tolérance ${degres(c.limit_roll)})`;
+      if (c.state === "confirmee") return { classe: c.state, texte: "confirmée", titre: `${pair} s'accordent : ${gap}` };
+      if (c.state === "desaccord") {
+        return { classe: c.state, texte: `désaccord : tangage ${degres(c.d_pitch)} / roulis ${degres(c.d_roll)} entre ${nom(c.pair[0])} et ${nom(c.pair[1])} (retenue : ${nom(c.retained.source)})`, titre: gap };
+      }
+      if (c.state === "pont") return { classe: c.state, texte: "pont : inclinaison non vérifiable", titre: "Sur un pont, le LiDAR décrit le sol sous l'ouvrage : il ne confirme pas l'inclinaison" };
+      const names = [...new Set(c.available.map(nom))].filter((n) => n !== "roulis de campagne");
+      const texte = names.length === 1 ? `une seule source (${names[0]})` : names.length ? `sources de même nature (${names.join(", ")})` : "seulement le roulis de campagne";
+      return { classe: c.state, texte: `non vérifiable : ${texte}`, titre: "Aucune source de l'autre famille (image ou terrain) pour confirmer l'inclinaison" };
+    }
 
     /** Pastille : verticales à la main (nombre, verte ou orange) ; sinon calcul automatique (« A », bleue, grisée s'il est écarté). */
     function showVoyant() {
       const bad = data && (data.outliers.length || data.doubtful.length);
       voyant.hidden = !present();
       voyant.classList.toggle("douteux", Boolean(bad));
-      voyant.classList.toggle("auto", !data && present());
+      voyant.classList.toggle("auto", !data && auto().available);
+      voyant.classList.toggle("info", !data && !auto().available);
+      voyant.classList.toggle("desaccord", !data && !auto().available && confidence()?.state === "desaccord");
       voyant.classList.toggle("coupe", !data && auto().off);
       if (!present()) return;
       if (data) {
@@ -61,6 +85,9 @@ const Calage = {
         voyant.title = `Calage manuel : ${plural(data.count, "verticale")}, `
           + (data.outliers.length ? `dont ${plural(data.outliers.length, "aberrante")}` : data.doubtful.length ? "dont une douteuse" : "cohérentes")
           + " (cliquer pour le détail)";
+      } else if (!auto().available) {
+        voyant.textContent = "i";
+        voyant.title = `Confiance de l'inclinaison : ${confidenceText().texte} (cliquer pour le détail)`;
       } else {
         voyant.textContent = "A";
         voyant.title = auto().off ? "Calcul automatique des verticales ignoré pour cette photo (cliquer pour le rétablir)"
@@ -101,11 +128,16 @@ const Calage = {
       voyant.setAttribute("aria-expanded", String(isOpen()));
       if (!isOpen()) return;
       // Calcul automatique fait (et pas écarté) : son information en tête, sous le titre ; écarté, le bloc (« Rétablir ») passe en bas
-      const bloc = $("#calage-auto-bloc"), head = autoText();
+      const bloc = $("#calage-auto-bloc"), head = autoText(), sure = confidenceText();
+      const ligne = $("#calage-confiance");
+      ligne.hidden = !sure;
+      ligne.className = sure?.classe ?? "";
+      ligne.textContent = sure ? `Confiance de l'inclinaison : ${sure.texte}` : "";
+      ligne.title = sure?.titre ?? "";
       $("#calage-titre").textContent = head ? "Calage de l'inclinaison" : data ? `Calage manuel : ${plural(data.count, "verticale")}` : "Calage manuel : aucune verticale";
       $("#calage-auto").textContent = head || (auto().off ? "Calcul automatique des verticales ignoré pour cette photo." : "");
       bloc.hidden = !auto().available;
-      if (head) panneau.querySelector(".entete").after(bloc);
+      if (head) $("#calage-confiance").after(bloc);
       else panneau.querySelector(".boutons").before(bloc);
       $("#calage-source").textContent = autoLine();
       $("#calage-source").hidden = !$("#calage-source").textContent;

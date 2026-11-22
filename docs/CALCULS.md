@@ -125,6 +125,27 @@ s'écartent de 1,4 à 2,4° ; avec le consensus, de 0°). Échelle = max(0,3°, 
 plus éloignée seule peut être douteuse), complet à 4 (`JUDGE_MIN`). L'effet d'une verticale est l'angle entre l'inclinaison avec et
 sans elle.
 
+**Confiance de l'inclinaison** (`Calibration.tilt_sources`, `tilt_confidence`, `Calibration.confidence` ; 22/11/2026). Une
+inclinaison n'est sûre que si une source indépendante la retrouve. Seules deux familles le sont : **image** (verticales à la
+main, verticales automatiques, verticales à seuil élargi) et **terrain** (LiDAR HD par le modèle de la séquence, route de la
+vue du dessus = LiDAR + 0,7 × dévers + défaut de campagne). Le LiDAR brut n'est pas un témoin (sans le décalage de monture
+appris sur la séquence) ; le roulis de campagne est une constante, pas un témoin (famille « constante » ; « mixte » : clics
+complétés par le terrain, aucun témoin). `tilt_sources(pic, heading)` rend toutes les sources disponibles de la photo (nom,
+famille, `up`, `sigma`, tangage et roulis), pas seulement la retenue. Le **LiDAR modèle est calculé sans la photo** (leave-one-out :
+`lidar_model` des autres photos de la séquence) : avec elle, son décalage verticales − LiDAR contiendrait ses propres verticales
+et les redonnerait, sans les vérifier. La route est celle que la vue du dessus annonce (`birdeye_tilt_set`, champ `route`),
+**même quand les verticales priment** (src/dessus.js, `announceTilt`) ; sans vue du dessus ouverte sur la photo, elle manque.
+`tilt_confidence(sources, retained, bridge)` (fonction pure) compare la source retenue au meilleur témoin (plus petite
+incertitude) de l'AUTRE famille : accord si |Δtangage| ≤ min(1,0°, max(0,5°, 2·√(σ₁² + σ₂²))) ET |Δroulis| ≤ min(1,2°, max(0,7°,
+2·√(σ₁² + σ₂²))) (`TILT_AGREE_PITCH`, `TILT_AGREE_ROLL`, `TILT_AGREE_K`, plafonds `TILT_AGREE_PITCH_MAX`, `TILT_AGREE_ROLL_MAX` : au-delà,
+l'accord ne garantit plus une mesure utile ; sans eux, la route à ±1° ouvrirait le seuil à 2° ; planchers d'après l'étude de 33 photos : écart médian image/terrain 0,2 à
+0,3° en tangage, 0,33 à 0,37° en roulis, au plus 1,07° et 3,08°). États : `confirmee`, `desaccord`, `non_verifiable` (une seule
+famille, ou seulement une constante), `pont` (photo de `bridge_pics` : état propre même avec des verticales, le terrain y
+décrivant le sol sous l'ouvrage). Hôte : `App.tilt_confidence_of`, recalculée à chaque changement d'inclinaison ; chaque mesure
+garde l'état de la photo de son premier clic (`m.confiance`), refait si l'inclinaison de cette photo change. Limites : une mesure
+sur plusieurs photos ne garde que l'état de la première ; la route manque tant que la vue du dessus n'a pas calé la photo ; un
+accord prouve la cohérence de deux sources, pas leur exactitude.
+
 ### 1.4 Terrain
 
 **MNT LiDAR HD** de l'IGN (sol nu à 50 cm, ±0,1 m ; ponts et ouvrages retirés), sinon

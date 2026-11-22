@@ -19,7 +19,7 @@ const Resultats = {
     let resultsKey = "";  // résultats affichés (sans les commentaires, que l'on est peut-être en train d'écrire)
 
     function showResults(list) {
-      const key = JSON.stringify(list.map((r) => [r.kind, r.id, r.text]));
+      const key = JSON.stringify(list.map((r) => [r.kind, r.id, r.text, r.confiance]));
       if (key === resultsKey) return;
       resultsKey = key;
       const ol = $("#resultats > ol");
@@ -87,6 +87,10 @@ const Resultats = {
       else if (measure) label.append(span("symbole", measure[1]), span("puce-point fin", measure[2]), span("valeur", measure[3]),
         span("incert", measure[4]));
       else label.textContent = r.text;
+      if (r.confiance) {  // inclinaison de la photo : confirmée, en désaccord ou non vérifiable (cœur : Calibration.confidence)
+        const etat = r.confiance.includes("désaccord") ? "desaccord" : r.confiance.includes("confirmée") ? "confirmee" : "non-verifiable";
+        label.append(span(`confiance ${etat}`, r.confiance));
+      }
       label.title = r.text;
       return label;
     }

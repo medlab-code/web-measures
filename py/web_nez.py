@@ -55,16 +55,23 @@ class Nez:
                 if len(ground["z"]) != ground["n"] ** 2 or ground["n"] < 2:
                     ground = None
             height = tilt.get("height")
+            route = tilt.get("route")  # route annoncée même quand les verticales priment : témoin de la confiance (tilt_sources)
+            route = ({"up": [round(float(v), 6) for v in route["up"]], "sigma": round(float(route.get("sigma") or 0.0), 2),
+                      "manual": bool(tilt.get("route_manual"))} if route and route.get("up") else None)
             tilt = {"up": [round(float(v), 6) for v in tilt["up"]] if tilt.get("up") else None,
                     "sigma": round(float(tilt.get("sigma") or 0.0), 2), "manual": bool(tilt.get("manual")),
                     "height": round(float(height), 3) if height else None,
                     "height_sigma": round(float(tilt.get("height_sigma") or 0.0), 3), "ground": ground}
-            changed = self.birdeye_ground.get(pic) != tilt
-            if changed:
+            old = self.birdeye_ground.get(pic)
+            changed = {k: v for k, v in (old or {}).items() if k != "route"} != tilt
+            if changed or (old or {}).get("route") != route:
                 self.birdeye_ground.pop(pic, None)
-                self.birdeye_ground[pic] = tilt
+                self.birdeye_ground[pic] = dict(tilt, route=route)
                 while len(self.birdeye_ground) > 20:
                     del self.birdeye_ground[next(iter(self.birdeye_ground))]
+                if not changed:  # seule la route de la confiance a changé : ni mesures ni droite à refaire, seulement leur confiance
+                    self._stamp_confidence({pic})
+                    self.notify()
         if changed:
             self._recompute({pic})
             self.notify()
@@ -219,6 +226,15 @@ class Nez:
         gap = self._nose_gap()
         return near, near + (NOSE_FAR_DEFAULT if gap is None else gap + NOSE_OVERLAP)
 
+    def _nose_confidence(self, item):
+        """Confiance de l'inclinaison de la photo (Calibration.confidence) pour l'encart de la droite : {etat, ecart_tangage,
+        ecart_roulis} (écarts en degrés, arrondis) ou None sans inclinaison."""
+        got = self.tilt_confidence_of(item.get("id"), item)
+        if not got:
+            return None
+        return {"etat": got["state"], "ecart_tangage": None if got["d_pitch"] is None else round(got["d_pitch"], 2),
+                "ecart_roulis": None if got["d_roll"] is None else round(got["d_roll"], 2)}
+
     def nose_line(self, distance=None, rotation=0.0, relief=True):
         """JSON de la droite au sol à `distance` m devant la caméra (None ou 0 : au-delà du capot, NOSE_DISTANCE ; sinon bornée par _nose_range, rendue
         dans `d`, `d_min` et `d_max` : glissement de la droite en profondeur), perpendiculaire
@@ -278,6 +294,7 @@ class Nez:
             ends.append([round(v, 7) for v in triangulation._geographic(east, north, lon, lat)])
         out = {"d": d, "d_min": d_min, "d_max": d_max, "hauteur": height, "hauteur_source": source, "sigma_h": sigma,
                "roulis_campagne": roll, "inclinaison_source": tilt_source, "inclinaison_sigma": tilt_sigma,
+               "inclinaison_confiance": self._nose_confidence(item),
                "inclinaison_en_calcul": self.tilts.pending(item.get("id")), "points": points, "lonlat": ends, "reach": NOSE_REACH,
                "voisines": self._neighbours_here(), "sol": ground[0] if ground else NOSE_FLAT,
                "sol_sigma": ground[1] if ground else None, "sol_en_lecture": reading}

@@ -358,7 +358,10 @@ const Nez = {
       const source = line.inclinaison_source;
       if (!source || source === "aucune") return "";
       const shown = source === "roulis de campagne" ? "roulis de la campagne seul (tangage inconnu)" : source;
-      return `inclinaison : ${shown}${line.inclinaison_sigma ? ` ±${line.inclinaison_sigma.toFixed(1).replace(".", ",")}°` : ""}`;
+      const c = line.inclinaison_confiance, deg = (v) => `${Math.abs(v).toFixed(1).replace(".", ",")}°`;
+      const sure = !c ? "" : c.etat === "confirmee" ? " (confirmée)" : c.etat === "desaccord" ? ` (désaccord : tangage ${deg(c.ecart_tangage)}, roulis ${deg(c.ecart_roulis)})`
+        : c.etat === "pont" ? " (pont : non vérifiable)" : " (non vérifiable)";
+      return `inclinaison : ${shown}${line.inclinaison_sigma ? ` ±${line.inclinaison_sigma.toFixed(1).replace(".", ",")}°` : ""}${sure}`;
     }
 
     function showReadout() {

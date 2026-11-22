@@ -373,6 +373,25 @@ class Pose:
         return calibration.tilt_entry(ground["up"], ground["sigma"],
                                       "vue du dessus (réglée à la main)" if ground["manual"] else "vue du dessus")
 
+    def _route_tilt(self, pic):
+        """Route de la vue du dessus pour la photo, annoncée même quand les verticales priment (birdeye_tilt_set, champ route) :
+        témoin du terrain pour la confiance de l'inclinaison (Calibration.tilt_sources), jamais retenue par tilt."""
+        route = (self.birdeye_ground.get(pic) or {}).get("route")
+        if not route:
+            return None
+        return calibration.tilt_entry(route["up"], route["sigma"],
+                                      "vue du dessus (réglée à la main)" if route["manual"] else "vue du dessus")
+
+    CONFIDENCE_KEYS = ("state", "pair", "d_pitch", "d_roll", "limit_pitch", "limit_roll", "available")
+
+    def tilt_confidence_of(self, pic, item=None):
+        """Confiance de l'inclinaison retenue de la photo pic (Calibration.confidence) : dict state ("confirmee", "desaccord",
+        "non_verifiable", "pont"), pair, d_pitch, d_roll, limit_pitch, limit_roll, available (noms des sources), retained
+        (source, sigma, pitch, roll), ou None sans inclinaison retenue ni cap connu."""
+        item = item or self._item_of(pic)
+        heading = self._heading_of(item) if item else None
+        return self.calibration.confidence(pic, heading) if heading is not None else None
+
     def _loose_tilt(self, pic):
         """Rang 5 : verticales de la photo à l'incertitude plus grande que autotilt.MAX_SIGMA (birdeye_loose)."""
         loose = self.birdeye_loose.get(pic)
