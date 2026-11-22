@@ -159,6 +159,10 @@ class VueDessus(unittest.TestCase):
         self.assertIsNone(json.loads(a.birdeye_pose())["mount"])  # sans date : pas de monture
         a.item.setdefault("properties", {})["datetime"] = "2025-07-07T05:56:32Z"
         self.assertEqual(json.loads(a.birdeye_pose())["mount"], 2.07)  # monture d'après la date, hors pont aussi
+        # second véhicule dès le 24/06/2025 (hauteur lue 2,04 m le 25/06 : f533e240-7d37-40ef-babc-1d37140dc5d2, 2,10 m le 27/06)
+        for date, mount in (("2025-06-23T12:39:00Z", 1.93), ("2025-06-24T12:12:00Z", 2.07), ("2025-06-25T09:34:30Z", 2.07)):
+            a.item["properties"]["datetime"] = date
+            self.assertEqual(json.loads(a.birdeye_pose())["mount"], mount, date)
 
     def test_hors_360(self):
         self.assertEqual(self.app_on(90).birdeye_pose(), "null")

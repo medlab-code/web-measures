@@ -211,7 +211,7 @@ c'est ce que corrigent les raccords (§ 4.3).
    chaussée entre la photo et ses voisines, donne la hauteur sans orthophoto ni peinture. Gardée si la mesure se
    stabilise (corrélation d'au moins 0,2, hauteur entre 1,5 et 2,6 m) ; médiane de la séquence dans la session.
    **Photos du CD21** (imajbox sur Clio 5, deux montures ; la caméra ne bouge plus une fois montée) : la **monture**
-   d'après la date de prise de vue (`App.FLEET_MOUNTS`, 1,93 m avant le 01/07/2025, 2,07 m ensuite, ±4 cm) ; hors de ces
+   d'après la date de prise de vue (`App.FLEET_MOUNTS`, 1,93 m avant le 24/06/2025, 2,07 m ensuite, ±4 cm ; changement de véhicule le 23 ou le 24/06) ; hors de ces
    dates, la plus proche de la hauteur lue, même avec l'inclinaison de la route quand les photos n'ont pas de verticales
    (les deux concordent au cm près là où elles existent). La date d'abord depuis le 13/11/2026 : la hauteur lue se joue à
    quelques cm du seuil de 2,00 m (f2a245d0-aeea-4249-ba9c-fad83b442a23, 07/07/2025 : 2,03 ou 1,98 m selon le terrain ; cefbd9bd-419b-4093-ab61-374b9b794c50 à 2,007 m, 09c2e813-8426-49cf-8029-bc2f3d511f40

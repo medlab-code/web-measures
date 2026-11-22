@@ -857,7 +857,7 @@ face de la caméra, à ±4 m (±5 % au mieux, inclinaison lue sur les façades o
 caméra mesuré pour la campagne : CD21 2025, −1°, d'après les passages piétons). Sur une photo prise sur un pont (celle des mesures), le LiDAR HD (sol sous le
 tablier) est écarté : tablier supposé plan et horizontal (±1,5° d'inclinaison par la route). Une photo juste avant le pont, sur le remblai
 qui y mène, garde le relief LiDAR (pente comprise), sauf sous l'ouvrage lui-même. Photos du CD21 : hauteur de
-caméra de sa monture d'après la date de prise de vue (1,93 m avant juillet 2025, 2,07 m ensuite) ; autres photos : lue entre
+caméra de sa monture d'après la date de prise de vue (1,93 m avant le 24/06/2025, 2,07 m ensuite) ; autres photos : lue entre
 photos sur les façades, sinon altitude RTK moins sol. Hors de la vue, la
 longueur est mesurée sur le fond de carte seul, sans incertitude (« hors vue »), pour un contrôle rapide. Échap retire
 le départ. Sans façade pour caler l'inclinaison, le tangage de fixation de la caméra est lu sur les raccords entre photos

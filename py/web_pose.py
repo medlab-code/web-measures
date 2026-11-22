@@ -347,9 +347,11 @@ class Pose:
     # montures, et sur un pont, où ni le sol LiDAR ni la lecture sans verticales ne la donnent (sinon 1,90 m par défaut : bandes
     # de passage piéton à 0,44 m au lieu de 0,50, f2a245d0-aeea-4249-ba9c-fad83b442a23 et
     # 7dcdccf9-3c52-4c54-bc5b-de72740a7967, 13/11/2026). Hauteurs de src/dessus.js (MOUNTS) :
-    # basse lue du 28/05 au 23/06/2025, haute dès le 03/07. shortcut: limite du 01/07 prise entre les deux (hauteurs
-    # et dates de montage non disponibles : prises de vue d'un prestataire)
-    FLEET_MOUNTS = (("2025-01-01", "2025-07-01", 1.93), ("2025-07-01", "2026-01-01", 2.07))
+    # basse lue du 28/05 au 23/06/2025, haute dès le 24/06 (changement de véhicule : carrosserie claire jusqu'au 23/06 12:39,
+    # bleue dès le 24/06 12:12, les bords du véhicule sautent de -27,1° à -26,0° ; hauteurs lues entre photos 2,04 m le 25/06 et
+    # 2,10 m le 27/06). shortcut: limite au jour (24/06, la date de prise de vue seule est comparée) faute de l'heure du
+    # changement entre le 23/06 12:39 et le 24/06 12:12 (dates de montage non disponibles : prises de vue d'un prestataire)
+    FLEET_MOUNTS = (("2025-01-01", "2025-06-24", 1.93), ("2025-06-24", "2026-01-01", 2.07))
     MOUNT_SIGMA = 0.04  # m : comme src/dessus.js (MOUNT_SIGMA)
     # Colonne camera_calee de l'export des mesures : 0 réglage, 1 calée, 2 altitude GPS (measures.CAMERA_SOURCES), 3 monture
     CAMERA_CODES = {**measures.CAMERA_SOURCES, "monture": 3}

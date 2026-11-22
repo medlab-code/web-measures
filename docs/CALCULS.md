@@ -282,7 +282,7 @@ qui se touchent à 1 m près forment un seul ouvrage.
   seule photo : son altitude ; `web_app._deck_at`). La hauteur de
   caméra est celle **mesurée sur la séquence** vérifiée (médiane de l'altitude RTK moins le sol
   LiDAR, photos du pont écartées), sinon celle **calée** pour la séquence, sinon pour une photo du CD21
-  la **monture d'après la date** (1,93 m jusqu'au 30/06/2025, 2,07 m ensuite, ±4 cm, `App.FLEET_MOUNTS`,
+  la **monture d'après la date** (1,93 m jusqu'au 23/06/2025, 2,07 m ensuite, ±4 cm, `App.FLEET_MOUNTS`,
   comme la vue du dessus). Une photo de précision
   déclarée n'a que sa propre hauteur, prise au-dessus du sol sous elle : sur un pont, le fond
   franchi. Le réglage « Caméra à » ne sert alors que si l'utilisateur l'accepte (bouton de
@@ -962,7 +962,7 @@ les mesures ; avant le 22/11/2026 la vue du dessus détectait elle-même un pont
 LiDAR HD : le MNT n'a pas le tablier (sol sous le pont). Tablier supposé plan et horizontal
 (maillage à plat, `deck`) : inclinaison par la route (tangage de la séquence et roulis par défaut de la campagne 2025 seulement,
 ±1,5° pour la pente du tablier, jusqu'à 3 %). Hauteur de caméra : pour le CD21, sa monture d'après la date
-(`App.FLEET_MOUNTS` : 1,93 m avant le 01/07/2025, 2,07 m ensuite, ±0,04 m) ; autres photos, lue entre photos sur les
+(`App.FLEET_MOUNTS` : 1,93 m avant le 24/06/2025, 2,07 m ensuite, ±0,04 m) ; autres photos, lue entre photos sur les
 verticales, sinon calée pour la séquence, sinon le réglage. Avant le 13/11/2026 : sol plat sans inclinaison et 1,90 m par défaut, bandes
 de passage piéton à 0,44 m au lieu de 0,50 (f2a245d0-aeea-4249-ba9c-fad83b442a23, Pont de France ; 7dcdccf9-3c52-4c54-bc5b-de72740a7967, D977 bis). Pont de France à Auxonne (bbf7a0be-f532-4362-afb4-114268317258) : tangage lu sur les raccords à
 -1,2° avec le MNT, raccords 33,5 → 1,3 cm sur sol plat.
