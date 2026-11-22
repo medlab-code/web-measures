@@ -91,7 +91,7 @@ const Nez = {
     const LOUPE_TEXEL_MAX = 1.5;  // agrandissement d'un texel natif de la photo au plus dans la loupe : au-delà, l'image serait pixellisée (la photo n'a pas plus de détail), l'agrandissement est réduit (plancher ×1)
     const LOUPE_WAIT = "chargement…";  // pastille tant que la tuile pleine résolution de la zone n'est pas arrivée (sinon, l'aperçu flou de la base)
     const LOUPE_W = LOUPE_PX + 30, LOUPE_H = LOUPE_PX + 26;  // px : encombrement de la loupe, légende comprise (marge de 15 px de part et d'autre ; légende de 22 px sous la pastille, écart de 4 px)
-    const LOUPE_HOLD = 1000;  // ms : la loupe reste ouverte après le dernier cran de molette
+    const LOUPE_LEAVE = 300, LOUPE_TOLERANCE = 10;  // ms : délai après que le pointeur a quitté la poignée avant que la loupe se ferme (pas de clignotement au bord) ; px de tolérance de plus que la portée de la poignée (HANDLE_PX)
     const WHEEL_NOTCH = 40;  // deltaY (px) au-delà duquel un événement de molette vaut un cran entier (pas d'accélération) ; en deçà : pavé tactile, fractions
     const WHEEL_PX = 1;  // px de la photo affichée par cran de molette
     const SCALE_LENGTHS = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10];  // m : longueurs rondes possibles de la barre d'échelle de la loupe
@@ -109,7 +109,7 @@ const Nez = {
     let drag = null, bound = null, readout = null, retry = null, waiting = null;
     let loupeSharp = null;  // dernière image nette de la loupe : { x, y (point visé), half (demi-côté du carré source, px d'écran) }, ou null
     let loupePlace = null, loupePlaceTimer = null;  // place retenue : { name (côté), left, top } ; minuterie de la transition d'un changement de côté
-    let loupe = null, loupeSide = null, loupeTimer = null, wheelSide = null;  // loupe (éléments), poignée qu'elle suit, minuterie de la molette, poignée engagée par la molette
+    let loupe = null, loupeSide = null, loupeTimer = null, wheelSide = null;  // loupe (éléments), poignée qu'elle suit, minuterie de fermeture après la sortie du pointeur, poignée engagée (glissement relâché ou molette : loupe gardée à sa place tant qu'elle est survolée)
     // Calage Bird Eye de la photo (voir en tête) : state « none » (pas demandé), « waiting » (en cours), « done », « impossible » (reason : cause)
     let calage = { pic: null, state: "none", reason: "" }, calageTimer = null, calageApi = null;
     let anchors = { gauche: null, droit: null };  // [yaw, pitch] de chaque poignée déplacée à la main : sa place dans l'image
@@ -552,13 +552,19 @@ const Nez = {
         etat.psv.container.setPointerCapture(event.pointerId);
       } catch { /* pointeur déjà relâché : le glisser s'arrêtera au pointerup */ }
       setCursor(found, true);
-      if (side === "gauche" || side === "droit") showLoupe(side);
+      if (side === "gauche" || side === "droit") {
+        clearTimeout(loupeTimer);
+        loupeTimer = null;
+        wheelSide = null;  // glissement : la loupe suit le point (elle n'est plus figée)
+        showLoupe(side);
+      }
     }
 
     function onMove(event) {
       if (!shown()) return;
       if (!drag) {
         setCursor(handleAt(...local(event)));
+        if (loupeSide) checkLoupeHover(...local(event));
         return;
       }
       if (event.pointerId !== drag.id) return;
@@ -662,10 +668,23 @@ const Nez = {
       event.stopImmediatePropagation();
       wheelSide = side;
       showLoupe(side);
-      clearTimeout(loupeTimer);
-      loupeTimer = setTimeout(() => { wheelSide = null; hideLoupe(); }, LOUPE_HOLD);
+      clearTimeout(loupeTimer);  // loupe gardée tant que la poignée est survolée (fermée à la sortie : voir onMove)
+      loupeTimer = null;
       const notches = wheelNotches(event);
       if (notches) nudge(side, notches);
+    }
+
+    /** Loupe gardée après un glissement ou un cran de molette tant que le pointeur reste à la portée de la poignée (HANDLE_PX + LOUPE_TOLERANCE) ;
+     * à la sortie, fermée après LOUPE_LEAVE ms (rentrer avant annule la fermeture). Le simple survol d'une poignée n'ouvre pas la loupe. */
+    function checkLoupeHover(x, y) {
+      const s = line && !line.error ? screenOf(...locate(handles[loupeSide])) : null;
+      const near = s && segmentDistance(x, y, s.x, s.y - TICK_PX / 2, s.x, s.y + TICK_PX / 2) <= HANDLE_PX + LOUPE_TOLERANCE;
+      if (near) {
+        clearTimeout(loupeTimer);
+        loupeTimer = null;
+      } else if (!loupeTimer) {
+        loupeTimer = setTimeout(hideLoupe, LOUPE_LEAVE);
+      }
     }
 
     function showLoupe(side) {
@@ -1047,7 +1066,8 @@ const Nez = {
       } catch { /* déjà relâché */ }
       drag = null;
       ghost = null;  // pointillés retirés
-      hideLoupe();
+      if (side === "gauche" || side === "droit") wheelSide = side;  // loupe gardée, figée, tant que la poignée est survolée (fermée à la sortie)
+      else hideLoupe();
       if (side === "profondeur") {
         lastTap = null;
         if (second) resetRotation();  // double clic sur la droite : perpendiculaire au trajet
@@ -1078,6 +1098,11 @@ const Nez = {
 
     const onMenu = (event) => blockMenu(event, shown() && handleAt(...local(event)) === "droite");
 
+    /** Pointeur sorti de la visionneuse : loupe gardée fermée après le délai (sauf glissement en cours). */
+    function onLeave() {
+      if (loupeSide && !drag && !loupeTimer) loupeTimer = setTimeout(hideLoupe, LOUPE_LEAVE);
+    }
+
     function bind() {
       const container = etat.psv.container;
       container.addEventListener("dblclick", onDouble, true);
@@ -1090,6 +1115,7 @@ const Nez = {
       container.addEventListener("touchstart", onLegacyDown, true);
       container.addEventListener("contextmenu", onMenu, true);
       container.addEventListener("wheel", onWheel, { capture: true, passive: false });
+      container.addEventListener("pointerleave", onLeave);
       etat.psv.addEventListener("render", paintLoupe);
     }
 
@@ -1105,6 +1131,7 @@ const Nez = {
       container.removeEventListener("touchstart", onLegacyDown, true);
       container.removeEventListener("contextmenu", onMenu, true);
       container.removeEventListener("wheel", onWheel, { capture: true });
+      container.removeEventListener("pointerleave", onLeave);
       etat.psv.removeEventListener("render", paintLoupe);
       hideLoupe();
       container.classList.remove("nez-poignee", "nez-glisse", "nez-droite");
