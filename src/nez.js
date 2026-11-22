@@ -17,7 +17,7 @@
 // nez + 6 m sans suivante), les extrémités gardent leur écart latéral en mètres, la largeur est recalculée aussitôt, sans relancer
 // le calage. La droite est rouge tant que la photo n'est pas calée (Bird Eye), puis verte ; sa distance est dans l'étiquette et l'encart.
 // Réglage fin d'une poignée des bords : pendant son glissement et pendant la molette (un pixel de la photo affichée par cran, vers
-// l'extérieur de la chaussée en roulant vers le haut), une loupe ronde (×3) suit la poignée et montre le point visé avec la droite, la poignée,
+// la droite de l'écran en roulant vers le haut, la gauche vers le bas, pour les deux poignées), une loupe ronde (×3) suit la poignée et montre le point visé avec la droite, la poignée,
 // un réticule, l'échelle au sol et la distance du bord à la caméra. Image : la scène de la visionneuse (three.js) est redessinée en
 // plein format sur le seul carré de la loupe, au milieu de l'événement « render » de la visionneuse (sans cela, le tampon WebGL
 // est vidé et illisible), puis la vue normale est redessinée aussitôt.
@@ -637,15 +637,15 @@ const Nez = {
       return -Math.max(-1, Math.min(1, event.deltaY / WHEEL_NOTCH));
     }
 
-    /** Poignée side déplacée de `notches` pixels de la photo affichée le long de la droite, vers l'extérieur de la chaussée si notches > 0 (molette vers
-     * le haut) : le pas est donc fixé à l'écran, plus fin quand la visionneuse est zoomée. Mêmes bornes que le glissement. */
+    /** Poignée side déplacée de `notches` pixels de la photo affichée le long de la droite, vers la DROITE de l'écran si notches > 0 (molette vers le
+     * haut), vers la gauche sinon, pour les deux poignées : le pas est donc fixé à l'écran, plus fin quand la visionneuse est zoomée. Mêmes bornes que le glissement. */
     function nudge(side, notches) {
       const o = handles[side], eps = 0.05;
       const c = screenOf(...locate(o)), a = screenOf(...locate(o - eps)), b = screenOf(...locate(o + eps));
       if (!c || !a || !b) return;
       const len = Math.hypot(b.x - a.x, b.y - a.y);
       if (len < 1e-6) return;
-      const out = side === "gauche" ? -1 : 1, k = out * notches * WHEEL_PX / len;  // vers les décalages croissants (droite) ou décroissants (gauche)
+      const toRight = Math.sign(b.x - a.x) || 1, k = toRight * notches * WHEEL_PX / len;  // sens à l'écran : positif = vers la droite de l'écran, quelle que soit la poignée ou la rotation de la droite
       const low = side === "gauche" ? -line.reach : handles.gauche + MIN_GAP;
       const high = side === "gauche" ? handles.droit - MIN_GAP : line.reach;
       const next = projectOffset(c.x + (b.x - a.x) * k, c.y + (b.y - a.y) * k, low, high);
