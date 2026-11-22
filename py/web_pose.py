@@ -147,9 +147,9 @@ class Pose:
 
     def _auto_tilt(self, pic):
         """Calibration.auto_tilt : celle du cœur (verticales, modèle LiDAR du cœur), sinon, l'option
-        cochée, l'inclinaison par le terrain de la page."""
+        cochée, l'inclinaison par le terrain de la page (jamais sur un pont : LiDAR du sol sous l'ouvrage)."""
         tilt = self._core_auto_tilt(pic)
-        if tilt is None and self.terrain_relay:
+        if tilt is None and self.terrain_relay and pic not in self.calibration.bridge_pics:
             tilt = self.relay_tilts.get(pic)
         return tilt
 

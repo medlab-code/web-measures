@@ -108,6 +108,7 @@ class Session:
         self.rtk_alerted = set()  # séquences sans RTK déjà signalées par une fenêtre (take_rtk_alert)
         self.bridge_asked = []  # (lon, lat) des photos où « Sur un pont » a été proposé (take_bridge_alert)
         self._bridge_waiting = False  # tronçons BD TOPO en lecture pour take_bridge_alert
+        self._photo_bridge_waiting = False  # tronçons BD TOPO en lecture pour _mark_bridge
         self.bridge_left_asked = False  # case cochée : sortie du pont déjà proposée (take_bridge_alert)
         self.epoch = 0  # change quand les clics en cours sont abandonnés
         # Hauteur : photo de la première visée du point de référence, sur laquelle la
@@ -358,6 +359,7 @@ class Session:
         self.photo_items[pic] = item
         if len(self.photo_items) > 500:  # les plus anciennes, sans visée ni clic récents
             self.photo_items.pop(next(iter(self.photo_items)))
+        self._mark_bridge()
         self.quality = self.precision.known(item)
         before = self.quality
         self.precision.check(item, lambda res: self._on_precision(pic, res, before))
@@ -931,7 +933,26 @@ class Session:
         self.message = ""
         return self.status()
 
+    def _mark_bridge(self):
+        """Marque la photo affichée comme sur un pont (BD TOPO, roads.on_bridge), dès son ouverture et même hors mesure :
+        Calibration.set_bridge_photo écarte alors son LiDAR (inclinaison et modèle de séquence). Pendant la lecture des
+        tronçons ou BD TOPO injoignable : marque inchangée, refaite à l'arrivée des tronçons (_roads_ready)."""
+        item = self.item or {}
+        try:
+            lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
+        except (KeyError, TypeError, ValueError):
+            return
+        axis = self._axis(item)
+        sec = self.roads.bridge(lon, lat, metadata.item_heading(item) if axis is None else axis)
+        self._photo_bridge_waiting = sec is roads.PENDING
+        if sec is not roads.PENDING and sec is not None:
+            self.calibration.set_bridge_photo(item.get("id"), bool(sec))
+
     def _roads_ready(self):
+        if self._photo_bridge_waiting:
+            self._photo_bridge_waiting = False
+            self._mark_bridge()
+            self.notify()
         changed = self._bridge_waiting  # pont à proposer peut-être
         self._bridge_waiting = False
         if changed:

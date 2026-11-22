@@ -1012,8 +1012,8 @@ class Parcours(unittest.TestCase):
         a, host = self.app, web_app.host
         asked = []
         old = host.fetch_json
-        host.fetch_json = lambda url, done, timeout_ms=None: (asked.append(url), done(
-            {"elevations": [{"z": 200.0}] * (url.split("lon=")[1].split("&")[0].count("|") + 1)}, None))
+        host.fetch_json = lambda url, done, timeout_ms=None: done({"features": []}, None) if "lon=" not in url else (
+            asked.append(url), done({"elevations": [{"z": 200.0}] * (url.split("lon=")[1].split("&")[0].count("|") + 1)}, None))
         try:
             self.show("p1")
             here = lambda east, north: list(triangulation._geographic(east, north, 5.0415, 47.3220))

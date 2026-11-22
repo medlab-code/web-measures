@@ -626,6 +626,15 @@ class BridgeAlert(Base):
         self.s.set_picture(self.p2)  # même pont, 6 m plus loin
         self.assertIsNone(self.s.take_bridge_alert())
 
+    def test_photo_marked_on_opening(self):
+        """Photo sur un pont : marquée dès son ouverture, hors mesure (LiDAR écarté) ; démarquée au-delà du pont."""
+        self.s.set_active(False)
+        self.s.set_picture(self.p1)
+        self.assertIn(self.p1["id"], self.s.calibration.bridge_pics)
+        self.s.set_picture(self.far)
+        self.assertNotIn(self.far["id"], self.s.calibration.bridge_pics)
+        self.assertFalse(self.s.bridge)  # la case « Sur un pont » n'est pas cochée pour autant
+
     def test_not_when_checked_or_inactive(self):
         self.s.set_picture(self.p1)
         self.s.set_active(False)

@@ -379,7 +379,9 @@ après.
   30° près), en mesure, le mode s'active tout seul : le sol vient des photos (altitude GPS des caméras moins leur hauteur) et non du modèle de
   terrain, qui donne le terrain sous l'ouvrage. La ligne « Position » du panneau écrit alors « sur un pont (détecté) ». Il se désactive tout seul à
   plus de 30 m de tout pont. Une photo seulement près d'un pont (à plus de 8 m, ou sur la voie franchie, dessous, dont le sens diffère) ne
-  l'active pas. Les tronçons arrivent par le réseau : l'état suit à leur arrivée, à chaque changement de photo.
+  l'active pas. **Marque par photo, dès l'ouverture** (même hors mesure, depuis le 22/11/2026) : une photo sur un pont est repérée à son
+  ouverture ; son LiDAR (pente et dévers du sol sous l'ouvrage) n'est jamais retenu pour l'inclinaison (la chaîne passe aux verticales à
+  seuil élargi, puis au roulis de campagne) ni appris par le modèle LiDAR de la séquence ; ses verticales restent valables. Les tronçons arrivent par le réseau : l'état suit à leur arrivée, à chaque changement de photo.
 - **Hauteur de chute sur un pont** (automatique, sans clic) : sur une photo prise sur un pont
   de la BD TOPO, le nom du pont, ce qu'il franchit et la hauteur de chute la plus grande sur
   toute sa longueur s'affichent en haut à gauche de la visionneuse (pas pendant la lecture de

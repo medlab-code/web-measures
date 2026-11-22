@@ -458,7 +458,10 @@ class Calibration:
         self.loose_tilt = None
         self.campaign_tilt = None
         self._models = {}  # séquence -> lidar_model (cache)
-        self.lidar = True  # False sur un pont : pente du terrain sous l'ouvrage, pas celle du tablier
+        self.lidar = True  # False sur un pont (case « Sur un pont ») : pente du terrain sous l'ouvrage, pas celle du tablier
+        # Photos situées sur un pont d'après la BD TOPO (set_bridge_photo, connu dès l'ouverture de la photo, même hors mesure) :
+        # leur LiDAR (brut ou modèle) n'est jamais retenu, et elles n'entrent pas dans le modèle de leur séquence
+        self.bridge_pics = set()
         self.changed = None
 
     def _notify(self):
@@ -475,6 +478,7 @@ class Calibration:
             "heights": {seq: [o if isinstance(o, dict) else list(o) for o in obs] for seq, obs in self.heights.items()},
             "auto": self.auto,
             "auto_off": sorted(self.auto_off),
+            "bridge_pics": sorted(self.bridge_pics),
         }
 
     def load(self, data):
@@ -482,6 +486,7 @@ class Calibration:
         Les entrées illisibles sont ignorées. Ne déclenche pas `changed`."""
         self.verticals, self.landmarks, self.heights, self._tilts = {}, {}, {}, {}
         self.auto, self._models, self._cameras, self.auto_off = {}, {}, {}, set()
+        self.bridge_pics = set()
         if not isinstance(data, dict) or data.get("format") != self.FORMAT:
             return
         keys = ("pic", "lon", "lat", "yaw", "elev", "mlon", "mlat", "accuracy", "prior")
@@ -506,6 +511,7 @@ class Calibration:
                 if entry:
                     self.auto[pic] = entry
             self.auto_off = {p for p in (data.get("auto_off") or []) if isinstance(p, str)}
+            self.bridge_pics = {p for p in (data.get("bridge_pics") or []) if isinstance(p, str)}
         except (TypeError, ValueError, KeyError, IndexError, AttributeError):
             pass  # format abîmé : on garde ce qui a pu être lu
 
@@ -525,6 +531,7 @@ class Calibration:
         for pic, tilt in other._tilts.items():
             self._tilts.setdefault(pic, tilt)
         self.auto_off |= other.auto_off
+        self.bridge_pics |= other.bridge_pics
         self._models, self._cameras = {}, {}
         return added
 
@@ -544,7 +551,8 @@ class Calibration:
         2. calée à la main sur deux objets ou plus (source "clics") ; sur un objet, complétée par la suite de la liste
            ("clics + verticales", "clics + lidar"…) ;
         3. calculée d'après les verticales de la photo ("verticales"), sauf si l'utilisateur l'a écartée pour cette photo (auto_off) ;
-        4. estimée par le LiDAR HD ("lidar"), ou par le terrain (option de l'hôte : "terrain web") ;
+        4. estimée par le LiDAR HD ("lidar"), jamais sur un pont (case « Sur un pont » ou photo marquée par set_bridge_photo : le
+           LiDAR décrit le sol sous l'ouvrage, pas le tablier), ou par le terrain (option de l'hôte : "terrain web") ;
         5. verticales à seuil élargi (hôte, `loose_tilt`, incertitude au-delà de autotilt.MAX_SIGMA : "verticales (seuil
            élargi)"), sauf auto_off comme le rang 3 ;
         6. roulis de campagne seul (hôte, `campaign_tilt`, "roulis de campagne") : tangage inconnu, incertitude UNCALIBRATED,
@@ -585,7 +593,8 @@ class Calibration:
             return {"up": up, "tilt": math.degrees(math.acos(min(1.0, up[2]))),
                     "toward": math.degrees(math.atan2(up[0], up[1])) % 360, "residual": None, "partial": False,
                     "count": v["count"], "sigma": v["sigma"], "source": "verticales"}
-        model = self.lidar_model(entry.get("sequence")) if self.lidar else None
+        # Sur un pont (case cochée, ou photo marquée par set_bridge_photo) : le LiDAR décrit le sol sous l'ouvrage, jamais retenu
+        model = self.lidar_model(entry.get("sequence")) if self.lidar and pic not in self.bridge_pics else None
         if model and entry.get("lidar"):
             f = entry["lidar"][0] + model["offset"][0]
             r = entry["lidar"][1] + model["offset"][1]
@@ -606,8 +615,21 @@ class Calibration:
         if sequence is None:
             return None
         if sequence not in self._models:
-            self._models[sequence] = lidar_model([e for e in self.auto.values() if e.get("sequence") == sequence])
+            # photos sur un pont écartées : leur LiDAR (sol sous l'ouvrage) fausserait le décalage appris (verticales − LiDAR)
+            self._models[sequence] = lidar_model([e for p, e in self.auto.items()
+                                                  if e.get("sequence") == sequence and p not in self.bridge_pics])
         return self._models[sequence]
+
+    def set_bridge_photo(self, pic, on):
+        """Marque (on vrai) ou démarque la photo comme située sur un pont (BD TOPO, roads.on_bridge) : sa pente LiDAR n'est plus
+        retenue (auto_tilt), ni apprise par le modèle de la séquence (lidar_model). Les verticales restent valables."""
+        if (pic in self.bridge_pics) != bool(on):
+            if on:
+                self.bridge_pics.add(pic)
+            else:
+                self.bridge_pics.discard(pic)
+            self._models = {}
+            self._notify()
 
     def set_auto_off(self, pic, off):
         """Écarte (off vrai) ou rétablit le calcul automatique de l'inclinaison par les verticales de la photo : son rang 3 et le rang 5

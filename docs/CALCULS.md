@@ -79,6 +79,13 @@ pour les mesures (hauteur, relevé, visées) comme pour la largeur dans la visio
    caméra (grille de ±2,5 m × ±1,5 m, 55 points), plus le décalage de la fixation appris sur des
    photos de village de la même séquence, calées par leurs verticales (3 au plus, 12 analysées
    au plus). Précision environ ±0,6° ;
+   **Photo sur un pont** (depuis le 22/11/2026) : le LiDAR décrit le sol sous l'ouvrage, pas le tablier. La photo est marquée à son
+   ouverture, même hors mesure (`Session._mark_bridge`, BD TOPO `roads.on_bridge`, `Calibration.bridge_pics`, enregistré avec le
+   calage) : son LiDAR (brut, modèle de la séquence et option « terrain hors agglomération ») n'est jamais retenu au rang 4, et elle
+   n'entre pas dans le modèle LiDAR de sa séquence (`Calibration.lidar_model` : son écart verticales − LiDAR serait aberrant). Ses
+   verticales (rangs 2, 3, 5) restent valables ; sans elles, la chaîne passe aux rangs 5 et 6, ou à rien. Auparavant, seul le mode
+   « sur un pont » de la mesure (`set_bridge`, proposé en mesure seulement) écartait le LiDAR : une photo regardée hors mesure gardait
+   un tangage LiDAR de +3° sur le tablier (2eed13c0-cb03-437f-9752-2f3b6b0d0478, 7dcdccf9-3c52-4c54-bc5b-de72740a7967) ;
 5. **verticales à seuil élargi** (`birdeye_loose`, source « verticales (seuil élargi) ») : les
    verticales de la photo, refusées pour les mesures parce que leur incertitude dépasse
    `autotilt.MAX_SIGMA`, mais à `web_tilt.LOOSE_SIGMA` (0,5°) près. Gardées, avec leur

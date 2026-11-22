@@ -174,6 +174,32 @@ class LidarModel(unittest.TestCase):
         yaw, elev = cal.untilted("v0", 30.0, -10.0)
         self.assertNotAlmostEqual(elev, -10.0, places=2)
 
+    def test_bridge_photo_ignores_lidar(self):
+        """Photo sur un pont (BD TOPO) : le LiDAR décrit le sol sous l'ouvrage, jamais retenu (inclinaison ni modèle de
+        séquence) ; ses verticales restent valables ; la séquence reste calée par les autres photos."""
+        cal = calibration.Calibration()
+        for i, (f, r) in enumerate(((1.0, 0.5), (-2.0, 1.0), (0.4, -1.1))):
+            cal.set_auto("v{}".format(i), self.entry(f + 0.3, r - 0.2, [f, r]))
+        # Photos sur un pont : verticales et LiDAR (sol sous l'ouvrage) écartés de 1° de plus que les autres
+        cal.set_auto("pont", self.entry(1.0 + 1.3, 0.5 - 0.2, [1.0, 0.5]))
+        cal.set_auto("pont2", self.entry(0, 0, [3.2, 0.0], verticals=False))
+        cal.set_bridge_photo("pont", True)
+        cal.set_bridge_photo("pont2", True)
+        model = cal.lidar_model("seq")
+        self.assertEqual(model["count"], 3)  # les trois ordinaires seulement
+        self.assertAlmostEqual(model["offset"][0], 0.3, places=6)
+        self.assertIsNone(cal.tilt("pont2"))  # pas de LiDAR : rien (ni seuil élargi ni roulis de campagne ici)
+        self.assertEqual(cal.tilt("pont")["source"], "verticales")  # verticales valables sur un pont
+        # Une photo ordinaire de la même séquence garde le LiDAR
+        cal.set_auto("p", self.entry(0, 0, [1.5, -0.5], verticals=False))
+        self.assertEqual(cal.tilt("p")["source"], "lidar")
+        # Marque conservée à l'enregistrement, retirée par set_bridge_photo(False)
+        other = calibration.Calibration()
+        other.load(cal.to_dict())
+        self.assertIsNone(other.tilt("pont2"))
+        other.set_bridge_photo("pont2", False)
+        self.assertIsNotNone(other.lidar_model("seq"))
+
     def test_one_object_completes_automatic(self):
         """Un objet vertical cliqué corrige la composante qu'il voit ; l'autre reste celle du calcul
         automatique, au lieu de revenir à zéro."""
