@@ -25,7 +25,7 @@ const Nez = {
     const { etat, map } = host;
     const button = $("#nez-bords");
 
-    const GREEN = "#00c853", UNCALIBRATED = "#ff5252", RED = "#d93025";
+    const GREEN = "#39ff14", UNCALIBRATED = "#ff1f3d", RED = "#ff1f3d";
     // droite verte (photo calée) ou rouge franc (pas encore calée), sans liseré ; poignées latérales rouges
     const LINE_PX = 8;  // px : demi-largeur de la bande de saisie invisible autour de la droite
     const LINE_WIDTH = 2.5, LINE_WIDTH_HOVER = 4.5;  // px : épaisseur de la droite au repos et au survol (ou pendant son glissement)

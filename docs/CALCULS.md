@@ -433,7 +433,7 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   (le dernier lu pour cette caméra sert, `_nose_ground` avec `read` faux), il l'est au relâchement ; aucun calage Bird Eye n'est lancé :
   l'inclinaison est celle que Python lit (calée si elle l'est). **Incertitude** : `commonErrors` utilise déjà `d` : l'erreur de tangage sur la
   largeur `(s₂ − s₁)·d·δ/H` est proportionnelle à `d` (δ = 0,5° ; H = 1,93 m ; 8 m de largeur : 0,16 m à 4,5 m, 0,36 m à 10 m). Couleur : droite
-  rouge (`#ff5252`) tant que la photo n'est pas calée par Bird Eye (`Dessus.calibrated` ou calage de ce déplacement), verte (`#00c853`)
+  rouge fluo (`#ff1f3d`) tant que la photo n'est pas calée par Bird Eye (`Dessus.calibrated` ou calage de ce déplacement), verte fluo (`#39ff14`)
   ensuite, même règle sur la carte (propriété `couleur`). Poignée de profondeur (double flèche ⇕ sous la droite, `Traits` `double`) : sa place le long de la droite (`along`, en mètres, entre les poignées latérales, par défaut leur milieu) est indépendante de la mesure et gardée quand la droite glisse ; sur la photo, la distance suit l'élévation du pointeur (modèle de sol plat autour de
   l'élévation de la poignée, recalculé à chaque mouvement) et le mouvement horizontal déplace `along` ; sur la carte, écart du pointeur à la poignée le long du cap (distance) et le long de la droite (`along`). L'étiquette de largeur est décollée de 26 px au-dessus de la droite (la flèche est dessous) ; si elle sortait de la vue en haut, elle passe sous la flèche.
 - **Rotation à la main** (`rotation` de `App.nose_line`, degrés, ±45°, 0° par défaut, remise à 0° au changement de photo) : la droite

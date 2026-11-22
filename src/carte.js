@@ -389,7 +389,7 @@ const Carte = (() => {
         {  // largeur dans la visionneuse (src/nez.js) : droite verte ou rouge sans liseré (gestes de src/nez.js : profondeur, rotation, perpendiculaire), bords en petits traits rouges perpendiculaires (taille écran) ; pas interactifs
           id: "nez-droite", type: "line", source: "nez", filter: ["==", ["geometry-type"], "LineString"],
           paint: {  // verte (photo calée) ou rouge (pas encore) ; prolongement de chaque côté (moitié de la longueur) plus fin et atténué
-            "line-color": ["coalesce", ["get", "couleur"], "#00c853"], "line-width": ["case", ["boolean", ["get", "prolongement"], false], 1.5, 2.5],
+            "line-color": ["coalesce", ["get", "couleur"], "#39ff14"], "line-width": ["case", ["boolean", ["get", "prolongement"], false], 1.5, 2.5],
             "line-opacity": ["case", ["boolean", ["get", "prolongement"], false], 0.6, 1],
           },
         },
@@ -570,7 +570,7 @@ const Carte = (() => {
     const w = 4, h = 39, canvas = document.createElement("canvas");
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#d93025";
+    ctx.fillStyle = "#ff1f3d";
     ctx.fillRect(0, 0, w, h);
     return ctx.getImageData(0, 0, w, h);
   }
