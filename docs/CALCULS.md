@@ -969,8 +969,8 @@ de passage piéton à 0,44 m au lieu de 0,50 (f2a245d0-aeea-4249-ba9c-fad83b442a
 Photo non marquée près d'un ouvrage (remblai en pente qui mène au tablier, 7dcdccf9-3c52-4c54-bc5b-de72740a7967 : LiDAR +3,2° de tangage, juste ;
 le sol plat donnait 0°) : le terrain LiDAR est gardé ; ses points sous l'emprise de l'ouvrage (tronçon BD TOPO en pont orienté comme la
 séquence, à moins de `roads.DECK_HALF_WIDTH` = 6 m de l'axe, entre ses extrémités : `roads.deck_mask`, `pose.deck`) sont écartés, car ils
-décrivent le sol sous le tablier. Vue du dessus : maillage rempli par le plan ajusté sur les points gardés, indisponible s'il en reste moins
-de 60 %. Même écart dans le cœur, pour la grille `LIDAR_GRID` de l'inclinaison (`TiltChecker`, `calibration.lidar_slopes` : plan ajusté sur
+décrivent le sol sous le tablier. Vue du dessus : maillage rempli par un tablier horizontal à l'altitude de la culée (terrain LiDAR au bord de l'emprise, côté photo, le long de l'axe), indisponible s'il en reste moins
+de 60 %. Même écart (sans palier : plan ajusté sur les points gardés) dans le cœur, pour la grille `LIDAR_GRID` de l'inclinaison (`TiltChecker`, `calibration.lidar_slopes` : plan ajusté sur
 les points gardés, aucune pente s'il en reste moins de `LIDAR_MIN_KEEP` = 10 sur 15) et pour le terrain web (`web_terrain.slopes`) : avec la portée
 de 8 m du marquage, ces grilles étroites (±1,7 m, ±2,9 m) n'atteignent l'emprise que d'une photo à la culée non encore marquée.
 Le calage du tangage sur l'orthophoto (lignes de peinture repérées sur elle et sur chaque photo, essai du 07/11/2026)

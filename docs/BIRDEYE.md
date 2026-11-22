@@ -37,8 +37,8 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
   tablier, approche, ou voie franchie dessous) : le terrain LiDAR est gardé, tangage compris (7dcdccf9-3c52-4c54-bc5b-de72740a7967 :
   « sol supposé plat » donnait 0° au lieu des +3,2° du remblai). Seuls les points sous l'emprise de l'ouvrage (`pose.deck` : axe du
   tronçon en pont voisin et orienté comme la séquence, demi-largeur `roads.DECK_HALF_WIDTH` = 6 m, entre ses extrémités) sont écartés
-  du maillage (`underDeck`, `fillUnderDeck`) : ils décrivent le sol sous l'ouvrage ; remplacés par le plan ajusté sur les autres
-  (le remblai garde sa pente), et le terrain est indisponible (« sol supposé plat ») si moins de 60 % des points restent ;
+  du maillage (`underDeck`, `fillUnderDeck`) : ils décrivent le sol sous l'ouvrage ; remplacés par un tablier horizontal à l'altitude
+  du terrain LiDAR à la culée (côté photo, le long de l'axe ; le remblai garde sa pente, le tablier est un palier), et le terrain est indisponible (« sol supposé plat ») si moins de 60 % des points restent ;
 - avec l'interrupteur **« Véhicule masqué »** (éteint par défaut), les photos précédente et suivante de la séquence,
   chacune avec sa propre pose : elles comblent le sol sous le véhicule (masque au plus près, § 2), et entraînent les raccords
   (§ 4.3), le tangage lu sur les raccords (§ 4.1) et la hauteur lue entre photos (§ 4.2). Éteint, la photo affichée

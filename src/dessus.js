@@ -310,35 +310,62 @@ const Dessus = (() => {
 
   // Photo non marquée « sur un pont » (remblai, approche) près d'un ouvrage : le MNT LiDAR HD sous l'emprise du tablier (pose.deck,
   // axes du tronçon en pont en mètres autour de la photo, demi-largeur pose.deck_half, voir py/web_pose.py) décrit le sol sous
-  // l'ouvrage, pas la route : ces points sont écartés, remplacés par le plan ajusté sur les autres (le remblai garde sa pente).
+  // l'ouvrage, pas la route : ces points sont écartés et remplacés par un tablier HORIZONTAL à l'altitude du terrain LiDAR à la
+  // culée (bord de l'emprise, le long de l'axe, côté photo) : le remblai garde sa pente, le tablier est un palier (le plan ajusté
+  // sur le remblai, prolongé sur le tablier, le relevait de 3 à 4° : vue très déformée, 7dcdccf9-3c52-4c54-bc5b-de72740a7967).
   // Si moins de DECK_KEEP des points restent, le terrain est indisponible (null) plutôt que faux.
   const DECK_KEEP = 0.6;
-  /** Le point (x, y) est-il sous l'emprise d'un pont (axes lines, demi-largeur half) : entre les extrémités du tronçon seulement. */
+  /** Indice de l'axe sous l'emprise duquel est le point (x, y) (axes lines, demi-largeur half), -1 sinon : entre les extrémités du
+   * tronçon seulement. */
   function inDeck(lines, x, y, half) {
-    for (const line of lines) {
+    for (let n = 0; n < lines.length; n++) {
+      const line = lines[n];
       for (let k = 1; k < line.length; k++) {
         const [ax, ay] = line[k - 1], [bx, by] = line[k], length2 = (bx - ax) ** 2 + (by - ay) ** 2;
         if (length2 === 0) continue;
         const t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / length2;
-        if (t >= 0 && t <= 1 && Math.hypot(x - ax - t * (bx - ax), y - ay - t * (by - ay)) <= half) return true;
+        if (t >= 0 && t <= 1 && Math.hypot(x - ax - t * (bx - ax), y - ay - t * (by - ay)) <= half) return n;
       }
     }
-    return false;
+    return -1;
   }
-  /** Points du maillage de côté m (±reach m autour de la photo) sous l'emprise d'un pont (tableau de booléens), ou null s'il n'y en a pas. */
+  /** Pour chaque point du maillage de côté m (±reach m autour de la photo) : indice de l'axe de pont dont il est sous l'emprise,
+   * -1 sinon ; null s'il n'y en a aucun. */
   function underDeck(pose, m, reach) {
     if (!pose.deck?.length) return null;
     const out = [];
     for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) out.push(inDeck(pose.deck, -reach + i * STEP, -reach + j * STEP, pose.deck_half));
-    return out.some(Boolean) ? out : null;
+    return out.some((n) => n >= 0) ? out : null;
   }
-  /** Remplace les points écartés de z par le plan ajusté sur les autres ; faux s'il en reste trop peu (DECK_KEEP). */
-  function fillUnderDeck(z, under, m, reach) {
-    const rows = [], values = [];
-    z.forEach((v, k) => { if (!under[k]) { rows.push([1, -reach + (k % m) * STEP, -reach + Math.floor(k / m) * STEP]); values.push(v); } });
-    if (rows.length < DECK_KEEP * z.length) return false;
-    const plane = leastSquares(rows, values);
-    z.forEach((_, k) => { if (under[k]) z[k] = plane[0] + plane[1] * (-reach + (k % m) * STEP) + plane[2] * (-reach + Math.floor(k / m) * STEP); });
+  /** Altitude du terrain (maillage z de côté m, hors emprise) à la culée de l'axe line : extrémité la plus proche de la photo,
+   * lue sur l'axe prolongé de 1 à 3 m vers le remblai ; à défaut, les 3 points hors emprise les plus proches de cette extrémité
+   * (ou de l'entrée de l'axe dans la zone lue s'il la dépasse). null si rien de valide. */
+  function abutmentLevel(z, under, m, reach, line) {
+    const first = Math.hypot(...line[0]) <= Math.hypot(...line[line.length - 1]);
+    const pts = first ? line : [...line].reverse();
+    const [ex, ey] = pts[0], [nx, ny] = pts[1] || pts[0], len = Math.hypot(ex - nx, ey - ny) || 1;
+    const at = (x, y) => {  // point hors emprise et valide du maillage le plus proche de (x, y), à moins de 0,7 maille
+      const i = Math.round((x + reach) / STEP), j = Math.round((y + reach) / STEP);
+      if (i < 0 || j < 0 || i >= m || j >= m) return null;
+      const k = j * m + i;
+      return under[k] < 0 && z[k] > -1000 ? z[k] : null;
+    };
+    const along = [1, 2, 3].map((d) => at(ex + (ex - nx) / len * d, ey + (ey - ny) / len * d)).filter((v) => v !== null);
+    if (along.length) return along.reduce((a, v) => a + v, 0) / along.length;
+    let [qx, qy] = [ex, ey];
+    for (const [x, y] of pts) if (Math.abs(x) <= reach && Math.abs(y) <= reach) { [qx, qy] = [x, y]; break; }
+    const near = [];
+    z.forEach((v, k) => { if (under[k] < 0 && v > -1000) near.push([Math.hypot(-reach + (k % m) * STEP - qx, -reach + Math.floor(k / m) * STEP - qy), v]); });
+    near.sort((a, b) => a[0] - b[0]);
+    return near.length ? near.slice(0, 3).reduce((a, [, v]) => a + v, 0) / Math.min(3, near.length) : null;
+  }
+  /** Remplace les points sous l'emprise par le palier horizontal à l'altitude de la culée de leur axe ; faux s'il en reste trop
+   * peu hors emprise (DECK_KEEP) ou si une culée n'a pas d'altitude. */
+  function fillUnderDeck(z, under, m, reach, lines) {
+    if (under.filter((n) => n < 0).length < DECK_KEEP * z.length) return false;
+    const levels = lines.map((line) => abutmentLevel(z, under, m, reach, line));
+    if (under.some((n) => n >= 0 && levels[n] === null)) return false;
+    under.forEach((n, k) => { if (n >= 0) z[k] = levels[n]; });
     return true;
   }
 
@@ -351,8 +378,8 @@ const Dessus = (() => {
     const n = 2 * big / STEP + 1, m = 2 * reach / STEP + 1, off = (big - reach) / STEP, z = [];
     for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) z.push(all[(j + off) * n + i + off]);
     const under = underDeck(pose, m, reach);
-    if (!z.every((v, k) => v > -1000 || under?.[k])) return null;
-    if (under && !fillUnderDeck(z, under, m, reach)) return null;
+    if (!z.every((v, k) => v > -1000 || under?.[k] >= 0)) return null;
+    if (under && !fillUnderDeck(z, under, m, reach, pose.deck)) return null;
     const mesh = smoothTerrain(z, pose.heading, across);
     mesh.level = smoothTerrain(z, pose.heading, TERRAIN_SMOOTH);  // pour la route sous le véhicule (voir levelOf)
     return mesh;
