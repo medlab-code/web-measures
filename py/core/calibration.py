@@ -57,6 +57,20 @@ LIDAR_GRID = [(a * LIDAR_ALONG, c * LIDAR_ACROSS) for a in (-1, -0.5, 0, 0.5, 1)
 LIDAR_MIN_PHOTOS = 3  # photos de la séquence calées par leurs verticales pour valider le modèle
 LIDAR_MAX_SIGMA = 0.8  # au-delà, la caméra ne suit pas le véhicule (portée à pied, stabilisée)
 LIDAR_MIN_SIGMA = 0.3
+# Verticales tracées à la main : jugement de chacune (vertical_report). Une verticale fausse tire vers elle l'inclinaison qui sert à la
+# juger : l'écart se mesure donc à un consensus robuste, la verticale vraie ajustée sur les verticales qui s'accordent (la meilleure
+# des verticales vraies que donne chaque PAIRE de verticales, au sens d'une somme d'écarts tronqués à OUTLIER_FACTOR × JUDGE_FLOOR,
+# puis réajustée sur celles qui s'y accordent). L'écart d'une verticale est l'angle entre son plan (caméra, pied, sommet) et ce
+# consensus. Échelle de comparaison : 1,4826 × médiane des écarts (la médiane résiste à moins de la moitié de verticales fausses ;
+# 1,4826 la met à l'échelle d'un écart-type), jamais sous JUDGE_FLOOR (clics faits à l'écran : OBJECT_ERROR et précision du clic,
+# sinon des verticales très concordantes feraient juger « douteuse » la moins bonne). Douteuse au-delà de DOUBT_FACTOR échelles,
+# aberrante au-delà de OUTLIER_FACTOR. Il faut JUDGE_MIN verticales pour trancher : avec 2, l'inclinaison passe exactement par les
+# deux ; avec 3, les trois écarts sont les trois faces d'un même désaccord, et seule la plus éloignée peut être « douteuse »
+# (au-delà de DOUBT_FACTOR × JUDGE_FLOOR), jamais « aberrante ».
+JUDGE_FLOOR = 0.3  # degrés
+DOUBT_FACTOR, OUTLIER_FACTOR = 2.0, 3.0
+JUDGE_MIN = 4
+MAD_SCALE = 1.4826
 
 
 CAMERA_MIN, CAMERA_MAX = 0.3, 6.0  # plage de hauteurs de caméra admises (m)
@@ -158,6 +172,95 @@ def tilt_from_verticals(verticals, prior=None):
         sigma = max(sigma, residual / math.sqrt(len(normals)))
     return {"up": up, "tilt": tilt, "toward": math.degrees(math.atan2(up[0], up[1])) % 360,
             "residual": residual, "partial": partial, "count": len(normals), "sigma": sigma}
+
+
+def _median(values):
+    values = sorted(values)
+    n = len(values)
+    return values[n // 2] if n % 2 else (values[n // 2 - 1] + values[n // 2]) / 2
+
+
+def _normal(vertical):
+    bottom, top = vertical
+    return _unit(_cross(vector(*bottom), vector(*top)))
+
+
+def _consensus(verticals, normals):
+    """Verticale vraie (vecteur) sur laquelle s'accordent le plus de verticales, ou None sans paire exploitable (voir
+    JUDGE_FLOOR) : meilleure paire au sens d'une somme d'écarts tronqués, réajustée sur les verticales qui s'y accordent."""
+    cap = OUTLIER_FACTOR * JUDGE_FLOOR
+
+    def gaps(up):
+        return [math.degrees(math.asin(min(1.0, abs(_dot(n, up))))) for n in normals]
+
+    best = None
+    for i in range(len(verticals)):
+        for j in range(i + 1, len(verticals)):
+            try:
+                pair = tilt_from_verticals([verticals[i], verticals[j]])
+            except CalibrationError:
+                continue
+            if pair["partial"]:
+                continue
+            score = sum(min(g, cap) ** 2 for g in gaps(pair["up"]))
+            if best is None or score < best[0]:
+                best = (score, pair["up"])
+    if best is None:
+        return None
+    inliers = [v for v, g in zip(verticals, gaps(best[1])) if g <= cap]
+    if len(inliers) > 2:
+        try:
+            refined = tilt_from_verticals(inliers)
+            if not refined["partial"]:
+                return refined["up"]
+        except CalibrationError:
+            pass
+    return best[1]
+
+
+def vertical_report(verticals, heading=None):
+    """Jugement des verticales tracées à la main sur une photo (voir JUDGE_FLOOR).
+
+    verticals : liste de ((cap, élév.) du pied, (cap, élév.) du sommet), déjà validée par tilt_from_verticals.
+    heading : cap du centre de l'image (degrés), pour donner l'inclinaison en tangage et roulis.
+    Retourne un dict : count, tilt (dict de tilt_from_verticals), pitch et roll (degrés, avec heading : la verticale vraie penche
+    de pitch vers l'avant et de roll vers la droite ; None sinon), scale (échelle de comparaison, degrés ou None sans jugement),
+    rows (une par verticale, dans l'ordre : angle = angle de son plan avec la verticale de la caméra (signé), deviation = écart
+    au consensus (degrés, None sans jugement possible), effect = de combien l'inclinaison changerait sans elle (degrés, None si
+    c'était la seule), verdict : "bon", "douteux", "aberrante" ou None sans jugement), outliers (indices des aberrantes)."""
+    tilt = tilt_from_verticals(verticals)
+    n = len(verticals)
+    normals = [_normal(v) for v in verticals]
+    consensus = _consensus(verticals, normals) if n >= 3 else None
+    angles_, deviations, effects = [], [], []
+    for i in range(n):
+        others = verticals[:i] + verticals[i + 1:]
+        angles_.append(math.degrees(math.asin(max(-1.0, min(1.0, normals[i][2])))))
+        effect = None
+        if others:
+            try:
+                without = tilt_from_verticals(others)
+                effect = math.degrees(math.acos(max(-1.0, min(1.0, _dot(tilt["up"], without["up"])))))
+            except CalibrationError:
+                pass
+        effects.append(effect)
+        deviations.append(None if consensus is None else math.degrees(math.asin(min(1.0, abs(_dot(normals[i], consensus))))))
+    verdicts, scale = [None] * n, None
+    if consensus is not None and n >= JUDGE_MIN:
+        scale = max(JUDGE_FLOOR, MAD_SCALE * _median(deviations))
+        for i, d in enumerate(deviations):
+            verdicts[i] = "aberrante" if d > OUTLIER_FACTOR * scale else "douteux" if d > DOUBT_FACTOR * scale else "bon"
+    elif consensus is not None:
+        worst = max(range(n), key=lambda i: deviations[i])
+        verdicts = ["bon"] * n
+        if deviations[worst] > DOUBT_FACTOR * JUDGE_FLOOR:
+            verdicts[worst] = "douteux"
+    pitch = roll = None
+    if heading is not None:
+        pitch, roll = tilt_components(tilt["up"], heading)
+    rows = [{"angle": angles_[i], "deviation": deviations[i], "effect": effects[i], "verdict": verdicts[i]} for i in range(n)]
+    return {"count": n, "tilt": tilt, "pitch": pitch, "roll": roll, "scale": scale, "rows": rows,
+            "outliers": [i for i, v in enumerate(verdicts) if v == "aberrante"]}
 
 
 def tilt_entry(up, sigma, source, **more):
@@ -503,6 +606,36 @@ class Calibration:
         self.verticals.pop(pic, None)
         self._tilts.pop(pic, None)
         self._notify()
+
+    def vertical_report(self, pic, heading=None):
+        """Jugement des verticales à la main de la photo (voir vertical_report), ou None sans verticale."""
+        verticals = self.verticals.get(pic)
+        return vertical_report(verticals, heading) if verticals else None
+
+    def remove_verticals(self, pic, indices):
+        """Retire les verticales n° `indices` (à partir de 0) de la photo ; l'inclinaison est recalculée avec les autres
+        (plus aucune : comme clear_tilt). Lève CalibrationError, sans rien changer, si les restantes ne donnent plus
+        d'inclinaison acceptable. Retourne le nombre retiré."""
+        verticals = self.verticals.get(pic, [])
+        drop = {i for i in indices if 0 <= i < len(verticals)}
+        keep = [v for i, v in enumerate(verticals) if i not in drop]
+        if not drop:
+            return 0
+        if not keep:
+            self.clear_tilt(pic)
+            return len(drop)
+        result = tilt_from_verticals(keep)
+        self.verticals[pic], self._tilts[pic] = keep, result
+        self._notify()
+        return len(drop)
+
+    def clear_all_tilts(self):
+        """Retire les verticales à la main de toutes les photos. Retourne le nombre de verticales retirées."""
+        count = sum(len(v) for v in self.verticals.values())
+        self.verticals, self._tilts = {}, {}
+        if count:
+            self._notify()
+        return count
 
     def untilted(self, pic, yaw, elev):
         t = self.tilt(pic)

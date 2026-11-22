@@ -1305,6 +1305,38 @@ class Parcours(unittest.TestCase):
         self.show(pic)  # même photo hors campagne : rien
         self.assertIsNone(cal.tilt(pic))
 
+    def test_calage_manuel_panneau(self):
+        """Panneau du calage manuel : rapport, traits numérotés, retrait d'une verticale, aberrantes, purge."""
+        a, cal, pic = self.app, self.app.calibration, "p1"
+        self.show(pic)
+        self.assertIsNone(json.loads(a.calage_manuel()))
+        for yaw in (0.0, 70.0, 140.0, 210.0):
+            cal.add_vertical(pic, (yaw, -11.3), (yaw, 21.8))
+        cal.add_vertical(pic, (35.0, -11.3), (38.0, 21.8))  # tracée de travers
+        report = json.loads(a.calage_manuel())
+        self.assertEqual(report["count"], 5)
+        self.assertEqual(report["outliers"], [4])
+        a.calage_panel(True, 4, -1)
+        marks = [m for m in json.loads(a.viewer_marks()) if m.get("trace")]
+        self.assertEqual([(m["label"], m["sel"]) for m in marks], [("1", False), ("2", False), ("3", False), ("4", False), ("5", True)])
+        self.assertEqual(marks[4]["trace"], App.CALAGE_COLORS["aberrante"])
+        y, p = (marks[0]["points"][6][0], marks[0]["points"][6][1])
+        self.assertEqual(a.calage_pick(y, p), 0)  # clic sur le trait 1
+        self.assertEqual(a.calage_pick(y + 0.5, p), -1)  # loin de tout trait
+        version = a.calibration_version
+        a.calage_drop_outliers()
+        self.assertEqual(len(cal.verticals[pic]), 4)
+        self.assertGreater(a.calibration_version, version)  # recalcul et enregistrement
+        a.calage_remove(0)
+        self.assertEqual(len(cal.verticals[pic]), 3)
+        a.calage_purge_photo()
+        self.assertNotIn(pic, cal.verticals)
+        cal.add_vertical(pic, (10.0, -11.3), (10.0, 21.8))
+        cal.add_vertical("p2", (10.0, -11.3), (10.0, 21.8))
+        a.calage_purge_all()
+        self.assertEqual(cal.verticals, {})
+        self.assertIsNone(cal.tilt(pic))
+
     def test_ordre_inclinaison_ligne_etat(self):
         """Ligne d'état : la source (vue du dessus, seuil élargi, roulis de campagne seul) et son incertitude."""
         a, pic = self.app, "p1"

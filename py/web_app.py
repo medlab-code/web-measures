@@ -41,6 +41,18 @@ def _area_text(area):
     return "{} m²".format(measures._num(area, 1))
 
 
+def _segment_gap(x, y, x1, y1, x2, y2):
+    """Distance (degrés, plan yaw-pitch, yaw ramené à l'écart le plus court) du point (x, y) au segment (x1, y1)-(x2, y2)."""
+    def wrap(a):
+        return (a + 180) % 360 - 180
+    k = math.cos(math.radians(y))
+    px, py = wrap(x - x1) * k, y - y1
+    sx, sy = wrap(x2 - x1) * k, y2 - y1
+    length2 = sx * sx + sy * sy
+    t = 0.0 if length2 == 0 else max(0.0, min(1.0, (px * sx + py * sy) / length2))
+    return math.hypot(px - t * sx, py - t * sy)
+
+
 class WebItem:
     """Dessin d'une mesure sur la carte (voir measures.MeasureTool.new_item) : gardé ici, rendu
     en GeoJSON par App.map_geojson."""
@@ -153,6 +165,9 @@ class App(Pose, Chutes, Nez, session.Session):
         # « Valider l'objet vertical » (le cœur cale dès le second clic, sans laisser les voir ni
         # les déplacer) ; indice de la croix sélectionnée pour être déplacée, ou None
         self.tilt_clicks, self.tilt_sel = [], None
+        # Panneau « Calage manuel » (src/calage.js) : ouvert (verticales de la photo tracées, numérotées), verticale choisie
+        # ou survolée dans sa liste (numéros à partir de 0, de la photo calage_pic)
+        self.calage_open, self.calage_pic, self.calage_sel, self.calage_hover = False, None, None, None
         self.fall_cells = {}  # maille -> tronçons BD TOPO avec leur largeur (hauteur de chute, voir fall)
         self.falls = {}  # (séquence, pont) -> hauteur de chute calculée (dict text, title) ou en cours
         self.lidar_falls = {}  # tronçon du pont -> réponse du nuage LiDAR (use_bridge_lidar)
@@ -384,6 +399,7 @@ class App(Pose, Chutes, Nez, session.Session):
             lines = [self._epipolar_mark(s)["points"] for s in self.triangulator.sightings if s["pic"] != pic]
             marks = [{"points": [[p["yaw"], p["pitch"], False] for p in pts], "label": "", "guide": True,
                       "epipolar": True} for pts in lines if pts] + marks
+        marks += self._calage_marks()
         if self._tilt_pending():  # objet vertical en cours (croix et trait du calage), effacé une fois validé
             marks.append({"points": [c["pos"] + [k == self.tilt_sel] for k, c in enumerate(self.tilt_clicks)],
                           "label": "", "calage": True})
@@ -660,6 +676,124 @@ class App(Pose, Chutes, Nez, session.Session):
 
     def take_bridge_alert(self):
         return json.dumps(super().take_bridge_alert())
+
+    # Panneau « Calage manuel » : jugement des verticales de la photo (calibration.vertical_report) --------------------
+    CALAGE_PICK = 1.5  # degrés : clic dans la photo à moins de cette distance d'une verticale = la choisir dans le panneau
+    CALAGE_COLORS = {"bon": "#8ee8ff", "douteux": "#ffb74d", "aberrante": "#ff5252", None: "#8ee8ff"}
+
+    def _calage_pic(self):
+        return (self.item or {}).get("id")
+
+    def _calage_report(self):
+        pic = self._calage_pic()
+        return self.calibration.vertical_report(pic, self._heading()) if pic else None
+
+    def calage_manuel(self):
+        """JSON du calage fait à la main sur la photo affichée, pour le voyant et le panneau (null sans verticale) : count,
+        tilt, toward, sigma, pitch, roll, partial, rows (angle, deviation, effect, verdict), outliers, doubtful, selected."""
+        report = self._calage_report()
+        if report is None:
+            return json.dumps(None)
+        tilt = report["tilt"]
+        rows = report["rows"]
+        sel = self.calage_sel if self.calage_pic == self._calage_pic() else None
+        return json.dumps({"count": report["count"], "tilt": tilt["tilt"], "toward": tilt["toward"], "sigma": tilt["sigma"],
+                           "partial": tilt["partial"], "pitch": report["pitch"], "roll": report["roll"],
+                           "scale": report["scale"], "rows": rows, "outliers": report["outliers"],
+                           "doubtful": [i for i, r in enumerate(rows) if r["verdict"] == "douteux"], "selected": sel})
+
+    def calage_panel(self, opened, select=None, hover=None):
+        """Panneau ouvert ou fermé ; select : verticale choisie (None : aucune), hover : verticale survolée dans la liste."""
+        self.calage_open = bool(opened)
+        self.calage_pic = self._calage_pic()
+        self.calage_sel = None if select is None or select < 0 else int(select)
+        self.calage_hover = None if hover is None or hover < 0 else int(hover)
+        return self.status()
+
+    def calage_pick(self, yaw, pitch):
+        """Numéro (à partir de 0) de la verticale de la photo la plus proche du clic (yaw, pitch en radians, repère de la
+        photo) à CALAGE_PICK° au plus, sinon -1."""
+        best, here = -1, math.inf
+        for k, points in enumerate(self._calage_lines()):
+            for (y1, p1), (y2, p2) in zip(points, points[1:]):
+                d = _segment_gap(math.degrees(yaw), math.degrees(pitch), math.degrees(y1), math.degrees(p1),
+                                 math.degrees(y2), math.degrees(p2))
+                if d < here:
+                    best, here = k, d
+        return best if here <= self.CALAGE_PICK else -1
+
+    def calage_remove(self, index):
+        """Retire la verticale n° index de la photo : inclinaison et ce qui en dépend recalculés."""
+        return self._calage_remove([int(index)], "Verticale {} retirée.".format(int(index) + 1))
+
+    def calage_drop_outliers(self):
+        """Retire les verticales jugées aberrantes de la photo."""
+        report = self._calage_report()
+        found = report["outliers"] if report else []
+        if not found:
+            return self.status()
+        return self._calage_remove(found, "{} verticale{} aberrante{} retirée{}.".format(
+            len(found), *(("s",) * 3 if len(found) > 1 else ("",) * 3)))
+
+    def calage_purge_photo(self):
+        """Retire toutes les verticales de la photo (comme ↶ en mode calage)."""
+        pic = self._calage_pic()
+        return self._calage_remove(list(range(len(self.calibration.verticals.get(pic, [])))), "Calage manuel de la photo retiré.")
+
+    def calage_purge_all(self):
+        """Retire les verticales de toutes les photos (confirmé par la page)."""
+        count = self.calibration.clear_all_tilts()
+        self.calage_sel = self.calage_hover = None
+        if count:
+            self._calibration_changed()
+            self.message = "Calage manuel de toutes les photos retiré ({} verticale{}).".format(count, "s" if count > 1 else "")
+        return self.status()
+
+    def _calage_remove(self, indices, message):
+        pic = self._calage_pic()
+        if not pic or not indices:
+            return self.status()
+        try:
+            self.calibration.remove_verticals(pic, indices)
+        except calibration.CalibrationError as exc:
+            self.message = "Verticale non retirée : {}".format(exc)
+            return self.status()
+        self.calage_sel = self.calage_hover = None
+        self._calibration_changed({pic})
+        self.message = message
+        return self.status()
+
+    def _calage_lines(self):
+        """Verticales de la photo affichée tracées dans son repère : une liste de points (yaw, pitch en radians) par
+        verticale, sur l'arc de grand cercle du pied au sommet cliqués (directions brutes)."""
+        pic = self._calage_pic()
+        if not pic or not self.item:
+            return []
+        heading, lines = self._heading(), []
+        for bottom, top in self.calibration.verticals.get(pic, []):
+            a, b, points = calibration.vector(*bottom), calibration.vector(*top), []
+            for k in range(13):
+                t = k / 12
+                yaw, elev = calibration.angles(calibration._unit(tuple(a[i] * (1 - t) + b[i] * t for i in range(3))))
+                points.append((math.radians((yaw - heading + 540) % 360 - 180), math.radians(elev)))
+            lines.append(points)
+        return lines
+
+    def _calage_marks(self):
+        """Traits des verticales de la photo, numérotés, tant que le panneau est ouvert : couleur du verdict, plus épais
+        pour la verticale choisie ou survolée."""
+        if not self.calage_open or not self.item:
+            return []
+        report = self._calage_report()
+        if report is None:
+            return []
+        same = self.calage_pic == self._calage_pic()
+        marks = []
+        for k, points in enumerate(self._calage_lines()):
+            on = same and k in (self.calage_sel, self.calage_hover)
+            marks.append({"points": [[y, p, False] for y, p in points], "label": str(k + 1), "beside": True,
+                          "trace": self.CALAGE_COLORS.get(report["rows"][k]["verdict"]), "sel": on})
+        return marks
 
     # Calage de l'inclinaison : objet vertical validé par un bouton -----------------------------
     TILT_NEAR = 1.5  # degrés : clic sur une croix de l'objet en cours (sélection pour la déplacer)

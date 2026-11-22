@@ -144,7 +144,7 @@ h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
    et requêteur de la carte en grand) ; seul son survol (infobulle POC) lui donne un effet */
 .filigrane { position: absolute; z-index: 2; display: flex; align-items: center; white-space: nowrap; font-size: 16px; font-weight: 700; color: #ffd600; opacity: 0.85;
   -webkit-text-stroke: 2px #000; paint-order: stroke fill;  /* liseré noir net autour des lettres */ cursor: default; user-select: none; }
-#filigrane-vue { position: static; height: 2rem; }  /* dans #haut-droite-vue, à gauche des pastilles (captures, plein écran) : dans le flux, sans largeur recopiée */
+#filigrane-vue { position: static; height: 2rem; }  /* dans #haut-droite-vue, sous les pastilles (captures, plein écran) : dans le flux, sans largeur recopiée */
 /* Filigrane de la carte : déplacé par recherche.js dans .recherche (zoomée par --echelle-ui), collé à sa gauche, sans largeur recopiée ;
    taille de texte et marge divisées par le zoom pour rester celles du filigrane de la visionneuse */
 #filigrane-carte { right: 100%; top: 0; bottom: 0; margin-right: calc(6px / var(--echelle-ui, 1)); font-size: calc(16px / var(--echelle-ui, 1)); }
@@ -1081,11 +1081,10 @@ html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):n
 #reglage-image button:not(:disabled):hover, #captures-visionneuse button:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }
 #reglage-image button:disabled, #captures-visionneuse button:disabled { opacity: 0.6; }
 #captures-visionneuse #plein-ecran[aria-pressed="true"], #reglage-image button[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); color: #ffd600; }  /* outil de mesure de la visionneuse actif */
-/* Haut à droite de la visionneuse (#voyants est dessous) : le filigrane de version, puis les captures et le plein écran, dans un même flux */
-#haut-droite-vue { position: absolute; right: calc(0.8rem * var(--echelle-ui, 1)); top: calc(0.6rem * var(--echelle-ui, 1)); z-index: 5; display: flex; align-items: center; gap: 0.5rem; }
-/* Place manquante (classe posée par src/disposition.js) : le filigrane passe sous les pastilles, aligné à droite */
-#haut-droite-vue.filigrane-dessous { flex-direction: column; align-items: flex-end; gap: 0.25rem; }
-#haut-droite-vue.filigrane-dessous #filigrane-vue { order: 2; }
+/* Haut à droite de la visionneuse (#voyants est dessous) : les captures et le plein écran, puis le filigrane de version dessous, dans un même flux */
+#haut-droite-vue { position: absolute; right: calc(0.8rem * var(--echelle-ui, 1)); top: calc(0.6rem * var(--echelle-ui, 1)); z-index: 5; display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; }
+/* Le filigrane est toujours sous les pastilles, aligné à droite : il ne chevauche plus la barre d'outils */
+#haut-droite-vue #filigrane-vue { order: 2; }
 /* Barre sur deux lignes qui toucherait encore le filigrane placé sous les pastilles : le filigrane (décoratif) est masqué */
 #haut-droite-vue.filigrane-masque #filigrane-vue { visibility: hidden; }
 /* Captures et plein écran de la visionneuse : même fond que les réglages de l'image */
@@ -1801,3 +1800,43 @@ dialog.avertissement form button:focus-visible { outline: 2px solid #ffd600; out
 #vue.en-mesure .haut-centre button:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); color: #fff; }
 #vue.en-mesure #garder, #vue.en-mesure #valider-objet { background: rgba(255, 214, 0, 0.3); color: #ffd600; font-weight: 600; }
 #vue.en-mesure #garder:not(:disabled):hover, #vue.en-mesure #valider-objet:not(:disabled):hover { background: rgba(255, 214, 0, 0.5); color: #ffd600; }
+
+/* Calage manuel dans la visionneuse (src/calage.js) : voyant sur le bouton de calage (nombre de verticales de la photo, vert si elles
+   s'accordent, orange si l'une est douteuse ou aberrante) et panneau sous lui, au style unifié (fond --etiquette-fond, texte blanc) */
+.avec-voyant { position: relative; display: inline-flex; }
+#reglage-image .voyant-calage {
+  position: absolute; top: -0.25rem; right: -0.35rem; width: auto; min-width: 0.95rem; height: 0.95rem; padding: 0 0.25rem;
+  border-radius: 999px; background: #2ecc40; color: #0b2d10; font-size: 0.65rem; font-weight: 700; line-height: 0.95rem; text-align: center;
+}
+#reglage-image .voyant-calage:not(:disabled):hover { background: #54e063; }
+#reglage-image .voyant-calage.douteux { background: #ff9800; color: #3a2000; }
+#reglage-image .voyant-calage.douteux:not(:disabled):hover { background: #ffb74d; }
+#reglage-image .voyant-calage[hidden] { display: none; }
+.invisible { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+#calage-panneau {
+  position: absolute; z-index: 6; zoom: var(--echelle-ui, 1); max-width: calc(100% - 1.6rem); box-sizing: border-box;
+  padding: 0.4rem 0.7rem 0.6rem; border-radius: 0.8rem; background: var(--etiquette-fond-survol); color: #fff; font-size: 13px;
+  transition: background 0.2s;
+}
+#calage-panneau[hidden] { display: none; }
+#calage-panneau .entete { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+#calage-panneau p { margin: 0.2rem 0; }
+#calage-panneau #calage-titre { font-weight: 700; color: #ffd600; }
+#calage-panneau #calage-note { color: #c8ccd0; font-size: 12px; }
+#calage-panneau button { border: 0; border-radius: 0.4rem; background: rgba(255, 255, 255, 0.12); color: inherit; font: inherit; padding: 0.15rem 0.5rem; }
+#calage-panneau button:not(:disabled) { cursor: pointer; }
+#calage-panneau button:not(:disabled):hover { background: rgba(255, 255, 255, 0.25); }
+#calage-panneau button:disabled { opacity: 0.45; }
+#calage-panneau button:focus-visible { outline: 2px solid #ffd600; outline-offset: 2px; }
+#calage-panneau .destructif { color: #ff8a80; }
+#calage-panneau #calage-fermer { background: none; padding: 0 0.3rem; font-size: 15px; }
+#calage-panneau table { border-collapse: collapse; width: 100%; margin: 0.3rem 0; text-align: right; font-variant-numeric: tabular-nums; }
+#calage-panneau th { font-weight: 500; color: #c8ccd0; font-size: 12px; padding: 0.1rem 0.4rem; }
+#calage-panneau td { padding: 0.15rem 0.4rem; }
+#calage-panneau td:first-child, #calage-panneau td:nth-child(5) { text-align: left; }
+#calage-panneau tbody tr { cursor: pointer; }
+#calage-panneau tbody tr:hover, #calage-panneau tbody tr.choisie { background: rgba(255, 255, 255, 0.15); }
+#calage-panneau tbody tr.choisie td:first-child { box-shadow: inset 3px 0 #ffd600; }
+#calage-panneau td.aberrante { color: #ff8a80; font-weight: 700; }
+#calage-panneau td.douteux { color: #ffb74d; font-weight: 600; }
+#calage-panneau .boutons { display: flex; gap: 0.5rem; justify-content: flex-end; }

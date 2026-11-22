@@ -662,6 +662,7 @@
     const c = JSON.parse(etat.app.calibration_json());
     $("#calage-exporter").disabled = !["verticals", "landmarks", "heights", "auto"]
       .some((k) => c[k] && Object.keys(c[k]).length);
+    $("#calage-purger-tout").disabled = !Object.keys(c.verticals || {}).length;  // rien à purger sans verticale gardée
   }
 
   Calcul.startCalcul(() => refresh(), etat.apiUrl).then((created) => {
@@ -896,6 +897,7 @@
     $("#csv").disabled = !results;
     $("#geojson").disabled = !results;
     saveReleve();
+    document.dispatchEvent(new Event("calage-maj"));  // voyant et panneau du calage manuel (src/calage.js)
   }
 
   /**
@@ -1007,6 +1009,7 @@
     escapeHtml,
     editReleve: (k, fresh) => editReleve(k, fresh),  // relevé : déclaré plus bas (Releve.init)
   });
+  Calage.init({ etat, refresh, showOverViewer, drawViewerMarks });  // voyant et panneau du calage manuel, « Purger tout »
 
   // Filtre des photos -----------------------------------------------------------------------
 

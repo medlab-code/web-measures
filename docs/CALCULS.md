@@ -101,6 +101,17 @@ Quand l'inclinaison change (automatique arrivée, verticales à seuil élargi ar
 la vue du dessus modifié), tout est recalculé : une mesure peut changer d'elle-même une ou
 deux secondes après.
 
+**Jugement des verticales tracées à la main** (`calibration.vertical_report`, panneau « Calage manuel », docs/GUIDE.md) : un
+écart automatique ne s'applique à aucune mesure, il sert seulement à signaler (et, sur demande, à retirer) les verticales qui
+contredisent les autres. Chaque verticale définit un plan (caméra, pied, sommet) qui doit contenir la verticale vraie ; son écart
+est l'angle entre ce plan et un *consensus* : la meilleure verticale vraie tirée d'une paire de verticales (somme des écarts tronqués
+à 3 × 0,3°), réajustée sur les verticales qui s'y accordent. L'écart à l'inclinaison de toutes les verticales serait trompeur : une
+verticale fausse la tire vers elle et fait paraître fausses les bonnes (essai à 5 verticales dont une de 3° : avec elle, les bonnes
+s'écartent de 1,4 à 2,4° ; avec le consensus, de 0°). Échelle = max(0,3°, 1,4826 × médiane des écarts) ; douteuse au-delà de 2
+échelles, aberrante au-delà de 3 (constantes `JUDGE_FLOOR`, `DOUBT_FACTOR`, `OUTLIER_FACTOR`). Jugement à partir de 3 verticales (la
+plus éloignée seule peut être douteuse), complet à 4 (`JUDGE_MIN`). L'effet d'une verticale est l'angle entre l'inclinaison avec et
+sans elle.
+
 ### 1.4 Terrain
 
 **MNT LiDAR HD** de l'IGN (sol nu à 50 cm, ±0,1 m ; ponts et ouvrages retirés), sinon

@@ -156,6 +156,64 @@ class TiltOrder(unittest.TestCase):
         self.assertIsNone(self.cal.tilt("p", photo_only=True))
 
 
+class VerticalReport(unittest.TestCase):
+    """Jugement des verticales tracées à la main, retrait d'une verticale, purge."""
+    UP = tilted_up(1.5, 20.0)
+    YAWS = (0, 70, 140, 210, 280)
+
+    def good(self, n):
+        return [vertical_object(self.UP, y, 8 + 2 * k) for k, y in enumerate(self.YAWS[:n])]
+
+    def bad(self, extra=3.0):
+        """Verticale tracée avec une erreur de `extra`° sur le sommet."""
+        pied, sommet = vertical_object(self.UP, 35, 9)
+        return (pied, (sommet[0] + extra, sommet[1]))
+
+    def test_consistent_verticals_are_good(self):
+        report = calibration.vertical_report(self.good(5), 90.0)
+        self.assertEqual([r["verdict"] for r in report["rows"]], ["bon"] * 5)
+        self.assertEqual(report["outliers"], [])
+        self.assertAlmostEqual(report["tilt"]["tilt"], 1.5, delta=0.01)
+
+    def test_outlier_is_found(self):
+        report = calibration.vertical_report(self.good(4) + [self.bad()], 90.0)
+        self.assertEqual(report["outliers"], [4])
+        self.assertEqual(report["rows"][4]["verdict"], "aberrante")
+        self.assertGreater(report["rows"][4]["effect"], 0.1)  # la retirer change l'inclinaison
+
+    def test_removing_outlier_restores_tilt(self):
+        cal = calibration.Calibration()
+        for v in self.good(4) + [self.bad()]:
+            cal.add_vertical("p", *v)
+        self.assertGreater(angle_between(cal.tilt("p")["up"], self.UP), 0.1)
+        self.assertEqual(cal.remove_verticals("p", cal.vertical_report("p")["outliers"]), 1)
+        self.assertEqual(len(cal.verticals["p"]), 4)
+        self.assertLess(angle_between(cal.tilt("p")["up"], self.UP), 0.01)
+
+    def test_too_few_verticals_not_judged(self):
+        report = calibration.vertical_report(self.good(2), None)
+        self.assertEqual([r["verdict"] for r in report["rows"]], [None, None])
+        self.assertIsNone(report["pitch"])
+        three = calibration.vertical_report(self.good(2) + [self.bad()], None)
+        self.assertNotIn("aberrante", [r["verdict"] for r in three["rows"]])  # à 3, jamais aberrante
+
+    def test_remove_last_clears_tilt(self):
+        cal = calibration.Calibration()
+        cal.add_vertical("p", *self.good(1)[0])
+        cal.remove_verticals("p", [0])
+        self.assertNotIn("p", cal.verticals)
+        self.assertIsNone(cal.tilt("p"))
+        self.assertIsNone(cal.vertical_report("p"))
+
+    def test_clear_all_tilts(self):
+        cal = calibration.Calibration()
+        cal.add_vertical("p", *self.good(1)[0])
+        cal.add_vertical("q", *self.good(2)[1])
+        self.assertEqual(cal.clear_all_tilts(), 2)
+        self.assertEqual(cal.verticals, {})
+        self.assertIsNone(cal.tilt("q"))
+
+
 class CameraHeight(unittest.TestCase):
     def click(self, elev, yaw=0.0, pic="p1"):
         return {"lon": LON0, "lat": LAT0, "yaw": yaw, "elev": elev, "pic": pic}

@@ -727,6 +727,24 @@ Les consignes de chaque calage disent l'étape en cours et ce qui est déjà fai
 
 Le calage est gardé d'une visite à l'autre, et peut être exporté ou importé (onglet « Photo »).
 
+**Calage manuel : voyant, panneau, retrait** : sur le bouton équerre, une pastille indique le nombre de verticales tracées à la main
+sur la photo affichée : verte quand elles s'accordent, orange quand l'une est douteuse ou aberrante ; absente sans verticale. Elle
+est recalculée à chaque changement de photo, ajout ou retrait. Un clic sur la pastille (le clic sur le bouton lui-même lance toujours
+le calage) ouvre, sous la barre, le panneau « Calage manuel : n verticales » : l'inclinaison retenue (roulis et tangage, avec leur
+incertitude ; « partielle » avec une seule verticale), puis un tableau : numéro, angle de la verticale (angle de son plan avec la
+verticale de la caméra), écart au consensus des autres verticales, effet (de combien l'inclinaison changerait sans elle) et verdict
+« bon », « douteux » ou « aberrante » (en rouge). Avec 2 verticales, « non jugée » (l'inclinaison passe exactement par les deux) ; à 3,
+seule la plus éloignée peut être douteuse ; à 4 et plus, le jugement est complet. **Critère** : écart de chaque verticale à la
+verticale vraie sur laquelle s'accordent le plus de verticales (le consensus : elle ne se laisse pas tirer par une verticale fausse),
+comparé à 1,4826 × la médiane des écarts, jamais moins de 0,3° ; douteuse au-delà de 2 fois cette échelle, aberrante au-delà de 3
+fois (0,6° et 0,9° au minimum). Le panneau le rappelle en degrés. 🗑 retire la verticale de sa ligne : l'inclinaison, la droite ↔
+et la vue du dessus sont recalculées comme après un ajout, et le calage gardé dans le navigateur est mis à jour. « Écarter les
+aberrantes » (grisé sans aberrante) les retire toutes, « Purger la photo » (grisé sans verticale) retire toutes celles de la photo.
+Panneau ouvert, les verticales sont tracées sur la photo, numérotées, de la couleur de leur verdict ; survoler une ligne épaissit sa
+verticale, cliquer une ligne (ou le trait d'une verticale dans la photo, hors mesure) la choisit. **Réglages › Calage manuel › Purger
+tout** retire les verticales de toutes les photos, après confirmation (grisé sans verticale gardée) ; le calage automatique, les
+hauteurs de caméra et le cap ne sont pas touchés.
+
 **Inclinaison par le terrain hors agglomération** (« Réglages », expérimental, décochée par
 défaut) : en rase campagne, les verticales de la photo manquent presque toujours (2 % des photos
 calées hors zone d'habitation) et l'inclinaison reste à ±2°. Cochée, quand les verticales

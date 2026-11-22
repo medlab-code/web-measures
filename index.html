@@ -126,9 +126,14 @@ enregistrée en PNG et copiée dans le presse-papiers">
                   title="Hauteur d'un objet : visez son pied puis son sommet dans la photo (un second clic arrête la mesure)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 3v14M8 7l4-4 4 4M8 13l4 4 4-4M5 21h14"/></svg></button>  <!-- double flèche verticale ↕ sur un trait de sol -->
-          <button type="button" id="calage-visionneuse" disabled aria-pressed="false" aria-label="Calage de l'inclinaison dans la visionneuse"
-                  title="Calage de l'inclinaison sur des objets verticaux : visez deux objets verticaux dans la photo ; recliquer pour arrêter">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3v18M6 21h12"/><path d="M6 16h5v5"/></svg></button>  <!-- verticale sur un sol, équerre -->
+          <span class="avec-voyant">
+            <button type="button" id="calage-visionneuse" disabled aria-pressed="false" aria-label="Calage de l'inclinaison dans la visionneuse"
+                    title="Calage de l'inclinaison sur des objets verticaux : visez deux objets verticaux dans la photo ; recliquer pour arrêter">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3v18M6 21h12"/><path d="M6 16h5v5"/></svg></button>  <!-- verticale sur un sol, équerre -->
+            <!-- Voyant du calage manuel (src/calage.js) : nombre de verticales de la photo, vert si cohérentes, orange si l'une est douteuse ou aberrante ; absent sans verticale. Ouvre le panneau -->
+            <button type="button" id="calage-voyant" class="voyant-calage" hidden aria-haspopup="dialog" aria-expanded="false"
+                    aria-controls="calage-panneau" title="Calage manuel de la photo : verticales tracées et verdict de chacune"></button>
+          </span>
           <button type="button" id="profil-visionneuse" disabled aria-pressed="false" aria-label="Profil en travers dans la visionneuse"
                   title="Profil en travers : chute et dévers des bords de la route (hors pont), terrain LiDAR HD lu en travers de la route jusqu'à la distance de la réglette « Jusqu'à » de la fenêtre ; la coupe s'affiche dans cette fenêtre">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -151,6 +156,27 @@ enregistrée en PNG et copiée dans le presse-papiers">
           <button type="button" id="tout-effacer" disabled aria-label="Tout effacer" title="Tout effacer : mesures et points de la session">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>
+        </div>
+      </div>
+      <!-- Panneau « Calage manuel » (src/calage.js), sous le voyant du bouton de calage : verticales de la photo et verdict de chacune -->
+      <div id="calage-panneau" role="dialog" aria-labelledby="calage-titre" hidden>
+        <div class="entete">
+          <p id="calage-titre">Calage manuel</p>
+          <button type="button" id="calage-fermer" aria-label="Fermer le panneau du calage manuel" title="Fermer">✕</button>
+        </div>
+        <p id="calage-retenue"></p>
+        <table>
+          <thead><tr><th scope="col" title="Numéro de la verticale, tracé sur la photo">n°</th>
+            <th scope="col" title="Angle du plan de la verticale avec la verticale de la caméra">Angle</th>
+            <th scope="col" title="Écart au consensus des autres verticales">Écart</th>
+            <th scope="col" title="De combien l'inclinaison changerait sans cette verticale">Effet</th>
+            <th scope="col">Verdict</th><th scope="col"><span class="invisible">Retirer</span></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p id="calage-note"></p>
+        <div class="boutons">
+          <button type="button" id="calage-ecarter" disabled title="Retire les verticales jugées aberrantes de cette photo">Écarter les aberrantes</button>
+          <button type="button" id="calage-purger" disabled class="destructif" title="Retire toutes les verticales de cette photo">Purger la photo</button>
         </div>
       </div>
       <ul id="voyants" hidden></ul>
@@ -924,6 +950,12 @@ enregistrée en PNG et copiée dans le presse-papiers">
                     title="Dossier d'un collègue, ou sauvegarde : vous choisissez ce qui est repris (un dossier peut aussi être glissé sur la page)">Importer un dossier…</button>
           </div>
           <input id="dossier-fichier" type="file" accept=".json" hidden>
+          <h3>Calage manuel</h3>
+          <p class="aide">Verticales tracées à la main sur les photos (inclinaison), gardées dans ce navigateur.</p>
+          <div class="boutons">
+            <button id="calage-purger-tout" type="button" disabled
+                    title="Retire les verticales tracées à la main sur toutes les photos (le calage automatique et les hauteurs de caméra restent)">Purger tout</button>
+          </div>
           <h3>Mesure</h3>
           <div class="reglage-couche reglage-instance">
             <label for="camera">Hauteur de caméra</label>
@@ -1182,6 +1214,15 @@ enregistrée en PNG et copiée dans le presse-papiers">
       <button value="remplacer" class="oui">Enregistrer dans ce parcours</button>
     </form>
   </dialog>
+  <dialog id="purger-calage" class="avertissement">
+    <h2>Purger le calage manuel ?</h2>
+    <p>Les <span></span> tracées à la main sur toutes les photos seront retirées, et les mesures de ces photos
+      recalculées sans elles. Cette action ne peut pas être annulée ; un calage exporté peut être réimporté.</p>
+    <form method="dialog">
+      <button value="" class="oui">Garder</button>
+      <button value="purger" class="non destructif">Purger tout</button>
+    </form>
+  </dialog>
   <dialog id="vider-releve" class="avertissement">
     <h2>Vider le relevé ?</h2>
     <p>Les <span></span> retirés du relevé ne pourront pas être rétablis. Envoyés dans Couche, ils y restent.</p>
@@ -1323,6 +1364,7 @@ enregistrée en PNG et copiée dans le presse-papiers">
   <script src="src/nez.js"></script>
   <script src="src/parcours.js"></script>
   <script src="src/mesure.js"></script>
+  <script src="src/calage.js"></script>
   <script src="src/visionneuse.js"></script>
   <script src="src/releve.js"></script>
   <script src="src/objets.js"></script>

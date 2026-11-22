@@ -279,6 +279,12 @@ const Mesure = {
           }
           return;
         }
+        if (mark.trace) {  // verticale du panneau « Calage manuel » (src/calage.js) : trait de la couleur de son verdict, numéro à côté
+          lines.push({ points: mark.points, color: mark.trace, width: mark.sel ? 5 : 2, dash: null });
+          const mid = middle(points);
+          labels.push({ at: [mid.yaw, mid.pitch], type: "mesure", place: "cote", text: mark.label });
+          return;
+        }
         if (mark.name) {  // nom d'un point triangulé : étiquette seule, du côté opposé à la mesure ;
           // grise pour le bord cliqué d'une largeur, pas encore triangulé (nom provisoire)
           labels.push({ at: mark.points[0], type: "nom", place: mark.side || "below", text: mark.label, provisional: mark.provisional });
