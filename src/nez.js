@@ -87,7 +87,9 @@ const Nez = {
     const CALAGE_WAIT = "Calage Bird Eye en cours…";
     const DOUBLE_MS = 400, TAP_PX = 5;  // double clic sur la droite : délai entre les deux appuis ; déplacement (px) en deçà duquel un appui reste un simple clic
     const toRad = Math.PI / 180;
-    const LOUPE_PX = 180, LOUPE_ZOOM = 3;  // px : diamètre de la pastille de la loupe (les autres tailles en dérivent) ; agrandissement de la photo
+    const LOUPE_PX = 180, LOUPE_ZOOM = 3;  // px : diamètre de la pastille de la loupe (les autres tailles en dérivent) ; agrandissement maximal de la photo (plafond)
+    const LOUPE_TEXEL_MAX = 1.5;  // agrandissement d'un texel natif de la photo au plus dans la loupe : au-delà, l'image serait pixellisée (la photo n'a pas plus de détail), l'agrandissement est réduit (plancher ×1)
+    const LOUPE_WAIT = "chargement…";  // pastille tant que la tuile pleine résolution de la zone n'est pas arrivée (sinon, l'aperçu flou de la base)
     const LOUPE_W = LOUPE_PX + 30, LOUPE_H = LOUPE_PX + 26;  // px : encombrement de la loupe, légende comprise (marge de 15 px de part et d'autre ; légende de 22 px sous la pastille, écart de 4 px)
     const LOUPE_HOLD = 1000;  // ms : la loupe reste ouverte après le dernier cran de molette
     const WHEEL_NOTCH = 40;  // deltaY (px) au-delà duquel un événement de molette vaut un cran entier (pas d'accélération) ; en deçà : pavé tactile, fractions
@@ -105,6 +107,7 @@ const Nez = {
     let lastTap = null;  // dernier appui sans glissement sur la droite : { t (ms), x, y (px) }
     let hoverLine = false, rotatedAt = 0;  // droite survolée (épaissie) ; instant (ms) de la fin d'une rotation (menu contextuel de la fin du clic droit)
     let drag = null, bound = null, readout = null, retry = null, waiting = null;
+    let loupeSharp = null;  // dernière image nette de la loupe : { x, y (point visé), half (demi-côté du carré source, px d'écran) }, ou null
     let loupePlace = null, loupePlaceTimer = null;  // place retenue : { name (côté), left, top } ; minuterie de la transition d'un changement de côté
     let loupe = null, loupeSide = null, loupeTimer = null, wheelSide = null;  // loupe (éléments), poignée qu'elle suit, minuterie de la molette, poignée engagée par la molette
     // Calage Bird Eye de la photo (voir en tête) : state « none » (pas demandé), « waiting » (en cours), « done », « impossible » (reason : cause)
@@ -673,7 +676,7 @@ const Nez = {
         root.setAttribute("aria-hidden", "true");
         root.style.setProperty("--loupe-w", `${LOUPE_W}px`);  // tailles lues par style.css : une seule constante, LOUPE_PX
         root.style.setProperty("--loupe-px", `${LOUPE_PX}px`);
-        root.innerHTML = "<div class=\"pastille\"><canvas class=\"photo\"></canvas><canvas class=\"calque\"></canvas></div><div class=\"legende\"></div>";
+        root.innerHTML = "<div class=\"disque\"><canvas class=\"photo\"></canvas><canvas class=\"calque\"></canvas></div><div class=\"legende\"></div>";
         const ratio = window.devicePixelRatio || 1;
         for (const canvas of root.querySelectorAll("canvas")) canvas.width = canvas.height = Math.round(LOUPE_PX * ratio);
         $("#vue").append(root);
@@ -686,6 +689,7 @@ const Nez = {
 
     function hideLoupe() {
       loupeSide = null;
+      loupeSharp = null;
       loupePlace = null;  // le prochain geste refait le choix du côté
       clearTimeout(loupePlaceTimer);
       clearTimeout(loupeTimer);
@@ -695,15 +699,16 @@ const Nez = {
       loupe = null;
     }
 
-    /** Photo agrandie de la loupe : la scène de la visionneuse redessinée en plein format sur le seul carré (LOUPE_PX / LOUPE_ZOOM px de l'écran) autour du
+    /** Photo agrandie de la loupe : la scène de la visionneuse redessinée en plein format sur le seul carré (LOUPE_PX / agrandissement effectif px de l'écran) autour du
      * point, par un décalage de vue de la caméra et un cadre réduit, puis relue ; à appeler pendant l'événement « render » (le tampon WebGL est vidé ensuite).
      * Repli (texture moins fine) : le carré de la vue déjà dessinée, agrandi. La vue normale est redessinée dans tous les cas. */
-    function paintLoupePhoto(point, box) {
+    function paintLoupePhoto(point, box, zoom) {
       const rend = etat.psv.renderer, renderer = rend.renderer, camera = rend.camera, element = renderer.domElement;
       const ratio = renderer.getPixelRatio(), size = LOUPE_PX, view = element.getBoundingClientRect();
-      const cx = point.x - (view.left - box.left), cy = point.y - (view.top - box.top), half = size / LOUPE_ZOOM / 2;
+      const cx = point.x - (view.left - box.left), cy = point.y - (view.top - box.top), half = size / zoom / 2;
       const target = loupe.photo, pixels = target.canvas.width;
       const saved = { copy(v) { Object.assign(this, { x: v.x, y: v.y, z: v.z, w: v.w }); return this; } };
+      target.imageSmoothingQuality = "high";
       target.clearRect(0, 0, pixels, pixels);
       try {
         if (rend.customRenderer) throw new Error("rendu personnalisé");
@@ -732,9 +737,9 @@ const Nez = {
 
     const lengthText = (m) => m < 1 ? `${Math.round(m * 100)} cm` : `${String(m).replace(".", ",")} m`;
 
-    /** Calque de la loupe : droite, poignées, réticule, barre d'échelle (px de la loupe : écran × LOUPE_ZOOM autour du point visé). */
-    function paintLoupeOverlay(point, ppm) {
-      const ctx = loupe.over, pixels = ctx.canvas.width, ratio = pixels / LOUPE_PX, c = LOUPE_PX / 2, Z = LOUPE_ZOOM;
+    /** Calque de la loupe : droite, poignées, réticule, barre d'échelle (px de la loupe : écran × agrandissement effectif Z autour du point visé). */
+    function paintLoupeOverlay(point, ppm, Z) {
+      const ctx = loupe.over, pixels = ctx.canvas.width, ratio = pixels / LOUPE_PX, c = LOUPE_PX / 2;
       const map = (s) => [c + (s.x - point.x) * Z, c + (s.y - point.y) * Z];
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       ctx.clearRect(0, 0, LOUPE_PX, LOUPE_PX);
@@ -811,6 +816,50 @@ const Nez = {
       return list;
     }
 
+    /** Agrandissement effectif de la loupe : au plus LOUPE_ZOOM, et tel qu'un texel natif de la photo ne soit pas agrandi de plus de LOUPE_TEXEL_MAX
+     * (texels par radian de la photo chargée : largeur de son panorama / 2π ; pixels d'écran par radian au centre de la vue : demi-hauteur × cotangente
+     * du demi-champ vertical) ; jamais moins de ×1. */
+    function loupeZoom() {
+      const width = etat.psv.config.panorama?.width || etat.photo?.properties?.["pers:interior_orientation"]?.sensor_array_dimensions?.[0];
+      const pxPerRad = etat.psv.renderer.camera.projectionMatrix.elements[5] * etat.psv.container.clientHeight / 2;
+      if (!width || !(pxPerRad > 0)) return LOUPE_ZOOM;
+      return Math.max(1, Math.min(LOUPE_ZOOM, LOUPE_TEXEL_MAX * (width / (2 * Math.PI)) / pxPerRad));
+    }
+
+    /** La tuile pleine résolution est-elle arrivée sous chaque point (écran) ? Rayon de la caméra vers la direction du point, lancé sur le maillage des
+     * tuiles de l'adaptateur de la visionneuse : la face touchée a un matériau avec texture une fois sa tuile chargée (sinon seule la base sd.jpg, floue,
+     * apparaît dessous). Vrai si on ne sait pas le dire (adaptateur sans tuiles). */
+    function tilesReady(points) {
+      const rend = etat.psv.renderer;
+      let mesh = null;
+      rend.scene.traverse((o) => { if (Array.isArray(o.material) && o.geometry?.groups?.length) mesh = o; });
+      if (!mesh || !rend.raycaster) return true;
+      return points.every((p) => {
+        const dir = etat.psv.dataHelper.viewerCoordsToSphericalCoords(p);
+        const vector = etat.psv.dataHelper.sphericalCoordsToVector3(dir).normalize();
+        rend.raycaster.set(vector.clone().set(0, 0, 0), vector);
+        const hit = rend.raycaster.intersectObject(mesh, false)[0];
+        if (!hit) return true;
+        const group = mesh.geometry.groups.find((g) => hit.faceIndex * 3 >= g.start && hit.faceIndex * 3 < g.start + g.count);
+        return group ? Boolean(mesh.material[group.materialIndex]?.map) : true;
+      });
+    }
+
+    /** Pastille sombre « chargement… » (photo et calque effacés) en attendant la tuile. */
+    function paintLoupeWaiting() {
+      const { photo, over } = loupe, n = photo.canvas.width;
+      photo.setTransform(1, 0, 0, 1, 0, 0);
+      photo.fillStyle = "#222";
+      photo.fillRect(0, 0, n, n);
+      over.setTransform(1, 0, 0, 1, 0, 0);
+      over.clearRect(0, 0, n, n);
+      over.setTransform(n / LOUPE_PX, 0, 0, n / LOUPE_PX, 0, 0);
+      over.font = "bold 13px system-ui, sans-serif";
+      over.textAlign = "center";
+      over.fillStyle = "#fff";
+      over.fillText(LOUPE_WAIT, LOUPE_PX / 2, LOUPE_PX / 2 + 4);
+    }
+
     /** Loupe dessinée à l'événement « render » de la visionneuse (photo, calque, légende, place). Cachée si la poignée est derrière la vue. */
     function paintLoupe() {
       if (!loupe) return;
@@ -818,11 +867,21 @@ const Nez = {
       const point = screenOf(...locate(o));
       if (!active || !shown() || !point) { loupe.root.hidden = true; return; }
       const box = etat.psv.container.getBoundingClientRect();
-      paintLoupePhoto(point, box);
-      // échelle locale au sol : écart à l'écran de deux points de la droite à ±5 cm du bord
-      const a = screenOf(...locate(o - 0.05)), b = screenOf(...locate(o + 0.05));
-      const ppm = a && b ? LOUPE_ZOOM * Math.hypot(b.x - a.x, b.y - a.y) / 0.1 : 0;
-      paintLoupeOverlay(point, ppm);
+      const zoom = loupeZoom(), half = LOUPE_PX / zoom / 2;
+      // tuile pleine résolution sous le carré agrandi (centre et quatre coins) : sinon, dernière image nette si le point est encore dans sa zone, sinon « chargement… »
+      const view = etat.psv.renderer.renderer.domElement.getBoundingClientRect();
+      const [ox, oy] = [point.x - (view.left - box.left), point.y - (view.top - box.top)];
+      const ready = tilesReady([[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dy]) => ({ x: ox + dx * half, y: oy + dy * half })));
+      if (ready) {
+        paintLoupePhoto(point, box, zoom);
+        // échelle locale au sol : écart à l'écran de deux points de la droite à ±5 cm du bord
+        const a = screenOf(...locate(o - 0.05)), b = screenOf(...locate(o + 0.05));
+        paintLoupeOverlay(point, a && b ? zoom * Math.hypot(b.x - a.x, b.y - a.y) / 0.1 : 0, zoom);
+        loupeSharp = { x: point.x, y: point.y, half };
+      } else if (!(loupeSharp && Math.abs(point.x - loupeSharp.x) < loupeSharp.half / 2 && Math.abs(point.y - loupeSharp.y) < loupeSharp.half / 2)) {
+        loupeSharp = null;
+        paintLoupeWaiting();
+      }
       const wrong = side === "gauche" ? o > 0 : o < 0;  // poignée passée de l'autre côté de la caméra
       loupe.legend.textContent = calageWaiting() ? "calage en cours…"
         : `bord ${side} : ${Math.abs(o) < 0.005 ? "au droit" : `${metres(Math.abs(o))}${wrong ? ` à ${o < 0 ? "gauche" : "droite"}` : ""}`}`;
