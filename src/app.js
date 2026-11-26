@@ -717,12 +717,13 @@
     const manual = tilt === "non" && !calibrating;
     const before = tilt === "avant" && !calibrating;  // calcul lancé au premier clic sur la photo
     // Longueur sur la carte : la vue du dessus a sa propre inclinaison (verticales ou pente de la route, voir sa barre d'état)
-    message.hidden = !etat.measuring || $("#mode").value === "carte"
-      || !(calibrating || tilt === "attente" || manual || before);
+    const shown = etat.measuring && $("#mode").value !== "carte" && (calibrating || tilt === "attente" || manual || before);
+    // Calcul automatique en cours (hors calage) : pas de message, l'animation d'attente au centre de la visionneuse suffit
+    message.hidden = !shown || (tilt === "attente" && !calibrating);
     message.classList.toggle("manuel", manual);
     message.classList.toggle("calage", calibrating);
     // Calcul en cours : animation d'attente au centre de la visionneuse (Attente) ; coche s'il aboutit, croix s'il ne donne rien
-    const waitingTilt = !message.hidden && tilt === "attente";
+    const waitingTilt = shown && tilt === "attente";
     if (waitingTilt && !etat.tiltAnimation) {
       etat.tiltAnimation = Attente.start($("#vue"), { icone: Attente.icones.niveau, message: "Calcul de l'inclinaison…" });
     } else if (!waitingTilt && etat.tiltAnimation) {
@@ -742,7 +743,7 @@
         : manual
           ? `Inclinaison non calée${etat.tiltReason ? ` : ${etat.tiltReason}` : ""}. `
             + "Les mesures sont moins précises ; leur incertitude en tient compte."
-          : "Calcul de l'inclinaison en cours : attendez avant de mesurer";
+          : "";  // calcul en cours : message masqué, animation au centre
   }
 
   /** Grande zone principale (là où est la visionneuse sans échange) : la visionneuse elle-même, ou, carte et visionneuse

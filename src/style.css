@@ -1245,7 +1245,7 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
 #lecture-pause.en-lecture .pause { display: inline; }
 
 /* Visionneuse : conseil ou rappel du calage de l'inclinaison, dans le bloc du haut, sous le rappel du mode ; le calcul en cours
-   est montré par l'animation d'attente au centre de la visionneuse (Attente, ticket #56) */
+   est montré seulement par l'animation d'attente au centre de la visionneuse (Attente, ticket #56) : aucun message texte */
 #calcul-inclinaison {
   margin: 0;
   padding: 0.15rem 0.7rem;

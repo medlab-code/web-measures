@@ -900,7 +900,7 @@ verticales ; terrain : LiDAR HD de la séquence, route de la vue du dessus ; mé
 **Inclinaison utilisée** : un seul ordre pour les mesures et la largeur dans la visionneuse (20/11/2026) : réglage de la
 vue du dessus pour la photo, calage à la main, verticales de la photo, LiDAR sous le véhicule, verticales à seuil élargi, roulis de
 la campagne seul (tangage inconnu, ±2°), rien (±2°). Elle est calculée à l'entrée en mesure pour la photo affichée,
-puis au premier clic sur une autre photo (pendant le calcul, une animation « Calcul de l'inclinaison… » s'affiche au centre de la visionneuse : icône de niveau à bulle, ondes jaunes, coche verte à l'arrivée du résultat, croix rouge si le calcul n'en donne pas ; le message du haut dit seulement d'attendre avant de mesurer) ; la ligne d'état en donne la source et l'incertitude (par exemple « inclinaison calée
+puis au premier clic sur une autre photo (pendant le calcul, une animation « Calcul de l'inclinaison… » s'affiche au centre de la visionneuse : icône de niveau à bulle, ondes jaunes, coche verte à l'arrivée du résultat, croix rouge si le calcul n'en donne pas ; aucun message texte n'accompagne l'attente) ; la ligne d'état en donne la source et l'incertitude (par exemple « inclinaison calée
 dans la vue du dessus (±0,8°) », « inclinaison non calée : roulis par défaut de la campagne 2025 seul, tangage inconnu (±2,0°) », affichée seulement quand le calcul a été fait sans résultat ; avant, « inclinaison calculée à l'activation de la mesure ; roulis par défaut de la campagne 2025 en attendant »). Voir
 `docs/CALCULS.md` § 1.3. Les mesures déjà faites sur une photo se recalculent quand son inclinaison change (arrivée des
 verticales, réglage de la vue du dessus).
