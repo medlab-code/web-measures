@@ -60,6 +60,9 @@ const Parcours = {
     // Vidéo : parcours préparé (planPhotos : { photos, switches, dates, warning, title }), sa préparation ou son calcul en
     // cours ; videoReady : départ et arrivée connus (onglet « Vidéo »)
     let videoPlan = null, videoPreparing = false, videoRun = null, videoReady = false;
+    // Attente (Attente) au centre de la mini-carte pendant la préparation du parcours (prepareVideo) ; ses étapes : itinéraire, photos
+    // (tronçon k / n), PR des photos, croisements. Le calcul de la vidéo elle-même garde sa barre de progression.
+    let videoWait = null;
     let tracing = false;  // « Tracer sur la carte » : clics enchaînés (départ, arrivée, étapes) jusqu'à Échap
     // recherche des photos à venir ; planError : { key, text } de la dernière en échec
     let planTimer = null, planTimerKey = "", planError = null;
@@ -436,6 +439,7 @@ const Parcours = {
       const trials = [];
       for (const [k, c] of plan.candidates.entries()) {
         setStatus(`Vidéo : comparaison des séquences de départ (${k + 1} / ${plan.candidates.length})…`);
+        videoWait?.etape(`comparaison des séquences de départ (${k + 1} / ${plan.candidates.length})`);
         const result = await walkPhotos(plan, fresh(), c.feature, c.back).catch(() => null);
         if (result) trials.push(result);
       }
@@ -503,12 +507,16 @@ const Parcours = {
     async function planLegs(start, end) {
       const points = [start, ...placed.waypoint.points.map((p) => p.lonlat), end];
       setStatus("Vidéo : itinéraire (Géoplateforme IGN)…");
+      videoWait?.etape("itinéraire");
       const route = await routeLine(points).catch((error) => { console.warn("Vidéo :", error); return null; });
       const along = route && await planAlongLine(route, "l'itinéraire");
       if (along) return along;
       const out = { photos: [], switches: 0, dates: [], warning: "" };
       for (let k = 1; k < points.length; k++) {
-        if (points.length > 2) setStatus(`Vidéo : recherche des photos, tronçon ${k} / ${points.length - 1}…`);
+        if (points.length > 2) {
+          setStatus(`Vidéo : recherche des photos, tronçon ${k} / ${points.length - 1}…`);
+          videoWait?.etape(`photos, tronçon ${k} / ${points.length - 1}`);
+        }
         let leg;
         try {
           leg = await planPhotos(points[k - 1], points[k]);
@@ -555,6 +563,7 @@ const Parcours = {
       const photosById = new Map(), centres = stations.filter((_, i) => i % Math.round(ALONG_CHUNK / ALONG_STEP) === 0);
       for (let i = 0; i < centres.length; i += 4) {
         setStatus(`Vidéo : photos le long de ${label} (${Math.round(100 * i / centres.length)} %)…`);
+        videoWait?.etape(`photos le long de ${label} (${Math.round(100 * i / centres.length)} %)`);
         if ($("#video-recherche")) $("#video-recherche").value = i / centres.length;
         const found = await Promise.all(centres.slice(i, i + 4).map((c) => Carte.photosNear(map, ...c.at,
           (f) => passesFilter(f) && Number.isInteger(rankOf(f)), ALONG_CHUNK + ALONG_NEAR, 1000).catch(() => [])));
@@ -1427,7 +1436,10 @@ const Parcours = {
         });
         const z = await groundAltitudes(points, false, (done, all) => {
           arpHelp(`Dévers lu sur le LiDAR HD (lent) : ${Math.round(100 * done / all)} %…`);
-          if (videoPreparing) setStatus(`Vidéo : dévers des photos (LiDAR HD, lent) : ${Math.round(100 * done / all)} %…`);
+          if (videoPreparing) {
+            setStatus(`Vidéo : dévers des photos (LiDAR HD, lent) : ${Math.round(100 * done / all)} %…`);
+            videoWait?.etape(`dévers ${Math.round(100 * done / all)} %`);
+          }
         }).catch(() => []), n = DEVERS_ACROSS.length * DEVERS_ALONG.length;
         const sum2 = DEVERS_ALONG.length * DEVERS_ACROSS.reduce((t, c) => t + c * c, 0);
         let read = 0;
@@ -1472,6 +1484,9 @@ const Parcours = {
       planError = null;
       updatePlayer();
       setStatus("Vidéo : recherche des photos du parcours…");
+      videoWait = Attente.start(map.getContainer(), { icone: Attente.icones.video, message: "Préparation de la vidéo…" });
+      videoWait.etape("photos du parcours");
+      const wait = videoWait;
       try {
         const found = await travelFields.go();
         if (!found) throw new Error("départ ou arrivée introuvable");
@@ -1481,9 +1496,16 @@ const Parcours = {
         }
         const plan = { ...await planLegs(found.start, found.end), title: found.title };
         setStatus("Vidéo : PR des photos…");
+        wait.etape("PR des photos");
         await prOfPhotos(plan.photos, found.title.split(" ")[0]);
-        if ($("#video-regard").checked) await readCrossings(plan, false);
-        if (planKey() !== key) return;  // parcours changé : recherche relancée (updatePlayer, ci-dessous)
+        if ($("#video-regard").checked) {
+          wait.etape("croisements");
+          await readCrossings(plan, false);
+        }
+        if (planKey() !== key) {  // parcours changé : recherche relancée (updatePlayer, ci-dessous)
+          wait.fin();
+          return;
+        }
         videoPlan = plan;
         const coords = plan.photos.map((p) => p.coords).filter(Boolean);
         for (const p of [...placed.slow.points]) {  // parcours changé : ceux de l'ancien tracé retirés
@@ -1497,12 +1519,17 @@ const Parcours = {
         if ($("#video-ralenti").checked && !placed.slow.points.length) await fillSlows();
         setStatus(videoPlan.switches ? `Vidéo prête à enregistrer. ${videoWarning()}` : "Vidéo prête à enregistrer.",
           videoPlan.switches ? "avertissement" : "");
+        wait.ok();
       } catch (error) {
         if (planKey() === key) {
           planError = { key, text: error.message };
           setStatus(`Vidéo impossible : ${error.message}`, "echec");
+          wait.echec(`Vidéo impossible : ${error.message}`);
+        } else {
+          wait.fin();
         }
       } finally {
+        videoWait = null;
         videoPreparing = false;
         updatePlayer();
       }
