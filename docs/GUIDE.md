@@ -62,7 +62,7 @@ du réseau, numéro du PR), à côté de la voie, sur tous les fonds, ou sur auc
 masque par le bouton « filaire » de l'étiquette verticale de la carte (sous le bouton Bird Eye ; enfoncé : visible ; choix mémorisé).
 La carte reste toujours orientée nord en haut : plus de rotation (ni clic droit glissé, ni deux doigts, ni clavier), plus de boussole dans la colonne de boutons de la carte ni d'inclinaison. Sur la carte, le clic droit sert au geste de rotation de la droite de ↔ (voir « Largeur dans la visionneuse »).
 
-**Choisir une photo** : cliquer sur le filaire orange de la carte (photo la plus proche) ; la
+**Choisir une photo** : cliquer sur le filaire orange de la carte (photo la plus proche ; « Recherche de la photo… » s'affiche au centre de la visionneuse pendant la recherche, comme « Tirage d'une photo… » pour « Photo aléatoire ») ; la
 photo s'ouvre dans la visionneuse officielle Panoramax. Les flèches de navigation au sol de la visionneuse (ellipse violette) servent à naviguer hors mesure ; elles sont
 masquées pendant les mesures (visée comprise) et pendant la largeur dans la visionneuse, où le
 **lecteur de séquence** en bas de la visionneuse passe aux photos voisines et fait défiler la séquence en
@@ -1007,6 +1007,7 @@ Avec un GPS grand public
 | `src/fiche.js` | captures de la visionneuse (« Image seule », « Avec annotations ») et fiches PDF des points et des objets de la couche |
 | `src/carte.js` | carte MapLibre : fonds, filaire, points de repère (PR), mesures, étiquettes, poignées, photo la plus proche |
 | `src/traits.js` | surcouche des mesures dans la visionneuse, en WebGL : traits, croix, réticule glissant, étiquettes des mesures et noms des points (la couche importée reste en repères HTML) |
+| `src/attente.js` | animation d'attente au centre d'une zone (visionneuse ou carte) : pastille avec l'icône de l'action, ondes, message et étape, coche ou croix à la fin |
 | `src/calcul.js` | chargement de Pyodide (page et arrière-plan) et des fichiers Python (`py/sources.js`) |
 | `src/services.js` | vérification de l'accès aux services |
 | `src/recherche.js` | recherche de lieux sur la carte (commune, lieu-dit, voie, adresse) |

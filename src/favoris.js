@@ -129,20 +129,24 @@ const Favoris = {
       const button = $("#photo-aleatoire");
       const help = $("#photo-hasard .aide");
       button.disabled = true;  // grisé pendant le tirage
-      help.hidden = false;
-      help.textContent = "Tirage d'une photo…";
+      help.hidden = true;
+      const attente = Attente.start($("#vue"), { icone: Attente.icones.de, message: "Tirage d'une photo…" });  // au centre de la visionneuse
       try {
         const { since, producer } = currentFilter();
         const feature = await Carte.randomPhoto(passesFilter, { since, producer: producer ? producer[0] : null });
         if (!feature) {
+          help.hidden = false;
           help.textContent = "Aucune photo ne correspond aux filtres (réessayez, ou élargissez le filtre).";
+          attente.echec("Aucune photo ne correspond");
           return;
         }
-        help.hidden = true;
         openPhoto(feature);
         map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 17), speed: 1.6 });
+        attente.ok();
       } catch (error) {
+        help.hidden = false;
         help.textContent = `Tirage impossible : ${error.message}`;
+        attente.echec("Tirage impossible");
       } finally {
         button.disabled = false;
       }

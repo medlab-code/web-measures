@@ -83,7 +83,7 @@ const Choix = {
     /** Photo la plus proche du point (lng, lat), qui passe le filtre ; avec un cap `heading`
      * (degrés), celle d'un véhicule roulant dans ce sens à 90° près, à défaut la plus proche. */
     async function openNearest(lng, lat, heading = null, radius = null) {  // radius : voir Carte.photosNear
-      showPhotoInfo(null, "Recherche de la photo la plus proche…");
+      const attente = Attente.start($("#vue"), { icone: Attente.icones.epingle, message: "Recherche de la photo…" });  // au centre de la visionneuse
       const sameWay = (feature) => {
         const azimuth = Number(feature.properties?.["view:azimuth"]);
         return Number.isFinite(azimuth) && Math.abs(((azimuth - heading) % 360 + 540) % 360 - 180) < 90;
@@ -96,11 +96,14 @@ const Choix = {
           showPhotoInfo(null, !filterActive() ? "Aucune photo près de ce point : cliquez sur le filaire orange."
             : etat.app ? `Aucune photo près de ce point avec le filtre (${etat.app.filter_text()}).`
             : "Filtre en attente du calcul, encore en chargement : cliquez à nouveau dans un instant.");
+          attente.echec("Aucune photo près de ce point");
           return;
         }
         openPhoto(feature);
+        attente.ok();
       } catch (error) {
         showPhotoInfo(null, `Recherche impossible : ${error.message}`);
+        attente.echec("Recherche impossible");
       }
     }
 
