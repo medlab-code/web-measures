@@ -259,8 +259,8 @@ const Resultats = {
       },
       onRemove: () => {},
     }, "top-left");
-    // Règle du bouton de mesure : même dessin que les boutons de la visionneuse (viewBox 24, trait 2, extrémités rondes)
-    const RULER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2"/></svg>';
+    // Règle du bouton de mesure : même dessin que les boutons de la visionneuse (viewBox 24, trait 2, extrémités rondes), partagé avec l'attente (Attente)
+    const RULER = Attente.icones.regle;
     // Carte en grand ou détachée : « Mesurer une longueur », sans passer par le mode du bandeau (même mesure que le mode « carte »)
     const measureButton = Object.assign(document.createElement("button"), { type: "button", className: "mesurer-carte", hidden: true,
       innerHTML: RULER + "<span>Mesurer sur la carte</span>" });

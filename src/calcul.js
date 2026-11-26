@@ -130,9 +130,10 @@ const Calcul = (() => {
   /**
    * Charge Pyodide, la grille du géoïde et les fichiers Python de la page, puis crée
    * l'application de mesure. notify : appelée quand une lecture réseau ou un calcul fait
-   * avancer une mesure (redessiner).
+   * avancer une mesure (redessiner). etape : appelée avec l'étape qui commence (animation d'attente, Attente).
    */
-  async function startCalcul(notify, apiUrl) {
+  async function startCalcul(notify, apiUrl, etape = () => {}) {
+    etape("moteur de calcul");
     const pyodide = await loadPyodide({ indexURL: PYODIDE });
     // Arrière-plan lancé seulement maintenant : son Pyodide (et numpy, Pillow) ne dispute plus au premier le
     // processeur et le réseau ; il existe avant l'application (runRemote), ses demandes attendent qu'il soit prêt
@@ -143,7 +144,9 @@ const Calcul = (() => {
       worker = null;
     }
     document.dispatchEvent(new Event("calcul-worker"));  // « Image seule » : le bouton se recalcule (photo ouverte avant)
+    etape("fichiers du calcul");
     install(pyodide, PY_SOURCES);
+    etape("géoïde");
     await pyodide.pyimport("web_host").load_geoid();
     const webApp = pyodide.pyimport("web_app");
     return webApp.App(notify, worker ? runRemote : null, apiUrl);

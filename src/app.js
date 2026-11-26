@@ -665,7 +665,8 @@
     $("#calage-purger-tout").disabled = !Object.keys(c.verticals || {}).length;  // rien à purger sans verticale gardée
   }
 
-  Calcul.startCalcul(() => refresh(), etat.apiUrl).then((created) => {
+  const attenteCalcul = Attente.start($("#vue"), { icone: Attente.icones.regle, message: "Chargement du calcul…" });
+  Calcul.startCalcul(() => refresh(), etat.apiUrl, (etape) => attenteCalcul.etape(etape)).then((created) => {
     etat.app = created;
     // Relevé gardé : relu avant tout rafraîchissement, qui écrirait par-dessus un relevé vide
     try { etat.app.load_releve(store.get("releve") || ""); } catch (error) { console.warn("Relevé gardé illisible :", error); }
@@ -683,8 +684,10 @@
     restoreOverlay();  // couche importée gardée de la session précédente
     showModeOptions();
     refresh();
+    attenteCalcul.ok();
   }).catch((error) => {
     console.error(error);
+    attenteCalcul.echec("Calcul indisponible");
     setStatus(`Calcul indisponible : ${error.message}`, "echec");
   }).finally(checkServices);
 
