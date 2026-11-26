@@ -1791,6 +1791,26 @@ const Dessus = (() => {
   const $ = (selector) => map?.getContainer().querySelector(selector) || document.querySelector(selector);
   const number = (v, digits) => v.toFixed(digits).replace(".", ",");
   const say = (text) => { $("#dessus-etat").textContent = text; };
+  // Attente au centre de la carte (Attente, ticket #56), en plus de la barre d'état (bilan, inchangé) : une par vue, du premier calcul (ou du
+  // calcul relancé par un réglage : view.waitMessage) jusqu'à ce qu'il ne reste rien en cours (showImage) ; croix si la lecture échoue.
+  // Pas d'animation pour le calage seul (view.silent : la vue n'est pas sur la carte ; « Largeur dans la visionneuse » a la sienne).
+  function wait(view, message = "Vue du dessus…") {
+    if (view && !view.silent) view.attente ??= Attente.start(map.getContainer(), { icone: Attente.icones.faucon, message });
+  }
+  /** Fin de l'attente de la vue : ok (vue finie), texte d'échec (croix), ou rien (abandon : vue changée, éteinte). */
+  function stopWait(view, issue = null, failed = false) {
+    if (!view?.attente) return;
+    if (failed) view.attente.echec(issue);
+    else if (issue === "ok") view.attente.ok();
+    else view.attente.fin();
+    view.attente = null;
+  }
+  /** Réglage qui refait l'image : attente nommée d'après lui (« Raccords… », « Haute résolution… »), seulement si la vue est posée. */
+  function redo(message) {
+    if (!shown?.url) return;
+    shown.waitMessage = message;
+    showImage();
+  }
 
   const busy = () => shown.estimating || shown.joining || shown.locating || shown.pose.pending
     || (withNeighbours() && (outlines.get(shown.sequence) === "reading" || shown.features === null || shown.loading.size > 0
@@ -1909,14 +1929,14 @@ const Dessus = (() => {
       manualPitch = Number(pitch.value);
       keepSettings();
       if (shown) applySettings(shown.sequence, shown.pic);
-      if (shown?.url) showImage();
+      redo("Tangage…");
     });
     $("#dessus-tangage-force").addEventListener("change", (event) => {
       pitchForced = event.target.checked;
       if (pitchForced && manualPitch === undefined) manualPitch = pitchOffset;  // part du tangage lu
       keepSettings();
       if (shown) applySettings(shown.sequence, shown.pic);
-      if (shown?.url) showImage();
+      redo("Tangage…");
     });
     const share = $("#dessus-devers");
     share.addEventListener("input", () => { $("#dessus-devers-valeur").textContent = rollText(Number(share.value)); });
@@ -1928,16 +1948,16 @@ const Dessus = (() => {
       rollOffset = Number(share.value);
       $("#dessus-devers-valeur").textContent = rollText(rollOffset);
       keepSettings();
-      if (shown?.url) showImage();
+      redo("Roulis…");
     });
     $("#dessus-bords").addEventListener("change", (event) => {
       edgesOn = event.target.checked;
-      if (shown?.url) showImage();
+      redo("Bords gardés…");
     });
     $("#dessus-position").addEventListener("change", (event) => {
       positionOn = event.target.checked;
       cancelStart();  // le départ a été pris dans l'autre position
-      if (shown?.url) showImage();
+      redo("Position…");
     });
     // Messages repliés ou non (interrupteur « Afficher les informations » des réglages), retenu dans le navigateur
     const STATE_FOLDED_KEY = "web-measures/etat-replie", stateSwitch = $("#dessus-infos");
@@ -1960,14 +1980,14 @@ const Dessus = (() => {
     $("#dessus-verticales").addEventListener("change", (event) => {
       verticalsOn = event.target.checked;
       cancelStart();  // le départ a été pris sur l'autre image
-      if (shown?.url) showImage();
+      redo("Verticales…");
     });
     $("#dessus-voisines").addEventListener("change", (event) => {
       neighboursOn = event.target.checked;
       if (shown) applySettings(shown.sequence, shown.pic);  // tangage lu sur les raccords : seulement avec les voisines
       if (shown) loadNeighbours(abort.signal);
       cancelStart();  // le départ a été pris sur l'autre image
-      if (shown?.url) showImage();
+      redo("Véhicule masqué…");
     });
     $("#dessus-sans-cache").addEventListener("change", (event) => {
       noCache = event.target.checked;
@@ -1982,7 +2002,7 @@ const Dessus = (() => {
     });
     $("#dessus-fine").addEventListener("change", (event) => {
       fine = event.target.checked;
-      if (shown?.url) showImage();
+      redo("Haute résolution…");
     });
   }
 
@@ -2040,6 +2060,7 @@ const Dessus = (() => {
   }
   /** Vue jetée : image et photos libérées (mémoire graphique). */
   function forget(view) {
+    stopWait(view);
     if (view?.url) URL.revokeObjectURL(view.url);
     view?.panos.forEach((pano) => gl.deleteTexture(pano.texture));
   }
@@ -2159,6 +2180,8 @@ const Dessus = (() => {
   const calibrated = (pic) => (shown?.pic === pic ? shown : parked?.pic === pic ? parked : computed.get(pic))?.calage;
   let calageListener = null;  // (pic, ok, final) : photo affichée calée (Dessus.onCalibrated) ; final faux : première lecture, raffinement en cours
   async function showImage() {
+    wait(shown, shown.waitMessage);  // calcul relancé par un réglage : attente à son nom ; en cours : la même
+    delete shown.waitMessage;
     placeFor(shown);
     shown.joinKeyNow = joinKey();  // recalage des raccords valable pour ces réglages seulement
     const layers = readyLayers(), pose = shown.pose, mine = ++drawing, axis = roadAxis(layers);
@@ -2213,6 +2236,9 @@ const Dessus = (() => {
       + `, caméra à ${number(layers[0].pose.height, 2)} m${cameraOrigin(parallax)}`;
     const joins = withNeighbours() && shown.joinText && shown.joins?.key === shown.joinKeyNow ? shown.joinText : "";
     if (!shown.silent) say([head, joins, locatedText(), progress].filter(Boolean).join(" ; "));
+    // étape de l'attente : ce qui est encore en cours, dans les mots de la barre d'état (sans « en cours »)
+    if (progress) shown.attente?.etape(progress.replace(/ en (cours|calcul)…$/, ""));
+    else if (pose.pending) shown.attente?.etape("inclinaison");
     // Calage sans affichage : l'inclinaison de la première lecture des lignes suffit à « Largeur dans la visionneuse », qui affiche
     // sa largeur sans attendre le raffinement du tangage (passes suivantes) ; la page est avertie encore à la fin (final)
     if (linesPending && shown.silent && !shown.calage && (shown.linePasses || 0) >= 1 && !pose.pending
@@ -2224,7 +2250,8 @@ const Dessus = (() => {
     else if (withPosition() && shown.located === undefined && !shown.locating && !pose.pending) locate();  // la principale suffit
     else if (!busy() && withNeighbours() && !shown.estimated) measureHeight();
     else if (!busy() && withNeighbours() && layers.length > 1 && shown.joins?.key !== shown.joinKeyNow) alignJoins();
-    else if (!progress && !pose.pending) {  // plus rien en cours : calage fait (ok : inclinaison de la photo connue, route ou verticales)
+    else if (!progress && !pose.pending) {  // plus rien en cours : vue finie, avec ses raffinements (coche de l'attente)
+      stopWait(shown, "ok");  // coche de l'attente ; calage fait (ok : inclinaison de la photo connue, route ou verticales)
       shown.calage = { ok: Boolean(layers[0].pose.groundTilt || layers[0].pose.up) };
       calageListener?.(shown.pic, shown.calage.ok, true);
     }
@@ -2455,6 +2482,7 @@ const Dessus = (() => {
     if (noCache && photo && shown?.pic !== photo.id) clearCache();  // autre photo, ou la même remontrée : tout refait
     cancelStart();  // départ pris sur l'ancienne image
     if (!photo) {
+      stopWait(shown);  // calculs interrompus : l'attente aussi
       abort?.abort();
       removeImage();
       if (shown?.panos.has(shown.pic)) {  // photo et terrain lus
@@ -2476,6 +2504,7 @@ const Dessus = (() => {
       const unveiled = shown.silent && !silent;  // Bird Eye allumée sur une photo déjà calée sans affichage : image à poser
       const deckChanged = onLidar(shown) && JSON.stringify(pose.deck || []) !== JSON.stringify(shown.pose.deck || []);
       Object.assign(shown, { key, pose, features, silent });
+      if (silent) stopWait(shown);  // calage seul : plus de vue sur la carte
       if (deckChanged) {  // emprise d'un pont arrivée après le terrain : terrain relu (grille brute en mémoire), vue refaite dessus
         const mine = shown;
         readTerrain(pose, abort.signal).catch(() => null).then((terrain) => {
@@ -2525,7 +2554,11 @@ const Dessus = (() => {
         if (shown === mine && mine.panos.has(mine.pic) && LEAN * lateral >= 0.1) showImage();
       });
     }
-    if (!silent) say("Lecture de la photo et du terrain…");
+    if (!silent) {
+      say("Lecture de la photo et du terrain…");
+      wait(mine);
+      mine.attente?.etape("lecture de la photo et du terrain");
+    }
     try {
       const tiles = Video.record(photo, { coords: photo.geometry.coordinates }).tiles;
       const pre = prefetched?.pic === photo.id ? prefetched : null;  // panorama lu à l'avance
@@ -2552,6 +2585,7 @@ const Dessus = (() => {
       if (!signal.aborted) {
         console.error(error);
         say(`Bird Eye impossible : ${error.message}`);
+        stopWait(mine, `Bird Eye impossible : ${error.message}`, true);
         mine.calage = { ok: false };
         calageListener?.(mine.pic, false, true);
       }

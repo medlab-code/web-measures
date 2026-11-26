@@ -873,6 +873,19 @@ les marches aux raccords, et accorde leur luminosité à celle de la photo affic
 quand ses lignes s'en écartent de plus de 30 cm en travers : le GPS est alors suspecté avant l'orthophoto. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Construction de
 la vue et recalages : `docs/BIRDEYE.md` ; chiffres des essais : `docs/CALCULS.md`.
 
+**Animations d'attente sur la carte** (petite, en grand ou détachée : toujours au centre de la carte qui montre le résultat, même
+dessin que dans la visionneuse : pastille avec l'icône de l'action, ondes jaunes, message et étape, coche verte à la fin, croix
+rouge et message en cas d'échec ; rien n'est montré si l'action dure moins de 0,3 s) : « Vue du dessus… » (icône faucon) à
+l'ouverture de Bird Eye et pour chaque réglage qui refait un calcul visible (« Tangage… », « Roulis… », « Position… »,
+« Véhicule masqué… », « Haute résolution… »…), avec l'étape en cours (lecture de la photo et du terrain, tangage, hauteur de
+caméra, photos voisines, raccords, position, contour du véhicule), coche quand la vue est finie avec ses raffinements, croix
+« Bird Eye impossible : … » sinon (la barre de messages en bas de la carte reste le bilan) ; « Export GeoTIFF… » (icône du
+bouton) ; « Capture de la carte… » (icône appareil photo ; un échec est aussi annoncé par un message) ; « Recherche du PR… »
+(borne de PR ; croix « PR … introuvable ») et « Recherche du lieu… » (loupe ; pour une commune, le temps de son contour ; croix si
+le contour manque, la carte restant sur le lieu), pas pendant la frappe des suggestions ; « Lecture de la couche… » (icône de
+couches ; croix avec le message d'échec) ; « Préparation de la vidéo… » (caméra vidéo, sur la mini-carte du parcours : itinéraire,
+photos, tronçon k / n, PR des photos, croisements ; le calcul de la vidéo garde sa barre de progression).
+
 ## Précision
 
 **État de la validation (05/11/2026)** : les mesures de hauteur sont validées sur des objets connus. Les retours
