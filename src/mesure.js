@@ -248,7 +248,8 @@ const Mesure = {
           return false;
         }
       })();
-      $("#vignette").disabled = !etat.photo || !(measureShown || parcel || Traits.hasExtra() || markIds.some((id) => id.startsWith(`${MARK}couche-`)));
+      $("#vignette").disabled = $("#vignette").dataset.etat === "en-cours"  // capture en cours : pas relançable (fiche.js)
+        || !etat.photo || !(measureShown || parcel || Traits.hasExtra() || markIds.some((id) => id.startsWith(`${MARK}couche-`)));
     }
 
     document.addEventListener("annotations-changed", updateAnnotationsButton);  // largeur dans la visionneuse tracée ou retirée

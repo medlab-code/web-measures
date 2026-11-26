@@ -10,8 +10,75 @@ const Fiche = (() => {
   const { sequenceApis } = Services;
 
   // Captures ----------------------------------------------------------------------------------
+  // Chaque export (suivi par run) travaille sur ses propres copies : paramètres de la photo, image téléchargée, localisation et
+  // vue relues au clic, fichier choisi avant le calcul. Fermer la visionneuse ou changer de photo ne le casse donc pas : il va
+  // à son terme tout seul. Seule la fermeture de l'onglet l'interromprait : le navigateur demande alors confirmation.
 
-  $("#capture-hd").addEventListener("click", async () => {
+  const CAPTURE_DONE_MS = 1500, CAPTURE_FAIL_MS = 5000;  // durée de la coche, de la croix d'échec sur le bouton
+  let running = 0;  // exports en cours (les deux boutons)
+  const timers = new Map();  // bouton -> minuterie de retour à l'état normal
+
+  window.addEventListener("beforeunload", (event) => {
+    if (!running) return;
+    event.preventDefault();  // capture en cours : l'onglet ne se ferme pas sans confirmation
+    event.returnValue = "";
+  });
+
+  /** « Image seule » : actif avec une photo ouverte et le calcul en arrière-plan prêt, sauf export en cours. */
+  function updateCaptureButton() {
+    const button = $("#capture-hd");
+    button.disabled = button.dataset.etat === "en-cours" || !host?.photo || !Calcul.hasWorker();
+  }
+  document.addEventListener("calcul-worker", updateCaptureButton);  // calcul prêt après l'ouverture de la photo : bouton réveillé
+
+  /** Suit un export sur son bouton : « en cours » (icône qui pulse, infobulle, non relançable), puis coche (CAPTURE_DONE_MS) en cas
+   * de réussite, croix et message en cas d'échec. task rend le nom du fichier écrit, ou null si l'utilisateur renonce (rien à
+   * signaler) ; refresh recalcule l'état grisé du bouton une fois fini. */
+  async function run(button, label, task, refresh) {
+    if (button.dataset.etat === "en-cours") return;
+    clearTimeout(timers.get(button));
+    const title = button.dataset.titre ?? button.title;
+    button.dataset.titre = title;
+    button.dataset.etat = "en-cours";
+    button.disabled = true;
+    button.title = "Capture en cours…";
+    button.setAttribute("aria-busy", "true");
+    running++;
+    let etat = "", message = "";
+    try {
+      const file = await task();
+      if (file) {
+        etat = "fait";
+        message = `Capture « ${label} » enregistrée : ${file}`;
+        host.setStatus(message);
+        host.noticeInFullscreen(message);
+      }
+    } catch (error) {
+      console.warn(`Capture « ${label} » :`, error);
+      etat = "echec";
+      message = `Capture « ${label} » impossible : ${error.message}`;
+      host.setStatus(message, "echec");
+      host.notice(message);  // visible sur la visionneuse même si la ligne d'état est repliée
+    } finally {
+      running--;
+      button.removeAttribute("aria-busy");
+      button.dataset.etat = etat;
+      if (!etat) delete button.dataset.etat;
+      button.title = etat ? message : title;
+      refresh();
+      if (etat) {
+        timers.set(button, setTimeout(() => {
+          delete button.dataset.etat;
+          button.title = title;
+          delete button.dataset.titre;
+        }, etat === "fait" ? CAPTURE_DONE_MS : CAPTURE_FAIL_MS));
+      } else {
+        delete button.dataset.titre;
+      }
+    }
+  }
+
+  $("#capture-hd").addEventListener("click", () => {
     if (!host.app || !host.psv) return;
     const { yaw, pitch } = host.psv.getPosition();
     const text = host.app.capture_args(yaw, pitch, host.viewFov(true));
@@ -19,14 +86,10 @@ const Fiche = (() => {
       host.setStatus("Pas de photo HD pour cette photo : capture impossible.");
       return;
     }
-    const params = JSON.parse(text);
-    const save = await host.saveAs(`${params.name}.jpg`, "image/jpeg");  // au clic, avant la capture (longue)
-    if (!save) return;
-    const button = $("#capture-hd");
-    button.disabled = true;
-    const title = button.title;
-    button.title = "Capture en cours…";
-    try {
+    const params = JSON.parse(text), place = placeText();  // localisation lue maintenant : la visionneuse peut être fermée ensuite
+    run($("#capture-hd"), "Image seule", async () => {
+      const save = await host.saveAs(`${params.name}.jpg`, "image/jpeg");  // au clic, avant la capture (longue)
+      if (!save) return null;
       const response = await fetch(params.href);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const jpeg = await Calcul.capture(params, new Uint8Array(await response.arrayBuffer()));
@@ -39,37 +102,33 @@ const Fiche = (() => {
       const ctx = canvas.getContext("2d");
       ctx.drawImage(image, 0, 0);
       await fontReady();
-      drawCartouches(ctx, canvas, Math.max(14, Math.round(canvas.height / 54)), params.caption, placeText());
-      await save(await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92)));
-    } catch (error) {
-      host.setStatus(`Capture « Image seule » impossible : ${error.message}`, "echec");
-    } finally {
-      button.disabled = !host.photo || !Calcul.hasWorker();  // photo fermée pendant la capture : reste inactif
-      button.title = title;
-    }
+      drawCartouches(ctx, canvas, Math.max(14, Math.round(canvas.height / 54)), params.caption, place);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+      if (!blob) throw new Error("image non encodée");
+      await save(blob);
+      return save.fileName;
+    }, updateCaptureButton);
   });
 
-  $("#vignette").addEventListener("click", async () => {
+  $("#vignette").addEventListener("click", () => {
     if (!host.psv) return;
-    try {
-      const date = (host.photo?.properties?.datetime || "").replace(/[^0-9]/g, "").slice(0, 8) || "sansdate";
-      const save = await host.saveAs(`panoramax_vignette_${date}_${(host.photo?.id || "").slice(0, 8)}.png`, "image/png");
-      if (!save) return;
+    const date = (host.photo?.properties?.datetime || "").replace(/[^0-9]/g, "").slice(0, 8) || "sansdate";
+    const name = `panoramax_vignette_${date}_${(host.photo?.id || "").slice(0, 8)}.png`;
+    run($("#vignette"), "Avec annotations", async () => {
       await fontReady();
-      const canvas = thumbnail();
+      const canvas = thumbnail();  // la vue au clic, avant la boîte « Enregistrer sous » : fermer la visionneuse ensuite est sans effet
+      const save = await host.saveAs(name, "image/png");
+      if (!save) return null;
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("image non encodée");
       await save(blob);
       try {
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-        host.setStatus("Vignette enregistrée et copiée dans le presse-papiers.");
-        host.noticeInFullscreen("Vignette enregistrée et copiée dans le presse-papiers.");
+        return `${save.fileName} (copiée dans le presse-papiers)`;
       } catch {
-        host.setStatus("Vignette enregistrée (copie dans le presse-papiers refusée par le navigateur).");
-        host.noticeInFullscreen("Vignette enregistrée (copie dans le presse-papiers refusée par le navigateur).");
+        return `${save.fileName} (copie dans le presse-papiers refusée par le navigateur)`;
       }
-    } catch (error) {
-      host.setStatus(`Capture « Avec annotations » impossible : ${error.message}`, "echec");
-    }
+    }, () => document.dispatchEvent(new Event("annotations-changed")));
   });
 
   // Fiche PDF d'un point de référence ---------------------------------------------------------
@@ -813,6 +872,6 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
   return {
     /** Branche l'objet sur la page : host donne l'état courant (photo, visionneuse…) et ses fonctions. */
     init: (page) => { host = page; },
-    askFiche, buildFiche, paginateFiche, photoAtOffset, thumbnail, FICHE_FONTS,
+    askFiche, buildFiche, paginateFiche, photoAtOffset, thumbnail, FICHE_FONTS, updateCaptureButton,
   };
 })();

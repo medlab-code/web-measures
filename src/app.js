@@ -1202,7 +1202,7 @@
   Fiche.init({
     get app() { return etat.app; }, get photo() { return etat.photo; }, get psv() { return etat.psv; },
     get overlay() { return etat.overlay; },
-    map, mapBox, setStatus, noticeInFullscreen, escapeHtml, placeMarkup, saveAs, viewFov, viewHeading, frameView,
+    map, mapBox, setStatus, notice, noticeInFullscreen, escapeHtml, placeMarkup, saveAs, viewFov, viewHeading, frameView,
     showOverViewer, openPhotoReady, loadRanks, overlayObjectName, overlayFicheData, overlayHiddenTest, overlayEnds,
     overlayPoints, saveOverlay,
   });

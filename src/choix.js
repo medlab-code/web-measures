@@ -572,7 +572,7 @@ const Choix = {
       }
       lastPhotoAt = now;
       showPhotoInfo(feature);
-      $("#capture-hd").disabled = !Calcul.hasWorker();  // « Avec annotations » : selon les annotations (updateAnnotationsButton)
+      Fiche.updateCaptureButton();  // « Avec annotations » : selon les annotations (updateAnnotationsButton)
       $("#plein-ecran").disabled = !document.fullscreenEnabled;
       if (etat.app) refresh(etat.app.set_picture(JSON.stringify(feature)));
       nez.update();  // largeur dans la visionneuse : bouton selon la photo 360°, droite refaite

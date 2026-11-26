@@ -142,6 +142,7 @@ const Calcul = (() => {
       console.error(error);
       worker = null;
     }
+    document.dispatchEvent(new Event("calcul-worker"));  // « Image seule » : le bouton se recalcule (photo ouverte avant)
     install(pyodide, PY_SOURCES);
     await pyodide.pyimport("web_host").load_geoid();
     const webApp = pyodide.pyimport("web_app");

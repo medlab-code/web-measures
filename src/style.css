@@ -1073,6 +1073,16 @@ html.souris-immobile:fullscreen :is(#captures-visionneuse, #voyants, .bas-vue):n
 #reglage-image button:not(:disabled), #captures-visionneuse button:not(:disabled) { cursor: pointer; }
 #reglage-image button:not(:disabled):hover, #captures-visionneuse button:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }
 #reglage-image button:disabled, #captures-visionneuse button:disabled { opacity: 0.6; }
+/* Captures : en cours (icône qui pulse, bouton non relançable), faite (coche brève), échec (croix rouge) ; les deux icônes d'état ne servent que là */
+#captures-visionneuse .coche, #captures-visionneuse .croix { display: none; }
+#captures-visionneuse button[data-etat="fait"] > svg:not(.coche), #captures-visionneuse button[data-etat="echec"] > svg:not(.croix),
+#captures-visionneuse button[data-etat="en-cours"] > :is(.coche, .croix) { display: none; }
+#captures-visionneuse button[data-etat="fait"] > .coche { display: block; color: #6fdc8c; }
+#captures-visionneuse button[data-etat="echec"] > .croix { display: block; color: #ff6b6b; }
+#captures-visionneuse button[data-etat="en-cours"]:disabled { opacity: 1; cursor: progress; }
+#captures-visionneuse button[data-etat="en-cours"] > svg { animation: capture-en-cours 1s ease-in-out infinite; }
+@keyframes capture-en-cours { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.85); } }
+@media (prefers-reduced-motion: reduce) { #captures-visionneuse button[data-etat="en-cours"] > svg { animation: none; opacity: 0.5; } }
 #captures-visionneuse #plein-ecran[aria-pressed="true"], #reglage-image button[aria-pressed="true"] { background: rgba(255, 214, 0, 0.3); color: #ffd600; }  /* outil de mesure de la visionneuse actif */
 /* Haut à droite de la visionneuse (#voyants est dessous) : les captures et le plein écran, puis le filigrane de version dessous, dans un même flux */
 #haut-droite-vue { position: absolute; right: calc(0.8rem * var(--echelle-ui, 1)); top: calc(0.6rem * var(--echelle-ui, 1)); z-index: 5; display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; }

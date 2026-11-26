@@ -803,7 +803,11 @@ pas utilisé (talus et murs pris pour la route).
 - captures, deux boutons en forme d'appareil photo en haut à droite de la visionneuse, à gauche du plein écran (« Image seule » : appareil photo ;
   « Avec annotations » : appareil photo marqué d'une mesure) : vue recalculée en Full HD depuis la photo originale, ou visionneuse avec ses
   annotations (« Avec annotations » : mesures, largeur dans la visionneuse (droite, repères et valeur), étiquette de la parcelle visée, objets de la couche ;
-  PNG, copiée dans le presse-papiers), active dès qu'une annotation est affichée ;
+  PNG, copiée dans le presse-papiers), active dès qu'une annotation est affichée. « Image seule » est active dès qu'une photo est ouverte et que le calcul
+  en arrière-plan est prêt (un moment après le chargement de la page). Pendant l'export, le bouton pulse (infobulle « Capture en cours… ») et ne peut pas
+  être relancé ; à la fin, une coche verte s'affiche 1,5 s et la ligne d'état donne le fichier écrit ; en cas d'échec, croix rouge, message sur la
+  visionneuse et dans la ligne d'état. L'export garde ses propres copies (photo, vue, localisation relues au clic) : fermer la visionneuse ou changer
+  de photo ne le gêne pas ; fermer l'onglet pendant l'export demande confirmation ;
 - liste des résultats avec commentaire et effacement de chacun ; **export CSV**
   (point-virgule, virgule décimale) et **GeoJSON** : valeur, incertitude, composantes,
   distance à la photo, hauteur de caméra, axe de la route, photos, date, commentaire, photo
