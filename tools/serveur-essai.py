@@ -31,7 +31,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         text = self.rfile.read(int(self.headers.get("Content-Length", 0))).decode("utf-8")
         print(text, flush=True)
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")  # page d'essai ouverte en file://
         self.end_headers()
         if text.strip() == "FIN" or text.startswith("ERREUR"):
             threading.Thread(target=self.server.shutdown).start()

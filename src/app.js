@@ -152,7 +152,7 @@
   // (LiDAR HD, RGE ALTI), communes (WFS). Gardées d'une session à l'autre (Cache API), resservies sans requête
   // pendant CACHE_LIFE (réponse vide : CACHE_EMPTY_LIFE, le LiDAR HD se publie peu à peu), et au-delà
   // quand le service ne répond pas ou refuse. Ni Panoramax (nouvelles photos), ni la recherche de lieux,
-  // ni les fonds de carte (cache HTTP du navigateur). Cache API absente (file://) : requêtes directes.
+  // ni les fonds de carte (cache HTTP du navigateur). Cache API absente (navigateur ancien, navigation privée) : requêtes directes.
   const GEO_CACHE = "web-measures-geo";
   const CACHED_SERVICES = ["data.geopf.fr/wfs", "data.geopf.fr/altimetrie"];
   const CACHE_LIFE = 90 * 86400e3;  // ms : mises à jour trimestrielles de la BD TOPO

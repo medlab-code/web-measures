@@ -16,10 +16,16 @@ attentes de condition (essai complet : environ 7 → 5 min), parcours de mesure 
 - Français partout : interface, messages, commentaires, documentation, messages de commit.
   Typographie française (« », espace avant `:`, `;`, `?`).
 - En-tête SPDX dans chaque fichier (`GPL-2.0-or-later`, © Cédric COCHART).
-- Site statique : HTML, CSS, JavaScript, sans étape de compilation. La page doit s'ouvrir
-  par double-clic (`file://`) : scripts ordinaires (pas de modules ES, chaque fichier expose
-  un objet : `Carte`, `Services`, `Calcul`), pas de `fetch` de fichiers locaux. Bibliothèques
-  par CDN (jsDelivr), versions épinglées.
+- Site statique : HTML, CSS, JavaScript, sans étape de compilation. Il n'est servi que par un
+  serveur web (Cloudflare, ou `tools/serveur-essai.py` en local), jamais ouvert par double-clic
+  (`file://`, ticket #62). Scripts ordinaires qui exposent chacun un objet (`Carte`, `Services`,
+  `Calcul`) : le passage aux modules ES fera un ticket à part, plus tard. Sources Python lues par `fetch`
+  (liste `PY_FILES` de `src/calcul.js`, vérifiée par un test : tout fichier ajouté sous `py/` s'y
+  ajoute) ; Web Worker de calcul : `src/worker-calcul.js`. Bibliothèques par CDN (jsDelivr),
+  versions épinglées.
+- Cache : `tools/construire.sh` ajoute `?v=<commit>` aux `<script src="src/…">` et `<link href="src/…">`
+  d'`index.html` et remplit la balise `version-fichiers`, que `src/calcul.js` ajoute aux fichiers Python et
+  au worker ; en local, pas de `?v=`. Pas pour `mobile.html`, figée.
 - Services appelés depuis le navigateur : ils doivent renvoyer les en-têtes CORS (la page
   d'accueil les vérifie). OpenTopoData, qui ne les renvoie pas, a été retiré (ticket #1).
 - Cœur de calcul (`py/core/`, repris du plugin) : ses tests sont dans `tests/coeur/` (scènes
@@ -73,11 +79,6 @@ attentes de condition (essai complet : environ 7 → 5 min), parcours de mesure 
   pont, inclinaison…), mettre à jour dans le même changement les commentaires du code qui la
   décrivent (docstrings, constantes, infobulles, messages), sa description dans `docs/GUIDE.md`
   (« Utilisation », « Précision ») et dans `docs/CALCULS.md`.
-- Après toute modification d'un fichier Python sous `py/`, relancer `tools/sources.sh` : il
-  régénère `py/sources.js` (seul chargé par la page).
-- Essai en `file://` : l'iframe de
-  `tests/navigateur.html` n'y est pas accessible (origines distinctes), essayer sur une
-  copie de `index.html` qui embarque le script d'essai.
 
 ## Git
 

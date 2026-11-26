@@ -252,7 +252,7 @@ const Favoris = {
     showFavorites();
 
     /** Copie text dans le presse-papiers ; le bouton affiche « ✔ Copié » un instant. Repli sur
-     * une sélection copiée quand le navigateur refuse l'accès au presse-papiers (page en file://). */
+     * une sélection copiée quand le navigateur refuse l'accès au presse-papiers (page hors contexte sécurisé, par exemple en http:// hors localhost). */
     async function copyText(text, button) {
       let done = false;
       try {

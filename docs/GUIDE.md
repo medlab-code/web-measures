@@ -843,8 +843,11 @@ premier chargement, puis en cache) ; les calculs lourds (inclinaison automatique
 Full HD) tournent dans un second Pyodide en arrière-plan. La page vérifie aussi l'accès aux
 services depuis le poste (bouton « Services » en bas du panneau).
 
-Pour s'ouvrir en `file://`, la page n'utilise pas de modules JavaScript ni de lecture de
-fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/sources.js`.
+La page n'est servie que par un serveur web (Cloudflare, ou `tools/serveur-essai.py` en local), jamais
+ouverte par double-clic. Scripts ordinaires (pas de modules JavaScript) ; les fichiers Python sont lus par
+`fetch` (liste dans `src/calcul.js`, vérifiée par un test) pendant le chargement de Pyodide. En ligne, les
+fichiers du site portent `?v=<commit>` dans leur adresse : un visiteur ne mêle pas d'anciens fichiers
+(cache) aux nouveaux.
 
 ### Mesure sur la carte : longueur et surface (essai, branche `birdeye`)
 
@@ -1021,7 +1024,8 @@ Avec un GPS grand public
 | `src/carte.js` | carte MapLibre : fonds, filaire, points de repère (PR), mesures, étiquettes, poignées, photo la plus proche |
 | `src/traits.js` | surcouche des mesures dans la visionneuse, en WebGL : traits, croix, réticule glissant, étiquettes des mesures et noms des points (la couche importée reste en repères HTML) |
 | `src/attente.js`, `src/attente.css` | animation d'attente au centre d'une zone (visionneuse ou carte) : pastille avec l'icône de l'action, ondes, message et étape, coche ou croix à la fin |
-| `src/calcul.js` | chargement de Pyodide (page et arrière-plan) et des fichiers Python (`py/sources.js`) |
+| `src/calcul.js` | chargement de Pyodide (page) et des fichiers Python (`fetch`, liste `PY_FILES`) |
+| `src/worker-calcul.js` | Web Worker du Pyodide d'arrière-plan (module) |
 | `src/services.js` | vérification de l'accès aux services |
 | `src/recherche.js` | recherche de lieux sur la carte (commune, lieu-dit, voie, adresse) |
 | `src/requeteur.js` | requêteur route + PR (+ distance) : routes du département affiché, côté droit par défaut |
@@ -1034,7 +1038,6 @@ Avec un GPS grand public
 | `py/web_worker.py` | calculs lourds dans le Pyodide d'arrière-plan |
 | `py/geoid.py` | altitude NGF (grille RAF20 de l'IGN) |
 | `py/core/` | cœur de calcul (repris du plugin) : triangulation, calage, précision, mesures |
-| `py/sources.js` | fichiers Python de `py/` regroupés pour la page (généré par `tools/sources.sh`) |
 | `tests/coeur/` | tests du cœur de calcul : scènes synthétiques à réponse connue (lancés avec `tests/test_calculs.py`) |
 | `tests/essai-cadastre.html` | cadastre sur la mini-carte (PNG dans le journal) |
 | `tests/essai-profil-pdf.html` | profil en travers en PDF : la feuille tient sur une page (sa page HTML dans le journal) |
@@ -1049,8 +1052,7 @@ Avec un GPS grand public
 | `tools/serveur-essai.py` | serveur des essais : sert le site et affiche leur journal |
 | `tools/essais.sh` | lanceur des essais (`rapide`, `birdeye`, `complet`, `video` ou pages) : durée et bilan par page |
 
-Après toute modification d'un fichier Python sous `py/` : `tools/sources.sh` (régénère
-`py/sources.js`). Tests sans navigateur : `python3 -m unittest discover -s tests`.
+Un fichier Python ajouté sous `py/` s'ajoute à `PY_FILES` (`src/calcul.js`) : un test le vérifie. Tests sans navigateur : `python3 -m unittest discover -s tests`.
 
 ## Choix
 
