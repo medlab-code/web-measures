@@ -101,13 +101,22 @@ const Recherche = (() => {
       const commune = r.kind === "municipality" || (r.poiType || []).includes("commune");
       map.flyTo({ center: [r.x, r.y], zoom, duration: FLIGHT });  // tout de suite, sans attendre le contour
       if (!commune) return;
-      // Commune : son contour tracé, puis la carte cadrée dessus quand il arrive
+      // Commune : son contour tracé, puis la carte cadrée dessus quand il arrive ; attente au centre de la carte (Attente) : coche à l'arrivée,
+      // croix et message visible si le contour manque (la carte reste sur le lieu). Pas d'animation pendant la frappe des suggestions.
+      const attente = Attente.start(map.getContainer(), { icone: Attente.icones.loupe, message: "Recherche du lieu…" });
       communeOutline(r.x, r.y).then((feature) => {
-        if (ticket !== chosen) return;  // autre lieu choisi entre-temps
+        if (ticket !== chosen) {  // autre lieu choisi entre-temps
+          attente.fin();
+          return;
+        }
         if (!feature) throw new Error("contour introuvable");
         outline?.setData({ type: "FeatureCollection", features: [feature] });
         map.fitBounds(bounds(feature.geometry), { padding: 30, duration: FLIGHT });
-      }).catch((error) => console.warn("Contour de la commune :", error));
+        attente.ok();
+      }).catch((error) => {
+        console.warn("Contour de la commune :", error);
+        attente.echec("Contour de la commune introuvable");
+      });
     }
 
     input.addEventListener("input", () => {

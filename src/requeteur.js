@@ -311,12 +311,17 @@ const Requeteur = (() => {
     });
     distanceInput.addEventListener("change", () => { if (pr) go(); });
 
+    // Attente au centre de la carte (Attente : coche à l'arrivée, croix et message en cas d'échec, visibles sur la carte)
     async function go() {
       // PR tapé sans passer par la liste : retenu s'il existe, signalé sinon
       const typed = prInput.value.trim();
+      const attente = typed ? Attente.start(map.getContainer(), { icone: Attente.icones.pr, message: "Recherche du PR…" }) : null;
       if (!pr || String(pr.n) !== typed) pr = await findPr(typed).catch(() => null);
       prInput.classList.toggle("inconnu", Boolean(typed) && !pr);
-      if (!pr) return;
+      if (!pr) {
+        attente?.echec(`PR ${typed} introuvable`);
+        return;
+      }
       const offset = Math.max(0, Math.round(Number(distanceInput.value) || 0));
       const ticket = ++going;
       let lonlat = pr.coords, heading = null;
@@ -325,8 +330,12 @@ const Requeteur = (() => {
         ({ lonlat, heading } = await locate(pr, offset));
       } catch (error) {
         console.warn("Requêteur, distance depuis le PR :", error);
+        attente?.echec("Distance depuis le PR introuvable : PR seul montré");
       }
-      if (ticket !== going) return;  // autre demande entre-temps
+      if (ticket !== going) {  // autre demande entre-temps
+        attente?.fin();
+        return;
+      }
       const label = `${route} PR ${pr.n} +${String(offset).padStart(4, "0")}`;
       marker?.remove();
       const element = document.createElement("div");
@@ -335,6 +344,7 @@ const Requeteur = (() => {
       marker = new maplibregl.Marker({ element }).setLngLat(lonlat).addTo(map);
       const apart = 111320 * Math.hypot((lonlat[0] - pr.coords[0]) * Math.cos(lonlat[1] * Math.PI / 180), lonlat[1] - pr.coords[1]);
       if (apart > 5) map.easeTo({ center: lonlat, zoom: Math.max(map.getZoom(), 18), duration: FLIGHT });  // point à la distance
+      attente?.ok();
       found(lonlat[0], lonlat[1], heading, NEAR_PR);
     }
 
