@@ -501,13 +501,13 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   hauteur apparente en moins sur 1,93 m.
 - **Inclinaison de la photo** (`Nez._nose_tilt`, qui lit `Calibration.tilt` : l'ordre unique des mesures et de la droite, § 1.3) :
   d'abord celle que **la vue du dessus** applique à cette photo quand elle la tire de
-  la route (`groundTilt` de `src/dessus.js` : pente de la route sous le véhicule, part du dévers prise en roulis, tangage lu sur les
+  la route (`groundTilt` de `src/dessus.js` : pente de la route sous le véhicule, part du dévers prise en roulis (70 %, plus un roulis réglé à la main en degrés), tangage lu sur les
   raccords ou les lignes, ou réglé à la main, roulis par défaut de la campagne 2025 ; `layerOf`, `groundUp`) : `src/dessus.js` l'annonce à
   la page à chaque image (`Dessus.onTilt`), `App.birdeye_tilt_set` la garde par photo (les 20 dernières), la droite est refaite
   quand elle change (même vue du dessus ouverte après la droite) **et les mesures déjà faites sur la photo sont recalculées**. Même convention que `Calibration.tilt` (verticale vraie vue de la
   caméra, `[est, nord, haut]`), sans conversion : mêmes signes, aucun roulis par défaut de la campagne 2025 ajouté en plus (déjà dedans). Incertitude :
   celle de la vue du dessus (route et virage, `LEAN`). Source « vue du dessus », ou « vue du dessus (réglée à la main) » si le tangage ou
-  la part du dévers l'est. Quand la vue du dessus lit les verticales de la photo, elle n'annonce rien et la suite
+  le roulis l'est. Quand la vue du dessus lit les verticales de la photo, elle n'annonce rien et la suite
   s'applique : calée à la main (« clics »), puis verticales calculées sur la photo HD, sinon pente et dévers du LiDAR, puis les verticales à seuil
   élargi (`birdeye_loose`, incertitude jusqu'à 0,5°, `web_tilt.LOOSE_SIGMA`, « verticales (seuil élargi) »), enfin le **roulis par défaut de la campagne 2025** seul
   (`ROLL_DEFECTS` : -1° pour le CD21 en 2025, comme verticale penchée, même signe que `groundUp` de `src/dessus.js` ; source « roulis de
@@ -934,7 +934,7 @@ peinture retrouvés à moins de 4 cm, aussi sous le véhicule et par-delà le ra
 Sans verticale à lire (rase campagne), l'inclinaison vient de la route : le véhicule est supposé posé sur le
 plan ajusté au MNT sur ±2,5 m en long et ±1,5 m en travers. L'A38 penche d'environ 2,5 % en travers et 1,2 %
 en long, ce qui expliquait l'écart entre tirets devant et derrière. Les verticales gardent la priorité.
-Le roulis ne suit qu'une part du dévers (option d'essai « Roulis », 70 % par défaut) : sur la RD 1074
+Le roulis ne suit qu'une part du dévers (70 %, fixe ; l'option d'essai « Roulis » y ajoute un roulis en degrés, ±2°, 0° par défaut, positif : penché à droite, côté droit plus bas ; `groundUp` compte positif vers la gauche, d'où `gs = 0,7 × dévers + tan(défaut de campagne − réglage)`) : sur la RD 1074
 (`81049c82-2ea6-481f-b0d0-a6a1864e5ea0`, véhicule dans la voie de droite), l'écart entre lignes de rive vaut 6,37 m sans roulis et 6,90 m
 avec tout le dévers, pour 6,58 m sur l'orthophoto (environ 40 % du dévers) ; sur l'A38, environ 75 %. Le roulis
 déplace surtout la ligne la plus éloignée de la caméra, d'où l'impression d'un milieu étiré. Le tangage suit la

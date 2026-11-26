@@ -132,8 +132,9 @@ fixation peut être un peu de travers.
    b47b4351 : roulis de 3,0° contre 0,95° par la route, bord extérieur à 8 m ramené de 1,3 m. Une photo déjà
    analysée lors d'une séance précédente (calage gardé) est réanalysée une fois pour cela.
 2. **Sinon, la route** : le véhicule est supposé posé sur le plan ajusté au MNT sous lui (`groundUp`). Le tangage suit
-   la pente entière ; le roulis ne suit qu'une part du dévers, réglable (« Roulis », 70 % par défaut : environ 40 %
-   sur la RD 1074, 75 à 100 % sur l'A38). Le tangage ajoute le défaut de fixation de la caméra (−0,4 à +0,6° selon
+   la pente entière ; le roulis ne suit qu'une part du dévers, fixée à 70 % (environ 40 %
+   sur la RD 1074, 75 à 100 % sur l'A38), à quoi s'ajoute un roulis réglable à la main (« Roulis », en degrés, de −2 à +2°,
+   0° par défaut, comme le tangage ; positif : penché à droite, côté droit plus bas ; le signe est inversé à l'entrée de `groundUp`, dont la convention est l'inverse). Le tangage ajoute le défaut de fixation de la caméra (−0,4 à +0,6° selon
    les séquences). Le roulis ajoute le **roulis par défaut de la campagne 2025** (`App.ROLL_DEFECTS`, `py/web_pose.py`, par
    producteur et période de prise de vue) : CD21, campagne 2025, −1°. Mesuré le 13/11/2026 sur 25 passages piétons
    (`tests/passages-pietons.js`) : bandes de 0,50 m dans la vue calée par la route puis par les verticales ; une erreur
@@ -332,7 +333,7 @@ mesure à cheval sur deux photos, au moins l'écart mesuré à leurs raccords (a
 
 ## 6. Session et réglages gardés
 
-- Dans le navigateur : roulis et tangage réglés à la main, par séquence (`web-measures/dessus-reglages`), tangage lu sur
+- Dans le navigateur : roulis et tangage réglés à la main (en degrés), par séquence (`web-measures/dessus-reglages`, clé `rollDeg` ; l'ancienne clé `roll`, en part du dévers, est ignorée), tangage lu sur
   les raccords, par photo (`web-measures/dessus-tangages`), hauteurs vérifiées par séquence
   (`web-measures/dessus-hauteurs`).
 - Dans la session : Bird Eye éteinte puis rallumée sur la même photo revient sans rien refaire ; pour les photos déjà
