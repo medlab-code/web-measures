@@ -7,6 +7,12 @@
 // précédente et suivante couvrent le sol caché par le véhicule. Seuls les points réellement au sol
 // sont à leur place : poteaux et autres objets s'étalent.
 
+import { Attente } from "./attente.js";
+import { Lieu } from "./lieu.js";
+import { Nuage } from "./nuage.js";
+import { Services } from "./services.js";
+import { Video } from "./video.js";
+
 // Convention du roulis du véhicule, dans tout ce fichier et dans le code qui lui parle (py/web_pose.py : ROLL_DEFECTS, pose.roll_defect) :
 // positif = véhicule penché à DROITE (côté droit plus bas, vu dans le sens de la marche), négatif = à gauche. Le cœur de calcul
 // (py/core/calibration.py, repris du plugin QGIS) a la convention inverse ; elle est changée en un seul endroit, côté Python
@@ -2630,3 +2636,5 @@ const Dessus = (() => {
     render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, linesPitch, REACH, SIZE,
   };
 })();
+
+export { Dessus };

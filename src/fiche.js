@@ -4,6 +4,15 @@
 // Captures de la visionneuse (« Image seule », « Avec annotations ») et fiches PDF des points de référence et des
 // objets de la couche, sortis de la page (app.js) : état et fonctions de la page lus par Fiche.init.
 
+import { Attente } from "./attente.js";
+import { Calcul } from "./calcul.js";
+import { Carte } from "./carte.js";
+import { Couche } from "./couche.js";
+import { Lieu } from "./lieu.js";
+import { Services } from "./services.js";
+import { Traits } from "./traits.js";
+import { Vignette } from "./vignette.js";
+
 const Fiche = (() => {
   const $ = (selector) => document.querySelector(selector);
   let host = null;  // état et fonctions de la page (app.js), donnés par init : lus à chaque appel
@@ -862,3 +871,5 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
     askFiche, buildFiche, paginateFiche, photoAtOffset, thumbnail, FICHE_FONTS, updateCaptureButton,
   };
 })();
+
+export { Fiche };

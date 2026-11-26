@@ -205,3 +205,5 @@ const Disposition = {
     return { mapBox, grip, fold, setFolded, columnFold, setColumnFolded };
   },
 };
+
+export { Disposition };

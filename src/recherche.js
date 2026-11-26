@@ -4,6 +4,8 @@
 // Recherche de lieux sur la carte : commune, lieu-dit, voie ou adresse, par l'autocomplétion
 // du service de géocodage de la Géoplateforme (adresses de la BAN et toponymes de l'IGN).
 
+import { Attente } from "./attente.js";
+
 const Recherche = (() => {
   const COMPLETION = "https://data.geopf.fr/geocodage/completion";
   const WFS = "https://data.geopf.fr/wfs/ows";
@@ -168,3 +170,5 @@ const Recherche = (() => {
 
   return { attach, communeOutline };
 })();
+
+export { Recherche };

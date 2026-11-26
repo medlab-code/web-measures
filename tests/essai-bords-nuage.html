@@ -72,7 +72,7 @@ const IDS = LOTS[location.hash.replace("#lot=", "")] || [];
         out.texte = fall.text;
         out.profils = profile.profils.map((e) => ({ le_long: e.le_long, cote: e.cote, autre_axe: e.autre_axe, separateur: e.separateur,
           points: e.points }));
-        const found = await w.eval("Nuage").analyse(profile);
+        const found = await w.modules.Nuage.analyse(profile);
         out.nuage = { bords: Object.fromEntries(Object.entries(found.bords).map(([k, b]) => [k, b && { x: Math.abs(b.x), quoi: b.comment, bordure: !!b.bordure }])),
           largeur: found.largeur, separateur: found.separateur, requetes: found.requetes };
       } catch (e) { out.erreur = String(e); }

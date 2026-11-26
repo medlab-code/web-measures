@@ -646,3 +646,5 @@ const Nuage = (() => {
 
   return { analyse, toL93, tilesAround, pavedEdge, kerbEdge, brightRuns, grassRuns, dashedLines, stripTest, bridgeFall, useGeoCache };
 })();
+
+export { Nuage };

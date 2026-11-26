@@ -5,6 +5,10 @@
 // boutons posés sur la carte : mesure de longueur, vue Bird Eye, capture et export géoréférencé.
 // Sorti de la page (app.js) : Resultats.init s'exécute à la même place qu'avant.
 
+import { Attente } from "./attente.js";
+import { Carte } from "./carte.js";
+import { Dessus } from "./dessus.js";
+
 const Resultats = {
   /** Branche les résultats et les boutons de la carte sur la page ; host : etat (état partagé), fonctions de la
    * page, et noms déclarés plus bas (lus à chaque appel). Rend ce dont la page se sert ailleurs. */
@@ -480,3 +484,5 @@ const Resultats = {
     };
   },
 };
+
+export { Resultats };

@@ -5,6 +5,13 @@
 // étapes), effets posés sur la carte, point d'intérêt, parcours gardés, préparation et calcul de la vidéo.
 // Sorti de la page (app.js) : Parcours.init s'exécute à la même place qu'avant.
 
+import { Attente } from "./attente.js";
+import { Carte } from "./carte.js";
+import { Lieu } from "./lieu.js";
+import { Requeteur } from "./requeteur.js";
+import { Services } from "./services.js";
+import { Video } from "./video.js";
+
 const Parcours = {
   /** Branche la lecture et l'onglet « Vidéo » sur la page ; host : fonctions de la page, et son état courant
    * (psv, photo, app, measuring : lus à chaque appel). Rend ce dont la page se sert ailleurs. */
@@ -2001,3 +2008,5 @@ const Parcours = {
     };
   },
 };
+
+export { Parcours };

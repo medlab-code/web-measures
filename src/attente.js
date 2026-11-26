@@ -126,3 +126,5 @@ const Attente = (() => {
 
   return { start, icones };
 })();
+
+export { Attente };

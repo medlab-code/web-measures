@@ -5,6 +5,10 @@
 // identifiant, favoris gardés dans le navigateur (noms, liste, export et import).
 // Sorti de la page (app.js) : Favoris.init s'exécute à la même place qu'avant.
 
+import { Attente } from "./attente.js";
+import { Carte } from "./carte.js";
+import { Lieu } from "./lieu.js";
+
 const Favoris = {
   /** Branche la photo éloignée et les favoris sur la page ; host : etat (état partagé), fonctions de la page, et
    * noms déclarés plus bas (lus à chaque appel). Rend ce dont la page se sert ailleurs. */
@@ -277,3 +281,5 @@ const Favoris = {
     };
   },
 };
+
+export { Favoris };

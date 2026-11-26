@@ -4,6 +4,8 @@
 // Carte : fonds IGN, filaire Panoramax (même style que le plugin QGIS), mesures, visées,
 // curseur de vue, photo la plus proche d'un clic, filtre des photos, instance Panoramax.
 
+import { Couche } from "./couche.js";
+
 const Carte = (() => {
   const META_API = "https://api.panoramax.xyz/api";
   const GEOPF = "https://data.geopf.fr";
@@ -27,8 +29,8 @@ const Carte = (() => {
   const ATTRIBUTION_OFM = '<a href="https://openfreemap.org">OpenFreeMap</a> © <a href="https://www.openmaptiles.org">OpenMapTiles</a>, '
     + 'données © <a href="https://www.openstreetmap.org/copyright">les contributeurs d\'OpenStreetMap</a>';
   const BACKGROUNDS = ["plan", "ortho", "noms", "express", "mnt", "mns", "mnh", "ofm"];
-  // Fonds vectoriels (styles MapLibre publiés) : texte dessiné par le navigateur, net à toute résolution et agrandi
-  // à volonté (textScale de createMap). Textes dans les polices de l'IGN, seul serveur de polices de la carte
+  // Fonds vectoriels (styles MapLibre publiés) : texte dessiné par le navigateur, net à toute résolution.
+  // Textes dans les polices de l'IGN, seul serveur de polices de la carte
   // (OpenFreeMap : Noto Sans remplacée par Source Sans Pro) ; pictogrammes de chaque style préfixés de sa clé.
   const GLYPHS = "https://data.geopf.fr/annexes/ressources/vectorTiles/fonts/{fontstack}/{range}.pbf";
   const VECTOR_BASES = {
@@ -124,9 +126,8 @@ const Carte = (() => {
   const EMPTY = { type: "FeatureCollection", features: [] };
   const kind = (...kinds) => ["in", ["get", "kind"], ["literal", kinds]];
 
-  /** Options : vectorPlan, Plan IGN vectoriel au lieu de ses images (les deux pages) ; textScale, texte des fonds
-   * vectoriels agrandi. */
-  let mapOptions = { vectorPlan: false, textScale: 1 };
+  /** Option : vectorPlan, Plan IGN vectoriel au lieu de ses images. */
+  let mapOptions = { vectorPlan: false };
   // cadastre du Plan IGN vectoriel, jamais dessiné (celui du réglage « Cadastre » suffit) : parcelles, sections et leurs
   // numéros ; numéros d'adresse gardés
   const PLAN_PARCELS = ["parcellaire_parcelle", "parcellaire_section", "toponyme_parcellaire_parcelle", "toponyme_parcellaire_section"];
@@ -422,9 +423,9 @@ const Carte = (() => {
   }
 
   /** Carte MapLibre dans container ; center, zoom : vue de départ (par défaut la Côte-d'Or) ; rotation : faux pour une carte toujours orientée
-   * nord en haut (ni glisser du clic droit, ni deux doigts, ni clavier, ni boussole : l'application principale ). */
-  function createMap(container, { vectorPlan = false, textScale = 1, center = [5.04, 47.32], zoom = 9, rotation = true } = {}) {
-    mapOptions = { vectorPlan, textScale };
+   * nord en haut (ni glisser du clic droit, ni deux doigts, ni clavier, ni boussole : l'application principale). */
+  function createMap(container, { vectorPlan = false, center = [5.04, 47.32], zoom = 9, rotation = true } = {}) {
+    mapOptions = { vectorPlan };
     const map = new maplibregl.Map({
       container,
       attributionControl: false,  // ajouté replié ci-dessous
@@ -659,7 +660,7 @@ const Carte = (() => {
           const maxzoom = def.maxzoom && styleMax >= def.maxzoom ? undefined : styleMax;
           const layout = { ...layer.layout, visibility: shown() ? "visible" : "none" };
           if (layout["text-size"] != null || layer.type === "symbol")
-            layout["text-size"] = scaledSize(layout["text-size"] ?? 16, mapOptions.textScale);
+            layout["text-size"] ??= 16;
           if (Array.isArray(layout["text-font"]) && def.font)
             layout["text-font"] = layout["text-font"].map((f) => (typeof f === "string" ? def.font(f) : f));
           if (layout["icon-image"] != null) layout["icon-image"] = prefixed(layout["icon-image"]);
@@ -1806,3 +1807,5 @@ const Carte = (() => {
     capture, nearestPhoto, photosNear, photoById, randomPhoto, metresBetween,
   };
 })();
+
+export { Carte };

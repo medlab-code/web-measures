@@ -5,6 +5,9 @@
 // (chargement des photos, flèches, clics dans la photo, recalage des objets de la couche).
 // Sorti de la page (app.js) : Visionneuse.init s'exécute à la même place qu'avant.
 
+import { Carte } from "./carte.js";
+import { Traits } from "./traits.js";
+
 const Visionneuse = {
   /** Branche la visionneuse sur la page ; host : etat (état partagé), fonctions de la page, et noms déclarés plus
    * bas dans la page (lus à chaque appel). Rend ce dont la page se sert ailleurs. */
@@ -226,3 +229,5 @@ const Visionneuse = {
     };
   },
 };
+
+export { Visionneuse };

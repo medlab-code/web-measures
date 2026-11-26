@@ -12,7 +12,8 @@ const until = async (test, ms = 20000) => { const t0 = Date.now(); while (!test(
 (async () => {
   const frame = document.querySelector("#page");
   await new Promise((r) => { frame.onload = r; });
-  const Video = frame.contentWindow.eval("Video");  // const du script : pas une propriété de window
+  await until(() => frame.contentWindow.modules, 60000);  // window.modules : posé par src/app.js (module, différé)
+  const Video = frame.contentWindow.modules.Video;
   const doc = frame.contentDocument, buttons = () => [...doc.querySelectorAll("#video-formats button")];
   const selected = () => `${doc.querySelector("#video-codec").value}-${doc.querySelector("#video-definition").value}`;
   await log(navigator.userAgent);

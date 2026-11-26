@@ -5,10 +5,11 @@
      plus bas du terrain si son haut reste dans la moitié basse du cadre, sinon 0,3 m ; place libre en haut ; toujours assez
      de place sous la chaussée pour ses deux étiquettes (2,85 m à l'échelle de ces profils, 20,35 px/m).
      Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
-<script src="../src/profil.js"></script>
-<script src="../src/nuage.js"></script>
+<link rel="stylesheet" href="../src/style.css">
 <script src="commun.js"></script>
-<script>
+<script type="module">
+import { Profil } from "../src/profil.js";
+import { Nuage } from "../src/nuage.js";
 const { expect, fail, fin } = Essai;
 Essai.verbose = true;  // chaque contrôle journalisé, avec sa valeur
 // Un travers : plateforme plane de −3 à +3 m (z = 0), terrain de part et d'autre selon h(distance au bord), jusqu'à width m

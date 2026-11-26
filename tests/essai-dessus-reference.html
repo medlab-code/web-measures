@@ -78,7 +78,7 @@ async function open(id, enough = () => false) {
       await expect(`${name} : vue de la photo seule déposée`, Boolean(shown.blob()));
       continue;
     }
-    const { w, state } = shown, Dessus = w.eval("Dessus"), now = Dessus.layersNow(), [main, ...others] = now.layers, pose = main.pose;
+    const { w, state } = shown, Dessus = w.modules.Dessus, now = Dessus.layersNow(), [main, ...others] = now.layers, pose = main.pose;
     const h = pose.heading * Math.PI / 180, u = pose.up || [0, 0, 1];
     const forward = Math.atan2(u[0] * Math.sin(h) + u[1] * Math.cos(h), u[2]) * 180 / Math.PI;
     const right = Math.atan2(u[0] * Math.cos(h) - u[1] * Math.sin(h), u[2]) * 180 / Math.PI;
@@ -139,7 +139,7 @@ async function open(id, enough = () => false) {
     if (name === "ville") {
       const map = w.mesures.map, at = (e, n) => { const [lng, lat] = Dessus.toLonLat(e, n, pose); return { lng, lat }; };
       Dessus.addPoint(at(-3, 2));  // départ d'une longueur (point rouge, dessiné par la carte)
-      const blob = await w.eval("Carte").capture(map);
+      const blob = await w.modules.Carte.capture(map);
       await expect(`${name} : capture de la carte (vue, départ de mesure, échelle, sources)`, blob && blob.size > 10000, blob ? `${blob.size} octets` : "aucune");
       if (blob) await fetch(`/capture/carte-${name}.png`, { method: "POST", body: blob });
       Dessus.cancelStart();

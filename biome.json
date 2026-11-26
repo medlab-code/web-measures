@@ -1,24 +1,25 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.6.7/schema.json",
-  "files": { "includes": ["src/**", "tests/**", "index.html"] },
-  "formatter": { "enabled": false },
-  "assist": { "enabled": false },
+  "files": {
+    "includes": [
+      "src/**",
+      "tests/**",
+      "index.html"
+    ]
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "assist": {
+    "enabled": false
+  },
   "linter": {
     "rules": {
       "preset": "none",
       "correctness": {
         "preset": "recommended",
         "noUnusedFunctionParameters": "off",
-        "noUnusedVariables": {
-          "level": "warn",
-          "options": {
-            "ignore": {
-              "variable": ["Attente", "Calage", "Calcul", "Carte", "Choix", "Couche", "Dessus", "Disposition", "Essai", "Favoris", "Fiche", "Lieu",
-                "Mesure", "Nez", "Nuage", "Objets", "Parcours", "PassagesPietons", "Profil", "Recherche", "Reglages",
-                "Releve", "Requeteur", "Resultats", "Services", "Traits", "Video", "Vignette", "Visionneuse"]
-            }
-          }
-        }
+        "noUnusedVariables": "warn"
       },
       "suspicious": {
         "preset": "recommended",
@@ -28,5 +29,54 @@
         "useIterableCallbackReturn": "off"
       }
     }
-  }
+  },
+  "javascript": {
+    "globals": [
+      "maplibregl",
+      "loadPyodide",
+      "qrcode",
+      "shp",
+      "initSqlJs",
+      "createLazPerf",
+      "Mp4Muxer"
+    ]
+  },
+  "overrides": [
+    {
+      "includes": [
+        "src/**",
+        "tests/**"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUndeclaredVariables": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "tests/**"
+      ],
+      "javascript": {
+        "globals": [
+          "Essai",
+          "PassagesPietons"
+        ]
+      }
+    },
+    {
+      "includes": [
+        "tests/passages-pietons.js"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": "off"
+          }
+        }
+      }
+    }
+  ]
 }

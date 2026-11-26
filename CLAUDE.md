@@ -18,21 +18,24 @@ attentes de condition (essai complet : environ 7 → 5 min), parcours de mesure 
 - En-tête SPDX dans chaque fichier (`GPL-2.0-or-later`, © Cédric COCHART).
 - Site statique : HTML, CSS, JavaScript, sans étape de compilation. Il n'est servi que par un
   serveur web (Cloudflare, ou `tools/serveur-essai.py` en local), jamais ouvert par double-clic
-  (`file://`, ticket #62). Scripts ordinaires qui exposent chacun un objet (`Carte`, `Services`,
-  `Calcul`) : le passage aux modules ES fera un ticket à part, plus tard. Sources Python lues par `fetch`
+  (`file://`, ticket #62). Modules ES (`import` / `export { Carte };`), point d'entrée
+  `src/app.js` (seule balise `<script type="module">` d'`index.html`), plus d'objet global. `window.modules`
+  (posé par `src/app.js`) donne les objets (`Carte`, `Dessus`…) aux pages d'essai (`w.modules.Dessus`) et à la
+  console ; une page qui attend la page testée attend aussi `w.modules`. Une page d'essai qui charge des `src/*.js`
+  directement les importe dans un `<script type="module">`. Sources Python lues par `fetch`
   (liste `PY_FILES` de `src/calcul.js`, vérifiée par un test : tout fichier ajouté sous `py/` s'y
   ajoute) ; Web Worker de calcul : `src/worker-calcul.js`. Bibliothèques par CDN (jsDelivr),
   versions épinglées.
 - Version mobile retirée le 27/11/2026 (#65) ; à recréer peut-être quand le code sera stabilisé.
-- Cache : `tools/construire.sh` ajoute `?v=<commit>` aux `<script src="src/…">` et `<link href="src/…">`
-  d'`index.html` et remplit la balise `version-fichiers`, que `src/calcul.js` ajoute aux fichiers Python et
+- Cache : `tools/construire.sh` ajoute `?v=<commit>` au `<script type="module" src="src/app.js">` et aux `<link href="src/…">`
+  d'`index.html`, génère l'import map (`./src/x.js` → `./src/x.js?v=<commit>`, pour les `import` entre modules) et remplit la balise `version-fichiers`, que `src/calcul.js` ajoute aux fichiers Python et
   au worker ; en local, pas de `?v=`.
 - Services appelés depuis le navigateur : ils doivent renvoyer les en-têtes CORS (la page
   d'accueil les vérifie). OpenTopoData, qui ne les renvoie pas, a été retiré (ticket #1).
 - Cœur de calcul (`py/core/`, repris du plugin) : ses tests sont dans `tests/coeur/` (scènes
   synthétiques à réponse connue) ; tout correctif du cœur s'accompagne d'un test qui échoue sur
   l'ancien code.
-- Contrôle de syntaxe JavaScript : `gjs` ou `node --check` (Node 22 sur le poste, pour les outils
+- Contrôle de syntaxe JavaScript : `gjs`, ou `node --check` (`node --input-type=module --check < fichier` pour `src/`) (Node 22 sur le poste, pour les outils
   seulement : la page n'en dépend pas).
 - Outils installés : GDAL (`ogr2ogr`, `gdalinfo`), `pdal` (LiDAR `.laz`), `sqlite3`, Python
   `pyproj`, `shapely`, `rasterio` et `websockets` (pilotage de Chrome par son port de débogage),
@@ -43,7 +46,9 @@ attentes de condition (essai complet : environ 7 → 5 min), parcours de mesure 
   lues comme des phrases : beaucoup de faux accords, seulement pour relire un texte suspect).
 - `biome lint` à la racine : erreurs JavaScript, CSS et HTML de `src/`, `tests/` et `index.html`
   (`biome.json` : règles « correctness » et « suspicious » seulement, sans style ni mise en forme).
-  Un objet partagé entre scripts (`Carte`…) s'ajoute à la liste `ignore` de `noUnusedVariables`.
+  `noUndeclaredVariables` est actif sur `src/` et `tests/` : plus de liste `ignore` ; une
+  bibliothèque de CDN (`maplibregl`, `loadPyodide`…) s'ajoute à `javascript.globals`, les globaux des essais
+  (`Essai`, `PassagesPietons`) à l'override de `tests/**`.
 - Essai dans un vrai navigateur sans fenêtre : Google Chrome du paquet Fedora
   (`google-chrome`, plus de Flatpak), profil temporaire, lancé par `setsid` : à la fin,
   n'arrêter que ce Chrome-là (son groupe de processus, ou les processus portant son profil),

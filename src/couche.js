@@ -395,3 +395,5 @@ const Couche = (() => {
 
   return { read, readFiles, style, format, clair, CHOICES };
 })();
+
+export { Couche };

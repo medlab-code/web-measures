@@ -5,12 +5,10 @@
      de peinture à des positions connues, depuis trois caméras penchées chacune à sa façon, avec leur véhicule ; les traits
      doivent se retrouver à leur place, aussi sous le véhicule et d'une photo à l'autre. -->
 <div id="dessus-etat"></div>
-<script src="../src/attente.js"></script>
-<script src="../src/video.js"></script>
-<script src="../src/nuage.js"></script>
-<script src="../src/dessus.js"></script>
 <script src="commun.js"></script>
-<script>
+<script type="module">
+import { Dessus } from "../src/dessus.js";
+import { Nuage } from "../src/nuage.js";
 const { log, expect, fin } = Essai;
 Essai.verbose = true;  // chaque contrôle journalisé
 const toRad = Math.PI / 180;

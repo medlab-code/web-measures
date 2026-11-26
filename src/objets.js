@@ -6,6 +6,10 @@
 // réenregistrement ; import commun de tous les fichiers (bouton ou glisser-déposer), rangés selon leur contenu.
 // Lecture des fichiers : src/couche.js (Couche). Sorti de la page (app.js) : Objets.init s'exécute à la même place.
 
+import { Attente } from "./attente.js";
+import { Carte } from "./carte.js";
+import { Couche } from "./couche.js";
+
 const Objets = {
   /** Branche la couche importée et l'import commun sur la page ; host : etat (état partagé), fonctions de la page,
    * et noms déclarés plus bas (lus à chaque appel). Rend ce dont la page se sert ailleurs. */
@@ -774,3 +778,5 @@ const Objets = {
     };
   },
 };
+
+export { Objets };

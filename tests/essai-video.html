@@ -18,7 +18,7 @@
 <script src="commun.js"></script>
 <script>
 const { log, sleep, until, ready, expect, expectSoon, fin } = Essai;
-const chronos = () => { const c = document.getElementById("f").contentWindow.eval("Video").times; return c ? `chronos (s) : tuiles ${(c.tuiles / 1000).toFixed(1)}, dessin ${(c.dessin / 1000).toFixed(1)}, encodeur ${(c.encodeur / 1000).toFixed(1)}, total ${(c.total / 1000).toFixed(1)} pour ${c.images} images` : ""; };
+const chronos = () => { const c = document.getElementById("f").contentWindow.modules.Video.times; return c ? `chronos (s) : tuiles ${(c.tuiles / 1000).toFixed(1)}, dessin ${(c.dessin / 1000).toFixed(1)}, encodeur ${(c.encodeur / 1000).toFixed(1)}, total ${(c.total / 1000).toFixed(1)} pour ${c.images} images` : ""; };
 // Boîte d'enregistrement simulée : vrai fichier du stockage privé de la page (mp4-muxer refuse un faux flux d'écriture),
 // done(fichier) appelé à sa fermeture
 const savePicker = (w, done) => async (o) => {
@@ -62,7 +62,7 @@ const savePicker = (w, done) => async (o) => {
     // Parties : 1,1 km (rampe de vitesse, titre, compteur PR), D115D courte (vidéo calculée et enregistrée), carrefour
     // (changement de séquence, exposition) ; ancre #long ou #exposition : cette partie seule (mise au point, plus court)
     const only = location.hash.match(/#(long|exposition|planete|garder|tour|attente|stabilisation)/)?.[1];
-    const Video = w.eval("Video");
+    const Video = w.modules.Video;
     let select = doc.querySelector("#video-vitesse");
     let canvas = Object.assign(document.createElement("canvas"), { width: 960, height: 540 });
     let ctx = canvas.getContext("2d");

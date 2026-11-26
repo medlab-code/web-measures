@@ -23,6 +23,10 @@
 // plein format sur le seul carré de la loupe, au milieu de l'événement « render » de la visionneuse (sans cela, le tampon WebGL
 // est vidé et illisible), puis la vue normale est redessinée aussitôt.
 
+import { Attente } from "./attente.js";
+import { Carte } from "./carte.js";
+import { Traits } from "./traits.js";
+
 const Nez = {
   /** Place de la loupe, fonction pure (essais : Nez.placeLoupe). target {x, y} : point visé (px de la visionneuse) ; size {w, h} : encombrement de
    * la loupe (pastille et légende) ; bounds {w, h} : visionneuse ; obstacles [{left, top, right, bottom}] : poignée de l'autre bord, étiquette de largeur,
@@ -1313,3 +1317,5 @@ const Nez = {
     return { update, changed, setCalage, calibrated };
   },
 };
+
+export { Nez };

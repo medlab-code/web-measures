@@ -4,6 +4,8 @@
 // Vérification des services appelés depuis le navigateur : un échec signale un proxy, un
 // pare-feu ou un en-tête CORS manquant sur le poste. Adresses de l'API d'une séquence (app.js, dessus.js).
 
+import { Carte } from "./carte.js";
+
 const Services = (() => {
   const { GEOPF, OFM_STYLE, PANORAMAX_API } = Carte;
 
@@ -91,3 +93,5 @@ const Services = (() => {
 
   return { checkServices, sequenceApis };
 })();
+
+export { Services };

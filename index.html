@@ -7,6 +7,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- Identifiant du commit mis en ligne (rempli par tools/construire.sh), ajouté en ?v= aux fichiers du site ; vide en local -->
   <meta name="version-fichiers" content="">
+  <!-- Adresses des modules (src/*.js) avec ?v=<commit> après une mise en ligne : tools/construire.sh remplace le marqueur
+       ci-dessous (en local, sans lui, l'import map reste vide). Doit précéder tout script module. -->
+  <script type="importmap">{"imports":{}}</script>
   <title>Mesures Panoramax</title>
   <!-- Favicon : équerre graduée (ticket #25) -->
   <link rel="icon" type="image/svg+xml" href="src/favicon.svg">
@@ -1356,34 +1359,7 @@ enregistrée en PNG et copiée dans le presse-papiers">
       <button value="suivant" class="oui">Suivant</button>
     </form>
   </dialog>
-  <!-- Scripts ordinaires (pas de modules ES : ticket à part) ; les fichiers Python sont lus par fetch (src/calcul.js) -->
-  <script src="src/attente.js"></script>
-  <script src="src/carte.js"></script>
-  <script src="src/services.js"></script>
-  <script src="src/lieu.js"></script>
-  <script src="src/recherche.js"></script>
-  <script src="src/requeteur.js"></script>
-  <script src="src/video.js"></script>
-  <script src="src/calcul.js"></script>
-  <script src="src/traits.js"></script>
-  <script src="src/couche.js"></script>
-  <script src="src/profil.js"></script>
-  <script src="src/nuage.js"></script>
-  <script src="src/dessus.js"></script>
-  <script src="src/vignette.js"></script>
-  <script src="src/disposition.js"></script>
-  <script src="src/nez.js"></script>
-  <script src="src/parcours.js"></script>
-  <script src="src/mesure.js"></script>
-  <script src="src/calage.js"></script>
-  <script src="src/visionneuse.js"></script>
-  <script src="src/releve.js"></script>
-  <script src="src/objets.js"></script>
-  <script src="src/resultats.js"></script>
-  <script src="src/choix.js"></script>
-  <script src="src/reglages.js"></script>
-  <script src="src/favoris.js"></script>
-  <script src="src/fiche.js"></script>
-  <script src="src/app.js"></script>
+  <!-- Modules ES : src/app.js importe tous les autres (src/*.js) ; les fichiers Python sont lus par fetch (src/calcul.js) -->
+  <script type="module" src="src/app.js"></script>
 </body>
 </html>

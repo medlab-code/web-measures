@@ -40,7 +40,7 @@ const ID = location.hash.startsWith("#photo=") ? location.hash.slice(7).split("#
       return page;
     };
     // Feuille de styles hors du cache, comme une fenêtre neuve après une mise à jour du site : son chargement prend du temps
-    const P = w.eval("Profil"), pdfPage = P.pdfPage;
+    const P = w.modules.Profil, pdfPage = P.pdfPage;
     P.pdfPage = (svg, legend, long, options) => pdfPage(svg, legend, long, { ...options, stylesheet: `${options.stylesheet}?${Date.now()}` });
     const withLong = doc.querySelector("#profil-pdf-long");
     if (!withLong.checked) withLong.click();  // 2e page : profil en long

@@ -1761,3 +1761,5 @@ const Video = (() => {
     fetchImage, PRES, PRES_HOLD, PRES_START, PRES_SIGHT, FPS, HOLD,
   };
 })();
+
+export { Video };

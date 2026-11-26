@@ -171,3 +171,5 @@ const Calcul = (() => {
 
   return { startCalcul, capture, hasWorker: () => worker !== null };
 })();
+
+export { Calcul };

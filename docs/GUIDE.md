@@ -836,9 +836,9 @@ Full HD) tournent dans un second Pyodide en arrière-plan. La page vérifie auss
 services depuis le poste (bouton « Services » en bas du panneau).
 
 La page n'est servie que par un serveur web (Cloudflare, ou `tools/serveur-essai.py` en local), jamais
-ouverte par double-clic. Scripts ordinaires (pas de modules JavaScript) ; les fichiers Python sont lus par
+ouverte par double-clic. Modules JavaScript (ES), point d'entrée `src/app.js` ; les fichiers Python sont lus par
 `fetch` (liste dans `src/calcul.js`, vérifiée par un test) pendant le chargement de Pyodide. En ligne, les
-fichiers du site portent `?v=<commit>` dans leur adresse : un visiteur ne mêle pas d'anciens fichiers
+fichiers du site portent `?v=<commit>` dans leur adresse (import map pour les modules) : un visiteur ne mêle pas d'anciens fichiers
 (cache) aux nouveaux.
 
 ### Mesure sur la carte : longueur et surface (essai, branche `birdeye`)

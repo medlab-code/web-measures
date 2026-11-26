@@ -435,3 +435,5 @@ const Traits = (() => {
 
   return { attach, set, setExtra, hasExtra, setSlide, snapshot, items, labelRects };
 })();
+
+export { Traits };

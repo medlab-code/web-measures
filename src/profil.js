@@ -7,6 +7,7 @@
 // exagérées (le facteur est écrit) : sur 30 m de large, un talus de 2 m serait illisible ; la case
 // « Hauteurs à l'échelle » de la fenêtre les remet à la même échelle que les distances.
 
+
 const Profil = (() => {
   const NS = "http://www.w3.org/2000/svg";
   const W = 760, H = 380, LEFT = 52, RIGHT = 16, TOP = 56, BOTTOM = 44;
@@ -1138,3 +1139,5 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #ddd; font-si
 
   return { draw, png, pdfPage, fit, mapTrace };
 })();
+
+export { Profil };

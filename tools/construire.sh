@@ -26,13 +26,23 @@ if [ "$branch" = birdeye ]; then
   grep -q 'href="src/faucon.svg"' dist/index.html  # lien introuvable : construction en échec plutôt que muette
 fi
 # Version dans l'adresse des fichiers : après une mise en ligne, un visiteur ne mêle pas d'anciens fichiers (cache) aux nouveaux.
-# Balise version-fichiers (lue par src/calcul.js pour les .py et le worker) et ?v= sur les <script src="src/…"> et <link href="src/…"> ;
-# les adresses des CDN ne changent pas. Sans git : rien (les fichiers restent sans ?v=).
+# Balise version-fichiers (lue par src/calcul.js pour les .py et le worker), ?v= sur le <script type="module" src="src/app.js"> et les
+# <link href="src/…">, et import map (modules ES : leurs « import "./x.js" » n'ont pas de ?v=) qui associe « ./src/x.js » à « ./src/x.js?v=… »
+# pour chaque src/*.js sauf app.js (point d'entrée, déjà versionné) et worker-calcul.js (versionné par src/calcul.js) ; les adresses des CDN ne changent pas. Sans git : rien (les fichiers restent sans ?v=).
 version=$(git rev-parse --short HEAD 2>/dev/null || true)
 if [ -n "$version" ]; then
+  carte=
+  for f in dist/src/*.js; do
+    nom=$(basename "$f")
+    case "$nom" in app.js|worker-calcul.js) continue ;; esac
+    carte="$carte\"./src/$nom\":\"./src/$nom?v=$version\","
+  done
+  carte=${carte%,}
+  sed -i "s|<script type=\"importmap\">{\"imports\":{}}</script>|<script type=\"importmap\">{\"imports\":{$carte}}</script>|" dist/index.html
+  grep -q "\"./src/carte.js\":\"./src/carte.js?v=$version\"" dist/index.html  # import map introuvable : construction en échec plutôt que muette
   sed -i -e "s|<meta name=\"version-fichiers\" content=\"\">|<meta name=\"version-fichiers\" content=\"$version\">|" \
-    -e "s|\(<script src=\"src/[^\"?]*\)\"|\1?v=$version\"|g" \
+    -e "s|\(<script type=\"module\" src=\"src/[^\"?]*\)\"|\1?v=$version\"|g" \
     -e "s|\(<link [^>]*href=\"src/[^\"?]*\)\"|\1?v=$version\"|g" dist/index.html
   grep -q "content=\"$version\"" dist/index.html  # balise introuvable : construction en échec plutôt que muette
-  grep -q "src=\"src/calcul.js?v=$version\"" dist/index.html
+  grep -q "src=\"src/app.js?v=$version\"" dist/index.html
 fi

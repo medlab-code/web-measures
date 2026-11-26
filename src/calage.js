@@ -272,3 +272,5 @@ const Calage = {
     });
   },
 };
+
+export { Calage };

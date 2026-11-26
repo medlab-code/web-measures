@@ -4,6 +4,34 @@
 // Page de mesure : la carte choisit la photo, la visionneuse Panoramax reçoit les clics, le cœur
 // de calcul Python (py/, exécuté par Pyodide, voir calcul.js) fait les mesures et les calages.
 
+import { Attente } from "./attente.js";
+import { Calage } from "./calage.js";
+import { Calcul } from "./calcul.js";
+import { Carte } from "./carte.js";
+import { Choix } from "./choix.js";
+import { Couche } from "./couche.js";
+import { Dessus } from "./dessus.js";
+import { Disposition } from "./disposition.js";
+import { Favoris } from "./favoris.js";
+import { Fiche } from "./fiche.js";
+import { Lieu } from "./lieu.js";
+import { Mesure } from "./mesure.js";
+import { Nez } from "./nez.js";
+import { Nuage } from "./nuage.js";
+import { Objets } from "./objets.js";
+import { Parcours } from "./parcours.js";
+import { Profil } from "./profil.js";
+import { Recherche } from "./recherche.js";
+import { Reglages } from "./reglages.js";
+import { Releve } from "./releve.js";
+import { Requeteur } from "./requeteur.js";
+import { Resultats } from "./resultats.js";
+import { Services } from "./services.js";
+import { Traits } from "./traits.js";
+import { Video } from "./video.js";
+import { Vignette } from "./vignette.js";
+import { Visionneuse } from "./visionneuse.js";
+
 (() => {
   const $ = (selector) => document.querySelector(selector);
   // Captures et fiches PDF (src/fiche.js), branchées sur la page en fin de fichier (Fiche.init)
@@ -1222,6 +1250,10 @@
     showOverViewer, openPhotoReady, loadRanks, overlayObjectName, overlayFicheData, overlayHiddenTest, overlayEnds,
     overlayPoints, saveOverlay,
   });
+
+  // Pour les pages d'essai et la console : seul point d'accès aux objets de la page (modules ES, plus de globaux)
+  window.modules = {
+    Attente, Calage, Calcul, Carte, Choix, Couche, Dessus, Disposition, Favoris, Fiche, Lieu, Mesure, Nez, Nuage, Objets, Parcours, Profil, Recherche, Reglages, Releve, Requeteur, Resultats, Services, Traits, Video, Vignette, Visionneuse };
 
   // Pour les essais depuis la console : window.mesures.app.click(yaw, pitch)
   window.mesures = {

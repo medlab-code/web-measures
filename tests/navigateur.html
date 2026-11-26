@@ -125,7 +125,7 @@ async function feature(id) {
   log("hauteur proposée : " + JSON.stringify(state().camera));
   log("état : " + state().quality);
 
-  const Calcul = w.eval("Calcul");
+  const Calcul = w.modules.Calcul;
   const params = JSON.parse(app.capture_args(0.0, -0.1, 60.0));
   const bytes = new Uint8Array(await (await fetch(params.href)).arrayBuffer());
   const t0 = Date.now();
@@ -237,7 +237,7 @@ async function feature(id) {
         ? Promise.resolve(new Response("", { status: 429 })) : realFetch(url, ...rest);
     };
     const [lon, lat] = [4.85867, 47.01648];
-    const Lieu = w.eval("Lieu");
+    const Lieu = w.modules.Lieu;
     const first = await Lieu.describe(lon, lat), second = await Lieu.describe(lon, lat);
     log(`lieu refusé puis redemandé : « ${first.text} » (${first.complete}) puis « ${second.text} » (${second.complete})`);
     expect("lieu : texte partiel non gardé, complet ensuite", !first.complete && second.complete
@@ -261,8 +261,8 @@ async function feature(id) {
     log(`lieu en ville : « ${dijon.text} »`);
     expect("lieu : numéro devant le nom de la voie", /(^| – )\d+( \w+)? Avenue Raymond Poincaré( – |$)/.test(dijon.text), dijon.text);
     // Département (requêteur route + PR) et contour de commune (recherche) : Géoplateforme
-    const dept = await w.eval("Requeteur").department(4.643432729, 47.247959385);
-    const outline = await w.eval("Recherche").communeOutline(4.643432729, 47.247959385);
+    const dept = await w.modules.Requeteur.department(4.643432729, 47.247959385);
+    const outline = await w.modules.Recherche.communeOutline(4.643432729, 47.247959385);
     const [lo, la] = outline?.geometry.coordinates.flat(2)[0] || [];
     log(`département ${dept} · contour de ${outline?.properties.nom_officiel} (${outline?.geometry.coordinates.flat(2).length} points, ${lo?.toFixed(3)}, ${la?.toFixed(3)})`);
     expect("département et contour de commune (Géoplateforme)", dept === "21" && outline?.properties.nom_officiel === "Commarin"

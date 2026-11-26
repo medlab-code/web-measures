@@ -5,6 +5,11 @@
 // d'étape (valider, garder, nouvelle mesure…), visées guidées (photos proposées), mode et réglages de la mesure.
 // Sorti de la page (app.js) : Mesure.init s'exécute à la même place qu'avant.
 
+import { Carte } from "./carte.js";
+import { Couche } from "./couche.js";
+import { Dessus } from "./dessus.js";
+import { Traits } from "./traits.js";
+
 const Mesure = {
   /** Branche la prise de mesure sur la page ; host : etat (état partagé) et fonctions de la page. Rend ce dont
    * la page se sert ailleurs. */
@@ -589,3 +594,5 @@ const Mesure = {
     };
   },
 };
+
+export { Mesure };

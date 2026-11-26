@@ -6,6 +6,9 @@
 // réduisent à chaque frappe. Sections et points de repère de la BD TOPO ; côté droit (D, ou U
 // pour une section commune aux deux sens) par défaut, le côté gauche seulement à défaut.
 
+import { Attente } from "./attente.js";
+import { Lieu } from "./lieu.js";
+
 const Requeteur = (() => {
   const WFS = "https://data.geopf.fr/wfs/ows";
   const MAX_ITEMS = 100;  // suggestions affichées au plus
@@ -493,3 +496,5 @@ const Requeteur = (() => {
 
   return { attach, department, bearing, travelForm };
 })();
+
+export { Requeteur };

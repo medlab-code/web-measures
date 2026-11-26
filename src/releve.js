@@ -5,6 +5,10 @@
 // import), modèles de champs, résultats gardés d'une séance à l'autre, import des calages.
 // Sorti de la page (app.js) : Releve.init s'exécute à la même place qu'avant.
 
+import { Carte } from "./carte.js";
+import { Couche } from "./couche.js";
+import { Lieu } from "./lieu.js";
+
 const Releve = {
   /** Branche le relevé et le dossier de travail sur la page ; host : etat (état partagé) et fonctions de la page.
    * Rend ce dont la page se sert ailleurs. */
@@ -505,3 +509,5 @@ const Releve = {
     };
   },
 };
+
+export { Releve };

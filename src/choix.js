@@ -5,6 +5,12 @@
 // détachée dans une fenêtre, droite de mesure et longueur tracées sur la carte, objets de la couche recalés ou posés,
 // mesures exportées revues sur leur photo. Sorti de la page (app.js) : Choix.init s'exécute à la même place.
 
+import { Attente } from "./attente.js";
+import { Carte } from "./carte.js";
+import { Couche } from "./couche.js";
+import { Dessus } from "./dessus.js";
+import { Fiche } from "./fiche.js";
+
 const Choix = {
   /** Branche le choix de la photo sur la page ; host : etat (état partagé), fonctions de la page, et noms
    * déclarés plus bas (lus à chaque appel). Rend ce dont la page se sert ailleurs. */
@@ -605,3 +611,5 @@ const Choix = {
     };
   },
 };
+
+export { Choix };

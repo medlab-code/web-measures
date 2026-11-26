@@ -78,7 +78,7 @@ const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-
           try { mark = markers.getMarker("mesure-parcelle"); } catch { /* absente */ }
           const numero = expected.slice(-4), el = mark?.domElement || mark?.element;
           // direction attendue : le milieu du bord de la partie vue de la parcelle (Carte.aimedParcel().at), depuis la caméra
-          const middle = w.eval("Carte").aimedParcel()?.at, kx = 111320 * Math.cos(cam[1] * Math.PI / 180);
+          const middle = w.modules.Carte.aimedParcel()?.at, kx = 111320 * Math.cos(cam[1] * Math.PI / 180);
           const toward = middle && Math.atan2((middle[0] - cam[0]) * kx, (middle[1] - cam[1]) * 111320) - azimuth * Math.PI / 180;
           const yaw = mark && Math.abs(((mark.state?.position?.yaw ?? mark.config.position.yaw) - toward + 5 * Math.PI) % (2 * Math.PI) - Math.PI);
           log(`étiquette au cap +${turn}° : ${el?.textContent || "aucune"}${mark ? `, écart à la direction attendue ${(yaw * 180 / Math.PI).toFixed(1)}°, élévation ${((mark.state?.position?.pitch ?? mark.config.position.pitch) * 180 / Math.PI).toFixed(1)}°` : ""}`);
@@ -96,7 +96,7 @@ const IDS = /#photos=([^&]+)/.exec(location.hash)?.[1].split(",") || ["1108ca14-
       expect("au moins une parcelle visée allumée", lit > 0);
       expect(`caméra sur la voirie : rien en jaune (${own || "domaine public"})`, under() === own);
       if (inside && holder(inside.at) === inside.idu) {  // caméra posée dans cette parcelle : elle passe en jaune, pas en vert
-        const Carte = w.eval("Carte");
+        const Carte = w.modules.Carte;
         // posée de nouveau tant que la visionneuse peut la remettre sur la photo (fin de chargement) avant la réponse du WFS
         const move = () => Carte.showView(map, inside.at, inside.heading * 180 / Math.PI, 90);
         move();

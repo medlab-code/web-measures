@@ -5,6 +5,12 @@
 // filtrage anisotrope, PR, cadastre, parcelle visée) et fenêtre du profil en travers (« Profil » : loupe, légende,
 // analyse fine du nuage LiDAR). Sorti de la page (app.js) : Reglages.init s'exécute à la même place qu'avant.
 
+import { Attente } from "./attente.js";
+import { Carte } from "./carte.js";
+import { Lieu } from "./lieu.js";
+import { Nuage } from "./nuage.js";
+import { Profil } from "./profil.js";
+
 const Reglages = {
   /** Branche les réglages et la fenêtre du profil sur la page ; host : etat (état partagé), fonctions de la page,
    * et noms déclarés plus bas (lus à chaque appel). */
@@ -419,3 +425,5 @@ const Reglages = {
     return { updateProfile };
   },
 };
+
+export { Reglages };

@@ -3,9 +3,9 @@
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
 <!-- Avancement de la stabilisation, sur des images synthétiques, sans réseau : monte de 0 au total sans reculer, y compris
      si une photo n'a pas d'image SD ; navigateur rendu la main pendant la comparaison. Lancer comme tests/navigateur.html. -->
-<script src="../src/video.js"></script>
 <script src="commun.js"></script>
-<script>
+<script type="module">
+import { Video } from "../src/video.js";
 const { log, expect, fin } = Essai;
 Essai.verbose = true;  // chaque contrôle journalisé
 (async () => {

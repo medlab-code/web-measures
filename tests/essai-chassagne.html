@@ -74,7 +74,7 @@ const { log, sleep, until, soon, ready, expect, fail, fin } = Essai;
     await until(() => /Enregistrer/.test(button.textContent) || /impossible/.test(status()), 600000, "fin de la préparation");
     const plan = w.mesures.videoPlan;
     // Écart à la D906 : sections de PR de la BD TOPO en Côte-d'Or, projection (Lieu.project)
-    const Lieu = w.eval("Lieu");
+    const Lieu = w.modules.Lieu;
     const sections = (await Lieu.features("section_de_points_de_repere", { count: 500, properties: "numero_de_route,geometrie",
       filter: "numero_de_route='D906' AND BBOX(geometrie,46.80,4.00,47.50,4.90)" })).map((f) => f.geometry.coordinates);
     const toD906 = (p) => Math.min(...sections.map((line) => Lieu.project(line, ...p).d));
@@ -101,7 +101,7 @@ const { log, sleep, until, soon, ready, expect, fail, fin } = Essai;
     expect("raccords : photos des deux séquences à moins de 25 m", seams.every((d) => d < 25), seams.join(" "));
     // Rendu de 40 photos (#rendu) : images de la vidéo non noires (luminosité moyenne au-dessus de 30 sur 255)
     if (/rendu/.test(location.hash)) {
-      const Video = w.eval("Video");
+      const Video = w.modules.Video;
       const dir = await w.navigator.storage.getDirectory(), handle = await dir.getFileHandle("rendu.mp4", { create: true });
       const t0 = performance.now();
       await Video.mp4(plan.photos.slice(0, 40), 90, () => {}, null, { stream: await handle.createWritable(), counter: true, speedometer: true,

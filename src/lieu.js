@@ -485,3 +485,5 @@ const Lieu = (() => {
 
   return { describe, inTown, numeroRoute, features, junctions, milestone, project, segmentLength, structures };
 })();
+
+export { Lieu };

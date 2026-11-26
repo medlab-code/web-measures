@@ -213,7 +213,7 @@ function measure(Dessus, site) {
     if (!w) { log(`${tag} : vue indisponible`); continue; }
     try {
       log(`${tag} état : ${w.document.querySelector("#dessus-etat").textContent.replace(/\s+/g, " ")}`);
-      const Dessus = w.eval("Dessus"), box = w.document.querySelector("#dessus-verticales");
+      const Dessus = w.modules.Dessus, box = w.document.querySelector("#dessus-verticales");
       const modes = [Dessus.layersNow().layers[0].pose.groundTilt ? "route" : "verticales"];
       if (box && !box.disabled) modes.push(modes[0] === "route" ? "verticales" : "route");
       for (const mode of modes) {

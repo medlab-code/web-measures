@@ -69,7 +69,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
         log(`  profil : ${dialog.querySelector("h2").textContent} · ${[...dialog.querySelectorAll(".legende li, .legende p")].map((e) => e.textContent).join(" | ")}`);
         // Image du bouton « PNG » (groupe « Enregistrer ») (Profil.png), sans la boîte d'enregistrement
         if (images++ < 3) {
-          const blob = await w.eval("Profil").png(svg, dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
+          const blob = await w.modules.Profil.png(svg, dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
           await log(`IMAGE ${f.id.slice(0, 8)} ` + await new Promise((r) => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(blob); }));
         }
         {  // réglette « Jusqu'à » dans l'en-tête de la fenêtre : à gauche de la croix de fermeture, même ligne ; la changer refait le calcul
@@ -115,7 +115,7 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
         expect("carrefour : signalé dans l'encadré, sur le graphique et dans sa légende", /^Carrefour avec .* bords peu sûrs/m.test(doc.querySelector("#chute").textContent)
           && Boolean(dialog.querySelector("svg .mention-carrefour")) && Boolean(dialog.querySelector(".legende b.carrefour")));
       }
-      const blob = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
+      const blob = await w.modules.Profil.png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
       await log(`IMAGE ${id.slice(0, 8)} ` + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));
       // Loupe : graphique agrandi sans la légende, la fenêtre dans la visionneuse ; à nouveau : taille normale
       doc.querySelector("#profil-legende").click();  // repliée à l'ouverture : dépliée, la loupe doit la masquer puis la rendre
@@ -175,12 +175,12 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
         if (![...dialog.querySelectorAll("svg text")].some((e) => e.textContent === "séparateur de chaussée")
           || !dialog.querySelector(".legende").textContent.includes("trouvé dans le relief")  // d'où il vient : en légende
           || !dialog.querySelector("svg .separateur")) twin = 0;
-        const blob = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
+        const blob = await w.modules.Profil.png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
         await log("IMAGE 61dd94c4-e5d1-4eb0-9762-73a72f18b5cb " + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }));
         // Hauteurs à l'échelle : profil presque plat, étiquettes écartées l'une de l'autre
         const scale = doc.querySelector("#profil-echelle");
         scale.checked = true; scale.dispatchEvent(new w.Event("change"));
-        const flat = await w.eval("Profil").png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
+        const flat = await w.modules.Profil.png(dialog.querySelector("svg"), dialog.querySelector("h2").textContent, dialog.querySelector(".legende"));
         await log("IMAGE 61dd94c4-echelle " + await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(flat); }));
         scale.checked = false; scale.dispatchEvent(new w.Event("change"));
         dialog.close();

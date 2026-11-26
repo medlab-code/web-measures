@@ -73,7 +73,7 @@ const expect = (what, ok, detail = "") => { checks++; if (!ok) { failures++; log
     const plan = w.mesures.videoPlan, photos = plan?.photos || [];
     log(`préparée en ${((Date.now() - t0) / 1000).toFixed(0)} s : ${photos.length} photos, ${plan?.switches} changement(s) ; ${status()}`);
     expect("vidéo préparée", photos.length > 5, status());
-    const Video = w.eval("Video"), path = Video.trajectory(photos);
+    const Video = w.modules.Video, path = Video.trajectory(photos);
     path.list.forEach((p, i) => log(`${String(i).padStart(3)} s ${path.s[i].toFixed(1).padStart(6)} ${p.collection.slice(0, 8)} ${p.coords.map((v) => v.toFixed(6))} cap ${p.heading?.toFixed(1)} ${p.id.slice(0, 8)}`));
     expect("au moins un raccord", plan?.switches >= 1, plan?.switches);
     // Un extrait par raccord : 12 photos de part et d'autre (prises dans la liste du plan : la trajectoire en écarte)
