@@ -449,7 +449,9 @@ const Carte = (() => {
       map.touchZoomRotate.disableRotation();
       map.keyboard.disableRotation();
     }
-    map.addControl(new maplibregl.NavigationControl({ showCompass: rotation }), "top-left");
+    // Pas de boutons de zoom (+/−) : la molette et le pincement suffisent (la page principale) ; le groupe reste, vide, et reçoit les
+    // boutons ajoutés par les autres fichiers (échange, détacher, filaire, Bird Eye). Le site mobile garde les boutons.
+    map.addControl(new maplibregl.NavigationControl({ showZoom: rotation, showCompass: rotation }), "top-left");
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
     // Attributions repliées derrière le bouton ⓘ (et le choix du fond qui s'y trouve) : MapLibre les déplie
     // d'office à la création et quand des sources arrivent (classe maplibregl-compact-show) ; repliées dès
