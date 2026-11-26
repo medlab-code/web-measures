@@ -322,8 +322,11 @@ async function feature(id) {
   expect("alerte RTK affichée", rtk.open && rtk.textContent.includes("Un GPS avec corrections RTK est requis"));
   {
     const r = rtk.getBoundingClientRect(), v = doc.querySelector("#vue").getBoundingClientRect();
-    expect("alerte RTK centrée sur la visionneuse", Math.abs((r.left + r.right - v.left - v.right) / 2) < 2
-      && Math.abs((r.top + r.bottom - v.top - v.bottom) / 2) < 2);
+    // Centrée dans la visionneuse (vue en grand), entre le bas des barres du haut (outils, pastilles de droite) et le bas de la vue
+    const top = Math.max(v.top + 8, ...["#reglage-image", "#haut-droite-vue"].map((s) => doc.querySelector(s))
+      .filter((e) => e && e.getClientRects().length).map((e) => e.getBoundingClientRect().bottom + 8)), floor = v.bottom - 8;
+    expect("alerte RTK centrée sur la visionneuse, sous les barres du haut", Math.abs((r.left + r.right - v.left - v.right) / 2) < 2
+      && Math.abs((r.top + r.bottom - top - floor) / 2) < 3, `écart horizontal ${((r.left + r.right - v.left - v.right) / 2).toFixed(1)}, vertical ${((r.top + r.bottom - top - floor) / 2).toFixed(1)}`);
   }
   log("alerte RTK : " + rtk.querySelector("p").textContent);
   rtk.close();
