@@ -24,7 +24,6 @@
     ["data.geopf.fr/wfs", "IGN BD TOPO"],
     ["data.geopf.fr/geocodage", "IGN recherche de lieux"],
     ["data.geopf.fr", "Géoplateforme IGN"],
-    ["cdn.proj.org", "grille du géoïde (PROJ)"],
   ];
   // État modifiable partagé entre les parties de la page (et lu par Fiche, Parcours) : etat.photo, etc.
   const etat = {

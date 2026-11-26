@@ -19,10 +19,9 @@ PR au-dessus ; Plan IGN et OpenStreetMap en tuiles vectorielles (texte net, agra
 producteur, date de début ; mêmes réglages que la page principale), lien « version complète » dans les réglages ; bouton appareil photo : capture de la vue avec l'étiquette et les
 cartouches, partagée par le téléphone (sinon téléchargée).
 
-**Ouvrir la page** : double-cliquer sur `index.html` suffit (Edge, Chrome, Firefox), sans
-installation ni serveur ; une connexion à internet est nécessaire (bibliothèques, Pyodide et
-services). Elle peut aussi être publiée sur n'importe quel serveur web statique, ou servie
-localement :
+**Ouvrir la page** : l'adresse du site publié, dans Edge, Chrome ou Firefox (sans installation) ; une
+connexion à internet est nécessaire (bibliothèques, Pyodide et services). La page ne s'ouvre pas par
+double-clic sur `index.html` : elle est servie par un serveur web, par exemple en local :
 
 ```
 python3 -m http.server 8765    # puis http://127.0.0.1:8765/
@@ -1088,7 +1087,6 @@ CORS). Vérifié le 13/10/2026 depuis un poste personnel, avec Chrome :
 | Géoplateforme IGN : tuiles vectorielles (TMS) | Plan IGN (fond, routes numérotées, noms), BD TOPO (voies) | accessible |
 | Géoplateforme IGN : géocodage | recherche de lieux (autocomplétion) | accessible |
 | Stockage des photos Panoramax (S3 OVH, derrière `panoramax.ign.fr`) | photos HD : capture Full HD, inclinaison automatique | accessible |
-| PROJ (`cdn.proj.org`) | grille du géoïde : altitude NGF, hauteur de caméra d'après le GPS | accessible |
 
 **À refaire depuis le poste des utilisateurs** (proxy ou pare-feu d'entreprise) : ouvrir la page et relever la liste.
 

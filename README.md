@@ -40,10 +40,10 @@ possibles, mais la page prévient qu'elles seront probablement incohérentes.
 
 ## Démarrage
 
-Prendre l'archive « Source code (zip) » de la dernière version (page *Releases*) et la
-décompresser, puis double-cliquer sur `index.html` (Edge, Chrome, Firefox) : ni installation ni
-serveur, mais une connexion à internet (bibliothèques, Pyodide, services de l'IGN et de
-Panoramax). La page peut aussi être servie par n'importe quel serveur web statique :
+La page est servie par un serveur web (le site publié, ou n'importe quel serveur web statique) : elle ne
+s'ouvre plus par double-clic sur `index.html` (les fichiers Python sont lus par `fetch`). Il faut une
+connexion à internet (bibliothèques, Pyodide, services de l'IGN et de Panoramax). En local, depuis
+l'archive « Source code (zip) » de la dernière version (page *Releases*) décompressée :
 
 ```
 python3 -m http.server 8765    # puis http://127.0.0.1:8765/
@@ -87,3 +87,7 @@ vectoriel sur mobile, OpenFreeMap à la place d'OpenStreetMap France. Détail et
 
 GPL v2 ou ultérieure (fichier `LICENSE`), comme le plugin dont les calculs sont repris. Bibliothèques, données et
 services tiers, avec leurs licences et les mentions à garder : `LICENCES-TIERCES.md`.
+
+Données hébergées avec le site : `donnees/fr_ign_RAF20.tif`, grille du géoïde RAF20 (altitudes NGF), « Dérivé d'un
+travail de l'IGN France », [Licence Ouverte Etalab](https://www.etalab.gouv.fr/licence-ouverte-open-licence/),
+copie du fichier `fr_ign_RAF20.tif` du dépôt PROJ-data (cdn.proj.org).

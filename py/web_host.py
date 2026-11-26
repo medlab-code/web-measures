@@ -116,11 +116,11 @@ def run_task(function, args, done):
         asyncio.ensure_future(_run(function, args, done))
 
 
-async def load_geoid():
-    """Charge la grille du géoïde (altitude NGF) ; sans elle, pas d'altitude GPS de la caméra."""
+async def load_geoid(url=geoid.URL):
+    """Charge la grille du géoïde (altitude NGF, fichier du site) ; sans elle, pas d'altitude GPS de la caméra."""
     global _geoid
     try:
-        response = await pyfetch(geoid.URL)
+        response = await pyfetch(url)
         if response.ok:
             _geoid = geoid.Grid(await response.bytes())
     except Exception:

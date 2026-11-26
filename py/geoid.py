@@ -5,7 +5,7 @@
 comme le fait PROJ.
 
 La grille est celle que PROJ télécharge (cdn.proj.org, GeoTIFF de 340 Ko, licence
-ouverte Etalab) : 421 × 381 nœuds, 1/30° × 0,025°, France métropolitaine. Lue ici sans
+ouverte Etalab), copiée dans donnees/fr_ign_RAF20.tif et servie avec le site : 421 × 381 nœuds, 1/30° × 0,025°, France métropolitaine. Lue ici sans
 GDAL : tuiles compressées (deflate), prédicteur des flottants (TIFF, prédicteur 3).
 """
 
@@ -13,7 +13,7 @@ import struct
 import zlib
 from itertools import accumulate
 
-URL = "https://cdn.proj.org/fr_ign_RAF20.tif"
+URL = "donnees/fr_ign_RAF20.tif"  # relative à la page ; src/calcul.js y ajoute ?v=<commit> en ligne
 GEOID_RANGE = (30.0, 70.0)  # écart plausible entre ellipsoïde et NGF-IGN69 en France (m), comme le plugin
 
 

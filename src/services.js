@@ -28,9 +28,6 @@ const Services = (() => {
     ["IGN : BD TOPO (WFS)", `${GEOPF}/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:commune&COUNT=1`
       + "&PROPERTYNAME=nom_officiel&OUTPUTFORMAT=application/json"],
     ["IGN : recherche de lieux (géocodage)", `${GEOPF}/geocodage/completion?text=pouilly&maximumResponses=1`],
-    // Grille du géoïde (altitude NGF : hauteur de caméra d'après le GPS), voir py/geoid.py ; ses 16 premiers octets
-    // seulement (340 Ko en tout)
-    ["PROJ : grille du géoïde (altitude NGF)", "https://cdn.proj.org/fr_ign_RAF20.tif", { headers: { Range: "bytes=0-15" } }],
   ];
 
   /** Vérifie un service ; voyant de la ligne (classe ok, echec, attente) et texte de son état. */

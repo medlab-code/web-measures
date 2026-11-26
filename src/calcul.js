@@ -70,6 +70,9 @@ const Calcul = (() => {
   const sourcesPromise = fetchSources();
   sourcesPromise.catch(() => {});
 
+  // Grille du géoïde (RAF20 de l'IGN), servie avec le site : voir py/geoid.py
+  const GEOID_FILE = "donnees/fr_ign_RAF20.tif";
+
   function install(pyodide, sources) {
     for (const [path, source] of Object.entries(sources)) {
       const target = `${PY_ROOT}/${path}`;
@@ -161,7 +164,7 @@ const Calcul = (() => {
     etape("fichiers du calcul");
     install(pyodide, sources);
     etape("géoïde");
-    await pyodide.pyimport("web_host").load_geoid();
+    await pyodide.pyimport("web_host").load_geoid(GEOID_FILE + versionSuffix());
     const webApp = pyodide.pyimport("web_app");
     return webApp.App(notify, worker ? runRemote : null, apiUrl);
   }

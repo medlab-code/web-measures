@@ -939,6 +939,16 @@ class SourcesPage(unittest.TestCase):
         self.assertEqual(listes, presents)
 
 
+class GrilleGeoide(unittest.TestCase):
+    """Grille du géoïde servie avec le site (ticket #62) : le fichier est là et se décode, sans réseau."""
+
+    def test_fichier_local_decode(self):
+        from geoid import URL, Grid
+        self.assertEqual(URL, "donnees/fr_ign_RAF20.tif")
+        grille = Grid((Path(__file__).resolve().parent.parent / URL).read_bytes())
+        self.assertTrue(40 < grille.undulation(5.04, 47.32) < 55)  # Dijon : environ 48 m
+
+
 class Parcours(unittest.TestCase):
     """Mesures de bout en bout dans App, comme les pages d'essai du navigateur (essai-rtk, essai-largeur,
     essai-releve, navigateur) mais sans réseau : deux photos 360° à 6 m l'une de l'autre sur une route nord-sud, sol plat, caméra
