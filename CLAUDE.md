@@ -73,6 +73,8 @@ attentes de condition (essai complet : environ 7 → 5 min), parcours de mesure 
   (16/11/2026 ; plus lent au premier passage d'une voie, caches froids). Vue du dessus pendant la mise au point :
   `tools/essais.sh birdeye` (environ 3 min 30, dont 6 passages piétons) ; les 7 photos de référence et
   `tools/essais.sh passages` (17 passages piétons, environ 6 min) seulement avant une fusion qui touche la vue du dessus.
+- Serveur local de travail : `tools/serveur-local.sh start|stop|status|ouvrir` (sans cache, port 8765), lancé et arrêté
+  automatiquement par les hooks de session de `.claude/settings.local.json` (personnel, non commité).
 - Essai de bout en bout à la main : `tools/serveur-essai.py 8766` (s'arrête quand la page écrit « FIN »
   ou « ERREUR »), puis `google-chrome --headless=new --user-data-dir=/tmp/... --no-first-run
   --remote-debugging-port=0 --window-size=1400,1000 http://127.0.0.1:8766/tests/<page>` ;
