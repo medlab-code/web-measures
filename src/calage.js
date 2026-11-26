@@ -92,7 +92,7 @@ const Calage = {
       } else {
         voyant.textContent = "A";
         voyant.title = auto().off ? "Calcul automatique des verticales ignoré pour cette photo (cliquer pour le rétablir)"
-          : `Inclinaison calculée automatiquement par les verticales de la photo${auto().count ? ` (${plural(auto().count, "verticale")} détectée${auto().count > 1 ? "s" : ""})` : ""} (cliquer pour le détail)`;
+          : `Inclinaison calculée automatiquement par les verticales de la photo${auto().count ? ` (${auto().edges != null ? `${plural(auto().edges, "arête")}, ${plural(auto().segments, "segment")}` : `${plural(auto().count, "verticale")} détectée${auto().count > 1 ? "s" : ""}`})` : ""} (cliquer pour le détail)`;
       }
       voyant.setAttribute("aria-label", voyant.title);
     }
@@ -117,12 +117,21 @@ const Calage = {
     function autoText() {
       const a = auto();
       if (!a.available || a.off || a.roll === undefined) return "";
-      const angles = `roulis ${signe(a.roll)}° ±${nombre(Math.max(a.sigma, 0.1))}°, tangage ${signe(a.pitch)}°`;
+      const riche = a.edges != null && a.sigma_roll != null;  // indicateurs de qualité : absents des anciennes entrées
+      const angles = riche ? `roulis ${signe(a.roll)}° ±${nombre(Math.max(a.sigma_roll, 0.1))}°, tangage ${signe(a.pitch)}° ±${nombre(Math.max(a.sigma_pitch, 0.1))}°`
+        : `roulis ${signe(a.roll)}° ±${nombre(Math.max(a.sigma, 0.1))}°, tangage ${signe(a.pitch)}°`;
       const kept = info?.retained?.source;
       const used = kept === "verticales" || kept === "verticales (seuil élargi)" || kept?.startsWith("clics + verticales");
       const text = a.loose ? `Inclinaison calculée automatiquement (seuil élargi, verticales moins sûres) : ${angles}.`
+        : riche ? `Inclinaison calculée automatiquement : ${plural(a.edges, "arête")} (${plural(a.segments, "segment")}), plus grand secteur sans verticale ${nombre(a.gap, 0)}°, ${angles}.`
         : `Inclinaison calculée automatiquement : ${plural(a.count, "verticale")} ${a.count > 1 ? "détectées" : "détectée"}, ${angles}.`;
       return used || !kept ? text : text + " Non retenue.";
+    }
+
+    /** Raison de fragilité du calcul automatique (cœur : autotilt.fit), ou "" : ajoutée au texte en style d'alerte. */
+    function fragileText() {
+      const a = auto();
+      return a.available && !a.off && a.fragile && a.fragile_reason ? ` — fragile : ${a.fragile_reason}` : "";
     }
 
     function render() {
@@ -136,7 +145,14 @@ const Calage = {
       ligne.textContent = sure ? `Confiance de l'inclinaison : ${sure.texte}` : "";
       ligne.title = sure?.titre ?? "";
       $("#calage-titre").textContent = head ? "Calage de l'inclinaison" : data ? `Calage manuel : ${plural(data.count, "verticale")}` : "Calage manuel : aucune verticale";
-      $("#calage-auto").textContent = head || (auto().off ? "Calcul automatique des verticales ignoré pour cette photo." : "");
+      const zone = $("#calage-auto");
+      zone.textContent = head || (auto().off ? "Calcul automatique des verticales ignoré pour cette photo." : "");
+      if (head && fragileText()) {
+        const alerte = document.createElement("span");
+        alerte.className = "fragile";
+        alerte.textContent = fragileText();
+        zone.append(alerte);
+      }
       bloc.hidden = !auto().available;
       if (head) $("#calage-confiance").after(bloc);
       else panneau.querySelector(".boutons").before(bloc);

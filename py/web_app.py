@@ -725,7 +725,7 @@ class App(Pose, Chutes, Nez, session.Session):
         toward, sigma, partial, pitch, roll, scale, rows (angle, deviation, effect, verdict), outliers, doubtful ; null sans
         verticale), retained (inclinaison retenue par Calibration.tilt : source, sigma, pitch, roll ; null sans inclinaison) et auto
         (calcul automatique par les verticales de la photo : available, off (écarté par l'utilisateur), count (null au seuil élargi),
-        loose, et sa propre inclinaison : pitch, roll, sigma) et confidence (confiance de l'inclinaison retenue, voir
+        loose, et sa propre inclinaison : pitch, roll, sigma, segments, et les indicateurs de qualité edges, gap, sigma_pitch, sigma_roll, fragile, fragile_reason : null sur les anciennes entrées) et confidence (confiance de l'inclinaison retenue, voir
         tilt_confidence_of ; null sans inclinaison)."""
         pic = self._calage_pic()
         out = {"manual": None, "retained": None, "confidence": None, "roll_label": self._roll_label(self.item), "auto": {"available": False, "off": False, "count": None, "loose": False}}
@@ -753,7 +753,9 @@ class App(Pose, Chutes, Nez, session.Session):
         own = found or loose  # sa propre inclinaison, retenue ou non
         if own:
             pitch, roll = calibration.tilt_components(own["up"], self._heading())
-            out["auto"].update(pitch=pitch, roll=roulis_vehicule_depuis_camera(roll), sigma=own["sigma"])
+            out["auto"].update(pitch=pitch, roll=roulis_vehicule_depuis_camera(roll), sigma=own["sigma"],
+                               **{k: own.get(k) for k in ("edges", "gap", "sigma_pitch", "sigma_roll", "fragile", "fragile_reason")})
+            out["auto"]["segments"] = own.get("count")
         return json.dumps(out)
 
     def calage_auto_off(self, off):

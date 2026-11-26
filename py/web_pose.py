@@ -91,6 +91,11 @@ class Pose:
             reason += " ; par le terrain : " + self.relay_failed[pic]
         return reason
 
+    def _verticals_fragile(self, pic):
+        """Raison courte si les verticales automatiques de la photo sont fragiles (autotilt.fit), sinon None."""
+        v = (self.calibration.auto.get(pic) or {}).get("verticals")
+        return (v or {}).get("fragile_reason") if (v or {}).get("fragile") else None
+
     def _tilt_line(self):
         """(texte, alerte) de l'inclinaison dans la ligne d'état. Un seul vocabulaire (ticket #29) :
         « calée » (par les verticales de la photo, par le terrain, à la main) ou « non calée », avec
@@ -119,6 +124,8 @@ class Pose:
                 how = "par le terrain, expérimental ({})".format(sigma)
             else:
                 how = "par {} ({})".format("les verticales de la photo" if source == "verticales" else "le terrain", sigma)
+                if source == "verticales" and self._verticals_fragile(pic):
+                    how += ", fragile : " + self._verticals_fragile(pic)
             return "inclinaison calée " + how, False
         if pic and self.tilts.pending(pic):
             return "inclinaison : calcul en cours…", False

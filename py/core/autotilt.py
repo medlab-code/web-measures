@@ -44,6 +44,11 @@ MIN_SEGMENTS = 40
 MAX_SIGMA = 0.25  # incertitude maximale acceptée (degrés)
 EDGE_BIN = 0.3  # degrés de cap : segments d'une même arête (incertitude)
 FLOOR = math.radians(0.05)  # dispersion minimale des segments retenus (radians)
+# Seuils de l'indicateur « fragile » (voir fit) : provisoires, à caler sur des photos de référence.
+EDGE_MERGE = 1.5  # degrés : pieds dans une même grappe de cette largeur : une même arête (inclinée de 1 à 2°, le pied glisse d'environ tilt·tan(élévation) d'une bande à l'autre)
+FRAGILE_GAP = 150.0  # plus grand secteur d'azimut sans arête (degrés) : au-delà, arêtes d'un seul côté
+FRAGILE_EDGES = 8  # arêtes distinctes : en dessous, trop peu
+FRAGILE_SIGMA = 0.15  # incertitude par axe (degrés), tangage ou roulis
 
 
 def segments(band, row0, height, width, azimuth):
@@ -140,11 +145,47 @@ def _refine(win, xs, slopes, offs, reach=5):
     return a, b, ok
 
 
-def fit(pairs):
+QUALITY = ("edges", "gap", "sigma_pitch", "sigma_roll", "fragile", "fragile_reason")  # indicateurs de qualité de fit, gardés avec les verticales
+
+
+def _clusters(yaws):
+    """Positions (degrés, médiane) des arêtes distinctes : azimuts de pied triés sur le cercle, regroupés en grappes de largeur au plus
+    EDGE_MERGE (une nouvelle s'ouvre dès qu'un azimut est à plus de EDGE_MERGE du premier de la grappe : pas de chaînage,
+    une façade dense compte plusieurs arêtes). Rend une liste triée."""
+    az = sorted(a % 360 for a in yaws)
+    if not az:
+        return []
+    cut = max(range(len(az)), key=lambda i: (az[(i + 1) % len(az)] - az[i]) % 360 or 360)  # coupe au plus grand vide
+    az = az[cut + 1:] + [a + 360 for a in az[:cut + 1]]
+    groups = [[az[0]]]
+    for a in az[1:]:
+        if a - groups[-1][0] <= EDGE_MERGE:
+            groups[-1].append(a)
+        else:
+            groups.append([a])
+    return [float(g[len(g) // 2]) for g in groups]
+
+
+def _gap(positions):
+    """Plus grand secteur d'azimut (degrés) sans arête, sur le cercle ; 360 pour une seule arête."""
+    if len(positions) < 2:
+        return 360.0
+    return max(b - a for a, b in zip(positions, positions[1:] + [positions[0] + 360]))
+
+
+def fit(pairs, heading=None):
     """Verticale vraie d'après des segments (voir calibration.tilt_from_verticals), avec rejet
     itératif des segments qui s'en écartent. Retourne le dict de tilt_from_verticals
     complété de sigma (incertitude, degrés), segments (retenus), auto=True, ou None si les
-    segments sont trop peu nombreux ou mal répartis."""
+    segments sont trop peu nombreux ou mal répartis.
+
+    Indicateurs de qualité, sans effet sur l'estimation ni sur les refus : edges (arêtes
+    distinctes, regroupées à EDGE_MERGE près : distinct du compte à EDGE_BIN de sigma), gap (plus grand secteur d'azimut sans arête, degrés), sigma_pitch et
+    sigma_roll (incertitude par axe, degrés, si le cap `heading` de la photo est donné : la
+    covariance sigma²·A⁻¹ de (up_x/up_z, up_y/up_z) projetée sur les axes de
+    calibration.tilt_components, avant (sin h, cos h) et droite (cos h, −sin h) ; des arêtes
+    seulement devant et derrière contraignent le roulis, pas le tangage), fragile et
+    fragile_reason (voir les seuils FRAGILE_*)."""
     normals, yaws = [], []
     for bottom, top in pairs:
         n = calibration._cross(calibration.vector(*bottom), calibration.vector(*top))
@@ -188,12 +229,34 @@ def fit(pairs):
     sigma_deg = math.degrees(sigma / math.sqrt(max(lam, 1e-12))) * math.sqrt(len(keep) / max(edges, 1))
     if sigma_deg > MAX_SIGMA:
         return None
+    scale = sigma_deg / max(math.degrees(sigma / math.sqrt(max(lam, 1e-12))), 1e-12)  # √(segments/arêtes)
+    sigma_pitch = sigma_roll = None
+    if heading is not None:
+        det = a11 * a22 - a12 * a12
+        inv = (a22 / det, -a12 / det, a11 / det)  # A⁻¹ : (xx, xy, yy)
+        h = math.radians(heading)
+
+        def axis(ux, uy):
+            return math.degrees(sigma * scale * math.sqrt(max(inv[0] * ux * ux + 2 * inv[1] * ux * uy + inv[2] * uy * uy, 0.0)))
+
+        sigma_pitch, sigma_roll = axis(math.sin(h), math.cos(h)), axis(math.cos(h), -math.sin(h))
+    positions = _clusters([yaws[i] for i in keep])
+    edge_count = len(positions)
+    gap = _gap(positions)
+    reason = None
+    if gap > FRAGILE_GAP:
+        reason = "verticales d'un seul côté"
+    elif edge_count < FRAGILE_EDGES:
+        reason = "peu d'arêtes distinctes"
+    elif sigma_pitch is not None and max(sigma_pitch, sigma_roll) > FRAGILE_SIGMA:
+        reason = "incertitude élevée sur le " + ("tangage" if sigma_pitch >= sigma_roll else "roulis")
     tilt = math.degrees(math.acos(min(1.0, up[2])))
     if tilt > calibration.MAX_TILT:
         return None
     return {"up": up, "tilt": tilt, "toward": math.degrees(math.atan2(up[0], up[1])) % 360,
             "residual": math.degrees(sigma), "partial": False, "count": len(keep), "sigma": sigma_deg,
-            "auto": True}
+            "auto": True, "edges": edge_count, "gap": gap, "sigma_pitch": sigma_pitch, "sigma_roll": sigma_roll,
+            "fragile": reason is not None, "fragile_reason": reason}
 
 
 def estimate(data, azimuth):
@@ -202,7 +265,7 @@ def estimate(data, azimuth):
     band = host.decode_band(data, WIDTH, ELEV_MIN, ELEV_MAX)
     if band is None:
         return None
-    return fit(segments(*band, azimuth))
+    return fit(segments(*band, azimuth), azimuth)
 
 
 def lidar_url(lon, lat, heading):
@@ -317,7 +380,8 @@ class TiltChecker:
                 (self.run or host.run_task)(estimate, (bytes(data), float(heading)), analysed)
 
         def analysed(res):
-            state["verticals"] = ({"up": list(res["up"]), "count": res["count"], "sigma": res["sigma"]}
+            state["verticals"] = ({"up": list(res["up"]), "count": res["count"], "sigma": res["sigma"],
+                                   **{k: res.get(k) for k in QUALITY}}
                                   if res else None)
             finish()
 

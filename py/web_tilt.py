@@ -28,13 +28,13 @@ def estimate(data, azimuth):
     if band is None:
         return {"reason": "photo HD illisible"}
     pairs = autotilt.segments(*band, azimuth)
-    res = autotilt.fit(pairs)
+    res = autotilt.fit(pairs, azimuth)
     if res:
         return res
     limits = autotilt.MIN_SEGMENTS, autotilt.MAX_SIGMA, calibration.MAX_TILT
     autotilt.MIN_SEGMENTS, autotilt.MAX_SIGMA, calibration.MAX_TILT = 3, math.inf, 90.0
     try:
-        loose = autotilt.fit(pairs)
+        loose = autotilt.fit(pairs, azimuth)
     finally:
         autotilt.MIN_SEGMENTS, autotilt.MAX_SIGMA, calibration.MAX_TILT = limits
     # Dans l'ordre des refus de autotilt.fit ; arêtes trop peu nombreuses ou trop imprécises : même
@@ -42,6 +42,7 @@ def estimate(data, azimuth):
     if loose is not None and loose["count"] >= limits[0] and loose["sigma"] <= limits[1]:
         return {"reason": "inclinaison trouvée trop forte"}
     if loose is not None and loose["count"] >= limits[0] and loose["sigma"] <= LOOSE_SIGMA and loose["tilt"] <= limits[2]:
-        return {"reason": FEW_EDGES, "loose": {"up": list(loose["up"]), "sigma": loose["sigma"]}}
+        return {"reason": FEW_EDGES, "loose": {"up": list(loose["up"]), "sigma": loose["sigma"], "count": loose["count"],
+                                                     **{k: loose.get(k) for k in autotilt.QUALITY}}}
     return {"reason": FEW_EDGES}
 

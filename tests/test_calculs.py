@@ -263,7 +263,7 @@ class VueDessus(unittest.TestCase):
         saved = web_tilt.host.decode_band, web_tilt.autotilt.segments, web_tilt.autotilt.fit
         web_tilt.host.decode_band = lambda *a: ("bande", 0, 1, 1)
         web_tilt.autotilt.segments = lambda *a: []
-        web_tilt.autotilt.fit = lambda pairs: calls.append(1) or (None if len(calls) == 1 else loose)
+        web_tilt.autotilt.fit = lambda pairs, heading=None: calls.append(1) or (None if len(calls) == 1 else loose)
         try:
             res = web_tilt.estimate(b"", 0.0)
         finally:
@@ -1568,6 +1568,16 @@ class Parcours(unittest.TestCase):
         self.show(pic)
         up = calibration.up_from_components(1.0, 0.5, 0.0)
         cal.auto[pic] = {"sequence": "s1", "heading": 0.0, "verticals": {"up": list(up), "count": 7, "sigma": 0.2}, "lidar": None}
+        info = json.loads(a.calage_manuel())
+        self.assertIsNone(info["auto"]["fragile"])  # ancienne entrée, sans indicateurs de qualité
+        text, alert = a._tilt_line()
+        self.assertNotIn("fragile", text)
+        quality = {"edges": 5, "gap": 200.0, "sigma_pitch": 0.1, "sigma_roll": 0.05, "fragile": True, "fragile_reason": "peu d'arêtes distinctes"}
+        cal.set_auto(pic, calibration._auto_entry({**cal.auto[pic], "verticals": {"up": list(up), "count": 7, "sigma": 0.2, **quality}}))
+        auto = json.loads(a.calage_manuel())["auto"]
+        self.assertEqual((auto["edges"], auto["segments"], auto["gap"], auto["fragile_reason"]), (5, 7, 200.0, "peu d'arêtes distinctes"))
+        self.assertIn(", fragile : peu d'arêtes distinctes", a._tilt_line()[0])
+        cal.auto[pic]["verticals"] = {"up": list(up), "count": 7, "sigma": 0.2}
         info = json.loads(a.calage_manuel())
         self.assertEqual((info["retained"]["source"], info["auto"]["count"], info["auto"]["available"], info["auto"]["off"]),
                          ("verticales", 7, True, False))

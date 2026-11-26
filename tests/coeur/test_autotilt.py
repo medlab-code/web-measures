@@ -88,6 +88,46 @@ class Verticals(unittest.TestCase):
         self.assertAlmostEqual(f, 2.0, delta=0.05)
         self.assertAlmostEqual(r, 0.0, delta=0.05)
 
+    def fit_with_heading(self, up, azimuths, heading=0.0):
+        band, row0 = band_image(up, azimuths)
+        return autotilt.fit(autotilt.segments(band, row0, H, W, 0.0), heading)
+
+    def test_quality_all_around(self):
+        # Murs tout autour : pas fragile, secteur sans arête petit, incertitudes par axe faibles
+        up = calibration.up_from_components(1.0, -0.5, 0.0)
+        res = self.fit_with_heading(up, range(5, 360, 9))
+        self.assertFalse(res["fragile"])
+        self.assertIsNone(res["fragile_reason"])
+        self.assertLess(res["gap"], 30.0)
+        self.assertEqual(res["edges"], 80)  # 40 murs, deux bords chacun
+        self.assertAlmostEqual(res["gap"], 6.0, delta=0.5)
+        self.assertLessEqual(max(res["sigma_pitch"], res["sigma_roll"]), res["sigma"] + 1e-9)
+        self.assertLess(max(res["sigma_pitch"], res["sigma_roll"]), autotilt.FRAGILE_SIGMA)
+
+    def test_quality_one_side(self):
+        # Murs groupés dans un secteur de 80° : tout le reste du cercle sans arête
+        up = calibration.up_from_components(1.0, -0.5, 0.0)
+        res = self.fit_with_heading(up, range(0, 80, 6))
+        if res is None:  # refus aussi acceptable : l'indicateur ne sert qu'aux calculs qui aboutissent
+            self.skipTest("calcul refusé")
+        self.assertGreaterEqual(res["gap"], 270.0)
+        self.assertGreater(res["edges"], 20)  # 14 murs, 28 bords : fragile par le secteur vide et non par le compte
+        self.assertTrue(res["fragile"])
+        self.assertEqual(res["fragile_reason"], "verticales d'un seul côté")
+
+    def test_quality_axes(self):
+        # Verticales seulement devant et derrière (cap 0° et 180°) : leur plan contient la
+        # verticale vers l'avant, elles contraignent le roulis mais pas le tangage
+        up = calibration.up_from_components(0.5, 0.5, 0.0)
+        azimuths = [a + d for a in (0, 180) for d in range(-12, 12, 3)]
+        res = self.fit_with_heading(up, azimuths)
+        if res is None:
+            self.skipTest("calcul refusé")
+        self.assertGreater(res["sigma_pitch"], 3 * res["sigma_roll"])
+        # même photo, cap tourné de 90° : les rôles s'échangent
+        turned = autotilt.fit(autotilt.segments(*band_image(up, azimuths), H, W, 0.0), 90.0)
+        self.assertGreater(turned["sigma_roll"], 3 * turned["sigma_pitch"])
+
     def test_refused(self):
         up = calibration.up_from_components(1.0, -0.5, 0.0)
         self.assertIsNone(autotilt.fit([]))

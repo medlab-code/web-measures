@@ -1048,6 +1048,12 @@ def _auto_entry(entry):
         if v:
             up = _unit(tuple(float(c) for c in v["up"]))
             out["verticals"] = {"up": list(up), "count": int(v["count"]), "sigma": float(v["sigma"])}
+            # indicateurs de qualité (autotilt.QUALITY) : absents des anciennes entrées
+            for key in ("edges", "gap", "sigma_pitch", "sigma_roll"):
+                out["verticals"][key] = float(v[key]) if v.get(key) is not None else None
+            out["verticals"]["edges"] = None if out["verticals"]["edges"] is None else int(out["verticals"]["edges"])
+            out["verticals"]["fragile"] = bool(v["fragile"]) if v.get("fragile") is not None else None
+            out["verticals"]["fragile_reason"] = v.get("fragile_reason") or None
         if entry.get("lidar"):
             out["lidar"] = [float(entry["lidar"][0]), float(entry["lidar"][1])]
         return out

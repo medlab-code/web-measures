@@ -72,7 +72,16 @@ pour les mesures (hauteur, relevé, visées) comme pour la largeur dans la visio
    campagne ») ;
 3. **verticales de la photo** : arêtes verticales (façades, poteaux) repérées entre 3 et 45°
    au-dessus de l'horizon, puis moindres carrés avec rejet des arêtes penchées. Le résultat est
-   retenu avec 40 segments au moins et une incertitude sous 0,25° (±0,05 à 0,25°) ;
+   retenu avec 40 segments au moins et une incertitude sous 0,25° (±0,05 à 0,25°)  ;
+   **indicateurs de qualité** (`autotilt.fit`, sans effet sur l'estimation ni sur les refus ; ticket #66) : `edges` (arêtes
+   distinctes : pieds regroupés en grappes de 1,5° au plus (`EDGE_MERGE`), distinct du compte à 0,3° du σ), `gap` (plus grand secteur d'azimut sans arête, degrés), `sigma_pitch` et `sigma_roll`
+   (incertitude par axe : covariance σ²·A⁻¹ de la verticale, avec le facteur √(segments/arêtes) du σ global, projetée sur les
+   axes de `calibration.tilt_components` : avant (sin h, cos h), droite (cos h, −sin h), h = cap de la photo ; des arêtes
+   seulement devant et derrière contraignent le roulis, pas le tangage), et `fragile` avec sa raison : secteur sans arête
+   au-delà de 150° (« verticales d'un seul côté »), moins de 8 arêtes (« peu d'arêtes distinctes »), ou incertitude par
+   axe au-delà de 0,15° (« incertitude élevée sur le tangage / le roulis »). Seuils `FRAGILE_GAP`, `FRAGILE_EDGES`,
+   `FRAGILE_SIGMA` : provisoires, à caler sur des photos de référence. Gardés avec les verticales de la photo (absents des
+   anciennes entrées : affichage inchangé) et renvoyés aussi au seuil élargi ;
 4. **LiDAR sous le véhicule** (pente et dévers du MNT LiDAR HD, plus le décalage de la fixation
    appris sur la séquence, § 6.1 bis de `docs/MESURES.md`) ; ou, option expérimentale quand les
    verticales manquent, **terrain hors agglomération** : pente et dévers du MNT LiDAR HD sous la
