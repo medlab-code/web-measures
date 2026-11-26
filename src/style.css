@@ -1567,22 +1567,28 @@ dd { margin: 0; overflow-wrap: anywhere; }
      tactiles de 44 px sont élargies sans changer le dessin */
   html { --echelle-ui: 1 !important; }
   #haut-droite-vue { top: 5.6rem; }
-  #haut-droite-vue.filigrane-masque #filigrane-vue { visibility: visible; }
+  /* Mention de version retirée (voulu par l'auteur, exception à « au moins une fois à l'écran ») et captures retirées : seul reste le plein écran */
+  .filigrane, #capture-hd, #vignette { display: none !important; }
   /* Visionneuse : la flèche de navigation arrière de la photo occupe le bas au centre ; le lecteur passe en bas à gauche et la
      localisation (une seule ligne coupée par « … », infobulle : texte entier) en haut à gauche, sous la barre d'outils et à gauche des
      captures ; producteur masqué (place comptée) ; texte de 13 px, rien ne se recouvre */
   .bas-vue { display: contents; }
   #lecteur { position: absolute; left: 0.8rem; bottom: 0.8rem; z-index: 5; }
-  #lieu { position: absolute; left: 0.8rem; top: 4.6rem; max-width: calc(100% - 9rem); box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+  #lieu { position: absolute; left: 0.8rem; top: 4.6rem; max-width: calc(100% - 6rem); box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
   #producteur-photo { display: none; }
   /* Carte : recherche et requêteur de route sur une seule ligne (la colonne de boutons reste à gauche), liste de suggestions plus large */
   body:not(.carte-en-grand):not(.fenetre-carte) .requeteur { top: 10px; right: 10px; width: calc(56% - 10px); }
-  body:not(.carte-en-grand):not(.fenetre-carte) .recherche { right: calc(56% + 4px); width: calc(44% - 64px); }
+  body:not(.carte-en-grand):not(.fenetre-carte) .recherche { right: calc(56% + 4px); width: calc(44% - 56px); }
   body:not(.carte-en-grand):not(.fenetre-carte) .recherche ul { right: auto; width: calc(100vw - 80px); }
-  .maplibregl-ctrl-top-left .place-mesurer { left: 48px; }  /* à droite de la colonne de boutons, élargie à 44 px */
+  .maplibregl-ctrl-top-left .place-mesurer { left: 38px; }  /* à droite de la colonne de boutons (30 px) */
   /* Zones tactiles : onglets et boutons de la carte 44 px ; barres de la visionneuse, surface élargie sans changer le dessin */
   #onglets button { min-height: 44px; }
-  .maplibregl-ctrl-top-left .maplibregl-ctrl-group button { width: calc(44px / var(--echelle-ui, 1)); height: calc(44px / var(--echelle-ui, 1)); }
+  /* Colonne de la carte fine : boutons de 30 px, icônes de 18 px (comme le bouton du fond de carte) ; zone tactile de 44 × 42 px par un
+     pseudo-élément invisible (la colonne laisse déborder), 8 px entre boutons : deux zones voisines ne se recouvrent que de 4 px */
+  .maplibregl-ctrl-top-left .maplibregl-ctrl-group { overflow: visible; }
+  .maplibregl-ctrl-top-left .maplibregl-ctrl-group button { position: relative; width: 30px; height: 30px; padding: 6px; }
+  .maplibregl-ctrl-top-left .maplibregl-ctrl-group button + button { margin-top: 8px; }
+  .maplibregl-ctrl-top-left .maplibregl-ctrl-group button::after { content: ""; position: absolute; left: -7px; right: -7px; top: -6px; bottom: -6px; }
   #reglage-image button, #captures-visionneuse button, #lecteur button { position: relative; }
   #reglage-image button::after, #captures-visionneuse button::after, #lecteur button::after {
     content: ""; position: absolute; left: -3px; right: -3px; top: calc(50% - 22px / var(--echelle-ui, 1)); bottom: calc(50% - 22px / var(--echelle-ui, 1)); }
