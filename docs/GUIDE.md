@@ -49,7 +49,7 @@ immédiat) grossit d'un bloc les boutons du haut de la visionneuse, les trois pa
 de mesure dessinés sur la photo n'en changent pas. Une section
 s'affiche à la fois ; la dernière choisie est rouverte à la visite suivante.
 
-**La carte** : le fond se choisit dans le panneau du bouton « i » (en bas à droite de la carte), au-dessus des attributions ; fonds Plan IGN (tuiles vectorielles, texte net ; dès le zoom 16, parcelles cadastrales en jaune léger, rues et chemins du domaine public en blanc, cadastre allumé ou non), orthophoto, ortho-express, LiDAR HD de l'IGN en ombrage (MNT : le sol nu ; MNS : sol, bâtiments et végétation ; MNH : hauteur du
+**La carte** : le fond se choisit dans le panneau du bouton en forme de carte pliée (en bas à droite de la carte, ancien « i »), au-dessus des attributions ; fonds Plan IGN (tuiles vectorielles, texte net ; dès le zoom 16, parcelles cadastrales en jaune léger, rues et chemins du domaine public en blanc, cadastre allumé ou non), orthophoto, ortho-express, LiDAR HD de l'IGN en ombrage (MNT : le sol nu ; MNS : sol, bâtiments et végétation ; MNH : hauteur du
 sursol, bâtiments, arbres, haies, talus ; jusqu'au zoom 18, là où le LiDAR HD est publié), OpenStreetMap (tuiles vectorielles d'OpenFreeMap, texte net), et
 **orthophoto avec noms** (« Orthophoto + », le fond par défaut ; le fond choisi est gardé dans le navigateur) : noms des lieux et des rues, voies, avec les numéros de route dans
 des cartouches dessinés comme ceux de l'IISR (rouge pour les autoroutes et nationales, jaune
@@ -782,7 +782,7 @@ pas utilisé (talus et murs pris pour la route).
 
 - plus de voyants en haut à droite de la visionneuse (RTK, LiDAR HD, inclinaison retirés) : précision RTK et modèle de terrain restent
   dans la liste « Position » du panneau, l'inclinaison est dite par le message de la carte d'étape ;
-- fonds de carte, choisis dans le panneau du « i » de la carte : 1. Orthophoto + (par défaut) ; 2. Plan IGN ; 3. Orthophoto ; 4. Ortho-express (année de la photo) ; 5. LiDAR MNT ; 6. LiDAR MNS ; 7. LiDAR MNH ; 8. OpenFreeMap ; recherche de lieux ; points de repère
+- fonds de carte, choisis dans le panneau du bouton en forme de carte pliée (ancien « i ») de la carte : 1. Orthophoto + (par défaut) ; 2. Plan IGN ; 3. Orthophoto ; 4. Ortho-express (année de la photo) ; 5. LiDAR MNT ; 6. LiDAR MNS ; 7. LiDAR MNH ; 8. OpenFreeMap ; recherche de lieux ; points de repère
   (PR) des routes ; requêteur route + PR (+ distance), à listes qui se réduisent à la frappe ;
 - lieu de la photo incrusté en bas à gauche de la visionneuse : route, PR et distance mesurée
   le long du filaire IGN depuis le dernier PR passé, nom de la voie précédé du numéro de l'adresse

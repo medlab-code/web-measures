@@ -313,9 +313,9 @@ const Resultats = {
     });
     // Export géoréférencé de la vue Bird Eye pour un SIG (GeoTIFF en Lambert 93) ; grisé Bird Eye éteinte
     const exportButton = Object.assign(document.createElement("button"), { type: "button", className: "capture-carte", hidden: true,
-      // carte pliée et repère (géoréférencée)
+      // flèche de téléchargement posée sur une petite grille (trame raster)
       innerHTML: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-        + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>',
+        + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v9M8.5 8.5L12 12l3.5-3.5"/><path d="M4 14h16v6H4zM9.3 14v6M14.7 14v6M4 17h16"/></svg>',
       title: "Vue Bird Eye géoréférencée pour un SIG (QGIS…) : GeoTIFF en Lambert 93, la vue seule, sans fond de carte ni mesures",
       ariaLabel: "Export géoréférencé de la vue Bird Eye" });
     exportButton.addEventListener("click", async () => {
