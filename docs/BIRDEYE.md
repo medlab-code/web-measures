@@ -363,3 +363,118 @@ mesure à cheval sur deux photos, au moins l'écart mesuré à leurs raccords (a
   6 min (`tools/essais.sh passages`) ; `#rapide` : 6 photos, ±4 % et 0,6°, environ 2 min.
 - `tools/essais.sh birdeye` : synthèse, références `#rapide` et passages `#rapide`, environ 3 min 30 (processeur
   graphique, cache HTTP gardé).
+
+## 8. Constantes
+
+Les constantes ci-dessous sont celles de `src/dessus.js` et des fichiers `py/` qui pilotent la vue du dessus ; les numéros
+de ligne sont ceux du dépôt au 26/11/2026 (`grep -n <NOM>` les retrouve). **À ne pas confondre :** la *résolution de la
+source* (MNT LiDAR HD de l'IGN à 50 cm, la seule source de relief lue par la vue ; le RGE ALTI 1 m ne sert qu'à d'autres calculs,
+par exemple `py/core/precision.py`, jamais à la projection de la vue) et le *pas d'échantillonnage de l'application*
+(`STEP`, 1 m : une maille sur deux du MNT, lissée ensuite). Un « sigma » **réglé empiriquement** (résidu observé sur des
+essais) n'est pas une précision du MNT : c'est la part d'incertitude que l'application affiche, tirée de nos mesures.
+Colonne « Origine » : *mesure* (relevé ou essai daté), *réglage empirique*, *donnée du fournisseur*, *choix d'affichage*,
+*non documentée* (aucune trace dans les commentaires ni dans l'historique).
+
+### 8.1 Grille et relief
+
+| Constante (fichier:ligne) | Valeur | Unité | Rôle | Origine | Effet d'une modification |
+|---|---|---|---|---|---|
+| `REACH` (`dessus.js:23`) | 15 | m | Portée de la vue (carré de ±15 m autour de la caméra) | choix d'affichage | Plus grand : vue plus large, mais sol de plus en plus faux (l'inclinaison domine) et lectures LiDAR plus nombreuses |
+| `STEP` (`dessus.js:25`) | 1 | m | Pas d'échantillonnage du terrain (le MNT LiDAR HD lui-même est à 50 cm) | choix technique (commentaire : « LiDAR HD à 50 cm, toit de la chaussée compris ») | Plus petit : plus de points par requête (requête POST d'environ 2 600 points pour ±25 m) ; plus grand : bombement et caniveaux mal suivis |
+| `TERRAIN_SMOOTH` (`dessus.js:428`) | 2 | m | Lissage gaussien du terrain le long de la route (le MNT s'écarte d'une surface lisse de 1 à 3 cm d'un mètre à l'autre) | mesure (essai du 07/11/2026, A38 : écart de la rive 3,5 → 0,4 cm) | Plus petit : lignes qui ondulent ; plus grand : bosses et creux réels effacés |
+| `TERRAIN_SMOOTH_ACROSS` (`dessus.js:428`) | 0,5 | m | Lissage en travers (bombement et caniveaux gardés) | mesure (essai du 14/11/2026, ville 57c93b75 : écart au LiDAR brut 4,5 → 2,6 cm) ; 2 m laissait le milieu 3 à 5 cm trop bas | Plus grand : caniveaux et bombement effacés, bandes de passage piéton qui dérivent ; plus petit : bruit du MNT laissé |
+| `DECK_KEEP` (`dessus.js:343`) | 0,6 | part | Part minimale des points du terrain qui doit rester hors de l'emprise d'un pont, sinon terrain indisponible | réglage empirique (non documentée plus avant) | Plus grand : terrain refusé plus souvent près d'un ouvrage ; plus petit : tablier reconstitué sur trop peu de points |
+| `ALTI_CHUNK` (`dessus.js:30`) | 300 | points | Points par requête d'altitude en GET (secours du POST) | donnée du fournisseur (longueur d'adresse : environ 6,5 Ko) | Trop grand : adresse refusée |
+| `MIN_KEEP` (`web_terrain.py:43`) | 0,7 | part | Part de la grille du plan de route qui doit rester quand des points sous un pont sont écartés | réglage empirique (non documentée plus avant) | Plus grand : plan de route refusé plus souvent près d'un pont |
+| `GRID_ALONG` (`web_terrain.py:27`) | −2,5 à +2,5 par 0,5 | m | Points en long de la grille où le LiDAR est lu pour le plan de la route (avec `GRID_ACROSS`) | réglage empirique (ajusté sur ±2,5 m en long et ±1,5 m en travers, comme `groundSlopes`) | Plus étendue : plan moins local, pente moyennée sur plus de route |
+| `GRID_ACROSS` (`web_terrain.py:28`) | −1,5 ; −0,8 ; 0 ; 0,8 ; 1,5 | m | Idem, en travers | idem | Idem |
+| `LIDAR_ALONG`, `LIDAR_ACROSS` (`core/calibration.py:55`) | 1,5 ; 0,8 | m | Grille du plan de route sous les roues pour le roulis par défaut (dévers du LiDAR HD) | mesure (Pouilly-en-Auxois, 18 photos : 0,4° en long et 0,5° en travers contre les verticales) ; la grille atténue l'arrondi au centimètre du service | Plus large : roulis moyenné sur plus de chaussée ; plus étroite : arrondi du service moins atténué |
+
+### 8.2 Incertitudes
+
+Valeurs affichées, combinées dans `uncertainty` et `measureError` (voir § 3 et § 5).
+
+| Constante (fichier:ligne) | Valeur | Unité | Rôle | Origine | Effet d'une modification |
+|---|---|---|---|---|---|
+| `LIDAR_SIGMA` (`dessus.js:89`) | 0,02 | m | Écart-type de l'écart du sol réel au terrain lu, sur LiDAR HD (résidu, **pas** la précision du MNT, que `py/core/triangulation.py` donne à 8 cm : `LIDAR_ERROR`) | réglage empirique, introduit avec la première vue (540eaa3), « résidu LiDAR » ; chiffre repris dans `docs/CALCULS.md` ; justification détaillée non documentée | Plus grand : incertitude de longueur plus large (échelle et courbure) ; plus petit : incertitude sous-estimée |
+| `FLAT_SIGMA` (`dessus.js:89`) | 0,1 | m | Idem sur sol supposé plat (aussi valeur initiale tant que le terrain n'est pas lu) | réglage empirique (non documentée plus avant) | Idem |
+| `GROUND_CORRELATION` (`dessus.js:90`) | 2 | m | Portée de la corrélation de l'écart du sol entre deux points (deux points proches bougent ensemble) | choix de modèle (4aa832c, 13/11/2026 : 9 cm → 2,5 à 5 cm sur une bande de 0,50 m) ; commentaire du code : « terrain lissé sur 2 m » | Plus grand : incertitude de longueur plus faible sur courte distance ; plus petit : erreurs du sol comptées indépendantes à chaque bout |
+| `GROUND_SIGMA` (`dessus.js:79`) | 1 | degré | Incertitude d'inclinaison déduite de la route (sans verticales), sur LiDAR | réglage empirique (voir `docs/CALCULS.md`) | Plus grand : incertitude de mesure plus large, grisé inchangé |
+| `DECK_SIGMA` (`dessus.js:88`) | 1,5 | degré | Idem sur un pont (tablier supposé plan, pente jusqu'à 3 %, 1,7°) | réglage empirique (e9801fc) ; commentaire : pente de tablier jusqu'à 3 %, soit 1,7° | Idem |
+| `LEAN` (`dessus.js:259`) | 0,5 | degré par m/s² | Penchement du véhicule en virage, ajouté à l'incertitude (5° par g), sans corriger la vue | mesure (giratoire b47b4351, 4,4 m/s² : bord à 8 m décalé de 1,3 m) | Plus grand : incertitude majorée en virage ; ne change pas l'image |
+| `HEIGHT_SIGMA` (`dessus.js:75`) | 0,05 | m | Écart-type de la hauteur de caméra lue sur le décalage entre photos voisines | mesure (essai de 28 paires) | Plus grand : incertitude de hauteur plus large |
+| `RTK_SIGMA` (`dessus.js:78`) | 0,1 | m | Plancher de l'écart-type de la hauteur par l'altitude RTK moins le sol | mesure (12 cm d'écart avec le décalage entre photos au giratoire b47b4351, alors que l'écart interne n'est que de 2 cm) | Plus petit : hauteur RTK présentée plus sûre qu'elle n'est |
+| `MOUNT_SIGMA` (`dessus.js:2175`, `web_pose.py:384`) | 0,04 | m | Écart-type de la hauteur par monture du CD21 (même valeur des deux côtés) | non documentée (valeur non justifiée ; les hauteurs lues sont dans le commentaire de `FLEET_MOUNTS`) | Plus grand : hauteur par monture moins crédible |
+| `MEASURED` (`dessus.js:74`) | 0,05 | part de la longueur | Plancher de l'incertitude affichée d'une longueur (écart constaté à l'orthophoto) | mesure (essais du 08/11/2026, `docs/CALCULS.md`) | Plus petit : incertitude affichée parfois sous l'écart réellement constaté |
+| `ROLL_DEFECT_SIGMA` (`web_pose.py:462`) | 1,0 | degré | Dispersion du roulis d'une photo à l'autre dans une campagne (incertitude du défaut de campagne) | mesure (±1° sur 23 vues, § 4.1) | Plus petit : roulis de campagne présenté plus sûr qu'il n'est |
+| `SIGMA_MIN` (`web_terrain.py:30`) | 0,6 | degré | Incertitude au moins égale à l'écart mesuré sur les témoins du décalage de terrain (dévers) | réglage empirique (non documentée plus avant) | Plus petit : décalage de terrain jugé plus précis |
+| `LIDAR_MAX_SIGMA`, `LIDAR_MIN_SIGMA` (`core/calibration.py:58-59`) | 0,8 ; 0,3 | degré | Plafond au-delà duquel le modèle du LiDAR est refusé (caméra qui ne suit pas le véhicule) ; plancher de l'incertitude | réglage empirique (non documentée plus avant) | Plafond plus bas : modèle refusé plus souvent |
+
+### 8.3 Sol plat, ponts et monture
+
+| Constante (fichier:ligne) | Valeur | Unité | Rôle | Origine | Effet d'une modification |
+|---|---|---|---|---|---|
+| `BRIDGE_FLAT_RADIUS` (`core/roads.py:27`) | 15 | m | Distance à vol d'oiseau au tablier (BD TOPO) en deçà de laquelle la vue suppose le sol plat (le relief y donne le fond de la vallée) | décision du cœur (aaea47c, 26/11/2026) ; valeur non justifiée | Plus grand : sol plat plus souvent imposé ; plus petit : relief du fond de vallée projeté sur la route |
+| `BRIDGE_REACH` (`core/roads.py:26`) | 8 | m | Distance entre la photo et un tronçon en pont pour la marquer « sur un pont » (demi-chaussée et précision GPS) | réglage empirique, justifié par la demi-chaussée et le GPS (pas de mesure citée) | Plus grand : photos d'approche marquées sur un pont |
+| `BRIDGE_ANGLE` (`core/roads.py:28`) | 30 | degré | Écart maximal entre le tronçon en pont et le sens de la séquence | non documentée | Plus petit : ponts croisés écartés ; plus grand : pont perpendiculaire retenu |
+| `BRIDGE_LEFT` (`core/roads.py:33`) | 30 (= `MARGIN`) | m | Distance à tout tronçon en pont au-delà de laquelle la case « Sur un pont » est proposée à décocher | choix de conception (maille de lecture BD TOPO) | Plus petit : alerte plus tôt |
+| `DECK_HALF_WIDTH` (`core/roads.py:32`) | 6 | m | Demi-largeur d'emprise d'un pont de part et d'autre de l'axe (chaussée, trottoirs, garde-corps) | réglage empirique ; la largeur BD TOPO « n'est pas fiable » (mémoire du projet) | Plus grand : plus de points LiDAR écartés autour de l'ouvrage |
+| `BIRDEYE_DECK_SCAN` (`web_pose.py:351`) | 40 | m | Distance à laquelle les emprises de pont sont transmises à la vue (±25 m de terrain lu, 35 m dans les coins) | non documentée (le commentaire cite ±25 m de terrain lu sur les lignes, `LINES_WIDE`) | Plus petit : tablier hors liste pour un terrain lu plus large |
+| `MOUNTS` (`dessus.js:2175`), `FLEET_MOUNTS` (`web_pose.py:383`) | 1,93 jusqu'au 23/06/2025 ; 2,07 dès le 24/06/2025 | m | Hauteur de la caméra du CD21 par date de prise de vue (prioritaire sur la hauteur lue entre photos, seule sur un pont) | mesure (changement de véhicule, bords du véhicule de −27,1° à −26,0°, hauteurs lues 2,04 à 2,10 m) ; limite au jour faute d'heure du changement | Une erreur de 5 cm sur 2 m fait 2,5 % d'échelle |
+| `MIN_HEIGHT`, `MAX_HEIGHT` (`dessus.js:877`) | 1,5 ; 2,6 | m | Hauteurs de caméra plausibles pour une lecture entre photos | réglage empirique (non documentée plus avant) | Plus large : lectures aberrantes acceptées |
+| `MIN_NCC` (`dessus.js:877`) | 0,2 | corrélation | Corrélation minimale d'une lecture de hauteur | réglage empirique (non documentée plus avant) | Plus bas : hauteurs lues sur des raccords peu corrélés |
+| `HEIGHTS_MIN` (`dessus.js:1623`) | 3 | photos | Lectures de hauteur nécessaires pour garder la médiane d'une séquence | réglage empirique (non documentée plus avant) | Plus petit : hauteur de séquence moins sûre |
+
+### 8.4 Inclinaison (tangage et roulis)
+
+| Constante (fichier:ligne) | Valeur | Unité | Rôle | Origine | Effet d'une modification |
+|---|---|---|---|---|---|
+| `ROLL_SHARE` (`web_pose.py:410`) / `ROLL_SHARE_DEFAULT` (`dessus.js:1612`) | 0,7 | part du dévers | Part du dévers de la route prise en roulis du véhicule (le tangage suit la pente entière) ; la page lit celle de la pose (`roll_share`) | réglage empirique, repris de la vue du dessus (d69c60e) ; le défaut de campagne a été estimé avec cette part | Change le roulis par défaut de toutes les photos ; le défaut `ROLL_DEFECTS` (+1°) devrait être réestimé |
+| `ROLL_DEFECTS` (`web_pose.py:372`) | CD21, 2025 : +1,0 | degré | Défaut de roulis ajouté au roulis tiré du dévers, par producteur et période | mesure (23 vues de passage piéton, 13/11/2026 : +0,98° en médiane) | Décale tous les roulis de la campagne |
+| `ROLL_PITCH_LIMIT` (`dessus.js:1612`) | 2,5 | degré | Bornes d'un réglage de roulis ou de tangage retenu d'une session précédente | non documentée | Plus petit : anciens réglages rognés |
+| `PITCH_MAX` (`dessus.js:1708`) | 2 | degré | Tangage lu (raccords, lignes) au-delà duquel la lecture est écartée | réglage empirique (lectures aberrantes) | Plus petit : lectures valides écartées |
+| `PITCH_STEP` (`dessus.js:1707`) | 0,1 | degré | Écart de tangage en deçà duquel la vue n'est pas refaite | non documentée (à titre indicatif, 0,1° font 9 cm à 10 m, § 3) | Plus petit : vues refaites plus souvent |
+| `PITCH_PASSES` (`dessus.js:1708`) | 3 | passes | Nombre maximal de vues refaites par photo après relecture du tangage | choix technique | Plus grand : plus de recalculs, convergence plus fine |
+| `LINES_SPREAD` (`dessus.js:1718`) | 6 | m | Écart minimal des lignes extrêmes pour garder un tangage lu sur les lignes | mesure (D33 : lignes à 4,9 à 5,6 m, lectures de −0,7 à +2,2° ; A38 et RD 1074 à 6,5 m : à 0,2° des raccords) | Plus petit : lectures peu sûres retenues |
+| `LINES_SEQUENCE` (`dessus.js:1718`) | 3 | photos | Lectures sur les lignes nécessaires pour utiliser la médiane de la séquence | mesure (une photo seule s'est trompée de plus de 1° : RD 1074, D33) | Plus petit : photo isolée crue |
+| `LINES_WIDE` (`dessus.js:1718`) | 25 | m | Portée du terrain lu pour le tangage sur les lignes (une seule lecture pour toutes les portées) | mesure (pas sur 10 m : à plus de 1° deux fois) | Plus petit : lecture moins sensible au tangage ; plus grand : bruit du MNT |
+| `LINE_BIN`, `LINE_FAR`, `LINE_GAP`, `LINE_MIN`, `LINE_FIT` (`dessus.js:1103`) | 1 ; 10 ; 0,25 ; 3 ; 0,04 | m, m, m, tranches, m | Tranche, portée, écart de suivi, tranches minimales par ligne, écart admis à l'ajustement (peintures) | réglage empirique (non documentée plus avant) | Plus strict : moins de lignes retenues, lecture plus sûre ; plus lâche : lignes parasites |
+| `EDGE_HALF`, `EDGE_MIN`, `EDGE_FIT` (`dessus.js:1130`) | 5 ; 40 ; 0,06 | colonnes de 2 cm, somme RVB, m | Bords d'enrobé sans peinture : pente de lecture, marche minimale, écart admis | réglage empirique (demande de l'auteur, 13/11/2026 ; valeurs non documentées) | Idem |
+
+### 8.5 Raccords entre photos et position
+
+| Constante (fichier:ligne) | Valeur | Unité | Rôle | Origine | Effet d'une modification |
+|---|---|---|---|---|---|
+| `SEAM` (`dessus.js:1224`) | 1,5 | m | Demi-zone du raccord où l'ajustement est vérifié | réglage empirique (non documentée plus avant) | Plus large : vérification moins locale |
+| `BLOCK`, `SEARCH`, `BLOCK_STEP` (`dessus.js:1225`) | 48 ; 40 ; 20 | px de 3 cm | Côté d'un bloc, recherche de part et d'autre, pas des blocs | réglage empirique (essai du 07/11/2026, 38 raccords de route et 14 en ville) | Recherche plus grande : décalages plus grands retrouvés, plus de faux pics |
+| `JOIN_REACH` (`dessus.js:1226`) | 11 | m | Portée au-delà de laquelle une photo est trop floue pour s'y fier | réglage empirique (non documentée plus avant) | Plus grand : sol flou utilisé dans les raccords |
+| `JOIN_GOOD` (`dessus.js:1229`) | 0,05 | m | Écart au raccord après recalage au-delà duquel le recalage n'est pas appliqué | mesure (courbe serrée du 15/07/2025, 9d92052e : 19,7 → 7,4 cm, mieux sans recalage ; route et ville 2 à 4 cm) | Plus grand : recalages douteux appliqués |
+| `JOIN_PRIOR` (`dessus.js:1263`) | σ a priori 0,3 m, 0,3 m, 1°, 1°, 0,005, 1° pour une pénalité de 0,02 | m, m, rad, rad, échelle, rad | Poids a priori de chaque terme de la pose relative d'une voisine (décalages, tangage, lacet, échelle, roulis) | réglage empirique (a9fd217d, 08/11/2026 : échelle tenue serrée car confondue avec le décalage) | Plus lâche : image tordue au-delà du raccord |
+| `JOIN_LIMIT` (`dessus.js:1264`) | 1,2 ; 1,2 ; 3° ; 3° ; 0,06 ; 3° | m, m, rad, rad, échelle, rad | Correction refusée au-delà (1,2 m = portée de la recherche) | mesure (GPS décalé de 1 m le long, D33 du 04/07/2025) | Plus petit : vraies dérives GPS refusées |
+| `BEND`, `BEND_SIGMA`, `BEND_PRIOR` (`dessus.js:1233`) | 60 ; 1,2 ; 0,02 | cases, m, poids | Champ de déplacement de la voisine : cases sur la vue, portée, poids d'un déplacement nul | réglage empirique (bc400f2b, 09/11/2026 : axe rompu de quelques cm au bord du masque) | Portée plus grande : champ plus lisse, écarts locaux mal repris |
+| `LINE_BAND`, `LINE_SEARCH`, `LINE_WINDOW`, `LINE_PEAK`, `LINE_REACH` (`dessus.js:1456`) | 0,5 ; 0,15 ; 0,4 ; 4 ; 13 | m, m, m, écarts médians, m | Calage des lignes au bord du masque du véhicule : bande lue, recherche, fenêtre, seuil de pic, portée | réglage empirique (idée de l'auteur, 09/11/2026 ; `LINE_REACH` : le bord du masque d'un côté n'est vu que par la voisine à 10 m, bc400f2b) | Idem |
+| `ALONG`, `SIDE`, `GRID`, `CAR_GAP`, `ROAD` (`dessus.js:984`) | 12 ; 8 ; 0,05 ; 3,2 ; 6 | m | Repère de la route pour le calage sur l'orthophoto : demi-longueur, demi-largeur, pas, trou du véhicule, demi-chaussée | réglage empirique (non documentée plus avant) | Repère plus large : plus de lignes mais plus de fond |
+| `SHIFT_MIN` (`dessus.js:1588`) | 0,3 | m | Écart en deçà duquel la position GPS est gardée (lignes repérées à quelques cm, orthophoto à 20 cm) | donnée du fournisseur (résolution de l'orthophoto : 20 cm) | Plus petit : bruit d'orthophoto pris pour un décalage |
+
+### 8.6 Affichage et mesure
+
+| Constante (fichier:ligne) | Valeur | Unité | Rôle | Origine | Effet d'une modification |
+|---|---|---|---|---|---|
+| `SURE` (`dessus.js:24`) | 10 | m | Distance au-delà de laquelle la vue est grisée | mesure (0,6° d'inclinaison y déplacent déjà un point de 45 cm) ; choix d'affichage | Plus grand : zone non grisée plus étendue, moins sûre |
+| `BEST` (`dessus.js:73`) | 4 en long ; 8 en travers | m | Zone idéale d'une largeur, en face de la caméra (demi-longueur, demi-largeur) | mesure (essai du 08/11 : écart à l'orthophoto ≤ 1,5 % jusqu'à 4 m en long, 2 % au-delà) | Plus grand : mesures conseillées moins précises |
+| `SHADE` (`dessus.js:70`) | 3 | facteur | Facteur d'erreur attendue des voisines près de leur propre véhicule (ombre et reflets) | réglage empirique (ville d946f2cf, 09/11/2026 : taches sombres sinon) | Plus petit : taches sombres ; plus grand : sol de voisines évité trop tôt |
+| `CAR` (`dessus.js:66`) | long 5,8 ; large 2,9 ; avant 0 | m | Ellipse au sol du véhicule inconnu (toit, capot, reflets) | réglage empirique (ancienne ellipse ±4,5 × ±2,5 m, reflets jusqu'à ±5,8 × ±2,9 m) | Plus grande : sol caché plus loin du véhicule |
+| `OUTLINES`, `EITHER`, `LOWEST` (`dessus.js:36`, 56-57) | tableau d'élévations par colonne, tous les 2,8° | degré | Contour du véhicule dans le panorama par monture (marge de 1,5° comprise) | mesure (relevé à la main du 09/11/2026 sur la médiane de 16 photos d'une séquence, `shortcut` : à refaire si la monture ou le véhicule change) | Contour trop bas : carrosserie visible ; trop haut : sol sacrifié |
+| `OUTLINE_PHOTOS`, `OUTLINE_BAND`, `OUTLINE_EDGE`, `OUTLINE_FLOOR`, `OUTLINE_MARGIN` (`dessus.js:64`) | 12 ; 6 ; 0,45 ; −47 ; 1,5 | photos, degré, part, degré, degré | Lecture du contour du véhicule sur la séquence elle-même : nombre de photos, bande autour du contour relevé, seuil de bord, plancher (logo du CD21 à −48,3°), marge | réglage empirique (autre montage du 15/07/2025, 3e222d68) ; `OUTLINE_FLOOR` : mesure (haut du logo à −48,3°) | Plancher trop bas : le logo écrase les bords |
+| `SIZE` (`dessus.js:26`) | 1024 | px | Côté de l'image des calculs (hauteur, raccords, position), 3 cm par pixel | choix technique (compromis vitesse et finesse) | Plus grand : calculs plus fins mais plus longs |
+| `SHOWN_SIZE`, `FINE_SIZE` (`dessus.js:29`) | 2048 ; 4096 | px | Côté de l'image affichée (1,5 cm par pixel) et de la « Haute résolution » (0,7 cm) | choix d'affichage (zoom 24 de la carte) | Plus grand : plus de mémoire graphique |
+| `LOW`, `LOW_SIGMA`, `FILL_SIGMA` (`dessus.js:749`) | 256 ; 1 ; 3 | px, m, m | Raccord fondu : bande basse des voisines, flou, étendue sous le véhicule | réglage empirique (non documentée plus avant) | Flou plus grand : teinte moins locale |
+| `CLOSE_PX` (`dessus.js:1587`) | 10 | px | Clic à cette distance d'un sommet = surface refermée | choix d'affichage | Interface seulement |
+
+### 8.7 Techniques (sans effet sur la géométrie)
+
+Sans enjeu pour une mesure, non détaillées : `NEAR_LIMIT` (`dessus.js:71`, largeur des photos voisines, 6144 px, mémoire
+graphique), `WGS84_A` et `WGS84_E2` (`dessus.js:22`, ellipsoïde des positions GPS, identiques à `py/core/triangulation.py`),
+`ELEVATION_URL`, `LIDAR_RESOURCE`, `ORTHO_URL`, `ORTHO_LAYER`, `*_KEY` (clés `localStorage`), `IMAGE_ID`, `LINE_ID`,
+`DEFAULT_ROLL`, `DEFAULT_PITCH`, et, côté Python, `TIMEOUT_MS`, `SPACING` et `RETRIES` (`web_host.py`, cadence des
+requêtes), `RELAY_*` (recherche de photos de référence, sans effet sur la projection).
