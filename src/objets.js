@@ -575,6 +575,8 @@ const Objets = {
      * Edge), celle d'un GeoJSON seul gardée pour y réenregistrer. */
     async function importOverlay(files, handles = []) {
       if (!files.length || !etat.app) return;
+      // Attente au centre de la carte qui montre la couche (petite, en grand ou détachée : son conteneur, Attente)
+      const attente = Attente.start(map.getContainer(), { icone: Attente.icones.couches, message: "Lecture de la couche…" });
       try {
         setStatus("Lecture de la couche…");
         // GeoPackage de plusieurs tables : celle à afficher, par son numéro
@@ -592,9 +594,11 @@ const Objets = {
         setStatus(`Couche « ${name} » importée : ${n} partie${n > 1 ? "s" : ""} d'objets.`
           + (kept ? "" : " Trop grosse pour être gardée dans le navigateur : à réimporter à la prochaine ouverture.")
           + (review >= 0 ? " Cliquez une mesure sur la carte pour la revoir sur sa photo." : ""));
+        attente.ok();
         if (review >= 0) reviewMeasure(review);
       } catch (error) {
         setStatus(`Couche non importée : ${error.message}`, "echec");
+        attente.echec(`Couche non importée : ${error.message}`);
       }
     }
     // à chaque lettre : étiquettes à jour en tapant
