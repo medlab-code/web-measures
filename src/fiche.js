@@ -446,42 +446,34 @@ const Fiche = (() => {
       host.setStatus("Fiche : fenêtre bloquée par le navigateur (autorisez les fenêtres de cette page).", "echec");
       return;
     }
-    win.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Fiche — préparation</title>${FICHE_FONTS}<style>
-body { margin: 0; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
-  font-family: Inter, Arial, sans-serif; color: #1c1c1c; background: #f5f5f3; }
-.cercle { position: relative; width: 78px; height: 78px; }
-.roue { position: absolute; inset: 0; border: 7px solid #ffd8bf; border-top-color: #e65100; border-radius: 50%;
-  animation: tour 0.9s linear infinite; }
-#pourcent { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-size: 17px; font-weight: 700; color: #e65100; }
-@keyframes tour { to { transform: rotate(360deg); } }
-h1 { margin: 0; font-size: 28px; } #etape { font-size: 17px; color: #444; min-height: 1.4em; }
-p.aide { margin: 0; font-size: 14px; color: #555; }
-@media (prefers-reduced-motion: reduce) { .roue { animation-duration: 3s; } }
-</style></head><body><div class="cercle"><div class="roue"></div>
-<div id="pourcent" role="progressbar" aria-label="Préparation en cours"
-  aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">0 %</div></div>
-<h1>Préparation de la fiche…</h1><div id="etape" aria-live="polite">Ouverture de la photo de la mesure</div>
+    // Attente : l'animation du composant Attente (feuille attente.css, document à part), au centre de la fenêtre ; avancement dans sa sous-ligne
+    const feuille = new URL("src/attente.css", location.href).href;
+    win.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Fiche — préparation</title>${FICHE_FONTS}
+<link rel="stylesheet" href="${feuille}"><style>
+body { margin: 0; height: 100vh; font-family: Inter, Arial, sans-serif; color: #1c1c1c; background: #f5f5f3; }
+#zone-attente { position: fixed; inset: 0; }
+p.aide { position: fixed; left: 0; right: 0; bottom: 24px; margin: 0; text-align: center; font-size: 14px; color: #555; }
+</style></head><body><div id="zone-attente"></div>
 <p class="aide">Quelques secondes : la photo est cadrée et capturée, puis la boîte d'impression s'ouvre.</p></body></html>`);
     win.document.close();
+    const attente = Attente.start(win.document.getElementById("zone-attente"), { icone: Attente.icones.document, message: "Préparation de la fiche…" });
     let tick = null;
     try {
       // Pourcentage : décompte fictif de 5 % toutes les 2 s (95 % au plus), remonté sur chaque étape
       // atteinte en avance sur lui (jamais redescendu)
-      let percent = 0;
+      let percent = 0, step = "Ouverture de la photo de la mesure";
       const show = (value) => {
         percent = value;
-        const bar = win.document.getElementById("pourcent");
-        bar?.replaceChildren(`${value} %`);
-        bar?.setAttribute("aria-valuenow", String(value));
+        attente.etape(`${step} · ${percent} %`);
       };
+      show(0);
       if (!counted) tick = setInterval(() => show(Math.min(95, percent + 5)), 2000);
       const html = await build((text, value) => {
-        const step = win.document.getElementById("etape");
-        if (step) step.textContent = text;
+        step = text;
         show(Math.max(percent, value));
       });
       clearInterval(tick);
+      attente.fin();  // la fenêtre est réécrite : l'animation s'efface sans coche
       win.document.open();
       win.document.write(html);
       win.document.close();
@@ -492,6 +484,7 @@ p.aide { margin: 0; font-size: 14px; color: #555; }
       win.focus();
       win.print();
     } catch (error) {
+      attente.fin();
       win.document.body.textContent = `Fiche impossible : ${error.message}`;
     } finally {
       clearInterval(tick);

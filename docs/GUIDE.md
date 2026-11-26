@@ -608,7 +608,7 @@ mini-carte est alors reprise telle que recadrée), et un titre libre (« point d
 « Fiche de mesure — »). Une page A4
 (plusieurs si le tableau ou la méthode ne tiennent pas : leur fin passe sur la page suivante, sous le même
 en-tête marqué « (suite) », jamais une ligne seule d'un côté de la coupure)
-s'ouvre dans une fenêtre à part et la boîte d'impression du navigateur propose « Enregistrer au
+s'ouvre dans une fenêtre à part (pendant la préparation, l'animation « Préparation de la fiche… » y est montrée au centre : icône de document, ondes, étape et pourcentage d'avancement dessous) et la boîte d'impression du navigateur propose « Enregistrer au
 format PDF ». La page contient la photo d'où la plus grande mesure du point a été prise, cadrée
 sur ses deux bouts (une hauteur sur 75 % de la hauteur de l'image ; une largeur avec 10 % de
 marge, puis dézoomée de deux crans de molette), l'image recentrée sur
@@ -1007,7 +1007,7 @@ Avec un GPS grand public
 | `src/fiche.js` | captures de la visionneuse (« Image seule », « Avec annotations ») et fiches PDF des points et des objets de la couche |
 | `src/carte.js` | carte MapLibre : fonds, filaire, points de repère (PR), mesures, étiquettes, poignées, photo la plus proche |
 | `src/traits.js` | surcouche des mesures dans la visionneuse, en WebGL : traits, croix, réticule glissant, étiquettes des mesures et noms des points (la couche importée reste en repères HTML) |
-| `src/attente.js` | animation d'attente au centre d'une zone (visionneuse ou carte) : pastille avec l'icône de l'action, ondes, message et étape, coche ou croix à la fin |
+| `src/attente.js`, `src/attente.css` | animation d'attente au centre d'une zone (visionneuse ou carte) : pastille avec l'icône de l'action, ondes, message et étape, coche ou croix à la fin |
 | `src/calcul.js` | chargement de Pyodide (page et arrière-plan) et des fichiers Python (`py/sources.js`) |
 | `src/services.js` | vérification de l'accès aux services |
 | `src/recherche.js` | recherche de lieux sur la carte (commune, lieu-dit, voie, adresse) |

@@ -13,8 +13,8 @@
 //
 // Règles : rien n'est affiché si l'action finit en moins de 300 ms (ni coche, ni croix) ; fondus de 200 ms ; l'animation ne
 // reçoit jamais le pointeur ; une seule animation visible par zone : la plus récente, celle encore en cours dessous réapparaît
-// quand elle finit. Les éléments sont créés dans le document de la zone (carte détachée dans une autre fenêtre : les règles CSS
-// « .attente-zone » de style.css y sont copiées avec les autres). Mouvement réduit : voir style.css.
+// quand elle finit. Les éléments sont créés dans le document de la zone (carte détachée dans une autre fenêtre : les règles de
+// src/attente.css y sont copiées avec les autres feuilles ; la fenêtre de la fiche PDF la charge elle-même). Mouvement réduit : voir attente.css.
 
 const Attente = (() => {
   const DELAI = 300, FONDU = 200, DUREE_COCHE = 800, DUREE_ECHEC = 6000;  // ms
