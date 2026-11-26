@@ -47,8 +47,9 @@ const Attente = (() => {
     const racine = doc.createElement("div");
     racine.className = "attente-zone";
     racine.dataset.etat = "cours";
-    racine.innerHTML = `<div class="col"><span class="ind"><span class="onde"></span><span class="onde"></span><span class="rond">${a.icone}</span></span>`
-      + `<span class="fin ok">${COCHE}</span><span class="fin ko">${CROIX}</span>`
+    // La coche ou la croix remplace l'icône dans la même pastille, à la même place et à la même taille ; les ondes s'arrêtent
+    racine.innerHTML = `<div class="col"><span class="ind"><span class="onde"></span><span class="onde"></span><span class="rond"><span class="ic">${a.icone}</span>`
+      + `<span class="fin ok">${COCHE}</span><span class="fin ko">${CROIX}</span></span></span>`
       + '<span class="etiq" role="status" aria-live="polite"><span class="txt"></span><span class="sub"></span>'
       + '<span class="msg-ok"></span><span class="msg-echec"></span></span></div>';
     racine.querySelector(".txt").textContent = a.message;
