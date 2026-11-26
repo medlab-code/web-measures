@@ -534,7 +534,7 @@ class App(Pose, Chutes, Nez, session.Session):
         item = self.photo_items.get(m.clicks[0].get("pic"))
         height, source, _ = self.camera_of(item, self.precision.known(item)) if item else (self.tool.camera_height, None, 0)
         parts = ["objet à {} m de la photo".format(measures._num(m.result["ranges"][0], 1)),
-                 "caméra à {} m{}".format(measures._num(height, 2), " ({})".format(source) if source else "")]
+                 "caméra à {} m ({})".format(measures._num(height, 2), self.CAMERA_LABELS.get(source, "réglage"))]
         return label, parts
 
     def fiche_frame(self, k):

@@ -305,7 +305,7 @@ async function feature(id) {
     const row = [...doc.querySelectorAll("#fiche dt")].find((dt) => dt.textContent === "Précision GPS annoncée");
     const text = row?.nextElementSibling?.textContent || "";
     log("fiche : Précision GPS annoncée " + text);
-    expect("fiche : précision annoncée et calculée", /^2 m · calculée ±0,10 m \(hauteur de caméra constante à \d+ cm, (LiDAR HD|RGE ALTI)\)/.test(text), text);
+    expect("fiche : précision annoncée et calculée", /^2 m · calculée ±0,10 m \(écart RTK − sol constant à \d+ cm, (LiDAR HD|RGE ALTI)\)/.test(text), text);
   }
   // le RGE ALTI de secours se vérifie dans tests/test_calculs.py (Terrain) : la photo est maintenant sous le LiDAR HD
   expect("hors LiDAR HD : position vérifiée", state().quality.includes("Position GPS vérifiée")

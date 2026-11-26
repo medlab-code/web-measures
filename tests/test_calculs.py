@@ -182,7 +182,7 @@ class VueDessus(unittest.TestCase):
 
     def test_pont(self):
         """Photo marquée sur un pont par le cœur (tronçon en pont à 8 m au plus, dans le sens de la séquence) : signalée, hauteur de
-        caméra hors sol LiDAR (le réglage), voisine marquée de même ; photo non marquée, même à 10 m d'un pont (remblai) : pas de
+        caméra hors sol LiDAR (le réglage), voisine marquée de même ; photo non marquée à 18 m d'un pont (remblai) : pas de
         sol plat, terrain LiDAR gardé, avec l'emprise du pont à écarter (deck)."""
         def pose_with(side, start=-20.0, end=20.0):  # tronçon en pont parallèle au cap de la photo (40°), side m à droite, de start à end m en long
             a = self.app_on(360)
@@ -193,9 +193,11 @@ class VueDessus(unittest.TestCase):
             return json.loads(a.birdeye_pose())
         near = pose_with(2)
         self.assertEqual((near["bridge"], near["height"], near["neighbours"][0]["height"], near["deck"]), (True, 2.1, 2.1, []))
-        shoulder = pose_with(10)  # à 10 m de l'axe : remblai, hors de la portée de 8 m du cœur
+        shoulder = pose_with(10)  # à 10 m de l'axe : hors de la portée de 8 m du cœur (non marquée), mais sol plat (15 m, voir test_sol_plat_pres_d_un_pont)
         self.assertEqual((shoulder["bridge"], shoulder["height"], shoulder["neighbours"][0]["height"]), (False, 2.4, 2.4))
-        self.assertEqual(len(shoulder["deck"]), 1)
+        self.assertEqual(shoulder["deck"], [])
+        shoulder = pose_with(18)  # à 18 m : relief gardé, avec l'emprise du pont à écarter
+        self.assertEqual((shoulder["bridge"], shoulder["flat"], len(shoulder["deck"])), (False, False, 1))
         self.assertEqual(shoulder["deck_half"], roads.DECK_HALF_WIDTH)
         mixed = pose_with(5)  # photo dessus, sa voisine à 8,6 m de l'axe : hauteur seulement pour la photo marquée
         self.assertEqual((mixed["bridge"], mixed["height"], mixed["neighbours"][0]["height"]), (True, 2.1, 2.4))
@@ -203,6 +205,29 @@ class VueDessus(unittest.TestCase):
         self.assertEqual((ahead["bridge"], ahead["height"], len(ahead["deck"])), (False, 2.4, 1))
         crossing = pose_with(0.0, -20.0, 20.0)
         self.assertEqual(crossing["bridge"], True)
+
+    def test_sol_plat_pres_d_un_pont(self):
+        """Pont BD TOPO à 15 m au plus de la photo à vol d'oiseau (avant, sur ou après, tablier le plus proche) : sol supposé plat
+        (flat), sans marquage « sur un pont » au-delà de 8 m, sans emprise à écarter ; à 30 m : relief gardé."""
+        def pose_with(side, start=-20.0, end=20.0):
+            a = self.app_on(360)
+            h = math.radians(40.0)
+            line = [list(triangulation._geographic(side * math.cos(h) + t * math.sin(h), -side * math.sin(h) + t * math.cos(h), 5.0, 47.0))
+                    for t in (start, end)]
+            a.roads._sections[roads._cell(5.0, 47.0)] = [{"level": 1, "line": line}]
+            return json.loads(a.birdeye_pose())
+        on = pose_with(2)
+        self.assertEqual((on["bridge"], on["flat"], on["deck"], on["flat_radius"]), (True, True, [], roads.BRIDGE_FLAT_RADIUS))
+        side = pose_with(10)  # remblai à 10 m de l'axe : non marqué, mais pont à moins de 15 m
+        self.assertEqual((side["bridge"], side["flat"], side["deck"]), (False, True, []))
+        before = pose_with(0.0, 12.0, 50.0)  # pont commençant 12 m devant la photo
+        self.assertEqual((before["bridge"], before["flat"]), (False, True))
+        after = pose_with(0.0, -50.0, -12.0)  # pont fini 12 m derrière
+        self.assertEqual(after["flat"], True)
+        far = pose_with(30)
+        self.assertEqual((far["bridge"], far["flat"]), (False, False))
+        self.assertEqual(pose_with(0.0, 20.0, 60.0)["flat"], False)  # tablier à 20 m devant : relief
+        self.assertEqual(self.app_on(360).birdeye_pose().count('"flat": false'), 1)  # aucun pont : relief
 
     def test_pont_detecte_dans_la_ligne_d_etat(self):
         """Mode « sur un pont » activé d'après la BD TOPO : la ligne « Position » le dit (« sur un pont (détecté) »), pas sinon."""

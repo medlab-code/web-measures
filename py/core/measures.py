@@ -473,7 +473,7 @@ class Measure:
             return text + ". Profondeur du point triangulé : terrain et hauteur de caméra sans effet."
         height, source = self.tool.camera_info(self.clicks[0])
         text += ". Terrain : {}, caméra à {} m{}.".format(ground.FLAT, _num(height, 2),
-                                                        " ({})".format(source) if source else "")
+                                                        " ({})".format(source or "réglage"))
         if self.notice:
             text += " ({}.)".format(self.notice)
         return text + " Point mal placé : glissez-le sur la carte."

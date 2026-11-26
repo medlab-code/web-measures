@@ -132,15 +132,16 @@ def degraded(res):
 
 
 def camera_suggestion(res):
-    """Hauteur de caméra calculée à proposer dans le panneau : (hauteur, explication), ou None."""
+    """Écart RTK − sol LiDAR à proposer dans le panneau comme hauteur de caméra : (écart, explication), ou None."""
     if not res or not res["precise"] or res["lidar"] is not True or res.get("height") is None:
         return None
     if res["count"]:
         how = "médiane de {} photos de la séquence, écart-type {:.0f} cm".format(res["count"], res["spread"] * 100)
     else:
         how = "photo de précision déclarée ±{:.0f} cm".format(res["accuracy"] * 100)
-    return res["height"], ("Hauteur de caméra calculée : altitude GPS de la caméra (NGF) moins le sol {} "
-                           "({}). Cliquer pour remplir le champ « Caméra à ».".format(terrain_name(res), how))
+    return res["height"], ("Écart RTK − sol : altitude GPS de la caméra (NGF) moins le sol {} ({}). C'est une borne qui dépend "
+                           "du point de référence de l'antenne, pas une hauteur de caméra mesurée. Cliquer pour la reprendre "
+                           "dans le réglage « Hauteur de caméra ».".format(terrain_name(res), how))
 
 
 def computed_text(res):
@@ -154,7 +155,7 @@ def computed_text(res):
     if res["precise"]:
         accuracy = "±{} m".format("{:.2f}".format(res["accuracy"]).replace(".", ","))
         if res.get("count"):
-            return "{} (hauteur de caméra constante à {} cm, {})".format(accuracy, cm(res["spread"]), terrain_name(res))
+            return "{} (écart RTK − sol constant à {} cm, {})".format(accuracy, cm(res["spread"]), terrain_name(res))
         return "{} (précision déclarée dans la photo)".format(accuracy)
     if res["lidar"] is False:
         return "impossible (pas de LiDAR HD ni de RGE ALTI)"
@@ -202,7 +203,7 @@ def verify_heights(pts):
     mad = 1.4826 * statistics.median(abs(h - median) for h in heights)
     kept = [p for p in pts if abs(p[2] - median) <= OUTLIER * max(mad, MIN_MAD)]
     if len(kept) < MIN_PHOTOS:
-        return result(False, lidar=True, reason="hauteur de caméra trop dispersée ({} photos sur {})".format(
+        return result(False, lidar=True, reason="écart RTK − sol trop dispersé ({} photos sur {})".format(
             len(kept), len(pts)))
     spread, height = statistics.pstdev([h for _, _, h in kept]), statistics.median([h for _, _, h in kept])
     # Deux moitiés le long de la trajectoire (axe principal des positions)
@@ -221,13 +222,13 @@ def verify_heights(pts):
     dropped = len(pts) - len(kept)
     note = " ({} écartée{})".format(dropped, "s" if dropped > 1 else "") if dropped else ""
     if precise:
-        reason = "position vérifiée : hauteur de caméra constante à {:.0f} cm près sur {} photos{}".format(
+        reason = "position vérifiée : écart RTK − sol constant à {:.0f} cm près sur {} photos{}".format(
             spread * 100, len(kept), note)
     elif drift > MAX_DRIFT and spread <= MAX_SPREAD:
-        reason = "position non vérifiée : hauteur de caméra qui dérive de {:.0f} cm le long de la séquence".format(
+        reason = "position non vérifiée : écart RTK − sol qui dérive de {:.0f} cm le long de la séquence".format(
             drift * 100)
     else:
-        reason = "position non vérifiée : hauteur de caméra variable de {:.0f} cm sur {} photos".format(
+        reason = "position non vérifiée : écart RTK − sol variable de {:.0f} cm sur {} photos".format(
             spread * 100, len(kept))
     return result(precise, VERIFIED_ACCURACY if precise else None, True, reason, len(kept), spread, height)
 

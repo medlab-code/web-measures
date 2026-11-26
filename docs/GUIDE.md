@@ -373,7 +373,7 @@ après.
   plus de 30 m de tout pont. Une photo seulement près d'un pont (à plus de 8 m, ou sur la voie franchie, dessous, dont le sens diffère) ne
   l'active pas. **Marque par photo, dès l'ouverture** (même hors mesure, depuis le 22/11/2026) : une photo sur un pont est repérée à son
   ouverture ; son LiDAR (pente et dévers du sol sous l'ouvrage) n'est jamais retenu pour l'inclinaison (la chaîne passe aux verticales à
-  seuil élargi, puis au roulis par défaut de la campagne 2025 seul, sans la part du dévers) ni appris par le modèle LiDAR de la séquence ; ses verticales restent valables. La vue du dessus (Bird Eye) suit le même marquage, photo par photo : « sol supposé plat » seulement sur le tablier, jamais sur le remblai qui y mène (7dcdccf9-3c52-4c54-bc5b-de72740a7967 : tangage du relief, +3,2°, au lieu de 0°). Les tronçons arrivent par le réseau : l'état suit à leur arrivée, à chaque changement de photo.
+  seuil élargi, puis au roulis par défaut de la campagne 2025 seul, sans la part du dévers) ni appris par le modèle LiDAR de la séquence ; ses verticales restent valables. La vue du dessus (Bird Eye) suppose le sol plat, à la hauteur de la caméra, dès qu'un pont est à 15 m ou moins de la photo (avant, sur ou après l'ouvrage ; distance à vol d'oiseau au tablier le plus proche) : près d'un pont, le relief donne le fond de la vallée ou la rivière, pas le tablier. L'étiquette indique « Sol supposé plat (pont à moins de 15 m) » ; l'inclinaison de la caméra et les mesures de la vue du dessus (largeurs) restent calculées de la même manière, sur ce sol plat. Le marquage « sur un pont » ci-dessus, plus étroit (8 m), reste celui des mesures. Les tronçons arrivent par le réseau : l'état suit à leur arrivée, à chaque changement de photo.
 - **Hauteur de chute sur un pont** (automatique, sans clic) : sur une photo prise sur un pont
   de la BD TOPO, le nom du pont, ce qu'il franchit et la hauteur de chute la plus grande sur
   toute sa longueur s'affichent en haut à gauche de la visionneuse (pas pendant la lecture de
@@ -385,7 +385,7 @@ après.
   - **tablier** : altitude GPS des photos de la séquence prises sur le pont, convertie en
     altitude NGF, moins la hauteur de caméra (mesurée sur la séquence vérifiée, sinon calée, sinon
     pour une photo du CD21 la monture d'après la date, 1,93 ou 2,07 m à ±4 cm ; à défaut, le réglage
-    « Caméra à », seulement après un appui sur le bouton de l'encadré : une photo de précision
+    « Hauteur de caméra », seulement après un appui sur le bouton de l'encadré : une photo de précision
     déclarée n'a que sa hauteur au-dessus du fond franchi) ; pour chaque point,
     interpolée entre les deux photos consécutives les plus proches (pont long et pentu) ;
   - **dessous** : modèle de terrain LiDAR HD (RGE ALTI en secours) lu en travers du pont, à 1,
@@ -889,6 +889,8 @@ photos, tronçon k / n, PR des photos, croisements ; le calcul de la vidéo gard
 de terrain sont encore attendus pour les mesures de largeur, les hauteurs de chute de pont, les dévers et les
 largeurs de chaussée LiDAR (analyse fine) : ces valeurs n'ont pas encore été comparées à des relevés sur place.
 
+**Vue du dessus près d'un pont** : à 15 m ou moins d'un pont, le sol est supposé plat (le relief y donne le fond de la vallée) ; l'erreur sur la largeur d'un objet dont le pied est plus haut ou plus bas que le plan de la caméra (talus, parapet, rive) n'est alors plus corrigée par le relief : comme sur un pont, à lire avec la même réserve (incertitude de sol de 0,1 m).
+
 **Largeur dans la visionneuse : l'incertitude grandit avec la distance de la droite** (poignée de profondeur) : une erreur d'inclinaison (tangage) δ sur la photo déplace un bord latéral de s de `s·d·δ/H` (d : distance de la droite, H : hauteur de la caméra), donc la largeur de `(s₂ − s₁)·d·δ/H` ; l'incertitude de la largeur croît en gros comme distance / hauteur × erreur d'inclinaison (à ±0,5°, d = 10 m, H = 1,93 m et 8 m de largeur : environ 0,36 m contre 0,16 m à 4,5 m), et le roulis et la hauteur n'en dépendent pas. L'étiquette et l'encart donnent l'incertitude de la droite à sa distance du moment. Au-delà de 5 à 6 m du nez, la photo suivante, plus près des bords, les lit mieux. **Accord avec la vue du dessus** : une fois la photo calée par Bird Eye (vue ouverte ou calage silencieux), la droite prend la hauteur de caméra et le terrain lissé de la vue du dessus : la largeur de mêmes bords est la même dans les deux, à 1 cm près (avant : 7 % de moins sur la photo 8625c7ff-90c1-4865-b936-fd8952ac908f, 6,00 m contre 6,56 m). Sans calage, la hauteur est la monture du véhicule (CD21) avant l'altitude GPS, le sol le MNT brut ; la largeur est alors moins sûre de quelques pour cent.
 
 **Roulis par défaut sans verticale ni LiDAR retenu** (26/11/2026) : la photo reçoit le défaut de la campagne plus 70 % du dévers du LiDAR HD (hors pont, hors RGE ALTI), incertitude ±1° au moins. Effet d'1° de roulis : environ 37 cm sur un point au sol à 6 m pour une hauteur lue sur une photo ; jusqu'à environ 0,2 m sur une largeur quand le véhicule roule près d'un bord ; la triangulation y est presque insensible. Un roulis mesuré (verticales, clics, vue du dessus, LiDAR du rang 4) passe toujours devant et n'y ajoute pas le dévers.
@@ -959,7 +961,9 @@ Hauteur de caméra : la mesure de hauteur n'en dépend pas (essai du 15/11/2026 
 mêmes valeurs et incertitudes avec 1,90, 2,07 et 2,50 m) ; elle sert au tablier d'un pont (secours GPS),
 au relevé sur une seule photo et aux objets posés au sol. Dans l'ordre : altitude RTK moins sol LiDAR HD,
 calée pour la séquence, monture du CD21 d'après la date, réglage. Colonne `camera_m` de l'export : celle
-de la photo du premier clic ; `camera_calee` : 0 réglage, 1 calée, 2 altitude GPS, 3 monture.
+de la photo du premier clic ; `camera_calee` : 0 réglage, 1 calée, 2 écart RTK − sol LiDAR (nommé « altitude GPS » dans le code), 3 monture.
+L'écart RTK − sol LiDAR est une borne, pas la hauteur de la caméra : elle dépend du point de référence de l'antenne et du
+référentiel vertical. Les textes disent la provenance (« parallaxe », « écart RTK − sol LiDAR », « calée », « monture », « réglage »).
 
 Chute et dévers des bords de route : la chute est une différence de deux altitudes du même
 modèle de terrain (±0,1 m en LiDAR HD, ±0,4 m en RGE ALTI). Le dévers est une pente moyenne,

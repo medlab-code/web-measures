@@ -304,7 +304,7 @@ class Pose:
         (recalée si la séquence l'est), cap du centre de l'image, correction de cap de la séquence
         (degrés), verticale vraie vue de la caméra (None sans calage) et son incertitude (degrés),
         hauteur de caméra, son incertitude et celle de la position relative entre photos voisines (m) ;
-        neighbours : les poses des photos voisines ; far : celles à deux pas (birdeye_far) ; bridge : la photo
+        neighbours : les poses des photos voisines ; far : celles à deux pas (birdeye_far) ; flat : sol supposé plat (pont marqué ou à moins de roads.BRIDGE_FLAT_RADIUS, None en lecture) ; bridge : la photo
         affichée est marquée « sur un pont » par le cœur (mark_bridge, BD TOPO ; None en lecture) : la vue se passe alors du terrain
         LiDAR (tablier supposé plat). Chaque photo marquée (voisines comprises) a une hauteur de caméra sans le sol LiDAR. Photo non
         marquée (remblai, approche) : terrain LiDAR gardé, sauf sous l'emprise d'un pont voisin (deck : axes en mètres autour de
@@ -318,8 +318,18 @@ class Pose:
         pose = self._deck_height(pose, self.item)
         poses = [(self._birdeye_of(item, lambda pic: False), item) for item in self.birdeye_far_items]
         far = [self._deck_height(p, item) for p, item in poses if p]
-        deck = [] if bridge is not False else self._deck_lines(pose)
-        return json.dumps(dict(pose, neighbours=near, far=far, bridge=bridge, deck=deck, deck_half=roads.DECK_HALF_WIDTH))
+        flat = self._flat_ground(pose) if bridge is False else bridge
+        deck = [] if flat is not False else self._deck_lines(pose)
+        return json.dumps(dict(pose, neighbours=near, far=far, bridge=bridge, flat=flat, flat_radius=roads.BRIDGE_FLAT_RADIUS, deck=deck, deck_half=roads.DECK_HALF_WIDTH))
+
+    def _flat_ground(self, pose):
+        """Sol supposé plat sous la photo (pont à roads.BRIDGE_FLAT_RADIUS m ou moins, avant, sur ou après l'ouvrage : le relief
+        y donne le fond de la vallée, pas le tablier) : vrai ou faux ; None pendant la lecture des tronçons ou BD TOPO injoignable
+        (vue refaite à leur arrivée, comme le marquage « sur un pont »)."""
+        sections = self.roads.sections(pose["lon"], pose["lat"])
+        if sections is roads.PENDING or sections is None:
+            return None
+        return roads.flat_ground(sections, pose["lon"], pose["lat"])
 
     def _deck_height(self, pose, item):
         """Pose d'une photo marquée sur un pont (mark_bridge) : hauteur de caméra sans le sol LiDAR (altitude RTK moins le sol
@@ -367,6 +377,8 @@ class Pose:
     MOUNT_SIGMA = 0.04  # m : comme src/dessus.js (MOUNT_SIGMA)
     # Colonne camera_calee de l'export des mesures : 0 réglage, 1 calée, 2 altitude GPS (measures.CAMERA_SOURCES), 3 monture
     CAMERA_CODES = {**measures.CAMERA_SOURCES, "monture": 3}
+    # Provenance de la hauteur de caméra dans les textes (camera_of) : l'altitude GPS est un écart RTK − sol LiDAR, pas une mesure
+    CAMERA_LABELS = {"altitude GPS": "écart RTK − sol LiDAR", "calée": "calée", "monture": "monture du CD21 d'après la date", None: "réglage"}
 
     def _fleet_mount(self, item):
         """Hauteur de la monture du CD21 (FLEET_MOUNTS) à la date de prise de vue de la photo, ou None."""

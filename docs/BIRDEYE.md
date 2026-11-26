@@ -33,9 +33,14 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
   à 20 m, dessus ou dessous), le MNT est écarté : il donne le sol sous le tablier. Tablier plan et horizontal (`deck`) :
   inclinaison par la route (±1,5°), hauteur lue entre photos sur les verticales, sinon celle de la séquence, puis pour le
   CD21 sa monture d'après la date (`App.FLEET_MOUNTS`), puis le réglage (pas RTK moins sol LiDAR) ; ce choix de hauteur se fait
-  photo par photo (une voisine marquée sur un pont, la photo affichée non). **Photo non marquée près d'un pont** (remblai qui mène au
-  tablier, approche, ou voie franchie dessous) : le terrain LiDAR est gardé, tangage compris (7dcdccf9-3c52-4c54-bc5b-de72740a7967 :
-  « sol supposé plat » donnait 0° au lieu des +3,2° du remblai). Seuls les points sous l'emprise de l'ouvrage (`pose.deck` : axe du
+  photo par photo (une voisine marquée sur un pont, la photo affichée non). **Sol supposé plat près d'un pont** (depuis le 26/11/2026, `pose.flat`, décision unique du cœur : `roads.flat_ground`, constante
+  `roads.BRIDGE_FLAT_RADIUS` = 15 m) : tout pont BD TOPO à 15 m au plus de la photo, à vol d'oiseau, distance au tablier le plus proche (avant, sur ou
+  après l'ouvrage, sans condition de sens), met la photo sur un plan horizontal à la hauteur de caméra, car le relief (LiDAR HD, RGE ALTI)
+  y donne le fond de la vallée ou la rivière. L'inclinaison (roulis, tangage : calage, clics, verticales, défaut) s'applique comme ailleurs, et les mesures de
+  la vue du dessus se font sur ce plan ; l'étiquette dit « Sol supposé plat (pont à moins de 15 m) ». Les tronçons arrivent par le réseau : la
+  vue est refaite à leur arrivée si le terrain était déjà lu. Le marquage « sur un pont » (8 m) garde en plus hauteur et inclinaison sans LiDAR.
+  **Photo non marquée à plus de 15 m d'un pont** (approche, voie franchie dessous) : le terrain LiDAR est gardé, tangage compris (le remblai
+  de 7dcdccf9-3c52-4c54-bc5b-de72740a7967, à moins de 15 m du tablier, donnait +3,2° au relief et 0° au sol plat : le plan l'emporte désormais). Seuls les points sous l'emprise de l'ouvrage (`pose.deck` : axe du
   tronçon en pont voisin et orienté comme la séquence, demi-largeur `roads.DECK_HALF_WIDTH` = 6 m, entre ses extrémités) sont écartés
   du maillage (`underDeck`, `fillUnderDeck`) : ils décrivent le sol sous l'ouvrage ; remplacés par un tablier horizontal à l'altitude
   du terrain LiDAR à la culée (côté photo, le long de l'axe ; le remblai garde sa pente, le tablier est un palier), et le terrain est indisponible (« sol supposé plat ») si moins de 60 % des points restent ;

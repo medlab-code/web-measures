@@ -24,6 +24,7 @@ TANGENT = 10.0  # m de part et d'autre : direction locale du tronçon
 RETRY = 30.0  # s avant de réinterroger un service en panne
 PENDING = "pending"  # résultat de lookup quand une lecture est en cours
 BRIDGE_REACH = 8.0  # m entre la photo et un tronçon en pont : demi-chaussée et précision GPS
+BRIDGE_FLAT_RADIUS = 15.0  # m à vol d'oiseau entre la photo et le tablier le plus proche : en deçà, la vue du dessus suppose le sol plat
 BRIDGE_ANGLE = 30.0  # degrés au plus entre le tronçon en pont et le sens de la séquence
 # Emprise d'un pont (deck_mask) : le LiDAR HD y décrit le sol sous l'ouvrage (tablier retiré), pas la route. Demi-largeur de
 # l'ouvrage de part et d'autre de l'axe BD TOPO (chaussée, trottoirs, garde-corps), mesurée le long du tronçon en pont seulement
@@ -134,6 +135,25 @@ def on_bridge(sections, lon, lat, axis=None, reach=BRIDGE_REACH):
             continue
         return sec
     return None
+
+
+def bridge_distance(sections, lon, lat):
+    """Distance (m, à vol d'oiseau) entre le point (lon, lat) et le tronçon en pont le plus proche (géométrie du tablier, pas son
+    centre), dans n'importe quel sens : avant, sur ou après l'ouvrage, ou dessous. None sans tronçon en pont."""
+    best = None
+    for sec in sections or []:
+        if sec.get("level", 0) <= 0:
+            continue
+        d, _ = _project([triangulation._local(p[0], p[1], lon, lat) for p in sec["line"]], 0.0, 0.0)
+        best = d if best is None else min(best, d)
+    return best
+
+
+def flat_ground(sections, lon, lat):
+    """Vrai si un pont est à BRIDGE_FLAT_RADIUS m au plus du point : près d'un pont, le relief (LiDAR HD, RGE ALTI) donne le fond
+    de la vallée ou la rivière, pas le tablier, et la vue du dessus suppose un sol plat (décision unique, src/dessus.js la suit)."""
+    d = bridge_distance(sections, lon, lat)
+    return d is not None and d <= BRIDGE_FLAT_RADIUS
 
 
 def deck_lines(sections, lon, lat, axis=None, scan=MARGIN):

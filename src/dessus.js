@@ -77,8 +77,12 @@ const Dessus = (() => {
   // b47b4351 (2,06 contre 1,94 m, stable sur 15 photos), alors que l'écart entre photos de la séquence n'est que de 2 cm
   const RTK_SIGMA = 0.1;
   const GROUND_SIGMA = 1;  // degrés : inclinaison déduite de la route, sans verticales à lire (voir docs/CALCULS.md)
-  // Photo marquée « sur un pont » par le cœur (pose.bridge : tronçon BD TOPO en pont à 8 m au plus dans le sens de la séquence),
-  // tablier supposé plan et horizontal à la place du terrain LiDAR (voir dropTerrain) : la pente du tablier (jusqu'à 3 %, 1,7°)
+  // Sol supposé plat (pose.flat, décision du cœur : py/core/roads.py, BRIDGE_FLAT_RADIUS) : un pont BD TOPO à 15 m au plus de la
+  // photo à vol d'oiseau (avant, sur ou après l'ouvrage), car le relief y donne le fond de la vallée, pas le tablier. Plan
+  // horizontal à la hauteur de caméra (voir dropTerrain) ; l'inclinaison de la caméra s'applique comme ailleurs, et les mesures
+  // de la vue du dessus s'y font. Photo marquée « sur un pont » (pose.bridge : tronçon BD TOPO en pont à 8 m au plus dans le
+  // sens de la séquence) : en plus, hauteur et inclinaison sans LiDAR. Tablier supposé plan et horizontal
+  // à la place du terrain LiDAR (voir dropTerrain) : la pente du tablier (jusqu'à 3 %, 1,7°)
   // échappe à l'inclinaison par la route. Une photo non marquée (remblai qui mène au tablier) garde le LiDAR, sauf sous l'emprise
   // de l'ouvrage (pose.deck, voir underDeck)
   const DECK_SIGMA = 1.5;  // degrés
@@ -2174,9 +2178,10 @@ const Dessus = (() => {
     if (parallax && shown.pose.fleet) return ` (monture ${mount(mountOf(parallax))}${read})`;
     if (parallax) {
       const n = parallaxCount(shown.sequence);
-      return ` (décalage entre photos${n > 1 ? `, ${n} photos de la séquence` : ""})`;
+      return ` (parallaxe : décalage entre photos${n > 1 ? `, médiane de ${n} photos de la séquence` : ""})`;
     }
-    return shown.sequenceHeight ? ` (séquence, ${shown.sequenceHeight.count} photos)` : "";
+    return shown.sequenceHeight ? ` (écart RTK − sol LiDAR, médiane de ${shown.sequenceHeight.count} photos de la séquence)`
+      : " (écart RTK − sol LiDAR de la photo, calage ou réglage)";
   }
   /** Ce que la vue du dessus applique à la photo affichée, annoncé à la page (Dessus.onTilt, App.birdeye_tilt_set) pour que la
    * droite de « Largeur dans la visionneuse » mesure comme elle : inclinaison tirée de la route (groundTilt ; avec les verticales
@@ -2247,7 +2252,7 @@ const Dessus = (() => {
       }
       if (old) setTimeout(() => URL.revokeObjectURL(old), 5000);
     }
-    const flat = pose.bridge ? "photo sur un pont, tablier horizontal" : shown.terrainFailed ? "service d'altitude injoignable"
+    const flat = pose.flat ? `pont à moins de ${number(pose.flat_radius, 0)} m` : shown.terrainFailed ? "service d'altitude injoignable"
       : "pas de LiDAR HD ici";
     const place = onLidar(shown) ? "Terrain LiDAR HD" : `Sol supposé plat (${flat})`;
     const parallax = withNeighbours() ? shown.height : null;
@@ -2411,7 +2416,7 @@ const Dessus = (() => {
 
   /** Photo à montrer (fiche STAC, pose avec ses voisines et fiches des voisines, null s'il faut encore les lire ; photo null
    * pour tout retirer), à chaque changement : ne refait que ce qui a changé. */
-  /** Photo marquée sur un pont (pose.bridge, par le cœur) : le MNT LiDAR HD n'y donne pas le sol vu (tablier retiré). Tablier plan et horizontal (deck) : inclinaison par la route (tangage de la séquence et défaut de roulis de la
+  /** Photo à moins de 15 m d'un pont (pose.flat, par le cœur) : le MNT LiDAR HD n'y donne pas le sol vu (tablier retiré, fond de vallée). Tablier plan et horizontal (deck) : inclinaison par la route (tangage de la séquence et défaut de roulis de la
    * campagne seulement), hauteur entre photos, raccords et position refaits sur lui. Essai du 13/11/2026 : brèche du LiDAR
    * comblée au niveau de la route plutôt que tablier plat, sans gain (f2a245d0-aeea-4249-ba9c-fad83b442a23 : 0,487 m
    * contre 0,477 ; 7dcdccf9-3c52-4c54-bc5b-de72740a7967, petit pont
@@ -2499,7 +2504,7 @@ const Dessus = (() => {
     prefetched = null;
   }
   function prefetch(photo, pose) {
-    if (!photo || !pose || pose.pic !== photo.id || pose.bridge || shown?.pic === photo.id || prefetched?.pic === photo.id
+    if (!photo || !pose || pose.pic !== photo.id || pose.flat || shown?.pic === photo.id || prefetched?.pic === photo.id
       || computed.has(photo.id)) return;
     dropPrefetch();
     const controller = new AbortController();
@@ -2550,7 +2555,7 @@ const Dessus = (() => {
         });
       }
       if (unveiled && withNeighbours()) shown.calage = undefined;  // voisines à lire : le calage d'affichage n'est plus fait
-      if (pose.bridge && shown.terrain !== flatDeck) dropTerrain(shown);  // pont connu après le terrain
+      if (pose.flat && shown.terrain !== flatDeck) dropTerrain(shown);  // pont connu après le terrain
       if (!pose.pending) shown.sequenceHeight = sequenceHeight(photo.collection, pose);  // hauteur vérifiée arrivée après
       loadNeighbours(abort.signal);
       if (shown.panos.has(shown.pic)) await showImage();
@@ -2572,7 +2577,7 @@ const Dessus = (() => {
     const known = computed.get(photo.id);
     if (known) Object.assign(shown, known);  // déjà vue : terrain, raccords, position et calage repris
     tiltAnnounced.delete(photo.id);  // inclinaison annoncée de nouveau (App.birdeye_tilt_set la garde par photo, 20 au plus)
-    if (pose.bridge && shown.terrain !== flatDeck) dropTerrain(shown);
+    if (pose.flat && shown.terrain !== flatDeck) dropTerrain(shown);
     applySettings(photo.collection, photo.id);
     shown.sequenceHeight = pose.pending ? null : sequenceHeight(photo.collection, pose);
     const mine = shown;
@@ -2599,15 +2604,15 @@ const Dessus = (() => {
       if (pre) prefetched = null;
       else dropPrefetch();  // lecture à l'avance d'une autre photo : inutile
       const [terrain, part] = await Promise.all([
-        known || pose.bridge ? Promise.resolve(pose.bridge ? deck() : shown.terrain) : readTerrain(pose, signal).catch((error) => {
+        known || pose.flat ? Promise.resolve(pose.flat ? deck() : shown.terrain) : readTerrain(pose, signal).catch((error) => {
           console.warn("Terrain de la vue du dessus :", error);
           mine.terrainFailed = true;
           return null;
         }),
         pre ? pre.part : loadPano(tiles, context().getParameter(gl.MAX_TEXTURE_SIZE), signal)]);
       if (shown !== mine) { part.canvas.width = 0; return; }
-      mine.terrain = mine.pose.bridge ? deck() : terrain;  // pont signalé pendant la lecture
-      if (terrain && !known && !mine.pose.bridge && JSON.stringify(mine.pose.deck || []) !== JSON.stringify(pose.deck || [])) {
+      mine.terrain = mine.pose.flat ? deck() : terrain;  // pont signalé pendant la lecture
+      if (terrain && !known && !mine.pose.flat && JSON.stringify(mine.pose.deck || []) !== JSON.stringify(pose.deck || [])) {
         mine.terrain = await readTerrain(mine.pose, signal).catch(() => terrain);  // emprise d'un pont arrivée pendant la lecture
         if (shown !== mine) { part.canvas.width = 0; return; }
       }

@@ -881,7 +881,7 @@ import { Visionneuse } from "./visionneuse.js";
     const gps = $("#camera-gps");
     gps.hidden = !state.camera;
     if (state.camera) {
-      gps.textContent = `Caméra à ${String(state.camera[0]).replace(".", ",")} m d'après l'altitude GPS : utiliser`;
+      gps.textContent = `Écart RTK − sol LiDAR : ${String(state.camera[0]).replace(".", ",")} m (borne) : le prendre comme hauteur de caméra`;
       gps.title = state.camera[1];
       gps.dataset.value = state.camera[0];
     }

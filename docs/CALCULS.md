@@ -270,7 +270,7 @@ de la BD TOPO de niveau supérieur à 0 (franchissement) à 8 m au plus de la ph
 plus). En mesure, ce critère active le mode (`set_bridge(True)` : sol tiré des photos au lieu du modèle de terrain, inclinaison sans la pente du
 terrain), dit « sur un pont (détecté) » dans la ligne « Position ». Sortie : photo à plus de 30 m (`roads.BRIDGE_LEFT`) de tout tronçon en pont (les
 photos d'approche visent encore le tablier : pas de bascule avant). Les tronçons sont lus par le réseau (WFS) : le critère est réévalué à chaque
-rafraîchissement, donc à leur arrivée. Un pont seulement proche n'active pas ce mode (la vue du dessus, depuis le 22/11/2026, se règle sur le même critère : voir § Vue du dessus).
+rafraîchissement, donc à leur arrivée. Un pont seulement proche n'active pas ce mode. La vue du dessus a son propre critère, plus large, pour le modèle de sol seulement (depuis le 26/11/2026) : pont à 15 m au plus à vol d'oiseau (`roads.BRIDGE_FLAT_RADIUS`, `roads.flat_ground`, distance au tablier le plus proche, tout sens), sol supposé plat à la hauteur de caméra au lieu du relief ; voir § Vue du dessus.
 
 Ce calcul est automatique sur une photo prise sur un pont de la BD TOPO. La méthode qui a donné la valeur est affichée à sa
 suite : « LiDAR » ou « RTK ».
@@ -300,7 +300,7 @@ qui se touchent à 1 m près forment un seul ouvrage.
   la **monture d'après la date** (1,93 m jusqu'au 23/06/2025, 2,07 m ensuite, ±4 cm, `App.FLEET_MOUNTS`,
   comme la vue du dessus). Une photo de précision
   déclarée n'a que sa propre hauteur, prise au-dessus du sol sous elle : sur un pont, le fond
-  franchi. Le réglage « Caméra à » ne sert alors que si l'utilisateur l'accepte (bouton de
+  franchi. Le réglage « Hauteur de caméra » ne sert alors que si l'utilisateur l'accepte (bouton de
   l'encadré du pont).
 - **Dessous** : MNT lu en travers du pont, un point tous les 0,5 m depuis l'axe BD TOPO, et pris à
   1, 3, 6 et 10 m au-delà du **bord du tablier**, des deux côtés. Ce bord se lit dans la couche
@@ -981,6 +981,7 @@ LiDAR HD : le MNT n'a pas le tablier (sol sous le pont). Tablier supposé plan e
 verticales, sinon calée pour la séquence, sinon le réglage. Avant le 13/11/2026 : sol plat sans inclinaison et 1,90 m par défaut, bandes
 de passage piéton à 0,44 m au lieu de 0,50 (f2a245d0-aeea-4249-ba9c-fad83b442a23, Pont de France ; 7dcdccf9-3c52-4c54-bc5b-de72740a7967, D977 bis). Pont de France à Auxonne (bbf7a0be-f532-4362-afb4-114268317258) : tangage lu sur les raccords à
 -1,2° avec le MNT, raccords 33,5 → 1,3 cm sur sol plat.
+**Sol supposé plat près d'un pont (depuis le 26/11/2026)** : pont BD TOPO à 15 m au plus de la photo à vol d'oiseau (`roads.flat_ground`, tablier le plus proche, tout sens) : plan horizontal à la hauteur de caméra à la place du relief (`pose.flat`) ; incertitude de sol `FLAT_SIGMA` = 0,1 m, inclinaison et mesures inchangées. Le remblai à moins de 15 m du tablier y passe ; le cas suivant ne vaut plus qu'au-delà.
 Photo non marquée près d'un ouvrage (remblai en pente qui mène au tablier, 7dcdccf9-3c52-4c54-bc5b-de72740a7967 : LiDAR +3,2° de tangage, juste ;
 le sol plat donnait 0°) : le terrain LiDAR est gardé ; ses points sous l'emprise de l'ouvrage (tronçon BD TOPO en pont orienté comme la
 séquence, à moins de `roads.DECK_HALF_WIDTH` = 6 m de l'axe, entre ses extrémités : `roads.deck_mask`, `pose.deck`) sont écartés, car ils

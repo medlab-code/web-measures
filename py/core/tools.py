@@ -126,7 +126,7 @@ def calibration_text(cal, pic, sequence, lon, lat):
                      "sur {} photos de la séquence)".format(tilt["tilt"], tilt["sigma"], tilt["count"]).replace(".", ","))
     camera = cal.camera(sequence) if sequence else None
     if camera:
-        text = "caméra à {:.2f} m (±{:.2f} m, {} référence{})".format(
+        text = "caméra à {:.2f} m, calée (±{:.2f} m, {} référence{})".format(
             camera["height"], camera["sigma"], camera["count"], "s" if camera["count"] > 1 else "").replace(".", ",")
         if camera.get("legacy"):
             text += (", dont {} d'une version précédente, sans l'inclinaison automatique : refaites le calage"

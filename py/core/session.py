@@ -513,11 +513,11 @@ class Session:
 
     def camera_of(self, item, quality, sequence_only=False, mount=True):
         """Hauteur de caméra de la photo item au-dessus du sol : (m, source, incertitude en m), dans l'ordre :
-        - mesurée, altitude RTK moins sol LiDAR HD (quality : vérification de la position ; sequence_only : sur la
+        - écart altitude RTK moins sol LiDAR HD, pris pour la hauteur de la caméra (source « altitude GPS » : une borne, pas une hauteur mesurée ; quality : vérification de la position ; sequence_only : sur la
           séquence seulement, pas la photo seule de précision déclarée, prise au-dessus du sol sous elle) ;
         - calée pour la séquence ;
         - monture connue du véhicule (_mount_height, mount=False : sans elle) ;
-        - le réglage « Caméra à » (source None).
+        - le réglage « Hauteur de caméra » (source None).
         Les mesures (hauteur, points triangulés) n'en dépendent pas : elle sert aux repères et objets posés
         au sol, au relevé sur une seule photo, au tablier d'un pont et à l'export. MeasureTool.camera_info, côté
         mesures, ne connaît que les deux dernières sources (calée, réglage)."""

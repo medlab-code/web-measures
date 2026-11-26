@@ -267,12 +267,12 @@ class Texts(unittest.TestCase):
     def test_computed(self):
         self.assertEqual(precision.computed_text(None), "en cours…")
         res = precision.result(True, 0.1, True, "vérifiée", count=20, spread=0.06, height=2.0, terrain="RGE ALTI")
-        self.assertEqual(precision.computed_text(res), "±0,10 m (hauteur de caméra constante à 6 cm, RGE ALTI)")
+        self.assertEqual(precision.computed_text(res), "±0,10 m (écart RTK − sol constant à 6 cm, RGE ALTI)")
         res = precision.result(True, 0.05, True, "précision déclarée")
         self.assertEqual(precision.computed_text(res), "±0,05 m (précision déclarée dans la photo)")
-        res = precision.result(False, lidar=True, reason="position non vérifiée : hauteur de caméra variable de 35 cm "
+        res = precision.result(False, lidar=True, reason="position non vérifiée : écart RTK − sol variable de 35 cm "
                                                           "sur 20 photos")
-        self.assertEqual(precision.computed_text(res), "non vérifiée (hauteur de caméra variable de 35 cm sur 20 photos)")
+        self.assertEqual(precision.computed_text(res), "non vérifiée (écart RTK − sol variable de 35 cm sur 20 photos)")
         res = precision.result(False, lidar=True, reason="pas de correction différentielle déclarée")
         self.assertEqual(precision.computed_text(res), "non vérifiée (pas de correction différentielle déclarée)")
         self.assertEqual(precision.computed_text(precision.result(False, lidar=False)),
