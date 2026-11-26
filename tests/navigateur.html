@@ -73,7 +73,7 @@ async function feature(id) {
       await sleep(100);
     }
     log("visite : " + seen.join(" | "));
-    expect("visite : carte, Mesure, résultats", seen.map((t) => t.split(" ")[0]).join() === "carte,mesure,resultats");
+    expect("visite : carte, outils de la visionneuse, résultats", seen.map((t) => t.split(" ")[0]).join() === "carte,reglage-image,resultats");
     expect("visite finie : bulle fermée, plus de cible", !bubble.open && !doc.querySelector(".visite-cible"));
     expect("visite notée faite", w.localStorage.getItem("web-measures/visite") === "1");
   }
