@@ -527,6 +527,7 @@
     const [lon, lat] = feature.geometry.coordinates;
     const { text, complete, parts } = await Lieu.describe(lon, lat, feature);
     if (etat.photo !== feature) return;
+    Carte.setActiveSection(parts?.section || "");  // bornes de PR de cette section en couleur, les autres désaturées
     if (text || complete) {
       $("#lieu").innerHTML = placeMarkup(text, parts);
       $("#lieu").hidden = !text;

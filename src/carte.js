@@ -1128,9 +1128,9 @@ const Carte = (() => {
       }
     }
     if (ticket !== prAsked) return;  // zone déjà quittée
-    const seen = new Set();  // un seul PR par route et numéro (côtés droit et gauche)
-    features = features.filter((f) => {
-      const id = `${f.properties.route} ${f.properties.numero}`;
+    const seen = new Set();  // un seul PR par section, route et numéro (côtés droit et gauche) : deux sections d'une même route
+    features = features.filter((f) => {  // (D905 côté Côte-d'Or et côté Yonne) gardent chacune leur borne
+      const id = `${f.properties.identifiant_de_section} ${f.properties.route} ${f.properties.numero}`;
       return !seen.has(id) && seen.add(id);
     });
     map.getSource("pr")?.setData({ type: "FeatureCollection", features });
@@ -1155,8 +1155,10 @@ const Carte = (() => {
       const marker = new maplibregl.Marker(direction ? { element, anchor: "center" } : { element, anchor: "bottom", offset: [0, -4] })
         .setLngLat(f.geometry.coordinates).addTo(map);
       if (direction) marker.borne = { direction, left: f.properties.cote === "G" };
+      marker.section = f.properties.identifiant_de_section;
       prLabels.push(marker);
     }
+    markActiveBornes();
     placeBornes(map);
     if (!bornesFollow) {
       bornesFollow = true;
@@ -1166,6 +1168,25 @@ const Carte = (() => {
   }
 
   let bornesFollow = false;
+
+  // Section de PR de la route de la photo (Lieu.describe, parts.section) : ses bornes restent en couleur et passent
+  // au-dessus des autres, désaturées ; sans section (pas de photo, hors route, pas de PR) aucune n'est désaturée.
+  // La carte détachée est la même carte déplacée : même état.
+  let activeSection = "";
+
+  /** Section de PR active ("" : aucune), appliquée aux bornes affichées et à celles chargées ensuite. */
+  function setActiveSection(section) {
+    activeSection = section || "";
+    markActiveBornes();
+  }
+
+  function markActiveBornes() {
+    for (const marker of prLabels) {
+      const element = marker.getElement();
+      element.classList.toggle("hors-route", !!activeSection && marker.section !== activeSection);
+      element.classList.toggle("route-active", !!activeSection && marker.section === activeSection);
+    }
+  }
   const BORNE_ROAD_HALF_WIDTH = 6;  // m : demi-largeur de voie supposée, la borne est posée au-delà
   const BORNE_GAP = 18;  // px : du bord de la voie au centre de la borne
 
@@ -1779,7 +1800,7 @@ const Carte = (() => {
   return {
     PANORAMAX_API: META_API, GEOPF, OFM_STYLE: VECTOR_BASES.ofm.style,
     createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, instances, setInstance, setFilter,
-    showMeasures, showPrevious, showNez, showTravers, showOverlay, showHandles, showView, showMilestones, setMilestones, setCadastre,
+    showMeasures, showPrevious, showNez, showTravers, showOverlay, showHandles, showView, showMilestones, setMilestones, setActiveSection, setCadastre,
     onAim: (fn) => { aimListener = fn; }, aimedParcel: aimedParcelNow, apiUrl: () => apiUrl,
     capture, nearestPhoto, photosNear, photoById, randomPhoto, metresBetween,
   };

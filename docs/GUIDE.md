@@ -56,7 +56,7 @@ pour les départementales, cyan pour les métropolitaines, vert pour les europé
 des communes (tirets noirs). Les limites des départements (bleu) et des métropoles (vert) sont sur tous les fonds. Les
 autoroutes et nationales paraissent dès le zoom 7, les départementales dès le zoom 10, les
 autres voies dès le zoom 15. Les points de repère sont dessinés en bornes (tête à la couleur
-du réseau, numéro du PR), à côté de la voie, sur tous les fonds, ou sur aucun selon « Bornes des PR sur la carte »
+du réseau, numéro du PR ; désaturées quand elles ne sont pas sur la route de la photo), à côté de la voie, sur tous les fonds, ou sur aucun selon « Bornes des PR sur la carte »
 (Réglages, Affichage). Le filaire Panoramax, semi-transparent, se
 masque par le bouton « filaire » de l'étiquette verticale de la carte (sous le bouton Bird Eye ; enfoncé : visible ; choix mémorisé).
 La carte reste toujours orientée nord en haut : plus de rotation (ni clic droit glissé, ni deux doigts, ni clavier), plus de boussole dans la colonne de boutons de la carte ni d'inclinaison. Sur la carte, le clic droit sert au geste de rotation de la droite de ↔ (voir « Largeur dans la visionneuse »).

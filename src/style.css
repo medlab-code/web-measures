@@ -1477,6 +1477,8 @@ dd { margin: 0; overflow-wrap: anywhere; }
   opacity: 0.8;  /* un peu transparente : la carte reste visible dessous */
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
 }
+.borne-pr.route-active { z-index: 1; }  /* au-dessus des bornes des autres routes ou sections, qui peuvent les recouvrir */
+.borne-pr.hors-route { filter: grayscale(1) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35)); }  /* hors de la route de la photo */
 .borne-pr .tete {
   aspect-ratio: 2 / 1;  /* demi-cercle, comme le dessin de la borne */
   border: 1.5px solid #000000;

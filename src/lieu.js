@@ -143,7 +143,14 @@ const Lieu = (() => {
    * lui le long du filaire, sans mise à l'échelle : chaque PR du filaire fait foi (on passe de
    * PR 24 +0892 à PR 25 +0000), et l'écart entre deux PR peut dépasser 1 000 m. */
   async function milestone(numero, lon, lat) {
-    if (!numero) return "";
+    return (await milestoneOf(numero, lon, lat)).text;
+  }
+
+  /** Comme milestone : { text, section }, section étant l'identifiant de la section de PR retenue (celle des bornes
+   * « actives » de la carte), "" sans PR. */
+  async function milestoneOf(numero, lon, lat) {
+    const none = { text: "", section: "" };
+    if (!numero) return none;
     const sections = [];
     for (const f of await zone("section_de_points_de_repere", "numero_de_route,identifiant_de_section,geometrie", lon, lat)) {
       if ((f.properties || {}).numero_de_route !== numero || f.geometry?.type !== "LineString") continue;
@@ -163,7 +170,7 @@ const Lieu = (() => {
         .sort((x, y) => x.a - y.a);
       if (prs.length) break;
     }
-    if (!prs.length) return "";
+    if (!prs.length) return none;
     // Section tracée dans le sens des PR décroissants : abscisses curvilignes retournées
     let s = section.p.s;
     if (prs.length > 1 && prs[prs.length - 1].s < prs[0].s) {
@@ -175,7 +182,8 @@ const Lieu = (() => {
     if (i < 0) i = 0;  // avant le premier PR de la section : distance négative
     const pr = prs[i];
     const m = Math.round(s - pr.s);
-    return `PR ${pr.n} ${m < 0 ? "-" : "+"}${String(Math.abs(m)).padStart(4, "0")}`;
+    return { text: `PR ${pr.n} ${m < 0 ? "-" : "+"}${String(Math.abs(m)).padStart(4, "0")}`,
+      section: section.f.properties.identifiant_de_section };
   }
 
   // Tronçons où ne roule pas le véhicule de prise de vue : un trottoir saisi en sentier peut
@@ -390,14 +398,14 @@ const Lieu = (() => {
     const followed = new Set(near.map((t) => identity(t.props))).size > 1 && feature
       ? await followedRoad(feature, lon, lat).catch(fail(null)) : null;
     const r = road(near, followed);
-    const pr = await milestone(r?.numero, lon, lat).catch(fail(""));
+    const { text: pr, section } = await milestoneOf(r?.numero, lon, lat).catch(fail({ text: "", section: "" }));
     // Hors route départementale : la véloroute suivie, s'il y en a une (chemin de halage, voie verte…)
     const bike = troncons && !/^D\d/.test(r?.numero || "") ? cycleRoutes(troncons, lon, lat) : "";
     const lock = bike ? await nearestLock(lon, lat).catch(fail("")) : "";  // repère des chemins de halage
     const house = r?.nom ? await houseNumber(r.nom, lon, lat).catch(fail("")) : "";
     const street = house ? `${house} ${r.nom}` : r?.nom;  // « 54 Avenue Raymond Poincaré »
     const text = [r?.numero, pr, street, bike, lock, place, c].filter(Boolean).join(" – ");  // comme l'étiquette de droite
-    const parts = { lieudit: place, commune: c, voie: r?.numero || r?.nom || "", voieAffichee: r?.numero || street || "", pr };
+    const parts = { lieudit: place, commune: c, voie: r?.numero || r?.nom || "", voieAffichee: r?.numero || street || "", pr, section };
     if (!failed && text) {
       cache.set(key, { text, parts });
       if (cache.size > 500) cache.delete(cache.keys().next().value);
