@@ -129,7 +129,7 @@ const Traits = (() => {
    * lines [{points, color, width}], crosses [{at, color}], labels [{at, type, place, text, lift (px : étiquette
    * remontée ; flip : si elle sortirait de la vue, elle passe de l'autre côté du point (place inversée), à flipLift px (signé comme lift, par défaut -lift))}] ; ticks : petits traits verticaux d'écran, de longueur constante en px, centrés sur le point
    * [{at, color, width (px), length (px), edge (couleur du liseré, facultatif : sans lui, pas de liseré)}] ; une ligne peut avoir alpha (0 à 1) et
-   * dash [trait, blanc]. Dans les captures (largeur dans la visionneuse comprise). Sans argument : couche vidée. Prévient la page
+   * dash [trait, blanc] et march (px/s : tirets qui défilent, « fourmis en marche » ; fixes dans les captures). Dans les captures (largeur dans la visionneuse comprise). Sans argument : couche vidée. Prévient la page
    * (événement « annotations-changed » sur document) : le bouton « Avec annotations » se recalcule.
    */
   function setExtra(layer = {}) {
@@ -327,7 +327,7 @@ const Traits = (() => {
     const out = [], top = [];
 
     for (const line of drawnLines) {
-      const half = line.width / 2, [on, off] = line.dash || [0, 0];
+      const half = line.width / 2, [on, off] = line.dash || [0, 0], march = line.march || 0;
       let along = 0;  // distance parcourue à l'écran, pour les tirets
       let a = view(line.vectors[0]);
       for (let i = 1; i < line.vectors.length; i++) {
@@ -343,12 +343,14 @@ const Traits = (() => {
         const length = Math.hypot(bx - ax, by - ay), kept = clip(ax, ay, bx, by, -MARGIN, width + MARGIN, height + MARGIN);
         const start = along;
         along += length;
+        // tirets défilants (march, px/s) : fenêtre des tirets décalée avec le temps (sans défilement dans les captures)
+        const phase = march && !capture ? (performance.now() / 1000 * march) % ((on + off) || 1) : 0;
         if (!kept || length < 1e-6) continue;
         const ux = (bx - ax) / length, uy = (by - ay) / length, nx = -uy * half, ny = ux * half;
         // bouts prolongés d'une demi-épaisseur : jointures sans trou
         const x0 = ax + (bx - ax) * kept[0] - ux * half, y0 = ay + (by - ay) * kept[0] - uy * half;
         const x1 = ax + (bx - ax) * kept[1] + ux * half, y1 = ay + (by - ay) * kept[1] + uy * half;
-        const d0 = start + length * kept[0] - half, d1 = start + length * kept[1] + half;
+        const d0 = start + length * kept[0] - half - phase, d1 = start + length * kept[1] + half - phase;
         const corner = (x, y, d) => out.push(x, y, ...line.rgba, d, on, off);
         corner(x0 + nx, y0 + ny, d0); corner(x0 - nx, y0 - ny, d0); corner(x1 + nx, y1 + ny, d1);
         corner(x1 + nx, y1 + ny, d1); corner(x0 - nx, y0 - ny, d0); corner(x1 - nx, y1 - ny, d1);
@@ -375,6 +377,7 @@ const Traits = (() => {
       segment(out, s[0], s[1] - half, s[0], s[1] + half, c.width, rgba(c.color));
     }
 
+    if (!capture && extra.lines.some((l) => l.march)) requestAnimationFrame(() => psv.needsUpdate());  // tirets défilants : image suivante
     const quads = placeLabels(at, out, drawnLabels);  // étiquettes : [étiquette, rectangle, texture]
 
     // Réticule glissant, au-dessus de tout

@@ -7,15 +7,16 @@
 // bord à la caméra et de la largeur, avec leur incertitude. Rien n'est retenu ni reporté dans le graphique du profil :
 // les poignées ne servent qu'à lire. Tracé dans la seconde couche de Traits (setExtra), que les mesures n'écrasent pas ;
 // la droite et ses deux bords sont aussi tracés sur la carte (Carte.showNez) pour juger qu'elle est perpendiculaire à la route.
-// Dès qu'une poignée latérale est déplacée, la photo est calée comme le fait la vue Bird Eye (inclinaison tirée de la route, verticales,
+// Dès l'ouverture, la photo est calée comme le fait la vue Bird Eye (inclinaison tirée de la route, verticales,
 // tangage lu sur les lignes ; Dessus.update en mode silencieux, sans rien afficher sur la carte) : tant que le calage n'est pas fait,
-// l'encart et l'étiquette disent « Calage Bird Eye en cours… » et aucune largeur n'est affichée ; une fois fait, la largeur est recalculée sur
+// l'encart dit « Calage Bird Eye en cours… », aucune largeur n'est affichée et la droite n'est qu'un tracé d'attente (pointillés gris qui défilent,
+// poignées grisées, aucun geste) ; le calage part dès l'ouverture de l'outil et à chaque nouvelle photo, sans attendre un déplacement ; une fois fait, la largeur est recalculée sur
 // la photo calée (les poignées gardent leur place dans l'image, pas leur distance en mètres) ; le calage est gardé par photo, partagé
 // avec la vue Bird Eye (rallumée sur la photo, elle est prête plus vite).
 // Gestes sur la droite elle-même (aucune croix ni flèche : rien ne gêne la mesure des petits objets), dans une bande de saisie invisible de ±8 px, sur la photo comme sur la carte : clic gauche maintenu et glissé = déplacer la droite en profondeur (sur la carte, le long du cap) ; clic droit maintenu et glissé, ou Maj + clic gauche glissé (pavés tactiles, Mac), = la tourner autour du droit de la caméra (0,1° par px, Alt pendant le glissement : dix fois plus fin) ; double clic = la remettre perpendiculaire au trajet. Pendant le glissement, aperçu géométrique rapide (droite d'avant en pointillés pour la rotation) ; au relâchement la droite se fixe et le relief est relu. Près des deux poignées des bords, celles-ci sont prioritaires. La droite reste toujours
 // perpendiculaire à l'axe du véhicule (hors rotation) : butées renvoyées par nose_line (d_min : capot ; d_max : nez + écart à la photo suivante + 1 m,
 // nez + 6 m sans suivante), les extrémités gardent leur écart latéral en mètres, la largeur est recalculée aussitôt, sans relancer
-// le calage. La droite est rouge tant que la photo n'est pas calée (Bird Eye), puis verte ; sa distance est dans l'étiquette et l'encart.
+// le calage. Une fois prête, la droite est verte si la photo est calée (Bird Eye), rouge si le calage est impossible ici (largeur sans calage) ; sa distance est dans l'étiquette et l'encart.
 // Réglage fin d'une poignée des bords : pendant son glissement et pendant la molette (un pixel de la photo affichée par cran, vers
 // la droite de l'écran en roulant vers le haut, la gauche vers le bas, pour les deux poignées), une loupe ronde (×3) suit la poignée et montre le point visé avec la droite, la poignée,
 // un réticule, l'échelle au sol et la distance du bord à la caméra. Image : la scène de la visionneuse (three.js) est redessinée en
@@ -91,7 +92,7 @@ const Nez = {
     const button = $("#nez-bords");
 
     const GREEN = "#39ff14", UNCALIBRATED = "#ff1f3d", RED = "#ff1f3d";
-    // droite verte (photo calée) ou rouge franc (pas encore calée), sans liseré ; poignées latérales rouges
+    // droite verte (photo calée) ou rouge franc (calage impossible : mesure sans calage, donc moins sûre), sans liseré ; poignées latérales rouges
     const LINE_PX = 8;  // px : demi-largeur de la bande de saisie invisible autour de la droite
     const LINE_WIDTH = 2.5, LINE_WIDTH_HOVER = 4.5;  // px : épaisseur de la droite au repos et au survol (ou pendant son glissement)
     const HELP = "glisser : profondeur · clic droit glissé (ou Maj) : rotation · double clic : perpendiculaire";
@@ -109,6 +110,7 @@ const Nez = {
     const ROTATION_RATE = 0.1;  // degrés par px de glissement horizontal (Alt tenu pendant le glissement : 10 fois moins), précision de 0,1°
     const CALAGE_MAX = 90000;  // ms : attente au plus du calage Bird Eye, puis largeur sans calage
     const CALAGE_WAIT = "Calage Bird Eye en cours…";
+    const WAIT_COLOR = "#d0d4d8", WAIT_MARCH = 30;  // tracé d'attente : gris clair neutre ; vitesse de défilement des pointillés (px/s)
     const DOUBLE_MS = 400, TAP_PX = 5;  // double clic sur la droite : délai entre les deux appuis ; déplacement (px) en deçà duquel un appui reste un simple clic
     const toRad = Math.PI / 180;
     const LOUPE_PX = 180, LOUPE_ZOOM = 3;  // px : diamètre de la pastille de la loupe (les autres tailles en dérivent) ; agrandissement maximal de la photo (plafond)
@@ -144,6 +146,10 @@ const Nez = {
 
     /** Droite définitive, donc tracée : une droite calculée dont toutes les attentes sont terminées, ou le délai écoulé. */
     const shown = () => Boolean(line && !line.error && (!pending() || expired || keep));
+
+    /** Droite prête à servir : définitive (shown) et photo calée par Bird Eye, ou calage terminé (réussi ou non). Tant que ce n'est pas le
+     * cas, seul un tracé d'attente (pointillés gris qui défilent) est dessiné et poignées, droite et molette sont sans effet. */
+    const usable = () => shown() && !calageWaiting();
 
     /** Délai d'attente armé tant qu'une attente est en cours (à chaque nouveau calcul : photo changée, verticales relancées), désarmé
      * quand toutes sont terminées. Rend vrai si l'état affiché a changé (droite devenue définitive par le délai écoulé). */
@@ -194,7 +200,7 @@ const Nez = {
 
     const calageWaiting = () => calage.state === "waiting" && calage.pic === photoId;
 
-    /** Une poignée a été déplacée : calage Bird Eye de la photo demandé, une fois par photo (déjà fait, il est repris sans attente). */
+    /** Calage Bird Eye de la photo demandé à l'ouverture et à chaque nouvelle photo, une fois par photo (déjà fait, il est repris sans attente). */
     function needCalage() {
       if (!active || !calageApi || (calage.pic === photoId && calage.state !== "none")) return;
       resetCalage();
@@ -303,7 +309,8 @@ const Nez = {
       return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
     }
 
-    /** Photo calée par Bird Eye (par ce calage-ci, ou déjà par la vue allumée ou un calage antérieur) : la droite est verte, sinon rouge. */
+    /** Photo calée par Bird Eye (par ce calage-ci, ou déjà par la vue allumée ou un calage antérieur) : la droite est verte ; rouge si le calage
+     * est impossible ici (droite prête, mais sans calage : mesure moins sûre). */
     const isCalibrated = () => (calage.pic === photoId && calage.state === "done") || Boolean(calageApi?.state(photoId)?.ok);
     const lineColor = () => (isCalibrated() ? GREEN : UNCALIBRATED);
 
@@ -313,7 +320,7 @@ const Nez = {
     /** Droite et bords sur la carte (null : retirés). */
     function drawMap() {
       if (!map) return;
-      if (!active || !shown() || !line.lonlat) return Carte.showNez(map, null);
+      if (!active || !usable() || !line.lonlat) return Carte.showNez(map, null);
       // trait du bord perpendiculaire à la droite : angle (° dans le sens horaire depuis le nord) de la droite + 90°
       const [a, b] = line.lonlat, lat = (a[1] + b[1]) / 2 * Math.PI / 180;
       const angle = Math.atan2((b[0] - a[0]) * Math.cos(lat), b[1] - a[1]) * 180 / Math.PI + 90;
@@ -400,21 +407,21 @@ const Nez = {
         reset.addEventListener("click", resetRotation);
         $("#vue").append(readout);
       }
-      readout.querySelector("button").disabled = rotation === 0;
+      readout.querySelector("button").disabled = rotation === 0 || !usable();
       const text = readout.querySelector("span");
       if (!line || line.error) {
         text.textContent = line?.error || "Droite indisponible.";
         return;
       }
       if (!shown()) {
-        text.textContent = "Calcul de la droite…";  // position pas encore définitive : rien n'est tracé
+        text.textContent = "Calcul de la droite…";  // position pas encore définitive : seul le tracé d'attente est dessiné
         readout.title = "";
         return;
       }
       if (calageWaiting()) {  // ni largeur provisoire ni ancienne : seulement l'attente
         text.textContent = CALAGE_WAIT;
         readout.title = "La photo est calée comme dans la vue Bird Eye (inclinaison tirée de la route, verticales, tangage), sans l'afficher ; "
-          + "la largeur est recalculée avec elle ensuite.";
+          + "la largeur est recalculée avec elle ensuite : la droite et les poignées sont inutilisables d'ici là.";
         return;
       }
       const width = handles.droit - handles.gauche;
@@ -447,11 +454,25 @@ const Nez = {
       waitNeighbours(photoId);
     }
 
+    /** Tracé d'attente : droite non calée, sans relief lissé ni valeur, en pointillés gris clair qui défilent (fixes si l'utilisateur
+     * réduit les animations) ; poignées grisées. Rien tant qu'il n'y a pas de droite calculée (erreur : l'encart la dit). */
+    function drawWaiting() {
+      if (!line || line.error || !line.points?.length) return Traits.setExtra();
+      Traits.attach(etat.psv);
+      const lo = handles.gauche, hi = handles.droit;
+      const points = [locate(lo), ...line.points.filter(([o]) => o > lo && o < hi).map(([, yaw, pitch]) => [yaw, pitch]), locate(hi)];
+      const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      Traits.setExtra({
+        lines: [{ points, color: WAIT_COLOR, width: LINE_WIDTH, dash: [10, 8], alpha: 0.85, ...(still ? {} : { march: WAIT_MARCH }) }],
+        ticks: [lo, hi].map((o) => ({ at: locate(o), color: WAIT_COLOR, length: TICK_PX, width: 3 })),
+      });
+    }
+
     /** Droite, repère, poignées et étiquettes dans la seconde couche de Traits. */
     function draw() {
       showReadout();
       drawMap();
-      if (!shown()) return Traits.setExtra();
+      if (!usable()) return drawWaiting();
       Traits.attach(etat.psv);
       const at = locate;
       // droite tracée seulement entre les poignées : points du tableau strictement entre elles, bouts interpolés par locate
@@ -503,7 +524,7 @@ const Nez = {
     /** Ce qui est saisi au point (x, y) de la visionneuse : « gauche » ou « droit » (poignée latérale à HANDLE_PX px au plus, la plus proche ;
      * prioritaire près des extrémités), « droite » (bande de saisie de la droite), ou null. */
     function handleAt(x, y) {
-      if (!shown()) return null;
+      if (!usable()) return null;
       let best = null, bestD = HANDLE_PX;
       for (const side of ["gauche", "droit"]) {
         const s = screenOf(...locate(handles[side]));
@@ -553,13 +574,13 @@ const Nez = {
       const on = found === "droite";
       if (on !== hoverLine) {
         hoverLine = on;
-        if (active && shown()) draw();
+        if (active && usable()) draw();
       }
     }
 
     function onDown(event) {
       const mouse = event.pointerType === "mouse";
-      if (!shown() || (mouse && event.button !== 0 && event.button !== 2)) return;
+      if (!usable() || (mouse && event.button !== 0 && event.button !== 2)) return;
       const [x, y] = local(event), found = handleAt(x, y), right = mouse && event.button === 2;
       if (!found || (right && found !== "droite")) return;
       event.stopImmediatePropagation();  // la visionneuse ne tourne pas, ne mesure pas
@@ -588,7 +609,7 @@ const Nez = {
     }
 
     function onMove(event) {
-      if (!shown()) return;
+      if (!usable()) return;
       if (!drag) {
         setCursor(handleAt(...local(event)));
         if (loupeSide) checkLoupeHover(...local(event));
@@ -611,7 +632,7 @@ const Nez = {
       setHandle(drag.side, o);
     }
 
-    /** Poignée latérale amenée au décalage o (m) : déplacée à la main, calage Bird Eye de la photo demandé (largeur masquée jusqu'à sa fin). */
+    /** Poignée latérale amenée au décalage o (m) : déplacée à la main (le calage Bird Eye, déjà lancé à l'ouverture, est fini : droite prête). */
     function setHandle(side, o) {
       handles[side] = o;
       moved[side] = true;
@@ -688,7 +709,7 @@ const Nez = {
     /** Molette sur une poignée des bords : réglage fin (la visionneuse ne zoome pas) ; ailleurs, le zoom de la visionneuse. La poignée reste engagée
      * tant que la molette tourne (elle s'éloigne un peu du pointeur à chaque cran). */
     function onWheel(event) {
-      if (!active || !shown() || drag) return;
+      if (!active || !usable() || drag) return;
       const side = wheelSide ?? handleAt(...local(event));
       if (side !== "gauche" && side !== "droit") return;
       event.preventDefault();
@@ -911,7 +932,7 @@ const Nez = {
       if (!loupe) return;
       const side = loupeSide, o = handles[side], other = side === "gauche" ? "droit" : "gauche";
       const point = screenOf(...locate(o));
-      if (!active || !shown() || !point) { loupe.root.hidden = true; return; }
+      if (!active || !usable() || !point) { loupe.root.hidden = true; return; }
       const box = etat.psv.container.getBoundingClientRect();
       const zoom = loupeZoom(), half = LOUPE_PX / zoom / 2;
       // tuile pleine résolution sous le carré agrandi (centre et quatre coins) : sinon, dernière image nette si le point est encore dans sa zone, sinon « chargement… »
@@ -956,7 +977,7 @@ const Nez = {
 
     /** Droite de la carte (prolongements compris) à LINE_PX px au plus du point (x, y) de la carte. */
     function mapLineNear(point) {
-      if (!active || !shown() || !line.lonlat) return false;
+      if (!active || !usable() || !line.lonlat) return false;
       const [a, b] = line.lonlat;
       const p = map.project([a[0] - (b[0] - a[0]) / 2, a[1] - (b[1] - a[1]) / 2]), q = map.project([b[0] + (b[0] - a[0]) / 2, b[1] + (b[1] - a[1]) / 2]);
       return segmentDistance(point.x, point.y, p.x, p.y, q.x, q.y) <= LINE_PX;
@@ -1117,15 +1138,15 @@ const Nez = {
     /** mousedown et touchstart sur la droite ou une poignée : la visionneuse ne les voit pas (elle y verrait le début d'une rotation). */
     function onLegacyDown(event) {
       const t = event.touches ? event.touches[0] : event;
-      if (t && shown() && handleAt(...local(t))) event.stopImmediatePropagation();
+      if (t && usable() && handleAt(...local(t))) event.stopImmediatePropagation();
     }
 
     /** Double clic sur la droite : ni zoom ni navigation de la visionneuse (le double appui est lu dans onDown / onUp). */
     function onDouble(event) {
-      if (shown() && handleAt(...local(event)) === "droite") event.stopImmediatePropagation();
+      if (usable() && handleAt(...local(event)) === "droite") event.stopImmediatePropagation();
     }
 
-    const onMenu = (event) => blockMenu(event, shown() && handleAt(...local(event)) === "droite");
+    const onMenu = (event) => blockMenu(event, usable() && handleAt(...local(event)) === "droite");
 
     /** Pointeur sorti de la visionneuse : loupe gardée fermée après le délai (sauf glissement en cours). */
     function onLeave() {
@@ -1188,6 +1209,7 @@ const Nez = {
       restartWait();
       load();
       reset();
+      needCalage();  // calage Bird Eye lancé dès l'ouverture, sans attendre un déplacement : la droite n'est utilisable qu'une fois calée
       bind();
       button.setAttribute("aria-pressed", "true");
       settle();
@@ -1262,6 +1284,7 @@ const Nez = {
         restartWait();
         load();
         reset();
+        needCalage();  // nouvelle photo : calage lancé aussitôt (voir activate)
         settle();
         draw();
         waitNeighbours(photoId);
