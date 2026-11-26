@@ -129,7 +129,8 @@ const Traits = (() => {
    * lines [{points, color, width}], crosses [{at, color}], labels [{at, type, place, text, lift (px : étiquette
    * remontée ; flip : si elle sortirait de la vue, elle passe de l'autre côté du point (place inversée), à flipLift px (signé comme lift, par défaut -lift))}] ; ticks : petits traits verticaux d'écran, de longueur constante en px, centrés sur le point
    * [{at, color, width (px), length (px), edge (couleur du liseré, facultatif : sans lui, pas de liseré)}] ; une ligne peut avoir alpha (0 à 1) et
-   * dash [trait, blanc]. Pas dans les captures. Sans argument : couche vidée.
+   * dash [trait, blanc]. Dans les captures (largeur dans la visionneuse comprise). Sans argument : couche vidée. Prévient la page
+   * (événement « annotations-changed » sur document) : le bouton « Avec annotations » se recalcule.
    */
   function setExtra(layer = {}) {
     if (!psv) return;
@@ -140,7 +141,11 @@ const Traits = (() => {
       labels: (layer.labels || []).map((l) => ({ ...l, vector: vector(l.at) })),
     };
     psv.needsUpdate();
+    document.dispatchEvent(new Event("annotations-changed"));
   }
+
+  /** Quelque chose dans la seconde couche (droite et étiquette de la largeur dans la visionneuse) : une capture annotée a de quoi montrer. */
+  const hasExtra = () => Boolean(extra.lines.length || extra.crosses.length || extra.labels.length);
 
   /** Réticule tenu sous le pointeur (largeur : sur la droite de mesure ; hauteur : trait jaune en travers de l'axe,
    * angle en degrés à l'écran) : { at: [yaw, pitch], color, angle (ou null) }, ou null pour le retirer. */
@@ -290,7 +295,8 @@ const Traits = (() => {
     return { left, top, right: left + w, bottom: top + h };
   }
 
-  // capture : sans les lignes de la couche importée (la capture les dessine sous ses pastilles) ni le réticule
+  // capture : sans les lignes de la couche importée (la capture les dessine sous ses pastilles) ni le réticule ; la seconde couche
+  // (droite, repères et étiquette de la largeur dans la visionneuse) y est, comme à l'écran
   function draw(capture = false) {
     const width = canvas.clientWidth, height = canvas.clientHeight, ratio = window.devicePixelRatio || 1;
     if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
@@ -301,10 +307,10 @@ const Traits = (() => {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     rects = [];
-    const drawnLines = capture ? lines.filter((l) => !l.couche) : lines.concat(extra.lines), reticle = capture ? null : slide;
-    const drawnCrosses = capture ? crosses : crosses.concat(extra.crosses), ticks = capture ? [] : extra.ticks;
+    const drawnLines = (capture ? lines.filter((l) => !l.couche) : lines).concat(extra.lines), reticle = capture ? null : slide;
+    const drawnCrosses = crosses.concat(extra.crosses), ticks = extra.ticks;
     // Visionneuse à la petite place (carte en grand) : seule la localisation s'affiche, donc pas d'étiquettes dans la photo (captures : toujours)
-    const drawnLabels = capture ? labels : document.body.classList.contains("carte-en-grand") ? [] : labels.concat(extra.labels);
+    const drawnLabels = capture ? labels.concat(extra.labels) : document.body.classList.contains("carte-en-grand") ? [] : labels.concat(extra.labels);
     if (!width || !(drawnLines.length || drawnCrosses.length || ticks.length || drawnLabels.length || reticle)) return;
     const camera = psv.renderer.camera;
     const m = camera.matrixWorldInverse.elements, p = camera.projectionMatrix.elements;
@@ -427,5 +433,5 @@ const Traits = (() => {
     return rects.map((r) => ({ left: r.left + b.left, right: r.right + b.left, top: r.top + b.top, bottom: r.bottom + b.top }));
   }
 
-  return { attach, set, setExtra, setSlide, snapshot, items, labelRects };
+  return { attach, set, setExtra, hasExtra, setSlide, snapshot, items, labelRects };
 })();

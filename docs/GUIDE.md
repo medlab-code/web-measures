@@ -802,8 +802,8 @@ pas utilisé (talus et murs pris pour la route).
   Panoramax : les photos écartées ne s'ouvrent pas, ni par la carte ni par les flèches ;
 - captures, deux boutons en forme d'appareil photo en haut à droite de la visionneuse, à gauche du plein écran (« Image seule » : appareil photo ;
   « Avec annotations » : appareil photo marqué d'une mesure) : vue recalculée en Full HD depuis la photo originale, ou visionneuse avec ses
-  annotations (« Avec annotations » : mesures, étiquette de la parcelle visée, objets de la couche ; PNG, copiée
-  dans le presse-papiers), active dès qu'une annotation est affichée ;
+  annotations (« Avec annotations » : mesures, largeur dans la visionneuse (droite, repères et valeur), étiquette de la parcelle visée, objets de la couche ;
+  PNG, copiée dans le presse-papiers), active dès qu'une annotation est affichée ;
 - liste des résultats avec commentaire et effacement de chacun ; **export CSV**
   (point-virgule, virgule décimale) et **GeoJSON** : valeur, incertitude, composantes,
   distance à la photo, hauteur de caméra, axe de la route, photos, date, commentaire, photo
