@@ -408,6 +408,10 @@ const Carte = (() => {
           id: "travers-ligne", type: "line", source: "travers", filter: ["in", ["get", "role"], ["literal", ["travers", "voisin", "devers"]]],
           paint: { "line-color": ["get", "couleur"], "line-width": ["case", ["==", ["get", "role"], "devers"], 5, ["==", ["get", "role"], "voisin"], 2, 3.5] },
         },
+        {  // autres travers du profil (sans chute ni dévers retenus) : plus discrets que les travers marqués
+          id: "travers-autres", type: "line", source: "travers", filter: ["==", ["get", "role"], "autre"],
+          paint: { "line-color": ["get", "couleur"], "line-width": 1.5, "line-opacity": 0.7, "line-dasharray": [3, 2] },
+        },
         {
           id: "travers-points", type: "circle", source: "travers", filter: ["in", ["get", "role"], ["literal", ["bord", "chute"]]],
           paint: {
