@@ -1662,6 +1662,7 @@ const Dessus = (() => {
     showPitch();
   }
   /** Roulis en clair : valeur signée et côté où penche le véhicule (positif : à droite, négatif : à gauche). */
+  const signedDeg = (v) => `${v > 0 ? "+" : ""}${number(v, 2)}°`;  // degrés signés, sans le côté
   const rollText = (v) => `${v > 0 ? "+" : ""}${number(v, 2)}°${v ? ` (penché à ${v > 0 ? "droite" : "gauche"})` : ""}`;
   const showRoll = () => {
     $("#dessus-devers").value = rollOffset;
@@ -1672,7 +1673,7 @@ const Dessus = (() => {
   function showShare(layer) {
     const terrain = layer && shown && onLidar(shown) ? shown.terrain : null;
     const share = terrain ? -Math.atan(ROLL_SHARE * groundSlopes(levelOf(terrain), layer.at, layer.pose.heading)[1]) / toRad : null;
-    $("#dessus-part-devers").textContent = share === null ? "—" : rollText(Math.round(share * 100) / 100);
+    $("#dessus-part-devers").textContent = share === null ? "—" : signedDeg(Math.round(share * 100) / 100);
   }
   const showPitch = () => {
     $("#dessus-tangage-force").checked = pitchForced;
