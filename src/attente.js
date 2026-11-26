@@ -5,7 +5,7 @@
 // l'action en jaune, deux ondes qui s'étendent et s'effacent, une étiquette avec un court message et, dessous, l'étape en cours.
 // À la fin, une coche verte (succès) ou une croix rouge et un message court (échec, 6 s), puis fondu.
 //
-//   const a = Attente.start(zone, { icone: Attente.icones.regle, message: "Chargement du calcul…" });
+//   const a = Attente.start(zone, { icone: Attente.icones.equerre, message: "Chargement du calcul…" });
 //   a.etape("photos voisines");      // sous-ligne, « … » ajouté ; texte libre sinon (« 40 % »)
 //   a.ok();  a.ok("Vue du dessus prête");   // coche tracée, puis fondu (message facultatif)
 //   a.echec("Bird Eye impossible : terrain injoignable");   // croix et message, 6 s
@@ -21,6 +21,7 @@ const Attente = (() => {
   const SVG = (corps) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${corps}</svg>`;
   /** Icônes (dessin des boutons : viewBox 24, trait 2, extrémités rondes), partagées avec les boutons qui lancent les actions. */
   const icones = {
+    equerre: SVG('<path d="M4 3v18h18zM8 13v4h4z"/>'),  // équerre du favicon (src/favicon.svg), démarrage
     regle: SVG('<path d="M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2"/>'),
     niveau: SVG('<rect x="2" y="8" width="20" height="8" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M7 8v8M17 8v8"/>'),
     document: SVG('<path d="M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6"/>'),

@@ -666,7 +666,7 @@
     $("#calage-purger-tout").disabled = !Object.keys(c.verticals || {}).length;  // rien à purger sans verticale gardée
   }
 
-  const attenteCalcul = Attente.start($("#vue"), { icone: Attente.icones.regle, message: "Chargement du calcul…" });
+  const attenteCalcul = Attente.start($("#vue"), { icone: Attente.icones.equerre, message: "Chargement du calcul…" });
   Calcul.startCalcul(() => refresh(), etat.apiUrl, (etape) => attenteCalcul.etape(etape)).then((created) => {
     etat.app = created;
     // Relevé gardé : relu avant tout rafraîchissement, qui écrirait par-dessus un relevé vide
