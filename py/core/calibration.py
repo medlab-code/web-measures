@@ -522,7 +522,8 @@ class Calibration:
         self._cameras = {}  # séquence -> hauteur recalculée (cache, vidé à chaque modification)
         # pic -> inclinaison automatique : sequence, heading (cap du centre de l'image),
         # verticals (up, count, sigma : d'après les verticales de la photo, ou None), lidar
-        # ((pente, dévers) en degrés sous le véhicule, ou None)
+        # ((pente, dévers) en degrés sous le véhicule, ou None), lidar_source (nom de precision.TERRAINS qui a donné ce sol : « LiDAR HD »
+        # ou « RGE ALTI » ; None si inconnu, entrée d'une version précédente)
         self.auto = {}
         # photos dont l'utilisateur a écarté le calcul automatique par les verticales (« Réinitialiser » du panneau « Calage
         # manuel ») : tilt passe alors à la source suivante de son ordre (voir auto_tilt, tilt) ; enregistré avec le calage
@@ -1042,7 +1043,7 @@ def _auto_entry(entry):
     """Inclinaison automatique relue (voir Calibration.auto), ou None si illisible."""
     try:
         out = {"sequence": entry.get("sequence"), "heading": float(entry["heading"]), "verticals": None,
-               "lidar": None}
+               "lidar": None, "lidar_source": entry.get("lidar_source") or None}
         v = entry.get("verticals")
         if v:
             up = _unit(tuple(float(c) for c in v["up"]))

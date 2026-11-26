@@ -283,7 +283,8 @@ class TiltChecker:
                 entry = None  # service injoignable : à refaire plus tard
             else:
                 entry = {"sequence": item.get("collection"), "heading": float(heading),
-                         "verticals": state["verticals"], "lidar": state["lidar"]}
+                         "verticals": state["verticals"], "lidar": state["lidar"],
+                         "lidar_source": state["lidar_source"]}
             for cb in [None] + self._pending.pop(pic, []):
                 if cb is None:
                     if entry is not None:
@@ -302,6 +303,7 @@ class TiltChecker:
                 z = [None if m else h for m, h in zip(mask, z)]
             slopes = calibration.lidar_slopes(z) if ok else None  # None : trop peu de points gardés, source indisponible
             state["lidar"] = list(slopes) if slopes else None
+            state["lidar_source"] = source if slopes else None  # nom de precision.TERRAINS : seul « LiDAR HD » donne le dévers de la route
             state["lidar_error"] = bool(error)
             finish()
 

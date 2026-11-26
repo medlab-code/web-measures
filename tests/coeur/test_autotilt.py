@@ -9,6 +9,7 @@ Le calcul des verticales demande numpy (fourni avec QGIS) : ces tests sont saut�
 """
 
 import importlib.util
+import json
 import math
 import unittest
 from unittest import mock
@@ -293,6 +294,19 @@ class Checker(unittest.TestCase):
         self.assertEqual(entry["sequence"], "seq")
         self.assertAlmostEqual(entry["lidar"][0], math.degrees(math.atan(0.2 / 3.0)), places=9)
         self.assertEqual(cal.tilt("pic")["source"], "verticales")
+        self.assertEqual(entry["lidar_source"], "LiDAR HD")  # nom de la source du sol gardé (ticket #52 : seul le LiDAR HD donne le dévers)
+
+    def test_ground_source_kept(self):
+        """La source du sol (LiDAR HD ou RGE ALTI) est gardée dans l'entrée, y compris après relecture."""
+        z = [100 + c * 0.1 for _, c in calibration.LIDAR_GRID]
+        for source in ("LiDAR HD", "RGE ALTI"):
+            cal = calibration.Calibration()
+            with mock.patch.object(autotilt, "fetch_ground", lambda lon, lat, heading, done, s=source: done(z, s, None)):
+                self.check(ITEM, cal, FakeNetwork(), None)
+            self.assertEqual(cal.auto["pic"]["lidar_source"], source)
+            again = calibration.Calibration()
+            again.load(json.loads(json.dumps(cal.to_dict())))
+            self.assertEqual(again.auto["pic"]["lidar_source"], source)
 
     def test_nothing_to_do(self):
         cal = calibration.Calibration()
