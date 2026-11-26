@@ -1082,7 +1082,7 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #ddd; font-si
   }
 
   /** Travers de la photo sur la carte (piste G5) : GeoJSON (voir Carte.showTravers) de la ligne du travers (de son bout gauche à son
-   * bout droit), des deux bords (mesuré : rond plein ; supposé : rond creux), du pied de la chute (rond orange) et du talus (trait rouge), avec en gris le travers voisin qui les porte s'il n'est pas celui de la photo, et en pointillés fins les autres travers du profil,
+   * bout droit), des deux bords (mesuré : rond plein ; supposé : rond creux), du pied de la chute (rond orange) et du talus (trait rouge), avec en gris le travers voisin qui les porte s'il n'est pas celui de la photo, et, dans le même style, tous les autres travers du profil,
    * dans les couleurs du graphique (variables de thème du CSS). limits : bornes en distance du dessin ([min, max], `cadre.x` de draw), qui
    * donnent au trait la même étendue que le graphique. */
   function mapTrace(profile, limits = null) {
@@ -1126,12 +1126,12 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #ddd; font-si
           { role: "devers", couleur: color("--devers"), fond: color("--fond") }));
       }
     }
-    // Les autres travers du profil (sans chute ni dévers retenus) : tous sur la carte, en trait plus discret (rôle « autre », pointillés fins)
+    // Les autres travers du profil (sans chute ni dévers retenus) : tous sur la carte, dans le même style que le voisin (rôle « voisin », trait plein gris)
     for (const [along, tr] of all) {
       if (tr === main || seen.has(along)) continue;
       const [a0, a1] = [tr.points[0][0], tr.points.at(-1)[0]];
       out.push(feature({ type: "LineString", coordinates: [shift(a0, along), shift(a1, along)] },
-        { role: "autre", couleur: color("--discret"), fond: color("--fond") }));
+        { role: "voisin", couleur: color("--discret"), fond: color("--fond") }));
     }
     return { type: "FeatureCollection", features: out };
   }
