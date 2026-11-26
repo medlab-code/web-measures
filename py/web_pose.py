@@ -25,6 +25,15 @@ def _inside(point, ring):
     return inside
 
 
+def roulis_vehicule_depuis_camera(roll):
+    """Roulis (degrés) changé de convention, à la frontière entre le cœur et le reste de l'application (seul endroit).
+    Cœur (core/calibration.py : tilt_components, up_from_components, d_roll, repris du plugin QGIS) : positif = la verticale vraie
+    paraît penchée vers la droite sur la photo, soit la caméra penchée à GAUCHE. Application (src/dessus.js, ROLL_DEFECTS, panneau
+    de calage, ligne d'état) : positif = véhicule penché à DROITE, côté droit plus bas, vu dans le sens de la marche. Les deux
+    conventions sont opposées : la fonction est sa propre inverse (véhicule vers cœur comme cœur vers véhicule). None reste None."""
+    return None if roll is None else 0.0 - roll  # 0.0 - x : pas de -0.0
+
+
 class Pose:
     """Inclinaison et pose de la caméra (voir web_app.App)."""
 
@@ -336,11 +345,14 @@ class Pose:
 
     FLEET_PRODUCER = "8f943f10-a781-4e03-a18c-de035be6f6f8"  # CD21 : imajbox sur Clio 5, deux montures (voir src/dessus.js, MOUNTS)
     # Défaut de roulis de la caméra par rapport à la route, par producteur et campagne de prise de vue : (producteur, premier
-    # jour, jour de fin exclu, degrés ajoutés au roulis tiré du dévers, signe de groundUp dans src/dessus.js). Seulement pour
+    # jour, jour de fin exclu, degrés ajoutés au roulis tiré du dévers ; convention du véhicule : positif = penché à droite, comme
+    # dans src/dessus.js, voir roulis_vehicule_depuis_camera pour le cœur). Seulement pour
     # l'inclinaison par la route de la vue du dessus ; à mesurer pour chaque campagne ou producteur, sur des passages piétons
     # (docs/BIRDEYE.md § 4.1). CD21, campagne 2025 (tests/passages-pietons.js, 13/11/2026) : roulis restant de +0,98° en
-    # médiane sur 23 vues, sans lien avec le dévers ni avec la monture, nul avec les verticales ; -1° le ramène près de 0.
-    ROLL_DEFECTS = ((FLEET_PRODUCER, "2025-01-01", "2026-01-01", -1.0),)
+    # médiane sur 23 vues (verticale vue penchée vers la droite, soit caméra penchée à gauche), sans lien avec le dévers ni avec la
+    # monture, nul avec les verticales ; le véhicule penché de 1° à droite ramène ce roulis près de 0 : +1° (avant le 26/11/2026,
+    # même effet noté -1° dans la convention du cœur).
+    ROLL_DEFECTS = ((FLEET_PRODUCER, "2025-01-01", "2026-01-01", 1.0),)
 
     # Monture de la caméra du CD21 par date de prise de vue (premier jour, jour de fin exclu, hauteur en m) : hauteur de caméra
     # de la vue du dessus (pose « mount »), avant la hauteur lue entre photos, qui se joue à quelques cm du seuil entre les deux
@@ -414,10 +426,17 @@ class Pose:
     def tilt_confidence_of(self, pic, item=None):
         """Confiance de l'inclinaison retenue de la photo pic (Calibration.confidence) : dict state ("confirmee", "desaccord",
         "non_verifiable", "pont"), pair, d_pitch, d_roll, limit_pitch, limit_roll, available (noms des sources), retained
-        (source, sigma, pitch, roll), ou None sans inclinaison retenue ni cap connu."""
+        (source, sigma, pitch, roll), roulis et d_roll dans la convention du véhicule (positif : penché à droite), ou None sans inclinaison retenue ni cap connu."""
         item = item or self._item_of(pic)
         heading = self._heading_of(item) if item else None
-        return self.calibration.confidence(pic, heading) if heading is not None else None
+        if heading is None:
+            return None
+        got = self.calibration.confidence(pic, heading)
+        if got:  # roulis du cœur -> véhicule (écart témoin - retenue : même changement de signe)
+            got = {**got, "d_roll": roulis_vehicule_depuis_camera(got.get("d_roll"))}
+            if got.get("retained"):
+                got["retained"] = {**got["retained"], "roll": roulis_vehicule_depuis_camera(got["retained"].get("roll"))}
+        return got
 
     def _loose_tilt(self, pic):
         """Rang 5 : verticales de la photo à l'incertitude plus grande que autotilt.MAX_SIGMA (birdeye_loose)."""
@@ -426,15 +445,15 @@ class Pose:
 
     def _campaign_tilt(self, pic):
         """Rang 6 : roulis par défaut de la campagne seul (ROLL_DEFECTS ; 0 : rien), tangage inconnu (incertitude UNCALIBRATED, au moins celle
-        du roulis), la verticale penchée de ce roulis vers la droite du cap de l'axe de la séquence (ou de la photo). Même
-        signe que groundUp de src/dessus.js. Repérée par « fallback » : pas une inclinaison calée."""
+        du roulis), le véhicule penché de ce roulis (positif : à droite) par rapport au cap de l'axe de la séquence (ou de la photo) ;
+        le cœur le reçoit dans sa convention (roulis_vehicule_depuis_camera). Même effet que groundUp de src/dessus.js. Repérée par « fallback » : pas une inclinaison calée."""
         item = self._item_of(pic)
         roll = self._roll_defect(item) if item else 0.0
         if not roll:
             return None
         axis = self._axis(item)
         axis = self._heading_of(item) if axis is None else axis
-        return calibration.tilt_entry(calibration.up_from_components(0.0, roll, axis or 0.0),
+        return calibration.tilt_entry(calibration.up_from_components(0.0, roulis_vehicule_depuis_camera(roll), axis or 0.0),
                                       max(calibration.UNCALIBRATED, self.ROLL_DEFECT_SIGMA), "roulis de campagne", fallback=True)
 
     def _set_loose(self, pic, loose):

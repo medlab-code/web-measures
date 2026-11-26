@@ -16,7 +16,7 @@ from datetime import datetime
 import web_host
 from web_chutes import Chutes, _WAY_KINDS, _deck_at, platform_slope  # noqa: F401 (essais)
 from web_nez import Nez
-from web_pose import Pose
+from web_pose import Pose, roulis_vehicule_depuis_camera
 from core import (autotilt, calibration, capture, filters, host, measures, metadata, precision, session, tools,
                   triangulation)
 from core.session import GROUND_MODES, MODES  # noqa: F401 (modes de la page)
@@ -736,13 +736,13 @@ class App(Pose, Chutes, Nez, session.Session):
             tilt, rows = report["tilt"], report["rows"]
             out["manual"] = {
                 "count": report["count"], "tilt": tilt["tilt"], "toward": tilt["toward"], "sigma": tilt["sigma"],
-                "partial": tilt["partial"], "pitch": report["pitch"], "roll": report["roll"], "scale": report["scale"],
+                "partial": tilt["partial"], "pitch": report["pitch"], "roll": roulis_vehicule_depuis_camera(report["roll"]), "scale": report["scale"],
                 "rows": rows, "outliers": report["outliers"],
                 "doubtful": [i for i, r in enumerate(rows) if r["verdict"] == "douteux"]}
         got = self.calibration.tilt(pic)
         if got:
             pitch, roll = calibration.tilt_components(got["up"], self._heading())
-            out["retained"] = {"source": got["source"], "sigma": got["sigma"], "pitch": pitch, "roll": roll,
+            out["retained"] = {"source": got["source"], "sigma": got["sigma"], "pitch": pitch, "roll": roulis_vehicule_depuis_camera(roll),
                                "count": got.get("count")}
         out["confidence"] = self.tilt_confidence_of(pic, self.item)  # indicateur de confiance (Calibration.confidence)
         entry = self.calibration.auto.get(pic) or {}
@@ -753,7 +753,7 @@ class App(Pose, Chutes, Nez, session.Session):
         own = found or loose  # sa propre inclinaison, retenue ou non
         if own:
             pitch, roll = calibration.tilt_components(own["up"], self._heading())
-            out["auto"].update(pitch=pitch, roll=roll, sigma=own["sigma"])
+            out["auto"].update(pitch=pitch, roll=roulis_vehicule_depuis_camera(roll), sigma=own["sigma"])
         return json.dumps(out)
 
     def calage_auto_off(self, off):

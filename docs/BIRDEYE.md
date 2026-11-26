@@ -134,9 +134,10 @@ fixation peut être un peu de travers.
 2. **Sinon, la route** : le véhicule est supposé posé sur le plan ajusté au MNT sous lui (`groundUp`). Le tangage suit
    la pente entière ; le roulis ne suit qu'une part du dévers, fixée à 70 % (environ 40 %
    sur la RD 1074, 75 à 100 % sur l'A38), à quoi s'ajoute un roulis réglable à la main (« Roulis », en degrés, de −2 à +2°,
-   0° par défaut, comme le tangage ; positif : penché à droite, côté droit plus bas ; le signe est inversé à l'entrée de `groundUp`, dont la convention est l'inverse). Le tangage ajoute le défaut de fixation de la caméra (−0,4 à +0,6° selon
+   0° par défaut, comme le tangage ; positif : penché à droite, côté droit plus bas, convention du véhicule dans tout `src/dessus.js` et `py/web_pose.py`, voir `docs/CALCULS.md` § 1.3). La ligne « Part du dévers (70 %) » au-dessus de la réglette
+   donne le roulis dû au dévers sous la caméra, `−arctan(0,7 × dévers)`, en degrés signés avec son sens (« +0,84° (penché à droite) »), « — » sans LiDAR HD. Le tangage ajoute le défaut de fixation de la caméra (−0,4 à +0,6° selon
    les séquences). Le roulis ajoute le **roulis par défaut de la campagne 2025** (`App.ROLL_DEFECTS`, `py/web_pose.py`, par
-   producteur et période de prise de vue) : CD21, campagne 2025, −1°. Mesuré le 13/11/2026 sur 25 passages piétons
+   producteur et période de prise de vue) : CD21, campagne 2025, +1° (véhicule penché à droite ; −1° dans la convention du cœur, notée ainsi avant le 26/11/2026, même effet). Mesuré le 13/11/2026 sur 25 passages piétons
    (`tests/passages-pietons.js`) : bandes de 0,50 m dans la vue calée par la route puis par les verticales ; une erreur
    de roulis δ y rend la largeur d'une bande proportionnelle à 1 + 2 s δ / H (s : écart en travers à la caméra), d'où
    δ par site. Roulis restant par la route +0,98° en médiane (23 vues ; +0,8° et +1,1° sur les deux montures), sans

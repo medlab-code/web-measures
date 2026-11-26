@@ -122,11 +122,23 @@ class VueDessus(unittest.TestCase):
         """Défaut de roulis de la caméra (ROLL_DEFECTS) : CD21, campagne 2025 seulement ; ni avant, ni après, ni ailleurs."""
         a = App.__new__(App)
         photo = lambda producer, date: {"providers": [{"id": producer}], "properties": {"datetime": date}}
-        self.assertEqual(a._roll_defect(photo(App.FLEET_PRODUCER, "2025-07-03T10:53:25Z")), -1.0)
+        self.assertEqual(a._roll_defect(photo(App.FLEET_PRODUCER, "2025-07-03T10:53:25Z")), 1.0)  # penché à droite de 1° (convention du véhicule)
         for producer, date in ((App.FLEET_PRODUCER, "2024-12-31T23:00:00Z"), (App.FLEET_PRODUCER, "2026-01-02T09:00:00Z"),
                                ("autre", "2025-07-03T10:53:25Z")):
             self.assertEqual(a._roll_defect(photo(producer, date)), 0.0)
         self.assertEqual(a._roll_defect({}), 0.0)  # sans producteur ni date
+
+    def test_roulis_vehicule_convention(self):
+        """Roulis du véhicule : positif = penché à droite ; le cœur a la convention inverse (verticale penchée à droite = caméra à gauche),
+        changée en un seul endroit (roulis_vehicule_depuis_camera). Le défaut CD21 2025 (+1°) donne la même verticale qu'avant (-1° du cœur)."""
+        from web_pose import roulis_vehicule_depuis_camera as convert
+        self.assertEqual((convert(1.0), convert(-0.5), convert(None)), (-1.0, 0.5, None))
+        self.assertEqual(repr(convert(0.0)), "0.0")  # pas de -0.0
+        # véhicule penché à droite de 1° : la verticale vraie paraît penchée de 1° vers la gauche sur la photo (roulis du cœur -1°)
+        up = calibration.up_from_components(0.0, convert(App.ROLL_DEFECTS[0][3]), 90.0)
+        self.assertAlmostEqual(calibration.tilt_components(up, 90.0)[1], -1.0, places=9)
+        # le panneau de calage rend le roulis dans la convention du véhicule : verticale vue penchée de 0,5° à droite = véhicule à gauche
+        self.assertAlmostEqual(convert(calibration.tilt_components(calibration.up_from_components(1.0, 0.5, 0.0), 0.0)[1]), -0.5, places=9)
 
     def test_pose(self):
         pose = json.loads(self.app_on(360).birdeye_pose())
@@ -1321,7 +1333,7 @@ class Parcours(unittest.TestCase):
         self.show(pic)
         self.assertEqual((cal.tilt(pic), source()), (None, None))  # 7 : rien (UNCALIBRATED)
         self.show(pic, "2025-07-03T10:53:25Z", App.FLEET_PRODUCER)
-        t = cal.tilt(pic)  # 6 : roulis par défaut de la campagne seul (-1°), tangage inconnu
+        t = cal.tilt(pic)  # 6 : roulis par défaut de la campagne seul (+1°, penché à droite ; -1° pour le cœur), tangage inconnu
         self.assertEqual((t["source"], t["sigma"], t["fallback"]), ("roulis de campagne", calibration.UNCALIBRATED, True))
         for got, want in zip(t["up"], self._up(-1.0)):
             self.assertAlmostEqual(got, want, places=6)
@@ -1394,6 +1406,7 @@ class Parcours(unittest.TestCase):
         self.assertEqual((info["retained"]["source"], info["auto"]["count"], info["auto"]["available"], info["auto"]["off"]),
                          ("verticales", 7, True, False))
         self.assertAlmostEqual(info["retained"]["pitch"], 1.0, places=2)
+        self.assertAlmostEqual(info["retained"]["roll"], -0.5, places=2)  # verticale vue à droite : véhicule penché à gauche
         version = a.calibration_version
         a.calage_auto_off(True)
         self.assertGreater(a.calibration_version, version)
@@ -1451,8 +1464,8 @@ class Parcours(unittest.TestCase):
         self.show("p1", "2025-07-03T10:53:25Z", App.FLEET_PRODUCER)
         line = json.loads(self.app.nose_line(5.0))
         self.assertEqual((line["inclinaison_source"], line["inclinaison_sigma"], line["roulis_campagne"]),
-                         ("roulis de campagne", calibration.UNCALIBRATED, -1.0))
-        up = self._up(-1.0)
+                         ("roulis de campagne", calibration.UNCALIBRATED, 1.0))  # véhicule penché de 1° à droite
+        up = self._up(-1.0)  # la verticale du cœur : penchée de 1° à gauche
         for x, yaw, pitch in line["points"][::40]:
             bearing, elev = math.degrees(math.atan2(x, 5.0)), -math.degrees(math.atan2(line["hauteur"], math.hypot(x, 5.0)))
             want_yaw, want_pitch = calibration.untilt(up, bearing % 360, elev, inverse=True)

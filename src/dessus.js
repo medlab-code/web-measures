@@ -7,6 +7,11 @@
 // précédente et suivante couvrent le sol caché par le véhicule. Seuls les points réellement au sol
 // sont à leur place : poteaux et autres objets s'étalent.
 
+// Convention du roulis du véhicule, dans tout ce fichier et dans le code qui lui parle (py/web_pose.py : ROLL_DEFECTS, pose.roll_defect) :
+// positif = véhicule penché à DROITE (côté droit plus bas, vu dans le sens de la marche), négatif = à gauche. Le cœur de calcul
+// (py/core/calibration.py, repris du plugin QGIS) a la convention inverse ; elle est changée en un seul endroit, côté Python
+// (roulis_vehicule_depuis_camera, py/web_pose.py), jamais ici. Voir docs/CALCULS.md.
+
 const Dessus = (() => {
   const WGS84_A = 6378137, WGS84_E2 = 0.00669437999014;  // ellipsoïde des positions GPS, comme py/core/triangulation.py
   const REACH = 15;  // m : portée de la vue
@@ -206,16 +211,9 @@ const Dessus = (() => {
     return (z(i, j) * (1 - u) + z(i + 1, j) * u) * (1 - v) + (z(i, j + 1) * (1 - u) + z(i + 1, j + 1) * u) * v;
   }
 
-  /** Inclinaison d'une caméra sans verticales à lire, le véhicule étant posé sur la route : verticale vraie vue depuis la caméra
-   * (voir rotation), la route sous le véhicule étant un plan ajusté sur ±2,5 m en long et ±1,5 m en travers. La route monte devant :
-   * la caméra regarde vers le haut et voit la verticale penchée vers l'avant. at : position de la caméra (est, nord, m),
-   * heading : cap (degrés), rollShare : part du dévers prise en roulis (ROLL_SHARE ; le tangage suit la pente entière, voir docs/CALCULS.md),
-   * pitch : tangage ajouté (degrés, positif : caméra relevée vers l'avant), défaut de fixation de la caméra ; roll : roulis
-   * ajouté (degrés, positif : verticale vue penchée vers la droite, donc caméra penchée à GAUCHE, côté gauche plus bas : convention du
-   * calcul, celle de gs ci-dessous et de Calibration.tilt_components), défaut de la caméra par rapport à la route, propre au
-   * producteur et à la campagne (pose.roll_defect, App.ROLL_DEFECTS dans py/web_pose.py), plus le réglage à la main : celui-ci a
-   * la convention inverse de l'interface (rollOffset, positif : penché à droite), son signe est changé à l'appel (rollCalcul). */
-  function groundUp(terrain, at, heading, rollShare = 1, pitch = 0, roll = 0) {
+  /** Pentes du plan de la route sous une caméra, ajusté sur ±2,5 m en long et ±1,5 m en travers : [montée devant, montée vers la droite],
+   * en pente (tangente, m/m). Une route qui monte vers la droite penche le véhicule à gauche (roulis négatif, voir groundUp). */
+  function groundSlopes(terrain, at, heading) {
     const h = heading * toRad, hu = [Math.sin(h), Math.cos(h)];
     let along = 0, side = 0, aa = 0, ss = 0;
     for (let a = -2.5; a <= 2.5; a += 0.5) {
@@ -224,7 +222,23 @@ const Dessus = (() => {
         along += a * z; side += s * z; aa += a * a; ss += s * s;
       }
     }
-    const ga = along / aa + Math.tan(pitch * toRad), gs = rollShare * side / ss + Math.tan(roll * toRad);
+    return [along / aa, side / ss];
+  }
+
+  /** Inclinaison d'une caméra sans verticales à lire, le véhicule étant posé sur la route : verticale vraie vue depuis la caméra
+   * (voir rotation), la route sous le véhicule étant un plan ajusté sur ±2,5 m en long et ±1,5 m en travers (groundSlopes). La
+   * route monte devant : la caméra regarde vers le haut et voit la verticale penchée vers l'avant. at : position de la caméra
+   * (est, nord, m), heading : cap (degrés), rollShare : part du dévers prise en roulis (ROLL_SHARE ; le tangage suit la pente
+   * entière, voir docs/CALCULS.md), pitch : tangage ajouté (degrés, positif : caméra relevée vers l'avant), défaut de fixation de
+   * la caméra ; roll : roulis ajouté (degrés ; convention du véhicule, en tête de ce fichier : positif = penché à droite), défaut
+   * de la caméra par rapport à la route, propre au producteur et à la campagne (pose.roll_defect, App.ROLL_DEFECTS dans
+   * py/web_pose.py), plus le réglage à la main (rollOffset). Le véhicule posé sur une route qui monte vers la droite est penché à
+   * gauche : son roulis dû au dévers est négatif. */
+  function groundUp(terrain, at, heading, rollShare = 1, pitch = 0, roll = 0) {
+    const h = heading * toRad, hu = [Math.sin(h), Math.cos(h)];
+    const [slope, cross] = groundSlopes(terrain, at, heading);
+    // tangente du roulis vers la droite : celui du défaut et du réglage, moins la part du dévers (route qui monte à droite : penché à gauche)
+    const ga = slope + Math.tan(pitch * toRad), gs = -(Math.tan(roll * toRad) - rollShare * cross);  // gs : montée vers la droite de la verticale vraie
     const east = ga * hu[0] + gs * hu[1], north = ga * hu[1] - gs * hu[0], length = Math.hypot(east, north, 1);
     return [east / length, north / length, 1 / length];
   }
@@ -1644,17 +1658,22 @@ const Dessus = (() => {
     pitchManual = manualPitch !== undefined && (pitchForced || !auto);
     pitchOffset = pitchManual ? manualPitch : auto ? auto.pitch : DEFAULT_PITCH;
     showRoll();
+    showShare(null);  // dévers de la nouvelle photo : au retour de showImage
     showPitch();
   }
-  /** Signe du réglage de roulis à la frontière interface ↔ calcul : l'interface dit positif = penché à droite (côté droit plus bas,
-   * vu dans le sens de la marche), le calcul (groundUp) positif = penché à gauche (route qui monte vers la droite) ; d'où l'inversion. */
-  const rollCalcul = () => -rollOffset;
-  /** Roulis réglé en clair : valeur signée et côté où penche la caméra (interface : positif à droite, négatif à gauche). */
+  /** Roulis en clair : valeur signée et côté où penche le véhicule (positif : à droite, négatif : à gauche). */
   const rollText = (v) => `${v > 0 ? "+" : ""}${number(v, 2)}°${v ? ` (penché à ${v > 0 ? "droite" : "gauche"})` : ""}`;
   const showRoll = () => {
     $("#dessus-devers").value = rollOffset;
     $("#dessus-devers-valeur").textContent = rollText(rollOffset);
   };
+  /** Part du dévers retenue en roulis (ROLL_SHARE du dévers mesuré sous la caméra), en degrés signés, affichée au-dessus de la réglette ;
+   * « — » sans terrain LiDAR HD (pas de dévers) ou terrain pas encore arrivé. layer : couche de la photo affichée. */
+  function showShare(layer) {
+    const terrain = layer && shown && onLidar(shown) ? shown.terrain : null;
+    const share = terrain ? -Math.atan(ROLL_SHARE * groundSlopes(levelOf(terrain), layer.at, layer.pose.heading)[1]) / toRad : null;
+    $("#dessus-part-devers").textContent = share === null ? "—" : rollText(Math.round(share * 100) / 100);
+  }
   const showPitch = () => {
     $("#dessus-tangage-force").checked = pitchForced;
     $("#dessus-tangage").value = pitchOffset;
@@ -1789,7 +1808,7 @@ const Dessus = (() => {
     // virage : véhicule penché ; verticales écartées : incertitude de la route
     const leveled = (pose.up && verticalsOn) || !shown.terrain ? pose : {
       ...pose, groundTilt: true,
-      up: groundUp(levelOf(shown.terrain), at, pose.heading, ROLL_SHARE, pitchFor(pose.pic), (pose.roll_defect || 0) + rollCalcul()),
+      up: groundUp(levelOf(shown.terrain), at, pose.heading, ROLL_SHARE, pitchFor(pose.pic), (pose.roll_defect || 0) + rollOffset),
       sigma: Math.hypot(pose.up ? ground : Math.min(pose.sigma, ground), LEAN * (shown.lateral || 0)),
     };
     // raccord de la voisine
@@ -2121,7 +2140,7 @@ const Dessus = (() => {
     // Route : l'inclinaison tirée de la route, annoncée AUSSI quand les verticales priment (up : null), comme témoin indépendant
     // pour l'indicateur de confiance de l'inclinaison (Calibration.tilt_confidence) ; sans effet sur les mesures ni la droite
     const route = main.groundTilt ? { up: main.up, sigma: main.sigma } : terrain && onLidar(shown) ? {
-      up: groundUp(levelOf(terrain), layer.at, main.heading, ROLL_SHARE, pitchFor(main.pic), (main.roll_defect || 0) + rollCalcul()),
+      up: groundUp(levelOf(terrain), layer.at, main.heading, ROLL_SHARE, pitchFor(main.pic), (main.roll_defect || 0) + rollOffset),
       sigma: Math.hypot(GROUND_SIGMA, LEAN * (shown.lateral || 0)),
     } : null;
     const tilt = {
@@ -2143,6 +2162,7 @@ const Dessus = (() => {
     shown.joinKeyNow = joinKey();  // recalage des raccords valable pour ces réglages seulement
     const layers = readyLayers(), pose = shown.pose, mine = ++drawing, axis = roadAxis(layers);
     announceTilt(layers[0]);
+    showShare(layers[0]);
     // roulis et tangage : seulement pour l'inclinaison tirée de la route (pas de verticales lues, terrain LiDAR)
     $("#dessus-devers").disabled = $("#dessus-tangage-force").disabled = !layers[0].pose.groundTilt;
     // tangage lu : il prime
