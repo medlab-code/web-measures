@@ -56,6 +56,7 @@
     tiltReady: false,  // calage de l'inclinaison : pied et sommet placés (bouton « Valider l'objet vertical »)
     newMeasure: null,  // largeur faite : nom du point de référence (bouton « Nouvelle mesure depuis A »)
     tilted: false,  // inclinaison de la photo affichée calée
+    tiltAnimation: null,  // attente (Attente) du calcul automatique de l'inclinaison, au centre de la visionneuse
     currentMarks: [],
     declutterTimer: null,
     guideShown: null,  // dernières photos proposées : flèches refaites quand la vue tourne
@@ -720,7 +721,16 @@
       || !(calibrating || tilt === "attente" || manual || before);
     message.classList.toggle("manuel", manual);
     message.classList.toggle("calage", calibrating);
-    message.classList.toggle("attente", tilt === "attente");  // petite roue : calcul en cours
+    // Calcul en cours : animation d'attente au centre de la visionneuse (Attente) ; coche s'il aboutit, croix s'il ne donne rien
+    const waitingTilt = !message.hidden && tilt === "attente";
+    if (waitingTilt && !etat.tiltAnimation) {
+      etat.tiltAnimation = Attente.start($("#vue"), { icone: Attente.icones.niveau, message: "Calcul de l'inclinaison…" });
+    } else if (!waitingTilt && etat.tiltAnimation) {
+      if (tilt === "ok") etat.tiltAnimation.ok();
+      else if (tilt === "non") etat.tiltAnimation.echec("Inclinaison non calée");
+      else etat.tiltAnimation.fin();
+      etat.tiltAnimation = null;
+    }
     if (etat.tilted !== (tilt === "ok")) {
       etat.tilted = tilt === "ok";
       applyMeasureUi();  // pointeur : cercle vert
