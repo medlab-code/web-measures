@@ -137,7 +137,7 @@ h1 { font-size: 1rem; margin: 0; white-space: nowrap; }
 /* Filigrane de la carte : déplacé par recherche.js dans .recherche (zoomée par --echelle-ui), collé à sa gauche, sans largeur recopiée ;
    taille de texte et marge divisées par le zoom pour rester celles du filigrane de la visionneuse */
 #filigrane-carte { right: 100%; top: 0; bottom: 0; margin-right: calc(6px / var(--echelle-ui, 1)); font-size: calc(16px / var(--echelle-ui, 1)); }
-body:not(.carte-en-grand):not(.fenetre-carte) #filigrane-carte, .carte-en-grand #filigrane-vue { display: none; }
+body:not(.carte-en-grand):not(.fenetre-carte) #filigrane-carte, .carte-en-grand #filigrane-vue, .fenetre-carte #filigrane-carte { display: none; }  /* carte détachée : la mention reste sur la visionneuse seule */
 html.souris-immobile:fullscreen #filigrane-vue:not(:hover) { opacity: 0; }
 h2 { font-size: 0.95rem; margin: 0 0 0.4rem; }
 

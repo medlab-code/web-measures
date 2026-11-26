@@ -368,7 +368,8 @@ const Resultats = {
      * (retour à la ligne, rangée plafonnée à la place libre). Tout est recalculé à partir des largeurs naturelles (classes retirées d'abord) :
      * pas d'oscillation. */
     function placeMesure() {
-      const container = map.getContainer(), search = container.querySelector(".recherche"), mark = $("#filigrane-carte");
+      const container = map.getContainer(), search = container.querySelector(".recherche");
+      const markNode = $("#filigrane-carte"), mark = markNode?.getClientRects().length ? markNode : null;  // masqué (carte détachée) : rien à contourner
       const request = container.querySelector(".requeteur");
       if (!search || !request || !measureLabel.getClientRects().length) return;  // carte à sa place, ou étiquette masquée : rien à placer
       container.classList.remove("filigrane-dessous");
