@@ -926,6 +926,19 @@ class CameraPont(unittest.TestCase):
         self.assertIsNone(self.app(declared, item=other)._fall_camera())  # autre producteur : à demander, comme avant
 
 
+class SourcesPage(unittest.TestCase):
+    """Fichiers que la page charge (src/calcul.js) : ticket #62, plus de py/sources.js."""
+
+    def test_liste_des_fichiers_python_de_la_page(self):
+        racine = Path(__file__).resolve().parent.parent
+        code = (racine / "src" / "calcul.js").read_text(encoding="utf-8")
+        bloc = re.search(r"const PY_FILES = \[(.*?)\];", code, re.DOTALL).group(1)
+        listes = sorted(re.findall(r'"([^"]+\.py)"', bloc))
+        presents = sorted(str(f.relative_to(racine / "py")) for f in (racine / "py").rglob("*.py"))
+        # Tous les fichiers de py/ sont chargés, aucune exception
+        self.assertEqual(listes, presents)
+
+
 class Parcours(unittest.TestCase):
     """Mesures de bout en bout dans App, comme les pages d'essai du navigateur (essai-rtk, essai-largeur,
     essai-releve, navigateur) mais sans réseau : deux photos 360° à 6 m l'une de l'autre sur une route nord-sud, sol plat, caméra

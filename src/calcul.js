@@ -3,8 +3,10 @@
 //
 // Cœur de calcul (py/core/, repris du plugin Visionneuse Panoramax),
 // exécuté dans le navigateur par Pyodide, et piloté par py/web_app.py. Les fichiers Python
-// sont dans py/sources.js (généré par tools/sources.sh) : la page s'ouvre aussi en double-
-// cliquant sur index.html (file://), où le navigateur interdit de lire les fichiers voisins.
+// sont lus par fetch (liste PY_FILES, vérifiée par tests/test_calculs.py) pendant le chargement de
+// Pyodide, puis écrits dans son système de fichiers. Après une mise en ligne (tools/construire.sh),
+// leur adresse porte ?v=<commit> (balise version-fichiers d'index.html) : jamais d'anciens fichiers
+// mêlés aux nouveaux dans le cache.
 //
 // Deux Pyodide : celui de la page (mesures, rapide) et un second en arrière-plan (Web Worker)
 // pour les calculs lourds sur les photos HD (inclinaison automatique, capture HD), avec numpy
@@ -13,6 +15,60 @@
 const Calcul = (() => {
   const PYODIDE = "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/";
   const PY_ROOT = "/home/pyodide/web";
+  // Fichiers Python chargés dans Pyodide, chemins relatifs à py/ : tous ceux de py/ (cœur py/core/ compris)
+  const PY_FILES = [
+    "core/__init__.py",
+    "core/autotilt.py",
+    "core/calibration.py",
+    "core/capture.py",
+    "core/filters.py",
+    "core/geometry.py",
+    "core/ground.py",
+    "core/host.py",
+    "core/measures.py",
+    "core/metadata.py",
+    "core/precision.py",
+    "core/roads.py",
+    "core/session.py",
+    "core/tools.py",
+    "core/triangulation.py",
+    "geoid.py",
+    "web_app.py",
+    "web_chutes.py",
+    "web_host.py",
+    "web_nez.py",
+    "web_pose.py",
+    "web_terrain.py",
+    "web_tilt.py",
+    "web_worker.py",
+  ];
+
+  /** « ?v=<commit> » en ligne (balise version-fichiers remplie par tools/construire.sh), vide en local. */
+  function versionSuffix() {
+    const v = document.querySelector('meta[name="version-fichiers"]')?.content;
+    return v ? `?v=${encodeURIComponent(v)}` : "";
+  }
+
+  /** Télécharge en parallèle les fichiers Python : { chemin : texte }. Échec : nom du fichier manquant. */
+  async function fetchSources() {
+    const suffix = versionSuffix();
+    const entries = await Promise.all(PY_FILES.map(async (path) => {
+      let response;
+      try {
+        response = await fetch(`py/${path}${suffix}`);
+      } catch (error) {
+        throw new Error(`fichier Python illisible : py/${path} (${error})`);
+      }
+      if (!response.ok) throw new Error(`fichier Python introuvable : py/${path} (HTTP ${response.status})`);
+      return [path, await response.text()];
+    }));
+    return Object.fromEntries(entries);
+  }
+
+  // Téléchargement lancé dès le chargement du script, en parallèle de celui de Pyodide ; le rejet est
+  // relevé par startCalcul (l'attente ci-dessous évite seulement un rejet « non géré » avant)
+  const sourcesPromise = fetchSources();
+  sourcesPromise.catch(() => {});
 
   function install(pyodide, sources) {
     for (const [path, source] of Object.entries(sources)) {
@@ -23,58 +79,15 @@ const Calcul = (() => {
     pyodide.runPython(`import sys\nsys.path.insert(0, "${PY_ROOT}")`);
   }
 
-  // Arrière-plan ---------------------------------------------------------------------------
-  // Code du Web Worker (de type module : seul accepté par Pyodide), transmis dans une adresse
-  // data: : un fichier séparé ne se charge pas en file://, ni un Blob (refusé par Chrome).
-  function workerMain() {
-    let ready = null;
-    self.onmessage = async (event) => {
-      const msg = event.data;
-      if (msg.type === "init") {
-        ready = (async () => {
-          const { loadPyodide } = await import(msg.pyodide + "pyodide.mjs");
-          const pyodide = await loadPyodide({ indexURL: msg.pyodide });
-          await pyodide.loadPackage(["numpy", "pillow"]);
-          for (const [path, source] of Object.entries(msg.sources)) {
-            const target = `${msg.root}/${path}`;
-            pyodide.FS.mkdirTree(target.slice(0, target.lastIndexOf("/")));
-            pyodide.FS.writeFile(target, source);
-          }
-          pyodide.runPython(`import sys\nsys.path.insert(0, "${msg.root}")`);
-          return { pyodide, worker: pyodide.pyimport("web_worker") };
-        })();
-        ready.catch((error) => self.postMessage({ id: 0, error: String(error) }));
-        return;
-      }
-      try {
-        const { pyodide, worker } = await ready;
-        let result;
-        if (msg.type === "call") {
-          // Arguments convertis pour Python seulement ici (la capture prend les siens tels quels),
-          // et libérés même si l'appel échoue : ils contiennent la photo
-          const args = pyodide.toPy(msg.args);
-          try {
-            result = worker.call(msg.module, msg.name, args);
-          } finally {
-            args.destroy();
-          }
-        } else {
-          result = worker.capture(...msg.args);
-        }
-        self.postMessage({ id: msg.id, result });
-      } catch (error) {
-        self.postMessage({ id: msg.id, error: String(error) });
-      }
-    };
-  }
+  // Arrière-plan : Web Worker de type module (src/worker-calcul.js), qui reçoit de la page les sources
+  // Python déjà téléchargées ---------------------------------------------------------------------
 
   let worker = null;
   const waiting = new Map();  // n° de requête -> { resolve, reject }
   let nextId = 1;
 
-  function startWorker() {
-    const code = `(${workerMain.toString()})();`;
-    worker = new Worker(`data:text/javascript;charset=utf-8,${encodeURIComponent(code)}`, { type: "module" });
+  function startWorker(sources) {
+    worker = new Worker(new URL(`src/worker-calcul.js${versionSuffix()}`, document.baseURI), { type: "module" });
     // Chargement raté ou Worker arrêté (mémoire…) : calculs d'arrière-plan indisponibles, et
     // les demandes en cours échouent au lieu d'attendre indéfiniment
     const fail = (error) => {
@@ -97,7 +110,7 @@ const Calcul = (() => {
       if (error) request.reject(new Error(error));
       else request.resolve(result);
     };
-    worker.postMessage({ type: "init", pyodide: PYODIDE, root: PY_ROOT, sources: PY_SOURCES });
+    worker.postMessage({ type: "init", pyodide: PYODIDE, root: PY_ROOT, sources });
   }
 
   function request(message, transfer = []) {
@@ -135,17 +148,18 @@ const Calcul = (() => {
   async function startCalcul(notify, apiUrl, etape = () => {}) {
     etape("moteur de calcul");
     const pyodide = await loadPyodide({ indexURL: PYODIDE });
+    const sources = await sourcesPromise;
     // Arrière-plan lancé seulement maintenant : son Pyodide (et numpy, Pillow) ne dispute plus au premier le
     // processeur et le réseau ; il existe avant l'application (runRemote), ses demandes attendent qu'il soit prêt
     try {
-      startWorker();
+      startWorker(sources);
     } catch (error) {  // Web Worker interdit : pas d'inclinaison automatique ni de capture HD
       console.error(error);
       worker = null;
     }
     document.dispatchEvent(new Event("calcul-worker"));  // « Image seule » : le bouton se recalcule (photo ouverte avant)
     etape("fichiers du calcul");
-    install(pyodide, PY_SOURCES);
+    install(pyodide, sources);
     etape("géoïde");
     await pyodide.pyimport("web_host").load_geoid();
     const webApp = pyodide.pyimport("web_app");
