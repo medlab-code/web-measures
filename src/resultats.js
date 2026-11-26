@@ -145,6 +145,7 @@ const Resultats = {
       const inMap = (selector) => mapBox.querySelector(selector);  // réglages sur la carte, peut-être détachée
       for (const id of ["#dessus-fine", "#dessus-voisines", "#dessus-position", "#dessus-bords", "#dessus-sans-cache"])
         inMap(id).disabled = !on;
+      inMap("#dessus-plat").disabled = !on || Boolean(pose?.flat);  // près d'un pont : sol plat imposé, case grisée (src/dessus.js)
       if (!on) {  // allumée : selon la vue (Dessus)
         for (const id of ["#dessus-verticales", "#dessus-devers", "#dessus-tangage", "#dessus-tangage-force"]) inMap(id).disabled = true;
       }

@@ -69,6 +69,7 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
    équirectangulaire et y lit la couleur.
 4. L'image affichée est **découpée à ±8 m de l'axe de la route**, bords droits, parallèles à la route : rien de plus loin de la route. Interrupteur
    **« Bords gardés »** (éteint par défaut, 13/11/2026) : vue entière sur ±15 m, sans cette découpe.
+   Case **« Sol plat »** (éteinte par défaut, 26/11/2026) : la vue et ses mesures se projettent sur le sol plat, sans relief LiDAR HD ni RGE ALTI, comme près d'un pont (imposée à moins de 15 m d'un pont : cochée et grisée).
 5. Au-delà de 10 m, l'image est grisée : 0,6° d'inclinaison y déplacent déjà un point d'environ 50 cm (§ 3).
 
 **Résolution :** l'image affichée fait 2 048 px pour 30 m, soit 1,5 cm par pixel ; l'interrupteur « Haute résolution »

@@ -1594,6 +1594,11 @@ const Dessus = (() => {
   const withNeighbours = () => neighboursOn && !shown?.silent;
   // « Bords gardés » (éteint par défaut) : vue entière sur ±REACH m, sans la découpe à ±BEST.wide m de l'axe de la route
   let edgesOn = false;
+  // « Sol plat » (éteint par défaut, demande de l'auteur, 26/11/2026) : la vue et ses mesures se projettent sur le sol plat
+  // (plan horizontal à la hauteur de caméra), sans relief LiDAR HD ni RGE ALTI, comme près d'un pont. Choix retenu dans le
+  // navigateur ; clé hors « web-measures/dessus- » : « Sans cache (essais) » ne l'efface pas. Prédicat unique : flatGround.
+  const FLAT_KEY = "web-measures/sol-plat", FLAT_TITLE = "Projette la vue et ses mesures sur un sol plat (plan horizontal à la hauteur de caméra), sans le relief du LiDAR HD ni du RGE ALTI. Éteint par défaut ; choix retenu dans ce navigateur. Imposé près d'un pont (à moins de 15 m).";
+  let flatOption = false;
   // « Calage par les verticales » : coché d'office pour une photo en zone d'habitation (Lieu.inTown), décoché ailleurs (sur 3
   // essais de l'auteur, 10/11/2026, la vue était meilleure inclinée par la route hors agglomération ; en ville, photo de
   // référence de Pouilly-en-Auxois : raccords recalés avec les verticales, pas avec la route) ; changé à la main pour la photo
@@ -1676,7 +1681,7 @@ const Dessus = (() => {
   /** Roulis en clair : valeur signée et côté où penche le véhicule (positif : à droite, négatif : à gauche). */
   const signedDeg = (v) => `${v > 0 ? "+" : ""}${number(v, 2)}°`;  // degrés signés, sans le côté
   const rollText = (v) => `${v > 0 ? "+" : ""}${number(v, 2)}°${v ? ` (penché à ${v > 0 ? "droite" : "gauche"})` : ""}`;
-  const rollShown = (v) => rollText(v).replace(" (", "\n(");  // le sens passe sous le degré, dans la colonne de la valeur
+  const rollShown = signedDeg;  // à côté de la réglette : degrés signés seulement (largeur stable, chiffres tabulaires) ; le sens est dans l'infobulle
   const showRoll = () => {
     $("#dessus-devers").value = rollOffset;
     $("#dessus-devers-valeur").textContent = rollShown(rollOffset);
@@ -1744,7 +1749,7 @@ const Dessus = (() => {
       const view = readView(alone, mine.terrain, main.pose);
       found = linesPitch(view, roadHeading(view, main.pose.heading), main.pose.height);
     }
-    if (found && found.spread >= LINES_SPREAD && Math.abs(pitchOffset + found.pitch) <= PITCH_MAX) {
+    if (found && !flatOption && found.spread >= LINES_SPREAD && Math.abs(pitchOffset + found.pitch) <= PITCH_MAX) {
       const all = readLines(), kept = all[mine.sequence] || {};
       kept[mine.pic] = { p: Math.round((pitchOffset + found.pitch) * 100) / 100, wide: wideRead };  // wide : lu sur 25 m
       const pics = Object.keys(kept);
@@ -1986,6 +1991,23 @@ const Dessus = (() => {
     $("#dessus-bords").addEventListener("change", (event) => {
       edgesOn = event.target.checked;
       redo("Bords gardés…");
+    });
+    // « Sol plat » : choix retenu ; la vue est refaite sur le sol plat, ou le relief relu s'il est décoché
+    try { flatOption = localStorage.getItem(FLAT_KEY) === "1"; } catch { /* sans stockage : décoché */ }
+    showFlatBox(null);
+    $("#dessus-plat").addEventListener("change", (event) => {
+      flatOption = event.target.checked;
+      try { localStorage.setItem(FLAT_KEY, flatOption ? "1" : "0"); } catch { /* pour cette page seulement */ }
+      cancelStart();  // le départ a été pris sur l'autre sol
+      if (!shown) return;
+      if (flatGround(shown.pose)) {
+        if (shown.terrain === flatDeck) return;
+        dropTerrain(shown);
+        redo("Sol plat…");
+      } else if (shown.terrain === flatDeck) {
+        shown.waitMessage = "Relief…";
+        rereadTerrain(shown);
+      }
     });
     $("#dessus-position").addEventListener("change", (event) => {
       positionOn = event.target.checked;
@@ -2252,7 +2274,7 @@ const Dessus = (() => {
       }
       if (old) setTimeout(() => URL.revokeObjectURL(old), 5000);
     }
-    const flat = pose.flat ? `pont à moins de ${number(pose.flat_radius, 0)} m` : shown.terrainFailed ? "service d'altitude injoignable"
+    const flat = pose.flat ? `pont à moins de ${number(pose.flat_radius, 0)} m` : flatOption ? "option" : shown.terrainFailed ? "service d'altitude injoignable"
       : "pas de LiDAR HD ici";
     const place = onLidar(shown) ? "Terrain LiDAR HD" : `Sol supposé plat (${flat})`;
     const parallax = withNeighbours() ? shown.height : null;
@@ -2424,6 +2446,30 @@ const Dessus = (() => {
   let flatDeck = null;
   const deck = () => (flatDeck ??= new Array((2 * REACH / STEP + 1) ** 2).fill(0));  // maillage de readTerrain, à plat
   const onLidar = (view) => Boolean(view.terrain) && view.terrain !== flatDeck;
+  /** Sol supposé plat pour cette pose : option « Sol plat » cochée, ou pont à moins de 15 m (pose.flat, imposé par le cœur). */
+  const flatGround = (pose) => flatOption || Boolean(pose?.flat);
+  /** Case « Sol plat » : cochée d'office et grisée près d'un pont (affichage forcé : le choix retenu n'est pas touché), sinon
+   * selon le choix retenu ; grisée sans vue du dessus allumée (src/resultats.js). */
+  function showFlatBox(pose) {
+    const box = $("#dessus-plat"), bridge = Boolean(pose?.flat);
+    box.checked = flatOption || bridge;
+    box.closest("label").title = bridge ? `Pont à moins de ${number(pose.flat_radius, 0)} m : sol plat imposé` : FLAT_TITLE;
+    if (bridge) box.disabled = true;
+  }
+  /** Terrain relu (LiDAR HD / RGE ALTI, grille brute en mémoire) pour une vue posée sur le sol plat qui n'a plus à l'être
+   * (emprise d'un pont arrivée après le terrain, option « Sol plat » décochée) ; vue refaite dessus. */
+  function rereadTerrain(mine) {
+    const pose = mine.pose;
+    mine.terrainFailed = false;
+    readTerrain(pose, abort.signal).catch(() => null).then((terrain) => {
+      if (shown !== mine || flatGround(mine.pose)) return;
+      if (mine.pose !== pose && JSON.stringify(mine.pose.deck || []) !== JSON.stringify(pose.deck || [])) return rereadTerrain(mine);
+      if (!terrain) mine.terrainFailed = true;
+      Object.assign(mine, { terrain: terrain || deck(), estimated: false, joins: null, joinText: "", located: undefined, placed: undefined });
+      mine.sigmaGround = onLidar(mine) ? LIDAR_SIGMA : FLAT_SIGMA;
+      if (mine.panos.has(mine.pic)) showImage();
+    });
+  }
   function dropTerrain(view) {
     Object.assign(view,
       { terrain: deck(), sigmaGround: FLAT_SIGMA, estimated: false, joins: null, joinText: "", located: undefined, placed: undefined });
@@ -2504,7 +2550,7 @@ const Dessus = (() => {
     prefetched = null;
   }
   function prefetch(photo, pose) {
-    if (!photo || !pose || pose.pic !== photo.id || pose.flat || shown?.pic === photo.id || prefetched?.pic === photo.id
+    if (!photo || !pose || pose.pic !== photo.id || flatGround(pose) || shown?.pic === photo.id || prefetched?.pic === photo.id
       || computed.has(photo.id)) return;
     dropPrefetch();
     const controller = new AbortController();
@@ -2544,18 +2590,10 @@ const Dessus = (() => {
       const deckChanged = onLidar(shown) && JSON.stringify(pose.deck || []) !== JSON.stringify(shown.pose.deck || []);
       Object.assign(shown, { key, pose, features, silent });
       if (silent) stopWait(shown);  // calage seul : plus de vue sur la carte
-      if (deckChanged) {  // emprise d'un pont arrivée après le terrain : terrain relu (grille brute en mémoire), vue refaite dessus
-        const mine = shown;
-        readTerrain(pose, abort.signal).catch(() => null).then((terrain) => {
-          if (shown !== mine || mine.pose !== pose) return;
-          Object.assign(mine, terrain ? { terrain, estimated: false } : { terrain: deck(), sigmaGround: FLAT_SIGMA, estimated: false },
-            { joins: null, joinText: "", located: undefined, placed: undefined });
-          mine.sigmaGround = onLidar(mine) ? LIDAR_SIGMA : FLAT_SIGMA;
-          if (mine.panos.has(mine.pic)) showImage();
-        });
-      }
+      if (deckChanged) rereadTerrain(shown);  // emprise d'un pont arrivée après le terrain : terrain relu, vue refaite dessus
       if (unveiled && withNeighbours()) shown.calage = undefined;  // voisines à lire : le calage d'affichage n'est plus fait
-      if (pose.flat && shown.terrain !== flatDeck) dropTerrain(shown);  // pont connu après le terrain
+      showFlatBox(pose);
+      if (flatGround(pose) && shown.terrain !== flatDeck) dropTerrain(shown);  // pont connu après le terrain
       if (!pose.pending) shown.sequenceHeight = sequenceHeight(photo.collection, pose);  // hauteur vérifiée arrivée après
       loadNeighbours(abort.signal);
       if (shown.panos.has(shown.pic)) await showImage();
@@ -2577,7 +2615,9 @@ const Dessus = (() => {
     const known = computed.get(photo.id);
     if (known) Object.assign(shown, known);  // déjà vue : terrain, raccords, position et calage repris
     tiltAnnounced.delete(photo.id);  // inclinaison annoncée de nouveau (App.birdeye_tilt_set la garde par photo, 20 au plus)
-    if (pose.flat && shown.terrain !== flatDeck) dropTerrain(shown);
+    showFlatBox(pose);
+    if (flatGround(pose) && shown.terrain !== flatDeck) dropTerrain(shown);
+    else if (!flatGround(pose) && shown.terrain === flatDeck) Object.assign(shown, { terrain: null, joins: null, estimated: false });  // reprise d'une vue plate (option décochée depuis)
     applySettings(photo.collection, photo.id);
     shown.sequenceHeight = pose.pending ? null : sequenceHeight(photo.collection, pose);
     const mine = shown;
@@ -2604,15 +2644,18 @@ const Dessus = (() => {
       if (pre) prefetched = null;
       else dropPrefetch();  // lecture à l'avance d'une autre photo : inutile
       const [terrain, part] = await Promise.all([
-        known || pose.flat ? Promise.resolve(pose.flat ? deck() : shown.terrain) : readTerrain(pose, signal).catch((error) => {
+        (known && shown.terrain) || flatGround(pose) ? Promise.resolve(flatGround(pose) ? deck() : shown.terrain) : readTerrain(pose, signal).catch((error) => {
           console.warn("Terrain de la vue du dessus :", error);
           mine.terrainFailed = true;
           return null;
         }),
         pre ? pre.part : loadPano(tiles, context().getParameter(gl.MAX_TEXTURE_SIZE), signal)]);
       if (shown !== mine) { part.canvas.width = 0; return; }
-      mine.terrain = mine.pose.flat ? deck() : terrain;  // pont signalé pendant la lecture
-      if (terrain && !known && !mine.pose.flat && JSON.stringify(mine.pose.deck || []) !== JSON.stringify(pose.deck || [])) {
+      mine.terrain = flatGround(mine.pose) ? deck() : terrain;  // pont signalé ou option cochée pendant la lecture
+      if (!flatGround(mine.pose) && terrain === flatDeck) {  // option décochée pendant la lecture : relief à lire
+        mine.terrain = await readTerrain(mine.pose, signal).catch(() => { mine.terrainFailed = true; return null; }) || deck();
+        if (shown !== mine) { part.canvas.width = 0; return; }
+      } else if (terrain && !known && !flatGround(mine.pose) && JSON.stringify(mine.pose.deck || []) !== JSON.stringify(pose.deck || [])) {
         mine.terrain = await readTerrain(mine.pose, signal).catch(() => terrain);  // emprise d'un pont arrivée pendant la lecture
         if (shown !== mine) { part.canvas.width = 0; return; }
       }

@@ -167,6 +167,15 @@ async function open(id, enough = () => false) {
       box.click();
       await soon(() => shown.blob() !== kept && !/en cours|en calcul/.test(etat()), 30000);
     }
+    // « Sol plat » : étiquette « (option) » et sol plat ; décochée : plus d'« (option) », relief relu (sans recharger la photo)
+    {
+      const box = w.document.querySelector("#dessus-plat"), etat = () => w.document.querySelector("#dessus-etat").textContent;
+      await expect(`${name} : sol plat proposé, décoché`, !box.disabled && !box.checked);
+      box.click();
+      await expect(`${name} : sol plat coché, étiquette « (option) »`, await soon(() => /Sol supposé plat \(option\)/.test(etat()), 30000), etat());
+      box.click();
+      await expect(`${name} : sol plat décoché, relief relu`, await soon(() => !/\(option\)/.test(etat()) && !/en cours|en calcul/.test(etat()), 30000), etat());
+    }
     // « Véhicule masqué » éteint : rien de ce qui a été lu avec les voisines n'est appliqué (tangage, hauteur, contour, position)
     w.document.querySelector("#dessus-voisines").click();
     for (let t = 0; t < 60 && !/ 1 photo,.*position/.test(w.document.querySelector("#dessus-etat").textContent) || /en cours/.test(w.document.querySelector("#dessus-etat").textContent); t++) await sleep(250);  // position refaite
