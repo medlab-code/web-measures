@@ -875,6 +875,8 @@ les marches aux raccords, et accorde leur luminosité à celle de la photo affic
 quand ses lignes s'en écartent de plus de 30 cm en travers : le GPS est alors suspecté avant l'orthophoto. La vue montre aussi la chaussée cachée par les arbres sur l'orthophoto. Construction de
 la vue et recalages : `docs/BIRDEYE.md` ; chiffres des essais : `docs/CALCULS.md`.
 
+**Étiquette d'information de Bird Eye** (ticket #53) : l'interrupteur « Afficher les informations » du panneau de réglages la replie ou la déplie ; le choix est gardé dans le navigateur. Sur un appareil tactile (pointeur grossier et aucun pointeur fin), elle est repliée par défaut, pour ne pas masquer la vue ; l'interrupteur la rallume. Sur un écran à souris, rien ne change (dépliée par défaut).
+
 **Animations d'attente sur la carte** (petite, en grand ou détachée : toujours au centre de la carte qui montre le résultat, même
 dessin que dans la visionneuse : pastille avec l'icône de l'action, ondes jaunes, message et étape, coche verte à la fin, croix
 rouge et message en cas d'échec ; rien n'est montré si l'action dure moins de 0,3 s) : « Vue du dessus… » (icône faucon) à

@@ -1988,7 +1988,12 @@ const Dessus = (() => {
       $("#dessus-etat").classList.toggle("replie", folded);
       stateSwitch.checked = !folded;
     };
-    try { foldState(localStorage.getItem(STATE_FOLDED_KEY) === "1"); } catch { /* sans stockage : déplié */ }
+    // Appareil tactile (pointeur grossier, aucun pointeur fin) : replié par défaut, l'étiquette gênant la vue ; un choix mémorisé prime
+    const touchOnly = matchMedia("(pointer: coarse)").matches && !matchMedia("(any-pointer: fine)").matches;
+    try {
+      const saved = localStorage.getItem(STATE_FOLDED_KEY);
+      foldState(saved === null ? touchOnly : saved === "1");
+    } catch { foldState(touchOnly); /* sans stockage : replié au tactile, déplié sinon */ }
     stateSwitch.addEventListener("change", () => {
       const folded = !stateSwitch.checked;
       foldState(folded);
