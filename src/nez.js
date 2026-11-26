@@ -9,8 +9,8 @@
 // la droite et ses deux bords sont aussi tracés sur la carte (Carte.showNez) pour juger qu'elle est perpendiculaire à la route.
 // Dès l'ouverture, la photo est calée comme le fait la vue Bird Eye (inclinaison tirée de la route, verticales,
 // tangage lu sur les lignes ; Dessus.update en mode silencieux, sans rien afficher sur la carte) : tant que le calage n'est pas fait,
-// l'encart dit « Calage Bird Eye en cours… », aucune largeur n'est affichée et la droite n'est qu'un tracé d'attente (pointillés gris qui défilent,
-// poignées grisées, aucun geste) ; le calage part dès l'ouverture de l'outil et à chaque nouvelle photo, sans attendre un déplacement ; une fois fait, la largeur est recalculée sur
+// l'encart dit « Calage Bird Eye en cours… », aucune largeur n'est affichée et la droite n'est pas tracée (seule l'animation d'attente « Calage de la largeur… »
+// est montrée au centre de la visionneuse, Attente ; poignées sans effet, aucun geste) ; le calage part dès l'ouverture de l'outil et à chaque nouvelle photo, sans attendre un déplacement ; une fois fait, la largeur est recalculée sur
 // la photo calée (les poignées gardent leur place dans l'image, pas leur distance en mètres) ; le calage est gardé par photo, partagé
 // avec la vue Bird Eye (rallumée sur la photo, elle est prête plus vite).
 // Gestes sur la droite elle-même (aucune croix ni flèche : rien ne gêne la mesure des petits objets), dans une bande de saisie invisible de ±8 px, sur la photo comme sur la carte : clic gauche maintenu et glissé = déplacer la droite en profondeur (sur la carte, le long du cap) ; clic droit maintenu et glissé, ou Maj + clic gauche glissé (pavés tactiles, Mac), = la tourner autour du droit de la caméra (0,1° par px, Alt pendant le glissement : dix fois plus fin) ; double clic = la remettre perpendiculaire au trajet. Pendant le glissement, aperçu géométrique rapide (droite d'avant en pointillés pour la rotation) ; au relâchement la droite se fixe et le relief est relu. Près des deux poignées des bords, celles-ci sont prioritaires. La droite reste toujours
@@ -110,7 +110,6 @@ const Nez = {
     const ROTATION_RATE = 0.1;  // degrés par px de glissement horizontal (Alt tenu pendant le glissement : 10 fois moins), précision de 0,1°
     const CALAGE_MAX = 90000;  // ms : attente au plus du calage Bird Eye, puis largeur sans calage
     const CALAGE_WAIT = "Calage Bird Eye en cours…";
-    const WAIT_COLOR = "#d0d4d8", WAIT_MARCH = 30;  // tracé d'attente : gris clair neutre ; vitesse de défilement des pointillés (px/s)
     const DOUBLE_MS = 400, TAP_PX = 5;  // double clic sur la droite : délai entre les deux appuis ; déplacement (px) en deçà duquel un appui reste un simple clic
     const toRad = Math.PI / 180;
     const LOUPE_PX = 180, LOUPE_ZOOM = 3;  // px : diamètre de la pastille de la loupe (les autres tailles en dérivent) ; agrandissement maximal de la photo (plafond)
@@ -148,7 +147,7 @@ const Nez = {
     const shown = () => Boolean(line && !line.error && (!pending() || expired || keep));
 
     /** Droite prête à servir : définitive (shown) et photo calée par Bird Eye, ou calage terminé (réussi ou non). Tant que ce n'est pas le
-     * cas, seul un tracé d'attente (pointillés gris qui défilent) est dessiné et poignées, droite et molette sont sans effet. */
+     * cas, seule l'animation d'attente (Attente) est montrée : droite non tracée, poignées, droite et molette sans effet. */
     const usable = () => shown() && !calageWaiting();
 
     /** Délai d'attente armé tant qu'une attente est en cours (à chaque nouveau calcul : photo changée, verticales relancées), désarmé
@@ -414,7 +413,7 @@ const Nez = {
         return;
       }
       if (!shown()) {
-        text.textContent = "Calcul de la droite…";  // position pas encore définitive : seul le tracé d'attente est dessiné
+        text.textContent = "Calcul de la droite…";  // position pas encore définitive : seule l'animation d'attente est montrée
         readout.title = "";
         return;
       }
@@ -454,25 +453,29 @@ const Nez = {
       waitNeighbours(photoId);
     }
 
-    /** Tracé d'attente : droite non calée, sans relief lissé ni valeur, en pointillés gris clair qui défilent (fixes si l'utilisateur
-     * réduit les animations) ; poignées grisées. Rien tant qu'il n'y a pas de droite calculée (erreur : l'encart la dit). */
-    function drawWaiting() {
-      if (!line || line.error || !line.points?.length) return Traits.setExtra();
-      Traits.attach(etat.psv);
-      const lo = handles.gauche, hi = handles.droit;
-      const points = [locate(lo), ...line.points.filter(([o]) => o > lo && o < hi).map(([, yaw, pitch]) => [yaw, pitch]), locate(hi)];
-      const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-      Traits.setExtra({
-        lines: [{ points, color: WAIT_COLOR, width: LINE_WIDTH, dash: [10, 8], alpha: 0.85, ...(still ? {} : { march: WAIT_MARCH }) }],
-        ticks: [lo, hi].map((o) => ({ at: locate(o), color: WAIT_COLOR, length: TICK_PX, width: 3 })),
-      });
+    /** Attente au centre de la visionneuse (Attente) tant que la droite n'est pas prête (position définitive, calage Bird Eye) : seule
+     * l'animation est montrée, la droite n'est pas tracée et les poignées sont sans effet. Coche quand tout est prêt, croix si le calage
+     * est impossible (largeur sans calage), disparition sans coche si l'outil est quitté. */
+    let waitAnimation = null;
+    function syncWaiting() {
+      const waitingNow = active && Boolean(line) && !line.error && !usable();
+      if (waitingNow) {
+        waitAnimation ??= Attente.start($("#vue"), { icone: Attente.icones.largeur, message: "Calage de la largeur…" });
+        waitAnimation.etape(!shown() ? "position de la droite" : "calage Bird Eye");
+      } else if (waitAnimation) {
+        if (!active || !line || line.error) waitAnimation.fin();
+        else if (calage.pic === photoId && calage.state === "impossible") waitAnimation.echec("Calage impossible");
+        else waitAnimation.ok();
+        waitAnimation = null;
+      }
     }
 
     /** Droite, repère, poignées et étiquettes dans la seconde couche de Traits. */
     function draw() {
       showReadout();
       drawMap();
-      if (!usable()) return drawWaiting();
+      syncWaiting();
+      if (!usable()) return Traits.setExtra();  // rien de tracé tant que la droite n'est pas prête : l'attente est l'animation
       Traits.attach(etat.psv);
       const at = locate;
       // droite tracée seulement entre les poignées : points du tableau strictement entre elles, bouts interpolés par locate
@@ -488,8 +491,7 @@ const Nez = {
         // largeur entre les poignées : étiquette « mesure » des largeurs de Mesure (↔ valeur ± incertitude, comme l'encart),
         // au milieu de la droite ; les distances de chaque bord restent dans l'encart
         labels: [{ at: at((handles.gauche + handles.droit) / 2), type: "mesure", place: "dessus", lift: LABEL_LIFT, flip: true, flipLift: LABEL_FLIP,
-          text: calageWaiting() ? CALAGE_WAIT
-            : `↔ ${metres(handles.droit - handles.gauche)} ± ${metres(roundUp05(widthSigma(handles.gauche, handles.droit)))} · ${depthText()}${turning ? ` · ${rotationText()}` : ""}` }],
+          text: `↔ ${metres(handles.droit - handles.gauche)} ± ${metres(roundUp05(widthSigma(handles.gauche, handles.droit)))} · ${depthText()}${turning ? ` · ${rotationText()}` : ""}` }],
       });
     }
 
@@ -1235,6 +1237,7 @@ const Nez = {
 
     function deactivate() {
       active = false;
+      syncWaiting();  // attente en cours : disparition sans coche
       cancelAnimationFrame(frame);
       frame = null;
       rotation = 0;
