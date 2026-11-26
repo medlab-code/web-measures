@@ -27,6 +27,16 @@ const Attente = (() => {
     largeur: SVG('<path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/>'),
     epingle: SVG('<path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/>'),
     de: SVG('<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="8.5" cy="8.5" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1" fill="currentColor"/>'),
+    // Boutons de la carte (resultats.js) : faucon (Bird Eye), appareil photo (capture), fichier « TIF » (export GeoTIFF)
+    faucon: SVG('<g transform="rotate(45 12 12) translate(12 12) scale(1.12) translate(-12 -12)"><path fill="currentColor" stroke-width="1" d="M12 4c.6.6 1.3 1.4 1.3 2.2V9c3-1 6-.5 8.7 1.5-3 .3-5.8 1.2-8.7 2.7V16l2 3.5H8.7l2-3.5v-2.8C7.8 11.7 5 10.8 2 10.5 4.7 8.5 7.7 8 10.7 9V6.2c0-.8.7-1.6 1.3-2.2z"/></g>'),
+    appareil: SVG('<path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/>'),
+    tif: SVG('<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/>'
+      + '<g stroke-width="1.5"><path d="M7.3 12.5h3.4M9 12.5v5M12.4 12.5v5M14.2 17v-4.5h2.4M14.2 14.7h1.8"/></g>'),
+    // Sans bouton dans la page : dessinés dans le même style (borne de PR du requêteur, loupe de la recherche, vidéo du parcours, couches importées)
+    pr: SVG('<path d="M7 21V9a5 5 0 0 1 10 0v12M4 21h16M10 10h4M10 14h4"/>'),
+    loupe: SVG('<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/>'),
+    video: SVG('<rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/>'),
+    couches: SVG('<path d="M12 3l9 5-9 5-9-5zM3 12.5l9 5 9-5M3 16.5l9 5 9-5"/>'),
     neutre: SVG('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
   };
   const COCHE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';

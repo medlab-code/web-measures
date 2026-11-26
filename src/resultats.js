@@ -285,54 +285,62 @@ const Resultats = {
     // Faucon : Bird Eye de la photo affichée, d'un clic (le même que l'interrupteur caché « #dessus ») ; une autre photo l'éteint (updateBirdeye)
     const birdeyeButton = Object.assign(document.createElement("button"), { type: "button", className: "birdeye-carte", hidden: true,
       ariaLabel: "Bird Eye" });
-    birdeyeButton.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g transform="rotate(45 12 12) translate(12 12) scale(1.12) translate(-12 -12)"><path fill="currentColor" stroke-width="1" d="M12 4c.6.6 1.3 1.4 1.3 2.2V9c3-1 6-.5 8.7 1.5-3 .3-5.8 1.2-8.7 2.7V16l2 3.5H8.7l2-3.5v-2.8C7.8 11.7 5 10.8 2 10.5 4.7 8.5 7.7 8 10.7 9V6.2c0-.8.7-1.6 1.3-2.2z"/></g></svg>';
+    birdeyeButton.innerHTML = Attente.icones.faucon;  // même dessin que l'attente de la vue du dessus (Attente)
     birdeyeButton.setAttribute("aria-pressed", "false");
     birdeyeButton.addEventListener("click", () => {
       $("#dessus").checked = !$("#dessus").checked;
       $("#dessus").dispatchEvent(new Event("change"));
     });
+    const SIZED = (svg) => svg.replace("<svg ", '<svg width="24" height="24" ');  // taille des boutons de la carte
     // Capture de la carte entière telle qu'affichée (fond, filaire, mesures, vue Bird Eye si elle est allumée), sans les contrôles, téléchargée en PNG
     const captureButton = Object.assign(document.createElement("button"), { type: "button", className: "capture-carte", hidden: true,
-      innerHTML: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-        + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+      innerHTML: SIZED(Attente.icones.appareil),  // appareil photo, dessin partagé avec l'attente (Attente)
       title: "Capture de la carte entière en image PNG : fond, tracés, mesures et vue Bird Eye si elle est allumée, sans les boutons ni l'échelle", ariaLabel: "Capture de la carte" });
+    // Attente au centre de la carte (petite, en grand ou détachée : son conteneur, Attente) tant que le fichier se prépare ; coche à la fin,
+    // croix et message visible en cas d'échec
     captureButton.addEventListener("click", async () => {
       captureButton.disabled = true;
+      const attente = Attente.start(map.getContainer(), { icone: Attente.icones.appareil, message: "Capture de la carte…" });
       try {
         const blob = await Carte.capture(map, { nue: true }), url = URL.createObjectURL(blob);
         const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
         Object.assign(document.createElement("a"),
           { href: url, download: `carte-${etat.photo?.id || "sans-photo"}-${stamp}.png` }).click();
         setTimeout(() => URL.revokeObjectURL(url), 5000);
+        attente.ok();
       } catch (error) {
         console.warn("Capture de la carte :", error);
+        notice(`Capture de la carte impossible : ${error.message}`);
+        attente.echec("Capture impossible");
       } finally {
         captureButton.disabled = false;
         showMapMeasureButton();
       }
     });
     // Export géoréférencé de la vue Bird Eye pour un SIG (GeoTIFF en Lambert 93) ; grisé Bird Eye éteinte
-    const exportButton = Object.assign(document.createElement("button"), { type: "button", className: "capture-carte", hidden: true,
-      // fichier dont le coin est replié, marqué « TIF »
-      innerHTML: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-        + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/>'
-        + '<g stroke-width="1.5"><path d="M7.3 12.5h3.4M9 12.5v5M12.4 12.5v5M14.2 17v-4.5h2.4M14.2 14.7h1.8"/></g></svg>',
+    const exportButton = Object.assign(document.createElement("button"), { type: "button", hidden: true, className: "capture-carte",
+      // fichier dont le coin est replié, marqué « TIF » ; dessin partagé avec l'attente (Attente)
+      innerHTML: SIZED(Attente.icones.tif),
       title: "Vue Bird Eye géoréférencée pour un SIG (QGIS…) : GeoTIFF en Lambert 93, la vue seule, sans fond de carte ni mesures",
       ariaLabel: "Export géoréférencé de la vue Bird Eye" });
     exportButton.addEventListener("click", async () => {
       exportButton.disabled = true;
+      const attente = Attente.start(map.getContainer(), { icone: Attente.icones.tif, message: "Export GeoTIFF…" });
       try {
         const file = await Dessus.exportView();
         if (!file) {
           notice("Vue Bird Eye pas encore prête : export géoréférencé impossible pour l'instant.");
+          attente.echec("Vue pas encore prête");
           return;
         }
         const url = URL.createObjectURL(file.blob);
         Object.assign(document.createElement("a"), { href: url, download: file.name }).click();
         setTimeout(() => URL.revokeObjectURL(url), 5000);
+        attente.ok();
       } catch (error) {
         console.warn("Export géoréférencé :", error);
         notice(`Export géoréférencé impossible : ${error.message}`);
+        attente.echec("Export impossible");
       } finally {
         showMapMeasureButton();
       }
