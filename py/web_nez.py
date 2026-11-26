@@ -258,7 +258,7 @@ class Nez:
         mount = self._fleet_mount(item)
         d_min, d_max = self._nose_range(mount)
         d = min(max(float(distance), d_min), d_max) if distance else d_min
-        roll = self._roll_defect(item)
+        roll = round(self._roll_default(item, item.get("id")), 2)  # roulis par défaut du véhicule (positif : à droite)
         tilt_source, tilt_sigma = self._nose_tilt()
         axis = self._nose_axis()  # cap de la caméra : le centre de la droite est à d devant
         along, turn = self._nose_axis_at(d)  # direction de la droite : perpendiculaire à celle-ci

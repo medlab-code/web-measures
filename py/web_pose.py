@@ -127,7 +127,7 @@ class Pose:
         if fallback and not self._tilt_final():  # verticales pas encore cherchées : pas « non calée »
             return "inclinaison " + self._tilt_reason() + " ; " + self._roll_label(self.item) + " en attendant", False
         if fallback:  # calcul fait sans résultat : le roulis par défaut de la campagne seul, tangage inconnu
-            return f"inclinaison non calée : {self._roll_label(self.item)} seul, tangage inconnu (±{measures._num(fallback['sigma'], 1)}°)", True
+            return f"inclinaison non calée : {self._roll_label(self.item)}{self._roll_why(self.item)}, tangage inconnu (±{measures._num(fallback['sigma'], 1)}°)", True
         reason = self._tilt_reason()
         if not self._tilt_final():
             return "inclinaison " + reason, False
@@ -292,7 +292,7 @@ class Pose:
                 "height_sigma": max(q.get("spread") or 0, 0.05) if verified else cam["sigma"] if cam else 0.3,
                 "relative_sigma": 0.05 if verified else 0.3,  # position d'une photo à sa voisine (trajectoire)
                 "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []),
-                "roll_defect": self._roll_defect(item), "mount": self._fleet_mount(item)}
+                "roll_defect": self._roll_defect(item), "roll_share": self.ROLL_SHARE, "mount": self._fleet_mount(item)}
 
     def birdeye_impossible(self, pic):
         """Vrai si la photo affichée est `pic` et n'a pas de pose Bird Eye possible (pas 360°, ni cap, ni position) : le calage
@@ -386,13 +386,59 @@ class Pose:
         producers = {p.get("id") for p in item.get("providers") or []}
         return next((roll for who, first, end, roll in self.ROLL_DEFECTS if who in producers and first <= date < end), 0.0)
 
-    def _roll_label(self, item):
-        """Nom du roulis par défaut de la photo, année de la campagne comprise (entrée de ROLL_DEFECTS qui s'applique) :
-        « roulis par défaut de la campagne 2025 » ; sans entrée, « roulis par défaut de la campagne »."""
-        date = str(((item or {}).get("properties") or {}).get("datetime") or "")[:10]
-        producers = {p.get("id") for p in (item or {}).get("providers") or []}
+    # Part du dévers de la route prise en roulis du véhicule (le tangage suit la pente entière) : comme ROLL_SHARE de src/dessus.js, qui la
+    # lit dans la pose Bird Eye (roll_share). Le défaut CD21 2025 (ROLL_DEFECTS, +1°) a été estimé avec 70 % du dévers.
+    ROLL_SHARE = 0.7
+
+    def _cross_slope(self, pic):
+        """(dévers du LiDAR HD sous la photo en degrés, positif : droite plus haute, ou None ; raison si None). Écarté : pas d'entrée
+        automatique, pas de LiDAR, terrain RGE ALTI ou d'origine inconnue (entrée d'une version précédente), photo sur un pont (le sol
+        sous l'ouvrage n'est pas la route : Calibration.bridge_pics, case « Sur un pont »)."""
+        cal = self.calibration
+        entry = cal.auto.get(pic)
+        if pic in cal.bridge_pics or not cal.lidar:
+            return None, "photo sur un pont"
+        if not entry or not entry.get("lidar"):
+            return None, "pas de LiDAR sous la photo"
+        if entry.get("lidar_source") != "LiDAR HD":
+            return None, "terrain RGE ALTI" if entry.get("lidar_source") == "RGE ALTI" else "terrain de source inconnue"
+        return float(entry["lidar"][1]), ""
+
+    def _roll_parts(self, item, pic):
+        """(défaut de campagne en degrés, roulis dû au dévers en degrés ou None, raison de l'absence du dévers) ; convention du véhicule
+        (positif : penché à droite). Le dévers : -atan(ROLL_SHARE * tan(dévers)), une route qui monte vers la droite penche le véhicule à
+        gauche (même signe que groundUp de src/dessus.js)."""
+        defect = self._roll_defect(item) if item else 0.0
+        cross, why = self._cross_slope(pic)
+        if cross is None:
+            return defect, None, why
+        return defect, 0.0 - math.degrees(math.atan(self.ROLL_SHARE * math.tan(math.radians(cross)))), ""
+
+    def _roll_default(self, item, pic):
+        """Roulis du véhicule par défaut (degrés, positif : penché à droite) = défaut de campagne (ROLL_DEFECTS) + part du dévers du LiDAR
+        HD (_roll_parts) ; rang 6 de Calibration.tilt (_campaign_tilt)."""
+        defect, share, _ = self._roll_parts(item, pic)
+        return defect + (share or 0.0)
+
+    def _roll_label(self, item, pic=None):
+        """Nom du roulis par défaut de la photo : « roulis par défaut (70 % du dévers + campagne 2025) » ; sans défaut de campagne, « roulis
+        par défaut (70 % du dévers) » ; sans dévers, « roulis par défaut de la campagne 2025 seul » (année de l'entrée de ROLL_DEFECTS
+        qui s'applique ; sans entrée, « roulis par défaut de la campagne seul »)."""
+        item = item or {}
+        pic = pic or item.get("id")
+        date = str((item.get("properties") or {}).get("datetime") or "")[:10]
+        producers = {p.get("id") for p in item.get("providers") or []}
         year = next((first[:4] for who, first, end, roll in self.ROLL_DEFECTS if who in producers and first <= date < end), "")
-        return ("roulis par défaut de la campagne " + year).strip()
+        share = self._roll_parts(item, pic)[1]
+        part = f"{round(self.ROLL_SHARE * 100)} % du dévers"
+        if share is None:
+            return ("roulis par défaut de la campagne " + year).strip() + " seul"
+        return f"roulis par défaut ({part} + campagne {year})" if year else f"roulis par défaut ({part})"
+
+    def _roll_why(self, item):
+        """Raison, entre parenthèses, de l'absence du dévers dans le roulis par défaut (voir _cross_slope), ou « »."""
+        _, share, why = self._roll_parts(item, (item or {}).get("id"))
+        return f" (dévers écarté : {why})" if share is None and why else ""
 
     ROLL_DEFECT_SIGMA = 1.0  # degrés : dispersion du roulis d'une photo à l'autre dans une campagne (docs/BIRDEYE.md : ±1°)
 
@@ -444,13 +490,16 @@ class Pose:
         return calibration.tilt_entry(loose["up"], loose["sigma"], "verticales (seuil élargi)") if loose else None
 
     def _campaign_tilt(self, pic):
-        """Rang 6 : roulis par défaut de la campagne seul (ROLL_DEFECTS ; 0 : rien), tangage inconnu (incertitude UNCALIBRATED, au moins celle
-        du roulis), le véhicule penché de ce roulis (positif : à droite) par rapport au cap de l'axe de la séquence (ou de la photo) ;
-        le cœur le reçoit dans sa convention (roulis_vehicule_depuis_camera). Même effet que groundUp de src/dessus.js. Repérée par « fallback » : pas une inclinaison calée."""
+        """Rang 6 : roulis par défaut seul (_roll_default : défaut de campagne + part du dévers du LiDAR HD ; None s'il vaut 0 sans dévers
+        disponible), tangage inconnu (incertitude UNCALIBRATED, au moins celle du roulis), le véhicule penché de ce roulis (positif : à
+        droite) par rapport au cap de l'axe de la séquence (ou de la photo) ; le cœur le reçoit dans sa convention
+        (roulis_vehicule_depuis_camera). Même effet que groundUp de src/dessus.js. Repérée par « fallback » : pas une inclinaison calée ;
+        source « roulis de campagne » (famille « constante » : ni témoin du LiDAR, ni témoin contre lui)."""
         item = self._item_of(pic)
-        roll = self._roll_defect(item) if item else 0.0
-        if not roll:
+        defect, share, _ = self._roll_parts(item, pic)
+        if not defect and share is None:
             return None
+        roll = defect + (share or 0.0)
         axis = self._axis(item)
         axis = self._heading_of(item) if axis is None else axis
         return calibration.tilt_entry(calibration.up_from_components(0.0, roulis_vehicule_depuis_camera(roll), axis or 0.0),

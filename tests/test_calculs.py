@@ -1387,6 +1387,87 @@ class Parcours(unittest.TestCase):
         self.show(pic)  # même photo hors campagne : rien
         self.assertIsNone(cal.tilt(pic))
 
+    @staticmethod
+    def _share(cross, share=0.7):
+        """Part du dévers en roulis du véhicule (degrés, positif : à droite) : route qui monte vers la droite -> penché à gauche."""
+        return -math.degrees(math.atan(share * math.tan(math.radians(cross))))
+
+    def _lidar(self, pic, cross, source="LiDAR HD"):
+        self.app.calibration.auto[pic] = {"sequence": "s1", "heading": 0.0, "verticals": None, "lidar": [0.0, cross], "lidar_source": source}
+        self.app.calibration._tilts.clear()  # (l'arrivée réelle passe par set_auto, qui prévient)
+
+    def _roll_of(self, pic):
+        """Roulis du véhicule (degrés, positif : à droite) retenu au rang 6, lu dans la verticale du cœur (cap nord, convention du cœur)."""
+        t = self.app.calibration.tilt(pic)
+        return None if t is None else (t["source"], round(-math.degrees(math.atan2(t["up"][0], t["up"][2])), 9))
+
+    def test_roulis_par_defaut_devers(self):
+        """Rang 6 : défaut de campagne + 70 % du dévers du LiDAR HD (route qui monte à droite de 2° : véhicule penché à gauche, roulis
+        négatif) ; le dévers est écarté sur un pont et avec le terrain RGE ALTI ; rangs 1 à 5 inchangés."""
+        a, cal, pic = self.app, self.app.calibration, "p1"
+        want = self._share(2.0)
+        self.assertAlmostEqual(want, -1.4, delta=0.01)  # penché à gauche : négatif
+        self.show(pic, "2025-07-03T10:53:25Z", App.FLEET_PRODUCER)
+        self.assertEqual(self._roll_of(pic), ("roulis de campagne", 1.0))  # sans dévers : le défaut seul
+        self._lidar(pic, 2.0)
+        source, roll = self._roll_of(pic)
+        self.assertEqual(source, "roulis de campagne")
+        self.assertAlmostEqual(roll, 1.0 + want, places=6)  # CD21 2025 : défaut + part du dévers
+        self.assertAlmostEqual(a._roll_default(a.item, pic), 1.0 + want, places=9)
+        self.assertTrue(cal.tilt(pic)["fallback"])
+        self.assertEqual(cal.tilt(pic)["sigma"], calibration.UNCALIBRATED)
+        self.assertEqual(a._roll_label(a.item), "roulis par défaut (70 % du dévers + campagne 2025)")
+        cal.set_bridge_photo(pic, True)  # pont : le sol sous l'ouvrage n'est pas la route
+        self.assertEqual(self._roll_of(pic), ("roulis de campagne", 1.0))
+        self.assertEqual(a._roll_label(a.item), "roulis par défaut de la campagne 2025 seul")
+        cal.set_bridge_photo(pic, False)
+        self._lidar(pic, 2.0, "RGE ALTI")  # terrain RGE ALTI : trop grossier pour le dévers
+        self.assertEqual(self._roll_of(pic), ("roulis de campagne", 1.0))
+        self._lidar(pic, 2.0, None)  # entrée d'une version précédente : source inconnue
+        self.assertEqual(self._roll_of(pic), ("roulis de campagne", 1.0))
+        self._lidar(pic, 2.0, "RGE ALTI")
+        self.assertIn("terrain RGE ALTI", a._roll_why(a.item))
+        self._lidar(pic, 2.0)
+        a._set_loose(pic, {"up": self._up(2.0), "sigma": 0.4})  # 5 : verticales à seuil élargi, avant le rang 6
+        self.assertEqual(self._roll_of(pic)[0], "verticales (seuil élargi)")
+        self.assertAlmostEqual(self._roll_of(pic)[1], -2.0, places=6)  # inchangé : le dévers n'y est pas ajouté
+        a.birdeye_loose.clear()
+
+    def test_roulis_par_defaut_hors_campagne(self):
+        """Hors CD21 : défaut 0, la part du dévers seule ; sans dévers disponible, rien (rang 7)."""
+        a, cal, pic = self.app, self.app.calibration, "p1"
+        self.show(pic)
+        self.assertIsNone(cal.tilt(pic))
+        self._lidar(pic, 2.0)
+        source, roll = self._roll_of(pic)
+        self.assertEqual(source, "roulis de campagne")
+        self.assertAlmostEqual(roll, self._share(2.0), places=6)
+        self.assertEqual(a._roll_label(a.item), "roulis par défaut (70 % du dévers)")
+        self._lidar(pic, -2.0)  # route qui monte à gauche : penché à droite, positif
+        self.assertAlmostEqual(self._roll_of(pic)[1], -self._share(2.0), places=6)
+        self._lidar(pic, 2.0, "RGE ALTI")
+        self.assertIsNone(cal.tilt(pic))
+        self._lidar(pic, 2.0)
+        cal.set_bridge_photo(pic, True)
+        self.assertIsNone(cal.tilt(pic))
+        text = a._tilt_line()[0]
+        self.assertNotIn("dévers", text)
+
+    def test_roulis_par_defaut_verticales_et_clics(self):
+        """Verticales de la photo (rang 3) : le dévers n'est pas ajouté ; clics à la main + rang 6 : le roulis par défaut sert de repère
+        (« clics + roulis de campagne »)."""
+        cal, pic = self.app.calibration, "p1"
+        self.show(pic, "2025-07-03T10:53:25Z", App.FLEET_PRODUCER)
+        self._lidar(pic, 2.0)
+        cal.auto[pic]["verticals"] = {"up": self._up(1.0), "count": 5, "sigma": 0.2}
+        cal._tilts.clear()
+        self.assertEqual(self._roll_of(pic)[0], "verticales")
+        self.assertAlmostEqual(self._roll_of(pic)[1], -1.0, places=6)  # _up(1) : verticale à droite = caméra à droite, roulis véhicule -1
+        cal.auto[pic]["verticals"] = None
+        cal._tilts.clear()
+        cal.add_vertical(pic, (10.0, -11.3), (10.0, 21.8))  # un objet à la main, complété par le rang suivant : le roulis par défaut
+        self.assertEqual(cal.tilt(pic)["source"], "clics + roulis de campagne")
+
     def test_calage_manuel_panneau(self):
         """Panneau du calage manuel : rapport, traits numérotés, retrait d'une verticale, aberrantes, purge."""
         a, cal, pic = self.app, self.app.calibration, "p1"

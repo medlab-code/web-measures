@@ -228,7 +228,7 @@ const Dessus = (() => {
   /** Inclinaison d'une caméra sans verticales à lire, le véhicule étant posé sur la route : verticale vraie vue depuis la caméra
    * (voir rotation), la route sous le véhicule étant un plan ajusté sur ±2,5 m en long et ±1,5 m en travers (groundSlopes). La
    * route monte devant : la caméra regarde vers le haut et voit la verticale penchée vers l'avant. at : position de la caméra
-   * (est, nord, m), heading : cap (degrés), rollShare : part du dévers prise en roulis (ROLL_SHARE ; le tangage suit la pente
+   * (est, nord, m), heading : cap (degrés), rollShare : part du dévers prise en roulis (rollShareOf ; le tangage suit la pente
    * entière, voir docs/CALCULS.md), pitch : tangage ajouté (degrés, positif : caméra relevée vers l'avant), défaut de fixation de
    * la caméra ; roll : roulis ajouté (degrés ; convention du véhicule, en tête de ce fichier : positif = penché à droite), défaut
    * de la caméra par rapport à la route, propre au producteur et à la campagne (pose.roll_defect, App.ROLL_DEFECTS dans
@@ -1591,10 +1591,11 @@ const Dessus = (() => {
   let abort = null, measuringOn = false, fine = false, trace = [], tool = "longueur", hover = null, live = null;  // trace : points posés ; live : valeur affichée au pointeur
   // Roulis ajouté et tangage ajouté (degrés), réglés à la main (options d'essai) et retenus par séquence dans le
   // navigateur : la fixation de la caméra ne change pas au cours d'une séquence (A38 du 09/10/2025 : même tangage à deux endroits)
-  // ROLL_SHARE : part du dévers prise en roulis (70 %, fixe depuis le 26/11/2026 : le réglage est un roulis ajouté, en degrés,
+  // ROLL_SHARE_DEFAULT : part du dévers prise en roulis (70 %, donnée par la pose : roll_share, py/web_pose.py ROLL_SHARE, qui s'en sert aussi pour le roulis par défaut des mesures ; fixe depuis le 26/11/2026 : le réglage est un roulis ajouté, en degrés,
   // comme le tangage ; 0° donne exactement l'ancien réglage par défaut). Réglage de la séquence : clé « rollDeg » (l'ancienne
   // clé « roll », en part du dévers, est ignorée).
-  const ROLL_SHARE = 0.7, ROLL_PITCH_LIMIT = 2.5, DEFAULT_ROLL = 0, DEFAULT_PITCH = 0, SETTINGS_KEY = "web-measures/dessus-reglages";
+  const ROLL_SHARE_DEFAULT = 0.7, ROLL_PITCH_LIMIT = 2.5, DEFAULT_ROLL = 0, DEFAULT_PITCH = 0, SETTINGS_KEY = "web-measures/dessus-reglages";
+  const rollShareOf = (pose) => pose?.roll_share ?? ROLL_SHARE_DEFAULT;
   // pitchManual : tangage réglé à la main en usage (manualPitch : sa valeur, retenue par séquence) ; il ne sert qu'en dernier,
   // faute de tangage lu (autoPitch), sauf « Forcer le réglage à la main » (pitchForced, demande de l'auteur, 13/11/2026)
   let rollOffset = DEFAULT_ROLL, pitchOffset = DEFAULT_PITCH, pitchManual = false, manualPitch, pitchForced = false;
@@ -1674,7 +1675,7 @@ const Dessus = (() => {
    * « — » sans terrain LiDAR HD (pas de dévers) ou terrain pas encore arrivé. layer : couche de la photo affichée. */
   function showShare(layer) {
     const terrain = layer && shown && onLidar(shown) ? shown.terrain : null;
-    const share = terrain ? -Math.atan(ROLL_SHARE * groundSlopes(levelOf(terrain), layer.at, layer.pose.heading)[1]) / toRad : null;
+    const share = terrain ? -Math.atan(rollShareOf(layer.pose) * groundSlopes(levelOf(terrain), layer.at, layer.pose.heading)[1]) / toRad : null;
     $("#dessus-part-devers").textContent = share === null ? "—" : signedDeg(Math.round(share * 100) / 100);
   }
   const showPitch = () => {
@@ -1831,7 +1832,7 @@ const Dessus = (() => {
     // virage : véhicule penché ; verticales écartées : incertitude de la route
     const leveled = (pose.up && verticalsOn) || !shown.terrain ? pose : {
       ...pose, groundTilt: true,
-      up: groundUp(levelOf(shown.terrain), at, pose.heading, ROLL_SHARE, pitchFor(pose.pic), (pose.roll_defect || 0) + rollOffset),
+      up: groundUp(levelOf(shown.terrain), at, pose.heading, rollShareOf(pose), pitchFor(pose.pic), (pose.roll_defect || 0) + rollOffset),
       sigma: Math.hypot(pose.up ? ground : Math.min(pose.sigma, ground), LEAN * (shown.lateral || 0)),
     };
     // raccord de la voisine
@@ -2141,7 +2142,7 @@ const Dessus = (() => {
   /** Inclinaison par la route, pour le message d'état : part du dévers prise en roulis, défaut de la caméra, virage,
    * tangage (réglé à la main, ou lu : auto), roulis propre à la séquence, puis l'incertitude. */
   function roadTiltText(main, auto) {
-    const notes = [`roulis à ${Math.round(ROLL_SHARE * 100)} % du dévers`];
+    const notes = [`roulis à ${Math.round(rollShareOf(main) * 100)} % du dévers`];
     if (rollOffset) notes.push(`roulis réglé à la main ${rollText(rollOffset)}`);
     if (main.roll_defect) notes.push(`${number(main.roll_defect, 1)}° de défaut de la caméra (campagne)`);
     if (LEAN * (shown.lateral || 0) >= 0.5) notes.push(`virage : véhicule penché jusqu'à ${number(LEAN * shown.lateral, 1)}°`);
@@ -2184,7 +2185,7 @@ const Dessus = (() => {
     // Route : l'inclinaison tirée de la route, annoncée AUSSI quand les verticales priment (up : null), comme témoin indépendant
     // pour l'indicateur de confiance de l'inclinaison (Calibration.tilt_confidence) ; sans effet sur les mesures ni la droite
     const route = main.groundTilt ? { up: main.up, sigma: main.sigma } : terrain && onLidar(shown) ? {
-      up: groundUp(levelOf(terrain), layer.at, main.heading, ROLL_SHARE, pitchFor(main.pic), (main.roll_defect || 0) + rollOffset),
+      up: groundUp(levelOf(terrain), layer.at, main.heading, rollShareOf(main), pitchFor(main.pic), (main.roll_defect || 0) + rollOffset),
       sigma: Math.hypot(GROUND_SIGMA, LEAN * (shown.lateral || 0)),
     } : null;
     const tilt = {

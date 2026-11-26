@@ -92,13 +92,18 @@ pour les mesures (hauteur, relevé, visées) comme pour la largeur dans la visio
    incertitude, et affichées (« seuil élargi ») : mieux que rien. Auparavant la largeur dans la
    visionneuse les préférait au LiDAR quand leur incertitude était plus faible ; elles passent
    maintenant après lui ;
-6. **roulis par défaut de la campagne 2025 seul** (`ROLL_DEFECTS`, source « roulis de campagne » en interne, affichée « roulis par défaut de la campagne 2025 », par exemple
-   +1° pour le CD21 en 2025, véhicule penché à droite) : la verticale est vue penchée de ce roulis vers la gauche du cap (−1° pour le cœur, voir la
-   convention du roulis ci-dessus), le
+6. **roulis par défaut seul** (`_roll_default` de `py/web_pose.py`, source « roulis de campagne » en interne), en degrés, véhicule penché à droite
+   positif : **défaut de campagne** (`ROLL_DEFECTS`, par exemple +1° pour le CD21 en 2025) **moins la part du dévers**, `−atan(ROLL_SHARE · tan(dévers))`
+   avec `ROLL_SHARE` = 0,7 et le dévers du LiDAR HD sous la photo (`auto[pic]["lidar"][1]`, positif : droite plus haute ; route qui monte vers la
+   droite : véhicule penché à gauche, roulis négatif, comme `groundUp`). Le dévers n'est pris que si le sol vient du LiDAR HD (`lidar_source`
+   de l'entrée `auto`, pas RGE ALTI ni une entrée sans source) et que la photo n'est pas sur un pont ; sinon le défaut de campagne seul. S'applique aussi
+   en ville et hors campagne (défaut 0 : la part du dévers seule) ; rien (rang 7) si le roulis par défaut vaut 0 sans dévers. Ce sont les rangs 1 à 5 qui priment :
+   jamais de double application du dévers (le LiDAR du rang 4 le contient déjà à 100 %, les verticales le mesurent). La verticale est vue penchée de ce roulis
+   vers la gauche du cap (signe changé pour le cœur, voir la convention du roulis ci-dessus), le
    tangage est inconnu ; incertitude de tangage `UNCALIBRATED` (2°), au moins celle du roulis
    (`ROLL_DEFECT_SIGMA`, ±1° d'une photo à l'autre). Ce n'est pas une inclinaison calée : le
-   voyant « Inclinaison » reste rouge ou jaune et la ligne d'état dit « roulis par défaut de la campagne 2025
-   seul, tangage inconnu » ;
+   voyant « Inclinaison » reste rouge ou jaune et la ligne d'état dit « roulis par défaut (70 % du dévers + campagne 2025), tangage inconnu » (ou « … (70 % du dévers) » hors campagne, ou « … de la campagne 2025 seul (dévers
+   écarté : photo sur un pont, terrain RGE ALTI…) »). Le défaut de campagne 2025 a été estimé avec 70 % du dévers : il reste valable ;
 7. **rien** : photo non inclinée, incertitude `UNCALIBRATED` (2°).
 
 **Convention du roulis** : dans l'application (`src/dessus.js`, `ROLL_DEFECTS`, panneau de calage, lignes d'état, encart de la droite), le roulis du
@@ -520,8 +525,8 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   le roulis l'est. Quand la vue du dessus lit les verticales de la photo, elle n'annonce rien et la suite
   s'applique : calée à la main (« clics »), puis verticales calculées sur la photo HD, sinon pente et dévers du LiDAR, puis les verticales à seuil
   élargi (`birdeye_loose`, incertitude jusqu'à 0,5°, `web_tilt.LOOSE_SIGMA`, « verticales (seuil élargi) »), enfin le **roulis par défaut de la campagne 2025** seul
-  (`ROLL_DEFECTS` : +1° pour le CD21 en 2025, véhicule penché à droite, même effet que dans `groundUp` de `src/dessus.js` ; source « roulis de
-  campagne », tangage inconnu, incertitude 2°), sinon rien (« aucune »). Le roulis par défaut de la campagne 2025 n'est ajouté que seul (rang 6) : jamais aux
+  (`ROLL_DEFECTS` : +1° pour le CD21 en 2025, véhicule penché à droite, plus 70 % du dévers du LiDAR HD hors pont, même effet que dans `groundUp` de
+  `src/dessus.js`, qui reçoit la part par `roll_share` de la pose ; source « roulis de campagne », tangage inconnu, incertitude 2°), sinon rien (« aucune »). Le roulis par défaut n'est ajouté que seul (rang 6) : jamais aux
   verticales, au LiDAR ni au réglage de la vue du dessus, qui le contient déjà. La droite est projetée comme les mesures (`Session._view_of`).
   **Calage Bird Eye au déplacement d'une poignée** (`src/nez.js` : `needCalage`, `calibrated`, `reanchor` ; `Dessus.update(…, silent)` et
   `Dessus.onCalibrated` dans `src/dessus.js` ; `updateBirdeye` dans `src/resultats.js`). Le calcul de la droite en Python n'est pas
@@ -944,7 +949,7 @@ peinture retrouvés à moins de 4 cm, aussi sous le véhicule et par-delà le ra
 Sans verticale à lire (rase campagne), l'inclinaison vient de la route : le véhicule est supposé posé sur le
 plan ajusté au MNT sur ±2,5 m en long et ±1,5 m en travers. L'A38 penche d'environ 2,5 % en travers et 1,2 %
 en long, ce qui expliquait l'écart entre tirets devant et derrière. Les verticales gardent la priorité.
-Le roulis ne suit qu'une part du dévers (70 %, fixe ; l'option d'essai « Roulis » y ajoute un roulis en degrés, ±2°, 0° par défaut, positif : penché à droite, côté droit plus bas ; `groundUp` compte positif vers la gauche, d'où `gs = 0,7 × dévers + tan(défaut de campagne − réglage)`) : sur la RD 1074
+Le roulis ne suit qu'une part du dévers (70 %, fixe, `ROLL_SHARE` de `py/web_pose.py` repris par `src/dessus.js` ; elle sert aussi au roulis par défaut des mesures hors vue du dessus, rang 6 du § 1.3 ; l'option d'essai « Roulis » y ajoute un roulis en degrés, ±2°, 0° par défaut, positif : penché à droite, côté droit plus bas ; `groundUp` compte positif vers la gauche, d'où `gs = 0,7 × dévers + tan(défaut de campagne − réglage)`) : sur la RD 1074
 (`81049c82-2ea6-481f-b0d0-a6a1864e5ea0`, véhicule dans la voie de droite), l'écart entre lignes de rive vaut 6,37 m sans roulis et 6,90 m
 avec tout le dévers, pour 6,58 m sur l'orthophoto (environ 40 % du dévers) ; sur l'A38, environ 75 %. Le roulis
 déplace surtout la ligne la plus éloignée de la caméra, d'où l'impression d'un milieu étiré. Le tangage suit la

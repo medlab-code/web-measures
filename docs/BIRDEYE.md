@@ -136,7 +136,7 @@ fixation peut être un peu de travers.
    sur la RD 1074, 75 à 100 % sur l'A38), à quoi s'ajoute un roulis réglable à la main (« Roulis », en degrés, de −2,5 à +2,5°, au pas de 0,05° (molette : un cran, un pas ; le tangage de même),
    0° par défaut, comme le tangage ; positif : penché à droite, côté droit plus bas, convention du véhicule dans tout `src/dessus.js` et `py/web_pose.py`, voir `docs/CALCULS.md` § 1.3). La ligne « Part du dévers » au-dessus de la réglette
    donne le roulis dû au dévers sous la caméra, `−arctan(0,7 × dévers)`, en degrés signés (« +0,84° » ; positif : penché à droite), « — » sans LiDAR HD. Le tangage ajoute le défaut de fixation de la caméra (−0,4 à +0,6° selon
-   les séquences). Le roulis ajoute le **roulis par défaut de la campagne 2025** (`App.ROLL_DEFECTS`, `py/web_pose.py`, par
+   les séquences). La vue du dessus applique cette part (`roll_share` de la pose, 0,7 : `ROLL_SHARE` de `py/web_pose.py`, repris tel quel par `src/dessus.js`) ; les mesures de la visionneuse la prennent aussi, sans verticale ni LiDAR retenu (rang 6, `docs/CALCULS.md` § 1.3), hors pont et avec le LiDAR HD seulement. Le roulis ajoute le **roulis par défaut de la campagne 2025** (`App.ROLL_DEFECTS`, `py/web_pose.py`, par
    producteur et période de prise de vue) : CD21, campagne 2025, +1° (véhicule penché à droite ; −1° dans la convention du cœur, notée ainsi avant le 26/11/2026, même effet). Mesuré le 13/11/2026 sur 25 passages piétons
    (`tests/passages-pietons.js`) : bandes de 0,50 m dans la vue calée par la route puis par les verticales ; une erreur
    de roulis δ y rend la largeur d'une bande proportionnelle à 1 + 2 s δ / H (s : écart en travers à la caméra), d'où

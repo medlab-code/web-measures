@@ -380,7 +380,7 @@ après.
   plus de 30 m de tout pont. Une photo seulement près d'un pont (à plus de 8 m, ou sur la voie franchie, dessous, dont le sens diffère) ne
   l'active pas. **Marque par photo, dès l'ouverture** (même hors mesure, depuis le 22/11/2026) : une photo sur un pont est repérée à son
   ouverture ; son LiDAR (pente et dévers du sol sous l'ouvrage) n'est jamais retenu pour l'inclinaison (la chaîne passe aux verticales à
-  seuil élargi, puis au roulis par défaut de la campagne 2025) ni appris par le modèle LiDAR de la séquence ; ses verticales restent valables. La vue du dessus (Bird Eye) suit le même marquage, photo par photo : « sol supposé plat » seulement sur le tablier, jamais sur le remblai qui y mène (7dcdccf9-3c52-4c54-bc5b-de72740a7967 : tangage du relief, +3,2°, au lieu de 0°). Les tronçons arrivent par le réseau : l'état suit à leur arrivée, à chaque changement de photo.
+  seuil élargi, puis au roulis par défaut de la campagne 2025 seul, sans la part du dévers) ni appris par le modèle LiDAR de la séquence ; ses verticales restent valables. La vue du dessus (Bird Eye) suit le même marquage, photo par photo : « sol supposé plat » seulement sur le tablier, jamais sur le remblai qui y mène (7dcdccf9-3c52-4c54-bc5b-de72740a7967 : tangage du relief, +3,2°, au lieu de 0°). Les tronçons arrivent par le réseau : l'état suit à leur arrivée, à chaque changement de photo.
 - **Hauteur de chute sur un pont** (automatique, sans clic) : sur une photo prise sur un pont
   de la BD TOPO, le nom du pont, ce qu'il franchit et la hauteur de chute la plus grande sur
   toute sa longueur s'affichent en haut à gauche de la visionneuse (pas pendant la lecture de
@@ -749,10 +749,10 @@ automatiquement : n verticales détectées, roulis x° ±σ, tangage y° » (seu
 élargi). Les verticales tracées à la main passent devant (deux verticales, ou une seule qui complète l'automatique) : le panneau dit
 « Verticales à la main : elles remplacent le calcul automatique ». Seule l'inclinaison de la vue du dessus de la photo (réglée par la vue
 du dessus elle-même) passe devant les verticales à la main. **Réinitialiser** ignore le calcul automatique pour cette photo (comme
-pour les deux rangs « verticales » : la source suivante de l'ordre prend le relais, LiDAR HD, roulis par défaut de la campagne 2025 ou rien) ; la pastille
+pour les deux rangs « verticales » : la source suivante de l'ordre prend le relais, LiDAR HD, roulis par défaut (part du dévers et campagne 2025) ou rien) ; la pastille
 est alors grisée et barrée, le bouton devient « Rétablir le calcul automatique ». Le choix est gardé par photo avec le calage (navigateur,
 export, import) ; inclinaison, droite ↔ et vue du dessus sont recalculées. Quand l'inclinaison vient d'une autre source (vue du dessus,
-LiDAR HD, terrain, roulis par défaut de la campagne 2025 seul), le panneau le dit simplement, sans réinitialisation.
+LiDAR HD, terrain, roulis par défaut), le panneau le dit simplement, sans réinitialisation.
 Panneau ouvert, les verticales sont tracées sur la photo, numérotées, de la couleur de leur verdict ; survoler une ligne épaissit sa
 verticale, cliquer une ligne (ou le trait d'une verticale dans la photo, hors mesure) la choisit. **Réglages › Calage manuel › Purger
 tout** retire les verticales de toutes les photos, après confirmation (grisé sans verticale gardée) ; le calage automatique, les
@@ -896,6 +896,8 @@ largeurs de chaussée LiDAR (analyse fine) : ces valeurs n'ont pas encore été 
 
 **Largeur dans la visionneuse : l'incertitude grandit avec la distance de la droite** (poignée de profondeur) : une erreur d'inclinaison (tangage) δ sur la photo déplace un bord latéral de s de `s·d·δ/H` (d : distance de la droite, H : hauteur de la caméra), donc la largeur de `(s₂ − s₁)·d·δ/H` ; l'incertitude de la largeur croît en gros comme distance / hauteur × erreur d'inclinaison (à ±0,5°, d = 10 m, H = 1,93 m et 8 m de largeur : environ 0,36 m contre 0,16 m à 4,5 m), et le roulis et la hauteur n'en dépendent pas. L'étiquette et l'encart donnent l'incertitude de la droite à sa distance du moment. Au-delà de 5 à 6 m du nez, la photo suivante, plus près des bords, les lit mieux. **Accord avec la vue du dessus** : une fois la photo calée par Bird Eye (vue ouverte ou calage silencieux), la droite prend la hauteur de caméra et le terrain lissé de la vue du dessus : la largeur de mêmes bords est la même dans les deux, à 1 cm près (avant : 7 % de moins sur la photo 8625c7ff-90c1-4865-b936-fd8952ac908f, 6,00 m contre 6,56 m). Sans calage, la hauteur est la monture du véhicule (CD21) avant l'altitude GPS, le sol le MNT brut ; la largeur est alors moins sûre de quelques pour cent.
 
+**Roulis par défaut sans verticale ni LiDAR retenu** (26/11/2026) : la photo reçoit le défaut de la campagne plus 70 % du dévers du LiDAR HD (hors pont, hors RGE ALTI), incertitude ±1° au moins. Effet d'1° de roulis : environ 37 cm sur un point au sol à 6 m pour une hauteur lue sur une photo ; jusqu'à environ 0,2 m sur une largeur quand le véhicule roule près d'un bord ; la triangulation y est presque insensible. Un roulis mesuré (verticales, clics, vue du dessus, LiDAR du rang 4) passe toujours devant et n'y ajoute pas le dévers.
+
 **Confiance de l'inclinaison** (22/11/2026) : l'inclinaison retenue pour une photo est confrontée à une source indépendante (image :
 verticales ; terrain : LiDAR HD de la séquence, route de la vue du dessus ; méthode dans `docs/CALCULS.md` § 1.3). Où on la voit :
 - **panneau « Calage manuel »**, en tête : « Confiance de l'inclinaison : confirmée » (vert : les deux sources s'accordent),
@@ -914,9 +916,9 @@ verticales ; terrain : LiDAR HD de la séquence, route de la vue du dessus ; mé
 
 **Inclinaison utilisée** : un seul ordre pour les mesures et la largeur dans la visionneuse (20/11/2026) : réglage de la
 vue du dessus pour la photo, calage à la main, verticales de la photo, LiDAR sous le véhicule, verticales à seuil élargi, roulis de
-la campagne seul (tangage inconnu, ±2°), rien (±2°). Elle est calculée à l'entrée en mesure pour la photo affichée,
+la campagne seul (tangage inconnu, ±2°), rien (±2°). Le roulis par défaut (rang « campagne ») ajoute au défaut de la campagne 70 % du dévers du LiDAR HD sous la photo (route qui monte à droite : véhicule penché à gauche), sauf sur un pont ou quand le sol vient du RGE ALTI ; il s'applique aussi en ville et hors CD21, et ne remplace jamais un roulis mesuré (verticales, clics, LiDAR du rang 4, vue du dessus). Elle est calculée à l'entrée en mesure pour la photo affichée,
 puis au premier clic sur une autre photo (pendant le calcul, une animation « Calcul de l'inclinaison… » s'affiche au centre de la visionneuse : icône de niveau à bulle, ondes jaunes, coche verte à l'arrivée du résultat, croix rouge si le calcul n'en donne pas ; aucun message texte n'accompagne l'attente) ; la ligne d'état en donne la source et l'incertitude (par exemple « inclinaison calée
-dans la vue du dessus (±0,8°) », « inclinaison non calée : roulis par défaut de la campagne 2025 seul, tangage inconnu (±2,0°) », affichée seulement quand le calcul a été fait sans résultat ; avant, « inclinaison calculée à l'activation de la mesure ; roulis par défaut de la campagne 2025 en attendant »). Voir
+dans la vue du dessus (±0,8°) », « inclinaison non calée : roulis par défaut (70 % du dévers + campagne 2025), tangage inconnu (±2,0°) » (ou « roulis par défaut de la campagne 2025 seul (dévers écarté : photo sur un pont) »), affichée seulement quand le calcul a été fait sans résultat ; avant, « inclinaison calculée à l'activation de la mesure ; roulis par défaut (70 % du dévers + campagne 2025) en attendant »). Voir
 `docs/CALCULS.md` § 1.3. Les mesures déjà faites sur une photo se recalculent quand son inclinaison change (arrivée des
 verticales, réglage de la vue du dessus).
 
