@@ -442,9 +442,9 @@ async function feature(id) {
   let png = 0;  // boîte « Enregistrer sous » remplacée : sans fenêtre, elle ne répondrait pas
   w.showSaveFilePicker = async () => ({ createWritable: async () => ({ write: async (blob) => { png = blob.size; }, close: async () => {} }) });
   doc.querySelector("#vignette").click();
-  await until(() => doc.querySelector("#statut").textContent.includes("Vignette"), 10000, "vignette");
+  await until(() => doc.querySelector("#statut").textContent.includes("Capture « Avec annotations »"), 10000, "vignette");
   log("vignette : " + doc.querySelector("#statut").textContent);
-  expect("vignette enregistrée", doc.querySelector("#statut").textContent.includes("Vignette enregistrée") && png > 0, `${png} octets`);
+  expect("vignette enregistrée", doc.querySelector("#statut").textContent.includes("Capture « Avec annotations » enregistrée") && png > 0, `${png} octets`);
 
   // Photo affichée stable (fin d'un chargement) : l'objet vertical se clique sur une seule photo
   await sleep(1500);
