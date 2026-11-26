@@ -20,6 +20,8 @@ double-clic sur `index.html` : elle est servie par un serveur web, par exemple e
 python3 -m http.server 8765    # puis http://127.0.0.1:8765/
 ```
 
+**Téléphone (écran vertical)** : la visionneuse occupe la moitié haute, la carte la moitié basse ; le bouton « ▴ Onglets » sous la carte fait monter le panneau (mesures, résultats, réglages…) par-dessus, « ▾ Fermer les onglets » le referme ; le bouton ⇄ de la carte l'agrandit au détriment de la visionneuse. En écran horizontal ou large, la disposition habituelle s'applique, sans rechargement quand on tourne l'appareil.
+
 **Première utilisation** : l'instance Panoramax de l'IGN et les photos du conseil
 départemental de la Côte-d'Or sont choisies par défaut, car elles remplissent les prérequis
 des mesures (précision RTK, modèle de terrain IGN : LiDAR HD, ou RGE ALTI là où il n'est pas encore publié) ; une fenêtre l'explique. On peut changer ces

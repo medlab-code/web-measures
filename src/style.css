@@ -1538,6 +1538,56 @@ dd { margin: 0; overflow-wrap: anywhere; }
   #poignee-carte { height: 18px; }  /* plus facile à saisir au doigt */
 }
 
+/* Téléphone en portrait (ticket #53) : visionneuse en haut, carte en bas, moitié-moitié ; le panneau à onglets monte par-dessus la
+   carte (bouton « Onglets » dans la barre sous la carte, refermable). Ni colonne réglable ni repli de la colonne ou de la carte :
+   ils restent déployés. Zones tactiles d'au moins 44 px. L'affichage large et le paysage ne changent pas (disposition.js :
+   PORTRAIT, mêmes conditions). */
+#bouton-onglets { display: none; }
+@media (orientation: portrait) and (max-width: 900px) {
+  main { overflow: hidden; }
+  #vue, #place-vue, aside, html:not(:fullscreen) aside[hidden] { flex: 1 1 0; min-height: 0; }
+  html:not(:fullscreen) aside[hidden] { display: flex; }  /* colonne masquée au grand écran : ici toujours affichée */
+  aside { position: relative; }
+  #poignee-colonne { display: none; }
+  /* Carte : toute la place de la moitié basse, hauteur réglée ignorée ; la carte en grand garde ses gabarits */
+  body:not(.carte-en-grand):not(.fenetre-carte) #carte, body:not(.fenetre-carte) #carte[hidden] { display: block; flex: 1 1 0; height: auto !important; min-height: 0; }
+  #place-carte { flex: 1 1 0; height: auto !important; min-height: 0; }
+  #poignee-carte { height: 44px; box-sizing: border-box; cursor: default; }
+  #replier-carte { display: none; }
+  #bouton-onglets { display: flex; align-items: center; justify-content: center; gap: 0.5rem; width: 100%; height: 100%; padding: 0; border: 0;
+    background: none; color: var(--texte); font-weight: 600; cursor: pointer; }
+  /* Panneau : feuille par-dessus la carte (la visionneuse reste visible en haut), la barre « Onglets » reste dessous pour le refermer */
+  #panneau { display: none; position: fixed; left: 0; right: 0; top: 30vh; bottom: 44px; z-index: 30; background: var(--fond);
+    border-top: 1px solid var(--bord); box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.35); }
+  body.onglets-ouverts #panneau { display: flex; }
+  /* Barre d'outils sur toute la largeur ; captures et plein écran passent dessous, à droite, puis la mention de version (jamais en doublon :
+     carte en grand, elle est sur la carte) : aucun bouton n'en recouvre un autre. La mention reste visible même quand disposition.js la
+     masque (barre sur deux lignes). Le panneau ouvert laisse voir ce haut de la visionneuse (30vh). */
+  /* Taille normale imposée (le réglage « Taille des boutons » est ignoré) : écran étroit, étiquettes et boutons compacts ; les zones
+     tactiles de 44 px sont élargies sans changer le dessin */
+  html { --echelle-ui: 1 !important; }
+  #haut-droite-vue { top: 5.6rem; }
+  #haut-droite-vue.filigrane-masque #filigrane-vue { visibility: visible; }
+  /* Visionneuse : la flèche de navigation arrière de la photo occupe le bas au centre ; le lecteur passe en bas à gauche et la
+     localisation (une seule ligne coupée par « … », infobulle : texte entier) en haut à gauche, sous la barre d'outils et à gauche des
+     captures ; producteur masqué (place comptée) ; texte de 13 px, rien ne se recouvre */
+  .bas-vue { display: contents; }
+  #lecteur { position: absolute; left: 0.8rem; bottom: 0.8rem; z-index: 5; }
+  #lieu { position: absolute; left: 0.8rem; top: 4.6rem; max-width: calc(100% - 9rem); box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+  #producteur-photo { display: none; }
+  /* Carte : recherche et requêteur de route sur une seule ligne (la colonne de boutons reste à gauche), liste de suggestions plus large */
+  body:not(.carte-en-grand):not(.fenetre-carte) .requeteur { top: 10px; right: 10px; width: calc(56% - 10px); }
+  body:not(.carte-en-grand):not(.fenetre-carte) .recherche { right: calc(56% + 4px); width: calc(44% - 64px); }
+  body:not(.carte-en-grand):not(.fenetre-carte) .recherche ul { right: auto; width: calc(100vw - 80px); }
+  .maplibregl-ctrl-top-left .place-mesurer { left: 48px; }  /* à droite de la colonne de boutons, élargie à 44 px */
+  /* Zones tactiles : onglets et boutons de la carte 44 px ; barres de la visionneuse, surface élargie sans changer le dessin */
+  #onglets button { min-height: 44px; }
+  .maplibregl-ctrl-top-left .maplibregl-ctrl-group button { width: calc(44px / var(--echelle-ui, 1)); height: calc(44px / var(--echelle-ui, 1)); }
+  #reglage-image button, #captures-visionneuse button, #lecteur button { position: relative; }
+  #reglage-image button::after, #captures-visionneuse button::after, #lecteur button::after {
+    content: ""; position: absolute; left: -3px; right: -3px; top: calc(50% - 22px / var(--echelle-ui, 1)); bottom: calc(50% - 22px / var(--echelle-ui, 1)); }
+}
+
 /* Réglages par défaut (une fois) : liste des réglages à changer */
 #reglages-defaut { max-width: 34rem; }
 #reglages-defaut ul { margin: 0.4rem 0 0.6rem; padding-left: 1.2rem; }

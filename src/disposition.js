@@ -96,8 +96,25 @@ const Disposition = {
       store.set(heightKey(), "");
       setMapHeight(null);
     });
+    // Téléphone en portrait (ticket #53) : moitié-moitié, hauteur de la carte non réglable ; la poignée porte le bouton « Onglets »,
+    // qui fait monter le panneau par-dessus la carte (mêmes conditions que le bloc « portrait » de style.css)
+    const portrait = window.matchMedia("(orientation: portrait) and (max-width: 900px)");
+    const tabsButton = $("#bouton-onglets");
+    function setTabsOpen(open) {
+      document.body.classList.toggle("onglets-ouverts", open);
+      tabsButton.setAttribute("aria-expanded", String(open));
+      tabsButton.textContent = open ? "▾ Fermer les onglets" : "▴ Onglets";
+      tabsButton.title = open ? "Refermer les onglets" : "Afficher les onglets (mesures, résultats, réglages…)";
+      if (!open) map.resize();
+    }
+    tabsButton.addEventListener("click", () => setTabsOpen(!document.body.classList.contains("onglets-ouverts")));
+    portrait.addEventListener("change", () => {  // rotation : panneau refermé, cartes redessinées à leur nouvelle taille
+      setTabsOpen(false);
+      map.resize();
+      window.dispatchEvent(new Event("resize"));
+    });
     grip.addEventListener("pointerdown", (event) => {
-      if (mapBox.hidden) return;
+      if (mapBox.hidden || portrait.matches) return;
       event.preventDefault();
       const startY = event.clientY, startHeight = mapBox.getBoundingClientRect().height;
       // Limites : 8rem de carte au moins, 6rem de panneau (ou de colonne) au moins

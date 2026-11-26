@@ -558,6 +558,7 @@ import { Visionneuse } from "./visionneuse.js";
     Carte.setActiveSection(parts?.section || "");  // bornes de PR de cette section en couleur, les autres désaturées
     if (text || complete) {
       $("#lieu").innerHTML = placeMarkup(text, parts);
+      $("#lieu").title = text;  // texte entier en infobulle (coupé par « … » sur téléphone en portrait)
       $("#lieu").hidden = !text;
     }
     if (!complete && attempt < PLACE_RETRY.length) {
