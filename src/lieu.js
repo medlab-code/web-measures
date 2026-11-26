@@ -199,6 +199,8 @@ const Lieu = (() => {
   // importante (importance de la BD TOPO, 1 la plus forte), à niveaux différents (pont, tunnel) la plus proche
   const CROSSING = 3;
   const rank = (props) => Number(props.importance) || 9;  // importance absente : après les autres
+  /** Numéro de route de la BD TOPO sans doublon, ordre gardé : « D905/D905 » → « D905 » (numéros différents joints par « / »). */
+  const numeroRoute = (s) => [...new Set(String(s || "").split("/").map((n) => n.trim()).filter(Boolean))].join("/");
   const identity = (props) => props.cpx_numero || props.nom_voie_ban_gauche || props.nom_voie_ban_droite || "";
 
   /** Tronçons de route (praticables en voiture) à moins de CROSSING m du plus proche, lui compris (à REACH m au plus),
@@ -227,7 +229,7 @@ const Lieu = (() => {
       || (near.every((t) => level(t) === level(near[0]))
         ? [...near].sort((a, b) => rank(a.props) - rank(b.props) || a.d - b.d)[0] : near[0]);
     const p = best.props;
-    return { numero: p.cpx_numero || "", nom: p.nom_voie_ban_gauche || p.nom_voie_ban_droite || "" };
+    return { numero: numeroRoute(p.cpx_numero), nom: p.nom_voie_ban_gauche || p.nom_voie_ban_droite || "" };
   }
 
   const PANORAMAX = "https://api.panoramax.xyz/api";
@@ -481,5 +483,5 @@ const Lieu = (() => {
     return out;
   }
 
-  return { describe, inTown, features, junctions, milestone, project, segmentLength, structures };
+  return { describe, inTown, numeroRoute, features, junctions, milestone, project, segmentLength, structures };
 })();

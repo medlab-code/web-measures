@@ -18,6 +18,7 @@ sys.modules["pyodide.http"].pyfetch = None
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "py"))
 
 import web_app  # noqa: E402
+import web_chutes  # noqa: E402
 from core import calibration, host, precision, roads, triangulation  # noqa: E402
 
 HOST = {name: getattr(host, name) for name in host.SERVICES}  # cœur sans hôte : pas de réseau, calcul immédiat
@@ -848,6 +849,42 @@ class ChuteTablier(unittest.TestCase):
         res = self.fall(lambda x: 98.0)
         self.assertIn("max : 2,0 m", res["text"])
         self.assertIn("demi-largeur type", res["title"])
+
+
+class LibelleDuPont(unittest.TestCase):
+    """Libellé du pont et de ce qu'il franchit (App.status, App._crossed) : numéro de route sans doublon, cours d'eau
+    sans nom omis s'il y en a de nommés, énumération « a, b et c »."""
+
+    def test_numero_sans_doublon(self):
+        n = web_chutes._numero
+        self.assertEqual(n("D905/D905"), "D905")
+        self.assertEqual(n("D905/D980"), "D905/D980")
+        self.assertEqual(n("D905"), "D905")
+        self.assertEqual(web_chutes._road_label("D905/D905"), "la D905")
+
+    def test_enumeration(self):
+        e = web_chutes._enumerate
+        self.assertEqual(e(["du canal", "de l'Armançon", "de la Brenne"]), "du canal, de l'Armançon et de la Brenne")
+        self.assertEqual(e(["a", "b"]), "a et b")
+        self.assertEqual(e(["a"]), "a")
+
+    def crossed(self, names):
+        lon, lat = 5.0, 47.0
+        geo = lambda x, y: web_app.triangulation._geographic(x, y, lon, lat)
+        chain = [{"line": [geo(0.0, -30.0), geo(0.0, 30.0)], "level": 1}]
+        rivers = [{"geometry": {"type": "LineString", "coordinates": [list(geo(-20.0, 5.0 * k)), list(geo(20.0, 5.0 * k))]},
+                   "properties": {"cpx_toponyme_de_cours_d_eau": name, "position_par_rapport_au_sol": "0"}}
+                  for k, name in enumerate(names)]
+        calc = App.__new__(App)
+        calc._bdtopo = lambda layer, cell: rivers if layer == "troncon_hydrographique" else []
+        return calc._crossed(chain, [], lon, lat)
+
+    def test_cours_d_eau(self):
+        self.assertEqual(self.crossed(["Canal de Bourgogne", None, "l'Armançon", None]),
+                         "Au-dessus du canal de Bourgogne et de l'Armançon")
+        self.assertEqual(self.crossed([None, None]), "Au-dessus d'un cours d'eau")
+        self.assertEqual(self.crossed(["Canal de Bourgogne", "l'Armançon", "la Brenne", "l'Armançon"]),
+                         "Au-dessus du canal de Bourgogne, de l'Armançon et de la Brenne")
 
 
 class LargeurType(unittest.TestCase):

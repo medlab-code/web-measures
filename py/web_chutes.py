@@ -44,8 +44,22 @@ _STREETS = {"R": "la rue", "AV": "l'avenue", "BD": "le boulevard", "CHE": "le ch
             "QUAI": "le quai", "CRS": "le cours", "PROM": "la promenade", "FG": "le faubourg", "VC": "la voie communale"}
 
 
+def _numero(name):
+    """Numéro de route sans doublon : la BD TOPO répète parfois le numéro (« D905/D905 » → « D905 ») ; des numéros
+    différents (« D905/D980 ») restent joints par « / », dans l'ordre. Un nom sans « / » est rendu tel quel."""
+    return "/".join(dict.fromkeys(part.strip() for part in (name or "").split("/") if part.strip())) or (name or "")
+
+
+def _enumerate(items):
+    """Énumération française : virgules, « et » seulement avant le dernier élément (« du canal, de l'Armançon et de la
+    Brenne »)."""
+    items = list(items)
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " et " + items[-1] if items else ""
+
+
 def _road_label(name):
     """Route franchie, avec son article : « l'A6 », « la D905 », « la rue de Paris », sinon « une route »."""
+    name = _numero(name)
     if re.match(r"[A-Z]+\d", name or ""):
         return ("l'" if name[0] in "AEIOUY" else "la ") + name
     words = (name or "").split()
@@ -279,7 +293,7 @@ class Chutes:
         # Nom du pont (BD TOPO), et sa route : « Pont de France (D905) », sinon « Pont de la D111 »,
         # « Pont de l'A38 » (élision devant une voyelle)
         name = next((c["bridge_name"] for c in chain if c.get("bridge_name")), None) or self._named_bridge(lon, lat)
-        road = next((c["name"] for c in chain if re.match(r"[A-Z]+\d", c.get("name") or "")), None)
+        road = next((_numero(c["name"]) for c in chain if re.match(r"[A-Z]+\d", c.get("name") or "")), None)
         of_road = road and ("Pont de l'" if road[0] in "AEIOUY" else "Pont de la ") + road
         bridge = "{} ({})".format(name, road) if name and road else name or of_road or "Pont"
         over = self._crossed(chain, sections, lon, lat)  # « Au-dessus de l'Armançon », sous le nom
@@ -409,7 +423,8 @@ class Chutes:
     def _crossed(self, chain, sections, lon, lat):
         """Ce que le pont (chain) franchit, d'après la BD TOPO : cours d'eau, sinon voies ferrées et routes
         plus basses, dont la ligne croise la sienne ; « Au-dessus de l'Armançon », « Au-dessus de la voie
-        ferrée et de la D905 », ou None (rien trouvé, ou lecture en cours)."""
+        ferrée et de la D905 », « Au-dessus du canal de Bourgogne, de l'Armançon et de la Brenne » (cours d'eau sans nom omis
+        s'il y en a des nommés, doublons retirés), ou None (rien trouvé, ou lecture en cours)."""
         cell, level = roads._cell(lon, lat), max(c["level"] for c in chain)
         deck = [[triangulation._local(p[0], p[1], lon, lat) for p in c["line"]] for c in chain]
         ends = [p for seg in deck for p in (seg[0], seg[-1])]
@@ -436,11 +451,16 @@ class Chutes:
             except (TypeError, ValueError):
                 return True
 
-        labels = []
+        labels, unnamed = [], False
         for feat in self._bdtopo("troncon_hydrographique", cell) or []:
             if below(feat) and any(crosses(line) for line in lines(feat)):
                 name = (feat.get("properties") or {}).get("cpx_toponyme_de_cours_d_eau")
-                labels.append(_water_label(name) if name else "un cours d'eau")
+                if name:
+                    labels.append(_water_label(name))
+                else:
+                    unnamed = True
+        if unnamed and not labels:  # cours d'eau sans nom : omis dès qu'un cours d'eau nommé est franchi
+            labels.append("un cours d'eau")
         if not labels:  # cours d'eau franchi : lui seul (routes et voies ferrées des berges en plus)
             for feat in self._bdtopo("troncon_de_voie_ferree", cell) or []:
                 if below(feat) and any(crosses(line) for line in lines(feat)):
@@ -448,7 +468,7 @@ class Chutes:
             labels += [_road_label(sec["name"]) for sec in sections
                        if sec["level"] < level and sec not in chain and crosses(sec["line"])]
         labels = list(dict.fromkeys(labels))
-        return "Au-dessus " + " et ".join(_of(x) for x in labels) if labels else None
+        return "Au-dessus " + _enumerate(_of(x) for x in labels) if labels else None
 
     def _bridge_chain(self, sections, first):
         """Tronçons en pont bout à bout avec first : le pont entier."""
@@ -1408,7 +1428,7 @@ class Chutes:
         """Ligne de l'encadré pour un carrefour proche (_junction_near)."""
         where = ("au droit de la photo" if abs(junction["d"]) < 1 else "{} m {}".format(
             measures._num(abs(junction["d"]), 0), "devant" if junction["d"] > 0 else "derrière"))
-        names = " et ".join(_road_label(n) for n in junction["avec"]) or "une autre voie"
+        names = _enumerate(_road_label(n) for n in junction["avec"]) or "une autre voie"
         return "Carrefour avec {} {} : bords peu sûrs (la chaussée s'y élargit, pas de bord continu)".format(names, where)
 
     def _long_profile(self, pts, ends, along_of, followed):

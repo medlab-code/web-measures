@@ -501,6 +501,7 @@ const Carte = (() => {
   function cartoucheImage(spec) {
     const [european, numbers] = spec.split("|");
     const parts = [european, numbers].flatMap((list) => list.split("/").map((n) => n.replace(/\s+/g, "")).filter(Boolean))
+      .filter((n, i, all) => all.indexOf(n) === i)  // BD TOPO : numéro parfois en double (« D905/D905 »)
       .map((n) => /^([A-Z])(\d+)([A-Z]*)$/.exec(n) || [n, n, "", ""]);
     const scale = 2, height = 17 * scale, gap = 3 * scale, pad = 4 * scale, squeeze = 0.86;  // caractères resserrés
     const bold = `700 ${12 * scale}px Inter, sans-serif`, italic = `italic 700 ${12 * scale}px Inter, sans-serif`;
