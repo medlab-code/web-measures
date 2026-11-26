@@ -80,8 +80,8 @@ rubrique « Précision ».
 
 ## Version
 
-**0.7.9** (14/11/2026) : version mobile de consultation (`mobile.html`, téléphones redirigés), Plan IGN
-vectoriel sur mobile, OpenFreeMap à la place d'OpenStreetMap France. Détail et versions précédentes : [docs/VERSIONS.md](docs/VERSIONS.md).
+**0.7.9** (14/11/2026) : version mobile de consultation (retirée depuis), Plan IGN
+vectoriel, OpenFreeMap à la place d'OpenStreetMap France. Détail et versions précédentes : [docs/VERSIONS.md](docs/VERSIONS.md).
 
 ## Licence
 

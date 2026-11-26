@@ -27,12 +27,6 @@
   <!-- Visionneuse officielle Panoramax : paquet autonome au format CommonJS, dont la dernière
        ligne écrit dans `exports` -->
   <script>window.exports = {};</script>
-  <script>  /* téléphone (écran tactile, moins de 768 px de côté) : version mobile, sauf « Version complète » choisie */
-    try {
-      if (localStorage.getItem("web-measures/version") !== "complete" && matchMedia("(pointer: coarse)").matches
-        && Math.min(screen.width, screen.height) < 768) location.replace("mobile.html");
-    } catch { /* sans stockage : page principale */ }
-  </script>
   <script>  /* thème choisi (Réglages), posé avant l'affichage : pas d'éclair clair en mode nuit */
     try {
       const t = localStorage.getItem("web-measures/theme");
@@ -1034,10 +1028,6 @@ enregistrée en PNG et copiée dans le presse-papiers">
             </label>
             </div>
           </div>
-          <!-- Retour vers mobile.html : choix « Version complète » oublié -->
-          <p><a href="mobile.html"
-              onclick="try { localStorage.removeItem('web-measures/version'); }
-                catch {}">Version mobile (consultation sur téléphone)</a></p>
         </section>
         <section id="reseau" hidden>
           <!-- Bilan des services vérifiés depuis ce navigateur (proxy et pare-feu du poste compris) -->

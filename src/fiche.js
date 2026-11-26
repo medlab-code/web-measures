@@ -844,7 +844,7 @@ ${qrSvg ? `<div class="qr" title="Photo dans Panoramax">${qrSvg}</div>` : ""}</f
     return canvas;
   }
 
-  const drawCartouches = Vignette.cartouches;  // src/vignette.js, partagé avec la page mobile
+  const drawCartouches = Vignette.cartouches;  // src/vignette.js
 
   /** Police Inter chargée, pour le texte dessiné dans les captures (sinon police de repli). */
   function fontReady() {

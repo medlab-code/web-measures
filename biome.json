@@ -1,6 +1,6 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.6.7/schema.json",
-  "files": { "includes": ["src/**", "tests/**", "index.html", "mobile.html"] },
+  "files": { "includes": ["src/**", "tests/**", "index.html"] },
   "formatter": { "enabled": false },
   "assist": { "enabled": false },
   "linter": {

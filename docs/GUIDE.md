@@ -12,13 +12,6 @@ courte : [README](../README.md) ; calculs : [CALCULS.md](CALCULS.md) ; vue Bird 
 *Releases* du dépôt) et la décompresser ; seuls `index.html`, `src/` et `py/` servent à la page
 (`tests/`, `tools/` et `docs/` peuvent être ignorés).
 
-**Sur téléphone** : `mobile.html`, version de consultation (sans le calcul ni les mesures) : photo en
-haut, carte en bas, partage réglé par la poignée entre les deux ; recherche de lieux et requêteur route +
-PR au-dessus ; Plan IGN et OpenStreetMap en tuiles vectorielles (texte net, agrandi de 30 %) ; bouton ⚙ des réglages : fond de carte (1. Orthophoto + (par défaut) ; 2. Plan IGN ; 3. Orthophoto ; 4. Ortho-express (année de la photo) ; 5. LiDAR MNT ; 6. LiDAR MNS ; 7. LiDAR MNH ; 8. OpenFreeMap), filaire Panoramax, bornes des PR, cadastre (parcelle visée en vert, son
-étiquette dans la photo, caméra supposée à 1,90 m au-dessus d'un sol de niveau), filtre des photos (instance,
-producteur, date de début ; mêmes réglages que la page principale), lien « version complète » dans les réglages ; bouton appareil photo : capture de la vue avec l'étiquette et les
-cartouches, partagée par le téléphone (sinon téléchargée).
-
 **Ouvrir la page** : l'adresse du site publié, dans Edge, Chrome ou Firefox (sans installation) ; une
 connexion à internet est nécessaire (bibliothèques, Pyodide et services). La page ne s'ouvre pas par
 double-clic sur `index.html` : elle est servie par un serveur web, par exemple en local :

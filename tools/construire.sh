@@ -27,7 +27,7 @@ if [ "$branch" = birdeye ]; then
 fi
 # Version dans l'adresse des fichiers : après une mise en ligne, un visiteur ne mêle pas d'anciens fichiers (cache) aux nouveaux.
 # Balise version-fichiers (lue par src/calcul.js pour les .py et le worker) et ?v= sur les <script src="src/…"> et <link href="src/…"> ;
-# les adresses des CDN et mobile.html (figée) ne changent pas. Sans git : rien (les fichiers restent sans ?v=).
+# les adresses des CDN ne changent pas. Sans git : rien (les fichiers restent sans ?v=).
 version=$(git rev-parse --short HEAD 2>/dev/null || true)
 if [ -n "$version" ]; then
   sed -i -e "s|<meta name=\"version-fichiers\" content=\"\">|<meta name=\"version-fichiers\" content=\"$version\">|" \

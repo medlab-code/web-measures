@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Cédric COCHART
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Cartouches des captures de la visionneuse (attribution, localisation), communs à index.html et mobile.html.
+// Cartouches des captures de la visionneuse (attribution, localisation).
 const Vignette = (() => {
   /** Cartouches d'une capture : attribution en bas à droite, localisation en bas à gauche,
    * ou au-dessus de l'attribution si elles ne tiennent pas côte à côte. */

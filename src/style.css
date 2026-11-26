@@ -335,8 +335,8 @@ body:not(.carte-en-grand):not(.fenetre-carte) .maplibregl-ctrl-top-left .etiquet
   -webkit-mask: center / 100% 100% no-repeat url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 11v6M12 7h.01'/></svg>");
   mask: center / 100% 100% no-repeat url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 11v6M12 7h.01'/></svg>"); }
 .maplibregl-ctrl-attrib .maplibregl-ctrl-attrib-button:hover { background: rgba(255, 255, 255, 0.2); }
-/* page principale : bouton du fond de plan en carte pliée (l'ancienne icône de l'export GeoTIFF) ; le site mobile garde le « i » */
-body:not(.mobile) .maplibregl-ctrl-attrib .maplibregl-ctrl-attrib-button::before {
+/* page principale : bouton du fond de plan en carte pliée (l'ancienne icône de l'export GeoTIFF) */
+.maplibregl-ctrl-attrib .maplibregl-ctrl-attrib-button::before {
   -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z'/><path d='M9 4v14M15 6v14'/></svg>");
   mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z'/><path d='M9 4v14M15 6v14'/></svg>"); }
 

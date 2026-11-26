@@ -442,7 +442,7 @@ laissé de côté.*
   milliseconde.
 - Pentes du profil en long manquantes après `_bridged` : les distances restent sur la grille de 2 m, les fenêtres de 10 m existent.
 - Médiane basse des bords : voulue (« le bord le plus proche »).
-- Texte trop petit : seulement en fenêtre étroite (la fenêtre va jusqu'à 52rem) ; la version mobile est figée.
+- Texte trop petit : seulement en fenêtre étroite (la fenêtre va jusqu'à 52rem) .
 
 ### Ordre proposé
 

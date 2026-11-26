@@ -32,7 +32,7 @@ const Carte = (() => {
   // (OpenFreeMap : Noto Sans remplacée par Source Sans Pro) ; pictogrammes de chaque style préfixés de sa clé.
   const GLYPHS = "https://data.geopf.fr/annexes/ressources/vectorTiles/fonts/{fontstack}/{range}.pbf";
   const VECTOR_BASES = {
-    // Plan IGN vectoriel (page mobile, à la place des images du Plan IGN)
+    // Plan IGN vectoriel (à la place des images du Plan IGN)
     planv: { style: "https://data.geopf.fr/annexes/ressources/vectorTiles/styles/PLAN.IGN/standard.json", maxzoom: 18,
       attribution: ATTRIBUTION_IGN },
     // OpenStreetMap par OpenFreeMap (gratuit, sans clé, en-têtes CORS)
@@ -125,7 +125,7 @@ const Carte = (() => {
   const kind = (...kinds) => ["in", ["get", "kind"], ["literal", kinds]];
 
   /** Options : vectorPlan, Plan IGN vectoriel au lieu de ses images (les deux pages) ; textScale, texte des fonds
-   * vectoriels agrandi (page mobile, lisible au doigt). */
+   * vectoriels agrandi. */
   let mapOptions = { vectorPlan: false, textScale: 1 };
   // cadastre du Plan IGN vectoriel, jamais dessiné (celui du réglage « Cadastre » suffit) : parcelles, sections et leurs
   // numéros ; numéros d'adresse gardés
@@ -422,7 +422,7 @@ const Carte = (() => {
   }
 
   /** Carte MapLibre dans container ; center, zoom : vue de départ (par défaut la Côte-d'Or) ; rotation : faux pour une carte toujours orientée
-   * nord en haut (ni glisser du clic droit, ni deux doigts, ni clavier, ni boussole : l'application principale ; le site mobile garde la rotation). */
+   * nord en haut (ni glisser du clic droit, ni deux doigts, ni clavier, ni boussole : l'application principale ). */
   function createMap(container, { vectorPlan = false, textScale = 1, center = [5.04, 47.32], zoom = 9, rotation = true } = {}) {
     mapOptions = { vectorPlan, textScale };
     const map = new maplibregl.Map({
@@ -450,7 +450,7 @@ const Carte = (() => {
       map.keyboard.disableRotation();
     }
     // Pas de boutons de zoom (+/−) : la molette et le pincement suffisent (la page principale) ; le groupe reste, vide, et reçoit les
-    // boutons ajoutés par les autres fichiers (échange, détacher, filaire, Bird Eye). Le site mobile garde les boutons.
+    // boutons ajoutés par les autres fichiers (échange, détacher, filaire, Bird Eye).
     map.addControl(new maplibregl.NavigationControl({ showZoom: rotation, showCompass: rotation }), "top-left");
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
     // Attributions repliées derrière le bouton ⓘ (et le choix du fond qui s'y trouve) : MapLibre les déplie
