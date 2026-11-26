@@ -100,10 +100,11 @@ input.interrupteur:disabled { opacity: 0.45; cursor: default; }
 #dessus-reglages .corps { display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem; margin-top: 0.45rem; }
 #dessus-reglages.replie .corps { display: none; }
 #dessus-reglages label { display: flex; align-items: center; gap: 0.45em; }
-#dessus-reglages .devers { flex-wrap: wrap; }  /* sens du roulis en clair (« penché à droite ») : passe à la ligne plutôt que de déborder */
-#dessus-reglages .devers input { width: 7em; }
-#dessus-reglages .devers output { min-width: 3.2em; font-variant-numeric: tabular-nums; }
-/* contrôles au style de la barre de la visionneuse : boutons transparents (survol clair), réglettes fines, accent jaune */
+/* réglettes Roulis et Tangage : grille commune (libellé, réglette, valeur), début et fin alignés quelle que soit la valeur ;
+   « (penché à droite) » passe sous le degré dans sa colonne */
+#dessus-reglages .devers:not(.part-devers) { display: grid; grid-template-columns: 4.2em minmax(0, 1fr) 6.2em; align-self: stretch; }
+#dessus-reglages .devers input { width: 100%; min-width: 0; }
+#dessus-reglages .devers output { font-variant-numeric: tabular-nums; white-space: pre-line; }
 #dessus-reglages button { border: 0; border-radius: 6px; background: none; color: #fff; font: inherit; padding: 0.15em 0.55em; transition: background 0.2s; }
 #dessus-reglages button:not(:disabled) { cursor: pointer; }
 #dessus-reglages button:not(:disabled):hover { background: rgba(255, 255, 255, 0.2); }

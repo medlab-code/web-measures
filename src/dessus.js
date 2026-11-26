@@ -1594,7 +1594,7 @@ const Dessus = (() => {
   // ROLL_SHARE : part du dévers prise en roulis (70 %, fixe depuis le 26/11/2026 : le réglage est un roulis ajouté, en degrés,
   // comme le tangage ; 0° donne exactement l'ancien réglage par défaut). Réglage de la séquence : clé « rollDeg » (l'ancienne
   // clé « roll », en part du dévers, est ignorée).
-  const ROLL_SHARE = 0.7, DEFAULT_ROLL = 0, DEFAULT_PITCH = 0, SETTINGS_KEY = "web-measures/dessus-reglages";
+  const ROLL_SHARE = 0.7, ROLL_PITCH_LIMIT = 2.5, DEFAULT_ROLL = 0, DEFAULT_PITCH = 0, SETTINGS_KEY = "web-measures/dessus-reglages";
   // pitchManual : tangage réglé à la main en usage (manualPitch : sa valeur, retenue par séquence) ; il ne sert qu'en dernier,
   // faute de tangage lu (autoPitch), sauf « Forcer le réglage à la main » (pitchForced, demande de l'auteur, 13/11/2026)
   let rollOffset = DEFAULT_ROLL, pitchOffset = DEFAULT_PITCH, pitchManual = false, manualPitch, pitchForced = false;
@@ -1652,8 +1652,9 @@ const Dessus = (() => {
    * sinon 0), curseurs compris. */
   function applySettings(sequence, pic) {
     const kept = readSettings()[sequence], auto = autoPitch(sequence, pic);
-    rollOffset = kept?.rollDeg ?? DEFAULT_ROLL;
-    manualPitch = kept?.pitch;
+    const inLimits = (v) => v === undefined ? v : Math.max(-ROLL_PITCH_LIMIT, Math.min(ROLL_PITCH_LIMIT, v));  // retenu avec d'anciennes bornes
+    rollOffset = inLimits(kept?.rollDeg) ?? DEFAULT_ROLL;
+    manualPitch = inLimits(kept?.pitch);
     pitchForced = Boolean(kept?.forced);
     pitchManual = manualPitch !== undefined && (pitchForced || !auto);
     pitchOffset = pitchManual ? manualPitch : auto ? auto.pitch : DEFAULT_PITCH;
@@ -1664,9 +1665,10 @@ const Dessus = (() => {
   /** Roulis en clair : valeur signée et côté où penche le véhicule (positif : à droite, négatif : à gauche). */
   const signedDeg = (v) => `${v > 0 ? "+" : ""}${number(v, 2)}°`;  // degrés signés, sans le côté
   const rollText = (v) => `${v > 0 ? "+" : ""}${number(v, 2)}°${v ? ` (penché à ${v > 0 ? "droite" : "gauche"})` : ""}`;
+  const rollShown = (v) => rollText(v).replace(" (", "\n(");  // le sens passe sous le degré, dans la colonne de la valeur
   const showRoll = () => {
     $("#dessus-devers").value = rollOffset;
-    $("#dessus-devers-valeur").textContent = rollText(rollOffset);
+    $("#dessus-devers-valeur").textContent = rollShown(rollOffset);
   };
   /** Part du dévers retenue en roulis (ROLL_SHARE du dévers mesuré sous la caméra), en degrés signés, affichée au-dessus de la réglette ;
    * « — » sans terrain LiDAR HD (pas de dévers) ou terrain pas encore arrivé. layer : couche de la photo affichée. */
@@ -1678,7 +1680,7 @@ const Dessus = (() => {
   const showPitch = () => {
     $("#dessus-tangage-force").checked = pitchForced;
     $("#dessus-tangage").value = pitchOffset;
-    $("#dessus-tangage-valeur").textContent = `${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°`;
+    $("#dessus-tangage-valeur").textContent = `${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 2)}°`;
   };
 
   // Tangage lu sur les raccords : une erreur de tangage de la photo affichée y paraît comme une échelle de signe opposé devant
@@ -1923,7 +1925,7 @@ const Dessus = (() => {
       hover = [event.lngLat.lng, event.lngLat.lat];
       if (measuringOn && trace.length) drawTrace();
     });
-    const pitch = $("#dessus-tangage"), degrees = (v) => `${v > 0 ? "+" : ""}${number(Number(v), 1)}°`;
+    const pitch = $("#dessus-tangage"), degrees = (v) => `${v > 0 ? "+" : ""}${number(Number(v), 2)}°`;
     pitch.addEventListener("input", () => { $("#dessus-tangage-valeur").textContent = degrees(pitch.value); });
     pitch.addEventListener("change", () => {  // grisé tant qu'un tangage lu prime (voir showImage)
       manualPitch = Number(pitch.value);
@@ -1939,14 +1941,34 @@ const Dessus = (() => {
       redo("Tangage…");
     });
     const share = $("#dessus-devers");
-    share.addEventListener("input", () => { $("#dessus-devers-valeur").textContent = rollText(Number(share.value)); });
+    // Molette sur une réglette : un cran = un pas (step), vers le haut = plus ; la vue se refait comme au lâcher d'un glissement
+    // (« change »), une fois la molette arrêtée pour ne pas recalculer à chaque cran. Pavés tactiles : petits deltaY cumulés
+    // jusqu'à un cran (100 px, ou 1 ligne) ; réglette grisée : sans effet.
+    for (const slider of [pitch, share]) {
+      let sum = 0, timer;
+      slider.addEventListener("wheel", (event) => {
+        event.preventDefault();  // ni la page ni le panneau ne défilent
+        if (slider.disabled) return;
+        sum += event.deltaY * (event.deltaMode === 1 ? 100 : event.deltaMode === 2 ? 800 : 1);  // lignes, pages, pixels
+        const clicks = Math.trunc(-sum / 100);
+        if (!clicks) return;
+        sum += clicks * 100;
+        const step = Number(slider.step) || 0.05, digits = 4;
+        const value = Number(slider.value) + clicks * step, min = Number(slider.min), max = Number(slider.max);
+        slider.value = Math.max(min, Math.min(max, Number(value.toFixed(digits))));
+        slider.dispatchEvent(new Event("input"));
+        clearTimeout(timer);
+        timer = setTimeout(() => slider.dispatchEvent(new Event("change")), 250);
+      }, { passive: false });
+    }
+    share.addEventListener("input", () => { $("#dessus-devers-valeur").textContent = rollShown(Number(share.value)); });
     share.addEventListener("dblclick", () => {  // retour au réglage par défaut (0°)
       share.value = DEFAULT_ROLL;
       share.dispatchEvent(new Event("change"));
     });
     share.addEventListener("change", () => {  // au lâcher : une image par réglage
       rollOffset = Number(share.value);
-      $("#dessus-devers-valeur").textContent = rollText(rollOffset);
+      $("#dessus-devers-valeur").textContent = rollShown(rollOffset);
       keepSettings();
       redo("Roulis…");
     });
