@@ -249,13 +249,14 @@ enregistrée en PNG et copiée dans le presse-papiers">
               title="Masquer la carte et le panneau">▸</button>
     </div>
     <aside id="colonne">
-      <div id="carte"><span id="filigrane-carte" class="filigrane" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version expérimentale 0.7.9</span><div id="dessus-etat" role="status"></div><button id="dessus-etat-replier" type="button" aria-controls="dessus-etat" aria-expanded="true" aria-label="Informations Bird Eye"
-          title="Informations Bird Eye : masquer (elles cachent le bas de la vue)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g transform="rotate(45 12 12) translate(12 12) scale(1.12) translate(-12 -12)"><path fill="currentColor" stroke-width="1" d="M12 4c.6.6 1.3 1.4 1.3 2.2V9c3-1 6-.5 8.7 1.5-3 .3-5.8 1.2-8.7 2.7V16l2 3.5H8.7l2-3.5v-2.8C7.8 11.7 5 10.8 2 10.5 4.7 8.5 7.7 8 10.7 9V6.2c0-.8.7-1.6 1.3-2.2z"/></g></svg></button>
+      <div id="carte"><span id="filigrane-carte" class="filigrane" title="Preuve de concept (POC) développée à titre personnel : ce n'est pas un outil officiel du Département ni de l'IGN. Les mesures restent à vérifier.">Version expérimentale 0.7.9</span><div id="dessus-etat" role="status"></div>
         <!-- Réglages d'essai de la vue du dessus (src/dessus.js), sur la carte en grand ou détachée -->
         <section id="dessus-reglages" hidden aria-label="Réglages de la vue Bird Eye">
           <div class="titre"><span>Bird Eye · essai</span><button id="dessus-replier" type="button" aria-expanded="true"
               title="Replier les réglages">▴</button></div>
           <div class="corps">
+            <label title="Affiche ou masque l'étiquette d'informations Bird Eye, en bas de la vue (elle en cache le bas). Choix retenu dans ce navigateur.">
+              <input type="checkbox" id="dessus-infos" class="interrupteur" checked> Afficher les informations</label>
             <label title="Image de 4 096 px pour 30 m (0,7 cm par pixel) au lieu de 2 048 (1,5 cm) : plus de détail en zoomant, image plus longue à faire (quelques secondes de plus)">
               <input type="checkbox" id="dessus-fine" class="interrupteur" disabled> Haute résolution</label>
             <label title="Inclinaison de la photo calée sur ses verticales (façades, poteaux), quand elle en a. Coché d'office en zone d'habitation (bourg, village, hameau), décoché ailleurs (vue meilleure ainsi dans les essais), modifiable pour la photo. Décoché : inclinaison tirée de la route (terrain LiDAR HD), comme sans verticales, et réglable à la main par « Roulis » et « Tangage ». Grisé sans verticales lues ou sans terrain LiDAR HD.">
