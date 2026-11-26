@@ -416,9 +416,9 @@ après.
   hauteur et largeur ; ticket #31) :
   sur une photo hors pont, à moins de 15 m d'une route de la BD TOPO (orientée comme la route parcourue, à 45°
   près : à un carrefour, pas la voie qui croise), un appui sur « Profil en travers »
-  calcule (une étiquette « Bords de route : calcul en cours… » s'affiche en haut à gauche de la visionneuse pendant le calcul et
-  disparaît dès que le graphique est tracé ; elle ne reste affichée que pour dire pourquoi le calcul n'a pas abouti : service
-  injoignable, pas de route à moins de 15 m…) puis trace le profil en travers, qui donne pour chaque côté (vu dans le sens de la photo)
+  calcule (une animation d'attente « Profil en travers… » s'affiche au centre de la visionneuse pendant le calcul et
+  laisse place au graphique ; l'étiquette en haut à gauche ne s'affiche que pour dire pourquoi le calcul n'a pas abouti : service
+  injoignable, pas de route à moins de 15 m… ; l'animation montre alors une croix rouge) puis trace le profil en travers, qui donne pour chaque côté (vu dans le sens de la photo)
   qui descend d'au moins 0,5 m la hauteur de chute et le dévers du bord. La réglette « Jusqu'à » de la fenêtre du profil (en haut à droite, avant la croix de fermeture ; grisée pendant le calcul) fixe la
   distance examinée de part et d'autre du milieu de la chaussée (5 à 30 m par pas de 5 m, flèches du clavier comprises, 10 m par défaut ; 1 m au moins au-delà
   de chaque bord) : chute, dévers et graphique s'arrêtent là ; la changer, fenêtre ouverte, refait aussitôt le calcul
@@ -473,7 +473,7 @@ après.
     enrochement) » avec sa hauteur, sans pourcentage (le MNT adoucit les murs : le chiffre ne
     serait pas une mesure).
 
-  Sinon s'affichent « Calcul en cours… », « Aucun bord ne descend de 0,5 m ou plus », « Pas de
+  Sinon s'affichent « Aucun bord ne descend de 0,5 m ou plus », « Pas de
   route de la BD TOPO à moins de 15 m » ou « Calcul impossible » avec sa cause.
 
   - **pente en long** : terrain (même modèle) lu tous les 2 m sur ±50 m autour de la photo, le long de la

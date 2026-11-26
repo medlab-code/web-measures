@@ -853,7 +853,9 @@
     const fall = playing() ? null : JSON.parse(etat.app.fall_json());
     const [bridge, ...rest] = (fall?.text || "").split("\n");
     // Bords de route : l'étiquette ne sert qu'à l'attente du calcul et à ses échecs ; le graphique du profil (fall.profile) porte le résultat
-    Object.assign($("#chute"), { hidden: !fall || Boolean(fall.edges && fall.profile), title: fall?.title || "" });
+    // et, tant que le calcul est en cours, l'attente au centre de la visionneuse (Attente, src/reglages.js) remplace son texte « Calcul en cours… »
+    const edgesWaiting = Boolean(fall?.edges && !fall.profile && /Calcul en cours…\s*$/.test(fall.text));
+    Object.assign($("#chute"), { hidden: !fall || Boolean(fall.edges && fall.profile) || edgesWaiting, title: fall?.title || "" });
     etat.edgeProfile = fall?.profile ? fall : null;
     etat.fallNow = fall;
     if (fall?.lidar) readBridgeFall(fall.lidar);

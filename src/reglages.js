@@ -199,6 +199,21 @@ const Reglages = {
     // Une seule fonction à la fois parmi hauteur, profil en travers et largeur : « outil-visionneuse » annonce celle qui démarre.
     const profileButton = $("#profil-visionneuse"), profileDialog = $("#fenetre-profil");
     let waiting = null, profileCan = false;  // waiting : identifiant de la photo dont le calcul est attendu
+    // Attente au centre de la visionneuse (Attente) pendant le calcul : icône du bouton ; l'étiquette #chute n'affiche plus « Calcul en cours… »
+    let waitingAnimation = null;
+    function startWaiting(id) {
+      stopWaiting("fin");
+      waiting = id;
+      waitingAnimation = Attente.start($("#vue"), { icone: profileButton.querySelector("svg")?.outerHTML, message: "Profil en travers…" });
+    }
+    /** Fin de l'attente : « ok » (profil rendu), « fin » (abandon, photo changée), ou le texte de l'échec. */
+    function stopWaiting(issue) {
+      waiting = null;
+      if (issue === "ok") waitingAnimation?.ok();
+      else if (issue === "fin") waitingAnimation?.fin();
+      else waitingAnimation?.echec(issue);
+      waitingAnimation = null;
+    }
     function showProfileButton() {
       const on = waiting !== null || profileDialog.open;
       profileButton.setAttribute("aria-pressed", String(on));
@@ -213,23 +228,26 @@ const Reglages = {
       const ready = etat.app?.edges_ready();
       profileCan = Boolean(etat.photo) && !reading && !(fall && !fall.edges) && Boolean(ready || etat.edgeProfile);
       if (waiting !== null) {
-        if (etat.photo?.id !== waiting || reading) waiting = null;
+        if (etat.photo?.id !== waiting || reading) stopWaiting("fin");
         else if (etat.edgeProfile && !ready) {
-          waiting = null;
+          stopWaiting("ok");
           if (profileDialog.open) drawProfile();  // distance changée fenêtre ouverte : coupe redessinée
           else openProfile();
-        } else if (fall?.edges && !fall.profile && !/en cours/.test(fall.text || "")) waiting = null;  // calcul sans résultat : raison dans le texte de la chute
+        } else if (fall?.edges && !fall.profile && !/en cours/.test(fall.text || "")) {
+          // calcul sans résultat : raison dans le texte de la chute (étiquette #chute) et dans la croix de l'attente
+          stopWaiting((fall.text || "").split("\n").slice(1).join(" ") || "Profil impossible");
+        }
       }
       showProfileButton();
     }
     profileButton.addEventListener("click", () => {
       if (waiting !== null) {  // calcul en attente : abandonné
-        waiting = null;
+        stopWaiting("fin");
         return showProfileButton();
       }
       if (!etat.app || !etat.photo) return;
       document.dispatchEvent(new CustomEvent("outil-visionneuse", { detail: "profil" }));
-      waiting = etat.photo.id;
+      startWaiting(etat.photo.id);
       if (etat.app.edges_ready()) {
         etat.app.request_edges();
         refresh();
@@ -238,7 +256,7 @@ const Reglages = {
     });
     document.addEventListener("outil-visionneuse", (event) => {
       if (event.detail === "profil") return;
-      waiting = null;
+      stopWaiting("fin");
       if (profileDialog.open) profileDialog.close();
       showProfileButton();
     });
@@ -249,7 +267,7 @@ const Reglages = {
     // Réglette de la fenêtre : distance changée fenêtre ouverte, calcul refait pour cette photo (fermée : au prochain appui du bouton)
     $("#bords-largeur").addEventListener("change", () => {
       if (!profileDialog.open || !etat.app || !etat.photo || !etat.app.edges_ready()) return;
-      waiting = etat.photo.id;
+      startWaiting(etat.photo.id);
       etat.app.request_edges();
       refresh();
       showProfileButton();
