@@ -59,7 +59,7 @@ autoroutes et nationales paraissent dès le zoom 7, les départementales dès le
 autres voies dès le zoom 15. Les points de repère sont dessinés en bornes (tête à la couleur
 du réseau, numéro du PR), à côté de la voie, sur tous les fonds, ou sur aucun selon « Bornes des PR sur la carte »
 (Réglages, Affichage). Le filaire Panoramax, semi-transparent, se
-masque par le bouton « filaire » de l'étiquette verticale de la carte (au-dessous du zoom ; enfoncé : visible ; choix mémorisé).
+masque par le bouton « filaire » de l'étiquette verticale de la carte (sous le bouton Bird Eye ; enfoncé : visible ; choix mémorisé).
 La carte reste toujours orientée nord en haut : plus de rotation (ni clic droit glissé, ni deux doigts, ni clavier), plus de boussole dans la colonne de boutons de la carte ni d'inclinaison. Sur la carte, le clic droit sert au geste de rotation de la droite de ↔ (voir « Largeur dans la visionneuse »).
 
 **Choisir une photo** : cliquer sur le filaire orange de la carte (photo la plus proche) ; la
@@ -843,7 +843,7 @@ fichiers voisins : scripts ordinaires, et fichiers Python regroupés dans `py/so
 
 ### Mesure sur la carte : longueur et surface (essai, branche `birdeye`)
 
-« Bird Eye » (vue du dessus, allumée par le bouton faucon de la carte : dans l'étiquette verticale du zoom quand la carte est à sa place, à droite de « Mesurer sur la carte » quand elle est en grand ou détachée)
+« Bird Eye » (vue du dessus, allumée par le bouton faucon de la carte : au sommet de l'étiquette verticale (sans bouton de capture) quand la carte est à sa place, à droite de « Mesurer sur la carte » quand elle est en grand ou détachée)
 reprojette le sol de la photo sur la mini-carte, pour la photo affichée seulement (une autre photo l'éteint : rien
 n'est calculé sans le demander) ; ses réglages
 d'essai sont dans un panneau repliable sur la carte en grand ou détachée ; « Haute résolution » double la finesse de l'image

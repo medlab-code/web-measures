@@ -249,7 +249,7 @@ const Resultats = {
       if (!userSwap) measureSwap = false;  // remis en place à la main, même pendant la mesure
       wantSwap();
     });
-    // Colonne de la carte en une seule étiquette : le bouton rejoint le groupe de zoom de MapLibre (créé avant, par Carte.createMap) ;
+    // Colonne de la carte en une seule étiquette : le bouton rejoint le groupe de MapLibre (sans boutons de zoom) (créé avant, par Carte.createMap) ;
     // le contrôle ajouté ne garde qu'un conteneur vide
     map.addControl({
       onAdd: () => {
@@ -414,17 +414,17 @@ const Resultats = {
 
     /** Bouton de la carte en grand : enfoncé pendant la mesure, grisé sans photo 360° (pas de vue du dessus). */
     function showMapMeasureButton() {
-      // Faucon : carte à sa place (à droite), dans l'étiquette verticale avec le zoom ; carte en grand (à gauche) ou détachée, dans la
+      // Faucon : carte à sa place (à droite), au sommet de l'étiquette verticale (sans capture) ; carte en grand (à gauche) ou détachée, dans la
       // rangée de la mesure, entre l'outil et la capture, comme avant. Il change de place à chaque échange des vues.
       const column = map.getContainer().querySelector(".maplibregl-ctrl-top-left .maplibregl-ctrl-group");
       if (etat.swapped || etat.mapWindow) {
         if (captureButton.parentNode !== placeBar) placeBar.insertBefore(captureButton, exportButton);
         if (birdeyeButton.parentNode !== placeBar) placeBar.insertBefore(birdeyeButton, captureButton);
       } else if (column) {
-        if (birdeyeButton.parentNode !== column) column.append(birdeyeButton);
-        if (captureButton.parentNode !== column) column.append(captureButton);  // carte à sa place : capture dans la colonne, sous le faucon
+        if (birdeyeButton.parentNode !== column || column.firstChild !== birdeyeButton) column.prepend(birdeyeButton);  // au sommet de la pile
+        if (captureButton.parentNode === column) captureButton.remove();  // carte réduite : pas de capture (sans intérêt à cette taille)
       }
-      captureButton.hidden = !(etat.swapped || etat.mapWindow) && !column;
+      captureButton.hidden = !(etat.swapped || etat.mapWindow);
       for (const button of undoButtons) button.hidden = !(etat.swapped || etat.mapWindow);  // carte à sa place : la barre de la visionneuse les a
       birdeyeButton.hidden = !(etat.swapped || etat.mapWindow) && !column;
       const on = etat.measuring && $("#mode").value === "carte";
