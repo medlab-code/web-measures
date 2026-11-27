@@ -389,6 +389,23 @@ Colonne « Origine » : *mesure* (relevé ou essai daté), *réglage empirique*,
 | `GRID_ALONG` (`web_terrain.py:27`) | −2,5 à +2,5 par 0,5 | m | Points en long de la grille où le LiDAR est lu pour le plan de la route (avec `GRID_ACROSS`) | réglage empirique (ajusté sur ±2,5 m en long et ±1,5 m en travers, comme `groundSlopes`) | Plus étendue : plan moins local, pente moyennée sur plus de route |
 | `GRID_ACROSS` (`web_terrain.py:28`) | −1,5 ; −0,8 ; 0 ; 0,8 ; 1,5 | m | Idem, en travers | idem | Idem |
 | `LIDAR_ALONG`, `LIDAR_ACROSS` (`core/calibration.py:55`) | 1,5 ; 0,8 | m | Grille du plan de route sous les roues pour le roulis par défaut (dévers du LiDAR HD) | mesure (Pouilly-en-Auxois, 18 photos : 0,4° en long et 0,5° en travers contre les verticales) ; la grille atténue l'arrondi au centimètre du service | Plus large : roulis moyenné sur plus de chaussée ; plus étroite : arrondi du service moins atténué |
+| `RELIEF_ALONG`, `RELIEF_ACROSS` (`dessus.js`, `diagnoseRelief`) | 12 ; 3 | m | Zone utile du diagnostic du relief : chaussée devant la caméra (en long dans le sens du cap, ± en travers) | choix de conception (#67) ; provisoire, à caler | Plus grand : plan moyenné sur plus de terrain |
+| `RELIEF_MIN_VALID` (`dessus.js`) | 0,9 | part | En deçà, « grille partielle » (points reçus / points demandés) | provisoire, à caler | Plus grand : alerte plus souvent |
+| `RELIEF_MAX_RMS` (`dessus.js`) | 0,10 | m | Au-delà, « relief irrégulier » (écart quadratique au plan de la zone utile) | provisoire, à caler | Plus petit : alerte plus souvent |
+| `RELIEF_MAX_SLOPE` (`dessus.js`) | 8 | % | Au-delà, « pente forte » (pente du plan de la zone utile) | provisoire, à caler | Idem |
+| `RELIEF_MAX_BREAK` (`dessus.js`) | 2 | degré | Au-delà, « rupture de pente » (écart entre les pentes des moitiés proche et lointaine) | provisoire, à caler | Idem |
+
+#### Diagnostic du relief (#67)
+
+La vue du dessus dit, dans son étiquette d'information, si le relief LiDAR HD sur lequel elle projette est plausible (aucune
+projection, mesure ni incertitude n'en dépend). `diagnoseRelief` lit la grille brute, avant lissage : part des points reçus
+(sous l'emprise d'un pont, écartés, ils ne comptent pas), puis, sur la zone utile (12 m devant la caméra, ± 3 m), un plan
+`z = a·x + b·y + c` ajusté par moindres carrés : écart quadratique et médiane des écarts absolus, pente du plan, et rupture de
+pente (écart entre les pentes des moitiés proche et lointaine, en degrés). Ligne normale : « Relief LiDAR HD : 98 % des points,
+écart au plan 3 cm » ; si un seuil (tableau 8.1) est franchi, en orange : « Relief douteux : grille partielle (62 %) », « relief
+irrégulier (14 cm) », « pente forte (9 %) » ou « rupture de pente (3,1°) ». Sur sol plat (pont à moins de 15 m ou option) : pas de
+diagnostic, le relief n'est pas utilisé. L'écart au plan n'est **pas** une précision du MNT : une chaussée bombée ou en dévers
+s'en écarte de quelques centimètres sans que le MNT soit faux.
 
 ### 8.2 Incertitudes
 

@@ -229,6 +229,21 @@ function centre(pixels, line, around) {
     await expect("GeoTIFF : coins et centre (caméra) à leur place, à 1 mm", Math.max(...placed, centre) < 1e-3,
       [...placed, centre].map((d) => (1000 * d).toFixed(2)).join(" / ") + " mm");
   }
+  {  // Diagnostic du relief LiDAR HD (#67) : grilles synthétiques de 31 × 31 points (±15 m), cap au nord
+    const M = 31, grid = (f) => Array.from({ length: M * M }, (_, k) => f((k % M) - 15, Math.floor(k / M) - 15));
+    const plane = Dessus.diagnoseRelief(grid((e, n) => 100 + 0.03 * n + 0.01 * e), M, 0);
+    await expect("Relief : grille plane (pente 3 %) → écart au plan nul, 100 % des points, rien d'anormal",
+      plane.valid === 1 && plane.rms < 1e-6 && Math.abs(plane.slope - 3.16) < 0.05 && plane.reasons.length === 0, JSON.stringify(plane));
+    const holes = Dessus.diagnoseRelief(grid((e, n) => (e + n) % 3 === 0 || e % 4 === 0 ? -9999 : 100), M, 0);
+    await expect("Relief : grille avec trous → partielle", holes.valid < 0.6 && holes.reasons.some((r) => r.startsWith("grille partielle")), JSON.stringify(holes));
+    const step = Dessus.diagnoseRelief(grid((e, n) => 100 + (n > 6 ? 0.1 * (n - 6) : 0)), M, 0);
+    await expect("Relief : pente qui change à 6 m (0 puis 10 %) → rupture de pente d'environ 5,7°",
+      Math.abs(step.rupture - 5.7) < 0.7 && step.reasons.some((r) => r.startsWith("rupture de pente")), JSON.stringify(step));
+    const rough = Dessus.diagnoseRelief(grid((e, n) => 100 + ((e * 7 + n * 3) % 2 ? 0.25 : -0.25)), M, 0);
+    await expect("Relief : bruit de 25 cm → relief irrégulier", rough.reasons.some((r) => r.startsWith("relief irrégulier")), JSON.stringify(rough));
+    const slope = Dessus.diagnoseRelief(grid((e, n) => 100 + 0.09 * n), M, 0);
+    await expect("Relief : pente de 9 % → pente forte, sans rupture", slope.reasons.length === 1 && slope.reasons[0].startsWith("pente forte"), JSON.stringify(slope));
+  }
   await fin();
 })().catch(async (error) => { await log("ERREUR " + error); });
 </script>

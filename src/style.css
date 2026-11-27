@@ -124,6 +124,8 @@ input.interrupteur:disabled { opacity: 0.45; cursor: default; }
 /* même format que les étiquettes incrustées dans la photo (--etiquette-vue, plus bas) */
 #dessus-etat { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 2; max-width: calc(100% - 28px); padding: 0.3rem 0.8rem; border-radius: 5px;
   background: var(--etiquette-vue); color: #fff; font-size: 15px; font-weight: 600; line-height: 1.3; text-align: center; text-shadow: var(--detoure-vue); pointer-events: none; }
+#dessus-etat .relief-info, #dessus-etat .relief-doute { display: block; font-size: 13px; }
+#dessus-etat .relief-doute { color: #ffb74d; }  /* relief douteux (#67), comme « fragile » du panneau de calage */
 #dessus-etat:empty { display: none; }
 /* carte à sa place, en petit : l'étiquette cacherait la vue ; seulement carte en grand ou détachée */
 body:not(.carte-en-grand):not(.fenetre-carte) #dessus-etat { display: none; }

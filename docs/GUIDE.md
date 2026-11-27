@@ -894,6 +894,13 @@ tangage ou le roulis (calculée par axe : des arêtes seulement devant et derri�
 panneau donne le nombre d'arêtes et de segments, ce plus grand secteur et l'incertitude du roulis et du tangage. Ces seuils sont
 provisoires, à caler sur des photos de référence ; « fragile » n'écarte rien, il invite à vérifier l'inclinaison.
 
+**« Relief douteux » (vue du dessus)** : l'étiquette d'information de la vue du dessus donne, sous l'état, une ligne sur le relief LiDAR HD
+sur lequel la photo est projetée : « Relief LiDAR HD : 98 % des points, écart au plan 3 cm ». En orange, « relief douteux » avertit
+que ce relief est à prendre avec prudence : grille partielle (moins de 90 % des points reçus), relief irrégulier (écart au plan de la
+chaussée devant la caméra au-delà de 10 cm), pente forte (au-delà de 8 %) ou rupture de pente (plus de 2° entre la partie proche
+et la partie lointaine). C'est un voyant, pas une précision : les mesures et leurs incertitudes ne changent pas, et sur sol plat
+(pont, option « Sol plat ») la ligne n'apparaît pas. Seuils provisoires, à caler sur des photos de référence.
+
 **État de la validation (05/11/2026)** : les mesures de hauteur sont validées sur des objets connus. Les retours
 de terrain sont encore attendus pour les mesures de largeur, les hauteurs de chute de pont, les dévers et les
 largeurs de chaussée LiDAR (analyse fine) : ces valeurs n'ont pas encore été comparées à des relevés sur place.

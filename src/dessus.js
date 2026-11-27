@@ -410,6 +410,64 @@ const Dessus = (() => {
     mesh.level = smoothTerrain(z, pose.heading, TERRAIN_SMOOTH);  // pour la route sous le véhicule (voir levelOf)
     return mesh;
   }
+  // Diagnostic du relief LiDAR HD (ticket #67), sans effet sur la projection ni sur les incertitudes : lu sur la grille brute,
+  // avant lissage, dans la zone utile (la chaussée devant la caméra : RELIEF_ALONG m en long dans le sens du cap, ± RELIEF_ACROSS m
+  // en travers). « Écart au plan » : résidus d'un plan ajusté sur cette zone, pas une précision du MNT. Seuils provisoires, à caler.
+  const RELIEF_ALONG = 12, RELIEF_ACROSS = 3;  // m : zone utile
+  const RELIEF_MIN_VALID = 0.9;  // part des points de la grille reçus (grille partielle en deçà) ; provisoire, à caler
+  const RELIEF_MAX_RMS = 0.10;  // m : écart quadratique au plan (relief irrégulier au-delà) ; provisoire, à caler
+  const RELIEF_MAX_SLOPE = 8;  // % : pente du plan (pente forte au-delà) ; provisoire, à caler
+  const RELIEF_MAX_BREAK = 2;  // degrés : écart entre les pentes de la moitié proche et de la moitié lointaine (rupture au-delà) ; provisoire, à caler
+  /** Diagnostic d'un maillage brut z (côté m, maille STEP, centre sur la caméra, cap heading en degrés, -1000 et moins : point
+   * sans altitude ; under : points sous l'emprise d'un pont, écartés, voir underDeck) : { valid (part reçue), rms, median (m,
+   * écart au plan de la zone utile), slope (%), rupture (degrés), reasons (liste de textes, vide si rien d'anormal) }. */
+  function diagnoseRelief(z, m, heading, under = null) {
+    const h = heading * toRad, f = [Math.sin(h), Math.cos(h)], c = (m - 1) / 2;
+    let asked = 0, got = 0;
+    const zone = [[], []];  // moitié proche, moitié lointaine : [x, y, z] avec x en travers, y en long (m)
+    for (let j = 0; j < m; j++) {
+      for (let i = 0; i < m; i++) {
+        const k = j * m + i;
+        if (under && under[k] >= 0) continue;
+        asked++;
+        if (!(z[k] > -1000)) continue;
+        got++;
+        const e = (i - c) * STEP, n = (j - c) * STEP, along = e * f[0] + n * f[1], across = e * f[1] - n * f[0];
+        if (along >= 0 && along <= RELIEF_ALONG && Math.abs(across) <= RELIEF_ACROSS) zone[along < RELIEF_ALONG / 2 ? 0 : 1].push([across, along, z[k]]);
+      }
+    }
+    const out = { valid: asked ? got / asked : 0, rms: null, median: null, slope: null, rupture: null, reasons: [] };
+    const fit = (points) => (points.length >= 6 ? leastSquares(points.map(([x, y]) => [1, x, y]), points.map((p) => p[2])) : null);
+    const all = [...zone[0], ...zone[1]], plane = fit(all);
+    if (plane) {
+      const res = all.map(([x, y, v]) => v - plane[0] - plane[1] * x - plane[2] * y);
+      out.rms = Math.sqrt(res.reduce((t, r) => t + r * r, 0) / res.length);
+      out.median = median(res.map(Math.abs));
+      out.slope = 100 * Math.hypot(plane[1], plane[2]);
+      const near = fit(zone[0]), far = fit(zone[1]);
+      if (near && far) out.rupture = Math.abs(Math.atan(far[2]) - Math.atan(near[2])) / toRad;
+    }
+    const pct = (v) => number(100 * v, 0);
+    if (out.valid < RELIEF_MIN_VALID) out.reasons.push(`grille partielle (${pct(out.valid)} %)`);
+    if (out.rms > RELIEF_MAX_RMS) out.reasons.push(`relief irrégulier (${number(100 * out.rms, 0)} cm)`);
+    if (out.slope > RELIEF_MAX_SLOPE) out.reasons.push(`pente forte (${number(out.slope, 0)} %)`);
+    if (out.rupture > RELIEF_MAX_BREAK) out.reasons.push(`rupture de pente (${number(out.rupture, 1)}°)`);
+    return out;
+  }
+  /** Diagnostic du relief LiDAR HD autour de la photo (grille brute en mémoire, voir readGrid) ; exception si le service ne répond pas. */
+  async function readRelief(pose) {
+    const big = Math.max(REACH, LINES_WIDE), all = await readGrid(pose, big);
+    const n = 2 * big / STEP + 1, m = 2 * REACH / STEP + 1, off = (big - REACH) / STEP, z = [];
+    for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) z.push(all[(j + off) * n + i + off]);
+    return diagnoseRelief(z, m, pose.heading, underDeck(pose, m, REACH));
+  }
+  /** Ligne du diagnostic pour l'étiquette : { text, alert }, ou null. */
+  function reliefLine(relief) {
+    if (!relief) return null;
+    if (relief.reasons.length) return { text: `Relief douteux : ${relief.reasons.join(", ")}`, alert: true };
+    return { text: `Relief LiDAR HD : ${number(100 * relief.valid, 0)} % des points, écart au plan ${number(100 * relief.rms, 0)} cm`, alert: false };
+  }
+
   /** Terrain de l'inclinaison et de la hauteur de la route sous une caméra (groundUp, groundLevel) : lissé aussi en travers.
    * Le bombement gardé y penchait le plan sous le véhicule (une moitié de chaussée) : roulis restant de -1,4 à 0,05° au lieu
    * de 0,08 à 0,9°, bandes de passage piéton à 0,513 m (essai-passages, calage par la route, 14/11/2026). */
@@ -1808,7 +1866,18 @@ const Dessus = (() => {
   // Dans la carte d'abord : détachée, elle est dans le document d'une autre fenêtre
   const $ = (selector) => map?.getContainer().querySelector(selector) || document.querySelector(selector);
   const number = (v, digits) => v.toFixed(digits).replace(".", ",");
-  const say = (text) => { $("#dessus-etat").textContent = text; };
+  let etat = "";
+  const say = (text) => {
+    const label = $("#dessus-etat");
+    etat = text;
+    label.textContent = text;
+    const line = text && shown && !flatGround(shown.pose) ? reliefLine(shown.relief) : null;  // diagnostic du relief (#67)
+    if (!line) return;
+    const span = document.createElement("span");
+    span.className = line.alert ? "relief-doute" : "relief-info";
+    span.textContent = line.text;
+    label.append(span);
+  };
   // Attente au centre de la carte (Attente, ticket #56), en plus de la barre d'état (bilan, inchangé) : une par vue, du premier calcul (ou du
   // calcul relancé par un réglage : view.waitMessage) jusqu'à ce qu'il ne reste rien en cours (showImage) ; croix si la lecture échoue.
   // Pas d'animation pour le calage seul (view.silent : la vue n'est pas sur la carte ; « Largeur dans la visionneuse » a la sienne).
@@ -2274,6 +2343,11 @@ const Dessus = (() => {
       }
       if (old) setTimeout(() => URL.revokeObjectURL(old), 5000);
     }
+    if (shown.relief === undefined && !flatGround(pose)) {  // diagnostic du relief, lu une fois par photo (grille déjà en mémoire)
+      const mine = shown;
+      mine.relief = null;
+      readRelief(pose).catch(() => null).then((relief) => { if (shown === mine && relief) { mine.relief = relief; say(etat); } });
+    }
     const flat = pose.flat ? `pont à moins de ${number(pose.flat_radius, 0)} m` : flatOption ? "option" : shown.terrainFailed ? "service d'altitude injoignable"
       : "pas de LiDAR HD ici";
     const place = onLidar(shown) ? "Terrain LiDAR HD" : `Sol supposé plat (${flat})`;
@@ -2681,7 +2755,7 @@ const Dessus = (() => {
     layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins,
       outline: outlines.get(shown.sequence), locatedWith: shown.locatedWith },
     view, hidden, uncertainty, measureError, shownError, groundUp, roadAxis, sourceOf, toLocal, toLonLat, estimateHeight,
-    render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, linesPitch, REACH, SIZE,
+    diagnoseRelief, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, linesPitch, REACH, SIZE,
   };
 })();
 
