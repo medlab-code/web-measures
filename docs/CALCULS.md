@@ -677,7 +677,10 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
 - **Tunnels** de la route (BD TOPO) : le MNT y donne le dessus, remplacé par la droite d'une tête
   à l'autre. Un tunnel au bout du profil n'a qu'une tête : rien n'est dessiné dessus.
 - **Pentes** : pente moyenne par les moindres carrés (montée ou descente dans le sens de la
-  photo) et pente la plus forte sur **10 m**.
+  photo), affichée en étiquette seule. Deux pentes (une par partie) si une **cassure nette** se dessine : parties d'au moins 20 m
+  et d'un quart du profil, écart de pente d'au moins 2 points, écart RMS à deux droites au plus la moitié de celui d'une seule, chaque
+  partie bien droite (RMS au plus le quart de la hauteur apportée par la cassure), écart de pente d'au moins 3 fois son incertitude
+  (`Profil.cassure`, seuils provisoires). La pente la plus forte sur 10 m reste calculée, plus affichée.
 
 ## 10. Analyse fine : nuage LiDAR HD
 

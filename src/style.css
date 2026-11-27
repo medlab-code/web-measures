@@ -1391,7 +1391,7 @@ dialog.profil form.fermer-coin button { width: 2.4rem; height: 2.4rem; padding: 
   background: transparent; color: var(--discret); font-size: 1.5rem; line-height: 1; }
 dialog.profil form.fermer-coin button:hover { border-color: var(--bord); color: var(--texte); }
 #profil-nuage-barre { width: 8rem; height: 0.6rem; accent-color: var(--panoramax); vertical-align: middle; }
-.profil-svg .herbe { fill: none; stroke: var(--herbe); stroke-width: 6; stroke-dasharray: 2 3; stroke-linecap: butt; stroke-linejoin: round; }  /* analyse fine : pointillé « touffes » */
+.profil-svg .herbe { fill: none; stroke: var(--herbe); stroke-width: 3; stroke-dasharray: 2 3; stroke-linecap: butt; stroke-linejoin: round; }  /* analyse fine : pointillé « touffes » */
 .profil-svg .ouvrage { stroke: var(--texte); stroke-width: 2; stroke-dasharray: 6 3; }  /* pont ou tunnel du profil en long */
 .profil-svg text.canopee { fill: var(--vegetation); }
 .profil-svg .vegetation { fill: none; stroke: var(--vegetation); stroke-width: 2; stroke-linejoin: round; }  /* analyse fine */
@@ -1411,6 +1411,8 @@ dialog.profil form.fermer-coin button:hover { border-color: var(--bord); color: 
 .profil-svg .axe-travers { stroke: var(--discret); stroke-width: 2; opacity: 0.6; }
 .profil-svg .travers-mot { font-size: 11px; font-style: italic; }
 .profil-svg .raide { stroke: var(--raide); stroke-width: 6; stroke-linecap: round; fill: none; }  /* 10 m les plus raides du profil en long */
+.profil-svg line.cassure { stroke: var(--raide); stroke-width: 2; stroke-dasharray: 3 2; }  /* limite entre les deux parties du profil en long (cassure nette) */
+.profil-svg line.connecteur[data-couleur="raide"] { stroke: var(--raide); }
 .profil-svg .etiquette-raide { fill: var(--raide); font-weight: 500; font-size: 13px; }
 .profil-svg .repere { stroke: var(--discret); stroke-width: 1; stroke-dasharray: 2 3; }  /* repère du profil en long : nom, puis terrain */
 .profil-svg .repere-point { fill: var(--texte); stroke: var(--fond); stroke-width: 1; }

@@ -14,6 +14,32 @@ const Profil = (() => {
   const GROUND_BELOW = 1, GROUND_MIN = 0.3;  // m de sol dessinés sous le point le plus bas du terrain (voir draw)
   const LINE = 14;  // px entre deux lignes d'une étiquette
   const ROAD_ROOM = 58;  // px sous la chaussée : ses deux étiquettes (largeur, dévers) et une marge au-dessus du bas du cadre
+  /** Placement des étiquettes du graphique en travers et du profil en long (declutter), réglable. Mode par défaut « enveloppe »
+   * (choix de l'auteur, 27/11/2026). Règles : étiquette horizontale sur une rangée régulière ; boîte entière à `marge` px au moins de toute
+   * courbe de données, mesurée sur toute sa largeur ; jamais sur une autre étiquette ; connecteur fin, droit ou coudé, sans croiser une autre
+   * étiquette ; dans le cadre. Les étiquettes qui touchent la chaussée
+   * (plateforme et son dévers, axe, caméra, « travers à ±5 m » : attribut data-chaussee) gardent toujours leur placement « actuel ».
+   *   mode        « actuel » : placement d'origine, inchangé (défaut, tant que l'auteur n'a pas choisi) ;
+   *               « degagement » (P1) : même logique, mais boîte de l'étiquette tenue à `marge` px de toute courbe de
+   *                  données (terrain, autres travers, végétation, herbe, eau), sur toute sa largeur, connecteurs plus longs ;
+   *               « rangee » (P2) : étiquettes rangées dans une bande réservée en haut du cadre (hauteurs un peu réduites),
+   *                  au-dessus de la plus haute courbe (la végétation y est coupée), sur `rangees` rangées régulières,
+   *                  connecteurs verticaux ou coudés ;
+   *               « enveloppe » (P3) : rangées régulières (pas de `pas` px) sur tout le cadre, sans bande réservée : chaque
+   *                  étiquette prend la rangée la plus basse qui la laisse à `marge` px des courbes, au-dessus de ce qu'elle nomme.
+   *   marge       px minimum entre la boîte d'une étiquette (liseré compris) et une courbe de données ;
+   *   margeCout   coût par échantillon de courbe (un tous les 4 px) à moins de `marge` : plus haut, marge plus stricte ;
+   *   connecteurMin  longueur minimale (px) d'un connecteur droit, mode « degagement » ;
+   *   pas         px entre deux rangées (modes « rangee » et « enveloppe ») ;
+   *   rangees     nombre de rangées de la bande réservée (mode « rangee ») ;
+   *   rangeCout   coût par rangée montée, qui rapproche les étiquettes des courbes ;
+   *   dessousCout coût d'une étiquette placée sous ce qu'elle nomme (repli du mode « enveloppe » quand plus aucune rangée
+   *               au-dessus ne respecte la marge, par exemple canopée jusqu'en haut) ;
+   *   ecart       px minimum entre deux étiquettes côte à côte (même rangée) : deux étiquettes bout à bout se liraient comme une seule ;
+   *   decalage    coût par px de décalage horizontal d'une étiquette par rapport à ce qu'elle nomme (connecteur coudé). */
+  const ETIQ = { mode: "enveloppe", marge: 14, margeCout: 12, connecteurMin: 18, pas: 18, rangees: 2, rangeCout: 6, decalage: 0.35, dessousCout: 40, ecart: 10 };
+  /** Hauteur (px) de la bande des rangées réservée en haut du cadre, mode « rangee » : 0 dans les autres. */
+  const bandReserve = () => (ETIQ.mode === "rangee" ? ETIQ.marge + 3 + (ETIQ.rangees - 1) * ETIQ.pas + 13 + 4 : 0);
   const num = (v, digits = 1) => v.toFixed(digits).replace(".", ",").replace(/^-/, "−");
   /** Distance au bord : au décimètre sous 10 m, au mètre au-delà (ou whole), comme le texte du calcul (web_chutes._distance). */
   const dist = (v, whole = false) => {
@@ -133,19 +159,24 @@ const Profil = (() => {
    * Rend { textes, lignes } : étiquettes qui se recouvrent encore, et traits croisés. */
   // obstacles : [gauche, haut, droite, bas] à éviter aussi (tablier d'un pont…)
   const OBSTACLES = "path.sol, path.autre-travers, path.travers-mesure, path.chaussee, path.eau-surface, path.herbe, path.vegetation,"
-    + " line.bord, line.bord-chaussee, line.chute, line.repere-chute, line.devers, line.separateur, line.raide, line.ouvrage";
+    + " line.bord, line.bord-chaussee, line.chute, line.repere-chute, line.devers, line.separateur, line.raide, line.cassure, line.ouvrage";
   const SAMPLE_STEP = 4, LINE_COST = 10, TEXT_COST = 5000, FAR = 28;
-  function declutter(svg, { top, bottom, left, right }, obstacles = []) {
-    const samples = [];  // [x, y] le long des tracés
-    const along = (pts) => {
+  // courbes de données seules (marge des modes autres que « actuel ») : terrain LiDAR, autres travers, végétation, herbe, eau
+  const CURVES = "path.sol, path.autre-travers, path.travers-mesure, path.eau-surface, path.eau-nuage, path.herbe, path.vegetation";
+  // opts : { mode, ceiling } ; mode : placement des étiquettes (ETIQ.mode ; « actuel » par défaut), ceiling : y du plafond des
+  // courbes (bas de la bande des rangées, mode « rangee »)
+  function declutter(svg, { top, bottom, left, right }, obstacles = [], { mode = "actuel", ceiling = top } = {}) {
+    const samples = [], curves = [];  // [x, y] le long des tracés ; le long des courbes de données seules
+    const along = (pts, out = [samples]) => {
       for (let k = 0; k < pts.length; k++) {
         const [x0, y0] = pts[k], [x1, y1] = pts[k + 1] || pts[k], n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / SAMPLE_STEP));
-        for (let i = 0; i < n; i++) samples.push([x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n]);
+        for (let i = 0; i < n; i++) for (const o of out) o.push([x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n]);
       }
     };
-    for (const e of svg.querySelectorAll(OBSTACLES)) {
-      if (e.tagName === "line") along([[+e.getAttribute("x1"), +e.getAttribute("y1")], [+e.getAttribute("x2"), +e.getAttribute("y2")]]);
-      else along([...(e.getAttribute("d") || "").matchAll(/[ML](-?[\d.]+(?:e-?\d+)?),(-?[\d.]+(?:e-?\d+)?)/g)].map((m) => [+m[1], +m[2]]));
+    for (const e of svg.querySelectorAll(mode === "actuel" ? OBSTACLES : `${OBSTACLES}, path.eau-nuage`)) {
+      const data = e.matches(CURVES) ? [samples, curves] : [samples];
+      if (e.tagName === "line") along([[+e.getAttribute("x1"), +e.getAttribute("y1")], [+e.getAttribute("x2"), +e.getAttribute("y2")]], data);
+      else along([...(e.getAttribute("d") || "").matchAll(/[ML](-?[\d.]+(?:e-?\d+)?),(-?[\d.]+(?:e-?\d+)?)/g)].map((m) => [+m[1], +m[2]]), data);
     }
     for (const c of svg.querySelectorAll("circle.origine")) samples.push([+c.getAttribute("cx"), +c.getAttribute("cy")]);
     const read = (t) => {  // étiquette sur plusieurs lignes (tspan) : la plus longue, et LINE px par ligne de plus
@@ -166,6 +197,11 @@ const Profil = (() => {
     const result = { textes: 0, lignes: 0 };
     const texts = [...svg.querySelectorAll("text.place:not([data-suite])")].map((t, k) => [t, k]);
     texts.sort(([a, i], [b, j]) => (Number(a.dataset.prio ?? 5) - Number(b.dataset.prio ?? 5)) || i - j);
+    // abscisses des ancres des étiquettes en rangées (modes « rangee » et « enveloppe ») : une étiquette posée au-dessus d'une
+    // autre ancre lui barrerait la montée de son connecteur (coût ETIQ_ANCRE par ancre recouverte)
+    const rowed = (t) => mode !== "actuel" && mode !== "degagement" && !t.hasAttribute("data-chaussee");
+    const anchors = texts.filter(([t]) => rowed(t)).map(([t]) => [t, t.dataset.ancre ? +t.dataset.ancre.split(",")[0] : +t.getAttribute("x"),
+      t.classList.contains("canopee") ? ceiling : t.dataset.ancre ? +t.dataset.ancre.split(",")[1] : +t.getAttribute("y") - 4]);
     for (const [t] of texts) {
       const m = read(t), x0 = Number(t.getAttribute("x")), y0 = Number(t.getAttribute("y")), anchor0 = t.getAttribute("text-anchor") || "start";
       const [ax, ay] = t.dataset.ancre ? t.dataset.ancre.split(",").map(Number) : [x0, y0 - 4];
@@ -174,6 +210,9 @@ const Profil = (() => {
       const tail = t.dataset.cle ? [...svg.querySelectorAll("text.place[data-suite]")].filter((f) => f.dataset.suite === t.dataset.cle)
         .map((f) => ({ t: f, m: read(f), x: Number(f.getAttribute("x")), y: Number(f.getAttribute("y")), anchor: f.getAttribute("text-anchor") || "start" })) : [];
       const candidates = [];  // { x, y, anchor, extra, b, tail }
+      const lab = t.hasAttribute("data-chaussee") ? "actuel" : mode;  // la chaussée garde son placement
+      const rows = lab === "rangee" || lab === "enveloppe", canopy = t.classList.contains("canopee");
+      const ay2 = rows && canopy ? ceiling : ay;  // la canopée nomme la ligne coupée en haut : sa rangée est contre le plafond
       const add = (x, y, anchor, extra) => {
         let b = box(m, x, y, anchor);
         const shift = Math.max(0, left - b[0]) - Math.max(0, b[2] - right);  // rabattue dans le cadre
@@ -181,28 +220,64 @@ const Profil = (() => {
         [x, b] = [x + shift, [b[0] + shift, b[1], b[2] + shift, b[3]]];
         if (b[1] + 1 < top || b[3] > bottom) return;
         if (up && b[1] > ay + 8) return;  // au-dessus de ce qu'elle nomme seulement : ne le masque pas
+        // rangées : au-dessus de ce qu'elle nomme, jamais dessus ; « enveloppe », repli sous lui (dans la terre) si plus aucune rangée libre
+        if (rows && !canopy && b[3] > ay2 - 6 && !(lab === "enveloppe" && b[1] > ay2 + 6)) return;
         const rest = tail.map((f) => box(f.m, f.x + x - x0, f.y + y - y0, f.anchor));
         if (rest.some((r) => r[1] + 1 < top || r[3] > bottom || r[0] < left || r[2] > right)) return;
         candidates.push({ x, y, anchor, extra, b, rest });
       };
-      for (const d of [0, 16, -16, 32, -32, 48, -48, 64, -64]) add(x0, y0 + d, anchor0, Math.abs(d) / 16);
-      // autour de l'ancre : haut, côtés, bas, de plus en plus loin
-      const dirs = [[0, -1], [1, -1], [-1, -1], [1, 0], [-1, 0], [0, 1], [1, 1], [-1, 1]];
-      const own = [ax, ay];
-      for (const d of [0, 10, 22, 36, 54, 76, 104, 140]) {
-        for (const [ux, uy] of dirs) {
-          const px = own[0] + ux * d * (ux && uy ? 0.75 : 1), py = own[1] + uy * d * (ux && uy ? 0.75 : 1);
-          const a = ux > 0 ? "start" : ux < 0 ? "end" : "middle", gap = d ? 4 : 6;
-          const y = uy < 0 ? py - gap - 4 - (m.lines.length - 1) * LINE : uy > 0 ? py + gap + m.size : py + 4 - (m.lines.length - 1) * LINE / 2;
-          add(px + ux * gap, y, a, 2 + d / 20);
+      if (rows) {
+        // rangées régulières : « rangee », dans la bande réservée (la plus basse contre le plafond) ; « enveloppe », sur tout le cadre
+        const base = lab === "rangee" ? ceiling - ETIQ.marge - 3 : top + 16;
+        const count = lab === "rangee" ? ETIQ.rangees : Math.floor((bottom - top - 16) / ETIQ.pas) + 1;
+        for (let r = 0; r < count; r++) {
+          const y = lab === "rangee" ? base - r * ETIQ.pas : base + (count - 1 - r) * ETIQ.pas;  // r croît en montant
+          for (let dx = 0; dx <= right - left; dx += 6) for (const sg of dx ? [1, -1] : [1]) add(ax + sg * dx, y, "middle", r);
+        }
+      } else {
+        for (const d of [0, 16, -16, 32, -32, 48, -48, 64, -64]) add(x0, y0 + d, anchor0, Math.abs(d) / 16);
+        // autour de l'ancre : haut, côtés, bas, de plus en plus loin
+        const dirs = [[0, -1], [1, -1], [-1, -1], [1, 0], [-1, 0], [0, 1], [1, 1], [-1, 1]];
+        const own = [ax, ay];
+        for (const d of [0, 10, 22, 36, 54, 76, 104, 140]) {
+          for (const [ux, uy] of dirs) {
+            const px = own[0] + ux * d * (ux && uy ? 0.75 : 1), py = own[1] + uy * d * (ux && uy ? 0.75 : 1);
+            const a = ux > 0 ? "start" : ux < 0 ? "end" : "middle", gap = d ? 4 : 6;
+            const y = uy < 0 ? py - gap - 4 - (m.lines.length - 1) * LINE : uy > 0 ? py + gap + m.size : py + 4 - (m.lines.length - 1) * LINE / 2;
+            add(px + ux * gap, y, a, 2 + d / 20);
+          }
         }
       }
       const free = Math.max(FAR, near(home, [ax, ay]) + 4);  // sa place d'origine n'est jamais pénalisée par la distance
+      // connecteur d'une boîte à l'ancre (modes autres que « actuel ») : droit (« degagement »), vertical puis coudé (rangées)
+      const leader = (b) => {
+        if (lab === "degagement") return [[Math.min(Math.max(ax, b[0] + 3), b[2] - 3), Math.min(Math.max(ay, b[1] + 3), b[3] - 3)], [ax, ay]];
+        const edge = b[1] > ay2 ? b[1] : b[3];  // bord de la boîte tourné vers l'ancre (dessous : le haut)
+        if (ax >= b[0] + 3 && ax <= b[2] - 3) return [[ax, edge], [ax, ay2]];
+        const ex = ax < b[0] ? b[0] : b[2], ey = (b[1] + b[3]) / 2;  // coude : montée verticale, puis horizontale jusqu'au côté de la boîte
+        return [[ex, ey], [ax, ey], [ax, ay2]];
+      };
+      const spread = (pts) => { const out = []; along(pts, [out]); return out; };
+      const marge = canopy ? 0 : ETIQ.marge;  // la canopée nomme la ligne coupée en haut : elle la longe
       let best = null;
       for (const c of candidates) {
         const all = [c.b, ...c.rest];
-        const clash = all.reduce((n, b) => n + placed.filter((p) => hit(p, b)).length, 0), lines = all.reduce((n, b) => n + crossed(b), 0);
+        const gap = lab === "actuel" ? 0 : ETIQ.ecart;  // écart horizontal minimal entre étiquettes (hors « actuel »)
+        const clash = all.reduce((n, b) => n + placed.filter((p) => hit(p, [b[0] - gap, b[1], b[2] + gap, b[3]])).length, 0), lines = all.reduce((n, b) => n + crossed(b), 0);
         c.cost = clash * TEXT_COST + lines * LINE_COST + Math.max(0, near(c.b, [ax, ay]) - free) * 0.8 + c.extra;
+        if (lab !== "actuel") {
+          const big = [c.b[0] - marge, c.b[1] - marge, c.b[2] + marge, c.b[3] + marge];
+          c.close = curves.reduce((n, p) => n + (inside(big, p) ? 1 : 0), 0);
+          c.poly = leader(c.b);
+          const tracks = c.poly.slice(1).flatMap((p, k) => spread([c.poly[k], p]));
+          const cut = tracks.filter((p) => placed.some((b) => inside(b, p) && !inside(c.b, p))).length;  // connecteur sur une autre étiquette
+          const cross = rows ? 0 : tracks.filter((p) => Math.hypot(p[0] - ax, p[1] - ay2) > 8 && curves.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 2.5)).length;
+          const length = tracks.length * SAMPLE_STEP;
+          const covered = rows ? anchors.filter(([o, u, v]) => o !== t && u > c.b[0] - 2 && u < c.b[2] + 2 && v > c.b[3]).length : 0;
+          c.cost += c.close * ETIQ.margeCout + (cut ? TEXT_COST : 0) + cross * 3 + covered * 300;
+          if (lab === "degagement") c.cost += Math.max(0, ETIQ.connecteurMin - near(c.b, [ax, ay])) * 3;
+          else c.cost += (c.b[1] > ay2 ? ETIQ.dessousCout : 0) + c.extra * ETIQ.rangeCout + Math.abs((c.b[0] + c.b[2]) / 2 - ax) * ETIQ.decalage + length * 0.2;
+        }
         c.clash = clash; c.lines = lines;
         if (!best || c.cost < best.cost) best = c;
       }
@@ -223,7 +298,12 @@ const Profil = (() => {
       // loin de sa place : connecteur de la boîte à l'ancre, petit point à l'ancre ; ses échantillons gênent les suivantes
       const moved = Math.hypot((best.b[0] + best.b[2] - home[0] - home[2]) / 2, (best.b[1] + best.b[3] - home[1] - home[3]) / 2);
       const reach = near(best.b, [ax, ay]);
-      if (moved > 14 && reach > 10) {
+      if (lab !== "actuel" && best.poly && !t.hasAttribute("data-sans-connecteur") && reach > 10) {
+        const colour = t.dataset.couleur ? { "data-couleur": t.dataset.couleur } : {};
+        const segments = best.poly.slice(1).map((p, k) => el("line", { x1: best.poly[k][0], y1: best.poly[k][1], x2: p[0], y2: p[1], class: "connecteur", ...colour }));
+        t.before(...segments, el("circle", { cx: ax, cy: ay2, r: 2.5, class: "connecteur-point", ...colour }));
+        along(best.poly);
+      } else if (lab === "actuel" && moved > 14 && reach > 10) {
         const [ex, ey] = [Math.min(Math.max(ax, best.b[0] + 3), best.b[2] - 3), Math.min(Math.max(ay, best.b[1] + 3), best.b[3] - 3)];
         const colour = t.dataset.couleur ? { "data-couleur": t.dataset.couleur } : {};
         t.before(el("line", { x1: ex, y1: ey, x2: ax, y2: ay, class: "connecteur", ...colour }),
@@ -289,20 +369,20 @@ const Profil = (() => {
     const zs = [...all.values()].flatMap((t) => t.points.map((p) => p[1] - ref));
     let [xmin, xmax] = imposed?.x ?? [Math.min(...xs), Math.max(...xs)];
     const extent = [xmin, xmax];
-    const plotW = W - LEFT - RIGHT, plotH = H - TOP - BOTTOM;
+    const plotW = W - LEFT - RIGHT, plotH = H - TOP - BOTTOM, reserve = bandReserve(), usable = plotH - reserve;  // reserve : bande des rangées d'étiquettes
     const [lowest, terrainTop] = [Math.min(...zs), Math.max(...zs)];
     let zmax = terrainTop + 0.3;
     if (trueScale && profile.origine === "caméra") zmax = Math.max(zmax, camera + 0.3);  // caméra à sa hauteur, dans le cadre
     // Échelle des distances : toute la largeur, réduite (largeur centrée) si les hauteurs ne tiennent pas à ×1 ;
     // exagération entière, la plus forte qui fait tenir les hauteurs (au moins ×1), ×1 à l'échelle
     const scale = (bottom) => {
-      const sx = Math.min(plotW / (xmax - xmin), plotH / (zmax - bottom));
-    return { sx, factor: trueScale ? 1 : Math.max(1, Math.floor(plotH / (zmax - bottom) / sx)) };
+      const sx = Math.min(plotW / (xmax - xmin), usable / (zmax - bottom));
+    return { sx, factor: trueScale ? 1 : Math.max(1, Math.floor(usable / (zmax - bottom) / sx)) };
     };
     // Fond : GROUND_BELOW sous le point le plus bas du terrain si son haut (ni caméra ni végétation) reste dans la
     // moitié basse du cadre, sinon GROUND_MIN ; la place libre va en haut, pour la végétation
     let zmin = lowest - GROUND_BELOW, { sx, factor } = scale(zmin);
-    if (terrainTop - zmin > plotH / (sx * factor) / 2) {
+    if (terrainTop - zmin > usable / (sx * factor) / 2) {
       zmin = lowest - GROUND_MIN;
       ({ sx, factor } = scale(zmin));
     }
@@ -324,12 +404,13 @@ const Profil = (() => {
     // Exagération qu'auraient les hauteurs sans « à l'échelle » (cadre d'origine, pas un cadre figé) : 1 = la case n'a pas d'effet
     const exageration = trueScale
       ? frame(profile, all, main, false, camera, imposed && { x: imposed.x, z: null }).factor : factor;
-    return { exageration, ref, bl, br, road, xs, xmin, xmax, zmin, zmax, sx, factor, plotW, plotH, X, Z, path, extent, cadre };
+    return { ceiling: TOP + reserve, exageration, ref, bl, br, road, xs, xmin, xmax, zmin, zmax, sx, factor, plotW, plotH, X, Z, path, extent, cadre };
   }
 
   /** Eau : surfaces de la BD TOPO (bande bleue posée sur le terrain), cours d'eau (repère bleu nommé), surface lue
    * dans le nuage (analyse fine). onGround(a, b) : tracé du terrain de la photo entre a et b. */
-  function drawWater(svg, profile, fine, { xmin, xmax, ref, X, Z }, main, onGround) {
+  function drawWater(svg, profile, fine, f, main, onGround) {
+    const { xmin, xmax, ref, X, Z } = f;
     for (const w of (profile.eau || []).filter((v) => v.de !== undefined)) {
       const d = onGround(Math.min(w.de, w.a), Math.max(w.de, w.a));
       if (d) svg.append(el("path", { d, class: "eau-surface" }));
@@ -344,7 +425,7 @@ const Profil = (() => {
       let d = "", prev = null;
       for (const [x, z] of fine.eau) {
         if (x < xmin || x > xmax) { prev = null; continue; }
-        d += `${prev !== null && x - prev <= 0.5 + 1e-6 ? "L" : "M"}${X(x).toFixed(1)},${Math.max(TOP, Z(z)).toFixed(1)}`;
+        d += `${prev !== null && x - prev <= 0.5 + 1e-6 ? "L" : "M"}${X(x).toFixed(1)},${Math.max(f.ceiling, Z(z)).toFixed(1)}`;
         prev = x;
       }
       svg.append(el("path", { d, class: "eau-nuage" }));
@@ -353,7 +434,7 @@ const Profil = (() => {
 
   /** Végétation de l'analyse fine : hauteur maximale (ligne verte, coupée en haut du graphique) ; à l'échelle, canopée
    * hors du cadre nommée. Vrai si une canopée est nommée (légende). */
-  function drawVegetation(svg, fine, { xmin, xmax, zmax, ref, X, Z }, trueScale) {
+  function drawVegetation(svg, fine, { xmin, xmax, zmax, ref, X, Z, ceiling }, trueScale) {
     let canopy = false;
     let d = "", prev = null;
     const peaks = new Map();  // plus haut point de la ligne de chaque côté
@@ -369,7 +450,7 @@ const Profil = (() => {
       const z = near(x);
       if (x < xmin || x > xmax) { prev = null; continue; }
       if (!(z <= peaks.get(x < 0)?.[1])) peaks.set(x < 0, [x, z]);
-      d += `${prev !== null && x - prev <= 0.5 + 1e-6 ? "L" : "M"}${X(x).toFixed(1)},${Math.max(TOP, Z(z)).toFixed(1)}`;
+      d += `${prev !== null && x - prev <= 0.5 + 1e-6 ? "L" : "M"}${X(x).toFixed(1)},${Math.max(ceiling, Z(z)).toFixed(1)}`;
       prev = x;
     }
     svg.append(el("path", { d, class: "vegetation" }));
@@ -378,7 +459,7 @@ const Profil = (() => {
       if (z - ref <= zmax) continue;
       canopy = true;
       svg.append(el("text", { x: Math.max(LEFT + 50, Math.min(W - RIGHT - 50, X(x))), y: TOP + 14,
-        class: "etiquette-profil place canopee", "text-anchor": "middle" },
+        class: "etiquette-profil place canopee", "data-sans-connecteur": "", "text-anchor": "middle" },
         `canopée +${num(z - ref, 0)} m`));
     }
     return canopy;
@@ -485,7 +566,7 @@ const Profil = (() => {
         // sous le terrain de la photo (dessiné avant lui), transparent : il ne le masque pas
         svg.insertBefore(el("path", { d: path(tr.points), class: "travers-mesure" }), svg.querySelector(".terre"));
         svg.append(el("text",
-          { x: X(end[0]) - sign * 2, y: Z(end[1]) - 6, class: "graduation place", "data-prio": 4, "data-ancre": `${X(end[0])},${Z(end[1])}`,
+          { x: X(end[0]) - sign * 2, y: Z(end[1]) - 6, class: "graduation place", "data-chaussee": "", "data-prio": 4, "data-ancre": `${X(end[0])},${Z(end[1])}`,
             "text-anchor": sign < 0 ? "start" : "end" },
             `travers à ${tr.along > 0 ? "+" : "−"}${Math.abs(tr.along)} m`));
       }
@@ -608,12 +689,12 @@ const Profil = (() => {
       const under = Math.max(...road.map(([, z]) => Z(z)));  // sous le point le plus bas : pas de texte sur une chaussée en dévers
       const roadAt = `${X((bl + br) / 2)},${Z(zAt(main.points, (bl + br) / 2) ?? ref)}`;
       svg.append(el("path", { d: path(road), class: "chaussee" }),
-        el("text", { x: X((bl + br) / 2), y: under + 26, class: "etiquette-profil place", "data-prio": 3, "data-cle": "plateforme",
+        el("text", { x: X((bl + br) / 2), y: under + 26, class: "etiquette-profil place", "data-prio": 3, "data-cle": "plateforme", "data-chaussee": "",
           "data-ancre": roadAt, "text-anchor": "middle" },
           `plateforme ${num(br - bl)} m`));
       const slope = platformLabel(profile.plateforme);
       if (slope) {
-        svg.append(el("text", { x: X((bl + br) / 2), y: under + 42, class: "etiquette-profil place", "data-prio": 3, "data-suite": "plateforme",
+        svg.append(el("text", { x: X((bl + br) / 2), y: under + 42, class: "etiquette-profil place", "data-prio": 3, "data-suite": "plateforme", "data-chaussee": "",
           "text-anchor": "middle" }, slope));
       }
     }
@@ -678,12 +759,12 @@ const Profil = (() => {
     // dire : masquée) ; profil depuis l'axe : son repère posé sur la plateforme
     if (profile.origine !== "caméra") {
       svg.append(el("circle", { cx: X(0), cy: Z(ref) - 8, r: 5, class: "origine" }),
-        el("text", { x: X(0), y: Z(ref) - 18, class: "graduation place", "data-haut": "",
+        el("text", { x: X(0), y: Z(ref) - 18, class: "graduation place", "data-haut": "", "data-chaussee": "",
           "data-ancre": `${X(0)},${Z(ref) - 8}`, "text-anchor": "middle" }, "axe"));
     } else if (factor === 1) {
       svg.append(el("line", { x1: X(0), x2: X(0), y1: Z(ref), y2: Z(ref + camera), class: "bord" }),
         el("circle", { cx: X(0), cy: Z(ref + camera), r: 5, class: "origine" }),
-        el("text", { x: X(0) + 9, y: Z(ref + camera) + 4, class: "graduation place", "data-haut": "",
+        el("text", { x: X(0) + 9, y: Z(ref + camera) + 4, class: "graduation place", "data-haut": "", "data-chaussee": "",
           "data-ancre": `${X(0)},${Z(ref + camera)}` }, "caméra"));  // à droite du point
     }
 
@@ -701,7 +782,8 @@ const Profil = (() => {
     const junction = profile.carrefour ? "⚠ Carrefour\u00a0: bords peu sûrs" : "";
     const junctionW = textWidth(junction, 13, 500, 0.6) + 18;
     const junctionBox = [W - RIGHT - 2 - junctionW, TOP + 2, W - RIGHT - 2, TOP + 24];
-    declutter(svg, { top: TOP, bottom: TOP + plotH, left: LEFT, right: LEFT + plotW }, [...(mention ? [mentionBox] : []), ...(junction ? [junctionBox] : [])]);
+    declutter(svg, { top: TOP, bottom: TOP + plotH, left: LEFT, right: LEFT + plotW }, [...(mention ? [mentionBox] : []), ...(junction ? [junctionBox] : [])],
+      { mode: ETIQ.mode, ceiling: f.ceiling });
     if (junction) {
       svg.append(el("rect", { x: junctionBox[0], y: junctionBox[1], width: junctionW, height: 22, rx: 3, class: "mention-echelle mention-carrefour" }),
         el("text", { x: W - RIGHT - 7, y: TOP + 18, "text-anchor": "end", class: "etiquette-profil mention-carrefour-texte" }, junction));
@@ -866,6 +948,47 @@ const Profil = (() => {
     return new Promise((resolve) => g.canvas.toBlob(resolve, "image/png"));
   }
 
+  // Cassure du profil en long (calcul seulement, rien n'est dessiné) : deux droites ajustées par moindres carrés, point de cassure choisi au mieux (somme des carrés des écarts
+  // minimale). « Nette » = deux profils distincts, pas du bruit ou des ondulations qu'une seule droite lisse ; toutes ces conditions à la fois
+  // (seuils provisoires) ; sinon, une seule pente.
+  const CASSURE_MIN_PCT = 2;  // écart de pente (points de %) entre les deux parties : au moins
+  const CASSURE_MIN_LONG = 20;  // longueur (m) de chaque partie : au moins
+  const CASSURE_MIN_PART = 0.25;  // et au moins cette part de la longueur totale du profil
+  const CASSURE_GAIN = 0.5;  // écart RMS à deux droites au plus cette part de celui d'une seule droite
+  const CASSURE_DROIT = 0.25;  // écart RMS de chaque partie au plus cette part de la hauteur apportée par la cassure (écart de pente × la plus courte partie)
+  const CASSURE_SIGMAS = 3;  // écart de pente au moins ce nombre de fois l'incertitude des deux pentes (issue des résidus)
+  /** Droite des moindres carrés de pts [d, z] : pente (m/m), altitude à d, somme des carrés des écarts, écart RMS, incertitude de la pente. */
+  function lineFit(pts) {
+    const n = pts.length, md = pts.reduce((a, [d]) => a + d, 0) / n, mz = pts.reduce((a, [, z]) => a + z, 0) / n;
+    const sxx = pts.reduce((a, [d]) => a + (d - md) ** 2, 0), slope = sxx ? pts.reduce((a, [d, z]) => a + (d - md) * (z - mz), 0) / sxx : 0;
+    const at = (d) => mz + slope * (d - md), sse = pts.reduce((a, [d, z]) => a + (z - at(d)) ** 2, 0), rms = Math.sqrt(sse / n);
+    return { slope, at, sse, rms, sigma: sxx ? rms / Math.sqrt(sxx) : Infinity };
+  }
+  /** Parties du profil en long (points [d, z], d croissant dans le sens de la photo) : avec cassure nette, deux parties
+   * { de, a, pente (%), z0, z1, rms } ; sinon une seule sur tout le profil (cassure: false). null sans assez de points. */
+  function cassure(points) {
+    const pts = [...points].sort((p, q) => p[0] - q[0]);
+    if (pts.length < 6 || pts.at(-1)[0] - pts[0][0] < 1e-6) return null;
+    const part = (list) => { const f = lineFit(list), [de, a] = [list[0][0], list.at(-1)[0]];
+      return { de, a, pente: 100 * f.slope, z0: f.at(de), z1: f.at(a), rms: f.rms, sigma: f.sigma, sse: f.sse }; };
+    const whole = part(pts), total = whole.a - whole.de, minLong = Math.max(CASSURE_MIN_LONG, CASSURE_MIN_PART * total);
+    let best = null;
+    for (let k = 2; k < pts.length - 2; k++) {  // point de cassure sur un point mesuré, commun aux deux parties
+      const [left, right] = [pts.slice(0, k + 1), pts.slice(k)];
+      if (left.at(-1)[0] - left[0][0] < minLong || right.at(-1)[0] - right[0][0] < minLong) continue;
+      const [a, b] = [part(left), part(right)];
+      if (!best || a.sse + b.sse < best[0].sse + best[1].sse) best = [a, b];
+    }
+    if (best) {
+      const [a, b] = best, jump = Math.abs(b.pente - a.pente) / 100, high = jump * Math.min(a.a - a.de, b.a - b.de);
+      const rms2 = Math.sqrt((a.sse + b.sse) / pts.length);
+      const sharp = 100 * jump >= CASSURE_MIN_PCT && rms2 <= CASSURE_GAIN * whole.rms && Math.max(a.rms, b.rms) <= CASSURE_DROIT * high
+        && jump >= CASSURE_SIGMAS * Math.hypot(a.sigma, b.sigma);
+      if (sharp) return { cassure: true, parties: best };
+    }
+    return { cassure: false, parties: [whole] };
+  }
+
   /** Lecture du profil en long (drawLong), pour la légende : une ligne courte (pente moyenne, trait violet, bande des
    * travers, repères pointillés), puis les ponts, creux comblés et tunnels s'il y en a. "" sans profil en long. */
   function longLegend(long) {
@@ -875,7 +998,8 @@ const Profil = (() => {
       ...(kinds.has("creux") ? ["creux comblé : creux du terrain sous la route, sans doute un pont absent de la BD TOPO"] : []),
       ...(kinds.has("tunnel") ? ["tunnel : route tracée de bout en bout (tirets)"] : [])];
     return `Profil en long : pente moyenne de ${num(Math.abs(long.pente))} % (${long.pente >= 0 ? "montée" : "descente"}). `
-      + (long.max ? "Trait violet : les 10 m les plus raides. " : "")
+      + "Pente en violet : une seule valeur ajustée par moindres carrés sur tout le profil (rien si elle est inférieure à 0,5 %), ou une par "
+      + `partie, avec un petit trait à leur limite, si deux profils nets se dessinent (écart de pente d'au moins ${CASSURE_MIN_PCT} points, parties d'au moins ${CASSURE_MIN_LONG} m, pas du bruit). `
       + "Bande grise : les 5 travers du graphique du dessus (−10 à +10 m, la photo à 0). "
       + "Repères pointillés : carrefours, fins de route, ponts."
       + (parts.length ? ` ${parts.join(" · ")}.` : "");
@@ -884,7 +1008,7 @@ const Profil = (() => {
   /** Profil en long (App._compute_edges : en_long, points [d, z], d > 0 dans le sens de la photo) : graphique d'environ
    * 160 px de haut sous le profil en travers, 0 = le sol sous la caméra, la caméra flottant à camera m au-dessus ; null
    * sans données. Pour le lire avec le profil en travers : bande pâle de −10 à +10 m autour de la photo, graduée aux 5
-   * travers (−10, −5, 0, +5, +10 m ; la photo en trait plus marqué). Les 10 m les plus raides sont en violet épais
+   * travers (−10, −5, 0, +5, +10 m ; la photo en trait plus marqué). Les parties du profil (une, ou deux si cassure nette : voir cassure) ont leur pente calculée, en étiquette violette
    * (le rouge est réservé au dévers), étiquetés avec leur pente ; l'étiquette se place sous le trait, côté bas de la
    * pente, donc aussi en descente. Fins de route, carrefours et ponts sont nommés dans une zone au-dessus du cadre,
    * étagés sans chevauchement (textWidth) et reliés par un pointillé à un point du terrain ; la zone n'a que la hauteur
@@ -987,22 +1111,24 @@ const Profil = (() => {
       const [a, b] = [Math.max(o.de, d0, first), Math.min(o.a, d1, last)];
       if (b > a) svg.append(el("line", { x1: X(a), y1: Z(at(a)) - 4, x2: X(b), y2: Z(at(b)) - 4, class: "ouvrage" }));
     }
-    if (long.max) {  // les 10 m les plus raides, en violet, avec leur pente
-      const [p, a, b] = long.max, [za, zb] = [at(a), at(b)];
-      svg.append(el("line", { x1: X(a), y1: Z(za), x2: X(b), y2: Z(zb), class: "raide" }));
-      // sous le trait, côté bas de la pente : montée, finissant au bout haut ; descente, partant du bout haut
-      const rise = zb >= za, y = Math.min(Math.max(Z(za), Z(zb)) + 22, T + ph - 5);
-      svg.append(el("text", { x: rise ? X(b) - 2 : X(a) + 2, y, class: "etiquette-raide place", "data-prio": 1,
-        "data-ancre": `${(X(a) + X(b)) / 2},${(Z(za) + Z(zb)) / 2}`, "text-anchor": rise ? "end" : "start" },
-        `${num(Math.abs(p))} % sur ${b - a} m`));
+    // pente : un calcul, affiché en étiquette seulement (la courbe du terrain reste celle du LiDAR) : une valeur sur toute la longueur du profil,
+    // ou une par partie si deux profils nets se dessinent (voir cassure), au-dessus de sa partie, avec un petit trait à la limite des parties
+    const fit = cassure(long.points);
+    for (const p of fit?.parties || []) {
+      const [a, b] = [Math.max(p.de, d0), Math.min(p.a, d1)];
+      if (b <= a) continue;
+      if (!fit.cassure && Math.abs(p.pente) < 0.5) continue;  // sans cassure, pente quasi nulle : rien à dire
+      const mid = (a + b) / 2;
+      svg.append(el("text", { x: X(mid), y: Z(at(mid)) - 8, class: "etiquette-raide place", "data-prio": 1, "data-couleur": "raide",
+        "data-ancre": `${X(mid)},${Z(at(mid))}`, "text-anchor": "middle" }, `${p.pente < 0 ? "−" : ""}${num(Math.abs(p.pente))}\u00a0%`));
     }
-    // caméra d'abord : son étiquette reste à sa place, les autres s'en écartent (declutter)
-    if (top !== null) {  // caméra à sa hauteur au-dessus du sol, pointillé jusqu'à lui
-      svg.append(el("line", { x1: X(0), x2: X(0), y1: Z(ground), y2: Z(top), class: "bord" }),
-        el("circle", { cx: X(0), cy: Z(top), r: 5, class: "origine" }),
-        el("text", { x: X(0) + 9, y: Z(top) + 4, class: "graduation place", "data-ancre": `${X(0)},${Z(top)}` }, "caméra"));
+    if (fit?.cassure) {
+      const x = X(fit.parties[0].a), y = Z(at(fit.parties[0].a));
+      svg.append(el("line", { x1: x, y1: y - 9, x2: x, y2: y + 9, class: "cassure" }));
     }
-    declutter(svg, { top: T, bottom: T + ph, left: L, right: L + pw }, []);
+    // pointillé vertical du point 0 (sol sous la caméra, jusqu'à sa hauteur) ; la caméra elle-même n'est pas dessinée (pas à l'échelle)
+    if (top !== null) svg.append(el("line", { x1: X(0), x2: X(0), y1: Z(ground), y2: Z(top), class: "bord" }));
+    declutter(svg, { top: T, bottom: T + ph, left: L, right: L + pw }, [], { mode: ETIQ.mode });
     // repères : pointillé de leur nom jusqu'à un point du terrain, puis les noms (liserés), par-dessus les traits
     const baseline = (m) => 30 + m.row * LINE + 10;  // ligne de base de la 1re ligne du nom
     for (const m of marks) {
@@ -1018,9 +1144,17 @@ const Profil = (() => {
       svg.append(label);
     }
     const g = long.pente;
+    // titre : la pente moyenne, ou les deux pentes et la limite si une cassure nette se dessine (comme les étiquettes)
+    const cutTitle = (cut, mean) => {
+      const way = (v) => (v >= 0 ? "montée" : "descente");
+      if (!cut?.cassure) return `Profil en long\u00a0: ${way(mean)} de ${num(Math.abs(mean))}\u00a0%`;
+      const [p, q] = cut.parties, at0 = Math.round(p.a);
+      const slopes = (p.pente >= 0) === (q.pente >= 0) ? `${way(p.pente)} de ${num(Math.abs(p.pente))}\u00a0% puis ${num(Math.abs(q.pente))}\u00a0%`
+        : `${way(p.pente)} de ${num(Math.abs(p.pente))}\u00a0% puis ${way(q.pente)} de ${num(Math.abs(q.pente))}\u00a0%`;
+      return `Profil en long\u00a0: ${slopes} (cassure à ${at0 > 0 ? "+" : at0 < 0 ? "−" : ""}${Math.abs(at0)} m)`;
+    };
     svg.append(el("text", { x: L, y: 18, class: "etiquette-profil" },
-      `Profil en long : ${g >= 0 ? "montée" : "descente"} de ${num(Math.abs(g))} %`
-        + (long.max ? `, jusqu'à ${num(Math.abs(long.max[0]))} % sur 10 m` : "")),
+      cutTitle(fit, g)),
       el("text", { x: L + pw, y: LH - 4, class: "graduation", "text-anchor": "end" }, "sens de la photo →"),
       el("text", { x: L, y: LH - 4, class: "graduation" },
         `hauteurs exagérées, 0 = le sol sous la caméra${long.suivi
@@ -1137,7 +1271,7 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #ddd; font-si
     return { type: "FeatureCollection", features: out };
   }
 
-  return { draw, png, pdfPage, fit, mapTrace };
+  return { draw, png, pdfPage, fit, mapTrace, etiquettes: ETIQ, cassure };
 })();
 
 export { Profil };

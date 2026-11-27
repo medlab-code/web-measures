@@ -486,12 +486,32 @@ après.
     « creux du terrain (pont ?) » hors des ponts de la BD TOPO, souvent plus courts que la brèche), pentes comprises ;
     creux ouvert au bout du profil : coupé ; tunnels de la route (BD TOPO) : le dessus remplacé par la droite d'une tête
     à l'autre ; pente moyenne par les moindres
-    carrés (montée ou descente dans le sens de la photo) et pente la plus forte sur 10 m ;
+    carrés (montée ou descente dans le sens de la photo) ;
     un graphique (profil en long, environ 160 px de haut) sous le profil en travers, repris dans l'image PNG : bande pâle de −10 à +10 m
-    autour de la photo, graduée aux 5 travers du graphique du dessus (la photo en trait plus marqué) ; les 10 m les plus raides en violet épais,
-    étiquetés (« 8,5 % sur 10 m ») ; carrefours, fins de route et ponts nommés au-dessus du cadre, reliés par un pointillé à leur point du
+    autour de la photo, graduée aux 5 travers du graphique du dessus (la photo en trait plus marqué) ; la pente en étiquette violette (voir ci-dessous),
+    carrefours, fins de route et ponts nommés au-dessus du cadre, reliés par un pointillé à leur point du
     terrain (un repère hors de la bande n'a jamais son nom au-dessus d'elle) ; une ligne de légende dessous, reprise dans le PNG et sur la
     2e page du PDF.
+
+  **Placement des étiquettes du graphique** (chute, dévers, travers voisins, séparateur, eau, canopée ; profil en travers et pente(s) du
+  profil en long ; `Profil.etiquettes` dans `src/profil.js`, paramètres commentés en tête de `ETIQ`). Mode par défaut « enveloppe » : étiquettes
+  horizontales rangées sur des rangées régulières (18 px), chacune sur la rangée la plus basse qui la laisse à 14 px au moins de toute courbe de
+  données (terrain LiDAR, autres travers, végétation, herbe, eau) sur toute sa largeur, au-dessus de ce qu'elle nomme, jamais sur une autre
+  étiquette ; un connecteur fin, vertical ou coudé, la relie à son point (couleur de la chute ou du dévers) et ne passe sur aucune autre étiquette ;
+  une étiquette n'est jamais posée au-dessus du point d'une autre. Quand aucune rangée au-dessus n'est dégagée (canopée jusqu'en haut), repli sous
+  l'élément, dans la terre. Les étiquettes qui touchent la chaussée (plateforme et son dévers, axe, caméra) et celle de la canopée gardent leur place.
+  Autres modes, pour ajuster : « actuel » (placement d'origine), « degagement » (marge de 14 px, connecteurs droits plus longs), « rangee » (bande
+  réservée en haut du cadre, hauteurs un peu réduites). Paramètres : `marge`, `margeCout`, `connecteurMin`, `pas`, `rangees`, `rangeCout`,
+  `decalage`, `dessousCout`.
+
+  **Pente du profil en long** : un calcul affiché en étiquette (« 3,1 % », « −1,4 % » : positif = montée dans le sens de la photo), la courbe restant
+  celle du LiDAR (rien n'est lissé ni redessiné). Une seule valeur, ajustée par moindres carrés sur tout le profil affiché, et rien si elle est
+  inférieure à 0,5 %. Si deux profils nets se dessinent (« cassure nette »), une étiquette par partie, au-dessus d'elle, et un petit trait
+  vertical à leur limite. Cassure nette (`Profil.cassure`, constantes `CASSURE_*` provisoires) : le point de cassure est choisi au mieux (somme
+  des carrés minimale) et toutes ces conditions sont remplies : chaque partie d'au moins 20 m et d'un quart du profil (donc pas de cassure sur
+  moins de 40 m) ; écart de pente d'au moins 2 points ; écart RMS à deux droites au plus la moitié de celui d'une seule droite ; chaque partie
+  bien droite (son RMS au plus le quart de la hauteur apportée par la cassure) ; écart de pente d'au moins 3 fois l'incertitude des deux pentes.
+  La caméra n'est plus dessinée sur le profil en long (pas à l'échelle) ; le pointillé vertical du point 0 reste.
 
   La fenêtre du **profil en travers**, ouverte par le même bouton dès que le calcul est rendu, montre la coupe du terrain que ce calcul a lue (mesure LiDAR
   HD, ou RGE ALTI en secours), sur la distance de la réglette de part et d'autre du milieu de la chaussée (1 m au moins
@@ -528,7 +548,7 @@ après.
   chaussée), sinon la fin de l'enrobé du seul travers de la photo. **Séparateur de chaussée** : la bande non revêtue entre les deux
   chaussées (glissières comprises, que le terrain seul ne voit pas), à 2 m au plus de celui du calcul, qu'elle
   remplace (« nuage LiDAR »). Les lignes blanches sont dessinées en petits carrés blancs ; une ligne à tirets absente du travers de la photo (vide entre deux tirets) est reprise si au moins 2 des 5 travers la voient. Le bouton est grisé
-  pendant la lecture et une fois l'analyse faite pour ce profil. **Pointillé vert clair** : herbe au sol (classée « sol »
+  pendant la lecture et une fois l'analyse faite pour ce profil. **Hachures vertes fines (3 px de haut)** : herbe au sol (classée « sol »
   par l'IGN) : bande non revêtue d'1 m au moins, en moyenne 3,5 fois plus claire que l'enrobé (le laser, en proche
   infrarouge, est très renvoyé par la végétation ; gravillons et béton : 2 à 3 fois), ou dont au moins 25 % des points (médiane des cases de 0,25 m) sont de la végétation (retours multiples, ou classe végétation près du sol : herbe haute). L'herbe rase d'un relevé d'hiver reste invisible au nuage : le LiDAR HD n'a pas de couleur. La case « Végétation » (cochée par défaut, choix retenu, grisée tant que l'analyse fine
   n'a pas été faite) montre ou masque le pointillé
