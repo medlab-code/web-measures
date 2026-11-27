@@ -250,6 +250,22 @@ function centre(pixels, line, around) {
       line?.text === "Profil : CD21 2025, Clio 5, monture haute (du 24/06/2025 au 31/12/2025)" && line.title === "Méthode : m. Provenance : p.", JSON.stringify(line));
     await expect("Profil : aucune ligne sans profil", Dessus.profileLine(null) === null);
   }
+  {  // Ligne « Hauteur » de l'étiquette (#59) : hauteurs côte à côte, termes absents omis, alerte au-delà de HEIGHT_ALERT
+    const all = Dessus.heightLine(2.07, "monture haute", 2.05, 2.09);
+    await expect("Hauteur : texte complet, sans alerte (écarts de 2 cm)",
+      all.text === "Hauteur : 2,07 m (monture haute) ; lue entre photos 2,05 m ; écart RTK − sol 2,09 m (borne)" && !all.alert, JSON.stringify(all));
+    const alone = Dessus.heightLine(2.07, "monture haute");
+    await expect("Hauteur : termes absents omis", alone.text === "Hauteur : 2,07 m (monture haute)" && !alone.alert, JSON.stringify(alone));
+    const rtkOnly = Dessus.heightLine(1.93, "calée pour la séquence", null, 2.11);
+    await expect("Hauteur : seul l'écart RTK − sol, 18 cm : alerte",
+      rtkOnly.text === "Hauteur : 1,93 m (calée pour la séquence) ; écart RTK − sol 2,11 m (borne) ; écart de plus de 15 cm à la hauteur retenue"
+      && rtkOnly.alert, JSON.stringify(rtkOnly));
+    const readFar = Dessus.heightLine(2.07, "monture haute", 1.9, 2.05);
+    await expect("Hauteur : hauteur lue à 17 cm : alerte", readFar.alert && readFar.text.endsWith("à la hauteur retenue"), JSON.stringify(readFar));
+    const edge = Dessus.heightLine(2.0, "réglage", 2.0 + Dessus.HEIGHT_ALERT, null);
+    await expect("Hauteur : écart égal au seuil : pas d'alerte", !edge.alert, JSON.stringify(edge));
+    await expect("Hauteur : infobulle (borne RTK, étude du 27/11/2026)", /borne/.test(all.title) && /27\/11\/2026/.test(all.title), all.title);
+  }
   await fin();
 })().catch(async (error) => { await log("ERREUR " + error); });
 </script>

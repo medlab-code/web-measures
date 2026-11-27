@@ -76,6 +76,10 @@ const Dessus = (() => {
   // m : hauteur par l'altitude RTK moins le sol, au moins : 12 cm d'écart avec le décalage entre photos sur le giratoire
   // b47b4351 (2,06 contre 1,94 m, stable sur 15 photos), alors que l'écart entre photos de la séquence n'est que de 2 cm
   const RTK_SIGMA = 0.1;
+  // m : écart de la hauteur lue entre photos, ou de l'écart RTK − sol, à la hauteur retenue au-delà duquel l'étiquette alerte (heightLine).
+  // Provisoire : environ 2 σ d'une photo (la hauteur lue entre photos disperse de 8 à 9 cm par photo, l'écart RTK − sol de 10 cm : études
+  // du 27/11/2026, #59) ; à resserrer quand la dispersion d'une campagne sera mieux connue
+  const HEIGHT_ALERT = 0.15;
   const GROUND_SIGMA = 1;  // degrés : inclinaison déduite de la route, sans verticales à lire (voir docs/CALCULS.md)
   // Sol supposé plat (pose.flat, décision du cœur : py/core/roads.py, BRIDGE_FLAT_RADIUS) : un pont BD TOPO à 15 m au plus de la
   // photo à vol d'oiseau (avant, sur ou après l'ouvrage), car le relief y donne le fond de la vallée, pas le tablier. Plan
@@ -479,6 +483,21 @@ const Dessus = (() => {
     if (!profile) return null;
     return { text: `Profil : ${profile.label} (du ${frenchDate(profile.first)} au ${frenchDate(profile.end, -1)})`,
       title: `Méthode : ${profile.method}. Provenance : ${profile.provenance}.` };
+  }
+
+  /** Ligne des hauteurs de caméra côte à côte pour l'étiquette (#59) : { text, title, alert }. height : hauteur retenue (m) ; origin :
+   * son origine (« monture haute », « calée pour la séquence »…) ; read : hauteur lue entre photos, ou null (absente, ou déjà celle
+   * retenue) ; rtk : écart RTK − sol LiDAR de la photo (une borne), ou null (absent, ou déjà celui retenu). Chaque terme seulement s'il
+   * est connu ; alerte quand read ou rtk s'écarte de la hauteur retenue de plus de HEIGHT_ALERT. */
+  function heightLine(height, origin, read = null, rtk = null) {
+    const parts = [`Hauteur : ${number(height, 2)} m (${origin})`];
+    if (read !== null) parts.push(`lue entre photos ${number(read, 2)} m`);
+    if (rtk !== null) parts.push(`écart RTK − sol ${number(rtk, 2)} m (borne)`);
+    const far = [read, rtk].some((v) => v !== null && Math.abs(v - height) > HEIGHT_ALERT);
+    if (far) parts.push(`écart de plus de ${number(100 * HEIGHT_ALERT, 0)} cm à la hauteur retenue`);
+    return { text: parts.join(" ; "), alert: far,
+      title: "La hauteur lue entre photos disperse de 8 à 9 cm d'une photo à l'autre, l'écart RTK − sol LiDAR de 10 cm ; ce dernier est une borne : "
+        + "il surestime d'environ 5 cm la hauteur de caméra après le 24/06/2025 (étude du 27/11/2026)." };
   }
 
   /** Terrain de l'inclinaison et de la hauteur de la route sous une caméra (groundUp, groundLevel) : lissé aussi en travers.
@@ -1698,9 +1717,9 @@ const Dessus = (() => {
   /** Hauteur de la photo affichée ajoutée à sa séquence (photo vérifiée seulement) ; { height, count } de la séquence, ou null. */
   function sequenceHeight(sequence, pose) {
     const all = readHeights(), kept = all[sequence] || {};
-    if (pose && !pose.bridge && pose.relative_sigma <= 0.05 && pose.height >= MIN_HEIGHT
-      && pose.height <= MAX_HEIGHT && !(pose.pic in kept)) {
-      kept[pose.pic] = Math.round(pose.height * 1000) / 1000;
+    if (pose && !pose.bridge && pose.relative_sigma <= 0.05 && pose.rtk_height >= MIN_HEIGHT
+      && pose.rtk_height <= MAX_HEIGHT && !(pose.pic in kept)) {  // rtk_height : écart RTK − sol de la photo, quelle que soit la hauteur retenue
+      kept[pose.pic] = Math.round(pose.rtk_height * 1000) / 1000;
       const pics = Object.keys(kept);
       if (pics.length > 60) delete kept[pics[0]];  // les plus anciennes d'abord
       all[sequence] = kept;
@@ -1889,6 +1908,11 @@ const Dessus = (() => {
       const span = Object.assign(document.createElement("span"), { className: "relief-info", textContent: profil.text, title: profil.title });
       label.append(span);
     }
+    const hauteurs = text && shown?.heightInfo ? heightLine(...shown.heightInfo) : null;  // hauteurs côte à côte (#59)
+    if (hauteurs) {
+      label.append(Object.assign(document.createElement("span"), { className: hauteurs.alert ? "relief-doute" : "relief-info",
+        textContent: hauteurs.text, title: hauteurs.title }));
+    }
     const line = text && shown && !flatGround(shown.pose) ? reliefLine(shown.relief) : null;  // diagnostic du relief (#67)
     if (!line) return;
     const span = document.createElement("span");
@@ -1943,7 +1967,9 @@ const Dessus = (() => {
     const parallax = withNeighbours() ? shown.height : null;  // lue avec les voisines : sans « Véhicule masqué », ignorée
     // hauteur : décalage entre photos, sinon RTK moins le sol (de la séquence, ou de la photo)
     const mount = shown.pose.fleet ? shown.pose.mount : null;  // CD21 : monture d'après la date (profil de campagne, py/web_profils.py)
-    const height = mount ? { height: mount, height_sigma: shown.pose.mount_sigma }
+    const fitted = shown.pose.height_source === "calée";  // hauteur calée pour la séquence : avant la monture, la lecture et l'écart RTK − sol (#59)
+    const height = fitted ? { height: leveled.height, height_sigma: leveled.height_sigma }
+      : mount ? { height: mount, height_sigma: shown.pose.mount_sigma }
       : parallax && shown.pose.fleet ? { height: mountOf(parallax), height_sigma: shown.pose.mount_sigma }  // CD21 hors campagne connue
       : parallax ? { height: parallax, height_sigma: HEIGHT_SIGMA }
       : { height: shown.sequenceHeight?.height ?? leveled.height, height_sigma: Math.max(leveled.height_sigma, RTK_SIGMA) };
@@ -2279,19 +2305,26 @@ const Dessus = (() => {
     return `inclinaison de la route (${notes.join(", ")}), ±${number(main.sigma, 1)}°`;
   }
 
-  /** D'où vient la hauteur de caméra, pour le message d'état : monture du CD21 (d'après la date, ou lue entre photos),
-   * décalage entre photos, ou hauteur de la séquence ; parallax : hauteur lue entre photos, ou null. */
-  function cameraOrigin(parallax) {
+  /** D'où vient la hauteur de caméra, pour la ligne « Hauteur » de l'étiquette : { label, rtk } (rtk : la hauteur est un écart RTK − sol,
+   * donc pas répétée à part) ; parallax : hauteur lue entre photos, ou null. */
+  function heightOrigin(parallax) {
     const mount = (h) => (h === shown.pose.mounts[0] ? "basse" : "haute");
-    const read = parallax ? `, lue entre photos : ${number(parallax, 2)} m` : "";
-    if (shown.pose.fleet && shown.pose.mount) return ` (monture ${mount(shown.pose.mount)} d'après la date${read})`;
-    if (parallax && shown.pose.fleet) return ` (monture ${mount(mountOf(parallax))}${read})`;
+    const source = shown.pose.height_source;
+    if (source === "calée") return { label: "calée pour la séquence", rtk: false };
+    if (shown.pose.fleet && shown.pose.mount) return { label: `monture ${mount(shown.pose.mount)}`, rtk: false };
+    if (parallax && shown.pose.fleet) return { label: `monture ${mount(mountOf(parallax))}`, rtk: false };
     if (parallax) {
       const n = parallaxCount(shown.sequence);
-      return ` (parallaxe : décalage entre photos${n > 1 ? `, médiane de ${n} photos de la séquence` : ""})`;
+      return { label: `parallaxe : décalage entre photos${n > 1 ? `, médiane de ${n} photos de la séquence` : ""}`, rtk: false };
     }
-    return shown.sequenceHeight ? ` (écart RTK − sol LiDAR, médiane de ${shown.sequenceHeight.count} photos de la séquence)`
-      : " (écart RTK − sol LiDAR de la photo, calage ou réglage)";
+    if (shown.sequenceHeight) return { label: `écart RTK − sol LiDAR, médiane de ${shown.sequenceHeight.count} photos de la séquence`, rtk: true };
+    return source === "altitude GPS" ? { label: "écart RTK − sol LiDAR de la photo", rtk: true } : { label: "réglage", rtk: false };
+  }
+  /** Arguments de heightLine pour la photo affichée : hauteur retenue, origine, hauteur lue entre photos (si elle n'est pas la hauteur
+   * retenue : parallaxe sans monture), écart RTK − sol de la photo (s'il n'est pas la hauteur retenue). */
+  function heightInfoOf(height, parallax) {
+    const origin = heightOrigin(parallax), retained = !shown.pose.mount && !shown.pose.fleet && parallax && shown.pose.height_source !== "calée";
+    return [height, origin.label, parallax && !retained ? parallax : null, origin.rtk ? null : shown.pose.rtk_height ?? null];
   }
   /** Ce que la vue du dessus applique à la photo affichée, annoncé à la page (Dessus.onTilt, App.birdeye_tilt_set) pour que la
    * droite de « Largeur dans la visionneuse » mesure comme elle : inclinaison tirée de la route (groundTilt ; avec les verticales
@@ -2387,7 +2420,8 @@ const Dessus = (() => {
       : busy() ? "photos voisines en cours…" : "";
     const head = `${place}, ${layers.length} photo${layers.length > 1 ? "s" : ""}, ${tilt}`
       + `${others ? ` (${others} voisine${others > 1 ? "s" : ""} sans inclinaison)` : ""}`
-      + `, caméra à ${number(layers[0].pose.height, 2)} m${cameraOrigin(parallax)}`;
+      + `, caméra à ${number(layers[0].pose.height, 2)} m`;
+    shown.heightInfo = heightInfoOf(layers[0].pose.height, parallax);  // détail et comparaison : ligne « Hauteur » de l'étiquette (say)
     const joins = withNeighbours() && shown.joinText && shown.joins?.key === shown.joinKeyNow ? shown.joinText : "";
     if (!shown.silent) say([head, joins, locatedText(), progress].filter(Boolean).join(" ; "));
     // étape de l'attente : ce qui est encore en cours, dans les mots de la barre d'état (sans « en cours »)
@@ -2774,7 +2808,7 @@ const Dessus = (() => {
     layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins,
       outline: outlines.get(shown.sequence), locatedWith: shown.locatedWith },
     view, hidden, uncertainty, measureError, shownError, groundUp, roadAxis, sourceOf, toLocal, toLonLat, estimateHeight,
-    diagnoseRelief, profileLine, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, linesPitch, REACH, SIZE,
+    diagnoseRelief, profileLine, heightLine, HEIGHT_ALERT, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, linesPitch, REACH, SIZE,
   };
 })();
 

@@ -192,6 +192,8 @@ class VueDessus(unittest.TestCase):
         self.assertFalse(json.loads(a.birdeye_pose())["fleet"])
         a.item["providers"] = [{"id": App.FLEET_PRODUCER, "roles": ["producer"]}]
         self.assertTrue(json.loads(a.birdeye_pose())["fleet"])
+        pose = json.loads(a.birdeye_pose())  # #59 : la pose donne la source de la hauteur et l'écart RTK − sol à part (étiquette Bird Eye)
+        self.assertEqual((pose["height_source"], pose["rtk_height"]), ("altitude GPS", 2.4))
         self.assertIsNone(json.loads(a.birdeye_pose())["mount"])  # sans date : pas de monture
         a.item.setdefault("properties", {})["datetime"] = "2025-07-07T05:56:32Z"
         self.assertEqual(json.loads(a.birdeye_pose())["mount"], 2.07)  # monture d'après la date, hors pont aussi
@@ -999,6 +1001,25 @@ class CameraPont(unittest.TestCase):
         a.use_fall_setting = App.use_fall_setting.__get__(a)
         a.fall_setting = True
         self.assertEqual(a._fall_camera()[:2], (1.9, "réglage"))
+
+    def test_monture_avant_ecart_rtk(self):
+        """#59 : photo du CD21 du 10/06/2025, position vérifiée, écart RTK − sol 2,06 m : la monture (1,93 m) prime, l'écart RTK − sol
+        n'est qu'une borne ; autre producteur : 2,06 m « altitude GPS » ; sans rien : le réglage."""
+        verified = {"count": 20, "precise": True, "lidar": True, "height": 2.06, "spread": 0.03}
+        item = {"collection": "s", "providers": [{"id": App.FLEET_PRODUCER}], "properties": {"datetime": "2025-06-10T10:00:00Z"}}
+        a = self.app(verified, item=item)
+        self.assertEqual(a.camera_of(item, verified), (1.93, "monture", 0.04))
+        self.assertEqual(a.camera_of(item, verified, sequence_only=True)[:2], (1.93, "monture"))
+        self.assertEqual(a._fall_camera()[:2], (1.93, "monture"))
+        self.assertEqual(a.camera_of(item, verified, mount=False), (2.06, "altitude GPS", 0.03))
+        other = dict(item, providers=[{"id": "autre"}])
+        self.assertEqual(a.camera_of(other, verified), (2.06, "altitude GPS", 0.03))
+        self.assertEqual(a.camera_of(other, None), (1.9, None, 0.15))
+        used = a._camera_used(item)  # infobulle du réglage « Hauteur de caméra »
+        self.assertEqual((used["height"], used["source"]), (1.93, "monture"))
+        self.assertIn("Hauteur utilisée pour cette photo : 1,93 m (profil CD21 2025, Clio 5, monture basse)", used["text"])
+        self.assertIn("écart RTK − sol LiDAR, une borne", a._camera_used(other)["text"])
+        self.assertIn("(réglage)", self.app(None, item=other)._camera_used(other)["text"])
 
     def test_monture(self):
         """Photo du CD21 sans hauteur mesurée ni calée (sur un pont, 13/11/2026) : la monture de sa date, sans rien demander ;

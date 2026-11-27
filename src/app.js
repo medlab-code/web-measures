@@ -879,6 +879,9 @@ import { Visionneuse } from "./visionneuse.js";
     const computed = $("#fiche .precision-calculee");
     if (computed) computed.textContent = state.computed || "en cours…";
     showPosition(state.quality, state.calibration);
+    // Réglage « Hauteur de caméra » : jamais grisé (le profil en long et les mesures sans hauteur calée le lisent quelle que soit la
+    // photo, #59) ; son infobulle dit la hauteur retenue pour la photo affichée et d'où elle vient (App._camera_used)
+    $("#camera").title = state.camera_used?.text ?? "";
     const gps = $("#camera-gps");
     gps.hidden = !state.camera;
     if (state.camera) {

@@ -32,7 +32,7 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
   séquence, `roads.on_bridge`, comme pour les mesures ; depuis le 22/11/2026 la vue du dessus n'a plus sa propre détection, plus large,
   à 20 m, dessus ou dessous), le MNT est écarté : il donne le sol sous le tablier. Tablier plan et horizontal (`deck`) :
   inclinaison par la route (±1,5°), hauteur lue entre photos sur les verticales, sinon celle de la séquence, puis pour le
-  CD21 sa monture d'après la date (profil de campagne, `py/web_profils.py`), puis le réglage (pas RTK moins sol LiDAR) ; ce choix de hauteur se fait
+  CD21 sa monture d'après la date (profil de campagne, `py/web_profils.py`), puis le réglage (pas RTK moins sol LiDAR) ; une hauteur calée passe avant la monture ; ce choix de hauteur se fait
   photo par photo (une voisine marquée sur un pont, la photo affichée non). **Sol supposé plat près d'un pont** (depuis le 26/11/2026, `pose.flat`, décision unique du cœur : `roads.flat_ground`, constante
   `roads.BRIDGE_FLAT_RADIUS` = 15 m) : tout pont BD TOPO à 15 m au plus de la photo, à vol d'oiseau, distance au tablier le plus proche (avant, sur ou
   après l'ouvrage, sans condition de sens), met la photo sur un plan horizontal à la hauteur de caméra, car le relief (LiDAR HD, RGE ALTI)
@@ -226,7 +226,15 @@ c'est ce que corrigent les raccords (§ 4.3).
    à 1,968 m). Sur les 17 passages piétons : bandes par les verticales à 2,6 % de 0,50 m en médiane (3,2 % avant), 13,2 %
    à 95 % (16,2 %) ; par la route, 5,0 % (4,8 %), deux vues de plus, mesurées sur le tablier plat d'un pont. Relevé du 08/11/2026 sur 36 vues :
    1,90 à 1,95 m du 28/05 au 23/06/2025, 2,05 à 2,07 m le 03/07 (2,15 le 07/07, dispersé en octobre) ; l'altitude RTK moins
-   le sol reste vers 2,05-2,10 m tout du long (antenne fixe, caméra plus basse sur la première monture).
+   le sol reste vers 2,05-2,10 m tout du long (antenne fixe, caméra plus basse sur la première monture). Étude du 27/11/2026 : cet écart
+   n'est qu'une borne, il saute aussi au 24/06/2025 (1,93 → 2,11 m) et surestime d'environ 5 cm la hauteur de caméra après cette date
+   (dispersion d'environ 10 cm) : il passe après la calée et la monture dans `Session.camera_of` (#59).
+   **Hauteurs côte à côte** (#59) : l'étiquette d'informations a une ligne « Hauteur : 2,07 m (monture haute) ; lue entre
+   photos 2,05 m ; écart RTK − sol 2,09 m (borne) » (`heightLine`) : la hauteur retenue et son origine, puis, seulement si
+   elles sont connues et différentes d'elle, la hauteur lue entre photos (avec « Véhicule masqué ») et l'écart RTK − sol de la photo
+   (`pose.rtk_height`, borne). Elle passe en orange quand l'une d'elles s'écarte de la hauteur retenue de plus de `HEIGHT_ALERT`. Une hauteur
+   calée pour la séquence (`pose.height_source`) passe avant la monture, la lecture entre photos et la médiane RTK de la séquence, comme
+   dans `camera_of` ; cette médiane ne garde que les écarts RTK − sol (`pose.rtk_height`), jamais une hauteur calée.
    Retenue par photo dans le navigateur (`web-measures/dessus-parallaxes`) : la médiane sert à toute la séquence, même
    vue photo seule, avant l'altitude RTK moins le sol. Giratoire b47b4351 : 1,94 m par le décalage, 2,06 m par le RTK
    (15 photos, 2,04 à 2,09 m) ; largeur entre lignes de 8,0 m sur le terrain, environ 8,2 m avec 1,94 m, 8,7 m avec
@@ -420,6 +428,7 @@ Valeurs affichées, combinées dans `uncertainty` et `measureError` (voir § 3 e
 | `DECK_SIGMA` (`dessus.js:88`) | 1,5 | degré | Idem sur un pont (tablier supposé plan, pente jusqu'à 3 %, 1,7°) | réglage empirique (e9801fc) ; commentaire : pente de tablier jusqu'à 3 %, soit 1,7° | Idem |
 | `LEAN` (`dessus.js:259`) | 0,5 | degré par m/s² | Penchement du véhicule en virage, ajouté à l'incertitude (5° par g), sans corriger la vue | mesure (giratoire b47b4351, 4,4 m/s² : bord à 8 m décalé de 1,3 m) | Plus grand : incertitude majorée en virage ; ne change pas l'image |
 | `HEIGHT_SIGMA` (`dessus.js:75`) | 0,05 | m | Écart-type de la hauteur de caméra lue sur le décalage entre photos voisines | mesure (essai de 28 paires) | Plus grand : incertitude de hauteur plus large |
+| `HEIGHT_ALERT` (`dessus.js`, avant `GROUND_SIGMA`) | 0,15 | m | Écart de la hauteur lue entre photos, ou de l'écart RTK − sol, à la hauteur retenue au-delà duquel la ligne « Hauteur » de l'étiquette passe en orange (`heightLine`) | choix provisoire (#59) : environ 2 σ d'une photo (dispersion de 8 à 9 cm par photo pour la hauteur lue, 10 cm pour l'écart RTK − sol, études du 27/11/2026) | Plus petit : plus d'alertes ; plus grand : écarts réels tus |
 | `RTK_SIGMA` (`dessus.js:78`) | 0,1 | m | Plancher de l'écart-type de la hauteur par l'altitude RTK moins le sol | mesure (12 cm d'écart avec le décalage entre photos au giratoire b47b4351, alors que l'écart interne n'est que de 2 cm) | Plus petit : hauteur RTK présentée plus sûre qu'elle n'est |
 | `height_sigma` des profils (`web_profils.py:41`) ; `HEIGHT_SIGMA_DEFAULT` (`web_profils.py:20`) | 0,04 | m | Écart-type de la hauteur par monture du CD21 (la page le lit dans la pose : `mount_sigma`) | non documentée (valeur non justifiée ; les hauteurs lues sont dans le commentaire de `CAMPAIGN_PROFILES`) | Plus grand : hauteur par monture moins crédible |
 | `MEASURED` (`dessus.js:74`) | 0,05 | part de la longueur | Plancher de l'incertitude affichée d'une longueur (écart constaté à l'orthophoto) | mesure (essais du 08/11/2026, `docs/CALCULS.md`) | Plus petit : incertitude affichée parfois sous l'écart réellement constaté |

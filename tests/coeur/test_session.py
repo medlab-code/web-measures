@@ -721,12 +721,12 @@ if __name__ == "__main__":
 
 
 class CameraOf(Base):
-    """Hauteur de caméra d'une photo (Session.camera_of) : mesurée, calée, monture du véhicule, puis le réglage."""
+    """Hauteur de caméra d'une photo (Session.camera_of) : calée, monture du véhicule, écart RTK − sol, puis le réglage (#59)."""
 
     def test_ordre(self):
         s, item = self.s, {"collection": "s1"}
         measured = {"precise": True, "count": 0, "lidar": True, "height": 2.4, "spread": 0.02}
-        self.assertEqual(s.camera_of(item, measured), (2.4, "altitude GPS", 0.02))
+        self.assertEqual(s.camera_of(item, measured), (2.4, "altitude GPS", 0.02))  # sans monture ni calée : l'écart RTK − sol
         self.assertEqual(s.camera_of(item, measured, sequence_only=True)[1], None)  # photo seule : pas sur la séquence
         self.assertEqual(s.camera_of(item, {"precise": True, "lidar": False, "height": 2.4})[:2], (CAMERA, None))
         s._mount_height = lambda it: (2.07, 0.04)  # véhicule connu (la page : monture du CD21 d'après la date)
@@ -734,4 +734,7 @@ class CameraOf(Base):
         self.assertEqual(s.camera_of(item, None, mount=False)[:2], (CAMERA, None))
         s.calibration.camera = lambda seq: {"height": 1.95, "sigma": 0.1} if seq == "s1" else None
         self.assertEqual(s.camera_of(item, None), (1.95, "calée", 0.1))  # calée : avant la monture
-        self.assertEqual(s.camera_of(item, measured)[1], "altitude GPS")  # mesurée : avant tout
+        self.assertEqual(s.camera_of(item, measured)[1], "calée")  # calée : avant l'écart RTK − sol
+        s.calibration.camera = lambda seq: None
+        self.assertEqual(s.camera_of(item, measured), (2.07, "monture", 0.04))  # monture : avant l'écart RTK − sol (borne, #59)
+        self.assertEqual(s.camera_of(item, measured, mount=False)[:2], (2.4, "altitude GPS"))  # sans monture : l'écart RTK − sol

@@ -109,15 +109,12 @@ class Nez:
 
     def _nose_height(self, item):
         """(hauteur de la caméra, source, incertitude en m) de la droite. Annoncée par la vue du dessus quand elle a calé la photo
-        (birdeye_tilt_set : celle de sa couche, monture, parallaxe ou altitude GPS) ; sinon la monture du véhicule avant l'altitude
-        GPS (même ordre que la vue du dessus : l'altitude GPS moins le sol LiDAR faisait 1,80 m au lieu de 1,93 m sur le CD21, une
-        largeur de 7 % trop courte) ; sinon camera_of. Seule la largeur ↔ prend cet ordre : camera_of reste celui des autres mesures."""
+        (birdeye_tilt_set : celle de sa couche, monture, parallaxe ou altitude GPS) ; sinon camera_of, qui prend la calée, puis la
+        monture du véhicule, avant l'écart RTK − sol LiDAR (qui faisait 1,80 m au lieu de 1,93 m sur le CD21, une largeur de 7 %
+        trop courte). Même ordre que les autres mesures depuis le 27/11/2026 (#59)."""
         bird = self.birdeye_ground.get((item or {}).get("id"))
         if bird and bird.get("height"):
             return bird["height"], "vue du dessus", bird["height_sigma"] or web_profils.HEIGHT_SIGMA_DEFAULT
-        known = self._mount_height(item or {})
-        if known:
-            return known[0], "monture", known[1]
         return self.camera_of(item, self.quality)
 
     def _nose_axis(self):

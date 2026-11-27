@@ -258,8 +258,10 @@ Chaque objet est placé d'une de ces trois façons :
 
 - **triangulé** (§ 2) : la façon normale ;
 - **sur une seule photo** (« Garder sur cette seule photo ») : là où la visée touche le sol,
-  supposé plat à la hauteur de caméra sous la photo (altitude RTK moins sol LiDAR, sinon calée, sinon
-  monture du CD21 d'après la date, sinon le réglage : `Session.camera_of`). La visée doit descendre d'au moins 2° sous
+  supposé plat à la hauteur de caméra sous la photo (calée, sinon monture du CD21 d'après la date, sinon
+  altitude RTK moins sol LiDAR, sinon le réglage : `Session.camera_of`, ordre unique depuis le 27/11/2026, #59 : l'écart RTK − sol n'est qu'une
+  borne, il saute aussi à la rupture de monture du 24/06/2025, 1,93 → 2,11 m, et surestime d'environ 5 cm la hauteur après elle, avec
+  10 cm de dispersion ; l'incertitude de la visée suit la source : `camera_of`). La visée doit descendre d'au moins 2° sous
   l'horizon, soit 70 m au plus pour une caméra à 2,5 m. L'incertitude vient surtout de
   l'inclinaison : ±0,2 à 0,8 m pour un objet à 6 m selon son calage ;
 - **sur la carte** (« Placer sur la carte ») : le clic sur la mini-carte, à ±1 m (précision des
@@ -321,10 +323,9 @@ qui se touchent à 1 m près forment un seul ouvrage.
   moins la hauteur de caméra. En chaque point, l'altitude est interpolée entre les deux photos
   consécutives (rangs dans la séquence) dont le segment passe au plus près (pont long et pentu ; une
   seule photo : son altitude ; `web_app._deck_at`). La hauteur de
-  caméra est celle **mesurée sur la séquence** vérifiée (médiane de l'altitude RTK moins le sol
-  LiDAR, photos du pont écartées), sinon celle **calée** pour la séquence, sinon pour une photo du CD21
-  la **monture d'après la date** (1,93 m jusqu'au 23/06/2025, 2,07 m ensuite, ±4 cm, profil de campagne de `py/web_profils.py`,
-  comme la vue du dessus). Une photo de précision
+  caméra est celle **calée** pour la séquence, sinon pour une photo du CD21 la **monture d'après la date** (1,93 m jusqu'au
+  23/06/2025, 2,07 m ensuite, ±4 cm, profil de campagne de `py/web_profils.py`, comme la vue du dessus), sinon celle **mesurée sur la
+  séquence** vérifiée (médiane de l'altitude RTK moins le sol LiDAR, photos du pont écartées : une borne, voir § 6). Une photo de précision
   déclarée n'a que sa propre hauteur, prise au-dessus du sol sous elle : sur un pont, le fond
   franchi. Le réglage « Hauteur de caméra » ne sert alors que si l'utilisateur l'accepte (bouton de
   l'encadré du pont).
@@ -518,10 +519,11 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   la droite étant droite, tout décalage s'en déduit par interpolation linéaire. Les décalages des poignées sont continus : interpolation
   linéaire entre points consécutifs de la table, au point le plus proche du pointeur à l'écran.
 - **Hauteur** `H` (`Nez._nose_height`) et son incertitude `σH`, dans l'ordre de la vue du dessus (`layerOf`) : 1) celle que la vue du
-  dessus **annonce** pour la photo (`height`, `height_sigma` de `App.birdeye_tilt_set`, avec l'inclinaison : monture CD21, parallaxe
-  entre photos ou RTK ; source « vue du dessus ») ; 2) sans calage Bird Eye, la **monture** du véhicule d'après la date (1,93 ou
-  2,07 m, ±0,04 m) ; 3) `Session.camera_of` (altitude GPS moins sol LiDAR, calée, réglage, 1,90 m par défaut). Seule la largeur ↔
-  prend cet ordre : `camera_of` garde le sien pour les autres mesures (la monture après l'altitude GPS). Sur la photo
+  dessus **annonce** pour la photo (`height`, `height_sigma` de `App.birdeye_tilt_set`, avec l'inclinaison : calée, monture CD21, parallaxe
+  entre photos ou RTK ; source « vue du dessus ») ; 2) sans calage Bird Eye, `Session.camera_of` : calée, **monture** du véhicule d'après la date
+  (1,93 ou 2,07 m, ±0,04 m), altitude GPS moins sol LiDAR, réglage (1,90 m par défaut). Depuis le 27/11/2026 (#59) c'est l'ordre de toutes
+  les mesures : l'écart RTK − sol n'est qu'une borne (il saute aussi au 24/06/2025, 1,93 → 2,11 m, et surestime d'environ 5 cm la hauteur
+  après). Sur la photo
   8625c7ff-90c1-4865-b936-fd8952ac908f, l'altitude GPS moins le sol donnait 1,80 m contre 1,93 m (monture, parallaxe 1,92 m) : 7 % de
   largeur en moins (48 cm sur 6 m de bords à ±3 m).
 - **Sol, quand la vue du dessus a calé la photo** : le terrain **lissé** de sa couche (maillage de 1 m, lissé sur 2 m le long de la
@@ -1033,7 +1035,7 @@ village sans accord (position gardée). Limite : un décalage de plus de 1,2 m s
 / +0,2 / -0,2 / +0,2° pour +0,5 / +0,5 / +0,2 / +0,2 / -0,2 / 0°.
 
 Photos du CD21 : hauteur de la monture d'après la date de prise de vue (profil de campagne, `py/web_profils.py`, 1,93 ou 2,07 m), avant toute
-autre (voir docs/BIRDEYE.md § 4.2). Autres photos, hauteur de caméra par séquence : médiane des hauteurs vérifiées (GPS RTK moins sol) des photos vues de la séquence, dès
+autre sauf une hauteur calée pour la séquence (voir docs/BIRDEYE.md § 4.2 ; ordre de `Session.camera_of`, #59). Autres photos, hauteur de caméra par séquence : médiane des hauteurs vérifiées (GPS RTK moins sol) des photos vues de la séquence, dès
 3 photos, gardée dans le navigateur (`web-measures/dessus-hauteurs`) ; une même séquence de l'A38 allait de 1,83 à
 2,36 m d'une photo à l'autre. Chaque caméra est posée à cette hauteur au-dessus du plan de la route sous le véhicule
 (moyenne du terrain sur ±2,5 m x ±1,5 m), plutôt que sur un seul point du maillage.

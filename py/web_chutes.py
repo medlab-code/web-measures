@@ -341,18 +341,19 @@ class Chutes:
                                                            measures._num(self.FALL_LIDAR_REACH, 0))}
         return self.status()
 
-    # Hauteur de caméra du tablier : mesurée sur la séquence vérifiée (médiane de l'altitude RTK moins le sol LiDAR, photos du
-    # pont écartées), sinon calée pour la séquence. Une photo de précision déclarée n'a que sa propre hauteur, altitude moins
+    # Hauteur de caméra du tablier : calée pour la séquence, sinon monture du CD21 d'après la date, sinon mesurée sur la séquence
+    # vérifiée (médiane de l'altitude RTK moins le sol LiDAR, photos du pont écartées ; borne, voir camera_of). Une photo de précision déclarée n'a que sa propre hauteur, altitude moins
     # le sol sous elle : sur un pont, le fond franchi (plausible encore sur un pont bas) ; le réglage « Hauteur de caméra » prend sa
     # place, seulement si l'utilisateur l'accepte (use_fall_setting)
-    FALL_ASK = ("La hauteur de caméra n'est ni mesurée sur la séquence (précision déclarée dans la photo : sa hauteur est "
-                "prise au-dessus du sol sous elle, ici le fond franchi) ni calée. Le calcul peut utiliser le réglage "
+    FALL_ASK = ("La hauteur de caméra n'est ni calée, ni celle d'une monture connue, ni mesurée sur la séquence (précision "
+                "déclarée dans la photo : sa hauteur est prise au-dessus du sol sous elle, ici le fond franchi). Le calcul peut utiliser le réglage "
                 "« Hauteur de caméra » (réglage) : la hauteur de chute en dépend directement.")
     fall_setting = False  # l'utilisateur accepte le réglage « Hauteur de caméra » pour la hauteur de chute
 
     def _fall_camera(self):
-        """(hauteur de caméra en m, sa source, son incertitude en m) pour le tablier, ou None (à demander) : mesurée sur la
-        séquence, calée, monture du CD21 d'après la date, sinon le réglage si l'utilisateur l'accepte (camera_of)."""
+        """(hauteur de caméra en m, sa source, son incertitude en m) pour le tablier, ou None (à demander) :
+        calée, monture du CD21 d'après la date, puis écart RTK − sol sur la séquence (même ordre que camera_of) ; sinon le
+        réglage, si l'utilisateur l'accepte."""
         h, source, sigma = self.camera_of(self.item, self.quality, sequence_only=True)
         if source is None and not self.fall_setting:
             return None

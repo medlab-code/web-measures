@@ -513,25 +513,28 @@ class Session:
 
     def camera_of(self, item, quality, sequence_only=False, mount=True):
         """Hauteur de caméra de la photo item au-dessus du sol : (m, source, incertitude en m), dans l'ordre :
-        - écart altitude RTK moins sol LiDAR HD, pris pour la hauteur de la caméra (source « altitude GPS » : une borne, pas une hauteur mesurée ; quality : vérification de la position ; sequence_only : sur la
-          séquence seulement, pas la photo seule de précision déclarée, prise au-dessus du sol sous elle) ;
-        - calée pour la séquence ;
-        - monture connue du véhicule (_mount_height, mount=False : sans elle) ;
+        - calée pour la séquence (le plus spécifique) ;
+        - monture connue du véhicule (_mount_height, profil de campagne daté ; mount=False : sans elle) ;
+        - écart altitude RTK moins sol LiDAR HD, pris pour la hauteur de la caméra (source « altitude GPS » : une borne, pas une
+          hauteur mesurée ; quality : vérification de la position ; sequence_only : sur la séquence seulement, pas la photo seule
+          de précision déclarée, prise au-dessus du sol sous elle) ;
         - le réglage « Hauteur de caméra » (source None).
+        L'écart RTK − sol passe après le profil et la calée : étude du 27/11/2026, il saute aussi à la rupture de monture du
+        24/06/2025 (1,93 → 2,11 m) et surestime d'environ 5 cm la hauteur après elle, avec 10 cm de dispersion.
         Les mesures (hauteur, points triangulés) n'en dépendent pas : elle sert aux repères et objets posés
         au sol, au relevé sur une seule photo, au tablier d'un pont et à l'export. MeasureTool.camera_info, côté
         mesures, ne connaît que les deux dernières sources (calée, réglage)."""
-        q = quality or {}
-        h = q.get("height")
-        if (q.get("count") if sequence_only else q.get("precise")) and q.get("lidar") is True and h is not None \
-                and measures.CAMERA_RANGE[0] <= h <= measures.CAMERA_RANGE[1]:
-            return h, "altitude GPS", q.get("spread") or measures.CAMERA_ERRORS["altitude GPS"]
         cam = self.calibration.camera((item or {}).get("collection"))
         if cam:
             return cam["height"], "calée", cam["sigma"]
         known = self._mount_height(item or {}) if mount else None
         if known:
             return known[0], "monture", known[1]
+        q = quality or {}
+        h = q.get("height")
+        if (q.get("count") if sequence_only else q.get("precise")) and q.get("lidar") is True and h is not None \
+                and measures.CAMERA_RANGE[0] <= h <= measures.CAMERA_RANGE[1]:
+            return h, "altitude GPS", q.get("spread") or measures.CAMERA_ERRORS["altitude GPS"]
         return self.tool.camera_height, None, measures.CAMERA_ERRORS[None]
 
     def _mount_height(self, item):

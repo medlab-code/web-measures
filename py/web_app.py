@@ -244,6 +244,7 @@ class App(Pose, Chutes, Nez, session.Session):
             quality = precision.state_text(self.quality, metadata.item_accuracy(self.item), (text, False))
             out["quality"] = "⚠ " + quality if alert and not quality.startswith("⚠") else quality
             out["quality"] = self._bridge_note(out["quality"])
+            out["camera_used"] = self._camera_used(self.item)
         return json.dumps(out)
 
     def _bridge_note(self, quality):
@@ -594,11 +595,7 @@ class App(Pose, Chutes, Nez, session.Session):
         elev = -(s.get("elev") or 0.0)
         if elev < SINGLE_MIN_ELEV:
             return None
-        h = self._camera_height()
-        q = self.quality or {}
-        cam = self.calibration.camera(self.item.get("collection"))
-        sigma_h = (measures.CAMERA_ERRORS["altitude GPS"] if q.get("precise") and q.get("lidar") is True
-                   else cam["sigma"] if cam else measures.CAMERA_ERRORS[None])
+        h, _, sigma_h = self.camera_of(self.item, self.quality)  # hauteur et incertitude de la même source (calée, monture, écart RTK − sol, réglage)
         tilt = self.calibration.tilt(s["pic"])
         sigma_tilt = tilt["sigma"] if tilt and tilt.get("sigma") is not None else calibration.UNCALIBRATED
         e = math.radians(elev)

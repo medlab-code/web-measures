@@ -292,12 +292,15 @@ class Pose:
         if loose and (not tilt or loose["sigma"] < tilt["sigma"]):  # terrain (±0,5°, sans le véhicule penché en virage)
             tilt = loose
         verified = q.get("precise") and q.get("lidar") is True
+        height, source, _ = self.camera_of(item, self.quality, mount=False)  # sans monture : la page la lit dans pose.mount (profil)
+        rtk = q.get("height") if verified and q.get("height") is not None \
+            and measures.CAMERA_RANGE[0] <= q["height"] <= measures.CAMERA_RANGE[1] else None  # écart RTK − sol de la photo (borne)
         return {"pic": pic, "lon": fixed[0] if fixed else lon, "lat": fixed[1] if fixed else lat,
                 "heading": float(heading), "offset": pose["offset"] if pose else 0.0,
                 "up": list(tilt["up"]) if tilt else None,
                 "sigma": tilt["sigma"] if tilt else calibration.UNCALIBRATED,
-                "pending": pending(pic), "height": self._camera_height(mount=False),
-                "height_sigma": max(q.get("spread") or 0, 0.05) if verified else cam["sigma"] if cam else 0.3,
+                "pending": pending(pic), "height": height, "height_source": source, "rtk_height": rtk,
+                "height_sigma": cam["sigma"] if cam else max(q.get("spread") or 0, 0.05) if verified else 0.3,
                 "relative_sigma": 0.05 if verified else 0.3,  # position d'une photo à sa voisine (trajectoire)
                 "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []),
                 "roll_defect": self._roll_defect(item), "roll_share": self.ROLL_SHARE, "mount": self._fleet_mount(item),
@@ -369,6 +372,19 @@ class Pose:
     CAMERA_CODES = {**measures.CAMERA_SOURCES, "monture": 3}
     # Provenance de la hauteur de caméra dans les textes (camera_of) : l'altitude GPS est un écart RTK − sol LiDAR, pas une mesure
     CAMERA_LABELS = {"altitude GPS": "écart RTK − sol LiDAR", "calée": "calée", "monture": "monture du CD21 d'après la date", None: "réglage"}
+
+    def _camera_used(self, item):
+        """Hauteur de caméra retenue pour la photo (camera_of) à donner à la page : { height, source, text }. Le texte est l'infobulle du
+        réglage « Hauteur de caméra » (#59) : d'où vient la hauteur, et à quoi sert encore le réglage (mesures de la séquence
+        sans hauteur calée : MeasureTool.camera_for, profil en long, chute sur un pont sans hauteur connue), d'où son champ jamais grisé."""
+        height, source, _ = self.camera_of(item, self.quality)
+        profile = self._profile(item) if source == "monture" else None
+        origin = {"monture": "profil {}".format(profile["label"]) if profile else "monture", "calée": "calée pour la séquence",
+                  "altitude GPS": "écart RTK − sol LiDAR, une borne", None: "réglage"}[source]
+        return {"height": round(height, 3), "source": source,
+                "text": ("Hauteur utilisée pour cette photo : {} m ({}). Le réglage sert aux mesures d'une séquence sans hauteur calée, "
+                         "au profil en long et à la chute sur un pont sans hauteur connue.").format(
+                    measures._num(height, 2), origin)}
 
     def _profile(self, item):
         """Profil de campagne de la photo à sa date de prise de vue (web_profils.profile_of), ou None."""
