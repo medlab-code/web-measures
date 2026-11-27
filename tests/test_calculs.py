@@ -1476,9 +1476,9 @@ class Parcours(unittest.TestCase):
         self.show(pic)
         self.assertEqual((cal.tilt(pic), source()), (None, None))  # 7 : rien (UNCALIBRATED)
         self.show(pic, "2025-07-03T10:53:25Z", App.FLEET_PRODUCER)
-        t = cal.tilt(pic)  # 6 : roulis par défaut de la campagne seul (+1°, penché à droite ; -1° pour le cœur), tangage inconnu
+        t = cal.tilt(pic)  # 6 : roulis par défaut de la campagne (+1°, penché à droite ; -1° pour le cœur) et tangage du profil (monture haute : +0,2°)
         self.assertEqual((t["source"], t["sigma"], t["fallback"]), ("roulis de campagne", calibration.UNCALIBRATED, True))
-        for got, want in zip(t["up"], self._up(-1.0)):
+        for got, want in zip(t["up"], calibration.up_from_components(0.2, -1.0, 0.0)):
             self.assertAlmostEqual(got, want, places=6)
         a._set_loose(pic, {"up": self._up(2.0), "sigma": 0.4})  # 5 : verticales à seuil élargi, avant le roulis par défaut de la campagne
         self.assertEqual((source(), cal.tilt(pic)["sigma"]), ("verticales (seuil élargi)", 0.4))
@@ -1552,6 +1552,40 @@ class Parcours(unittest.TestCase):
         self.assertEqual(self._roll_of(pic)[0], "verticales (seuil élargi)")
         self.assertAlmostEqual(self._roll_of(pic)[1], -2.0, places=6)  # inchangé : le dévers n'y est pas ajouté
         a.birdeye_loose.clear()
+
+    def test_tangage_du_profil_au_rang_6(self):
+        """Rang 6 : le tangage du profil de campagne (relatif à la route, + = caméra relevée vers l'avant) s'ajoute faute de tangage lu ;
+        0 sans profil (cas inchangé) ; jamais ajouté à un tangage lu (verticales, seuil élargi) ; étiquette « tangage … de la campagne »."""
+        a, cal, pic = self.app, self.app.calibration, "p1"
+        pitch_of = lambda: round(calibration.tilt_components(cal.tilt(pic)["up"], 0.0)[0], 6)
+        for date, want in (("2025-05-28T05:40:22Z", 0.7), ("2025-07-03T10:53:25Z", 0.2), ("2026-06-11T08:00:00Z", 0.7)):
+            self.show(pic, date, App.FLEET_PRODUCER)
+            self.assertEqual(a._pitch_default(a.item)[0], want)
+            self.assertAlmostEqual(pitch_of(), want, places=5)
+            self.assertTrue(cal.tilt(pic)["fallback"])
+            self.assertEqual(cal.tilt(pic)["sigma"], calibration.UNCALIBRATED)  # la pente de la route n'est pas lue : l'incertitude reste
+        self.show(pic, "2025-05-28T05:40:22Z", App.FLEET_PRODUCER)
+        self.assertEqual(a._pitch_label(a.item), "tangage +0,7° de la campagne (profil, ±0,3°)")
+        self.assertIn("tangage +0,7° de la campagne", a._tilt_line()[0])
+        self.assertEqual(json.loads(a.calage_manuel())["pitch_label"], a._pitch_label(a.item))
+        a._set_loose(pic, {"up": self._up(2.0), "sigma": 0.4})  # tangage lu (verticales à seuil élargi) : rien ajouté
+        self.assertAlmostEqual(pitch_of(), 0.0, places=6)
+        a.birdeye_loose.clear()
+        self.show(pic)  # sans profil : tangage inconnu, comme avant
+        self.assertEqual((a._pitch_default(a.item), a._pitch_label(a.item)), ((0.0, None), "tangage inconnu"))
+        self._lidar(pic, 2.0)
+        self.assertAlmostEqual(pitch_of(), 0.0, places=6)
+        self.show(pic, "2025-05-28T05:40:22Z", App.FLEET_PRODUCER)
+        self.assertEqual(json.loads(a.birdeye_pose())["pitch_default"], 0.7)  # transmis à la vue du dessus (réglette, src/dessus.js)
+        self.assertEqual(json.loads(a.birdeye_pose())["pitch_default_sigma"], 0.3)
+
+    def test_profils_tangage(self):
+        """Profils : tangage et incertitude vont ensemble ; CD21 : +0,7 ± 0,3 (monture basse 2025 et 2026), +0,2 ± 0,3 (monture haute)."""
+        profiles = {p["id"]: p for p in web_profils.CAMPAIGN_PROFILES}
+        self.assertEqual([(p["pitch"], p["pitch_sigma"]) for p in profiles.values()], [(0.7, 0.3), (0.2, 0.3), (0.7, 0.3)])
+        self.assertEqual(web_profils.pitch_of(None), (0.0, None))
+        self.assertEqual(web_profils.pitch_of(dict(profiles["cd21-2025-clio5-basse"], pitch=None, pitch_sigma=None)), (0.0, None))
+        self.assertTrue(any("vont ensemble" in p for p in web_profils.check_profiles([dict(profiles["cd21-2025-clio5-basse"], pitch_sigma=None)])))
 
     def test_roulis_par_defaut_hors_campagne(self):
         """Hors CD21 : défaut 0, la part du dévers seule ; sans dévers disponible, rien (rang 7)."""
@@ -1699,7 +1733,8 @@ class Parcours(unittest.TestCase):
         line = json.loads(self.app.nose_line(5.0))
         self.assertEqual((line["inclinaison_source"], line["inclinaison_sigma"], line["roulis_campagne"]),
                          ("roulis de campagne", calibration.UNCALIBRATED, 1.0))  # véhicule penché de 1° à droite
-        up = self._up(-1.0)  # la verticale du cœur : penchée de 1° à gauche
+        self.assertIn("tangage +0,2° de la campagne", line["tangage_libelle"])  # monture haute 2025 : tangage du profil
+        up = calibration.up_from_components(0.2, -1.0, 0.0)  # la verticale du cœur : penchée de 1° à gauche, de 0,2° vers l'avant (profil)
         for x, yaw, pitch in line["points"][::40]:
             bearing, elev = math.degrees(math.atan2(x, 5.0)), -math.degrees(math.atan2(line["hauteur"], math.hypot(x, 5.0)))
             want_yaw, want_pitch = calibration.untilt(up, bearing % 360, elev, inverse=True)

@@ -725,7 +725,7 @@ class App(Pose, Chutes, Nez, session.Session):
         loose, et sa propre inclinaison : pitch, roll, sigma, segments, et les indicateurs de qualité edges, gap, sigma_pitch, sigma_roll, fragile, fragile_reason : null sur les anciennes entrées) et confidence (confiance de l'inclinaison retenue, voir
         tilt_confidence_of ; null sans inclinaison), roll_label et profile (profil de campagne de la photo affichée : id, label, first, end, method, provenance ; null sans profil)."""
         pic = self._calage_pic()
-        out = {"manual": None, "retained": None, "confidence": None, "roll_label": self._roll_label(self.item), "profile": self._profile_info(self.item), "auto": {"available": False, "off": False, "count": None, "loose": False}}
+        out = {"manual": None, "retained": None, "confidence": None, "roll_label": self._roll_label(self.item), "pitch_label": self._pitch_label(self.item), "profile": self._profile_info(self.item), "auto": {"available": False, "off": False, "count": None, "loose": False}}
         if not pic:
             return json.dumps(out)
         report = self._calage_report()

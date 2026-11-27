@@ -633,7 +633,7 @@ class Calibration:
            LiDAR décrit le sol sous l'ouvrage, pas le tablier), ou par le terrain (option de l'hôte : "terrain web") ;
         5. verticales à seuil élargi (hôte, `loose_tilt`, incertitude au-delà de autotilt.MAX_SIGMA : "verticales (seuil
            élargi)"), sauf auto_off comme le rang 3 ;
-        6. roulis par défaut de la campagne seul (hôte, `campaign_tilt`, "roulis de campagne") : tangage inconnu, incertitude UNCALIBRATED,
+        6. roulis par défaut de la campagne seul (hôte, `campaign_tilt`, "roulis de campagne") : tangage de la campagne (profil, 0 sans) sans pente lue, incertitude UNCALIBRATED,
            repérée par "fallback" (pas une inclinaison calée) ;
         7. rien : None (UNCALIBRATED).
         photo_only : seulement ce qui vient de la photo (rangs 2 à 4), sans les sources 1, 5 et 6 de l'hôte (la vue du dessus

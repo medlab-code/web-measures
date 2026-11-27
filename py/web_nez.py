@@ -291,7 +291,7 @@ class Nez:
             east, north = d * math.sin(a) + x * math.cos(b), d * math.cos(a) - x * math.sin(b)
             ends.append([round(v, 7) for v in triangulation._geographic(east, north, lon, lat)])
         out = {"d": d, "d_min": d_min, "d_max": d_max, "hauteur": height, "hauteur_source": source, "sigma_h": sigma,
-               "roulis_campagne": roll, "roulis_libelle": self._roll_label(item), "inclinaison_source": tilt_source, "inclinaison_sigma": tilt_sigma,
+               "roulis_campagne": roll, "roulis_libelle": self._roll_label(item), "tangage_libelle": self._pitch_label(item), "inclinaison_source": tilt_source, "inclinaison_sigma": tilt_sigma,
                "inclinaison_confiance": self._nose_confidence(item),
                "inclinaison_en_calcul": self.tilts.pending(item.get("id")), "points": points, "lonlat": ends, "reach": NOSE_REACH,
                "voisines": self._neighbours_here(), "sol": ground[0] if ground else NOSE_FLAT,

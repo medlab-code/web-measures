@@ -108,7 +108,7 @@ const Calage = {
       if (got.source === "clics") return a.off ? "Calcul automatique des verticales ignoré pour cette photo." : a.available ? "Verticales à la main : elles remplacent le calcul automatique." : "";
       if (got.source === "verticales" || got.source === "verticales (seuil élargi)") return "";  // dit en tête du panneau (autoText)
       if (got.source.startsWith("clics + ")) return `Verticale à la main complétée par ${got.source.endsWith("verticales") ? `le calcul automatique (${nb})` : got.source.slice(8)}.`;
-      const names = { lidar: "LiDAR HD sous la caméra", "terrain web": "pente et dévers du terrain (expérimental)", "roulis de campagne": `${rollLabel()}, tangage inconnu` };
+      const names = { lidar: "LiDAR HD sous la caméra", "terrain web": "pente et dévers du terrain (expérimental)", "roulis de campagne": `${rollLabel()}, ${info?.pitch_label ?? "tangage inconnu"}` };
       const name = got.source.startsWith("vue du dessus") ? got.source : (names[got.source] ?? got.source);
       return `${off}Inclinaison retenue : ${name}, ${got.source === "roulis de campagne" ? `roulis ${signe(got.roll)}°` : angles}.`;
     }

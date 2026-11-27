@@ -133,9 +133,9 @@ class Pose:
         if pic in self.relay_pending:
             return "inclinaison : calcul par le terrain en cours ({})…".format(self.relay_pending[pic]), False
         if fallback and not self._tilt_final():  # verticales pas encore cherchées : pas « non calée »
-            return "inclinaison " + self._tilt_reason() + " ; " + self._roll_label(self.item) + " en attendant", False
+            return "inclinaison " + self._tilt_reason() + " ; " + self._roll_label(self.item) + self._pitch_known(self.item) + " en attendant", False
         if fallback:  # calcul fait sans résultat : le roulis par défaut de la campagne seul, tangage inconnu
-            return f"inclinaison non calée : {self._roll_label(self.item)}{self._roll_why(self.item)}, tangage inconnu (±{measures._num(fallback['sigma'], 1)}°)", True
+            return f"inclinaison non calée : {self._roll_label(self.item)}{self._roll_why(self.item)}, {self._pitch_label(self.item)} (±{measures._num(fallback['sigma'], 1)}°)", True
         reason = self._tilt_reason()
         if not self._tilt_final():
             return "inclinaison " + reason, False
@@ -303,7 +303,8 @@ class Pose:
                 "height_sigma": cam["sigma"] if cam else max(q.get("spread") or 0, 0.05) if verified else 0.3,
                 "relative_sigma": 0.05 if verified else 0.3,  # position d'une photo à sa voisine (trajectoire)
                 "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []),
-                "roll_defect": self._roll_defect(item), "roll_share": self.ROLL_SHARE, "mount": self._fleet_mount(item),
+                "roll_defect": self._roll_defect(item), "roll_share": self.ROLL_SHARE,
+                "pitch_default": self._pitch_default(item)[0], "pitch_default_sigma": self._pitch_default(item)[1], "mount": self._fleet_mount(item),
                 "mounts": sorted({p["height"] for p in web_profils.producer_profiles(self.FLEET_PRODUCER)}),  # montures possibles du CD21 (hors campagne connue)
                 "mount_sigma": (self._mount_height(item) or (None, web_profils.fleet_height_sigma(self.FLEET_PRODUCER)))[1], "profile": self._profile_info(item)}
 
@@ -407,6 +408,24 @@ class Pose:
         """Défaut de roulis (degrés) du profil de campagne de la photo à sa date de prise de vue, ou 0."""
         profile = self._profile(item)
         return profile["roll"] if profile else 0.0
+
+    def _pitch_default(self, item):
+        """(tangage par défaut de la caméra en degrés, incertitude ou None) du profil de campagne de la photo, ou (0.0, None) : positif =
+        caméra relevée vers l'avant par rapport à la route (convention de la réglette de tangage de src/dessus.js). Appliqué seulement
+        quand aucun tangage n'est lu (rang 6 de Calibration.tilt, vue du dessus par la route seule : pose « pitch_default »), jamais
+        ajouté à un tangage lu sur les raccords, les verticales ou les clics, ni à un réglage à la main."""
+        return web_profils.pitch_of(self._profile(item))
+
+    def _pitch_label(self, item):
+        """Tangage du rang 6 en clair : « tangage inconnu », ou « tangage +0,7° de la campagne (profil) » avec un profil qui en donne un."""
+        pitch, sigma = self._pitch_default(item)
+        if sigma is None:
+            return "tangage inconnu"
+        return f"tangage {'+' if pitch > 0 else ''}{measures._num(pitch, 1)}° de la campagne (profil, ±{measures._num(sigma, 1)}°)"
+
+    def _pitch_known(self, item):
+        """« , tangage +0,7° de la campagne (profil, ±0,3°) » si le profil donne un tangage, sinon « » (texte d'attente de la ligne d'état)."""
+        return "" if self._pitch_default(item)[1] is None else ", " + self._pitch_label(item)
 
     def _profile_info(self, item):
         """Profil de la photo pour la page (pose Bird Eye « profile », panneau de calage) : id, label, first, end (jour exclu),
@@ -515,21 +534,24 @@ class Pose:
         return calibration.tilt_entry(loose["up"], loose["sigma"], "verticales (seuil élargi)") if loose else None
 
     def _campaign_tilt(self, pic):
-        """Rang 6 : roulis par défaut seul (_roll_default : défaut de campagne + part du dévers du LiDAR HD ; None s'il vaut 0 sans dévers
-        disponible), tangage inconnu (incertitude UNCALIBRATED, au moins celle du roulis), le véhicule penché de ce roulis (positif : à
+        """Rang 6 : roulis par défaut (_roll_default : défaut de campagne + part du dévers du LiDAR HD ; None s'il vaut 0 sans dévers
+        disponible, sauf tangage de campagne), tangage de la campagne (_pitch_default, 0 sans profil ; la pente de la route n'y est pas
+        lue : incertitude UNCALIBRATED, au moins celle du roulis), le véhicule penché de ce roulis (positif : à
         droite) par rapport au cap de l'axe de la séquence (ou de la photo) ; le cœur le reçoit dans sa convention
         (roulis_vehicule_depuis_camera). Même effet que groundUp de src/dessus.js. Repérée par « fallback » : pas une inclinaison calée ;
         source « roulis de campagne » (famille « constante » : ni témoin du LiDAR, ni témoin contre lui)."""
         item = self._item_of(pic)
         defect, share, _ = self._roll_parts(item, pic)
         profile = self._profile(item)
-        if not defect and share is None:
+        pitch, pitch_sigma = self._pitch_default(item)
+        if not defect and share is None and not pitch:
             return None
         roll = defect + (share or 0.0)
         axis = self._axis(item)
         axis = self._heading_of(item) if axis is None else axis
-        return calibration.tilt_entry(calibration.up_from_components(0.0, roulis_vehicule_depuis_camera(roll), axis or 0.0),
-                                      max(calibration.UNCALIBRATED, profile["roll_sigma"] if profile else web_profils.ROLL_SIGMA_DEFAULT), "roulis de campagne", fallback=True)
+        return calibration.tilt_entry(calibration.up_from_components(pitch, roulis_vehicule_depuis_camera(roll), axis or 0.0),
+                                      max(calibration.UNCALIBRATED, profile["roll_sigma"] if profile else web_profils.ROLL_SIGMA_DEFAULT, pitch_sigma or 0.0),
+                                      "roulis de campagne", fallback=True)
 
     def _set_loose(self, pic, loose):
         """Verticales à seuil élargi de la photo arrivées : mesures et visées qui en dépendent recalculées (rang 5)."""

@@ -250,6 +250,10 @@ function centre(pixels, line, around) {
       line?.text === "Profil : CD21 2025, Clio 5, monture haute (du 24/06/2025 au 31/12/2025)" && line.title === "Méthode : m. Provenance : p.", JSON.stringify(line));
     await expect("Profil : aucune ligne sans profil", Dessus.profileLine(null) === null);
   }
+  {  // Tangage par défaut du profil de campagne : celui de la pose, 0 sans profil (groundUp l'ajoute comme un tangage réglé : voir plus haut)
+    await expect("Tangage par défaut : celui du profil, 0 sans profil", Dessus.pitchDefaultOf({ pitch_default: 0.7 }) === 0.7 && Dessus.pitchDefaultOf({}) === 0
+      && Dessus.pitchDefaultOf(null) === 0);
+  }
   {  // Ligne « Hauteur » de l'étiquette (#59) : hauteurs côte à côte, termes absents omis, alerte au-delà de HEIGHT_ALERT
     const all = Dessus.heightLine(2.07, "monture haute", 2.05, 2.09);
     await expect("Hauteur : texte complet, sans alerte (écarts de 2 cm)",

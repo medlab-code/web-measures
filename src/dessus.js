@@ -1701,6 +1701,10 @@ const Dessus = (() => {
   // clé « roll », en part du dévers, est ignorée).
   const ROLL_SHARE_DEFAULT = 0.7, ROLL_PITCH_LIMIT = 2.5, DEFAULT_ROLL = 0, DEFAULT_PITCH = 0, SETTINGS_KEY = "web-measures/dessus-reglages";
   const rollShareOf = (pose) => pose?.roll_share ?? ROLL_SHARE_DEFAULT;
+  /** Tangage par défaut de la caméra (degrés, positif : relevée vers l'avant, relatif à la route) : celui du profil de campagne de la
+   * photo (pose.pitch_default, py/web_profils.py), 0 sans profil. Valeur de départ de la réglette quand aucun tangage n'est lu : un
+   * tangage lu (raccords, lignes) ou réglé à la main le remplace, il ne s'y ajoute jamais (les deux sont absolus, relatifs à la route). */
+  const pitchDefaultOf = (pose) => pose?.pitch_default ?? DEFAULT_PITCH;
   // pitchManual : tangage réglé à la main en usage (manualPitch : sa valeur, retenue par séquence) ; il ne sert qu'en dernier,
   // faute de tangage lu (autoPitch), sauf « Forcer le réglage à la main » (pitchForced, demande de l'auteur, 13/11/2026)
   let rollOffset = DEFAULT_ROLL, pitchOffset = DEFAULT_PITCH, pitchManual = false, manualPitch, pitchForced = false;
@@ -1755,7 +1759,7 @@ const Dessus = (() => {
     return null;
   }
   /** Réglage retenu pour la séquence (ou par défaut ; tangage : forcé à la main, sinon lu (autoPitch), sinon réglé à la main,
-   * sinon 0), curseurs compris. */
+   * sinon celui du profil de campagne (pitchDefaultOf, 0 sans profil)), curseurs compris. */
   function applySettings(sequence, pic) {
     const kept = readSettings()[sequence], auto = autoPitch(sequence, pic);
     const inLimits = (v) => v === undefined ? v : Math.max(-ROLL_PITCH_LIMIT, Math.min(ROLL_PITCH_LIMIT, v));  // retenu avec d'anciennes bornes
@@ -1763,7 +1767,7 @@ const Dessus = (() => {
     manualPitch = inLimits(kept?.pitch);
     pitchForced = Boolean(kept?.forced);
     pitchManual = manualPitch !== undefined && (pitchForced || !auto);
-    pitchOffset = pitchManual ? manualPitch : auto ? auto.pitch : DEFAULT_PITCH;
+    pitchOffset = pitchManual ? manualPitch : auto ? auto.pitch : pitchDefaultOf(shown?.pose);
     showRoll();
     showShare(null);  // dévers de la nouvelle photo : au retour de showImage
     showPitch();
@@ -1952,6 +1956,9 @@ const Dessus = (() => {
    * seulement (learnPitch), pas dessinées. */
   const readyFar = () => (withNeighbours() && onLidar(shown)
     ? (shown.pose.far || []).filter((pose) => shown.panos.has(pose.pic)).map(layerOf) : []);
+  /** Incertitude (degrés) du tangage par défaut du profil de campagne (pose.pitch_default_sigma), seulement tant qu'il est celui en
+   * usage : ni tangage lu, ni réglage à la main ; 0 sinon. */
+  const pitchDefaultSigma = (pose) => (pose.pitch_default && !pitchManual && !autoPitch(shown.sequence, shown.pic) ? pose.pitch_default_sigma ?? 0 : 0);
   /** Couche d'une photo (pose) dans la vue affichée : position, inclinaison (verticales, sinon route), hauteur, contour. */
   function layerOf(pose) {
     const at = toLocal(pose.lon, pose.lat, shown.pose), ground = onLidar(shown) ? GROUND_SIGMA : DECK_SIGMA;
@@ -1959,7 +1966,7 @@ const Dessus = (() => {
     const leveled = (pose.up && verticalsOn) || !shown.terrain ? pose : {
       ...pose, groundTilt: true,
       up: groundUp(levelOf(shown.terrain), at, pose.heading, rollShareOf(pose), pitchFor(pose.pic), (pose.roll_defect || 0) + rollOffset),
-      sigma: Math.hypot(pose.up ? ground : Math.min(pose.sigma, ground), LEAN * (shown.lateral || 0)),
+      sigma: Math.hypot(pose.up ? ground : Math.min(pose.sigma, ground), LEAN * (shown.lateral || 0), pitchDefaultSigma(pose)),
     };
     // raccord de la voisine
     const seam = shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.seams?.get(pose.pic) : undefined;
@@ -2298,7 +2305,7 @@ const Dessus = (() => {
     if (main.roll_defect) notes.push(`${number(main.roll_defect, 1)}° de défaut de la caméra (campagne)`);
     if (LEAN * (shown.lateral || 0) >= 0.5) notes.push(`virage : véhicule penché jusqu'à ${number(LEAN * shown.lateral, 1)}°`);
     if (pitchOffset || pitchManual || auto) {
-      const how = pitchManual ? ` réglé à la main${pitchForced ? " (forcé)" : ""}` : auto ? ` ${auto.text}` : "";
+      const how = pitchManual ? ` réglé à la main${pitchForced ? " (forcé)" : ""}` : auto ? ` ${auto.text}` : main.pitch_default ? " de la campagne (profil)" : "";
       notes.push(`tangage ${pitchOffset > 0 ? "+" : ""}${number(pitchOffset, 1)}°${how}`);
     }
     if (readSettings()[shown.sequence]?.rollDeg !== undefined && rollOffset !== DEFAULT_ROLL) notes.push("roulis de la séquence");
@@ -2807,7 +2814,7 @@ const Dessus = (() => {
     hasStart: () => trace.length > 0, measuring: () => measuringOn, setTool, tool: () => tool,
     layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins,
       outline: outlines.get(shown.sequence), locatedWith: shown.locatedWith },
-    view, hidden, uncertainty, measureError, shownError, groundUp, roadAxis, sourceOf, toLocal, toLonLat, estimateHeight,
+    view, hidden, uncertainty, measureError, shownError, groundUp, pitchDefaultOf, roadAxis, sourceOf, toLocal, toLonLat, estimateHeight,
     diagnoseRelief, profileLine, heightLine, HEIGHT_ALERT, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, linesPitch, REACH, SIZE,
   };
 })();

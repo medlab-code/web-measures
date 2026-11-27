@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Cédric COCHART
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Profils de campagne datés (ticket #70) : ce que l'on sait d'une campagne de prise de vue (producteur, véhicule, caméra, période)
-pour poser la caméra : hauteur, roulis, bientôt tangage. Une table unique, CAMPAIGN_PROFILES ; le profil d'une photo est le premier
+pour poser la caméra : hauteur, roulis, tangage. Une table unique, CAMPAIGN_PROFILES ; le profil d'une photo est le premier
 dont le producteur figure dans ses fournisseurs (providers) et dont la période contient sa date de prise de vue (profile_of). Rien à
 choisir : le profil s'applique tout seul, et la vue du dessus, le panneau de calage et l'export disent lequel.
 
@@ -12,7 +12,9 @@ Champs d'une fiche :
 - height, height_sigma : hauteur de la caméra au-dessus du sol et son incertitude (m) ;
 - roll, roll_sigma : défaut de roulis (degrés ajoutés au roulis tiré du dévers ; convention de l'application : positif = véhicule
   penché à droite, voir web_pose.roulis_vehicule_depuis_camera) et sa dispersion d'une photo à l'autre (degrés) ;
-- pitch, pitch_sigma : tangage (None : inconnu, rien appliqué) ;
+- pitch, pitch_sigma : défaut de tangage de la caméra par rapport à la route (degrés ; convention de la réglette de tangage de la vue du
+  dessus : positif = caméra relevée vers l'avant) et son incertitude (degrés) ; None (tous deux) : inconnu, rien appliqué. Appliqué
+  seulement faute de tangage lu (raccords, verticales, clics, réglage à la main) : voir web_pose._pitch_default ;
 - method, provenance : comment les valeurs ont été obtenues, d'où elles viennent."""
 
 FLEET_PRODUCER = "8f943f10-a781-4e03-a18c-de035be6f6f8"  # CD21 : imajbox sur Clio 5
@@ -21,7 +23,7 @@ HEIGHT_SIGMA_DEFAULT = 0.04  # m : incertitude de la hauteur d'une monture sans 
 ROLL_SIGMA_DEFAULT = 1.0  # degrés : dispersion du roulis d'une photo à l'autre sans profil (docs/BIRDEYE.md : ±1°)
 
 REQUIRED = ("id", "label", "producer", "vehicle", "camera", "first", "end", "height", "height_sigma", "roll", "roll_sigma",
-            "method", "provenance")  # pitch et pitch_sigma : présents, mais None tant que le tangage n'est pas mesuré
+            "method", "provenance")  # pitch et pitch_sigma : facultatifs (None : tangage inconnu), mais ensemble
 
 # CD21, imajbox sur Clio 5, 2025. Hauteurs de caméra : relevées du 28/05 au 23/06/2025 (basse, 1,90 à 1,95 m lus entre photos) et
 # dès le 24/06 (haute, 2,04 m le 25/06 et 2,10 m le 27/06 lus entre photos, 2,05 à 2,07 m le 03/07). Changement de véhicule : carrosserie
@@ -36,6 +38,11 @@ REQUIRED = ("id", "label", "producer", "vehicle", "camera", "first", "end", "hei
 # convention du cœur). Estimé avec 70 % du dévers en roulis du véhicule (web_pose.ROLL_SHARE) ; dispersion ±1° d'une photo à l'autre.
 _CD21_HEIGHT_METHOD = "hauteur lue entre photos (parallaxe) et bords du véhicule dans le panorama ; monture d'après la date de prise de vue"
 _CD21_ROLL_METHOD = "roulis restant mesuré sur 23 vues de passages piétons (médiane +0,98°) avec 70 % du dévers, arrondi à +1,0°"
+_CD21_PITCH_BASSE = ("tangage lu sur les raccords entre photos de 17 photos de 8 flèches de rabattement (mire du 27/11/2026, cote 6,00 m) : "
+                     "médiane par monture, +0,5 à +0,9° ; +0,7° trouvé aussi à la main par l'auteur (réglette Bird Eye) ; "
+                     "sans tangage lu, 3 photos manquent +0,65, +0,69 et +0,83° pour retrouver 6,00 m")
+_CD21_PITCH_HAUTE = ("tangage lu sur les raccords entre photos de 2 flèches de rabattement seulement (mire du 27/11/2026) : 0,0 à +0,5°, "
+                     "moins sûr que la monture basse, confirmation à la main à faire")
 _CD21_PROVENANCE = "mesures du 28/05 au 03/07/2025 et du 13/11/2026 (tests/passages-pietons.js, docs/BIRDEYE.md § 4.1) ; dates de montage non disponibles"
 _CD21_PROVENANCE_BASSE = _CD21_PROVENANCE + " ; montage supposé à ventouses (monture basse ?), sans certitude (auteur)"
 _CD21_PROVENANCE_HAUTE = _CD21_PROVENANCE + " ; montage supposé à barres de toit (monture haute ?), sans certitude (auteur)"
@@ -44,19 +51,22 @@ CAMPAIGN_PROFILES = (
     {"id": "cd21-2025-clio5-basse", "label": "CD21 2025, Clio 5, monture basse", "producer": FLEET_PRODUCER,
      "vehicle": "Clio 5 à carrosserie claire", "camera": "imajbox, monture basse",
      "first": "2025-01-01", "end": "2025-06-24", "height": 1.93, "height_sigma": 0.04, "roll": 1.0, "roll_sigma": 1.0,
-     "pitch": None, "pitch_sigma": None, "method": _CD21_HEIGHT_METHOD + " ; " + _CD21_ROLL_METHOD, "provenance": _CD21_PROVENANCE_BASSE},
+     "pitch": 0.7, "pitch_sigma": 0.3, "method": _CD21_HEIGHT_METHOD + " ; " + _CD21_ROLL_METHOD + " ; " + _CD21_PITCH_BASSE,
+     "provenance": _CD21_PROVENANCE_BASSE + " ; tangage : flèches du 27/11/2026"},
     {"id": "cd21-2025-clio5-haute", "label": "CD21 2025, Clio 5, monture haute", "producer": FLEET_PRODUCER,
      "vehicle": "Clio 5 à carrosserie bleue", "camera": "imajbox, monture haute",
      "first": "2025-06-24", "end": "2026-01-01", "height": 2.07, "height_sigma": 0.04, "roll": 1.0, "roll_sigma": 1.0,
-     "pitch": None, "pitch_sigma": None, "method": _CD21_HEIGHT_METHOD + " ; " + _CD21_ROLL_METHOD, "provenance": _CD21_PROVENANCE_HAUTE},
+     "pitch": 0.2, "pitch_sigma": 0.3, "method": _CD21_HEIGHT_METHOD + " ; " + _CD21_ROLL_METHOD + " ; " + _CD21_PITCH_HAUTE,
+     "provenance": _CD21_PROVENANCE_HAUTE + " ; tangage : flèches du 27/11/2026"},
     # 2026 : une seule séquence publiée (11/06/2026), d'où une fin au 12/06 (fin exclue) ; à étendre quand d'autres séquences 2026
     # seront publiées. Mêmes niveaux que la monture basse 2025 ; roulis non mesuré en 2026, repris de 2025.
     {"id": "cd21-2026-monture-basse", "label": "CD21 2026, monture basse (probable)", "producer": FLEET_PRODUCER,
      "vehicle": "inconnu", "camera": "imajbox 360 HD, monture basse",
      "first": "2026-01-01", "end": "2026-06-12", "height": 1.93, "height_sigma": 0.05, "roll": 1.0, "roll_sigma": 1.0,
-     "pitch": None, "pitch_sigma": None,
+     "pitch": 0.7, "pitch_sigma": 0.3,
      "method": "hauteur lue entre photos (parallaxe, 33 photos le 11/06/2026) : médiane 1,929 m, IC 95 % [1,888 ; 1,940] ; écart RTK − sol "
-               "médiane 1,94 m (69 photos) ; mêmes niveaux que la monture basse 2025 ; roulis non mesuré en 2026, repris de 2025",
+               "médiane 1,94 m (69 photos) ; mêmes niveaux que la monture basse 2025 ; roulis non mesuré en 2026, repris de 2025 ; "
+               "tangage de la monture basse 2025, repris (même monture supposée)",
      "provenance": "étude du 27/11/2026, séquence 7d66f208-acb4-46f6-bb23-65d8717557a7 (11/06/2026, nord de Dijon) ; seule séquence 2026 "
                    "publiée ; véhicule et dates de montage inconnus ; montage supposé à ventouses (monture basse) et barres de toit "
                    "(monture haute), sans certitude (auteur)"},
@@ -75,6 +85,8 @@ def check_profiles(profiles):
         if p.get("id") in seen:
             problems.append(f"{name} : identifiant en double")
         seen.add(p.get("id"))
+        if (p.get("pitch") is None) != (p.get("pitch_sigma") is None):
+            problems.append(f"{name} : pitch et pitch_sigma vont ensemble (tous deux renseignés, ou tous deux None)")
         if not missing and p["first"] >= p["end"]:
             problems.append(f"{name} : le premier jour ({p['first']}) n'est pas avant la fin ({p['end']})")
     for k, a in enumerate(profiles):
@@ -100,6 +112,14 @@ def profile_of(item, profiles=CAMPAIGN_PROFILES):
 def producer_profiles(producer, profiles=CAMPAIGN_PROFILES):
     """Profils d'un producteur, dans l'ordre de la table."""
     return [p for p in profiles if p["producer"] == producer]
+
+
+def pitch_of(profile):
+    """(tangage par défaut, incertitude) en degrés du profil, convention de la réglette de tangage (positif : caméra relevée vers
+    l'avant, relatif à la route) ; (0.0, None) sans profil ni tangage connu."""
+    if not profile or profile.get("pitch") is None:
+        return 0.0, None
+    return float(profile["pitch"]), float(profile["pitch_sigma"])
 
 
 def fleet_height_sigma(producer, profiles=CAMPAIGN_PROFILES):

@@ -391,7 +391,7 @@ const Nez = {
       if (line.inclinaison_en_calcul) return "inclinaison provisoire (verticales non arrivées)";
       const source = line.inclinaison_source;
       if (!source || source === "aucune") return "";
-      const shown = source === "roulis de campagne" ? `${line.roulis_libelle}, tangage inconnu` : source;
+      const shown = source === "roulis de campagne" ? `${line.roulis_libelle}, ${line.tangage_libelle ?? "tangage inconnu"}` : source;
       const c = line.inclinaison_confiance, deg = (v) => `${Math.abs(v).toFixed(1).replace(".", ",")}°`;
       const sure = !c ? "" : c.etat === "confirmee" ? " (confirmée)" : c.etat === "desaccord" ? ` (désaccord : tangage ${deg(c.ecart_tangage)}, roulis ${deg(c.ecart_roulis)})`
         : c.etat === "pont" ? " (pont : non vérifiable)" : " (non vérifiable)";

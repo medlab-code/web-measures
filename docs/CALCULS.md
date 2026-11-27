@@ -110,8 +110,14 @@ pour les mesures (hauteur, relevé, visées) comme pour la largeur dans la visio
    jamais de double application du dévers (le LiDAR du rang 4 le contient déjà à 100 %, les verticales le mesurent). La verticale est vue penchée de ce roulis
    vers la gauche du cap (signe changé pour le cœur, voir la convention du roulis ci-dessus), le
    tangage est inconnu ; incertitude de tangage `UNCALIBRATED` (2°), au moins celle du roulis
-   (champ `roll_sigma` du profil, ±1° d'une photo à l'autre ; `ROLL_SIGMA_DEFAULT` sans profil). Ce n'est pas une inclinaison calée : le
-   voyant « Inclinaison » reste rouge ou jaune et la ligne d'état dit « roulis par défaut (70 % du dévers + campagne 2025), tangage inconnu » (ou « … (70 % du dévers) » hors campagne, ou « … de la campagne 2025 seul (dévers
+   (champ `roll_sigma` du profil, ±1° d'une photo à l'autre ; `ROLL_SIGMA_DEFAULT` sans profil). **Tangage de la campagne** (depuis le 27/11/2026) : au lieu d'un tangage nul,
+   le rang 6 donne le tangage du profil (`pitch`, `pitch_sigma`, `_pitch_default` de `py/web_pose.py`, 0 sans profil ; degrés, positif : caméra relevée vers l'avant par
+   rapport à la route, comme la réglette de la vue du dessus) : CD21 monture basse (2025 et 2026) +0,7 ± 0,3°, monture haute +0,2 ± 0,3°. La pente de la route n'est pas lue à ce rang :
+   l'incertitude de tangage reste `UNCALIBRATED` (au moins `pitch_sigma`). Sans profil, rien ne change. Ce tangage n'est **jamais ajouté** à un tangage lu (rangs 1 à 5 :
+   raccords, verticales, clics, LiDAR du rang 4, qui contient déjà le décalage de fixation appris sur la séquence, réglage à la main). Mire des flèches de rabattement thermocollées
+   (27/11/2026, 17 photos de 8 flèches, cote IISR 6,00 m) : avec un tangage lu sur les raccords ou les verticales la flèche sort à 6,00 ± 0,1 m ; sans tangage lu (route seule),
+   il manquait +0,7° (+0,65, +0,69, +0,83° sur 3 photos). Ce n'est pas une inclinaison calée : le
+   voyant « Inclinaison » reste rouge ou jaune et la ligne d'état dit « roulis par défaut (70 % du dévers + campagne 2025), tangage inconnu » (ou, avec un profil qui donne un tangage, « … tangage +0,7° de la campagne (profil, ±0,3°) » ; ou « … (70 % du dévers) » hors campagne, ou « … de la campagne 2025 seul (dévers
    écarté : photo sur un pont, terrain RGE ALTI…) »). Le défaut de campagne 2025 a été estimé avec 70 % du dévers : il reste valable ;
 7. **rien** : photo non inclinée, incertitude `UNCALIBRATED` (2°).
 
@@ -559,7 +565,7 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   s'applique : calée à la main (« clics »), puis verticales calculées sur la photo HD, sinon pente et dévers du LiDAR, puis les verticales à seuil
   élargi (`birdeye_loose`, incertitude jusqu'à 0,5°, `web_tilt.LOOSE_SIGMA`, « verticales (seuil élargi) »), enfin le **roulis par défaut de la campagne 2025** seul
   (profil de campagne, champ `roll` : +1° pour le CD21 en 2025, véhicule penché à droite, plus 70 % du dévers du LiDAR HD hors pont, même effet que dans `groundUp` de
-  `src/dessus.js`, qui reçoit la part par `roll_share` de la pose ; source « roulis de campagne », tangage inconnu, incertitude 2°), sinon rien (« aucune »). Le roulis par défaut n'est ajouté que seul (rang 6) : jamais aux
+  `src/dessus.js`, qui reçoit la part par `roll_share` de la pose ; source « roulis de campagne », tangage inconnu ou celui du profil de campagne, incertitude 2°), sinon rien (« aucune »). Le roulis par défaut n'est ajouté que seul (rang 6) : jamais aux
   verticales, au LiDAR ni au réglage de la vue du dessus, qui le contient déjà. La droite est projetée comme les mesures (`Session._view_of`).
   **Calage Bird Eye au déplacement d'une poignée** (`src/nez.js` : `needCalage`, `calibrated`, `reanchor` ; `Dessus.update(…, silent)` et
   `Dessus.onCalibrated` dans `src/dessus.js` ; `updateBirdeye` dans `src/resultats.js`). Le calcul de la droite en Python n'est pas
