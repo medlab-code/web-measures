@@ -194,8 +194,13 @@ sinon. Le profil s'applique tout seul, sans choix : hauteur de la monture (`_fle
 exécuté à l'import du module : une table invalide empêche le chargement. Sans profil : hauteur et roulis de campagne inchangés
 (réglage, 0°, incertitude `ROLL_SIGMA_DEFAULT` de 1°). Le profil appliqué est dit dans l'étiquette de la vue du dessus
 (« Profil : … (du 24/06/2025 au 31/12/2025) »), dans le panneau de calage (« Profil : … ») et dans la colonne `profil` de l'export.
-Deux fiches aujourd'hui : CD21 2025 Clio 5, monture basse (du 01/01 au 23/06/2025, 1,93 m ±0,04, roulis +1,0° ±1,0) et monture
-haute (du 24/06 au 31/12/2025, 2,07 m ±0,04, roulis +1,0° ±1,0).
+Trois fiches aujourd'hui : CD21 2025 Clio 5, monture basse (du 01/01 au 23/06/2025, 1,93 m ±0,04, roulis +1,0° ±1,0), monture
+haute (du 24/06 au 31/12/2025, 2,07 m ±0,04, roulis +1,0° ±1,0) et CD21 2026, monture basse (probable) (du 01/01 au 11/06/2026, fin
+exclue au 12/06 : seul le 11/06/2026 est observé, séquence 7d66f208-acb4-46f6-bb23-65d8717557a7 ; 1,93 m ±0,05, roulis +1,0° ±1,0
+repris de 2025, non mesuré en 2026 ; véhicule inconnu ; à étendre quand d'autres séquences 2026 seront publiées). Le montage
+(ventouses pour la monture basse, barres de toit pour la haute) n'est qu'une hypothèse, sans certitude (auteur), notée dans la
+provenance. Les montures possibles du CD21 hors campagne connue (`pose.mounts`) sont les hauteurs distinctes des fiches du producteur
+(1,93 et 2,07 m, sans doublon) ; l'incertitude de la monture (`pose.mount_sigma`) est celle de la fiche de la photo (±0,04 m en 2025, ±0,05 m en 2026) ; hors campagne connue, `fleet_height_sigma`, la plus grande des fiches du producteur (±0,05 m).
 
 ## 2. Point triangulé
 

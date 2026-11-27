@@ -305,7 +305,7 @@ class Pose:
                 "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []),
                 "roll_defect": self._roll_defect(item), "roll_share": self.ROLL_SHARE, "mount": self._fleet_mount(item),
                 "mounts": sorted({p["height"] for p in web_profils.producer_profiles(self.FLEET_PRODUCER)}),  # montures possibles du CD21 (hors campagne connue)
-                "mount_sigma": web_profils.fleet_height_sigma(self.FLEET_PRODUCER), "profile": self._profile_info(item)}
+                "mount_sigma": (self._mount_height(item) or (None, web_profils.fleet_height_sigma(self.FLEET_PRODUCER)))[1], "profile": self._profile_info(item)}
 
     def birdeye_impossible(self, pic):
         """Vrai si la photo affichée est `pic` et n'a pas de pose Bird Eye possible (pas 360°, ni cap, ni position) : le calage

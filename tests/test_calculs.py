@@ -121,11 +121,11 @@ class VueDessus(unittest.TestCase):
         return a
 
     def test_defaut_de_roulis(self):
-        """Défaut de roulis de la caméra (profil de campagne) : CD21, campagne 2025 seulement ; ni avant, ni après, ni ailleurs."""
+        """Défaut de roulis de la caméra (profil de campagne) : CD21, campagnes 2025 et 2026 (jusqu'au 11/06) ; ni avant, ni après, ni ailleurs."""
         a = App.__new__(App)
         photo = lambda producer, date: {"providers": [{"id": producer}], "properties": {"datetime": date}}
         self.assertEqual(a._roll_defect(photo(App.FLEET_PRODUCER, "2025-07-03T10:53:25Z")), 1.0)  # penché à droite de 1° (convention du véhicule)
-        for producer, date in ((App.FLEET_PRODUCER, "2024-12-31T23:00:00Z"), (App.FLEET_PRODUCER, "2026-01-02T09:00:00Z"),
+        for producer, date in ((App.FLEET_PRODUCER, "2024-12-31T23:00:00Z"), (App.FLEET_PRODUCER, "2026-06-12T09:00:00Z"),
                                ("autre", "2025-07-03T10:53:25Z")):
             self.assertEqual(a._roll_defect(photo(producer, date)), 0.0)
         self.assertEqual(a._roll_defect({}), 0.0)  # sans producteur ni date
@@ -146,9 +146,13 @@ class VueDessus(unittest.TestCase):
         self.assertEqual((high["id"], high["height"], high["roll"], high["height_sigma"], high["roll_sigma"]), ("cd21-2025-clio5-haute", 2.07, 1.0, 0.04, 1.0))
         self.assertEqual(a._mount_height(photo(App.FLEET_PRODUCER, "2025-06-23T12:39:00Z")), (1.93, 0.04))
         self.assertEqual(a._fleet_mount(photo(App.FLEET_PRODUCER, "2025-06-24T00:00:00Z")), 2.07)
-        for producer, date in (("autre", "2025-07-03T10:53:25Z"), (App.FLEET_PRODUCER, "2024-12-31T23:00:00Z"), (App.FLEET_PRODUCER, "2026-01-01T00:00:00Z")):
+        for producer, date in (("autre", "2025-07-03T10:53:25Z"), (App.FLEET_PRODUCER, "2024-12-31T23:00:00Z"), (App.FLEET_PRODUCER, "2026-06-12T00:00:00Z")):
             self.assertIsNone(web_profils.profile_of(photo(producer, date)))
         self.assertIsNone(web_profils.profile_of({}))
+        p26 = web_profils.profile_of(photo(App.FLEET_PRODUCER, "2026-06-11T08:00:00Z"))  # fiche 2026 (monture basse probable, fin exclue au 12/06)
+        self.assertEqual((p26["id"], p26["height"]), ("cd21-2026-monture-basse", 1.93))
+        self.assertIsNone(web_profils.profile_of(photo(App.FLEET_PRODUCER, "2026-06-12T08:00:00Z")))
+        self.assertEqual(web_profils.profile_of(photo(App.FLEET_PRODUCER, "2025-12-31T10:00:00Z"))["id"], "cd21-2025-clio5-haute")
         info = a._profile_info(photo(App.FLEET_PRODUCER, "2025-08-01T10:00:00Z"))
         self.assertEqual((info["label"], info["first"], info["end"]), ("CD21 2025, Clio 5, monture haute", "2025-06-24", "2026-01-01"))
 
@@ -281,6 +285,9 @@ class VueDessus(unittest.TestCase):
         self.assertEqual((low["mounts"], low["mount_sigma"], low["profile"]["id"]), ([1.93, 2.07], 0.04, "cd21-2025-clio5-basse"))
         self.assertEqual(high["profile"]["label"], "CD21 2025, Clio 5, monture haute")
         self.assertIsNone(pose_on("2024-05-28T05:40:22Z")["profile"])
+        p26 = pose_on("2026-06-11T08:00:00Z")  # fiche 2026 : sigma de la fiche (0,05) ; hors campagne connue : le plus grand du producteur
+        self.assertEqual((p26["height"], p26["mount_sigma"], p26["profile"]["id"]), (1.93, 0.05, "cd21-2026-monture-basse"))
+        self.assertEqual(pose_on("2024-05-28T05:40:22Z")["mount_sigma"], 0.05)
 
     def test_verticales_moins_sures(self):
         """Verticales refusées pour les mesures (±0,42° > autotilt.MAX_SIGMA) : renvoyées à part par

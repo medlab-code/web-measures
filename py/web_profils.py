@@ -37,16 +37,29 @@ REQUIRED = ("id", "label", "producer", "vehicle", "camera", "first", "end", "hei
 _CD21_HEIGHT_METHOD = "hauteur lue entre photos (parallaxe) et bords du véhicule dans le panorama ; monture d'après la date de prise de vue"
 _CD21_ROLL_METHOD = "roulis restant mesuré sur 23 vues de passages piétons (médiane +0,98°) avec 70 % du dévers, arrondi à +1,0°"
 _CD21_PROVENANCE = "mesures du 28/05 au 03/07/2025 et du 13/11/2026 (tests/passages-pietons.js, docs/BIRDEYE.md § 4.1) ; dates de montage non disponibles"
+_CD21_PROVENANCE_BASSE = _CD21_PROVENANCE + " ; montage supposé à ventouses (monture basse ?), sans certitude (auteur)"
+_CD21_PROVENANCE_HAUTE = _CD21_PROVENANCE + " ; montage supposé à barres de toit (monture haute ?), sans certitude (auteur)"
 
 CAMPAIGN_PROFILES = (
     {"id": "cd21-2025-clio5-basse", "label": "CD21 2025, Clio 5, monture basse", "producer": FLEET_PRODUCER,
      "vehicle": "Clio 5 à carrosserie claire", "camera": "imajbox, monture basse",
      "first": "2025-01-01", "end": "2025-06-24", "height": 1.93, "height_sigma": 0.04, "roll": 1.0, "roll_sigma": 1.0,
-     "pitch": None, "pitch_sigma": None, "method": _CD21_HEIGHT_METHOD + " ; " + _CD21_ROLL_METHOD, "provenance": _CD21_PROVENANCE},
+     "pitch": None, "pitch_sigma": None, "method": _CD21_HEIGHT_METHOD + " ; " + _CD21_ROLL_METHOD, "provenance": _CD21_PROVENANCE_BASSE},
     {"id": "cd21-2025-clio5-haute", "label": "CD21 2025, Clio 5, monture haute", "producer": FLEET_PRODUCER,
      "vehicle": "Clio 5 à carrosserie bleue", "camera": "imajbox, monture haute",
      "first": "2025-06-24", "end": "2026-01-01", "height": 2.07, "height_sigma": 0.04, "roll": 1.0, "roll_sigma": 1.0,
-     "pitch": None, "pitch_sigma": None, "method": _CD21_HEIGHT_METHOD + " ; " + _CD21_ROLL_METHOD, "provenance": _CD21_PROVENANCE},
+     "pitch": None, "pitch_sigma": None, "method": _CD21_HEIGHT_METHOD + " ; " + _CD21_ROLL_METHOD, "provenance": _CD21_PROVENANCE_HAUTE},
+    # 2026 : une seule séquence publiée (11/06/2026), d'où une fin au 12/06 (fin exclue) ; à étendre quand d'autres séquences 2026
+    # seront publiées. Mêmes niveaux que la monture basse 2025 ; roulis non mesuré en 2026, repris de 2025.
+    {"id": "cd21-2026-monture-basse", "label": "CD21 2026, monture basse (probable)", "producer": FLEET_PRODUCER,
+     "vehicle": "inconnu", "camera": "imajbox 360 HD, monture basse",
+     "first": "2026-01-01", "end": "2026-06-12", "height": 1.93, "height_sigma": 0.05, "roll": 1.0, "roll_sigma": 1.0,
+     "pitch": None, "pitch_sigma": None,
+     "method": "hauteur lue entre photos (parallaxe, 33 photos le 11/06/2026) : médiane 1,929 m, IC 95 % [1,888 ; 1,940] ; écart RTK − sol "
+               "médiane 1,94 m (69 photos) ; mêmes niveaux que la monture basse 2025 ; roulis non mesuré en 2026, repris de 2025",
+     "provenance": "étude du 27/11/2026, séquence 7d66f208-acb4-46f6-bb23-65d8717557a7 (11/06/2026, nord de Dijon) ; seule séquence 2026 "
+                   "publiée ; véhicule et dates de montage inconnus ; montage supposé à ventouses (monture basse) et barres de toit "
+                   "(monture haute), sans certitude (auteur)"},
 )
 
 

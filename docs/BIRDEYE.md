@@ -229,6 +229,9 @@ c'est ce que corrigent les raccords (§ 4.3).
    le sol reste vers 2,05-2,10 m tout du long (antenne fixe, caméra plus basse sur la première monture). Étude du 27/11/2026 : cet écart
    n'est qu'une borne, il saute aussi au 24/06/2025 (1,93 → 2,11 m) et surestime d'environ 5 cm la hauteur de caméra après cette date
    (dispersion d'environ 10 cm) : il passe après la calée et la monture dans `Session.camera_of` (#59).
+   Étude du 27/11/2026, deux montures : 1,94 m puis 2,055 m lues entre photos, rupture le 23/06 (IC 19-30/06) ; écart RTK − sol
+   1,93 → 2,11 m. Étude 2026 (séquence 7d66f208-acb4-46f6-bb23-65d8717557a7, 11/06/2026) : 1,929 m en médiane (33 photos, IC 95 % [1,888 ; 1,940]),
+   écart RTK − sol 1,94 m (69 photos), mêmes niveaux que la monture basse 2025 : fiche `cd21-2026-monture-basse` (1,93 m ±0,05, roulis repris de 2025).
    **Hauteurs côte à côte** (#59) : l'étiquette d'informations a une ligne « Hauteur : 2,07 m (monture haute) ; lue entre
    photos 2,05 m ; écart RTK − sol 2,09 m (borne) » (`heightLine`) : la hauteur retenue et son origine, puis, seulement si
    elles sont connues et différentes d'elle, la hauteur lue entre photos (avec « Véhicule masqué ») et l'écart RTK − sol de la photo
