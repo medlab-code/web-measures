@@ -141,7 +141,7 @@ pour les mesures (hauteur, relevé, visées) comme pour la largeur dans la visio
    tangage est inconnu ; incertitude de tangage `UNCALIBRATED` (2°), au moins celle du roulis
    (champ `roll_sigma` du profil, ±1° d'une photo à l'autre ; `ROLL_SIGMA_DEFAULT` sans profil). **Tangage de la campagne** (depuis le 27/11/2026) : au lieu d'un tangage nul,
    ce cas du rang 6 donne le tangage du profil (`pitch`, `pitch_sigma`, `_pitch_default` de `py/web_pose.py`, 0 sans profil ; degrés, positif : caméra relevée vers l'avant par
-   rapport à la route, comme la réglette de la vue du dessus) : CD21 monture basse (2025 et 2026) +0,7 ± 0,3°, monture haute +0,2 ± 0,3°. La pente de la route n'est pas lue dans ce cas :
+   rapport à la route, comme la réglette de la vue du dessus) : CD21 Clio 5 blanche (2025 et 2026) +0,7 ± 0,3°, Captur (bleu et bicolore) +0,2 ± 0,3°. La pente de la route n'est pas lue dans ce cas :
    l'incertitude de tangage reste `UNCALIBRATED` (au moins `pitch_sigma`). Sans profil, rien ne change. Ce tangage n'est **jamais ajouté** à un tangage lu (rangs 1 à 5 :
    raccords, verticales, clics, LiDAR du rang 4, qui contient déjà le décalage de fixation appris sur la séquence, réglage à la main). Mire des flèches de rabattement thermocollées
    (27/11/2026, 17 photos de 8 flèches, cote IISR 6,00 m) : avec un tangage lu sur les raccords ou les verticales la flèche sort à 6,00 ± 0,1 m ; sans tangage lu (route seule),
@@ -187,7 +187,7 @@ sans elle.
 **Confiance de l'inclinaison** (`Calibration.tilt_sources`, `tilt_confidence`, `Calibration.confidence` ; 22/11/2026). Une
 inclinaison n'est sûre que si une source indépendante la retrouve. Seules deux familles le sont : **image** (verticales à la
 main, verticales automatiques, verticales à seuil élargi) et **terrain** (LiDAR HD par le modèle de la séquence, route de la
-vue du dessus = LiDAR + 0,7 × dévers + défaut de campagne). Le LiDAR brut n'est pas un témoin (sans le décalage de monture
+vue du dessus = LiDAR + 0,7 × dévers + défaut de campagne). Le LiDAR brut n'est pas un témoin (sans le décalage de caméra
 appris sur la séquence) ; le roulis par défaut de la campagne 2025 est une constante, pas un témoin (famille « constante » ; « mixte » : clics
 complétés par le terrain, aucun témoin). `tilt_sources(pic, heading)` rend toutes les sources disponibles de la photo (nom,
 famille, `up`, `sigma`, tangage et roulis), pas seulement la retenue. Le **LiDAR modèle est calculé sans la photo** (leave-one-out :
@@ -223,19 +223,23 @@ inclus), `end` (jour de fin exclu), `height` et `height_sigma` (hauteur de camé
 dispersion, degrés ; positif : véhicule penché à droite), `pitch` et `pitch_sigma` (tangage, `None` : inconnu), `method` et
 `provenance` (comment les valeurs ont été obtenues). `profile_of(item)` donne le premier profil dont le producteur figure dans les
 fournisseurs (`providers`) de la photo et dont la période contient sa date de prise de vue (la date seule, sans l'heure) ; `None`
-sinon. Le profil s'applique tout seul, sans choix : hauteur de la monture (`_fleet_mount`, `_mount_height`), défaut de roulis
+sinon. Le profil s'applique tout seul, sans choix : hauteur de caméra du véhicule (`_fleet_mount`, `_mount_height`), défaut de roulis
 (`_roll_defect`, § 1.3 rang 6) et son incertitude (`_campaign_tilt`), libellé du roulis par défaut (`_roll_label`, l'année vient de
 `first`). `check_profiles` (champ manquant, `first` non antérieur à `end`, chevauchement de deux périodes d'un même producteur) est
 exécuté à l'import du module : une table invalide empêche le chargement. Sans profil : hauteur et roulis de campagne inchangés
 (réglage, 0°, incertitude `ROLL_SIGMA_DEFAULT` de 1°). Le profil appliqué est dit dans l'étiquette de la vue du dessus
-(« Profil : … (du 24/06/2025 au 31/12/2025) »), dans le panneau de calage (« Profil : … ») et dans la colonne `profil` de l'export.
-Trois fiches aujourd'hui : CD21 2025 Clio 5, monture basse (du 01/01 au 23/06/2025, 1,93 m ±0,04, roulis +1,0° ±1,0), monture
-haute (du 24/06 au 31/12/2025, 2,07 m ±0,04, roulis +1,0° ±1,0) et CD21 2026, monture basse (probable) (du 01/01 au 11/06/2026, fin
+(« Profil : … (du 24/06/2025 au 09/07/2025) »), dans le panneau de calage (« Profil : … ») et dans la colonne `profil` de l'export.
+Quatre fiches aujourd'hui, une par véhicule (#75 : la hauteur de la caméra suit le véhicule, pas un montage ; une seule sangle, le
+« dispositif large » du 16/06/2025 était une paire de chaussures calant la sangle, sans effet mesuré sur la hauteur ; étude des véhicules
+du 27/11/2026 : toit au bas des panoramas, reflets dans les vitrines, parallaxe) : `cd21-2025-clio5-blanche` « CD21 2025, Clio 5 blanche »
+(du 01/01 au 23/06/2025, 1,93 m ±0,04, roulis +1,0° ±1,0, tangage +0,7° ±0,3), `cd21-2025-captur-bleu` « CD21 2025, Captur bleu »
+(du 24/06 au 09/07/2025, aucune prise de vue le 09/07 ; 2,07 m ±0,04, roulis +1,0° ±1,0, tangage +0,2° ±0,3),
+`cd21-2025-captur-bicolore` « CD21 2025, Captur bicolore (2019) » (du 10/07 au 31/12/2025, mêmes valeurs ; le 10/07/2025, premier jour
+du véhicule, tangage décalé d'environ −0,6° d'après 9 photos de 4 flèches de rabattement, donc incertain ce jour-là, noté dans la
+provenance) et `cd21-2026-clio5-blanche` « CD21 2026, Clio 5 blanche » (du 01/01 au 11/06/2026, fin
 exclue au 12/06 : seul le 11/06/2026 est observé, séquence 7d66f208-acb4-46f6-bb23-65d8717557a7 ; 1,93 m ±0,05, roulis +1,0° ±1,0
-repris de 2025, non mesuré en 2026 ; véhicule inconnu ; à étendre quand d'autres séquences 2026 seront publiées). Le montage
-(ventouses pour la monture basse, barres de toit pour la haute) n'est qu'une hypothèse, sans certitude (auteur), notée dans la
-provenance. Les montures possibles du CD21 hors campagne connue (`pose.mounts`) sont les hauteurs distinctes des fiches du producteur
-(1,93 et 2,07 m, sans doublon) ; l'incertitude de la monture (`pose.mount_sigma`) est celle de la fiche de la photo (±0,04 m en 2025, ±0,05 m en 2026) ; hors campagne connue, `fleet_height_sigma`, la plus grande des fiches du producteur (±0,05 m).
+repris de 2025, non mesuré en 2026 ; à étendre quand d'autres séquences 2026 seront publiées). Les hauteurs possibles du CD21 hors campagne connue (`pose.mounts`) sont les hauteurs distinctes des fiches du producteur
+(1,93 et 2,07 m, sans doublon) ; l'incertitude de la hauteur (`pose.mount_sigma`) est celle de la fiche de la photo (±0,04 m en 2025, ±0,05 m en 2026) ; hors campagne connue, `fleet_height_sigma`, la plus grande des fiches du producteur (±0,05 m).
 
 ## 2. Point triangulé
 
@@ -298,9 +302,9 @@ Chaque objet est placé d'une de ces trois façons :
 
 - **triangulé** (§ 2) : la façon normale ;
 - **sur une seule photo** (« Garder sur cette seule photo ») : là où la visée touche le sol,
-  supposé plat à la hauteur de caméra sous la photo (calée, sinon monture du CD21 d'après la date, sinon
+  supposé plat à la hauteur de caméra sous la photo (calée, sinon véhicule du CD21 d'après la date, sinon
   altitude RTK moins sol LiDAR, sinon le réglage : `Session.camera_of`, ordre unique depuis le 27/11/2026, #59 : l'écart RTK − sol n'est qu'une
-  borne, il saute aussi à la rupture de monture du 24/06/2025, 1,93 → 2,11 m, et surestime d'environ 5 cm la hauteur après elle, avec
+  borne, il saute aussi au changement de véhicule du 24/06/2025, 1,93 → 2,11 m, et surestime d'environ 5 cm la hauteur après elle, avec
   10 cm de dispersion ; l'incertitude de la visée suit la source : `camera_of`). Les mesures qui dépendent de la hauteur de caméra (`MeasureTool.camera_full`, par le crochet `Session._click_camera`) et le profil en long (`etat.cameraUsed`) prennent la même hauteur, pour la photo de chacun de leurs clics ; le réglage n'est lu qu'en dernier rang (source `None`, champ actif), sinon grisé. La visée doit descendre d'au moins 2° sous
   l'horizon, soit 70 m au plus pour une caméra à 2,5 m. L'incertitude vient surtout de
   l'inclinaison : ±0,2 à 0,8 m pour un objet à 6 m selon son calage ;
@@ -363,7 +367,7 @@ qui se touchent à 1 m près forment un seul ouvrage.
   moins la hauteur de caméra. En chaque point, l'altitude est interpolée entre les deux photos
   consécutives (rangs dans la séquence) dont le segment passe au plus près (pont long et pentu ; une
   seule photo : son altitude ; `web_app._deck_at`). La hauteur de
-  caméra est celle **calée** pour la séquence, sinon pour une photo du CD21 la **monture d'après la date** (1,93 m jusqu'au
+  caméra est celle **calée** pour la séquence, sinon pour une photo du CD21 la **hauteur du véhicule d'après la date** (1,93 m jusqu'au
   23/06/2025, 2,07 m ensuite, ±4 cm, profil de campagne de `py/web_profils.py`, comme la vue du dessus), sinon celle **mesurée sur la
   séquence** vérifiée (médiane de l'altitude RTK moins le sol LiDAR, photos du pont écartées : une borne, voir § 6). Une photo de précision
   déclarée n'a que sa propre hauteur, prise au-dessus du sol sous elle : sur un pont, le fond
@@ -529,7 +533,7 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   ou à plus de 20 m. Dans un giratoire de 20 m de rayon, la
   route a tourné de 13° entre la photo et la droite : sans cela elle serait oblique d'autant par rapport au rayon de l'anneau. Un
   écart de plus de 3° est rendu dans `virage` (degrés, pas encore affiché). Points de -12 à +12 m tous les 0,05 m, positifs à droite. En ligne droite (θ = θ0), un point de décalage `x` est au cap `atan2(x, d)` de l'axe et à
-  l'élévation `-atan2(H − dz, hypot(x, d))` à sol plat (`dz` = 0 ; relief : voir **Sol**) (sinon, avec δ = θ − θ0 : à `x·cos δ` à droite et `d − x·sin δ` devant la caméra) ; `d` = 4,4 m (monture 1,93 m), 4,8 m (2,07 m), 4,5 m sinon, soit le capot de
+  l'élévation `-atan2(H − dz, hypot(x, d))` à sol plat (`dz` = 0 ; relief : voir **Sol**) (sinon, avec δ = θ − θ0 : à `x·cos δ` à droite et `d − x·sin δ` devant la caméra) ; `d` = 4,4 m (Clio 5 blanche 1,93 m), 4,8 m (2,07 m), 4,5 m sinon, soit le capot de
   `src/dessus.js` (OUTLINES) plus 0,3 m. Direction rendue dans le repère de la photo par `Session._view_of` : calage compris
   (cap de la séquence, inclinaison calée ou lue).
 - **Distance de la droite (glissement en profondeur)** : `nose_line(distance, …)` reçoit la distance `d` du centre de la droite devant la
@@ -559,12 +563,12 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   la droite étant droite, tout décalage s'en déduit par interpolation linéaire. Les décalages des poignées sont continus : interpolation
   linéaire entre points consécutifs de la table, au point le plus proche du pointeur à l'écran.
 - **Hauteur** `H` (`Nez._nose_height`) et son incertitude `σH`, dans l'ordre de la vue du dessus (`layerOf`) : 1) celle que la vue du
-  dessus **annonce** pour la photo (`height`, `height_sigma` de `App.birdeye_tilt_set`, avec l'inclinaison : calée, monture CD21, parallaxe
-  entre photos ou RTK ; source « vue du dessus ») ; 2) sans calage Bird Eye, `Session.camera_of` : calée, **monture** du véhicule d'après la date
+  dessus **annonce** pour la photo (`height`, `height_sigma` de `App.birdeye_tilt_set`, avec l'inclinaison : calée, profil du véhicule CD21, parallaxe
+  entre photos ou RTK ; source « vue du dessus ») ; 2) sans calage Bird Eye, `Session.camera_of` : calée, **profil** du véhicule d'après la date
   (1,93 ou 2,07 m, ±0,04 m), altitude GPS moins sol LiDAR, réglage (1,90 m par défaut). Depuis le 27/11/2026 (#59) c'est l'ordre de toutes
   les mesures : l'écart RTK − sol n'est qu'une borne (il saute aussi au 24/06/2025, 1,93 → 2,11 m, et surestime d'environ 5 cm la hauteur
   après). Sur la photo
-  8625c7ff-90c1-4865-b936-fd8952ac908f, l'altitude GPS moins le sol donnait 1,80 m contre 1,93 m (monture, parallaxe 1,92 m) : 7 % de
+  8625c7ff-90c1-4865-b936-fd8952ac908f, l'altitude GPS moins le sol donnait 1,80 m contre 1,93 m (profil, parallaxe 1,92 m) : 7 % de
   largeur en moins (48 cm sur 6 m de bords à ±3 m).
 - **Sol, quand la vue du dessus a calé la photo** : le terrain **lissé** de sa couche (maillage de 1 m, lissé sur 2 m le long de la
   route, 31 × 31 points, `ground` de `birdeye_tilt_set` ; `Nez._birdeye_ground_dz`), interpolé bilinéairement comme `terrainAt`
@@ -965,7 +969,7 @@ vaut au moins 5 % de la longueur (écart à l'orthophoto, plus bas). Les 3,5 % q
 Les photos précédente et suivante complètent l'image sous le véhicule seulement : hors du masque du véhicule de la
 photo affichée, celle-ci n'est pas retouchée. Masque au plus près (09/11/2026) : contour du véhicule dans le panorama,
 lu sur 12 photos de la séquence pour le CD21 (`readOutline`, marge de 1,5°, forme symétrique sans encoche ; à défaut
-celui de la monture, `OUTLINES`), sinon ellipse au sol de ±5,8 m en long et ±2,9 m en travers.
+celui de sa hauteur de caméra, `OUTLINES`), sinon ellipse au sol de ±5,8 m en long et ±2,9 m en travers.
 Dessous, la voisine où l'erreur due à l'inclinaison est la plus faible, comptée trois fois près de son propre véhicule
 (`SHADE`, ombre portée et reflets) ; une voisine sans inclinaison ne sert qu'à défaut d'une autre. Chacune a sa position, sa hauteur et son
 inclinaison, posées sur le même terrain. Une distance entre deux points de photos différentes
@@ -1047,7 +1051,7 @@ Photo marquée sur un pont par le cœur (`Session.mark_bridge`, BD TOPO à 8 m a
 les mesures ; avant le 22/11/2026 la vue du dessus détectait elle-même un pont à moins de 20 m, dessus ou dessous), la vue se passe du terrain
 LiDAR HD : le MNT n'a pas le tablier (sol sous le pont). Tablier supposé plan et horizontal
 (maillage à plat, `deck`) : inclinaison par la route (tangage de la séquence et roulis par défaut de la campagne 2025 seulement,
-±1,5° pour la pente du tablier, jusqu'à 3 %). Hauteur de caméra : pour le CD21, sa monture d'après la date
+±1,5° pour la pente du tablier, jusqu'à 3 %). Hauteur de caméra : pour le CD21, son véhicule d'après la date
 (profil de campagne, `py/web_profils.py` : 1,93 m avant le 24/06/2025, 2,07 m ensuite, ±0,04 m) ; autres photos, lue entre photos sur les
 verticales, sinon calée pour la séquence, sinon le réglage. Avant le 13/11/2026 : sol plat sans inclinaison et 1,90 m par défaut, bandes
 de passage piéton à 0,44 m au lieu de 0,50 (f2a245d0-aeea-4249-ba9c-fad83b442a23, Pont de France ; 7dcdccf9-3c52-4c54-bc5b-de72740a7967, D977 bis). Pont de France à Auxonne (bbf7a0be-f532-4362-afb4-114268317258) : tangage lu sur les raccords à
@@ -1077,7 +1081,7 @@ A38 0,11 m, RD 1074 0,19 m, D33 0,02 m, petite RD sans peinture 0,31 m (calée, 
 village sans accord (position gardée). Limite : un décalage de plus de 1,2 m serait pris pour celui d'une autre ligne. Le calage du tangage sur l'orthophoto trouvait, sur 6 photos réglées à l'œil par l'auteur (07/11/2026), 0 / +0,1 / +0,4
 / +0,2 / -0,2 / +0,2° pour +0,5 / +0,5 / +0,2 / +0,2 / -0,2 / 0°.
 
-Photos du CD21 : hauteur de la monture d'après la date de prise de vue (profil de campagne, `py/web_profils.py`, 1,93 ou 2,07 m), avant toute
+Photos du CD21 : hauteur du véhicule d'après la date de prise de vue (profil de campagne, `py/web_profils.py`, 1,93 ou 2,07 m), avant toute
 autre sauf une hauteur calée pour la séquence (voir docs/BIRDEYE.md § 4.2 ; ordre de `Session.camera_of`, #59). Autres photos, hauteur de caméra par séquence : médiane des hauteurs vérifiées (GPS RTK moins sol) des photos vues de la séquence, dès
 3 photos, gardée dans le navigateur (`web-measures/dessus-hauteurs`) ; une même séquence de l'A38 allait de 1,83 à
 2,36 m d'une photo à l'autre. Chaque caméra est posée à cette hauteur au-dessus du plan de la route sous le véhicule

@@ -132,7 +132,7 @@ class VueDessus(unittest.TestCase):
 
     def test_profils_de_campagne(self):
         """Table des profils datés (#70) : valide ; contrôle qui détecte champ manquant et chevauchement ; profil par producteur et date
-        (monture basse jusqu'au 23/06/2025, haute dès le 24/06, valeurs inchangées) ; rien ailleurs."""
+        (Clio 5 blanche jusqu'au 23/06/2025, Captur bleu du 24/06 au 09/07, Captur bicolore dès le 10/07, Clio 5 blanche 2026) ; rien ailleurs (#75)."""
         profiles = web_profils.CAMPAIGN_PROFILES
         self.assertEqual(web_profils.check_profiles(profiles), [])
         broken = [dict(profiles[0], first="2025-03-01"), dict(profiles[1], first="2025-03-01")]  # deux périodes du même producteur se chevauchent
@@ -142,19 +142,23 @@ class VueDessus(unittest.TestCase):
         a = App.__new__(App)
         photo = lambda producer, date: {"providers": [{"id": producer}], "properties": {"datetime": date}}
         low, high = (a._profile(photo(App.FLEET_PRODUCER, d)) for d in ("2025-06-23T12:39:00Z", "2025-06-24T12:12:00Z"))
-        self.assertEqual((low["id"], low["height"], low["roll"]), ("cd21-2025-clio5-basse", 1.93, 1.0))
-        self.assertEqual((high["id"], high["height"], high["roll"], high["height_sigma"], high["roll_sigma"]), ("cd21-2025-clio5-haute", 2.07, 1.0, 0.04, 1.0))
+        self.assertEqual((low["id"], low["height"], low["roll"]), ("cd21-2025-clio5-blanche", 1.93, 1.0))
+        self.assertEqual((high["id"], high["height"], high["roll"], high["height_sigma"], high["roll_sigma"]), ("cd21-2025-captur-bleu", 2.07, 1.0, 0.04, 1.0))
         self.assertEqual(a._mount_height(photo(App.FLEET_PRODUCER, "2025-06-23T12:39:00Z")), (1.93, 0.04))
         self.assertEqual(a._fleet_mount(photo(App.FLEET_PRODUCER, "2025-06-24T00:00:00Z")), 2.07)
         for producer, date in (("autre", "2025-07-03T10:53:25Z"), (App.FLEET_PRODUCER, "2024-12-31T23:00:00Z"), (App.FLEET_PRODUCER, "2026-06-12T00:00:00Z")):
             self.assertIsNone(web_profils.profile_of(photo(producer, date)))
         self.assertIsNone(web_profils.profile_of({}))
-        p26 = web_profils.profile_of(photo(App.FLEET_PRODUCER, "2026-06-11T08:00:00Z"))  # fiche 2026 (monture basse probable, fin exclue au 12/06)
-        self.assertEqual((p26["id"], p26["height"]), ("cd21-2026-monture-basse", 1.93))
+        p26 = web_profils.profile_of(photo(App.FLEET_PRODUCER, "2026-06-11T08:00:00Z"))  # fiche 2026 (Clio 5 blanche, fin exclue au 12/06)
+        self.assertEqual((p26["id"], p26["height"]), ("cd21-2026-clio5-blanche", 1.93))
         self.assertIsNone(web_profils.profile_of(photo(App.FLEET_PRODUCER, "2026-06-12T08:00:00Z")))
-        self.assertEqual(web_profils.profile_of(photo(App.FLEET_PRODUCER, "2025-12-31T10:00:00Z"))["id"], "cd21-2025-clio5-haute")
+        self.assertEqual(web_profils.profile_of(photo(App.FLEET_PRODUCER, "2025-12-31T10:00:00Z"))["id"], "cd21-2025-captur-bicolore")
+        for date, ident, vehicle in (("2025-06-23", "cd21-2025-clio5-blanche", "Clio 5 blanche"), ("2025-07-08", "cd21-2025-captur-bleu", "Captur bleu (1re génération probable)"),
+                                     ("2025-07-10", "cd21-2025-captur-bicolore", "Captur bicolore (2019)"), ("2026-06-11", "cd21-2026-clio5-blanche", "Clio 5 blanche")):
+            p = web_profils.profile_of(photo(App.FLEET_PRODUCER, date + "T10:00:00Z"))
+            self.assertEqual((p["id"], p["vehicle"]), (ident, vehicle))
         info = a._profile_info(photo(App.FLEET_PRODUCER, "2025-08-01T10:00:00Z"))
-        self.assertEqual((info["label"], info["first"], info["end"]), ("CD21 2025, Clio 5, monture haute", "2025-06-24", "2026-01-01"))
+        self.assertEqual((info["label"], info["first"], info["end"]), ("CD21 2025, Captur bicolore (2019)", "2025-07-10", "2026-01-01"))
 
     def test_roulis_vehicule_convention(self):
         """Roulis du véhicule : positif = penché à droite ; le cœur a la convention inverse (verticale penchée à droite = caméra à gauche),
@@ -282,11 +286,11 @@ class VueDessus(unittest.TestCase):
                          [(1.93, 0.04), (2.07, 0.04)])
         self.assertEqual(pose_on("2024-05-28T05:40:22Z")["height"], 2.1)
         low, high = pose_on("2025-05-28T05:40:22Z"), pose_on("2025-07-07T05:56:32Z")  # montures et profil transmis à la vue (src/dessus.js)
-        self.assertEqual((low["mounts"], low["mount_sigma"], low["profile"]["id"]), ([1.93, 2.07], 0.04, "cd21-2025-clio5-basse"))
-        self.assertEqual(high["profile"]["label"], "CD21 2025, Clio 5, monture haute")
+        self.assertEqual((low["mounts"], low["mount_sigma"], low["profile"]["id"]), ([1.93, 2.07], 0.04, "cd21-2025-clio5-blanche"))
+        self.assertEqual(high["profile"]["label"], "CD21 2025, Captur bleu")
         self.assertIsNone(pose_on("2024-05-28T05:40:22Z")["profile"])
         p26 = pose_on("2026-06-11T08:00:00Z")  # fiche 2026 : sigma de la fiche (0,05) ; hors campagne connue : le plus grand du producteur
-        self.assertEqual((p26["height"], p26["mount_sigma"], p26["profile"]["id"]), (1.93, 0.05, "cd21-2026-monture-basse"))
+        self.assertEqual((p26["height"], p26["mount_sigma"], p26["profile"]["id"]), (1.93, 0.05, "cd21-2026-clio5-blanche"))
         self.assertEqual(pose_on("2024-05-28T05:40:22Z")["mount_sigma"], 0.05)
 
     def test_verticales_moins_sures(self):
@@ -1024,7 +1028,7 @@ class CameraPont(unittest.TestCase):
         self.assertEqual(a.camera_of(other, None), (1.9, None, 0.15))
         used = a._camera_used(item)  # infobulle du réglage « Hauteur de caméra »
         self.assertEqual((used["height"], used["source"]), (1.93, "monture"))
-        self.assertIn("Hauteur utilisée pour cette photo : 1,93 m (profil CD21 2025, Clio 5, monture basse)", used["text"])
+        self.assertIn("Hauteur utilisée pour cette photo : 1,93 m (profil CD21 2025, Clio 5 blanche)", used["text"])
         self.assertIn("écart RTK − sol LiDAR, une borne", a._camera_used(other)["text"])
         self.assertIn("(réglage)", self.app(None, item=other)._camera_used(other)["text"])
 
@@ -1680,12 +1684,12 @@ class Parcours(unittest.TestCase):
         self.assertEqual(json.loads(a.birdeye_pose())["pitch_default_sigma"], 0.3)
 
     def test_profils_tangage(self):
-        """Profils : tangage et incertitude vont ensemble ; CD21 : +0,7 ± 0,3 (monture basse 2025 et 2026), +0,2 ± 0,3 (monture haute)."""
+        """Profils : tangage et incertitude vont ensemble ; CD21 : +0,7 ± 0,3 (Clio 5 blanche 2025 et 2026), +0,2 ± 0,3 (Captur)."""
         profiles = {p["id"]: p for p in web_profils.CAMPAIGN_PROFILES}
-        self.assertEqual([(p["pitch"], p["pitch_sigma"]) for p in profiles.values()], [(0.7, 0.3), (0.2, 0.3), (0.7, 0.3)])
+        self.assertEqual([(p["pitch"], p["pitch_sigma"]) for p in profiles.values()], [(0.7, 0.3), (0.2, 0.3), (0.2, 0.3), (0.7, 0.3)])
         self.assertEqual(web_profils.pitch_of(None), (0.0, None))
-        self.assertEqual(web_profils.pitch_of(dict(profiles["cd21-2025-clio5-basse"], pitch=None, pitch_sigma=None)), (0.0, None))
-        self.assertTrue(any("vont ensemble" in p for p in web_profils.check_profiles([dict(profiles["cd21-2025-clio5-basse"], pitch_sigma=None)])))
+        self.assertEqual(web_profils.pitch_of(dict(profiles["cd21-2025-clio5-blanche"], pitch=None, pitch_sigma=None)), (0.0, None))
+        self.assertTrue(any("vont ensemble" in p for p in web_profils.check_profiles([dict(profiles["cd21-2025-clio5-blanche"], pitch_sigma=None)])))
 
     def test_roulis_par_defaut_hors_campagne(self):
         """Hors CD21 : défaut 0, la part du dévers seule ; sans dévers disponible, rien (rang 7)."""

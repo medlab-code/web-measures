@@ -28,11 +28,12 @@ const Dessus = (() => {
   // 2,6 cm le long à 10 m, 0,2 et 0,5 cm à 4 m), les voisines (NEAR_LIMIT) deux fois moins
   const SHOWN_SIZE = 2048, FINE_SIZE = 4096;  // FINE_SIZE : « Haute résolution », 0,7 cm par pixel (zoom 24 de la carte)
   const ALTI_CHUNK = 300;  // points par requête d'altitude en GET, si le POST échoue (longueur de l'adresse : environ 6,5 Ko)
-  // Contour du véhicule dans le panorama, par monture (hauteurs de py/web_profils.py) : élévation (degrés) sous laquelle le véhicule cache le sol,
+  // Contour du véhicule dans le panorama, par hauteur de caméra (hauteurs de py/web_profils.py) : élévation (degrés) sous laquelle le véhicule cache le sol,
   // tous les 2,8° depuis l'arrière (bord du panorama), avant au milieu ; marge de 1,5° comprise (environ 10 cm au sol ; à 1°, des bords de
   // carrosserie des voisines restaient visibles). Relevé le
-  // 09/11/2026 sur la médiane de 16 photos d'une séquence (basse : 67e2ef09, 10/06/2025 ; haute : 5bab4dc2, 03/07/2025).
-  // shortcut: relevé à la main sur deux séquences, à refaire si la monture ou le véhicule change
+  // 09/11/2026 sur la médiane de 16 photos d'une séquence (1,93 m, Clio 5 blanche : 67e2ef09, 10/06/2025 ; 2,07 m, Captur bleu : 5bab4dc2, 03/07/2025). Le Captur bicolore (dès le 10/07/2025,
+  // même hauteur) prend le contour 2,07 du Captur bleu, sans relevé à lui (#75).
+  // shortcut: relevé à la main sur deux séquences, à refaire si le véhicule change
   const OUTLINES = {
     1.93: [
       -26.7, -26.8, -26.8, -26.8, -26.9, -27.1, -27.2, -27.5, -27.8, -28.3, -28.8, -29.7, -30.6, -31.5, -32.3, -33.1, -33.9,
@@ -53,7 +54,7 @@ const Dessus = (() => {
       -44.5, -43.9, -43.4, -42.7, -42.0, -41.4, -40.8, -40.0, -39.2, -38.2, -37.3, -36.3, -35.3, -34.1, -32.9, -30.7, -28.5,
       -26.7, -25.0, -24.6, -24.3, -24.3, -24.3, -24.3, -24.3, -24.3],
   };
-  const EITHER = OUTLINES[1.93].map((e, k) => Math.max(e, OUTLINES[2.07][k]));  // monture pas encore connue : les deux
+  const EITHER = OUTLINES[1.93].map((e, k) => Math.max(e, OUTLINES[2.07][k]));  // hauteur pas encore connue : les deux
   const LOWEST = OUTLINES[1.93].map((e, k) => Math.min(e, OUTLINES[2.07][k]));
   // Contour lu sur la séquence elle-même (readOutline), d'abord : d'autres montages existent (15/07/2025, 3e222d68 : caméra plus
   // en arrière, rétroviseurs 7 à 9° plus près de l'avant). Moyenne de OUTLINE_PHOTOS photos SD de la séquence : le sol y est
@@ -149,7 +150,7 @@ const Dessus = (() => {
     const x = u * outline.length, k = Math.floor(x) % outline.length;
     return outline[k] + (outline[(k + 1) % outline.length] - outline[k]) * (x - Math.floor(x));
   }
-  /** Le point au sol (est, nord, m depuis la caméra) est-il caché par le véhicule ? Contour de la monture (pose.outline), sinon
+  /** Le point au sol (est, nord, m depuis la caméra) est-il caché par le véhicule ? Contour de la hauteur de caméra (pose.outline), sinon
    * ellipse. Même calcul dans le dessin (FRAGMENT). */
   function hidden(east, north, pose) {
     if (!pose.outline) return inCar(east, north, pose) < 1;
@@ -486,7 +487,7 @@ const Dessus = (() => {
   }
 
   /** Ligne des hauteurs de caméra côte à côte pour l'étiquette (#59) : { text, title, alert }. height : hauteur retenue (m) ; origin :
-   * son origine (« monture haute », « calée pour la séquence »…) ; read : hauteur lue entre photos, ou null (absente, ou déjà celle
+   * son origine (« Captur bleu », « calée pour la séquence »…) ; read : hauteur lue entre photos, ou null (absente, ou déjà celle
    * retenue) ; rtk : écart RTK − sol LiDAR de la photo (une borne), ou null (absent, ou déjà celui retenu). Chaque terme seulement s'il
    * est connu ; alerte quand read ou rtk s'écarte de la hauteur retenue de plus de HEIGHT_ALERT. */
   function heightLine(height, origin, read = null, rtk = null) {
@@ -1973,14 +1974,14 @@ const Dessus = (() => {
     const fix = withNeighbours() && shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.map.get(pose.pic) : undefined;
     const parallax = withNeighbours() ? shown.height : null;  // lue avec les voisines : sans « Véhicule masqué », ignorée
     // hauteur : décalage entre photos, sinon RTK moins le sol (de la séquence, ou de la photo)
-    const mount = shown.pose.fleet ? shown.pose.mount : null;  // CD21 : monture d'après la date (profil de campagne, py/web_profils.py)
+    const mount = shown.pose.fleet ? shown.pose.mount : null;  // CD21 : véhicule d'après la date (profil de campagne, py/web_profils.py)
     const fitted = shown.pose.height_source === "calée";  // hauteur calée pour la séquence : avant la monture, la lecture et l'écart RTK − sol (#59)
     const height = fitted ? { height: leveled.height, height_sigma: leveled.height_sigma }
       : mount ? { height: mount, height_sigma: shown.pose.mount_sigma }
       : parallax && shown.pose.fleet ? { height: mountOf(parallax), height_sigma: shown.pose.mount_sigma }  // CD21 hors campagne connue
       : parallax ? { height: parallax, height_sigma: HEIGHT_SIGMA }
       : { height: shown.sequenceHeight?.height ?? leveled.height, height_sigma: Math.max(leveled.height_sigma, RTK_SIGMA) };
-    const read = withNeighbours() ? outlines.get(shown.sequence) : null;  // CD21 : contour lu sur la séquence, sinon celui de sa monture
+    const read = withNeighbours() ? outlines.get(shown.sequence) : null;  // CD21 : contour lu sur la séquence, sinon celui de sa hauteur de caméra
     const outline = !shown.pose.fleet ? null : Array.isArray(read) ? read : mount ? OUTLINES[mount]
       : parallax ? OUTLINES[mountOf(parallax)] : EITHER;
     const bend = withNeighbours() ? seam?.bend ?? undefined : undefined;  // lignes calées (lineField) ou écarts restants (bendField)
@@ -2283,16 +2284,16 @@ const Dessus = (() => {
   /** Hauteur de la séquence lue entre photos (médiane), ou null. */
   const sequenceParallax = (sequence) => median(Object.values(readParallax()[sequence] || {}).flat()) ?? null;
   const parallaxCount = (sequence) => Object.keys(readParallax()[sequence] || {}).length;
-  // Photos du CD21 (pose.fleet) : imajbox sur Clio 5, deux montures, la caméra ne bouge plus une fois montée. Hauteurs lues entre
+  // Photos du CD21 (pose.fleet) : imajbox sur sangle, trois véhicules (Clio 5 blanche 1,93 m, Captur bleu et bicolore 2,07 m : la hauteur suit le véhicule, #75). Hauteurs lues entre
   // photos sur 36 vues (08/11/2026) : 1,90 à 1,95 m du 28/05 au 23/06/2025, 2,05 à 2,07 m le 03/07 (2,15 le 07/07 ; dispersé en
   // octobre, 2,04 à 2,34 m) ; l'altitude RTK moins le sol reste vers 2,05-2,10 m tout du long (antenne fixe, caméra plus basse
-  // sur la première monture). La séquence prend la monture la plus proche de sa hauteur lue, même par la seule inclinaison de
-  // la route (verticales et route concordent au cm près là où les deux existent). Depuis le 13/11/2026, la monture vient
+  // sur la Clio 5). La séquence prend la hauteur de véhicule la plus proche de sa hauteur lue, même par la seule inclinaison de
+  // la route (verticales et route concordent au cm près là où les deux existent). Depuis le 13/11/2026, la hauteur vient
   // d'abord de la date de prise de vue (pose.mount, profil de campagne de py/web_profils.py) : la hauteur lue se joue à quelques cm du seuil de
   // 2,00 m (f2a245d0-aeea-4249-ba9c-fad83b442a23, 07/07/2025 : 2,03 ou 1,98 m selon le terrain) ; lue entre photos
   // seulement hors campagne connue.
   // Hauteurs mesurées sur les véhicules : non disponibles (prises de vue faites par un prestataire), piste abandonnée le 13/11/2026
-  // Les montures possibles viennent de la pose (pose.mounts : hauteurs des profils du CD21 de py/web_profils.py, triées ; pose.mount_sigma :
+  // Les hauteurs possibles viennent de la pose (pose.mounts : hauteurs des profils du CD21 de py/web_profils.py, triées ; pose.mount_sigma :
   // leur incertitude), jamais recopiées ici ; seuls les contours (OUTLINES) sont indexés par hauteur
   const mountOf = (h) => shown.pose.mounts.reduce((a, b) => (Math.abs(b - h) < Math.abs(a - h) ? b : a));
   let drawing = 0;  // dernier dessin demandé : l'image d'un dessin dépassé est jetée
@@ -2315,11 +2316,11 @@ const Dessus = (() => {
   /** D'où vient la hauteur de caméra, pour la ligne « Hauteur » de l'étiquette : { label, rtk } (rtk : la hauteur est un écart RTK − sol,
    * donc pas répétée à part) ; parallax : hauteur lue entre photos, ou null. */
   function heightOrigin(parallax) {
-    const mount = (h) => (h === shown.pose.mounts[0] ? "basse" : "haute");
+    const vehicle = shown.pose.profile?.vehicle;
     const source = shown.pose.height_source;
     if (source === "calée") return { label: "calée pour la séquence", rtk: false };
-    if (shown.pose.fleet && shown.pose.mount) return { label: `monture ${mount(shown.pose.mount)}`, rtk: false };
-    if (parallax && shown.pose.fleet) return { label: `monture ${mount(mountOf(parallax))}`, rtk: false };
+    if (shown.pose.fleet && shown.pose.mount) return { label: vehicle || `véhicule du CD21 (${number(shown.pose.mount, 2)} m)`, rtk: false };
+    if (parallax && shown.pose.fleet) return { label: `hauteur de véhicule du CD21 la plus proche (${number(mountOf(parallax), 2)} m)`, rtk: false };
     if (parallax) {
       const n = parallaxCount(shown.sequence);
       return { label: `parallaxe : décalage entre photos${n > 1 ? `, médiane de ${n} photos de la séquence` : ""}`, rtk: false };

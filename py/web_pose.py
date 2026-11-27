@@ -317,7 +317,7 @@ class Pose:
                 "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []),
                 "roll_defect": self._roll_defect(item), "roll_share": self.ROLL_SHARE,
                 "pitch_default": self._pitch_default(item)[0], "pitch_default_sigma": self._pitch_default(item)[1], "mount": self._fleet_mount(item),
-                "mounts": sorted({p["height"] for p in web_profils.producer_profiles(self.FLEET_PRODUCER)}),  # montures possibles du CD21 (hors campagne connue)
+                "mounts": sorted({p["height"] for p in web_profils.producer_profiles(self.FLEET_PRODUCER)}),  # hauteurs possibles du CD21 (hors campagne connue)
                 "mount_sigma": (self._mount_height(item) or (None, web_profils.fleet_height_sigma(self.FLEET_PRODUCER)))[1], "profile": self._profile_info(item)}
 
     def birdeye_impossible(self, pic):
@@ -379,12 +379,12 @@ class Pose:
         return [[list(p) for p in line] for line in roads.deck_lines(sections, pose["lon"], pose["lat"], pose["heading"],
                                                                       self.BIRDEYE_DECK_SCAN)]
 
-    # Producteur et profils de campagne datés (hauteur de caméra par monture, défaut de roulis : py/web_profils.py, CAMPAIGN_PROFILES)
-    FLEET_PRODUCER = web_profils.FLEET_PRODUCER  # CD21 : imajbox sur Clio 5, deux montures (pose « mounts », src/dessus.js)
+    # Producteur et profils de campagne datés (hauteur de caméra par véhicule, défaut de roulis : py/web_profils.py, CAMPAIGN_PROFILES)
+    FLEET_PRODUCER = web_profils.FLEET_PRODUCER  # CD21 : imajbox sur Clio 5 puis Captur, deux hauteurs (pose « mounts », src/dessus.js)
     # Colonne camera_calee de l'export des mesures : 0 réglage, 1 calée, 2 altitude GPS (measures.CAMERA_SOURCES), 3 monture
     CAMERA_CODES = {**measures.CAMERA_SOURCES, "monture": 3}
     # Provenance de la hauteur de caméra dans les textes (camera_of) : l'altitude GPS est un écart RTK − sol LiDAR, pas une mesure
-    CAMERA_LABELS = {"altitude GPS": "écart RTK − sol LiDAR", "calée": "calée", "monture": "monture du CD21 d'après la date", None: "réglage"}
+    CAMERA_LABELS = {"altitude GPS": "écart RTK − sol LiDAR", "calée": "calée", "monture": "véhicule du CD21 d'après la date", None: "réglage"}
 
     def _camera_used(self, item):
         """Hauteur de caméra retenue pour la photo (camera_of) à donner à la page : { height, source, text }. Le texte est l'infobulle du
@@ -440,10 +440,10 @@ class Pose:
         return "" if self._pitch_default(item)[1] is None else ", " + self._pitch_label(item)
 
     def _profile_info(self, item):
-        """Profil de la photo pour la page (pose Bird Eye « profile », panneau de calage) : id, label, first, end (jour exclu),
+        """Profil de la photo pour la page (pose Bird Eye « profile », panneau de calage) : id, label, vehicle, first, end (jour exclu),
         method, provenance ; None sans profil."""
         profile = self._profile(item)
-        return {k: profile[k] for k in ("id", "label", "first", "end", "method", "provenance")} if profile else None
+        return {k: profile[k] for k in ("id", "label", "vehicle", "first", "end", "method", "provenance")} if profile else None
 
     # Part du dévers de la route prise en roulis du véhicule (le tangage suit la pente entière) : comme ROLL_SHARE de src/dessus.js, qui la
     # lit dans la pose Bird Eye (roll_share). Le défaut CD21 2025 (profil de campagne, +1°) a été estimé avec 70 % du dévers.

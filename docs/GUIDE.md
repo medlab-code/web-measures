@@ -78,7 +78,7 @@ la fonction ne peut pas s'appliquer (pas de photo, photo non 360° pour la large
 
 **Largeur dans la visionneuse** (expérimental, piste P22 étape 1) : le bouton à droite des curseurs de luminosité et de contraste, en haut à
 gauche de la visionneuse (grisé sans photo 360°), trace une droite au sol, en rouge tant que la photo n'est pas calée par Bird Eye puis en vert (sans liseré) (elle n'apparaît qu'une fois sa position définitive : photos voisines, verticales et relief arrivés, au plus 12 s ; l'encart affiche « Calcul de la droite… » en attendant), entre les deux poignées seulement (elle s'allonge et se raccourcit en direct avec elles ; les poignées glissent sur toute la portée de la droite), juste devant le nez du véhicule, perpendiculaire à
-la trajectoire de la séquence à l'endroit de la droite (dans un virage ou un giratoire, la direction de la photo suivante est prise en compte) (à 4,4 m de la caméra pour la monture basse du CD21, 4,8 m pour la haute, 4,5 m ailleurs : le sol y
+la trajectoire de la séquence à l'endroit de la droite (dans un virage ou un giratoire, la direction de la photo suivante est prise en compte) (à 4,4 m de la caméra pour la Clio 5 du CD21, 4,8 m pour les Captur, 4,5 m ailleurs : le sol y
 est visible, hors capot), avec deux poignées, à gauche et à droite : de courts traits verticaux rouges (28 px à l'écran quel que soit le zoom, sans liseré ; sur la carte, 19,5 px), et, au milieu de la droite, au-dessus d'elle, la largeur entre les deux poignées avec son incertitude (« ↔ 7,40 m ± 0,10 m », même étiquette que les largeurs mesurées, mise à jour en direct, même incertitude que l'encart) ; les positions des bords ne sont que dans l'encart (« Bord gauche 1,20 m à droite » : une poignée peut passer de l'autre côté de la caméra). Elles partent des bords du
 profil en travers de la photo s'il y en a un, sinon de 3 m de part et d'autre. Faire glisser une poignée le long de la droite
 jusqu'au bord de la route (les poignées sont libres de part et d'autre de la caméra, par exemple pour mesurer un trottoir ou une seule voie, mais ne se croisent pas : 0,10 m d'écart au moins ; la visionneuse ne tourne pas tant qu'on tient une poignée, à 10 px du trait ; le curseur devient une main ;
@@ -386,7 +386,7 @@ après.
   en secours :
   - **tablier** : altitude GPS des photos de la séquence prises sur le pont, convertie en
     altitude NGF, moins la hauteur de caméra (calée pour la séquence, sinon pour une photo du CD21 la
-    monture d'après la date, 1,93 ou 2,07 m à ±4 cm, sinon l'écart RTK − sol LiDAR médian de la séquence vérifiée, une borne ; à défaut, le réglage
+    véhicule d'après la date (profil), 1,93 ou 2,07 m à ±4 cm, sinon l'écart RTK − sol LiDAR médian de la séquence vérifiée, une borne ; à défaut, le réglage
     « Hauteur de caméra », seulement après un appui sur le bouton de l'encadré : une photo de précision
     déclarée n'a que sa hauteur au-dessus du fond franchi) ; pour chaque point,
     interpolée entre les deux photos consécutives les plus proches (pont long et pentu) ;
@@ -879,7 +879,7 @@ face de la caméra, à ±4 m (±5 % au mieux, inclinaison lue sur les façades o
 caméra mesuré pour la campagne : CD21 2025, +1° (véhicule penché à droite), d'après les passages piétons). Sur une photo prise sur un pont (celle des mesures), le LiDAR HD (sol sous le
 tablier) est écarté : tablier supposé plan et horizontal (±1,5° d'inclinaison par la route). Une photo juste avant le pont, sur le remblai
 qui y mène, garde le relief LiDAR (pente comprise), sauf sous l'ouvrage lui-même. Photos du CD21 : hauteur de
-caméra de sa monture d'après la date de prise de vue (1,93 m avant le 24/06/2025, 2,07 m ensuite ; 1,93 m, monture basse probable, le 11/06/2026 : fiche 2026, seule séquence publiée) ; autres photos : lue entre
+caméra de son véhicule d'après la date de prise de vue (Clio 5 blanche 1,93 m jusqu'au 23/06/2025, Captur bleu 2,07 m du 24/06 au 08/07, Captur bicolore 2,07 m dès le 10/07/2025 ; Clio 5 blanche 1,93 m le 11/06/2026 : fiche 2026, seule séquence publiée) ; autres photos : lue entre
 photos sur les façades, sinon calée, sinon altitude RTK moins sol (une borne). Hors de la vue, la
 longueur est mesurée sur le fond de carte seul, sans incertitude (« hors vue »), pour un contrôle rapide. Échap retire
 le départ. Sans façade pour caler l'inclinaison, le tangage de fixation de la caméra est lu sur les raccords entre photos
@@ -922,7 +922,7 @@ et la partie lointaine). C'est un voyant, pas une précision : les mesures et le
 (pont, option « Sol plat ») la ligne n'apparaît pas. Seuils provisoires, à caler sur des photos de référence.
 
 **Ligne « Hauteur » (vue du dessus)** : au-dessus de la ligne du relief, l'étiquette met côte à côte les hauteurs de caméra connues de la photo :
-« Hauteur : 2,07 m (monture haute) ; lue entre photos 2,05 m ; écart RTK − sol 2,09 m (borne) » (hauteur retenue et son origine ; hauteur lue
+« Hauteur : 2,07 m (Captur bleu) ; lue entre photos 2,05 m ; écart RTK − sol 2,09 m (borne) » (hauteur retenue et son origine ; hauteur lue
 entre photos avec « Véhicule masqué » ; écart RTK − sol LiDAR, une borne). En orange, l'une des deux dernières s'écarte de la hauteur retenue de plus de
 15 cm : à vérifier (seuil provisoire).
 
@@ -994,20 +994,20 @@ Beaune ; 4,2 m pour la D977 bis au-dessus du canal de Bourgogne (tablier à 361,
 4,3 m) ; 1,7 m pour la D114 au-dessus du ruisseau de la Gironde à Barbirey-sur-Ouche (lit
 vers 314 m, route à 315,8 m). Le terrain lu à 1 m du bord seulement donnait 2 m et 0 m : il
 tombait sur le talus de la culée. En secours par l'altitude GPS, l'erreur de la hauteur de caméra passe
-telle quelle dans la chute : la monture du CD21 d'après la date (±4 cm, 15/11/2026) remplace le réglage
-de 1,90 m (±15 cm), soit jusqu'à 17 cm de mieux sur les photos de la monture haute (2,07 m).
+telle quelle dans la chute : la hauteur du véhicule du CD21 d'après la date (±4 cm, 15/11/2026) remplace le réglage
+de 1,90 m (±15 cm), soit jusqu'à 17 cm de mieux sur les photos des Captur (2,07 m).
 
 Hauteur de caméra : la mesure de hauteur n'en dépend pas (essai du 15/11/2026 :
 mêmes valeurs et incertitudes avec 1,90, 2,07 et 2,50 m) ; elle sert au tablier d'un pont (secours GPS),
 au relevé sur une seule photo et aux objets posés au sol. Dans l'ordre (le même partout : mesures, chute, largeur dans la visionneuse, vue du dessus) :
-calée pour la séquence, monture du CD21 d'après la date (profil de campagne), altitude RTK moins sol LiDAR HD, réglage. Depuis le 27/11/2026 (#59), l'écart
-RTK − sol passe après le profil : étude du 27/11/2026, il saute lui aussi à la rupture de monture du 24/06/2025 (1,93 → 2,11 m) et
-surestime d'environ 5 cm la hauteur de caméra après elle, avec 10 cm de dispersion. Une seule hauteur de caméra par photo (calée, monture, écart RTK − sol, réglage en dernier rang) sert à toutes les mesures qui en dépendent (distance au sol, hauteur sans triangulation), au profil en long et à l'export (#59, étape 2) ; le réglage « Hauteur de caméra » est grisé quand la photo affichée en a une autre, actif sinon (photo sans hauteur calée, monture connue ni écart RTK − sol, ou aucune photo) ; son infobulle donne la hauteur retenue pour la photo affichée et sa source. Dans l'étiquette de la vue du dessus, la ligne
-« Hauteur : 2,07 m (monture haute) ; lue entre photos 2,05 m ; écart RTK − sol 2,09 m (borne) » met les hauteurs côte à côte (chaque terme seulement
+calée pour la séquence, véhicule du CD21 d'après la date (profil de campagne), altitude RTK moins sol LiDAR HD, réglage. Depuis le 27/11/2026 (#59), l'écart
+RTK − sol passe après le profil : étude du 27/11/2026, il saute lui aussi au changement de véhicule du 24/06/2025 (1,93 → 2,11 m) et
+surestime d'environ 5 cm la hauteur de caméra après elle, avec 10 cm de dispersion. Une seule hauteur de caméra par photo (calée, véhicule du profil, écart RTK − sol, réglage en dernier rang) sert à toutes les mesures qui en dépendent (distance au sol, hauteur sans triangulation), au profil en long et à l'export (#59, étape 2) ; le réglage « Hauteur de caméra » est grisé quand la photo affichée en a une autre, actif sinon (photo sans hauteur calée, monture connue ni écart RTK − sol, ou aucune photo) ; son infobulle donne la hauteur retenue pour la photo affichée et sa source. Dans l'étiquette de la vue du dessus, la ligne
+« Hauteur : 2,07 m (Captur bleu) ; lue entre photos 2,05 m ; écart RTK − sol 2,09 m (borne) » met les hauteurs côte à côte (chaque terme seulement
 s'il est connu), en orange quand la hauteur lue ou l'écart RTK − sol s'écarte de la hauteur retenue de plus de 15 cm (`HEIGHT_ALERT`, provisoire : environ 2 σ d'une photo). Colonne `camera_m` de l'export : celle
-de la photo du premier clic ; `camera_calee` : 0 réglage, 1 calée, 2 écart RTK − sol LiDAR (nommé « altitude GPS » dans le code), 3 monture ;
-`profil` (dernière colonne des mesures) : identifiant du profil de campagne daté de la photo du premier clic (hauteur de la monture et défaut de
-roulis du CD21, `py/web_profils.py`, `docs/CALCULS.md` § 1.5), vide sans profil. La vue du dessus (ligne « Profil : … (du 24/06/2025 au 31/12/2025) » de
+de la photo du premier clic ; `camera_calee` : 0 réglage, 1 calée, 2 écart RTK − sol LiDAR (nommé « altitude GPS » dans le code), 3 monture (profil du véhicule) ;
+`profil` (dernière colonne des mesures) : identifiant du profil de campagne daté de la photo du premier clic (hauteur du véhicule et défaut de
+roulis du CD21 ; depuis le 27/11/2026, #75, ids par véhicule : `cd21-2025-clio5-blanche`, `cd21-2025-captur-bleu`, `cd21-2025-captur-bicolore`, `cd21-2026-clio5-blanche`, au lieu de `cd21-2025-clio5-basse`, `cd21-2025-clio5-haute` et `cd21-2026-monture-basse`, `py/web_profils.py`, `docs/CALCULS.md` § 1.5), vide sans profil. La vue du dessus (ligne « Profil : … (du 24/06/2025 au 09/07/2025) » de
 l'étiquette, infobulle : méthode et provenance) et le panneau de calage disent le profil appliqué ; rien à choisir.
 L'écart RTK − sol LiDAR est une borne, pas la hauteur de la caméra : elle dépend du point de référence de l'antenne et du
 référentiel vertical. Les textes disent la provenance (« parallaxe », « écart RTK − sol LiDAR », « calée », « monture », « réglage »).
@@ -1080,7 +1080,7 @@ Avec un GPS grand public
 | `src/lieu.js` | route, point de repère (PR), véloroute, écluse, hameau et commune de la photo, incrustés dans la visionneuse |
 | `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page (points de référence, hauteurs, relevé d'objets, recalages) |
 | `py/web_chutes.py` | hauteurs de chute et dévers : sur un pont, et sur les bords de route (profils, séparateur, analyse fine) ; base de `App` |
-| `py/web_pose.py` | pose de la caméra : inclinaison automatique (raison d'un échec), inclinaison par le terrain, monture et défaut de roulis, pose de la vue du dessus ; base de `App` |
+| `py/web_pose.py` | pose de la caméra : inclinaison automatique (raison d'un échec), inclinaison par le terrain, hauteur du véhicule et défaut de roulis, pose de la vue du dessus ; base de `App` |
 | `py/web_profils.py` | profils de campagne datés (`CAMPAIGN_PROFILES` : producteur, période, hauteur, roulis, méthode, provenance) et `profile_of` |
 | `py/web_host.py` | accès réseau du cœur par le `fetch` du navigateur |
 | `py/web_worker.py` | calculs lourds dans le Pyodide d'arrière-plan |

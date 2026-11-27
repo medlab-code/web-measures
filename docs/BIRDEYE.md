@@ -32,7 +32,7 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
   séquence, `roads.on_bridge`, comme pour les mesures ; depuis le 22/11/2026 la vue du dessus n'a plus sa propre détection, plus large,
   à 20 m, dessus ou dessous), le MNT est écarté : il donne le sol sous le tablier. Tablier plan et horizontal (`deck`) :
   inclinaison par la route (±1,5°), hauteur lue entre photos sur les verticales, sinon celle de la séquence, puis pour le
-  CD21 sa monture d'après la date (profil de campagne, `py/web_profils.py`), puis le réglage (pas RTK moins sol LiDAR) ; une hauteur calée passe avant la monture ; ce choix de hauteur se fait
+  CD21 la hauteur de son véhicule d'après la date (profil de campagne, `py/web_profils.py`), puis le réglage (pas RTK moins sol LiDAR) ; une hauteur calée passe avant le profil ; ce choix de hauteur se fait
   photo par photo (une voisine marquée sur un pont, la photo affichée non). **Sol supposé plat près d'un pont** (depuis le 26/11/2026, `pose.flat`, décision unique du cœur : `roads.flat_ground`, constante
   `roads.BRIDGE_FLAT_RADIUS` = 15 m) : tout pont BD TOPO à 15 m au plus de la photo, à vol d'oiseau, distance au tablier le plus proche (avant, sur ou
   après l'ouvrage, sans condition de sens), met la photo sur un plan horizontal à la hauteur de caméra, car le relief (LiDAR HD, RGE ALTI)
@@ -91,7 +91,7 @@ suffisante et quatre fois moins coûteuse.
   colonnes, fermeture sur ±4° (une encoche étroite est impossible sur une carrosserie), symétrie gauche-droite (le plus
   haut des deux côtés), jamais sous les contours relevés (même Clio). Les montages diffèrent : rétroviseurs 7 à 9° plus
   près de l'avant le 15/07/2025 (3e222d68) que sur les deux séquences relevées à la main (67e2ef09, 10/06/2025 ;
-  5bab4dc2, 03/07/2025). Contour pas encore lu : celui de sa monture (hauteurs des profils, `py/web_profils.py`), sinon les deux relevés réunis.
+  5bab4dc2, 03/07/2025). Contour pas encore lu : celui de sa hauteur de caméra (hauteurs des profils, `py/web_profils.py`), sinon les deux relevés réunis.
   Autres producteurs : ellipse de ±5,8 m en long, ±2,9 m en travers ;
 - **la photo affichée n'est pas retouchée hors de ce masque** : elle passe devant tout, même là où une voisine serait
   plus précise ; le fondu des raccords ne la touche pas non plus ;
@@ -143,7 +143,7 @@ fixation peut être un peu de travers.
    0° par défaut, comme le tangage ; positif : penché à droite, côté droit plus bas, convention du véhicule dans tout `src/dessus.js` et `py/web_pose.py`, voir `docs/CALCULS.md` § 1.3). La ligne « Part du dévers » au-dessus de la réglette
    donne le roulis dû au dévers sous la caméra, `−arctan(0,7 × dévers)`, en degrés signés (« +0,84° » ; positif : penché à droite), « — » sans LiDAR HD. Le tangage ajoute le défaut de fixation de la caméra (−0,4 à +0,6° selon
    les séquences) ; depuis le 27/11/2026, ce défaut est celui du profil de campagne (`pitch`, `pitch_sigma`, pose `pitch_default`), valeur de départ de la réglette « Tangage » tant que
-   rien n'est lu : +0,7 ± 0,3° (CD21, monture basse), +0,2 ± 0,3° (monture haute), 0 sans profil. Un tangage lu (raccords, lignes) ou réglé à la main le **remplace**
+   rien n'est lu : +0,7 ± 0,3° (CD21, Clio 5 blanche), +0,2 ± 0,3° (Captur), 0 sans profil. Un tangage lu (raccords, lignes) ou réglé à la main le **remplace**
    (les deux sont absolus, relatifs à la route : jamais de somme) ; les réglages déjà enregistrés par les utilisateurs gardent leur sens. L'étiquette dit
    « tangage +0,7° de la campagne (profil) » ; son incertitude s'ajoute (quadrature) à celle de la route tant qu'il est en usage. **Mire des flèches de rabattement** (27/11/2026,
    17 photos de 8 flèches, cote 6,00 m) : avec le tangage lu sur les raccords ou les verticales, la longueur sort à 6,00 ± 0,1 m ; sans tangage lu, il manquait +0,7° (3 photos : +0,65 à +0,83°),
@@ -151,7 +151,7 @@ fixation peut être un peu de travers.
    producteur et période de prise de vue) : CD21, campagne 2025, +1° (véhicule penché à droite ; −1° dans la convention du cœur, notée ainsi avant le 26/11/2026, même effet). Mesuré le 13/11/2026 sur 25 passages piétons
    (`tests/passages-pietons.js`) : bandes de 0,50 m dans la vue calée par la route puis par les verticales ; une erreur
    de roulis δ y rend la largeur d'une bande proportionnelle à 1 + 2 s δ / H (s : écart en travers à la caméra), d'où
-   δ par site. Roulis restant par la route +0,98° en médiane (23 vues ; +0,8° et +1,1° sur les deux montures), sans
+   δ par site. Roulis restant par la route +0,98° en médiane (23 vues ; +0,8° et +1,1° sur les deux hauteurs de caméra), sans
    lien avec le dévers (+1,2° − 0,14 × dévers) ; par les verticales −0,08° (15 vues). Les bandes à gauche de la caméra
    (le véhicule roule à droite) en paraissaient étroites : 0,458 m, 0,483 m sur tout le passage (les 3,5 % comptés
    jusque-là « en travers »). Triangulation des coins des bandes (25 largeurs) : 0,499 m. À mesurer de nouveau pour
@@ -232,25 +232,25 @@ c'est ce que corrigent les raccords (§ 4.3).
    caméras distantes de `b` se décale de `b (1 − k)`. Ce décalage, cherché par corrélation dans le grain de la
    chaussée entre la photo et ses voisines, donne la hauteur sans orthophoto ni peinture. Gardée si la mesure se
    stabilise (corrélation d'au moins 0,2, hauteur entre 1,5 et 2,6 m) ; médiane de la séquence dans la session.
-   **Photos du CD21** (imajbox sur Clio 5, deux montures ; la caméra ne bouge plus une fois montée) : la **monture**
-   d'après la date de prise de vue (profil de campagne, `py/web_profils.py`, 1,93 m avant le 24/06/2025, 2,07 m ensuite, ±4 cm ; changement de véhicule le 23 ou le 24/06) ; hors de ces
+   **Photos du CD21** (imajbox sur sangle, trois véhicules ; la caméra ne bouge plus une fois montée) : la **hauteur du véhicule**
+   d'après la date de prise de vue (profil de campagne, `py/web_profils.py`, 1,93 m pour la Clio 5 blanche jusqu'au 23/06/2025, 2,07 m pour les Captur bleu (24/06 → 08/07/2025) et bicolore (dès le 10/07/2025), ±4 cm) ; hors de ces
    dates, la plus proche de la hauteur lue, même avec l'inclinaison de la route quand les photos n'ont pas de verticales
    (les deux concordent au cm près là où elles existent). La date d'abord depuis le 13/11/2026 : la hauteur lue se joue à
    quelques cm du seuil de 2,00 m (f2a245d0-aeea-4249-ba9c-fad83b442a23, 07/07/2025 : 2,03 ou 1,98 m selon le terrain ; cefbd9bd-419b-4093-ab61-374b9b794c50 à 2,007 m, 09c2e813-8426-49cf-8029-bc2f3d511f40
    à 1,968 m). Sur les 17 passages piétons : bandes par les verticales à 2,6 % de 0,50 m en médiane (3,2 % avant), 13,2 %
    à 95 % (16,2 %) ; par la route, 5,0 % (4,8 %), deux vues de plus, mesurées sur le tablier plat d'un pont. Relevé du 08/11/2026 sur 36 vues :
    1,90 à 1,95 m du 28/05 au 23/06/2025, 2,05 à 2,07 m le 03/07 (2,15 le 07/07, dispersé en octobre) ; l'altitude RTK moins
-   le sol reste vers 2,05-2,10 m tout du long (antenne fixe, caméra plus basse sur la première monture). Étude du 27/11/2026 : cet écart
+   le sol reste vers 2,05-2,10 m tout du long (antenne fixe, caméra plus basse sur la Clio 5). Étude du 27/11/2026 : cet écart
    n'est qu'une borne, il saute aussi au 24/06/2025 (1,93 → 2,11 m) et surestime d'environ 5 cm la hauteur de caméra après cette date
-   (dispersion d'environ 10 cm) : il passe après la calée et la monture dans `Session.camera_of` (#59).
-   Étude du 27/11/2026, deux montures : 1,94 m puis 2,055 m lues entre photos, rupture le 23/06 (IC 19-30/06) ; écart RTK − sol
+   (dispersion d'environ 10 cm) : il passe après la calée et le profil dans `Session.camera_of` (#59).
+   Étude du 27/11/2026 : 1,94 m puis 2,055 m lues entre photos, rupture le 23/06 (IC 19-30/06), qui est un changement de véhicule (Clio 5 blanche, puis Captur bleu le 24/06, puis Captur bicolore dès le 10/07 ; constat de l'auteur, #75), pas de montage : une seule sangle, le « dispositif large » du 16/06/2025 était une paire de chaussures sous la sangle, sans effet mesuré sur la hauteur ; l'hypothèse des ventouses et des barres de toit est abandonnée. Le 10/07/2025, premier jour du Captur bicolore, tangage décalé d'environ −0,6° (9 photos de 4 flèches), normal ensuite : caméra probablement repositionnée ; écart RTK − sol
    1,93 → 2,11 m. Étude 2026 (séquence 7d66f208-acb4-46f6-bb23-65d8717557a7, 11/06/2026) : 1,929 m en médiane (33 photos, IC 95 % [1,888 ; 1,940]),
-   écart RTK − sol 1,94 m (69 photos), mêmes niveaux que la monture basse 2025 : fiche `cd21-2026-monture-basse` (1,93 m ±0,05, roulis repris de 2025).
-   **Hauteurs côte à côte** (#59) : l'étiquette d'informations a une ligne « Hauteur : 2,07 m (monture haute) ; lue entre
+   écart RTK − sol 1,94 m (69 photos), mêmes niveaux que la Clio 5 blanche 2025 : fiche `cd21-2026-clio5-blanche` (1,93 m ±0,05, roulis repris de 2025).
+   **Hauteurs côte à côte** (#59) : l'étiquette d'informations a une ligne « Hauteur : 2,07 m (Captur bleu) ; lue entre
    photos 2,05 m ; écart RTK − sol 2,09 m (borne) » (`heightLine`) : la hauteur retenue et son origine, puis, seulement si
    elles sont connues et différentes d'elle, la hauteur lue entre photos (avec « Véhicule masqué ») et l'écart RTK − sol de la photo
    (`pose.rtk_height`, borne). Elle passe en orange quand l'une d'elles s'écarte de la hauteur retenue de plus de `HEIGHT_ALERT`. Une hauteur
-   calée pour la séquence (`pose.height_source`) passe avant la monture, la lecture entre photos et la médiane RTK de la séquence, comme
+   calée pour la séquence (`pose.height_source`) passe avant le profil, la lecture entre photos et la médiane RTK de la séquence, comme
    dans `camera_of` ; cette médiane ne garde que les écarts RTK − sol (`pose.rtk_height`), jamais une hauteur calée.
    Retenue par photo dans le navigateur (`web-measures/dessus-parallaxes`) : la médiane sert à toute la séquence, même
    vue photo seule, avant l'altitude RTK moins le sol. Giratoire b47b4351 : 1,94 m par le décalage, 2,06 m par le RTK
@@ -447,7 +447,7 @@ Valeurs affichées, combinées dans `uncertainty` et `measureError` (voir § 3 e
 | `HEIGHT_SIGMA` (`dessus.js:75`) | 0,05 | m | Écart-type de la hauteur de caméra lue sur le décalage entre photos voisines | mesure (essai de 28 paires) | Plus grand : incertitude de hauteur plus large |
 | `HEIGHT_ALERT` (`dessus.js`, avant `GROUND_SIGMA`) | 0,15 | m | Écart de la hauteur lue entre photos, ou de l'écart RTK − sol, à la hauteur retenue au-delà duquel la ligne « Hauteur » de l'étiquette passe en orange (`heightLine`) | choix provisoire (#59) : environ 2 σ d'une photo (dispersion de 8 à 9 cm par photo pour la hauteur lue, 10 cm pour l'écart RTK − sol, études du 27/11/2026) | Plus petit : plus d'alertes ; plus grand : écarts réels tus |
 | `RTK_SIGMA` (`dessus.js:78`) | 0,1 | m | Plancher de l'écart-type de la hauteur par l'altitude RTK moins le sol | mesure (12 cm d'écart avec le décalage entre photos au giratoire b47b4351, alors que l'écart interne n'est que de 2 cm) | Plus petit : hauteur RTK présentée plus sûre qu'elle n'est |
-| `height_sigma` des profils (`web_profils.py:41`) ; `HEIGHT_SIGMA_DEFAULT` (`web_profils.py:20`) | 0,04 | m | Écart-type de la hauteur par monture du CD21 (la page le lit dans la pose : `mount_sigma`) | non documentée (valeur non justifiée ; les hauteurs lues sont dans le commentaire de `CAMPAIGN_PROFILES`) | Plus grand : hauteur par monture moins crédible |
+| `height_sigma` des profils (`web_profils.py:41`) ; `HEIGHT_SIGMA_DEFAULT` (`web_profils.py:20`) | 0,04 | m | Écart-type de la hauteur de caméra par véhicule du CD21 (la page le lit dans la pose : `mount_sigma`) | non documentée (valeur non justifiée ; les hauteurs lues sont dans le commentaire de `CAMPAIGN_PROFILES`) | Plus grand : hauteur par véhicule moins crédible |
 | `MEASURED` (`dessus.js:74`) | 0,05 | part de la longueur | Plancher de l'incertitude affichée d'une longueur (écart constaté à l'orthophoto) | mesure (essais du 08/11/2026, `docs/CALCULS.md`) | Plus petit : incertitude affichée parfois sous l'écart réellement constaté |
 | `roll_sigma` des profils (`web_profils.py:41`) ; `ROLL_SIGMA_DEFAULT` (`web_profils.py:21`) | 1,0 | degré | Dispersion du roulis d'une photo à l'autre dans une campagne (incertitude du défaut de campagne) | mesure (±1° sur 23 vues, § 4.1) | Plus petit : roulis de campagne présenté plus sûr qu'il n'est |
 | `SIGMA_MIN` (`web_terrain.py:30`) | 0,6 | degré | Incertitude au moins égale à l'écart mesuré sur les témoins du décalage de terrain (dévers) | réglage empirique (non documentée plus avant) | Plus petit : décalage de terrain jugé plus précis |
@@ -474,7 +474,7 @@ Valeurs affichées, combinées dans `uncertainty` et `measureError` (voir § 3 e
 |---|---|---|---|---|---|
 | `ROLL_SHARE` (`web_pose.py:400`) / `ROLL_SHARE_DEFAULT` (`dessus.js:1683`) | 0,7 | part du dévers | Part du dévers de la route prise en roulis du véhicule (le tangage suit la pente entière) ; la page lit celle de la pose (`roll_share`) | réglage empirique, repris de la vue du dessus (d69c60e) ; le défaut de campagne a été estimé avec cette part | Change le roulis par défaut de toutes les photos ; le défaut du profil de campagne (`roll`, +1°) devrait être réestimé |
 | `roll` des profils (`CAMPAIGN_PROFILES`, `web_profils.py:41`) | CD21, 2025 : +1,0 | degré | Défaut de roulis ajouté au roulis tiré du dévers, par producteur et période | mesure (23 vues de passage piéton, 13/11/2026 : +0,98° en médiane) | Décale tous les roulis de la campagne |
-| `pitch`, `pitch_sigma` des profils (`CAMPAIGN_PROFILES`, `web_profils.py`) | CD21 basse (2025, 2026) : +0,7 ± 0,3 ; haute : +0,2 ± 0,3 | degré | Tangage par défaut de la caméra relatif à la route, appliqué faute de tangage lu (réglette de départ, rang 6) ; 0 sans profil | mesure (mire des flèches du 27/11/2026 : médiane des tangages lus sur les raccords par monture, +0,7° confirmé à la main sur la basse ; haute : 2 flèches seulement) | Change les mesures sans tangage lu (0,7° de tangage : de l'ordre du décimètre sur une flèche de 6 m) ; la valeur de la monture haute est à confirmer |
+| `pitch`, `pitch_sigma` des profils (`CAMPAIGN_PROFILES`, `web_profils.py`) | CD21 Clio 5 blanche (2025, 2026) : +0,7 ± 0,3 ; Captur bleu et bicolore : +0,2 ± 0,3 | degré | Tangage par défaut de la caméra relatif à la route, appliqué faute de tangage lu (réglette de départ, rang 6) ; 0 sans profil | mesure (mire des flèches du 27/11/2026 : médiane des tangages lus sur les raccords par hauteur de caméra, +0,7° confirmé à la main sur la Clio 5 ; Captur : 2 flèches seulement) | Change les mesures sans tangage lu (0,7° de tangage : de l'ordre du décimètre sur une flèche de 6 m) ; la valeur des Captur est à confirmer |
 | `ROUTE_PITCH_SIGMA` (`web_pose.py`, `Pose`) | 0,5 | degré | Incertitude du tangage du rang 6 « route (LiDAR HD) + profil » des mesures (pente LiDAR sous la caméra + tangage du profil), sans vue du dessus ; **provisoire** | mires du 27/11/2026 (flèches de rabattement : route seule + tangage du profil, écart résiduel de 0,3 à 0,4°) | Plus petit : mesures plus sûres d'elles-mêmes, mais l'incertitude d'une inclinaison est un seul nombre (l'axe le moins sûr, le roulis) : sans effet seul |
 | `ROUTE_ROLL_SIGMA` (`web_pose.py`, `Pose`) | 1,0 | degré | Incertitude du roulis de ce même rang 6 (70 % du dévers + défaut de roulis du profil) ; donne aussi l'incertitude d'ensemble de l'inclinaison ; **provisoire** | mires du 27/11/2026 (passages piétons : roulis à ±1°) | Plus petit : mesures sur route seule plus sûres d'elles-mêmes (moins d'erreur annoncée) |
 | `RACCORD_PITCH_SIGMA` (`web_pose.py`, `Pose`) | 0,2 | degré | Incertitude du tangage lu sur les raccords, rang 3 bis des mesures (`_seam_tilt`) ; **provisoire** | mires du 27/11/2026 (flèches de rabattement : tangage lu sur les raccords juste à 0,1 à 0,2°) | Plus petit : mesures plus sûres d'elles-mêmes (l'incertitude d'ensemble reste celle du roulis tant que `ROUTE_ROLL_SIGMA` est plus grande) |
@@ -512,7 +512,7 @@ Valeurs affichées, combinées dans `uncertainty` et `measureError` (voir § 3 e
 | `BEST` (`dessus.js:73`) | 4 en long ; 8 en travers | m | Zone idéale d'une largeur, en face de la caméra (demi-longueur, demi-largeur) | mesure (essai du 08/11 : écart à l'orthophoto ≤ 1,5 % jusqu'à 4 m en long, 2 % au-delà) | Plus grand : mesures conseillées moins précises |
 | `SHADE` (`dessus.js:70`) | 3 | facteur | Facteur d'erreur attendue des voisines près de leur propre véhicule (ombre et reflets) | réglage empirique (ville d946f2cf, 09/11/2026 : taches sombres sinon) | Plus petit : taches sombres ; plus grand : sol de voisines évité trop tôt |
 | `CAR` (`dessus.js:66`) | long 5,8 ; large 2,9 ; avant 0 | m | Ellipse au sol du véhicule inconnu (toit, capot, reflets) | réglage empirique (ancienne ellipse ±4,5 × ±2,5 m, reflets jusqu'à ±5,8 × ±2,9 m) | Plus grande : sol caché plus loin du véhicule |
-| `OUTLINES`, `EITHER`, `LOWEST` (`dessus.js:36`, 56-57) | tableau d'élévations par colonne, tous les 2,8° | degré | Contour du véhicule dans le panorama par monture (marge de 1,5° comprise) | mesure (relevé à la main du 09/11/2026 sur la médiane de 16 photos d'une séquence, `shortcut` : à refaire si la monture ou le véhicule change) | Contour trop bas : carrosserie visible ; trop haut : sol sacrifié |
+| `OUTLINES`, `EITHER`, `LOWEST` (`dessus.js:36`, 56-57) | tableau d'élévations par colonne, tous les 2,8° | degré | Contour du véhicule dans le panorama par hauteur de caméra : 1,93 m = Clio 5 blanche (67e2ef09, 10/06/2025), 2,07 m = Captur bleu (5bab4dc2, 03/07/2025), repris pour le Captur bicolore sans relevé propre (#75) (marge de 1,5° comprise) | mesure (relevé à la main du 09/11/2026 sur la médiane de 16 photos d'une séquence, `shortcut` : à refaire si le véhicule change) | Contour trop bas : carrosserie visible ; trop haut : sol sacrifié |
 | `OUTLINE_PHOTOS`, `OUTLINE_BAND`, `OUTLINE_EDGE`, `OUTLINE_FLOOR`, `OUTLINE_MARGIN` (`dessus.js:64`) | 12 ; 6 ; 0,45 ; −47 ; 1,5 | photos, degré, part, degré, degré | Lecture du contour du véhicule sur la séquence elle-même : nombre de photos, bande autour du contour relevé, seuil de bord, plancher (logo du CD21 à −48,3°), marge | réglage empirique (autre montage du 15/07/2025, 3e222d68) ; `OUTLINE_FLOOR` : mesure (haut du logo à −48,3°) | Plancher trop bas : le logo écrase les bords |
 | `SIZE` (`dessus.js:26`) | 1024 | px | Côté de l'image des calculs (hauteur, raccords, position), 3 cm par pixel | choix technique (compromis vitesse et finesse) | Plus grand : calculs plus fins mais plus longs |
 | `SHOWN_SIZE`, `FINE_SIZE` (`dessus.js:29`) | 2048 ; 4096 | px | Côté de l'image affichée (1,5 cm par pixel) et de la « Haute résolution » (0,7 cm) | choix d'affichage (zoom 24 de la carte) | Plus grand : plus de mémoire graphique |

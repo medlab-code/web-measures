@@ -582,7 +582,7 @@ class Chutes:
                     if relief else "demi-largeur type de la route de part et d'autre de l'axe BD TOPO (tablier absent du modèle "
                     "de terrain)", measures._num(camera, 2),
                     {"séquence": "écart RTK − sol LiDAR, médiane de la séquence", "calée": "calée pour la séquence",
-                     "monture": "monture du CD21 d'après la date", "réglage": "réglage « Hauteur de caméra »"}[camera_source])}
+                     "monture": "véhicule du CD21 d'après la date", "réglage": "réglage « Hauteur de caméra »"}[camera_source])}
             self.notify()
 
         host.fetch_json(metadata.search_url(lon, lat, reach, 100, item.get("collection"), host.api_url), got_photos)
