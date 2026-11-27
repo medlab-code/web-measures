@@ -13,7 +13,7 @@ import { Nuage } from "./nuage.js";
 import { Services } from "./services.js";
 import { Video } from "./video.js";
 
-// Convention du roulis du véhicule, dans tout ce fichier et dans le code qui lui parle (py/web_pose.py : ROLL_DEFECTS, pose.roll_defect) :
+// Convention du roulis du véhicule, dans tout ce fichier et dans le code qui lui parle (py/web_pose.py : profils de campagne, pose.roll_defect) :
 // positif = véhicule penché à DROITE (côté droit plus bas, vu dans le sens de la marche), négatif = à gauche. Le cœur de calcul
 // (py/core/calibration.py, repris du plugin QGIS) a la convention inverse ; elle est changée en un seul endroit, côté Python
 // (roulis_vehicule_depuis_camera, py/web_pose.py), jamais ici. Voir docs/CALCULS.md.
@@ -28,7 +28,7 @@ const Dessus = (() => {
   // 2,6 cm le long à 10 m, 0,2 et 0,5 cm à 4 m), les voisines (NEAR_LIMIT) deux fois moins
   const SHOWN_SIZE = 2048, FINE_SIZE = 4096;  // FINE_SIZE : « Haute résolution », 0,7 cm par pixel (zoom 24 de la carte)
   const ALTI_CHUNK = 300;  // points par requête d'altitude en GET, si le POST échoue (longueur de l'adresse : environ 6,5 Ko)
-  // Contour du véhicule dans le panorama, par monture (voir MOUNTS) : élévation (degrés) sous laquelle le véhicule cache le sol,
+  // Contour du véhicule dans le panorama, par monture (hauteurs de py/web_profils.py) : élévation (degrés) sous laquelle le véhicule cache le sol,
   // tous les 2,8° depuis l'arrière (bord du panorama), avant au milieu ; marge de 1,5° comprise (environ 10 cm au sol ; à 1°, des bords de
   // carrosserie des voisines restaient visibles). Relevé le
   // 09/11/2026 sur la médiane de 16 photos d'une séquence (basse : 67e2ef09, 10/06/2025 ; haute : 5bab4dc2, 03/07/2025).
@@ -198,7 +198,7 @@ const Dessus = (() => {
   }
 
   /** Incertitude affichée pour une longueur entre a et b : measureError, sans descendre sous l'écart mesuré (MEASURED).
-   * (Les 3,5 % comptés en travers jusqu'au 13/11/2026 venaient du roulis de la caméra, désormais corrigé : ROLL_DEFECTS.) */
+   * (Les 3,5 % comptés en travers jusqu'au 13/11/2026 venaient du roulis de la caméra, désormais corrigé : défaut de roulis du profil de campagne.) */
   const shownError = (a, b, layers, sigmaGround) =>
     Math.max(measureError(a, b, layers, sigmaGround), MEASURED * Math.hypot(b[0] - a[0], b[1] - a[1]));
 
@@ -241,7 +241,7 @@ const Dessus = (() => {
    * (est, nord, m), heading : cap (degrés), rollShare : part du dévers prise en roulis (rollShareOf ; le tangage suit la pente
    * entière, voir docs/CALCULS.md), pitch : tangage ajouté (degrés, positif : caméra relevée vers l'avant), défaut de fixation de
    * la caméra ; roll : roulis ajouté (degrés ; convention du véhicule, en tête de ce fichier : positif = penché à droite), défaut
-   * de la caméra par rapport à la route, propre au producteur et à la campagne (pose.roll_defect, App.ROLL_DEFECTS dans
+   * de la caméra par rapport à la route, propre au producteur et à la campagne (pose.roll_defect, profil de campagne, CAMPAIGN_PROFILES dans
    * py/web_pose.py), plus le réglage à la main (rollOffset). Le véhicule posé sur une route qui monte vers la droite est penché à
    * gauche : son roulis dû au dévers est négatif. */
   function groundUp(terrain, at, heading, rollShare = 1, pitch = 0, roll = 0) {
@@ -466,6 +466,19 @@ const Dessus = (() => {
     if (!relief) return null;
     if (relief.reasons.length) return { text: `Relief douteux : ${relief.reasons.join(", ")}`, alert: true };
     return { text: `Relief LiDAR HD : ${number(100 * relief.valid, 0)} % des points, écart au plan ${number(100 * relief.rms, 0)} cm`, alert: false };
+  }
+
+  /** Date AAAA-MM-JJ en JJ/MM/AAAA, décalée de `days` jours. */
+  const frenchDate = (iso, days = 0) => {
+    const d = new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86400000);
+    return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`;
+  };
+  /** Ligne du profil de campagne appliqué (pose.profile, py/web_profils.py) : { text, title }, ou null sans profil. La fin du profil
+   * est un jour exclu : la ligne donne la veille. */
+  function profileLine(profile) {
+    if (!profile) return null;
+    return { text: `Profil : ${profile.label} (du ${frenchDate(profile.first)} au ${frenchDate(profile.end, -1)})`,
+      title: `Méthode : ${profile.method}. Provenance : ${profile.provenance}.` };
   }
 
   /** Terrain de l'inclinaison et de la hauteur de la route sous une caméra (groundUp, groundLevel) : lissé aussi en travers.
@@ -1871,6 +1884,11 @@ const Dessus = (() => {
     const label = $("#dessus-etat");
     etat = text;
     label.textContent = text;
+    const profil = text && shown ? profileLine(shown.pose.profile) : null;  // profil de campagne appliqué (#70)
+    if (profil) {
+      const span = Object.assign(document.createElement("span"), { className: "relief-info", textContent: profil.text, title: profil.title });
+      label.append(span);
+    }
     const line = text && shown && !flatGround(shown.pose) ? reliefLine(shown.relief) : null;  // diagnostic du relief (#67)
     if (!line) return;
     const span = document.createElement("span");
@@ -1924,9 +1942,9 @@ const Dessus = (() => {
     const fix = withNeighbours() && shown.joins && shown.joins.key === shown.joinKeyNow ? shown.joins.map.get(pose.pic) : undefined;
     const parallax = withNeighbours() ? shown.height : null;  // lue avec les voisines : sans « Véhicule masqué », ignorée
     // hauteur : décalage entre photos, sinon RTK moins le sol (de la séquence, ou de la photo)
-    const mount = shown.pose.fleet ? shown.pose.mount : null;  // CD21 : monture d'après la date (App.FLEET_MOUNTS)
-    const height = mount ? { height: mount, height_sigma: MOUNT_SIGMA }
-      : parallax && shown.pose.fleet ? { height: mountOf(parallax), height_sigma: MOUNT_SIGMA }  // CD21 hors campagne connue
+    const mount = shown.pose.fleet ? shown.pose.mount : null;  // CD21 : monture d'après la date (profil de campagne, py/web_profils.py)
+    const height = mount ? { height: mount, height_sigma: shown.pose.mount_sigma }
+      : parallax && shown.pose.fleet ? { height: mountOf(parallax), height_sigma: shown.pose.mount_sigma }  // CD21 hors campagne connue
       : parallax ? { height: parallax, height_sigma: HEIGHT_SIGMA }
       : { height: shown.sequenceHeight?.height ?? leveled.height, height_sigma: Math.max(leveled.height_sigma, RTK_SIGMA) };
     const read = withNeighbours() ? outlines.get(shown.sequence) : null;  // CD21 : contour lu sur la séquence, sinon celui de sa monture
@@ -2237,12 +2255,13 @@ const Dessus = (() => {
   // octobre, 2,04 à 2,34 m) ; l'altitude RTK moins le sol reste vers 2,05-2,10 m tout du long (antenne fixe, caméra plus basse
   // sur la première monture). La séquence prend la monture la plus proche de sa hauteur lue, même par la seule inclinaison de
   // la route (verticales et route concordent au cm près là où les deux existent). Depuis le 13/11/2026, la monture vient
-  // d'abord de la date de prise de vue (pose.mount, App.FLEET_MOUNTS) : la hauteur lue se joue à quelques cm du seuil de
+  // d'abord de la date de prise de vue (pose.mount, profil de campagne de py/web_profils.py) : la hauteur lue se joue à quelques cm du seuil de
   // 2,00 m (f2a245d0-aeea-4249-ba9c-fad83b442a23, 07/07/2025 : 2,03 ou 1,98 m selon le terrain) ; lue entre photos
   // seulement hors campagne connue.
   // Hauteurs mesurées sur les véhicules : non disponibles (prises de vue faites par un prestataire), piste abandonnée le 13/11/2026
-  const MOUNTS = [1.93, 2.07], MOUNT_SIGMA = 0.04;  // mêmes hauteurs par date : App.FLEET_MOUNTS (py/web_app.py)
-  const mountOf = (h) => MOUNTS.reduce((a, b) => (Math.abs(b - h) < Math.abs(a - h) ? b : a));
+  // Les montures possibles viennent de la pose (pose.mounts : hauteurs des profils du CD21 de py/web_profils.py, triées ; pose.mount_sigma :
+  // leur incertitude), jamais recopiées ici ; seuls les contours (OUTLINES) sont indexés par hauteur
+  const mountOf = (h) => shown.pose.mounts.reduce((a, b) => (Math.abs(b - h) < Math.abs(a - h) ? b : a));
   let drawing = 0;  // dernier dessin demandé : l'image d'un dessin dépassé est jetée
 
   /** Inclinaison par la route, pour le message d'état : part du dévers prise en roulis, défaut de la caméra, virage,
@@ -2263,7 +2282,7 @@ const Dessus = (() => {
   /** D'où vient la hauteur de caméra, pour le message d'état : monture du CD21 (d'après la date, ou lue entre photos),
    * décalage entre photos, ou hauteur de la séquence ; parallax : hauteur lue entre photos, ou null. */
   function cameraOrigin(parallax) {
-    const mount = (h) => (h === MOUNTS[0] ? "basse" : "haute");
+    const mount = (h) => (h === shown.pose.mounts[0] ? "basse" : "haute");
     const read = parallax ? `, lue entre photos : ${number(parallax, 2)} m` : "";
     if (shown.pose.fleet && shown.pose.mount) return ` (monture ${mount(shown.pose.mount)} d'après la date${read})`;
     if (parallax && shown.pose.fleet) return ` (monture ${mount(mountOf(parallax))}${read})`;
@@ -2755,7 +2774,7 @@ const Dessus = (() => {
     layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins,
       outline: outlines.get(shown.sequence), locatedWith: shown.locatedWith },
     view, hidden, uncertainty, measureError, shownError, groundUp, roadAxis, sourceOf, toLocal, toLonLat, estimateHeight,
-    diagnoseRelief, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, linesPitch, REACH, SIZE,
+    diagnoseRelief, profileLine, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, linesPitch, REACH, SIZE,
   };
 })();
 

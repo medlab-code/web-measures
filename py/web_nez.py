@@ -7,6 +7,7 @@ web_app.App : ses méthodes lisent l'état de l'application (self)."""
 import json
 import math
 
+import web_profils
 from core import autotilt, metadata, precision, triangulation
 
 NOSE_STEP = 0.05  # m : pas des points de la droite
@@ -113,7 +114,7 @@ class Nez:
         largeur de 7 % trop courte) ; sinon camera_of. Seule la largeur ↔ prend cet ordre : camera_of reste celui des autres mesures."""
         bird = self.birdeye_ground.get((item or {}).get("id"))
         if bird and bird.get("height"):
-            return bird["height"], "vue du dessus", bird["height_sigma"] or self.MOUNT_SIGMA
+            return bird["height"], "vue du dessus", bird["height_sigma"] or web_profils.HEIGHT_SIGMA_DEFAULT
         known = self._mount_height(item or {})
         if known:
             return known[0], "monture", known[1]

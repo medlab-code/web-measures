@@ -156,7 +156,9 @@ const Calage = {
       bloc.hidden = !auto().available;
       if (head) $("#calage-confiance").after(bloc);
       else panneau.querySelector(".boutons").before(bloc);
-      $("#calage-source").textContent = autoLine();
+      const profil = info?.profile;  // profil de campagne de la photo (py/web_profils.py, #70) : une ligne courte à la suite
+      $("#calage-source").textContent = [autoLine(), profil ? `Profil : ${profil.label}.` : ""].filter(Boolean).join(" ");
+      $("#calage-source").title = profil ? `Méthode : ${profil.method}. Provenance : ${profil.provenance}.` : "";
       $("#calage-source").hidden = !$("#calage-source").textContent;
       const off = $("#calage-auto-off");
       off.textContent = auto().off ? "Rétablir le calcul automatique" : "Réinitialiser";

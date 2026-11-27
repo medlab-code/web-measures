@@ -244,6 +244,12 @@ function centre(pixels, line, around) {
     const slope = Dessus.diagnoseRelief(grid((e, n) => 100 + 0.09 * n), M, 0);
     await expect("Relief : pente de 9 % → pente forte, sans rupture", slope.reasons.length === 1 && slope.reasons[0].startsWith("pente forte"), JSON.stringify(slope));
   }
+  {  // Ligne « Profil » de l'étiquette (#70) : dates en français, fin = veille du jour de fin exclu ; rien sans profil
+    const line = Dessus.profileLine({ label: "CD21 2025, Clio 5, monture haute", first: "2025-06-24", end: "2026-01-01", method: "m", provenance: "p" });
+    await expect("Profil : ligne « Profil : … (du 24/06/2025 au 31/12/2025) »",
+      line?.text === "Profil : CD21 2025, Clio 5, monture haute (du 24/06/2025 au 31/12/2025)" && line.title === "Méthode : m. Provenance : p.", JSON.stringify(line));
+    await expect("Profil : aucune ligne sans profil", Dessus.profileLine(null) === null);
+  }
   await fin();
 })().catch(async (error) => { await log("ERREUR " + error); });
 </script>

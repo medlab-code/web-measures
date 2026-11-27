@@ -5,7 +5,7 @@
      réseau : pour chaque photo, vue calée par la route puis par les verticales (quand elle en a), largeur des bandes et
      roulis restant (largeur = w0 (1 + 2 v δ cos²φ / H), v : écart en travers du véhicule, φ : angle des bandes au cap, voir
      docs/BIRDEYE.md § 4.1). Contrôles sur l'ensemble : largeur médiane des vues à 0,50 m près, roulis restant médian
-     (protègent le roulis par défaut de la campagne, App.ROLL_DEFECTS) ; incertitude affichée (shownError) comparée à
+     (protègent le roulis par défaut de la campagne, profil de campagne, py/web_profils.py) ; incertitude affichée (shownError) comparée à
      l'écart de chaque bande à 0,50 m (journal). Environ 20 s par photo, surtout la vue du dessus elle-même (voisines,
      hauteur, raccords) : 17 photos (environ 6 min) ; #rapide : 6 (environ 2 min) ; #ids=<id>,… : photos choisies ;
      #captures : image des bandes de chaque vue dans tests/captures/. -->

@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "py"))
 
 import web_app  # noqa: E402
 import web_chutes  # noqa: E402
+import web_profils  # noqa: E402
 from core import calibration, host, precision, roads, triangulation  # noqa: E402
 
 HOST = {name: getattr(host, name) for name in host.SERVICES}  # cœur sans hôte : pas de réseau, calcul immédiat
@@ -120,7 +121,7 @@ class VueDessus(unittest.TestCase):
         return a
 
     def test_defaut_de_roulis(self):
-        """Défaut de roulis de la caméra (ROLL_DEFECTS) : CD21, campagne 2025 seulement ; ni avant, ni après, ni ailleurs."""
+        """Défaut de roulis de la caméra (profil de campagne) : CD21, campagne 2025 seulement ; ni avant, ni après, ni ailleurs."""
         a = App.__new__(App)
         photo = lambda producer, date: {"providers": [{"id": producer}], "properties": {"datetime": date}}
         self.assertEqual(a._roll_defect(photo(App.FLEET_PRODUCER, "2025-07-03T10:53:25Z")), 1.0)  # penché à droite de 1° (convention du véhicule)
@@ -129,6 +130,28 @@ class VueDessus(unittest.TestCase):
             self.assertEqual(a._roll_defect(photo(producer, date)), 0.0)
         self.assertEqual(a._roll_defect({}), 0.0)  # sans producteur ni date
 
+    def test_profils_de_campagne(self):
+        """Table des profils datés (#70) : valide ; contrôle qui détecte champ manquant et chevauchement ; profil par producteur et date
+        (monture basse jusqu'au 23/06/2025, haute dès le 24/06, valeurs inchangées) ; rien ailleurs."""
+        profiles = web_profils.CAMPAIGN_PROFILES
+        self.assertEqual(web_profils.check_profiles(profiles), [])
+        broken = [dict(profiles[0], first="2025-03-01"), dict(profiles[1], first="2025-03-01")]  # deux périodes du même producteur se chevauchent
+        self.assertTrue(any("chevauchent" in p for p in web_profils.check_profiles(broken)))
+        self.assertTrue(any("champ manquant (height)" in p for p in web_profils.check_profiles([{**profiles[0], "height": None}])))
+        self.assertTrue(any("n'est pas avant" in p for p in web_profils.check_profiles([dict(profiles[0], end="2025-01-01")])))
+        a = App.__new__(App)
+        photo = lambda producer, date: {"providers": [{"id": producer}], "properties": {"datetime": date}}
+        low, high = (a._profile(photo(App.FLEET_PRODUCER, d)) for d in ("2025-06-23T12:39:00Z", "2025-06-24T12:12:00Z"))
+        self.assertEqual((low["id"], low["height"], low["roll"]), ("cd21-2025-clio5-basse", 1.93, 1.0))
+        self.assertEqual((high["id"], high["height"], high["roll"], high["height_sigma"], high["roll_sigma"]), ("cd21-2025-clio5-haute", 2.07, 1.0, 0.04, 1.0))
+        self.assertEqual(a._mount_height(photo(App.FLEET_PRODUCER, "2025-06-23T12:39:00Z")), (1.93, 0.04))
+        self.assertEqual(a._fleet_mount(photo(App.FLEET_PRODUCER, "2025-06-24T00:00:00Z")), 2.07)
+        for producer, date in (("autre", "2025-07-03T10:53:25Z"), (App.FLEET_PRODUCER, "2024-12-31T23:00:00Z"), (App.FLEET_PRODUCER, "2026-01-01T00:00:00Z")):
+            self.assertIsNone(web_profils.profile_of(photo(producer, date)))
+        self.assertIsNone(web_profils.profile_of({}))
+        info = a._profile_info(photo(App.FLEET_PRODUCER, "2025-08-01T10:00:00Z"))
+        self.assertEqual((info["label"], info["first"], info["end"]), ("CD21 2025, Clio 5, monture haute", "2025-06-24", "2026-01-01"))
+
     def test_roulis_vehicule_convention(self):
         """Roulis du véhicule : positif = penché à droite ; le cœur a la convention inverse (verticale penchée à droite = caméra à gauche),
         changée en un seul endroit (roulis_vehicule_depuis_camera). Le défaut CD21 2025 (+1°) donne la même verticale qu'avant (-1° du cœur)."""
@@ -136,7 +159,7 @@ class VueDessus(unittest.TestCase):
         self.assertEqual((convert(1.0), convert(-0.5), convert(None)), (-1.0, 0.5, None))
         self.assertEqual(repr(convert(0.0)), "0.0")  # pas de -0.0
         # véhicule penché à droite de 1° : la verticale vraie paraît penchée de 1° vers la gauche sur la photo (roulis du cœur -1°)
-        up = calibration.up_from_components(0.0, convert(App.ROLL_DEFECTS[0][3]), 90.0)
+        up = calibration.up_from_components(0.0, convert(web_profils.CAMPAIGN_PROFILES[0]["roll"]), 90.0)
         self.assertAlmostEqual(calibration.tilt_components(up, 90.0)[1], -1.0, places=9)
         # le panneau de calage rend le roulis dans la convention du véhicule : verticale vue penchée de 0,5° à droite = véhicule à gauche
         self.assertAlmostEqual(convert(calibration.tilt_components(calibration.up_from_components(1.0, 0.5, 0.0), 0.0)[1]), -0.5, places=9)
@@ -250,8 +273,12 @@ class VueDessus(unittest.TestCase):
             a.roads._sections[roads._cell(5.0, 47.0)] = [{"level": 1, "line": line}]
             return json.loads(a.birdeye_pose())
         self.assertEqual([(p["height"], p["height_sigma"]) for p in (pose_on("2025-05-28T05:40:22Z"), pose_on("2025-07-07T05:56:32Z"))],
-                         [(1.93, App.MOUNT_SIGMA), (2.07, App.MOUNT_SIGMA)])
+                         [(1.93, 0.04), (2.07, 0.04)])
         self.assertEqual(pose_on("2024-05-28T05:40:22Z")["height"], 2.1)
+        low, high = pose_on("2025-05-28T05:40:22Z"), pose_on("2025-07-07T05:56:32Z")  # montures et profil transmis à la vue (src/dessus.js)
+        self.assertEqual((low["mounts"], low["mount_sigma"], low["profile"]["id"]), ([1.93, 2.07], 0.04, "cd21-2025-clio5-basse"))
+        self.assertEqual(high["profile"]["label"], "CD21 2025, Clio 5, monture haute")
+        self.assertIsNone(pose_on("2024-05-28T05:40:22Z")["profile"])
 
     def test_verticales_moins_sures(self):
         """Verticales refusées pour les mesures (±0,42° > autotilt.MAX_SIGMA) : renvoyées à part par
@@ -979,7 +1006,7 @@ class CameraPont(unittest.TestCase):
         declared = {"count": 0, "precise": True, "lidar": False, "height": None}
         item = {"collection": "s", "providers": [{"id": App.FLEET_PRODUCER}], "properties": {"datetime": "2025-08-01T10:00:00Z"}}
         a = self.app(declared, item=item)
-        self.assertEqual(a._fall_camera(), (2.07, "monture", App.MOUNT_SIGMA))
+        self.assertEqual(a._fall_camera(), (2.07, "monture", 0.04))
         self.assertEqual(a._camera_height(), 2.07)
         self.assertEqual(a._camera_height(mount=False), 1.9)
         item["properties"]["datetime"] = "2025-06-01T10:00:00Z"
@@ -1089,6 +1116,9 @@ class Parcours(unittest.TestCase):
         a.birdeye_tilt_set("p2", json.dumps({"up": None, "sigma": 0.3, "route": route, "height": None, "ground": None}))
         feature = json.loads(a.export_geojson())["features"][0]["properties"]
         self.assertEqual(feature["confiance_inclinaison"], "desaccord")
+        self.assertIsNone(feature["profil"])  # photo hors campagne connue ; colonne ajoutée en dernier (#70)
+        header = a.export_csv().splitlines()[0].split(";")
+        self.assertEqual(header[header.index("ecart_roulis") + 1], "profil")  # juste après les colonnes précédentes : rien de décalé
         self.assertAlmostEqual(feature["ecart_tangage"], 2.0, delta=0.05)
         self.assertEqual(next(r["confiance"] for r in json.loads(a.results()) if r["kind"] == "mesure"), "inclinaison en désaccord")
         self.assertEqual(json.loads(a.calage_manuel())["confidence"]["state"], "desaccord")

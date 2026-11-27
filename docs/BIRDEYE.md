@@ -32,7 +32,7 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
   séquence, `roads.on_bridge`, comme pour les mesures ; depuis le 22/11/2026 la vue du dessus n'a plus sa propre détection, plus large,
   à 20 m, dessus ou dessous), le MNT est écarté : il donne le sol sous le tablier. Tablier plan et horizontal (`deck`) :
   inclinaison par la route (±1,5°), hauteur lue entre photos sur les verticales, sinon celle de la séquence, puis pour le
-  CD21 sa monture d'après la date (`App.FLEET_MOUNTS`), puis le réglage (pas RTK moins sol LiDAR) ; ce choix de hauteur se fait
+  CD21 sa monture d'après la date (profil de campagne, `py/web_profils.py`), puis le réglage (pas RTK moins sol LiDAR) ; ce choix de hauteur se fait
   photo par photo (une voisine marquée sur un pont, la photo affichée non). **Sol supposé plat près d'un pont** (depuis le 26/11/2026, `pose.flat`, décision unique du cœur : `roads.flat_ground`, constante
   `roads.BRIDGE_FLAT_RADIUS` = 15 m) : tout pont BD TOPO à 15 m au plus de la photo, à vol d'oiseau, distance au tablier le plus proche (avant, sur ou
   après l'ouvrage, sans condition de sens), met la photo sur un plan horizontal à la hauteur de caméra, car le relief (LiDAR HD, RGE ALTI)
@@ -91,7 +91,7 @@ suffisante et quatre fois moins coûteuse.
   colonnes, fermeture sur ±4° (une encoche étroite est impossible sur une carrosserie), symétrie gauche-droite (le plus
   haut des deux côtés), jamais sous les contours relevés (même Clio). Les montages diffèrent : rétroviseurs 7 à 9° plus
   près de l'avant le 15/07/2025 (3e222d68) que sur les deux séquences relevées à la main (67e2ef09, 10/06/2025 ;
-  5bab4dc2, 03/07/2025). Contour pas encore lu : celui de la monture (`MOUNTS`), sinon les deux relevés réunis.
+  5bab4dc2, 03/07/2025). Contour pas encore lu : celui de sa monture (hauteurs des profils, `py/web_profils.py`), sinon les deux relevés réunis.
   Autres producteurs : ellipse de ±5,8 m en long, ±2,9 m en travers ;
 - **la photo affichée n'est pas retouchée hors de ce masque** : elle passe devant tout, même là où une voisine serait
   plus précise ; le fondu des raccords ne la touche pas non plus ;
@@ -142,7 +142,7 @@ fixation peut être un peu de travers.
    sur la RD 1074, 75 à 100 % sur l'A38), à quoi s'ajoute un roulis réglable à la main (« Roulis », en degrés, de −2,5 à +2,5°, au pas de 0,05° (molette : un cran, un pas ; le tangage de même),
    0° par défaut, comme le tangage ; positif : penché à droite, côté droit plus bas, convention du véhicule dans tout `src/dessus.js` et `py/web_pose.py`, voir `docs/CALCULS.md` § 1.3). La ligne « Part du dévers » au-dessus de la réglette
    donne le roulis dû au dévers sous la caméra, `−arctan(0,7 × dévers)`, en degrés signés (« +0,84° » ; positif : penché à droite), « — » sans LiDAR HD. Le tangage ajoute le défaut de fixation de la caméra (−0,4 à +0,6° selon
-   les séquences). La vue du dessus applique cette part (`roll_share` de la pose, 0,7 : `ROLL_SHARE` de `py/web_pose.py`, repris tel quel par `src/dessus.js`) ; les mesures de la visionneuse la prennent aussi, sans verticale ni LiDAR retenu (rang 6, `docs/CALCULS.md` § 1.3), hors pont et avec le LiDAR HD seulement. Le roulis ajoute le **roulis par défaut de la campagne 2025** (`App.ROLL_DEFECTS`, `py/web_pose.py`, par
+   les séquences). La vue du dessus applique cette part (`roll_share` de la pose, 0,7 : `ROLL_SHARE` de `py/web_pose.py`, repris tel quel par `src/dessus.js`) ; les mesures de la visionneuse la prennent aussi, sans verticale ni LiDAR retenu (rang 6, `docs/CALCULS.md` § 1.3), hors pont et avec le LiDAR HD seulement. Le roulis ajoute le **roulis par défaut de la campagne 2025** (profil de campagne, champ `roll` de `CAMPAIGN_PROFILES`, `py/web_profils.py`, par
    producteur et période de prise de vue) : CD21, campagne 2025, +1° (véhicule penché à droite ; −1° dans la convention du cœur, notée ainsi avant le 26/11/2026, même effet). Mesuré le 13/11/2026 sur 25 passages piétons
    (`tests/passages-pietons.js`) : bandes de 0,50 m dans la vue calée par la route puis par les verticales ; une erreur
    de roulis δ y rend la largeur d'une bande proportionnelle à 1 + 2 s δ / H (s : écart en travers à la caméra), d'où
@@ -219,7 +219,7 @@ c'est ce que corrigent les raccords (§ 4.3).
    chaussée entre la photo et ses voisines, donne la hauteur sans orthophoto ni peinture. Gardée si la mesure se
    stabilise (corrélation d'au moins 0,2, hauteur entre 1,5 et 2,6 m) ; médiane de la séquence dans la session.
    **Photos du CD21** (imajbox sur Clio 5, deux montures ; la caméra ne bouge plus une fois montée) : la **monture**
-   d'après la date de prise de vue (`App.FLEET_MOUNTS`, 1,93 m avant le 24/06/2025, 2,07 m ensuite, ±4 cm ; changement de véhicule le 23 ou le 24/06) ; hors de ces
+   d'après la date de prise de vue (profil de campagne, `py/web_profils.py`, 1,93 m avant le 24/06/2025, 2,07 m ensuite, ±4 cm ; changement de véhicule le 23 ou le 24/06) ; hors de ces
    dates, la plus proche de la hauteur lue, même avec l'inclinaison de la route quand les photos n'ont pas de verticales
    (les deux concordent au cm près là où elles existent). La date d'abord depuis le 13/11/2026 : la hauteur lue se joue à
    quelques cm du seuil de 2,00 m (f2a245d0-aeea-4249-ba9c-fad83b442a23, 07/07/2025 : 2,03 ou 1,98 m selon le terrain ; cefbd9bd-419b-4093-ab61-374b9b794c50 à 2,007 m, 09c2e813-8426-49cf-8029-bc2f3d511f40
@@ -421,9 +421,9 @@ Valeurs affichées, combinées dans `uncertainty` et `measureError` (voir § 3 e
 | `LEAN` (`dessus.js:259`) | 0,5 | degré par m/s² | Penchement du véhicule en virage, ajouté à l'incertitude (5° par g), sans corriger la vue | mesure (giratoire b47b4351, 4,4 m/s² : bord à 8 m décalé de 1,3 m) | Plus grand : incertitude majorée en virage ; ne change pas l'image |
 | `HEIGHT_SIGMA` (`dessus.js:75`) | 0,05 | m | Écart-type de la hauteur de caméra lue sur le décalage entre photos voisines | mesure (essai de 28 paires) | Plus grand : incertitude de hauteur plus large |
 | `RTK_SIGMA` (`dessus.js:78`) | 0,1 | m | Plancher de l'écart-type de la hauteur par l'altitude RTK moins le sol | mesure (12 cm d'écart avec le décalage entre photos au giratoire b47b4351, alors que l'écart interne n'est que de 2 cm) | Plus petit : hauteur RTK présentée plus sûre qu'elle n'est |
-| `MOUNT_SIGMA` (`dessus.js:2175`, `web_pose.py:384`) | 0,04 | m | Écart-type de la hauteur par monture du CD21 (même valeur des deux côtés) | non documentée (valeur non justifiée ; les hauteurs lues sont dans le commentaire de `FLEET_MOUNTS`) | Plus grand : hauteur par monture moins crédible |
+| `height_sigma` des profils (`web_profils.py:41`) ; `HEIGHT_SIGMA_DEFAULT` (`web_profils.py:20`) | 0,04 | m | Écart-type de la hauteur par monture du CD21 (la page le lit dans la pose : `mount_sigma`) | non documentée (valeur non justifiée ; les hauteurs lues sont dans le commentaire de `CAMPAIGN_PROFILES`) | Plus grand : hauteur par monture moins crédible |
 | `MEASURED` (`dessus.js:74`) | 0,05 | part de la longueur | Plancher de l'incertitude affichée d'une longueur (écart constaté à l'orthophoto) | mesure (essais du 08/11/2026, `docs/CALCULS.md`) | Plus petit : incertitude affichée parfois sous l'écart réellement constaté |
-| `ROLL_DEFECT_SIGMA` (`web_pose.py:462`) | 1,0 | degré | Dispersion du roulis d'une photo à l'autre dans une campagne (incertitude du défaut de campagne) | mesure (±1° sur 23 vues, § 4.1) | Plus petit : roulis de campagne présenté plus sûr qu'il n'est |
+| `roll_sigma` des profils (`web_profils.py:41`) ; `ROLL_SIGMA_DEFAULT` (`web_profils.py:21`) | 1,0 | degré | Dispersion du roulis d'une photo à l'autre dans une campagne (incertitude du défaut de campagne) | mesure (±1° sur 23 vues, § 4.1) | Plus petit : roulis de campagne présenté plus sûr qu'il n'est |
 | `SIGMA_MIN` (`web_terrain.py:30`) | 0,6 | degré | Incertitude au moins égale à l'écart mesuré sur les témoins du décalage de terrain (dévers) | réglage empirique (non documentée plus avant) | Plus petit : décalage de terrain jugé plus précis |
 | `LIDAR_MAX_SIGMA`, `LIDAR_MIN_SIGMA` (`core/calibration.py:58-59`) | 0,8 ; 0,3 | degré | Plafond au-delà duquel le modèle du LiDAR est refusé (caméra qui ne suit pas le véhicule) ; plancher de l'incertitude | réglage empirique (non documentée plus avant) | Plafond plus bas : modèle refusé plus souvent |
 
@@ -436,8 +436,8 @@ Valeurs affichées, combinées dans `uncertainty` et `measureError` (voir § 3 e
 | `BRIDGE_ANGLE` (`core/roads.py:28`) | 30 | degré | Écart maximal entre le tronçon en pont et le sens de la séquence | non documentée | Plus petit : ponts croisés écartés ; plus grand : pont perpendiculaire retenu |
 | `BRIDGE_LEFT` (`core/roads.py:33`) | 30 (= `MARGIN`) | m | Distance à tout tronçon en pont au-delà de laquelle la case « Sur un pont » est proposée à décocher | choix de conception (maille de lecture BD TOPO) | Plus petit : alerte plus tôt |
 | `DECK_HALF_WIDTH` (`core/roads.py:32`) | 6 | m | Demi-largeur d'emprise d'un pont de part et d'autre de l'axe (chaussée, trottoirs, garde-corps) | réglage empirique ; la largeur BD TOPO « n'est pas fiable » (mémoire du projet) | Plus grand : plus de points LiDAR écartés autour de l'ouvrage |
-| `BIRDEYE_DECK_SCAN` (`web_pose.py:351`) | 40 | m | Distance à laquelle les emprises de pont sont transmises à la vue (±25 m de terrain lu, 35 m dans les coins) | non documentée (le commentaire cite ±25 m de terrain lu sur les lignes, `LINES_WIDE`) | Plus petit : tablier hors liste pour un terrain lu plus large |
-| `MOUNTS` (`dessus.js:2175`), `FLEET_MOUNTS` (`web_pose.py:383`) | 1,93 jusqu'au 23/06/2025 ; 2,07 dès le 24/06/2025 | m | Hauteur de la caméra du CD21 par date de prise de vue (prioritaire sur la hauteur lue entre photos, seule sur un pont) | mesure (changement de véhicule, bords du véhicule de −27,1° à −26,0°, hauteurs lues 2,04 à 2,10 m) ; limite au jour faute d'heure du changement | Une erreur de 5 cm sur 2 m fait 2,5 % d'échelle |
+| `BIRDEYE_DECK_SCAN` (`web_pose.py:354`) | 40 | m | Distance à laquelle les emprises de pont sont transmises à la vue (±25 m de terrain lu, 35 m dans les coins) | non documentée (le commentaire cite ±25 m de terrain lu sur les lignes, `LINES_WIDE`) | Plus petit : tablier hors liste pour un terrain lu plus large |
+| `height` des profils (`CAMPAIGN_PROFILES`, `web_profils.py:41` ; la page lit `pose.mounts` et `pose.mount`, `dessus.js:2264`) | 1,93 jusqu'au 23/06/2025 ; 2,07 dès le 24/06/2025 | m | Hauteur de la caméra du CD21 par date de prise de vue (prioritaire sur la hauteur lue entre photos, seule sur un pont) | mesure (changement de véhicule, bords du véhicule de −27,1° à −26,0°, hauteurs lues 2,04 à 2,10 m) ; limite au jour faute d'heure du changement | Une erreur de 5 cm sur 2 m fait 2,5 % d'échelle |
 | `MIN_HEIGHT`, `MAX_HEIGHT` (`dessus.js:877`) | 1,5 ; 2,6 | m | Hauteurs de caméra plausibles pour une lecture entre photos | réglage empirique (non documentée plus avant) | Plus large : lectures aberrantes acceptées |
 | `MIN_NCC` (`dessus.js:877`) | 0,2 | corrélation | Corrélation minimale d'une lecture de hauteur | réglage empirique (non documentée plus avant) | Plus bas : hauteurs lues sur des raccords peu corrélés |
 | `HEIGHTS_MIN` (`dessus.js:1623`) | 3 | photos | Lectures de hauteur nécessaires pour garder la médiane d'une séquence | réglage empirique (non documentée plus avant) | Plus petit : hauteur de séquence moins sûre |
@@ -446,9 +446,9 @@ Valeurs affichées, combinées dans `uncertainty` et `measureError` (voir § 3 e
 
 | Constante (fichier:ligne) | Valeur | Unité | Rôle | Origine | Effet d'une modification |
 |---|---|---|---|---|---|
-| `ROLL_SHARE` (`web_pose.py:410`) / `ROLL_SHARE_DEFAULT` (`dessus.js:1612`) | 0,7 | part du dévers | Part du dévers de la route prise en roulis du véhicule (le tangage suit la pente entière) ; la page lit celle de la pose (`roll_share`) | réglage empirique, repris de la vue du dessus (d69c60e) ; le défaut de campagne a été estimé avec cette part | Change le roulis par défaut de toutes les photos ; le défaut `ROLL_DEFECTS` (+1°) devrait être réestimé |
-| `ROLL_DEFECTS` (`web_pose.py:372`) | CD21, 2025 : +1,0 | degré | Défaut de roulis ajouté au roulis tiré du dévers, par producteur et période | mesure (23 vues de passage piéton, 13/11/2026 : +0,98° en médiane) | Décale tous les roulis de la campagne |
-| `ROLL_PITCH_LIMIT` (`dessus.js:1612`) | 2,5 | degré | Bornes d'un réglage de roulis ou de tangage retenu d'une session précédente | non documentée | Plus petit : anciens réglages rognés |
+| `ROLL_SHARE` (`web_pose.py:400`) / `ROLL_SHARE_DEFAULT` (`dessus.js:1683`) | 0,7 | part du dévers | Part du dévers de la route prise en roulis du véhicule (le tangage suit la pente entière) ; la page lit celle de la pose (`roll_share`) | réglage empirique, repris de la vue du dessus (d69c60e) ; le défaut de campagne a été estimé avec cette part | Change le roulis par défaut de toutes les photos ; le défaut du profil de campagne (`roll`, +1°) devrait être réestimé |
+| `roll` des profils (`CAMPAIGN_PROFILES`, `web_profils.py:41`) | CD21, 2025 : +1,0 | degré | Défaut de roulis ajouté au roulis tiré du dévers, par producteur et période | mesure (23 vues de passage piéton, 13/11/2026 : +0,98° en médiane) | Décale tous les roulis de la campagne |
+| `ROLL_PITCH_LIMIT` (`dessus.js:1683`) | 2,5 | degré | Bornes d'un réglage de roulis ou de tangage retenu d'une session précédente | non documentée | Plus petit : anciens réglages rognés |
 | `PITCH_MAX` (`dessus.js:1708`) | 2 | degré | Tangage lu (raccords, lignes) au-delà duquel la lecture est écartée | réglage empirique (lectures aberrantes) | Plus petit : lectures valides écartées |
 | `PITCH_STEP` (`dessus.js:1707`) | 0,1 | degré | Écart de tangage en deçà duquel la vue n'est pas refaite | non documentée (à titre indicatif, 0,1° font 9 cm à 10 m, § 3) | Plus petit : vues refaites plus souvent |
 | `PITCH_PASSES` (`dessus.js:1708`) | 3 | passes | Nombre maximal de vues refaites par photo après relecture du tangage | choix technique | Plus grand : plus de recalculs, convergence plus fine |

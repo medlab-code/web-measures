@@ -726,9 +726,9 @@ class App(Pose, Chutes, Nez, session.Session):
         verticale), retained (inclinaison retenue par Calibration.tilt : source, sigma, pitch, roll ; null sans inclinaison) et auto
         (calcul automatique par les verticales de la photo : available, off (écarté par l'utilisateur), count (null au seuil élargi),
         loose, et sa propre inclinaison : pitch, roll, sigma, segments, et les indicateurs de qualité edges, gap, sigma_pitch, sigma_roll, fragile, fragile_reason : null sur les anciennes entrées) et confidence (confiance de l'inclinaison retenue, voir
-        tilt_confidence_of ; null sans inclinaison)."""
+        tilt_confidence_of ; null sans inclinaison), roll_label et profile (profil de campagne de la photo affichée : id, label, first, end, method, provenance ; null sans profil)."""
         pic = self._calage_pic()
-        out = {"manual": None, "retained": None, "confidence": None, "roll_label": self._roll_label(self.item), "auto": {"available": False, "off": False, "count": None, "loose": False}}
+        out = {"manual": None, "retained": None, "confidence": None, "roll_label": self._roll_label(self.item), "profile": self._profile_info(self.item), "auto": {"available": False, "off": False, "count": None, "loose": False}}
         if not pic:
             return json.dumps(out)
         report = self._calage_report()
@@ -1454,6 +1454,7 @@ class App(Pose, Chutes, Nez, session.Session):
                 "confiance_inclinaison": (getattr(m, "confiance", None) or {}).get("etat"),
                 "ecart_tangage": num((getattr(m, "confiance", None) or {}).get("ecart_tangage"), 2),
                 "ecart_roulis": num((getattr(m, "confiance", None) or {}).get("ecart_roulis"), 2),
+                "profil": (self._profile(item) or {}).get("id") if item else None,  # profil de campagne de la photo (web_profils), en dernier
             }))
         for lon, lat, values in self.points:
             if "releve" not in values:  # objets relevés : export à part, gardés à part dans le navigateur

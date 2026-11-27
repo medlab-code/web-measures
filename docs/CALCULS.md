@@ -102,7 +102,7 @@ pour les mesures (hauteur, relevé, visées) comme pour la largeur dans la visio
    visionneuse les préférait au LiDAR quand leur incertitude était plus faible ; elles passent
    maintenant après lui ;
 6. **roulis par défaut seul** (`_roll_default` de `py/web_pose.py`, source « roulis de campagne » en interne), en degrés, véhicule penché à droite
-   positif : **défaut de campagne** (`ROLL_DEFECTS`, par exemple +1° pour le CD21 en 2025) **moins la part du dévers**, `−atan(ROLL_SHARE · tan(dévers))`
+   positif : **défaut de campagne** (champ `roll` du profil de campagne daté, `py/web_profils.py`, par exemple +1° pour le CD21 en 2025) **moins la part du dévers**, `−atan(ROLL_SHARE · tan(dévers))`
    avec `ROLL_SHARE` = 0,7 et le dévers du LiDAR HD sous la photo (`auto[pic]["lidar"][1]`, positif : droite plus haute ; route qui monte vers la
    droite : véhicule penché à gauche, roulis négatif, comme `groundUp`). Le dévers n'est pris que si le sol vient du LiDAR HD (`lidar_source`
    de l'entrée `auto`, pas RGE ALTI ni une entrée sans source) et que la photo n'est pas sur un pont ; sinon le défaut de campagne seul. S'applique aussi
@@ -110,12 +110,12 @@ pour les mesures (hauteur, relevé, visées) comme pour la largeur dans la visio
    jamais de double application du dévers (le LiDAR du rang 4 le contient déjà à 100 %, les verticales le mesurent). La verticale est vue penchée de ce roulis
    vers la gauche du cap (signe changé pour le cœur, voir la convention du roulis ci-dessus), le
    tangage est inconnu ; incertitude de tangage `UNCALIBRATED` (2°), au moins celle du roulis
-   (`ROLL_DEFECT_SIGMA`, ±1° d'une photo à l'autre). Ce n'est pas une inclinaison calée : le
+   (champ `roll_sigma` du profil, ±1° d'une photo à l'autre ; `ROLL_SIGMA_DEFAULT` sans profil). Ce n'est pas une inclinaison calée : le
    voyant « Inclinaison » reste rouge ou jaune et la ligne d'état dit « roulis par défaut (70 % du dévers + campagne 2025), tangage inconnu » (ou « … (70 % du dévers) » hors campagne, ou « … de la campagne 2025 seul (dévers
    écarté : photo sur un pont, terrain RGE ALTI…) »). Le défaut de campagne 2025 a été estimé avec 70 % du dévers : il reste valable ;
 7. **rien** : photo non inclinée, incertitude `UNCALIBRATED` (2°).
 
-**Convention du roulis** : dans l'application (`src/dessus.js`, `ROLL_DEFECTS`, panneau de calage, lignes d'état, encart de la droite), le roulis du
+**Convention du roulis** : dans l'application (`src/dessus.js`, profils de campagne, panneau de calage, lignes d'état, encart de la droite), le roulis du
 véhicule est positif quand il est penché à **droite** (côté droit plus bas, vu dans le sens de la marche), négatif à gauche. Le cœur
 (`Calibration.tilt_components`, `up_from_components`, `d_roll`, repris du plugin QGIS) a la convention d'une rotation de caméra, opposée :
 positif quand la verticale vraie paraît penchée vers la droite, soit la caméra penchée à gauche. Le signe est changé en un seul endroit,
@@ -179,6 +179,23 @@ RGE ALTI dès qu'un paquet a dû y passer (un point manquant en LiDAR HD). Le MN
 (§ 1.2), à l'inclinaison (§ 1.3), à fixer l'altitude d'un point au sol triangulé en 3D (§ 2) et à
 tous les profils (§ 7 à 9). Les tronçons de route, ponts, cours d'eau et zones d'habitation
 viennent de la **BD TOPO** (WFS de la Géoplateforme).
+
+### 1.5 Profils de campagne datés (#70)
+
+Ce que l'on sait d'une campagne de prise de vue vit dans une table unique, `CAMPAIGN_PROFILES` (`py/web_profils.py`), une fiche par
+producteur, véhicule, caméra et période : `id`, `label` (nom court affiché), `producer`, `vehicle`, `camera`, `first` (premier jour
+inclus), `end` (jour de fin exclu), `height` et `height_sigma` (hauteur de caméra, m), `roll` et `roll_sigma` (défaut de roulis et
+dispersion, degrés ; positif : véhicule penché à droite), `pitch` et `pitch_sigma` (tangage, `None` : inconnu), `method` et
+`provenance` (comment les valeurs ont été obtenues). `profile_of(item)` donne le premier profil dont le producteur figure dans les
+fournisseurs (`providers`) de la photo et dont la période contient sa date de prise de vue (la date seule, sans l'heure) ; `None`
+sinon. Le profil s'applique tout seul, sans choix : hauteur de la monture (`_fleet_mount`, `_mount_height`), défaut de roulis
+(`_roll_defect`, § 1.3 rang 6) et son incertitude (`_campaign_tilt`), libellé du roulis par défaut (`_roll_label`, l'année vient de
+`first`). `check_profiles` (champ manquant, `first` non antérieur à `end`, chevauchement de deux périodes d'un même producteur) est
+exécuté à l'import du module : une table invalide empêche le chargement. Sans profil : hauteur et roulis de campagne inchangés
+(réglage, 0°, incertitude `ROLL_SIGMA_DEFAULT` de 1°). Le profil appliqué est dit dans l'étiquette de la vue du dessus
+(« Profil : … (du 24/06/2025 au 31/12/2025) »), dans le panneau de calage (« Profil : … ») et dans la colonne `profil` de l'export.
+Deux fiches aujourd'hui : CD21 2025 Clio 5, monture basse (du 01/01 au 23/06/2025, 1,93 m ±0,04, roulis +1,0° ±1,0) et monture
+haute (du 24/06 au 31/12/2025, 2,07 m ±0,04, roulis +1,0° ±1,0).
 
 ## 2. Point triangulé
 
@@ -306,7 +323,7 @@ qui se touchent à 1 m près forment un seul ouvrage.
   seule photo : son altitude ; `web_app._deck_at`). La hauteur de
   caméra est celle **mesurée sur la séquence** vérifiée (médiane de l'altitude RTK moins le sol
   LiDAR, photos du pont écartées), sinon celle **calée** pour la séquence, sinon pour une photo du CD21
-  la **monture d'après la date** (1,93 m jusqu'au 23/06/2025, 2,07 m ensuite, ±4 cm, `App.FLEET_MOUNTS`,
+  la **monture d'après la date** (1,93 m jusqu'au 23/06/2025, 2,07 m ensuite, ±4 cm, profil de campagne de `py/web_profils.py`,
   comme la vue du dessus). Une photo de précision
   déclarée n'a que sa propre hauteur, prise au-dessus du sol sous elle : sur un pont, le fond
   franchi. Le réglage « Hauteur de caméra » ne sert alors que si l'utilisateur l'accepte (bouton de
@@ -534,7 +551,7 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   le roulis l'est. Quand la vue du dessus lit les verticales de la photo, elle n'annonce rien et la suite
   s'applique : calée à la main (« clics »), puis verticales calculées sur la photo HD, sinon pente et dévers du LiDAR, puis les verticales à seuil
   élargi (`birdeye_loose`, incertitude jusqu'à 0,5°, `web_tilt.LOOSE_SIGMA`, « verticales (seuil élargi) »), enfin le **roulis par défaut de la campagne 2025** seul
-  (`ROLL_DEFECTS` : +1° pour le CD21 en 2025, véhicule penché à droite, plus 70 % du dévers du LiDAR HD hors pont, même effet que dans `groundUp` de
+  (profil de campagne, champ `roll` : +1° pour le CD21 en 2025, véhicule penché à droite, plus 70 % du dévers du LiDAR HD hors pont, même effet que dans `groundUp` de
   `src/dessus.js`, qui reçoit la part par `roll_share` de la pose ; source « roulis de campagne », tangage inconnu, incertitude 2°), sinon rien (« aucune »). Le roulis par défaut n'est ajouté que seul (rang 6) : jamais aux
   verticales, au LiDAR ni au réglage de la vue du dessus, qui le contient déjà. La droite est projetée comme les mesures (`Session._view_of`).
   **Calage Bird Eye au déplacement d'une poignée** (`src/nez.js` : `needCalage`, `calibrated`, `reanchor` ; `Dessus.update(…, silent)` et
@@ -963,7 +980,7 @@ Le roulis ne suit qu'une part du dévers (70 %, fixe, `ROLL_SHARE` de `py/web_po
 avec tout le dévers, pour 6,58 m sur l'orthophoto (environ 40 % du dévers) ; sur l'A38, environ 75 %. Le roulis
 déplace surtout la ligne la plus éloignée de la caméra, d'où l'impression d'un milieu étiré. Le tangage suit la
 pente entière (tirets de 3 m retrouvés devant et derrière).
-Défaut de roulis par défaut de la campagne 2025 (`App.ROLL_DEFECTS`, `py/web_pose.py` : producteur, période, degrés), ajouté au roulis
+Défaut de roulis par défaut de la campagne 2025 (profil de campagne daté, `CAMPAIGN_PROFILES` de `py/web_profils.py` : producteur, période, degrés), ajouté au roulis
 tiré du dévers (`groundUp`) : CD21, campagne 2025, +1° (véhicule penché à droite). Une erreur de roulis δ fait varier la largeur d'une bande de
 passage piéton (0,50 m) comme 1 + 2 s δ / H (s : écart en travers à la caméra, H : hauteur de caméra) : la pente des
 largeurs en travers donne δ, indépendamment de l'échelle. Sur 25 passages piétons (13/11/2026), roulis restant
@@ -986,7 +1003,7 @@ les mesures ; avant le 22/11/2026 la vue du dessus détectait elle-même un pont
 LiDAR HD : le MNT n'a pas le tablier (sol sous le pont). Tablier supposé plan et horizontal
 (maillage à plat, `deck`) : inclinaison par la route (tangage de la séquence et roulis par défaut de la campagne 2025 seulement,
 ±1,5° pour la pente du tablier, jusqu'à 3 %). Hauteur de caméra : pour le CD21, sa monture d'après la date
-(`App.FLEET_MOUNTS` : 1,93 m avant le 24/06/2025, 2,07 m ensuite, ±0,04 m) ; autres photos, lue entre photos sur les
+(profil de campagne, `py/web_profils.py` : 1,93 m avant le 24/06/2025, 2,07 m ensuite, ±0,04 m) ; autres photos, lue entre photos sur les
 verticales, sinon calée pour la séquence, sinon le réglage. Avant le 13/11/2026 : sol plat sans inclinaison et 1,90 m par défaut, bandes
 de passage piéton à 0,44 m au lieu de 0,50 (f2a245d0-aeea-4249-ba9c-fad83b442a23, Pont de France ; 7dcdccf9-3c52-4c54-bc5b-de72740a7967, D977 bis). Pont de France à Auxonne (bbf7a0be-f532-4362-afb4-114268317258) : tangage lu sur les raccords à
 -1,2° avec le MNT, raccords 33,5 → 1,3 cm sur sol plat.
@@ -1015,7 +1032,7 @@ A38 0,11 m, RD 1074 0,19 m, D33 0,02 m, petite RD sans peinture 0,31 m (calée, 
 village sans accord (position gardée). Limite : un décalage de plus de 1,2 m serait pris pour celui d'une autre ligne. Le calage du tangage sur l'orthophoto trouvait, sur 6 photos réglées à l'œil par l'auteur (07/11/2026), 0 / +0,1 / +0,4
 / +0,2 / -0,2 / +0,2° pour +0,5 / +0,5 / +0,2 / +0,2 / -0,2 / 0°.
 
-Photos du CD21 : hauteur de la monture d'après la date de prise de vue (`App.FLEET_MOUNTS`, 1,93 ou 2,07 m), avant toute
+Photos du CD21 : hauteur de la monture d'après la date de prise de vue (profil de campagne, `py/web_profils.py`, 1,93 ou 2,07 m), avant toute
 autre (voir docs/BIRDEYE.md § 4.2). Autres photos, hauteur de caméra par séquence : médiane des hauteurs vérifiées (GPS RTK moins sol) des photos vues de la séquence, dès
 3 photos, gardée dans le navigateur (`web-measures/dessus-hauteurs`) ; une même séquence de l'A38 allait de 1,83 à
 2,36 m d'une photo à l'autre. Chaque caméra est posée à cette hauteur au-dessus du plan de la route sous le véhicule

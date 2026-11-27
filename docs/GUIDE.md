@@ -977,7 +977,10 @@ Hauteur de caméra : la mesure de hauteur n'en dépend pas (essai du 15/11/2026 
 mêmes valeurs et incertitudes avec 1,90, 2,07 et 2,50 m) ; elle sert au tablier d'un pont (secours GPS),
 au relevé sur une seule photo et aux objets posés au sol. Dans l'ordre : altitude RTK moins sol LiDAR HD,
 calée pour la séquence, monture du CD21 d'après la date, réglage. Colonne `camera_m` de l'export : celle
-de la photo du premier clic ; `camera_calee` : 0 réglage, 1 calée, 2 écart RTK − sol LiDAR (nommé « altitude GPS » dans le code), 3 monture.
+de la photo du premier clic ; `camera_calee` : 0 réglage, 1 calée, 2 écart RTK − sol LiDAR (nommé « altitude GPS » dans le code), 3 monture ;
+`profil` (dernière colonne des mesures) : identifiant du profil de campagne daté de la photo du premier clic (hauteur de la monture et défaut de
+roulis du CD21, `py/web_profils.py`, `docs/CALCULS.md` § 1.5), vide sans profil. La vue du dessus (ligne « Profil : … (du 24/06/2025 au 31/12/2025) » de
+l'étiquette, infobulle : méthode et provenance) et le panneau de calage disent le profil appliqué ; rien à choisir.
 L'écart RTK − sol LiDAR est une borne, pas la hauteur de la caméra : elle dépend du point de référence de l'antenne et du
 référentiel vertical. Les textes disent la provenance (« parallaxe », « écart RTK − sol LiDAR », « calée », « monture », « réglage »).
 
@@ -1050,6 +1053,7 @@ Avec un GPS grand public
 | `py/web_app.py` | application de mesure : clics → cœur de calcul → JSON pour la page (points de référence, hauteurs, relevé d'objets, recalages) |
 | `py/web_chutes.py` | hauteurs de chute et dévers : sur un pont, et sur les bords de route (profils, séparateur, analyse fine) ; base de `App` |
 | `py/web_pose.py` | pose de la caméra : inclinaison automatique (raison d'un échec), inclinaison par le terrain, monture et défaut de roulis, pose de la vue du dessus ; base de `App` |
+| `py/web_profils.py` | profils de campagne datés (`CAMPAIGN_PROFILES` : producteur, période, hauteur, roulis, méthode, provenance) et `profile_of` |
 | `py/web_host.py` | accès réseau du cœur par le `fetch` du navigateur |
 | `py/web_worker.py` | calculs lourds dans le Pyodide d'arrière-plan |
 | `py/geoid.py` | altitude NGF (grille RAF20 de l'IGN) |

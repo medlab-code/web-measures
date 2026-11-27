@@ -38,6 +38,7 @@ const Calcul = (() => {
     "web_host.py",
     "web_nez.py",
     "web_pose.py",
+    "web_profils.py",
     "web_terrain.py",
     "web_tilt.py",
     "web_worker.py",

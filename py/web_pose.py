@@ -10,6 +10,7 @@ import math
 from urllib.parse import urlencode
 
 import web_host
+import web_profils
 import web_terrain
 import web_tilt
 from core import autotilt, calibration, host, measures, metadata, precision, roads
@@ -28,7 +29,7 @@ def _inside(point, ring):
 def roulis_vehicule_depuis_camera(roll):
     """Roulis (degrés) changé de convention, à la frontière entre le cœur et le reste de l'application (seul endroit).
     Cœur (core/calibration.py : tilt_components, up_from_components, d_roll, repris du plugin QGIS) : positif = la verticale vraie
-    paraît penchée vers la droite sur la photo, soit la caméra penchée à GAUCHE. Application (src/dessus.js, ROLL_DEFECTS, panneau
+    paraît penchée vers la droite sur la photo, soit la caméra penchée à GAUCHE. Application (src/dessus.js, profils de campagne, panneau
     de calage, ligne d'état) : positif = véhicule penché à DROITE, côté droit plus bas, vu dans le sens de la marche. Les deux
     conventions sont opposées : la fonction est sa propre inverse (véhicule vers cœur comme cœur vers véhicule). None reste None."""
     return None if roll is None else 0.0 - roll  # 0.0 - x : pas de -0.0
@@ -299,7 +300,9 @@ class Pose:
                 "height_sigma": max(q.get("spread") or 0, 0.05) if verified else cam["sigma"] if cam else 0.3,
                 "relative_sigma": 0.05 if verified else 0.3,  # position d'une photo à sa voisine (trajectoire)
                 "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []),
-                "roll_defect": self._roll_defect(item), "roll_share": self.ROLL_SHARE, "mount": self._fleet_mount(item)}
+                "roll_defect": self._roll_defect(item), "roll_share": self.ROLL_SHARE, "mount": self._fleet_mount(item),
+                "mounts": sorted({p["height"] for p in web_profils.producer_profiles(self.FLEET_PRODUCER)}),  # montures possibles du CD21 (hors campagne connue)
+                "mount_sigma": web_profils.fleet_height_sigma(self.FLEET_PRODUCER), "profile": self._profile_info(item)}
 
     def birdeye_impossible(self, pic):
         """Vrai si la photo affichée est `pic` et n'a pas de pose Bird Eye possible (pas 360°, ni cap, ni position) : le calage
@@ -345,7 +348,7 @@ class Pose:
             return pose
         cam, mount = self.calibration.camera(item.get("collection")), self._fleet_mount(item)
         return dict(pose, **({"height": cam["height"], "height_sigma": cam["sigma"]} if cam
-                             else {"height": mount, "height_sigma": self.MOUNT_SIGMA} if mount
+                             else {"height": mount, "height_sigma": self._mount_height(item)[1]} if mount
                              else {"height": self.tool.camera_height, "height_sigma": 0.3}))
 
     BIRDEYE_DECK_SCAN = 40.0  # m : emprises de pont transmises à la vue (±25 m de terrain lu sur les lignes, soit 35 m dans les coins)
@@ -360,53 +363,40 @@ class Pose:
         return [[list(p) for p in line] for line in roads.deck_lines(sections, pose["lon"], pose["lat"], pose["heading"],
                                                                       self.BIRDEYE_DECK_SCAN)]
 
-    FLEET_PRODUCER = "8f943f10-a781-4e03-a18c-de035be6f6f8"  # CD21 : imajbox sur Clio 5, deux montures (voir src/dessus.js, MOUNTS)
-    # Défaut de roulis de la caméra par rapport à la route, par producteur et campagne de prise de vue : (producteur, premier
-    # jour, jour de fin exclu, degrés ajoutés au roulis tiré du dévers ; convention du véhicule : positif = penché à droite, comme
-    # dans src/dessus.js, voir roulis_vehicule_depuis_camera pour le cœur). Seulement pour
-    # l'inclinaison par la route de la vue du dessus ; à mesurer pour chaque campagne ou producteur, sur des passages piétons
-    # (docs/BIRDEYE.md § 4.1). CD21, campagne 2025 (tests/passages-pietons.js, 13/11/2026) : roulis restant de +0,98° en
-    # médiane sur 23 vues (verticale vue penchée vers la droite, soit caméra penchée à gauche), sans lien avec le dévers ni avec la
-    # monture, nul avec les verticales ; le véhicule penché de 1° à droite ramène ce roulis près de 0 : +1° (avant le 26/11/2026,
-    # même effet noté -1° dans la convention du cœur).
-    ROLL_DEFECTS = ((FLEET_PRODUCER, "2025-01-01", "2026-01-01", 1.0),)
-
-    # Monture de la caméra du CD21 par date de prise de vue (premier jour, jour de fin exclu, hauteur en m) : hauteur de caméra
-    # de la vue du dessus (pose « mount »), avant la hauteur lue entre photos, qui se joue à quelques cm du seuil entre les deux
-    # montures, et sur un pont, où ni le sol LiDAR ni la lecture sans verticales ne la donnent (sinon 1,90 m par défaut : bandes
-    # de passage piéton à 0,44 m au lieu de 0,50, f2a245d0-aeea-4249-ba9c-fad83b442a23 et
-    # 7dcdccf9-3c52-4c54-bc5b-de72740a7967, 13/11/2026). Hauteurs de src/dessus.js (MOUNTS) :
-    # basse lue du 28/05 au 23/06/2025, haute dès le 24/06 (changement de véhicule : carrosserie claire jusqu'au 23/06 12:39,
-    # bleue dès le 24/06 12:12, les bords du véhicule sautent de -27,1° à -26,0° ; hauteurs lues entre photos 2,04 m le 25/06 et
-    # 2,10 m le 27/06). shortcut: limite au jour (24/06, la date de prise de vue seule est comparée) faute de l'heure du
-    # changement entre le 23/06 12:39 et le 24/06 12:12 (dates de montage non disponibles : prises de vue d'un prestataire)
-    FLEET_MOUNTS = (("2025-01-01", "2025-06-24", 1.93), ("2025-06-24", "2026-01-01", 2.07))
-    MOUNT_SIGMA = 0.04  # m : comme src/dessus.js (MOUNT_SIGMA)
+    # Producteur et profils de campagne datés (hauteur de caméra par monture, défaut de roulis : py/web_profils.py, CAMPAIGN_PROFILES)
+    FLEET_PRODUCER = web_profils.FLEET_PRODUCER  # CD21 : imajbox sur Clio 5, deux montures (pose « mounts », src/dessus.js)
     # Colonne camera_calee de l'export des mesures : 0 réglage, 1 calée, 2 altitude GPS (measures.CAMERA_SOURCES), 3 monture
     CAMERA_CODES = {**measures.CAMERA_SOURCES, "monture": 3}
     # Provenance de la hauteur de caméra dans les textes (camera_of) : l'altitude GPS est un écart RTK − sol LiDAR, pas une mesure
     CAMERA_LABELS = {"altitude GPS": "écart RTK − sol LiDAR", "calée": "calée", "monture": "monture du CD21 d'après la date", None: "réglage"}
 
+    def _profile(self, item):
+        """Profil de campagne de la photo à sa date de prise de vue (web_profils.profile_of), ou None."""
+        return web_profils.profile_of(item)
+
     def _fleet_mount(self, item):
-        """Hauteur de la monture du CD21 (FLEET_MOUNTS) à la date de prise de vue de la photo, ou None."""
-        date = str((item.get("properties") or {}).get("datetime") or "")[:10]
-        if not any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []):
-            return None
-        return next((h for first, end, h in self.FLEET_MOUNTS if first <= date < end), None)
+        """Hauteur de la monture du CD21 d'après le profil de campagne de la photo (date de prise de vue), ou None."""
+        profile = self._profile(item)
+        return profile["height"] if profile else None
 
     def _mount_height(self, item):
-        """Monture du CD21 d'après la date (FLEET_MOUNTS) : (hauteur, MOUNT_SIGMA), ou None (voir Session.camera_of)."""
-        mount = self._fleet_mount(item)
-        return (mount, self.MOUNT_SIGMA) if mount else None
+        """Monture du CD21 d'après le profil de campagne : (hauteur, incertitude), ou None (voir Session.camera_of)."""
+        profile = self._profile(item)
+        return (profile["height"], profile["height_sigma"]) if profile else None
 
     def _roll_defect(self, item):
-        """Défaut de roulis (degrés, ROLL_DEFECTS) du producteur de la photo à sa date de prise de vue, ou 0."""
-        date = str((item.get("properties") or {}).get("datetime") or "")[:10]
-        producers = {p.get("id") for p in item.get("providers") or []}
-        return next((roll for who, first, end, roll in self.ROLL_DEFECTS if who in producers and first <= date < end), 0.0)
+        """Défaut de roulis (degrés) du profil de campagne de la photo à sa date de prise de vue, ou 0."""
+        profile = self._profile(item)
+        return profile["roll"] if profile else 0.0
+
+    def _profile_info(self, item):
+        """Profil de la photo pour la page (pose Bird Eye « profile », panneau de calage) : id, label, first, end (jour exclu),
+        method, provenance ; None sans profil."""
+        profile = self._profile(item)
+        return {k: profile[k] for k in ("id", "label", "first", "end", "method", "provenance")} if profile else None
 
     # Part du dévers de la route prise en roulis du véhicule (le tangage suit la pente entière) : comme ROLL_SHARE de src/dessus.js, qui la
-    # lit dans la pose Bird Eye (roll_share). Le défaut CD21 2025 (ROLL_DEFECTS, +1°) a été estimé avec 70 % du dévers.
+    # lit dans la pose Bird Eye (roll_share). Le défaut CD21 2025 (profil de campagne, +1°) a été estimé avec 70 % du dévers.
     ROLL_SHARE = 0.7
 
     def _cross_slope(self, pic):
@@ -434,20 +424,19 @@ class Pose:
         return defect, 0.0 - math.degrees(math.atan(self.ROLL_SHARE * math.tan(math.radians(cross)))), ""
 
     def _roll_default(self, item, pic):
-        """Roulis du véhicule par défaut (degrés, positif : penché à droite) = défaut de campagne (ROLL_DEFECTS) + part du dévers du LiDAR
+        """Roulis du véhicule par défaut (degrés, positif : penché à droite) = défaut du profil de campagne + part du dévers du LiDAR
         HD (_roll_parts) ; rang 6 de Calibration.tilt (_campaign_tilt)."""
         defect, share, _ = self._roll_parts(item, pic)
         return defect + (share or 0.0)
 
     def _roll_label(self, item, pic=None):
         """Nom du roulis par défaut de la photo : « roulis par défaut (70 % du dévers + campagne 2025) » ; sans défaut de campagne, « roulis
-        par défaut (70 % du dévers) » ; sans dévers, « roulis par défaut de la campagne 2025 seul » (année de l'entrée de ROLL_DEFECTS
+        par défaut (70 % du dévers) » ; sans dévers, « roulis par défaut de la campagne 2025 seul » (année de début du profil de campagne
         qui s'applique ; sans entrée, « roulis par défaut de la campagne seul »)."""
         item = item or {}
         pic = pic or item.get("id")
-        date = str((item.get("properties") or {}).get("datetime") or "")[:10]
-        producers = {p.get("id") for p in item.get("providers") or []}
-        year = next((first[:4] for who, first, end, roll in self.ROLL_DEFECTS if who in producers and first <= date < end), "")
+        profile = self._profile(item)
+        year = profile["first"][:4] if profile else ""
         share = self._roll_parts(item, pic)[1]
         part = f"{round(self.ROLL_SHARE * 100)} % du dévers"
         if share is None:
@@ -458,8 +447,6 @@ class Pose:
         """Raison, entre parenthèses, de l'absence du dévers dans le roulis par défaut (voir _cross_slope), ou « »."""
         _, share, why = self._roll_parts(item, (item or {}).get("id"))
         return f" (dévers écarté : {why})" if share is None and why else ""
-
-    ROLL_DEFECT_SIGMA = 1.0  # degrés : dispersion du roulis d'une photo à l'autre dans une campagne (docs/BIRDEYE.md : ±1°)
 
     # Sources d'inclinaison de l'hôte, rangées par Calibration.tilt (ordre unique des mesures et de la largeur dans la visionneuse)
     def _item_of(self, pic):
@@ -516,13 +503,14 @@ class Pose:
         source « roulis de campagne » (famille « constante » : ni témoin du LiDAR, ni témoin contre lui)."""
         item = self._item_of(pic)
         defect, share, _ = self._roll_parts(item, pic)
+        profile = self._profile(item)
         if not defect and share is None:
             return None
         roll = defect + (share or 0.0)
         axis = self._axis(item)
         axis = self._heading_of(item) if axis is None else axis
         return calibration.tilt_entry(calibration.up_from_components(0.0, roulis_vehicule_depuis_camera(roll), axis or 0.0),
-                                      max(calibration.UNCALIBRATED, self.ROLL_DEFECT_SIGMA), "roulis de campagne", fallback=True)
+                                      max(calibration.UNCALIBRATED, profile["roll_sigma"] if profile else web_profils.ROLL_SIGMA_DEFAULT), "roulis de campagne", fallback=True)
 
     def _set_loose(self, pic, loose):
         """Verticales à seuil élargi de la photo arrivées : mesures et visées qui en dépendent recalculées (rang 5)."""
