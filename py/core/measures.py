@@ -51,6 +51,9 @@ CAMERA_SOURCES = {None: 0, "calée": 1, "altitude GPS": 2}  # champ camera_calee
 # (écart-type sur la séquence de Pouilly : 2 cm, plus le LiDAR), sinon valeur saisie (1,7 à 2,2 m
 # selon le véhicule) ; une hauteur calée a sa propre incertitude
 CAMERA_ERRORS = {"altitude GPS": 0.05, None: 0.15}
+# Provenance de la hauteur de caméra dans le texte d'une mesure (« caméra à X m (…) »)
+CAMERA_TEXTS = {None: "réglage", "calée": "calée", "monture": "monture du véhicule d'après la date",
+                "altitude GPS": "écart RTK − sol LiDAR"}
 SELECT_ANGLE = 1.0  # écart maximal (degrés) entre un clic et le repère d'un point pour le sélectionner (session)
 ERRORS = (geometry.GeometryError, ground.GroundError)
 KIND_NAMES = {"height": "hauteur"}
@@ -330,10 +333,7 @@ class Measure:
     def _camera_sigma(self, pic):
         """Incertitude (m) de la hauteur de caméra de la photo, selon sa source."""
         c = next(x for x in self.clicks if x.get("pic") == pic)
-        _, source = self.tool.camera_info(c)
-        if source == "calée":
-            return self.tool.calibration.camera(c.get("sequence"))["sigma"]
-        return CAMERA_ERRORS.get(source, CAMERA_ERRORS[None])
+        return self.tool.camera_full(c)[2]
 
     @staticmethod
     def _tilted_clicks(clicks, pic, north, east):
@@ -473,7 +473,7 @@ class Measure:
             return text + ". Profondeur du point triangulé : terrain et hauteur de caméra sans effet."
         height, source = self.tool.camera_info(self.clicks[0])
         text += ". Terrain : {}, caméra à {} m{}.".format(ground.FLAT, _num(height, 2),
-                                                        " ({})".format(source or "réglage"))
+                                                        " ({})".format(CAMERA_TEXTS.get(source, source)))
         if self.notice:
             text += " ({}.)".format(self.notice)
         return text + " Point mal placé : glissez-le sur la carte."
@@ -487,6 +487,7 @@ class MeasureTool:
         self.mode = "height"  # "height"
         self.camera_height = DEFAULT_CAMERA_HEIGHT  # hauteur saisie dans le panneau
         self.calibration = None  # calibration.Calibration : hauteur calée par séquence
+        self.camera_host = None  # crochet de l'hôte : clic -> (hauteur, source, incertitude) de sa photo, ou None (voir camera_full)
         self.error = None
         self.current = None
         self.done = []  # mesures terminées, gardées à l'écran jusqu'à clear_all
@@ -508,17 +509,26 @@ class MeasureTool:
         if self.current is not None:
             self.current.compute()
 
-    def camera_info(self, click):
-        """(hauteur de caméra du clic, source) ; source "calée" ou None : hauteur calée pour la séquence,
-        sinon le réglage du panneau. Les mesures n'en dépendent pas (point triangulé, direction des clics) ;
-        la hauteur mesurée (altitude RTK moins sol LiDAR) et la monture du CD21 sont prises par la page
-        (Session.camera_of) pour le tablier d'un pont, les objets au sol et l'export."""
+    def camera_full(self, click):
+        """(hauteur de caméra du clic, source, incertitude en m) : celle de la photo du clic, la même que pour les repères, le
+        profil et l'export. L'hôte (Session.camera_of, par camera_host(click)) donne, dans l'ordre, calée, monture du profil
+        de campagne, écart RTK − sol (« altitude GPS »), réglage ; sans hôte (cœur seul) : calée sinon réglage du panneau
+        (source None). Source : "calée", "monture", "altitude GPS" ou None (réglage)."""
+        found = self.camera_host(click) if self.camera_host else None
+        if found:
+            return found
         sequence = click.get("sequence")
         cam = self.calibration.camera(sequence) if self.calibration and sequence else None
-        return (cam["height"], "calée") if cam else (self.camera_height, None)
+        if cam:
+            return cam["height"], "calée", cam["sigma"]
+        return self.camera_height, None, CAMERA_ERRORS[None]
+
+    def camera_info(self, click):
+        """(hauteur de caméra du clic, source) : voir camera_full."""
+        return self.camera_full(click)[:2]
 
     def camera_for(self, click):
-        return self.camera_info(click)[0]
+        return self.camera_full(click)[0]
 
     # Clics --------------------------------------------------------------------
 

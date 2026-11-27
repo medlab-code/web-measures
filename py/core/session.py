@@ -73,6 +73,7 @@ class Session:
             self.tilts.roads = self.roads  # LiDAR sous l'emprise d'un pont voisin écarté (autotilt.TiltChecker)
         self.tool = tool if tool is not None else measures.MeasureTool(None)
         self.tool.calibration = self.calibration
+        self.tool.camera_host = self._click_camera  # hauteur de caméra de la photo de chaque clic (camera_of)
         self.triangulator = triangulator if triangulator is not None else tools.Triangulator()
         self.triangulator.AIM = "Cliquez sur l'objet dans la photo"
         self.triangulator.AIM_AGAIN = "cliquez sur le même objet"
@@ -521,9 +522,10 @@ class Session:
         - le réglage « Hauteur de caméra » (source None).
         L'écart RTK − sol passe après le profil et la calée : étude du 27/11/2026, il saute aussi à la rupture de monture du
         24/06/2025 (1,93 → 2,11 m) et surestime d'environ 5 cm la hauteur après elle, avec 10 cm de dispersion.
-        Les mesures (hauteur, points triangulés) n'en dépendent pas : elle sert aux repères et objets posés
-        au sol, au relevé sur une seule photo, au tablier d'un pont et à l'export. MeasureTool.camera_info, côté
-        mesures, ne connaît que les deux dernières sources (calée, réglage)."""
+        Elle sert à toutes les mesures qui dépendent de la hauteur de caméra (hauteur, distance au sol : MeasureTool.camera_full, par
+        le crochet Session._click_camera, pour la photo de chaque clic), aux repères et objets posés au sol, au relevé sur une seule
+        photo, au tablier d'un pont, au profil en long et à l'export. Les points triangulés n'en dépendent pas. Le réglage n'est lu
+        qu'en dernier rang (source None) ; le champ n'est actif que dans ce cas."""
         cam = self.calibration.camera((item or {}).get("collection"))
         if cam:
             return cam["height"], "calée", cam["sigma"]
@@ -541,6 +543,13 @@ class Session:
         """Monture connue du véhicule de la photo : (hauteur en m, incertitude en m), ou None (la page la connaît
         pour le CD21 : web_app.App._mount_height)."""
         return None
+
+    def _click_camera(self, click):
+        """Hauteur de caméra de la photo d'un clic (camera_of), pour MeasureTool.camera_full ; None si la photo n'est plus connue
+        (le clic garde alors la calée ou le réglage)."""
+        pic = (click or {}).get("pic")
+        item = self.photo_items.get(pic) or (self.item if self.item and self.item.get("id") == pic else None)
+        return self.camera_of(item, self.precision.known(item)) if item else None
 
     def _camera_height(self, mount=True):
         """Hauteur de caméra de la photo affichée (camera_of)."""

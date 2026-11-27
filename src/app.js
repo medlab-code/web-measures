@@ -56,6 +56,7 @@ import { Visionneuse } from "./visionneuse.js";
   // État modifiable partagé entre les parties de la page (et lu par Fiche, Parcours) : etat.photo, etc.
   const etat = {
     lastLights: [],  // voyants affichés (redessinés quand un service se tait ou répond)
+    cameraUsed: null,  // hauteur de caméra retenue pour la photo affichée ({ height, source, text }, state.camera_used) : profil en long
     tiltReason: null,  // pourquoi l'inclinaison automatique manque (state.tilt_reason, ticket #29)
     app: null,  // web_app.App, une fois Pyodide chargé
     photo: null,  // fiche STAC de la photo affichée
@@ -703,7 +704,7 @@ import { Visionneuse } from "./visionneuse.js";
     const saved = store.get("calage");
     if (saved && !etat.app.load_calibration(saved)) console.warn("Calage enregistré illisible : ignoré.");
     etat.savedCalibration = etat.app.calibration_version;
-    for (const id of ["#mesure", "#mode", "#camera", "#calage-importer"]) $(id).disabled = false;
+    for (const id of ["#mesure", "#mode", "#calage-importer"]) $(id).disabled = false;
     showCalibrationExport();
     $("#camera").value = store.get("camera", $("#camera").value);
     etat.app.set_camera_height(Number($("#camera").value));
@@ -879,14 +880,19 @@ import { Visionneuse } from "./visionneuse.js";
     const computed = $("#fiche .precision-calculee");
     if (computed) computed.textContent = state.computed || "en cours…";
     showPosition(state.quality, state.calibration);
-    // Réglage « Hauteur de caméra » : jamais grisé (le profil en long et les mesures sans hauteur calée le lisent quelle que soit la
-    // photo, #59) ; son infobulle dit la hauteur retenue pour la photo affichée et d'où elle vient (App._camera_used)
+    // Réglage « Hauteur de caméra » (#59) : une seule hauteur par photo (App._camera_used : calée, monture, écart RTK − sol, réglage en
+    // dernier rang), prise par toutes les mesures et le profil en long. Le champ n'est actif que si elle vient du réglage (source null),
+    // ou sans photo ; grisé sinon. Sa valeur et son infobulle disent la hauteur retenue ; un seul calcul décide, à chaque rafraîchissement
+    etat.cameraUsed = state.camera_used ?? null;
+    const cameraFixed = Boolean(state.camera_used) && state.camera_used.source !== null;
+    $("#camera").disabled = cameraFixed;
     $("#camera").title = state.camera_used?.text ?? "";
     const gps = $("#camera-gps");
     gps.hidden = !state.camera;
     if (state.camera) {
       gps.textContent = `Écart RTK − sol LiDAR : ${String(state.camera[0]).replace(".", ",")} m (borne) : le prendre comme hauteur de caméra`;
-      gps.title = state.camera[1];
+      gps.disabled = cameraFixed;  // même règle que le champ : sans effet quand la photo a une autre hauteur (calée, monture, écart RTK − sol)
+      gps.title = cameraFixed ? `Sans effet : cette photo a déjà sa hauteur de caméra (voir l'infobulle du réglage). ${state.camera[1]}` : state.camera[1];
       gps.dataset.value = state.camera[0];
     }
     etat.tiltReason = state.tilt_reason;

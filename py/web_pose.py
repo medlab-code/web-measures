@@ -375,16 +375,19 @@ class Pose:
 
     def _camera_used(self, item):
         """Hauteur de caméra retenue pour la photo (camera_of) à donner à la page : { height, source, text }. Le texte est l'infobulle du
-        réglage « Hauteur de caméra » (#59) : d'où vient la hauteur, et à quoi sert encore le réglage (mesures de la séquence
-        sans hauteur calée : MeasureTool.camera_for, profil en long, chute sur un pont sans hauteur connue), d'où son champ jamais grisé."""
+        réglage « Hauteur de caméra » (#59) : d'où vient la hauteur. Le champ n'est actif que si la source est le réglage (None) : tout
+        le reste de l'application (mesures de la séquence, profil en long, repères, export) prend cette même hauteur, le réglage
+        seulement en dernier rang (et pour la chute sur un pont sans hauteur connue, « Calculer avec le réglage »)."""
         height, source, _ = self.camera_of(item, self.quality)
         profile = self._profile(item) if source == "monture" else None
         origin = {"monture": "profil {}".format(profile["label"]) if profile else "monture", "calée": "calée pour la séquence",
                   "altitude GPS": "écart RTK − sol LiDAR, une borne", None: "réglage"}[source]
         return {"height": round(height, 3), "source": source,
-                "text": ("Hauteur utilisée pour cette photo : {} m ({}). Le réglage sert aux mesures d'une séquence sans hauteur calée, "
-                         "au profil en long et à la chute sur un pont sans hauteur connue.").format(
-                    measures._num(height, 2), origin)}
+                "text": "Hauteur utilisée pour cette photo : {} m ({}). {}".format(
+                    measures._num(height, 2), origin,
+                    "Ce réglage sert pour elle : modifiez-le si la hauteur est connue." if source is None
+                    else "Ce réglage ne sert pas pour cette photo (grisé) : il ne sert que pour une photo sans hauteur calée, "
+                         "de monture connue ni d'écart RTK − sol.")}
 
     def _profile(self, item):
         """Profil de campagne de la photo à sa date de prise de vue (web_profils.profile_of), ou None."""

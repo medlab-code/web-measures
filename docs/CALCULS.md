@@ -261,7 +261,7 @@ Chaque objet est placé d'une de ces trois façons :
   supposé plat à la hauteur de caméra sous la photo (calée, sinon monture du CD21 d'après la date, sinon
   altitude RTK moins sol LiDAR, sinon le réglage : `Session.camera_of`, ordre unique depuis le 27/11/2026, #59 : l'écart RTK − sol n'est qu'une
   borne, il saute aussi à la rupture de monture du 24/06/2025, 1,93 → 2,11 m, et surestime d'environ 5 cm la hauteur après elle, avec
-  10 cm de dispersion ; l'incertitude de la visée suit la source : `camera_of`). La visée doit descendre d'au moins 2° sous
+  10 cm de dispersion ; l'incertitude de la visée suit la source : `camera_of`). Les mesures qui dépendent de la hauteur de caméra (`MeasureTool.camera_full`, par le crochet `Session._click_camera`) et le profil en long (`etat.cameraUsed`) prennent la même hauteur, pour la photo de chacun de leurs clics ; le réglage n'est lu qu'en dernier rang (source `None`, champ actif), sinon grisé. La visée doit descendre d'au moins 2° sous
   l'horizon, soit 70 m au plus pour une caméra à 2,5 m. L'incertitude vient surtout de
   l'inclinaison : ±0,2 à 0,8 m pour un objet à 6 m selon son calage ;
 - **sur la carte** (« Placer sur la carte ») : le clic sur la mini-carte, à ±1 m (précision des

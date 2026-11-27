@@ -566,7 +566,7 @@ const Profil = (() => {
   // fine : analyse fine (Nuage.analyse) : séparateur et bords de chaussée tirés du nuage LiDAR, lignes blanches
   // (bords et largeur d'enrobé vides si l'option « Bord d'enrobé » est décochée : voir drawProfile de src/reglages.js)
   // plants : végétation de l'analyse fine (ligne verte, herbe) dessinée et légendée
-  // camera : hauteur de la caméra au-dessus du sol (réglage « Hauteur de caméra »), pour le profil en long
+  // camera : hauteur de la caméra au-dessus du sol (celle retenue pour la photo, App._camera_used ; réglage « Hauteur de caméra » en dernier rang), pour le profil en long
   function draw(profile, trueScale = false, fine = null, plants = true, camera = 1.9, imposed = null) {
     const all = crossings(profile, imposed?.x);
     const main = all.get(0) || [...all.values()][0];

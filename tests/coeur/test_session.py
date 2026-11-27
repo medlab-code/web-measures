@@ -738,3 +738,21 @@ class CameraOf(Base):
         s.calibration.camera = lambda seq: None
         self.assertEqual(s.camera_of(item, measured), (2.07, "monture", 0.04))  # monture : avant l'écart RTK − sol (borne, #59)
         self.assertEqual(s.camera_of(item, measured, mount=False)[:2], (2.4, "altitude GPS"))  # sans monture : l'écart RTK − sol
+
+    def test_clic_de_sa_photo(self):
+        """Les mesures dépendantes de H prennent la hauteur de la photo de chaque clic (monture, écart RTK − sol, calée), pas le
+        réglage seul (#59, étape 2) : p1 de monture 2,07 m, p2 sans monture ; texte, source et incertitude suivent."""
+        s = self.s
+        s._mount_height = lambda it: (2.07, 0.04) if it["id"] == "p1" else None
+        s.set_picture(self.p1)
+        s.set_picture(self.p2)  # p1 reste connue (photo_items) : son clic garde sa hauteur
+        c1 = {"pic": "p1", "sequence": "s1"}
+        c2 = {"pic": "p2", "sequence": "s1"}
+        self.assertEqual(s.tool.camera_full(c1), (2.07, "monture", 0.04))
+        self.assertEqual(s.tool.camera_for(c1), 2.07)  # ancien code : le réglage, 1,90
+        self.assertEqual(s.tool.camera_full(c2), (CAMERA, None, 0.15))
+        s.calibration.camera = lambda seq: {"height": 1.95, "sigma": 0.1}
+        self.assertEqual(s.tool.camera_full(c1), (1.95, "calée", 0.1))
+        s.calibration.camera = lambda seq: None
+        s.tool.camera_host = None  # cœur seul : réglage
+        self.assertEqual(s.tool.camera_full(c1), (CAMERA, None, 0.15))

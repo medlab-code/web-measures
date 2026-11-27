@@ -131,7 +131,7 @@ const Reglages = {
       const key = nuageKey(etat.edgeProfile.profile), kept = still && frameKept?.key === key ? frameKept : null;
       const imposed = kept ? { x: kept.cadre.x, z: kept.trueScale === trueScale.checked ? kept.cadre.z : null } : null;
       const { svg, legend, long, cadre, exageration } = Profil.draw(etat.edgeProfile.profile, trueScale.checked, fine,
-        plants.checked, Number($("#camera").value) || 1.9, imposed);  // hauteur de caméra des réglages
+        plants.checked, etat.cameraUsed?.height || Number($("#camera").value) || 1.9, imposed);  // hauteur retenue pour la photo, le réglage en dernier recours
       frameKept = { key, cadre, trueScale: trueScale.checked };
       Carte.showTravers(map, Profil.mapTrace(etat.edgeProfile.profile, cadre.x));  // travers et bords sur la carte (G5)
       trueScale.disabled = exageration <= 1;  // l'exagération vaudrait ×1 : la case n'aurait aucun effet
