@@ -2354,10 +2354,15 @@ const Dessus = (() => {
       up: groundUp(levelOf(terrain), layer.at, main.heading, rollShareOf(main), pitchFor(main.pic), (main.roll_defect || 0) + rollOffset),
       sigma: Math.hypot(GROUND_SIGMA, LEAN * (shown.lateral || 0)),
     } : null;
+    // Tangage lu sur les raccords de la photo (learnPitch : voisines devant et derrière recalées), tel que la vue l'applique : annoncé pour
+    // que les mesures le prennent aussi (rang 3 bis de Calibration.tilt, py/web_pose.py _seam_tilt) ; absent si réglé à la main, sans voisines
+    // ou sans lecture. Relatif à la route : la pente LiDAR HD s'y ajoute, comme dans groundUp.
+    const read = withNeighbours() && !pitchManual && terrain ? photoPitch(shown.sequence, main.pic) : undefined;
     const tilt = {
       up: main.groundTilt ? main.up : null, sigma: main.sigma, manual: Boolean(main.groundTilt) && (pitchManual || rollOffset !== DEFAULT_ROLL),
       height: main.height, height_sigma: main.height_sigma, ground, route,
       route_manual: pitchManual || rollOffset !== DEFAULT_ROLL,
+      pitch_read: read === undefined ? null : Math.round(read * 20) / 20,
     };
     const text = JSON.stringify(tilt);
     if (tiltAnnounced.get(main.pic) === text) return;

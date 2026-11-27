@@ -42,7 +42,8 @@ class Nez:
         sigma (degrés), manual (tangage ou part du dévers réglés à la main), height (m, hauteur de la caméra au-dessus du sol :
         monture, parallaxe ou altitude GPS, comme src/dessus.js layerOf) et height_sigma, ground (terrain lissé de la vue :
         {lon, lat du centre, n points de côté, step en m, z en m depuis le centre (lignes du sud au nord), ref : sol sous la
-        caméra} ou None sans LiDAR HD)}, ou « null » quand la vue du dessus n'a plus rien pour elle. Rend vrai si la valeur retenue a changé
+        caméra} ou None sans LiDAR HD), pitch_read (degrés : tangage lu sur les raccords de la photo, relatif à la route, ou absent ; voir
+        _set_pitch_read)}, ou « null » quand la vue du dessus n'a plus rien pour elle. Rend vrai si la valeur retenue a changé
         (la droite est alors refaite, src/nez.js, et les mesures déjà faites sur la photo recalculées, comme à l'arrivée de
         l'inclinaison automatique : _recompute). Gardée par photo (les 20 dernières) : une autre photo ne la reçoit pas."""
         tilt = json.loads(tilt_json)
@@ -56,6 +57,7 @@ class Nez:
                 if len(ground["z"]) != ground["n"] ** 2 or ground["n"] < 2:
                     ground = None
             height = tilt.get("height")
+            tilt_pitch = tilt.get("pitch_read")  # tangage lu sur les raccords de la photo (rang 3 bis de Calibration.tilt), ou absent
             route = tilt.get("route")  # route annoncée même quand les verticales priment : témoin de la confiance (tilt_sources)
             route = ({"up": [round(float(v), 6) for v in route["up"]], "sigma": round(float(route.get("sigma") or 0.0), 2),
                       "manual": bool(tilt.get("route_manual"))} if route and route.get("up") else None)
@@ -63,8 +65,9 @@ class Nez:
                     "sigma": round(float(tilt.get("sigma") or 0.0), 2), "manual": bool(tilt.get("manual")),
                     "height": round(float(height), 3) if height else None,
                     "height_sigma": round(float(tilt.get("height_sigma") or 0.0), 3), "ground": ground}
+            changed = self._set_pitch_read(pic, tilt_pitch)
             old = self.birdeye_ground.get(pic)
-            changed = {k: v for k, v in (old or {}).items() if k != "route"} != tilt
+            changed = changed or {k: v for k, v in (old or {}).items() if k != "route"} != tilt
             if changed or (old or {}).get("route") != route:
                 self.birdeye_ground.pop(pic, None)
                 self.birdeye_ground[pic] = dict(tilt, route=route)
@@ -77,6 +80,22 @@ class Nez:
             self._recompute({pic})
             self.notify()
         return changed
+
+    def _set_pitch_read(self, pic, read):
+        """Tangage lu sur les raccords de la photo (degrés, relatif à la route : src/dessus.js, photoPitch ; read None ou absent : plus de
+        lecture, par exemple tangage réglé à la main) gardé pour Calibration.tilt (_seam_tilt, rang 3 bis) ; les 60 dernières photos. La
+        lecture ne s'efface pas quand la vue du dessus n'a plus rien pour la photo (annonce nulle) : elle reste celle de la séquence lue.
+        Vrai si la valeur a changé (mesures recalculées par birdeye_tilt_set, comme pour les autres sources)."""
+        read = None if read is None else round(float(read), 2)
+        if self.birdeye_pitch.get(pic) == read:
+            return False
+        if read is None:
+            self.birdeye_pitch.pop(pic, None)
+        else:
+            self.birdeye_pitch[pic] = read
+            while len(self.birdeye_pitch) > 60:
+                del self.birdeye_pitch[next(iter(self.birdeye_pitch))]
+        return True
 
     def _birdeye_ground_dz(self, pic, lon, lat, axis, along, d):
         """Écarts de sol [(décalage x en m, dz)] sous la droite d'après le terrain lissé de la vue du dessus (birdeye_tilt_set), ou

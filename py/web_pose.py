@@ -26,6 +26,11 @@ def _inside(point, ring):
     return inside
 
 
+def _signed(value, digits=1):
+    """Nombre signé en français : « +0,7 », « -1,0 »."""
+    return ("+" if value > 0 else "") + measures._num(value, digits)
+
+
 def roulis_vehicule_depuis_camera(roll):
     """Roulis (degrés) changé de convention, à la frontière entre le cœur et le reste de l'application (seul endroit).
     Cœur (core/calibration.py : tilt_components, up_from_components, d_roll, repris du plugin QGIS) : positif = la verticale vraie
@@ -118,6 +123,10 @@ class Pose:
                 how = "à la main ({} objet{}, {})".format(tilt["count"], "s" if tilt["count"] > 1 else "", sigma)
             elif source == "clics + roulis de campagne":
                 how = f"à la main, avec le {self._roll_label(self.item)} ({sigma})"
+            elif source in ("clics + " + self.ROUTE_SOURCE, "clics + " + self.SEAM_SOURCE):
+                how = f"à la main, avec {source[8:]} ({sigma})"
+            elif source == self.SEAM_SOURCE:
+                how = f"par le tangage lu sur les raccords de la vue du dessus ({sigma})"
             elif source.startswith("clics + "):
                 how = "à la main et par {} ({})".format(
                     "les verticales de la photo" if source.endswith("verticales") else "le terrain", sigma)
@@ -134,6 +143,9 @@ class Pose:
             return "inclinaison : calcul par le terrain en cours ({})…".format(self.relay_pending[pic]), False
         if fallback and not self._tilt_final():  # verticales pas encore cherchées : pas « non calée »
             return "inclinaison " + self._tilt_reason() + " ; " + self._roll_label(self.item) + self._pitch_known(self.item) + " en attendant", False
+        if fallback and fallback["source"] == self.ROUTE_SOURCE:  # calcul fait sans résultat : la route (LiDAR HD) et le profil
+            return (f"inclinaison non calée : {self.ROUTE_SOURCE}, tangage {_signed(fallback['pitch'], 1)}°, "
+                    f"roulis {_signed(fallback['roll'], 1)}° (±{measures._num(fallback['sigma'], 1)}°)"), True
         if fallback:  # calcul fait sans résultat : le roulis par défaut de la campagne seul, tangage inconnu
             return f"inclinaison non calée : {self._roll_label(self.item)}{self._roll_why(self.item)}, {self._pitch_label(self.item)} (±{measures._num(fallback['sigma'], 1)}°)", True
         reason = self._tilt_reason()
@@ -533,17 +545,68 @@ class Pose:
         loose = self.birdeye_loose.get(pic)
         return calibration.tilt_entry(loose["up"], loose["sigma"], "verticales (seuil élargi)") if loose else None
 
-    def _campaign_tilt(self, pic):
-        """Rang 6 : roulis par défaut (_roll_default : défaut de campagne + part du dévers du LiDAR HD ; None s'il vaut 0 sans dévers
-        disponible, sauf tangage de campagne), tangage de la campagne (_pitch_default, 0 sans profil ; la pente de la route n'y est pas
-        lue : incertitude UNCALIBRATED, au moins celle du roulis), le véhicule penché de ce roulis (positif : à
-        droite) par rapport au cap de l'axe de la séquence (ou de la photo) ; le cœur le reçoit dans sa convention
-        (roulis_vehicule_depuis_camera). Même effet que groundUp de src/dessus.js. Repérée par « fallback » : pas une inclinaison calée ;
-        source « roulis de campagne » (famille « constante » : ni témoin du LiDAR, ni témoin contre lui)."""
+    # Route du rang 6 et tangage lu sur les raccords (rang 3 bis) : inclinaison tirée de la route comme la vue du dessus (src/dessus.js, groundUp).
+    # Incertitudes PROVISOIRES, d'après les mires du 27/11/2026 (flèches de rabattement : tangage de la route seule avec celui du profil à
+    # 0,3 à 0,4° près ; passages piétons : roulis à ±1° près) ; à caler sur d'autres mires. L'incertitude d'une inclinaison est un seul nombre
+    # (Calibration.tilt) : celui de l'axe le moins sûr, le roulis, sert aux deux ; chaque valeur est aussi rendue seule (sigma_pitch, sigma_roll).
+    ROUTE_PITCH_SIGMA = 0.5  # degrés : tangage de la route (pente LiDAR HD sous la caméra) plus tangage du profil de campagne
+    ROUTE_ROLL_SIGMA = 1.0  # degrés : roulis de la route (70 % du dévers) plus défaut de roulis du profil
+    RACCORD_PITCH_SIGMA = 0.2  # degrés : tangage lu sur les raccords, relatif à la route (flèches de rabattement : juste à 0,1 à 0,2° près)
+    ROUTE_SOURCE = "route (LiDAR HD) + profil"
+    SEAM_SOURCE = "tangage lu sur les raccords"
+
+    def _route_ground(self, pic):
+        """(pente en long, dévers) du LiDAR HD sous la photo en degrés, et « » ; ou (None, None, raison) quand la route n'est pas lisible :
+        les conditions de la vue du dessus. Sol LiDAR HD (_cross_slope : ni pont marqué, ni RGE ALTI, ni source inconnue), pas de pont à
+        roads.BRIDGE_FLAT_RADIUS m ou moins (_flat_ground : le relief y donne le fond de la vallée), relief devant la caméra non douteux
+        (core/relief.py, diagnostic #67 lu avec l'entrée de la photo ; une entrée gardée sans lui n'en a pas : rien n'est supposé)."""
+        cross, why = self._cross_slope(pic)
+        if cross is None:
+            return None, None, why
+        entry = self.calibration.auto[pic]
+        diagnosis = entry.get("relief")
+        if not diagnosis:
+            return None, None, "relief non diagnostiqué"
+        if diagnosis["reasons"]:
+            return None, None, "relief douteux : " + ", ".join(diagnosis["reasons"])
         item = self._item_of(pic)
+        try:
+            lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
+        except (KeyError, TypeError, ValueError):
+            return None, None, "position inconnue"
+        if self._flat_ground({"lon": lon, "lat": lat}) is not False:
+            return None, None, "pont proche"
+        return float(entry["lidar"][0]), cross, ""
+
+    def _route_up(self, pic, item, pitch, slope, sigma_pitch, source):
+        """Inclinaison tirée de la route (tilt_entry, repérée « fallback ») : tangage = pente LiDAR HD + `pitch` (tangentes ajoutées, comme
+        groundUp de src/dessus.js), roulis = défaut du profil + part du dévers (_roll_default)."""
+        roll = self._roll_default(item, pic)
+        axis = self._axis(item)
+        axis = self._heading_of(item) if axis is None else axis
+        forward = math.degrees(math.atan(math.tan(math.radians(slope)) + math.tan(math.radians(pitch))))
+        return calibration.tilt_entry(calibration.up_from_components(forward, roulis_vehicule_depuis_camera(roll), axis or 0.0),
+                                      max(sigma_pitch, self.ROUTE_ROLL_SIGMA), source, fallback=True, pitch=forward, roll=roll,
+                                      sigma_pitch=sigma_pitch, sigma_roll=self.ROUTE_ROLL_SIGMA)
+
+    def _campaign_tilt(self, pic):
+        """Rang 6 : route seule, repérée par « fallback » (pas une inclinaison calée), le véhicule penché par rapport au cap de l'axe de la
+        séquence (ou de la photo) ; le cœur la reçoit dans sa convention (roulis_vehicule_depuis_camera). Même effet que groundUp de
+        src/dessus.js. Deux cas :
+        - « route (LiDAR HD) + profil » (_route_ground : sol LiDAR HD, pas de pont proche, relief non douteux) : tangage = pente LiDAR
+          sous la caméra + tangage du profil (0 sans), roulis = défaut du profil + ROLL_SHARE × dévers, incertitude ROUTE_PITCH_SIGMA
+          et ROUTE_ROLL_SIGMA ; la même inclinaison que la vue du dessus par la route (à la précision de la pente près : plan de 3 × 5
+          points ici, 11 × 7 là-bas) ;
+        - sinon « roulis de campagne » : roulis par défaut (_roll_default : défaut de campagne + part du dévers du LiDAR HD ; None s'il vaut
+          0 sans dévers disponible, sauf tangage de campagne), tangage de la campagne (_pitch_default, 0 sans profil ; la pente de la route
+          n'y est pas lue : incertitude UNCALIBRATED, au moins celle du roulis)."""
+        item = self._item_of(pic)
+        slope, _, _ = self._route_ground(pic)
+        pitch, pitch_sigma = self._pitch_default(item)
+        if slope is not None:
+            return self._route_up(pic, item, pitch, slope, self.ROUTE_PITCH_SIGMA, self.ROUTE_SOURCE)
         defect, share, _ = self._roll_parts(item, pic)
         profile = self._profile(item)
-        pitch, pitch_sigma = self._pitch_default(item)
         if not defect and share is None and not pitch:
             return None
         roll = defect + (share or 0.0)
@@ -552,6 +615,20 @@ class Pose:
         return calibration.tilt_entry(calibration.up_from_components(pitch, roulis_vehicule_depuis_camera(roll), axis or 0.0),
                                       max(calibration.UNCALIBRATED, profile["roll_sigma"] if profile else web_profils.ROLL_SIGMA_DEFAULT, pitch_sigma or 0.0),
                                       "roulis de campagne", fallback=True)
+
+    def _seam_tilt(self, pic):
+        """Rang 3 bis : tangage lu par la vue du dessus sur les raccords de la photo (birdeye_pitch, annoncé par birdeye_tilt_set), relatif
+        à la route : pente LiDAR HD sous la caméra ajoutée (comme groundUp), sans le tangage du profil (la lecture est absolue). Roulis : celui
+        de la route (défaut du profil + part du dévers). Seulement si la route est lisible (_route_ground : mêmes conditions que le rang 6) ;
+        incertitude RACCORD_PITCH_SIGMA en tangage. None sans lecture."""
+        read = self.birdeye_pitch.get(pic)
+        if read is None:
+            return None
+        slope, _, _ = self._route_ground(pic)
+        if slope is None:
+            return None
+        tilt = self._route_up(pic, self._item_of(pic), read, slope, self.RACCORD_PITCH_SIGMA, self.SEAM_SOURCE)
+        return {k: v for k, v in tilt.items() if k not in ("fallback", "pitch", "roll")}
 
     def _set_loose(self, pic, loose):
         """Verticales à seuil élargi de la photo arrivées : mesures et visées qui en dépendent recalculées (rang 5)."""

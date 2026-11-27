@@ -57,9 +57,9 @@ visionneuse la lancent à l'affichage (`birdeye_request`).
 
 **Un seul ordre de priorité**, défini à un endroit, `Calibration.tilt` (`py/core/calibration.py`),
 pour les mesures (hauteur, relevé, visées) comme pour la largeur dans la visionneuse
-(§ 8.8). Les sources propres à la page (rangs 1, 5 et 6) sont fournies par `App`
-(`_ground_tilt`, `_loose_tilt`, `_campaign_tilt`, `py/web_pose.py`) et rangées par les crochets
-`ground_tilt`, `loose_tilt`, `campaign_tilt` de `Calibration` :
+(§ 8.8). Les sources propres à la page (rangs 1, 3 bis, 5 et 6) sont fournies par `App`
+(`_ground_tilt`, `_seam_tilt`, `_loose_tilt`, `_campaign_tilt`, `py/web_pose.py`) et rangées par les crochets
+`ground_tilt`, `seam_tilt`, `loose_tilt`, `campaign_tilt` de `Calibration` :
 
 1. **réglage de la vue du dessus pour cette photo** (`birdeye_ground`, `App.birdeye_tilt_set` :
    tangage et roulis réglés ou calés sur la route dans la vue du dessus ; elle ne l'annonce que
@@ -82,6 +82,20 @@ pour les mesures (hauteur, relevé, visées) comme pour la largeur dans la visio
    axe au-delà de 0,15° (« incertitude élevée sur le tangage / le roulis »). Seuils `FRAGILE_GAP`, `FRAGILE_EDGES`,
    `FRAGILE_SIGMA` : provisoires, à caler sur des photos de référence. Gardés avec les verticales de la photo (absents des
    anciennes entrées : affichage inchangé) et renvoyés aussi au seuil élargi ;
+3 bis. **tangage lu sur les raccords** (depuis le 27/11/2026 ; `_seam_tilt` de `py/web_pose.py`, source « tangage lu sur les raccords »). La vue du dessus lit le
+   tangage de la photo sur les raccords avec ses voisines (`learnPitch` de `src/dessus.js` : au moins deux raccords recalés, une voisine devant et une
+   derrière, lecture de 2° au plus ; la vue l'applique et l'affiche « lu sur les raccords de la photo ») et l'annonce avec le reste (champ `pitch_read` de
+   `App.birdeye_tilt_set`, gardé dans `birdeye_pitch` : 60 photos, il survit à une annonce nulle de la vue, pas au rechargement de la page ; absent si le
+   tangage est réglé à la main ou sans « Véhicule masqué »). Le tangage lu est **relatif à la route** : la pente du LiDAR HD sous la caméra s'y ajoute
+   (tangentes ajoutées, comme `groundUp`), sans le tangage du profil de campagne (la lecture est absolue). Roulis : celui de la route, défaut du profil + 70 %
+   du dévers (rang 6). Elle ne s'applique que si la route est lisible (mêmes conditions que le rang 6 « route », ci-dessous) : sinon la pente à lui ajouter est
+   inconnue. Incertitude : tangage `RACCORD_PITCH_SIGMA` = 0,2° (provisoire, mires du 27/11/2026 : tangage lu sur les raccords juste à 0,1 à 0,2° près), roulis
+   `ROUTE_ROLL_SIGMA` = 1,0° ; le cœur n'a qu'une incertitude par inclinaison : l'axe le moins sûr, le roulis, la donne (`sigma` = 1,0°) ; `sigma_pitch` et `sigma_roll`
+   sont rendus à côté. Elle passe devant le LiDAR (rang 4), les verticales à seuil élargi (5) et la route (6), jamais devant les clics ni les verticales de
+   la photo (rang 3, plus sûres), et n'entre pas dans `photo_only` (la vue du dessus ne relit pas ce qu'elle a produit). Un objet cliqué est complété par elle
+   (« clics + tangage lu sur les raccords »). Famille « mixte » pour la confiance (ni image ni terrain : jamais témoin). Les mesures déjà faites sur la photo
+   sont recalculées à l'arrivée ou au changement de la lecture, comme pour les autres sources (`birdeye_tilt_set` rend « changé », `_recompute`) : une mesure
+   n'a pas de valeur figée, elle suit l'inclinaison retenue de sa photo ;
 4. **LiDAR sous le véhicule** (pente et dévers du MNT LiDAR HD, plus le décalage de la fixation
    appris sur la séquence, § 6.1 bis de `docs/MESURES.md`) ; ou, option expérimentale quand les
    verticales manquent, **terrain hors agglomération** : pente et dévers du MNT LiDAR HD sous la
@@ -101,18 +115,33 @@ pour les mesures (hauteur, relevé, visées) comme pour la largeur dans la visio
    incertitude, et affichées (« seuil élargi ») : mieux que rien. Auparavant la largeur dans la
    visionneuse les préférait au LiDAR quand leur incertitude était plus faible ; elles passent
    maintenant après lui ;
-6. **roulis par défaut seul** (`_roll_default` de `py/web_pose.py`, source « roulis de campagne » en interne), en degrés, véhicule penché à droite
+6. **route seule**, deux cas.
+   **« route (LiDAR HD) + profil »** (depuis le 27/11/2026 ; `_route_ground`, `_campaign_tilt`, `_route_up` de `py/web_pose.py`) : la même inclinaison que la vue
+   du dessus par la route (`groundUp` de `src/dessus.js`). Tangage = pente du LiDAR HD le long du cap sous la caméra (`auto[pic]["lidar"][0]`, plan de 15 points,
+   `LIDAR_GRID`, la lecture déjà faite pour le dévers : aucune requête de plus pour elle) + tangage du profil (0 sans), tangentes ajoutées ; roulis = défaut du
+   profil + 70 % du dévers (`_roll_default`). Incertitude : tangage `ROUTE_PITCH_SIGMA` = 0,5°, roulis `ROUTE_ROLL_SIGMA` = 1,0° (provisoires ; mires du 27/11/2026 :
+   flèches de rabattement, route seule avec tangage du profil, écart résiduel de 0,3 à 0,4° ; passages piétons, roulis à ±1°) ; `sigma` = 1,0° (l'axe le moins sûr),
+   `sigma_pitch` et `sigma_roll` à côté. Conditions, toutes : sol **LiDAR HD** (ni RGE ALTI ni source inconnue), photo ni sur un pont ni à `BRIDGE_FLAT_RADIUS`
+   (15 m) d'un pont (`flat_ground`, BD TOPO ; ponts encore inconnus : non), relief **non douteux** : le diagnostic #67 de la vue du dessus, porté dans `py/core/relief.py`
+   (mêmes seuils, relus dans `src/dessus.js` par `tests/coeur/test_relief.py` : `RELIEF_MIN_VALID` 0,9, `RELIEF_MAX_RMS` 0,10 m, `RELIEF_MAX_SLOPE` 8 %, `RELIEF_MAX_BREAK` 2°), lu
+   par `TiltChecker` (une requête LiDAR HD de plus par photo analysée : 91 points, zone de 12 m devant × ±3 m, `autotilt.fetch_relief`) et gardé dans l'entrée `auto`
+   (« relief »). Écarts avec la vue du dessus : la part de points reçus est comptée sur la zone utile (pas sur la grille de ±15 m) et un plan illisible (moins de 6
+   points) compte comme douteux ; une entrée gardée par une version précédente n'a pas de diagnostic (relief non diagnostiqué : le cas ci-dessous). Source
+   « route (LiDAR HD) + profil », repérée « fallback » (pas une inclinaison calée : le voyant « Inclinaison » reste rouge ou jaune), famille « constante » (ni témoin
+   ni contre-témoin). Ligne d'état : « inclinaison non calée : route (LiDAR HD) + profil, tangage +3,2°, roulis -0,4° (±1,0°) ».
+   **Sinon** (conditions non remplies), le rang 6 d'avant :
+   **roulis par défaut seul** (`_roll_default` de `py/web_pose.py`, source « roulis de campagne » en interne), en degrés, véhicule penché à droite
    positif : **défaut de campagne** (champ `roll` du profil de campagne daté, `py/web_profils.py`, par exemple +1° pour le CD21 en 2025) **moins la part du dévers**, `−atan(ROLL_SHARE · tan(dévers))`
    avec `ROLL_SHARE` = 0,7 et le dévers du LiDAR HD sous la photo (`auto[pic]["lidar"][1]`, positif : droite plus haute ; route qui monte vers la
    droite : véhicule penché à gauche, roulis négatif, comme `groundUp`). Le dévers n'est pris que si le sol vient du LiDAR HD (`lidar_source`
    de l'entrée `auto`, pas RGE ALTI ni une entrée sans source) et que la photo n'est pas sur un pont ; sinon le défaut de campagne seul. S'applique aussi
-   en ville et hors campagne (défaut 0 : la part du dévers seule) ; rien (rang 7) si le roulis par défaut vaut 0 sans dévers. Ce sont les rangs 1 à 5 qui priment :
+   en ville et hors campagne (défaut 0 : la part du dévers seule) ; rien (rang 7) si le roulis par défaut vaut 0 sans dévers. Ce sont les rangs 1 à 5 (3 bis comprise) qui priment :
    jamais de double application du dévers (le LiDAR du rang 4 le contient déjà à 100 %, les verticales le mesurent). La verticale est vue penchée de ce roulis
    vers la gauche du cap (signe changé pour le cœur, voir la convention du roulis ci-dessus), le
    tangage est inconnu ; incertitude de tangage `UNCALIBRATED` (2°), au moins celle du roulis
    (champ `roll_sigma` du profil, ±1° d'une photo à l'autre ; `ROLL_SIGMA_DEFAULT` sans profil). **Tangage de la campagne** (depuis le 27/11/2026) : au lieu d'un tangage nul,
-   le rang 6 donne le tangage du profil (`pitch`, `pitch_sigma`, `_pitch_default` de `py/web_pose.py`, 0 sans profil ; degrés, positif : caméra relevée vers l'avant par
-   rapport à la route, comme la réglette de la vue du dessus) : CD21 monture basse (2025 et 2026) +0,7 ± 0,3°, monture haute +0,2 ± 0,3°. La pente de la route n'est pas lue à ce rang :
+   ce cas du rang 6 donne le tangage du profil (`pitch`, `pitch_sigma`, `_pitch_default` de `py/web_pose.py`, 0 sans profil ; degrés, positif : caméra relevée vers l'avant par
+   rapport à la route, comme la réglette de la vue du dessus) : CD21 monture basse (2025 et 2026) +0,7 ± 0,3°, monture haute +0,2 ± 0,3°. La pente de la route n'est pas lue dans ce cas :
    l'incertitude de tangage reste `UNCALIBRATED` (au moins `pitch_sigma`). Sans profil, rien ne change. Ce tangage n'est **jamais ajouté** à un tangage lu (rangs 1 à 5 :
    raccords, verticales, clics, LiDAR du rang 4, qui contient déjà le décalage de fixation appris sur la séquence, réglage à la main). Mire des flèches de rabattement thermocollées
    (27/11/2026, 17 photos de 8 flèches, cote IISR 6,00 m) : avec un tangage lu sur les raccords ou les verticales la flèche sort à 6,00 ± 0,1 m ; sans tangage lu (route seule),
@@ -563,9 +592,9 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   celle de la vue du dessus (route et virage, `LEAN`). Source « vue du dessus », ou « vue du dessus (réglée à la main) » si le tangage ou
   le roulis l'est. Quand la vue du dessus lit les verticales de la photo, elle n'annonce rien et la suite
   s'applique : calée à la main (« clics »), puis verticales calculées sur la photo HD, sinon pente et dévers du LiDAR, puis les verticales à seuil
-  élargi (`birdeye_loose`, incertitude jusqu'à 0,5°, `web_tilt.LOOSE_SIGMA`, « verticales (seuil élargi) »), enfin le **roulis par défaut de la campagne 2025** seul
+  élargi (`birdeye_loose`, incertitude jusqu'à 0,5°, `web_tilt.LOOSE_SIGMA`, « verticales (seuil élargi) »), enfin la **route seule** (rang 6 : « route (LiDAR HD) + profil » quand le sol est du LiDAR HD sans pont proche ni relief douteux, sinon le **roulis par défaut de la campagne 2025** seul
   (profil de campagne, champ `roll` : +1° pour le CD21 en 2025, véhicule penché à droite, plus 70 % du dévers du LiDAR HD hors pont, même effet que dans `groundUp` de
-  `src/dessus.js`, qui reçoit la part par `roll_share` de la pose ; source « roulis de campagne », tangage inconnu ou celui du profil de campagne, incertitude 2°), sinon rien (« aucune »). Le roulis par défaut n'est ajouté que seul (rang 6) : jamais aux
+  `src/dessus.js`, qui reçoit la part par `roll_share` de la pose ; source « roulis de campagne », tangage inconnu ou celui du profil de campagne, incertitude 2°)), sinon rien (« aucune »). Le tangage lu sur les raccords par la vue du dessus (rang 3 bis, `pitch_read`) précède le LiDAR. Le roulis par défaut n'est ajouté que seul (rang 6) : jamais aux
   verticales, au LiDAR ni au réglage de la vue du dessus, qui le contient déjà. La droite est projetée comme les mesures (`Session._view_of`).
   **Calage Bird Eye au déplacement d'une poignée** (`src/nez.js` : `needCalage`, `calibrated`, `reanchor` ; `Dessus.update(…, silent)` et
   `Dessus.onCalibrated` dans `src/dessus.js` ; `updateBirdeye` dans `src/resultats.js`). Le calcul de la droite en Python n'est pas

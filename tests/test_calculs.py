@@ -1553,6 +1553,106 @@ class Parcours(unittest.TestCase):
         self.assertAlmostEqual(self._roll_of(pic)[1], -2.0, places=6)  # inchangé : le dévers n'y est pas ajouté
         a.birdeye_loose.clear()
 
+    SLOPE_OK = {"valid": 1.0, "rms": 0.01, "slope": 3.0, "rupture": 0.2, "reasons": []}
+
+    def _route(self, pic, slope, cross, source="LiDAR HD", relief=SLOPE_OK):
+        """Entrée automatique de la photo : pente et dévers du LiDAR HD, diagnostic du relief (None : pas lu)."""
+        self.app.calibration.auto[pic] = {"sequence": "s1", "heading": 0.0, "verticals": None, "lidar": [slope, cross],
+                                          "lidar_source": source, "relief": relief}
+        self.app.calibration._tilts.clear()
+        self.app._flat_ground = lambda pose: False  # pas de pont à moins de BRIDGE_FLAT_RADIUS (BD TOPO non interrogée ici)
+
+    @staticmethod
+    def _ground_up(slope, cross, pitch=0.0, defect=0.0, share=0.7):
+        """Verticale vraie vue de la caméra, cap nord : groundUp de src/dessus.js (tangentes ajoutées), d'après la pente et le dévers (degrés)."""
+        ga = math.tan(math.radians(slope)) + math.tan(math.radians(pitch))
+        gs = -(math.tan(math.radians(defect)) - share * math.tan(math.radians(cross)))
+        n = math.sqrt(ga * ga + gs * gs + 1)
+        return [gs / n, ga / n, 1 / n]
+
+    def test_route_au_rang_6(self):
+        """Rang 6 « route (LiDAR HD) + profil » : pente LiDAR sous la caméra + tangage du profil, 70 % du dévers + défaut de roulis, incertitude
+        ROUTE_* ; même verticale que la vue du dessus par la route (groundUp). Conditions : sol LiDAR HD, ni pont ni pont proche, relief non
+        douteux ; sinon, le rang 6 d'avant (« roulis de campagne », UNCALIBRATED)."""
+        a, cal, pic = self.app, self.app.calibration, "p1"
+        self.show(pic, "2025-07-03T10:53:25Z", App.FLEET_PRODUCER)  # CD21 monture haute : défaut de roulis +1°, tangage +0,2°
+        self._route(pic, 3.0, 2.0)
+        t = cal.tilt(pic)
+        self.assertEqual((t["source"], t["fallback"], t["sigma"]), ("route (LiDAR HD) + profil", True, 1.0))
+        self.assertEqual((t["sigma_pitch"], t["sigma_roll"]), (App.ROUTE_PITCH_SIGMA, App.ROUTE_ROLL_SIGMA))
+        for got, want in zip(t["up"], self._ground_up(3.0, 2.0, pitch=0.2, defect=1.0)):
+            self.assertAlmostEqual(got, want, places=5)  # la vue du dessus par la route : la même verticale, à la précision des angles près
+        pitch, roll = calibration.tilt_components(t["up"], 0.0)
+        self.assertAlmostEqual(pitch, math.degrees(math.atan(math.tan(math.radians(3.0)) + math.tan(math.radians(0.2)))), places=6)
+        self.assertAlmostEqual(-roll, 1.0 + self._share(2.0), places=5)  # roulis du véhicule : défaut + part du dévers
+        text = a._tilt_line()
+        self.assertTrue(text[1])
+        self.assertIn("route (LiDAR HD) + profil", text[0])
+        self.assertIn("tangage +3,2°", text[0])
+        self.show(pic)  # sans profil : la pente seule, roulis de la part du dévers
+        self._route(pic, 3.0, 2.0)
+        t = cal.tilt(pic)
+        self.assertEqual(t["source"], "route (LiDAR HD) + profil")
+        for got, want in zip(t["up"], self._ground_up(3.0, 2.0)):
+            self.assertAlmostEqual(got, want, places=5)
+        # conditions non remplies : le rang 6 d'avant
+        self.show(pic, "2025-07-03T10:53:25Z", App.FLEET_PRODUCER)
+        old = ("roulis de campagne", calibration.UNCALIBRATED)
+        for name, setup in (
+                ("RGE ALTI", lambda: self._route(pic, 3.0, 2.0, source="RGE ALTI")),
+                ("source inconnue", lambda: self._route(pic, 3.0, 2.0, source=None)),
+                ("relief douteux", lambda: self._route(pic, 3.0, 2.0, relief=dict(self.SLOPE_OK, reasons=["pente forte (9 %)"]))),
+                ("relief non lu", lambda: self._route(pic, 3.0, 2.0, relief=None)),
+                ("pont proche", lambda: (self._route(pic, 3.0, 2.0), setattr(a, "_flat_ground", lambda pose: True))),
+                ("ponts inconnus", lambda: (self._route(pic, 3.0, 2.0), setattr(a, "_flat_ground", lambda pose: None)))):
+            setup()
+            cal._tilts.clear()
+            t = cal.tilt(pic)
+            self.assertEqual((name, t["source"], t["sigma"]), (name, *old))
+        self._route(pic, 3.0, 2.0)
+        cal.set_bridge_photo(pic, True)  # photo sur un pont
+        self.assertEqual(cal.tilt(pic)["source"], "roulis de campagne")
+        cal.set_bridge_photo(pic, False)
+        self.assertEqual(cal.tilt(pic)["source"], "route (LiDAR HD) + profil")
+        a._set_loose(pic, {"up": self._up(2.0), "sigma": 0.4})  # verticales à seuil élargi (5) : devant la route
+        self.assertEqual(cal.tilt(pic)["source"], "verticales (seuil élargi)")
+        a.birdeye_loose.clear()
+        cal.add_vertical(pic, (10.0, -11.3), (10.0, 21.8))  # un objet à la main : complété par la route
+        self.assertEqual(cal.tilt(pic)["source"], "clics + route (LiDAR HD) + profil")
+        self.assertIn("à la main, avec route (LiDAR HD) + profil", a._tilt_line()[0])
+
+    def test_tangage_lu_sur_les_raccords(self):
+        """Rang 3 bis : tangage lu par la vue du dessus sur les raccords (birdeye_tilt_set, pitch_read), relatif à la route (pente LiDAR HD
+        ajoutée, pas le tangage du profil), roulis de la route ; devant le LiDAR et la route (6), derrière les verticales de la photo ;
+        mesures de la photo recalculées à l'arrivée de la lecture ; sans route lisible (RGE ALTI, relief douteux), rien."""
+        a, cal, pic = self.app, self.app.calibration, "p1"
+        self.show(pic, "2025-07-03T10:53:25Z", App.FLEET_PRODUCER)
+        self._route(pic, 3.0, 2.0)
+        self.assertEqual(cal.tilt(pic)["source"], "route (LiDAR HD) + profil")  # sans lecture
+        self.assertTrue(a.birdeye_tilt_set(pic, json.dumps({"up": None, "sigma": 0.5, "manual": False, "pitch_read": 0.45})))  # la lecture arrive
+        t = cal.tilt(pic)
+        self.assertEqual((t["source"], t["sigma"], t["sigma_pitch"]), ("tangage lu sur les raccords", 1.0, App.RACCORD_PITCH_SIGMA))
+        self.assertNotIn("fallback", t)
+        for got, want in zip(t["up"], self._ground_up(3.0, 2.0, pitch=0.45, defect=1.0)):  # +0,45° lu, sans le +0,2° du profil
+            self.assertAlmostEqual(got, want, places=5)
+        self.assertFalse(a.birdeye_tilt_set(pic, json.dumps({"up": None, "sigma": 0.5, "manual": False, "pitch_read": 0.45})))  # rien de changé
+        self.assertIn("tangage lu sur les raccords", a._tilt_line()[0])
+        self.assertEqual(cal.tilt(pic, photo_only=True), None)  # la vue du dessus ne relit pas ce qu'elle a produit
+        cal.auto[pic]["verticals"] = {"up": self._up(1.0), "count": 5, "sigma": 0.2}
+        cal._tilts.clear()
+        self.assertEqual(cal.tilt(pic)["source"], "verticales")  # les verticales de la photo restent devant
+        cal.auto[pic]["verticals"] = None
+        cal._tilts.clear()
+        self.assertTrue(a.birdeye_tilt_set(pic, json.dumps({"up": None, "sigma": 0.5, "manual": True})))  # plus de lecture : réglage à la main
+        self.assertEqual(cal.tilt(pic)["source"], "route (LiDAR HD) + profil")
+        a.birdeye_tilt_set(pic, json.dumps({"up": None, "sigma": 0.5, "manual": False, "pitch_read": 0.45}))
+        a.birdeye_tilt_set(pic, "null")  # la vue du dessus n'a plus rien pour la photo : la lecture reste
+        self.assertEqual(cal.tilt(pic)["source"], "tangage lu sur les raccords")
+        self._route(pic, 3.0, 2.0, relief=dict(self.SLOPE_OK, reasons=["relief irrégulier (14 cm)"]))  # relief douteux : pente non fiable
+        self.assertEqual(cal.tilt(pic)["source"], "roulis de campagne")
+        self._route(pic, 3.0, 2.0, source="RGE ALTI")
+        self.assertEqual(cal.tilt(pic)["source"], "roulis de campagne")
+
     def test_tangage_du_profil_au_rang_6(self):
         """Rang 6 : le tangage du profil de campagne (relatif à la route, + = caméra relevée vers l'avant) s'ajoute faute de tangage lu ;
         0 sans profil (cas inchangé) ; jamais ajouté à un tangage lu (verticales, seuil élargi) ; étiquette « tangage … de la campagne »."""

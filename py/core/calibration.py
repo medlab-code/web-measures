@@ -359,12 +359,14 @@ def lidar_model(entries):
 
 def tilt_family(source):
     """Famille d'une source d'inclinaison d'après son nom (le champ « source » de Calibration.tilt) : "image" (clics à la main,
-    verticales, seuil élargi), "terrain" (LiDAR HD, route de la vue du dessus, terrain web), "constante" (roulis par défaut de la campagne :
+    verticales, seuil élargi), "terrain" (LiDAR HD, route de la vue du dessus, terrain web), "constante" (roulis par défaut de la campagne, route du rang 6 :
     pas une mesure de la photo) ou "mixte" (clics complétés par le terrain : ni l'une ni l'autre). Seules deux familles sont
     indépendantes : image et terrain."""
     name = source or ""
-    if name.startswith("roulis de campagne"):
-        return "constante"
+    if name.startswith(("roulis de campagne", "route (LiDAR HD)")):
+        return "constante"  # la route du rang 6 est une valeur par défaut, pas une mesure de la photo
+    if "raccords" in name:
+        return "mixte"  # tangage lu sur les raccords (images) relatif à la pente LiDAR (terrain) : ni l'une ni l'autre
     image, terrain = name.startswith(("clics", "verticales")), any(k in name for k in ("lidar", "vue du dessus", "terrain"))
     if image and terrain:
         return "mixte"
@@ -523,7 +525,8 @@ class Calibration:
         # pic -> inclinaison automatique : sequence, heading (cap du centre de l'image),
         # verticals (up, count, sigma : d'après les verticales de la photo, ou None), lidar
         # ((pente, dévers) en degrés sous le véhicule, ou None), lidar_source (nom de precision.TERRAINS qui a donné ce sol : « LiDAR HD »
-        # ou « RGE ALTI » ; None si inconnu, entrée d'une version précédente)
+        # ou « RGE ALTI » ; None si inconnu, entrée d'une version précédente), relief (diagnostic du relief devant la caméra,
+        # relief.summary : valid, rms, slope, rupture, reasons ; None si pas lu, LiDAR HD seulement)
         self.auto = {}
         # photos dont l'utilisateur a écarté le calcul automatique par les verticales (« Réinitialiser » du panneau « Calage
         # manuel ») : tilt passe alors à la source suivante de son ordre (voir auto_tilt, tilt) ; enregistré avec le calage
@@ -532,6 +535,7 @@ class Calibration:
         # Sources d'inclinaison de l'hôte (pic -> tilt_entry ou None), consultées par tilt dans son ordre unique : le réglage
         # de la vue du dessus pour la photo (en premier), les verticales à seuil élargi, le roulis par défaut de la campagne seul (en dernier)
         self.ground_tilt = None
+        self.seam_tilt = None  # tangage lu sur les raccords de la vue du dessus (rang 3 bis)
         self.loose_tilt = None
         self.campaign_tilt = None
         self.route_tilt = None  # route de la vue du dessus annoncée même quand les verticales priment (tilt_sources seulement)
@@ -629,14 +633,18 @@ class Calibration:
         2. calée à la main sur deux objets ou plus (source "clics") ; sur un objet, complétée par la suite de la liste
            ("clics + verticales", "clics + lidar"…) ;
         3. calculée d'après les verticales de la photo ("verticales"), sauf si l'utilisateur l'a écartée pour cette photo (auto_off) ;
+        3 bis. tangage lu sur les raccords entre photos par la vue du dessus (hôte, `seam_tilt`, "tangage lu sur les raccords") : lu sur la
+           photo elle-même, relatif à la route (pente LiDAR HD ajoutée), roulis de la route et du profil ; avant le LiDAR HD et ce qui suit,
+           jamais devant les verticales de la photo ;
         4. estimée par le LiDAR HD ("lidar"), jamais sur un pont (case « Sur un pont » ou photo marquée par set_bridge_photo : le
            LiDAR décrit le sol sous l'ouvrage, pas le tablier), ou par le terrain (option de l'hôte : "terrain web") ;
         5. verticales à seuil élargi (hôte, `loose_tilt`, incertitude au-delà de autotilt.MAX_SIGMA : "verticales (seuil
            élargi)"), sauf auto_off comme le rang 3 ;
-        6. roulis par défaut de la campagne seul (hôte, `campaign_tilt`, "roulis de campagne") : tangage de la campagne (profil, 0 sans) sans pente lue, incertitude UNCALIBRATED,
-           repérée par "fallback" (pas une inclinaison calée) ;
+        6. route seule (hôte, `campaign_tilt`), repérée par "fallback" (pas une inclinaison calée) : "route (LiDAR HD) + profil" quand le sol est du
+           LiDAR HD sans pont proche ni relief douteux (pente LiDAR sous la caméra et part du dévers, plus tangage et roulis du profil) ; sinon
+           "roulis de campagne" : roulis du profil et part du dévers sans pente lue, incertitude UNCALIBRATED ;
         7. rien : None (UNCALIBRATED).
-        photo_only : seulement ce qui vient de la photo (rangs 2 à 4), sans les sources 1, 5 et 6 de l'hôte (la vue du dessus
+        photo_only : seulement ce qui vient de la photo (rangs 2 à 4), sans les sources 1, 3 bis, 5 et 6 de l'hôte (la vue du dessus
         s'appuie sur ce qu'elle ne produit pas elle-même)."""
         if not photo_only:
             ground = self.ground_tilt(pic) if self.ground_tilt else None
@@ -645,6 +653,8 @@ class Calibration:
         manual, auto = self._tilts.get(pic), self.auto_tilt(pic)
         if manual and not manual["partial"]:
             return dict(manual, source="clics")
+        if not photo_only and self.seam_tilt and (auto is None or auto.get("source") != "verticales"):
+            auto = self.seam_tilt(pic) or auto  # 3 bis : devant le LiDAR (rang 4), jamais devant les verticales de la photo
         if auto is None and not photo_only:
             hooks = [self.campaign_tilt] if pic in self.auto_off else [self.loose_tilt, self.campaign_tilt]  # seuil élargi : verticales
             auto = next((t for t in (hook(pic) for hook in hooks if hook) if t), None)
@@ -1043,7 +1053,8 @@ def _auto_entry(entry):
     """Inclinaison automatique relue (voir Calibration.auto), ou None si illisible."""
     try:
         out = {"sequence": entry.get("sequence"), "heading": float(entry["heading"]), "verticals": None,
-               "lidar": None, "lidar_source": entry.get("lidar_source") or None}
+               "lidar": None, "lidar_source": entry.get("lidar_source") or None,
+               "relief": None}
         v = entry.get("verticals")
         if v:
             up = _unit(tuple(float(c) for c in v["up"]))
@@ -1056,6 +1067,10 @@ def _auto_entry(entry):
             out["verticals"]["fragile_reason"] = v.get("fragile_reason") or None
         if entry.get("lidar"):
             out["lidar"] = [float(entry["lidar"][0]), float(entry["lidar"][1])]
+        r = entry.get("relief")  # diagnostic du relief (relief.summary) : absent des anciennes entrées
+        if isinstance(r, dict):
+            out["relief"] = {k: (None if r.get(k) is None else float(r[k])) for k in ("valid", "rms", "slope", "rupture")}
+            out["relief"]["reasons"] = [str(t) for t in r.get("reasons") or []]
         return out
     except (TypeError, ValueError, KeyError, IndexError, AttributeError, ZeroDivisionError):
         return None

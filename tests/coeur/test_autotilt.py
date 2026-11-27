@@ -348,6 +348,37 @@ class Checker(unittest.TestCase):
             again.load(json.loads(json.dumps(cal.to_dict())))
             self.assertEqual(again.auto["pic"]["lidar_source"], source)
 
+    def test_relief_kept(self):
+        """Diagnostic du relief (core/relief.py) lu avec l'entrée quand l'hôte branche la lecture (TiltChecker.relief) : gardé, relu après
+        enregistrement ; relief plan : rien d'anormal, relief bosselé : raisons. Sans LiDAR HD (RGE ALTI) ou sans lecture : pas de diagnostic."""
+        z = [100 + c * 0.1 for _, c in calibration.LIDAR_GRID]
+        relief = autotilt.relief
+        for bumpy, want in ((False, []), (True, "relief irrégulier")):
+            cal, checker = calibration.Calibration(), autotilt.TiltChecker()
+            checker.relief = lambda lon, lat, heading, done, b=bumpy: done(
+                [100 + (0.3 if b and k % 2 else 0.0) for k in range(len(relief.zone_offsets(heading)))])
+            runs = []
+            checker.run = lambda function, args, done: runs.append(args) or done(None)
+            with mock.patch.object(autotilt, "fetch_ground", lambda lon, lat, heading, done: done(z, "LiDAR HD", None)), \
+                    mock.patch.object(autotilt.host, "fetch", FakeNetwork().fetch), mock.patch.object(autotilt, "HAS_NUMPY", True):
+                checker.check(ITEM, cal)
+            diagnosis = cal.auto["pic"]["relief"]
+            self.assertTrue(diagnosis["reasons"] == [] if not bumpy else diagnosis["reasons"][0].startswith(want))
+            again = calibration.Calibration()
+            again.load(json.loads(json.dumps(cal.to_dict())))
+            self.assertEqual(again.auto["pic"]["relief"], diagnosis)
+        for source, hook in (("RGE ALTI", True), ("LiDAR HD", False)):  # RGE ALTI : pas de diagnostic ; lecture non branchée : non plus
+            cal, checker = calibration.Calibration(), autotilt.TiltChecker()
+            checker.relief = (lambda lon, lat, heading, done: done([100.0] * len(relief.zone_offsets(heading)))) if hook else None
+            checker.run = lambda function, args, done: done(None)
+            with mock.patch.object(autotilt, "fetch_ground", lambda lon, lat, heading, done, s=source: done(z, s, None)), \
+                    mock.patch.object(autotilt.host, "fetch", FakeNetwork().fetch), mock.patch.object(autotilt, "HAS_NUMPY", True):
+                checker.check(ITEM, cal)
+            self.assertIsNone(cal.auto["pic"]["relief"])
+        old = calibration.Calibration()  # entrée d'une version précédente : pas de diagnostic
+        old.load({"format": calibration.Calibration.FORMAT, "auto": {"p": {"heading": 0, "lidar": [1, 2], "lidar_source": "LiDAR HD"}}})
+        self.assertIsNone(old.auto["p"]["relief"])
+
     def test_nothing_to_do(self):
         cal = calibration.Calibration()
         network = FakeNetwork()

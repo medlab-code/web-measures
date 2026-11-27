@@ -140,6 +140,27 @@ class TiltOrder(unittest.TestCase):
         cal.campaign_tilt = None
         self.assertIsNone(cal.tilt("p"))  # 7
 
+    def test_seam_rank(self):
+        """Rang 3 bis (tangage lu sur les raccords, hôte `seam_tilt`) : devant le LiDAR (4) et tout ce qui suit, derrière les clics et les
+        verticales de la photo, absent de photo_only ; un objet cliqué est complété par lui."""
+        cal = self.cal
+        cal.seam_tilt = lambda pic: calibration.tilt_entry(tilted_up(2.0, 0.0), 0.2, "tangage lu sur les raccords")
+        cal.ground_tilt = None
+        self.assertEqual(self.source(), "verticales")  # 3 : les verticales de la photo passent devant
+        cal.auto["p"]["verticals"] = None
+        cal.auto_tilt = lambda pic: calibration.tilt_entry(tilted_up(2.0, 0.0), 0.5, "lidar")
+        self.assertEqual(self.source(), "tangage lu sur les raccords")  # 3 bis, devant le LiDAR (4), le seuil élargi (5) et la route (6)
+        self.assertEqual(self.source(photo_only=True), "lidar")  # ne vient pas de la photo : jamais relu par la vue du dessus
+        cal.auto_tilt = lambda pic: None
+        self.assertEqual(self.source(), "tangage lu sur les raccords")
+        cal.seam_tilt = lambda pic: None  # pas de lecture : l'ordre d'avant
+        self.assertEqual(self.source(), "verticales (seuil élargi)")
+        cal.seam_tilt = lambda pic: calibration.tilt_entry(tilted_up(2.0, 0.0), 0.2, "tangage lu sur les raccords")
+        cal.add_vertical("p", *vertical_object(tilted_up(1.0, 90.0), 10, 8))
+        self.assertEqual(self.source(), "clics + tangage lu sur les raccords")
+        self.assertEqual(calibration.tilt_family("tangage lu sur les raccords"), "mixte")
+        self.assertEqual(calibration.tilt_family("route (LiDAR HD) + profil"), "constante")
+
     def test_one_object_completed_by_next_source(self):
         cal = self.cal
         cal.ground_tilt = None

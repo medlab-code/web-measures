@@ -28,7 +28,7 @@ bande utile (host.decode_band), en arrière-plan (host.run_task).
 import importlib.util
 import math
 
-from . import calibration, host, metadata, precision, roads
+from . import calibration, host, metadata, precision, relief, roads
 
 HAS_NUMPY = importlib.util.find_spec("numpy") is not None  # calcul des verticales
 
@@ -278,6 +278,15 @@ def fetch_ground(lon, lat, heading, done):
     precision.fetch_terrain(calibration.lidar_points(lon, lat, heading), done, timeout_ms=None)
 
 
+def fetch_relief(lon, lat, heading, done):
+    """Altitudes LiDAR HD de la zone utile devant la caméra (relief.zone_points) pour le diagnostic du relief : done(altitudes (None hors
+    couverture), ou None si le service est injoignable). Une requête, LiDAR HD seulement (pas de RGE ALTI : trop grossier pour le diagnostic)."""
+    def got(data, error):
+        done(None if error else precision._ground(data))
+
+    host.fetch_json(precision.lidar_url(relief.zone_points(lon, lat, heading), precision.LIDAR_RESOURCE), got, timeout_ms=15000)
+
+
 def is_360(item):
     """Photo équirectangulaire (360°) ?"""
     props = item.get("properties", {}) or {}
@@ -305,6 +314,7 @@ class TiltChecker:
         self.current = None  # dernière photo demandée
         self.run = None  # calcul en arrière-plan : host.run_task, ou celui-ci (tests)
         self.roads = None  # roads.RoadAxisProvider : les points du LiDAR sous l'emprise d'un pont voisin sont écartés (roads.deck_mask)
+        self.relief = None  # lecture du relief devant la caméra (fetch_relief) : l'hôte la branche ; None : pas de diagnostic du relief
 
     def pending(self, pic):
         return pic in self._pending
@@ -347,7 +357,7 @@ class TiltChecker:
             else:
                 entry = {"sequence": item.get("collection"), "heading": float(heading),
                          "verticals": state["verticals"], "lidar": state["lidar"],
-                         "lidar_source": state["lidar_source"]}
+                         "lidar_source": state["lidar_source"], "relief": state.get("relief")}
             for cb in [None] + self._pending.pop(pic, []):
                 if cb is None:
                     if entry is not None:
@@ -365,10 +375,26 @@ class TiltChecker:
                 mask = roads.deck_mask(sections, lon, lat, heading, calibration.lidar_points(lon, lat, heading))
                 z = [None if m else h for m, h in zip(mask, z)]
             slopes = calibration.lidar_slopes(z) if ok else None  # None : trop peu de points gardés, source indisponible
-            state["lidar"] = list(slopes) if slopes else None
-            state["lidar_source"] = source if slopes else None  # nom de precision.TERRAINS : seul « LiDAR HD » donne le dévers de la route
-            state["lidar_error"] = bool(error)
-            finish()
+
+            def settle(diagnosis):
+                state["lidar"] = list(slopes) if slopes else None
+                state["lidar_source"] = source if slopes else None  # nom de precision.TERRAINS : seul « LiDAR HD » donne le dévers de la route
+                state["lidar_error"] = bool(error)
+                state["relief"] = diagnosis
+                finish()
+
+            if not slopes or source != precision.TERRAINS[0][0] or self.relief is None:
+                return settle(None)
+
+            def got_relief(zr):  # relief devant la caméra (LiDAR HD) : diagnostic gardé avec l'entrée (rang 6 de Calibration.tilt)
+                if zr is None or len(zr) != len(relief.zone_offsets(heading)):
+                    return settle(None)
+                under = None
+                if sections:  # points sous l'emprise d'un pont voisin écartés, comme pour la pente
+                    under = roads.deck_mask(sections, lon, lat, heading, relief.zone_points(lon, lat, heading))
+                settle(relief.summary(relief.diagnose(heading, zr, under)))
+
+            self.relief(lon, lat, heading, got_relief)
 
         def got_image(data, error):
             self._replies.pop(pic, None)

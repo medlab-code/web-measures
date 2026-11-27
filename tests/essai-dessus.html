@@ -143,6 +143,13 @@ function centre(pixels, line, around) {
   await expect("part du dévers à 0 : pas de roulis", Math.abs(pitchOnly[0] * Math.cos(h37) - pitchOnly[1] * Math.sin(h37)) < 1e-9);
   const flat = Array.from({ length: cells * cells }, () => 100), raised = Dessus.groundUp(flat, [0, 0], 0, 1, 1);
   await expect("tangage ajouté : verticale penchée vers l'avant", Math.abs(raised[1] - Math.sin(1 * toRad)) < 1e-6 && Math.abs(raised[0]) < 1e-12);
+  {  // Accord avec le rang 6 « route (LiDAR HD) + profil » de Calibration.tilt (py/web_pose.py, tests/test_calculs.py test_route_au_rang_6) : même
+    // verticale pour la même scène (pente 3° vers le nord, dévers 2° montant vers l'est, tangage du profil +0,2°, défaut de roulis +1°, 70 % du dévers)
+    const t3 = Math.tan(3 * toRad), t2 = Math.tan(2 * toRad);
+    const road = Array.from({ length: cells * cells }, (_, k) => 100 + t2 * ((k % cells) - Dessus.REACH) + t3 * (Math.floor(k / cells) - Dessus.REACH));
+    const same = Dessus.groundUp(road, [0, 0], 0, 0.7, 0.2, 1.0), want = [0.006978410, 0.055809966, 0.998417022];
+    await expect("route (LiDAR HD) + profil : même verticale que le rang 6 des mesures", want.every((v, k) => Math.abs(same[k] - v) < 1e-6), same.map((v) => v.toFixed(7)).join(" "));
+  }
   const [, normal] = Dessus.view(-0.03, 0.02, 1, { ...pose, offset: 0, up });  // la perpendiculaire à la route doit être l'axe vertical de la caméra
   await expect("route en pente : perpendiculaire vue à la verticale de la caméra", normal > 89.99, normal.toFixed(3));
   await expect("incertitude affichée : au moins 5 % de la longueur", Math.abs(Dessus.shownError([0, 0], [0, 10], [{ pose: { ...pose, sigma: 0, height_sigma: 0 }, at: [0, 0] }], 0) - 0.5) < 1e-9);

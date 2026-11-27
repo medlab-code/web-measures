@@ -201,8 +201,11 @@ class App(Pose, Chutes, Nez, session.Session):
         self.terrain_relay = False
         self.relay_tilts = {}  # photo -> inclinaison par le terrain (dict comme Calibration.auto_tilt)
         self.birdeye_items, self.birdeye_checks = [], (autotilt.TiltChecker(), autotilt.TiltChecker())  # voir birdeye_neighbours
+        for checker in (self.tilts, *self.birdeye_checks):
+            checker.relief = autotilt.fetch_relief  # diagnostic du relief devant la caméra (rang 6 « route », core/relief.py)
         for checker in self.birdeye_checks:
             checker.roads = self.roads  # LiDAR sous l'emprise d'un pont voisin écarté
+        self.birdeye_pitch = {}  # photo -> tangage lu sur ses raccords par la vue du dessus, relatif à la route, en degrés (birdeye_tilt_set ; 60 au plus)
         self.birdeye_far_items = []  # voir birdeye_far
         self.relay_pending = {}  # photo -> étape du calcul en cours
         self.relay_failed = {}  # photo -> raison de l'échec
@@ -211,6 +214,7 @@ class App(Pose, Chutes, Nez, session.Session):
         self.calibration.auto_tilt = self._auto_tilt
         # Sources d'inclinaison de l'hôte, rangées par Calibration.tilt (ordre unique : voir sa docstring)
         self.calibration.ground_tilt = self._ground_tilt
+        self.calibration.seam_tilt = self._seam_tilt
         self.calibration.loose_tilt = self._loose_tilt
         self.calibration.route_tilt = self._route_tilt
         self.calibration.campaign_tilt = self._campaign_tilt

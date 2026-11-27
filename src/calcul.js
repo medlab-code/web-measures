@@ -28,6 +28,7 @@ const Calcul = (() => {
     "core/measures.py",
     "core/metadata.py",
     "core/precision.py",
+    "core/relief.py",
     "core/roads.py",
     "core/session.py",
     "core/tools.py",

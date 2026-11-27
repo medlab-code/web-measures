@@ -51,7 +51,8 @@ const Calage = {
     const present = () => Boolean(data || auto().available || confidence());
 
     const SOURCES = { clics: "verticales à la main", verticales: "verticales", "verticales (seuil élargi)": "verticales (seuil élargi)", lidar: "LiDAR",
-      "vue du dessus": "route (vue du dessus)", "vue du dessus (réglée à la main)": "route (vue du dessus)" };
+      "vue du dessus": "route (vue du dessus)", "vue du dessus (réglée à la main)": "route (vue du dessus)",
+      "route (LiDAR HD) + profil": "route (LiDAR HD) + profil", "tangage lu sur les raccords": "tangage lu sur les raccords" };
     const rollLabel = () => info?.roll_label ?? "roulis par défaut";
     const nom = (source) => (source === "roulis de campagne" ? rollLabel() : (SOURCES[source] ?? source));
     /** Confiance de l'inclinaison retenue : { classe, texte, titre } (états du cœur : confirmee, desaccord, non_verifiable, pont). */
