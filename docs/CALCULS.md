@@ -396,7 +396,7 @@ de 10 m de la chaussée peut augmenter la valeur.
 
 ## 8. « Profils » : profil en travers
 
-Ce calcul se lance d'un appui sur le bouton « Profil en travers » de la visionneuse, sur une photo hors pont, à moins de 15 m
+Ce calcul se lance d'un appui sur le bouton « Profil en travers » de la visionneuse, sur une photo hors pont (près d'un pont : seulement avec l'option « Autoriser le profil sur les ponts », ci-dessous), à moins de 15 m
 d'une route de la BD TOPO. Il ne dépend pas de l'altitude GPS et n'a donc pas besoin du RTK.
 
 ### 8.1 Profils lus
@@ -412,6 +412,16 @@ bord, 3 m au-delà du bord type, § ci-dessous) ; avant le 20/11/2026, 16 points
 recherche, espacés de 1,9 m à 30 m. Chute, dévers et graphique s'arrêtent à la distance de la réglette du
 milieu de la chaussée (entre les deux bords du travers), 1 m au moins au-delà du bord (choix de l'auteur,
 20/11/2026 : ce qui est dessiné est ce qui est mesuré).
+
+**Profil sur les ponts** (option « Autoriser le profil sur les ponts », `App.set_edge_bridges`, décochée par défaut). Zone « pont et abords » : sur le
+pont, `roads.on_bridge` (tronçon en pont à 8 m, dans le sens de la séquence, § 7), ou, plus largement, `roads.flat_ground` (pont à
+`BRIDGE_FLAT_RADIUS` = 15 m au plus du tablier, tout sens) : l'option ne crée pas de distance nouvelle. Décochée, dans cette zone, `fall()` ne lit aucun
+terrain et ne calcule aucun profil : il rend `profil_bloque` (avec, sur le pont, la hauteur de chute du pont), le bouton ouvre la fenêtre du profil sans calcul, avec
+son message et la case. Cochée, `_edges` prend le pont de la photo pour la route de la
+coupe (au lieu du tronçon au sol le plus proche, qui serait la voie franchie ou une autre route), le range avec les ouvrages de la route (creux du MNT sous le
+tablier, profil en long, § 8.1) et calcule le profil comme ailleurs, sans méthode propre au pont ; le résultat porte `profile["pont"]`
+(vrai dans la zone), d'où l'avertissement du graphique : le relief LiDAR y donne le dessous du pont (tablier retiré) ou le talus d'approche, pas
+la chaussée.
 
 **Coupes retenues** (« Options avancées » de la fenêtre du profil, `App.set_edge_along`) : les coupes à ±5 m et à ±10 m
 peuvent être écartées, ensemble par distance (celle de la photo, à 0 m, est toujours gardée). Une coupe écartée n'est

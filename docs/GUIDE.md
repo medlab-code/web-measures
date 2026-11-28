@@ -417,7 +417,7 @@ après.
   distance examinée de part et d'autre du milieu de la chaussée (5 à 30 m par pas de 5 m, flèches du clavier comprises, 10 m par défaut ; 1 m au moins au-delà
   de chaque bord) : chute, dévers et graphique s'arrêtent là ; la changer, fenêtre ouverte, refait le calcul
   de la photo au lâcher de la réglette, avec l'animation d'attente au centre de la fenêtre (la réglette reste utilisable : le dernier lâcher
-  gagne ; les curseurs des bords sont grisés pendant le calcul) ; fenêtre fermée, le prochain appui sur le bouton. Le bouton est grisé sur un pont (hauteur de chute du pont)
+  gagne ; les curseurs des bords sont grisés pendant le calcul) ; fenêtre fermée, le prochain appui sur le bouton. Le bouton n'est pas grisé près d'un pont : la fenêtre s'ouvre alors sans calcul tant que « Autoriser le profil sur les ponts » est décochée (options avancées)
   et pendant la lecture ; enfoncé pendant le calcul (un second appui l'abandonne) et tant que la fenêtre du profil est ouverte ; quand le calcul
   est déjà fait pour cette photo et cette distance, un appui rouvre la fenêtre sans recalculer. Tant qu'elle est ouverte, la carte trace le travers de la photo, ses deux bords, le pied de la chute et le talus (mêmes couleurs que le graphique ; le travers voisin qui porte la chute, en gris ; les autres travers du profil, sans chute ni dévers retenus, tracés comme lui, en trait plein gris) ; tout disparaît à la fermeture. À 12 m au plus d'un carrefour
   avec une voie nommée (le long de la route), le graphique le signale (« Carrefour : bords peu sûrs », en orange en haut à droite, aussi dans le PNG et le PDF),
@@ -530,6 +530,14 @@ après.
   du graphique, toutes cochées par défaut et retenues d'une session à l'autre : « Coupes » (**coupes à ±5 m**, **coupes à ±10 m**),
   « Mesures » (chute, dévers de la plateforme, talus, largeur de la plateforme, pente en long, repère de cassure), « Terrain et objets » (cours d'eau,
   herbe, végétation, canopée, ponts, peintures, séparateur, plateforme grise) et « Repères » (bords, caméra et point 0, carrefours et fins de route).
+  **« Autoriser le profil sur les ponts »** (groupe « Coupes », **décochée par défaut**, retenue d'une session à l'autre) : près d'un pont (sur le
+  pont, ou à 15 m au plus du tablier), le profil n'est calculé que si elle est cochée. Décochée, le bouton du profil reste actif mais la fenêtre
+  s'ouvre SANS calcul (aucune lecture de terrain, pas de graphique) sur le message « Profil désactivé sur les ponts (relief LiDAR peut-être faux :
+  dessous du pont ou abords). » et, dessous, la même case (même choix, les deux cases restent synchronisées) : la cocher lance aussitôt le calcul,
+  avec l'attente habituelle, puis le graphique s'affiche. Cochée, le profil se calcule directement, la route de la coupe étant le pont lui-même (pas la voie
+  franchie dessous), avec l'avertissement « ⚠ Pont : relief LiDAR peut-être faux (dessous du pont ou abords) » dans le coin du graphique, en tête de la
+  légende, dans le PNG et le PDF (aucune autre option ne le masque). Décocher la case près d'un pont ramène au message. Hors pont, rien ne change ;
+  la case n'est jamais grisée.
   Décocher une **coupe** la retire du graphique ET du calcul : bords, plateforme, dévers, chute et talus sont refaits avec les seules
   coupes retenues (même attente au centre de la fenêtre que la réglette, le dernier choix gagne ; la coupe de la photo est toujours gardée, et
   le dévers reste calculé même avec elle seule) ; les bords recalés à la main restent tels quels, seules les valeurs qui en dépendent sont refaites. Décocher
@@ -545,6 +553,8 @@ après.
   légende donnent le **dévers de la plateforme** (LiDAR HD seulement), arrondi au point : un chiffre si elle penche d'un seul sens, sinon un
   par demi-chaussée, avec la pente moyenne pour un toit symétrique, ou « non déterminé » si les travers diffèrent trop. Sur une route à une
   chaussée, un toit reste difficile à reconnaître (voir `docs/CALCULS.md`, 8.7) : ce chiffre n'a pas été comparé à des mesures de terrain. Le bouton « Analyse fine » de la fenêtre n'est proposé que pour un profil calculé.
+  Temporairement (28/11/2026), un profil calculé sur un pont n'affiche plus la plateforme grise (trait épais) : l'élément n'est pas créé, les étiquettes de la plateforme (largeur et dévers, avec la ligne « Plateforme » de la légende) non plus, et les cases « Plateforme grise », « Largeur de la plateforme » et « Dévers de la plateforme » des options avancées sont grisées.
+
 
   **Recaler les bords** (groupe « Bords » de la fenêtre) : quand le bord trouvé est faux (talus, accotement, trottoir
   pris pour la chaussée), on le glisse sur la carte, sans mode à activer : tant que la fenêtre du profil est ouverte, un curseur par bord

@@ -1275,6 +1275,12 @@ enregistrée en PNG et copiée dans le presse-papiers">
   <!-- Bouton « Profil en travers » de la visionneuse : coupe du terrain en travers de la route (src/profil.js) -->
   <dialog id="fenetre-profil" class="profil">
     <h2></h2>
+    <!-- Près d'un pont, profil désactivé (option décochée) : la fenêtre s'ouvre sans calcul, avec ce message et la case pour autoriser le profil -->
+    <div id="profil-pont-bloque" class="profil-bloque" hidden>
+      <p>Profil désactivé sur les ponts (relief LiDAR peut-être faux : dessous du pont ou abords).</p>
+      <label title="Même choix que « Autoriser le profil sur les ponts » des options avancées (retenu) : cocher lance aussitôt le calcul du profil">
+        <input type="checkbox" class="interrupteur" id="profil-pont-fenetre"> Autoriser le profil sur les ponts</label>
+    </div>
     <div class="graphique"></div>
     <div class="legende"></div>
     <!-- « Analyse fine » : avancement puis bilan, sur sa propre ligne (masquée sans rien à dire) -->
@@ -1328,6 +1334,8 @@ enregistrée en PNG et copiée dans le presse-papiers">
             <input type="checkbox" class="interrupteur" data-coupe="5" checked> Coupes à ±5 m</label>
           <label title="Coupes à 10 m devant et derrière la photo : décochées, elles sont retirées du graphique et du calcul (bords, plateforme, dévers, chute, talus refaits sans elles)">
             <input type="checkbox" class="interrupteur" data-coupe="10" checked> Coupes à ±10 m</label>
+          <label title="Décochée (par défaut) : Décochée, près d'un pont (à moins de 15 m), la fenêtre du profil s'ouvre sans calcul avec un message et cette case. Cochée : le profil est calculé sur le pont et à ses abords (à moins de 15 m) comme ailleurs, avec un avertissement dans le graphique : le relief LiDAR y donne le dessous du pont, pas le tablier.">
+            <input type="checkbox" class="interrupteur" id="profil-pont"> Autoriser le profil sur les ponts</label>
         </fieldset>
         <fieldset class="groupe">
           <legend>Mesures</legend>

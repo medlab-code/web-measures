@@ -2035,5 +2035,90 @@ class Parcours(unittest.TestCase):
         self.assertEqual([f["properties"]["essence"] for f in json.loads(other.export_geojson(True))["features"]], ["tilleul"])
 
 
+class ProfilSurPont(unittest.TestCase):
+    """Option « Autoriser le profil sur les ponts » (App.set_edge_bridges) : décochée, sur un pont et à ses abords
+    (roads.BRIDGE_FLAT_RADIUS) le profil n'est pas calculé (profil_bloque : fenêtre sans calcul, aucune lecture de terrain) ; cochée, il l'est
+    comme ailleurs et porte le drapeau « pont » (avertissement du graphique)."""
+
+    @staticmethod
+    def calc(deck_x=0.0, road_x=30.0):
+        """Photo en (5, 47) ; pont (niveau 1) d'axe x = deck_x, route au sol d'axe x = road_x, toutes deux orientées nord-sud."""
+        lon, lat = 5.0, 47.0
+        metre = 1 / 111320.0 / math.cos(math.radians(lat))
+
+        def feature(x, level):
+            return {"type": "Feature", "properties": {"cpx_numero": "D1", "nature": "Route à 1 chaussée", "importance": "4",
+                                                      "position_par_rapport_au_sol": level},
+                    "geometry": {"type": "LineString", "coordinates": [[lon + x * metre, lat - 0.002], [lon + x * metre, lat + 0.002]]}}
+        sections = roads.parse_sections({"features": [feature(deck_x, "1"), feature(road_x, "0")]})
+        calc = App.__new__(App)
+        calc.item = {"id": "photo", "geometry": {"coordinates": [lon, lat]}, "properties": {"view:azimuth": 0}}
+        calc.edges, calc.edges_redo, calc.manual, calc.edges_asked, calc.long_tracks = {}, {}, {}, {}, {}
+        calc.edge_zone, calc.edge_along, calc.edge_bridges, calc.quality = 10.0, App.EDGE_ALONG, False, None
+        calc.notify = lambda: None
+        calc._fall_sections = lambda lon, lat: sections
+        calc._axis = lambda item: 0.0
+        calc._track_line = lambda item, lon, lat: []
+        calc._water_across = lambda *a: []
+        calc._bridge_fall = lambda *a: {"text": "Pont\nHauteur de chute : 3 m", "title": ""}
+        # le MNT donne le fond franchi (6 m plus bas) sous les 20 m du pont, pas le tablier
+        calc._terrain = lambda points, done: done(
+            [-0.02 * x - (6.0 if abs(y) < 10.0 and abs(x - deck_x) < 8.0 else 0.0)
+             for x, y in (web_app.triangulation._local(p[0], p[1], lon, lat) for p in points)], web_app.triangulation.LIDAR_NAME, None)
+        return calc
+
+    def test_decochee_pas_de_profil_sur_le_pont(self):
+        calc = self.calc()
+        calc.request_edges()
+        res = calc.fall()
+        self.assertTrue(res["profil_bloque"])  # le bouton ouvre la fenêtre sans calcul ; la hauteur de chute du pont reste
+        self.assertNotIn("edges", res)
+        self.assertIn("Hauteur de chute", res["text"])
+        self.assertEqual(calc.edges, {})  # aucune lecture de terrain
+
+    def test_decochee_pas_de_profil_aux_abords(self):
+        calc = self.calc(deck_x=12.0, road_x=0.0)  # pont à 12 m : au-delà de BRIDGE_REACH, en deçà de BRIDGE_FLAT_RADIUS
+        calc.request_edges()
+        res = calc.fall()
+        self.assertTrue(res["profil_bloque"] and res["abords"])
+        self.assertNotIn("profile", res)
+        self.assertEqual(calc.edges, {})
+
+    def test_cochee_profil_calcule_avec_drapeau(self):
+        calc = self.calc()
+        calc.set_edge_bridges(True)
+        res = calc.fall()  # profil pas encore demandé : la hauteur de chute reste, avec la possibilité du profil
+        self.assertTrue(res["profil_possible"])
+        self.assertNotIn("edges", res)
+        self.assertNotIn("profil_bloque", res)
+        calc.request_edges()
+        calc.fall()  # calcul lancé (ici sans attente), résultat à l'appel suivant
+        res = calc.fall()
+        self.assertTrue(res["edges"])
+        profile = res["profile"]
+        self.assertTrue(profile["pont"])
+        self.assertTrue(profile["profils"])
+        self.assertTrue(any(o["type"] == "pont" for o in profile["en_long"]["ouvrages"]))  # le pont de la photo est un ouvrage de la route
+        calc.set_edge_bridges(False)  # décochée de nouveau : retour au message
+        res = calc.fall()
+        self.assertTrue(res["profil_bloque"])
+        self.assertNotIn("edges", res)
+
+    def test_cochee_abords_profil_avec_drapeau(self):
+        calc = self.calc(deck_x=12.0, road_x=0.0)
+        calc.set_edge_bridges(True)
+        calc.request_edges()
+        calc.fall()
+        res = calc.fall()
+        self.assertTrue(res["edges"])
+        self.assertTrue(res["profile"]["pont"])
+
+    def test_loin_du_pont_pas_de_drapeau(self):
+        calc = self.calc(deck_x=60.0, road_x=0.0)
+        calc.request_edges()
+        calc.fall()
+        self.assertFalse(calc.fall()["profile"]["pont"])
+
+
 if __name__ == "__main__":
     unittest.main()

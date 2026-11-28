@@ -1363,7 +1363,7 @@ dialog.profil .legende svg.symbole rect.mention-carrefour { fill: var(--carrefou
 /* autres travers : transparents, sous le terrain de la photo */
 .profil-svg .autre-travers { fill: none; stroke: var(--discret); stroke-width: 1; stroke-dasharray: 3 3; }
 .profil-svg .travers-mesure { fill: none; stroke: var(--discret); stroke-width: 1.5; }
-.profil-svg .chaussee { fill: none; stroke: var(--chaussee); stroke-width: 7; stroke-linecap: butt; }
+.profil-svg .chaussee { fill: none; stroke: var(--chaussee); stroke-width: 5.5; stroke-linecap: butt; }
 .profil-svg .bord { stroke: var(--texte); stroke-width: 1.2; stroke-dasharray: 2 3; }
 .profil-svg .bord[data-bord="mesure"] { stroke-dasharray: none; }  /* bord mesuré : trait plein (G3) */
 .profil-svg .bord.bord-suppose { stroke-dasharray: 9 5; }  /* bord supposé (largeur type, travers voisins) */
@@ -1958,3 +1958,7 @@ dialog.avertissement form button:focus-visible { outline: 2px solid #ffd600; out
 #resultats .libelle .confiance { display: block; font-size: 0.75em; color: var(--discret, #6b7380); }
 #resultats .libelle .confiance.desaccord { color: #e65100; font-weight: 600; }
 #resultats .libelle .confiance.confirmee { color: #2e7d32; }
+/* Profil désactivé près d'un pont (option « Autoriser le profil sur les ponts » décochée) : message et case seuls, ni graphique ni commandes */
+dialog.profil .profil-bloque { margin: 0.4rem 0 0.2rem; }
+dialog.profil .profil-bloque p { margin: 0 0 0.6rem; font-weight: 500; }
+dialog.profil.bloque :is(.graphique, .legende, .nuage-etat, form:not(.fermer-coin), label.reglette, details.options-profil) { display: none; }

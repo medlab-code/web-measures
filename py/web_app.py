@@ -177,6 +177,7 @@ class App(Pose, Chutes, Nez, session.Session):
         self.edges_asked = {}  # photo -> (largeur examinée, coupes retenues) au dernier appui sur « Profils »
         self.long_tracks = {}  # photo -> trajectoire de la caméra autour d'elle (_track_line), None pendant la lecture
         self.edge_zone = self.EDGE_ZONE
+        self.edge_bridges = False  # profil autorisé sur les ponts (options avancées du profil, set_edge_bridges)
         self.edge_along = self.EDGE_ALONG  # coupes retenues (options avancées du profil, set_edge_along)
         self.bdtopo = {}  # (couche BD TOPO, maille) -> objets lus (voir _bdtopo)
         self.fall_error = {}  # maille -> raison du dernier échec de lecture des tronçons (dite dans le message)

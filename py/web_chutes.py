@@ -273,7 +273,9 @@ class Chutes:
         prises sur le pont (la plus proche de chaque point) ; dessous : MNT LiDAR HD (RGE ALTI en
         secours), le point le plus bas en travers du pont, de 1 à 10 m au-delà du bord du tablier, des deux côtés (FALL_SIDES ;
         bord lu dans le relief si le MNT contient le tablier, sinon la demi-largeur type ; sous un tablier absent du MNT,
-        celui-ci est interpolé à sa hauteur)."""
+        celui-ci est interpolé à sa hauteur). Option « Autoriser le profil sur les ponts » (set_edge_bridges), pont ou abords
+        (roads.flat_ground) : décochée, ni lecture de terrain ni profil, seulement profil_bloque (le bouton ouvre la fenêtre, qui dit
+        pourquoi et propose la case) ; cochée, le profil des bords (_edges) une fois demandé, sinon ce qui précède avec profil_possible."""
         item = self.item or {}
         try:
             lon, lat = (float(v) for v in item["geometry"]["coordinates"][:2])
@@ -288,8 +290,21 @@ class Chutes:
             return None
         axis = self._axis(item)
         sec = roads.on_bridge(sections, lon, lat, metadata.item_heading(item) if axis is None else axis)
-        if sec is None:
+        near = sec is not None or roads.flat_ground(sections, lon, lat)  # sur un pont, ou à ses abords (BRIDGE_FLAT_RADIUS)
+        if not near:
             return self._edges(item, sections, lon, lat)
+        if not self.edge_bridges:  # profil désactivé près d'un pont : la fenêtre s'ouvre sans calcul (profil_bloque), avec la case pour l'autoriser
+            if sec is None:
+                return {"text": "", "title": "", "profil_bloque": True, "abords": True}
+            return dict(self._bridge_fall(item, sections, sec, lon, lat) or {"text": "", "title": ""}, profil_bloque=True)
+        res = self._edges(item, sections, lon, lat, sec)  # option cochée : profil comme ailleurs (profile["pont"] : avertissement du graphique)
+        if res is not None or sec is None:
+            return res
+        res = self._bridge_fall(item, sections, sec, lon, lat)  # profil pas encore demandé : la hauteur de chute reste
+        return dict(res, profil_possible=True) if res else res
+
+    def _bridge_fall(self, item, sections, sec, lon, lat):
+        """Photo sur le pont sec : nom, ce qu'il franchit et hauteur de chute (voir fall)."""
         chain = self._bridge_chain(sections, sec)
         # Nom du pont (BD TOPO), et sa route : « Pont de France (D905) », sinon « Pont de la D111 »,
         # « Pont de l'A38 » (élision devant une voyelle)
@@ -668,6 +683,13 @@ class Chutes:
         self.edge_along = tuple(a for a in self.EDGE_ALONG if a == 0.0 or a in wanted)
         self.notify()
 
+    def set_edge_bridges(self, allowed):
+        """Option « Autoriser le profil sur les ponts » (décochée par défaut) : sur un pont (tronçon BD TOPO en pont à roads.BRIDGE_REACH m, dans
+        le sens de la séquence) et à ses abords (roads.BRIDGE_FLAT_RADIUS m, roads.flat_ground), le profil des bords n'est calculé que si elle est
+        cochée, comme ailleurs ; le résultat porte alors profile["pont"] (avertissement du graphique)."""
+        self.edge_bridges = bool(allowed)
+        self.notify()
+
     def request_edges(self):
         """Bouton « Profils » : calcul pour la photo affichée, la largeur de la réglette et les coupes retenues (voir _edges)."""
         if self.item:
@@ -678,8 +700,8 @@ class Chutes:
         """Le bouton « Profils » aurait un effet : photo affichée, pas déjà calculée à cette largeur et avec ces coupes."""
         return bool(self.item) and self.edges_asked.get(self.item.get("id")) != (self.edge_zone, self.edge_along)
 
-    def _edges(self, item, sections, lon, lat):
-        """Photo hors pont où le bouton « Profils » a été pressé : chute et dévers des deux bords de la route
+    def _edges(self, item, sections, lon, lat, deck=None):
+        """Photo hors pont (ou sur le pont deck, option « Autoriser le profil sur les ponts », set_edge_bridges) où le bouton « Profils » a été pressé : chute et dévers des deux bords de la route
         la plus proche (roads.MAX_DISTANCE m au plus), {text, title, edges}, l'attente du calcul ou sa raison
         d'échouer ; None sans appui sur le bouton pour cette photo."""
         asked = self.edges_asked.get(item.get("id"))
@@ -716,26 +738,33 @@ class Chutes:
             k0 = track.index((0.0, 0.0))
             p, q = track[max(0, k0 - 1)], track[min(len(track) - 1, k0 + 1)]
             heading = math.degrees(math.atan2(q[0] - p[0], q[1] - p[1]))
-        near, aligned = None, None
+        near, aligned, on_deck = None, None, None
+        deck_tag = deck and (deck.get("name"), deck.get("level"), tuple(deck["line"][0]), tuple(deck["line"][-1]))
         for sec in sections:
-            if sec.get("level", 0) != 0:
-                continue  # pont ou tunnel
+            is_deck = bool(deck) and (sec.get("name"), sec.get("level"), tuple(sec["line"][0]), tuple(sec["line"][-1])) == deck_tag
+            if sec.get("level", 0) != 0 and not is_deck:
+                continue  # pont ou tunnel (sauf celui de la photo, quand le profil sur les ponts est autorisé)
             line = [triangulation._local(p[0], p[1], lon, lat) for p in sec["line"]]
             d, s = roads._project(line, 0.0, 0.0)
             if d > roads.MAX_DISTANCE:
                 continue
             a, b = roads._at(line, s - roads.TANGENT), roads._at(line, s + roads.TANGENT)
             course = math.degrees(math.atan2(b[0] - a[0], b[1] - a[1]))
+            if is_deck:
+                on_deck = (d, s, line, sec)
             if near is None or d < near[0]:
                 near = (d, s, line, sec)
             if (heading is None or roads._axis_diff(course, heading) <= self.ROAD_TURN) and (aligned is None or d < aligned[0]):
                 aligned = (d, s, line, sec)
-        near = aligned or near
+        near = on_deck or aligned or near  # sur un pont, la route est le pont, pas la voie franchie dessous
         if near is None:
             return told("Pas de route de la BD TOPO à moins de {} m de la photo".format(
                 measures._num(roads.MAX_DISTANCE, 0)))
         _, s, line, sec = near
+        deck_line = line
         line, ends, works = self._chained(line, sec, sections, lon, lat)  # prolongé par les tronçons voisins de la même route
+        if on_deck:
+            works.append((sec["level"], deck_line[0], deck_line[-1]))  # le pont de la photo est un ouvrage de la route (tablier du profil en long)
         s = roads._project(line, 0.0, 0.0)[1]
         # Autres chaussées possibles (voir TWIN_REACH) : [(tronçon en mètres locaux, largeur)], vérifiées travers par
         # travers (_compute_edges) : un tronçon voisin de la même chaussée, dans son prolongement, n'en est pas une
@@ -763,7 +792,8 @@ class Chutes:
         road = sec.get("name") if re.match(r"[A-Z]+\d", sec.get("name") or "") else None
         profile = res.get("profile")
         if profile:  # eau de la BD TOPO sur le travers de la photo (lue à part : None pendant la lecture)
-            profile = dict(profile, eau=self._water_across(res["frame"], lon, lat))
+            profile = dict(profile, eau=self._water_across(res["frame"], lon, lat),
+                           pont=bool(on_deck) or roads.flat_ground(sections, lon, lat))  # sur un pont ou à ses abords (BRIDGE_FLAT_RADIUS)
         return {"text": "Bords de route" + (" ({})".format(road) if road else "") + "\n" + res["text"],
                 "title": res["title"], "edges": True, "profile": profile, "road": road}
 

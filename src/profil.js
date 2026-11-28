@@ -610,6 +610,10 @@ const Profil = (() => {
     ];
   }
 
+  // Avertissement d'un profil sur un pont ou à ses abords (option « Autoriser le profil sur les ponts »), dans le coin du graphique, le PNG et le PDF
+  const PLATEFORME_SUR_PONT = false;  // temporaire (28/11/2026) : plateforme grise affichée aussi sur un pont ?
+  const BRIDGE_WARNING = "Pont\u00a0: relief LiDAR peut-être faux (dessous du pont ou abords)";
+
   /** Chute et dévers de chaque côté, dessinés sur le travers où ils ont été mesurés (svg) ; rend leur liste pour la
    * légende (une puce par côté, et la plateforme). */
   function drawResults(svg, profile, all, main, { X, Z, path }, show = SHOW, has = {}) {
@@ -619,7 +623,12 @@ const Profil = (() => {
       item.append(symbol("carrefour"), html("b", "carrefour", `\u26a0\u00a0${profile.carrefour.texte}`));
       results.append(item);
     }
-    if (profile.plateforme) {
+    if (profile.pont && show.pontAutorise) {  // profil autorisé sur un pont ou ses abords : relief LiDAR douteux, en tête aussi
+      const item = document.createElement("li");
+      item.append(symbol("carrefour"), html("b", "carrefour", `\u26a0\u00a0${BRIDGE_WARNING}`));
+      results.append(item);
+    }
+    if (profile.plateforme && (PLATEFORME_SUR_PONT || !profile.pont)) {  // temporaire (28/11/2026) : rien sur un pont
       has.devers = true;
       if (show.devers) {
         const item = document.createElement("li");
@@ -786,16 +795,19 @@ const Profil = (() => {
     if (road.length > 1) {
       const under = Math.max(...road.map(([, z]) => Z(z)));  // sous le point le plus bas : pas de texte sur une chaussée en dévers
       const roadAt = `${X((bl + br) / 2)},${Z(zAt(main.points, (bl + br) / 2) ?? ref)}`;
-      if (show.plateforme) svg.append(el("path", { d: path(road), class: "chaussee" }));
-      if (show.largeurs) {
+      // Temporaire (28/11/2026) : plateforme grise et étiquettes de la plateforme (largeur, dévers) masquées sur les ponts, à revoir (PLATEFORME_SUR_PONT = true la rétablit)
+      const grise = PLATEFORME_SUR_PONT || !profile.pont;
+      if (show.plateforme && grise) svg.append(el("path", { d: path(road), class: "chaussee" }));
+      if (show.largeurs && grise) {
         svg.append(el("text", { x: X((bl + br) / 2), y: under + 26, class: "etiquette-profil place", "data-prio": 3, "data-cle": "plateforme", "data-chaussee": "",
           "data-ancre": roadAt, "text-anchor": "middle" },
           `plateforme ${num(br - bl)} m`));
       }
       const slope = platformLabel(profile.plateforme);
-      has.plateforme = has.largeurs = true;
-      has.devers = Boolean(slope);
-      if (slope && show.devers) {
+      has.plateforme = grise;
+      has.largeurs = grise;
+      has.devers = grise && Boolean(slope);
+      if (slope && show.devers && grise) {
         // sous la largeur, qu'elle suit ; seule (largeur masquée), posée comme elle l'aurait été
         svg.append(el("text", { x: X((bl + br) / 2), y: under + (show.largeurs ? 42 : 26), class: "etiquette-profil place", "data-prio": 3, "data-chaussee": "",
           ...(show.largeurs ? { "data-suite": "plateforme" } : { "data-ancre": roadAt }), "text-anchor": "middle" }, slope));
@@ -883,14 +895,21 @@ const Profil = (() => {
     const mentionBox = [LEFT + 2, TOP + 2, LEFT + 12 + textWidth(mention, 13, 500, 0.6), TOP + 24];
     // Carrefour près de la photo (App._junction_near) : « Carrefour : bords peu sûrs » dans le coin haut droit, aussi dans
     // le PNG et le PDF ; la phrase entière en tête de la légende
-    const junction = profile.carrefour ? "⚠ Carrefour\u00a0: bords peu sûrs" : "";
-    const junctionW = textWidth(junction, 13, 500, 0.6) + 18;
-    const junctionBox = [W - RIGHT - 2 - junctionW, TOP + 2, W - RIGHT - 2, TOP + 24];
-    declutter(svg, { top: TOP, bottom: TOP + plotH, left: LEFT, right: LEFT + plotW }, [...(mention ? [mentionBox] : []), ...(junction ? [junctionBox] : [])],
+    // Pont ou abords (profile.pont) avec l'option cochée : « Pont : relief LiDAR peut-être faux… », même style, à gauche du carrefour
+    // s'il y en a un ; jamais masquée par les autres options
+    const banners = [];
+    let right = W - RIGHT - 2;
+    for (const text of [profile.carrefour ? "⚠ Carrefour\u00a0: bords peu sûrs" : "", profile.pont && show.pontAutorise ? `⚠ ${BRIDGE_WARNING}` : ""]) {
+      if (!text) continue;
+      const width = textWidth(text, 13, 500, 0.6) + 18;
+      banners.push({ text, width, box: [right - width, TOP + 2, right, TOP + 24] });
+      right -= width + 6;
+    }
+    declutter(svg, { top: TOP, bottom: TOP + plotH, left: LEFT, right: LEFT + plotW }, [...(mention ? [mentionBox] : []), ...banners.map((b) => b.box)],
       { mode: ETIQ.mode, ceiling: f.ceiling });
-    if (junction) {
-      svg.append(el("rect", { x: junctionBox[0], y: junctionBox[1], width: junctionW, height: 22, rx: 3, class: "mention-echelle mention-carrefour" }),
-        el("text", { x: W - RIGHT - 7, y: TOP + 18, "text-anchor": "end", class: "etiquette-profil mention-carrefour-texte" }, junction));
+    for (const { text, width, box } of banners) {
+      svg.append(el("rect", { x: box[0], y: box[1], width, height: 22, rx: 3, class: "mention-echelle mention-carrefour" }),
+        el("text", { x: box[2] - 5, y: TOP + 18, "text-anchor": "end", class: "etiquette-profil mention-carrefour-texte" }, text));
     }
     if (mention) {
       svg.append(el("rect", { x: mentionBox[0], y: mentionBox[1], width: mentionBox[2] - mentionBox[0], height: 22, rx: 3, class: "mention-echelle" }),

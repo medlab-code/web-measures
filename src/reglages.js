@@ -108,8 +108,12 @@ const Reglages = {
     const optionBoxes = [...$("#profil-options").querySelectorAll("input[data-option]")];
     const cutBoxes = [...$("#profil-options").querySelectorAll("input[data-coupe]")];
     for (const box of [...optionBoxes, ...cutBoxes]) box.checked = store.get(`profil-opt-${box.dataset.option ?? `coupe-${box.dataset.coupe}`}`) !== "0";
+    // « Autoriser le profil sur les ponts » : décochée par défaut (près d'un pont, fenêtre sans calcul) ; choix retenu, envoyé à Python (App.set_edge_bridges).
+    // Jamais grisée : elle a toujours un effet possible (cochée, le bouton du profil n'est plus grisé sur un pont)
+    const bridgeBox = $("#profil-pont");
+    bridgeBox.checked = store.get("profil-opt-pont") === "1";
     const keptCuts = () => cutBoxes.filter((box) => box.checked).flatMap((box) => [-Number(box.dataset.coupe), Number(box.dataset.coupe)]);
-    const showOptions = () => Object.fromEntries(optionBoxes.map((box) => [box.dataset.option, box.checked]));
+    const showOptions = () => ({ ...Object.fromEntries(optionBoxes.map((box) => [box.dataset.option, box.checked])), pontAutorise: bridgeBox.checked });
     const optionPresence = (presence) => {
       const profile = etat.edgeProfile?.profile;
       for (const box of optionBoxes) {
@@ -257,9 +261,42 @@ const Reglages = {
     window.addEventListener("resize", () => { if ($("#fenetre-profil").open) fitProfile(); });
     $("#fenetre-profil").addEventListener("close", () => zoomProfile(false));  // taille normale à la prochaine ouverture
     let openedFor = null;  // photo du profil affiché : la fenêtre n'étant pas modale, elle se ferme si la photo change
+    // Profil désactivé près d'un pont : la fenêtre, ouverte sans calcul, ne montre que le message et la case (classe « bloque »)
+    let blockedShown = false;
+    function showBlocked(on) {
+      if (on === blockedShown) return;
+      blockedShown = on;
+      $("#profil-pont-bloque").hidden = !on;
+      $("#fenetre-profil").classList.toggle("bloque", on);
+      if (on) {
+        $("#fenetre-profil").querySelector("h2").textContent = "Profil en travers";
+        Carte.showTravers(map, null);  // travers et curseurs des bords retirés de la carte
+        showBordHandles();
+      }
+      $("#fenetre-profil").dispatchEvent(new Event("recentrer"));
+    }
+    function openBlocked() {
+      if (profileDialog.open) return;
+      document.dispatchEvent(new CustomEvent("outil-visionneuse", { detail: "profil" }));
+      openedFor = etat.photo.id;
+      showBlocked(true);
+      showOverViewer(profileDialog, true, false);
+    }
+    /** Option cochée dans la fenêtre ouverte sur le message : le profil est arrivé, la fenêtre prend sa forme habituelle. */
+    function leaveBlocked() {
+      showBlocked(false);
+      fillProfile(etat.photo);
+    }
     function openProfile() {
       if (!etat.edgeProfile || $("#fenetre-profil").open) return;
-      const dialog = $("#fenetre-profil"), feature = etat.photo;
+      const feature = etat.photo;
+      fillProfile(feature, () => {
+        openedFor = feature.id;
+        showOverViewer($("#fenetre-profil"), true, false);  // sur la grande zone, quel que soit l'échange carte / visionneuse ; non modale : la carte reste utilisable (curseurs des bords)
+      });
+    }
+    function fillProfile(feature, beforeMap = () => {}) {
+      const dialog = $("#fenetre-profil");
       const title = dialog.querySelector("h2");
       title.textContent = "Profil en travers" + (etat.edgeProfile.road ? ` · ${etat.edgeProfile.road}` : "");
       trueScale.checked = true;  // à l'échelle à chaque ouverture
@@ -267,8 +304,7 @@ const Reglages = {
       drawProfile();
       $("#profil-nuage-etat").textContent = "";
       nuageReady();
-      openedFor = feature.id;
-      showOverViewer(dialog, true, false);  // sur la grande zone, quel que soit l'échange carte / visionneuse ; non modale : la carte reste utilisable (curseurs des bords)
+      beforeMap();
       // Vue du dessus allumée par son interrupteur (qui recentre la carte sur la photo, d'un saut : synchrone) si la photo en a une et
       // qu'elle n'est pas déjà allumée ; la carte est libérée de la fenêtre ensuite, pour que le premier appui glisse tout de suite
       const bird = $("#dessus");
@@ -324,12 +360,14 @@ const Reglages = {
      * ou si la photo change. */
     function updateProfile(fall, reading) {
       const ready = etat.app?.edges_ready();
-      profileCan = Boolean(etat.photo) && !reading && !(fall && !fall.edges) && Boolean(ready || etat.edgeProfile);
+      // Près d'un pont, option décochée (fall.profil_bloque) : le bouton ouvre la fenêtre sans calcul (message et case pour autoriser le profil)
+      profileCan = Boolean(etat.photo) && !reading && (Boolean(fall?.profil_bloque)
+        || (!(fall && !fall.edges && !fall.profil_possible) && Boolean(ready || etat.edgeProfile)));
       if (waiting !== null) {
-        if (etat.photo?.id !== waiting || reading) stopWaiting("fin");
+        if (etat.photo?.id !== waiting || reading || fall?.profil_bloque) stopWaiting("fin");  // profil désactivé entre-temps : calcul abandonné
         else if (etat.edgeProfile && !ready) {
           stopWaiting("ok");
-          if (profileDialog.open) drawProfile();  // distance changée fenêtre ouverte : coupe redessinée
+          if (profileDialog.open) { if (!blockedShown) drawProfile(); }  // distance changée fenêtre ouverte : coupe redessinée (sortie du message : ci-dessous)
           else openProfile();
         } else if (fall?.edges && !fall.profile && !/en cours/.test(fall.text || "")) {
           // calcul sans résultat : raison dans le texte de la chute (étiquette #chute) et dans la croix de l'attente
@@ -337,6 +375,10 @@ const Reglages = {
         }
       }
       if (profileDialog.open && etat.photo?.id !== openedFor) profileDialog.close();
+      if (profileDialog.open) {
+        if (fall?.profil_bloque) showBlocked(true);
+        else if (blockedShown && etat.edgeProfile) leaveBlocked();
+      }
       showProfileButton();
     }
     profileButton.addEventListener("click", () => {
@@ -345,6 +387,11 @@ const Reglages = {
         return showProfileButton();
       }
       if (!etat.app || !etat.photo) return;
+      if (etat.fallNow?.profil_bloque) {  // profil désactivé près d'un pont : la fenêtre s'ouvre (ou se ferme) sans calcul
+        if (profileDialog.open) profileDialog.close();
+        else openBlocked();
+        return showProfileButton();
+      }
       document.dispatchEvent(new CustomEvent("outil-visionneuse", { detail: "profil" }));
       startWaiting(etat.photo.id);
       if (etat.app.edges_ready()) {
@@ -360,6 +407,7 @@ const Reglages = {
       showProfileButton();
     });
     profileDialog.addEventListener("close", () => {
+      showBlocked(false);
       Carte.showTravers(map, null);  // travers de la photo effacé de la carte
       // les bords recalés restent, côté Python, pour cette coupe ; curseurs retirés avec la fenêtre
       showBordHandles();
@@ -396,6 +444,22 @@ const Reglages = {
       showProfileButton();
     };
     $("#bords-largeur").addEventListener("change", recomputeProfile);
+    // Profil sur les ponts : Python décide (set_edge_bridges). Deux cases pour le même choix retenu : celle des options avancées et celle du message
+    // de la fenêtre ouverte près d'un pont. Cochée, le calcul part aussitôt (même attente, même règle « dernier choix gagnant » que la réglette) ;
+    // décochée près d'un pont, le profil disparaît et la fenêtre revient au message (updateProfile)
+    const bridgeBoxes = [bridgeBox, $("#profil-pont-fenetre")];
+    bridgeBoxes[1].checked = bridgeBox.checked;
+    for (const box of bridgeBoxes) {
+      box.addEventListener("change", async () => {
+        for (const other of bridgeBoxes) other.checked = box.checked;
+        store.set("profil-opt-pont", box.checked ? "1" : "0");
+        if (etat.app) etat.app.set_edge_bridges(box.checked);
+        refresh();
+        if (!profileDialog.open) return;
+        if (box.checked) await recomputeProfile();
+        if (etat.edgeProfile && !blockedShown) drawProfile(true);  // avertissement posé ou retiré
+      });
+    }
     // Coupes voisines (Options avancées) : le choix part à Python (set_edge_along), qui refait bords, plateforme, dévers, chute et
     // talus avec les seules coupes retenues ; même attente, même règle « dernier choix gagnant » que la réglette. Les bords recalés à la
     // main restent (ils sont gardés par le repère du profil, pas par les coupes) ; seules les valeurs qui en dépendent sont refaites

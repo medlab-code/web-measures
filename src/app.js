@@ -713,6 +713,7 @@ import { Visionneuse } from "./visionneuse.js";
     // coupes voisines retenues (Options avancées du profil, cases lues dans la page)
     etat.app.set_edge_along(JSON.stringify([...document.querySelectorAll("#profil-options input[data-coupe]:checked")]
       .flatMap((box) => [-Number(box.dataset.coupe), Number(box.dataset.coupe)])));
+    etat.app.set_edge_bridges($("#profil-pont").checked);  // profil autorisé sur les ponts (option avancée, décochée par défaut)
     applyFilter(false);
     if (etat.photo) etat.app.set_picture(JSON.stringify(etat.photo));
     restoreOverlay();  // couche importée gardée de la session précédente
@@ -915,7 +916,7 @@ import { Visionneuse } from "./visionneuse.js";
     // Bords de route : l'étiquette ne sert qu'à l'attente du calcul et à ses échecs ; le graphique du profil (fall.profile) porte le résultat
     // et, tant que le calcul est en cours, l'attente au centre de la visionneuse (Attente, src/reglages.js) remplace son texte « Calcul en cours… »
     const edgesWaiting = Boolean(fall?.edges && !fall.profile && /Calcul en cours…\s*$/.test(fall.text));
-    Object.assign($("#chute"), { hidden: !fall || Boolean(fall.edges && fall.profile) || edgesWaiting, title: fall?.title || "" });
+    Object.assign($("#chute"), { hidden: !fall || Boolean(fall.edges && fall.profile) || edgesWaiting || Boolean(fall.abords), title: fall?.title || "" });
     etat.edgeProfile = fall?.profile ? fall : null;
     etat.fallNow = fall;
     if (fall?.lidar) readBridgeFall(fall.lidar);

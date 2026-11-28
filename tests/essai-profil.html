@@ -139,6 +139,13 @@ try {
     hide("devers", "étiquette du dévers de la plateforme", "text[data-suite]", 1, (d) => !/Plateforme/.test(d.legend.textContent));
     hide("largeurs", "étiquette de largeur", "text[data-cle=plateforme]", 1);
     hide("plateforme", "bande grise", "path.chaussee", 1);
+    // Temporaire (28/11/2026) : plateforme grise non créée sur un pont (PLATEFORME_SUR_PONT), case grisée sans objet ; présente sans pont ; de même l'étiquette de largeur et celle du dévers de la plateforme
+    { const onBridge = opts({}, { ...base, pont: true });
+      expect("profil sur un pont : pas de plateforme grise, case sans objet ; sans pont : présente",
+        shows(onBridge.svg, "path.chaussee") === 0 && onBridge.presence.plateforme === false && shows(full.svg, "path.chaussee") === 1 && full.presence.plateforme === true);
+      expect("profil sur un pont : ni étiquette de plateforme ni dévers de plateforme, cases sans objet, pas de ligne « Plateforme » dans la légende ; sans pont : présents",
+        shows(onBridge.svg, "text[data-cle=plateforme]") === 0 && shows(onBridge.svg, "text[data-suite]") === 0 && onBridge.presence.largeurs === false && onBridge.presence.devers === false
+        && !/Plateforme/.test(onBridge.legend.textContent) && shows(full.svg, "text[data-cle=plateforme]") === 1 && shows(full.svg, "text[data-suite]") === 1 && full.presence.largeurs === true && full.presence.devers === true); }
     hide("bords", "traits et noms des bords", "line.bord[data-bord]", 2);
     hide("separateur", "barre du séparateur", "line.separateur", 1);
     hide("eau", "repère et bandes d'eau", "path.eau, path.eau-surface, path.eau-nuage", 3, (d) => !/Bleu/.test(d.legend.textContent));
@@ -182,8 +189,29 @@ try {
     // Cases par défaut : repliées, toutes cochées (réglages.js : coché sauf « 0 » dans le stockage, effacé par la page d'essai)
     const page = new DOMParser().parseFromString(await (await fetch("../index.html")).text(), "text/html"), details = page.querySelector("#profil-options");
     const inputs = [...details.querySelectorAll("input[type=checkbox]")];
-    expect(`options avancées : bloc replié par défaut, ${inputs.length} cases toutes cochées`, details.tagName === "DETAILS" && !details.hasAttribute("open")
-      && inputs.length >= 18 && inputs.every((i) => i.hasAttribute("checked")) && !inputs.some((i) => i.disabled && false));
+    const bridgeInput = details.querySelector("#profil-pont"), others = inputs.filter((i) => i !== bridgeInput);
+    expect(`options avancées : bloc replié par défaut, ${others.length} cases toutes cochées`, details.tagName === "DETAILS" && !details.hasAttribute("open")
+      && others.length >= 18 && others.every((i) => i.hasAttribute("checked")) && !others.some((i) => i.disabled && false));
+    // « Autoriser le profil sur les ponts » : décochée par défaut (comportement d'origine), jamais grisée,
+    // avertissement dans le graphique (SVG, donc PNG et PDF) et en tête de la légende seulement quand l'option est cochée sur un pont
+    expect("option « Autoriser le profil sur les ponts » : présente, décochée par défaut, jamais grisée, libellé attendu", bridgeInput && !bridgeInput.hasAttribute("checked") && !bridgeInput.disabled
+      && /Autoriser le profil sur les ponts/.test(bridgeInput.closest("label").textContent));
+    // Près d'un pont, option décochée : la fenêtre s'ouvre sans calcul sur ce message et cette case (même choix retenu), cachés hors pont
+    const blocked = page.querySelector("#profil-pont-bloque");
+    expect("fenêtre sans calcul près d'un pont : message et case de la fenêtre, cachés par défaut, case décochée", blocked?.hasAttribute("hidden")
+      && /Profil désactivé sur les ponts \(relief LiDAR peut-être faux : dessous du pont ou abords\)\./.test(blocked.textContent)
+      && blocked.querySelector("#profil-pont-fenetre") && !blocked.querySelector("#profil-pont-fenetre").hasAttribute("checked"));
+    { const onBridge = { ...base, pont: true }, warn = (p, o) => Profil.draw(structuredClone(p), true, null, true, 1.9, null, o);
+      const inSvg = (d) => [...d.svg.querySelectorAll("text.mention-carrefour-texte")].filter((t) => /Pont\u00a0: relief LiDAR peut-être faux \(dessous du pont ou abords\)/.test(t.textContent)).length;
+      expect("pont, option cochée : avertissement dans le graphique et en tête de la légende, jamais masqué par les autres options",
+        inSvg(warn(onBridge, { pontAutorise: true })) === 1 && /relief LiDAR peut-être faux/.test(warn(onBridge, { pontAutorise: true }).legend.textContent)
+        && inSvg(warn(onBridge, { pontAutorise: true, chute: false, bords: false, ponts: false, carrefours: false, camera: false })) === 1);
+      expect("pont, option décochée : aucun avertissement", inSvg(warn(onBridge, {})) === 0 && inSvg(warn(onBridge, { pontAutorise: false })) === 0);
+      expect("hors pont, option cochée : aucun avertissement",
+        inSvg(warn(base, { pontAutorise: true })) === 0);
+      const both = warn({ ...onBridge, carrefour: { texte: "Carrefour avec D18", d: 5, avec: ["D18"] } }, { pontAutorise: true }), rects = [...both.svg.querySelectorAll("rect.mention-carrefour")];
+      expect("pont et carrefour : deux bandeaux côte à côte, sans recouvrement", rects.length === 2
+        && (() => { const [a, b] = rects.map((r) => [+r.getAttribute("x"), +r.getAttribute("x") + +r.getAttribute("width")]).sort((u, v) => u[0] - v[0]); return a[1] <= b[0]; })()); }
     expect("options avancées : aucune case sans libellé ni info-bulle", inputs.every((i) => i.closest("label")?.title && i.closest("label").textContent.trim()));
     E.mode = saved; }
   // Cassure du profil en long (Profil.cassure) : deux pentes nettes découpées ; bruit, ondulations, courte distance ou une seule pente : non
