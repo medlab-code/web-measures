@@ -555,20 +555,22 @@ class BordsTalus(unittest.TestCase):
         self.assertTrue(r["devers"][5])
 
 
-def edges_on(z, width=8.0, twin=None, zone=14, axis_x=None, ends=([], None, []), along=None):  # zone depuis le milieu : 10 m au-delà de bords à ±4 m
+def edges_on(z, width=8.0, twin=None, zone=14, axis_x=None, ends=([], None, []), along=None, quality=None, rtk=()):  # zone depuis le milieu : 10 m au-delà de bords à ±4 m
     """Bords (App._compute_edges) sur un terrain synthétique z(x, y), en m : x vers la droite de la photo, y le long de la
     route (photo en y = 0) ; axe BD TOPO en x = 0, profil depuis l'axe ; axis_x : axe en x = axis_x, profil depuis la
-    caméra (séquence RTK), en x = 0 ; twin : autre chaussée [(ligne, largeur)] ; along : coupes retenues (toutes par défaut).
+    caméra (séquence RTK), en x = 0 ; twin : autre chaussée [(ligne, largeur)] ; along : coupes retenues (toutes par défaut) ;
+    quality : vérification de la séquence (écart RTK − sol : « height ») ; rtk : [(x, y, altitude NGF)] des photos de la séquence.
     Rend self.edges[clé]."""
     lon, lat = 5.0, 47.0
     calc = App.__new__(App)
     calc.edges, calc.edges_redo = {}, {}
     calc.notify = lambda: None
+    calc.quality = quality
     calc._terrain = lambda points, done: done(
         [z(*web_app.triangulation._local(p[0], p[1], lon, lat)) for p in points], web_app.triangulation.LIDAR_NAME, None)
     key = ("photo", zone, axis_x is not None) + ((tuple(along),) if along else ())
     ax = axis_x or 0.0
-    calc._compute_edges(key, [(ax, -200.0), (ax, 200.0)], 200.0, width, 0.0, lon, lat, twin=twin, ends=ends)
+    calc._compute_edges(key, [(ax, -200.0), (ax, 200.0)], 200.0, width, 0.0, lon, lat, twin=twin, ends=ends, rtk=rtk)
     return calc.edges[key]
 
 
@@ -870,6 +872,90 @@ class Creux(unittest.TestCase):
     def test_creux_ouvert_au_bout(self):
         pts = [(-4, -6), (-2, -3), (0, 0), (2, 0), (4, 0.1)]
         self.assertEqual(app._bridged(pts)[0], [(0, 0), (2, 0), (4, 0.1)])
+
+
+class PontsTablier(unittest.TestCase):
+    """Profil en long : tablier des ponts de la BD TOPO (App._deck), le fond du LiDAR gardé à part. Route droite le long de y, photo en
+    y = 0, fenêtre de ±50 m ; pont de 144 m (y de −72 à 72) comme celui d'Auxonne : plus long que la fenêtre et que DIP_SPAN."""
+
+    HALF, ARCH = 72.0, 1.45  # demi-longueur du pont ; flèche de l'arc du tablier (m)
+    GAP = 1.9  # écart RTK − sol de la séquence
+
+    def deck(self, y):  # tablier en arc : 187,5 m aux culées, 188,95 m à la clé
+        return 187.5 + self.ARCH * (1 - (y / self.HALF) ** 2)
+
+    def scene(self, hole=None):
+        def z(x, y):
+            if hole is not None and y > hole:
+                return None
+            return 181.7 if abs(y) < self.HALF else 187.5  # sous le pont : le lit de la rivière
+        return z
+
+    def profil(self, rtk=True, precise=True, **kw):
+        photos = [(0.0, float(y), self.deck(y) + self.GAP) for y in range(-70, 71, 5)] if rtk else []
+        quality = {"precise": precise, "lidar": True, "height": self.GAP}
+        works = [(1, (0.0, -self.HALF), (0.0, 0.0)), (1, (0.0, 0.0), (0.0, self.HALF))]  # deux tronçons chaînés
+        return edges_on(kw.pop("z", None) or self.scene(**kw), ends=([], "D905", works), quality=quality, rtk=photos)["profile"]["en_long"]
+
+    def test_tablier_rtk_en_arc(self):
+        long = self.profil()
+        pont, = [o for o in long["ouvrages"] if o["type"] == "pont"]
+        self.assertEqual((pont["de"], pont["a"], pont["tablier"]), (-72.0, 72.0, "rtk"))
+        for d, z in long["points"]:
+            self.assertAlmostEqual(z, self.deck(d), delta=0.03, msg=d)  # partout, y compris sous la fenêtre des culées
+        self.assertEqual(min(d for d, _ in long["points"]), -50.0)
+        self.assertLess(abs(long["max"][0]), 3.0)  # montée de l'arc, pas la rampe de 30 m du fond
+        self.assertTrue(all(z < 183 for _, z in pont["relief"]))  # le fond brut du LiDAR est gardé à part
+
+    def test_repli_droite_sans_rtk(self):
+        for long in (self.profil(rtk=False), self.profil(precise=False)):  # pas de photo, ou écart RTK − sol non vérifié
+            pont, = [o for o in long["ouvrages"] if o["type"] == "pont"]
+            self.assertEqual(pont["tablier"], "droite")
+            for d, z in long["points"]:
+                self.assertAlmostEqual(z, 187.5, delta=0.01)  # droite entre les terrains hors des culées (lus au-delà de la fenêtre)
+            self.assertAlmostEqual(long["pente"], 0.0, delta=0.05)
+
+    def test_un_bout_illisible_pente_de_l_approche(self):
+        def z(x, y):
+            if y > 73.0:
+                return None  # pas de terrain au-delà de la culée est
+            return 150.0 + 0.03 * y if y < -self.HALF else 80.0
+        long = self.profil(rtk=False, z=z)
+        pont, = [o for o in long["ouvrages"] if o["type"] == "pont"]
+        self.assertEqual(pont["tablier"], "pente")
+        want = lambda d: 150.0 + 0.03 * (-75.0) + 0.03 * (d + 75.0)  # prolongé à 3 % depuis le terrain à 3 m de la culée ouest
+        for d, v in long["points"]:
+            self.assertAlmostEqual(v, want(d), delta=0.05, msg=d)
+        self.assertAlmostEqual(long["pente"], 3.0, delta=0.1)
+
+    def test_petit_pont_voisin_sans_fausse_pente(self):
+        def z(x, y):  # route à 100 m ; petit pont de 12 m à l'ouest, grand pont qui commence à 8 m (fond 20 m plus bas)
+            return 80.0 if -48.0 < y < -36.0 or 8.0 < y < 152.0 else 100.0
+        works = [(1, (0.0, -48.0), (0.0, -36.0)), (1, (0.0, 8.0), (0.0, 152.0))]
+        long = edges_on(z, ends=([], "D905", works))["profile"]["en_long"]
+        self.assertEqual([o["tablier"] for o in long["ouvrages"]], ["droite", "droite"])
+        for d, v in long["points"]:
+            self.assertAlmostEqual(v, 100.0, delta=0.01, msg=d)
+        self.assertEqual(long["max"][0], 0.0)
+        self.assertEqual(max(d for d, _ in long["points"]), 50.0)  # le profil n'est pas coupé au pont
+
+    def test_creux_sans_pont_bd_topo_toujours_comble(self):
+        def z(x, y):
+            return 90.0 if 10.0 < y < 20.0 else 100.0
+        long = edges_on(z)["profile"]["en_long"]
+        self.assertEqual([o["type"] for o in long["ouvrages"]], ["creux"])
+        self.assertTrue(all(abs(v - 100.0) < 0.01 for _, v in long["points"]))
+
+    def test_fond_eau_ou_terrain(self):
+        lon, lat = 5.0, 47.0
+        geo = lambda x, y: list(web_app.triangulation._geographic(x, y, lon, lat))
+        for y, want in ((0.0, "eau"), (50.0, "sec")):  # cours d'eau sous le pont, ou hors de lui
+            calc = App.__new__(App)
+            calc._bdtopo = lambda layer, cell, y=y: [{"properties": {}, "geometry": {"type": "LineString", "coordinates": [geo(-30.0, y), geo(30.0, y)]}}] \
+                if layer == "troncon_hydrographique" else []
+            self.assertEqual(calc._bottom_under([(0.0, -200.0), (0.0, 200.0)], 200.0, True, -10.0, 10.0, lon, lat), want)
+        calc._bdtopo = lambda layer, cell: None  # BD TOPO pas encore lue
+        self.assertIsNone(calc._bottom_under([(0.0, -200.0), (0.0, 200.0)], 200.0, True, -10.0, 10.0, lon, lat))
 
 
 class Route(unittest.TestCase):

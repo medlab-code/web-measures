@@ -689,18 +689,39 @@ Droite au sol tracée dans la photo (`App.nose_line`, `py/web_nez.py`), que l'ut
   est aussi signalé en tête des résultats des bords (« Carrefour avec … : bords peu sûrs ») : les travers vont jusqu'à
   ±10 m et la voie qui arrive a quelques mètres de large ; la chaussée s'y élargit, le bord n'y est pas continu, et ni
   le relief ni l'analyse fine n'y ont de bonne réponse (D16 d946f2cf-cddc-4476-a414-35aee429c05a, 20/11/2026).
-- **Creux et ponts** : le MNT n'a pas les ponts, il donne le fond franchi. Le tronçon BD TOPO en
-  pont est souvent plus court que la brèche, ou absent. Au-dessus de chaque point, on cherche la
+- **Ponts de la BD TOPO** : le MNT n'a pas les ponts, il donne le fond franchi (eau, vallon). Les tronçons en pont de la même
+  route (chaînés par `_chained`, jusqu'à 60 m de plus de chaque côté) qui se touchent (à 2 m près) ne font qu'un pont ; seules
+  ses **extrémités** comptent, quelle que soit sa longueur (144 m à Auxonne, plus long que la fenêtre de ±50 m). Le **tablier** qui
+  remplace le fond, de 3 m avant le bout à 3 m après l'autre (marge `BRIDGE_MARGIN`, hors des murs des culées), vient de, dans cet ordre
+  (`App._deck`) :
+  1. **l'altitude RTK des photos** de la séquence situées sur le pont (2 au moins, à 8 m de l'axe au plus) : altitude NGF de la
+     photo (`host.ngf_altitude`, EXIF) moins l'**écart RTK − sol de la séquence** (`quality["height"]`, celui qu'utilisent déjà la
+     hauteur de caméra et `rtk_height` : la médiane de NGF − sol LiDAR des photos vérifiées hors du pont, pas de deuxième lecture) ;
+     ces altitudes, jointes de l'une à l'autre, se raccordent au terrain lu à 3 m hors de chaque bout. Photos lues avec la
+     trajectoire de la caméra (`_track_line`), sans autre requête. Sans position vérifiée (écart RTK − sol inconnu), ce n'est pas possible ;
+  2. **une droite entre le terrain juste hors de chaque bout** (3 m de marge), quelle que soit la longueur du pont ; le terrain
+     des bouts hors de la fenêtre est lu à part (`_bridge_reads`, une lecture de plus à la suite du profil en long) ;
+  3. **la pente de l'approche** (moindres carrés sur les 20 m avant le bout lisible) prolongée sur le pont, quand un bout est
+     illisible, au lieu de couper le profil.
+  Le profil en long, la pente moyenne, la plus forte pente sur 10 m et la cassure sont ceux du **profil corrigé**, donc du tablier :
+  les murs des culées et un petit pont voisin n'y laissent aucune fausse pente. Sur le pont de France à Auxonne (D905, 144 m, étude du 28/11/2026),
+  l'ancienne méthode (cordes de 40 m) laissait des rampes artificielles de 30 à 40 m, un milieu au niveau de l'eau et des pentes fausses
+  (+1 % au lieu de −1 % au milieu, −6,5 % au lieu de +3 % à la culée ouest) ; le tablier par les photos RTK s'écarte de 0,3 m au plus du
+  tablier de l'étude (arc de 187,5 m aux culées à 188,95 m à la clé), la droite (repli 2) d'environ 1,5 m à la clé.
+  Le **fond LiDAR brut** est renvoyé à côté (`ouvrages[].relief`, de 3 m avant à 3 m après le pont) et dessiné sous le tablier, avec son nom
+  (`ouvrages[].fond`) : « surface de l'eau (LiDAR) » si un cours d'eau ou une surface d'eau de la BD TOPO (hors souterrains et tronçons
+  fictifs) croise la route entre les bouts, « terrain naturel (LiDAR) » sinon, « fond (LiDAR) » tant que la BD TOPO n'est pas lue (`App._bottom_under`,
+  lu à part comme l'eau du travers). `ouvrages[].tablier` dit d'où vient le tablier (« rtk », « droite », « pente »).
+- **Creux sans pont BD TOPO** (secours, `App._bridged`) : au-dessus de chaque point, on cherche la
   **corde** la plus haute tendue entre deux points du terrain distants de **40 m** au plus. Là où
   elle passe à plus de **0,1 m** au-dessus du terrain, il y a un creux. Sa corde est celle qui
   passe au-dessus du point le plus profond, resserrée tant que le point suivant est encore sur
   elle (à 0,1 m près) : ses appuis sont les culées, en haut des parois. Le creux n'est comblé (la
-  corde remplace le terrain, en tirets) que s'il recouvre un **pont de la BD TOPO** (« pont
-  (tablier interpolé) ») ou contient une **plongée de plus de 20 %** d'un point au suivant, alors
-  qu'une route ne dépasse pas 15 % (« creux du terrain (pont ?) »). Un vallon que la route suit
+  corde remplace le terrain, en tirets) que s'il contient une **plongée de plus de 20 %** d'un point au suivant,
+  alors qu'une route ne dépasse pas 15 % (« creux du terrain (pont ?) »). Un vallon que la route suit
   elle-même n'est ni l'un ni l'autre : il reste tel quel. Une plongée de plus de 20 % qui reste
   (creux de plus de 40 m) est comblée du bord jusqu'au retour au niveau de la route. Un creux
-  ouvert au bout du profil (pas d'autre bord) y est coupé.
+  ouvert au bout du profil (pas d'autre bord) y est coupé. Un pont de la BD TOPO dont aucun bout n'est lisible y passe aussi.
 - **Tunnels** de la route (BD TOPO) : le MNT y donne le dessus, remplacé par la droite d'une tête
   à l'autre. Un tunnel au bout du profil n'a qu'une tête : rien n'est dessiné dessus.
 - **Pentes** : pente moyenne par les moindres carrés (montée ou descente dans le sens de la

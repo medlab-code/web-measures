@@ -481,11 +481,15 @@ après.
     pentes ne portent que sur la partie gardée), « carrefour avec D18 » là où une voie carrossable nommée (numéro ou nom) s'y
     raccorde (deux raccordements de la même voie à moins de 30 m, comme autour d'un îlot séparateur : un seul
     carrefour, au milieu), noms au-dessus du graphique, reliés au profil par un trait pointillé ; les voies sans numéro ni nom, les routes empierrées, chemins (nature BD TOPO, ou nom en « CHE » sans numéro, même classé route), sentiers et voies privées ou réservées aux ayants droit ne sont pas mentionnés ; ponts : le MNT y donne le fond
-    franchi ; un creux (corde de 40 m au plus à plus de 0,1 m au-dessus du terrain, appuyée en haut des parois) est
-    remplacé par cette corde s'il recouvre un pont de la BD TOPO ou si le terrain y plonge de plus de 20 % (une route :
-    15 % au plus), un vallon que la route suit restant tel quel (le tablier, à peu près, en tirets « pont (tablier interpolé) », ou
-    « creux du terrain (pont ?) » hors des ponts de la BD TOPO, souvent plus courts que la brèche), pentes comprises ;
-    creux ouvert au bout du profil : coupé ; tunnels de la route (BD TOPO) : le dessus remplacé par la droite d'une tête
+    franchi, remplacé par le **tablier** entre les deux bouts du pont de la BD TOPO, quelle que soit sa longueur (même plus long que la fenêtre
+    de ±50 m) : d'après l'**altitude RTK des photos** de la séquence prises sur le pont (2 au moins : leur altitude moins l'écart RTK − sol
+    de la séquence, jointes de l'une à l'autre et raccordées au terrain aux bouts) ; sinon une **droite** entre le terrain juste hors de chaque bout
+    (marge de 3 m) ; sinon, un bout illisible, la **pente de l'approche** prolongée (20 m). Le fond brut du LiDAR est dessiné dessous, en remplissage plus
+    clair, nommé « surface de l'eau (LiDAR) » si un cours d'eau de la BD TOPO passe sous le pont, « terrain naturel (LiDAR) » sinon ; la légende
+    dit d'où vient le tablier (« tablier : altitude RTK des photos » ou « tablier : droite entre les culées »). Pentes et cassure sont celles du
+    tablier. Hors des ponts de la BD TOPO, un creux (corde de 40 m au plus à plus de 0,1 m au-dessus du terrain, appuyée en haut des parois) est
+    remplacé par cette corde si le terrain y plonge de plus de 20 % (une route : 15 % au plus), un vallon que la route suit restant tel quel (en tirets,
+    « creux du terrain (pont ?) », pentes comprises) ; creux ouvert au bout du profil : coupé ; tunnels de la route (BD TOPO) : le dessus remplacé par la droite d'une tête
     à l'autre ; pente moyenne par les moindres
     carrés (montée ou descente dans le sens de la photo) ;
     un graphique (profil en long, environ 160 px de haut) sous le profil en travers, repris dans l'image PNG : bande pâle de −10 à +10 m
@@ -529,7 +533,7 @@ après.
   et une croix en haut à droite ferme la fenêtre. Un bloc dépliable **« Options avancées »**, replié par défaut, regroupe une case par élément
   du graphique, toutes cochées par défaut et retenues d'une session à l'autre : « Coupes » (**coupes à ±5 m**, **coupes à ±10 m**),
   « Mesures » (chute, dévers de la plateforme, talus, largeur de la plateforme, pente en long, repère de cassure), « Terrain et objets » (cours d'eau,
-  herbe, végétation, canopée, ponts, peintures, séparateur, plateforme grise) et « Repères » (bords, caméra et point 0, carrefours et fins de route).
+  herbe, végétation, canopée, ponts, **terrain sous les ponts** (fond LiDAR sous le tablier du profil en long, grisée sans pont), peintures, séparateur, plateforme grise) et « Repères » (bords, caméra et point 0, carrefours et fins de route).
   **« Autoriser le profil sur les ponts »** (groupe « Coupes », **décochée par défaut**, retenue d'une session à l'autre) : près d'un pont (sur le
   pont, ou à 15 m au plus du tablier), le profil n'est calculé que si elle est cochée. Décochée, le bouton du profil reste actif mais la fenêtre
   s'ouvre SANS calcul (aucune lecture de terrain, pas de graphique) sur le message « Profil désactivé sur les ponts (relief LiDAR peut-être faux :

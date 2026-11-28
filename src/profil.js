@@ -43,7 +43,7 @@ const Profil = (() => {
   // Éléments du graphique que les « Options avancées » de la fenêtre peuvent masquer (toutes les clés vraies par défaut) : un élément
   // masqué n'est pas créé (ni dans le SVG, ni dans l'image PNG ou le PDF, ni dans la place réservée aux étiquettes par declutter)
   const SHOW = { chute: true, talus: true, devers: true, largeurs: true, plateforme: true, pentes: true, cassure: true, eau: true,
-    herbe: true, vegetation: true, canopee: true, ponts: true, peintures: true, separateur: true, bords: true, camera: true, carrefours: true };
+    herbe: true, vegetation: true, canopee: true, ponts: true, fond: true, peintures: true, separateur: true, bords: true, camera: true, carrefours: true };
   // Distances (m, positives, croissantes) des coupes voisines lues dans le profil (profile.profils) : [5], [10] ou [5, 10]
   const neighbours = (profile) => [...new Set(profile.profils.map((p) => Math.abs(p.le_long)).filter((a) => a > 0))].sort((a, b) => a - b);
   const num = (v, digits = 1) => v.toFixed(digits).replace(".", ",").replace(/^-/, "−");
@@ -1114,12 +1114,25 @@ const Profil = (() => {
     return { cassure: false, parties: [whole] };
   }
 
+  const DECK_SOURCES = { rtk: "altitude RTK des photos", droite: "droite entre les culées", pente: "pente de l'approche prolongée" };
+  const BOTTOM_NAMES = { eau: "surface de l'eau (LiDAR)", sec: "terrain naturel (LiDAR)" };  // eau de la BD TOPO sous le pont, ou non
+  /** Ponts du profil en long (ouvrages avec leur fond LiDAR « relief », App._long_profile) : le tablier en trait plein, le fond brut dessous en
+   * remplissage plus clair (si « Terrain sous les ponts » est cochée), et d'où vient le tablier (discret). */
+  const deckBridges = (long) => (long.ouvrages || []).filter((o) => o.type === "pont" && o.relief?.length);
+  const bottomName = (o) => BOTTOM_NAMES[o.fond] || "fond (LiDAR)";  // fond inconnu : BD TOPO pas encore lue
+  function bridgeLegend(long, show) {
+    const deck = deckBridges(long), sources = [...new Set(deck.map((o) => DECK_SOURCES[o.tablier]).filter(Boolean))];
+    const names = [...new Set(deck.map(bottomName))];
+    return "pont : tablier en trait plein" + (show.fond && deck.length ? `, ${names.join(" ou ")} en remplissage plus clair` : "")
+      + (sources.length ? ` (tablier : ${sources.join(", ")})` : "");
+  }
+
   /** Lecture du profil en long (drawLong), pour la légende : une ligne courte (pente moyenne, trait violet, bande des
    * travers, repères pointillés), puis les ponts, creux comblés et tunnels s'il y en a. "" sans profil en long. */
   function longLegend(long, show = SHOW, profile = null) {
     if (!long?.points?.length) return "";
     const kinds = new Set((long.ouvrages || []).map((o) => o.type)), parts = show.ponts ? [
-      ...(kinds.has("pont") ? ["pont : tablier interpolé d'un bord à l'autre (tirets)"] : []),
+      ...(kinds.has("pont") ? [bridgeLegend(long, show)] : []),
       ...(kinds.has("creux") ? ["creux comblé : creux du terrain sous la route, sans doute un pont absent de la BD TOPO"] : []),
       ...(kinds.has("tunnel") ? ["tunnel : route tracée de bout en bout (tirets)"] : [])] : [];
     const reach = Math.max(0, ...(profile ? neighbours(profile) : [10]));
@@ -1171,6 +1184,7 @@ const Profil = (() => {
     const marks = [];
     has.carrefours = (long.fins || []).some((e) => e.d >= d0 && e.d <= d1);
     has.ponts = (long.ouvrages || []).some((o) => Math.min(o.a, d1) > Math.max(o.de, d0));
+    has.fond = deckBridges(long).some((o) => Math.min(o.a, d1) > Math.max(o.de, d0));
     for (const e of show.carrefours ? long.fins || [] : []) {
       if (e.d < d0 || e.d > d1) continue;
       // « fin de la D16 » (la route s'arrête : le profil aussi), puis le carrefour ; sinon le carrefour seul
@@ -1210,7 +1224,8 @@ const Profil = (() => {
     // zone des repères : la hauteur des rangs réellement utilisés (rien : juste le titre)
     const T = 30 + Math.max(0, ...marks.map((m) => m.row + m.lines.length)) * LINE + 6, LH = T + ph + B;
     const ground = zs[ds.indexOf(0)], top = ground !== undefined ? ground + camera : null;  // caméra dans le cadre aussi
-    const all = top !== null ? [...zs, top] : zs;
+    const bottoms = show.fond ? deckBridges(long).filter((o) => Math.min(o.a, d1) > Math.max(o.de, d0)) : [];  // fond LiDAR sous les ponts affichés
+    const all = [...zs, ...(top !== null ? [top] : []), ...bottoms.flatMap((o) => o.relief.filter(([d]) => d >= d0 && d <= d1).map(([, z]) => z))];
     const zmid = (Math.min(...all) + Math.max(...all)) / 2;
     const span = Math.max(2, (Math.max(...all) - Math.min(...all)) * 1.25);  // 2 m au moins : une route plate reste plate
     const Z = (z) => T + (zmid + span / 2 - z) / span * ph;
@@ -1238,9 +1253,34 @@ const Profil = (() => {
       el("text", { x: X(0), y: T + ph + 33, class: "graduation travers-mot", "text-anchor": "middle" }, "travers"));
     const path = long.points.map(([d, z], k) => `${k ? "L" : "M"}${X(d).toFixed(1)},${Z(z).toFixed(1)}`).join("");
     const [first, last] = [Math.min(...ds), Math.max(...ds)];
-    svg.append(el("path", { d: `${path}L${X(last)},${T + ph}L${X(first)},${T + ph}Z`, class: "terre" }),
-      el("path", { d: path, class: "sol" }));
-    for (const o of show.ponts ? long.ouvrages || [] : []) {  // ponts, creux comblés, tunnels : le tablier (droite d'un bord à l'autre) en tirets
+    // Terre sous le profil, sauf sous le tablier d'un pont dont le fond est affiché : là, rien (l'air) entre le tablier et le fond LiDAR brut,
+    // en remplissage plus clair (bleu si une eau de la BD TOPO passe dessous), nommé au milieu s'il y a la place
+    const gaps = bottoms.map((o) => [Math.max(o.de, d0, first), Math.min(o.a, d1, last)]).filter(([a, b]) => b > a).sort((p, q) => p[0] - q[0]);
+    let from = first;
+    for (const [a, b] of [...gaps, [last, last]]) {
+      const part = long.points.filter(([d]) => d >= from && d <= a);
+      if (part.length > 1) {
+        const line = part.map(([d, z], k) => `${k ? "L" : "M"}${X(d).toFixed(1)},${Z(z).toFixed(1)}`).join("");
+        svg.append(el("path", { d: `${line}L${X(part.at(-1)[0])},${T + ph}L${X(part[0][0])},${T + ph}Z`, class: "terre" }));
+      }
+      from = b;
+    }
+    for (const o of bottoms) {
+      const rel = o.relief.filter(([d]) => d >= d0 && d <= d1);
+      if (rel.length < 2) continue;
+      const line = rel.map(([d, z], k) => `${k ? "L" : "M"}${X(d).toFixed(1)},${Z(z).toFixed(1)}`).join("");
+      svg.append(el("path", { d: `${line}L${X(rel.at(-1)[0])},${T + ph}L${X(rel[0][0])},${T + ph}Z`, class: `fond-pont ${o.fond === "eau" ? "eau" : "sec"}` }),
+        el("path", { d: line, class: "fond-pont-trait" }));
+      const [a, b] = [Math.max(o.de, d0), Math.min(o.a, d1)], name = bottomName(o), mid = (a + b) / 2;
+      const lowAt = rel.reduce((best, [d, z]) => (Math.abs(d - mid) < Math.abs(best[0] - mid) ? [d, z] : best), rel[0])[1];
+      // nom du fond sous le tablier, dans l'air au-dessus du remplissage, s'il y a la place (16 px du tablier, 8 px du fond)
+      if (X(b) - X(a) > textWidth(name, 12, 400) + 12 && Z(lowAt) - Z(at(mid)) >= 34) {
+        svg.append(el("text", { x: X(mid), y: Z(at(mid)) + 18, class: "graduation fond-pont-nom", "text-anchor": "middle" }, name));
+      }
+    }
+    svg.append(el("path", { d: path, class: "sol" }));
+    for (const o of show.ponts ? long.ouvrages || [] : []) {  // creux comblés, tunnels (et ponts sans fond) : le tablier (droite d'un bord à l'autre) en tirets
+      if (o.type === "pont" && o.relief?.length) continue;  // pont à tablier : le profil lui-même, en trait plein
       const [a, b] = [Math.max(o.de, d0, first), Math.min(o.a, d1, last)];
       if (b > a) svg.append(el("line", { x1: X(a), y1: Z(at(a)) - 4, x2: X(b), y2: Z(at(b)) - 4, class: "ouvrage" }));
     }

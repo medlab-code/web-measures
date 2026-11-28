@@ -154,6 +154,21 @@ try {
     hide("canopee", "mention de canopée", "text.canopee", 1);
     hide("peintures", "lignes blanches", "rect.ligne-blanche", 1);
     hide("ponts", "tablier du pont", "line.ouvrage", 1);
+    // Pont à tablier (App._deck) : le tablier est le profil lui-même (trait plein, pas de tirets), le fond LiDAR brut dessous en remplissage plus clair,
+    // nommé (eau ou terrain naturel), masquable par « Terrain sous les ponts » ; case sans objet sans pont à tablier ; source du tablier dans la légende
+    { const relief = [[7, 0.5], [10, -5], [27, -5.2], [45, -5], [48, 2.5]];  // pont de 35 m : assez large pour porter le nom du fond
+      const deck = (o) => ({ ...base, en_long: { ...longs, ouvrages: [{ type: "pont", de: 10, a: 45, tablier: "rtk", relief, ...o }] } });
+      const wet = opts({}, deck({ fond: "eau" })), dry = opts({}, deck({ fond: "sec", tablier: "droite" })), off = opts({ fond: false }, deck({ fond: "eau" }));
+      expect("pont à tablier : fond LiDAR en remplissage, nommé « surface de l'eau (LiDAR) » dans le graphique et la légende, sans tirets",
+        shows(wet.long, "path.fond-pont.eau") === 1 && shows(wet.long, "line.ouvrage") === 0 && /surface de l'eau \(LiDAR\)/.test(wet.long.textContent)
+        && /surface de l'eau \(LiDAR\)/.test(wet.legend.textContent) && /tablier\u00a0: altitude RTK des photos|tablier : altitude RTK des photos/.test(wet.legend.textContent) && wet.presence.fond === true,
+        [shows(wet.long, "path.fond-pont.eau"), shows(wet.long, "line.ouvrage"), /surface de l'eau \(LiDAR\)/.test(wet.long.textContent), wet.legend.textContent.slice(-300), wet.presence.fond].join(" | "));
+      expect("pont à tablier sans eau : « terrain naturel (LiDAR) », tablier « droite entre les culées »",
+        shows(dry.long, "path.fond-pont.sec") === 1 && /terrain naturel \(LiDAR\)/.test(dry.legend.textContent) && /droite entre les culées/.test(dry.legend.textContent));
+      expect("option « fond » décochée : ni remplissage ni nom du fond, tablier et case conservés",
+        shows(off.long, "path.fond-pont") === 0 && !/\(LiDAR\)/.test(off.long.textContent) && !/remplissage plus clair/.test(off.legend.textContent) && off.presence.fond === true
+        && shows(off.long, "path.sol") === 1);
+      expect("sans pont à tablier, la case « Terrain sous les ponts » est sans objet", full.presence.fond === false); }
     hide("pentes", "pentes en étiquettes", "text.etiquette-raide", 2);
     hide("cassure", "trait de cassure", "line.cassure", 1);
     hide("camera", "point de l'axe, pointillé du point 0 du profil en long", "circle.origine, text[data-chaussee][data-haut], line.bord:not([data-bord])", 3,

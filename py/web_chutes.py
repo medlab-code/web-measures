@@ -4,6 +4,7 @@
 (ticket #31), avec leurs utilitaires (ponts de la BD TOPO, profil de la plateforme, noms des voies et de l'eau).
 Chutes est une base de web_app.App : ses méthodes lisent l'état de l'application (self)."""
 
+import itertools
 import json
 import math
 import re
@@ -655,6 +656,11 @@ class Chutes:
     # Tablier : enveloppe haute du terrain, cordes de DIP_SPAN m au plus (le fond d'un creux plus large n'est pas un pont) ;
     # gardée là où elle passe à plus de DIP_TOL m du terrain et recouvre un pont de la route ou une plongée de DIP_SLOPE
     DIP_SPAN, DIP_TOL = 40.0, 0.1
+    # Tablier d'un pont de la BD TOPO (_deck), dans l'ordre : altitudes RTK des photos de la séquence situées sur le pont (altitude NGF
+    # moins l'écart RTK − sol de la séquence, à RTK_LATERAL m au plus de l'axe, 2 photos au moins) ; sinon la droite entre le terrain
+    # lu à BRIDGE_MARGIN m hors de chaque bout (même au-delà de la fenêtre : BRIDGE_READS, lu à part) ; sinon, un bout illisible, le tablier
+    # prolongé à la pente des BRIDGE_APPROACH m d'approche de l'autre
+    BRIDGE_MARGIN, BRIDGE_APPROACH, RTK_LATERAL, RTK_MIN = 3.0, 20.0, 8.0, 2
     EDGE_CONSENSUS = 3.0  # m : bord (ou séparateur) d'un travers plus loin de la médiane des autres : ramené à elle
     # Bombement (piste P16) : rupture à CROWN_NEAR m au plus de l'axe BD TOPO, suivie d'une pente de CROWN_SLOPE au plus qui
     # tient sur CROWN_HOLD m : sommet du bombement ou changement de dévers d'une voie à l'autre, pas le bord (_edge_border) ;
@@ -788,12 +794,16 @@ class Chutes:
             else:
                 res = self.edges[key] = {"text": "Calcul en cours…", "title": ""}
                 self._compute_edges(key, line, s, self._road_width(sec), metadata.item_heading(item), lon, lat, twin, track,
-                                    (ends, sec.get("name"), works))
+                                    (ends, sec.get("name"), works), getattr(self, "long_rtk", {}).get(item.get("id"), []))
         road = sec.get("name") if re.match(r"[A-Z]+\d", sec.get("name") or "") else None
         profile = res.get("profile")
         if profile:  # eau de la BD TOPO sur le travers de la photo (lue à part : None pendant la lecture)
             profile = dict(profile, eau=self._water_across(res["frame"], lon, lat),
                            pont=bool(on_deck) or roads.flat_ground(sections, lon, lat))  # sur un pont ou à ses abords (BRIDGE_FLAT_RADIUS)
+            if profile.get("en_long"):  # fond sous les ponts : eau ou terrain (lu à part comme l'eau du travers)
+                profile["en_long"] = dict(profile["en_long"], ouvrages=[
+                    dict(o, fond=self._bottom_under(line, s, profile["avant"], o["de"], o["a"], lon, lat)) if o.get("relief") else o
+                    for o in profile["en_long"]["ouvrages"]])
         return {"text": "Bords de route" + (" ({})".format(road) if road else "") + "\n" + res["text"],
                 "title": res["title"], "edges": True, "profile": profile, "road": road}
 
@@ -807,6 +817,78 @@ class Chutes:
     ROAD_TURN = 45.0  # degrés au plus entre le tronçon de la photo et la route parcourue (_edges)
     CHAIN_TURN = 60.0  # degrés de déviation au plus d'un tronçon à l'autre en prolongeant la route
     CHAIN_REACH, CHAIN_TOUCH = 60.0, 2.0  # m ajoutés au plus de chaque côté ; bouts de tronçons qui se touchent
+
+    def _bridge_spans(self, works, along_of):
+        """Ponts de la route [(de, à)] le long d'elle (d croissant) : tronçons en pont de ses ouvrages (works), ceux qui se touchent
+        (à CHAIN_TOUCH m près) réunis en un seul pont ; seules leurs extrémités comptent (le tablier est une droite ou les photos)."""
+        spans = sorted(sorted((along_of(a), along_of(b))) for level, a, b in works if level > 0)
+        merged = []
+        for lo, hi in spans:
+            if merged and lo <= merged[-1][1] + self.CHAIN_TOUCH:
+                merged[-1][1] = max(merged[-1][1], hi)
+            else:
+                merged.append([lo, hi])
+        return [(lo, hi) for lo, hi in merged]
+
+    def _bridge_reads(self, spans, lengthwise):
+        """Distances d (m le long de la route) du terrain à lire en plus de la fenêtre, pour les ponts qui y entrent : à BRIDGE_MARGIN m
+        hors de chaque bout et, de là, tous les 10 m sur BRIDGE_APPROACH m (pente de l'approche si le bout est illisible), hors de ce
+        que la fenêtre lit déjà."""
+        covered = (lengthwise[0], lengthwise[-1]) if lengthwise else None
+        out = []
+        for lo, hi in spans:
+            if lo > self.LONG_REACH or hi < -self.LONG_REACH:
+                continue
+            for end, way in ((lo - self.BRIDGE_MARGIN, -1), (hi + self.BRIDGE_MARGIN, 1)):
+                for k in range(int(self.BRIDGE_APPROACH // 10) + 1):
+                    d = round(end + way * 10 * k, 2)
+                    if not (covered and covered[0] <= d <= covered[1]) and d not in out:
+                        out.append(d)
+        return out[:24]
+
+    def _ground_at(self, d, pts, extra):
+        """Altitude du terrain à la distance d : lue à part (extra, _bridge_reads) ou interpolée entre deux points voisins de la
+        fenêtre (pts) ; None s'il n'y en a pas (hors de la fenêtre, trou de lecture)."""
+        if round(d, 2) in extra:
+            return extra[round(d, 2)]
+        for (d0, z0), (d1, z1) in itertools.pairwise(pts):
+            if d0 <= d <= d1:
+                return z0 + (z1 - z0) * (d - d0) / (d1 - d0) if 0 < d1 - d0 <= 2 * self.LONG_STEP + 1e-6 else None
+        return None
+
+    def _deck(self, lo, hi, pts, extra, rtk):
+        """Tablier du pont (lo, hi) : (de, à, altitude de d, source) ou None sans aucun bout lisible. Sources, par ordre de préférence :
+        « rtk » (RTK_MIN photos au moins sur le pont, rtk : [(d, altitude du sol sous la caméra)] : altitudes jointes de l'une à
+        l'autre, raccordées au terrain lu à BRIDGE_MARGIN m hors de chaque bout), « droite » (droite entre ces deux terrains), « pente »
+        (un seul bout lisible : tablier prolongé à la pente des BRIDGE_APPROACH m d'approche)."""
+        m = self.BRIDGE_MARGIN
+        za, zb = self._ground_at(lo - m, pts, extra), self._ground_at(hi + m, pts, extra)
+        on = sorted({(round(d, 1), z) for d, z in rtk if lo <= d <= hi})
+        anchors, source = None, None
+        if len(on) >= self.RTK_MIN:
+            anchors, source = ([(lo - m, za)] if za is not None else []) + on + ([(hi + m, zb)] if zb is not None else []), "rtk"
+        elif za is not None and zb is not None:
+            anchors, source = [(lo - m, za), (hi + m, zb)], "droite"
+        if anchors:
+            def level(d):
+                if d <= anchors[0][0]:
+                    return anchors[0][1]
+                for (d0, z0), (d1, z1) in itertools.pairwise(anchors):
+                    if d <= d1:
+                        return z0 + (z1 - z0) * (d - d0) / ((d1 - d0) or 1.0)
+                return anchors[-1][1]
+            return lo - m, hi + m, level, source
+        for end, z0, way in ((lo - m, za, 1), (hi + m, zb, -1)):  # un seul bout lisible : pente de son approche, prolongée sur le pont
+            if z0 is None:
+                continue
+            near = [(d, z) for d, z in sorted(list(pts) + list(extra.items())) if 0 <= -way * (d - end) <= self.BRIDGE_APPROACH]
+            if len(near) < 3:
+                continue
+            md, mz = sum(d for d, _ in near) / len(near), sum(z for _, z in near) / len(near)
+            slope = sum((d - md) * (z - mz) for d, z in near) / (sum((d - md) ** 2 for d, _ in near) or 1.0)
+            level = lambda d, end=end, z0=z0, slope=slope: z0 + slope * (d - end)
+            return (end, hi + m, level, "pente") if way == 1 else (lo - m, end, level, "pente")
+        return None
 
     def _bridged(self, pts, bridges=()):
         """Profil en long [(d, z)] sans ses creux (le MNT n'a pas les ponts : il donne le fond franchi).
@@ -936,6 +1018,37 @@ class Chutes:
 
     WATER_REACH = 45.0  # m de part et d'autre de l'origine du travers où l'eau de la BD TOPO est cherchée
 
+    @staticmethod
+    def _water_kept(props):
+        """Objet d'eau de la BD TOPO à garder : ni souterrain ni fictif (tronçon à travers un lac)."""
+        try:
+            return int(props.get("position_par_rapport_au_sol") or 0) >= 0 and not props.get("fictif")
+        except (TypeError, ValueError):
+            return not props.get("fictif")
+
+    def _bottom_under(self, line, s, forward, lo, hi, lon, lat):
+        """Ce que le LiDAR donne sous le pont (lo, hi) de la route : « eau » si un cours d'eau ou une surface d'eau de la BD TOPO
+        croise la route entre ses bouts, « sec » sinon ; None pendant la lecture de la BD TOPO."""
+        cell = roads._cell(lon, lat)
+        lines, surfaces = self._bdtopo("troncon_hydrographique", cell), self._bdtopo("surface_hydrographique", cell)
+        if lines is None or surfaces is None:
+            return None
+        steps = max(1, math.ceil((hi - lo) / 2.0))
+        road = [roads._at(line, s + (1 if forward else -1) * (lo + (hi - lo) * k / steps)) for k in range(steps + 1)]
+        for feat in lines + surfaces:
+            props, geom = feat.get("properties") or {}, feat.get("geometry") or {}
+            if not self._water_kept(props):
+                continue
+            coords = geom.get("coordinates") or []
+            kind = geom.get("type")
+            rings = ([coords] if kind == "LineString" else coords if kind in ("MultiLineString", "Polygon")
+                     else [r for poly in coords for r in poly] if kind == "MultiPolygon" else [])
+            for ring in rings:
+                pts = [triangulation._local(q[0], q[1], lon, lat) for q in ring]
+                if any(_crossing(a, b, c, d) for a, b in itertools.pairwise(road) for c, d in itertools.pairwise(pts)):
+                    return "eau"
+        return "sec"
+
     def _water_across(self, frame, lon, lat):
         """Eau de la BD TOPO sur le travers de la photo (frame : origine et unité vers la droite, mètres locaux) : cours
         d'eau croisés ({"x", "nom", "nature"}) et plans ou surfaces d'eau traversés ({"de", "a", "nature"}), en m vers la
@@ -948,11 +1061,7 @@ class Chutes:
             return None
         across = lambda p: round((p[0] - ox) * rx + (p[1] - oy) * ry, 1)
 
-        def kept(props):
-            try:
-                return int(props.get("position_par_rapport_au_sol") or 0) >= 0 and not props.get("fictif")
-            except (TypeError, ValueError):
-                return not props.get("fictif")
+        kept = self._water_kept
 
         def cuts(ring):  # abscisses où le travers coupe la ligne (ou l'anneau) ring, en lon, lat
             pts = [triangulation._local(q[0], q[1], lon, lat) for q in ring]
@@ -991,6 +1100,18 @@ class Chutes:
 
         def done(data, error):
             out = []
+            if not error:  # altitudes RTK des photos de la séquence (tablier des ponts) : lues avec la trajectoire, sans autre requête
+                found = {}
+                for feat in [item] + list((data or {}).get("features") or []):
+                    try:
+                        if feat.get("collection") == seq:
+                            plon, plat = (float(v) for v in feat["geometry"]["coordinates"][:2])
+                            ngf = host.ngf_altitude(plon, plat, metadata.item_altitude(feat))
+                            if ngf is not None:
+                                found[feat.get("id")] = (*triangulation._local(plon, plat, lon, lat), ngf)
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                self.long_rtk[key] = list(found.values())
             if not error and seq is not None and isinstance(rank0, int):
                 at = {rank0: (0.0, 0.0)}
                 for feat in (data or {}).get("features") or []:
@@ -1023,9 +1144,10 @@ class Chutes:
         host.fetch_json(metadata.search_url(lon, lat, self.LONG_REACH + 15, 100, seq, host.api_url), done)
         return None
 
-    def _compute_edges(self, key, line, s, width, heading, lon, lat, twin=None, track=None, ends=([], None, [])):
+    def _compute_edges(self, key, line, s, width, heading, lon, lat, twin=None, track=None, ends=([], None, []), rtk=()):
         """Calcul des bords (voir _edges), rangé dans self.edges[key], puis notify() ; twin : autre chaussée
-        (tronçon, largeur) d'une route à chaussées séparées, ou None. Étapes : travers à lire (_edge_profiles), profil en
+        (tronçon, largeur) d'une route à chaussées séparées, ou None ; rtk : [(x, y, altitude NGF)] des photos de la séquence
+        (_track_line), dont l'altitude RTK donne le tablier des ponts (_deck). Étapes : travers à lire (_edge_profiles), profil en
         long (_long_samples), puis, le terrain lu, bords et séparateurs (_edge_reads) et chutes et dévers (_edge_falls)."""
         _, zone, camera, *kept = key  # clé de _edges ; sans 4e élément (appel direct), toutes les coupes
         along = kept[0] if kept else tuple(self.EDGE_ALONG)  # coupes retenues (set_edge_along)
@@ -1048,6 +1170,17 @@ class Chutes:
         def along_of(p):  # distance d'une fin de tronçon le long de la route BD TOPO (la caméra a pu couper le carrefour)
             return (1 if forward else -1) * (roads._project(line, p[0], p[1])[1] - s)
 
+        # Terrain aux bouts des ponts, hors de la fenêtre (le pont peut être plus long qu'elle), lu à la suite du profil en long
+        ahead, length = (1 if forward else -1), sum(math.hypot(q[0] - p[0], q[1] - p[1]) for p, q in itertools.pairwise(line))
+        reads = [d for d in self._bridge_reads(self._bridge_spans(ends[2], along_of), lengthwise) if 0 <= s + ahead * d <= length]
+        for d in reads:
+            px, py, qx, qy = self._line_frame(line, s + ahead * d)
+            samples.append((px + shift * qx, py + shift * qy))
+        # Photos de la séquence sur la route : altitude du sol sous elles (RTK moins l'écart RTK − sol de la séquence), si vérifiée
+        quality = getattr(self, "quality", None) or {}
+        gap = quality["height"] if quality.get("precise") and quality.get("lidar") is True and quality.get("height") is not None else None
+        on_road = [(along_of((x, y)), z - gap) for x, y, z in rtk if gap is not None and roads._project(line, x, y)[0] <= self.RTK_LATERAL]
+
         def got_ground(ground, source, error):
             if getattr(self, "edges_asked", {}).get(key[0], (zone, along)) != (zone, along):  # réglette ou coupes changées depuis : lecture périmée, jetée (refaite si le choix revient)
                 self.edges.pop(key, None)
@@ -1064,8 +1197,10 @@ class Chutes:
             read, twins = self._edge_reads(profiles, ground, sides, manual)
             found, borders, stops, drawn = self._edge_falls(read, sides, manual, zone)
             # Profil en long (derniers points lus) : pente moyenne, montée > 0 dans le sens de la photo, et la plus forte
-            pts = [(d, v) for d, v in zip(lengthwise, ground[len(ground) - len(lengthwise):]) if v is not None] if lengthwise else []
-            grade = self._long_profile(pts, ends, along_of, followed)
+            tail = len(ground) - len(reads)  # le terrain des bouts de ponts est lu après le profil en long
+            pts = [(d, v) for d, v in zip(lengthwise, ground[tail - len(lengthwise):tail]) if v is not None] if lengthwise else []
+            grade = self._long_profile(pts, ends, along_of, followed, {round(d, 2): v for d, v in zip(reads, ground[tail:]) if v is not None},
+                                       on_road)
             terrain = triangulation.RGE_ALTI_ERROR if source == "RGE ALTI" else triangulation.LIDAR_ERROR
             sigma = math.hypot(terrain, terrain)  # deux altitudes du même MNT
             origin = "la caméra" if camera else "l'axe BD TOPO"
@@ -1481,10 +1616,13 @@ class Chutes:
         names = _enumerate(_road_label(n) for n in junction["avec"]) or "une autre voie"
         return "Carrefour avec {} {} : bords peu sûrs (la chaussée s'y élargit, pas de bord continu)".format(names, where)
 
-    def _long_profile(self, pts, ends, along_of, followed):
+    def _long_profile(self, pts, ends, along_of, followed, extra=None, rtk=None):
         """Profil en long de la route sous la photo (pts : [(d en m dans le sens de la photo, altitude)]) : fins de la route
-        et carrefours avec une voie nommée (ends, voir _chained), creux et ponts comblés (_bridged), tunnels ; pente moyenne
-        et la plus forte sur LONG_WINDOW m. None avec moins de 5 points. along_of(p) : position d'un point le long de la route."""
+        et carrefours avec une voie nommée (ends, voir _chained), ponts de la BD TOPO remplacés par leur tablier (_deck), creux sans
+        pont comblés (_bridged), tunnels ; pente moyenne et la plus forte sur LONG_WINDOW m, sur le profil corrigé (le tablier, pas le
+        fond franchi). None avec moins de 5 points. along_of(p) : position d'un point le long de la route. extra : {d: altitude} du
+        terrain lu hors de la fenêtre aux bouts des ponts (_bridge_reads) ; rtk : [(d, altitude du sol sous la caméra)] des photos
+        de la séquence sur la route, dont l'altitude RTK sert au tablier."""
         # Fin de la route de la photo et carrefours avec une voie nommée, le long d'elle ; au-delà d'une fin, pas de profil
         # (la caméra a pu continuer sur une autre route)
         cuts = []
@@ -1509,12 +1647,25 @@ class Chutes:
             if e["type"] == "fin":
                 pts = [(d, v) for d, v in pts if (d <= e["d"] + 1e-6 if e["d"] > 0 else d >= e["d"] - 1e-6)]
         cuts = [e for e in cuts if pts and pts[0][0] - 1 <= e["d"] <= pts[-1][0] + 1]
-        # Creux (ponts, même absents de la BD TOPO) : terrain remplacé par la droite d'un bord à l'autre (le tablier, à peu
-        # près), pente comprise ; nommés « pont » s'ils recouvrent un pont de la route
-        bridges = [sorted((along_of(a), along_of(b))) for level, a, b in ends[2] if level > 0]
-        pts, dips = self._bridged(pts, bridges)
-        spans = [{"de": round(lo, 1), "a": round(hi, 1),
-                  "type": "pont" if any(b0 <= hi and b1 >= lo for b0, b1 in bridges) else "creux"} for lo, hi in dips]
+        # Ponts de la BD TOPO : tablier à la place du fond franchi (_deck), quelle que soit la longueur du pont ; le fond du LiDAR est gardé
+        # à part (« relief », pour le dessin). Pont sans tablier possible (aucun bout lisible), creux sans pont BD TOPO : _bridged
+        raw, spans, undone = list(pts), [], []
+        extra = extra or {}
+        for lo, hi in self._bridge_spans(ends[2], along_of):
+            if not raw or hi < raw[0][0] or lo > raw[-1][0]:
+                continue
+            deck = self._deck(lo, hi, raw, extra, rtk or [])
+            if deck is None:
+                undone.append((lo, hi))
+                continue
+            first, last, level, source = deck
+            pts = [(d, level(d)) if first <= d <= last else (d, v) for d, v in pts]
+            spans.append({"de": round(lo, 1), "a": round(hi, 1), "type": "pont", "tablier": source,
+                          "relief": [[d, round(v, 2)] for d, v in raw if max(first, lo - self.BRIDGE_MARGIN) <= d <= min(last, hi + self.BRIDGE_MARGIN)]})
+        # Creux sans pont BD TOPO (le MNT n'a pas les ponts absents de la BD TOPO) : terrain remplacé par la droite d'un bord à l'autre
+        pts, dips = self._bridged(pts, undone)
+        spans += [{"de": round(lo, 1), "a": round(hi, 1),
+                   "type": "pont" if any(b0 <= hi and b1 >= lo for b0, b1 in undone) else "creux"} for lo, hi in dips]
         # Tunnels de la route : le MNT y donne le dessus, remplacé par la droite d'une tête à l'autre
         for level, a, b in ends[2]:
             lo, hi = sorted((along_of(a), along_of(b)))

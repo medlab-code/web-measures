@@ -1359,6 +1359,10 @@ dialog.profil .legende svg.symbole rect.mention-carrefour { fill: var(--carrefou
 .profil-svg .grille { stroke: var(--bord); stroke-width: 1; }
 .profil-svg .grille.zero { stroke: var(--discret); stroke-dasharray: 4 3; }
 .profil-svg .terre { fill: #a1887f; opacity: 0.35; }
+.profil-svg .fond-pont.sec { fill: #a1887f; opacity: 0.18; }  /* fond LiDAR brut sous un pont du profil en long */
+.profil-svg .fond-pont.eau { fill: #4a90d9; opacity: 0.28; }
+.profil-svg .fond-pont-trait { fill: none; stroke: var(--discret); stroke-width: 1; }
+.profil-svg .fond-pont-nom { font-style: italic; }
 .profil-svg .sol { fill: none; stroke: var(--sol); stroke-width: 2.5; stroke-linejoin: round; }
 /* autres travers : transparents, sous le terrain de la photo */
 .profil-svg .autre-travers { fill: none; stroke: var(--discret); stroke-width: 1; stroke-dasharray: 3 3; }

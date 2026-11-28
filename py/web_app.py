@@ -175,6 +175,7 @@ class App(Pose, Chutes, Nez, session.Session):
         self.edges_redo = {}  # repère du profil -> (clé de self.edges, calcul à refaire sans relire le terrain)
         self.manual = {}  # repère du profil -> bords recalés à la main (use_manual_edges), par côté, m depuis l'origine
         self.edges_asked = {}  # photo -> (largeur examinée, coupes retenues) au dernier appui sur « Profils »
+        self.long_rtk = {}  # photo -> [(x, y, altitude NGF)] des photos de sa séquence alentour (_track_line)
         self.long_tracks = {}  # photo -> trajectoire de la caméra autour d'elle (_track_line), None pendant la lecture
         self.edge_zone = self.EDGE_ZONE
         self.edge_bridges = False  # profil autorisé sur les ponts (options avancées du profil, set_edge_bridges)

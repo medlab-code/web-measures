@@ -198,7 +198,11 @@ const Reglages = {
     // (lignes de l'herbe et de la végétation retirées) pour qu'ils ne bougent pas ; un nouveau profil la remet à sa taille
     const echelleLabel = trueScale.closest("label"), echelleTitre = echelleLabel.title;
     let frameKept = null;  // cadre du dernier dessin : { key (repère du travers), cadre, trueScale }
+    // Fond sous les ponts du profil en long (eau ou terrain, lu à part dans la BD TOPO : arrive après le profil) : le profil ouvert est redessiné à son arrivée
+    const fondKey = () => (etat.edgeProfile?.profile?.en_long?.ouvrages || []).map((o) => o.fond ?? "").join();
+    let fondDrawn = "";
     const drawProfile = (still = false) => {
+      fondDrawn = fondKey();
       const dialog = $("#fenetre-profil"), box = dialog.querySelector(".legende");
       box.style.minHeight = still && box.offsetHeight ? `${box.offsetHeight}px` : "";
       const found = nuage.get(nuageKey(etat.edgeProfile.profile));
@@ -375,6 +379,7 @@ const Reglages = {
         }
       }
       if (profileDialog.open && etat.photo?.id !== openedFor) profileDialog.close();
+      if (profileDialog.open && !blockedShown && waiting === null && etat.edgeProfile && fondKey() !== fondDrawn) drawProfile(true);  // fond sous un pont arrivé
       if (profileDialog.open) {
         if (fall?.profil_bloque) showBlocked(true);
         else if (blockedShown && etat.edgeProfile) leaveBlocked();
