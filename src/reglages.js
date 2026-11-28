@@ -102,30 +102,18 @@ const Reglages = {
       store.set("profil-vegetation", plants.checked ? "1" : "0");
       if (etat.edgeProfile) drawProfile(true);
     });
-    // Case « Bord d'enrobé (expérimental) » : bord d'enrobé et bordure de l'analyse fine déplacent les bords de chaussée ;
-    // décochée par défaut (souvent trop loin : accotements et trottoirs en enrobé), choix retenu, grisée sans analyse fine
-    const paving = $("#profil-enrobe");
-    paving.checked = store.get("profil-enrobe") === "1";
-    paving.addEventListener("change", () => {
-      store.set("profil-enrobe", paving.checked ? "1" : "0");
-      const profile = etat.edgeProfile?.profile, found = nuage.get(nuageKey(profile));
-      if (!found) return;
-      applyPaved(profile, found);  // bords relus sans relire le nuage
-      drawProfile(true);
-    });
-    // Recalage des bords à la main (mode « Recaler les bords ») : un curseur par bord du travers de la photo, glissé le long de la
-    // droite de coupe sur la carte (Carte.showBords) ; au lâcher, Python relit plateforme, largeurs, dévers et chute depuis les
-    // bords imposés (App.use_manual_edges, sans relire le terrain). Les bords restent pour cette photo et cette coupe (repère du
-    // profil, côté Python) ; « Bords automatiques » remet ceux du calcul. La vue du dessus (Bird Eye) s'allume avec le mode, pour
-    // voir les vrais bords sous la droite : le même interrupteur que le faucon de la carte.
-    const recalButton = $("#profil-recaler"), autoButton = $("#profil-bords-auto");
-    let recaling = false;
+    // Recalage des bords à la main, sans mode à activer : tant que la fenêtre du profil est ouverte, un curseur par bord du travers
+    // de la photo est sur la droite de coupe de la carte (Carte.showBords), glissé le long d'elle ; au lâcher, Python relit
+    // plateforme, largeurs, dévers et chute depuis les bords imposés (App.use_manual_edges, sans relire le terrain). Les bords
+    // restent pour cette photo et cette coupe (repère du profil, côté Python) ; « Bords automatiques » remet ceux du calcul. À
+    // l'ouverture de la fenêtre, la vue du dessus (Bird Eye) s'allume, pour voir les vrais bords sous la droite (le même
+    // interrupteur que le faucon de la carte), et la carte se recentre si les curseurs sont sous la fenêtre : le premier appui
+    // sur un curseur glisse aussitôt.
+    const autoButton = $("#profil-bords-auto");
     const metres = (v) => v.toFixed(2).replace(".", ",");
     const showBordHandles = () => {
-      const profile = etat.edgeProfile?.profile, rec = recaling && profile ? Profil.recalage(profile) : null;
+      const profile = etat.edgeProfile?.profile, rec = $("#fenetre-profil").open && profile ? Profil.recalage(profile) : null;
       autoButton.disabled = !profile?.manuel?.length;
-      recalButton.disabled = !profile?.repere;
-      recalButton.setAttribute("aria-pressed", String(recaling));
       if (!rec) return Carte.showBords(map, null);
       const from = profile.origine === "caméra" ? "de la caméra" : "de l'axe";
       Carte.showBords(map, {
@@ -144,40 +132,30 @@ const Reglages = {
         },
       });
     };
-    // À l'activation, les curseurs doivent être saisissables : la fenêtre du profil (non modale) ne les recouvre pas et ils sont
+    // À l'ouverture, les curseurs doivent être saisissables : la fenêtre du profil (non modale) ne les recouvre pas et ils sont
     // dans la carte. Sinon (carte en grand, fenêtre au centre ; carte déplacée ou zoomée avant) la carte est glissée pour amener le
-    // milieu des curseurs au centre de la plus grande partie libre de la carte (bandes autour de la fenêtre), sans changer le zoom
+    // milieu des curseurs au centre de la plus grande partie libre de la carte (bandes autour de la fenêtre), sans changer le zoom ;
+    // vrai si la carte a été glissée
     const freeCursors = () => {
       const rec = etat.edgeProfile?.profile && Profil.recalage(etat.edgeProfile.profile);
-      if (!rec) return;
+      if (!rec) return false;
       const [o, p] = rec.repere, xs = Object.values(rec.x), mid = xs.reduce((a, b) => a + b, 0) / xs.length;
       const canvas = map.getCanvas().getBoundingClientRect(), dialog = $("#fenetre-profil").getBoundingClientRect();
       const at = map.project([o[0] + mid * (p[0] - o[0]), o[1] + mid * (p[1] - o[1])]);
       const [x, y] = [at.x + canvas.left, at.y + canvas.top], margin = 40;
       const covered = dialog.width && x > dialog.left - margin && x < dialog.right + margin && y > dialog.top - margin && y < dialog.bottom + margin;
       const inside = x > canvas.left + margin && x < canvas.right - margin && y > canvas.top + margin && y < canvas.bottom - margin;
-      if (inside && !covered) return;
+      if (inside && !covered) return false;
       const strips = [[canvas.left, canvas.top, dialog.left, canvas.bottom], [dialog.right, canvas.top, canvas.right, canvas.bottom],
         [canvas.left, canvas.top, canvas.right, dialog.top], [canvas.left, dialog.bottom, canvas.right, canvas.bottom]]
         .map(([l, t, r, b]) => [Math.max(l, canvas.left), Math.max(t, canvas.top), Math.min(r, canvas.right), Math.min(b, canvas.bottom)])
         .filter(([l, t, r, b]) => r - l >= 2 * margin && b - t >= 2 * margin)
         .sort((a, b) => (b[2] - b[0]) * (b[3] - b[1]) - (a[2] - a[0]) * (a[3] - a[1]));
       const free = covered || !dialog.width ? strips[0] : [canvas.left, canvas.top, canvas.right, canvas.bottom];
-      if (free) map.panBy([x - (free[0] + free[2]) / 2, y - (free[1] + free[3]) / 2], { duration: 300 });
+      if (!free) return false;
+      map.panBy([x - (free[0] + free[2]) / 2, y - (free[1] + free[3]) / 2], { duration: 300 });
+      return true;
     };
-    recalButton.addEventListener("click", () => {
-      recaling = !recaling;
-      if (recaling) {
-        const bird = $("#dessus");
-        if (bird.disabled) setStatus("Vue du dessus indisponible pour cette photo : les bords se recalent sur la carte sans elle.");
-        else if (!bird.checked) {  // l'interrupteur du faucon de la carte (src/resultats.js) : la vue se calcule et s'affiche
-          bird.checked = true;
-          bird.dispatchEvent(new Event("change"));
-        }
-      }
-      showBordHandles();
-      if (recaling) freeCursors();  // après la vue du dessus : son interrupteur recentre la carte sur la photo
-    });
     autoButton.addEventListener("click", () => {
       const profile = etat.edgeProfile?.profile;
       if (!profile?.manuel?.length || !etat.app) return;
@@ -194,15 +172,13 @@ const Reglages = {
       const dialog = $("#fenetre-profil"), box = dialog.querySelector(".legende");
       box.style.minHeight = still && box.offsetHeight ? `${box.offsetHeight}px` : "";
       const found = nuage.get(nuageKey(etat.edgeProfile.profile));
-      // option décochée : séparateur, lignes, herbe, végétation et eau restent, sans bords ni largeur d'enrobé
-      const fine = found && !paving.checked ? { ...found, bords: {}, largeur: null } : found;
       // Redessin par une case : cadre du dessin précédent du même travers gardé (bornes en distance, hauteurs et échelle),
       // car changer les bords déplace le milieu de la chaussée, donc la zone lue, et le graphique glisserait ; « Hauteurs à
       // l'échelle » change l'échelle des hauteurs : bornes en distance seulement. Un nouveau dessin (ouverture, analyse
       // fine finie) recalcule le cadre
       const key = nuageKey(etat.edgeProfile.profile), kept = still && frameKept?.key === key ? frameKept : null;
       const imposed = kept ? { x: kept.cadre.x, z: kept.trueScale === trueScale.checked ? kept.cadre.z : null } : null;
-      const { svg, legend, long, cadre, exageration } = Profil.draw(etat.edgeProfile.profile, trueScale.checked, fine,
+      const { svg, legend, long, cadre, exageration } = Profil.draw(etat.edgeProfile.profile, trueScale.checked, found,
         plants.checked, etat.cameraUsed?.height || Number($("#camera").value) || 1.9, imposed);  // hauteur retenue pour la photo, le réglage en dernier recours
       frameKept = { key, cadre, trueScale: trueScale.checked };
       Carte.showTravers(map, Profil.mapTrace(etat.edgeProfile.profile, cadre.x));  // travers et bords sur la carte (G5)
@@ -261,13 +237,21 @@ const Reglages = {
       title.textContent = "Profil en travers" + (etat.edgeProfile.road ? ` · ${etat.edgeProfile.road}` : "");
       trueScale.checked = true;  // à l'échelle à chaque ouverture
       foldLegend(true);
-      const known = nuage.get(nuageKey(etat.edgeProfile.profile));
-      if (known) applyPaved(etat.edgeProfile.profile, known);  // l'état Python suit la case, même pour un profil analysé plus tôt
       drawProfile();
       $("#profil-nuage-etat").textContent = "";
       nuageReady();
       openedFor = feature.id;
       showOverViewer(dialog, true, false);  // sur la grande zone, quel que soit l'échange carte / visionneuse ; non modale : la carte reste utilisable (curseurs des bords)
+      // Vue du dessus allumée par son interrupteur (qui recentre la carte sur la photo, d'un saut : synchrone) si la photo en a une et
+      // qu'elle n'est pas déjà allumée ; la carte est libérée de la fenêtre ensuite, pour que le premier appui glisse tout de suite
+      const bird = $("#dessus");
+      if (bird.disabled) setStatus("Vue du dessus indisponible pour cette photo : les bords se recalent sur la carte sans elle.");
+      else if (!bird.checked) {
+        bird.checked = true;
+        bird.dispatchEvent(new Event("change"));
+      }
+      showBordHandles();  // fenêtre ouverte : curseurs des bords sur la carte (le dessin les a précédés, fenêtre encore fermée)
+      requestAnimationFrame(freeCursors);  // sous la fenêtre (carte en grand), ils seraient inatteignables : la carte est glissée
       // Route, PR et commune de la photo, comme l'étiquette du lieu (déjà lus : sans requête)
       Lieu.describe(...feature.geometry.coordinates.slice(0, 2), feature).then(({ parts }) => {
         const place = [parts.voie || etat.edgeProfile.road, parts.pr, parts.commune].filter(Boolean).join(" – ");
@@ -282,10 +266,10 @@ const Reglages = {
     let waiting = null, profileCan = false;  // waiting : identifiant de la photo dont le calcul est attendu
     // Attente au centre de la visionneuse (Attente) pendant le calcul : icône du bouton ; l'étiquette #chute n'affiche plus « Calcul en cours… »
     let waitingAnimation = null;
-    function startWaiting(id) {
+    function startWaiting(id, delai, zone = $("#vue")) {
       stopWaiting("fin");
       waiting = id;
-      waitingAnimation = Attente.start($("#vue"), { icone: profileButton.querySelector("svg")?.outerHTML, message: "Profil en travers…" });
+      waitingAnimation = Attente.start(zone, { icone: profileButton.querySelector("svg")?.outerHTML, message: "Profil en travers…", delai });
     }
     /** Fin de l'attente : « ok » (profil rendu), « fin » (abandon, photo changée), ou le texte de l'échec. */
     function stopWaiting(issue) {
@@ -300,7 +284,13 @@ const Reglages = {
       profileButton.setAttribute("aria-pressed", String(on));
       profileButton.classList.toggle("actif", on);
       profileButton.disabled = !on && !profileCan;
-      $("#bords-largeur").disabled = waiting !== null;  // calcul en cours : la réglette attend son résultat
+      // Fenêtre fermée, la réglette attend le résultat du calcul du bouton ; ouverte, elle reste utilisable pendant un recalcul
+      // (un nouveau lâcher remplace le calcul en cours). Pendant un recalcul, les curseurs des bords et « Bords automatiques »
+      // sont grisés : ils agiraient sur le profil qui va être remplacé
+      const recalculating = waiting !== null && profileDialog.open;
+      $("#bords-largeur").disabled = waiting !== null && !profileDialog.open;
+      document.body.classList.toggle("profil-recalcul", recalculating);
+      autoButton.disabled = recalculating || !etat.edgeProfile?.profile?.manuel?.length;
     }
     /** Appelé à chaque rafraîchissement : fall, chute et bords de la photo (null en lecture) ; grisé comme l'ancien bouton « Profils »
      * (lecture, pont, rien à calculer ni à montrer) ; fenêtre ouverte quand le calcul attendu est rendu, attente abandonnée s'il échoue
@@ -344,16 +334,33 @@ const Reglages = {
     });
     profileDialog.addEventListener("close", () => {
       Carte.showTravers(map, null);  // travers de la photo effacé de la carte
-      recaling = false;  // mode de recalage fini ; les bords recalés restent, côté Python, pour cette coupe
+      // les bords recalés restent, côté Python, pour cette coupe ; curseurs retirés avec la fenêtre
       showBordHandles();
       showProfileButton();
     });
-    // Réglette de la fenêtre : distance changée fenêtre ouverte, calcul refait pour cette photo (fermée : au prochain appui du bouton)
-    $("#bords-largeur").addEventListener("change", () => {
+    // Réglette de la fenêtre : distance changée (au lâcher : « change », pas « input ») fenêtre ouverte, calcul refait pour cette
+    // photo (fermée : au prochain appui du bouton). Le calcul s'exécute sur le fil principal (Pyodide de la page) et le bloque
+    // (de 0,5 à 1,5 s) : l'attente, au centre de la fenêtre du profil, est donc affichée tout de suite (sans le délai de 300 ms) et peinte avant de commencer.
+    // Chaque lâcher compte : le dernier remplace le calcul en cours (jeton de génération ; côté Python, la distance demandée
+    // la plus récente décide du résultat montré, et une lecture de terrain d'une distance périmée est jetée en arrivant)
+    let recalc = 0;
+    $("#bords-largeur").addEventListener("change", async () => {
       if (!profileDialog.open || !etat.app || !etat.photo || !etat.app.edges_ready()) return;
-      startWaiting(etat.photo.id);
-      etat.app.request_edges();
-      refresh();
+      const token = ++recalc, id = etat.photo.id;
+      startWaiting(id, 0, profileDialog);  // dans la fenêtre : celle-ci recouvre le centre de la visionneuse, l'attente n'y serait pas vue
+      showProfileButton();
+      // deux images : l'attente est peinte avant que le calcul bloque le fil principal
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      if (token !== recalc || !etat.app || etat.photo?.id !== id || !profileDialog.open) return;  // un lâcher plus récent a repris la main
+      try {
+        etat.app.request_edges();
+        refresh();
+      } catch (error) {
+        console.error("Recalcul du profil :", error);
+        stopWaiting(`Recalcul impossible : ${error.message}`);
+        showProfileButton();
+        return;
+      }
       showProfileButton();
     });
     // « Analyse fine » : nuage LiDAR HD lu pour le travers de la photo (src/nuage.js), gardé pour ce profil ; grisé pendant
@@ -365,19 +372,6 @@ const Reglages = {
       const done = nuage.has(nuageKey(etat.edgeProfile?.profile));
       $("#profil-nuage").disabled = !etat.edgeProfile?.profile?.repere || done;
       $("#profil-vegetation").disabled = !done;
-      $("#profil-enrobe").disabled = !done;
-    };
-    // Bords d'enrobé trouvés (option cochée) : plateforme, chute et dévers du profil relus depuis eux ; sinon (décochée,
-    // ou rien trouvé) le calcul reprend les bords du relief. Seuls les bords passent à Python, le séparateur reste à la page
-    const pavedSent = new Map();  // repère -> JSON des bords d'enrobé transmis à Python ("{}" ou absent : aucun)
-    const applyPaved = (profile, found) => {
-      const paved = paving.checked ? Object.fromEntries(Object.entries(found.bords).filter(([, b]) => b?.comment === "enrobé")
-        .map(([side, b]) => [side, Math.abs(b.x)])) : {};
-      const frame = JSON.stringify(profile.repere), wanted = JSON.stringify(paved);
-      if (wanted === (pavedSent.get(frame) ?? "{}")) return;  // déjà dans cet état : pas de recalcul (ni de boucle)
-      etat.app.use_paved_edges(frame, wanted);
-      pavedSent.set(frame, wanted);
-      refresh();
     };
     $("#profil-nuage").addEventListener("click", async () => {
       const profile = etat.edgeProfile?.profile, state = $("#profil-nuage-etat");
@@ -392,7 +386,6 @@ const Reglages = {
           if (part !== undefined) bar.value = part;
         });
         nuage.set(nuageKey(profile), found);
-        applyPaved(profile, found);
         state.textContent = `Nuage LiDAR HD : ${found.points} points du sol, ${found.requetes} requêtes, ${found.secondes} s.`;
         if (nuageKey(etat.edgeProfile?.profile) === nuageKey(profile)) drawProfile();
       } catch (error) {

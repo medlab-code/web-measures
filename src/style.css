@@ -13,7 +13,7 @@
   --visee: #0b6fb6;  /* bleu des visées, en texte sur fond clair */
   /* Graphique du profil en travers : traits, textes et fonds (les textes sont plus foncés que les traits en clair) */
   --chute: #e8710a;
-  --bord-main: #00a5c8;  /* bord recalé à la main : curseur de la carte et trait du graphique */
+  --bord-main: #00a5c8;  /* curseur des bords de la carte (profil en travers) */
   --chute-texte: #b35400;
   --devers: #d93025;
   --devers-texte: #d93025;
@@ -1362,8 +1362,7 @@ dialog.profil .legende svg.symbole rect.mention-carrefour { fill: var(--carrefou
 .profil-svg .travers-mesure { fill: none; stroke: var(--discret); stroke-width: 1.5; }
 .profil-svg .chaussee { fill: none; stroke: var(--chaussee); stroke-width: 7; stroke-linecap: butt; }
 .profil-svg .bord { stroke: var(--texte); stroke-width: 1.2; stroke-dasharray: 2 3; }
-.profil-svg .bord[data-bord="mesure"], .profil-svg .bord[data-bord="main"] { stroke-dasharray: none; }  /* bord mesuré : trait plein (G3) */
-.profil-svg .bord[data-bord="main"] { stroke: var(--bord-main); stroke-width: 2; }
+.profil-svg .bord[data-bord="mesure"] { stroke-dasharray: none; }  /* bord mesuré : trait plein (G3) */
 .profil-svg .bord.bord-suppose { stroke-dasharray: 9 5; }  /* bord supposé (largeur type, travers voisins) */
 .profil-svg .eau { fill: var(--eau); stroke: var(--fond); stroke-width: 1; }  /* cours d'eau de la BD TOPO */
 .profil-svg .eau-texte { fill: var(--eau-texte); }
@@ -1399,7 +1398,6 @@ dialog.profil form.fermer-coin button:hover { border-color: var(--bord); color: 
 .profil-svg text.canopee { fill: var(--vegetation); }
 .profil-svg .vegetation { fill: none; stroke: var(--vegetation); stroke-width: 2; stroke-linejoin: round; }  /* analyse fine */
 .profil-svg .ligne-blanche { fill: #fff; stroke: #5f6368; stroke-width: 1; }  /* analyse fine : peinture au sol */
-.profil-svg .bord-chaussee { stroke: var(--texte); stroke-width: 1.5; stroke-dasharray: 3 2; }  /* analyse fine */
 .profil-svg .separateur { stroke: var(--texte); stroke-width: 3; stroke-linecap: round; }  /* séparateur de chaussée */
 .profil-svg .origine { fill: #0b6fb6; stroke: var(--fond); stroke-width: 1.5; }
 .profil-svg .repere-chute { stroke: var(--chute); stroke-width: 1.2; stroke-dasharray: 4 3; }
@@ -1523,11 +1521,11 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .ancre { position: relative; width: 0; height: 0; }
 .ancre .etiquette { position: absolute; font-size: 15px; }  /* 25 % plus grandes que sur la carte */
 .etiquette.dessus { bottom: 7px; left: 0; transform: translateX(-50%); }
-/* Curseur d'un bord recalé à la main (profil en travers, Carte.showBords) : trait fin de 14 px perpendiculaire à la droite de
-   coupe, liseré clair pour rester lisible sur l'orthophoto ; zone de prise invisible de 24 px (44 px au toucher) tournée avec lui */
+/* Curseur d'un bord recalé à la main (profil en travers, Carte.showBords) : trait fin de 28 px perpendiculaire à la droite de
+   coupe, liseré clair pour rester lisible sur l'orthophoto ; zone de prise invisible de 24 px de large (44 px au toucher) sur toute sa longueur, tournée avec lui */
 .bord-curseur {
   width: 24px;
-  height: 24px;
+  height: 32px;
   cursor: grab;
   touch-action: none;
   display: flex;
@@ -1537,12 +1535,14 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .bord-curseur::before {
   content: "";
   width: 2px;
-  height: 14px;
+  height: 28px;
   background: var(--curseur, #00a5c8);
   box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.9);
 }
 .bord-curseur.saisi { cursor: grabbing; }
-.bord-curseur.saisi::before { height: 18px; }
+/* Recalcul du profil (réglette « Jusqu'à ») : curseurs grisés, sans prise, tant que le profil est remplacé */
+body.profil-recalcul .bord-curseur { opacity: 0.4; pointer-events: none; }
+.bord-curseur.saisi::before { height: 32px; }
 @media (pointer: coarse) { .bord-curseur { width: 44px; height: 44px; } }
 /* Repère en mètres pendant le glissement : posé au-dessus du curseur, non tourné */
 .bord-repere {

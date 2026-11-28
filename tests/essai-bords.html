@@ -76,13 +76,24 @@ const BRIDGES = ["2eed13c0-cb03-437f-9752-2f3b6b0d0478", "e375c98e-31c5-426a-ba9
           const range = doc.querySelector("#bords-largeur"), r = range.getBoundingClientRect(), x = dialog.querySelector(".fermer").getBoundingClientRect();
           expect("réglette du profil : dans la fenêtre, à gauche de la croix, même ligne", dialog.contains(range) && r.right <= x.left && r.top < x.bottom && r.bottom > x.top
             && !range.disabled && Boolean(r.width));
-          const before = range.value;
+          const before = range.value, zoneNow = () => JSON.parse(w.mesures.app.fall_json()).profile?.zone;
+          const waiting = () => doc.querySelector("#fenetre-profil .attente-zone.on")?.dataset.etat === "cours";
           range.value = String(Number(before) === 15 ? 20 : 15);
           range.dispatchEvent(new w.Event("change"));
-          expect("réglette du profil : grisée pendant le calcul", range.disabled);
+          await soon(waiting, 3000);
+          expect("réglette du profil : attente affichée au lâcher, réglette restée utilisable", waiting() && !range.disabled);
           await computed();
-          await soon(() => !range.disabled && dialog.open, 90000);
-          expect("réglette du profil : calcul refait, fenêtre redessinée", !range.disabled && dialog.open && Boolean(dialog.querySelector("svg .sol")));
+          await soon(() => !waiting() && dialog.open, 90000);
+          expect("réglette du profil : calcul refait, attente retirée, fenêtre redessinée", !waiting() && dialog.open && Boolean(dialog.querySelector("svg .sol")));
+          // deux lâchers rapprochés : le résultat est celui du dernier
+          const [first, last] = Number(before) === 25 ? [10, 30] : [25, Number(before) === 20 ? 30 : 20];
+          range.value = String(first);
+          range.dispatchEvent(new w.Event("change"));
+          await sleep(100);
+          range.value = String(last);
+          range.dispatchEvent(new w.Event("change"));
+          await soon(() => zoneNow() === last && !waiting(), 90000);
+          expect(`réglette du profil : deux lâchers rapprochés (${first} puis ${last} m), résultat de la dernière valeur`, zoneNow() === last && !waiting(), String(zoneNow()));
           range.value = before;
           range.dispatchEvent(new w.Event("change"));
           await computed();

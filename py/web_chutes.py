@@ -606,7 +606,7 @@ class Chutes:
     EDGE_BREAK = 0.08  # écart de pente sur 1 m à celle de la chaussée sous l'origine : bord (bombement : ~0,05)
     EDGE_HOLD = 3  # pas consécutifs où l'écart doit tenir : un seul pas de 1 m tient du bruit du MNT (±5 cm)
     EDGE_NEAR = 1.5  # m : pas de bord plus près de l'origine (le véhicule occupe sa voie ; demi-voie sur l'axe)
-    PAVED_REDO_MAX = 50  # profils gardés avec leur terrain, pour use_paved_edges sans relecture
+    EDGES_REDO_MAX = 50  # profils gardés avec leur terrain, pour use_manual_edges sans relecture
     EDGE_RISE = 1.0  # m : terrain remonté d'autant au-dessus du bord (talus, butte) : lecture arrêtée, derrière n'est pas une chute
     # Dévers du talus au-delà (56°) : paroi quasi verticale (mur, enrochement), écrite sans pourcentage. Le MNT adoucit les
     # parois (un mur de 2 m y fait 100 à 200 %) et le pas de 0,5 m plafonne à 400 % : le chiffre serait une fausse précision
@@ -1005,18 +1005,20 @@ class Chutes:
             return (1 if forward else -1) * (roads._project(line, p[0], p[1])[1] - s)
 
         def got_ground(ground, source, error):
+            if getattr(self, "edges_asked", {}).get(key[0], zone) != zone:  # réglette changée depuis : lecture périmée, jetée (refaite si la distance revient)
+                self.edges.pop(key, None)
+                return self.notify()
             if error or not source:
                 self.edges[key] = {"text": "Calcul impossible ({})".format(
                     "service injoignable" if error else "pas de modèle de terrain ici"), "title": "",
                     "retry_at": time.monotonic() + self.FALL_RETRY if error else float("inf")}
                 return self.notify()
-            if len(self.paved_redo) >= self.PAVED_REDO_MAX:
-                self.paved_redo.clear()
-            self.paved_redo[frame_key] = (key, lambda: got_ground(ground, source, None))
+            if len(self.edges_redo) >= self.EDGES_REDO_MAX:
+                self.edges_redo.clear()
+            self.edges_redo[frame_key] = (key, lambda: got_ground(ground, source, None))
             manual = getattr(self, "manual", {}).get(frame_key, {})  # bords recalés à la main (use_manual_edges) : priment
-            paved = {**self.paved.get(frame_key, {}), **manual}
-            read, twins = self._edge_reads(profiles, ground, sides, paved)
-            found, borders, stops, drawn = self._edge_falls(read, sides, paved, zone, manual)
+            read, twins = self._edge_reads(profiles, ground, sides, manual)
+            found, borders, stops, drawn = self._edge_falls(read, sides, manual, zone)
             # Profil en long (derniers points lus) : pente moyenne, montée > 0 dans le sens de la photo, et la plus forte
             pts = [(d, v) for d, v in zip(lengthwise, ground[len(ground) - len(lengthwise):]) if v is not None] if lengthwise else []
             grade = self._long_profile(pts, ends, along_of, followed)
@@ -1256,11 +1258,11 @@ class Chutes:
                 best = (gap, a, b)
         return best and best[1:]
 
-    def _edge_reads(self, profiles, ground, sides, paved):
+    def _edge_reads(self, profiles, ground, sides, manual):
         """Bord et séparateur de chaque travers lus sur le terrain (ground, dans l'ordre des profils) : 1er passage travers par
         travers, puis, côté par côté, ceux qui s'écartent de la médiane des travers trouvés dans le relief (une marche dans
         l'autre chaussée, un bord flou) y sont ramenés, comme ceux sans rupture de pente (bord d'après les travers
-        voisins, pas trouvé dans leur relief) ; analyse fine (paved) : le bord de l'enrobé l'emporte. Rend (lectures [le
+        voisins, pas trouvé dans leur relief) ; bord recalé à la main (manual) : il l'emporte. Rend (lectures [le
         long, côté, bord BD TOPO, distances, altitudes, indice du bord, séparateur, son origine, pics, axe de l'autre
         chaussée, bord ramené à la médiane], nombre de travers par côté où l'autre chaussée est comprise)."""
         twins = {name: 0 for name, _ in sides}  # côté -> travers où l'autre chaussée est comprise
@@ -1297,32 +1299,32 @@ class Chutes:
                     r[5], r[10] = min(range(len(r[3])), key=lambda k: abs(r[3][k] - med)), True
                 if sep_med and r[6] and (not r[7] or max(abs(r[6][k] - sep_med[k]) for k in (0, 1)) > self.EDGE_CONSENSUS):
                     r[6], r[7] = sep_med, "marches"
-                if name in paved:  # analyse fine : le bord de l'enrobé remplace celui du relief
-                    r[5] = min(range(len(r[3])), key=lambda k: abs(r[3][k] - paved[name]))
+                if name in manual:  # bord recalé à la main : il remplace celui du relief
+                    r[5] = min(range(len(r[3])), key=lambda k: abs(r[3][k] - manual[name]))
         return read, twins
 
-    def _edge_falls(self, read, sides, paved, zone, manual=()):
+    def _edge_falls(self, read, sides, manual, zone):
         """Chute et dévers de chaque côté depuis les bords lus (_edge_reads), jusqu'à zone m du milieu de la chaussée (entre
         les deux bords du travers), soit zone moins la demi-largeur au-delà du bord, EDGE_ZONE_MIN m au moins. Rend (côté ->
         [(chute, à m du bord, bout du profil, travers), (dévers, haut du talus à m du bord, travers, pied du talus à m du
         bord, hauteur du talus)], bords [(m depuis l'origine, relief, d'après les travers voisins)], côté -> distances au
-        bord où le terrain remonte de EDGE_RISE, profils pour le graphique de la page (bouton « Graphiques »)). manual : côtés
-        dont le bord imposé (dans paved) vient de la main, non de l'analyse fine."""
+        bord où le terrain remonte de EDGE_RISE, profils pour le graphique de la page (bouton « Graphiques »)). manual : côté ->
+        bord recalé à la main (m depuis l'origine), qui remplace celui du relief."""
         found = {name: [None, None] for name, _ in sides}
         borders = {name: [] for name, _ in sides}
         stops = {name: [] for name, _ in sides}
         drawn = []
-        def edge_of(r):  # bord du travers r, m depuis l'origine (analyse fine, sinon relief, sinon largeur type)
+        def edge_of(r):  # bord du travers r, m depuis l'origine (main, sinon relief, sinon largeur type)
             k = r[5] if r[5] is not None else min(range(len(r[3])), key=lambda j: abs(r[3][j] - r[2]))
-            return paved.get(r[1], r[3][k])
+            return manual.get(r[1], r[3][k])
         edges_at = {(r[0], r[1]): edge_of(r) for r in read}
         for along, name, guess, offsets, z, i, between, sep_relief, _, beyond, moved in read:
             relief = i is not None and not moved  # trouvé dans le relief de ce travers, pas ramené à la médiane des autres
             if i is None:
                 i = min(range(len(offsets)), key=lambda k: abs(offsets[k] - guess))
             borders[name].append((offsets[i], relief, moved))
-            entry = {"le_long": along, "cote": name, "bord": round(paved.get(name, offsets[i]), 2), "relief": relief,
-                     "voisins": moved, "enrobe": name in paved and name not in manual, "manuel": name in manual, "arret": None,
+            entry = {"le_long": along, "cote": name, "bord": round(manual.get(name, offsets[i]), 2), "relief": relief,
+                     "voisins": moved, "manuel": name in manual, "arret": None,
                      "separateur": [round(v, 2) for v in between] if between else None,
                      "autre_axe": round(beyond, 2) if beyond else None,  # axe de l'autre chaussée, m depuis l'origine
                      "separateur_relief": sep_relief if between else None,  # "marches", "bosse" ou None (BD TOPO)
@@ -1561,21 +1563,12 @@ class Chutes:
 
         step(0)
 
-    def use_paved_edges(self, frame, edges):
-        """Bords d'enrobé de l'analyse fine (src/nuage.js) pour le profil de repère frame (JSON de profile.repere) : edges,
-        en JSON, m depuis l'origine par côté (« gauche », « droit »). Plateforme, dévers, chute et dévers du talus de ce
-        profil se relisent depuis eux, sur tous les travers, sans nouvelle lecture du terrain s'il vient d'être calculé."""
-        frame = tuple(tuple(p) for p in json.loads(frame))
-        self.paved[frame] = json.loads(edges)
-        self._redo_edges(frame)
-
     MANUAL_GAP = 0.10  # m : écart minimal entre les deux bords recalés à la main (gauche + droit, mesurés depuis l'origine)
 
     def use_manual_edges(self, frame, edges):
         """Bords recalés à la main (curseurs de la carte) pour le profil de repère frame (JSON de profile.repere) :
         edges, en JSON, m depuis l'origine par côté (« gauche », « droit ») ; un côté absent garde son bord calculé, « {} » les
-        remet tous (bords automatiques). Ils priment sur le relief et sur le bord d'enrobé, et sont relus comme ce dernier
-        (use_paved_edges) : plateforme, dévers, chute et dévers du talus, sans relire le terrain. Perdus avec le repère du profil
+        remet tous (bords automatiques). Ils priment sur le relief : plateforme, dévers, chute et dévers du talus, sans relire le terrain. Perdus avec le repère du profil
         (autre photo ou autre coupe). Distances négatives ou bords à moins de MANUAL_GAP m l'un de l'autre : ValueError."""
         frame = tuple(tuple(p) for p in json.loads(frame))
         wanted = {side: float(v) for side, v in json.loads(edges).items() if side in ("gauche", "droit")}
@@ -1592,9 +1585,9 @@ class Chutes:
         self._redo_edges(frame)
 
     def _redo_edges(self, frame):
-        """Calcul des bords du profil de repère frame refait depuis ses bords imposés (enrobé, main), sans relire le terrain s'il
+        """Calcul des bords du profil de repère frame refait depuis ses bords imposés à la main, sans relire le terrain s'il
         vient d'être calculé ; les autres largeurs examinées sont recalculées à la demande."""
-        redo = self.paved_redo.get(frame)
+        redo = self.edges_redo.get(frame)
         for key, res in list(self.edges.items()):  # autre largeur examinée : recalculée à la demande
             profile = res.get("profile")
             if profile and tuple(tuple(p) for p in profile["repere"]) == frame and (not redo or key != redo[0]):

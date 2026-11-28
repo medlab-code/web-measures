@@ -61,7 +61,7 @@ const Profil = (() => {
       const t = out.get(p.le_long) || { along: p.le_long, points: [], bords: {} };
       const sign = p.cote === "gauche" ? -1 : 1;
       t.points.push(...p.points.map(([o, z]) => [sign * o, z]));
-      t.bords[p.cote] = { x: sign * p.bord, relief: p.relief, voisins: p.voisins, enrobe: p.enrobe, manuel: Boolean(p.manuel),
+      t.bords[p.cote] = { x: sign * p.bord, relief: p.relief, voisins: p.voisins, manuel: Boolean(p.manuel),
         arret: p.arret === null ? null : sign * p.arret };
       if (p.separateur) {  // chaussées séparées : trouvé dans le relief ou d'après la BD TOPO
         t.separateur = p.separateur.map((o) => sign * o).sort((a, b) => a - b);
@@ -159,7 +159,7 @@ const Profil = (() => {
    * Rend { textes, lignes } : étiquettes qui se recouvrent encore, et traits croisés. */
   // obstacles : [gauche, haut, droite, bas] à éviter aussi (tablier d'un pont…)
   const OBSTACLES = "path.sol, path.autre-travers, path.travers-mesure, path.chaussee, path.eau-surface, path.herbe, path.vegetation,"
-    + " line.bord, line.bord-chaussee, line.chute, line.repere-chute, line.devers, line.separateur, line.raide, line.cassure, line.ouvrage";
+    + " line.bord, line.chute, line.repere-chute, line.devers, line.separateur, line.raide, line.cassure, line.ouvrage";
   const SAMPLE_STEP = 4, LINE_COST = 10, TEXT_COST = 5000, FAR = 28;
   // courbes de données seules (marge des modes autres que « actuel ») : terrain LiDAR, autres travers, végétation, herbe, eau
   const CURVES = "path.sol, path.autre-travers, path.travers-mesure, path.eau-surface, path.eau-nuage, path.herbe, path.vegetation";
@@ -326,9 +326,7 @@ const Profil = (() => {
       [has(".autre-travers"), "autre-travers", "travers à ±5 et 10 m"],
       [has(".chaussee"), "chaussee", "plateforme"],
       [has('.bord[data-bord="mesure"]'), "bord", "bord mesuré", { "data-bord": "mesure" }],
-      [has('.bord[data-bord="main"]'), "bord", "bord à la main", { "data-bord": "main" }],
       [has(".bord-suppose"), "bord bord-suppose", "bord supposé", { "data-bord": "suppose" }],
-      [has(".bord-chaussee"), "bord-chaussee", "bord d'enrobé (LiDAR)"],
       [has(".separateur"), "separateur", "séparateur"],
       [has(".ligne-blanche"), "ligne-blanche", "ligne blanche"],
       [has(".chute"), "chute", "chute"],
@@ -365,7 +363,9 @@ const Profil = (() => {
   function frame(profile, all, main, trueScale, camera, imposed = null) {
     const ref = zAt(main.points, 0) ?? main.points[0][1];  // 0 : plateforme sous l'origine
     const [bl, br] = [main.bords.gauche?.x ?? 0, main.bords.droit?.x ?? 0];
-    const road = main.points.filter(([x]) => x >= bl && x <= br);
+    // Plateforme : du bord gauche au bord droit exactement (bords du résultat, recalés ou calculés), terrain interpolé aux bouts
+    const inside = main.points.filter(([x]) => x > bl && x < br), zl = zAt(main.points, bl), zr = zAt(main.points, br);
+    const road = br > bl ? [...(zl === null ? [] : [[bl, zl]]), ...inside, ...(zr === null ? [] : [[br, zr]])] : [];
     const xs = [...all.values()].flatMap((t) => t.points.map((p) => p[0]));
     const zs = [...all.values()].flatMap((t) => t.points.map((p) => p[1] - ref));
     let [xmin, xmax] = imposed?.x ?? [Math.min(...xs), Math.max(...xs)];
@@ -476,8 +476,6 @@ const Profil = (() => {
         + "trait gris\u00a0: travers où la chute ou le dévers ont été mesurés.", ["voisin", "mesure"]],
       ...(profile.origine === "caméra" && factor === 1
         ? [`Point bleu\u00a0: la caméra, à ${num(camera, 2)} m au-dessus de la plateforme.`] : []),
-      ...(Object.values(main.bords).some((b) => b.manuel) ? ["Trait coloré\u00a0: bord recalé à la main sur la carte (curseur glissé le long de la "
-        + "coupe) ; plateforme, dévers et chute sont recalculés depuis lui. « Bords automatiques » remet les bords calculés."] : []),
       ...(main.separateur ? ["Petite barre verticale\u00a0: milieu du séparateur de chaussée (terre-plein central), "
         + `${main.separateurRelief
         ? main.separateurRelief === "nuage"
@@ -488,10 +486,7 @@ const Profil = (() => {
           fine ? ", ni de bande non revêtue dans le nuage LiDAR" : ""})`}\u00a0; la plateforme va jusqu'au bord `
         + "extérieur de l'autre chaussée."] : []),
       ...(fine ? [`Analyse fine (nuage LiDAR HD, ${fine.points} points du sol)\u00a0: carrés blancs, lignes blanches lues à `
-        + `l'intensité du retour laser${Object.keys(fine.bords).length ? "\u00a0; tirets courts, bords de chaussée" : ""}`
-        + `${["gauche", "droit"].map((side) => fine.bords[side] ? ` (${side}\u00a0: ${num(Math.abs(fine.bords[side].x))} m, `
-          + `${fine.bords[side].bordure ? "bordure, trouvée à l'altitude du sol" : fine.bords[side].comment})` : "").join("")}.`
-        + (fine.largeur ? ` Largeur d'enrobé\u00a0: ${num(fine.largeur.m)}\u00a0m ±\u00a0${num(fine.largeur.plus)}.` : "")] : []),
+        + "l'intensité du retour laser."] : []),
       ...((profile.eau || []).length || fine?.eau?.length ? [[`Bleu\u00a0: eau${(profile.eau || []).length ? ` de la BD TOPO (${profile.eau
         .map((w) => (w.x !== undefined
           ? `${w.nom || (w.nature || "cours d'eau").toLowerCase()} à ${num(Math.abs(w.x))} m ${w.x < 0 ? "à gauche" : "à droite"}`
@@ -518,9 +513,9 @@ const Profil = (() => {
           const first = seen.reduce((a, b) => (Math.abs(b[0]) < Math.abs(a[0]) ? b : a));
           return `\u00a0; ${side}\u00a0: dès ${num(Math.abs(first[0]))} m, jusqu'à ${num(above(top))} m au-dessus du sol`;
         }).join("") + ".", ["vegetation"]]] : []),
-      ["Traits verticaux de bord\u00a0: trait plein, bord mesuré (rupture de pente de ce travers, enrobé ou bordure de l'analyse "
-        + "fine)\u00a0; tirets longs, « bord supposé », hypothèse et non mesure.", ["bord-mesure", "bord-suppose"]],
-      ...(["gauche", "droit"].some((side) => main.bords[side]?.voisins && !main.bords[side].enrobe)
+      ["Traits verticaux de bord\u00a0: trait plein, bord mesuré (rupture de pente de ce travers, ou bord "
+        + "recalé sur la carte)\u00a0; tirets longs, « bord supposé », hypothèse et non mesure.", ["bord-mesure", "bord-suppose"]],
+      ...(["gauche", "droit"].some((side) => main.bords[side]?.voisins)
         ? ["« Travers voisins » sous un bord : pas de rupture de pente sur ce travers (ou une trop loin des "
           + "autres) ; bord supposé, placé à la médiane des travers voisins où elle a été trouvée."] : []),
       `Chute et dévers lus du bord jusqu'à ce que le terrain remonte de ${num(profile.remontee, 0)} m au-dessus du bord `
@@ -648,7 +643,6 @@ const Profil = (() => {
    * autour du milieu de la chaussée ; plus court, il laisse du blanc. Sans imposed, le cadre est recalculé.
    * Rend aussi `cadre`, à repasser au prochain dessin. */
   // fine : analyse fine (Nuage.analyse) : séparateur et bords de chaussée tirés du nuage LiDAR, lignes blanches
-  // (bords et largeur d'enrobé vides si l'option « Bord d'enrobé » est décochée : voir drawProfile de src/reglages.js)
   // plants : végétation de l'analyse fine (ligne verte, herbe) dessinée et légendée
   // camera : hauteur de la caméra au-dessus du sol (celle retenue pour la photo, App._camera_used ; réglage « Hauteur de caméra » en dernier rang), pour le profil en long
   function draw(profile, trueScale = false, fine = null, plants = true, camera = 1.9, imposed = null) {
@@ -705,17 +699,17 @@ const Profil = (() => {
       const b = main.bords[side];
       if (!b) continue;
       // nom vers l'extérieur ; vers l'intérieur si l'extérieur sortirait du graphique
-      const sub = b.manuel ? "à la main" : b.enrobe ? (fine?.bords?.[side]?.bordure ? "bordure" : "fin de l'enrobé") : b.relief ? "rupture de pente" : b.voisins ? "travers voisins" : "largeur type";
-      const wide = Math.max(textWidth(b.enrobe || b.relief || b.manuel ? "bord" : "bord supposé", 13, 500), textWidth(sub, 12)) + 8;
+      const sub = b.manuel ? "" : b.relief ? "rupture de pente" : b.voisins ? "travers voisins" : "largeur type";
+      const wide = Math.max(textWidth(b.relief || b.manuel ? "bord" : "bord supposé", 13, 500), textWidth(sub, 12)) + 8;
       const out = side === "gauche" ? X(b.x) - wide > 2 : X(b.x) + wide < W - 2, toward = (side === "gauche" ? -1 : 1) * (out ? 1 : -1);
       const anchor = toward < 0 ? "end" : "start", dx = 4 * toward;
-      // Bord mesuré (rupture de pente de ce travers, analyse fine) : trait plein (style.css) ; bord supposé (largeur type, ou
+      // Bord mesuré (rupture de pente de ce travers, ou recalé) : trait plein (style.css) ; bord supposé (largeur type, ou
       // médiane des travers voisins) : tirets longs et pâles, et l'étiquette le dit
-      const measured = Boolean(b.enrobe || b.relief || b.manuel);
+      const measured = Boolean(b.relief || b.manuel);
       svg.append(el("line", { x1: X(b.x), x2: X(b.x), y1: TOP - 4, y2: Z(zAt(main.points, b.x)), class: measured ? "bord" : "bord bord-suppose",
-          "data-bord": b.manuel ? "main" : measured ? "mesure" : "suppose" }),
+          "data-bord": measured ? "mesure" : "suppose" }),
         el("text", { x: X(b.x) + dx, y: TOP - 26, class: "etiquette-profil", "text-anchor": anchor }, measured ? "bord" : "bord supposé"),
-        el("text", { x: X(b.x) + dx, y: TOP - 12, class: "graduation", "text-anchor": anchor }, sub));
+        ...(sub ? [el("text", { x: X(b.x) + dx, y: TOP - 12, class: "graduation", "text-anchor": anchor }, sub)] : []));
     }
     // Séparateur de chaussée (chaussées séparées, ticket #34) : petite barre verticale posée sur le terrain en son milieu
     // (d'après la BD TOPO), nommée au-dessus ; autrement que les bords, qui seuls limitent la plateforme
@@ -750,12 +744,6 @@ const Profil = (() => {
       for (const x of fine.lignes) {
         if (x < Math.max(xmin, g0, bl - 1) || x > Math.min(xmax, g1, br + 1)) continue;
         svg.append(el("rect", { x: X(x) - 3, y: Z(zAt(main.points, x) ?? ref) - 3, width: 6, height: 6, class: "ligne-blanche" }));
-      }
-      for (const side of ["gauche", "droit"]) {
-        const b = fine.bords[side];
-        if (!b || zAt(main.points, b.x) === null) continue;
-        const gy = Z(zAt(main.points, b.x));
-        svg.append(el("line", { x1: X(b.x), x2: X(b.x), y1: gy - 4, y2: gy - 22, class: "bord-chaussee" }));  // nommé dans la légende
       }
     }
     // Caméra à sa hauteur au-dessus de la plateforme, hauteurs à l'échelle seulement (exagérées, sa place ne voudrait rien
@@ -1229,7 +1217,6 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #ddd; font-si
     const color = (name) => css.getPropertyValue(name).trim() || "#888888";
     const at = (x) => [o[0] + x * (p[0] - o[0]), o[1] + x * (p[1] - o[1])];  // lon, lat à x m à droite de l'origine
     const feature = (geometry, properties) => ({ type: "Feature", properties, geometry });
-    const point = (x, properties) => feature({ type: "Point", coordinates: at(x) }, properties);
     // Sens « le long » (le_long > 0) : le quart de tour de la droite du travers, dans le sens de la photo (avant) ou le contraire
     const k = 111320, c = Math.cos(o[1] * Math.PI / 180), [ux, uy] = [(p[0] - o[0]) * c * k, (p[1] - o[1]) * k];
     const sens = profile.avant === false ? -1 : 1;
@@ -1242,10 +1229,6 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #ddd; font-si
     out.push(feature({ type: "LineString", coordinates: [at(x0), at(x1)] }, { role: "travers", couleur: color("--sol"), fond: color("--fond") }));
     for (const side of ["gauche", "droit"]) {
       const b = main.bords[side], sign = side === "gauche" ? -1 : 1, r = profile.resultats?.[side];
-      if (b) {
-        const measured = Boolean(b.enrobe || b.relief || b.manuel);
-        out.push(point(b.x, { role: "bord", mesure: measured, couleur: color(b.manuel ? "--bord-main" : "--texte"), fond: color("--fond") }));
-      }
       if (!b || !r) continue;
       // chute et talus : sur le travers où ils ont été mesurés (celui de la photo, ou un voisin à along m, tracé en gris comme sur le graphique)
       const onto = (along, x) => (along === 0 ? at(x) : shift(x, along));
@@ -1276,7 +1259,7 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #ddd; font-si
 
   /** Bords du travers de la photo pour les recaler sur la carte (src/reglages.js) : repère du profil (origine et point à 1 m à droite,
    * [lon, lat]), position x de chaque bord (m, < 0 à gauche), distance maximale lue de chaque côté (m depuis l'origine), côtés
-   * déjà recalés à la main, et couleur du curseur. null sans bord. */
+   * déjà recalés, et couleur du curseur. null sans bord. */
   function recalage(profile) {
     const main = crossings(profile).get(0) || [...crossings(profile).values()][0];
     if (!main || !profile.repere || !Object.keys(main.bords).length) return null;

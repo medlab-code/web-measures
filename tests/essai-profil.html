@@ -144,40 +144,6 @@ try {
   names("carrefour en début d'axe", [{ d: -45, type: "carrefour", avec: ["D18"] }], 1);
   names("deux carrefours proches", [near, { d: 25, type: "carrefour", avec: ["RUE DE LA GARE"] }], 2);
   names("fin de route et carrefour", [{ d: 20, type: "fin", voie: "D16", avec: ["D18"] }, near], 2);
-  // Bord d'enrobé (D70 9b97c187) : enrobé à 300, ligne centrale, reprise plus claire, herbe à 1400 à partir de 5 m
-  const rows = (fn) => new Map([...Array(49).keys()].map((k) => { const x = k * 0.25; return [k, fn(x)]; }));
-  const paved = (what, fn, expected) => { const got = Nuage.pavedEdge(rows(fn), 1, 1, 12, 300), ok = expected === null ? got === null : got !== null && Math.abs(got - expected) <= 0.13;
-    expect(`bord d'enrobé, ${what} : ${got} (attendu ${expected})`, ok); };
-  const asphalt = (x) => (x < 5 ? 300 : 1400);
-  paved("net", asphalt, 4.9);
-  paved("ligne blanche étroite", (x) => (Math.abs(x - 2) < 0.1 ? 900 : asphalt(x)), 4.9);
-  paved("reprise claire à 1,6 fois", (x) => (x >= 1.5 && x < 3 ? 480 : asphalt(x)), 4.9);
-  paved("gravillons à 3 fois puis herbe", (x) => (x < 5 ? 300 : x < 8 ? 900 : 2000), 4.9);
-  paved("pas d'abords clairs", () => 320, null);
-  paved("bord au-delà de la limite", (x) => (x < 14 ? 300 : 1400), null);
-  // chemin de terre raccordé, plus sombre que l'enduit (D119E 1d23f3f9-f4b7-4d2e-8658-500a748ccecc : 0,5 à 0,8 fois)
-  paved("terre sombre à 0,6 fois dès 1,5 m", (x) => (x < 1.5 ? 300 : 180), 1.4);
-  paved("tache sombre de 0,5 m (reprise)", (x) => (x >= 2 && x < 2.5 ? 180 : asphalt(x)), 4.9);
-  { const ditch = Nuage.pavedEdge(rows((x) => (x < 3 ? 300 : 150)), 1, 1, 12, 300, rows((x) => (x < 3 ? 100 : 99.5)));
-    expect(`bord d'enrobé, fond de fossé sombre 50 cm plus bas : ${ditch} (attendu null)`, ditch === null);
-    const path = Nuage.pavedEdge(rows((x) => (x < 1.5 ? 300 : 180)), 1, 1, 12, 300, rows((x) => 100 - 0.02 * x));
-    expect(`bord d'enrobé, chemin sombre à plat : ${path} (attendu 1,4)`, path !== null && Math.abs(path - 1.4) <= 0.13); }
-  // Bordure (altitude médiane du sol par case, m) : trottoir en enrobé (D119M f533e240-7d37-40ef-babc-1d37140dc5d2, M996
-  // 6eea86cc-4c40-4395-9686-2418892bfa82) ; ni dévers, ni bombement, ni ornière, ni bosse étroite, ni fossé
-  const heights = (fn) => new Map([...Array(97).keys()].map((j) => j - 48).map((k) => [k, fn(k * 0.25)]));
-  const kerb = (what, fn, expected) => { const got = Nuage.kerbEdge(heights(fn), 1, 1, 12), ok = expected === null ? got === null : got !== null && Math.abs(got - expected) <= 0.26;
-    expect(`bordure, ${what} : ${got} (attendu ${expected})`, ok); };
-  kerb("9 cm à 1,75 m après un caniveau", (x) => (Math.abs(x) < 1.75 ? 100 - 0.02 * Math.abs(x) : 100.09), 1.75);
-  kerb("fine, 5,5 cm de 2,4 à 3,15 m", (x) => { const a = Math.abs(x); return a < 2.4 ? 100 - 0.02 * a : 99.952 + Math.min(0.055, (a - 2.4) * 0.073); }, 2.75);
-  kerb("dévers qui monte de 12 %", (x) => 100 + 0.12 * x, null);
-  kerb("bombement", (x) => 100 - 0.025 * Math.abs(x - 1.5), null);
-  kerb("ornière de 3 cm", (x) => 100 - (Math.abs(Math.abs(x) - 1.5) < 0.3 ? 0.03 : 0), null);
-  kerb("bosse de 6 cm sur 0,5 m", (x) => 100 + (Math.abs(Math.abs(x) - 2) < 0.3 ? 0.06 : 0), null);
-  // fossés (4c1c91d9-5c70-48d4-8962-b71c33dfe227) : fond à 40 cm puis berge à 30 % ; fossé peu profond (12 cm) à berge longue
-  kerb("fossé de 40 cm dès 3 m", (x) => { const a = Math.abs(x); return a < 3 ? 100 - 0.025 * a : a < 4 ? 99.925 - 0.4 * (a - 3) : 99.525 + 0.3 * (a - 4); }, null);
-  kerb("fossé de 12 cm à berge de 20 %", (x) => { const a = Math.abs(x); return a < 3 ? 100 - 0.025 * a : a < 3.5 ? 99.925 - 0.24 * (a - 3) : 99.805 + 0.2 * (a - 3.5); }, null);
-  kerb("bordure de 12 cm après un caniveau de 8 cm", (x) => { const a = Math.abs(x); return a < 2.5 ? 100 - 0.025 * a : a < 2.75 ? 99.858 : 99.98 + 0.02 * (a - 2.75); }, 2.62);
-  kerb("chaussée qui monte de 1 % et bruit de 3 cm", (x) => 100 + 0.01 * Math.abs(x) + [0, 0.015, -0.015, 0.01][Math.abs(Math.round(x * 4)) % 4], null);
   // Ligne blanche : nettement plus claire que ses voisines ; surface du séparateur au seuil
   // (1640bc3f-e948-4239-a4c1-548dd748a16d, −3,5 m) écartée, malgré la case vide à côté
   const narrow = (what, cases, expected) => { const got = Nuage.brightRuns(cases.map(([x, i]) => ({ x, i })), 100).map((r) => r[2]), ok = JSON.stringify(got) === JSON.stringify(expected);
@@ -239,10 +205,19 @@ try {
   { const manual = (cs, sides) => cs.map((c) => ({ ...c, manuel: sides.includes(c.cote) }));
     const hand = { ...profile([manual(crossing(0, () => -0.1, 17), ["droit"])]), repere: [[5, 47], [5.0000131, 47]] };
     const drawn = Profil.draw(hand, true);
-    expect("bord à la main : trait propre au côté recalé (un seul), nommé « à la main »",
-      [...drawn.svg.querySelectorAll('.bord[data-bord="main"]')].filter((l) => !l.closest("g.cle-lecture")).length === 1 && drawn.svg.textContent.includes("à la main"));
-    expect("bord à la main : dans la clé et la légende", drawn.svg.textContent.includes("bord à la main") && drawn.legend.textContent.includes("recalé à la main"));
-    expect("sans bord recalé : ni trait, ni mention", !Profil.draw(profile([crossing(0, () => -0.1, 17)]), true).svg.querySelector('[data-bord="main"]'));
+    expect("bord recalé : même trait que les bords mesurés, sans mention « à la main » ni couleur à part",
+      [...drawn.svg.querySelectorAll('.bord[data-bord="mesure"]')].filter((l) => !l.closest("g.cle-lecture")).length === 2
+      && !drawn.svg.textContent.includes("à la main") && !drawn.legend.textContent.includes("à la main") && !drawn.svg.querySelector('[data-bord="main"]'));
+        { // bande grise de la plateforme : du bord gauche au bord droit du résultat, calculés ou recalés (4,4 m, hors point du terrain)
+      const bandEnds = (cs) => { const out = Profil.draw(profile([cs]), true).svg, band = out.querySelector("path.chaussee");
+        const lines = [...out.querySelectorAll('line.bord[data-bord]')].filter((l) => !l.closest("g.cle-lecture")).map((l) => +l.getAttribute("x1")).sort((a, b) => a - b);
+        const xs = band.getAttribute("d").match(/[ML]\s*(-?[\d.]+)/g).map((m) => +m.replace(/[ML]\s*/, ""));
+        return { first: xs[0], last: xs.at(-1), left: lines[0], right: lines.at(-1) }; };
+      const moved = crossing(0, () => -0.1, 17).map((c) => (c.cote === "droit" ? { ...c, bord: 4.4, manuel: true } : c));
+      for (const [what, cs] of [["bords calculés", crossing(0, () => -0.1, 17)], ["bord droit recalé à 4,4 m", moved]]) {
+        const b = bandEnds(cs);
+        expect(`plateforme grise, ${what} : de ${b.first?.toFixed(2)} à ${b.last?.toFixed(2)} px, bords à ${b.left?.toFixed(2)} et ${b.right?.toFixed(2)}`,
+          Math.abs(b.first - b.left) < 0.06 && Math.abs(b.last - b.right) < 0.06); } }
     const rec = Profil.recalage(hand);
     expect(`recalage : bords à ${JSON.stringify(rec.x)}, portée ${JSON.stringify(rec.portee)}, recalés ${rec.manuel}`,
       rec.x.gauche === -3 && rec.x.droit === 3 && rec.portee.droit === 17 && rec.manuel.join() === "droit");
@@ -262,8 +237,8 @@ try {
     Carte.showBords(map, { repere: rec.repere, x: rec.x, couleur: rec.couleur, limite: (side, x) => lim(side, x),
       texte: (side, x) => `${x.toFixed(2)} m`, deplace: (side, x) => moved.push([side, x]) });
     const handles = [...box.querySelectorAll(".bord-curseur")];
-    expect(`curseurs : un par bord (${handles.map((h) => h.dataset.cote)}), zone de prise de 24 px`, handles.length === 2
-      && handles.every((h) => Math.abs(h.getBoundingClientRect().width - 24) < 4) && getComputedStyle(handles[0], "::before").height === "14px");
+    expect(`curseurs : un par bord (${handles.map((h) => h.dataset.cote)}), zone de prise de 24 px, trait de 28 px`, handles.length === 2
+      && handles.every((h) => Math.abs(h.getBoundingClientRect().width - 24) < 4) && getComputedStyle(handles[0], "::before").height === "28px");
     const handle = handles.find((h) => h.dataset.cote === "droit"), r0 = handle.getBoundingClientRect(), [cx, cy] = [r0.x + r0.width / 2, r0.y + r0.height / 2];
     const ptr = (type, x, y) => handle.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, pointerId: 7, bubbles: true, button: 0 }));
     ptr("pointerdown", cx, cy);
@@ -282,6 +257,26 @@ try {
     ptr("pointerdown", cx, cy);
     ptr("pointerup", cx, cy);
     expect("simple prise sans glissement : aucun recalage", moved.length === 2);
+    // Molette au survol d'un curseur : 1 cm par cran (10 cm avec Maj), vers le bas à droite ; la carte ne zoome pas ; un seul recalcul par rafale
+    const turned = [];
+    Carte.showBords(map, { repere: rec.repere, x: rec.x, couleur: rec.couleur, limite: (side, x) => lim(side, x),
+      texte: (side, x) => `${x.toFixed(2)} m`, deplace: (side, x) => turned.push([side, x]) });
+    const knob = box.querySelector('.bord-curseur[data-cote="droit"]'), zoom0 = map.getZoom();
+    const spin = (deltaY, shiftKey = false, el = knob) => el.dispatchEvent(new WheelEvent("wheel", { deltaY, shiftKey, bubbles: true, cancelable: true }));
+    const shown = () => Number((box.querySelector(".bord-repere")?.textContent || "").replace(" m", ""));  // repère : position du bord (m)
+    const unscaled = spin(100);  // false : preventDefault appelé, la carte ne zoome pas
+    expect("molette sur un curseur : défilement empêché (la carte ne zoome pas)", unscaled === false);
+    expect(`molette vers le bas : le curseur va à droite de 1 cm (repère ${shown()} m, attendu 3,01)`, Boolean(box.querySelector(".bord-repere")) && shown() === 3.01);
+    spin(100, true);
+    expect(`Maj : 10 cm de plus (repère ${shown()} m, attendu 3,11)`, shown() === 3.11);
+    spin(-100);
+    spin(-100);
+    spin(30); spin(30); spin(30); spin(30);  // pavé tactile : 120 px cumulés = un seul pas
+    expect("pavé tactile : un pas par 100 px cumulés", turned.length === 0);
+    await Essai.sleep(500);
+    expect(`rafale de crans : un seul recalcul, au bord droit (${turned[0]?.[1]?.toFixed(3)} m = 3 + 0,01 + 0,10 − 0,02 + 0,01)`,
+      turned.length === 1 && turned[0][0] === "droit" && Math.abs(turned[0][1] - 3.10) < 1e-6 && !box.querySelector(".bord-repere"));
+    expect("molette sur le curseur : zoom inchangé", map.getZoom() === zoom0);
     Carte.showBords(map, null);
     expect("curseurs retirés", !box.querySelector(".bord-curseur"));
     map.remove();

@@ -172,8 +172,7 @@ class App(Pose, Chutes, Nez, session.Session):
         self.falls = {}  # (séquence, pont) -> hauteur de chute calculée (dict text, title) ou en cours
         self.lidar_falls = {}  # tronçon du pont -> réponse du nuage LiDAR (use_bridge_lidar)
         self.edges = {}  # (photo, largeur examinée) -> chute et dévers des bords de route (voir _edges)
-        self.paved = {}  # repère du profil -> bords d'enrobé de l'analyse fine (use_paved_edges)
-        self.paved_redo = {}  # repère du profil -> (clé de self.edges, calcul à refaire sans relire le terrain)
+        self.edges_redo = {}  # repère du profil -> (clé de self.edges, calcul à refaire sans relire le terrain)
         self.manual = {}  # repère du profil -> bords recalés à la main (use_manual_edges), par côté, m depuis l'origine
         self.edges_asked = {}  # photo -> largeur examinée au dernier appui sur « Profils »
         self.long_tracks = {}  # photo -> trajectoire de la caméra autour d'elle (_track_line), None pendant la lecture

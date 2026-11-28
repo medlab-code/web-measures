@@ -413,10 +413,11 @@ après.
   calcule (une animation d'attente « Profil en travers… » s'affiche au centre de la visionneuse pendant le calcul et
   laisse place au graphique ; l'étiquette en haut à gauche ne s'affiche que pour dire pourquoi le calcul n'a pas abouti : service
   injoignable, pas de route à moins de 15 m… ; l'animation montre alors une croix rouge) puis trace le profil en travers, qui donne pour chaque côté (vu dans le sens de la photo)
-  qui descend d'au moins 0,5 m la hauteur de chute et le dévers du bord. La réglette « Jusqu'à » de la fenêtre du profil (en haut à droite, avant la croix de fermeture ; grisée pendant le calcul) fixe la
+  qui descend d'au moins 0,5 m la hauteur de chute et le dévers du bord. La réglette « Jusqu'à » de la fenêtre du profil (en haut à droite, avant la croix de fermeture) fixe la
   distance examinée de part et d'autre du milieu de la chaussée (5 à 30 m par pas de 5 m, flèches du clavier comprises, 10 m par défaut ; 1 m au moins au-delà
-  de chaque bord) : chute, dévers et graphique s'arrêtent là ; la changer, fenêtre ouverte, refait aussitôt le calcul
-  de la photo ; fenêtre fermée, le prochain appui sur le bouton. Le bouton est grisé sur un pont (hauteur de chute du pont)
+  de chaque bord) : chute, dévers et graphique s'arrêtent là ; la changer, fenêtre ouverte, refait le calcul
+  de la photo au lâcher de la réglette, avec l'animation d'attente au centre de la fenêtre (la réglette reste utilisable : le dernier lâcher
+  gagne ; les curseurs des bords sont grisés pendant le calcul) ; fenêtre fermée, le prochain appui sur le bouton. Le bouton est grisé sur un pont (hauteur de chute du pont)
   et pendant la lecture ; enfoncé pendant le calcul (un second appui l'abandonne) et tant que la fenêtre du profil est ouverte ; quand le calcul
   est déjà fait pour cette photo et cette distance, un appui rouvre la fenêtre sans recalculer. Tant qu'elle est ouverte, la carte trace le travers de la photo, ses deux bords, le pied de la chute et le talus (mêmes couleurs que le graphique ; le travers voisin qui porte la chute, en gris ; les autres travers du profil, sans chute ni dévers retenus, tracés comme lui, en trait plein gris) ; tout disparaît à la fermeture. À 12 m au plus d'un carrefour
   avec une voie nommée (le long de la route), le graphique le signale (« Carrefour : bords peu sûrs », en orange en haut à droite, aussi dans le PNG et le PDF),
@@ -524,7 +525,7 @@ après.
   une clé de lecture d'une ou deux lignes sous le graphique (échantillon et mot pour chaque élément dessiné seulement : terrain, plateforme, bord mesuré ou supposé, chute, dévers, eau, herbe, végétation…, aussi dans le PNG et le PDF), valeurs au survol ou au toucher du graphique en travers (trait vertical, point sur le terrain de la photo et étiquette : distance à la caméra ou à l'axe, position par rapport au bord, hauteur par rapport à la plateforme ; une flèche de chute ou une droite de dévers proche du pointeur est mise en évidence avec son côté dans la légende ; rien de cela dans le PNG ni le PDF), hauteurs exagérées (facteur écrit sous le graphique et, en haut à gauche, « Hauteurs ×N » sur le graphique, donc aussi dans le PNG et le PDF) ; la case « Hauteurs à l'échelle » (cochée à chaque
   ouverture, grisée quand les hauteurs sont déjà à l'échelle sur ce travers) les remet à l'échelle des distances, caméra dessinée à sa hauteur (réglage « Hauteur de caméra »), masquée quand
   les hauteurs sont exagérées. Les commandes sous le graphique sont en quatre groupes : « Affichage » (« Hauteurs à
-  l'échelle », « Végétation », légende, loupe), « Nuage LiDAR » (« Analyse fine », interrupteur « Bord d'enrobé (expérimental) »), « Bords » (« Recaler les bords », « Bords automatiques ») et « Enregistrer » (PNG, PDF, 2e page),
+  l'échelle », « Végétation », légende, loupe), « Nuage LiDAR » (« Analyse fine »), « Bords » (« Bords automatiques ») et « Enregistrer » (PNG, PDF, 2e page),
   et une croix en haut à droite ferme la fenêtre. « PNG » en fait une image
   avec son titre et sa légende ; « PDF » met le graphique et la légende (en petits caractères, sur deux
   colonnes) sur une page A4 paysage, en vectoriel, sous le lieu de la photo (route, PR, commune), à enregistrer en PDF
@@ -536,31 +537,31 @@ après.
   par demi-chaussée, avec la pente moyenne pour un toit symétrique, ou « non déterminé » si les travers diffèrent trop. Sur une route à une
   chaussée, un toit reste difficile à reconnaître (voir `docs/CALCULS.md`, 8.7) : ce chiffre n'a pas été comparé à des mesures de terrain. Le bouton « Analyse fine » de la fenêtre n'est proposé que pour un profil calculé.
 
-  **Recaler les bords à la main** (groupe « Bords » de la fenêtre) : quand le bord trouvé est faux (talus, accotement, trottoir
-  pris pour la chaussée), « Recaler les bords » (bouton enfoncé) pose sur la droite de coupe de la carte un curseur par bord : un petit
-  trait cyan perpendiculaire à la droite, d'environ 14 px, cerné de clair pour rester lisible sur l'orthophoto, dans une zone de prise
-  invisible plus large (24 px, 44 px au toucher). La vue du dessus (Bird Eye) s'allume avec le mode, pour voir les vrais bords sous la
-  droite (sans elle, si la photo n'en a pas : le recalage marche quand même). On glisse un curseur **le long de la droite seulement** (le
-  pointeur est projeté sur elle ; en biais, seul le déplacement le long de la droite compte) ; un repère en mètres suit le glissement
-  (« bord droit : 3,42 m à droite de l'axe · largeur 6,84 m »). Pas d'aimant : le bord va, au centimètre, où on le lâche, dans le
-  terrain lu, de son côté de l'axe (ou de la caméra) et à 0,10 m au moins de l'autre bord. Au lâcher, la plateforme et sa largeur,
-  son dévers, la chute et le dévers du talus de chaque côté, les étiquettes et le graphique sont recalculés depuis ce bord, sur tous
-  les travers, sans relire le terrain. Le bord recalé est tracé en cyan pleine ligne, nommé « à la main » sur le graphique, dans sa clé et sa
-  légende, et sur la carte. Il reste pour cette photo et cette coupe, même fenêtre fermée puis rouverte ; il est perdu avec la coupe
-  (autre photo, autre position). « Bords automatiques » (grisé tant qu'aucun bord n'est recalé) remet les bords calculés. Le profil
-  n'a que deux bords par côté de calcul (la plateforme, de bord à bord) : l'accotement n'est pas un bord de plus, c'est le terrain
-  entre le bord de l'enrobé de l'analyse fine et le bord recalé. L'export (PNG, PDF) dessine le bord « à la main ».
+  **Recaler les bords** (groupe « Bords » de la fenêtre) : quand le bord trouvé est faux (talus, accotement, trottoir
+  pris pour la chaussée), on le glisse sur la carte, sans mode à activer : tant que la fenêtre du profil est ouverte, un curseur par bord
+  est posé sur la droite de coupe, à la place des points des bords : un trait cyan fin perpendiculaire à la droite, d'environ 28 px,
+  cerné de clair pour rester lisible sur l'orthophoto, dans une zone de prise invisible (24 px de large, 44 px au toucher) sur toute
+  sa longueur ; un clic ou un glissement à côté déplace la carte comme d'habitude. À l'ouverture de la fenêtre, la vue du dessus
+  (Bird Eye) s'allume, pour voir les vrais bords sous la droite (sans elle, si la photo n'en a pas : le recalage marche quand même),
+  et la carte se recentre si les curseurs sont sous la fenêtre : le premier appui sur un curseur glisse aussitôt. Au survol d'un curseur, la molette le
+  règle finement (1 cm par cran, 10 cm avec Maj ; vers le bas : à droite du profil, vers le haut : à gauche, quelle que soit
+  l'orientation de la carte ; ailleurs, elle zoome la carte) et le calcul est refait une fois la molette arrêtée. On glisse un curseur **le long de la droite
+  seulement** (le pointeur est projeté sur elle ; en biais, seul le déplacement le long de la droite compte) ; un repère en mètres
+  suit le glissement (« bord droit : 3,42 m à droite de l'axe · largeur 6,84 m »). Pas d'aimant : le bord va, au centimètre, où on le
+  lâche, dans le terrain lu, de son côté de l'axe (ou de la caméra) et à 0,10 m au moins de l'autre bord. Au lâcher, la plateforme et
+  sa largeur, son dévers, la chute et le dévers du talus de chaque côté, les étiquettes et le graphique sont recalculés depuis ce
+  bord, sur tous les travers, sans relire le terrain : la bande grise de la plateforme commence et finit exactement aux bords. Le bord
+  recalé est tracé comme un bord mesuré, sans mention particulière. Il reste pour cette photo et cette coupe, même fenêtre fermée puis
+  rouverte ; il est perdu avec la coupe (autre photo, autre position). « Bords automatiques » (grisé tant qu'aucun bord n'est recalé)
+  remet les bords calculés. Le profil n'a que deux bords par côté de calcul (la plateforme, de bord à bord) : l'accotement n'est pas
+  un bord de plus, c'est le terrain entre le bord calculé et le bord recalé.
 
   **« Analyse fine »** (fenêtre du profil) : lit le nuage de points LiDAR HD de l'IGN (dalles COPC, à la volée,
   1 requête par seconde au plus : une vingtaine de secondes, 1 à 2 Mo ; morceaux gardés dans le cache des informations
   géographiques, relus sans attente) sur ±1 m le long de la route au travers
   de la photo. L'intensité du retour laser des points du sol distingue l'enrobé (sombre), les lignes blanches
   (bandes étroites très claires, 2 fois plus que leurs voisines au moins) et les surfaces non revêtues (herbe, gravillons, béton : larges et claires).
-  **Bord de chaussée** (tiret court ; **option « Bord d'enrobé (expérimental) »**, décochée par défaut, grisée tant que l'analyse fine n'est pas faite, choix retenu d'une session à l'autre : décochée, ni le bord d'enrobé ni la bordure ne déplacent les bords de chaussée, qui restent ceux du relief, et ni le tiret ni la largeur d'enrobé ne s'affichent, le reste de l'analyse (séparateur, lignes blanches, herbe, végétation, eau) étant gardé ; les relevés des 19 et 20/11/2026 les ont trouvés souvent trop loin, accotements et trottoirs en enrobé comptés dans la chaussée ; cochée, ce qui suit) : le bord de la bande d'enrobé, médiane de 5 travers sur ±5 m autour de la photo :
-  début de la première bande d'1 m ou plus, 2,2 fois plus claire que l'enrobé au moins, ou 0,8 fois aussi claire au plus et à plat (terre d'un chemin raccordé, plus sombre qu'un enduit clair ; pas un fond de fossé, plus bas), à mi-hauteur entre les deux ; ou, plus près, la bordure d'un trottoir en enrobé (même intensité que la chaussée), lue à l'altitude des points du sol : remontée d'au moins 4 cm en 0,75 m après le caniveau, qui tient sur 1 m, presque à plat (pas le fond d'un fossé ni sa berge : « bordure » dans la légende) ; la légende donne la largeur
-  d'enrobé et sa dispersion entre travers ; la plateforme, son dévers, la chute et le dévers du talus se relisent alors depuis ces bords. Sans ces abords clairs (village, béton), à défaut : la ligne de rive, ligne blanche au début de la première bande non revêtue
-  d'1 m ou plus, ou la dernière avant elle, hors des lignes entre voies (à moins de 1,2 m de l'axe d'une
-  chaussée), sinon la fin de l'enrobé du seul travers de la photo. **Séparateur de chaussée** : la bande non revêtue entre les deux
+  Pas de bord de chaussée lu dans le nuage : les bords sont ceux du relief (l'option « Bord d'enrobé (expérimental) » a été retirée : bords d'enrobé et bordures souvent trop loin), à recaler à la main sur la carte si besoin. **Séparateur de chaussée** : la bande non revêtue entre les deux
   chaussées (glissières comprises, que le terrain seul ne voit pas), à 2 m au plus de celui du calcul, qu'elle
   remplace (« nuage LiDAR »). Les lignes blanches sont dessinées en petits carrés blancs ; une ligne à tirets absente du travers de la photo (vide entre deux tirets) est reprise si au moins 2 des 5 travers la voient. Le bouton est grisé
   pendant la lecture et une fois l'analyse faite pour ce profil. **Hachures vertes fines (3 px de haut)** : herbe au sol (classée « sol »
@@ -1048,7 +1049,7 @@ ruisseau (92e3faf1). Le MNT donne la pente à quelques dixièmes de point près
 sur 100 m ; sur un pont, le tablier est une droite d'une culée à l'autre, sans sa courbure.
 
 Analyse fine (`tests/essai-nuage.html`, A38, RD903bis, D1074, RD700) : séparateur placé à la case du nuage près (0,25 m).
-Largeur d'enrobé : trouvée sur 7 photos sur 9, à ±0,1 ou ±0,2 m entre travers voisins (village, faible contraste : règle à défaut), jamais comparée à des mesures de terrain. L'herbe du séparateur de l'A38 n'est pas reconnue, et l'eau
+L'herbe du séparateur de l'A38 n'est pas reconnue, et l'eau
 du nuage n'a été vue sur aucune photo d'essai.
 
 Avec un GPS grand public

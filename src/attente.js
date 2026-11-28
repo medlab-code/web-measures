@@ -5,7 +5,7 @@
 // l'action en jaune, deux ondes qui s'étendent et s'effacent, une étiquette avec un court message et, dessous, l'étape en cours.
 // À la fin, une coche verte (succès) ou une croix rouge et un message court (échec, 6 s), puis fondu.
 //
-//   const a = Attente.start(zone, { icone: Attente.icones.equerre, message: "Chargement du calcul…" });
+//   const a = Attente.start(zone, { icone: Attente.icones.equerre, message: "Chargement du calcul…" });   // delai : 300 ms par défaut
 //   a.etape("photos voisines");      // sous-ligne, « … » ajouté ; texte libre sinon (« 40 % »)
 //   a.ok();  a.ok("Vue du dessus prête");   // coche tracée, puis fondu (message facultatif)
 //   a.echec("Bird Eye impossible : terrain injoignable");   // croix et message, 6 s
@@ -85,15 +85,16 @@ const Attente = (() => {
     montrer(zone);
   }
 
-  /** Commence une attente au centre de `zone` (élément conteneur, qui doit être positionné). Montrée après 300 ms seulement. */
-  function start(zone, { icone = icones.neutre, message = "Calcul en cours…" } = {}) {
+  /** Commence une attente au centre de `zone` (élément conteneur, qui doit être positionné). Montrée après 300 ms seulement (`delai` : autre délai en ms,
+   *  0 pour un calcul qui va bloquer la page, que le délai laisserait sans retour). */
+  function start(zone, { icone = icones.neutre, message = "Calcul en cours…", delai = DELAI } = {}) {
     const a = { icone, message, sousLigne: "", etat: "cours", element: null, delai: null, sortie: null };
     zones.set(zone, [...(zones.get(zone) || []), a]);
     a.delai = setTimeout(() => {
       if (a.etat !== "cours") return;
       a.element = creerElement(zone, a);
       montrer(zone);
-    }, DELAI);
+    }, delai);
     /** Termine avec un état affiché `duree` ms (si l'attente a été montrée ; sinon rien du tout). */
     const finir = (etat, duree, texte) => {
       if (a.etat !== "cours") return;

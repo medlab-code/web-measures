@@ -43,6 +43,7 @@ const Choix = {
       } else if (etat.placing) placeOnMap(event.lngLat);
       else if (etat.addingObject) host.addObjectAt(event.lngLat);
       else if (host.parcours.travelPick) host.pickTravelPoint(event.lngLat);
+      else if ($("#fenetre-profil").open) return;  // profil ouvert : un clic raté près des curseurs de bord ne change pas de photo (ni ne ferme le profil)
       else {
         // Mesure exportée de la couche sous le clic : revue sur sa photo ; sinon la photo la plus proche
         const { x, y } = event.point, layers = ["couche-traits", "couche-points"].filter((l) => map.getLayer(l));

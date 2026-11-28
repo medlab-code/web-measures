@@ -437,7 +437,7 @@ plus larges que leur type), au pas de 0,5 m ; une marche n'y compte que si elle 
 pas voisins (moins de la moitié de son saut : une pente soutenue de plus de 10 % ou un défaut de
 la chaussée font aussi 5 cm par pas). Sans autre rupture ensuite, le bord est cette première
 rupture. Seulement sur une chaussée de 4 m au moins de largeur type (deux voies possibles). Sur 61 côtés
-de 42 photos réparties en Côte-d'Or, comparés au bord d'enrobé de l'analyse fine, 28 bords
+de 42 photos réparties en Côte-d'Or, comparés alors au bord d'enrobé de l'analyse fine (fonction retirée depuis), 28 bords
 tombaient sur l'enrobé, 25 depuis, sans aucun côté dégradé (`BordsBombement`).
 
 Sans rupture de pente (accotement de plain-pied), le bord est à la demi-**largeur type** de la
@@ -712,56 +712,22 @@ laser est en proche infrarouge :
   L'herbe rase d'un relevé d'hiver (0,6 à 1,9 fois l'enrobé, sans retours multiples) reste invisible au
   nuage : le LiDAR HD n'a pas de couleur.
 
-**Bords recalés à la main** (`App.use_manual_edges`, curseurs de la carte, voir `docs/GUIDE.md`) : le bord d'un côté imposé par l'utilisateur
-(m depuis l'origine de la coupe, au centimètre) prime sur le relief et sur le bord d'enrobé. Une seule méthode de calcul : il passe par
-le même chemin que le bord d'enrobé (`_edge_reads` ramène l'indice du bord à l'échantillon le plus proche, `_edge_falls` écrit le bord imposé,
+**Bords recalés** (`App.use_manual_edges`, curseurs de la carte, voir `docs/GUIDE.md`) : le bord d'un côté imposé par l'utilisateur
+(m depuis l'origine de la coupe, au centimètre) prime sur le relief. Une seule méthode de calcul : il passe par
+le même chemin que le bord du relief (`_edge_reads` ramène l'indice du bord à l'échantillon le plus proche, `_edge_falls` écrit le bord imposé,
 puis `platform_slope`, la chute et le dévers du talus se relisent depuis lui), sans relire le terrain. Chaque travers porte `manuel` et le
-profil la liste des côtés recalés ; `enrobe` reste faux pour eux. Les deux bords sont à `MANUAL_GAP` = 0,10 m l'un de l'autre au moins
+profil la liste des côtés recalés . Les deux bords sont à `MANUAL_GAP` = 0,10 m l'un de l'autre au moins
 (`ValueError` sinon). Les bords sont rangés sous le repère du profil : perdus avec la coupe, gardés pour la même photo et la même coupe.
-Test : `BordsMain` de `tests/test_calculs.py`.
+Test : `BordsMain` de `tests/test_calculs.py`. Au dessin, la bande de la plateforme va exactement du bord gauche au bord droit du résultat
+(terrain interpolé aux deux bouts) ; le bord recalé est tracé comme un bord mesuré.
 
 Ce que l'analyse en tire :
 
-- **Bord de chaussée** : le bord de la bande d'enrobé. N'est appliqué que si l'option « Bord d'enrobé (expérimental) » est cochée (décochée par défaut) : les relevés du 19-20/11/2026 l'ont trouvé souvent trop loin (accotements, trottoirs en enrobé comptés dans la chaussée). Décochée, la page ne transmet pas les bords au calcul Python (`use_paved_edges` avec aucun bord : retour aux bords du relief, sans relire le terrain), ne dessine pas le tiret et n'affiche pas la largeur d'enrobé ; le séparateur du nuage reste appliqué. Sur 5 travers de ±1 m à −4, −2, 0, +2 et +4 m
-  le long de la route, chacun avec sa propre intensité d'enrobé : début de la première bande
-  d'au moins 1 m dont chaque case est au moins **2,2 fois** plus claire que l'enrobé (ni une ligne
-  blanche, ni une reprise d'enrobé), ou au plus **0,8 fois** aussi claire (terre ou sable d'un chemin
-  raccordé, plus sombre qu'un enduit clair : D119E 1d23f3f9-f4b7-4d2e-8658-500a748ccecc, 0,5 à 0,8 fois
-  sur 2 m) et restée à **15 cm** près au niveau de la case qui la précède (un fond de fossé humide est
-  sombre aussi, mais plus bas), placé à mi-hauteur entre l'enrobé et ces abords et interpolé
-  entre deux cases. **Bordure** : un trottoir en enrobé renvoie comme la chaussée (même intensité) ;
-  l'altitude médiane des points du sol, case par case, montre alors sa bordure. Depuis un point bas
-  (caniveau, pas plus haut à 2 cm près que le mètre qui le précède), le sol remonte d'au moins
-  **4 cm** en 0,75 m au plus, ne redescend pas sur le mètre suivant (bosse, rebord d'ornière), et le
-  niveau moyen de ce mètre dépasse de 4 cm celui du mètre avant le point bas, pente montante de la
-  chaussée déduite (un dévers qui monte n'a pas de point bas). Garde contre les fossés : le point bas
-  n'est pas à plus de **15 cm** sous le mètre qui le précède (un caniveau n'est qu'à quelques centimètres
-  sous la chaussée), et le mètre après la remontée reste plat à **8 cm** près (dessus d'un trottoir ; la
-  berge d'un fossé continue de monter). Le bord est au milieu du plus grand
-  saut d'une case à la suivante ; pas plus près que 2 m de l'axe quand le profil part de l'axe, ni
-  du côté d'une autre chaussée sans séparateur trouvé. Chaque travers garde le plus proche des deux
-  bords (intensité, bordure). Relevé du 19/11/2026 sur 9 côtés vérifiés à la main (photo, vue du
-  dessus) : écart total au vrai bord 30 → 7 m (D8, M996, D119M : trottoir compté en enrobé jusqu'à
-  9 m de trop) ; les accotements en gravier sombre (D70) restent comptés en enrobé. Garde ajoutée le
-  20/11/2026 (bordure trouvée au fond d'un fossé, 4c1c91d9-5c70-48d4-8962-b71c33dfe227) : bordures des côtés
-  vérifiés inchangées, une fausse bordure en moins (D16 b3978b33-2ceb-4ef3-bd51-09d25e505015, 3,4 m pour 2,0).
-  Le bord est la médiane des travers, si au moins 3 le trouvent. La **largeur
-  d'enrobé** (légende) est la médiane des largeurs des travers, ± 1,48 fois leur écart médian (0,1 m
-  au moins) ; du côté du séparateur, elle s'arrête à lui. Les surlargeurs revêtues et bandes
-  d'arrêt d'urgence en font partie. Ces bords remplacent alors celui du § 8.2, sur tous les travers et
-  au même écart de l'origine : **plateforme**, son **dévers** (§ 8.7), **chute** et **dévers du talus**
-  (§ 8.4) se relisent depuis eux, dans le graphique.
-- **À défaut** (abords trop peu clairs : village, béton) : sur le seul travers de la photo, la
-  ligne de rive, c'est-à-dire la ligne blanche au début de la première bande non revêtue, ou la
-  dernière avant elle. Les lignes à moins de 1,2 m de l'axe d'une chaussée sont des lignes entre
-  voies et sont écartées. Sans ligne de rive, le bord est la fin de l'enrobé. Les lignes blanches
-  ne sont cherchées que sur la plateforme.
 - **Lignes blanches à tirets** : le travers de la photo (±1 m le long de la route, soit 2 m) peut
   tomber entre deux tirets (f478a847 : tirets tous les 6,5 m environ, 4 m de vide à la photo). Une ligne
   absente de ce travers est reprise si elle se voit sur au moins 2 des 5 travers de −4 à +4 m, à
   0,5 m près d'un travers à l'autre, et seulement sur la chaussée (hors séparateur), à sa position au
-  travers le plus proche de la photo. Elle sert au dessin et à la ligne de rive ci-dessus, pas
-  au bord d'enrobé. Limite : une ligne à tirets très espacés (10 m de vide) peut encore échapper.
+  travers le plus proche de la photo. Elle ne sert qu'au dessin. Limite : une ligne à tirets très espacés (10 m de vide) peut encore échapper.
 - **Séparateur** : la bande non revêtue entre les deux chaussées (0,5 à 12 m, glissières
   comprises, que le MNT ne voit pas), son milieu à 2 m au plus de celui du § 8.3, qu'elle
   remplace.
@@ -773,12 +739,9 @@ Ce que l'analyse en tire :
 - **Eau** : points de la classe 9, à leur altitude (niveau du jour du relevé). Souvent absents,
   car l'eau renvoie mal le laser.
 
-Précision : celle du nuage (±0,1 m en altitude) et des cases (0,25 m en travers). Essai du
-05/11/2026 sur 9 photos, sans mesure de terrain (stabilité, pas exactitude) : largeur d'enrobé sur 7
-(D70 8,7 m, A38 9,4 m, RD903bis 5,2 m, RD700 6,5 m, Pouilly 6,5 m, deux autres 10,4 et 12,4 m), à
-±0,1 ou ±0,2 m entre travers ; sur les 2 autres (village, faible contraste), pas de largeur et règle à
-défaut sur un côté ou les deux. Une reprise d'enrobé ou un accotement gravillonné peut déplacer le bord :
-la largeur reste à comparer au terrain.
+Précision : celle du nuage (±0,1 m en altitude) et des cases (0,25 m en travers). Le bord de chaussée n'est plus lu dans le nuage
+(option « Bord d'enrobé (expérimental) » retirée : bords d'enrobé et bordures trouvés souvent trop loin, accotements et trottoirs
+en enrobé comptés dans la chaussée) ; les bords sont ceux du relief (§ 8.2), recalables à la main sur la carte.
 
 ## 11. Vidéo : accélération latérale et vitesse max ARP
 

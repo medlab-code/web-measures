@@ -410,13 +410,8 @@ const Carte = (() => {
           paint: { "line-color": ["get", "couleur"], "line-width": ["case", ["==", ["get", "role"], "devers"], 5, ["==", ["get", "role"], "voisin"], 2, 3.5] },
         },
         {
-          id: "travers-points", type: "circle", source: "travers", filter: ["in", ["get", "role"], ["literal", ["bord", "chute"]]],
-          paint: {
-            "circle-radius": ["case", ["==", ["get", "role"], "chute"], 6, 5],
-            "circle-color": ["case", ["==", ["get", "role"], "chute"], ["get", "couleur"],
-              ["boolean", ["get", "mesure"], false], ["get", "couleur"], ["get", "fond"]],  // bord supposé : rond creux
-            "circle-stroke-width": 2, "circle-stroke-color": ["case", ["==", ["get", "role"], "chute"], ["get", "fond"], ["get", "couleur"]],
-          },
+          id: "travers-points", type: "circle", source: "travers", filter: ["in", ["get", "role"], ["literal", ["chute"]]],
+          paint: { "circle-radius": 6, "circle-color": ["get", "couleur"], "circle-stroke-width": 2, "circle-stroke-color": ["get", "fond"] },
         },
       ],
     };
@@ -1362,14 +1357,14 @@ const Carte = (() => {
     if (geojson && !map.loaded()) map.once("load", set);
   }
 
-  // Curseurs des bords recalés à la main (mode « Recaler les bords » du profil) : un petit trait perpendiculaire à la droite de coupe
+  // Curseurs des bords recalés à la main (profil en travers, toujours présents fenêtre ouverte) : un petit trait perpendiculaire à la droite de coupe
   // par bord, glissé le long d'elle seulement (projection du pointeur sur la droite, sans aimant) ; zone de prise invisible plus
   // large que le trait (voir .bord-curseur dans style.css)
   const bordCurseurs = [];
 
   /** Curseurs des bords du travers du profil sur la carte, ou aucun si spec est null. spec : { repere : [origine, point à 1 m à
    * droite] ([lon, lat]), x : { côté : position (m, < 0 à gauche) }, couleur, limite(côté, x) : position permise la plus proche,
-   * texte(côté, x) : repère affiché pendant le glissement, saisi(côté) : au début d'une prise, deplace(côté, x) : au lâcher }. */
+   * texte(côté, x) : repère affiché pendant le glissement, deplace(côté, x) : au lâcher ou 300 ms après la dernière molette }. */
   function showBords(map, spec) {
     for (const marker of bordCurseurs.splice(0)) marker.remove();
     if (!spec) return;
@@ -1404,7 +1399,6 @@ const Carte = (() => {
         readout = new maplibregl.Marker({ element: Object.assign(document.createElement("div"), { className: "bord-repere" }), offset: [0, -30] })
           .setLngLat(at(drag.x)).addTo(map);
         readout.getElement().textContent = spec.texte(side, drag.x);
-        spec.saisi?.(side);
       });
       element.addEventListener("pointermove", (event) => {
         if (!drag) return;
@@ -1424,6 +1418,36 @@ const Carte = (() => {
       };
       element.addEventListener("pointerup", release);
       element.addEventListener("pointercancel", release);
+      // Molette au survol du curseur (et seulement là : ailleurs, la carte zoome) : réglage fin le long de la droite, sens fixe
+      // (vers le bas : à droite du profil, vers le haut : à gauche, quelle que soit l'orientation de la carte), 1 cm par cran,
+      // 10 cm avec Maj. Un cran de souris (100 px, ou 3 lignes) = un pas ; le pavé tactile s'accumule (un pas par 100 px).
+      // mêmes limites qu'au glissement ; le repère en mètres reste affiché ; un seul recalcul (deplace) 300 ms après le dernier cran
+      let wheel = null, accumulated = 0;
+      element.addEventListener("wheel", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (drag) return;
+        const raw = event.deltaY || event.deltaX;  // Maj : certains navigateurs passent le défilement en horizontal
+        accumulated += event.deltaMode === 1 ? raw * 100 / 3 : event.deltaMode === 2 ? raw * 100 : raw;
+        const notches = Math.trunc(accumulated / 100);
+        accumulated -= notches * 100;
+        if (!wheel) wheel = { x: spec.x[side], readout: null, timer: null };
+        if (notches) wheel.x = spec.limite(side, wheel.x + notches * (event.shiftKey ? 0.1 : 0.01));
+        if (!wheel.readout) {
+          wheel.readout = new maplibregl.Marker({ element: Object.assign(document.createElement("div"), { className: "bord-repere" }), offset: [0, -30] })
+            .setLngLat(at(wheel.x)).addTo(map);
+        }
+        marker.setLngLat(at(wheel.x));
+        wheel.readout.setLngLat(at(wheel.x)).getElement().textContent = spec.texte(side, wheel.x);
+        clearTimeout(wheel.timer);
+        wheel.timer = setTimeout(() => {
+          const done = wheel;
+          wheel = null;
+          accumulated = 0;
+          done.readout.remove();
+          if (done.x !== spec.x[side] && element.isConnected) spec.deplace(side, done.x);
+        }, 300);
+      }, { passive: false });
       bordCurseurs.push(marker);
     }
   }

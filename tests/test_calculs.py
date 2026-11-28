@@ -419,13 +419,12 @@ class Carrefours(unittest.TestCase):
 
 
 class BordsChausseesSeparees(unittest.TestCase):
-    """Route à chaussées séparées : chaque profil porte l'axe de l'autre chaussée de son côté (autre_axe), lu par
-    l'analyse fine (src/nuage.js) pour borner le bord ; il valait celui du dernier travers lu, pour tous."""
+    """Route à chaussées séparées : chaque profil porte l'axe de l'autre chaussée de son côté (autre_axe), pour borner le bord ; il valait celui du dernier travers lu, pour tous."""
 
     def test_autre_axe_par_travers(self):
         lon, lat = 5.0, 47.0
         calc = App.__new__(App)
-        calc.edges, calc.paved, calc.paved_redo = {}, {}, {}
+        calc.edges, calc.edges_redo = {}, {}
         calc.notify = lambda: None
 
         def terrain(points, done):  # plat, séparateur surélevé de 4 à 7 m, talus au-delà de l'autre chaussée
@@ -444,50 +443,13 @@ class BordsChausseesSeparees(unittest.TestCase):
         self.assertTrue(all(e["autre_axe"] is None for e in other_side))
 
 
-class BordsEnrobe(unittest.TestCase):
-    """Chute et dévers relus depuis les bords d'enrobé de l'analyse fine (App.use_paved_edges, ticket #38)."""
-
-    def test_relecture_depuis_l_enrobe(self):
-        lon, lat = 5.0, 47.0
-        calc = App.__new__(App)
-        calc.edges, calc.paved, calc.paved_redo = {}, {}, {}
-        calc.notify = lambda: None
-        reads = []
-
-        def terrain(points, done):  # plat jusqu'à 6 m de l'axe, puis talus à 50 %
-            reads.append(1)
-            local = [web_app.triangulation._local(p[0], p[1], lon, lat) for p in points]
-            done([-0.5 * max(0.0, abs(x) - 6.0) for x, _ in local], web_app.triangulation.LIDAR_NAME, None)
-        calc._terrain = terrain
-        key = ("photo", 17, False)  # réglette depuis le milieu : 10 m au-delà du bord une fois le droit à 8 m (gauche à 6)
-        calc._compute_edges(key, [(0.0, -200.0), (0.0, 200.0)], 200.0, 6.0, 0.0, lon, lat)
-        before = calc.edges[key]["profile"]
-        fall = before["resultats"]["droit"]["chute"][0]
-        self.assertAlmostEqual(next(e for e in before["profils"] if e["cote"] == "droit")["bord"], 6.0, delta=1.0)
-        calc.use_paved_edges(json.dumps(before["repere"]), json.dumps({"droit": 8.0}))
-        after = calc.edges[key]["profile"]
-        droit = [e for e in after["profils"] if e["cote"] == "droit"]
-        self.assertTrue(droit and all(e["bord"] == 8.0 and e["enrobe"] for e in droit), [(e["bord"], e["enrobe"]) for e in droit])
-        # chute comptée depuis le nouveau bord, à son niveau (le talus y a déjà descendu de 1 m)
-        chute = after["resultats"]["droit"]["chute"]
-        entry = next(e for e in droit if e["le_long"] == chute[3])
-        # point du terrain le plus proche du bord
-        start = min(o for o, _ in entry["points"] if abs(o - 8.0) == min(abs(q - 8.0) for q, _ in entry["points"]))
-        kept = [z for o, z in entry["points"] if start <= o <= start + 10]
-        self.assertLess(chute[0], fall)
-        self.assertAlmostEqual(chute[0], kept[0] - min(kept), delta=0.01)
-        gauche = [e for e in after["profils"] if e["cote"] == "gauche"]
-        self.assertTrue(gauche and not any(e["enrobe"] for e in gauche))  # l'autre côté garde son bord
-        self.assertEqual(len(reads), 1)  # sans relire le terrain
-
-
 class BordsMain(unittest.TestCase):
-    """Bords recalés à la main (App.use_manual_edges) : relus comme les bords d'enrobé, sans relire le terrain, et primant sur eux."""
+    """Bords recalés à la main (App.use_manual_edges) : relus sans relire le terrain, et primant sur le relief."""
 
     def calc(self):
         lon, lat = 5.0, 47.0
         calc = App.__new__(App)
-        calc.edges, calc.paved, calc.paved_redo, calc.manual = {}, {}, {}, {}
+        calc.edges, calc.edges_redo, calc.manual = {}, {}, {}
         calc.notify = lambda: None
         self.reads = []
 
@@ -504,22 +466,35 @@ class BordsMain(unittest.TestCase):
         calc, key = self.calc()
         before = calc.edges[key]["profile"]
         self.assertEqual(before["manuel"], [])
-        calc.use_paved_edges(json.dumps(before["repere"]), json.dumps({"droit": 7.0}))
         calc.use_manual_edges(json.dumps(before["repere"]), json.dumps({"droit": 8.0, "gauche": 5.0}))
         after = calc.edges[key]["profile"]
         self.assertEqual(after["manuel"], ["droit", "gauche"])
         for cote, bord in (("droit", 8.0), ("gauche", 5.0)):
             entries = [e for e in after["profils"] if e["cote"] == cote]
-            self.assertTrue(entries and all(e["bord"] == bord and e["manuel"] and not e["enrobe"] for e in entries), cote)
+            self.assertTrue(entries and all(e["bord"] == bord and e["manuel"] for e in entries), cote)
         # la plateforme et la chute se relisent depuis les nouveaux bords : chute plus faible, le talus ayant déjà descendu de 1 m
         self.assertLess(after["resultats"]["droit"]["chute"][0], before["resultats"]["droit"]["chute"][0])
         self.assertEqual(len(self.reads), 1)  # sans relire le terrain
-        # bords automatiques : retour aux bords calculés (l'enrobé de 7 m reste, il était dessous)
+        # bords automatiques : retour aux bords calculés
         calc.use_manual_edges(json.dumps(before["repere"]), "{}")
         back = calc.edges[key]["profile"]
         self.assertEqual(back["manuel"], [])
-        self.assertTrue(all(e["bord"] == 7.0 and e["enrobe"] and not e["manuel"] for e in back["profils"] if e["cote"] == "droit"))
+        self.assertTrue(all(abs(e["bord"] - 6.0) <= 1.0 and not e["manuel"] for e in back["profils"] if e["cote"] == "droit"))
+        self.assertEqual(back["profils"], before["profils"])
         self.assertEqual(len(self.reads), 1)
+
+    def test_lecture_d_une_largeur_perimee_jetee(self):
+        """Réglette changée pendant la lecture du terrain : la lecture arrivée après est jetée (pas de calcul inutile, rien de gardé)."""
+        lon, lat = 5.0, 47.0
+        calc = App.__new__(App)
+        calc.edges, calc.edges_redo, calc.manual, calc.edges_asked = {}, {}, {}, {"photo": 30.0}
+        calc.notify = lambda: None
+        calc._terrain = lambda points, done: done([0.0] * len(points), web_app.triangulation.LIDAR_NAME, None)
+        calc._compute_edges(("photo", 17, False), [(0.0, -200.0), (0.0, 200.0)], 200.0, 6.0, 0.0, lon, lat)
+        self.assertNotIn(("photo", 17, False), calc.edges)
+        calc.edges_asked["photo"] = 17.0  # distance redemandée : lue et gardée
+        calc._compute_edges(("photo", 17, False), [(0.0, -200.0), (0.0, 200.0)], 200.0, 6.0, 0.0, lon, lat)
+        self.assertIn("profile", calc.edges[("photo", 17, False)])
 
     def test_bords_trop_proches(self):
         calc, key = self.calc()
@@ -539,7 +514,7 @@ class BordsTalus(unittest.TestCase):
         """Plat jusqu'à start m de l'axe, marche de kerb m, talus de pente slope sur depth m de haut, puis fond plat."""
         lon, lat = 5.0, 47.0
         calc = App.__new__(App)
-        calc.edges, calc.paved, calc.paved_redo = {}, {}, {}
+        calc.edges, calc.edges_redo = {}, {}
         calc.notify = lambda: None
 
         def z(x):
@@ -586,7 +561,7 @@ def edges_on(z, width=8.0, twin=None, zone=14, axis_x=None, ends=([], None, []))
     caméra (séquence RTK), en x = 0 ; twin : autre chaussée [(ligne, largeur)]. Rend self.edges[clé]."""
     lon, lat = 5.0, 47.0
     calc = App.__new__(App)
-    calc.edges, calc.paved, calc.paved_redo = {}, {}, {}
+    calc.edges, calc.edges_redo = {}, {}
     calc.notify = lambda: None
     calc._terrain = lambda points, done: done(
         [z(*web_app.triangulation._local(p[0], p[1], lon, lat)) for p in points], web_app.triangulation.LIDAR_NAME, None)
@@ -768,7 +743,7 @@ class BordsVoisins(unittest.TestCase):
     def test_travers_plat_parmi_des_marches(self):
         lon, lat = 5.0, 47.0
         calc = App.__new__(App)
-        calc.edges, calc.paved, calc.paved_redo = {}, {}, {}
+        calc.edges, calc.edges_redo = {}, {}
         calc.notify = lambda: None
 
         def terrain(points, done):  # à droite, marche de 30 cm à 4 m de l'axe, sauf sur le travers à +5 m (plat)

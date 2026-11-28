@@ -1298,16 +1298,12 @@ enregistrée en PNG et copiée dans le presse-papiers">
       <fieldset class="groupe">
         <legend>Nuage LiDAR</legend>
         <button id="profil-nuage" type="button"
-                title="Lire le nuage de points LiDAR HD de l'IGN sur ce travers (une vingtaine de secondes) : lignes blanches et nature du sol (enrobé, herbe, gravillons), pour placer le séparateur de chaussée (et le bord de chaussée si « Bord d'enrobé » est cochée)">Analyse fine</button>
-        <label title="Bord de chaussée pris à la fin de l'enrobé lue dans le nuage (intensité du laser, terre sombre d'un chemin) ou à la bordure d'un trottoir, au lieu de la rupture de pente du relief. Expérimental : souvent trop loin (accotement, trottoir en enrobé), à vérifier sur la photo. Choix retenu pour les profils suivants.">
-          <input id="profil-enrobe" type="checkbox" class="interrupteur" disabled> Bord d'enrobé (expérimental)</label>
+                title="Lire le nuage de points LiDAR HD de l'IGN sur ce travers (une vingtaine de secondes) : lignes blanches et nature du sol (enrobé, herbe, gravillons), pour placer le séparateur de chaussée">Analyse fine</button>
       </fieldset>
       <fieldset class="groupe">
         <legend>Bords</legend>
-        <button id="profil-recaler" type="button" aria-pressed="false" disabled
-                title="Recaler à la main les bords de la plateforme : un curseur par bord sur la droite de coupe de la carte, à glisser le long d'elle (la vue du dessus s'allume pour voir les vrais bords) ; plateforme, dévers et chute sont recalculés au lâcher">Recaler les bords</button>
         <button id="profil-bords-auto" type="button" disabled
-                title="Remettre les bords calculés (grisé tant qu'aucun bord n'a été recalé à la main)">Bords automatiques</button>
+                title="Remettre les bords calculés (grisé tant qu'aucun bord n'a été recalé à la main : on les recale en glissant les curseurs cyan de la droite de coupe, sur la carte)">Bords automatiques</button>
       </fieldset>
       <fieldset class="groupe">
         <legend>Enregistrer</legend>
@@ -1320,7 +1316,7 @@ enregistrée en PNG et copiée dans le presse-papiers">
       </fieldset>
     </form>
     <!-- Réglette de la distance examinée (src/reglages.js), en haut à droite, avant la croix de fermeture : chute, dévers et
-         graphique s'arrêtent là ; un changement refait le calcul de la photo ; grisée pendant le calcul -->
+         graphique s'arrêtent là ; un changement (au lâcher) refait le calcul de la photo, la dernière valeur gagnant -->
     <label class="reglette" title="Distance examinée de part et d'autre du milieu de la chaussée (1 m au moins au-delà du bord) : un changement refait le calcul">
       <span>Jusqu'à <output id="bords-valeur" for="bords-largeur">10 m</output></span>
       <input id="bords-largeur" type="range" min="5" max="30" step="5" value="10">
