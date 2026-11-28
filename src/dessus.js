@@ -972,22 +972,51 @@ const Dessus = (() => {
     return sorted.length % 2 ? sorted[k] : (sorted[k - 1] + sorted[k]) / 2;
   };
 
-  function boxBlur(source, r, n = SIZE) {
-    const out = new Float32Array(source.length), pass = (from, to, step, lines, along) => {
-      for (let l = 0; l < lines; l++) {
-        let sum = 0;
-        const at = (k) => from[l * (step === 1 ? n : 1) + Math.min(along - 1, Math.max(0, k)) * step];
-        for (let k = -r; k <= r; k++) sum += at(k);
-        for (let k = 0; k < along; k++) {
-          to[l * (step === 1 ? n : 1) + k * step] = sum / (2 * r + 1);
-          sum += at(k + r + 1) - at(k - r);
-        }
+  /** Flou en boîte (2r + 1 px de côté, bords prolongés), en deux passes à somme glissante (coût indépendant de r) : lignes,
+   * puis colonnes, toutes les colonnes ensemble (une somme par colonne, lecture ligne par ligne). Mêmes opérations dans le
+   * même ordre que la version à fermetures : résultat identique au bit près. out : tampon de sortie (à fournir, ne doit pas
+   * être source), sinon un tableau neuf. */
+  let blurMiddle = new Float32Array(0), blurSums = new Float64Array(0);
+  function boxBlur(source, r, n = SIZE, out = new Float32Array(source.length)) {
+    if (blurMiddle.length < source.length) blurMiddle = new Float32Array(source.length);
+    if (blurSums.length < n) blurSums = new Float64Array(n);
+    const middle = blurMiddle, sums = blurSums, width = 2 * r + 1, last = n - 1;
+    for (let l = 0; l < n; l++) {  // lignes
+      const base = l * n;
+      let sum = 0;
+      for (let k = -r; k <= r; k++) sum += source[base + (k < 0 ? 0 : k > last ? last : k)];
+      for (let k = 0; k < n; k++) {
+        middle[base + k] = sum / width;
+        const hi = k + r + 1, lo = k - r;
+        sum += source[base + (hi > last ? last : hi)] - source[base + (lo < 0 ? 0 : lo)];
       }
-    };
-    const middle = new Float32Array(source.length);
-    pass(source, middle, 1, n, n);
-    pass(middle, out, n, n, n);
+    }
+    sums.fill(0, 0, n);  // colonnes
+    for (let k = -r; k <= r; k++) {
+      const row = (k < 0 ? 0 : k > last ? last : k) * n;
+      for (let c = 0; c < n; c++) sums[c] += middle[row + c];
+    }
+    for (let k = 0; k < n; k++) {
+      const hi = (k + r + 1 > last ? last : k + r + 1) * n, lo = (k - r < 0 ? 0 : k - r) * n, row = k * n;
+      for (let c = 0; c < n; c++) {
+        out[row + c] = sums[c] / width;
+        sums[c] += middle[hi + c] - middle[lo + c];
+      }
+    }
     return out;
+  }
+
+  /** Passe-haut d'une image de gris (SIZE x SIZE) : gris moins trois flous de 8 px (presque une gaussienne). Tampons des
+   * flous gardés d'un appel à l'autre ; seul le résultat est un tableau neuf. */
+  let highA = new Float32Array(0), highB = new Float32Array(0);
+  function highPass(gray) {
+    if (highA.length < gray.length) { highA = new Float32Array(gray.length); highB = new Float32Array(gray.length); }
+    boxBlur(gray, 8, SIZE, highA);
+    boxBlur(highA, 8, SIZE, highB);
+    boxBlur(highB, 8, SIZE, highA);
+    const high = new Float32Array(gray.length);
+    for (let k = 0; k < high.length; k++) high[k] = gray[k] - highA[k];
+    return high;
   }
 
   /** Grain du sol vu par une photo seule, dans le repère de frame : détail fin (lignes du sud au nord) et pixels valides. */
@@ -1368,54 +1397,109 @@ const Dessus = (() => {
       gray[k] = (rgba[4 * k] + rgba[4 * k + 1] + rgba[4 * k + 2]) / 3;
       safe[k] = rgba[4 * k + 3] > 127 ? 1 : 0;
     }
-    let blur = gray;
-    for (let pass = 0; pass < 3; pass++) blur = boxBlur(blur, 8);  // presque une gaussienne de 8 px
-    return { high: gray.map((v, k) => v - blur[k]), safe };
+    return { high: highPass(gray), safe };
   }
 
-  /** Transformée de Fourier en place (re, im : Float64Array de longueur 2^n), inverse si invert. */
-  function fft(re, im, invert) {
-    const n = re.length;
+  /** Plan de FFT de taille n (puissance de 2), gardé par taille : paires à échanger (inversion de bits) et rotations de
+   * chaque étage, calculées par la même récurrence qu'une rotation recalculée à chaque paquet (mêmes valeurs au bit près),
+   * pour le sens direct (cos, sin) et inverse (cos, -sin) ; l'étage de longueur len commence à len / 2 - 1. */
+  const fftPlans = new Map();
+  function fftPlan(n) {
+    let plan = fftPlans.get(n);
+    if (plan) return plan;
+    const swaps = [];
     for (let i = 1, j = 0; i < n; i++) {
       let bit = n >> 1;
       for (; j & bit; bit >>= 1) j ^= bit;
       j ^= bit;
-      if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+      if (i < j) swaps.push(i, j);
     }
-    for (let len = 2; len <= n; len <<= 1) {
-      const a = (invert ? 2 : -2) * Math.PI / len, wr = Math.cos(a), wi = Math.sin(a);
-      for (let i = 0; i < n; i += len) {
+    const table = (sign) => {
+      const cs = new Float64Array(n), sn = new Float64Array(n);
+      for (let len = 2; len <= n; len <<= 1) {
+        const a = sign * 2 * Math.PI / len, wr = Math.cos(a), wi = Math.sin(a), o = len / 2 - 1;
         let cr = 1, ci = 0;
         for (let k = 0; k < len / 2; k++) {
-          const p = i + k, q = p + len / 2, tr = re[q] * cr - im[q] * ci, ti = re[q] * ci + im[q] * cr;
+          cs[o + k] = cr; sn[o + k] = ci;
+          const t = cr * wr - ci * wi;
+          ci = cr * wi + ci * wr; cr = t;
+        }
+      }
+      return [cs, sn];
+    };
+    plan = { swaps: Int32Array.from(swaps), forward: table(-1), inverse: table(1) };
+    fftPlans.set(n, plan);
+    return plan;
+  }
+  /** Transformée de Fourier en place des n valeurs de re, im (Float64Array) à partir de off, inverse si invert. */
+  function fft(re, im, invert, off = 0, n = re.length) {
+    const { swaps, forward, inverse } = fftPlan(n), [cs, sn] = invert ? inverse : forward;
+    for (let s = 0; s < swaps.length; s += 2) {
+      const i = off + swaps[s], j = off + swaps[s + 1], tr = re[i], ti = im[i];
+      re[i] = re[j]; im[i] = im[j]; re[j] = tr; im[j] = ti;
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+      const half = len >> 1, o = half - 1;
+      for (let i = off; i < off + n; i += len) {
+        for (let k = 0; k < half; k++) {
+          const p = i + k, q = p + half, cr = cs[o + k], ci = sn[o + k];
+          const tr = re[q] * cr - im[q] * ci, ti = re[q] * ci + im[q] * cr;
           re[q] = re[p] - tr; im[q] = im[p] - ti; re[p] += tr; im[p] += ti;
-          [cr, ci] = [cr * wr - ci * wi, cr * wi + ci * wr];
         }
       }
     }
-    if (invert) for (let i = 0; i < n; i++) { re[i] /= n; im[i] /= n; }
+    if (invert) for (let i = off; i < off + n; i++) { re[i] /= n; im[i] /= n; }
   }
-  /** En 2D (côté size, puissance de 2), lignes puis colonnes. */
-  function fft2(re, im, size, invert) {
-    const r = new Float64Array(size), i = new Float64Array(size);
-    for (const [step, stride] of [[1, size], [size, 1]]) {
-      for (let l = 0; l < size; l++) {
-        for (let k = 0; k < size; k++) { r[k] = re[l * stride + k * step]; i[k] = im[l * stride + k * step]; }
-        fft(r, i, invert);
-        for (let k = 0; k < size; k++) { re[l * stride + k * step] = r[k]; im[l * stride + k * step] = i[k]; }
+  /** En 2D (côté size, puissance de 2), lignes puis colonnes. rows, cols : seules les rows premières lignes (les autres sont
+   * nulles) puis les cols premières colonnes sont transformées ; le reste n'est alors pas à lire. Les colonnes sont
+   * transformées toutes ensemble, ligne par ligne (même rotation pour toute une ligne) : mêmes opérations par colonne que
+   * la FFT d'une colonne copiée, sans copie. */
+  function fft2(re, im, size, invert, rows = size, cols = size) {
+    for (let l = 0; l < rows; l++) fft(re, im, invert, l * size, size);
+    const { swaps, forward, inverse } = fftPlan(size), [cs, sn] = invert ? inverse : forward;
+    for (let s = 0; s < swaps.length; s += 2) {
+      const i = swaps[s] * size, j = swaps[s + 1] * size;
+      for (let c = 0; c < cols; c++) {
+        const tr = re[i + c], ti = im[i + c];
+        re[i + c] = re[j + c]; im[i + c] = im[j + c]; re[j + c] = tr; im[j + c] = ti;
       }
     }
+    for (let len = 2; len <= size; len <<= 1) {
+      const half = len >> 1, o = half - 1;
+      for (let i = 0; i < size; i += len) {
+        for (let k = 0; k < half; k++) {
+          const p = (i + k) * size, q = p + half * size, cr = cs[o + k], ci = sn[o + k];
+          for (let c = 0; c < cols; c++) {
+            const tr = re[q + c] * cr - im[q + c] * ci, ti = re[q + c] * ci + im[q + c] * cr;
+            re[q + c] = re[p + c] - tr; im[q + c] = im[p + c] - ti; re[p + c] += tr; im[p + c] += ti;
+          }
+        }
+      }
+    }
+    if (invert) for (let k = 0; k < size; k++) for (let c = 0; c < cols; c++) { re[k * size + c] /= size; im[k * size + c] /= size; }
   }
 
   // Quadrique ajustée sur 5 x 5 autour d'un pic : [c, gx, gy, hxx/2, hxy, hyy/2]
   const QUAD = [];
   for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) QUAD.push([1, x, y, x * x, x * y, y * y]);
 
-  /** Décalages de blocs de la principale (a) dans la voisine (b) : [{ p (est, nord, m), dir, d (m) }]. */
+  let blockSums = [new Float64Array(0), new Float64Array(0)], blockBuffers = null;
+  function blockFields(W) {  // tampons de blockShifts (fenêtre et gabarit combinés, corrélations de la paire), gardés d'un appel à l'autre
+    if (blockBuffers?.[0].length !== W * W) blockBuffers = [0, 1, 2, 3].map(() => new Float64Array(W * W));
+    return blockBuffers;
+  }
+
+  /** Décalages de blocs de la principale (a) dans la voisine (b) : [{ p (est, nord, m), dir, d (m) }].
+   * Corrélation croisée par FFT, deux astuces pour les signaux réels : la fenêtre (b) et le gabarit (a) passent ensemble
+   * dans une seule FFT complexe (fenêtre + i gabarit, spectres séparés par symétrie), et les corrélations de deux blocs
+   * reviennent par une seule FFT inverse (la première en partie réelle, la seconde en partie imaginaire). Par bloc : 1,5 FFT 2D
+   * au lieu de 3 ; valeurs égales à celles de trois FFT séparées à quelques 1e-13 près (arrondis). */
   function blockShifts(a, b) {
-    const M = 2 * REACH / SIZE, W = BLOCK + 2 * SEARCH, half = BLOCK / 2, out = [];  // W = 128 : puissance de 2
+    const M = 2 * REACH / SIZE, W = BLOCK + 2 * SEARCH, half = BLOCK / 2, out = [], side = 2 * SEARCH + 1;  // W = 128 : puissance de 2
     // Sommes cumulées de la voisine (valeurs et carrés) : normalisation de chaque position en temps constant
-    const S1 = new Float64Array((SIZE + 1) * (SIZE + 1)), S2 = new Float64Array((SIZE + 1) * (SIZE + 1));
+    // (tampons gardés : première ligne et première colonne restent nulles, le reste est réécrit)
+    if (blockSums[0].length < (SIZE + 1) * (SIZE + 1)) blockSums = [new Float64Array((SIZE + 1) * (SIZE + 1)), new Float64Array((SIZE + 1) * (SIZE + 1))];
+    const [S1, S2] = blockSums, [zr, zi, qr, qi] = blockFields(W), c = new Float64Array(side * side), z = new Float64Array(25);
     for (let j = 0; j < SIZE; j++) {
       for (let i = 0; i < SIZE; i++) {
         const v = b.high[j * SIZE + i], k = (j + 1) * (SIZE + 1) + i + 1;
@@ -1430,6 +1514,8 @@ const Dessus = (() => {
       for (let y = y0; y < y0 + n; y++) for (let x = x0; x < x0 + n; x++) s += safe[y * SIZE + x];
       return s / (n * n);
     };
+    // Blocs retenus (assez sûrs, avec de la texture), dans l'ordre de lecture
+    const blocks = [];
     for (let cy = SEARCH + half; cy < SIZE - SEARCH - half; cy += BLOCK_STEP) {
       for (let cx = SEARCH + half; cx < SIZE - SEARCH - half; cx += BLOCK_STEP) {
         const x0 = cx - half, y0 = cy - half;
@@ -1437,46 +1523,72 @@ const Dessus = (() => {
         let mean = 0;
         for (let y = 0; y < BLOCK; y++) for (let x = 0; x < BLOCK; x++) mean += a.high[(y0 + y) * SIZE + x0 + x];
         mean /= BLOCK * BLOCK;
-        const tr = new Float64Array(W * W), ti = new Float64Array(W * W), wr = new Float64Array(W * W), wi = new Float64Array(W * W);
         let norm = 0;
-        for (let y = 0; y < BLOCK; y++)
-          for (let x = 0; x < BLOCK; x++) { const v = a.high[(y0 + y) * SIZE + x0 + x] - mean; tr[y * W + x] = v; norm += v * v; }
+        for (let y = 0; y < BLOCK; y++) for (let x = 0; x < BLOCK; x++) { const v = a.high[(y0 + y) * SIZE + x0 + x] - mean; norm += v * v; }
         if (Math.sqrt(norm / (BLOCK * BLOCK)) < 4) continue;  // sans texture
-        for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) wr[y * W + x] = b.high[(y0 - SEARCH + y) * SIZE + x0 - SEARCH + x];
-        fft2(tr, ti, W, false);
-        fft2(wr, wi, W, false);
-        for (let k = 0; k < W * W; k++) {  // fenêtre fois conjugué du gabarit : corrélation
-          const r = wr[k] * tr[k] + wi[k] * ti[k], i = wi[k] * tr[k] - wr[k] * ti[k];
-          wr[k] = r; wi[k] = i;
-        }
-        fft2(wr, wi, W, true);
-        const side = 2 * SEARCH + 1, c = new Float64Array(side * side);
-        let top = -2, ky = 0, kx = 0;
-        for (let y = 0; y < side; y++) {
-          for (let x = 0; x < side; x++) {
-            const px = x0 - SEARCH + x, py = y0 - SEARCH + y, s1 = box(S1, px, py), s2 = box(S2, px, py);
-            const v = wr[y * W + x] / Math.sqrt(Math.max(s2 - s1 * s1 / (BLOCK * BLOCK), 1e-9) * norm);
-            c[y * side + x] = v;
-            if (v > top) { top = v; ky = y; kx = x; }
-          }
-        }
-        if (top < 0.4 || kx < 2 || ky < 2 || kx > side - 3 || ky > side - 3) continue;
-        const z = [];
-        for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) z.push(c[(ky + y) * side + kx + x]);
-        const q = leastSquares(QUAD, z);
-        if (!q) continue;
-        const hxx = 2 * q[3], hxy = q[4], hyy = 2 * q[5], tr2 = (hxx + hyy) / 2, dt = Math.sqrt(((hxx - hyy) / 2) ** 2 + hxy * hxy);
-        for (const lam of [tr2 - dt, tr2 + dt]) {
-          if (lam > -0.02) continue;  // pic plat dans cette direction
-          let e = Math.abs(hxy) > 1e-12 ? [lam - hyy, hxy] : (hxx <= hyy) === (lam === tr2 - dt) ? [1, 0] : [0, 1];  // vecteur propre
-          const len = Math.hypot(...e);
-          e = [e[0] / len, e[1] / len];
-          const ds = -(q[1] * e[0] + q[2] * e[1]) / lam;
-          if (Math.abs(ds) > 1.5) continue;
-          const shift = (kx - SEARCH) * e[0] + (ky - SEARCH) * e[1] + ds;  // px, colonnes vers l'est, lignes vers le nord
-          out.push({ p: [(cx + 0.5) * M - REACH, (cy + 0.5) * M - REACH], dir: e, d: shift * M });
+        blocks.push({ cx, cy, x0, y0, mean, norm });
+      }
+    }
+    // Spectre de corrélation d'un bloc (fenêtre fois conjugué du gabarit), tiré du spectre combiné (zr, zi) : pour des
+    // signaux réels, X[k] = (Z[k] + conj Z[-k]) / 2 (gabarit, partie imaginaire de Z) et Y[k] = (Z[k] - conj Z[-k]) / 2i
+    const spectrum = (k, m, into) => {
+      const p = zr[k], q = zi[k], r = zr[m], t = zi[m];
+      const gr = (q + t) / 2, gi = (r - p) / 2, fr = (p + r) / 2, fi = (q - t) / 2;  // gabarit g = Z + i·(imag), fenêtre f
+      into[0] = gr * fr + gi * fi;
+      into[1] = fi * gr - fr * gi;
+    };
+    const pair = new Float64Array(2);
+    const load = (blk) => {  // fenêtre (réelle) et gabarit (imaginaire) du bloc
+      const { x0, y0, mean } = blk;
+      zi.fill(0);
+      for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) zr[y * W + x] = b.high[(y0 - SEARCH + y) * SIZE + x0 - SEARCH + x];
+      for (let y = 0; y < BLOCK; y++) for (let x = 0; x < BLOCK; x++) zi[y * W + x] = a.high[(y0 + y) * SIZE + x0 + x] - mean;
+    };
+    // Pic de corrélation d'un bloc (src : tableau des corrélations, une ligne par W) puis décalage le long des directions plates
+    const peaks = (blk, src) => {
+      const { cx, cy, x0, y0, norm } = blk;
+      let top = -2, ky = 0, kx = 0;
+      for (let y = 0; y < side; y++) {
+        for (let x = 0; x < side; x++) {
+          const px = x0 - SEARCH + x, py = y0 - SEARCH + y, s1 = box(S1, px, py), s2 = box(S2, px, py);
+          const v = src[y * W + x] / Math.sqrt(Math.max(s2 - s1 * s1 / (BLOCK * BLOCK), 1e-9) * norm);
+          c[y * side + x] = v;
+          if (v > top) { top = v; ky = y; kx = x; }
         }
       }
+      if (top < 0.4 || kx < 2 || ky < 2 || kx > side - 3 || ky > side - 3) return;
+      let n = 0;
+      for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) z[n++] = c[(ky + y) * side + kx + x];
+      const q = leastSquares(QUAD, z);
+      if (!q) return;
+      const hxx = 2 * q[3], hxy = q[4], hyy = 2 * q[5], tr2 = (hxx + hyy) / 2, dt = Math.sqrt(((hxx - hyy) / 2) ** 2 + hxy * hxy);
+      for (const lam of [tr2 - dt, tr2 + dt]) {
+        if (lam > -0.02) continue;  // pic plat dans cette direction
+        let e = Math.abs(hxy) > 1e-12 ? [lam - hyy, hxy] : (hxx <= hyy) === (lam === tr2 - dt) ? [1, 0] : [0, 1];  // vecteur propre
+        const len = Math.hypot(...e);
+        e = [e[0] / len, e[1] / len];
+        const ds = -(q[1] * e[0] + q[2] * e[1]) / lam;
+        if (Math.abs(ds) > 1.5) continue;
+        const shift = (kx - SEARCH) * e[0] + (ky - SEARCH) * e[1] + ds;  // px, colonnes vers l'est, lignes vers le nord
+        out.push({ p: [(cx + 0.5) * M - REACH, (cy + 0.5) * M - REACH], dir: e, d: shift * M });
+      }
+    };
+    for (let n = 0; n < blocks.length; n += 2) {
+      for (let h = 0; h < 2; h++) {
+        if (n + h >= blocks.length) break;  // dernier bloc seul : sa corrélation est réelle, la partie imaginaire reste nulle
+        load(blocks[n + h]);
+        fft2(zr, zi, W, false);
+        for (let ky = 0; ky < W; ky++) {
+          for (let kx = 0; kx < W; kx++) {
+            const k = ky * W + kx;
+            spectrum(k, ((W - ky) & (W - 1)) * W + ((W - kx) & (W - 1)), pair);
+            if (h === 0) { qr[k] = pair[0]; qi[k] = pair[1]; } else { qr[k] -= pair[1]; qi[k] += pair[0]; }  // q = P0 + i·P1
+          }
+        }
+      }
+      fft2(qr, qi, W, true, W, side);  // seules les side premières colonnes sont lues
+      peaks(blocks[n], qr);
+      if (n + 1 < blocks.length) peaks(blocks[n + 1], qi);
     }
     return out;
   }
@@ -1602,8 +1714,8 @@ const Dessus = (() => {
           for (let i = -W; i <= W; i++) if (seen[k + i] && seen[k + i + d]) v += profileA[k + i] * profileB[k + i + d];
           return v;
         };
-        let best = 0;
-        for (let d = -S; d <= S; d++) if (score(d) > score(best)) best = d;
+        let best = 0, bestScore = score(0);
+        for (let d = -S; d <= S; d++) { const v = score(d); if (v > bestScore) { best = d; bestScore = v; } }
         if (Math.abs(best) === S) continue;  // au bout de la recherche : pas la même ligne
         const l = score(best - 1), c = score(best), r = score(best + 1), sub = (l - r) / (2 * (l - 2 * c + r) || 1);
         lines.push({ t: (k - T + 0.5) * M, d: (best + Math.max(-0.5, Math.min(0.5, sub))) * M, ahead, edge: edges[k] });
