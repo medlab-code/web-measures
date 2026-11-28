@@ -783,9 +783,17 @@ import { Visionneuse } from "./visionneuse.js";
   /** Fenêtre modale centrée sur la visionneuse (et non sur la page), recentrée si la fenêtre du
    * navigateur change de taille. Avec `onMainZone`, elle se centre sur la grande zone principale, que la visionneuse ou la
    * carte y soit (carte et visionneuse échangées) : toujours au même endroit à l'écran. Seule la fenêtre du graphique du
-   * profil le demande ; les autres fenêtres suivent la visionneuse. */
-  function showOverViewer(dialog, onMainZone = false) {
-    dialog.showModal();
+   * profil le demande ; les autres fenêtres suivent la visionneuse. Avec `modal` à faux (fenêtre du profil), elle n'est pas
+   * modale : la carte, la visionneuse et leurs outils restent utilisables dessous (curseurs de bords, déplacement et zoom de la
+   * carte) ; la touche Échap la ferme alors elle-même. */
+  function showOverViewer(dialog, onMainZone = false, modal = true) {
+    if (modal) dialog.showModal();
+    else {
+      dialog.show();
+      const onEscape = (event) => { if (event.key === "Escape") { event.preventDefault(); dialog.close(); } };
+      document.addEventListener("keydown", onEscape);
+      dialog.addEventListener("close", () => document.removeEventListener("keydown", onEscape), { once: true });
+    }
     // Questions et alertes (dialog.avertissement) : sur la vue en grand (photo, ou carte quand les vues sont échangées), sous les
     // étiquettes du haut de cette vue, hors de la colonne de boutons de la carte et du bouton « i » : elles n'en cachent aucune
     const question = dialog.classList.contains("avertissement");

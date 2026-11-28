@@ -6,9 +6,11 @@
      de place sous la chaussée pour ses deux étiquettes (2,85 m à l'échelle de ces profils, 20,35 px/m).
      Lancer comme tests/navigateur.html (voir CLAUDE.md). -->
 <link rel="stylesheet" href="../src/style.css">
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
 <script src="commun.js"></script>
 <script type="module">
 import { Profil } from "../src/profil.js";
+import { Carte } from "../src/carte.js";
 import { Nuage } from "../src/nuage.js";
 const { expect, fail, fin } = Essai;
 Essai.verbose = true;  // chaque contrôle journalisé, avec sa valeur
@@ -233,6 +235,57 @@ try {
   hover.dispatchEvent(new PointerEvent("pointerleave"));
   expect("pointeur parti : réticule retiré", !hover.querySelector("g.reticule"));
   hover.remove();
+  // Recalage des bords à la main : bords imposés dessinés et nommés, position permise (Profil.limiteBord), curseurs de la carte
+  { const manual = (cs, sides) => cs.map((c) => ({ ...c, manuel: sides.includes(c.cote) }));
+    const hand = { ...profile([manual(crossing(0, () => -0.1, 17), ["droit"])]), repere: [[5, 47], [5.0000131, 47]] };
+    const drawn = Profil.draw(hand, true);
+    expect("bord à la main : trait propre au côté recalé (un seul), nommé « à la main »",
+      [...drawn.svg.querySelectorAll('.bord[data-bord="main"]')].filter((l) => !l.closest("g.cle-lecture")).length === 1 && drawn.svg.textContent.includes("à la main"));
+    expect("bord à la main : dans la clé et la légende", drawn.svg.textContent.includes("bord à la main") && drawn.legend.textContent.includes("recalé à la main"));
+    expect("sans bord recalé : ni trait, ni mention", !Profil.draw(profile([crossing(0, () => -0.1, 17)]), true).svg.querySelector('[data-bord="main"]'));
+    const rec = Profil.recalage(hand);
+    expect(`recalage : bords à ${JSON.stringify(rec.x)}, portée ${JSON.stringify(rec.portee)}, recalés ${rec.manuel}`,
+      rec.x.gauche === -3 && rec.x.droit === 3 && rec.portee.droit === 17 && rec.manuel.join() === "droit");
+    const lim = (side, x, other = rec) => Profil.limiteBord(other, side, x);
+    expect("position permise : au centimètre, sans aimant", lim("droit", 4.4567) === 4.46 && lim("gauche", -5.2) === -5.2);
+    expect("position permise : dans le terrain lu (17 m)", lim("droit", 40) === 17 && lim("gauche", -40) === -17);
+    expect("position permise : ni de l'autre côté de l'origine", lim("droit", -2) === 0 && lim("gauche", 2) === 0);
+    const near = { ...rec, x: { gauche: -0.03, droit: 3 } };
+    expect("ordre : gauche < droit avec 0,10 m d'écart au moins", lim("droit", -1, near) === 0.07 && lim("gauche", 1, { ...rec, x: { gauche: -3, droit: 0.04 } }) === -0.06);
+    // Curseurs sur la carte (Carte.showBords), carte sans fond : glissés le long de la droite de coupe seulement
+    const box = Object.assign(document.createElement("div"), {});
+    box.style.cssText = "position:fixed;left:0;top:0;width:600px;height:400px";
+    document.body.append(box);
+    const map = new window.maplibregl.Map({ container: box, style: { version: 8, sources: {}, layers: [] }, center: [5, 47], zoom: 19, fadeDuration: 0 });
+    await new Promise((resolve) => map.once("load", resolve));
+    const moved = [];
+    Carte.showBords(map, { repere: rec.repere, x: rec.x, couleur: rec.couleur, limite: (side, x) => lim(side, x),
+      texte: (side, x) => `${x.toFixed(2)} m`, deplace: (side, x) => moved.push([side, x]) });
+    const handles = [...box.querySelectorAll(".bord-curseur")];
+    expect(`curseurs : un par bord (${handles.map((h) => h.dataset.cote)}), zone de prise de 24 px`, handles.length === 2
+      && handles.every((h) => Math.abs(h.getBoundingClientRect().width - 24) < 4) && getComputedStyle(handles[0], "::before").height === "14px");
+    const handle = handles.find((h) => h.dataset.cote === "droit"), r0 = handle.getBoundingClientRect(), [cx, cy] = [r0.x + r0.width / 2, r0.y + r0.height / 2];
+    const ptr = (type, x, y) => handle.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, pointerId: 7, bubbles: true, button: 0 }));
+    ptr("pointerdown", cx, cy);
+    expect("glissement : repère en mètres affiché", Boolean(box.querySelector(".bord-repere")) && handle.classList.contains("saisi"));
+    ptr("pointermove", cx + 10, cy + 40);  // en biais : seul le déplacement le long de la droite (est-ouest) compte
+    const r1 = handle.getBoundingClientRect(), mpp = 78271.52 * Math.cos(47 * Math.PI / 180) / 2 ** 19;
+    expect(`glissement en biais : le curseur reste sur la droite (écart vertical ${(r1.y - r0.y).toFixed(1)} px), avance de ${(r1.x - r0.x).toFixed(1)} px`,
+      Math.abs(r1.y - r0.y) < 0.6 && Math.abs(r1.x - r0.x - 10) < 0.6);
+    ptr("pointerup", cx + 10, cy + 40);
+    expect(`lâcher : bord droit à ${moved[0]?.[1]} m (3 m + ${(10 * mpp).toFixed(2)} m), repère retiré`,
+      moved.length === 1 && moved[0][0] === "droit" && Math.abs(moved[0][1] - (3 + 10 * mpp)) < 0.02 && !box.querySelector(".bord-repere"));
+    ptr("pointerdown", cx, cy);
+    ptr("pointermove", cx + 400, cy);
+    ptr("pointerup", cx + 400, cy);
+    expect(`lâcher au-delà du terrain lu : bord ramené à ${moved[1]?.[1]} m (portée 17 m)`, moved[1]?.[1] === 17);
+    ptr("pointerdown", cx, cy);
+    ptr("pointerup", cx, cy);
+    expect("simple prise sans glissement : aucun recalage", moved.length === 2);
+    Carte.showBords(map, null);
+    expect("curseurs retirés", !box.querySelector(".bord-curseur"));
+    map.remove();
+    box.remove(); }
   // Route étroite : le graphique est à sa hauteur ; la caméra (1,9 m) ne compte pas comme haut du terrain
   check("caméra au-dessus d'un terrain plat", Profil.draw(profile([crossing(0, () => -0.1, 4)], "caméra"), true, null, true, 1.9), 1);
 } catch (error) { fail("exception : " + (error.stack || error)); }

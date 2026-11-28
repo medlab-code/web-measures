@@ -61,7 +61,7 @@ const Profil = (() => {
       const t = out.get(p.le_long) || { along: p.le_long, points: [], bords: {} };
       const sign = p.cote === "gauche" ? -1 : 1;
       t.points.push(...p.points.map(([o, z]) => [sign * o, z]));
-      t.bords[p.cote] = { x: sign * p.bord, relief: p.relief, voisins: p.voisins, enrobe: p.enrobe,
+      t.bords[p.cote] = { x: sign * p.bord, relief: p.relief, voisins: p.voisins, enrobe: p.enrobe, manuel: Boolean(p.manuel),
         arret: p.arret === null ? null : sign * p.arret };
       if (p.separateur) {  // chaussées séparées : trouvé dans le relief ou d'après la BD TOPO
         t.separateur = p.separateur.map((o) => sign * o).sort((a, b) => a - b);
@@ -326,6 +326,7 @@ const Profil = (() => {
       [has(".autre-travers"), "autre-travers", "travers à ±5 et 10 m"],
       [has(".chaussee"), "chaussee", "plateforme"],
       [has('.bord[data-bord="mesure"]'), "bord", "bord mesuré", { "data-bord": "mesure" }],
+      [has('.bord[data-bord="main"]'), "bord", "bord à la main", { "data-bord": "main" }],
       [has(".bord-suppose"), "bord bord-suppose", "bord supposé", { "data-bord": "suppose" }],
       [has(".bord-chaussee"), "bord-chaussee", "bord d'enrobé (LiDAR)"],
       [has(".separateur"), "separateur", "séparateur"],
@@ -475,6 +476,8 @@ const Profil = (() => {
         + "trait gris\u00a0: travers où la chute ou le dévers ont été mesurés.", ["voisin", "mesure"]],
       ...(profile.origine === "caméra" && factor === 1
         ? [`Point bleu\u00a0: la caméra, à ${num(camera, 2)} m au-dessus de la plateforme.`] : []),
+      ...(Object.values(main.bords).some((b) => b.manuel) ? ["Trait coloré\u00a0: bord recalé à la main sur la carte (curseur glissé le long de la "
+        + "coupe) ; plateforme, dévers et chute sont recalculés depuis lui. « Bords automatiques » remet les bords calculés."] : []),
       ...(main.separateur ? ["Petite barre verticale\u00a0: milieu du séparateur de chaussée (terre-plein central), "
         + `${main.separateurRelief
         ? main.separateurRelief === "nuage"
@@ -702,15 +705,15 @@ const Profil = (() => {
       const b = main.bords[side];
       if (!b) continue;
       // nom vers l'extérieur ; vers l'intérieur si l'extérieur sortirait du graphique
-      const sub = b.enrobe ? (fine?.bords?.[side]?.bordure ? "bordure" : "fin de l'enrobé") : b.relief ? "rupture de pente" : b.voisins ? "travers voisins" : "largeur type";
-      const wide = Math.max(textWidth(b.enrobe || b.relief ? "bord" : "bord supposé", 13, 500), textWidth(sub, 12)) + 8;
+      const sub = b.manuel ? "à la main" : b.enrobe ? (fine?.bords?.[side]?.bordure ? "bordure" : "fin de l'enrobé") : b.relief ? "rupture de pente" : b.voisins ? "travers voisins" : "largeur type";
+      const wide = Math.max(textWidth(b.enrobe || b.relief || b.manuel ? "bord" : "bord supposé", 13, 500), textWidth(sub, 12)) + 8;
       const out = side === "gauche" ? X(b.x) - wide > 2 : X(b.x) + wide < W - 2, toward = (side === "gauche" ? -1 : 1) * (out ? 1 : -1);
       const anchor = toward < 0 ? "end" : "start", dx = 4 * toward;
       // Bord mesuré (rupture de pente de ce travers, analyse fine) : trait plein (style.css) ; bord supposé (largeur type, ou
       // médiane des travers voisins) : tirets longs et pâles, et l'étiquette le dit
-      const measured = Boolean(b.enrobe || b.relief);
+      const measured = Boolean(b.enrobe || b.relief || b.manuel);
       svg.append(el("line", { x1: X(b.x), x2: X(b.x), y1: TOP - 4, y2: Z(zAt(main.points, b.x)), class: measured ? "bord" : "bord bord-suppose",
-          "data-bord": measured ? "mesure" : "suppose" }),
+          "data-bord": b.manuel ? "main" : measured ? "mesure" : "suppose" }),
         el("text", { x: X(b.x) + dx, y: TOP - 26, class: "etiquette-profil", "text-anchor": anchor }, measured ? "bord" : "bord supposé"),
         el("text", { x: X(b.x) + dx, y: TOP - 12, class: "graduation", "text-anchor": anchor }, sub));
     }
@@ -1240,8 +1243,8 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #ddd; font-si
     for (const side of ["gauche", "droit"]) {
       const b = main.bords[side], sign = side === "gauche" ? -1 : 1, r = profile.resultats?.[side];
       if (b) {
-        const measured = Boolean(b.enrobe || b.relief);
-        out.push(point(b.x, { role: "bord", mesure: measured, couleur: color("--texte"), fond: color("--fond") }));
+        const measured = Boolean(b.enrobe || b.relief || b.manuel);
+        out.push(point(b.x, { role: "bord", mesure: measured, couleur: color(b.manuel ? "--bord-main" : "--texte"), fond: color("--fond") }));
       }
       if (!b || !r) continue;
       // chute et talus : sur le travers où ils ont été mesurés (celui de la photo, ou un voisin à along m, tracé en gris comme sur le graphique)
@@ -1271,7 +1274,34 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #ddd; font-si
     return { type: "FeatureCollection", features: out };
   }
 
-  return { draw, png, pdfPage, fit, mapTrace, etiquettes: ETIQ, cassure };
+  /** Bords du travers de la photo pour les recaler sur la carte (src/reglages.js) : repère du profil (origine et point à 1 m à droite,
+   * [lon, lat]), position x de chaque bord (m, < 0 à gauche), distance maximale lue de chaque côté (m depuis l'origine), côtés
+   * déjà recalés à la main, et couleur du curseur. null sans bord. */
+  function recalage(profile) {
+    const main = crossings(profile).get(0) || [...crossings(profile).values()][0];
+    if (!main || !profile.repere || !Object.keys(main.bords).length) return null;
+    const reach = {};
+    for (const p of profile.profils) {
+      if (p.le_long === main.along && p.points.length) reach[p.cote] = Math.max(...p.points.map(([o]) => o));
+    }
+    return { repere: profile.repere, x: Object.fromEntries(Object.entries(main.bords).map(([side, b]) => [side, b.x])), portee: reach,
+      manuel: Object.entries(main.bords).filter(([, b]) => b.manuel).map(([side]) => side), couleur: getComputedStyle(document.documentElement)
+        .getPropertyValue("--bord-main").trim() || "#00b8d4" };
+  }
+
+  const BORDS_ECART = 0.10;  // m : écart minimal entre les deux bords (même valeur que App.MANUAL_GAP)
+
+  /** Position permise la plus proche de x (m, < 0 à gauche) pour le bord `side` de rec (Profil.recalage), au centimètre : dans le
+   * terrain lu (jusqu'à rec.portee), de son côté de l'origine, et à BORDS_ECART m au moins de l'autre bord. Pas d'aimant :
+   * rien d'autre ne la déplace. */
+  function limiteBord(rec, side, x) {
+    const left = side === "gauche", otherX = rec.x[left ? "droit" : "gauche"], dist = left ? -x : x;
+    const least = otherX === undefined ? 0 : Math.max(0, BORDS_ECART - Math.abs(otherX));
+    const kept = Math.min(rec.portee[left ? "gauche" : "droit"] ?? 50, Math.max(dist, least));
+    return Math.round((left ? -kept : kept) * 100) / 100;
+  }
+
+  return { draw, png, pdfPage, fit, mapTrace, recalage, limiteBord, etiquettes: ETIQ, cassure };
 })();
 
 export { Profil };

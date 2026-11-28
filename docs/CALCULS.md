@@ -712,6 +712,14 @@ laser est en proche infrarouge :
   L'herbe rase d'un relevé d'hiver (0,6 à 1,9 fois l'enrobé, sans retours multiples) reste invisible au
   nuage : le LiDAR HD n'a pas de couleur.
 
+**Bords recalés à la main** (`App.use_manual_edges`, curseurs de la carte, voir `docs/GUIDE.md`) : le bord d'un côté imposé par l'utilisateur
+(m depuis l'origine de la coupe, au centimètre) prime sur le relief et sur le bord d'enrobé. Une seule méthode de calcul : il passe par
+le même chemin que le bord d'enrobé (`_edge_reads` ramène l'indice du bord à l'échantillon le plus proche, `_edge_falls` écrit le bord imposé,
+puis `platform_slope`, la chute et le dévers du talus se relisent depuis lui), sans relire le terrain. Chaque travers porte `manuel` et le
+profil la liste des côtés recalés ; `enrobe` reste faux pour eux. Les deux bords sont à `MANUAL_GAP` = 0,10 m l'un de l'autre au moins
+(`ValueError` sinon). Les bords sont rangés sous le repère du profil : perdus avec la coupe, gardés pour la même photo et la même coupe.
+Test : `BordsMain` de `tests/test_calculs.py`.
+
 Ce que l'analyse en tire :
 
 - **Bord de chaussée** : le bord de la bande d'enrobé. N'est appliqué que si l'option « Bord d'enrobé (expérimental) » est cochée (décochée par défaut) : les relevés du 19-20/11/2026 l'ont trouvé souvent trop loin (accotements, trottoirs en enrobé comptés dans la chaussée). Décochée, la page ne transmet pas les bords au calcul Python (`use_paved_edges` avec aucun bord : retour aux bords du relief, sans relire le terrain), ne dessine pas le tiret et n'affiche pas la largeur d'enrobé ; le séparateur du nuage reste appliqué. Sur 5 travers de ±1 m à −4, −2, 0, +2 et +4 m

@@ -1013,9 +1013,10 @@ class Chutes:
             if len(self.paved_redo) >= self.PAVED_REDO_MAX:
                 self.paved_redo.clear()
             self.paved_redo[frame_key] = (key, lambda: got_ground(ground, source, None))
-            paved = self.paved.get(frame_key, {})
+            manual = getattr(self, "manual", {}).get(frame_key, {})  # bords recalés à la main (use_manual_edges) : priment
+            paved = {**self.paved.get(frame_key, {}), **manual}
             read, twins = self._edge_reads(profiles, ground, sides, paved)
-            found, borders, stops, drawn = self._edge_falls(read, sides, paved, zone)
+            found, borders, stops, drawn = self._edge_falls(read, sides, paved, zone, manual)
             # Profil en long (derniers points lus) : pente moyenne, montée > 0 dans le sens de la photo, et la plus forte
             pts = [(d, v) for d, v in zip(lengthwise, ground[len(ground) - len(lengthwise):]) if v is not None] if lengthwise else []
             grade = self._long_profile(pts, ends, along_of, followed)
@@ -1032,6 +1033,7 @@ class Chutes:
                             "axe": round(-shift * right, 2),  # axe de la chaussée de la photo, en m vers la droite
                             "zone": zone, "fenetre": self.EDGE_WINDOW, "remontee": self.EDGE_RISE, "profils": drawn,
                             "plateforme": platform_slope(drawn) if source == triangulation.LIDAR_NAME else None,  # RGE ALTI trop imprécis
+                            "manuel": sorted(manual),  # côtés dont le bord a été recalé à la main
                             "resultats": shown, "arrets": {name: sorted(v)[len(v) // 2] for name, v in stops.items() if v},
                             "en_long": grade, "carrefour": junction},
                 "text": (self._junction_text(junction) + "\n" if junction else "") + ("\n".join(lines) or "Aucun bord ne descend de {} m ou plus jusqu'à {} m du milieu de la chaussée".format(
@@ -1299,12 +1301,13 @@ class Chutes:
                     r[5] = min(range(len(r[3])), key=lambda k: abs(r[3][k] - paved[name]))
         return read, twins
 
-    def _edge_falls(self, read, sides, paved, zone):
+    def _edge_falls(self, read, sides, paved, zone, manual=()):
         """Chute et dévers de chaque côté depuis les bords lus (_edge_reads), jusqu'à zone m du milieu de la chaussée (entre
         les deux bords du travers), soit zone moins la demi-largeur au-delà du bord, EDGE_ZONE_MIN m au moins. Rend (côté ->
         [(chute, à m du bord, bout du profil, travers), (dévers, haut du talus à m du bord, travers, pied du talus à m du
         bord, hauteur du talus)], bords [(m depuis l'origine, relief, d'après les travers voisins)], côté -> distances au
-        bord où le terrain remonte de EDGE_RISE, profils pour le graphique de la page (bouton « Graphiques »))."""
+        bord où le terrain remonte de EDGE_RISE, profils pour le graphique de la page (bouton « Graphiques »)). manual : côtés
+        dont le bord imposé (dans paved) vient de la main, non de l'analyse fine."""
         found = {name: [None, None] for name, _ in sides}
         borders = {name: [] for name, _ in sides}
         stops = {name: [] for name, _ in sides}
@@ -1319,7 +1322,7 @@ class Chutes:
                 i = min(range(len(offsets)), key=lambda k: abs(offsets[k] - guess))
             borders[name].append((offsets[i], relief, moved))
             entry = {"le_long": along, "cote": name, "bord": round(paved.get(name, offsets[i]), 2), "relief": relief,
-                     "voisins": moved, "enrobe": name in paved, "arret": None,
+                     "voisins": moved, "enrobe": name in paved and name not in manual, "manuel": name in manual, "arret": None,
                      "separateur": [round(v, 2) for v in between] if between else None,
                      "autre_axe": round(beyond, 2) if beyond else None,  # axe de l'autre chaussée, m depuis l'origine
                      "separateur_relief": sep_relief if between else None,  # "marches", "bosse" ou None (BD TOPO)
@@ -1564,6 +1567,33 @@ class Chutes:
         profil se relisent depuis eux, sur tous les travers, sans nouvelle lecture du terrain s'il vient d'être calculé."""
         frame = tuple(tuple(p) for p in json.loads(frame))
         self.paved[frame] = json.loads(edges)
+        self._redo_edges(frame)
+
+    MANUAL_GAP = 0.10  # m : écart minimal entre les deux bords recalés à la main (gauche + droit, mesurés depuis l'origine)
+
+    def use_manual_edges(self, frame, edges):
+        """Bords recalés à la main (curseurs de la carte) pour le profil de repère frame (JSON de profile.repere) :
+        edges, en JSON, m depuis l'origine par côté (« gauche », « droit ») ; un côté absent garde son bord calculé, « {} » les
+        remet tous (bords automatiques). Ils priment sur le relief et sur le bord d'enrobé, et sont relus comme ce dernier
+        (use_paved_edges) : plateforme, dévers, chute et dévers du talus, sans relire le terrain. Perdus avec le repère du profil
+        (autre photo ou autre coupe). Distances négatives ou bords à moins de MANUAL_GAP m l'un de l'autre : ValueError."""
+        frame = tuple(tuple(p) for p in json.loads(frame))
+        wanted = {side: float(v) for side, v in json.loads(edges).items() if side in ("gauche", "droit")}
+        if any(v < 0 for v in wanted.values()):
+            raise ValueError("bord à distance négative de l'origine")
+        if len(wanted) == 2 and sum(wanted.values()) < self.MANUAL_GAP - 1e-9:
+            raise ValueError(f"bords à moins de {self.MANUAL_GAP} m l'un de l'autre")
+        if not hasattr(self, "manual"):
+            self.manual = {}
+        if wanted:
+            self.manual[frame] = wanted
+        else:
+            self.manual.pop(frame, None)
+        self._redo_edges(frame)
+
+    def _redo_edges(self, frame):
+        """Calcul des bords du profil de repère frame refait depuis ses bords imposés (enrobé, main), sans relire le terrain s'il
+        vient d'être calculé ; les autres largeurs examinées sont recalculées à la demande."""
         redo = self.paved_redo.get(frame)
         for key, res in list(self.edges.items()):  # autre largeur examinée : recalculée à la demande
             profile = res.get("profile")

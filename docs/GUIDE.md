@@ -523,8 +523,8 @@ après.
   de la chute et droite rouge du talus (haut → pied) sur le travers où ils ont été mesurés,
   une clé de lecture d'une ou deux lignes sous le graphique (échantillon et mot pour chaque élément dessiné seulement : terrain, plateforme, bord mesuré ou supposé, chute, dévers, eau, herbe, végétation…, aussi dans le PNG et le PDF), valeurs au survol ou au toucher du graphique en travers (trait vertical, point sur le terrain de la photo et étiquette : distance à la caméra ou à l'axe, position par rapport au bord, hauteur par rapport à la plateforme ; une flèche de chute ou une droite de dévers proche du pointeur est mise en évidence avec son côté dans la légende ; rien de cela dans le PNG ni le PDF), hauteurs exagérées (facteur écrit sous le graphique et, en haut à gauche, « Hauteurs ×N » sur le graphique, donc aussi dans le PNG et le PDF) ; la case « Hauteurs à l'échelle » (cochée à chaque
   ouverture, grisée quand les hauteurs sont déjà à l'échelle sur ce travers) les remet à l'échelle des distances, caméra dessinée à sa hauteur (réglage « Hauteur de caméra »), masquée quand
-  les hauteurs sont exagérées. Les commandes sous le graphique sont en trois groupes : « Affichage » (« Hauteurs à
-  l'échelle », « Végétation », légende, loupe), « Nuage LiDAR » (« Analyse fine », interrupteur « Bord d'enrobé (expérimental) ») et « Enregistrer » (PNG, PDF, 2e page),
+  les hauteurs sont exagérées. Les commandes sous le graphique sont en quatre groupes : « Affichage » (« Hauteurs à
+  l'échelle », « Végétation », légende, loupe), « Nuage LiDAR » (« Analyse fine », interrupteur « Bord d'enrobé (expérimental) »), « Bords » (« Recaler les bords », « Bords automatiques ») et « Enregistrer » (PNG, PDF, 2e page),
   et une croix en haut à droite ferme la fenêtre. « PNG » en fait une image
   avec son titre et sa légende ; « PDF » met le graphique et la légende (en petits caractères, sur deux
   colonnes) sur une page A4 paysage, en vectoriel, sous le lieu de la photo (route, PR, commune), à enregistrer en PDF
@@ -535,6 +535,21 @@ après.
   légende donnent le **dévers de la plateforme** (LiDAR HD seulement), arrondi au point : un chiffre si elle penche d'un seul sens, sinon un
   par demi-chaussée, avec la pente moyenne pour un toit symétrique, ou « non déterminé » si les travers diffèrent trop. Sur une route à une
   chaussée, un toit reste difficile à reconnaître (voir `docs/CALCULS.md`, 8.7) : ce chiffre n'a pas été comparé à des mesures de terrain. Le bouton « Analyse fine » de la fenêtre n'est proposé que pour un profil calculé.
+
+  **Recaler les bords à la main** (groupe « Bords » de la fenêtre) : quand le bord trouvé est faux (talus, accotement, trottoir
+  pris pour la chaussée), « Recaler les bords » (bouton enfoncé) pose sur la droite de coupe de la carte un curseur par bord : un petit
+  trait cyan perpendiculaire à la droite, d'environ 14 px, cerné de clair pour rester lisible sur l'orthophoto, dans une zone de prise
+  invisible plus large (24 px, 44 px au toucher). La vue du dessus (Bird Eye) s'allume avec le mode, pour voir les vrais bords sous la
+  droite (sans elle, si la photo n'en a pas : le recalage marche quand même). On glisse un curseur **le long de la droite seulement** (le
+  pointeur est projeté sur elle ; en biais, seul le déplacement le long de la droite compte) ; un repère en mètres suit le glissement
+  (« bord droit : 3,42 m à droite de l'axe · largeur 6,84 m »). Pas d'aimant : le bord va, au centimètre, où on le lâche, dans le
+  terrain lu, de son côté de l'axe (ou de la caméra) et à 0,10 m au moins de l'autre bord. Au lâcher, la plateforme et sa largeur,
+  son dévers, la chute et le dévers du talus de chaque côté, les étiquettes et le graphique sont recalculés depuis ce bord, sur tous
+  les travers, sans relire le terrain. Le bord recalé est tracé en cyan pleine ligne, nommé « à la main » sur le graphique, dans sa clé et sa
+  légende, et sur la carte. Il reste pour cette photo et cette coupe, même fenêtre fermée puis rouverte ; il est perdu avec la coupe
+  (autre photo, autre position). « Bords automatiques » (grisé tant qu'aucun bord n'est recalé) remet les bords calculés. Le profil
+  n'a que deux bords par côté de calcul (la plateforme, de bord à bord) : l'accotement n'est pas un bord de plus, c'est le terrain
+  entre le bord de l'enrobé de l'analyse fine et le bord recalé. L'export (PNG, PDF) dessine le bord « à la main ».
 
   **« Analyse fine »** (fenêtre du profil) : lit le nuage de points LiDAR HD de l'IGN (dalles COPC, à la volée,
   1 requête par seconde au plus : une vingtaine de secondes, 1 à 2 Mo ; morceaux gardés dans le cache des informations

@@ -481,6 +481,55 @@ class BordsEnrobe(unittest.TestCase):
         self.assertEqual(len(reads), 1)  # sans relire le terrain
 
 
+class BordsMain(unittest.TestCase):
+    """Bords recalés à la main (App.use_manual_edges) : relus comme les bords d'enrobé, sans relire le terrain, et primant sur eux."""
+
+    def calc(self):
+        lon, lat = 5.0, 47.0
+        calc = App.__new__(App)
+        calc.edges, calc.paved, calc.paved_redo, calc.manual = {}, {}, {}, {}
+        calc.notify = lambda: None
+        self.reads = []
+
+        def terrain(points, done):  # plat jusqu'à 6 m de l'axe, puis talus à 50 %
+            self.reads.append(1)
+            local = [web_app.triangulation._local(p[0], p[1], lon, lat) for p in points]
+            done([-0.5 * max(0.0, abs(x) - 6.0) for x, _ in local], web_app.triangulation.LIDAR_NAME, None)
+        calc._terrain = terrain
+        key = ("photo", 17, False)
+        calc._compute_edges(key, [(0.0, -200.0), (0.0, 200.0)], 200.0, 6.0, 0.0, lon, lat)
+        return calc, key
+
+    def test_bord_a_la_main(self):
+        calc, key = self.calc()
+        before = calc.edges[key]["profile"]
+        self.assertEqual(before["manuel"], [])
+        calc.use_paved_edges(json.dumps(before["repere"]), json.dumps({"droit": 7.0}))
+        calc.use_manual_edges(json.dumps(before["repere"]), json.dumps({"droit": 8.0, "gauche": 5.0}))
+        after = calc.edges[key]["profile"]
+        self.assertEqual(after["manuel"], ["droit", "gauche"])
+        for cote, bord in (("droit", 8.0), ("gauche", 5.0)):
+            entries = [e for e in after["profils"] if e["cote"] == cote]
+            self.assertTrue(entries and all(e["bord"] == bord and e["manuel"] and not e["enrobe"] for e in entries), cote)
+        # la plateforme et la chute se relisent depuis les nouveaux bords : chute plus faible, le talus ayant déjà descendu de 1 m
+        self.assertLess(after["resultats"]["droit"]["chute"][0], before["resultats"]["droit"]["chute"][0])
+        self.assertEqual(len(self.reads), 1)  # sans relire le terrain
+        # bords automatiques : retour aux bords calculés (l'enrobé de 7 m reste, il était dessous)
+        calc.use_manual_edges(json.dumps(before["repere"]), "{}")
+        back = calc.edges[key]["profile"]
+        self.assertEqual(back["manuel"], [])
+        self.assertTrue(all(e["bord"] == 7.0 and e["enrobe"] and not e["manuel"] for e in back["profils"] if e["cote"] == "droit"))
+        self.assertEqual(len(self.reads), 1)
+
+    def test_bords_trop_proches(self):
+        calc, key = self.calc()
+        frame = json.dumps(calc.edges[key]["profile"]["repere"])
+        calc.use_manual_edges(frame, json.dumps({"gauche": 0.05, "droit": 0.05}))  # exactement 0,10 m : accepté
+        for bad in ({"gauche": 0.04, "droit": 0.05}, {"droit": -1.0}):
+            with self.assertRaises(ValueError, msg=bad):
+                calc.use_manual_edges(frame, json.dumps(bad))
+
+
 class BordsTalus(unittest.TestCase):
     """Bord, chute et dévers sur des talus de géométrie connue (App._compute_edges, terrain synthétique sans bruit) : le bord
     tombait 0,5 m avant la rupture (fenêtre de 1 m qui la voit avant d'y arriver), le dévers comptait le plat du haut et du

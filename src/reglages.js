@@ -113,6 +113,78 @@ const Reglages = {
       applyPaved(profile, found);  // bords relus sans relire le nuage
       drawProfile(true);
     });
+    // Recalage des bords à la main (mode « Recaler les bords ») : un curseur par bord du travers de la photo, glissé le long de la
+    // droite de coupe sur la carte (Carte.showBords) ; au lâcher, Python relit plateforme, largeurs, dévers et chute depuis les
+    // bords imposés (App.use_manual_edges, sans relire le terrain). Les bords restent pour cette photo et cette coupe (repère du
+    // profil, côté Python) ; « Bords automatiques » remet ceux du calcul. La vue du dessus (Bird Eye) s'allume avec le mode, pour
+    // voir les vrais bords sous la droite : le même interrupteur que le faucon de la carte.
+    const recalButton = $("#profil-recaler"), autoButton = $("#profil-bords-auto");
+    let recaling = false;
+    const metres = (v) => v.toFixed(2).replace(".", ",");
+    const showBordHandles = () => {
+      const profile = etat.edgeProfile?.profile, rec = recaling && profile ? Profil.recalage(profile) : null;
+      autoButton.disabled = !profile?.manuel?.length;
+      recalButton.disabled = !profile?.repere;
+      recalButton.setAttribute("aria-pressed", String(recaling));
+      if (!rec) return Carte.showBords(map, null);
+      const from = profile.origine === "caméra" ? "de la caméra" : "de l'axe";
+      Carte.showBords(map, {
+        repere: rec.repere, x: rec.x, couleur: rec.couleur,
+        // pas d'aimant : la position la plus proche permise (dans le terrain lu, deux bords à 0,10 m l'un de l'autre au moins)
+        limite: (side, x) => Profil.limiteBord(rec, side, x),
+        texte: (side, x) => {
+          const width = rec.x.gauche !== undefined && rec.x.droit !== undefined ? Math.abs((side === "droit" ? x : rec.x.droit) - (side === "gauche" ? x : rec.x.gauche)) : null;
+          return `bord ${side} : ${metres(Math.abs(x))} m à ${side === "gauche" ? "gauche" : "droite"} ${from}${width === null ? "" : ` · largeur ${metres(width)} m`}`;
+        },
+        deplace: (side, x) => {
+          const wanted = Object.fromEntries([...rec.manuel, side].map((name) => [name, Math.abs(name === side ? x : rec.x[name])]));
+          etat.app.use_manual_edges(JSON.stringify(rec.repere), JSON.stringify(wanted));
+          refresh();
+          drawProfile(true);
+        },
+      });
+    };
+    // À l'activation, les curseurs doivent être saisissables : la fenêtre du profil (non modale) ne les recouvre pas et ils sont
+    // dans la carte. Sinon (carte en grand, fenêtre au centre ; carte déplacée ou zoomée avant) la carte est glissée pour amener le
+    // milieu des curseurs au centre de la plus grande partie libre de la carte (bandes autour de la fenêtre), sans changer le zoom
+    const freeCursors = () => {
+      const rec = etat.edgeProfile?.profile && Profil.recalage(etat.edgeProfile.profile);
+      if (!rec) return;
+      const [o, p] = rec.repere, xs = Object.values(rec.x), mid = xs.reduce((a, b) => a + b, 0) / xs.length;
+      const canvas = map.getCanvas().getBoundingClientRect(), dialog = $("#fenetre-profil").getBoundingClientRect();
+      const at = map.project([o[0] + mid * (p[0] - o[0]), o[1] + mid * (p[1] - o[1])]);
+      const [x, y] = [at.x + canvas.left, at.y + canvas.top], margin = 40;
+      const covered = dialog.width && x > dialog.left - margin && x < dialog.right + margin && y > dialog.top - margin && y < dialog.bottom + margin;
+      const inside = x > canvas.left + margin && x < canvas.right - margin && y > canvas.top + margin && y < canvas.bottom - margin;
+      if (inside && !covered) return;
+      const strips = [[canvas.left, canvas.top, dialog.left, canvas.bottom], [dialog.right, canvas.top, canvas.right, canvas.bottom],
+        [canvas.left, canvas.top, canvas.right, dialog.top], [canvas.left, dialog.bottom, canvas.right, canvas.bottom]]
+        .map(([l, t, r, b]) => [Math.max(l, canvas.left), Math.max(t, canvas.top), Math.min(r, canvas.right), Math.min(b, canvas.bottom)])
+        .filter(([l, t, r, b]) => r - l >= 2 * margin && b - t >= 2 * margin)
+        .sort((a, b) => (b[2] - b[0]) * (b[3] - b[1]) - (a[2] - a[0]) * (a[3] - a[1]));
+      const free = covered || !dialog.width ? strips[0] : [canvas.left, canvas.top, canvas.right, canvas.bottom];
+      if (free) map.panBy([x - (free[0] + free[2]) / 2, y - (free[1] + free[3]) / 2], { duration: 300 });
+    };
+    recalButton.addEventListener("click", () => {
+      recaling = !recaling;
+      if (recaling) {
+        const bird = $("#dessus");
+        if (bird.disabled) setStatus("Vue du dessus indisponible pour cette photo : les bords se recalent sur la carte sans elle.");
+        else if (!bird.checked) {  // l'interrupteur du faucon de la carte (src/resultats.js) : la vue se calcule et s'affiche
+          bird.checked = true;
+          bird.dispatchEvent(new Event("change"));
+        }
+      }
+      showBordHandles();
+      if (recaling) freeCursors();  // après la vue du dessus : son interrupteur recentre la carte sur la photo
+    });
+    autoButton.addEventListener("click", () => {
+      const profile = etat.edgeProfile?.profile;
+      if (!profile?.manuel?.length || !etat.app) return;
+      etat.app.use_manual_edges(JSON.stringify(profile.repere), "{}");
+      refresh();
+      drawProfile(true);
+    });
     trueScale.checked = true;
     // still : redessin par une case (échelle, végétation) : la légende, au-dessus des cases et boutons, ne raccourcit pas
     // (lignes de l'herbe et de la végétation retirées) pour qu'ils ne bougent pas ; un nouveau profil la remet à sa taille
@@ -134,6 +206,7 @@ const Reglages = {
         plants.checked, etat.cameraUsed?.height || Number($("#camera").value) || 1.9, imposed);  // hauteur retenue pour la photo, le réglage en dernier recours
       frameKept = { key, cadre, trueScale: trueScale.checked };
       Carte.showTravers(map, Profil.mapTrace(etat.edgeProfile.profile, cadre.x));  // travers et bords sur la carte (G5)
+      showBordHandles();
       trueScale.disabled = exageration <= 1;  // l'exagération vaudrait ×1 : la case n'aurait aucun effet
       echelleLabel.title = trueScale.disabled ? `${echelleTitre} : hauteurs déjà à l'échelle sur ce travers, pas d'exagération possible` : echelleTitre;
       dialog.querySelector(".graphique").replaceChildren(svg, ...(long ? [long] : []));  // profil en long dessous
@@ -180,6 +253,7 @@ const Reglages = {
     $("#profil-loupe").addEventListener("click", () => zoomProfile(!$("#fenetre-profil").classList.contains("agrandi")));
     window.addEventListener("resize", () => { if ($("#fenetre-profil").open) fitProfile(); });
     $("#fenetre-profil").addEventListener("close", () => zoomProfile(false));  // taille normale à la prochaine ouverture
+    let openedFor = null;  // photo du profil affiché : la fenêtre n'étant pas modale, elle se ferme si la photo change
     function openProfile() {
       if (!etat.edgeProfile || $("#fenetre-profil").open) return;
       const dialog = $("#fenetre-profil"), feature = etat.photo;
@@ -192,7 +266,8 @@ const Reglages = {
       drawProfile();
       $("#profil-nuage-etat").textContent = "";
       nuageReady();
-      showOverViewer(dialog, true);  // sur la grande zone, quel que soit l'échange carte / visionneuse
+      openedFor = feature.id;
+      showOverViewer(dialog, true, false);  // sur la grande zone, quel que soit l'échange carte / visionneuse ; non modale : la carte reste utilisable (curseurs des bords)
       // Route, PR et commune de la photo, comme l'étiquette du lieu (déjà lus : sans requête)
       Lieu.describe(...feature.geometry.coordinates.slice(0, 2), feature).then(({ parts }) => {
         const place = [parts.voie || etat.edgeProfile.road, parts.pr, parts.commune].filter(Boolean).join(" – ");
@@ -244,6 +319,7 @@ const Reglages = {
           stopWaiting((fall.text || "").split("\n").slice(1).join(" ") || "Profil impossible");
         }
       }
+      if (profileDialog.open && etat.photo?.id !== openedFor) profileDialog.close();
       showProfileButton();
     }
     profileButton.addEventListener("click", () => {
@@ -268,6 +344,8 @@ const Reglages = {
     });
     profileDialog.addEventListener("close", () => {
       Carte.showTravers(map, null);  // travers de la photo effacé de la carte
+      recaling = false;  // mode de recalage fini ; les bords recalés restent, côté Python, pour cette coupe
+      showBordHandles();
       showProfileButton();
     });
     // Réglette de la fenêtre : distance changée fenêtre ouverte, calcul refait pour cette photo (fermée : au prochain appui du bouton)

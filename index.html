@@ -1303,6 +1303,13 @@ enregistrée en PNG et copiée dans le presse-papiers">
           <input id="profil-enrobe" type="checkbox" class="interrupteur" disabled> Bord d'enrobé (expérimental)</label>
       </fieldset>
       <fieldset class="groupe">
+        <legend>Bords</legend>
+        <button id="profil-recaler" type="button" aria-pressed="false" disabled
+                title="Recaler à la main les bords de la plateforme : un curseur par bord sur la droite de coupe de la carte, à glisser le long d'elle (la vue du dessus s'allume pour voir les vrais bords) ; plateforme, dévers et chute sont recalculés au lâcher">Recaler les bords</button>
+        <button id="profil-bords-auto" type="button" disabled
+                title="Remettre les bords calculés (grisé tant qu'aucun bord n'a été recalé à la main)">Bords automatiques</button>
+      </fieldset>
+      <fieldset class="groupe">
         <legend>Enregistrer</legend>
         <button id="profil-png" type="button"
                 title="Enregistrer le graphique, avec son titre et sa légende, en image PNG">PNG</button>

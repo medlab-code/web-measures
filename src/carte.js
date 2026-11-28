@@ -1362,6 +1362,72 @@ const Carte = (() => {
     if (geojson && !map.loaded()) map.once("load", set);
   }
 
+  // Curseurs des bords recalés à la main (mode « Recaler les bords » du profil) : un petit trait perpendiculaire à la droite de coupe
+  // par bord, glissé le long d'elle seulement (projection du pointeur sur la droite, sans aimant) ; zone de prise invisible plus
+  // large que le trait (voir .bord-curseur dans style.css)
+  const bordCurseurs = [];
+
+  /** Curseurs des bords du travers du profil sur la carte, ou aucun si spec est null. spec : { repere : [origine, point à 1 m à
+   * droite] ([lon, lat]), x : { côté : position (m, < 0 à gauche) }, couleur, limite(côté, x) : position permise la plus proche,
+   * texte(côté, x) : repère affiché pendant le glissement, saisi(côté) : au début d'une prise, deplace(côté, x) : au lâcher }. */
+  function showBords(map, spec) {
+    for (const marker of bordCurseurs.splice(0)) marker.remove();
+    if (!spec) return;
+    const [o, p] = spec.repere, k = 111320, c = Math.cos(o[1] * Math.PI / 180);
+    const [ux, uy] = [(p[0] - o[0]) * c * k, (p[1] - o[1]) * k], norm2 = ux * ux + uy * uy;
+    const at = (x) => [o[0] + x * (p[0] - o[0]), o[1] + x * (p[1] - o[1])];  // lon, lat à x m à droite de l'origine
+    const along = (lngLat) => (((lngLat.lng - o[0]) * c * k) * ux + ((lngLat.lat - o[1]) * k) * uy) / norm2;  // x du pointeur projeté sur la droite
+    const bearing = Math.atan2(ux, uy) * 180 / Math.PI;  // cap de la droite de coupe (degrés, depuis le nord, vers l'est)
+    for (const side of Object.keys(spec.x)) {
+      const element = document.createElement("div");
+      element.className = "bord-curseur";
+      element.style.setProperty("--curseur", spec.couleur);
+      element.dataset.cote = side;
+      element.setAttribute("role", "slider");
+      element.setAttribute("aria-label", `Bord ${side}`);
+      element.title = `Glisser le bord ${side} le long de la droite de coupe`;
+      const marker = new maplibregl.Marker({ element, rotation: bearing + 90, rotationAlignment: "map", pitchAlignment: "map" })
+        .setLngLat(at(spec.x[side])).addTo(map);
+      let drag = null, readout = null;
+      const point = (event) => {
+        const box = map.getCanvasContainer().getBoundingClientRect();
+        return map.unproject([event.clientX - box.left, event.clientY - box.top]);
+      };
+      for (const type of ["mousedown", "touchstart", "dblclick", "click"]) element.addEventListener(type, (event) => event.stopPropagation());
+      element.addEventListener("pointerdown", (event) => {
+        if (event.button) return;
+        event.preventDefault();
+        event.stopPropagation();
+        try { element.setPointerCapture(event.pointerId); } catch { /* pointeur synthétique (essais) : sans capture */ }
+        drag = { grab: along(point(event)) - spec.x[side], x: spec.x[side], moved: false };  // écart de prise : le trait ne saute pas
+        element.classList.add("saisi");
+        readout = new maplibregl.Marker({ element: Object.assign(document.createElement("div"), { className: "bord-repere" }), offset: [0, -30] })
+          .setLngLat(at(drag.x)).addTo(map);
+        readout.getElement().textContent = spec.texte(side, drag.x);
+        spec.saisi?.(side);
+      });
+      element.addEventListener("pointermove", (event) => {
+        if (!drag) return;
+        drag.x = spec.limite(side, along(point(event)) - drag.grab);
+        drag.moved = true;
+        marker.setLngLat(at(drag.x));
+        readout.setLngLat(at(drag.x)).getElement().textContent = spec.texte(side, drag.x);
+      });
+      const release = () => {
+        if (!drag) return;
+        const done = drag;
+        drag = null;
+        element.classList.remove("saisi");
+        readout?.remove();
+        readout = null;
+        if (done.moved) spec.deplace(side, done.x);
+      };
+      element.addEventListener("pointerup", release);
+      element.addEventListener("pointercancel", release);
+      bordCurseurs.push(marker);
+    }
+  }
+
   function showMeasures(map, geojson) {
     shownMeasures = geojson;
     map.getSource("mesures")?.setData(geojson);
@@ -1802,7 +1868,7 @@ const Carte = (() => {
   return {
     PANORAMAX_API: META_API, GEOPF, OFM_STYLE: VECTOR_BASES.ofm.style,
     createMap, setBackground, setNetworkVisible, showAdmin, setExpressYear, instances, setInstance, setFilter,
-    showMeasures, showPrevious, showNez, showTravers, showOverlay, showHandles, showView, showMilestones, setMilestones, setActiveSection, setCadastre,
+    showMeasures, showPrevious, showNez, showTravers, showBords, showOverlay, showHandles, showView, showMilestones, setMilestones, setActiveSection, setCadastre,
     onAim: (fn) => { aimListener = fn; }, aimedParcel: aimedParcelNow, apiUrl: () => apiUrl,
     capture, nearestPhoto, photosNear, photoById, randomPhoto, metresBetween,
   };
