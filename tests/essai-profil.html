@@ -114,6 +114,78 @@ try {
       expect(`enveloppe, ${what} : ${overlaps} chevauchement(s) ou étiquettes à moins de ${E.ecart} px l'une de l'autre`, overlaps === 0);
     }
     E.mode = saved; }
+  // Options avancées : un élément masqué n'est pas créé (ni dans le SVG, ni dans la légende), et declutter ne lui réserve aucune place
+  // (étiquettes posées comme s'il n'existait pas) ; les coupes voisines retenues dictent la clé, la légende et la bande du profil en long
+  { const E = Profil.etiquettes, saved = E.mode;
+    E.mode = "enveloppe";
+    const cs = [0, 5, -5].map((a) => crossing(a, (x) => (x < 2 ? -0.1 : -Math.min(1.5, (x - 2) * 0.6)), 17));
+    const sep = cs.map((c) => c.map((e) => (e.le_long === 0 ? { ...e, separateur: [3, 5], separateur_relief: "marches" } : e)));
+    const results = { gauche: { chute: [0.8, 1.5, false, 0], devers: [0.6, 1, 0, 4, 2.4, false] }, droit: { chute: [0.8, 1.5, false, 5], devers: [0.5, 1, 0, 4, 2, false] } };
+    const longs = { pente: 3, max: null, suivi: "axe BD TOPO", points: [...Array(51).keys()].map((k) => [k * 2 - 50, (k * 2 - 50) < 0 ? 0.01 * (k * 2 - 50) : 0.06 * (k * 2 - 50)]),
+      ouvrages: [{ type: "pont", de: 20, a: 40 }], fins: [{ d: 30, type: "carrefour", avec: ["D18"] }] };
+    const base = { ...profile(sep), plateforme: { type: "demi", gauche: -2, droite: 1.5 }, resultats: results, en_long: longs,
+      eau: [{ x: 6, nom: "Ruisseau" }, { de: -9, a: -7, nature: "Plan d'eau" }] };
+    const grown = { points: 100, lignes: [0], herbe: [[4, 6]], eau: [[8, -2]], separateur: null, vegetation: trees(5, 40) };
+    const opts = (o, p = base, f = grown) => Profil.draw(structuredClone(p), true, f, true, 1.9, null, o);
+    const full = opts({});
+    const shows = (svg, sel) => [...(svg?.querySelectorAll(sel) ?? [])].filter((e) => !e.closest("g.cle-lecture")).length;  // hors clé de lecture
+    const hide = (name, what, sel, count, extra = () => true) => {
+      const off = opts({ [name]: false });
+      expect(`option « ${name} » : ${shows(full.svg, sel) + shows(full.long, sel)} élément(s) « ${sel} », masquée ${shows(off.svg, sel) + shows(off.long, sel)} (${what})`,
+        shows(full.svg, sel) + shows(full.long, sel) === count && shows(off.svg, sel) + shows(off.long, sel) === 0 && full.presence[name] === true && off.presence[name] === true && extra(off), [full.presence[name], off.presence[name], extra(off)].join());
+    };
+    hide("chute", "flèches, repères, étiquettes", "line.chute, line.repere-chute, text.chute-texte", 6, (d) => !d.legend.querySelector("span.chute"));
+    hide("talus", "droites et étiquettes de dévers du talus", "line.devers, text.devers-texte", 4, (d) => !d.legend.querySelector("span.devers"));
+    hide("devers", "étiquette du dévers de la plateforme", "text[data-suite]", 1, (d) => !/Plateforme/.test(d.legend.textContent));
+    hide("largeurs", "étiquette de largeur", "text[data-cle=plateforme]", 1);
+    hide("plateforme", "bande grise", "path.chaussee", 1);
+    hide("bords", "traits et noms des bords", "line.bord[data-bord]", 2);
+    hide("separateur", "barre du séparateur", "line.separateur", 1);
+    hide("eau", "repère et bandes d'eau", "path.eau, path.eau-surface, path.eau-nuage", 3, (d) => !/Bleu/.test(d.legend.textContent));
+    hide("herbe", "bande d'herbe", "path.herbe", 1);
+    hide("vegetation", "ligne verte", "path.vegetation", 1);
+    hide("canopee", "mention de canopée", "text.canopee", 1);
+    hide("peintures", "lignes blanches", "rect.ligne-blanche", 1);
+    hide("ponts", "tablier du pont", "line.ouvrage", 1);
+    hide("pentes", "pentes en étiquettes", "text.etiquette-raide", 2);
+    hide("cassure", "trait de cassure", "line.cassure", 1);
+    hide("camera", "point de l'axe, pointillé du point 0 du profil en long", "circle.origine, text[data-chaussee][data-haut], line.bord:not([data-bord])", 3,
+      (d) => !d.long.querySelector("line.bord"));
+    expect("option « carrefours » : repère de carrefour retiré du profil en long", opts({}).long.querySelectorAll("line.repere").length === 2
+      && opts({ carrefours: false }).long.querySelectorAll("line.repere").length === 1);
+    expect("un élément masqué est aussi absent de la clé de lecture et de la légende",
+      !opts({ chute: false, talus: false }).legend.textContent.includes("Chute et dévers lus") && opts({ chute: false }).legend.textContent.includes("Chute et dévers lus") && !opts({ bords: false }).legend.textContent.includes("Traits verticaux de bord")
+      && ![...opts({ herbe: false }).svg.querySelectorAll("g.cle-lecture text")].some((t) => t.textContent === "herbe"));
+    // declutter ne réserve pas de place à ce qui est masqué : étiquettes aux mêmes places que si l'élément n'existait pas
+    const places = (svg) => [...svg.querySelectorAll("text.place")].map((t) => `${t.textContent}@${t.getAttribute("x")},${t.getAttribute("y")}`).join(" | ");
+    const gone = structuredClone(base);
+    gone.resultats = { gauche: null, droit: null };
+    expect(`étiquettes sans chute ni talus : mêmes places que sans résultat (${places(opts({ chute: false, talus: false }).svg).length} caractères)`,
+      places(opts({ chute: false, talus: false }).svg) === places(opts({}, gone).svg) && places(full.svg) !== places(opts({}, gone).svg));
+    const hidden = { eau: false, herbe: false, vegetation: false, canopee: false, peintures: false };
+    expect("étiquettes sans eau, végétation ni peinture : mêmes places que sans analyse fine ni eau",
+      places(opts(hidden, { ...base, eau: [] }).svg) === places(opts({}, { ...base, eau: [] }, null).svg));
+    expect("sans largeur, le dévers de la plateforme est posé seul, sous la plateforme", (() => {
+      const alone = opts({ largeurs: false }).svg.querySelector("text.place[data-ancre][data-chaussee]");
+      return alone && /^dévers/.test(alone.textContent) && !alone.hasAttribute("data-suite"); })());
+    // Coupes voisines : seules celles lues dans le profil sont nommées, dessinées dans la clé et en bande du profil en long
+    const near5 = { ...base, profils: [sep[0], sep[1]].flat() };  // photo et +5 m seulement (−5 et ±10 m retirées par Python)
+    const only = { ...base, profils: sep[0] };  // coupe de la photo seule
+    const keyOf = (p) => [...Profil.draw(structuredClone(p), true).svg.querySelectorAll("g.cle-lecture text")].map((t) => t.textContent).find((t) => t.startsWith("travers"));
+    expect(`clé de lecture : « ${keyOf(near5)} » avec +5 m seulement, rien avec la coupe seule (${keyOf(only)})`, keyOf(near5) === "travers à ±5 m" && keyOf(only) === undefined);
+    expect("légende : « travers à 5 m devant et derrière » sans ±10 m ; rien avec la coupe seule", /travers à 5 m devant et derrière/.test(Profil.draw(structuredClone(near5), true).legend.textContent)
+      && !/pointillés\u00a0: travers/.test(Profil.draw(structuredClone(only), true).legend.textContent));
+    const band = (p) => Profil.draw(structuredClone(p), true).long.querySelector("rect.bande-travers");
+    expect(`profil en long : bande des travers de −5 à +5 m (${band({ ...base, profils: [...sep[0], ...sep[1], ...sep[2]] })?.getAttribute("width")} px) au lieu de ±10 m, aucune avec la coupe seule`,
+      band({ ...base, profils: [...sep[0], ...sep[1], ...sep[2]] }) !== null && band(only) === null
+      && /Bande grise : les 3 travers du graphique du dessus \(−5 à \+5 m/.test(Profil.draw(structuredClone({ ...base, profils: [...sep[0], ...sep[1], ...sep[2]] }), true).legend.textContent));
+    // Cases par défaut : repliées, toutes cochées (réglages.js : coché sauf « 0 » dans le stockage, effacé par la page d'essai)
+    const page = new DOMParser().parseFromString(await (await fetch("../index.html")).text(), "text/html"), details = page.querySelector("#profil-options");
+    const inputs = [...details.querySelectorAll("input[type=checkbox]")];
+    expect(`options avancées : bloc replié par défaut, ${inputs.length} cases toutes cochées`, details.tagName === "DETAILS" && !details.hasAttribute("open")
+      && inputs.length >= 18 && inputs.every((i) => i.hasAttribute("checked")) && !inputs.some((i) => i.disabled && false));
+    expect("options avancées : aucune case sans libellé ni info-bulle", inputs.every((i) => i.closest("label")?.title && i.closest("label").textContent.trim()));
+    E.mode = saved; }
   // Cassure du profil en long (Profil.cassure) : deux pentes nettes découpées ; bruit, ondulations, courte distance ou une seule pente : non
   { let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5);  // bruit reproductible
     const along = (fn, noise) => [...Array(51).keys()].map((k) => [k * 2 - 50, fn(k * 2 - 50) + rnd() * noise]);

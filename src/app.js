@@ -710,6 +710,9 @@ import { Visionneuse } from "./visionneuse.js";
     etat.app.set_camera_height(Number($("#camera").value));
     etat.app.set_terrain_relay($("#inclinaison-terrain").checked);
     etat.app.set_edge_zone(Number($("#bords-largeur").value));
+    // coupes voisines retenues (Options avancées du profil, cases lues dans la page)
+    etat.app.set_edge_along(JSON.stringify([...document.querySelectorAll("#profil-options input[data-coupe]:checked")]
+      .flatMap((box) => [-Number(box.dataset.coupe), Number(box.dataset.coupe)])));
     applyFilter(false);
     if (etat.photo) etat.app.set_picture(JSON.stringify(etat.photo));
     restoreOverlay();  // couche importée gardée de la session précédente

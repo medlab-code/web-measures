@@ -526,7 +526,16 @@ après.
   ouverture, grisée quand les hauteurs sont déjà à l'échelle sur ce travers) les remet à l'échelle des distances, caméra dessinée à sa hauteur (réglage « Hauteur de caméra »), masquée quand
   les hauteurs sont exagérées. Les commandes sous le graphique sont en quatre groupes : « Affichage » (« Hauteurs à
   l'échelle », « Végétation », légende, loupe), « Nuage LiDAR » (« Analyse fine »), « Bords » (« Bords automatiques ») et « Enregistrer » (PNG, PDF, 2e page),
-  et une croix en haut à droite ferme la fenêtre. « PNG » en fait une image
+  et une croix en haut à droite ferme la fenêtre. Un bloc dépliable **« Options avancées »**, replié par défaut, regroupe une case par élément
+  du graphique, toutes cochées par défaut et retenues d'une session à l'autre : « Coupes » (**coupes à ±5 m**, **coupes à ±10 m**),
+  « Mesures » (chute, dévers de la plateforme, talus, largeur de la plateforme, pente en long, repère de cassure), « Terrain et objets » (cours d'eau,
+  herbe, végétation, canopée, ponts, peintures, séparateur, plateforme grise) et « Repères » (bords, caméra et point 0, carrefours et fins de route).
+  Décocher une **coupe** la retire du graphique ET du calcul : bords, plateforme, dévers, chute et talus sont refaits avec les seules
+  coupes retenues (même attente au centre de la fenêtre que la réglette, le dernier choix gagne ; la coupe de la photo est toujours gardée, et
+  le dévers reste calculé même avec elle seule) ; les bords recalés à la main restent tels quels, seules les valeurs qui en dépendent sont refaites. Décocher
+  un autre élément le masque du graphique, de l'image PNG, du PDF et de la légende, sans rien recalculer : il n'est pas dessiné, les étiquettes
+  restantes se replacent comme s'il n'existait pas. Une case est grisée quand elle n'a rien à faire sur ce profil (pas de cours d'eau, pas
+  d'analyse fine pour l'herbe, la végétation, la canopée et les peintures, pas de pont…) ; la carte garde la trace de la coupe et des bords. « PNG » en fait une image
   avec son titre et sa légende ; « PDF » met le graphique et la légende (en petits caractères, sur deux
   colonnes) sur une page A4 paysage, en vectoriel, sous le lieu de la photo (route, PR, commune), à enregistrer en PDF
   dans la boîte d'impression ; « Profil en long (2e page) » (choix retenu) y ajoute une page pour le profil en long ; la loupe agrandit le graphique (sans la légende) au mieux sur la

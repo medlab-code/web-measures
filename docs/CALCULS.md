@@ -413,6 +413,19 @@ recherche, espacés de 1,9 m à 30 m. Chute, dévers et graphique s'arrêtent à
 milieu de la chaussée (entre les deux bords du travers), 1 m au moins au-delà du bord (choix de l'auteur,
 20/11/2026 : ce qui est dessiné est ce qui est mesuré).
 
+**Coupes retenues** (« Options avancées » de la fenêtre du profil, `App.set_edge_along`) : les coupes à ±5 m et à ±10 m
+peuvent être écartées, ensemble par distance (celle de la photo, à 0 m, est toujours gardée). Une coupe écartée n'est
+ni lue, ni dessinée, et n'entre dans aucun résultat : bords (médiane des travers, § 8.2), séparateur, plateforme et son
+dévers (§ 8.7), chute et dévers du talus (§ 8.4) sont refaits avec les seules coupes retenues, par la même méthode ; la
+chute et le dévers du talus, retenus sur le cas le plus défavorable, ne viennent plus que des coupes encore dessinées.
+Moins de 3 coupes : la médiane des bords (3 travers dans le relief au moins) n'a plus lieu, un travers sans rupture de
+pente garde le bord supposé (largeur type) ; le dévers de la plateforme exige alors toutes les coupes retenues (au
+plus 3, `PLATFORM_MIN_CROSSINGS`), jusqu'à la coupe de la photo seule. Les bords recalés à la main restent tels quels
+(ils tiennent au repère du profil, pas aux coupes) : seules les valeurs qui en dépendent sont refaites. Le choix
+(`edges_asked` : largeur et coupes) est demandé au calcul comme la réglette : le dernier gagne, une lecture de terrain
+d'un choix périmé est jetée. Le profil en long est lu le long de la trajectoire de la caméra, sans rapport avec
+ces coupes.
+
 ### 8.2 Bord de la chaussée
 
 Sur chaque travers, à 1,5 m au moins de l'origine, le bord est le premier point :
@@ -509,7 +522,7 @@ l'origine, seulement quand les hauteurs sont à l'échelle.
 
 Sur chaque travers, une droite des moindres carrés est ajustée sur la plateforme entière et sur
 chaque moitié (coupée au milieu entre les bords, ou de part et d'autre du séparateur, exclu), puis
-les pentes sont moyennées sur les travers, trois au moins. Sur une chaussée, seules des moitiés de
+les pentes sont moyennées sur les travers, trois au moins (ou tous les travers retenus s'il y en a moins : coupes retenues, § 8.1). Sur une chaussée, seules des moitiés de
 sens opposés d'au moins 0,8 point chacune donnent deux chiffres ; sur des chaussées séparées, aussi
 un écart d'au moins 1 point entre elles. Elles forment un toit si chacune descend vers son bord :
 pente moyenne affichée si leurs pentes diffèrent de 1 point au plus. Sinon, un seul chiffre, celui

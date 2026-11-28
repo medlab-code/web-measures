@@ -102,6 +102,32 @@ const Reglages = {
       store.set("profil-vegetation", plants.checked ? "1" : "0");
       if (etat.edgeProfile) drawProfile(true);
     });
+    // « Options avancées » du profil : une case par élément du graphique (data-option : masque d'affichage seul, Profil.draw ; data-coupe :
+    // coupes voisines à ±5 ou ±10 m, retirées de l'affichage ET du calcul par Python, App.set_edge_along). Cochées par défaut, retenues
+    // d'une session à l'autre ; grisée : rien de tel sur ce profil (ou, pour une coupe cochée, terrain illisible à cette distance)
+    const optionBoxes = [...$("#profil-options").querySelectorAll("input[data-option]")];
+    const cutBoxes = [...$("#profil-options").querySelectorAll("input[data-coupe]")];
+    for (const box of [...optionBoxes, ...cutBoxes]) box.checked = store.get(`profil-opt-${box.dataset.option ?? `coupe-${box.dataset.coupe}`}`) !== "0";
+    const keptCuts = () => cutBoxes.filter((box) => box.checked).flatMap((box) => [-Number(box.dataset.coupe), Number(box.dataset.coupe)]);
+    const showOptions = () => Object.fromEntries(optionBoxes.map((box) => [box.dataset.option, box.checked]));
+    const optionPresence = (presence) => {
+      const profile = etat.edgeProfile?.profile;
+      for (const box of optionBoxes) {
+        const grown = ["herbe", "vegetation", "canopee"].includes(box.dataset.option);  // lues par l'analyse fine, avec la case « Végétation »
+        box.disabled = !profile || !presence?.[box.dataset.option] || (grown && !plants.checked);
+      }
+      for (const box of cutBoxes) {  // coupe cochée mais illisible (terrain absent à cette distance) : rien à retirer
+        const along = Number(box.dataset.coupe);
+        box.disabled = !profile || (box.checked && profile.coupes?.some((a) => Math.abs(a) === along)
+          && !profile.profils.some((p) => Math.abs(p.le_long) === along));
+      }
+    };
+    for (const box of optionBoxes) {
+      box.addEventListener("change", () => {
+        store.set(`profil-opt-${box.dataset.option}`, box.checked ? "1" : "0");
+        if (etat.edgeProfile) drawProfile(true);  // étiquettes replacées sans l'élément masqué
+      });
+    }
     // Recalage des bords à la main, sans mode à activer : tant que la fenêtre du profil est ouverte, un curseur par bord du travers
     // de la photo est sur la droite de coupe de la carte (Carte.showBords), glissé le long d'elle ; au lâcher, Python relit
     // plateforme, largeurs, dévers et chute depuis les bords imposés (App.use_manual_edges, sans relire le terrain). Les bords
@@ -178,8 +204,9 @@ const Reglages = {
       // fine finie) recalcule le cadre
       const key = nuageKey(etat.edgeProfile.profile), kept = still && frameKept?.key === key ? frameKept : null;
       const imposed = kept ? { x: kept.cadre.x, z: kept.trueScale === trueScale.checked ? kept.cadre.z : null } : null;
-      const { svg, legend, long, cadre, exageration } = Profil.draw(etat.edgeProfile.profile, trueScale.checked, found,
-        plants.checked, etat.cameraUsed?.height || Number($("#camera").value) || 1.9, imposed);  // hauteur retenue pour la photo, le réglage en dernier recours
+      const { svg, legend, long, cadre, exageration, presence } = Profil.draw(etat.edgeProfile.profile, trueScale.checked, found,
+        plants.checked, etat.cameraUsed?.height || Number($("#camera").value) || 1.9, imposed, showOptions());  // hauteur retenue pour la photo, le réglage en dernier recours
+      optionPresence(presence);
       frameKept = { key, cadre, trueScale: trueScale.checked };
       Carte.showTravers(map, Profil.mapTrace(etat.edgeProfile.profile, cadre.x));  // travers et bords sur la carte (G5)
       showBordHandles();
@@ -344,8 +371,13 @@ const Reglages = {
     // Chaque lâcher compte : le dernier remplace le calcul en cours (jeton de génération ; côté Python, la distance demandée
     // la plus récente décide du résultat montré, et une lecture de terrain d'une distance périmée est jetée en arrivant)
     let recalc = 0;
-    $("#bords-largeur").addEventListener("change", async () => {
-      if (!profileDialog.open || !etat.app || !etat.photo || !etat.app.edges_ready()) return;
+    const recomputeProfile = async () => {
+      if (!profileDialog.open || !etat.app || !etat.photo) return;
+      if (!etat.app.edges_ready()) {  // revenu au calcul déjà fait (réglette ou coupes remises) : le calcul en attente est abandonné
+        recalc++;
+        if (waiting !== null) refresh();
+        return;
+      }
       const token = ++recalc, id = etat.photo.id;
       startWaiting(id, 0, profileDialog);  // dans la fenêtre : celle-ci recouvre le centre de la visionneuse, l'attente n'y serait pas vue
       showProfileButton();
@@ -362,7 +394,18 @@ const Reglages = {
         return;
       }
       showProfileButton();
-    });
+    };
+    $("#bords-largeur").addEventListener("change", recomputeProfile);
+    // Coupes voisines (Options avancées) : le choix part à Python (set_edge_along), qui refait bords, plateforme, dévers, chute et
+    // talus avec les seules coupes retenues ; même attente, même règle « dernier choix gagnant » que la réglette. Les bords recalés à la
+    // main restent (ils sont gardés par le repère du profil, pas par les coupes) ; seules les valeurs qui en dépendent sont refaites
+    for (const box of cutBoxes) {
+      box.addEventListener("change", () => {
+        store.set(`profil-opt-coupe-${box.dataset.coupe}`, box.checked ? "1" : "0");
+        if (etat.app) etat.app.set_edge_along(JSON.stringify(keptCuts()));
+        recomputeProfile();
+      });
+    }
     // « Analyse fine » : nuage LiDAR HD lu pour le travers de la photo (src/nuage.js), gardé pour ce profil ; grisé pendant
     // la lecture et une fois faite
     // rangée sous le repère du travers : le calcul renvoie un nouvel objet profil à chaque rafraîchissement

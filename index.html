@@ -1315,6 +1315,65 @@ enregistrée en PNG et copiée dans le presse-papiers">
             type="checkbox" class="interrupteur"> Profil en long (2e page)</label>
       </fieldset>
     </form>
+    <!-- « Options avancées » (src/reglages.js) : une case par élément du graphique, cochées par défaut et retenues. Coupes voisines :
+         décochées, elles sont retirées de l'affichage ET du calcul (bords, plateforme, dévers, chute, talus, refaits avec les seules
+         coupes retenues). Autres cases : élément masqué du graphique, de l'image PNG et du PDF (il n'est pas créé : les étiquettes ne lui
+         réservent pas de place) ; aucune n'entre dans un calcul. Grisée : rien de tel sur ce profil -->
+    <details id="profil-options" class="options-profil">
+      <summary title="Choisir les éléments du graphique : coupes voisines, mesures, terrain et objets, repères (replié par défaut ; choix retenus)">Options avancées</summary>
+      <div class="options-colonnes">
+        <fieldset class="groupe">
+          <legend>Coupes</legend>
+          <label title="Coupes à 5 m devant et derrière la photo : décochées, elles sont retirées du graphique et du calcul (bords, plateforme, dévers, chute, talus refaits sans elles)">
+            <input type="checkbox" class="interrupteur" data-coupe="5" checked> Coupes à ±5 m</label>
+          <label title="Coupes à 10 m devant et derrière la photo : décochées, elles sont retirées du graphique et du calcul (bords, plateforme, dévers, chute, talus refaits sans elles)">
+            <input type="checkbox" class="interrupteur" data-coupe="10" checked> Coupes à ±10 m</label>
+        </fieldset>
+        <fieldset class="groupe">
+          <legend>Mesures</legend>
+          <label title="Flèche, repère et étiquette de la hauteur de chute (affichage seul : le calcul reste le même)">
+            <input type="checkbox" class="interrupteur" data-option="chute" checked> Chute</label>
+          <label title="Étiquette du dévers de la plateforme (affichage seul)">
+            <input type="checkbox" class="interrupteur" data-option="devers" checked> Dévers de la plateforme</label>
+          <label title="Droite du talus et son étiquette « dévers … % » ou « paroi » (affichage seul)">
+            <input type="checkbox" class="interrupteur" data-option="talus" checked> Talus (dévers)</label>
+          <label title="Étiquette « plateforme … m » entre les deux bords (affichage seul)">
+            <input type="checkbox" class="interrupteur" data-option="largeurs" checked> Largeur de la plateforme</label>
+          <label title="Pente du profil en long, en étiquette et dans le titre (affichage seul)">
+            <input type="checkbox" class="interrupteur" data-option="pentes" checked> Pente en long</label>
+          <label title="Petit trait de la cassure du profil en long, quand deux pentes nettes se dessinent (affichage seul)">
+            <input type="checkbox" class="interrupteur" data-option="cassure" checked> Repère de cassure</label>
+        </fieldset>
+        <fieldset class="groupe">
+          <legend>Terrain et objets</legend>
+          <label title="Cours d'eau et surfaces d'eau de la BD TOPO, surface de l'eau lue dans le nuage LiDAR (affichage seul)">
+            <input type="checkbox" class="interrupteur" data-option="eau" checked> Cours d'eau</label>
+          <label title="Herbe au sol lue par l'analyse fine (affichage seul)">
+            <input type="checkbox" class="interrupteur" data-option="herbe" checked> Herbe</label>
+          <label title="Ligne verte de la hauteur maximale de la végétation, lue par l'analyse fine (affichage seul)">
+            <input type="checkbox" class="interrupteur" data-option="vegetation" checked> Végétation</label>
+          <label title="Mention « canopée +… m » des arbres hors du cadre, hauteurs à l'échelle (affichage seul)">
+            <input type="checkbox" class="interrupteur" data-option="canopee" checked> Canopée</label>
+          <label title="Ponts, creux comblés et tunnels du profil en long : tablier en tirets et nom (affichage seul)">
+            <input type="checkbox" class="interrupteur" data-option="ponts" checked> Ponts</label>
+          <label title="Peintures : lignes blanches lues par l'analyse fine (affichage seul)">
+            <input type="checkbox" class="interrupteur" data-option="peintures" checked> Peintures</label>
+          <label title="Séparateur de chaussée (chaussées séparées) : barre verticale et nom (affichage seul)">
+            <input type="checkbox" class="interrupteur" data-option="separateur" checked> Séparateur</label>
+          <label title="Bande grise de la plateforme entre les deux bords (affichage seul)">
+            <input type="checkbox" class="interrupteur" data-option="plateforme" checked> Plateforme grise</label>
+        </fieldset>
+        <fieldset class="groupe">
+          <legend>Repères</legend>
+          <label title="Traits verticaux des deux bords et leurs noms (affichage seul)">
+            <input type="checkbox" class="interrupteur" data-option="bords" checked> Bords</label>
+          <label title="Caméra à sa hauteur (ou repère de l'axe) sur le profil en travers, pointillé du point 0 sur le profil en long (affichage seul)">
+            <input type="checkbox" class="interrupteur" data-option="camera" checked> Caméra et point 0</label>
+          <label title="Repères pointillés du profil en long : carrefours et fins de route (affichage seul)">
+            <input type="checkbox" class="interrupteur" data-option="carrefours" checked> Carrefours et fins de route</label>
+        </fieldset>
+      </div>
+    </details>
     <!-- Réglette de la distance examinée (src/reglages.js), en haut à droite, avant la croix de fermeture : chute, dévers et
          graphique s'arrêtent là ; un changement (au lâcher) refait le calcul de la photo, la dernière valeur gagnant -->
     <label class="reglette" title="Distance examinée de part et d'autre du milieu de la chaussée (1 m au moins au-delà du bord) : un changement refait le calcul">

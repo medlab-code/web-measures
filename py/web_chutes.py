@@ -135,11 +135,12 @@ PLATFORM_TWIN_GAP = 1.0  # points : chaussées séparées : un chiffre par chaus
 PLATFORM_ROOF_GAP = 1.0  # points : toit symétrique, pente moyenne affichée, jusqu'à cet écart entre ses deux pentes
 
 
-def platform_slope(drawn):
+def platform_slope(drawn, minimum=PLATFORM_MIN_CROSSINGS):
     """Dévers de la plateforme (ticket #38) d'après les travers du profil (entrées de App._compute_edges), en %, positif
     s'il descend vers la droite : droite ajustée sur chaque moitié (chaque chaussée, séparateur exclu) et sur l'ensemble,
     moyennées sur les travers. Retourne {"type": ...} : "sens" (pente), "toit" (pente moyenne, gauche, droite), "demi"
-    (gauche, droite) ou "indetermine" : travers trop différents (voir docs/CALCULS.md, 8.7)."""
+    (gauche, droite) ou "indetermine" : travers trop différents (voir docs/CALCULS.md, 8.7). minimum : travers exploitables au
+    moins (PLATFORM_MIN_CROSSINGS ; moins si l'auteur n'a gardé que quelques coupes : App.set_edge_along)."""
     crossings = {}
     for entry in drawn:
         sign = -1 if entry["cote"] == "gauche" else 1
@@ -162,7 +163,7 @@ def platform_slope(drawn):
             whole.append(slopes[0])
             left.append(slopes[1])
             right.append(slopes[2])
-    if len(whole) < PLATFORM_MIN_CROSSINGS:
+    if len(whole) < minimum:
         return {"type": "indetermine"}
     mean = lambda values: sum(values) / len(values)
     s, g, d = mean(whole), mean(left), mean(right)
@@ -596,7 +597,7 @@ class Chutes:
     # type (_road_width). Référence : le terrain au bord, pas l'altitude GPS.
     EDGE_ZONE = 10.0  # m examinés par défaut de part et d'autre du milieu de la chaussée (réglette ; 20/11/2026, auteur)
     EDGE_ZONE_MIN = 1.0  # m au-delà du bord examinés au moins, réglette plus courte que la demi-largeur de la chaussée
-    EDGE_ALONG = (-10.0, -5.0, 0.0, 5.0, 10.0)  # m le long de la route, depuis la photo
+    EDGE_ALONG = (-10.0, -5.0, 0.0, 5.0, 10.0)  # m le long de la route, depuis la photo (toutes les coupes ; set_edge_along en retient)
     EDGE_WINDOW = 2.0  # m en travers : pente lue entre deux points au moins aussi écartés (bruit du MNT ±5 cm)
     EDGE_TALUS = 0.10  # pente vers le bas (sur EDGE_WINDOW m) d'une descente : en dessous, plat
     EDGE_CORE = 1 / 3  # talus : partie de la descente dont la pente vaut au moins ce rapport de sa pente la plus forte
@@ -656,23 +657,35 @@ class Chutes:
         self.edge_zone = float(metres)
         self.notify()
 
+    def set_edge_along(self, alongs):
+        """Options avancées du profil : coupes retenues (JSON : liste de distances le long de la route, parmi EDGE_ALONG), au
+        prochain calcul (request_edges). La coupe de la photo (0) est toujours gardée ; une distance inconnue : ValueError.
+        Les coupes écartées ne sont ni lues ni dessinées, et n'entrent dans aucun résultat (bords, plateforme, dévers, chute,
+        talus) : une seule méthode de calcul, avec moins de travers."""
+        wanted = {float(v) for v in json.loads(alongs)}
+        if wanted - set(self.EDGE_ALONG):
+            raise ValueError(f"coupe inconnue : {sorted(wanted - set(self.EDGE_ALONG))}")
+        self.edge_along = tuple(a for a in self.EDGE_ALONG if a == 0.0 or a in wanted)
+        self.notify()
+
     def request_edges(self):
-        """Bouton « Profils » : calcul pour la photo affichée et la largeur de la réglette (voir _edges)."""
+        """Bouton « Profils » : calcul pour la photo affichée, la largeur de la réglette et les coupes retenues (voir _edges)."""
         if self.item:
-            self.edges_asked[self.item.get("id")] = self.edge_zone
+            self.edges_asked[self.item.get("id")] = (self.edge_zone, self.edge_along)
             self.notify()
 
     def edges_ready(self):
-        """Le bouton « Profils » aurait un effet : photo affichée, pas déjà calculée à cette largeur."""
-        return bool(self.item) and self.edges_asked.get(self.item.get("id")) != self.edge_zone
+        """Le bouton « Profils » aurait un effet : photo affichée, pas déjà calculée à cette largeur et avec ces coupes."""
+        return bool(self.item) and self.edges_asked.get(self.item.get("id")) != (self.edge_zone, self.edge_along)
 
     def _edges(self, item, sections, lon, lat):
         """Photo hors pont où le bouton « Profils » a été pressé : chute et dévers des deux bords de la route
         la plus proche (roads.MAX_DISTANCE m au plus), {text, title, edges}, l'attente du calcul ou sa raison
         d'échouer ; None sans appui sur le bouton pour cette photo."""
-        zone = self.edges_asked.get(item.get("id"))
-        if zone is None:
+        asked = self.edges_asked.get(item.get("id"))
+        if asked is None:
             return None
+        zone, along = asked
 
         def told(text):
             return {"text": "Bords de route\n" + text, "title": "", "edges": True}
@@ -734,7 +747,7 @@ class Chutes:
             if roads._project(other_line, 0.0, 0.0)[0] <= self.TWIN_REACH:
                 twin.append((other_line, self._road_width(other)))
         camera = bool(self.quality and self.quality.get("precise"))  # position RTK : profils depuis la caméra
-        key = (item.get("id"), zone, camera)
+        key = (item.get("id"), zone, camera, along)
         res = self.edges.get(key)
         if res is None or time.monotonic() >= res.get("retry_at", float("inf")):
             track = self._track_line(item, lon, lat)  # profil en long le long de la trajectoire de la caméra
@@ -984,7 +997,8 @@ class Chutes:
         """Calcul des bords (voir _edges), rangé dans self.edges[key], puis notify() ; twin : autre chaussée
         (tronçon, largeur) d'une route à chaussées séparées, ou None. Étapes : travers à lire (_edge_profiles), profil en
         long (_long_samples), puis, le terrain lu, bords et séparateurs (_edge_reads) et chutes et dévers (_edge_falls)."""
-        _, zone, camera = key
+        _, zone, camera, *kept = key  # clé de _edges ; sans 4e élément (appel direct), toutes les coupes
+        along = kept[0] if kept else tuple(self.EDGE_ALONG)  # coupes retenues (set_edge_along)
         x, y, nx, ny = self._line_frame(line, s)
         shift = -(x * nx + y * ny) if camera else 0.0  # origine à gauche de l'axe (m) : la caméra est en (0, 0)
         a, b = roads._at(line, s - roads.TANGENT), roads._at(line, s + roads.TANGENT)
@@ -997,7 +1011,7 @@ class Chutes:
         frame0 = [triangulation._geographic(x + shift * nx + k * right * nx, y + shift * ny + k * right * ny, lon, lat)
                   for k in (0, 1)]
         frame_key = tuple(tuple(round(v, 8) for v in p) for p in frame0)
-        profiles, samples = self._edge_profiles(line, s, (width or self.FALL_WIDTH) / 2, zone, shift, sides, twin)
+        profiles, samples = self._edge_profiles(line, s, (width or self.FALL_WIDTH) / 2, zone, shift, sides, twin, along)
         lengthwise, long_samples, followed = self._long_samples(line, s, shift, forward, track)
         samples += long_samples
 
@@ -1005,7 +1019,7 @@ class Chutes:
             return (1 if forward else -1) * (roads._project(line, p[0], p[1])[1] - s)
 
         def got_ground(ground, source, error):
-            if getattr(self, "edges_asked", {}).get(key[0], zone) != zone:  # réglette changée depuis : lecture périmée, jetée (refaite si la distance revient)
+            if getattr(self, "edges_asked", {}).get(key[0], (zone, along)) != (zone, along):  # réglette ou coupes changées depuis : lecture périmée, jetée (refaite si le choix revient)
                 self.edges.pop(key, None)
                 return self.notify()
             if error or not source:
@@ -1033,8 +1047,8 @@ class Chutes:
                             "repere": [[round(v, 8) for v in p] for p in frame0],
                             "avant": forward,  # le_long > 0 des travers : sens de la photo (True) ou sens contraire (G5, tracé sur la carte)
                             "axe": round(-shift * right, 2),  # axe de la chaussée de la photo, en m vers la droite
-                            "zone": zone, "fenetre": self.EDGE_WINDOW, "remontee": self.EDGE_RISE, "profils": drawn,
-                            "plateforme": platform_slope(drawn) if source == triangulation.LIDAR_NAME else None,  # RGE ALTI trop imprécis
+                            "zone": zone, "coupes": list(along), "fenetre": self.EDGE_WINDOW, "remontee": self.EDGE_RISE, "profils": drawn,
+                            "plateforme": platform_slope(drawn, min(PLATFORM_MIN_CROSSINGS, len(along))) if source == triangulation.LIDAR_NAME else None,  # RGE ALTI trop imprécis
                             "manuel": sorted(manual),  # côtés dont le bord a été recalé à la main
                             "resultats": shown, "arrets": {name: sorted(v)[len(v) // 2] for name, v in stops.items() if v},
                             "en_long": grade, "carrefour": junction},
@@ -1044,7 +1058,7 @@ class Chutes:
                         measures._num(grade["points"][-1][0] - grade["points"][0][0], 0),
                         ", jusqu'à {} % sur {} m".format(measures._num(abs(grade["max"][0]), 1), self.LONG_WINDOW)
                         if grade["max"] else "") if grade else ""),
-                "title": self._edges_title(source, origin, zone, seen)}
+                "title": self._edges_title(source, origin, zone, seen, along)}
             self.notify()
 
         self._terrain([triangulation._geographic(x, y, lon, lat) for x, y in samples], got_ground)
@@ -1073,13 +1087,13 @@ class Chutes:
                 best = (offset, (other_width or self.FALL_WIDTH) / 2)
         return best
 
-    def _edge_profiles(self, line, s, half, zone, shift, sides, twin):
-        """Travers à lire (EDGE_ALONG), de chaque côté : (profils [(le long, côté, bord BD TOPO depuis l'origine, distances
+    def _edge_profiles(self, line, s, half, zone, shift, sides, twin, along_all=None):
+        """Travers à lire (along_all, par défaut EDGE_ALONG), de chaque côté : (profils [(le long, côté, bord BD TOPO depuis l'origine, distances
         depuis l'origine, axe de l'autre chaussée, séparateur BD TOPO, portée, axe de la chaussée ou None)], points à lire
         (m, repère de la photo))."""
         profiles = []
         samples = []
-        for along in self.EDGE_ALONG:
+        for along in along_all or self.EDGE_ALONG:
             # shortcut: _at borne aux bouts de la ligne prolongée (_chained) : au-delà, les travers s'y superposent
             x, y, nx, ny = self._line_frame(line, s + along)
             other = self._twin_across(twin, x, y, nx, ny, ny, -nx)  # sens du tronçon : normale tournée d'un quart de tour à droite
@@ -1400,8 +1414,8 @@ class Chutes:
                            if slope_max and slope_max[0] > 0 else None}
         return lines, seen, shown
 
-    def _edges_title(self, source, origin, zone, seen):
-        """Infobulle des bords : méthode, puis les bords trouvés (seen)."""
+    def _edges_title(self, source, origin, zone, seen, along):
+        """Infobulle des bords : méthode, puis les bords trouvés (seen) ; along : coupes retenues."""
         return ("Terrain ({}) en travers de la route, depuis {} jusqu'à {} m du milieu de la chaussée (1 m au moins au-delà du bord), "
                 "sur ±{} m le long de la route ; côtés vus dans le sens de la photo. Bord : rupture de pente "
                 "ou marche du terrain (bordure), sinon demi-largeur type de la catégorie de la route (importance BD TOPO) ; dès 3 travers trouvés "
@@ -1412,7 +1426,7 @@ class Chutes:
                 "terrain du bord, lue jusqu'à ce que le terrain remonte de {} m au-dessus du bord (talus, "
                 "butte). Dévers : pente moyenne du talus le plus raide, de son haut à son pied (pente sur {} m "
                 "repassée sous {} %). Bords trouvés : {}.").format(
-            source, origin, measures._num(zone, 0), measures._num(self.EDGE_ALONG[-1], 0),
+            source, origin, measures._num(zone, 0), measures._num(max(abs(a) for a in along), 0),
             measures._num(self.EDGE_CONSENSUS, 0), measures._num(self.EDGE_RISE, 0),
             measures._num(self.EDGE_WINDOW, 0),
             measures._num(100 * self.EDGE_TALUS, 0), " ; ".join(seen) or "aucun")

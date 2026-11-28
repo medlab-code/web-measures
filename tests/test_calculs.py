@@ -487,12 +487,12 @@ class BordsMain(unittest.TestCase):
         """Réglette changée pendant la lecture du terrain : la lecture arrivée après est jetée (pas de calcul inutile, rien de gardé)."""
         lon, lat = 5.0, 47.0
         calc = App.__new__(App)
-        calc.edges, calc.edges_redo, calc.manual, calc.edges_asked = {}, {}, {}, {"photo": 30.0}
+        calc.edges, calc.edges_redo, calc.manual, calc.edges_asked = {}, {}, {}, {"photo": (30.0, App.EDGE_ALONG)}
         calc.notify = lambda: None
         calc._terrain = lambda points, done: done([0.0] * len(points), web_app.triangulation.LIDAR_NAME, None)
         calc._compute_edges(("photo", 17, False), [(0.0, -200.0), (0.0, 200.0)], 200.0, 6.0, 0.0, lon, lat)
         self.assertNotIn(("photo", 17, False), calc.edges)
-        calc.edges_asked["photo"] = 17.0  # distance redemandée : lue et gardée
+        calc.edges_asked["photo"] = (17.0, App.EDGE_ALONG)  # distance redemandée : lue et gardée
         calc._compute_edges(("photo", 17, False), [(0.0, -200.0), (0.0, 200.0)], 200.0, 6.0, 0.0, lon, lat)
         self.assertIn("profile", calc.edges[("photo", 17, False)])
 
@@ -555,20 +555,103 @@ class BordsTalus(unittest.TestCase):
         self.assertTrue(r["devers"][5])
 
 
-def edges_on(z, width=8.0, twin=None, zone=14, axis_x=None, ends=([], None, [])):  # zone depuis le milieu : 10 m au-delà de bords à ±4 m
+def edges_on(z, width=8.0, twin=None, zone=14, axis_x=None, ends=([], None, []), along=None):  # zone depuis le milieu : 10 m au-delà de bords à ±4 m
     """Bords (App._compute_edges) sur un terrain synthétique z(x, y), en m : x vers la droite de la photo, y le long de la
     route (photo en y = 0) ; axe BD TOPO en x = 0, profil depuis l'axe ; axis_x : axe en x = axis_x, profil depuis la
-    caméra (séquence RTK), en x = 0 ; twin : autre chaussée [(ligne, largeur)]. Rend self.edges[clé]."""
+    caméra (séquence RTK), en x = 0 ; twin : autre chaussée [(ligne, largeur)] ; along : coupes retenues (toutes par défaut).
+    Rend self.edges[clé]."""
     lon, lat = 5.0, 47.0
     calc = App.__new__(App)
     calc.edges, calc.edges_redo = {}, {}
     calc.notify = lambda: None
     calc._terrain = lambda points, done: done(
         [z(*web_app.triangulation._local(p[0], p[1], lon, lat)) for p in points], web_app.triangulation.LIDAR_NAME, None)
-    key = ("photo", zone, axis_x is not None)
+    key = ("photo", zone, axis_x is not None) + ((tuple(along),) if along else ())
     ax = axis_x or 0.0
     calc._compute_edges(key, [(ax, -200.0), (ax, 200.0)], 200.0, width, 0.0, lon, lat, twin=twin, ends=ends)
     return calc.edges[key]
+
+
+class CoupesRetenues(unittest.TestCase):
+    """Options avancées du profil : coupes à ±5 et ±10 m retenues (App.set_edge_along). Une coupe écartée n'est ni lue ni dessinée
+    et n'entre dans aucun résultat : sans les coupes à ±10 m, chute, dévers et plateforme ne dépendent plus d'elles."""
+
+    @staticmethod
+    def scene(x, y):
+        """Route de 8 m, bords à ±4 m. Coupes à moins de 9 m de la photo : dévers de 2 %, fossé de 1 m ; coupes à ±10 m : dévers
+        de 6 %, fossé de 2 m (talus à 50 % des deux côtés)."""
+        far = abs(y) >= 9.0
+        dev, depth = (0.06, 2.0) if far else (0.02, 1.0)
+        a = abs(x)
+        edge = -dev * math.copysign(4.0, x)
+        return -dev * x if a <= 4.0 else edge - min(depth, (a - 4.0) * 0.5)
+
+    def test_chute_sans_les_coupes_a_10_m(self):
+        everything = edges_on(self.scene)["profile"]
+        self.assertEqual(sorted({e["le_long"] for e in everything["profils"]}), [-10.0, -5.0, 0.0, 5.0, 10.0])
+        self.assertEqual(everything["coupes"], [-10.0, -5.0, 0.0, 5.0, 10.0])
+        self.assertAlmostEqual(everything["resultats"]["droit"]["chute"][0], 2.0, delta=0.05)  # fossé des coupes à ±10 m
+        self.assertEqual(abs(everything["resultats"]["droit"]["chute"][3]), 10.0)
+        near = edges_on(self.scene, along=(-5.0, 0.0, 5.0))["profile"]
+        self.assertEqual(sorted({e["le_long"] for e in near["profils"]}), [-5.0, 0.0, 5.0])
+        self.assertAlmostEqual(near["resultats"]["droit"]["chute"][0], 1.0, delta=0.05)  # plus rien de ±10 m
+        self.assertLessEqual(abs(near["resultats"]["droit"]["chute"][3]), 5.0)
+
+    def test_plateforme_sans_les_coupes_a_10_m(self):
+        self.assertEqual(edges_on(self.scene)["profile"]["plateforme"]["type"], "indetermine")  # 2 % et 6 % : travers trop différents
+        near = edges_on(self.scene, along=(-5.0, 0.0, 5.0))["profile"]["plateforme"]
+        self.assertEqual(near["type"], "sens")
+        self.assertAlmostEqual(near["pente"], 2.0, delta=0.1)
+
+    def test_coupe_de_la_photo_seule(self):  # moins de 3 travers : le dévers reste calculé, depuis les travers retenus
+        res = edges_on(self.scene, along=(0.0,))
+        self.assertEqual({e["le_long"] for e in res["profile"]["profils"]}, {0.0})
+        self.assertEqual(res["profile"]["plateforme"]["type"], "sens")
+        self.assertAlmostEqual(res["profile"]["resultats"]["droit"]["chute"][0], 1.0, delta=0.05)
+        self.assertIn("±0 m", res["title"])
+
+    def test_choix_des_coupes(self):
+        calc = App.__new__(App)
+        calc.notify = lambda: None
+        calc.item, calc.edges_asked, calc.edge_zone = {"id": "photo"}, {}, 10.0
+        calc.edge_along = App.EDGE_ALONG
+        calc.set_edge_along("[-5, 5]")  # la coupe de la photo est toujours gardée
+        self.assertEqual(calc.edge_along, (-5.0, 0.0, 5.0))
+        self.assertTrue(calc.edges_ready())
+        calc.request_edges()
+        self.assertFalse(calc.edges_ready())
+        calc.set_edge_along("[-10, -5, 0, 5, 10]")  # coupes changées : le calcul est à refaire
+        self.assertTrue(calc.edges_ready())
+        with self.assertRaises(ValueError):
+            calc.set_edge_along("[7]")
+
+    def test_lecture_perimee_jetee_si_coupes_changees(self):
+        lon, lat = 5.0, 47.0
+        calc = App.__new__(App)
+        calc.edges, calc.edges_redo, calc.manual = {}, {}, {}
+        calc.edges_asked = {"photo": (17.0, (0.0,))}  # coupes demandées depuis : cette lecture est périmée
+        calc.notify = lambda: None
+        calc._terrain = lambda points, done: done([0.0] * len(points), web_app.triangulation.LIDAR_NAME, None)
+        key = ("photo", 17, False, App.EDGE_ALONG)
+        calc._compute_edges(key, [(0.0, -200.0), (0.0, 200.0)], 200.0, 6.0, 0.0, lon, lat)
+        self.assertNotIn(key, calc.edges)
+
+    def test_bords_a_la_main_gardes(self):  # bord recalé : il reste, plateforme et chute sont refaites avec les coupes retenues
+        lon, lat = 5.0, 47.0
+        calc = App.__new__(App)
+        calc.edges, calc.edges_redo, calc.manual = {}, {}, {}
+        calc.notify = lambda: None
+        calc._terrain = lambda points, done: done(
+            [self.scene(*web_app.triangulation._local(p[0], p[1], lon, lat)) for p in points], web_app.triangulation.LIDAR_NAME, None)
+        key = ("photo", 14, False, (-5.0, 0.0, 5.0))
+        calc._compute_edges(key, [(0.0, -200.0), (0.0, 200.0)], 200.0, 8.0, 0.0, lon, lat)
+        profile = calc.edges[key]["profile"]
+        calc.use_manual_edges(json.dumps(profile["repere"]), json.dumps({"droit": 3.0}))
+        after = calc.edges[key]["profile"]
+        self.assertEqual(after["manuel"], ["droit"])
+        self.assertEqual(after["coupes"], [-5.0, 0.0, 5.0])
+        self.assertEqual({e["le_long"] for e in after["profils"]}, {-5.0, 0.0, 5.0})
+        self.assertTrue(all(e["bord"] == 3.0 for e in after["profils"] if e["cote"] == "droit"))
 
 
 class BordsCarrefour(unittest.TestCase):

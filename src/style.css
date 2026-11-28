@@ -1384,6 +1384,16 @@ dialog.profil form .groupe legend { padding: 0 0.3rem; font-size: 0.75rem; color
 dialog.profil form .groupe label { display: inline-flex; align-items: center; gap: 0.35rem; }
 dialog.profil form .groupe label input { margin: 0; }
 /* Croix de fermeture en haut à droite de la fenêtre, discrète ; pas de rouge, réservé à « Non » et aux actions qui effacent */
+/* « Options avancées » : repliées par défaut ; quatre groupes côte à côte (à la ligne sur une fenêtre étroite) */
+dialog.profil .options-profil { margin-top: 0.6rem; }
+dialog.profil .options-profil summary { cursor: pointer; font-size: 0.85rem; color: var(--discret); width: fit-content; }
+dialog.profil .options-colonnes { display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem; margin-top: 0.4rem; align-items: flex-start; }
+dialog.profil .options-colonnes .groupe { display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem; margin: 0; min-width: 0;
+  padding: 0.2rem 0.6rem 0.4rem; border: 1px solid var(--bord); border-radius: 4px; }
+dialog.profil .options-colonnes .groupe legend { padding: 0 0.3rem; font-size: 0.75rem; color: var(--discret); }
+dialog.profil .options-colonnes label { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; white-space: nowrap; }
+dialog.profil .options-colonnes label input { margin: 0; }
+dialog.profil .options-colonnes label:has(input:disabled) { opacity: 0.55; }
 dialog.profil h2 { padding-right: 2.6rem; }  /* le titre ne passe pas sous la croix */
 /* Réglette de la distance examinée : en-tête de la fenêtre, à gauche de la croix de fermeture ; le titre lui laisse la place */
 dialog.profil > label.reglette { position: absolute; top: 0.5rem; right: 3.4rem; height: 2.4rem; display: flex; flex-direction: column;

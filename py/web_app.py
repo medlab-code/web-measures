@@ -171,12 +171,13 @@ class App(Pose, Chutes, Nez, session.Session):
         self.fall_cells = {}  # maille -> tronçons BD TOPO avec leur largeur (hauteur de chute, voir fall)
         self.falls = {}  # (séquence, pont) -> hauteur de chute calculée (dict text, title) ou en cours
         self.lidar_falls = {}  # tronçon du pont -> réponse du nuage LiDAR (use_bridge_lidar)
-        self.edges = {}  # (photo, largeur examinée) -> chute et dévers des bords de route (voir _edges)
+        self.edges = {}  # (photo, largeur examinée, caméra, coupes retenues) -> chute et dévers des bords de route (voir _edges)
         self.edges_redo = {}  # repère du profil -> (clé de self.edges, calcul à refaire sans relire le terrain)
         self.manual = {}  # repère du profil -> bords recalés à la main (use_manual_edges), par côté, m depuis l'origine
-        self.edges_asked = {}  # photo -> largeur examinée au dernier appui sur « Profils »
+        self.edges_asked = {}  # photo -> (largeur examinée, coupes retenues) au dernier appui sur « Profils »
         self.long_tracks = {}  # photo -> trajectoire de la caméra autour d'elle (_track_line), None pendant la lecture
         self.edge_zone = self.EDGE_ZONE
+        self.edge_along = self.EDGE_ALONG  # coupes retenues (options avancées du profil, set_edge_along)
         self.bdtopo = {}  # (couche BD TOPO, maille) -> objets lus (voir _bdtopo)
         self.fall_error = {}  # maille -> raison du dernier échec de lecture des tronçons (dite dans le message)
         self.fall_retry = {}  # maille -> instant du nouvel essai après un échec de lecture des tronçons
