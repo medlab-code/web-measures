@@ -908,6 +908,8 @@ la vue et recalages : `docs/BIRDEYE.md` ; chiffres des essais : `docs/CALCULS.md
 
 **Étiquette d'information de Bird Eye** (ticket #53) : l'interrupteur « Afficher les informations » du panneau de réglages la replie ou la déplie ; le choix est gardé dans le navigateur. Sur un appareil tactile (pointeur grossier et aucun pointeur fin), elle est repliée par défaut, pour ne pas masquer la vue ; l'interrupteur la rallume. Sur un écran à souris, rien ne change (dépliée par défaut).
 
+**Appareil tactile : étiquettes de la visionneuse masquées** : sur un appareil tactile (même condition : pointeur grossier et aucun pointeur fin), l'étiquette des boutons de capture et de plein écran (en haut à droite) et l'encart d'information de « Largeur dans la visionneuse » (`#nez-lecture` : explications, incertitude, sol, bouton « Remettre perpendiculaire ») ne sont pas affichés ; la valeur de largeur posée au-dessus de la droite reste visible. À la souris, rien ne change.
+
 **Animations d'attente sur la carte** (petite, en grand ou détachée : toujours au centre de la carte qui montre le résultat, même
 dessin que dans la visionneuse : pastille avec l'icône de l'action, ondes jaunes, message et étape, coche verte à la fin, croix
 rouge et message en cas d'échec ; rien n'est montré si l'action dure moins de 0,3 s) : « Vue du dessus… » (icône faucon) à

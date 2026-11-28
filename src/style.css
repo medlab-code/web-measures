@@ -1120,6 +1120,9 @@ html.souris-immobile:fullscreen #reglage-image:not(:hover) { opacity: 0; }
 #nez-lecture button { pointer-events: auto; margin-top: 0.15rem; font-size: 12px; }
 #nez-lecture small { color: #ffd600; font-size: 11px; font-weight: 400; }
 #nez-lecture small.aide { display: block; color: inherit; opacity: 0.75; }
+/* Appareil tactile (pointeur grossier, aucun pointeur fin : même condition que l'étiquette de Bird Eye, dessus.js) : ni l'encart d'information de la
+   largeur, ni l'étiquette de capture et de plein écran (la valeur posée au-dessus de la droite reste affichée) */
+@media (pointer: coarse) and (not (any-pointer: fine)) { #nez-lecture, #captures-visionneuse { display: none; } }
 #vue .nez-poignee, #vue .nez-poignee * { cursor: ew-resize !important; }  /* poignée des bords : glisser ou molette (réglage fin) */
 #vue .nez-droite, #vue .nez-droite * { cursor: ns-resize !important; }  /* droite survolée : glisser = profondeur, clic droit glissé = rotation */
 #vue .nez-glisse, #vue .nez-glisse * { cursor: grabbing !important; }
