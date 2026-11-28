@@ -160,25 +160,71 @@ const Profil = (() => {
   // obstacles : [gauche, haut, droite, bas] à éviter aussi (tablier d'un pont…)
   const OBSTACLES = "path.sol, path.autre-travers, path.travers-mesure, path.chaussee, path.eau-surface, path.herbe, path.vegetation,"
     + " line.bord, line.chute, line.repere-chute, line.devers, line.separateur, line.raide, line.cassure, line.ouvrage";
+  const NO_BOXES = [];
   const SAMPLE_STEP = 4, LINE_COST = 10, TEXT_COST = 5000, FAR = 28;
   // courbes de données seules (marge des modes autres que « actuel ») : terrain LiDAR, autres travers, végétation, herbe, eau
   const CURVES = "path.sol, path.autre-travers, path.travers-mesure, path.eau-surface, path.eau-nuage, path.herbe, path.vegetation";
+  // Grille de points (cellules de GRID px) : décompte des points dans une boîte (bornes comprises) ou existence d'un point à moins
+  // de r d'un autre, sans parcourir tous les points. Même résultat qu'un parcours complet (le test exact est refait sur chaque
+  // point des cellules touchées) ; ajout possible à tout moment.
+  const GRID = 16;
+  function pointGrid() {
+    const cells = new Map(), odd = [];  // odd : points non finis, hors grille
+    const cell = (v) => { const c = Math.floor(v / GRID); return c < -30000 ? -30000 : c > 30000 ? 30000 : c; };
+    const scan = (a, b0, b1, b2, b3) => {
+      let n = 0;
+      for (let i = 0; i < a.length; i += 2) { const x = a[i], y = a[i + 1]; if (x >= b0 && x <= b2 && y >= b1 && y <= b3) n++; }
+      return n;
+    };
+    return {
+      add(x, y) {
+        if (!Number.isFinite(x) || !Number.isFinite(y)) { odd.push(x, y); return; }
+        const k = (cell(x) + 32768) * 65536 + cell(y) + 32768, a = cells.get(k);
+        if (a) a.push(x, y); else cells.set(k, [x, y]);
+      },
+      // nombre de points p avec b0 <= x <= b2 et b1 <= y <= b3
+      count(b0, b1, b2, b3) {
+        const x0 = cell(b0), x1 = cell(b2), y0 = cell(b1), y1 = cell(b3);
+        let n = scan(odd, b0, b1, b2, b3);
+        if ((x1 - x0 + 1) * (y1 - y0 + 1) > cells.size) { for (const a of cells.values()) n += scan(a, b0, b1, b2, b3); return n; }
+        for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) {
+          const a = cells.get((cx + 32768) * 65536 + cy + 32768);
+          if (a) n += scan(a, b0, b1, b2, b3);
+        }
+        return n;
+      },
+      // y a-t-il un point à moins de 2,5 de (px, py) ?
+      near(px, py) {
+        const x1 = cell(px + 2.6), y1 = cell(py + 2.6);
+        for (let cx = cell(px - 2.6); cx <= x1; cx++) for (let cy = cell(py - 2.6); cy <= y1; cy++) {
+          const a = cells.get((cx + 32768) * 65536 + cy + 32768);
+          if (a) for (let i = 0; i < a.length; i += 2) if (Math.hypot(a[i] - px, a[i + 1] - py) < 2.5) return true;
+        }
+        return false;
+      },
+    };
+  }
   // opts : { mode, ceiling } ; mode : placement des étiquettes (ETIQ.mode ; « actuel » par défaut), ceiling : y du plafond des
   // courbes (bas de la bande des rangées, mode « rangee »)
   function declutter(svg, { top, bottom, left, right }, obstacles = [], { mode = "actuel", ceiling = top } = {}) {
-    const samples = [], curves = [];  // [x, y] le long des tracés ; le long des courbes de données seules
-    const along = (pts, out = [samples]) => {
+    const samples = pointGrid(), curves = pointGrid();  // points le long des tracés ; le long des courbes de données seules
+    // échantillons (un tous les SAMPLE_STEP px) de la ligne brisée pts, ajoutés aux tracés (et aux courbes si withCurves)
+    const along = (pts, withCurves = false) => {
       for (let k = 0; k < pts.length; k++) {
         const [x0, y0] = pts[k], [x1, y1] = pts[k + 1] || pts[k], n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / SAMPLE_STEP));
-        for (let i = 0; i < n; i++) for (const o of out) o.push([x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n]);
+        for (let i = 0; i < n; i++) {
+          const x = x0 + (x1 - x0) * i / n, y = y0 + (y1 - y0) * i / n;
+          samples.add(x, y);
+          if (withCurves) curves.add(x, y);
+        }
       }
     };
     for (const e of svg.querySelectorAll(mode === "actuel" ? OBSTACLES : `${OBSTACLES}, path.eau-nuage`)) {
-      const data = e.matches(CURVES) ? [samples, curves] : [samples];
+      const data = e.matches(CURVES);
       if (e.tagName === "line") along([[+e.getAttribute("x1"), +e.getAttribute("y1")], [+e.getAttribute("x2"), +e.getAttribute("y2")]], data);
       else along([...(e.getAttribute("d") || "").matchAll(/[ML](-?[\d.]+(?:e-?\d+)?),(-?[\d.]+(?:e-?\d+)?)/g)].map((m) => [+m[1], +m[2]]), data);
     }
-    for (const c of svg.querySelectorAll("circle.origine")) samples.push([+c.getAttribute("cx"), +c.getAttribute("cy")]);
+    for (const c of svg.querySelectorAll("circle.origine")) samples.add(+c.getAttribute("cx"), +c.getAttribute("cy"));
     const read = (t) => {  // étiquette sur plusieurs lignes (tspan) : la plus longue, et LINE px par ligne de plus
       const lines = t.querySelectorAll("tspan").length ? [...t.querySelectorAll("tspan")].map((s) => s.textContent) : [t.textContent];
       const grad = t.classList.contains("graduation"), size = grad ? 12 : 13;
@@ -189,11 +235,32 @@ const Profil = (() => {
       const l = anchor === "end" ? x - m.w : anchor === "middle" ? x - m.w / 2 : x;
       return [l - 2, y - m.size, l + m.w + 2, y + 3 + (m.lines.length - 1) * LINE];
     };
-    const hit = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
-    const inside = (b, p) => p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3];
-    const crossed = (b) => samples.reduce((n, p) => n + (inside(b, p) ? 1 : 0), 0);
-    const near = (b, [ax, ay]) => Math.hypot(Math.max(b[0] - ax, 0, ax - b[2]), Math.max(b[1] - ay, 0, ay - b[3]));
+    const inside = (b, x, y) => x >= b[0] && x <= b[2] && y >= b[1] && y <= b[3];
+    const crossed = (b) => samples.count(b[0], b[1], b[2], b[3]);
+    const near = (b, ax, ay) => Math.hypot(Math.max(b[0] - ax, 0, ax - b[2]), Math.max(b[1] - ay, 0, ay - b[3]));
     const placed = [...obstacles];
+    // nombre d'étiquettes posées qui recouvrent la boîte b élargie de gap de chaque côté
+    const clashes = (b, gap) => {
+      const l = b[0] - gap, r = b[2] + gap, u = b[1], d = b[3];
+      let n = 0;
+      for (let i = 0; i < placed.length; i++) { const p = placed[i]; if (p[0] < r && l < p[2] && p[1] < d && u < p[3]) n++; }
+      return n;
+    };
+    // échantillons d'une ligne brisée (mêmes points que along), dans tx / ty (nombre : tn) et leur boîte englobante
+    let tx = new Float64Array(256), ty = new Float64Array(256), tn = 0, tx0 = 0, tx1 = 0, ty0 = 0, ty1 = 0;
+    const push = (x, y) => {
+      if (tn === tx.length) { const nx = new Float64Array(tn * 2), ny = new Float64Array(tn * 2); nx.set(tx); ny.set(ty); tx = nx; ty = ny; }
+      tx[tn] = x; ty[tn] = y; tn++;
+      if (x < tx0) tx0 = x; if (x > tx1) tx1 = x; if (y < ty0) ty0 = y; if (y > ty1) ty1 = y;
+    };
+    const trace = (poly) => {
+      tn = 0; tx0 = ty0 = Infinity; tx1 = ty1 = -Infinity;
+      for (let k = 1; k < poly.length; k++) {  // un segment, puis son point d'arrivée (along d'une ligne à deux points)
+        const [x0, y0] = poly[k - 1], [x1, y1] = poly[k], n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / SAMPLE_STEP));
+        for (let i = 0; i < n; i++) push(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n);
+        push(x1 + (x1 - x1) * 0 / 1, y1 + (y1 - y1) * 0 / 1);
+      }
+    };
     const result = { textes: 0, lignes: 0 };
     const texts = [...svg.querySelectorAll("text.place:not([data-suite])")].map((t, k) => [t, k]);
     texts.sort(([a, i], [b, j]) => (Number(a.dataset.prio ?? 5) - Number(b.dataset.prio ?? 5)) || i - j);
@@ -222,7 +289,7 @@ const Profil = (() => {
         if (up && b[1] > ay + 8) return;  // au-dessus de ce qu'elle nomme seulement : ne le masque pas
         // rangées : au-dessus de ce qu'elle nomme, jamais dessus ; « enveloppe », repli sous lui (dans la terre) si plus aucune rangée libre
         if (rows && !canopy && b[3] > ay2 - 6 && !(lab === "enveloppe" && b[1] > ay2 + 6)) return;
-        const rest = tail.map((f) => box(f.m, f.x + x - x0, f.y + y - y0, f.anchor));
+        const rest = tail.length ? tail.map((f) => box(f.m, f.x + x - x0, f.y + y - y0, f.anchor)) : NO_BOXES;
         if (rest.some((r) => r[1] + 1 < top || r[3] > bottom || r[0] < left || r[2] > right)) return;
         candidates.push({ x, y, anchor, extra, b, rest });
       };
@@ -248,7 +315,7 @@ const Profil = (() => {
           }
         }
       }
-      const free = Math.max(FAR, near(home, [ax, ay]) + 4);  // sa place d'origine n'est jamais pénalisée par la distance
+      const free = Math.max(FAR, near(home, ax, ay) + 4);  // sa place d'origine n'est jamais pénalisée par la distance
       // connecteur d'une boîte à l'ancre (modes autres que « actuel ») : droit (« degagement »), vertical puis coudé (rangées)
       const leader = (b) => {
         if (lab === "degagement") return [[Math.min(Math.max(ax, b[0] + 3), b[2] - 3), Math.min(Math.max(ay, b[1] + 3), b[3] - 3)], [ax, ay]];
@@ -257,25 +324,35 @@ const Profil = (() => {
         const ex = ax < b[0] ? b[0] : b[2], ey = (b[1] + b[3]) / 2;  // coude : montée verticale, puis horizontale jusqu'au côté de la boîte
         return [[ex, ey], [ax, ey], [ax, ay2]];
       };
-      const spread = (pts) => { const out = []; along(pts, [out]); return out; };
       const marge = canopy ? 0 : ETIQ.marge;  // la canopée nomme la ligne coupée en haut : elle la longe
       let best = null;
+      const gap = lab === "actuel" ? 0 : ETIQ.ecart;  // écart horizontal minimal entre étiquettes (hors « actuel »)
+      const near_ = new Int32Array(placed.length);  // boîtes posées touchées par un connecteur (cut)
       for (const c of candidates) {
-        const all = [c.b, ...c.rest];
-        const gap = lab === "actuel" ? 0 : ETIQ.ecart;  // écart horizontal minimal entre étiquettes (hors « actuel »)
-        const clash = all.reduce((n, b) => n + placed.filter((p) => hit(p, [b[0] - gap, b[1], b[2] + gap, b[3]])).length, 0), lines = all.reduce((n, b) => n + crossed(b), 0);
-        c.cost = clash * TEXT_COST + lines * LINE_COST + Math.max(0, near(c.b, [ax, ay]) - free) * 0.8 + c.extra;
+        let clash = clashes(c.b, gap), lines = crossed(c.b);
+        for (let i = 0; i < c.rest.length; i++) { clash += clashes(c.rest[i], gap); lines += crossed(c.rest[i]); }
+        c.cost = clash * TEXT_COST + lines * LINE_COST + Math.max(0, near(c.b, ax, ay) - free) * 0.8 + c.extra;
         if (lab !== "actuel") {
-          const big = [c.b[0] - marge, c.b[1] - marge, c.b[2] + marge, c.b[3] + marge];
-          c.close = curves.reduce((n, p) => n + (inside(big, p) ? 1 : 0), 0);
+          c.close = curves.count(c.b[0] - marge, c.b[1] - marge, c.b[2] + marge, c.b[3] + marge);
           c.poly = leader(c.b);
-          const tracks = c.poly.slice(1).flatMap((p, k) => spread([c.poly[k], p]));
-          const cut = tracks.filter((p) => placed.some((b) => inside(b, p) && !inside(c.b, p))).length;  // connecteur sur une autre étiquette
-          const cross = rows ? 0 : tracks.filter((p) => Math.hypot(p[0] - ax, p[1] - ay2) > 8 && curves.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 2.5)).length;
-          const length = tracks.length * SAMPLE_STEP;
-          const covered = rows ? anchors.filter(([o, u, v]) => o !== t && u > c.b[0] - 2 && u < c.b[2] + 2 && v > c.b[3]).length : 0;
+          trace(c.poly);
+          // connecteur sur une autre étiquette : un seul échantillon suffit (le coût ne tient qu'à « il y en a un »)
+          let cut = false, touched = 0;
+          for (let i = 0; i < placed.length; i++) {
+            const b = placed[i];
+            if (b[0] <= tx1 && b[2] >= tx0 && b[1] <= ty1 && b[3] >= ty0) near_[touched++] = i;
+          }
+          for (let k = 0; k < tn && touched && !cut; k++) {
+            const x = tx[k], y = ty[k];
+            for (let i = 0; i < touched; i++) if (inside(placed[near_[i]], x, y)) { cut = !inside(c.b, x, y); if (cut) break; }
+          }
+          let cross = 0;
+          if (!rows) for (let k = 0; k < tn; k++) if (Math.hypot(tx[k] - ax, ty[k] - ay2) > 8 && curves.near(tx[k], ty[k])) cross++;
+          const length = tn * SAMPLE_STEP;
+          let covered = 0;
+          if (rows) for (const [o, u, v] of anchors) if (o !== t && u > c.b[0] - 2 && u < c.b[2] + 2 && v > c.b[3]) covered++;
           c.cost += c.close * ETIQ.margeCout + (cut ? TEXT_COST : 0) + cross * 3 + covered * 300;
-          if (lab === "degagement") c.cost += Math.max(0, ETIQ.connecteurMin - near(c.b, [ax, ay])) * 3;
+          if (lab === "degagement") c.cost += Math.max(0, ETIQ.connecteurMin - near(c.b, ax, ay)) * 3;
           else c.cost += (c.b[1] > ay2 ? ETIQ.dessousCout : 0) + c.extra * ETIQ.rangeCout + Math.abs((c.b[0] + c.b[2]) / 2 - ax) * ETIQ.decalage + length * 0.2;
         }
         c.clash = clash; c.lines = lines;
@@ -283,7 +360,7 @@ const Profil = (() => {
       }
       if (!best) {  // aucune position dans le cadre : sa place, rabattue à l'horizontale seulement
         const b = box(m, x0, y0, anchor0);
-        best = { x: x0, y: y0, anchor: anchor0, b, rest: tail.map((f) => box(f.m, f.x, f.y, f.anchor)), clash: placed.filter((p) => hit(p, b)).length, lines: crossed(b) };
+        best = { x: x0, y: y0, anchor: anchor0, b, rest: tail.map((f) => box(f.m, f.x, f.y, f.anchor)), clash: clashes(b, 0), lines: crossed(b) };
       }
       t.setAttribute("x", best.x);
       t.setAttribute("y", best.y);
@@ -297,7 +374,7 @@ const Profil = (() => {
       placed.push(best.b, ...best.rest);
       // loin de sa place : connecteur de la boîte à l'ancre, petit point à l'ancre ; ses échantillons gênent les suivantes
       const moved = Math.hypot((best.b[0] + best.b[2] - home[0] - home[2]) / 2, (best.b[1] + best.b[3] - home[1] - home[3]) / 2);
-      const reach = near(best.b, [ax, ay]);
+      const reach = near(best.b, ax, ay);
       if (lab !== "actuel" && best.poly && !t.hasAttribute("data-sans-connecteur") && reach > 10) {
         const colour = t.dataset.couleur ? { "data-couleur": t.dataset.couleur } : {};
         const segments = best.poly.slice(1).map((p, k) => el("line", { x1: best.poly[k][0], y1: best.poly[k][1], x2: p[0], y2: p[1], class: "connecteur", ...colour }));
