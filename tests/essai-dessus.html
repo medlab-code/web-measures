@@ -192,6 +192,40 @@ function centre(pixels, line, around) {
   const ringLayers = ring.map((l) => ({ ...l, at: offsetOf(l.pose) }));
   await expect("contour : sous le véhicule, une voisine ; à 3 m, la principale",
     Dessus.sourceOf([0, 0], ringLayers).pose !== ring[0].pose && Dessus.sourceOf([0, 3], ringLayers).pose === ring[0].pose);
+  {  // « Limiter à la zone mesurable » : un seul rectangle net autour de la photo principale (width_depth + 0,5 m le long de l'axe, devant
+    // comme derrière ; width_reach + 0,5 m en travers), toutes photos confondues, sans grisé ni transparence
+    const shot = (layers, zone) => {
+      const canvas = Dessus.render(layers, terrain, pose, null, Dessus.SIZE, 0, null, Dessus.REACH, zone), gl = canvas.getContext("webgl2");
+      const rgba = new Uint8Array(4 * Dessus.SIZE ** 2);
+      gl.readPixels(0, 0, Dessus.SIZE, Dessus.SIZE, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+      return rgba;
+    };
+    const px = (rgba, [e, n]) => rgba.subarray(4 * (cell(n) * Dessus.SIZE + cell(e)), 4 * (cell(n) * Dessus.SIZE + cell(e)) + 4);
+    const sameImage = (x, y) => x.length === y.length && x.every((v, k) => v === y[k]);
+    const trio = poses.map((p, k) => ({ pose: { ...p, width_depth: 8, width_reach: 7 }, pano: panos[k], at: offsetOf(p) }));  // rectangle : 8,5 m en long, 7,5 m en travers
+    const zone = Dessus.zoneRect(trio), axis = zone.axis, side = [-axis[1], axis[0]];
+    const at = (t, u) => [t * axis[0] + u * side[0], t * axis[1] + u * side[1]];
+    await expect("zone : demi-longueur et demi-largeur (butée et portée de la pose + 0,5 m)", zone.along === 8.5 && zone.across === 7.5);
+    await expect("zone : sans butée dans la pose, pas de rectangle", Dessus.zoneRect([{ pose, at: [0, 0] }]) === null);
+    const plain = shot(trio, null), cut = shot(trio, zone);
+    await expect("zone décochée : image identique à celle sans butée", sameImage(plain, shot(trio.map((l) => ({ ...l, pose: { ...l.pose, width_depth: undefined } })), null)));
+    await expect("zone : à 8 m devant et derrière, 7 m de côté, l'image est là (opaque, ni grisée ni transparente)",
+      [at(8, 0), at(-8, 0), at(0, 7), at(0, -7), at(8, 7), at(-8, -7)].every((p) => px(cut, p)[3] === 255));
+    await expect("zone : à 9 m devant et derrière, 8 m de côté, rien (net)", [at(9, 0), at(-9, 0), at(0, 8), at(0, -8), at(9, 8)].every((p) => px(cut, p)[3] === 0));
+    await expect("sans zone, points à 12 m vus mais fondus (transparents en partie)", [at(12, 0), at(-12, 0), at(0, 12)].every((p) => px(plain, p)[3] > 0 && px(plain, p)[3] < 255));
+    let holes = 0, kept = 0;
+    for (let j = 0; j < Dessus.SIZE; j++) for (let i = 0; i < Dessus.SIZE; i++) {
+      const e = -Dessus.REACH + (i + 0.5) * m, n = -Dessus.REACH + (j + 0.5) * m, along = Math.abs(e * axis[0] + n * axis[1]), across = Math.abs(e * axis[1] - n * axis[0]);
+      if (along < 8.4 && across < 7.4 && Math.hypot(e, n) < Dessus.REACH - 0.1) { kept++; if (cut[4 * (j * Dessus.SIZE + i) + 3] !== 255) holes++; }
+    }
+    await expect("zone : aucun trou ni transparence dans le rectangle", holes === 0 && kept > 10000, `${holes} trous sur ${kept} px`);
+    const alone = shot([trio[0]], zone);
+    await expect("zone, photo seule : même coupure nette", px(alone, at(8, 0))[3] === 255 && px(alone, at(9, 0))[3] === 0);
+    // Mesures : hors du rectangle, hors vue
+    await expect("mesure : dans le rectangle, une photo ; au-delà devant, derrière et de côté : hors vue",
+      Dessus.sourceOf(at(8, 0), trio, zone) !== null && Dessus.sourceOf(at(9, 0), trio, zone) === null && Dessus.sourceOf(at(-9, 0), trio, zone) === null
+      && Dessus.sourceOf(at(0, 8), trio, zone) === null && Dessus.sourceOf(at(0, 7), trio, zone) !== null && Dessus.sourceOf(at(9, 0), trio, null) !== null);
+  }
   await expect("sans terrain : pas de mesure", Dessus.estimateHeight({ pano: pano0, pose: p0 }, [{ pano: pano1, pose: p1 }], null) === null);
   await expect("sans inclinaison : pas de mesure", Dessus.estimateHeight({ pano: pano0, pose: { ...p0, up: null } }, [{ pano: pano1, pose: p1 }], terrain) === null);
   // Tangage lu sur les lignes en long (linesPitch) : route au cap 0, traits en long à -3, 0,8 et 2,5 m ; vue dessinée avec un

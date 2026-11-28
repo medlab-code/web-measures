@@ -220,11 +220,15 @@ class Nez:
                 return False
         return True
 
-    def _nose_gap(self):
-        """Écart (m) entre la photo affichée et la suivante de la séquence, d'après leurs positions ; None si la suivante n'est pas
-        connue (pas chargée, absente) ou si l'écart est hors de 1 à 20 m (même garde que _nose_axis_at)."""
-        item = self.item
-        following = self.neighbours.get(metadata.id_from_href(metadata.item_link(item, "next")))
+    def _nose_gap(self, item=None):
+        """Écart (m) entre la photo `item` (par défaut l'affichée) et la suivante de la séquence, d'après leurs positions ; None si la
+        suivante n'est pas connue (pas chargée, absente) ou si l'écart est hors de 1 à 20 m (même garde que _nose_axis_at). Pour une
+        autre photo que l'affichée (voisine de la vue du dessus), la suivante peut être l'affichée ou une voisine de la vue du dessus."""
+        item = item or self.item
+        following_id = metadata.id_from_href(metadata.item_link(item, "next"))
+        following = self.neighbours.get(following_id)
+        if not following and item is not self.item:  # voisine de la vue du dessus : sa suivante est l'affichée ou une autre voisine
+            following = next((i for i in [self.item, *self.birdeye_items, *self.birdeye_far_items] if i and i.get("id") == following_id), None)
         if not following:
             return None
         try:
@@ -235,12 +239,13 @@ class Nez:
         gap = math.hypot((there[0] - here[0]) * math.cos(math.radians(here[1])) * 111320.0, (there[1] - here[1]) * 111320.0)
         return gap if 1.0 <= gap <= 20.0 else None
 
-    def _nose_range(self, mount):
+    def _nose_range(self, mount, item=None):
         """(distance minimale, distance maximale) de la droite devant la caméra, en m : près, la distance du nez (capot) ; au loin,
         la distance du nez plus l'écart réel jusqu'à la photo suivante plus NOSE_OVERLAP de recouvrement (nez + NOSE_FAR_DEFAULT
-        sans photo suivante connue)."""
+        sans photo suivante connue). `item` : photo (par défaut l'affichée). La butée lointaine est aussi celle de l'option « Limiter à
+        la zone mesurable » de la vue du dessus (pose["width_depth"], voir web_pose._birdeye_of) : une seule source."""
         near = NOSE_DISTANCE.get(mount, NOSE_DISTANCE_DEFAULT)
-        gap = self._nose_gap()
+        gap = self._nose_gap(item)
         return near, near + (NOSE_FAR_DEFAULT if gap is None else gap + NOSE_OVERLAP)
 
     def _nose_confidence(self, item):

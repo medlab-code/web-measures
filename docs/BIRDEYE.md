@@ -70,6 +70,19 @@ talus) s'étale vers l'extérieur : seule sa base est juste.
 4. L'image affichée est **découpée à ±8 m de l'axe de la route**, bords droits, parallèles à la route : rien de plus loin de la route. Interrupteur
    **« Bords gardés »** (éteint par défaut, 13/11/2026) : vue entière sur ±15 m, sans cette découpe.
    Case **« Sol plat »** (éteinte par défaut, 26/11/2026) : la vue et ses mesures se projettent sur le sol plat, sans relief LiDAR HD ni RGE ALTI, comme près d'un pont (imposée à moins de 15 m d'un pont : cochée et grisée).
+   Case **« Limiter à la zone mesurable »** (éteinte par défaut, 28/11/2026) : pour caler la vue à la main sur l'orthophoto, il faut voir
+   nettement la jonction aux extrémités, que le fondu de l'étape 5 rend floue. Avec la case, la vue est coupée net à **un seul
+   rectangle centré sur la caméra de la photo principale**, quelle que soit la photo (principale ou voisine) qui fournit le pixel : le
+   long de l'axe de la route (`roadAxis`), de −D à +D, D = `width_depth` + `MARGE_ZONE` (0,5 m), où `width_depth` est la butée
+   lointaine de la droite de « Largeur dans la visionneuse » (`d_max` de `Nez._nose_range` : nez du véhicule selon la monture, plus
+   l'écart à la photo suivante et 1 m de recouvrement, `NOSE_FAR_DEFAULT` sans photo suivante connue ; portée par la pose,
+   `_birdeye_of` : une seule source) ; en travers, à `width_reach` (`NOSE_REACH`, 12 m, aussi portée par la pose) + `MARGE_ZONE`, et
+   non plus à ±8 m (la bande de `BEST` est écartée avec la case, comme avec « Bords gardés »). **Sans fondu** dans le rectangle :
+   ni grisé ni transparence, image opaque jusqu'au bord ; la partie au-delà de 15 m (`REACH`), vue d'aucune photo, reste vide. Le
+   choix de la photo (profondeur du shader) et les autres règles de rendu sont inchangés. La coupure s'applique à l'image
+   affichée et à son export GeoTIFF, pas aux rendus de calcul des raccords (étape 2 des raccords, `readRaster`, `readView`), qui
+   gardent leur fondu et leurs zones communes : calage inchangé. Les mesures la suivent (`sourceOf`) : un point hors du rectangle
+   est « hors vue ». Choix retenu dans le navigateur ; décochée, rien ne change, fondu compris.
 5. Au-delà de 10 m, l'image est grisée : 0,6° d'inclinaison y déplacent déjà un point d'environ 50 cm (§ 3).
 
 **Résolution :** l'image affichée fait 2 048 px pour 30 m, soit 1,5 cm par pixel ; l'interrupteur « Haute résolution »
@@ -509,6 +522,7 @@ Valeurs affichées, combinées dans `uncertainty` et `measureError` (voir § 3 e
 | Constante (fichier:ligne) | Valeur | Unité | Rôle | Origine | Effet d'une modification |
 |---|---|---|---|---|---|
 | `SURE` (`dessus.js:24`) | 10 | m | Distance au-delà de laquelle la vue est grisée | mesure (0,6° d'inclinaison y déplacent déjà un point de 45 cm) ; choix d'affichage | Plus grand : zone non grisée plus étendue, moins sûre |
+| `MARGE_ZONE` (`dessus.js:25`) | 0,5 | m | Marge au-delà de la zone de « Largeur dans la visionneuse » (butée `width_depth` en long, portée `width_reach` en travers) où la vue est gardée, option « Limiter à la zone mesurable » | choix d'affichage (demande de l'auteur, 28/11/2026) | Plus grand : rectangle plus étendu, plus flou |
 | `BEST` (`dessus.js:73`) | 4 en long ; 8 en travers | m | Zone idéale d'une largeur, en face de la caméra (demi-longueur, demi-largeur) | mesure (essai du 08/11 : écart à l'orthophoto ≤ 1,5 % jusqu'à 4 m en long, 2 % au-delà) | Plus grand : mesures conseillées moins précises |
 | `SHADE` (`dessus.js:70`) | 3 | facteur | Facteur d'erreur attendue des voisines près de leur propre véhicule (ombre et reflets) | réglage empirique (ville d946f2cf, 09/11/2026 : taches sombres sinon) | Plus petit : taches sombres ; plus grand : sol de voisines évité trop tôt |
 | `CAR` (`dessus.js:66`) | long 5,8 ; large 2,9 ; avant 0 | m | Ellipse au sol du véhicule inconnu (toit, capot, reflets) | réglage empirique (ancienne ellipse ±4,5 × ±2,5 m, reflets jusqu'à ±5,8 × ±2,9 m) | Plus grande : sol caché plus loin du véhicule |

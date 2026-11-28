@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "py"))
 
 import web_app  # noqa: E402
 import web_chutes  # noqa: E402
+import web_nez  # noqa: E402
 import web_profils  # noqa: E402
 from core import calibration, host, precision, roads, triangulation  # noqa: E402
 
@@ -209,6 +210,19 @@ class VueDessus(unittest.TestCase):
         for date, mount in (("2025-06-23T12:39:00Z", 1.93), ("2025-06-24T12:12:00Z", 2.07), ("2025-06-25T09:34:30Z", 2.07)):
             a.item["properties"]["datetime"] = date
             self.assertEqual(json.loads(a.birdeye_pose())["mount"], mount, date)
+
+    def test_butee_zone_mesurable(self):
+        """Option « Limiter à la zone mesurable » : la pose donne la butée lointaine de la droite de largeur (une seule source, Nez._nose_range) :
+        nez du véhicule selon la monture plus NOSE_FAR_DEFAULT sans photo suivante connue ; voisines comprises."""
+        a = self.app_on(360)
+        pose = json.loads(a.birdeye_pose())
+        self.assertEqual(pose["width_depth"], round(web_nez.NOSE_DISTANCE_DEFAULT + web_nez.NOSE_FAR_DEFAULT, 2))
+        self.assertEqual(pose["width_depth"], round(a._nose_range(a._fleet_mount(a.item))[1], 2))
+        self.assertEqual([n["width_depth"] for n in pose["neighbours"]], [pose["width_depth"]])
+        self.assertEqual(pose["width_reach"], web_nez.NOSE_REACH)  # portée latérale de la droite, même source
+        a.item["providers"] = [{"id": App.FLEET_PRODUCER, "roles": ["producer"]}]
+        a.item.setdefault("properties", {})["datetime"] = "2025-07-07T05:56:32Z"  # monture de 2,07 m : nez à 4,8 m
+        self.assertEqual(json.loads(a.birdeye_pose())["width_depth"], round(4.8 + web_nez.NOSE_FAR_DEFAULT, 2))
 
     def test_hors_360(self):
         self.assertEqual(self.app_on(90).birdeye_pose(), "null")

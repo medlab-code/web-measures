@@ -277,6 +277,8 @@ enregistrée en PNG et copiée dans le presse-papiers">
               <input type="checkbox" id="dessus-voisines" class="interrupteur" disabled> Véhicule masqué</label>
             <label title="Garde toute la vue sur 15 m autour de la caméra, au lieu de la couper à 8 m de part et d'autre de l'axe de la route : bas-côtés, trottoirs et façades plus loin, déformés et grisés au-delà de 10 m.">
               <input type="checkbox" id="dessus-bords" class="interrupteur" disabled> Bords gardés</label>
+            <label title="Coupe nettement la vue (sans fondu) à la zone que l'outil de largeur peut mesurer sur la photo, + 0,5 m, pour voir les raccords avec l'orthophoto au bord et caler à la main. Éteint par défaut ; choix retenu dans ce navigateur. Les points hors de la zone sont « hors vue » pour les mesures, et l'export suit l'image coupée.">
+              <input type="checkbox" id="dessus-zone" class="interrupteur" disabled> Limiter à la zone mesurable</label>
             <label title="Projette la vue et ses mesures sur un sol plat (plan horizontal à la hauteur de caméra), sans le relief du LiDAR HD ni du RGE ALTI. Éteint par défaut ; choix retenu dans ce navigateur. Imposé près d'un pont (à moins de 15 m).">
               <input type="checkbox" id="dessus-plat" class="interrupteur" disabled> Sol plat</label>
             <label title="Essai, éteint par défaut : décale la vue en travers pour poser ses lignes de peinture sur celles de l'orthophoto, si l'écart dépasse 30 cm. En cas d'écart, le GPS est à suspecter avant l'orthophoto (D33, 07/2025 : séquence décalée de 0,75 m, l'orthophoto juste à quelques cm près d'après une autre séquence).">

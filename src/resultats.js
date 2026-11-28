@@ -143,7 +143,7 @@ const Resultats = {
       const silent = Boolean(shown && !on && calageFor);  // calage seul : les calculs de la vue, sans elle sur la carte
       if (etat.photo) Carte.showView(map, etat.photo.geometry.coordinates, host.coneHeading(), host.viewFov());  // cône retiré ou remis
       const inMap = (selector) => mapBox.querySelector(selector);  // réglages sur la carte, peut-être détachée
-      for (const id of ["#dessus-fine", "#dessus-voisines", "#dessus-position", "#dessus-bords", "#dessus-sans-cache"])
+      for (const id of ["#dessus-fine", "#dessus-voisines", "#dessus-position", "#dessus-bords", "#dessus-zone", "#dessus-sans-cache"])
         inMap(id).disabled = !on;
       inMap("#dessus-plat").disabled = !on || Boolean(pose?.flat);  // près d'un pont : sol plat imposé, case grisée (src/dessus.js)
       if (!on) {  // allumée : selon la vue (Dessus)

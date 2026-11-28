@@ -10,6 +10,7 @@ import math
 from urllib.parse import urlencode
 
 import web_host
+import web_nez
 import web_profils
 import web_terrain
 import web_tilt
@@ -317,6 +318,8 @@ class Pose:
                 "fleet": any(p.get("id") == self.FLEET_PRODUCER for p in item.get("providers") or []),
                 "roll_defect": self._roll_defect(item), "roll_share": self.ROLL_SHARE,
                 "pitch_default": self._pitch_default(item)[0], "pitch_default_sigma": self._pitch_default(item)[1], "mount": self._fleet_mount(item),
+                "width_reach": web_nez.NOSE_REACH,  # m : portée latérale de la droite de largeur (même source)
+                "width_depth": round(self._nose_range(self._fleet_mount(item), item)[1], 2),  # m : butée lointaine de la droite de largeur (zone mesurable, option « Limiter à la zone mesurable »)
                 "mounts": sorted({p["height"] for p in web_profils.producer_profiles(self.FLEET_PRODUCER)}),  # hauteurs possibles du CD21 (hors campagne connue)
                 "mount_sigma": (self._mount_height(item) or (None, web_profils.fleet_height_sigma(self.FLEET_PRODUCER)))[1], "profile": self._profile_info(item)}
 

@@ -167,6 +167,37 @@ async function open(id, enough = () => false) {
       box.click();
       await soon(() => shown.blob() !== kept && !/en cours|en calcul/.test(etat()), 30000);
     }
+    // « Limiter à la zone mesurable » : rectangle net autour de la photo (sans fondu : plus de pixels semi-transparents), hors vue au-delà,
+    // export suivant l'image ; décochée : image refaite
+    if (name === "ville") {
+      const box = w.document.querySelector("#dessus-zone"), etat = () => w.document.querySelector("#dessus-etat").textContent, before = shown.blob();
+      const faded = async (blob) => {  // pixels ni transparents ni opaques (fondu du grisé)
+        const bitmap = await createImageBitmap(blob), canvas = Object.assign(document.createElement("canvas"), { width: bitmap.width, height: bitmap.height });
+        canvas.getContext("2d").drawImage(bitmap, 0, 0);
+        const data = canvas.getContext("2d").getImageData(0, 0, bitmap.width, bitmap.height).data;
+        let n = 0;
+        for (let k = 3; k < data.length; k += 4) if (data[k] > 0 && data[k] < 255) n++;
+        bitmap.close();
+        return n;
+      };
+      const fadedBefore = await faded(before), layers = Dessus.layersNow().layers, depth = layers[0].pose.width_depth, reach = layers[0].pose.width_reach;
+      await expect(`${name} : zone mesurable proposée, décochée, butée et portée lues de la pose`, !box.disabled && !box.checked && depth > 0 && reach > 0, `${depth} / ${reach}`);
+      box.click();
+      const redrawn = await soon(() => shown.blob() !== before && !/en cours|en calcul/.test(etat()), 30000);
+      await expect(`${name} : zone mesurable, vue refaite`, redrawn);
+      const zone = Dessus.zoneRect(layers), at = (t, u) => [t * zone.axis[0] - u * zone.axis[1], t * zone.axis[1] + u * zone.axis[0]];
+      await expect(`${name} : zone mesurable, points au-delà du rectangle hors vue, en deçà vus`,
+        Dessus.sourceOf(at(zone.along + 0.2, 0), layers) === null && Dessus.sourceOf(at(-zone.along - 0.2, 0), layers) === null
+        && Dessus.sourceOf(at(0, zone.across + 0.2), layers) === null && Dessus.sourceOf(at(zone.along - 0.2, 0), layers) !== null
+        && Dessus.sourceOf(at(0, zone.across - 0.2), layers) !== null, `${zone.along} / ${zone.across} m`);
+      const fadedAfter = await faded(shown.blob()), cut = await Dessus.exportView();
+      await expect(`${name} : zone mesurable, bord net (plus de pixels semi-transparents)`, fadedBefore > 0 && fadedAfter === 0, `${fadedBefore} -> ${fadedAfter} px`);
+      await expect(`${name} : zone mesurable, export de l'image coupée`, cut?.blob.size > 100000, `${cut?.blob.size} octets`);
+      if (redrawn) await fetch(`/capture/dessus-${name.replace(/\W+/g, "-")}-zone.png`, { method: "POST", body: shown.blob() });
+      const kept = shown.blob();
+      box.click();
+      await expect(`${name} : zone mesurable décochée, vue refaite`, await soon(() => shown.blob() !== kept && !/en cours|en calcul/.test(etat()), 30000));
+    }
     // « Sol plat » : étiquette « (option) » et sol plat ; décochée : plus d'« (option) », relief relu (sans recharger la photo)
     {
       const box = w.document.querySelector("#dessus-plat"), etat = () => w.document.querySelector("#dessus-etat").textContent;

@@ -22,6 +22,7 @@ const Dessus = (() => {
   const WGS84_A = 6378137, WGS84_E2 = 0.00669437999014;  // ellipsoïde des positions GPS, comme py/core/triangulation.py
   const REACH = 15;  // m : portée de la vue
   const SURE = 10;  // m : grisé au-delà (0,6° d'inclinaison y déplacent déjà un point de 45 cm)
+  const MARGE_ZONE = 0.5;  // m : marge au-delà de la zone mesurable par « Largeur dans la visionneuse » (option « Limiter à la zone mesurable »)
   const STEP = 1;  // m : maille du terrain (LiDAR HD à 50 cm, toit de la chaussée compris)
   const SIZE = 1024;  // px : côté de l'image des calculs (hauteur, raccords, position), soit 3 cm par pixel
   // px : côté de l'image affichée, 1,5 cm par pixel ; la photo est plus fine jusqu'à 10 m (12 288 px : 0,5 cm en travers et
@@ -165,8 +166,8 @@ const Dessus = (() => {
   /** Couche qui fournit le point (est, nord, m depuis la caméra principale), comme render : la principale partout où son
    * véhicule ne cache pas le sol (sa photo n'est pas retouchée) ; dessous, la voisine de plus faible erreur attendue (tiltError,
    * SHADE fois près de son véhicule) qui le voit ; à défaut la principale ; null hors de la vue. layers[].at : position de sa caméra. */
-  function sourceOf(point, layers) {
-    if (Math.hypot(...point) > REACH) return null;
+  function sourceOf(point, layers, zone = zoneOn ? zoneRect(layers) : null) {
+    if (Math.hypot(...point) > REACH || (zone && !inZone(point, zone))) return null;
     const [main, ...others] = layers;
     if (!others.length || !hidden(point[0], point[1], main.pose)) return main;
     let best = main, bestError = Infinity;
@@ -177,6 +178,17 @@ const Dessus = (() => {
     }
     return best;
   }
+  /** Rectangle gardé par « Limiter à la zone mesurable », centré sur la caméra de la photo principale (layers[0]) : { axis (axe de la
+   * route, roadAxis), along, across } demi-longueur et demi-largeur en m. along : butée lointaine de la droite de « Largeur dans la
+   * visionneuse » (pose.width_depth, py/web_nez.py _nose_range) plus MARGE_ZONE, devant comme derrière ; across : portée latérale de
+   * la droite (pose.width_reach, NOSE_REACH) plus MARGE_ZONE. null si la pose ne les donne pas. */
+  function zoneRect(layers) {
+    const { width_depth: along, width_reach: across } = layers[0].pose;
+    return along > 0 && across > 0 ? { axis: roadAxis(layers), along: along + MARGE_ZONE, across: across + MARGE_ZONE } : null;
+  }
+  /** Le point (est, nord, m depuis la caméra principale) est-il dans le rectangle zone ? Même coupure dans le dessin (FRAGMENT, uniform zone). */
+  const inZone = (point, zone) => Math.abs(point[0] * zone.axis[0] + point[1] * zone.axis[1]) <= zone.along
+    && Math.abs(point[0] * zone.axis[1] - point[1] * zone.axis[0]) <= zone.across;
 
   /** Axe de la route (vecteur unitaire est, nord) : la trajectoire entre les photos voisines, à défaut le cap de la photo,
    * qui peut s'en écarter de quelques degrés (caméra montée de biais). */
@@ -639,6 +651,7 @@ const Dessus = (() => {
     const vec2 frameCentre = vec2(0.0);
     uniform vec4 car;  // sin et cos du cap, centre et demi-longueur du véhicule ; demi-largeur à part
     uniform vec4 band;  // axe de la route (est, nord), demi-longueur et demi-largeur de la bande gardée
+    uniform vec4 zone;  // « Limiter à la zone mesurable » : axe de la route (est, nord), demi-longueur et demi-largeur du rectangle gardé autour de la photo affichée (zone.z = 0 : sans limite, avec fondu)
     uniform float wide, masked, heading, top, reach, sure, height, sigma, shade;
     uniform float outline[128];  // contour du véhicule dans le panorama (OUTLINES), si hasOutline ; sinon ellipse (car, wide)
     uniform int hasOutline;
@@ -662,6 +675,7 @@ const Dessus = (() => {
       float dist = length(ray.xy);
       if (dist > reach || length(world.xy - frameCentre) > reach) discard;  // une voisine ne déborde pas du cercle de la vue
       if (abs(dot(world.xy, band.xy)) > band.z || abs(world.x * band.y - world.y * band.x) > band.w) discard;
+      if (zone.z > 0.0 && (abs(dot(world.xy, zone.xy)) > zone.z || abs(world.x * zone.y - world.y * zone.x) > zone.w)) discard;  // hors du rectangle : net, quelle que soit la photo
       vec3 v = normalize(turn * ray);
       float u = (atan(v.x, v.y) - heading) / (2.0 * PI) + 0.5;
       float along = (ray.x * car.x + ray.y * car.y - car.z) / car.w, across = (ray.x * car.y - ray.y * car.x) / wide;
@@ -682,7 +696,7 @@ const Dessus = (() => {
       vec3 c = texture(pano, vec2(fwidth(a) < fwidth(b) ? a : b, w)).rgb;
       // grisé au-delà de sure m de la photo affichée (centre de la vue) : une voisine plus précise peut fournir un point proche
       // d'elle mais à plus de sure m de sa propre caméra (14f7bc5a : taches transparentes à 7 m) ; photo seule : sa caméra
-      float far = smoothstep(sure, reach, masked > 0.5 ? length(world.xy - frameCentre) : dist);
+      float far = zone.z > 0.0 ? 0.0 : smoothstep(sure, reach, masked > 0.5 ? length(world.xy - frameCentre) : dist);  // rectangle net : ni grisé ni transparence
       color = vec4(mix(c, vec3(dot(c, vec3(0.3, 0.59, 0.11))), far), 1.0 - 0.5 * far);
       if (stage == 2) { if (hidden || far > 0.02) discard; color.a = 1.0; }
       if (stage == 3) color = vec4(index / 255.0, 0.0, 0.0, 1.0);
@@ -727,8 +741,10 @@ const Dessus = (() => {
   /** Dessine la vue : canevas de size px (SIZE par défaut), nord en haut, ±REACH m autour de la caméra de layers[0].
    * layers : [{ pano, pose }] (photo principale d'abord) ; terrain : altitudes du maillage (voir readTerrain), ou null pour
    * un plan horizontal ; frame : pose de la photo qui centre l'image et le maillage (par défaut, la principale) ; band : axe
-   * de la route (vecteur unitaire est, nord) pour ne garder que la bande de la zone idéale (BEST), ou null. */
-  function render(layers, terrain, frame = layers[0].pose, band = null, size = SIZE, stage = 0, into = null, reach = REACH) {
+   * de la route (vecteur unitaire est, nord) pour ne garder que la bande de la zone idéale (BEST), ou null ; zone : rectangle de
+   * zoneRect pour ne garder que lui, net (sans grisé ni transparence), toutes photos confondues, ou null (image affichée seulement,
+   * pas les rendus de calcul des raccords, qui gardent leur fondu et leurs zones communes). */
+  function render(layers, terrain, frame = layers[0].pose, band = null, size = SIZE, stage = 0, into = null, reach = REACH, zone = null) {
     const g = context();
     if (!into && g.canvas.width !== size) g.canvas.width = g.canvas.height = size;
     g.bindFramebuffer(g.FRAMEBUFFER, into ? into.frame : null);  // into : cible (voir target), sinon le canevas
@@ -773,6 +789,7 @@ const Dessus = (() => {
     g.uniform4f(uniform("band"), band ? band[0] : 0, band ? band[1] : 1, band ? band[2] ?? BEST.along : 1e6,
       band ? band[3] ?? BEST.wide : 1e6);
     g.uniform1i(uniform("bend"), 1);
+    g.uniform4f(uniform("zone"), zone ? zone.axis[0] : 0, zone ? zone.axis[1] : 0, zone ? zone.along : 0, zone ? zone.across : 0);
     for (const [k, { pano, pose, fix, bend }] of layers.entries()) {
       g.uniform1i(uniform("hasBend"), bend ? 1 : 0);
       if (bend) {
@@ -892,8 +909,8 @@ const Dessus = (() => {
 
   /** Comme render, raccords fondus : tout par la carte graphique, sauf les bandes basses (LOW x LOW), lues et floutées ici.
    * shortcut: deux voisines au plus (précédente et suivante), à étendre si la vue en prend davantage */
-  function renderBlended(layers, terrain, frame = layers[0].pose, band = null, size = SIZE) {
-    if (layers.length < 2 || layers.length > 3 || !readsBack()) return render(layers, terrain, frame, band, size);
+  function renderBlended(layers, terrain, frame = layers[0].pose, band = null, size = SIZE, zone = null) {
+    if (layers.length < 2 || layers.length > 3 || !readsBack()) return render(layers, terrain, frame, band, size, 0, null, REACH, zone);
     const g = context(), level = Math.log2(size / LOW), k = size / LOW;
     const radius = (sigma) => Math.max(1, Math.round(sigma * LOW / (2 * REACH) / 1.7));  // 3 boîtes : σ ≈ 1,7 r
     const blur = (a, r) => { let b = a; for (let pass = 0; pass < 3; pass++) b = boxBlur(b, r, LOW); return b; };
@@ -935,8 +952,8 @@ const Dessus = (() => {
       return texture;
     });
     const winner = target(size), shown = target(size);
-    render(layers, terrain, frame, band, size, 3, winner);
-    render(layers, terrain, frame, band, size, 0, shown);
+    render(layers, terrain, frame, band, size, 3, winner, REACH, zone);
+    render(layers, terrain, frame, band, size, 0, shown, REACH, zone);
     // Mélange sur le canevas
     if (g.canvas.width !== size) g.canvas.width = g.canvas.height = size;
     const program = blendProgram(), corners = g.createBuffer(), place = g.getAttribLocation(program, "corner");
@@ -1815,6 +1832,13 @@ const Dessus = (() => {
   const withNeighbours = () => neighboursOn && !shown?.silent;
   // « Bords gardés » (éteint par défaut) : vue entière sur ±REACH m, sans la découpe à ±BEST.wide m de l'axe de la route
   let edgesOn = false;
+  // « Limiter à la zone mesurable » (éteint par défaut, demande de l'auteur, 28/11/2026) : au loin la vue est floue, ce qui gêne les
+  // calages à la main sur l'orthophoto : la vue est coupée net (sans le fondu de SURE à REACH) à un rectangle centré sur la photo
+  // principale, de la zone de « Largeur dans la visionneuse » (pose.width_depth et width_reach, plus MARGE_ZONE
+  // le long de l'axe, devant comme derrière), les voisines, plus proches, prennent le relais. Choix retenu dans le navigateur ; clé
+  // hors « web-measures/dessus- » : « Sans cache (essais) » ne l'efface pas.
+  const ZONE_KEY = "web-measures/zone-mesurable";
+  let zoneOn = false;
   // « Sol plat » (éteint par défaut, demande de l'auteur, 26/11/2026) : la vue et ses mesures se projettent sur le sol plat
   // (plan horizontal à la hauteur de caméra), sans relief LiDAR HD ni RGE ALTI, comme près d'un pont. Choix retenu dans le
   // navigateur ; clé hors « web-measures/dessus- » : « Sans cache (essais) » ne l'efface pas. Prédicat unique : flatGround.
@@ -2243,6 +2267,14 @@ const Dessus = (() => {
       edgesOn = event.target.checked;
       redo("Bords gardés…");
     });
+    try { zoneOn = localStorage.getItem(ZONE_KEY) === "1"; } catch { /* sans stockage : décoché */ }
+    $("#dessus-zone").checked = zoneOn;
+    $("#dessus-zone").addEventListener("change", (event) => {
+      zoneOn = event.target.checked;
+      try { localStorage.setItem(ZONE_KEY, zoneOn ? "1" : "0"); } catch { /* pour cette page seulement */ }
+      cancelStart();  // le départ a été pris sur l'autre image
+      redo("Zone mesurable…");
+    });
     // « Sol plat » : choix retenu ; la vue est refaite sur le sol plat, ou le relief relu s'il est décoché
     try { flatOption = localStorage.getItem(FLAT_KEY) === "1"; } catch { /* sans stockage : décoché */ }
     showFlatBox(null);
@@ -2520,8 +2552,11 @@ const Dessus = (() => {
     // découpée à ±8 m de l'axe de la route (BEST.wide, sauf « Bords gardés »), bords parallèles à la route ; fondue
     // aux raccords avec les voisines (« Véhicule masqué »)
     if (!shown.silent) {
-      const band = edgesOn ? null : [...axis, 1e6, BEST.wide];
-      const canvas = (withNeighbours() ? renderBlended : render)(layers, shown.terrain, layers[0].pose, band, fine ? FINE_SIZE : SHOWN_SIZE);
+      const zone = zoneOn ? zoneRect(layers) : null;  // rectangle net de la zone mesurable : image affichée seulement, sans la bande de ±8 m
+      const band = edgesOn || zone ? null : [...axis, 1e6, BEST.wide];
+      const size = fine ? FINE_SIZE : SHOWN_SIZE;
+      const canvas = withNeighbours() ? renderBlended(layers, shown.terrain, layers[0].pose, band, size, zone)
+        : render(layers, shown.terrain, layers[0].pose, band, size, 0, null, REACH, zone);
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
       if (mine !== drawing || !shown) return;
       const old = shown.url, url = shown.url = URL.createObjectURL(blob);
@@ -2950,7 +2985,7 @@ const Dessus = (() => {
     hasStart: () => trace.length > 0, measuring: () => measuringOn, setTool, tool: () => tool,
     layersNow: () => shown && { layers: readyLayers(), terrain: shown.terrain, height: shown.height, joins: shown.joins,
       outline: outlines.get(shown.sequence), locatedWith: shown.locatedWith },
-    view, hidden, uncertainty, measureError, shownError, groundUp, pitchDefaultOf, roadAxis, sourceOf, toLocal, toLonLat, estimateHeight,
+    view, hidden, uncertainty, zoneRect, measureError, shownError, groundUp, pitchDefaultOf, roadAxis, sourceOf, toLocal, toLonLat, estimateHeight,
     diagnoseRelief, profileLine, heightLine, HEIGHT_ALERT, render, renderBlended, panoTexture, loadPano, readOrtho, readView, roadHeading, orthoShift, linesPitch, REACH, SIZE,
   };
 })();
