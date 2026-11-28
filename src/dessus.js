@@ -1481,20 +1481,38 @@ const Dessus = (() => {
     return out;
   }
 
-  /** Moindres carrés (lignes X, valeurs y, a priori ridge ajouté à la diagonale), par les équations normales, ou null. */
+  /** Moindres carrés (lignes X, valeurs y, a priori ridge ajouté à la diagonale), par les équations normales, ou null.
+   * Équations accumulées dans un Float64Array (matrice augmentée [XᵀX + ridge | Xᵀy], triangle supérieur puis symétrie),
+   * résolues par élimination de Gauss-Jordan à pivot partiel ; pivot < 1e-12 : matrice singulière, null. Appelée des
+   * milliers de fois par affichage (tangage lu sur les lignes) : pas de tableaux intermédiaires. */
   function leastSquares(X, y, ridge = null) {
-    const n = X[0].length;
-    // Matrice augmentée [XᵀX + ridge | Xᵀy]
-    const A = Array.from({ length: n }, (_, i) => [
-      ...Array.from({ length: n }, (_, j) => X.reduce((t, r) => t + r[i] * r[j], 0) + (ridge && i === j ? ridge[i] : 0)),
-      X.reduce((t, r, k) => t + r[i] * y[k], 0)]);
-    for (let c = 0; c < n; c++) {
-      const p = A.slice(c).reduce((b, r, k) => (Math.abs(r[c]) > Math.abs(A[b][c]) ? c + k : b), c);
-      [A[c], A[p]] = [A[p], A[c]];
-      if (Math.abs(A[c][c]) < 1e-12) return null;
-      for (let r = 0; r < n; r++) if (r !== c) { const f = A[r][c] / A[c][c]; for (let k = c; k <= n; k++) A[r][k] -= f * A[c][k]; }
+    const n = X[0].length, N = X.length, W = n + 1, A = new Float64Array(n * W);
+    for (let k = 0; k < N; k++) {
+      const r = X[k], yk = y[k];
+      for (let i = 0; i < n; i++) {
+        const ri = r[i];
+        if (ri === 0) continue;
+        const o = i * W;
+        for (let j = i; j < n; j++) A[o + j] += ri * r[j];
+        A[o + n] += ri * yk;
+      }
     }
-    return A.map((r, i) => r[n] / r[i]);
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < i; j++) A[i * W + j] = A[j * W + i];
+      if (ridge) A[i * W + i] += ridge[i];
+    }
+    for (let c = 0; c < n; c++) {
+      let p = c;
+      for (let r = c + 1; r < n; r++) if (Math.abs(A[r * W + c]) > Math.abs(A[p * W + c])) p = r;
+      if (p !== c) for (let k = 0; k < W; k++) { const t = A[c * W + k]; A[c * W + k] = A[p * W + k]; A[p * W + k] = t; }
+      if (Math.abs(A[c * W + c]) < 1e-12) return null;
+      for (let r = 0; r < n; r++) {
+        if (r === c) continue;
+        const f = A[r * W + c] / A[c * W + c];
+        if (f !== 0) for (let k = c; k < W; k++) A[r * W + k] -= f * A[c * W + k];
+      }
+    }
+    return Array.from({ length: n }, (_, i) => A[i * W + n] / A[i * W + i]);
   }
 
   /** Pose relative de la voisine other sur la principale main (rasters : readRaster des deux ; ax : axe de la route) :
